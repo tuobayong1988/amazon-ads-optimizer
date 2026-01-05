@@ -331,3 +331,70 @@ export const amazonApiCredentials = mysqlTable("amazon_api_credentials", {
 
 export type AmazonApiCredential = typeof amazonApiCredentials.$inferSelect;
 export type InsertAmazonApiCredential = typeof amazonApiCredentials.$inferInsert;
+
+
+/**
+ * Negative Keywords - 否定关键词
+ * 支持广告组层级（关键词广告）和活动层级（产品定位广告）
+ */
+export const negativeKeywords = mysqlTable("negative_keywords", {
+  id: int("id").autoincrement().primaryKey(),
+  accountId: int("accountId").notNull(),
+  campaignId: int("campaignId").notNull(),
+  adGroupId: int("adGroupId"), // null表示活动层级否定
+  // 否定层级：campaign = 活动层级，ad_group = 广告组层级
+  negativeLevel: mysqlEnum("negativeLevel", ["campaign", "ad_group"]).notNull(),
+  // 否定类型
+  negativeType: mysqlEnum("negativeType", ["keyword", "product"]).notNull(),
+  // 否定词/ASIN
+  negativeText: varchar("negativeText", { length: 500 }).notNull(),
+  matchType: mysqlEnum("negativeMatchType", ["negative_exact", "negative_phrase"]).notNull(),
+  // 来源信息
+  source: mysqlEnum("negativeSource", ["manual", "ngram_analysis", "traffic_conflict", "funnel_migration"]).default("manual"),
+  sourceReason: text("sourceReason"), // 自动生成的原因说明
+  // 状态
+  status: mysqlEnum("negativeStatus", ["active", "pending", "removed"]).default("active"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type NegativeKeyword = typeof negativeKeywords.$inferSelect;
+export type InsertNegativeKeyword = typeof negativeKeywords.$inferInsert;
+
+/**
+ * Search Terms - 搜索词报告数据
+ * 用于N-Gram分析、漏斗迁移和流量冲突检测
+ */
+export const searchTerms = mysqlTable("search_terms", {
+  id: int("id").autoincrement().primaryKey(),
+  accountId: int("accountId").notNull(),
+  campaignId: int("campaignId").notNull(),
+  adGroupId: int("adGroupId").notNull(),
+  // 搜索词信息
+  searchTerm: varchar("searchTerm", { length: 500 }).notNull(),
+  // 关联的投放词（关键词或ASIN）
+  targetType: mysqlEnum("searchTermTargetType", ["keyword", "product_target"]).notNull(),
+  targetId: int("searchTermTargetId"),
+  targetText: varchar("targetText", { length: 500 }),
+  matchType: varchar("searchTermMatchType", { length: 32 }),
+  // 绩效数据
+  impressions: int("searchTermImpressions").default(0),
+  clicks: int("searchTermClicks").default(0),
+  spend: decimal("searchTermSpend", { precision: 10, scale: 2 }).default("0.00"),
+  sales: decimal("searchTermSales", { precision: 10, scale: 2 }).default("0.00"),
+  orders: int("searchTermOrders").default(0),
+  // 计算指标
+  acos: decimal("searchTermAcos", { precision: 5, scale: 2 }),
+  roas: decimal("searchTermRoas", { precision: 10, scale: 2 }),
+  ctr: decimal("searchTermCtr", { precision: 5, scale: 4 }),
+  cvr: decimal("searchTermCvr", { precision: 5, scale: 4 }),
+  cpc: decimal("searchTermCpc", { precision: 10, scale: 2 }),
+  // 报告日期范围
+  reportStartDate: timestamp("reportStartDate"),
+  reportEndDate: timestamp("reportEndDate"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type SearchTerm = typeof searchTerms.$inferSelect;
+export type InsertSearchTerm = typeof searchTerms.$inferInsert;

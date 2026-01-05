@@ -1,31 +1,165 @@
 /**
  * 广告自动化核心算法模块
  * 基于亚马逊运营流程文档实现的自动化功能
+ * 
+ * 重要说明：
+ * - 关键词广告（Keyword Targeting）：否定词可以在广告组层级或活动层级设置
+ * - 产品定位广告（Product Targeting）：否定词只能在活动层级设置
  */
 
 // ============================================
-// 1. N-Gram词根分析与批量降噪
+// 类型定义
 // ============================================
 
-interface SearchTermData {
+export interface SearchTermData {
   searchTerm: string;
   clicks: number;
   conversions: number;
   spend: number;
   sales: number;
   impressions: number;
+  // 新增：广告类型信息
+  campaignType?: 'sp_auto' | 'sp_manual' | 'sb' | 'sd';
+  targetingType?: 'keyword' | 'product'; // 关键词定位 or 产品定位
 }
 
-interface NgramAnalysisResult {
+export interface NgramAnalysisResult {
   ngram: string;
   frequency: number;
   totalClicks: number;
   totalConversions: number;
+  totalSpend: number;
   conversionRate: number;
   isNegativeCandidate: boolean;
   reason: string;
   affectedTerms: string[];
+  // 新增：否定层级建议
+  suggestedNegativeLevel: 'ad_group' | 'campaign';
+  hasProductTargeting: boolean; // 是否包含产品定位广告的搜索词
 }
+
+export interface CampaignSearchTerm {
+  searchTerm: string;
+  campaignId: number;
+  campaignName: string;
+  campaignType: 'sp_auto' | 'sp_manual' | 'sb' | 'sd';
+  targetingType: 'keyword' | 'product'; // 关键词定位 or 产品定位
+  matchType: 'broad' | 'phrase' | 'exact' | 'auto' | 'product';
+  clicks: number;
+  conversions: number;
+  spend: number;
+  sales: number;
+  roas: number;
+  acos: number;
+  cpc: number;
+  adGroupId?: number;
+  adGroupName?: string;
+}
+
+export interface MigrationSuggestion {
+  searchTerm: string;
+  fromCampaign: string;
+  fromMatchType: 'broad' | 'phrase' | 'exact' | 'auto' | 'product';
+  toMatchType: 'broad' | 'phrase' | 'exact';
+  reason: string;
+  suggestedBid: number;
+  currentCpc: number;
+  conversions: number;
+  roas: number;
+  priority: 'high' | 'medium' | 'low';
+  // 新增：原活动否定建议
+  negativeInOriginal: boolean;
+  negativeLevel: 'ad_group' | 'campaign'; // 产品定位只能campaign级别
+}
+
+export interface TrafficConflict {
+  searchTerm: string;
+  campaigns: {
+    campaignId: number;
+    campaignName: string;
+    campaignType: 'sp_auto' | 'sp_manual' | 'sb' | 'sd';
+    targetingType: 'keyword' | 'product';
+    matchType: string;
+    clicks: number;
+    conversions: number;
+    spend: number;
+    sales: number;
+    roas: number;
+    ctr: number;
+    cvr: number;
+  }[];
+  recommendation: {
+    winnerCampaign: string;
+    winnerCampaignType: 'sp_auto' | 'sp_manual' | 'sb' | 'sd';
+    winnerTargetingType: 'keyword' | 'product';
+    loserCampaigns: {
+      name: string;
+      campaignType: 'sp_auto' | 'sp_manual' | 'sb' | 'sd';
+      targetingType: 'keyword' | 'product';
+      negativeLevel: 'ad_group' | 'campaign'; // 根据广告类型决定
+    }[];
+    action: 'negative_exact' | 'negative_phrase';
+    reason: string;
+  };
+  totalWastedSpend: number;
+}
+
+export interface BidAdjustmentSuggestion {
+  targetId: number;
+  targetType: 'keyword' | 'product_target';
+  targetName: string;
+  campaignName: string;
+  currentBid: number;
+  suggestedBid: number;
+  adjustmentPercent: number;
+  adjustmentType: 'increase' | 'decrease' | 'maintain';
+  reason: string;
+  priority: 'urgent' | 'high' | 'medium' | 'low';
+  metrics: {
+    impressions: number;
+    clicks: number;
+    conversions: number;
+    spend: number;
+    sales: number;
+    acos: number;
+    roas: number;
+    ctr: number;
+    cvr: number;
+  };
+}
+
+export interface BidTarget {
+  id: number;
+  type: 'keyword' | 'product_target';
+  name: string;
+  campaignId: number;
+  campaignName: string;
+  currentBid: number;
+  impressions: number;
+  clicks: number;
+  conversions: number;
+  spend: number;
+  sales: number;
+  targetAcos?: number;
+  targetRoas?: number;
+  lastBidChange?: Date;
+  daysSinceLastChange?: number;
+}
+
+export type SearchTermRelevance = 'high' | 'weak' | 'seemingly_related' | 'unrelated';
+
+export interface SearchTermClassification {
+  searchTerm: string;
+  relevance: SearchTermRelevance;
+  confidence: number;
+  reason: string;
+  suggestedAction: 'target' | 'monitor' | 'negative_phrase' | 'negative_exact';
+  matchTypeSuggestion?: 'exact' | 'phrase' | 'broad';
+}
+
+// ============================================
+// 1. N-Gram词根分析与批量降噪
+// ============================================
 
 /**
  * 将搜索词拆分为N-gram词根
@@ -57,6 +191,10 @@ export function generateNgrams(tokens: string[], maxN: number = 2): string[] {
 /**
  * N-Gram词根分析 - 识别高频无效词根
  * 分析"1点击0转化"搜索词的共同特征
+ * 
+ * 重要：会根据搜索词来源的广告类型决定否定层级
+ * - 关键词广告的搜索词：可以在广告组层级否定
+ * - 产品定位广告的搜索词：只能在活动层级否定
  */
 export function analyzeNgrams(searchTerms: SearchTermData[]): NgramAnalysisResult[] {
   // 筛选出无效搜索词（有点击但无转化）
@@ -69,25 +207,34 @@ export function analyzeNgrams(searchTerms: SearchTermData[]): NgramAnalysisResul
     frequency: number;
     totalClicks: number;
     totalConversions: number;
+    totalSpend: number;
     terms: string[];
+    hasProductTargeting: boolean;
   }> = new Map();
   
   for (const term of ineffectiveTerms) {
     const tokens = tokenize(term.searchTerm);
     const ngrams = generateNgrams(tokens);
+    const isProductTargeting = term.targetingType === 'product';
     
     for (const ngram of ngrams) {
       const existing = ngramStats.get(ngram) || {
         frequency: 0,
         totalClicks: 0,
         totalConversions: 0,
-        terms: []
+        totalSpend: 0,
+        terms: [],
+        hasProductTargeting: false
       };
       
       existing.frequency++;
       existing.totalClicks += term.clicks;
       existing.totalConversions += term.conversions;
+      existing.totalSpend += term.spend;
       existing.terms.push(term.searchTerm);
+      if (isProductTargeting) {
+        existing.hasProductTargeting = true;
+      }
       
       ngramStats.set(ngram, existing);
     }
@@ -117,7 +264,7 @@ export function analyzeNgrams(searchTerms: SearchTermData[]): NgramAnalysisResul
       
       if (conversionRate === 0 && stats.frequency >= 5) {
         isNegativeCandidate = true;
-        reason = `出现${stats.frequency}次，${stats.totalClicks}次点击，0转化`;
+        reason = `出现${stats.frequency}次，${stats.totalClicks}次点击，0转化，浪费$${stats.totalSpend.toFixed(2)}`;
       } else if (isKnownNegative) {
         isNegativeCandidate = true;
         reason = `匹配已知负面词根模式`;
@@ -126,15 +273,22 @@ export function analyzeNgrams(searchTerms: SearchTermData[]): NgramAnalysisResul
         reason = `转化率仅${(conversionRate * 100).toFixed(2)}%，低于1%阈值`;
       }
       
+      // 决定否定层级
+      // 如果包含产品定位广告的搜索词，建议在活动层级否定
+      const suggestedNegativeLevel = stats.hasProductTargeting ? 'campaign' : 'ad_group';
+      
       results.push({
         ngram,
         frequency: stats.frequency,
         totalClicks: stats.totalClicks,
         totalConversions: stats.totalConversions,
+        totalSpend: stats.totalSpend,
         conversionRate,
         isNegativeCandidate,
         reason,
-        affectedTerms: stats.terms
+        affectedTerms: stats.terms,
+        suggestedNegativeLevel,
+        hasProductTargeting: stats.hasProductTargeting
       });
     }
   }
@@ -147,37 +301,14 @@ export function analyzeNgrams(searchTerms: SearchTermData[]): NgramAnalysisResul
 // 2. 广告漏斗自动迁移系统
 // ============================================
 
-interface CampaignSearchTerm {
-  searchTerm: string;
-  campaignId: number;
-  campaignName: string;
-  matchType: 'broad' | 'phrase' | 'exact';
-  clicks: number;
-  conversions: number;
-  spend: number;
-  sales: number;
-  roas: number;
-  acos: number;
-  cpc: number;
-}
-
-interface MigrationSuggestion {
-  searchTerm: string;
-  fromCampaign: string;
-  fromMatchType: 'broad' | 'phrase' | 'exact';
-  toMatchType: 'broad' | 'phrase' | 'exact';
-  reason: string;
-  suggestedBid: number;
-  currentCpc: number;
-  conversions: number;
-  roas: number;
-  priority: 'high' | 'medium' | 'low';
-}
-
 /**
  * 广告漏斗迁移分析
  * 广泛匹配 → 短语匹配：3次以上成交
  * 短语匹配 → 精准匹配：10次以上成交且ROAS>5
+ * 
+ * 重要：迁移后需要在原活动否定该词
+ * - 关键词广告：可以在广告组层级否定
+ * - 产品定位广告：只能在活动层级否定
  */
 export function analyzeFunnelMigration(
   searchTerms: CampaignSearchTerm[],
@@ -194,8 +325,11 @@ export function analyzeFunnelMigration(
   const suggestions: MigrationSuggestion[] = [];
   
   for (const term of searchTerms) {
+    // 决定否定层级
+    const negativeLevel = term.targetingType === 'product' ? 'campaign' : 'ad_group';
+    
     // 广泛匹配 → 短语匹配
-    if (term.matchType === 'broad') {
+    if (term.matchType === 'broad' || term.matchType === 'auto') {
       if (term.conversions >= config.broadToPhrase.minConversions && 
           term.roas >= config.broadToPhrase.minRoas) {
         const suggestedBid = term.cpc * (1 + config.bidIncreasePercent / 100);
@@ -203,14 +337,16 @@ export function analyzeFunnelMigration(
         suggestions.push({
           searchTerm: term.searchTerm,
           fromCampaign: term.campaignName,
-          fromMatchType: 'broad',
+          fromMatchType: term.matchType,
           toMatchType: 'phrase',
           reason: `${term.conversions}次成交，ROAS ${term.roas.toFixed(2)}，符合迁移条件`,
           suggestedBid: Math.round(suggestedBid * 100) / 100,
           currentCpc: term.cpc,
           conversions: term.conversions,
           roas: term.roas,
-          priority: term.conversions >= 5 ? 'high' : 'medium'
+          priority: term.conversions >= 5 ? 'high' : 'medium',
+          negativeInOriginal: true,
+          negativeLevel
         });
       }
     }
@@ -231,9 +367,29 @@ export function analyzeFunnelMigration(
           currentCpc: term.cpc,
           conversions: term.conversions,
           roas: term.roas,
-          priority: term.roas >= 8 ? 'high' : 'medium'
+          priority: term.roas >= 8 ? 'high' : 'medium',
+          negativeInOriginal: true,
+          negativeLevel
         });
       }
+    }
+    
+    // 产品定位广告的高转化搜索词 → 建议创建关键词广告
+    if (term.targetingType === 'product' && term.conversions >= 5 && term.roas >= 3) {
+      suggestions.push({
+        searchTerm: term.searchTerm,
+        fromCampaign: term.campaignName,
+        fromMatchType: 'product',
+        toMatchType: 'phrase', // 建议先用短语匹配测试
+        reason: `产品定位广告中发现高转化搜索词（${term.conversions}次成交），建议创建关键词广告`,
+        suggestedBid: Math.round(term.cpc * 1.1 * 100) / 100,
+        currentCpc: term.cpc,
+        conversions: term.conversions,
+        roas: term.roas,
+        priority: 'high',
+        negativeInOriginal: false, // 产品定位广告不需要否定这个搜索词
+        negativeLevel: 'campaign' // 如果需要否定，只能在活动层级
+      });
     }
   }
   
@@ -250,32 +406,13 @@ export function analyzeFunnelMigration(
 // 3. 流量隔离与冲突检测
 // ============================================
 
-interface TrafficConflict {
-  searchTerm: string;
-  campaigns: {
-    campaignId: number;
-    campaignName: string;
-    matchType: string;
-    clicks: number;
-    conversions: number;
-    spend: number;
-    sales: number;
-    roas: number;
-    ctr: number;
-    cvr: number;
-  }[];
-  recommendation: {
-    winnerCampaign: string;
-    loserCampaigns: string[];
-    action: 'negative_exact' | 'negative_phrase';
-    reason: string;
-  };
-  totalWastedSpend: number;
-}
-
 /**
  * 流量冲突检测
  * 检测同一搜索词在多个广告活动中出现的情况
+ * 
+ * 重要：根据失败活动的类型决定否定层级
+ * - 关键词广告：可以在广告组层级否定
+ * - 产品定位广告：只能在活动层级否定
  */
 export function detectTrafficConflicts(
   searchTerms: CampaignSearchTerm[]
@@ -306,6 +443,8 @@ export function detectTrafficConflicts(
         return {
           campaignId: t.campaignId,
           campaignName: t.campaignName,
+          campaignType: t.campaignType,
+          targetingType: t.targetingType,
           matchType: t.matchType,
           clicks: t.clicks,
           conversions: t.conversions,
@@ -319,18 +458,28 @@ export function detectTrafficConflicts(
       });
       
       // 找出表现最好的活动
-      campaignScores.sort((a: { score: number }, b: { score: number }) => b.score - a.score);
+      campaignScores.sort((a, b) => b.score - a.score);
       const winner = campaignScores[0];
       const losers = campaignScores.slice(1);
       
       // 计算浪费的花费（表现差的活动的花费）
-      const wastedSpend = losers.reduce((sum: number, l: typeof campaignScores[0]) => sum + l.spend, 0);
+      const wastedSpend = losers.reduce((sum, l) => sum + l.spend, 0);
+      
+      // 为每个失败活动决定否定层级
+      const loserCampaigns = losers.map(l => ({
+        name: l.campaignName,
+        campaignType: l.campaignType,
+        targetingType: l.targetingType,
+        negativeLevel: l.targetingType === 'product' ? 'campaign' as const : 'ad_group' as const
+      }));
       
       conflicts.push({
         searchTerm,
-        campaigns: campaignScores.map((c: typeof campaignScores[0]) => ({
+        campaigns: campaignScores.map(c => ({
           campaignId: c.campaignId,
           campaignName: c.campaignName,
+          campaignType: c.campaignType,
+          targetingType: c.targetingType,
           matchType: c.matchType,
           clicks: c.clicks,
           conversions: c.conversions,
@@ -342,7 +491,9 @@ export function detectTrafficConflicts(
         })),
         recommendation: {
           winnerCampaign: winner.campaignName,
-          loserCampaigns: losers.map((l: typeof campaignScores[0]) => l.campaignName),
+          winnerCampaignType: winner.campaignType,
+          winnerTargetingType: winner.targetingType,
+          loserCampaigns,
           action: 'negative_exact',
           reason: `${winner.campaignName}表现最佳（ROAS: ${winner.roas.toFixed(2)}, CVR: ${(winner.cvr * 100).toFixed(1)}%），建议在其他活动中否定此词`
         },
@@ -358,48 +509,6 @@ export function detectTrafficConflicts(
 // ============================================
 // 4. 智能竞价调整系统
 // ============================================
-
-interface BidAdjustmentSuggestion {
-  targetId: number;
-  targetType: 'keyword' | 'product_target';
-  targetName: string;
-  campaignName: string;
-  currentBid: number;
-  suggestedBid: number;
-  adjustmentPercent: number;
-  adjustmentType: 'increase' | 'decrease' | 'maintain';
-  reason: string;
-  priority: 'urgent' | 'high' | 'medium' | 'low';
-  metrics: {
-    impressions: number;
-    clicks: number;
-    conversions: number;
-    spend: number;
-    sales: number;
-    acos: number;
-    roas: number;
-    ctr: number;
-    cvr: number;
-  };
-}
-
-interface BidTarget {
-  id: number;
-  type: 'keyword' | 'product_target';
-  name: string;
-  campaignId: number;
-  campaignName: string;
-  currentBid: number;
-  impressions: number;
-  clicks: number;
-  conversions: number;
-  spend: number;
-  sales: number;
-  targetAcos?: number;
-  targetRoas?: number;
-  lastBidChange?: Date;
-  daysSinceLastChange?: number;
-}
 
 /**
  * 智能竞价调整分析
@@ -525,17 +634,6 @@ export function analyzeBidAdjustments(
 // 5. 搜索词智能分类
 // ============================================
 
-type SearchTermRelevance = 'high' | 'weak' | 'seemingly_related' | 'unrelated';
-
-interface SearchTermClassification {
-  searchTerm: string;
-  relevance: SearchTermRelevance;
-  confidence: number;
-  reason: string;
-  suggestedAction: 'target' | 'monitor' | 'negative_phrase' | 'negative_exact';
-  matchTypeSuggestion?: 'exact' | 'phrase' | 'broad';
-}
-
 /**
  * 搜索词智能分类
  * 基于产品关键词和搜索词特征进行分类
@@ -611,47 +709,65 @@ export function classifySearchTerms(
     if (hasNegativePattern) {
       relevance = 'unrelated';
       confidence = 0.9;
-      reason = '包含负面词根模式';
+      reason = '包含负面词根（如cheap, free, used等）';
       suggestedAction = 'negative_phrase';
     }
-    // 检查属性不匹配（看似相关实则无关）
+    // 检查属性不匹配
     else if (attributeMismatchCheck(term)) {
       relevance = 'seemingly_related';
-      confidence = 0.8;
-      reason = '产品属性（颜色/尺寸）不匹配';
+      confidence = 0.75;
+      reason = '产品属性不匹配（颜色/尺寸）';
       suggestedAction = 'negative_exact';
     }
-    // 检查是否包含产品关键词
-    else {
-      const matchedKeywords = termTokens.filter(t => keywordSet.has(t));
-      const categoryMatch = categoryWords.some(cw => termLower.includes(cw));
-      
-      if (matchedKeywords.length >= 2 || (matchedKeywords.length >= 1 && categoryMatch)) {
+    // 检查是否精确匹配产品关键词
+    else if (keywordSet.has(termLower)) {
+      relevance = 'high';
+      confidence = 0.95;
+      reason = '精确匹配产品关键词';
+      suggestedAction = 'target';
+      matchTypeSuggestion = 'exact';
+    }
+    // 检查是否包含品牌词
+    else if (termLower.includes(brandLower)) {
+      relevance = 'high';
+      confidence = 0.9;
+      reason = '包含品牌词';
+      suggestedAction = 'target';
+      matchTypeSuggestion = 'phrase';
+    }
+    // 检查是否包含类目词
+    else if (categoryWords.some(cw => termLower.includes(cw))) {
+      const matchedWords = categoryWords.filter(cw => termLower.includes(cw));
+      if (matchedWords.length >= 2) {
         relevance = 'high';
-        confidence = 0.85;
-        reason = `匹配${matchedKeywords.length}个产品关键词`;
+        confidence = 0.8;
+        reason = '包含多个类目关键词';
         suggestedAction = 'target';
-        
-        // 判断匹配类型建议
-        if (termTokens.length <= 3 && matchedKeywords.length === termTokens.length) {
-          matchTypeSuggestion = 'exact';
-        } else if (categoryMatch) {
-          matchTypeSuggestion = 'phrase';
-        } else {
-          matchTypeSuggestion = 'broad';
-        }
-      }
-      else if (matchedKeywords.length === 1 || categoryMatch) {
+        matchTypeSuggestion = 'phrase';
+      } else {
         relevance = 'weak';
         confidence = 0.6;
-        reason = '部分匹配产品关键词';
+        reason = '仅包含部分类目关键词';
         suggestedAction = 'monitor';
         matchTypeSuggestion = 'broad';
       }
-      else {
+    }
+    // 检查是否包含产品关键词的部分
+    else {
+      const matchedKeywords = productKeywords.filter(k => 
+        termLower.includes(k.toLowerCase()) || k.toLowerCase().includes(termLower)
+      );
+      
+      if (matchedKeywords.length > 0) {
+        relevance = 'weak';
+        confidence = 0.5;
+        reason = '部分匹配产品关键词';
+        suggestedAction = 'monitor';
+        matchTypeSuggestion = 'broad';
+      } else {
         relevance = 'unrelated';
         confidence = 0.7;
-        reason = '未匹配任何产品关键词';
+        reason = '与产品关键词无明显关联';
         suggestedAction = 'negative_exact';
       }
     }
@@ -670,320 +786,74 @@ export function classifySearchTerms(
 }
 
 // ============================================
-// 6. 匹配类型智能决策
+// 6. 否词前置系统
 // ============================================
-
-interface MatchTypeDecision {
-  keyword: string;
-  recommendedMatchType: 'exact' | 'phrase' | 'broad';
-  confidence: number;
-  reasons: string[];
-  characteristics: {
-    isIdentityKeyword: boolean;      // 绝对定义词
-    isLongTailHighIntent: boolean;   // 长尾高意图词
-    isBrandKeyword: boolean;         // 品牌词
-    isScenarioKeyword: boolean;      // 场景化词
-    isAttributeCombo: boolean;       // 属性组合词
-  };
-}
 
 /**
- * 匹配类型智能决策
- * 基于文档中的决策矩阵判断关键词应该使用的匹配类型
+ * 获取预设的负面词库
+ * 用于新活动开启前自动预加载
  */
-export function decideMatchType(
-  keyword: string,
-  context: {
-    productCategory: string;
-    brandName: string;
-    competitorBrands?: string[];
-    coreAttributes?: string[];
-    searchVolume?: number;
-    conversionRate?: number;
-    competitorSimilarity?: number; // SERP前10名竞品相似度
-  }
-): MatchTypeDecision {
-  const keywordLower = keyword.toLowerCase();
-  const tokens = tokenize(keyword);
-  const reasons: string[] = [];
-  
-  // 特征检测
-  const characteristics = {
-    isIdentityKeyword: false,
-    isLongTailHighIntent: false,
-    isBrandKeyword: false,
-    isScenarioKeyword: false,
-    isAttributeCombo: false
-  };
-  
-  // 1. 检测品牌词
-  const allBrands = [context.brandName, ...(context.competitorBrands || [])].map(b => b.toLowerCase());
-  if (allBrands.some(brand => keywordLower.includes(brand))) {
-    characteristics.isBrandKeyword = true;
-    reasons.push('包含品牌名称');
-  }
-  
-  // 2. 检测场景化/受众化词
-  const scenarioPatterns = ['for', 'gift', 'travel', 'camping', 'office', 'home', 'outdoor', 'indoor', 'kids', 'men', 'women', 'boys', 'girls'];
-  if (scenarioPatterns.some(p => keywordLower.includes(p))) {
-    characteristics.isScenarioKeyword = true;
-    reasons.push('包含场景/受众修饰词');
-  }
-  
-  // 3. 检测绝对定义词
-  const categoryWords = context.productCategory.toLowerCase().split(/\s+/);
-  const coreAttrs = (context.coreAttributes || []).map(a => a.toLowerCase());
-  const matchedCategory = categoryWords.filter(cw => keywordLower.includes(cw));
-  const matchedAttrs = coreAttrs.filter(attr => keywordLower.includes(attr));
-  
-  if (matchedCategory.length >= 1 && matchedAttrs.length >= 1) {
-    characteristics.isIdentityKeyword = true;
-    reasons.push('包含核心类目词+属性词');
-  }
-  
-  // 4. 检测长尾高意图词
-  if (tokens.length >= 3 && !characteristics.isScenarioKeyword) {
-    characteristics.isLongTailHighIntent = true;
-    reasons.push('长尾词（3+单词），意图明确');
-  }
-  
-  // 5. 检测属性组合词
-  const attributePatterns = ['color', 'size', 'material', 'style', 'type'];
-  if (tokens.length >= 2 && !characteristics.isScenarioKeyword && !characteristics.isLongTailHighIntent) {
-    characteristics.isAttributeCombo = true;
-    reasons.push('核心词+属性组合');
-  }
-  
-  // 决策逻辑
-  let recommendedMatchType: 'exact' | 'phrase' | 'broad' = 'broad';
-  let confidence = 0.5;
-  
-  // 精准匹配条件
-  if (characteristics.isIdentityKeyword) {
-    recommendedMatchType = 'exact';
-    confidence = 0.9;
-    reasons.push('→ 绝对定义词，建议精准匹配');
-  }
-  else if (characteristics.isLongTailHighIntent && (context.conversionRate || 0) > 0.05) {
-    recommendedMatchType = 'exact';
-    confidence = 0.85;
-    reasons.push('→ 长尾高意图词，建议精准匹配');
-  }
-  else if (characteristics.isBrandKeyword && !characteristics.isScenarioKeyword) {
-    recommendedMatchType = 'exact';
-    confidence = 0.88;
-    reasons.push('→ 品牌词，建议精准匹配');
-  }
-  // 短语匹配条件
-  else if (characteristics.isAttributeCombo) {
-    recommendedMatchType = 'phrase';
-    confidence = 0.75;
-    reasons.push('→ 属性组合词，建议短语匹配');
-  }
-  else if (characteristics.isScenarioKeyword) {
-    recommendedMatchType = 'phrase';
-    confidence = 0.7;
-    reasons.push('→ 场景化词，建议短语匹配以覆盖变体');
-  }
-  // 广泛匹配条件
-  else {
-    recommendedMatchType = 'broad';
-    confidence = 0.6;
-    reasons.push('→ 探索性词，建议广泛匹配');
-  }
-  
-  // 根据竞品相似度调整
-  if (context.competitorSimilarity && context.competitorSimilarity > 0.9) {
-    if (recommendedMatchType === 'phrase') {
-      recommendedMatchType = 'exact';
-      confidence += 0.05;
-      reasons.push('SERP竞品高度相似，升级为精准匹配');
-    }
-  }
-  
-  return {
-    keyword,
-    recommendedMatchType,
-    confidence: Math.min(0.95, confidence),
-    reasons,
-    characteristics
-  };
-}
-
-// ============================================
-// 7. 否词前置系统
-// ============================================
-
-interface NegativeKeywordPreset {
-  keyword: string;
-  matchType: 'phrase' | 'exact';
-  category: string;
-  reason: string;
-}
-
-/**
- * 生成否词前置列表
- * 基于产品类目和历史数据生成应该预先否定的词
- */
-export function generateNegativePresets(
-  productCategory: string,
-  historicalNegatives?: string[]
-): NegativeKeywordPreset[] {
-  const presets: NegativeKeywordPreset[] = [];
-  
-  // 通用负面词根（适用于所有类目）
-  const universalNegatives = [
-    { keyword: 'free', reason: '免费相关，无购买意图' },
-    { keyword: 'cheap', reason: '低价导向，可能影响品牌形象' },
-    { keyword: 'used', reason: '二手商品搜索' },
-    { keyword: 'broken', reason: '损坏/维修相关' },
-    { keyword: 'repair', reason: '维修服务搜索' },
-    { keyword: 'fix', reason: '修理相关' },
-    { keyword: 'diy', reason: 'DIY自制，非购买意图' },
-    { keyword: 'how to', reason: '信息搜索，非购买意图' },
-    { keyword: 'what is', reason: '信息搜索，非购买意图' },
-    { keyword: 'wholesale', reason: '批发搜索，非零售客户' },
-    { keyword: 'bulk', reason: '批量采购，非零售客户' },
-    { keyword: 'clearance', reason: '清仓搜索' },
-    { keyword: 'coupon', reason: '优惠券搜索' },
-    { keyword: 'promo code', reason: '促销码搜索' },
-    { keyword: 'return', reason: '退货相关' },
-    { keyword: 'refund', reason: '退款相关' },
-    { keyword: 'complaint', reason: '投诉相关' },
-    { keyword: 'lawsuit', reason: '法律诉讼相关' },
-    { keyword: 'recall', reason: '召回相关' }
+export function getPresetNegativeKeywords(category: string): string[] {
+  // 通用负面词
+  const commonNegatives = [
+    'free', 'cheap', 'cheapest', 'used', 'broken', 'repair', 'fix',
+    'diy', 'homemade', 'alternative', 'substitute', 'replacement',
+    'wholesale', 'bulk', 'clearance', 'discount', 'coupon',
+    'how to', 'what is', 'review', 'reviews', 'vs', 'versus',
+    'reddit', 'amazon', 'ebay', 'walmart', 'aliexpress',
+    'download', 'pdf', 'manual', 'instructions'
   ];
   
-  // 添加通用负面词
-  for (const neg of universalNegatives) {
-    presets.push({
-      keyword: neg.keyword,
-      matchType: 'phrase',
-      category: '通用负面词',
-      reason: neg.reason
-    });
-  }
-  
-  // 添加历史否定词
-  if (historicalNegatives) {
-    for (const neg of historicalNegatives) {
-      if (!presets.some(p => p.keyword === neg)) {
-        presets.push({
-          keyword: neg,
-          matchType: 'exact',
-          category: '历史否定词',
-          reason: '基于历史数据识别的无效词'
-        });
-      }
-    }
-  }
-  
-  return presets;
-}
-
-// ============================================
-// 8. 半月纠错复盘
-// ============================================
-
-interface CorrectionSuggestion {
-  targetId: number;
-  targetName: string;
-  campaignName: string;
-  issueType: 'wrong_bid_decrease' | 'wrong_bid_increase' | 'wrong_negative';
-  description: string;
-  originalValue: number | string;
-  currentValue: number | string;
-  suggestedAction: string;
-  impactEstimate: string;
-}
-
-interface HistoricalChange {
-  targetId: number;
-  targetName: string;
-  campaignName: string;
-  changeType: 'bid_change' | 'negative_add';
-  changeDate: Date;
-  oldValue: number | string;
-  newValue: number | string;
-  // 变更后的表现数据
-  postChangeMetrics?: {
-    conversions: number;
-    spend: number;
-    sales: number;
-    roas: number;
+  // 类目特定的负面词
+  const categoryNegatives: Record<string, string[]> = {
+    'electronics': ['schematic', 'circuit', 'datasheet', 'pinout', 'driver'],
+    'clothing': ['pattern', 'sewing', 'fabric', 'material', 'costume'],
+    'toys': ['plans', 'blueprint', 'build', 'make', 'craft'],
+    'home': ['rental', 'rent', 'lease', 'apartment'],
+    'beauty': ['recipe', 'homemade', 'natural', 'organic diy'],
+    'sports': ['rules', 'how to play', 'history', 'olympics']
   };
+  
+  const categoryLower = category.toLowerCase();
+  const specificNegatives = categoryNegatives[categoryLower] || [];
+  
+  return [...commonNegatives, ...specificNegatives];
+}
+
+// ============================================
+// 7. 辅助函数
+// ============================================
+
+/**
+ * 判断广告活动是否为产品定位类型
+ */
+export function isProductTargetingCampaign(campaignType: string, targetingType?: string): boolean {
+  // SP自动广告可能包含产品定位
+  if (campaignType === 'sp_auto') {
+    return targetingType === 'product';
+  }
+  // SD广告通常是产品定位
+  if (campaignType === 'sd') {
+    return true;
+  }
+  // SP手动广告需要检查targetingType
+  if (campaignType === 'sp_manual') {
+    return targetingType === 'product';
+  }
+  return false;
 }
 
 /**
- * 半月纠错复盘分析
- * 检测因归因延迟导致的错误调价/否词
+ * 获取否定词的推荐层级
  */
-export function analyzeCorrections(
-  historicalChanges: HistoricalChange[],
-  correctionWindowDays: number = 14
-): CorrectionSuggestion[] {
-  const suggestions: CorrectionSuggestion[] = [];
-  const now = new Date();
-  const windowStart = new Date(now.getTime() - correctionWindowDays * 24 * 60 * 60 * 1000);
-  
-  // 筛选纠错窗口内的变更
-  const recentChanges = historicalChanges.filter(
-    change => change.changeDate >= windowStart
-  );
-  
-  for (const change of recentChanges) {
-    if (change.changeType === 'bid_change' && change.postChangeMetrics) {
-      const oldBid = change.oldValue as number;
-      const newBid = change.newValue as number;
-      const metrics = change.postChangeMetrics;
-      
-      // 检测错误降价：降价后仍有转化，可能是因为归因延迟导致的误判
-      if (newBid < oldBid && metrics.conversions >= 2 && metrics.roas >= 3) {
-        suggestions.push({
-          targetId: change.targetId,
-          targetName: change.targetName,
-          campaignName: change.campaignName,
-          issueType: 'wrong_bid_decrease',
-          description: `降价后仍有${metrics.conversions}次转化，ROAS ${metrics.roas.toFixed(2)}，可能是归因延迟导致的误判`,
-          originalValue: oldBid,
-          currentValue: newBid,
-          suggestedAction: `建议恢复竞价至$${oldBid.toFixed(2)}或更高`,
-          impactEstimate: `预计可增加${Math.round(metrics.conversions * 0.3)}次转化`
-        });
-      }
-      
-      // 检测错误提价：提价后表现变差
-      if (newBid > oldBid * 1.2 && metrics.roas < 2) {
-        suggestions.push({
-          targetId: change.targetId,
-          targetName: change.targetName,
-          campaignName: change.campaignName,
-          issueType: 'wrong_bid_increase',
-          description: `提价${Math.round((newBid/oldBid - 1) * 100)}%后ROAS下降至${metrics.roas.toFixed(2)}`,
-          originalValue: oldBid,
-          currentValue: newBid,
-          suggestedAction: `建议降低竞价至$${(oldBid * 1.1).toFixed(2)}`,
-          impactEstimate: `预计可节省$${(metrics.spend * 0.2).toFixed(2)}广告费`
-        });
-      }
-    }
+export function getNegativeLevelRecommendation(
+  campaignType: string,
+  targetingType?: string
+): 'ad_group' | 'campaign' {
+  // 产品定位广告只能在活动层级否定
+  if (isProductTargetingCampaign(campaignType, targetingType)) {
+    return 'campaign';
   }
-  
-  return suggestions;
+  // 关键词广告优先在广告组层级否定（更精细）
+  return 'ad_group';
 }
-
-// 导出所有函数
-export {
-  SearchTermData,
-  NgramAnalysisResult,
-  CampaignSearchTerm,
-  MigrationSuggestion,
-  TrafficConflict,
-  BidAdjustmentSuggestion,
-  BidTarget,
-  SearchTermClassification,
-  MatchTypeDecision,
-  NegativeKeywordPreset,
-  CorrectionSuggestion,
-  HistoricalChange
-};

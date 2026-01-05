@@ -669,51 +669,15 @@ const adAutomationRouter = router({
       };
     }),
 
-  // 匹配类型决策
-  decideMatchTypes: protectedProcedure
-    .input(z.object({
-      keywords: z.array(z.string()),
-      productCategory: z.string(),
-      brandName: z.string(),
-      competitorBrands: z.array(z.string()).optional(),
-      coreAttributes: z.array(z.string()).optional(),
-    }))
-    .query(({ input }) => {
-      const decisions = input.keywords.map(keyword =>
-        adAutomation.decideMatchType(keyword, {
-          productCategory: input.productCategory,
-          brandName: input.brandName,
-          competitorBrands: input.competitorBrands,
-          coreAttributes: input.coreAttributes,
-        })
-      );
-      return {
-        totalDecisions: decisions.length,
-        exactMatches: decisions.filter(d => d.recommendedMatchType === 'exact'),
-        phraseMatches: decisions.filter(d => d.recommendedMatchType === 'phrase'),
-        broadMatches: decisions.filter(d => d.recommendedMatchType === 'broad'),
-        decisions,
-      };
-    }),
-
-  // 生成否词前置列表
-  generateNegativePresets: protectedProcedure
+  // 获取否词前置列表
+  getPresetNegatives: protectedProcedure
     .input(z.object({
       productCategory: z.string(),
-      historicalNegatives: z.array(z.string()).optional(),
     }))
     .query(({ input }) => {
-      const presets = adAutomation.generateNegativePresets(
-        input.productCategory,
-        input.historicalNegatives
-      );
+      const presets = adAutomation.getPresetNegativeKeywords(input.productCategory);
       return {
         totalPresets: presets.length,
-        byCategory: presets.reduce((acc, p) => {
-          if (!acc[p.category]) acc[p.category] = [];
-          acc[p.category].push(p);
-          return acc;
-        }, {} as Record<string, typeof presets>),
         presets,
       };
     }),

@@ -1,0 +1,43 @@
+CREATE TABLE `negative_keywords` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`accountId` int NOT NULL,
+	`campaignId` int NOT NULL,
+	`adGroupId` int,
+	`negativeLevel` enum('campaign','ad_group') NOT NULL,
+	`negativeType` enum('keyword','product') NOT NULL,
+	`negativeText` varchar(500) NOT NULL,
+	`negativeMatchType` enum('negative_exact','negative_phrase') NOT NULL,
+	`negativeSource` enum('manual','ngram_analysis','traffic_conflict','funnel_migration') DEFAULT 'manual',
+	`sourceReason` text,
+	`negativeStatus` enum('active','pending','removed') DEFAULT 'active',
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `negative_keywords_id` PRIMARY KEY(`id`)
+);
+--> statement-breakpoint
+CREATE TABLE `search_terms` (
+	`id` int AUTO_INCREMENT NOT NULL,
+	`accountId` int NOT NULL,
+	`campaignId` int NOT NULL,
+	`adGroupId` int NOT NULL,
+	`searchTerm` varchar(500) NOT NULL,
+	`searchTermTargetType` enum('keyword','product_target') NOT NULL,
+	`searchTermTargetId` int,
+	`targetText` varchar(500),
+	`searchTermMatchType` varchar(32),
+	`searchTermImpressions` int DEFAULT 0,
+	`searchTermClicks` int DEFAULT 0,
+	`searchTermSpend` decimal(10,2) DEFAULT '0.00',
+	`searchTermSales` decimal(10,2) DEFAULT '0.00',
+	`searchTermOrders` int DEFAULT 0,
+	`searchTermAcos` decimal(5,2),
+	`searchTermRoas` decimal(10,2),
+	`searchTermCtr` decimal(5,4),
+	`searchTermCvr` decimal(5,4),
+	`searchTermCpc` decimal(10,2),
+	`reportStartDate` timestamp,
+	`reportEndDate` timestamp,
+	`createdAt` timestamp NOT NULL DEFAULT (now()),
+	`updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,
+	CONSTRAINT `search_terms_id` PRIMARY KEY(`id`)
+);

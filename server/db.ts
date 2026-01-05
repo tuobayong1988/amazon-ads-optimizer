@@ -622,7 +622,9 @@ export async function getCampaignSearchTerms(accountId: number) {
       searchTerm: r.searchTerm || '',
       campaignId: r.campaignId,
       campaignName: r.campaignName || '',
-      matchType: (r.matchType || 'broad') as 'broad' | 'phrase' | 'exact',
+      campaignType: 'sp_manual' as const, // 默认为SP手动广告
+      targetingType: 'keyword' as const, // 关键词定位
+      matchType: (r.matchType || 'broad') as 'broad' | 'phrase' | 'exact' | 'auto' | 'product',
       clicks,
       conversions: orders,
       spend,
