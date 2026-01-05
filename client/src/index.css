@@ -111,6 +111,19 @@
   --sidebar-accent-foreground:  oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.488 0.243 264.376);
+  --success: oklch(0.65 0.18 145);
+  --warning: oklch(0.70 0.18 85);
+  --info: oklch(0.60 0.15 230);
+  --bid-increase: oklch(0.65 0.18 145);
+  --bid-decrease: oklch(0.55 0.2 25);
+}
+
+@theme inline {
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-info: var(--info);
+  --color-bid-increase: var(--bid-increase);
+  --color-bid-decrease: var(--bid-decrease);
 }
 
 @layer base {
@@ -173,5 +186,97 @@
       padding-right: 2rem;
       max-width: 1280px; /* Standard content width */
     }
+  }
+}
+
+@layer utilities {
+  /* KPI Card styles */
+  .kpi-card {
+    @apply bg-card rounded-xl p-6 border border-border/50 shadow-sm;
+  }
+
+  .kpi-value {
+    @apply text-3xl font-bold text-foreground;
+  }
+
+  .kpi-label {
+    @apply text-sm text-muted-foreground mt-1;
+  }
+
+  .kpi-trend-up {
+    @apply text-success flex items-center gap-1 text-sm;
+  }
+
+  .kpi-trend-down {
+    @apply text-destructive flex items-center gap-1 text-sm;
+  }
+
+  /* Bid change indicators */
+  .bid-increase {
+    @apply text-bid-increase bg-bid-increase/10 px-2 py-1 rounded-md text-sm font-medium;
+  }
+
+  .bid-decrease {
+    @apply text-bid-decrease bg-bid-decrease/10 px-2 py-1 rounded-md text-sm font-medium;
+  }
+
+  /* Status badges */
+  .status-active {
+    @apply bg-success/20 text-success px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .status-paused {
+    @apply bg-warning/20 text-warning px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  .status-archived {
+    @apply bg-muted text-muted-foreground px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  /* Match type badges */
+  .match-broad {
+    @apply bg-chart-2/20 text-chart-2 px-2 py-0.5 rounded text-xs font-medium;
+  }
+
+  .match-phrase {
+    @apply bg-chart-3/20 text-chart-3 px-2 py-0.5 rounded text-xs font-medium;
+  }
+
+  .match-exact {
+    @apply bg-chart-1/20 text-chart-1 px-2 py-0.5 rounded text-xs font-medium;
+  }
+
+  /* Campaign type badges */
+  .campaign-sp {
+    @apply bg-primary/20 text-primary px-2 py-0.5 rounded text-xs font-medium;
+  }
+
+  .campaign-sb {
+    @apply bg-chart-4/20 text-chart-4 px-2 py-0.5 rounded text-xs font-medium;
+  }
+
+  .campaign-sd {
+    @apply bg-chart-5/20 text-chart-5 px-2 py-0.5 rounded text-xs font-medium;
+  }
+
+  /* Animation utilities */
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Number formatting */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
   }
 }

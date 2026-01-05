@@ -1,0 +1,409 @@
+import { useState } from "react";
+import DashboardLayout from "@/components/DashboardLayout";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
+import { 
+  Plus, 
+  Target, 
+  Settings, 
+  Trash2, 
+  Play, 
+  Pause,
+  TrendingUp,
+  DollarSign,
+  Percent,
+  BarChart3,
+  Loader2
+} from "lucide-react";
+
+export default function PerformanceGroups() {
+  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isOptimizing, setIsOptimizing] = useState<number | null>(null);
+
+  // Fetch accounts
+  const { data: accounts } = trpc.adAccount.list.useQuery();
+  const accountId = selectedAccountId || accounts?.[0]?.id;
+
+  // Fetch performance groups
+  const { data: performanceGroups, isLoading, refetch } = trpc.performanceGroup.list.useQuery(
+    { accountId: accountId! },
+    { enabled: !!accountId }
+  );
+
+  // Mutations
+  const createGroup = trpc.performanceGroup.create.useMutation({
+    onSuccess: () => {
+      toast.success("绩效组创建成功");
+      setIsCreateDialogOpen(false);
+      refetch();
+    },
+    onError: (error) => {
+      toast.error("创建失败: " + error.message);
+    },
+  });
+
+  const updateGroup = trpc.performanceGroup.update.useMutation({
+    onSuccess: () => {
+      toast.success("绩效组更新成功");
+      refetch();
+    },
+  });
+
+  const deleteGroup = trpc.performanceGroup.delete.useMutation({
+    onSuccess: () => {
+      toast.success("绩效组已删除");
+      refetch();
+    },
+  });
+
+  const runOptimization = trpc.optimization.runOptimization.useMutation({
+    onSuccess: (result) => {
+      toast.success(`优化完成，共调整 ${result.totalOptimizations} 个出价`);
+      setIsOptimizing(null);
+    },
+    onError: (error) => {
+      toast.error("优化失败: " + error.message);
+      setIsOptimizing(null);
+    },
+  });
+
+  const handleRunOptimization = async (groupId: number, dryRun: boolean = true) => {
+    setIsOptimizing(groupId);
+    runOptimization.mutate({ performanceGroupId: groupId, dryRun });
+  };
+
+  const goalLabels: Record<string, string> = {
+    maximize_sales: '销售最大化',
+    target_acos: '目标ACoS',
+    target_roas: '目标ROAS',
+    daily_spend_limit: '每日花费上限',
+    daily_cost: '天成本',
+  };
+
+  const goalIcons: Record<string, React.ReactNode> = {
+    maximize_sales: <TrendingUp className="w-5 h-5" />,
+    target_acos: <Percent className="w-5 h-5" />,
+    target_roas: <Target className="w-5 h-5" />,
+    daily_spend_limit: <DollarSign className="w-5 h-5" />,
+    daily_cost: <BarChart3 className="w-5 h-5" />,
+  };
+
+  return (
+    <DashboardLayout>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">绩效组管理</h1>
+            <p className="text-muted-foreground">
+              创建和管理广告活动绩效组，设置统一的优化目标
+            </p>
+          </div>
+          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="w-4 h-4 mr-2" />
+                创建绩效组
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <CreatePerformanceGroupForm
+                accountId={accountId!}
+                onSubmit={(data) => createGroup.mutate(data)}
+                isLoading={createGroup.isPending}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {/* Performance Groups Grid */}
+        {isLoading ? (
+          <div className="flex items-center justify-center h-64">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        ) : performanceGroups && performanceGroups.length > 0 ? (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {performanceGroups.map((group) => (
+              <Card key={group.id} className="relative overflow-hidden">
+                <div className={`absolute top-0 left-0 right-0 h-1 ${
+                  group.status === 'active' ? 'bg-success' : 
+                  group.status === 'paused' ? 'bg-warning' : 'bg-muted'
+                }`} />
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
+                        {group.optimizationGoal && goalIcons[group.optimizationGoal] || <Target className="w-5 h-5" />}
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg">{group.name}</CardTitle>
+                        <CardDescription className="text-xs">
+                          {group.optimizationGoal && goalLabels[group.optimizationGoal] || group.optimizationGoal || '未设置'}
+                        </CardDescription>
+                      </div>
+                    </div>
+                    <span className={`status-${group.status}`}>{group.status}</span>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Target Values */}
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    {group.targetAcos && (
+                      <div>
+                        <p className="text-muted-foreground">目标ACoS</p>
+                        <p className="font-semibold">{group.targetAcos}%</p>
+                      </div>
+                    )}
+                    {group.targetRoas && (
+                      <div>
+                        <p className="text-muted-foreground">目标ROAS</p>
+                        <p className="font-semibold">{group.targetRoas}</p>
+                      </div>
+                    )}
+                    {group.dailySpendLimit && (
+                      <div>
+                        <p className="text-muted-foreground">每日花费上限</p>
+                        <p className="font-semibold">${group.dailySpendLimit}</p>
+                      </div>
+                    )}
+                    {group.dailyCostTarget && (
+                      <div>
+                        <p className="text-muted-foreground">天成本目标</p>
+                        <p className="font-semibold">${group.dailyCostTarget}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Current Performance */}
+                  {(group.currentAcos || group.currentRoas) && (
+                    <div className="pt-3 border-t border-border/50">
+                      <p className="text-xs text-muted-foreground mb-2">当前表现</p>
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        {group.currentAcos && (
+                          <div>
+                            <p className="text-muted-foreground">当前ACoS</p>
+                            <p className="font-semibold">{group.currentAcos}%</p>
+                          </div>
+                        )}
+                        {group.currentRoas && (
+                          <div>
+                            <p className="text-muted-foreground">当前ROAS</p>
+                            <p className="font-semibold">{group.currentRoas}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Actions */}
+                  <div className="flex items-center gap-2 pt-3 border-t border-border/50">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => handleRunOptimization(group.id, true)}
+                      disabled={isOptimizing === group.id}
+                    >
+                      {isOptimizing === group.id ? (
+                        <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                      ) : (
+                        <Play className="w-4 h-4 mr-1" />
+                      )}
+                      预览优化
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => handleRunOptimization(group.id, false)}
+                      disabled={isOptimizing === group.id}
+                    >
+                      执行优化
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        if (confirm('确定要删除此绩效组吗？')) {
+                          deleteGroup.mutate({ id: group.id });
+                        }
+                      }}
+                    >
+                      <Trash2 className="w-4 h-4 text-destructive" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-16">
+              <Target className="w-16 h-16 text-muted-foreground mb-4" />
+              <h3 className="text-lg font-semibold mb-2">暂无绩效组</h3>
+              <p className="text-muted-foreground text-center mb-4">
+                创建绩效组来管理和优化您的广告活动
+              </p>
+              <Button onClick={() => setIsCreateDialogOpen(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                创建第一个绩效组
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </DashboardLayout>
+  );
+}
+
+function CreatePerformanceGroupForm({
+  accountId,
+  onSubmit,
+  isLoading,
+}: {
+  accountId: number;
+  onSubmit: (data: any) => void;
+  isLoading: boolean;
+}) {
+  const [formData, setFormData] = useState({
+    name: "",
+    description: "",
+    optimizationGoal: "maximize_sales",
+    targetAcos: "",
+    targetRoas: "",
+    dailySpendLimit: "",
+    dailyCostTarget: "",
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit({
+      accountId,
+      name: formData.name,
+      description: formData.description || undefined,
+      optimizationGoal: formData.optimizationGoal as any,
+      targetAcos: formData.targetAcos || undefined,
+      targetRoas: formData.targetRoas || undefined,
+      dailySpendLimit: formData.dailySpendLimit || undefined,
+      dailyCostTarget: formData.dailyCostTarget || undefined,
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <DialogHeader>
+        <DialogTitle>创建绩效组</DialogTitle>
+        <DialogDescription>
+          设置绩效组的名称和优化目标
+        </DialogDescription>
+      </DialogHeader>
+      <div className="space-y-4 py-4">
+        <div className="space-y-2">
+          <Label htmlFor="name">绩效组名称</Label>
+          <Input
+            id="name"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+            placeholder="例如：高转化关键词组"
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="description">描述（可选）</Label>
+          <Textarea
+            id="description"
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            placeholder="绩效组的描述..."
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="goal">优化目标</Label>
+          <Select
+            value={formData.optimizationGoal}
+            onValueChange={(value) => setFormData({ ...formData, optimizationGoal: value })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="maximize_sales">销售最大化</SelectItem>
+              <SelectItem value="target_acos">目标ACoS</SelectItem>
+              <SelectItem value="target_roas">目标ROAS</SelectItem>
+              <SelectItem value="daily_spend_limit">每日花费上限</SelectItem>
+              <SelectItem value="daily_cost">天成本</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {formData.optimizationGoal === "target_acos" && (
+          <div className="space-y-2">
+            <Label htmlFor="targetAcos">目标ACoS (%)</Label>
+            <Input
+              id="targetAcos"
+              type="number"
+              step="0.01"
+              value={formData.targetAcos}
+              onChange={(e) => setFormData({ ...formData, targetAcos: e.target.value })}
+              placeholder="例如：25"
+            />
+          </div>
+        )}
+
+        {formData.optimizationGoal === "target_roas" && (
+          <div className="space-y-2">
+            <Label htmlFor="targetRoas">目标ROAS</Label>
+            <Input
+              id="targetRoas"
+              type="number"
+              step="0.01"
+              value={formData.targetRoas}
+              onChange={(e) => setFormData({ ...formData, targetRoas: e.target.value })}
+              placeholder="例如：4.0"
+            />
+          </div>
+        )}
+
+        {formData.optimizationGoal === "daily_spend_limit" && (
+          <div className="space-y-2">
+            <Label htmlFor="dailySpendLimit">每日花费上限 ($)</Label>
+            <Input
+              id="dailySpendLimit"
+              type="number"
+              step="0.01"
+              value={formData.dailySpendLimit}
+              onChange={(e) => setFormData({ ...formData, dailySpendLimit: e.target.value })}
+              placeholder="例如：100"
+            />
+          </div>
+        )}
+
+        {formData.optimizationGoal === "daily_cost" && (
+          <div className="space-y-2">
+            <Label htmlFor="dailyCostTarget">天成本目标 ($)</Label>
+            <Input
+              id="dailyCostTarget"
+              type="number"
+              step="0.01"
+              value={formData.dailyCostTarget}
+              onChange={(e) => setFormData({ ...formData, dailyCostTarget: e.target.value })}
+              placeholder="例如：50"
+            />
+          </div>
+        )}
+      </div>
+      <DialogFooter>
+        <Button type="submit" disabled={isLoading || !formData.name}>
+          {isLoading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+          创建绩效组
+        </Button>
+      </DialogFooter>
+    </form>
+  );
+}
