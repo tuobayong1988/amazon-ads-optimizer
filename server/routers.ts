@@ -7,6 +7,7 @@ import { TRPCError } from "@trpc/server";
 import * as db from "./db";
 import * as bidOptimizer from "./bidOptimizer";
 import { AmazonAdsApiClient, validateCredentials, API_ENDPOINTS, MARKETPLACE_TO_REGION } from './amazonAdsApi';
+import * as adAutomation from './adAutomation';
 import { AmazonSyncService, runAutoBidOptimization } from './amazonSyncService';
 
 // ==================== Ad Account Router ====================
@@ -558,6 +559,221 @@ const importRouter = router({
     }),
 });
 
+// ==================== Ad Automation Router ====================
+const adAutomationRouter = router({
+  // N-Gram词根分析
+  analyzeNgrams: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      days: z.number().min(7).max(90).default(30),
+    }))
+    .query(async ({ input }) => {
+      // 获取搜索词数据
+      const searchTerms = await db.getSearchTermsForAnalysis(input.accountId, input.days);
+      const results = adAutomation.analyzeNgrams(searchTerms);
+      return {
+        totalTermsAnalyzed: searchTerms.length,
+        negativeNgramCandidates: results.filter(r => r.isNegativeCandidate),
+        allNgrams: results.slice(0, 100), // 返回前100个
+      };
+    }),
+
+  // 广告漏斗迁移分析
+  analyzeFunnelMigration: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      broadToPhraseMinConversions: z.number().default(3),
+      phraseToExactMinConversions: z.number().default(10),
+      phraseToExactMinRoas: z.number().default(5),
+    }))
+    .query(async ({ input }) => {
+      const searchTerms = await db.getCampaignSearchTerms(input.accountId);
+      const suggestions = adAutomation.analyzeFunnelMigration(searchTerms, {
+        broadToPhrase: { minConversions: input.broadToPhraseMinConversions, minRoas: 1 },
+        phraseToExact: { minConversions: input.phraseToExactMinConversions, minRoas: input.phraseToExactMinRoas },
+        bidIncreasePercent: 20,
+      });
+      return {
+        totalSuggestions: suggestions.length,
+        broadToPhrase: suggestions.filter(s => s.toMatchType === 'phrase'),
+        phraseToExact: suggestions.filter(s => s.toMatchType === 'exact'),
+      };
+    }),
+
+  // 流量冲突检测
+  detectTrafficConflicts: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      const searchTerms = await db.getCampaignSearchTerms(input.accountId);
+      const conflicts = adAutomation.detectTrafficConflicts(searchTerms);
+      return {
+        totalConflicts: conflicts.length,
+        totalWastedSpend: conflicts.reduce((sum, c) => sum + c.totalWastedSpend, 0),
+        conflicts: conflicts.slice(0, 50), // 返回前50个
+      };
+    }),
+
+  // 智能竞价调整建议
+  analyzeBidAdjustments: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      targetAcos: z.number().default(30),
+      targetRoas: z.number().default(3.33),
+    }))
+    .query(async ({ input }) => {
+      const targets = await db.getBidTargets(input.accountId);
+      const suggestions = adAutomation.analyzeBidAdjustments(targets, {
+        rampUpPercent: 5,
+        maxBidMultiplier: 3,
+        minImpressions: 100,
+        correctionWindow: 14,
+        targetAcos: input.targetAcos,
+        targetRoas: input.targetRoas,
+      });
+      return {
+        totalSuggestions: suggestions.length,
+        urgentCount: suggestions.filter(s => s.priority === 'urgent').length,
+        highCount: suggestions.filter(s => s.priority === 'high').length,
+        suggestions: suggestions.slice(0, 100),
+      };
+    }),
+
+  // 搜索词分类
+  classifySearchTerms: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      productKeywords: z.array(z.string()),
+      productCategory: z.string(),
+      productBrand: z.string(),
+      productColors: z.array(z.string()).optional(),
+      productSizes: z.array(z.string()).optional(),
+    }))
+    .query(async ({ input }) => {
+      const searchTerms = await db.getUniqueSearchTerms(input.accountId);
+      const classifications = adAutomation.classifySearchTerms(
+        searchTerms,
+        input.productKeywords,
+        {
+          category: input.productCategory,
+          brand: input.productBrand,
+          colors: input.productColors,
+          sizes: input.productSizes,
+        }
+      );
+      return {
+        totalClassified: classifications.length,
+        highRelevance: classifications.filter(c => c.relevance === 'high'),
+        weakRelevance: classifications.filter(c => c.relevance === 'weak'),
+        seeminglyRelated: classifications.filter(c => c.relevance === 'seemingly_related'),
+        unrelated: classifications.filter(c => c.relevance === 'unrelated'),
+      };
+    }),
+
+  // 匹配类型决策
+  decideMatchTypes: protectedProcedure
+    .input(z.object({
+      keywords: z.array(z.string()),
+      productCategory: z.string(),
+      brandName: z.string(),
+      competitorBrands: z.array(z.string()).optional(),
+      coreAttributes: z.array(z.string()).optional(),
+    }))
+    .query(({ input }) => {
+      const decisions = input.keywords.map(keyword =>
+        adAutomation.decideMatchType(keyword, {
+          productCategory: input.productCategory,
+          brandName: input.brandName,
+          competitorBrands: input.competitorBrands,
+          coreAttributes: input.coreAttributes,
+        })
+      );
+      return {
+        totalDecisions: decisions.length,
+        exactMatches: decisions.filter(d => d.recommendedMatchType === 'exact'),
+        phraseMatches: decisions.filter(d => d.recommendedMatchType === 'phrase'),
+        broadMatches: decisions.filter(d => d.recommendedMatchType === 'broad'),
+        decisions,
+      };
+    }),
+
+  // 生成否词前置列表
+  generateNegativePresets: protectedProcedure
+    .input(z.object({
+      productCategory: z.string(),
+      historicalNegatives: z.array(z.string()).optional(),
+    }))
+    .query(({ input }) => {
+      const presets = adAutomation.generateNegativePresets(
+        input.productCategory,
+        input.historicalNegatives
+      );
+      return {
+        totalPresets: presets.length,
+        byCategory: presets.reduce((acc, p) => {
+          if (!acc[p.category]) acc[p.category] = [];
+          acc[p.category].push(p);
+          return acc;
+        }, {} as Record<string, typeof presets>),
+        presets,
+      };
+    }),
+
+  // 批量应用否定词
+  applyNegativeKeywords: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      campaignId: z.number(),
+      negatives: z.array(z.object({
+        keyword: z.string(),
+        matchType: z.enum(['phrase', 'exact']),
+      })),
+    }))
+    .mutation(async ({ input }) => {
+      // 这里可以调用Amazon API添加否定词
+      // 目前先记录到数据库
+      let addedCount = 0;
+      for (const neg of input.negatives) {
+        await db.addNegativeKeyword({
+          campaignId: input.campaignId,
+          keyword: neg.keyword,
+          matchType: neg.matchType,
+        });
+        addedCount++;
+      }
+      return { addedCount };
+    }),
+
+  // 执行漏斗迁移
+  executeFunnelMigration: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      migrations: z.array(z.object({
+        searchTerm: z.string(),
+        fromCampaignId: z.number(),
+        toMatchType: z.enum(['phrase', 'exact']),
+        suggestedBid: z.number(),
+      })),
+    }))
+    .mutation(async ({ input }) => {
+      // 记录迁移操作
+      let migratedCount = 0;
+      for (const migration of input.migrations) {
+        // 在目标匹配类型的广告组中添加关键词
+        // 在原广告组中添加否定词
+        await db.recordMigration({
+          accountId: input.accountId,
+          searchTerm: migration.searchTerm,
+          fromCampaignId: migration.fromCampaignId,
+          toMatchType: migration.toMatchType,
+          suggestedBid: migration.suggestedBid,
+          status: 'pending',
+        });
+        migratedCount++;
+      }
+      return { migratedCount };
+    }),
+});
+
 // ==================== Amazon API Integration Router ====================
 
 const amazonApiRouter = router({
@@ -902,6 +1118,7 @@ export const appRouter = router({
   optimization: optimizationRouter,
   import: importRouter,
   amazonApi: amazonApiRouter,
+  adAutomation: adAutomationRouter,
 });
 
 export type AppRouter = typeof appRouter;

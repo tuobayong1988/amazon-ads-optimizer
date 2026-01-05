@@ -13,6 +13,7 @@ import BiddingLogs from "./pages/BiddingLogs";
 import Settings from "./pages/Settings";
 import DataImport from "./pages/DataImport";
 import AmazonApiSettings from "./pages/AmazonApiSettings";
+import AdAutomation from "./pages/AdAutomation";
 
 function Router() {
   return (
@@ -25,6 +26,7 @@ function Router() {
       <Route path="/settings" component={Settings} />
       <Route path="/import" component={DataImport} />
       <Route path="/amazon-api" component={AmazonApiSettings} />
+      <Route path="/automation" component={AdAutomation} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

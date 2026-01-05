@@ -554,3 +554,226 @@ export async function deleteAmazonApiCredentials(accountId: number) {
   await db.delete(amazonApiCredentials)
     .where(eq(amazonApiCredentials.accountId, accountId));
 }
+
+
+// ==================== Ad Automation Functions ====================
+
+// 获取搜索词数据用于N-Gram分析 - 使用keywords表的数据
+export async function getSearchTermsForAnalysis(accountId: number, _days: number = 30) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // 使用keywords表自带的绩效数据
+  const result = await db.select({
+    searchTerm: keywords.keywordText,
+    clicks: keywords.clicks,
+    orders: keywords.orders,
+    spend: keywords.spend,
+    sales: keywords.sales,
+    impressions: keywords.impressions,
+  })
+  .from(keywords)
+  .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
+  .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+  .where(eq(campaigns.accountId, accountId));
+  
+  return result.map(r => ({
+    searchTerm: r.searchTerm || '',
+    clicks: Number(r.clicks) || 0,
+    conversions: Number(r.orders) || 0,
+    spend: parseFloat(r.spend || '0'),
+    sales: parseFloat(r.sales || '0'),
+    impressions: Number(r.impressions) || 0,
+  }));
+}
+
+// 获取广告活动搜索词数据用于漏斗迁移和冲突检测
+export async function getCampaignSearchTerms(accountId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // 使用keywords表自带的绩效数据
+  const result = await db.select({
+    searchTerm: keywords.keywordText,
+    campaignId: campaigns.id,
+    campaignName: campaigns.campaignName,
+    matchType: keywords.matchType,
+    clicks: keywords.clicks,
+    spend: keywords.spend,
+    sales: keywords.sales,
+    orders: keywords.orders,
+    bid: keywords.bid,
+  })
+  .from(keywords)
+  .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
+  .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+  .where(eq(campaigns.accountId, accountId));
+  
+  return result.map(r => {
+    const clicks = Number(r.clicks) || 0;
+    const orders = Number(r.orders) || 0;
+    const spend = parseFloat(r.spend || '0');
+    const sales = parseFloat(r.sales || '0');
+    const roas = spend > 0 ? sales / spend : 0;
+    const acos = sales > 0 ? (spend / sales) * 100 : 0;
+    const cpc = clicks > 0 ? spend / clicks : 0;
+    
+    return {
+      searchTerm: r.searchTerm || '',
+      campaignId: r.campaignId,
+      campaignName: r.campaignName || '',
+      matchType: (r.matchType || 'broad') as 'broad' | 'phrase' | 'exact',
+      clicks,
+      conversions: orders,
+      spend,
+      sales,
+      roas,
+      acos,
+      cpc,
+    };
+  });
+}
+
+// 获取竞价目标数据用于智能竞价分析
+export async function getBidTargets(accountId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // 获取关键词目标 - 使用keywords表自带的绩效数据
+  const keywordTargets = await db.select({
+    id: keywords.id,
+    name: keywords.keywordText,
+    campaignId: campaigns.id,
+    campaignName: campaigns.campaignName,
+    currentBid: keywords.bid,
+    impressions: keywords.impressions,
+    clicks: keywords.clicks,
+    spend: keywords.spend,
+    sales: keywords.sales,
+    orders: keywords.orders,
+  })
+  .from(keywords)
+  .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
+  .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+  .where(eq(campaigns.accountId, accountId));
+  
+  // 获取商品定位目标 - 使用productTargets表自带的绩效数据
+  const productTargetResults = await db.select({
+    id: productTargets.id,
+    name: productTargets.targetValue,
+    campaignId: campaigns.id,
+    campaignName: campaigns.campaignName,
+    currentBid: productTargets.bid,
+    impressions: productTargets.impressions,
+    clicks: productTargets.clicks,
+    spend: productTargets.spend,
+    sales: productTargets.sales,
+    orders: productTargets.orders,
+  })
+  .from(productTargets)
+  .innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id))
+  .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+  .where(eq(campaigns.accountId, accountId));
+  
+  const results = [
+    ...keywordTargets.map(r => ({
+      id: r.id,
+      type: 'keyword' as const,
+      name: r.name || '',
+      campaignId: r.campaignId,
+      campaignName: r.campaignName || '',
+      currentBid: parseFloat(r.currentBid || '0'),
+      impressions: Number(r.impressions) || 0,
+      clicks: Number(r.clicks) || 0,
+      conversions: Number(r.orders) || 0,
+      spend: parseFloat(r.spend || '0'),
+      sales: parseFloat(r.sales || '0'),
+    })),
+    ...productTargetResults.map(r => ({
+      id: r.id,
+      type: 'product_target' as const,
+      name: r.name || '',
+      campaignId: r.campaignId,
+      campaignName: r.campaignName || '',
+      currentBid: parseFloat(r.currentBid || '0'),
+      impressions: Number(r.impressions) || 0,
+      clicks: Number(r.clicks) || 0,
+      conversions: Number(r.orders) || 0,
+      spend: parseFloat(r.spend || '0'),
+      sales: parseFloat(r.sales || '0'),
+    })),
+  ];
+  
+  return results;
+}
+
+// 获取唯一搜索词列表用于分类
+export async function getUniqueSearchTerms(accountId: number): Promise<string[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const result = await db.selectDistinct({
+    searchTerm: keywords.keywordText,
+  })
+  .from(keywords)
+  .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
+  .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+  .where(eq(campaigns.accountId, accountId));
+  
+  return result.map(r => r.searchTerm || '').filter(t => t.length > 0);
+}
+
+// 添加否定关键词
+export async function addNegativeKeyword(data: {
+  campaignId: number;
+  keyword: string;
+  matchType: 'phrase' | 'exact';
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // 这里可以添加到一个专门的否定关键词表
+  // 目前先记录到bidding_logs作为操作记录
+  await db.insert(biddingLogs).values({
+    accountId: 1,
+    campaignId: data.campaignId,
+    targetType: 'keyword',
+    targetId: 0,
+    targetName: data.keyword,
+    matchType: data.matchType,
+    actionType: 'set',
+    previousBid: '0',
+    newBid: '0',
+    reason: `添加否定关键词 (${data.matchType})`,
+  });
+}
+
+// 记录漏斗迁移操作
+export async function recordMigration(data: {
+  accountId: number;
+  searchTerm: string;
+  fromCampaignId: number;
+  toMatchType: 'phrase' | 'exact';
+  suggestedBid: number;
+  status: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // 记录到bidding_logs
+  await db.insert(biddingLogs).values({
+    accountId: data.accountId,
+    campaignId: data.fromCampaignId,
+    targetType: 'keyword',
+    targetId: 0,
+    targetName: data.searchTerm,
+    matchType: data.toMatchType,
+    actionType: 'set',
+    previousBid: '0',
+    newBid: data.suggestedBid.toString(),
+    reason: `漏斗迁移: 升级到${data.toMatchType}匹配`,
+  });
+}
+
+
+// ==================== Ad Automation Functions ====================
