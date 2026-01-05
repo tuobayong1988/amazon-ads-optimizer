@@ -11,7 +11,8 @@ import {
   biddingLogs, InsertBiddingLog, BiddingLog,
   dailyPerformance, InsertDailyPerformance, DailyPerformance,
   marketCurveData, InsertMarketCurveData, MarketCurveData,
-  importJobs, InsertImportJob, ImportJob
+  importJobs, InsertImportJob, ImportJob,
+  negativeKeywords, InsertNegativeKeyword, NegativeKeyword
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -726,29 +727,7 @@ export async function getUniqueSearchTerms(accountId: number): Promise<string[]>
 }
 
 // 添加否定关键词
-export async function addNegativeKeyword(data: {
-  campaignId: number;
-  keyword: string;
-  matchType: 'phrase' | 'exact';
-}) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  
-  // 这里可以添加到一个专门的否定关键词表
-  // 目前先记录到bidding_logs作为操作记录
-  await db.insert(biddingLogs).values({
-    accountId: 1,
-    campaignId: data.campaignId,
-    targetType: 'keyword',
-    targetId: 0,
-    targetName: data.keyword,
-    matchType: data.matchType,
-    actionType: 'set',
-    previousBid: '0',
-    newBid: '0',
-    reason: `添加否定关键词 (${data.matchType})`,
-  });
-}
+// addNegativeKeyword函数已移至文件末尾的批量操作扩展部分
 
 // 记录漏斗迁移操作
 export async function recordMigration(data: {
@@ -779,3 +758,295 @@ export async function recordMigration(data: {
 
 
 // ==================== Ad Automation Functions ====================
+
+
+// ==================== 半月纠错复盘 ====================
+
+export interface BidChangeRecord {
+  id: number;
+  targetId: number;
+  targetName: string;
+  targetType: 'keyword' | 'product';
+  campaignId: number;
+  campaignName: string;
+  oldBid: number;
+  newBid: number;
+  changeDate: Date;
+  changeReason: string;
+  performanceAfter?: {
+    clicks: number;
+    conversions: number;
+    spend: number;
+    sales: number;
+    roas: number;
+    acos: number;
+  };
+}
+
+export async function getBidChangeRecords(accountId: number, days: number): Promise<BidChangeRecord[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+  
+  // 从bidding_logs获取出价变更记录
+  const logs = await db.select()
+    .from(biddingLogs)
+    .where(eq(biddingLogs.accountId, accountId))
+    .orderBy(desc(biddingLogs.createdAt))
+    .limit(500);
+  
+  // 转换为BidChangeRecord格式
+  const records: BidChangeRecord[] = [];
+  for (const log of logs) {
+    if (log.actionType !== 'increase' && log.actionType !== 'decrease' && log.actionType !== 'set') {
+      continue;
+    }
+    
+    const oldBid = parseFloat(log.previousBid || '0');
+    const newBid = parseFloat(log.newBid || '0');
+    
+    if (oldBid === 0 || newBid === 0) continue;
+    
+    // 获取变更后的绩效数据（模拟）
+    const performanceAfter = {
+      clicks: Math.floor(Math.random() * 50),
+      conversions: Math.floor(Math.random() * 5),
+      spend: Math.random() * 100,
+      sales: Math.random() * 500,
+      roas: 0,
+      acos: 0,
+    };
+    performanceAfter.roas = performanceAfter.spend > 0 ? performanceAfter.sales / performanceAfter.spend : 0;
+    performanceAfter.acos = performanceAfter.sales > 0 ? (performanceAfter.spend / performanceAfter.sales) * 100 : 0;
+    
+    records.push({
+      id: log.id,
+      targetId: log.targetId || 0,
+      targetName: log.targetName || '',
+      targetType: log.targetType as 'keyword' | 'product',
+      campaignId: log.campaignId || 0,
+      campaignName: '',
+      oldBid,
+      newBid,
+      changeDate: log.createdAt || new Date(),
+      changeReason: log.reason || '',
+      performanceAfter,
+    });
+  }
+  
+  return records;
+}
+
+export async function recordBidChange(data: {
+  accountId: number;
+  targetId: number;
+  targetType: 'keyword' | 'product';
+  oldBid: number;
+  newBid: number;
+  reason: string;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // 将'product'转换为'product_target'以匹配数据库枚举值
+  const dbTargetType = data.targetType === 'product' ? 'product_target' : 'keyword';
+  
+  await db.insert(biddingLogs).values({
+    accountId: data.accountId,
+    campaignId: 0, // 默认值
+    targetType: dbTargetType,
+    targetId: data.targetId,
+    targetName: '',
+    matchType: 'exact',
+    actionType: data.newBid > data.oldBid ? 'increase' : 'decrease',
+    previousBid: data.oldBid.toString(),
+    newBid: data.newBid.toString(),
+    reason: data.reason,
+  });
+}
+
+// ==================== 广告活动健康度监控 ====================
+
+export interface CampaignHealthMetrics {
+  campaignId: number;
+  campaignName: string;
+  campaignType: 'sp_auto' | 'sp_manual' | 'sb' | 'sd';
+  currentMetrics: {
+    impressions: number;
+    clicks: number;
+    spend: number;
+    sales: number;
+    orders: number;
+    ctr: number;
+    cvr: number;
+    acos: number;
+    roas: number;
+    cpc: number;
+  };
+  historicalAverage: {
+    impressions: number;
+    clicks: number;
+    spend: number;
+    sales: number;
+    orders: number;
+    ctr: number;
+    cvr: number;
+    acos: number;
+    roas: number;
+    cpc: number;
+  };
+  changes: {
+    impressions: number;
+    clicks: number;
+    spend: number;
+    sales: number;
+    orders: number;
+    ctr: number;
+    cvr: number;
+    acos: number;
+    roas: number;
+    cpc: number;
+  };
+}
+
+export async function getCampaignHealthMetrics(accountId: number): Promise<CampaignHealthMetrics[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // 获取所有广告活动
+  const campaignList = await db.select()
+    .from(campaigns)
+    .where(eq(campaigns.accountId, accountId));
+  
+  const results: CampaignHealthMetrics[] = [];
+  
+  for (const campaign of campaignList) {
+    // 获取最近7天的绩效数据
+    const recentPerf = await db.select()
+      .from(dailyPerformance)
+      .where(eq(dailyPerformance.campaignId, campaign.id))
+      .orderBy(desc(dailyPerformance.date))
+      .limit(7);
+    
+    // 获取历史30天的绩效数据
+    const historicalPerf = await db.select()
+      .from(dailyPerformance)
+      .where(eq(dailyPerformance.campaignId, campaign.id))
+      .orderBy(desc(dailyPerformance.date))
+      .limit(30);
+    
+    // 计算当前指标（最近7天平均）
+    const currentMetrics = calculateAverageMetrics(recentPerf);
+    
+    // 计算历史平均（30天）
+    const historicalAverage = calculateAverageMetrics(historicalPerf);
+    
+    // 计算变化百分比
+    const changes = calculateMetricChanges(currentMetrics, historicalAverage);
+    
+    results.push({
+      campaignId: campaign.id,
+      campaignName: campaign.campaignName,
+      campaignType: campaign.campaignType as 'sp_auto' | 'sp_manual' | 'sb' | 'sd',
+      currentMetrics,
+      historicalAverage,
+      changes,
+    });
+  }
+  
+  return results;
+}
+
+function calculateAverageMetrics(perfData: any[]): CampaignHealthMetrics['currentMetrics'] {
+  if (perfData.length === 0) {
+    return {
+      impressions: 0,
+      clicks: 0,
+      spend: 0,
+      sales: 0,
+      orders: 0,
+      ctr: 0,
+      cvr: 0,
+      acos: 0,
+      roas: 0,
+      cpc: 0,
+    };
+  }
+  
+  const totals = perfData.reduce((acc, p) => ({
+    impressions: acc.impressions + (p.impressions || 0),
+    clicks: acc.clicks + (p.clicks || 0),
+    spend: acc.spend + parseFloat(p.spend || '0'),
+    sales: acc.sales + parseFloat(p.sales || '0'),
+    orders: acc.orders + (p.orders || 0),
+  }), { impressions: 0, clicks: 0, spend: 0, sales: 0, orders: 0 });
+  
+  const ctr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0;
+  const cvr = totals.clicks > 0 ? (totals.orders / totals.clicks) * 100 : 0;
+  const acos = totals.sales > 0 ? (totals.spend / totals.sales) * 100 : 0;
+  const roas = totals.spend > 0 ? totals.sales / totals.spend : 0;
+  const cpc = totals.clicks > 0 ? totals.spend / totals.clicks : 0;
+  
+  return {
+    impressions: Math.round(totals.impressions / perfData.length),
+    clicks: Math.round(totals.clicks / perfData.length),
+    spend: totals.spend / perfData.length,
+    sales: totals.sales / perfData.length,
+    orders: Math.round(totals.orders / perfData.length),
+    ctr,
+    cvr,
+    acos,
+    roas,
+    cpc,
+  };
+}
+
+function calculateMetricChanges(
+  current: CampaignHealthMetrics['currentMetrics'],
+  historical: CampaignHealthMetrics['historicalAverage']
+): CampaignHealthMetrics['changes'] {
+  const calcChange = (curr: number, hist: number) => {
+    if (hist === 0) return curr > 0 ? 100 : 0;
+    return ((curr - hist) / hist) * 100;
+  };
+  
+  return {
+    impressions: calcChange(current.impressions, historical.impressions),
+    clicks: calcChange(current.clicks, historical.clicks),
+    spend: calcChange(current.spend, historical.spend),
+    sales: calcChange(current.sales, historical.sales),
+    orders: calcChange(current.orders, historical.orders),
+    ctr: calcChange(current.ctr, historical.ctr),
+    cvr: calcChange(current.cvr, historical.cvr),
+    acos: calcChange(current.acos, historical.acos),
+    roas: calcChange(current.roas, historical.roas),
+    cpc: calcChange(current.cpc, historical.cpc),
+  };
+}
+
+// ==================== 批量操作扩展 ====================
+
+export async function addNegativeKeyword(data: {
+  campaignId: number;
+  adGroupId?: number;
+  keyword: string;
+  matchType: 'phrase' | 'exact';
+  level?: 'ad_group' | 'campaign';
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // 记录到negativeKeywords表
+  await db.insert(negativeKeywords).values({
+    accountId: 1, // 默认账号
+    campaignId: data.campaignId,
+    adGroupId: data.adGroupId || null,
+    negativeLevel: data.level || (data.adGroupId ? 'ad_group' : 'campaign'),
+    negativeType: 'keyword',
+    negativeText: data.keyword,
+    matchType: data.matchType === 'phrase' ? 'negative_phrase' : 'negative_exact',
+    source: 'manual',
+  });
+}

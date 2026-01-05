@@ -14,6 +14,7 @@ import Settings from "./pages/Settings";
 import DataImport from "./pages/DataImport";
 import AmazonApiSettings from "./pages/AmazonApiSettings";
 import AdAutomation from "./pages/AdAutomation";
+import HealthMonitor from "./pages/HealthMonitor";
 
 function Router() {
   return (
@@ -27,6 +28,7 @@ function Router() {
       <Route path="/import" component={DataImport} />
       <Route path="/amazon-api" component={AmazonApiSettings} />
       <Route path="/automation" component={AdAutomation} />
+      <Route path="/health" component={HealthMonitor} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

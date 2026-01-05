@@ -857,3 +857,768 @@ export function getNegativeLevelRecommendation(
   // 关键词广告优先在广告组层级否定（更精细）
   return 'ad_group';
 }
+
+
+// ============================================
+// 7. 半月纠错复盘系统
+// ============================================
+
+export interface BidChangeRecord {
+  id: number;
+  targetId: number;
+  targetName: string;
+  targetType: 'keyword' | 'product';
+  campaignId: number;
+  campaignName: string;
+  oldBid: number;
+  newBid: number;
+  changeDate: Date;
+  changeReason: string;
+  // 变更后的绩效数据
+  performanceAfter?: {
+    clicks: number;
+    conversions: number;
+    spend: number;
+    sales: number;
+    roas: number;
+    acos: number;
+  };
+}
+
+export interface CorrectionSuggestion {
+  targetId: number;
+  targetName: string;
+  targetType: 'keyword' | 'product';
+  campaignName: string;
+  originalBid: number;
+  currentBid: number;
+  suggestedBid: number;
+  errorType: 'premature_decrease' | 'premature_increase' | 'over_adjustment' | 'attribution_delay';
+  reason: string;
+  evidence: {
+    changeDate: Date;
+    daysElapsed: number;
+    performanceBefore: {
+      conversions: number;
+      roas: number;
+      acos: number;
+    };
+    performanceAfter: {
+      conversions: number;
+      roas: number;
+      acos: number;
+    };
+    attributedConversions: number; // 归因窗口内的延迟转化
+  };
+  priority: 'urgent' | 'high' | 'medium' | 'low';
+  confidence: number;
+}
+
+/**
+ * 半月纠错复盘分析
+ * 检测因归因延迟导致的错误调价决策
+ * 
+ * 亚马逊广告归因窗口：
+ * - SP广告：7天点击归因 + 14天浏览归因
+ * - SB广告：14天点击归因
+ * - SD广告：14天点击归因 + 14天浏览归因
+ */
+export function analyzeBidCorrections(
+  bidChanges: BidChangeRecord[],
+  attributionWindowDays: number = 14
+): CorrectionSuggestion[] {
+  const suggestions: CorrectionSuggestion[] = [];
+  const now = new Date();
+  
+  for (const change of bidChanges) {
+    const daysElapsed = Math.floor((now.getTime() - change.changeDate.getTime()) / (1000 * 60 * 60 * 24));
+    
+    // 只分析归因窗口期内的变更
+    if (daysElapsed < 3 || daysElapsed > attributionWindowDays + 7) {
+      continue;
+    }
+    
+    // 如果没有变更后的绩效数据，跳过
+    if (!change.performanceAfter) {
+      continue;
+    }
+    
+    const bidChangePercent = ((change.newBid - change.oldBid) / change.oldBid) * 100;
+    const perf = change.performanceAfter;
+    const roas = perf.spend > 0 ? perf.sales / perf.spend : 0;
+    const acos = perf.sales > 0 ? (perf.spend / perf.sales) * 100 : 0;
+    
+    let errorType: CorrectionSuggestion['errorType'] | null = null;
+    let reason = '';
+    let suggestedBid = change.oldBid;
+    let priority: CorrectionSuggestion['priority'] = 'medium';
+    let confidence = 0;
+    
+    // 检测过早降价：降价后转化反而增加
+    if (bidChangePercent < -10 && perf.conversions > 0) {
+      // 如果降价后仍有良好转化，可能是过早降价
+      if (roas > 3 || acos < 25) {
+        errorType = 'premature_decrease';
+        reason = `降价${Math.abs(bidChangePercent).toFixed(1)}%后，ROAS仍达${roas.toFixed(2)}，ACoS仅${acos.toFixed(1)}%，建议恢复出价`;
+        suggestedBid = change.oldBid * 0.95; // 恢复到接近原价
+        priority = roas > 5 ? 'urgent' : 'high';
+        confidence = Math.min(0.9, 0.5 + (roas / 10));
+      }
+    }
+    
+    // 检测过早加价：加价后转化下降
+    else if (bidChangePercent > 15 && perf.conversions === 0 && perf.clicks > 10) {
+      errorType = 'premature_increase';
+      reason = `加价${bidChangePercent.toFixed(1)}%后，${perf.clicks}次点击0转化，建议回调出价`;
+      suggestedBid = change.oldBid * 1.05; // 回调到接近原价
+      priority = perf.spend > 50 ? 'urgent' : 'high';
+      confidence = 0.75;
+    }
+    
+    // 检测过度调整：调整幅度过大导致绩效波动
+    else if (Math.abs(bidChangePercent) > 30) {
+      if (perf.conversions === 0 && perf.clicks > 5) {
+        errorType = 'over_adjustment';
+        reason = `出价调整幅度过大(${bidChangePercent > 0 ? '+' : ''}${bidChangePercent.toFixed(1)}%)，建议逐步调整`;
+        suggestedBid = (change.oldBid + change.newBid) / 2; // 取中间值
+        priority = 'medium';
+        confidence = 0.6;
+      }
+    }
+    
+    // 检测归因延迟影响：变更时间在归因窗口边缘
+    if (daysElapsed >= attributionWindowDays - 3 && daysElapsed <= attributionWindowDays + 3) {
+      // 检查是否有延迟归因的转化
+      if (perf.conversions > 0 && bidChangePercent < -15) {
+        if (!errorType) {
+          errorType = 'attribution_delay';
+          reason = `变更发生在归因窗口边缘(${daysElapsed}天前)，可能存在延迟归因转化，建议重新评估`;
+          suggestedBid = change.oldBid * 0.9;
+          priority = 'medium';
+          confidence = 0.55;
+        }
+      }
+    }
+    
+    if (errorType) {
+      suggestions.push({
+        targetId: change.targetId,
+        targetName: change.targetName,
+        targetType: change.targetType,
+        campaignName: change.campaignName,
+        originalBid: change.oldBid,
+        currentBid: change.newBid,
+        suggestedBid,
+        errorType,
+        reason,
+        evidence: {
+          changeDate: change.changeDate,
+          daysElapsed,
+          performanceBefore: {
+            conversions: 0, // 需要从历史数据获取
+            roas: 0,
+            acos: 0,
+          },
+          performanceAfter: {
+            conversions: perf.conversions,
+            roas,
+            acos,
+          },
+          attributedConversions: perf.conversions,
+        },
+        priority,
+        confidence,
+      });
+    }
+  }
+  
+  // 按优先级和置信度排序
+  const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
+  suggestions.sort((a, b) => {
+    const priorityDiff = priorityOrder[a.priority] - priorityOrder[b.priority];
+    if (priorityDiff !== 0) return priorityDiff;
+    return b.confidence - a.confidence;
+  });
+  
+  return suggestions;
+}
+
+// ============================================
+// 8. 广告活动健康度监控
+// ============================================
+
+export interface CampaignHealthMetrics {
+  campaignId: number;
+  campaignName: string;
+  campaignType: 'sp_auto' | 'sp_manual' | 'sb' | 'sd';
+  // 当前指标
+  currentMetrics: {
+    impressions: number;
+    clicks: number;
+    spend: number;
+    sales: number;
+    orders: number;
+    ctr: number;
+    cvr: number;
+    acos: number;
+    roas: number;
+    cpc: number;
+  };
+  // 历史平均（过去30天）
+  historicalAverage: {
+    impressions: number;
+    clicks: number;
+    spend: number;
+    sales: number;
+    orders: number;
+    ctr: number;
+    cvr: number;
+    acos: number;
+    roas: number;
+    cpc: number;
+  };
+  // 变化百分比
+  changes: {
+    impressions: number;
+    clicks: number;
+    spend: number;
+    sales: number;
+    orders: number;
+    ctr: number;
+    cvr: number;
+    acos: number;
+    roas: number;
+    cpc: number;
+  };
+}
+
+export interface HealthAlert {
+  campaignId: number;
+  campaignName: string;
+  alertType: 'acos_spike' | 'ctr_drop' | 'cvr_drop' | 'spend_surge' | 'impression_drop' | 'roas_decline' | 'no_conversions';
+  severity: 'critical' | 'warning' | 'info';
+  metric: string;
+  currentValue: number;
+  expectedValue: number;
+  changePercent: number;
+  message: string;
+  suggestedAction: string;
+  detectedAt: Date;
+}
+
+export interface CampaignHealthScore {
+  campaignId: number;
+  campaignName: string;
+  overallScore: number; // 0-100
+  scoreBreakdown: {
+    efficiency: number; // ACoS/ROAS表现
+    traffic: number; // 流量稳定性
+    conversion: number; // 转化表现
+    cost: number; // 成本控制
+  };
+  status: 'healthy' | 'warning' | 'critical';
+  alerts: HealthAlert[];
+  recommendations: string[];
+}
+
+/**
+ * 分析广告活动健康度
+ */
+export function analyzeCampaignHealth(
+  campaigns: CampaignHealthMetrics[],
+  thresholds: {
+    acosWarning: number;
+    acosCritical: number;
+    ctrDropWarning: number;
+    ctrDropCritical: number;
+    cvrDropWarning: number;
+    cvrDropCritical: number;
+    roasMinimum: number;
+  } = {
+    acosWarning: 35,
+    acosCritical: 50,
+    ctrDropWarning: -20,
+    ctrDropCritical: -40,
+    cvrDropWarning: -25,
+    cvrDropCritical: -50,
+    roasMinimum: 2,
+  }
+): CampaignHealthScore[] {
+  const results: CampaignHealthScore[] = [];
+  
+  for (const campaign of campaigns) {
+    const alerts: HealthAlert[] = [];
+    const recommendations: string[] = [];
+    const now = new Date();
+    
+    const { currentMetrics: curr, historicalAverage: hist, changes } = campaign;
+    
+    // 检测ACoS飙升
+    if (curr.acos > thresholds.acosCritical) {
+      alerts.push({
+        campaignId: campaign.campaignId,
+        campaignName: campaign.campaignName,
+        alertType: 'acos_spike',
+        severity: 'critical',
+        metric: 'ACoS',
+        currentValue: curr.acos,
+        expectedValue: hist.acos,
+        changePercent: changes.acos,
+        message: `ACoS达到${curr.acos.toFixed(1)}%，超过临界值${thresholds.acosCritical}%`,
+        suggestedAction: '建议降低出价或暂停低效关键词',
+        detectedAt: now,
+      });
+      recommendations.push('紧急：降低高ACoS关键词的出价');
+      recommendations.push('检查是否有恶意点击或竞争对手干扰');
+    } else if (curr.acos > thresholds.acosWarning) {
+      alerts.push({
+        campaignId: campaign.campaignId,
+        campaignName: campaign.campaignName,
+        alertType: 'acos_spike',
+        severity: 'warning',
+        metric: 'ACoS',
+        currentValue: curr.acos,
+        expectedValue: hist.acos,
+        changePercent: changes.acos,
+        message: `ACoS达到${curr.acos.toFixed(1)}%，接近警戒线`,
+        suggestedAction: '建议优化关键词出价策略',
+        detectedAt: now,
+      });
+      recommendations.push('优化出价策略，关注高花费低转化词');
+    }
+    
+    // 检测CTR骤降
+    if (changes.ctr < thresholds.ctrDropCritical) {
+      alerts.push({
+        campaignId: campaign.campaignId,
+        campaignName: campaign.campaignName,
+        alertType: 'ctr_drop',
+        severity: 'critical',
+        metric: 'CTR',
+        currentValue: curr.ctr,
+        expectedValue: hist.ctr,
+        changePercent: changes.ctr,
+        message: `CTR下降${Math.abs(changes.ctr).toFixed(1)}%，可能存在严重问题`,
+        suggestedAction: '检查广告创意和关键词相关性',
+        detectedAt: now,
+      });
+      recommendations.push('紧急：检查广告文案和图片是否需要更新');
+      recommendations.push('分析竞争对手是否有新的广告策略');
+    } else if (changes.ctr < thresholds.ctrDropWarning) {
+      alerts.push({
+        campaignId: campaign.campaignId,
+        campaignName: campaign.campaignName,
+        alertType: 'ctr_drop',
+        severity: 'warning',
+        metric: 'CTR',
+        currentValue: curr.ctr,
+        expectedValue: hist.ctr,
+        changePercent: changes.ctr,
+        message: `CTR下降${Math.abs(changes.ctr).toFixed(1)}%`,
+        suggestedAction: '建议优化广告创意',
+        detectedAt: now,
+      });
+      recommendations.push('考虑更新广告创意以提高点击率');
+    }
+    
+    // 检测CVR骤降
+    if (changes.cvr < thresholds.cvrDropCritical) {
+      alerts.push({
+        campaignId: campaign.campaignId,
+        campaignName: campaign.campaignName,
+        alertType: 'cvr_drop',
+        severity: 'critical',
+        metric: 'CVR',
+        currentValue: curr.cvr,
+        expectedValue: hist.cvr,
+        changePercent: changes.cvr,
+        message: `转化率下降${Math.abs(changes.cvr).toFixed(1)}%，需要立即关注`,
+        suggestedAction: '检查产品页面和价格竞争力',
+        detectedAt: now,
+      });
+      recommendations.push('紧急：检查产品详情页是否有问题');
+      recommendations.push('分析是否有差评或库存问题影响转化');
+    } else if (changes.cvr < thresholds.cvrDropWarning) {
+      alerts.push({
+        campaignId: campaign.campaignId,
+        campaignName: campaign.campaignName,
+        alertType: 'cvr_drop',
+        severity: 'warning',
+        metric: 'CVR',
+        currentValue: curr.cvr,
+        expectedValue: hist.cvr,
+        changePercent: changes.cvr,
+        message: `转化率下降${Math.abs(changes.cvr).toFixed(1)}%`,
+        suggestedAction: '建议优化产品页面',
+        detectedAt: now,
+      });
+      recommendations.push('优化产品详情页以提高转化率');
+    }
+    
+    // 检测ROAS过低
+    if (curr.roas < thresholds.roasMinimum && curr.spend > 0) {
+      alerts.push({
+        campaignId: campaign.campaignId,
+        campaignName: campaign.campaignName,
+        alertType: 'roas_decline',
+        severity: curr.roas < 1 ? 'critical' : 'warning',
+        metric: 'ROAS',
+        currentValue: curr.roas,
+        expectedValue: thresholds.roasMinimum,
+        changePercent: changes.roas,
+        message: `ROAS仅${curr.roas.toFixed(2)}，低于最低要求${thresholds.roasMinimum}`,
+        suggestedAction: 'ROAS过低，建议优化或暂停活动',
+        detectedAt: now,
+      });
+      recommendations.push('分析低效关键词并考虑暂停');
+    }
+    
+    // 检测无转化
+    if (curr.clicks > 20 && curr.orders === 0) {
+      alerts.push({
+        campaignId: campaign.campaignId,
+        campaignName: campaign.campaignName,
+        alertType: 'no_conversions',
+        severity: curr.clicks > 50 ? 'critical' : 'warning',
+        metric: 'Conversions',
+        currentValue: 0,
+        expectedValue: hist.orders,
+        changePercent: -100,
+        message: `${curr.clicks}次点击无转化，花费$${curr.spend.toFixed(2)}`,
+        suggestedAction: '检查关键词相关性和产品竞争力',
+        detectedAt: now,
+      });
+      recommendations.push('分析无转化原因：关键词相关性、价格、评价等');
+    }
+    
+    // 计算健康分数
+    const efficiencyScore = calculateEfficiencyScore(curr.acos, curr.roas, thresholds);
+    const trafficScore = calculateTrafficScore(changes.impressions, changes.clicks);
+    const conversionScore = calculateConversionScore(curr.cvr, changes.cvr, curr.orders);
+    const costScore = calculateCostScore(curr.acos, changes.spend, changes.sales);
+    
+    const overallScore = Math.round(
+      efficiencyScore * 0.35 +
+      trafficScore * 0.2 +
+      conversionScore * 0.3 +
+      costScore * 0.15
+    );
+    
+    let status: CampaignHealthScore['status'] = 'healthy';
+    if (overallScore < 40 || alerts.some(a => a.severity === 'critical')) {
+      status = 'critical';
+    } else if (overallScore < 70 || alerts.some(a => a.severity === 'warning')) {
+      status = 'warning';
+    }
+    
+    results.push({
+      campaignId: campaign.campaignId,
+      campaignName: campaign.campaignName,
+      overallScore,
+      scoreBreakdown: {
+        efficiency: efficiencyScore,
+        traffic: trafficScore,
+        conversion: conversionScore,
+        cost: costScore,
+      },
+      status,
+      alerts,
+      recommendations: Array.from(new Set(recommendations)), // 去重
+    });
+  }
+  
+  // 按健康分数排序（低分在前）
+  results.sort((a, b) => a.overallScore - b.overallScore);
+  
+  return results;
+}
+
+function calculateEfficiencyScore(acos: number, roas: number, thresholds: { acosWarning: number; acosCritical: number; roasMinimum: number }): number {
+  let score = 100;
+  
+  // ACoS评分
+  if (acos > thresholds.acosCritical) {
+    score -= 50;
+  } else if (acos > thresholds.acosWarning) {
+    score -= 25;
+  } else if (acos > 20) {
+    score -= 10;
+  }
+  
+  // ROAS评分
+  if (roas < 1) {
+    score -= 40;
+  } else if (roas < thresholds.roasMinimum) {
+    score -= 20;
+  } else if (roas > 5) {
+    score += 10;
+  }
+  
+  return Math.max(0, Math.min(100, score));
+}
+
+function calculateTrafficScore(impressionChange: number, clickChange: number): number {
+  let score = 70; // 基础分
+  
+  // 曝光变化
+  if (impressionChange > 20) score += 15;
+  else if (impressionChange > 0) score += 10;
+  else if (impressionChange < -30) score -= 25;
+  else if (impressionChange < -10) score -= 10;
+  
+  // 点击变化
+  if (clickChange > 20) score += 15;
+  else if (clickChange > 0) score += 10;
+  else if (clickChange < -30) score -= 25;
+  else if (clickChange < -10) score -= 10;
+  
+  return Math.max(0, Math.min(100, score));
+}
+
+function calculateConversionScore(cvr: number, cvrChange: number, orders: number): number {
+  let score = 60; // 基础分
+  
+  // 转化率绝对值
+  if (cvr > 15) score += 25;
+  else if (cvr > 10) score += 15;
+  else if (cvr > 5) score += 5;
+  else if (cvr < 2) score -= 20;
+  
+  // 转化率变化
+  if (cvrChange > 10) score += 15;
+  else if (cvrChange < -30) score -= 25;
+  else if (cvrChange < -10) score -= 10;
+  
+  // 订单数量
+  if (orders === 0) score -= 30;
+  else if (orders < 5) score -= 10;
+  
+  return Math.max(0, Math.min(100, score));
+}
+
+function calculateCostScore(acos: number, spendChange: number, salesChange: number): number {
+  let score = 70; // 基础分
+  
+  // 花费与销售的关系
+  if (salesChange > spendChange && salesChange > 0) {
+    score += 20; // 销售增长超过花费增长
+  } else if (spendChange > 30 && salesChange < 10) {
+    score -= 30; // 花费大增但销售没跟上
+  }
+  
+  // ACoS控制
+  if (acos < 15) score += 15;
+  else if (acos > 40) score -= 20;
+  
+  return Math.max(0, Math.min(100, score));
+}
+
+// ============================================
+// 9. 批量操作功能
+// ============================================
+
+export interface BatchOperation {
+  id: string;
+  type: 'apply_negative' | 'apply_bid_adjustment' | 'migrate_keyword' | 'pause_target';
+  items: BatchOperationItem[];
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'cancelled';
+  createdAt: Date;
+  completedAt?: Date;
+  successCount: number;
+  failedCount: number;
+  errors: { itemId: string; error: string }[];
+}
+
+export interface BatchOperationItem {
+  id: string;
+  targetId: number;
+  targetName: string;
+  targetType: 'keyword' | 'product' | 'campaign' | 'ad_group';
+  action: string;
+  params: Record<string, unknown>;
+  status: 'pending' | 'success' | 'failed';
+  error?: string;
+}
+
+export interface NegativeKeywordBatchItem {
+  keyword: string;
+  matchType: 'phrase' | 'exact';
+  level: 'ad_group' | 'campaign';
+  campaignId: number;
+  adGroupId?: number;
+  reason: string;
+}
+
+export interface BidAdjustmentBatchItem {
+  targetId: number;
+  targetName: string;
+  targetType: 'keyword' | 'product';
+  campaignId: number;
+  currentBid: number;
+  newBid: number;
+  adjustmentPercent: number;
+  reason: string;
+}
+
+/**
+ * 验证批量否定词操作
+ */
+export function validateNegativeKeywordBatch(
+  items: NegativeKeywordBatchItem[]
+): { valid: NegativeKeywordBatchItem[]; invalid: { item: NegativeKeywordBatchItem; reason: string }[] } {
+  const valid: NegativeKeywordBatchItem[] = [];
+  const invalid: { item: NegativeKeywordBatchItem; reason: string }[] = [];
+  
+  const seen = new Set<string>();
+  
+  for (const item of items) {
+    // 检查重复
+    const key = `${item.campaignId}-${item.adGroupId || 'campaign'}-${item.keyword}-${item.matchType}`;
+    if (seen.has(key)) {
+      invalid.push({ item, reason: '重复的否定词' });
+      continue;
+    }
+    seen.add(key);
+    
+    // 检查关键词格式
+    if (!item.keyword || item.keyword.trim().length === 0) {
+      invalid.push({ item, reason: '关键词不能为空' });
+      continue;
+    }
+    
+    if (item.keyword.length > 80) {
+      invalid.push({ item, reason: '关键词长度超过80字符限制' });
+      continue;
+    }
+    
+    // 检查匹配类型
+    if (!['phrase', 'exact'].includes(item.matchType)) {
+      invalid.push({ item, reason: '无效的匹配类型' });
+      continue;
+    }
+    
+    // 检查层级
+    if (item.level === 'ad_group' && !item.adGroupId) {
+      invalid.push({ item, reason: '广告组层级否定需要指定广告组ID' });
+      continue;
+    }
+    
+    valid.push(item);
+  }
+  
+  return { valid, invalid };
+}
+
+/**
+ * 验证批量出价调整操作
+ */
+export function validateBidAdjustmentBatch(
+  items: BidAdjustmentBatchItem[],
+  maxBid: number = 10,
+  minBid: number = 0.02,
+  maxAdjustmentPercent: number = 100
+): { valid: BidAdjustmentBatchItem[]; invalid: { item: BidAdjustmentBatchItem; reason: string }[] } {
+  const valid: BidAdjustmentBatchItem[] = [];
+  const invalid: { item: BidAdjustmentBatchItem; reason: string }[] = [];
+  
+  const seen = new Set<number>();
+  
+  for (const item of items) {
+    // 检查重复
+    if (seen.has(item.targetId)) {
+      invalid.push({ item, reason: '重复的目标ID' });
+      continue;
+    }
+    seen.add(item.targetId);
+    
+    // 检查新出价范围
+    if (item.newBid < minBid) {
+      invalid.push({ item, reason: `出价不能低于$${minBid}` });
+      continue;
+    }
+    
+    if (item.newBid > maxBid) {
+      invalid.push({ item, reason: `出价不能超过$${maxBid}` });
+      continue;
+    }
+    
+    // 检查调整幅度
+    if (Math.abs(item.adjustmentPercent) > maxAdjustmentPercent) {
+      invalid.push({ item, reason: `单次调整幅度不能超过${maxAdjustmentPercent}%` });
+      continue;
+    }
+    
+    // 检查出价变化是否合理
+    if (item.newBid === item.currentBid) {
+      invalid.push({ item, reason: '新出价与当前出价相同' });
+      continue;
+    }
+    
+    valid.push(item);
+  }
+  
+  return { valid, invalid };
+}
+
+/**
+ * 生成批量操作摘要
+ */
+export function generateBatchOperationSummary(
+  negativeItems: NegativeKeywordBatchItem[],
+  bidItems: BidAdjustmentBatchItem[]
+): {
+  negatives: {
+    total: number;
+    byCampaign: Record<string, number>;
+    byMatchType: Record<string, number>;
+    byLevel: Record<string, number>;
+  };
+  bids: {
+    total: number;
+    increases: number;
+    decreases: number;
+    avgAdjustment: number;
+    totalBidChange: number;
+  };
+} {
+  // 否定词摘要
+  const negativeSummary = {
+    total: negativeItems.length,
+    byCampaign: {} as Record<string, number>,
+    byMatchType: { phrase: 0, exact: 0 } as Record<string, number>,
+    byLevel: { ad_group: 0, campaign: 0 } as Record<string, number>,
+  };
+  
+  for (const item of negativeItems) {
+    negativeSummary.byCampaign[item.campaignId] = (negativeSummary.byCampaign[item.campaignId] || 0) + 1;
+    negativeSummary.byMatchType[item.matchType]++;
+    negativeSummary.byLevel[item.level]++;
+  }
+  
+  // 出价调整摘要
+  const bidSummary = {
+    total: bidItems.length,
+    increases: 0,
+    decreases: 0,
+    avgAdjustment: 0,
+    totalBidChange: 0,
+  };
+  
+  let totalAdjustment = 0;
+  for (const item of bidItems) {
+    if (item.newBid > item.currentBid) {
+      bidSummary.increases++;
+    } else {
+      bidSummary.decreases++;
+    }
+    totalAdjustment += item.adjustmentPercent;
+    bidSummary.totalBidChange += (item.newBid - item.currentBid);
+  }
+  
+  bidSummary.avgAdjustment = bidItems.length > 0 ? totalAdjustment / bidItems.length : 0;
+  
+  return {
+    negatives: negativeSummary,
+    bids: bidSummary,
+  };
+}

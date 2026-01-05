@@ -190,6 +190,35 @@ export default function AdAutomation() {
   const [selectedAccount, setSelectedAccount] = useState<string>("1");
   const [activeTab, setActiveTab] = useState("ngram");
   
+  // 批量操作状态
+  const [selectedNgrams, setSelectedNgrams] = useState<Set<string>>(new Set());
+  const [selectedFunnelTerms, setSelectedFunnelTerms] = useState<Set<string>>(new Set());
+  const [selectedConflicts, setSelectedConflicts] = useState<Set<string>>(new Set());
+  const [selectedBidAdjustments, setSelectedBidAdjustments] = useState<Set<number>>(new Set());
+  
+  // 批量操作mutation
+  const batchNegativeMutation = trpc.adAutomation.executeBatchNegatives.useMutation({
+    onSuccess: (result: { successCount: number }) => {
+      toast.success(`成功添加 ${result.successCount} 个否定词`);
+      setSelectedNgrams(new Set());
+      setSelectedFunnelTerms(new Set());
+      setSelectedConflicts(new Set());
+    },
+    onError: (error) => {
+      toast.error(`批量操作失败: ${error.message}`);
+    }
+  });
+  
+  const batchBidMutation = trpc.adAutomation.executeBatchBidAdjustments.useMutation({
+    onSuccess: (result) => {
+      toast.success(`成功调整 ${result.successCount} 个出价`);
+      setSelectedBidAdjustments(new Set());
+    },
+    onError: (error) => {
+      toast.error(`批量出价调整失败: ${error.message}`);
+    }
+  });
+  
   // Fetch accounts
   const { data: accounts } = trpc.adAccount.list.useQuery();
   

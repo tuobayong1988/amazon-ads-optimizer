@@ -736,6 +736,294 @@ const adAutomationRouter = router({
       }
       return { migratedCount };
     }),
+
+  // ==================== 半月纠错复盘 ====================
+  analyzeBidCorrections: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      attributionWindowDays: z.number().min(7).max(30).default(14),
+    }))
+    .query(async ({ input }) => {
+      // 获取过去30天的出价变更记录
+      const bidChanges = await db.getBidChangeRecords(input.accountId, 30);
+      const corrections = adAutomation.analyzeBidCorrections(bidChanges, input.attributionWindowDays);
+      
+      return {
+        totalAnalyzed: bidChanges.length,
+        totalCorrections: corrections.length,
+        urgentCount: corrections.filter(c => c.priority === 'urgent').length,
+        highCount: corrections.filter(c => c.priority === 'high').length,
+        corrections: corrections.slice(0, 50),
+        summary: {
+          prematureDecrease: corrections.filter(c => c.errorType === 'premature_decrease').length,
+          prematureIncrease: corrections.filter(c => c.errorType === 'premature_increase').length,
+          overAdjustment: corrections.filter(c => c.errorType === 'over_adjustment').length,
+          attributionDelay: corrections.filter(c => c.errorType === 'attribution_delay').length,
+        },
+      };
+    }),
+
+  // 执行纠错操作
+  applyCorrections: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      corrections: z.array(z.object({
+        targetId: z.number(),
+        targetType: z.enum(['keyword', 'product']),
+        currentBid: z.number(),
+        suggestedBid: z.number(),
+        reason: z.string(),
+      })),
+    }))
+    .mutation(async ({ input }) => {
+      let appliedCount = 0;
+      for (const correction of input.corrections) {
+        await db.recordBidChange({
+          accountId: input.accountId,
+          targetId: correction.targetId,
+          targetType: correction.targetType,
+          oldBid: correction.currentBid,
+          newBid: correction.suggestedBid,
+          reason: `纠错复盘: ${correction.reason}`,
+        });
+        appliedCount++;
+      }
+      return { appliedCount };
+    }),
+
+  // ==================== 广告活动健康度监控 ====================
+  analyzeCampaignHealth: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      acosWarning: z.number().default(35),
+      acosCritical: z.number().default(50),
+      ctrDropWarning: z.number().default(-20),
+      ctrDropCritical: z.number().default(-40),
+      cvrDropWarning: z.number().default(-25),
+      cvrDropCritical: z.number().default(-50),
+      roasMinimum: z.number().default(2),
+    }))
+    .query(async ({ input }) => {
+      const campaigns = await db.getCampaignHealthMetrics(input.accountId);
+      const healthScores = adAutomation.analyzeCampaignHealth(campaigns, {
+        acosWarning: input.acosWarning,
+        acosCritical: input.acosCritical,
+        ctrDropWarning: input.ctrDropWarning,
+        ctrDropCritical: input.ctrDropCritical,
+        cvrDropWarning: input.cvrDropWarning,
+        cvrDropCritical: input.cvrDropCritical,
+        roasMinimum: input.roasMinimum,
+      });
+      
+      const criticalCount = healthScores.filter(h => h.status === 'critical').length;
+      const warningCount = healthScores.filter(h => h.status === 'warning').length;
+      const healthyCount = healthScores.filter(h => h.status === 'healthy').length;
+      const totalAlerts = healthScores.reduce((sum, h) => sum + h.alerts.length, 0);
+      
+      return {
+        totalCampaigns: healthScores.length,
+        criticalCount,
+        warningCount,
+        healthyCount,
+        totalAlerts,
+        avgHealthScore: healthScores.length > 0 
+          ? Math.round(healthScores.reduce((sum, h) => sum + h.overallScore, 0) / healthScores.length)
+          : 0,
+        campaigns: healthScores,
+      };
+    }),
+
+  // 获取健康预警列表
+  getHealthAlerts: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      severity: z.enum(['all', 'critical', 'warning', 'info']).default('all'),
+    }))
+    .query(async ({ input }) => {
+      const campaigns = await db.getCampaignHealthMetrics(input.accountId);
+      const healthScores = adAutomation.analyzeCampaignHealth(campaigns);
+      
+      let allAlerts = healthScores.flatMap(h => h.alerts);
+      
+      if (input.severity !== 'all') {
+        allAlerts = allAlerts.filter(a => a.severity === input.severity);
+      }
+      
+      // 按严重程度排序
+      const severityOrder = { critical: 0, warning: 1, info: 2 };
+      allAlerts.sort((a, b) => severityOrder[a.severity] - severityOrder[b.severity]);
+      
+      return {
+        totalAlerts: allAlerts.length,
+        criticalCount: allAlerts.filter(a => a.severity === 'critical').length,
+        warningCount: allAlerts.filter(a => a.severity === 'warning').length,
+        infoCount: allAlerts.filter(a => a.severity === 'info').length,
+        alerts: allAlerts,
+      };
+    }),
+
+  // ==================== 批量操作 ====================
+  validateBatchNegatives: protectedProcedure
+    .input(z.object({
+      items: z.array(z.object({
+        keyword: z.string(),
+        matchType: z.enum(['phrase', 'exact']),
+        level: z.enum(['ad_group', 'campaign']),
+        campaignId: z.number(),
+        adGroupId: z.number().optional(),
+        reason: z.string(),
+      })),
+    }))
+    .query(({ input }) => {
+      const result = adAutomation.validateNegativeKeywordBatch(input.items);
+      return {
+        validCount: result.valid.length,
+        invalidCount: result.invalid.length,
+        valid: result.valid,
+        invalid: result.invalid,
+      };
+    }),
+
+  validateBatchBidAdjustments: protectedProcedure
+    .input(z.object({
+      items: z.array(z.object({
+        targetId: z.number(),
+        targetName: z.string(),
+        targetType: z.enum(['keyword', 'product']),
+        campaignId: z.number(),
+        currentBid: z.number(),
+        newBid: z.number(),
+        adjustmentPercent: z.number(),
+        reason: z.string(),
+      })),
+      maxBid: z.number().default(10),
+      minBid: z.number().default(0.02),
+      maxAdjustmentPercent: z.number().default(100),
+    }))
+    .query(({ input }) => {
+      const result = adAutomation.validateBidAdjustmentBatch(
+        input.items,
+        input.maxBid,
+        input.minBid,
+        input.maxAdjustmentPercent
+      );
+      return {
+        validCount: result.valid.length,
+        invalidCount: result.invalid.length,
+        valid: result.valid,
+        invalid: result.invalid,
+      };
+    }),
+
+  executeBatchNegatives: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      items: z.array(z.object({
+        keyword: z.string(),
+        matchType: z.enum(['phrase', 'exact']),
+        level: z.enum(['ad_group', 'campaign']),
+        campaignId: z.number(),
+        adGroupId: z.number().optional(),
+        reason: z.string(),
+      })),
+    }))
+    .mutation(async ({ input }) => {
+      const validation = adAutomation.validateNegativeKeywordBatch(input.items);
+      
+      let successCount = 0;
+      const errors: { keyword: string; error: string }[] = [];
+      
+      for (const item of validation.valid) {
+        try {
+          await db.addNegativeKeyword({
+            campaignId: item.campaignId,
+            adGroupId: item.adGroupId,
+            keyword: item.keyword,
+            matchType: item.matchType,
+            level: item.level,
+          });
+          successCount++;
+        } catch (error: any) {
+          errors.push({ keyword: item.keyword, error: error.message });
+        }
+      }
+      
+      return {
+        successCount,
+        failedCount: validation.invalid.length + errors.length,
+        validationErrors: validation.invalid.map(i => ({ keyword: i.item.keyword, error: i.reason })),
+        executionErrors: errors,
+      };
+    }),
+
+  executeBatchBidAdjustments: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      items: z.array(z.object({
+        targetId: z.number(),
+        targetName: z.string(),
+        targetType: z.enum(['keyword', 'product']),
+        campaignId: z.number(),
+        currentBid: z.number(),
+        newBid: z.number(),
+        adjustmentPercent: z.number(),
+        reason: z.string(),
+      })),
+    }))
+    .mutation(async ({ input }) => {
+      const validation = adAutomation.validateBidAdjustmentBatch(input.items);
+      
+      let successCount = 0;
+      const errors: { targetName: string; error: string }[] = [];
+      
+      for (const item of validation.valid) {
+        try {
+          await db.recordBidChange({
+            accountId: input.accountId,
+            targetId: item.targetId,
+            targetType: item.targetType,
+            oldBid: item.currentBid,
+            newBid: item.newBid,
+            reason: item.reason,
+          });
+          successCount++;
+        } catch (error: any) {
+          errors.push({ targetName: item.targetName, error: error.message });
+        }
+      }
+      
+      return {
+        successCount,
+        failedCount: validation.invalid.length + errors.length,
+        validationErrors: validation.invalid.map(i => ({ targetName: i.item.targetName, error: i.reason })),
+        executionErrors: errors,
+      };
+    }),
+
+  getBatchOperationSummary: protectedProcedure
+    .input(z.object({
+      negativeItems: z.array(z.object({
+        keyword: z.string(),
+        matchType: z.enum(['phrase', 'exact']),
+        level: z.enum(['ad_group', 'campaign']),
+        campaignId: z.number(),
+        adGroupId: z.number().optional(),
+        reason: z.string(),
+      })),
+      bidItems: z.array(z.object({
+        targetId: z.number(),
+        targetName: z.string(),
+        targetType: z.enum(['keyword', 'product']),
+        campaignId: z.number(),
+        currentBid: z.number(),
+        newBid: z.number(),
+        adjustmentPercent: z.number(),
+        reason: z.string(),
+      })),
+    }))
+    .query(({ input }) => {
+      return adAutomation.generateBatchOperationSummary(input.negativeItems, input.bidItems);
+    }),
 });
 
 // ==================== Amazon API Integration Router ====================
