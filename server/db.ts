@@ -505,3 +505,52 @@ export async function bulkCreateDailyPerformance(perfData: InsertDailyPerformanc
   if (perfData.length === 0) return;
   await db.insert(dailyPerformance).values(perfData);
 }
+
+
+// ==================== Amazon API Credentials Functions ====================
+import { amazonApiCredentials, InsertAmazonApiCredential, AmazonApiCredential } from "../drizzle/schema";
+
+export async function saveAmazonApiCredentials(data: InsertAmazonApiCredential) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.insert(amazonApiCredentials).values(data).onDuplicateKeyUpdate({
+    set: {
+      clientId: data.clientId,
+      clientSecret: data.clientSecret,
+      refreshToken: data.refreshToken,
+      profileId: data.profileId,
+      region: data.region,
+      updatedAt: new Date(),
+    }
+  });
+}
+
+export async function getAmazonApiCredentials(accountId: number): Promise<AmazonApiCredential | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select()
+    .from(amazonApiCredentials)
+    .where(eq(amazonApiCredentials.accountId, accountId))
+    .limit(1);
+  
+  return result[0] || null;
+}
+
+export async function updateAmazonApiCredentials(accountId: number, data: Partial<InsertAmazonApiCredential>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(amazonApiCredentials)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(amazonApiCredentials.accountId, accountId));
+}
+
+export async function deleteAmazonApiCredentials(accountId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.delete(amazonApiCredentials)
+    .where(eq(amazonApiCredentials.accountId, accountId));
+}

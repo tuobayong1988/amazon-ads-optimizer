@@ -30,7 +30,8 @@ import {
   FileText, 
   Settings, 
   Upload,
-  Zap
+  Zap,
+  Cloud
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -44,6 +45,7 @@ const menuItems = [
   { icon: FileText, label: "竞价日志", path: "/bidding-logs" },
   { icon: Settings, label: "优化设置", path: "/settings" },
   { icon: Upload, label: "数据导入", path: "/import" },
+  { icon: Cloud, label: "Amazon API", path: "/amazon-api" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

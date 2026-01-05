@@ -6,6 +6,8 @@ import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import * as db from "./db";
 import * as bidOptimizer from "./bidOptimizer";
+import { AmazonAdsApiClient, validateCredentials, API_ENDPOINTS, MARKETPLACE_TO_REGION } from './amazonAdsApi';
+import { AmazonSyncService, runAutoBidOptimization } from './amazonSyncService';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
@@ -556,6 +558,328 @@ const importRouter = router({
     }),
 });
 
+// ==================== Amazon API Integration Router ====================
+
+const amazonApiRouter = router({
+  // Generate OAuth authorization URL
+  getAuthUrl: protectedProcedure
+    .input(z.object({
+      clientId: z.string(),
+      redirectUri: z.string(),
+    }))
+    .query(({ input }) => {
+      const authUrl = AmazonAdsApiClient.generateAuthUrl(
+        input.clientId,
+        input.redirectUri,
+        `user_${Date.now()}`
+      );
+      return { authUrl };
+    }),
+
+  // Exchange authorization code for tokens
+  exchangeCode: protectedProcedure
+    .input(z.object({
+      code: z.string(),
+      clientId: z.string(),
+      clientSecret: z.string(),
+      redirectUri: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const tokens = await AmazonAdsApiClient.exchangeCodeForToken(
+          input.code,
+          input.clientId,
+          input.clientSecret,
+          input.redirectUri
+        );
+        return {
+          success: true,
+          accessToken: tokens.access_token,
+          refreshToken: tokens.refresh_token,
+          expiresIn: tokens.expires_in,
+        };
+      } catch (error: any) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `Failed to exchange code: ${error.message}`,
+        });
+      }
+    }),
+
+  // Save API credentials
+  saveCredentials: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      clientId: z.string(),
+      clientSecret: z.string(),
+      refreshToken: z.string(),
+      profileId: z.string(),
+      region: z.enum(['NA', 'EU', 'FE']),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Validate credentials before saving
+      const isValid = await validateCredentials({
+        clientId: input.clientId,
+        clientSecret: input.clientSecret,
+        refreshToken: input.refreshToken,
+        profileId: input.profileId,
+        region: input.region,
+      });
+
+      if (!isValid) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Invalid API credentials. Please check your credentials and try again.',
+        });
+      }
+
+      // Save credentials to database
+      await db.saveAmazonApiCredentials({
+        accountId: input.accountId,
+        clientId: input.clientId,
+        clientSecret: input.clientSecret,
+        refreshToken: input.refreshToken,
+        profileId: input.profileId,
+        region: input.region,
+      });
+
+      return { success: true };
+    }),
+
+  // Get API credentials status
+  getCredentialsStatus: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      const credentials = await db.getAmazonApiCredentials(input.accountId);
+      return {
+        hasCredentials: !!credentials,
+        region: credentials?.region,
+        lastSyncAt: credentials?.lastSyncAt,
+      };
+    }),
+
+  // Get available profiles
+  getProfiles: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      const credentials = await db.getAmazonApiCredentials(input.accountId);
+      if (!credentials) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'API credentials not found',
+        });
+      }
+
+      const client = new AmazonAdsApiClient({
+        clientId: credentials.clientId,
+        clientSecret: credentials.clientSecret,
+        refreshToken: credentials.refreshToken,
+        profileId: credentials.profileId,
+        region: credentials.region as 'NA' | 'EU' | 'FE',
+      });
+
+      const profiles = await client.getProfiles();
+      return profiles;
+    }),
+
+  // Sync all data from Amazon
+  syncAll: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const credentials = await db.getAmazonApiCredentials(input.accountId);
+      if (!credentials) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'API credentials not found',
+        });
+      }
+
+      const syncService = await AmazonSyncService.createFromCredentials(
+        {
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+          profileId: credentials.profileId,
+          region: credentials.region as 'NA' | 'EU' | 'FE',
+        },
+        input.accountId,
+        ctx.user.id
+      );
+
+      const results = await syncService.syncAll();
+
+      // Update last sync time
+      await db.updateAmazonApiCredentials(input.accountId, {
+        lastSyncAt: new Date(),
+      });
+
+      return results;
+    }),
+
+  // Sync campaigns only
+  syncCampaigns: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const credentials = await db.getAmazonApiCredentials(input.accountId);
+      if (!credentials) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'API credentials not found',
+        });
+      }
+
+      const syncService = await AmazonSyncService.createFromCredentials(
+        {
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+          profileId: credentials.profileId,
+          region: credentials.region as 'NA' | 'EU' | 'FE',
+        },
+        input.accountId,
+        ctx.user.id
+      );
+
+      const count = await syncService.syncSpCampaigns();
+      return { synced: count };
+    }),
+
+  // Sync performance data
+  syncPerformance: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      days: z.number().min(1).max(90).default(30),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const credentials = await db.getAmazonApiCredentials(input.accountId);
+      if (!credentials) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'API credentials not found',
+        });
+      }
+
+      const syncService = await AmazonSyncService.createFromCredentials(
+        {
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+          profileId: credentials.profileId,
+          region: credentials.region as 'NA' | 'EU' | 'FE',
+        },
+        input.accountId,
+        ctx.user.id
+      );
+
+      const count = await syncService.syncPerformanceData(input.days);
+      return { synced: count };
+    }),
+
+  // Apply bid adjustment to Amazon
+  applyBidAdjustment: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      targetType: z.enum(['keyword', 'product_target']),
+      targetId: z.number(),
+      newBid: z.number(),
+      reason: z.string(),
+      campaignId: z.number(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const credentials = await db.getAmazonApiCredentials(input.accountId);
+      if (!credentials) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'API credentials not found',
+        });
+      }
+
+      const syncService = await AmazonSyncService.createFromCredentials(
+        {
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+          profileId: credentials.profileId,
+          region: credentials.region as 'NA' | 'EU' | 'FE',
+        },
+        input.accountId,
+        ctx.user.id
+      );
+
+      const success = await syncService.applyBidAdjustment(
+        input.targetType,
+        input.targetId,
+        input.newBid,
+        input.reason,
+        input.campaignId
+      );
+
+      if (!success) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to apply bid adjustment',
+        });
+      }
+
+      return { success: true };
+    }),
+
+  // Run auto optimization with API sync
+  runAutoOptimization: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      performanceGroupId: z.number(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const credentials = await db.getAmazonApiCredentials(input.accountId);
+      if (!credentials) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'API credentials not found',
+        });
+      }
+
+      const group = await db.getPerformanceGroupById(input.performanceGroupId);
+      if (!group) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Performance group not found',
+        });
+      }
+
+      const syncService = await AmazonSyncService.createFromCredentials(
+        {
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+          profileId: credentials.profileId,
+          region: credentials.region as 'NA' | 'EU' | 'FE',
+        },
+        input.accountId,
+        ctx.user.id
+      );
+
+      const config = {
+        optimizationGoal: group.optimizationGoal || 'maximize_sales',
+        targetAcos: group.targetAcos ? parseFloat(group.targetAcos) : undefined,
+        targetRoas: group.targetRoas ? parseFloat(group.targetRoas) : undefined,
+        dailySpendLimit: group.dailySpendLimit ? parseFloat(group.dailySpendLimit) : undefined,
+        dailyCostTarget: group.dailyCostTarget ? parseFloat(group.dailyCostTarget) : undefined,
+      };
+
+      const results = await runAutoBidOptimization(syncService, input.accountId, config);
+      return results;
+    }),
+
+  // Get API regions and marketplaces
+  getRegions: publicProcedure.query(() => {
+    return {
+      endpoints: API_ENDPOINTS,
+      marketplaceMapping: MARKETPLACE_TO_REGION,
+    };
+  }),
+});
+
 // ==================== Main Router ====================
 export const appRouter = router({
   system: systemRouter,
@@ -577,6 +901,7 @@ export const appRouter = router({
   analytics: analyticsRouter,
   optimization: optimizationRouter,
   import: importRouter,
+  amazonApi: amazonApiRouter,
 });
 
 export type AppRouter = typeof appRouter;

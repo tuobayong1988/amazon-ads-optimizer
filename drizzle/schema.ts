@@ -307,3 +307,27 @@ export const importJobs = mysqlTable("import_jobs", {
 
 export type ImportJob = typeof importJobs.$inferSelect;
 export type InsertImportJob = typeof importJobs.$inferInsert;
+
+
+/**
+ * Amazon API Credentials - Store OAuth tokens and API credentials
+ */
+export const amazonApiCredentials = mysqlTable("amazon_api_credentials", {
+  id: int("id").autoincrement().primaryKey(),
+  accountId: int("accountId").notNull().unique(),
+  clientId: varchar("clientId", { length: 255 }).notNull(),
+  clientSecret: varchar("clientSecret", { length: 255 }).notNull(),
+  refreshToken: text("refreshToken").notNull(),
+  accessToken: text("accessToken"),
+  tokenExpiresAt: timestamp("tokenExpiresAt"),
+  profileId: varchar("profileId", { length: 64 }).notNull(),
+  region: mysqlEnum("region", ["NA", "EU", "FE"]).default("NA").notNull(),
+  lastSyncAt: timestamp("lastSyncAt"),
+  syncStatus: mysqlEnum("syncStatus", ["idle", "syncing", "error"]).default("idle"),
+  syncErrorMessage: text("syncErrorMessage"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AmazonApiCredential = typeof amazonApiCredentials.$inferSelect;
+export type InsertAmazonApiCredential = typeof amazonApiCredentials.$inferInsert;
