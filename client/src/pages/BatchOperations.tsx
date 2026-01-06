@@ -1,5 +1,6 @@
 import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import OperationConfirmDialog, { useOperationConfirm, ChangeItem } from "@/components/OperationConfirmDialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +55,9 @@ export default function BatchOperations() {
   const [selectedBatch, setSelectedBatch] = useState<number | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [createType, setCreateType] = useState<'negative_keyword' | 'bid_adjustment'>('negative_keyword');
+  
+  // 确认弹窗状态
+  const { showConfirm, dialogProps } = useOperationConfirm();
   
   // Form state for creating batch
   const [batchName, setBatchName] = useState("");
@@ -467,7 +471,27 @@ export default function BatchOperations() {
                                   size="icon"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    executeMutation.mutate({ id: batch.id });
+                                    const operationType = operationTypeConfig[batch.operationType as OperationType];
+                                    showConfirm({
+                                      operationType: 'batch_operation',
+                                      title: '执行批量操作',
+                                      description: `您即将执行“${batch.name}”批量操作`,
+                                      changes: [{
+                                        id: batch.id,
+                                        name: batch.name,
+                                        field: 'operation',
+                                        fieldLabel: '操作类型',
+                                        oldValue: '待执行',
+                                        newValue: operationType?.label || batch.operationType,
+                                      }],
+                                      affectedCount: batch.totalItems || 0,
+                                      warningMessage: (batch.totalItems || 0) > 10 
+                                        ? `此操作将影响 ${batch.totalItems} 个项目，请谨慎确认` 
+                                        : undefined,
+                                      onConfirm: () => {
+                                        executeMutation.mutate({ id: batch.id });
+                                      },
+                                    });
                                   }}
                                 >
                                   <Play className="h-4 w-4 text-blue-600" />
@@ -600,7 +624,29 @@ export default function BatchOperations() {
                       {batchDetails.status === 'approved' && (
                         <Button 
                           className="w-full"
-                          onClick={() => executeMutation.mutate({ id: batchDetails.id })}
+                          onClick={() => {
+                            const operationType = operationTypeConfig[batchDetails.operationType as OperationType];
+                            showConfirm({
+                              operationType: 'batch_operation',
+                              title: '执行批量操作',
+                              description: `您即将执行“${batchDetails.name}”批量操作`,
+                              changes: [{
+                                id: batchDetails.id,
+                                name: batchDetails.name,
+                                field: 'operation',
+                                fieldLabel: '操作类型',
+                                oldValue: '待执行',
+                                newValue: operationType?.label || batchDetails.operationType,
+                              }],
+                              affectedCount: batchDetails.totalItems || 0,
+                              warningMessage: (batchDetails.totalItems || 0) > 10 
+                                ? `此操作将影响 ${batchDetails.totalItems} 个项目，请谨慎确认` 
+                                : undefined,
+                              onConfirm: () => {
+                                executeMutation.mutate({ id: batchDetails.id });
+                              },
+                            });
+                          }}
                           disabled={executeMutation.isPending}
                         >
                           <Play className="h-4 w-4 mr-2" />
@@ -626,6 +672,9 @@ export default function BatchOperations() {
           </div>
         </div>
       </div>
+
+      {/* 操作确认弹窗 */}
+      {dialogProps && <OperationConfirmDialog {...dialogProps} />}
     </DashboardLayout>
   );
 }

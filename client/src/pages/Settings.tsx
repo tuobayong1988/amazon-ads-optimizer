@@ -1,5 +1,6 @@
 import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { useOnboarding } from "@/components/OnboardingWizard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,11 +18,14 @@ import {
   Clock,
   Save,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  RotateCcw,
+  Rocket
 } from "lucide-react";
 
 export default function Settings() {
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
+  const { resetOnboarding, savedProgress } = useOnboarding();
 
   // Fetch accounts
   const { data: accounts, isLoading: accountsLoading, refetch } = trpc.adAccount.list.useQuery();
@@ -103,7 +107,7 @@ export default function Settings() {
 
         {/* Settings Tabs */}
         <Tabs defaultValue="account" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3 lg:w-[400px]">
+          <TabsList className="grid w-full grid-cols-4 lg:w-[500px]">
             <TabsTrigger value="account">
               <Building2 className="w-4 h-4 mr-2" />
               账号设置
@@ -115,6 +119,10 @@ export default function Settings() {
             <TabsTrigger value="intraday">
               <Clock className="w-4 h-4 mr-2" />
               日内竞价
+            </TabsTrigger>
+            <TabsTrigger value="guide">
+              <Rocket className="w-4 h-4 mr-2" />
+              引导设置
             </TabsTrigger>
           </TabsList>
 
@@ -143,6 +151,92 @@ export default function Settings() {
               onSave={(data) => updateAccount.mutate({ id: accountId!, ...data })}
               isLoading={updateAccount.isPending}
             />
+          </TabsContent>
+
+          {/* Guide Settings */}
+          <TabsContent value="guide">
+            <Card>
+              <CardHeader>
+                <CardTitle>引导设置</CardTitle>
+                <CardDescription>
+                  管理首次登录引导流程和系统入门向导
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* 引导进度状态 */}
+                {savedProgress && (
+                  <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-full">
+                        <Rocket className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-blue-900 dark:text-blue-100">您有未完成的引导流程</p>
+                        <p className="text-sm text-blue-700 dark:text-blue-300">
+                          当前进度：{savedProgress === 'connect' ? '连接Amazon API' : savedProgress === 'sync' ? '数据同步' : savedProgress}
+                        </p>
+                      </div>
+                      <Button 
+                        size="sm" 
+                        onClick={() => {
+                          window.location.href = '/dashboard';
+                        }}
+                      >
+                        继续完成
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* 重新开始引导 */}
+                <div className="space-y-4">
+                  <div>
+                    <h4 className="font-medium mb-2">重新开始引导</h4>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      如果您想重新了解系统功能或重新配置Amazon API连接，可以重新开始引导流程。
+                    </p>
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        resetOnboarding();
+                        toast.success("引导已重置，即将跳转到仪表盘");
+                        setTimeout(() => {
+                          window.location.href = '/dashboard';
+                        }, 1000);
+                      }}
+                    >
+                      <RotateCcw className="w-4 h-4 mr-2" />
+                      重新开始引导
+                    </Button>
+                  </div>
+
+                  <Separator />
+
+                  {/* 引导内容说明 */}
+                  <div>
+                    <h4 className="font-medium mb-2">引导包含内容</h4>
+                    <ul className="space-y-2 text-sm text-muted-foreground">
+                      <li className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary">1</div>
+                        <span>欢迎介绍 - 了解系统核心功能</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary">2</div>
+                        <span>连接Amazon API - 授权广告账号访问</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary">3</div>
+                        <span>数据同步 - 首次同步广告数据</span>
+                      </li>
+                      <li className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-medium text-primary">4</div>
+                        <span>完成设置 - 开始使用系统</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>

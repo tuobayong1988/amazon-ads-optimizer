@@ -30,15 +30,19 @@ interface OnboardingWizardProps {
   isOpen: boolean;
   onComplete: () => void;
   onSkip: () => void;
+  onPause?: (step: OnboardingStep) => void;
+  initialStep?: OnboardingStep;
 }
 
 type OnboardingStep = "welcome" | "connect" | "sync" | "complete";
 
 const ONBOARDING_STORAGE_KEY = "amazon-ads-optimizer-onboarding-completed";
+const ONBOARDING_PROGRESS_KEY = "amazon-ads-optimizer-onboarding-progress";
 
 export function useOnboarding() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
+  const [savedProgress, setSavedProgress] = useState<OnboardingStep | null>(null);
 
   // 检查是否有已授权的账号
   const { data: accounts, isLoading: accountsLoading } = trpc.adAccount.list.useQuery();
@@ -48,6 +52,12 @@ export function useOnboarding() {
 
     // 检查本地存储中是否已完成引导
     const completed = localStorage.getItem(ONBOARDING_STORAGE_KEY);
+    
+    // 检查是否有保存的进度
+    const progress = localStorage.getItem(ONBOARDING_PROGRESS_KEY) as OnboardingStep | null;
+    if (progress) {
+      setSavedProgress(progress);
+    }
     
     // 如果没有完成引导且没有已授权账号，显示引导
     if (!completed && (!accounts || accounts.length === 0)) {
@@ -59,16 +69,29 @@ export function useOnboarding() {
 
   const completeOnboarding = () => {
     localStorage.setItem(ONBOARDING_STORAGE_KEY, "true");
+    localStorage.removeItem(ONBOARDING_PROGRESS_KEY);
     setShowOnboarding(false);
   };
 
   const skipOnboarding = () => {
     localStorage.setItem(ONBOARDING_STORAGE_KEY, "skipped");
+    localStorage.removeItem(ONBOARDING_PROGRESS_KEY);
     setShowOnboarding(false);
+  };
+
+  const pauseOnboarding = (step: OnboardingStep) => {
+    localStorage.setItem(ONBOARDING_PROGRESS_KEY, step);
+    setShowOnboarding(false);
+  };
+
+  const resumeOnboarding = () => {
+    setShowOnboarding(true);
   };
 
   const resetOnboarding = () => {
     localStorage.removeItem(ONBOARDING_STORAGE_KEY);
+    localStorage.removeItem(ONBOARDING_PROGRESS_KEY);
+    setSavedProgress(null);
     setShowOnboarding(true);
   };
 
@@ -77,13 +100,16 @@ export function useOnboarding() {
     isChecking: isChecking || accountsLoading,
     completeOnboarding,
     skipOnboarding,
+    pauseOnboarding,
+    resumeOnboarding,
     resetOnboarding,
+    savedProgress,
     hasAccounts: accounts && accounts.length > 0
   };
 }
 
-export default function OnboardingWizard({ isOpen, onComplete, onSkip }: OnboardingWizardProps) {
-  const [currentStep, setCurrentStep] = useState<OnboardingStep>("welcome");
+export default function OnboardingWizard({ isOpen, onComplete, onSkip, onPause, initialStep }: OnboardingWizardProps) {
+  const [currentStep, setCurrentStep] = useState<OnboardingStep>(initialStep || "welcome");
   const [isConnecting, setIsConnecting] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncProgress, setSyncProgress] = useState(0);
@@ -467,6 +493,21 @@ export default function OnboardingWizard({ isOpen, onComplete, onSkip }: Onboard
             {currentStep === "welcome" && (
               <Button variant="ghost" onClick={onSkip}>
                 跳过引导
+              </Button>
+            )}
+            {currentStep !== "welcome" && currentStep !== "complete" && (
+              <Button 
+                variant="ghost" 
+                onClick={() => {
+                  if (onPause) {
+                    onPause(currentStep);
+                    toast.info("引导进度已保存，您可以稍后继续");
+                  } else {
+                    onSkip();
+                  }
+                }}
+              >
+                稍后完成
               </Button>
             )}
           </div>

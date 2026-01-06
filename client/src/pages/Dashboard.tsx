@@ -1,6 +1,7 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
 import OnboardingWizard, { useOnboarding } from "@/components/OnboardingWizard";
+import ApiStatusWidget from "@/components/ApiStatusWidget";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -219,7 +220,7 @@ export default function Dashboard() {
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   
   // 首次登录引导
-  const { showOnboarding, completeOnboarding, skipOnboarding } = useOnboarding();
+  const { showOnboarding, completeOnboarding, skipOnboarding, pauseOnboarding, savedProgress } = useOnboarding();
 
   // Fetch accounts
   const { data: accounts, isLoading: accountsLoading } = trpc.adAccount.list.useQuery();
@@ -293,7 +294,9 @@ export default function Dashboard() {
         <OnboardingWizard 
           isOpen={showOnboarding} 
           onComplete={completeOnboarding} 
-          onSkip={skipOnboarding} 
+          onSkip={skipOnboarding}
+          onPause={pauseOnboarding}
+          initialStep={savedProgress || undefined}
         />
         <div className="flex flex-col items-center justify-center h-[60vh] text-center">
           <div className="p-6 rounded-full bg-muted/50 mb-6">
@@ -329,6 +332,8 @@ export default function Dashboard() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {/* API状态小组件 */}
+            <ApiStatusWidget compact />
             <Badge variant="outline" className="bg-emerald-500/10 text-emerald-400 border-emerald-500/30">
               <Activity className="w-3 h-3 mr-1" />
               实时同步中
