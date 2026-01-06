@@ -29,13 +29,21 @@ import {
   Zap,
   CircleDollarSign,
   ArrowUp,
-  ArrowDown
+  ArrowDown,
+  AlertCircle
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 
-// 绩效组最优出价点显示组件
-function GroupOptimalBidCard({ groupId, accountId }: { groupId: number; accountId: number }) {
-  const { data, isLoading, error } = trpc.placement.getPerformanceGroupOptimalBids.useQuery(
+// 绩效组最优出价点显示组件（带一键采纳按钮）
+function GroupOptimalBidCard({ groupId, accountId, onApplySuccess }: { 
+  groupId: number; 
+  accountId: number;
+  onApplySuccess?: () => void;
+}) {
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [isApplying, setIsApplying] = useState(false);
+  
+  const { data, isLoading, error, refetch } = trpc.placement.getPerformanceGroupOptimalBids.useQuery(
     { groupId, accountId },
     { 
       enabled: !!groupId && !!accountId,
@@ -43,6 +51,29 @@ function GroupOptimalBidCard({ groupId, accountId }: { groupId: number; accountI
       refetchOnWindowFocus: false,
     }
   );
+  
+  const applyGroupOptimalBids = trpc.placement.applyGroupOptimalBids.useMutation({
+    onSuccess: (result) => {
+      toast.success(`已应用${result.summary.totalApplied}个关键词的最优出价，预估利润提升$${result.summary.totalExpectedProfitIncrease}`);
+      setShowConfirmDialog(false);
+      setIsApplying(false);
+      refetch();
+      onApplySuccess?.();
+    },
+    onError: (error) => {
+      toast.error(`应用失败: ${error.message}`);
+      setIsApplying(false);
+    },
+  });
+
+  const handleApply = () => {
+    setIsApplying(true);
+    applyGroupOptimalBids.mutate({
+      groupId,
+      accountId,
+      minBidDifferencePercent: 5,
+    });
+  };
 
   if (isLoading) {
     return (
@@ -57,7 +88,7 @@ function GroupOptimalBidCard({ groupId, accountId }: { groupId: number; accountI
     return null;
   }
 
-  const { summary } = data;
+  const { summary, campaigns } = data;
   
   if (summary.totalAnalyzedKeywords === 0) {
     return (
@@ -66,55 +97,148 @@ function GroupOptimalBidCard({ groupId, accountId }: { groupId: number; accountI
       </div>
     );
   }
+  
+  const hasAdjustments = summary.keywordsNeedIncrease > 0 || summary.keywordsNeedDecrease > 0;
 
   return (
-    <div className="pt-3 border-t border-border/50">
-      <div className="flex items-center justify-between mb-2">
-        <p className="text-xs text-muted-foreground flex items-center gap-1">
-          <CircleDollarSign className="w-3 h-3" />
-          利润最大化出价点
-        </p>
-        <div className="flex items-center gap-1">
-          <span className={`text-xs px-1.5 py-0.5 rounded ${
-            summary.avgOptimizationScore >= 80 
-              ? 'bg-green-500/10 text-green-600' 
-              : summary.avgOptimizationScore >= 60 
-                ? 'bg-yellow-500/10 text-yellow-600'
-                : 'bg-red-500/10 text-red-600'
-          }`}>
-            优化度: {summary.avgOptimizationScore}%
+    <>
+      <div className="pt-3 border-t border-border/50">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <CircleDollarSign className="w-3 h-3" />
+            利润最大化出价点
+          </p>
+          <div className="flex items-center gap-1">
+            <span className={`text-xs px-1.5 py-0.5 rounded ${
+              summary.avgOptimizationScore >= 80 
+                ? 'bg-green-500/10 text-green-600' 
+                : summary.avgOptimizationScore >= 60 
+                  ? 'bg-yellow-500/10 text-yellow-600'
+                  : 'bg-red-500/10 text-red-600'
+            }`}>
+              优化度: {summary.avgOptimizationScore}%
+            </span>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-2 gap-3 text-xs">
+          <div className="bg-muted/30 rounded-lg p-2">
+            <p className="text-muted-foreground mb-1">预估最大利润</p>
+            <p className="font-semibold text-green-600">${summary.totalMaxProfit.toFixed(2)}</p>
+          </div>
+          <div className="bg-muted/30 rounded-lg p-2">
+            <p className="text-muted-foreground mb-1">已分析关键词</p>
+            <p className="font-semibold">{summary.totalAnalyzedKeywords}个</p>
+          </div>
+        </div>
+        
+        <div className="flex items-center justify-between mt-2 text-xs">
+          <div className="flex items-center gap-2">
+            <span className="flex items-center gap-1 text-green-600">
+              <ArrowUp className="w-3 h-3" />
+              {summary.keywordsNeedIncrease}需提高
+            </span>
+            <span className="flex items-center gap-1 text-red-600">
+              <ArrowDown className="w-3 h-3" />
+              {summary.keywordsNeedDecrease}需降低
+            </span>
+          </div>
+          <span className="text-muted-foreground">
+            {summary.overallRecommendation === 'increase_bids' ? '建议提高出价' :
+             summary.overallRecommendation === 'decrease_bids' ? '建议降低出价' : '出价合理'}
           </span>
         </div>
+        
+        {/* 一键采纳按钮 */}
+        {hasAdjustments && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full mt-3 h-8 text-xs text-blue-600 border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+            onClick={() => setShowConfirmDialog(true)}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 mr-1.5" />
+            一键采纳所有优化建议
+          </Button>
+        )}
       </div>
       
-      <div className="grid grid-cols-2 gap-3 text-xs">
-        <div className="bg-muted/30 rounded-lg p-2">
-          <p className="text-muted-foreground mb-1">预估最大利润</p>
-          <p className="font-semibold text-green-600">${summary.totalMaxProfit.toFixed(2)}</p>
-        </div>
-        <div className="bg-muted/30 rounded-lg p-2">
-          <p className="text-muted-foreground mb-1">已分析关键词</p>
-          <p className="font-semibold">{summary.totalAnalyzedKeywords}个</p>
-        </div>
-      </div>
-      
-      <div className="flex items-center justify-between mt-2 text-xs">
-        <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1 text-green-600">
-            <ArrowUp className="w-3 h-3" />
-            {summary.keywordsNeedIncrease}需提高
-          </span>
-          <span className="flex items-center gap-1 text-red-600">
-            <ArrowDown className="w-3 h-3" />
-            {summary.keywordsNeedDecrease}需降低
-          </span>
-        </div>
-        <span className="text-muted-foreground">
-          {summary.overallRecommendation === 'increase_bids' ? '建议提高出价' :
-           summary.overallRecommendation === 'decrease_bids' ? '建议降低出价' : '出价合理'}
-        </span>
-      </div>
-    </div>
+      {/* 确认对话框 */}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CircleDollarSign className="w-5 h-5 text-blue-500" />
+              确认应用绩效组最优出价
+            </DialogTitle>
+            <DialogDescription>
+              将为绩效组“{summary.groupName}”下的所有广告活动应用最优出价
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            {/* 汇总信息 */}
+            <div className="grid grid-cols-3 gap-3 p-3 bg-muted/30 rounded-lg">
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground">涉及广告活动</p>
+                <p className="text-lg font-semibold">{summary.analyzedCampaigns}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground">待调整关键词</p>
+                <p className="text-lg font-semibold">{summary.keywordsNeedIncrease + summary.keywordsNeedDecrease}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs text-muted-foreground">预估利润提升</p>
+                <p className="text-lg font-semibold text-green-600">${(summary.totalMaxProfit * 0.1).toFixed(2)}</p>
+              </div>
+            </div>
+            
+            {/* 广告活动明细 */}
+            <div className="max-h-48 overflow-y-auto space-y-2">
+              <p className="text-xs text-muted-foreground font-medium">广告活动明细</p>
+              {campaigns.map((campaign) => (
+                <div key={campaign.campaignId} className="flex items-center justify-between text-xs p-2 bg-muted/20 rounded">
+                  <span className="truncate max-w-[200px]" title={campaign.campaignName}>{campaign.campaignName}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-green-600">↑{campaign.keywordsNeedIncrease}</span>
+                    <span className="text-red-600">↓{campaign.keywordsNeedDecrease}</span>
+                    <span className="text-muted-foreground">分析{campaign.analyzedKeywords}个</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            
+            {/* 警告信息 */}
+            <div className="flex items-start gap-2 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-lg">
+              <AlertCircle className="w-4 h-4 text-yellow-600 mt-0.5" />
+              <div className="text-xs text-yellow-700">
+                <p className="font-medium">注意事项</p>
+                <p>出价调整将立即生效，差距低于5%的关键词将被跳过</p>
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowConfirmDialog(false)} disabled={isApplying}>
+              取消
+            </Button>
+            <Button onClick={handleApply} disabled={isApplying}>
+              {isApplying ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  应用中...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                  确认应用
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 

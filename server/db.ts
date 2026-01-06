@@ -341,11 +341,12 @@ export async function getKeywordById(id: number) {
   return result[0];
 }
 
-export async function updateKeywordBid(id: number, newBid: string) {
+export async function updateKeywordBid(id: number, newBid: number | string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  await db.update(keywords).set({ bid: newBid }).where(eq(keywords.id, id));
+  const bidValue = typeof newBid === 'number' ? String(newBid) : newBid;
+  await db.update(keywords).set({ bid: bidValue }).where(eq(keywords.id, id));
 }
 
 export async function updateKeyword(id: number, data: Partial<InsertKeyword>) {

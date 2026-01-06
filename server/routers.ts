@@ -5216,6 +5216,264 @@ const placementRouter = router({
       };
     }),
 
+  // 一键应用广告活动的最优出价
+  applyCampaignOptimalBids: protectedProcedure
+    .input(z.object({
+      campaignId: z.string(),
+      accountId: z.number(),
+      keywordIds: z.array(z.number()).optional(), // 可选，指定要应用的关键词，不指定则应用所有
+      minBidDifferencePercent: z.number().default(5), // 最小差距百分比，低于此值不调整
+    }))
+    .mutation(async ({ input, ctx }) => {
+      // 获取广告活动下的所有关键词
+      const campaignKeywords = await db.getKeywordsByCampaignId(input.campaignId);
+      
+      // 如果指定了关键词，则只处理指定的
+      const keywordsToProcess = input.keywordIds 
+        ? campaignKeywords.filter(k => input.keywordIds!.includes(k.id))
+        : campaignKeywords;
+      
+      const adjustments: Array<{
+        keywordId: number;
+        keywordText: string;
+        oldBid: number;
+        newBid: number;
+        bidChange: number;
+        bidChangePercent: number;
+        expectedProfitIncrease: number;
+        status: 'applied' | 'skipped' | 'error';
+        reason?: string;
+      }> = [];
+      
+      let appliedCount = 0;
+      let skippedCount = 0;
+      let errorCount = 0;
+      let totalExpectedProfitIncrease = 0;
+      
+      for (const keyword of keywordsToProcess) {
+        try {
+          // 获取市场曲线模型
+          const marketCurve = await marketCurveService.getMarketCurveModel(
+            input.accountId,
+            'keyword',
+            String(keyword.id)
+          );
+          
+          if (!marketCurve) {
+            adjustments.push({
+              keywordId: keyword.id,
+              keywordText: keyword.keywordText || '',
+              oldBid: keyword.bid || 0,
+              newBid: keyword.bid || 0,
+              bidChange: 0,
+              bidChangePercent: 0,
+              expectedProfitIncrease: 0,
+              status: 'skipped',
+              reason: '无市场曲线数据',
+            });
+            skippedCount++;
+            continue;
+          }
+          
+          // 计算最优出价点
+          const optimalBid = marketCurveService.calculateOptimalBid(
+            marketCurve.impressionCurve as any,
+            marketCurve.ctrCurve as any,
+            marketCurve.conversionParams as any
+          );
+          
+          const currentBid = keyword.bid || 0;
+          const bidDifferencePercent = currentBid > 0 
+            ? Math.abs((optimalBid.optimalBid - currentBid) / currentBid * 100)
+            : 100;
+          
+          // 检查差距是否足够大
+          if (bidDifferencePercent < input.minBidDifferencePercent) {
+            adjustments.push({
+              keywordId: keyword.id,
+              keywordText: keyword.keywordText || '',
+              oldBid: currentBid,
+              newBid: currentBid,
+              bidChange: 0,
+              bidChangePercent: 0,
+              expectedProfitIncrease: 0,
+              status: 'skipped',
+              reason: `差距仅${bidDifferencePercent.toFixed(1)}%，低于阈值${input.minBidDifferencePercent}%`,
+            });
+            skippedCount++;
+            continue;
+          }
+          
+          // 应用新出价
+          const newBid = Math.round(optimalBid.optimalBid * 100) / 100; // 保留两位小数
+          
+          // 更新数据库中的出价
+          await db.updateKeywordBid(keyword.id, newBid);
+          
+          const bidChange = newBid - currentBid;
+          const expectedProfitIncrease = optimalBid.maxProfit * 0.1; // 估计利润提升
+          
+          adjustments.push({
+            keywordId: keyword.id,
+            keywordText: keyword.keywordText || '',
+            oldBid: currentBid,
+            newBid: newBid,
+            bidChange: bidChange,
+            bidChangePercent: currentBid > 0 ? (bidChange / currentBid * 100) : 0,
+            expectedProfitIncrease: expectedProfitIncrease,
+            status: 'applied',
+          });
+          
+          appliedCount++;
+          totalExpectedProfitIncrease += expectedProfitIncrease;
+          
+        } catch (error) {
+          adjustments.push({
+            keywordId: keyword.id,
+            keywordText: keyword.keywordText || '',
+            oldBid: keyword.bid || 0,
+            newBid: keyword.bid || 0,
+            bidChange: 0,
+            bidChangePercent: 0,
+            expectedProfitIncrease: 0,
+            status: 'error',
+            reason: error instanceof Error ? error.message : '未知错误',
+          });
+          errorCount++;
+        }
+      }
+      
+      return {
+        success: true,
+        summary: {
+          totalKeywords: keywordsToProcess.length,
+          appliedCount,
+          skippedCount,
+          errorCount,
+          totalExpectedProfitIncrease: Math.round(totalExpectedProfitIncrease * 100) / 100,
+        },
+        adjustments,
+        appliedAt: new Date().toISOString(),
+        appliedBy: ctx.user.id,
+      };
+    }),
+
+  // 一键应用绩效组的所有最优出价
+  applyGroupOptimalBids: protectedProcedure
+    .input(z.object({
+      groupId: z.number(),
+      accountId: z.number(),
+      minBidDifferencePercent: z.number().default(5),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      // 获取绩效组信息
+      const group = await db.getPerformanceGroupById(input.groupId);
+      if (!group) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: '绩效组不存在' });
+      }
+      
+      // 获取绩效组内的所有广告活动
+      const groupCampaigns = await db.getPerformanceGroupCampaigns(input.groupId);
+      
+      const campaignResults: Array<{
+        campaignId: string;
+        campaignName: string;
+        appliedCount: number;
+        skippedCount: number;
+        errorCount: number;
+        totalExpectedProfitIncrease: number;
+      }> = [];
+      
+      let totalApplied = 0;
+      let totalSkipped = 0;
+      let totalErrors = 0;
+      let totalProfitIncrease = 0;
+      
+      for (const gc of groupCampaigns) {
+        const campaign = await db.getCampaignById(gc.campaignId);
+        if (!campaign) continue;
+        
+        // 获取广告活动下的所有关键词
+        const campaignKeywords = await db.getKeywordsByCampaignId(gc.campaignId);
+        
+        let appliedCount = 0;
+        let skippedCount = 0;
+        let errorCount = 0;
+        let campaignProfitIncrease = 0;
+        
+        for (const keyword of campaignKeywords) {
+          try {
+            const marketCurve = await marketCurveService.getMarketCurveModel(
+              input.accountId,
+              'keyword',
+              String(keyword.id)
+            );
+            
+            if (!marketCurve) {
+              skippedCount++;
+              continue;
+            }
+            
+            const optimalBid = marketCurveService.calculateOptimalBid(
+              marketCurve.impressionCurve as any,
+              marketCurve.ctrCurve as any,
+              marketCurve.conversionParams as any
+            );
+            
+            const currentBid = keyword.bid || 0;
+            const bidDifferencePercent = currentBid > 0 
+              ? Math.abs((optimalBid.optimalBid - currentBid) / currentBid * 100)
+              : 100;
+            
+            if (bidDifferencePercent < input.minBidDifferencePercent) {
+              skippedCount++;
+              continue;
+            }
+            
+            const newBid = Math.round(optimalBid.optimalBid * 100) / 100;
+            await db.updateKeywordBid(keyword.id, newBid);
+            
+            appliedCount++;
+            campaignProfitIncrease += optimalBid.maxProfit * 0.1;
+            
+          } catch (error) {
+            errorCount++;
+          }
+        }
+        
+        campaignResults.push({
+          campaignId: gc.campaignId,
+          campaignName: campaign.name,
+          appliedCount,
+          skippedCount,
+          errorCount,
+          totalExpectedProfitIncrease: Math.round(campaignProfitIncrease * 100) / 100,
+        });
+        
+        totalApplied += appliedCount;
+        totalSkipped += skippedCount;
+        totalErrors += errorCount;
+        totalProfitIncrease += campaignProfitIncrease;
+      }
+      
+      return {
+        success: true,
+        groupId: input.groupId,
+        groupName: group.name,
+        summary: {
+          totalCampaigns: groupCampaigns.length,
+          processedCampaigns: campaignResults.length,
+          totalApplied,
+          totalSkipped,
+          totalErrors,
+          totalExpectedProfitIncrease: Math.round(totalProfitIncrease * 100) / 100,
+        },
+        campaigns: campaignResults,
+        appliedAt: new Date().toISOString(),
+        appliedBy: ctx.user.id,
+      };
+    }),
+
   // 快速计算单个关键词的最优出价点
   calculateKeywordOptimalBid: protectedProcedure
     .input(z.object({
