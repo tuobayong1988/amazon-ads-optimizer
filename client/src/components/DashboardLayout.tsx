@@ -92,7 +92,7 @@ const menuGroups = [
     items: [
       { icon: FileText, label: "竞价日志", path: "/bidding-logs" },
       { icon: History, label: "出价调整历史", path: "/bid-adjustment-history" },
-      { icon: LineChart, label: "效果追踪", path: "/budget-tracking" },
+      { icon: LineChart, label: "效果追踪报告", path: "/effect-tracking-report" },
       { icon: BarChart3, label: "跨账号汇总", path: "/accounts-summary" },
       { icon: Shield, label: "审计日志", path: "/audit-logs" },
     ]

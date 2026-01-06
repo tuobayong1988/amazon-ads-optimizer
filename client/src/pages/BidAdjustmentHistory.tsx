@@ -105,6 +105,10 @@ export default function BidAdjustmentHistory() {
   // 效果追踪对话框状态
   const [trackingDialogOpen, setTrackingDialogOpen] = useState(false);
   const [trackingAdjustment, setTrackingAdjustment] = useState<any>(null);
+  
+  // 批量选择状态
+  const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
+  const [batchRollbackDialogOpen, setBatchRollbackDialogOpen] = useState(false);
 
   // 获取账号列表
   const { data: accounts } = trpc.adAccount.list.useQuery();
@@ -179,6 +183,22 @@ export default function BidAdjustmentHistory() {
     },
   });
 
+  // 批量回滚 mutation
+  const batchRollbackMutation = trpc.placement.batchRollbackBidAdjustments.useMutation({
+    onSuccess: (result) => {
+      toast.success(`批量回滚成功: ${result.success} 条记录`);
+      if (result.failed > 0) {
+        toast.warning(`${result.failed} 条记录回滚失败`);
+      }
+      setBatchRollbackDialogOpen(false);
+      setSelectedRows(new Set());
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(`批量回滚失败: ${error.message}`);
+    },
+  });
+
   // 处理回滚
   const handleRollback = (adjustment: any) => {
     setSelectedAdjustment(adjustment);
@@ -189,6 +209,37 @@ export default function BidAdjustmentHistory() {
   const confirmRollback = () => {
     if (selectedAdjustment) {
       rollbackMutation.mutate({ adjustmentId: selectedAdjustment.id });
+    }
+  };
+
+  // 处理行选择
+  const handleRowSelect = (id: number, checked: boolean) => {
+    const newSelected = new Set(selectedRows);
+    if (checked) {
+      newSelected.add(id);
+    } else {
+      newSelected.delete(id);
+    }
+    setSelectedRows(newSelected);
+  };
+
+  // 全选/取消全选
+  const handleSelectAll = (checked: boolean) => {
+    if (checked && historyData?.records) {
+      // 只选择未回滚的记录
+      const selectableIds = historyData.records
+        .filter(r => !r.isRolledBack)
+        .map(r => r.id);
+      setSelectedRows(new Set(selectableIds));
+    } else {
+      setSelectedRows(new Set());
+    }
+  };
+
+  // 确认批量回滚
+  const confirmBatchRollback = () => {
+    if (selectedRows.size > 0) {
+      batchRollbackMutation.mutate({ adjustmentIds: Array.from(selectedRows) });
     }
   };
 
@@ -317,6 +368,16 @@ export default function BidAdjustmentHistory() {
               <Upload className="w-4 h-4 mr-2" />
               批量导入
             </Button>
+            {selectedRows.size > 0 && (
+              <Button 
+                variant="destructive" 
+                size="sm" 
+                onClick={() => setBatchRollbackDialogOpen(true)}
+              >
+                <RotateCcw className="w-4 h-4 mr-2" />
+                批量回滚 ({selectedRows.size})
+              </Button>
+            )}
           </div>
         </div>
 
@@ -548,6 +609,15 @@ export default function BidAdjustmentHistory() {
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-muted/30">
+                        <TableHead className="w-[40px]">
+                          <input
+                            type="checkbox"
+                            className="rounded border-gray-300"
+                            checked={historyData?.records && historyData.records.filter(r => !r.isRolledBack).length > 0 && 
+                              historyData.records.filter(r => !r.isRolledBack).every(r => selectedRows.has(r.id))}
+                            onChange={(e) => handleSelectAll(e.target.checked)}
+                          />
+                        </TableHead>
                         <TableHead className="w-[160px]">时间</TableHead>
                         <TableHead>广告活动</TableHead>
                         <TableHead>关键词</TableHead>
@@ -564,8 +634,17 @@ export default function BidAdjustmentHistory() {
                       {historyData?.records.map((record) => {
                         const bidChange = Number(record.bidChangePercent || 0);
                         return (
-                          <TableRow key={record.id}>
-                            <TableCell className="text-xs text-muted-foreground">
+<TableRow key={record.id}>
+                                            <TableCell>
+                                              <input
+                                                type="checkbox"
+                                                className="rounded border-gray-300"
+                                                checked={selectedRows.has(record.id)}
+                                                disabled={record.isRolledBack}
+                                                onChange={(e) => handleRowSelect(record.id, e.target.checked)}
+                                              />
+                                            </TableCell>
+                                            <TableCell className="text-xs text-muted-foreground">
                               <div className="flex items-center gap-1">
                                 <Clock className="w-3 h-3" />
                                 {record.appliedAt ? new Date(record.appliedAt).toLocaleString('zh-CN', {
@@ -987,6 +1066,74 @@ export default function BidAdjustmentHistory() {
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin" />导入中...</>
               ) : (
                 <><Upload className="w-4 h-4 mr-2" />确认导入 ({importPreview.length} 条)</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 批量回滚对话框 */}
+      <Dialog open={batchRollbackDialogOpen} onOpenChange={setBatchRollbackDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="w-5 h-5 text-red-500" />
+              批量回滚确认
+            </DialogTitle>
+            <DialogDescription>
+              您即将回滚 {selectedRows.size} 条出价调整记录，此操作将恢复这些关键词的原始出价。
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-500 mt-0.5" />
+                <div>
+                  <p className="font-medium text-red-800">警告</p>
+                  <p className="text-sm text-red-600 mt-1">
+                    批量回滚操作不可撤销，请确认您已仔细检查选中的记录。
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="mt-4 space-y-2">
+              <p className="text-sm font-medium">选中的记录摘要：</p>
+              <div className="bg-muted/50 rounded-lg p-3 max-h-[200px] overflow-y-auto">
+                {historyData?.records
+                  .filter(r => selectedRows.has(r.id))
+                  .slice(0, 10)
+                  .map(record => (
+                    <div key={record.id} className="flex items-center justify-between py-1 text-sm">
+                      <span className="truncate max-w-[200px]">{record.keywordText || '-'}</span>
+                      <span className="text-muted-foreground">
+                        ${Number(record.newBid || 0).toFixed(2)} → ${Number(record.previousBid || 0).toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
+                {selectedRows.size > 10 && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    ... 还有 {selectedRows.size - 10} 条记录
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBatchRollbackDialogOpen(false)}>
+              取消
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={confirmBatchRollback}
+              disabled={batchRollbackMutation.isPending}
+            >
+              {batchRollbackMutation.isPending ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />回滚中...</>
+              ) : (
+                <><RotateCcw className="w-4 h-4 mr-2" />确认批量回滚</>
               )}
             </Button>
           </DialogFooter>

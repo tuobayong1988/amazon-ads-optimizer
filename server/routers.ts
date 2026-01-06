@@ -5675,6 +5675,240 @@ const placementRouter = router({
     .mutation(async ({ input }) => {
       return db.updateBidAdjustmentTracking(input.adjustmentId, input.trackingData);
     }),
+
+  // 运行效果追踪定时任务
+  runEffectTrackingTask: protectedProcedure
+    .input(z.object({
+      period: z.number().default(7), // 7, 14, 或 30 天
+    }))
+    .mutation(async ({ input }) => {
+      const { runEffectTrackingTask } = await import('./effectTrackingScheduler');
+      return runEffectTrackingTask(input.period);
+    }),
+
+  // 运行所有效果追踪任务
+  runAllTrackingTasks: protectedProcedure
+    .mutation(async () => {
+      const { runAllTrackingTasks } = await import('./effectTrackingScheduler');
+      return runAllTrackingTasks();
+    }),
+
+  // 获取效果追踪统计摘要
+  getTrackingStatsSummary: protectedProcedure
+    .query(async () => {
+      const { getTrackingStatsSummary } = await import('./effectTrackingScheduler');
+      return getTrackingStatsSummary();
+    }),
+
+  // 生成效果追踪报告
+  generateTrackingReport: protectedProcedure
+    .input(z.object({
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+      campaignId: z.number().optional(),
+      performanceGroupId: z.number().optional(),
+    }))
+    .query(async ({ input, ctx }) => {
+      const accountId = ctx.user.currentAccountId || 1;
+      
+      // 构建查询条件
+      const conditions: any[] = [
+        eq(bidAdjustmentHistory.accountId, accountId),
+        eq(bidAdjustmentHistory.isRolledBack, false),
+      ];
+      
+      if (input.startDate) {
+        conditions.push(gte(bidAdjustmentHistory.adjustedAt, new Date(input.startDate).getTime()));
+      }
+      if (input.endDate) {
+        conditions.push(lte(bidAdjustmentHistory.adjustedAt, new Date(input.endDate).getTime()));
+      }
+      if (input.campaignId) {
+        conditions.push(eq(bidAdjustmentHistory.campaignId, input.campaignId));
+      }
+      if (input.performanceGroupId) {
+        conditions.push(eq(bidAdjustmentHistory.performanceGroupId, input.performanceGroupId));
+      }
+      
+      const records = await db
+        .select()
+        .from(bidAdjustmentHistory)
+        .where(and(...conditions))
+        .orderBy(desc(bidAdjustmentHistory.adjustedAt));
+      
+      // 计算报告统计
+      let totalRecords = records.length;
+      let trackedRecords = 0;
+      let totalEstimatedProfit = 0;
+      let totalActualProfit7d = 0;
+      let totalActualProfit14d = 0;
+      let totalActualProfit30d = 0;
+      let count7d = 0, count14d = 0, count30d = 0;
+      
+      const byAdjustmentType: Record<string, { count: number; estimated: number; actual: number }> = {};
+      const byCampaign: Record<number, { name: string; count: number; estimated: number; actual: number }> = {};
+      
+      for (const record of records) {
+        const estimated = parseFloat(record.estimatedProfitChange || '0');
+        totalEstimatedProfit += estimated;
+        
+        // 按调整类型分组
+        const type = record.adjustmentType || 'unknown';
+        if (!byAdjustmentType[type]) {
+          byAdjustmentType[type] = { count: 0, estimated: 0, actual: 0 };
+        }
+        byAdjustmentType[type].count++;
+        byAdjustmentType[type].estimated += estimated;
+        
+        // 按广告活动分组
+        if (record.campaignId) {
+          if (!byCampaign[record.campaignId]) {
+            byCampaign[record.campaignId] = { name: record.campaignName || '', count: 0, estimated: 0, actual: 0 };
+          }
+          byCampaign[record.campaignId].count++;
+          byCampaign[record.campaignId].estimated += estimated;
+        }
+        
+        // 统计已追踪的记录
+        if (record.actualProfit7d !== null) {
+          const actual = parseFloat(record.actualProfit7d);
+          totalActualProfit7d += actual;
+          count7d++;
+          trackedRecords++;
+          byAdjustmentType[type].actual += actual;
+          if (record.campaignId && byCampaign[record.campaignId]) {
+            byCampaign[record.campaignId].actual += actual;
+          }
+        }
+        if (record.actualProfit14d !== null) {
+          totalActualProfit14d += parseFloat(record.actualProfit14d);
+          count14d++;
+        }
+        if (record.actualProfit30d !== null) {
+          totalActualProfit30d += parseFloat(record.actualProfit30d);
+          count30d++;
+        }
+      }
+      
+      // 计算准确率
+      const calculateAccuracy = (estimated: number, actual: number) => {
+        if (estimated === 0) return actual >= 0 ? 100 : 0;
+        return Math.min(100, Math.max(0, (1 - Math.abs(actual - estimated) / Math.abs(estimated)) * 100));
+      };
+      
+      return {
+        summary: {
+          totalRecords,
+          trackedRecords,
+          trackingRate: totalRecords > 0 ? Math.round(trackedRecords / totalRecords * 100) : 0,
+          totalEstimatedProfit: Math.round(totalEstimatedProfit * 100) / 100,
+          totalActualProfit7d: Math.round(totalActualProfit7d * 100) / 100,
+          totalActualProfit14d: Math.round(totalActualProfit14d * 100) / 100,
+          totalActualProfit30d: Math.round(totalActualProfit30d * 100) / 100,
+          accuracy7d: count7d > 0 ? Math.round(calculateAccuracy(totalEstimatedProfit, totalActualProfit7d) * 100) / 100 : null,
+          accuracy14d: count14d > 0 ? Math.round(calculateAccuracy(totalEstimatedProfit, totalActualProfit14d) * 100) / 100 : null,
+          accuracy30d: count30d > 0 ? Math.round(calculateAccuracy(totalEstimatedProfit, totalActualProfit30d) * 100) / 100 : null,
+        },
+        byAdjustmentType: Object.entries(byAdjustmentType).map(([type, data]) => ({
+          type,
+          ...data,
+          accuracy: calculateAccuracy(data.estimated, data.actual),
+        })),
+        byCampaign: Object.entries(byCampaign).map(([id, data]) => ({
+          campaignId: parseInt(id),
+          ...data,
+          accuracy: calculateAccuracy(data.estimated, data.actual),
+        })),
+        records: records.slice(0, 100).map(r => ({
+          id: r.id,
+          keywordText: r.keywordText,
+          campaignName: r.campaignName,
+          adjustmentType: r.adjustmentType,
+          previousBid: r.previousBid,
+          newBid: r.newBid,
+          estimatedProfitChange: r.estimatedProfitChange,
+          actualProfit7d: r.actualProfit7d,
+          actualProfit14d: r.actualProfit14d,
+          actualProfit30d: r.actualProfit30d,
+          adjustedAt: r.adjustedAt,
+        })),
+      };
+    }),
+
+  // 批量回滚出价调整
+  batchRollbackBidAdjustments: protectedProcedure
+    .input(z.object({
+      adjustmentIds: z.array(z.number()),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const results: { id: number; success: boolean; error?: string }[] = [];
+      
+      for (const id of input.adjustmentIds) {
+        try {
+          // 获取历史记录
+          const [record] = await db
+            .select()
+            .from(bidAdjustmentHistory)
+            .where(eq(bidAdjustmentHistory.id, id))
+            .limit(1);
+          
+          if (!record) {
+            results.push({ id, success: false, error: '记录不存在' });
+            continue;
+          }
+          
+          if (record.isRolledBack) {
+            results.push({ id, success: false, error: '已回滚' });
+            continue;
+          }
+          
+          // 恢复原出价
+          const previousBid = parseFloat(record.previousBid || '0');
+          await db.updateKeywordBid(record.keywordId, previousBid);
+          
+          // 更新历史记录状态
+          await db
+            .update(bidAdjustmentHistory)
+            .set({
+              isRolledBack: true,
+              rolledBackBy: ctx.user.name || ctx.user.openId,
+              rolledBackAt: Date.now(),
+            })
+            .where(eq(bidAdjustmentHistory.id, id));
+          
+          // 记录回滚操作到历史
+          await db.recordBidAdjustment({
+            accountId: record.accountId,
+            campaignId: record.campaignId,
+            campaignName: record.campaignName,
+            performanceGroupId: record.performanceGroupId,
+            keywordId: record.keywordId,
+            keywordText: record.keywordText,
+            previousBid: record.newBid || '0',
+            newBid: record.previousBid || '0',
+            adjustmentType: 'rollback',
+            adjustmentReason: `批量回滚操作 (原记录ID: ${id})`,
+            estimatedProfitChange: (-(parseFloat(record.estimatedProfitChange || '0'))).toString(),
+            appliedBy: ctx.user.name || ctx.user.openId,
+          });
+          
+          results.push({ id, success: true });
+        } catch (error: any) {
+          results.push({ id, success: false, error: error.message });
+        }
+      }
+      
+      const successCount = results.filter(r => r.success).length;
+      const failCount = results.filter(r => !r.success).length;
+      
+      return {
+        success: failCount === 0,
+        message: `批量回滚完成: ${successCount} 成功, ${failCount} 失败`,
+        results,
+        successCount,
+        failCount,
+      };
+    }),
 });
 
 // ==================== 趋势数据辅助函数 ====================

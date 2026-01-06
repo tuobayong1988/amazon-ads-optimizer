@@ -36,6 +36,7 @@ import PlacementOptimization from "@/pages/PlacementOptimization";
 import AdvancedPlacementOptimization from "@/pages/AdvancedPlacementOptimization";
 import OptimizationCenter from "@/pages/OptimizationCenter";
 import BidAdjustmentHistory from "@/pages/BidAdjustmentHistory";
+import EffectTrackingReport from "@/pages/EffectTrackingReport";
 
 function Router() {
   return (
@@ -72,6 +73,7 @@ function Router() {
       <Route path="/advanced-placement" component={AdvancedPlacementOptimization} />
       <Route path="/optimization-center" component={OptimizationCenter} />
       <Route path="/bid-adjustment-history" component={BidAdjustmentHistory} />
+      <Route path="/effect-tracking-report" component={EffectTrackingReport} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
