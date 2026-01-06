@@ -100,6 +100,7 @@ const menuGroups = [
   {
     title: "智能优化",
     items: [
+      { icon: Brain, label: "智能预算分配", path: "/intelligent-budget", badge: "新" },
       { icon: AlertTriangle, label: "自动回滚规则", path: "/auto-rollback" },
       { icon: Brain, label: "算法优化建议", path: "/algorithm-optimization" },
     ]

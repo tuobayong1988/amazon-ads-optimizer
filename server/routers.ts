@@ -17,6 +17,7 @@ import * as daypartingService from './daypartingService';
 import * as unifiedOptimizationEngine from './unifiedOptimizationEngine';
 import * as autoRollbackService from './autoRollbackService';
 import * as algorithmOptimizationService from './algorithmOptimizationService';
+import * as intelligentBudgetAllocationService from './intelligentBudgetAllocationService';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
@@ -6397,6 +6398,99 @@ const algorithmOptimizationRouter = router({
     }),
 });
 
+// ==================== Intelligent Budget Allocation Router ====================
+const intelligentBudgetAllocationRouter = router({
+  // 获取绩效组的预算分配建议
+  getSuggestions: protectedProcedure
+    .input(z.object({
+      performanceGroupId: z.number()
+    }))
+    .query(async ({ input }) => {
+      return intelligentBudgetAllocationService.generateBudgetAllocationSuggestions(
+        input.performanceGroupId
+      );
+    }),
+  
+  // 获取预算分配配置
+  getConfig: protectedProcedure
+    .input(z.object({
+      performanceGroupId: z.number()
+    }))
+    .query(async ({ input }) => {
+      return intelligentBudgetAllocationService.getBudgetAllocationConfig(
+        input.performanceGroupId
+      );
+    }),
+  
+  // 更新预算分配配置
+  updateConfig: protectedProcedure
+    .input(z.object({
+      performanceGroupId: z.number(),
+      conversionEfficiencyWeight: z.number().optional(),
+      roasWeight: z.number().optional(),
+      growthPotentialWeight: z.number().optional(),
+      stabilityWeight: z.number().optional(),
+      trendWeight: z.number().optional(),
+      maxAdjustmentPercent: z.number().optional(),
+      minDailyBudget: z.number().optional(),
+      cooldownDays: z.number().optional(),
+      newCampaignProtectionDays: z.number().optional()
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { performanceGroupId, ...updates } = input;
+      await intelligentBudgetAllocationService.updateBudgetAllocationConfig(
+        performanceGroupId,
+        ctx.user.id,
+        updates
+      );
+      return { success: true };
+    }),
+  
+  // 模拟预算调整效果
+  simulateScenario: protectedProcedure
+    .input(z.object({
+      performanceGroupId: z.number(),
+      campaignId: z.number(),
+      newBudget: z.number()
+    }))
+    .query(async ({ input }) => {
+      const campaigns = await intelligentBudgetAllocationService.collectCampaignPerformanceData(
+        input.performanceGroupId
+      );
+      const campaign = campaigns.find(c => c.campaignId === input.campaignId);
+      if (!campaign) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: '广告活动不存在' });
+      }
+      return intelligentBudgetAllocationService.simulateBudgetScenario(
+        campaign,
+        input.newBudget
+      );
+    }),
+  
+  // 应用预算分配建议
+  applySuggestions: protectedProcedure
+    .input(z.object({
+      suggestionIds: z.array(z.number())
+    }))
+    .mutation(async ({ ctx, input }) => {
+      return intelligentBudgetAllocationService.applyBudgetAllocationSuggestions(
+        input.suggestionIds,
+        ctx.user.id
+      );
+    }),
+  
+  // 获取广告活动表现数据
+  getCampaignPerformance: protectedProcedure
+    .input(z.object({
+      performanceGroupId: z.number()
+    }))
+    .query(async ({ input }) => {
+      return intelligentBudgetAllocationService.collectCampaignPerformanceData(
+        input.performanceGroupId
+      );
+    }),
+});
+
 // ==================== Main Router ====================
 export const appRouter = router({
   system: systemRouter,
@@ -6439,6 +6533,7 @@ export const appRouter = router({
   unifiedOptimization: unifiedOptimizationRouter,
   autoRollback: autoRollbackRouter,
   algorithmOptimization: algorithmOptimizationRouter,
+  intelligentBudgetAllocation: intelligentBudgetAllocationRouter,
 });
 
 export type AppRouter = typeof appRouter;

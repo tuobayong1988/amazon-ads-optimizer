@@ -1363,3 +1363,146 @@ export const bidAdjustmentHistory = mysqlTable("bid_adjustment_history", {
   rolledBackAt: timestamp("rolled_back_at", { mode: 'string' }),
   rolledBackBy: varchar("rolled_back_by", { length: 255 }),
 });
+
+
+// 智能预算分配配置表
+export const budgetAllocationConfigs = mysqlTable("budget_allocation_configs", {
+  id: int().autoincrement().notNull(),
+  performanceGroupId: int().notNull(),
+  userId: int().notNull(),
+  // 是否启用智能预算分配
+  enabled: tinyint().default(0),
+  // 分配模式: auto=全自动, semi_auto=半自动(需确认), manual=手动
+  allocationMode: mysqlEnum(['auto', 'semi_auto', 'manual']).default('semi_auto'),
+  // 评分权重配置
+  conversionEfficiencyWeight: decimal({ precision: 3, scale: 2 }).default('0.40'),
+  roasWeight: decimal({ precision: 3, scale: 2 }).default('0.35'),
+  growthPotentialWeight: decimal({ precision: 3, scale: 2 }).default('0.25'),
+  // 调整约束
+  maxAdjustmentPercent: decimal({ precision: 5, scale: 2 }).default('10.00'),
+  minDailyBudget: decimal({ precision: 10, scale: 2 }).default('5.00'),
+  cooldownDays: int().default(3),
+  newCampaignProtectionDays: int().default(7),
+  // 数据窗口
+  dataWindowDays: int().default(30),
+  // 调整频率: daily=每天, weekly=每周, biweekly=每两周
+  adjustmentFrequency: mysqlEnum(['daily', 'weekly', 'biweekly']).default('weekly'),
+  // 上次运行时间
+  lastRunAt: timestamp({ mode: 'string' }),
+  nextRunAt: timestamp({ mode: 'string' }),
+  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+  updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+});
+
+// 预算分配建议表
+export const budgetAllocationSuggestions = mysqlTable("budget_allocation_suggestions", {
+  id: int().autoincrement().notNull(),
+  performanceGroupId: int().notNull(),
+  campaignId: int().notNull(),
+  userId: int().notNull(),
+  // 当前预算
+  currentBudget: decimal({ precision: 10, scale: 2 }).notNull(),
+  // 建议预算
+  suggestedBudget: decimal({ precision: 10, scale: 2 }).notNull(),
+  // 调整金额
+  adjustmentAmount: decimal({ precision: 10, scale: 2 }).notNull(),
+  // 调整百分比
+  adjustmentPercent: decimal({ precision: 5, scale: 2 }).notNull(),
+  // 综合得分
+  compositeScore: decimal({ precision: 5, scale: 2 }).notNull(),
+  // 转化效率得分
+  conversionEfficiencyScore: decimal({ precision: 5, scale: 2 }),
+  // ROAS得分
+  roasScore: decimal({ precision: 5, scale: 2 }),
+  // 增长潜力得分
+  growthPotentialScore: decimal({ precision: 5, scale: 2 }),
+  // 建议原因
+  suggestionReason: text(),
+  // 预测效果
+  predictedConversions: decimal({ precision: 10, scale: 2 }),
+  predictedRoas: decimal({ precision: 10, scale: 2 }),
+  predictedSpend: decimal({ precision: 10, scale: 2 }),
+  predictedSales: decimal({ precision: 10, scale: 2 }),
+  // 状态: pending=待处理, approved=已批准, rejected=已拒绝, applied=已应用, expired=已过期
+  status: mysqlEnum(['pending', 'approved', 'rejected', 'applied', 'expired']).default('pending'),
+  // 处理时间
+  processedAt: timestamp({ mode: 'string' }),
+  processedBy: int(),
+  // 过期时间
+  expiresAt: timestamp({ mode: 'string' }),
+  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+  updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+});
+
+// 预算分配历史表
+export const budgetAllocationHistory = mysqlTable("budget_allocation_history", {
+  id: int().autoincrement().notNull(),
+  suggestionId: int(),
+  performanceGroupId: int().notNull(),
+  campaignId: int().notNull(),
+  userId: int().notNull(),
+  // 调整前预算
+  previousBudget: decimal({ precision: 10, scale: 2 }).notNull(),
+  // 调整后预算
+  newBudget: decimal({ precision: 10, scale: 2 }).notNull(),
+  // 调整金额
+  adjustmentAmount: decimal({ precision: 10, scale: 2 }).notNull(),
+  // 调整百分比
+  adjustmentPercent: decimal({ precision: 5, scale: 2 }).notNull(),
+  // 调整原因
+  adjustmentReason: text(),
+  // 调整类型: auto=自动, manual=手动, rollback=回滚
+  adjustmentType: mysqlEnum(['auto', 'manual', 'rollback']).default('auto'),
+  // 调整前指标
+  baselineSpend: decimal({ precision: 10, scale: 2 }),
+  baselineSales: decimal({ precision: 10, scale: 2 }),
+  baselineConversions: int(),
+  baselineRoas: decimal({ precision: 10, scale: 2 }),
+  baselineAcos: decimal({ precision: 5, scale: 2 }),
+  // 调整后指标(效果追踪)
+  actualSpend: decimal({ precision: 10, scale: 2 }),
+  actualSales: decimal({ precision: 10, scale: 2 }),
+  actualConversions: int(),
+  actualRoas: decimal({ precision: 10, scale: 2 }),
+  actualAcos: decimal({ precision: 5, scale: 2 }),
+  // 效果追踪状态
+  trackingStatus: mysqlEnum(['pending', 'tracking', 'completed']).default('pending'),
+  trackingStartDate: timestamp({ mode: 'string' }),
+  trackingEndDate: timestamp({ mode: 'string' }),
+  // 是否已回滚
+  isRolledBack: tinyint().default(0),
+  rolledBackAt: timestamp({ mode: 'string' }),
+  rollbackReason: text(),
+  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+  updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+});
+
+// 广告活动表现快照表(用于预算分配计算)
+export const campaignPerformanceSnapshots = mysqlTable("campaign_performance_snapshots", {
+  id: int().autoincrement().notNull(),
+  performanceGroupId: int().notNull(),
+  campaignId: int().notNull(),
+  snapshotDate: date({ mode: 'string' }).notNull(),
+  // 30天汇总数据
+  dailyAvgSpend: decimal({ precision: 10, scale: 2 }),
+  totalSpend: decimal({ precision: 12, scale: 2 }),
+  totalSales: decimal({ precision: 12, scale: 2 }),
+  totalConversions: int(),
+  totalClicks: int(),
+  totalImpressions: int(),
+  // 计算指标
+  roas: decimal({ precision: 10, scale: 2 }),
+  acos: decimal({ precision: 5, scale: 2 }),
+  ctr: decimal({ precision: 8, scale: 6 }),
+  cvr: decimal({ precision: 8, scale: 6 }),
+  cpc: decimal({ precision: 10, scale: 2 }),
+  // 预算利用率
+  budgetUtilization: decimal({ precision: 5, scale: 2 }),
+  currentBudget: decimal({ precision: 10, scale: 2 }),
+  // 综合得分
+  compositeScore: decimal({ precision: 5, scale: 2 }),
+  conversionEfficiencyScore: decimal({ precision: 5, scale: 2 }),
+  roasScore: decimal({ precision: 5, scale: 2 }),
+  growthPotentialScore: decimal({ precision: 5, scale: 2 }),
+  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});

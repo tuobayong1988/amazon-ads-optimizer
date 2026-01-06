@@ -39,6 +39,7 @@ import BidAdjustmentHistory from "@/pages/BidAdjustmentHistory";
 import EffectTrackingReport from "@/pages/EffectTrackingReport";
 import AutoRollbackSettings from "@/pages/AutoRollbackSettings";
 import AlgorithmOptimization from "@/pages/AlgorithmOptimization";
+import IntelligentBudgetAllocation from "@/pages/IntelligentBudgetAllocation";
 
 function Router() {
   return (
@@ -78,6 +79,7 @@ function Router() {
       <Route path="/effect-tracking-report" component={EffectTrackingReport} />
       <Route path="/auto-rollback" component={AutoRollbackSettings} />
       <Route path="/algorithm-optimization" component={AlgorithmOptimization} />
+      <Route path="/intelligent-budget" component={IntelligentBudgetAllocation} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
