@@ -9,6 +9,8 @@ import * as bidOptimizer from "./bidOptimizer";
 import { AmazonAdsApiClient, validateCredentials, API_ENDPOINTS, MARKETPLACE_TO_REGION } from './amazonAdsApi';
 import * as adAutomation from './adAutomation';
 import { AmazonSyncService, runAutoBidOptimization } from './amazonSyncService';
+import * as notificationService from './notificationService';
+import * as schedulerService from './schedulerService';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
@@ -1348,6 +1350,261 @@ const amazonApiRouter = router({
   }),
 });
 
+// ==================== Notification Router ====================
+const notificationRouter = router({
+  // Get notification settings
+  getSettings: protectedProcedure
+    .query(async ({ ctx }) => {
+      const settings = await db.getNotificationSettingsByUserId(ctx.user.id);
+      if (!settings) {
+        // Return default settings if none exist
+        return {
+          id: 0,
+          userId: ctx.user.id,
+          accountId: null,
+          emailEnabled: true,
+          inAppEnabled: true,
+          acosThreshold: '50.00',
+          ctrDropThreshold: '30.00',
+          conversionDropThreshold: '30.00',
+          spendSpikeThreshold: '50.00',
+          frequency: 'daily' as const,
+          quietHoursStart: 22,
+          quietHoursEnd: 8,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
+      }
+      return settings;
+    }),
+
+  // Update notification settings
+  updateSettings: protectedProcedure
+    .input(z.object({
+      emailEnabled: z.boolean().optional(),
+      inAppEnabled: z.boolean().optional(),
+      acosThreshold: z.number().optional(),
+      ctrDropThreshold: z.number().optional(),
+      conversionDropThreshold: z.number().optional(),
+      spendSpikeThreshold: z.number().optional(),
+      frequency: z.enum(['immediate', 'hourly', 'daily', 'weekly']).optional(),
+      quietHoursStart: z.number().min(0).max(23).optional(),
+      quietHoursEnd: z.number().min(0).max(23).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await db.updateNotificationSettingsByUserId(ctx.user.id, input);
+      return { success: true };
+    }),
+
+  // Send test notification
+  sendTest: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      const success = await notificationService.sendNotification({
+        userId: ctx.user.id,
+        type: 'system',
+        severity: 'info',
+        title: '测试通知',
+        message: '这是一条测试通知，用于验证通知配置是否正确。',
+      });
+      return { success };
+    }),
+
+  // Get notification history
+  getHistory: protectedProcedure
+    .input(z.object({
+      limit: z.number().optional().default(50),
+    }))
+    .query(async ({ ctx, input }) => {
+      return db.getNotificationHistoryByUserId(ctx.user.id, input.limit);
+    }),
+
+  // Mark notification as read
+  markAsRead: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await db.markNotificationAsRead(input.id);
+      return { success: true };
+    }),
+});
+
+// ==================== Scheduler Router ====================
+const schedulerRouter = router({
+  // Get scheduled tasks
+  getTasks: protectedProcedure
+    .query(async ({ ctx }) => {
+      return db.getScheduledTasksByUserId(ctx.user.id);
+    }),
+
+  // Create scheduled task
+  createTask: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      taskType: z.enum(['ngram_analysis', 'funnel_migration', 'traffic_conflict', 'smart_bidding', 'health_check', 'data_sync']),
+      name: z.string(),
+      description: z.string().optional(),
+      schedule: z.enum(['hourly', 'daily', 'weekly', 'monthly']).optional().default('daily'),
+      runTime: z.string().optional().default('06:00'),
+      dayOfWeek: z.number().min(0).max(6).optional(),
+      dayOfMonth: z.number().min(1).max(31).optional(),
+      enabled: z.boolean().optional().default(true),
+      autoApply: z.boolean().optional().default(false),
+      requireApproval: z.boolean().optional().default(true),
+      parameters: z.record(z.string(), z.any()).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const id = await db.createScheduledTask({
+        userId: ctx.user.id,
+        accountId: input.accountId,
+        taskType: input.taskType,
+        name: input.name,
+        description: input.description,
+        schedule: input.schedule,
+        runTime: input.runTime,
+        dayOfWeek: input.dayOfWeek,
+        dayOfMonth: input.dayOfMonth,
+        enabled: input.enabled,
+        autoApply: input.autoApply,
+        requireApproval: input.requireApproval,
+        parameters: input.parameters,
+      });
+      return { id };
+    }),
+
+  // Update scheduled task
+  updateTask: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      name: z.string().optional(),
+      description: z.string().optional(),
+      schedule: z.enum(['hourly', 'daily', 'weekly', 'monthly']).optional(),
+      runTime: z.string().optional(),
+      dayOfWeek: z.number().min(0).max(6).optional(),
+      dayOfMonth: z.number().min(1).max(31).optional(),
+      enabled: z.boolean().optional(),
+      autoApply: z.boolean().optional(),
+      requireApproval: z.boolean().optional(),
+      parameters: z.record(z.string(), z.any()).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      await db.updateScheduledTask(input.id, {
+        name: input.name,
+        description: input.description,
+        schedule: input.schedule,
+        runTime: input.runTime,
+        dayOfWeek: input.dayOfWeek,
+        dayOfMonth: input.dayOfMonth,
+        enabled: input.enabled,
+        autoApply: input.autoApply,
+        requireApproval: input.requireApproval,
+        parameters: input.parameters,
+      });
+      return { success: true };
+    }),
+
+  // Delete scheduled task
+  deleteTask: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await db.deleteScheduledTask(input.id);
+      return { success: true };
+    }),
+
+  // Run task manually
+  runTask: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      autoApply: z.boolean().optional().default(false),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const task = await db.getScheduledTaskById(input.id);
+      if (!task) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Task not found',
+        });
+      }
+
+      // Execute task based on type
+      let result;
+      const accountId = task.accountId || 1; // Default to account 1 if not specified
+      
+      switch (task.taskType) {
+        case 'ngram_analysis':
+          const searchTerms = await db.getSearchTermsForAnalysis(accountId);
+          result = await schedulerService.executeNgramAnalysis(
+            searchTerms.map(t => ({
+              searchTerm: t.searchTerm,
+              clicks: t.clicks,
+              conversions: t.conversions,
+              spend: t.spend,
+              sales: t.sales,
+              impressions: t.impressions || 0,
+            })),
+            input.autoApply
+          );
+          break;
+        case 'health_check':
+          // Get health data from health monitor
+          const healthData = await db.getCampaignHealthMetrics(accountId);
+          result = await schedulerService.executeHealthCheck(
+            healthData.map((h: db.CampaignHealthMetrics) => ({
+              campaignId: h.campaignId,
+              campaignName: h.campaignName,
+              currentAcos: h.currentMetrics.acos,
+              previousAcos: h.historicalAverage.acos,
+              currentCtr: h.currentMetrics.ctr,
+              previousCtr: h.historicalAverage.ctr,
+              currentConversionRate: h.currentMetrics.cvr,
+              previousConversionRate: h.historicalAverage.cvr,
+              currentSpend: h.currentMetrics.spend,
+              previousSpend: h.historicalAverage.spend,
+            }))
+          );
+          break;
+        default:
+          throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: `Task type ${task.taskType} is not yet implemented`,
+          });
+      }
+
+      // Record execution
+      await db.recordTaskExecution({
+        taskId: task.id,
+        userId: ctx.user.id,
+        accountId: task.accountId || undefined,
+        taskType: task.taskType,
+        status: result.status,
+        startedAt: result.startedAt,
+        completedAt: result.completedAt,
+        duration: result.duration,
+        itemsProcessed: result.itemsProcessed,
+        suggestionsGenerated: result.suggestionsGenerated,
+        suggestionsApplied: result.suggestionsApplied,
+        errorMessage: result.errorMessage,
+        resultSummary: result.resultSummary,
+      });
+
+      return result;
+    }),
+
+  // Get task execution history
+  getExecutionHistory: protectedProcedure
+    .input(z.object({
+      taskId: z.number(),
+      limit: z.number().optional().default(20),
+    }))
+    .query(async ({ input }) => {
+      return db.getTaskExecutionHistory(input.taskId, input.limit);
+    }),
+
+  // Get default task configurations
+  getDefaultConfigs: protectedProcedure
+    .query(async () => {
+      return schedulerService.defaultTaskConfigs;
+    }),
+});
+
 // ==================== Main Router ====================
 export const appRouter = router({
   system: systemRouter,
@@ -1371,6 +1628,8 @@ export const appRouter = router({
   import: importRouter,
   amazonApi: amazonApiRouter,
   adAutomation: adAutomationRouter,
+  notification: notificationRouter,
+  scheduler: schedulerRouter,
 });
 
 export type AppRouter = typeof appRouter;

@@ -32,7 +32,9 @@ import {
   Upload,
   Zap,
   Cloud,
-  Activity
+  Activity,
+  Bell,
+  Clock
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -45,6 +47,8 @@ const menuItems = [
   { icon: Megaphone, label: "广告活动", path: "/campaigns" },
   { icon: Zap, label: "广告自动化", path: "/automation" },
   { icon: Activity, label: "健康度监控", path: "/health" },
+  { icon: Clock, label: "定时任务", path: "/scheduler" },
+  { icon: Bell, label: "通知设置", path: "/notifications" },
   { icon: FileText, label: "竞价日志", path: "/bidding-logs" },
   { icon: Settings, label: "优化设置", path: "/settings" },
   { icon: Upload, label: "数据导入", path: "/import" },

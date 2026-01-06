@@ -12,7 +12,11 @@ import {
   dailyPerformance, InsertDailyPerformance, DailyPerformance,
   marketCurveData, InsertMarketCurveData, MarketCurveData,
   importJobs, InsertImportJob, ImportJob,
-  negativeKeywords, InsertNegativeKeyword, NegativeKeyword
+  negativeKeywords, InsertNegativeKeyword, NegativeKeyword,
+  notificationSettings, NotificationSetting, InsertNotificationSetting,
+  notificationHistory, NotificationHistoryRecord, InsertNotificationHistory,
+  scheduledTasks, ScheduledTask, InsertScheduledTask,
+  taskExecutionLog, TaskExecutionLogRecord, InsertTaskExecutionLog
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -1049,4 +1053,277 @@ export async function addNegativeKeyword(data: {
     matchType: data.matchType === 'phrase' ? 'negative_phrase' : 'negative_exact',
     source: 'manual',
   });
+}
+
+
+// ==================== Notification Functions ====================
+
+export async function getNotificationSettingsByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select()
+    .from(notificationSettings)
+    .where(eq(notificationSettings.userId, userId))
+    .limit(1);
+  
+  return result[0] || null;
+}
+
+export async function updateNotificationSettingsByUserId(userId: number, data: {
+  emailEnabled?: boolean;
+  inAppEnabled?: boolean;
+  acosThreshold?: number;
+  ctrDropThreshold?: number;
+  conversionDropThreshold?: number;
+  spendSpikeThreshold?: number;
+  frequency?: 'immediate' | 'hourly' | 'daily' | 'weekly';
+  quietHoursStart?: number;
+  quietHoursEnd?: number;
+}) {
+  const db = await getDb();
+  if (!db) return;
+  
+  const existing = await getNotificationSettingsByUserId(userId);
+  
+  if (existing) {
+    const updateData: Record<string, unknown> = { updatedAt: new Date() };
+    if (data.emailEnabled !== undefined) updateData.emailEnabled = data.emailEnabled;
+    if (data.inAppEnabled !== undefined) updateData.inAppEnabled = data.inAppEnabled;
+    if (data.acosThreshold !== undefined) updateData.acosThreshold = String(data.acosThreshold);
+    if (data.ctrDropThreshold !== undefined) updateData.ctrDropThreshold = String(data.ctrDropThreshold);
+    if (data.conversionDropThreshold !== undefined) updateData.conversionDropThreshold = String(data.conversionDropThreshold);
+    if (data.spendSpikeThreshold !== undefined) updateData.spendSpikeThreshold = String(data.spendSpikeThreshold);
+    if (data.frequency !== undefined) updateData.frequency = data.frequency;
+    if (data.quietHoursStart !== undefined) updateData.quietHoursStart = data.quietHoursStart;
+    if (data.quietHoursEnd !== undefined) updateData.quietHoursEnd = data.quietHoursEnd;
+    
+    await db.update(notificationSettings)
+      .set(updateData)
+      .where(eq(notificationSettings.id, existing.id));
+  } else {
+    await db.insert(notificationSettings).values({
+      userId,
+      emailEnabled: data.emailEnabled ?? true,
+      inAppEnabled: data.inAppEnabled ?? true,
+      acosThreshold: data.acosThreshold !== undefined ? String(data.acosThreshold) : '50.00',
+      ctrDropThreshold: data.ctrDropThreshold !== undefined ? String(data.ctrDropThreshold) : '30.00',
+      conversionDropThreshold: data.conversionDropThreshold !== undefined ? String(data.conversionDropThreshold) : '30.00',
+      spendSpikeThreshold: data.spendSpikeThreshold !== undefined ? String(data.spendSpikeThreshold) : '50.00',
+      frequency: data.frequency ?? 'daily',
+      quietHoursStart: data.quietHoursStart ?? 22,
+      quietHoursEnd: data.quietHoursEnd ?? 8,
+    });
+  }
+}
+
+export async function getNotificationHistoryByUserId(userId: number, limit: number = 50) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const result = await db.select()
+    .from(notificationHistory)
+    .where(eq(notificationHistory.userId, userId))
+    .orderBy(desc(notificationHistory.createdAt))
+    .limit(limit);
+  
+  return result;
+}
+
+export async function createNotificationRecord(data: {
+  userId: number;
+  accountId?: number;
+  type: 'alert' | 'report' | 'system';
+  severity?: 'info' | 'warning' | 'critical';
+  title: string;
+  message: string;
+  channel?: 'email' | 'in_app' | 'both';
+  relatedEntityType?: string;
+  relatedEntityId?: number;
+}) {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.insert(notificationHistory).values({
+    userId: data.userId,
+    accountId: data.accountId || null,
+    type: data.type,
+    severity: data.severity ?? 'info',
+    title: data.title,
+    message: data.message,
+    channel: data.channel ?? 'in_app',
+    status: 'pending',
+    relatedEntityType: data.relatedEntityType || null,
+    relatedEntityId: data.relatedEntityId || null,
+  });
+}
+
+export async function markNotificationAsRead(notificationId: number) {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.update(notificationHistory)
+    .set({ status: 'read', readAt: new Date() })
+    .where(eq(notificationHistory.id, notificationId));
+}
+
+// ==================== Scheduler Functions ====================
+
+export async function getScheduledTasksByUserId(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const result = await db.select()
+    .from(scheduledTasks)
+    .where(eq(scheduledTasks.userId, userId))
+    .orderBy(scheduledTasks.createdAt);
+  
+  return result;
+}
+
+export async function getScheduledTaskById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select()
+    .from(scheduledTasks)
+    .where(eq(scheduledTasks.id, id))
+    .limit(1);
+  
+  return result[0] || null;
+}
+
+export async function createScheduledTask(data: {
+  userId: number;
+  accountId?: number;
+  taskType: 'ngram_analysis' | 'funnel_migration' | 'traffic_conflict' | 'smart_bidding' | 'health_check' | 'data_sync';
+  name: string;
+  description?: string;
+  schedule?: 'hourly' | 'daily' | 'weekly' | 'monthly';
+  runTime?: string;
+  dayOfWeek?: number;
+  dayOfMonth?: number;
+  enabled?: boolean;
+  autoApply?: boolean;
+  requireApproval?: boolean;
+  parameters?: Record<string, unknown>;
+}) {
+  const db = await getDb();
+  if (!db) return 0;
+  
+  const result = await db.insert(scheduledTasks).values({
+    userId: data.userId,
+    accountId: data.accountId || null,
+    taskType: data.taskType,
+    name: data.name,
+    description: data.description || null,
+    schedule: data.schedule ?? 'daily',
+    runTime: data.runTime ?? '06:00',
+    dayOfWeek: data.dayOfWeek || null,
+    dayOfMonth: data.dayOfMonth || null,
+    enabled: data.enabled ?? true,
+    autoApply: data.autoApply ?? false,
+    requireApproval: data.requireApproval ?? true,
+    parameters: data.parameters ? JSON.stringify(data.parameters) : null,
+  });
+  
+  return result[0]?.insertId || 0;
+}
+
+export async function updateScheduledTask(id: number, data: {
+  name?: string;
+  description?: string;
+  schedule?: 'hourly' | 'daily' | 'weekly' | 'monthly';
+  runTime?: string;
+  dayOfWeek?: number;
+  dayOfMonth?: number;
+  enabled?: boolean;
+  autoApply?: boolean;
+  requireApproval?: boolean;
+  parameters?: Record<string, unknown>;
+}) {
+  const db = await getDb();
+  if (!db) return;
+  
+  const updateData: Record<string, unknown> = { updatedAt: new Date() };
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.description !== undefined) updateData.description = data.description;
+  if (data.schedule !== undefined) updateData.schedule = data.schedule;
+  if (data.runTime !== undefined) updateData.runTime = data.runTime;
+  if (data.dayOfWeek !== undefined) updateData.dayOfWeek = data.dayOfWeek;
+  if (data.dayOfMonth !== undefined) updateData.dayOfMonth = data.dayOfMonth;
+  if (data.enabled !== undefined) updateData.enabled = data.enabled;
+  if (data.autoApply !== undefined) updateData.autoApply = data.autoApply;
+  if (data.requireApproval !== undefined) updateData.requireApproval = data.requireApproval;
+  if (data.parameters !== undefined) updateData.parameters = JSON.stringify(data.parameters);
+  
+  await db.update(scheduledTasks)
+    .set(updateData)
+    .where(eq(scheduledTasks.id, id));
+}
+
+export async function deleteScheduledTask(id: number) {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.delete(scheduledTasks).where(eq(scheduledTasks.id, id));
+}
+
+export async function recordTaskExecution(data: {
+  taskId: number;
+  userId: number;
+  accountId?: number;
+  taskType: string;
+  status: 'running' | 'success' | 'failed' | 'cancelled';
+  startedAt: Date;
+  completedAt?: Date;
+  duration?: number;
+  itemsProcessed?: number;
+  suggestionsGenerated?: number;
+  suggestionsApplied?: number;
+  errorMessage?: string;
+  resultSummary?: Record<string, unknown>;
+}) {
+  const db = await getDb();
+  if (!db) return;
+  
+  await db.insert(taskExecutionLog).values({
+    taskId: data.taskId,
+    userId: data.userId,
+    accountId: data.accountId || null,
+    taskType: data.taskType,
+    status: data.status,
+    startedAt: data.startedAt,
+    completedAt: data.completedAt || null,
+    duration: data.duration || null,
+    itemsProcessed: data.itemsProcessed ?? 0,
+    suggestionsGenerated: data.suggestionsGenerated ?? 0,
+    suggestionsApplied: data.suggestionsApplied ?? 0,
+    errorMessage: data.errorMessage || null,
+    resultSummary: data.resultSummary ? JSON.stringify(data.resultSummary) : null,
+  });
+  
+  // Update last run time on the task
+  // Map 'cancelled' to 'failed' for lastRunStatus since schema only supports success/failed/running/skipped
+  const mappedStatus = data.status === 'cancelled' ? 'failed' : data.status;
+  await db.update(scheduledTasks)
+    .set({ 
+      lastRunAt: data.startedAt, 
+      lastRunStatus: mappedStatus as 'success' | 'failed' | 'running' | 'skipped',
+      updatedAt: new Date() 
+    })
+    .where(eq(scheduledTasks.id, data.taskId));
+}
+
+export async function getTaskExecutionHistory(taskId: number, limit: number = 20) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const result = await db.select()
+    .from(taskExecutionLog)
+    .where(eq(taskExecutionLog.taskId, taskId))
+    .orderBy(desc(taskExecutionLog.startedAt))
+    .limit(limit);
+  
+  return result;
 }

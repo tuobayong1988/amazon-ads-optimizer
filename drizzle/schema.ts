@@ -398,3 +398,118 @@ export const searchTerms = mysqlTable("search_terms", {
 
 export type SearchTerm = typeof searchTerms.$inferSelect;
 export type InsertSearchTerm = typeof searchTerms.$inferInsert;
+
+
+/**
+ * Notification Settings - Configure alert thresholds and channels
+ */
+export const notificationSettings = mysqlTable("notification_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  accountId: int("accountId"),
+  // Notification channels
+  emailEnabled: boolean("emailEnabled").default(true),
+  inAppEnabled: boolean("inAppEnabled").default(true),
+  // Alert thresholds
+  acosThreshold: decimal("acosThreshold", { precision: 5, scale: 2 }).default("50.00"), // Alert when ACoS exceeds this
+  ctrDropThreshold: decimal("ctrDropThreshold", { precision: 5, scale: 2 }).default("30.00"), // Alert when CTR drops by this %
+  conversionDropThreshold: decimal("conversionDropThreshold", { precision: 5, scale: 2 }).default("30.00"), // Alert when conversion drops by this %
+  spendSpikeThreshold: decimal("spendSpikeThreshold", { precision: 5, scale: 2 }).default("50.00"), // Alert when spend spikes by this %
+  // Notification frequency
+  frequency: mysqlEnum("frequency", ["immediate", "hourly", "daily", "weekly"]).default("daily"),
+  quietHoursStart: int("quietHoursStart").default(22), // 10 PM
+  quietHoursEnd: int("quietHoursEnd").default(8), // 8 AM
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type NotificationSetting = typeof notificationSettings.$inferSelect;
+export type InsertNotificationSetting = typeof notificationSettings.$inferInsert;
+
+/**
+ * Notification History - Log of sent notifications
+ */
+export const notificationHistory = mysqlTable("notification_history", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  accountId: int("accountId"),
+  type: mysqlEnum("type", ["alert", "report", "system"]).notNull(),
+  severity: mysqlEnum("severity", ["info", "warning", "critical"]).default("info"),
+  title: varchar("title", { length: 255 }).notNull(),
+  message: text("message").notNull(),
+  channel: mysqlEnum("channel", ["email", "in_app", "both"]).default("in_app"),
+  status: mysqlEnum("status", ["pending", "sent", "failed", "read"]).default("pending"),
+  relatedEntityType: varchar("relatedEntityType", { length: 64 }), // campaign, keyword, etc.
+  relatedEntityId: int("relatedEntityId"),
+  sentAt: timestamp("sentAt"),
+  readAt: timestamp("readAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type NotificationHistoryRecord = typeof notificationHistory.$inferSelect;
+export type InsertNotificationHistory = typeof notificationHistory.$inferInsert;
+
+/**
+ * Scheduled Tasks - Configure automated optimization tasks
+ */
+export const scheduledTasks = mysqlTable("scheduled_tasks", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  accountId: int("accountId"),
+  taskType: mysqlEnum("taskType", [
+    "ngram_analysis",
+    "funnel_migration",
+    "traffic_conflict",
+    "smart_bidding",
+    "health_check",
+    "data_sync"
+  ]).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  // Schedule configuration
+  enabled: boolean("enabled").default(true),
+  schedule: mysqlEnum("schedule", ["hourly", "daily", "weekly", "monthly"]).default("daily"),
+  runTime: varchar("runTime", { length: 8 }).default("06:00"), // HH:MM format
+  dayOfWeek: int("dayOfWeek"), // 0-6 for weekly tasks
+  dayOfMonth: int("dayOfMonth"), // 1-31 for monthly tasks
+  // Task parameters (JSON)
+  parameters: text("parameters"), // JSON string with task-specific params
+  // Execution tracking
+  lastRunAt: timestamp("lastRunAt"),
+  lastRunStatus: mysqlEnum("lastRunStatus", ["success", "failed", "running", "skipped"]),
+  lastRunResult: text("lastRunResult"), // JSON string with results
+  nextRunAt: timestamp("nextRunAt"),
+  // Auto-apply settings
+  autoApply: boolean("autoApply").default(false), // Automatically apply suggestions
+  requireApproval: boolean("requireApproval").default(true), // Require user approval before applying
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type ScheduledTask = typeof scheduledTasks.$inferSelect;
+export type InsertScheduledTask = typeof scheduledTasks.$inferInsert;
+
+/**
+ * Task Execution Log - History of automated task runs
+ */
+export const taskExecutionLog = mysqlTable("task_execution_log", {
+  id: int("id").autoincrement().primaryKey(),
+  taskId: int("taskId").notNull(),
+  userId: int("userId").notNull(),
+  accountId: int("accountId"),
+  taskType: varchar("taskType", { length: 64 }).notNull(),
+  status: mysqlEnum("status", ["running", "success", "failed", "cancelled"]).notNull(),
+  startedAt: timestamp("startedAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+  duration: int("duration"), // in seconds
+  // Results
+  itemsProcessed: int("itemsProcessed").default(0),
+  suggestionsGenerated: int("suggestionsGenerated").default(0),
+  suggestionsApplied: int("suggestionsApplied").default(0),
+  errorMessage: text("errorMessage"),
+  resultSummary: text("resultSummary"), // JSON string
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type TaskExecutionLogRecord = typeof taskExecutionLog.$inferSelect;
+export type InsertTaskExecutionLog = typeof taskExecutionLog.$inferInsert;

@@ -15,6 +15,8 @@ import DataImport from "./pages/DataImport";
 import AmazonApiSettings from "./pages/AmazonApiSettings";
 import AdAutomation from "./pages/AdAutomation";
 import HealthMonitor from "./pages/HealthMonitor";
+import NotificationSettings from "./pages/NotificationSettings";
+import Scheduler from "./pages/Scheduler";
 
 function Router() {
   return (
@@ -29,6 +31,8 @@ function Router() {
       <Route path="/amazon-api" component={AmazonApiSettings} />
       <Route path="/automation" component={AdAutomation} />
       <Route path="/health" component={HealthMonitor} />
+      <Route path="/notifications" component={NotificationSettings} />
+      <Route path="/scheduler" component={Scheduler} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
