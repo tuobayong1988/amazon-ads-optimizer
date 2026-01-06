@@ -1349,4 +1349,17 @@ export const bidAdjustmentHistory = mysqlTable("bid_adjustment_history", {
   appliedAt: timestamp("applied_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
   status: mysqlEnum("status", ['applied', 'pending', 'failed', 'rolled_back']).default('applied'),
   errorMessage: text("error_message"),
+  // 效果追踪字段
+  actualProfit7d: decimal("actual_profit_7d", { precision: 10, scale: 2 }),
+  actualProfit14d: decimal("actual_profit_14d", { precision: 10, scale: 2 }),
+  actualProfit30d: decimal("actual_profit_30d", { precision: 10, scale: 2 }),
+  actualImpressions7d: int("actual_impressions_7d"),
+  actualClicks7d: int("actual_clicks_7d"),
+  actualConversions7d: int("actual_conversions_7d"),
+  actualSpend7d: decimal("actual_spend_7d", { precision: 10, scale: 2 }),
+  actualRevenue7d: decimal("actual_revenue_7d", { precision: 10, scale: 2 }),
+  trackingUpdatedAt: timestamp("tracking_updated_at", { mode: 'string' }),
+  // 回滚字段
+  rolledBackAt: timestamp("rolled_back_at", { mode: 'string' }),
+  rolledBackBy: varchar("rolled_back_by", { length: 255 }),
 });

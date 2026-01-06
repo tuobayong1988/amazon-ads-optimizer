@@ -5584,6 +5584,97 @@ const placementRouter = router({
         note: '使用默认参数计算，建议构建市场曲线模型以获取更精确的结果',
       };
     }),
+
+  // 回滚出价调整
+  rollbackBidAdjustment: protectedProcedure
+    .input(z.object({
+      adjustmentId: z.number(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await db.rollbackBidAdjustment(input.adjustmentId, ctx.user.name || ctx.user.openId);
+      if (!result) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: '找不到该调整记录' });
+      }
+      return result;
+    }),
+
+  // 获取单条调整记录详情
+  getBidAdjustmentById: protectedProcedure
+    .input(z.object({
+      adjustmentId: z.number(),
+    }))
+    .query(async ({ input }) => {
+      return db.getBidAdjustmentById(input.adjustmentId);
+    }),
+
+  // 获取效果追踪统计
+  getBidAdjustmentTrackingStats: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      days: z.number().default(30),
+    }))
+    .query(async ({ input }) => {
+      return db.getBidAdjustmentTrackingStats(input.accountId, input.days);
+    }),
+
+  // 批量导入出价调整历史
+  importBidAdjustmentHistory: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      records: z.array(z.object({
+        campaignId: z.number().optional(),
+        campaignName: z.string().optional(),
+        performanceGroupId: z.number().optional(),
+        performanceGroupName: z.string().optional(),
+        keywordId: z.number().optional(),
+        keywordText: z.string().optional(),
+        matchType: z.string().optional(),
+        previousBid: z.number(),
+        newBid: z.number(),
+        adjustmentType: z.enum(['manual', 'auto_optimal', 'auto_dayparting', 'auto_placement', 'batch_campaign', 'batch_group']).default('manual'),
+        adjustmentReason: z.string().optional(),
+        expectedProfitIncrease: z.number().optional(),
+        appliedBy: z.string().optional(),
+        appliedAt: z.string().optional(),
+        status: z.enum(['applied', 'pending', 'failed', 'rolled_back']).default('applied'),
+      })),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const recordsWithAccount = input.records.map(r => ({
+        ...r,
+        accountId: input.accountId,
+        appliedBy: r.appliedBy || ctx.user.name || ctx.user.openId,
+      }));
+      return db.importBidAdjustmentHistory(recordsWithAccount);
+    }),
+
+  // 获取需要效果追踪的调整记录
+  getAdjustmentsNeedingTracking: protectedProcedure
+    .input(z.object({
+      daysAgo: z.number().default(7),
+    }))
+    .query(async ({ input }) => {
+      return db.getAdjustmentsNeedingTracking(input.daysAgo);
+    }),
+
+  // 更新效果追踪数据
+  updateBidAdjustmentTracking: protectedProcedure
+    .input(z.object({
+      adjustmentId: z.number(),
+      trackingData: z.object({
+        actualProfit7d: z.number().optional(),
+        actualProfit14d: z.number().optional(),
+        actualProfit30d: z.number().optional(),
+        actualImpressions7d: z.number().optional(),
+        actualClicks7d: z.number().optional(),
+        actualConversions7d: z.number().optional(),
+        actualSpend7d: z.number().optional(),
+        actualRevenue7d: z.number().optional(),
+      }),
+    }))
+    .mutation(async ({ input }) => {
+      return db.updateBidAdjustmentTracking(input.adjustmentId, input.trackingData);
+    }),
 });
 
 // ==================== 趋势数据辅助函数 ====================

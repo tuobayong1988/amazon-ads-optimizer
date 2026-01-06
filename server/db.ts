@@ -2651,3 +2651,234 @@ export async function getBidAdjustmentStats(accountId: number, days: number = 30
     },
   };
 }
+
+
+// 回滚出价调整
+export async function rollbackBidAdjustment(adjustmentId: number, userId: string) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  // 获取原始调整记录
+  const [adjustment] = await db.select().from(bidAdjustmentHistory).where(eq(bidAdjustmentHistory.id, adjustmentId));
+  if (!adjustment) return null;
+  
+  // 更新关键词出价为之前的值
+  if (adjustment.keywordId) {
+    await db.update(keywords)
+      .set({ bid: adjustment.previousBid })
+      .where(eq(keywords.id, adjustment.keywordId));
+  }
+  
+  // 更新调整记录状态为已回滚
+  await db.update(bidAdjustmentHistory)
+    .set({
+      status: 'rolled_back',
+      rolledBackAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      rolledBackBy: userId,
+    })
+    .where(eq(bidAdjustmentHistory.id, adjustmentId));
+  
+  // 记录一条新的回滚操作历史
+  await db.insert(bidAdjustmentHistory).values({
+    accountId: adjustment.accountId,
+    campaignId: adjustment.campaignId,
+    campaignName: adjustment.campaignName,
+    performanceGroupId: adjustment.performanceGroupId,
+    performanceGroupName: adjustment.performanceGroupName,
+    keywordId: adjustment.keywordId,
+    keywordText: adjustment.keywordText,
+    matchType: adjustment.matchType,
+    previousBid: adjustment.newBid, // 回滚前是新出价
+    newBid: adjustment.previousBid, // 回滚后是原出价
+    bidChangePercent: String(-Number(adjustment.bidChangePercent || 0)),
+    adjustmentType: 'manual',
+    adjustmentReason: `回滚调整 #${adjustmentId}`,
+    appliedBy: userId,
+    status: 'applied',
+  });
+  
+  return { success: true, adjustmentId };
+}
+
+// 获取单条调整记录详情
+export async function getBidAdjustmentById(adjustmentId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const [adjustment] = await db.select().from(bidAdjustmentHistory).where(eq(bidAdjustmentHistory.id, adjustmentId));
+  return adjustment || null;
+}
+
+// 更新效果追踪数据
+export async function updateBidAdjustmentTracking(adjustmentId: number, trackingData: {
+  actualProfit7d?: number;
+  actualProfit14d?: number;
+  actualProfit30d?: number;
+  actualImpressions7d?: number;
+  actualClicks7d?: number;
+  actualConversions7d?: number;
+  actualSpend7d?: number;
+  actualRevenue7d?: number;
+}) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  await db.update(bidAdjustmentHistory)
+    .set({
+      actualProfit7d: trackingData.actualProfit7d !== undefined ? String(trackingData.actualProfit7d) : undefined,
+      actualProfit14d: trackingData.actualProfit14d !== undefined ? String(trackingData.actualProfit14d) : undefined,
+      actualProfit30d: trackingData.actualProfit30d !== undefined ? String(trackingData.actualProfit30d) : undefined,
+      actualImpressions7d: trackingData.actualImpressions7d,
+      actualClicks7d: trackingData.actualClicks7d,
+      actualConversions7d: trackingData.actualConversions7d,
+      actualSpend7d: trackingData.actualSpend7d !== undefined ? String(trackingData.actualSpend7d) : undefined,
+      actualRevenue7d: trackingData.actualRevenue7d !== undefined ? String(trackingData.actualRevenue7d) : undefined,
+      trackingUpdatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+    })
+    .where(eq(bidAdjustmentHistory.id, adjustmentId));
+  
+  return { success: true };
+}
+
+// 获取需要效果追踪的调整记录（7天前的记录且未追踪）
+export async function getAdjustmentsNeedingTracking(daysAgo: number = 7) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - daysAgo);
+  const cutoffDateStr = cutoffDate.toISOString().slice(0, 19).replace('T', ' ');
+  
+  const results = await db.select()
+    .from(bidAdjustmentHistory)
+    .where(
+      and(
+        eq(bidAdjustmentHistory.status, 'applied'),
+        sql`${bidAdjustmentHistory.appliedAt} <= ${cutoffDateStr}`,
+        sql`${bidAdjustmentHistory.trackingUpdatedAt} IS NULL OR DATE(${bidAdjustmentHistory.trackingUpdatedAt}) < DATE(NOW())`
+      )
+    )
+    .limit(100);
+  
+  return results;
+}
+
+// 批量导入出价调整历史
+export async function importBidAdjustmentHistory(records: Array<{
+  accountId: number;
+  campaignId?: number;
+  campaignName?: string;
+  performanceGroupId?: number;
+  performanceGroupName?: string;
+  keywordId?: number;
+  keywordText?: string;
+  matchType?: string;
+  previousBid: number;
+  newBid: number;
+  adjustmentType: 'manual' | 'auto_optimal' | 'auto_dayparting' | 'auto_placement' | 'batch_campaign' | 'batch_group';
+  adjustmentReason?: string;
+  expectedProfitIncrease?: number;
+  appliedBy?: string;
+  appliedAt?: string;
+  status?: 'applied' | 'pending' | 'failed' | 'rolled_back';
+}>) {
+  const db = await getDb();
+  if (!db || records.length === 0) return { success: false, imported: 0, errors: [] };
+  
+  const errors: Array<{ row: number; error: string }> = [];
+  const validRecords: any[] = [];
+  
+  records.forEach((record, index) => {
+    // 验证必填字段
+    if (!record.accountId) {
+      errors.push({ row: index + 1, error: '缺少账号ID' });
+      return;
+    }
+    if (record.previousBid === undefined || record.newBid === undefined) {
+      errors.push({ row: index + 1, error: '缺少出价数据' });
+      return;
+    }
+    
+    const bidChangePercent = record.previousBid > 0 
+      ? ((record.newBid - record.previousBid) / record.previousBid * 100)
+      : 100;
+    
+    validRecords.push({
+      accountId: record.accountId,
+      campaignId: record.campaignId,
+      campaignName: record.campaignName,
+      performanceGroupId: record.performanceGroupId,
+      performanceGroupName: record.performanceGroupName,
+      keywordId: record.keywordId,
+      keywordText: record.keywordText,
+      matchType: record.matchType,
+      previousBid: String(record.previousBid),
+      newBid: String(record.newBid),
+      bidChangePercent: String(Math.round(bidChangePercent * 100) / 100),
+      adjustmentType: record.adjustmentType || 'manual',
+      adjustmentReason: record.adjustmentReason || '批量导入',
+      expectedProfitIncrease: record.expectedProfitIncrease ? String(record.expectedProfitIncrease) : null,
+      appliedBy: record.appliedBy || 'import',
+      appliedAt: record.appliedAt || new Date().toISOString().slice(0, 19).replace('T', ' '),
+      status: record.status || 'applied',
+    });
+  });
+  
+  if (validRecords.length > 0) {
+    await db.insert(bidAdjustmentHistory).values(validRecords);
+  }
+  
+  return {
+    success: true,
+    imported: validRecords.length,
+    skipped: errors.length,
+    errors,
+  };
+}
+
+// 获取效果追踪统计
+export async function getBidAdjustmentTrackingStats(accountId: number, days: number = 30) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - days);
+  const cutoffDateStr = cutoffDate.toISOString().slice(0, 19).replace('T', ' ');
+  
+  const results = await db.select()
+    .from(bidAdjustmentHistory)
+    .where(
+      and(
+        eq(bidAdjustmentHistory.accountId, accountId),
+        eq(bidAdjustmentHistory.status, 'applied'),
+        sql`${bidAdjustmentHistory.appliedAt} >= ${cutoffDateStr}`,
+        sql`${bidAdjustmentHistory.actualProfit7d} IS NOT NULL`
+      )
+    );
+  
+  // 计算统计数据
+  let totalExpectedProfit = 0;
+  let totalActualProfit7d = 0;
+  let totalActualProfit14d = 0;
+  let totalActualProfit30d = 0;
+  let trackedCount = 0;
+  
+  results.forEach(r => {
+    totalExpectedProfit += Number(r.expectedProfitIncrease || 0);
+    totalActualProfit7d += Number(r.actualProfit7d || 0);
+    totalActualProfit14d += Number(r.actualProfit14d || 0);
+    totalActualProfit30d += Number(r.actualProfit30d || 0);
+    trackedCount++;
+  });
+  
+  return {
+    trackedCount,
+    totalExpectedProfit: Math.round(totalExpectedProfit * 100) / 100,
+    totalActualProfit7d: Math.round(totalActualProfit7d * 100) / 100,
+    totalActualProfit14d: Math.round(totalActualProfit14d * 100) / 100,
+    totalActualProfit30d: Math.round(totalActualProfit30d * 100) / 100,
+    accuracy7d: trackedCount > 0 && totalExpectedProfit > 0 
+      ? Math.round((totalActualProfit7d / totalExpectedProfit) * 100) 
+      : 0,
+  };
+}

@@ -27,8 +27,23 @@ import {
   Zap,
   Clock,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  RotateCcw,
+  Upload,
+  Eye,
+  CheckCircle,
+  AlertCircle,
+  FileText
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 
 // 调整类型映射
 const adjustmentTypeLabels: Record<string, { label: string; color: string }> = {
@@ -48,6 +63,26 @@ const statusLabels: Record<string, { label: string; color: string }> = {
   rolled_back: { label: '已回滚', color: 'bg-gray-500/10 text-gray-600' },
 };
 
+// CSV解析函数
+function parseCSV(csvText: string): Array<Record<string, string>> {
+  const lines = csvText.trim().split('\n');
+  if (lines.length < 2) return [];
+  
+  const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+  const records: Array<Record<string, string>> = [];
+  
+  for (let i = 1; i < lines.length; i++) {
+    const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''));
+    const record: Record<string, string> = {};
+    headers.forEach((header, index) => {
+      record[header] = values[index] || '';
+    });
+    records.push(record);
+  }
+  
+  return records;
+}
+
 export default function BidAdjustmentHistory() {
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
@@ -57,6 +92,19 @@ export default function BidAdjustmentHistory() {
   const [endDate, setEndDate] = useState<string>('');
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
+  
+  // 回滚对话框状态
+  const [rollbackDialogOpen, setRollbackDialogOpen] = useState(false);
+  const [selectedAdjustment, setSelectedAdjustment] = useState<any>(null);
+  
+  // 批量导入对话框状态
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
+  const [csvContent, setCsvContent] = useState('');
+  const [importPreview, setImportPreview] = useState<any[]>([]);
+  
+  // 效果追踪对话框状态
+  const [trackingDialogOpen, setTrackingDialogOpen] = useState(false);
+  const [trackingAdjustment, setTrackingAdjustment] = useState<any>(null);
 
   // 获取账号列表
   const { data: accounts } = trpc.adAccount.list.useQuery();
@@ -94,6 +142,94 @@ export default function BidAdjustmentHistory() {
     { accountId: accountId!, days: 30 },
     { enabled: !!accountId }
   );
+
+  // 获取效果追踪统计
+  const { data: trackingStats } = trpc.placement.getBidAdjustmentTrackingStats.useQuery(
+    { accountId: accountId!, days: 30 },
+    { enabled: !!accountId }
+  );
+
+  // 回滚 mutation
+  const rollbackMutation = trpc.placement.rollbackBidAdjustment.useMutation({
+    onSuccess: () => {
+      toast.success('回滚成功');
+      setRollbackDialogOpen(false);
+      setSelectedAdjustment(null);
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(`回滚失败: ${error.message}`);
+    },
+  });
+
+  // 批量导入 mutation
+  const importMutation = trpc.placement.importBidAdjustmentHistory.useMutation({
+    onSuccess: (result) => {
+      toast.success(`导入成功: ${result.imported} 条记录`);
+      if (result.skipped > 0) {
+        toast.warning(`跳过 ${result.skipped} 条无效记录`);
+      }
+      setImportDialogOpen(false);
+      setCsvContent('');
+      setImportPreview([]);
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(`导入失败: ${error.message}`);
+    },
+  });
+
+  // 处理回滚
+  const handleRollback = (adjustment: any) => {
+    setSelectedAdjustment(adjustment);
+    setRollbackDialogOpen(true);
+  };
+
+  // 确认回滚
+  const confirmRollback = () => {
+    if (selectedAdjustment) {
+      rollbackMutation.mutate({ adjustmentId: selectedAdjustment.id });
+    }
+  };
+
+  // 处理CSV解析
+  const handleCSVParse = () => {
+    if (!csvContent.trim()) {
+      toast.error('请输入CSV内容');
+      return;
+    }
+    const parsed = parseCSV(csvContent);
+    if (parsed.length === 0) {
+      toast.error('CSV格式无效或没有数据');
+      return;
+    }
+    setImportPreview(parsed);
+    toast.success(`解析成功: ${parsed.length} 条记录`);
+  };
+
+  // 确认导入
+  const confirmImport = () => {
+    if (!accountId || importPreview.length === 0) return;
+    
+    const records = importPreview.map(row => ({
+      campaignName: row.campaignName || row['广告活动'] || undefined,
+      keywordText: row.keywordText || row['关键词'] || undefined,
+      matchType: row.matchType || row['匹配类型'] || undefined,
+      previousBid: parseFloat(row.previousBid || row['调整前出价'] || '0'),
+      newBid: parseFloat(row.newBid || row['调整后出价'] || '0'),
+      adjustmentType: (row.adjustmentType || 'manual') as any,
+      adjustmentReason: row.adjustmentReason || row['调整原因'] || '批量导入',
+      appliedAt: row.appliedAt || row['时间'] || undefined,
+    }));
+    
+    importMutation.mutate({ accountId, records });
+  };
+
+  // 查看效果追踪
+  const handleViewTracking = (adjustment: any) => {
+    setTrackingAdjustment(adjustment);
+    setTrackingDialogOpen(true);
+  };
 
   // 导出CSV
   const handleExport = () => {
@@ -176,6 +312,10 @@ export default function BidAdjustmentHistory() {
             <Button variant="outline" size="sm" onClick={handleExport}>
               <Download className="w-4 h-4 mr-2" />
               导出CSV
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setImportDialogOpen(true)}>
+              <Upload className="w-4 h-4 mr-2" />
+              批量导入
             </Button>
           </div>
         </div>
@@ -417,6 +557,7 @@ export default function BidAdjustmentHistory() {
                         <TableHead>类型</TableHead>
                         <TableHead>状态</TableHead>
                         <TableHead className="text-right">预估利润</TableHead>
+                        <TableHead className="text-center">操作</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -488,6 +629,30 @@ export default function BidAdjustmentHistory() {
                                 <span className="text-green-600">+${Number(record.expectedProfitIncrease).toFixed(2)}</span>
                               ) : '-'}
                             </TableCell>
+                            <TableCell className="text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0"
+                                  onClick={() => handleViewTracking(record)}
+                                  title="查看效果追踪"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </Button>
+                                {record.status === 'applied' && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 w-7 p-0 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                                    onClick={() => handleRollback(record)}
+                                    title="回滚此调整"
+                                  >
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
                           </TableRow>
                         );
                       })}
@@ -528,6 +693,305 @@ export default function BidAdjustmentHistory() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 回滚确认对话框 */}
+      <Dialog open={rollbackDialogOpen} onOpenChange={setRollbackDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="w-5 h-5 text-orange-600" />
+              确认回滚出价调整
+            </DialogTitle>
+            <DialogDescription>
+              此操作将将关键词出价恢复到调整前的值
+            </DialogDescription>
+          </DialogHeader>
+          {selectedAdjustment && (
+            <div className="space-y-4">
+              <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">关键词</span>
+                  <span className="font-medium">{selectedAdjustment.keywordText || '-'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">广告活动</span>
+                  <span>{selectedAdjustment.campaignName || '-'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">当前出价</span>
+                  <span className="font-mono">${Number(selectedAdjustment.newBid).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">回滚后出价</span>
+                  <span className="font-mono text-orange-600">${Number(selectedAdjustment.previousBid).toFixed(2)}</span>
+                </div>
+              </div>
+              <div className="flex items-start gap-2 text-sm text-muted-foreground bg-yellow-50 p-3 rounded-lg">
+                <AlertCircle className="w-4 h-4 text-yellow-600 mt-0.5 flex-shrink-0" />
+                <p>回滚后将创建一条新的调整记录，原记录状态将标记为“已回滚”</p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRollbackDialogOpen(false)}>
+              取消
+            </Button>
+            <Button 
+              onClick={confirmRollback}
+              disabled={rollbackMutation.isPending}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
+              {rollbackMutation.isPending ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />回滚中...</>
+              ) : (
+                <><RotateCcw className="w-4 h-4 mr-2" />确认回滚</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 效果追踪对话框 */}
+      <Dialog open={trackingDialogOpen} onOpenChange={setTrackingDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-blue-600" />
+              出价调整效果追踪
+            </DialogTitle>
+            <DialogDescription>
+              查看调整后的7天/14天/30天实际表现数据
+            </DialogDescription>
+          </DialogHeader>
+          {trackingAdjustment && (
+            <div className="space-y-4">
+              {/* 基本信息 */}
+              <div className="bg-muted/50 rounded-lg p-4 space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">关键词</span>
+                  <span className="font-medium">{trackingAdjustment.keywordText || '-'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">调整时间</span>
+                  <span>{trackingAdjustment.appliedAt ? new Date(trackingAdjustment.appliedAt).toLocaleString('zh-CN') : '-'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">出价变化</span>
+                  <span className="font-mono">
+                    ${Number(trackingAdjustment.previousBid).toFixed(2)} → ${Number(trackingAdjustment.newBid).toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">预估利润提升</span>
+                  <span className="text-green-600">
+                    {trackingAdjustment.expectedProfitIncrease ? `+$${Number(trackingAdjustment.expectedProfitIncrease).toFixed(2)}` : '-'}
+                  </span>
+                </div>
+              </div>
+
+              {/* 效果追踪数据 */}
+              <div className="grid grid-cols-3 gap-4">
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">7天效果</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {trackingAdjustment.actualProfit7d !== null && trackingAdjustment.actualProfit7d !== undefined ? (
+                      <div className="space-y-1">
+                        <p className={`text-lg font-bold ${Number(trackingAdjustment.actualProfit7d) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {Number(trackingAdjustment.actualProfit7d) >= 0 ? '+' : ''}${Number(trackingAdjustment.actualProfit7d).toFixed(2)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">实际利润变化</p>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">暂无数据</p>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">14天效果</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {trackingAdjustment.actualProfit14d !== null && trackingAdjustment.actualProfit14d !== undefined ? (
+                      <div className="space-y-1">
+                        <p className={`text-lg font-bold ${Number(trackingAdjustment.actualProfit14d) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {Number(trackingAdjustment.actualProfit14d) >= 0 ? '+' : ''}${Number(trackingAdjustment.actualProfit14d).toFixed(2)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">实际利润变化</p>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">暂无数据</p>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm">30天效果</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {trackingAdjustment.actualProfit30d !== null && trackingAdjustment.actualProfit30d !== undefined ? (
+                      <div className="space-y-1">
+                        <p className={`text-lg font-bold ${Number(trackingAdjustment.actualProfit30d) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {Number(trackingAdjustment.actualProfit30d) >= 0 ? '+' : ''}${Number(trackingAdjustment.actualProfit30d).toFixed(2)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">实际利润变化</p>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">暂无数据</p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* 详细指标 */}
+              {trackingAdjustment.actualImpressions7d !== null && (
+                <div className="bg-muted/30 rounded-lg p-4">
+                  <h4 className="text-sm font-medium mb-3">7天详细指标</h4>
+                  <div className="grid grid-cols-5 gap-4 text-sm">
+                    <div>
+                      <p className="text-muted-foreground">展现</p>
+                      <p className="font-medium">{trackingAdjustment.actualImpressions7d?.toLocaleString() || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">点击</p>
+                      <p className="font-medium">{trackingAdjustment.actualClicks7d?.toLocaleString() || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">转化</p>
+                      <p className="font-medium">{trackingAdjustment.actualConversions7d?.toLocaleString() || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">花费</p>
+                      <p className="font-medium">${Number(trackingAdjustment.actualSpend7d || 0).toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">收入</p>
+                      <p className="font-medium">${Number(trackingAdjustment.actualRevenue7d || 0).toFixed(2)}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 效果评估 */}
+              {trackingAdjustment.actualProfit7d !== null && trackingAdjustment.expectedProfitIncrease && (
+                <div className="flex items-center gap-2 p-3 rounded-lg bg-blue-50">
+                  {Number(trackingAdjustment.actualProfit7d) >= Number(trackingAdjustment.expectedProfitIncrease) * 0.8 ? (
+                    <>
+                      <CheckCircle className="w-5 h-5 text-green-600" />
+                      <span className="text-sm">调整效果达到或超过预期，建议继续保持</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="w-5 h-5 text-yellow-600" />
+                      <span className="text-sm">实际效果低于预期，建议关注后续表现或考虑回滚</span>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTrackingDialogOpen(false)}>
+              关闭
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 批量导入对话框 */}
+      <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Upload className="w-5 h-5 text-blue-600" />
+              批量导入出价调整历史
+            </DialogTitle>
+            <DialogDescription>
+              支持CSV格式，包含列：广告活动、关键词、匹配类型、调整前出价、调整后出价、时间
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>粘贴CSV内容</Label>
+              <Textarea
+                placeholder="广告活动,关键词,匹配类型,调整前出价,调整后出价,时间&#10;Campaign A,keyword1,exact,0.50,0.65,2024-01-15&#10;Campaign B,keyword2,phrase,0.80,0.70,2024-01-16"
+                value={csvContent}
+                onChange={(e) => setCsvContent(e.target.value)}
+                className="h-40 font-mono text-sm"
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleCSVParse}>
+                <FileText className="w-4 h-4 mr-2" />
+                解析CSV
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setCsvContent('');
+                  setImportPreview([]);
+                }}
+              >
+                清空
+              </Button>
+            </div>
+
+            {/* 预览 */}
+            {importPreview.length > 0 && (
+              <div>
+                <Label>预览 ({importPreview.length} 条记录)</Label>
+                <div className="rounded-md border overflow-hidden mt-2 max-h-60 overflow-y-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-muted/30">
+                        <TableHead>广告活动</TableHead>
+                        <TableHead>关键词</TableHead>
+                        <TableHead>调整前</TableHead>
+                        <TableHead>调整后</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {importPreview.slice(0, 10).map((row, index) => (
+                        <TableRow key={index}>
+                          <TableCell className="text-sm">{row.campaignName || row['广告活动'] || '-'}</TableCell>
+                          <TableCell className="text-sm">{row.keywordText || row['关键词'] || '-'}</TableCell>
+                          <TableCell className="text-sm font-mono">${row.previousBid || row['调整前出价'] || '0'}</TableCell>
+                          <TableCell className="text-sm font-mono">${row.newBid || row['调整后出价'] || '0'}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                  {importPreview.length > 10 && (
+                    <p className="text-xs text-muted-foreground text-center py-2">
+                      还有 {importPreview.length - 10} 条记录未显示...
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setImportDialogOpen(false);
+              setCsvContent('');
+              setImportPreview([]);
+            }}>
+              取消
+            </Button>
+            <Button 
+              onClick={confirmImport}
+              disabled={importPreview.length === 0 || importMutation.isPending}
+            >
+              {importMutation.isPending ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" />导入中...</>
+              ) : (
+                <><Upload className="w-4 h-4 mr-2" />确认导入 ({importPreview.length} 条)</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }
