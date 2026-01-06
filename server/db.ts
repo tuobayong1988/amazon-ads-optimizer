@@ -10,7 +10,7 @@ import {
   productTargets, InsertProductTarget, ProductTarget,
   biddingLogs, InsertBiddingLog, BiddingLog,
   dailyPerformance, InsertDailyPerformance, DailyPerformance,
-  marketCurveData, InsertMarketCurveData, MarketCurveData,
+  marketCurveData,
   importJobs, InsertImportJob, ImportJob,
   negativeKeywords, InsertNegativeKeyword, NegativeKeyword,
   notificationSettings, NotificationSetting, InsertNotificationSetting,

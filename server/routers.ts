@@ -4722,6 +4722,332 @@ const daypartingRouter = router({
     }),
 });
 
+// ==================== Placement Optimization Router ====================
+import * as placementService from './placementOptimizationService';
+import * as advancedPlacementService from './advancedPlacementService';
+import * as marketCurveService from './marketCurveService';
+import * as decisionTreeService from './decisionTreeService';
+
+const placementRouter = router({
+  // 获取广告活动的位置表现数据
+  getPerformance: protectedProcedure
+    .input(z.object({
+      campaignId: z.string(),
+      accountId: z.number(),
+      days: z.number().default(7),
+    }))
+    .query(async ({ input }) => {
+      return placementService.getCampaignPlacementPerformance(
+        input.campaignId,
+        input.accountId,
+        input.days
+      );
+    }),
+
+  // 获取广告活动的位置倾斜设置
+  getSettings: protectedProcedure
+    .input(z.object({
+      campaignId: z.string(),
+      accountId: z.number(),
+    }))
+    .query(async ({ input }) => {
+      return placementService.getCampaignPlacementSettings(
+        input.campaignId,
+        input.accountId
+      );
+    }),
+
+  // 生成位置倾斜建议
+  generateSuggestions: protectedProcedure
+    .input(z.object({
+      campaignId: z.string(),
+      accountId: z.number(),
+      days: z.number().default(7),
+    }))
+    .mutation(async ({ input }) => {
+      // 获取位置表现数据
+      const performance = await placementService.getCampaignPlacementPerformance(
+        input.campaignId,
+        input.accountId,
+        input.days
+      );
+      
+      // 获取当前设置
+      const currentSettings = await placementService.getCampaignPlacementSettings(
+        input.campaignId,
+        input.accountId
+      );
+      
+      // 生成建议
+      const suggestions = placementService.calculateOptimalAdjustment(
+        performance,
+        currentSettings
+      );
+      
+      return {
+        performance,
+        currentSettings,
+        suggestions,
+      };
+    }),
+
+  // 应用位置倾斜调整
+  applyAdjustments: protectedProcedure
+    .input(z.object({
+      campaignId: z.string(),
+      accountId: z.number(),
+      adjustments: z.array(z.object({
+        placementType: z.enum(['top_of_search', 'product_page', 'rest_of_search']),
+        currentAdjustment: z.number(),
+        suggestedAdjustment: z.number(),
+        adjustmentDelta: z.number(),
+        efficiencyScore: z.number(),
+        confidence: z.number(), // 0-1的置信度数值
+        reason: z.string(),
+      })),
+    }))
+    .mutation(async ({ input }) => {
+      await placementService.updatePlacementSettings(
+        input.campaignId,
+        input.accountId,
+        input.adjustments
+      );
+      return { success: true };
+    }),
+
+  // 执行单个广告活动的位置优化
+  optimizeCampaign: protectedProcedure
+    .input(z.object({
+      campaignId: z.string(),
+      accountId: z.number(),
+    }))
+    .mutation(async ({ input }) => {
+      return placementService.executeAutomaticPlacementOptimization(
+        input.campaignId,
+        input.accountId
+      );
+    }),
+
+  // 批量执行位置优化
+  batchOptimize: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      campaignIds: z.array(z.string()).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      return placementService.batchExecutePlacementOptimization(
+        input.accountId,
+        input.campaignIds
+      );
+    }),
+
+  // 获取位置调整历史记录
+  getHistory: protectedProcedure
+    .input(z.object({
+      campaignId: z.string().optional(),
+      accountId: z.number(),
+      limit: z.number().default(50),
+    }))
+    .query(async ({ input }) => {
+      // TODO: 实现历史记录查询
+      return [];
+    }),
+
+  // ==================== 高级位置优化（Adspert算法整合）====================
+
+  // 分析广告活动的位置利润优化
+  analyzeProfitOptimization: protectedProcedure
+    .input(z.object({
+      campaignId: z.string(),
+      accountId: z.number(),
+    }))
+    .query(async ({ input }) => {
+      return advancedPlacementService.analyzeCampaignPlacementProfit(
+        input.accountId,
+        input.campaignId
+      );
+    }),
+
+  // 分析单个竞价对象的利润
+  analyzeBidObjectProfit: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      campaignId: z.string(),
+      bidObjectType: z.enum(['keyword', 'asin']),
+      bidObjectId: z.string(),
+      bidObjectText: z.string(),
+      currentBaseBid: z.number(),
+      currentTopAdjustment: z.number().default(0),
+      currentProductAdjustment: z.number().default(0),
+    }))
+    .query(async ({ input }) => {
+      return advancedPlacementService.analyzeBidObjectProfit(
+        input.accountId,
+        input.campaignId,
+        input.bidObjectType,
+        input.bidObjectId,
+        input.bidObjectText,
+        input.currentBaseBid,
+        input.currentTopAdjustment,
+        input.currentProductAdjustment
+      );
+    }),
+
+  // 获取待处理的优化建议
+  getPendingRecommendations: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      campaignId: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      return advancedPlacementService.getPendingRecommendations(
+        input.accountId,
+        input.campaignId
+      );
+    }),
+
+  // 应用优化建议
+  applyRecommendation: protectedProcedure
+    .input(z.object({
+      recommendationId: z.number(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      return advancedPlacementService.applyOptimizationRecommendation(
+        input.recommendationId,
+        ctx.user.id
+      );
+    }),
+
+  // 生成利润曲线可视化数据
+  getProfitCurveData: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      bidObjectType: z.enum(['keyword', 'asin']),
+      bidObjectId: z.string(),
+    }))
+    .query(async ({ input }) => {
+      return advancedPlacementService.generateProfitVisualizationData(
+        input.accountId,
+        input.bidObjectType,
+        input.bidObjectId
+      );
+    }),
+
+  // ==================== 市场曲线相关 ====================
+
+  // 构建关键词的市场曲线模型
+  buildMarketCurve: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      campaignId: z.string(),
+      keywordId: z.number(),
+      daysBack: z.number().default(30),
+    }))
+    .mutation(async ({ input }) => {
+      const model = await marketCurveService.buildMarketCurveForKeyword(
+        input.accountId,
+        input.campaignId,
+        input.keywordId,
+        input.daysBack
+      );
+      return model;
+    }),
+
+  // 获取市场曲线模型
+  getMarketCurve: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      bidObjectType: z.enum(['keyword', 'asin', 'audience']),
+      bidObjectId: z.string(),
+    }))
+    .query(async ({ input }) => {
+      return marketCurveService.getMarketCurveModel(
+        input.accountId,
+        input.bidObjectType,
+        input.bidObjectId
+      );
+    }),
+
+  // 批量更新市场曲线模型
+  updateAllMarketCurves: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+    }))
+    .mutation(async ({ input }) => {
+      return marketCurveService.updateAllMarketCurveModels(input.accountId);
+    }),
+
+  // ==================== 决策树相关 ====================
+
+  // 训练决策树模型
+  trainDecisionTree: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      modelType: z.enum(['cr_prediction', 'cv_prediction']),
+    }))
+    .mutation(async ({ input }) => {
+      const result = await decisionTreeService.trainDecisionTreeModel(
+        input.accountId,
+        input.modelType
+      );
+      
+      // 保存模型
+      const modelId = await decisionTreeService.saveDecisionTreeModel(
+        input.accountId,
+        input.modelType,
+        result
+      );
+      
+      return {
+        modelId,
+        depth: result.depth,
+        leafCount: result.leafCount,
+        trainingR2: result.trainingR2,
+        totalSamples: result.totalSamples,
+        featureImportance: result.featureImportance,
+      };
+    }),
+
+  // 预测关键词表现
+  predictKeywordPerformance: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      matchType: z.enum(['broad', 'phrase', 'exact']),
+      wordCount: z.number(),
+      keywordType: z.enum(['brand', 'competitor', 'generic', 'product']),
+      avgBid: z.number(),
+    }))
+    .query(async ({ input }) => {
+      return decisionTreeService.predictKeywordPerformance(
+        input.accountId,
+        {
+          matchType: input.matchType,
+          wordCount: input.wordCount,
+          keywordType: input.keywordType,
+          avgBid: input.avgBid,
+        }
+      );
+    }),
+
+  // 批量预测并保存关键词预测结果
+  batchPredictKeywords: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+    }))
+    .mutation(async ({ input }) => {
+      return decisionTreeService.batchPredictAndSaveKeywords(input.accountId);
+    }),
+
+  // 获取关键词预测摘要
+  getKeywordPredictionSummary: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+    }))
+    .query(async ({ input }) => {
+      return decisionTreeService.getKeywordPredictionSummary(input.accountId);
+    }),
+});
+
 // ==================== 趋势数据辅助函数 ====================
 // 生成模拟的趋势数据（当没有真实历史数据时使用）
 function generateSimulatedTrendData(target: any, days: number) {
@@ -4885,6 +5211,7 @@ export const appRouter = router({
   seasonalBudget: seasonalBudgetRouter,
   dataSync: dataSyncRouter,
   dayparting: daypartingRouter,
+  placement: placementRouter,
 });
 
 export type AppRouter = typeof appRouter;

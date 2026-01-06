@@ -127,6 +127,13 @@
       "when": 1767694944437,
       "tag": "0017_smart_archangel",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "5",
+      "when": 1767696844576,
+      "tag": "0018_nebulous_whizzer",
+      "breakpoints": true
     }
   ]
 }

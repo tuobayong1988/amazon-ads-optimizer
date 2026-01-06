@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getLoginUrl } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
-import { 
+import {
   LayoutDashboard, 
   LogOut, 
   PanelLeft, 
@@ -48,7 +48,9 @@ import {
   RefreshCw,
   Home,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  MapPin,
+  Brain
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -78,6 +80,8 @@ const menuGroups = [
     title: "智能优化",
     items: [
       { icon: Zap, label: "广告自动化", path: "/automation" },
+      { icon: MapPin, label: "位置倾斜", path: "/placement-optimization" },
+      { icon: Brain, label: "高级位置优化", path: "/advanced-placement" },
       { icon: Clock, label: "分时策略", path: "/dayparting" },
       { icon: Layers, label: "批量操作", path: "/batch-operations" },
       { icon: FileSearch, label: "纠错复盘", path: "/correction-review" },

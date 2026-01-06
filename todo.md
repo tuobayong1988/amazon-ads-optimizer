@@ -975,31 +975,28 @@
 
 
 
-## 核心功能实现（第四十一阶段）
-
+## ## 核心功能实现（第四十一阶段）- 开发中
 ### 位置倾斜频率调整
-- [ ] 将位置倾斜调整频率从"每周2次"改为"每2小时1次"
-- [ ] 更新设计文档中的频率配置
-
+- [x] 将位置倾斜调整频率从"每刘2次"改为"每2小时1次"
+- [x] 更新设计文档中的频率配置
 ### 广告位置智能倾斜功能实现
-- [ ] 创建位置表现数据表（placement_performance）
+- [x] 创建位置表现数据表（placement_performance）
 - [ ] 创建位置调整历史表（placement_adjustments）
 - [ ] 实现位置数据同步API
 - [ ] 实现位置效率评分算法
 - [ ] 实现最优倾斜比例计算
 - [ ] 实现位置倾斜自动调整
-
+- [ ] 创建位置倾斜管理前端页面
 ### 2小时时段数据采集
-- [ ] 创建时段表现数据表（hourly_performance）
+- [x] 创建时段表现数据表（hourly_performance）
 - [ ] 实现2小时时段数据采集API
 - [ ] 实现时段效率分析算法
-
 ### 广告优化中心界面重构
 - [ ] 创建新的广告优化中心页面
 - [ ] 实现广告活动列表展开/折叠投放词
 - [ ] 集成AI优化建议常驻面板
 - [ ] 集成位置智能倾斜面板
-- [ ] 更新导航结构
+- [ ] 更新导航结构构
 
 
 
@@ -1027,3 +1024,83 @@
 - [x] 创建Amazon API频率限制分析文档
 - [x] 更新系统设计文档中的频率配置
 
+
+
+## 广告位置智能倾斜功能（第二十五阶段）
+
+### 后端服务开发
+- [x] 创建placementOptimizationService.ts服务文件
+- [x] 实现位置效率评分算法（综合ROAS、ACoS、CVR、CPC等指标）
+- [x] 实现最优倾斜比例计算算法
+- [x] 实现位置表现数据查询功能
+- [x] 实现位置倾斜设置更新功能
+- [x] 实现自动优化执行功能
+- [x] 实现批量优化功能
+
+### 后端API开发
+- [x] 添加placement路由到routers.ts
+- [x] 实现getPerformance API（获取位置表现数据）
+- [x] 实现getSettings API（获取当前倾斜设置）
+- [x] 实现generateSuggestions API（生成优化建议）
+- [x] 实现applyAdjustments API（应用调整）
+- [x] 实现optimizeCampaign API（一键优化）
+- [x] 实现batchOptimize API（批量优化）
+- [x] 实现getHistory API（获取调整历史）
+
+### 前端页面开发
+- [x] 创建PlacementOptimization.tsx页面
+- [x] 实现账号和广告活动选择器
+- [x] 实现位置表现概览卡片
+- [x] 实现位置表现详情表格
+- [x] 实现分析结果弹窗
+- [x] 实现确认应用弹窗
+- [x] 实现优化设置弹窗
+- [x] 添加路由配置
+- [x] 添加侧边栏菜单项
+
+### 待完成功能
+- [ ] 实现2小时时段数据采集服务
+- [ ] 实现位置调整历史记录查询
+- [ ] 添加位置表现趋势图表
+- [ ] 集成到广告活动详情页
+
+
+## Adspert核心算法整合（第二十六阶段）
+### 数据库设计
+- [x] 创建市场曲线模型表 (market_curve_models)
+- [x] 创建决策树模型表 (decision_tree_models)
+- [x] 创建关键词预测表 (keyword_predictions)
+- [x] 创建竞价对象利润估算表 (bid_object_profit_estimates)
+- [x] 创建优化建议表 (optimization_recommendations)
+- [x] 创建出价表现历史表 (bid_performance_history)
+### 市场曲线服务
+- [x] 实现展现曲线建模（对数回归）
+- [x] 实现点击率曲线建模
+- [x] 实现利润曲线计算 (Profit = Clicks × (CVR × AOV - CPC))
+- [x] 实现利润最大化出价点计算（黄金分割搜索）
+- [x] 编写市场曲线服务单元测试 (17个测试通过)
+### 决策树服务
+- [x] 实现决策树构建算法（CART）
+- [x] 实现决策树预测服务
+- [x] 实现长尾关键词预测
+- [x] 实现贝叶斯更新（结合历史数据）
+- [x] 编写决策树服务单元测试 (18个测试通过)
+### 高级位置优化服务
+- [x] 整合市场曲线、决策树和利润计算
+- [x] 实现竞价对象层面的利润估算
+- [x] 实现较低位置调整策略（Adspert策略）
+- [x] 实现综合优化建议生成
+### 后端API更新
+- [x] 添加 advancedPlacement 路由
+- [x] 添加市场曲线查询API (buildMarketCurve)
+- [x] 添加决策树训练API (trainDecisionTree)
+- [x] 添加利润分析API (analyzePlacementProfit)
+- [x] 添加优化建议API (getRecommendations, applyRecommendation)
+### 前端界面升级
+- [x] 创建 AdvancedPlacementOptimization 页面
+- [x] 添加市场曲线可视化图表
+- [x] 添加决策树预测结果展示
+- [x] 添加利润估算展示
+- [x] 添加优化建议详情展示
+- [x] 添加侧边栏菜单项
+- [x] 添加路由配置

@@ -32,6 +32,8 @@ import DataSync from "@/pages/DataSync";
 import CampaignDetail from "@/pages/CampaignDetail";
 import DaypartingStrategy from "@/pages/DaypartingStrategy";
 import AIOptimizationHistory from "@/pages/AIOptimizationHistory";
+import PlacementOptimization from "@/pages/PlacementOptimization";
+import AdvancedPlacementOptimization from "@/pages/AdvancedPlacementOptimization";
 
 function Router() {
   return (
@@ -64,6 +66,8 @@ function Router() {
       <Route path="/seasonal-budget" component={SeasonalBudget} />
       <Route path="/data-sync" component={DataSync} />
       <Route path="/dayparting" component={DaypartingStrategy} />
+      <Route path="/placement-optimization" component={PlacementOptimization} />
+      <Route path="/advanced-placement" component={AdvancedPlacementOptimization} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
