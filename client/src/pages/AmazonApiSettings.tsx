@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { 
+import {
   Key, 
   RefreshCw, 
   CheckCircle2, 
@@ -38,7 +38,12 @@ import {
   MoreVertical,
   AlertCircle,
   Settings,
-  GripVertical
+  GripVertical,
+  Download,
+  Upload,
+  FileJson,
+  FileSpreadsheet,
+  Eye
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -119,6 +124,11 @@ export default function AmazonApiSettings() {
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState("accounts");
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [importData, setImportData] = useState("");
+  const [importFormat, setImportFormat] = useState<"json" | "csv">("json");
+  const [importOverwrite, setImportOverwrite] = useState(false);
+  const [importPreview, setImportPreview] = useState<Array<{ accountId: string; accountName: string; storeName?: string; marketplace: string; exists: boolean }> | null>(null);
 
   const utils = trpc.useUtils();
 
@@ -236,6 +246,51 @@ export default function AmazonApiSettings() {
     },
     onError: (error) => {
       toast.error(`优化失败: ${error.message}`);
+    },
+  });
+
+  // Export accounts mutation
+  const exportAccountsMutation = trpc.crossAccount.exportAccounts.useMutation({
+    onSuccess: (result) => {
+      const blob = new Blob([result.data], { type: result.format === 'json' ? 'application/json' : 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = result.filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast.success("导出成功");
+    },
+    onError: (error) => {
+      toast.error(`导出失败: ${error.message}`);
+    },
+  });
+
+  // Preview import mutation
+  const previewImportMutation = trpc.crossAccount.previewImport.useMutation({
+    onSuccess: (data) => {
+      setImportPreview(data);
+    },
+    onError: (error) => {
+      toast.error(`预览失败: ${error.message}`);
+      setImportPreview(null);
+    },
+  });
+
+  // Import accounts mutation
+  const importAccountsMutation = trpc.crossAccount.importAccounts.useMutation({
+    onSuccess: (result) => {
+      toast.success(`导入完成！新增: ${result.imported}, 更新: ${result.updated}, 跳过: ${result.skipped}`);
+      utils.adAccount.list.invalidate();
+      utils.adAccount.getStats.invalidate();
+      setIsImportDialogOpen(false);
+      setImportData("");
+      setImportPreview(null);
+    },
+    onError: (error) => {
+      toast.error(`导入失败: ${error.message}`);
     },
   });
 
@@ -364,13 +419,41 @@ export default function AmazonApiSettings() {
               管理多个亚马逊卖家店铺账号，配置API凭证实现数据自动同步
             </p>
           </div>
-          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="h-4 w-4 mr-2" />
-                添加店铺账号
-              </Button>
-            </DialogTrigger>
+          <div className="flex items-center gap-2">
+            {/* 导出按钮 */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Download className="h-4 w-4 mr-2" />
+                  导出
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={() => exportAccountsMutation.mutate({ format: 'json' })}>
+                  <FileJson className="h-4 w-4 mr-2" />
+                  导出为JSON
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => exportAccountsMutation.mutate({ format: 'csv' })}>
+                  <FileSpreadsheet className="h-4 w-4 mr-2" />
+                  导出为CSV
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* 导入按钮 */}
+            <Button variant="outline" size="sm" onClick={() => setIsImportDialogOpen(true)}>
+              <Upload className="h-4 w-4 mr-2" />
+              导入
+            </Button>
+
+            {/* 添加账号按钮 */}
+            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  添加店铺账号
+                </Button>
+              </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
                 <DialogTitle>添加新店铺账号</DialogTitle>
@@ -510,7 +593,8 @@ export default function AmazonApiSettings() {
                 </Button>
               </DialogFooter>
             </DialogContent>
-          </Dialog>
+            </Dialog>
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -1079,6 +1163,120 @@ export default function AmazonApiSettings() {
               <Button onClick={handleUpdateAccount} disabled={updateAccountMutation.isPending}>
                 {updateAccountMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 保存修改
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* 导入账号对话框 */}
+        <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>导入店铺账号</DialogTitle>
+              <DialogDescription>
+                从 JSON 或 CSV 文件导入店铺账号配置
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="flex items-center gap-4">
+                <Label>文件格式</Label>
+                <div className="flex gap-2">
+                  <Button
+                    variant={importFormat === 'json' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setImportFormat('json')}
+                  >
+                    <FileJson className="h-4 w-4 mr-2" />
+                    JSON
+                  </Button>
+                  <Button
+                    variant={importFormat === 'csv' ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setImportFormat('csv')}
+                  >
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    CSV
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>粘贴数据内容</Label>
+                <Textarea
+                  placeholder={importFormat === 'json' 
+                    ? '[{"accountId": "xxx", "accountName": "xxx", "marketplace": "US"}]'
+                    : 'accountId,accountName,marketplace\nxxx,xxx,US'
+                  }
+                  value={importData}
+                  onChange={(e) => setImportData(e.target.value)}
+                  rows={8}
+                  className="font-mono text-sm"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Switch
+                  checked={importOverwrite}
+                  onCheckedChange={setImportOverwrite}
+                />
+                <Label>覆盖已存在的账号</Label>
+              </div>
+
+              {importData && (
+                <Button
+                  variant="outline"
+                  onClick={() => previewImportMutation.mutate({ data: importData, format: importFormat })}
+                  disabled={previewImportMutation.isPending}
+                >
+                  {previewImportMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  <Eye className="h-4 w-4 mr-2" />
+                  预览导入
+                </Button>
+              )}
+
+              {importPreview && importPreview.length > 0 && (
+                <div className="border rounded-lg p-4 space-y-2">
+                  <p className="text-sm font-medium">预览结果 ({importPreview.length} 个账号)</p>
+                  <div className="max-h-48 overflow-y-auto space-y-2">
+                    {importPreview.map((account, index) => (
+                      <div key={index} className="flex items-center justify-between text-sm p-2 bg-muted/50 rounded">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{account.storeName || account.accountName}</span>
+                          <Badge variant="outline" className="text-xs">
+                            {MARKETPLACES.find(m => m.id === account.marketplace)?.flag} {account.marketplace}
+                          </Badge>
+                        </div>
+                        {account.exists ? (
+                          <Badge variant="secondary" className="text-xs">
+                            {importOverwrite ? '将更新' : '将跳过'}
+                          </Badge>
+                        ) : (
+                          <Badge className="text-xs bg-green-500/20 text-green-500">新增</Badge>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => {
+                setIsImportDialogOpen(false);
+                setImportData("");
+                setImportPreview(null);
+              }}>
+                取消
+              </Button>
+              <Button
+                onClick={() => importAccountsMutation.mutate({
+                  data: importData,
+                  format: importFormat,
+                  overwrite: importOverwrite,
+                })}
+                disabled={!importData || importAccountsMutation.isPending}
+              >
+                {importAccountsMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                确认导入
               </Button>
             </DialogFooter>
           </DialogContent>
