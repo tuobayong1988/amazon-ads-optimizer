@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { useLocation } from "wouter";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -247,6 +248,8 @@ export default function PerformanceGroups() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState<number | null>(null);
   const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
+
+  const [, setLocation] = useLocation();
 
   // Fetch accounts
   const { data: accounts } = trpc.adAccount.list.useQuery();
@@ -542,7 +545,14 @@ export default function PerformanceGroups() {
                       size="sm"
                       variant="outline"
                       className="flex-1"
-                      onClick={() => handleRunOptimization(group.id, true)}
+                      onClick={() => setLocation(`/performance-groups/${group.id}`)}
+                    >
+                      <Settings className="w-4 h-4 mr-1" />
+                      管理
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => handleRunOptimization(group.id, false)}
                       disabled={isOptimizing === group.id}
                     >
                       {isOptimizing === group.id ? (
@@ -550,13 +560,6 @@ export default function PerformanceGroups() {
                       ) : (
                         <Play className="w-4 h-4 mr-1" />
                       )}
-                      预览优化
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => handleRunOptimization(group.id, false)}
-                      disabled={isOptimizing === group.id}
-                    >
                       执行优化
                     </Button>
                     <Button

@@ -274,6 +274,117 @@ const performanceGroupRouter = router({
       }
       return { success: true, count };
     }),
+
+  // 获取绩效组详情（通过ID）
+  getById: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      return db.getPerformanceGroupById(input.id);
+    }),
+
+  // 获取绩效组内的广告活动（新API，使用groupId参数）
+  getCampaigns: protectedProcedure
+    .input(z.object({ groupId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getCampaignsByPerformanceGroupId(input.groupId);
+    }),
+
+  // 获取绩效组KPI汇总
+  getKpiSummary: protectedProcedure
+    .input(z.object({ groupId: z.number() }))
+    .query(async ({ input }) => {
+      // 获取绩效组内所有广告活动的汇总数据
+      const campaigns = await db.getCampaignsByPerformanceGroupId(input.groupId);
+      let totalSpend = 0;
+      let totalRevenue = 0;
+      let totalConversions = 0;
+      let totalClicks = 0;
+      let totalImpressions = 0;
+      
+      for (const campaign of campaigns) {
+        totalSpend += campaign.spend || 0;
+        totalRevenue += campaign.revenue || 0;
+        totalConversions += campaign.conversions || 0;
+        totalClicks += campaign.clicks || 0;
+        totalImpressions += campaign.impressions || 0;
+      }
+      
+      const acos = totalRevenue > 0 ? (totalSpend / totalRevenue) * 100 : 0;
+      const roas = totalSpend > 0 ? totalRevenue / totalSpend : 0;
+      const ctr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+      const cvr = totalClicks > 0 ? (totalConversions / totalClicks) * 100 : 0;
+      
+      return {
+        totalSpend,
+        totalRevenue,
+        totalConversions,
+        totalClicks,
+        totalImpressions,
+        acos,
+        roas,
+        ctr,
+        cvr,
+        campaignCount: campaigns.length,
+      };
+    }),
+
+  // 添加广告活动到绩效组
+  addCampaigns: protectedProcedure
+    .input(z.object({
+      groupId: z.number(),
+      campaignIds: z.array(z.number()),
+    }))
+    .mutation(async ({ input }) => {
+      let count = 0;
+      for (const campaignId of input.campaignIds) {
+        await db.assignCampaignToPerformanceGroup(campaignId, input.groupId);
+        await db.updateCampaign(campaignId, { optimizationStatus: 'managed' });
+        count++;
+      }
+      return { success: true, count };
+    }),
+
+  // 从绩效组移除单个广告活动
+  removeCampaign: protectedProcedure
+    .input(z.object({
+      groupId: z.number(),
+      campaignId: z.number(),
+    }))
+    .mutation(async ({ input }) => {
+      await db.assignCampaignToPerformanceGroup(input.campaignId, null);
+      await db.updateCampaign(input.campaignId, { optimizationStatus: 'unmanaged' });
+      return { success: true };
+    }),
+
+  // 更新绩效组目标
+  updateGoal: protectedProcedure
+    .input(z.object({
+      groupId: z.number(),
+      goalType: z.string(),
+      targetValue: z.number().optional(),
+      dailyBudget: z.number().optional(),
+      maxBid: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const updateData: any = {
+        optimizationGoal: input.goalType,
+      };
+      
+      if (input.goalType === 'target_acos' && input.targetValue) {
+        updateData.targetAcos = input.targetValue.toString();
+      } else if (input.goalType === 'target_roas' && input.targetValue) {
+        updateData.targetRoas = input.targetValue.toString();
+      }
+      
+      if (input.dailyBudget) {
+        updateData.dailySpendLimit = input.dailyBudget.toString();
+      }
+      
+      // maxBid需要在数据库层面支持
+      
+      await db.updatePerformanceGroup(input.groupId, updateData);
+      return { success: true };
+    }),
 });
 
 // ==================== Campaign Router ====================
@@ -282,6 +393,13 @@ const campaignRouter = router({
     .input(z.object({ accountId: z.number() }))
     .query(async ({ input }) => {
       return db.getCampaignsByAccountId(input.accountId);
+    }),
+
+  // 获取未分配到绩效组的广告活动
+  listUnassigned: protectedProcedure
+    .input(z.object({ accountId: z.number().optional() }))
+    .query(async ({ input }) => {
+      return db.getUnassignedCampaigns(input.accountId);
     }),
   
   get: protectedProcedure

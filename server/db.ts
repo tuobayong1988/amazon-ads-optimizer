@@ -1,4 +1,4 @@
-import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
+import { eq, and, desc, gte, lte, sql, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { 
   InsertUser, users, 
@@ -270,6 +270,23 @@ export async function getCampaignsByPerformanceGroupId(performanceGroupId: numbe
   if (!db) return [];
   
   return db.select().from(campaigns).where(eq(campaigns.performanceGroupId, performanceGroupId));
+}
+
+// 获取未分配到绩效组的广告活动
+export async function getUnassignedCampaigns(accountId?: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  if (accountId) {
+    return db.select().from(campaigns).where(
+      and(
+        eq(campaigns.accountId, accountId),
+        isNull(campaigns.performanceGroupId)
+      )
+    );
+  }
+  
+  return db.select().from(campaigns).where(isNull(campaigns.performanceGroupId));
 }
 
 export async function getCampaignById(id: number) {

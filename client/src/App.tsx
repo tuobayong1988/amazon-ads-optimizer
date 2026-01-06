@@ -8,6 +8,7 @@ import DashboardLayout from "./components/DashboardLayout";
 import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
 import PerformanceGroups from "./pages/PerformanceGroups";
+import PerformanceGroupDetail from "./pages/PerformanceGroupDetail";
 import Campaigns from "./pages/Campaigns";
 import BiddingLogs from "./pages/BiddingLogs";
 import Settings from "./pages/Settings";
@@ -49,6 +50,7 @@ function Router() {
       <Route path="/" component={Home} />
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/performance-groups" component={PerformanceGroups} />
+      <Route path="/performance-groups/:id" component={PerformanceGroupDetail} />
       <Route path="/campaigns" component={Campaigns} />
       <Route path="/campaigns/:id" component={CampaignDetail} />
       <Route path="/campaigns/:id/ai-history" component={AIOptimizationHistory} />
