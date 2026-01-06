@@ -676,3 +676,117 @@ export const correctionReviewSessions = mysqlTable("correction_review_sessions",
 
 export type CorrectionReviewSession = typeof correctionReviewSessions.$inferSelect;
 export type InsertCorrectionReviewSession = typeof correctionReviewSessions.$inferInsert;
+
+
+/**
+ * Team Members - 团队成员管理
+ * 支持邀请其他用户加入团队，共同管理广告账号
+ */
+export const teamMembers = mysqlTable("team_members", {
+  id: int("id").autoincrement().primaryKey(),
+  ownerId: int("ownerId").notNull(), // 团队所有者（邀请人）的用户ID
+  memberId: int("memberId"), // 被邀请成员的用户ID（接受邀请后填充）
+  email: varchar("email", { length: 320 }).notNull(), // 被邀请人邮箱
+  name: varchar("name", { length: 255 }), // 成员名称
+  role: mysqlEnum("role", ["admin", "editor", "viewer"]).default("viewer").notNull(),
+  // admin: 可以管理所有设置和成员
+  // editor: 可以编辑广告设置和数据
+  // viewer: 只能查看数据
+  status: mysqlEnum("status", ["pending", "active", "inactive", "revoked"]).default("pending").notNull(),
+  inviteToken: varchar("inviteToken", { length: 64 }), // 邀请令牌
+  inviteExpiresAt: timestamp("inviteExpiresAt"), // 邀请过期时间
+  acceptedAt: timestamp("acceptedAt"), // 接受邀请时间
+  lastActiveAt: timestamp("lastActiveAt"), // 最后活跃时间
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type TeamMember = typeof teamMembers.$inferSelect;
+export type InsertTeamMember = typeof teamMembers.$inferInsert;
+
+/**
+ * Account Permissions - 账号访问权限
+ * 定义团队成员对特定广告账号的访问权限
+ */
+export const accountPermissions = mysqlTable("account_permissions", {
+  id: int("id").autoincrement().primaryKey(),
+  teamMemberId: int("teamMemberId").notNull(), // 关联的团队成员
+  accountId: int("accountId").notNull(), // 关联的广告账号
+  permissionLevel: mysqlEnum("permissionLevel", ["full", "edit", "view"]).default("view").notNull(),
+  // full: 完全控制（包括删除）
+  // edit: 可以编辑设置和数据
+  // view: 只能查看
+  canExport: boolean("canExport").default(true), // 是否可以导出数据
+  canManageCampaigns: boolean("canManageCampaigns").default(false), // 是否可以管理广告活动
+  canAdjustBids: boolean("canAdjustBids").default(false), // 是否可以调整出价
+  canManageNegatives: boolean("canManageNegatives").default(false), // 是否可以管理否定词
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AccountPermission = typeof accountPermissions.$inferSelect;
+export type InsertAccountPermission = typeof accountPermissions.$inferInsert;
+
+/**
+ * Email Report Subscriptions - 邮件报表订阅
+ * 配置定期发送的报表邮件
+ */
+export const emailReportSubscriptions = mysqlTable("email_report_subscriptions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // 创建订阅的用户
+  name: varchar("name", { length: 255 }).notNull(), // 订阅名称
+  description: text("description"), // 订阅描述
+  // 报表类型
+  reportType: mysqlEnum("reportType", [
+    "cross_account_summary",  // 跨账号汇总报表
+    "account_performance",    // 单账号表现报表
+    "campaign_performance",   // 广告活动表现报表
+    "keyword_performance",    // 关键词表现报表
+    "health_alert",           // 健康度告警报表
+    "optimization_summary"    // 优化汇总报表
+  ]).notNull(),
+  // 推送频率
+  frequency: mysqlEnum("frequency", ["daily", "weekly", "monthly"]).default("weekly").notNull(),
+  // 推送时间设置
+  sendTime: varchar("sendTime", { length: 5 }).default("09:00"), // HH:MM格式
+  sendDayOfWeek: int("sendDayOfWeek"), // 0-6, 0=周日, 用于weekly
+  sendDayOfMonth: int("sendDayOfMonth"), // 1-31, 用于monthly
+  timezone: varchar("timezone", { length: 64 }).default("Asia/Shanghai"),
+  // 收件人设置
+  recipients: json("recipients").$type<string[]>(), // 收件人邮箱列表
+  ccRecipients: json("ccRecipients").$type<string[]>(), // 抄送邮箱列表
+  // 报表内容设置
+  accountIds: json("accountIds").$type<number[]>(), // 包含的账号ID列表，空表示全部
+  includeCharts: boolean("includeCharts").default(true), // 是否包含图表
+  includeDetails: boolean("includeDetails").default(true), // 是否包含详细数据
+  dateRange: mysqlEnum("dateRange", ["last_7_days", "last_14_days", "last_30_days", "last_month", "custom"]).default("last_7_days"),
+  // 状态
+  isActive: boolean("isActive").default(true),
+  lastSentAt: timestamp("lastSentAt"), // 上次发送时间
+  nextSendAt: timestamp("nextSendAt"), // 下次发送时间
+  sendCount: int("sendCount").default(0), // 发送次数
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type EmailReportSubscription = typeof emailReportSubscriptions.$inferSelect;
+export type InsertEmailReportSubscription = typeof emailReportSubscriptions.$inferInsert;
+
+/**
+ * Email Send Logs - 邮件发送日志
+ * 记录每次邮件发送的详细信息
+ */
+export const emailSendLogs = mysqlTable("email_send_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  subscriptionId: int("subscriptionId").notNull(), // 关联的订阅
+  sentAt: timestamp("sentAt").defaultNow().notNull(),
+  recipients: json("recipients").$type<string[]>(), // 实际发送的收件人
+  status: mysqlEnum("status", ["sent", "failed", "partial"]).notNull(),
+  errorMessage: text("errorMessage"), // 错误信息
+  reportData: json("reportData"), // 报表数据快照
+  emailSubject: varchar("emailSubject", { length: 500 }), // 邮件主题
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type EmailSendLog = typeof emailSendLogs.$inferSelect;
+export type InsertEmailSendLog = typeof emailSendLogs.$inferInsert;

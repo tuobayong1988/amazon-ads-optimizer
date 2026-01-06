@@ -37,7 +37,9 @@ import {
   Clock,
   Layers,
   FileSearch,
-  BarChart3
+  BarChart3,
+  Users,
+  Mail
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -60,6 +62,8 @@ const menuItems = [
   { icon: Upload, label: "数据导入", path: "/import" },
   { icon: Cloud, label: "Amazon API", path: "/amazon-api" },
   { icon: BarChart3, label: "跨账号汇总", path: "/accounts-summary" },
+  { icon: Users, label: "团队管理", path: "/team" },
+  { icon: Mail, label: "邮件报表", path: "/email-reports" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

@@ -20,7 +20,11 @@ import {
   batchOperations, BatchOperation, InsertBatchOperation,
   batchOperationItems, BatchOperationItem, InsertBatchOperationItem,
   attributionCorrectionRecords, AttributionCorrectionRecord, InsertAttributionCorrectionRecord,
-  correctionReviewSessions, CorrectionReviewSession, InsertCorrectionReviewSession
+  correctionReviewSessions, CorrectionReviewSession, InsertCorrectionReviewSession,
+  teamMembers, TeamMember, InsertTeamMember,
+  accountPermissions, AccountPermission, InsertAccountPermission,
+  emailReportSubscriptions, EmailReportSubscription, InsertEmailReportSubscription,
+  emailSendLogs, EmailSendLog, InsertEmailSendLog
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -1763,4 +1767,273 @@ export async function updateAttributionCorrectionStatus(id: number, data: {
       appliedBy: data.appliedBy || null,
     })
     .where(eq(attributionCorrectionRecords.id, id));
+}
+
+
+// ==================== Team Member Functions ====================
+
+export async function createTeamMember(data: InsertTeamMember): Promise<TeamMember | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(teamMembers).values(data);
+  const insertId = result[0].insertId;
+  const [member] = await db.select().from(teamMembers).where(eq(teamMembers.id, insertId));
+  return member || null;
+}
+
+export async function getTeamMembersByOwner(ownerId: number): Promise<TeamMember[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(teamMembers)
+    .where(eq(teamMembers.ownerId, ownerId))
+    .orderBy(desc(teamMembers.createdAt));
+}
+
+export async function getTeamMemberById(id: number): Promise<TeamMember | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const [member] = await db.select().from(teamMembers).where(eq(teamMembers.id, id));
+  return member || null;
+}
+
+export async function getTeamMemberByToken(token: string): Promise<TeamMember | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const [member] = await db.select().from(teamMembers)
+    .where(eq(teamMembers.inviteToken, token));
+  return member || null;
+}
+
+export async function getTeamMemberByEmail(ownerId: number, email: string): Promise<TeamMember | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const [member] = await db.select().from(teamMembers)
+    .where(and(eq(teamMembers.ownerId, ownerId), eq(teamMembers.email, email)));
+  return member || null;
+}
+
+export async function updateTeamMember(id: number, data: Partial<InsertTeamMember>): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  
+  await db.update(teamMembers).set(data).where(eq(teamMembers.id, id));
+  return true;
+}
+
+export async function deleteTeamMember(id: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  
+  // 同时删除该成员的所有权限
+  await db.delete(accountPermissions).where(eq(accountPermissions.teamMemberId, id));
+  await db.delete(teamMembers).where(eq(teamMembers.id, id));
+  return true;
+}
+
+export async function getTeamMembershipsForUser(userId: number): Promise<TeamMember[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(teamMembers)
+    .where(and(eq(teamMembers.memberId, userId), eq(teamMembers.status, "active")));
+}
+
+// ==================== Account Permission Functions ====================
+
+export async function createAccountPermission(data: InsertAccountPermission): Promise<AccountPermission | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(accountPermissions).values(data);
+  const insertId = result[0].insertId;
+  const [permission] = await db.select().from(accountPermissions).where(eq(accountPermissions.id, insertId));
+  return permission || null;
+}
+
+export async function getPermissionsByTeamMember(teamMemberId: number): Promise<AccountPermission[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(accountPermissions)
+    .where(eq(accountPermissions.teamMemberId, teamMemberId));
+}
+
+export async function getPermissionsByAccount(accountId: number): Promise<AccountPermission[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(accountPermissions)
+    .where(eq(accountPermissions.accountId, accountId));
+}
+
+export async function getPermission(teamMemberId: number, accountId: number): Promise<AccountPermission | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const [permission] = await db.select().from(accountPermissions)
+    .where(and(
+      eq(accountPermissions.teamMemberId, teamMemberId),
+      eq(accountPermissions.accountId, accountId)
+    ));
+  return permission || null;
+}
+
+export async function updateAccountPermission(id: number, data: Partial<InsertAccountPermission>): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  
+  await db.update(accountPermissions).set(data).where(eq(accountPermissions.id, id));
+  return true;
+}
+
+export async function deleteAccountPermission(id: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  
+  await db.delete(accountPermissions).where(eq(accountPermissions.id, id));
+  return true;
+}
+
+export async function deletePermissionsByTeamMember(teamMemberId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  
+  await db.delete(accountPermissions).where(eq(accountPermissions.teamMemberId, teamMemberId));
+  return true;
+}
+
+export async function setAccountPermissions(teamMemberId: number, permissions: Array<{ accountId: number; permissionLevel: "full" | "edit" | "view"; canExport?: boolean; canManageCampaigns?: boolean; canAdjustBids?: boolean; canManageNegatives?: boolean }>): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  
+  // 删除现有权限
+  await db.delete(accountPermissions).where(eq(accountPermissions.teamMemberId, teamMemberId));
+  
+  // 添加新权限
+  if (permissions.length > 0) {
+    await db.insert(accountPermissions).values(
+      permissions.map(p => ({
+        teamMemberId,
+        accountId: p.accountId,
+        permissionLevel: p.permissionLevel,
+        canExport: p.canExport ?? true,
+        canManageCampaigns: p.canManageCampaigns ?? (p.permissionLevel !== "view"),
+        canAdjustBids: p.canAdjustBids ?? (p.permissionLevel !== "view"),
+        canManageNegatives: p.canManageNegatives ?? (p.permissionLevel !== "view"),
+      }))
+    );
+  }
+  
+  return true;
+}
+
+// ==================== Email Report Subscription Functions ====================
+
+export async function createEmailSubscription(data: InsertEmailReportSubscription): Promise<EmailReportSubscription | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(emailReportSubscriptions).values(data);
+  const insertId = result[0].insertId;
+  const [subscription] = await db.select().from(emailReportSubscriptions).where(eq(emailReportSubscriptions.id, insertId));
+  return subscription || null;
+}
+
+export async function getEmailSubscriptionsByUser(userId: number): Promise<EmailReportSubscription[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(emailReportSubscriptions)
+    .where(eq(emailReportSubscriptions.userId, userId))
+    .orderBy(desc(emailReportSubscriptions.createdAt));
+}
+
+export async function getEmailSubscriptionById(id: number): Promise<EmailReportSubscription | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const [subscription] = await db.select().from(emailReportSubscriptions).where(eq(emailReportSubscriptions.id, id));
+  return subscription || null;
+}
+
+export async function getActiveEmailSubscriptions(): Promise<EmailReportSubscription[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(emailReportSubscriptions)
+    .where(eq(emailReportSubscriptions.isActive, true));
+}
+
+export async function getDueEmailSubscriptions(): Promise<EmailReportSubscription[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const now = new Date();
+  return db.select().from(emailReportSubscriptions)
+    .where(and(
+      eq(emailReportSubscriptions.isActive, true),
+      lte(emailReportSubscriptions.nextSendAt, now)
+    ));
+}
+
+export async function updateEmailSubscription(id: number, data: Partial<InsertEmailReportSubscription>): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  
+  await db.update(emailReportSubscriptions).set(data).where(eq(emailReportSubscriptions.id, id));
+  return true;
+}
+
+export async function deleteEmailSubscription(id: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  
+  await db.delete(emailReportSubscriptions).where(eq(emailReportSubscriptions.id, id));
+  return true;
+}
+
+// ==================== Email Send Log Functions ====================
+
+export async function createEmailSendLog(data: InsertEmailSendLog): Promise<EmailSendLog | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.insert(emailSendLogs).values(data);
+  const insertId = result[0].insertId;
+  const [log] = await db.select().from(emailSendLogs).where(eq(emailSendLogs.id, insertId));
+  return log || null;
+}
+
+export async function getEmailSendLogsBySubscription(subscriptionId: number, limit = 20): Promise<EmailSendLog[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(emailSendLogs)
+    .where(eq(emailSendLogs.subscriptionId, subscriptionId))
+    .orderBy(desc(emailSendLogs.sentAt))
+    .limit(limit);
+}
+
+export async function getRecentEmailSendLogs(userId: number, limit = 50): Promise<EmailSendLog[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // 获取用户的所有订阅ID
+  const subscriptions = await db.select({ id: emailReportSubscriptions.id })
+    .from(emailReportSubscriptions)
+    .where(eq(emailReportSubscriptions.userId, userId));
+  
+  if (subscriptions.length === 0) return [];
+  
+  const subscriptionIds = subscriptions.map(s => s.id);
+  
+  return db.select().from(emailSendLogs)
+    .where(sql`${emailSendLogs.subscriptionId} IN (${sql.join(subscriptionIds.map(id => sql`${id}`), sql`, `)})`)
+    .orderBy(desc(emailSendLogs.sentAt))
+    .limit(limit);
 }

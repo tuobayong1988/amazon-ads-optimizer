@@ -2707,6 +2707,389 @@ const crossAccountRouter = router({
     }),
 });
 
+// ==================== Team Member Router ====================
+const teamRouter = router({
+  // 获取团队成员列表
+  list: protectedProcedure.query(async ({ ctx }) => {
+    return db.getTeamMembersByOwner(ctx.user.id);
+  }),
+
+  // 获取单个团队成员
+  getById: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      return db.getTeamMemberById(input.id);
+    }),
+
+  // 邀请新成员
+  invite: protectedProcedure
+    .input(z.object({
+      email: z.string().email(),
+      name: z.string().optional(),
+      role: z.enum(["admin", "editor", "viewer"]),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // 检查是否已邀请
+      const existing = await db.getTeamMemberByEmail(ctx.user.id, input.email);
+      if (existing) {
+        throw new TRPCError({ code: "CONFLICT", message: "该邮箱已被邀请" });
+      }
+
+      // 生成邀请令牌
+      const inviteToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
+      const inviteExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7天过期
+
+      const member = await db.createTeamMember({
+        ownerId: ctx.user.id,
+        email: input.email,
+        name: input.name,
+        role: input.role,
+        status: "pending",
+        inviteToken,
+        inviteExpiresAt,
+      });
+
+      // TODO: 发送邀请邮件
+
+      return member;
+    }),
+
+  // 更新成员信息
+  update: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      name: z.string().optional(),
+      role: z.enum(["admin", "editor", "viewer"]).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const member = await db.getTeamMemberById(input.id);
+      if (!member || member.ownerId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "成员不存在" });
+      }
+
+      await db.updateTeamMember(input.id, {
+        name: input.name,
+        role: input.role,
+      });
+
+      return { success: true };
+    }),
+
+  // 删除成员
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const member = await db.getTeamMemberById(input.id);
+      if (!member || member.ownerId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "成员不存在" });
+      }
+
+      await db.deleteTeamMember(input.id);
+      return { success: true };
+    }),
+
+  // 重新发送邀请
+  resendInvite: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const member = await db.getTeamMemberById(input.id);
+      if (!member || member.ownerId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "成员不存在" });
+      }
+
+      if (member.status !== "pending") {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "只能重新发送待接受的邀请" });
+      }
+
+      // 生成新的邀请令牌
+      const inviteToken = Math.random().toString(36).substring(2) + Date.now().toString(36);
+      const inviteExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+      await db.updateTeamMember(input.id, {
+        inviteToken,
+        inviteExpiresAt,
+      });
+
+      // TODO: 发送邀请邮件
+
+      return { success: true };
+    }),
+
+  // 设置成员的账号权限
+  setPermissions: protectedProcedure
+    .input(z.object({
+      memberId: z.number(),
+      permissions: z.array(z.object({
+        accountId: z.number(),
+        permissionLevel: z.enum(["full", "edit", "view"]),
+        canExport: z.boolean().optional(),
+        canManageCampaigns: z.boolean().optional(),
+        canAdjustBids: z.boolean().optional(),
+        canManageNegatives: z.boolean().optional(),
+      })),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const member = await db.getTeamMemberById(input.memberId);
+      if (!member || member.ownerId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "成员不存在" });
+      }
+
+      await db.setAccountPermissions(input.memberId, input.permissions);
+      return { success: true };
+    }),
+
+  // 获取成员的账号权限
+  getPermissions: protectedProcedure
+    .input(z.object({ memberId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const member = await db.getTeamMemberById(input.memberId);
+      if (!member || member.ownerId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "成员不存在" });
+      }
+
+      return db.getPermissionsByTeamMember(input.memberId);
+    }),
+
+  // 获取账号的所有权限
+  getAccountPermissions: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getPermissionsByAccount(input.accountId);
+    }),
+});
+
+// ==================== Email Report Router ====================
+const emailReportRouter = router({
+  // 获取订阅列表
+  list: protectedProcedure.query(async ({ ctx }) => {
+    return db.getEmailSubscriptionsByUser(ctx.user.id);
+  }),
+
+  // 获取单个订阅
+  getById: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ ctx, input }) => {
+      const subscription = await db.getEmailSubscriptionById(input.id);
+      if (!subscription || subscription.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "订阅不存在" });
+      }
+      return subscription;
+    }),
+
+  // 创建订阅
+  create: protectedProcedure
+    .input(z.object({
+      name: z.string().min(1),
+      description: z.string().optional(),
+      reportType: z.enum([
+        "cross_account_summary",
+        "account_performance",
+        "campaign_performance",
+        "keyword_performance",
+        "health_alert",
+        "optimization_summary"
+      ]),
+      frequency: z.enum(["daily", "weekly", "monthly"]),
+      sendTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+      sendDayOfWeek: z.number().min(0).max(6).optional(),
+      sendDayOfMonth: z.number().min(1).max(31).optional(),
+      timezone: z.string().optional(),
+      recipients: z.array(z.string().email()),
+      ccRecipients: z.array(z.string().email()).optional(),
+      accountIds: z.array(z.number()).optional(),
+      includeCharts: z.boolean().optional(),
+      includeDetails: z.boolean().optional(),
+      dateRange: z.enum(["last_7_days", "last_14_days", "last_30_days", "last_month", "custom"]).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // 计算下次发送时间
+      const nextSendAt = calculateNextSendTime(input.frequency, input.sendTime || "09:00", input.sendDayOfWeek, input.sendDayOfMonth);
+
+      const subscription = await db.createEmailSubscription({
+        userId: ctx.user.id,
+        name: input.name,
+        description: input.description,
+        reportType: input.reportType,
+        frequency: input.frequency,
+        sendTime: input.sendTime || "09:00",
+        sendDayOfWeek: input.sendDayOfWeek,
+        sendDayOfMonth: input.sendDayOfMonth,
+        timezone: input.timezone || "Asia/Shanghai",
+        recipients: input.recipients,
+        ccRecipients: input.ccRecipients || [],
+        accountIds: input.accountIds || [],
+        includeCharts: input.includeCharts ?? true,
+        includeDetails: input.includeDetails ?? true,
+        dateRange: input.dateRange || "last_7_days",
+        isActive: true,
+        nextSendAt,
+      });
+
+      return subscription;
+    }),
+
+  // 更新订阅
+  update: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      name: z.string().min(1).optional(),
+      description: z.string().optional(),
+      frequency: z.enum(["daily", "weekly", "monthly"]).optional(),
+      sendTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+      sendDayOfWeek: z.number().min(0).max(6).optional(),
+      sendDayOfMonth: z.number().min(1).max(31).optional(),
+      timezone: z.string().optional(),
+      recipients: z.array(z.string().email()).optional(),
+      ccRecipients: z.array(z.string().email()).optional(),
+      accountIds: z.array(z.number()).optional(),
+      includeCharts: z.boolean().optional(),
+      includeDetails: z.boolean().optional(),
+      dateRange: z.enum(["last_7_days", "last_14_days", "last_30_days", "last_month", "custom"]).optional(),
+      isActive: z.boolean().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const subscription = await db.getEmailSubscriptionById(input.id);
+      if (!subscription || subscription.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "订阅不存在" });
+      }
+
+      // 如果更新了频率或发送时间，重新计算下次发送时间
+      let nextSendAt = subscription.nextSendAt;
+      if (input.frequency || input.sendTime || input.sendDayOfWeek !== undefined || input.sendDayOfMonth !== undefined) {
+        nextSendAt = calculateNextSendTime(
+          input.frequency || subscription.frequency,
+          input.sendTime || subscription.sendTime || "09:00",
+          input.sendDayOfWeek ?? subscription.sendDayOfWeek ?? undefined,
+          input.sendDayOfMonth ?? subscription.sendDayOfMonth ?? undefined
+        );
+      }
+
+      await db.updateEmailSubscription(input.id, {
+        ...input,
+        nextSendAt,
+      });
+
+      return { success: true };
+    }),
+
+  // 删除订阅
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const subscription = await db.getEmailSubscriptionById(input.id);
+      if (!subscription || subscription.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "订阅不存在" });
+      }
+
+      await db.deleteEmailSubscription(input.id);
+      return { success: true };
+    }),
+
+  // 切换订阅状态
+  toggleActive: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const subscription = await db.getEmailSubscriptionById(input.id);
+      if (!subscription || subscription.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "订阅不存在" });
+      }
+
+      await db.updateEmailSubscription(input.id, {
+        isActive: !subscription.isActive,
+      });
+
+      return { success: true, isActive: !subscription.isActive };
+    }),
+
+  // 立即发送测试邮件
+  sendTest: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const subscription = await db.getEmailSubscriptionById(input.id);
+      if (!subscription || subscription.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "订阅不存在" });
+      }
+
+      // TODO: 实际发送测试邮件
+      // 这里只是模拟发送
+      await db.createEmailSendLog({
+        subscriptionId: input.id,
+        recipients: subscription.recipients || [],
+        status: "sent",
+        emailSubject: `[测试] ${subscription.name}`,
+      });
+
+      return { success: true, message: "测试邮件已发送" };
+    }),
+
+  // 获取发送日志
+  getSendLogs: protectedProcedure
+    .input(z.object({ subscriptionId: z.number(), limit: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      const subscription = await db.getEmailSubscriptionById(input.subscriptionId);
+      if (!subscription || subscription.userId !== ctx.user.id) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "订阅不存在" });
+      }
+
+      return db.getEmailSendLogsBySubscription(input.subscriptionId, input.limit || 20);
+    }),
+
+  // 获取最近的发送日志
+  getRecentLogs: protectedProcedure
+    .input(z.object({ limit: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      return db.getRecentEmailSendLogs(ctx.user.id, input.limit || 50);
+    }),
+
+  // 获取可用的报表类型
+  getReportTypes: publicProcedure.query(() => {
+    return [
+      { id: "cross_account_summary", name: "跨账号汇总报表", description: "所有店铺的整体广告表现汇总" },
+      { id: "account_performance", name: "单账号表现报表", description: "单个店铺的详细广告表现" },
+      { id: "campaign_performance", name: "广告活动表现报表", description: "广告活动级别的详细数据" },
+      { id: "keyword_performance", name: "关键词表现报表", description: "关键词级别的详细数据" },
+      { id: "health_alert", name: "健康度告警报表", description: "异常指标和健康度告警" },
+      { id: "optimization_summary", name: "优化汇总报表", description: "自动优化执行情况汇总" },
+    ];
+  }),
+});
+
+// 计算下次发送时间的辅助函数
+function calculateNextSendTime(
+  frequency: string,
+  sendTime: string,
+  sendDayOfWeek?: number,
+  sendDayOfMonth?: number
+): Date {
+  const now = new Date();
+  const [hours, minutes] = sendTime.split(':').map(Number);
+  
+  const next = new Date(now);
+  next.setHours(hours, minutes, 0, 0);
+
+  if (frequency === 'daily') {
+    if (next <= now) {
+      next.setDate(next.getDate() + 1);
+    }
+  } else if (frequency === 'weekly') {
+    const targetDay = sendDayOfWeek ?? 1; // 默认周一
+    const currentDay = next.getDay();
+    let daysUntilTarget = targetDay - currentDay;
+    if (daysUntilTarget < 0 || (daysUntilTarget === 0 && next <= now)) {
+      daysUntilTarget += 7;
+    }
+    next.setDate(next.getDate() + daysUntilTarget);
+  } else if (frequency === 'monthly') {
+    const targetDate = sendDayOfMonth ?? 1; // 默认1号
+    next.setDate(targetDate);
+    if (next <= now) {
+      next.setMonth(next.getMonth() + 1);
+    }
+  }
+
+  return next;
+}
+
 // ==================== Main Router ====================
 export const appRouter = router({
   system: systemRouter,
@@ -2735,6 +3118,8 @@ export const appRouter = router({
   batchOperation: batchOperationRouter,
   correction: correctionRouter,
   crossAccount: crossAccountRouter,
+  team: teamRouter,
+  emailReport: emailReportRouter,
 });
 
 export type AppRouter = typeof appRouter;

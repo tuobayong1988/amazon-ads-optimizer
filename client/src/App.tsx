@@ -20,6 +20,8 @@ import Scheduler from "./pages/Scheduler";
 import BatchOperations from "./pages/BatchOperations";
 import CorrectionReview from "./pages/CorrectionReview";
 import AccountsSummary from "./pages/AccountsSummary";
+import TeamManagement from "./pages/TeamManagement";
+import EmailReports from "./pages/EmailReports";
 
 function Router() {
   return (
@@ -39,6 +41,8 @@ function Router() {
       <Route path="/batch-operations" component={BatchOperations} />
       <Route path="/correction-review" component={CorrectionReview} />
       <Route path="/accounts-summary" component={AccountsSummary} />
+      <Route path="/team" component={TeamManagement} />
+      <Route path="/email-reports" component={EmailReports} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
