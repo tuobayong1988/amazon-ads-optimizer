@@ -147,6 +147,79 @@ function CreateOptimizationTargetDialog({
     });
   }, [campaignsData, filterCampaignName, filterCampaignType, filterStatus, filterMinConversions, filterMinSpend, filterMaxAcos]);
 
+  // 筛选统计信息
+  const filterStats = useMemo(() => {
+    if (!campaignsData) return {
+      total: 0,
+      byType: { sp_auto: 0, sp_manual: 0, sb: 0, sd: 0 },
+      byStatus: { enabled: 0, paused: 0 },
+      filtered: 0,
+      filteredByType: { sp_auto: 0, sp_manual: 0, sb: 0, sd: 0 },
+      filteredByStatus: { enabled: 0, paused: 0 },
+      totalSpend: 0,
+      totalSales: 0,
+      avgAcos: 0
+    };
+
+    // 全部数据统计
+    const byType = { sp_auto: 0, sp_manual: 0, sb: 0, sd: 0 };
+    const byStatus = { enabled: 0, paused: 0 };
+    
+    campaignsData.forEach(campaign => {
+      const type = campaign.campaignType?.toLowerCase() || '';
+      const status = campaign.campaignStatus?.toLowerCase() || '';
+      
+      if (type === 'sp_auto') byType.sp_auto++;
+      else if (type === 'sp_manual') byType.sp_manual++;
+      else if (type === 'sb') byType.sb++;
+      else if (type === 'sd') byType.sd++;
+      
+      if (status === 'enabled') byStatus.enabled++;
+      else if (status === 'paused') byStatus.paused++;
+    });
+
+    // 筛选后数据统计
+    const filteredByType = { sp_auto: 0, sp_manual: 0, sb: 0, sd: 0 };
+    const filteredByStatus = { enabled: 0, paused: 0 };
+    let totalSpend = 0;
+    let totalSales = 0;
+    let totalAcos = 0;
+    let acosCount = 0;
+
+    filteredCampaigns.forEach(campaign => {
+      const type = campaign.campaignType?.toLowerCase() || '';
+      const status = campaign.campaignStatus?.toLowerCase() || '';
+      
+      if (type === 'sp_auto') filteredByType.sp_auto++;
+      else if (type === 'sp_manual') filteredByType.sp_manual++;
+      else if (type === 'sb') filteredByType.sb++;
+      else if (type === 'sd') filteredByType.sd++;
+      
+      if (status === 'enabled') filteredByStatus.enabled++;
+      else if (status === 'paused') filteredByStatus.paused++;
+
+      totalSpend += parseFloat(campaign.spend || "0");
+      totalSales += parseFloat(campaign.sales || "0");
+      const acos = parseFloat(campaign.acos || "0");
+      if (acos > 0) {
+        totalAcos += acos;
+        acosCount++;
+      }
+    });
+
+    return {
+      total: campaignsData.length,
+      byType,
+      byStatus,
+      filtered: filteredCampaigns.length,
+      filteredByType,
+      filteredByStatus,
+      totalSpend,
+      totalSales,
+      avgAcos: acosCount > 0 ? totalAcos / acosCount : 0
+    };
+  }, [campaignsData, filteredCampaigns]);
+
   const resetForm = () => {
     setStep(1);
     setName("");
@@ -419,6 +492,59 @@ function CreateOptimizationTargetDialog({
                 </div>
               </CardContent>
             </Card>
+
+            {/* 筛选结果统计 */}
+            <div className="grid grid-cols-4 gap-3">
+              <Card className="bg-muted/30">
+                <CardContent className="p-3">
+                  <div className="text-xs text-muted-foreground mb-1">筛选结果</div>
+                  <div className="text-2xl font-bold text-primary">{filterStats.filtered}</div>
+                  <div className="text-xs text-muted-foreground">共 {filterStats.total} 个广告活动</div>
+                </CardContent>
+              </Card>
+              <Card className="bg-muted/30">
+                <CardContent className="p-3">
+                  <div className="text-xs text-muted-foreground mb-1">类型分布</div>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    <Badge variant="outline" className="text-xs">
+                      SP自动 {filterStats.filteredByType.sp_auto}
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">
+                      SP手动 {filterStats.filteredByType.sp_manual}
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">
+                      SB {filterStats.filteredByType.sb}
+                    </Badge>
+                    <Badge variant="outline" className="text-xs">
+                      SD {filterStats.filteredByType.sd}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="bg-muted/30">
+                <CardContent className="p-3">
+                  <div className="text-xs text-muted-foreground mb-1">状态分布</div>
+                  <div className="flex gap-2 mt-1">
+                    <Badge variant="default" className="text-xs">
+                      投放中 {filterStats.filteredByStatus.enabled}
+                    </Badge>
+                    <Badge variant="secondary" className="text-xs">
+                      已暂停 {filterStats.filteredByStatus.paused}
+                    </Badge>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="bg-muted/30">
+                <CardContent className="p-3">
+                  <div className="text-xs text-muted-foreground mb-1">汇总数据</div>
+                  <div className="space-y-0.5 text-xs">
+                    <div>花费: <span className="font-medium">${filterStats.totalSpend.toFixed(2)}</span></div>
+                    <div>销售: <span className="font-medium">${filterStats.totalSales.toFixed(2)}</span></div>
+                    <div>平均ACoS: <span className="font-medium">{filterStats.avgAcos.toFixed(1)}%</span></div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
             {/* 广告活动列表 */}
             <Card>
