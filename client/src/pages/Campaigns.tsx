@@ -15,7 +15,7 @@ import {
   TrendingUp,
   TrendingDown,
   Loader2,
-  FileSpreadsheet
+  RefreshCw
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -99,9 +99,9 @@ export default function Campaigns() {
               管理和优化您的亚马逊广告活动
             </p>
           </div>
-          <Button variant="outline" onClick={() => window.location.href = '/import'}>
-            <FileSpreadsheet className="w-4 h-4 mr-2" />
-            导入数据
+          <Button variant="outline" onClick={() => window.location.href = '/data-sync'}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            同步数据
           </Button>
         </div>
 
@@ -267,13 +267,13 @@ export default function Campaigns() {
               </div>
             ) : (
               <div className="text-center py-16">
-                <FileSpreadsheet className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
+                <RefreshCw className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
                 <h3 className="text-lg font-semibold mb-2">暂无广告活动</h3>
                 <p className="text-muted-foreground mb-4">
-                  导入您的亚马逊广告数据开始优化
+                  请先连接Amazon API同步您的广告数据
                 </p>
-                <Button onClick={() => window.location.href = '/import'}>
-                  导入数据
+                <Button onClick={() => window.location.href = '/data-sync'}>
+                  同步数据
                 </Button>
               </div>
             )}

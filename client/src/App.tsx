@@ -11,7 +11,7 @@ import PerformanceGroups from "./pages/PerformanceGroups";
 import Campaigns from "./pages/Campaigns";
 import BiddingLogs from "./pages/BiddingLogs";
 import Settings from "./pages/Settings";
-import DataImport from "./pages/DataImport";
+// DataImport已移除，改为使用API自动同步
 import AmazonApiSettings from "./pages/AmazonApiSettings";
 import AdAutomation from "./pages/AdAutomation";
 import HealthMonitor from "./pages/HealthMonitor";
@@ -39,7 +39,8 @@ function Router() {
       <Route path="/campaigns" component={Campaigns} />
       <Route path="/bidding-logs" component={BiddingLogs} />
       <Route path="/settings" component={Settings} />
-      <Route path="/import" component={DataImport} />
+      {/* /import路由已移除，用户应使用/data-sync进行API同步 */}
+      <Route path="/import">{() => { window.location.href = '/data-sync'; return null; }}</Route>
       <Route path="/amazon-api" component={AmazonApiSettings} />
       <Route path="/automation" component={AdAutomation} />
       <Route path="/health" component={HealthMonitor} />

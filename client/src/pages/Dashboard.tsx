@@ -291,15 +291,15 @@ export default function Dashboard() {
           </div>
           <h2 className="text-2xl font-bold mb-2">欢迎使用广告优化系统</h2>
           <p className="text-muted-foreground mb-6 max-w-md">
-            请先导入您的亚马逊广告数据，系统将自动分析并生成优化建议
+            请先连接Amazon Advertising API同步您的广告数据，系统将自动分析并生成优化建议
           </p>
           <div className="flex gap-3">
-            <Button onClick={() => window.location.href = '/import'}>
+            <Button onClick={() => window.location.href = '/amazon-api'}>
               <ArrowUpRight className="w-4 h-4 mr-2" />
-              导入数据
-            </Button>
-            <Button variant="outline" onClick={() => window.location.href = '/amazon-api'}>
               连接Amazon API
+            </Button>
+            <Button variant="outline" onClick={() => window.location.href = '/data-sync'}>
+              同步数据
             </Button>
           </div>
         </div>

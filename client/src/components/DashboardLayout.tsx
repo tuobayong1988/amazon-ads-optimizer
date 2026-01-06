@@ -29,7 +29,6 @@ import {
   Megaphone, 
   FileText, 
   Settings, 
-  Upload,
   Zap,
   Cloud,
   Activity,
@@ -103,7 +102,7 @@ const menuGroups = [
       { icon: Cloud, label: "Amazon API", path: "/amazon-api" },
       { icon: Settings, label: "优化设置", path: "/settings" },
       { icon: Bell, label: "通知设置", path: "/notifications" },
-      { icon: Upload, label: "数据导入", path: "/import" },
+      // 数据导入已移除，改为使用数据同步
     ]
   },
   {

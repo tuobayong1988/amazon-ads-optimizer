@@ -55,9 +55,9 @@ export default function Settings() {
         <div className="flex flex-col items-center justify-center h-64 text-center">
           <AlertCircle className="w-16 h-16 text-muted-foreground mb-4" />
           <h2 className="text-xl font-semibold mb-2">暂无广告账号</h2>
-          <p className="text-muted-foreground mb-4">请先导入广告数据或添加广告账号</p>
-          <Button onClick={() => window.location.href = '/import'}>
-            导入数据
+          <p className="text-muted-foreground mb-4">请先连接Amazon API同步您的广告账号</p>
+          <Button onClick={() => window.location.href = '/amazon-api'}>
+            连接Amazon API
           </Button>
         </div>
       </DashboardLayout>

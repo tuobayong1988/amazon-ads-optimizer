@@ -241,6 +241,42 @@ export default function DataSync() {
     return `${Math.round(duration / 3600)}小时`;
   };
 
+  // 检查是否有已授权的账号
+  const hasAuthorizedAccounts = accounts && accounts.length > 0;
+
+  // 如果没有已授权账号，显示引导页面
+  if (!hasAuthorizedAccounts) {
+    return (
+      <div className="p-6">
+        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+          <div className="p-6 rounded-full bg-muted/50 mb-6">
+            <RefreshCw className="w-16 h-16 text-muted-foreground" />
+          </div>
+          <h2 className="text-2xl font-bold mb-2">开始同步您的广告数据</h2>
+          <p className="text-muted-foreground mb-6 max-w-md">
+            请先连接Amazon Advertising API授权您的广告账号，系统将自动同步您的广告数据，无需手动上传。
+          </p>
+          <div className="bg-muted/30 rounded-lg p-4 mb-6 max-w-md text-left">
+            <h3 className="font-semibold mb-2 flex items-center gap-2">
+              <CheckCircle className="h-4 w-4 text-green-500" />
+              API同步的优势
+            </h3>
+            <ul className="text-sm text-muted-foreground space-y-1">
+              <li>• 数据实时准确，避免人工错误</li>
+              <li>• 自动定时同步，无需手动操作</li>
+              <li>• 支持多账号统一管理</li>
+              <li>• 完整的数据历史记录</li>
+            </ul>
+          </div>
+          <Button onClick={() => window.location.href = '/amazon-api'}>
+            <Server className="w-4 h-4 mr-2" />
+            连接Amazon API
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
