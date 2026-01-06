@@ -42,7 +42,7 @@ describe("Amazon Ads API Client", () => {
       const redirectUri = "https://example.com/callback";
       const state = "test-state";
 
-      const authUrl = AmazonAdsApiClient.generateAuthUrl(clientId, redirectUri, state);
+      const authUrl = AmazonAdsApiClient.generateAuthUrl(clientId, redirectUri, 'NA', state);
 
       expect(authUrl).toContain("https://www.amazon.com/ap/oa");
       expect(authUrl).toContain(`client_id=${clientId}`);
@@ -56,7 +56,7 @@ describe("Amazon Ads API Client", () => {
       const clientId = "test-client-id";
       const redirectUri = "https://example.com/callback";
 
-      const authUrl = AmazonAdsApiClient.generateAuthUrl(clientId, redirectUri);
+      const authUrl = AmazonAdsApiClient.generateAuthUrl(clientId, redirectUri, 'NA');
 
       expect(authUrl).toContain("https://www.amazon.com/ap/oa");
       expect(authUrl).toContain(`client_id=${clientId}`);

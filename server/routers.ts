@@ -1136,19 +1136,36 @@ const adAutomationRouter = router({
 // ==================== Amazon API Integration Router ====================
 
 const amazonApiRouter = router({
-  // Generate OAuth authorization URL
+  // Generate OAuth authorization URL for specific region
   getAuthUrl: protectedProcedure
     .input(z.object({
       clientId: z.string(),
       redirectUri: z.string(),
+      region: z.enum(['NA', 'EU', 'FE']).optional().default('NA'),
     }))
     .query(({ input }) => {
       const authUrl = AmazonAdsApiClient.generateAuthUrl(
         input.clientId,
         input.redirectUri,
+        input.region,
         `user_${Date.now()}`
       );
       return { authUrl };
+    }),
+
+  // Generate OAuth authorization URLs for all regions
+  getAllRegionAuthUrls: protectedProcedure
+    .input(z.object({
+      clientId: z.string(),
+      redirectUri: z.string(),
+    }))
+    .query(({ input }) => {
+      const urls = AmazonAdsApiClient.generateAllRegionAuthUrls(
+        input.clientId,
+        input.redirectUri,
+        `user_${Date.now()}`
+      );
+      return { urls };
     }),
 
   // Exchange authorization code for tokens

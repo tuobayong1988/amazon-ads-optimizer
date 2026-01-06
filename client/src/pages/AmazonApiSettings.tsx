@@ -249,6 +249,18 @@ export default function AmazonApiSettings() {
     },
   });
 
+  // Exchange authorization code for tokens mutation
+  const exchangeCodeMutation = trpc.amazonApi.exchangeCode.useMutation({
+    onSuccess: (data) => {
+      if (data.success && data.refreshToken) {
+        toast.success('Refresh Token获取成功！');
+      }
+    },
+    onError: (error) => {
+      toast.error(`换取失败: ${error.message}`);
+    },
+  });
+
   // Export accounts mutation
   const exportAccountsMutation = trpc.crossAccount.exportAccounts.useMutation({
     onSuccess: (result) => {
@@ -934,6 +946,127 @@ export default function AmazonApiSettings() {
                         保存凭证
                       </Button>
                     </div>
+                  </CardContent>
+                </Card>
+
+                {/* OAuth授权卡片 */}
+                <Card className="border-primary/20 bg-primary/5">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <ExternalLink className="h-5 w-5" />
+                      快速授权（推荐）
+                    </CardTitle>
+                    <CardDescription>
+                      使用预配置的开发者账户快速完成OAuth授权，获取Refresh Token
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <Alert>
+                      <Info className="h-4 w-4" />
+                      <AlertTitle>授权说明</AlertTitle>
+                      <AlertDescription>
+                        点击下方按钮将跳转到Amazon登录页面进行授权。授权成功后，您将被重定向到回调地址，
+                        请从回调URL中复制授权码(code)，然后在下方输入框中粘贴以换取Refresh Token。
+                      </AlertDescription>
+                    </Alert>
+
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <Button 
+                        variant="outline" 
+                        className="h-auto py-4 flex-col gap-2"
+                        onClick={() => window.open(
+                          `https://www.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6'}&scope=advertising::campaign_management&redirect_uri=https://sellerps.com&response_type=code`,
+                          '_blank'
+                        )}
+                      >
+                        <Globe className="h-6 w-6" />
+                        <span className="font-semibold">北美 (NA)</span>
+                        <span className="text-xs text-muted-foreground">美国、加拿大、墨西哥、巴西</span>
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        className="h-auto py-4 flex-col gap-2"
+                        onClick={() => window.open(
+                          `https://eu.account.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6'}&scope=advertising::campaign_management&redirect_uri=https://sellerps.com&response_type=code`,
+                          '_blank'
+                        )}
+                      >
+                        <Globe className="h-6 w-6" />
+                        <span className="font-semibold">欧洲 (EU)</span>
+                        <span className="text-xs text-muted-foreground">英国、德国、法国、意大利等</span>
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        className="h-auto py-4 flex-col gap-2"
+                        onClick={() => window.open(
+                          `https://apac.account.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6'}&scope=advertising::campaign_management&redirect_uri=https://sellerps.com&response_type=code`,
+                          '_blank'
+                        )}
+                      >
+                        <Globe className="h-6 w-6" />
+                        <span className="font-semibold">远东 (FE)</span>
+                        <span className="text-xs text-muted-foreground">日本、澳大利亚、新加坡</span>
+                      </Button>
+                    </div>
+
+                    <Separator />
+
+                    <div className="space-y-4">
+                      <h4 className="font-medium">换取Refresh Token</h4>
+                      <p className="text-sm text-muted-foreground">
+                        授权成功后，您将被重定向到 <code className="bg-muted px-1 rounded">https://sellerps.com?code=xxx</code>，
+                        请复制URL中的code参数值并粘贴到下方输入框：
+                      </p>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="粘贴授权码 (code)"
+                          id="authCode"
+                          className="flex-1"
+                        />
+                        <Button 
+                          onClick={async () => {
+                            const codeInput = document.getElementById('authCode') as HTMLInputElement;
+                            const code = codeInput?.value;
+                            if (!code) {
+                              toast.error('请输入授权码');
+                              return;
+                            }
+                            try {
+                              const result = await exchangeCodeMutation.mutateAsync({
+                                code,
+                                clientId: import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6',
+                                clientSecret: import.meta.env.VITE_AMAZON_ADS_CLIENT_SECRET || '',
+                                redirectUri: 'https://sellerps.com',
+                              });
+                              if (result.success && result.refreshToken) {
+                                setCredentials(prev => ({ ...prev, refreshToken: result.refreshToken }));
+                                toast.success('Refresh Token获取成功！已自动填入上方表单。');
+                                codeInput.value = '';
+                              }
+                            } catch (error: any) {
+                              toast.error(`换取失败: ${error.message}`);
+                            }
+                          }}
+                          disabled={exchangeCodeMutation.isPending}
+                        >
+                          {exchangeCodeMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <Key className="h-4 w-4 mr-2" />
+                          )}
+                          换取Token
+                        </Button>
+                      </div>
+                    </div>
+
+                    <Alert variant="default" className="bg-amber-50 border-amber-200">
+                      <AlertCircle className="h-4 w-4 text-amber-600" />
+                      <AlertTitle className="text-amber-800">回调地址说明</AlertTitle>
+                      <AlertDescription className="text-amber-700">
+                        当前配置的回调地址为 <code className="bg-amber-100 px-1 rounded">https://sellerps.com</code>。
+                        授权成功后您将被重定向到该地址，请从浏览器地址栏复制完整的URL中的code参数。
+                      </AlertDescription>
+                    </Alert>
                   </CardContent>
                 </Card>
               </>

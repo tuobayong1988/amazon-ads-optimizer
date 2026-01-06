@@ -19,7 +19,16 @@ export const API_ENDPOINTS = {
 
 // OAuth端点
 const OAUTH_TOKEN_URL = 'https://api.amazon.com/auth/o2/token';
-const OAUTH_AUTH_URL = 'https://www.amazon.com/ap/oa';
+
+// 不同地区的OAuth授权端点
+export const OAUTH_AUTH_ENDPOINTS = {
+  NA: 'https://www.amazon.com/ap/oa',
+  EU: 'https://eu.account.amazon.com/ap/oa',
+  FE: 'https://apac.account.amazon.com/ap/oa',
+} as const;
+
+// 默认回调地址
+export const DEFAULT_REDIRECT_URI = 'https://sellerps.com';
 
 // 市场到区域的映射
 export const MARKETPLACE_TO_REGION: Record<string, keyof typeof API_ENDPOINTS> = {
@@ -157,8 +166,17 @@ export class AmazonAdsApiClient {
 
   /**
    * 生成OAuth授权URL
+   * @param clientId - 客户端编号
+   * @param redirectUri - 回调地址
+   * @param region - 地区（NA/EU/FE），默认NA
+   * @param state - 状态参数，用于防止CSRF攻击
    */
-  static generateAuthUrl(clientId: string, redirectUri: string, state?: string): string {
+  static generateAuthUrl(
+    clientId: string, 
+    redirectUri: string, 
+    region: keyof typeof OAUTH_AUTH_ENDPOINTS = 'NA',
+    state?: string
+  ): string {
     const params = new URLSearchParams({
       client_id: clientId,
       scope: 'advertising::campaign_management',
@@ -168,7 +186,19 @@ export class AmazonAdsApiClient {
     if (state) {
       params.append('state', state);
     }
-    return `${OAUTH_AUTH_URL}?${params.toString()}`;
+    const authEndpoint = OAUTH_AUTH_ENDPOINTS[region];
+    return `${authEndpoint}?${params.toString()}`;
+  }
+
+  /**
+   * 生成所有地区的OAuth授权URL
+   */
+  static generateAllRegionAuthUrls(clientId: string, redirectUri: string, state?: string): Record<string, string> {
+    return {
+      NA: this.generateAuthUrl(clientId, redirectUri, 'NA', state),
+      EU: this.generateAuthUrl(clientId, redirectUri, 'EU', state),
+      FE: this.generateAuthUrl(clientId, redirectUri, 'FE', state),
+    };
   }
 
   /**

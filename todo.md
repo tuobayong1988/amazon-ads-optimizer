@@ -266,3 +266,15 @@
 - [x] 添加预算分配可视化图表
 - [x] 支持一键应用预算建议
 - [x] 记录预算调整历史
+
+
+## 新功能开发（第十二阶段）
+
+### Amazon Advertising API真实集成
+- [x] 配置Amazon API客户端凭证（Client ID和Client Secret）
+- [x] 实现OAuth授权URL生成（支持多地区endpoint）
+- [x] 实现OAuth回调处理和Token交换
+- [x] 实现Token刷新机制
+- [x] 更新前端授权流程界面
+- [x] 添加授权状态显示和管理
+- [x] 测试完整的OAuth授权流程
