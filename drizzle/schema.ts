@@ -1159,3 +1159,488 @@ export const budgetHistory = mysqlTable("budget_history", {
 
 export type BudgetHistoryRecord = typeof budgetHistory.$inferSelect;
 export type InsertBudgetHistory = typeof budgetHistory.$inferInsert;
+
+
+/**
+ * Budget Consumption Alerts - 预算消耗预警
+ * 监控广告活动预算消耗速度，发送异常预警
+ */
+export const budgetConsumptionAlerts = mysqlTable("budget_consumption_alerts", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  accountId: int("accountId"),
+  campaignId: int("campaignId").notNull(),
+  // 预警类型
+  alertType: mysqlEnum("alertType", [
+    "overspending",      // 消耗过快
+    "underspending",     // 消耗过慢
+    "budget_depleted",   // 预算耗尽
+    "near_depletion"     // 即将耗尽
+  ]).notNull(),
+  // 预警级别
+  severity: mysqlEnum("severity", ["low", "medium", "high", "critical"]).default("medium"),
+  // 消耗数据
+  dailyBudget: decimal("dailyBudget", { precision: 10, scale: 2 }).notNull(),
+  currentSpend: decimal("currentSpend", { precision: 10, scale: 2 }).notNull(),
+  expectedSpend: decimal("expectedSpend", { precision: 10, scale: 2 }), // 预期消耗
+  spendRate: decimal("spendRate", { precision: 10, scale: 4 }), // 消耗速率（每小时）
+  projectedDailySpend: decimal("projectedDailySpend", { precision: 10, scale: 2 }), // 预计日消耗
+  // 偏差
+  deviationPercent: decimal("deviationPercent", { precision: 10, scale: 2 }), // 偏差百分比
+  // 建议
+  recommendation: text("recommendation"),
+  // 状态
+  status: mysqlEnum("status", ["active", "acknowledged", "resolved"]).default("active"),
+  acknowledgedAt: timestamp("acknowledgedAt"),
+  resolvedAt: timestamp("resolvedAt"),
+  // 通知
+  notificationSent: boolean("notificationSent").default(false),
+  notificationSentAt: timestamp("notificationSentAt"),
+  // 时间
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type BudgetConsumptionAlert = typeof budgetConsumptionAlerts.$inferSelect;
+export type InsertBudgetConsumptionAlert = typeof budgetConsumptionAlerts.$inferInsert;
+
+/**
+ * Budget Alert Settings - 预算预警设置
+ * 用户自定义预警阈值
+ */
+export const budgetAlertSettings = mysqlTable("budget_alert_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  accountId: int("accountId"),
+  // 预警阈值
+  overspendingThreshold: decimal("overspendingThreshold", { precision: 5, scale: 2 }).default("120"), // 超支阈值（百分比）
+  underspendingThreshold: decimal("underspendingThreshold", { precision: 5, scale: 2 }).default("50"), // 欠支阈值（百分比）
+  nearDepletionThreshold: decimal("nearDepletionThreshold", { precision: 5, scale: 2 }).default("90"), // 即将耗尽阈值
+  // 检查频率
+  checkFrequency: mysqlEnum("checkFrequency", ["hourly", "every_4_hours", "daily"]).default("every_4_hours"),
+  // 通知设置
+  enableNotifications: boolean("enableNotifications").default(true),
+  notifyOnOverspending: boolean("notifyOnOverspending").default(true),
+  notifyOnUnderspending: boolean("notifyOnUnderspending").default(true),
+  notifyOnDepletion: boolean("notifyOnDepletion").default(true),
+  // 时间
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type BudgetAlertSetting = typeof budgetAlertSettings.$inferSelect;
+export type InsertBudgetAlertSetting = typeof budgetAlertSettings.$inferInsert;
+
+/**
+ * Budget Allocation Effect Tracking - 预算分配效果追踪
+ * 追踪预算分配方案应用后的效果
+ */
+export const budgetAllocationTracking = mysqlTable("budget_allocation_tracking", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  accountId: int("accountId"),
+  allocationId: int("allocationId").notNull(), // 关联的分配记录
+  // 追踪周期
+  trackingPeriod: mysqlEnum("trackingPeriod", ["7_days", "14_days", "30_days"]).default("7_days"),
+  startDate: timestamp("startDate").notNull(),
+  endDate: timestamp("endDate"),
+  // 分配前指标（基准期）
+  baselineStartDate: timestamp("baselineStartDate").notNull(),
+  baselineEndDate: timestamp("baselineEndDate").notNull(),
+  baselineSpend: decimal("baselineSpend", { precision: 15, scale: 2 }),
+  baselineSales: decimal("baselineSales", { precision: 15, scale: 2 }),
+  baselineRoas: decimal("baselineRoas", { precision: 10, scale: 2 }),
+  baselineAcos: decimal("baselineAcos", { precision: 10, scale: 2 }),
+  baselineConversions: int("baselineConversions"),
+  baselineCtr: decimal("baselineCtr", { precision: 10, scale: 4 }),
+  baselineCpc: decimal("baselineCpc", { precision: 10, scale: 2 }),
+  // 分配后指标
+  currentSpend: decimal("currentSpend", { precision: 15, scale: 2 }),
+  currentSales: decimal("currentSales", { precision: 15, scale: 2 }),
+  currentRoas: decimal("currentRoas", { precision: 10, scale: 2 }),
+  currentAcos: decimal("currentAcos", { precision: 10, scale: 2 }),
+  currentConversions: int("currentConversions"),
+  currentCtr: decimal("currentCtr", { precision: 10, scale: 4 }),
+  currentCpc: decimal("currentCpc", { precision: 10, scale: 2 }),
+  // 变化
+  roasChange: decimal("roasChange", { precision: 10, scale: 2 }),
+  acosChange: decimal("acosChange", { precision: 10, scale: 2 }),
+  salesChange: decimal("salesChange", { precision: 15, scale: 2 }),
+  spendChange: decimal("spendChange", { precision: 15, scale: 2 }),
+  // 效果评估
+  effectRating: mysqlEnum("effectRating", ["excellent", "good", "neutral", "poor", "very_poor"]),
+  effectSummary: text("effectSummary"),
+  // 状态
+  status: mysqlEnum("status", ["tracking", "completed", "cancelled"]).default("tracking"),
+  // 时间
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type BudgetAllocationTracking = typeof budgetAllocationTracking.$inferSelect;
+export type InsertBudgetAllocationTracking = typeof budgetAllocationTracking.$inferInsert;
+
+/**
+ * Seasonal Trends - 季节性趋势
+ * 存储历史数据的季节性分析结果
+ */
+export const seasonalTrends = mysqlTable("seasonal_trends", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  accountId: int("accountId"),
+  // 时间范围
+  year: int("year").notNull(),
+  month: int("month").notNull(), // 1-12
+  weekOfYear: int("weekOfYear"), // 1-53
+  // 历史指标
+  avgDailySpend: decimal("avgDailySpend", { precision: 15, scale: 2 }),
+  avgDailySales: decimal("avgDailySales", { precision: 15, scale: 2 }),
+  avgRoas: decimal("avgRoas", { precision: 10, scale: 2 }),
+  avgAcos: decimal("avgAcos", { precision: 10, scale: 2 }),
+  avgConversions: decimal("avgConversions", { precision: 10, scale: 2 }),
+  // 同比变化
+  yoySpendChange: decimal("yoySpendChange", { precision: 10, scale: 2 }),
+  yoySalesChange: decimal("yoySalesChange", { precision: 10, scale: 2 }),
+  // 季节性指数（相对于年平均）
+  seasonalIndex: decimal("seasonalIndex", { precision: 10, scale: 4 }).default("1.0"),
+  // 时间
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type SeasonalTrend = typeof seasonalTrends.$inferSelect;
+export type InsertSeasonalTrend = typeof seasonalTrends.$inferInsert;
+
+/**
+ * Promotional Events - 大促活动
+ * 定义大促期间的时间和预算建议
+ */
+export const promotionalEvents = mysqlTable("promotional_events", {
+  id: int("id").autoincrement().primaryKey(),
+  // 活动信息
+  eventName: varchar("eventName", { length: 100 }).notNull(),
+  eventType: mysqlEnum("eventType", [
+    "prime_day",
+    "black_friday",
+    "cyber_monday",
+    "christmas",
+    "new_year",
+    "valentines",
+    "mothers_day",
+    "fathers_day",
+    "back_to_school",
+    "halloween",
+    "custom"
+  ]).notNull(),
+  // 适用市场
+  marketplace: varchar("marketplace", { length: 20 }),
+  // 时间
+  startDate: timestamp("startDate").notNull(),
+  endDate: timestamp("endDate").notNull(),
+  // 预热期
+  warmupStartDate: timestamp("warmupStartDate"),
+  warmupEndDate: timestamp("warmupEndDate"),
+  // 建议预算调整
+  recommendedBudgetMultiplier: decimal("recommendedBudgetMultiplier", { precision: 5, scale: 2 }).default("1.5"),
+  warmupBudgetMultiplier: decimal("warmupBudgetMultiplier", { precision: 5, scale: 2 }).default("1.2"),
+  // 描述
+  description: text("description"),
+  // 状态
+  isActive: boolean("isActive").default(true),
+  // 时间
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type PromotionalEvent = typeof promotionalEvents.$inferSelect;
+export type InsertPromotionalEvent = typeof promotionalEvents.$inferInsert;
+
+/**
+ * Seasonal Budget Recommendations - 季节性预算建议
+ * 基于季节性趋势生成的预算调整建议
+ */
+export const seasonalBudgetRecommendations = mysqlTable("seasonal_budget_recommendations", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  accountId: int("accountId"),
+  campaignId: int("campaignId"),
+  // 关联的大促活动
+  eventId: int("eventId"),
+  // 建议类型
+  recommendationType: mysqlEnum("recommendationType", [
+    "event_increase",      // 大促期间增加
+    "event_warmup",        // 大促预热
+    "seasonal_increase",   // 季节性增加
+    "seasonal_decrease",   // 季节性减少
+    "trend_based"          // 趋势驱动
+  ]).notNull(),
+  // 当前预算
+  currentBudget: decimal("currentBudget", { precision: 10, scale: 2 }).notNull(),
+  // 建议预算
+  recommendedBudget: decimal("recommendedBudget", { precision: 10, scale: 2 }).notNull(),
+  budgetMultiplier: decimal("budgetMultiplier", { precision: 5, scale: 2 }),
+  // 建议时间范围
+  effectiveStartDate: timestamp("effectiveStartDate").notNull(),
+  effectiveEndDate: timestamp("effectiveEndDate").notNull(),
+  // 预期效果
+  expectedSalesIncrease: decimal("expectedSalesIncrease", { precision: 10, scale: 2 }),
+  expectedRoasChange: decimal("expectedRoasChange", { precision: 10, scale: 2 }),
+  // 建议理由
+  reasoning: text("reasoning"),
+  confidenceScore: decimal("confidenceScore", { precision: 5, scale: 2 }), // 0-100
+  // 状态
+  status: mysqlEnum("status", ["pending", "applied", "skipped", "expired"]).default("pending"),
+  appliedAt: timestamp("appliedAt"),
+  // 时间
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type SeasonalBudgetRecommendation = typeof seasonalBudgetRecommendations.$inferSelect;
+export type InsertSeasonalBudgetRecommendation = typeof seasonalBudgetRecommendations.$inferInsert;
+
+/**
+ * Data Sync Tasks - 数据同步任务
+ * 管理从Amazon API拉取数据的任务
+ */
+export const dataSyncTasks = mysqlTable("data_sync_tasks", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  accountId: int("accountId").notNull(),
+  // 同步类型
+  syncType: mysqlEnum("syncType", [
+    "campaigns",           // 广告活动
+    "ad_groups",           // 广告组
+    "keywords",            // 关键词
+    "product_targets",     // 商品定位
+    "search_terms",        // 搜索词报告
+    "performance_daily",   // 每日绩效
+    "performance_hourly",  // 每小时绩效
+    "full_sync"            // 全量同步
+  ]).notNull(),
+  // 同步范围
+  startDate: timestamp("startDate"),
+  endDate: timestamp("endDate"),
+  // 状态
+  status: mysqlEnum("status", [
+    "pending",
+    "running",
+    "completed",
+    "failed",
+    "cancelled"
+  ]).default("pending"),
+  // 进度
+  totalItems: int("totalItems"),
+  processedItems: int("processedItems").default(0),
+  failedItems: int("failedItems").default(0),
+  // 结果
+  resultSummary: json("resultSummary"),
+  errorMessage: text("errorMessage"),
+  // 时间
+  startedAt: timestamp("startedAt"),
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DataSyncTask = typeof dataSyncTasks.$inferSelect;
+export type InsertDataSyncTask = typeof dataSyncTasks.$inferInsert;
+
+/**
+ * Data Sync Schedules - 数据同步调度
+ * 定时同步配置
+ */
+export const dataSyncSchedules = mysqlTable("data_sync_schedules", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  accountId: int("accountId").notNull(),
+  // 同步类型
+  syncType: mysqlEnum("syncType", [
+    "campaigns",
+    "ad_groups",
+    "keywords",
+    "product_targets",
+    "search_terms",
+    "performance_daily",
+    "performance_hourly",
+    "full_sync"
+  ]).notNull(),
+  // 调度设置
+  frequency: mysqlEnum("frequency", [
+    "hourly",
+    "every_4_hours",
+    "every_6_hours",
+    "every_12_hours",
+    "daily",
+    "weekly"
+  ]).default("daily"),
+  preferredTime: varchar("preferredTime", { length: 5 }), // HH:MM 格式
+  preferredDayOfWeek: int("preferredDayOfWeek"), // 0-6, 仅周调度使用
+  // 状态
+  isEnabled: boolean("isEnabled").default(true),
+  lastRunAt: timestamp("lastRunAt"),
+  nextRunAt: timestamp("nextRunAt"),
+  // 时间
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type DataSyncSchedule = typeof dataSyncSchedules.$inferSelect;
+export type InsertDataSyncSchedule = typeof dataSyncSchedules.$inferInsert;
+
+/**
+ * API Rate Limits - API调用限制
+ * 记录API调用配额和使用情况
+ */
+export const apiRateLimits = mysqlTable("api_rate_limits", {
+  id: int("id").autoincrement().primaryKey(),
+  accountId: int("accountId").notNull(),
+  // API类型
+  apiType: mysqlEnum("apiType", [
+    "campaigns",
+    "ad_groups",
+    "keywords",
+    "reports",
+    "bidding",
+    "bulk_operations"
+  ]).notNull(),
+  // 限制配置
+  maxRequestsPerSecond: int("maxRequestsPerSecond").default(10),
+  maxRequestsPerMinute: int("maxRequestsPerMinute").default(100),
+  maxRequestsPerDay: int("maxRequestsPerDay").default(10000),
+  // 当前使用
+  currentSecondCount: int("currentSecondCount").default(0),
+  currentMinuteCount: int("currentMinuteCount").default(0),
+  currentDayCount: int("currentDayCount").default(0),
+  // 重置时间
+  secondResetAt: timestamp("secondResetAt"),
+  minuteResetAt: timestamp("minuteResetAt"),
+  dayResetAt: timestamp("dayResetAt"),
+  // 时间
+  updatedAt: timestamp("updatedAt").defaultNow().notNull(),
+});
+
+export type ApiRateLimit = typeof apiRateLimits.$inferSelect;
+export type InsertApiRateLimit = typeof apiRateLimits.$inferInsert;
+
+/**
+ * API Call Logs - API调用日志
+ * 记录所有API调用详情
+ */
+export const apiCallLogs = mysqlTable("api_call_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId"),
+  accountId: int("accountId").notNull(),
+  // 请求信息
+  apiType: varchar("apiType", { length: 50 }).notNull(),
+  endpoint: varchar("endpoint", { length: 255 }).notNull(),
+  method: varchar("method", { length: 10 }).notNull(),
+  // 响应信息
+  statusCode: int("statusCode"),
+  responseTime: int("responseTime"), // 毫秒
+  // 错误信息
+  isError: boolean("isError").default(false),
+  errorCode: varchar("errorCode", { length: 50 }),
+  errorMessage: text("errorMessage"),
+  // 重试信息
+  retryCount: int("retryCount").default(0),
+  isRetry: boolean("isRetry").default(false),
+  originalRequestId: int("originalRequestId"),
+  // 时间
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ApiCallLog = typeof apiCallLogs.$inferSelect;
+export type InsertApiCallLog = typeof apiCallLogs.$inferInsert;
+
+/**
+ * API Request Queue - API请求队列
+ * 管理待执行的API请求
+ */
+export const apiRequestQueue = mysqlTable("api_request_queue", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId"),
+  accountId: int("accountId").notNull(),
+  // 请求信息
+  apiType: varchar("apiType", { length: 50 }).notNull(),
+  endpoint: varchar("endpoint", { length: 255 }).notNull(),
+  method: varchar("method", { length: 10 }).notNull(),
+  requestBody: json("requestBody"),
+  // 优先级
+  priority: mysqlEnum("priority", ["low", "normal", "high", "critical"]).default("normal"),
+  // 状态
+  status: mysqlEnum("status", [
+    "pending",
+    "processing",
+    "completed",
+    "failed",
+    "cancelled"
+  ]).default("pending"),
+  // 重试配置
+  maxRetries: int("maxRetries").default(3),
+  retryCount: int("retryCount").default(0),
+  retryAfter: timestamp("retryAfter"),
+  // 结果
+  responseData: json("responseData"),
+  errorMessage: text("errorMessage"),
+  // 时间
+  scheduledAt: timestamp("scheduledAt"),
+  startedAt: timestamp("startedAt"),
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type ApiRequestQueueItem = typeof apiRequestQueue.$inferSelect;
+export type InsertApiRequestQueueItem = typeof apiRequestQueue.$inferInsert;
+
+
+/**
+ * Data Sync Jobs - 数据同步任务
+ * 管理广告数据同步任务
+ */
+export const dataSyncJobs = mysqlTable("data_sync_jobs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  accountId: int("accountId").notNull(),
+  // 同步类型
+  syncType: mysqlEnum("syncType", [
+    "campaigns",
+    "keywords",
+    "performance",
+    "all"
+  ]).default("all"),
+  // 状态
+  status: mysqlEnum("status", [
+    "pending",
+    "running",
+    "completed",
+    "failed",
+    "cancelled"
+  ]).default("pending"),
+  // 进度
+  recordsSynced: int("recordsSynced").default(0),
+  errorMessage: text("errorMessage"),
+  // 时间
+  startedAt: timestamp("startedAt"),
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DataSyncJob = typeof dataSyncJobs.$inferSelect;
+export type InsertDataSyncJob = typeof dataSyncJobs.$inferInsert;
+
+/**
+ * Data Sync Logs - 数据同步日志
+ * 记录同步过程的详细日志
+ */
+export const dataSyncLogs = mysqlTable("data_sync_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  jobId: int("jobId").notNull(),
+  // 操作信息
+  operation: varchar("operation", { length: 100 }).notNull(),
+  status: mysqlEnum("status", ["success", "error", "warning"]).default("success"),
+  message: text("message"),
+  details: json("details"),
+  // 时间
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type DataSyncLog = typeof dataSyncLogs.$inferSelect;
+export type InsertDataSyncLog = typeof dataSyncLogs.$inferInsert;
+

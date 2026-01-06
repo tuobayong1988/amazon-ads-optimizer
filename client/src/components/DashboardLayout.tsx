@@ -42,7 +42,11 @@ import {
   Mail,
   Shield,
   MessageSquare,
-  DollarSign
+  DollarSign,
+  AlertTriangle,
+  LineChart,
+  CalendarDays,
+  RefreshCw
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -70,6 +74,10 @@ const menuItems = [
   { icon: Shield, label: "审计日志", path: "/audit-logs" },
   { icon: MessageSquare, label: "协作通知", path: "/collaboration" },
   { icon: DollarSign, label: "预算分配", path: "/budget-allocation" },
+  { icon: AlertTriangle, label: "预算预警", path: "/budget-alerts" },
+  { icon: LineChart, label: "效果追踪", path: "/budget-tracking" },
+  { icon: CalendarDays, label: "季节性建议", path: "/seasonal-budget" },
+  { icon: RefreshCw, label: "数据同步", path: "/data-sync" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

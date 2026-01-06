@@ -25,6 +25,10 @@ import EmailReports from "@/pages/EmailReports";
 import AuditLogs from "@/pages/AuditLogs";
 import CollaborationNotifications from "@/pages/CollaborationNotifications";
 import BudgetAllocation from "@/pages/BudgetAllocation";
+import BudgetAlerts from "@/pages/BudgetAlerts";
+import BudgetTracking from "@/pages/BudgetTracking";
+import SeasonalBudget from "@/pages/SeasonalBudget";
+import DataSync from "@/pages/DataSync";
 
 function Router() {
   return (
@@ -49,6 +53,10 @@ function Router() {
       <Route path="/audit-logs" component={AuditLogs} />
       <Route path="/collaboration" component={CollaborationNotifications} />
       <Route path="/budget-allocation" component={BudgetAllocation} />
+      <Route path="/budget-alerts" component={BudgetAlerts} />
+      <Route path="/budget-tracking" component={BudgetTracking} />
+      <Route path="/seasonal-budget" component={SeasonalBudget} />
+      <Route path="/data-sync" component={DataSync} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

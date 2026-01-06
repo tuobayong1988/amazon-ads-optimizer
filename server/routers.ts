@@ -3406,6 +3406,209 @@ const budgetAllocationRouter = router({
     }),
 });
 
+// ==================== Budget Alert Router ====================
+import * as budgetAlertService from "./budgetAlertService";
+
+const budgetAlertRouter = router({
+  // 获取预算预警设置
+  getSettings: protectedProcedure
+    .input(z.object({ accountId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      return budgetAlertService.getAlertSettings(ctx.user.id, input.accountId);
+    }),
+
+  // 保存预算预警设置
+  saveSettings: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      fastConsumptionThreshold: z.number().min(100).max(500),
+      slowConsumptionThreshold: z.number().min(10).max(100),
+      checkInterval: z.number().min(1).max(24),
+      notifyEmail: z.boolean(),
+      notifyInApp: z.boolean(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      return budgetAlertService.saveAlertSettings(ctx.user.id, input);
+    }),
+
+  // 获取预算消耗预警列表
+  getAlerts: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      alertType: z.enum(["overspending", "underspending", "budget_depleted", "near_depletion"]).optional(),
+      status: z.enum(["active", "acknowledged", "resolved"]).optional(),
+      limit: z.number().default(50),
+      offset: z.number().default(0),
+    }))
+    .query(async ({ ctx, input }) => {
+      return budgetAlertService.getAlerts(ctx.user.id, input);
+    }),
+
+  // 确认预警
+  acknowledgeAlert: protectedProcedure
+    .input(z.object({ alertId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      return budgetAlertService.acknowledgeAlert(input.alertId, ctx.user.id);
+    }),
+
+  // 检查预算消耗
+  checkConsumption: protectedProcedure
+    .input(z.object({ accountId: z.number().optional() }))
+    .mutation(async ({ ctx, input }) => {
+      return budgetAlertService.runBudgetConsumptionCheck(ctx.user.id, input.accountId);
+    }),
+});
+
+// ==================== Budget Tracking Router ====================
+import * as budgetTrackingService from "./budgetTrackingService";
+
+const budgetTrackingRouter = router({
+  // 创建效果追踪
+  createTracking: protectedProcedure
+    .input(z.object({
+      allocationId: z.number(),
+      trackingPeriodDays: z.number().default(14),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const periodMap: Record<number, "7_days" | "14_days" | "30_days"> = { 7: "7_days", 14: "14_days", 30: "30_days" };
+      const period = periodMap[input.trackingPeriodDays] || "14_days";
+      return budgetTrackingService.createTracking(ctx.user.id, input.allocationId, period);
+    }),
+
+  // 获取追踪列表
+  getTrackings: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      status: z.enum(["tracking", "completed", "cancelled"]).optional(),
+      limit: z.number().default(20),
+      offset: z.number().default(0),
+    }))
+    .query(async ({ ctx, input }) => {
+      return budgetTrackingService.getTrackingList(ctx.user.id, input);
+    }),
+
+  // 获取追踪详情
+  getTrackingDetail: protectedProcedure
+    .input(z.object({ trackingId: z.number() }))
+    .query(async ({ input }) => {
+      return budgetTrackingService.getTrackingReport(input.trackingId);
+    }),
+
+  // 生成效果报告
+  generateReport: protectedProcedure
+    .input(z.object({ trackingId: z.number() }))
+    .mutation(async ({ input }) => {
+      return budgetTrackingService.updateTrackingMetrics(input.trackingId);
+    }),
+});
+
+// ==================== Seasonal Budget Router ====================
+import * as seasonalBudgetService from "./seasonalBudgetService";
+
+const seasonalBudgetRouter = router({
+  // 获取季节性建议
+  getRecommendations: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      status: z.string().optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      return seasonalBudgetService.getRecommendations(ctx.user.id, { accountId: input.accountId, status: input.status });
+    }),
+
+  // 生成季节性建议
+  generateRecommendations: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const recommendations = await seasonalBudgetService.generateSeasonalRecommendations(ctx.user.id, input.accountId);
+      await seasonalBudgetService.saveRecommendations(recommendations);
+      return { success: true, count: recommendations.length, recommendations };
+    }),
+
+  // 应用建议
+  applyRecommendation: protectedProcedure
+    .input(z.object({ recommendationId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      return seasonalBudgetService.applyRecommendation(input.recommendationId, ctx.user.id);
+    }),
+
+  // 获取即将到来的促销活动
+  getUpcomingEvents: protectedProcedure
+    .input(z.object({ marketplace: z.string().optional() }))
+    .query(async ({ input }) => {
+      return seasonalBudgetService.getPromotionalEvents({ marketplace: input.marketplace, isActive: true });
+    }),
+
+  // 获取历史趋势数据
+  getHistoricalTrends: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      return seasonalBudgetService.getSeasonalTrends(ctx.user.id, input.accountId);
+    }),
+});
+
+// ==================== Data Sync Router ====================
+import * as dataSyncService from "./dataSyncService";
+
+const dataSyncRouter = router({
+  // 创建同步任务
+  createJob: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      syncType: z.enum(["campaigns", "keywords", "performance", "all"]).default("all"),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const jobId = await dataSyncService.createSyncJob(ctx.user.id, input.accountId, input.syncType);
+      if (!jobId) return { success: false, message: "创建任务失败" };
+      // 异步执行任务
+      dataSyncService.executeSyncJob(jobId).catch(console.error);
+      return { success: true, jobId };
+    }),
+
+  // 获取同步任务列表
+  getJobs: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      status: z.enum(["pending", "running", "completed", "failed", "cancelled"]).optional(),
+      limit: z.number().default(50),
+      offset: z.number().default(0),
+    }))
+    .query(async ({ ctx, input }) => {
+      return dataSyncService.getSyncJobs(ctx.user.id, input);
+    }),
+
+  // 获取同步日志
+  getLogs: protectedProcedure
+    .input(z.object({ jobId: z.number() }))
+    .query(async ({ input }) => {
+      return dataSyncService.getSyncLogs(input.jobId);
+    }),
+
+  // 取消同步任务
+  cancelJob: protectedProcedure
+    .input(z.object({ jobId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      return dataSyncService.cancelSyncJob(input.jobId, ctx.user.id);
+    }),
+
+  // 获取API限流状态
+  getRateLimitStatus: protectedProcedure
+    .query(async () => {
+      return dataSyncService.getRateLimitStatus();
+    }),
+
+  // 获取账号API使用统计
+  getApiUsage: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      return dataSyncService.getApiUsageStats(input.accountId);
+    }),
+});
+
 // ==================== Main Router ====================
 export const appRouter = router({
   system: systemRouter,
@@ -3439,6 +3642,10 @@ export const appRouter = router({
   audit: auditRouter,
   collaboration: collaborationRouter,
   budgetAllocation: budgetAllocationRouter,
+  budgetAlert: budgetAlertRouter,
+  budgetTracking: budgetTrackingRouter,
+  seasonalBudget: seasonalBudgetRouter,
+  dataSync: dataSyncRouter,
 });
 
 export type AppRouter = typeof appRouter;
