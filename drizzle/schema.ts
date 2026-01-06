@@ -1506,3 +1506,161 @@ export const campaignPerformanceSnapshots = mysqlTable("campaign_performance_sna
   growthPotentialScore: decimal({ precision: 5, scale: 2 }),
   createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
+
+
+// A/B测试表
+export const abTests = mysqlTable("ab_tests", {
+  id: int().autoincrement().notNull().primaryKey(),
+  accountId: int().notNull(),
+  performanceGroupId: int(),
+  testName: varchar({ length: 255 }).notNull(),
+  testDescription: text(),
+  testType: mysqlEnum(['budget_allocation', 'bid_strategy', 'targeting']).default('budget_allocation').notNull(),
+  status: mysqlEnum(['draft', 'running', 'paused', 'completed', 'cancelled']).default('draft').notNull(),
+  startDate: timestamp({ mode: 'string' }),
+  endDate: timestamp({ mode: 'string' }),
+  targetMetric: mysqlEnum(['roas', 'acos', 'conversions', 'revenue', 'profit']).default('roas').notNull(),
+  minSampleSize: int().default(100),
+  confidenceLevel: decimal({ precision: 5, scale: 2 }).default('0.95'),
+  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+  updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+  createdBy: int(),
+});
+
+// A/B测试变体表
+export const abTestVariants = mysqlTable("ab_test_variants", {
+  id: int().autoincrement().notNull().primaryKey(),
+  testId: int().notNull(),
+  variantName: varchar({ length: 100 }).notNull(),
+  variantType: mysqlEnum(['control', 'treatment']).notNull(),
+  description: text(),
+  configJson: text(), // 存储变体的具体配置，如预算分配策略参数
+  trafficAllocation: decimal({ precision: 5, scale: 2 }).default('0.50'), // 流量分配比例
+  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});
+
+// A/B测试广告活动分配表
+export const abTestCampaignAssignments = mysqlTable("ab_test_campaign_assignments", {
+  id: int().autoincrement().notNull().primaryKey(),
+  testId: int().notNull(),
+  variantId: int().notNull(),
+  campaignId: int().notNull(),
+  assignedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});
+
+// A/B测试每日指标表
+export const abTestDailyMetrics = mysqlTable("ab_test_daily_metrics", {
+  id: int().autoincrement().notNull().primaryKey(),
+  testId: int().notNull(),
+  variantId: int().notNull(),
+  metricDate: timestamp({ mode: 'string' }).notNull(),
+  impressions: int().default(0),
+  clicks: int().default(0),
+  spend: decimal({ precision: 12, scale: 2 }).default('0.00'),
+  sales: decimal({ precision: 12, scale: 2 }).default('0.00'),
+  conversions: int().default(0),
+  roas: decimal({ precision: 10, scale: 4 }),
+  acos: decimal({ precision: 10, scale: 4 }),
+  ctr: decimal({ precision: 10, scale: 4 }),
+  cvr: decimal({ precision: 10, scale: 4 }),
+  cpc: decimal({ precision: 10, scale: 4 }),
+  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});
+
+// A/B测试结果表
+export const abTestResults = mysqlTable("ab_test_results", {
+  id: int().autoincrement().notNull().primaryKey(),
+  testId: int().notNull(),
+  analysisDate: timestamp({ mode: 'string' }).notNull(),
+  controlVariantId: int().notNull(),
+  treatmentVariantId: int().notNull(),
+  metricName: varchar({ length: 50 }).notNull(),
+  controlValue: decimal({ precision: 12, scale: 4 }),
+  treatmentValue: decimal({ precision: 12, scale: 4 }),
+  absoluteDifference: decimal({ precision: 12, scale: 4 }),
+  relativeDifference: decimal({ precision: 10, scale: 4 }), // 百分比变化
+  pValue: decimal({ precision: 10, scale: 6 }),
+  confidenceInterval: varchar({ length: 100 }), // 存储为JSON字符串，如 "[1.2, 1.8]"
+  isStatisticallySignificant: tinyint().default(0),
+  winningVariant: mysqlEnum(['control', 'treatment', 'inconclusive']),
+  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});
+
+// 预算自动执行配置表
+export const budgetAutoExecutionConfigs = mysqlTable("budget_auto_execution_configs", {
+  id: int().autoincrement().notNull().primaryKey(),
+  accountId: int().notNull(),
+  performanceGroupId: int(),
+  configName: varchar({ length: 255 }).notNull(),
+  isEnabled: tinyint().default(0).notNull(),
+  executionFrequency: mysqlEnum(['daily', 'weekly', 'biweekly', 'monthly']).default('daily').notNull(),
+  executionTime: varchar({ length: 5 }).default('06:00'), // HH:MM格式
+  executionDayOfWeek: int(), // 0-6，周日到周六，用于weekly
+  executionDayOfMonth: int(), // 1-31，用于monthly
+  minDataDays: int().default(7), // 最少需要多少天数据才执行
+  maxAdjustmentPercent: decimal({ precision: 5, scale: 2 }).default('15.00'), // 单次最大调整幅度
+  minBudget: decimal({ precision: 10, scale: 2 }).default('5.00'), // 最小预算
+  requireApproval: tinyint().default(0), // 是否需要人工审批
+  notifyOnExecution: tinyint().default(1), // 执行后是否通知
+  notifyOnError: tinyint().default(1), // 错误时是否通知
+  lastExecutionAt: timestamp({ mode: 'string' }),
+  nextExecutionAt: timestamp({ mode: 'string' }),
+  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+  updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+  createdBy: int(),
+});
+
+// 预算自动执行历史表
+export const budgetAutoExecutionHistory = mysqlTable("budget_auto_execution_history", {
+  id: int().autoincrement().notNull().primaryKey(),
+  configId: int().notNull(),
+  accountId: int().notNull(),
+  executionStartAt: timestamp({ mode: 'string' }).notNull(),
+  executionEndAt: timestamp({ mode: 'string' }),
+  status: mysqlEnum(['running', 'completed', 'failed', 'cancelled', 'pending_approval']).default('running').notNull(),
+  totalCampaigns: int().default(0),
+  adjustedCampaigns: int().default(0),
+  skippedCampaigns: int().default(0),
+  errorCampaigns: int().default(0),
+  totalBudgetBefore: decimal({ precision: 12, scale: 2 }),
+  totalBudgetAfter: decimal({ precision: 12, scale: 2 }),
+  executionSummary: text(), // JSON格式的执行摘要
+  errorMessage: text(),
+  approvedBy: int(),
+  approvedAt: timestamp({ mode: 'string' }),
+  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});
+
+// 预算自动执行明细表
+export const budgetAutoExecutionDetails = mysqlTable("budget_auto_execution_details", {
+  id: int().autoincrement().notNull().primaryKey(),
+  executionId: int().notNull(),
+  campaignId: int().notNull(),
+  campaignName: varchar({ length: 500 }),
+  budgetBefore: decimal({ precision: 10, scale: 2 }),
+  budgetAfter: decimal({ precision: 10, scale: 2 }),
+  adjustmentPercent: decimal({ precision: 10, scale: 2 }),
+  adjustmentReason: text(),
+  compositeScore: decimal({ precision: 10, scale: 4 }),
+  riskLevel: mysqlEnum(['low', 'medium', 'high']),
+  status: mysqlEnum(['applied', 'skipped', 'error', 'pending']).default('pending').notNull(),
+  errorMessage: text(),
+  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});
+
+export type ABTest = typeof abTests.$inferSelect;
+export type InsertABTest = typeof abTests.$inferInsert;
+export type ABTestVariant = typeof abTestVariants.$inferSelect;
+export type InsertABTestVariant = typeof abTestVariants.$inferInsert;
+export type ABTestCampaignAssignment = typeof abTestCampaignAssignments.$inferSelect;
+export type InsertABTestCampaignAssignment = typeof abTestCampaignAssignments.$inferInsert;
+export type ABTestDailyMetric = typeof abTestDailyMetrics.$inferSelect;
+export type InsertABTestDailyMetric = typeof abTestDailyMetrics.$inferInsert;
+export type ABTestResult = typeof abTestResults.$inferSelect;
+export type InsertABTestResult = typeof abTestResults.$inferInsert;
+export type BudgetAutoExecutionConfig = typeof budgetAutoExecutionConfigs.$inferSelect;
+export type InsertBudgetAutoExecutionConfig = typeof budgetAutoExecutionConfigs.$inferInsert;
+export type BudgetAutoExecutionHistory = typeof budgetAutoExecutionHistory.$inferSelect;
+export type InsertBudgetAutoExecutionHistory = typeof budgetAutoExecutionHistory.$inferInsert;
+export type BudgetAutoExecutionDetail = typeof budgetAutoExecutionDetails.$inferSelect;
+export type InsertBudgetAutoExecutionDetail = typeof budgetAutoExecutionDetails.$inferInsert;

@@ -40,6 +40,8 @@ import EffectTrackingReport from "@/pages/EffectTrackingReport";
 import AutoRollbackSettings from "@/pages/AutoRollbackSettings";
 import AlgorithmOptimization from "@/pages/AlgorithmOptimization";
 import IntelligentBudgetAllocation from "@/pages/IntelligentBudgetAllocation";
+import ABTest from "@/pages/ABTest";
+import BudgetAutoExecution from "@/pages/BudgetAutoExecution";
 
 function Router() {
   return (
@@ -80,6 +82,8 @@ function Router() {
       <Route path="/auto-rollback" component={AutoRollbackSettings} />
       <Route path="/algorithm-optimization" component={AlgorithmOptimization} />
       <Route path="/intelligent-budget" component={IntelligentBudgetAllocation} />
+      <Route path="/ab-test" component={ABTest} />
+      <Route path="/budget-auto-execution" component={BudgetAutoExecution} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

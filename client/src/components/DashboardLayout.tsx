@@ -51,7 +51,8 @@ import {
   ChevronRight,
   MapPin,
   Brain,
-  History
+  History,
+  FlaskConical
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -101,6 +102,8 @@ const menuGroups = [
     title: "智能优化",
     items: [
       { icon: Brain, label: "智能预算分配", path: "/intelligent-budget", badge: "新" },
+      { icon: FlaskConical, label: "A/B测试", path: "/ab-test", badge: "新" },
+      { icon: Clock, label: "预算自动执行", path: "/budget-auto-execution", badge: "新" },
       { icon: AlertTriangle, label: "自动回滚规则", path: "/auto-rollback" },
       { icon: Brain, label: "算法优化建议", path: "/algorithm-optimization" },
     ]

@@ -18,6 +18,8 @@ import * as unifiedOptimizationEngine from './unifiedOptimizationEngine';
 import * as autoRollbackService from './autoRollbackService';
 import * as algorithmOptimizationService from './algorithmOptimizationService';
 import * as intelligentBudgetAllocationService from './intelligentBudgetAllocationService';
+import * as abTestService from './abTestService';
+import * as budgetAutoExecutionService from './budgetAutoExecutionService';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
@@ -5129,7 +5131,7 @@ const placementRouter = router({
       }
       
       // 获取绩效组内的所有广告活动
-      const groupCampaigns = await db.getPerformanceGroupCampaigns(input.groupId);
+      const groupCampaigns = await db.getCampaignsByPerformanceGroupId(input.groupId);
       
       const campaignResults = [];
       let totalAnalyzedKeywords = 0;
@@ -5138,11 +5140,11 @@ const placementRouter = router({
       let totalKeywordsNeedDecrease = 0;
       
       for (const gc of groupCampaigns) {
-        const campaign = await db.getCampaignById(gc.campaignId);
+        const campaign = gc; // gc已经是campaign对象
         if (!campaign) continue;
         
         // 获取广告活动下的所有关键词
-        const campaignKeywords = await db.getKeywordsByCampaignId(gc.campaignId);
+        const campaignKeywords = await db.getKeywordsByCampaignId(campaign.id);
         
         let campaignOptimalBidSum = 0;
         let campaignCurrentBidSum = 0;
@@ -5392,7 +5394,7 @@ const placementRouter = router({
       }
       
       // 获取绩效组内的所有广告活动
-      const groupCampaigns = await db.getPerformanceGroupCampaigns(input.groupId);
+      const groupCampaigns = await db.getCampaignsByPerformanceGroupId(input.groupId);
       
       const campaignResults: Array<{
         campaignId: string;
@@ -5409,11 +5411,11 @@ const placementRouter = router({
       let totalProfitIncrease = 0;
       
       for (const gc of groupCampaigns) {
-        const campaign = await db.getCampaignById(gc.campaignId);
+        const campaign = gc; // gc已经是campaign对象
         if (!campaign) continue;
         
         // 获取广告活动下的所有关键词
-        const campaignKeywords = await db.getKeywordsByCampaignId(gc.campaignId);
+        const campaignKeywords = await db.getKeywordsByCampaignId(campaign.id);
         
         let appliedCount = 0;
         let skippedCount = 0;
@@ -6491,6 +6493,216 @@ const intelligentBudgetAllocationRouter = router({
     }),
 });
 
+// ==================== A/B测试路由 ====================
+const abTestRouter = router({
+  // 创建A/B测试
+  create: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      performanceGroupId: z.number().optional(),
+      testName: z.string(),
+      testDescription: z.string().optional(),
+      testType: z.enum(['budget_allocation', 'bid_strategy', 'targeting']),
+      targetMetric: z.enum(['roas', 'acos', 'conversions', 'revenue', 'profit']),
+      minSampleSize: z.number().optional(),
+      confidenceLevel: z.number().optional(),
+      durationDays: z.number().optional(),
+      controlConfig: z.record(z.unknown()),
+      treatmentConfig: z.record(z.unknown()),
+      trafficSplit: z.number().optional()
+    }))
+    .mutation(async ({ ctx, input }) => {
+      return abTestService.createABTest(input, ctx.user.id);
+    }),
+  
+  // 获取测试列表
+  list: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      return abTestService.getABTests(input.accountId);
+    }),
+  
+  // 获取测试详情
+  get: protectedProcedure
+    .input(z.object({ testId: z.number() }))
+    .query(async ({ input }) => {
+      return abTestService.getABTestById(input.testId);
+    }),
+  
+  // 分配广告活动到测试组
+  assignCampaigns: protectedProcedure
+    .input(z.object({
+      testId: z.number(),
+      campaignIds: z.array(z.number()),
+      splitMethod: z.enum(['random', 'stratified', 'manual']).optional()
+    }))
+    .mutation(async ({ input }) => {
+      return abTestService.assignCampaignsToTest(
+        input.testId,
+        input.campaignIds,
+        input.splitMethod
+      );
+    }),
+  
+  // 启动测试
+  start: protectedProcedure
+    .input(z.object({
+      testId: z.number(),
+      durationDays: z.number().optional()
+    }))
+    .mutation(async ({ input }) => {
+      await abTestService.startABTest(input.testId, input.durationDays);
+      return { success: true };
+    }),
+  
+  // 暂停测试
+  pause: protectedProcedure
+    .input(z.object({ testId: z.number() }))
+    .mutation(async ({ input }) => {
+      await abTestService.pauseABTest(input.testId);
+      return { success: true };
+    }),
+  
+  // 结束测试
+  complete: protectedProcedure
+    .input(z.object({ testId: z.number() }))
+    .mutation(async ({ input }) => {
+      await abTestService.completeABTest(input.testId);
+      return { success: true };
+    }),
+  
+  // 分析测试结果
+  analyze: protectedProcedure
+    .input(z.object({ testId: z.number() }))
+    .query(async ({ input }) => {
+      return abTestService.analyzeABTestResults(input.testId);
+    }),
+  
+  // 删除测试
+  delete: protectedProcedure
+    .input(z.object({ testId: z.number() }))
+    .mutation(async ({ input }) => {
+      await abTestService.deleteABTest(input.testId);
+      return { success: true };
+    }),
+});
+
+// ==================== 预算自动执行路由 ====================
+const budgetAutoExecutionRouter = router({
+  // 创建自动执行配置
+  createConfig: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      performanceGroupId: z.number().optional(),
+      configName: z.string(),
+      isEnabled: z.boolean().optional(),
+      executionFrequency: z.enum(['daily', 'weekly', 'biweekly', 'monthly']),
+      executionTime: z.string().optional(),
+      executionDayOfWeek: z.number().optional(),
+      executionDayOfMonth: z.number().optional(),
+      minDataDays: z.number().optional(),
+      maxAdjustmentPercent: z.number().optional(),
+      minBudget: z.number().optional(),
+      requireApproval: z.boolean().optional(),
+      notifyOnExecution: z.boolean().optional(),
+      notifyOnError: z.boolean().optional()
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const configId = await budgetAutoExecutionService.createAutoExecutionConfig(
+        input,
+        ctx.user.id
+      );
+      return { configId };
+    }),
+  
+  // 更新自动执行配置
+  updateConfig: protectedProcedure
+    .input(z.object({
+      configId: z.number(),
+      configName: z.string().optional(),
+      isEnabled: z.boolean().optional(),
+      executionFrequency: z.enum(['daily', 'weekly', 'biweekly', 'monthly']).optional(),
+      executionTime: z.string().optional(),
+      executionDayOfWeek: z.number().optional(),
+      executionDayOfMonth: z.number().optional(),
+      minDataDays: z.number().optional(),
+      maxAdjustmentPercent: z.number().optional(),
+      minBudget: z.number().optional(),
+      requireApproval: z.boolean().optional(),
+      notifyOnExecution: z.boolean().optional(),
+      notifyOnError: z.boolean().optional()
+    }))
+    .mutation(async ({ input }) => {
+      const { configId, ...updates } = input;
+      await budgetAutoExecutionService.updateAutoExecutionConfig(configId, updates);
+      return { success: true };
+    }),
+  
+  // 删除自动执行配置
+  deleteConfig: protectedProcedure
+    .input(z.object({ configId: z.number() }))
+    .mutation(async ({ input }) => {
+      await budgetAutoExecutionService.deleteAutoExecutionConfig(input.configId);
+      return { success: true };
+    }),
+  
+  // 获取自动执行配置列表
+  listConfigs: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      return budgetAutoExecutionService.getAutoExecutionConfigs(input.accountId);
+    }),
+  
+  // 获取单个配置
+  getConfig: protectedProcedure
+    .input(z.object({ configId: z.number() }))
+    .query(async ({ input }) => {
+      return budgetAutoExecutionService.getAutoExecutionConfigById(input.configId);
+    }),
+  
+  // 手动触发执行
+  triggerExecution: protectedProcedure
+    .input(z.object({ configId: z.number() }))
+    .mutation(async ({ input }) => {
+      return budgetAutoExecutionService.triggerManualExecution(input.configId);
+    }),
+  
+  // 获取执行历史
+  getHistory: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      limit: z.number().optional()
+    }))
+    .query(async ({ input }) => {
+      return budgetAutoExecutionService.getExecutionHistory(
+        input.accountId,
+        input.limit
+      );
+    }),
+  
+  // 获取执行详情
+  getExecutionDetails: protectedProcedure
+    .input(z.object({ executionId: z.number() }))
+    .query(async ({ input }) => {
+      return budgetAutoExecutionService.getExecutionDetails(input.executionId);
+    }),
+  
+  // 审批执行
+  approveExecution: protectedProcedure
+    .input(z.object({
+      executionId: z.number(),
+      approve: z.boolean()
+    }))
+    .mutation(async ({ ctx, input }) => {
+      await budgetAutoExecutionService.approveExecution(
+        input.executionId,
+        ctx.user.id,
+        input.approve
+      );
+      return { success: true };
+    }),
+});
+
 // ==================== Main Router ====================
 export const appRouter = router({
   system: systemRouter,
@@ -6534,6 +6746,8 @@ export const appRouter = router({
   autoRollback: autoRollbackRouter,
   algorithmOptimization: algorithmOptimizationRouter,
   intelligentBudgetAllocation: intelligentBudgetAllocationRouter,
+  abTest: abTestRouter,
+  budgetAutoExecution: budgetAutoExecutionRouter,
 });
 
 export type AppRouter = typeof appRouter;
