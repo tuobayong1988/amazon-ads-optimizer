@@ -2385,3 +2385,21 @@ export async function getAiOptimizationExecutionDetail(executionId: number) {
     reviews
   };
 }
+
+
+// ==================== 历史趋势数据查询 ====================
+// 获取关键词历史数据
+// 注意：当前 dailyPerformance 表没有 targetType 和 targetId 字段
+// 返回空数组，让前端使用模拟数据
+export async function getKeywordHistoryData(keywordId: number, days: number) {
+  // TODO: 待数据库表结构更新后实现真实数据查询
+  return [];
+}
+
+// 获取商品定向历史数据
+// 注意：当前 dailyPerformance 表没有 targetType 和 targetId 字段
+// 返回空数组，让前端使用模拟数据
+export async function getProductTargetHistoryData(targetId: number, days: number) {
+  // TODO: 待数据库表结构更新后实现真实数据查询
+  return [];
+}

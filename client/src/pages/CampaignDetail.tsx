@@ -39,6 +39,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Filter, Ban, ArrowUpRight, ArrowRight, Clock } from "lucide-react";
+import { TargetTrendChart } from "@/components/TargetTrendChart";
 
 // 广告活动类型图标映射
 const campaignTypeIcons: Record<string, any> = {
@@ -886,6 +887,10 @@ function TargetsList({ campaignId }: { campaignId: number }) {
   const [batchStatusOpen, setBatchStatusOpen] = useState(false);
   const [batchStatus, setBatchStatus] = useState<"enabled" | "paused">("enabled");
   
+  // 趋势图弹窗状态
+  const [trendChartOpen, setTrendChartOpen] = useState(false);
+  const [trendTarget, setTrendTarget] = useState<{ id: number; type: "keyword" | "productTarget"; name: string; matchType?: string } | null>(null);
+  
   // 筛选状态 - 默认展开筛选面板
   const [showFilters, setShowFilters] = useState(true);
   const [filters, setFilters] = useState({
@@ -1655,8 +1660,22 @@ function TargetsList({ campaignId }: { campaignId: number }) {
                       className="h-4 w-4 rounded border-gray-300"
                     />
                   </TableCell>
-                  <TableCell className="font-medium max-w-[200px] truncate" title={target.text}>
-                    {target.text}
+                  <TableCell className="font-medium max-w-[200px]">
+                    <button
+                      className="text-left hover:text-primary hover:underline truncate block w-full"
+                      title={`点击查看 "${target.text}" 的历史趋势`}
+                      onClick={() => {
+                        setTrendTarget({
+                          id: target.originalId,
+                          type: isKeyword ? "keyword" : "productTarget",
+                          name: target.text,
+                          matchType: isKeyword ? target.matchType : undefined,
+                        });
+                        setTrendChartOpen(true);
+                      }}
+                    >
+                      {target.text}
+                    </button>
                   </TableCell>
                   <TableCell>
                     <Badge variant={isKeyword ? "default" : "secondary"}>
@@ -1907,6 +1926,18 @@ function TargetsList({ campaignId }: { campaignId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      {/* 趋势图弹窗 */}
+      {trendTarget && (
+        <TargetTrendChart
+          open={trendChartOpen}
+          onOpenChange={setTrendChartOpen}
+          targetId={trendTarget.id}
+          targetType={trendTarget.type}
+          targetName={trendTarget.name}
+          matchType={trendTarget.matchType}
+        />
+      )}
     </>
   );
 }
