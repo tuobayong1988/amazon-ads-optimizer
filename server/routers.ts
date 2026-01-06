@@ -2189,6 +2189,144 @@ const batchOperationRouter = router({
       const seconds = batchOperationService.estimateExecutionTime(input.itemCount, input.operationType);
       return { estimatedSeconds: seconds };
     }),
+
+  // Get operation history with detailed records
+  getHistory: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      operationType: z.enum(['negative_keyword', 'bid_adjustment', 'keyword_migration', 'campaign_status']).optional(),
+      status: z.enum(['pending', 'approved', 'executing', 'completed', 'failed', 'cancelled', 'rolled_back']).optional(),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+      limit: z.number().optional().default(50),
+      offset: z.number().optional().default(0),
+    }))
+    .query(async ({ ctx, input }) => {
+      const operations = await db.listBatchOperations(ctx.user.id, {
+        accountId: input.accountId,
+        status: input.status,
+        operationType: input.operationType,
+        limit: input.limit,
+      });
+
+      // Filter by date if provided
+      let filteredOps = operations;
+      if (input.startDate) {
+        const startDate = new Date(input.startDate);
+        filteredOps = filteredOps.filter(op => new Date(op.createdAt) >= startDate);
+      }
+      if (input.endDate) {
+        const endDate = new Date(input.endDate);
+        endDate.setHours(23, 59, 59, 999);
+        filteredOps = filteredOps.filter(op => new Date(op.createdAt) <= endDate);
+      }
+
+      // Calculate statistics
+      const stats = {
+        total: filteredOps.length,
+        completed: filteredOps.filter(op => op.status === 'completed').length,
+        failed: filteredOps.filter(op => op.status === 'failed').length,
+        pending: filteredOps.filter(op => op.status === 'pending' || op.status === 'approved').length,
+        rolledBack: filteredOps.filter(op => op.status === 'rolled_back').length,
+        totalItemsProcessed: filteredOps.reduce((sum, op) => sum + (op.processedItems || 0), 0),
+        totalSuccessItems: filteredOps.reduce((sum, op) => sum + (op.successItems || 0), 0),
+        totalFailedItems: filteredOps.reduce((sum, op) => sum + (op.failedItems || 0), 0),
+      };
+
+      return {
+        operations: filteredOps.slice(input.offset, input.offset + input.limit),
+        stats,
+        pagination: {
+          total: filteredOps.length,
+          limit: input.limit,
+          offset: input.offset,
+          hasMore: input.offset + input.limit < filteredOps.length,
+        },
+      };
+    }),
+
+  // Get detailed operation record with all items
+  getDetailedRecord: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const batch = await db.getBatchOperation(input.id);
+      if (!batch) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Batch operation not found' });
+      }
+      const items = await db.getBatchOperationItems(input.id);
+
+      // Group items by status
+      const itemsByStatus = {
+        success: items.filter(item => item.status === 'success'),
+        failed: items.filter(item => item.status === 'failed'),
+        pending: items.filter(item => item.status === 'pending'),
+        skipped: items.filter(item => item.status === 'skipped'),
+        rolledBack: items.filter(item => item.status === 'rolled_back'),
+      };
+
+      // Calculate execution duration
+      let executionDuration: number | null = null;
+      if (batch.executedAt && batch.completedAt) {
+        executionDuration = new Date(batch.completedAt).getTime() - new Date(batch.executedAt).getTime();
+      }
+
+      return {
+        ...batch,
+        items,
+        itemsByStatus,
+        executionDuration,
+        summary: batchOperationService.generateBatchSummary({
+          batchId: batch.id,
+          status: batch.status as batchOperationService.BatchStatus,
+          totalItems: batch.totalItems || 0,
+          processedItems: batch.processedItems || 0,
+          successItems: batch.successItems || 0,
+          failedItems: batch.failedItems || 0,
+          errors: items.filter(i => i.errorMessage).map(i => ({
+            itemId: i.id,
+            error: i.errorMessage || 'Unknown error',
+          })),
+        }),
+      };
+    }),
+
+  // Export operation history
+  exportHistory: protectedProcedure
+    .input(z.object({
+      operationIds: z.array(z.number()).optional(),
+      format: z.enum(['json', 'csv']).default('json'),
+    }))
+    .query(async ({ ctx, input }) => {
+      let operations;
+      if (input.operationIds && input.operationIds.length > 0) {
+        operations = await Promise.all(
+          input.operationIds.map(id => db.getBatchOperation(id))
+        );
+        operations = operations.filter(Boolean);
+      } else {
+        operations = await db.listBatchOperations(ctx.user.id, { limit: 1000 });
+      }
+
+      if (input.format === 'csv') {
+        const headers = ['ID', '操作名称', '操作类型', '状态', '总项数', '成功数', '失败数', '创建时间', '执行时间', '完成时间'];
+        const rows = operations.map(op => [
+          op?.id,
+          op?.name,
+          op?.operationType,
+          op?.status,
+          op?.totalItems,
+          op?.successItems,
+          op?.failedItems,
+          op?.createdAt,
+          op?.executedAt,
+          op?.completedAt,
+        ]);
+        const csv = [headers.join(','), ...rows.map(row => row.join(','))].join('\n');
+        return { format: 'csv', data: csv };
+      }
+
+      return { format: 'json', data: operations };
+    }),
 });
 
 // ==================== Correction Review Router ====================

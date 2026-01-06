@@ -27,7 +27,14 @@ import {
   AlertTriangle,
   Ban,
   ArrowUpDown,
-  MinusCircle
+  MinusCircle,
+  History,
+  Download,
+  Filter,
+  Calendar,
+  FileText,
+  ChevronLeft,
+  ChevronRight
 } from "lucide-react";
 
 type BatchStatus = 'pending' | 'approved' | 'executing' | 'completed' | 'failed' | 'cancelled' | 'rolled_back';
@@ -52,9 +59,21 @@ const operationTypeConfig: Record<OperationType, { label: string; icon: React.Re
 
 export default function BatchOperations() {
   const [activeTab, setActiveTab] = useState("all");
+  const [mainTab, setMainTab] = useState<"operations" | "history">("operations");
   const [selectedBatch, setSelectedBatch] = useState<number | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [createType, setCreateType] = useState<'negative_keyword' | 'bid_adjustment'>('negative_keyword');
+  
+  // 历史记录相关状态
+  const [historyFilter, setHistoryFilter] = useState<{
+    operationType?: 'negative_keyword' | 'bid_adjustment' | 'keyword_migration' | 'campaign_status';
+    status?: BatchStatus;
+    startDate?: string;
+    endDate?: string;
+  }>({});
+  const [historyPage, setHistoryPage] = useState(0);
+  const [selectedHistoryId, setSelectedHistoryId] = useState<number | null>(null);
+  const [isDetailDialogOpen, setIsDetailDialogOpen] = useState(false);
   
   // 确认弹窗状态
   const { showConfirm, dialogProps } = useOperationConfirm();
@@ -68,6 +87,22 @@ export default function BatchOperations() {
   const { data: batches, isLoading, refetch } = trpc.batchOperation.list.useQuery({
     status: activeTab === 'all' ? undefined : activeTab,
   });
+
+  // 历史记录查询
+  const { data: historyData, isLoading: isHistoryLoading } = trpc.batchOperation.getHistory.useQuery({
+    operationType: historyFilter.operationType,
+    status: historyFilter.status,
+    startDate: historyFilter.startDate,
+    endDate: historyFilter.endDate,
+    limit: 20,
+    offset: historyPage * 20,
+  }, { enabled: mainTab === 'history' });
+
+  // 历史记录详情查询
+  const { data: historyDetail, isLoading: isDetailLoading } = trpc.batchOperation.getDetailedRecord.useQuery(
+    { id: selectedHistoryId! },
+    { enabled: !!selectedHistoryId && isDetailDialogOpen }
+  );
 
   const { data: batchDetails } = trpc.batchOperation.get.useQuery(
     { id: selectedBatch! },
@@ -326,52 +361,67 @@ export default function BatchOperations() {
           </Dialog>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-4 gap-4">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">待审批</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-yellow-600">
-                {batches?.filter(b => b.status === 'pending').length || 0}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">执行中</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-600">
-                {batches?.filter(b => b.status === 'executing').length || 0}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">已完成</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {batches?.filter(b => b.status === 'completed').length || 0}
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">失败</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">
-                {batches?.filter(b => b.status === 'failed').length || 0}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        {/* Main Tab Switch */}
+        <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as "operations" | "history")} className="w-full">
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="operations" className="flex items-center gap-2">
+              <Layers className="h-4 w-4" />
+              操作管理
+            </TabsTrigger>
+            <TabsTrigger value="history" className="flex items-center gap-2">
+              <History className="h-4 w-4" />
+              历史记录
+            </TabsTrigger>
+          </TabsList>
 
-        {/* Main Content */}
-        <div className="grid grid-cols-3 gap-6">
+          {/* Operations Tab Content */}
+          <TabsContent value="operations" className="space-y-6 mt-6">
+            {/* Stats Cards */}
+            <div className="grid grid-cols-4 gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">待审批</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-yellow-600">
+                    {batches?.filter(b => b.status === 'pending').length || 0}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">执行中</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-purple-600">
+                    {batches?.filter(b => b.status === 'executing').length || 0}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">已完成</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">
+                    {batches?.filter(b => b.status === 'completed').length || 0}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">失败</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-red-600">
+                    {batches?.filter(b => b.status === 'failed').length || 0}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Main Content */}
+            <div className="grid grid-cols-3 gap-6">
           {/* Batch List */}
           <div className="col-span-2">
             <Card>
@@ -670,8 +720,424 @@ export default function BatchOperations() {
               </CardContent>
             </Card>
           </div>
-        </div>
+            </div>
+          </TabsContent>
+
+          {/* History Tab Content */}
+          <TabsContent value="history" className="space-y-6 mt-6">
+            {/* History Stats */}
+            <div className="grid grid-cols-5 gap-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">总操作数</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{historyData?.stats.total || 0}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">已完成</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">{historyData?.stats.completed || 0}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">失败</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-red-600">{historyData?.stats.failed || 0}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">成功项目</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-blue-600">{historyData?.stats.totalSuccessItems || 0}</div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">失败项目</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-orange-600">{historyData?.stats.totalFailedItems || 0}</div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Filters */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Filter className="h-5 w-5" />
+                  筛选条件
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-4 gap-4">
+                  <div className="space-y-2">
+                    <Label>操作类型</Label>
+                    <Select 
+                      value={historyFilter.operationType || "all"}
+                      onValueChange={(v) => setHistoryFilter(prev => ({ ...prev, operationType: v === "all" ? undefined : v as any }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="全部类型" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">全部类型</SelectItem>
+                        <SelectItem value="negative_keyword">否定词添加</SelectItem>
+                        <SelectItem value="bid_adjustment">出价调整</SelectItem>
+                        <SelectItem value="keyword_migration">关键词迁移</SelectItem>
+                        <SelectItem value="campaign_status">广告活动状态</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>状态</Label>
+                    <Select 
+                      value={historyFilter.status || "all"}
+                      onValueChange={(v) => setHistoryFilter(prev => ({ ...prev, status: v === "all" ? undefined : v as any }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="全部状态" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">全部状态</SelectItem>
+                        <SelectItem value="completed">已完成</SelectItem>
+                        <SelectItem value="failed">失败</SelectItem>
+                        <SelectItem value="rolled_back">已回滚</SelectItem>
+                        <SelectItem value="cancelled">已取消</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>开始日期</Label>
+                    <Input 
+                      type="date" 
+                      value={historyFilter.startDate || ""}
+                      onChange={(e) => setHistoryFilter(prev => ({ ...prev, startDate: e.target.value || undefined }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>结束日期</Label>
+                    <Input 
+                      type="date" 
+                      value={historyFilter.endDate || ""}
+                      onChange={(e) => setHistoryFilter(prev => ({ ...prev, endDate: e.target.value || undefined }))}
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end mt-4">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setHistoryFilter({});
+                      setHistoryPage(0);
+                    }}
+                  >
+                    清除筛选
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* History List */}
+            <Card>
+              <CardHeader>
+                <CardTitle>操作历史记录</CardTitle>
+                <CardDescription>查看所有批量操作的详细执行记录</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isHistoryLoading ? (
+                  <div className="text-center py-8 text-muted-foreground">加载中...</div>
+                ) : !historyData?.operations || historyData.operations.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    暂无历史记录
+                  </div>
+                ) : (
+                  <>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>ID</TableHead>
+                          <TableHead>操作名称</TableHead>
+                          <TableHead>类型</TableHead>
+                          <TableHead>状态</TableHead>
+                          <TableHead>项目数</TableHead>
+                          <TableHead>成功/失败</TableHead>
+                          <TableHead>创建时间</TableHead>
+                          <TableHead>操作</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {historyData.operations.map((op: any) => {
+                          const opType = operationTypeConfig[op.operationType as OperationType];
+                          const status = statusConfig[op.status as BatchStatus];
+                          return (
+                            <TableRow key={op.id}>
+                              <TableCell className="font-mono">#{op.id}</TableCell>
+                              <TableCell className="font-medium">{op.name}</TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  {opType?.icon}
+                                  <span>{opType?.label || op.operationType}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge className={`${status?.color} text-white`}>
+                                  {status?.label || op.status}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>{op.totalItems || 0}</TableCell>
+                              <TableCell>
+                                <span className="text-green-600">{op.successItems || 0}</span>
+                                {' / '}
+                                <span className="text-red-600">{op.failedItems || 0}</span>
+                              </TableCell>
+                              <TableCell className="text-muted-foreground">
+                                {new Date(op.createdAt).toLocaleString('zh-CN')}
+                              </TableCell>
+                              <TableCell>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedHistoryId(op.id);
+                                    setIsDetailDialogOpen(true);
+                                  }}
+                                >
+                                  <Eye className="h-4 w-4 mr-1" />
+                                  详情
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
+
+                    {/* Pagination */}
+                    {historyData.pagination && (
+                      <div className="flex items-center justify-between mt-4">
+                        <div className="text-sm text-muted-foreground">
+                          共 {historyData.pagination.total} 条记录
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={historyPage === 0}
+                            onClick={() => setHistoryPage(p => Math.max(0, p - 1))}
+                          >
+                            <ChevronLeft className="h-4 w-4" />
+                            上一页
+                          </Button>
+                          <span className="text-sm">
+                            第 {historyPage + 1} 页
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={!historyData.pagination.hasMore}
+                            onClick={() => setHistoryPage(p => p + 1)}
+                          >
+                            下一页
+                            <ChevronRight className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </div>
+
+      {/* 历史记录详情弹窗 */}
+      <Dialog open={isDetailDialogOpen} onOpenChange={setIsDetailDialogOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              操作详情 - {historyDetail?.name}
+            </DialogTitle>
+            <DialogDescription>
+              查看批量操作的完整执行记录
+            </DialogDescription>
+          </DialogHeader>
+          
+          {isDetailLoading ? (
+            <div className="text-center py-8 text-muted-foreground">加载中...</div>
+          ) : historyDetail ? (
+            <div className="space-y-6">
+              {/* Summary */}
+              <div className="grid grid-cols-4 gap-4">
+                <div className="p-4 rounded-lg bg-muted">
+                  <div className="text-sm text-muted-foreground">操作类型</div>
+                  <div className="font-medium mt-1">
+                    {operationTypeConfig[historyDetail.operationType as OperationType]?.label || historyDetail.operationType}
+                  </div>
+                </div>
+                <div className="p-4 rounded-lg bg-muted">
+                  <div className="text-sm text-muted-foreground">状态</div>
+                  <div className="mt-1">
+                    <Badge className={`${statusConfig[historyDetail.status as BatchStatus]?.color} text-white`}>
+                      {statusConfig[historyDetail.status as BatchStatus]?.label || historyDetail.status}
+                    </Badge>
+                  </div>
+                </div>
+                <div className="p-4 rounded-lg bg-muted">
+                  <div className="text-sm text-muted-foreground">执行时长</div>
+                  <div className="font-medium mt-1">
+                    {historyDetail.executionDuration 
+                      ? `${Math.round(historyDetail.executionDuration / 1000)}秒`
+                      : '-'}
+                  </div>
+                </div>
+                <div className="p-4 rounded-lg bg-muted">
+                  <div className="text-sm text-muted-foreground">成功率</div>
+                  <div className="font-medium mt-1">
+                    {historyDetail.totalItems 
+                      ? `${Math.round(((historyDetail.successItems || 0) / historyDetail.totalItems) * 100)}%`
+                      : '-'}
+                  </div>
+                </div>
+              </div>
+
+              {/* Timeline */}
+              <div className="space-y-2">
+                <h4 className="font-medium">执行时间线</h4>
+                <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">创建时间：</span>
+                    <span className="ml-2">{new Date(historyDetail.createdAt).toLocaleString('zh-CN')}</span>
+                  </div>
+                  {historyDetail.executedAt && (
+                    <div>
+                      <span className="text-muted-foreground">执行时间：</span>
+                      <span className="ml-2">{new Date(historyDetail.executedAt).toLocaleString('zh-CN')}</span>
+                    </div>
+                  )}
+                  {historyDetail.completedAt && (
+                    <div>
+                      <span className="text-muted-foreground">完成时间：</span>
+                      <span className="ml-2">{new Date(historyDetail.completedAt).toLocaleString('zh-CN')}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Items by Status */}
+              <div className="space-y-4">
+                <h4 className="font-medium">操作项目明细</h4>
+                
+                {/* Success Items */}
+                {historyDetail.itemsByStatus?.success && historyDetail.itemsByStatus.success.length > 0 && (
+                  <div>
+                    <h5 className="text-sm font-medium text-green-600 mb-2">
+                      成功项目 ({historyDetail.itemsByStatus.success.length})
+                    </h5>
+                    <div className="max-h-40 overflow-y-auto border rounded-lg">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>实体名称</TableHead>
+                            <TableHead>实体类型</TableHead>
+                            {historyDetail.operationType === 'bid_adjustment' && (
+                              <>
+                                <TableHead>原出价</TableHead>
+                                <TableHead>新出价</TableHead>
+                              </>
+                            )}
+                            {historyDetail.operationType === 'negative_keyword' && (
+                              <>
+                                <TableHead>否定词</TableHead>
+                                <TableHead>匹配类型</TableHead>
+                              </>
+                            )}
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {historyDetail.itemsByStatus.success.map((item: any) => (
+                            <TableRow key={item.id}>
+                              <TableCell>{item.entityName || '-'}</TableCell>
+                              <TableCell>{item.entityType}</TableCell>
+                              {historyDetail.operationType === 'bid_adjustment' && (
+                                <>
+                                  <TableCell>${item.currentBid}</TableCell>
+                                  <TableCell>${item.newBid}</TableCell>
+                                </>
+                              )}
+                              {historyDetail.operationType === 'negative_keyword' && (
+                                <>
+                                  <TableCell>{item.negativeKeyword}</TableCell>
+                                  <TableCell>{item.negativeMatchType}</TableCell>
+                                </>
+                              )}
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Failed Items */}
+                {historyDetail.itemsByStatus?.failed && historyDetail.itemsByStatus.failed.length > 0 && (
+                  <div>
+                    <h5 className="text-sm font-medium text-red-600 mb-2">
+                      失败项目 ({historyDetail.itemsByStatus.failed.length})
+                    </h5>
+                    <div className="max-h-40 overflow-y-auto border rounded-lg">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>实体名称</TableHead>
+                            <TableHead>实体类型</TableHead>
+                            <TableHead>错误信息</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {historyDetail.itemsByStatus.failed.map((item: any) => (
+                            <TableRow key={item.id}>
+                              <TableCell>{item.entityName || '-'}</TableCell>
+                              <TableCell>{item.entityType}</TableCell>
+                              <TableCell className="text-red-600">{item.errorMessage || '-'}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Description */}
+              {historyDetail.description && (
+                <div>
+                  <h4 className="font-medium mb-2">操作说明</h4>
+                  <p className="text-sm text-muted-foreground bg-muted p-3 rounded-lg">
+                    {historyDetail.description}
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDetailDialogOpen(false)}>
+              关闭
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 操作确认弹窗 */}
       {dialogProps && <OperationConfirmDialog {...dialogProps} />}

@@ -45,7 +45,10 @@ import {
   AlertTriangle,
   LineChart,
   CalendarDays,
-  RefreshCw
+  RefreshCw,
+  Home,
+  ChevronDown,
+  ChevronRight
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -271,36 +274,33 @@ function DashboardLayoutContent({
           </SidebarHeader>
 
           <SidebarContent className="gap-0 overflow-y-auto">
+            {/* 返回主界面按钮 - 始终显示在顶部 */}
+            <div className="px-2 py-2 border-b border-border/50">
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    isActive={location === "/dashboard"}
+                    onClick={() => setLocation("/dashboard")}
+                    tooltip="返回主界面"
+                    className="h-10 transition-all font-medium bg-primary/10 hover:bg-primary/20"
+                  >
+                    <Home className={`h-4 w-4 ${location === "/dashboard" ? "text-primary" : "text-primary"}`} />
+                    <span className="text-primary">返回主界面</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </div>
+
+            {/* 菜单分组 */}
             {menuGroups.map((group, groupIndex) => (
-              <div key={group.title} className={groupIndex > 0 ? "mt-2" : ""}>
-                {!isCollapsed && (
-                  <div className="px-4 py-2">
-                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
-                      {group.title}
-                    </span>
-                  </div>
-                )}
-                <SidebarMenu className="px-2">
-                  {group.items.map(item => {
-                    const isActive = location === item.path;
-                    return (
-                      <SidebarMenuItem key={item.path}>
-                        <SidebarMenuButton
-                          isActive={isActive}
-                          onClick={() => setLocation(item.path)}
-                          tooltip={item.label}
-                          className={`h-9 transition-all font-normal`}
-                        >
-                          <item.icon
-                            className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
-                          />
-                          <span>{item.label}</span>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    );
-                  })}
-                </SidebarMenu>
-              </div>
+              <MenuGroup 
+                key={group.title} 
+                group={group} 
+                groupIndex={groupIndex}
+                location={location}
+                setLocation={setLocation}
+                isCollapsed={isCollapsed}
+              />
             ))}
           </SidebarContent>
 
@@ -363,5 +363,75 @@ function DashboardLayoutContent({
         <main className="flex-1 p-6">{children}</main>
       </SidebarInset>
     </>
+  );
+}
+
+// 菜单分组组件 - 支持展开/收起
+function MenuGroup({
+  group,
+  groupIndex,
+  location,
+  setLocation,
+  isCollapsed,
+}: {
+  group: typeof menuGroups[0];
+  groupIndex: number;
+  location: string;
+  setLocation: (path: string) => void;
+  isCollapsed: boolean;
+}) {
+  // 检查当前分组是否有活动项
+  const hasActiveItem = group.items.some(item => item.path === location);
+  // 默认展开有活动项的分组，或者前三个分组
+  const [isExpanded, setIsExpanded] = useState(hasActiveItem || groupIndex < 3);
+
+  // 当活动项变化时，自动展开包含活动项的分组
+  useEffect(() => {
+    if (hasActiveItem && !isExpanded) {
+      setIsExpanded(true);
+    }
+  }, [hasActiveItem]);
+
+  return (
+    <div className={groupIndex > 0 ? "mt-1" : "mt-2"}>
+      {!isCollapsed && (
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="w-full flex items-center justify-between px-4 py-2 hover:bg-accent/50 transition-colors rounded-md mx-2 group"
+          style={{ width: 'calc(100% - 16px)' }}
+        >
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            {group.title}
+          </span>
+          {isExpanded ? (
+            <ChevronDown className="h-3 w-3 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="h-3 w-3 text-muted-foreground" />
+          )}
+        </button>
+      )}
+      {(isExpanded || isCollapsed) && (
+        <SidebarMenu className="px-2">
+          {group.items.map(item => {
+            const isActive = location === item.path;
+            return (
+              <SidebarMenuItem key={item.path}>
+                <SidebarMenuButton
+                  isActive={isActive}
+                  onClick={() => setLocation(item.path)}
+                  tooltip={item.label}
+                  className={`h-9 transition-all font-normal`}
+                >
+                  <item.icon
+                    className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
+                  />
+                  <span>{item.label}</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            );
+          })}
+        </SidebarMenu>
+      )}
+    </div>
   );
 }
