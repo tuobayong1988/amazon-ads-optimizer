@@ -29,7 +29,8 @@ import {
   aiOptimizationExecutions, AiOptimizationExecution, InsertAiOptimizationExecution,
   aiOptimizationActions, AiOptimizationAction, InsertAiOptimizationAction,
   aiOptimizationPredictions, AiOptimizationPrediction, InsertAiOptimizationPrediction,
-  aiOptimizationReviews, AiOptimizationReview, InsertAiOptimizationReview
+  aiOptimizationReviews, AiOptimizationReview, InsertAiOptimizationReview,
+  bidAdjustmentHistory
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -2403,4 +2404,250 @@ export async function getKeywordHistoryData(keywordId: number, days: number) {
 export async function getProductTargetHistoryData(targetId: number, days: number) {
   // TODO: 待数据库表结构更新后实现真实数据查询
   return [];
+}
+
+
+// ==================== 出价调整历史记录 ====================
+
+// 记录出价调整历史
+export async function recordBidAdjustment(data: {
+  accountId: number;
+  campaignId?: number;
+  campaignName?: string;
+  performanceGroupId?: number;
+  performanceGroupName?: string;
+  keywordId?: number;
+  keywordText?: string;
+  matchType?: string;
+  previousBid: number;
+  newBid: number;
+  adjustmentType: 'manual' | 'auto_optimal' | 'auto_dayparting' | 'auto_placement' | 'batch_campaign' | 'batch_group';
+  adjustmentReason?: string;
+  expectedProfitIncrease?: number;
+  optimizationScore?: number;
+  appliedBy?: string;
+  status?: 'applied' | 'pending' | 'failed' | 'rolled_back';
+  errorMessage?: string;
+}) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const bidChangePercent = data.previousBid > 0 
+    ? ((data.newBid - data.previousBid) / data.previousBid * 100)
+    : 100;
+  
+  const result = await db.insert(bidAdjustmentHistory).values({
+    accountId: data.accountId,
+    campaignId: data.campaignId,
+    campaignName: data.campaignName,
+    performanceGroupId: data.performanceGroupId,
+    performanceGroupName: data.performanceGroupName,
+    keywordId: data.keywordId,
+    keywordText: data.keywordText,
+    matchType: data.matchType,
+    previousBid: String(data.previousBid),
+    newBid: String(data.newBid),
+    bidChangePercent: String(Math.round(bidChangePercent * 100) / 100),
+    adjustmentType: data.adjustmentType,
+    adjustmentReason: data.adjustmentReason,
+    expectedProfitIncrease: data.expectedProfitIncrease ? String(data.expectedProfitIncrease) : null,
+    optimizationScore: data.optimizationScore,
+    appliedBy: data.appliedBy,
+    status: data.status || 'applied',
+    errorMessage: data.errorMessage,
+  });
+  
+  return result;
+}
+
+// 批量记录出价调整历史
+export async function recordBidAdjustmentBatch(records: Array<{
+  accountId: number;
+  campaignId?: number;
+  campaignName?: string;
+  performanceGroupId?: number;
+  performanceGroupName?: string;
+  keywordId?: number;
+  keywordText?: string;
+  matchType?: string;
+  previousBid: number;
+  newBid: number;
+  adjustmentType: 'manual' | 'auto_optimal' | 'auto_dayparting' | 'auto_placement' | 'batch_campaign' | 'batch_group';
+  adjustmentReason?: string;
+  expectedProfitIncrease?: number;
+  optimizationScore?: number;
+  appliedBy?: string;
+  status?: 'applied' | 'pending' | 'failed' | 'rolled_back';
+  errorMessage?: string;
+}>) {
+  const db = await getDb();
+  if (!db || records.length === 0) return null;
+  
+  const values = records.map(data => {
+    const bidChangePercent = data.previousBid > 0 
+      ? ((data.newBid - data.previousBid) / data.previousBid * 100)
+      : 100;
+    
+    return {
+      accountId: data.accountId,
+      campaignId: data.campaignId,
+      campaignName: data.campaignName,
+      performanceGroupId: data.performanceGroupId,
+      performanceGroupName: data.performanceGroupName,
+      keywordId: data.keywordId,
+      keywordText: data.keywordText,
+      matchType: data.matchType,
+      previousBid: String(data.previousBid),
+      newBid: String(data.newBid),
+      bidChangePercent: String(Math.round(bidChangePercent * 100) / 100),
+      adjustmentType: data.adjustmentType,
+      adjustmentReason: data.adjustmentReason,
+      expectedProfitIncrease: data.expectedProfitIncrease ? String(data.expectedProfitIncrease) : null,
+      optimizationScore: data.optimizationScore,
+      appliedBy: data.appliedBy,
+      status: data.status || 'applied',
+      errorMessage: data.errorMessage,
+    };
+  });
+  
+  const result = await db.insert(bidAdjustmentHistory).values(values);
+  return result;
+}
+
+// 获取出价调整历史记录（支持筛选和分页）
+export async function getBidAdjustmentHistory(params: {
+  accountId: number;
+  campaignId?: number;
+  performanceGroupId?: number;
+  adjustmentType?: 'manual' | 'auto_optimal' | 'auto_dayparting' | 'auto_placement' | 'batch_campaign' | 'batch_group';
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  const db = await getDb();
+  if (!db) return { records: [], total: 0, page: 1, pageSize: 50 };
+  
+  const page = params.page || 1;
+  const pageSize = params.pageSize || 50;
+  const offset = (page - 1) * pageSize;
+  
+  // 构建查询条件
+  const conditions = [eq(bidAdjustmentHistory.accountId, params.accountId)];
+  
+  if (params.campaignId) {
+    conditions.push(eq(bidAdjustmentHistory.campaignId, params.campaignId));
+  }
+  
+  if (params.performanceGroupId) {
+    conditions.push(eq(bidAdjustmentHistory.performanceGroupId, params.performanceGroupId));
+  }
+  
+  if (params.adjustmentType) {
+    conditions.push(eq(bidAdjustmentHistory.adjustmentType, params.adjustmentType));
+  }
+  
+  if (params.startDate) {
+    conditions.push(gte(bidAdjustmentHistory.appliedAt, params.startDate));
+  }
+  
+  if (params.endDate) {
+    conditions.push(lte(bidAdjustmentHistory.appliedAt, params.endDate));
+  }
+  
+  // 获取总数
+  const countResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(bidAdjustmentHistory)
+    .where(and(...conditions));
+  
+  const total = countResult[0]?.count || 0;
+  
+  // 获取记录
+  const records = await db
+    .select()
+    .from(bidAdjustmentHistory)
+    .where(and(...conditions))
+    .orderBy(desc(bidAdjustmentHistory.appliedAt))
+    .limit(pageSize)
+    .offset(offset);
+  
+  return {
+    records,
+    total,
+    page,
+    pageSize,
+    totalPages: Math.ceil(total / pageSize),
+  };
+}
+
+// 获取出价调整统计数据
+export async function getBidAdjustmentStats(accountId: number, days: number = 30) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+  const startDateStr = startDate.toISOString().slice(0, 19).replace('T', ' ');
+  
+  // 获取各类型调整数量
+  const typeStats = await db
+    .select({
+      adjustmentType: bidAdjustmentHistory.adjustmentType,
+      count: sql<number>`count(*)`,
+      totalProfitIncrease: sql<number>`COALESCE(SUM(expected_profit_increase), 0)`,
+    })
+    .from(bidAdjustmentHistory)
+    .where(and(
+      eq(bidAdjustmentHistory.accountId, accountId),
+      gte(bidAdjustmentHistory.appliedAt, startDateStr)
+    ))
+    .groupBy(bidAdjustmentHistory.adjustmentType);
+  
+  // 获取每日调整数量趋势
+  const dailyTrend = await db
+    .select({
+      date: sql<string>`DATE(applied_at)`,
+      count: sql<number>`count(*)`,
+      avgBidChange: sql<number>`AVG(bid_change_percent)`,
+    })
+    .from(bidAdjustmentHistory)
+    .where(and(
+      eq(bidAdjustmentHistory.accountId, accountId),
+      gte(bidAdjustmentHistory.appliedAt, startDateStr)
+    ))
+    .groupBy(sql`DATE(applied_at)`)
+    .orderBy(sql`DATE(applied_at)`);
+  
+  // 获取总体统计
+  const overallStats = await db
+    .select({
+      totalAdjustments: sql<number>`count(*)`,
+      totalProfitIncrease: sql<number>`COALESCE(SUM(expected_profit_increase), 0)`,
+      avgBidChange: sql<number>`AVG(bid_change_percent)`,
+      increasedCount: sql<number>`SUM(CASE WHEN bid_change_percent > 0 THEN 1 ELSE 0 END)`,
+      decreasedCount: sql<number>`SUM(CASE WHEN bid_change_percent < 0 THEN 1 ELSE 0 END)`,
+    })
+    .from(bidAdjustmentHistory)
+    .where(and(
+      eq(bidAdjustmentHistory.accountId, accountId),
+      gte(bidAdjustmentHistory.appliedAt, startDateStr)
+    ));
+  
+  return {
+    typeStats,
+    dailyTrend,
+    overall: overallStats[0] || {
+      totalAdjustments: 0,
+      totalProfitIncrease: 0,
+      avgBidChange: 0,
+      increasedCount: 0,
+      decreasedCount: 0,
+    },
+    period: {
+      days,
+      startDate: startDateStr,
+      endDate: new Date().toISOString().slice(0, 19).replace('T', ' '),
+    },
+  };
 }

@@ -5327,6 +5327,22 @@ const placementRouter = router({
           appliedCount++;
           totalExpectedProfitIncrease += expectedProfitIncrease;
           
+          // 记录出价调整历史
+          await db.recordBidAdjustment({
+            accountId: input.accountId,
+            campaignId: parseInt(input.campaignId),
+            keywordId: keyword.id,
+            keywordText: keyword.keywordText || '',
+            matchType: keyword.matchType || '',
+            previousBid: currentBid,
+            newBid: newBid,
+            adjustmentType: 'auto_optimal',
+            adjustmentReason: '利润最大化出价点优化',
+            expectedProfitIncrease: expectedProfitIncrease,
+            appliedBy: String(ctx.user.id),
+            status: 'applied',
+          });
+          
         } catch (error) {
           adjustments.push({
             keywordId: keyword.id,
@@ -5436,6 +5452,25 @@ const placementRouter = router({
             appliedCount++;
             campaignProfitIncrease += optimalBid.maxProfit * 0.1;
             
+            // 记录出价调整历史
+            await db.recordBidAdjustment({
+              accountId: input.accountId,
+              campaignId: parseInt(gc.campaignId),
+              campaignName: campaign.name,
+              performanceGroupId: input.groupId,
+              performanceGroupName: group.name,
+              keywordId: keyword.id,
+              keywordText: keyword.keywordText || '',
+              matchType: keyword.matchType || '',
+              previousBid: currentBid,
+              newBid: newBid,
+              adjustmentType: 'batch_group',
+              adjustmentReason: '绩效组批量利润最大化优化',
+              expectedProfitIncrease: optimalBid.maxProfit * 0.1,
+              appliedBy: String(ctx.user.id),
+              status: 'applied',
+            });
+            
           } catch (error) {
             errorCount++;
           }
@@ -5472,6 +5507,32 @@ const placementRouter = router({
         appliedAt: new Date().toISOString(),
         appliedBy: ctx.user.id,
       };
+    }),
+
+  // 获取出价调整历史记录
+  getBidAdjustmentHistory: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      campaignId: z.number().optional(),
+      performanceGroupId: z.number().optional(),
+      adjustmentType: z.enum(['manual', 'auto_optimal', 'auto_dayparting', 'auto_placement', 'batch_campaign', 'batch_group']).optional(),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+      page: z.number().default(1),
+      pageSize: z.number().default(50),
+    }))
+    .query(async ({ input }) => {
+      return db.getBidAdjustmentHistory(input);
+    }),
+  
+  // 获取出价调整历史统计
+  getBidAdjustmentStats: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      days: z.number().default(30),
+    }))
+    .query(async ({ input }) => {
+      return db.getBidAdjustmentStats(input.accountId, input.days);
     }),
 
   // 快速计算单个关键词的最优出价点

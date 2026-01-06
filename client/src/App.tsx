@@ -35,6 +35,7 @@ import AIOptimizationHistory from "@/pages/AIOptimizationHistory";
 import PlacementOptimization from "@/pages/PlacementOptimization";
 import AdvancedPlacementOptimization from "@/pages/AdvancedPlacementOptimization";
 import OptimizationCenter from "@/pages/OptimizationCenter";
+import BidAdjustmentHistory from "@/pages/BidAdjustmentHistory";
 
 function Router() {
   return (
@@ -70,6 +71,7 @@ function Router() {
       <Route path="/placement-optimization" component={PlacementOptimization} />
       <Route path="/advanced-placement" component={AdvancedPlacementOptimization} />
       <Route path="/optimization-center" component={OptimizationCenter} />
+      <Route path="/bid-adjustment-history" component={BidAdjustmentHistory} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

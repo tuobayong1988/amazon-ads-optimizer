@@ -1325,3 +1325,28 @@ export const bidPerformanceHistory = mysqlTable("bid_performance_history", {
 	placement: mysqlEnum(['top_of_search', 'product_page', 'rest_of_search']),
 	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
+
+
+// 出价调整历史记录表
+export const bidAdjustmentHistory = mysqlTable("bid_adjustment_history", {
+  id: int().autoincrement().notNull(),
+  accountId: int("account_id").notNull(),
+  campaignId: int("campaign_id"),
+  campaignName: varchar("campaign_name", { length: 500 }),
+  performanceGroupId: int("performance_group_id"),
+  performanceGroupName: varchar("performance_group_name", { length: 255 }),
+  keywordId: int("keyword_id"),
+  keywordText: varchar("keyword_text", { length: 500 }),
+  matchType: varchar("match_type", { length: 32 }),
+  previousBid: decimal("previous_bid", { precision: 10, scale: 2 }).notNull(),
+  newBid: decimal("new_bid", { precision: 10, scale: 2 }).notNull(),
+  bidChangePercent: decimal("bid_change_percent", { precision: 10, scale: 2 }),
+  adjustmentType: mysqlEnum("adjustment_type", ['manual', 'auto_optimal', 'auto_dayparting', 'auto_placement', 'batch_campaign', 'batch_group']).default('manual'),
+  adjustmentReason: text("adjustment_reason"),
+  expectedProfitIncrease: decimal("expected_profit_increase", { precision: 10, scale: 2 }),
+  optimizationScore: int("optimization_score"),
+  appliedBy: varchar("applied_by", { length: 255 }),
+  appliedAt: timestamp("applied_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+  status: mysqlEnum("status", ['applied', 'pending', 'failed', 'rolled_back']).default('applied'),
+  errorMessage: text("error_message"),
+});
