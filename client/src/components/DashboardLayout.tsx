@@ -76,7 +76,6 @@ const menuGroups = [
     items: [
       { icon: Megaphone, label: "广告活动", path: "/campaigns", badge: "自动优化" },
       { icon: Target, label: "绩效组管理", path: "/performance-groups", badge: "自动优化" },
-      { icon: DollarSign, label: "预算分配", path: "/budget-allocation", badge: "智能分配" },
     ]
   },
   {

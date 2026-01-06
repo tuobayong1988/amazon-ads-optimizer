@@ -24,7 +24,7 @@ import TeamManagement from "./pages/TeamManagement";
 import EmailReports from "@/pages/EmailReports";
 import AuditLogs from "@/pages/AuditLogs";
 import CollaborationNotifications from "@/pages/CollaborationNotifications";
-import BudgetAllocation from "@/pages/BudgetAllocation";
+// import BudgetAllocation from "@/pages/BudgetAllocation"; // 已整合到智能预算分配
 import BudgetAlerts from "@/pages/BudgetAlerts";
 import BudgetTracking from "@/pages/BudgetTracking";
 import SeasonalBudget from "@/pages/SeasonalBudget";
@@ -68,7 +68,9 @@ function Router() {
       <Route path="/email-reports" component={EmailReports} />
       <Route path="/audit-logs" component={AuditLogs} />
       <Route path="/collaboration" component={CollaborationNotifications} />
-      <Route path="/budget-allocation" component={BudgetAllocation} />
+      {/* <Route path="/budget-allocation" component={BudgetAllocation} /> */}
+      {/* 旧版预算分配已整合到智能预算分配，访问 /budget-allocation 将重定向到 /intelligent-budget */}
+      <Route path="/budget-allocation">{() => { window.location.href = '/intelligent-budget'; return null; }}</Route>
       <Route path="/budget-alerts" component={BudgetAlerts} />
       <Route path="/budget-tracking" component={BudgetTracking} />
       <Route path="/seasonal-budget" component={SeasonalBudget} />

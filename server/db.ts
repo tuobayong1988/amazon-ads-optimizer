@@ -357,6 +357,30 @@ export async function updateKeyword(id: number, data: Partial<InsertKeyword>) {
   await db.update(keywords).set(data).where(eq(keywords.id, id));
 }
 
+export async function getKeywordsByCampaignId(campaignId: string | number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // 通过adGroups表关联查询广告活动下的所有关键词
+  const campaignIdNum = typeof campaignId === 'string' ? parseInt(campaignId, 10) : campaignId;
+  
+  // 先获取该广告活动下的所有广告组
+  const adGroupsList = await db.select().from(adGroups).where(eq(adGroups.campaignId, campaignIdNum));
+  
+  if (adGroupsList.length === 0) return [];
+  
+  // 获取所有广告组的关键词
+  const adGroupIds = adGroupsList.map(ag => ag.id);
+  const allKeywords = [];
+  
+  for (const adGroupId of adGroupIds) {
+    const groupKeywords = await db.select().from(keywords).where(eq(keywords.adGroupId, adGroupId));
+    allKeywords.push(...groupKeywords);
+  }
+  
+  return allKeywords;
+}
+
 // ==================== Product Target Functions ====================
 export async function createProductTarget(target: InsertProductTarget) {
   const db = await getDb();
