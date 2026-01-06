@@ -34,7 +34,9 @@ import {
   Cloud,
   Activity,
   Bell,
-  Clock
+  Clock,
+  Layers,
+  FileSearch
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -47,6 +49,8 @@ const menuItems = [
   { icon: Megaphone, label: "广告活动", path: "/campaigns" },
   { icon: Zap, label: "广告自动化", path: "/automation" },
   { icon: Activity, label: "健康度监控", path: "/health" },
+  { icon: Layers, label: "批量操作", path: "/batch-operations" },
+  { icon: FileSearch, label: "纠错复盘", path: "/correction-review" },
   { icon: Clock, label: "定时任务", path: "/scheduler" },
   { icon: Bell, label: "通知设置", path: "/notifications" },
   { icon: FileText, label: "竞价日志", path: "/bidding-logs" },

@@ -17,6 +17,8 @@ import AdAutomation from "./pages/AdAutomation";
 import HealthMonitor from "./pages/HealthMonitor";
 import NotificationSettings from "./pages/NotificationSettings";
 import Scheduler from "./pages/Scheduler";
+import BatchOperations from "./pages/BatchOperations";
+import CorrectionReview from "./pages/CorrectionReview";
 
 function Router() {
   return (
@@ -33,6 +35,8 @@ function Router() {
       <Route path="/health" component={HealthMonitor} />
       <Route path="/notifications" component={NotificationSettings} />
       <Route path="/scheduler" component={Scheduler} />
+      <Route path="/batch-operations" component={BatchOperations} />
+      <Route path="/correction-review" component={CorrectionReview} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

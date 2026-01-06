@@ -513,3 +513,150 @@ export const taskExecutionLog = mysqlTable("task_execution_log", {
 
 export type TaskExecutionLogRecord = typeof taskExecutionLog.$inferSelect;
 export type InsertTaskExecutionLog = typeof taskExecutionLog.$inferInsert;
+
+
+/**
+ * Batch Operations - Track bulk operations for negative keywords and bid adjustments
+ */
+export const batchOperations = mysqlTable("batch_operations", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  accountId: int("accountId"),
+  operationType: mysqlEnum("operationType", [
+    "negative_keyword",
+    "bid_adjustment",
+    "keyword_migration",
+    "campaign_status"
+  ]).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  // Operation status
+  status: mysqlEnum("batchStatus", ["pending", "approved", "executing", "completed", "failed", "cancelled", "rolled_back"]).default("pending"),
+  // Counts
+  totalItems: int("totalItems").default(0),
+  processedItems: int("processedItems").default(0),
+  successItems: int("successItems").default(0),
+  failedItems: int("failedItems").default(0),
+  // Approval workflow
+  requiresApproval: boolean("requiresApproval").default(true),
+  approvedBy: int("approvedBy"),
+  approvedAt: timestamp("approvedAt"),
+  // Execution tracking
+  executedBy: int("executedBy"),
+  executedAt: timestamp("executedAt"),
+  completedAt: timestamp("completedAt"),
+  // Rollback support
+  canRollback: boolean("canRollback").default(true),
+  rolledBackAt: timestamp("rolledBackAt"),
+  rolledBackBy: int("rolledBackBy"),
+  // Source info
+  sourceType: varchar("sourceType", { length: 64 }), // ngram_analysis, funnel_migration, etc.
+  sourceTaskId: int("sourceTaskId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type BatchOperation = typeof batchOperations.$inferSelect;
+export type InsertBatchOperation = typeof batchOperations.$inferInsert;
+
+/**
+ * Batch Operation Items - Individual items within a batch operation
+ */
+export const batchOperationItems = mysqlTable("batch_operation_items", {
+  id: int("id").autoincrement().primaryKey(),
+  batchId: int("batchId").notNull(),
+  // Target entity
+  entityType: mysqlEnum("entityType", ["keyword", "product_target", "campaign", "ad_group"]).notNull(),
+  entityId: int("entityId").notNull(),
+  entityName: varchar("entityName", { length: 500 }),
+  // For negative keywords
+  negativeKeyword: varchar("negativeKeyword", { length: 500 }),
+  negativeMatchType: mysqlEnum("negativeMatchType", ["negative_phrase", "negative_exact"]),
+  negativeLevel: mysqlEnum("negativeLevel", ["ad_group", "campaign"]).default("ad_group"),
+  // For bid adjustments
+  currentBid: decimal("currentBid", { precision: 10, scale: 2 }),
+  newBid: decimal("newBid", { precision: 10, scale: 2 }),
+  bidChangePercent: decimal("bidChangePercent", { precision: 5, scale: 2 }),
+  bidChangeReason: varchar("bidChangeReason", { length: 255 }),
+  // Item status
+  status: mysqlEnum("itemStatus", ["pending", "success", "failed", "skipped", "rolled_back"]).default("pending"),
+  errorMessage: text("errorMessage"),
+  // Rollback data
+  previousValue: text("previousValue"), // JSON with original state
+  executedAt: timestamp("itemExecutedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type BatchOperationItem = typeof batchOperationItems.$inferSelect;
+export type InsertBatchOperationItem = typeof batchOperationItems.$inferInsert;
+
+/**
+ * Attribution Correction Records - Track bid adjustments that may need correction due to attribution delay
+ */
+export const attributionCorrectionRecords = mysqlTable("attribution_correction_records", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  accountId: int("accountId").notNull(),
+  // Original bid adjustment reference
+  biddingLogId: int("biddingLogId").notNull(),
+  campaignId: int("campaignId").notNull(),
+  targetType: mysqlEnum("correctionTargetType", ["keyword", "product_target"]).notNull(),
+  targetId: int("targetId").notNull(),
+  targetName: varchar("targetName", { length: 500 }),
+  // Original adjustment details
+  originalAdjustmentDate: timestamp("originalAdjustmentDate").notNull(),
+  originalBid: decimal("originalBid", { precision: 10, scale: 2 }).notNull(),
+  adjustedBid: decimal("adjustedBid", { precision: 10, scale: 2 }).notNull(),
+  adjustmentReason: varchar("adjustmentReason", { length: 255 }),
+  // Metrics at time of adjustment
+  metricsAtAdjustment: text("metricsAtAdjustment"), // JSON: {acos, ctr, cvr, spend, sales}
+  // Metrics after attribution window (14 days)
+  metricsAfterAttribution: text("metricsAfterAttribution"), // JSON: {acos, ctr, cvr, spend, sales}
+  // Correction analysis
+  wasIncorrect: boolean("wasIncorrect").default(false),
+  correctionType: mysqlEnum("correctionType", ["over_decreased", "over_increased", "correct"]),
+  suggestedBid: decimal("suggestedBid", { precision: 10, scale: 2 }),
+  confidenceScore: decimal("confidenceScore", { precision: 3, scale: 2 }), // 0.00 to 1.00
+  // Correction status
+  status: mysqlEnum("correctionStatus", ["pending_review", "approved", "applied", "dismissed"]).default("pending_review"),
+  appliedAt: timestamp("appliedAt"),
+  appliedBy: int("appliedBy"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type AttributionCorrectionRecord = typeof attributionCorrectionRecords.$inferSelect;
+export type InsertAttributionCorrectionRecord = typeof attributionCorrectionRecords.$inferInsert;
+
+/**
+ * Correction Review Sessions - Group correction records for review
+ */
+export const correctionReviewSessions = mysqlTable("correction_review_sessions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  accountId: int("accountId").notNull(),
+  // Review period
+  periodStart: timestamp("periodStart").notNull(),
+  periodEnd: timestamp("periodEnd").notNull(),
+  // Summary statistics
+  totalAdjustmentsReviewed: int("totalAdjustmentsReviewed").default(0),
+  incorrectAdjustments: int("incorrectAdjustments").default(0),
+  overDecreasedCount: int("overDecreasedCount").default(0),
+  overIncreasedCount: int("overIncreasedCount").default(0),
+  correctCount: int("correctCount").default(0),
+  // Impact analysis
+  estimatedLostRevenue: decimal("estimatedLostRevenue", { precision: 10, scale: 2 }),
+  estimatedWastedSpend: decimal("estimatedWastedSpend", { precision: 10, scale: 2 }),
+  potentialRecovery: decimal("potentialRecovery", { precision: 10, scale: 2 }),
+  // Session status
+  status: mysqlEnum("sessionStatus", ["analyzing", "ready_for_review", "reviewed", "corrections_applied"]).default("analyzing"),
+  reviewedAt: timestamp("reviewedAt"),
+  reviewedBy: int("reviewedBy"),
+  // Batch operation reference (if corrections were applied)
+  correctionBatchId: int("correctionBatchId"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CorrectionReviewSession = typeof correctionReviewSessions.$inferSelect;
+export type InsertCorrectionReviewSession = typeof correctionReviewSessions.$inferInsert;

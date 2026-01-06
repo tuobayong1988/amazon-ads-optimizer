@@ -16,7 +16,11 @@ import {
   notificationSettings, NotificationSetting, InsertNotificationSetting,
   notificationHistory, NotificationHistoryRecord, InsertNotificationHistory,
   scheduledTasks, ScheduledTask, InsertScheduledTask,
-  taskExecutionLog, TaskExecutionLogRecord, InsertTaskExecutionLog
+  taskExecutionLog, TaskExecutionLogRecord, InsertTaskExecutionLog,
+  batchOperations, BatchOperation, InsertBatchOperation,
+  batchOperationItems, BatchOperationItem, InsertBatchOperationItem,
+  attributionCorrectionRecords, AttributionCorrectionRecord, InsertAttributionCorrectionRecord,
+  correctionReviewSessions, CorrectionReviewSession, InsertCorrectionReviewSession
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -1326,4 +1330,376 @@ export async function getTaskExecutionHistory(taskId: number, limit: number = 20
     .limit(limit);
   
   return result;
+}
+
+
+// ==================== Batch Operations Functions ====================
+
+// Create a new batch operation
+export async function createBatchOperation(data: {
+  userId: number;
+  accountId?: number;
+  operationType: 'negative_keyword' | 'bid_adjustment' | 'keyword_migration' | 'campaign_status';
+  name: string;
+  description?: string;
+  requiresApproval?: boolean;
+  sourceType?: string;
+  sourceTaskId?: number;
+}): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(batchOperations).values({
+    userId: data.userId,
+    accountId: data.accountId || null,
+    operationType: data.operationType,
+    name: data.name,
+    description: data.description || null,
+    requiresApproval: data.requiresApproval ?? true,
+    sourceType: data.sourceType || null,
+    sourceTaskId: data.sourceTaskId || null,
+    status: 'pending',
+    totalItems: 0,
+    processedItems: 0,
+    successItems: 0,
+    failedItems: 0,
+  });
+  
+  return result[0].insertId;
+}
+
+// Add items to a batch operation
+export async function addBatchOperationItems(batchId: number, items: Array<{
+  entityType: 'keyword' | 'product_target' | 'campaign' | 'ad_group';
+  entityId: number;
+  entityName?: string;
+  negativeKeyword?: string;
+  negativeMatchType?: 'negative_phrase' | 'negative_exact';
+  negativeLevel?: 'ad_group' | 'campaign';
+  currentBid?: number;
+  newBid?: number;
+  bidChangeReason?: string;
+  previousValue?: string;
+}>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // Insert items
+  for (const item of items) {
+    const bidChangePercent = item.currentBid && item.newBid 
+      ? ((item.newBid - item.currentBid) / item.currentBid * 100)
+      : null;
+      
+    await db.insert(batchOperationItems).values({
+      batchId,
+      entityType: item.entityType,
+      entityId: item.entityId,
+      entityName: item.entityName || null,
+      negativeKeyword: item.negativeKeyword || null,
+      negativeMatchType: item.negativeMatchType || null,
+      negativeLevel: item.negativeLevel || null,
+      currentBid: item.currentBid?.toString() || null,
+      newBid: item.newBid?.toString() || null,
+      bidChangePercent: bidChangePercent?.toFixed(2) || null,
+      bidChangeReason: item.bidChangeReason || null,
+      previousValue: item.previousValue || null,
+      status: 'pending',
+    });
+  }
+  
+  // Update total count
+  await db.update(batchOperations)
+    .set({ totalItems: items.length })
+    .where(eq(batchOperations.id, batchId));
+}
+
+// Get batch operation by ID
+export async function getBatchOperation(id: number): Promise<BatchOperation | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select()
+    .from(batchOperations)
+    .where(eq(batchOperations.id, id))
+    .limit(1);
+  
+  return result[0] || null;
+}
+
+// Get batch operation items
+export async function getBatchOperationItems(batchId: number): Promise<BatchOperationItem[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return await db.select()
+    .from(batchOperationItems)
+    .where(eq(batchOperationItems.batchId, batchId));
+}
+
+// List batch operations for a user
+export async function listBatchOperations(userId: number, options?: {
+  accountId?: number;
+  status?: string;
+  operationType?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<BatchOperation[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  let query = db.select()
+    .from(batchOperations)
+    .where(eq(batchOperations.userId, userId))
+    .orderBy(desc(batchOperations.createdAt))
+    .limit(options?.limit || 50);
+  
+  return await query;
+}
+
+// Approve batch operation
+export async function approveBatchOperation(id: number, approvedBy: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(batchOperations)
+    .set({
+      status: 'approved',
+      approvedBy,
+      approvedAt: new Date(),
+    })
+    .where(eq(batchOperations.id, id));
+}
+
+// Update batch operation status
+export async function updateBatchOperationStatus(id: number, data: {
+  status: 'pending' | 'approved' | 'executing' | 'completed' | 'failed' | 'cancelled' | 'rolled_back';
+  processedItems?: number;
+  successItems?: number;
+  failedItems?: number;
+  executedBy?: number;
+  executedAt?: Date;
+  completedAt?: Date;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const updateData: Record<string, unknown> = { status: data.status };
+  if (data.processedItems !== undefined) updateData.processedItems = data.processedItems;
+  if (data.successItems !== undefined) updateData.successItems = data.successItems;
+  if (data.failedItems !== undefined) updateData.failedItems = data.failedItems;
+  if (data.executedBy !== undefined) updateData.executedBy = data.executedBy;
+  if (data.executedAt !== undefined) updateData.executedAt = data.executedAt;
+  if (data.completedAt !== undefined) updateData.completedAt = data.completedAt;
+  
+  await db.update(batchOperations)
+    .set(updateData)
+    .where(eq(batchOperations.id, id));
+}
+
+// Update batch operation item status
+export async function updateBatchOperationItemStatus(itemId: number, data: {
+  status: 'pending' | 'success' | 'failed' | 'skipped' | 'rolled_back';
+  errorMessage?: string;
+  executedAt?: Date;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(batchOperationItems)
+    .set({
+      status: data.status,
+      errorMessage: data.errorMessage || null,
+      executedAt: data.executedAt || new Date(),
+    })
+    .where(eq(batchOperationItems.id, itemId));
+}
+
+// Rollback batch operation
+export async function rollbackBatchOperation(id: number, rolledBackBy: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(batchOperations)
+    .set({
+      status: 'rolled_back',
+      rolledBackBy,
+      rolledBackAt: new Date(),
+    })
+    .where(eq(batchOperations.id, id));
+}
+
+// ==================== Attribution Correction Functions ====================
+
+// Create correction review session
+export async function createCorrectionReviewSession(data: {
+  userId: number;
+  accountId: number;
+  periodStart: Date;
+  periodEnd: Date;
+}): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(correctionReviewSessions).values({
+    userId: data.userId,
+    accountId: data.accountId,
+    periodStart: data.periodStart,
+    periodEnd: data.periodEnd,
+    status: 'analyzing',
+    totalAdjustmentsReviewed: 0,
+    incorrectAdjustments: 0,
+    overDecreasedCount: 0,
+    overIncreasedCount: 0,
+    correctCount: 0,
+  });
+  
+  return result[0].insertId;
+}
+
+// Add attribution correction record
+export async function addAttributionCorrectionRecord(data: {
+  userId: number;
+  accountId: number;
+  biddingLogId: number;
+  campaignId: number;
+  targetType: 'keyword' | 'product_target';
+  targetId: number;
+  targetName?: string;
+  originalAdjustmentDate: Date;
+  originalBid: number;
+  adjustedBid: number;
+  adjustmentReason?: string;
+  metricsAtAdjustment?: Record<string, unknown>;
+  metricsAfterAttribution?: Record<string, unknown>;
+  wasIncorrect?: boolean;
+  correctionType?: 'over_decreased' | 'over_increased' | 'correct';
+  suggestedBid?: number;
+  confidenceScore?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.insert(attributionCorrectionRecords).values({
+    userId: data.userId,
+    accountId: data.accountId,
+    biddingLogId: data.biddingLogId,
+    campaignId: data.campaignId,
+    targetType: data.targetType,
+    targetId: data.targetId,
+    targetName: data.targetName || null,
+    originalAdjustmentDate: data.originalAdjustmentDate,
+    originalBid: data.originalBid.toString(),
+    adjustedBid: data.adjustedBid.toString(),
+    adjustmentReason: data.adjustmentReason || null,
+    metricsAtAdjustment: data.metricsAtAdjustment ? JSON.stringify(data.metricsAtAdjustment) : null,
+    metricsAfterAttribution: data.metricsAfterAttribution ? JSON.stringify(data.metricsAfterAttribution) : null,
+    wasIncorrect: data.wasIncorrect ?? false,
+    correctionType: data.correctionType || null,
+    suggestedBid: data.suggestedBid?.toString() || null,
+    confidenceScore: data.confidenceScore?.toString() || null,
+    status: 'pending_review',
+  });
+}
+
+// Get correction review session
+export async function getCorrectionReviewSession(id: number): Promise<CorrectionReviewSession | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select()
+    .from(correctionReviewSessions)
+    .where(eq(correctionReviewSessions.id, id))
+    .limit(1);
+  
+  return result[0] || null;
+}
+
+// List correction review sessions
+export async function listCorrectionReviewSessions(userId: number, accountId?: number): Promise<CorrectionReviewSession[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  let conditions = [eq(correctionReviewSessions.userId, userId)];
+  if (accountId) {
+    conditions.push(eq(correctionReviewSessions.accountId, accountId));
+  }
+  
+  return await db.select()
+    .from(correctionReviewSessions)
+    .where(and(...conditions))
+    .orderBy(desc(correctionReviewSessions.createdAt))
+    .limit(50);
+}
+
+// Get correction records for a session
+export async function getCorrectionRecordsForSession(sessionId: number): Promise<AttributionCorrectionRecord[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  // Get session to find the period
+  const session = await getCorrectionReviewSession(sessionId);
+  if (!session) return [];
+  
+  return await db.select()
+    .from(attributionCorrectionRecords)
+    .where(and(
+      eq(attributionCorrectionRecords.userId, session.userId),
+      eq(attributionCorrectionRecords.accountId, session.accountId)
+    ))
+    .orderBy(desc(attributionCorrectionRecords.originalAdjustmentDate));
+}
+
+// Update correction review session
+export async function updateCorrectionReviewSession(id: number, data: {
+  status?: 'analyzing' | 'ready_for_review' | 'reviewed' | 'corrections_applied';
+  totalAdjustmentsReviewed?: number;
+  incorrectAdjustments?: number;
+  overDecreasedCount?: number;
+  overIncreasedCount?: number;
+  correctCount?: number;
+  estimatedLostRevenue?: number;
+  estimatedWastedSpend?: number;
+  potentialRecovery?: number;
+  reviewedAt?: Date;
+  reviewedBy?: number;
+  correctionBatchId?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const updateData: Record<string, unknown> = {};
+  if (data.status !== undefined) updateData.status = data.status;
+  if (data.totalAdjustmentsReviewed !== undefined) updateData.totalAdjustmentsReviewed = data.totalAdjustmentsReviewed;
+  if (data.incorrectAdjustments !== undefined) updateData.incorrectAdjustments = data.incorrectAdjustments;
+  if (data.overDecreasedCount !== undefined) updateData.overDecreasedCount = data.overDecreasedCount;
+  if (data.overIncreasedCount !== undefined) updateData.overIncreasedCount = data.overIncreasedCount;
+  if (data.correctCount !== undefined) updateData.correctCount = data.correctCount;
+  if (data.estimatedLostRevenue !== undefined) updateData.estimatedLostRevenue = data.estimatedLostRevenue.toString();
+  if (data.estimatedWastedSpend !== undefined) updateData.estimatedWastedSpend = data.estimatedWastedSpend.toString();
+  if (data.potentialRecovery !== undefined) updateData.potentialRecovery = data.potentialRecovery.toString();
+  if (data.reviewedAt !== undefined) updateData.reviewedAt = data.reviewedAt;
+  if (data.reviewedBy !== undefined) updateData.reviewedBy = data.reviewedBy;
+  if (data.correctionBatchId !== undefined) updateData.correctionBatchId = data.correctionBatchId;
+  
+  await db.update(correctionReviewSessions)
+    .set(updateData)
+    .where(eq(correctionReviewSessions.id, id));
+}
+
+// Update attribution correction record status
+export async function updateAttributionCorrectionStatus(id: number, data: {
+  status: 'pending_review' | 'approved' | 'applied' | 'dismissed';
+  appliedAt?: Date;
+  appliedBy?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(attributionCorrectionRecords)
+    .set({
+      status: data.status,
+      appliedAt: data.appliedAt || null,
+      appliedBy: data.appliedBy || null,
+    })
+    .where(eq(attributionCorrectionRecords.id, id));
 }

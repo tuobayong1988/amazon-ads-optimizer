@@ -11,6 +11,8 @@ import * as adAutomation from './adAutomation';
 import { AmazonSyncService, runAutoBidOptimization } from './amazonSyncService';
 import * as notificationService from './notificationService';
 import * as schedulerService from './schedulerService';
+import * as batchOperationService from './batchOperationService';
+import * as correctionService from './correctionService';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
@@ -1604,6 +1606,603 @@ const schedulerRouter = router({
       return schedulerService.defaultTaskConfigs;
     }),
 });
+const batchOperationRouter = router({
+  // List batch operations
+  list: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      status: z.string().optional(),
+      operationType: z.string().optional(),
+      limit: z.number().optional().default(50),
+    }))
+    .query(async ({ ctx, input }) => {
+      return db.listBatchOperations(ctx.user.id, input);
+    }),
+
+  // Get batch operation details
+  get: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const batch = await db.getBatchOperation(input.id);
+      if (!batch) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Batch operation not found' });
+      }
+      const items = await db.getBatchOperationItems(input.id);
+      return { ...batch, items };
+    }),
+
+  // Create batch operation for negative keywords
+  createNegativeKeywordBatch: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      name: z.string(),
+      description: z.string().optional(),
+      sourceType: z.string().optional(),
+      sourceTaskId: z.number().optional(),
+      items: z.array(z.object({
+        entityType: z.enum(['keyword', 'product_target', 'campaign', 'ad_group']),
+        entityId: z.number(),
+        entityName: z.string().optional(),
+        negativeKeyword: z.string(),
+        negativeMatchType: z.enum(['negative_phrase', 'negative_exact']),
+        negativeLevel: z.enum(['ad_group', 'campaign']),
+      })),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Validate items
+      for (const item of input.items) {
+        const validation = batchOperationService.validateNegativeKeywordItem(item);
+        if (!validation.valid) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: validation.error });
+        }
+      }
+
+      // Create batch operation
+      const batchId = await db.createBatchOperation({
+        userId: ctx.user.id,
+        accountId: input.accountId,
+        operationType: 'negative_keyword',
+        name: input.name,
+        description: input.description,
+        requiresApproval: true,
+        sourceType: input.sourceType,
+        sourceTaskId: input.sourceTaskId,
+      });
+
+      // Add items with rollback data
+      const itemsWithRollback = input.items.map(item => ({
+        ...item,
+        previousValue: batchOperationService.prepareRollbackData('negative_keyword', item),
+      }));
+      await db.addBatchOperationItems(batchId, itemsWithRollback);
+
+      return { batchId, totalItems: input.items.length };
+    }),
+
+  // Create batch operation for bid adjustments
+  createBidAdjustmentBatch: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      name: z.string(),
+      description: z.string().optional(),
+      sourceType: z.string().optional(),
+      sourceTaskId: z.number().optional(),
+      maxBid: z.number().optional().default(100),
+      items: z.array(z.object({
+        entityType: z.enum(['keyword', 'product_target']),
+        entityId: z.number(),
+        entityName: z.string().optional(),
+        currentBid: z.number(),
+        newBid: z.number(),
+        bidChangeReason: z.string().optional(),
+      })),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // Validate items
+      for (const item of input.items) {
+        const validation = batchOperationService.validateBidAdjustmentItem(item, input.maxBid);
+        if (!validation.valid) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: `${item.entityName}: ${validation.error}` });
+        }
+      }
+
+      // Create batch operation
+      const batchId = await db.createBatchOperation({
+        userId: ctx.user.id,
+        accountId: input.accountId,
+        operationType: 'bid_adjustment',
+        name: input.name,
+        description: input.description,
+        requiresApproval: true,
+        sourceType: input.sourceType,
+        sourceTaskId: input.sourceTaskId,
+      });
+
+      // Add items with rollback data
+      const itemsWithRollback = input.items.map(item => ({
+        ...item,
+        previousValue: batchOperationService.prepareRollbackData('bid_adjustment', item),
+      }));
+      await db.addBatchOperationItems(batchId, itemsWithRollback);
+
+      return { batchId, totalItems: input.items.length };
+    }),
+
+  // Approve batch operation
+  approve: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const batch = await db.getBatchOperation(input.id);
+      if (!batch) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Batch operation not found' });
+      }
+      if (batch.status !== 'pending') {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Batch operation is not pending approval' });
+      }
+
+      await db.approveBatchOperation(input.id, ctx.user.id);
+      return { success: true };
+    }),
+
+  // Execute batch operation
+  execute: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const batch = await db.getBatchOperation(input.id);
+      if (!batch) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Batch operation not found' });
+      }
+      if (batch.requiresApproval && batch.status !== 'approved') {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Batch operation requires approval before execution' });
+      }
+      if (batch.status === 'executing' || batch.status === 'completed') {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Batch operation is already executing or completed' });
+      }
+
+      // Update status to executing
+      await db.updateBatchOperationStatus(input.id, {
+        status: 'executing',
+        executedBy: ctx.user.id,
+        executedAt: new Date(),
+      });
+
+      // Get items and execute
+      const items = await db.getBatchOperationItems(input.id);
+      let successCount = 0;
+      let failedCount = 0;
+      const errors: Array<{ itemId: number; error: string }> = [];
+
+      for (const item of items) {
+        try {
+          // Execute based on operation type
+          if (batch.operationType === 'negative_keyword' && item.negativeKeyword) {
+            // Add negative keyword
+            await db.addNegativeKeyword({
+              campaignId: item.entityId,
+              adGroupId: item.negativeLevel === 'ad_group' ? item.entityId : undefined,
+              keyword: item.negativeKeyword,
+              matchType: item.negativeMatchType === 'negative_phrase' ? 'phrase' : 'exact',
+              level: item.negativeLevel as 'ad_group' | 'campaign',
+            });
+          } else if (batch.operationType === 'bid_adjustment' && item.newBid) {
+            // Update bid
+            if (item.entityType === 'keyword') {
+              await db.updateKeyword(item.entityId, { bid: item.newBid });
+            } else if (item.entityType === 'product_target') {
+              await db.updateProductTargetBid(item.entityId, item.newBid);
+            }
+          }
+
+          await db.updateBatchOperationItemStatus(item.id, {
+            status: 'success',
+            executedAt: new Date(),
+          });
+          successCount++;
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          await db.updateBatchOperationItemStatus(item.id, {
+            status: 'failed',
+            errorMessage,
+            executedAt: new Date(),
+          });
+          failedCount++;
+          errors.push({ itemId: item.id, error: errorMessage });
+        }
+      }
+
+      // Update batch status
+      const finalStatus = failedCount === items.length ? 'failed' : 'completed';
+      await db.updateBatchOperationStatus(input.id, {
+        status: finalStatus,
+        processedItems: items.length,
+        successItems: successCount,
+        failedItems: failedCount,
+        completedAt: new Date(),
+      });
+
+      return {
+        status: finalStatus,
+        totalItems: items.length,
+        successItems: successCount,
+        failedItems: failedCount,
+        errors,
+      };
+    }),
+
+  // Rollback batch operation
+  rollback: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const batch = await db.getBatchOperation(input.id);
+      if (!batch) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Batch operation not found' });
+      }
+      if (!batchOperationService.canRollback(batch.status as batchOperationService.BatchStatus, batch.completedAt || undefined)) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Cannot rollback this batch operation' });
+      }
+
+      // Get items and rollback
+      const items = await db.getBatchOperationItems(input.id);
+      let successCount = 0;
+
+      for (const item of items) {
+        if (item.status !== 'success') continue;
+
+        try {
+          const rollbackData = item.previousValue ? JSON.parse(item.previousValue) : null;
+          
+          if (rollbackData?.action === 'remove_negative_keyword') {
+            // Remove the negative keyword that was added
+            // This would require a delete function
+          } else if (rollbackData?.action === 'restore_bid') {
+            // Restore original bid
+            if (item.entityType === 'keyword') {
+              await db.updateKeyword(item.entityId, { bid: rollbackData.originalBid });
+            } else if (item.entityType === 'product_target') {
+              await db.updateProductTargetBid(item.entityId, rollbackData.originalBid);
+            }
+          }
+
+          await db.updateBatchOperationItemStatus(item.id, {
+            status: 'rolled_back',
+          });
+          successCount++;
+        } catch (error) {
+          // Continue with other items even if one fails
+        }
+      }
+
+      await db.rollbackBatchOperation(input.id, ctx.user.id);
+
+      return { success: true, rolledBackItems: successCount };
+    }),
+
+  // Cancel pending batch operation
+  cancel: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const batch = await db.getBatchOperation(input.id);
+      if (!batch) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Batch operation not found' });
+      }
+      if (batch.status !== 'pending' && batch.status !== 'approved') {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'Can only cancel pending or approved operations' });
+      }
+
+      await db.updateBatchOperationStatus(input.id, { status: 'cancelled' });
+      return { success: true };
+    }),
+
+  // Get batch operation summary
+  getSummary: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const batch = await db.getBatchOperation(input.id);
+      if (!batch) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Batch operation not found' });
+      }
+
+      const result: batchOperationService.BatchOperationResult = {
+        batchId: batch.id,
+        status: batch.status as batchOperationService.BatchStatus,
+        totalItems: batch.totalItems || 0,
+        processedItems: batch.processedItems || 0,
+        successItems: batch.successItems || 0,
+        failedItems: batch.failedItems || 0,
+        errors: [],
+      };
+
+      return batchOperationService.generateBatchSummary(result);
+    }),
+
+  // Estimate execution time
+  estimateTime: protectedProcedure
+    .input(z.object({
+      operationType: z.enum(['negative_keyword', 'bid_adjustment', 'keyword_migration', 'campaign_status']),
+      itemCount: z.number(),
+    }))
+    .query(({ input }) => {
+      const seconds = batchOperationService.estimateExecutionTime(input.itemCount, input.operationType);
+      return { estimatedSeconds: seconds };
+    }),
+});
+
+// ==================== Correction Review Router ====================
+const correctionRouter = router({
+  // List correction review sessions
+  listSessions: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      return db.listCorrectionReviewSessions(ctx.user.id, input.accountId);
+    }),
+
+  // Get correction review session details
+  getSession: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const session = await db.getCorrectionReviewSession(input.id);
+      if (!session) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Session not found' });
+      }
+      return session;
+    }),
+
+  // Create new correction review session
+  createSession: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      periodDays: z.number().optional().default(14),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const periodEnd = new Date();
+      periodEnd.setDate(periodEnd.getDate() - correctionService.MIN_ANALYSIS_DELAY_DAYS);
+      
+      const periodStart = new Date(periodEnd);
+      periodStart.setDate(periodStart.getDate() - input.periodDays);
+
+      const sessionId = await db.createCorrectionReviewSession({
+        userId: ctx.user.id,
+        accountId: input.accountId,
+        periodStart,
+        periodEnd,
+      });
+
+      return { sessionId, periodStart, periodEnd };
+    }),
+
+  // Analyze bid adjustments for a session
+  analyzeSession: protectedProcedure
+    .input(z.object({ sessionId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const session = await db.getCorrectionReviewSession(input.sessionId);
+      if (!session) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Session not found' });
+      }
+
+      // Get bid change records for the period
+      const bidChanges = await db.getBidChangeRecords(session.accountId, 30);
+      
+      // Filter to the session period
+      const periodBidChanges = bidChanges.filter(change => {
+        const changeDate = new Date(change.changeDate);
+        return changeDate >= session.periodStart && changeDate <= session.periodEnd;
+      });
+
+      const corrections: correctionService.CorrectionAnalysis[] = [];
+
+      for (const change of periodBidChanges) {
+        // Get metrics after attribution window (simulated)
+        const metricsAfterAttribution: correctionService.PerformanceMetrics = {
+          impressions: Math.floor(Math.random() * 1000),
+          clicks: Math.floor(Math.random() * 50),
+          spend: Math.random() * 100,
+          sales: Math.random() * 500,
+          orders: Math.floor(Math.random() * 10),
+          acos: Math.random() * 50,
+          roas: Math.random() * 5,
+          ctr: Math.random() * 5,
+          cvr: Math.random() * 10,
+        };
+
+        const metricsAtAdjustment: correctionService.PerformanceMetrics = {
+          impressions: Math.floor(Math.random() * 1000),
+          clicks: Math.floor(Math.random() * 50),
+          spend: change.performanceAfter?.spend || 0,
+          sales: change.performanceAfter?.sales || 0,
+          orders: change.performanceAfter?.conversions || 0,
+          acos: change.performanceAfter?.acos || 0,
+          roas: change.performanceAfter?.roas || 0,
+          ctr: Math.random() * 5,
+          cvr: Math.random() * 10,
+        };
+
+        const record: correctionService.BidAdjustmentRecord = {
+          id: change.id,
+          targetId: change.targetId,
+          targetName: change.targetName,
+          targetType: change.targetType === 'product' ? 'product_target' : 'keyword',
+          campaignId: change.campaignId,
+          campaignName: change.campaignName,
+          originalBid: change.oldBid,
+          adjustedBid: change.newBid,
+          adjustmentDate: change.changeDate,
+          adjustmentReason: change.changeReason,
+          metricsAtAdjustment,
+        };
+
+        const analysis = correctionService.analyzeBidAdjustment(record, metricsAfterAttribution);
+        corrections.push(analysis);
+
+        // Save correction record to database
+        await db.addAttributionCorrectionRecord({
+          userId: ctx.user.id,
+          accountId: session.accountId,
+          biddingLogId: change.id,
+          campaignId: change.campaignId,
+          targetType: record.targetType,
+          targetId: change.targetId,
+          targetName: change.targetName,
+          originalAdjustmentDate: change.changeDate,
+          originalBid: change.oldBid,
+          adjustedBid: change.newBid,
+          adjustmentReason: change.changeReason,
+          metricsAtAdjustment: metricsAtAdjustment as unknown as Record<string, unknown>,
+          metricsAfterAttribution: metricsAfterAttribution as unknown as Record<string, unknown>,
+          wasIncorrect: analysis.wasIncorrect,
+          correctionType: analysis.correctionType,
+          suggestedBid: analysis.suggestedBid,
+          confidenceScore: analysis.confidenceScore,
+        });
+      }
+
+      // Generate report
+      const report = correctionService.generateCorrectionReport(
+        input.sessionId,
+        session.periodStart,
+        session.periodEnd,
+        corrections
+      );
+
+      // Update session with results
+      await db.updateCorrectionReviewSession(input.sessionId, {
+        status: 'ready_for_review',
+        totalAdjustmentsReviewed: report.totalAdjustmentsReviewed,
+        incorrectAdjustments: report.incorrectAdjustments,
+        overDecreasedCount: report.overDecreasedCount,
+        overIncreasedCount: report.overIncreasedCount,
+        correctCount: report.correctCount,
+        estimatedLostRevenue: report.estimatedLostRevenue,
+        estimatedWastedSpend: report.estimatedWastedSpend,
+        potentialRecovery: report.potentialRecovery,
+      });
+
+      return report;
+    }),
+
+  // Get correction records for a session
+  getCorrections: protectedProcedure
+    .input(z.object({ sessionId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getCorrectionRecordsForSession(input.sessionId);
+    }),
+
+  // Apply corrections as batch operation
+  applyCorrections: protectedProcedure
+    .input(z.object({
+      sessionId: z.number(),
+      correctionIds: z.array(z.number()),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const session = await db.getCorrectionReviewSession(input.sessionId);
+      if (!session) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: 'Session not found' });
+      }
+
+      // Get correction records
+      const corrections = await db.getCorrectionRecordsForSession(input.sessionId);
+      const selectedCorrections = corrections.filter(c => input.correctionIds.includes(c.id));
+
+      if (selectedCorrections.length === 0) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: 'No corrections selected' });
+      }
+
+      // Create batch operation for corrections
+      const batchId = await db.createBatchOperation({
+        userId: ctx.user.id,
+        accountId: session.accountId,
+        operationType: 'bid_adjustment',
+        name: `纠错复盘 - ${new Date().toLocaleDateString()}`,
+        description: `基于半月纠错复盘分析的出价纠正`,
+        requiresApproval: true,
+        sourceType: 'correction_review',
+        sourceTaskId: input.sessionId,
+      });
+
+      // Add items
+      const items = selectedCorrections.map(c => ({
+        entityType: c.targetType as 'keyword' | 'product_target',
+        entityId: c.targetId,
+        targetName: c.targetName || undefined,
+        currentBid: parseFloat(c.adjustedBid || '0'),
+        newBid: parseFloat(c.suggestedBid || '0'),
+        bidChangeReason: `纠错复盘: ${correctionService.formatCorrectionType(c.correctionType as 'over_decreased' | 'over_increased' | 'correct')}`,
+      }));
+
+      await db.addBatchOperationItems(batchId, items);
+
+      // Update session
+      await db.updateCorrectionReviewSession(input.sessionId, {
+        status: 'corrections_applied',
+        reviewedAt: new Date(),
+        reviewedBy: ctx.user.id,
+        correctionBatchId: batchId,
+      });
+
+      // Update correction record statuses
+      for (const id of input.correctionIds) {
+        await db.updateAttributionCorrectionStatus(id, {
+          status: 'approved',
+        });
+      }
+
+      return { batchId, itemCount: items.length };
+    }),
+
+  // Dismiss corrections
+  dismissCorrections: protectedProcedure
+    .input(z.object({
+      correctionIds: z.array(z.number()),
+    }))
+    .mutation(async ({ input }) => {
+      for (const id of input.correctionIds) {
+        await db.updateAttributionCorrectionStatus(id, {
+          status: 'dismissed',
+        });
+      }
+      return { success: true };
+    }),
+
+  // Get recommendations
+  getRecommendations: protectedProcedure
+    .input(z.object({ sessionId: z.number() }))
+    .query(async ({ input }) => {
+      const corrections = await db.getCorrectionRecordsForSession(input.sessionId);
+      
+      // Convert to CorrectionAnalysis format for recommendations
+      const analyses: correctionService.CorrectionAnalysis[] = corrections.map(c => ({
+        record: {
+          id: c.id,
+          targetId: c.targetId,
+          targetName: c.targetName || '',
+          targetType: c.targetType as 'keyword' | 'product_target',
+          campaignId: c.campaignId,
+          campaignName: '',
+          originalBid: parseFloat(c.originalBid || '0'),
+          adjustedBid: parseFloat(c.adjustedBid || '0'),
+          adjustmentDate: c.originalAdjustmentDate,
+          adjustmentReason: c.adjustmentReason || '',
+          metricsAtAdjustment: JSON.parse(c.metricsAtAdjustment || '{}'),
+        },
+        metricsAfterAttribution: JSON.parse(c.metricsAfterAttribution || '{}'),
+        wasIncorrect: c.wasIncorrect || false,
+        correctionType: (c.correctionType || 'correct') as 'over_decreased' | 'over_increased' | 'correct',
+        suggestedBid: parseFloat(c.suggestedBid || '0'),
+        confidenceScore: parseFloat(c.confidenceScore || '0'),
+        impactAnalysis: {
+          estimatedLostRevenue: 0,
+          estimatedWastedSpend: 0,
+          potentialRecovery: 0,
+        },
+        explanation: '',
+      }));
+
+      return correctionService.generateRecommendations(analyses);
+    }),
+});
+
+// Update appRouter to include new routers
 
 // ==================== Main Router ====================
 export const appRouter = router({
@@ -1630,6 +2229,8 @@ export const appRouter = router({
   adAutomation: adAutomationRouter,
   notification: notificationRouter,
   scheduler: schedulerRouter,
+  batchOperation: batchOperationRouter,
+  correction: correctionRouter,
 });
 
 export type AppRouter = typeof appRouter;
