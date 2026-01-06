@@ -576,8 +576,8 @@ export default function Campaigns() {
 
   // 处理暂停/启用操作
   const handleToggleStatus = (campaign: any) => {
-    const newStatus = campaign.status === "enabled" ? "paused" : "enabled";
-    const isHighRisk = campaign.status === "enabled";
+    const newStatus = campaign.campaignStatus === "enabled" ? "paused" : "enabled";
+    const isHighRisk = campaign.campaignStatus === "enabled";
     
     showConfirm({
       operationType: newStatus === "paused" ? 'campaign_pause' : 'campaign_enable',
@@ -588,7 +588,7 @@ export default function Campaigns() {
         name: campaign.campaignName,
         field: 'status',
         fieldLabel: '状态',
-        oldValue: campaign.status === "enabled" ? '启用中' : '已暂停',
+        oldValue: campaign.campaignStatus === "enabled" ? '启用中' : '已暂停',
         newValue: newStatus === "paused" ? '已暂停' : '启用中',
       }],
       warningMessage: isHighRisk 
@@ -693,7 +693,7 @@ export default function Campaigns() {
           </span>
         );
       case 'status':
-        return getStatusBadge(campaign.status || 'paused');
+        return getStatusBadge(campaign.campaignStatus || 'paused');
       case 'dailyBudget':
         return <span className="tabular-nums font-medium">${dailyBudget.toFixed(2)}</span>;
       case 'dailySpend':
@@ -794,9 +794,9 @@ export default function Campaigns() {
               size="sm"
               className="h-7 w-7 p-0"
               onClick={() => handleToggleStatus(campaign)}
-              title={campaign.status === "enabled" ? "暂停" : "启用"}
+              title={campaign.campaignStatus === "enabled" ? "暂停" : "启用"}
             >
-              {campaign.status === "enabled" ? (
+              {campaign.campaignStatus === "enabled" ? (
                 <Pause className="w-4 h-4 text-yellow-500" />
               ) : (
                 <Play className="w-4 h-4 text-green-500" />

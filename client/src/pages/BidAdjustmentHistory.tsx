@@ -228,7 +228,7 @@ export default function BidAdjustmentHistory() {
     if (checked && historyData?.records) {
       // 只选择未回滚的记录
       const selectableIds = historyData.records
-        .filter(r => !r.isRolledBack)
+        .filter(r => !r.status === "rolled_back")
         .map(r => r.id);
       setSelectedRows(new Set(selectableIds));
     } else {
@@ -507,7 +507,7 @@ export default function BidAdjustmentHistory() {
                     <SelectItem value="all">全部活动</SelectItem>
                     {campaigns?.map((campaign) => (
                       <SelectItem key={campaign.id} value={String(campaign.id)}>
-                        {campaign.name}
+                        {campaign.campaignName}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -527,7 +527,7 @@ export default function BidAdjustmentHistory() {
                     <SelectItem value="all">全部绩效组</SelectItem>
                     {performanceGroups?.map((group) => (
                       <SelectItem key={group.id} value={String(group.id)}>
-                        {group.name}
+                        {group.campaignName}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -613,8 +613,8 @@ export default function BidAdjustmentHistory() {
                           <input
                             type="checkbox"
                             className="rounded border-gray-300"
-                            checked={historyData?.records && historyData.records.filter(r => !r.isRolledBack).length > 0 && 
-                              historyData.records.filter(r => !r.isRolledBack).every(r => selectedRows.has(r.id))}
+                            checked={historyData?.records && historyData.records.filter(r => !r.status === "rolled_back").length > 0 && 
+                              historyData.records.filter(r => !r.status === "rolled_back").every(r => selectedRows.has(r.id))}
                             onChange={(e) => handleSelectAll(e.target.checked)}
                           />
                         </TableHead>
@@ -640,7 +640,7 @@ export default function BidAdjustmentHistory() {
                                                 type="checkbox"
                                                 className="rounded border-gray-300"
                                                 checked={selectedRows.has(record.id)}
-                                                disabled={record.isRolledBack}
+                                                disabled={record.status === "rolled_back"}
                                                 onChange={(e) => handleRowSelect(record.id, e.target.checked)}
                                               />
                                             </TableCell>

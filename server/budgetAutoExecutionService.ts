@@ -647,10 +647,13 @@ export function shouldExecuteNowExported(
   }
 }
 
+// Export the internal function for testing
+export { calculateNextExecutionTime };
+
 /**
- * 计算下次执行时间
+ * 计算下次执行时间（导出版本，用于测试）
  */
-export function calculateNextExecutionTimeExported(
+export function calculateNextExecutionTimeForTest(
   config: {
     executionFrequency: 'daily' | 'weekly' | 'biweekly' | 'monthly';
     executionTime: string;

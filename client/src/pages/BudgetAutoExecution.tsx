@@ -93,7 +93,7 @@ export default function BudgetAutoExecution() {
   // 创建配置表单状态
   const [newConfig, setNewConfig] = useState({
     configName: '',
-    executionFrequency: 'daily' as const,
+    executionFrequency: 'daily' as 'daily' | 'weekly' | 'biweekly' | 'monthly',
     executionTime: '06:00',
     executionDayOfWeek: 1,
     executionDayOfMonth: 1,

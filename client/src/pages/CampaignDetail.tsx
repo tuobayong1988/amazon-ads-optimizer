@@ -233,8 +233,8 @@ export default function CampaignDetail() {
               <div className="flex items-center gap-2">
                 <TypeIcon className="h-5 w-5 text-muted-foreground" />
                 <h1 className="text-2xl font-bold">{campaign.campaignName}</h1>
-                <Badge variant={campaign.status === "enabled" ? "default" : "secondary"}>
-                  {campaign.status === "enabled" ? "启用" : campaign.status === "paused" ? "暂停" : "归档"}
+                <Badge variant={campaign.campaignStatus === "enabled" ? "default" : "secondary"}>
+                  {campaign.campaignStatus === "enabled" ? "启用" : campaign.campaignStatus === "paused" ? "暂停" : "归档"}
                 </Badge>
               </div>
               <p className="text-sm text-muted-foreground mt-1">

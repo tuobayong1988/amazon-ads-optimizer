@@ -34,10 +34,10 @@ export default function EffectTrackingReport() {
   const [selectedGroup, setSelectedGroup] = useState<string>('all');
 
   // 获取广告活动列表
-  const { data: campaigns } = trpc.campaigns.list.useQuery({ accountId: 1 });
+  const { data: campaigns } = trpc.campaign.list.useQuery({ accountId: 1 });
   
   // 获取绩效组列表
-  const { data: performanceGroups } = trpc.performanceGroups.list.useQuery({ accountId: 1 });
+  const { data: performanceGroups } = trpc.performanceGroup.list.useQuery({ accountId: 1 });
 
   // 获取效果追踪统计摘要
   const { data: trackingStats, isLoading: statsLoading, refetch: refetchStats } = 

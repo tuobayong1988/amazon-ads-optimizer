@@ -69,7 +69,7 @@ export default function BudgetTracking() {
     return null;
   };
 
-  const calculateProgress = (startDate: Date | null, endDate: Date | null) => {
+  const calculateProgress = (startDate: Date | string | null, endDate: Date | string | null) => {
     if (!startDate || !endDate) return 0;
     const start = new Date(startDate).getTime();
     const end = new Date(endDate).getTime();

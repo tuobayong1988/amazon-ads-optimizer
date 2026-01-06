@@ -54,13 +54,15 @@ function Router() {
       <Route path="/campaigns/:id/ai-history" component={AIOptimizationHistory} />
       <Route path="/bidding-logs" component={BiddingLogs} />
       <Route path="/settings" component={Settings} />
-      {/* /import路由已移除，用户应使用/data-sync进行API同步 */}
-      <Route path="/import">{() => { window.location.href = '/data-sync'; return null; }}</Route>
+      {/* 功能整合重定向 - 极简化设计 */}
+      <Route path="/import">{() => { window.location.href = '/amazon-api'; return null; }}</Route>
+      <Route path="/scheduler">{() => { window.location.href = '/dashboard'; return null; }}</Route>
+      <Route path="/data-sync">{() => { window.location.href = '/amazon-api'; return null; }}</Route>
       <Route path="/amazon-api" component={AmazonApiSettings} />
       <Route path="/automation" component={AdAutomation} />
       <Route path="/health" component={HealthMonitor} />
       <Route path="/notifications" component={NotificationSettings} />
-      <Route path="/scheduler" component={Scheduler} />
+      {/* /scheduler已重定向到/dashboard */}
       <Route path="/batch-operations" component={BatchOperations} />
       <Route path="/correction-review" component={CorrectionReview} />
       <Route path="/accounts-summary" component={AccountsSummary} />
@@ -70,22 +72,23 @@ function Router() {
       <Route path="/collaboration" component={CollaborationNotifications} />
       {/* <Route path="/budget-allocation" component={BudgetAllocation} /> */}
       {/* 旧版预算分配已整合到智能预算分配，访问 /budget-allocation 将重定向到 /intelligent-budget */}
-      <Route path="/budget-allocation">{() => { window.location.href = '/intelligent-budget'; return null; }}</Route>
+      <Route path="/budget-allocation">{() => { window.location.href = '/optimization-center'; return null; }}</Route>
       <Route path="/budget-alerts" component={BudgetAlerts} />
       <Route path="/budget-tracking" component={BudgetTracking} />
       <Route path="/seasonal-budget" component={SeasonalBudget} />
-      <Route path="/data-sync" component={DataSync} />
+      {/* /data-sync已重定向到/amazon-api */}
       <Route path="/dayparting" component={DaypartingStrategy} />
       <Route path="/placement-optimization" component={PlacementOptimization} />
       <Route path="/advanced-placement" component={AdvancedPlacementOptimization} />
       <Route path="/optimization-center" component={OptimizationCenter} />
       <Route path="/bid-adjustment-history" component={BidAdjustmentHistory} />
       <Route path="/effect-tracking-report" component={EffectTrackingReport} />
-      <Route path="/auto-rollback" component={AutoRollbackSettings} />
-      <Route path="/algorithm-optimization" component={AlgorithmOptimization} />
-      <Route path="/intelligent-budget" component={IntelligentBudgetAllocation} />
-      <Route path="/ab-test" component={ABTest} />
-      <Route path="/budget-auto-execution" component={BudgetAutoExecution} />
+      {/* 智能优化功能已整合到优化设置和优化中心 */}
+      <Route path="/auto-rollback">{() => { window.location.href = '/settings'; return null; }}</Route>
+      <Route path="/algorithm-optimization">{() => { window.location.href = '/settings'; return null; }}</Route>
+      <Route path="/intelligent-budget">{() => { window.location.href = '/optimization-center'; return null; }}</Route>
+      <Route path="/ab-test">{() => { window.location.href = '/optimization-center'; return null; }}</Route>
+      <Route path="/budget-auto-execution">{() => { window.location.href = '/settings'; return null; }}</Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

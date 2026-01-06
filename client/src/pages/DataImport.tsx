@@ -351,7 +351,7 @@ export default function DataImport() {
                         className="flex items-center justify-between p-4 rounded-lg border bg-card"
                       >
                         <div className="flex items-center gap-4">
-                          {getStatusIcon(job.status || 'pending')}
+                          {getStatusIcon(job.importStatus || 'pending')}
                           <div>
                             <p className="font-medium">{job.fileName}</p>
                             <p className="text-sm text-muted-foreground">
@@ -361,8 +361,8 @@ export default function DataImport() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <span className={`status-${job.status}`}>
-                            {getStatusLabel(job.status || 'pending')}
+                          <span className={`status-${job.importStatus}`}>
+                            {getStatusLabel(job.importStatus || 'pending')}
                           </span>
                           {job.processedRows !== null && job.totalRows !== null && (
                             <p className="text-sm text-muted-foreground mt-1">

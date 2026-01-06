@@ -61,6 +61,7 @@ import { Button } from "./ui/button";
 import AccountSwitcher from "./AccountSwitcher";
 
 // 菜单分组配置 - 简化版，优化功能已整合到广告管理模块
+// 极简化菜单结构 - 算法自主决策执行，人只做监督
 const menuGroups = [
   {
     title: "核心监控",
@@ -95,23 +96,6 @@ const menuGroups = [
       { icon: LineChart, label: "效果追踪报告", path: "/effect-tracking-report" },
       { icon: BarChart3, label: "跨账号汇总", path: "/accounts-summary" },
       { icon: Shield, label: "审计日志", path: "/audit-logs" },
-    ]
-  },
-  {
-    title: "智能优化",
-    items: [
-      { icon: Brain, label: "智能预算分配", path: "/intelligent-budget", badge: "新" },
-      { icon: FlaskConical, label: "A/B测试", path: "/ab-test", badge: "新" },
-      { icon: Clock, label: "预算自动执行", path: "/budget-auto-execution", badge: "新" },
-      { icon: AlertTriangle, label: "自动回滚规则", path: "/auto-rollback" },
-      { icon: Brain, label: "算法优化建议", path: "/algorithm-optimization" },
-    ]
-  },
-  {
-    title: "自动化任务",
-    items: [
-      { icon: Clock, label: "定时任务", path: "/scheduler" },
-      { icon: RefreshCw, label: "数据同步", path: "/data-sync" },
     ]
   },
   {

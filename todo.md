@@ -1488,3 +1488,59 @@
 - [x] 分析现有预算分配功能代码结构
 - [x] 评估功能价值和重复性
 - [x] 决定整合或移除方案（已移除旧版预算分配入口，重定向到智能预算分配）
+
+
+## Bug修复（第三十九阶段）
+### 广告活动页面market_curve_models查询错误
+- [ ] 检查market_curve_models表是否存在
+- [ ] 修复查询错误或创建缺失的表
+
+
+## 全面功能测试和Bug修复（第四十阶段）
+### 测试计划
+- [ ] 梳理所有功能模块和页面路由
+- [ ] 逐一测试每个页面
+- [ ] 记录所有发现的错误
+- [ ] 批量修复所有错误
+- [ ] 验证修复结果
+
+## 功能整合简化（极简化设计）- 第四十一阶段
+
+### 侧边栏菜单整合
+- [x] 删除"自动化任务"分组（定时任务、数据同步）
+- [x] 简化"智能优化"分组（删除预算自动执行、自动回滚规则、算法优化建议、A/B测试）
+- [x] 将智能预算分配整合到优化中心
+
+### 页面整合
+- [ ] 将数据同步功能整合到Amazon API设置页面
+- [ ] 将自动执行、回滚规则、算法参数整合到优化设置页面
+
+### 路由重定向
+- [x] /scheduler 重定向到 /dashboard
+- [x] /data-sync 重定向到 /amazon-api
+- [x] /budget-auto-execution 重定向到 /settings
+- [x] /auto-rollback 重定向到 /settings
+- [x] /algorithm-optimization 重定向到 /settings
+- [x] /ab-test 重定向到 /optimization-center
+- [x] /intelligent-budget 重定向到 /optimization-center
+
+### 仪表盘增强
+- [ ] 在仪表盘添加自动化任务状态卡片
+- [ ] 显示数据同步状态
+- [ ] 显示自动优化执行状态
+
+### 后台自动化
+- [ ] 确保数据同步每2小时自动运行
+- [ ] 确保智能竞价每天自动运行
+- [ ] 确保健康度检查每天自动运行
+- [ ] 确保效果追踪自动收集数据
+
+## Bug修复 - 第四十二阶段
+
+### 效果追踪报告页面错误修复
+- [x] 修复campaigns.list路由不存在错误（改为campaign.list）
+- [x] 修复performanceGroups.list路由不存在错误（改为performanceGroup.list）
+- [x] 修复eq is not defined错误（添加drizzle-orm导入）
+- [x] 修复isRolledBack字段不存在错误（改用status字段）
+- [x] 修复adjustedAt字段不存在错误（改为appliedAt）
+- [x] 修复数据库实例获取方式（使用db.getDb()）

@@ -4730,6 +4730,8 @@ const daypartingRouter = router({
 
 // ==================== Placement Optimization Router ====================
 import * as placementService from './placementOptimizationService';
+import { eq, and, gte, lte, desc } from 'drizzle-orm';
+import { bidAdjustmentHistory } from '../drizzle/schema';
 import * as advancedPlacementService from './advancedPlacementService';
 import * as marketCurveService from './marketCurveService';
 import * as decisionTreeService from './decisionTreeService';
@@ -5716,17 +5718,16 @@ const placementRouter = router({
     .query(async ({ input, ctx }) => {
       const accountId = ctx.user.currentAccountId || 1;
       
-      // 构建查询条件
+      // 构建查询条件 - bidAdjustmentHistory表使用status字段而不是isRolledBack
       const conditions: any[] = [
         eq(bidAdjustmentHistory.accountId, accountId),
-        eq(bidAdjustmentHistory.isRolledBack, false),
       ];
       
       if (input.startDate) {
-        conditions.push(gte(bidAdjustmentHistory.adjustedAt, new Date(input.startDate).getTime()));
+        conditions.push(gte(bidAdjustmentHistory.appliedAt, input.startDate));
       }
       if (input.endDate) {
-        conditions.push(lte(bidAdjustmentHistory.adjustedAt, new Date(input.endDate).getTime()));
+        conditions.push(lte(bidAdjustmentHistory.appliedAt, input.endDate));
       }
       if (input.campaignId) {
         conditions.push(eq(bidAdjustmentHistory.campaignId, input.campaignId));
@@ -5735,11 +5736,26 @@ const placementRouter = router({
         conditions.push(eq(bidAdjustmentHistory.performanceGroupId, input.performanceGroupId));
       }
       
-      const records = await db
+      const dbInstance = await db.getDb();
+      if (!dbInstance) {
+        return {
+          totalRecords: 0,
+          trackedRecords: 0,
+          totalEstimatedProfit: 0,
+          totalActualProfit7d: 0,
+          totalActualProfit14d: 0,
+          totalActualProfit30d: 0,
+          byAdjustmentType: {},
+          byCampaign: {},
+          records: [],
+        };
+      }
+      
+      const records = await dbInstance
         .select()
         .from(bidAdjustmentHistory)
         .where(and(...conditions))
-        .orderBy(desc(bidAdjustmentHistory.adjustedAt));
+        .orderBy(desc(bidAdjustmentHistory.appliedAt));
       
       // 计算报告统计
       let totalRecords = records.length;
@@ -5850,52 +5866,13 @@ const placementRouter = router({
       
       for (const id of input.adjustmentIds) {
         try {
-          // 获取历史记录
-          const [record] = await db
-            .select()
-            .from(bidAdjustmentHistory)
-            .where(eq(bidAdjustmentHistory.id, id))
-            .limit(1);
+          // 使用db模块的rollbackBidAdjustment函数
+          const result = await db.rollbackBidAdjustment(id, ctx.user.name || ctx.user.openId);
           
-          if (!record) {
-            results.push({ id, success: false, error: '记录不存在' });
+          if (!result) {
+            results.push({ id, success: false, error: '记录不存在或回滚失败' });
             continue;
           }
-          
-          if (record.isRolledBack) {
-            results.push({ id, success: false, error: '已回滚' });
-            continue;
-          }
-          
-          // 恢复原出价
-          const previousBid = parseFloat(record.previousBid || '0');
-          await db.updateKeywordBid(record.keywordId, previousBid);
-          
-          // 更新历史记录状态
-          await db
-            .update(bidAdjustmentHistory)
-            .set({
-              isRolledBack: true,
-              rolledBackBy: ctx.user.name || ctx.user.openId,
-              rolledBackAt: Date.now(),
-            })
-            .where(eq(bidAdjustmentHistory.id, id));
-          
-          // 记录回滚操作到历史
-          await db.recordBidAdjustment({
-            accountId: record.accountId,
-            campaignId: record.campaignId,
-            campaignName: record.campaignName,
-            performanceGroupId: record.performanceGroupId,
-            keywordId: record.keywordId,
-            keywordText: record.keywordText,
-            previousBid: record.newBid || '0',
-            newBid: record.previousBid || '0',
-            adjustmentType: 'rollback',
-            adjustmentReason: `批量回滚操作 (原记录ID: ${id})`,
-            estimatedProfitChange: (-(parseFloat(record.estimatedProfitChange || '0'))).toString(),
-            appliedBy: ctx.user.name || ctx.user.openId,
-          });
           
           results.push({ id, success: true });
         } catch (error: any) {

@@ -171,10 +171,12 @@ export async function generateSeasonalRecommendations(userId: number, accountId?
 
   // 获取即将到来的大促活动（未来30天内）
   const thirtyDaysLater = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-  const upcomingEvents = await db.select().from(promotionalEvents).where(and(eq(promotionalEvents.isActive, true), gte(promotionalEvents.startDate, now), lte(promotionalEvents.startDate, thirtyDaysLater)));
+  const nowStr = now.toISOString().slice(0, 19).replace('T', ' ');
+  const thirtyDaysLaterStr = thirtyDaysLater.toISOString().slice(0, 19).replace('T', ' ');
+  const upcomingEvents = await db.select().from(promotionalEvents).where(and(eq(promotionalEvents.isActive, 1), gte(promotionalEvents.startDate, nowStr), lte(promotionalEvents.startDate, thirtyDaysLaterStr)));
 
   // 获取活跃的广告活动
-  const conditions = [eq(campaigns.status, "enabled")];
+  const conditions = [eq(campaigns.campaignStatus, "enabled")];
   if (accountId) conditions.push(eq(campaigns.accountId, accountId));
   const activeCampaigns = await db.select().from(campaigns).where(and(...conditions));
 
@@ -189,8 +191,8 @@ export async function generateSeasonalRecommendations(userId: number, accountId?
 
     // 检查大促活动建议
     for (const event of upcomingEvents) {
-      const isWarmup = event.warmupStartDate && now >= event.warmupStartDate && now < event.startDate;
-      const isEvent = now >= event.startDate && now <= event.endDate;
+      const isWarmup = event.warmupStartDate && now >= new Date(event.warmupStartDate) && now < new Date(event.startDate);
+      const isEvent = now >= new Date(event.startDate) && now <= new Date(event.endDate);
 
       if (isWarmup || isEvent) {
         const multiplier = isEvent ? Number(event.recommendedBudgetMultiplier) : Number(event.warmupBudgetMultiplier);
@@ -285,7 +287,7 @@ export async function getRecommendations(userId: number, options: { accountId?: 
 export async function applyRecommendation(recommendationId: number, userId: number): Promise<boolean> {
   const db = await getDb();
   if (!db) return false;
-  await db.update(seasonalBudgetRecommendations).set({ status: "applied", appliedAt: new Date() }).where(and(eq(seasonalBudgetRecommendations.id, recommendationId), eq(seasonalBudgetRecommendations.userId, userId)));
+  await db.update(seasonalBudgetRecommendations).set({ status: "applied", appliedAt: new Date().toISOString().slice(0, 19).replace('T', ' ') }).where(and(eq(seasonalBudgetRecommendations.id, recommendationId), eq(seasonalBudgetRecommendations.userId, userId)));
   return true;
 }
 
@@ -352,8 +354,8 @@ export async function getEventPerformanceComparison(userId: number, options: { a
       .from(dailyPerformance)
       .where(
         and(
-          gte(dailyPerformance.date, event.startDate),
-          lte(dailyPerformance.date, event.endDate)
+          gte(dailyPerformance.date, event.startDate as string),
+          lte(dailyPerformance.date, event.endDate as string)
         )
       );
 
@@ -372,9 +374,9 @@ export async function getEventPerformanceComparison(userId: number, options: { a
       eventId: event.id,
       eventName: event.eventName,
       eventType: event.eventType,
-      year: event.startDate.getFullYear(),
-      startDate: event.startDate,
-      endDate: event.endDate,
+      year: new Date(event.startDate).getFullYear(),
+      startDate: new Date(event.startDate),
+      endDate: new Date(event.endDate),
       totalSpend: spend,
       totalSales: sales,
       totalOrders: orders,

@@ -178,9 +178,9 @@ export default function BiddingLogs() {
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <span className={`text-xs px-1.5 py-0.5 rounded ${
-                                log.targetType === 'keyword' ? 'bg-primary/10 text-primary' : 'bg-chart-4/10 text-chart-4'
+                                log.logTargetType === 'keyword' ? 'bg-primary/10 text-primary' : 'bg-chart-4/10 text-chart-4'
                               }`}>
-                                {log.targetType === 'keyword' ? '关键词' : 'ASIN'}
+                                {log.logTargetType === 'keyword' ? '关键词' : 'ASIN'}
                               </span>
                               <span className="truncate max-w-[200px]" title={log.targetName || ''}>
                                 {log.targetName || '-'}
@@ -188,9 +188,9 @@ export default function BiddingLogs() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            {log.matchType ? (
-                              <span className={`match-${log.matchType}`}>
-                                {getMatchTypeLabel(log.matchType)}
+                            {log.logMatchType ? (
+                              <span className={`match-${log.logMatchType}`}>
+                                {getMatchTypeLabel(log.logMatchType)}
                               </span>
                             ) : '-'}
                           </TableCell>
