@@ -4,6 +4,7 @@
  */
 
 import { useState } from "react";
+import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -247,6 +248,7 @@ export default function DataSync() {
   // 如果没有已授权账号，显示引导页面
   if (!hasAuthorizedAccounts) {
     return (
+    <DashboardLayout>
       <div className="p-6">
         <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
           <div className="p-6 rounded-full bg-muted/50 mb-6">
@@ -274,10 +276,12 @@ export default function DataSync() {
           </Button>
         </div>
       </div>
+      </DashboardLayout>
     );
   }
 
   return (
+    <DashboardLayout>
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -962,5 +966,6 @@ export default function DataSync() {
         </DialogContent>
       </Dialog>
     </div>
+    </DashboardLayout>
   );
 }
