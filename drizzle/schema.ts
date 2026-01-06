@@ -20,20 +20,36 @@ export type InsertUser = typeof users.$inferInsert;
 
 /**
  * Amazon Advertising Accounts
+ * 支持多账号管理，每个用户可以添加多个亚马逊卖家店铺账号
  */
 export const adAccounts = mysqlTable("ad_accounts", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
-  accountId: varchar("accountId", { length: 64 }).notNull(),
-  accountName: varchar("accountName", { length: 255 }).notNull(),
-  marketplace: varchar("marketplace", { length: 32 }).notNull(), // US, DE, UK, JP, etc.
-  profileId: varchar("profileId", { length: 64 }),
+  // 基本信息
+  accountId: varchar("accountId", { length: 64 }).notNull(), // Amazon广告账号ID
+  accountName: varchar("accountName", { length: 255 }).notNull(), // 系统名称
+  // 店铺自定义信息
+  storeName: varchar("storeName", { length: 255 }), // 用户自定义店铺名称
+  storeDescription: text("storeDescription"), // 店铺描述/备注
+  storeColor: varchar("storeColor", { length: 7 }), // 店铺标识颜色 (#RRGGBB)
+  // 市场信息
+  marketplace: varchar("marketplace", { length: 32 }).notNull(), // US, DE, UK, JP, CA, MX, etc.
+  marketplaceId: varchar("marketplaceId", { length: 32 }), // Amazon市场ID
+  profileId: varchar("profileId", { length: 64 }), // Amazon广告Profile ID
+  sellerId: varchar("sellerId", { length: 64 }), // Amazon卖家ID
+  // 账号连接状态
+  connectionStatus: mysqlEnum("connectionStatus", ["connected", "disconnected", "error", "pending"]).default("pending"),
+  lastConnectionCheck: timestamp("lastConnectionCheck"),
+  connectionErrorMessage: text("connectionErrorMessage"),
   // Account-level optimization settings
   conversionValueType: mysqlEnum("conversionValueType", ["sales", "units", "custom"]).default("sales"),
   conversionValueSource: mysqlEnum("conversionValueSource", ["platform", "custom"]).default("platform"),
   intradayBiddingEnabled: boolean("intradayBiddingEnabled").default(true),
   defaultMaxBid: decimal("defaultMaxBid", { precision: 10, scale: 2 }).default("2.00"),
+  // 账号状态
   status: mysqlEnum("status", ["active", "paused", "archived"]).default("active"),
+  isDefault: boolean("isDefault").default(false), // 是否为默认账号
+  sortOrder: int("sortOrder").default(0), // 排序顺序
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });

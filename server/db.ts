@@ -122,7 +122,9 @@ export async function getAdAccountsByUserId(userId: number) {
   const db = await getDb();
   if (!db) return [];
   
-  return db.select().from(adAccounts).where(eq(adAccounts.userId, userId));
+  return db.select().from(adAccounts)
+    .where(eq(adAccounts.userId, userId))
+    .orderBy(adAccounts.sortOrder, adAccounts.createdAt);
 }
 
 export async function getAdAccountById(id: number) {
@@ -138,6 +140,65 @@ export async function updateAdAccount(id: number, data: Partial<InsertAdAccount>
   if (!db) throw new Error("Database not available");
   
   await db.update(adAccounts).set(data).where(eq(adAccounts.id, id));
+}
+
+export async function deleteAdAccount(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.delete(adAccounts).where(eq(adAccounts.id, id));
+}
+
+export async function setDefaultAdAccount(userId: number, accountId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // 先取消所有默认账号
+  await db.update(adAccounts)
+    .set({ isDefault: false })
+    .where(eq(adAccounts.userId, userId));
+  
+  // 设置新的默认账号
+  await db.update(adAccounts)
+    .set({ isDefault: true })
+    .where(eq(adAccounts.id, accountId));
+}
+
+export async function getDefaultAdAccount(userId: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  
+  const result = await db.select().from(adAccounts)
+    .where(and(eq(adAccounts.userId, userId), eq(adAccounts.isDefault, true)))
+    .limit(1);
+  return result[0];
+}
+
+export async function updateAdAccountConnectionStatus(
+  id: number, 
+  status: 'connected' | 'disconnected' | 'error' | 'pending',
+  errorMessage?: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(adAccounts).set({
+    connectionStatus: status,
+    lastConnectionCheck: new Date(),
+    connectionErrorMessage: errorMessage || null,
+  }).where(eq(adAccounts.id, id));
+}
+
+export async function reorderAdAccounts(userId: number, accountIds: number[]) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // 批量更新排序顺序
+  for (let i = 0; i < accountIds.length; i++) {
+    await db.update(adAccounts)
+      .set({ sortOrder: i })
+      .where(and(eq(adAccounts.id, accountIds[i]), eq(adAccounts.userId, userId)));
+  }
 }
 
 // ==================== Performance Group Functions ====================

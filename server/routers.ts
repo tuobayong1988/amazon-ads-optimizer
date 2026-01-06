@@ -16,35 +16,68 @@ import * as correctionService from './correctionService';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
+  // 获取用户所有账号列表
   list: protectedProcedure.query(async ({ ctx }) => {
     return db.getAdAccountsByUserId(ctx.user.id);
   }),
   
+  // 获取单个账号详情
   get: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       return db.getAdAccountById(input.id);
     }),
   
+  // 获取默认账号
+  getDefault: protectedProcedure.query(async ({ ctx }) => {
+    return db.getDefaultAdAccount(ctx.user.id);
+  }),
+  
+  // 创建新账号
   create: protectedProcedure
     .input(z.object({
       accountId: z.string(),
       accountName: z.string(),
+      storeName: z.string().optional(),
+      storeDescription: z.string().optional(),
+      storeColor: z.string().optional(),
       marketplace: z.string(),
+      marketplaceId: z.string().optional(),
       profileId: z.string().optional(),
+      sellerId: z.string().optional(),
+      isDefault: z.boolean().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      // 如果设置为默认账号，先取消其他默认
+      if (input.isDefault) {
+        const accounts = await db.getAdAccountsByUserId(ctx.user.id);
+        for (const acc of accounts) {
+          if (acc.isDefault) {
+            await db.updateAdAccount(acc.id, { isDefault: false });
+          }
+        }
+      }
+      
       const id = await db.createAdAccount({
         userId: ctx.user.id,
         ...input,
+        connectionStatus: 'pending',
       });
       return { id };
     }),
   
+  // 更新账号信息
   update: protectedProcedure
     .input(z.object({
       id: z.number(),
       accountName: z.string().optional(),
+      storeName: z.string().optional(),
+      storeDescription: z.string().optional(),
+      storeColor: z.string().optional(),
+      marketplace: z.string().optional(),
+      marketplaceId: z.string().optional(),
+      profileId: z.string().optional(),
+      sellerId: z.string().optional(),
       conversionValueType: z.enum(["sales", "units", "custom"]).optional(),
       conversionValueSource: z.enum(["platform", "custom"]).optional(),
       intradayBiddingEnabled: z.boolean().optional(),
@@ -56,6 +89,76 @@ const adAccountRouter = router({
       await db.updateAdAccount(id, data);
       return { success: true };
     }),
+  
+  // 删除账号
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      // 验证账号属于当前用户
+      const account = await db.getAdAccountById(input.id);
+      if (!account || account.userId !== ctx.user.id) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: '账号不存在' });
+      }
+      await db.deleteAdAccount(input.id);
+      return { success: true };
+    }),
+  
+  // 设置默认账号
+  setDefault: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      // 验证账号属于当前用户
+      const account = await db.getAdAccountById(input.id);
+      if (!account || account.userId !== ctx.user.id) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: '账号不存在' });
+      }
+      await db.setDefaultAdAccount(ctx.user.id, input.id);
+      return { success: true };
+    }),
+  
+  // 调整账号排序
+  reorder: protectedProcedure
+    .input(z.object({ accountIds: z.array(z.number()) }))
+    .mutation(async ({ ctx, input }) => {
+      await db.reorderAdAccounts(ctx.user.id, input.accountIds);
+      return { success: true };
+    }),
+  
+  // 更新账号连接状态
+  updateConnectionStatus: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      status: z.enum(['connected', 'disconnected', 'error', 'pending']),
+      errorMessage: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // 验证账号属于当前用户
+      const account = await db.getAdAccountById(input.id);
+      if (!account || account.userId !== ctx.user.id) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: '账号不存在' });
+      }
+      await db.updateAdAccountConnectionStatus(input.id, input.status, input.errorMessage);
+      return { success: true };
+    }),
+  
+  // 获取账号统计信息
+  getStats: protectedProcedure.query(async ({ ctx }) => {
+    const accounts = await db.getAdAccountsByUserId(ctx.user.id);
+    const stats = {
+      total: accounts.length,
+      connected: accounts.filter(a => a.connectionStatus === 'connected').length,
+      disconnected: accounts.filter(a => a.connectionStatus === 'disconnected').length,
+      error: accounts.filter(a => a.connectionStatus === 'error').length,
+      pending: accounts.filter(a => a.connectionStatus === 'pending').length,
+      byMarketplace: {} as Record<string, number>,
+    };
+    
+    for (const account of accounts) {
+      stats.byMarketplace[account.marketplace] = (stats.byMarketplace[account.marketplace] || 0) + 1;
+    }
+    
+    return stats;
+  }),
 });
 
 // ==================== Performance Group Router ====================
