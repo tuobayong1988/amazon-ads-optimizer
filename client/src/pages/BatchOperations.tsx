@@ -422,8 +422,8 @@ export default function BatchOperations() {
 
             {/* Main Content */}
             <div className="grid grid-cols-3 gap-6">
-          {/* Batch List */}
-          <div className="col-span-2">
+              {/* Batch List */}
+              <div className="col-span-2">
             <Card>
               <CardHeader>
                 <CardTitle>批量操作列表</CardTitle>
@@ -568,10 +568,10 @@ export default function BatchOperations() {
                 )}
               </CardContent>
             </Card>
-          </div>
+              </div>
 
-          {/* Batch Details */}
-          <div>
+              {/* Batch Details */}
+              <div>
             <Card>
               <CardHeader>
                 <CardTitle>操作详情</CardTitle>
@@ -719,7 +719,7 @@ export default function BatchOperations() {
                 )}
               </CardContent>
             </Card>
-          </div>
+              </div>
             </div>
           </TabsContent>
 
