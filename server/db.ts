@@ -382,6 +382,13 @@ export async function updateProductTargetBid(id: number, newBid: string) {
   await db.update(productTargets).set({ bid: newBid }).where(eq(productTargets.id, id));
 }
 
+export async function updateProductTarget(id: number, data: Partial<InsertProductTarget>) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(productTargets).set(data).where(eq(productTargets.id, id));
+}
+
 // ==================== Bidding Log Functions ====================
 export async function createBiddingLog(log: InsertBiddingLog) {
   const db = await getDb();

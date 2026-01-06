@@ -516,6 +516,18 @@ const productTargetRouter = router({
       await db.updateProductTargetBid(input.id, input.bid);
       return { success: true };
     }),
+  
+  update: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      bid: z.string().optional(),
+      status: z.enum(["enabled", "paused", "archived"]).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { id, ...data } = input;
+      await db.updateProductTarget(id, data);
+      return { success: true };
+    }),
 });
 
 // ==================== Bidding Log Router ====================

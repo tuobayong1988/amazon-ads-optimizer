@@ -26,8 +26,16 @@ import {
   Tag,
   Zap,
   Megaphone,
-  Monitor
+  Monitor,
+  Edit2,
+  Pause,
+  Play,
+  MoreHorizontal
 } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 // 广告活动类型图标映射
 const campaignTypeIcons: Record<string, any> = {
@@ -567,10 +575,91 @@ function KeywordsList({ adGroups }: { adGroups: any[] }) {
 
 // 投放词列表子组件
 function TargetsList({ campaignId }: { campaignId: number }) {
-  const { data: targetsData, isLoading } = trpc.campaign.getTargets.useQuery(
+  const utils = trpc.useUtils();
+  const { data: targetsData, isLoading, refetch } = trpc.campaign.getTargets.useQuery(
     { campaignId },
     { enabled: !!campaignId }
   );
+  
+  // 编辑出价状态
+  const [editBidOpen, setEditBidOpen] = useState(false);
+  const [editingTarget, setEditingTarget] = useState<any>(null);
+  const [newBid, setNewBid] = useState("");
+  
+  // 确认状态变更弹窗
+  const [confirmStatusOpen, setConfirmStatusOpen] = useState(false);
+  const [statusChangeTarget, setStatusChangeTarget] = useState<any>(null);
+  const [newStatus, setNewStatus] = useState<"enabled" | "paused">("enabled");
+  
+  // 更新关键词出价
+  const updateKeywordMutation = trpc.keyword.update.useMutation({
+    onSuccess: () => {
+      toast.success("出价更新成功");
+      refetch();
+      setEditBidOpen(false);
+      setEditingTarget(null);
+    },
+    onError: (error) => {
+      toast.error(`更新失败: ${error.message}`);
+    },
+  });
+  
+  // 更新商品定向出价
+  const updateProductTargetMutation = trpc.productTarget.update.useMutation({
+    onSuccess: () => {
+      toast.success("出价更新成功");
+      refetch();
+      setEditBidOpen(false);
+      setEditingTarget(null);
+    },
+    onError: (error) => {
+      toast.error(`更新失败: ${error.message}`);
+    },
+  });
+  
+  // 打开编辑出价弹窗
+  const handleEditBid = (target: any) => {
+    setEditingTarget(target);
+    setNewBid(target.bid || "");
+    setEditBidOpen(true);
+  };
+  
+  // 保存出价
+  const handleSaveBid = () => {
+    if (!editingTarget || !newBid) return;
+    
+    const realId = parseInt(editingTarget.id.split("-")[1]);
+    const isKeyword = editingTarget.type === "keyword";
+    
+    if (isKeyword) {
+      updateKeywordMutation.mutate({ id: realId, bid: newBid });
+    } else {
+      updateProductTargetMutation.mutate({ id: realId, bid: newBid });
+    }
+  };
+  
+  // 打开状态变更确认弹窗
+  const handleStatusChange = (target: any, status: "enabled" | "paused") => {
+    setStatusChangeTarget(target);
+    setNewStatus(status);
+    setConfirmStatusOpen(true);
+  };
+  
+  // 确认状态变更
+  const handleConfirmStatusChange = () => {
+    if (!statusChangeTarget) return;
+    
+    const realId = parseInt(statusChangeTarget.id.split("-")[1]);
+    const isKeyword = statusChangeTarget.type === "keyword";
+    
+    if (isKeyword) {
+      updateKeywordMutation.mutate({ id: realId, status: newStatus });
+    } else {
+      updateProductTargetMutation.mutate({ id: realId, status: newStatus });
+    }
+    setConfirmStatusOpen(false);
+    setStatusChangeTarget(null);
+  };
   
   if (isLoading) {
     return (
@@ -587,6 +676,7 @@ function TargetsList({ campaignId }: { campaignId: number }) {
     targetsData.keywords.forEach((k: any) => {
       allTargets.push({
         id: `kw-${k.id}`,
+        realId: k.id,
         text: k.keywordText,
         type: 'keyword',
         matchType: k.matchType,
@@ -605,6 +695,7 @@ function TargetsList({ campaignId }: { campaignId: number }) {
     targetsData.productTargets.forEach((pt: any) => {
       allTargets.push({
         id: `pt-${pt.id}`,
+        realId: pt.id,
         text: pt.targetExpression || pt.asin || 'ASIN定向',
         type: 'product',
         matchType: null,
@@ -633,77 +724,177 @@ function TargetsList({ campaignId }: { campaignId: number }) {
     parseFloat(b.sales || "0") - parseFloat(a.sales || "0")
   );
   
+  const isMutating = updateKeywordMutation.isPending || updateProductTargetMutation.isPending;
+  
   return (
-    <div className="overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>投放词</TableHead>
-            <TableHead>类型</TableHead>
-            <TableHead>匹配方式</TableHead>
-            <TableHead>状态</TableHead>
-            <TableHead className="text-right">出价</TableHead>
-            <TableHead className="text-right">展示</TableHead>
-            <TableHead className="text-right">点击</TableHead>
-            <TableHead className="text-right">花费</TableHead>
-            <TableHead className="text-right">销售额</TableHead>
-            <TableHead className="text-right">ACoS</TableHead>
-            <TableHead className="text-right">ROAS</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {sortedTargets.map((target: any) => {
-            const tSpend = parseFloat(target.spend || "0");
-            const tSales = parseFloat(target.sales || "0");
-            const tAcos = tSales > 0 ? (tSpend / tSales * 100) : 0;
-            const tRoas = tSpend > 0 ? (tSales / tSpend) : 0;
-            const isKeyword = target.type === 'keyword';
-            
-            return (
-              <TableRow key={target.id}>
-                <TableCell className="font-medium max-w-[200px] truncate" title={target.text}>
-                  {target.text}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={isKeyword ? "default" : "secondary"}>
-                    {isKeyword ? "关键词" : "商品定向"}
-                  </Badge>
-                </TableCell>
-                <TableCell>
-                  {isKeyword ? (
-                    <Badge variant="outline">
-                      {target.matchType === "exact" ? "精确" : target.matchType === "phrase" ? "词组" : "广泛"}
+    <>
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>投放词</TableHead>
+              <TableHead>类型</TableHead>
+              <TableHead>匹配方式</TableHead>
+              <TableHead>状态</TableHead>
+              <TableHead className="text-right">出价</TableHead>
+              <TableHead className="text-right">展示</TableHead>
+              <TableHead className="text-right">点击</TableHead>
+              <TableHead className="text-right">花费</TableHead>
+              <TableHead className="text-right">销售额</TableHead>
+              <TableHead className="text-right">ACoS</TableHead>
+              <TableHead className="text-right">ROAS</TableHead>
+              <TableHead className="text-center">操作</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sortedTargets.map((target: any) => {
+              const tSpend = parseFloat(target.spend || "0");
+              const tSales = parseFloat(target.sales || "0");
+              const tAcos = tSales > 0 ? (tSpend / tSales * 100) : 0;
+              const tRoas = tSpend > 0 ? (tSales / tSpend) : 0;
+              const isKeyword = target.type === 'keyword';
+              const isEnabled = target.status === "enabled";
+              
+              return (
+                <TableRow key={target.id}>
+                  <TableCell className="font-medium max-w-[200px] truncate" title={target.text}>
+                    {target.text}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={isKeyword ? "default" : "secondary"}>
+                      {isKeyword ? "关键词" : "商品定向"}
                     </Badge>
-                  ) : (
-                    <span className="text-muted-foreground">-</span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <Badge variant={target.status === "enabled" ? "default" : "secondary"}>
-                    {target.status === "enabled" ? "启用" : "暂停"}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">${target.bid || "N/A"}</TableCell>
-                <TableCell className="text-right">{target.impressions?.toLocaleString() || 0}</TableCell>
-                <TableCell className="text-right">{target.clicks?.toLocaleString() || 0}</TableCell>
-                <TableCell className="text-right">${tSpend.toFixed(2)}</TableCell>
-                <TableCell className="text-right">${tSales.toFixed(2)}</TableCell>
-                <TableCell className="text-right">
-                  <span className={tAcos > 30 ? "text-red-500" : tAcos > 20 ? "text-yellow-500" : "text-green-500"}>
-                    {tSales > 0 ? `${tAcos.toFixed(1)}%` : "-"}
-                  </span>
-                </TableCell>
-                <TableCell className="text-right">
-                  <span className={tRoas >= 3 ? "text-green-500" : tRoas >= 2 ? "text-yellow-500" : "text-red-500"}>
-                    {tSpend > 0 ? tRoas.toFixed(2) : "-"}
-                  </span>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
-    </div>
+                  </TableCell>
+                  <TableCell>
+                    {isKeyword ? (
+                      <Badge variant="outline">
+                        {target.matchType === "exact" ? "精确" : target.matchType === "phrase" ? "词组" : "广泛"}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={isEnabled ? "default" : "secondary"}>
+                      {isEnabled ? "启用" : "暂停"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">${target.bid || "N/A"}</TableCell>
+                  <TableCell className="text-right">{target.impressions?.toLocaleString() || 0}</TableCell>
+                  <TableCell className="text-right">{target.clicks?.toLocaleString() || 0}</TableCell>
+                  <TableCell className="text-right">${tSpend.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">${tSales.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">
+                    <span className={tAcos > 30 ? "text-red-500" : tAcos > 20 ? "text-yellow-500" : "text-green-500"}>
+                      {tSales > 0 ? `${tAcos.toFixed(1)}%` : "-"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <span className={tRoas >= 3 ? "text-green-500" : tRoas >= 2 ? "text-yellow-500" : "text-red-500"}>
+                      {tSpend > 0 ? tRoas.toFixed(2) : "-"}
+                    </span>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => handleEditBid(target)}
+                        title="编辑出价"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => handleStatusChange(target, isEnabled ? "paused" : "enabled")}
+                        title={isEnabled ? "暂停" : "启用"}
+                      >
+                        {isEnabled ? (
+                          <Pause className="h-4 w-4 text-yellow-500" />
+                        ) : (
+                          <Play className="h-4 w-4 text-green-500" />
+                        )}
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+      
+      {/* 编辑出价弹窗 */}
+      <Dialog open={editBidOpen} onOpenChange={setEditBidOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>编辑出价</DialogTitle>
+            <DialogDescription>
+              修改投放词 "{editingTarget?.text}" 的出价
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="currentBid" className="text-right">当前出价</Label>
+              <div className="col-span-3">
+                <span className="text-muted-foreground">${editingTarget?.bid || "N/A"}</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="newBid" className="text-right">新出价</Label>
+              <div className="col-span-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-muted-foreground">$</span>
+                  <Input
+                    id="newBid"
+                    type="number"
+                    step="0.01"
+                    min="0.02"
+                    value={newBid}
+                    onChange={(e) => setNewBid(e.target.value)}
+                    placeholder="输入新出价"
+                    className="w-32"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditBidOpen(false)}>取消</Button>
+            <Button onClick={handleSaveBid} disabled={isMutating || !newBid}>
+              {isMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* 状态变更确认弹窗 */}
+      <Dialog open={confirmStatusOpen} onOpenChange={setConfirmStatusOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{newStatus === "paused" ? "暂停投放词" : "启用投放词"}</DialogTitle>
+            <DialogDescription>
+              确定要{newStatus === "paused" ? "暂停" : "启用"}投放词 "{statusChangeTarget?.text}" 吗？
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmStatusOpen(false)}>取消</Button>
+            <Button 
+              onClick={handleConfirmStatusChange} 
+              disabled={isMutating}
+              variant={newStatus === "paused" ? "destructive" : "default"}
+            >
+              {isMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              确认{newStatus === "paused" ? "暂停" : "启用"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
