@@ -57,6 +57,13 @@
       "when": 1767670001632,
       "tag": "0007_square_daredevil",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "5",
+      "when": 1767670771522,
+      "tag": "0008_dapper_masked_marvel",
+      "breakpoints": true
     }
   ]
 }

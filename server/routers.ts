@@ -3090,6 +3090,161 @@ function calculateNextSendTime(
   return next;
 }
 
+// ==================== Audit Log Router ====================
+const auditRouter = router({
+  // 获取审计日志列表
+  list: protectedProcedure
+    .input(z.object({
+      actionTypes: z.array(z.string()).optional(),
+      targetTypes: z.array(z.string()).optional(),
+      accountId: z.number().optional(),
+      status: z.string().optional(),
+      startDate: z.date().optional(),
+      endDate: z.date().optional(),
+      search: z.string().optional(),
+      page: z.number().default(1),
+      pageSize: z.number().default(20),
+    }))
+    .query(async ({ ctx, input }) => {
+      const { getAuditLogs } = await import("./auditService");
+      return getAuditLogs({
+        ...input,
+        userId: ctx.user.id,
+      });
+    }),
+
+  // 获取单个审计日志详情
+  getById: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const { getAuditLogById } = await import("./auditService");
+      return getAuditLogById(input.id);
+    }),
+
+  // 获取用户操作统计
+  userStats: protectedProcedure
+    .input(z.object({ days: z.number().default(30) }))
+    .query(async ({ ctx, input }) => {
+      const { getUserAuditStats } = await import("./auditService");
+      return getUserAuditStats(ctx.user.id, input.days);
+    }),
+
+  // 获取账号操作统计
+  accountStats: protectedProcedure
+    .input(z.object({ accountId: z.number(), days: z.number().default(30) }))
+    .query(async ({ input }) => {
+      const { getAccountAuditStats } = await import("./auditService");
+      return getAccountAuditStats(input.accountId, input.days);
+    }),
+
+  // 导出审计日志
+  export: protectedProcedure
+    .input(z.object({
+      actionTypes: z.array(z.string()).optional(),
+      accountId: z.number().optional(),
+      startDate: z.date().optional(),
+      endDate: z.date().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { exportAuditLogsToCSV } = await import("./auditService");
+      const csv = await exportAuditLogsToCSV({
+        ...input,
+        userId: ctx.user.id,
+      });
+      return { csv };
+    }),
+
+  // 获取操作类型和描述
+  getActionTypes: publicProcedure.query(async () => {
+    const { ACTION_CATEGORIES, ACTION_DESCRIPTIONS, TARGET_TYPE_DESCRIPTIONS } = await import("./auditService");
+    return {
+      categories: ACTION_CATEGORIES,
+      actionDescriptions: ACTION_DESCRIPTIONS,
+      targetTypeDescriptions: TARGET_TYPE_DESCRIPTIONS,
+    };
+  }),
+});
+
+// ==================== Collaboration Notification Router ====================
+const collaborationRouter = router({
+  // 获取用户通知列表
+  list: protectedProcedure
+    .input(z.object({
+      status: z.string().optional(),
+      page: z.number().default(1),
+      pageSize: z.number().default(20),
+    }))
+    .query(async ({ ctx, input }) => {
+      const { getUserNotifications } = await import("./collaborationNotificationService");
+      return getUserNotifications({
+        userId: ctx.user.id,
+        ...input,
+      });
+    }),
+
+  // 获取通知统计
+  stats: protectedProcedure.query(async ({ ctx }) => {
+    const { getNotificationStats } = await import("./collaborationNotificationService");
+    return getNotificationStats(ctx.user.id);
+  }),
+
+  // 标记通知为已读
+  markAsRead: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const { markNotificationAsRead } = await import("./collaborationNotificationService");
+      return markNotificationAsRead(input.id);
+    }),
+
+  // 标记所有通知为已读
+  markAllAsRead: protectedProcedure.mutation(async ({ ctx }) => {
+    const { markAllNotificationsAsRead } = await import("./collaborationNotificationService");
+    const count = await markAllNotificationsAsRead(ctx.user.id);
+    return { count };
+  }),
+
+  // 获取用户通知偏好设置
+  getPreferences: protectedProcedure.query(async ({ ctx }) => {
+    const { getUserNotificationPreferences } = await import("./collaborationNotificationService");
+    return getUserNotificationPreferences(ctx.user.id);
+  }),
+
+  // 更新用户通知偏好设置
+  updatePreferences: protectedProcedure
+    .input(z.object({
+      enableAppNotifications: z.boolean().optional(),
+      enableEmailNotifications: z.boolean().optional(),
+      bidAdjustNotify: z.boolean().optional(),
+      negativeKeywordNotify: z.boolean().optional(),
+      campaignChangeNotify: z.boolean().optional(),
+      automationNotify: z.boolean().optional(),
+      teamChangeNotify: z.boolean().optional(),
+      dataImportExportNotify: z.boolean().optional(),
+      notifyOnLow: z.boolean().optional(),
+      notifyOnMedium: z.boolean().optional(),
+      notifyOnHigh: z.boolean().optional(),
+      notifyOnCritical: z.boolean().optional(),
+      quietHoursEnabled: z.boolean().optional(),
+      quietHoursStart: z.string().optional(),
+      quietHoursEnd: z.string().optional(),
+      timezone: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { updateUserNotificationPreferences } = await import("./collaborationNotificationService");
+      return updateUserNotificationPreferences(ctx.user.id, input);
+    }),
+
+  // 获取重要操作类型列表
+  getImportantActions: publicProcedure.query(async () => {
+    const { IMPORTANT_ACTIONS, ACTION_PRIORITY, ACTION_NOTIFICATION_TEMPLATES } = await import("./collaborationNotificationService");
+    return {
+      importantActions: IMPORTANT_ACTIONS,
+      actionPriority: ACTION_PRIORITY,
+      actionTemplates: ACTION_NOTIFICATION_TEMPLATES,
+    };
+  }),
+});
+
 // ==================== Main Router ====================
 export const appRouter = router({
   system: systemRouter,
@@ -3120,6 +3275,8 @@ export const appRouter = router({
   crossAccount: crossAccountRouter,
   team: teamRouter,
   emailReport: emailReportRouter,
+  audit: auditRouter,
+  collaboration: collaborationRouter,
 });
 
 export type AppRouter = typeof appRouter;

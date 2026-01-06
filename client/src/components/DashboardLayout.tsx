@@ -39,7 +39,9 @@ import {
   FileSearch,
   BarChart3,
   Users,
-  Mail
+  Mail,
+  Shield,
+  MessageSquare
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -64,6 +66,8 @@ const menuItems = [
   { icon: BarChart3, label: "跨账号汇总", path: "/accounts-summary" },
   { icon: Users, label: "团队管理", path: "/team" },
   { icon: Mail, label: "邮件报表", path: "/email-reports" },
+  { icon: Shield, label: "审计日志", path: "/audit-logs" },
+  { icon: MessageSquare, label: "协作通知", path: "/collaboration" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

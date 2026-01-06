@@ -790,3 +790,210 @@ export const emailSendLogs = mysqlTable("email_send_logs", {
 
 export type EmailSendLog = typeof emailSendLogs.$inferSelect;
 export type InsertEmailSendLog = typeof emailSendLogs.$inferInsert;
+
+
+/**
+ * Audit Logs - 操作审计日志
+ * 记录所有团队成员的操作行为，便于追溯和合规管理
+ */
+export const auditLogs = mysqlTable("audit_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // 操作用户ID
+  userEmail: varchar("userEmail", { length: 255 }), // 操作用户邮箱
+  userName: varchar("userName", { length: 255 }), // 操作用户名称
+  // 操作类型
+  actionType: mysqlEnum("actionType", [
+    // 账号管理
+    "account_create",
+    "account_update",
+    "account_delete",
+    "account_connect",
+    "account_disconnect",
+    // 广告活动管理
+    "campaign_create",
+    "campaign_update",
+    "campaign_delete",
+    "campaign_pause",
+    "campaign_enable",
+    // 出价调整
+    "bid_adjust_single",
+    "bid_adjust_batch",
+    "bid_rollback",
+    // 否定词管理
+    "negative_add_single",
+    "negative_add_batch",
+    "negative_remove",
+    // 绩效组管理
+    "performance_group_create",
+    "performance_group_update",
+    "performance_group_delete",
+    // 自动化设置
+    "automation_enable",
+    "automation_disable",
+    "automation_config_update",
+    // 定时任务
+    "scheduler_task_create",
+    "scheduler_task_update",
+    "scheduler_task_delete",
+    "scheduler_task_run",
+    // 团队管理
+    "team_member_invite",
+    "team_member_update",
+    "team_member_remove",
+    "team_permission_update",
+    // 数据导入导出
+    "data_import",
+    "data_export",
+    // 系统设置
+    "settings_update",
+    "notification_config_update",
+    // 其他
+    "other"
+  ]).notNull(),
+  // 操作目标
+  targetType: mysqlEnum("targetType", [
+    "account",
+    "campaign",
+    "ad_group",
+    "keyword",
+    "product_target",
+    "performance_group",
+    "negative_keyword",
+    "bid",
+    "automation",
+    "scheduler",
+    "team_member",
+    "permission",
+    "settings",
+    "data",
+    "other"
+  ]),
+  targetId: varchar("targetId", { length: 255 }), // 目标对象ID
+  targetName: varchar("targetName", { length: 500 }), // 目标对象名称
+  // 操作详情
+  description: text("description"), // 操作描述
+  previousValue: json("previousValue"), // 操作前的值
+  newValue: json("newValue"), // 操作后的值
+  metadata: json("metadata"), // 额外元数据
+  // 关联信息
+  accountId: int("accountId"), // 关联的广告账号ID
+  accountName: varchar("accountName", { length: 255 }), // 关联的广告账号名称
+  // 请求信息
+  ipAddress: varchar("ipAddress", { length: 45 }), // IP地址
+  userAgent: text("userAgent"), // 用户代理
+  requestId: varchar("requestId", { length: 64 }), // 请求ID
+  // 结果
+  status: mysqlEnum("status", ["success", "failed", "partial"]).default("success"),
+  errorMessage: text("errorMessage"), // 错误信息
+  // 时间
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = typeof auditLogs.$inferInsert;
+
+/**
+ * Collaboration Notification Rules - 协作通知规则
+ * 定义什么操作需要通知哪些团队成员
+ */
+export const collaborationNotificationRules = mysqlTable("collaboration_notification_rules", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(), // 规则所有者（通常是管理员）
+  name: varchar("name", { length: 255 }).notNull(), // 规则名称
+  description: text("description"), // 规则描述
+  // 触发条件
+  triggerActions: json("triggerActions").$type<string[]>(), // 触发的操作类型列表
+  triggerAccountIds: json("triggerAccountIds").$type<number[]>(), // 限定的账号ID，空表示全部
+  // 通知设置
+  notifyChannels: json("notifyChannels").$type<("app" | "email")[]>(), // 通知渠道
+  notifyRecipients: json("notifyRecipients").$type<{
+    type: "all_team" | "specific_members" | "account_admins" | "owner";
+    memberIds?: number[];
+  }>(), // 通知接收者
+  // 通知内容
+  notificationTemplate: text("notificationTemplate"), // 通知模板
+  includeDetails: boolean("includeDetails").default(true), // 是否包含操作详情
+  // 状态
+  isActive: boolean("isActive").default(true),
+  priority: mysqlEnum("priority", ["low", "medium", "high", "critical"]).default("medium"),
+  // 时间
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CollaborationNotificationRule = typeof collaborationNotificationRules.$inferSelect;
+export type InsertCollaborationNotificationRule = typeof collaborationNotificationRules.$inferInsert;
+
+/**
+ * Collaboration Notifications - 协作通知记录
+ * 记录发送给团队成员的协作通知
+ */
+export const collaborationNotifications = mysqlTable("collaboration_notifications", {
+  id: int("id").autoincrement().primaryKey(),
+  ruleId: int("ruleId"), // 关联的规则ID
+  auditLogId: int("auditLogId"), // 关联的审计日志ID
+  // 通知内容
+  title: varchar("title", { length: 500 }).notNull(),
+  content: text("content").notNull(),
+  // 操作信息
+  actionType: varchar("actionType", { length: 100 }),
+  actionUserId: int("actionUserId"), // 执行操作的用户
+  actionUserName: varchar("actionUserName", { length: 255 }),
+  // 目标信息
+  targetType: varchar("targetType", { length: 100 }),
+  targetId: varchar("targetId", { length: 255 }),
+  targetName: varchar("targetName", { length: 500 }),
+  accountId: int("accountId"),
+  accountName: varchar("accountName", { length: 255 }),
+  // 通知渠道和状态
+  channel: mysqlEnum("channel", ["app", "email"]).notNull(),
+  recipientUserId: int("recipientUserId").notNull(), // 接收者用户ID
+  recipientEmail: varchar("recipientEmail", { length: 255 }), // 接收者邮箱
+  // 状态
+  status: mysqlEnum("status", ["pending", "sent", "read", "failed"]).default("pending"),
+  readAt: timestamp("readAt"), // 阅读时间
+  sentAt: timestamp("sentAt"), // 发送时间
+  errorMessage: text("errorMessage"),
+  // 优先级
+  priority: mysqlEnum("priority", ["low", "medium", "high", "critical"]).default("medium"),
+  // 时间
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type CollaborationNotification = typeof collaborationNotifications.$inferSelect;
+export type InsertCollaborationNotification = typeof collaborationNotifications.$inferInsert;
+
+/**
+ * User Notification Preferences - 用户通知偏好设置
+ * 每个用户可以自定义接收哪些类型的协作通知
+ */
+export const userNotificationPreferences = mysqlTable("user_notification_preferences", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  // 通知渠道偏好
+  enableAppNotifications: boolean("enableAppNotifications").default(true),
+  enableEmailNotifications: boolean("enableEmailNotifications").default(true),
+  // 按操作类型的偏好
+  bidAdjustNotify: boolean("bidAdjustNotify").default(true), // 出价调整
+  negativeKeywordNotify: boolean("negativeKeywordNotify").default(true), // 否定词操作
+  campaignChangeNotify: boolean("campaignChangeNotify").default(true), // 广告活动变更
+  automationNotify: boolean("automationNotify").default(true), // 自动化操作
+  teamChangeNotify: boolean("teamChangeNotify").default(true), // 团队变更
+  dataImportExportNotify: boolean("dataImportExportNotify").default(false), // 数据导入导出
+  // 按优先级的偏好
+  notifyOnLow: boolean("notifyOnLow").default(false),
+  notifyOnMedium: boolean("notifyOnMedium").default(true),
+  notifyOnHigh: boolean("notifyOnHigh").default(true),
+  notifyOnCritical: boolean("notifyOnCritical").default(true),
+  // 免打扰设置
+  quietHoursEnabled: boolean("quietHoursEnabled").default(false),
+  quietHoursStart: varchar("quietHoursStart", { length: 5 }), // HH:MM
+  quietHoursEnd: varchar("quietHoursEnd", { length: 5 }), // HH:MM
+  timezone: varchar("timezone", { length: 64 }).default("Asia/Shanghai"),
+  // 时间
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type UserNotificationPreference = typeof userNotificationPreferences.$inferSelect;
+export type InsertUserNotificationPreference = typeof userNotificationPreferences.$inferInsert;

@@ -21,7 +21,9 @@ import BatchOperations from "./pages/BatchOperations";
 import CorrectionReview from "./pages/CorrectionReview";
 import AccountsSummary from "./pages/AccountsSummary";
 import TeamManagement from "./pages/TeamManagement";
-import EmailReports from "./pages/EmailReports";
+import EmailReports from "@/pages/EmailReports";
+import AuditLogs from "@/pages/AuditLogs";
+import CollaborationNotifications from "@/pages/CollaborationNotifications";
 
 function Router() {
   return (
@@ -43,6 +45,8 @@ function Router() {
       <Route path="/accounts-summary" component={AccountsSummary} />
       <Route path="/team" component={TeamManagement} />
       <Route path="/email-reports" component={EmailReports} />
+      <Route path="/audit-logs" component={AuditLogs} />
+      <Route path="/collaboration" component={CollaborationNotifications} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
