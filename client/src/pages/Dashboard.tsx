@@ -1,5 +1,6 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
+import OnboardingWizard, { useOnboarding } from "@/components/OnboardingWizard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -216,6 +217,9 @@ function QuickActionCard({
 export default function Dashboard() {
   const { user } = useAuth();
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
+  
+  // 首次登录引导
+  const { showOnboarding, completeOnboarding, skipOnboarding } = useOnboarding();
 
   // Fetch accounts
   const { data: accounts, isLoading: accountsLoading } = trpc.adAccount.list.useQuery();
@@ -285,6 +289,12 @@ export default function Dashboard() {
   if (!accounts || accounts.length === 0) {
     return (
       <DashboardLayout>
+        {/* 首次登录引导 */}
+        <OnboardingWizard 
+          isOpen={showOnboarding} 
+          onComplete={completeOnboarding} 
+          onSkip={skipOnboarding} 
+        />
         <div className="flex flex-col items-center justify-center h-[60vh] text-center">
           <div className="p-6 rounded-full bg-muted/50 mb-6">
             <BarChart3 className="w-16 h-16 text-muted-foreground" />

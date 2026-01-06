@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
+import { ApiHealthMonitor } from "@/components/ApiHealthMonitor";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -423,6 +424,9 @@ export default function AmazonApiSettings() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
+        {/* API连接状态监控 */}
+        <ApiHealthMonitor showCard={false} />
+        
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>

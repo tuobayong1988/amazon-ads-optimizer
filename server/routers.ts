@@ -1250,6 +1250,150 @@ const amazonApiRouter = router({
       };
     }),
 
+  // Check Token health and expiration status
+  checkTokenHealth: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      const credentials = await db.getAmazonApiCredentials(input.accountId);
+      if (!credentials) {
+        return {
+          status: 'not_configured' as const,
+          message: '未配置API凭证',
+          isHealthy: false,
+          needsReauth: true,
+        };
+      }
+
+      try {
+        // Try to refresh token to check if it's still valid
+        const client = new AmazonAdsApiClient({
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+          profileId: credentials.profileId,
+          region: credentials.region as 'NA' | 'EU' | 'FE',
+        });
+
+        // Try to get profiles as a health check
+        await client.getProfiles();
+
+        // Calculate token age (if we had token creation time)
+        const lastSyncAt = credentials.lastSyncAt;
+        const daysSinceSync = lastSyncAt 
+          ? Math.floor((Date.now() - new Date(lastSyncAt).getTime()) / (1000 * 60 * 60 * 24))
+          : null;
+
+        // Warn if no sync in 7+ days
+        const syncWarning = daysSinceSync !== null && daysSinceSync > 7;
+
+        return {
+          status: 'healthy' as const,
+          message: 'API连接正常',
+          isHealthy: true,
+          needsReauth: false,
+          lastSyncAt: credentials.lastSyncAt,
+          daysSinceSync,
+          syncWarning,
+          region: credentials.region,
+        };
+      } catch (error: any) {
+        // Check if it's an auth error
+        const isAuthError = error.message?.includes('401') || 
+                           error.message?.includes('unauthorized') ||
+                           error.message?.includes('invalid_grant') ||
+                           error.message?.includes('token');
+
+        if (isAuthError) {
+          return {
+            status: 'expired' as const,
+            message: 'Token已过期，请重新授权',
+            isHealthy: false,
+            needsReauth: true,
+            error: error.message,
+          };
+        }
+
+        return {
+          status: 'error' as const,
+          message: `连接错误: ${error.message}`,
+          isHealthy: false,
+          needsReauth: false,
+          error: error.message,
+        };
+      }
+    }),
+
+  // Batch check all accounts token health
+  checkAllTokensHealth: protectedProcedure
+    .query(async ({ ctx }) => {
+      const accounts = await db.getAdAccountsByUserId(ctx.user.id);
+      const results = [];
+
+      for (const account of accounts) {
+        const credentials = await db.getAmazonApiCredentials(account.id);
+        if (!credentials) {
+          results.push({
+            accountId: account.id,
+            accountName: account.accountName,
+            status: 'not_configured' as const,
+            isHealthy: false,
+            needsReauth: true,
+          });
+          continue;
+        }
+
+        try {
+          const client = new AmazonAdsApiClient({
+            clientId: credentials.clientId,
+            clientSecret: credentials.clientSecret,
+            refreshToken: credentials.refreshToken,
+            profileId: credentials.profileId,
+            region: credentials.region as 'NA' | 'EU' | 'FE',
+          });
+
+          await client.getProfiles();
+
+          results.push({
+            accountId: account.id,
+            accountName: account.accountName,
+            status: 'healthy' as const,
+            isHealthy: true,
+            needsReauth: false,
+            lastSyncAt: credentials.lastSyncAt,
+          });
+        } catch (error: any) {
+          const isAuthError = error.message?.includes('401') || 
+                             error.message?.includes('unauthorized') ||
+                             error.message?.includes('invalid_grant');
+
+          results.push({
+            accountId: account.id,
+            accountName: account.accountName,
+            status: isAuthError ? 'expired' as const : 'error' as const,
+            isHealthy: false,
+            needsReauth: isAuthError,
+            error: error.message,
+          });
+        }
+      }
+
+      const healthyCount = results.filter(r => r.isHealthy).length;
+      const expiredCount = results.filter(r => r.status === 'expired').length;
+      const errorCount = results.filter(r => r.status === 'error').length;
+
+      return {
+        accounts: results,
+        summary: {
+          total: results.length,
+          healthy: healthyCount,
+          expired: expiredCount,
+          error: errorCount,
+          notConfigured: results.filter(r => r.status === 'not_configured').length,
+        },
+        hasIssues: expiredCount > 0 || errorCount > 0,
+      };
+    }),
+
   // Get available profiles
   getProfiles: protectedProcedure
     .input(z.object({ accountId: z.number() }))

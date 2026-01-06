@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import OperationConfirmDialog, { useOperationConfirm, ChangeItem } from "@/components/OperationConfirmDialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -203,9 +204,67 @@ export default function BudgetAllocation() {
     });
   };
 
+  // 确认弹窗状态
+  const { isOpen: isConfirmOpen, isLoading: isConfirmLoading, showConfirm, dialogProps } = useOperationConfirm();
+
   const handleApply = (allocationId: number) => {
-    setIsApplying(true);
-    applyMutation.mutate({ allocationId });
+    // 查找对应的分配方案
+    const allocation = allocationHistory?.find(a => a.id === allocationId) as any;
+    if (!allocation) {
+      setIsApplying(true);
+      applyMutation.mutate({ allocationId });
+      return;
+    }
+
+    // 构建变更预览数据
+    const changes: ChangeItem[] = [];
+    try {
+      const resultData = allocation.result || allocation.allocations;
+      const result = typeof resultData === 'string' 
+        ? JSON.parse(resultData) 
+        : resultData;
+      
+      if (result?.allocations) {
+        result.allocations.forEach((item: any, index: number) => {
+          if (item.currentBudget !== item.recommendedBudget) {
+            const changePercent = item.currentBudget > 0 
+              ? ((item.recommendedBudget - item.currentBudget) / item.currentBudget) * 100 
+              : 0;
+            changes.push({
+              id: item.campaignId || index,
+              name: item.campaignName || `广告活动 ${index + 1}`,
+              field: 'budget',
+              fieldLabel: '每日预算',
+              oldValue: item.currentBudget,
+              newValue: item.recommendedBudget,
+              unit: '$',
+              changePercent,
+            });
+          }
+        });
+      }
+    } catch (e) {
+      // 解析失败时直接执行
+      setIsApplying(true);
+      applyMutation.mutate({ allocationId });
+      return;
+    }
+
+    // 显示确认弹窗
+    showConfirm({
+      operationType: 'budget_adjustment',
+      title: '应用预算分配方案',
+      description: `您即将应用“${allocation.description || '预算分配'}”方案，请确认以下变更`,
+      changes,
+      affectedCount: changes.length,
+      warningMessage: changes.length > 5 
+        ? `此操作将影响 ${changes.length} 个广告活动的预算，请谨慎确认` 
+        : undefined,
+      onConfirm: () => {
+        setIsApplying(true);
+        applyMutation.mutate({ allocationId });
+      },
+    });
   };
 
   const handleCreateGoal = () => {
@@ -870,6 +929,9 @@ export default function BudgetAllocation() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 操作确认弹窗 */}
+      {dialogProps && <OperationConfirmDialog {...dialogProps} />}
     </DashboardLayout>
   );
 }

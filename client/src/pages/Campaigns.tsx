@@ -1,5 +1,6 @@
 import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import OperationConfirmDialog, { useOperationConfirm, ChangeItem } from "@/components/OperationConfirmDialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +29,9 @@ export default function Campaigns() {
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  
+  // 确认弹窗状态
+  const { showConfirm, dialogProps } = useOperationConfirm();
 
   // Fetch accounts
   const { data: accounts } = trpc.adAccount.list.useQuery();
@@ -243,9 +247,30 @@ export default function Campaigns() {
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem
                                 onClick={() => {
-                                  updateCampaign.mutate({
-                                    id: campaign.id,
-                                    status: campaign.status === "enabled" ? "paused" : "enabled",
+                                  const newStatus = campaign.status === "enabled" ? "paused" : "enabled";
+                                  const isHighRisk = campaign.status === "enabled"; // 暂停操作风险较高
+                                  
+                                  showConfirm({
+                                    operationType: newStatus === "paused" ? 'campaign_pause' : 'campaign_enable',
+                                    title: newStatus === "paused" ? '暂停广告活动' : '启用广告活动',
+                                    description: `您即将${newStatus === "paused" ? '暂停' : '启用'}广告活动“${campaign.campaignName}”`,
+                                    changes: [{
+                                      id: campaign.id,
+                                      name: campaign.campaignName,
+                                      field: 'status',
+                                      fieldLabel: '状态',
+                                      oldValue: campaign.status === "enabled" ? '启用中' : '已暂停',
+                                      newValue: newStatus === "paused" ? '已暂停' : '启用中',
+                                    }],
+                                    warningMessage: isHighRisk 
+                                      ? '暂停广告活动将立即停止广告展示，可能影响销售' 
+                                      : undefined,
+                                    onConfirm: () => {
+                                      updateCampaign.mutate({
+                                        id: campaign.id,
+                                        status: newStatus,
+                                      });
+                                    },
                                   });
                                 }}
                               >
@@ -280,6 +305,9 @@ export default function Campaigns() {
           </CardContent>
         </Card>
       </div>
+
+      {/* 操作确认弹窗 */}
+      {dialogProps && <OperationConfirmDialog {...dialogProps} />}
     </DashboardLayout>
   );
 }
