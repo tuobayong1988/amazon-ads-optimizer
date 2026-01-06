@@ -38,7 +38,7 @@ import { Label } from "@/components/ui/label";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Filter, Ban, ArrowUpRight, ArrowRight, Clock } from "lucide-react";
+import { Filter, Ban, ArrowUpRight, ArrowRight, Clock, Plus } from "lucide-react";
 import { TargetTrendChart } from "@/components/TargetTrendChart";
 
 // 广告活动类型图标映射
@@ -1949,6 +1949,12 @@ function SearchTermsList({ campaignId }: { campaignId: number }) {
     { enabled: !!campaignId }
   );
   
+  // 获取广告组列表（用于选择目标广告组）
+  const { data: adGroups } = trpc.campaign.getAdGroups.useQuery(
+    { campaignId },
+    { enabled: !!campaignId }
+  );
+  
   // 筛选状态
   const [showFilters, setShowFilters] = useState(false);
   const [stFilters, setStFilters] = useState({
@@ -1969,10 +1975,21 @@ function SearchTermsList({ campaignId }: { campaignId: number }) {
     cvrMax: "",
   });
   
+  // 批量选择状态
+  const [selectedTermIds, setSelectedTermIds] = useState<Set<number>>(new Set());
+  
   // 否定词弹窗状态
   const [negateDialogOpen, setNegateDialogOpen] = useState(false);
   const [selectedTerm, setSelectedTerm] = useState<any>(null);
   const [negateMatchType, setNegateMatchType] = useState<"phrase" | "exact">("phrase");
+  
+  // 添加为投放词弹窗状态
+  const [addKeywordDialogOpen, setAddKeywordDialogOpen] = useState(false);
+  const [addKeywordConfig, setAddKeywordConfig] = useState({
+    adGroupId: 0,
+    matchType: "exact" as "broad" | "phrase" | "exact",
+    bid: "0.75",
+  });
   
   // 添加否定词 mutation
   const addNegativeKeywordMutation = trpc.adAutomation.applyNegativeKeywords.useMutation({
@@ -1985,6 +2002,77 @@ function SearchTermsList({ campaignId }: { campaignId: number }) {
       toast.error(`添加失败: ${error.message}`);
     }
   });
+  
+  // 批量创建关键词 mutation
+  const batchCreateKeywordsMutation = trpc.keyword.batchCreate.useMutation({
+    onSuccess: (result) => {
+      if (result.created > 0) {
+        toast.success(`成功添加 ${result.created} 个投放词`);
+      }
+      if (result.failed > 0) {
+        toast.warning(`${result.failed} 个投放词添加失败（可能已存在）`);
+      }
+      setAddKeywordDialogOpen(false);
+      setSelectedTermIds(new Set());
+      refetch();
+    },
+    onError: (error: any) => {
+      toast.error(`添加失败: ${error.message}`);
+    }
+  });
+  
+  // 处理批量选择
+  const handleSelectTerm = (termId: number, checked: boolean) => {
+    const newSelected = new Set(selectedTermIds);
+    if (checked) {
+      newSelected.add(termId);
+    } else {
+      newSelected.delete(termId);
+    }
+    setSelectedTermIds(newSelected);
+  };
+  
+  // 全选/取消全选
+  const handleSelectAll = (checked: boolean, terms: any[]) => {
+    if (checked) {
+      setSelectedTermIds(new Set(terms.map((t: any) => t.id)));
+    } else {
+      setSelectedTermIds(new Set());
+    }
+  };
+  
+  // 打开添加投放词弹窗
+  const handleOpenAddKeywordDialog = () => {
+    if (selectedTermIds.size === 0) {
+      toast.warning("请先选择要添加的搜索词");
+      return;
+    }
+    // 默认选择第一个广告组
+    if (adGroups && adGroups.length > 0) {
+      setAddKeywordConfig(prev => ({ ...prev, adGroupId: adGroups[0].id }));
+    }
+    setAddKeywordDialogOpen(true);
+  };
+  
+  // 确认添加为投放词
+  const confirmAddKeywords = () => {
+    if (addKeywordConfig.adGroupId === 0) {
+      toast.error("请选择目标广告组");
+      return;
+    }
+    
+    const selectedTerms = searchTerms?.filter((t: any) => selectedTermIds.has(t.id)) || [];
+    const keywords = selectedTerms.map((term: any) => ({
+      keywordText: term.searchTerm,
+      matchType: addKeywordConfig.matchType,
+      bid: addKeywordConfig.bid,
+    }));
+    
+    batchCreateKeywordsMutation.mutate({
+      adGroupId: addKeywordConfig.adGroupId,
+      keywords,
+    });
+  };
   
   // 处理否定词操作
   const handleNegate = (term: any) => {
@@ -2128,6 +2216,23 @@ function SearchTermsList({ campaignId }: { campaignId: number }) {
             <Button variant="ghost" size="sm" onClick={clearStFilters}>
               清除筛选
             </Button>
+          )}
+          {/* 批量操作按钮 */}
+          {selectedTermIds.size > 0 && (
+            <>
+              <div className="h-4 w-px bg-border" />
+              <span className="text-sm text-muted-foreground">
+                已选 {selectedTermIds.size} 项
+              </span>
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleOpenAddKeywordDialog}
+              >
+                <Plus className="h-4 w-4 mr-1" />
+                添加为投放词
+              </Button>
+            </>
           )}
         </div>
         <div className="text-sm text-muted-foreground">
@@ -2307,6 +2412,12 @@ function SearchTermsList({ campaignId }: { campaignId: number }) {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[40px]">
+                <Checkbox
+                  checked={sortedTerms.length > 0 && selectedTermIds.size === sortedTerms.length}
+                  onCheckedChange={(checked) => handleSelectAll(!!checked, sortedTerms)}
+                />
+              </TableHead>
               <TableHead>客户搜索词</TableHead>
               <TableHead>源头投放词</TableHead>
               <TableHead>匹配方式</TableHead>
@@ -2338,6 +2449,12 @@ function SearchTermsList({ campaignId }: { campaignId: number }) {
               
               return (
                 <TableRow key={term.id || index} className={isLowPerforming ? "bg-red-500/5" : isHighValue ? "bg-green-500/5" : ""}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedTermIds.has(term.id)}
+                      onCheckedChange={(checked) => handleSelectTerm(term.id, !!checked)}
+                    />
+                  </TableCell>
                   <TableCell className="font-medium max-w-[180px] truncate" title={term.searchTerm}>
                     <div className="flex items-center gap-1">
                       {isLowPerforming && <span title="低效搜索词">🚨</span>}
@@ -2467,6 +2584,114 @@ function SearchTermsList({ campaignId }: { campaignId: number }) {
                 <><Loader2 className="h-4 w-4 mr-2 animate-spin" />添加中...</>
               ) : (
                 "确认添加"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* 添加为投放词弹窗 */}
+      <Dialog open={addKeywordDialogOpen} onOpenChange={setAddKeywordDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>添加为投放词</DialogTitle>
+            <DialogDescription>
+              将选中的 {selectedTermIds.size} 个搜索词添加为新的投放关键词
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* 目标广告组 */}
+            <div className="space-y-2">
+              <Label>目标广告组</Label>
+              <Select 
+                value={addKeywordConfig.adGroupId.toString()} 
+                onValueChange={(v) => setAddKeywordConfig({...addKeywordConfig, adGroupId: parseInt(v)})}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="选择广告组" />
+                </SelectTrigger>
+                <SelectContent>
+                  {adGroups?.map((ag: any) => (
+                    <SelectItem key={ag.id} value={ag.id.toString()}>
+                      {ag.adGroupName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* 匹配方式 */}
+            <div className="space-y-2">
+              <Label>匹配方式</Label>
+              <Select 
+                value={addKeywordConfig.matchType} 
+                onValueChange={(v: "broad" | "phrase" | "exact") => setAddKeywordConfig({...addKeywordConfig, matchType: v})}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="exact">
+                    <div className="flex flex-col">
+                      <span>精准匹配</span>
+                      <span className="text-xs text-muted-foreground">仅完全匹配时触发，最精准</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="phrase">
+                    <div className="flex flex-col">
+                      <span>词组匹配</span>
+                      <span className="text-xs text-muted-foreground">包含该词组时触发</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="broad">
+                    <div className="flex flex-col">
+                      <span>广泛匹配</span>
+                      <span className="text-xs text-muted-foreground">相关搜索词都可触发，覆盖面最广</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            {/* 初始出价 */}
+            <div className="space-y-2">
+              <Label>初始出价 ($)</Label>
+              <Input
+                type="number"
+                step="0.01"
+                min="0.02"
+                value={addKeywordConfig.bid}
+                onChange={(e) => setAddKeywordConfig({...addKeywordConfig, bid: e.target.value})}
+                placeholder="0.75"
+              />
+            </div>
+            
+            {/* 选中的搜索词预览 */}
+            <div className="space-y-2">
+              <Label>选中的搜索词</Label>
+              <div className="bg-muted p-3 rounded-lg max-h-[150px] overflow-y-auto">
+                <div className="flex flex-wrap gap-2">
+                  {searchTerms?.filter((t: any) => selectedTermIds.has(t.id)).map((term: any) => (
+                    <Badge key={term.id} variant="secondary" className="text-xs">
+                      {term.searchTerm}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddKeywordDialogOpen(false)}>
+              取消
+            </Button>
+            <Button 
+              onClick={confirmAddKeywords}
+              disabled={batchCreateKeywordsMutation.isPending || addKeywordConfig.adGroupId === 0}
+            >
+              {batchCreateKeywordsMutation.isPending ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />添加中...</>
+              ) : (
+                `添加 ${selectedTermIds.size} 个投放词`
               )}
             </Button>
           </DialogFooter>

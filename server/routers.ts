@@ -670,6 +670,71 @@ const keywordRouter = router({
         summary: calculateTrendSummary(historyData),
       };
     }),
+  
+  // 批量创建关键词（从搜索词转投放词）
+  batchCreate: protectedProcedure
+    .input(z.object({
+      adGroupId: z.number(),
+      keywords: z.array(z.object({
+        keywordText: z.string(),
+        matchType: z.enum(["broad", "phrase", "exact"]),
+        bid: z.string(),
+      })),
+    }))
+    .mutation(async ({ input }) => {
+      const results = [];
+      const errors = [];
+      
+      for (const kw of input.keywords) {
+        try {
+          // 检查是否已存在相同的关键词（相同文本+相同匹配方式）
+          const existingKeywords = await db.getKeywordsByAdGroupId(input.adGroupId);
+          const exists = existingKeywords.some(
+            (existing) => 
+              existing.keywordText.toLowerCase() === kw.keywordText.toLowerCase() &&
+              existing.matchType === kw.matchType
+          );
+          
+          if (exists) {
+            errors.push({
+              keywordText: kw.keywordText,
+              matchType: kw.matchType,
+              error: "关键词已存在",
+            });
+            continue;
+          }
+          
+          const id = await db.createKeyword({
+            adGroupId: input.adGroupId,
+            keywordText: kw.keywordText,
+            matchType: kw.matchType,
+            bid: kw.bid,
+            status: "enabled",
+          });
+          
+          results.push({
+            id,
+            keywordText: kw.keywordText,
+            matchType: kw.matchType,
+            bid: kw.bid,
+          });
+        } catch (error) {
+          errors.push({
+            keywordText: kw.keywordText,
+            matchType: kw.matchType,
+            error: error instanceof Error ? error.message : "创建失败",
+          });
+        }
+      }
+      
+      return {
+        success: true,
+        created: results.length,
+        failed: errors.length,
+        results,
+        errors,
+      };
+    }),
 });
 
 // ==================== Product Target Router ====================
