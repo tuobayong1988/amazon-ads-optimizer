@@ -333,6 +333,9 @@ export async function getEventPerformanceComparison(userId: number, options: { a
     avgAcos: number;
     avgCtr: number;
     avgCvr: number;
+    roi: number; // 投资回报率 = (sales - spend) / spend * 100
+    profit: number; // 毛利润 = sales - spend
+    profitMargin: number; // 利润率 = profit / sales * 100
     daysCount: number;
   }[] = [];
 
@@ -361,6 +364,10 @@ export async function getEventPerformanceComparison(userId: number, options: { a
     const clicks = Number(data?.totalClicks) || 0;
     const impressions = Number(data?.totalImpressions) || 0;
 
+    const profit = sales - spend;
+    const roi = spend > 0 ? (profit / spend) * 100 : 0;
+    const profitMargin = sales > 0 ? (profit / sales) * 100 : 0;
+
     comparison.push({
       eventId: event.id,
       eventName: event.eventName,
@@ -377,6 +384,9 @@ export async function getEventPerformanceComparison(userId: number, options: { a
       avgAcos: sales > 0 ? (spend / sales) * 100 : 0,
       avgCtr: impressions > 0 ? (clicks / impressions) * 100 : 0,
       avgCvr: clicks > 0 ? (orders / clicks) * 100 : 0,
+      roi,
+      profit,
+      profitMargin,
       daysCount: Number(data?.daysCount) || 0,
     });
   }
@@ -401,6 +411,8 @@ export async function getEventPerformanceComparison(userId: number, options: { a
     roasChange: number;
     acosChange: number;
     ordersChange: number;
+    roiChange: number; // ROI变化
+    profitChange: number; // 利润变化
   }[] = [];
 
   for (const [eventType, items] of Object.entries(groupedByType)) {
@@ -419,6 +431,8 @@ export async function getEventPerformanceComparison(userId: number, options: { a
         roasChange: previous.avgRoas > 0 ? ((current.avgRoas - previous.avgRoas) / previous.avgRoas) * 100 : 0,
         acosChange: previous.avgAcos > 0 ? ((current.avgAcos - previous.avgAcos) / previous.avgAcos) * 100 : 0,
         ordersChange: previous.totalOrders > 0 ? ((current.totalOrders - previous.totalOrders) / previous.totalOrders) * 100 : 0,
+        roiChange: previous.roi > 0 ? ((current.roi - previous.roi) / Math.abs(previous.roi)) * 100 : 0,
+        profitChange: previous.profit !== 0 ? ((current.profit - previous.profit) / Math.abs(previous.profit)) * 100 : 0,
       });
     }
   }
@@ -447,6 +461,9 @@ export async function getEventSummaryStats(userId: number, options: { accountId?
     avgRoas: number;
     avgAcos: number;
     avgOrders: number;
+    avgRoi: number;
+    avgProfit: number;
+    avgProfitMargin: number;
     eventCount: number;
   }> = {};
 
@@ -458,6 +475,9 @@ export async function getEventSummaryStats(userId: number, options: { accountId?
         avgRoas: 0,
         avgAcos: 0,
         avgOrders: 0,
+        avgRoi: 0,
+        avgProfit: 0,
+        avgProfitMargin: 0,
         eventCount: 0,
       };
     }
@@ -467,6 +487,9 @@ export async function getEventSummaryStats(userId: number, options: { accountId?
     stats.avgRoas += item.avgRoas;
     stats.avgAcos += item.avgAcos;
     stats.avgOrders += item.totalOrders;
+    stats.avgRoi += item.roi;
+    stats.avgProfit += item.profit;
+    stats.avgProfitMargin += item.profitMargin;
     stats.eventCount++;
   }
 
@@ -479,6 +502,9 @@ export async function getEventSummaryStats(userId: number, options: { accountId?
       stats.avgRoas /= stats.eventCount;
       stats.avgAcos /= stats.eventCount;
       stats.avgOrders /= stats.eventCount;
+      stats.avgRoi /= stats.eventCount;
+      stats.avgProfit /= stats.eventCount;
+      stats.avgProfitMargin /= stats.eventCount;
     }
   }
 

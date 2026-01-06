@@ -54,31 +54,70 @@ import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 import AccountSwitcher from "./AccountSwitcher";
 
-const menuItems = [
-  { icon: LayoutDashboard, label: "监控仪表盘", path: "/dashboard" },
-  { icon: Target, label: "绩效组管理", path: "/performance-groups" },
-  { icon: Megaphone, label: "广告活动", path: "/campaigns" },
-  { icon: Zap, label: "广告自动化", path: "/automation" },
-  { icon: Activity, label: "健康度监控", path: "/health" },
-  { icon: Layers, label: "批量操作", path: "/batch-operations" },
-  { icon: FileSearch, label: "纠错复盘", path: "/correction-review" },
-  { icon: Clock, label: "定时任务", path: "/scheduler" },
-  { icon: Bell, label: "通知设置", path: "/notifications" },
-  { icon: FileText, label: "竞价日志", path: "/bidding-logs" },
-  { icon: Settings, label: "优化设置", path: "/settings" },
-  { icon: Upload, label: "数据导入", path: "/import" },
-  { icon: Cloud, label: "Amazon API", path: "/amazon-api" },
-  { icon: BarChart3, label: "跨账号汇总", path: "/accounts-summary" },
-  { icon: Users, label: "团队管理", path: "/team" },
-  { icon: Mail, label: "邮件报表", path: "/email-reports" },
-  { icon: Shield, label: "审计日志", path: "/audit-logs" },
-  { icon: MessageSquare, label: "协作通知", path: "/collaboration" },
-  { icon: DollarSign, label: "预算分配", path: "/budget-allocation" },
-  { icon: AlertTriangle, label: "预算预警", path: "/budget-alerts" },
-  { icon: LineChart, label: "效果追踪", path: "/budget-tracking" },
-  { icon: CalendarDays, label: "季节性建议", path: "/seasonal-budget" },
-  { icon: RefreshCw, label: "数据同步", path: "/data-sync" },
+// 菜单分组配置 - 按运营工作流程优先级排序
+const menuGroups = [
+  {
+    title: "核心监控",
+    items: [
+      { icon: LayoutDashboard, label: "监控仪表盘", path: "/dashboard" },
+      { icon: Activity, label: "健康度监控", path: "/health" },
+      { icon: AlertTriangle, label: "预算预警", path: "/budget-alerts" },
+    ]
+  },
+  {
+    title: "广告管理",
+    items: [
+      { icon: Megaphone, label: "广告活动", path: "/campaigns" },
+      { icon: Target, label: "绩效组管理", path: "/performance-groups" },
+      { icon: DollarSign, label: "预算分配", path: "/budget-allocation" },
+    ]
+  },
+  {
+    title: "智能优化",
+    items: [
+      { icon: Zap, label: "广告自动化", path: "/automation" },
+      { icon: Layers, label: "批量操作", path: "/batch-operations" },
+      { icon: FileSearch, label: "纠错复盘", path: "/correction-review" },
+      { icon: CalendarDays, label: "季节性建议", path: "/seasonal-budget" },
+    ]
+  },
+  {
+    title: "数据与报告",
+    items: [
+      { icon: FileText, label: "竞价日志", path: "/bidding-logs" },
+      { icon: LineChart, label: "效果追踪", path: "/budget-tracking" },
+      { icon: BarChart3, label: "跨账号汇总", path: "/accounts-summary" },
+      { icon: Shield, label: "审计日志", path: "/audit-logs" },
+    ]
+  },
+  {
+    title: "自动化任务",
+    items: [
+      { icon: Clock, label: "定时任务", path: "/scheduler" },
+      { icon: RefreshCw, label: "数据同步", path: "/data-sync" },
+    ]
+  },
+  {
+    title: "系统设置",
+    items: [
+      { icon: Cloud, label: "Amazon API", path: "/amazon-api" },
+      { icon: Settings, label: "优化设置", path: "/settings" },
+      { icon: Bell, label: "通知设置", path: "/notifications" },
+      { icon: Upload, label: "数据导入", path: "/import" },
+    ]
+  },
+  {
+    title: "团队协作",
+    items: [
+      { icon: Users, label: "团队管理", path: "/team" },
+      { icon: MessageSquare, label: "协作通知", path: "/collaboration" },
+      { icon: Mail, label: "邮件报表", path: "/email-reports" },
+    ]
+  },
 ];
+
+// 扁平化菜单项用于路由匹配
+const menuItems = menuGroups.flatMap(group => group.items);
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 260;
@@ -232,27 +271,38 @@ function DashboardLayoutContent({
             </div>
           </SidebarHeader>
 
-          <SidebarContent className="gap-0">
-            <SidebarMenu className="px-2 py-1">
-              {menuItems.map(item => {
-                const isActive = location === item.path;
-                return (
-                  <SidebarMenuItem key={item.path}>
-                    <SidebarMenuButton
-                      isActive={isActive}
-                      onClick={() => setLocation(item.path)}
-                      tooltip={item.label}
-                      className={`h-10 transition-all font-normal`}
-                    >
-                      <item.icon
-                        className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
-                      />
-                      <span>{item.label}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
+          <SidebarContent className="gap-0 overflow-y-auto">
+            {menuGroups.map((group, groupIndex) => (
+              <div key={group.title} className={groupIndex > 0 ? "mt-2" : ""}>
+                {!isCollapsed && (
+                  <div className="px-4 py-2">
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                      {group.title}
+                    </span>
+                  </div>
+                )}
+                <SidebarMenu className="px-2">
+                  {group.items.map(item => {
+                    const isActive = location === item.path;
+                    return (
+                      <SidebarMenuItem key={item.path}>
+                        <SidebarMenuButton
+                          isActive={isActive}
+                          onClick={() => setLocation(item.path)}
+                          tooltip={item.label}
+                          className={`h-9 transition-all font-normal`}
+                        >
+                          <item.icon
+                            className={`h-4 w-4 ${isActive ? "text-primary" : ""}`}
+                          />
+                          <span>{item.label}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </div>
+            ))}
           </SidebarContent>
 
           <SidebarFooter className="p-3">

@@ -3699,6 +3699,27 @@ const dataSyncRouter = router({
     .query(async ({ input }) => {
       return dataSyncService.getScheduleHistory(input.scheduleId, input.limit);
     }),
+
+  // 获取调度详细执行历史
+  getScheduleExecutionHistory: protectedProcedure
+    .input(z.object({ scheduleId: z.number(), limit: z.number().default(50) }))
+    .query(async ({ input }) => {
+      return dataSyncService.getScheduleExecutionHistory(input.scheduleId, input.limit);
+    }),
+
+  // 获取调度执行统计
+  getScheduleExecutionStats: protectedProcedure
+    .input(z.object({ scheduleId: z.number() }))
+    .query(async ({ input }) => {
+      return dataSyncService.getScheduleExecutionStats(input.scheduleId);
+    }),
+
+  // 手动触发调度执行（带重试）
+  triggerScheduleWithRetry: protectedProcedure
+    .input(z.object({ scheduleId: z.number() }))
+    .mutation(async ({ input }) => {
+      return dataSyncService.executeScheduledSyncWithRetry(input.scheduleId);
+    }),
 });
 
 // ==================== Main Router ====================

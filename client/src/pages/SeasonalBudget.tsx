@@ -545,7 +545,7 @@ export default function SeasonalBudget() {
                           </div>
                         </div>
                       </div>
-                      <div className="grid grid-cols-5 gap-4">
+                      <div className="grid grid-cols-4 gap-4 mb-3">
                         <div className="text-center p-3 bg-muted/50 rounded-lg">
                           <p className="text-xs text-muted-foreground mb-1">花费变化</p>
                           <p className={`font-medium ${yoy.spendChange >= 0 ? 'text-red-500' : 'text-green-500'}`}>
@@ -568,6 +568,20 @@ export default function SeasonalBudget() {
                           <p className="text-xs text-muted-foreground mb-1">ACoS变化</p>
                           <p className={`font-medium ${yoy.acosChange <= 0 ? 'text-green-500' : 'text-red-500'}`}>
                             {yoy.acosChange >= 0 ? '+' : ''}{yoy.acosChange.toFixed(1)}%
+                          </p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-4">
+                        <div className="text-center p-3 bg-gradient-to-br from-purple-500/10 to-purple-600/10 border border-purple-500/20 rounded-lg">
+                          <p className="text-xs text-purple-400 mb-1">ROI变化</p>
+                          <p className={`font-semibold ${(yoy.roiChange || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                            {(yoy.roiChange || 0) >= 0 ? '+' : ''}{(yoy.roiChange || 0).toFixed(1)}%
+                          </p>
+                        </div>
+                        <div className="text-center p-3 bg-gradient-to-br from-emerald-500/10 to-emerald-600/10 border border-emerald-500/20 rounded-lg">
+                          <p className="text-xs text-emerald-400 mb-1">利润变化</p>
+                          <p className={`font-semibold ${(yoy.profitChange || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                            {(yoy.profitChange || 0) >= 0 ? '+' : ''}{(yoy.profitChange || 0).toFixed(1)}%
                           </p>
                         </div>
                         <div className="text-center p-3 bg-muted/50 rounded-lg">
@@ -608,11 +622,11 @@ export default function SeasonalBudget() {
                         <th className="text-left p-3">年份</th>
                         <th className="text-right p-3">花费</th>
                         <th className="text-right p-3">销售额</th>
+                        <th className="text-right p-3">利润</th>
+                        <th className="text-right p-3 bg-purple-500/10">ROI</th>
                         <th className="text-right p-3">订单数</th>
                         <th className="text-right p-3">ROAS</th>
                         <th className="text-right p-3">ACoS</th>
-                        <th className="text-right p-3">CTR</th>
-                        <th className="text-right p-3">CVR</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -627,6 +641,16 @@ export default function SeasonalBudget() {
                           <td className="p-3">{item.year}</td>
                           <td className="p-3 text-right">${item.totalSpend.toFixed(2)}</td>
                           <td className="p-3 text-right">${item.totalSales.toFixed(2)}</td>
+                          <td className="p-3 text-right">
+                            <span className={(item.profit || 0) >= 0 ? 'text-green-500' : 'text-red-500'}>
+                              ${(item.profit || 0).toFixed(2)}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right bg-purple-500/5">
+                            <span className={`font-semibold ${(item.roi || 0) >= 100 ? 'text-green-500' : (item.roi || 0) >= 50 ? 'text-yellow-500' : 'text-red-500'}`}>
+                              {(item.roi || 0).toFixed(1)}%
+                            </span>
+                          </td>
                           <td className="p-3 text-right">{item.totalOrders}</td>
                           <td className="p-3 text-right">
                             <span className={item.avgRoas >= 3 ? 'text-green-500' : item.avgRoas >= 2 ? 'text-yellow-500' : 'text-red-500'}>
@@ -638,8 +662,6 @@ export default function SeasonalBudget() {
                               {item.avgAcos.toFixed(1)}%
                             </span>
                           </td>
-                          <td className="p-3 text-right">{item.avgCtr.toFixed(2)}%</td>
-                          <td className="p-3 text-right">{item.avgCvr.toFixed(2)}%</td>
                         </tr>
                       ))}
                     </tbody>
@@ -672,6 +694,18 @@ export default function SeasonalBudget() {
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">平均销售</span>
                           <span>${stats.avgSales.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">平均利润</span>
+                          <span className={(stats.avgProfit || 0) >= 0 ? 'text-green-500' : 'text-red-500'}>
+                            ${(stats.avgProfit || 0).toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between p-1 -mx-1 bg-purple-500/10 rounded">
+                          <span className="text-purple-400 font-medium">平均ROI</span>
+                          <span className={`font-semibold ${(stats.avgRoi || 0) >= 100 ? 'text-green-500' : (stats.avgRoi || 0) >= 50 ? 'text-yellow-500' : 'text-red-500'}`}>
+                            {(stats.avgRoi || 0).toFixed(1)}%
+                          </span>
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">平均ROAS</span>

@@ -643,3 +643,321 @@ export async function getScheduleHistory(scheduleId: number, limit: number = 20)
   
   return (result as any)[0] || [];
 }
+
+
+/**
+ * 调度执行历史记录类型
+ */
+export interface ScheduleExecutionHistory {
+  id: number;
+  scheduleId: number;
+  jobId: number | null;
+  status: "success" | "failed" | "retrying";
+  retryCount: number;
+  errorMessage: string | null;
+  startedAt: Date;
+  completedAt: Date | null;
+  recordsSynced: number;
+  duration: number | null; // 秒
+}
+
+/**
+ * 重试配置
+ */
+const RETRY_CONFIG = {
+  maxRetries: 3,
+  retryDelayMs: 30000, // 30秒
+  backoffMultiplier: 2, // 指数退避
+};
+
+/**
+ * 获取调度的详细执行历史
+ */
+export async function getScheduleExecutionHistory(
+  scheduleId: number,
+  limit: number = 50
+): Promise<ScheduleExecutionHistory[]> {
+  const db = await getDb();
+  if (!db) return [];
+
+  try {
+    const result = await db.execute(sql`
+      SELECT 
+        j.id,
+        ${scheduleId} as scheduleId,
+        j.id as jobId,
+        j.status,
+        COALESCE(j.retry_count, 0) as retryCount,
+        j.error_message as errorMessage,
+        j.started_at as startedAt,
+        j.completed_at as completedAt,
+        COALESCE(j.records_synced, 0) as recordsSynced,
+        CASE 
+          WHEN j.completed_at IS NOT NULL AND j.started_at IS NOT NULL 
+          THEN TIMESTAMPDIFF(SECOND, j.started_at, j.completed_at)
+          ELSE NULL 
+        END as duration
+      FROM data_sync_jobs j
+      INNER JOIN sync_schedules s ON j.account_id = s.account_id
+      WHERE s.id = ${scheduleId}
+      ORDER BY j.created_at DESC
+      LIMIT ${limit}
+    `);
+
+    const rows = (result as any)[0] || [];
+    return rows.map((row: any) => ({
+      id: row.id,
+      scheduleId: row.scheduleId,
+      jobId: row.jobId,
+      status: row.status === "completed" ? "success" : row.status === "failed" ? "failed" : "retrying",
+      retryCount: row.retryCount || 0,
+      errorMessage: row.errorMessage,
+      startedAt: row.startedAt ? new Date(row.startedAt) : new Date(),
+      completedAt: row.completedAt ? new Date(row.completedAt) : null,
+      recordsSynced: row.recordsSynced || 0,
+      duration: row.duration,
+    }));
+  } catch (error) {
+    console.error("获取执行历史失败:", error);
+    return [];
+  }
+}
+
+/**
+ * 带重试机制的调度执行
+ */
+export async function executeScheduledSyncWithRetry(
+  scheduleId: number
+): Promise<{ success: boolean; jobId?: number; message?: string; retryCount: number }> {
+  let retryCount = 0;
+  let lastError: Error | null = null;
+
+  while (retryCount <= RETRY_CONFIG.maxRetries) {
+    try {
+      const result = await executeScheduledSync(scheduleId);
+      
+      if (result.success) {
+        // 成功，记录执行
+        await logScheduleExecution(scheduleId, result.jobId!, "success", retryCount);
+        return { ...result, retryCount };
+      } else {
+        // 业务逻辑失败，不重试
+        await logScheduleExecution(scheduleId, result.jobId, "failed", retryCount, result.message);
+        return { ...result, retryCount };
+      }
+    } catch (error) {
+      lastError = error as Error;
+      retryCount++;
+      
+      if (retryCount <= RETRY_CONFIG.maxRetries) {
+        // 计算退避延迟
+        const delay = RETRY_CONFIG.retryDelayMs * Math.pow(RETRY_CONFIG.backoffMultiplier, retryCount - 1);
+        console.log(`调度 ${scheduleId} 执行失败，${delay/1000}秒后进行第 ${retryCount} 次重试...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  // 所有重试都失败
+  const errorMessage = lastError?.message || "未知错误";
+  await logScheduleExecution(scheduleId, null, "failed", retryCount, errorMessage);
+  
+  // 发送失败告警通知
+  await sendScheduleFailureAlert(scheduleId, errorMessage, retryCount);
+  
+  return {
+    success: false,
+    message: `执行失败，已重试 ${retryCount} 次: ${errorMessage}`,
+    retryCount,
+  };
+}
+
+/**
+ * 记录调度执行日志
+ */
+async function logScheduleExecution(
+  scheduleId: number,
+  jobId: number | null | undefined,
+  status: "success" | "failed",
+  retryCount: number,
+  errorMessage?: string
+): Promise<void> {
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    // 如果有jobId，更新job记录
+    if (jobId) {
+      await db.execute(sql`
+        UPDATE data_sync_jobs 
+        SET retry_count = ${retryCount}
+        WHERE id = ${jobId}
+      `);
+    }
+
+    // 记录到日志表
+    await db.insert(dataSyncLogs).values({
+      jobId: jobId || 0,
+      operation: `schedule_execution_${scheduleId}`,
+      status: status === "success" ? "success" : "error",
+      message: errorMessage || (status === "success" ? "执行成功" : "执行失败"),
+      details: { scheduleId, retryCount, timestamp: new Date().toISOString() },
+    });
+  } catch (error) {
+    console.error("记录执行日志失败:", error);
+  }
+}
+
+/**
+ * 发送调度失败告警通知
+ */
+async function sendScheduleFailureAlert(
+  scheduleId: number,
+  errorMessage: string,
+  retryCount: number
+): Promise<void> {
+  try {
+    // 获取调度信息
+    const db = await getDb();
+    if (!db) return;
+
+    const scheduleResult = await db.execute(sql`
+      SELECT s.*, a.account_name as accountName
+      FROM sync_schedules s
+      LEFT JOIN ad_accounts a ON s.account_id = a.id
+      WHERE s.id = ${scheduleId}
+    `);
+    
+    const schedule = (scheduleResult as any)[0]?.[0];
+    if (!schedule) return;
+
+    // 使用通知服务发送告警
+    const { notifyOwner } = await import("./_core/notification");
+    
+    const syncTypeNames: Record<string, string> = {
+      campaigns: "广告活动",
+      keywords: "关键词",
+      performance: "绩效数据",
+      all: "全量同步",
+    };
+
+    await notifyOwner({
+      title: "数据同步调度执行失败",
+      content: `
+调度任务执行失败告警
+
+账号: ${schedule.accountName || "未知"}
+同步类型: ${syncTypeNames[schedule.syncType] || schedule.syncType}
+重试次数: ${retryCount}/${RETRY_CONFIG.maxRetries}
+错误信息: ${errorMessage}
+
+请检查Amazon API连接状态和账号授权是否正常。
+      `.trim(),
+    });
+  } catch (error) {
+    console.error("发送失败告警失败:", error);
+  }
+}
+
+/**
+ * 获取调度执行统计
+ */
+export async function getScheduleExecutionStats(scheduleId: number): Promise<{
+  totalExecutions: number;
+  successCount: number;
+  failureCount: number;
+  avgDuration: number | null;
+  lastSuccessAt: Date | null;
+  lastFailureAt: Date | null;
+}> {
+  const db = await getDb();
+  if (!db) {
+    return {
+      totalExecutions: 0,
+      successCount: 0,
+      failureCount: 0,
+      avgDuration: null,
+      lastSuccessAt: null,
+      lastFailureAt: null,
+    };
+  }
+
+  try {
+    const result = await db.execute(sql`
+      SELECT 
+        COUNT(*) as totalExecutions,
+        SUM(CASE WHEN j.status = 'completed' THEN 1 ELSE 0 END) as successCount,
+        SUM(CASE WHEN j.status = 'failed' THEN 1 ELSE 0 END) as failureCount,
+        AVG(CASE 
+          WHEN j.completed_at IS NOT NULL AND j.started_at IS NOT NULL 
+          THEN TIMESTAMPDIFF(SECOND, j.started_at, j.completed_at)
+          ELSE NULL 
+        END) as avgDuration,
+        MAX(CASE WHEN j.status = 'completed' THEN j.completed_at ELSE NULL END) as lastSuccessAt,
+        MAX(CASE WHEN j.status = 'failed' THEN j.completed_at ELSE NULL END) as lastFailureAt
+      FROM data_sync_jobs j
+      INNER JOIN sync_schedules s ON j.account_id = s.account_id
+      WHERE s.id = ${scheduleId}
+    `);
+
+    const row = (result as any)[0]?.[0];
+    if (!row) {
+      return {
+        totalExecutions: 0,
+        successCount: 0,
+        failureCount: 0,
+        avgDuration: null,
+        lastSuccessAt: null,
+        lastFailureAt: null,
+      };
+    }
+
+    return {
+      totalExecutions: Number(row.totalExecutions) || 0,
+      successCount: Number(row.successCount) || 0,
+      failureCount: Number(row.failureCount) || 0,
+      avgDuration: row.avgDuration ? Number(row.avgDuration) : null,
+      lastSuccessAt: row.lastSuccessAt ? new Date(row.lastSuccessAt) : null,
+      lastFailureAt: row.lastFailureAt ? new Date(row.lastFailureAt) : null,
+    };
+  } catch (error) {
+    console.error("获取执行统计失败:", error);
+    return {
+      totalExecutions: 0,
+      successCount: 0,
+      failureCount: 0,
+      avgDuration: null,
+      lastSuccessAt: null,
+      lastFailureAt: null,
+    };
+  }
+}
+
+/**
+ * 运行带重试的调度检查
+ */
+export async function runScheduleCheckWithRetry(): Promise<{ executed: number; failed: number; retried: number }> {
+  const dueSchedules = await getDueSchedules();
+  let executed = 0;
+  let failed = 0;
+  let retried = 0;
+
+  for (const schedule of dueSchedules) {
+    try {
+      const result = await executeScheduledSyncWithRetry(schedule.id!);
+      if (result.success) {
+        executed++;
+      } else {
+        failed++;
+      }
+      if (result.retryCount > 0) {
+        retried += result.retryCount;
+      }
+    } catch (error) {
+      failed++;
+      console.error(`执行调度任务 ${schedule.id} 失败:`, error);
+    }
+  }
+
+  return { executed, failed, retried };
+}

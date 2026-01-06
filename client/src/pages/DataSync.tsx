@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { Activity, AlertTriangle, Calendar, CheckCircle, Clock, Database, Gauge, Loader2, Pause, Play, Plus, RefreshCw, Server, Trash2, XCircle } from "lucide-react";
+import { Activity, AlertTriangle, Calendar, CheckCircle, Clock, Database, Gauge, History, Loader2, Pause, Play, Plus, RefreshCw, RotateCcw, Server, Trash2, XCircle } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -137,6 +137,44 @@ export default function DataSync() {
       toast.error(`触发失败: ${error.message}`);
     },
   });
+
+  // 手动触发调度（带重试）
+  const triggerWithRetryMutation = trpc.dataSync.triggerScheduleWithRetry.useMutation({
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success(`同步任务已完成 (ID: ${result.jobId})${result.retryCount > 0 ? `, 重试了 ${result.retryCount} 次` : ''}`);
+        refetchJobs();
+        refetchSchedules();
+        refetchExecutionHistory();
+      } else {
+        toast.error(result.message || "执行失败");
+      }
+    },
+    onError: (error) => {
+      toast.error(`执行失败: ${error.message}`);
+    },
+  });
+
+  // 执行历史状态
+  const [selectedScheduleId, setSelectedScheduleId] = useState<number | null>(null);
+  const [showHistoryDialog, setShowHistoryDialog] = useState(false);
+
+  // 获取执行历史
+  const { data: executionHistory, refetch: refetchExecutionHistory } = trpc.dataSync.getScheduleExecutionHistory.useQuery(
+    { scheduleId: selectedScheduleId || 0, limit: 50 },
+    { enabled: !!selectedScheduleId }
+  );
+
+  // 获取执行统计
+  const { data: executionStats } = trpc.dataSync.getScheduleExecutionStats.useQuery(
+    { scheduleId: selectedScheduleId || 0 },
+    { enabled: !!selectedScheduleId }
+  );
+
+  const openHistoryDialog = (scheduleId: number) => {
+    setSelectedScheduleId(scheduleId);
+    setShowHistoryDialog(true);
+  };
 
   const handleCreateJob = () => {
     if (!accountId) {
@@ -708,11 +746,20 @@ export default function DataSync() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => triggerScheduleMutation.mutate({ scheduleId: schedule.id })}
-                            disabled={triggerScheduleMutation.isPending}
+                            onClick={() => openHistoryDialog(schedule.id)}
+                            title="查看执行历史"
                           >
-                            <Play className="h-4 w-4 mr-1" />
-                            立即执行
+                            <History className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => triggerWithRetryMutation.mutate({ scheduleId: schedule.id })}
+                            disabled={triggerWithRetryMutation.isPending}
+                            title="立即执行（带自动重试）"
+                          >
+                            <RotateCcw className="h-4 w-4 mr-1" />
+                            执行
                           </Button>
                           <Button
                             size="sm"
@@ -774,6 +821,110 @@ export default function DataSync() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* 执行历史对话框 */}
+      <Dialog open={showHistoryDialog} onOpenChange={setShowHistoryDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>调度执行历史</DialogTitle>
+            <DialogDescription>查看此调度的历史执行记录和统计信息</DialogDescription>
+          </DialogHeader>
+          
+          {/* 执行统计 */}
+          {executionStats && (
+            <div className="grid grid-cols-3 md:grid-cols-6 gap-4 mb-6">
+              <div className="text-center p-3 bg-muted/50 rounded-lg">
+                <p className="text-xs text-muted-foreground mb-1">总执行次数</p>
+                <p className="text-xl font-semibold">{executionStats.totalExecutions}</p>
+              </div>
+              <div className="text-center p-3 bg-green-500/10 rounded-lg">
+                <p className="text-xs text-green-500 mb-1">成功次数</p>
+                <p className="text-xl font-semibold text-green-500">{executionStats.successCount}</p>
+              </div>
+              <div className="text-center p-3 bg-red-500/10 rounded-lg">
+                <p className="text-xs text-red-500 mb-1">失败次数</p>
+                <p className="text-xl font-semibold text-red-500">{executionStats.failureCount}</p>
+              </div>
+              <div className="text-center p-3 bg-muted/50 rounded-lg">
+                <p className="text-xs text-muted-foreground mb-1">平均耗时</p>
+                <p className="text-xl font-semibold">{executionStats.avgDuration ? `${executionStats.avgDuration.toFixed(0)}s` : 'N/A'}</p>
+              </div>
+              <div className="text-center p-3 bg-muted/50 rounded-lg">
+                <p className="text-xs text-muted-foreground mb-1">上次成功</p>
+                <p className="text-sm font-medium">{executionStats.lastSuccessAt ? new Date(executionStats.lastSuccessAt).toLocaleDateString() : 'N/A'}</p>
+              </div>
+              <div className="text-center p-3 bg-muted/50 rounded-lg">
+                <p className="text-xs text-muted-foreground mb-1">上次失败</p>
+                <p className="text-sm font-medium">{executionStats.lastFailureAt ? new Date(executionStats.lastFailureAt).toLocaleDateString() : 'N/A'}</p>
+              </div>
+            </div>
+          )}
+
+          {/* 执行历史列表 */}
+          <div className="space-y-2">
+            <h4 className="font-medium mb-3">执行记录</h4>
+            {!executionHistory || (executionHistory as any[]).length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <History className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <p>暂无执行记录</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left p-2">状态</th>
+                      <th className="text-left p-2">开始时间</th>
+                      <th className="text-left p-2">完成时间</th>
+                      <th className="text-right p-2">耗时</th>
+                      <th className="text-right p-2">同步记录</th>
+                      <th className="text-right p-2">重试次数</th>
+                      <th className="text-left p-2">错误信息</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(executionHistory as any[]).map((record: any, index: number) => (
+                      <tr key={index} className="border-b hover:bg-muted/50">
+                        <td className="p-2">
+                          <Badge className={record.status === 'success' ? 'bg-green-500' : record.status === 'retrying' ? 'bg-yellow-500' : 'bg-red-500'}>
+                            {record.status === 'success' ? '成功' : record.status === 'retrying' ? '重试中' : '失败'}
+                          </Badge>
+                        </td>
+                        <td className="p-2 text-sm">
+                          {record.startedAt ? new Date(record.startedAt).toLocaleString() : 'N/A'}
+                        </td>
+                        <td className="p-2 text-sm">
+                          {record.completedAt ? new Date(record.completedAt).toLocaleString() : '-'}
+                        </td>
+                        <td className="p-2 text-right text-sm">
+                          {record.duration ? `${record.duration}s` : '-'}
+                        </td>
+                        <td className="p-2 text-right text-sm">
+                          {record.recordsSynced || 0}
+                        </td>
+                        <td className="p-2 text-right text-sm">
+                          {record.retryCount > 0 ? (
+                            <Badge variant="outline" className="text-yellow-500 border-yellow-500">
+                              {record.retryCount}次
+                            </Badge>
+                          ) : '-'}
+                        </td>
+                        <td className="p-2 text-sm text-red-500 max-w-xs truncate" title={record.errorMessage || ''}>
+                          {record.errorMessage || '-'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowHistoryDialog(false)}>关闭</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
