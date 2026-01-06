@@ -43,12 +43,15 @@ import AlgorithmOptimization from "@/pages/AlgorithmOptimization";
 import IntelligentBudgetAllocation from "@/pages/IntelligentBudgetAllocation";
 import ABTest from "@/pages/ABTest";
 import BudgetAutoExecution from "@/pages/BudgetAutoExecution";
+import OptimizationTargets from "@/pages/OptimizationTargets";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/optimization-targets" component={OptimizationTargets} />
+      <Route path="/optimization-targets/:id" component={PerformanceGroupDetail} />
       <Route path="/performance-groups" component={PerformanceGroups} />
       <Route path="/performance-groups/:id" component={PerformanceGroupDetail} />
       <Route path="/campaigns" component={Campaigns} />

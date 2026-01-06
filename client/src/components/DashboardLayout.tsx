@@ -75,8 +75,8 @@ const menuGroups = [
     title: "广告管理",
     description: "算法自动决策执行，人只做监督",
     items: [
-      { icon: Megaphone, label: "广告活动", path: "/campaigns", badge: "自动优化" },
-      { icon: Target, label: "绩效组管理", path: "/performance-groups", badge: "自动优化" },
+      { icon: Target, label: "优化目标", path: "/optimization-targets", badge: "自动优化" },
+      { icon: Megaphone, label: "广告活动", path: "/campaigns" },
     ]
   },
   {

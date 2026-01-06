@@ -187,17 +187,54 @@ const performanceGroupRouter = router({
       accountId: z.number(),
       name: z.string(),
       description: z.string().optional(),
-      optimizationGoal: z.enum(["maximize_sales", "target_acos", "target_roas", "daily_spend_limit", "daily_cost"]),
+      optimizationGoal: z.enum(["maximize_sales", "target_acos", "target_roas", "daily_spend_limit", "daily_cost"]).optional(),
+      targetType: z.enum(["maximize_sales", "target_acos", "target_roas", "target_cpa"]).optional(),
+      targetValue: z.number().optional(),
       targetAcos: z.string().optional(),
       targetRoas: z.string().optional(),
       dailySpendLimit: z.string().optional(),
+      dailyBudget: z.number().optional(),
+      maxBid: z.number().optional(),
       dailyCostTarget: z.string().optional(),
+      campaignIds: z.array(z.number()).optional(),
     }))
     .mutation(async ({ ctx, input }) => {
+      const { campaignIds, targetType, targetValue, dailyBudget, maxBid, ...rest } = input;
+      
+      // 转换targetType到optimizationGoal
+      const optimizationGoal = targetType || rest.optimizationGoal || "target_acos";
+      
+      // 转换targetValue到对应字段
+      let targetAcos = rest.targetAcos;
+      let targetRoas = rest.targetRoas;
+      let dailySpendLimit = rest.dailySpendLimit;
+      
+      if (targetType === "target_acos" && targetValue) {
+        targetAcos = targetValue.toString();
+      } else if (targetType === "target_roas" && targetValue) {
+        targetRoas = targetValue.toString();
+      }
+      if (dailyBudget) {
+        dailySpendLimit = dailyBudget.toString();
+      }
+      
       const id = await db.createPerformanceGroup({
         userId: ctx.user.id,
-        ...input,
+        accountId: rest.accountId,
+        name: rest.name,
+        description: rest.description,
+        optimizationGoal: optimizationGoal as any,
+        targetAcos,
+        targetRoas,
+        dailySpendLimit,
+        dailyCostTarget: rest.dailyCostTarget,
       });
+      
+      // 如果有campaignIds，批量分配广告活动到绩效组
+      if (campaignIds && campaignIds.length > 0) {
+        await db.batchAssignCampaignsToPerformanceGroup(campaignIds, id);
+      }
+      
       return { id };
     }),
   
@@ -390,9 +427,13 @@ const performanceGroupRouter = router({
 // ==================== Campaign Router ====================
 const campaignRouter = router({
   list: protectedProcedure
-    .input(z.object({ accountId: z.number() }))
+    .input(z.object({ accountId: z.number().optional() }))
     .query(async ({ input }) => {
-      return db.getCampaignsByAccountId(input.accountId);
+      if (input.accountId) {
+        return db.getCampaignsByAccountId(input.accountId);
+      }
+      // 如果没有指定accountId，返回所有广告活动
+      return db.getAllCampaigns();
     }),
 
   // 获取未分配到绩效组的广告活动

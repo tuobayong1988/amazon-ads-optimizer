@@ -1,4 +1,4 @@
-import { eq, and, desc, gte, lte, sql, isNull } from "drizzle-orm";
+import { eq, and, desc, gte, lte, sql, isNull, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { 
   InsertUser, users, 
@@ -265,6 +265,13 @@ export async function getCampaignsByAccountId(accountId: number) {
   return db.select().from(campaigns).where(eq(campaigns.accountId, accountId));
 }
 
+export async function getAllCampaigns() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(campaigns);
+}
+
 export async function getCampaignsByPerformanceGroupId(performanceGroupId: number) {
   const db = await getDb();
   if (!db) return [];
@@ -309,6 +316,20 @@ export async function assignCampaignToPerformanceGroup(campaignId: number, perfo
   if (!db) throw new Error("Database not available");
   
   await db.update(campaigns).set({ performanceGroupId }).where(eq(campaigns.id, campaignId));
+}
+
+// 批量分配广告活动到绩效组
+export async function batchAssignCampaignsToPerformanceGroup(campaignIds: number[], performanceGroupId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // 批量更新广告活动的performanceGroupId和optimizationStatus
+  await db.update(campaigns)
+    .set({ 
+      performanceGroupId,
+      optimizationStatus: "managed"
+    })
+    .where(inArray(campaigns.id, campaignIds));
 }
 
 // ==================== Ad Group Functions ====================
