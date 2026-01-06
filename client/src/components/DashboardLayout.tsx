@@ -78,6 +78,7 @@ const menuGroups = [
     title: "智能优化",
     items: [
       { icon: Zap, label: "广告自动化", path: "/automation" },
+      { icon: Clock, label: "分时策略", path: "/dayparting" },
       { icon: Layers, label: "批量操作", path: "/batch-operations" },
       { icon: FileSearch, label: "纠错复盘", path: "/correction-review" },
       { icon: CalendarDays, label: "季节性建议", path: "/seasonal-budget" },

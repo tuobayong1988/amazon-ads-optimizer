@@ -109,6 +109,7 @@ export const campaigns = mysqlTable("campaigns", {
   ]).notNull(),
   targetingType: mysqlEnum("targetingType", ["auto", "manual"]).default("manual"),
   // Campaign-level settings
+  dailyBudget: decimal("dailyBudget", { precision: 10, scale: 2 }),
   maxBid: decimal("maxBid", { precision: 10, scale: 2 }),
   intradayBiddingEnabled: boolean("intradayBiddingEnabled"),
   conversionValueType: mysqlEnum("campaignConversionValueType", ["sales", "units", "custom", "inherit"]).default("inherit"),
@@ -1670,3 +1671,148 @@ export const syncSchedules = mysqlTable("sync_schedules", {
 });
 export type SyncSchedule = typeof syncSchedules.$inferSelect;
 export type InsertSyncSchedule = typeof syncSchedules.$inferInsert;
+
+
+/**
+ * Hourly Performance - 小时级绩效数据
+ * 存储每小时的广告表现数据，用于分时分析
+ */
+export const hourlyPerformance = mysqlTable("hourly_performance", {
+  id: int("id").autoincrement().primaryKey(),
+  accountId: int("accountId").notNull(),
+  campaignId: int("campaignId").notNull(),
+  adGroupId: int("adGroupId"),
+  keywordId: int("keywordId"),
+  // 时间维度
+  date: timestamp("date").notNull(), // 日期
+  hour: int("hour").notNull(), // 0-23
+  dayOfWeek: int("dayOfWeek").notNull(), // 0-6 (周日-周六)
+  // 绩效指标
+  impressions: int("impressions").default(0),
+  clicks: int("clicks").default(0),
+  spend: decimal("spend", { precision: 10, scale: 2 }).default("0.00"),
+  sales: decimal("sales", { precision: 10, scale: 2 }).default("0.00"),
+  orders: int("orders").default(0),
+  // 计算指标
+  acos: decimal("hourlyAcos", { precision: 5, scale: 2 }),
+  roas: decimal("hourlyRoas", { precision: 10, scale: 2 }),
+  ctr: decimal("hourlyCtr", { precision: 5, scale: 4 }),
+  cvr: decimal("hourlyCvr", { precision: 5, scale: 4 }),
+  cpc: decimal("hourlyCpc", { precision: 10, scale: 2 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type HourlyPerformance = typeof hourlyPerformance.$inferSelect;
+export type InsertHourlyPerformance = typeof hourlyPerformance.$inferInsert;
+
+/**
+ * Dayparting Strategies - 分时策略配置
+ * 存储分时预算和竞价的整体策略配置
+ */
+export const daypartingStrategies = mysqlTable("dayparting_strategies", {
+  id: int("id").autoincrement().primaryKey(),
+  accountId: int("accountId").notNull(),
+  campaignId: int("campaignId"), // 如果为空则为账号级别策略
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  // 策略类型
+  strategyType: mysqlEnum("strategyType", ["budget", "bidding", "both"]).default("both"),
+  // 优化目标
+  optimizationGoal: mysqlEnum("daypartingOptGoal", ["maximize_sales", "target_acos", "target_roas", "minimize_acos"]).default("maximize_sales"),
+  targetAcos: decimal("daypartingTargetAcos", { precision: 5, scale: 2 }),
+  targetRoas: decimal("daypartingTargetRoas", { precision: 10, scale: 2 }),
+  // 分析配置
+  analysisLookbackDays: int("analysisLookbackDays").default(30), // 回溯分析天数
+  minDataPoints: int("minDataPoints").default(10), // 最小数据点要求
+  // 调整限制
+  maxBudgetMultiplier: decimal("maxBudgetMultiplier", { precision: 3, scale: 2 }).default("2.00"), // 最大预算倍数
+  minBudgetMultiplier: decimal("minBudgetMultiplier", { precision: 3, scale: 2 }).default("0.20"), // 最小预算倍数
+  maxBidMultiplier: decimal("maxBidMultiplier", { precision: 3, scale: 2 }).default("2.00"), // 最大出价倍数
+  minBidMultiplier: decimal("minBidMultiplier", { precision: 3, scale: 2 }).default("0.20"), // 最小出价倍数
+  // 状态
+  status: mysqlEnum("daypartingStatus", ["active", "paused", "draft"]).default("draft"),
+  lastAnalyzedAt: timestamp("lastAnalyzedAt"),
+  lastAppliedAt: timestamp("lastAppliedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type DaypartingStrategy = typeof daypartingStrategies.$inferSelect;
+export type InsertDaypartingStrategy = typeof daypartingStrategies.$inferInsert;
+
+/**
+ * Dayparting Budget Rules - 分时预算规则
+ * 存储每周每天的预算分配比例
+ */
+export const daypartingBudgetRules = mysqlTable("dayparting_budget_rules", {
+  id: int("id").autoincrement().primaryKey(),
+  strategyId: int("strategyId").notNull(),
+  dayOfWeek: int("dayOfWeek").notNull(), // 0-6 (周日-周六)
+  // 预算分配
+  budgetMultiplier: decimal("budgetMultiplier", { precision: 3, scale: 2 }).default("1.00"), // 预算倍数 (1.00 = 100%)
+  budgetPercentage: decimal("budgetPercentage", { precision: 5, scale: 2 }), // 占周预算百分比
+  // 分析数据（用于展示）
+  avgSpend: decimal("avgSpend", { precision: 10, scale: 2 }),
+  avgSales: decimal("avgSales", { precision: 10, scale: 2 }),
+  avgAcos: decimal("avgAcos", { precision: 5, scale: 2 }),
+  avgRoas: decimal("avgRoas", { precision: 10, scale: 2 }),
+  dataPoints: int("dataPoints").default(0),
+  // 是否启用
+  isEnabled: boolean("isEnabled").default(true),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type DaypartingBudgetRule = typeof daypartingBudgetRules.$inferSelect;
+export type InsertDaypartingBudgetRule = typeof daypartingBudgetRules.$inferInsert;
+
+/**
+ * Hourparting Bid Rules - 分时竞价规则
+ * 存储每天每小时的出价调整倍数
+ */
+export const hourpartingBidRules = mysqlTable("hourparting_bid_rules", {
+  id: int("id").autoincrement().primaryKey(),
+  strategyId: int("strategyId").notNull(),
+  dayOfWeek: int("dayOfWeek").notNull(), // 0-6 (周日-周六)
+  hour: int("hour").notNull(), // 0-23
+  // 出价调整
+  bidMultiplier: decimal("bidMultiplier", { precision: 3, scale: 2 }).default("1.00"), // 出价倍数
+  // 分析数据
+  avgClicks: decimal("avgClicks", { precision: 10, scale: 2 }),
+  avgSpend: decimal("hourAvgSpend", { precision: 10, scale: 2 }),
+  avgSales: decimal("hourAvgSales", { precision: 10, scale: 2 }),
+  avgCvr: decimal("hourAvgCvr", { precision: 5, scale: 4 }),
+  avgCpc: decimal("hourAvgCpc", { precision: 10, scale: 2 }),
+  avgAcos: decimal("hourAvgAcos", { precision: 5, scale: 2 }),
+  dataPoints: int("hourDataPoints").default(0),
+  // 是否启用
+  isEnabled: boolean("hourIsEnabled").default(true),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type HourpartingBidRule = typeof hourpartingBidRules.$inferSelect;
+export type InsertHourpartingBidRule = typeof hourpartingBidRules.$inferInsert;
+
+/**
+ * Dayparting Execution Logs - 分时策略执行日志
+ * 记录分时策略的执行历史
+ */
+export const daypartingExecutionLogs = mysqlTable("dayparting_execution_logs", {
+  id: int("id").autoincrement().primaryKey(),
+  strategyId: int("strategyId").notNull(),
+  executionType: mysqlEnum("executionType", ["budget_adjustment", "bid_adjustment", "analysis"]).notNull(),
+  // 执行详情
+  targetType: mysqlEnum("dpTargetType", ["campaign", "adgroup", "keyword"]),
+  targetId: int("dpTargetId"),
+  targetName: varchar("dpTargetName", { length: 500 }),
+  // 调整详情
+  previousValue: decimal("previousValue", { precision: 10, scale: 2 }),
+  newValue: decimal("newValue", { precision: 10, scale: 2 }),
+  multiplierApplied: decimal("multiplierApplied", { precision: 3, scale: 2 }),
+  // 触发条件
+  triggerDayOfWeek: int("triggerDayOfWeek"),
+  triggerHour: int("triggerHour"),
+  // 执行结果
+  status: mysqlEnum("dpExecStatus", ["success", "failed", "skipped"]).default("success"),
+  errorMessage: text("dpErrorMessage"),
+  executedAt: timestamp("executedAt").defaultNow().notNull(),
+});
+export type DaypartingExecutionLog = typeof daypartingExecutionLogs.$inferSelect;
+export type InsertDaypartingExecutionLog = typeof daypartingExecutionLogs.$inferInsert;

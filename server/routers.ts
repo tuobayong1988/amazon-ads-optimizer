@@ -13,6 +13,7 @@ import * as notificationService from './notificationService';
 import * as schedulerService from './schedulerService';
 import * as batchOperationService from './batchOperationService';
 import * as correctionService from './correctionService';
+import * as daypartingService from './daypartingService';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
@@ -287,6 +288,148 @@ const campaignRouter = router({
     .input(z.object({ campaignId: z.number() }))
     .query(async ({ input }) => {
       return db.getAdGroupsByCampaignId(input.campaignId);
+    }),
+  
+  // 获取广告活动详情（包含广告组、关键词、搜索词等）
+  getDetail: protectedProcedure
+    .input(z.object({ campaignId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getCampaignDetailWithStats(input.campaignId);
+    }),
+  
+  // 获取广告位置表现数据
+  getPlacementStats: protectedProcedure
+    .input(z.object({ campaignId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getCampaignPlacementStats(input.campaignId);
+    }),
+  
+  // 获取广告活动所有投放词（关键词+商品定向）
+  getTargets: protectedProcedure
+    .input(z.object({ campaignId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getCampaignTargets(input.campaignId);
+    }),
+  
+  // 获取搜索词报告
+  getSearchTerms: protectedProcedure
+    .input(z.object({ campaignId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getSearchTermsByCampaignId(input.campaignId);
+    }),
+  
+  // AI摘要功能 - 生成广告活动表现摘要
+  generateAISummary: protectedProcedure
+    .input(z.object({ campaignId: z.number() }))
+    .mutation(async ({ input }) => {
+      const { invokeLLM } = await import("./_core/llm");
+      
+      // 获取广告活动详情
+      const campaign = await db.getCampaignById(input.campaignId);
+      if (!campaign) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "广告活动不存在" });
+      }
+      
+      // 获取广告组和关键词数据
+      const adGroups = await db.getAdGroupsByCampaignId(input.campaignId);
+      let totalKeywords = 0;
+      let topKeywords: any[] = [];
+      
+      for (const adGroup of adGroups) {
+        const keywords = await db.getKeywordsByAdGroupId(adGroup.id);
+        totalKeywords += keywords.length;
+        // 收集表现最好的关键词
+        topKeywords.push(...keywords.filter(k => parseFloat(k.sales || "0") > 0));
+      }
+      
+      // 按销售额排序取前5个
+      topKeywords.sort((a, b) => parseFloat(b.sales || "0") - parseFloat(a.sales || "0"));
+      topKeywords = topKeywords.slice(0, 5);
+      
+      // 计算核心指标
+      const spend = parseFloat(campaign.spend || "0");
+      const sales = parseFloat(campaign.sales || "0");
+      const acos = sales > 0 ? (spend / sales * 100) : 0;
+      const roas = spend > 0 ? (sales / spend) : 0;
+      const clicks = campaign.clicks || 0;
+      const impressions = campaign.impressions || 0;
+      const ctr = impressions > 0 ? (clicks / impressions * 100) : 0;
+      const orders = campaign.orders || 0;
+      const cvr = clicks > 0 ? (orders / clicks * 100) : 0;
+      
+      // 构建提示词
+      const prompt = `你是一个专业的亚马逊广告优化专家。请根据以下广告活动数据，生成一份简洁的中文表现摘要。
+
+广告活动信息：
+- 名称：${campaign.campaignName}
+- 类型：${campaign.campaignType}
+- 状态：${campaign.status}
+- 日预算：$${campaign.dailyBudget || "N/A"}
+
+核心指标：
+- 花费：$${spend.toFixed(2)}
+- 销售额：$${sales.toFixed(2)}
+- ACoS：${acos.toFixed(2)}%
+- ROAS：${roas.toFixed(2)}
+- 点击率(CTR)：${ctr.toFixed(2)}%
+- 转化率(CVR)：${cvr.toFixed(2)}%
+- 展示次数：${impressions.toLocaleString()}
+- 点击次数：${clicks.toLocaleString()}
+- 订单数：${orders}
+
+广告组数量：${adGroups.length}
+关键词数量：${totalKeywords}
+
+表现最佳关键词（按销售额排序）：
+${topKeywords.map((k, i) => `${i + 1}. "${k.keywordText}" - 销售额: $${parseFloat(k.sales || "0").toFixed(2)}, ACoS: ${parseFloat(k.sales || "0") > 0 ? (parseFloat(k.spend || "0") / parseFloat(k.sales || "0") * 100).toFixed(2) : "N/A"}%`).join("\n")}
+
+请提供：
+1. 整体表现评价（一句话总结）
+2. 主要优势（2-3点）
+3. 需要改进的方面（2-3点）
+4. 具体优化建议（2-3条可执行的建议）
+
+请用简洁的中文回复，使用Markdown格式。`;
+      
+      try {
+        const response = await invokeLLM({
+          messages: [
+            { role: "system", content: "你是一个专业的亚马逊广告优化顾问，擅长分析广告数据并提供可执行的优化建议。" },
+            { role: "user", content: prompt }
+          ]
+        });
+        
+        const summary = response.choices[0]?.message?.content || "无法生成摘要";
+        
+        return {
+          summary: typeof summary === "string" ? summary : JSON.stringify(summary),
+          metrics: {
+            spend,
+            sales,
+            acos,
+            roas,
+            ctr,
+            cvr,
+            impressions,
+            clicks,
+            orders,
+            adGroupCount: adGroups.length,
+            keywordCount: totalKeywords
+          },
+          topKeywords: topKeywords.map(k => ({
+            keyword: k.keywordText,
+            sales: parseFloat(k.sales || "0"),
+            acos: parseFloat(k.sales || "0") > 0 ? (parseFloat(k.spend || "0") / parseFloat(k.sales || "0") * 100) : null
+          })),
+          generatedAt: new Date().toISOString()
+        };
+      } catch (error) {
+        console.error("AI摘要生成失败:", error);
+        throw new TRPCError({ 
+          code: "INTERNAL_SERVER_ERROR", 
+          message: "AI摘要生成失败，请稍后重试" 
+        });
+      }
     }),
 });
 
@@ -4005,6 +4148,223 @@ const dataSyncRouter = router({
     }),
 });
 
+// ==================== Dayparting Router ====================
+const daypartingRouter = router({
+  // 获取账号的所有分时策略
+  listStrategies: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      return daypartingService.getDaypartingStrategies(input.accountId);
+    }),
+
+  // 获取单个策略详情
+  getStrategy: protectedProcedure
+    .input(z.object({ strategyId: z.number() }))
+    .query(async ({ input }) => {
+      const strategy = await daypartingService.getDaypartingStrategy(input.strategyId);
+      if (!strategy) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "策略不存在" });
+      }
+      const budgetRules = await daypartingService.getBudgetRules(input.strategyId);
+      const bidRules = await daypartingService.getBidRules(input.strategyId);
+      return { strategy, budgetRules, bidRules };
+    }),
+
+  // 分析广告活动的每周表现
+  analyzeWeeklyPerformance: protectedProcedure
+    .input(z.object({
+      campaignId: z.number(),
+      lookbackDays: z.number().default(30),
+    }))
+    .query(async ({ input }) => {
+      return daypartingService.analyzeWeeklyPerformance(input.campaignId, input.lookbackDays);
+    }),
+
+  // 分析广告活动的每小时表现
+  analyzeHourlyPerformance: protectedProcedure
+    .input(z.object({
+      campaignId: z.number(),
+      lookbackDays: z.number().default(30),
+    }))
+    .query(async ({ input }) => {
+      return daypartingService.analyzeHourlyPerformance(input.campaignId, input.lookbackDays);
+    }),
+
+  // 一键生成最优策略
+  generateOptimalStrategy: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      campaignId: z.number(),
+      name: z.string(),
+      optimizationGoal: z.enum(["maximize_sales", "target_acos", "target_roas", "minimize_acos"]),
+      targetAcos: z.number().optional(),
+      targetRoas: z.number().optional(),
+      lookbackDays: z.number().default(30),
+    }))
+    .mutation(async ({ input }) => {
+      return daypartingService.generateOptimalStrategy(input.accountId, input.campaignId, {
+        name: input.name,
+        optimizationGoal: input.optimizationGoal,
+        targetAcos: input.targetAcos,
+        targetRoas: input.targetRoas,
+        lookbackDays: input.lookbackDays,
+      });
+    }),
+
+  // 创建分时策略
+  createStrategy: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      campaignId: z.number().optional(),
+      name: z.string(),
+      description: z.string().optional(),
+      strategyType: z.enum(["budget", "bidding", "both"]).default("both"),
+      optimizationGoal: z.enum(["maximize_sales", "target_acos", "target_roas", "minimize_acos"]).default("maximize_sales"),
+      targetAcos: z.number().optional(),
+      targetRoas: z.number().optional(),
+      analysisLookbackDays: z.number().default(30),
+      maxBudgetMultiplier: z.number().default(2.0),
+      minBudgetMultiplier: z.number().default(0.2),
+      maxBidMultiplier: z.number().default(2.0),
+      minBidMultiplier: z.number().default(0.2),
+    }))
+    .mutation(async ({ input }) => {
+      const strategyId = await daypartingService.createDaypartingStrategy({
+        accountId: input.accountId,
+        campaignId: input.campaignId,
+        name: input.name,
+        description: input.description,
+        strategyType: input.strategyType,
+        optimizationGoal: input.optimizationGoal,
+        targetAcos: input.targetAcos?.toString(),
+        targetRoas: input.targetRoas?.toString(),
+        analysisLookbackDays: input.analysisLookbackDays,
+        maxBudgetMultiplier: input.maxBudgetMultiplier.toString(),
+        minBudgetMultiplier: input.minBudgetMultiplier.toString(),
+        maxBidMultiplier: input.maxBidMultiplier.toString(),
+        minBidMultiplier: input.minBidMultiplier.toString(),
+        status: "draft",
+      });
+      return { strategyId };
+    }),
+
+  // 更新策略状态
+  updateStrategyStatus: protectedProcedure
+    .input(z.object({
+      strategyId: z.number(),
+      status: z.enum(["active", "paused", "draft"]),
+    }))
+    .mutation(async ({ input }) => {
+      await daypartingService.updateDaypartingStrategy(input.strategyId, {
+        status: input.status,
+        lastAppliedAt: input.status === "active" ? new Date() : undefined,
+      });
+      return { success: true };
+    }),
+
+  // 保存预算规则
+  saveBudgetRules: protectedProcedure
+    .input(z.object({
+      strategyId: z.number(),
+      rules: z.array(z.object({
+        dayOfWeek: z.number().min(0).max(6),
+        budgetMultiplier: z.number(),
+        budgetPercentage: z.number().optional(),
+        isEnabled: z.boolean().default(true),
+      })),
+    }))
+    .mutation(async ({ input }) => {
+      await daypartingService.saveBudgetRules(
+        input.strategyId,
+        input.rules.map(r => ({
+          dayOfWeek: r.dayOfWeek,
+          budgetMultiplier: r.budgetMultiplier.toString(),
+          budgetPercentage: r.budgetPercentage?.toString(),
+          isEnabled: r.isEnabled,
+        }))
+      );
+      return { success: true };
+    }),
+
+  // 保存竞价规则
+  saveBidRules: protectedProcedure
+    .input(z.object({
+      strategyId: z.number(),
+      rules: z.array(z.object({
+        dayOfWeek: z.number().min(0).max(6),
+        hour: z.number().min(0).max(23),
+        bidMultiplier: z.number(),
+        isEnabled: z.boolean().default(true),
+      })),
+    }))
+    .mutation(async ({ input }) => {
+      await daypartingService.saveBidRules(
+        input.strategyId,
+        input.rules.map(r => ({
+          dayOfWeek: r.dayOfWeek,
+          hour: r.hour,
+          bidMultiplier: r.bidMultiplier.toString(),
+          isEnabled: r.isEnabled,
+        }))
+      );
+      return { success: true };
+    }),
+
+  // 获取策略执行日志
+  getExecutionLogs: protectedProcedure
+    .input(z.object({
+      strategyId: z.number(),
+      limit: z.number().default(50),
+    }))
+    .query(async ({ input }) => {
+      return daypartingService.getExecutionLogs(input.strategyId, input.limit);
+    }),
+
+  // 计算最优预算分配（不保存，仅预览）
+  previewBudgetAllocation: protectedProcedure
+    .input(z.object({
+      campaignId: z.number(),
+      optimizationGoal: z.enum(["maximize_sales", "target_acos", "target_roas", "minimize_acos"]),
+      targetAcos: z.number().optional(),
+      targetRoas: z.number().optional(),
+      lookbackDays: z.number().default(30),
+    }))
+    .query(async ({ input }) => {
+      const weeklyData = await daypartingService.analyzeWeeklyPerformance(
+        input.campaignId,
+        input.lookbackDays
+      );
+      const allocation = daypartingService.calculateOptimalBudgetAllocation(weeklyData, {
+        optimizationGoal: input.optimizationGoal,
+        targetAcos: input.targetAcos,
+        targetRoas: input.targetRoas,
+      });
+      return { weeklyData, allocation };
+    }),
+
+  // 计算最优竞价调整（不保存，仅预览）
+  previewBidAdjustments: protectedProcedure
+    .input(z.object({
+      campaignId: z.number(),
+      optimizationGoal: z.enum(["maximize_sales", "target_acos", "target_roas", "minimize_acos"]),
+      targetAcos: z.number().optional(),
+      targetRoas: z.number().optional(),
+      lookbackDays: z.number().default(30),
+    }))
+    .query(async ({ input }) => {
+      const hourlyData = await daypartingService.analyzeHourlyPerformance(
+        input.campaignId,
+        input.lookbackDays
+      );
+      const adjustments = daypartingService.calculateOptimalBidAdjustments(hourlyData, {
+        optimizationGoal: input.optimizationGoal,
+        targetAcos: input.targetAcos,
+        targetRoas: input.targetRoas,
+      });
+      return { hourlyData, adjustments };
+    }),
+});
+
 // ==================== Main Router ====================
 export const appRouter = router({
   system: systemRouter,
@@ -4042,6 +4402,7 @@ export const appRouter = router({
   budgetTracking: budgetTrackingRouter,
   seasonalBudget: seasonalBudgetRouter,
   dataSync: dataSyncRouter,
+  dayparting: daypartingRouter,
 });
 
 export type AppRouter = typeof appRouter;

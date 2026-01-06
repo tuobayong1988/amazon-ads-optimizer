@@ -269,16 +269,16 @@ export async function getUserAuditStats(userId: number, days: number = 30): Prom
     actionsByType[stat.actionType] = stat.count;
   }
 
-  // 按天统计
+  // 按天统计 - 使用DATE_FORMAT避免DATE函数兼容性问题
   const dayStats = await db
     .select({
-      date: sql<string>`DATE(${auditLogs.createdAt})`,
+      date: sql<string>`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`,
       count: sql<number>`COUNT(*)`,
     })
     .from(auditLogs)
     .where(and(eq(auditLogs.userId, userId), gte(auditLogs.createdAt, startDate)))
-    .groupBy(sql`DATE(${auditLogs.createdAt})`)
-    .orderBy(sql`DATE(${auditLogs.createdAt})`);
+    .groupBy(sql`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`)
+    .orderBy(sql`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`);
 
   const actionsByDay = dayStats.map((stat: { date: string; count: number }) => ({
     date: stat.date,

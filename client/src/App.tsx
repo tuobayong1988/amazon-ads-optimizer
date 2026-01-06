@@ -29,6 +29,8 @@ import BudgetAlerts from "@/pages/BudgetAlerts";
 import BudgetTracking from "@/pages/BudgetTracking";
 import SeasonalBudget from "@/pages/SeasonalBudget";
 import DataSync from "@/pages/DataSync";
+import CampaignDetail from "@/pages/CampaignDetail";
+import DaypartingStrategy from "@/pages/DaypartingStrategy";
 
 function Router() {
   return (
@@ -37,6 +39,7 @@ function Router() {
       <Route path="/dashboard" component={Dashboard} />
       <Route path="/performance-groups" component={PerformanceGroups} />
       <Route path="/campaigns" component={Campaigns} />
+      <Route path="/campaigns/:id" component={CampaignDetail} />
       <Route path="/bidding-logs" component={BiddingLogs} />
       <Route path="/settings" component={Settings} />
       {/* /import路由已移除，用户应使用/data-sync进行API同步 */}
@@ -58,6 +61,7 @@ function Router() {
       <Route path="/budget-tracking" component={BudgetTracking} />
       <Route path="/seasonal-budget" component={SeasonalBudget} />
       <Route path="/data-sync" component={DataSync} />
+      <Route path="/dayparting" component={DaypartingStrategy} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

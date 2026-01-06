@@ -445,7 +445,16 @@ export default function Campaigns() {
       case 'campaignName':
         return (
           <div className="max-w-[250px] truncate font-medium" title={campaign.campaignName}>
-            {campaign.campaignName}
+            <a 
+              href={`/campaigns/${campaign.id}`}
+              className="text-primary hover:underline cursor-pointer"
+              onClick={(e) => {
+                e.preventDefault();
+                window.location.href = `/campaigns/${campaign.id}`;
+              }}
+            >
+              {campaign.campaignName}
+            </a>
           </div>
         );
       case 'campaignType':
