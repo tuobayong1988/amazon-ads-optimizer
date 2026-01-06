@@ -469,6 +469,54 @@ const keywordRouter = router({
       return { success: true };
     }),
   
+  // 批量更新出价
+  batchUpdateBid: protectedProcedure
+    .input(z.object({
+      ids: z.array(z.number()),
+      bidType: z.enum(["fixed", "increase_percent", "decrease_percent"]),
+      bidValue: z.number(),
+    }))
+    .mutation(async ({ input }) => {
+      const results = [];
+      for (const id of input.ids) {
+        const keyword = await db.getKeywordById(id);
+        if (!keyword) continue;
+        
+        let newBid: number;
+        const currentBid = parseFloat(keyword.bid);
+        
+        if (input.bidType === "fixed") {
+          newBid = input.bidValue;
+        } else if (input.bidType === "increase_percent") {
+          newBid = currentBid * (1 + input.bidValue / 100);
+        } else {
+          newBid = currentBid * (1 - input.bidValue / 100);
+        }
+        
+        // 确保出价不低于0.02
+        newBid = Math.max(0.02, Math.round(newBid * 100) / 100);
+        
+        await db.updateKeywordBid(id, newBid.toFixed(2));
+        results.push({ id, oldBid: currentBid, newBid });
+      }
+      return { success: true, updated: results.length, results };
+    }),
+  
+  // 批量更新状态
+  batchUpdateStatus: protectedProcedure
+    .input(z.object({
+      ids: z.array(z.number()),
+      status: z.enum(["enabled", "paused"]),
+    }))
+    .mutation(async ({ input }) => {
+      let updated = 0;
+      for (const id of input.ids) {
+        await db.updateKeyword(id, { status: input.status });
+        updated++;
+      }
+      return { success: true, updated };
+    }),
+  
   getMarketCurve: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
@@ -527,6 +575,53 @@ const productTargetRouter = router({
       const { id, ...data } = input;
       await db.updateProductTarget(id, data);
       return { success: true };
+    }),
+  
+  // 批量更新出价
+  batchUpdateBid: protectedProcedure
+    .input(z.object({
+      ids: z.array(z.number()),
+      bidType: z.enum(["fixed", "increase_percent", "decrease_percent"]),
+      bidValue: z.number(),
+    }))
+    .mutation(async ({ input }) => {
+      const results = [];
+      for (const id of input.ids) {
+        const target = await db.getProductTargetById(id);
+        if (!target) continue;
+        
+        let newBid: number;
+        const currentBid = parseFloat(target.bid);
+        
+        if (input.bidType === "fixed") {
+          newBid = input.bidValue;
+        } else if (input.bidType === "increase_percent") {
+          newBid = currentBid * (1 + input.bidValue / 100);
+        } else {
+          newBid = currentBid * (1 - input.bidValue / 100);
+        }
+        
+        newBid = Math.max(0.02, Math.round(newBid * 100) / 100);
+        
+        await db.updateProductTargetBid(id, newBid.toFixed(2));
+        results.push({ id, oldBid: currentBid, newBid });
+      }
+      return { success: true, updated: results.length, results };
+    }),
+  
+  // 批量更新状态
+  batchUpdateStatus: protectedProcedure
+    .input(z.object({
+      ids: z.array(z.number()),
+      status: z.enum(["enabled", "paused"]),
+    }))
+    .mutation(async ({ input }) => {
+      let updated = 0;
+      for (const id of input.ids) {
+        await db.updateProductTarget(id, { status: input.status });
+        updated++;
+      }
+      return { success: true, updated };
     }),
 });
 

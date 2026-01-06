@@ -591,6 +591,38 @@ function TargetsList({ campaignId }: { campaignId: number }) {
   const [statusChangeTarget, setStatusChangeTarget] = useState<any>(null);
   const [newStatus, setNewStatus] = useState<"enabled" | "paused">("enabled");
   
+  // 批量选择状态
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectAll, setSelectAll] = useState(false);
+  
+  // 批量操作弹窗
+  const [batchBidOpen, setBatchBidOpen] = useState(false);
+  const [batchBidType, setBatchBidType] = useState<"fixed" | "increase_percent" | "decrease_percent">("fixed");
+  const [batchBidValue, setBatchBidValue] = useState("");
+  const [batchStatusOpen, setBatchStatusOpen] = useState(false);
+  const [batchStatus, setBatchStatus] = useState<"enabled" | "paused">("enabled");
+  
+  // 筛选状态
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    matchType: "all" as "all" | "broad" | "phrase" | "exact" | "product",
+    status: "all" as "all" | "enabled" | "paused",
+    bidMin: "",
+    bidMax: "",
+    clicksMin: "",
+    clicksMax: "",
+    spendMin: "",
+    spendMax: "",
+    salesMin: "",
+    salesMax: "",
+    acosMin: "",
+    acosMax: "",
+    roasMin: "",
+    roasMax: "",
+    ordersMin: "",
+    ordersMax: "",
+  });
+  
   // 更新关键词出价
   const updateKeywordMutation = trpc.keyword.update.useMutation({
     onSuccess: () => {
@@ -614,6 +646,62 @@ function TargetsList({ campaignId }: { campaignId: number }) {
     },
     onError: (error) => {
       toast.error(`更新失败: ${error.message}`);
+    },
+  });
+  
+  // 批量更新关键词出价
+  const batchUpdateKeywordBidMutation = trpc.keyword.batchUpdateBid.useMutation({
+    onSuccess: (data) => {
+      toast.success(`成功更新 ${data.updated} 个关键词出价`);
+      refetch();
+      setBatchBidOpen(false);
+      setSelectedIds(new Set());
+      setSelectAll(false);
+    },
+    onError: (error) => {
+      toast.error(`批量更新失败: ${error.message}`);
+    },
+  });
+  
+  // 批量更新商品定向出价
+  const batchUpdateProductTargetBidMutation = trpc.productTarget.batchUpdateBid.useMutation({
+    onSuccess: (data) => {
+      toast.success(`成功更新 ${data.updated} 个商品定向出价`);
+      refetch();
+      setBatchBidOpen(false);
+      setSelectedIds(new Set());
+      setSelectAll(false);
+    },
+    onError: (error) => {
+      toast.error(`批量更新失败: ${error.message}`);
+    },
+  });
+  
+  // 批量更新关键词状态
+  const batchUpdateKeywordStatusMutation = trpc.keyword.batchUpdateStatus.useMutation({
+    onSuccess: (data) => {
+      toast.success(`成功更新 ${data.updated} 个关键词状态`);
+      refetch();
+      setBatchStatusOpen(false);
+      setSelectedIds(new Set());
+      setSelectAll(false);
+    },
+    onError: (error) => {
+      toast.error(`批量更新失败: ${error.message}`);
+    },
+  });
+  
+  // 批量更新商品定向状态
+  const batchUpdateProductTargetStatusMutation = trpc.productTarget.batchUpdateStatus.useMutation({
+    onSuccess: (data) => {
+      toast.success(`成功更新 ${data.updated} 个商品定向状态`);
+      refetch();
+      setBatchStatusOpen(false);
+      setSelectedIds(new Set());
+      setSelectAll(false);
+    },
+    onError: (error) => {
+      toast.error(`批量更新失败: ${error.message}`);
     },
   });
   
@@ -661,6 +749,135 @@ function TargetsList({ campaignId }: { campaignId: number }) {
     setStatusChangeTarget(null);
   };
   
+  // 切换单个选择
+  const toggleSelect = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedIds(newSelected);
+    setSelectAll(false);
+  };
+  
+  // 全选/取消全选
+  const toggleSelectAll = (targets: any[]) => {
+    if (selectAll) {
+      setSelectedIds(new Set());
+      setSelectAll(false);
+    } else {
+      setSelectedIds(new Set(targets.map(t => t.id)));
+      setSelectAll(true);
+    }
+  };
+  
+  // 批量修改出价
+  const handleBatchBid = () => {
+    if (!batchBidValue || selectedIds.size === 0) return;
+    
+    const keywordIds: number[] = [];
+    const productTargetIds: number[] = [];
+    
+    selectedIds.forEach(id => {
+      const [type, realId] = id.split("-");
+      if (type === "kw") {
+        keywordIds.push(parseInt(realId));
+      } else {
+        productTargetIds.push(parseInt(realId));
+      }
+    });
+    
+    if (keywordIds.length > 0) {
+      batchUpdateKeywordBidMutation.mutate({
+        ids: keywordIds,
+        bidType: batchBidType,
+        bidValue: parseFloat(batchBidValue),
+      });
+    }
+    
+    if (productTargetIds.length > 0) {
+      batchUpdateProductTargetBidMutation.mutate({
+        ids: productTargetIds,
+        bidType: batchBidType,
+        bidValue: parseFloat(batchBidValue),
+      });
+    }
+  };
+  
+  // 批量修改状态
+  const handleBatchStatus = () => {
+    if (selectedIds.size === 0) return;
+    
+    const keywordIds: number[] = [];
+    const productTargetIds: number[] = [];
+    
+    selectedIds.forEach(id => {
+      const [type, realId] = id.split("-");
+      if (type === "kw") {
+        keywordIds.push(parseInt(realId));
+      } else {
+        productTargetIds.push(parseInt(realId));
+      }
+    });
+    
+    if (keywordIds.length > 0) {
+      batchUpdateKeywordStatusMutation.mutate({
+        ids: keywordIds,
+        status: batchStatus,
+      });
+    }
+    
+    if (productTargetIds.length > 0) {
+      batchUpdateProductTargetStatusMutation.mutate({
+        ids: productTargetIds,
+        status: batchStatus,
+      });
+    }
+  };
+  
+  // 清除筛选
+  const clearFilters = () => {
+    setFilters({
+      matchType: "all",
+      status: "all",
+      bidMin: "",
+      bidMax: "",
+      clicksMin: "",
+      clicksMax: "",
+      spendMin: "",
+      spendMax: "",
+      salesMin: "",
+      salesMax: "",
+      acosMin: "",
+      acosMax: "",
+      roasMin: "",
+      roasMax: "",
+      ordersMin: "",
+      ordersMax: "",
+    });
+  };
+  
+  // 检查是否有激活的筛选
+  const hasActiveFilters = () => {
+    return filters.matchType !== "all" ||
+      filters.status !== "all" ||
+      filters.bidMin !== "" ||
+      filters.bidMax !== "" ||
+      filters.clicksMin !== "" ||
+      filters.clicksMax !== "" ||
+      filters.spendMin !== "" ||
+      filters.spendMax !== "" ||
+      filters.salesMin !== "" ||
+      filters.salesMax !== "" ||
+      filters.acosMin !== "" ||
+      filters.acosMax !== "" ||
+      filters.roasMin !== "" ||
+      filters.roasMax !== "" ||
+      filters.ordersMin !== "" ||
+      filters.ordersMax !== "";
+  };
+  
   if (isLoading) {
     return (
       <div className="flex justify-center py-8">
@@ -686,6 +903,7 @@ function TargetsList({ campaignId }: { campaignId: number }) {
         clicks: k.clicks,
         spend: k.spend,
         sales: k.sales,
+        orders: k.orders || 0,
         adGroupName: k.adGroupName
       });
     });
@@ -705,10 +923,59 @@ function TargetsList({ campaignId }: { campaignId: number }) {
         clicks: pt.clicks,
         spend: pt.spend,
         sales: pt.sales,
+        orders: pt.orders || 0,
         adGroupName: pt.adGroupName
       });
     });
   }
+  
+  // 应用筛选
+  const filteredTargets = allTargets.filter(target => {
+    const tSpend = parseFloat(target.spend || "0");
+    const tSales = parseFloat(target.sales || "0");
+    const tAcos = tSales > 0 ? (tSpend / tSales * 100) : 0;
+    const tRoas = tSpend > 0 ? (tSales / tSpend) : 0;
+    const tBid = parseFloat(target.bid || "0");
+    
+    // 匹配方式筛选
+    if (filters.matchType !== "all") {
+      if (filters.matchType === "product" && target.type !== "product") return false;
+      if (filters.matchType !== "product" && target.matchType !== filters.matchType) return false;
+    }
+    
+    // 状态筛选
+    if (filters.status !== "all" && target.status !== filters.status) return false;
+    
+    // 出价范围筛选
+    if (filters.bidMin && tBid < parseFloat(filters.bidMin)) return false;
+    if (filters.bidMax && tBid > parseFloat(filters.bidMax)) return false;
+    
+    // 点击范围筛选
+    if (filters.clicksMin && (target.clicks || 0) < parseInt(filters.clicksMin)) return false;
+    if (filters.clicksMax && (target.clicks || 0) > parseInt(filters.clicksMax)) return false;
+    
+    // 花费范围筛选
+    if (filters.spendMin && tSpend < parseFloat(filters.spendMin)) return false;
+    if (filters.spendMax && tSpend > parseFloat(filters.spendMax)) return false;
+    
+    // 销售额范围筛选
+    if (filters.salesMin && tSales < parseFloat(filters.salesMin)) return false;
+    if (filters.salesMax && tSales > parseFloat(filters.salesMax)) return false;
+    
+    // ACoS范围筛选
+    if (filters.acosMin && tAcos < parseFloat(filters.acosMin)) return false;
+    if (filters.acosMax && tAcos > parseFloat(filters.acosMax)) return false;
+    
+    // ROAS范围筛选
+    if (filters.roasMin && tRoas < parseFloat(filters.roasMin)) return false;
+    if (filters.roasMax && tRoas > parseFloat(filters.roasMax)) return false;
+    
+    // 订单数范围筛选
+    if (filters.ordersMin && (target.orders || 0) < parseInt(filters.ordersMin)) return false;
+    if (filters.ordersMax && (target.orders || 0) > parseInt(filters.ordersMax)) return false;
+    
+    return true;
+  });
   
   if (allTargets.length === 0) {
     return (
@@ -720,18 +987,289 @@ function TargetsList({ campaignId }: { campaignId: number }) {
   }
   
   // 按销售额排序
-  const sortedTargets = [...allTargets].sort((a: any, b: any) => 
+  const sortedTargets = [...filteredTargets].sort((a: any, b: any) => 
     parseFloat(b.sales || "0") - parseFloat(a.sales || "0")
   );
   
-  const isMutating = updateKeywordMutation.isPending || updateProductTargetMutation.isPending;
+  const isMutating = updateKeywordMutation.isPending || updateProductTargetMutation.isPending ||
+    batchUpdateKeywordBidMutation.isPending || batchUpdateProductTargetBidMutation.isPending ||
+    batchUpdateKeywordStatusMutation.isPending || batchUpdateProductTargetStatusMutation.isPending;
   
   return (
     <>
+      {/* 筛选和批量操作工具栏 */}
+      <div className="mb-4 space-y-4">
+        {/* 筛选按钮和批量操作 */}
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Button
+              variant={showFilters ? "default" : "outline"}
+              size="sm"
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              <Target className="h-4 w-4 mr-2" />
+              筛选
+              {hasActiveFilters() && <Badge variant="secondary" className="ml-2">激活</Badge>}
+            </Button>
+            {hasActiveFilters() && (
+              <Button variant="ghost" size="sm" onClick={clearFilters}>
+                清除筛选
+              </Button>
+            )}
+          </div>
+          
+          {/* 批量操作按钮 */}
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-2 bg-muted/50 px-3 py-2 rounded-lg">
+              <span className="text-sm text-muted-foreground">已选择 {selectedIds.size} 项</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setBatchStatus("enabled");
+                  setBatchStatusOpen(true);
+                }}
+              >
+                <Play className="h-4 w-4 mr-1" />
+                批量启用
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setBatchStatus("paused");
+                  setBatchStatusOpen(true);
+                }}
+              >
+                <Pause className="h-4 w-4 mr-1" />
+                批量暂停
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setBatchBidOpen(true)}
+              >
+                <Edit2 className="h-4 w-4 mr-1" />
+                批量修改出价
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSelectedIds(new Set());
+                  setSelectAll(false);
+                }}
+              >
+                取消选择
+              </Button>
+            </div>
+          )}
+        </div>
+        
+        {/* 筛选面板 */}
+        {showFilters && (
+          <Card>
+            <CardContent className="pt-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                {/* 匹配方式 */}
+                <div>
+                  <Label className="text-xs">匹配方式</Label>
+                  <select
+                    className="w-full mt-1 h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    value={filters.matchType}
+                    onChange={(e) => setFilters({...filters, matchType: e.target.value as any})}
+                  >
+                    <option value="all">全部</option>
+                    <option value="broad">广泛</option>
+                    <option value="phrase">词组</option>
+                    <option value="exact">精确</option>
+                    <option value="product">商品定向</option>
+                  </select>
+                </div>
+                
+                {/* 状态 */}
+                <div>
+                  <Label className="text-xs">状态</Label>
+                  <select
+                    className="w-full mt-1 h-9 rounded-md border border-input bg-background px-3 text-sm"
+                    value={filters.status}
+                    onChange={(e) => setFilters({...filters, status: e.target.value as any})}
+                  >
+                    <option value="all">全部</option>
+                    <option value="enabled">启用</option>
+                    <option value="paused">暂停</option>
+                  </select>
+                </div>
+                
+                {/* 出价范围 */}
+                <div>
+                  <Label className="text-xs">出价范围 ($)</Label>
+                  <div className="flex gap-1 mt-1">
+                    <Input
+                      type="number"
+                      placeholder="最小"
+                      className="h-9"
+                      value={filters.bidMin}
+                      onChange={(e) => setFilters({...filters, bidMin: e.target.value})}
+                    />
+                    <Input
+                      type="number"
+                      placeholder="最大"
+                      className="h-9"
+                      value={filters.bidMax}
+                      onChange={(e) => setFilters({...filters, bidMax: e.target.value})}
+                    />
+                  </div>
+                </div>
+                
+                {/* 点击范围 */}
+                <div>
+                  <Label className="text-xs">点击范围</Label>
+                  <div className="flex gap-1 mt-1">
+                    <Input
+                      type="number"
+                      placeholder="最小"
+                      className="h-9"
+                      value={filters.clicksMin}
+                      onChange={(e) => setFilters({...filters, clicksMin: e.target.value})}
+                    />
+                    <Input
+                      type="number"
+                      placeholder="最大"
+                      className="h-9"
+                      value={filters.clicksMax}
+                      onChange={(e) => setFilters({...filters, clicksMax: e.target.value})}
+                    />
+                  </div>
+                </div>
+                
+                {/* 花费范围 */}
+                <div>
+                  <Label className="text-xs">花费范围 ($)</Label>
+                  <div className="flex gap-1 mt-1">
+                    <Input
+                      type="number"
+                      placeholder="最小"
+                      className="h-9"
+                      value={filters.spendMin}
+                      onChange={(e) => setFilters({...filters, spendMin: e.target.value})}
+                    />
+                    <Input
+                      type="number"
+                      placeholder="最大"
+                      className="h-9"
+                      value={filters.spendMax}
+                      onChange={(e) => setFilters({...filters, spendMax: e.target.value})}
+                    />
+                  </div>
+                </div>
+                
+                {/* 销售额范围 */}
+                <div>
+                  <Label className="text-xs">销售额范围 ($)</Label>
+                  <div className="flex gap-1 mt-1">
+                    <Input
+                      type="number"
+                      placeholder="最小"
+                      className="h-9"
+                      value={filters.salesMin}
+                      onChange={(e) => setFilters({...filters, salesMin: e.target.value})}
+                    />
+                    <Input
+                      type="number"
+                      placeholder="最大"
+                      className="h-9"
+                      value={filters.salesMax}
+                      onChange={(e) => setFilters({...filters, salesMax: e.target.value})}
+                    />
+                  </div>
+                </div>
+                
+                {/* ACoS范围 */}
+                <div>
+                  <Label className="text-xs">ACoS范围 (%)</Label>
+                  <div className="flex gap-1 mt-1">
+                    <Input
+                      type="number"
+                      placeholder="最小"
+                      className="h-9"
+                      value={filters.acosMin}
+                      onChange={(e) => setFilters({...filters, acosMin: e.target.value})}
+                    />
+                    <Input
+                      type="number"
+                      placeholder="最大"
+                      className="h-9"
+                      value={filters.acosMax}
+                      onChange={(e) => setFilters({...filters, acosMax: e.target.value})}
+                    />
+                  </div>
+                </div>
+                
+                {/* ROAS范围 */}
+                <div>
+                  <Label className="text-xs">ROAS范围</Label>
+                  <div className="flex gap-1 mt-1">
+                    <Input
+                      type="number"
+                      placeholder="最小"
+                      className="h-9"
+                      value={filters.roasMin}
+                      onChange={(e) => setFilters({...filters, roasMin: e.target.value})}
+                    />
+                    <Input
+                      type="number"
+                      placeholder="最大"
+                      className="h-9"
+                      value={filters.roasMax}
+                      onChange={(e) => setFilters({...filters, roasMax: e.target.value})}
+                    />
+                  </div>
+                </div>
+                
+                {/* 订单数范围 */}
+                <div>
+                  <Label className="text-xs">订单数范围</Label>
+                  <div className="flex gap-1 mt-1">
+                    <Input
+                      type="number"
+                      placeholder="最小"
+                      className="h-9"
+                      value={filters.ordersMin}
+                      onChange={(e) => setFilters({...filters, ordersMin: e.target.value})}
+                    />
+                    <Input
+                      type="number"
+                      placeholder="最大"
+                      className="h-9"
+                      value={filters.ordersMax}
+                      onChange={(e) => setFilters({...filters, ordersMax: e.target.value})}
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              {/* 筛选结果统计 */}
+              <div className="mt-4 text-sm text-muted-foreground">
+                筛选结果: {filteredTargets.length} / {allTargets.length} 项
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+      
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[40px]">
+                <input
+                  type="checkbox"
+                  checked={selectAll && sortedTargets.length > 0}
+                  onChange={() => toggleSelectAll(sortedTargets)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+              </TableHead>
               <TableHead>投放词</TableHead>
               <TableHead>类型</TableHead>
               <TableHead>匹配方式</TableHead>
@@ -741,6 +1279,7 @@ function TargetsList({ campaignId }: { campaignId: number }) {
               <TableHead className="text-right">点击</TableHead>
               <TableHead className="text-right">花费</TableHead>
               <TableHead className="text-right">销售额</TableHead>
+              <TableHead className="text-right">订单</TableHead>
               <TableHead className="text-right">ACoS</TableHead>
               <TableHead className="text-right">ROAS</TableHead>
               <TableHead className="text-center">操作</TableHead>
@@ -756,7 +1295,15 @@ function TargetsList({ campaignId }: { campaignId: number }) {
               const isEnabled = target.status === "enabled";
               
               return (
-                <TableRow key={target.id}>
+                <TableRow key={target.id} className={selectedIds.has(target.id) ? "bg-muted/50" : ""}>
+                  <TableCell>
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(target.id)}
+                      onChange={() => toggleSelect(target.id)}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                  </TableCell>
                   <TableCell className="font-medium max-w-[200px] truncate" title={target.text}>
                     {target.text}
                   </TableCell>
@@ -784,6 +1331,7 @@ function TargetsList({ campaignId }: { campaignId: number }) {
                   <TableCell className="text-right">{target.clicks?.toLocaleString() || 0}</TableCell>
                   <TableCell className="text-right">${tSpend.toFixed(2)}</TableCell>
                   <TableCell className="text-right">${tSales.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">{target.orders || 0}</TableCell>
                   <TableCell className="text-right">
                     <span className={tAcos > 30 ? "text-red-500" : tAcos > 20 ? "text-yellow-500" : "text-green-500"}>
                       {tSales > 0 ? `${tAcos.toFixed(1)}%` : "-"}
@@ -890,6 +1438,79 @@ function TargetsList({ campaignId }: { campaignId: number }) {
             >
               {isMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               确认{newStatus === "paused" ? "暂停" : "启用"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* 批量修改出价弹窗 */}
+      <Dialog open={batchBidOpen} onOpenChange={setBatchBidOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>批量修改出价</DialogTitle>
+            <DialogDescription>
+              已选择 {selectedIds.size} 个投放词，请选择调整方式
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">调整方式</Label>
+              <div className="col-span-3">
+                <select
+                  className="w-full h-9 rounded-md border border-input bg-background px-3 text-sm"
+                  value={batchBidType}
+                  onChange={(e) => setBatchBidType(e.target.value as any)}
+                >
+                  <option value="fixed">固定出价</option>
+                  <option value="increase_percent">按百分比提高</option>
+                  <option value="decrease_percent">按百分比降低</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">
+                {batchBidType === "fixed" ? "新出价 ($)" : "调整比例 (%)"}
+              </Label>
+              <div className="col-span-3">
+                <Input
+                  type="number"
+                  step={batchBidType === "fixed" ? "0.01" : "1"}
+                  min="0"
+                  value={batchBidValue}
+                  onChange={(e) => setBatchBidValue(e.target.value)}
+                  placeholder={batchBidType === "fixed" ? "输入新出价" : "输入百分比"}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBatchBidOpen(false)}>取消</Button>
+            <Button onClick={handleBatchBid} disabled={isMutating || !batchBidValue}>
+              {isMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              确认修改
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* 批量修改状态弹窗 */}
+      <Dialog open={batchStatusOpen} onOpenChange={setBatchStatusOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>批量{batchStatus === "enabled" ? "启用" : "暂停"}投放词</DialogTitle>
+            <DialogDescription>
+              确定要{batchStatus === "enabled" ? "启用" : "暂停"} {selectedIds.size} 个投放词吗？
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBatchStatusOpen(false)}>取消</Button>
+            <Button 
+              onClick={handleBatchStatus} 
+              disabled={isMutating}
+              variant={batchStatus === "paused" ? "destructive" : "default"}
+            >
+              {isMutating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              确认{batchStatus === "enabled" ? "启用" : "暂停"}
             </Button>
           </DialogFooter>
         </DialogContent>
