@@ -519,6 +519,7 @@ export const campaigns = mysqlTable("campaigns", {
 	cvr: decimal({ precision: 5, scale: 4 }),
 	cpc: decimal({ precision: 10, scale: 2 }),
 	campaignStatus: mysqlEnum(['enabled','paused','archived']).default('enabled'),
+	optimizationStatus: mysqlEnum(['managed','unmanaged']).default('unmanaged'),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	dailyBudget: decimal({ precision: 10, scale: 2 }),

@@ -315,12 +315,29 @@ type SortDirection = 'asc' | 'desc';
 // localStorage key
 const COLUMN_VISIBILITY_KEY = 'campaigns_column_visibility';
 
+// 运行状态筛选选项
+const runningStatusOptions = [
+  { value: "all", label: "全部状态" },
+  { value: "enabled", label: "活跃" },
+  { value: "paused", label: "暂停" },
+];
+
+// 优化状态筛选选项
+const optimizationStatusOptions = [
+  { value: "all", label: "全部" },
+  { value: "managed", label: "已介入" },
+  { value: "unmanaged", label: "未介入" },
+];
+
 export default function Campaigns() {
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [runningStatusFilter, setRunningStatusFilter] = useState<string>("all");
+  const [optimizationStatusFilter, setOptimizationStatusFilter] = useState<string>("all");
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [selectedCampaigns, setSelectedCampaigns] = useState<Set<number>>(new Set());
   
   // 列显示状态
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
@@ -394,8 +411,69 @@ export default function Campaigns() {
   const filteredCampaigns = campaigns?.filter((campaign) => {
     const matchesSearch = campaign.campaignName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = typeFilter === "all" || campaign.campaignType === typeFilter;
-    return matchesSearch && matchesType;
+    const matchesRunningStatus = runningStatusFilter === "all" || campaign.campaignStatus === runningStatusFilter;
+    const matchesOptimizationStatus = optimizationStatusFilter === "all" || 
+      (campaign as any).optimizationStatus === optimizationStatusFilter ||
+      (optimizationStatusFilter === "managed" && (campaign as any).performanceGroupId) ||
+      (optimizationStatusFilter === "unmanaged" && !(campaign as any).performanceGroupId);
+    return matchesSearch && matchesType && matchesRunningStatus && matchesOptimizationStatus;
   });
+
+  // 计算各状态数量
+  const statusCounts = useMemo(() => {
+    if (!campaigns) return { enabled: 0, paused: 0, managed: 0, unmanaged: 0 };
+    return campaigns.reduce((acc, campaign) => {
+      if (campaign.campaignStatus === 'enabled') acc.enabled++;
+      if (campaign.campaignStatus === 'paused') acc.paused++;
+      if ((campaign as any).performanceGroupId) acc.managed++;
+      else acc.unmanaged++;
+      return acc;
+    }, { enabled: 0, paused: 0, managed: 0, unmanaged: 0 });
+  }, [campaigns]);
+
+  // 批量操作：加入绩效组
+  const batchAssignToGroup = trpc.performanceGroup.batchAssignCampaigns.useMutation({
+    onSuccess: (result) => {
+      toast.success(`已将 ${result.count} 个广告活动加入绩效组`);
+      setSelectedCampaigns(new Set());
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(`批量分配失败: ${error.message}`);
+    },
+  });
+
+  // 批量操作：移出绩效组
+  const batchRemoveFromGroup = trpc.performanceGroup.batchRemoveCampaigns.useMutation({
+    onSuccess: (result) => {
+      toast.success(`已将 ${result.count} 个广告活动移出绩效组`);
+      setSelectedCampaigns(new Set());
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(`批量移除失败: ${error.message}`);
+    },
+  });
+
+  // 全选/取消全选
+  const toggleSelectAll = () => {
+    if (selectedCampaigns.size === sortedCampaigns.length) {
+      setSelectedCampaigns(new Set());
+    } else {
+      setSelectedCampaigns(new Set(sortedCampaigns.map(c => c.id)));
+    }
+  };
+
+  // 切换单个选择
+  const toggleSelectCampaign = (id: number) => {
+    const newSelected = new Set(selectedCampaigns);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedCampaigns(newSelected);
+  };
 
   // 获取绩效组名称
   const getPerformanceGroupName = (groupId: number | null | undefined) => {
@@ -907,18 +985,127 @@ export default function Campaigns() {
           })}
         </div>
 
-        {/* 搜索框 */}
+        {/* 状态筛选器 */}
         <Card>
           <CardContent className="pt-6">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="搜索广告活动名称..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-9"
-              />
+            <div className="flex flex-wrap items-center gap-4">
+              {/* 运行状态筛选 */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">运行状态:</span>
+                <div className="flex gap-1">
+                  {runningStatusOptions.map((option) => {
+                    const count = option.value === "all" 
+                      ? campaigns?.length || 0 
+                      : option.value === "enabled" ? statusCounts.enabled : statusCounts.paused;
+                    return (
+                      <Button
+                        key={option.value}
+                        variant={runningStatusFilter === option.value ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setRunningStatusFilter(option.value)}
+                        className="h-8"
+                      >
+                        {option.label}
+                        <Badge variant="secondary" className="ml-1 text-xs">{count}</Badge>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 优化状态筛选 */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-muted-foreground">优化状态:</span>
+                <div className="flex gap-1">
+                  {optimizationStatusOptions.map((option) => {
+                    const count = option.value === "all" 
+                      ? campaigns?.length || 0 
+                      : option.value === "managed" ? statusCounts.managed : statusCounts.unmanaged;
+                    return (
+                      <Button
+                        key={option.value}
+                        variant={optimizationStatusFilter === option.value ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setOptimizationStatusFilter(option.value)}
+                        className={`h-8 ${option.value === "managed" ? "data-[state=active]:bg-green-600" : option.value === "unmanaged" ? "data-[state=active]:bg-orange-600" : ""}`}
+                      >
+                        {option.value === "managed" && <Bot className="w-3 h-3 mr-1" />}
+                        {option.value === "unmanaged" && <AlertCircle className="w-3 h-3 mr-1" />}
+                        {option.label}
+                        <Badge variant="secondary" className="ml-1 text-xs">{count}</Badge>
+                      </Button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 搜索框 */}
+              <div className="flex-1 min-w-[200px]">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    placeholder="搜索广告活动名称..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9 h-8"
+                  />
+                </div>
+              </div>
             </div>
+
+            {/* 批量操作栏 */}
+            {selectedCampaigns.size > 0 && (
+              <div className="mt-4 p-3 bg-primary/5 border border-primary/20 rounded-lg flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    checked={selectedCampaigns.size === sortedCampaigns.length}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                  <span className="text-sm font-medium">已选择 {selectedCampaigns.size} 个广告活动</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Select
+                    onValueChange={(value) => {
+                      batchAssignToGroup.mutate({
+                        campaignIds: Array.from(selectedCampaigns),
+                        performanceGroupId: parseInt(value),
+                      });
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-[140px]">
+                      <SelectValue placeholder="加入绩效组" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {performanceGroups?.map((group) => (
+                        <SelectItem key={group.id} value={group.id.toString()}>
+                          {group.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      batchRemoveFromGroup.mutate({
+                        campaignIds: Array.from(selectedCampaigns),
+                      });
+                    }}
+                    className="h-8"
+                  >
+                    移出绩效组
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedCampaigns(new Set())}
+                    className="h-8"
+                  >
+                    取消选择
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -952,10 +1139,17 @@ export default function Campaigns() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/50">
+                      {/* 复选框列 */}
+                      <TableHead className="w-[40px] sticky left-0 bg-muted/50 z-10">
+                        <Checkbox
+                          checked={selectedCampaigns.size === sortedCampaigns.length && sortedCampaigns.length > 0}
+                          onCheckedChange={toggleSelectAll}
+                        />
+                      </TableHead>
                       {columns.filter(col => visibleColumns.has(col.key)).map((column) => (
                         <TableHead 
                           key={column.key}
-                          className={`min-w-[${column.minWidth}] ${column.sticky ? 'sticky left-0 bg-muted/50 z-10' : ''} ${column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : ''}`}
+                          className={`min-w-[${column.minWidth}] ${column.sticky ? 'sticky left-[40px] bg-muted/50 z-10' : ''} ${column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : ''}`}
                           style={{ minWidth: column.minWidth }}
                         >
                           {column.sortable ? (
@@ -975,11 +1169,21 @@ export default function Campaigns() {
                   </TableHeader>
                   <TableBody>
                     {sortedCampaigns.map((campaign) => (
-                      <TableRow key={campaign.id} className="hover:bg-muted/30">
+                      <TableRow 
+                        key={campaign.id} 
+                        className={`hover:bg-muted/30 ${selectedCampaigns.has(campaign.id) ? 'bg-primary/5' : ''}`}
+                      >
+                        {/* 复选框列 */}
+                        <TableCell className="sticky left-0 bg-background z-10">
+                          <Checkbox
+                            checked={selectedCampaigns.has(campaign.id)}
+                            onCheckedChange={() => toggleSelectCampaign(campaign.id)}
+                          />
+                        </TableCell>
                         {columns.filter(col => visibleColumns.has(col.key)).map((column) => (
                           <TableCell 
                             key={column.key}
-                            className={`${column.sticky ? 'sticky left-0 bg-background z-10' : ''} ${column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : ''}`}
+                            className={`${column.sticky ? 'sticky left-[40px] bg-background z-10' : ''} ${column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : ''}`}
                           >
                             {renderCell(campaign, column.key)}
                           </TableCell>

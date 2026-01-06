@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -246,6 +246,7 @@ export default function PerformanceGroups() {
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isOptimizing, setIsOptimizing] = useState<number | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<number | null>(null);
 
   // Fetch accounts
   const { data: accounts } = trpc.adAccount.list.useQuery();
@@ -256,6 +257,27 @@ export default function PerformanceGroups() {
     { accountId: accountId! },
     { enabled: !!accountId }
   );
+
+  // Fetch all campaigns to count managed/unmanaged
+  const { data: campaigns } = trpc.campaign.list.useQuery(
+    { accountId: accountId! },
+    { enabled: !!accountId }
+  );
+
+  // 计算统计数据
+  const stats = useMemo(() => {
+    const totalGroups = performanceGroups?.length || 0;
+    const activeGroups = performanceGroups?.filter(g => g.status === 'active').length || 0;
+    const pausedGroups = performanceGroups?.filter(g => g.status === 'paused').length || 0;
+    const managedCampaigns = campaigns?.filter(c => (c as any).performanceGroupId).length || 0;
+    const unmanagedCampaigns = (campaigns?.length || 0) - managedCampaigns;
+    return { totalGroups, activeGroups, pausedGroups, managedCampaigns, unmanagedCampaigns };
+  }, [performanceGroups, campaigns]);
+
+  // 获取绩效组包含的广告活动数量
+  const getCampaignCountByGroup = (groupId: number) => {
+    return campaigns?.filter(c => (c as any).performanceGroupId === groupId).length || 0;
+  };
 
   // Mutations
   const createGroup = trpc.performanceGroup.create.useMutation({
@@ -323,7 +345,7 @@ export default function PerformanceGroups() {
           <div>
             <h1 className="text-2xl font-bold">绩效组管理</h1>
             <p className="text-muted-foreground">
-              创建和管理广告活动绩效组，设置统一的优化目标
+              将广告活动分组管理，设置统一的优化目标 · <span className="text-green-500">加入绩效组的广告活动将被算法自动优化</span>
             </p>
           </div>
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
@@ -341,6 +363,66 @@ export default function PerformanceGroups() {
               />
             </DialogContent>
           </Dialog>
+        </div>
+
+        {/* 统计概览卡片 */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">绩效组总数</p>
+                  <p className="text-2xl font-bold">{stats.totalGroups}</p>
+                </div>
+                <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center">
+                  <Target className="w-5 h-5 text-blue-500" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">已介入广告活动</p>
+                  <p className="text-2xl font-bold text-green-500">{stats.managedCampaigns}</p>
+                </div>
+                <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center">
+                  <Bot className="w-5 h-5 text-green-500" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-br from-orange-500/10 to-orange-600/5 border-orange-500/20">
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">未介入广告活动</p>
+                  <p className="text-2xl font-bold text-orange-500">{stats.unmanagedCampaigns}</p>
+                </div>
+                <div className="w-10 h-10 rounded-full bg-orange-500/20 flex items-center justify-center">
+                  <AlertCircle className="w-5 h-5 text-orange-500" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20">
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">优化中 / 已暂停</p>
+                  <p className="text-2xl font-bold">
+                    <span className="text-green-500">{stats.activeGroups}</span>
+                    <span className="text-muted-foreground mx-1">/</span>
+                    <span className="text-yellow-500">{stats.pausedGroups}</span>
+                  </p>
+                </div>
+                <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center">
+                  <Activity className="w-5 h-5 text-purple-500" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Performance Groups Grid */}
@@ -364,8 +446,9 @@ export default function PerformanceGroups() {
                       </div>
                       <div>
                         <CardTitle className="text-lg">{group.name}</CardTitle>
-                        <CardDescription className="text-xs">
-                          {group.optimizationGoal && goalLabels[group.optimizationGoal] || group.optimizationGoal || '未设置'}
+                        <CardDescription className="text-xs flex items-center gap-2">
+                          <span>{group.optimizationGoal && goalLabels[group.optimizationGoal] || group.optimizationGoal || '未设置'}</span>
+                          <span className="text-primary">· {getCampaignCountByGroup(group.id)} 个广告活动</span>
                         </CardDescription>
                       </div>
                     </div>

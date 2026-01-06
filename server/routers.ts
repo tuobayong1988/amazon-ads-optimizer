@@ -241,6 +241,39 @@ const performanceGroupRouter = router({
       await db.assignCampaignToPerformanceGroup(input.campaignId, input.performanceGroupId);
       return { success: true };
     }),
+
+  // 批量分配广告活动到绩效组
+  batchAssignCampaigns: protectedProcedure
+    .input(z.object({
+      campaignIds: z.array(z.number()),
+      performanceGroupId: z.number(),
+    }))
+    .mutation(async ({ input }) => {
+      let count = 0;
+      for (const campaignId of input.campaignIds) {
+        await db.assignCampaignToPerformanceGroup(campaignId, input.performanceGroupId);
+        // 同时更新优化状态为managed
+        await db.updateCampaign(campaignId, { optimizationStatus: 'managed' });
+        count++;
+      }
+      return { success: true, count };
+    }),
+
+  // 批量移除广告活动从绩效组
+  batchRemoveCampaigns: protectedProcedure
+    .input(z.object({
+      campaignIds: z.array(z.number()),
+    }))
+    .mutation(async ({ input }) => {
+      let count = 0;
+      for (const campaignId of input.campaignIds) {
+        await db.assignCampaignToPerformanceGroup(campaignId, null);
+        // 同时更新优化状态为unmanaged
+        await db.updateCampaign(campaignId, { optimizationStatus: 'unmanaged' });
+        count++;
+      }
+      return { success: true, count };
+    }),
 });
 
 // ==================== Campaign Router ====================
