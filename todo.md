@@ -1603,3 +1603,4 @@
 ## Bug修复记录
 
 - [x] 修复campaigns表optimization_status列名不匹配问题（下划线改为驼峰命名）
+- [x] 修复market_curve_models表schema列名映射问题（移除显式下划线命名）
