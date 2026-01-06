@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `ai_optimization_actions` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`executionId` int NOT NULL,\n\t`aiActionType` enum('bid_increase','bid_decrease','bid_set','enable_target','pause_target','add_negative_phrase','add_negative_exact') NOT NULL,\n\t`aiTargetType` enum('keyword','product_target','search_term') NOT NULL,\n\t`aiTargetId` int,\n\t`aiTargetText` varchar(500),\n\t`previousValue` varchar(100),\n\t`newValue` varchar(100),\n\t`changeReason` text,\n\t`aiActionStatus` enum('pending','success','failed') DEFAULT 'pending',\n\t`aiActionError` text,\n\t`aiActionExecutedAt` timestamp,\n\t`aiActionCreatedAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `ai_optimization_actions_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute CREATE TABLE IF NOT EXISTS `ai_optimization_actions` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`executionId` int NOT NULL,\n\t`aiActionType` enum('bid_increase','bid_decrease','bid_set','enable_target','pause_target','add_negative_phrase','add_negative_exact') NOT NULL,\n\t`aiTargetType` enum('keyword','product_target','search_term') NOT NULL,\n\t`aiTargetId` int,\n\t`aiTargetText` varchar(500),\n\t`previousValue` varchar(100),\n\t`newValue` varchar(100),\n\t`changeReason` text,\n\t`aiActionStatus` enum('pending','success','failed') DEFAULT 'pending',\n\t`aiActionError` text,\n\t`aiActionExecutedAt` timestamp,\n\t`aiActionCreatedAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `ai_optimization_actions_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 525
+}

@@ -38,7 +38,7 @@ import { Label } from "@/components/ui/label";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Filter, Ban, ArrowUpRight } from "lucide-react";
+import { Filter, Ban, ArrowUpRight, ArrowRight, Clock } from "lucide-react";
 
 // 广告活动类型图标映射
 const campaignTypeIcons: Record<string, any> = {
@@ -64,6 +64,12 @@ export default function CampaignDetail() {
   const [aiSummary, setAiSummary] = useState<string | null>(null);
   const [summaryMetrics, setSummaryMetrics] = useState<any>(null);
   
+  // AI分析结果状态
+  const [aiAnalysisResult, setAiAnalysisResult] = useState<any>(null);
+  const [selectedSuggestions, setSelectedSuggestions] = useState<Set<number>>(new Set());
+  const [showExecuteDialog, setShowExecuteDialog] = useState(false);
+  const [showPredictions, setShowPredictions] = useState(false);
+  
   // 获取广告活动详情
   const { data: campaign, isLoading: campaignLoading, refetch: refetchCampaign } = trpc.campaign.get.useQuery(
     { id: campaignId! },
@@ -88,10 +94,75 @@ export default function CampaignDetail() {
     },
   });
   
+  // AI智能分析（包含可执行建议）
+  const generateAIAnalysisMutation = trpc.campaign.generateAIAnalysis.useMutation({
+    onSuccess: (data) => {
+      setAiAnalysisResult(data);
+      setAiSummary(data.summary);
+      setSummaryMetrics(data.metrics);
+      setSelectedSuggestions(new Set(data.suggestions.map((_: any, i: number) => i)));
+      toast.success(`AI分析完成，识别出${data.suggestions.length}条优化建议`);
+    },
+    onError: (error) => {
+      toast.error(`分析失败: ${error.message}`);
+    },
+  });
+  
+  // 执行AI优化建议
+  const executeAIOptimizationMutation = trpc.campaign.executeAIOptimization.useMutation({
+    onSuccess: (data) => {
+      toast.success(`执行完成！成功: ${data.results.success}，失败: ${data.results.failed}`);
+      setShowExecuteDialog(false);
+      refetchCampaign();
+    },
+    onError: (error) => {
+      toast.error(`执行失败: ${error.message}`);
+    },
+  });
+  
   const handleGenerateSummary = () => {
     if (campaignId) {
       generateSummaryMutation.mutate({ campaignId });
     }
+  };
+  
+  const handleGenerateAIAnalysis = () => {
+    if (campaignId) {
+      generateAIAnalysisMutation.mutate({ campaignId });
+    }
+  };
+  
+  const handleExecuteOptimization = () => {
+    if (!aiAnalysisResult || !campaignId) return;
+    
+    const selectedSuggestionsList = aiAnalysisResult.suggestions.filter((_: any, i: number) => selectedSuggestions.has(i));
+    
+    executeAIOptimizationMutation.mutate({
+      campaignId,
+      suggestions: selectedSuggestionsList,
+      predictions: aiAnalysisResult.predictions,
+      aiSummary: aiAnalysisResult.summary,
+    });
+  };
+  
+  const toggleSuggestion = (index: number) => {
+    const newSelected = new Set(selectedSuggestions);
+    if (newSelected.has(index)) {
+      newSelected.delete(index);
+    } else {
+      newSelected.add(index);
+    }
+    setSelectedSuggestions(newSelected);
+  };
+  
+  const selectAllSuggestions = () => {
+    if (aiAnalysisResult) {
+      setSelectedSuggestions(new Set(aiAnalysisResult.suggestions.map((_: any, i: number) => i)));
+    }
+  };
+  
+  const deselectAllSuggestions = () => {
+    setSelectedSuggestions(new Set());
   };
   
   if (!match || !campaignId) {
@@ -187,41 +258,251 @@ export default function CampaignDetail() {
                 <Sparkles className="h-5 w-5 text-primary" />
                 <CardTitle className="text-lg">AI 智能分析</CardTitle>
               </div>
-              <Button 
-                size="sm" 
-                onClick={handleGenerateSummary}
-                disabled={generateSummaryMutation.isPending}
-              >
-                {generateSummaryMutation.isPending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    生成中...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-4 w-4 mr-2" />
-                    {aiSummary ? "重新生成" : "生成摘要"}
-                  </>
-                )}
-              </Button>
+              <div className="flex gap-2">
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={handleGenerateSummary}
+                  disabled={generateSummaryMutation.isPending}
+                >
+                  {generateSummaryMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      生成中...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      快速摘要
+                    </>
+                  )}
+                </Button>
+                <Button 
+                  size="sm" 
+                  onClick={handleGenerateAIAnalysis}
+                  disabled={generateAIAnalysisMutation.isPending}
+                >
+                  {generateAIAnalysisMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      分析中...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4 mr-2" />
+                      智能分析与优化
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
-            <CardDescription>
-              基于广告数据的智能分析和优化建议
+            <CardDescription className="flex items-center justify-between">
+              <span>基于广告数据的智能分析、优化建议和效果预估</span>
+              <Button 
+                variant="link" 
+                size="sm" 
+                className="h-auto p-0 text-xs"
+                onClick={() => setLocation(`/campaigns/${campaignId}/ai-history`)}
+              >
+                <Clock className="h-3 w-3 mr-1" />
+                查看执行历史与复盘
+              </Button>
             </CardDescription>
           </CardHeader>
           <CardContent>
             {aiSummary ? (
-              <div className="prose prose-sm dark:prose-invert max-w-none">
-                <Streamdown>{aiSummary}</Streamdown>
+              <div className="space-y-4">
+                <div className="prose prose-sm dark:prose-invert max-w-none">
+                  <Streamdown>{aiSummary}</Streamdown>
+                </div>
+                
+                {/* AI优化建议列表 */}
+                {aiAnalysisResult?.suggestions && aiAnalysisResult.suggestions.length > 0 && (
+                  <div className="mt-6 border-t pt-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="font-semibold flex items-center gap-2">
+                        <Target className="h-4 w-4" />
+                        优化建议 ({aiAnalysisResult.suggestions.length}条)
+                      </h4>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="ghost" onClick={selectAllSuggestions}>
+                          全选
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={deselectAllSuggestions}>
+                          取消全选
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          onClick={() => setShowPredictions(!showPredictions)}
+                          variant="outline"
+                        >
+                          <TrendingUp className="h-4 w-4 mr-1" />
+                          效果预估
+                        </Button>
+                        <Button 
+                          size="sm" 
+                          onClick={() => setShowExecuteDialog(true)}
+                          disabled={selectedSuggestions.size === 0}
+                        >
+                          <Play className="h-4 w-4 mr-1" />
+                          一键执行 ({selectedSuggestions.size})
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    {/* 效果预估卡片 */}
+                    {showPredictions && aiAnalysisResult.predictions && (
+                      <div className="mb-4 p-4 bg-muted/50 rounded-lg">
+                        <h5 className="font-medium mb-3 flex items-center gap-2">
+                          <TrendingUp className="h-4 w-4" />
+                          执行后效果预估
+                        </h5>
+                        <div className="grid grid-cols-3 gap-4">
+                          {aiAnalysisResult.predictions.map((pred: any) => (
+                            <div key={pred.period} className="p-3 bg-background rounded border">
+                              <div className="text-sm font-medium mb-2">
+                                {pred.period === "7_days" ? "7天后" : pred.period === "14_days" ? "14天后" : "30天后"}
+                              </div>
+                              <div className="space-y-1 text-xs">
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">预估花费</span>
+                                  <span className={pred.spendChangePercent < 0 ? "text-green-500" : "text-red-500"}>
+                                    ${pred.predictedSpend.toFixed(2)} ({pred.spendChangePercent > 0 ? "+" : ""}{pred.spendChangePercent.toFixed(1)}%)
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">预估销售</span>
+                                  <span className={pred.salesChangePercent > 0 ? "text-green-500" : "text-red-500"}>
+                                    ${pred.predictedSales.toFixed(2)} ({pred.salesChangePercent > 0 ? "+" : ""}{pred.salesChangePercent.toFixed(1)}%)
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">预估ACoS</span>
+                                  <span className={pred.acosChangePercent < 0 ? "text-green-500" : "text-red-500"}>
+                                    {pred.predictedAcos.toFixed(1)}% ({pred.acosChangePercent > 0 ? "+" : ""}{pred.acosChangePercent.toFixed(1)}%)
+                                  </span>
+                                </div>
+                                <div className="flex justify-between">
+                                  <span className="text-muted-foreground">预估ROAS</span>
+                                  <span className={pred.roasChangePercent > 0 ? "text-green-500" : "text-red-500"}>
+                                    {pred.predictedRoas.toFixed(2)} ({pred.roasChangePercent > 0 ? "+" : ""}{pred.roasChangePercent.toFixed(1)}%)
+                                  </span>
+                                </div>
+                                <div className="flex justify-between mt-2 pt-2 border-t">
+                                  <span className="text-muted-foreground">置信度</span>
+                                  <span>{(pred.confidence * 100).toFixed(0)}%</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* 建议列表 */}
+                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                      {aiAnalysisResult.suggestions.map((suggestion: any, index: number) => (
+                        <div 
+                          key={index}
+                          className={`p-3 rounded-lg border cursor-pointer transition-colors ${
+                            selectedSuggestions.has(index) ? "bg-primary/10 border-primary" : "bg-muted/30 hover:bg-muted/50"
+                          }`}
+                          onClick={() => toggleSuggestion(index)}
+                        >
+                          <div className="flex items-start gap-3">
+                            <Checkbox 
+                              checked={selectedSuggestions.has(index)}
+                              onCheckedChange={() => toggleSuggestion(index)}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge variant={suggestion.priority === "high" ? "destructive" : suggestion.priority === "medium" ? "default" : "secondary"} className="text-xs">
+                                  {suggestion.priority === "high" ? "高优先级" : suggestion.priority === "medium" ? "中优先级" : "低优先级"}
+                                </Badge>
+                                <Badge variant="outline" className="text-xs">
+                                  {suggestion.type === "bid_adjustment" ? "出价调整" : suggestion.type === "status_change" ? "状态变更" : "否定词"}
+                                </Badge>
+                                <span className="text-xs text-muted-foreground">
+                                  {suggestion.targetType === "keyword" ? "关键词" : suggestion.targetType === "product_target" ? "商品定向" : "搜索词"}
+                                </span>
+                              </div>
+                              <p className="text-sm font-medium truncate">{suggestion.targetText}</p>
+                              <p className="text-xs text-muted-foreground mt-1">{suggestion.reason}</p>
+                              {suggestion.currentValue && suggestion.suggestedValue && (
+                                <div className="flex items-center gap-2 mt-2 text-xs">
+                                  <span className="text-muted-foreground">{suggestion.currentValue}</span>
+                                  <ArrowRight className="h-3 w-3" />
+                                  <span className="font-medium text-primary">{suggestion.suggestedValue}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-center py-8 text-muted-foreground">
                 <Sparkles className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>点击"生成摘要"按钮，AI将分析该广告活动的表现并提供优化建议</p>
+                <p>点击"智能分析与优化"按钮，AI将分析广告表现并生成可执行的优化建议</p>
               </div>
             )}
           </CardContent>
         </Card>
+        
+        {/* 执行确认弹窗 */}
+        <Dialog open={showExecuteDialog} onOpenChange={setShowExecuteDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>确认执行AI优化建议</DialogTitle>
+              <DialogDescription>
+                您即将执行 {selectedSuggestions.size} 条优化建议，这将直接修改广告活动的设置。
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4">
+              <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                {aiAnalysisResult?.suggestions
+                  .filter((_: any, i: number) => selectedSuggestions.has(i))
+                  .map((suggestion: any, index: number) => (
+                    <div key={index} className="p-2 bg-muted rounded text-sm">
+                      <span className="font-medium">{suggestion.targetText}</span>
+                      <span className="text-muted-foreground"> - {suggestion.reason}</span>
+                    </div>
+                  ))
+                }
+              </div>
+              <div className="mt-4 p-3 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                <p className="text-sm text-amber-600 dark:text-amber-400">
+                  注意：执行后系统将记录此次操作，并在7天、14天、30天后自动复盘实际效果与预估的差异。
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowExecuteDialog(false)}>
+                取消
+              </Button>
+              <Button 
+                onClick={handleExecuteOptimization}
+                disabled={executeAIOptimizationMutation.isPending}
+              >
+                {executeAIOptimizationMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    执行中...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-4 w-4 mr-2" />
+                    确认执行
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         
         {/* 核心指标卡片 */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -600,13 +881,13 @@ function TargetsList({ campaignId }: { campaignId: number }) {
   
   // 批量操作弹窗
   const [batchBidOpen, setBatchBidOpen] = useState(false);
-  const [batchBidType, setBatchBidType] = useState<"fixed" | "increase_percent" | "decrease_percent">("fixed");
+  const [batchBidType, setBatchBidType] = useState<"fixed" | "increase_percent" | "decrease_percent" | "cpc_multiplier" | "cpc_increase_percent" | "cpc_decrease_percent">("fixed");
   const [batchBidValue, setBatchBidValue] = useState("");
   const [batchStatusOpen, setBatchStatusOpen] = useState(false);
   const [batchStatus, setBatchStatus] = useState<"enabled" | "paused">("enabled");
   
-  // 筛选状态
-  const [showFilters, setShowFilters] = useState(false);
+  // 筛选状态 - 默认展开筛选面板
+  const [showFilters, setShowFilters] = useState(true);
   const [filters, setFilters] = useState({
     matchType: "all" as "all" | "broad" | "phrase" | "exact" | "product",
     status: "all" as "all" | "enabled" | "paused",
@@ -1342,6 +1623,7 @@ function TargetsList({ campaignId }: { campaignId: number }) {
               <TableHead>匹配方式</TableHead>
               <TableHead>状态</TableHead>
               <TableHead className="text-right">出价</TableHead>
+              <TableHead className="text-right">CPC</TableHead>
               <TableHead className="text-right">展示</TableHead>
               <TableHead className="text-right">点击</TableHead>
               <TableHead className="text-right">点击率</TableHead>
@@ -1396,6 +1678,9 @@ function TargetsList({ campaignId }: { campaignId: number }) {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">${target.bid || "N/A"}</TableCell>
+                  <TableCell className="text-right">
+                    {target.clicks > 0 ? `$${(tSpend / target.clicks).toFixed(2)}` : "-"}
+                  </TableCell>
                   <TableCell className="text-right">{target.impressions?.toLocaleString() || 0}</TableCell>
                   <TableCell className="text-right">{target.clicks?.toLocaleString() || 0}</TableCell>
                   <TableCell className="text-right">
@@ -1540,27 +1825,55 @@ function TargetsList({ campaignId }: { campaignId: number }) {
                   value={batchBidType}
                   onChange={(e) => setBatchBidType(e.target.value as any)}
                 >
-                  <option value="fixed">固定出价</option>
-                  <option value="increase_percent">按百分比提高</option>
-                  <option value="decrease_percent">按百分比降低</option>
+                  <optgroup label="基于当前出价">
+                    <option value="fixed">固定出价</option>
+                    <option value="increase_percent">按百分比提高</option>
+                    <option value="decrease_percent">按百分比降低</option>
+                  </optgroup>
+                  <optgroup label="基于CPC">
+                    <option value="cpc_multiplier">按CPC倍数设置</option>
+                    <option value="cpc_increase_percent">按CPC百分比提高</option>
+                    <option value="cpc_decrease_percent">按CPC百分比降低</option>
+                  </optgroup>
                 </select>
               </div>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">
-                {batchBidType === "fixed" ? "新出价 ($)" : "调整比例 (%)"}
+                {batchBidType === "fixed" ? "新出价 ($)" : batchBidType === "cpc_multiplier" ? "CPC倍数" : "调整比例 (%)"}
               </Label>
               <div className="col-span-3">
                 <Input
                   type="number"
-                  step={batchBidType === "fixed" ? "0.01" : "1"}
+                  step={batchBidType === "fixed" ? "0.01" : batchBidType === "cpc_multiplier" ? "0.1" : "1"}
                   min="0"
                   value={batchBidValue}
                   onChange={(e) => setBatchBidValue(e.target.value)}
-                  placeholder={batchBidType === "fixed" ? "输入新出价" : "输入百分比"}
+                  placeholder={
+                    batchBidType === "fixed" ? "输入新出价" : 
+                    batchBidType === "cpc_multiplier" ? "例如: 1.2 表示 CPC×1.2" : 
+                    "输入百分比"
+                  }
                 />
               </div>
             </div>
+            {/* CPC调整方式说明 */}
+            {(batchBidType === "cpc_multiplier" || batchBidType === "cpc_increase_percent" || batchBidType === "cpc_decrease_percent") && (
+              <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-md">
+                <p className="font-medium mb-1">💡 CPC调整说明</p>
+                <p>CPC = 花费 ÷ 点击数，代表实际每次点击成本</p>
+                {batchBidType === "cpc_multiplier" && (
+                  <p>例如：输入 1.2，则新出价 = CPC × 1.2</p>
+                )}
+                {batchBidType === "cpc_increase_percent" && (
+                  <p>例如：输入 20，则新出价 = CPC × 1.2</p>
+                )}
+                {batchBidType === "cpc_decrease_percent" && (
+                  <p>例如：输入 20，则新出价 = CPC × 0.8</p>
+                )}
+                <p className="mt-1 text-yellow-500">注意：无点击数据的投放词将使用当前出价作为CPC基数</p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBatchBidOpen(false)}>取消</Button>

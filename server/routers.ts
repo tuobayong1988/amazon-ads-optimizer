@@ -431,6 +431,83 @@ ${topKeywords.map((k, i) => `${i + 1}. "${k.keywordText}" - 销售额: $${parseF
         });
       }
     }),
+  
+  // AI智能分析（包含可执行建议和效果预估）
+  generateAIAnalysis: protectedProcedure
+    .input(z.object({ campaignId: z.number() }))
+    .mutation(async ({ input }) => {
+      const { generateAIAnalysisWithSuggestions } = await import("./aiOptimizationService");
+      return generateAIAnalysisWithSuggestions(input.campaignId);
+    }),
+  
+  // 执行AI优化建议
+  executeAIOptimization: protectedProcedure
+    .input(z.object({
+      campaignId: z.number(),
+      suggestions: z.array(z.object({
+        type: z.enum(["bid_adjustment", "status_change", "negative_keyword"]),
+        targetType: z.enum(["keyword", "product_target", "search_term"]),
+        targetId: z.number().optional(),
+        targetText: z.string(),
+        action: z.enum(["bid_increase", "bid_decrease", "bid_set", "enable", "pause", "negate_phrase", "negate_exact"]),
+        currentValue: z.string().optional(),
+        suggestedValue: z.string().optional(),
+        reason: z.string(),
+        priority: z.enum(["high", "medium", "low"]),
+        expectedImpact: z.object({
+          spendChange: z.number().optional(),
+          salesChange: z.number().optional(),
+          acosChange: z.number().optional(),
+          roasChange: z.number().optional(),
+        }).optional(),
+      })),
+      predictions: z.array(z.object({
+        period: z.enum(["7_days", "14_days", "30_days"]),
+        predictedSpend: z.number(),
+        predictedSales: z.number(),
+        predictedAcos: z.number(),
+        predictedRoas: z.number(),
+        spendChangePercent: z.number(),
+        salesChangePercent: z.number(),
+        acosChangePercent: z.number(),
+        roasChangePercent: z.number(),
+        confidence: z.number(),
+        rationale: z.string(),
+      })),
+      aiSummary: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { executeOptimizationSuggestions } = await import("./aiOptimizationService");
+      
+      // 获取广告活动信息
+      const campaign = await db.getCampaignById(input.campaignId);
+      if (!campaign) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "广告活动不存在" });
+      }
+      
+      return executeOptimizationSuggestions(
+        ctx.user.id,
+        campaign.accountId,
+        input.campaignId,
+        input.suggestions,
+        input.predictions,
+        input.aiSummary
+      );
+    }),
+  
+  // 获取AI优化执行历史
+  getAIOptimizationHistory: protectedProcedure
+    .input(z.object({ campaignId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getAiOptimizationExecutionsByCampaign(input.campaignId);
+    }),
+  
+  // 获取AI优化执行详情
+  getAIOptimizationDetail: protectedProcedure
+    .input(z.object({ executionId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getAiOptimizationExecutionDetail(input.executionId);
+    }),
 });
 
 // ==================== Keyword Router ====================
@@ -473,7 +550,7 @@ const keywordRouter = router({
   batchUpdateBid: protectedProcedure
     .input(z.object({
       ids: z.array(z.number()),
-      bidType: z.enum(["fixed", "increase_percent", "decrease_percent"]),
+      bidType: z.enum(["fixed", "increase_percent", "decrease_percent", "cpc_multiplier", "cpc_increase_percent", "cpc_decrease_percent"]),
       bidValue: z.number(),
     }))
     .mutation(async ({ input }) => {
@@ -484,20 +561,32 @@ const keywordRouter = router({
         
         let newBid: number;
         const currentBid = parseFloat(keyword.bid);
+        const spend = parseFloat(keyword.spend || "0");
+        const clicks = keyword.clicks || 0;
+        const cpc = clicks > 0 ? spend / clicks : currentBid; // 如果没有点击，使用当前出价作为CPC
         
         if (input.bidType === "fixed") {
           newBid = input.bidValue;
         } else if (input.bidType === "increase_percent") {
           newBid = currentBid * (1 + input.bidValue / 100);
-        } else {
+        } else if (input.bidType === "decrease_percent") {
           newBid = currentBid * (1 - input.bidValue / 100);
+        } else if (input.bidType === "cpc_multiplier") {
+          // 按CPC倍数设置出价
+          newBid = cpc * input.bidValue;
+        } else if (input.bidType === "cpc_increase_percent") {
+          // 按CPC百分比提高
+          newBid = cpc * (1 + input.bidValue / 100);
+        } else {
+          // cpc_decrease_percent - 按CPC百分比降低
+          newBid = cpc * (1 - input.bidValue / 100);
         }
         
         // 确保出价不低于0.02
         newBid = Math.max(0.02, Math.round(newBid * 100) / 100);
         
         await db.updateKeywordBid(id, newBid.toFixed(2));
-        results.push({ id, oldBid: currentBid, newBid });
+        results.push({ id, oldBid: currentBid, newBid, cpc });
       }
       return { success: true, updated: results.length, results };
     }),
@@ -581,7 +670,7 @@ const productTargetRouter = router({
   batchUpdateBid: protectedProcedure
     .input(z.object({
       ids: z.array(z.number()),
-      bidType: z.enum(["fixed", "increase_percent", "decrease_percent"]),
+      bidType: z.enum(["fixed", "increase_percent", "decrease_percent", "cpc_multiplier", "cpc_increase_percent", "cpc_decrease_percent"]),
       bidValue: z.number(),
     }))
     .mutation(async ({ input }) => {
@@ -592,19 +681,31 @@ const productTargetRouter = router({
         
         let newBid: number;
         const currentBid = parseFloat(target.bid);
+        const spend = parseFloat(target.spend || "0");
+        const clicks = target.clicks || 0;
+        const cpc = clicks > 0 ? spend / clicks : currentBid; // 如果没有点击，使用当前出价作为CPC
         
         if (input.bidType === "fixed") {
           newBid = input.bidValue;
         } else if (input.bidType === "increase_percent") {
           newBid = currentBid * (1 + input.bidValue / 100);
-        } else {
+        } else if (input.bidType === "decrease_percent") {
           newBid = currentBid * (1 - input.bidValue / 100);
+        } else if (input.bidType === "cpc_multiplier") {
+          // 按CPC倍数设置出价
+          newBid = cpc * input.bidValue;
+        } else if (input.bidType === "cpc_increase_percent") {
+          // 按CPC百分比提高
+          newBid = cpc * (1 + input.bidValue / 100);
+        } else {
+          // cpc_decrease_percent - 按CPC百分比降低
+          newBid = cpc * (1 - input.bidValue / 100);
         }
         
         newBid = Math.max(0.02, Math.round(newBid * 100) / 100);
         
         await db.updateProductTargetBid(id, newBid.toFixed(2));
-        results.push({ id, oldBid: currentBid, newBid });
+        results.push({ id, oldBid: currentBid, newBid, cpc });
       }
       return { success: true, updated: results.length, results };
     }),

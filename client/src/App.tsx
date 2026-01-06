@@ -31,6 +31,7 @@ import SeasonalBudget from "@/pages/SeasonalBudget";
 import DataSync from "@/pages/DataSync";
 import CampaignDetail from "@/pages/CampaignDetail";
 import DaypartingStrategy from "@/pages/DaypartingStrategy";
+import AIOptimizationHistory from "@/pages/AIOptimizationHistory";
 
 function Router() {
   return (
@@ -40,6 +41,7 @@ function Router() {
       <Route path="/performance-groups" component={PerformanceGroups} />
       <Route path="/campaigns" component={Campaigns} />
       <Route path="/campaigns/:id" component={CampaignDetail} />
+      <Route path="/campaigns/:id/ai-history" component={AIOptimizationHistory} />
       <Route path="/bidding-logs" component={BiddingLogs} />
       <Route path="/settings" component={Settings} />
       {/* /import路由已移除，用户应使用/data-sync进行API同步 */}

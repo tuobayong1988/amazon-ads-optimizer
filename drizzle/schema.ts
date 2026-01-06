@@ -1816,3 +1816,152 @@ export const daypartingExecutionLogs = mysqlTable("dayparting_execution_logs", {
 });
 export type DaypartingExecutionLog = typeof daypartingExecutionLogs.$inferSelect;
 export type InsertDaypartingExecutionLog = typeof daypartingExecutionLogs.$inferInsert;
+
+
+/**
+ * AI Optimization Executions - AI优化执行记录
+ * 记录每次执行AI优化建议的详细信息
+ */
+export const aiOptimizationExecutions = mysqlTable("ai_optimization_executions", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  accountId: int("accountId").notNull(),
+  campaignId: int("campaignId").notNull(),
+  // 执行信息
+  executionName: varchar("executionName", { length: 255 }), // 执行名称/标题
+  executionType: mysqlEnum("aiExecType", [
+    "bid_adjustment",      // 出价调整
+    "status_change",       // 状态变更
+    "negative_keyword",    // 否定词添加
+    "mixed"                // 混合操作
+  ]).notNull(),
+  // 执行状态
+  status: mysqlEnum("aiExecStatus", ["pending", "executing", "completed", "failed", "partially_completed"]).default("pending"),
+  // 执行统计
+  totalActions: int("totalActions").default(0),
+  successfulActions: int("successfulActions").default(0),
+  failedActions: int("failedActions").default(0),
+  // AI分析摘要（执行时的AI建议内容）
+  aiAnalysisSummary: text("aiAnalysisSummary"),
+  // 执行前的基准数据（用于复盘对比）
+  baselineSpend: decimal("baselineSpend", { precision: 12, scale: 2 }),
+  baselineSales: decimal("baselineSales", { precision: 12, scale: 2 }),
+  baselineAcos: decimal("baselineAcos", { precision: 5, scale: 2 }),
+  baselineRoas: decimal("baselineRoas", { precision: 10, scale: 2 }),
+  baselineClicks: int("baselineClicks"),
+  baselineImpressions: int("baselineImpressions"),
+  baselineOrders: int("baselineOrders"),
+  // 时间戳
+  executedAt: timestamp("executedAt").defaultNow().notNull(),
+  completedAt: timestamp("completedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type AiOptimizationExecution = typeof aiOptimizationExecutions.$inferSelect;
+export type InsertAiOptimizationExecution = typeof aiOptimizationExecutions.$inferInsert;
+
+/**
+ * AI Optimization Actions - AI优化执行的具体操作
+ * 记录每次执行中的具体操作详情
+ */
+export const aiOptimizationActions = mysqlTable("ai_optimization_actions", {
+  id: int("id").autoincrement().primaryKey(),
+  executionId: int("executionId").notNull(),
+  // 操作类型
+  actionType: mysqlEnum("aiActionType", [
+    "bid_increase",        // 提高出价
+    "bid_decrease",        // 降低出价
+    "bid_set",             // 设置固定出价
+    "enable_target",       // 启用投放词
+    "pause_target",        // 暂停投放词
+    "add_negative_phrase", // 添加词组否定
+    "add_negative_exact"   // 添加精准否定
+  ]).notNull(),
+  // 目标信息
+  targetType: mysqlEnum("aiTargetType", ["keyword", "product_target", "search_term"]).notNull(),
+  targetId: int("aiTargetId"),
+  targetText: varchar("aiTargetText", { length: 500 }),
+  // 操作详情
+  previousValue: varchar("previousValue", { length: 100 }), // 操作前的值
+  newValue: varchar("newValue", { length: 100 }),           // 操作后的值
+  changeReason: text("changeReason"),                       // AI给出的调整原因
+  // 执行状态
+  status: mysqlEnum("aiActionStatus", ["pending", "success", "failed"]).default("pending"),
+  errorMessage: text("aiActionError"),
+  executedAt: timestamp("aiActionExecutedAt"),
+  createdAt: timestamp("aiActionCreatedAt").defaultNow().notNull(),
+});
+export type AiOptimizationAction = typeof aiOptimizationActions.$inferSelect;
+export type InsertAiOptimizationAction = typeof aiOptimizationActions.$inferInsert;
+
+/**
+ * AI Optimization Predictions - AI优化效果预测
+ * 存储AI对优化效果的预测数据
+ */
+export const aiOptimizationPredictions = mysqlTable("ai_optimization_predictions", {
+  id: int("id").autoincrement().primaryKey(),
+  executionId: int("executionId").notNull(),
+  // 预测时间范围
+  predictionPeriod: mysqlEnum("predictionPeriod", ["7_days", "14_days", "30_days"]).notNull(),
+  // 预测指标
+  predictedSpend: decimal("predictedSpend", { precision: 12, scale: 2 }),
+  predictedSales: decimal("predictedSales", { precision: 12, scale: 2 }),
+  predictedAcos: decimal("predictedAcos", { precision: 5, scale: 2 }),
+  predictedRoas: decimal("predictedRoas", { precision: 10, scale: 2 }),
+  predictedClicks: int("predictedClicks"),
+  predictedImpressions: int("predictedImpressions"),
+  predictedOrders: int("predictedOrders"),
+  // 预测变化百分比
+  spendChangePercent: decimal("spendChangePercent", { precision: 5, scale: 2 }),
+  salesChangePercent: decimal("salesChangePercent", { precision: 5, scale: 2 }),
+  acosChangePercent: decimal("acosChangePercent", { precision: 5, scale: 2 }),
+  roasChangePercent: decimal("roasChangePercent", { precision: 5, scale: 2 }),
+  // 置信度
+  confidenceLevel: decimal("confidenceLevel", { precision: 3, scale: 2 }), // 0-1
+  // 预测说明
+  predictionRationale: text("predictionRationale"),
+  createdAt: timestamp("predictionCreatedAt").defaultNow().notNull(),
+});
+export type AiOptimizationPrediction = typeof aiOptimizationPredictions.$inferSelect;
+export type InsertAiOptimizationPrediction = typeof aiOptimizationPredictions.$inferInsert;
+
+/**
+ * AI Optimization Reviews - AI优化复盘记录
+ * 在预测时间节点采集实际数据并与预测对比
+ */
+export const aiOptimizationReviews = mysqlTable("ai_optimization_reviews", {
+  id: int("id").autoincrement().primaryKey(),
+  executionId: int("executionId").notNull(),
+  predictionId: int("predictionId").notNull(),
+  // 复盘时间范围
+  reviewPeriod: mysqlEnum("reviewPeriod", ["7_days", "14_days", "30_days"]).notNull(),
+  // 实际数据
+  actualSpend: decimal("actualSpend", { precision: 12, scale: 2 }),
+  actualSales: decimal("actualSales", { precision: 12, scale: 2 }),
+  actualAcos: decimal("actualAcos", { precision: 5, scale: 2 }),
+  actualRoas: decimal("actualRoas", { precision: 10, scale: 2 }),
+  actualClicks: int("actualClicks"),
+  actualImpressions: int("actualImpressions"),
+  actualOrders: int("actualOrders"),
+  // 实际变化百分比（相对于基准）
+  actualSpendChange: decimal("actualSpendChange", { precision: 5, scale: 2 }),
+  actualSalesChange: decimal("actualSalesChange", { precision: 5, scale: 2 }),
+  actualAcosChange: decimal("actualAcosChange", { precision: 5, scale: 2 }),
+  actualRoasChange: decimal("actualRoasChange", { precision: 5, scale: 2 }),
+  // 达成率（实际/预测）
+  spendAccuracy: decimal("spendAccuracy", { precision: 5, scale: 2 }),
+  salesAccuracy: decimal("salesAccuracy", { precision: 5, scale: 2 }),
+  acosAccuracy: decimal("acosAccuracy", { precision: 5, scale: 2 }),
+  roasAccuracy: decimal("roasAccuracy", { precision: 5, scale: 2 }),
+  overallAccuracy: decimal("overallAccuracy", { precision: 5, scale: 2 }), // 综合达成率
+  // 复盘状态
+  status: mysqlEnum("reviewStatus", ["pending", "completed", "skipped"]).default("pending"),
+  // 复盘分析
+  reviewSummary: text("reviewSummary"), // AI生成的复盘总结
+  lessonsLearned: text("lessonsLearned"), // 经验教训
+  // 时间戳
+  scheduledAt: timestamp("scheduledAt").notNull(), // 计划复盘时间
+  reviewedAt: timestamp("reviewedAt"), // 实际复盘时间
+  createdAt: timestamp("reviewCreatedAt").defaultNow().notNull(),
+});
+export type AiOptimizationReview = typeof aiOptimizationReviews.$inferSelect;
+export type InsertAiOptimizationReview = typeof aiOptimizationReviews.$inferInsert;
