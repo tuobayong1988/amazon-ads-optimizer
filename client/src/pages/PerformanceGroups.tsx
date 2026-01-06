@@ -17,6 +17,7 @@ import {
   Play, 
   Pause,
   TrendingUp,
+  TrendingDown,
   DollarSign,
   Percent,
   BarChart3,
@@ -25,9 +26,97 @@ import {
   Activity,
   CheckCircle2,
   Clock,
-  Zap
+  Zap,
+  CircleDollarSign,
+  ArrowUp,
+  ArrowDown
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+
+// 绩效组最优出价点显示组件
+function GroupOptimalBidCard({ groupId, accountId }: { groupId: number; accountId: number }) {
+  const { data, isLoading, error } = trpc.placement.getPerformanceGroupOptimalBids.useQuery(
+    { groupId, accountId },
+    { 
+      enabled: !!groupId && !!accountId,
+      staleTime: 5 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    }
+  );
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-muted-foreground py-2">
+        <Loader2 className="w-3 h-3 animate-spin" />
+        <span className="text-xs">计算最优出价点中...</span>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return null;
+  }
+
+  const { summary } = data;
+  
+  if (summary.totalAnalyzedKeywords === 0) {
+    return (
+      <div className="text-xs text-muted-foreground py-2">
+        暂无市场曲线数据，无法计算最优出价
+      </div>
+    );
+  }
+
+  return (
+    <div className="pt-3 border-t border-border/50">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs text-muted-foreground flex items-center gap-1">
+          <CircleDollarSign className="w-3 h-3" />
+          利润最大化出价点
+        </p>
+        <div className="flex items-center gap-1">
+          <span className={`text-xs px-1.5 py-0.5 rounded ${
+            summary.avgOptimizationScore >= 80 
+              ? 'bg-green-500/10 text-green-600' 
+              : summary.avgOptimizationScore >= 60 
+                ? 'bg-yellow-500/10 text-yellow-600'
+                : 'bg-red-500/10 text-red-600'
+          }`}>
+            优化度: {summary.avgOptimizationScore}%
+          </span>
+        </div>
+      </div>
+      
+      <div className="grid grid-cols-2 gap-3 text-xs">
+        <div className="bg-muted/30 rounded-lg p-2">
+          <p className="text-muted-foreground mb-1">预估最大利润</p>
+          <p className="font-semibold text-green-600">${summary.totalMaxProfit.toFixed(2)}</p>
+        </div>
+        <div className="bg-muted/30 rounded-lg p-2">
+          <p className="text-muted-foreground mb-1">已分析关键词</p>
+          <p className="font-semibold">{summary.totalAnalyzedKeywords}个</p>
+        </div>
+      </div>
+      
+      <div className="flex items-center justify-between mt-2 text-xs">
+        <div className="flex items-center gap-2">
+          <span className="flex items-center gap-1 text-green-600">
+            <ArrowUp className="w-3 h-3" />
+            {summary.keywordsNeedIncrease}需提高
+          </span>
+          <span className="flex items-center gap-1 text-red-600">
+            <ArrowDown className="w-3 h-3" />
+            {summary.keywordsNeedDecrease}需降低
+          </span>
+        </div>
+        <span className="text-muted-foreground">
+          {summary.overallRecommendation === 'increase_bids' ? '建议提高出价' :
+           summary.overallRecommendation === 'decrease_bids' ? '建议降低出价' : '出价合理'}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export default function PerformanceGroups() {
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
@@ -215,6 +304,9 @@ export default function PerformanceGroups() {
                       </div>
                     </div>
                   </div>
+
+                  {/* 利润最大化出价点 */}
+                  <GroupOptimalBidCard groupId={group.id} accountId={accountId!} />
 
                   {/* Current Performance */}
                   {(group.currentAcos || group.currentRoas) && (

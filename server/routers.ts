@@ -5047,6 +5047,224 @@ const placementRouter = router({
     .query(async ({ input }) => {
       return decisionTreeService.getKeywordPredictionSummary(input.accountId);
     }),
+
+  // ==================== 利润最大化出价点实时计算 ====================
+
+  // 获取广告活动的利润最大化出价点
+  getCampaignOptimalBids: protectedProcedure
+    .input(z.object({
+      campaignId: z.string(),
+      accountId: z.number(),
+    }))
+    .query(async ({ input }) => {
+      // 获取广告活动下的所有关键词
+      const campaignKeywords = await db.getKeywordsByCampaignId(input.campaignId);
+      
+      const results = [];
+      for (const keyword of campaignKeywords) {
+        // 获取市场曲线模型
+        const marketCurve = await marketCurveService.getMarketCurveModel(
+          input.accountId,
+          'keyword',
+          String(keyword.id)
+        );
+        
+        if (marketCurve) {
+          // 计算最优出价点
+          const optimalBid = marketCurveService.calculateOptimalBid(
+            marketCurve.impressionCurve as any,
+            marketCurve.ctrCurve as any,
+            marketCurve.conversionParams as any
+          );
+          
+          results.push({
+            keywordId: keyword.id,
+            keywordText: keyword.keywordText,
+            matchType: keyword.matchType,
+            currentBid: keyword.bid || 0,
+            optimalBid: optimalBid.optimalBid,
+            maxProfit: optimalBid.maxProfit,
+            profitMargin: optimalBid.profitMargin,
+            breakEvenCPC: optimalBid.breakEvenCPC,
+            bidDifference: optimalBid.optimalBid - (keyword.bid || 0),
+            bidDifferencePercent: keyword.bid ? ((optimalBid.optimalBid - keyword.bid) / keyword.bid * 100) : 0,
+            recommendation: optimalBid.optimalBid > (keyword.bid || 0) ? 'increase' : 
+                           optimalBid.optimalBid < (keyword.bid || 0) ? 'decrease' : 'maintain',
+          });
+        }
+      }
+      
+      // 计算汇总统计
+      const summary = {
+        totalKeywords: campaignKeywords.length,
+        analyzedKeywords: results.length,
+        avgOptimalBid: results.length > 0 ? results.reduce((sum, r) => sum + r.optimalBid, 0) / results.length : 0,
+        avgCurrentBid: results.length > 0 ? results.reduce((sum, r) => sum + r.currentBid, 0) / results.length : 0,
+        totalMaxProfit: results.reduce((sum, r) => sum + r.maxProfit, 0),
+        keywordsNeedIncrease: results.filter(r => r.recommendation === 'increase').length,
+        keywordsNeedDecrease: results.filter(r => r.recommendation === 'decrease').length,
+        keywordsMaintain: results.filter(r => r.recommendation === 'maintain').length,
+      };
+      
+      return {
+        summary,
+        keywords: results,
+      };
+    }),
+
+  // 获取绩效组的利润最大化出价点汇总
+  getPerformanceGroupOptimalBids: protectedProcedure
+    .input(z.object({
+      groupId: z.number(),
+      accountId: z.number(),
+    }))
+    .query(async ({ input }) => {
+      // 获取绩效组信息
+      const group = await db.getPerformanceGroupById(input.groupId);
+      if (!group) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: '绩效组不存在' });
+      }
+      
+      // 获取绩效组内的所有广告活动
+      const groupCampaigns = await db.getPerformanceGroupCampaigns(input.groupId);
+      
+      const campaignResults = [];
+      let totalAnalyzedKeywords = 0;
+      let totalMaxProfit = 0;
+      let totalKeywordsNeedIncrease = 0;
+      let totalKeywordsNeedDecrease = 0;
+      
+      for (const gc of groupCampaigns) {
+        const campaign = await db.getCampaignById(gc.campaignId);
+        if (!campaign) continue;
+        
+        // 获取广告活动下的所有关键词
+        const campaignKeywords = await db.getKeywordsByCampaignId(gc.campaignId);
+        
+        let campaignOptimalBidSum = 0;
+        let campaignCurrentBidSum = 0;
+        let campaignMaxProfit = 0;
+        let analyzedCount = 0;
+        let needIncrease = 0;
+        let needDecrease = 0;
+        
+        for (const keyword of campaignKeywords) {
+          const marketCurve = await marketCurveService.getMarketCurveModel(
+            input.accountId,
+            'keyword',
+            String(keyword.id)
+          );
+          
+          if (marketCurve) {
+            const optimalBid = marketCurveService.calculateOptimalBid(
+              marketCurve.impressionCurve as any,
+              marketCurve.ctrCurve as any,
+              marketCurve.conversionParams as any
+            );
+            
+            campaignOptimalBidSum += optimalBid.optimalBid;
+            campaignCurrentBidSum += keyword.bid || 0;
+            campaignMaxProfit += optimalBid.maxProfit;
+            analyzedCount++;
+            
+            if (optimalBid.optimalBid > (keyword.bid || 0) * 1.05) needIncrease++;
+            else if (optimalBid.optimalBid < (keyword.bid || 0) * 0.95) needDecrease++;
+          }
+        }
+        
+        if (analyzedCount > 0) {
+          campaignResults.push({
+            campaignId: gc.campaignId,
+            campaignName: campaign.name,
+            totalKeywords: campaignKeywords.length,
+            analyzedKeywords: analyzedCount,
+            avgOptimalBid: campaignOptimalBidSum / analyzedCount,
+            avgCurrentBid: campaignCurrentBidSum / analyzedCount,
+            maxProfit: campaignMaxProfit,
+            keywordsNeedIncrease: needIncrease,
+            keywordsNeedDecrease: needDecrease,
+            optimizationScore: Math.round((1 - Math.abs(campaignOptimalBidSum - campaignCurrentBidSum) / Math.max(campaignOptimalBidSum, 1)) * 100),
+          });
+          
+          totalAnalyzedKeywords += analyzedCount;
+          totalMaxProfit += campaignMaxProfit;
+          totalKeywordsNeedIncrease += needIncrease;
+          totalKeywordsNeedDecrease += needDecrease;
+        }
+      }
+      
+      // 计算组级别汇总
+      const groupSummary = {
+        groupId: input.groupId,
+        groupName: group.name,
+        totalCampaigns: groupCampaigns.length,
+        analyzedCampaigns: campaignResults.length,
+        totalAnalyzedKeywords,
+        totalMaxProfit: Math.round(totalMaxProfit * 100) / 100,
+        avgOptimizationScore: campaignResults.length > 0 
+          ? Math.round(campaignResults.reduce((sum, c) => sum + c.optimizationScore, 0) / campaignResults.length)
+          : 0,
+        keywordsNeedIncrease: totalKeywordsNeedIncrease,
+        keywordsNeedDecrease: totalKeywordsNeedDecrease,
+        overallRecommendation: totalKeywordsNeedIncrease > totalKeywordsNeedDecrease ? 'increase_bids' :
+                               totalKeywordsNeedDecrease > totalKeywordsNeedIncrease ? 'decrease_bids' : 'maintain',
+      };
+      
+      return {
+        summary: groupSummary,
+        campaigns: campaignResults,
+      };
+    }),
+
+  // 快速计算单个关键词的最优出价点
+  calculateKeywordOptimalBid: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      keywordId: z.number(),
+      // 如果没有市场曲线模型，可以使用默认参数
+      cvr: z.number().optional(),
+      aov: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      // 尝试获取市场曲线模型
+      const marketCurve = await marketCurveService.getMarketCurveModel(
+        input.accountId,
+        'keyword',
+        String(input.keywordId)
+      );
+      
+      if (marketCurve) {
+        const optimalBid = marketCurveService.calculateOptimalBid(
+          marketCurve.impressionCurve as any,
+          marketCurve.ctrCurve as any,
+          marketCurve.conversionParams as any
+        );
+        return {
+          hasModel: true,
+          ...optimalBid,
+        };
+      }
+      
+      // 使用默认参数计算
+      const cvr = input.cvr || 0.05;
+      const aov = input.aov || 30;
+      
+      const defaultImpressionCurve = { a: 1000, b: 0.5, c: 500, r2: 0.8 };
+      const defaultCtrCurve = { baseCTR: 0.01, positionBonus: 0.5, topSearchCTRBonus: 0.3 };
+      const defaultConversion = { cvr, aov, conversionDelayDays: 7 };
+      
+      const optimalBid = marketCurveService.calculateOptimalBid(
+        defaultImpressionCurve,
+        defaultCtrCurve,
+        defaultConversion
+      );
+      
+      return {
+        hasModel: false,
+        ...optimalBid,
+        note: '使用默认参数计算，建议构建市场曲线模型以获取更精确的结果',
+      };
+    }),
 });
 
 // ==================== 趋势数据辅助函数 ====================

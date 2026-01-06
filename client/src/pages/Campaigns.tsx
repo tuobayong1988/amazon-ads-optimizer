@@ -34,7 +34,9 @@ import {
   TrendingUp,
   CheckCircle2,
   AlertCircle,
-  Clock
+  Clock,
+  CircleDollarSign,
+  TrendingDown
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -45,6 +47,83 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuLabel,
 } from "@/components/ui/dropdown-menu";
+
+// 利润最大化出价点显示组件
+function OptimalBidCell({ campaignId, accountId }: { campaignId: string; accountId: number }) {
+  const { data, isLoading, error } = trpc.placement.getCampaignOptimalBids.useQuery(
+    { campaignId, accountId },
+    { 
+      enabled: !!campaignId && !!accountId,
+      staleTime: 5 * 60 * 1000, // 5分钟缓存
+      refetchOnWindowFocus: false,
+    }
+  );
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-1 text-muted-foreground">
+        <Loader2 className="w-3 h-3 animate-spin" />
+        <span className="text-xs">计算中...</span>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="flex items-center gap-1 text-muted-foreground">
+        <span className="text-xs">暂无数据</span>
+      </div>
+    );
+  }
+
+  const { summary } = data;
+  
+  if (summary.analyzedKeywords === 0) {
+    return (
+      <div className="flex items-center gap-1 text-muted-foreground">
+        <span className="text-xs">无市场曲线数据</span>
+      </div>
+    );
+  }
+
+  const bidDiff = summary.avgOptimalBid - summary.avgCurrentBid;
+  const bidDiffPercent = summary.avgCurrentBid > 0 
+    ? ((bidDiff / summary.avgCurrentBid) * 100).toFixed(1) 
+    : '0';
+  const isIncrease = bidDiff > 0;
+  const isSignificant = Math.abs(bidDiff) > summary.avgCurrentBid * 0.05;
+
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          <CircleDollarSign className="w-3.5 h-3.5 text-blue-500" />
+          <span className="text-sm font-medium">${summary.avgOptimalBid.toFixed(2)}</span>
+        </div>
+        {isSignificant && (
+          <div className={`flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded ${
+            isIncrease 
+              ? 'bg-green-500/10 text-green-600' 
+              : 'bg-red-500/10 text-red-600'
+          }`}>
+            {isIncrease ? (
+              <TrendingUp className="w-3 h-3" />
+            ) : (
+              <TrendingDown className="w-3 h-3" />
+            )}
+            <span>{isIncrease ? '+' : ''}{bidDiffPercent}%</span>
+          </div>
+        )}
+      </div>
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <span>当前: ${summary.avgCurrentBid.toFixed(2)}</span>
+        <span>·</span>
+        <span className="text-green-600">↑{summary.keywordsNeedIncrease}</span>
+        <span className="text-red-600">↓{summary.keywordsNeedDecrease}</span>
+      </div>
+    </div>
+  );
+}
 
 // 广告活动类型配置
 const campaignTypes = [
@@ -65,7 +144,7 @@ const billingTypeLabels: Record<string, string> = {
 // 列配置
 type ColumnKey = 'campaignName' | 'campaignType' | 'billingType' | 'createdAt' | 'status' | 
   'dailyBudget' | 'dailySpend' | 'impressions' | 'clicks' | 'ctr' | 'totalSpend' | 
-  'dailySales' | 'totalSales' | 'acos' | 'roas' | 'performanceGroup' | 'autoOptimization' | 'actions';
+  'dailySales' | 'totalSales' | 'acos' | 'roas' | 'performanceGroup' | 'optimalBid' | 'autoOptimization' | 'actions';
 
 interface ColumnConfig {
   key: ColumnKey;
@@ -94,6 +173,7 @@ const columns: ColumnConfig[] = [
   { key: 'acos', label: 'ACoS', minWidth: '80px', align: 'right', sortable: true, defaultVisible: true },
   { key: 'roas', label: 'ROAS', minWidth: '80px', align: 'right', sortable: true, defaultVisible: true },
   { key: 'performanceGroup', label: '所属绩效组', minWidth: '120px', align: 'left', sortable: true, defaultVisible: true },
+  { key: 'optimalBid', label: '最优出价', minWidth: '180px', align: 'center', sortable: false, defaultVisible: true },
   { key: 'autoOptimization', label: '自动优化', minWidth: '140px', align: 'center', sortable: false, defaultVisible: true },
   { key: 'actions', label: '操作', minWidth: '120px', align: 'center', sortable: false, defaultVisible: true },
 ];
@@ -541,6 +621,9 @@ export default function Campaigns() {
             </SelectContent>
           </Select>
         );
+      case 'optimalBid':
+        // 利润最大化出价点显示
+        return <OptimalBidCell campaignId={campaign.amazonCampaignId} accountId={accountId!} />;
       case 'autoOptimization':
         // 自动优化状态显示
         const optimizationEnabled = true; // TODO: 从状态获取
