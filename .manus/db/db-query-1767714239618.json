@@ -1,0 +1,41 @@
+{
+  "query": "SELECT * FROM campaigns LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT * FROM campaigns LIMIT 1;",
+  "rows": [
+    {
+      "id": "25",
+      "accountId": "6",
+      "performanceGroupId": "16",
+      "campaignId": "SP-AUTO-001",
+      "campaignName": "SP自动广告-主推产品",
+      "campaignType": "sp_auto",
+      "targetingType": "auto",
+      "maxBid": "3.00",
+      "intradayBiddingEnabled": "1",
+      "campaignConversionValueType": "inherit",
+      "campaignConversionValueSource": "inherit",
+      "placementTopSearchBidAdjustment": "29",
+      "placementProductPageBidAdjustment": "19",
+      "placementRestBidAdjustment": "0",
+      "impressions": "18127",
+      "clicks": "846",
+      "spend": "423.82",
+      "sales": "1412.35",
+      "orders": "59",
+      "acos": "30.01",
+      "roas": "3.33",
+      "ctr": "NULL",
+      "cvr": "NULL",
+      "cpc": "NULL",
+      "campaignStatus": "enabled",
+      "createdAt": "2026-01-05 15:03:09",
+      "updatedAt": "2026-01-05 15:03:09",
+      "dailyBudget": "NULL",
+      "optimization_status": "unmanaged"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\taccountId\tperformanceGroupId\tcampaignId\tcampaignName\tcampaignType\ttargetingType\tmaxBid\tintradayBiddingEnabled\tcampaignConversionValueType\tcampaignConversionValueSource\tplacementTopSearchBidAdjustment\tplacementProductPageBidAdjustment\tplacementRestBidAdjustment\timpressions\tclicks\tspend\tsales\torders\tacos\troas\tctr\tcvr\tcpc\tcampaignStatus\tcreatedAt\tupdatedAt\tdailyBudget\toptimization_status\n25\t6\t16\tSP-AUTO-001\tSP自动广告-主推产品\tsp_auto\tauto\t3.00\t1\tinherit\tinherit\t29\t19\t0\t18127\t846\t423.82\t1412.35\t59\t30.01\t3.33\tNULL\tNULL\tNULL\tenabled\t2026-01-05 15:03:09\t2026-01-05 15:03:09\tNULL\tunmanaged\n",
+  "stderr": "",
+  "execution_time_ms": 403
+}

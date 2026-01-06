@@ -1599,3 +1599,7 @@
 - [x] 添加场景模拟预测界面（基础版）
 - [x] 在绩效组列表页添加"管理"按钮跳转到详情页
 - [x] 添加API支持（getById, getCampaigns, getKpiSummary, addCampaigns, removeCampaign, updateGoal）
+
+## Bug修复记录
+
+- [x] 修复campaigns表optimization_status列名不匹配问题（下划线改为驼峰命名）
