@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, decimal, boolean, json } from "drizzle-orm/mysql-core";
+import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, decimal, boolean, json, date } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -1965,3 +1965,137 @@ export const aiOptimizationReviews = mysqlTable("ai_optimization_reviews", {
 });
 export type AiOptimizationReview = typeof aiOptimizationReviews.$inferSelect;
 export type InsertAiOptimizationReview = typeof aiOptimizationReviews.$inferInsert;
+
+
+/**
+ * Placement Performance - 广告位置表现数据
+ * 记录Top of Search、Product Page、Rest of Search三个位置的表现
+ */
+export const placementPerformance = mysqlTable("placement_performance", {
+  id: int("id").autoincrement().primaryKey(),
+  campaignId: varchar("campaignId", { length: 50 }).notNull(),
+  accountId: int("accountId").notNull(),
+  placement: mysqlEnum("placement", ["top_of_search", "product_page", "rest_of_search"]).notNull(),
+  date: date("date").notNull(),
+  // 时段（2小时为单位，0-11代表24小时的12个时段）
+  timeSlot: int("timeSlot"), // 0=00:00-02:00, 1=02:00-04:00, ..., 11=22:00-24:00
+  // 表现数据
+  impressions: int("impressions").default(0),
+  clicks: int("clicks").default(0),
+  spend: decimal("spend", { precision: 12, scale: 2 }).default("0"),
+  sales: decimal("sales", { precision: 12, scale: 2 }).default("0"),
+  orders: int("orders").default(0),
+  // 计算指标（存储便于查询）
+  ctr: decimal("ctr", { precision: 8, scale: 6 }), // 点击率
+  cpc: decimal("cpc", { precision: 10, scale: 2 }), // 每次点击成本
+  cvr: decimal("cvr", { precision: 8, scale: 6 }), // 转化率
+  acos: decimal("acos", { precision: 8, scale: 4 }), // 广告成本销售比
+  roas: decimal("roas", { precision: 10, scale: 2 }), // 广告支出回报率
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type PlacementPerformance = typeof placementPerformance.$inferSelect;
+export type InsertPlacementPerformance = typeof placementPerformance.$inferInsert;
+
+/**
+ * Placement Settings - 位置倾斜配置
+ * 每个广告活动的位置倾斜设置
+ */
+export const placementSettings = mysqlTable("placement_settings", {
+  id: int("id").autoincrement().primaryKey(),
+  campaignId: varchar("campaignId", { length: 50 }).notNull().unique(),
+  accountId: int("accountId").notNull(),
+  // 当前倾斜比例 (0-900%)
+  topOfSearchAdjustment: int("topOfSearchAdjustment").default(0),
+  productPageAdjustment: int("productPageAdjustment").default(0),
+  // 自动优化设置
+  autoOptimize: boolean("autoOptimize").default(true),
+  optimizationGoal: mysqlEnum("optimizationGoal", ["roas", "acos", "sales", "profit"]).default("roas"),
+  targetAcos: decimal("targetAcos", { precision: 5, scale: 2 }).default("30.00"),
+  targetRoas: decimal("targetRoas", { precision: 5, scale: 2 }).default("3.00"),
+  // 调整限制
+  minAdjustment: int("minAdjustment").default(0),
+  maxAdjustment: int("maxAdjustment").default(200),
+  adjustmentStep: int("adjustmentStep").default(10), // 每次调整步长
+  // 调整频率：每2小时、每4小时、每6小时、每天
+  adjustmentFrequency: mysqlEnum("adjustmentFrequency", ["every_2_hours", "every_4_hours", "every_6_hours", "daily"]).default("every_2_hours"),
+  // 数据要求
+  minClicksForDecision: int("minClicksForDecision").default(50),
+  minSpendForDecision: decimal("minSpendForDecision", { precision: 10, scale: 2 }).default("20.00"),
+  // 时间戳
+  lastAdjustedAt: timestamp("lastAdjustedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type PlacementSettings = typeof placementSettings.$inferSelect;
+export type InsertPlacementSettings = typeof placementSettings.$inferInsert;
+
+/**
+ * Placement Adjustment History - 位置调整历史
+ * 记录每次位置倾斜调整的详情
+ */
+export const placementAdjustmentHistory = mysqlTable("placement_adjustment_history", {
+  id: int("id").autoincrement().primaryKey(),
+  campaignId: varchar("campaignId", { length: 50 }).notNull(),
+  accountId: int("accountId").notNull(),
+  placement: mysqlEnum("placement", ["top_of_search", "product_page"]).notNull(),
+  previousAdjustment: int("previousAdjustment").notNull(),
+  newAdjustment: int("newAdjustment").notNull(),
+  reason: text("reason"),
+  // 调整时的数据快照
+  snapshotImpressions: int("snapshotImpressions"),
+  snapshotClicks: int("snapshotClicks"),
+  snapshotSpend: decimal("snapshotSpend", { precision: 12, scale: 2 }),
+  snapshotSales: decimal("snapshotSales", { precision: 12, scale: 2 }),
+  snapshotAcos: decimal("snapshotAcos", { precision: 8, scale: 4 }),
+  snapshotRoas: decimal("snapshotRoas", { precision: 10, scale: 2 }),
+  // 效率评分
+  efficiencyScore: decimal("efficiencyScore", { precision: 5, scale: 2 }),
+  // 预期效果
+  expectedAcosChange: decimal("expectedAcosChange", { precision: 8, scale: 4 }),
+  expectedRoasChange: decimal("expectedRoasChange", { precision: 10, scale: 2 }),
+  // 实际效果（复盘时填充）
+  actualAcosChange: decimal("actualAcosChange", { precision: 8, scale: 4 }),
+  actualRoasChange: decimal("actualRoasChange", { precision: 10, scale: 2 }),
+  reviewedAt: timestamp("reviewedAt"),
+  // 执行状态
+  status: mysqlEnum("status", ["pending", "executed", "failed", "reviewed"]).default("pending"),
+  executedAt: timestamp("executedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+export type PlacementAdjustmentHistory = typeof placementAdjustmentHistory.$inferSelect;
+export type InsertPlacementAdjustmentHistory = typeof placementAdjustmentHistory.$inferInsert;
+
+
+/**
+ * Time Slot Bid Adjustments - 分时竞价调整
+ * 基于时段表现自动调整出价
+ */
+export const timeSlotBidAdjustments = mysqlTable("time_slot_bid_adjustments", {
+  id: int("id").autoincrement().primaryKey(),
+  campaignId: varchar("campaignId", { length: 50 }).notNull(),
+  accountId: int("accountId").notNull(),
+  // 时段配置
+  timeSlot: int("timeSlot").notNull(), // 0-11
+  // 出价调整比例 (-90% 到 +900%)
+  bidAdjustmentPercent: int("bidAdjustmentPercent").default(0),
+  // 是否启用
+  enabled: boolean("enabled").default(true),
+  // 自动计算的建议值
+  suggestedAdjustment: int("suggestedAdjustment"),
+  // 时段效率评分
+  efficiencyScore: decimal("efficiencyScore", { precision: 5, scale: 2 }),
+  // 时段数据快照
+  avgImpressions: int("avgImpressions"),
+  avgClicks: int("avgClicks"),
+  avgSpend: decimal("avgSpend", { precision: 10, scale: 2 }),
+  avgSales: decimal("avgSales", { precision: 10, scale: 2 }),
+  avgAcos: decimal("avgAcos", { precision: 8, scale: 4 }),
+  avgRoas: decimal("avgRoas", { precision: 10, scale: 2 }),
+  // 时间戳
+  lastCalculatedAt: timestamp("lastCalculatedAt"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export type TimeSlotBidAdjustment = typeof timeSlotBidAdjustments.$inferSelect;
+export type InsertTimeSlotBidAdjustment = typeof timeSlotBidAdjustments.$inferInsert;

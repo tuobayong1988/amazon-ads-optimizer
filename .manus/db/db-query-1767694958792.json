@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `placement_performance` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `campaignId` varchar(50) NOT NULL,\n  `accountId` int NOT NULL,\n  `placement` enum('top_of_search','product_page','rest_of_search') NOT NULL,\n  `date` date NOT NULL,\n  `timeSlot` int,\n  `impressions` int DEFAULT 0,\n  `clicks` int DEFAULT 0,\n  `spend` decimal(12,2) DEFAULT '0',\n  `sales` decimal(12,2) DEFAULT '0',\n  `orders` int DEFAULT 0,\n  `ctr` decimal(8,6),\n  `cpc` decimal(10,2),\n  `cvr` decimal(8,6),\n  `acos` decimal(8,4),\n  `roas` decimal(10,2),\n  `createdAt` timestamp NOT NULL DEFAULT (now()),\n  `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n  CONSTRAINT `placement_performance_id` PRIMARY KEY(`id`)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute CREATE TABLE IF NOT EXISTS `placement_performance` (\n  `id` int AUTO_INCREMENT NOT NULL,\n  `campaignId` varchar(50) NOT NULL,\n  `accountId` int NOT NULL,\n  `placement` enum('top_of_search','product_page','rest_of_search') NOT NULL,\n  `date` date NOT NULL,\n  `timeSlot` int,\n  `impressions` int DEFAULT 0,\n  `clicks` int DEFAULT 0,\n  `spend` decimal(12,2) DEFAULT '0',\n  `sales` decimal(12,2) DEFAULT '0',\n  `orders` int DEFAULT 0,\n  `ctr` decimal(8,6),\n  `cpc` decimal(10,2),\n  `cvr` decimal(8,6),\n  `acos` decimal(8,4),\n  `roas` decimal(10,2),\n  `createdAt` timestamp NOT NULL DEFAULT (now()),\n  `updatedAt` timestamp NOT NULL DEFAULT (now()) ON UPDATE CURRENT_TIMESTAMP,\n  CONSTRAINT `placement_performance_id` PRIMARY KEY(`id`)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 597
+}

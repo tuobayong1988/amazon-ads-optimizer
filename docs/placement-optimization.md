@@ -69,7 +69,7 @@ CREATE TABLE placement_settings (
   min_adjustment INT DEFAULT 0,
   max_adjustment INT DEFAULT 200,
   adjustment_step INT DEFAULT 10, -- 每次调整步长
-  adjustment_frequency ENUM('twice_weekly', 'weekly', 'biweekly') DEFAULT 'twice_weekly', -- 每周最多2次
+  adjustment_frequency ENUM('every_2_hours', 'every_4_hours', 'every_6_hours', 'daily') DEFAULT 'every_2_hours', -- 每2小时最多1次
   -- 数据要求
   min_clicks_for_decision INT DEFAULT 50, -- 最少点击数才做决策
   min_spend_for_decision DECIMAL(10,2) DEFAULT 20.00,
@@ -309,7 +309,7 @@ function calculateConfidence(score: PlacementScore): number {
 │ │ 优化目标: [ROAS优先 ▼]                                   │   │
 │ │ 目标ROAS: [3.5]  │ 目标ACoS: [28%]                       │   │
 │ │                                                          │   │
-│ │ 调整频率: [每周2次 ▼]                                    │   │
+│ │ 调整频率: [每2小时1次 ▼]                                    │   │
 │ │ 调整步长: [10%]  │ 最大倾斜: [200%]                      │   │
 │ │                                                          │   │
 │ │ 数据要求:                                                │   │
@@ -413,7 +413,7 @@ interface UpdatePlacementSettingsInput {
   optimizationGoal?: 'roas' | 'acos' | 'sales' | 'profit';
   targetAcos?: number;
   targetRoas?: number;
-  adjustmentFrequency?: 'twice_weekly' | 'weekly' | 'biweekly'; // 默认每周最多2次
+  adjustmentFrequency?: 'every_2_hours' | 'every_4_hours' | 'every_6_hours' | 'daily'; // 默认每2小时最多1次
   minAdjustment?: number;
   maxAdjustment?: number;
 }
