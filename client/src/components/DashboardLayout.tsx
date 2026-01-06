@@ -98,6 +98,13 @@ const menuGroups = [
     ]
   },
   {
+    title: "智能优化",
+    items: [
+      { icon: AlertTriangle, label: "自动回滚规则", path: "/auto-rollback" },
+      { icon: Brain, label: "算法优化建议", path: "/algorithm-optimization" },
+    ]
+  },
+  {
     title: "自动化任务",
     items: [
       { icon: Clock, label: "定时任务", path: "/scheduler" },

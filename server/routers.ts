@@ -15,6 +15,8 @@ import * as batchOperationService from './batchOperationService';
 import * as correctionService from './correctionService';
 import * as daypartingService from './daypartingService';
 import * as unifiedOptimizationEngine from './unifiedOptimizationEngine';
+import * as autoRollbackService from './autoRollbackService';
+import * as algorithmOptimizationService from './algorithmOptimizationService';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
@@ -6169,6 +6171,232 @@ const unifiedOptimizationRouter = router({
     }),
 });
 
+// ==================== Auto Rollback Router ====================
+const autoRollbackRouter = router({
+  // 获取所有回滚规则
+  getRules: protectedProcedure.query(async () => {
+    return autoRollbackService.getRollbackRules();
+  }),
+  
+  // 获取单个回滚规则
+  getRule: protectedProcedure
+    .input(z.object({ ruleId: z.string() }))
+    .query(async ({ input }) => {
+      return autoRollbackService.getRollbackRule(input.ruleId);
+    }),
+  
+  // 创建回滚规则
+  createRule: protectedProcedure
+    .input(z.object({
+      name: z.string(),
+      description: z.string(),
+      enabled: z.boolean(),
+      conditions: z.object({
+        profitThresholdPercent: z.number(),
+        minTrackingDays: z.union([z.literal(7), z.literal(14), z.literal(30)]),
+        minSampleCount: z.number(),
+        includeNegativeAdjustments: z.boolean()
+      }),
+      actions: z.object({
+        autoRollback: z.boolean(),
+        sendNotification: z.boolean(),
+        notificationPriority: z.enum(['low', 'medium', 'high'])
+      })
+    }))
+    .mutation(async ({ input }) => {
+      return autoRollbackService.createRollbackRule(input);
+    }),
+  
+  // 更新回滚规则
+  updateRule: protectedProcedure
+    .input(z.object({
+      ruleId: z.string(),
+      name: z.string().optional(),
+      description: z.string().optional(),
+      enabled: z.boolean().optional(),
+      conditions: z.object({
+        profitThresholdPercent: z.number(),
+        minTrackingDays: z.union([z.literal(7), z.literal(14), z.literal(30)]),
+        minSampleCount: z.number(),
+        includeNegativeAdjustments: z.boolean()
+      }).optional(),
+      actions: z.object({
+        autoRollback: z.boolean(),
+        sendNotification: z.boolean(),
+        notificationPriority: z.enum(['low', 'medium', 'high'])
+      }).optional()
+    }))
+    .mutation(async ({ input }) => {
+      const { ruleId, ...updates } = input;
+      return autoRollbackService.updateRollbackRule(ruleId, updates);
+    }),
+  
+  // 删除回滚规则
+  deleteRule: protectedProcedure
+    .input(z.object({ ruleId: z.string() }))
+    .mutation(async ({ input }) => {
+      return autoRollbackService.deleteRollbackRule(input.ruleId);
+    }),
+  
+  // 运行回滚评估
+  runEvaluation: protectedProcedure
+    .input(z.object({ accountId: z.number().optional() }))
+    .mutation(async ({ input }) => {
+      return autoRollbackService.runRollbackEvaluation(input.accountId);
+    }),
+  
+  // 获取回滚建议列表
+  getSuggestions: protectedProcedure
+    .input(z.object({
+      status: z.enum(['pending', 'approved', 'rejected', 'executed']).optional(),
+      priority: z.enum(['low', 'medium', 'high']).optional(),
+      ruleId: z.string().optional()
+    }))
+    .query(async ({ input }) => {
+      return autoRollbackService.getRollbackSuggestions(input);
+    }),
+  
+  // 获取单个回滚建议
+  getSuggestion: protectedProcedure
+    .input(z.object({ suggestionId: z.string() }))
+    .query(async ({ input }) => {
+      return autoRollbackService.getRollbackSuggestion(input.suggestionId);
+    }),
+  
+  // 审核回滚建议
+  reviewSuggestion: protectedProcedure
+    .input(z.object({
+      suggestionId: z.string(),
+      action: z.enum(['approve', 'reject']),
+      reviewNote: z.string().optional()
+    }))
+    .mutation(async ({ input, ctx }) => {
+      return autoRollbackService.reviewRollbackSuggestion(
+        input.suggestionId,
+        input.action,
+        ctx.user.name || ctx.user.openId,
+        input.reviewNote
+      );
+    }),
+  
+  // 执行回滚建议
+  executeSuggestion: protectedProcedure
+    .input(z.object({ suggestionId: z.string() }))
+    .mutation(async ({ input }) => {
+      return autoRollbackService.executeRollbackSuggestion(input.suggestionId);
+    }),
+  
+  // 获取回滚建议统计
+  getStats: protectedProcedure.query(async () => {
+    return autoRollbackService.getRollbackSuggestionStats();
+  }),
+  
+  // 清理旧建议
+  cleanup: protectedProcedure.mutation(async () => {
+    return autoRollbackService.cleanupOldSuggestions();
+  }),
+});
+
+// ==================== Algorithm Optimization Router ====================
+const algorithmOptimizationRouter = router({
+  // 获取算法参数
+  getParameters: protectedProcedure.query(async () => {
+    return algorithmOptimizationService.getAlgorithmParameters();
+  }),
+  
+  // 更新算法参数
+  updateParameters: protectedProcedure
+    .input(z.object({
+      maxBidIncreasePercent: z.number().optional(),
+      maxBidDecreasePercent: z.number().optional(),
+      minBidChangePercent: z.number().optional(),
+      profitMarginPercent: z.number().optional(),
+      conversionValueMultiplier: z.number().optional(),
+      maxDailyAdjustments: z.number().optional(),
+      cooldownPeriodHours: z.number().optional(),
+      minConfidenceThreshold: z.number().optional(),
+      minDataPoints: z.number().optional()
+    }))
+    .mutation(async ({ input }) => {
+      return algorithmOptimizationService.updateAlgorithmParameters(input);
+    }),
+  
+  // 重置算法参数
+  resetParameters: protectedProcedure.mutation(async () => {
+    return algorithmOptimizationService.resetAlgorithmParameters();
+  }),
+  
+  // 获取算法性能指标
+  getPerformance: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      days: z.number().optional()
+    }))
+    .query(async ({ input }) => {
+      return algorithmOptimizationService.calculateAlgorithmPerformance(
+        input.accountId,
+        input.days || 30
+      );
+    }),
+  
+  // 按调整类型分析
+  analyzeByType: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      days: z.number().optional()
+    }))
+    .query(async ({ input }) => {
+      return algorithmOptimizationService.analyzeByAdjustmentType(
+        input.accountId,
+        input.days || 30
+      );
+    }),
+  
+  // 按出价变化幅度分析
+  analyzeByRange: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      days: z.number().optional()
+    }))
+    .query(async ({ input }) => {
+      return algorithmOptimizationService.analyzeByBidChangeRange(
+        input.accountId,
+        input.days || 30
+      );
+    }),
+  
+  // 获取优化建议
+  getSuggestions: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      days: z.number().optional()
+    }))
+    .query(async ({ input }) => {
+      return algorithmOptimizationService.generateOptimizationSuggestions(
+        input.accountId,
+        input.days || 30
+      );
+    }),
+  
+  // 获取参数调优建议
+  getParameterTuning: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      days: z.number().optional()
+    }))
+    .query(async ({ input }) => {
+      const metrics = await algorithmOptimizationService.calculateAlgorithmPerformance(
+        input.accountId,
+        input.days || 30
+      );
+      const byRange = await algorithmOptimizationService.analyzeByBidChangeRange(
+        input.accountId,
+        input.days || 30
+      );
+      return algorithmOptimizationService.getParameterTuningSuggestions(metrics, byRange);
+    }),
+});
+
 // ==================== Main Router ====================
 export const appRouter = router({
   system: systemRouter,
@@ -6209,6 +6437,8 @@ export const appRouter = router({
   dayparting: daypartingRouter,
   placement: placementRouter,
   unifiedOptimization: unifiedOptimizationRouter,
+  autoRollback: autoRollbackRouter,
+  algorithmOptimization: algorithmOptimizationRouter,
 });
 
 export type AppRouter = typeof appRouter;
