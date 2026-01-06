@@ -3245,6 +3245,150 @@ const collaborationRouter = router({
   }),
 });
 
+// ==================== Budget Allocation Router ====================
+const budgetAllocationRouter = router({
+  // 生成预算分配建议
+  generateAllocation: protectedProcedure
+    .input(z.object({
+      accountId: z.number().nullable(),
+      totalBudget: z.number().min(0),
+      prioritizeHighRoas: z.boolean().optional(),
+      prioritizeNewProducts: z.boolean().optional(),
+      minCampaignBudget: z.number().optional(),
+      maxCampaignBudget: z.number().optional(),
+      targetRoas: z.number().optional(),
+      targetAcos: z.number().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { generateBudgetAllocation } = await import("./budgetAllocationService");
+      return generateBudgetAllocation(ctx.user.id, input.accountId, input.totalBudget, {
+        prioritizeHighRoas: input.prioritizeHighRoas,
+        prioritizeNewProducts: input.prioritizeNewProducts,
+        minCampaignBudget: input.minCampaignBudget,
+        maxCampaignBudget: input.maxCampaignBudget,
+        targetRoas: input.targetRoas,
+        targetAcos: input.targetAcos,
+      });
+    }),
+
+  // 保存预算分配方案
+  saveAllocation: protectedProcedure
+    .input(z.object({
+      accountId: z.number().nullable(),
+      goalId: z.number().nullable(),
+      allocationName: z.string().min(1),
+      description: z.string(),
+      result: z.any(), // AllocationResult
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { saveBudgetAllocation } = await import("./budgetAllocationService");
+      const allocationId = await saveBudgetAllocation(
+        ctx.user.id,
+        input.accountId,
+        input.goalId,
+        input.allocationName,
+        input.description,
+        input.result
+      );
+      return { allocationId };
+    }),
+
+  // 应用预算分配方案
+  applyAllocation: protectedProcedure
+    .input(z.object({
+      allocationId: z.number(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { applyBudgetAllocation } = await import("./budgetAllocationService");
+      return applyBudgetAllocation(input.allocationId, ctx.user.id);
+    }),
+
+  // 获取预算分配历史
+  getAllocationHistory: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      limit: z.number().optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      const { getBudgetAllocationHistory } = await import("./budgetAllocationService");
+      return getBudgetAllocationHistory(ctx.user.id, input.accountId, input.limit);
+    }),
+
+  // 获取预算调整历史
+  getBudgetHistory: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      campaignId: z.number().optional(),
+      startDate: z.date().optional(),
+      endDate: z.date().optional(),
+      limit: z.number().optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      const { getBudgetHistory } = await import("./budgetAllocationService");
+      return getBudgetHistory(ctx.user.id, input);
+    }),
+
+  // 创建预算目标
+  createGoal: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      goalType: z.enum(["sales_target", "roas_target", "acos_target", "profit_target", "market_share"]),
+      targetValue: z.number().min(0),
+      periodType: z.enum(["daily", "weekly", "monthly", "quarterly"]).optional(),
+      startDate: z.date().optional(),
+      endDate: z.date().optional(),
+      totalBudget: z.number().optional(),
+      minCampaignBudget: z.number().optional(),
+      maxCampaignBudget: z.number().optional(),
+      prioritizeHighRoas: z.boolean().optional(),
+      prioritizeNewProducts: z.boolean().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { createBudgetGoal } = await import("./budgetAllocationService");
+      const goalId = await createBudgetGoal(ctx.user.id, input);
+      return { goalId };
+    }),
+
+  // 获取预算目标列表
+  getGoals: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      const { getBudgetGoals } = await import("./budgetAllocationService");
+      return getBudgetGoals(ctx.user.id, input.accountId);
+    }),
+
+  // 更新预算目标
+  updateGoal: protectedProcedure
+    .input(z.object({
+      goalId: z.number(),
+      targetValue: z.number().optional(),
+      totalBudget: z.number().optional(),
+      status: z.enum(["active", "paused", "completed", "expired"]).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { updateBudgetGoal } = await import("./budgetAllocationService");
+      await updateBudgetGoal(input.goalId, {
+        targetValue: input.targetValue,
+        totalBudget: input.totalBudget,
+        status: input.status,
+      });
+      return { success: true };
+    }),
+
+  // 删除预算目标
+  deleteGoal: protectedProcedure
+    .input(z.object({
+      goalId: z.number(),
+    }))
+    .mutation(async ({ input }) => {
+      const { deleteBudgetGoal } = await import("./budgetAllocationService");
+      await deleteBudgetGoal(input.goalId);
+      return { success: true };
+    }),
+});
+
 // ==================== Main Router ====================
 export const appRouter = router({
   system: systemRouter,
@@ -3277,6 +3421,7 @@ export const appRouter = router({
   emailReport: emailReportRouter,
   audit: auditRouter,
   collaboration: collaborationRouter,
+  budgetAllocation: budgetAllocationRouter,
 });
 
 export type AppRouter = typeof appRouter;

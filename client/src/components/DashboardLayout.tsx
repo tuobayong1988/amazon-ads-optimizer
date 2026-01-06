@@ -41,7 +41,8 @@ import {
   Users,
   Mail,
   Shield,
-  MessageSquare
+  MessageSquare,
+  DollarSign
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -68,6 +69,7 @@ const menuItems = [
   { icon: Mail, label: "邮件报表", path: "/email-reports" },
   { icon: Shield, label: "审计日志", path: "/audit-logs" },
   { icon: MessageSquare, label: "协作通知", path: "/collaboration" },
+  { icon: DollarSign, label: "预算分配", path: "/budget-allocation" },
 ];
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";

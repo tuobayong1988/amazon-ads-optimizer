@@ -64,6 +64,13 @@
       "when": 1767670771522,
       "tag": "0008_dapper_masked_marvel",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "5",
+      "when": 1767671698481,
+      "tag": "0009_slim_wrecker",
+      "breakpoints": true
     }
   ]
 }

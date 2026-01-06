@@ -997,3 +997,165 @@ export const userNotificationPreferences = mysqlTable("user_notification_prefere
 
 export type UserNotificationPreference = typeof userNotificationPreferences.$inferSelect;
 export type InsertUserNotificationPreference = typeof userNotificationPreferences.$inferInsert;
+
+
+/**
+ * Budget Goals - 预算目标设置
+ * 用户设置的销售目标和预算约束
+ */
+export const budgetGoals = mysqlTable("budget_goals", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  accountId: int("accountId"), // 关联的广告账号，null表示全局目标
+  // 目标类型
+  goalType: mysqlEnum("goalType", [
+    "sales_target",      // 销售目标
+    "roas_target",       // ROAS目标
+    "acos_target",       // ACoS目标
+    "profit_target",     // 利润目标
+    "market_share"       // 市场份额目标
+  ]).notNull(),
+  // 目标值
+  targetValue: decimal("targetValue", { precision: 15, scale: 2 }).notNull(),
+  // 时间范围
+  periodType: mysqlEnum("periodType", ["daily", "weekly", "monthly", "quarterly"]).default("monthly"),
+  startDate: timestamp("startDate"),
+  endDate: timestamp("endDate"),
+  // 预算约束
+  totalBudget: decimal("totalBudget", { precision: 15, scale: 2 }), // 总预算上限
+  minCampaignBudget: decimal("minCampaignBudget", { precision: 10, scale: 2 }).default("10.00"), // 单个活动最小预算
+  maxCampaignBudget: decimal("maxCampaignBudget", { precision: 10, scale: 2 }), // 单个活动最大预算
+  // 优先级设置
+  prioritizeHighRoas: boolean("prioritizeHighRoas").default(true), // 优先高ROAS活动
+  prioritizeNewProducts: boolean("prioritizeNewProducts").default(false), // 优先新品推广
+  // 状态
+  status: mysqlEnum("status", ["active", "paused", "completed", "expired"]).default("active"),
+  // 时间
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type BudgetGoal = typeof budgetGoals.$inferSelect;
+export type InsertBudgetGoal = typeof budgetGoals.$inferInsert;
+
+/**
+ * Budget Allocations - 预算分配记录
+ * 系统生成的预算分配建议和实际应用记录
+ */
+export const budgetAllocations = mysqlTable("budget_allocations", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  accountId: int("accountId"),
+  goalId: int("goalId"), // 关联的预算目标
+  // 分配信息
+  allocationName: varchar("allocationName", { length: 255 }).notNull(),
+  description: text("description"),
+  // 总预算
+  totalBudget: decimal("totalBudget", { precision: 15, scale: 2 }).notNull(),
+  allocatedBudget: decimal("allocatedBudget", { precision: 15, scale: 2 }).notNull(), // 已分配预算
+  // 预测效果
+  predictedSales: decimal("predictedSales", { precision: 15, scale: 2 }),
+  predictedRoas: decimal("predictedRoas", { precision: 10, scale: 2 }),
+  predictedAcos: decimal("predictedAcos", { precision: 10, scale: 2 }),
+  confidenceScore: decimal("confidenceScore", { precision: 5, scale: 2 }), // 预测置信度 0-100
+  // 状态
+  status: mysqlEnum("status", ["draft", "pending", "approved", "applied", "rejected"]).default("draft"),
+  appliedAt: timestamp("appliedAt"),
+  appliedBy: int("appliedBy"),
+  // 时间
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type BudgetAllocation = typeof budgetAllocations.$inferSelect;
+export type InsertBudgetAllocation = typeof budgetAllocations.$inferInsert;
+
+/**
+ * Budget Allocation Items - 预算分配明细
+ * 每个广告活动的具体预算分配
+ */
+export const budgetAllocationItems = mysqlTable("budget_allocation_items", {
+  id: int("id").autoincrement().primaryKey(),
+  allocationId: int("allocationId").notNull(), // 关联的分配记录
+  campaignId: int("campaignId").notNull(), // 广告活动ID
+  // 预算信息
+  currentBudget: decimal("currentBudget", { precision: 10, scale: 2 }).notNull(), // 当前预算
+  recommendedBudget: decimal("recommendedBudget", { precision: 10, scale: 2 }).notNull(), // 建议预算
+  budgetChange: decimal("budgetChange", { precision: 10, scale: 2 }).notNull(), // 变化金额
+  changePercent: decimal("changePercent", { precision: 10, scale: 2 }).notNull(), // 变化百分比
+  // 历史表现指标
+  historicalSpend: decimal("historicalSpend", { precision: 15, scale: 2 }), // 历史花费
+  historicalSales: decimal("historicalSales", { precision: 15, scale: 2 }), // 历史销售
+  historicalRoas: decimal("historicalRoas", { precision: 10, scale: 2 }), // 历史ROAS
+  historicalAcos: decimal("historicalAcos", { precision: 10, scale: 2 }), // 历史ACoS
+  historicalCtr: decimal("historicalCtr", { precision: 10, scale: 4 }), // 历史点击率
+  historicalCvr: decimal("historicalCvr", { precision: 10, scale: 4 }), // 历史转化率
+  // 预测效果
+  predictedSpend: decimal("predictedSpend", { precision: 15, scale: 2 }),
+  predictedSales: decimal("predictedSales", { precision: 15, scale: 2 }),
+  predictedRoas: decimal("predictedRoas", { precision: 10, scale: 2 }),
+  predictedAcos: decimal("predictedAcos", { precision: 10, scale: 2 }),
+  // 分配原因
+  allocationReason: mysqlEnum("allocationReason", [
+    "high_roas",           // 高ROAS，增加预算
+    "low_acos",            // 低ACoS，增加预算
+    "high_conversion",     // 高转化率，增加预算
+    "growth_potential",    // 增长潜力，增加预算
+    "new_product",         // 新品推广，增加预算
+    "seasonal_boost",      // 季节性提升
+    "low_roas",            // 低ROAS，减少预算
+    "high_acos",           // 高ACoS，减少预算
+    "low_conversion",      // 低转化率，减少预算
+    "budget_limit",        // 预算限制
+    "maintain",            // 保持现状
+    "rebalance"            // 重新平衡
+  ]),
+  reasonDetail: text("reasonDetail"), // 详细原因说明
+  // 优先级评分
+  priorityScore: decimal("priorityScore", { precision: 5, scale: 2 }), // 0-100
+  // 状态
+  status: mysqlEnum("status", ["pending", "applied", "skipped"]).default("pending"),
+  appliedAt: timestamp("appliedAt"),
+  // 时间
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type BudgetAllocationItem = typeof budgetAllocationItems.$inferSelect;
+export type InsertBudgetAllocationItem = typeof budgetAllocationItems.$inferInsert;
+
+/**
+ * Budget History - 预算调整历史
+ * 记录每次预算调整的详细信息
+ */
+export const budgetHistory = mysqlTable("budget_history", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId").notNull(),
+  accountId: int("accountId"),
+  campaignId: int("campaignId").notNull(),
+  allocationId: int("allocationId"), // 关联的分配记录（如果是通过分配应用的）
+  // 预算变化
+  previousBudget: decimal("previousBudget", { precision: 10, scale: 2 }).notNull(),
+  newBudget: decimal("newBudget", { precision: 10, scale: 2 }).notNull(),
+  changeAmount: decimal("changeAmount", { precision: 10, scale: 2 }).notNull(),
+  changePercent: decimal("changePercent", { precision: 10, scale: 2 }).notNull(),
+  // 调整来源
+  source: mysqlEnum("source", [
+    "manual",              // 手动调整
+    "auto_allocation",     // 自动分配
+    "scheduled",           // 定时调整
+    "rule_based",          // 规则触发
+    "api_sync"             // API同步
+  ]).notNull(),
+  // 调整原因
+  reason: text("reason"),
+  // 调整时的表现指标快照
+  snapshotRoas: decimal("snapshotRoas", { precision: 10, scale: 2 }),
+  snapshotAcos: decimal("snapshotAcos", { precision: 10, scale: 2 }),
+  snapshotSpend: decimal("snapshotSpend", { precision: 15, scale: 2 }),
+  snapshotSales: decimal("snapshotSales", { precision: 15, scale: 2 }),
+  // 时间
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type BudgetHistoryRecord = typeof budgetHistory.$inferSelect;
+export type InsertBudgetHistory = typeof budgetHistory.$inferInsert;

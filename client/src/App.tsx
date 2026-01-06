@@ -24,6 +24,7 @@ import TeamManagement from "./pages/TeamManagement";
 import EmailReports from "@/pages/EmailReports";
 import AuditLogs from "@/pages/AuditLogs";
 import CollaborationNotifications from "@/pages/CollaborationNotifications";
+import BudgetAllocation from "@/pages/BudgetAllocation";
 
 function Router() {
   return (
@@ -47,6 +48,7 @@ function Router() {
       <Route path="/email-reports" component={EmailReports} />
       <Route path="/audit-logs" component={AuditLogs} />
       <Route path="/collaboration" component={CollaborationNotifications} />
+      <Route path="/budget-allocation" component={BudgetAllocation} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
