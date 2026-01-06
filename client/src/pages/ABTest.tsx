@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { toast } from 'sonner';
 import { FlaskConical, Play, Pause, CheckCircle, XCircle, TrendingUp, TrendingDown, BarChart3, Plus, Trash2 } from 'lucide-react';
+import ABTestCharts from '@/components/ABTestCharts';
 
 export default function ABTest() {
   const { user } = useAuth();
@@ -372,37 +373,11 @@ export default function ABTest() {
                           </p>
                         </div>
 
-                        <div className="space-y-3">
-                          {analysisResults.metrics.map((metric) => (
-                            <div key={metric.metricName} className="p-3 border rounded-lg">
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="font-medium">{metric.metricName.toUpperCase()}</span>
-                                <div className="flex items-center gap-2">
-                                  {getWinnerIcon(metric.winner)}
-                                  {metric.isSignificant && (
-                                    <Badge variant="outline">显著</Badge>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="grid grid-cols-2 gap-4 text-sm">
-                                <div>
-                                  <p className="text-muted-foreground">对照组</p>
-                                  <p className="font-medium">{metric.controlValue.toFixed(4)}</p>
-                                </div>
-                                <div>
-                                  <p className="text-muted-foreground">实验组</p>
-                                  <p className="font-medium">{metric.treatmentValue.toFixed(4)}</p>
-                                </div>
-                              </div>
-                              <div className="mt-2">
-                                <p className="text-xs text-muted-foreground">
-                                  变化: {metric.relativeDifference > 0 ? '+' : ''}{metric.relativeDifference.toFixed(2)}%
-                                  (p值: {metric.pValue.toFixed(4)})
-                                </p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
+                        {/* 可视化图表 */}
+                        <ABTestCharts 
+                          analysisResults={analysisResults} 
+                          testName={testDetails?.test?.testName}
+                        />
                       </>
                     ) : (
                       <p className="text-muted-foreground text-center py-8">
