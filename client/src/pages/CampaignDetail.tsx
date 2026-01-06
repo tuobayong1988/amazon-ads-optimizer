@@ -327,6 +327,8 @@ export default function CampaignDetail() {
           <TabsList>
             <TabsTrigger value="overview">概览</TabsTrigger>
             <TabsTrigger value="adgroups">广告组</TabsTrigger>
+            <TabsTrigger value="targets">投放词</TabsTrigger>
+            <TabsTrigger value="searchterms">搜索词</TabsTrigger>
             <TabsTrigger value="keywords">关键词</TabsTrigger>
           </TabsList>
           
@@ -421,6 +423,30 @@ export default function CampaignDetail() {
                     <p>暂无广告组数据</p>
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="targets" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>投放词列表</CardTitle>
+                <CardDescription>该广告活动下的所有投放词（关键词 + 商品定向）</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <TargetsList campaignId={campaignId} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="searchterms" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>客户搜索词</CardTitle>
+                <CardDescription>触发该广告活动的客户实际搜索词</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <SearchTermsList campaignId={campaignId} />
               </CardContent>
             </Card>
           </TabsContent>
@@ -535,5 +561,241 @@ function KeywordsList({ adGroups }: { adGroups: any[] }) {
         })}
       </TableBody>
     </Table>
+  );
+}
+
+
+// 投放词列表子组件
+function TargetsList({ campaignId }: { campaignId: number }) {
+  const { data: targetsData, isLoading } = trpc.campaign.getTargets.useQuery(
+    { campaignId },
+    { enabled: !!campaignId }
+  );
+  
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  
+  // 合并关键词和商品定向为统一的投放词列表
+  const allTargets: any[] = [];
+  
+  if (targetsData?.keywords) {
+    targetsData.keywords.forEach((k: any) => {
+      allTargets.push({
+        id: `kw-${k.id}`,
+        text: k.keywordText,
+        type: 'keyword',
+        matchType: k.matchType,
+        status: k.status,
+        bid: k.bid,
+        impressions: k.impressions,
+        clicks: k.clicks,
+        spend: k.spend,
+        sales: k.sales,
+        adGroupName: k.adGroupName
+      });
+    });
+  }
+  
+  if (targetsData?.productTargets) {
+    targetsData.productTargets.forEach((pt: any) => {
+      allTargets.push({
+        id: `pt-${pt.id}`,
+        text: pt.targetExpression || pt.asin || 'ASIN定向',
+        type: 'product',
+        matchType: null,
+        status: pt.status,
+        bid: pt.bid,
+        impressions: pt.impressions,
+        clicks: pt.clicks,
+        spend: pt.spend,
+        sales: pt.sales,
+        adGroupName: pt.adGroupName
+      });
+    });
+  }
+  
+  if (allTargets.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        <Target className="h-12 w-12 mx-auto mb-4 opacity-50" />
+        <p>暂无投放词数据</p>
+      </div>
+    );
+  }
+  
+  // 按销售额排序
+  const sortedTargets = [...allTargets].sort((a: any, b: any) => 
+    parseFloat(b.sales || "0") - parseFloat(a.sales || "0")
+  );
+  
+  return (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>投放词</TableHead>
+            <TableHead>类型</TableHead>
+            <TableHead>匹配方式</TableHead>
+            <TableHead>状态</TableHead>
+            <TableHead className="text-right">出价</TableHead>
+            <TableHead className="text-right">展示</TableHead>
+            <TableHead className="text-right">点击</TableHead>
+            <TableHead className="text-right">花费</TableHead>
+            <TableHead className="text-right">销售额</TableHead>
+            <TableHead className="text-right">ACoS</TableHead>
+            <TableHead className="text-right">ROAS</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {sortedTargets.map((target: any) => {
+            const tSpend = parseFloat(target.spend || "0");
+            const tSales = parseFloat(target.sales || "0");
+            const tAcos = tSales > 0 ? (tSpend / tSales * 100) : 0;
+            const tRoas = tSpend > 0 ? (tSales / tSpend) : 0;
+            const isKeyword = target.type === 'keyword';
+            
+            return (
+              <TableRow key={target.id}>
+                <TableCell className="font-medium max-w-[200px] truncate" title={target.text}>
+                  {target.text}
+                </TableCell>
+                <TableCell>
+                  <Badge variant={isKeyword ? "default" : "secondary"}>
+                    {isKeyword ? "关键词" : "商品定向"}
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  {isKeyword ? (
+                    <Badge variant="outline">
+                      {target.matchType === "exact" ? "精确" : target.matchType === "phrase" ? "词组" : "广泛"}
+                    </Badge>
+                  ) : (
+                    <span className="text-muted-foreground">-</span>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <Badge variant={target.status === "enabled" ? "default" : "secondary"}>
+                    {target.status === "enabled" ? "启用" : "暂停"}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right">${target.bid || "N/A"}</TableCell>
+                <TableCell className="text-right">{target.impressions?.toLocaleString() || 0}</TableCell>
+                <TableCell className="text-right">{target.clicks?.toLocaleString() || 0}</TableCell>
+                <TableCell className="text-right">${tSpend.toFixed(2)}</TableCell>
+                <TableCell className="text-right">${tSales.toFixed(2)}</TableCell>
+                <TableCell className="text-right">
+                  <span className={tAcos > 30 ? "text-red-500" : tAcos > 20 ? "text-yellow-500" : "text-green-500"}>
+                    {tSales > 0 ? `${tAcos.toFixed(1)}%` : "-"}
+                  </span>
+                </TableCell>
+                <TableCell className="text-right">
+                  <span className={tRoas >= 3 ? "text-green-500" : tRoas >= 2 ? "text-yellow-500" : "text-red-500"}>
+                    {tSpend > 0 ? tRoas.toFixed(2) : "-"}
+                  </span>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+// 搜索词列表子组件
+function SearchTermsList({ campaignId }: { campaignId: number }) {
+  const { data: searchTerms, isLoading } = trpc.campaign.getSearchTerms.useQuery(
+    { campaignId },
+    { enabled: !!campaignId }
+  );
+  
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  
+  if (!searchTerms || searchTerms.length === 0) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        <Tag className="h-12 w-12 mx-auto mb-4 opacity-50" />
+        <p>暂无搜索词数据</p>
+      </div>
+    );
+  }
+  
+  // 按销售额排序
+  const sortedTerms = [...searchTerms].sort((a: any, b: any) => 
+    parseFloat(b.sales || "0") - parseFloat(a.sales || "0")
+  );
+  
+  return (
+    <div className="overflow-x-auto">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>搜索词</TableHead>
+            <TableHead>匹配的投放词</TableHead>
+            <TableHead>匹配类型</TableHead>
+            <TableHead className="text-right">展示</TableHead>
+            <TableHead className="text-right">点击</TableHead>
+            <TableHead className="text-right">点击率</TableHead>
+            <TableHead className="text-right">花费</TableHead>
+            <TableHead className="text-right">销售额</TableHead>
+            <TableHead className="text-right">订单</TableHead>
+            <TableHead className="text-right">ACoS</TableHead>
+            <TableHead className="text-right">转化率</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {sortedTerms.map((term: any, index: number) => {
+            const stSpend = parseFloat(term.spend || "0");
+            const stSales = parseFloat(term.sales || "0");
+            const stAcos = stSales > 0 ? (stSpend / stSales * 100) : 0;
+            const stCtr = term.impressions > 0 ? (term.clicks / term.impressions * 100) : 0;
+            const stCvr = term.clicks > 0 ? (term.orders / term.clicks * 100) : 0;
+            
+            return (
+              <TableRow key={term.id || index}>
+                <TableCell className="font-medium max-w-[200px] truncate" title={term.searchTerm}>
+                  {term.searchTerm}
+                </TableCell>
+                <TableCell className="max-w-[150px] truncate text-muted-foreground" title={term.targetText}>
+                  {term.targetText || "-"}
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline">
+                    {term.matchType === "exact" ? "精确" : term.matchType === "phrase" ? "词组" : "广泛"}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right">{term.impressions?.toLocaleString() || 0}</TableCell>
+                <TableCell className="text-right">{term.clicks?.toLocaleString() || 0}</TableCell>
+                <TableCell className="text-right">{stCtr.toFixed(2)}%</TableCell>
+                <TableCell className="text-right">${stSpend.toFixed(2)}</TableCell>
+                <TableCell className="text-right">${stSales.toFixed(2)}</TableCell>
+                <TableCell className="text-right">{term.orders || 0}</TableCell>
+                <TableCell className="text-right">
+                  <span className={stAcos > 30 ? "text-red-500" : stAcos > 20 ? "text-yellow-500" : "text-green-500"}>
+                    {stSales > 0 ? `${stAcos.toFixed(1)}%` : "-"}
+                  </span>
+                </TableCell>
+                <TableCell className="text-right">
+                  <span className={stCvr >= 10 ? "text-green-500" : stCvr >= 5 ? "text-yellow-500" : "text-muted-foreground"}>
+                    {term.clicks > 0 ? `${stCvr.toFixed(1)}%` : "-"}
+                  </span>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
+    </div>
   );
 }
