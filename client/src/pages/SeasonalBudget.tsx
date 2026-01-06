@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { Calendar, CalendarDays, Check, ChevronRight, Clock, Gift, LineChart, RefreshCw, Sparkles, TrendingUp, X } from "lucide-react";
+import { BarChart3, Calendar, CalendarDays, Check, ChevronRight, Clock, Gift, LineChart, RefreshCw, Sparkles, TrendingUp, X } from "lucide-react";
 import { toast } from "sonner";
 
 type RecommendationStatus = "pending" | "applied" | "skipped" | "expired";
@@ -39,6 +39,20 @@ export default function SeasonalBudget() {
   const { data: historicalTrends, isLoading: trendsLoading } = trpc.seasonalBudget.getHistoricalTrends.useQuery({
     accountId: accountId || undefined,
   });
+
+  // 获取历史大促效果对比
+  const [selectedEventType, setSelectedEventType] = useState<string | undefined>(undefined);
+  const { data: eventComparisonDataRaw, isLoading: comparisonLoading } = trpc.seasonalBudget.getEventPerformanceComparison.useQuery({
+    accountId: accountId || undefined,
+    eventType: selectedEventType,
+  });
+  const eventComparisonData = eventComparisonDataRaw as {
+    events: any[];
+    comparison: any[];
+    groupedByType?: Record<string, any[]>;
+    yearOverYearComparison?: any[];
+    avgByType?: Record<string, any>;
+  } | undefined;
 
   // 生成建议
   const generateMutation = trpc.seasonalBudget.generateRecommendations.useMutation({
@@ -177,6 +191,10 @@ export default function SeasonalBudget() {
           <TabsTrigger value="trends">
             <LineChart className="h-4 w-4 mr-2" />
             季节性趋势
+          </TabsTrigger>
+          <TabsTrigger value="comparison">
+            <BarChart3 className="h-4 w-4 mr-2" />
+            大促效果对比
           </TabsTrigger>
         </TabsList>
 
@@ -485,6 +503,199 @@ export default function SeasonalBudget() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="comparison" className="space-y-4">
+          {/* 大促类型筛选 */}
+          <div className="flex items-center gap-4">
+            <Select value={selectedEventType || "all"} onValueChange={(v) => setSelectedEventType(v === "all" ? undefined : v)}>
+              <SelectTrigger className="w-48">
+                <SelectValue placeholder="选择大促类型" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部大促</SelectItem>
+                <SelectItem value="prime_day">Prime Day</SelectItem>
+                <SelectItem value="black_friday">黑色星期五</SelectItem>
+                <SelectItem value="cyber_monday">网络星期一</SelectItem>
+                <SelectItem value="christmas">圣诞节</SelectItem>
+                <SelectItem value="new_year">新年</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 年度同比对比卡片 */}
+          {eventComparisonData?.yearOverYearComparison && eventComparisonData.yearOverYearComparison.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>年度同比对比</CardTitle>
+                <CardDescription>不同年份同一大促活动的表现对比</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {eventComparisonData.yearOverYearComparison.map((yoy: any, index: number) => (
+                    <div key={index} className="border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <Gift className="h-5 w-5 text-red-500" />
+                          <div>
+                            <p className="font-medium">{yoy.eventName}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {yoy.previousYear} → {yoy.currentYear}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-5 gap-4">
+                        <div className="text-center p-3 bg-muted/50 rounded-lg">
+                          <p className="text-xs text-muted-foreground mb-1">花费变化</p>
+                          <p className={`font-medium ${yoy.spendChange >= 0 ? 'text-red-500' : 'text-green-500'}`}>
+                            {yoy.spendChange >= 0 ? '+' : ''}{yoy.spendChange.toFixed(1)}%
+                          </p>
+                        </div>
+                        <div className="text-center p-3 bg-muted/50 rounded-lg">
+                          <p className="text-xs text-muted-foreground mb-1">销售额变化</p>
+                          <p className={`font-medium ${yoy.salesChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                            {yoy.salesChange >= 0 ? '+' : ''}{yoy.salesChange.toFixed(1)}%
+                          </p>
+                        </div>
+                        <div className="text-center p-3 bg-muted/50 rounded-lg">
+                          <p className="text-xs text-muted-foreground mb-1">ROAS变化</p>
+                          <p className={`font-medium ${yoy.roasChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                            {yoy.roasChange >= 0 ? '+' : ''}{yoy.roasChange.toFixed(1)}%
+                          </p>
+                        </div>
+                        <div className="text-center p-3 bg-muted/50 rounded-lg">
+                          <p className="text-xs text-muted-foreground mb-1">ACoS变化</p>
+                          <p className={`font-medium ${yoy.acosChange <= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                            {yoy.acosChange >= 0 ? '+' : ''}{yoy.acosChange.toFixed(1)}%
+                          </p>
+                        </div>
+                        <div className="text-center p-3 bg-muted/50 rounded-lg">
+                          <p className="text-xs text-muted-foreground mb-1">订单变化</p>
+                          <p className={`font-medium ${yoy.ordersChange >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                            {yoy.ordersChange >= 0 ? '+' : ''}{yoy.ordersChange.toFixed(1)}%
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 历史大促效果明细 */}
+          <Card>
+            <CardHeader>
+              <CardTitle>历史大促效果明细</CardTitle>
+              <CardDescription>每次大促活动的详细表现数据</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {comparisonLoading ? (
+                <div className="text-center py-8 text-muted-foreground">加载中...</div>
+              ) : !eventComparisonData?.comparison || eventComparisonData.comparison.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <BarChart3 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>暂无历史大促数据</p>
+                  <p className="text-sm mt-2">需要历史大促期间的绩效数据才能生成对比分析</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-3">大促活动</th>
+                        <th className="text-left p-3">年份</th>
+                        <th className="text-right p-3">花费</th>
+                        <th className="text-right p-3">销售额</th>
+                        <th className="text-right p-3">订单数</th>
+                        <th className="text-right p-3">ROAS</th>
+                        <th className="text-right p-3">ACoS</th>
+                        <th className="text-right p-3">CTR</th>
+                        <th className="text-right p-3">CVR</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {eventComparisonData.comparison.map((item: any, index: number) => (
+                        <tr key={index} className="border-b hover:bg-muted/50">
+                          <td className="p-3">
+                            <div className="flex items-center gap-2">
+                              <Gift className="h-4 w-4 text-red-500" />
+                              <span>{item.eventName}</span>
+                            </div>
+                          </td>
+                          <td className="p-3">{item.year}</td>
+                          <td className="p-3 text-right">${item.totalSpend.toFixed(2)}</td>
+                          <td className="p-3 text-right">${item.totalSales.toFixed(2)}</td>
+                          <td className="p-3 text-right">{item.totalOrders}</td>
+                          <td className="p-3 text-right">
+                            <span className={item.avgRoas >= 3 ? 'text-green-500' : item.avgRoas >= 2 ? 'text-yellow-500' : 'text-red-500'}>
+                              {item.avgRoas.toFixed(2)}
+                            </span>
+                          </td>
+                          <td className="p-3 text-right">
+                            <span className={item.avgAcos <= 25 ? 'text-green-500' : item.avgAcos <= 35 ? 'text-yellow-500' : 'text-red-500'}>
+                              {item.avgAcos.toFixed(1)}%
+                            </span>
+                          </td>
+                          <td className="p-3 text-right">{item.avgCtr.toFixed(2)}%</td>
+                          <td className="p-3 text-right">{item.avgCvr.toFixed(2)}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 大促类型平均表现 */}
+          {eventComparisonData?.avgByType && Object.keys(eventComparisonData.avgByType).length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>各类大促平均表现</CardTitle>
+                <CardDescription>按大促类型统计的平均表现数据</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {Object.entries(eventComparisonData.avgByType).map(([type, stats]: [string, any]) => (
+                    <div key={type} className="border rounded-lg p-4">
+                      <div className="flex items-center gap-2 mb-3">
+                        <Gift className="h-5 w-5 text-red-500" />
+                        <span className="font-medium capitalize">{type.replace(/_/g, ' ')}</span>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">平均花费</span>
+                          <span>${stats.avgSpend.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">平均销售</span>
+                          <span>${stats.avgSales.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">平均ROAS</span>
+                          <span className={stats.avgRoas >= 3 ? 'text-green-500' : 'text-yellow-500'}>
+                            {stats.avgRoas.toFixed(2)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">平均ACoS</span>
+                          <span className={stats.avgAcos <= 25 ? 'text-green-500' : 'text-yellow-500'}>
+                            {stats.avgAcos.toFixed(1)}%
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">活动次数</span>
+                          <span>{stats.eventCount}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>

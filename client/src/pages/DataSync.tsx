@@ -11,11 +11,15 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { Activity, AlertTriangle, CheckCircle, Clock, Database, Gauge, Loader2, Play, RefreshCw, Server, XCircle } from "lucide-react";
+import { Activity, AlertTriangle, Calendar, CheckCircle, Clock, Database, Gauge, Loader2, Pause, Play, Plus, RefreshCw, Server, Trash2, XCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
 
 type SyncType = "campaigns" | "keywords" | "performance" | "all";
 type SyncStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
+type ScheduleFrequency = "hourly" | "daily" | "weekly" | "monthly";
 
 export default function DataSync() {
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
@@ -37,6 +41,22 @@ export default function DataSync() {
 
   // 获取限流状态
   const { data: rateLimitStatus, refetch: refetchRateLimit } = trpc.dataSync.getRateLimitStatus.useQuery();
+
+  // 获取调度配置列表
+  const { data: schedules, isLoading: schedulesLoading, refetch: refetchSchedules } = trpc.dataSync.getSchedules.useQuery({
+    accountId: accountId || undefined,
+  });
+
+  // 新建调度表单状态
+  const [showCreateSchedule, setShowCreateSchedule] = useState(false);
+  const [newSchedule, setNewSchedule] = useState({
+    syncType: "all" as SyncType,
+    frequency: "daily" as ScheduleFrequency,
+    hour: 2,
+    dayOfWeek: 1,
+    dayOfMonth: 1,
+    isEnabled: true,
+  });
 
   // 创建同步任务
   const createJobMutation = trpc.dataSync.createJob.useMutation({
@@ -61,6 +81,60 @@ export default function DataSync() {
     },
     onError: (error) => {
       toast.error(`取消失败: ${error.message}`);
+    },
+  });
+
+  // 创建调度
+  const createScheduleMutation = trpc.dataSync.createSchedule.useMutation({
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success("调度已创建");
+        setShowCreateSchedule(false);
+        refetchSchedules();
+      } else {
+        toast.error(result.message || "创建失败");
+      }
+    },
+    onError: (error) => {
+      toast.error(`创建失败: ${error.message}`);
+    },
+  });
+
+  // 更新调度
+  const updateScheduleMutation = trpc.dataSync.updateSchedule.useMutation({
+    onSuccess: () => {
+      toast.success("调度已更新");
+      refetchSchedules();
+    },
+    onError: (error) => {
+      toast.error(`更新失败: ${error.message}`);
+    },
+  });
+
+  // 删除调度
+  const deleteScheduleMutation = trpc.dataSync.deleteSchedule.useMutation({
+    onSuccess: () => {
+      toast.success("调度已删除");
+      refetchSchedules();
+    },
+    onError: (error) => {
+      toast.error(`删除失败: ${error.message}`);
+    },
+  });
+
+  // 手动触发调度
+  const triggerScheduleMutation = trpc.dataSync.triggerSchedule.useMutation({
+    onSuccess: (result) => {
+      if (result.success) {
+        toast.success(`同步任务已启动 (ID: ${result.jobId})`);
+        refetchJobs();
+        refetchSchedules();
+      } else {
+        toast.error(result.message || "触发失败");
+      }
+    },
+    onError: (error) => {
+      toast.error(`触发失败: ${error.message}`);
     },
   });
 
@@ -162,6 +236,10 @@ export default function DataSync() {
           <TabsTrigger value="jobs">
             <Database className="h-4 w-4 mr-2" />
             同步任务
+          </TabsTrigger>
+          <TabsTrigger value="schedules">
+            <Calendar className="h-4 w-4 mr-2" />
+            定时调度
           </TabsTrigger>
           <TabsTrigger value="ratelimit">
             <Gauge className="h-4 w-4 mr-2" />
@@ -471,6 +549,227 @@ export default function DataSync() {
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="schedules" className="space-y-4">
+          {/* 创建调度 */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>定时同步调度</CardTitle>
+                  <CardDescription>配置自动化数据同步任务</CardDescription>
+                </div>
+                <Dialog open={showCreateSchedule} onOpenChange={setShowCreateSchedule}>
+                  <DialogTrigger asChild>
+                    <Button disabled={!accountId}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      新建调度
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>创建定时同步调度</DialogTitle>
+                      <DialogDescription>配置自动化数据同步任务</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label>同步类型</Label>
+                        <Select value={newSchedule.syncType} onValueChange={(v) => setNewSchedule({ ...newSchedule, syncType: v as SyncType })}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">全量同步</SelectItem>
+                            <SelectItem value="campaigns">广告活动</SelectItem>
+                            <SelectItem value="keywords">关键词</SelectItem>
+                            <SelectItem value="performance">绩效数据</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>执行频率</Label>
+                        <Select value={newSchedule.frequency} onValueChange={(v) => setNewSchedule({ ...newSchedule, frequency: v as ScheduleFrequency })}>
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="hourly">每小时</SelectItem>
+                            <SelectItem value="daily">每天</SelectItem>
+                            <SelectItem value="weekly">每周</SelectItem>
+                            <SelectItem value="monthly">每月</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {newSchedule.frequency !== "hourly" && (
+                        <div className="space-y-2">
+                          <Label>执行时间 (小时)</Label>
+                          <Select value={newSchedule.hour.toString()} onValueChange={(v) => setNewSchedule({ ...newSchedule, hour: Number(v) })}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Array.from({ length: 24 }, (_, i) => (
+                                <SelectItem key={i} value={i.toString()}>{i.toString().padStart(2, "0")}:00</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                      {newSchedule.frequency === "weekly" && (
+                        <div className="space-y-2">
+                          <Label>执行星期</Label>
+                          <Select value={newSchedule.dayOfWeek.toString()} onValueChange={(v) => setNewSchedule({ ...newSchedule, dayOfWeek: Number(v) })}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="0">周日</SelectItem>
+                              <SelectItem value="1">周一</SelectItem>
+                              <SelectItem value="2">周二</SelectItem>
+                              <SelectItem value="3">周三</SelectItem>
+                              <SelectItem value="4">周四</SelectItem>
+                              <SelectItem value="5">周五</SelectItem>
+                              <SelectItem value="6">周六</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                      {newSchedule.frequency === "monthly" && (
+                        <div className="space-y-2">
+                          <Label>执行日期</Label>
+                          <Select value={newSchedule.dayOfMonth.toString()} onValueChange={(v) => setNewSchedule({ ...newSchedule, dayOfMonth: Number(v) })}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Array.from({ length: 28 }, (_, i) => (
+                                <SelectItem key={i + 1} value={(i + 1).toString()}>{i + 1}日</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <Label>立即启用</Label>
+                        <Switch checked={newSchedule.isEnabled} onCheckedChange={(v) => setNewSchedule({ ...newSchedule, isEnabled: v })} />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setShowCreateSchedule(false)}>取消</Button>
+                      <Button onClick={() => {
+                        if (!accountId) return;
+                        createScheduleMutation.mutate({
+                          accountId,
+                          ...newSchedule,
+                        });
+                      }} disabled={createScheduleMutation.isPending}>
+                        创建
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {schedulesLoading ? (
+                <div className="text-center py-8 text-muted-foreground">加载中...</div>
+              ) : !schedules || (schedules as any[]).length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Calendar className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>暂无调度配置</p>
+                  <p className="text-sm mt-2">创建定时调度以自动同步广告数据</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {(schedules as any[]).map((schedule: any) => (
+                    <div key={schedule.id} className="border rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-full ${schedule.isEnabled ? 'bg-green-100 dark:bg-green-900' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                            <Calendar className={`h-5 w-5 ${schedule.isEnabled ? 'text-green-500' : 'text-gray-500'}`} />
+                          </div>
+                          <div>
+                            <p className="font-medium">{getSyncTypeName(schedule.syncType)}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {schedule.frequency === 'hourly' && '每小时执行'}
+                              {schedule.frequency === 'daily' && `每天 ${schedule.hour?.toString().padStart(2, '0')}:00 执行`}
+                              {schedule.frequency === 'weekly' && `每周${['日', '一', '二', '三', '四', '五', '六'][schedule.dayOfWeek || 0]} ${schedule.hour?.toString().padStart(2, '0')}:00 执行`}
+                              {schedule.frequency === 'monthly' && `每月${schedule.dayOfMonth}日 ${schedule.hour?.toString().padStart(2, '0')}:00 执行`}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge className={schedule.isEnabled ? 'bg-green-500' : 'bg-gray-500'}>
+                            {schedule.isEnabled ? '已启用' : '已禁用'}
+                          </Badge>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => triggerScheduleMutation.mutate({ scheduleId: schedule.id })}
+                            disabled={triggerScheduleMutation.isPending}
+                          >
+                            <Play className="h-4 w-4 mr-1" />
+                            立即执行
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => updateScheduleMutation.mutate({ id: schedule.id, isEnabled: !schedule.isEnabled })}
+                          >
+                            {schedule.isEnabled ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => deleteScheduleMutation.mutate({ id: schedule.id })}
+                          >
+                            <Trash2 className="h-4 w-4 text-red-500" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-4 text-sm">
+                        <div>
+                          <p className="text-muted-foreground">上次执行</p>
+                          <p className="font-medium">
+                            {schedule.lastRunAt ? new Date(schedule.lastRunAt).toLocaleString() : '从未执行'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">下次执行</p>
+                          <p className="font-medium">
+                            {schedule.nextRunAt ? new Date(schedule.nextRunAt).toLocaleString() : 'N/A'}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">创建时间</p>
+                          <p className="font-medium">
+                            {schedule.createdAt ? new Date(schedule.createdAt).toLocaleDateString() : 'N/A'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 调度说明 */}
+          <Card>
+            <CardContent className="pt-4">
+              <div className="text-sm text-muted-foreground space-y-2">
+                <p><strong>定时调度说明：</strong></p>
+                <ul className="list-disc list-inside space-y-1">
+                  <li>每小时：每小时整点执行一次同步</li>
+                  <li>每天：在指定时间执行一次同步，建议选择低峰时段（如凌晨 2-4 点）</li>
+                  <li>每周：在指定星期和时间执行一次同步</li>
+                  <li>每月：在指定日期和时间执行一次同步</li>
+                </ul>
+                <p className="mt-2">提示：建议根据数据更新频率和业务需求选择合适的同步频率。过于频繁的同步可能会消耗较多API配额。</p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

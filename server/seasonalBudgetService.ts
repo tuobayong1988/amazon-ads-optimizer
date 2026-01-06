@@ -298,3 +298,192 @@ export async function skipRecommendation(recommendationId: number, userId: numbe
   await db.update(seasonalBudgetRecommendations).set({ status: "skipped" }).where(and(eq(seasonalBudgetRecommendations.id, recommendationId), eq(seasonalBudgetRecommendations.userId, userId)));
   return true;
 }
+
+
+/**
+ * 获取历史大促效果对比数据
+ * 对比不同年份同一大促活动的表现
+ */
+export async function getEventPerformanceComparison(userId: number, options: { accountId?: number; eventType?: string } = {}) {
+  const db = await getDb();
+  if (!db) return { events: [], comparison: [] };
+
+  // 获取所有历史大促活动
+  const conditions = [];
+  if (options.eventType) conditions.push(eq(promotionalEvents.eventType, options.eventType as EventType));
+  
+  const events = await db.select().from(promotionalEvents)
+    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .orderBy(desc(promotionalEvents.startDate));
+
+  // 获取每个大促期间的绩效数据
+  const comparison: {
+    eventId: number;
+    eventName: string;
+    eventType: string;
+    year: number;
+    startDate: Date;
+    endDate: Date;
+    totalSpend: number;
+    totalSales: number;
+    totalOrders: number;
+    totalClicks: number;
+    totalImpressions: number;
+    avgRoas: number;
+    avgAcos: number;
+    avgCtr: number;
+    avgCvr: number;
+    daysCount: number;
+  }[] = [];
+
+  for (const event of events) {
+    const perfData = await db
+      .select({
+        totalSpend: sql<number>`COALESCE(SUM(${dailyPerformance.spend}), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(${dailyPerformance.sales}), 0)`,
+        totalOrders: sql<number>`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
+        totalClicks: sql<number>`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
+        totalImpressions: sql<number>`COALESCE(SUM(${dailyPerformance.impressions}), 0)`,
+        daysCount: sql<number>`COUNT(DISTINCT DATE(${dailyPerformance.date}))`,
+      })
+      .from(dailyPerformance)
+      .where(
+        and(
+          gte(dailyPerformance.date, event.startDate),
+          lte(dailyPerformance.date, event.endDate)
+        )
+      );
+
+    const data = perfData[0];
+    const spend = Number(data?.totalSpend) || 0;
+    const sales = Number(data?.totalSales) || 0;
+    const orders = Number(data?.totalOrders) || 0;
+    const clicks = Number(data?.totalClicks) || 0;
+    const impressions = Number(data?.totalImpressions) || 0;
+
+    comparison.push({
+      eventId: event.id,
+      eventName: event.eventName,
+      eventType: event.eventType,
+      year: event.startDate.getFullYear(),
+      startDate: event.startDate,
+      endDate: event.endDate,
+      totalSpend: spend,
+      totalSales: sales,
+      totalOrders: orders,
+      totalClicks: clicks,
+      totalImpressions: impressions,
+      avgRoas: spend > 0 ? sales / spend : 0,
+      avgAcos: sales > 0 ? (spend / sales) * 100 : 0,
+      avgCtr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+      avgCvr: clicks > 0 ? (orders / clicks) * 100 : 0,
+      daysCount: Number(data?.daysCount) || 0,
+    });
+  }
+
+  // 按事件类型分组，方便年度对比
+  const groupedByType: Record<string, typeof comparison> = {};
+  for (const item of comparison) {
+    if (!groupedByType[item.eventType]) {
+      groupedByType[item.eventType] = [];
+    }
+    groupedByType[item.eventType].push(item);
+  }
+
+  // 计算年度同比变化
+  const yearOverYearComparison: {
+    eventType: string;
+    eventName: string;
+    currentYear: number;
+    previousYear: number;
+    spendChange: number;
+    salesChange: number;
+    roasChange: number;
+    acosChange: number;
+    ordersChange: number;
+  }[] = [];
+
+  for (const [eventType, items] of Object.entries(groupedByType)) {
+    const sortedByYear = items.sort((a, b) => b.year - a.year);
+    for (let i = 0; i < sortedByYear.length - 1; i++) {
+      const current = sortedByYear[i];
+      const previous = sortedByYear[i + 1];
+      
+      yearOverYearComparison.push({
+        eventType,
+        eventName: current.eventName,
+        currentYear: current.year,
+        previousYear: previous.year,
+        spendChange: previous.totalSpend > 0 ? ((current.totalSpend - previous.totalSpend) / previous.totalSpend) * 100 : 0,
+        salesChange: previous.totalSales > 0 ? ((current.totalSales - previous.totalSales) / previous.totalSales) * 100 : 0,
+        roasChange: previous.avgRoas > 0 ? ((current.avgRoas - previous.avgRoas) / previous.avgRoas) * 100 : 0,
+        acosChange: previous.avgAcos > 0 ? ((current.avgAcos - previous.avgAcos) / previous.avgAcos) * 100 : 0,
+        ordersChange: previous.totalOrders > 0 ? ((current.totalOrders - previous.totalOrders) / previous.totalOrders) * 100 : 0,
+      });
+    }
+  }
+
+  return {
+    events,
+    comparison,
+    groupedByType,
+    yearOverYearComparison,
+  };
+}
+
+/**
+ * 获取大促活动效果汇总统计
+ */
+export async function getEventSummaryStats(userId: number, options: { accountId?: number; years?: number[] } = {}) {
+  const db = await getDb();
+  if (!db) return { stats: [], avgByType: {} };
+
+  const { comparison } = await getEventPerformanceComparison(userId, options);
+
+  // 按事件类型计算平均值
+  const avgByType: Record<string, {
+    avgSpend: number;
+    avgSales: number;
+    avgRoas: number;
+    avgAcos: number;
+    avgOrders: number;
+    eventCount: number;
+  }> = {};
+
+  for (const item of comparison) {
+    if (!avgByType[item.eventType]) {
+      avgByType[item.eventType] = {
+        avgSpend: 0,
+        avgSales: 0,
+        avgRoas: 0,
+        avgAcos: 0,
+        avgOrders: 0,
+        eventCount: 0,
+      };
+    }
+    const stats = avgByType[item.eventType];
+    stats.avgSpend += item.totalSpend;
+    stats.avgSales += item.totalSales;
+    stats.avgRoas += item.avgRoas;
+    stats.avgAcos += item.avgAcos;
+    stats.avgOrders += item.totalOrders;
+    stats.eventCount++;
+  }
+
+  // 计算平均值
+  for (const type of Object.keys(avgByType)) {
+    const stats = avgByType[type];
+    if (stats.eventCount > 0) {
+      stats.avgSpend /= stats.eventCount;
+      stats.avgSales /= stats.eventCount;
+      stats.avgRoas /= stats.eventCount;
+      stats.avgAcos /= stats.eventCount;
+      stats.avgOrders /= stats.eventCount;
+    }
+  }
+
+  return {
+    stats: comparison,
+    avgByType,
+  };
+}

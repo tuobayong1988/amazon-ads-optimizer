@@ -403,3 +403,243 @@ export async function getApiUsageStats(accountId: number) {
   }).from(apiRateLimits).where(and(eq(apiRateLimits.accountId, accountId), sql`${apiRateLimits.updatedAt} >= ${oneHourAgo}`));
   return { totalRequests: stats[0]?.totalRequests || 0, recordCount: stats[0]?.recordCount || 0, limits: RATE_LIMITS };
 }
+
+
+// ==================== 定时调度功能 ====================
+
+export type ScheduleFrequency = "hourly" | "daily" | "weekly" | "monthly";
+
+export interface SyncScheduleConfig {
+  id?: number;
+  userId: number;
+  accountId: number;
+  syncType: SyncType;
+  frequency: ScheduleFrequency;
+  hour?: number; // 0-23，每日/每周/每月执行的小时
+  dayOfWeek?: number; // 0-6，每周执行的星期几（0=周日）
+  dayOfMonth?: number; // 1-31，每月执行的日期
+  isEnabled: boolean;
+  lastRunAt?: Date;
+  nextRunAt?: Date;
+}
+
+/**
+ * 创建同步调度配置
+ */
+export async function createSyncSchedule(config: SyncScheduleConfig): Promise<number | null> {
+  const db = await getDb();
+  if (!db) return null;
+
+  // 计算下次执行时间
+  const nextRunAt = calculateNextRunTime(config);
+
+  const result = await db.execute(sql`
+    INSERT INTO sync_schedules (user_id, account_id, sync_type, frequency, hour, day_of_week, day_of_month, is_enabled, next_run_at)
+    VALUES (${config.userId}, ${config.accountId}, ${config.syncType}, ${config.frequency}, ${config.hour ?? 0}, ${config.dayOfWeek ?? null}, ${config.dayOfMonth ?? null}, ${config.isEnabled}, ${nextRunAt})
+  `);
+
+  return (result as any)[0]?.insertId || null;
+}
+
+/**
+ * 更新同步调度配置
+ */
+export async function updateSyncSchedule(id: number, userId: number, updates: Partial<SyncScheduleConfig>): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+
+  const setClauses: string[] = [];
+  const values: any[] = [];
+
+  if (updates.syncType !== undefined) { setClauses.push("sync_type = ?"); values.push(updates.syncType); }
+  if (updates.frequency !== undefined) { setClauses.push("frequency = ?"); values.push(updates.frequency); }
+  if (updates.hour !== undefined) { setClauses.push("hour = ?"); values.push(updates.hour); }
+  if (updates.dayOfWeek !== undefined) { setClauses.push("day_of_week = ?"); values.push(updates.dayOfWeek); }
+  if (updates.dayOfMonth !== undefined) { setClauses.push("day_of_month = ?"); values.push(updates.dayOfMonth); }
+  if (updates.isEnabled !== undefined) { setClauses.push("is_enabled = ?"); values.push(updates.isEnabled); }
+
+  if (setClauses.length === 0) return true;
+
+  // 重新计算下次执行时间
+  const schedule = await getSyncScheduleById(id, userId);
+  if (schedule) {
+    const newConfig = { ...schedule, ...updates };
+    const nextRunAt = calculateNextRunTime(newConfig as SyncScheduleConfig);
+    setClauses.push("next_run_at = ?");
+    values.push(nextRunAt);
+  }
+
+  setClauses.push("updated_at = NOW()");
+
+  await db.execute(sql.raw(`UPDATE sync_schedules SET ${setClauses.join(", ")} WHERE id = ${id} AND user_id = ${userId}`));
+  return true;
+}
+
+/**
+ * 删除同步调度配置
+ */
+export async function deleteSyncSchedule(id: number, userId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  await db.execute(sql`DELETE FROM sync_schedules WHERE id = ${id} AND user_id = ${userId}`);
+  return true;
+}
+
+/**
+ * 获取单个调度配置
+ */
+export async function getSyncScheduleById(id: number, userId: number): Promise<SyncScheduleConfig | null> {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.execute(sql`
+    SELECT id, user_id as userId, account_id as accountId, sync_type as syncType, frequency, hour, day_of_week as dayOfWeek, day_of_month as dayOfMonth, is_enabled as isEnabled, last_run_at as lastRunAt, next_run_at as nextRunAt
+    FROM sync_schedules WHERE id = ${id} AND user_id = ${userId}
+  `);
+  const rows = (result as any)[0];
+  return rows?.[0] || null;
+}
+
+/**
+ * 获取用户的所有调度配置
+ */
+export async function getSyncSchedules(userId: number, accountId?: number): Promise<SyncScheduleConfig[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  let query = sql`
+    SELECT id, user_id as userId, account_id as accountId, sync_type as syncType, frequency, hour, day_of_week as dayOfWeek, day_of_month as dayOfMonth, is_enabled as isEnabled, last_run_at as lastRunAt, next_run_at as nextRunAt
+    FROM sync_schedules WHERE user_id = ${userId}
+  `;
+  
+  if (accountId) {
+    query = sql`
+      SELECT id, user_id as userId, account_id as accountId, sync_type as syncType, frequency, hour, day_of_week as dayOfWeek, day_of_month as dayOfMonth, is_enabled as isEnabled, last_run_at as lastRunAt, next_run_at as nextRunAt
+      FROM sync_schedules WHERE user_id = ${userId} AND account_id = ${accountId}
+    `;
+  }
+  
+  const result = await db.execute(query);
+  return (result as any)[0] || [];
+}
+
+/**
+ * 获取需要执行的调度任务
+ */
+export async function getDueSchedules(): Promise<SyncScheduleConfig[]> {
+  const db = await getDb();
+  if (!db) return [];
+  const now = new Date();
+  const result = await db.execute(sql`
+    SELECT id, user_id as userId, account_id as accountId, sync_type as syncType, frequency, hour, day_of_week as dayOfWeek, day_of_month as dayOfMonth, is_enabled as isEnabled, last_run_at as lastRunAt, next_run_at as nextRunAt
+    FROM sync_schedules WHERE is_enabled = true AND next_run_at <= ${now}
+  `);
+  return (result as any)[0] || [];
+}
+
+/**
+ * 执行调度任务
+ */
+export async function executeScheduledSync(scheduleId: number): Promise<{ success: boolean; jobId?: number; message: string }> {
+  const db = await getDb();
+  if (!db) return { success: false, message: "数据库连接失败" };
+
+  const result = await db.execute(sql`
+    SELECT id, user_id as userId, account_id as accountId, sync_type as syncType, frequency, hour, day_of_week as dayOfWeek, day_of_month as dayOfMonth
+    FROM sync_schedules WHERE id = ${scheduleId}
+  `);
+  const schedule = (result as any)[0]?.[0];
+  if (!schedule) return { success: false, message: "调度配置不存在" };
+
+  // 创建同步任务
+  const jobId = await createSyncJob(schedule.userId, schedule.accountId, schedule.syncType);
+  if (!jobId) return { success: false, message: "创建同步任务失败" };
+
+  // 更新调度状态
+  const nextRunAt = calculateNextRunTime(schedule as SyncScheduleConfig);
+  await db.execute(sql`
+    UPDATE sync_schedules SET last_run_at = NOW(), next_run_at = ${nextRunAt}, updated_at = NOW()
+    WHERE id = ${scheduleId}
+  `);
+
+  // 异步执行同步任务
+  executeSyncJob(jobId).catch(console.error);
+
+  return { success: true, jobId, message: "同步任务已启动" };
+}
+
+/**
+ * 计算下次执行时间
+ */
+export function calculateNextRunTime(config: SyncScheduleConfig): Date {
+  const now = new Date();
+  const next = new Date(now);
+  const hour = config.hour ?? 0;
+
+  switch (config.frequency) {
+    case "hourly":
+      next.setHours(next.getHours() + 1, 0, 0, 0);
+      break;
+
+    case "daily":
+      next.setHours(hour, 0, 0, 0);
+      if (next <= now) next.setDate(next.getDate() + 1);
+      break;
+
+    case "weekly":
+      const dayOfWeek = config.dayOfWeek ?? 0;
+      next.setHours(hour, 0, 0, 0);
+      const daysUntilTarget = (dayOfWeek - next.getDay() + 7) % 7;
+      next.setDate(next.getDate() + (daysUntilTarget === 0 && next <= now ? 7 : daysUntilTarget));
+      break;
+
+    case "monthly":
+      const dayOfMonth = config.dayOfMonth ?? 1;
+      next.setDate(dayOfMonth);
+      next.setHours(hour, 0, 0, 0);
+      if (next <= now) next.setMonth(next.getMonth() + 1);
+      break;
+  }
+
+  return next;
+}
+
+/**
+ * 运行调度检查（由外部定时器调用）
+ */
+export async function runScheduleCheck(): Promise<{ executed: number; failed: number }> {
+  const dueSchedules = await getDueSchedules();
+  let executed = 0;
+  let failed = 0;
+
+  for (const schedule of dueSchedules) {
+    try {
+      const result = await executeScheduledSync(schedule.id!);
+      if (result.success) executed++;
+      else failed++;
+    } catch (error) {
+      failed++;
+      console.error(`执行调度任务 ${schedule.id} 失败:`, error);
+    }
+  }
+
+  return { executed, failed };
+}
+
+/**
+ * 获取调度执行历史
+ */
+export async function getScheduleHistory(scheduleId: number, limit: number = 20): Promise<any[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const result = await db.execute(sql`
+    SELECT j.id, j.status, j.records_synced as recordsSynced, j.error_message as errorMessage, j.started_at as startedAt, j.completed_at as completedAt, j.created_at as createdAt
+    FROM data_sync_jobs j
+    INNER JOIN sync_schedules s ON j.account_id = s.account_id AND j.user_id = s.user_id
+    WHERE s.id = ${scheduleId}
+    ORDER BY j.created_at DESC
+    LIMIT ${limit}
+  `);
+  
+  return (result as any)[0] || [];
+}

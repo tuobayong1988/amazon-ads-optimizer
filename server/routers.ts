@@ -3549,6 +3549,30 @@ const seasonalBudgetRouter = router({
     .query(async ({ ctx, input }) => {
       return seasonalBudgetService.getSeasonalTrends(ctx.user.id, input.accountId);
     }),
+
+  // 获取历史大促效果对比数据
+  getEventPerformanceComparison: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      eventType: z.string().optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      return seasonalBudgetService.getEventPerformanceComparison(ctx.user.id, {
+        accountId: input.accountId,
+        eventType: input.eventType,
+      });
+    }),
+
+  // 获取大促活动效果汇总统计
+  getEventSummaryStats: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      return seasonalBudgetService.getEventSummaryStats(ctx.user.id, {
+        accountId: input.accountId,
+      });
+    }),
 });
 
 // ==================== Data Sync Router ====================
@@ -3606,6 +3630,74 @@ const dataSyncRouter = router({
     .input(z.object({ accountId: z.number() }))
     .query(async ({ input }) => {
       return dataSyncService.getApiUsageStats(input.accountId);
+    }),
+
+  // ==================== 定时调度API ====================
+  
+  // 创建同步调度
+  createSchedule: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      syncType: z.enum(["campaigns", "keywords", "performance", "all"]).default("all"),
+      frequency: z.enum(["hourly", "daily", "weekly", "monthly"]),
+      hour: z.number().min(0).max(23).optional(),
+      dayOfWeek: z.number().min(0).max(6).optional(),
+      dayOfMonth: z.number().min(1).max(31).optional(),
+      isEnabled: z.boolean().default(true),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const scheduleId = await dataSyncService.createSyncSchedule({
+        userId: ctx.user.id,
+        ...input,
+      });
+      if (!scheduleId) return { success: false, message: "创建调度失败" };
+      return { success: true, scheduleId };
+    }),
+
+  // 获取同步调度列表
+  getSchedules: protectedProcedure
+    .input(z.object({ accountId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      return dataSyncService.getSyncSchedules(ctx.user.id, input.accountId);
+    }),
+
+  // 更新同步调度
+  updateSchedule: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      syncType: z.enum(["campaigns", "keywords", "performance", "all"]).optional(),
+      frequency: z.enum(["hourly", "daily", "weekly", "monthly"]).optional(),
+      hour: z.number().min(0).max(23).optional(),
+      dayOfWeek: z.number().min(0).max(6).optional(),
+      dayOfMonth: z.number().min(1).max(31).optional(),
+      isEnabled: z.boolean().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { id, ...updates } = input;
+      const success = await dataSyncService.updateSyncSchedule(id, ctx.user.id, updates);
+      return { success };
+    }),
+
+  // 删除同步调度
+  deleteSchedule: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const success = await dataSyncService.deleteSyncSchedule(input.id, ctx.user.id);
+      return { success };
+    }),
+
+  // 手动触发调度执行
+  triggerSchedule: protectedProcedure
+    .input(z.object({ scheduleId: z.number() }))
+    .mutation(async ({ input }) => {
+      return dataSyncService.executeScheduledSync(input.scheduleId);
+    }),
+
+  // 获取调度执行历史
+  getScheduleHistory: protectedProcedure
+    .input(z.object({ scheduleId: z.number(), limit: z.number().default(20) }))
+    .query(async ({ input }) => {
+      return dataSyncService.getScheduleHistory(input.scheduleId, input.limit);
     }),
 });
 

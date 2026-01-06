@@ -1644,3 +1644,29 @@ export const dataSyncLogs = mysqlTable("data_sync_logs", {
 export type DataSyncLog = typeof dataSyncLogs.$inferSelect;
 export type InsertDataSyncLog = typeof dataSyncLogs.$inferInsert;
 
+
+
+/**
+ * Sync Schedules - 同步调度配置
+ * 定时自动同步任务的配置
+ */
+export const syncSchedules = mysqlTable("sync_schedules", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("user_id").notNull(),
+  accountId: int("account_id").notNull(),
+  // 同步配置
+  syncType: mysqlEnum("sync_type", ["campaigns", "keywords", "performance", "all"]).default("all"),
+  frequency: mysqlEnum("frequency", ["hourly", "daily", "weekly", "monthly"]).notNull(),
+  hour: int("hour").default(0), // 0-23
+  dayOfWeek: int("day_of_week"), // 0-6, 0=Sunday
+  dayOfMonth: int("day_of_month"), // 1-31
+  // 状态
+  isEnabled: boolean("is_enabled").default(true),
+  lastRunAt: timestamp("last_run_at"),
+  nextRunAt: timestamp("next_run_at"),
+  // 时间
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+export type SyncSchedule = typeof syncSchedules.$inferSelect;
+export type InsertSyncSchedule = typeof syncSchedules.$inferInsert;
