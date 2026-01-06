@@ -20,8 +20,14 @@ import {
   DollarSign,
   Percent,
   BarChart3,
-  Loader2
+  Loader2,
+  Bot,
+  Activity,
+  CheckCircle2,
+  Clock,
+  Zap
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 
 export default function PerformanceGroups() {
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
@@ -180,6 +186,34 @@ export default function PerformanceGroups() {
                         <p className="font-semibold">${group.dailyCostTarget}</p>
                       </div>
                     )}
+                  </div>
+
+                  {/* 自动优化状态 */}
+                  <div className="pt-3 border-t border-border/50">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs text-muted-foreground flex items-center gap-1">
+                        <Bot className="w-3 h-3" />
+                        自动优化引擎
+                      </p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-green-500">已启用</span>
+                        <Switch defaultChecked className="scale-75" />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div className="flex items-center gap-1 text-muted-foreground">
+                        <Activity className="w-3 h-3" />
+                        <span>半自动模式</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-green-500">
+                        <CheckCircle2 className="w-3 h-3" />
+                        <span>今日0执行</span>
+                      </div>
+                      <div className="flex items-center gap-1 text-orange-500">
+                        <Clock className="w-3 h-3" />
+                        <span>0待审批</span>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Current Performance */}

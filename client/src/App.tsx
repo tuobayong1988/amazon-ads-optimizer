@@ -34,6 +34,7 @@ import DaypartingStrategy from "@/pages/DaypartingStrategy";
 import AIOptimizationHistory from "@/pages/AIOptimizationHistory";
 import PlacementOptimization from "@/pages/PlacementOptimization";
 import AdvancedPlacementOptimization from "@/pages/AdvancedPlacementOptimization";
+import OptimizationCenter from "@/pages/OptimizationCenter";
 
 function Router() {
   return (
@@ -68,6 +69,7 @@ function Router() {
       <Route path="/dayparting" component={DaypartingStrategy} />
       <Route path="/placement-optimization" component={PlacementOptimization} />
       <Route path="/advanced-placement" component={AdvancedPlacementOptimization} />
+      <Route path="/optimization-center" component={OptimizationCenter} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

@@ -58,7 +58,7 @@ import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 import AccountSwitcher from "./AccountSwitcher";
 
-// 菜单分组配置 - 按运营工作流程优先级排序
+// 菜单分组配置 - 简化版，优化功能已整合到广告管理模块
 const menuGroups = [
   {
     title: "核心监控",
@@ -70,20 +70,18 @@ const menuGroups = [
   },
   {
     title: "广告管理",
+    description: "算法自动决策执行，人只做监督",
     items: [
-      { icon: Megaphone, label: "广告活动", path: "/campaigns" },
-      { icon: Target, label: "绩效组管理", path: "/performance-groups" },
-      { icon: DollarSign, label: "预算分配", path: "/budget-allocation" },
+      { icon: Megaphone, label: "广告活动", path: "/campaigns", badge: "自动优化" },
+      { icon: Target, label: "绩效组管理", path: "/performance-groups", badge: "自动优化" },
+      { icon: DollarSign, label: "预算分配", path: "/budget-allocation", badge: "智能分配" },
     ]
   },
   {
-    title: "智能优化",
+    title: "优化引擎",
+    description: "统一的自动优化系统",
     items: [
-      { icon: Zap, label: "广告自动化", path: "/automation" },
-      { icon: MapPin, label: "位置倾斜", path: "/placement-optimization" },
-      { icon: Brain, label: "高级位置优化", path: "/advanced-placement" },
-      { icon: Clock, label: "分时策略", path: "/dayparting" },
-      { icon: Layers, label: "批量操作", path: "/batch-operations" },
+      { icon: Zap, label: "优化中心", path: "/optimization-center" },
       { icon: FileSearch, label: "纠错复盘", path: "/correction-review" },
       { icon: CalendarDays, label: "季节性建议", path: "/seasonal-budget" },
     ]
@@ -110,7 +108,6 @@ const menuGroups = [
       { icon: Cloud, label: "Amazon API", path: "/amazon-api" },
       { icon: Settings, label: "优化设置", path: "/settings" },
       { icon: Bell, label: "通知设置", path: "/notifications" },
-      // 数据导入已移除，改为使用数据同步
     ]
   },
   {

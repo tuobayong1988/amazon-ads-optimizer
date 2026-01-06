@@ -35,6 +35,8 @@ import {
   Settings,
   PieChart,
   RefreshCw,
+  Bot,
+  Activity,
 } from "lucide-react";
 
 // 分配原因映射
@@ -291,7 +293,7 @@ export default function BudgetAllocation() {
           <div>
             <h1 className="text-2xl font-bold">预算智能分配</h1>
             <p className="text-muted-foreground">
-              基于历史表现和销售目标，为广告活动推荐最佳预算分配
+              基于历史表现和销售目标，为广告活动推荐最佳预算分配 · <span className="text-green-500">算法自动决策执行，人只做监督</span>
             </p>
           </div>
           <div className="flex items-center gap-4">

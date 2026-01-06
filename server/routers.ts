@@ -14,6 +14,7 @@ import * as schedulerService from './schedulerService';
 import * as batchOperationService from './batchOperationService';
 import * as correctionService from './correctionService';
 import * as daypartingService from './daypartingService';
+import * as unifiedOptimizationEngine from './unifiedOptimizationEngine';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
@@ -5173,6 +5174,139 @@ function calculateTrendSummary(data: any[]) {
   };
 }
 
+// ==================== Unified Optimization Router ====================
+const unifiedOptimizationRouter = router({
+  // 获取广告活动的优化状态
+  getCampaignState: protectedProcedure
+    .input(z.object({ campaignId: z.number() }))
+    .query(async ({ input }) => {
+      return unifiedOptimizationEngine.getCampaignOptimizationState(input.campaignId);
+    }),
+  
+  // 获取绩效组的优化状态
+  getPerformanceGroupState: protectedProcedure
+    .input(z.object({ groupId: z.number() }))
+    .query(async ({ input }) => {
+      return unifiedOptimizationEngine.getPerformanceGroupOptimizationState(input.groupId);
+    }),
+  
+  // 运行统一优化分析
+  runAnalysis: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      campaignIds: z.array(z.number()).optional(),
+      performanceGroupIds: z.array(z.number()).optional(),
+      optimizationTypes: z.array(z.enum([
+        'bid_adjustment',
+        'placement_tilt',
+        'dayparting',
+        'negative_keyword',
+        'funnel_migration',
+        'budget_reallocation',
+        'correction',
+        'traffic_isolation'
+      ])).optional()
+    }))
+    .mutation(async ({ input }) => {
+      return unifiedOptimizationEngine.runUnifiedOptimizationAnalysis(
+        input.accountId,
+        {
+          campaignIds: input.campaignIds,
+          performanceGroupIds: input.performanceGroupIds,
+          optimizationTypes: input.optimizationTypes
+        }
+      );
+    }),
+  
+  // 执行单个优化决策
+  executeDecision: protectedProcedure
+    .input(z.object({
+      decisionId: z.string(),
+      executedBy: z.enum(['auto', 'manual']).optional()
+    }))
+    .mutation(async ({ input }) => {
+      return unifiedOptimizationEngine.executeOptimizationDecision(
+        input.decisionId,
+        input.executedBy || 'manual'
+      );
+    }),
+  
+  // 批量执行优化决策
+  batchExecuteDecisions: protectedProcedure
+    .input(z.object({
+      decisionIds: z.array(z.string()),
+      executedBy: z.enum(['auto', 'manual']).optional()
+    }))
+    .mutation(async ({ input }) => {
+      return unifiedOptimizationEngine.batchExecuteOptimizationDecisions(
+        input.decisionIds,
+        input.executedBy || 'manual'
+      );
+    }),
+  
+  // 获取优化摘要
+  getSummary: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      campaignId: z.number().optional(),
+      performanceGroupId: z.number().optional()
+    }))
+    .query(async ({ input }) => {
+      return unifiedOptimizationEngine.getOptimizationSummary(
+        input.accountId,
+        {
+          campaignId: input.campaignId,
+          performanceGroupId: input.performanceGroupId
+        }
+      );
+    }),
+  
+  // 更新广告活动优化设置
+  updateCampaignSettings: protectedProcedure
+    .input(z.object({
+      campaignId: z.number(),
+      autoOptimizationEnabled: z.boolean().optional(),
+      executionMode: z.enum(['full_auto', 'semi_auto', 'manual', 'disabled']).optional(),
+      optimizationTypes: z.object({
+        bidAdjustment: z.boolean().optional(),
+        placementTilt: z.boolean().optional(),
+        dayparting: z.boolean().optional(),
+        negativeKeyword: z.boolean().optional()
+      }).optional()
+    }))
+    .mutation(async ({ input }) => {
+      return unifiedOptimizationEngine.updateCampaignOptimizationSettings(
+        input.campaignId,
+        {
+          autoOptimizationEnabled: input.autoOptimizationEnabled,
+          executionMode: input.executionMode,
+          optimizationTypes: input.optimizationTypes
+        }
+      );
+    }),
+  
+  // 更新绩效组优化设置
+  updatePerformanceGroupSettings: protectedProcedure
+    .input(z.object({
+      groupId: z.number(),
+      autoOptimizationEnabled: z.boolean().optional(),
+      executionMode: z.enum(['full_auto', 'semi_auto', 'manual', 'disabled']).optional(),
+      targetAcos: z.number().optional(),
+      targetRoas: z.number().optional()
+    }))
+    .mutation(async ({ input }) => {
+      return unifiedOptimizationEngine.updatePerformanceGroupOptimizationSettings(
+        input.groupId,
+        {
+          autoOptimizationEnabled: input.autoOptimizationEnabled,
+          executionMode: input.executionMode,
+          targetAcos: input.targetAcos,
+          targetRoas: input.targetRoas
+        }
+      );
+    }),
+});
+
 // ==================== Main Router ====================
 export const appRouter = router({
   system: systemRouter,
@@ -5212,6 +5346,7 @@ export const appRouter = router({
   dataSync: dataSyncRouter,
   dayparting: daypartingRouter,
   placement: placementRouter,
+  unifiedOptimization: unifiedOptimizationRouter,
 });
 
 export type AppRouter = typeof appRouter;

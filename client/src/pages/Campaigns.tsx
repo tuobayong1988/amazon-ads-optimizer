@@ -28,7 +28,13 @@ import {
   Pause,
   Play,
   DollarSign,
-  RotateCcw
+  RotateCcw,
+  Bot,
+  Activity,
+  TrendingUp,
+  CheckCircle2,
+  AlertCircle,
+  Clock
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -59,7 +65,7 @@ const billingTypeLabels: Record<string, string> = {
 // 列配置
 type ColumnKey = 'campaignName' | 'campaignType' | 'billingType' | 'createdAt' | 'status' | 
   'dailyBudget' | 'dailySpend' | 'impressions' | 'clicks' | 'ctr' | 'totalSpend' | 
-  'dailySales' | 'totalSales' | 'acos' | 'roas' | 'performanceGroup' | 'actions';
+  'dailySales' | 'totalSales' | 'acos' | 'roas' | 'performanceGroup' | 'autoOptimization' | 'actions';
 
 interface ColumnConfig {
   key: ColumnKey;
@@ -88,6 +94,7 @@ const columns: ColumnConfig[] = [
   { key: 'acos', label: 'ACoS', minWidth: '80px', align: 'right', sortable: true, defaultVisible: true },
   { key: 'roas', label: 'ROAS', minWidth: '80px', align: 'right', sortable: true, defaultVisible: true },
   { key: 'performanceGroup', label: '所属绩效组', minWidth: '120px', align: 'left', sortable: true, defaultVisible: true },
+  { key: 'autoOptimization', label: '自动优化', minWidth: '140px', align: 'center', sortable: false, defaultVisible: true },
   { key: 'actions', label: '操作', minWidth: '120px', align: 'center', sortable: false, defaultVisible: true },
 ];
 
@@ -534,6 +541,38 @@ export default function Campaigns() {
             </SelectContent>
           </Select>
         );
+      case 'autoOptimization':
+        // 自动优化状态显示
+        const optimizationEnabled = true; // TODO: 从状态获取
+        const pendingDecisions = 0; // TODO: 从状态获取
+        const executedToday = 0; // TODO: 从状态获取
+        return (
+          <div className="flex items-center gap-2">
+            <div 
+              className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${
+                optimizationEnabled 
+                  ? 'bg-green-500/10 text-green-600 border border-green-500/20' 
+                  : 'bg-gray-500/10 text-gray-500 border border-gray-500/20'
+              }`}
+              title={optimizationEnabled ? '自动优化已启用' : '自动优化已禁用'}
+            >
+              <Bot className="w-3 h-3" />
+              <span>{optimizationEnabled ? '已启用' : '已禁用'}</span>
+            </div>
+            {pendingDecisions > 0 && (
+              <Badge variant="secondary" className="text-xs px-1.5 py-0">
+                <Clock className="w-3 h-3 mr-1" />
+                {pendingDecisions}待执行
+              </Badge>
+            )}
+            {executedToday > 0 && (
+              <Badge variant="outline" className="text-xs px-1.5 py-0 text-green-600 border-green-500/30">
+                <CheckCircle2 className="w-3 h-3 mr-1" />
+                今日{executedToday}
+              </Badge>
+            )}
+          </div>
+        );
       case 'actions':
         return (
           <div className="flex items-center gap-1">
@@ -589,7 +628,7 @@ export default function Campaigns() {
           <div>
             <h1 className="text-2xl font-bold">广告活动</h1>
             <p className="text-muted-foreground">
-              管理和优化您的亚马逊广告活动
+              管理和优化您的亚马逊广告活动 · <span className="text-green-500">算法自动决策执行，人只做监督</span>
             </p>
           </div>
           <div className="flex items-center gap-2">
