@@ -1544,3 +1544,8 @@
 - [x] 修复isRolledBack字段不存在错误（改用status字段）
 - [x] 修复adjustedAt字段不存在错误（改为appliedAt）
 - [x] 修复数据库实例获取方式（使用db.getDb()）
+
+### 审计日志页面日期格式错误修复
+- [x] 修复getUserAuditStats函数中的日期比较（Date对象转ISO字符串）
+- [x] 修复getAuditLogs函数中的日期比较
+- [x] 修复getAccountAuditStats函数中的日期比较

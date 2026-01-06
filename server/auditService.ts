@@ -184,11 +184,14 @@ export async function getAuditLogs(params: {
   }
 
   if (startDate) {
-    conditions.push(gte(auditLogs.createdAt, startDate));
+    // 转换为ISO字符串格式以便与MySQL timestamp字段比较
+    const startDateStr = startDate.toISOString().slice(0, 19).replace('T', ' ');
+    conditions.push(gte(auditLogs.createdAt, startDateStr));
   }
 
   if (endDate) {
-    conditions.push(lte(auditLogs.createdAt, endDate));
+    const endDateStr = endDate.toISOString().slice(0, 19).replace('T', ' ');
+    conditions.push(lte(auditLogs.createdAt, endDateStr));
   }
 
   if (search) {
@@ -246,12 +249,14 @@ export async function getUserAuditStats(userId: number, days: number = 30): Prom
 
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
+  // 转换为ISO字符串格式以便与MySQL timestamp字段比较
+  const startDateStr = startDate.toISOString().slice(0, 19).replace('T', ' ');
 
   // 获取总操作数
   const [totalResult] = await db
     .select({ count: sql<number>`COUNT(*)` })
     .from(auditLogs)
-    .where(and(eq(auditLogs.userId, userId), gte(auditLogs.createdAt, startDate)));
+    .where(and(eq(auditLogs.userId, userId), gte(auditLogs.createdAt, startDateStr)));
   const totalActions = totalResult?.count || 0;
 
   // 按操作类型统计
@@ -261,7 +266,7 @@ export async function getUserAuditStats(userId: number, days: number = 30): Prom
       count: sql<number>`COUNT(*)`,
     })
     .from(auditLogs)
-    .where(and(eq(auditLogs.userId, userId), gte(auditLogs.createdAt, startDate)))
+    .where(and(eq(auditLogs.userId, userId), gte(auditLogs.createdAt, startDateStr)))
     .groupBy(auditLogs.actionType);
 
   const actionsByType: Record<string, number> = {};
@@ -276,7 +281,7 @@ export async function getUserAuditStats(userId: number, days: number = 30): Prom
       count: sql<number>`COUNT(*)`,
     })
     .from(auditLogs)
-    .where(and(eq(auditLogs.userId, userId), gte(auditLogs.createdAt, startDate)))
+    .where(and(eq(auditLogs.userId, userId), gte(auditLogs.createdAt, startDateStr)))
     .groupBy(sql`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`)
     .orderBy(sql`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`);
 
@@ -314,12 +319,14 @@ export async function getAccountAuditStats(accountId: number, days: number = 30)
 
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
+  // 转换为ISO字符串格式以便与MySQL timestamp字段比较
+  const startDateStr = startDate.toISOString().slice(0, 19).replace('T', ' ');
 
   // 获取总操作数
   const [totalResult] = await db
     .select({ count: sql<number>`COUNT(*)` })
     .from(auditLogs)
-    .where(and(eq(auditLogs.accountId, accountId), gte(auditLogs.createdAt, startDate)));
+    .where(and(eq(auditLogs.accountId, accountId), gte(auditLogs.createdAt, startDateStr)));
   const totalActions = totalResult?.count || 0;
 
   // 按操作类型统计
@@ -329,7 +336,7 @@ export async function getAccountAuditStats(accountId: number, days: number = 30)
       count: sql<number>`COUNT(*)`,
     })
     .from(auditLogs)
-    .where(and(eq(auditLogs.accountId, accountId), gte(auditLogs.createdAt, startDate)))
+    .where(and(eq(auditLogs.accountId, accountId), gte(auditLogs.createdAt, startDateStr)))
     .groupBy(auditLogs.actionType);
 
   const actionsByType: Record<string, number> = {};
@@ -345,7 +352,7 @@ export async function getAccountAuditStats(accountId: number, days: number = 30)
       count: sql<number>`COUNT(*)`,
     })
     .from(auditLogs)
-    .where(and(eq(auditLogs.accountId, accountId), gte(auditLogs.createdAt, startDate)))
+    .where(and(eq(auditLogs.accountId, accountId), gte(auditLogs.createdAt, startDateStr)))
     .groupBy(auditLogs.userId, auditLogs.userName);
 
   const actionsByUser = userStats.map((stat: { userId: number; userName: string | null; count: number }) => ({
