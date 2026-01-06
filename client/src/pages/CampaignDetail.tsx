@@ -36,6 +36,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Filter, Ban, ArrowUpRight } from "lucide-react";
 
 // 广告活动类型图标映射
 const campaignTypeIcons: Record<string, any> = {
@@ -621,6 +624,10 @@ function TargetsList({ campaignId }: { campaignId: number }) {
     roasMax: "",
     ordersMin: "",
     ordersMax: "",
+    ctrMin: "",
+    ctrMax: "",
+    cvrMin: "",
+    cvrMax: "",
   });
   
   // 更新关键词出价
@@ -855,6 +862,10 @@ function TargetsList({ campaignId }: { campaignId: number }) {
       roasMax: "",
       ordersMin: "",
       ordersMax: "",
+      ctrMin: "",
+      ctrMax: "",
+      cvrMin: "",
+      cvrMax: "",
     });
   };
   
@@ -875,7 +886,11 @@ function TargetsList({ campaignId }: { campaignId: number }) {
       filters.roasMin !== "" ||
       filters.roasMax !== "" ||
       filters.ordersMin !== "" ||
-      filters.ordersMax !== "";
+      filters.ordersMax !== "" ||
+      filters.ctrMin !== "" ||
+      filters.ctrMax !== "" ||
+      filters.cvrMin !== "" ||
+      filters.cvrMax !== "";
   };
   
   if (isLoading) {
@@ -973,6 +988,16 @@ function TargetsList({ campaignId }: { campaignId: number }) {
     // 订单数范围筛选
     if (filters.ordersMin && (target.orders || 0) < parseInt(filters.ordersMin)) return false;
     if (filters.ordersMax && (target.orders || 0) > parseInt(filters.ordersMax)) return false;
+    
+    // 点击率范围筛选
+    const tCtr = target.impressions > 0 ? (target.clicks / target.impressions * 100) : 0;
+    if (filters.ctrMin && tCtr < parseFloat(filters.ctrMin)) return false;
+    if (filters.ctrMax && tCtr > parseFloat(filters.ctrMax)) return false;
+    
+    // 转化率范围筛选
+    const tCvr = target.clicks > 0 ? ((target.orders || 0) / target.clicks * 100) : 0;
+    if (filters.cvrMin && tCvr < parseFloat(filters.cvrMin)) return false;
+    if (filters.cvrMax && tCvr > parseFloat(filters.cvrMax)) return false;
     
     return true;
   });
@@ -1247,6 +1272,48 @@ function TargetsList({ campaignId }: { campaignId: number }) {
                     />
                   </div>
                 </div>
+                
+                {/* 点击率范围 */}
+                <div>
+                  <Label className="text-xs">点击率范围 (%)</Label>
+                  <div className="flex gap-1 mt-1">
+                    <Input
+                      type="number"
+                      placeholder="最小"
+                      className="h-9"
+                      value={filters.ctrMin}
+                      onChange={(e) => setFilters({...filters, ctrMin: e.target.value})}
+                    />
+                    <Input
+                      type="number"
+                      placeholder="最大"
+                      className="h-9"
+                      value={filters.ctrMax}
+                      onChange={(e) => setFilters({...filters, ctrMax: e.target.value})}
+                    />
+                  </div>
+                </div>
+                
+                {/* 转化率范围 */}
+                <div>
+                  <Label className="text-xs">转化率范围 (%)</Label>
+                  <div className="flex gap-1 mt-1">
+                    <Input
+                      type="number"
+                      placeholder="最小"
+                      className="h-9"
+                      value={filters.cvrMin}
+                      onChange={(e) => setFilters({...filters, cvrMin: e.target.value})}
+                    />
+                    <Input
+                      type="number"
+                      placeholder="最大"
+                      className="h-9"
+                      value={filters.cvrMax}
+                      onChange={(e) => setFilters({...filters, cvrMax: e.target.value})}
+                    />
+                  </div>
+                </div>
               </div>
               
               {/* 筛选结果统计 */}
@@ -1277,9 +1344,11 @@ function TargetsList({ campaignId }: { campaignId: number }) {
               <TableHead className="text-right">出价</TableHead>
               <TableHead className="text-right">展示</TableHead>
               <TableHead className="text-right">点击</TableHead>
+              <TableHead className="text-right">点击率</TableHead>
               <TableHead className="text-right">花费</TableHead>
-              <TableHead className="text-right">销售额</TableHead>
               <TableHead className="text-right">订单</TableHead>
+              <TableHead className="text-right">销售额</TableHead>
+              <TableHead className="text-right">转化率</TableHead>
               <TableHead className="text-right">ACoS</TableHead>
               <TableHead className="text-right">ROAS</TableHead>
               <TableHead className="text-center">操作</TableHead>
@@ -1329,9 +1398,19 @@ function TargetsList({ campaignId }: { campaignId: number }) {
                   <TableCell className="text-right">${target.bid || "N/A"}</TableCell>
                   <TableCell className="text-right">{target.impressions?.toLocaleString() || 0}</TableCell>
                   <TableCell className="text-right">{target.clicks?.toLocaleString() || 0}</TableCell>
+                  <TableCell className="text-right">
+                    <span className={(target.impressions > 0 ? (target.clicks / target.impressions * 100) : 0) >= 0.5 ? "text-green-500" : "text-yellow-500"}>
+                      {target.impressions > 0 ? `${(target.clicks / target.impressions * 100).toFixed(2)}%` : "-"}
+                    </span>
+                  </TableCell>
                   <TableCell className="text-right">${tSpend.toFixed(2)}</TableCell>
-                  <TableCell className="text-right">${tSales.toFixed(2)}</TableCell>
                   <TableCell className="text-right">{target.orders || 0}</TableCell>
+                  <TableCell className="text-right">${tSales.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">
+                    <span className={(target.clicks > 0 ? ((target.orders || 0) / target.clicks * 100) : 0) >= 10 ? "text-green-500" : (target.clicks > 0 ? ((target.orders || 0) / target.clicks * 100) : 0) >= 5 ? "text-yellow-500" : "text-red-500"}>
+                      {target.clicks > 0 ? `${((target.orders || 0) / target.clicks * 100).toFixed(2)}%` : "-"}
+                    </span>
+                  </TableCell>
                   <TableCell className="text-right">
                     <span className={tAcos > 30 ? "text-red-500" : tAcos > 20 ? "text-yellow-500" : "text-green-500"}>
                       {tSales > 0 ? `${tAcos.toFixed(1)}%` : "-"}
@@ -1521,10 +1600,106 @@ function TargetsList({ campaignId }: { campaignId: number }) {
 
 // 搜索词列表子组件
 function SearchTermsList({ campaignId }: { campaignId: number }) {
-  const { data: searchTerms, isLoading } = trpc.campaign.getSearchTerms.useQuery(
+  const { data: searchTerms, isLoading, refetch } = trpc.campaign.getSearchTerms.useQuery(
     { campaignId },
     { enabled: !!campaignId }
   );
+  
+  // 筛选状态
+  const [showFilters, setShowFilters] = useState(false);
+  const [stFilters, setStFilters] = useState({
+    matchType: "all" as "all" | "broad" | "phrase" | "exact",
+    spendMin: "",
+    spendMax: "",
+    salesMin: "",
+    salesMax: "",
+    ordersMin: "",
+    ordersMax: "",
+    acosMin: "",
+    acosMax: "",
+    roasMin: "",
+    roasMax: "",
+    ctrMin: "",
+    ctrMax: "",
+    cvrMin: "",
+    cvrMax: "",
+  });
+  
+  // 否定词弹窗状态
+  const [negateDialogOpen, setNegateDialogOpen] = useState(false);
+  const [selectedTerm, setSelectedTerm] = useState<any>(null);
+  const [negateMatchType, setNegateMatchType] = useState<"phrase" | "exact">("phrase");
+  
+  // 添加否定词 mutation
+  const addNegativeKeywordMutation = trpc.adAutomation.applyNegativeKeywords.useMutation({
+    onSuccess: () => {
+      toast.success("已添加为否定关键词");
+      setNegateDialogOpen(false);
+      setSelectedTerm(null);
+    },
+    onError: (error: any) => {
+      toast.error(`添加失败: ${error.message}`);
+    }
+  });
+  
+  // 处理否定词操作
+  const handleNegate = (term: any) => {
+    setSelectedTerm(term);
+    setNegateDialogOpen(true);
+  };
+  
+  // 确认添加否定词
+  const confirmNegate = () => {
+    if (!selectedTerm) return;
+    addNegativeKeywordMutation.mutate({
+      accountId: 1,
+      campaignId,
+      negatives: [{
+        keyword: selectedTerm.searchTerm,
+        matchType: negateMatchType,
+      }]
+    });
+  };
+  
+  // 清除筛选
+  const clearStFilters = () => {
+    setStFilters({
+      matchType: "all",
+      spendMin: "",
+      spendMax: "",
+      salesMin: "",
+      salesMax: "",
+      ordersMin: "",
+      ordersMax: "",
+      acosMin: "",
+      acosMax: "",
+      roasMin: "",
+      roasMax: "",
+      ctrMin: "",
+      ctrMax: "",
+      cvrMin: "",
+      cvrMax: "",
+    });
+  };
+  
+  // 检查是否有激活的筛选
+  const hasActiveStFilters = () => {
+    return stFilters.matchType !== "all" ||
+      stFilters.spendMin !== "" ||
+      stFilters.spendMax !== "" ||
+      stFilters.salesMin !== "" ||
+      stFilters.salesMax !== "" ||
+      stFilters.ordersMin !== "" ||
+      stFilters.ordersMax !== "" ||
+      stFilters.acosMin !== "" ||
+      stFilters.acosMax !== "" ||
+      stFilters.roasMin !== "" ||
+      stFilters.roasMax !== "" ||
+      stFilters.ctrMin !== "" ||
+      stFilters.ctrMax !== "" ||
+      stFilters.cvrMin !== "" ||
+      stFilters.cvrMax !== "";
+  };
   
   if (isLoading) {
     return (
@@ -1543,71 +1718,416 @@ function SearchTermsList({ campaignId }: { campaignId: number }) {
     );
   }
   
+  // 筛选搜索词
+  const filteredTerms = searchTerms.filter((term: any) => {
+    const stSpend = parseFloat(term.spend || "0");
+    const stSales = parseFloat(term.sales || "0");
+    const stAcos = stSales > 0 ? (stSpend / stSales * 100) : 0;
+    const stRoas = stSpend > 0 ? (stSales / stSpend) : 0;
+    const stCtr = term.impressions > 0 ? (term.clicks / term.impressions * 100) : 0;
+    const stCvr = term.clicks > 0 ? ((term.orders || 0) / term.clicks * 100) : 0;
+    
+    // 匹配类型筛选
+    if (stFilters.matchType !== "all" && term.matchType !== stFilters.matchType) return false;
+    
+    // 花费范围筛选
+    if (stFilters.spendMin && stSpend < parseFloat(stFilters.spendMin)) return false;
+    if (stFilters.spendMax && stSpend > parseFloat(stFilters.spendMax)) return false;
+    
+    // 销售额范围筛选
+    if (stFilters.salesMin && stSales < parseFloat(stFilters.salesMin)) return false;
+    if (stFilters.salesMax && stSales > parseFloat(stFilters.salesMax)) return false;
+    
+    // 订单范围筛选
+    if (stFilters.ordersMin && (term.orders || 0) < parseInt(stFilters.ordersMin)) return false;
+    if (stFilters.ordersMax && (term.orders || 0) > parseInt(stFilters.ordersMax)) return false;
+    
+    // ACoS范围筛选
+    if (stFilters.acosMin && stAcos < parseFloat(stFilters.acosMin)) return false;
+    if (stFilters.acosMax && stAcos > parseFloat(stFilters.acosMax)) return false;
+    
+    // ROAS范围筛选
+    if (stFilters.roasMin && stRoas < parseFloat(stFilters.roasMin)) return false;
+    if (stFilters.roasMax && stRoas > parseFloat(stFilters.roasMax)) return false;
+    
+    // 点击率范围筛选
+    if (stFilters.ctrMin && stCtr < parseFloat(stFilters.ctrMin)) return false;
+    if (stFilters.ctrMax && stCtr > parseFloat(stFilters.ctrMax)) return false;
+    
+    // 转化率范围筛选
+    if (stFilters.cvrMin && stCvr < parseFloat(stFilters.cvrMin)) return false;
+    if (stFilters.cvrMax && stCvr > parseFloat(stFilters.cvrMax)) return false;
+    
+    return true;
+  });
+  
   // 按销售额排序
-  const sortedTerms = [...searchTerms].sort((a: any, b: any) => 
+  const sortedTerms = [...filteredTerms].sort((a: any, b: any) => 
     parseFloat(b.sales || "0") - parseFloat(a.sales || "0")
   );
   
   return (
-    <div className="overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>搜索词</TableHead>
-            <TableHead>匹配的投放词</TableHead>
-            <TableHead>匹配类型</TableHead>
-            <TableHead className="text-right">展示</TableHead>
-            <TableHead className="text-right">点击</TableHead>
-            <TableHead className="text-right">点击率</TableHead>
-            <TableHead className="text-right">花费</TableHead>
-            <TableHead className="text-right">销售额</TableHead>
-            <TableHead className="text-right">订单</TableHead>
-            <TableHead className="text-right">ACoS</TableHead>
-            <TableHead className="text-right">转化率</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {sortedTerms.map((term: any, index: number) => {
-            const stSpend = parseFloat(term.spend || "0");
-            const stSales = parseFloat(term.sales || "0");
-            const stAcos = stSales > 0 ? (stSpend / stSales * 100) : 0;
-            const stCtr = term.impressions > 0 ? (term.clicks / term.impressions * 100) : 0;
-            const stCvr = term.clicks > 0 ? (term.orders / term.clicks * 100) : 0;
+    <div className="space-y-4">
+      {/* 工具栏 */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Button
+            variant={showFilters ? "secondary" : "outline"}
+            size="sm"
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Filter className="h-4 w-4 mr-1" />
+            筛选
+            {hasActiveStFilters() && <span className="ml-1 text-xs bg-primary text-primary-foreground rounded-full px-1.5">•</span>}
+          </Button>
+          {hasActiveStFilters() && (
+            <Button variant="ghost" size="sm" onClick={clearStFilters}>
+              清除筛选
+            </Button>
+          )}
+        </div>
+        <div className="text-sm text-muted-foreground">
+          共 {filteredTerms.length} / {searchTerms.length} 个搜索词
+        </div>
+      </div>
+      
+      {/* 筛选面板 */}
+      {showFilters && (
+        <Card>
+          <CardContent className="pt-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              {/* 匹配类型 */}
+              <div>
+                <Label className="text-xs">匹配类型</Label>
+                <Select value={stFilters.matchType} onValueChange={(v: any) => setStFilters({...stFilters, matchType: v})}>
+                  <SelectTrigger className="h-9 mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部</SelectItem>
+                    <SelectItem value="broad">广泛</SelectItem>
+                    <SelectItem value="phrase">词组</SelectItem>
+                    <SelectItem value="exact">精确</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              {/* 花费范围 */}
+              <div>
+                <Label className="text-xs">花费范围 ($)</Label>
+                <div className="flex gap-1 mt-1">
+                  <Input
+                    type="number"
+                    placeholder="最小"
+                    className="h-9"
+                    value={stFilters.spendMin}
+                    onChange={(e) => setStFilters({...stFilters, spendMin: e.target.value})}
+                  />
+                  <Input
+                    type="number"
+                    placeholder="最大"
+                    className="h-9"
+                    value={stFilters.spendMax}
+                    onChange={(e) => setStFilters({...stFilters, spendMax: e.target.value})}
+                  />
+                </div>
+              </div>
+              
+              {/* 订单范围 */}
+              <div>
+                <Label className="text-xs">订单范围</Label>
+                <div className="flex gap-1 mt-1">
+                  <Input
+                    type="number"
+                    placeholder="最小"
+                    className="h-9"
+                    value={stFilters.ordersMin}
+                    onChange={(e) => setStFilters({...stFilters, ordersMin: e.target.value})}
+                  />
+                  <Input
+                    type="number"
+                    placeholder="最大"
+                    className="h-9"
+                    value={stFilters.ordersMax}
+                    onChange={(e) => setStFilters({...stFilters, ordersMax: e.target.value})}
+                  />
+                </div>
+              </div>
+              
+              {/* ACoS范围 */}
+              <div>
+                <Label className="text-xs">ACoS范围 (%)</Label>
+                <div className="flex gap-1 mt-1">
+                  <Input
+                    type="number"
+                    placeholder="最小"
+                    className="h-9"
+                    value={stFilters.acosMin}
+                    onChange={(e) => setStFilters({...stFilters, acosMin: e.target.value})}
+                  />
+                  <Input
+                    type="number"
+                    placeholder="最大"
+                    className="h-9"
+                    value={stFilters.acosMax}
+                    onChange={(e) => setStFilters({...stFilters, acosMax: e.target.value})}
+                  />
+                </div>
+              </div>
+              
+              {/* ROAS范围 */}
+              <div>
+                <Label className="text-xs">ROAS范围</Label>
+                <div className="flex gap-1 mt-1">
+                  <Input
+                    type="number"
+                    placeholder="最小"
+                    className="h-9"
+                    value={stFilters.roasMin}
+                    onChange={(e) => setStFilters({...stFilters, roasMin: e.target.value})}
+                  />
+                  <Input
+                    type="number"
+                    placeholder="最大"
+                    className="h-9"
+                    value={stFilters.roasMax}
+                    onChange={(e) => setStFilters({...stFilters, roasMax: e.target.value})}
+                  />
+                </div>
+              </div>
+              
+              {/* 转化率范围 */}
+              <div>
+                <Label className="text-xs">转化率范围 (%)</Label>
+                <div className="flex gap-1 mt-1">
+                  <Input
+                    type="number"
+                    placeholder="最小"
+                    className="h-9"
+                    value={stFilters.cvrMin}
+                    onChange={(e) => setStFilters({...stFilters, cvrMin: e.target.value})}
+                  />
+                  <Input
+                    type="number"
+                    placeholder="最大"
+                    className="h-9"
+                    value={stFilters.cvrMax}
+                    onChange={(e) => setStFilters({...stFilters, cvrMax: e.target.value})}
+                  />
+                </div>
+              </div>
+            </div>
             
-            return (
-              <TableRow key={term.id || index}>
-                <TableCell className="font-medium max-w-[200px] truncate" title={term.searchTerm}>
-                  {term.searchTerm}
-                </TableCell>
-                <TableCell className="max-w-[150px] truncate text-muted-foreground" title={term.targetText}>
-                  {term.targetText || "-"}
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline">
-                    {term.matchType === "exact" ? "精确" : term.matchType === "phrase" ? "词组" : "广泛"}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">{term.impressions?.toLocaleString() || 0}</TableCell>
-                <TableCell className="text-right">{term.clicks?.toLocaleString() || 0}</TableCell>
-                <TableCell className="text-right">{stCtr.toFixed(2)}%</TableCell>
-                <TableCell className="text-right">${stSpend.toFixed(2)}</TableCell>
-                <TableCell className="text-right">${stSales.toFixed(2)}</TableCell>
-                <TableCell className="text-right">{term.orders || 0}</TableCell>
-                <TableCell className="text-right">
-                  <span className={stAcos > 30 ? "text-red-500" : stAcos > 20 ? "text-yellow-500" : "text-green-500"}>
-                    {stSales > 0 ? `${stAcos.toFixed(1)}%` : "-"}
+            {/* 快捷筛选预设 */}
+            <div className="mt-4 flex flex-wrap gap-2">
+              <span className="text-xs text-muted-foreground mr-2">快捷筛选:</span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setStFilters({...stFilters, spendMin: "5", ordersMin: "", ordersMax: "0"})}
+              >
+                🚨 高花费0转化
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setStFilters({...stFilters, acosMin: "50", ordersMin: ""})}
+              >
+                ⚠️ ACoS{'>'}50%
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setStFilters({...stFilters, ordersMin: "3", acosMax: "25"})}
+              >
+                ⭐ 高价值词
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setStFilters({...stFilters, cvrMin: "10"})}
+              >
+                📈 高转化率
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {/* 搜索词表格 */}
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>客户搜索词</TableHead>
+              <TableHead>源头投放词</TableHead>
+              <TableHead>匹配方式</TableHead>
+              <TableHead className="text-right">展示</TableHead>
+              <TableHead className="text-right">点击</TableHead>
+              <TableHead className="text-right">点击率</TableHead>
+              <TableHead className="text-right">花费</TableHead>
+              <TableHead className="text-right">订单</TableHead>
+              <TableHead className="text-right">销售额</TableHead>
+              <TableHead className="text-right">转化率</TableHead>
+              <TableHead className="text-right">ACoS</TableHead>
+              <TableHead className="text-right">ROAS</TableHead>
+              <TableHead className="text-center">操作</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sortedTerms.map((term: any, index: number) => {
+              const stSpend = parseFloat(term.spend || "0");
+              const stSales = parseFloat(term.sales || "0");
+              const stAcos = stSales > 0 ? (stSpend / stSales * 100) : 0;
+              const stRoas = stSpend > 0 ? (stSales / stSpend) : 0;
+              const stCtr = term.impressions > 0 ? (term.clicks / term.impressions * 100) : 0;
+              const stCvr = term.clicks > 0 ? ((term.orders || 0) / term.clicks * 100) : 0;
+              
+              // 判断是否为低效搜索词（高花费0转化或ACoS过高）
+              const isLowPerforming = (stSpend >= 5 && (term.orders || 0) === 0) || stAcos > 50;
+              // 判断是否为高价值搜索词
+              const isHighValue = (term.orders || 0) >= 3 && stAcos <= 25;
+              
+              return (
+                <TableRow key={term.id || index} className={isLowPerforming ? "bg-red-500/5" : isHighValue ? "bg-green-500/5" : ""}>
+                  <TableCell className="font-medium max-w-[180px] truncate" title={term.searchTerm}>
+                    <div className="flex items-center gap-1">
+                      {isLowPerforming && <span title="低效搜索词">🚨</span>}
+                      {isHighValue && <span title="高价值搜索词">⭐</span>}
+                      {term.searchTerm}
+                    </div>
+                  </TableCell>
+                  <TableCell className="max-w-[140px] truncate text-muted-foreground" title={term.targetText}>
+                    {term.targetText || "-"}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="text-xs">
+                      {term.matchType === "exact" ? "精确" : term.matchType === "phrase" ? "词组" : "广泛"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">{term.impressions?.toLocaleString() || 0}</TableCell>
+                  <TableCell className="text-right">{term.clicks?.toLocaleString() || 0}</TableCell>
+                  <TableCell className="text-right">{stCtr.toFixed(2)}%</TableCell>
+                  <TableCell className="text-right">${stSpend.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">{term.orders || 0}</TableCell>
+                  <TableCell className="text-right">${stSales.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">
+                    <span className={stCvr >= 10 ? "text-green-500" : stCvr >= 5 ? "text-yellow-500" : "text-muted-foreground"}>
+                      {term.clicks > 0 ? `${stCvr.toFixed(1)}%` : "-"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <span className={stAcos > 30 ? "text-red-500" : stAcos > 20 ? "text-yellow-500" : "text-green-500"}>
+                      {stSales > 0 ? `${stAcos.toFixed(1)}%` : "-"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <span className={stRoas >= 4 ? "text-green-500" : stRoas >= 2 ? "text-yellow-500" : "text-muted-foreground"}>
+                      {stSpend > 0 ? stRoas.toFixed(2) : "-"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleNegate(term)}>
+                          <Ban className="h-4 w-4 mr-2" />
+                          添加为否定词
+                        </DropdownMenuItem>
+                        {isHighValue && (
+                          <DropdownMenuItem onClick={() => toast.info("迁移功能开发中...")}>
+                            <ArrowUpRight className="h-4 w-4 mr-2" />
+                            迁移到精确匹配
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
+      
+      {/* 否定词弹窗 */}
+      <Dialog open={negateDialogOpen} onOpenChange={setNegateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>添加为否定关键词</DialogTitle>
+            <DialogDescription>
+              将搜索词 "{selectedTerm?.searchTerm}" 添加为否定关键词，阻止广告在该搜索词上展示
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>否定匹配类型</Label>
+              <Select value={negateMatchType} onValueChange={(v: "phrase" | "exact") => setNegateMatchType(v)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="phrase">
+                    <div className="flex flex-col">
+                      <span>词组否定</span>
+                      <span className="text-xs text-muted-foreground">包含该词组的搜索词都不会触发广告</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="exact">
+                    <div className="flex flex-col">
+                      <span>精确否定</span>
+                      <span className="text-xs text-muted-foreground">仅完全匹配该搜索词时不触发广告</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {selectedTerm && (
+              <div className="bg-muted p-3 rounded-lg text-sm">
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">花费:</span>
+                  <span>${parseFloat(selectedTerm.spend || "0").toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">订单:</span>
+                  <span>{selectedTerm.orders || 0}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">ACoS:</span>
+                  <span>
+                    {parseFloat(selectedTerm.sales || "0") > 0 
+                      ? `${(parseFloat(selectedTerm.spend || "0") / parseFloat(selectedTerm.sales || "0") * 100).toFixed(1)}%`
+                      : "-"}
                   </span>
-                </TableCell>
-                <TableCell className="text-right">
-                  <span className={stCvr >= 10 ? "text-green-500" : stCvr >= 5 ? "text-yellow-500" : "text-muted-foreground"}>
-                    {term.clicks > 0 ? `${stCvr.toFixed(1)}%` : "-"}
-                  </span>
-                </TableCell>
-              </TableRow>
-            );
-          })}
-        </TableBody>
-      </Table>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNegateDialogOpen(false)}>
+              取消
+            </Button>
+            <Button 
+              onClick={confirmNegate}
+              disabled={addNegativeKeywordMutation.isPending}
+            >
+              {addNegativeKeywordMutation.isPending ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />添加中...</>
+              ) : (
+                "确认添加"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
