@@ -270,6 +270,7 @@ const campaignRouter = router({
       id: z.number(),
       campaignName: z.string().optional(),
       maxBid: z.string().optional(),
+      dailyBudget: z.string().optional(),
       intradayBiddingEnabled: z.boolean().optional(),
       placementTopSearchBidAdjustment: z.number().optional(),
       placementProductPageBidAdjustment: z.number().optional(),
