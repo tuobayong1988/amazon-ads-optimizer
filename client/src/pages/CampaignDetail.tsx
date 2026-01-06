@@ -40,6 +40,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Filter, Ban, ArrowUpRight, ArrowRight, Clock, Plus } from "lucide-react";
 import { TargetTrendChart } from "@/components/TargetTrendChart";
+import { BidResponseCurve } from "@/components/BidResponseCurve";
 
 // 广告活动类型图标映射
 const campaignTypeIcons: Record<string, any> = {
@@ -891,6 +892,10 @@ function TargetsList({ campaignId }: { campaignId: number }) {
   const [trendChartOpen, setTrendChartOpen] = useState(false);
   const [trendTarget, setTrendTarget] = useState<{ id: number; type: "keyword" | "productTarget"; name: string; matchType?: string } | null>(null);
   
+  // 出价响应曲线弹窗状态
+  const [bidCurveOpen, setBidCurveOpen] = useState(false);
+  const [bidCurveTarget, setBidCurveTarget] = useState<{ id: number; text: string; bid: number; matchType?: string } | null>(null);
+  
   // 筛选状态 - 默认展开筛选面板
   const [showFilters, setShowFilters] = useState(true);
   const [filters, setFilters] = useState({
@@ -1736,6 +1741,25 @@ function TargetsList({ campaignId }: { campaignId: number }) {
                       >
                         <Edit2 className="h-4 w-4" />
                       </Button>
+                      {isKeyword && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => {
+                            setBidCurveTarget({
+                              id: target.originalId,
+                              text: target.text,
+                              bid: parseFloat(target.bid || "0.5"),
+                              matchType: target.matchType,
+                            });
+                            setBidCurveOpen(true);
+                          }}
+                          title="出价响应曲线分析"
+                        >
+                          <TrendingUp className="h-4 w-4 text-primary" />
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
@@ -1936,6 +1960,19 @@ function TargetsList({ campaignId }: { campaignId: number }) {
           targetType={trendTarget.type}
           targetName={trendTarget.name}
           matchType={trendTarget.matchType}
+        />
+      )}
+      
+      {/* 出价响应曲线弹窗 */}
+      {bidCurveTarget && (
+        <BidResponseCurve
+          open={bidCurveOpen}
+          onOpenChange={setBidCurveOpen}
+          keywordId={bidCurveTarget.id}
+          keywordText={bidCurveTarget.text}
+          currentBid={bidCurveTarget.bid}
+          matchType={bidCurveTarget.matchType}
+          campaignId={campaignId}
         />
       )}
     </>

@@ -277,6 +277,10 @@ export default function IntelligentBudgetAllocation() {
                   <Sparkles className="h-4 w-4 mr-2" />
                   分配建议
                 </TabsTrigger>
+                <TabsTrigger value="scenario">
+                  <Zap className="h-4 w-4 mr-2" />
+                  情景模拟
+                </TabsTrigger>
                 <TabsTrigger value="analysis">
                   <LineChart className="h-4 w-4 mr-2" />
                   详细分析
@@ -417,6 +421,15 @@ export default function IntelligentBudgetAllocation() {
                     </div>
                   </CardContent>
                 </Card>
+              </TabsContent>
+              
+              {/* 情景模拟 Tab */}
+              <TabsContent value="scenario" className="mt-4">
+                <ScenarioSimulation 
+                  performanceGroupId={selectedGroupId}
+                  suggestionsData={suggestionsData}
+                  campaignPerformance={campaignPerformance}
+                />
               </TabsContent>
               
               <TabsContent value="analysis" className="mt-4">
@@ -814,5 +827,372 @@ export default function IntelligentBudgetAllocation() {
         </Dialog>
       </div>
     </DashboardLayout>
+  );
+}
+
+// 情景模拟组件
+function ScenarioSimulation({ 
+  performanceGroupId, 
+  suggestionsData, 
+  campaignPerformance 
+}: { 
+  performanceGroupId: number | null;
+  suggestionsData: any;
+  campaignPerformance: any;
+}) {
+  const [scenarioType, setScenarioType] = useState<'conservative' | 'balanced' | 'aggressive'>('balanced');
+  const [customBudgetMultiplier, setCustomBudgetMultiplier] = useState(1.0);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<number | null>(null);
+  
+  // 场景配置
+  const scenarios = {
+    conservative: { name: '保守策略', multiplier: 0.85, description: '减少预算，优化ACoS' },
+    balanced: { name: '平衡策略', multiplier: 1.0, description: '维持当前预算水平' },
+    aggressive: { name: '激进策略', multiplier: 1.25, description: '增加预算，扩大规模' },
+  };
+  
+  // 计算情景预测数据
+  const calculateScenarioData = (multiplier: number) => {
+    if (!suggestionsData?.suggestions) return null;
+    
+    const campaigns = suggestionsData.suggestions.map((s: any) => {
+      const newBudget = s.currentBudget * multiplier;
+      // 基于边际效益递减模型计算预测效果
+      const efficiencyFactor = multiplier > 1 
+        ? 1 - 0.1 * Math.log(multiplier) 
+        : 1 + 0.05 * Math.log(1 / multiplier);
+      
+      const predictedSpend = newBudget * (s.predictedSpend / s.currentBudget) * efficiencyFactor;
+      const predictedSales = s.predictedSales * multiplier * efficiencyFactor;
+      const predictedROAS = predictedSpend > 0 ? predictedSales / predictedSpend : 0;
+      const predictedACoS = predictedSales > 0 ? (predictedSpend / predictedSales) * 100 : 0;
+      
+      return {
+        ...s,
+        newBudget,
+        predictedSpend,
+        predictedSales,
+        predictedROAS,
+        predictedACoS,
+        budgetChange: ((newBudget - s.currentBudget) / s.currentBudget) * 100,
+      };
+    });
+    
+    // 汇总数据
+    const totalCurrentBudget = campaigns.reduce((sum: number, c: any) => sum + c.currentBudget, 0);
+    const totalNewBudget = campaigns.reduce((sum: number, c: any) => sum + c.newBudget, 0);
+    const totalPredictedSpend = campaigns.reduce((sum: number, c: any) => sum + c.predictedSpend, 0);
+    const totalPredictedSales = campaigns.reduce((sum: number, c: any) => sum + c.predictedSales, 0);
+    const avgROAS = totalPredictedSpend > 0 ? totalPredictedSales / totalPredictedSpend : 0;
+    const avgACoS = totalPredictedSales > 0 ? (totalPredictedSpend / totalPredictedSales) * 100 : 0;
+    
+    return {
+      campaigns,
+      summary: {
+        totalCurrentBudget,
+        totalNewBudget,
+        totalPredictedSpend,
+        totalPredictedSales,
+        avgROAS,
+        avgACoS,
+        budgetChange: ((totalNewBudget - totalCurrentBudget) / totalCurrentBudget) * 100,
+      }
+    };
+  };
+  
+  const currentMultiplier = scenarioType === 'conservative' ? scenarios.conservative.multiplier
+    : scenarioType === 'aggressive' ? scenarios.aggressive.multiplier
+    : customBudgetMultiplier;
+  
+  const scenarioData = calculateScenarioData(currentMultiplier);
+  
+  // 生成预算-效果曲线数据
+  const generateCurveData = () => {
+    const multipliers = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.75, 2.0];
+    return multipliers.map(m => {
+      const data = calculateScenarioData(m);
+      return {
+        multiplier: m,
+        budget: data?.summary.totalNewBudget || 0,
+        sales: data?.summary.totalPredictedSales || 0,
+        roas: data?.summary.avgROAS || 0,
+        acos: data?.summary.avgACoS || 0,
+      };
+    });
+  };
+  
+  const curveData = generateCurveData();
+  const maxSales = Math.max(...curveData.map(d => d.sales));
+  const maxBudget = Math.max(...curveData.map(d => d.budget));
+  
+  if (!performanceGroupId) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-16">
+          <Zap className="h-16 w-16 text-muted-foreground/50 mb-4" />
+          <p className="text-muted-foreground">请先选择绩效组</p>
+        </CardContent>
+      </Card>
+    );
+  }
+  
+  return (
+    <div className="space-y-6">
+      {/* 场景选择卡片 */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {Object.entries(scenarios).map(([key, scenario]) => (
+          <Card 
+            key={key}
+            className={`cursor-pointer transition-all ${
+              scenarioType === key 
+                ? 'border-primary ring-2 ring-primary/20' 
+                : 'hover:border-muted-foreground/30'
+            }`}
+            onClick={() => setScenarioType(key as any)}
+          >
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="font-semibold">{scenario.name}</h3>
+                <Badge variant={key === 'conservative' ? 'secondary' : key === 'aggressive' ? 'destructive' : 'default'}>
+                  {scenario.multiplier > 1 ? '+' : ''}{((scenario.multiplier - 1) * 100).toFixed(0)}%
+                </Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">{scenario.description}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      
+      {/* 自定义预算滑块 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Settings2 className="h-5 w-5" />
+            自定义预算调整
+          </CardTitle>
+          <CardDescription>拖动滑块调整预算倍数，实时查看预测效果</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-muted-foreground w-16">50%</span>
+              <Slider
+                value={[customBudgetMultiplier * 100]}
+                onValueChange={(v) => {
+                  setCustomBudgetMultiplier(v[0] / 100);
+                  setScenarioType('balanced');
+                }}
+                min={50}
+                max={200}
+                step={5}
+                className="flex-1"
+              />
+              <span className="text-sm text-muted-foreground w-16 text-right">200%</span>
+            </div>
+            <div className="text-center">
+              <span className="text-2xl font-bold">{(customBudgetMultiplier * 100).toFixed(0)}%</span>
+              <span className="text-muted-foreground ml-2">预算倍数</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+      
+      {/* 预算-效果曲线图 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <LineChart className="h-5 w-5" />
+            预算-效果预测曲线
+          </CardTitle>
+          <CardDescription>展示不同预算水平下的预测销售额和ROAS</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-64 relative">
+            {/* SVG 曲线图 */}
+            <svg className="w-full h-full" viewBox="0 0 800 250">
+              {/* 背景网格 */}
+              <defs>
+                <linearGradient id="salesGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.3" />
+                  <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0" />
+                </linearGradient>
+              </defs>
+              
+              {/* Y轴网格线 */}
+              {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => (
+                <g key={i}>
+                  <line 
+                    x1="60" y1={220 - ratio * 200} 
+                    x2="780" y2={220 - ratio * 200} 
+                    stroke="hsl(var(--border))" 
+                    strokeDasharray="4,4" 
+                  />
+                  <text 
+                    x="55" y={225 - ratio * 200} 
+                    textAnchor="end" 
+                    className="fill-muted-foreground text-xs"
+                  >
+                    ${(maxSales * ratio / 1000).toFixed(0)}k
+                  </text>
+                </g>
+              ))}
+              
+              {/* 销售额曲线填充 */}
+              <path
+                d={`M ${curveData.map((d, i) => {
+                  const x = 60 + (i / (curveData.length - 1)) * 720;
+                  const y = 220 - (d.sales / maxSales) * 200;
+                  return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+                }).join(' ')} L 780 220 L 60 220 Z`}
+                fill="url(#salesGradient)"
+              />
+              
+              {/* 销售额曲线 */}
+              <path
+                d={curveData.map((d, i) => {
+                  const x = 60 + (i / (curveData.length - 1)) * 720;
+                  const y = 220 - (d.sales / maxSales) * 200;
+                  return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+                }).join(' ')}
+                fill="none"
+                stroke="hsl(var(--primary))"
+                strokeWidth="3"
+              />
+              
+              {/* ROAS曲线 */}
+              <path
+                d={curveData.map((d, i) => {
+                  const x = 60 + (i / (curveData.length - 1)) * 720;
+                  const maxROAS = Math.max(...curveData.map(c => c.roas));
+                  const y = 220 - (d.roas / maxROAS) * 200;
+                  return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+                }).join(' ')}
+                fill="none"
+                stroke="hsl(var(--chart-2))"
+                strokeWidth="2"
+                strokeDasharray="6,3"
+              />
+              
+              {/* 当前选中点 */}
+              {(() => {
+                const currentIndex = curveData.findIndex(d => Math.abs(d.multiplier - currentMultiplier) < 0.05);
+                if (currentIndex >= 0) {
+                  const d = curveData[currentIndex] || calculateScenarioData(currentMultiplier)?.summary;
+                  const x = 60 + (currentIndex / (curveData.length - 1)) * 720;
+                  const y = 220 - ((d?.sales || scenarioData?.summary.totalPredictedSales || 0) / maxSales) * 200;
+                  return (
+                    <g>
+                      <circle cx={x} cy={y} r="8" fill="hsl(var(--primary))" />
+                      <circle cx={x} cy={y} r="4" fill="white" />
+                      <line x1={x} y1={y} x2={x} y2="220" stroke="hsl(var(--primary))" strokeDasharray="4,4" />
+                    </g>
+                  );
+                }
+                return null;
+              })()}
+              
+              {/* X轴标签 */}
+              {curveData.filter((_, i) => i % 2 === 0).map((d, i) => {
+                const x = 60 + ((i * 2) / (curveData.length - 1)) * 720;
+                return (
+                  <text 
+                    key={i} 
+                    x={x} 
+                    y="240" 
+                    textAnchor="middle" 
+                    className="fill-muted-foreground text-xs"
+                  >
+                    {(d.multiplier * 100).toFixed(0)}%
+                  </text>
+                );
+              })}
+              
+              {/* 图例 */}
+              <g transform="translate(620, 20)">
+                <rect x="0" y="0" width="150" height="50" fill="hsl(var(--card))" rx="4" />
+                <line x1="10" y1="18" x2="40" y2="18" stroke="hsl(var(--primary))" strokeWidth="3" />
+                <text x="50" y="22" className="fill-foreground text-xs">预测销售额</text>
+                <line x1="10" y1="38" x2="40" y2="38" stroke="hsl(var(--chart-2))" strokeWidth="2" strokeDasharray="6,3" />
+                <text x="50" y="42" className="fill-foreground text-xs">预测ROAS</text>
+              </g>
+            </svg>
+          </div>
+        </CardContent>
+      </Card>
+      
+      {/* 预测结果汇总 */}
+      {scenarioData && (
+        <Card>
+          <CardHeader>
+            <CardTitle>预测结果汇总</CardTitle>
+            <CardDescription>
+              基于{scenarios[scenarioType].name}的预测效果
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+              <div className="p-4 bg-muted rounded-lg">
+                <p className="text-sm text-muted-foreground">新预算总额</p>
+                <p className="text-2xl font-bold">${scenarioData.summary.totalNewBudget.toFixed(2)}</p>
+                <p className={`text-sm ${
+                  scenarioData.summary.budgetChange > 0 ? 'text-green-500' : 
+                  scenarioData.summary.budgetChange < 0 ? 'text-red-500' : 'text-muted-foreground'
+                }`}>
+                  {scenarioData.summary.budgetChange > 0 ? '+' : ''}
+                  {scenarioData.summary.budgetChange.toFixed(1)}%
+                </p>
+              </div>
+              <div className="p-4 bg-muted rounded-lg">
+                <p className="text-sm text-muted-foreground">预测销售额</p>
+                <p className="text-2xl font-bold">${scenarioData.summary.totalPredictedSales.toFixed(2)}</p>
+              </div>
+              <div className="p-4 bg-muted rounded-lg">
+                <p className="text-sm text-muted-foreground">预测ROAS</p>
+                <p className="text-2xl font-bold">{scenarioData.summary.avgROAS.toFixed(2)}</p>
+              </div>
+              <div className="p-4 bg-muted rounded-lg">
+                <p className="text-sm text-muted-foreground">预测ACoS</p>
+                <p className="text-2xl font-bold">{scenarioData.summary.avgACoS.toFixed(1)}%</p>
+              </div>
+            </div>
+            
+            {/* 各广告活动预测明细 */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-3 px-2">广告活动</th>
+                    <th className="text-right py-3 px-2">当前预算</th>
+                    <th className="text-right py-3 px-2">新预算</th>
+                    <th className="text-right py-3 px-2">变化</th>
+                    <th className="text-right py-3 px-2">预测销售</th>
+                    <th className="text-right py-3 px-2">预测ROAS</th>
+                    <th className="text-right py-3 px-2">预测ACoS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {scenarioData.campaigns.map((campaign: any) => (
+                    <tr key={campaign.campaignId} className="border-b hover:bg-muted/50">
+                      <td className="py-3 px-2 font-medium">{campaign.campaignName}</td>
+                      <td className="text-right py-3 px-2">${campaign.currentBudget.toFixed(2)}</td>
+                      <td className="text-right py-3 px-2">${campaign.newBudget.toFixed(2)}</td>
+                      <td className={`text-right py-3 px-2 ${
+                        campaign.budgetChange > 0 ? 'text-green-500' : 
+                        campaign.budgetChange < 0 ? 'text-red-500' : ''
+                      }`}>
+                        {campaign.budgetChange > 0 ? '+' : ''}{campaign.budgetChange.toFixed(1)}%
+                      </td>
+                      <td className="text-right py-3 px-2">${campaign.predictedSales.toFixed(2)}</td>
+                      <td className="text-right py-3 px-2">{campaign.predictedROAS.toFixed(2)}</td>
+                      <td className="text-right py-3 px-2">{campaign.predictedACoS.toFixed(1)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }

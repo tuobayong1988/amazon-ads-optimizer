@@ -1661,3 +1661,45 @@
 ### 发现的问题
 - [ ] 修复db.ts中重复的getAllCampaigns导出错误
 - [ ] 修复TypeScript类型错误（dailyPerformance.date类型不匹配）
+
+
+## 算法优化功能（第二十四阶段）
+
+### 情景模拟功能
+- [ ] 在智能预算分配页面添加预算-效果预测图表
+- [ ] 实现多场景对比功能（保守/平衡/激进）
+- [ ] 显示预测的销售额、ROAS、ACoS变化
+- [ ] 添加滑块交互调整预算
+
+### 决策树模型
+- [ ] 设计决策树模型数据结构
+- [ ] 实现CTR预测模型
+- [ ] 实现CVR预测模型
+- [ ] 实现转化价值预测模型
+- [ ] 集成到出价优化算法中
+
+### 市场曲线可视化
+- [ ] 在关键词详情页添加出价-效果曲线图
+- [ ] 标注当前出价点
+- [ ] 标注建议出价点
+- [ ] 显示边际收益/边际成本曲线
+- [ ] 添加交互式出价模拟
+
+
+## 优化算法完整性审计（第二十五阶段）
+
+### 算法需求梳理
+- [x] 广告活动预算优化算法 - 已实现 (intelligentBudgetAllocationService)
+- [x] 广告位置调整算法 - 已实现 (placementOptimizationService)
+- [x] 投放词竞价调整算法 - 已实现 (bidOptimizer)
+- [x] 投放词暂停/启用自动化规则 - 部分实现 (adAutomation)
+- [x] 搜索词相关性和成交识别算法 - 已实现 (adAutomation.classifySearchTerms)
+- [x] 搜索词迁移再投放算法 - 已实现 (adAutomation.analyzeFunnelMigration)
+- [x] 分时竞价调整算法 - 已实现 (daypartingService)
+- [x] 分时预算分配算法 - 部分实现 (daypartingService)
+
+### 算法应用检查
+- [x] 检查各算法模块的实现状态
+- [x] 分析算法在系统各模块的应用情况
+- [x] 识别算法缺失和应用不足的问题
+- [x] 输出完整的算法审计报告 (docs/algorithm-audit-report.md)
