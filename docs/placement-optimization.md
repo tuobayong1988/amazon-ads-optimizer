@@ -69,7 +69,7 @@ CREATE TABLE placement_settings (
   min_adjustment INT DEFAULT 0,
   max_adjustment INT DEFAULT 200,
   adjustment_step INT DEFAULT 10, -- 每次调整步长
-  adjustment_frequency ENUM('daily', 'weekly', 'biweekly') DEFAULT 'weekly',
+  adjustment_frequency ENUM('twice_weekly', 'weekly', 'biweekly') DEFAULT 'twice_weekly', -- 每周最多2次
   -- 数据要求
   min_clicks_for_decision INT DEFAULT 50, -- 最少点击数才做决策
   min_spend_for_decision DECIMAL(10,2) DEFAULT 20.00,
@@ -309,7 +309,7 @@ function calculateConfidence(score: PlacementScore): number {
 │ │ 优化目标: [ROAS优先 ▼]                                   │   │
 │ │ 目标ROAS: [3.5]  │ 目标ACoS: [28%]                       │   │
 │ │                                                          │   │
-│ │ 调整频率: [每周 ▼]                                       │   │
+│ │ 调整频率: [每周2次 ▼]                                    │   │
 │ │ 调整步长: [10%]  │ 最大倾斜: [200%]                      │   │
 │ │                                                          │   │
 │ │ 数据要求:                                                │   │
@@ -413,7 +413,7 @@ interface UpdatePlacementSettingsInput {
   optimizationGoal?: 'roas' | 'acos' | 'sales' | 'profit';
   targetAcos?: number;
   targetRoas?: number;
-  adjustmentFrequency?: 'daily' | 'weekly' | 'biweekly';
+  adjustmentFrequency?: 'twice_weekly' | 'weekly' | 'biweekly'; // 默认每周最多2次
   minAdjustment?: number;
   maxAdjustment?: number;
 }
@@ -566,5 +566,5 @@ AI分析结果中将包含位置优化建议：
 | ACoS | 降低5-15% |
 | ROAS | 提升10-25% |
 | 人工操作时间 | 减少80% |
-| 响应速度 | 从周级提升到日级 |
+| 响应速度 | 从周级提升到每周2次 |
 
