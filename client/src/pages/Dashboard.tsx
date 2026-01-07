@@ -557,6 +557,194 @@ export default function Dashboard() {
           />
         </div>
 
+        {/* 区域数据对比 - 移动到头部 */}
+        {regionComparison && regionComparison.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Globe className="w-5 h-5" />
+                    区域数据对比
+                  </CardTitle>
+                  <CardDescription>
+                    {regionDatePreset === 'custom' && regionCustomStartDate && regionCustomEndDate
+                      ? `${format(regionCustomStartDate, 'yyyy/MM/dd')} - ${format(regionCustomEndDate, 'yyyy/MM/dd')}`
+                      : regionDatePreset === 'today' ? '今天'
+                      : regionDatePreset === 'yesterday' ? '昨天'
+                      : regionDatePreset === 'last7days' ? '最近7天'
+                      : regionDatePreset === 'last30days' ? '最近30天'
+                      : regionDatePreset === 'thisMonth' ? '本月'
+                      : regionDatePreset === 'lastMonth' ? '上月'
+                      : '各区域广告表现对比'}
+                  </CardDescription>
+                </div>
+                
+                {/* 时间范围选择器 */}
+                <div className="flex items-center gap-2">
+                  <Select value={regionDatePreset} onValueChange={(value: DatePreset) => setRegionDatePreset(value)}>
+                    <SelectTrigger className="w-[130px] h-9">
+                      <SelectValue placeholder="选择时间" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="today">今天</SelectItem>
+                      <SelectItem value="yesterday">昨天</SelectItem>
+                      <SelectItem value="last7days">最近7天</SelectItem>
+                      <SelectItem value="last30days">最近30天</SelectItem>
+                      <SelectItem value="thisMonth">本月</SelectItem>
+                      <SelectItem value="lastMonth">上月</SelectItem>
+                      <SelectItem value="custom">自定义</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  {regionDatePreset === 'custom' && (
+                    <div className="flex items-center gap-2">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="sm" className="h-9 px-3">
+                            <CalendarIcon className="w-4 h-4 mr-2" />
+                            {regionCustomStartDate ? format(regionCustomStartDate, 'MM/dd') : '开始'}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={regionCustomStartDate}
+                            onSelect={setRegionCustomStartDate}
+                            disabled={(date) => date > new Date() || (regionCustomEndDate ? date > regionCustomEndDate : false)}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <span className="text-muted-foreground">-</span>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="sm" className="h-9 px-3">
+                            <CalendarIcon className="w-4 h-4 mr-2" />
+                            {regionCustomEndDate ? format(regionCustomEndDate, 'MM/dd') : '结束'}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={regionCustomEndDate}
+                            onSelect={setRegionCustomEndDate}
+                            disabled={(date) => date > new Date() || (regionCustomStartDate ? date < regionCustomStartDate : false)}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-3 gap-4">
+                {regionComparison.map((region) => (
+                  <div 
+                    key={region.region} 
+                    className="p-4 rounded-lg border bg-gradient-to-br from-muted/50 to-transparent hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-2xl">{region.flag}</span>
+                      <div>
+                        <h4 className="font-semibold">{region.regionName}</h4>
+                        <p className="text-xs text-muted-foreground">
+                          {region.accountCount} 个账号 · {region.marketplaces.join(', ')}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-muted-foreground">销售额</p>
+                        <p className="font-semibold text-lg">${region.totalSales.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">花费</p>
+                        <p className="font-semibold text-lg">${region.totalSpend.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">ACoS</p>
+                        <p className={`font-semibold ${region.acos > 30 ? 'text-red-500' : region.acos > 20 ? 'text-yellow-500' : 'text-green-500'}`}>
+                          {region.acos.toFixed(1)}%
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">ROAS</p>
+                        <p className={`font-semibold ${region.roas < 2 ? 'text-red-500' : region.roas < 3 ? 'text-yellow-500' : 'text-green-500'}`}>
+                          {region.roas.toFixed(2)}x
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">CTR</p>
+                        <p className="font-semibold">{region.ctr.toFixed(2)}%</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">CVR</p>
+                        <p className="font-semibold">{region.cvr.toFixed(2)}%</p>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-3 pt-3 border-t">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>订单: {region.totalOrders.toLocaleString()}</span>
+                        <span>点击: {region.totalClicks.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {/* 区域对比图表 */}
+              {regionComparison.length > 1 && (
+                <div className="mt-6">
+                  <h4 className="text-sm font-medium mb-3">区域指标对比</h4>
+                  <div className="h-[200px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={regionComparison} barGap={8}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                        <XAxis 
+                          dataKey="regionName" 
+                          stroke="hsl(var(--muted-foreground))" 
+                          fontSize={11}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <YAxis 
+                          stroke="hsl(var(--muted-foreground))" 
+                          fontSize={11}
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'hsl(var(--card))', 
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                          }}
+                          formatter={(value: number, name: string) => [
+                            `$${value.toLocaleString()}`,
+                            name === 'totalSales' ? '销售额' : '花费'
+                          ]}
+                        />
+                        <Legend 
+                          formatter={(value) => value === 'totalSales' ? '销售额' : '花费'}
+                        />
+                        <Bar dataKey="totalSales" name="totalSales" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="totalSpend" name="totalSpend" fill="#a855f7" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Charts Row */}
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Sales & Spend Trend - 占2列 */}
@@ -799,194 +987,6 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
-
-        {/* 区域数据对比 */}
-        {regionComparison && regionComparison.length > 0 && (
-          <Card>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between flex-wrap gap-4">
-                <div>
-                  <CardTitle className="text-lg flex items-center gap-2">
-                    <Globe className="w-5 h-5" />
-                    区域数据对比
-                  </CardTitle>
-                  <CardDescription>
-                    {regionDatePreset === 'custom' && regionCustomStartDate && regionCustomEndDate
-                      ? `${format(regionCustomStartDate, 'yyyy/MM/dd')} - ${format(regionCustomEndDate, 'yyyy/MM/dd')}`
-                      : regionDatePreset === 'today' ? '今天'
-                      : regionDatePreset === 'yesterday' ? '昨天'
-                      : regionDatePreset === 'last7days' ? '最近7天'
-                      : regionDatePreset === 'last30days' ? '最近30天'
-                      : regionDatePreset === 'thisMonth' ? '本月'
-                      : regionDatePreset === 'lastMonth' ? '上月'
-                      : '各区域广告表现对比'}
-                  </CardDescription>
-                </div>
-                
-                {/* 时间范围选择器 */}
-                <div className="flex items-center gap-2">
-                  <Select value={regionDatePreset} onValueChange={(value: DatePreset) => setRegionDatePreset(value)}>
-                    <SelectTrigger className="w-[130px] h-9">
-                      <SelectValue placeholder="选择时间" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="today">今天</SelectItem>
-                      <SelectItem value="yesterday">昨天</SelectItem>
-                      <SelectItem value="last7days">最近7天</SelectItem>
-                      <SelectItem value="last30days">最近30天</SelectItem>
-                      <SelectItem value="thisMonth">本月</SelectItem>
-                      <SelectItem value="lastMonth">上月</SelectItem>
-                      <SelectItem value="custom">自定义</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  
-                  {regionDatePreset === 'custom' && (
-                    <div className="flex items-center gap-2">
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" size="sm" className="h-9 px-3">
-                            <CalendarIcon className="w-4 h-4 mr-2" />
-                            {regionCustomStartDate ? format(regionCustomStartDate, 'MM/dd') : '开始'}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={regionCustomStartDate}
-                            onSelect={setRegionCustomStartDate}
-                            disabled={(date) => date > new Date() || (regionCustomEndDate ? date > regionCustomEndDate : false)}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                      <span className="text-muted-foreground">-</span>
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" size="sm" className="h-9 px-3">
-                            <CalendarIcon className="w-4 h-4 mr-2" />
-                            {regionCustomEndDate ? format(regionCustomEndDate, 'MM/dd') : '结束'}
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={regionCustomEndDate}
-                            onSelect={setRegionCustomEndDate}
-                            disabled={(date) => date > new Date() || (regionCustomStartDate ? date < regionCustomStartDate : false)}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid md:grid-cols-3 gap-4">
-                {regionComparison.map((region) => (
-                  <div 
-                    key={region.region} 
-                    className="p-4 rounded-lg border bg-gradient-to-br from-muted/50 to-transparent hover:shadow-md transition-shadow"
-                  >
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-2xl">{region.flag}</span>
-                      <div>
-                        <h4 className="font-semibold">{region.regionName}</h4>
-                        <p className="text-xs text-muted-foreground">
-                          {region.accountCount} 个账号 · {region.marketplaces.join(', ')}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div>
-                        <p className="text-muted-foreground">销售额</p>
-                        <p className="font-semibold text-lg">${region.totalSales.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">花费</p>
-                        <p className="font-semibold text-lg">${region.totalSpend.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">ACoS</p>
-                        <p className={`font-semibold ${region.acos > 30 ? 'text-red-500' : region.acos > 20 ? 'text-yellow-500' : 'text-green-500'}`}>
-                          {region.acos.toFixed(1)}%
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">ROAS</p>
-                        <p className={`font-semibold ${region.roas < 2 ? 'text-red-500' : region.roas < 3 ? 'text-yellow-500' : 'text-green-500'}`}>
-                          {region.roas.toFixed(2)}x
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">CTR</p>
-                        <p className="font-semibold">{region.ctr.toFixed(2)}%</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">CVR</p>
-                        <p className="font-semibold">{region.cvr.toFixed(2)}%</p>
-                      </div>
-                    </div>
-                    
-                    <div className="mt-3 pt-3 border-t">
-                      <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>订单: {region.totalOrders.toLocaleString()}</span>
-                        <span>点击: {region.totalClicks.toLocaleString()}</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              {/* 区域对比图表 */}
-              {regionComparison.length > 1 && (
-                <div className="mt-6">
-                  <h4 className="text-sm font-medium mb-3">区域指标对比</h4>
-                  <div className="h-[200px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart data={regionComparison} barGap={8}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                        <XAxis 
-                          dataKey="regionName" 
-                          stroke="hsl(var(--muted-foreground))" 
-                          fontSize={11}
-                          tickLine={false}
-                          axisLine={false}
-                        />
-                        <YAxis 
-                          stroke="hsl(var(--muted-foreground))" 
-                          fontSize={11}
-                          tickLine={false}
-                          axisLine={false}
-                          tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-                        />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: 'hsl(var(--card))', 
-                            border: '1px solid hsl(var(--border))',
-                            borderRadius: '8px',
-                            boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
-                          }}
-                          formatter={(value: number, name: string) => [
-                            `$${value.toLocaleString()}`,
-                            name === 'totalSales' ? '销售额' : '花费'
-                          ]}
-                        />
-                        <Legend 
-                          formatter={(value) => value === 'totalSales' ? '销售额' : '花费'}
-                        />
-                        <Bar dataKey="totalSales" name="totalSales" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                        <Bar dataKey="totalSpend" name="totalSpend" fill="#a855f7" radius={[4, 4, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        )}
 
         {/* Stats Row */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
