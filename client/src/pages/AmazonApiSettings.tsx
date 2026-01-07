@@ -1073,6 +1073,138 @@ export default function AmazonApiSettings() {
                     </Alert>
                   </CardContent>
                 </Card>
+
+                {/* 紫鸟浏览器专用手动授权卡片 */}
+                <Card className="border-purple-500/30 bg-purple-950/20">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-purple-400">
+                      <Shield className="h-5 w-5" />
+                      紫鸟浏览器专用授权（中国大陆卖家）
+                    </CardTitle>
+                    <CardDescription>
+                      如果您使用紫鸟浏览器管理亚马逊店铺，请使用此方式完成授权
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <Alert className="bg-purple-900/30 border-purple-500/30">
+                      <Info className="h-4 w-4 text-purple-400" />
+                      <AlertTitle className="text-purple-300">授权流程说明</AlertTitle>
+                      <AlertDescription className="text-purple-200 space-y-2">
+                        <p><strong>步骤1:</strong> 复制下方的授权链接</p>
+                        <p><strong>步骤2:</strong> 在紫鸟浏览器中打开该链接，登录您的亚马逊卖家账户并授权</p>
+                        <p><strong>步骤3:</strong> 授权完成后，从浏览器地址栏复制<strong>完整的URL</strong></p>
+                        <p><strong>步骤4:</strong> 将复制的URL粘贴到下方输入框，系统会自动提取授权码</p>
+                      </AlertDescription>
+                    </Alert>
+
+                    <div className="space-y-3">
+                      <Label className="text-purple-400 font-medium">选择市场区域并复制授权链接</Label>
+                      <div className="grid gap-3">
+                        {[
+                          { region: 'NA', name: '北美 (NA)', desc: '美国、加拿大、墨西哥、巴西', url: 'https://www.amazon.com/ap/oa' },
+                          { region: 'EU', name: '欧洲 (EU)', desc: '英国、德国、法国、意大利等', url: 'https://eu.account.amazon.com/ap/oa' },
+                          { region: 'FE', name: '远东 (FE)', desc: '日本、澳大利亚、新加坡', url: 'https://apac.account.amazon.com/ap/oa' },
+                        ].map((item) => {
+                          const authUrl = `${item.url}?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6'}&scope=advertising::campaign_management&redirect_uri=https://sellerps.com&response_type=code`;
+                          return (
+                            <div key={item.region} className="flex items-center gap-3 p-3 bg-purple-900/20 rounded-lg border border-purple-500/20">
+                              <div className="flex-1">
+                                <div className="font-medium text-purple-300">{item.name}</div>
+                                <div className="text-xs text-purple-400">{item.desc}</div>
+                              </div>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="border-purple-500/30 text-purple-300 hover:bg-purple-900/30"
+                                onClick={() => {
+                                  navigator.clipboard.writeText(authUrl);
+                                  toast.success(`${item.name}授权链接已复制！请在紫鸟浏览器中打开`);
+                                }}
+                              >
+                                <Eye className="h-4 w-4 mr-1" />
+                                复制链接
+                              </Button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <Separator className="bg-purple-500/20" />
+
+                    <div className="space-y-3">
+                      <Label className="text-purple-400 font-medium">粘贴授权完成后的URL</Label>
+                      <p className="text-sm text-purple-300">
+                        授权完成后，浏览器地址栏会显示类似 <code className="bg-purple-900/50 px-1 rounded">https://sellerps.com?code=ANxxxxxx&scope=...</code> 的URL，
+                        请复制完整的URL粘贴到下方：
+                      </p>
+                      <Textarea
+                        placeholder="粘贴完整的回调URL，例如: https://sellerps.com?code=ANxxxxxx&scope=advertising::campaign_management"
+                        id="manualAuthUrl"
+                        className="min-h-[80px] font-mono text-sm bg-purple-900/20 border-purple-500/30"
+                      />
+                      <Button 
+                        className="w-full bg-purple-600 hover:bg-purple-700"
+                        onClick={async () => {
+                          const urlInput = document.getElementById('manualAuthUrl') as HTMLTextAreaElement;
+                          const inputValue = urlInput?.value?.trim();
+                          if (!inputValue) {
+                            toast.error('请粘贴授权完成后的URL');
+                            return;
+                          }
+                          
+                          // 尝试从 URL 中提取 code
+                          let code = '';
+                          try {
+                            const url = new URL(inputValue);
+                            code = url.searchParams.get('code') || '';
+                          } catch {
+                            // 如果不是有效URL，尝试直接使用输入值作为code
+                            code = inputValue;
+                          }
+                          
+                          if (!code) {
+                            toast.error('无法从 URL 中提取授权码。请确保复制了完整的回调 URL。');
+                            return;
+                          }
+                          
+                          try {
+                            const result = await exchangeCodeMutation.mutateAsync({
+                              code,
+                              clientId: import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6',
+                              clientSecret: import.meta.env.VITE_AMAZON_ADS_CLIENT_SECRET || '',
+                              redirectUri: 'https://sellerps.com',
+                            });
+                            if (result.success && result.refreshToken) {
+                              setCredentials(prev => ({ ...prev, refreshToken: result.refreshToken }));
+                              toast.success('Refresh Token 获取成功！已自动填入上方表单。');
+                              urlInput.value = '';
+                            }
+                          } catch (error: any) {
+                            toast.error(`授权失败: ${error.message}`);
+                          }
+                        }}
+                        disabled={exchangeCodeMutation.isPending}
+                      >
+                        {exchangeCodeMutation.isPending ? (
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        ) : (
+                          <Key className="h-4 w-4 mr-2" />
+                        )}
+                        提取授权码并换取 Token
+                      </Button>
+                    </div>
+
+                    <Alert className="bg-green-900/20 border-green-500/30">
+                      <CheckCircle2 className="h-4 w-4 text-green-400" />
+                      <AlertTitle className="text-green-300">安全说明</AlertTitle>
+                      <AlertDescription className="text-green-200">
+                        此授权流程不会影响您的亚马逊卖家账户安全。我们只通过亚马逊官方 API 读取广告数据，
+                        不会模拟登录您的卖家中心，也不会触发亚马逊的 IP 风控。
+                      </AlertDescription>
+                    </Alert>
+                  </CardContent>
+                </Card>
               </>
             )}
           </TabsContent>
