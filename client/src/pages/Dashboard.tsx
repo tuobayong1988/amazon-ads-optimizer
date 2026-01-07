@@ -25,7 +25,9 @@ import {
   PieChart,
   Clock,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  Globe,
+  MapPin
 } from "lucide-react";
 import { useState, useMemo, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
@@ -314,6 +316,12 @@ export default function Dashboard() {
   const { data: performanceGroups } = trpc.performanceGroup.list.useQuery(
     { accountId: accountId! },
     { enabled: !!accountId }
+  );
+
+  // Fetch region comparison data
+  const { data: regionComparison, isLoading: regionLoading } = trpc.analytics.getRegionComparison.useQuery(
+    { userId: user?.id! },
+    { enabled: !!user?.id }
   );
 
   // Mock trend data for charts
@@ -729,6 +737,126 @@ export default function Dashboard() {
             )}
           </CardContent>
         </Card>
+
+        {/* 区域数据对比 */}
+        {regionComparison && regionComparison.length > 0 && (
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Globe className="w-5 h-5" />
+                    区域数据对比
+                  </CardTitle>
+                  <CardDescription>各区域广告表现对比（近30天）</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="grid md:grid-cols-3 gap-4">
+                {regionComparison.map((region) => (
+                  <div 
+                    key={region.region} 
+                    className="p-4 rounded-lg border bg-gradient-to-br from-muted/50 to-transparent hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className="text-2xl">{region.flag}</span>
+                      <div>
+                        <h4 className="font-semibold">{region.regionName}</h4>
+                        <p className="text-xs text-muted-foreground">
+                          {region.accountCount} 个账号 · {region.marketplaces.join(', ')}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-muted-foreground">销售额</p>
+                        <p className="font-semibold text-lg">${region.totalSales.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">花费</p>
+                        <p className="font-semibold text-lg">${region.totalSpend.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">ACoS</p>
+                        <p className={`font-semibold ${region.acos > 30 ? 'text-red-500' : region.acos > 20 ? 'text-yellow-500' : 'text-green-500'}`}>
+                          {region.acos.toFixed(1)}%
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">ROAS</p>
+                        <p className={`font-semibold ${region.roas < 2 ? 'text-red-500' : region.roas < 3 ? 'text-yellow-500' : 'text-green-500'}`}>
+                          {region.roas.toFixed(2)}x
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">CTR</p>
+                        <p className="font-semibold">{region.ctr.toFixed(2)}%</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">CVR</p>
+                        <p className="font-semibold">{region.cvr.toFixed(2)}%</p>
+                      </div>
+                    </div>
+                    
+                    <div className="mt-3 pt-3 border-t">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>订单: {region.totalOrders.toLocaleString()}</span>
+                        <span>点击: {region.totalClicks.toLocaleString()}</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {/* 区域对比图表 */}
+              {regionComparison.length > 1 && (
+                <div className="mt-6">
+                  <h4 className="text-sm font-medium mb-3">区域指标对比</h4>
+                  <div className="h-[200px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={regionComparison} barGap={8}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+                        <XAxis 
+                          dataKey="regionName" 
+                          stroke="hsl(var(--muted-foreground))" 
+                          fontSize={11}
+                          tickLine={false}
+                          axisLine={false}
+                        />
+                        <YAxis 
+                          stroke="hsl(var(--muted-foreground))" 
+                          fontSize={11}
+                          tickLine={false}
+                          axisLine={false}
+                          tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: 'hsl(var(--card))', 
+                            border: '1px solid hsl(var(--border))',
+                            borderRadius: '8px',
+                            boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+                          }}
+                          formatter={(value: number, name: string) => [
+                            `$${value.toLocaleString()}`,
+                            name === 'totalSales' ? '销售额' : '花费'
+                          ]}
+                        />
+                        <Legend 
+                          formatter={(value) => value === 'totalSales' ? '销售额' : '花费'}
+                        />
+                        <Bar dataKey="totalSales" name="totalSales" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                        <Bar dataKey="totalSpend" name="totalSpend" fill="#a855f7" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Stats Row */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">

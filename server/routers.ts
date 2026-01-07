@@ -1244,6 +1244,111 @@ const analyticsRouter = router({
         totalImpressions: summary.totalImpressions || 0,
       };
     }),
+  
+  // 区域级别数据对比
+  getRegionComparison: protectedProcedure
+    .input(z.object({ userId: z.number() }))
+    .query(async ({ input }) => {
+      // 定义区域映射
+      const REGIONS: Record<string, { name: string; flag: string; marketplaces: string[] }> = {
+        NA: { name: '北美区域', flag: '🇺🇸', marketplaces: ['US', 'CA', 'MX', 'BR'] },
+        EU: { name: '欧洲区域', flag: '🇪🇺', marketplaces: ['UK', 'DE', 'FR', 'IT', 'ES', 'NL', 'SE', 'PL', 'AE', 'SA', 'IN'] },
+        FE: { name: '远东区域', flag: '🌏', marketplaces: ['JP', 'AU', 'SG'] },
+      };
+      
+      // 获取用户所有账号
+      const accounts = await db.getAdAccountsByUserId(input.userId);
+      
+      // 计算日期范围（最近30天）
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 30);
+      
+      // 按区域汇总数据
+      const regionData: Record<string, {
+        region: string;
+        regionName: string;
+        flag: string;
+        accountCount: number;
+        totalSales: number;
+        totalSpend: number;
+        totalOrders: number;
+        totalClicks: number;
+        totalImpressions: number;
+        acos: number;
+        roas: number;
+        ctr: number;
+        cvr: number;
+        marketplaces: string[];
+      }> = {};
+      
+      // 初始化区域数据
+      for (const [regionId, regionInfo] of Object.entries(REGIONS)) {
+        regionData[regionId] = {
+          region: regionId,
+          regionName: regionInfo.name,
+          flag: regionInfo.flag,
+          accountCount: 0,
+          totalSales: 0,
+          totalSpend: 0,
+          totalOrders: 0,
+          totalClicks: 0,
+          totalImpressions: 0,
+          acos: 0,
+          roas: 0,
+          ctr: 0,
+          cvr: 0,
+          marketplaces: [],
+        };
+      }
+      
+      // 汇总每个账号的数据到对应区域
+      for (const account of accounts) {
+        // 确定账号所属区域
+        let accountRegion = 'NA'; // 默认北美
+        for (const [regionId, regionInfo] of Object.entries(REGIONS)) {
+          if (regionInfo.marketplaces.includes(account.marketplace)) {
+            accountRegion = regionId;
+            break;
+          }
+        }
+        
+        // 获取账号的性能数据
+        const summary = await db.getPerformanceSummary(account.id, startDate, endDate);
+        
+        if (summary) {
+          const sales = parseFloat(summary.totalSales || '0');
+          const spend = parseFloat(summary.totalSpend || '0');
+          const orders = summary.totalOrders || 0;
+          const clicks = summary.totalClicks || 0;
+          const impressions = summary.totalImpressions || 0;
+          
+          regionData[accountRegion].accountCount++;
+          regionData[accountRegion].totalSales += sales;
+          regionData[accountRegion].totalSpend += spend;
+          regionData[accountRegion].totalOrders += orders;
+          regionData[accountRegion].totalClicks += clicks;
+          regionData[accountRegion].totalImpressions += impressions;
+          
+          // 添加站点到列表（去重）
+          if (!regionData[accountRegion].marketplaces.includes(account.marketplace)) {
+            regionData[accountRegion].marketplaces.push(account.marketplace);
+          }
+        }
+      }
+      
+      // 计算派生指标
+      for (const regionId of Object.keys(regionData)) {
+        const data = regionData[regionId];
+        data.acos = data.totalSales > 0 ? (data.totalSpend / data.totalSales) * 100 : 0;
+        data.roas = data.totalSpend > 0 ? data.totalSales / data.totalSpend : 0;
+        data.ctr = data.totalImpressions > 0 ? (data.totalClicks / data.totalImpressions) * 100 : 0;
+        data.cvr = data.totalClicks > 0 ? (data.totalOrders / data.totalClicks) * 100 : 0;
+      }
+      
+      // 返回有数据的区域
+      return Object.values(regionData).filter(r => r.accountCount > 0);
+    }),
 });
 
 // ==================== Optimization Router ====================
