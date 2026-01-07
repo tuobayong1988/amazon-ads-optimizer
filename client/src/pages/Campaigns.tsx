@@ -338,6 +338,7 @@ export default function Campaigns() {
   const [sortField, setSortField] = useState<SortField | null>(null);
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [selectedCampaigns, setSelectedCampaigns] = useState<Set<number>>(new Set());
+  const [isSyncing, setIsSyncing] = useState(false);
   
   // 列显示状态
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
@@ -398,6 +399,36 @@ export default function Campaigns() {
       refetch();
     },
   });
+
+  // Sync all data mutation
+  const syncAllMutation = trpc.amazonApi.syncAll.useMutation({
+    onSuccess: (data) => {
+      toast.success(`同步完成！广告活动: ${data.campaigns}, 广告组: ${data.adGroups}, 关键词: ${data.keywords}, 商品定位: ${data.targets}`);
+      setIsSyncing(false);
+      refetch();
+    },
+    onError: (error) => {
+      toast.error(`同步失败: ${error.message}`);
+      setIsSyncing(false);
+    },
+  });
+
+  // Handle sync data
+  const handleSyncData = async () => {
+    if (!accountId) {
+      toast.error("请先选择广告账号");
+      return;
+    }
+    setIsSyncing(true);
+    toast.loading('正在同步数据，请稍候...', { id: 'sync-toast' });
+    try {
+      await syncAllMutation.mutateAsync({ accountId });
+      toast.dismiss('sync-toast');
+    } catch (error) {
+      toast.dismiss('sync-toast');
+      setIsSyncing(false);
+    }
+  };
 
   // Assign to performance group
   const assignToGroup = trpc.performanceGroup.assignCampaign.useMutation({
@@ -950,9 +981,9 @@ export default function Campaigns() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
-            <Button variant="outline" onClick={() => window.location.href = '/data-sync'}>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              同步数据
+            <Button variant="outline" onClick={handleSyncData} disabled={isSyncing}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+              {isSyncing ? '同步中...' : '同步数据'}
             </Button>
           </div>
         </div>
@@ -1200,8 +1231,9 @@ export default function Campaigns() {
                 <p className="text-muted-foreground mb-4">
                   请先连接Amazon API同步您的广告数据
                 </p>
-                <Button onClick={() => window.location.href = '/data-sync'}>
-                  同步数据
+                <Button onClick={handleSyncData} disabled={isSyncing}>
+                  <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
+                  {isSyncing ? '同步中...' : '同步数据'}
                 </Button>
               </div>
             )}
