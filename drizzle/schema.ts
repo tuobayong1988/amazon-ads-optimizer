@@ -1982,3 +1982,248 @@ export type PromotionalEvent = typeof promotionalEvents.$inferSelect;
 export type InsertPromotionalEvent = typeof promotionalEvents.$inferInsert;
 export type SeasonalBudgetRecommendation = typeof seasonalBudgetRecommendations.$inferSelect;
 export type InsertSeasonalBudgetRecommendation = typeof seasonalBudgetRecommendations.$inferInsert;
+
+
+// ==================== API安全三件套 ====================
+
+// API操作日志表 - 详细记录所有API调用
+export const apiOperationLogs = mysqlTable("api_operation_logs", {
+  id: int().autoincrement().notNull().primaryKey(),
+  userId: int().notNull(),
+  accountId: int(),
+  
+  // 操作信息
+  operationType: mysqlEnum([
+    'bid_adjustment',      // 出价调整
+    'budget_change',       // 预算变更
+    'campaign_status',     // 广告活动状态变更
+    'keyword_status',      // 关键词状态变更
+    'negative_keyword',    // 否定关键词操作
+    'target_status',       // 商品定向状态变更
+    'batch_operation',     // 批量操作
+    'api_sync',            // API数据同步
+    'auto_optimization',   // 自动优化执行
+    'manual_operation',    // 手动操作
+    'other'
+  ]).notNull(),
+  
+  // 目标对象
+  targetType: mysqlEnum(['campaign', 'ad_group', 'keyword', 'product_target', 'search_term', 'account', 'multiple']).notNull(),
+  targetId: int(),
+  targetName: varchar({ length: 500 }),
+  
+  // 操作详情
+  actionDescription: text().notNull(),
+  previousValue: text(),
+  newValue: text(),
+  changeAmount: decimal({ precision: 10, scale: 2 }),
+  changePercent: decimal({ precision: 5, scale: 2 }),
+  
+  // 批量操作信息
+  affectedCount: int().default(1),
+  batchOperationId: int(),
+  
+  // 执行结果
+  status: mysqlEnum(['success', 'failed', 'pending', 'rolled_back']).default('success').notNull(),
+  errorMessage: text(),
+  
+  // 来源信息
+  source: mysqlEnum(['manual', 'auto_optimization', 'scheduled_task', 'api_callback', 'batch_operation']).default('manual').notNull(),
+  ipAddress: varchar({ length: 45 }),
+  userAgent: text(),
+  
+  // 风险评估
+  riskLevel: mysqlEnum(['low', 'medium', 'high', 'critical']).default('low').notNull(),
+  requiresReview: tinyint().default(0),
+  reviewedBy: int(),
+  reviewedAt: timestamp({ mode: 'string' }),
+  
+  // 时间戳
+  executedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});
+
+// 每日花费限额配置表
+export const spendLimitConfigs = mysqlTable("spend_limit_configs", {
+  id: int().autoincrement().notNull().primaryKey(),
+  userId: int().notNull(),
+  accountId: int().notNull(),
+  
+  // 限额设置
+  dailySpendLimit: decimal({ precision: 12, scale: 2 }).notNull(),
+  warningThreshold1: decimal({ precision: 5, scale: 2 }).default('50.00').notNull(), // 50%告警
+  warningThreshold2: decimal({ precision: 5, scale: 2 }).default('80.00').notNull(), // 80%告警
+  criticalThreshold: decimal({ precision: 5, scale: 2 }).default('95.00').notNull(), // 95%严重告警
+  
+  // 自动暂停设置
+  autoStopEnabled: tinyint().default(0).notNull(),
+  autoStopThreshold: decimal({ precision: 5, scale: 2 }).default('100.00'), // 达到100%时自动暂停
+  
+  // 通知设置
+  notifyOnWarning1: tinyint().default(1).notNull(),
+  notifyOnWarning2: tinyint().default(1).notNull(),
+  notifyOnCritical: tinyint().default(1).notNull(),
+  notifyOnAutoStop: tinyint().default(1).notNull(),
+  
+  // 状态
+  isEnabled: tinyint().default(1).notNull(),
+  
+  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+  updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+});
+
+// 花费告警记录表
+export const spendAlertLogs = mysqlTable("spend_alert_logs", {
+  id: int().autoincrement().notNull().primaryKey(),
+  configId: int().notNull(),
+  userId: int().notNull(),
+  accountId: int().notNull(),
+  
+  // 告警信息
+  alertType: mysqlEnum(['warning_50', 'warning_80', 'critical_95', 'limit_reached', 'auto_stopped']).notNull(),
+  alertLevel: mysqlEnum(['info', 'warning', 'critical']).notNull(),
+  
+  // 花费数据
+  currentSpend: decimal({ precision: 12, scale: 2 }).notNull(),
+  dailyLimit: decimal({ precision: 12, scale: 2 }).notNull(),
+  spendPercent: decimal({ precision: 5, scale: 2 }).notNull(),
+  
+  // 通知状态
+  notificationSent: tinyint().default(0).notNull(),
+  notificationSentAt: timestamp({ mode: 'string' }),
+  notificationError: text(),
+  
+  // 处理状态
+  acknowledged: tinyint().default(0).notNull(),
+  acknowledgedBy: int(),
+  acknowledgedAt: timestamp({ mode: 'string' }),
+  
+  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});
+
+// 异常检测规则表
+export const anomalyDetectionRules = mysqlTable("anomaly_detection_rules", {
+  id: int().autoincrement().notNull().primaryKey(),
+  userId: int().notNull(),
+  accountId: int(),
+  
+  // 规则信息
+  ruleName: varchar({ length: 255 }).notNull(),
+  ruleDescription: text(),
+  ruleType: mysqlEnum([
+    'bid_spike',           // 出价异常飙升
+    'bid_drop',            // 出价异常下降
+    'batch_size',          // 批量操作数量异常
+    'frequency',           // 操作频率异常
+    'budget_change',       // 预算变更异常
+    'spend_velocity',      // 花费速度异常
+    'conversion_drop',     // 转化率骤降
+    'acos_spike',          // ACoS异常飙升
+    'custom'               // 自定义规则
+  ]).notNull(),
+  
+  // 检测条件
+  conditionType: mysqlEnum(['threshold', 'percentage_change', 'absolute_change', 'rate_limit']).notNull(),
+  conditionValue: decimal({ precision: 10, scale: 2 }).notNull(),
+  conditionTimeWindow: int().default(60), // 时间窗口（分钟）
+  
+  // 触发动作
+  actionOnTrigger: mysqlEnum(['alert_only', 'pause_and_alert', 'rollback_and_alert', 'block_operation']).default('alert_only').notNull(),
+  
+  // 通知设置
+  notifyOwner: tinyint().default(1).notNull(),
+  notifyTeam: tinyint().default(0).notNull(),
+  
+  // 状态
+  isEnabled: tinyint().default(1).notNull(),
+  priority: int().default(5), // 1-10，数字越大优先级越高
+  
+  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+  updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+});
+
+// 异常检测告警记录表
+export const anomalyAlertLogs = mysqlTable("anomaly_alert_logs", {
+  id: int().autoincrement().notNull().primaryKey(),
+  ruleId: int().notNull(),
+  userId: int().notNull(),
+  accountId: int(),
+  
+  // 触发信息
+  triggerValue: decimal({ precision: 10, scale: 2 }).notNull(),
+  thresholdValue: decimal({ precision: 10, scale: 2 }).notNull(),
+  triggerDescription: text().notNull(),
+  
+  // 关联操作
+  relatedOperationId: int(),
+  relatedOperationType: varchar({ length: 50 }),
+  
+  // 执行的动作
+  actionTaken: mysqlEnum(['alert_sent', 'operation_paused', 'operation_rolled_back', 'operation_blocked']).notNull(),
+  
+  // 通知状态
+  notificationSent: tinyint().default(0).notNull(),
+  notificationSentAt: timestamp({ mode: 'string' }),
+  
+  // 处理状态
+  status: mysqlEnum(['active', 'acknowledged', 'resolved', 'false_positive']).default('active').notNull(),
+  resolvedBy: int(),
+  resolvedAt: timestamp({ mode: 'string' }),
+  resolutionNotes: text(),
+  
+  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});
+
+// 自动暂停记录表
+export const autoPauseRecords = mysqlTable("auto_pause_records", {
+  id: int().autoincrement().notNull().primaryKey(),
+  userId: int().notNull(),
+  accountId: int().notNull(),
+  
+  // 暂停原因
+  pauseReason: mysqlEnum([
+    'spend_limit_reached',  // 花费限额达到
+    'anomaly_detected',     // 异常检测触发
+    'acos_threshold',       // ACoS超过阈值
+    'manual_trigger',       // 手动触发
+    'scheduled'             // 定时暂停
+  ]).notNull(),
+  
+  // 关联信息
+  relatedAlertId: int(),
+  relatedRuleId: int(),
+  
+  // 暂停范围
+  pauseScope: mysqlEnum(['account', 'campaign', 'ad_group', 'keyword', 'target']).notNull(),
+  pausedEntityIds: text(), // JSON数组存储暂停的实体ID
+  pausedEntityCount: int().default(1).notNull(),
+  
+  // 暂停前状态
+  previousStates: text(), // JSON存储暂停前的状态
+  
+  // 通知状态
+  notificationSent: tinyint().default(0).notNull(),
+  notificationSentAt: timestamp({ mode: 'string' }),
+  
+  // 恢复信息
+  isResumed: tinyint().default(0).notNull(),
+  resumedBy: int(),
+  resumedAt: timestamp({ mode: 'string' }),
+  resumeReason: text(),
+  
+  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});
+
+// API安全三件套类型导出
+export type ApiOperationLog = typeof apiOperationLogs.$inferSelect;
+export type InsertApiOperationLog = typeof apiOperationLogs.$inferInsert;
+export type SpendLimitConfig = typeof spendLimitConfigs.$inferSelect;
+export type InsertSpendLimitConfig = typeof spendLimitConfigs.$inferInsert;
+export type SpendAlertLog = typeof spendAlertLogs.$inferSelect;
+export type InsertSpendAlertLog = typeof spendAlertLogs.$inferInsert;
+export type AnomalyDetectionRule = typeof anomalyDetectionRules.$inferSelect;
+export type InsertAnomalyDetectionRule = typeof anomalyDetectionRules.$inferInsert;
+export type AnomalyAlertLog = typeof anomalyAlertLogs.$inferSelect;
+export type InsertAnomalyAlertLog = typeof anomalyAlertLogs.$inferInsert;
+export type AutoPauseRecord = typeof autoPauseRecords.$inferSelect;
+export type InsertAutoPauseRecord = typeof autoPauseRecords.$inferInsert;

@@ -102,6 +102,7 @@ const menuGroups = [
     title: "系统设置",
     items: [
       { icon: Cloud, label: "Amazon API", path: "/amazon-api" },
+      { icon: Activity, label: "API安全中心", path: "/api-security" },
       { icon: Settings, label: "优化设置", path: "/settings" },
       { icon: Bell, label: "通知设置", path: "/notifications" },
     ]

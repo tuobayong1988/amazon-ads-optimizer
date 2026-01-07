@@ -1036,15 +1036,35 @@ export default function AmazonApiSettings() {
                               return;
                             }
                             try {
+                              // 使用后端环境变量中的凭证，确保安全性
                               const result = await exchangeCodeMutation.mutateAsync({
                                 code,
-                                clientId: import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6',
-                                clientSecret: import.meta.env.VITE_AMAZON_ADS_CLIENT_SECRET || '',
-                                redirectUri: 'https://sellerps.com',
+                                region: credentials.region, // 传递当前选择的区域
                               });
                               if (result.success && result.refreshToken) {
-                                setCredentials(prev => ({ ...prev, refreshToken: result.refreshToken }));
-                                toast.success('Refresh Token获取成功！已自动填入上方表单。');
+                                // 自动填充所有凭证字段
+                                const newCredentials: typeof credentials = {
+                                  ...credentials,
+                                  refreshToken: result.refreshToken,
+                                };
+                                
+                                // 填充Client ID和Client Secret
+                                if (result.clientId) {
+                                  newCredentials.clientId = result.clientId;
+                                }
+                                if (result.clientSecret) {
+                                  newCredentials.clientSecret = result.clientSecret;
+                                }
+                                
+                                // 如果获取到了Profile列表，自动选择第一个
+                                if (result.profiles && result.profiles.length > 0) {
+                                  newCredentials.profileId = result.profiles[0].profileId;
+                                  toast.success(`授权成功！已自动填充所有凭证信息。检测到 ${result.profiles.length} 个广告配置文件。`);
+                                } else {
+                                  toast.success('授权成功！已自动填充凭证信息。请手动输入Profile ID。');
+                                }
+                                
+                                setCredentials(newCredentials);
                                 codeInput.value = '';
                               }
                             } catch (error: any) {
@@ -1169,15 +1189,35 @@ export default function AmazonApiSettings() {
                           }
                           
                           try {
+                            // 使用后端环境变量中的凭证，确保安全性
                             const result = await exchangeCodeMutation.mutateAsync({
                               code,
-                              clientId: import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6',
-                              clientSecret: import.meta.env.VITE_AMAZON_ADS_CLIENT_SECRET || '',
-                              redirectUri: 'https://sellerps.com',
+                              region: credentials.region, // 传递当前选择的区域
                             });
                             if (result.success && result.refreshToken) {
-                              setCredentials(prev => ({ ...prev, refreshToken: result.refreshToken }));
-                              toast.success('Refresh Token 获取成功！已自动填入上方表单。');
+                              // 自动填充所有凭证字段
+                              const newCredentials: typeof credentials = {
+                                ...credentials,
+                                refreshToken: result.refreshToken,
+                              };
+                              
+                              // 填充Client ID和Client Secret
+                              if (result.clientId) {
+                                newCredentials.clientId = result.clientId;
+                              }
+                              if (result.clientSecret) {
+                                newCredentials.clientSecret = result.clientSecret;
+                              }
+                              
+                              // 如果获取到了Profile列表，自动选择第一个
+                              if (result.profiles && result.profiles.length > 0) {
+                                newCredentials.profileId = result.profiles[0].profileId;
+                                toast.success(`授权成功！已自动填充所有凭证信息。检测到 ${result.profiles.length} 个广告配置文件。`);
+                              } else {
+                                toast.success('授权成功！已自动填充凭证信息。请手动输入Profile ID。');
+                              }
+                              
+                              setCredentials(newCredentials);
                               urlInput.value = '';
                             }
                           } catch (error: any) {

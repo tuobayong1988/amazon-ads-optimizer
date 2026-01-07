@@ -21,6 +21,7 @@ import * as intelligentBudgetAllocationService from './intelligentBudgetAllocati
 import * as abTestService from './abTestService';
 import * as budgetAutoExecutionService from './budgetAutoExecutionService';
 import { reviewRouter } from './reviewRouter';
+import * as apiSecurityService from './apiSecurityService';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
@@ -1943,28 +1944,76 @@ const amazonApiRouter = router({
   exchangeCode: protectedProcedure
     .input(z.object({
       code: z.string(),
-      clientId: z.string(),
-      clientSecret: z.string(),
-      redirectUri: z.string(),
+      clientId: z.string().optional(),
+      clientSecret: z.string().optional(),
+      redirectUri: z.string().optional(),
+      region: z.enum(['NA', 'EU', 'FE']).optional(),
     }))
     .mutation(async ({ input }) => {
       try {
+        // 使用服务器端环境变量作为默认值，确保紫鸟浏览器手动授权流程能正常工作
+        const clientId = input.clientId || process.env.AMAZON_ADS_CLIENT_ID || '';
+        const clientSecret = input.clientSecret || process.env.AMAZON_ADS_CLIENT_SECRET || '';
+        const redirectUri = input.redirectUri || 'https://sellerps.com';
+        const region = input.region || 'NA';
+        
+        if (!clientId || !clientSecret) {
+          throw new Error('缺少Amazon API凭证。请在系统设置中配置AMAZON_ADS_CLIENT_ID和AMAZON_ADS_CLIENT_SECRET环境变量。');
+        }
+        
+        console.log('[ExchangeCode] Exchanging code for tokens...', {
+          codeLength: input.code.length,
+          clientIdPrefix: clientId.substring(0, 20) + '...',
+          redirectUri,
+          region,
+        });
+        
         const tokens = await AmazonAdsApiClient.exchangeCodeForToken(
           input.code,
-          input.clientId,
-          input.clientSecret,
-          input.redirectUri
+          clientId,
+          clientSecret,
+          redirectUri
         );
+        
+        console.log('[ExchangeCode] Token exchange successful');
+        
+        // 尝试获取Profile列表
+        let profiles: Array<{ profileId: string; countryCode: string; accountName: string }> = [];
+        try {
+          const client = new AmazonAdsApiClient({
+            clientId,
+            clientSecret,
+            refreshToken: tokens.refresh_token,
+            profileId: '', // 获取profiles不需要profileId
+            region,
+          });
+          const profileList = await client.getProfiles();
+          profiles = profileList.map(p => ({
+            profileId: String(p.profileId),
+            countryCode: p.countryCode || '',
+            accountName: p.accountInfo?.name || `Profile ${p.profileId}`,
+          }));
+          console.log('[ExchangeCode] Fetched profiles:', profiles.length);
+        } catch (profileError: any) {
+          console.warn('[ExchangeCode] Failed to fetch profiles:', profileError.message);
+          // 不抛出错误，继续返回其他信息
+        }
+        
         return {
           success: true,
           accessToken: tokens.access_token,
           refreshToken: tokens.refresh_token,
           expiresIn: tokens.expires_in,
+          // 返回凭证信息供前端自动填充
+          clientId,
+          clientSecret,
+          profiles,
         };
       } catch (error: any) {
+        console.error('[ExchangeCode] Token exchange failed:', error.response?.data || error.message);
         throw new TRPCError({
           code: 'BAD_REQUEST',
-          message: `Failed to exchange code: ${error.message}`,
+          message: `授权码换取失败: ${error.response?.data?.error_description || error.response?.data?.error || error.message}`,
         });
       }
     }),
@@ -2004,6 +2053,11 @@ const amazonApiRouter = router({
         refreshToken: input.refreshToken,
         profileId: input.profileId,
         region: input.region,
+      });
+
+      // 更新账号的连接状态为已连接
+      await db.updateAdAccount(input.accountId, {
+        connectionStatus: 'connected',
       });
 
       return { success: true };
@@ -6966,6 +7020,130 @@ const budgetAutoExecutionRouter = router({
     }),
 });
 
+// ==================== API Security Router ====================
+const apiSecurityRouter = router({
+  // 操作日志
+  getOperationLogs: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      operationType: z.enum(['bid_adjustment', 'budget_change', 'campaign_status', 'keyword_status', 'negative_keyword', 'target_status', 'batch_operation', 'api_sync', 'auto_optimization', 'manual_operation', 'other']).optional(),
+      status: z.string().optional(),
+      riskLevel: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+      limit: z.number().optional(),
+      offset: z.number().optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      return apiSecurityService.getOperationLogs({
+        userId: ctx.user.id,
+        ...input,
+      });
+    }),
+
+  // 花费限额配置
+  getSpendLimitConfig: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ ctx, input }) => {
+      return apiSecurityService.getSpendLimitConfig(ctx.user.id, input.accountId);
+    }),
+
+  upsertSpendLimitConfig: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      dailySpendLimit: z.number(),
+      warningThreshold1: z.number().optional(),
+      warningThreshold2: z.number().optional(),
+      criticalThreshold: z.number().optional(),
+      autoStopEnabled: z.boolean().optional(),
+      autoStopThreshold: z.number().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const configId = await apiSecurityService.upsertSpendLimitConfig({
+        userId: ctx.user.id,
+        ...input,
+      });
+      return { configId };
+    }),
+
+  // 花费告警历史
+  getSpendAlertHistory: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      limit: z.number().optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      return apiSecurityService.getSpendAlertHistory(
+        ctx.user.id,
+        input.accountId,
+        input.limit
+      );
+    }),
+
+  // 异常检测规则
+  getAnomalyRules: protectedProcedure
+    .input(z.object({ accountId: z.number().optional() }))
+    .query(async ({ ctx, input }) => {
+      return apiSecurityService.getAnomalyRules(ctx.user.id, input.accountId);
+    }),
+
+  createAnomalyRule: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      ruleName: z.string(),
+      ruleDescription: z.string().optional(),
+      ruleType: z.enum(['bid_spike', 'bid_drop', 'batch_size', 'frequency', 'budget_change', 'spend_velocity', 'conversion_drop', 'acos_spike', 'custom']),
+      conditionType: z.enum(['threshold', 'percentage_change', 'absolute_change', 'rate_limit']),
+      conditionValue: z.number(),
+      conditionTimeWindow: z.number().optional(),
+      actionOnTrigger: z.enum(['alert_only', 'pause_and_alert', 'rollback_and_alert', 'block_operation']).optional(),
+      priority: z.number().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const ruleId = await apiSecurityService.createAnomalyRule({
+        userId: ctx.user.id,
+        ...input,
+      });
+      return { ruleId };
+    }),
+
+  // 初始化默认规则
+  initializeDefaultRules: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      await apiSecurityService.initializeDefaultRules(ctx.user.id);
+      return { success: true };
+    }),
+
+  // 自动暂停记录
+  getAutoPauseRecords: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      includeResumed: z.boolean().optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      return apiSecurityService.getAutoPauseRecords(
+        ctx.user.id,
+        input.accountId,
+        input.includeResumed
+      );
+    }),
+
+  // 恢复暂停的实体
+  resumePausedEntities: protectedProcedure
+    .input(z.object({
+      recordId: z.number(),
+      resumeReason: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const success = await apiSecurityService.resumePausedEntities(
+        input.recordId,
+        ctx.user.id,
+        input.resumeReason
+      );
+      return { success };
+    }),
+});
+
 // ==================== Main Router ====================
 export const appRouter = router({
   system: systemRouter,
@@ -7012,6 +7190,7 @@ export const appRouter = router({
   abTest: abTestRouter,
   budgetAutoExecution: budgetAutoExecutionRouter,
   review: reviewRouter,
+  apiSecurity: apiSecurityRouter,
 });
 
 export type AppRouter = typeof appRouter;

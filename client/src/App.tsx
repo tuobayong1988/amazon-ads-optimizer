@@ -44,6 +44,7 @@ import IntelligentBudgetAllocation from "@/pages/IntelligentBudgetAllocation";
 import ABTest from "@/pages/ABTest";
 import BudgetAutoExecution from "@/pages/BudgetAutoExecution";
 import OptimizationTargets from "@/pages/OptimizationTargets";
+import ApiSecurityCenter from "@/pages/ApiSecurityCenter";
 
 function Router() {
   return (
@@ -94,6 +95,7 @@ function Router() {
       <Route path="/intelligent-budget">{() => { window.location.href = '/optimization-center'; return null; }}</Route>
       <Route path="/ab-test">{() => { window.location.href = '/optimization-center'; return null; }}</Route>
       <Route path="/budget-auto-execution">{() => { window.location.href = '/settings'; return null; }}</Route>
+      <Route path="/api-security" component={ApiSecurityCenter} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
