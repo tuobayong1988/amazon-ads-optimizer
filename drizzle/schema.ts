@@ -2227,3 +2227,55 @@ export type AnomalyAlertLog = typeof anomalyAlertLogs.$inferSelect;
 export type InsertAnomalyAlertLog = typeof anomalyAlertLogs.$inferInsert;
 export type AutoPauseRecord = typeof autoPauseRecords.$inferSelect;
 export type InsertAutoPauseRecord = typeof autoPauseRecords.$inferInsert;
+
+
+// 授权历史记录表
+export const authorizationLogs = mysqlTable("authorization_logs", {
+  id: int().autoincrement().notNull().primaryKey(),
+  userId: int().notNull(),
+  accountId: int().notNull(),
+  
+  // 授权类型
+  authType: mysqlEnum(['oauth_code_exchange', 'manual_credentials', 'token_refresh']).notNull(),
+  
+  // 授权结果
+  status: mysqlEnum(['success', 'failed', 'pending']).default('pending').notNull(),
+  
+  // 错误信息
+  errorCode: varchar({ length: 100 }),
+  errorMessage: text(),
+  errorDetails: text(), // JSON格式的详细错误信息
+  
+  // 诊断信息
+  diagnosticInfo: text(), // JSON格式的诊断信息
+  suggestedFix: text(), // 建议的修复方案
+  
+  // 授权详情
+  region: varchar({ length: 10 }), // NA, EU, FE
+  profileId: varchar({ length: 64 }),
+  profileCount: int(), // 检测到的Profile数量
+  
+  // 同步信息
+  syncTriggered: tinyint().default(0),
+  syncStatus: mysqlEnum(['not_started', 'in_progress', 'completed', 'failed']).default('not_started'),
+  syncProgress: text(), // JSON格式的同步进度详情
+  syncCampaigns: int().default(0),
+  syncAdGroups: int().default(0),
+  syncKeywords: int().default(0),
+  syncTargets: int().default(0),
+  syncPerformance: int().default(0),
+  
+  // 重试信息
+  retryCount: int().default(0),
+  lastRetryAt: timestamp({ mode: 'string' }),
+  
+  // IP和设备信息（用于安全审计）
+  ipAddress: varchar({ length: 45 }),
+  userAgent: text(),
+  
+  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+  completedAt: timestamp({ mode: 'string' }),
+});
+
+export type AuthorizationLog = typeof authorizationLogs.$inferSelect;
+export type InsertAuthorizationLog = typeof authorizationLogs.$inferInsert;

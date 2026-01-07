@@ -1,0 +1,16 @@
+{
+  "query": "SELECT COUNT(*) as total, accountId, MIN(date) as minDate, MAX(date) as maxDate FROM daily_performance GROUP BY accountId;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT COUNT(*) as total, accountId, MIN(date) as minDate, MAX(date) as maxDate FROM daily_performance GROUP BY accountId;",
+  "rows": [
+    {
+      "total": "39",
+      "accountId": "6",
+      "minDate": "2025-12-06 00:00:00",
+      "maxDate": "2026-01-06 05:00:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\taccountId\tminDate\tmaxDate\n39\t6\t2025-12-06 00:00:00\t2026-01-06 05:00:00\n",
+  "stderr": "",
+  "execution_time_ms": 81
+}

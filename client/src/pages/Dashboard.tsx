@@ -27,7 +27,29 @@ import {
   CheckCircle2,
   AlertTriangle
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import toast from "react-hot-toast";
+
+// 全局变量用于存储刷新函数
+declare global {
+  interface Window {
+    refreshDashboardData?: () => void;
+    showToast?: (type: 'success' | 'error' | 'info', message: string) => void;
+  }
+}
+
+// 将toast函数挂载到window上
+if (typeof window !== 'undefined') {
+  window.showToast = (type: 'success' | 'error' | 'info', message: string) => {
+    if (type === 'success') {
+      toast.success(message, { duration: 3000 });
+    } else if (type === 'error') {
+      toast.error(message, { duration: 3000 });
+    } else {
+      toast.info(message, { duration: 2000 });
+    }
+  };
+}
 import {
   LineChart,
   Line,
@@ -218,6 +240,30 @@ function QuickActionCard({
 export default function Dashboard() {
   const { user } = useAuth();
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshStatus, setRefreshStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  
+  // 测试toast是否工作 - 页面加载时显示
+  useEffect(() => {
+    // 延迟1秒后显示toast
+    const timer = setTimeout(() => {
+      toast.success("页面加载完成 - 欢迎使用亚马逊广告优化系统");
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, []);
+  
+  // 监听刷新状态变化来显示toast
+  useEffect(() => {
+    if (refreshStatus === 'loading') {
+      toast("开始刷新数据...", { icon: "🔄" });
+    } else if (refreshStatus === 'success') {
+      toast.success("数据刷新成功!");
+      setRefreshStatus('idle');
+    } else if (refreshStatus === 'error') {
+      toast.error("刷新失败，请稍后重试");
+      setRefreshStatus('idle');
+    }
+  }, [refreshStatus]);
   
   // 首次登录引导
   const { showOnboarding, completeOnboarding, skipOnboarding, pauseOnboarding, savedProgress } = useOnboarding();
@@ -233,6 +279,36 @@ export default function Dashboard() {
     { accountId: accountId! },
     { enabled: !!accountId }
   );
+
+  // 刷新数据的回调函数
+  const handleRefreshData = useCallback(async () => {
+    // 立即显示toast确认函数被调用
+    toast("开始刷新数据...", { icon: "🔄" });
+    
+    if (isRefreshing) {
+      toast("已在刷新中，请稍候", { icon: "⚠️" });
+      return;
+    }
+    
+    setIsRefreshing(true);
+    
+    try {
+      await refetchKpis();
+      toast.success("数据刷新成功!");
+    } catch (err) {
+      toast.error("刷新失败，请重试");
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [isRefreshing, refetchKpis]);
+
+  // 注册全局刷新函数
+  useEffect(() => {
+    window.refreshDashboardData = handleRefreshData;
+    return () => {
+      delete window.refreshDashboardData;
+    };
+  }, [handleRefreshData]);
 
   // Fetch performance groups
   const { data: performanceGroups } = trpc.performanceGroup.list.useQuery(
@@ -338,9 +414,30 @@ export default function Dashboard() {
               <Activity className="w-3 h-3 mr-1" />
               实时同步中
             </Badge>
-            <Button variant="outline" size="sm" onClick={() => refetchKpis()}>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              刷新数据
+            <Button 
+              variant="outline" 
+              size="sm" 
+              disabled={isRefreshing}
+              onClick={async () => {
+                // 通过状态变量触发toast
+                setRefreshStatus('loading');
+                setIsRefreshing(true);
+                
+                try {
+                  // 执行刷新
+                  await refetchKpis();
+                  // 刷新成功
+                  setRefreshStatus('success');
+                } catch (error) {
+                  // 刷新失败
+                  setRefreshStatus('error');
+                } finally {
+                  setIsRefreshing(false);
+                }
+              }}
+            >
+              <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+              {isRefreshing ? '刷新中...' : '刷新数据'}
             </Button>
           </div>
         </div>

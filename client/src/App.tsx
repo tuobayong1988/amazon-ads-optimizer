@@ -1,4 +1,5 @@
 import { Toaster } from "@/components/ui/sonner";
+import { Toaster as HotToaster } from "react-hot-toast";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
@@ -108,6 +109,7 @@ function App() {
       <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
           <Toaster />
+          <HotToaster position="top-right" toastOptions={{ duration: 3000, style: { background: '#1f2937', color: '#fff', border: '1px solid #374151' } }} />
           <Router />
         </TooltipProvider>
       </ThemeProvider>
