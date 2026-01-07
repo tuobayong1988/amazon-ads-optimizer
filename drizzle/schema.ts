@@ -2389,3 +2389,135 @@ export const syncChangeSummary = mysqlTable("sync_change_summary", {
 });
 export type SyncChangeSummary = typeof syncChangeSummary.$inferSelect;
 export type InsertSyncChangeSummary = typeof syncChangeSummary.$inferInsert;
+
+
+// 自动广告匹配类型配置表
+export const autoTargetingSettings = mysqlTable("auto_targeting_settings", {
+	id: int().autoincrement().notNull(),
+	campaignId: int().notNull(),
+	adGroupId: int(),
+	// 四种匹配类型的启用状态和竞价
+	closeMatchEnabled: tinyint().default(1),
+	closeMatchBid: decimal({ precision: 10, scale: 2 }),
+	closeMatchBidMultiplier: decimal({ precision: 5, scale: 2 }).default('1.00'),
+	looseMatchEnabled: tinyint().default(1),
+	looseMatchBid: decimal({ precision: 10, scale: 2 }),
+	looseMatchBidMultiplier: decimal({ precision: 5, scale: 2 }).default('1.00'),
+	substitutesEnabled: tinyint().default(1),
+	substitutesBid: decimal({ precision: 10, scale: 2 }),
+	substitutesBidMultiplier: decimal({ precision: 5, scale: 2 }).default('1.00'),
+	complementsEnabled: tinyint().default(1),
+	complementsBid: decimal({ precision: 10, scale: 2 }),
+	complementsBidMultiplier: decimal({ precision: 5, scale: 2 }).default('1.00'),
+	// 自动优化设置
+	autoOptimizeEnabled: tinyint().default(0),
+	optimizationStrategy: mysqlEnum(['maximize_sales','target_acos','target_roas','minimize_acos']).default('target_acos'),
+	targetAcos: decimal({ precision: 5, scale: 2 }),
+	targetRoas: decimal({ precision: 10, scale: 2 }),
+	minBid: decimal({ precision: 10, scale: 2 }).default('0.10'),
+	maxBid: decimal({ precision: 10, scale: 2 }).default('10.00'),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+});
+
+// 自动广告匹配类型绩效数据表
+export const autoTargetingPerformance = mysqlTable("auto_targeting_performance", {
+	id: int().autoincrement().notNull(),
+	campaignId: int().notNull(),
+	adGroupId: int(),
+	matchType: mysqlEnum(['close_match','loose_match','substitutes','complements']).notNull(),
+	reportDate: timestamp({ mode: 'string' }).notNull(),
+	impressions: int().default(0),
+	clicks: int().default(0),
+	spend: decimal({ precision: 10, scale: 2 }).default('0.00'),
+	sales: decimal({ precision: 10, scale: 2 }).default('0.00'),
+	orders: int().default(0),
+	acos: decimal({ precision: 5, scale: 2 }),
+	roas: decimal({ precision: 10, scale: 2 }),
+	ctr: decimal({ precision: 5, scale: 4 }),
+	cvr: decimal({ precision: 5, scale: 4 }),
+	cpc: decimal({ precision: 10, scale: 2 }),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});
+
+// 竞价位置优化设置表
+export const placementBidSettings = mysqlTable("placement_bid_settings", {
+	id: int().autoincrement().notNull(),
+	campaignId: int().notNull(),
+	// 三种位置的竞价调整百分比（0-900%）
+	topOfSearchAdjustment: int().default(0),
+	productPagesAdjustment: int().default(0),
+	restOfSearchAdjustment: int().default(0),
+	// 自动优化设置
+	autoOptimizeEnabled: tinyint().default(0),
+	optimizationStrategy: mysqlEnum(['maximize_visibility','maximize_conversions','target_acos','balanced']).default('balanced'),
+	targetAcos: decimal({ precision: 5, scale: 2 }),
+	maxAdjustment: int().default(300),
+	// 动态竞价策略
+	biddingStrategy: mysqlEnum(['fixed','down_only','up_and_down']).default('down_only'),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+});
+
+// 分时竞价规则表
+export const daypartingBidRules = mysqlTable("dayparting_bid_rules", {
+	id: int().autoincrement().notNull(),
+	campaignId: int().notNull(),
+	ruleName: varchar({ length: 255 }).notNull(),
+	ruleDescription: text(),
+	ruleEnabled: tinyint().default(1),
+	// 时间设置
+	dayOfWeek: json(), // [0,1,2,3,4,5,6] 0=周日
+	startHour: int().notNull(), // 0-23
+	endHour: int().notNull(), // 0-23
+	timezone: varchar({ length: 64 }).default('America/Los_Angeles'),
+	// 竞价调整
+	bidAdjustmentType: mysqlEnum(['percentage','fixed']).default('percentage'),
+	bidAdjustmentValue: decimal({ precision: 10, scale: 2 }).notNull(),
+	// 预算调整
+	budgetAdjustmentEnabled: tinyint().default(0),
+	budgetAdjustmentType: mysqlEnum(['percentage','fixed']).default('percentage'),
+	budgetAdjustmentValue: decimal({ precision: 10, scale: 2 }),
+	// 优先级（数字越大优先级越高）
+	priority: int().default(0),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+});
+
+// 自动广告优化建议表
+export const autoTargetingOptimizationSuggestions = mysqlTable("auto_targeting_optimization_suggestions", {
+	id: int().autoincrement().notNull(),
+	campaignId: int().notNull(),
+	adGroupId: int(),
+	matchType: mysqlEnum(['close_match','loose_match','substitutes','complements']).notNull(),
+	suggestionType: mysqlEnum(['increase_bid','decrease_bid','pause','enable','adjust_multiplier']).notNull(),
+	currentValue: decimal({ precision: 10, scale: 2 }),
+	suggestedValue: decimal({ precision: 10, scale: 2 }),
+	changePercent: decimal({ precision: 5, scale: 2 }),
+	reason: text(),
+	confidenceScore: decimal({ precision: 3, scale: 2 }),
+	expectedImpact: text(),
+	performanceData: json(),
+	suggestionStatus: mysqlEnum(['pending','approved','applied','dismissed']).default('pending'),
+	appliedAt: timestamp({ mode: 'string' }),
+	appliedBy: int(),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});
+
+// 位置竞价优化建议表
+export const placementOptimizationSuggestions = mysqlTable("placement_optimization_suggestions", {
+	id: int().autoincrement().notNull(),
+	campaignId: int().notNull(),
+	placement: mysqlEnum(['top_of_search','product_pages','rest_of_search']).notNull(),
+	suggestionType: mysqlEnum(['increase_adjustment','decrease_adjustment','set_adjustment']).notNull(),
+	currentAdjustment: int(),
+	suggestedAdjustment: int(),
+	reason: text(),
+	confidenceScore: decimal({ precision: 3, scale: 2 }),
+	expectedImpact: text(),
+	performanceData: json(),
+	suggestionStatus: mysqlEnum(['pending','approved','applied','dismissed']).default('pending'),
+	appliedAt: timestamp({ mode: 'string' }),
+	appliedBy: int(),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});

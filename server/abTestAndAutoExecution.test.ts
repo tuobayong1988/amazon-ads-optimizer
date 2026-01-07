@@ -218,7 +218,7 @@ describe('预算自动执行服务', () => {
       };
       
       const now = new Date('2026-01-06T10:00:00');
-      const nextTime = budgetAutoExecutionService.calculateNextExecutionTimeExported(config, now);
+      const nextTime = budgetAutoExecutionService.calculateNextExecutionTimeForTest(config, now);
       
       expect(nextTime).toBeInstanceOf(Date);
       expect(nextTime.getTime()).toBeGreaterThan(now.getTime());
@@ -233,7 +233,7 @@ describe('预算自动执行服务', () => {
       };
       
       const now = new Date('2026-01-06T10:00:00');
-      const nextTime = budgetAutoExecutionService.calculateNextExecutionTimeExported(config, now);
+      const nextTime = budgetAutoExecutionService.calculateNextExecutionTimeForTest(config, now);
       
       expect(nextTime.getDate()).toBe(7); // 应该是明天
     });
