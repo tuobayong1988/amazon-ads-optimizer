@@ -3545,3 +3545,285 @@ export async function cleanupOldSyncTasks(userId: number, retainDays: number = 7
   
   return (result as any).affectedRows || 0;
 }
+
+
+// ==================== 定时同步调度相关函数 ====================
+
+import { dataSyncSchedules } from '../drizzle/schema';
+
+export type DataSyncSchedule = typeof dataSyncSchedules.$inferSelect;
+export type InsertDataSyncSchedule = typeof dataSyncSchedules.$inferInsert;
+
+/**
+ * 获取所有启用的定时同步配置
+ */
+export async function getEnabledSyncSchedules(): Promise<DataSyncSchedule[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const schedules = await db.select()
+    .from(dataSyncSchedules)
+    .where(eq(dataSyncSchedules.isEnabled, 1));
+  
+  return schedules;
+}
+
+/**
+ * 根据账号ID获取定时同步配置
+ */
+export async function getSyncScheduleByAccountId(userId: number, accountId: number): Promise<DataSyncSchedule | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const [schedule] = await db.select()
+    .from(dataSyncSchedules)
+    .where(and(
+      eq(dataSyncSchedules.userId, userId),
+      eq(dataSyncSchedules.accountId, accountId)
+    ))
+    .limit(1);
+  
+  return schedule || null;
+}
+
+/**
+ * 创建定时同步配置
+ */
+export async function createSyncSchedule(data: {
+  userId: number;
+  accountId: number;
+  syncType: string;
+  frequency: string;
+  preferredTime?: string;
+  preferredDayOfWeek?: number;
+  isEnabled: boolean;
+}): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  
+  // 计算下次运行时间
+  const nextRunAt = calculateNextRunTime(data.frequency, data.preferredTime, data.preferredDayOfWeek);
+  
+  const [result] = await db.insert(dataSyncSchedules)
+    .values({
+      userId: data.userId,
+      accountId: data.accountId,
+      syncType: data.syncType as any,
+      frequency: data.frequency as any,
+      preferredTime: data.preferredTime,
+      preferredDayOfWeek: data.preferredDayOfWeek,
+      isEnabled: data.isEnabled ? 1 : 0,
+      nextRunAt: nextRunAt.toISOString().slice(0, 19).replace('T', ' '),
+    });
+  
+  return (result as any).insertId;
+}
+
+/**
+ * 更新定时同步配置
+ */
+export async function updateSyncSchedule(scheduleId: number, data: {
+  syncType?: string;
+  frequency?: string;
+  preferredTime?: string;
+  preferredDayOfWeek?: number;
+  isEnabled?: boolean;
+}): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  
+  const updateData: any = {
+    updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+  };
+  
+  if (data.syncType !== undefined) updateData.syncType = data.syncType;
+  if (data.frequency !== undefined) updateData.frequency = data.frequency;
+  if (data.preferredTime !== undefined) updateData.preferredTime = data.preferredTime;
+  if (data.preferredDayOfWeek !== undefined) updateData.preferredDayOfWeek = data.preferredDayOfWeek;
+  if (data.isEnabled !== undefined) updateData.isEnabled = data.isEnabled ? 1 : 0;
+  
+  // 如果更新了频率或时间，重新计算下次运行时间
+  if (data.frequency || data.preferredTime) {
+    const nextRunAt = calculateNextRunTime(
+      data.frequency || 'daily',
+      data.preferredTime,
+      data.preferredDayOfWeek
+    );
+    updateData.nextRunAt = nextRunAt.toISOString().slice(0, 19).replace('T', ' ');
+  }
+  
+  await db.update(dataSyncSchedules)
+    .set(updateData)
+    .where(eq(dataSyncSchedules.id, scheduleId));
+  
+  return true;
+}
+
+/**
+ * 更新上次运行时间
+ */
+export async function updateSyncScheduleLastRun(scheduleId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  
+  // 获取当前配置
+  const [schedule] = await db.select()
+    .from(dataSyncSchedules)
+    .where(eq(dataSyncSchedules.id, scheduleId))
+    .limit(1);
+  
+  if (!schedule) return false;
+  
+  // 计算下次运行时间
+  const nextRunAt = calculateNextRunTime(
+    schedule.frequency || 'daily',
+    schedule.preferredTime || undefined,
+    schedule.preferredDayOfWeek || undefined
+  );
+  
+  await db.update(dataSyncSchedules)
+    .set({
+      lastRunAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      nextRunAt: nextRunAt.toISOString().slice(0, 19).replace('T', ' '),
+      updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+    })
+    .where(eq(dataSyncSchedules.id, scheduleId));
+  
+  return true;
+}
+
+/**
+ * 删除定时同步配置
+ */
+export async function deleteSyncSchedule(scheduleId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  
+  await db.delete(dataSyncSchedules)
+    .where(eq(dataSyncSchedules.id, scheduleId));
+  
+  return true;
+}
+
+/**
+ * 获取用户的所有定时同步配置
+ */
+export async function getSyncSchedulesByUserId(userId: number): Promise<DataSyncSchedule[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const schedules = await db.select()
+    .from(dataSyncSchedules)
+    .where(eq(dataSyncSchedules.userId, userId))
+    .orderBy(desc(dataSyncSchedules.createdAt));
+  
+  return schedules;
+}
+
+/**
+ * 计算下次运行时间
+ */
+function calculateNextRunTime(
+  frequency: string,
+  preferredTime?: string,
+  preferredDayOfWeek?: number
+): Date {
+  const now = new Date();
+  const next = new Date(now);
+  
+  // 设置首选时间（如果有）
+  if (preferredTime) {
+    const [hours, minutes] = preferredTime.split(':').map(Number);
+    next.setHours(hours, minutes, 0, 0);
+  }
+  
+  // 根据频率计算下次运行时间
+  switch (frequency) {
+    case 'hourly':
+      next.setHours(next.getHours() + 1);
+      next.setMinutes(0, 0, 0);
+      break;
+    case 'every_2_hours':
+      next.setHours(next.getHours() + 2);
+      next.setMinutes(0, 0, 0);
+      break;
+    case 'every_4_hours':
+      next.setHours(next.getHours() + 4);
+      next.setMinutes(0, 0, 0);
+      break;
+    case 'every_6_hours':
+      next.setHours(next.getHours() + 6);
+      next.setMinutes(0, 0, 0);
+      break;
+    case 'every_12_hours':
+      next.setHours(next.getHours() + 12);
+      next.setMinutes(0, 0, 0);
+      break;
+    case 'daily':
+      if (next <= now) {
+        next.setDate(next.getDate() + 1);
+      }
+      break;
+    case 'weekly':
+      if (preferredDayOfWeek !== undefined) {
+        const currentDay = next.getDay();
+        let daysUntilTarget = preferredDayOfWeek - currentDay;
+        if (daysUntilTarget <= 0 || (daysUntilTarget === 0 && next <= now)) {
+          daysUntilTarget += 7;
+        }
+        next.setDate(next.getDate() + daysUntilTarget);
+      } else {
+        next.setDate(next.getDate() + 7);
+      }
+      break;
+    default:
+      next.setDate(next.getDate() + 1);
+  }
+  
+  return next;
+}
+
+/**
+ * 创建同步日志
+ */
+export async function createSyncLog(data: {
+  userId: number;
+  accountId: number;
+  syncType: string;
+  status: string;
+  recordsSynced: number;
+  startedAt: string;
+  completedAt: string;
+  isIncremental?: boolean;
+  spCampaigns?: number;
+  sbCampaigns?: number;
+  sdCampaigns?: number;
+  adGroupsSynced?: number;
+  keywordsSynced?: number;
+  targetsSynced?: number;
+  errorMessage?: string;
+}): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  
+  const [result] = await db.insert(dataSyncJobs)
+    .values({
+      userId: data.userId,
+      accountId: data.accountId,
+      syncType: data.syncType as any,
+      status: data.status as any,
+      recordsSynced: data.recordsSynced,
+      startedAt: data.startedAt,
+      completedAt: data.completedAt,
+      isIncremental: data.isIncremental ? 1 : 0,
+      spCampaigns: data.spCampaigns || 0,
+      sbCampaigns: data.sbCampaigns || 0,
+      sdCampaigns: data.sdCampaigns || 0,
+      adGroupsSynced: data.adGroupsSynced || 0,
+      keywordsSynced: data.keywordsSynced || 0,
+      targetsSynced: data.targetsSynced || 0,
+      errorMessage: data.errorMessage,
+    });
+  
+  return (result as any).insertId;
+}

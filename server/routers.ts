@@ -5401,7 +5401,7 @@ const dataSyncRouter = router({
     .input(z.object({
       accountId: z.number(),
       syncType: z.enum(["campaigns", "keywords", "performance", "all"]).default("all"),
-      frequency: z.enum(["hourly", "daily", "weekly", "monthly"]),
+      frequency: z.enum(["hourly", "every_2_hours", "every_4_hours", "every_6_hours", "every_12_hours", "daily", "weekly", "monthly"]),
       hour: z.number().min(0).max(23).optional(),
       dayOfWeek: z.number().min(0).max(6).optional(),
       dayOfMonth: z.number().min(1).max(31).optional(),
@@ -5428,7 +5428,7 @@ const dataSyncRouter = router({
     .input(z.object({
       id: z.number(),
       syncType: z.enum(["campaigns", "keywords", "performance", "all"]).optional(),
-      frequency: z.enum(["hourly", "daily", "weekly", "monthly"]).optional(),
+      frequency: z.enum(["hourly", "every_2_hours", "every_4_hours", "every_6_hours", "every_12_hours", "daily", "weekly", "monthly"]).optional(),
       hour: z.number().min(0).max(23).optional(),
       dayOfWeek: z.number().min(0).max(6).optional(),
       dayOfMonth: z.number().min(1).max(31).optional(),

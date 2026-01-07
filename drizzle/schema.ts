@@ -643,17 +643,17 @@ export const dataSyncLogs = mysqlTable("data_sync_logs", {
 
 export const dataSyncSchedules = mysqlTable("data_sync_schedules", {
 	id: int().autoincrement().notNull(),
-	userId: int().notNull(),
-	accountId: int().notNull(),
-	syncType: mysqlEnum(['campaigns','ad_groups','keywords','product_targets','search_terms','performance_daily','performance_hourly','full_sync']).notNull(),
-	frequency: mysqlEnum(['hourly','every_4_hours','every_6_hours','every_12_hours','daily','weekly']).default('daily'),
-	preferredTime: varchar({ length: 5 }),
-	preferredDayOfWeek: int(),
-	isEnabled: tinyint().default(1),
-	lastRunAt: timestamp({ mode: 'string' }),
-	nextRunAt: timestamp({ mode: 'string' }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	userId: int('user_id').notNull(),
+	accountId: int('account_id').notNull(),
+	syncType: mysqlEnum('sync_type', ['campaigns','ad_groups','keywords','product_targets','search_terms','performance_daily','performance_hourly','full_sync']).notNull(),
+	frequency: mysqlEnum(['hourly','every_2_hours','every_4_hours','every_6_hours','every_12_hours','daily','weekly']).default('daily'),
+	preferredTime: varchar('preferred_time', { length: 5 }),
+	preferredDayOfWeek: int('preferred_day_of_week'),
+	isEnabled: tinyint('is_enabled').default(1),
+	lastRunAt: timestamp('last_run_at', { mode: 'string' }),
+	nextRunAt: timestamp('next_run_at', { mode: 'string' }),
+	createdAt: timestamp('created_at', { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp('updated_at', { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
 
 export const dataSyncTasks = mysqlTable("data_sync_tasks", {

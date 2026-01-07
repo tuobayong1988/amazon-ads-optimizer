@@ -408,7 +408,7 @@ export async function getApiUsageStats(accountId: number) {
 
 // ==================== 定时调度功能 ====================
 
-export type ScheduleFrequency = "hourly" | "daily" | "weekly" | "monthly";
+export type ScheduleFrequency = "hourly" | "every_2_hours" | "every_4_hours" | "every_6_hours" | "every_12_hours" | "daily" | "weekly" | "monthly";
 
 export interface SyncScheduleConfig {
   id?: number;
@@ -579,6 +579,22 @@ export function calculateNextRunTime(config: SyncScheduleConfig): Date {
   switch (config.frequency) {
     case "hourly":
       next.setHours(next.getHours() + 1, 0, 0, 0);
+      break;
+
+    case "every_2_hours":
+      next.setHours(next.getHours() + 2, 0, 0, 0);
+      break;
+
+    case "every_4_hours":
+      next.setHours(next.getHours() + 4, 0, 0, 0);
+      break;
+
+    case "every_6_hours":
+      next.setHours(next.getHours() + 6, 0, 0, 0);
+      break;
+
+    case "every_12_hours":
+      next.setHours(next.getHours() + 12, 0, 0, 0);
       break;
 
     case "daily":

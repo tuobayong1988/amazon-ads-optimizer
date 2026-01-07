@@ -171,6 +171,9 @@ export default function AmazonApiSettings() {
   const [showSyncConflicts, setShowSyncConflicts] = useState(false);
   const [showSyncQueue, setShowSyncQueue] = useState(false);
   const [showChangeSummary, setShowChangeSummary] = useState(false);
+  const [showScheduleSettings, setShowScheduleSettings] = useState(false);
+  const [scheduleFrequency, setScheduleFrequency] = useState<string>('every_2_hours');
+  const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [selectedSyncJobId, setSelectedSyncJobId] = useState<number | null>(null);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [importData, setImportData] = useState("");
@@ -345,6 +348,43 @@ export default function AmazonApiSettings() {
     { syncJobId: selectedSyncJobId! },
     { enabled: !!selectedSyncJobId && showChangeSummary }
   );
+
+  // 定时同步配置查询
+  const { data: scheduleConfig, refetch: refetchScheduleConfig } = trpc.dataSync.getSchedules.useQuery(
+    { accountId: selectedAccountId! },
+    { enabled: !!selectedAccountId }
+  );
+
+  // 创建/更新定时同步配置
+  const createScheduleMutation = trpc.dataSync.createSchedule.useMutation({
+    onSuccess: () => {
+      toast.success('定时同步配置已保存');
+      refetchScheduleConfig();
+    },
+    onError: (error) => {
+      toast.error(`保存失败: ${error.message}`);
+    },
+  });
+
+  const updateScheduleMutation = trpc.dataSync.updateSchedule.useMutation({
+    onSuccess: () => {
+      toast.success('定时同步配置已更新');
+      refetchScheduleConfig();
+    },
+    onError: (error) => {
+      toast.error(`更新失败: ${error.message}`);
+    },
+  });
+
+  const deleteScheduleMutation = trpc.dataSync.deleteSchedule.useMutation({
+    onSuccess: () => {
+      toast.success('定时同步已关闭');
+      refetchScheduleConfig();
+    },
+    onError: (error) => {
+      toast.error(`关闭失败: ${error.message}`);
+    },
+  });
 
   // 解决冲突mutation
   const resolveConflictMutation = trpc.amazonApi.resolveSyncConflict.useMutation({
@@ -2188,6 +2228,18 @@ export default function AmazonApiSettings() {
                       <Button
                         variant="ghost"
                         size="sm"
+                        onClick={() => setShowScheduleSettings(!showScheduleSettings)}
+                        className={scheduleConfig?.isEnabled ? 'text-green-500' : ''}
+                      >
+                        <RefreshCw className="h-4 w-4 mr-1" />
+                        定时同步
+                        {scheduleConfig?.isEnabled && (
+                          <Badge variant="secondary" className="ml-1 h-5 px-1 bg-green-500/20 text-green-500">已开启</Badge>
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => setShowSyncQueue(!showSyncQueue)}
                       >
                         <Database className="h-4 w-4 mr-1" />
@@ -2650,6 +2702,110 @@ export default function AmazonApiSettings() {
                         暂无待处理的冲突
                       </div>
                     )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* 定时同步设置卡片 */}
+              {showScheduleSettings && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2">
+                        <RefreshCw className="h-5 w-5" />
+                        定时同步设置
+                      </CardTitle>
+                      <Button variant="ghost" size="sm" onClick={() => setShowScheduleSettings(false)}>
+                        关闭
+                      </Button>
+                    </div>
+                    <CardDescription>
+                      设置自动同步频率，系统将按设定的时间间隔自动同步数据
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <Switch
+                          id="schedule-enabled"
+                          checked={scheduleConfig && scheduleConfig.length > 0 && scheduleConfig[0]?.isEnabled}
+                          onCheckedChange={(checked) => {
+                            if (scheduleConfig && scheduleConfig.length > 0) {
+                              updateScheduleMutation.mutate({
+                                id: scheduleConfig[0].id,
+                                isEnabled: checked,
+                              });
+                            } else if (checked && selectedAccountId) {
+                              createScheduleMutation.mutate({
+                                accountId: selectedAccountId,
+                                syncType: 'all',
+                                frequency: scheduleFrequency as any,
+                                isEnabled: true,
+                              });
+                            }
+                          }}
+                        />
+                        <Label htmlFor="schedule-enabled" className="text-sm font-medium cursor-pointer">
+                          启用定时同步
+                        </Label>
+                      </div>
+                      {scheduleConfig && scheduleConfig.length > 0 && scheduleConfig[0]?.isEnabled && (
+                        <Badge variant="secondary" className="bg-green-500/20 text-green-500">
+                          已启用
+                        </Badge>
+                      )}
+                    </div>
+
+                    <div className="space-y-3">
+                      <Label>同步频率</Label>
+                      <Select
+                        value={scheduleConfig && scheduleConfig.length > 0 ? scheduleConfig[0]?.frequency : scheduleFrequency}
+                        onValueChange={(value) => {
+                          setScheduleFrequency(value);
+                          if (scheduleConfig && scheduleConfig.length > 0) {
+                            updateScheduleMutation.mutate({
+                              id: scheduleConfig[0].id,
+                              frequency: value as any,
+                            });
+                          }
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="选择同步频率" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="hourly">每小时</SelectItem>
+                          <SelectItem value="every_2_hours">每2小时</SelectItem>
+                          <SelectItem value="every_4_hours">每4小时</SelectItem>
+                          <SelectItem value="every_6_hours">每6小时</SelectItem>
+                          <SelectItem value="every_12_hours">每12小时</SelectItem>
+                          <SelectItem value="daily">每天</SelectItem>
+                          <SelectItem value="weekly">每周</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {scheduleConfig && scheduleConfig.length > 0 && (
+                      <div className="p-4 bg-muted/30 rounded-lg space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">上次同步</span>
+                          <span>{scheduleConfig[0]?.lastRunAt ? new Date(scheduleConfig[0].lastRunAt).toLocaleString('zh-CN') : '未执行'}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">下次同步</span>
+                          <span>{scheduleConfig[0]?.nextRunAt ? new Date(scheduleConfig[0].nextRunAt).toLocaleString('zh-CN') : '-'}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    <Alert>
+                      <Info className="h-4 w-4" />
+                      <AlertTitle>定时同步说明</AlertTitle>
+                      <AlertDescription>
+                        启用定时同步后，系统将按设定的频率自动从 Amazon API 拉取最新数据。
+                        默认使用增量同步以减少 API 调用次数。
+                      </AlertDescription>
+                    </Alert>
                   </CardContent>
                 </Card>
               )}
