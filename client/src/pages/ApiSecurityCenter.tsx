@@ -162,7 +162,7 @@ export default function ApiSecurityCenter() {
                 <SelectValue placeholder="选择账号" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">全部账号</SelectItem>
+                <SelectItem value="all">全部账号</SelectItem>
                 {accounts?.map((acc) => (
                   <SelectItem key={acc.id} value={acc.id.toString()}>
                     {acc.accountName}

@@ -242,7 +242,7 @@ export async function getOperationLogs(params: {
       .select()
       .from(apiOperationLogs)
       .where(whereClause)
-      .orderBy(desc(apiOperationLogs.executedAt))
+      .orderBy(desc(apiOperationLogs.createdAt))
       .limit(params.limit || 50)
       .offset(params.offset || 0);
 
