@@ -1,0 +1,88 @@
+{
+  "query": "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'data_sync_jobs' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'data_sync_jobs' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id"
+    },
+    {
+      "COLUMN_NAME": "userId"
+    },
+    {
+      "COLUMN_NAME": "accountId"
+    },
+    {
+      "COLUMN_NAME": "syncType"
+    },
+    {
+      "COLUMN_NAME": "status"
+    },
+    {
+      "COLUMN_NAME": "recordsSynced"
+    },
+    {
+      "COLUMN_NAME": "errorMessage"
+    },
+    {
+      "COLUMN_NAME": "startedAt"
+    },
+    {
+      "COLUMN_NAME": "completedAt"
+    },
+    {
+      "COLUMN_NAME": "createdAt"
+    },
+    {
+      "COLUMN_NAME": "is_incremental"
+    },
+    {
+      "COLUMN_NAME": "sp_campaigns_synced"
+    },
+    {
+      "COLUMN_NAME": "sb_campaigns_synced"
+    },
+    {
+      "COLUMN_NAME": "sd_campaigns_synced"
+    },
+    {
+      "COLUMN_NAME": "ad_groups_synced"
+    },
+    {
+      "COLUMN_NAME": "keywords_synced"
+    },
+    {
+      "COLUMN_NAME": "targets_synced"
+    },
+    {
+      "COLUMN_NAME": "performance_synced"
+    },
+    {
+      "COLUMN_NAME": "retry_count"
+    },
+    {
+      "COLUMN_NAME": "max_retries"
+    },
+    {
+      "COLUMN_NAME": "last_retry_at"
+    },
+    {
+      "COLUMN_NAME": "duration_ms"
+    },
+    {
+      "COLUMN_NAME": "records_skipped"
+    },
+    {
+      "COLUMN_NAME": "sp_campaigns"
+    },
+    {
+      "COLUMN_NAME": "sb_campaigns"
+    },
+    {
+      "COLUMN_NAME": "sd_campaigns"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nid\nuserId\naccountId\nsyncType\nstatus\nrecordsSynced\nerrorMessage\nstartedAt\ncompletedAt\ncreatedAt\nis_incremental\nsp_campaigns_synced\nsb_campaigns_synced\nsd_campaigns_synced\nad_groups_synced\nkeywords_synced\ntargets_synced\nperformance_synced\nretry_count\nmax_retries\nlast_retry_at\nduration_ms\nrecords_skipped\nsp_campaigns\nsb_campaigns\nsd_campaigns\n",
+  "stderr": "",
+  "execution_time_ms": 59
+}
