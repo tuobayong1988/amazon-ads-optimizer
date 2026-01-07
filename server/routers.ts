@@ -2060,7 +2060,49 @@ const amazonApiRouter = router({
         connectionStatus: 'connected',
       });
 
-      return { success: true };
+      // 授权成功后自动触发数据同步
+      let syncResult = {
+        campaigns: 0,
+        adGroups: 0,
+        keywords: 0,
+        targets: 0,
+        performance: 0,
+        error: null as string | null,
+      };
+
+      try {
+        console.log(`[授权后自动同步] 开始为账号 ${input.accountId} 同步数据...`);
+        
+        const syncService = await AmazonSyncService.createFromCredentials(
+          {
+            clientId: input.clientId,
+            clientSecret: input.clientSecret,
+            refreshToken: input.refreshToken,
+            profileId: input.profileId,
+            region: input.region,
+          },
+          input.accountId,
+          ctx.user.id
+        );
+
+        // 执行完整同步
+        const result = await syncService.syncAll();
+        syncResult = { ...result, error: null };
+        
+        console.log(`[授权后自动同步] 同步完成:`, syncResult);
+
+        // 更新最后同步时间
+        await db.updateAmazonApiCredentialsLastSync(input.accountId);
+      } catch (syncError: any) {
+        console.error(`[授权后自动同步] 同步失败:`, syncError);
+        syncResult.error = syncError.message || '同步失败';
+        // 同步失败不影响授权成功，只是记录错误
+      }
+
+      return { 
+        success: true,
+        syncResult,
+      };
     }),
 
   // Get API credentials status
@@ -2389,7 +2431,7 @@ const amazonApiRouter = router({
   runAutoOptimization: protectedProcedure
     .input(z.object({
       accountId: z.number(),
-      performanceGroupId: z.number(),
+      performanceGroupId: z.number().optional(), // 可选，为0或未提供时使用默认配置
     }))
     .mutation(async ({ ctx, input }) => {
       const credentials = await db.getAmazonApiCredentials(input.accountId);
@@ -2400,12 +2442,26 @@ const amazonApiRouter = router({
         });
       }
 
-      const group = await db.getPerformanceGroupById(input.performanceGroupId);
-      if (!group) {
-        throw new TRPCError({
-          code: 'NOT_FOUND',
-          message: 'Performance group not found',
-        });
+      // 如果performanceGroupId为0或未提供，使用默认配置
+      let config = {
+        optimizationGoal: 'maximize_sales' as const,
+        targetAcos: undefined as number | undefined,
+        targetRoas: undefined as number | undefined,
+        dailySpendLimit: undefined as number | undefined,
+        dailyCostTarget: undefined as number | undefined,
+      };
+
+      if (input.performanceGroupId && input.performanceGroupId > 0) {
+        const group = await db.getPerformanceGroupById(input.performanceGroupId);
+        if (group) {
+          config = {
+            optimizationGoal: (group.optimizationGoal || 'maximize_sales') as any,
+            targetAcos: group.targetAcos ? parseFloat(group.targetAcos) : undefined,
+            targetRoas: group.targetRoas ? parseFloat(group.targetRoas) : undefined,
+            dailySpendLimit: group.dailySpendLimit ? parseFloat(group.dailySpendLimit) : undefined,
+            dailyCostTarget: group.dailyCostTarget ? parseFloat(group.dailyCostTarget) : undefined,
+          };
+        }
       }
 
       const syncService = await AmazonSyncService.createFromCredentials(
@@ -2419,14 +2475,6 @@ const amazonApiRouter = router({
         input.accountId,
         ctx.user.id
       );
-
-      const config = {
-        optimizationGoal: group.optimizationGoal || 'maximize_sales',
-        targetAcos: group.targetAcos ? parseFloat(group.targetAcos) : undefined,
-        targetRoas: group.targetRoas ? parseFloat(group.targetRoas) : undefined,
-        dailySpendLimit: group.dailySpendLimit ? parseFloat(group.dailySpendLimit) : undefined,
-        dailyCostTarget: group.dailyCostTarget ? parseFloat(group.dailyCostTarget) : undefined,
-      };
 
       const results = await runAutoBidOptimization(syncService, input.accountId, config);
       return results;

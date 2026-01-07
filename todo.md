@@ -2010,3 +2010,13 @@
 
 ### 保存凭证后更新连接状态
 - [x] 修改saveCredentials接口，保存后自动更新connectionStatus为connected
+
+
+## 授权后自动同步数据 - 第二十五阶段
+
+- [x] 修改saveCredentials接口，授权成功后自动触发数据同步
+- [x] 自动同步广告活动数据
+- [x] 自动同步广告组数据
+- [x] 自动同步关键词数据
+- [x] 自动同步商品定位数据
+- [x] 修复Performance group not found错误

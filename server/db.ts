@@ -730,6 +730,15 @@ export async function deleteAmazonApiCredentials(accountId: number) {
     .where(eq(amazonApiCredentials.accountId, accountId));
 }
 
+export async function updateAmazonApiCredentialsLastSync(accountId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(amazonApiCredentials)
+    .set({ lastSyncAt: new Date().toISOString(), updatedAt: new Date().toISOString() })
+    .where(eq(amazonApiCredentials.accountId, accountId));
+}
+
 
 // ==================== Ad Automation Functions ====================
 
