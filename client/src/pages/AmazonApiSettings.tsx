@@ -168,6 +168,10 @@ export default function AmazonApiSettings() {
   const [activeTab, setActiveTab] = useState("accounts");
   const [useIncrementalSync, setUseIncrementalSync] = useState(true);
   const [showSyncHistory, setShowSyncHistory] = useState(false);
+  const [showSyncConflicts, setShowSyncConflicts] = useState(false);
+  const [showSyncQueue, setShowSyncQueue] = useState(false);
+  const [showChangeSummary, setShowChangeSummary] = useState(false);
+  const [selectedSyncJobId, setSelectedSyncJobId] = useState<number | null>(null);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [importData, setImportData] = useState("");
   const [importFormat, setImportFormat] = useState<"json" | "csv">("json");
@@ -312,12 +316,101 @@ export default function AmazonApiSettings() {
     { enabled: !!selectedAccountId && showSyncHistory }
   );
 
+  // 同步冲突查询
+  const { data: syncConflicts, refetch: refetchConflicts } = trpc.amazonApi.getSyncConflicts.useQuery(
+    { accountId: selectedAccountId!, status: 'pending' },
+    { enabled: !!selectedAccountId && showSyncConflicts }
+  );
+
+  // 待处理冲突数量
+  const { data: pendingConflictsCount } = trpc.amazonApi.getPendingConflictsCount.useQuery(
+    { accountId: selectedAccountId! },
+    { enabled: !!selectedAccountId }
+  );
+
+  // 同步队列查询
+  const { data: syncQueue, refetch: refetchQueue } = trpc.amazonApi.getSyncQueue.useQuery(
+    { status: undefined },
+    { enabled: showSyncQueue }
+  );
+
+  // 队列统计
+  const { data: queueStats } = trpc.amazonApi.getSyncQueueStats.useQuery(
+    undefined,
+    { enabled: showSyncQueue }
+  );
+
+  // 同步变更摘要查询
+  const { data: changeSummary } = trpc.amazonApi.getSyncChangeSummary.useQuery(
+    { syncJobId: selectedSyncJobId! },
+    { enabled: !!selectedSyncJobId && showChangeSummary }
+  );
+
+  // 解决冲突mutation
+  const resolveConflictMutation = trpc.amazonApi.resolveSyncConflict.useMutation({
+    onSuccess: () => {
+      toast.success('冲突已解决');
+      refetchConflicts();
+    },
+    onError: (error) => {
+      toast.error(`解决失败: ${error.message}`);
+    },
+  });
+
+  // 添加到队列mutation
+  const addToQueueMutation = trpc.amazonApi.addToSyncQueue.useMutation({
+    onSuccess: () => {
+      toast.success('已添加到同步队列');
+      refetchQueue();
+    },
+    onError: (error) => {
+      toast.error(`添加失败: ${error.message}`);
+    },
+  });
+
+  // 取消任务mutation
+  const cancelTaskMutation = trpc.amazonApi.cancelSyncTask.useMutation({
+    onSuccess: () => {
+      toast.success('任务已取消');
+      refetchQueue();
+    },
+    onError: (error) => {
+      toast.error(`取消失败: ${error.message}`);
+    },
+  });
+
   // Sync all mutation
   const syncAllMutation = trpc.amazonApi.syncAll.useMutation({
     onSuccess: (data) => {
+      // 显示基本同步结果
       toast.success(`同步完成！广告活动: ${data.campaigns}, 广告组: ${data.adGroups}, 关键词: ${data.keywords}, 商品定位: ${data.targets}`);
+      
+      // 显示变更摘要
+      if (data.changeSummary) {
+        const cs = data.changeSummary;
+        const changes = [];
+        if (cs.campaignsCreated > 0) changes.push(`新增${cs.campaignsCreated}个广告活动`);
+        if (cs.campaignsUpdated > 0) changes.push(`更新${cs.campaignsUpdated}个广告活动`);
+        if (cs.adGroupsCreated > 0) changes.push(`新增${cs.adGroupsCreated}个广告组`);
+        if (cs.adGroupsUpdated > 0) changes.push(`更新${cs.adGroupsUpdated}个广告组`);
+        if (cs.keywordsCreated > 0) changes.push(`新增${cs.keywordsCreated}个关键词`);
+        if (cs.keywordsUpdated > 0) changes.push(`更新${cs.keywordsUpdated}个关键词`);
+        if (cs.conflictsDetected > 0) {
+          toast(`检测到${cs.conflictsDetected}个数据冲突，请查看冲突列表`, { icon: '⚠️' });
+        }
+        if (changes.length > 0) {
+          toast(`变更摘要: ${changes.join(', ')}`, { duration: 5000 });
+        }
+      }
+      
+      // 保存jobId用于查看详细变更
+      if (data.jobId) {
+        setSelectedSyncJobId(data.jobId);
+      }
+      
       refetchStatus();
       refetchSyncHistory();
+      refetchConflicts();
     },
     onError: (error) => {
       toast.error(`同步失败: ${error.message}`);
@@ -2091,14 +2184,36 @@ export default function AmazonApiSettings() {
                         (只同步上次同步后有变化的数据，减少API调用次数)
                       </span>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setShowSyncHistory(!showSyncHistory)}
-                    >
-                      <Eye className="h-4 w-4 mr-1" />
-                      {showSyncHistory ? '隐藏历史' : '查看历史'}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowSyncQueue(!showSyncQueue)}
+                      >
+                        <Database className="h-4 w-4 mr-1" />
+                        队列
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowSyncConflicts(!showSyncConflicts)}
+                        className={pendingConflictsCount && pendingConflictsCount > 0 ? 'text-yellow-500' : ''}
+                      >
+                        <AlertCircle className="h-4 w-4 mr-1" />
+                        冲突
+                        {pendingConflictsCount && pendingConflictsCount > 0 && (
+                          <Badge variant="destructive" className="ml-1 h-5 px-1">{pendingConflictsCount}</Badge>
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setShowSyncHistory(!showSyncHistory)}
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        {showSyncHistory ? '隐藏历史' : '查看历史'}
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-4">
@@ -2349,6 +2464,16 @@ export default function AmazonApiSettings() {
                                   {job.retryCount && job.retryCount > 0 ? ` | 重试: ${job.retryCount}次` : ''}
                                 </div>
                               </div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedSyncJobId(job.id);
+                                  setShowChangeSummary(true);
+                                }}
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
                               <Badge variant={job.status === 'completed' ? 'default' : job.status === 'failed' ? 'destructive' : 'secondary'}>
                                 {job.status === 'completed' ? '完成' :
                                  job.status === 'failed' ? '失败' :
@@ -2360,6 +2485,290 @@ export default function AmazonApiSettings() {
                       ) : (
                         <div className="text-center py-8 text-muted-foreground">
                           暂无同步记录
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* 变更摘要卡片 */}
+              {showChangeSummary && changeSummary && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2">
+                        <Database className="h-5 w-5" />
+                        同步变更摘要
+                      </CardTitle>
+                      <Button variant="ghost" size="sm" onClick={() => setShowChangeSummary(false)}>
+                        关闭
+                      </Button>
+                    </div>
+                    <CardDescription>
+                      本次同步的数据变更详情
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-4 gap-4">
+                      <div className="p-4 bg-green-500/10 rounded-lg border border-green-500/20">
+                        <div className="text-lg font-bold text-green-500">
+                          {(changeSummary.campaignsCreated || 0) + (changeSummary.adGroupsCreated || 0) + (changeSummary.keywordsCreated || 0) + (changeSummary.targetsCreated || 0)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">新增记录</div>
+                        <div className="text-xs text-green-500 mt-1">
+                          广告:{changeSummary.campaignsCreated || 0} 组:{changeSummary.adGroupsCreated || 0} 词:{changeSummary.keywordsCreated || 0}
+                        </div>
+                      </div>
+                      <div className="p-4 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                        <div className="text-lg font-bold text-blue-500">
+                          {(changeSummary.campaignsUpdated || 0) + (changeSummary.adGroupsUpdated || 0) + (changeSummary.keywordsUpdated || 0) + (changeSummary.targetsUpdated || 0)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">更新记录</div>
+                        <div className="text-xs text-blue-500 mt-1">
+                          广告:{changeSummary.campaignsUpdated || 0} 组:{changeSummary.adGroupsUpdated || 0} 词:{changeSummary.keywordsUpdated || 0}
+                        </div>
+                      </div>
+                      <div className="p-4 bg-red-500/10 rounded-lg border border-red-500/20">
+                        <div className="text-lg font-bold text-red-500">
+                          {(changeSummary.campaignsDeleted || 0) + (changeSummary.adGroupsDeleted || 0) + (changeSummary.keywordsDeleted || 0) + (changeSummary.targetsDeleted || 0)}
+                        </div>
+                        <div className="text-xs text-muted-foreground">删除记录</div>
+                      </div>
+                      <div className="p-4 bg-yellow-500/10 rounded-lg border border-yellow-500/20">
+                        <div className="text-lg font-bold text-yellow-500">
+                          {changeSummary.conflictsDetected || 0}
+                        </div>
+                        <div className="text-xs text-muted-foreground">检测到冲突</div>
+                        {(changeSummary.conflictsDetected || 0) > 0 && (
+                          <Button
+                            variant="link"
+                            size="sm"
+                            className="p-0 h-auto text-xs text-yellow-500"
+                            onClick={() => setShowSyncConflicts(true)}
+                          >
+                            查看冲突
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* 同步冲突卡片 */}
+              {showSyncConflicts && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2">
+                        <AlertCircle className="h-5 w-5 text-yellow-500" />
+                        数据冲突
+                        {pendingConflictsCount && pendingConflictsCount > 0 && (
+                          <Badge variant="destructive">{pendingConflictsCount}</Badge>
+                        )}
+                      </CardTitle>
+                      <Button variant="ghost" size="sm" onClick={() => setShowSyncConflicts(false)}>
+                        关闭
+                      </Button>
+                    </div>
+                    <CardDescription>
+                      同步时检测到的数据冲突，请选择处理方式
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {syncConflicts && syncConflicts.length > 0 ? (
+                      syncConflicts.map((conflict: any) => (
+                        <div key={conflict.id} className="p-4 bg-yellow-500/5 rounded-lg border border-yellow-500/20">
+                          <div className="flex items-start justify-between mb-3">
+                            <div>
+                              <div className="font-medium">{conflict.entityName}</div>
+                              <div className="text-xs text-muted-foreground">
+                                类型: {conflict.entityType} | ID: {conflict.entityId}
+                              </div>
+                            </div>
+                            <Badge variant="outline" className="text-yellow-500 border-yellow-500">
+                              {conflict.conflictType === 'data_mismatch' ? '数据不一致' : conflict.conflictType}
+                            </Badge>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4 mb-3">
+                            <div className="p-2 bg-muted/50 rounded text-xs">
+                              <div className="font-medium mb-1">本地数据</div>
+                              <div className="text-muted-foreground">
+                                {conflict.conflictFields?.map((field: string) => (
+                                  <div key={field}>{field}: {JSON.stringify(conflict.localData?.[field])}</div>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="p-2 bg-muted/50 rounded text-xs">
+                              <div className="font-medium mb-1">远程数据</div>
+                              <div className="text-muted-foreground">
+                                {conflict.conflictFields?.map((field: string) => (
+                                  <div key={field}>{field}: {JSON.stringify(conflict.remoteData?.[field])}</div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => resolveConflictMutation.mutate({
+                                conflictId: conflict.id,
+                                resolution: 'use_local',
+                              })}
+                            >
+                              使用本地
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => resolveConflictMutation.mutate({
+                                conflictId: conflict.id,
+                                resolution: 'use_remote',
+                              })}
+                            >
+                              使用远程
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="text-muted-foreground"
+                              onClick={() => resolveConflictMutation.mutate({
+                                conflictId: conflict.id,
+                                resolution: 'manual',
+                                notes: '用户忽略',
+                              })}
+                            >
+                              忽略
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        暂无待处理的冲突
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* 同步队列卡片 */}
+              {showSyncQueue && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center gap-2">
+                        <Database className="h-5 w-5" />
+                        同步任务队列
+                      </CardTitle>
+                      <Button variant="ghost" size="sm" onClick={() => setShowSyncQueue(false)}>
+                        关闭
+                      </Button>
+                    </div>
+                    <CardDescription>
+                      管理多账号同步任务
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* 队列统计 */}
+                    {queueStats && (
+                      <div className="grid grid-cols-4 gap-4 p-4 bg-muted/30 rounded-lg">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-yellow-500">{queueStats.pending || 0}</div>
+                          <div className="text-xs text-muted-foreground">等待中</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-blue-500">{queueStats.running || 0}</div>
+                          <div className="text-xs text-muted-foreground">运行中</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-green-500">{queueStats.completed || 0}</div>
+                          <div className="text-xs text-muted-foreground">已完成</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-lg font-bold">
+                            {queueStats.estimatedTotalTimeMs 
+                              ? `${Math.ceil(queueStats.estimatedTotalTimeMs / 60000)}分钟`
+                              : '-'
+                            }
+                          </div>
+                          <div className="text-xs text-muted-foreground">预计总时间</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 添加到队列按钮 */}
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          if (selectedAccountId && selectedAccount) {
+                            addToQueueMutation.mutate({
+                              accountId: selectedAccountId,
+                              accountName: selectedAccount.accountName,
+                            });
+                          }
+                        }}
+                        disabled={!selectedAccountId || addToQueueMutation.isPending}
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        添加当前账号到队列
+                      </Button>
+                    </div>
+
+                    {/* 队列列表 */}
+                    <div className="space-y-2">
+                      {syncQueue && syncQueue.length > 0 ? (
+                        syncQueue.map((task: any) => (
+                          <div key={task.id} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg border">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-2 h-2 rounded-full ${
+                                task.status === 'completed' ? 'bg-green-500' :
+                                task.status === 'failed' ? 'bg-red-500' :
+                                task.status === 'running' ? 'bg-blue-500 animate-pulse' :
+                                task.status === 'cancelled' ? 'bg-gray-500' :
+                                'bg-yellow-500'
+                              }`} />
+                              <div>
+                                <div className="text-sm font-medium">{task.accountName || `账号 #${task.accountId}`}</div>
+                                <div className="text-xs text-muted-foreground">
+                                  {task.syncType === 'full' ? '全量同步' : task.syncType}
+                                  {task.progress > 0 && task.status === 'running' && (
+                                    <span className="ml-2">进度: {task.progress}%</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {task.status === 'pending' && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => cancelTaskMutation.mutate({ taskId: task.id })}
+                                >
+                                  取消
+                                </Button>
+                              )}
+                              <Badge variant={
+                                task.status === 'completed' ? 'default' :
+                                task.status === 'failed' ? 'destructive' :
+                                task.status === 'running' ? 'secondary' :
+                                'outline'
+                              }>
+                                {task.status === 'pending' ? '等待中' :
+                                 task.status === 'running' ? '运行中' :
+                                 task.status === 'completed' ? '完成' :
+                                 task.status === 'failed' ? '失败' :
+                                 task.status === 'cancelled' ? '已取消' : task.status}
+                              </Badge>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">
+                          队列为空
                         </div>
                       )}
                     </div>

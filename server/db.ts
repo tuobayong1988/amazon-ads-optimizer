@@ -30,7 +30,11 @@ import {
   aiOptimizationActions, AiOptimizationAction, InsertAiOptimizationAction,
   aiOptimizationPredictions, AiOptimizationPrediction, InsertAiOptimizationPrediction,
   aiOptimizationReviews, AiOptimizationReview, InsertAiOptimizationReview,
-  bidAdjustmentHistory
+  bidAdjustmentHistory,
+  syncChangeRecords, SyncChangeRecord, InsertSyncChangeRecord,
+  syncConflicts, SyncConflict, InsertSyncConflict,
+  syncTaskQueue, SyncTaskQueue, InsertSyncTaskQueue,
+  syncChangeSummary, SyncChangeSummary, InsertSyncChangeSummary
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -3140,4 +3144,404 @@ export async function getSyncLogs(jobId: number) {
     .from(dataSyncLogs)
     .where(eq(dataSyncLogs.jobId, jobId))
     .orderBy(desc(dataSyncLogs.createdAt));
+}
+
+
+// ==================== 同步变更记录相关函数 ====================
+
+/**
+ * 创建同步变更记录
+ */
+export async function createSyncChangeRecord(data: InsertSyncChangeRecord): Promise<number | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const [result] = await db.insert(syncChangeRecords).values(data);
+  return result.insertId;
+}
+
+/**
+ * 批量创建同步变更记录
+ */
+export async function createSyncChangeRecordsBatch(records: InsertSyncChangeRecord[]): Promise<number> {
+  const db = await getDb();
+  if (!db || records.length === 0) return 0;
+  
+  await db.insert(syncChangeRecords).values(records);
+  return records.length;
+}
+
+/**
+ * 获取同步变更记录
+ */
+export async function getSyncChangeRecords(syncJobId: number, entityType?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const conditions = [eq(syncChangeRecords.syncJobId, syncJobId)];
+  if (entityType) {
+    conditions.push(eq(syncChangeRecords.entityType, entityType as any));
+  }
+  
+  return db.select()
+    .from(syncChangeRecords)
+    .where(and(...conditions))
+    .orderBy(desc(syncChangeRecords.createdAt));
+}
+
+/**
+ * 获取同步变更摘要
+ */
+export async function getSyncChangeSummary(syncJobId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const [summary] = await db.select()
+    .from(syncChangeSummary)
+    .where(eq(syncChangeSummary.syncJobId, syncJobId));
+  
+  return summary;
+}
+
+/**
+ * 创建或更新同步变更摘要
+ */
+export async function upsertSyncChangeSummary(data: InsertSyncChangeSummary): Promise<number | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  // 检查是否已存在
+  const [existing] = await db.select()
+    .from(syncChangeSummary)
+    .where(eq(syncChangeSummary.syncJobId, data.syncJobId));
+  
+  if (existing) {
+    await db.update(syncChangeSummary)
+      .set(data)
+      .where(eq(syncChangeSummary.id, existing.id));
+    return existing.id;
+  } else {
+    const [result] = await db.insert(syncChangeSummary).values(data);
+    return result.insertId;
+  }
+}
+
+// ==================== 同步冲突检测相关函数 ====================
+
+/**
+ * 创建同步冲突记录
+ */
+export async function createSyncConflict(data: InsertSyncConflict): Promise<number | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const [result] = await db.insert(syncConflicts).values(data);
+  return result.insertId;
+}
+
+/**
+ * 批量创建同步冲突记录
+ */
+export async function createSyncConflictsBatch(conflicts: InsertSyncConflict[]): Promise<number> {
+  const db = await getDb();
+  if (!db || conflicts.length === 0) return 0;
+  
+  await db.insert(syncConflicts).values(conflicts);
+  return conflicts.length;
+}
+
+/**
+ * 获取同步冲突列表
+ */
+export async function getSyncConflicts(accountId: number, status?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const conditions = [eq(syncConflicts.accountId, accountId)];
+  if (status) {
+    conditions.push(eq(syncConflicts.resolutionStatus, status as any));
+  }
+  
+  return db.select()
+    .from(syncConflicts)
+    .where(and(...conditions))
+    .orderBy(desc(syncConflicts.createdAt));
+}
+
+/**
+ * 获取待处理冲突数量
+ */
+export async function getPendingConflictsCount(accountId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  
+  const [result] = await db.select({ count: sql<number>`count(*)` })
+    .from(syncConflicts)
+    .where(and(
+      eq(syncConflicts.accountId, accountId),
+      eq(syncConflicts.resolutionStatus, 'pending')
+    ));
+  
+  return result?.count || 0;
+}
+
+/**
+ * 解决同步冲突
+ */
+export async function resolveSyncConflict(
+  conflictId: number, 
+  resolution: 'use_local' | 'use_remote' | 'merge' | 'manual',
+  resolvedBy: number,
+  notes?: string
+): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  
+  await db.update(syncConflicts)
+    .set({
+      resolutionStatus: 'resolved',
+      suggestedResolution: resolution,
+      resolvedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      resolvedBy,
+      resolutionNotes: notes,
+    })
+    .where(eq(syncConflicts.id, conflictId));
+  
+  return true;
+}
+
+/**
+ * 批量解决同步冲突
+ */
+export async function resolveSyncConflictsBatch(
+  conflictIds: number[], 
+  resolution: 'use_local' | 'use_remote' | 'merge' | 'manual',
+  resolvedBy: number
+): Promise<number> {
+  const db = await getDb();
+  if (!db || conflictIds.length === 0) return 0;
+  
+  await db.update(syncConflicts)
+    .set({
+      resolutionStatus: 'resolved',
+      suggestedResolution: resolution,
+      resolvedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      resolvedBy,
+    })
+    .where(inArray(syncConflicts.id, conflictIds));
+  
+  return conflictIds.length;
+}
+
+/**
+ * 忽略同步冲突
+ */
+export async function ignoreSyncConflict(conflictId: number, resolvedBy: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  
+  await db.update(syncConflicts)
+    .set({
+      resolutionStatus: 'ignored',
+      resolvedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      resolvedBy,
+    })
+    .where(eq(syncConflicts.id, conflictId));
+  
+  return true;
+}
+
+// ==================== 同步任务队列相关函数 ====================
+
+/**
+ * 添加同步任务到队列
+ */
+export async function addToSyncQueue(data: InsertSyncTaskQueue): Promise<number | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const [result] = await db.insert(syncTaskQueue).values(data);
+  return result.insertId;
+}
+
+/**
+ * 批量添加同步任务到队列
+ */
+export async function addToSyncQueueBatch(tasks: InsertSyncTaskQueue[]): Promise<number[]> {
+  const db = await getDb();
+  if (!db || tasks.length === 0) return [];
+  
+  const ids: number[] = [];
+  for (const task of tasks) {
+    const [result] = await db.insert(syncTaskQueue).values(task);
+    ids.push(result.insertId);
+  }
+  return ids;
+}
+
+/**
+ * 获取队列中的任务
+ */
+export async function getSyncQueue(userId: number, status?: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const conditions = [eq(syncTaskQueue.userId, userId)];
+  if (status) {
+    conditions.push(eq(syncTaskQueue.status, status as any));
+  }
+  
+  return db.select()
+    .from(syncTaskQueue)
+    .where(and(...conditions))
+    .orderBy(desc(syncTaskQueue.priority), syncTaskQueue.createdAt);
+}
+
+/**
+ * 获取下一个待执行的任务
+ */
+export async function getNextQueuedTask(): Promise<SyncTaskQueue | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const [task] = await db.select()
+    .from(syncTaskQueue)
+    .where(eq(syncTaskQueue.status, 'queued'))
+    .orderBy(desc(syncTaskQueue.priority), syncTaskQueue.createdAt)
+    .limit(1);
+  
+  return task || null;
+}
+
+/**
+ * 更新任务状态
+ */
+export async function updateSyncTaskStatus(
+  taskId: number, 
+  status: 'queued' | 'running' | 'completed' | 'failed' | 'cancelled',
+  updates?: Partial<{
+    progress: number;
+    currentStep: string;
+    completedSteps: number;
+    estimatedTimeMs: number;
+    errorMessage: string;
+    resultSummary: any;
+  }>
+): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  
+  const updateData: any = { status };
+  
+  if (status === 'running' && !updates?.startedAt) {
+    updateData.startedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  }
+  
+  if (status === 'completed' || status === 'failed') {
+    updateData.completedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  }
+  
+  if (updates) {
+    Object.assign(updateData, updates);
+  }
+  
+  await db.update(syncTaskQueue)
+    .set(updateData)
+    .where(eq(syncTaskQueue.id, taskId));
+  
+  return true;
+}
+
+/**
+ * 更新任务进度
+ */
+export async function updateSyncTaskProgress(
+  taskId: number,
+  progress: number,
+  currentStep: string,
+  completedSteps: number,
+  estimatedTimeMs?: number
+): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  
+  await db.update(syncTaskQueue)
+    .set({
+      progress,
+      currentStep,
+      completedSteps,
+      estimatedTimeMs,
+    })
+    .where(eq(syncTaskQueue.id, taskId));
+  
+  return true;
+}
+
+/**
+ * 取消队列中的任务
+ */
+export async function cancelSyncTask(taskId: number): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  
+  await db.update(syncTaskQueue)
+    .set({
+      status: 'cancelled',
+      completedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+    })
+    .where(and(
+      eq(syncTaskQueue.id, taskId),
+      inArray(syncTaskQueue.status, ['queued', 'running'])
+    ));
+  
+  return true;
+}
+
+/**
+ * 获取队列统计信息
+ */
+export async function getSyncQueueStats(userId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const [stats] = await db.select({
+    totalTasks: sql<number>`count(*)`,
+    queuedTasks: sql<number>`SUM(CASE WHEN status = 'queued' THEN 1 ELSE 0 END)`,
+    runningTasks: sql<number>`SUM(CASE WHEN status = 'running' THEN 1 ELSE 0 END)`,
+    completedTasks: sql<number>`SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END)`,
+    failedTasks: sql<number>`SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END)`,
+    totalEstimatedTimeMs: sql<number>`COALESCE(SUM(CASE WHEN status IN ('queued', 'running') THEN estimated_time_ms ELSE 0 END), 0)`,
+  })
+  .from(syncTaskQueue)
+  .where(eq(syncTaskQueue.userId, userId));
+  
+  return stats || {
+    totalTasks: 0,
+    queuedTasks: 0,
+    runningTasks: 0,
+    completedTasks: 0,
+    failedTasks: 0,
+    totalEstimatedTimeMs: 0,
+  };
+}
+
+/**
+ * 清理已完成的任务（保留最近N天）
+ */
+export async function cleanupOldSyncTasks(userId: number, retainDays: number = 7): Promise<number> {
+  const db = await getDb();
+  if (!db) return 0;
+  
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - retainDays);
+  const cutoffDateStr = cutoffDate.toISOString().slice(0, 19).replace('T', ' ');
+  
+  const [result] = await db.delete(syncTaskQueue)
+    .where(and(
+      eq(syncTaskQueue.userId, userId),
+      inArray(syncTaskQueue.status, ['completed', 'failed', 'cancelled']),
+      lte(syncTaskQueue.completedAt, cutoffDateStr)
+    ));
+  
+  return (result as any).affectedRows || 0;
 }

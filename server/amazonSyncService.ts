@@ -873,3 +873,921 @@ export async function runAutoBidOptimization(
 
   return results;
 }
+
+
+// ==================== 带变更跟踪的同步方法 ====================
+
+// 扩展AmazonSyncService类，添加带变更跟踪的同步方法
+declare module './amazonSyncService' {
+  interface AmazonSyncService {
+    syncSpCampaignsWithTracking(lastSyncTime?: string | null, syncJobId?: number | null): Promise<SyncResultWithTracking>;
+    syncSbCampaignsWithTracking(lastSyncTime?: string | null, syncJobId?: number | null): Promise<SyncResultWithTracking>;
+    syncSdCampaignsWithTracking(lastSyncTime?: string | null, syncJobId?: number | null): Promise<SyncResultWithTracking>;
+    syncSpAdGroupsWithTracking(lastSyncTime?: string | null, syncJobId?: number | null): Promise<SyncResultWithTracking>;
+    syncSpKeywordsWithTracking(lastSyncTime?: string | null, syncJobId?: number | null): Promise<SyncResultWithTracking>;
+    syncSpProductTargetsWithTracking(lastSyncTime?: string | null, syncJobId?: number | null): Promise<SyncResultWithTracking>;
+  }
+}
+
+interface SyncResultWithTracking {
+  synced: number;
+  skipped: number;
+  created: number;
+  updated: number;
+  deleted: number;
+  conflicts: number;
+}
+
+import {
+  createSyncChangeRecordsBatch,
+  createSyncConflictsBatch,
+  InsertSyncChangeRecord,
+  InsertSyncConflict,
+} from './db';
+
+/**
+ * 检测数据冲突
+ */
+function detectConflict(
+  existing: any,
+  newData: any,
+  fieldsToCheck: string[]
+): { hasConflict: boolean; conflictFields: string[] } {
+  const conflictFields: string[] = [];
+  
+  for (const field of fieldsToCheck) {
+    const existingValue = existing[field];
+    const newValue = newData[field];
+    
+    // 如果两个值都存在且不相等，可能是冲突
+    if (existingValue !== undefined && newValue !== undefined) {
+      // 转换为字符串进行比较
+      const existingStr = String(existingValue);
+      const newStr = String(newValue);
+      
+      if (existingStr !== newStr) {
+        conflictFields.push(field);
+      }
+    }
+  }
+  
+  return {
+    hasConflict: conflictFields.length > 0,
+    conflictFields,
+  };
+}
+
+/**
+ * 同步SP广告活动（带变更跟踪）
+ */
+AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
+  lastSyncTime?: string | null,
+  syncJobId?: number | null
+): Promise<SyncResultWithTracking> {
+  const db = await getDb();
+  if (!db) return { synced: 0, skipped: 0, created: 0, updated: 0, deleted: 0, conflicts: 0 };
+
+  const result: SyncResultWithTracking = {
+    synced: 0,
+    skipped: 0,
+    created: 0,
+    updated: 0,
+    deleted: 0,
+    conflicts: 0,
+  };
+
+  const changeRecords: InsertSyncChangeRecord[] = [];
+  const conflictRecords: InsertSyncConflict[] = [];
+
+  try {
+    const apiCampaigns = await this.client.listSpCampaigns();
+
+    for (const apiCampaign of apiCampaigns) {
+      const [existing] = await db
+        .select()
+        .from(campaigns)
+        .where(
+          and(
+            eq(campaigns.accountId, this.accountId),
+            eq(campaigns.campaignId, String(apiCampaign.campaignId))
+          )
+        )
+        .limit(1);
+
+      // 增量同步检查
+      if (lastSyncTime && existing) {
+        const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+        const lastSync = new Date(lastSyncTime).getTime();
+        if (existingUpdated >= lastSync) {
+          result.skipped++;
+          continue;
+        }
+      }
+
+      const campaignType = apiCampaign.targetingType === 'auto' ? 'sp_auto' : 'sp_manual';
+      const campaignData = {
+        accountId: this.accountId,
+        campaignId: String(apiCampaign.campaignId),
+        campaignName: apiCampaign.name,
+        campaignType: campaignType as 'sp_auto' | 'sp_manual' | 'sb' | 'sd',
+        targetingType: apiCampaign.targetingType as 'auto' | 'manual',
+        dailyBudget: String(apiCampaign.dailyBudget),
+        status: apiCampaign.state as 'enabled' | 'paused' | 'archived',
+        placementTopMultiplier: this.getPlacementMultiplier(apiCampaign, 'placementTop'),
+        placementProductPageMultiplier: this.getPlacementMultiplier(apiCampaign, 'placementProductPage'),
+        updatedAt: new Date(),
+      };
+
+      if (existing) {
+        // 检测冲突
+        const conflictCheck = detectConflict(existing, campaignData, ['dailyBudget', 'status']);
+        if (conflictCheck.hasConflict && syncJobId) {
+          conflictRecords.push({
+            syncJobId,
+            accountId: this.accountId,
+            userId: this.userId,
+            entityType: 'campaign',
+            entityId: String(apiCampaign.campaignId),
+            entityName: apiCampaign.name,
+            conflictType: 'data_mismatch',
+            localData: existing,
+            remoteData: campaignData,
+            conflictFields: conflictCheck.conflictFields,
+          });
+          result.conflicts++;
+        }
+
+        // 记录变更
+        if (syncJobId) {
+          changeRecords.push({
+            syncJobId,
+            accountId: this.accountId,
+            userId: this.userId,
+            entityType: 'campaign',
+            changeType: 'updated',
+            entityId: String(apiCampaign.campaignId),
+            entityName: apiCampaign.name,
+            previousData: existing,
+            newData: campaignData,
+            changedFields: Object.keys(campaignData).filter(k => 
+              (existing as any)[k] !== (campaignData as any)[k]
+            ),
+          });
+        }
+
+        await db
+          .update(campaigns)
+          .set(campaignData)
+          .where(eq(campaigns.id, existing.id));
+        result.updated++;
+      } else {
+        // 记录新建
+        if (syncJobId) {
+          changeRecords.push({
+            syncJobId,
+            accountId: this.accountId,
+            userId: this.userId,
+            entityType: 'campaign',
+            changeType: 'created',
+            entityId: String(apiCampaign.campaignId),
+            entityName: apiCampaign.name,
+            newData: campaignData,
+          });
+        }
+
+        await db.insert(campaigns).values({
+          ...campaignData,
+          createdAt: new Date(),
+        });
+        result.created++;
+      }
+      result.synced++;
+    }
+
+    // 批量保存变更记录
+    if (changeRecords.length > 0) {
+      await createSyncChangeRecordsBatch(changeRecords);
+    }
+    if (conflictRecords.length > 0) {
+      await createSyncConflictsBatch(conflictRecords);
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Error syncing SP campaigns with tracking:', error);
+    return result;
+  }
+};
+
+/**
+ * 同步SB广告活动（带变更跟踪）
+ */
+AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
+  lastSyncTime?: string | null,
+  syncJobId?: number | null
+): Promise<SyncResultWithTracking> {
+  const db = await getDb();
+  if (!db) return { synced: 0, skipped: 0, created: 0, updated: 0, deleted: 0, conflicts: 0 };
+
+  const result: SyncResultWithTracking = {
+    synced: 0,
+    skipped: 0,
+    created: 0,
+    updated: 0,
+    deleted: 0,
+    conflicts: 0,
+  };
+
+  const changeRecords: InsertSyncChangeRecord[] = [];
+  const conflictRecords: InsertSyncConflict[] = [];
+
+  try {
+    const apiCampaigns = await this.client.listSbCampaigns();
+
+    for (const apiCampaign of apiCampaigns) {
+      const [existing] = await db
+        .select()
+        .from(campaigns)
+        .where(
+          and(
+            eq(campaigns.accountId, this.accountId),
+            eq(campaigns.campaignId, String(apiCampaign.campaignId))
+          )
+        )
+        .limit(1);
+
+      if (lastSyncTime && existing) {
+        const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+        const lastSync = new Date(lastSyncTime).getTime();
+        if (existingUpdated >= lastSync) {
+          result.skipped++;
+          continue;
+        }
+      }
+
+      const campaignData = {
+        accountId: this.accountId,
+        campaignId: String(apiCampaign.campaignId),
+        campaignName: apiCampaign.name,
+        campaignType: 'sb' as const,
+        targetingType: 'manual' as const,
+        dailyBudget: String(apiCampaign.budget?.budget || 0),
+        status: (apiCampaign.state || 'enabled') as 'enabled' | 'paused' | 'archived',
+        updatedAt: new Date(),
+      };
+
+      if (existing) {
+        const conflictCheck = detectConflict(existing, campaignData, ['dailyBudget', 'status']);
+        if (conflictCheck.hasConflict && syncJobId) {
+          conflictRecords.push({
+            syncJobId,
+            accountId: this.accountId,
+            userId: this.userId,
+            entityType: 'campaign',
+            entityId: String(apiCampaign.campaignId),
+            entityName: apiCampaign.name,
+            conflictType: 'data_mismatch',
+            localData: existing,
+            remoteData: campaignData,
+            conflictFields: conflictCheck.conflictFields,
+          });
+          result.conflicts++;
+        }
+
+        if (syncJobId) {
+          changeRecords.push({
+            syncJobId,
+            accountId: this.accountId,
+            userId: this.userId,
+            entityType: 'campaign',
+            changeType: 'updated',
+            entityId: String(apiCampaign.campaignId),
+            entityName: apiCampaign.name,
+            previousData: existing,
+            newData: campaignData,
+            changedFields: Object.keys(campaignData).filter(k => 
+              (existing as any)[k] !== (campaignData as any)[k]
+            ),
+          });
+        }
+
+        await db
+          .update(campaigns)
+          .set(campaignData)
+          .where(eq(campaigns.id, existing.id));
+        result.updated++;
+      } else {
+        if (syncJobId) {
+          changeRecords.push({
+            syncJobId,
+            accountId: this.accountId,
+            userId: this.userId,
+            entityType: 'campaign',
+            changeType: 'created',
+            entityId: String(apiCampaign.campaignId),
+            entityName: apiCampaign.name,
+            newData: campaignData,
+          });
+        }
+
+        await db.insert(campaigns).values({
+          ...campaignData,
+          createdAt: new Date(),
+        });
+        result.created++;
+      }
+      result.synced++;
+    }
+
+    if (changeRecords.length > 0) {
+      await createSyncChangeRecordsBatch(changeRecords);
+    }
+    if (conflictRecords.length > 0) {
+      await createSyncConflictsBatch(conflictRecords);
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Error syncing SB campaigns with tracking:', error);
+    return result;
+  }
+};
+
+/**
+ * 同步SD广告活动（带变更跟踪）
+ */
+AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
+  lastSyncTime?: string | null,
+  syncJobId?: number | null
+): Promise<SyncResultWithTracking> {
+  const db = await getDb();
+  if (!db) return { synced: 0, skipped: 0, created: 0, updated: 0, deleted: 0, conflicts: 0 };
+
+  const result: SyncResultWithTracking = {
+    synced: 0,
+    skipped: 0,
+    created: 0,
+    updated: 0,
+    deleted: 0,
+    conflicts: 0,
+  };
+
+  const changeRecords: InsertSyncChangeRecord[] = [];
+  const conflictRecords: InsertSyncConflict[] = [];
+
+  try {
+    const apiCampaigns = await this.client.listSdCampaigns();
+
+    for (const apiCampaign of apiCampaigns) {
+      const [existing] = await db
+        .select()
+        .from(campaigns)
+        .where(
+          and(
+            eq(campaigns.accountId, this.accountId),
+            eq(campaigns.campaignId, String(apiCampaign.campaignId))
+          )
+        )
+        .limit(1);
+
+      if (lastSyncTime && existing) {
+        const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+        const lastSync = new Date(lastSyncTime).getTime();
+        if (existingUpdated >= lastSync) {
+          result.skipped++;
+          continue;
+        }
+      }
+
+      const campaignData = {
+        accountId: this.accountId,
+        campaignId: String(apiCampaign.campaignId),
+        campaignName: apiCampaign.name,
+        campaignType: 'sd' as const,
+        targetingType: 'manual' as const,
+        dailyBudget: String(apiCampaign.budget || 0),
+        status: (apiCampaign.state || 'enabled') as 'enabled' | 'paused' | 'archived',
+        updatedAt: new Date(),
+      };
+
+      if (existing) {
+        const conflictCheck = detectConflict(existing, campaignData, ['dailyBudget', 'status']);
+        if (conflictCheck.hasConflict && syncJobId) {
+          conflictRecords.push({
+            syncJobId,
+            accountId: this.accountId,
+            userId: this.userId,
+            entityType: 'campaign',
+            entityId: String(apiCampaign.campaignId),
+            entityName: apiCampaign.name,
+            conflictType: 'data_mismatch',
+            localData: existing,
+            remoteData: campaignData,
+            conflictFields: conflictCheck.conflictFields,
+          });
+          result.conflicts++;
+        }
+
+        if (syncJobId) {
+          changeRecords.push({
+            syncJobId,
+            accountId: this.accountId,
+            userId: this.userId,
+            entityType: 'campaign',
+            changeType: 'updated',
+            entityId: String(apiCampaign.campaignId),
+            entityName: apiCampaign.name,
+            previousData: existing,
+            newData: campaignData,
+            changedFields: Object.keys(campaignData).filter(k => 
+              (existing as any)[k] !== (campaignData as any)[k]
+            ),
+          });
+        }
+
+        await db
+          .update(campaigns)
+          .set(campaignData)
+          .where(eq(campaigns.id, existing.id));
+        result.updated++;
+      } else {
+        if (syncJobId) {
+          changeRecords.push({
+            syncJobId,
+            accountId: this.accountId,
+            userId: this.userId,
+            entityType: 'campaign',
+            changeType: 'created',
+            entityId: String(apiCampaign.campaignId),
+            entityName: apiCampaign.name,
+            newData: campaignData,
+          });
+        }
+
+        await db.insert(campaigns).values({
+          ...campaignData,
+          createdAt: new Date(),
+        });
+        result.created++;
+      }
+      result.synced++;
+    }
+
+    if (changeRecords.length > 0) {
+      await createSyncChangeRecordsBatch(changeRecords);
+    }
+    if (conflictRecords.length > 0) {
+      await createSyncConflictsBatch(conflictRecords);
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Error syncing SD campaigns with tracking:', error);
+    return result;
+  }
+};
+
+/**
+ * 同步SP广告组（带变更跟踪）
+ */
+AmazonSyncService.prototype.syncSpAdGroupsWithTracking = async function(
+  lastSyncTime?: string | null,
+  syncJobId?: number | null
+): Promise<SyncResultWithTracking> {
+  const db = await getDb();
+  if (!db) return { synced: 0, skipped: 0, created: 0, updated: 0, deleted: 0, conflicts: 0 };
+
+  const result: SyncResultWithTracking = {
+    synced: 0,
+    skipped: 0,
+    created: 0,
+    updated: 0,
+    deleted: 0,
+    conflicts: 0,
+  };
+
+  const changeRecords: InsertSyncChangeRecord[] = [];
+  const conflictRecords: InsertSyncConflict[] = [];
+
+  try {
+    const apiAdGroups = await this.client.listSpAdGroups();
+
+    for (const apiAdGroup of apiAdGroups) {
+      const [campaign] = await db
+        .select()
+        .from(campaigns)
+        .where(
+          and(
+            eq(campaigns.accountId, this.accountId),
+            eq(campaigns.campaignId, String(apiAdGroup.campaignId))
+          )
+        )
+        .limit(1);
+
+      if (!campaign) {
+        result.skipped++;
+        continue;
+      }
+
+      const [existing] = await db
+        .select()
+        .from(adGroups)
+        .where(
+          and(
+            eq(adGroups.campaignId, campaign.id),
+            eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
+          )
+        )
+        .limit(1);
+
+      if (lastSyncTime && existing) {
+        const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+        const lastSync = new Date(lastSyncTime).getTime();
+        if (existingUpdated >= lastSync) {
+          result.skipped++;
+          continue;
+        }
+      }
+
+      const adGroupData = {
+        campaignId: campaign.id,
+        adGroupId: String(apiAdGroup.adGroupId),
+        adGroupName: apiAdGroup.name,
+        defaultBid: String(apiAdGroup.defaultBid),
+        adGroupStatus: apiAdGroup.state as 'enabled' | 'paused' | 'archived',
+        updatedAt: new Date(),
+      };
+
+      if (existing) {
+        const conflictCheck = detectConflict(existing, adGroupData, ['defaultBid', 'adGroupStatus']);
+        if (conflictCheck.hasConflict && syncJobId) {
+          conflictRecords.push({
+            syncJobId,
+            accountId: this.accountId,
+            userId: this.userId,
+            entityType: 'ad_group',
+            entityId: String(apiAdGroup.adGroupId),
+            entityName: apiAdGroup.name,
+            conflictType: 'data_mismatch',
+            localData: existing,
+            remoteData: adGroupData,
+            conflictFields: conflictCheck.conflictFields,
+          });
+          result.conflicts++;
+        }
+
+        if (syncJobId) {
+          changeRecords.push({
+            syncJobId,
+            accountId: this.accountId,
+            userId: this.userId,
+            entityType: 'ad_group',
+            changeType: 'updated',
+            entityId: String(apiAdGroup.adGroupId),
+            entityName: apiAdGroup.name,
+            previousData: existing,
+            newData: adGroupData,
+            changedFields: Object.keys(adGroupData).filter(k => 
+              (existing as any)[k] !== (adGroupData as any)[k]
+            ),
+          });
+        }
+
+        await db
+          .update(adGroups)
+          .set(adGroupData)
+          .where(eq(adGroups.id, existing.id));
+        result.updated++;
+      } else {
+        if (syncJobId) {
+          changeRecords.push({
+            syncJobId,
+            accountId: this.accountId,
+            userId: this.userId,
+            entityType: 'ad_group',
+            changeType: 'created',
+            entityId: String(apiAdGroup.adGroupId),
+            entityName: apiAdGroup.name,
+            newData: adGroupData,
+          });
+        }
+
+        await db.insert(adGroups).values({
+          ...adGroupData,
+          createdAt: new Date(),
+        });
+        result.created++;
+      }
+      result.synced++;
+    }
+
+    if (changeRecords.length > 0) {
+      await createSyncChangeRecordsBatch(changeRecords);
+    }
+    if (conflictRecords.length > 0) {
+      await createSyncConflictsBatch(conflictRecords);
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Error syncing SP ad groups with tracking:', error);
+    return result;
+  }
+};
+
+/**
+ * 同步SP关键词（带变更跟踪）
+ */
+AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
+  lastSyncTime?: string | null,
+  syncJobId?: number | null
+): Promise<SyncResultWithTracking> {
+  const db = await getDb();
+  if (!db) return { synced: 0, skipped: 0, created: 0, updated: 0, deleted: 0, conflicts: 0 };
+
+  const result: SyncResultWithTracking = {
+    synced: 0,
+    skipped: 0,
+    created: 0,
+    updated: 0,
+    deleted: 0,
+    conflicts: 0,
+  };
+
+  const changeRecords: InsertSyncChangeRecord[] = [];
+  const conflictRecords: InsertSyncConflict[] = [];
+
+  try {
+    const apiKeywords = await this.client.listSpKeywords();
+
+    for (const apiKeyword of apiKeywords) {
+      const [adGroup] = await db
+        .select()
+        .from(adGroups)
+        .where(eq(adGroups.adGroupId, String(apiKeyword.adGroupId)))
+        .limit(1);
+
+      if (!adGroup) {
+        result.skipped++;
+        continue;
+      }
+
+      const [existing] = await db
+        .select()
+        .from(keywords)
+        .where(
+          and(
+            eq(keywords.adGroupId, adGroup.id),
+            eq(keywords.keywordId, String(apiKeyword.keywordId))
+          )
+        )
+        .limit(1);
+
+      if (lastSyncTime && existing) {
+        const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+        const lastSync = new Date(lastSyncTime).getTime();
+        if (existingUpdated >= lastSync) {
+          result.skipped++;
+          continue;
+        }
+      }
+
+      const keywordData = {
+        adGroupId: adGroup.id,
+        keywordId: String(apiKeyword.keywordId),
+        keywordText: apiKeyword.keywordText,
+        matchType: apiKeyword.matchType as 'broad' | 'phrase' | 'exact',
+        bid: String(apiKeyword.bid),
+        keywordStatus: apiKeyword.state as 'enabled' | 'paused' | 'archived',
+        updatedAt: new Date(),
+      };
+
+      if (existing) {
+        const conflictCheck = detectConflict(existing, keywordData, ['bid', 'keywordStatus']);
+        if (conflictCheck.hasConflict && syncJobId) {
+          conflictRecords.push({
+            syncJobId,
+            accountId: this.accountId,
+            userId: this.userId,
+            entityType: 'keyword',
+            entityId: String(apiKeyword.keywordId),
+            entityName: apiKeyword.keywordText,
+            conflictType: 'data_mismatch',
+            localData: existing,
+            remoteData: keywordData,
+            conflictFields: conflictCheck.conflictFields,
+          });
+          result.conflicts++;
+        }
+
+        if (syncJobId) {
+          changeRecords.push({
+            syncJobId,
+            accountId: this.accountId,
+            userId: this.userId,
+            entityType: 'keyword',
+            changeType: 'updated',
+            entityId: String(apiKeyword.keywordId),
+            entityName: apiKeyword.keywordText,
+            previousData: existing,
+            newData: keywordData,
+            changedFields: Object.keys(keywordData).filter(k => 
+              (existing as any)[k] !== (keywordData as any)[k]
+            ),
+          });
+        }
+
+        await db
+          .update(keywords)
+          .set(keywordData)
+          .where(eq(keywords.id, existing.id));
+        result.updated++;
+      } else {
+        if (syncJobId) {
+          changeRecords.push({
+            syncJobId,
+            accountId: this.accountId,
+            userId: this.userId,
+            entityType: 'keyword',
+            changeType: 'created',
+            entityId: String(apiKeyword.keywordId),
+            entityName: apiKeyword.keywordText,
+            newData: keywordData,
+          });
+        }
+
+        await db.insert(keywords).values({
+          ...keywordData,
+          createdAt: new Date(),
+        });
+        result.created++;
+      }
+      result.synced++;
+    }
+
+    if (changeRecords.length > 0) {
+      await createSyncChangeRecordsBatch(changeRecords);
+    }
+    if (conflictRecords.length > 0) {
+      await createSyncConflictsBatch(conflictRecords);
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Error syncing SP keywords with tracking:', error);
+    return result;
+  }
+};
+
+/**
+ * 同步SP商品定位（带变更跟踪）
+ */
+AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
+  lastSyncTime?: string | null,
+  syncJobId?: number | null
+): Promise<SyncResultWithTracking> {
+  const db = await getDb();
+  if (!db) return { synced: 0, skipped: 0, created: 0, updated: 0, deleted: 0, conflicts: 0 };
+
+  const result: SyncResultWithTracking = {
+    synced: 0,
+    skipped: 0,
+    created: 0,
+    updated: 0,
+    deleted: 0,
+    conflicts: 0,
+  };
+
+  const changeRecords: InsertSyncChangeRecord[] = [];
+  const conflictRecords: InsertSyncConflict[] = [];
+
+  try {
+    const apiTargets = await this.client.listSpProductTargets();
+
+    for (const apiTarget of apiTargets) {
+      const [adGroup] = await db
+        .select()
+        .from(adGroups)
+        .where(eq(adGroups.adGroupId, String(apiTarget.adGroupId)))
+        .limit(1);
+
+      if (!adGroup) {
+        result.skipped++;
+        continue;
+      }
+
+      const [existing] = await db
+        .select()
+        .from(productTargets)
+        .where(
+          and(
+            eq(productTargets.adGroupId, adGroup.id),
+            eq(productTargets.targetId, String(apiTarget.targetId))
+          )
+        )
+        .limit(1);
+
+      if (lastSyncTime && existing) {
+        const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+        const lastSync = new Date(lastSyncTime).getTime();
+        if (existingUpdated >= lastSync) {
+          result.skipped++;
+          continue;
+        }
+      }
+
+      // 解析表达式获取目标类型和值
+      let targetType = 'asin';
+      let targetValue = '';
+      if (apiTarget.expression && apiTarget.expression.length > 0) {
+        const expr = apiTarget.expression[0];
+        targetType = expr.type || 'asin';
+        targetValue = expr.value || '';
+      }
+
+      const targetData = {
+        adGroupId: adGroup.id,
+        targetId: String(apiTarget.targetId),
+        targetType: targetType as 'asin' | 'category',
+        targetValue,
+        bid: String(apiTarget.bid),
+        targetStatus: apiTarget.state as 'enabled' | 'paused' | 'archived',
+        updatedAt: new Date(),
+      };
+
+      if (existing) {
+        const conflictCheck = detectConflict(existing, targetData, ['bid', 'targetStatus']);
+        if (conflictCheck.hasConflict && syncJobId) {
+          conflictRecords.push({
+            syncJobId,
+            accountId: this.accountId,
+            userId: this.userId,
+            entityType: 'product_target',
+            entityId: String(apiTarget.targetId),
+            entityName: targetValue,
+            conflictType: 'data_mismatch',
+            localData: existing,
+            remoteData: targetData,
+            conflictFields: conflictCheck.conflictFields,
+          });
+          result.conflicts++;
+        }
+
+        if (syncJobId) {
+          changeRecords.push({
+            syncJobId,
+            accountId: this.accountId,
+            userId: this.userId,
+            entityType: 'product_target',
+            changeType: 'updated',
+            entityId: String(apiTarget.targetId),
+            entityName: targetValue,
+            previousData: existing,
+            newData: targetData,
+            changedFields: Object.keys(targetData).filter(k => 
+              (existing as any)[k] !== (targetData as any)[k]
+            ),
+          });
+        }
+
+        await db
+          .update(productTargets)
+          .set(targetData)
+          .where(eq(productTargets.id, existing.id));
+        result.updated++;
+      } else {
+        if (syncJobId) {
+          changeRecords.push({
+            syncJobId,
+            accountId: this.accountId,
+            userId: this.userId,
+            entityType: 'product_target',
+            changeType: 'created',
+            entityId: String(apiTarget.targetId),
+            entityName: targetValue,
+            newData: targetData,
+          });
+        }
+
+        await db.insert(productTargets).values({
+          ...targetData,
+          createdAt: new Date(),
+        });
+        result.created++;
+      }
+      result.synced++;
+    }
+
+    if (changeRecords.length > 0) {
+      await createSyncChangeRecordsBatch(changeRecords);
+    }
+    if (conflictRecords.length > 0) {
+      await createSyncConflictsBatch(conflictRecords);
+    }
+
+    return result;
+  } catch (error) {
+    console.error('Error syncing SP product targets with tracking:', error);
+    return result;
+  }
+};

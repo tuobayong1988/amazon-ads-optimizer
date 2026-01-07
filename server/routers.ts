@@ -2519,56 +2519,102 @@ const amazonApiRouter = router({
         skipped: 0,
       };
 
+      // 变更统计
+      const changeSummary = {
+        campaignsCreated: 0,
+        campaignsUpdated: 0,
+        campaignsDeleted: 0,
+        adGroupsCreated: 0,
+        adGroupsUpdated: 0,
+        adGroupsDeleted: 0,
+        keywordsCreated: 0,
+        keywordsUpdated: 0,
+        keywordsDeleted: 0,
+        targetsCreated: 0,
+        targetsUpdated: 0,
+        targetsDeleted: 0,
+        conflictsDetected: 0,
+        conflictsResolved: 0,
+      };
+
       try {
-        // 同步SP广告活动
+        // 同步SP广告活动（带变更跟踪）
         const spResult = await executeWithRetry(
-          () => syncService.syncSpCampaigns(lastSyncTime),
+          () => syncService.syncSpCampaignsWithTracking(lastSyncTime, jobId),
           'SP广告同步'
         );
-        results.spCampaigns = typeof spResult === 'object' ? spResult.synced : spResult;
-        results.skipped += typeof spResult === 'object' ? (spResult.skipped || 0) : 0;
+        results.spCampaigns = spResult.synced;
+        results.skipped += spResult.skipped || 0;
+        changeSummary.campaignsCreated += spResult.created || 0;
+        changeSummary.campaignsUpdated += spResult.updated || 0;
+        changeSummary.conflictsDetected += spResult.conflicts || 0;
 
-        // 同步SB广告活动
+        // 同步SB广告活动（带变更跟踪）
         const sbResult = await executeWithRetry(
-          () => syncService.syncSbCampaigns(lastSyncTime),
+          () => syncService.syncSbCampaignsWithTracking(lastSyncTime, jobId),
           'SB广告同步'
         );
-        results.sbCampaigns = typeof sbResult === 'object' ? sbResult.synced : sbResult;
-        results.skipped += typeof sbResult === 'object' ? (sbResult.skipped || 0) : 0;
+        results.sbCampaigns = sbResult.synced;
+        results.skipped += sbResult.skipped || 0;
+        changeSummary.campaignsCreated += sbResult.created || 0;
+        changeSummary.campaignsUpdated += sbResult.updated || 0;
+        changeSummary.conflictsDetected += sbResult.conflicts || 0;
 
-        // 同步SD广告活动
+        // 同步SD广告活动（带变更跟踪）
         const sdResult = await executeWithRetry(
-          () => syncService.syncSdCampaigns(lastSyncTime),
+          () => syncService.syncSdCampaignsWithTracking(lastSyncTime, jobId),
           'SD广告同步'
         );
-        results.sdCampaigns = typeof sdResult === 'object' ? sdResult.synced : sdResult;
-        results.skipped += typeof sdResult === 'object' ? (sdResult.skipped || 0) : 0;
+        results.sdCampaigns = sdResult.synced;
+        results.skipped += sdResult.skipped || 0;
+        changeSummary.campaignsCreated += sdResult.created || 0;
+        changeSummary.campaignsUpdated += sdResult.updated || 0;
+        changeSummary.conflictsDetected += sdResult.conflicts || 0;
 
-        // 同步广告组
+        // 同步广告组（带变更跟踪）
         const adGroupsResult = await executeWithRetry(
-          () => syncService.syncSpAdGroups(lastSyncTime),
+          () => syncService.syncSpAdGroupsWithTracking(lastSyncTime, jobId),
           '广告组同步'
         );
-        results.adGroups = typeof adGroupsResult === 'object' ? adGroupsResult.synced : adGroupsResult;
-        results.skipped += typeof adGroupsResult === 'object' ? (adGroupsResult.skipped || 0) : 0;
+        results.adGroups = adGroupsResult.synced;
+        results.skipped += adGroupsResult.skipped || 0;
+        changeSummary.adGroupsCreated += adGroupsResult.created || 0;
+        changeSummary.adGroupsUpdated += adGroupsResult.updated || 0;
+        changeSummary.conflictsDetected += adGroupsResult.conflicts || 0;
 
-        // 同步关键词
+        // 同步关键词（带变更跟踪）
         const keywordsResult = await executeWithRetry(
-          () => syncService.syncSpKeywords(lastSyncTime),
+          () => syncService.syncSpKeywordsWithTracking(lastSyncTime, jobId),
           '关键词同步'
         );
-        results.keywords = typeof keywordsResult === 'object' ? keywordsResult.synced : keywordsResult;
-        results.skipped += typeof keywordsResult === 'object' ? (keywordsResult.skipped || 0) : 0;
+        results.keywords = keywordsResult.synced;
+        results.skipped += keywordsResult.skipped || 0;
+        changeSummary.keywordsCreated += keywordsResult.created || 0;
+        changeSummary.keywordsUpdated += keywordsResult.updated || 0;
+        changeSummary.conflictsDetected += keywordsResult.conflicts || 0;
 
-        // 同步商品定位
+        // 同步商品定位（带变更跟踪）
         const targetsResult = await executeWithRetry(
-          () => syncService.syncSpProductTargets(lastSyncTime),
+          () => syncService.syncSpProductTargetsWithTracking(lastSyncTime, jobId),
           '商品定位同步'
         );
-        results.targets = typeof targetsResult === 'object' ? targetsResult.synced : targetsResult;
-        results.skipped += typeof targetsResult === 'object' ? (targetsResult.skipped || 0) : 0;
+        results.targets = targetsResult.synced;
+        results.skipped += targetsResult.skipped || 0;
+        changeSummary.targetsCreated += targetsResult.created || 0;
+        changeSummary.targetsUpdated += targetsResult.updated || 0;
+        changeSummary.conflictsDetected += targetsResult.conflicts || 0;
 
         results.campaigns = results.spCampaigns + results.sbCampaigns + results.sdCampaigns;
+
+        // 保存变更摘要
+        if (jobId) {
+          await db.upsertSyncChangeSummary({
+            syncJobId: jobId,
+            accountId: input.accountId,
+            userId: ctx.user.id,
+            ...changeSummary,
+          });
+        }
 
         // 更新同步任务记录
         const durationMs = Date.now() - startTime;
@@ -2598,6 +2644,8 @@ const amazonApiRouter = router({
           durationMs,
           retryCount: totalRetries,
           isIncremental: input.isIncremental,
+          changeSummary,
+          jobId,
         };
       } catch (error: any) {
         // 更新同步任务记录为失败
@@ -2700,6 +2748,233 @@ const amazonApiRouter = router({
     .input(z.object({ jobId: z.number() }))
     .query(async ({ input }) => {
       return db.getSyncLogs(input.jobId);
+    }),
+
+  // 获取同步变更记录
+  getSyncChangeRecords: protectedProcedure
+    .input(z.object({ 
+      syncJobId: z.number(),
+      entityType: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      return db.getSyncChangeRecords(input.syncJobId, input.entityType);
+    }),
+
+  // 获取同步变更摘要
+  getSyncChangeSummary: protectedProcedure
+    .input(z.object({ syncJobId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getSyncChangeSummary(input.syncJobId);
+    }),
+
+  // 获取同步冲突列表
+  getSyncConflicts: protectedProcedure
+    .input(z.object({ 
+      accountId: z.number(),
+      status: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      return db.getSyncConflicts(input.accountId, input.status);
+    }),
+
+  // 获取待处理冲突数量
+  getPendingConflictsCount: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getPendingConflictsCount(input.accountId);
+    }),
+
+  // 解决同步冲突
+  resolveSyncConflict: protectedProcedure
+    .input(z.object({ 
+      conflictId: z.number(),
+      resolution: z.enum(['use_local', 'use_remote', 'merge', 'manual']),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      return db.resolveSyncConflict(
+        input.conflictId, 
+        input.resolution, 
+        ctx.user.id,
+        input.notes
+      );
+    }),
+
+  // 批量解决同步冲突
+  resolveSyncConflictsBatch: protectedProcedure
+    .input(z.object({ 
+      conflictIds: z.array(z.number()),
+      resolution: z.enum(['use_local', 'use_remote', 'merge', 'manual']),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      return db.resolveSyncConflictsBatch(
+        input.conflictIds, 
+        input.resolution, 
+        ctx.user.id
+      );
+    }),
+
+  // 忽略同步冲突
+  ignoreSyncConflict: protectedProcedure
+    .input(z.object({ conflictId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      return db.ignoreSyncConflict(input.conflictId, ctx.user.id);
+    }),
+
+  // ==================== 同步任务队列API ====================
+
+  // 添加同步任务到队列
+  addToSyncQueue: protectedProcedure
+    .input(z.object({ 
+      accountId: z.number(),
+      accountName: z.string().optional(),
+      syncType: z.enum(['campaigns', 'ad_groups', 'keywords', 'product_targets', 'performance', 'full']).optional().default('full'),
+      priority: z.number().optional().default(0),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // 估算同步时间（基于历史数据）
+      const stats = await db.getSyncStats(input.accountId, 30);
+      const estimatedTimeMs = stats?.avgDurationMs || 60000; // 默认1分钟
+
+      return db.addToSyncQueue({
+        userId: ctx.user.id,
+        accountId: input.accountId,
+        accountName: input.accountName,
+        syncType: input.syncType,
+        priority: input.priority,
+        estimatedTimeMs,
+      });
+    }),
+
+  // 批量添加同步任务到队列
+  addToSyncQueueBatch: protectedProcedure
+    .input(z.object({ 
+      accounts: z.array(z.object({
+        accountId: z.number(),
+        accountName: z.string().optional(),
+        priority: z.number().optional().default(0),
+      })),
+      syncType: z.enum(['campaigns', 'ad_groups', 'keywords', 'product_targets', 'performance', 'full']).optional().default('full'),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const tasks = await Promise.all(input.accounts.map(async (account) => {
+        const stats = await db.getSyncStats(account.accountId, 30);
+        const estimatedTimeMs = stats?.avgDurationMs || 60000;
+        return {
+          userId: ctx.user.id,
+          accountId: account.accountId,
+          accountName: account.accountName,
+          syncType: input.syncType,
+          priority: account.priority,
+          estimatedTimeMs,
+        };
+      }));
+      return db.addToSyncQueueBatch(tasks);
+    }),
+
+  // 获取同步队列
+  getSyncQueue: protectedProcedure
+    .input(z.object({ 
+      status: z.string().optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      return db.getSyncQueue(ctx.user.id, input.status);
+    }),
+
+  // 获取队列统计信息
+  getSyncQueueStats: protectedProcedure
+    .query(async ({ ctx }) => {
+      return db.getSyncQueueStats(ctx.user.id);
+    }),
+
+  // 取消同步任务
+  cancelSyncTask: protectedProcedure
+    .input(z.object({ taskId: z.number() }))
+    .mutation(async ({ input }) => {
+      return db.cancelSyncTask(input.taskId);
+    }),
+
+  // 清理旧任务
+  cleanupOldSyncTasks: protectedProcedure
+    .input(z.object({ retainDays: z.number().optional().default(7) }))
+    .mutation(async ({ ctx, input }) => {
+      return db.cleanupOldSyncTasks(ctx.user.id, input.retainDays);
+    }),
+
+  // 执行队列中的下一个任务
+  executeNextQueuedTask: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      const task = await db.getNextQueuedTask();
+      if (!task) {
+        return { message: '队列中没有待执行的任务' };
+      }
+
+      // 更新任务状态为运行中
+      await db.updateSyncTaskStatus(task.id, 'running', {
+        currentStep: '初始化',
+        progress: 0,
+      });
+
+      try {
+        const credentials = await db.getAmazonApiCredentials(task.accountId);
+        if (!credentials) {
+          await db.updateSyncTaskStatus(task.id, 'failed', {
+            errorMessage: 'API凭证未找到',
+          });
+          return { error: 'API凭证未找到' };
+        }
+
+        const syncService = await AmazonSyncService.createFromCredentials(
+          {
+            clientId: credentials.clientId,
+            clientSecret: credentials.clientSecret,
+            refreshToken: credentials.refreshToken,
+            profileId: credentials.profileId,
+            region: credentials.region as 'NA' | 'EU' | 'FE',
+          },
+          task.accountId,
+          task.userId
+        );
+
+        // 执行同步并更新进度
+        const steps = [
+          { name: 'SP广告', fn: () => syncService.syncSpCampaigns() },
+          { name: 'SB广告', fn: () => syncService.syncSbCampaigns() },
+          { name: 'SD广告', fn: () => syncService.syncSdCampaigns() },
+          { name: '广告组', fn: () => syncService.syncSpAdGroups() },
+          { name: '关键词', fn: () => syncService.syncSpKeywords() },
+          { name: '商品定位', fn: () => syncService.syncSpProductTargets() },
+        ];
+
+        const results: any = {};
+        for (let i = 0; i < steps.length; i++) {
+          const step = steps[i];
+          await db.updateSyncTaskProgress(
+            task.id,
+            Math.round((i / steps.length) * 100),
+            step.name,
+            i,
+            Math.round((steps.length - i) * (task.estimatedTimeMs || 10000) / steps.length)
+          );
+          
+          const result = await step.fn();
+          results[step.name] = result;
+        }
+
+        // 完成任务
+        await db.updateSyncTaskStatus(task.id, 'completed', {
+          progress: 100,
+          completedSteps: steps.length,
+          resultSummary: results,
+        });
+
+        return { success: true, results };
+      } catch (error: any) {
+        await db.updateSyncTaskStatus(task.id, 'failed', {
+          errorMessage: error.message,
+        });
+        return { error: error.message };
+      }
     }),
 
   // Apply bid adjustment to Amazon
