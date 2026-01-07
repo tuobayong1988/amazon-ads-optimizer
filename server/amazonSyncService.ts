@@ -948,8 +948,7 @@ function detectConflict(
 /**
  * 同步SP广告活动（带变更跟踪）
  */
-export async function syncSpCampaignsWithTracking(
-  service: AmazonSyncService,
+AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
   lastSyncTime?: string | null,
   syncJobId?: number | null
 ): Promise<SyncResultWithTracking> {
@@ -969,7 +968,7 @@ export async function syncSpCampaignsWithTracking(
   const conflictRecords: InsertSyncConflict[] = [];
 
   try {
-    const apiCampaigns = await service.client.listSpCampaigns();
+    const apiCampaigns = await this.client.listSpCampaigns();
 
     for (const apiCampaign of apiCampaigns) {
       const [existing] = await db
@@ -977,7 +976,7 @@ export async function syncSpCampaignsWithTracking(
         .from(campaigns)
         .where(
           and(
-            eq(campaigns.accountId, service.accountId),
+            eq(campaigns.accountId, this.accountId),
             eq(campaigns.campaignId, String(apiCampaign.campaignId))
           )
         )
@@ -995,15 +994,15 @@ export async function syncSpCampaignsWithTracking(
 
       const campaignType = apiCampaign.targetingType === 'auto' ? 'sp_auto' : 'sp_manual';
       const campaignData = {
-        accountId: service.accountId,
+        accountId: this.accountId,
         campaignId: String(apiCampaign.campaignId),
         campaignName: apiCampaign.name,
         campaignType: campaignType as 'sp_auto' | 'sp_manual' | 'sb' | 'sd',
         targetingType: apiCampaign.targetingType as 'auto' | 'manual',
         dailyBudget: String(apiCampaign.dailyBudget),
         status: apiCampaign.state as 'enabled' | 'paused' | 'archived',
-        placementTopMultiplier: service.getPlacementMultiplier(apiCampaign, 'placementTop'),
-        placementProductPageMultiplier: service.getPlacementMultiplier(apiCampaign, 'placementProductPage'),
+        placementTopMultiplier: this.getPlacementMultiplier(apiCampaign, 'placementTop'),
+        placementProductPageMultiplier: this.getPlacementMultiplier(apiCampaign, 'placementProductPage'),
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 
@@ -1013,8 +1012,8 @@ export async function syncSpCampaignsWithTracking(
         if (conflictCheck.hasConflict && syncJobId) {
           conflictRecords.push({
             syncJobId,
-            accountId: service.accountId,
-            userId: service.userId,
+            accountId: this.accountId,
+            userId: this.userId,
             entityType: 'campaign',
             entityId: String(apiCampaign.campaignId),
             entityName: apiCampaign.name,
@@ -1030,8 +1029,8 @@ export async function syncSpCampaignsWithTracking(
         if (syncJobId) {
           changeRecords.push({
             syncJobId,
-            accountId: service.accountId,
-            userId: service.userId,
+            accountId: this.accountId,
+            userId: this.userId,
             entityType: 'campaign',
             changeType: 'updated',
             entityId: String(apiCampaign.campaignId),
@@ -1054,8 +1053,8 @@ export async function syncSpCampaignsWithTracking(
         if (syncJobId) {
           changeRecords.push({
             syncJobId,
-            accountId: service.accountId,
-            userId: service.userId,
+            accountId: this.accountId,
+            userId: this.userId,
             entityType: 'campaign',
             changeType: 'created',
             entityId: String(apiCampaign.campaignId),

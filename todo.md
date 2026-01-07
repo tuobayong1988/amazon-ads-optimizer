@@ -2397,3 +2397,8 @@
 - [x] TypeScript编译通过（0错误）
 - [x] 开发服务器正常运行
 - [x] 页面正常加载
+
+
+## Bug修复（第五十一阶段）
+
+- [x] 修复 syncService.syncSpCampaignsWithTracking is not a function 错误
