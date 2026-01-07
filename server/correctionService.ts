@@ -12,7 +12,7 @@ export interface BidAdjustmentRecord {
   campaignName: string;
   originalBid: number;
   adjustedBid: number;
-  adjustmentDate: Date;
+  adjustmentDate: Date | string;
   adjustmentReason: string;
   metricsAtAdjustment: PerformanceMetrics;
 }
@@ -46,8 +46,8 @@ export interface CorrectionAnalysis {
 
 export interface CorrectionReviewReport {
   sessionId: number;
-  periodStart: Date;
-  periodEnd: Date;
+  periodStart: Date | string;
+  periodEnd: Date | string;
   totalAdjustmentsReviewed: number;
   incorrectAdjustments: number;
   overDecreasedCount: number;
@@ -248,8 +248,11 @@ export function analyzeBidAdjustment(
   record: BidAdjustmentRecord,
   metricsAfterAttribution: PerformanceMetrics
 ): CorrectionAnalysis {
+  const adjustmentDate = typeof record.adjustmentDate === 'string' 
+    ? new Date(record.adjustmentDate) 
+    : record.adjustmentDate;
   const daysSinceAdjustment = Math.floor(
-    (Date.now() - record.adjustmentDate.getTime()) / (1000 * 60 * 60 * 24)
+    (Date.now() - adjustmentDate.getTime()) / (1000 * 60 * 60 * 24)
   );
 
   // Check for over-decrease
@@ -362,8 +365,8 @@ export function generateRecommendations(corrections: CorrectionAnalysis[]): stri
  */
 export function generateCorrectionReport(
   sessionId: number,
-  periodStart: Date,
-  periodEnd: Date,
+  periodStart: Date | string,
+  periodEnd: Date | string,
   corrections: CorrectionAnalysis[]
 ): CorrectionReviewReport {
   const overDecreasedCount = corrections.filter(c => c.correctionType === 'over_decreased').length;

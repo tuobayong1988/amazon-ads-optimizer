@@ -61,7 +61,7 @@ const adAccountRouter = router({
         const accounts = await db.getAdAccountsByUserId(ctx.user.id);
         for (const acc of accounts) {
           if (acc.isDefault) {
-            await db.updateAdAccount(acc.id, { isDefault: false });
+            await db.updateAdAccount(acc.id, { isDefault: 0 });
           }
         }
       }
@@ -69,6 +69,7 @@ const adAccountRouter = router({
       const id = await db.createAdAccount({
         userId: ctx.user.id,
         ...input,
+        isDefault: input.isDefault ? 1 : 0,
         connectionStatus: 'pending',
       });
       return { id };
@@ -93,7 +94,11 @@ const adAccountRouter = router({
       status: z.enum(["active", "paused", "archived"]).optional(),
     }))
     .mutation(async ({ input }) => {
-      const { id, ...data } = input;
+      const { id, intradayBiddingEnabled, ...rest } = input;
+      const data = {
+        ...rest,
+        ...(intradayBiddingEnabled !== undefined && { intradayBiddingEnabled: intradayBiddingEnabled ? 1 : 0 }),
+      };
       await db.updateAdAccount(id, data);
       return { success: true };
     }),
@@ -540,7 +545,11 @@ const campaignRouter = router({
       campaignStatus: z.enum(["enabled", "paused", "archived"]).optional(),
     }))
     .mutation(async ({ input }) => {
-      const { id, ...data } = input;
+      const { id, intradayBiddingEnabled, ...rest } = input;
+      const data = {
+        ...rest,
+        ...(intradayBiddingEnabled !== undefined && { intradayBiddingEnabled: intradayBiddingEnabled ? 1 : 0 }),
+      };
       await db.updateCampaign(id, data);
       return { success: true };
     }),
@@ -3700,6 +3709,7 @@ const crossAccountRouter = router({
           await db.createAdAccount({
             userId: ctx.user.id,
             ...account,
+            isDefault: account.isDefault ? 1 : 0,
             connectionStatus: 'pending',
           });
           imported++;
@@ -3981,10 +3991,10 @@ const emailReportRouter = router({
         recipients: input.recipients,
         ccRecipients: input.ccRecipients || [],
         accountIds: input.accountIds || [],
-        includeCharts: input.includeCharts ?? true,
-        includeDetails: input.includeDetails ?? true,
+        includeCharts: (input.includeCharts ?? true) ? 1 : 0,
+        includeDetails: (input.includeDetails ?? true) ? 1 : 0,
         dateRange: input.dateRange || "last_7_days",
-        isActive: true,
+        isActive: 1,
         nextSendAt,
       });
 
@@ -4027,9 +4037,12 @@ const emailReportRouter = router({
         );
       }
 
+      const { includeCharts, includeDetails, isActive, ...restInput } = input;
       await db.updateEmailSubscription(input.id, {
-        ...input,
-        isActive: input.isActive !== undefined ? (input.isActive ? 1 : 0) : undefined,
+        ...restInput,
+        ...(includeCharts !== undefined && { includeCharts: includeCharts ? 1 : 0 }),
+        ...(includeDetails !== undefined && { includeDetails: includeDetails ? 1 : 0 }),
+        ...(isActive !== undefined && { isActive: isActive ? 1 : 0 }),
         nextSendAt,
       });
 
@@ -4125,7 +4138,7 @@ function calculateNextSendTime(
   sendTime: string,
   sendDayOfWeek?: number,
   sendDayOfMonth?: number
-): Date {
+): string {
   const now = new Date();
   const [hours, minutes] = sendTime.split(':').map(Number);
   
@@ -4152,7 +4165,7 @@ function calculateNextSendTime(
     }
   }
 
-  return next;
+  return next.toISOString().slice(0, 19).replace('T', ' ');
 }
 
 // ==================== Audit Log Router ====================

@@ -1731,7 +1731,7 @@ export async function addAttributionCorrectionRecord(data: {
   targetType: 'keyword' | 'product_target';
   targetId: number;
   targetName?: string;
-  originalAdjustmentDate: Date;
+  originalAdjustmentDate: Date | string;
   originalBid: number;
   adjustedBid: number;
   adjustmentReason?: string;
@@ -1753,7 +1753,9 @@ export async function addAttributionCorrectionRecord(data: {
     correctionTargetType: data.targetType,
     targetId: data.targetId,
     targetName: data.targetName || null,
-    originalAdjustmentDate: data.originalAdjustmentDate,
+    originalAdjustmentDate: typeof data.originalAdjustmentDate === 'string' 
+      ? data.originalAdjustmentDate 
+      : data.originalAdjustmentDate.toISOString().slice(0, 19).replace('T', ' '),
     originalBid: data.originalBid.toString(),
     adjustedBid: data.adjustedBid.toString(),
     adjustmentReason: data.adjustmentReason || null,

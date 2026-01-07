@@ -26,6 +26,11 @@ export default function Home() {
     }
   }, [isAuthenticated, setLocation]);
 
+  // 设置页面标题用于SEO
+  useEffect(() => {
+    document.title = "亚马逊广告智能竞价优化系统 - Amazon Ads Optimizer";
+  }, []);
+
   if (loading || isAuthenticated) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
