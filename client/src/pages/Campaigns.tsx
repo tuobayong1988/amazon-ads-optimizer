@@ -329,10 +329,45 @@ const optimizationStatusOptions = [
   { value: "unmanaged", label: "未介入" },
 ];
 
+// 计费方式筛选选项
+const billingTypeOptions = [
+  { value: "all", label: "全部计费" },
+  { value: "cpc", label: "CPC" },
+  { value: "vcpm", label: "vCPM" },
+  { value: "cpm", label: "CPM" },
+];
+
+// 站点映射
+const marketplaceLabels: Record<string, string> = {
+  US: "美国站",
+  CA: "加拿大站",
+  MX: "墨西哥站",
+  UK: "英国站",
+  DE: "德国站",
+  FR: "法国站",
+  IT: "意大利站",
+  ES: "西班牙站",
+  JP: "日本站",
+  AU: "澳大利亚站",
+  IN: "印度站",
+  AE: "阿联酋站",
+  SA: "沙特站",
+  BR: "巴西站",
+  SG: "新加坡站",
+  NL: "荷兰站",
+  SE: "瑞典站",
+  PL: "波兰站",
+  BE: "比利时站",
+  TR: "土耳其站",
+};
+
 export default function Campaigns() {
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [storeFilter, setStoreFilter] = useState<string>("all");
+  const [marketplaceFilter, setMarketplaceFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
+  const [billingTypeFilter, setBillingTypeFilter] = useState<string>("all");
   const [runningStatusFilter, setRunningStatusFilter] = useState<string>("all");
   const [optimizationStatusFilter, setOptimizationStatusFilter] = useState<string>("all");
   const [sortField, setSortField] = useState<SortField | null>(null);
@@ -438,16 +473,51 @@ export default function Campaigns() {
     },
   });
 
+  // 获取店铺和站点信息（从账号列表中获取）
+  const storeOptions = useMemo(() => {
+    if (!accounts) return [{ value: "all", label: "全部店铺" }];
+    const storeSet = new Set(accounts.map(a => a.storeName || a.accountName).filter(Boolean));
+    const stores = Array.from(storeSet) as string[];
+    return [
+      { value: "all", label: "全部店铺" },
+      ...stores.map(s => ({ value: s, label: s }))
+    ];
+  }, [accounts]);
+
+  const marketplaceOptions = useMemo(() => {
+    if (!accounts) return [{ value: "all", label: "全部站点" }];
+    const marketplaceSet = new Set(accounts.map(a => a.marketplace).filter(Boolean));
+    const marketplaces = Array.from(marketplaceSet) as string[];
+    return [
+      { value: "all", label: "全部站点" },
+      ...marketplaces.map(m => ({ value: m, label: marketplaceLabels[m] || m }))
+    ];
+  }, [accounts]);
+
+  // 获取符合店铺和站点筛选的账号ID列表
+  const filteredAccountIds = useMemo(() => {
+    if (!accounts) return [];
+    return accounts
+      .filter(a => {
+        const matchesStore = storeFilter === "all" || (a.storeName || a.accountName) === storeFilter;
+        const matchesMarketplace = marketplaceFilter === "all" || a.marketplace === marketplaceFilter;
+        return matchesStore && matchesMarketplace;
+      })
+      .map(a => a.id);
+  }, [accounts, storeFilter, marketplaceFilter]);
+
   // Filter campaigns
   const filteredCampaigns = campaigns?.filter((campaign) => {
     const matchesSearch = campaign.campaignName.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesAccount = storeFilter === "all" && marketplaceFilter === "all" || filteredAccountIds.includes(campaign.accountId);
     const matchesType = typeFilter === "all" || campaign.campaignType === typeFilter;
+    const matchesBillingType = billingTypeFilter === "all" || (campaign as any).billingType === billingTypeFilter;
     const matchesRunningStatus = runningStatusFilter === "all" || campaign.campaignStatus === runningStatusFilter;
     const matchesOptimizationStatus = optimizationStatusFilter === "all" || 
       (campaign as any).optimizationStatus === optimizationStatusFilter ||
       (optimizationStatusFilter === "managed" && (campaign as any).performanceGroupId) ||
       (optimizationStatusFilter === "unmanaged" && !(campaign as any).performanceGroupId);
-    return matchesSearch && matchesType && matchesRunningStatus && matchesOptimizationStatus;
+    return matchesSearch && matchesAccount && matchesType && matchesBillingType && matchesRunningStatus && matchesOptimizationStatus;
   });
 
   // 计算各状态数量
@@ -988,100 +1058,203 @@ export default function Campaigns() {
           </div>
         </div>
 
-        {/* 广告类型筛选标签 */}
-        <div className="flex flex-wrap gap-3">
-          {campaignTypes.map((type) => {
-            const count = type.value === "all" 
-              ? campaigns?.length || 0 
-              : typeCounts[type.value] || 0;
-            const isActive = typeFilter === type.value;
-            const Icon = type.icon;
-            
-            return (
-              <Button
-                key={type.value}
-                variant={isActive ? "default" : "outline"}
-                className={`h-auto py-3 px-4 ${isActive ? "" : "hover:bg-accent"}`}
-                onClick={() => setTypeFilter(type.value)}
-              >
-                <div className="flex items-center gap-2">
-                  {Icon && <Icon className="w-4 h-4" />}
-                  <span>{type.label}</span>
-                  <Badge variant="secondary" className="ml-1">
-                    {count}
-                  </Badge>
-                </div>
-              </Button>
-            );
-          })}
-        </div>
-
-        {/* 状态筛选器 */}
+        {/* 筛选器卡片 - 按优先级排列 */}
         <Card>
           <CardContent className="pt-6">
-            <div className="flex flex-wrap items-center gap-4">
-              {/* 运行状态筛选 */}
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">运行状态:</span>
-                <div className="flex gap-1">
-                  {runningStatusOptions.map((option) => {
-                    const count = option.value === "all" 
-                      ? campaigns?.length || 0 
-                      : option.value === "enabled" ? statusCounts.enabled : statusCounts.paused;
-                    return (
-                      <Button
-                        key={option.value}
-                        variant={runningStatusFilter === option.value ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setRunningStatusFilter(option.value)}
-                        className="h-8"
-                      >
-                        {option.label}
-                        <Badge variant="secondary" className="ml-1 text-xs">{count}</Badge>
-                      </Button>
-                    );
-                  })}
+            <div className="space-y-4">
+              {/* 第一行：店铺和站点筛选（最高优先级） */}
+              <div className="flex flex-wrap items-center gap-4">
+                {/* 店铺筛选 */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-foreground">店铺:</span>
+                  <Select value={storeFilter} onValueChange={setStoreFilter}>
+                    <SelectTrigger className="w-[180px] h-9">
+                      <SelectValue placeholder="选择店铺" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {storeOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* 站点筛选 */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-foreground">站点:</span>
+                  <Select value={marketplaceFilter} onValueChange={setMarketplaceFilter}>
+                    <SelectTrigger className="w-[160px] h-9">
+                      <SelectValue placeholder="选择站点" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {marketplaceOptions.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* 搜索框 */}
+                <div className="flex-1 min-w-[200px]">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                    <Input
+                      placeholder="搜索广告活动名称..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-9 h-9"
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* 优化状态筛选 */}
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-muted-foreground">优化状态:</span>
-                <div className="flex gap-1">
-                  {optimizationStatusOptions.map((option) => {
-                    const count = option.value === "all" 
-                      ? campaigns?.length || 0 
-                      : option.value === "managed" ? statusCounts.managed : statusCounts.unmanaged;
-                    return (
-                      <Button
-                        key={option.value}
-                        variant={optimizationStatusFilter === option.value ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => setOptimizationStatusFilter(option.value)}
-                        className={`h-8 ${option.value === "managed" ? "data-[state=active]:bg-green-600" : option.value === "unmanaged" ? "data-[state=active]:bg-orange-600" : ""}`}
-                      >
-                        {option.value === "managed" && <Bot className="w-3 h-3 mr-1" />}
-                        {option.value === "unmanaged" && <AlertCircle className="w-3 h-3 mr-1" />}
-                        {option.label}
-                        <Badge variant="secondary" className="ml-1 text-xs">{count}</Badge>
-                      </Button>
-                    );
-                  })}
+              {/* 第二行：广告类型筛选 */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-muted-foreground">广告类型:</span>
+                {campaignTypes.map((type) => {
+                  const count = type.value === "all" 
+                    ? campaigns?.length || 0 
+                    : typeCounts[type.value] || 0;
+                  const isActive = typeFilter === type.value;
+                  const Icon = type.icon;
+                  
+                  return (
+                    <Button
+                      key={type.value}
+                      variant={isActive ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setTypeFilter(type.value)}
+                      className="h-8"
+                    >
+                      {Icon && <Icon className="w-3.5 h-3.5 mr-1" />}
+                      {type.label}
+                      <Badge variant="secondary" className="ml-1 text-xs">{count}</Badge>
+                    </Button>
+                  );
+                })}
+              </div>
+
+              {/* 第三行：计费方式筛选 */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-muted-foreground">计费方式:</span>
+                {billingTypeOptions.map((option) => (
+                  <Button
+                    key={option.value}
+                    variant={billingTypeFilter === option.value ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setBillingTypeFilter(option.value)}
+                    className="h-8"
+                  >
+                    {option.label}
+                  </Button>
+                ))}
+              </div>
+
+              {/* 第四行：运行状态和优化状态筛选 */}
+              <div className="flex flex-wrap items-center gap-4">
+                {/* 运行状态筛选 */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">运行状态:</span>
+                  <div className="flex gap-1">
+                    {runningStatusOptions.map((option) => {
+                      const count = option.value === "all" 
+                        ? campaigns?.length || 0 
+                        : option.value === "enabled" ? statusCounts.enabled : statusCounts.paused;
+                      return (
+                        <Button
+                          key={option.value}
+                          variant={runningStatusFilter === option.value ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setRunningStatusFilter(option.value)}
+                          className="h-8"
+                        >
+                          {option.label}
+                          <Badge variant="secondary" className="ml-1 text-xs">{count}</Badge>
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 优化状态筛选 */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-muted-foreground">优化状态:</span>
+                  <div className="flex gap-1">
+                    {optimizationStatusOptions.map((option) => {
+                      const count = option.value === "all" 
+                        ? campaigns?.length || 0 
+                        : option.value === "managed" ? statusCounts.managed : statusCounts.unmanaged;
+                      return (
+                        <Button
+                          key={option.value}
+                          variant={optimizationStatusFilter === option.value ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => setOptimizationStatusFilter(option.value)}
+                          className={`h-8 ${option.value === "managed" ? "data-[state=active]:bg-green-600" : option.value === "unmanaged" ? "data-[state=active]:bg-orange-600" : ""}`}
+                        >
+                          {option.value === "managed" && <Bot className="w-3 h-3 mr-1" />}
+                          {option.value === "unmanaged" && <AlertCircle className="w-3 h-3 mr-1" />}
+                          {option.label}
+                          <Badge variant="secondary" className="ml-1 text-xs">{count}</Badge>
+                        </Button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
-              {/* 搜索框 */}
-              <div className="flex-1 min-w-[200px]">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    placeholder="搜索广告活动名称..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-9 h-8"
-                  />
+              {/* 当前筛选条件摘要 */}
+              {(storeFilter !== "all" || marketplaceFilter !== "all" || typeFilter !== "all" || billingTypeFilter !== "all" || runningStatusFilter !== "all" || optimizationStatusFilter !== "all") && (
+                <div className="flex items-center gap-2 pt-2 border-t">
+                  <span className="text-sm text-muted-foreground">当前筛选:</span>
+                  <div className="flex flex-wrap gap-1">
+                    {storeFilter !== "all" && (
+                      <Badge variant="secondary" className="cursor-pointer hover:bg-destructive/20" onClick={() => setStoreFilter("all")}>
+                        店铺: {storeFilter} ×
+                      </Badge>
+                    )}
+                    {marketplaceFilter !== "all" && (
+                      <Badge variant="secondary" className="cursor-pointer hover:bg-destructive/20" onClick={() => setMarketplaceFilter("all")}>
+                        站点: {marketplaceLabels[marketplaceFilter] || marketplaceFilter} ×
+                      </Badge>
+                    )}
+                    {typeFilter !== "all" && (
+                      <Badge variant="secondary" className="cursor-pointer hover:bg-destructive/20" onClick={() => setTypeFilter("all")}>
+                        类型: {campaignTypes.find(t => t.value === typeFilter)?.label} ×
+                      </Badge>
+                    )}
+                    {billingTypeFilter !== "all" && (
+                      <Badge variant="secondary" className="cursor-pointer hover:bg-destructive/20" onClick={() => setBillingTypeFilter("all")}>
+                        计费: {billingTypeOptions.find(t => t.value === billingTypeFilter)?.label} ×
+                      </Badge>
+                    )}
+                    {runningStatusFilter !== "all" && (
+                      <Badge variant="secondary" className="cursor-pointer hover:bg-destructive/20" onClick={() => setRunningStatusFilter("all")}>
+                        状态: {runningStatusOptions.find(t => t.value === runningStatusFilter)?.label} ×
+                      </Badge>
+                    )}
+                    {optimizationStatusFilter !== "all" && (
+                      <Badge variant="secondary" className="cursor-pointer hover:bg-destructive/20" onClick={() => setOptimizationStatusFilter("all")}>
+                        优化: {optimizationStatusOptions.find(t => t.value === optimizationStatusFilter)?.label} ×
+                      </Badge>
+                    )}
+                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => {
+                      setStoreFilter("all");
+                      setMarketplaceFilter("all");
+                      setTypeFilter("all");
+                      setBillingTypeFilter("all");
+                      setRunningStatusFilter("all");
+                      setOptimizationStatusFilter("all");
+                    }}>
+                      清除全部
+                    </Button>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* 批量操作栏 */}
