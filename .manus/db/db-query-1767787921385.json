@@ -1,0 +1,13 @@
+{
+  "query": "SHOW TABLES LIKE 'sync_conflicts';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SHOW TABLES LIKE 'sync_conflicts';",
+  "rows": [
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq (sync_conflicts)": "sync_conflicts"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_5MUJ5aHkiAehb9iTzNdxTq (sync_conflicts)\nsync_conflicts\n",
+  "stderr": "",
+  "execution_time_ms": 59
+}

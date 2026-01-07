@@ -2296,17 +2296,17 @@ export type InsertAuthorizationLog = typeof authorizationLogs.$inferInsert;
 // 同步变更记录表 - 记录每次同步的数据变化
 export const syncChangeRecords = mysqlTable("sync_change_records", {
   id: int().autoincrement().notNull(),
-  syncJobId: int().notNull(),
-  accountId: int().notNull(),
-  userId: int().notNull(),
-  entityType: mysqlEnum(['campaign', 'ad_group', 'keyword', 'product_target']).notNull(),
-  changeType: mysqlEnum(['created', 'updated', 'deleted']).notNull(),
-  entityId: varchar({ length: 64 }).notNull(),
-  entityName: varchar({ length: 500 }),
-  previousData: json(), // 变更前的数据快照
-  newData: json(), // 变更后的数据快照
-  changedFields: json(), // 变更的字段列表
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+  syncJobId: int('sync_job_id').notNull(),
+  accountId: int('account_id').notNull(),
+  userId: int('user_id').notNull(),
+  entityType: mysqlEnum('entity_type', ['campaign', 'ad_group', 'keyword', 'product_target']).notNull(),
+  changeType: mysqlEnum('change_type', ['created', 'updated', 'deleted']).notNull(),
+  entityId: varchar('entity_id', { length: 64 }).notNull(),
+  entityName: varchar('entity_name', { length: 500 }),
+  previousData: json('previous_data'), // 变更前的数据快照
+  newData: json('new_data'), // 变更后的数据快照
+  changedFields: json('changed_fields'), // 变更的字段列表
+  createdAt: timestamp('created_at', { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
 export type SyncChangeRecord = typeof syncChangeRecords.$inferSelect;
 export type InsertSyncChangeRecord = typeof syncChangeRecords.$inferInsert;
@@ -2314,22 +2314,22 @@ export type InsertSyncChangeRecord = typeof syncChangeRecords.$inferInsert;
 // 同步冲突记录表 - 记录本地数据与API数据的冲突
 export const syncConflicts = mysqlTable("sync_conflicts", {
   id: int().autoincrement().notNull(),
-  syncJobId: int().notNull(),
-  accountId: int().notNull(),
-  userId: int().notNull(),
-  entityType: mysqlEnum(['campaign', 'ad_group', 'keyword', 'product_target']).notNull(),
-  entityId: varchar({ length: 64 }).notNull(),
-  entityName: varchar({ length: 500 }),
-  conflictType: mysqlEnum(['data_mismatch', 'missing_local', 'missing_remote', 'status_conflict']).notNull(),
-  localData: json(), // 本地数据
-  remoteData: json(), // API返回的数据
-  conflictFields: json(), // 冲突的字段列表
-  suggestedResolution: mysqlEnum(['use_local', 'use_remote', 'merge', 'manual']).default('use_remote'),
-  resolutionStatus: mysqlEnum(['pending', 'resolved', 'ignored']).default('pending'),
-  resolvedAt: timestamp({ mode: 'string' }),
-  resolvedBy: int(),
-  resolutionNotes: text(),
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+  syncJobId: int('sync_job_id').notNull(),
+  accountId: int('account_id').notNull(),
+  userId: int('user_id').notNull(),
+  entityType: mysqlEnum('entity_type', ['campaign', 'ad_group', 'keyword', 'product_target']).notNull(),
+  entityId: varchar('entity_id', { length: 64 }).notNull(),
+  entityName: varchar('entity_name', { length: 500 }),
+  conflictType: mysqlEnum('conflict_type', ['data_mismatch', 'missing_local', 'missing_remote', 'status_conflict']).notNull(),
+  localData: json('local_data'), // 本地数据
+  remoteData: json('remote_data'), // API返回的数据
+  conflictFields: json('conflict_fields'), // 冲突的字段列表
+  suggestedResolution: mysqlEnum('suggested_resolution', ['use_local', 'use_remote', 'merge', 'manual']).default('use_remote'),
+  resolutionStatus: mysqlEnum('resolution_status', ['pending', 'resolved', 'ignored']).default('pending'),
+  resolvedAt: timestamp('resolved_at', { mode: 'string' }),
+  resolvedBy: int('resolved_by'),
+  resolutionNotes: text('resolution_notes'),
+  createdAt: timestamp('created_at', { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
 export type SyncConflict = typeof syncConflicts.$inferSelect;
 export type InsertSyncConflict = typeof syncConflicts.$inferInsert;
@@ -2337,23 +2337,23 @@ export type InsertSyncConflict = typeof syncConflicts.$inferInsert;
 // 同步任务队列表 - 管理多账号同步任务
 export const syncTaskQueue = mysqlTable("sync_task_queue", {
   id: int().autoincrement().notNull(),
-  userId: int().notNull(),
-  accountId: int().notNull(),
-  accountName: varchar({ length: 255 }),
-  syncType: mysqlEnum(['campaigns', 'ad_groups', 'keywords', 'product_targets', 'performance', 'full']).default('full'),
+  userId: int('user_id').notNull(),
+  accountId: int('account_id').notNull(),
+  accountName: varchar('account_name', { length: 255 }),
+  syncType: mysqlEnum('sync_type', ['campaigns', 'ad_groups', 'keywords', 'product_targets', 'performance', 'full']).default('full'),
   priority: int().default(0), // 优先级，数字越大优先级越高
   status: mysqlEnum(['queued', 'running', 'completed', 'failed', 'cancelled']).default('queued'),
   progress: int().default(0), // 0-100的进度百分比
-  currentStep: varchar({ length: 100 }), // 当前执行的步骤
-  totalSteps: int().default(6), // 总步骤数
-  completedSteps: int().default(0), // 已完成步骤数
-  estimatedTimeMs: int(), // 预计剩余时间（毫秒）
-  startedAt: timestamp({ mode: 'string' }),
-  completedAt: timestamp({ mode: 'string' }),
-  errorMessage: text(),
-  resultSummary: json(), // 同步结果摘要
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-  updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+  currentStep: varchar('current_step', { length: 100 }), // 当前执行的步骤
+  totalSteps: int('total_steps').default(6), // 总步骤数
+  completedSteps: int('completed_steps').default(0), // 已完成步骤数
+  estimatedTimeMs: int('estimated_time_ms'), // 预计剩余时间（毫秒）
+  startedAt: timestamp('started_at', { mode: 'string' }),
+  completedAt: timestamp('completed_at', { mode: 'string' }),
+  errorMessage: text('error_message'),
+  resultSummary: json('result_summary'), // 同步结果摘要
+  createdAt: timestamp('created_at', { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+  updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 export type SyncTaskQueue = typeof syncTaskQueue.$inferSelect;
 export type InsertSyncTaskQueue = typeof syncTaskQueue.$inferInsert;
@@ -2361,29 +2361,29 @@ export type InsertSyncTaskQueue = typeof syncTaskQueue.$inferInsert;
 // 同步变更摘要表 - 汇总每次同步的变更统计
 export const syncChangeSummary = mysqlTable("sync_change_summary", {
   id: int().autoincrement().notNull(),
-  syncJobId: int().notNull(),
-  accountId: int().notNull(),
-  userId: int().notNull(),
+  syncJobId: int('sync_job_id').notNull(),
+  accountId: int('account_id').notNull(),
+  userId: int('user_id').notNull(),
   // 广告活动变更统计
-  campaignsCreated: int().default(0),
-  campaignsUpdated: int().default(0),
-  campaignsDeleted: int().default(0),
+  campaignsCreated: int('campaigns_created').default(0),
+  campaignsUpdated: int('campaigns_updated').default(0),
+  campaignsDeleted: int('campaigns_deleted').default(0),
   // 广告组变更统计
-  adGroupsCreated: int().default(0),
-  adGroupsUpdated: int().default(0),
-  adGroupsDeleted: int().default(0),
+  adGroupsCreated: int('ad_groups_created').default(0),
+  adGroupsUpdated: int('ad_groups_updated').default(0),
+  adGroupsDeleted: int('ad_groups_deleted').default(0),
   // 关键词变更统计
-  keywordsCreated: int().default(0),
-  keywordsUpdated: int().default(0),
-  keywordsDeleted: int().default(0),
+  keywordsCreated: int('keywords_created').default(0),
+  keywordsUpdated: int('keywords_updated').default(0),
+  keywordsDeleted: int('keywords_deleted').default(0),
   // 商品定位变更统计
-  targetsCreated: int().default(0),
-  targetsUpdated: int().default(0),
-  targetsDeleted: int().default(0),
+  targetsCreated: int('targets_created').default(0),
+  targetsUpdated: int('targets_updated').default(0),
+  targetsDeleted: int('targets_deleted').default(0),
   // 冲突统计
-  conflictsDetected: int().default(0),
-  conflictsResolved: int().default(0),
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+  conflictsDetected: int('conflicts_detected').default(0),
+  conflictsResolved: int('conflicts_resolved').default(0),
+  createdAt: timestamp('created_at', { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
 export type SyncChangeSummary = typeof syncChangeSummary.$inferSelect;
 export type InsertSyncChangeSummary = typeof syncChangeSummary.$inferInsert;
