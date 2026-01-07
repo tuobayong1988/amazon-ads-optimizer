@@ -1203,36 +1203,168 @@ export default function AmazonApiSettings() {
                         </Button>
                       </div>
                       
-                      {/* 授权进度指示器 */}
+                      {/* 授权进度指示器 - 增强版 */}
                       {authStep !== 'idle' && (
-                        <div className="mt-4 space-y-3">
-                          <div className="w-full bg-muted rounded-full h-2">
-                            <div 
-                              className="bg-primary h-2 rounded-full transition-all duration-500 ease-out"
-                              style={{ width: `${authProgress}%` }}
-                            />
-                          </div>
-                          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            <span>
-                              {authStep === 'exchanging' && '正在与亚马逊服务器通信，换取访问令牌...'}
-                              {authStep === 'saving' && '正在保存API凭证并同步广告数据...'}
-                              {authStep === 'syncing' && '正在从亚马逊拉取广告活动数据...'}
-                              {authStep === 'complete' && '授权流程已完成!'}
-                            </span>
-                          </div>
-                          <div className="flex justify-center gap-4 text-xs text-muted-foreground">
-                            <div className={`flex items-center gap-1 ${authProgress >= 25 ? 'text-primary' : ''}`}>
-                              {authProgress >= 25 ? <CheckCircle2 className="h-3 w-3" /> : <div className="h-3 w-3 rounded-full border border-muted-foreground" />}
-                              换取Token
+                        <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                          {/* 标题 */}
+                          <div className="flex items-center gap-2 mb-4">
+                            <div className="relative">
+                              <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
+                                {authStep === 'complete' ? (
+                                  <CheckCircle2 className="h-5 w-5 text-green-500" />
+                                ) : (
+                                  <Loader2 className="h-5 w-5 text-primary animate-spin" />
+                                )}
+                              </div>
                             </div>
-                            <div className={`flex items-center gap-1 ${authProgress >= 75 ? 'text-primary' : ''}`}>
-                              {authProgress >= 75 ? <CheckCircle2 className="h-3 w-3" /> : <div className="h-3 w-3 rounded-full border border-muted-foreground" />}
-                              保存凭证
+                            <div>
+                              <h4 className="font-semibold text-sm">
+                                {authStep === 'complete' ? '授权完成' : '正在授权...'}
+                              </h4>
+                              <p className="text-xs text-muted-foreground">
+                                {authStep === 'exchanging' && '步骤 1/4: 正在与亚马逊服务器通信'}
+                                {authStep === 'saving' && '步骤 3/4: 正在保存凭证并同步数据'}
+                                {authStep === 'syncing' && '步骤 4/4: 正在拉取广告数据'}
+                                {authStep === 'complete' && '所有步骤已完成'}
+                              </p>
                             </div>
-                            <div className={`flex items-center gap-1 ${authProgress >= 100 ? 'text-primary' : ''}`}>
-                              {authProgress >= 100 ? <CheckCircle2 className="h-3 w-3" /> : <div className="h-3 w-3 rounded-full border border-muted-foreground" />}
-                              同步数据
+                          </div>
+                          
+                          {/* 进度条 */}
+                          <div className="relative mb-4">
+                            <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3 overflow-hidden">
+                              <div 
+                                className={`h-3 rounded-full transition-all duration-700 ease-out ${
+                                  authStep === 'complete' 
+                                    ? 'bg-gradient-to-r from-green-400 to-green-500' 
+                                    : 'bg-gradient-to-r from-blue-400 to-indigo-500'
+                                }`}
+                                style={{ width: `${authProgress}%` }}
+                              />
+                            </div>
+                            <div className="absolute right-0 top-0 -mt-1 text-xs font-medium text-primary">
+                              {authProgress}%
+                            </div>
+                          </div>
+                          
+                          {/* 步骤指示器 */}
+                          <div className="grid grid-cols-4 gap-2">
+                            {/* 步骤1: 生成链接 */}
+                            <div className="flex flex-col items-center">
+                              <div className={`h-8 w-8 rounded-full flex items-center justify-center mb-1 transition-all ${
+                                authProgress >= 10 
+                                  ? 'bg-green-500 text-white' 
+                                  : 'bg-gray-200 dark:bg-gray-700 text-gray-400'
+                              }`}>
+                                {authProgress >= 10 ? (
+                                  <CheckCircle2 className="h-4 w-4" />
+                                ) : (
+                                  <span className="text-xs font-bold">1</span>
+                                )}
+                              </div>
+                              <span className={`text-xs text-center ${
+                                authProgress >= 10 ? 'text-green-600 dark:text-green-400 font-medium' : 'text-muted-foreground'
+                              }`}>
+                                生成链接
+                              </span>
+                            </div>
+                            
+                            {/* 步骤2: 换取Token */}
+                            <div className="flex flex-col items-center">
+                              <div className={`h-8 w-8 rounded-full flex items-center justify-center mb-1 transition-all ${
+                                authProgress >= 50 
+                                  ? 'bg-green-500 text-white' 
+                                  : authStep === 'exchanging' 
+                                    ? 'bg-blue-500 text-white animate-pulse' 
+                                    : 'bg-gray-200 dark:bg-gray-700 text-gray-400'
+                              }`}>
+                                {authProgress >= 50 ? (
+                                  <CheckCircle2 className="h-4 w-4" />
+                                ) : authStep === 'exchanging' ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <span className="text-xs font-bold">2</span>
+                                )}
+                              </div>
+                              <span className={`text-xs text-center ${
+                                authProgress >= 50 
+                                  ? 'text-green-600 dark:text-green-400 font-medium' 
+                                  : authStep === 'exchanging' 
+                                    ? 'text-blue-600 dark:text-blue-400 font-medium' 
+                                    : 'text-muted-foreground'
+                              }`}>
+                                换取Token
+                              </span>
+                            </div>
+                            
+                            {/* 步骤3: 保存凭证 */}
+                            <div className="flex flex-col items-center">
+                              <div className={`h-8 w-8 rounded-full flex items-center justify-center mb-1 transition-all ${
+                                authProgress >= 75 
+                                  ? 'bg-green-500 text-white' 
+                                  : authStep === 'saving' 
+                                    ? 'bg-blue-500 text-white animate-pulse' 
+                                    : 'bg-gray-200 dark:bg-gray-700 text-gray-400'
+                              }`}>
+                                {authProgress >= 75 ? (
+                                  <CheckCircle2 className="h-4 w-4" />
+                                ) : authStep === 'saving' ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <span className="text-xs font-bold">3</span>
+                                )}
+                              </div>
+                              <span className={`text-xs text-center ${
+                                authProgress >= 75 
+                                  ? 'text-green-600 dark:text-green-400 font-medium' 
+                                  : authStep === 'saving' 
+                                    ? 'text-blue-600 dark:text-blue-400 font-medium' 
+                                    : 'text-muted-foreground'
+                              }`}>
+                                保存凭证
+                              </span>
+                            </div>
+                            
+                            {/* 步骤4: 同步数据 */}
+                            <div className="flex flex-col items-center">
+                              <div className={`h-8 w-8 rounded-full flex items-center justify-center mb-1 transition-all ${
+                                authProgress >= 100 
+                                  ? 'bg-green-500 text-white' 
+                                  : authStep === 'syncing' 
+                                    ? 'bg-blue-500 text-white animate-pulse' 
+                                    : 'bg-gray-200 dark:bg-gray-700 text-gray-400'
+                              }`}>
+                                {authProgress >= 100 ? (
+                                  <CheckCircle2 className="h-4 w-4" />
+                                ) : authStep === 'syncing' ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <span className="text-xs font-bold">4</span>
+                                )}
+                              </div>
+                              <span className={`text-xs text-center ${
+                                authProgress >= 100 
+                                  ? 'text-green-600 dark:text-green-400 font-medium' 
+                                  : authStep === 'syncing' 
+                                    ? 'text-blue-600 dark:text-blue-400 font-medium' 
+                                    : 'text-muted-foreground'
+                              }`}>
+                                同步数据
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {/* 当前操作详情 */}
+                          <div className="mt-4 p-3 bg-white/50 dark:bg-gray-800/50 rounded-md">
+                            <div className="flex items-center gap-2 text-sm">
+                              {authStep !== 'complete' && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+                              {authStep === 'complete' && <CheckCircle2 className="h-4 w-4 text-green-500" />}
+                              <span className={authStep === 'complete' ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}>
+                                {authStep === 'exchanging' && '正在与 Amazon Advertising API 通信，换取访问令牌...'}
+                                {authStep === 'saving' && '正在验证凭证并保存到数据库，同时同步广告数据...'}
+                                {authStep === 'syncing' && '正在从亚马逊拉取 SP/SB/SD 广告活动数据...'}
+                                {authStep === 'complete' && '授权流程已完成！您现在可以开始管理广告了。'}
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -1518,36 +1650,168 @@ export default function AmazonApiSettings() {
                         {authStep === 'complete' && '授权完成!'}
                       </Button>
                       
-                      {/* 授权进度指示器 */}
+                      {/* 授权进度指示器 - 增强版 (紫鸟浏览器专用) */}
                       {authStep !== 'idle' && (
-                        <div className="mt-4 space-y-3">
-                          <div className="w-full bg-purple-900/30 rounded-full h-2">
-                            <div 
-                              className="bg-purple-500 h-2 rounded-full transition-all duration-500 ease-out"
-                              style={{ width: `${authProgress}%` }}
-                            />
-                          </div>
-                          <div className="flex items-center justify-center gap-2 text-sm text-purple-300">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            <span>
-                              {authStep === 'exchanging' && '正在与亚马逊服务器通信，换取访问令牌...'}
-                              {authStep === 'saving' && '正在保存API凭证并同步广告数据...'}
-                              {authStep === 'syncing' && '正在从亚马逊拉取广告活动数据...'}
-                              {authStep === 'complete' && '授权流程已完成!'}
-                            </span>
-                          </div>
-                          <div className="flex justify-center gap-4 text-xs text-purple-400">
-                            <div className={`flex items-center gap-1 ${authProgress >= 25 ? 'text-purple-300' : ''}`}>
-                              {authProgress >= 25 ? <CheckCircle2 className="h-3 w-3" /> : <div className="h-3 w-3 rounded-full border border-purple-500" />}
-                              换取Token
+                        <div className="mt-6 p-4 bg-gradient-to-r from-purple-900/40 to-indigo-900/40 rounded-lg border border-purple-500/30">
+                          {/* 标题 */}
+                          <div className="flex items-center gap-2 mb-4">
+                            <div className="relative">
+                              <div className="h-8 w-8 rounded-full bg-purple-500/20 flex items-center justify-center">
+                                {authStep === 'complete' ? (
+                                  <CheckCircle2 className="h-5 w-5 text-green-400" />
+                                ) : (
+                                  <Loader2 className="h-5 w-5 text-purple-400 animate-spin" />
+                                )}
+                              </div>
                             </div>
-                            <div className={`flex items-center gap-1 ${authProgress >= 75 ? 'text-purple-300' : ''}`}>
-                              {authProgress >= 75 ? <CheckCircle2 className="h-3 w-3" /> : <div className="h-3 w-3 rounded-full border border-purple-500" />}
-                              保存凭证
+                            <div>
+                              <h4 className="font-semibold text-sm text-purple-100">
+                                {authStep === 'complete' ? '授权完成' : '正在授权...'}
+                              </h4>
+                              <p className="text-xs text-purple-300">
+                                {authStep === 'exchanging' && '步骤 1/4: 正在与亚马逊服务器通信'}
+                                {authStep === 'saving' && '步骤 3/4: 正在保存凭证并同步数据'}
+                                {authStep === 'syncing' && '步骤 4/4: 正在拉取广告数据'}
+                                {authStep === 'complete' && '所有步骤已完成'}
+                              </p>
                             </div>
-                            <div className={`flex items-center gap-1 ${authProgress >= 100 ? 'text-purple-300' : ''}`}>
-                              {authProgress >= 100 ? <CheckCircle2 className="h-3 w-3" /> : <div className="h-3 w-3 rounded-full border border-purple-500" />}
-                              同步数据
+                          </div>
+                          
+                          {/* 进度条 */}
+                          <div className="relative mb-4">
+                            <div className="w-full bg-purple-900/50 rounded-full h-3 overflow-hidden">
+                              <div 
+                                className={`h-3 rounded-full transition-all duration-700 ease-out ${
+                                  authStep === 'complete' 
+                                    ? 'bg-gradient-to-r from-green-400 to-green-500' 
+                                    : 'bg-gradient-to-r from-purple-400 to-indigo-400'
+                                }`}
+                                style={{ width: `${authProgress}%` }}
+                              />
+                            </div>
+                            <div className="absolute right-0 top-0 -mt-1 text-xs font-medium text-purple-300">
+                              {authProgress}%
+                            </div>
+                          </div>
+                          
+                          {/* 步骤指示器 */}
+                          <div className="grid grid-cols-4 gap-2">
+                            {/* 步骤1: 生成链接 */}
+                            <div className="flex flex-col items-center">
+                              <div className={`h-8 w-8 rounded-full flex items-center justify-center mb-1 transition-all ${
+                                authProgress >= 10 
+                                  ? 'bg-green-500 text-white' 
+                                  : 'bg-purple-800/50 text-purple-400'
+                              }`}>
+                                {authProgress >= 10 ? (
+                                  <CheckCircle2 className="h-4 w-4" />
+                                ) : (
+                                  <span className="text-xs font-bold">1</span>
+                                )}
+                              </div>
+                              <span className={`text-xs text-center ${
+                                authProgress >= 10 ? 'text-green-400 font-medium' : 'text-purple-400'
+                              }`}>
+                                生成链接
+                              </span>
+                            </div>
+                            
+                            {/* 步骤2: 换取Token */}
+                            <div className="flex flex-col items-center">
+                              <div className={`h-8 w-8 rounded-full flex items-center justify-center mb-1 transition-all ${
+                                authProgress >= 50 
+                                  ? 'bg-green-500 text-white' 
+                                  : authStep === 'exchanging' 
+                                    ? 'bg-purple-500 text-white animate-pulse' 
+                                    : 'bg-purple-800/50 text-purple-400'
+                              }`}>
+                                {authProgress >= 50 ? (
+                                  <CheckCircle2 className="h-4 w-4" />
+                                ) : authStep === 'exchanging' ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <span className="text-xs font-bold">2</span>
+                                )}
+                              </div>
+                              <span className={`text-xs text-center ${
+                                authProgress >= 50 
+                                  ? 'text-green-400 font-medium' 
+                                  : authStep === 'exchanging' 
+                                    ? 'text-purple-300 font-medium' 
+                                    : 'text-purple-400'
+                              }`}>
+                                换取Token
+                              </span>
+                            </div>
+                            
+                            {/* 步骤3: 保存凭证 */}
+                            <div className="flex flex-col items-center">
+                              <div className={`h-8 w-8 rounded-full flex items-center justify-center mb-1 transition-all ${
+                                authProgress >= 75 
+                                  ? 'bg-green-500 text-white' 
+                                  : authStep === 'saving' 
+                                    ? 'bg-purple-500 text-white animate-pulse' 
+                                    : 'bg-purple-800/50 text-purple-400'
+                              }`}>
+                                {authProgress >= 75 ? (
+                                  <CheckCircle2 className="h-4 w-4" />
+                                ) : authStep === 'saving' ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <span className="text-xs font-bold">3</span>
+                                )}
+                              </div>
+                              <span className={`text-xs text-center ${
+                                authProgress >= 75 
+                                  ? 'text-green-400 font-medium' 
+                                  : authStep === 'saving' 
+                                    ? 'text-purple-300 font-medium' 
+                                    : 'text-purple-400'
+                              }`}>
+                                保存凭证
+                              </span>
+                            </div>
+                            
+                            {/* 步骤4: 同步数据 */}
+                            <div className="flex flex-col items-center">
+                              <div className={`h-8 w-8 rounded-full flex items-center justify-center mb-1 transition-all ${
+                                authProgress >= 100 
+                                  ? 'bg-green-500 text-white' 
+                                  : authStep === 'syncing' 
+                                    ? 'bg-purple-500 text-white animate-pulse' 
+                                    : 'bg-purple-800/50 text-purple-400'
+                              }`}>
+                                {authProgress >= 100 ? (
+                                  <CheckCircle2 className="h-4 w-4" />
+                                ) : authStep === 'syncing' ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <span className="text-xs font-bold">4</span>
+                                )}
+                              </div>
+                              <span className={`text-xs text-center ${
+                                authProgress >= 100 
+                                  ? 'text-green-400 font-medium' 
+                                  : authStep === 'syncing' 
+                                    ? 'text-purple-300 font-medium' 
+                                    : 'text-purple-400'
+                              }`}>
+                                同步数据
+                              </span>
+                            </div>
+                          </div>
+                          
+                          {/* 当前操作详情 */}
+                          <div className="mt-4 p-3 bg-purple-900/30 rounded-md">
+                            <div className="flex items-center gap-2 text-sm">
+                              {authStep !== 'complete' && <Loader2 className="h-4 w-4 animate-spin text-purple-400" />}
+                              {authStep === 'complete' && <CheckCircle2 className="h-4 w-4 text-green-400" />}
+                              <span className={authStep === 'complete' ? 'text-green-400' : 'text-purple-300'}>
+                                {authStep === 'exchanging' && '正在与 Amazon Advertising API 通信，换取访问令牌...'}
+                                {authStep === 'saving' && '正在验证凭证并保存到数据库，同时同步广告数据...'}
+                                {authStep === 'syncing' && '正在从亚马逊拉取 SP/SB/SD 广告活动数据...'}
+                                {authStep === 'complete' && '授权流程已完成！您现在可以开始管理广告了。'}
+                              </span>
                             </div>
                           </div>
                         </div>
