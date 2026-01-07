@@ -1,0 +1,66 @@
+{
+  "query": "SELECT c.id, c.campaignName, c.performanceGroupId, pg.id as pgId, pg.name as pgName FROM campaigns c LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id WHERE c.accountId = 6",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT c.id, c.campaignName, c.performanceGroupId, pg.id as pgId, pg.name as pgName FROM campaigns c LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id WHERE c.accountId = 6",
+  "rows": [
+    {
+      "id": "30001",
+      "campaignName": "测试活动1",
+      "performanceGroupId": "16",
+      "pgId": "16",
+      "pgName": "高转化关键词组"
+    },
+    {
+      "id": "30",
+      "campaignName": "SD展示广告-再营销",
+      "performanceGroupId": "16",
+      "pgId": "16",
+      "pgName": "高转化关键词组"
+    },
+    {
+      "id": "27",
+      "campaignName": "SP手动广告-竞品词",
+      "performanceGroupId": "16",
+      "pgId": "16",
+      "pgName": "高转化关键词组"
+    },
+    {
+      "id": "25",
+      "campaignName": "SP自动广告-主推产品",
+      "performanceGroupId": "16",
+      "pgId": "16",
+      "pgName": "高转化关键词组"
+    },
+    {
+      "id": "29",
+      "campaignName": "SB品牌推广-品牌旗舰店",
+      "performanceGroupId": "17",
+      "pgId": "17",
+      "pgName": "品牌词保护组"
+    },
+    {
+      "id": "26",
+      "campaignName": "SP手动广告-品牌词",
+      "performanceGroupId": "17",
+      "pgId": "17",
+      "pgName": "品牌词保护组"
+    },
+    {
+      "id": "30002",
+      "campaignName": "测试活动2",
+      "performanceGroupId": "18",
+      "pgId": "18",
+      "pgName": "新品推广组"
+    },
+    {
+      "id": "28",
+      "campaignName": "SP手动广告-长尾词",
+      "performanceGroupId": "18",
+      "pgId": "18",
+      "pgName": "新品推广组"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tcampaignName\tperformanceGroupId\tpgId\tpgName\n30001\t测试活动1\t16\t16\t高转化关键词组\n30\tSD展示广告-再营销\t16\t16\t高转化关键词组\n27\tSP手动广告-竞品词\t16\t16\t高转化关键词组\n25\tSP自动广告-主推产品\t16\t16\t高转化关键词组\n29\tSB品牌推广-品牌旗舰店\t17\t17\t品牌词保护组\n26\tSP手动广告-品牌词\t17\t17\t品牌词保护组\n30002\t测试活动2\t18\t18\t新品推广组\n28\tSP手动广告-长尾词\t18\t18\t新品推广组\n",
+  "stderr": "",
+  "execution_time_ms": 408
+}

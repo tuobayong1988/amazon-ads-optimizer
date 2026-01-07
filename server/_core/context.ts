@@ -1,5 +1,8 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
-import type { User } from "../../drizzle/schema";
+import type { InferSelectModel } from "drizzle-orm";
+import { users } from "../../drizzle/schema";
+
+type User = InferSelectModel<typeof users>;
 import { sdk } from "./sdk";
 
 export type TrpcContext = {

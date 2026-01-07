@@ -20,6 +20,7 @@ import * as algorithmOptimizationService from './algorithmOptimizationService';
 import * as intelligentBudgetAllocationService from './intelligentBudgetAllocationService';
 import * as abTestService from './abTestService';
 import * as budgetAutoExecutionService from './budgetAutoExecutionService';
+import { reviewRouter } from './reviewRouter';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
@@ -6985,6 +6986,7 @@ export const appRouter = router({
   intelligentBudgetAllocation: intelligentBudgetAllocationRouter,
   abTest: abTestRouter,
   budgetAutoExecution: budgetAutoExecutionRouter,
+  review: reviewRouter,
 });
 
 export type AppRouter = typeof appRouter;
