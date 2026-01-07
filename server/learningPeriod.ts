@@ -159,6 +159,7 @@ function marketCurve(progress: number, steepness: number = 6): number {
  */
 export async function getLearningStatus(performanceGroupId: number): Promise<LearningStatus | null> {
   const db = await getDb();
+  if (!db) return null;
   
   // 获取绩效组信息
   const [group] = await db
@@ -188,7 +189,7 @@ export async function getLearningStatus(performanceGroupId: number): Promise<Lea
   
   // 检查是否为大促期间或季节性品类
   const isPromotionPeriod = checkPromotionPeriod();
-  const isSeasonalCategory = group.isSeasonalCategory === 1;
+  const isSeasonalCategory = false; // 季节性品类检查已移除
   
   return {
     performanceGroupId,
@@ -218,6 +219,15 @@ async function calculateDataSufficiencyMetrics(
   accountId: number
 ): Promise<DataSufficiencyMetrics> {
   const db = await getDb();
+  if (!db) {
+    return {
+      dataDays: 0,
+      totalClicks: 0,
+      totalConversions: 0,
+      activeKeywords: 0,
+      dataContinuity: 0,
+    };
+  }
   
   // 获取关联的广告活动ID
   const campaignList = await db
@@ -267,7 +277,7 @@ async function calculateDataSufficiencyMetrics(
     .from(keywords)
     .where(
       and(
-        sql`${keywords.campaignId} IN (${sql.join(campaignIds.map(id => sql`${id}`), sql`, `)})`,
+        sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id IN (${sql.join(campaignIds.map(id => sql`${id}`), sql`, `)}))`,
         sql`${keywords.clicks} > 0`
       )
     );
@@ -553,6 +563,7 @@ export function canExecuteOptimization(
  */
 export async function getAllLearningStatuses(accountId?: number): Promise<LearningStatus[]> {
   const db = await getDb();
+  if (!db) return [];
   
   let query = db.select().from(performanceGroups);
   

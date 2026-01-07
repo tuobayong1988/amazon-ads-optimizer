@@ -575,7 +575,7 @@ export default function EmailReports() {
                       <TableCell>
                         <div className="flex items-center gap-2">
                           <Switch
-                            checked={subscription.isActive ?? false}
+                            checked={Boolean(subscription.isActive)}
                             onCheckedChange={() => toggleMutation.mutate({ id: subscription.id })}
                           />
                           <span className={subscription.isActive ? "text-green-500" : "text-muted-foreground"}>

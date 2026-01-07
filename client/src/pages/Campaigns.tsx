@@ -560,8 +560,8 @@ export default function Campaigns() {
           bValue = new Date(b.createdAt || 0).getTime();
           break;
         case 'status':
-          aValue = a.status || '';
-          bValue = b.status || '';
+          aValue = a.campaignStatus || '';
+          bValue = b.campaignStatus || '';
           break;
         case 'dailyBudget':
           aValue = parseFloat((a as any).dailyBudget || '0');
@@ -706,7 +706,7 @@ export default function Campaigns() {
       onConfirm: () => {
         updateCampaign.mutate({
           id: campaign.id,
-          status: newStatus,
+          campaignStatus: newStatus,
         });
       },
     });

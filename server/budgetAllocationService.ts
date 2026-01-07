@@ -285,8 +285,8 @@ export async function generateBudgetAllocation(
 
   // 获取广告活动及其历史表现
   const campaignQuery = accountId
-    ? and(eq(campaigns.accountId, accountId), eq(campaigns.status, "enabled"))
-    : eq(campaigns.status, "enabled");
+    ? and(eq(campaigns.accountId, accountId), eq(campaigns.campaignStatus, "enabled"))
+    : eq(campaigns.campaignStatus, "enabled");
 
   const campaignList: any[] = await db
     .select()
@@ -638,7 +638,7 @@ export async function applyBudgetAllocation(
       // 更新明细状态
       await db
         .update(budgetAllocationItems)
-        .set({ status: "applied", appliedAt: new Date() })
+        .set({ status: "applied", appliedAt: new Date().toISOString() })
         .where(eq(budgetAllocationItems.id, item.id));
 
       appliedCount++;
@@ -652,7 +652,7 @@ export async function applyBudgetAllocation(
     .update(budgetAllocations)
     .set({
       status: "applied",
-      appliedAt: new Date(),
+      appliedAt: new Date().toISOString(),
       appliedBy: userId,
     })
     .where(eq(budgetAllocations.id, allocationId));
@@ -721,11 +721,11 @@ export async function getBudgetHistory(
   }
 
   if (startDate) {
-    query = and(query, gte(budgetHistory.createdAt, startDate)) as any;
+    query = and(query, gte(budgetHistory.createdAt, startDate.toISOString())) as any;
   }
 
   if (endDate) {
-    query = and(query, lte(budgetHistory.createdAt, endDate)) as any;
+    query = and(query, lte(budgetHistory.createdAt, endDate.toISOString())) as any;
   }
 
   const history = await db
@@ -766,13 +766,13 @@ export async function createBudgetGoal(
     goalType: data.goalType as any,
     targetValue: data.targetValue.toString(),
     periodType: (data.periodType as any) || "monthly",
-    startDate: data.startDate,
-    endDate: data.endDate,
+    startDate: data.startDate?.toISOString(),
+    endDate: data.endDate?.toISOString(),
     totalBudget: data.totalBudget?.toString(),
     minCampaignBudget: data.minCampaignBudget?.toString() || "10.00",
     maxCampaignBudget: data.maxCampaignBudget?.toString(),
-    prioritizeHighRoas: data.prioritizeHighRoas ?? true,
-    prioritizeNewProducts: data.prioritizeNewProducts ?? false,
+    prioritizeHighRoas: data.prioritizeHighRoas ? 1 : 0,
+    prioritizeNewProducts: data.prioritizeNewProducts ? 1 : 0,
     status: "active",
   });
 

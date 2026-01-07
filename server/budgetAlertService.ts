@@ -10,9 +10,11 @@ import {
   budgetAlertSettings,
   campaigns,
   dailyPerformance,
-  InsertBudgetConsumptionAlert,
-  InsertBudgetAlertSetting,
 } from "../drizzle/schema";
+
+// 定义类型
+type InsertBudgetConsumptionAlert = typeof budgetConsumptionAlerts.$inferInsert;
+type InsertBudgetAlertSetting = typeof budgetAlertSettings.$inferInsert;
 import { notifyOwner } from "./_core/notification";
 
 export type AlertType = "overspending" | "underspending" | "budget_depleted" | "near_depletion";
@@ -53,7 +55,7 @@ export async function saveAlertSettings(userId: number, settings: Partial<Insert
   if (!db) return null;
   const existing = await getAlertSettings(userId, settings.accountId ?? undefined);
   if (existing) {
-    await db.update(budgetAlertSettings).set({ ...settings, updatedAt: new Date() }).where(eq(budgetAlertSettings.id, existing.id));
+    await db.update(budgetAlertSettings).set({ ...settings, updatedAt: new Date().toISOString() }).where(eq(budgetAlertSettings.id, existing.id));
     return { ...existing, ...settings };
   } else {
     const result = await db.insert(budgetAlertSettings).values({ userId, ...settings });
@@ -70,7 +72,7 @@ export async function analyzeBudgetConsumption(userId: number, accountId?: numbe
     underspending: Number(settings?.underspendingThreshold) || DEFAULT_SETTINGS.underspendingThreshold,
     nearDepletion: Number(settings?.nearDepletionThreshold) || DEFAULT_SETTINGS.nearDepletionThreshold,
   };
-  const conditions = [eq(campaigns.status, "enabled")];
+  const conditions = [eq(campaigns.campaignStatus, "enabled")];
   if (accountId) conditions.push(eq(campaigns.accountId, accountId));
   const activeCampaigns = await db.select().from(campaigns).where(and(...conditions));
   const today = new Date();
@@ -170,14 +172,14 @@ export async function getAlerts(userId: number, options: { accountId?: number; s
 export async function acknowledgeAlert(alertId: number, userId: number) {
   const db = await getDb();
   if (!db) return false;
-  await db.update(budgetConsumptionAlerts).set({ status: "acknowledged", acknowledgedAt: new Date() }).where(and(eq(budgetConsumptionAlerts.id, alertId), eq(budgetConsumptionAlerts.userId, userId)));
+  await db.update(budgetConsumptionAlerts).set({ status: "acknowledged", acknowledgedAt: new Date().toISOString() }).where(and(eq(budgetConsumptionAlerts.id, alertId), eq(budgetConsumptionAlerts.userId, userId)));
   return true;
 }
 
 export async function resolveAlert(alertId: number, userId: number) {
   const db = await getDb();
   if (!db) return false;
-  await db.update(budgetConsumptionAlerts).set({ status: "resolved", resolvedAt: new Date() }).where(and(eq(budgetConsumptionAlerts.id, alertId), eq(budgetConsumptionAlerts.userId, userId)));
+  await db.update(budgetConsumptionAlerts).set({ status: "resolved", resolvedAt: new Date().toISOString() }).where(and(eq(budgetConsumptionAlerts.id, alertId), eq(budgetConsumptionAlerts.userId, userId)));
   return true;
 }
 
@@ -188,7 +190,7 @@ export async function getAlertStats(userId: number, accountId?: number) {
   if (accountId) conditions.push(eq(budgetConsumptionAlerts.accountId, accountId));
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const todayConditions = [...conditions, gte(budgetConsumptionAlerts.createdAt, today)];
+  const todayConditions = [...conditions, gte(budgetConsumptionAlerts.createdAt, today.toISOString())];
   const [activeCount, todayCount, byType] = await Promise.all([
     db.select({ count: sql<number>`count(*)` }).from(budgetConsumptionAlerts).where(and(...conditions, eq(budgetConsumptionAlerts.status, "active"))),
     db.select({ count: sql<number>`count(*)` }).from(budgetConsumptionAlerts).where(and(...todayConditions)),

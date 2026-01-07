@@ -5010,7 +5010,24 @@ const collaborationRouter = router({
     }))
     .mutation(async ({ ctx, input }) => {
       const { updateUserNotificationPreferences } = await import("./collaborationNotificationService");
-      return updateUserNotificationPreferences(ctx.user.id, input);
+      // 将boolean转换为number
+      const convertedInput = {
+        ...input,
+        enableAppNotifications: input.enableAppNotifications !== undefined ? (input.enableAppNotifications ? 1 : 0) : undefined,
+        enableEmailNotifications: input.enableEmailNotifications !== undefined ? (input.enableEmailNotifications ? 1 : 0) : undefined,
+        bidAdjustNotify: input.bidAdjustNotify !== undefined ? (input.bidAdjustNotify ? 1 : 0) : undefined,
+        negativeKeywordNotify: input.negativeKeywordNotify !== undefined ? (input.negativeKeywordNotify ? 1 : 0) : undefined,
+        campaignChangeNotify: input.campaignChangeNotify !== undefined ? (input.campaignChangeNotify ? 1 : 0) : undefined,
+        automationNotify: input.automationNotify !== undefined ? (input.automationNotify ? 1 : 0) : undefined,
+        teamChangeNotify: input.teamChangeNotify !== undefined ? (input.teamChangeNotify ? 1 : 0) : undefined,
+        dataImportExportNotify: input.dataImportExportNotify !== undefined ? (input.dataImportExportNotify ? 1 : 0) : undefined,
+        notifyOnLow: input.notifyOnLow !== undefined ? (input.notifyOnLow ? 1 : 0) : undefined,
+        notifyOnMedium: input.notifyOnMedium !== undefined ? (input.notifyOnMedium ? 1 : 0) : undefined,
+        notifyOnHigh: input.notifyOnHigh !== undefined ? (input.notifyOnHigh ? 1 : 0) : undefined,
+        notifyOnCritical: input.notifyOnCritical !== undefined ? (input.notifyOnCritical ? 1 : 0) : undefined,
+        quietHoursEnabled: input.quietHoursEnabled !== undefined ? (input.quietHoursEnabled ? 1 : 0) : undefined,
+      };
+      return updateUserNotificationPreferences(ctx.user.id, convertedInput as any);
     }),
 
   // 获取重要操作类型列表
@@ -5571,15 +5588,15 @@ const daypartingRouter = router({
         name: input.name,
         description: input.description,
         strategyType: input.strategyType,
-        optimizationGoal: input.optimizationGoal,
-        targetAcos: input.targetAcos?.toString(),
-        targetRoas: input.targetRoas?.toString(),
+        daypartingOptGoal: input.optimizationGoal,
+        daypartingTargetAcos: input.targetAcos?.toString(),
+        daypartingTargetRoas: input.targetRoas?.toString(),
         analysisLookbackDays: input.analysisLookbackDays,
         maxBudgetMultiplier: input.maxBudgetMultiplier.toString(),
         minBudgetMultiplier: input.minBudgetMultiplier.toString(),
         maxBidMultiplier: input.maxBidMultiplier.toString(),
         minBidMultiplier: input.minBidMultiplier.toString(),
-        status: "draft",
+        daypartingStatus: "draft",
       });
       return { strategyId };
     }),
@@ -5592,8 +5609,8 @@ const daypartingRouter = router({
     }))
     .mutation(async ({ input }) => {
       await daypartingService.updateDaypartingStrategy(input.strategyId, {
-        status: input.status,
-        lastAppliedAt: input.status === "active" ? new Date() : undefined,
+        daypartingStatus: input.status,
+        lastAppliedAt: input.status === "active" ? new Date().toISOString() : undefined,
       });
       return { success: true };
     }),
@@ -5616,7 +5633,7 @@ const daypartingRouter = router({
           dayOfWeek: r.dayOfWeek,
           budgetMultiplier: r.budgetMultiplier.toString(),
           budgetPercentage: r.budgetPercentage?.toString(),
-          isEnabled: r.isEnabled,
+          isEnabled: r.isEnabled ? 1 : 0,
         }))
       );
       return { success: true };
@@ -5640,7 +5657,7 @@ const daypartingRouter = router({
           dayOfWeek: r.dayOfWeek,
           hour: r.hour,
           bidMultiplier: r.bidMultiplier.toString(),
-          isEnabled: r.isEnabled,
+          isEnabled: r.isEnabled ? 1 : 0,
         }))
       );
       return { success: true };

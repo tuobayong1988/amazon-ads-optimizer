@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,7 +48,11 @@ export default function IntelligentBudgetAllocation() {
   const [selectedSuggestions, setSelectedSuggestions] = useState<number[]>([]);
   
   // 获取绩效组列表
-  const { data: performanceGroups } = trpc.performanceGroup.list.useQuery();
+  const { user } = useAuth();
+  const { data: performanceGroups } = trpc.performanceGroup.list.useQuery(
+    { accountId: 0 },
+    { enabled: !!user }
+  );
   
   // 获取预算分配建议
   const { data: suggestionsData, isLoading: loadingSuggestions, refetch: refetchSuggestions } = 

@@ -4,7 +4,11 @@
  */
 
 import { getDb } from "./db";
-import { auditLogs, type InsertAuditLog, type AuditLog } from "../drizzle/schema";
+import { auditLogs } from "../drizzle/schema";
+
+// 定义类型
+type InsertAuditLog = typeof auditLogs.$inferInsert;
+type AuditLog = typeof auditLogs.$inferSelect;
 import { eq, and, desc, gte, lte, like, inArray, sql } from "drizzle-orm";
 
 // 操作类型分类
@@ -96,8 +100,8 @@ export const TARGET_TYPE_DESCRIPTIONS: Record<string, string> = {
 export async function createAuditLog(data: Omit<InsertAuditLog, "id" | "createdAt">): Promise<AuditLog> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const [result] = await db.insert(auditLogs).values(data);
-  const [log] = await db.select().from(auditLogs).where(eq(auditLogs.id, result.insertId));
+  const result = await db.insert(auditLogs).values(data);
+  const [log] = await db.select().from(auditLogs).where(eq(auditLogs.id, (result as any)[0]?.insertId || 0));
   return log;
 }
 
@@ -400,7 +404,7 @@ export async function exportAuditLogsToCSV(params: {
 
   const rows = logs.map((log) => [
     log.id,
-    log.createdAt.toISOString(),
+    String(log.createdAt),
     log.userName || "",
     log.userEmail || "",
     ACTION_DESCRIPTIONS[log.actionType] || log.actionType,
@@ -429,6 +433,6 @@ export async function cleanupOldAuditLogs(retentionDays: number = 365): Promise<
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
 
-  const result = await db.delete(auditLogs).where(lte(auditLogs.createdAt, cutoffDate));
+  const result = await db.delete(auditLogs).where(lte(auditLogs.createdAt, cutoffDate.toISOString()));
   return (result as any).affectedRows || 0;
 }

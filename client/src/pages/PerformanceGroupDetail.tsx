@@ -137,7 +137,7 @@ export default function PerformanceGroupDetail() {
     if (!availableCampaigns) return [];
     if (!searchQuery) return availableCampaigns;
     return availableCampaigns.filter(c => 
-      c.name.toLowerCase().includes(searchQuery.toLowerCase())
+      c.campaignName.toLowerCase().includes(searchQuery.toLowerCase())
     );
   }, [availableCampaigns, searchQuery]);
 
@@ -177,7 +177,7 @@ export default function PerformanceGroupDetail() {
     if (group) {
       setEditingGoal({
         category: 'revenue',
-        type: group.goalType || 'maximize_revenue',
+        type: group.optimizationGoal || 'maximize_revenue',
         targetValue: group.targetAcos?.toString() || group.targetRoas?.toString() || '',
         dailyBudget: group.dailyBudget?.toString() || '',
         maxBid: group.maxBid?.toString() || '',
@@ -210,7 +210,7 @@ export default function PerformanceGroupDetail() {
     );
   }
 
-  const goalTypeLabel = OPTIMIZATION_TYPES.find(t => t.value === group.goalType)?.label || '未设置';
+  const goalTypeLabel = OPTIMIZATION_TYPES.find(t => t.value === group.optimizationGoal)?.label || '未设置';
 
   return (
     <DashboardLayout>
@@ -223,7 +223,7 @@ export default function PerformanceGroupDetail() {
           <div className="flex-1">
             <h1 className="text-2xl font-bold">{group.name}</h1>
             <p className="text-muted-foreground">
-              {group.accountName} | {groupCampaigns?.length || 0} 个广告活动
+              {group.name} | {groupCampaigns?.length || 0} 个广告活动
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -248,13 +248,13 @@ export default function PerformanceGroupDetail() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {group.goalType === 'target_acos' && (
+              {group.optimizationGoal === 'target_acos' && (
                 <p className="text-sm text-muted-foreground">目标ACoS: {group.targetAcos}%</p>
               )}
-              {group.goalType === 'target_roas' && (
+              {group.optimizationGoal === 'target_roas' && (
                 <p className="text-sm text-muted-foreground">目标ROAS: {group.targetRoas}x</p>
               )}
-              {group.goalType === 'maximize_revenue' && (
+              {group.optimizationGoal === 'maximize_sales' && (
                 <p className="text-sm text-muted-foreground">每日预算: ${group.dailyBudget || '-'}</p>
               )}
             </CardContent>
@@ -413,7 +413,7 @@ export default function PerformanceGroupDetail() {
                         <div className="flex items-center gap-3">
                           <div className={`w-2 h-2 rounded-full ${campaign.status === 'enabled' ? 'bg-green-500' : 'bg-gray-400'}`} />
                           <div>
-                            <p className="font-medium">{campaign.name}</p>
+                            <p className="font-medium">{campaign.campaignName}</p>
                             <p className="text-sm text-muted-foreground">
                               {campaign.campaignType} | 花费: ${campaign.spend?.toFixed(2) || '0.00'} | ACoS: {campaign.acos?.toFixed(2) || '0.00'}%
                             </p>
@@ -554,7 +554,7 @@ export default function PerformanceGroupDetail() {
                             }}
                           />
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{campaign.name}</p>
+                            <p className="text-sm font-medium truncate">{campaign.campaignName}</p>
                             <p className="text-xs text-muted-foreground">
                               {campaign.campaignType} | ACoS: {campaign.acos?.toFixed(2) || '0'}%
                             </p>
@@ -587,7 +587,7 @@ export default function PerformanceGroupDetail() {
                             className="flex items-center justify-between p-2 border rounded bg-primary/5"
                           >
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{campaign.name}</p>
+                              <p className="text-sm font-medium truncate">{campaign.campaignName}</p>
                             </div>
                             <Button 
                               variant="ghost" 

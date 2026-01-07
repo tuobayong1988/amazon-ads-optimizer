@@ -769,7 +769,7 @@ function OptimizationTargetCard({
     executeOptimization.mutate({ targetId: target.id });
   };
 
-  const toggleStatus = trpc.performanceGroup.toggleStatus.useMutation({
+  const toggleEnabled = trpc.performanceGroup.toggleEnabled.useMutation({
     onSuccess: () => {
       toast.success(isActive ? "已暂停优化" : "已启用优化");
       onRefresh();
@@ -782,7 +782,7 @@ function OptimizationTargetCard({
 
   const handleToggle = () => {
     setIsActive(!isActive);
-    toggleStatus.mutate({ id: target.id, status: isActive ? "paused" : "active" });
+    toggleEnabled.mutate({ targetId: target.id, isEnabled: !isActive });
   };
 
   const getTargetTypeLabel = () => {

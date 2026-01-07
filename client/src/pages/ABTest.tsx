@@ -183,8 +183,8 @@ export default function ABTest() {
                     <Label>测试类型</Label>
                     <Select
                       value={newTest.testType}
-                      onValueChange={(value: 'budget_allocation' | 'bid_strategy' | 'targeting') => 
-                        setNewTest({ ...newTest, testType: value })
+                      onValueChange={(value) => 
+                        setNewTest({ ...newTest, testType: value as any })
                       }
                     >
                       <SelectTrigger>
@@ -201,8 +201,8 @@ export default function ABTest() {
                     <Label>目标指标</Label>
                     <Select
                       value={newTest.targetMetric}
-                      onValueChange={(value: 'roas' | 'acos' | 'conversions' | 'revenue' | 'profit') => 
-                        setNewTest({ ...newTest, targetMetric: value })
+                      onValueChange={(value) => 
+                        setNewTest({ ...newTest, targetMetric: value as any })
                       }
                     >
                       <SelectTrigger>
@@ -375,7 +375,7 @@ export default function ABTest() {
 
                         {/* 可视化图表 */}
                         <ABTestCharts 
-                          analysisResults={analysisResults} 
+                          analysisResults={analysisResults as any} 
                           testName={testDetails?.test?.testName}
                         />
                       </>

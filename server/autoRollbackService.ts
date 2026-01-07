@@ -304,6 +304,7 @@ export async function runRollbackEvaluation(accountId?: number): Promise<{
   suggestions: RollbackSuggestion[];
 }> {
   const db = await getDb();
+  if (!db) return { evaluated: 0, suggestions: [] };
   
   // 查询有追踪数据且未回滚的记录
   // 使用status字段检查是否已回滚（status != 'rolled_back'）

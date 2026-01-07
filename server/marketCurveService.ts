@@ -374,8 +374,8 @@ export async function buildMarketCurveForKeyword(
       spend: Number(kw.spend) || 0,
       sales: Number(kw.sales) || 0,
       orders: kw.orders || 0,
-      ctr: Number(kw.ctr) || 0.01,
-      cvr: Number(kw.cvr) || 0.05
+      ctr: (kw.impressions && kw.clicks) ? (kw.clicks / kw.impressions) * 100 : 0.01,
+      cvr: (kw.clicks && kw.orders) ? (kw.orders / kw.clicks) * 100 : 0.05
     }];
     
     const impressionCurve = buildImpressionCurve(dataPoints);

@@ -120,10 +120,10 @@ export function BidResponseCurve({
       const predictedRoas = predictedSpend > 0 ? predictedSales / predictedSpend : 0;
       
       // 计算边际收益和边际成本
-      const marginalRevenue = bidLevels.length > 0 
+      const marginalRevenue: number = bidLevels.length > 0 
         ? (predictedSales - bidLevels[bidLevels.length - 1].sales) / step
         : predictedSales / bid;
-      const marginalCost = bidLevels.length > 0
+      const marginalCost: number = bidLevels.length > 0
         ? (predictedSpend - bidLevels[bidLevels.length - 1].spend) / step
         : predictedSpend / bid;
       

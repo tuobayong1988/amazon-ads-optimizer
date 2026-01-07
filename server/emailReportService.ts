@@ -583,8 +583,8 @@ export async function sendReportEmail(
     );
     
     await db.updateEmailSubscription(subscriptionId, {
-      lastSentAt: new Date(),
-      nextSendAt,
+      lastSentAt: new Date().toISOString(),
+      nextSendAt: nextSendAt.toISOString(),
       sendCount: (subscription.sendCount || 0) + 1,
     });
     

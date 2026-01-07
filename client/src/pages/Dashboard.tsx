@@ -54,7 +54,7 @@ if (typeof window !== 'undefined') {
     } else if (type === 'error') {
       toast.error(message, { duration: 3000 });
     } else {
-      toast.info(message, { duration: 2000 });
+      toast(message, { duration: 2000 });
     }
   };
 }

@@ -164,7 +164,8 @@ export async function collectCampaignPerformanceData(
   performanceGroupId: number,
   endDate: Date = new Date()
 ): Promise<CampaignPerformanceData[]> {
-  const db = getDb();
+  const dbInstance = await getDb();
+  if (!dbInstance) return [] as any;
   
   // 计算时间窗口
   const date7dAgo = new Date(endDate);
@@ -175,7 +176,7 @@ export async function collectCampaignPerformanceData(
   date30dAgo.setDate(date30dAgo.getDate() - 30);
   
   // 获取绩效组内的广告活动
-  const campaignList = await db.select()
+  const campaignList = await dbInstance.select()
     .from(campaigns)
     .where(eq(campaigns.performanceGroupId, performanceGroupId));
   
@@ -243,9 +244,10 @@ async function aggregatePerformanceData(
   startDate: Date,
   endDate: Date
 ): Promise<{ spend: number; sales: number; conversions: number; clicks: number; impressions: number }> {
-  const db = getDb();
+  const dbInstance = await getDb();
+  if (!dbInstance) return { spend: 0, sales: 0, conversions: 0, clicks: 0, impressions: 0 };
   
-  const result = await db.select({
+  const result = await dbInstance.select({
     spend: sql<number>`COALESCE(SUM(${dailyPerformance.spend}), 0)`,
     sales: sql<number>`COALESCE(SUM(${dailyPerformance.sales}), 0)`,
     conversions: sql<number>`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
@@ -254,7 +256,7 @@ async function aggregatePerformanceData(
   })
   .from(dailyPerformance)
   .where(and(
-    eq(dailyPerformance.campaignId, campaignId.toString()),
+    eq(dailyPerformance.campaignId, campaignId),
     sql`DATE(${dailyPerformance.date}) >= ${startDate.toISOString().split('T')[0]}`,
     sql`DATE(${dailyPerformance.date}) <= ${endDate.toISOString().split('T')[0]}`
   ));
@@ -791,7 +793,8 @@ export async function applyBudgetAllocationSuggestions(
   failedCount: number;
   errors: string[];
 }> {
-  const db = getDb();
+  const dbInstance = await getDb();
+  if (!dbInstance) return [] as any;
   const errors: string[] = [];
   let appliedCount = 0;
   let failedCount = 0;
@@ -799,7 +802,7 @@ export async function applyBudgetAllocationSuggestions(
   for (const suggestionId of suggestionIds) {
     try {
       // 获取建议详情
-      const [suggestion] = await db.select()
+      const [suggestion] = await dbInstance.select()
         .from(budgetAllocationSuggestions)
         .where(eq(budgetAllocationSuggestions.id, suggestionId));
       
@@ -816,7 +819,7 @@ export async function applyBudgetAllocationSuggestions(
       }
       
       // 获取广告活动当前预算
-      const [campaign] = await db.select()
+      const [campaign] = await dbInstance.select()
         .from(campaigns)
         .where(eq(campaigns.id, suggestion.campaignId));
       
@@ -827,12 +830,12 @@ export async function applyBudgetAllocationSuggestions(
       }
       
       // 更新广告活动预算
-      await db.update(campaigns)
+      await dbInstance.update(campaigns)
         .set({ dailyBudget: suggestion.suggestedBudget?.toString() })
         .where(eq(campaigns.id, suggestion.campaignId));
       
       // 记录历史
-      await db.insert(budgetAllocationHistory).values({
+      await dbInstance.insert(budgetAllocationHistory).values({
         suggestionId: suggestion.id,
         performanceGroupId: suggestion.performanceGroupId,
         campaignId: suggestion.campaignId,
@@ -847,7 +850,7 @@ export async function applyBudgetAllocationSuggestions(
       });
       
       // 更新建议状态
-      await db.update(budgetAllocationSuggestions)
+      await dbInstance.update(budgetAllocationSuggestions)
         .set({ 
           status: 'applied',
           processedAt: new Date().toISOString(),
@@ -878,9 +881,10 @@ export async function applyBudgetAllocationSuggestions(
 export async function getBudgetAllocationConfig(
   performanceGroupId: number
 ): Promise<AllocationConfig> {
-  const db = getDb();
+  const dbInstance = await getDb();
+  if (!dbInstance) return [] as any;
   
-  const [config] = await db.select()
+  const [config] = await dbInstance.select()
     .from(budgetAllocationConfigs)
     .where(eq(budgetAllocationConfigs.performanceGroupId, performanceGroupId));
   
@@ -911,14 +915,15 @@ export async function updateBudgetAllocationConfig(
   userId: number,
   updates: Partial<AllocationConfig>
 ): Promise<void> {
-  const db = getDb();
+  const dbInstance = await getDb();
+  if (!dbInstance) return [] as any;
   
-  const [existing] = await db.select()
+  const [existing] = await dbInstance.select()
     .from(budgetAllocationConfigs)
     .where(eq(budgetAllocationConfigs.performanceGroupId, performanceGroupId));
   
   if (existing) {
-    await db.update(budgetAllocationConfigs)
+    await dbInstance.update(budgetAllocationConfigs)
       .set({
         conversionEfficiencyWeight: updates.conversionEfficiencyWeight?.toString(),
         roasWeight: updates.roasWeight?.toString(),
@@ -930,7 +935,7 @@ export async function updateBudgetAllocationConfig(
       })
       .where(eq(budgetAllocationConfigs.performanceGroupId, performanceGroupId));
   } else {
-    await db.insert(budgetAllocationConfigs).values({
+    await dbInstance.insert(budgetAllocationConfigs).values({
       performanceGroupId,
       userId,
       enabled: 1,

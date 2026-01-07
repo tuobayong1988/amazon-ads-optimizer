@@ -289,17 +289,15 @@ async function executeBidOptimization(
     const keywords = await db.getKeywordsByCampaignId(campaign.id);
     
     for (const keyword of keywords) {
-      if (keyword.status !== 'enabled') continue;
+      if (keyword.keywordStatus !== 'enabled') continue;
       
       const currentBid = parseFloat(keyword.bid || '0');
       if (currentBid <= 0) continue;
       
       // 计算最优出价
-      const optimalBid = bidOptimizer.findOptimalBid(
-        keyword,
-        bidConfig,
-        { minBid: 0.02, maxBid: config.maxBid || 10 }
-      );
+      // 生成市场曲线并计算最优出价
+      const marketCurve = bidOptimizer.generateMarketCurve(keyword as any);
+      const optimalBid = bidOptimizer.findOptimalBid(marketCurve, bidConfig);
       
       if (optimalBid && Math.abs(optimalBid - currentBid) > 0.01) {
         const adjustment = {
@@ -341,13 +339,12 @@ async function executePlacementOptimization(
   for (const campaign of campaigns) {
     try {
       // 分析位置表现
-      const analysis = await placementOptimizationService.analyzePlacementPerformance(campaign.id);
+      const analysis = await placementOptimizationService.analyzePlacementPerformance(campaign.amazonCampaignId || campaign.id.toString(), config.accountId);
       
       // 生成位置调整建议
-      const suggestions = placementOptimizationService.generatePlacementSuggestions(
-        analysis,
-        config.optimizationGoal,
-        config.targetAcos
+      const suggestions = await placementOptimizationService.generatePlacementSuggestions(
+        campaign.amazonCampaignId || campaign.id.toString(),
+        config.accountId
       );
       
       for (const suggestion of suggestions) {
@@ -365,9 +362,9 @@ async function executePlacementOptimization(
         if (!dryRun && suggestion.suggestedMultiplier !== suggestion.currentMultiplier) {
           // 实际执行位置调整
           await placementOptimizationService.applyPlacementAdjustment(
-            campaign.id,
-            suggestion.placement,
-            suggestion.suggestedMultiplier
+            campaign.amazonCampaignId || campaign.id.toString(),
+            config.accountId,
+            suggestion
           );
           adjustmentsCount++;
         }
@@ -402,7 +399,7 @@ async function executeDaypartingOptimization(
     try {
       // 获取分时策略
       const strategy = await daypartingService.getDaypartingStrategy(campaign.id);
-      if (!strategy || !strategy.isEnabled) continue;
+      if (!strategy || strategy.daypartingStatus !== 'active') continue;
       
       // 获取当前时段的调整规则
       const hourlyRule = await daypartingService.getHourlyRule(strategy.id, currentHour, currentDayOfWeek);
@@ -414,7 +411,7 @@ async function executeDaypartingOptimization(
       const keywords = await db.getKeywordsByCampaignId(campaign.id);
       
       for (const keyword of keywords) {
-        if (keyword.status !== 'enabled') continue;
+        if (keyword.keywordStatus !== 'enabled') continue;
         
         const baseBid = parseFloat(keyword.bid || '0');
         if (baseBid <= 0) continue;
@@ -469,49 +466,78 @@ async function executeSearchTermAnalysis(
       // 获取搜索词数据
       const searchTerms = await db.getSearchTermsByCampaignId(campaign.id);
       
-      // 分类搜索词
-      const classification = adAutomation.classifySearchTerms(searchTerms, {
-        minClicks: 10,
-        minImpressions: 100,
-        maxAcos: config.targetAcos || 30,
-        minConversionRate: 1,
-      });
+      // 分类搜索词 - 使用简化的分类逻辑
+      const searchTermTexts = searchTerms.map(st => st.searchTerm);
+      const classification = adAutomation.classifySearchTerms(
+        searchTermTexts,
+        [], // 产品关键词
+        { category: '', brand: '' } // 产品属性
+      );
       
-      // 处理高花费低转化的搜索词（添加否定词）
-      for (const term of classification.highSpendLowConversion) {
-        const negativeKeyword = {
-          campaignId: campaign.id,
-          campaignName: campaign.name,
-          searchTerm: term.searchTerm,
-          action: 'add_negative',
-          reason: `高花费低转化: 花费$${term.spend}, 转化${term.conversions}`,
-        };
-        
-        details.push(negativeKeyword);
-        
-        if (!dryRun) {
-          // 添加否定关键词
-          await adAutomation.addNegativeKeyword(campaign.id, term.searchTerm, 'exact');
-          negativeKeywordsAdded++;
-        }
-      }
-      
-      // 处理高转化搜索词（添加为新关键词）
-      for (const term of classification.highConversion) {
-        const newKeyword = {
-          campaignId: campaign.id,
-          campaignName: campaign.name,
-          searchTerm: term.searchTerm,
-          action: 'add_keyword',
-          reason: `高转化: 转化率${(term.conversionRate * 100).toFixed(2)}%, ACoS ${term.acos.toFixed(2)}%`,
-        };
-        
-        details.push(newKeyword);
-        
-        if (!dryRun) {
-          // 添加为新关键词
-          await adAutomation.addKeywordFromSearchTerm(campaign.id, term.searchTerm, 'exact');
-          newKeywordsAdded++;
+      // 处理分类结果
+      for (const term of classification) {
+        if (term.suggestedAction === 'negative_exact' || term.suggestedAction === 'negative_phrase') {
+          const negativeKeyword = {
+            campaignId: campaign.id,
+            campaignName: campaign.name,
+            searchTerm: term.searchTerm,
+            action: 'add_negative',
+            reason: `负面搜索词: ${term.reason}`,
+          };
+          
+          details.push(negativeKeyword);
+          
+          if (!dryRun) {
+            const matchType = term.suggestedAction === 'negative_exact' ? 'exact' : 'phrase';
+            // 添加否定关键词
+            const dbInstance = await db.getDb();
+            if (dbInstance) {
+              const { negativeKeywords } = await import('../drizzle/schema');
+              await dbInstance.insert(negativeKeywords).values({
+                accountId: campaign.accountId || 0,
+                campaignId: campaign.id,
+                negativeLevel: 'campaign',
+                negativeType: 'keyword',
+                negativeText: term.searchTerm,
+                negativeMatchType: matchType === 'exact' ? 'negative_exact' : 'negative_phrase',
+                negativeSource: 'ngram_analysis',
+                createdAt: new Date().toISOString(),
+              });
+            }
+            negativeKeywordsAdded++;
+          }
+        } else if (term.suggestedAction === 'target') {
+          const newKeyword = {
+            campaignId: campaign.id,
+            campaignName: campaign.name,
+            searchTerm: term.searchTerm,
+            action: 'add_keyword',
+            reason: `正面搜索词: ${term.reason}`,
+          };
+          
+          details.push(newKeyword);
+          
+          if (!dryRun) {
+            // 添加为新关键词
+            const dbInstance = await db.getDb();
+            if (dbInstance) {
+              // 获取广告组ID
+              const adGroups = await db.getAdGroupsByCampaignId(campaign.id);
+              if (adGroups.length > 0) {
+                const { keywords } = await import('../drizzle/schema');
+                await dbInstance.insert(keywords).values({
+                  adGroupId: adGroups[0].id,
+                  keywordText: term.searchTerm,
+                  matchType: (term.matchTypeSuggestion || 'exact') as any,
+                  bid: '0.50',
+                  keywordStatus: 'enabled',
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString(),
+                });
+              }
+            }
+            newKeywordsAdded++;
+          }
         }
       }
     } catch (error: any) {
@@ -539,9 +565,9 @@ async function executeBudgetAllocation(
   
   try {
     // 获取预算分配建议
-    const suggestions = await intelligentBudgetAllocationService.generateBudgetAllocationSuggestions(config.id);
+    const budgetResult = await intelligentBudgetAllocationService.generateBudgetAllocationSuggestions(config.id);
     
-    for (const suggestion of suggestions) {
+    for (const suggestion of budgetResult.suggestions) {
       const campaign = campaigns.find(c => c.id === suggestion.campaignId);
       if (!campaign) continue;
       
@@ -552,8 +578,8 @@ async function executeBudgetAllocation(
         suggestedBudget: suggestion.suggestedBudget,
         changeAmount: suggestion.suggestedBudget - suggestion.currentBudget,
         changePercent: ((suggestion.suggestedBudget - suggestion.currentBudget) / suggestion.currentBudget * 100).toFixed(2),
-        reason: suggestion.reason,
-        expectedImpact: suggestion.expectedImpact,
+        reason: suggestion.reasons?.join(', ') || '',
+        expectedImpact: (suggestion as any).expectedRoasChange || 0,
       };
       
       details.push(adjustment);
@@ -594,17 +620,17 @@ async function executeKeywordStatusChanges(
         const spend = parseFloat(keyword.spend || '0');
         const sales = parseFloat(keyword.sales || '0');
         const clicks = keyword.clicks || 0;
-        const conversions = keyword.conversions || 0;
+        const conversions = keyword.orders || 0;
         const acos = sales > 0 ? (spend / sales * 100) : 0;
         
         // 判断是否需要暂停（高花费低转化）
-        const shouldPause = keyword.status === 'enabled' && 
+        const shouldPause = keyword.keywordStatus === 'enabled' && 
           spend > 50 && // 花费超过$50
           conversions === 0 && // 没有转化
           clicks > 20; // 点击超过20次
         
         // 判断是否需要启用（之前暂停但现在表现改善）
-        const shouldEnable = keyword.status === 'paused' &&
+        const shouldEnable = keyword.keywordStatus === 'paused' &&
           acos > 0 && acos < (config.targetAcos || 30);
         
         if (shouldPause) {
@@ -615,13 +641,13 @@ async function executeKeywordStatusChanges(
             keywordText: keyword.keywordText,
             action: 'pause',
             reason: `高花费低转化: 花费$${spend.toFixed(2)}, 点击${clicks}, 转化${conversions}`,
-            currentStatus: keyword.status,
+            currentStatus: keyword.keywordStatus,
           };
           
           details.push(action);
           
           if (!dryRun) {
-            await db.updateKeyword(keyword.id, { status: 'paused' });
+            await db.updateKeyword(keyword.id, { keywordStatus: 'paused' });
             pausedCount++;
           }
         } else if (shouldEnable) {
@@ -632,13 +658,13 @@ async function executeKeywordStatusChanges(
             keywordText: keyword.keywordText,
             action: 'enable',
             reason: `表现改善: ACoS ${acos.toFixed(2)}%`,
-            currentStatus: keyword.status,
+            currentStatus: keyword.keywordStatus,
           };
           
           details.push(action);
           
           if (!dryRun) {
-            await db.updateKeyword(keyword.id, { status: 'enabled' });
+            await db.updateKeyword(keyword.id, { keywordStatus: 'enabled' });
             enabledCount++;
           }
         }
@@ -683,7 +709,7 @@ export async function getEnabledOptimizationTargets(accountId?: number): Promise
   
   const groups = accountId 
     ? await db.getPerformanceGroupsByAccountId(accountId)
-    : await db.getAllPerformanceGroups();
+    : await db.getPerformanceGroupsByAccountId(0);
   
   const configs: OptimizationTargetConfig[] = [];
   

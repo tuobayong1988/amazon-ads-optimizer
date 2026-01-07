@@ -3,7 +3,7 @@
  * 当优化目标启用时，自动执行分时预算分配和投放词自动优化
  */
 
-import { getDb } from "./_core/db";
+import { getDb } from "./db";
 import { 
   performanceGroups, 
   campaigns, 
@@ -69,7 +69,8 @@ interface OptimizationTargetConfig {
  * 获取优化目标配置
  */
 export async function getOptimizationTargetConfig(targetId: number): Promise<OptimizationTargetConfig | null> {
-  const db = getDb();
+  const db = await getDb();
+  if (!db) return null;
   const targets = await db
     .select()
     .from(performanceGroups)
@@ -106,7 +107,8 @@ export async function getOptimizationTargetConfig(targetId: number): Promise<Opt
  * 获取优化目标下的所有广告活动ID
  */
 export async function getTargetCampaignIds(targetId: number): Promise<number[]> {
-  const db = getDb();
+  const db = await getDb();
+  if (!db) return [];
   
   // 假设有一个关联表，这里简化处理，直接从campaigns表获取
   // 实际应该从performance_group_campaigns关联表获取
@@ -115,7 +117,7 @@ export async function getTargetCampaignIds(targetId: number): Promise<number[]> 
     .from(campaigns)
     .where(eq(campaigns.performanceGroupId, targetId));
   
-  return campaignData.map(c => c.id);
+  return campaignData.map((c: any) => c.id);
 }
 
 /**
@@ -126,7 +128,8 @@ export async function analyzeHourlyPerformance(
   campaignIds: number[],
   days: number = 14
 ): Promise<HourlyPerformanceData[]> {
-  const db = getDb();
+  const db = await getDb();
+  if (!db) return [];
   
   // 计算日期范围
   const endDate = new Date();
@@ -147,7 +150,7 @@ export async function analyzeHourlyPerformance(
     .where(
       and(
         eq(hourlyPerformance.accountId, accountId),
-        inArray(hourlyPerformance.campaignId, campaignIds.map(String)),
+        sql`${hourlyPerformance.campaignId} IN (${sql.join(campaignIds.map(id => sql`${id.toString()}`), sql`, `)})`,
         gte(hourlyPerformance.date, startDate.toISOString().split('T')[0]),
         lte(hourlyPerformance.date, endDate.toISOString().split('T')[0])
       )
@@ -158,7 +161,7 @@ export async function analyzeHourlyPerformance(
   const result: HourlyPerformanceData[] = [];
   
   for (let hour = 0; hour < 24; hour++) {
-    const data = hourlyData.find(d => d.hour === hour);
+    const data = hourlyData.find((d: any) => d.hour === hour);
     
     if (data) {
       const spend = Number(data.spend) || 0;
@@ -360,7 +363,8 @@ export async function executeOptimizationTargetAuto(targetId: number): Promise<{
         const allocations = calculateDaypartingAllocation(hourlyData, config, totalBudget);
         
         // 更新上次分析时间
-        const db = getDb();
+        const db = await getDb();
+  if (!db) return { success: false, errors: ['Database not available'] };
         await db
           .update(performanceGroups)
           .set({ 
@@ -382,7 +386,8 @@ export async function executeOptimizationTargetAuto(targetId: number): Promise<{
         keywordResult = result;
         
         // 更新上次执行时间
-        const db = getDb();
+        const db = await getDb();
+  if (!db) return { success: false, errors: ['Database not available'] };
         await db
           .update(performanceGroups)
           .set({ keywordLastAutoExecution: new Date().toISOString() })
@@ -440,7 +445,8 @@ async function executeKeywordAutoForTarget(
   config: OptimizationTargetConfig,
   campaignIds: number[]
 ): Promise<{ paused: number; enabled: number; estimatedSavings: number }> {
-  const db = getDb();
+  const db = await getDb();
+  if (!db) return { paused: 0, enabled: 0, estimatedSavings: 0 };
   let paused = 0;
   let enabled = 0;
   let estimatedSavings = 0;
@@ -544,7 +550,8 @@ export async function executeAllActiveTargets(): Promise<{
   failed: number;
   results: { targetId: number; targetName: string; success: boolean; errors: string[] }[];
 }> {
-  const db = getDb();
+  const db = await getDb();
+  if (!db) return { total: 0, success: 0, failed: 0, results: [] };
   
   // 获取所有激活的优化目标
   const activeTargets = await db

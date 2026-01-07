@@ -242,7 +242,7 @@ export async function getCampaignPlacementPerformance(
       and(
         eq(placementPerformance.campaignId, campaignId),
         eq(placementPerformance.accountId, accountId),
-        gte(placementPerformance.date, startDate)
+        gte(placementPerformance.date, startDate.toISOString())
       )
     );
 
@@ -475,7 +475,7 @@ export async function batchExecutePlacementOptimization(
       .where(
         and(
           eq(campaigns.accountId, accountId),
-          eq(campaigns.status, 'enabled')
+          eq(campaigns.campaignStatus, 'enabled')
         )
       ) as any[];
     campaignsToOptimize = allCampaigns
@@ -521,6 +521,108 @@ export async function batchExecutePlacementOptimization(
   };
 }
 
+/**
+ * 分析广告位置表现
+ */
+export async function analyzePlacementPerformance(
+  campaignId: string,
+  accountId: number
+): Promise<any> {
+  const performance = await getCampaignPlacementPerformance(campaignId, accountId);
+  if (!performance) return null;
+  
+  return {
+    campaignId,
+    placements: performance,
+    analysis: {
+      bestPerforming: performance.reduce((best: any, p: any) => 
+        (p.roas || 0) > (best?.roas || 0) ? p : best, null),
+      worstPerforming: performance.reduce((worst: any, p: any) => 
+        (p.roas || Infinity) < (worst?.roas || Infinity) ? p : worst, null),
+    }
+  };
+}
+
+/**
+ * 生成广告位置优化建议
+ */
+export async function generatePlacementSuggestions(
+  campaignId: string,
+  accountId: number
+): Promise<any[]> {
+  const performance = await getCampaignPlacementPerformance(campaignId, accountId);
+  if (!performance) return [];
+  
+  const suggestions: any[] = [];
+  
+  // 将performance转换为PlacementEfficiencyScore格式
+  const scores: PlacementEfficiencyScore[] = performance.map((p: any) => ({
+    placementType: p.placement || p.placementType || 'top_of_search',
+    rawScore: p.roas || 0,
+    normalizedScore: Math.min(1, (p.roas || 0) / 5),
+    confidence: Math.min(1, (p.clicks || 0) / 100),
+    metrics: {
+      impressions: p.impressions || 0,
+      clicks: p.clicks || 0,
+      spend: p.spend || 0,
+      sales: p.sales || 0,
+      orders: p.orders || 0,
+      acos: p.acos || 0,
+      roas: p.roas || 0,
+      ctr: p.ctr || 0,
+      cvr: p.cvr || 0,
+      cpc: p.cpc || 0
+    }
+  }));
+  
+  const currentAdjustments: { [key: string]: number } = {};
+  performance.forEach((p: any) => {
+    currentAdjustments[p.placement || p.placementType] = p.currentAdjustment || 0;
+  });
+  
+  const adjustmentSuggestions = calculateOptimalAdjustment(scores, currentAdjustments as any);
+  
+  for (const suggestion of adjustmentSuggestions) {
+    if (Math.abs(suggestion.suggestedAdjustment - suggestion.currentAdjustment) > 5) {
+      suggestions.push({
+        placement: suggestion.placementType,
+        currentAdjustment: suggestion.currentAdjustment,
+        suggestedAdjustment: suggestion.suggestedAdjustment,
+        suggestedMultiplier: 1 + suggestion.suggestedAdjustment / 100,
+        currentMultiplier: 1 + suggestion.currentAdjustment / 100,
+        reason: suggestion.reason
+      });
+    }
+  }
+  
+  return suggestions;
+}
+
+/**
+ * 应用广告位置调整
+ */
+export async function applyPlacementAdjustment(
+  campaignId: string,
+  accountId: number,
+  adjustment: any
+): Promise<boolean> {
+  try {
+    await updatePlacementSettings(campaignId, accountId, [{
+      placementType: adjustment.placement,
+      currentAdjustment: adjustment.currentAdjustment || 0,
+      suggestedAdjustment: adjustment.suggestedAdjustment,
+      adjustmentDelta: adjustment.suggestedAdjustment - (adjustment.currentAdjustment || 0),
+      efficiencyScore: 0,
+      confidence: 1,
+      reason: adjustment.reason || ''
+    }] as PlacementAdjustmentSuggestion[]);
+    return true;
+  } catch (error) {
+    console.error('[placementOptimizationService] applyPlacementAdjustment error:', error);
+    return false;
+  }
+}
+
 export default {
   calculateEfficiencyScore,
   calculateOptimalAdjustment,
@@ -528,5 +630,8 @@ export default {
   getCampaignPlacementSettings,
   updatePlacementSettings,
   executeAutomaticPlacementOptimization,
-  batchExecutePlacementOptimization
+  batchExecutePlacementOptimization,
+  analyzePlacementPerformance,
+  generatePlacementSuggestions,
+  applyPlacementAdjustment
 };

@@ -10,8 +10,10 @@ import {
   budgetAllocations,
   dailyPerformance,
   campaigns,
-  InsertBudgetAllocationTracking,
 } from "../drizzle/schema";
+import { InferInsertModel } from "drizzle-orm";
+
+type InsertBudgetAllocationTracking = InferInsertModel<typeof budgetAllocationTracking>;
 
 export type TrackingPeriod = "7_days" | "14_days" | "30_days";
 export type EffectRating = "excellent" | "good" | "neutral" | "poor" | "very_poor";
@@ -80,9 +82,9 @@ export async function createTracking(
     accountId: accountId ?? null,
     allocationId,
     trackingPeriod,
-    startDate: now,
-    baselineStartDate,
-    baselineEndDate,
+    startDate: now.toISOString(),
+    baselineStartDate: baselineStartDate.toISOString(),
+    baselineEndDate: baselineEndDate.toISOString(),
     baselineSpend: baselineMetrics.spend.toString(),
     baselineSales: baselineMetrics.sales.toString(),
     baselineRoas: baselineMetrics.roas.toString(),
@@ -163,12 +165,13 @@ export async function updateTrackingMetrics(trackingId: number): Promise<boolean
   const record = tracking[0];
   const now = new Date();
   const trackingDays = TRACKING_DAYS[record.trackingPeriod as TrackingPeriod];
-  const expectedEndDate = new Date(record.startDate.getTime() + trackingDays * 24 * 60 * 60 * 1000);
+  const startDateObj = new Date(record.startDate);
+  const expectedEndDate = new Date(startDateObj.getTime() + trackingDays * 24 * 60 * 60 * 1000);
 
   // 计算当前指标
   const currentMetrics = await calculatePeriodMetrics(
     record.userId,
-    record.startDate,
+    startDateObj,
     now,
     record.accountId ?? undefined
   );
@@ -211,8 +214,8 @@ export async function updateTrackingMetrics(trackingId: number): Promise<boolean
       effectRating: rating,
       effectSummary: summary,
       status: isCompleted ? "completed" : "tracking",
-      endDate: isCompleted ? now : null,
-      updatedAt: now,
+      endDate: isCompleted ? now.toISOString() : null,
+      updatedAt: now.toISOString(),
     })
     .where(eq(budgetAllocationTracking.id, trackingId));
 
@@ -276,8 +279,8 @@ export async function getTrackingReport(trackingId: number): Promise<TrackingRep
     trackingId: record.id,
     allocationId: record.allocationId,
     trackingPeriod: record.trackingPeriod as TrackingPeriod,
-    startDate: record.startDate,
-    endDate: record.endDate,
+    startDate: new Date(record.startDate),
+    endDate: record.endDate ? new Date(record.endDate) : null,
     baseline: {
       spend: Number(record.baselineSpend) || 0,
       sales: Number(record.baselineSales) || 0,
@@ -351,7 +354,7 @@ export async function cancelTracking(trackingId: number, userId: number): Promis
 
   await db
     .update(budgetAllocationTracking)
-    .set({ status: "cancelled", updatedAt: new Date() })
+    .set({ status: "cancelled", updatedAt: new Date().toISOString() })
     .where(and(eq(budgetAllocationTracking.id, trackingId), eq(budgetAllocationTracking.userId, userId)));
 
   return true;

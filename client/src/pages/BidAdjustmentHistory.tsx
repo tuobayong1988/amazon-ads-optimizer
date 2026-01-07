@@ -170,7 +170,7 @@ export default function BidAdjustmentHistory() {
   const importMutation = trpc.placement.importBidAdjustmentHistory.useMutation({
     onSuccess: (result) => {
       toast.success(`导入成功: ${result.imported} 条记录`);
-      if (result.skipped > 0) {
+      if (result.skipped && result.skipped > 0) {
         toast.warning(`跳过 ${result.skipped} 条无效记录`);
       }
       setImportDialogOpen(false);
@@ -187,8 +187,8 @@ export default function BidAdjustmentHistory() {
   const batchRollbackMutation = trpc.placement.batchRollbackBidAdjustments.useMutation({
     onSuccess: (result) => {
       toast.success(`批量回滚成功: ${result.success} 条记录`);
-      if (result.failed > 0) {
-        toast.warning(`${result.failed} 条记录回滚失败`);
+      if (result.failCount > 0) {
+        toast.warning(`${result.failCount} 条记录回滚失败`);
       }
       setBatchRollbackDialogOpen(false);
       setSelectedRows(new Set());
@@ -228,7 +228,7 @@ export default function BidAdjustmentHistory() {
     if (checked && historyData?.records) {
       // 只选择未回滚的记录
       const selectableIds = historyData.records
-        .filter(r => !r.status === "rolled_back")
+        .filter(r => r.status !== "rolled_back")
         .map(r => r.id);
       setSelectedRows(new Set(selectableIds));
     } else {
@@ -527,7 +527,7 @@ export default function BidAdjustmentHistory() {
                     <SelectItem value="all">全部绩效组</SelectItem>
                     {performanceGroups?.map((group) => (
                       <SelectItem key={group.id} value={String(group.id)}>
-                        {group.campaignName}
+                        {group.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -613,8 +613,8 @@ export default function BidAdjustmentHistory() {
                           <input
                             type="checkbox"
                             className="rounded border-gray-300"
-                            checked={historyData?.records && historyData.records.filter(r => !r.status === "rolled_back").length > 0 && 
-                              historyData.records.filter(r => !r.status === "rolled_back").every(r => selectedRows.has(r.id))}
+                            checked={historyData?.records && historyData.records.filter(r => r.status !== "rolled_back").length > 0 && 
+                              historyData.records.filter(r => r.status !== "rolled_back").every(r => selectedRows.has(r.id))}
                             onChange={(e) => handleSelectAll(e.target.checked)}
                           />
                         </TableHead>
@@ -740,7 +740,7 @@ export default function BidAdjustmentHistory() {
                 </div>
 
                 {/* 分页 */}
-                {historyData && historyData.totalPages > 1 && (
+                {historyData && (historyData.totalPages ?? 1) > 1 && (
                   <div className="flex items-center justify-between mt-4">
                     <p className="text-sm text-muted-foreground">
                       第 {page} / {historyData.totalPages} 页，共 {historyData.total} 条
@@ -758,8 +758,8 @@ export default function BidAdjustmentHistory() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setPage(p => Math.min(historyData.totalPages, p + 1))}
-                        disabled={page >= historyData.totalPages}
+                        onClick={() => setPage(p => Math.min(historyData.totalPages ?? 1, p + 1))}
+                        disabled={page >= (historyData.totalPages ?? 1)}
                       >
                         下一页
                         <ChevronRight className="w-4 h-4" />

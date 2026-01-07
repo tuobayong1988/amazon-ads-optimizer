@@ -45,6 +45,8 @@ export interface PerformanceGroupConfig {
   targetRoas?: number;
   dailySpendLimit?: number;
   dailyCostTarget?: number;
+  dailyBudget?: number;
+  maxBid?: number;
 }
 
 /**
@@ -494,4 +496,44 @@ export function calculateIntradayAdjustment(
   adjustment = Math.max(-30, Math.min(30, adjustment));
   
   return Math.round(adjustment);
+}
+
+/**
+ * 获取出价调整原因
+ */
+export function getAdjustmentReason(
+  keyword: any,
+  config: PerformanceGroupConfig
+): string {
+  const acos = keyword.acos ? parseFloat(keyword.acos) : 0;
+  const roas = keyword.roas ? parseFloat(keyword.roas) : 0;
+  const impressions = keyword.impressions || 0;
+  const clicks = keyword.clicks || 0;
+  const orders = keyword.orders || 0;
+  
+  if (config.targetAcos && acos > 0) {
+    if (acos > config.targetAcos * 1.2) {
+      return `ACoS (${acos.toFixed(1)}%) 高于目标 (${config.targetAcos}%)，降低出价`;
+    } else if (acos < config.targetAcos * 0.8) {
+      return `ACoS (${acos.toFixed(1)}%) 低于目标 (${config.targetAcos}%)，提高出价获取更多流量`;
+    }
+  }
+  
+  if (config.targetRoas && roas > 0) {
+    if (roas < config.targetRoas * 0.8) {
+      return `ROAS (${roas.toFixed(2)}) 低于目标 (${config.targetRoas})，降低出价`;
+    } else if (roas > config.targetRoas * 1.2) {
+      return `ROAS (${roas.toFixed(2)}) 高于目标 (${config.targetRoas})，提高出价获取更多流量`;
+    }
+  }
+  
+  if (impressions > 1000 && clicks === 0) {
+    return `高曝光零点击，降低出价`;
+  }
+  
+  if (clicks > 50 && orders === 0) {
+    return `高点击零转化，降低出价`;
+  }
+  
+  return `基于历史表现优化出价`;
 }

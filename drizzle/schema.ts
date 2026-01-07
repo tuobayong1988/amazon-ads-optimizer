@@ -951,6 +951,8 @@ export const performanceGroups = mysqlTable("performance_groups", {
 	keywordPauseMinSpend: decimal({ precision: 10, scale: 2 }).default('10.00'), // 暂停最低花费阈值
 	keywordPauseMaxAcos: decimal({ precision: 5, scale: 2 }).default('100.00'), // 暂停最大ACoS阈值
 	keywordLastAutoExecution: timestamp({ mode: 'string' }), // 上次自动执行时间
+	dailyBudget: decimal('daily_budget', { precision: 10, scale: 2 }), // 每日预算
+	maxBid: decimal('max_bid', { precision: 10, scale: 2 }), // 最大出价
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });

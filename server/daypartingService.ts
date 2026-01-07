@@ -13,12 +13,14 @@ import {
   daypartingExecutionLogs,
   campaigns,
   dailyPerformance,
-  InsertHourlyPerformance,
-  InsertDaypartingStrategy,
-  InsertDaypartingBudgetRule,
-  InsertHourpartingBidRule,
-  InsertDaypartingExecutionLog,
 } from "../drizzle/schema";
+import { InferInsertModel } from "drizzle-orm";
+
+type InsertHourlyPerformance = InferInsertModel<typeof hourlyPerformance>;
+type InsertDaypartingStrategy = InferInsertModel<typeof daypartingStrategies>;
+type InsertDaypartingBudgetRule = InferInsertModel<typeof daypartingBudgetRules>;
+type InsertHourpartingBidRule = InferInsertModel<typeof hourpartingBidRules>;
+type InsertDaypartingExecutionLog = InferInsertModel<typeof daypartingExecutionLogs>;
 
 // 星期几标签
 export const DAY_OF_WEEK_LABELS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
@@ -136,7 +138,7 @@ export async function analyzeHourlyPerformance(
     .where(
       and(
         eq(hourlyPerformance.campaignId, campaignId),
-        gte(hourlyPerformance.date, startDate)
+        gte(hourlyPerformance.date, startDate.toISOString().split('T')[0])
       )
     )
     .groupBy(hourlyPerformance.dayOfWeek, hourlyPerformance.hour);
@@ -598,12 +600,12 @@ export async function generateOptimalStrategy(
     campaignId,
     name: options.name,
     strategyType: "both",
-    optimizationGoal: options.optimizationGoal,
-    targetAcos: options.targetAcos?.toString(),
-    targetRoas: options.targetRoas?.toString(),
+    daypartingOptGoal: options.optimizationGoal,
+    daypartingTargetAcos: options.targetAcos?.toString(),
+    daypartingTargetRoas: options.targetRoas?.toString(),
     analysisLookbackDays: options.lookbackDays || 30,
-    status: "draft",
-    lastAnalyzedAt: new Date(),
+    daypartingStatus: "draft",
+    lastAnalyzedAt: new Date().toISOString(),
   });
 
   // 6. 保存预算规则
@@ -618,7 +620,7 @@ export async function generateOptimalStrategy(
       avgAcos: weeklyData.find((d) => d.dayOfWeek === rule.dayOfWeek)?.avgAcos.toString(),
       avgRoas: weeklyData.find((d) => d.dayOfWeek === rule.dayOfWeek)?.avgRoas.toString(),
       dataPoints: weeklyData.find((d) => d.dayOfWeek === rule.dayOfWeek)?.dataPoints || 0,
-      isEnabled: true,
+      isEnabled: 1,
     }))
   );
 
@@ -636,7 +638,7 @@ export async function generateOptimalStrategy(
       avgCpc: hourlyData.find((h) => h.dayOfWeek === rule.dayOfWeek && h.hour === rule.hour)?.avgCpc.toString(),
       avgAcos: hourlyData.find((h) => h.dayOfWeek === rule.dayOfWeek && h.hour === rule.hour)?.avgAcos.toString(),
       dataPoints: hourlyData.find((h) => h.dayOfWeek === rule.dayOfWeek && h.hour === rule.hour)?.dataPoints || 0,
-      isEnabled: true,
+      isEnabled: 1,
     }))
   );
 
@@ -646,5 +648,27 @@ export async function generateOptimalStrategy(
     hourlyAnalysis: hourlyData,
     budgetAllocation,
     bidAdjustments,
+  };
+}
+
+
+/**
+ * 获取指定时间的分时规则
+ */
+export async function getHourlyRule(
+  strategyId: number,
+  dayOfWeek: number,
+  hour: number
+): Promise<any | null> {
+  const bidRules = await getBidRules(strategyId);
+  const rule = bidRules.find(r => r.dayOfWeek === dayOfWeek && r.hour === hour);
+  
+  if (!rule) return null;
+  
+  return {
+    dayOfWeek: rule.dayOfWeek,
+    hour: rule.hour,
+    bidMultiplier: parseFloat(rule.bidMultiplier || '1'),
+    isEnabled: (rule as any).ruleEnabled ?? true
   };
 }

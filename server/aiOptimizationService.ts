@@ -180,10 +180,10 @@ export async function generateAIAnalysisWithSuggestions(campaignId: number): Pro
   
   // 分析搜索词
   for (const searchTerm of searchTerms) {
-    const stSpend = parseFloat(searchTerm.spend || "0");
-    const stSales = parseFloat(searchTerm.sales || "0");
-    const stClicks = searchTerm.clicks || 0;
-    const stOrders = searchTerm.orders || 0;
+    const stSpend = parseFloat(searchTerm.searchTermSpend || "0");
+    const stSales = parseFloat(searchTerm.searchTermSales || "0");
+    const stClicks = searchTerm.searchTermClicks || 0;
+    const stOrders = searchTerm.searchTermOrders || 0;
     const stAcos = stSales > 0 ? (stSpend / stSales * 100) : 999;
     
     // 高花费无转化搜索词 - 建议否定
@@ -385,7 +385,7 @@ export async function executeOptimizationSuggestions(
     accountId,
     campaignId,
     executionName: `AI优化执行 - ${new Date().toLocaleDateString("zh-CN")}`,
-    executionType,
+    aiExecType: executionType,
     totalActions: suggestions.length,
     aiAnalysisSummary: aiSummary,
     baselineSpend: spend.toString(),
@@ -433,7 +433,7 @@ export async function executeOptimizationSuggestions(
   const now = new Date();
   for (const prediction of predictions) {
     const daysToAdd = prediction.period === "7_days" ? 7 : prediction.period === "14_days" ? 14 : 30;
-    const scheduledAt = new Date(now.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
+    const scheduledAt = new Date(now.getTime() + daysToAdd * 24 * 60 * 60 * 1000).toISOString();
     
     // 获取预测记录ID
     const predictionRecords = await db.getAiOptimizationPredictionsByExecution(executionId);
@@ -444,7 +444,7 @@ export async function executeOptimizationSuggestions(
         executionId,
         predictionId: predictionRecord.id,
         reviewPeriod: prediction.period,
-        scheduledAt
+        scheduledAt: scheduledAt
       });
     }
   }
@@ -454,7 +454,7 @@ export async function executeOptimizationSuggestions(
   let failedCount = 0;
   
   // 更新执行状态为执行中
-  await db.updateAiOptimizationExecution(executionId, { status: "executing" });
+  await db.updateAiOptimizationExecution(executionId, { aiExecStatus: "executing" });
   
   // 获取所有操作记录
   const actionRecords = await db.getAiOptimizationActionsByExecution(executionId);
@@ -463,15 +463,15 @@ export async function executeOptimizationSuggestions(
     try {
       await executeAction(action);
       await db.updateAiOptimizationAction(action.id, { 
-        status: "success",
-        executedAt: new Date()
+        aiActionStatus: "success",
+        aiActionExecutedAt: new Date().toISOString()
       });
       successCount++;
     } catch (error: any) {
       await db.updateAiOptimizationAction(action.id, { 
-        status: "failed",
-        errorMessage: error.message,
-        executedAt: new Date()
+        aiActionStatus: "failed",
+        // aiActionErrorMessage: error.message,
+        aiActionExecutedAt: new Date().toISOString()
       });
       failedCount++;
     }
@@ -482,10 +482,10 @@ export async function executeOptimizationSuggestions(
                       successCount === 0 ? "failed" : "partially_completed";
   
   await db.updateAiOptimizationExecution(executionId, {
-    status: finalStatus,
+    aiExecStatus: finalStatus,
     successfulActions: successCount,
     failedActions: failedCount,
-    completedAt: new Date()
+    completedAt: new Date().toISOString()
   });
   
   return {
@@ -533,17 +533,17 @@ async function executeAction(action: any): Promise<void> {
       
     case "enable_target":
       if (action.targetType === "keyword" && action.targetId) {
-        await db.updateKeyword(action.targetId, { status: "enabled" });
+        await db.updateKeyword(action.targetId, { keywordStatus: "enabled" });
       } else if (action.targetType === "product_target" && action.targetId) {
-        await db.updateProductTarget(action.targetId, { status: "enabled" });
+        await db.updateProductTarget(action.targetId, { targetStatus: "enabled" });
       }
       break;
       
     case "pause_target":
       if (action.targetType === "keyword" && action.targetId) {
-        await db.updateKeyword(action.targetId, { status: "paused" });
+        await db.updateKeyword(action.targetId, { keywordStatus: "paused" });
       } else if (action.targetType === "product_target" && action.targetId) {
-        await db.updateProductTarget(action.targetId, { status: "paused" });
+        await db.updateProductTarget(action.targetId, { targetStatus: "paused" });
       }
       break;
       

@@ -402,8 +402,8 @@ export default function DaypartingStrategy() {
                     className="flex items-center justify-between p-4 rounded-lg border bg-card hover:bg-accent/5 transition-colors"
                   >
                     <div className="flex items-center gap-4">
-                      <div className={`p-2 rounded-lg ${strategy.status === "active" ? "bg-green-500/10" : "bg-muted"}`}>
-                        {strategy.status === "active" ? (
+                      <div className={`p-2 rounded-lg ${strategy.daypartingStatus === "active" ? "bg-green-500/10" : "bg-muted"}`}>
+                        {strategy.daypartingStatus === "active" ? (
                           <Play className="h-5 w-5 text-green-500" />
                         ) : (
                           <Pause className="h-5 w-5 text-muted-foreground" />
@@ -414,13 +414,13 @@ export default function DaypartingStrategy() {
                         <div className="text-sm text-muted-foreground">
                           {strategy.strategyType === "budget" ? "预算分配" : strategy.strategyType === "bidding" ? "竞价调整" : "预算+竞价"}
                           {" · "}
-                          {OPTIMIZATION_GOALS.find((g) => g.value === strategy.optimizationGoal)?.label || strategy.optimizationGoal}
+                          {OPTIMIZATION_GOALS.find((g) => g.value === strategy.daypartingOptGoal)?.label || strategy.daypartingOptGoal}
                         </div>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <Badge variant={strategy.status === "active" ? "default" : strategy.status === "paused" ? "secondary" : "outline"}>
-                        {strategy.status === "active" ? "运行中" : strategy.status === "paused" ? "已暂停" : "草稿"}
+                      <Badge variant={strategy.daypartingStatus === "active" ? "default" : strategy.daypartingStatus === "paused" ? "secondary" : "outline"}>
+                        {strategy.daypartingStatus === "active" ? "运行中" : strategy.daypartingStatus === "paused" ? "已暂停" : "草稿"}
                       </Badge>
                       <Button
                         variant="ghost"
@@ -428,11 +428,11 @@ export default function DaypartingStrategy() {
                         onClick={() => {
                           updateStatusMutation.mutate({
                             strategyId: strategy.id,
-                            status: strategy.status === "active" ? "paused" : "active",
+                            status: strategy.daypartingStatus === "active" ? "paused" : "active",
                           });
                         }}
                       >
-                        {strategy.status === "active" ? "暂停" : "启用"}
+                        {strategy.daypartingStatus === "active" ? "暂停" : "启用"}
                       </Button>
                       <Button variant="ghost" size="icon">
                         <ChevronRight className="h-4 w-4" />

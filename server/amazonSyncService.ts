@@ -39,9 +39,9 @@ interface StoredApiCredentials {
  * 同步服务类
  */
 export class AmazonSyncService {
-  private client: AmazonAdsApiClient;
-  private accountId: number;
-  private userId: number;
+  public client: AmazonAdsApiClient;
+  public accountId: number;
+  public userId: number;
 
   constructor(client: AmazonAdsApiClient, accountId: number, userId: number) {
     this.client = client;
@@ -94,25 +94,31 @@ export class AmazonSyncService {
     };
 
     // 同步SP广告活动
-    results.spCampaigns = await this.syncSpCampaigns();
+    const spResult = await this.syncSpCampaigns();
+    results.spCampaigns = typeof spResult === 'number' ? spResult : spResult.synced;
     results.campaigns += results.spCampaigns;
     
     // 同步SB广告活动
-    results.sbCampaigns = await this.syncSbCampaigns();
+    const sbResult = await this.syncSbCampaigns();
+    results.sbCampaigns = typeof sbResult === 'number' ? sbResult : sbResult.synced;
     results.campaigns += results.sbCampaigns;
     
     // 同步SD广告活动
-    results.sdCampaigns = await this.syncSdCampaigns();
+    const sdResult = await this.syncSdCampaigns();
+    results.sdCampaigns = typeof sdResult === 'number' ? sdResult : sdResult.synced;
     results.campaigns += results.sdCampaigns;
     
     // 同步广告组
-    results.adGroups += await this.syncSpAdGroups();
+    const adGroupResult = await this.syncSpAdGroups();
+    results.adGroups += typeof adGroupResult === 'number' ? adGroupResult : adGroupResult.synced;
     
     // 同步关键词
-    results.keywords += await this.syncSpKeywords();
+    const keywordResult = await this.syncSpKeywords();
+    results.keywords += typeof keywordResult === 'number' ? keywordResult : keywordResult.synced;
     
     // 同步商品定位
-    results.targets += await this.syncSpProductTargets();
+    const targetResult = await this.syncSpProductTargets();
+    results.targets += typeof targetResult === 'number' ? targetResult : targetResult.synced;
     
     // 同步绩效数据（最近30天）
     results.performance += await this.syncPerformanceData(30);
@@ -164,7 +170,7 @@ export class AmazonSyncService {
           targetingType: 'manual' as const,
           dailyBudget: String(apiCampaign.budget?.budget || 0),
           status: (apiCampaign.state || 'enabled') as 'enabled' | 'paused' | 'archived',
-          updatedAt: new Date(),
+          updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
 
         if (existing) {
@@ -175,7 +181,7 @@ export class AmazonSyncService {
         } else {
           await db.insert(campaigns).values({
             ...campaignData,
-            createdAt: new Date(),
+            createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
           });
         }
         synced++;
@@ -232,7 +238,7 @@ export class AmazonSyncService {
           targetingType: 'manual' as const,
           dailyBudget: String(apiCampaign.budget || 0),
           status: (apiCampaign.state || 'enabled') as 'enabled' | 'paused' | 'archived',
-          updatedAt: new Date(),
+          updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
 
         if (existing) {
@@ -243,7 +249,7 @@ export class AmazonSyncService {
         } else {
           await db.insert(campaigns).values({
             ...campaignData,
-            createdAt: new Date(),
+            createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
           });
         }
         synced++;
@@ -306,7 +312,7 @@ export class AmazonSyncService {
           status: apiCampaign.state as 'enabled' | 'paused' | 'archived',
           placementTopMultiplier: this.getPlacementMultiplier(apiCampaign, 'placementTop'),
           placementProductPageMultiplier: this.getPlacementMultiplier(apiCampaign, 'placementProductPage'),
-          updatedAt: new Date(),
+          updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
 
         if (existing) {
@@ -317,7 +323,7 @@ export class AmazonSyncService {
         } else {
           await db.insert(campaigns).values({
             ...campaignData,
-            createdAt: new Date(),
+            createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
           });
         }
         synced++;
@@ -386,7 +392,7 @@ export class AmazonSyncService {
           adGroupName: apiAdGroup.name,
           status: apiAdGroup.state as 'enabled' | 'paused' | 'archived',
           defaultBid: String(apiAdGroup.defaultBid),
-          updatedAt: new Date(),
+          updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
 
         if (existing) {
@@ -397,7 +403,7 @@ export class AmazonSyncService {
         } else {
           await db.insert(adGroups).values({
             ...adGroupData,
-            createdAt: new Date(),
+            createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
           });
         }
         synced++;
@@ -462,7 +468,7 @@ export class AmazonSyncService {
           matchType: apiKeyword.matchType as 'broad' | 'phrase' | 'exact',
           status: apiKeyword.state as 'enabled' | 'paused' | 'archived',
           bid: String(apiKeyword.bid),
-          updatedAt: new Date(),
+          updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
 
         if (existing) {
@@ -473,7 +479,7 @@ export class AmazonSyncService {
         } else {
           await db.insert(keywords).values({
             ...keywordData,
-            createdAt: new Date(),
+            createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
           });
         }
         synced++;
@@ -544,7 +550,7 @@ export class AmazonSyncService {
           targetExpression: JSON.stringify(apiTarget.expression),
           status: apiTarget.state as 'enabled' | 'paused' | 'archived',
           bid: String(apiTarget.bid),
-          updatedAt: new Date(),
+          updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
 
         if (existing) {
@@ -555,7 +561,7 @@ export class AmazonSyncService {
         } else {
           await db.insert(productTargets).values({
             ...targetData,
-            createdAt: new Date(),
+            createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
           });
         }
         synced++;
@@ -625,7 +631,7 @@ export class AmazonSyncService {
         const perfData = {
           accountId: this.accountId,
           campaignId: campaign.id,
-          date: reportDate,
+          date: reportDateStr,
           impressions: row.impressions || 0,
           clicks: row.clicks || 0,
           spend: String(row.cost || 0),
@@ -647,7 +653,7 @@ export class AmazonSyncService {
         } else {
           await db.insert(dailyPerformance).values({
             ...perfData,
-            createdAt: new Date(),
+            createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
           });
         }
         synced++;
@@ -702,7 +708,7 @@ export class AmazonSyncService {
         // 更新本地数据库
         await db
           .update(keywords)
-          .set({ bid: String(newBid), updatedAt: new Date() })
+          .set({ bid: String(newBid), updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' ') })
           .where(eq(keywords.id, targetId));
       } else {
         const [pt] = await db
@@ -727,7 +733,7 @@ export class AmazonSyncService {
         // 更新本地数据库
         await db
           .update(productTargets)
-          .set({ bid: String(newBid), updatedAt: new Date() })
+          .set({ bid: String(newBid), updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' ') })
           .where(eq(productTargets.id, targetId));
       }
 
@@ -740,7 +746,7 @@ export class AmazonSyncService {
         accountId: this.accountId,
         campaignId,
         adGroupId,
-        targetType: targetType === 'keyword' ? 'keyword' : 'product_target',
+        logTargetType: targetType === 'keyword' ? 'keyword' : 'product_target',
         targetId,
         targetName,
         actionType: actionType as 'increase' | 'decrease' | 'set',
@@ -749,8 +755,8 @@ export class AmazonSyncService {
         bidChangePercent: String(bidChangePercent),
         reason,
         algorithmVersion: 'v1.0',
-        isIntradayAdjustment: false,
-        createdAt: new Date(),
+        isIntradayAdjustment: 0,
+        createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       });
 
       return true;
@@ -796,7 +802,7 @@ export class AmazonSyncService {
   /**
    * 获取展示位置调整系数
    */
-  private getPlacementMultiplier(campaign: SpCampaign, placement: string): string {
+  public getPlacementMultiplier(campaign: SpCampaign, placement: string): string {
     const adjustment = campaign.bidding?.adjustments?.find(
       a => a.predicate === placement
     );
@@ -901,9 +907,11 @@ interface SyncResultWithTracking {
 import {
   createSyncChangeRecordsBatch,
   createSyncConflictsBatch,
+} from './db';
+import type {
   InsertSyncChangeRecord,
   InsertSyncConflict,
-} from './db';
+} from '../drizzle/schema';
 
 /**
  * 检测数据冲突
@@ -940,7 +948,8 @@ function detectConflict(
 /**
  * 同步SP广告活动（带变更跟踪）
  */
-AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
+export async function syncSpCampaignsWithTracking(
+  service: AmazonSyncService,
   lastSyncTime?: string | null,
   syncJobId?: number | null
 ): Promise<SyncResultWithTracking> {
@@ -960,7 +969,7 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
   const conflictRecords: InsertSyncConflict[] = [];
 
   try {
-    const apiCampaigns = await this.client.listSpCampaigns();
+    const apiCampaigns = await service.client.listSpCampaigns();
 
     for (const apiCampaign of apiCampaigns) {
       const [existing] = await db
@@ -968,7 +977,7 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
         .from(campaigns)
         .where(
           and(
-            eq(campaigns.accountId, this.accountId),
+            eq(campaigns.accountId, service.accountId),
             eq(campaigns.campaignId, String(apiCampaign.campaignId))
           )
         )
@@ -986,16 +995,16 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
 
       const campaignType = apiCampaign.targetingType === 'auto' ? 'sp_auto' : 'sp_manual';
       const campaignData = {
-        accountId: this.accountId,
+        accountId: service.accountId,
         campaignId: String(apiCampaign.campaignId),
         campaignName: apiCampaign.name,
         campaignType: campaignType as 'sp_auto' | 'sp_manual' | 'sb' | 'sd',
         targetingType: apiCampaign.targetingType as 'auto' | 'manual',
         dailyBudget: String(apiCampaign.dailyBudget),
         status: apiCampaign.state as 'enabled' | 'paused' | 'archived',
-        placementTopMultiplier: this.getPlacementMultiplier(apiCampaign, 'placementTop'),
-        placementProductPageMultiplier: this.getPlacementMultiplier(apiCampaign, 'placementProductPage'),
-        updatedAt: new Date(),
+        placementTopMultiplier: service.getPlacementMultiplier(apiCampaign, 'placementTop'),
+        placementProductPageMultiplier: service.getPlacementMultiplier(apiCampaign, 'placementProductPage'),
+        updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 
       if (existing) {
@@ -1004,8 +1013,8 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
         if (conflictCheck.hasConflict && syncJobId) {
           conflictRecords.push({
             syncJobId,
-            accountId: this.accountId,
-            userId: this.userId,
+            accountId: service.accountId,
+            userId: service.userId,
             entityType: 'campaign',
             entityId: String(apiCampaign.campaignId),
             entityName: apiCampaign.name,
@@ -1021,8 +1030,8 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
         if (syncJobId) {
           changeRecords.push({
             syncJobId,
-            accountId: this.accountId,
-            userId: this.userId,
+            accountId: service.accountId,
+            userId: service.userId,
             entityType: 'campaign',
             changeType: 'updated',
             entityId: String(apiCampaign.campaignId),
@@ -1045,8 +1054,8 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
         if (syncJobId) {
           changeRecords.push({
             syncJobId,
-            accountId: this.accountId,
-            userId: this.userId,
+            accountId: service.accountId,
+            userId: service.userId,
             entityType: 'campaign',
             changeType: 'created',
             entityId: String(apiCampaign.campaignId),
@@ -1057,7 +1066,7 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
 
         await db.insert(campaigns).values({
           ...campaignData,
-          createdAt: new Date(),
+          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         });
         result.created++;
       }
@@ -1133,7 +1142,7 @@ AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
         targetingType: 'manual' as const,
         dailyBudget: String(apiCampaign.budget?.budget || 0),
         status: (apiCampaign.state || 'enabled') as 'enabled' | 'paused' | 'archived',
-        updatedAt: new Date(),
+        updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 
       if (existing) {
@@ -1192,7 +1201,7 @@ AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
 
         await db.insert(campaigns).values({
           ...campaignData,
-          createdAt: new Date(),
+          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         });
         result.created++;
       }
@@ -1267,7 +1276,7 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
         targetingType: 'manual' as const,
         dailyBudget: String(apiCampaign.budget || 0),
         status: (apiCampaign.state || 'enabled') as 'enabled' | 'paused' | 'archived',
-        updatedAt: new Date(),
+        updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 
       if (existing) {
@@ -1326,7 +1335,7 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
 
         await db.insert(campaigns).values({
           ...campaignData,
-          createdAt: new Date(),
+          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         });
         result.created++;
       }
@@ -1415,7 +1424,7 @@ AmazonSyncService.prototype.syncSpAdGroupsWithTracking = async function(
         adGroupName: apiAdGroup.name,
         defaultBid: String(apiAdGroup.defaultBid),
         adGroupStatus: apiAdGroup.state as 'enabled' | 'paused' | 'archived',
-        updatedAt: new Date(),
+        updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 
       if (existing) {
@@ -1474,7 +1483,7 @@ AmazonSyncService.prototype.syncSpAdGroupsWithTracking = async function(
 
         await db.insert(adGroups).values({
           ...adGroupData,
-          createdAt: new Date(),
+          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         });
         result.created++;
       }
@@ -1559,7 +1568,7 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
         matchType: apiKeyword.matchType as 'broad' | 'phrase' | 'exact',
         bid: String(apiKeyword.bid),
         keywordStatus: apiKeyword.state as 'enabled' | 'paused' | 'archived',
-        updatedAt: new Date(),
+        updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 
       if (existing) {
@@ -1618,7 +1627,7 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
 
         await db.insert(keywords).values({
           ...keywordData,
-          createdAt: new Date(),
+          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         });
         result.created++;
       }
@@ -1712,7 +1721,7 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
         targetValue,
         bid: String(apiTarget.bid),
         targetStatus: apiTarget.state as 'enabled' | 'paused' | 'archived',
-        updatedAt: new Date(),
+        updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 
       if (existing) {
@@ -1771,7 +1780,7 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
 
         await db.insert(productTargets).values({
           ...targetData,
-          createdAt: new Date(),
+          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         });
         result.created++;
       }

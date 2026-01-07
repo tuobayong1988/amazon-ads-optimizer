@@ -232,7 +232,7 @@ export default function DataSync() {
     return names[type || ""] || type || "未知";
   };
 
-  const formatDuration = (startedAt: Date | null, completedAt: Date | null) => {
+  const formatDuration = (startedAt: Date | string | null, completedAt: Date | string | null) => {
     if (!startedAt) return "N/A";
     const start = new Date(startedAt).getTime();
     const end = completedAt ? new Date(completedAt).getTime() : Date.now();

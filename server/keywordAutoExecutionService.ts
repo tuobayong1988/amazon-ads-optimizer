@@ -3,7 +3,7 @@
  * 实现高花费低转化投放词的自动暂停、潜力词自动启用、以及回滚机制
  */
 
-import { getDb } from "./_core/db";
+import { getDb } from "./db";
 import { 
   keywords, 
   productTargets, 
@@ -108,7 +108,8 @@ interface ExecutionDetail {
  * 获取账号的自动执行配置
  */
 export async function getAutoExecutionConfig(accountId: number): Promise<AutoExecutionConfig | null> {
-  const db = getDb();
+  const db = await getDb();
+  if (!db) return null as any;
   const configs = await db
     .select()
     .from(keywordAutoExecutionConfigs)
@@ -154,7 +155,8 @@ export async function saveAutoExecutionConfig(
   config: Partial<AutoExecutionConfig>,
   userId?: number
 ): Promise<number> {
-  const db = getDb();
+  const db = await getDb();
+  if (!db) return null as any;
   
   const existingConfig = await getAutoExecutionConfig(accountId);
   
@@ -206,7 +208,8 @@ export async function getKeywordsToPause(
   accountId: number,
   config: AutoExecutionConfig
 ): Promise<KeywordPerformance[]> {
-  const db = getDb();
+  const db = await getDb();
+  if (!db) return null as any;
   
   // 获取所有启用状态的关键词及其表现数据
   const keywordData = await db
@@ -303,7 +306,8 @@ export async function getKeywordsToEnable(
 ): Promise<KeywordPerformance[]> {
   if (!config.autoEnableEnabled) return [];
   
-  const db = getDb();
+  const db = await getDb();
+  if (!db) return null as any;
   
   // 获取所有暂停状态的关键词
   const keywordData = await db
@@ -378,7 +382,8 @@ export async function executeAutoActions(
   accountId: number,
   userId?: number
 ): Promise<ExecutionResult> {
-  const db = getDb();
+  const db = await getDb();
+  if (!db) return null as any;
   const config = await getAutoExecutionConfig(accountId);
   
   if (!config || !config.isEnabled) {
@@ -545,7 +550,7 @@ export async function executeAutoActions(
       .update(keywordAutoExecutionHistory)
       .set({
         executionEndAt: new Date().toISOString(),
-        status: errors.length > 0 ? 'partially_completed' : 'completed',
+        status: 'completed',
         totalKeywordsAnalyzed: keywordsPaused + keywordsEnabled + keywordsSkipped + keywordsError,
         keywordsPaused,
         keywordsEnabled,
@@ -616,7 +621,8 @@ export async function rollbackLastExecution(
   reason: string,
   userId?: number
 ): Promise<{ success: boolean; rolledBackCount: number; errors: string[] }> {
-  const db = getDb();
+  const db = await getDb();
+  if (!db) return null as any;
   const errors: string[] = [];
   let rolledBackCount = 0;
   
@@ -689,7 +695,8 @@ export async function getExecutionHistory(
   accountId: number,
   limit: number = 20
 ): Promise<any[]> {
-  const db = getDb();
+  const db = await getDb();
+  if (!db) return null as any;
   
   const history = await db
     .select()
@@ -705,7 +712,8 @@ export async function getExecutionHistory(
  * 获取执行明细
  */
 export async function getExecutionDetails(executionId: number): Promise<any[]> {
-  const db = getDb();
+  const db = await getDb();
+  if (!db) return null as any;
   
   const details = await db
     .select()

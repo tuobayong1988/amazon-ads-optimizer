@@ -134,6 +134,7 @@ export async function calculateAlgorithmPerformance(
   days: number = 30
 ): Promise<AlgorithmPerformanceMetrics> {
   const db = await getDb();
+  if (!db) return null as any;
   
   // 查询历史记录
   const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
@@ -151,7 +152,7 @@ export async function calculateAlgorithmPerformance(
     records = records.filter(r => r.accountId === accountId);
   }
   records = records.filter(r => {
-    const adjustedAt = r.adjustedAt ? new Date(r.adjustedAt) : null;
+    const adjustedAt = r.appliedAt ? new Date(r.appliedAt) : null;
     return adjustedAt && adjustedAt >= cutoffDate;
   });
   
@@ -182,7 +183,7 @@ export async function calculateAlgorithmPerformance(
     directionAccuracy14d: calculateDirectionAccuracy(tracked14d, 'actualProfit14d'),
     directionAccuracy30d: calculateDirectionAccuracy(tracked30d, 'actualProfit30d'),
     
-    totalEstimatedProfit: records.reduce((sum, r) => sum + parseFloat(String(r.estimatedProfitChange || 0)), 0),
+    totalEstimatedProfit: records.reduce((sum, r) => sum + parseFloat(String(r.expectedProfitIncrease || 0)), 0),
     totalActualProfit7d: tracked7d.reduce((sum, r) => sum + parseFloat(String(r.actualProfit7d || 0)), 0),
     totalActualProfit14d: tracked14d.reduce((sum, r) => sum + parseFloat(String(r.actualProfit14d || 0)), 0),
     totalActualProfit30d: tracked30d.reduce((sum, r) => sum + parseFloat(String(r.actualProfit30d || 0)), 0),
@@ -201,7 +202,7 @@ function calculateAccuracy(records: any[], actualField: string): number | null {
   let totalActual = 0;
   
   for (const record of records) {
-    totalEstimated += parseFloat(String(record.estimatedProfitChange || 0));
+    totalEstimated += parseFloat(String(record.expectedProfitIncrease || 0));
     totalActual += parseFloat(String(record[actualField] || 0));
   }
   
@@ -221,7 +222,7 @@ function calculateMAE(records: any[], actualField: string): number | null {
   
   let totalError = 0;
   for (const record of records) {
-    const estimated = parseFloat(String(record.estimatedProfitChange || 0));
+    const estimated = parseFloat(String(record.expectedProfitIncrease || 0));
     const actual = parseFloat(String(record[actualField] || 0));
     totalError += Math.abs(actual - estimated);
   }
@@ -237,7 +238,7 @@ function calculateRMSE(records: any[], actualField: string): number | null {
   
   let totalSquaredError = 0;
   for (const record of records) {
-    const estimated = parseFloat(String(record.estimatedProfitChange || 0));
+    const estimated = parseFloat(String(record.expectedProfitIncrease || 0));
     const actual = parseFloat(String(record[actualField] || 0));
     totalSquaredError += Math.pow(actual - estimated, 2);
   }
@@ -253,7 +254,7 @@ function calculateDirectionAccuracy(records: any[], actualField: string): number
   
   let correctCount = 0;
   for (const record of records) {
-    const estimated = parseFloat(String(record.estimatedProfitChange || 0));
+    const estimated = parseFloat(String(record.expectedProfitIncrease || 0));
     const actual = parseFloat(String(record[actualField] || 0));
     
     // 方向一致（同正、同负、或都为0）
@@ -273,6 +274,7 @@ export async function analyzeByAdjustmentType(
   days: number = 30
 ): Promise<DimensionPerformance[]> {
   const db = await getDb();
+  if (!db) return [];
   
   const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   
@@ -290,7 +292,7 @@ export async function analyzeByAdjustmentType(
     records = records.filter(r => r.accountId === accountId);
   }
   records = records.filter(r => {
-    const adjustedAt = r.adjustedAt ? new Date(r.adjustedAt) : null;
+    const adjustedAt = r.appliedAt ? new Date(r.appliedAt) : null;
     return adjustedAt && adjustedAt >= cutoffDate;
   });
   
@@ -305,7 +307,7 @@ export async function analyzeByAdjustmentType(
   const results: DimensionPerformance[] = [];
   
   for (const [type, typeRecords] of Object.entries(byType)) {
-    const totalEstimated = typeRecords.reduce((sum, r) => sum + parseFloat(String(r.estimatedProfitChange || 0)), 0);
+    const totalEstimated = typeRecords.reduce((sum, r) => sum + parseFloat(String(r.expectedProfitIncrease || 0)), 0);
     const totalActual = typeRecords.reduce((sum, r) => sum + parseFloat(String(r.actualProfit7d || 0)), 0);
     const accuracy = calculateAccuracy(typeRecords, 'actualProfit7d') || 0;
     const mae = calculateMAE(typeRecords, 'actualProfit7d') || 0;
@@ -333,6 +335,7 @@ export async function analyzeByBidChangeRange(
   days: number = 30
 ): Promise<DimensionPerformance[]> {
   const db = await getDb();
+  if (!db) return [];
   
   const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
   
@@ -350,7 +353,7 @@ export async function analyzeByBidChangeRange(
     records = records.filter(r => r.accountId === accountId);
   }
   records = records.filter(r => {
-    const adjustedAt = r.adjustedAt ? new Date(r.adjustedAt) : null;
+    const adjustedAt = r.appliedAt ? new Date(r.appliedAt) : null;
     return adjustedAt && adjustedAt >= cutoffDate;
   });
   
@@ -375,7 +378,7 @@ export async function analyzeByBidChangeRange(
     
     if (rangeRecords.length === 0) continue;
     
-    const totalEstimated = rangeRecords.reduce((sum, r) => sum + parseFloat(String(r.estimatedProfitChange || 0)), 0);
+    const totalEstimated = rangeRecords.reduce((sum, r) => sum + parseFloat(String(r.expectedProfitIncrease || 0)), 0);
     const totalActual = rangeRecords.reduce((sum, r) => sum + parseFloat(String(r.actualProfit7d || 0)), 0);
     const accuracy = calculateAccuracy(rangeRecords, 'actualProfit7d') || 0;
     const mae = calculateMAE(rangeRecords, 'actualProfit7d') || 0;

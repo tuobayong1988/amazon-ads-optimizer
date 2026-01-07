@@ -10,13 +10,15 @@ import {
   userNotificationPreferences,
   teamMembers,
   auditLogs,
-  type InsertCollaborationNotificationRule,
-  type CollaborationNotificationRule,
-  type InsertCollaborationNotification,
-  type CollaborationNotification,
-  type InsertUserNotificationPreference,
-  type UserNotificationPreference,
 } from "../drizzle/schema";
+import { InferInsertModel, InferSelectModel } from "drizzle-orm";
+
+type InsertCollaborationNotificationRule = InferInsertModel<typeof collaborationNotificationRules>;
+type CollaborationNotificationRule = InferSelectModel<typeof collaborationNotificationRules>;
+type InsertCollaborationNotification = InferInsertModel<typeof collaborationNotifications>;
+type CollaborationNotification = InferSelectModel<typeof collaborationNotifications>;
+type InsertUserNotificationPreference = InferInsertModel<typeof userNotificationPreferences>;
+type UserNotificationPreference = InferSelectModel<typeof userNotificationPreferences>;
 import { eq, and, desc, gte, lte, inArray, sql } from "drizzle-orm";
 import { notifyOwner } from "./_core/notification";
 
@@ -326,7 +328,7 @@ export async function markNotificationAsRead(id: number): Promise<boolean> {
   if (!db) throw new Error("Database not available");
   await db
     .update(collaborationNotifications)
-    .set({ status: "read", readAt: new Date() })
+    .set({ status: "read", readAt: new Date().toISOString() })
     .where(eq(collaborationNotifications.id, id));
   return true;
 }
@@ -339,7 +341,7 @@ export async function markAllNotificationsAsRead(userId: number): Promise<number
   if (!db) throw new Error("Database not available");
   const result = await db
     .update(collaborationNotifications)
-    .set({ status: "read", readAt: new Date() })
+    .set({ status: "read", readAt: new Date().toISOString() })
     .where(and(eq(collaborationNotifications.recipientUserId, userId), eq(collaborationNotifications.status, "sent")));
   return (result as any).affectedRows || 0;
 }
@@ -463,7 +465,7 @@ export async function triggerCollaborationNotification(params: {
       recipientUserId: recipient.memberId || 0,
       recipientEmail: recipient.email,
       status: "sent",
-      sentAt: new Date(),
+      sentAt: new Date().toISOString(),
       priority,
     });
     

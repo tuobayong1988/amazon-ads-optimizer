@@ -189,32 +189,31 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
   console.log(`[DataSyncScheduler] 开始同步账号 ${schedule.accountId}`);
 
   // 获取账号信息
-  const account = await db.getAmazonAccountById(schedule.accountId);
+  const account = await db.getAdAccountById(schedule.accountId);
   if (!account) {
     throw new Error(`账号 ${schedule.accountId} 不存在`);
   }
 
-  if (!account.accessToken || !account.refreshToken) {
-    throw new Error(`账号 ${schedule.accountId} 未授权`);
+  // 创建同步服务实例 - 需要从凭证存储获取完整凭证
+  const credentials = await (db as any).getApiCredentialsByAccountId?.(schedule.accountId) || account;
+  if (!credentials) {
+    throw new Error(`账号 ${schedule.accountId} 未配置API凭证`);
   }
-
-  // 创建同步服务实例
-  const syncService = new AmazonSyncService(
-    account.accessToken,
-    account.refreshToken,
-    account.profileId || '',
-    account.region || 'NA'
+  
+  const syncService = await AmazonSyncService.createFromCredentials(
+    {
+      clientId: credentials.clientId || '',
+      clientSecret: credentials.clientSecret || '',
+      refreshToken: credentials.refreshToken || '',
+      profileId: account.profileId || '',
+      region: (credentials.region as 'NA' | 'EU' | 'FE') || 'NA'
+    },
+    schedule.accountId,
+    schedule.userId
   );
-
-  // 获取上次同步时间（用于增量同步）
-  const lastSyncTime = schedule.lastRunAt ? new Date(schedule.lastRunAt) : undefined;
 
   // 执行同步
-  const result = await syncService.syncAll(
-    schedule.userId,
-    schedule.accountId,
-    lastSyncTime
-  );
+  const result = await syncService.syncAll();
 
   // 更新调度记录
   await db.updateSyncScheduleLastRun(schedule.id);
@@ -225,16 +224,16 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
     accountId: schedule.accountId,
     syncType: 'full_sync',
     status: 'completed',
-    recordsSynced: result.campaigns + result.adGroups + result.keywords + result.productTargets,
+    recordsSynced: result.campaigns + result.adGroups + result.keywords + result.targets,
     startedAt: new Date().toISOString(),
     completedAt: new Date().toISOString(),
-    isIncremental: !!lastSyncTime,
+    isIncremental: false,
     spCampaigns: result.spCampaigns || 0,
     sbCampaigns: result.sbCampaigns || 0,
     sdCampaigns: result.sdCampaigns || 0,
     adGroupsSynced: result.adGroups,
     keywordsSynced: result.keywords,
-    targetsSynced: result.productTargets,
+    targetsSynced: result.targets,
   });
 
   console.log(`[DataSyncScheduler] 账号 ${schedule.accountId} 同步完成:`, result);
@@ -244,7 +243,7 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
     try {
       await notifyOwner({
         title: `定时同步完成 - ${account.accountName || account.sellerId}`,
-        content: `同步结果: ${result.campaigns} 个广告活动, ${result.adGroups} 个广告组, ${result.keywords} 个关键词, ${result.productTargets} 个商品定位`
+        content: `同步结果: ${result.campaigns} 个广告活动, ${result.adGroups} 个广告组, ${result.keywords} 个关键词, ${result.targets} 个商品定位`
       });
     } catch (e) {
       console.error('[DataSyncScheduler] 发送通知失败:', e);
@@ -261,23 +260,29 @@ export async function triggerManualSync(userId: number, accountId: number): Prom
   result?: any;
 }> {
   try {
-    const account = await db.getAmazonAccountById(accountId);
+    const account = await db.getAdAccountById(accountId);
     if (!account) {
       return { success: false, message: '账号不存在' };
     }
 
-    if (!account.accessToken || !account.refreshToken) {
-      return { success: false, message: '账号未授权' };
+    const credentials = await (db as any).getApiCredentialsByAccountId?.(accountId) || account;
+    if (!credentials) {
+      return { success: false, message: '账号未配置API凭证' };
     }
 
-    const syncService = new AmazonSyncService(
-      account.accessToken,
-      account.refreshToken,
-      account.profileId || '',
-      account.region || 'NA'
+    const syncService = await AmazonSyncService.createFromCredentials(
+      {
+        clientId: credentials.clientId || '',
+        clientSecret: credentials.clientSecret || '',
+        refreshToken: credentials.refreshToken || '',
+        profileId: account.profileId || '',
+        region: (credentials.region as 'NA' | 'EU' | 'FE') || 'NA'
+      },
+      accountId,
+      userId
     );
 
-    const result = await syncService.syncAll(userId, accountId);
+    const result = await syncService.syncAll();
 
     return {
       success: true,
@@ -316,7 +321,7 @@ export async function upsertSyncSchedule(params: {
       preferredDayOfWeek: params.preferredDayOfWeek,
       isEnabled: params.isEnabled,
     });
-    return { ...existing, ...params } as db.DataSyncSchedule;
+    return { ...existing, ...params } as unknown as db.DataSyncSchedule;
   } else {
     // 创建新配置
     const id = await db.createSyncSchedule({

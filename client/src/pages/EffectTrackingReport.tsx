@@ -82,7 +82,7 @@ export default function EffectTrackingReport() {
         r.actualProfit7d || '',
         r.actualProfit14d || '',
         r.actualProfit30d || '',
-        new Date(r.adjustedAt).toLocaleString(),
+        r.adjustedAt ? new Date(r.adjustedAt).toLocaleString() : '',
       ].join(','))
     ].join('\n');
 
@@ -341,34 +341,34 @@ export default function EffectTrackingReport() {
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
                         <span className="text-muted-foreground">总调整记录</span>
-                        <span className="font-medium">{report.summary.totalRecords}</span>
+                        <span className="font-medium">{report.summary?.totalRecords || 0}</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-muted-foreground">已追踪记录</span>
-                        <span className="font-medium">{report.summary.trackedRecords}</span>
+                        <span className="font-medium">{report.summary?.trackedRecords || 0}</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-muted-foreground">追踪覆盖率</span>
-                        <span className="font-medium">{report.summary.trackingRate}%</span>
+                        <span className="font-medium">{report.summary?.trackingRate || 0}%</span>
                       </div>
                     </div>
                     <div className="space-y-4">
                       <div className="flex justify-between items-center">
                         <span className="text-muted-foreground">预估总利润</span>
                         <span className="font-medium text-blue-500">
-                          ${report.summary.totalEstimatedProfit.toFixed(2)}
+                          ${(report.summary?.totalEstimatedProfit || 0).toFixed(2)}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-muted-foreground">7天实际利润</span>
-                        <span className={`font-medium ${report.summary.totalActualProfit7d >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          ${report.summary.totalActualProfit7d.toFixed(2)}
+                        <span className={`font-medium ${(report.summary?.totalActualProfit7d || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          ${(report.summary?.totalActualProfit7d || 0).toFixed(2)}
                         </span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-muted-foreground">30天实际利润</span>
-                        <span className={`font-medium ${report.summary.totalActualProfit30d >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          ${report.summary.totalActualProfit30d.toFixed(2)}
+                        <span className={`font-medium ${(report.summary?.totalActualProfit30d || 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          ${(report.summary?.totalActualProfit30d || 0).toFixed(2)}
                         </span>
                       </div>
                     </div>
@@ -395,7 +395,7 @@ export default function EffectTrackingReport() {
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                   </div>
-                ) : report?.byAdjustmentType && report.byAdjustmentType.length > 0 ? (
+                ) : report?.byAdjustmentType && Array.isArray(report.byAdjustmentType) && report.byAdjustmentType.length > 0 ? (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -407,7 +407,7 @@ export default function EffectTrackingReport() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {report.byAdjustmentType.map((item: any) => (
+                      {(report.byAdjustmentType as any[]).map((item: any) => (
                         <TableRow key={item.type}>
                           <TableCell>
                             <Badge variant="outline">{item.type}</Badge>
@@ -448,7 +448,7 @@ export default function EffectTrackingReport() {
                   <div className="flex items-center justify-center py-8">
                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
                   </div>
-                ) : report?.byCampaign && report.byCampaign.length > 0 ? (
+                ) : report?.byCampaign && Array.isArray(report.byCampaign) && report.byCampaign.length > 0 ? (
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -460,7 +460,7 @@ export default function EffectTrackingReport() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {report.byCampaign.map((item: any) => (
+                      {(report.byCampaign as any[]).map((item: any) => (
                         <TableRow key={item.campaignId}>
                           <TableCell className="font-medium">{item.name || `活动 ${item.campaignId}`}</TableCell>
                           <TableCell className="text-right">{item.count}</TableCell>

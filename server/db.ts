@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/mysql2";
 import { 
   InsertUser, users, 
   adAccounts, InsertAdAccount, AdAccount,
+  dataSyncJobs, dataSyncLogs,
   performanceGroups, InsertPerformanceGroup, PerformanceGroup,
   campaigns, InsertCampaign, Campaign,
   adGroups, InsertAdGroup, AdGroup,
@@ -1458,7 +1459,7 @@ export async function recordTaskExecution(data: {
   accountId?: number;
   taskType: string;
   status: 'running' | 'success' | 'failed' | 'cancelled';
-  startedAt: Date;
+  startedAt: Date | string;
   completedAt?: Date;
   duration?: number;
   itemsProcessed?: number;
@@ -1476,8 +1477,8 @@ export async function recordTaskExecution(data: {
     accountId: data.accountId || null,
     taskType: data.taskType,
     status: data.status,
-    startedAt: data.startedAt,
-    completedAt: data.completedAt || null,
+    startedAt: typeof data.startedAt === 'string' ? data.startedAt : data.startedAt.toISOString(),
+    completedAt: data.completedAt ? (typeof data.completedAt === 'string' ? data.completedAt : data.completedAt.toISOString()) : null,
     duration: data.duration || null,
     itemsProcessed: data.itemsProcessed ?? 0,
     suggestionsGenerated: data.suggestionsGenerated ?? 0,
@@ -1491,7 +1492,7 @@ export async function recordTaskExecution(data: {
   const mappedStatus = data.status === 'cancelled' ? 'failed' : data.status;
   await db.update(scheduledTasks)
     .set({ 
-      lastRunAt: data.startedAt, 
+      lastRunAt: typeof data.startedAt === 'string' ? data.startedAt : new Date(data.startedAt).toISOString(), 
       lastRunStatus: mappedStatus as 'success' | 'failed' | 'running' | 'skipped',
       updatedAt: new Date().toISOString() 
     })
@@ -2457,8 +2458,8 @@ export async function getPendingAiOptimizationReviews(): Promise<AiOptimizationR
   const now = new Date();
   return db.select().from(aiOptimizationReviews)
     .where(and(
-      eq(aiOptimizationReviews.status, "pending"),
-      lte(aiOptimizationReviews.scheduledAt, now)
+      eq(aiOptimizationReviews.reviewStatus, "pending"),
+      lte(aiOptimizationReviews.scheduledAt, now.toISOString())
     ))
     .orderBy(aiOptimizationReviews.scheduledAt);
 }
@@ -3426,6 +3427,8 @@ export async function updateSyncTaskStatus(
     estimatedTimeMs: number;
     errorMessage: string;
     resultSummary: any;
+    startedAt: string;
+    completedAt: string;
   }>
 ): Promise<boolean> {
   const db = await getDb();

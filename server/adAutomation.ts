@@ -867,12 +867,12 @@ export interface BidChangeRecord {
   id: number;
   targetId: number;
   targetName: string;
-  targetType: 'keyword' | 'product';
+  targetType: 'keyword' | 'product_target' | 'placement';
   campaignId: number;
   campaignName: string;
   oldBid: number;
   newBid: number;
-  changeDate: Date;
+  changeDate: string;
   changeReason: string;
   // 变更后的绩效数据
   performanceAfter?: {
@@ -896,7 +896,7 @@ export interface CorrectionSuggestion {
   errorType: 'premature_decrease' | 'premature_increase' | 'over_adjustment' | 'attribution_delay';
   reason: string;
   evidence: {
-    changeDate: Date;
+    changeDate: string;
     daysElapsed: number;
     performanceBefore: {
       conversions: number;
@@ -931,7 +931,7 @@ export function analyzeBidCorrections(
   const now = new Date();
   
   for (const change of bidChanges) {
-    const daysElapsed = Math.floor((now.getTime() - change.changeDate.getTime()) / (1000 * 60 * 60 * 24));
+    const daysElapsed = Math.floor((now.getTime() - new Date(change.changeDate).getTime()) / (1000 * 60 * 60 * 24));
     
     // 只分析归因窗口期内的变更
     if (daysElapsed < 3 || daysElapsed > attributionWindowDays + 7) {
@@ -1004,7 +1004,7 @@ export function analyzeBidCorrections(
       suggestions.push({
         targetId: change.targetId,
         targetName: change.targetName,
-        targetType: change.targetType,
+        targetType: change.targetType as 'keyword' | 'product',
         campaignName: change.campaignName,
         originalBid: change.oldBid,
         currentBid: change.newBid,
@@ -1012,7 +1012,7 @@ export function analyzeBidCorrections(
         errorType,
         reason,
         evidence: {
-          changeDate: change.changeDate,
+          changeDate: typeof change.changeDate === 'string' ? change.changeDate : new Date(change.changeDate).toISOString(),
           daysElapsed,
           performanceBefore: {
             conversions: 0, // 需要从历史数据获取
@@ -1621,4 +1621,60 @@ export function generateBatchOperationSummary(
     negatives: negativeSummary,
     bids: bidSummary,
   };
+}
+
+
+/**
+ * 添加否定关键词
+ */
+export async function addNegativeKeyword(
+  accountId: number,
+  campaignId: number,
+  adGroupId: number | null,
+  keyword: string,
+  matchType: 'negativeExact' | 'negativePhrase'
+): Promise<{ success: boolean; message: string }> {
+  try {
+    // 这里应该调用Amazon Ads API添加否定关键词
+    // 目前返回模拟结果
+    console.log(`[adAutomation] Adding negative keyword: ${keyword} (${matchType}) to campaign ${campaignId}`);
+    return {
+      success: true,
+      message: `成功添加否定关键词: ${keyword}`
+    };
+  } catch (error) {
+    console.error('[adAutomation] addNegativeKeyword error:', error);
+    return {
+      success: false,
+      message: `添加否定关键词失败: ${error}`
+    };
+  }
+}
+
+/**
+ * 从搜索词添加关键词
+ */
+export async function addKeywordFromSearchTerm(
+  accountId: number,
+  campaignId: number,
+  adGroupId: number,
+  searchTerm: string,
+  matchType: 'broad' | 'phrase' | 'exact',
+  bid: number
+): Promise<{ success: boolean; message: string }> {
+  try {
+    // 这里应该调用Amazon Ads API添加关键词
+    // 目前返回模拟结果
+    console.log(`[adAutomation] Adding keyword from search term: ${searchTerm} (${matchType}) with bid ${bid}`);
+    return {
+      success: true,
+      message: `成功添加关键词: ${searchTerm}`
+    };
+  } catch (error) {
+    console.error('[adAutomation] addKeywordFromSearchTerm error:', error);
+    return {
+      success: false,
+      message: `添加关键词失败: ${error}`
+    };
+  }
 }

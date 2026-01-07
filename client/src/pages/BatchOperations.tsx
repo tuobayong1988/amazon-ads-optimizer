@@ -384,7 +384,7 @@ export default function BatchOperations() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-yellow-600">
-                    {batches?.filter(b => b.status === 'pending').length || 0}
+                    {batches?.filter(b => b.batchStatus === 'pending').length || 0}
                   </div>
                 </CardContent>
               </Card>
@@ -394,7 +394,7 @@ export default function BatchOperations() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-purple-600">
-                    {batches?.filter(b => b.status === 'executing').length || 0}
+                    {batches?.filter(b => b.batchStatus === 'executing').length || 0}
                   </div>
                 </CardContent>
               </Card>
@@ -404,7 +404,7 @@ export default function BatchOperations() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-green-600">
-                    {batches?.filter(b => b.status === 'completed').length || 0}
+                    {batches?.filter(b => b.batchStatus === 'completed').length || 0}
                   </div>
                 </CardContent>
               </Card>
@@ -414,7 +414,7 @@ export default function BatchOperations() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-red-600">
-                    {batches?.filter(b => b.status === 'failed').length || 0}
+                    {batches?.filter(b => b.batchStatus === 'failed').length || 0}
                   </div>
                 </CardContent>
               </Card>
@@ -464,7 +464,7 @@ export default function BatchOperations() {
                         >
                           <TableCell className="font-medium">{batch.name}</TableCell>
                           <TableCell>{getOperationTypeBadge(batch.operationType)}</TableCell>
-                          <TableCell>{getStatusBadge(batch.status || 'pending')}</TableCell>
+                          <TableCell>{getStatusBadge(batch.batchStatus || 'pending')}</TableCell>
                           <TableCell>
                             <div className="flex items-center gap-2">
                               <Progress 
@@ -491,7 +491,7 @@ export default function BatchOperations() {
                               >
                                 <Eye className="h-4 w-4" />
                               </Button>
-                              {batch.status === 'pending' && (
+                              {batch.batchStatus === 'pending' && (
                                 <>
                                   <Button 
                                     variant="ghost" 
@@ -515,7 +515,7 @@ export default function BatchOperations() {
                                   </Button>
                                 </>
                               )}
-                              {batch.status === 'approved' && (
+                              {batch.batchStatus === 'approved' && (
                                 <Button 
                                   variant="ghost" 
                                   size="icon"
@@ -547,7 +547,7 @@ export default function BatchOperations() {
                                   <Play className="h-4 w-4 text-blue-600" />
                                 </Button>
                               )}
-                              {batch.status === 'completed' && (
+                              {batch.batchStatus === 'completed' && (
                                 <Button 
                                   variant="ghost" 
                                   size="icon"
@@ -605,7 +605,7 @@ export default function BatchOperations() {
                       </div>
                       <div>
                         <Label className="text-muted-foreground">状态</Label>
-                        <p>{getStatusBadge(batchDetails.status || 'pending')}</p>
+                        <p>{getStatusBadge(batchDetails.batchStatus || 'pending')}</p>
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-4">
@@ -634,8 +634,8 @@ export default function BatchOperations() {
                               className="p-2 bg-muted/50 rounded text-sm flex items-center justify-between"
                             >
                               <span>{item.entityName || item.negativeKeyword || `项目 ${index + 1}`}</span>
-                              <Badge variant={item.status === 'success' ? 'default' : item.status === 'failed' ? 'destructive' : 'secondary'}>
-                                {item.status}
+                              <Badge variant={item.itemStatus === 'success' ? 'default' : item.itemStatus === 'failed' ? 'destructive' : 'secondary'}>
+                                {item.itemStatus}
                               </Badge>
                             </div>
                           ))}
@@ -650,7 +650,7 @@ export default function BatchOperations() {
 
                     {/* Action Buttons */}
                     <div className="flex gap-2 pt-4">
-                      {batchDetails.status === 'pending' && (
+                      {batchDetails.batchStatus === 'pending' && (
                         <>
                           <Button 
                             className="flex-1"
@@ -671,7 +671,7 @@ export default function BatchOperations() {
                           </Button>
                         </>
                       )}
-                      {batchDetails.status === 'approved' && (
+                      {batchDetails.batchStatus === 'approved' && (
                         <Button 
                           className="w-full"
                           onClick={() => {
@@ -703,7 +703,7 @@ export default function BatchOperations() {
                           执行
                         </Button>
                       )}
-                      {batchDetails.status === 'completed' && (
+                      {batchDetails.batchStatus === 'completed' && (
                         <Button 
                           variant="outline"
                           className="w-full"
@@ -877,7 +877,7 @@ export default function BatchOperations() {
                       <TableBody>
                         {historyData.operations.map((op: any) => {
                           const opType = operationTypeConfig[op.operationType as OperationType];
-                          const status = statusConfig[op.status as BatchStatus];
+                          const status = statusConfig[op.batchStatus as BatchStatus];
                           return (
                             <TableRow key={op.id}>
                               <TableCell className="font-mono">#{op.id}</TableCell>
@@ -890,7 +890,7 @@ export default function BatchOperations() {
                               </TableCell>
                               <TableCell>
                                 <Badge className={`${status?.color} text-white`}>
-                                  {status?.label || op.status}
+                                  {status?.label || op.batchStatus}
                                 </Badge>
                               </TableCell>
                               <TableCell>{op.totalItems || 0}</TableCell>
@@ -988,8 +988,8 @@ export default function BatchOperations() {
                 <div className="p-4 rounded-lg bg-muted">
                   <div className="text-sm text-muted-foreground">状态</div>
                   <div className="mt-1">
-                    <Badge className={`${statusConfig[historyDetail.status as BatchStatus]?.color} text-white`}>
-                      {statusConfig[historyDetail.status as BatchStatus]?.label || historyDetail.status}
+                    <Badge className={`${statusConfig[historyDetail.batchStatus as BatchStatus]?.color} text-white`}>
+                      {statusConfig[historyDetail.batchStatus as BatchStatus]?.label || historyDetail.batchStatus}
                     </Badge>
                   </div>
                 </div>

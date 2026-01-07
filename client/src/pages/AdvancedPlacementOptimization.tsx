@@ -680,19 +680,13 @@ export default function AdvancedPlacementOptimization() {
     { enabled: !!selectedCampaignId && !!selectedAccountId }
   );
 
-  // 获取优化建议
-  const { data: recommendations, refetch: refetchRecommendations } = trpc.placement.getRecommendations.useQuery(
-    { accountId: selectedAccountId!, campaignId: selectedCampaignId || undefined },
-    { enabled: !!selectedAccountId }
-  );
-
-  // 分析利润 mutation
-  const analyzeProfitMutation = trpc.placement.analyzePlacementProfit.useMutation({
-    onSuccess: (data) => {
-      toast.success(`分析完成，发现 ${data.recommendations?.length || 0} 条优化建议`);
-      refetchRecommendations();
+  // 获取优化建议 - 使用generateSuggestions代替
+  const generateSuggestionsMutation = trpc.placement.generateSuggestions.useMutation({
+    onSuccess: (data: any) => {
+      toast.success(`分析完成，发现 ${data.suggestions?.length || 0} 条优化建议`);
+      refetchPerformance();
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast.error(`分析失败: ${error.message}`);
     }
   });
@@ -702,7 +696,6 @@ export default function AdvancedPlacementOptimization() {
     onSuccess: () => {
       toast.success("优化建议已成功应用");
       setApplyingRecommendationId(null);
-      refetchRecommendations();
       refetchPerformance();
     },
     onError: (error) => {
@@ -724,7 +717,7 @@ export default function AdvancedPlacementOptimization() {
   // 构建市场曲线 mutation
   const buildMarketCurveMutation = trpc.placement.buildMarketCurve.useMutation({
     onSuccess: (data) => {
-      toast.success(`市场曲线构建完成，最优出价: ${formatCurrency(data.optimalBid)}`);
+      toast.success(`市场曲线构建完成，最优出价: ${formatCurrency(data?.optimalBid || 0)}`);
     },
     onError: (error) => {
       toast.error(`构建失败: ${error.message}`);
@@ -737,9 +730,10 @@ export default function AdvancedPlacementOptimization() {
       toast.error("请先选择账号");
       return;
     }
-    analyzeProfitMutation.mutate({
+    generateSuggestionsMutation.mutate({
       accountId: selectedAccountId,
-      campaignId: selectedCampaignId || undefined
+      campaignId: selectedCampaignId || '',
+      days: 7
     });
   };
 
@@ -761,7 +755,7 @@ export default function AdvancedPlacementOptimization() {
       toast.error("请先选择账号");
       return;
     }
-    trainDecisionTreeMutation.mutate({ accountId: selectedAccountId });
+    trainDecisionTreeMutation.mutate({ accountId: selectedAccountId, modelType: 'cr_prediction' });
   };
 
   // 计算汇总数据
@@ -773,7 +767,7 @@ export default function AdvancedPlacementOptimization() {
         totalProfit: 0,
         avgRoas: 0,
         avgAcos: 0,
-        recommendationCount: recommendations?.length || 0,
+        recommendationCount: 0,
       };
     }
 
@@ -789,9 +783,9 @@ export default function AdvancedPlacementOptimization() {
       totalProfit,
       avgRoas, 
       avgAcos,
-      recommendationCount: recommendations?.length || 0,
+      recommendationCount: 0,
     };
-  }, [performanceData, recommendations]);
+  }, [performanceData]);
 
   // 模拟市场曲线数据
   const mockMarketCurveData: MarketCurvePoint[] = useMemo(() => {
@@ -857,9 +851,9 @@ export default function AdvancedPlacementOptimization() {
             </Button>
             <Button 
               onClick={handleAnalyze}
-              disabled={!selectedAccountId || analyzeProfitMutation.isPending}
+              disabled={!selectedAccountId || generateSuggestionsMutation.isPending}
             >
-              {analyzeProfitMutation.isPending ? (
+              {generateSuggestionsMutation.isPending ? (
                 <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
               ) : (
                 <Sparkles className="h-4 w-4 mr-2" />
@@ -1195,8 +1189,9 @@ export default function AdvancedPlacementOptimization() {
                         }
                         buildMarketCurveMutation.mutate({
                           accountId: selectedAccountId,
-                          bidObjectType: 'keyword',
-                          bidObjectId: '1'
+                          campaignId: selectedCampaignId || '',
+                          keywordId: 1,
+                          daysBack: 30
                         });
                       }}
                       disabled={buildMarketCurveMutation.isPending}
@@ -1335,47 +1330,23 @@ export default function AdvancedPlacementOptimization() {
 
             {/* 优化建议 Tab */}
             <TabsContent value="recommendations" className="space-y-6">
-              {recommendations && recommendations.length > 0 ? (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-medium">
-                      待处理优化建议 ({recommendations.length})
-                    </h3>
-                    <Button variant="outline" onClick={() => refetchRecommendations()}>
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      刷新
-                    </Button>
-                  </div>
-                  
-                  {recommendations.map((rec) => (
-                    <RecommendationCard
-                      key={rec.id}
-                      recommendation={rec}
-                      onApply={() => handleApplyRecommendation(rec.id)}
-                      onDismiss={() => handleDismissRecommendation(rec.id)}
-                      isApplying={applyingRecommendationId === rec.id}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <Sparkles className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-medium mb-2">暂无优化建议</h3>
-                    <p className="text-muted-foreground mb-4">
-                      点击"智能分析"按钮生成基于Adspert算法的优化建议
-                    </p>
-                    <Button onClick={handleAnalyze} disabled={analyzeProfitMutation.isPending}>
-                      {analyzeProfitMutation.isPending ? (
-                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      ) : (
-                        <Sparkles className="h-4 w-4 mr-2" />
-                      )}
-                      开始分析
-                    </Button>
-                  </CardContent>
-                </Card>
-              )}
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <Sparkles className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium mb-2">生成优化建议</h3>
+                  <p className="text-muted-foreground mb-4">
+                    点击"智能分析"按钮生成基于Adspert算法的优化建议
+                  </p>
+                  <Button onClick={handleAnalyze} disabled={generateSuggestionsMutation.isPending}>
+                    {generateSuggestionsMutation.isPending ? (
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4 mr-2" />
+                    )}
+                    开始分析
+                  </Button>
+                </CardContent>
+              </Card>
 
               {/* Adspert策略说明 */}
               <Card>

@@ -15,9 +15,11 @@ import {
   keywords,
   dailyPerformance,
   adGroups as adGroupsTable,
-  InsertDataSyncJob,
-  InsertDataSyncLog,
 } from "../drizzle/schema";
+
+// 定义类型
+type InsertDataSyncJob = typeof dataSyncJobs.$inferInsert;
+type InsertDataSyncLog = typeof dataSyncLogs.$inferInsert;
 import { AmazonAdsApiClient } from "./amazonAdsApi";
 
 export type SyncType = "campaigns" | "keywords" | "performance" | "all";
@@ -151,7 +153,7 @@ export async function executeSyncJob(jobId: number): Promise<{ success: boolean;
   if (!job[0]) return { success: false, message: "任务不存在" };
 
   const jobRecord = job[0];
-  await db.update(dataSyncJobs).set({ status: "running", startedAt: new Date() }).where(eq(dataSyncJobs.id, jobId));
+  await db.update(dataSyncJobs).set({ status: "running", startedAt: new Date().toISOString() }).where(eq(dataSyncJobs.id, jobId));
 
   const stats = { campaigns: 0, keywords: 0, performance: 0, errors: 0 };
 
@@ -181,7 +183,7 @@ export async function executeSyncJob(jobId: number): Promise<{ success: boolean;
 
     await db.update(dataSyncJobs).set({
       status: "completed",
-      completedAt: new Date(),
+      completedAt: new Date().toISOString(),
       recordsSynced: stats.campaigns + stats.keywords + stats.performance,
     }).where(eq(dataSyncJobs.id, jobId));
 
@@ -189,7 +191,7 @@ export async function executeSyncJob(jobId: number): Promise<{ success: boolean;
   } catch (error: any) {
     await db.update(dataSyncJobs).set({
       status: "failed",
-      completedAt: new Date(),
+      completedAt: new Date().toISOString(),
       errorMessage: error.message,
     }).where(eq(dataSyncJobs.id, jobId));
 
@@ -296,7 +298,7 @@ async function syncPerformance(userId: number, accountId: number, account: any):
       today.setHours(0, 0, 0, 0);
 
       const todayStr = today.toISOString().split('T')[0];
-      const existing = await db.select().from(dailyPerformance).where(and(eq(dailyPerformance.campaignId, campaign.id), sql`DATE(${dailyPerformance.date}) = ${todayStr}`)).limit(1);
+      const existing = await db.select().from(dailyPerformance).where(and(eq(dailyPerformance.campaignId, campaign.id), sql`DATE(date) = ${todayStr}`)).limit(1);
       
       if (existing.length === 0) {
         await db.insert(dailyPerformance).values({
@@ -308,8 +310,8 @@ async function syncPerformance(userId: number, accountId: number, account: any):
           spend: (Math.random() * 100).toFixed(2),
           sales: (Math.random() * 500).toFixed(2),
           orders: Math.floor(Math.random() * 20),
-          acos: (Math.random() * 50).toFixed(2),
-          roas: (Math.random() * 5).toFixed(2),
+          dailyAcos: (Math.random() * 50).toFixed(2),
+          dailyRoas: (Math.random() * 5).toFixed(2),
         });
         count++;
       }

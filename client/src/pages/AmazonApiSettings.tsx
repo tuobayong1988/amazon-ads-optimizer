@@ -2229,11 +2229,11 @@ export default function AmazonApiSettings() {
                         variant="ghost"
                         size="sm"
                         onClick={() => setShowScheduleSettings(!showScheduleSettings)}
-                        className={scheduleConfig?.isEnabled ? 'text-green-500' : ''}
+                        className={Array.isArray(scheduleConfig) && scheduleConfig.length > 0 && scheduleConfig[0]?.isEnabled ? 'text-green-500' : ''}
                       >
                         <RefreshCw className="h-4 w-4 mr-1" />
                         定时同步
-                        {scheduleConfig?.isEnabled && (
+                        {Array.isArray(scheduleConfig) && scheduleConfig.length > 0 && scheduleConfig[0]?.isEnabled && (
                           <Badge variant="secondary" className="ml-1 h-5 px-1 bg-green-500/20 text-green-500">已开启</Badge>
                         )}
                       </Button>
@@ -2732,7 +2732,7 @@ export default function AmazonApiSettings() {
                           onCheckedChange={(checked) => {
                             if (scheduleConfig && scheduleConfig.length > 0) {
                               updateScheduleMutation.mutate({
-                                id: scheduleConfig[0].id,
+                                id: scheduleConfig[0].id!,
                                 isEnabled: checked,
                               });
                             } else if (checked && selectedAccountId) {
@@ -2764,7 +2764,7 @@ export default function AmazonApiSettings() {
                           setScheduleFrequency(value);
                           if (scheduleConfig && scheduleConfig.length > 0) {
                             updateScheduleMutation.mutate({
-                              id: scheduleConfig[0].id,
+                              id: scheduleConfig[0].id!,
                               frequency: value as any,
                             });
                           }
@@ -2832,21 +2832,21 @@ export default function AmazonApiSettings() {
                     {queueStats && (
                       <div className="grid grid-cols-4 gap-4 p-4 bg-muted/30 rounded-lg">
                         <div className="text-center">
-                          <div className="text-2xl font-bold text-yellow-500">{queueStats.pending || 0}</div>
+                          <div className="text-2xl font-bold text-yellow-500">{queueStats.queuedTasks || 0}</div>
                           <div className="text-xs text-muted-foreground">等待中</div>
                         </div>
                         <div className="text-center">
-                          <div className="text-2xl font-bold text-blue-500">{queueStats.running || 0}</div>
+                          <div className="text-2xl font-bold text-blue-500">{queueStats.runningTasks || 0}</div>
                           <div className="text-xs text-muted-foreground">运行中</div>
                         </div>
                         <div className="text-center">
-                          <div className="text-2xl font-bold text-green-500">{queueStats.completed || 0}</div>
+                          <div className="text-2xl font-bold text-green-500">{queueStats.completedTasks || 0}</div>
                           <div className="text-xs text-muted-foreground">已完成</div>
                         </div>
                         <div className="text-center">
                           <div className="text-lg font-bold">
-                            {queueStats.estimatedTotalTimeMs 
-                              ? `${Math.ceil(queueStats.estimatedTotalTimeMs / 60000)}分钟`
+                            {queueStats.totalEstimatedTimeMs 
+                              ? `${Math.ceil(queueStats.totalEstimatedTimeMs / 60000)}分钟`
                               : '-'
                             }
                           </div>

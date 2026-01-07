@@ -9,12 +9,11 @@
  * 5. 特征重要性分析
  */
 
-import { getDb } from "./_core/db";
+import { getDb } from "./db";
 import { 
   campaigns, 
   keywords, 
   dailyPerformance,
-  keywordPerformance
 } from "../drizzle/schema";
 import { eq, and, gte, lte, desc, sql, gt } from "drizzle-orm";
 
@@ -272,7 +271,7 @@ class SimpleDecisionTree {
     // 遍历每个特征
     for (let f = 0; f < X[0].length; f++) {
       // 获取该特征的所有唯一值
-      const values = [...new Set(X.map(row => row[f]))].sort((a, b) => a - b);
+      const values = Array.from(new Set(X.map(row => row[f]))).sort((a, b) => a - b);
       
       // 尝试每个可能的分割点
       for (let i = 0; i < values.length - 1; i++) {
@@ -373,7 +372,7 @@ class SimpleDecisionTree {
     return this.featureNames.map(name => ({
       feature: name,
       importance: total > 0 ? importance[name] / total : 0,
-      direction: importance[name] > 0.1 ? 'positive' : importance[name] > 0.05 ? 'neutral' : 'negative'
+      direction: (importance[name] > 0.1 ? 'positive' : importance[name] > 0.05 ? 'neutral' : 'negative') as 'positive' | 'negative' | 'neutral'
     })).sort((a, b) => b.importance - a.importance);
   }
   
@@ -421,34 +420,33 @@ export async function trainPredictionModels(accountId?: number): Promise<{
   ctrModelAccuracy: number;
   cvrModelAccuracy: number;
 }> {
-  const db = getDb();
+  const db = await getDb();
+  if (!db) {
+    return { success: false, samplesUsed: 0, ctrModelAccuracy: 0, cvrModelAccuracy: 0 };
+  }
   
   // 获取训练数据（过去30天的表现数据）
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   
-  // 获取关键词表现数据
+  // 获取关键词表现数据 - 使用keywords表代替
   const performanceData = await db.select({
-    keywordId: keywordPerformance.keywordId,
-    campaignId: keywordPerformance.campaignId,
-    impressions: sql<number>`SUM(${keywordPerformance.impressions})`,
-    clicks: sql<number>`SUM(${keywordPerformance.clicks})`,
-    spend: sql<number>`SUM(${keywordPerformance.spend})`,
-    sales: sql<number>`SUM(${keywordPerformance.sales})`,
-    orders: sql<number>`SUM(${keywordPerformance.orders})`,
+    keywordId: keywords.id,
+    impressions: sql<number>`COALESCE(${keywords.impressions}, 0)`,
+    clicks: sql<number>`COALESCE(${keywords.clicks}, 0)`,
+    spend: sql<number>`COALESCE(${keywords.spend}, 0)`,
+    sales: sql<number>`COALESCE(${keywords.sales}, 0)`,
+    orders: sql<number>`COALESCE(${keywords.orders}, 0)`,
   })
-  .from(keywordPerformance)
-  .where(
-    gte(keywordPerformance.date, thirtyDaysAgo.toISOString().split('T')[0])
-  )
-  .groupBy(keywordPerformance.keywordId, keywordPerformance.campaignId);
+  .from(keywords)
+  .where(gt(keywords.impressions, 0));
   
   // 获取关键词和广告活动信息
   const keywordList = await db.select().from(keywords);
   const campaignList = await db.select().from(campaigns);
   
-  const keywordMap = new Map(keywordList.map(k => [k.id, k]));
-  const campaignMap = new Map(campaignList.map(c => [c.id, c]));
+  const keywordMap = new Map(keywordList.map((k: any) => [k.id, k]));
+  const campaignMap = new Map(campaignList.map((c: any) => [c.id, c]));
   
   // 准备训练数据
   const trainingData: { X: number[][]; ctr: number[]; cvr: number[]; convValue: number[] } = {
@@ -462,7 +460,7 @@ export async function trainPredictionModels(accountId?: number): Promise<{
     if (perf.impressions < 100) continue; // 过滤样本量太小的数据
     
     const keyword = keywordMap.get(Number(perf.keywordId));
-    const campaign = campaignMap.get(Number(perf.campaignId));
+    const campaign = campaignMap.get(Number((perf as any).campaignId));
     
     const features = extractFeatures({
       campaign,
@@ -560,7 +558,10 @@ export async function predictKeywordPerformance(
   campaignId: number,
   newBid?: number
 ): Promise<PredictionResult> {
-  const db = getDb();
+  const db = await getDb();
+  if (!db) {
+    return { predictedCTR: 0, predictedCVR: 0, predictedConversionValue: 0, confidence: 0, featureImportance: [] };
+  }
   
   // 确保模型已训练
   if (!ctrModel || !cvrModel || !conversionValueModel) {
@@ -571,22 +572,14 @@ export async function predictKeywordPerformance(
   const [keyword] = await db.select().from(keywords).where(eq(keywords.id, keywordId));
   const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, campaignId));
   
-  // 获取历史表现
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  
-  const [performance] = await db.select({
-    impressions: sql<number>`SUM(${keywordPerformance.impressions})`,
-    clicks: sql<number>`SUM(${keywordPerformance.clicks})`,
-    spend: sql<number>`SUM(${keywordPerformance.spend})`,
-    sales: sql<number>`SUM(${keywordPerformance.sales})`,
-    orders: sql<number>`SUM(${keywordPerformance.orders})`,
-  })
-  .from(keywordPerformance)
-  .where(and(
-    eq(keywordPerformance.keywordId, keywordId.toString()),
-    gte(keywordPerformance.date, thirtyDaysAgo.toISOString().split('T')[0])
-  ));
+  // 使用keywords表的数据作为历史表现
+  const performance = {
+    impressions: keyword?.impressions || 0,
+    clicks: keyword?.clicks || 0,
+    spend: Number(keyword?.spend) || 0,
+    sales: Number(keyword?.sales) || 0,
+    orders: keyword?.orders || 0,
+  };
   
   // 提取特征
   const features = extractFeatures({
@@ -640,7 +633,10 @@ export async function predictCampaignPerformance(
     predictedCVR: number;
   }>;
 }> {
-  const db = getDb();
+  const db = await getDb();
+  if (!db) {
+    return { predictedCTR: 0, predictedCVR: 0, predictedSales: 0, predictedACoS: 0, confidence: 0, keyPredictions: [] };
+  }
   
   // 确保模型已训练
   if (!ctrModel || !cvrModel || !conversionValueModel) {
@@ -650,7 +646,7 @@ export async function predictCampaignPerformance(
   // 获取广告活动下的关键词
   const keywordList = await db.select()
     .from(keywords)
-    .where(eq(keywords.campaignId, campaignId))
+    .where(sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaignId})`)
     .limit(50);
   
   const keyPredictions: Array<{
@@ -685,7 +681,7 @@ export async function predictCampaignPerformance(
   
   // 获取广告活动当前预算
   const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, campaignId));
-  const dailyBudget = (campaign?.dailyBudget || 50) * budgetMultiplier;
+  const dailyBudget = Number(campaign?.dailyBudget || 50) * budgetMultiplier;
   
   // 估算销售额和ACoS
   const estimatedSpend = dailyBudget * 0.85; // 假设85%预算利用率

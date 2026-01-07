@@ -297,7 +297,7 @@ export default function CollaborationNotifications() {
                     <p className="text-sm text-muted-foreground">在系统内接收实时通知</p>
                   </div>
                   <Switch
-                    checked={preferences?.enableAppNotifications ?? true}
+                    checked={Boolean(preferences?.enableAppNotifications ?? 1)}
                     onCheckedChange={(checked) => updatePreference("enableAppNotifications", checked)}
                   />
                 </div>
@@ -307,7 +307,7 @@ export default function CollaborationNotifications() {
                     <p className="text-sm text-muted-foreground">高优先级通知将发送到您的邮箱</p>
                   </div>
                   <Switch
-                    checked={preferences?.enableEmailNotifications ?? true}
+                    checked={Boolean(preferences?.enableEmailNotifications ?? 1)}
                     onCheckedChange={(checked) => updatePreference("enableEmailNotifications", checked)}
                   />
                 </div>
@@ -333,7 +333,7 @@ export default function CollaborationNotifications() {
                     <p className="text-sm text-muted-foreground">单个或批量出价调整操作</p>
                   </div>
                   <Switch
-                    checked={preferences?.bidAdjustNotify ?? true}
+                    checked={Boolean(preferences?.bidAdjustNotify ?? 1)}
                     onCheckedChange={(checked) => updatePreference("bidAdjustNotify", checked)}
                   />
                 </div>
@@ -346,7 +346,7 @@ export default function CollaborationNotifications() {
                     <p className="text-sm text-muted-foreground">添加或移除否定关键词</p>
                   </div>
                   <Switch
-                    checked={preferences?.negativeKeywordNotify ?? true}
+                    checked={Boolean(preferences?.negativeKeywordNotify ?? 1)}
                     onCheckedChange={(checked) => updatePreference("negativeKeywordNotify", checked)}
                   />
                 </div>
@@ -359,7 +359,7 @@ export default function CollaborationNotifications() {
                     <p className="text-sm text-muted-foreground">创建、暂停、启用或删除广告活动</p>
                   </div>
                   <Switch
-                    checked={preferences?.campaignChangeNotify ?? true}
+                    checked={Boolean(preferences?.campaignChangeNotify ?? 1)}
                     onCheckedChange={(checked) => updatePreference("campaignChangeNotify", checked)}
                   />
                 </div>
@@ -372,7 +372,7 @@ export default function CollaborationNotifications() {
                     <p className="text-sm text-muted-foreground">启用、禁用或配置自动化功能</p>
                   </div>
                   <Switch
-                    checked={preferences?.automationNotify ?? true}
+                    checked={Boolean(preferences?.automationNotify ?? 1)}
                     onCheckedChange={(checked) => updatePreference("automationNotify", checked)}
                   />
                 </div>
@@ -385,7 +385,7 @@ export default function CollaborationNotifications() {
                     <p className="text-sm text-muted-foreground">邀请、移除成员或权限变更</p>
                   </div>
                   <Switch
-                    checked={preferences?.teamChangeNotify ?? true}
+                    checked={Boolean(preferences?.teamChangeNotify ?? 1)}
                     onCheckedChange={(checked) => updatePreference("teamChangeNotify", checked)}
                   />
                 </div>
@@ -398,7 +398,7 @@ export default function CollaborationNotifications() {
                     <p className="text-sm text-muted-foreground">导入或导出数据操作</p>
                   </div>
                   <Switch
-                    checked={preferences?.dataImportExportNotify ?? false}
+                    checked={Boolean(preferences?.dataImportExportNotify ?? 0)}
                     onCheckedChange={(checked) => updatePreference("dataImportExportNotify", checked)}
                   />
                 </div>
@@ -423,7 +423,7 @@ export default function CollaborationNotifications() {
                     <p className="text-sm text-muted-foreground">紧急操作通知</p>
                   </div>
                   <Switch
-                    checked={preferences?.notifyOnCritical ?? true}
+                    checked={Boolean(preferences?.notifyOnCritical ?? 1)}
                     onCheckedChange={(checked) => updatePreference("notifyOnCritical", checked)}
                   />
                 </div>
@@ -435,7 +435,7 @@ export default function CollaborationNotifications() {
                     <p className="text-sm text-muted-foreground">高优先级操作通知</p>
                   </div>
                   <Switch
-                    checked={preferences?.notifyOnHigh ?? true}
+                    checked={Boolean(preferences?.notifyOnHigh ?? 1)}
                     onCheckedChange={(checked) => updatePreference("notifyOnHigh", checked)}
                   />
                 </div>
@@ -447,7 +447,7 @@ export default function CollaborationNotifications() {
                     <p className="text-sm text-muted-foreground">中优先级操作通知</p>
                   </div>
                   <Switch
-                    checked={preferences?.notifyOnMedium ?? true}
+                    checked={Boolean(preferences?.notifyOnMedium ?? 1)}
                     onCheckedChange={(checked) => updatePreference("notifyOnMedium", checked)}
                   />
                 </div>
@@ -459,7 +459,7 @@ export default function CollaborationNotifications() {
                     <p className="text-sm text-muted-foreground">低优先级操作通知</p>
                   </div>
                   <Switch
-                    checked={preferences?.notifyOnLow ?? false}
+                    checked={Boolean(preferences?.notifyOnLow ?? 0)}
                     onCheckedChange={(checked) => updatePreference("notifyOnLow", checked)}
                   />
                 </div>
@@ -482,7 +482,7 @@ export default function CollaborationNotifications() {
                     <p className="text-sm text-muted-foreground">在指定时段内暂停通知</p>
                   </div>
                   <Switch
-                    checked={preferences?.quietHoursEnabled ?? false}
+                    checked={Boolean(preferences?.quietHoursEnabled ?? 0)}
                     onCheckedChange={(checked) => updatePreference("quietHoursEnabled", checked)}
                   />
                 </div>

@@ -309,7 +309,7 @@ export default function CorrectionReview() {
                           <span className="font-medium text-sm">
                             {formatDate(session.periodStart)} - {formatDate(session.periodEnd)}
                           </span>
-                          {getStatusBadge(session.status || 'analyzing')}
+                          {getStatusBadge(session.sessionStatus || 'analyzing')}
                         </div>
                         <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                           <div>审查: {session.totalAdjustmentsReviewed || 0}</div>
@@ -396,7 +396,7 @@ export default function CorrectionReview() {
                 </div>
 
                 {/* Analysis Button */}
-                {sessionDetails.status === 'analyzing' && (
+                {sessionDetails.sessionStatus === 'analyzing' && (
                   <Card>
                     <CardContent className="py-6">
                       <div className="flex items-center justify-between">
@@ -523,7 +523,7 @@ export default function CorrectionReview() {
                               <TableCell>
                                 <div>
                                   <div className="font-medium">{correction.targetName || `目标 #${correction.targetId}`}</div>
-                                  <div className="text-xs text-muted-foreground">{correction.targetType}</div>
+                                  <div className="text-xs text-muted-foreground">{correction.correctionTargetType}</div>
                                 </div>
                               </TableCell>
                               <TableCell>{getCorrectionTypeBadge(correction.correctionType)}</TableCell>
@@ -547,14 +547,14 @@ export default function CorrectionReview() {
                               </TableCell>
                               <TableCell>
                                 <Badge variant={
-                                  correction.status === 'applied' ? 'default' :
-                                  correction.status === 'dismissed' ? 'secondary' :
+                                  correction.correctionStatus === 'applied' ? 'default' :
+                                  correction.correctionStatus === 'dismissed' ? 'secondary' :
                                   'outline'
                                 }>
-                                  {correction.status === 'pending_review' ? '待复盘' :
-                                   correction.status === 'approved' ? '已批准' :
-                                   correction.status === 'applied' ? '已应用' :
-                                   correction.status === 'dismissed' ? '已忽略' : correction.status}
+                                  {correction.correctionStatus === 'pending_review' ? '待复盘' :
+                                   correction.correctionStatus === 'approved' ? '已批准' :
+                                   correction.correctionStatus === 'applied' ? '已应用' :
+                                   correction.correctionStatus === 'dismissed' ? '已忽略' : correction.correctionStatus}
                                 </Badge>
                               </TableCell>
                             </TableRow>

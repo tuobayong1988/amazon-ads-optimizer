@@ -364,8 +364,8 @@ export async function analyzeABTestResults(testId: number): Promise<{
   const confidenceLevel = parseFloat(testInfo.confidenceLevel || '0.95');
   
   const analysisResults = metricsToAnalyze.map(metricName => {
-    const controlValues = controlMetrics.map(m => parseFloat((m as Record<string, string>)[metricName] || '0'));
-    const treatmentValues = treatmentMetrics.map(m => parseFloat((m as Record<string, string>)[metricName] || '0'));
+    const controlValues = controlMetrics.map(m => parseFloat((m as unknown as Record<string, string>)[metricName] || '0'));
+    const treatmentValues = treatmentMetrics.map(m => parseFloat((m as unknown as Record<string, string>)[metricName] || '0'));
 
     const controlMean = controlValues.length > 0 
       ? controlValues.reduce((a, b) => a + b, 0) / controlValues.length 
@@ -588,7 +588,7 @@ export function calculateStatisticalSignificanceExported(
   const z = se > 0 ? (treatmentValue - controlValue) / se : 0;
   
   // 计算p值（双尾检验）
-  const pValue = 2 * (1 - normalCDFExported(Math.abs(z)));
+  const pValue = 2 * (1 - normalCDF(Math.abs(z)));
   
   // 置信区间
   const marginOfError = 1.96 * se;

@@ -35,8 +35,8 @@ export default function NotificationSettings() {
   useEffect(() => {
     if (savedSettings) {
       setSettings({
-        emailEnabled: savedSettings.emailEnabled ?? true,
-        inAppEnabled: savedSettings.inAppEnabled ?? true,
+        emailEnabled: Boolean(savedSettings.emailEnabled ?? true),
+        inAppEnabled: Boolean(savedSettings.inAppEnabled ?? true),
         acosThreshold: parseFloat(savedSettings.acosThreshold || '50'),
         ctrDropThreshold: parseFloat(savedSettings.ctrDropThreshold || '30'),
         conversionDropThreshold: parseFloat(savedSettings.conversionDropThreshold || '30'),

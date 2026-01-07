@@ -248,8 +248,7 @@ export async function executeBudgetAllocation(configId: number): Promise<{
   try {
     // 获取预算分配建议
     const suggestions = await generateBudgetAllocationSuggestions(
-      config.accountId,
-      config.performanceGroupId || undefined
+      config.performanceGroupId || 0
     );
 
     const details: Array<{
@@ -375,7 +374,7 @@ export async function executeBudgetAllocation(configId: number): Promise<{
         budgetAfter: String(details[details.length - 1].status === 'applied' ? budgetAfter : budgetBefore),
         adjustmentPercent: String(details[details.length - 1].adjustmentPercent),
         adjustmentReason: suggestion.reasons.join('; '),
-        compositeScore: String(suggestion.compositeScore),
+        compositeScore: String((suggestion as any).compositeScore || 0),
         riskLevel: suggestion.riskLevel,
         status: details[details.length - 1].status,
         errorMessage: details[details.length - 1].reason,

@@ -44,6 +44,7 @@ export interface TrackingResult {
  */
 export async function getRecordsToTrack(period: number): Promise<any[]> {
   const db = await getDb();
+  if (!db) return [];
   
   // 计算目标日期范围
   const now = new Date();
@@ -142,6 +143,7 @@ export async function updateTrackingData(
   trackingData: TrackingData
 ): Promise<void> {
   const db = await getDb();
+  if (!db) return;
   
   const updateData: any = {};
   
@@ -249,6 +251,7 @@ export async function getTrackingStatsSummary(): Promise<{
   overallAccuracy: number;
 }> {
   const db = await getDb();
+  if (!db) return { totalTracked: 0, avgAccuracy7d: 0, avgAccuracy14d: 0, avgAccuracy30d: 0, totalEstimatedProfit: 0, totalActualProfit: 0, overallAccuracy: 0 };
   
   // 查询所有已追踪的记录 - 使用status字段而不是isRolledBack
   const records = await db
@@ -265,7 +268,7 @@ export async function getTrackingStatsSummary(): Promise<{
   let totalActual = 0;
   
   for (const record of records) {
-    const estimated = parseFloat(record.estimatedProfitChange || '0');
+    const estimated = parseFloat((record as any).estimatedProfitChange || '0');
     totalEstimated += estimated;
     
     if (record.actualProfit7d !== null) {
