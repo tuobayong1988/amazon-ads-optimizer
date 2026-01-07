@@ -30,6 +30,12 @@ import {
   MapPin
 } from "lucide-react";
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { format, subDays, startOfMonth, endOfMonth, subMonths } from "date-fns";
+import { zhCN } from "date-fns/locale";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { CalendarIcon } from "lucide-react";
 import toast from "react-hot-toast";
 
 // 全局变量用于存储刷新函数
@@ -239,11 +245,48 @@ function QuickActionCard({
   );
 }
 
+// 时间范围预设选项
+type DatePreset = 'today' | 'yesterday' | 'last7days' | 'last30days' | 'thisMonth' | 'lastMonth' | 'custom';
+
+const getDateRange = (preset: DatePreset): { start: Date; end: Date } => {
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+  
+  switch (preset) {
+    case 'today':
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      return { start: todayStart, end: today };
+    case 'yesterday':
+      const yesterdayStart = subDays(today, 1);
+      yesterdayStart.setHours(0, 0, 0, 0);
+      const yesterdayEnd = subDays(today, 1);
+      yesterdayEnd.setHours(23, 59, 59, 999);
+      return { start: yesterdayStart, end: yesterdayEnd };
+    case 'last7days':
+      return { start: subDays(today, 7), end: today };
+    case 'last30days':
+      return { start: subDays(today, 30), end: today };
+    case 'thisMonth':
+      return { start: startOfMonth(today), end: today };
+    case 'lastMonth':
+      const lastMonth = subMonths(today, 1);
+      return { start: startOfMonth(lastMonth), end: endOfMonth(lastMonth) };
+    default:
+      return { start: subDays(today, 30), end: today };
+  }
+};
+
 export default function Dashboard() {
   const { user } = useAuth();
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshStatus, setRefreshStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  
+  // 区域对比时间范围状态
+  const [regionDatePreset, setRegionDatePreset] = useState<DatePreset>('last30days');
+  const [regionCustomStartDate, setRegionCustomStartDate] = useState<Date | undefined>(subDays(new Date(), 30));
+  const [regionCustomEndDate, setRegionCustomEndDate] = useState<Date | undefined>(new Date());
   
   // 测试toast是否工作 - 页面加载时显示
   useEffect(() => {
@@ -318,9 +361,28 @@ export default function Dashboard() {
     { enabled: !!accountId }
   );
 
+  // 计算区域对比的时间范围
+  const regionDateRange = useMemo(() => {
+    if (regionDatePreset === 'custom') {
+      return {
+        startDate: regionCustomStartDate ? format(regionCustomStartDate, 'yyyy-MM-dd') : undefined,
+        endDate: regionCustomEndDate ? format(regionCustomEndDate, 'yyyy-MM-dd') : undefined,
+      };
+    }
+    const range = getDateRange(regionDatePreset);
+    return {
+      startDate: format(range.start, 'yyyy-MM-dd'),
+      endDate: format(range.end, 'yyyy-MM-dd'),
+    };
+  }, [regionDatePreset, regionCustomStartDate, regionCustomEndDate]);
+
   // Fetch region comparison data
   const { data: regionComparison, isLoading: regionLoading } = trpc.analytics.getRegionComparison.useQuery(
-    { userId: user?.id! },
+    { 
+      userId: user?.id!,
+      startDate: regionDateRange.startDate,
+      endDate: regionDateRange.endDate,
+    },
     { enabled: !!user?.id }
   );
 
@@ -742,13 +804,81 @@ export default function Dashboard() {
         {regionComparison && regionComparison.length > 0 && (
           <Card>
             <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-4">
                 <div>
                   <CardTitle className="text-lg flex items-center gap-2">
                     <Globe className="w-5 h-5" />
                     区域数据对比
                   </CardTitle>
-                  <CardDescription>各区域广告表现对比（近30天）</CardDescription>
+                  <CardDescription>
+                    {regionDatePreset === 'custom' && regionCustomStartDate && regionCustomEndDate
+                      ? `${format(regionCustomStartDate, 'yyyy/MM/dd')} - ${format(regionCustomEndDate, 'yyyy/MM/dd')}`
+                      : regionDatePreset === 'today' ? '今天'
+                      : regionDatePreset === 'yesterday' ? '昨天'
+                      : regionDatePreset === 'last7days' ? '最近7天'
+                      : regionDatePreset === 'last30days' ? '最近30天'
+                      : regionDatePreset === 'thisMonth' ? '本月'
+                      : regionDatePreset === 'lastMonth' ? '上月'
+                      : '各区域广告表现对比'}
+                  </CardDescription>
+                </div>
+                
+                {/* 时间范围选择器 */}
+                <div className="flex items-center gap-2">
+                  <Select value={regionDatePreset} onValueChange={(value: DatePreset) => setRegionDatePreset(value)}>
+                    <SelectTrigger className="w-[130px] h-9">
+                      <SelectValue placeholder="选择时间" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="today">今天</SelectItem>
+                      <SelectItem value="yesterday">昨天</SelectItem>
+                      <SelectItem value="last7days">最近7天</SelectItem>
+                      <SelectItem value="last30days">最近30天</SelectItem>
+                      <SelectItem value="thisMonth">本月</SelectItem>
+                      <SelectItem value="lastMonth">上月</SelectItem>
+                      <SelectItem value="custom">自定义</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  
+                  {regionDatePreset === 'custom' && (
+                    <div className="flex items-center gap-2">
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="sm" className="h-9 px-3">
+                            <CalendarIcon className="w-4 h-4 mr-2" />
+                            {regionCustomStartDate ? format(regionCustomStartDate, 'MM/dd') : '开始'}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={regionCustomStartDate}
+                            onSelect={setRegionCustomStartDate}
+                            disabled={(date) => date > new Date() || (regionCustomEndDate ? date > regionCustomEndDate : false)}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                      <span className="text-muted-foreground">-</span>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" size="sm" className="h-9 px-3">
+                            <CalendarIcon className="w-4 h-4 mr-2" />
+                            {regionCustomEndDate ? format(regionCustomEndDate, 'MM/dd') : '结束'}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={regionCustomEndDate}
+                            onSelect={setRegionCustomEndDate}
+                            disabled={(date) => date > new Date() || (regionCustomStartDate ? date < regionCustomStartDate : false)}
+                            initialFocus
+                          />
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+                  )}
                 </div>
               </div>
             </CardHeader>

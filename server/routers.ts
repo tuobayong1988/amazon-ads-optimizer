@@ -1247,7 +1247,11 @@ const analyticsRouter = router({
   
   // 区域级别数据对比
   getRegionComparison: protectedProcedure
-    .input(z.object({ userId: z.number() }))
+    .input(z.object({ 
+      userId: z.number(),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+    }))
     .query(async ({ input }) => {
       // 定义区域映射
       const REGIONS: Record<string, { name: string; flag: string; marketplaces: string[] }> = {
@@ -1259,10 +1263,9 @@ const analyticsRouter = router({
       // 获取用户所有账号
       const accounts = await db.getAdAccountsByUserId(input.userId);
       
-      // 计算日期范围（最近30天）
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - 30);
+      // 计算日期范围（默认最近30天，支持自定义）
+      const endDate = input.endDate ? new Date(input.endDate) : new Date();
+      const startDate = input.startDate ? new Date(input.startDate) : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
       
       // 按区域汇总数据
       const regionData: Record<string, {
