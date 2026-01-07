@@ -1858,3 +1858,12 @@
 - [x] 实现市场曲线（S曲线）调整因子
 - [ ] 实现学习期进度UI展示
 - [ ] 修复TypeScript类型错误
+
+### TypeScript类型错误修复
+- [ ] 修复server/db.ts中的Date类型与string类型不匹配问题
+- [ ] 修复server/routers.ts中的剩余类型错误
+- [ ] 修复server/optimizationTargetEngine.ts中的类型错误
+- [ ] 修复server/amazonSyncService.ts中的类型错误
+- [ ] 修复server/intelligentBudgetAllocationService.ts中的类型错误
+- [ ] 修复server/aiOptimizationService.ts中的类型错误
+- [ ] 修复前端组件中的类型错误（BatchOperations.tsx, BidAdjustmentHistory.tsx等）
