@@ -382,53 +382,55 @@ export default function AccountSwitcher({ compact = false, showStatus = true }: 
             )}
           </div>
           
-          {/* 区域筛选按钮 */}
-          <div className="flex flex-wrap gap-1">
-            <Button
-              variant={!filterRegion ? "default" : "outline"}
-              size="sm"
-              className="h-6 text-xs px-2"
-              onClick={() => handleRegionFilter(null)}
-            >
-              全部
-            </Button>
-            {REGIONS.map(region => (
-              <Button
-                key={region.id}
-                variant={filterRegion === region.id ? "default" : "outline"}
-                size="sm"
-                className="h-6 text-xs px-2"
-                onClick={() => handleRegionFilter(region.id)}
-              >
-                {region.flag} {region.id}
-              </Button>
-            ))}
-          </div>
-          
-          {/* 站点筛选按钮 - 仅在选择区域后显示 */}
-          {filterRegion && (
+          {/* 区域筛选按钮和站点筛选按钮 - 选择区域后自动展开站点 */}
+          <div className="space-y-2">
+            {/* 全部账号按钮 */}
             <div className="flex flex-wrap gap-1">
               <Button
-                variant={!filterMarketplace ? "secondary" : "outline"}
+                variant={!filterRegion ? "default" : "outline"}
                 size="sm"
-                className="h-6 text-xs px-2"
-                onClick={() => setFilterMarketplace(null)}
+                className="h-7 text-xs px-3"
+                onClick={() => handleRegionFilter(null)}
               >
-                全部站点
+                🌐 全部账号
               </Button>
-              {availableMarketplaces.map(mp => (
-                <Button
-                  key={mp}
-                  variant={filterMarketplace === mp ? "secondary" : "outline"}
-                  size="sm"
-                  className="h-6 text-xs px-2"
-                  onClick={() => setFilterMarketplace(mp)}
-                >
-                  {MARKETPLACE_FLAGS[mp]} {mp}
-                </Button>
-              ))}
             </div>
-          )}
+            
+            {/* 每个区域及其站点 */}
+            {REGIONS.map(region => (
+              <div key={region.id} className="space-y-1">
+                {/* 区域标题按钮 */}
+                <Button
+                  variant={filterRegion === region.id && !filterMarketplace ? "default" : "outline"}
+                  size="sm"
+                  className="h-7 text-xs px-3 w-full justify-start"
+                  onClick={() => {
+                    setFilterRegion(region.id);
+                    setFilterMarketplace(null);
+                  }}
+                >
+                  {region.flag} {region.name} ({region.marketplaces.length}个站点)
+                </Button>
+                
+                {/* 该区域下的站点按钮 - 选中区域后自动展开 */}
+                {filterRegion === region.id && (
+                  <div className="flex flex-wrap gap-1 pl-4">
+                    {region.marketplaces.map(mp => (
+                      <Button
+                        key={mp}
+                        variant={filterMarketplace === mp ? "secondary" : "ghost"}
+                        size="sm"
+                        className="h-6 text-xs px-2"
+                        onClick={() => setFilterMarketplace(mp)}
+                      >
+                        {MARKETPLACE_FLAGS[mp]} {MARKETPLACE_NAMES[mp]}
+                      </Button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
           
           {/* 当前筛选状态 */}
           {hasFilters && (
