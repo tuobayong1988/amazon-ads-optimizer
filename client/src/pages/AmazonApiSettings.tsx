@@ -1022,42 +1022,61 @@ export default function AmazonApiSettings() {
                       </AlertDescription>
                     </Alert>
 
+                    <Alert className="bg-blue-900/20 border-blue-500/30 mb-4">
+                      <Info className="h-4 w-4 text-blue-400" />
+                      <AlertDescription className="text-blue-200 text-sm">
+                        <strong>区域说明：</strong>授权后您将获得该区域内<strong>所有站点</strong>的广告数据访问权限。
+                        例如，点击北美区域将同时授权美国、加拿大、墨西哥、巴西四个站点。
+                      </AlertDescription>
+                    </Alert>
                     <div className="grid gap-4 md:grid-cols-3">
                       <Button 
                         variant="outline" 
-                        className="h-auto py-4 flex-col gap-2"
-                        onClick={() => window.open(
-                          `https://www.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6'}&scope=advertising::campaign_management&redirect_uri=https://sellerps.com&response_type=code`,
-                          '_blank'
-                        )}
+                        className={`h-auto py-4 flex-col gap-2 ${credentials.region === 'NA' ? 'border-primary bg-primary/10' : ''}`}
+                        onClick={() => {
+                          setCredentials({ ...credentials, region: 'NA' });
+                          window.open(
+                            `https://www.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6'}&scope=advertising::campaign_management&redirect_uri=https://sellerps.com&response_type=code`,
+                            '_blank'
+                          );
+                          toast.success('已打开北美区域授权页面，授权后将获得美国、加拿大、墨西哥、巴西站点的数据访问权限');
+                        }}
                       >
                         <Globe className="h-6 w-6" />
-                        <span className="font-semibold">北美 (NA)</span>
-                        <span className="text-xs text-muted-foreground">美国、加拿大、墨西哥、巴西</span>
+                        <span className="font-semibold">🇺🇸 北美区域 (NA)</span>
+                        <span className="text-xs text-muted-foreground">包含: 🇺🇸美国 🇨加拿大 🇲墨西哥 🇧巴西</span>
                       </Button>
                       <Button 
                         variant="outline" 
-                        className="h-auto py-4 flex-col gap-2"
-                        onClick={() => window.open(
-                          `https://eu.account.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6'}&scope=advertising::campaign_management&redirect_uri=https://sellerps.com&response_type=code`,
-                          '_blank'
-                        )}
+                        className={`h-auto py-4 flex-col gap-2 ${credentials.region === 'EU' ? 'border-primary bg-primary/10' : ''}`}
+                        onClick={() => {
+                          setCredentials({ ...credentials, region: 'EU' });
+                          window.open(
+                            `https://eu.account.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6'}&scope=advertising::campaign_management&redirect_uri=https://sellerps.com&response_type=code`,
+                            '_blank'
+                          );
+                          toast.success('已打开欧洲区域授权页面，授权后将获得英国、德国、法国等站点的数据访问权限');
+                        }}
                       >
                         <Globe className="h-6 w-6" />
-                        <span className="font-semibold">欧洲 (EU)</span>
-                        <span className="text-xs text-muted-foreground">英国、德国、法国、意大利等</span>
+                        <span className="font-semibold">🇪🇺 欧洲区域 (EU)</span>
+                        <span className="text-xs text-muted-foreground">包含: 🇬英国 🇩德国 🇫法国 🇮意大利 🇪西班牙等</span>
                       </Button>
                       <Button 
                         variant="outline" 
-                        className="h-auto py-4 flex-col gap-2"
-                        onClick={() => window.open(
-                          `https://apac.account.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6'}&scope=advertising::campaign_management&redirect_uri=https://sellerps.com&response_type=code`,
-                          '_blank'
-                        )}
+                        className={`h-auto py-4 flex-col gap-2 ${credentials.region === 'FE' ? 'border-primary bg-primary/10' : ''}`}
+                        onClick={() => {
+                          setCredentials({ ...credentials, region: 'FE' });
+                          window.open(
+                            `https://apac.account.amazon.com/ap/oa?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6'}&scope=advertising::campaign_management&redirect_uri=https://sellerps.com&response_type=code`,
+                            '_blank'
+                          );
+                          toast.success('已打开远东区域授权页面，授权后将获得日本、澳大利亚、新加坡站点的数据访问权限');
+                        }}
                       >
                         <Globe className="h-6 w-6" />
-                        <span className="font-semibold">远东 (FE)</span>
-                        <span className="text-xs text-muted-foreground">日本、澳大利亚、新加坡</span>
+                        <span className="font-semibold">🌏 远东区域 (FE)</span>
+                        <span className="text-xs text-muted-foreground">包含: 🇯日本 🇦澳大利亚 🇸新加坡</span>
                       </Button>
                     </div>
 
@@ -1239,31 +1258,105 @@ export default function AmazonApiSettings() {
 
                     <div className="space-y-3">
                       <Label className="text-purple-400 font-medium">选择市场区域并复制授权链接</Label>
+                      <Alert className="bg-yellow-900/20 border-yellow-500/30 mb-3">
+                        <AlertCircle className="h-4 w-4 text-yellow-400" />
+                        <AlertDescription className="text-yellow-200 text-sm">
+                          <strong>重要提示：</strong>授权后您将获得该区域内<strong>所有站点</strong>的广告数据访问权限。
+                          例如，选择北美区域将同时获得美国、加拿大、墨西哥、巴西四个站点的授权。
+                        </AlertDescription>
+                      </Alert>
                       <div className="grid gap-3">
                         {[
-                          { region: 'NA', name: '北美 (NA)', desc: '美国、加拿大、墨西哥、巴西', url: 'https://www.amazon.com/ap/oa' },
-                          { region: 'EU', name: '欧洲 (EU)', desc: '英国、德国、法国、意大利等', url: 'https://eu.account.amazon.com/ap/oa' },
-                          { region: 'FE', name: '远东 (FE)', desc: '日本、澳大利亚、新加坡', url: 'https://apac.account.amazon.com/ap/oa' },
+                          { 
+                            region: 'NA' as const, 
+                            name: '🇺🇸 北美区域 (NA)', 
+                            desc: '包含站点：美国 (US)、加拿大 (CA)、墨西哥 (MX)、巴西 (BR)', 
+                            url: 'https://www.amazon.com/ap/oa',
+                            sites: [
+                              { flag: '🇺🇸', name: '美国', code: 'US' },
+                              { flag: '🇨🇦', name: '加拿大', code: 'CA' },
+                              { flag: '🇲🇽', name: '墨西哥', code: 'MX' },
+                              { flag: '🇧🇷', name: '巴西', code: 'BR' },
+                            ]
+                          },
+                          { 
+                            region: 'EU' as const, 
+                            name: '🇪🇺 欧洲区域 (EU)', 
+                            desc: '包含站点：英国 (UK)、德国 (DE)、法国 (FR)、意大利 (IT)、西班牙 (ES) 等', 
+                            url: 'https://eu.account.amazon.com/ap/oa',
+                            sites: [
+                              { flag: '🇬🇧', name: '英国', code: 'UK' },
+                              { flag: '🇩🇪', name: '德国', code: 'DE' },
+                              { flag: '🇫🇷', name: '法国', code: 'FR' },
+                              { flag: '🇮🇹', name: '意大利', code: 'IT' },
+                              { flag: '🇪🇸', name: '西班牙', code: 'ES' },
+                              { flag: '🇳🇱', name: '荷兰', code: 'NL' },
+                              { flag: '🇸🇪', name: '瑞典', code: 'SE' },
+                              { flag: '🇵🇱', name: '波兰', code: 'PL' },
+                            ]
+                          },
+                          { 
+                            region: 'FE' as const, 
+                            name: '🌏 远东区域 (FE)', 
+                            desc: '包含站点：日本 (JP)、澳大利亚 (AU)、新加坡 (SG)', 
+                            url: 'https://apac.account.amazon.com/ap/oa',
+                            sites: [
+                              { flag: '🇯🇵', name: '日本', code: 'JP' },
+                              { flag: '🇦🇺', name: '澳大利亚', code: 'AU' },
+                              { flag: '🇸🇬', name: '新加坡', code: 'SG' },
+                            ]
+                          },
                         ].map((item) => {
                           const authUrl = `${item.url}?client_id=${import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || 'amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6'}&scope=advertising::campaign_management&redirect_uri=https://sellerps.com&response_type=code`;
+                          const isSelected = credentials.region === item.region;
                           return (
-                            <div key={item.region} className="flex items-center gap-3 p-3 bg-purple-900/20 rounded-lg border border-purple-500/20">
-                              <div className="flex-1">
-                                <div className="font-medium text-purple-300">{item.name}</div>
-                                <div className="text-xs text-purple-400">{item.desc}</div>
+                            <div 
+                              key={item.region} 
+                              className={`p-4 rounded-lg border transition-all cursor-pointer ${
+                                isSelected 
+                                  ? 'bg-purple-600/30 border-purple-400' 
+                                  : 'bg-purple-900/20 border-purple-500/20 hover:border-purple-400/50'
+                              }`}
+                              onClick={() => setCredentials({ ...credentials, region: item.region })}
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${
+                                    isSelected ? 'border-purple-400 bg-purple-400' : 'border-purple-500'
+                                  }`}>
+                                    {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
+                                  </div>
+                                  <span className="font-semibold text-purple-200">{item.name}</span>
+                                </div>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-purple-500/30 text-purple-300 hover:bg-purple-900/30"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCredentials({ ...credentials, region: item.region });
+                                    navigator.clipboard.writeText(authUrl);
+                                    toast.success(
+                                      <div>
+                                        <strong>{item.name}</strong>授权链接已复制！<br/>
+                                        <span className="text-sm">授权后将获得以下站点数据访问权限：<br/>
+                                        {item.sites.map(s => `${s.flag} ${s.name}`).join('、')}</span>
+                                      </div>
+                                    );
+                                  }}
+                                >
+                                  <Eye className="h-4 w-4 mr-1" />
+                                  复制链接
+                                </Button>
                               </div>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="border-purple-500/30 text-purple-300 hover:bg-purple-900/30"
-                                onClick={() => {
-                                  navigator.clipboard.writeText(authUrl);
-                                  toast.success(`${item.name}授权链接已复制！请在紫鸟浏览器中打开`);
-                                }}
-                              >
-                                <Eye className="h-4 w-4 mr-1" />
-                                复制链接
-                              </Button>
+                              <div className="text-xs text-purple-400 mb-2">{item.desc}</div>
+                              <div className="flex flex-wrap gap-1">
+                                {item.sites.map(site => (
+                                  <span key={site.code} className="inline-flex items-center gap-1 px-2 py-0.5 bg-purple-900/40 rounded text-xs text-purple-300">
+                                    {site.flag} {site.name}
+                                  </span>
+                                ))}
+                              </div>
                             </div>
                           );
                         })}
