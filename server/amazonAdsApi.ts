@@ -246,9 +246,18 @@ export class AmazonAdsApiClient {
 
   /**
    * 获取广告配置文件列表
+   * 注意：获取profiles时不需要Amazon-Advertising-API-Scope header
    */
   async getProfiles(): Promise<AmazonProfile[]> {
-    const response = await this.axiosInstance.get('/v2/profiles');
+    // 获取profiles时不需要profileId，所以不设置Amazon-Advertising-API-Scope header
+    const token = await this.getAccessToken();
+    const response = await axios.get(`${API_ENDPOINTS[this.credentials.region]}/v2/profiles`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Amazon-Advertising-API-ClientId': this.credentials.clientId,
+        'Content-Type': 'application/json',
+      },
+    });
     return response.data;
   }
 

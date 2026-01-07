@@ -1980,6 +1980,7 @@ const amazonApiRouter = router({
         // 尝试获取Profile列表
         let profiles: Array<{ profileId: string; countryCode: string; accountName: string }> = [];
         try {
+          console.log('[ExchangeCode] Creating client to fetch profiles...');
           const client = new AmazonAdsApiClient({
             clientId,
             clientSecret,
@@ -1987,15 +1988,18 @@ const amazonApiRouter = router({
             profileId: '', // 获取profiles不需要profileId
             region,
           });
+          console.log('[ExchangeCode] Calling getProfiles()...');
           const profileList = await client.getProfiles();
+          console.log('[ExchangeCode] Raw profile list:', JSON.stringify(profileList, null, 2));
           profiles = profileList.map(p => ({
             profileId: String(p.profileId),
             countryCode: p.countryCode || '',
             accountName: p.accountInfo?.name || `Profile ${p.profileId}`,
           }));
-          console.log('[ExchangeCode] Fetched profiles:', profiles.length);
+          console.log('[ExchangeCode] Fetched profiles:', profiles.length, profiles);
         } catch (profileError: any) {
-          console.warn('[ExchangeCode] Failed to fetch profiles:', profileError.message);
+          console.error('[ExchangeCode] Failed to fetch profiles:', profileError.message);
+          console.error('[ExchangeCode] Profile error details:', profileError.response?.data || profileError.stack);
           // 不抛出错误，继续返回其他信息
         }
         
@@ -2110,10 +2114,32 @@ const amazonApiRouter = router({
     .input(z.object({ accountId: z.number() }))
     .query(async ({ input }) => {
       const credentials = await db.getAmazonApiCredentials(input.accountId);
+      if (!credentials) {
+        return {
+          hasCredentials: false,
+          region: undefined,
+          lastSyncAt: undefined,
+          // 返回空的凭证信息
+          clientId: undefined,
+          clientSecret: undefined,
+          refreshToken: undefined,
+          profileId: undefined,
+        };
+      }
+      
+      // 返回脱敏后的凭证信息，用于前端显示
       return {
-        hasCredentials: !!credentials,
-        region: credentials?.region,
-        lastSyncAt: credentials?.lastSyncAt,
+        hasCredentials: true,
+        region: credentials.region,
+        lastSyncAt: credentials.lastSyncAt,
+        // 返回完整的Client ID（不是敏感信息）
+        clientId: credentials.clientId,
+        // Client Secret脱敏，只显示前几位
+        clientSecret: credentials.clientSecret ? `${credentials.clientSecret.substring(0, 8)}${'*'.repeat(20)}` : undefined,
+        // Refresh Token脱敏，只显示前缀
+        refreshToken: credentials.refreshToken ? `${credentials.refreshToken.substring(0, 10)}${'*'.repeat(20)}` : undefined,
+        // 返回完整的Profile ID（不是敏感信息）
+        profileId: credentials.profileId,
       };
     }),
 

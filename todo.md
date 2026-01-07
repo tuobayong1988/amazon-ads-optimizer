@@ -2020,3 +2020,28 @@
 - [x] 自动同步关键词数据
 - [x] 自动同步商品定位数据
 - [x] 修复Performance group not found错误
+
+
+## Bug修复 - 授权后自动同步功能
+
+- [ ] 检查saveCredentials接口中的自动同步逻辑
+- [ ] 修复自动同步功能未正确触发的问题
+- [ ] 确保授权成功后自动更新connectionStatus
+- [ ] 测试完整的授权和自动同步流程
+
+
+## Bug修复 - Profile ID自动获取（第二十六阶段）
+
+- [ ] 检查exchangeCode接口中Profile获取逻辑
+- [ ] 修复Profile ID自动获取功能
+- [ ] 确保前端正确接收并填充Profile ID
+- [ ] 测试完整授权流程
+
+
+## Bug修复（第四十五阶段）
+
+### 前端凭证显示修复
+- [x] 修复OAuth授权成功后前端表单显示占位符而非实际凭证的问题
+- [x] 将useEffect钩子移动到credentialsStatus定义之后
+- [x] 确保凭证状态加载完成后自动填充表单
+- [x] 验证Client ID、Client Secret、Refresh Token、Profile ID正确显示

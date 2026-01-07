@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
 import { ApiHealthMonitor } from "@/components/ApiHealthMonitor";
@@ -122,6 +122,7 @@ export default function AmazonApiSettings() {
     profileId: "",
     region: "NA" as "NA" | "EU" | "FE",
   });
+
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [activeTab, setActiveTab] = useState("accounts");
@@ -157,6 +158,20 @@ export default function AmazonApiSettings() {
 
   // Fetch regions info
   const { data: regionsInfo } = trpc.amazonApi.getRegions.useQuery();
+
+  // 当获取到已保存的凭证状态时，自动填充表单
+  useEffect(() => {
+    if (credentialsStatus?.hasCredentials) {
+      setCredentials(prev => ({
+        ...prev,
+        clientId: credentialsStatus.clientId || prev.clientId,
+        clientSecret: credentialsStatus.clientSecret || prev.clientSecret,
+        refreshToken: credentialsStatus.refreshToken || prev.refreshToken,
+        profileId: credentialsStatus.profileId || prev.profileId,
+        region: (credentialsStatus.region as "NA" | "EU" | "FE") || prev.region,
+      }));
+    }
+  }, [credentialsStatus]);
 
   // Create account mutation
   const createAccountMutation = trpc.adAccount.create.useMutation({
@@ -213,8 +228,22 @@ export default function AmazonApiSettings() {
 
   // Save credentials mutation
   const saveCredentialsMutation = trpc.amazonApi.saveCredentials.useMutation({
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success("API凭证保存成功！");
+      
+      // 显示自动同步结果
+      if (data.syncResult) {
+        if (data.syncResult.error) {
+          toast.error(`自动同步失败: ${data.syncResult.error}`);
+        } else {
+          const { campaigns, adGroups, keywords, targets, performance } = data.syncResult;
+          toast.success(
+            `自动同步完成！\n广告活动: ${campaigns}, 广告组: ${adGroups}, 关键词: ${keywords}, 商品定位: ${targets}, 绩效数据: ${performance}`,
+            { duration: 5000 }
+          );
+        }
+      }
+      
       refetchStatus();
       setCredentials({
         clientId: "",

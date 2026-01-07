@@ -1,0 +1,8 @@
+{
+  "query": "SELECT COUNT(*) as total_adgroups FROM adGroups;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT COUNT(*) as total_adgroups FROM adGroups;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1146 (42S02) at line 1: Table '5muj5ahkiaehb9itzndxtq.adGroups' doesn't exist"
+  ]
+}
