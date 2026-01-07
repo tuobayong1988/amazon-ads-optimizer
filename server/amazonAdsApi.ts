@@ -465,28 +465,153 @@ export class AmazonAdsApiClient {
 
   /**
    * 获取SB广告活动列表
+   * 注意：SB v4 API需要特定的Content-Type header
    */
   async listSbCampaigns(): Promise<any[]> {
-    const response = await this.axiosInstance.post('/sb/v4/campaigns/list', {});
-    return response.data.campaigns || [];
+    // SB API maxResults最大为100，需要分页获取
+    const allCampaigns: any[] = [];
+    let nextToken: string | undefined;
+    
+    do {
+      const body: any = { maxResults: 100 };
+      if (nextToken) {
+        body.nextToken = nextToken;
+      }
+      
+      const response = await this.axiosInstance.post('/sb/v4/campaigns/list', 
+        body,
+        {
+          headers: {
+            'Content-Type': 'application/vnd.sbcampaignresource.v4+json',
+            'Accept': 'application/vnd.sbcampaignresource.v4+json',
+          },
+        }
+      );
+      
+      const campaigns = response.data.campaigns || [];
+      allCampaigns.push(...campaigns);
+      nextToken = response.data.nextToken;
+    } while (nextToken);
+    
+    return allCampaigns;
+  }
+
+  /**
+   * 获取SB广告组列表
+   */
+  async listSbAdGroups(campaignId?: string): Promise<any[]> {
+    const body: any = { maxResults: 100 };
+    if (campaignId) {
+      body.campaignIdFilter = { include: [campaignId] };
+    }
+    const response = await this.axiosInstance.post('/sb/v4/adGroups/list', 
+      body,
+      {
+        headers: {
+          'Content-Type': 'application/vnd.sbadgroupresource.v4+json',
+          'Accept': 'application/vnd.sbadgroupresource.v4+json',
+        },
+      }
+    );
+    return response.data.adGroups || [];
+  }
+
+  /**
+   * 获取SB关键词列表
+   */
+  async listSbKeywords(adGroupId?: string): Promise<any[]> {
+    const body: any = { maxResults: 100 };
+    if (adGroupId) {
+      body.adGroupIdFilter = { include: [adGroupId] };
+    }
+    const response = await this.axiosInstance.post('/sb/v4/keywords/list', 
+      body,
+      {
+        headers: {
+          'Content-Type': 'application/vnd.sbkeywordresource.v4+json',
+          'Accept': 'application/vnd.sbkeywordresource.v4+json',
+        },
+      }
+    );
+    return response.data.keywords || [];
+  }
+
+  /**
+   * 获取SB商品定位列表
+   */
+  async listSbTargets(adGroupId?: string): Promise<any[]> {
+    const body: any = { maxResults: 100 };
+    if (adGroupId) {
+      body.adGroupIdFilter = { include: [adGroupId] };
+    }
+    const response = await this.axiosInstance.post('/sb/v4/targets/list', 
+      body,
+      {
+        headers: {
+          'Content-Type': 'application/vnd.sbtargetresource.v4+json',
+          'Accept': 'application/vnd.sbtargetresource.v4+json',
+        },
+      }
+    );
+    return response.data.targets || [];
   }
 
   /**
    * 更新SB广告活动
    */
   async updateSbCampaign(campaignId: string, updates: any): Promise<void> {
-    await this.axiosInstance.put('/sb/v4/campaigns', {
-      campaigns: [{ campaignId, ...updates }],
-    });
+    await this.axiosInstance.put('/sb/v4/campaigns', 
+      { campaigns: [{ campaignId, ...updates }] },
+      {
+        headers: {
+          'Content-Type': 'application/vnd.sbcampaignresource.v4+json',
+          'Accept': 'application/vnd.sbcampaignresource.v4+json',
+        },
+      }
+    );
+  }
+
+  /**
+   * 更新SB关键词出价
+   */
+  async updateSbKeywordBids(updates: Array<{ keywordId: string; bid: number }>): Promise<void> {
+    await this.axiosInstance.put('/sb/v4/keywords', 
+      { keywords: updates },
+      {
+        headers: {
+          'Content-Type': 'application/vnd.sbkeywordresource.v4+json',
+          'Accept': 'application/vnd.sbkeywordresource.v4+json',
+        },
+      }
+    );
   }
 
   // ==================== Sponsored Display API ====================
 
   /**
    * 获取SD广告活动列表
+   * 注意：SD API使用GET方法，不是POST
    */
   async listSdCampaigns(): Promise<any[]> {
-    const response = await this.axiosInstance.post('/sd/campaigns/list', {});
+    const response = await this.axiosInstance.get('/sd/campaigns');
+    return response.data || [];
+  }
+
+  /**
+   * 获取SD广告组列表
+   */
+  async listSdAdGroups(campaignId?: number): Promise<any[]> {
+    const params = campaignId ? { campaignIdFilter: campaignId } : {};
+    const response = await this.axiosInstance.get('/sd/adGroups', { params });
+    return response.data || [];
+  }
+
+  /**
+   * 获取SD商品定位列表
+   */
+  async listSdTargets(adGroupId?: number): Promise<any[]> {
+    const params = adGroupId ? { adGroupIdFilter: adGroupId } : {};
+    const response = await this.axiosInstance.get('/sd/targets', { params });
     return response.data || [];
   }
 
@@ -495,6 +620,13 @@ export class AmazonAdsApiClient {
    */
   async updateSdCampaign(campaignId: number, updates: any): Promise<void> {
     await this.axiosInstance.put('/sd/campaigns', [{ campaignId, ...updates }]);
+  }
+
+  /**
+   * 更新SD商品定位出价
+   */
+  async updateSdTargetBids(updates: Array<{ targetId: number; bid: number }>): Promise<void> {
+    await this.axiosInstance.put('/sd/targets', updates);
   }
 
   // ==================== 出价建议 API ====================

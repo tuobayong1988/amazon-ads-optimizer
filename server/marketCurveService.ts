@@ -592,7 +592,7 @@ export async function updateAllMarketCurveModels(accountId: number): Promise<{
       bid: keywords.bid
     })
     .from(keywords)
-    .where(eq(keywords.status, 'enabled'))
+    .where(eq(keywords.keywordStatus, 'enabled'))
     .limit(1000);
   
   for (const kw of allKeywords) {

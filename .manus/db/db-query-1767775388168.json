@@ -1,0 +1,15 @@
+{
+  "query": "SELECT id, accountName, storeName FROM ad_accounts LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT id, accountName, storeName FROM ad_accounts LIMIT 5;",
+  "rows": [
+    {
+      "id": "30001",
+      "accountName": "ElaraFit",
+      "storeName": "ElaraFit"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\taccountName\tstoreName\n30001\tElaraFit\tElaraFit\n",
+  "stderr": "",
+  "execution_time_ms": 64
+}

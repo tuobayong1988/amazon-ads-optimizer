@@ -619,7 +619,7 @@ export async function runAutoBidOptimization(
   const keywordsToOptimize = await db
     .select()
     .from(keywords)
-    .where(eq(keywords.status, 'enabled'))
+    .where(eq(keywords.keywordStatus, 'enabled'))
     .limit(100);
 
   const results = { optimized: 0, skipped: 0 };
