@@ -127,11 +127,11 @@ export async function getAveragePlacementAdjustment(
   const db = await getDb();
   if (!db) return 0;
   
-  // 从campaign表获取当前位置调整设置
+ // 从Campaign表获取当前位置调整设置
   const campaign = await db
     .select({
-      topOfSearchBidAdjustment: campaigns.topOfSearchBidAdjustment,
-      productPageBidAdjustment: campaigns.productPageBidAdjustment,
+      placementTopSearchBidAdjustment: campaigns.placementTopSearchBidAdjustment,
+      placementProductPageBidAdjustment: campaigns.placementProductPageBidAdjustment,
     })
     .from(campaigns)
     .where(and(
@@ -144,8 +144,8 @@ export async function getAveragePlacementAdjustment(
   
   // 返回当前设置值作为基准
   const currentValue = placementType === 'top' 
-    ? campaign[0].topOfSearchBidAdjustment 
-    : campaign[0].productPageBidAdjustment;
+    ? campaign[0].placementTopSearchBidAdjustment 
+    : campaign[0].placementProductPageBidAdjustment;
   
   return Number(currentValue) || 0;
 }

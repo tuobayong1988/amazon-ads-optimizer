@@ -295,13 +295,14 @@ async function syncPerformance(userId: number, accountId: number, account: any):
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const existing = await db.select().from(dailyPerformance).where(and(eq(dailyPerformance.campaignId, campaign.id), eq(dailyPerformance.date, today))).limit(1);
+      const todayStr = today.toISOString().split('T')[0];
+      const existing = await db.select().from(dailyPerformance).where(and(eq(dailyPerformance.campaignId, campaign.id), sql`DATE(${dailyPerformance.date}) = ${todayStr}`)).limit(1);
       
       if (existing.length === 0) {
         await db.insert(dailyPerformance).values({
           accountId,
           campaignId: campaign.id,
-          date: today,
+          date: today.toISOString(),
           impressions: Math.floor(Math.random() * 10000),
           clicks: Math.floor(Math.random() * 500),
           spend: (Math.random() * 100).toFixed(2),

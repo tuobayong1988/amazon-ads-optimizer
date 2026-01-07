@@ -1867,3 +1867,14 @@
 - [ ] 修复server/intelligentBudgetAllocationService.ts中的类型错误
 - [ ] 修复server/aiOptimizationService.ts中的类型错误
 - [ ] 修复前端组件中的类型错误（BatchOperations.tsx, BidAdjustmentHistory.tsx等）
+
+
+## Bug修复（持续进行）
+
+### TypeScript类型错误修复
+- [x] 修复PerformanceGroupDetail页面的toFixed错误（kpiSummary数据类型问题）
+- [x] 修复routers.ts中的字段名不匹配问题（campaignStatus/status/batchStatus/itemStatus）
+- [x] 修复routers.ts中的input.targetStatus应该是input.status
+- [x] 修复db.ts中的字段名不匹配问题（logTargetType/curveTargetType等）
+- [x] 修复effectTrackingScheduler.ts中的isRolledBack字段不存在问题（改用status字段）
+- [x] 修复Dashboard页面bid_adjustment_history查询WHERE子句为空的问题

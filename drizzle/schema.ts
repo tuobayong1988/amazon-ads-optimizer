@@ -1665,6 +1665,71 @@ export const budgetAutoExecutionDetails = mysqlTable("budget_auto_execution_deta
   createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
 
+// 基础表类型导出
+export type User = typeof users.$inferSelect;
+export type InsertUser = typeof users.$inferInsert;
+export type AdAccount = typeof adAccounts.$inferSelect;
+export type InsertAdAccount = typeof adAccounts.$inferInsert;
+export type PerformanceGroup = typeof performanceGroups.$inferSelect;
+export type InsertPerformanceGroup = typeof performanceGroups.$inferInsert;
+export type Campaign = typeof campaigns.$inferSelect;
+export type InsertCampaign = typeof campaigns.$inferInsert;
+export type AdGroup = typeof adGroups.$inferSelect;
+export type InsertAdGroup = typeof adGroups.$inferInsert;
+export type Keyword = typeof keywords.$inferSelect;
+export type InsertKeyword = typeof keywords.$inferInsert;
+export type ProductTarget = typeof productTargets.$inferSelect;
+export type InsertProductTarget = typeof productTargets.$inferInsert;
+export type BiddingLog = typeof biddingLogs.$inferSelect;
+export type InsertBiddingLog = typeof biddingLogs.$inferInsert;
+export type DailyPerformance = typeof dailyPerformance.$inferSelect;
+export type InsertDailyPerformance = typeof dailyPerformance.$inferInsert;
+export type ImportJob = typeof importJobs.$inferSelect;
+export type InsertImportJob = typeof importJobs.$inferInsert;
+export type NegativeKeyword = typeof negativeKeywords.$inferSelect;
+export type InsertNegativeKeyword = typeof negativeKeywords.$inferInsert;
+export type NotificationSetting = typeof notificationSettings.$inferSelect;
+export type InsertNotificationSetting = typeof notificationSettings.$inferInsert;
+export type NotificationHistoryRecord = typeof notificationHistory.$inferSelect;
+export type InsertNotificationHistory = typeof notificationHistory.$inferInsert;
+export type ScheduledTask = typeof scheduledTasks.$inferSelect;
+export type InsertScheduledTask = typeof scheduledTasks.$inferInsert;
+export type TaskExecutionLogRecord = typeof taskExecutionLog.$inferSelect;
+export type InsertTaskExecutionLog = typeof taskExecutionLog.$inferInsert;
+export type BatchOperation = typeof batchOperations.$inferSelect;
+export type InsertBatchOperation = typeof batchOperations.$inferInsert;
+export type BatchOperationItem = typeof batchOperationItems.$inferSelect;
+export type InsertBatchOperationItem = typeof batchOperationItems.$inferInsert;
+export type AttributionCorrectionRecord = typeof attributionCorrectionRecords.$inferSelect;
+export type InsertAttributionCorrectionRecord = typeof attributionCorrectionRecords.$inferInsert;
+export type CorrectionReviewSession = typeof correctionReviewSessions.$inferSelect;
+export type InsertCorrectionReviewSession = typeof correctionReviewSessions.$inferInsert;
+export type TeamMember = typeof teamMembers.$inferSelect;
+export type InsertTeamMember = typeof teamMembers.$inferInsert;
+export type AccountPermission = typeof accountPermissions.$inferSelect;
+export type InsertAccountPermission = typeof accountPermissions.$inferInsert;
+export type EmailReportSubscription = typeof emailReportSubscriptions.$inferSelect;
+export type InsertEmailReportSubscription = typeof emailReportSubscriptions.$inferInsert;
+export type EmailSendLog = typeof emailSendLogs.$inferSelect;
+export type InsertEmailSendLog = typeof emailSendLogs.$inferInsert;
+export type SearchTerm = typeof searchTerms.$inferSelect;
+export type InsertSearchTerm = typeof searchTerms.$inferInsert;
+export type AiOptimizationExecution = typeof aiOptimizationExecutions.$inferSelect;
+export type InsertAiOptimizationExecution = typeof aiOptimizationExecutions.$inferInsert;
+export type AiOptimizationAction = typeof aiOptimizationActions.$inferSelect;
+export type InsertAiOptimizationAction = typeof aiOptimizationActions.$inferInsert;
+export type AiOptimizationPrediction = typeof aiOptimizationPredictions.$inferSelect;
+export type InsertAiOptimizationPrediction = typeof aiOptimizationPredictions.$inferInsert;
+export type AiOptimizationReview = typeof aiOptimizationReviews.$inferSelect;
+export type InsertAiOptimizationReview = typeof aiOptimizationReviews.$inferInsert;
+export type MarketCurveData = typeof marketCurveData.$inferSelect;
+export type InsertMarketCurveData = typeof marketCurveData.$inferInsert;
+export type BidAdjustmentHistory = typeof bidAdjustmentHistory.$inferSelect;
+export type InsertBidAdjustmentHistory = typeof bidAdjustmentHistory.$inferInsert;
+export type AmazonApiCredential = typeof amazonApiCredentials.$inferSelect;
+export type InsertAmazonApiCredential = typeof amazonApiCredentials.$inferInsert;
+
+// AB测试相关类型
 export type ABTest = typeof abTests.$inferSelect;
 export type InsertABTest = typeof abTests.$inferInsert;
 export type ABTestVariant = typeof abTestVariants.$inferSelect;
@@ -1909,3 +1974,11 @@ export type DaypartingBudgetAllocation = typeof daypartingBudgetAllocations.$inf
 export type InsertDaypartingBudgetAllocation = typeof daypartingBudgetAllocations.$inferInsert;
 export type DaypartingBudgetLog = typeof daypartingBudgetLogs.$inferSelect;
 export type InsertDaypartingBudgetLog = typeof daypartingBudgetLogs.$inferInsert;
+
+// 季节性相关类型导出
+export type SeasonalTrend = typeof seasonalTrends.$inferSelect;
+export type InsertSeasonalTrend = typeof seasonalTrends.$inferInsert;
+export type PromotionalEvent = typeof promotionalEvents.$inferSelect;
+export type InsertPromotionalEvent = typeof promotionalEvents.$inferInsert;
+export type SeasonalBudgetRecommendation = typeof seasonalBudgetRecommendations.$inferSelect;
+export type InsertSeasonalBudgetRecommendation = typeof seasonalBudgetRecommendations.$inferInsert;

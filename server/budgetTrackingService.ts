@@ -109,9 +109,11 @@ async function calculatePeriodMetrics(
   const db = await getDb();
   if (!db) return { spend: 0, sales: 0, roas: 0, acos: 0, conversions: 0, ctr: 0, cpc: 0 };
 
+  const startDateStr = startDate.toISOString().split('T')[0];
+  const endDateStr = endDate.toISOString().split('T')[0];
   const conditions = [
-    gte(dailyPerformance.date, startDate),
-    lte(dailyPerformance.date, endDate),
+    sql`DATE(${dailyPerformance.date}) >= ${startDateStr}`,
+    sql`DATE(${dailyPerformance.date}) <= ${endDateStr}`,
   ];
 
   const performance = await db

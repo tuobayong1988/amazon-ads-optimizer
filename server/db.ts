@@ -10,7 +10,7 @@ import {
   productTargets, InsertProductTarget, ProductTarget,
   biddingLogs, InsertBiddingLog, BiddingLog,
   dailyPerformance, InsertDailyPerformance, DailyPerformance,
-  marketCurveData,
+  marketCurveData, InsertMarketCurveData,
   importJobs, InsertImportJob, ImportJob,
   negativeKeywords, InsertNegativeKeyword, NegativeKeyword,
   notificationSettings, NotificationSetting, InsertNotificationSetting,
@@ -92,11 +92,11 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     }
 
     if (!values.lastSignedIn) {
-      values.lastSignedIn = new Date();
+      values.lastSignedIn = new Date().toISOString();
     }
 
     if (Object.keys(updateSet).length === 0) {
-      updateSet.lastSignedIn = new Date();
+      updateSet.lastSignedIn = new Date().toISOString();
     }
 
     await db.insert(users).values(values).onDuplicateKeyUpdate({
@@ -165,12 +165,12 @@ export async function setDefaultAdAccount(userId: number, accountId: number) {
   
   // 先取消所有默认账号
   await db.update(adAccounts)
-    .set({ isDefault: false })
+    .set({ isDefault: 0 })
     .where(eq(adAccounts.userId, userId));
   
   // 设置新的默认账号
   await db.update(adAccounts)
-    .set({ isDefault: true })
+    .set({ isDefault: 1 })
     .where(eq(adAccounts.id, accountId));
 }
 
@@ -179,7 +179,7 @@ export async function getDefaultAdAccount(userId: number) {
   if (!db) return undefined;
   
   const result = await db.select().from(adAccounts)
-    .where(and(eq(adAccounts.userId, userId), eq(adAccounts.isDefault, true)))
+    .where(and(eq(adAccounts.userId, userId), eq(adAccounts.isDefault, 1)))
     .limit(1);
   return result[0];
 }
@@ -194,7 +194,7 @@ export async function updateAdAccountConnectionStatus(
   
   await db.update(adAccounts).set({
     connectionStatus: status,
-    lastConnectionCheck: new Date(),
+    lastConnectionCheck: new Date().toISOString(),
     connectionErrorMessage: errorMessage || null,
   }).where(eq(adAccounts.id, id));
 }
@@ -540,10 +540,12 @@ export async function getDailyPerformanceByDateRange(
   const db = await getDb();
   if (!db) return [];
   
+  const startDateStr = startDate.toISOString().split('T')[0];
+  const endDateStr = endDate.toISOString().split('T')[0];
   const conditions = [
     eq(dailyPerformance.accountId, accountId),
-    gte(dailyPerformance.date, startDate),
-    lte(dailyPerformance.date, endDate)
+    sql`${dailyPerformance.date} >= ${startDateStr}`,
+    sql`${dailyPerformance.date} <= ${endDateStr}`
   ];
   
   if (campaignId) {
@@ -571,8 +573,8 @@ export async function getPerformanceSummary(accountId: number, startDate: Date, 
     .from(dailyPerformance)
     .where(and(
       eq(dailyPerformance.accountId, accountId),
-      gte(dailyPerformance.date, startDate),
-      lte(dailyPerformance.date, endDate)
+      sql`${dailyPerformance.date} >= ${startDate.toISOString().split('T')[0]}`,
+      sql`${dailyPerformance.date} <= ${endDate.toISOString().split('T')[0]}`
     ));
   
   return result[0];
@@ -590,10 +592,10 @@ export async function upsertMarketCurveData(data: InsertMarketCurveData) {
       estimatedConversions: data.estimatedConversions,
       estimatedSpend: data.estimatedSpend,
       estimatedSales: data.estimatedSales,
-      marginalRevenue: data.marginalRevenue,
-      marginalCost: data.marginalCost,
+      curveMarginalRevenue: data.curveMarginalRevenue,
+      curveMarginalCost: data.curveMarginalCost,
       marginalProfit: data.marginalProfit,
-      trafficCeiling: data.trafficCeiling,
+      curveTrafficCeiling: data.curveTrafficCeiling,
       optimalBidPoint: data.optimalBidPoint,
     }
   });
@@ -606,8 +608,8 @@ export async function getMarketCurveData(targetType: "keyword" | "product_target
   return db.select()
     .from(marketCurveData)
     .where(and(
-      eq(marketCurveData.targetType, targetType),
-      eq(marketCurveData.targetId, targetId)
+      eq(marketCurveData.curveTargetType, targetType),
+      eq(marketCurveData.curveTargetId, targetId)
     ))
     .orderBy(marketCurveData.bidLevel);
 }
@@ -694,7 +696,7 @@ export async function saveAmazonApiCredentials(data: InsertAmazonApiCredential) 
       refreshToken: data.refreshToken,
       profileId: data.profileId,
       region: data.region,
-      updatedAt: new Date(),
+      updatedAt: new Date().toISOString(),
     }
   });
 }
@@ -716,7 +718,7 @@ export async function updateAmazonApiCredentials(accountId: number, data: Partia
   if (!db) throw new Error("Database not available");
   
   await db.update(amazonApiCredentials)
-    .set({ ...data, updatedAt: new Date() })
+    .set({ ...data, updatedAt: new Date().toISOString() })
     .where(eq(amazonApiCredentials.accountId, accountId));
 }
 
@@ -917,10 +919,10 @@ export async function recordMigration(data: {
   await db.insert(biddingLogs).values({
     accountId: data.accountId,
     campaignId: data.fromCampaignId,
-    targetType: 'keyword',
+    logTargetType: 'keyword',
     targetId: 0,
     targetName: data.searchTerm,
-    matchType: data.toMatchType,
+    logMatchType: data.toMatchType,
     actionType: 'set',
     previousBid: '0',
     newBid: data.suggestedBid.toString(),
@@ -938,12 +940,12 @@ export interface BidChangeRecord {
   id: number;
   targetId: number;
   targetName: string;
-  targetType: 'keyword' | 'product';
+  targetType: 'keyword' | 'product_target' | 'placement';
   campaignId: number;
   campaignName: string;
   oldBid: number;
   newBid: number;
-  changeDate: Date;
+  changeDate: string;
   changeReason: string;
   performanceAfter?: {
     clicks: number;
@@ -997,12 +999,12 @@ export async function getBidChangeRecords(accountId: number, days: number): Prom
       id: log.id,
       targetId: log.targetId || 0,
       targetName: log.targetName || '',
-      targetType: log.targetType as 'keyword' | 'product',
+      targetType: log.logTargetType as 'keyword' | 'product_target' | 'placement',
       campaignId: log.campaignId || 0,
       campaignName: '',
       oldBid,
       newBid,
-      changeDate: log.createdAt || new Date(),
+      changeDate: log.createdAt || new Date().toISOString(),
       changeReason: log.reason || '',
       performanceAfter,
     });
@@ -1028,10 +1030,10 @@ export async function recordBidChange(data: {
   await db.insert(biddingLogs).values({
     accountId: data.accountId,
     campaignId: 0, // 默认值
-    targetType: dbTargetType,
+    logTargetType: dbTargetType,
     targetId: data.targetId,
     targetName: '',
-    matchType: 'exact',
+    logMatchType: 'exact',
     actionType: data.newBid > data.oldBid ? 'increase' : 'decrease',
     previousBid: data.oldBid.toString(),
     newBid: data.newBid.toString(),
@@ -1218,8 +1220,8 @@ export async function addNegativeKeyword(data: {
     negativeLevel: data.level || (data.adGroupId ? 'ad_group' : 'campaign'),
     negativeType: 'keyword',
     negativeText: data.keyword,
-    matchType: data.matchType === 'phrase' ? 'negative_phrase' : 'negative_exact',
-    source: 'manual',
+    negativeMatchType: data.matchType === 'phrase' ? 'negative_phrase' : 'negative_exact',
+    negativeSource: 'manual',
   });
 }
 
@@ -1272,8 +1274,8 @@ export async function updateNotificationSettingsByUserId(userId: number, data: {
   } else {
     await db.insert(notificationSettings).values({
       userId,
-      emailEnabled: data.emailEnabled ?? true,
-      inAppEnabled: data.inAppEnabled ?? true,
+      emailEnabled: data.emailEnabled ? 1 : 0,
+      inAppEnabled: data.inAppEnabled ? 1 : 0,
       acosThreshold: data.acosThreshold !== undefined ? String(data.acosThreshold) : '50.00',
       ctrDropThreshold: data.ctrDropThreshold !== undefined ? String(data.ctrDropThreshold) : '30.00',
       conversionDropThreshold: data.conversionDropThreshold !== undefined ? String(data.conversionDropThreshold) : '30.00',
@@ -1331,7 +1333,7 @@ export async function markNotificationAsRead(notificationId: number) {
   if (!db) return;
   
   await db.update(notificationHistory)
-    .set({ status: 'read', readAt: new Date() })
+    .set({ status: 'read', readAt: new Date().toISOString() })
     .where(eq(notificationHistory.id, notificationId));
 }
 
@@ -1389,9 +1391,9 @@ export async function createScheduledTask(data: {
     runTime: data.runTime ?? '06:00',
     dayOfWeek: data.dayOfWeek || null,
     dayOfMonth: data.dayOfMonth || null,
-    enabled: data.enabled ?? true,
-    autoApply: data.autoApply ?? false,
-    requireApproval: data.requireApproval ?? true,
+    enabled: data.enabled ? 1 : 0,
+    autoApply: data.autoApply ? 1 : 0,
+    requireApproval: data.requireApproval !== false ? 1 : 0,
     parameters: data.parameters ? JSON.stringify(data.parameters) : null,
   });
   
@@ -1478,7 +1480,7 @@ export async function recordTaskExecution(data: {
     .set({ 
       lastRunAt: data.startedAt, 
       lastRunStatus: mappedStatus as 'success' | 'failed' | 'running' | 'skipped',
-      updatedAt: new Date() 
+      updatedAt: new Date().toISOString() 
     })
     .where(eq(scheduledTasks.id, data.taskId));
 }
@@ -1519,10 +1521,10 @@ export async function createBatchOperation(data: {
     operationType: data.operationType,
     name: data.name,
     description: data.description || null,
-    requiresApproval: data.requiresApproval ?? true,
+    requiresApproval: data.requiresApproval !== false ? 1 : 0,
     sourceType: data.sourceType || null,
     sourceTaskId: data.sourceTaskId || null,
-    status: 'pending',
+    batchStatus: 'pending',
     totalItems: 0,
     processedItems: 0,
     successItems: 0,
@@ -1567,7 +1569,7 @@ export async function addBatchOperationItems(batchId: number, items: Array<{
       bidChangePercent: bidChangePercent?.toFixed(2) || null,
       bidChangeReason: item.bidChangeReason || null,
       previousValue: item.previousValue || null,
-      status: 'pending',
+      itemStatus: 'pending',
     });
   }
   
@@ -1627,9 +1629,9 @@ export async function approveBatchOperation(id: number, approvedBy: number) {
   
   await db.update(batchOperations)
     .set({
-      status: 'approved',
+      batchStatus: 'approved',
       approvedBy,
-      approvedAt: new Date(),
+      approvedAt: new Date().toISOString(),
     })
     .where(eq(batchOperations.id, id));
 }
@@ -1647,7 +1649,7 @@ export async function updateBatchOperationStatus(id: number, data: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  const updateData: Record<string, unknown> = { status: data.status };
+  const updateData: Record<string, unknown> = { batchStatus: data.status };
   if (data.processedItems !== undefined) updateData.processedItems = data.processedItems;
   if (data.successItems !== undefined) updateData.successItems = data.successItems;
   if (data.failedItems !== undefined) updateData.failedItems = data.failedItems;
@@ -1671,9 +1673,9 @@ export async function updateBatchOperationItemStatus(itemId: number, data: {
   
   await db.update(batchOperationItems)
     .set({
-      status: data.status,
+      itemStatus: data.status,
       errorMessage: data.errorMessage || null,
-      executedAt: data.executedAt || new Date(),
+      itemExecutedAt: data.executedAt?.toISOString() || new Date().toISOString(),
     })
     .where(eq(batchOperationItems.id, itemId));
 }
@@ -1685,9 +1687,9 @@ export async function rollbackBatchOperation(id: number, rolledBackBy: number) {
   
   await db.update(batchOperations)
     .set({
-      status: 'rolled_back',
+      batchStatus: 'rolled_back',
       rolledBackBy,
-      rolledBackAt: new Date(),
+      rolledBackAt: new Date().toISOString(),
     })
     .where(eq(batchOperations.id, id));
 }
@@ -1707,9 +1709,9 @@ export async function createCorrectionReviewSession(data: {
   const result = await db.insert(correctionReviewSessions).values({
     userId: data.userId,
     accountId: data.accountId,
-    periodStart: data.periodStart,
-    periodEnd: data.periodEnd,
-    status: 'analyzing',
+    periodStart: data.periodStart.toISOString(),
+    periodEnd: data.periodEnd.toISOString(),
+    sessionStatus: 'analyzing',
     totalAdjustmentsReviewed: 0,
     incorrectAdjustments: 0,
     overDecreasedCount: 0,
@@ -1748,7 +1750,7 @@ export async function addAttributionCorrectionRecord(data: {
     accountId: data.accountId,
     biddingLogId: data.biddingLogId,
     campaignId: data.campaignId,
-    targetType: data.targetType,
+    correctionTargetType: data.targetType,
     targetId: data.targetId,
     targetName: data.targetName || null,
     originalAdjustmentDate: data.originalAdjustmentDate,
@@ -1757,11 +1759,11 @@ export async function addAttributionCorrectionRecord(data: {
     adjustmentReason: data.adjustmentReason || null,
     metricsAtAdjustment: data.metricsAtAdjustment ? JSON.stringify(data.metricsAtAdjustment) : null,
     metricsAfterAttribution: data.metricsAfterAttribution ? JSON.stringify(data.metricsAfterAttribution) : null,
-    wasIncorrect: data.wasIncorrect ?? false,
+    wasIncorrect: data.wasIncorrect ? 1 : 0,
     correctionType: data.correctionType || null,
     suggestedBid: data.suggestedBid?.toString() || null,
     confidenceScore: data.confidenceScore?.toString() || null,
-    status: 'pending_review',
+    correctionStatus: 'pending_review',
   });
 }
 
@@ -1861,8 +1863,8 @@ export async function updateAttributionCorrectionStatus(id: number, data: {
   
   await db.update(attributionCorrectionRecords)
     .set({
-      status: data.status,
-      appliedAt: data.appliedAt || null,
+      correctionStatus: data.status,
+      appliedAt: data.appliedAt?.toISOString() || null,
       appliedBy: data.appliedBy || null,
     })
     .where(eq(attributionCorrectionRecords.id, id));
@@ -2020,10 +2022,10 @@ export async function setAccountPermissions(teamMemberId: number, permissions: A
         teamMemberId,
         accountId: p.accountId,
         permissionLevel: p.permissionLevel,
-        canExport: p.canExport ?? true,
-        canManageCampaigns: p.canManageCampaigns ?? (p.permissionLevel !== "view"),
-        canAdjustBids: p.canAdjustBids ?? (p.permissionLevel !== "view"),
-        canManageNegatives: p.canManageNegatives ?? (p.permissionLevel !== "view"),
+        canExport: (p.canExport ?? true) ? 1 : 0,
+        canManageCampaigns: (p.canManageCampaigns ?? (p.permissionLevel !== "view")) ? 1 : 0,
+        canAdjustBids: (p.canAdjustBids ?? (p.permissionLevel !== "view")) ? 1 : 0,
+        canManageNegatives: (p.canManageNegatives ?? (p.permissionLevel !== "view")) ? 1 : 0,
       }))
     );
   }
@@ -2065,7 +2067,7 @@ export async function getActiveEmailSubscriptions(): Promise<EmailReportSubscrip
   if (!db) return [];
   
   return db.select().from(emailReportSubscriptions)
-    .where(eq(emailReportSubscriptions.isActive, true));
+    .where(eq(emailReportSubscriptions.isActive, 1));
 }
 
 export async function getDueEmailSubscriptions(): Promise<EmailReportSubscription[]> {
@@ -2075,8 +2077,8 @@ export async function getDueEmailSubscriptions(): Promise<EmailReportSubscriptio
   const now = new Date();
   return db.select().from(emailReportSubscriptions)
     .where(and(
-      eq(emailReportSubscriptions.isActive, true),
-      lte(emailReportSubscriptions.nextSendAt, now)
+      eq(emailReportSubscriptions.isActive, 1),
+      sql`${emailReportSubscriptions.nextSendAt} <= ${now.toISOString()}`
     ));
 }
 

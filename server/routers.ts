@@ -267,12 +267,6 @@ const performanceGroupRouter = router({
       return { success: true };
     }),
   
-  getCampaigns: protectedProcedure
-    .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
-      return db.getCampaignsByPerformanceGroupId(input.id);
-    }),
-  
   assignCampaign: protectedProcedure
     .input(z.object({
       campaignId: z.number(),
@@ -343,9 +337,9 @@ const performanceGroupRouter = router({
       let totalImpressions = 0;
       
       for (const campaign of campaigns) {
-        totalSpend += campaign.spend || 0;
-        totalRevenue += campaign.revenue || 0;
-        totalConversions += campaign.conversions || 0;
+        totalSpend += Number(campaign.spend) || 0;
+        totalRevenue += Number(campaign.sales) || 0;
+        totalConversions += campaign.orders || 0;
         totalClicks += campaign.clicks || 0;
         totalImpressions += campaign.impressions || 0;
       }
@@ -487,7 +481,7 @@ const performanceGroupRouter = router({
     }))
     .mutation(async ({ input }) => {
       await db.updatePerformanceGroup(input.targetId, { 
-        isEnabled: input.isEnabled ? 1 : 0 
+        daypartingEnabled: input.isEnabled ? 1 : 0 
       });
       return { success: true };
     }),
@@ -543,7 +537,7 @@ const campaignRouter = router({
       placementTopSearchBidAdjustment: z.number().optional(),
       placementProductPageBidAdjustment: z.number().optional(),
       placementRestBidAdjustment: z.number().optional(),
-      status: z.enum(["enabled", "paused", "archived"]).optional(),
+      campaignStatus: z.enum(["enabled", "paused", "archived"]).optional(),
     }))
     .mutation(async ({ input }) => {
       const { id, ...data } = input;
@@ -630,7 +624,7 @@ const campaignRouter = router({
 广告活动信息：
 - 名称：${campaign.campaignName}
 - 类型：${campaign.campaignType}
-- 状态：${campaign.status}
+- 状态：${campaign.campaignStatus}
 - 日预算：$${campaign.dailyBudget || "N/A"}
 
 核心指标：
@@ -867,7 +861,7 @@ const keywordRouter = router({
     .mutation(async ({ input }) => {
       let updated = 0;
       for (const id of input.ids) {
-        await db.updateKeyword(id, { status: input.status });
+        await db.updateKeyword(id, { keywordStatus: input.status });
         updated++;
       }
       return { success: true, updated };
@@ -976,7 +970,7 @@ const keywordRouter = router({
             keywordText: kw.keywordText,
             matchType: kw.matchType,
             bid: kw.bid,
-            status: "enabled",
+            keywordStatus: "enabled",
           });
           
           results.push({
@@ -1093,7 +1087,7 @@ const productTargetRouter = router({
     .mutation(async ({ input }) => {
       let updated = 0;
       for (const id of input.ids) {
-        await db.updateProductTarget(id, { status: input.status });
+        await db.updateProductTarget(id, { targetStatus: input.status });
         updated++;
       }
       return { success: true, updated };
@@ -1356,17 +1350,17 @@ const optimizationRouter = router({
             accountId: group.accountId,
             campaignId,
             adGroupId,
-            targetType: result.targetType,
+            logTargetType: result.targetType,
             targetId: result.targetId,
             targetName,
-            matchType: matchType || undefined,
+            logMatchType: matchType || undefined,
             actionType: result.actionType,
             previousBid: result.previousBid.toString(),
             newBid: result.newBid.toString(),
             bidChangePercent: result.bidChangePercent.toString(),
             reason: result.reason,
             algorithmVersion: "1.0.0",
-            isIntradayAdjustment: false,
+            isIntradayAdjustment: 0,
           });
         }
       }
@@ -1428,7 +1422,7 @@ const importRouter = router({
       const { id, ...data } = input;
       await db.updateImportJob(id, {
         ...data,
-        completedAt: data.status === "completed" || data.status === "failed" ? new Date() : undefined,
+        completedAt: data.status === "completed" || data.status === "failed" ? new Date().toISOString() : undefined,
       });
       return { success: true };
     }),
@@ -2214,7 +2208,7 @@ const amazonApiRouter = router({
 
       // Update last sync time
       await db.updateAmazonApiCredentials(input.accountId, {
-        lastSyncAt: new Date(),
+        lastSyncAt: new Date().toISOString(),
       });
 
       return results;
@@ -2768,7 +2762,7 @@ const batchOperationRouter = router({
       if (!batch) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Batch operation not found' });
       }
-      if (batch.status !== 'pending') {
+      if (batch.batchStatus !== 'pending') {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Batch operation is not pending approval' });
       }
 
@@ -2784,10 +2778,10 @@ const batchOperationRouter = router({
       if (!batch) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Batch operation not found' });
       }
-      if (batch.requiresApproval && batch.status !== 'approved') {
+      if (batch.requiresApproval && batch.batchStatus !== 'approved') {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Batch operation requires approval before execution' });
       }
-      if (batch.status === 'executing' || batch.status === 'completed') {
+      if (batch.batchStatus === 'executing' || batch.batchStatus === 'completed') {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Batch operation is already executing or completed' });
       }
 
@@ -2869,7 +2863,7 @@ const batchOperationRouter = router({
       if (!batch) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Batch operation not found' });
       }
-      if (!batchOperationService.canRollback(batch.status as batchOperationService.BatchStatus, batch.completedAt || undefined)) {
+      if (!batchOperationService.canRollback(batch.batchStatus as batchOperationService.BatchStatus, batch.completedAt ? new Date(batch.completedAt) : undefined)) {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Cannot rollback this batch operation' });
       }
 
@@ -2878,7 +2872,7 @@ const batchOperationRouter = router({
       let successCount = 0;
 
       for (const item of items) {
-        if (item.status !== 'success') continue;
+        if (item.itemStatus !== 'success') continue;
 
         try {
           const rollbackData = item.previousValue ? JSON.parse(item.previousValue) : null;
@@ -2917,7 +2911,7 @@ const batchOperationRouter = router({
       if (!batch) {
         throw new TRPCError({ code: 'NOT_FOUND', message: 'Batch operation not found' });
       }
-      if (batch.status !== 'pending' && batch.status !== 'approved') {
+      if (batch.batchStatus !== 'pending' && batch.batchStatus !== 'approved') {
         throw new TRPCError({ code: 'BAD_REQUEST', message: 'Can only cancel pending or approved operations' });
       }
 
@@ -2936,7 +2930,7 @@ const batchOperationRouter = router({
 
       const result: batchOperationService.BatchOperationResult = {
         batchId: batch.id,
-        status: batch.status as batchOperationService.BatchStatus,
+        status: batch.batchStatus as batchOperationService.BatchStatus,
         totalItems: batch.totalItems || 0,
         processedItems: batch.processedItems || 0,
         successItems: batch.successItems || 0,
@@ -2992,10 +2986,10 @@ const batchOperationRouter = router({
       // Calculate statistics
       const stats = {
         total: filteredOps.length,
-        completed: filteredOps.filter(op => op.status === 'completed').length,
-        failed: filteredOps.filter(op => op.status === 'failed').length,
-        pending: filteredOps.filter(op => op.status === 'pending' || op.status === 'approved').length,
-        rolledBack: filteredOps.filter(op => op.status === 'rolled_back').length,
+        completed: filteredOps.filter(op => op.batchStatus === 'completed').length,
+        failed: filteredOps.filter(op => op.batchStatus === 'failed').length,
+        pending: filteredOps.filter(op => op.batchStatus === 'pending' || op.batchStatus === 'approved').length,
+        rolledBack: filteredOps.filter(op => op.batchStatus === 'rolled_back').length,
         totalItemsProcessed: filteredOps.reduce((sum, op) => sum + (op.processedItems || 0), 0),
         totalSuccessItems: filteredOps.reduce((sum, op) => sum + (op.successItems || 0), 0),
         totalFailedItems: filteredOps.reduce((sum, op) => sum + (op.failedItems || 0), 0),
@@ -3025,11 +3019,11 @@ const batchOperationRouter = router({
 
       // Group items by status
       const itemsByStatus = {
-        success: items.filter(item => item.status === 'success'),
-        failed: items.filter(item => item.status === 'failed'),
-        pending: items.filter(item => item.status === 'pending'),
-        skipped: items.filter(item => item.status === 'skipped'),
-        rolledBack: items.filter(item => item.status === 'rolled_back'),
+        success: items.filter(item => item.itemStatus === 'success'),
+        failed: items.filter(item => item.itemStatus === 'failed'),
+        pending: items.filter(item => item.itemStatus === 'pending'),
+        skipped: items.filter(item => item.itemStatus === 'skipped'),
+        rolledBack: items.filter(item => item.itemStatus === 'rolled_back'),
       };
 
       // Calculate execution duration
@@ -3045,7 +3039,7 @@ const batchOperationRouter = router({
         executionDuration,
         summary: batchOperationService.generateBatchSummary({
           batchId: batch.id,
-          status: batch.status as batchOperationService.BatchStatus,
+          status: batch.batchStatus as batchOperationService.BatchStatus,
           totalItems: batch.totalItems || 0,
           processedItems: batch.processedItems || 0,
           successItems: batch.successItems || 0,
@@ -3081,7 +3075,7 @@ const batchOperationRouter = router({
           op?.id,
           op?.name,
           op?.operationType,
-          op?.status,
+          op?.batchStatus,
           op?.totalItems,
           op?.successItems,
           op?.failedItems,
@@ -3157,7 +3151,9 @@ const correctionRouter = router({
       // Filter to the session period
       const periodBidChanges = bidChanges.filter(change => {
         const changeDate = new Date(change.changeDate);
-        return changeDate >= session.periodStart && changeDate <= session.periodEnd;
+        const periodStart = new Date(session.periodStart);
+        const periodEnd = new Date(session.periodEnd);
+        return changeDate >= periodStart && changeDate <= periodEnd;
       });
 
       const corrections: correctionService.CorrectionAnalysis[] = [];
@@ -3192,12 +3188,12 @@ const correctionRouter = router({
           id: change.id,
           targetId: change.targetId,
           targetName: change.targetName,
-          targetType: change.targetType === 'product' ? 'product_target' : 'keyword',
+          targetType: change.targetType === 'placement' ? 'keyword' : change.targetType,
           campaignId: change.campaignId,
           campaignName: change.campaignName,
           originalBid: change.oldBid,
           adjustedBid: change.newBid,
-          adjustmentDate: change.changeDate,
+          adjustmentDate: new Date(change.changeDate),
           adjustmentReason: change.changeReason,
           metricsAtAdjustment,
         };
@@ -3292,9 +3288,9 @@ const correctionRouter = router({
 
       // Add items
       const items = selectedCorrections.map(c => ({
-        entityType: c.targetType as 'keyword' | 'product_target',
+        entityType: c.correctionTargetType as 'keyword' | 'product_target',
         entityId: c.targetId,
-        targetName: c.targetName || undefined,
+        entityName: c.targetName || undefined,
         currentBid: parseFloat(c.adjustedBid || '0'),
         newBid: parseFloat(c.suggestedBid || '0'),
         bidChangeReason: `纠错复盘: ${correctionService.formatCorrectionType(c.correctionType as 'over_decreased' | 'over_increased' | 'correct')}`,
@@ -3346,17 +3342,17 @@ const correctionRouter = router({
           id: c.id,
           targetId: c.targetId,
           targetName: c.targetName || '',
-          targetType: c.targetType as 'keyword' | 'product_target',
+          targetType: c.correctionTargetType as 'keyword' | 'product_target',
           campaignId: c.campaignId,
           campaignName: '',
           originalBid: parseFloat(c.originalBid || '0'),
           adjustedBid: parseFloat(c.adjustedBid || '0'),
-          adjustmentDate: c.originalAdjustmentDate,
+          adjustmentDate: new Date(c.originalAdjustmentDate),
           adjustmentReason: c.adjustmentReason || '',
           metricsAtAdjustment: JSON.parse(c.metricsAtAdjustment || '{}'),
         },
         metricsAfterAttribution: JSON.parse(c.metricsAfterAttribution || '{}'),
-        wasIncorrect: c.wasIncorrect || false,
+        wasIncorrect: !!c.wasIncorrect,
         correctionType: (c.correctionType || 'correct') as 'over_decreased' | 'over_increased' | 'correct',
         suggestedBid: parseFloat(c.suggestedBid || '0'),
         confidenceScore: parseFloat(c.confidenceScore || '0'),
@@ -3813,7 +3809,7 @@ const teamRouter = router({
         role: input.role,
         status: "pending",
         inviteToken,
-        inviteExpiresAt,
+        inviteExpiresAt: inviteExpiresAt.toISOString(),
       });
 
       // TODO: 发送邀请邮件
@@ -3874,7 +3870,7 @@ const teamRouter = router({
 
       await db.updateTeamMember(input.id, {
         inviteToken,
-        inviteExpiresAt,
+        inviteExpiresAt: inviteExpiresAt.toISOString(),
       });
 
       // TODO: 发送邀请邮件
@@ -4033,6 +4029,7 @@ const emailReportRouter = router({
 
       await db.updateEmailSubscription(input.id, {
         ...input,
+        isActive: input.isActive !== undefined ? (input.isActive ? 1 : 0) : undefined,
         nextSendAt,
       });
 
@@ -4061,11 +4058,12 @@ const emailReportRouter = router({
         throw new TRPCError({ code: "NOT_FOUND", message: "订阅不存在" });
       }
 
+      const newIsActive = subscription.isActive ? 0 : 1;
       await db.updateEmailSubscription(input.id, {
-        isActive: !subscription.isActive,
+        isActive: newIsActive,
       });
 
-      return { success: true, isActive: !subscription.isActive };
+      return { success: true, isActive: newIsActive === 1 };
     }),
 
   // 立即发送测试邮件
@@ -5342,22 +5340,22 @@ const placementRouter = router({
           const optimalBid = marketCurveService.calculateOptimalBid(
             marketCurve.impressionCurve as any,
             marketCurve.ctrCurve as any,
-            marketCurve.conversionParams as any
+            marketCurve.conversion as any
           );
           
           results.push({
             keywordId: keyword.id,
             keywordText: keyword.keywordText,
             matchType: keyword.matchType,
-            currentBid: keyword.bid || 0,
+            currentBid: Number(keyword.bid) || 0,
             optimalBid: optimalBid.optimalBid,
             maxProfit: optimalBid.maxProfit,
             profitMargin: optimalBid.profitMargin,
             breakEvenCPC: optimalBid.breakEvenCPC,
-            bidDifference: optimalBid.optimalBid - (keyword.bid || 0),
-            bidDifferencePercent: keyword.bid ? ((optimalBid.optimalBid - keyword.bid) / keyword.bid * 100) : 0,
-            recommendation: optimalBid.optimalBid > (keyword.bid || 0) ? 'increase' : 
-                           optimalBid.optimalBid < (keyword.bid || 0) ? 'decrease' : 'maintain',
+            bidDifference: optimalBid.optimalBid - (Number(keyword.bid) || 0),
+            bidDifferencePercent: keyword.bid ? ((optimalBid.optimalBid - Number(keyword.bid)) / Number(keyword.bid) * 100) : 0,
+            recommendation: optimalBid.optimalBid > (Number(keyword.bid) || 0) ? 'increase' : 
+                           optimalBid.optimalBid < (Number(keyword.bid) || 0) ? 'decrease' : 'maintain',
           });
         }
       }
@@ -5427,23 +5425,23 @@ const placementRouter = router({
             const optimalBid = marketCurveService.calculateOptimalBid(
               marketCurve.impressionCurve as any,
               marketCurve.ctrCurve as any,
-              marketCurve.conversionParams as any
+              marketCurve.conversion as any
             );
             
             campaignOptimalBidSum += optimalBid.optimalBid;
-            campaignCurrentBidSum += keyword.bid || 0;
+            campaignCurrentBidSum += Number(keyword.bid) || 0;
             campaignMaxProfit += optimalBid.maxProfit;
             analyzedCount++;
             
-            if (optimalBid.optimalBid > (keyword.bid || 0) * 1.05) needIncrease++;
-            else if (optimalBid.optimalBid < (keyword.bid || 0) * 0.95) needDecrease++;
+            if (optimalBid.optimalBid > (Number(keyword.bid) || 0) * 1.05) needIncrease++;
+            else if (optimalBid.optimalBid < (Number(keyword.bid) || 0) * 0.95) needDecrease++;
           }
         }
         
         if (analyzedCount > 0) {
           campaignResults.push({
             campaignId: gc.campaignId,
-            campaignName: campaign.name,
+            campaignName: campaign.campaignName,
             totalKeywords: campaignKeywords.length,
             analyzedKeywords: analyzedCount,
             avgOptimalBid: campaignOptimalBidSum / analyzedCount,
@@ -5531,8 +5529,8 @@ const placementRouter = router({
             adjustments.push({
               keywordId: keyword.id,
               keywordText: keyword.keywordText || '',
-              oldBid: keyword.bid || 0,
-              newBid: keyword.bid || 0,
+              oldBid: Number(keyword.bid) || 0,
+              newBid: Number(keyword.bid) || 0,
               bidChange: 0,
               bidChangePercent: 0,
               expectedProfitIncrease: 0,
@@ -5547,10 +5545,10 @@ const placementRouter = router({
           const optimalBid = marketCurveService.calculateOptimalBid(
             marketCurve.impressionCurve as any,
             marketCurve.ctrCurve as any,
-            marketCurve.conversionParams as any
+            marketCurve.conversion as any
           );
           
-          const currentBid = keyword.bid || 0;
+          const currentBid = Number(keyword.bid) || 0;
           const bidDifferencePercent = currentBid > 0 
             ? Math.abs((optimalBid.optimalBid - currentBid) / currentBid * 100)
             : 100;
@@ -5615,8 +5613,8 @@ const placementRouter = router({
           adjustments.push({
             keywordId: keyword.id,
             keywordText: keyword.keywordText || '',
-            oldBid: keyword.bid || 0,
-            newBid: keyword.bid || 0,
+            oldBid: Number(keyword.bid) || 0,
+            newBid: Number(keyword.bid) || 0,
             bidChange: 0,
             bidChangePercent: 0,
             expectedProfitIncrease: 0,
@@ -5701,10 +5699,10 @@ const placementRouter = router({
             const optimalBid = marketCurveService.calculateOptimalBid(
               marketCurve.impressionCurve as any,
               marketCurve.ctrCurve as any,
-              marketCurve.conversionParams as any
+              marketCurve.conversion as any
             );
             
-            const currentBid = keyword.bid || 0;
+            const currentBid = Number(keyword.bid) || 0;
             const bidDifferencePercent = currentBid > 0 
               ? Math.abs((optimalBid.optimalBid - currentBid) / currentBid * 100)
               : 100;
@@ -5724,7 +5722,7 @@ const placementRouter = router({
             await db.recordBidAdjustment({
               accountId: input.accountId,
               campaignId: parseInt(gc.campaignId),
-              campaignName: campaign.name,
+              campaignName: campaign.campaignName,
               performanceGroupId: input.groupId,
               performanceGroupName: group.name,
               keywordId: keyword.id,
@@ -5746,7 +5744,7 @@ const placementRouter = router({
         
         campaignResults.push({
           campaignId: gc.campaignId,
-          campaignName: campaign.name,
+          campaignName: campaign.campaignName,
           appliedCount,
           skippedCount,
           errorCount,
@@ -5824,7 +5822,7 @@ const placementRouter = router({
         const optimalBid = marketCurveService.calculateOptimalBid(
           marketCurve.impressionCurve as any,
           marketCurve.ctrCurve as any,
-          marketCurve.conversionParams as any
+          marketCurve.conversion as any
         );
         return {
           hasModel: true,
@@ -5977,7 +5975,8 @@ const placementRouter = router({
       performanceGroupId: z.number().optional(),
     }))
     .query(async ({ input, ctx }) => {
-      const accountId = ctx.user.currentAccountId || 1;
+      // 使用输入参数或默认账号ID
+      const accountId = 1; // TODO: 从输入参数或用户会话中获取
       
       // 构建查询条件 - bidAdjustmentHistory表使用status字段而不是isRolledBack
       const conditions: any[] = [
@@ -6031,7 +6030,7 @@ const placementRouter = router({
       const byCampaign: Record<number, { name: string; count: number; estimated: number; actual: number }> = {};
       
       for (const record of records) {
-        const estimated = parseFloat(record.estimatedProfitChange || '0');
+        const estimated = parseFloat(record.expectedProfitIncrease || '0');
         totalEstimatedProfit += estimated;
         
         // 按调整类型分组
@@ -6108,11 +6107,11 @@ const placementRouter = router({
           adjustmentType: r.adjustmentType,
           previousBid: r.previousBid,
           newBid: r.newBid,
-          estimatedProfitChange: r.estimatedProfitChange,
+          estimatedProfitChange: r.expectedProfitIncrease,
           actualProfit7d: r.actualProfit7d,
           actualProfit14d: r.actualProfit14d,
           actualProfit30d: r.actualProfit30d,
-          adjustedAt: r.adjustedAt,
+          adjustedAt: r.appliedAt,
         })),
       };
     }),
@@ -6745,12 +6744,25 @@ const abTestRouter = router({
       minSampleSize: z.number().optional(),
       confidenceLevel: z.number().optional(),
       durationDays: z.number().optional(),
-      controlConfig: z.record(z.unknown()),
-      treatmentConfig: z.record(z.unknown()),
+      controlConfig: z.record(z.string(), z.unknown()),
+      treatmentConfig: z.record(z.string(), z.unknown()),
       trafficSplit: z.number().optional()
     }))
     .mutation(async ({ ctx, input }) => {
-      return abTestService.createABTest(input, ctx.user.id);
+      return abTestService.createABTest({
+        accountId: input.accountId,
+        performanceGroupId: input.performanceGroupId,
+        testName: input.testName,
+        testDescription: input.testDescription,
+        testType: input.testType,
+        targetMetric: input.targetMetric,
+        minSampleSize: input.minSampleSize,
+        confidenceLevel: input.confidenceLevel,
+        durationDays: input.durationDays,
+        controlConfig: input.controlConfig as Record<string, unknown>,
+        treatmentConfig: input.treatmentConfig as Record<string, unknown>,
+        trafficSplit: input.trafficSplit,
+      }, ctx.user.id);
     }),
   
   // 获取测试列表

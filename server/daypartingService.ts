@@ -67,7 +67,7 @@ export async function analyzeWeeklyPerformance(
     .where(
       and(
         eq(dailyPerformance.campaignId, campaignId),
-        gte(dailyPerformance.date, startDate)
+        sql`${dailyPerformance.date} >= ${startDate.toISOString()}`
       )
     )
     .groupBy(sql`DAYOFWEEK(${dailyPerformance.date})`);

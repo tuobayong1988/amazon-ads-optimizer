@@ -8,7 +8,7 @@
  * - 绩效数据同步
  */
 
-import { eq, and } from 'drizzle-orm';
+import { eq, and, sql } from 'drizzle-orm';
 import { getDb } from './db';
 import {
   campaigns,
@@ -408,6 +408,7 @@ export class AmazonSyncService {
 
         // 使用报告日期或当前日期
         const reportDate = row.date ? new Date(row.date) : new Date();
+        const reportDateStr = reportDate.toISOString().split('T')[0];
 
         // 检查是否已存在当天数据
         const [existing] = await db
@@ -416,7 +417,7 @@ export class AmazonSyncService {
           .where(
             and(
               eq(dailyPerformance.campaignId, campaign.id),
-              eq(dailyPerformance.date, reportDate)
+              sql`DATE(${dailyPerformance.date}) = ${reportDateStr}`
             )
           )
           .limit(1);

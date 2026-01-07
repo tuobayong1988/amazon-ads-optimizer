@@ -61,15 +61,18 @@ export async function getRecordsToTrack(period: number): Promise<any[]> {
     trackingField = 'actual_profit_30d';
   }
   
-  // 查询需要追踪的记录
+  // 查询需要追踪的记录 - 使用status字段而不是isRolledBack
+  const endOfDayStr = new Date(endOfDay).toISOString().slice(0, 19).replace('T', ' ');
+  const startOfDayStr = new Date(startOfDay.getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+  
   const records = await db
     .select()
     .from(bidAdjustmentHistory)
     .where(
       and(
-        eq(bidAdjustmentHistory.isRolledBack, false),
-        lte(bidAdjustmentHistory.adjustedAt, endOfDay.getTime()),
-        gte(bidAdjustmentHistory.adjustedAt, startOfDay.getTime() - 24 * 60 * 60 * 1000)
+        sql`${bidAdjustmentHistory.status} != 'rolled_back'`,
+        sql`${bidAdjustmentHistory.appliedAt} <= ${endOfDayStr}`,
+        sql`${bidAdjustmentHistory.appliedAt} >= ${startOfDayStr}`
       )
     );
   
@@ -247,11 +250,11 @@ export async function getTrackingStatsSummary(): Promise<{
 }> {
   const db = await getDb();
   
-  // 查询所有已追踪的记录
+  // 查询所有已追踪的记录 - 使用status字段而不是isRolledBack
   const records = await db
     .select()
     .from(bidAdjustmentHistory)
-    .where(eq(bidAdjustmentHistory.isRolledBack, false));
+    .where(sql`${bidAdjustmentHistory.status} != 'rolled_back'`);
   
   // 计算统计数据
   let totalTracked = 0;

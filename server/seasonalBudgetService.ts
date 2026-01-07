@@ -21,10 +21,10 @@ export type RecommendationType = "event_increase" | "event_warmup" | "seasonal_i
 
 // 预定义的大促活动
 const PREDEFINED_EVENTS: Partial<InsertPromotionalEvent>[] = [
-  { eventName: "Prime Day 2026", eventType: "prime_day", marketplace: "US", startDate: new Date("2026-07-15"), endDate: new Date("2026-07-16"), warmupStartDate: new Date("2026-07-08"), warmupEndDate: new Date("2026-07-14"), recommendedBudgetMultiplier: "2.0", warmupBudgetMultiplier: "1.3" },
-  { eventName: "黑色星期五 2026", eventType: "black_friday", marketplace: "US", startDate: new Date("2026-11-27"), endDate: new Date("2026-11-27"), warmupStartDate: new Date("2026-11-20"), warmupEndDate: new Date("2026-11-26"), recommendedBudgetMultiplier: "2.5", warmupBudgetMultiplier: "1.5" },
-  { eventName: "网络星期一 2026", eventType: "cyber_monday", marketplace: "US", startDate: new Date("2026-11-30"), endDate: new Date("2026-11-30"), warmupStartDate: new Date("2026-11-28"), warmupEndDate: new Date("2026-11-29"), recommendedBudgetMultiplier: "2.0", warmupBudgetMultiplier: "1.3" },
-  { eventName: "圣诞节 2026", eventType: "christmas", marketplace: "US", startDate: new Date("2026-12-20"), endDate: new Date("2026-12-25"), warmupStartDate: new Date("2026-12-01"), warmupEndDate: new Date("2026-12-19"), recommendedBudgetMultiplier: "1.8", warmupBudgetMultiplier: "1.3" },
+  { eventName: "Prime Day 2026", eventType: "prime_day", marketplace: "US", startDate: "2026-07-15T00:00:00.000Z", endDate: "2026-07-16T00:00:00.000Z", warmupStartDate: "2026-07-08T00:00:00.000Z", warmupEndDate: "2026-07-14T00:00:00.000Z", recommendedBudgetMultiplier: "2.0", warmupBudgetMultiplier: "1.3" },
+  { eventName: "黑色星期五 2026", eventType: "black_friday", marketplace: "US", startDate: "2026-11-27T00:00:00.000Z", endDate: "2026-11-27T00:00:00.000Z", warmupStartDate: "2026-11-20T00:00:00.000Z", warmupEndDate: "2026-11-26T00:00:00.000Z", recommendedBudgetMultiplier: "2.5", warmupBudgetMultiplier: "1.5" },
+  { eventName: "网络星期一 2026", eventType: "cyber_monday", marketplace: "US", startDate: "2026-11-30T00:00:00.000Z", endDate: "2026-11-30T00:00:00.000Z", warmupStartDate: "2026-11-28T00:00:00.000Z", warmupEndDate: "2026-11-29T00:00:00.000Z", recommendedBudgetMultiplier: "2.0", warmupBudgetMultiplier: "1.3" },
+  { eventName: "圣诞节 2026", eventType: "christmas", marketplace: "US", startDate: "2026-12-20T00:00:00.000Z", endDate: "2026-12-25T00:00:00.000Z", warmupStartDate: "2026-12-01T00:00:00.000Z", warmupEndDate: "2026-12-19T00:00:00.000Z", recommendedBudgetMultiplier: "1.8", warmupBudgetMultiplier: "1.3" },
 ];
 
 /**
@@ -52,7 +52,7 @@ export async function getPromotionalEvents(options: { marketplace?: string; isAc
   if (!db) return [];
   const conditions = [];
   if (options.marketplace) conditions.push(eq(promotionalEvents.marketplace, options.marketplace));
-  if (options.isActive !== undefined) conditions.push(eq(promotionalEvents.isActive, options.isActive));
+  if (options.isActive !== undefined) conditions.push(eq(promotionalEvents.isActive, options.isActive ? 1 : 0));
   return db.select().from(promotionalEvents).where(conditions.length > 0 ? and(...conditions) : undefined).orderBy(promotionalEvents.startDate);
 }
 
@@ -89,7 +89,7 @@ export async function analyzeSeasonalTrends(userId: number, accountId?: number):
       dayCount: sql<number>`COUNT(DISTINCT DATE(${dailyPerformance.date}))`,
     })
     .from(dailyPerformance)
-    .where(gte(dailyPerformance.date, twoYearsAgo))
+    .where(sql`${dailyPerformance.date} >= ${twoYearsAgo.toISOString()}`)
     .groupBy(sql`YEAR(${dailyPerformance.date})`, sql`MONTH(${dailyPerformance.date})`)
     .orderBy(sql`YEAR(${dailyPerformance.date})`, sql`MONTH(${dailyPerformance.date})`);
 
@@ -139,7 +139,7 @@ export async function saveSeasonalTrends(trends: InsertSeasonalTrend[]): Promise
   for (const trend of trends) {
     const existing = await db.select().from(seasonalTrends).where(and(eq(seasonalTrends.userId, trend.userId), eq(seasonalTrends.year, trend.year!), eq(seasonalTrends.month, trend.month!))).limit(1);
     if (existing.length > 0) {
-      await db.update(seasonalTrends).set({ ...trend, updatedAt: new Date() }).where(eq(seasonalTrends.id, existing[0].id));
+      await db.update(seasonalTrends).set({ ...trend, updatedAt: new Date().toISOString() }).where(eq(seasonalTrends.id, existing[0].id));
     } else {
       await db.insert(seasonalTrends).values(trend);
     }
@@ -229,8 +229,8 @@ export async function generateSeasonalRecommendations(userId: number, accountId?
         currentBudget: currentBudget.toString(),
         recommendedBudget: (currentBudget * multiplier).toString(),
         budgetMultiplier: multiplier.toString(),
-        effectiveStartDate: now,
-        effectiveEndDate: new Date(now.getFullYear(), now.getMonth() + 1, 0),
+        effectiveStartDate: now.toISOString(),
+        effectiveEndDate: new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString(),
         reasoning: `当前月份历史表现高于平均水平（季节性指数${seasonalIndex.toFixed(2)}），建议提升预算以把握季节性机会。`,
         confidenceScore: "70",
       });
@@ -244,8 +244,8 @@ export async function generateSeasonalRecommendations(userId: number, accountId?
         currentBudget: currentBudget.toString(),
         recommendedBudget: (currentBudget * multiplier).toString(),
         budgetMultiplier: multiplier.toString(),
-        effectiveStartDate: now,
-        effectiveEndDate: new Date(now.getFullYear(), now.getMonth() + 1, 0),
+        effectiveStartDate: now.toISOString(),
+        effectiveEndDate: new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString(),
         reasoning: `当前月份历史表现低于平均水平（季节性指数${seasonalIndex.toFixed(2)}），建议适度降低预算以优化投资回报。`,
         confidenceScore: "65",
       });

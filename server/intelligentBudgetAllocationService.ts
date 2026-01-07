@@ -255,8 +255,8 @@ async function aggregatePerformanceData(
   .from(dailyPerformance)
   .where(and(
     eq(dailyPerformance.campaignId, campaignId.toString()),
-    gte(dailyPerformance.date, startDate.toISOString().split('T')[0]),
-    lte(dailyPerformance.date, endDate.toISOString().split('T')[0])
+    sql`DATE(${dailyPerformance.date}) >= ${startDate.toISOString().split('T')[0]}`,
+    sql`DATE(${dailyPerformance.date}) <= ${endDate.toISOString().split('T')[0]}`
   ));
   
   return result[0] || { spend: 0, sales: 0, conversions: 0, clicks: 0, impressions: 0 };
