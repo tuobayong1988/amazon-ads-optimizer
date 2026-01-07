@@ -1116,23 +1116,40 @@ export default function AmazonApiSettings() {
                               if (result.success && result.refreshToken) {
                                 setAuthProgress(50);
                                 
-                                // 自动填充所有凭证字段
+                                // 自动填充所有凭证字段 - 优先使用服务器返回的凭证
                                 const newCredentials: typeof credentials = {
-                                  ...credentials,
+                                  // 优先使用服务器返回的凭证，回退到当前状态
+                                  clientId: result.clientId || credentials.clientId,
+                                  clientSecret: result.clientSecret || credentials.clientSecret,
                                   refreshToken: result.refreshToken,
+                                  // 如果获取到了Profile列表，自动选择第一个，否则保持当前选择
+                                  profileId: (result.profiles && result.profiles.length > 0) 
+                                    ? result.profiles[0].profileId 
+                                    : credentials.profileId,
+                                  region: credentials.region,
                                 };
                                 
-                                // 填充Client ID和Client Secret
-                                if (result.clientId) {
-                                  newCredentials.clientId = result.clientId;
-                                }
-                                if (result.clientSecret) {
-                                  newCredentials.clientSecret = result.clientSecret;
+                                console.log('[Auth] 换取Token成功，新凭证:', {
+                                  clientIdPrefix: newCredentials.clientId?.substring(0, 30) + '...',
+                                  hasClientSecret: !!newCredentials.clientSecret,
+                                  hasRefreshToken: !!newCredentials.refreshToken,
+                                  profileId: newCredentials.profileId,
+                                  region: newCredentials.region,
+                                });
+                                
+                                // 检查必填字段
+                                if (!newCredentials.clientId || !newCredentials.clientSecret) {
+                                  toast.error('缺少Client ID或Client Secret，请检查系统配置');
+                                  setAuthStep('idle');
+                                  setAuthProgress(0);
+                                  return;
                                 }
                                 
-                                // 如果获取到了Profile列表，自动选择第一个
-                                if (result.profiles && result.profiles.length > 0) {
-                                  newCredentials.profileId = result.profiles[0].profileId;
+                                if (!newCredentials.profileId) {
+                                  toast.error('缺少Profile ID，请选择一个广告配置文件');
+                                  setAuthStep('idle');
+                                  setAuthProgress(0);
+                                  return;
                                 }
                                 
                                 setCredentials(newCredentials);
@@ -1415,23 +1432,40 @@ export default function AmazonApiSettings() {
                             if (result.success && result.refreshToken) {
                               setAuthProgress(50);
                               
-                              // 自动填充所有凭证字段
+                              // 自动填充所有凭证字段 - 优先使用服务器返回的凭证
                               const newCredentials: typeof credentials = {
-                                ...credentials,
+                                // 优先使用服务器返回的凭证，回退到当前状态
+                                clientId: result.clientId || credentials.clientId,
+                                clientSecret: result.clientSecret || credentials.clientSecret,
                                 refreshToken: result.refreshToken,
+                                // 如果获取到了Profile列表，自动选择第一个，否则保持当前选择
+                                profileId: (result.profiles && result.profiles.length > 0) 
+                                  ? result.profiles[0].profileId 
+                                  : credentials.profileId,
+                                region: credentials.region,
                               };
                               
-                              // 填充Client ID和Client Secret
-                              if (result.clientId) {
-                                newCredentials.clientId = result.clientId;
-                              }
-                              if (result.clientSecret) {
-                                newCredentials.clientSecret = result.clientSecret;
+                              console.log('[Auth] 紫鸟浏览器授权成功，新凭证:', {
+                                clientIdPrefix: newCredentials.clientId?.substring(0, 30) + '...',
+                                hasClientSecret: !!newCredentials.clientSecret,
+                                hasRefreshToken: !!newCredentials.refreshToken,
+                                profileId: newCredentials.profileId,
+                                region: newCredentials.region,
+                              });
+                              
+                              // 检查必填字段
+                              if (!newCredentials.clientId || !newCredentials.clientSecret) {
+                                toast.error('缺少Client ID或Client Secret，请检查系统配置');
+                                setAuthStep('idle');
+                                setAuthProgress(0);
+                                return;
                               }
                               
-                              // 如果获取到了Profile列表，自动选择第一个
-                              if (result.profiles && result.profiles.length > 0) {
-                                newCredentials.profileId = result.profiles[0].profileId;
+                              if (!newCredentials.profileId) {
+                                toast.error('缺少Profile ID，请选择一个广告配置文件');
+                                setAuthStep('idle');
+                                setAuthProgress(0);
+                                return;
                               }
                               
                               setCredentials(newCredentials);

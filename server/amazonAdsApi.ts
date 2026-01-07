@@ -671,12 +671,26 @@ export function createAmazonAdsClient(credentials: AmazonApiCredentials): Amazon
  * 验证API凭证是否有效
  */
 export async function validateCredentials(credentials: AmazonApiCredentials): Promise<boolean> {
+  console.log('[validateCredentials] 开始验证凭证:', {
+    clientIdPrefix: credentials.clientId?.substring(0, 30) + '...',
+    clientSecretPrefix: credentials.clientSecret?.substring(0, 20) + '...',
+    refreshTokenPrefix: credentials.refreshToken?.substring(0, 20) + '...',
+    profileId: credentials.profileId,
+    region: credentials.region,
+  });
+  
   try {
     const client = new AmazonAdsApiClient(credentials);
-    await client.getProfiles();
+    console.log('[validateCredentials] 客户端创建成功，开始获取profiles...');
+    const profiles = await client.getProfiles();
+    console.log('[validateCredentials] 获取到', profiles.length, '个profiles');
     return true;
-  } catch (error) {
-    console.error('API credentials validation failed:', error);
+  } catch (error: any) {
+    console.error('[validateCredentials] 验证失败:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+    });
     return false;
   }
 }

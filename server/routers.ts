@@ -2141,7 +2141,27 @@ const amazonApiRouter = router({
       region: z.enum(['NA', 'EU', 'FE']),
     }))
     .mutation(async ({ ctx, input }) => {
+      // 添加详细日志
+      console.log('[saveCredentials] 收到保存凭证请求:', {
+        accountId: input.accountId,
+        clientIdPrefix: input.clientId?.substring(0, 30) + '...',
+        clientSecretPrefix: input.clientSecret?.substring(0, 20) + '...',
+        refreshTokenPrefix: input.refreshToken?.substring(0, 20) + '...',
+        profileId: input.profileId,
+        region: input.region,
+      });
+      
+      // 检查必填字段
+      if (!input.clientId || !input.clientSecret || !input.refreshToken) {
+        console.error('[saveCredentials] 缺少必填字段');
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: '缺少必填的API凭证字段',
+        });
+      }
+      
       // Validate credentials before saving
+      console.log('[saveCredentials] 开始验证凭证...');
       const isValid = await validateCredentials({
         clientId: input.clientId,
         clientSecret: input.clientSecret,
@@ -2149,8 +2169,10 @@ const amazonApiRouter = router({
         profileId: input.profileId,
         region: input.region,
       });
+      console.log('[saveCredentials] 验证结果:', isValid);
 
       if (!isValid) {
+        console.error('[saveCredentials] 凭证验证失败');
         throw new TRPCError({
           code: 'BAD_REQUEST',
           message: 'Invalid API credentials. Please check your credentials and try again.',
