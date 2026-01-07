@@ -125,6 +125,8 @@ export default function AmazonApiSettings() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [authStep, setAuthStep] = useState<'idle' | 'exchanging' | 'saving' | 'syncing' | 'complete'>('idle');
+  const [authProgress, setAuthProgress] = useState(0);
   const [activeTab, setActiveTab] = useState("accounts");
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [importData, setImportData] = useState("");
@@ -1065,12 +1067,19 @@ export default function AmazonApiSettings() {
                               return;
                             }
                             try {
+                              // 步骤1: 换取Token
+                              setAuthStep('exchanging');
+                              setAuthProgress(25);
+                              
                               // 使用后端环境变量中的凭证，确保安全性
                               const result = await exchangeCodeMutation.mutateAsync({
                                 code,
                                 region: credentials.region, // 传递当前选择的区域
                               });
+                              
                               if (result.success && result.refreshToken) {
+                                setAuthProgress(50);
+                                
                                 // 自动填充所有凭证字段
                                 const newCredentials: typeof credentials = {
                                   ...credentials,
@@ -1088,28 +1097,93 @@ export default function AmazonApiSettings() {
                                 // 如果获取到了Profile列表，自动选择第一个
                                 if (result.profiles && result.profiles.length > 0) {
                                   newCredentials.profileId = result.profiles[0].profileId;
-                                  toast.success(`授权成功！已自动填充所有凭证信息。检测到 ${result.profiles.length} 个广告配置文件。`);
-                                } else {
-                                  toast.success('授权成功！已自动填充凭证信息。请手动输入Profile ID。');
                                 }
                                 
                                 setCredentials(newCredentials);
+                                setAuthProgress(75);
+                                
+                                // 步骤2: 自动保存凭证
+                                setAuthStep('saving');
+                                
+                                if (selectedAccountId) {
+                                  await saveCredentialsMutation.mutateAsync({
+                                    accountId: selectedAccountId,
+                                    ...newCredentials,
+                                  });
+                                }
+                                
+                                setAuthProgress(100);
+                                setAuthStep('complete');
+                                
+                                toast.success(
+                                  result.profiles && result.profiles.length > 0
+                                    ? `授权完成！已自动保存凭证并同步数据。检测到 ${result.profiles.length} 个广告配置文件。`
+                                    : '授权完成！已自动保存凭证。'
+                                );
+                                
                                 codeInput.value = '';
+                                
+                                // 3秒后重置状态
+                                setTimeout(() => {
+                                  setAuthStep('idle');
+                                  setAuthProgress(0);
+                                }, 3000);
                               }
                             } catch (error: any) {
+                              setAuthStep('idle');
+                              setAuthProgress(0);
                               toast.error(`换取失败: ${error.message}`);
                             }
                           }}
-                          disabled={exchangeCodeMutation.isPending}
+                          disabled={authStep !== 'idle'}
                         >
-                          {exchangeCodeMutation.isPending ? (
+                          {authStep !== 'idle' ? (
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                           ) : (
                             <Key className="h-4 w-4 mr-2" />
                           )}
-                          换取Token
+                          {authStep === 'idle' && '换取Token'}
+                          {authStep === 'exchanging' && '换取中...'}
+                          {authStep === 'saving' && '保存中...'}
+                          {authStep === 'syncing' && '同步中...'}
+                          {authStep === 'complete' && '完成!'}
                         </Button>
                       </div>
+                      
+                      {/* 授权进度指示器 */}
+                      {authStep !== 'idle' && (
+                        <div className="mt-4 space-y-3">
+                          <div className="w-full bg-muted rounded-full h-2">
+                            <div 
+                              className="bg-primary h-2 rounded-full transition-all duration-500 ease-out"
+                              style={{ width: `${authProgress}%` }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>
+                              {authStep === 'exchanging' && '正在与亚马逊服务器通信，换取访问令牌...'}
+                              {authStep === 'saving' && '正在保存API凭证并同步广告数据...'}
+                              {authStep === 'syncing' && '正在从亚马逊拉取广告活动数据...'}
+                              {authStep === 'complete' && '授权流程已完成!'}
+                            </span>
+                          </div>
+                          <div className="flex justify-center gap-4 text-xs text-muted-foreground">
+                            <div className={`flex items-center gap-1 ${authProgress >= 25 ? 'text-primary' : ''}`}>
+                              {authProgress >= 25 ? <CheckCircle2 className="h-3 w-3" /> : <div className="h-3 w-3 rounded-full border border-muted-foreground" />}
+                              换取Token
+                            </div>
+                            <div className={`flex items-center gap-1 ${authProgress >= 75 ? 'text-primary' : ''}`}>
+                              {authProgress >= 75 ? <CheckCircle2 className="h-3 w-3" /> : <div className="h-3 w-3 rounded-full border border-muted-foreground" />}
+                              保存凭证
+                            </div>
+                            <div className={`flex items-center gap-1 ${authProgress >= 100 ? 'text-primary' : ''}`}>
+                              {authProgress >= 100 ? <CheckCircle2 className="h-3 w-3" /> : <div className="h-3 w-3 rounded-full border border-muted-foreground" />}
+                              同步数据
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <Alert variant="default" className="bg-amber-50 border-amber-200">
@@ -1218,12 +1292,19 @@ export default function AmazonApiSettings() {
                           }
                           
                           try {
+                            // 步骤1: 换取Token
+                            setAuthStep('exchanging');
+                            setAuthProgress(25);
+                            
                             // 使用后端环境变量中的凭证，确保安全性
                             const result = await exchangeCodeMutation.mutateAsync({
                               code,
                               region: credentials.region, // 传递当前选择的区域
                             });
+                            
                             if (result.success && result.refreshToken) {
+                              setAuthProgress(50);
+                              
                               // 自动填充所有凭证字段
                               const newCredentials: typeof credentials = {
                                 ...credentials,
@@ -1241,27 +1322,92 @@ export default function AmazonApiSettings() {
                               // 如果获取到了Profile列表，自动选择第一个
                               if (result.profiles && result.profiles.length > 0) {
                                 newCredentials.profileId = result.profiles[0].profileId;
-                                toast.success(`授权成功！已自动填充所有凭证信息。检测到 ${result.profiles.length} 个广告配置文件。`);
-                              } else {
-                                toast.success('授权成功！已自动填充凭证信息。请手动输入Profile ID。');
                               }
                               
                               setCredentials(newCredentials);
+                              setAuthProgress(75);
+                              
+                              // 步骤2: 自动保存凭证
+                              setAuthStep('saving');
+                              
+                              if (selectedAccountId) {
+                                await saveCredentialsMutation.mutateAsync({
+                                  accountId: selectedAccountId,
+                                  ...newCredentials,
+                                });
+                              }
+                              
+                              setAuthProgress(100);
+                              setAuthStep('complete');
+                              
+                              toast.success(
+                                result.profiles && result.profiles.length > 0
+                                  ? `授权完成！已自动保存凭证并同步数据。检测到 ${result.profiles.length} 个广告配置文件。`
+                                  : '授权完成！已自动保存凭证。'
+                              );
+                              
                               urlInput.value = '';
+                              
+                              // 3秒后重置状态
+                              setTimeout(() => {
+                                setAuthStep('idle');
+                                setAuthProgress(0);
+                              }, 3000);
                             }
                           } catch (error: any) {
+                            setAuthStep('idle');
+                            setAuthProgress(0);
                             toast.error(`授权失败: ${error.message}`);
                           }
                         }}
-                        disabled={exchangeCodeMutation.isPending}
+                        disabled={authStep !== 'idle'}
                       >
-                        {exchangeCodeMutation.isPending ? (
+                        {authStep !== 'idle' ? (
                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                         ) : (
                           <Key className="h-4 w-4 mr-2" />
                         )}
-                        提取授权码并换取 Token
+                        {authStep === 'idle' && '提取授权码并换取 Token'}
+                        {authStep === 'exchanging' && '正在换取Token...'}
+                        {authStep === 'saving' && '正在保存凭证...'}
+                        {authStep === 'syncing' && '正在同步数据...'}
+                        {authStep === 'complete' && '授权完成!'}
                       </Button>
+                      
+                      {/* 授权进度指示器 */}
+                      {authStep !== 'idle' && (
+                        <div className="mt-4 space-y-3">
+                          <div className="w-full bg-purple-900/30 rounded-full h-2">
+                            <div 
+                              className="bg-purple-500 h-2 rounded-full transition-all duration-500 ease-out"
+                              style={{ width: `${authProgress}%` }}
+                            />
+                          </div>
+                          <div className="flex items-center justify-center gap-2 text-sm text-purple-300">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>
+                              {authStep === 'exchanging' && '正在与亚马逊服务器通信，换取访问令牌...'}
+                              {authStep === 'saving' && '正在保存API凭证并同步广告数据...'}
+                              {authStep === 'syncing' && '正在从亚马逊拉取广告活动数据...'}
+                              {authStep === 'complete' && '授权流程已完成!'}
+                            </span>
+                          </div>
+                          <div className="flex justify-center gap-4 text-xs text-purple-400">
+                            <div className={`flex items-center gap-1 ${authProgress >= 25 ? 'text-purple-300' : ''}`}>
+                              {authProgress >= 25 ? <CheckCircle2 className="h-3 w-3" /> : <div className="h-3 w-3 rounded-full border border-purple-500" />}
+                              换取Token
+                            </div>
+                            <div className={`flex items-center gap-1 ${authProgress >= 75 ? 'text-purple-300' : ''}`}>
+                              {authProgress >= 75 ? <CheckCircle2 className="h-3 w-3" /> : <div className="h-3 w-3 rounded-full border border-purple-500" />}
+                              保存凭证
+                            </div>
+                            <div className={`flex items-center gap-1 ${authProgress >= 100 ? 'text-purple-300' : ''}`}>
+                              {authProgress >= 100 ? <CheckCircle2 className="h-3 w-3" /> : <div className="h-3 w-3 rounded-full border border-purple-500" />}
+                              同步数据
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <Alert className="bg-green-900/20 border-green-500/30">
