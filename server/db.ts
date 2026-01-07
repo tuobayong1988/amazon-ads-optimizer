@@ -2980,3 +2980,164 @@ export async function getBidAdjustmentTrackingStats(accountId: number, days: num
       : 0,
   };
 }
+
+
+// ==================== 同步历史记录相关函数 ====================
+
+/**
+ * 创建同步任务记录
+ */
+export async function createSyncJob(data: {
+  userId: number;
+  accountId: number;
+  syncType?: 'campaigns' | 'keywords' | 'performance' | 'all';
+  isIncremental?: boolean;
+  maxRetries?: number;
+}) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const [result] = await db.insert(dataSyncJobs).values({
+    userId: data.userId,
+    accountId: data.accountId,
+    syncType: data.syncType || 'all',
+    status: 'running',
+    isIncremental: data.isIncremental ? 1 : 0,
+    maxRetries: data.maxRetries || 3,
+    startedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+    createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+  });
+  
+  return result.insertId;
+}
+
+/**
+ * 更新同步任务状态
+ */
+export async function updateSyncJob(jobId: number, data: {
+  status?: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+  recordsSynced?: number;
+  recordsSkipped?: number;
+  errorMessage?: string;
+  retryCount?: number;
+  durationMs?: number;
+  spCampaigns?: number;
+  sbCampaigns?: number;
+  sdCampaigns?: number;
+  adGroupsSynced?: number;
+  keywordsSynced?: number;
+  targetsSynced?: number;
+}) {
+  const db = await getDb();
+  if (!db) return;
+  
+  const updateData: any = { ...data };
+  if (data.status === 'completed' || data.status === 'failed') {
+    updateData.completedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
+  }
+  
+  await db.update(dataSyncJobs)
+    .set(updateData)
+    .where(eq(dataSyncJobs.id, jobId));
+}
+
+/**
+ * 获取同步任务详情
+ */
+export async function getSyncJob(jobId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const [job] = await db.select().from(dataSyncJobs).where(eq(dataSyncJobs.id, jobId));
+  return job || null;
+}
+
+/**
+ * 获取账号的同步历史记录
+ */
+export async function getSyncHistory(accountId: number, limit: number = 20) {
+  const db = await getDb();
+  if (!db) return { jobs: [], total: 0 };
+  
+  const jobs = await db.select()
+    .from(dataSyncJobs)
+    .where(eq(dataSyncJobs.accountId, accountId))
+    .orderBy(desc(dataSyncJobs.createdAt))
+    .limit(limit);
+  
+  const [countResult] = await db.select({ count: sql<number>`count(*)` })
+    .from(dataSyncJobs)
+    .where(eq(dataSyncJobs.accountId, accountId));
+  
+  return {
+    jobs,
+    total: countResult?.count || 0,
+  };
+}
+
+/**
+ * 获取最后成功同步时间
+ */
+export async function getLastSuccessfulSync(accountId: number): Promise<string | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const [lastJob] = await db.select()
+    .from(dataSyncJobs)
+    .where(and(
+      eq(dataSyncJobs.accountId, accountId),
+      eq(dataSyncJobs.status, 'completed')
+    ))
+    .orderBy(desc(dataSyncJobs.completedAt))
+    .limit(1);
+  
+  return lastJob?.completedAt || null;
+}
+
+/**
+ * 获取同步统计信息
+ */
+export async function getSyncStats(accountId: number, days: number = 30) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - days);
+  const cutoffDateStr = cutoffDate.toISOString().slice(0, 19).replace('T', ' ');
+  
+  const [stats] = await db.select({
+    totalSyncs: sql<number>`count(*)`,
+    successfulSyncs: sql<number>`SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END)`,
+    failedSyncs: sql<number>`SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END)`,
+    totalRecordsSynced: sql<number>`COALESCE(SUM(records_synced), 0)`,
+    avgDurationMs: sql<number>`AVG(duration_ms)`,
+    totalRetries: sql<number>`COALESCE(SUM(retry_count), 0)`,
+  })
+  .from(dataSyncJobs)
+  .where(and(
+    eq(dataSyncJobs.accountId, accountId),
+    gte(dataSyncJobs.createdAt, cutoffDateStr)
+  ));
+  
+  return stats || {
+    totalSyncs: 0,
+    successfulSyncs: 0,
+    failedSyncs: 0,
+    totalRecordsSynced: 0,
+    avgDurationMs: 0,
+    totalRetries: 0,
+  };
+}
+
+/**
+ * 获取同步任务日志
+ */
+export async function getSyncLogs(jobId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select()
+    .from(dataSyncLogs)
+    .where(eq(dataSyncLogs.jobId, jobId))
+    .orderBy(desc(dataSyncLogs.createdAt));
+}

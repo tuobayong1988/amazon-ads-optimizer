@@ -166,6 +166,8 @@ export default function AmazonApiSettings() {
   const [authError, setAuthError] = useState<{ step: string; message: string; canRetry: boolean } | null>(null);
   const [lastSuccessfulStep, setLastSuccessfulStep] = useState<'idle' | 'exchanging' | 'saving' | 'syncing'>('idle');
   const [activeTab, setActiveTab] = useState("accounts");
+  const [useIncrementalSync, setUseIncrementalSync] = useState(true);
+  const [showSyncHistory, setShowSyncHistory] = useState(false);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [importData, setImportData] = useState("");
   const [importFormat, setImportFormat] = useState<"json" | "csv">("json");
@@ -298,11 +300,24 @@ export default function AmazonApiSettings() {
     },
   });
 
+  // 同步历史查询
+  const { data: syncHistory, refetch: refetchSyncHistory } = trpc.amazonApi.getSyncHistory.useQuery(
+    { accountId: selectedAccountId!, limit: 10 },
+    { enabled: !!selectedAccountId && showSyncHistory }
+  );
+
+  // 同步统计查询
+  const { data: syncStats } = trpc.amazonApi.getSyncStats.useQuery(
+    { accountId: selectedAccountId!, days: 30 },
+    { enabled: !!selectedAccountId && showSyncHistory }
+  );
+
   // Sync all mutation
   const syncAllMutation = trpc.amazonApi.syncAll.useMutation({
     onSuccess: (data) => {
       toast.success(`同步完成！广告活动: ${data.campaigns}, 广告组: ${data.adGroups}, 关键词: ${data.keywords}, 商品定位: ${data.targets}`);
       refetchStatus();
+      refetchSyncHistory();
     },
     onError: (error) => {
       toast.error(`同步失败: ${error.message}`);
@@ -475,7 +490,10 @@ export default function AmazonApiSettings() {
         }
       }, 2000);
 
-      const result = await syncAllMutation.mutateAsync({ accountId: selectedAccountId });
+      const result = await syncAllMutation.mutateAsync({ 
+        accountId: selectedAccountId,
+        isIncremental: useIncrementalSync,
+      });
       
       clearInterval(progressInterval);
       
@@ -526,7 +544,7 @@ export default function AmazonApiSettings() {
       marketplaceId: account.marketplaceId || "",
       profileId: account.profileId || "",
       sellerId: account.sellerId || "",
-      isDefault: account.isDefault || false,
+      isDefault: Boolean(account.isDefault),
     });
     setIsEditDialogOpen(true);
   };
@@ -2037,7 +2055,7 @@ export default function AmazonApiSettings() {
 
           {/* Sync Tab */}
           <TabsContent value="sync" className="space-y-4">
-            {selectedAccount && (
+            {selectedAccount && (<>
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
@@ -2058,6 +2076,31 @@ export default function AmazonApiSettings() {
                     </AlertDescription>
                   </Alert>
 
+                  {/* 同步选项 */}
+                  <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="incremental-sync"
+                        checked={useIncrementalSync}
+                        onCheckedChange={setUseIncrementalSync}
+                      />
+                      <Label htmlFor="incremental-sync" className="text-sm cursor-pointer">
+                        增量同步
+                      </Label>
+                      <span className="text-xs text-muted-foreground">
+                        (只同步上次同步后有变化的数据，减少API调用次数)
+                      </span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowSyncHistory(!showSyncHistory)}
+                    >
+                      <Eye className="h-4 w-4 mr-1" />
+                      {showSyncHistory ? '隐藏历史' : '查看历史'}
+                    </Button>
+                  </div>
+
                   <div className="flex items-center gap-4">
                     <Button 
                       onClick={() => {
@@ -2070,7 +2113,7 @@ export default function AmazonApiSettings() {
                       ) : (
                         <RefreshCw className="h-4 w-4 mr-2" />
                       )}
-                      {isSyncing ? "同步中..." : "立即同步"}
+                      {isSyncing ? "同步中..." : (useIncrementalSync ? "增量同步" : "全量同步")}
                     </Button>
 
                     <Button 
@@ -2239,7 +2282,91 @@ export default function AmazonApiSettings() {
                   )}
                 </CardContent>
               </Card>
-            )}
+
+              {/* 同步历史记录卡片 */}
+              {showSyncHistory && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Database className="h-5 w-5" />
+                      同步历史记录
+                    </CardTitle>
+                    <CardDescription>
+                      最近30天的同步记录和统计信息
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* 同步统计 */}
+                    {syncStats && (
+                      <div className="grid grid-cols-4 gap-4 p-4 bg-muted/30 rounded-lg">
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-primary">{syncStats.totalSyncs}</div>
+                          <div className="text-xs text-muted-foreground">总同步次数</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-green-500">{syncStats.successfulSyncs}</div>
+                          <div className="text-xs text-muted-foreground">成功</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold text-red-500">{syncStats.failedSyncs}</div>
+                          <div className="text-xs text-muted-foreground">失败</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl font-bold">{syncStats.totalRecordsSynced}</div>
+                          <div className="text-xs text-muted-foreground">同步记录数</div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 同步历史列表 */}
+                    <div className="space-y-2">
+                      {syncHistory && syncHistory.jobs && syncHistory.jobs.length > 0 ? (
+                        syncHistory.jobs.map((job: any) => (
+                          <div key={job.id} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg border">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-2 h-2 rounded-full ${
+                                job.status === 'completed' ? 'bg-green-500' :
+                                job.status === 'failed' ? 'bg-red-500' :
+                                job.status === 'running' ? 'bg-yellow-500 animate-pulse' :
+                                'bg-gray-500'
+                              }`} />
+                              <div>
+                                <div className="text-sm font-medium">
+                                  {job.syncType === 'full' ? '全量同步' : '增量同步'}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {new Date(job.startedAt).toLocaleString('zh-CN')}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <div className="text-right">
+                                <div className="text-sm">
+                                  同步: {job.recordsSynced || 0} | 跳过: {job.recordsSkipped || 0}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {job.durationMs ? `耗时: ${(job.durationMs / 1000).toFixed(1)}秒` : ''}
+                                  {job.retryCount && job.retryCount > 0 ? ` | 重试: ${job.retryCount}次` : ''}
+                                </div>
+                              </div>
+                              <Badge variant={job.status === 'completed' ? 'default' : job.status === 'failed' ? 'destructive' : 'secondary'}>
+                                {job.status === 'completed' ? '完成' :
+                                 job.status === 'failed' ? '失败' :
+                                 job.status === 'running' ? '进行中' : job.status}
+                              </Badge>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-center py-8 text-muted-foreground">
+                          暂无同步记录
+                        </div>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </>)}
           </TabsContent>
 
           {/* Guide Tab */}

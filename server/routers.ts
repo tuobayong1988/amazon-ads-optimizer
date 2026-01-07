@@ -2443,8 +2443,13 @@ const amazonApiRouter = router({
 
   // Sync all data from Amazon
   syncAll: protectedProcedure
-    .input(z.object({ accountId: z.number() }))
+    .input(z.object({ 
+      accountId: z.number(),
+      isIncremental: z.boolean().optional().default(false),
+      maxRetries: z.number().optional().default(3),
+    }))
     .mutation(async ({ ctx, input }) => {
+      const startTime = Date.now();
       const credentials = await db.getAmazonApiCredentials(input.accountId);
       if (!credentials) {
         throw new TRPCError({
@@ -2452,6 +2457,20 @@ const amazonApiRouter = router({
           message: 'API credentials not found',
         });
       }
+
+      // 创建同步任务记录
+      const jobId = await db.createSyncJob({
+        userId: ctx.user.id,
+        accountId: input.accountId,
+        syncType: 'all',
+        isIncremental: input.isIncremental,
+        maxRetries: input.maxRetries,
+      });
+
+      // 获取上次成功同步时间（用于增量同步）
+      const lastSyncTime = input.isIncremental 
+        ? await db.getLastSuccessfulSync(input.accountId)
+        : null;
 
       const syncService = await AmazonSyncService.createFromCredentials(
         {
@@ -2465,19 +2484,136 @@ const amazonApiRouter = router({
         ctx.user.id
       );
 
-      const results = await syncService.syncAll();
-
-      // Update last sync time
-      await db.updateAmazonApiCredentials(input.accountId, {
-        lastSyncAt: new Date().toISOString(),
-      });
-
-      return {
-        ...results,
-        spCampaigns: results.spCampaigns || 0,
-        sbCampaigns: results.sbCampaigns || 0,
-        sdCampaigns: results.sdCampaigns || 0,
+      // 带重试的执行函数
+      const executeWithRetry = async <T>(
+        fn: () => Promise<T>,
+        stepName: string,
+        maxRetries: number = input.maxRetries
+      ): Promise<T> => {
+        let lastError: Error | null = null;
+        for (let attempt = 0; attempt <= maxRetries; attempt++) {
+          try {
+            return await fn();
+          } catch (error: any) {
+            lastError = error;
+            console.error(`${stepName} 失败 (尝试 ${attempt + 1}/${maxRetries + 1}):`, error.message);
+            if (attempt < maxRetries) {
+              // 指数退避延迟
+              const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+              await new Promise(resolve => setTimeout(resolve, delay));
+            }
+          }
+        }
+        throw lastError;
       };
+
+      let totalRetries = 0;
+      let results: any = {
+        campaigns: 0,
+        spCampaigns: 0,
+        sbCampaigns: 0,
+        sdCampaigns: 0,
+        adGroups: 0,
+        keywords: 0,
+        targets: 0,
+        skipped: 0,
+      };
+
+      try {
+        // 同步SP广告活动
+        const spResult = await executeWithRetry(
+          () => syncService.syncSpCampaigns(lastSyncTime),
+          'SP广告同步'
+        );
+        results.spCampaigns = typeof spResult === 'object' ? spResult.synced : spResult;
+        results.skipped += typeof spResult === 'object' ? (spResult.skipped || 0) : 0;
+
+        // 同步SB广告活动
+        const sbResult = await executeWithRetry(
+          () => syncService.syncSbCampaigns(lastSyncTime),
+          'SB广告同步'
+        );
+        results.sbCampaigns = typeof sbResult === 'object' ? sbResult.synced : sbResult;
+        results.skipped += typeof sbResult === 'object' ? (sbResult.skipped || 0) : 0;
+
+        // 同步SD广告活动
+        const sdResult = await executeWithRetry(
+          () => syncService.syncSdCampaigns(lastSyncTime),
+          'SD广告同步'
+        );
+        results.sdCampaigns = typeof sdResult === 'object' ? sdResult.synced : sdResult;
+        results.skipped += typeof sdResult === 'object' ? (sdResult.skipped || 0) : 0;
+
+        // 同步广告组
+        const adGroupsResult = await executeWithRetry(
+          () => syncService.syncSpAdGroups(lastSyncTime),
+          '广告组同步'
+        );
+        results.adGroups = typeof adGroupsResult === 'object' ? adGroupsResult.synced : adGroupsResult;
+        results.skipped += typeof adGroupsResult === 'object' ? (adGroupsResult.skipped || 0) : 0;
+
+        // 同步关键词
+        const keywordsResult = await executeWithRetry(
+          () => syncService.syncSpKeywords(lastSyncTime),
+          '关键词同步'
+        );
+        results.keywords = typeof keywordsResult === 'object' ? keywordsResult.synced : keywordsResult;
+        results.skipped += typeof keywordsResult === 'object' ? (keywordsResult.skipped || 0) : 0;
+
+        // 同步商品定位
+        const targetsResult = await executeWithRetry(
+          () => syncService.syncSpProductTargets(lastSyncTime),
+          '商品定位同步'
+        );
+        results.targets = typeof targetsResult === 'object' ? targetsResult.synced : targetsResult;
+        results.skipped += typeof targetsResult === 'object' ? (targetsResult.skipped || 0) : 0;
+
+        results.campaigns = results.spCampaigns + results.sbCampaigns + results.sdCampaigns;
+
+        // 更新同步任务记录
+        const durationMs = Date.now() - startTime;
+        if (jobId) {
+          await db.updateSyncJob(jobId, {
+            status: 'completed',
+            recordsSynced: results.campaigns + results.adGroups + results.keywords + results.targets,
+            recordsSkipped: results.skipped,
+            durationMs,
+            retryCount: totalRetries,
+            spCampaigns: results.spCampaigns,
+            sbCampaigns: results.sbCampaigns,
+            sdCampaigns: results.sdCampaigns,
+            adGroupsSynced: results.adGroups,
+            keywordsSynced: results.keywords,
+            targetsSynced: results.targets,
+          });
+        }
+
+        // Update last sync time
+        await db.updateAmazonApiCredentials(input.accountId, {
+          lastSyncAt: new Date().toISOString(),
+        });
+
+        return {
+          ...results,
+          durationMs,
+          retryCount: totalRetries,
+          isIncremental: input.isIncremental,
+        };
+      } catch (error: any) {
+        // 更新同步任务记录为失败
+        if (jobId) {
+          await db.updateSyncJob(jobId, {
+            status: 'failed',
+            errorMessage: error.message,
+            durationMs: Date.now() - startTime,
+            retryCount: totalRetries,
+          });
+        }
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `同步失败: ${error.message}`,
+        });
+      }
     }),
 
   // Sync campaigns only
@@ -2537,6 +2673,33 @@ const amazonApiRouter = router({
 
       const count = await syncService.syncPerformanceData(input.days);
       return { synced: count };
+    }),
+
+  // 获取同步历史记录
+  getSyncHistory: protectedProcedure
+    .input(z.object({ 
+      accountId: z.number(),
+      limit: z.number().optional().default(20),
+    }))
+    .query(async ({ input }) => {
+      return db.getSyncHistory(input.accountId, input.limit);
+    }),
+
+  // 获取同步统计信息
+  getSyncStats: protectedProcedure
+    .input(z.object({ 
+      accountId: z.number(),
+      days: z.number().optional().default(30),
+    }))
+    .query(async ({ input }) => {
+      return db.getSyncStats(input.accountId, input.days);
+    }),
+
+  // 获取同步任务日志
+  getSyncLogs: protectedProcedure
+    .input(z.object({ jobId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getSyncLogs(input.jobId);
     }),
 
   // Apply bid adjustment to Amazon

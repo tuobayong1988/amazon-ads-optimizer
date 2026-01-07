@@ -617,6 +617,18 @@ export const dataSyncJobs = mysqlTable("data_sync_jobs", {
 	startedAt: timestamp({ mode: 'string' }),
 	completedAt: timestamp({ mode: 'string' }),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	// 增量同步和重试相关字段
+	isIncremental: tinyint().default(0),
+	retryCount: int().default(0),
+	maxRetries: int().default(3),
+	durationMs: int(),
+	recordsSkipped: int().default(0),
+	spCampaigns: int().default(0),
+	sbCampaigns: int().default(0),
+	sdCampaigns: int().default(0),
+	adGroupsSynced: int().default(0),
+	keywordsSynced: int().default(0),
+	targetsSynced: int().default(0),
 });
 
 export const dataSyncLogs = mysqlTable("data_sync_logs", {

@@ -122,14 +122,16 @@ export class AmazonSyncService {
 
   /**
    * 同步SB品牌广告活动
+   * @param lastSyncTime 上次同步时间，用于增量同步
    */
-  async syncSbCampaigns(): Promise<number> {
+  async syncSbCampaigns(lastSyncTime?: string | null): Promise<number | { synced: number; skipped: number }> {
     const db = await getDb();
-    if (!db) return 0;
+    if (!db) return { synced: 0, skipped: 0 };
 
     try {
       const apiCampaigns = await this.client.listSbCampaigns();
       let synced = 0;
+      let skipped = 0;
 
       for (const apiCampaign of apiCampaigns) {
         // 检查是否已存在
@@ -143,6 +145,16 @@ export class AmazonSyncService {
             )
           )
           .limit(1);
+
+        // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
+        if (lastSyncTime && existing) {
+          const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+          const lastSync = new Date(lastSyncTime).getTime();
+          if (existingUpdated >= lastSync) {
+            skipped++;
+            continue;
+          }
+        }
 
         const campaignData = {
           accountId: this.accountId,
@@ -169,23 +181,25 @@ export class AmazonSyncService {
         synced++;
       }
 
-      return synced;
+      return { synced, skipped };
     } catch (error) {
       console.error('Error syncing SB campaigns:', error);
-      return 0;
+      return { synced: 0, skipped: 0 };
     }
   }
 
   /**
    * 同步SD展示广告活动
+   * @param lastSyncTime 上次同步时间，用于增量同步
    */
-  async syncSdCampaigns(): Promise<number> {
+  async syncSdCampaigns(lastSyncTime?: string | null): Promise<number | { synced: number; skipped: number }> {
     const db = await getDb();
-    if (!db) return 0;
+    if (!db) return { synced: 0, skipped: 0 };
 
     try {
       const apiCampaigns = await this.client.listSdCampaigns();
       let synced = 0;
+      let skipped = 0;
 
       for (const apiCampaign of apiCampaigns) {
         // 检查是否已存在
@@ -199,6 +213,16 @@ export class AmazonSyncService {
             )
           )
           .limit(1);
+
+        // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
+        if (lastSyncTime && existing) {
+          const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+          const lastSync = new Date(lastSyncTime).getTime();
+          if (existingUpdated >= lastSync) {
+            skipped++;
+            continue;
+          }
+        }
 
         const campaignData = {
           accountId: this.accountId,
@@ -225,23 +249,25 @@ export class AmazonSyncService {
         synced++;
       }
 
-      return synced;
+      return { synced, skipped };
     } catch (error) {
       console.error('Error syncing SD campaigns:', error);
-      return 0;
+      return { synced: 0, skipped: 0 };
     }
   }
 
   /**
    * 同步SP广告活动
+   * @param lastSyncTime 上次同步时间，用于增量同步
    */
-  async syncSpCampaigns(): Promise<number> {
+  async syncSpCampaigns(lastSyncTime?: string | null): Promise<number | { synced: number; skipped: number }> {
     const db = await getDb();
-    if (!db) return 0;
+    if (!db) return { synced: 0, skipped: 0 };
 
     try {
       const apiCampaigns = await this.client.listSpCampaigns();
       let synced = 0;
+      let skipped = 0;
 
       for (const apiCampaign of apiCampaigns) {
         // 检查是否已存在
@@ -255,6 +281,17 @@ export class AmazonSyncService {
             )
           )
           .limit(1);
+
+        // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
+        if (lastSyncTime && existing) {
+          const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+          const lastSync = new Date(lastSyncTime).getTime();
+          // 如果记录在上次同步后没有更新，跳过
+          if (existingUpdated >= lastSync) {
+            skipped++;
+            continue;
+          }
+        }
 
         // 确定广告活动类型
         const campaignType = apiCampaign.targetingType === 'auto' ? 'sp_auto' : 'sp_manual';
@@ -286,23 +323,25 @@ export class AmazonSyncService {
         synced++;
       }
 
-      return synced;
+      return { synced, skipped };
     } catch (error) {
       console.error('Error syncing SP campaigns:', error);
-      return 0;
+      return { synced: 0, skipped: 0 };
     }
   }
 
   /**
    * 同步SP广告组
+   * @param lastSyncTime 上次同步时间，用于增量同步
    */
-  async syncSpAdGroups(): Promise<number> {
+  async syncSpAdGroups(lastSyncTime?: string | null): Promise<number | { synced: number; skipped: number }> {
     const db = await getDb();
-    if (!db) return 0;
+    if (!db) return { synced: 0, skipped: 0 };
 
     try {
       const apiAdGroups = await this.client.listSpAdGroups();
       let synced = 0;
+      let skipped = 0;
 
       for (const apiAdGroup of apiAdGroups) {
         // 查找对应的campaign
@@ -331,6 +370,16 @@ export class AmazonSyncService {
           )
           .limit(1);
 
+        // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
+        if (lastSyncTime && existing) {
+          const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+          const lastSync = new Date(lastSyncTime).getTime();
+          if (existingUpdated >= lastSync) {
+            skipped++;
+            continue;
+          }
+        }
+
         const adGroupData = {
           campaignId: campaign.id,
           adGroupId: String(apiAdGroup.adGroupId),
@@ -354,23 +403,25 @@ export class AmazonSyncService {
         synced++;
       }
 
-      return synced;
+      return { synced, skipped };
     } catch (error) {
       console.error('Error syncing SP ad groups:', error);
-      return 0;
+      return { synced: 0, skipped: 0 };
     }
   }
 
   /**
    * 同步SP关键词
+   * @param lastSyncTime 上次同步时间，用于增量同步
    */
-  async syncSpKeywords(): Promise<number> {
+  async syncSpKeywords(lastSyncTime?: string | null): Promise<number | { synced: number; skipped: number }> {
     const db = await getDb();
-    if (!db) return 0;
+    if (!db) return { synced: 0, skipped: 0 };
 
     try {
       const apiKeywords = await this.client.listSpKeywords();
       let synced = 0;
+      let skipped = 0;
 
       for (const apiKeyword of apiKeywords) {
         // 查找对应的ad group
@@ -393,6 +444,16 @@ export class AmazonSyncService {
             )
           )
           .limit(1);
+
+        // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
+        if (lastSyncTime && existing) {
+          const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+          const lastSync = new Date(lastSyncTime).getTime();
+          if (existingUpdated >= lastSync) {
+            skipped++;
+            continue;
+          }
+        }
 
         const keywordData = {
           adGroupId: adGroup.id,
@@ -418,23 +479,25 @@ export class AmazonSyncService {
         synced++;
       }
 
-      return synced;
+      return { synced, skipped };
     } catch (error) {
       console.error('Error syncing SP keywords:', error);
-      return 0;
+      return { synced: 0, skipped: 0 };
     }
   }
 
   /**
    * 同步SP商品定位
+   * @param lastSyncTime 上次同步时间，用于增量同步
    */
-  async syncSpProductTargets(): Promise<number> {
+  async syncSpProductTargets(lastSyncTime?: string | null): Promise<number | { synced: number; skipped: number }> {
     const db = await getDb();
-    if (!db) return 0;
+    if (!db) return { synced: 0, skipped: 0 };
 
     try {
       const apiTargets = await this.client.listSpProductTargets();
       let synced = 0;
+      let skipped = 0;
 
       for (const apiTarget of apiTargets) {
         // 查找对应的ad group
@@ -463,6 +526,16 @@ export class AmazonSyncService {
           )
           .limit(1);
 
+        // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
+        if (lastSyncTime && existing) {
+          const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+          const lastSync = new Date(lastSyncTime).getTime();
+          if (existingUpdated >= lastSync) {
+            skipped++;
+            continue;
+          }
+        }
+
         const targetData = {
           adGroupId: adGroup.id,
           targetId: String(apiTarget.targetId),
@@ -488,10 +561,10 @@ export class AmazonSyncService {
         synced++;
       }
 
-      return synced;
+      return { synced, skipped };
     } catch (error) {
       console.error('Error syncing SP product targets:', error);
-      return 0;
+      return { synced: 0, skipped: 0 };
     }
   }
 
