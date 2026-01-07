@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,6 +9,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   DropdownMenuShortcut,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+  DropdownMenuPortal,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -17,13 +21,35 @@ import {
   Check,
   Plus,
   Settings,
-  RefreshCw,
   Globe,
-  AlertCircle,
   Loader2,
+  Filter,
+  X,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
+
+// 区域定义
+const REGIONS = [
+  { 
+    id: 'NA', 
+    name: '北美区域', 
+    flag: '🇺🇸',
+    marketplaces: ['US', 'CA', 'MX', 'BR']
+  },
+  { 
+    id: 'EU', 
+    name: '欧洲区域', 
+    flag: '🇪🇺',
+    marketplaces: ['UK', 'DE', 'FR', 'IT', 'ES', 'NL', 'SE', 'PL', 'AE', 'SA', 'IN']
+  },
+  { 
+    id: 'FE', 
+    name: '远东区域', 
+    flag: '🌏',
+    marketplaces: ['JP', 'AU', 'SG']
+  },
+];
 
 // 市场标志映射
 const MARKETPLACE_FLAGS: Record<string, string> = {
@@ -47,8 +73,32 @@ const MARKETPLACE_FLAGS: Record<string, string> = {
   IN: "🇮🇳",
 };
 
+// 市场名称映射
+const MARKETPLACE_NAMES: Record<string, string> = {
+  US: "美国",
+  CA: "加拿大",
+  MX: "墨西哥",
+  BR: "巴西",
+  UK: "英国",
+  DE: "德国",
+  FR: "法国",
+  IT: "意大利",
+  ES: "西班牙",
+  NL: "荷兰",
+  SE: "瑞典",
+  PL: "波兰",
+  JP: "日本",
+  AU: "澳大利亚",
+  SG: "新加坡",
+  AE: "阿联酋",
+  SA: "沙特",
+  IN: "印度",
+};
+
 // 存储当前选中账号的key
 const CURRENT_ACCOUNT_KEY = "current-ad-account-id";
+const FILTER_REGION_KEY = "account-filter-region";
+const FILTER_MARKETPLACE_KEY = "account-filter-marketplace";
 
 // 创建一个简单的事件系统用于账号切换通知
 type AccountChangeListener = (accountId: number | null) => void;
@@ -99,6 +149,14 @@ export default function AccountSwitcher({ compact = false, showStatus = true }: 
   const [, setLocation] = useLocation();
   const [isOpen, setIsOpen] = useState(false);
   const currentAccountId = useCurrentAccountId();
+  
+  // 筛选状态
+  const [filterRegion, setFilterRegion] = useState<string | null>(() => {
+    return localStorage.getItem(FILTER_REGION_KEY);
+  });
+  const [filterMarketplace, setFilterMarketplace] = useState<string | null>(() => {
+    return localStorage.getItem(FILTER_MARKETPLACE_KEY);
+  });
 
   // 获取账号列表
   const { data: accounts, isLoading, refetch } = trpc.adAccount.list.useQuery();
@@ -113,6 +171,52 @@ export default function AccountSwitcher({ compact = false, showStatus = true }: 
       refetch();
     },
   });
+
+  // 保存筛选状态到localStorage
+  useEffect(() => {
+    if (filterRegion) {
+      localStorage.setItem(FILTER_REGION_KEY, filterRegion);
+    } else {
+      localStorage.removeItem(FILTER_REGION_KEY);
+    }
+  }, [filterRegion]);
+
+  useEffect(() => {
+    if (filterMarketplace) {
+      localStorage.setItem(FILTER_MARKETPLACE_KEY, filterMarketplace);
+    } else {
+      localStorage.removeItem(FILTER_MARKETPLACE_KEY);
+    }
+  }, [filterMarketplace]);
+
+  // 根据区域获取可用的站点
+  const availableMarketplaces = useMemo(() => {
+    if (!filterRegion) return Object.keys(MARKETPLACE_FLAGS);
+    const region = REGIONS.find(r => r.id === filterRegion);
+    return region ? region.marketplaces : Object.keys(MARKETPLACE_FLAGS);
+  }, [filterRegion]);
+
+  // 筛选后的账号列表
+  const filteredAccounts = useMemo(() => {
+    if (!accounts) return [];
+    
+    return accounts.filter(account => {
+      // 按区域筛选
+      if (filterRegion) {
+        const region = REGIONS.find(r => r.id === filterRegion);
+        if (region && !region.marketplaces.includes(account.marketplace)) {
+          return false;
+        }
+      }
+      
+      // 按站点筛选
+      if (filterMarketplace && account.marketplace !== filterMarketplace) {
+        return false;
+      }
+      
+      return true;
+    });
+  }, [accounts, filterRegion, filterMarketplace]);
 
   // 当前选中的账号
   const currentAccount = accounts?.find(a => a.id === currentAccountId);
@@ -132,15 +236,31 @@ export default function AccountSwitcher({ compact = false, showStatus = true }: 
     toast.success("已切换账号");
   }, []);
 
+  // 清除筛选
+  const clearFilters = useCallback(() => {
+    setFilterRegion(null);
+    setFilterMarketplace(null);
+    toast.success("已清除筛选");
+  }, []);
+
+  // 设置区域筛选
+  const handleRegionFilter = useCallback((regionId: string | null) => {
+    setFilterRegion(regionId);
+    // 如果切换区域，清除站点筛选
+    if (regionId !== filterRegion) {
+      setFilterMarketplace(null);
+    }
+  }, [filterRegion]);
+
   // 键盘快捷键
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Alt + 1-9 快速切换账号
       if (e.altKey && e.key >= '1' && e.key <= '9') {
         const index = parseInt(e.key) - 1;
-        if (accounts && accounts[index]) {
+        if (filteredAccounts && filteredAccounts[index]) {
           e.preventDefault();
-          handleSwitchAccount(accounts[index].id);
+          handleSwitchAccount(filteredAccounts[index].id);
         }
       }
       // Alt + A 打开账号切换器
@@ -152,7 +272,7 @@ export default function AccountSwitcher({ compact = false, showStatus = true }: 
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [accounts, handleSwitchAccount]);
+  }, [filteredAccounts, handleSwitchAccount]);
 
   const getConnectionStatusColor = (status: string | null) => {
     switch (status) {
@@ -162,6 +282,19 @@ export default function AccountSwitcher({ compact = false, showStatus = true }: 
       default: return 'bg-yellow-500';
     }
   };
+
+  // 获取当前筛选的区域名称
+  const currentRegionName = filterRegion 
+    ? REGIONS.find(r => r.id === filterRegion)?.name 
+    : null;
+
+  // 获取当前筛选的站点名称
+  const currentMarketplaceName = filterMarketplace 
+    ? `${MARKETPLACE_FLAGS[filterMarketplace]} ${MARKETPLACE_NAMES[filterMarketplace]}`
+    : null;
+
+  // 是否有筛选条件
+  const hasFilters = filterRegion || filterMarketplace;
 
   if (isLoading) {
     return (
@@ -220,7 +353,7 @@ export default function AccountSwitcher({ compact = false, showStatus = true }: 
           <ChevronDown className="h-3 w-3 opacity-50 shrink-0" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-72">
+      <DropdownMenuContent align="end" className="w-80">
         <DropdownMenuLabel className="flex items-center justify-between">
           <span>店铺账号</span>
           {stats && (
@@ -231,46 +364,131 @@ export default function AccountSwitcher({ compact = false, showStatus = true }: 
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         
-        <div className="max-h-[300px] overflow-y-auto">
-          {accounts.map((account, index) => {
-            const isSelected = account.id === currentAccountId;
-            const flag = MARKETPLACE_FLAGS[account.marketplace] || '🌐';
-            
-            return (
-              <DropdownMenuItem
-                key={account.id}
-                className={`flex items-center gap-3 py-2.5 cursor-pointer ${isSelected ? 'bg-accent' : ''}`}
-                onClick={() => handleSwitchAccount(account.id)}
+        {/* 筛选区域 */}
+        <div className="px-2 py-2 space-y-2">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Filter className="h-3 w-3" />
+            <span>快速筛选</span>
+            {hasFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-5 px-1 text-xs ml-auto"
+                onClick={clearFilters}
               >
-                <div
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0"
-                  style={{ backgroundColor: account.storeColor || '#3B82F6' }}
+                <X className="h-3 w-3 mr-1" />
+                清除
+              </Button>
+            )}
+          </div>
+          
+          {/* 区域筛选按钮 */}
+          <div className="flex flex-wrap gap-1">
+            <Button
+              variant={!filterRegion ? "default" : "outline"}
+              size="sm"
+              className="h-6 text-xs px-2"
+              onClick={() => handleRegionFilter(null)}
+            >
+              全部
+            </Button>
+            {REGIONS.map(region => (
+              <Button
+                key={region.id}
+                variant={filterRegion === region.id ? "default" : "outline"}
+                size="sm"
+                className="h-6 text-xs px-2"
+                onClick={() => handleRegionFilter(region.id)}
+              >
+                {region.flag} {region.id}
+              </Button>
+            ))}
+          </div>
+          
+          {/* 站点筛选按钮 - 仅在选择区域后显示 */}
+          {filterRegion && (
+            <div className="flex flex-wrap gap-1">
+              <Button
+                variant={!filterMarketplace ? "secondary" : "outline"}
+                size="sm"
+                className="h-6 text-xs px-2"
+                onClick={() => setFilterMarketplace(null)}
+              >
+                全部站点
+              </Button>
+              {availableMarketplaces.map(mp => (
+                <Button
+                  key={mp}
+                  variant={filterMarketplace === mp ? "secondary" : "outline"}
+                  size="sm"
+                  className="h-6 text-xs px-2"
+                  onClick={() => setFilterMarketplace(mp)}
                 >
-                  {(account.storeName || account.accountName).charAt(0).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium truncate">
-                      {account.storeName || account.accountName}
-                    </span>
-                    {account.isDefault && (
-                      <Badge variant="outline" className="text-[10px] px-1 py-0">默认</Badge>
-                    )}
+                  {MARKETPLACE_FLAGS[mp]} {mp}
+                </Button>
+              ))}
+            </div>
+          )}
+          
+          {/* 当前筛选状态 */}
+          {hasFilters && (
+            <div className="text-xs text-muted-foreground bg-muted/50 rounded px-2 py-1">
+              筛选: {currentRegionName || '全部区域'}
+              {currentMarketplaceName && ` → ${currentMarketplaceName}`}
+              {' '}({filteredAccounts.length} 个账号)
+            </div>
+          )}
+        </div>
+        
+        <DropdownMenuSeparator />
+        
+        {/* 账号列表 */}
+        <div className="max-h-[250px] overflow-y-auto">
+          {filteredAccounts.length === 0 ? (
+            <div className="px-2 py-4 text-center text-sm text-muted-foreground">
+              没有符合筛选条件的账号
+            </div>
+          ) : (
+            filteredAccounts.map((account, index) => {
+              const isSelected = account.id === currentAccountId;
+              const flag = MARKETPLACE_FLAGS[account.marketplace] || '🌐';
+              
+              return (
+                <DropdownMenuItem
+                  key={account.id}
+                  className={`flex items-center gap-3 py-2.5 cursor-pointer ${isSelected ? 'bg-accent' : ''}`}
+                  onClick={() => handleSwitchAccount(account.id)}
+                >
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold shrink-0"
+                    style={{ backgroundColor: account.storeColor || '#3B82F6' }}
+                  >
+                    {(account.storeName || account.accountName).charAt(0).toUpperCase()}
                   </div>
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span>{flag} {account.marketplace}</span>
-                    <span
-                      className={`w-1.5 h-1.5 rounded-full ${getConnectionStatusColor(account.connectionStatus)}`}
-                    />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium truncate">
+                        {account.storeName || account.accountName}
+                      </span>
+                      {account.isDefault && (
+                        <Badge variant="outline" className="text-[10px] px-1 py-0">默认</Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span>{flag} {MARKETPLACE_NAMES[account.marketplace] || account.marketplace}</span>
+                      <span
+                        className={`w-1.5 h-1.5 rounded-full ${getConnectionStatusColor(account.connectionStatus)}`}
+                      />
+                    </div>
                   </div>
-                </div>
-                {isSelected && <Check className="h-4 w-4 text-primary shrink-0" />}
-                {index < 9 && (
-                  <DropdownMenuShortcut>Alt+{index + 1}</DropdownMenuShortcut>
-                )}
-              </DropdownMenuItem>
-            );
-          })}
+                  {isSelected && <Check className="h-4 w-4 text-primary shrink-0" />}
+                  {index < 9 && (
+                    <DropdownMenuShortcut>Alt+{index + 1}</DropdownMenuShortcut>
+                  )}
+                </DropdownMenuItem>
+              );
+            })
+          )}
         </div>
 
         <DropdownMenuSeparator />
