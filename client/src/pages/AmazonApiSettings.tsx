@@ -142,8 +142,29 @@ export default function AmazonApiSettings() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [authStep, setAuthStep] = useState<'idle' | 'exchanging' | 'saving' | 'syncing' | 'complete'>('idle');
+  const [syncProgress, setSyncProgress] = useState<{
+    step: 'idle' | 'sp' | 'sb' | 'sd' | 'adgroups' | 'keywords' | 'targets' | 'complete' | 'error';
+    progress: number;
+    current: string;
+    results: {
+      sp: number;
+      sb: number;
+      sd: number;
+      adGroups: number;
+      keywords: number;
+      targets: number;
+    };
+    error?: string;
+  }>({
+    step: 'idle',
+    progress: 0,
+    current: '',
+    results: { sp: 0, sb: 0, sd: 0, adGroups: 0, keywords: 0, targets: 0 }
+  });
+  const [authStep, setAuthStep] = useState<'idle' | 'exchanging' | 'saving' | 'syncing' | 'complete' | 'error'>('idle');
   const [authProgress, setAuthProgress] = useState(0);
+  const [authError, setAuthError] = useState<{ step: string; message: string; canRetry: boolean } | null>(null);
+  const [lastSuccessfulStep, setLastSuccessfulStep] = useState<'idle' | 'exchanging' | 'saving' | 'syncing'>('idle');
   const [activeTab, setActiveTab] = useState("accounts");
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [importData, setImportData] = useState("");
@@ -422,8 +443,72 @@ export default function AmazonApiSettings() {
     }
 
     setIsSyncing(true);
+    setSyncProgress({
+      step: 'sp',
+      progress: 10,
+      current: '正在同步 SP 商品推广广告...',
+      results: { sp: 0, sb: 0, sd: 0, adGroups: 0, keywords: 0, targets: 0 }
+    });
+
     try {
-      await syncAllMutation.mutateAsync({ accountId: selectedAccountId });
+      // 模拟进度更新（因为API是一次性返回）
+      const progressSteps = [
+        { step: 'sp' as const, progress: 15, current: '正在同步 SP 商品推广广告...' },
+        { step: 'sb' as const, progress: 30, current: '正在同步 SB 品牌广告...' },
+        { step: 'sd' as const, progress: 45, current: '正在同步 SD 展示广告...' },
+        { step: 'adgroups' as const, progress: 60, current: '正在同步广告组...' },
+        { step: 'keywords' as const, progress: 75, current: '正在同步关键词...' },
+        { step: 'targets' as const, progress: 90, current: '正在同步商品定位...' },
+      ];
+
+      // 启动进度动画
+      let stepIndex = 0;
+      const progressInterval = setInterval(() => {
+        if (stepIndex < progressSteps.length) {
+          setSyncProgress(prev => ({
+            ...prev,
+            step: progressSteps[stepIndex].step,
+            progress: progressSteps[stepIndex].progress,
+            current: progressSteps[stepIndex].current,
+          }));
+          stepIndex++;
+        }
+      }, 2000);
+
+      const result = await syncAllMutation.mutateAsync({ accountId: selectedAccountId });
+      
+      clearInterval(progressInterval);
+      
+      setSyncProgress({
+        step: 'complete',
+        progress: 100,
+        current: '同步完成！',
+        results: {
+          sp: result.spCampaigns || 0,
+          sb: result.sbCampaigns || 0,
+          sd: result.sdCampaigns || 0,
+          adGroups: result.adGroups || 0,
+          keywords: result.keywords || 0,
+          targets: result.targets || 0,
+        }
+      });
+
+      // 3秒后重置进度
+      setTimeout(() => {
+        setSyncProgress({
+          step: 'idle',
+          progress: 0,
+          current: '',
+          results: { sp: 0, sb: 0, sd: 0, adGroups: 0, keywords: 0, targets: 0 }
+        });
+      }, 5000);
+    } catch (error: any) {
+      setSyncProgress(prev => ({
+        ...prev,
+        step: 'error',
+        current: `同步失败: ${error.message || '未知错误'}`,
+        error: error.message,
+      }));
     } finally {
       setIsSyncing(false);
     }
@@ -1183,19 +1268,24 @@ export default function AmazonApiSettings() {
                                 }, 3000);
                               }
                             } catch (error: any) {
-                              setAuthStep('idle');
-                              setAuthProgress(0);
+                              setAuthStep('error');
+                              setAuthError({
+                                step: '换取Token',
+                                message: error.message || '授权码无效或已过期',
+                                canRetry: true
+                              });
                               toast.error(`换取失败: ${error.message}`);
                             }
                           }}
-                          disabled={authStep !== 'idle'}
+                          disabled={authStep !== 'idle' && authStep !== 'error'}
                         >
-                          {authStep !== 'idle' ? (
+                          {authStep !== 'idle' && authStep !== 'error' ? (
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                           ) : (
                             <Key className="h-4 w-4 mr-2" />
                           )}
                           {authStep === 'idle' && '换取Token'}
+                          {authStep === 'error' && '重试换取'}
                           {authStep === 'exchanging' && '换取中...'}
                           {authStep === 'saving' && '保存中...'}
                           {authStep === 'syncing' && '同步中...'}
@@ -1205,27 +1295,36 @@ export default function AmazonApiSettings() {
                       
                       {/* 授权进度指示器 - 增强版 */}
                       {authStep !== 'idle' && (
-                        <div className="mt-6 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <div className={`mt-6 p-4 rounded-lg border ${
+                          authStep === 'error' 
+                            ? 'bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950/30 dark:to-orange-950/30 border-red-200 dark:border-red-800'
+                            : 'bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950/30 dark:to-indigo-950/30 border-blue-200 dark:border-blue-800'
+                        }`}>
                           {/* 标题 */}
                           <div className="flex items-center gap-2 mb-4">
                             <div className="relative">
-                              <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center">
+                              <div className={`h-8 w-8 rounded-full flex items-center justify-center ${
+                                authStep === 'error' ? 'bg-red-500/20' : 'bg-primary/20'
+                              }`}>
                                 {authStep === 'complete' ? (
                                   <CheckCircle2 className="h-5 w-5 text-green-500" />
+                                ) : authStep === 'error' ? (
+                                  <XCircle className="h-5 w-5 text-red-500" />
                                 ) : (
                                   <Loader2 className="h-5 w-5 text-primary animate-spin" />
                                 )}
                               </div>
                             </div>
                             <div>
-                              <h4 className="font-semibold text-sm">
-                                {authStep === 'complete' ? '授权完成' : '正在授权...'}
+                              <h4 className={`font-semibold text-sm ${authStep === 'error' ? 'text-red-600 dark:text-red-400' : ''}`}>
+                                {authStep === 'complete' ? '授权完成' : authStep === 'error' ? '授权失败' : '正在授权...'}
                               </h4>
                               <p className="text-xs text-muted-foreground">
                                 {authStep === 'exchanging' && '步骤 1/4: 正在与亚马逊服务器通信'}
                                 {authStep === 'saving' && '步骤 3/4: 正在保存凭证并同步数据'}
                                 {authStep === 'syncing' && '步骤 4/4: 正在拉取广告数据'}
                                 {authStep === 'complete' && '所有步骤已完成'}
+                                {authStep === 'error' && authError && `失败于: ${authError.step}`}
                               </p>
                             </div>
                           </div>
@@ -1237,12 +1336,16 @@ export default function AmazonApiSettings() {
                                 className={`h-3 rounded-full transition-all duration-700 ease-out ${
                                   authStep === 'complete' 
                                     ? 'bg-gradient-to-r from-green-400 to-green-500' 
-                                    : 'bg-gradient-to-r from-blue-400 to-indigo-500'
+                                    : authStep === 'error'
+                                      ? 'bg-gradient-to-r from-red-400 to-red-500'
+                                      : 'bg-gradient-to-r from-blue-400 to-indigo-500'
                                 }`}
                                 style={{ width: `${authProgress}%` }}
                               />
                             </div>
-                            <div className="absolute right-0 top-0 -mt-1 text-xs font-medium text-primary">
+                            <div className={`absolute right-0 top-0 -mt-1 text-xs font-medium ${
+                              authStep === 'error' ? 'text-red-500' : 'text-primary'
+                            }`}>
                               {authProgress}%
                             </div>
                           </div>
@@ -1357,16 +1460,63 @@ export default function AmazonApiSettings() {
                           {/* 当前操作详情 */}
                           <div className="mt-4 p-3 bg-white/50 dark:bg-gray-800/50 rounded-md">
                             <div className="flex items-center gap-2 text-sm">
-                              {authStep !== 'complete' && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+                              {authStep !== 'complete' && authStep !== 'error' && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
                               {authStep === 'complete' && <CheckCircle2 className="h-4 w-4 text-green-500" />}
-                              <span className={authStep === 'complete' ? 'text-green-600 dark:text-green-400' : 'text-muted-foreground'}>
+                              {authStep === 'error' && <XCircle className="h-4 w-4 text-red-500" />}
+                              <span className={
+                                authStep === 'complete' ? 'text-green-600 dark:text-green-400' : 
+                                authStep === 'error' ? 'text-red-600 dark:text-red-400' : 
+                                'text-muted-foreground'
+                              }>
                                 {authStep === 'exchanging' && '正在与 Amazon Advertising API 通信，换取访问令牌...'}
                                 {authStep === 'saving' && '正在验证凭证并保存到数据库，同时同步广告数据...'}
                                 {authStep === 'syncing' && '正在从亚马逊拉取 SP/SB/SD 广告活动数据...'}
                                 {authStep === 'complete' && '授权流程已完成！您现在可以开始管理广告了。'}
+                                {authStep === 'error' && authError && authError.message}
                               </span>
                             </div>
                           </div>
+                          
+                          {/* 错误恢复操作 */}
+                          {authStep === 'error' && authError && (
+                            <div className="mt-4 p-4 bg-red-50 dark:bg-red-950/30 rounded-md border border-red-200 dark:border-red-800">
+                              <h5 className="font-medium text-red-700 dark:text-red-400 mb-2">授权失败</h5>
+                              <p className="text-sm text-red-600 dark:text-red-300 mb-3">
+                                {authError.step === '换取Token' && '授权码无效或已过期。请重新生成授权链接并完成授权，然后立即粘贴新的授权码。'}
+                                {authError.step === '保存凭证' && '凭证保存失败。请检查网络连接并重试。'}
+                                {authError.step === '同步数据' && '数据同步失败。您可以稍后在“数据同步”标签中手动同步。'}
+                              </p>
+                              <div className="flex gap-2">
+                                {authError.canRetry && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="border-red-300 text-red-700 hover:bg-red-100"
+                                    onClick={() => {
+                                      setAuthStep('idle');
+                                      setAuthProgress(0);
+                                      setAuthError(null);
+                                    }}
+                                  >
+                                    <RefreshCw className="h-4 w-4 mr-1" />
+                                    重新开始
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-red-600 hover:text-red-700"
+                                  onClick={() => {
+                                    setAuthStep('idle');
+                                    setAuthProgress(0);
+                                    setAuthError(null);
+                                  }}
+                                >
+                                  关闭
+                                </Button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1631,19 +1781,24 @@ export default function AmazonApiSettings() {
                               }, 3000);
                             }
                           } catch (error: any) {
-                            setAuthStep('idle');
-                            setAuthProgress(0);
+                            setAuthStep('error');
+                            setAuthError({
+                              step: '换取Token',
+                              message: error.message || '授权码无效或已过期',
+                              canRetry: true
+                            });
                             toast.error(`授权失败: ${error.message}`);
                           }
                         }}
-                        disabled={authStep !== 'idle'}
+                        disabled={authStep !== 'idle' && authStep !== 'error'}
                       >
-                        {authStep !== 'idle' ? (
+                        {authStep !== 'idle' && authStep !== 'error' ? (
                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                         ) : (
                           <Key className="h-4 w-4 mr-2" />
                         )}
                         {authStep === 'idle' && '提取授权码并换取 Token'}
+                        {authStep === 'error' && '重试授权'}
                         {authStep === 'exchanging' && '正在换取Token...'}
                         {authStep === 'saving' && '正在保存凭证...'}
                         {authStep === 'syncing' && '正在同步数据...'}
@@ -1673,6 +1828,7 @@ export default function AmazonApiSettings() {
                                 {authStep === 'saving' && '步骤 3/4: 正在保存凭证并同步数据'}
                                 {authStep === 'syncing' && '步骤 4/4: 正在拉取广告数据'}
                                 {authStep === 'complete' && '所有步骤已完成'}
+                                {authStep === 'error' && authError && `失败于: ${authError.step}`}
                               </p>
                             </div>
                           </div>
@@ -1804,16 +1960,63 @@ export default function AmazonApiSettings() {
                           {/* 当前操作详情 */}
                           <div className="mt-4 p-3 bg-purple-900/30 rounded-md">
                             <div className="flex items-center gap-2 text-sm">
-                              {authStep !== 'complete' && <Loader2 className="h-4 w-4 animate-spin text-purple-400" />}
+                              {authStep !== 'complete' && authStep !== 'error' && <Loader2 className="h-4 w-4 animate-spin text-purple-400" />}
                               {authStep === 'complete' && <CheckCircle2 className="h-4 w-4 text-green-400" />}
-                              <span className={authStep === 'complete' ? 'text-green-400' : 'text-purple-300'}>
+                              {authStep === 'error' && <XCircle className="h-4 w-4 text-red-400" />}
+                              <span className={
+                                authStep === 'complete' ? 'text-green-400' : 
+                                authStep === 'error' ? 'text-red-400' : 
+                                'text-purple-300'
+                              }>
                                 {authStep === 'exchanging' && '正在与 Amazon Advertising API 通信，换取访问令牌...'}
                                 {authStep === 'saving' && '正在验证凭证并保存到数据库，同时同步广告数据...'}
                                 {authStep === 'syncing' && '正在从亚马逊拉取 SP/SB/SD 广告活动数据...'}
                                 {authStep === 'complete' && '授权流程已完成！您现在可以开始管理广告了。'}
+                                {authStep === 'error' && authError && authError.message}
                               </span>
                             </div>
                           </div>
+                          
+                          {/* 错误恢复操作 */}
+                          {authStep === 'error' && authError && (
+                            <div className="mt-4 p-4 bg-red-900/30 rounded-md border border-red-500/30">
+                              <h5 className="font-medium text-red-400 mb-2">授权失败</h5>
+                              <p className="text-sm text-red-300 mb-3">
+                                {authError.step === '换取Token' && '授权码无效或已过期。请重新生成授权链接并完成授权，然后立即粘贴新的授权后URL。'}
+                                {authError.step === '保存凭证' && '凭证保存失败。请检查网络连接并重试。'}
+                                {authError.step === '同步数据' && '数据同步失败。您可以稍后在“数据同步”标签中手动同步。'}
+                              </p>
+                              <div className="flex gap-2">
+                                {authError.canRetry && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="border-red-500/50 text-red-400 hover:bg-red-900/30"
+                                    onClick={() => {
+                                      setAuthStep('idle');
+                                      setAuthProgress(0);
+                                      setAuthError(null);
+                                    }}
+                                  >
+                                    <RefreshCw className="h-4 w-4 mr-1" />
+                                    重新开始
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="text-red-400 hover:text-red-300"
+                                  onClick={() => {
+                                    setAuthStep('idle');
+                                    setAuthProgress(0);
+                                    setAuthError(null);
+                                  }}
+                                >
+                                  关闭
+                                </Button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -1858,7 +2061,6 @@ export default function AmazonApiSettings() {
                   <div className="flex items-center gap-4">
                     <Button 
                       onClick={() => {
-                        toast.loading('开始同步数据...');
                         handleSyncAll();
                       }} 
                       disabled={isSyncing || !selectedAccountId}
@@ -1885,12 +2087,153 @@ export default function AmazonApiSettings() {
                     </Button>
                   </div>
 
+                  {/* 同步进度指示器 */}
+                  {syncProgress.step !== 'idle' && (
+                    <div className="mt-4 p-4 bg-muted/50 rounded-lg border">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium">同步进度</span>
+                        <span className="text-sm text-muted-foreground">{syncProgress.progress}%</span>
+                      </div>
+                      
+                      {/* 进度条 */}
+                      <div className="w-full bg-muted rounded-full h-2 mb-4">
+                        <div 
+                          className={`h-2 rounded-full transition-all duration-500 ${
+                            syncProgress.step === 'error' ? 'bg-red-500' : 
+                            syncProgress.step === 'complete' ? 'bg-green-500' : 
+                            'bg-primary'
+                          }`}
+                          style={{ width: `${syncProgress.progress}%` }}
+                        />
+                      </div>
+                      
+                      {/* 步骤指示器 */}
+                      <div className="grid grid-cols-6 gap-2 mb-4">
+                        {[
+                          { key: 'sp', label: 'SP广告', icon: '📦' },
+                          { key: 'sb', label: 'SB广告', icon: '🎯' },
+                          { key: 'sd', label: 'SD广告', icon: '📺' },
+                          { key: 'adgroups', label: '广告组', icon: '📂' },
+                          { key: 'keywords', label: '关键词', icon: '🔑' },
+                          { key: 'targets', label: '商品定位', icon: '🎯' },
+                        ].map((item, index) => {
+                          const stepOrder = ['sp', 'sb', 'sd', 'adgroups', 'keywords', 'targets', 'complete'];
+                          const currentIndex = stepOrder.indexOf(syncProgress.step);
+                          const itemIndex = stepOrder.indexOf(item.key);
+                          const isActive = syncProgress.step === item.key;
+                          const isComplete = currentIndex > itemIndex || syncProgress.step === 'complete';
+                          
+                          return (
+                            <div 
+                              key={item.key}
+                              className={`flex flex-col items-center p-2 rounded-md text-center ${
+                                isActive ? 'bg-primary/20 border border-primary' :
+                                isComplete ? 'bg-green-500/20 border border-green-500/30' :
+                                'bg-muted border border-transparent'
+                              }`}
+                            >
+                              <span className="text-lg mb-1">{item.icon}</span>
+                              <span className={`text-xs ${
+                                isActive ? 'text-primary font-medium' :
+                                isComplete ? 'text-green-500' :
+                                'text-muted-foreground'
+                              }`}>
+                                {item.label}
+                              </span>
+                              {isComplete && (
+                                <CheckCircle2 className="h-3 w-3 text-green-500 mt-1" />
+                              )}
+                              {isActive && (
+                                <Loader2 className="h-3 w-3 text-primary mt-1 animate-spin" />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      
+                      {/* 当前操作 */}
+                      <div className="flex items-center gap-2 text-sm">
+                        {syncProgress.step !== 'complete' && syncProgress.step !== 'error' && (
+                          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                        )}
+                        {syncProgress.step === 'complete' && (
+                          <CheckCircle2 className="h-4 w-4 text-green-500" />
+                        )}
+                        {syncProgress.step === 'error' && (
+                          <XCircle className="h-4 w-4 text-red-500" />
+                        )}
+                        <span className={`${
+                          syncProgress.step === 'error' ? 'text-red-500' :
+                          syncProgress.step === 'complete' ? 'text-green-500' :
+                          'text-muted-foreground'
+                        }`}>
+                          {syncProgress.current}
+                        </span>
+                      </div>
+                      
+                      {/* 同步结果 */}
+                      {syncProgress.step === 'complete' && (
+                        <div className="mt-4 grid grid-cols-3 gap-4">
+                          <div className="text-center p-3 bg-blue-500/10 rounded-lg">
+                            <div className="text-2xl font-bold text-blue-500">
+                              {syncProgress.results.sp + syncProgress.results.sb + syncProgress.results.sd}
+                            </div>
+                            <div className="text-xs text-muted-foreground">广告活动</div>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              SP:{syncProgress.results.sp} SB:{syncProgress.results.sb} SD:{syncProgress.results.sd}
+                            </div>
+                          </div>
+                          <div className="text-center p-3 bg-green-500/10 rounded-lg">
+                            <div className="text-2xl font-bold text-green-500">{syncProgress.results.adGroups}</div>
+                            <div className="text-xs text-muted-foreground">广告组</div>
+                          </div>
+                          <div className="text-center p-3 bg-purple-500/10 rounded-lg">
+                            <div className="text-2xl font-bold text-purple-500">
+                              {syncProgress.results.keywords + syncProgress.results.targets}
+                            </div>
+                            <div className="text-xs text-muted-foreground">关键词/定位</div>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              关键词:{syncProgress.results.keywords} 定位:{syncProgress.results.targets}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* 错误恢复 */}
+                      {syncProgress.step === 'error' && (
+                        <div className="mt-4 flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setSyncProgress({
+                                step: 'idle',
+                                progress: 0,
+                                current: '',
+                                results: { sp: 0, sb: 0, sd: 0, adGroups: 0, keywords: 0, targets: 0 }
+                              });
+                            }}
+                          >
+                            关闭
+                          </Button>
+                          <Button
+                            size="sm"
+                            onClick={() => handleSyncAll()}
+                          >
+                            <RefreshCw className="h-4 w-4 mr-1" />
+                            重试
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {!credentialsStatus?.hasCredentials && (
                     <Alert variant="destructive">
                       <AlertCircle className="h-4 w-4" />
                       <AlertTitle>未配置API凭证</AlertTitle>
                       <AlertDescription>
-                        请先在"API配置"标签页中配置Amazon API凭证后再进行数据同步。
+                        请先在“API配置”标签页中配置Amazon API凭证后再进行数据同步。
                       </AlertDescription>
                     </Alert>
                   )}

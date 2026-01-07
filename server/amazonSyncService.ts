@@ -78,6 +78,9 @@ export class AmazonSyncService {
     keywords: number;
     targets: number;
     performance: number;
+    spCampaigns?: number;
+    sbCampaigns?: number;
+    sdCampaigns?: number;
   }> {
     const results = {
       campaigns: 0,
@@ -85,10 +88,22 @@ export class AmazonSyncService {
       keywords: 0,
       targets: 0,
       performance: 0,
+      spCampaigns: 0,
+      sbCampaigns: 0,
+      sdCampaigns: 0,
     };
 
     // 同步SP广告活动
-    results.campaigns += await this.syncSpCampaigns();
+    results.spCampaigns = await this.syncSpCampaigns();
+    results.campaigns += results.spCampaigns;
+    
+    // 同步SB广告活动
+    results.sbCampaigns = await this.syncSbCampaigns();
+    results.campaigns += results.sbCampaigns;
+    
+    // 同步SD广告活动
+    results.sdCampaigns = await this.syncSdCampaigns();
+    results.campaigns += results.sdCampaigns;
     
     // 同步广告组
     results.adGroups += await this.syncSpAdGroups();
@@ -103,6 +118,118 @@ export class AmazonSyncService {
     results.performance += await this.syncPerformanceData(30);
 
     return results;
+  }
+
+  /**
+   * 同步SB品牌广告活动
+   */
+  async syncSbCampaigns(): Promise<number> {
+    const db = await getDb();
+    if (!db) return 0;
+
+    try {
+      const apiCampaigns = await this.client.listSbCampaigns();
+      let synced = 0;
+
+      for (const apiCampaign of apiCampaigns) {
+        // 检查是否已存在
+        const [existing] = await db
+          .select()
+          .from(campaigns)
+          .where(
+            and(
+              eq(campaigns.accountId, this.accountId),
+              eq(campaigns.campaignId, String(apiCampaign.campaignId))
+            )
+          )
+          .limit(1);
+
+        const campaignData = {
+          accountId: this.accountId,
+          campaignId: String(apiCampaign.campaignId),
+          campaignName: apiCampaign.name,
+          campaignType: 'sb' as const,
+          targetingType: 'manual' as const,
+          dailyBudget: String(apiCampaign.budget?.budget || 0),
+          status: (apiCampaign.state || 'enabled') as 'enabled' | 'paused' | 'archived',
+          updatedAt: new Date(),
+        };
+
+        if (existing) {
+          await db
+            .update(campaigns)
+            .set(campaignData)
+            .where(eq(campaigns.id, existing.id));
+        } else {
+          await db.insert(campaigns).values({
+            ...campaignData,
+            createdAt: new Date(),
+          });
+        }
+        synced++;
+      }
+
+      return synced;
+    } catch (error) {
+      console.error('Error syncing SB campaigns:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * 同步SD展示广告活动
+   */
+  async syncSdCampaigns(): Promise<number> {
+    const db = await getDb();
+    if (!db) return 0;
+
+    try {
+      const apiCampaigns = await this.client.listSdCampaigns();
+      let synced = 0;
+
+      for (const apiCampaign of apiCampaigns) {
+        // 检查是否已存在
+        const [existing] = await db
+          .select()
+          .from(campaigns)
+          .where(
+            and(
+              eq(campaigns.accountId, this.accountId),
+              eq(campaigns.campaignId, String(apiCampaign.campaignId))
+            )
+          )
+          .limit(1);
+
+        const campaignData = {
+          accountId: this.accountId,
+          campaignId: String(apiCampaign.campaignId),
+          campaignName: apiCampaign.name,
+          campaignType: 'sd' as const,
+          targetingType: 'manual' as const,
+          dailyBudget: String(apiCampaign.budget || 0),
+          status: (apiCampaign.state || 'enabled') as 'enabled' | 'paused' | 'archived',
+          updatedAt: new Date(),
+        };
+
+        if (existing) {
+          await db
+            .update(campaigns)
+            .set(campaignData)
+            .where(eq(campaigns.id, existing.id));
+        } else {
+          await db.insert(campaigns).values({
+            ...campaignData,
+            createdAt: new Date(),
+          });
+        }
+        synced++;
+      }
+
+      return synced;
+    } catch (error) {
+      console.error('Error syncing SD campaigns:', error);
+      return 0;
+    }
   }
 
   /**

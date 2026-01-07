@@ -2472,7 +2472,12 @@ const amazonApiRouter = router({
         lastSyncAt: new Date().toISOString(),
       });
 
-      return results;
+      return {
+        ...results,
+        spCampaigns: results.spCampaigns || 0,
+        sbCampaigns: results.sbCampaigns || 0,
+        sdCampaigns: results.sdCampaigns || 0,
+      };
     }),
 
   // Sync campaigns only
