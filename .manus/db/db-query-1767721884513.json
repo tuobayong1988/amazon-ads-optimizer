@@ -1,0 +1,31 @@
+{
+  "query": "SELECT id, userId, accountId, name, status FROM performance_groups;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT id, userId, accountId, name, status FROM performance_groups;",
+  "rows": [
+    {
+      "id": "16",
+      "userId": "1",
+      "accountId": "6",
+      "name": "高转化关键词组",
+      "status": "active"
+    },
+    {
+      "id": "17",
+      "userId": "1",
+      "accountId": "6",
+      "name": "品牌词保护组",
+      "status": "active"
+    },
+    {
+      "id": "18",
+      "userId": "1",
+      "accountId": "6",
+      "name": "新品推广组",
+      "status": "active"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tuserId\taccountId\tname\tstatus\n16\t1\t6\t高转化关键词组\tactive\n17\t1\t6\t品牌词保护组\tactive\n18\t1\t6\t新品推广组\tactive\n",
+  "stderr": "",
+  "execution_time_ms": 398
+}

@@ -173,7 +173,10 @@ const performanceGroupRouter = router({
   list: protectedProcedure
     .input(z.object({ accountId: z.number() }))
     .query(async ({ input }) => {
-      return db.getPerformanceGroupsByAccountId(input.accountId);
+      console.log('[performanceGroup.list] accountId:', input.accountId);
+      const result = await db.getPerformanceGroupsByAccountId(input.accountId);
+      console.log('[performanceGroup.list] result count:', result.length, 'data:', JSON.stringify(result));
+      return result;
     }),
   
   get: protectedProcedure
@@ -420,6 +423,71 @@ const performanceGroupRouter = router({
       // maxBid需要在数据库层面支持
       
       await db.updatePerformanceGroup(input.groupId, updateData);
+      return { success: true };
+    }),
+
+  // ==================== 优化目标自动执行引擎 API ====================
+  
+  // 获取优化目标执行摘要
+  getExecutionSummary: protectedProcedure
+    .input(z.object({ targetId: z.number() }))
+    .query(async ({ input }) => {
+      const optimizationTargetEngine = await import('./optimizationTargetEngine');
+      return optimizationTargetEngine.getOptimizationTargetSummary(input.targetId);
+    }),
+  
+  // 执行优化目标（干运行模式 - 预览待执行操作）
+  previewExecution: protectedProcedure
+    .input(z.object({ 
+      targetId: z.number(),
+      specificModules: z.array(z.string()).optional(),
+    }))
+    .query(async ({ input }) => {
+      const optimizationTargetEngine = await import('./optimizationTargetEngine');
+      return optimizationTargetEngine.executeOptimizationTarget(input.targetId, {
+        dryRun: true,
+        forceExecution: true,
+        specificModules: input.specificModules,
+      });
+    }),
+  
+  // 执行优化目标（实际执行）
+  executeOptimization: protectedProcedure
+    .input(z.object({ 
+      targetId: z.number(),
+      specificModules: z.array(z.string()).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const optimizationTargetEngine = await import('./optimizationTargetEngine');
+      return optimizationTargetEngine.executeOptimizationTarget(input.targetId, {
+        dryRun: false,
+        specificModules: input.specificModules,
+      });
+    }),
+  
+  // 批量执行所有启用的优化目标
+  executeAllEnabled: protectedProcedure
+    .input(z.object({ 
+      accountId: z.number().optional(),
+      dryRun: z.boolean().optional().default(false),
+    }))
+    .mutation(async ({ input }) => {
+      const optimizationTargetEngine = await import('./optimizationTargetEngine');
+      return optimizationTargetEngine.executeAllEnabledTargets(input.accountId, {
+        dryRun: input.dryRun,
+      });
+    }),
+  
+  // 启用/禁用优化目标
+  toggleEnabled: protectedProcedure
+    .input(z.object({ 
+      targetId: z.number(),
+      isEnabled: z.boolean(),
+    }))
+    .mutation(async ({ input }) => {
+      await db.updatePerformanceGroup(input.targetId, { 
+        isEnabled: input.isEnabled ? 1 : 0 
+      });
       return { success: true };
     }),
 });

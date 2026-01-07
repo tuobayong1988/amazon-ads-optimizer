@@ -923,6 +923,22 @@ export const performanceGroups = mysqlTable("performance_groups", {
 	currentDailySales: decimal({ precision: 10, scale: 2 }),
 	conversionsPerDay: decimal({ precision: 10, scale: 2 }),
 	status: mysqlEnum(['active','paused','archived']).default('active'),
+	// 分时预算分配配置
+	daypartingEnabled: tinyint().default(1), // 是否启用分时预算分配
+	daypartingStrategy: mysqlEnum(['performance_based','equal','custom']).default('performance_based'), // 分配策略
+	daypartingAutoAdjust: tinyint().default(1), // 是否自动调整
+	daypartingMinBudgetPercent: decimal({ precision: 5, scale: 2 }).default('2.00'), // 最小时段预算百分比
+	daypartingMaxBudgetPercent: decimal({ precision: 5, scale: 2 }).default('15.00'), // 最大时段预算百分比
+	daypartingReserveBudget: decimal({ precision: 5, scale: 2 }).default('10.00'), // 预留预算百分比
+	daypartingLastAnalysis: timestamp({ mode: 'string' }), // 上次分析时间
+	daypartingLastExecution: timestamp({ mode: 'string' }), // 上次执行时间
+	// 投放词自动执行配置
+	keywordAutoEnabled: tinyint().default(1), // 是否启用投放词自动执行
+	keywordAutoPauseEnabled: tinyint().default(1), // 是否启用自动暂停
+	keywordAutoEnableEnabled: tinyint().default(0), // 是否启用自动启用
+	keywordPauseMinSpend: decimal({ precision: 10, scale: 2 }).default('10.00'), // 暂停最低花费阈值
+	keywordPauseMaxAcos: decimal({ precision: 5, scale: 2 }).default('100.00'), // 暂停最大ACoS阈值
+	keywordLastAutoExecution: timestamp({ mode: 'string' }), // 上次自动执行时间
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
@@ -1665,3 +1681,231 @@ export type BudgetAutoExecutionHistory = typeof budgetAutoExecutionHistory.$infe
 export type InsertBudgetAutoExecutionHistory = typeof budgetAutoExecutionHistory.$inferInsert;
 export type BudgetAutoExecutionDetail = typeof budgetAutoExecutionDetails.$inferSelect;
 export type InsertBudgetAutoExecutionDetail = typeof budgetAutoExecutionDetails.$inferInsert;
+
+
+// 投放词自动执行配置表
+export const keywordAutoExecutionConfigs = mysqlTable("keyword_auto_execution_configs", {
+  id: int().autoincrement().notNull().primaryKey(),
+  accountId: int().notNull(),
+  name: varchar({ length: 255 }).notNull(),
+  description: text(),
+  isEnabled: tinyint().default(1).notNull(),
+  
+  // 自动暂停规则 - 高花费低转化
+  autoPauseEnabled: tinyint().default(1),
+  pauseMinSpend: decimal({ precision: 10, scale: 2 }).default('10.00'), // 最低花费阈值
+  pauseMinClicks: int().default(20), // 最低点击阈值
+  pauseMaxAcos: decimal({ precision: 5, scale: 2 }).default('100.00'), // 最大ACoS阈值
+  pauseMinDays: int().default(7), // 最少观察天数
+  pauseZeroConversions: tinyint().default(1), // 零转化是否暂停
+  
+  // 自动启用规则 - 潜力词恢复
+  autoEnableEnabled: tinyint().default(0),
+  enableMinConversions: int().default(2), // 最低转化阈值
+  enableMinRoas: decimal({ precision: 10, scale: 2 }).default('2.00'), // 最低ROAS阈值
+  enableCooldownDays: int().default(14), // 暂停后多少天可以重新启用
+  
+  // 安全阈值
+  maxDailyPauses: int().default(10), // 每日最大暂停数量
+  maxDailyEnables: int().default(5), // 每日最大启用数量
+  excludeTopPerformers: tinyint().default(1), // 排除表现最好的词
+  topPerformerThreshold: decimal({ precision: 5, scale: 2 }).default('20.00'), // 表现好的ACoS阈值
+  
+  // 回滚设置
+  enableRollback: tinyint().default(1), // 是否启用回滚
+  rollbackWindowHours: int().default(24), // 回滚窗口（小时）
+  rollbackTriggerSpendDrop: decimal({ precision: 5, scale: 2 }).default('30.00'), // 花费下降多少触发回滚
+  
+  // 通知设置
+  notifyOnExecution: tinyint().default(1),
+  notifyOnRollback: tinyint().default(1),
+  requireApproval: tinyint().default(0), // 是否需要人工审批
+  
+  // 执行调度
+  executionSchedule: mysqlEnum(['hourly', 'daily', 'weekly']).default('daily'),
+  executionHour: int().default(6), // 每日执行时间（小时）
+  lastExecutionAt: timestamp({ mode: 'string' }),
+  nextExecutionAt: timestamp({ mode: 'string' }),
+  
+  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+  updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+  createdBy: int(),
+});
+
+// 投放词自动执行历史表
+export const keywordAutoExecutionHistory = mysqlTable("keyword_auto_execution_history", {
+  id: int().autoincrement().notNull().primaryKey(),
+  configId: int().notNull(),
+  accountId: int().notNull(),
+  executionStartAt: timestamp({ mode: 'string' }).notNull(),
+  executionEndAt: timestamp({ mode: 'string' }),
+  executionType: mysqlEnum(['auto_pause', 'auto_enable', 'rollback', 'manual']).notNull(),
+  status: mysqlEnum(['running', 'completed', 'failed', 'cancelled', 'pending_approval', 'rolled_back']).default('running').notNull(),
+  
+  // 统计
+  totalKeywordsAnalyzed: int().default(0),
+  keywordsPaused: int().default(0),
+  keywordsEnabled: int().default(0),
+  keywordsSkipped: int().default(0),
+  keywordsError: int().default(0),
+  
+  // 影响指标
+  estimatedSpendSaved: decimal({ precision: 12, scale: 2 }),
+  estimatedSalesImpact: decimal({ precision: 12, scale: 2 }),
+  
+  executionSummary: text(), // JSON格式的执行摘要
+  errorMessage: text(),
+  
+  // 审批
+  approvedBy: int(),
+  approvedAt: timestamp({ mode: 'string' }),
+  
+  // 回滚
+  rollbackTriggeredAt: timestamp({ mode: 'string' }),
+  rollbackReason: text(),
+  rollbackBy: int(),
+  
+  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});
+
+// 投放词自动执行明细表
+export const keywordAutoExecutionDetails = mysqlTable("keyword_auto_execution_details", {
+  id: int().autoincrement().notNull().primaryKey(),
+  executionId: int().notNull(),
+  keywordId: int().notNull(),
+  keywordText: varchar({ length: 500 }),
+  matchType: varchar({ length: 50 }),
+  campaignId: int(),
+  campaignName: varchar({ length: 500 }),
+  adGroupId: int(),
+  adGroupName: varchar({ length: 500 }),
+  
+  // 执行前状态
+  statusBefore: mysqlEnum(['enabled', 'paused', 'archived']),
+  bidBefore: decimal({ precision: 10, scale: 2 }),
+  
+  // 执行后状态
+  statusAfter: mysqlEnum(['enabled', 'paused', 'archived']),
+  bidAfter: decimal({ precision: 10, scale: 2 }),
+  
+  // 触发条件
+  actionType: mysqlEnum(['pause', 'enable', 'rollback']).notNull(),
+  triggerReason: text(), // 触发原因详情
+  
+  // 执行时的指标
+  spend: decimal({ precision: 10, scale: 2 }),
+  sales: decimal({ precision: 10, scale: 2 }),
+  clicks: int(),
+  impressions: int(),
+  orders: int(),
+  acos: decimal({ precision: 5, scale: 2 }),
+  roas: decimal({ precision: 10, scale: 2 }),
+  
+  // 执行状态
+  status: mysqlEnum(['applied', 'skipped', 'error', 'pending', 'rolled_back']).default('pending').notNull(),
+  errorMessage: text(),
+  
+  // 回滚信息
+  rolledBackAt: timestamp({ mode: 'string' }),
+  rollbackReason: text(),
+  
+  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});
+
+// 分时预算分配配置表
+export const daypartingBudgetConfigs = mysqlTable("dayparting_budget_configs", {
+  id: int().autoincrement().notNull().primaryKey(),
+  accountId: int().notNull(),
+  campaignId: int(),
+  name: varchar({ length: 255 }).notNull(),
+  description: text(),
+  isEnabled: tinyint().default(1).notNull(),
+  
+  // 总预算设置
+  totalDailyBudget: decimal({ precision: 10, scale: 2 }).notNull(),
+  optimizationGoal: mysqlEnum(['maximize_sales', 'target_acos', 'target_roas', 'balanced']).default('balanced'),
+  targetAcos: decimal({ precision: 5, scale: 2 }),
+  targetRoas: decimal({ precision: 10, scale: 2 }),
+  
+  // 时段分配策略
+  allocationStrategy: mysqlEnum(['performance_based', 'equal', 'custom']).default('performance_based'),
+  
+  // 安全设置
+  minHourlyBudget: decimal({ precision: 10, scale: 2 }).default('1.00'),
+  maxHourlyBudget: decimal({ precision: 10, scale: 2 }),
+  reserveBudgetPercent: decimal({ precision: 5, scale: 2 }).default('10.00'), // 预留预算百分比
+  
+  // 自动调整
+  autoAdjustEnabled: tinyint().default(1),
+  adjustmentSensitivity: mysqlEnum(['low', 'medium', 'high']).default('medium'),
+  
+  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+  updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+  createdBy: int(),
+});
+
+// 分时预算分配规则表
+export const daypartingBudgetAllocations = mysqlTable("dayparting_budget_allocations", {
+  id: int().autoincrement().notNull().primaryKey(),
+  configId: int().notNull(),
+  hour: int().notNull(), // 0-23
+  dayOfWeek: int(), // 0-6, null表示所有天
+  
+  // 预算分配
+  budgetPercent: decimal({ precision: 5, scale: 2 }).notNull(), // 该时段分配的预算百分比
+  budgetAmount: decimal({ precision: 10, scale: 2 }), // 具体金额（可选）
+  
+  // 优先级
+  priority: mysqlEnum(['low', 'normal', 'high', 'critical']).default('normal'),
+  
+  // 基于历史表现的调整
+  historicalRoas: decimal({ precision: 10, scale: 2 }),
+  historicalAcos: decimal({ precision: 5, scale: 2 }),
+  historicalConversionRate: decimal({ precision: 5, scale: 2 }),
+  
+  isEnabled: tinyint().default(1).notNull(),
+  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+  updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+});
+
+// 分时预算执行日志表
+export const daypartingBudgetLogs = mysqlTable("dayparting_budget_logs", {
+  id: int().autoincrement().notNull().primaryKey(),
+  configId: int().notNull(),
+  campaignId: int(),
+  executionTime: timestamp({ mode: 'string' }).notNull(),
+  hour: int().notNull(),
+  dayOfWeek: int().notNull(),
+  
+  // 预算变更
+  budgetBefore: decimal({ precision: 10, scale: 2 }),
+  budgetAfter: decimal({ precision: 10, scale: 2 }),
+  budgetChange: decimal({ precision: 10, scale: 2 }),
+  
+  // 当时的表现指标
+  currentSpend: decimal({ precision: 10, scale: 2 }),
+  currentSales: decimal({ precision: 10, scale: 2 }),
+  currentClicks: int(),
+  currentImpressions: int(),
+  currentAcos: decimal({ precision: 5, scale: 2 }),
+  
+  // 执行结果
+  status: mysqlEnum(['success', 'failed', 'skipped']).default('success').notNull(),
+  reason: text(),
+  errorMessage: text(),
+  
+  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});
+
+export type KeywordAutoExecutionConfig = typeof keywordAutoExecutionConfigs.$inferSelect;
+export type InsertKeywordAutoExecutionConfig = typeof keywordAutoExecutionConfigs.$inferInsert;
+export type KeywordAutoExecutionHistory = typeof keywordAutoExecutionHistory.$inferSelect;
+export type InsertKeywordAutoExecutionHistory = typeof keywordAutoExecutionHistory.$inferInsert;
+export type KeywordAutoExecutionDetail = typeof keywordAutoExecutionDetails.$inferSelect;
+export type InsertKeywordAutoExecutionDetail = typeof keywordAutoExecutionDetails.$inferInsert;
+export type DaypartingBudgetConfig = typeof daypartingBudgetConfigs.$inferSelect;
+export type InsertDaypartingBudgetConfig = typeof daypartingBudgetConfigs.$inferInsert;
+export type DaypartingBudgetAllocation = typeof daypartingBudgetAllocations.$inferSelect;
+export type InsertDaypartingBudgetAllocation = typeof daypartingBudgetAllocations.$inferInsert;
+export type DaypartingBudgetLog = typeof daypartingBudgetLogs.$inferSelect;
+export type InsertDaypartingBudgetLog = typeof daypartingBudgetLogs.$inferInsert;

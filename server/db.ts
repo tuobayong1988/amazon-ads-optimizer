@@ -221,10 +221,33 @@ export async function createPerformanceGroup(group: InsertPerformanceGroup) {
 }
 
 export async function getPerformanceGroupsByAccountId(accountId: number) {
-  const db = await getDb();
-  if (!db) return [];
-  
-  return db.select().from(performanceGroups).where(eq(performanceGroups.accountId, accountId));
+  console.log('[db.getPerformanceGroupsByAccountId] called with accountId:', accountId);
+  try {
+    const db = await getDb();
+    console.log('[db.getPerformanceGroupsByAccountId] db obtained:', !!db);
+    if (!db) {
+      console.log('[db.getPerformanceGroupsByAccountId] db is null, returning empty array');
+      return [];
+    }
+    
+    // 先尝试获取所有记录看看
+    const allRecords = await db.select().from(performanceGroups);
+    console.log('[db.getPerformanceGroupsByAccountId] all records count:', allRecords.length);
+    
+    // 如果accountId为0或未定义，返回所有优化目标
+    if (!accountId || accountId === 0) {
+      console.log('[db.getPerformanceGroupsByAccountId] accountId is 0, returning all');
+      return allRecords;
+    }
+    
+    // 过滤指定accountId的记录
+    const result = allRecords.filter(r => r.accountId === accountId);
+    console.log('[db.getPerformanceGroupsByAccountId] filtered result count:', result.length);
+    return result;
+  } catch (error) {
+    console.error('[db.getPerformanceGroupsByAccountId] error:', error);
+    return [];
+  }
 }
 
 export async function getPerformanceGroupById(id: number) {

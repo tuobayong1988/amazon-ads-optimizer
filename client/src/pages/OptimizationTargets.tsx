@@ -730,6 +730,44 @@ function OptimizationTargetCard({
   onRefresh: () => void;
 }) {
   const [isActive, setIsActive] = useState(target.status === "active");
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [showPreview, setShowPreview] = useState(false);
+
+  // 获取执行摘要
+  const { data: executionSummary, isLoading: summaryLoading } = trpc.performanceGroup.getExecutionSummary.useQuery(
+    { targetId: target.id },
+    { enabled: isActive }
+  );
+
+  // 预览执行
+  const { data: previewData, isLoading: previewLoading } = trpc.performanceGroup.previewExecution.useQuery(
+    { targetId: target.id },
+    { enabled: showPreview }
+  );
+
+  // 执行优化
+  const executeOptimization = trpc.performanceGroup.executeOptimization.useMutation({
+    onSuccess: (result) => {
+      setIsExecuting(false);
+      if (result.status === 'success') {
+        toast.success(`优化执行完成！出价调整: ${result.bidOptimization.adjustmentsCount}, 位置调整: ${result.placementOptimization.adjustmentsCount}`);
+      } else if (result.status === 'partial') {
+        toast.warning(`部分优化完成，${result.errors.length} 个错误`);
+      } else {
+        toast.error(`优化执行失败: ${result.errors.join(', ')}`);
+      }
+      onRefresh();
+    },
+    onError: (error) => {
+      setIsExecuting(false);
+      toast.error(`执行失败: ${error.message}`);
+    },
+  });
+
+  const handleExecute = () => {
+    setIsExecuting(true);
+    executeOptimization.mutate({ targetId: target.id });
+  };
 
   const toggleStatus = trpc.performanceGroup.toggleStatus.useMutation({
     onSuccess: () => {
@@ -836,15 +874,47 @@ function OptimizationTargetCard({
           </div>
         </div>
 
+        {/* 待执行操作统计 */}
+        {isActive && executionSummary && (
+          <div className="grid grid-cols-4 gap-2 pt-2 border-t bg-muted/30 rounded-md p-2">
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground">出价调整</p>
+              <p className="font-medium text-sm text-orange-500">{executionSummary.pendingActions?.bidAdjustments || 0}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground">位置调整</p>
+              <p className="font-medium text-sm text-blue-500">{executionSummary.pendingActions?.placementAdjustments || 0}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground">否定词</p>
+              <p className="font-medium text-sm text-red-500">{executionSummary.pendingActions?.negativeKeywords || 0}</p>
+            </div>
+            <div className="text-center">
+              <p className="text-xs text-muted-foreground">预算调整</p>
+              <p className="font-medium text-sm text-green-500">{executionSummary.pendingActions?.budgetAdjustments || 0}</p>
+            </div>
+          </div>
+        )}
+
         {/* 操作按钮 */}
         <div className="flex gap-2 pt-2">
           <Button variant="outline" size="sm" className="flex-1" onClick={onManage}>
             <Settings className="w-4 h-4 mr-1" />
             管理
           </Button>
-          <Button variant="default" size="sm" className="flex-1">
-            <Play className="w-4 h-4 mr-1" />
-            执行优化
+          <Button 
+            variant="default" 
+            size="sm" 
+            className="flex-1" 
+            onClick={handleExecute}
+            disabled={!isActive || isExecuting}
+          >
+            {isExecuting ? (
+              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+            ) : (
+              <Play className="w-4 h-4 mr-1" />
+            )}
+            {isExecuting ? "执行中..." : "执行优化"}
           </Button>
         </div>
       </CardContent>
@@ -863,8 +933,7 @@ export default function OptimizationTargets() {
 
   // 获取优化目标列表（使用performanceGroup API）
   const { data: targets, isLoading, refetch } = trpc.performanceGroup.list.useQuery(
-    { accountId: currentAccountId! },
-    { enabled: !!currentAccountId }
+    { accountId: currentAccountId || 0 }
   );
 
   // 获取广告活动统计
