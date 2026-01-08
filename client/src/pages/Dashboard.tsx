@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Switch } from "@/components/ui/switch";
 import { trpc } from "@/lib/trpc";
 import { 
   TrendingUp, 
@@ -325,6 +326,46 @@ export default function Dashboard() {
     { enabled: !!accountId }
   );
 
+  // 获取归因调整后的近期数据
+  const { data: attributionData } = trpc.specialScenario.getAttributionAdjustedData.useQuery(
+    { accountId: accountId!, days: 7 },
+    { enabled: !!accountId }
+  );
+
+  // 计算归因调整后的KPI汇总
+  const adjustedKpis = useMemo(() => {
+    if (!attributionData || attributionData.length === 0) return null;
+    
+    // 汇总调整后的数据
+    const totals = attributionData.reduce((acc, day) => ({
+      sales: acc.sales + day.adjusted.sales,
+      spend: acc.spend + day.adjusted.spend,
+      orders: acc.orders + day.adjusted.orders,
+      clicks: acc.clicks + day.adjusted.clicks,
+      impressions: acc.impressions + day.adjusted.impressions,
+    }), { sales: 0, spend: 0, orders: 0, clicks: 0, impressions: 0 });
+
+    const days = attributionData.length;
+    const acos = totals.sales > 0 ? (totals.spend / totals.sales) * 100 : 0;
+    const roas = totals.spend > 0 ? totals.sales / totals.spend : 0;
+
+    return {
+      totalSales: totals.sales,
+      totalSpend: totals.spend,
+      totalOrders: totals.orders,
+      acos,
+      roas,
+      conversionsPerDay: totals.orders / days,
+      revenuePerDay: totals.sales / days,
+      // 计算平均调整系数和置信度
+      avgAdjustmentFactor: attributionData.reduce((sum, d) => sum + d.adjusted.adjustmentFactor, 0) / days,
+      lowConfidenceDays: attributionData.filter(d => d.adjusted.confidence === 'low').length,
+    };
+  }, [attributionData]);
+
+  // 是否显示归因调整后的数据
+  const [showAdjustedData, setShowAdjustedData] = useState(true);
+
   // 刷新数据的回调函数
   const handleRefreshData = useCallback(async () => {
     // 立即显示toast确认函数被调用
@@ -512,35 +553,62 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* 归因调整开关 */}
+        {adjustedKpis && (
+          <div className="flex items-center justify-between p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-blue-500" />
+              <span className="text-sm">
+                <span className="font-medium text-blue-500">归因调整模式</span>
+                <span className="text-muted-foreground ml-2">
+                  近7天数据已根据归因窗口调整，平均调整系数 {adjustedKpis.avgAdjustmentFactor.toFixed(2)}x
+                  {adjustedKpis.lowConfidenceDays > 0 && (
+                    <span className="text-yellow-500 ml-2">
+                      ({adjustedKpis.lowConfidenceDays}天低置信度)
+                    </span>
+                  )}
+                </span>
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">显示调整后数据</span>
+              <Switch
+                checked={showAdjustedData}
+                onCheckedChange={setShowAdjustedData}
+              />
+            </div>
+          </div>
+        )}
+
         {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <KPICard
             title="转化/天"
-            value={kpis?.conversionsPerDay?.toFixed(1) || "0"}
+            value={(showAdjustedData && adjustedKpis ? adjustedKpis.conversionsPerDay : kpis?.conversionsPerDay)?.toFixed(1) || "0"}
             icon={<ShoppingCart className="w-5 h-5" />}
             trend={12.5}
             trendLabel="vs 上周"
             color="blue"
           />
           <KPICard
-            title="ROAS"
-            value={kpis?.roas?.toFixed(2) || "0"}
+            title={showAdjustedData && adjustedKpis ? "ROAS*" : "ROAS"}
+            value={(showAdjustedData && adjustedKpis ? adjustedKpis.roas : kpis?.roas)?.toFixed(2) || "0"}
             icon={<Target className="w-5 h-5" />}
             trend={8.3}
             trendLabel="vs 上周"
             color="green"
           />
           <KPICard
-            title="销售额"
-            value={`$${(kpis?.totalSales || 0).toLocaleString()}`}
+            title={showAdjustedData && adjustedKpis ? "销售额*" : "销售额"}
+            value={`$${((showAdjustedData && adjustedKpis ? adjustedKpis.totalSales : kpis?.totalSales) || 0).toLocaleString()}`}
             icon={<DollarSign className="w-5 h-5" />}
             trend={15.2}
             trendLabel="vs 上周"
             color="purple"
           />
           <KPICard
-            title="ACoS"
-            value={`${kpis?.acos?.toFixed(1) || "0"}%`}
+            title={showAdjustedData && adjustedKpis ? "ACoS*" : "ACoS"}
+            value={`${((showAdjustedData && adjustedKpis ? adjustedKpis.acos : kpis?.acos) || 0).toFixed(1)}%`}
             icon={<Percent className="w-5 h-5" />}
             trend={-3.2}
             trendLabel="vs 上周"
@@ -549,7 +617,7 @@ export default function Dashboard() {
           />
           <KPICard
             title="收入/天"
-            value={`$${(kpis?.revenuePerDay || 0).toFixed(0)}`}
+            value={`$${((showAdjustedData && adjustedKpis ? adjustedKpis.revenuePerDay : kpis?.revenuePerDay) || 0).toFixed(0)}`}
             icon={<TrendingUp className="w-5 h-5" />}
             trend={10.8}
             trendLabel="vs 上周"

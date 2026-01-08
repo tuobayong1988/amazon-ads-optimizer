@@ -46,6 +46,8 @@ import ABTest from "@/pages/ABTest";
 import BudgetAutoExecution from "@/pages/BudgetAutoExecution";
 import OptimizationTargets from "@/pages/OptimizationTargets";
 import ApiSecurityCenter from "@/pages/ApiSecurityCenter";
+import SpecialScenarioAnalysis from "@/pages/SpecialScenarioAnalysis";
+import AutomationControl from "@/pages/AutomationControl";
 
 function Router() {
   return (
@@ -97,6 +99,8 @@ function Router() {
       <Route path="/ab-test">{() => { window.location.href = '/optimization-center'; return null; }}</Route>
       <Route path="/budget-auto-execution">{() => { window.location.href = '/settings'; return null; }}</Route>
       <Route path="/api-security" component={ApiSecurityCenter} />
+      <Route path="/special-scenario" component={SpecialScenarioAnalysis} />
+      <Route path="/automation-control" component={AutomationControl} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

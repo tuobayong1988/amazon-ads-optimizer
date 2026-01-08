@@ -52,7 +52,8 @@ import {
   MapPin,
   Brain,
   History,
-  FlaskConical
+  FlaskConical,
+  Bot
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -83,7 +84,9 @@ const menuGroups = [
     title: "优化引擎",
     description: "统一的自动优化系统",
     items: [
+      { icon: Bot, label: "自动化控制", path: "/automation-control", badge: "核心" },
       { icon: Zap, label: "优化中心", path: "/optimization-center" },
+      { icon: Brain, label: "特殊场景分析", path: "/special-scenario" },
       { icon: FileSearch, label: "纠错复盘", path: "/correction-review" },
       { icon: CalendarDays, label: "季节性建议", path: "/seasonal-budget" },
     ]

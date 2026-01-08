@@ -23,6 +23,7 @@ import * as budgetAutoExecutionService from './budgetAutoExecutionService';
 import { reviewRouter } from './reviewRouter';
 import * as apiSecurityService from './apiSecurityService';
 import * as specialScenarioOptimizationService from './specialScenarioOptimizationService';
+import * as automationExecutionEngine from './automationExecutionEngine';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
@@ -3760,6 +3761,66 @@ const batchOperationRouter = router({
             error: i.errorMessage || 'Unknown error',
           })),
         }),
+      };
+    }),
+
+  // Apply bid adjustments directly (for special scenario optimization)
+  applyBidAdjustments: protectedProcedure
+    .input(z.object({
+      adjustments: z.array(z.object({
+        keywordId: z.number(),
+        newBid: z.number(),
+        reason: z.string().optional(),
+      })),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      let successCount = 0;
+      let failedCount = 0;
+      const errors: Array<{ keywordId: number; error: string }> = [];
+
+      for (const adj of input.adjustments) {
+        try {
+          // Get current keyword info
+          const keyword = await db.getKeywordById(adj.keywordId);
+          if (!keyword) {
+            throw new Error('关键词不存在');
+          }
+
+          // Get ad group to find campaign
+          const adGroup = await db.getAdGroupById(keyword.adGroupId);
+          const campaign = adGroup ? await db.getCampaignById(adGroup.campaignId) : null;
+
+          // Update bid
+          await db.updateKeyword(adj.keywordId, { bid: String(adj.newBid) });
+
+          // Log the adjustment using biddingLogs
+          await db.createBiddingLog({
+            accountId: campaign?.accountId || 0,
+            campaignId: adGroup?.campaignId ?? 0,
+            adGroupId: keyword.adGroupId,
+            logTargetType: 'keyword',
+            targetId: adj.keywordId,
+            targetName: keyword.keywordText || '',
+            actionType: adj.newBid > parseFloat(keyword.bid || '0') ? 'increase' : 'decrease',
+            previousBid: keyword.bid || '0',
+            newBid: String(adj.newBid),
+            reason: adj.reason || '竞价效率优化',
+          });
+
+          successCount++;
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          errors.push({ keywordId: adj.keywordId, error: errorMessage });
+          failedCount++;
+        }
+      }
+
+      return {
+        success: failedCount === 0,
+        totalItems: input.adjustments.length,
+        successItems: successCount,
+        failedItems: failedCount,
+        errors,
       };
     }),
 
@@ -7945,6 +8006,171 @@ const specialScenarioRouter = router({
     }),
 });
 
+// ==================== Automation Execution Router ====================
+const automationRouter = router({
+  // 获取账号自动化配置
+  getConfig: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      return automationExecutionEngine.getAccountAutomationConfig(input.accountId);
+    }),
+
+  // 更新账号自动化配置
+  updateConfig: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      enabled: z.boolean().optional(),
+      mode: z.enum(['full_auto', 'supervised', 'approval', 'disabled']).optional(),
+      enabledTypes: z.array(z.enum([
+        'bid_adjustment',
+        'budget_adjustment',
+        'placement_tilt',
+        'negative_keyword',
+        'dayparting',
+        'funnel_migration',
+        'traffic_isolation',
+        'auto_rollback',
+      ])).optional(),
+      safetyBoundary: z.object({
+        maxBidChangePercent: z.number().optional(),
+        maxBudgetChangePercent: z.number().optional(),
+        maxPlacementChangePercent: z.number().optional(),
+        maxDailyBidAdjustments: z.number().optional(),
+        maxDailyBudgetAdjustments: z.number().optional(),
+        maxDailyTotalAdjustments: z.number().optional(),
+        autoExecuteConfidence: z.number().optional(),
+        supervisedConfidence: z.number().optional(),
+      }).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      return automationExecutionEngine.updateAccountAutomationConfig(input.accountId, {
+        enabled: input.enabled,
+        mode: input.mode,
+        enabledTypes: input.enabledTypes,
+        safetyBoundary: input.safetyBoundary as any,
+      });
+    }),
+
+  // 运行完整自动化周期
+  runFullCycle: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ input }) => {
+      return automationExecutionEngine.runFullAutomationCycle(input.accountId);
+    }),
+
+  // 获取执行历史
+  getExecutionHistory: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      limit: z.number().optional(),
+      startDate: z.date().optional(),
+      endDate: z.date().optional(),
+    }))
+    .query(async ({ input }) => {
+      return automationExecutionEngine.getExecutionHistory(input.accountId, {
+        limit: input.limit,
+        startDate: input.startDate,
+        endDate: input.endDate,
+      });
+    }),
+
+  // 获取每日执行统计
+  getDailyStats: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      date: z.date().optional(),
+    }))
+    .query(async ({ input }) => {
+      return automationExecutionEngine.getDailyExecutionStats(input.accountId, input.date);
+    }),
+
+  // 紧急停止
+  emergencyStop: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      reason: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      automationExecutionEngine.emergencyStop(input.accountId, input.reason);
+      return { success: true };
+    }),
+
+  // 恢复自动化
+  resume: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ input }) => {
+      automationExecutionEngine.resumeAutomation(input.accountId);
+      return { success: true };
+    }),
+
+  // 执行单个优化
+  executeOptimization: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      type: z.enum([
+        'bid_adjustment',
+        'budget_adjustment',
+        'placement_tilt',
+        'negative_keyword',
+        'dayparting',
+        'funnel_migration',
+        'traffic_isolation',
+        'auto_rollback',
+      ]),
+      targetType: z.enum(['keyword', 'campaign', 'ad_group', 'placement']),
+      targetId: z.number(),
+      targetName: z.string(),
+      currentValue: z.number(),
+      newValue: z.number(),
+      confidence: z.number(),
+      reason: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      return automationExecutionEngine.executeOptimization(
+        input.accountId,
+        input.type,
+        input.targetType,
+        input.targetId,
+        input.targetName,
+        input.currentValue,
+        input.newValue,
+        input.confidence,
+        input.reason
+      );
+    }),
+
+  // 批量执行优化
+  batchExecute: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      optimizations: z.array(z.object({
+        type: z.enum([
+          'bid_adjustment',
+          'budget_adjustment',
+          'placement_tilt',
+          'negative_keyword',
+          'dayparting',
+          'funnel_migration',
+          'traffic_isolation',
+          'auto_rollback',
+        ]),
+        targetType: z.enum(['keyword', 'campaign', 'ad_group', 'placement']),
+        targetId: z.number(),
+        targetName: z.string(),
+        currentValue: z.number(),
+        newValue: z.number(),
+        confidence: z.number(),
+        reason: z.string(),
+      })),
+    }))
+    .mutation(async ({ input }) => {
+      return automationExecutionEngine.batchExecuteOptimizations(
+        input.accountId,
+        input.optimizations
+      );
+    }),
+});
+
 // ==================== Main Router ====================
 export const appRouter = router({system: systemRouter,
   auth: router({
@@ -7992,6 +8218,7 @@ export const appRouter = router({system: systemRouter,
   review: reviewRouter,
   apiSecurity: apiSecurityRouter,
   specialScenario: specialScenarioRouter,
+  automation: automationRouter,
 });
 
 export type AppRouter = typeof appRouter;
