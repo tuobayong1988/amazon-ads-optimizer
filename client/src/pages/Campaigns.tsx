@@ -361,6 +361,58 @@ const marketplaceLabels: Record<string, string> = {
   TR: "土耳其站",
 };
 
+// 时间范围选项
+const timeRangeOptions = [
+  { value: 'today', label: '今天', days: 0 },
+  { value: 'yesterday', label: '昨天', days: 1 },
+  { value: '7days', label: '近 7 天', days: 7 },
+  { value: '14days', label: '近 14 天', days: 14 },
+  { value: '30days', label: '近 30 天', days: 30 },
+  { value: '60days', label: '近 60 天', days: 60 },
+  { value: '90days', label: '近 90 天', days: 90 },
+  { value: 'custom', label: '自定义', days: -1 },
+];
+
+// 计算日期范围
+function getDateRange(rangeType: string, customStart?: string, customEnd?: string): { startDate: string; endDate: string } {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  if (rangeType === 'custom' && customStart && customEnd) {
+    return { startDate: customStart, endDate: customEnd };
+  }
+  
+  const option = timeRangeOptions.find(o => o.value === rangeType);
+  if (!option) {
+    // 默认返回近 7 天
+    const startDate = new Date(today);
+    startDate.setDate(startDate.getDate() - 7);
+    return {
+      startDate: startDate.toISOString().split('T')[0],
+      endDate: today.toISOString().split('T')[0],
+    };
+  }
+  
+  if (rangeType === 'today') {
+    const dateStr = today.toISOString().split('T')[0];
+    return { startDate: dateStr, endDate: dateStr };
+  }
+  
+  if (rangeType === 'yesterday') {
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const dateStr = yesterday.toISOString().split('T')[0];
+    return { startDate: dateStr, endDate: dateStr };
+  }
+  
+  const startDate = new Date(today);
+  startDate.setDate(startDate.getDate() - option.days);
+  return {
+    startDate: startDate.toISOString().split('T')[0],
+    endDate: today.toISOString().split('T')[0],
+  };
+}
+
 export default function Campaigns() {
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -374,6 +426,12 @@ export default function Campaigns() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const [selectedCampaigns, setSelectedCampaigns] = useState<Set<number>>(new Set());
   const [isSyncing, setIsSyncing] = useState(false);
+  
+  // 时间范围状态
+  const [timeRange, setTimeRange] = useState<string>('7days');
+  const [customStartDate, setCustomStartDate] = useState<string>('');
+  const [customEndDate, setCustomEndDate] = useState<string>('');
+  const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
   
   // 列显示状态
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
@@ -415,9 +473,18 @@ export default function Campaigns() {
   const { data: accounts } = trpc.adAccount.list.useQuery();
   const accountId = selectedAccountId || accounts?.[0]?.id;
 
-  // Fetch campaigns
+  // 计算时间范围
+  const dateRange = useMemo(() => {
+    return getDateRange(timeRange, customStartDate, customEndDate);
+  }, [timeRange, customStartDate, customEndDate]);
+
+  // Fetch campaigns with performance data
   const { data: campaigns, isLoading, refetch } = trpc.campaign.list.useQuery(
-    { accountId: accountId! },
+    { 
+      accountId: accountId!, 
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
+    },
     { enabled: !!accountId }
   );
 
@@ -1062,7 +1129,66 @@ export default function Campaigns() {
         <Card>
           <CardContent className="pt-6">
             <div className="space-y-4">
-              {/* 第一行：店铺和站点筛选（最高优先级） */}
+              {/* 第一行：时间范围筛选（最高优先级） */}
+              <div className="flex flex-wrap items-center gap-4">
+                {/* 时间范围筛选 */}
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-foreground">时间范围:</span>
+                  <div className="flex gap-1">
+                    {timeRangeOptions.filter(o => o.value !== 'custom').map((option) => (
+                      <Button
+                        key={option.value}
+                        variant={timeRange === option.value ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => {
+                          setTimeRange(option.value);
+                          setShowCustomDatePicker(false);
+                        }}
+                        className="h-8"
+                      >
+                        {option.label}
+                      </Button>
+                    ))}
+                    <Button
+                      variant={timeRange === 'custom' ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => {
+                        setTimeRange('custom');
+                        setShowCustomDatePicker(true);
+                      }}
+                      className="h-8"
+                    >
+                      自定义
+                    </Button>
+                  </div>
+                </div>
+                
+                {/* 自定义日期选择器 */}
+                {showCustomDatePicker && (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className="h-8 w-[140px]"
+                    />
+                    <span className="text-muted-foreground">至</span>
+                    <Input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      className="h-8 w-[140px]"
+                    />
+                  </div>
+                )}
+                
+                {/* 显示当前日期范围 */}
+                <span className="text-xs text-muted-foreground">
+                  {dateRange.startDate} 至 {dateRange.endDate}
+                </span>
+              </div>
+              
+              {/* 第二行：店铺和站点筛选 */}
               <div className="flex flex-wrap items-center gap-4">
                 {/* 店铺筛选 */}
                 <div className="flex items-center gap-2">
@@ -1112,7 +1238,7 @@ export default function Campaigns() {
                 </div>
               </div>
 
-              {/* 第二行：广告类型筛选 */}
+              {/* 第三行：广告类型筛选 */}
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm text-muted-foreground">广告类型:</span>
                 {campaignTypes.map((type) => {
@@ -1138,7 +1264,7 @@ export default function Campaigns() {
                 })}
               </div>
 
-              {/* 第三行：计费方式筛选 */}
+              {/* 第四行：计费方式筛选 */}
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm text-muted-foreground">计费方式:</span>
                 {billingTypeOptions.map((option) => (
@@ -1154,7 +1280,7 @@ export default function Campaigns() {
                 ))}
               </div>
 
-              {/* 第四行：运行状态和优化状态筛选 */}
+              {/* 第五行：运行状态和优化状态筛选 */}
               <div className="flex flex-wrap items-center gap-4">
                 {/* 运行状态筛选 */}
                 <div className="flex items-center gap-2">

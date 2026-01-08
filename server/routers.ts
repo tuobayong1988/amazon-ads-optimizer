@@ -544,8 +544,16 @@ const performanceGroupRouter = router({
 // ==================== Campaign Router ====================
 const campaignRouter = router({
   list: protectedProcedure
-    .input(z.object({ accountId: z.number().optional() }))
+    .input(z.object({ 
+      accountId: z.number().optional(),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+    }))
     .query(async ({ input }) => {
+      // 如果提供了时间范围，使用带绩效数据的查询
+      if (input.accountId && input.startDate && input.endDate) {
+        return db.getCampaignsWithPerformance(input.accountId, input.startDate, input.endDate);
+      }
       if (input.accountId) {
         return db.getCampaignsByAccountId(input.accountId);
       }
@@ -2784,6 +2792,7 @@ const amazonApiRouter = router({
         adGroups: 0,
         keywords: 0,
         targets: 0,
+        performance: 0,
         skipped: 0,
       };
 
@@ -2874,6 +2883,21 @@ const amazonApiRouter = router({
 
         results.campaigns = results.spCampaigns + results.sbCampaigns + results.sdCampaigns;
 
+        // 同步绩效数据（最近30天）
+        try {
+          const performanceCount = await executeWithRetry(
+            () => syncService.syncPerformanceData(30),
+            '绩效数据同步'
+          );
+          results.performance = performanceCount;
+          console.log(`[绩效数据同步] 完成: ${performanceCount} 条记录`);
+        } catch (error: any) {
+          console.error('[绩效数据同步] 失败:', error.message);
+          // 绩效数据同步失败不影响整体同步结果
+          results.performance = 0;
+          results.performanceError = error.message;
+        }
+
         // 保存变更摘要
         if (jobId) {
           await db.upsertSyncChangeSummary({
@@ -2909,6 +2933,7 @@ const amazonApiRouter = router({
 
         return {
           ...results,
+          performance: results.performance,
           durationMs,
           retryCount: totalRetries,
           isIncremental: input.isIncremental,
