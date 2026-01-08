@@ -2267,6 +2267,163 @@ const amazonApiRouter = router({
       };
     }),
 
+  // Save credentials for multiple profiles (multi-marketplace authorization)
+  saveMultipleProfiles: protectedProcedure
+    .input(z.object({
+      storeName: z.string(),
+      clientId: z.string(),
+      clientSecret: z.string(),
+      refreshToken: z.string(),
+      region: z.enum(['NA', 'EU', 'FE']),
+      profiles: z.array(z.object({
+        profileId: z.string(),
+        countryCode: z.string(),
+        accountName: z.string(),
+      })),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      console.log('[saveMultipleProfiles] 收到多站点授权请求:', {
+        storeName: input.storeName,
+        profilesCount: input.profiles.length,
+        profiles: input.profiles.map(p => ({ profileId: p.profileId, countryCode: p.countryCode })),
+        region: input.region,
+      });
+
+      // 检查必填字段
+      if (!input.clientId || !input.clientSecret || !input.refreshToken) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: '缺少必填的API凭证字段',
+        });
+      }
+
+      if (input.profiles.length === 0) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: '至少需要一个Profile',
+        });
+      }
+
+      // 国家代码到市场名称的映射
+      const countryToMarketplace: Record<string, string> = {
+        'US': '美国', 'CA': '加拿大', 'MX': '墨西哥', 'BR': '巴西',
+        'UK': '英国', 'DE': '德国', 'FR': '法国', 'IT': '意大利',
+        'ES': '西班牙', 'NL': '荷兰', 'SE': '瑞典', 'PL': '波兰',
+        'JP': '日本', 'AU': '澳大利亚', 'SG': '新加坡',
+        'AE': '阿联酋', 'SA': '沙特阿拉伯', 'IN': '印度',
+      };
+
+      const results: Array<{
+        profileId: string;
+        countryCode: string;
+        accountId: number;
+        success: boolean;
+        error?: string;
+      }> = [];
+
+      // 为每个profile创建账号和保存凭证
+      for (const profile of input.profiles) {
+        try {
+          const marketplace = countryToMarketplace[profile.countryCode] || profile.countryCode;
+          
+          // 检查是否已存在相同profileId的账号
+          const existingAccounts = await db.getAdAccountsByUserId(ctx.user.id);
+          const existingAccount = existingAccounts.find(a => a.profileId === profile.profileId);
+          
+          let accountId: number;
+          
+          if (existingAccount) {
+            // 更新现有账号
+            accountId = existingAccount.id;
+            console.log(`[saveMultipleProfiles] 更新现有账号 ${accountId} (${profile.countryCode})`);
+          } else {
+            // 创建新账号 - createAdAccount返回insertId数字
+            accountId = await db.createAdAccount({
+              userId: ctx.user.id,
+              storeName: input.storeName,
+              accountName: `${input.storeName} ${marketplace}`,
+              accountId: profile.profileId,
+              marketplace: marketplace,  // 保存中文市场名称或国家代码，而不是仅保存国家代码
+              profileId: profile.profileId,
+              connectionStatus: 'pending',
+            });
+            console.log(`[saveMultipleProfiles] 创建新账号 ${accountId} (${profile.countryCode})`);
+          }
+
+          // 保存API凭证
+          await db.saveAmazonApiCredentials({
+            accountId,
+            clientId: input.clientId,
+            clientSecret: input.clientSecret,
+            refreshToken: input.refreshToken,
+            profileId: profile.profileId,
+            region: input.region,
+          });
+
+          // 更新账号连接状态
+          await db.updateAdAccount(accountId, {
+            connectionStatus: 'connected',
+          });
+
+          results.push({
+            profileId: profile.profileId,
+            countryCode: profile.countryCode,
+            accountId,
+            success: true,
+          });
+
+          console.log(`[saveMultipleProfiles] 账号 ${accountId} (${profile.countryCode}) 凭证保存成功`);
+        } catch (error: any) {
+          console.error(`[saveMultipleProfiles] 处理 ${profile.countryCode} 失败:`, error);
+          results.push({
+            profileId: profile.profileId,
+            countryCode: profile.countryCode,
+            accountId: 0,
+            success: false,
+            error: error.message,
+          });
+        }
+      }
+
+      // 为所有成功创建的账号触发数据同步
+      const successfulAccounts = results.filter(r => r.success);
+      for (const account of successfulAccounts) {
+        try {
+          console.log(`[saveMultipleProfiles] 开始为账号 ${account.accountId} (${account.countryCode}) 同步数据...`);
+          
+          const syncService = await AmazonSyncService.createFromCredentials(
+            {
+              clientId: input.clientId,
+              clientSecret: input.clientSecret,
+              refreshToken: input.refreshToken,
+              profileId: account.profileId,
+              region: input.region,
+            },
+            account.accountId,
+            ctx.user.id
+          );
+
+          // 异步执行同步，不阻塞返回
+          syncService.syncAll().then(result => {
+            console.log(`[saveMultipleProfiles] 账号 ${account.accountId} (${account.countryCode}) 同步完成:`, result);
+            db.updateAmazonApiCredentialsLastSync(account.accountId);
+          }).catch(err => {
+            console.error(`[saveMultipleProfiles] 账号 ${account.accountId} (${account.countryCode}) 同步失败:`, err);
+          });
+        } catch (syncError: any) {
+          console.error(`[saveMultipleProfiles] 启动同步失败 (${account.countryCode}):`, syncError);
+        }
+      }
+
+      return {
+        success: true,
+        totalProfiles: input.profiles.length,
+        successCount: successfulAccounts.length,
+        failedCount: results.filter(r => !r.success).length,
+        results,
+      };
+    }),
+
   // Get API credentials status
   getCredentialsStatus: protectedProcedure
     .input(z.object({ accountId: z.number() }))

@@ -132,6 +132,29 @@ export default function AmazonApiSettings() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<AccountFormData & { id: number } | null>(null);
   const [formData, setFormData] = useState<AccountFormData>(initialFormData);
+  
+  // 打开对话框时重置表单（但保留店铺名称）
+  const handleOpenAddDialog = () => {
+    setFormData({
+      ...formData,
+      accountId: "",
+      accountName: "",
+      storeDescription: "",
+      storeColor: "#3B82F6",
+      marketplace: "US",
+      marketplaceId: "",
+      profileId: "",
+      sellerId: "",
+      isDefault: false,
+    });
+    setIsAddDialogOpen(true);
+  };
+  
+  // 关闭对话框时重置表单
+  const handleCloseAddDialog = () => {
+    setIsAddDialogOpen(false);
+    setFormData(initialFormData);
+  };
   const [credentials, setCredentials] = useState({
     clientId: "",
     clientSecret: "",
@@ -229,7 +252,8 @@ export default function AmazonApiSettings() {
       utils.adAccount.list.invalidate();
       utils.adAccount.getStats.invalidate();
       setIsAddDialogOpen(false);
-      setFormData(initialFormData);
+      // 保留店铺名称，只重置其他字段
+      // 注意：不重置formData，以保留用户输入的店铺名称
     },
     onError: (error) => {
       toast.error(`添加失败: ${error.message}`);
@@ -292,6 +316,8 @@ export default function AmazonApiSettings() {
           );
         }
       }
+      utils.adAccount.list.invalidate();
+      utils.adAccount.getStats.invalidate();
       
       refetchStatus();
       setCredentials({
@@ -304,6 +330,19 @@ export default function AmazonApiSettings() {
     },
     onError: (error) => {
       toast.error(`保存失败: ${error.message}`);
+    },
+  });
+
+  // Save multiple profiles mutation - 支持一次授权多站点
+  const saveMultipleProfilesMutation = trpc.amazonApi.saveMultipleProfiles.useMutation({
+    onSuccess: (data) => {
+      toast.success(`多站点授权成功！已创建 ${data.results.length} 个站点账号`);
+      utils.adAccount.list.invalidate();
+      utils.adAccount.getStats.invalidate();
+      refetchStatus();
+    },
+    onError: (error) => {
+      toast.error(`多站点授权失败: ${error.message}`);
     },
   });
 
@@ -524,6 +563,37 @@ export default function AmazonApiSettings() {
     },
   });
 
+  // 新的授权流程：只需要店铺名称，然后跳转到Amazon OAuth页面
+  const handleAuthorizeAmazon = async () => {
+    if (!formData.storeName) {
+      toast.error("请输入店铺名称");
+      return;
+    }
+
+    // 设置授权状态
+    setAuthStep('oauth');
+    
+    // 调用最旧的授权流程，但不会选择市场
+    // 稍后在授权回调中会自动为所有站点创建账号
+    try {
+      // 调用授权端点
+      const result = await fetch('/api/trpc/auth.getAuthorizationUrl', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }).then(r => r.json());
+      
+      if (result.result?.data?.url) {
+        // 跳转Amazon OAuth页面
+        window.location.href = result.result.data.url;
+      }
+    } catch (error) {
+      toast.error("授权失败，请稍后重试");
+      setAuthStep('idle');
+    }
+  };
+
+  // 旧的创建账号流程（不再使用）
   const handleCreateAccount = async () => {
     if (!formData.accountId || !formData.accountName || !formData.marketplace) {
       toast.error("请填写必填字段");
@@ -749,86 +819,36 @@ export default function AmazonApiSettings() {
             {/* 添加账号按钮 */}
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
               <DialogTrigger asChild>
-                <Button>
+                <Button onClick={handleOpenAddDialog}>
                   <Plus className="h-4 w-4 mr-2" />
                   添加店铺账号
                 </Button>
               </DialogTrigger>
             <DialogContent className="max-w-2xl">
               <DialogHeader>
-                <DialogTitle>添加新店铺账号</DialogTitle>
+                <DialogTitle>添加新店铺</DialogTitle>
                 <DialogDescription>
-                  添加一个新的亚马逊卖家店铺账号到系统中
+                  输入店铺名称，然后通过Amazon OAuth授权。授权时可以选择要同步的站点（美国、加拿大、墨西哥等）。
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="accountId">Amazon账号ID *</Label>
-                    <Input
-                      id="accountId"
-                      placeholder="例如: A1B2C3D4E5F6G7"
-                      value={formData.accountId}
-                      onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="accountName">系统账号名称 *</Label>
-                    <Input
-                      id="accountName"
-                      placeholder="用于系统内部识别"
-                      value={formData.accountName}
-                      onChange={(e) => setFormData({ ...formData, accountName: e.target.value })}
-                    />
-                  </div>
-                </div>
-                
-                <Separator />
-                <p className="text-sm font-medium">店铺自定义信息</p>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="storeName">店铺名称</Label>
-                    <Input
-                      id="storeName"
-                      placeholder="您的店铺品牌名称"
-                      value={formData.storeName}
-                      onChange={(e) => setFormData({ ...formData, storeName: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="marketplace">市场 *</Label>
-                    <Select
-                      value={formData.marketplace}
-                      onValueChange={(value) => setFormData({ ...formData, marketplace: value })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="选择市场" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {MARKETPLACES.map((m) => (
-                          <SelectItem key={m.id} value={m.id}>
-                            {m.flag} {m.name} ({m.id})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
 
+              <div className="grid gap-6 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="storeDescription">店铺备注</Label>
-                  <Textarea
-                    id="storeDescription"
-                    placeholder="添加一些备注信息..."
-                    value={formData.storeDescription}
-                    onChange={(e) => setFormData({ ...formData, storeDescription: e.target.value })}
-                    rows={2}
+                  <Label htmlFor="storeName">店铺名称 *</Label>
+                  <Input
+                    id="storeName"
+                    placeholder="例如：ElaraFit、My Store等"
+                    value={formData.storeName}
+                    onChange={(e) => setFormData({ ...formData, storeName: e.target.value })}
+                    className="text-base"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    此名称将用于区分不同的店铺，所有授权的站点将显示在这个店铺下
+                  </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>店铺标识颜色</Label>
+                  <Label>店铺标识颜色（可选）</Label>
                   <div className="flex gap-2 flex-wrap">
                     {PRESET_COLORS.map((color) => (
                       <button
@@ -851,45 +871,25 @@ export default function AmazonApiSettings() {
                 </div>
 
                 <Separator />
-                <p className="text-sm font-medium">API配置信息（可选，稍后配置）</p>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="profileId">Profile ID</Label>
-                    <Input
-                      id="profileId"
-                      placeholder="Amazon广告Profile ID"
-                      value={formData.profileId}
-                      onChange={(e) => setFormData({ ...formData, profileId: e.target.value })}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="sellerId">卖家ID</Label>
-                    <Input
-                      id="sellerId"
-                      placeholder="Amazon卖家ID"
-                      value={formData.sellerId}
-                      onChange={(e) => setFormData({ ...formData, sellerId: e.target.value })}
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Switch
-                    id="isDefault"
-                    checked={formData.isDefault}
-                    onCheckedChange={(checked) => setFormData({ ...formData, isDefault: checked })}
-                  />
-                  <Label htmlFor="isDefault">设为默认账号</Label>
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">下一步：授权Amazon API</p>
+                  <p className="text-sm text-muted-foreground">
+                    点击下方按鐐，将跳转到Amazon授权页面。在授权页面中，您可以选择要同步的所有站点。授权成功后，系统会自动为这些站点创建账号。
+                  </p>
                 </div>
               </div>
+
               <DialogFooter>
-                <Button variant="outline" onClick={() => setIsAddDialogOpen(false)}>
+                <Button variant="outline" onClick={() => handleCloseAddDialog()}>
                   取消
                 </Button>
-                <Button onClick={handleCreateAccount} disabled={createAccountMutation.isPending}>
-                  {createAccountMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  添加账号
+                <Button 
+                  onClick={handleAuthorizeAmazon}
+                  disabled={!formData.storeName || authStep !== 'idle'}
+                >
+                  {authStep === 'oauth' && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {authStep === 'oauth' ? '授权中...' : '授权Amazon API'}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -1160,7 +1160,7 @@ export default function AmazonApiSettings() {
                   <p className="text-muted-foreground text-center mb-4">
                     添加您的亚马逊卖家店铺账号，开始管理广告数据
                   </p>
-                  <Button onClick={() => setIsAddDialogOpen(true)}>
+                  <Button onClick={handleOpenAddDialog}>
                     <Plus className="h-4 w-4 mr-2" />
                     添加第一个店铺
                   </Button>
@@ -1469,10 +1469,29 @@ export default function AmazonApiSettings() {
                                 setCredentials(newCredentials);
                                 setAuthProgress(75);
                                 
-                                // 步骤2: 自动保存凭证
+                                // 步骤2: 自动保存凭证 - 支持多站点
                                 setAuthStep('saving');
                                 
-                                if (selectedAccountId) {
+                                // 如果检测到多个profiles，自动为所有站点创建账号
+                                if (result.profiles && result.profiles.length > 0) {
+                                  // 使用当前表单中的店铺名称，如果没有则使用默认名称
+                                  const storeName = formData.storeName || '我的店铺';
+                                  
+                                  await saveMultipleProfilesMutation.mutateAsync({
+                                    storeName,
+                                    clientId: newCredentials.clientId,
+                                    clientSecret: newCredentials.clientSecret,
+                                    refreshToken: newCredentials.refreshToken,
+                                    region: newCredentials.region,
+                                    profiles: result.profiles.map(p => ({
+                                      profileId: p.profileId,
+                                      countryCode: p.countryCode,
+                                      currencyCode: (p as any).currencyCode || 'USD',
+                                      accountName: (p as any).accountInfo?.name || p.accountName || storeName,
+                                    })),
+                                  });
+                                } else if (selectedAccountId) {
+                                  // 如果只有一个profile或已选择账号，使用原有逻辑
                                   await saveCredentialsMutation.mutateAsync({
                                     accountId: selectedAccountId,
                                     ...newCredentials,
@@ -1484,7 +1503,7 @@ export default function AmazonApiSettings() {
                                 
                                 toast.success(
                                   result.profiles && result.profiles.length > 0
-                                    ? `授权完成！已自动保存凭证并同步数据。检测到 ${result.profiles.length} 个广告配置文件。`
+                                    ? `授权完成！已自动创建 ${result.profiles.length} 个站点账号并同步数据。`
                                     : '授权完成！已自动保存凭证。'
                                 );
                                 
@@ -1982,10 +2001,27 @@ export default function AmazonApiSettings() {
                               setCredentials(newCredentials);
                               setAuthProgress(75);
                               
-                              // 步骤2: 自动保存凭证
+                              // 步骤2: 自动保存凭证 - 支持多站点
                               setAuthStep('saving');
                               
-                              if (selectedAccountId) {
+                              // 如果检测到多个profiles，自动为所有站点创建账号
+                              if (result.profiles && result.profiles.length > 0) {
+                                const storeName = formData.storeName || '我的店铺';
+                                
+                                await saveMultipleProfilesMutation.mutateAsync({
+                                  storeName,
+                                  clientId: newCredentials.clientId,
+                                  clientSecret: newCredentials.clientSecret,
+                                  refreshToken: newCredentials.refreshToken,
+                                  region: newCredentials.region,
+                                  profiles: result.profiles.map(p => ({
+                                    profileId: p.profileId,
+                                    countryCode: p.countryCode,
+                                    currencyCode: (p as any).currencyCode || 'USD',
+                                    accountName: (p as any).accountInfo?.name || p.accountName || storeName,
+                                  })),
+                                });
+                              } else if (selectedAccountId) {
                                 await saveCredentialsMutation.mutateAsync({
                                   accountId: selectedAccountId,
                                   ...newCredentials,
@@ -1997,7 +2033,7 @@ export default function AmazonApiSettings() {
                               
                               toast.success(
                                 result.profiles && result.profiles.length > 0
-                                  ? `授权完成！已自动保存凭证并同步数据。检测到 ${result.profiles.length} 个广告配置文件。`
+                                  ? `授权完成！已自动创建 ${result.profiles.length} 个站点账号并同步数据。`
                                   : '授权完成！已自动保存凭证。'
                               );
                               
