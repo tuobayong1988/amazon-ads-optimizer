@@ -48,12 +48,20 @@ import OptimizationTargets from "@/pages/OptimizationTargets";
 import ApiSecurityCenter from "@/pages/ApiSecurityCenter";
 import SpecialScenarioAnalysis from "@/pages/SpecialScenarioAnalysis";
 import AutomationControl from "@/pages/AutomationControl";
+import MonitoringCenter from "@/pages/MonitoringCenter";
+import AnalyticsInsights from "@/pages/AnalyticsInsights";
+import StrategyCenter from "@/pages/StrategyCenter";
+import OptimizationEngine from "@/pages/OptimizationEngine";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/dashboard" component={Dashboard} />
+      <Route path="/monitoring-center" component={MonitoringCenter} />
+      <Route path="/analytics-insights" component={AnalyticsInsights} />
+      <Route path="/strategy-center" component={StrategyCenter} />
+      <Route path="/optimization-engine" component={OptimizationEngine} />
       <Route path="/optimization-targets" component={OptimizationTargets} />
       <Route path="/optimization-targets/:id" component={PerformanceGroupDetail} />
       <Route path="/performance-groups" component={PerformanceGroups} />

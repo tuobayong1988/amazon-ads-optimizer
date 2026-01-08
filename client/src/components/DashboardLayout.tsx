@@ -61,34 +61,37 @@ import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 import AccountSwitcher from "./AccountSwitcher";
 
-// 菜单分组配置 - 简化版，优化功能已整合到广告管理模块
-// 极简化菜单结构 - 算法自主决策执行，人只做监督
+// 菜单分组配置 - 合并优化后的4个核心模块
+// 算法自主决策执行，人只做监督
 const menuGroups = [
   {
-    title: "核心监控",
+    title: "监控中心",
+    description: "实时状态、健康度、预警统一视图",
     items: [
-      { icon: LayoutDashboard, label: "监控仪表盘", path: "/dashboard" },
-      { icon: Activity, label: "健康度监控", path: "/health" },
-      { icon: AlertTriangle, label: "预算预警", path: "/budget-alerts" },
+      { icon: LayoutDashboard, label: "监控仪表盘", path: "/monitoring-center", badge: "核心" },
     ]
   },
   {
-    title: "广告管理",
-    description: "算法自动决策执行，人只做监督",
+    title: "策略中心",
+    description: "优化目标、广告活动、自动化配置",
     items: [
-      { icon: Target, label: "优化目标", path: "/optimization-targets", badge: "自动优化" },
+      { icon: Target, label: "策略管理", path: "/strategy-center", badge: "核心" },
       { icon: Megaphone, label: "广告活动", path: "/campaigns" },
     ]
   },
   {
     title: "优化引擎",
-    description: "统一的自动优化系统",
+    description: "智能优化建议和自动执行",
     items: [
-      { icon: Bot, label: "自动化控制", path: "/automation-control", badge: "核心" },
-      { icon: Zap, label: "优化中心", path: "/optimization-center" },
-      { icon: Brain, label: "特殊场景分析", path: "/special-scenario" },
-      { icon: FileSearch, label: "纠错复盘", path: "/correction-review" },
-      { icon: CalendarDays, label: "季节性建议", path: "/seasonal-budget" },
+      { icon: Zap, label: "优化引擎", path: "/optimization-engine", badge: "核心" },
+      { icon: Bot, label: "自动化控制", path: "/automation-control" },
+    ]
+  },
+  {
+    title: "分析洞察",
+    description: "特殊场景、纠错复盘、季节性分析",
+    items: [
+      { icon: Brain, label: "分析洞察", path: "/analytics-insights", badge: "核心" },
     ]
   },
   {

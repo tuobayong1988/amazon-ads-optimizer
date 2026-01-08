@@ -44,16 +44,16 @@ describe('Traffic Isolation Automation Integration', () => {
       expect(typeof automationExecutionEngine.runNGramAnalysisTask).toBe('function');
     });
 
-    it('should export runFunnelNegativeSyncTask function', () => {
-      expect(typeof automationExecutionEngine.runFunnelNegativeSyncTask).toBe('function');
+    it('should export runFunnelSyncTask function', () => {
+      expect(typeof automationExecutionEngine.runFunnelSyncTask).toBe('function');
     });
 
     it('should export runKeywordMigrationTask function', () => {
       expect(typeof automationExecutionEngine.runKeywordMigrationTask).toBe('function');
     });
 
-    it('should export runTrafficConflictResolutionTask function', () => {
-      expect(typeof automationExecutionEngine.runTrafficConflictResolutionTask).toBe('function');
+    it('should export runTrafficConflictDetectionTask function', () => {
+      expect(typeof automationExecutionEngine.runTrafficConflictDetectionTask).toBe('function');
     });
   });
 
@@ -152,8 +152,8 @@ describe('Traffic Isolation Automation Integration', () => {
       
       expect(config).toHaveProperty('ngram');
       expect(config.ngram.minFrequency).toBeGreaterThan(0);
-      expect(config.ngram.minClicks).toBeGreaterThan(0);
-      expect(config.ngram.maxConversionRate).toBeLessThan(1);
+      expect(config.ngram.highRiskFrequency).toBeGreaterThan(0);
+      expect(config.ngram.confidenceThreshold).toBeLessThan(1);
     });
 
     it('should have valid funnel tier config', () => {
