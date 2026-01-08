@@ -165,6 +165,27 @@ export default function AmazonApiSettings() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  
+  // 站点同步状态类型
+  interface SiteSyncStatus {
+    id: number;
+    marketplace: string;
+    name: string;
+    flag: string;
+    status: 'pending' | 'syncing' | 'success' | 'failed';
+    progress: number;
+    error?: string;
+    results?: {
+      sp: number;
+      sb: number;
+      sd: number;
+      adGroups: number;
+      keywords: number;
+      targets: number;
+    };
+    retryCount: number;
+  }
+  
   const [syncProgress, setSyncProgress] = useState<{
     step: 'idle' | 'sp' | 'sb' | 'sd' | 'adgroups' | 'keywords' | 'targets' | 'complete' | 'error';
     progress: number;
@@ -178,11 +199,20 @@ export default function AmazonApiSettings() {
       targets: number;
     };
     error?: string;
+    // 新增：站点级别的同步状态
+    siteStatuses?: SiteSyncStatus[];
+    failedSites?: SiteSyncStatus[];
+    totalSites?: number;
+    completedSites?: number;
   }>({
     step: 'idle',
     progress: 0,
     current: '',
-    results: { sp: 0, sb: 0, sd: 0, adGroups: 0, keywords: 0, targets: 0 }
+    results: { sp: 0, sb: 0, sd: 0, adGroups: 0, keywords: 0, targets: 0 },
+    siteStatuses: [],
+    failedSites: [],
+    totalSites: 0,
+    completedSites: 0
   });
   const [authStep, setAuthStep] = useState<'idle' | 'oauth' | 'exchanging' | 'saving' | 'syncing' | 'complete' | 'error'>('idle');
   const [authProgress, setAuthProgress] = useState(0);
@@ -716,6 +746,178 @@ export default function AmazonApiSettings() {
     }
   };
 
+  // 同步单个站点的函数（支持重试）
+  const syncSingleSite = async (
+    site: NonNullable<typeof accounts>[number],
+    siteStatuses: SiteSyncStatus[],
+    updateProgress: (statuses: SiteSyncStatus[]) => void
+  ): Promise<{ success: boolean; results?: typeof syncProgress.results; error?: string }> => {
+    const mp = MARKETPLACES.find(m => m.id === site.marketplace);
+    const siteName = mp?.name || site.marketplace;
+    const siteFlag = mp?.flag || '🌐';
+    
+    // 更新站点状态为同步中
+    const updatedStatuses = siteStatuses.map(s => 
+      s.id === site.id ? { ...s, status: 'syncing' as const, progress: 10 } : s
+    );
+    updateProgress(updatedStatuses);
+    
+    try {
+      // 模拟同步进度更新
+      const progressSteps = [20, 40, 60, 80];
+      for (const progress of progressSteps) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        const stepStatuses = siteStatuses.map(s => 
+          s.id === site.id ? { ...s, status: 'syncing' as const, progress } : s
+        );
+        updateProgress(stepStatuses);
+      }
+      
+      const result = await syncAllMutation.mutateAsync({ 
+        accountId: site.id,
+        isIncremental: useIncrementalSync,
+      });
+      
+      const siteResults = {
+        sp: result.spCampaigns || 0,
+        sb: result.sbCampaigns || 0,
+        sd: result.sdCampaigns || 0,
+        adGroups: result.adGroups || 0,
+        keywords: result.keywords || 0,
+        targets: result.targets || 0,
+      };
+      
+      // 更新站点状态为成功
+      const successStatuses = siteStatuses.map(s => 
+        s.id === site.id ? { 
+          ...s, 
+          status: 'success' as const, 
+          progress: 100,
+          results: siteResults 
+        } : s
+      );
+      updateProgress(successStatuses);
+      
+      return { success: true, results: siteResults };
+    } catch (error: any) {
+      console.error(`同步站点 ${siteName} 失败:`, error);
+      
+      // 更新站点状态为失败
+      const failedStatuses = siteStatuses.map(s => 
+        s.id === site.id ? { 
+          ...s, 
+          status: 'failed' as const, 
+          progress: 0,
+          error: error.message || '同步失败' 
+        } : s
+      );
+      updateProgress(failedStatuses);
+      
+      return { success: false, error: error.message || '同步失败' };
+    }
+  };
+  
+  // 重试单个失败站点
+  const handleRetrySite = async (siteId: number) => {
+    const site = accounts?.find(a => a.id === siteId);
+    if (!site) return;
+    
+    const mp = MARKETPLACES.find(m => m.id === site.marketplace);
+    const siteName = mp?.name || site.marketplace;
+    const siteFlag = mp?.flag || '🌐';
+    
+    // 更新站点状态
+    setSyncProgress(prev => {
+      const updatedSiteStatuses = (prev.siteStatuses || []).map(s => 
+        s.id === siteId ? { ...s, status: 'syncing' as const, progress: 10, retryCount: s.retryCount + 1 } : s
+      );
+      return {
+        ...prev,
+        siteStatuses: updatedSiteStatuses,
+        current: `正在重试同步 ${siteName}...`,
+      };
+    });
+    
+    try {
+      const result = await syncAllMutation.mutateAsync({ 
+        accountId: siteId,
+        isIncremental: useIncrementalSync,
+      });
+      
+      const siteResults = {
+        sp: result.spCampaigns || 0,
+        sb: result.sbCampaigns || 0,
+        sd: result.sdCampaigns || 0,
+        adGroups: result.adGroups || 0,
+        keywords: result.keywords || 0,
+        targets: result.targets || 0,
+      };
+      
+      // 更新站点状态为成功，并累加结果
+      setSyncProgress(prev => {
+        const updatedSiteStatuses = (prev.siteStatuses || []).map(s => 
+          s.id === siteId ? { 
+            ...s, 
+            status: 'success' as const, 
+            progress: 100,
+            results: siteResults,
+            error: undefined 
+          } : s
+        );
+        
+        // 从失败列表中移除
+        const updatedFailedSites = (prev.failedSites || []).filter(s => s.id !== siteId);
+        
+        // 累加结果
+        const newResults = {
+          sp: prev.results.sp + siteResults.sp,
+          sb: prev.results.sb + siteResults.sb,
+          sd: prev.results.sd + siteResults.sd,
+          adGroups: prev.results.adGroups + siteResults.adGroups,
+          keywords: prev.results.keywords + siteResults.keywords,
+          targets: prev.results.targets + siteResults.targets,
+        };
+        
+        const completedCount = updatedSiteStatuses.filter(s => s.status === 'success').length;
+        const hasFailures = updatedFailedSites.length > 0;
+        
+        return {
+          ...prev,
+          siteStatuses: updatedSiteStatuses,
+          failedSites: updatedFailedSites,
+          results: newResults,
+          completedSites: completedCount,
+          step: hasFailures ? 'error' : 'complete',
+          current: hasFailures 
+            ? `同步完成，${updatedFailedSites.length} 个站点失败`
+            : `同步完成！已同步 ${completedCount} 个站点`,
+          progress: hasFailures ? 90 : 100,
+        };
+      });
+      
+      toast.success(`${siteName} 重试同步成功`);
+    } catch (error: any) {
+      // 更新站点状态为失败
+      setSyncProgress(prev => {
+        const updatedSiteStatuses = (prev.siteStatuses || []).map(s => 
+          s.id === siteId ? { 
+            ...s, 
+            status: 'failed' as const, 
+            progress: 0,
+            error: error.message || '重试失败' 
+          } : s
+        );
+        return {
+          ...prev,
+          siteStatuses: updatedSiteStatuses,
+          current: `${siteName} 重试失败: ${error.message}`,
+        };
+      });
+      
+      toast.error(`${siteName} 重试失败: ${error.message}`);
+    }
+  };
+  
   const handleSyncAll = async () => {
     if (!selectedAccount) {
       toast.error("请先选择店铺");
@@ -733,66 +935,173 @@ export default function AmazonApiSettings() {
       return;
     }
 
+    // 初始化站点同步状态
+    const initialSiteStatuses: SiteSyncStatus[] = storeSites.map(site => {
+      const mp = MARKETPLACES.find(m => m.id === site.marketplace);
+      return {
+        id: site.id,
+        marketplace: site.marketplace,
+        name: mp?.name || site.marketplace,
+        flag: mp?.flag || '🌐',
+        status: 'pending' as const,
+        progress: 0,
+        retryCount: 0,
+      };
+    });
+
     setIsSyncing(true);
     setSyncProgress({
       step: 'sp',
       progress: 5,
       current: `正在同步 ${storeSites.length} 个站点的数据...`,
-      results: { sp: 0, sb: 0, sd: 0, adGroups: 0, keywords: 0, targets: 0 }
+      results: { sp: 0, sb: 0, sd: 0, adGroups: 0, keywords: 0, targets: 0 },
+      siteStatuses: initialSiteStatuses,
+      failedSites: [],
+      totalSites: storeSites.length,
+      completedSites: 0,
     });
 
     try {
       let totalResults = { sp: 0, sb: 0, sd: 0, adGroups: 0, keywords: 0, targets: 0 };
+      let failedSites: SiteSyncStatus[] = [];
+      let currentSiteStatuses = [...initialSiteStatuses];
       
       // 依次同步每个站点
       for (let i = 0; i < storeSites.length; i++) {
         const site = storeSites[i];
         const mp = MARKETPLACES.find(m => m.id === site.marketplace);
         const siteName = mp?.name || site.marketplace;
+        const siteFlag = mp?.flag || '🌐';
         
+        // 更新当前站点状态为同步中
+        currentSiteStatuses = currentSiteStatuses.map(s => 
+          s.id === site.id ? { ...s, status: 'syncing' as const, progress: 10 } : s
+        );
+        
+        const overallProgress = Math.round((i / storeSites.length) * 80) + 10;
         setSyncProgress(prev => ({
           ...prev,
-          progress: Math.round((i / storeSites.length) * 80) + 10,
+          progress: overallProgress,
           current: `正在同步 ${siteName} (${i + 1}/${storeSites.length})...`,
+          siteStatuses: currentSiteStatuses,
+          completedSites: i,
         }));
 
         try {
+          // 模拟同步进度更新
+          for (const progress of [30, 50, 70, 90]) {
+            await new Promise(resolve => setTimeout(resolve, 50));
+            currentSiteStatuses = currentSiteStatuses.map(s => 
+              s.id === site.id ? { ...s, progress } : s
+            );
+            setSyncProgress(prev => ({
+              ...prev,
+              siteStatuses: currentSiteStatuses,
+            }));
+          }
+          
           const result = await syncAllMutation.mutateAsync({ 
             accountId: site.id,
             isIncremental: useIncrementalSync,
           });
           
+          const siteResults = {
+            sp: result.spCampaigns || 0,
+            sb: result.sbCampaigns || 0,
+            sd: result.sdCampaigns || 0,
+            adGroups: result.adGroups || 0,
+            keywords: result.keywords || 0,
+            targets: result.targets || 0,
+          };
+          
           // 累加结果
-          totalResults.sp += result.spCampaigns || 0;
-          totalResults.sb += result.sbCampaigns || 0;
-          totalResults.sd += result.sdCampaigns || 0;
-          totalResults.adGroups += result.adGroups || 0;
-          totalResults.keywords += result.keywords || 0;
-          totalResults.targets += result.targets || 0;
+          totalResults.sp += siteResults.sp;
+          totalResults.sb += siteResults.sb;
+          totalResults.sd += siteResults.sd;
+          totalResults.adGroups += siteResults.adGroups;
+          totalResults.keywords += siteResults.keywords;
+          totalResults.targets += siteResults.targets;
+          
+          // 更新站点状态为成功
+          currentSiteStatuses = currentSiteStatuses.map(s => 
+            s.id === site.id ? { 
+              ...s, 
+              status: 'success' as const, 
+              progress: 100,
+              results: siteResults 
+            } : s
+          );
+          
+          setSyncProgress(prev => ({
+            ...prev,
+            siteStatuses: currentSiteStatuses,
+            results: totalResults,
+          }));
         } catch (siteError: any) {
           console.error(`同步站点 ${siteName} 失败:`, siteError);
-          toast.error(`同步 ${siteName} 失败: ${siteError.message}`);
+          
+          // 更新站点状态为失败
+          const failedSiteStatus: SiteSyncStatus = {
+            id: site.id,
+            marketplace: site.marketplace,
+            name: siteName,
+            flag: siteFlag,
+            status: 'failed' as const,
+            progress: 0,
+            error: siteError.message || '同步失败',
+            retryCount: 0,
+          };
+          
+          currentSiteStatuses = currentSiteStatuses.map(s => 
+            s.id === site.id ? failedSiteStatus : s
+          );
+          failedSites.push(failedSiteStatus);
+          
+          setSyncProgress(prev => ({
+            ...prev,
+            siteStatuses: currentSiteStatuses,
+            failedSites: failedSites,
+          }));
         }
       }
       
+      const successCount = storeSites.length - failedSites.length;
+      const hasFailures = failedSites.length > 0;
+      
       setSyncProgress({
-        step: 'complete',
-        progress: 100,
-        current: `同步完成！已同步 ${storeSites.length} 个站点`,
-        results: totalResults
+        step: hasFailures ? 'error' : 'complete',
+        progress: hasFailures ? 90 : 100,
+        current: hasFailures 
+          ? `同步完成，${successCount} 个站点成功，${failedSites.length} 个站点失败`
+          : `同步完成！已同步 ${storeSites.length} 个站点`,
+        results: totalResults,
+        siteStatuses: currentSiteStatuses,
+        failedSites: failedSites,
+        totalSites: storeSites.length,
+        completedSites: successCount,
       });
 
-      toast.success(`已成功同步 ${storeSites.length} 个站点的数据`);
+      if (hasFailures) {
+        toast(`同步完成，${failedSites.length} 个站点失败，可单独重试`, { icon: '⚠️' });
+      } else {
+        toast.success(`已成功同步 ${storeSites.length} 个站点的数据`);
+      }
 
-      // 5秒后重置进度
-      setTimeout(() => {
-        setSyncProgress({
-          step: 'idle',
-          progress: 0,
-          current: '',
-          results: { sp: 0, sb: 0, sd: 0, adGroups: 0, keywords: 0, targets: 0 }
-        });
-      }, 5000);
+      // 如果没有失败，10秒后重置进度
+      if (!hasFailures) {
+        setTimeout(() => {
+          setSyncProgress({
+            step: 'idle',
+            progress: 0,
+            current: '',
+            results: { sp: 0, sb: 0, sd: 0, adGroups: 0, keywords: 0, targets: 0 },
+            siteStatuses: [],
+            failedSites: [],
+            totalSites: 0,
+            completedSites: 0,
+          });
+        }, 10000);
+      }
     } catch (error: any) {
       setSyncProgress(prev => ({
         ...prev,
@@ -2583,8 +2892,13 @@ export default function AmazonApiSettings() {
                   {/* 同步进度指示器 */}
                   {syncProgress.step !== 'idle' && (
                     <div className="mt-4 p-4 bg-muted/50 rounded-lg border">
+                      {/* 整体进度 */}
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium">同步进度</span>
+                        <span className="text-sm font-medium">
+                          同步进度 {syncProgress.completedSites !== undefined && syncProgress.totalSites !== undefined && 
+                            `(${syncProgress.completedSites}/${syncProgress.totalSites} 站点)`
+                          }
+                        </span>
                         <span className="text-sm text-muted-foreground">{syncProgress.progress}%</span>
                       </div>
                       
@@ -2592,7 +2906,7 @@ export default function AmazonApiSettings() {
                       <div className="w-full bg-muted rounded-full h-2 mb-4">
                         <div 
                           className={`h-2 rounded-full transition-all duration-500 ${
-                            syncProgress.step === 'error' ? 'bg-red-500' : 
+                            syncProgress.step === 'error' ? 'bg-yellow-500' : 
                             syncProgress.step === 'complete' ? 'bg-green-500' : 
                             'bg-primary'
                           }`}
@@ -2600,49 +2914,89 @@ export default function AmazonApiSettings() {
                         />
                       </div>
                       
-                      {/* 步骤指示器 */}
-                      <div className="grid grid-cols-6 gap-2 mb-4">
-                        {[
-                          { key: 'sp', label: 'SP广告', icon: '📦' },
-                          { key: 'sb', label: 'SB广告', icon: '🎯' },
-                          { key: 'sd', label: 'SD广告', icon: '📺' },
-                          { key: 'adgroups', label: '广告组', icon: '📂' },
-                          { key: 'keywords', label: '关键词', icon: '🔑' },
-                          { key: 'targets', label: '商品定位', icon: '🎯' },
-                        ].map((item, index) => {
-                          const stepOrder = ['sp', 'sb', 'sd', 'adgroups', 'keywords', 'targets', 'complete'];
-                          const currentIndex = stepOrder.indexOf(syncProgress.step);
-                          const itemIndex = stepOrder.indexOf(item.key);
-                          const isActive = syncProgress.step === item.key;
-                          const isComplete = currentIndex > itemIndex || syncProgress.step === 'complete';
-                          
-                          return (
-                            <div 
-                              key={item.key}
-                              className={`flex flex-col items-center p-2 rounded-md text-center ${
-                                isActive ? 'bg-primary/20 border border-primary' :
-                                isComplete ? 'bg-green-500/20 border border-green-500/30' :
-                                'bg-muted border border-transparent'
-                              }`}
-                            >
-                              <span className="text-lg mb-1">{item.icon}</span>
-                              <span className={`text-xs ${
-                                isActive ? 'text-primary font-medium' :
-                                isComplete ? 'text-green-500' :
-                                'text-muted-foreground'
-                              }`}>
-                                {item.label}
-                              </span>
-                              {isComplete && (
-                                <CheckCircle2 className="h-3 w-3 text-green-500 mt-1" />
-                              )}
-                              {isActive && (
-                                <Loader2 className="h-3 w-3 text-primary mt-1 animate-spin" />
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
+                      {/* 站点级别进度详情 */}
+                      {syncProgress.siteStatuses && syncProgress.siteStatuses.length > 0 && (
+                        <div className="mb-4 space-y-2">
+                          <div className="text-sm font-medium text-muted-foreground mb-2">站点同步详情</div>
+                          <div className="grid gap-2">
+                            {syncProgress.siteStatuses.map((site) => (
+                              <div 
+                                key={site.id}
+                                className={`flex items-center justify-between p-3 rounded-lg border ${
+                                  site.status === 'syncing' ? 'bg-primary/5 border-primary/30' :
+                                  site.status === 'success' ? 'bg-green-500/5 border-green-500/30' :
+                                  site.status === 'failed' ? 'bg-red-500/5 border-red-500/30' :
+                                  'bg-muted/30 border-muted'
+                                }`}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <span className="text-xl">{site.flag}</span>
+                                  <div>
+                                    <div className="font-medium text-sm">{site.name}</div>
+                                    {site.status === 'syncing' && (
+                                      <div className="text-xs text-muted-foreground">正在同步...</div>
+                                    )}
+                                    {site.status === 'success' && site.results && (
+                                      <div className="text-xs text-green-600">
+                                        广告:{site.results.sp + site.results.sb + site.results.sd} 
+                                        广告组:{site.results.adGroups} 
+                                        关键词:{site.results.keywords}
+                                      </div>
+                                    )}
+                                    {site.status === 'failed' && (
+                                      <div className="text-xs text-red-500">
+                                        {site.error || '同步失败'}
+                                        {site.retryCount > 0 && ` (已重试 ${site.retryCount} 次)`}
+                                      </div>
+                                    )}
+                                    {site.status === 'pending' && (
+                                      <div className="text-xs text-muted-foreground">等待同步</div>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {/* 站点进度条 */}
+                                  {site.status === 'syncing' && (
+                                    <div className="w-20 h-1.5 bg-muted rounded-full overflow-hidden">
+                                      <div 
+                                        className="h-full bg-primary rounded-full transition-all duration-300"
+                                        style={{ width: `${site.progress}%` }}
+                                      />
+                                    </div>
+                                  )}
+                                  {/* 状态图标 */}
+                                  {site.status === 'pending' && (
+                                    <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center">
+                                      <div className="w-2 h-2 rounded-full bg-muted-foreground" />
+                                    </div>
+                                  )}
+                                  {site.status === 'syncing' && (
+                                    <Loader2 className="h-5 w-5 text-primary animate-spin" />
+                                  )}
+                                  {site.status === 'success' && (
+                                    <CheckCircle2 className="h-5 w-5 text-green-500" />
+                                  )}
+                                  {site.status === 'failed' && (
+                                    <div className="flex items-center gap-1">
+                                      <XCircle className="h-5 w-5 text-red-500" />
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 px-2 text-xs text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                                        onClick={() => handleRetrySite(site.id)}
+                                        disabled={isSyncing && syncProgress.siteStatuses?.some(s => s.status === 'syncing')}
+                                      >
+                                        <RefreshCw className="h-3 w-3 mr-1" />
+                                        重试
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       
                       {/* 当前操作 */}
                       <div className="flex items-center gap-2 text-sm">
@@ -2653,10 +3007,10 @@ export default function AmazonApiSettings() {
                           <CheckCircle2 className="h-4 w-4 text-green-500" />
                         )}
                         {syncProgress.step === 'error' && (
-                          <XCircle className="h-4 w-4 text-red-500" />
+                          <AlertCircle className="h-4 w-4 text-yellow-500" />
                         )}
                         <span className={`${
-                          syncProgress.step === 'error' ? 'text-red-500' :
+                          syncProgress.step === 'error' ? 'text-yellow-500' :
                           syncProgress.step === 'complete' ? 'text-green-500' :
                           'text-muted-foreground'
                         }`}>
@@ -2664,8 +3018,8 @@ export default function AmazonApiSettings() {
                         </span>
                       </div>
                       
-                      {/* 同步结果 */}
-                      {syncProgress.step === 'complete' && (
+                      {/* 同步结果汇总 */}
+                      {(syncProgress.step === 'complete' || syncProgress.step === 'error') && (
                         <div className="mt-4 grid grid-cols-3 gap-4">
                           <div className="text-center p-3 bg-blue-500/10 rounded-lg">
                             <div className="text-2xl font-bold text-blue-500">
@@ -2692,32 +3046,68 @@ export default function AmazonApiSettings() {
                         </div>
                       )}
                       
-                      {/* 错误恢复 */}
-                      {syncProgress.step === 'error' && (
-                        <div className="mt-4 flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => {
-                              setSyncProgress({
-                                step: 'idle',
-                                progress: 0,
-                                current: '',
-                                results: { sp: 0, sb: 0, sd: 0, adGroups: 0, keywords: 0, targets: 0 }
-                              });
-                            }}
-                          >
-                            关闭
-                          </Button>
+                      {/* 失败站点汇总和批量重试 */}
+                      {syncProgress.failedSites && syncProgress.failedSites.length > 0 && (
+                        <div className="mt-4 p-3 bg-red-500/10 rounded-lg border border-red-500/30">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <XCircle className="h-4 w-4 text-red-500" />
+                              <span className="text-sm font-medium text-red-500">
+                                {syncProgress.failedSites.length} 个站点同步失败
+                              </span>
+                            </div>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 text-xs border-red-500/50 text-red-500 hover:bg-red-500/10"
+                              onClick={() => {
+                                // 批量重试所有失败站点
+                                syncProgress.failedSites?.forEach(site => {
+                                  handleRetrySite(site.id);
+                                });
+                              }}
+                              disabled={isSyncing && syncProgress.siteStatuses?.some(s => s.status === 'syncing')}
+                            >
+                              <RefreshCw className="h-3 w-3 mr-1" />
+                              全部重试
+                            </Button>
+                          </div>
+                          <div className="text-xs text-red-400">
+                            失败站点: {syncProgress.failedSites.map(s => `${s.flag} ${s.name}`).join(', ')}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* 操作按钮 */}
+                      <div className="mt-4 flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSyncProgress({
+                              step: 'idle',
+                              progress: 0,
+                              current: '',
+                              results: { sp: 0, sb: 0, sd: 0, adGroups: 0, keywords: 0, targets: 0 },
+                              siteStatuses: [],
+                              failedSites: [],
+                              totalSites: 0,
+                              completedSites: 0,
+                            });
+                          }}
+                        >
+                          关闭
+                        </Button>
+                        {syncProgress.step !== 'complete' && !isSyncing && (
                           <Button
                             size="sm"
                             onClick={() => handleSyncAll()}
                           >
                             <RefreshCw className="h-4 w-4 mr-1" />
-                            重试
+                            重新同步
                           </Button>
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
                   )}
 
