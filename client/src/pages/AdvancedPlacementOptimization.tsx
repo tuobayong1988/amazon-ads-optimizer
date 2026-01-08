@@ -833,7 +833,7 @@ export default function AdvancedPlacementOptimization() {
               高级位置优化
             </h1>
             <p className="text-muted-foreground">
-              基于Adspert核心算法：市场曲线建模、决策树预测、利润最大化优化
+              基于核心算法：市场曲线建模、决策树预测、利润最大化优化
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -992,12 +992,12 @@ export default function AdvancedPlacementOptimization() {
             {/* 概览 Tab */}
             <TabsContent value="overview" className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Adspert算法说明 */}
+                {/* 核心算法说明 */}
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <Brain className="h-5 w-5" />
-                      Adspert核心算法
+                      智能优化核心算法
                     </CardTitle>
                     <CardDescription>
                       基于金融市场量化分析方法的广告优化系统
@@ -1335,7 +1335,7 @@ export default function AdvancedPlacementOptimization() {
                   <Sparkles className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
                   <h3 className="text-lg font-medium mb-2">生成优化建议</h3>
                   <p className="text-muted-foreground mb-4">
-                    点击"智能分析"按钮生成基于Adspert算法的优化建议
+                    点击"智能分析"按钮生成基于核心算法的优化建议
                   </p>
                   <Button onClick={handleAnalyze} disabled={generateSuggestionsMutation.isPending}>
                     {generateSuggestionsMutation.isPending ? (
@@ -1348,19 +1348,19 @@ export default function AdvancedPlacementOptimization() {
                 </CardContent>
               </Card>
 
-              {/* Adspert策略说明 */}
+              {/* 展示位置策略说明 */}
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Target className="h-5 w-5" />
-                    Adspert展示位置策略
+                    智能展示位置策略
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <Alert className="bg-blue-500/10 border-blue-500/20">
                     <Info className="h-4 w-4 text-blue-500" />
                     <AlertDescription className="text-foreground">
-                      <strong>核心策略：</strong>由于Adspert在<strong>竞价对象层面</strong>上设置出价，
+                      <strong>核心策略：</strong>系统在<strong>竞价对象层面</strong>上设置出价，
                       并在竞价对象层面上估算广告利润（收入 - 广告支出），
                       我们将为亚马逊设置<strong>较低的展示位置竞价调整</strong>（0-50%范围），
                       以便<strong>更细致地</strong>进行针对竞价对象出价。

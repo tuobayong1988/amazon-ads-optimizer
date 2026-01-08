@@ -61,7 +61,7 @@ const optimizationTypes = [
     label: '位置倾斜', 
     icon: MapPin, 
     color: 'text-purple-500',
-    description: '优化展示位置竞价调整，采用Adspert策略'
+    description: '优化展示位置竞价调整，采用智能优化策略'
   },
   { 
     key: 'dayparting', 

@@ -176,7 +176,7 @@ describe("Market Curve Service", () => {
   });
 
   describe("calculateProfit", () => {
-    it("should calculate profit using Adspert formula", () => {
+    it("should calculate profit using 智能优化 formula", () => {
       const impressionCurve: ImpressionCurveParams = {
         a: 500,
         b: 0.1,
@@ -296,7 +296,7 @@ describe("Market Curve Service", () => {
 
 describe("Profit Maximization Formula", () => {
   it("should validate the core profit formula: Profit = Clicks × (CVR × AOV - CPC)", () => {
-    // Adspert核心公式验证
+    // 智能优化核心公式验证
     const clicks = 100;
     const cvr = 0.05;
     const aov = 30;

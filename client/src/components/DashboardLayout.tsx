@@ -85,6 +85,7 @@ const menuGroups = [
     items: [
       { icon: Zap, label: "优化引擎", path: "/optimization-engine", badge: "核心" },
       { icon: Bot, label: "自动化控制", path: "/automation-control" },
+      { icon: RefreshCw, label: "自动运营", path: "/auto-operation", badge: "新" },
     ]
   },
   {

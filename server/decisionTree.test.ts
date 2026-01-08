@@ -261,7 +261,7 @@ describe("Decision Tree Service", () => {
 
 describe("Long-tail Keyword Prediction Concepts", () => {
   it("should demonstrate decision tree advantage for long-tail keywords", () => {
-    // Adspert的核心洞察：决策树特别适合预测长尾关键词
+    // 智能优化的核心洞察：决策树特别适合预测长尾关键词
     // 因为可以从相似关键词群体继承数据
 
     // 模拟：品牌词精确匹配的平均CR远高于通用词广泛匹配
@@ -287,7 +287,7 @@ describe("Long-tail Keyword Prediction Concepts", () => {
   });
 
   it("should show feature importance in prediction", () => {
-    // 特征重要性排序（基于Adspert的分析）
+    // 特征重要性排序（基于智能优化的分析）
     const featureImportance = {
       matchType: 0.35,      // 最重要
       wordCount: 0.25,
@@ -306,7 +306,7 @@ describe("Long-tail Keyword Prediction Concepts", () => {
   });
 
   it("should demonstrate CR variation by match type", () => {
-    // 基于Adspert PPT中的数据
+    // 基于智能优化 PPT中的数据
     const crByMatchType = {
       exact: 0.0426,   // 4.26%
       phrase: 0.0285,  // 2.85%

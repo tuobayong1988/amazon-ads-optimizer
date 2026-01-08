@@ -374,7 +374,7 @@ describe('智能预算分配服务', () => {
     });
   });
   
-  describe('与Adspert的差异化功能', () => {
+  describe('与智能优化的差异化功能', () => {
     it('应该支持多时间窗口分析（7天/14天/30天）', () => {
       const campaign = {
         roas7d: 4.5,

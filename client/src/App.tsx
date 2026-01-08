@@ -48,6 +48,7 @@ import OptimizationTargets from "@/pages/OptimizationTargets";
 import ApiSecurityCenter from "@/pages/ApiSecurityCenter";
 import SpecialScenarioAnalysis from "@/pages/SpecialScenarioAnalysis";
 import AutomationControl from "@/pages/AutomationControl";
+import AutoOperation from "@/pages/AutoOperation";
 import MonitoringCenter from "@/pages/MonitoringCenter";
 import AnalyticsInsights from "@/pages/AnalyticsInsights";
 import StrategyCenter from "@/pages/StrategyCenter";
@@ -109,6 +110,7 @@ function Router() {
       <Route path="/api-security" component={ApiSecurityCenter} />
       <Route path="/special-scenario" component={SpecialScenarioAnalysis} />
       <Route path="/automation-control" component={AutomationControl} />
+      <Route path="/auto-operation" component={AutoOperation} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

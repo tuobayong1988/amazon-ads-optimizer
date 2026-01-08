@@ -24,6 +24,7 @@ import { reviewRouter } from './reviewRouter';
 import * as apiSecurityService from './apiSecurityService';
 import * as specialScenarioOptimizationService from './specialScenarioOptimizationService';
 import * as automationExecutionEngine from './automationExecutionEngine';
+import * as autoOperationService from './autoOperationService';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
@@ -5928,7 +5929,7 @@ const placementRouter = router({
       return [];
     }),
 
-  // ==================== 高级位置优化（Adspert算法整合）====================
+  // ==================== 高级位置优化（智能优化算法整合）====================
 
   // 分析广告活动的位置利润优化
   analyzeProfitOptimization: protectedProcedure
@@ -8186,6 +8187,62 @@ const automationRouter = router({
     }),
 });
 
+// ==================== Auto Operation Router ====================
+const autoOperationRouter = router({
+  // 获取账号自动运营配置
+  getConfig: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      return autoOperationService.autoOperationService.getConfig(input.accountId);
+    }),
+
+  // 创建或更新自动运营配置
+  upsertConfig: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      enabled: z.boolean().optional(),
+      intervalHours: z.number().optional(),
+      enableDataSync: z.boolean().optional(),
+      enableNgramAnalysis: z.boolean().optional(),
+      enableFunnelSync: z.boolean().optional(),
+      enableConflictDetection: z.boolean().optional(),
+      enableMigrationSuggestion: z.boolean().optional(),
+      enableBidOptimization: z.boolean().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      return autoOperationService.autoOperationService.upsertConfig(input);
+    }),
+
+  // 执行完整的自动运营流程
+  executeFullOperation: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ input }) => {
+      return autoOperationService.autoOperationService.executeFullOperation(input.accountId);
+    }),
+
+  // 获取运营日志
+  getLogs: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      limit: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      return autoOperationService.autoOperationService.getLogs(input.accountId, input.limit);
+    }),
+
+  // 获取所有配置
+  getAllConfigs: protectedProcedure
+    .query(async () => {
+      return autoOperationService.autoOperationService.getAllConfigs();
+    }),
+
+  // 执行所有到期的自动运营任务
+  executeAllDueTasks: protectedProcedure
+    .mutation(async () => {
+      return autoOperationService.autoOperationService.executeAllDueTasks();
+    }),
+});
+
 // ==================== Main Router ====================
 export const appRouter = router({system: systemRouter,
   auth: router({
@@ -8234,6 +8291,7 @@ export const appRouter = router({system: systemRouter,
   apiSecurity: apiSecurityRouter,
   specialScenario: specialScenarioRouter,
   automation: automationRouter,
+  autoOperation: autoOperationRouter,
 });
 
 export type AppRouter = typeof appRouter;

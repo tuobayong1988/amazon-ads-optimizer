@@ -216,7 +216,7 @@ export default function DaypartingStrategy() {
               分时策略管理
             </h1>
             <p className="text-muted-foreground mt-1">
-              基于历史数据智能优化预算分配和竞价调整，类似Adspert的分时优化功能
+              基于历史数据智能优化预算分配和竞价调整，实现精准的分时优化功能
             </p>
           </div>
           <div className="flex items-center gap-4">

@@ -117,7 +117,7 @@ describe('Unified Optimization Engine', () => {
   });
 
   describe('Profit Maximization Formula', () => {
-    it('should calculate profit correctly using Adspert formula', () => {
+    it('should calculate profit correctly using 智能优化 formula', () => {
       // Profit = Clicks × (CVR × AOV - CPC)
       const clicks = 100;
       const cvr = 0.05; // 5% conversion rate
@@ -159,11 +159,11 @@ describe('Unified Optimization Engine', () => {
     });
   });
 
-  describe('Placement Tilt Strategy (Adspert)', () => {
+  describe('Placement Tilt Strategy (智能优化)', () => {
     it('should recommend lower placement adjustments for precise bidding', () => {
-      // Adspert strategy: Set lower placement adjustments to enable more precise bid control
+      // 智能优化 strategy: Set lower placement adjustments to enable more precise bid control
       const baseBid = 1.5;
-      const placementAdjustment = 0.2; // 20% adjustment (low, as per Adspert)
+      const placementAdjustment = 0.2; // 20% adjustment (low, as per 智能优化)
 
       const effectiveBidForPlacement = baseBid * (1 + placementAdjustment);
 
@@ -204,8 +204,8 @@ describe('Unified Optimization Engine', () => {
     });
 
     it('should predict higher CVR for brand keywords', () => {
-      const brandKeywordCvr = 0.0426; // 4.26% as per Adspert data
-      const genericKeywordCvr = 0.0081; // 0.81% as per Adspert data
+      const brandKeywordCvr = 0.0426; // 4.26% as per 智能优化 data
+      const genericKeywordCvr = 0.0081; // 0.81% as per 智能优化 data
 
       expect(brandKeywordCvr).toBeGreaterThan(genericKeywordCvr);
       expect(brandKeywordCvr / genericKeywordCvr).toBeGreaterThan(5);

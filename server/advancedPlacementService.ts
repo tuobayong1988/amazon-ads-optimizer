@@ -1,8 +1,8 @@
 /**
  * 高级位置优化服务
- * 整合Adspert三大核心算法：市场曲线、决策树、利润最大化
+ * 整合智能优化三大核心算法：市场曲线、决策树、利润最大化
  * 
- * 核心策略（来自Adspert）：
+ * 核心策略（来自智能优化）：
  * - 在竞价对象层面（关键词/ASIN）设置精确的基础出价
  * - 将展示位置调整设置为较低值（0-50%），以便更细致地控制
  * - 广告利润 = 收入 - 广告支出 = Clicks × (CVR × AOV - CPC)
@@ -206,9 +206,9 @@ export function calculateOptimalBaseBid(
 }
 
 /**
- * 计算最优位置调整（Adspert策略：设置较低值）
+ * 计算最优位置调整（智能优化策略：设置较低值）
  * 
- * Adspert的核心洞察：
+ * 智能优化的核心洞察：
  * - 在竞价对象层面设置精确的基础出价
  * - 位置调整设置较低值（0-50%），让基础出价更精确地控制实际竞价
  */
@@ -218,7 +218,7 @@ export function calculateOptimalPlacementAdjustments(
     product: number;
     rest: number;
   },
-  maxAdjustment: number = 50 // Adspert策略：较低的最大调整值
+  maxAdjustment: number = 50 // 智能优化策略：较低的最大调整值
 ): { topAdjustment: number; productAdjustment: number } {
   // 找出效率最高的位置
   const maxEfficiency = Math.max(
@@ -236,7 +236,7 @@ export function calculateOptimalPlacementAdjustments(
   let topAdjustment = Math.round((topNorm - 0.5) * maxAdjustment * 2);
   let productAdjustment = Math.round((productNorm - 0.5) * maxAdjustment * 2);
   
-  // 限制在0-50%范围内（Adspert策略）
+  // 限制在0-50%范围内（智能优化策略）
   topAdjustment = Math.max(0, Math.min(maxAdjustment, topAdjustment));
   productAdjustment = Math.max(0, Math.min(maxAdjustment, productAdjustment));
   
@@ -354,7 +354,7 @@ export async function analyzeBidObjectProfit(
     rest: currentProfitRest.profit > 0 ? currentProfitRest.revenue / currentProfitRest.spend : 0
   };
   
-  // 9. 计算最优位置调整（Adspert策略：较低值）
+  // 9. 计算最优位置调整（智能优化策略：较低值）
   const { topAdjustment: recommendedTopAdjustment, productAdjustment: recommendedProductAdjustment } = 
     calculateOptimalPlacementAdjustments(placementEfficiencies);
   
@@ -559,7 +559,7 @@ export async function analyzeCampaignPlacementProfit(
     placementSummary.restOfSearch.recommendedWeight = placementSummary.restOfSearch.efficiency / totalEfficiency;
   }
   
-  // 8. 计算推荐的位置调整（Adspert策略）
+  // 8. 计算推荐的位置调整（智能优化策略）
   const placementEfficiencies = {
     top: placementSummary.topOfSearch.efficiency,
     product: placementSummary.productPage.efficiency,
@@ -577,7 +577,7 @@ export async function analyzeCampaignPlacementProfit(
       type: 'placement_adjustment',
       priority: 'high',
       title: '优化展示位置调整',
-      description: `基于Adspert策略，建议将搜索顶部调整设为${topAdjustment}%，商品详情页调整设为${productAdjustment}%。较低的位置调整值可以让基础出价更精确地控制实际竞价。`,
+      description: `基于智能优化策略，建议将搜索顶部调整设为${topAdjustment}%，商品详情页调整设为${productAdjustment}%。较低的位置调整值可以让基础出价更精确地控制实际竞价。`,
       expectedImpact: `预计提升利润${Math.round(totalOptimizedProfit - totalCurrentProfit)}美元`,
       currentValue: { topOfSearch: 0, productPage: 0 },
       recommendedValue: { topOfSearch: topAdjustment, productPage: productAdjustment },

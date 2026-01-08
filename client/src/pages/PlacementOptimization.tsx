@@ -792,7 +792,7 @@ export default function PlacementOptimization() {
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
-                  建议使用"每2小时"以获得最佳优化效果（与Adspert一致）
+                  建议使用"每2小时"以获得最佳优化效果（与最佳实践一致）
                 </p>
               </div>
 

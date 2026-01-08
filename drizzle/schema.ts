@@ -2521,3 +2521,36 @@ export const placementOptimizationSuggestions = mysqlTable("placement_optimizati
 	appliedBy: int(),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
+
+
+// 自动运营配置表
+export const autoOperationConfigs = mysqlTable("auto_operation_configs", {
+	id: int().autoincrement().primaryKey(),
+	accountId: int().notNull(),
+	enabled: tinyint().default(1),
+	intervalHours: int().default(2), // 默认每2小时执行一次
+	enableDataSync: tinyint().default(1),
+	enableNgramAnalysis: tinyint().default(1),
+	enableFunnelSync: tinyint().default(1),
+	enableConflictDetection: tinyint().default(1),
+	enableMigrationSuggestion: tinyint().default(1),
+	enableBidOptimization: tinyint().default(1),
+	lastRunAt: timestamp({ mode: 'string' }),
+	nextRunAt: timestamp({ mode: 'string' }),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+});
+
+// 自动运营日志表
+export const autoOperationLogs = mysqlTable("auto_operation_logs", {
+	id: int().autoincrement().primaryKey(),
+	accountId: int().notNull(),
+	operationType: varchar({ length: 64 }).notNull(), // full_operation, data_sync, ngram_analysis, etc.
+	status: mysqlEnum(['pending', 'running', 'completed', 'failed']).default('pending'),
+	startedAt: timestamp({ mode: 'string' }).notNull(),
+	completedAt: timestamp({ mode: 'string' }),
+	duration: int(), // 毫秒
+	details: json(), // 详细执行信息
+	errorMessage: text(),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});

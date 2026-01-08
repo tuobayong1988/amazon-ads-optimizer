@@ -5,7 +5,7 @@
  * 
  * 整合以下功能：
  * 1. 广告自动化（N-Gram分析、漏斗迁移、流量隔离）
- * 2. 位置倾斜优化（基于Adspert算法）
+ * 2. 位置倾斜优化（基于智能优化算法）
  * 3. 分时策略（Dayparting）
  * 4. 智能竞价调整
  * 5. 纠错复盘
@@ -368,7 +368,7 @@ async function analyzePlacementTilt(campaign: any): Promise<OptimizationDecision
   const currentTopSearch = Number(campaign.topOfSearchBidAdjustment) || 0;
   const currentProductPage = Number(campaign.productPageBidAdjustment) || 0;
   
-  // 基于Adspert策略：设置较低的位置调整，让基础出价更精确控制
+  // 基于智能优化策略：设置较低的位置调整，让基础出价更精确控制
   // 建议范围：0-50%
   const suggestedTopSearch = Math.min(50, Math.max(0, currentTopSearch));
   const suggestedProductPage = Math.min(50, Math.max(0, currentProductPage));
@@ -390,7 +390,7 @@ async function analyzePlacementTilt(campaign: any): Promise<OptimizationDecision
         changePercent: ((suggestedTopSearch - currentTopSearch) / currentTopSearch) * 100
       },
       confidence: 0.85,
-      reasoning: 'Adspert策略：设置较低的位置调整（0-50%），让基础出价更精确控制竞价对象',
+      reasoning: '智能优化策略：设置较低的位置调整（0-50%），让基础出价更精确控制竞价对象',
       status: 'pending',
       createdAt: new Date()
     });
@@ -412,7 +412,7 @@ async function analyzePlacementTilt(campaign: any): Promise<OptimizationDecision
         changePercent: ((suggestedProductPage - currentProductPage) / currentProductPage) * 100
       },
       confidence: 0.85,
-      reasoning: 'Adspert策略：设置较低的位置调整（0-50%），让基础出价更精确控制竞价对象',
+      reasoning: '智能优化策略：设置较低的位置调整（0-50%），让基础出价更精确控制竞价对象',
       status: 'pending',
       createdAt: new Date()
     });
