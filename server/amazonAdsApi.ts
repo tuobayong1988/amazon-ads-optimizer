@@ -265,18 +265,50 @@ export class AmazonAdsApiClient {
 
   /**
    * 获取SP广告活动列表
+   * 注意：SP API v3需要特定的Content-Type header
+   * 如果vendor MIME type失败，回退到application/json
    */
   async listSpCampaigns(filters?: {
     stateFilter?: string;
     nameFilter?: string;
   }): Promise<SpCampaign[]> {
-    const response = await this.axiosInstance.post('/sp/campaigns/list', {
-      stateFilter: filters?.stateFilter,
-      nameFilter: filters?.nameFilter,
-    }, {
-      headers: { 'Content-Type': 'application/vnd.spCampaign.v3+json' },
-    });
-    return response.data.campaigns || [];
+    const body: any = { maxResults: 100 };
+    if (filters?.stateFilter) {
+      body.stateFilter = { include: [filters.stateFilter] };
+    }
+    if (filters?.nameFilter) {
+      body.nameFilter = { queryTermMatchType: 'BROAD_MATCH', include: [filters.nameFilter] };
+    }
+    
+    // 尝试不同的Content-Type组合
+    const headerVariants = [
+      { 'Content-Type': 'application/vnd.spCampaign.v3+json', 'Accept': 'application/vnd.spCampaign.v3+json' },
+      { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    ];
+    
+    let lastError: any = null;
+    for (const headers of headerVariants) {
+      try {
+        const response = await this.axiosInstance.post('/sp/campaigns/list', body, { headers });
+        // 调试日志：查看API返回的数据结构
+        if (response.data.campaigns && response.data.campaigns.length > 0) {
+          console.log('[SP API] Sample campaign data:', JSON.stringify(response.data.campaigns[0], null, 2));
+        }
+        return response.data.campaigns || [];
+      } catch (error: any) {
+        lastError = error;
+        // 如果是415错误，尝试下一个header组合
+        if (error.response?.status === 415) {
+          console.log(`SP campaigns list failed with headers ${JSON.stringify(headers)}, trying next variant...`);
+          continue;
+        }
+        // 其他错误直接抛出
+        throw error;
+      }
+    }
+    
+    // 所有尝试都失败
+    throw lastError;
   }
 
   /**
@@ -306,24 +338,60 @@ export class AmazonAdsApiClient {
    * 获取SP广告组列表
    */
   async listSpAdGroups(campaignId?: number): Promise<SpAdGroup[]> {
-    const response = await this.axiosInstance.post('/sp/adGroups/list', {
-      campaignIdFilter: campaignId ? { include: [campaignId] } : undefined,
-    }, {
-      headers: { 'Content-Type': 'application/vnd.spAdGroup.v3+json' },
-    });
-    return response.data.adGroups || [];
+    const body: any = { maxResults: 100 };
+    if (campaignId) {
+      body.campaignIdFilter = { include: [campaignId] };
+    }
+    
+    const headerVariants = [
+      { 'Content-Type': 'application/vnd.spAdGroup.v3+json', 'Accept': 'application/vnd.spAdGroup.v3+json' },
+      { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    ];
+    
+    let lastError: any = null;
+    for (const headers of headerVariants) {
+      try {
+        const response = await this.axiosInstance.post('/sp/adGroups/list', body, { headers });
+        return response.data.adGroups || [];
+      } catch (error: any) {
+        lastError = error;
+        if (error.response?.status === 415) {
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw lastError;
   }
 
   /**
    * 获取SP关键词列表
    */
   async listSpKeywords(adGroupId?: number): Promise<SpKeyword[]> {
-    const response = await this.axiosInstance.post('/sp/keywords/list', {
-      adGroupIdFilter: adGroupId ? { include: [adGroupId] } : undefined,
-    }, {
-      headers: { 'Content-Type': 'application/vnd.spKeyword.v3+json' },
-    });
-    return response.data.keywords || [];
+    const body: any = { maxResults: 100 };
+    if (adGroupId) {
+      body.adGroupIdFilter = { include: [adGroupId] };
+    }
+    
+    const headerVariants = [
+      { 'Content-Type': 'application/vnd.spKeyword.v3+json', 'Accept': 'application/vnd.spKeyword.v3+json' },
+      { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    ];
+    
+    let lastError: any = null;
+    for (const headers of headerVariants) {
+      try {
+        const response = await this.axiosInstance.post('/sp/keywords/list', body, { headers });
+        return response.data.keywords || [];
+      } catch (error: any) {
+        lastError = error;
+        if (error.response?.status === 415) {
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw lastError;
   }
 
   /**
@@ -341,12 +409,30 @@ export class AmazonAdsApiClient {
    * 获取SP商品定位列表
    */
   async listSpProductTargets(adGroupId?: number): Promise<SpProductTarget[]> {
-    const response = await this.axiosInstance.post('/sp/targets/list', {
-      adGroupIdFilter: adGroupId ? { include: [adGroupId] } : undefined,
-    }, {
-      headers: { 'Content-Type': 'application/vnd.spTargetingClause.v3+json' },
-    });
-    return response.data.targetingClauses || [];
+    const body: any = { maxResults: 100 };
+    if (adGroupId) {
+      body.adGroupIdFilter = { include: [adGroupId] };
+    }
+    
+    const headerVariants = [
+      { 'Content-Type': 'application/vnd.spTargetingClause.v3+json', 'Accept': 'application/vnd.spTargetingClause.v3+json' },
+      { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+    ];
+    
+    let lastError: any = null;
+    for (const headers of headerVariants) {
+      try {
+        const response = await this.axiosInstance.post('/sp/targets/list', body, { headers });
+        return response.data.targetingClauses || [];
+      } catch (error: any) {
+        lastError = error;
+        if (error.response?.status === 415) {
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw lastError;
   }
 
   /**

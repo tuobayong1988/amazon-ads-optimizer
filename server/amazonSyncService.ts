@@ -299,16 +299,23 @@ export class AmazonSyncService {
           }
         }
 
-        // 确定广告活动类型
-        const campaignType = apiCampaign.targetingType === 'auto' ? 'sp_auto' : 'sp_manual';
+        // Amazon API返回的targetingType是大写的AUTO/MANUAL，需要转换为小写
+        const normalizedTargetingType = (apiCampaign.targetingType || 'manual').toLowerCase() as 'auto' | 'manual';
+        const campaignType = normalizedTargetingType === 'auto' ? 'sp_auto' : 'sp_manual';
+        
+        // SP API v3的dailyBudget可能嵌套在budget对象中，也可能直接在根级别
+        const dailyBudgetValue = (apiCampaign as any).budget?.budget || 
+                                 (apiCampaign as any).budget?.dailyBudget || 
+                                 apiCampaign.dailyBudget || 
+                                 0;
 
         const campaignData = {
           accountId: this.accountId,
           campaignId: String(apiCampaign.campaignId),
           campaignName: apiCampaign.name,
           campaignType: campaignType as 'sp_auto' | 'sp_manual' | 'sb' | 'sd',
-          targetingType: apiCampaign.targetingType as 'auto' | 'manual',
-          dailyBudget: String(apiCampaign.dailyBudget),
+          targetingType: normalizedTargetingType,
+          dailyBudget: String(dailyBudgetValue),
           status: apiCampaign.state as 'enabled' | 'paused' | 'archived',
           placementTopMultiplier: this.getPlacementMultiplier(apiCampaign, 'placementTop'),
           placementProductPageMultiplier: this.getPlacementMultiplier(apiCampaign, 'placementProductPage'),
@@ -386,12 +393,15 @@ export class AmazonSyncService {
           }
         }
 
+        // Amazon API返回的state可能是大写的ENABLED/PAUSED/ARCHIVED，需要转换为小写
+        const normalizedState = (apiAdGroup.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
+        
         const adGroupData = {
           campaignId: campaign.id,
           adGroupId: String(apiAdGroup.adGroupId),
           adGroupName: apiAdGroup.name,
-          status: apiAdGroup.state as 'enabled' | 'paused' | 'archived',
-          defaultBid: String(apiAdGroup.defaultBid),
+          adGroupStatus: normalizedState,
+          defaultBid: String(apiAdGroup.defaultBid || 0),
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
 
@@ -515,10 +525,16 @@ export class AmazonSyncService {
 
         if (!adGroup) continue;
 
-        // 解析ASIN
-        const asinExpression = apiTarget.expression.find(e => e.type === 'asinSameAs');
+        // 解析ASIN - Amazon API返回的type可能是大写或包含asinSameAs等格式
+        const asinExpression = apiTarget.expression.find(e => {
+          const exprType = (e.type || '').toLowerCase();
+          return exprType.includes('asin');
+        });
         const targetValue = asinExpression?.value || '';
         const targetType = asinExpression ? 'asin' : 'category';
+        
+        // Amazon API返回的state可能是大写，需要转换为小写
+        const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
 
         // 检查是否已存在
         const [existing] = await db
@@ -548,8 +564,8 @@ export class AmazonSyncService {
           targetType: targetType as 'asin' | 'category',
           targetValue,
           targetExpression: JSON.stringify(apiTarget.expression),
-          status: apiTarget.state as 'enabled' | 'paused' | 'archived',
-          bid: String(apiTarget.bid),
+          targetStatus: normalizedState,
+          bid: String(apiTarget.bid || 0),
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
 
@@ -968,7 +984,9 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
   const conflictRecords: InsertSyncConflict[] = [];
 
   try {
+    console.log('[SP Sync] Starting SP campaigns sync...');
     const apiCampaigns = await this.client.listSpCampaigns();
+    console.log(`[SP Sync] Retrieved ${apiCampaigns.length} SP campaigns from API`);
 
     for (const apiCampaign of apiCampaigns) {
       const [existing] = await db
@@ -992,14 +1010,23 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
         }
       }
 
-      const campaignType = apiCampaign.targetingType === 'auto' ? 'sp_auto' : 'sp_manual';
+      // Amazon API返回的targetingType是大写的AUTO/MANUAL，需要转换为小写
+      const normalizedTargetingType = (apiCampaign.targetingType || 'manual').toLowerCase() as 'auto' | 'manual';
+      const campaignType = normalizedTargetingType === 'auto' ? 'sp_auto' : 'sp_manual';
+      
+      // SP API v3的dailyBudget可能嵌套在budget对象中，也可能直接在根级别
+      const dailyBudgetValue = (apiCampaign as any).budget?.budget || 
+                               (apiCampaign as any).budget?.dailyBudget || 
+                               apiCampaign.dailyBudget || 
+                               0;
+      
       const campaignData = {
         accountId: this.accountId,
         campaignId: String(apiCampaign.campaignId),
         campaignName: apiCampaign.name,
         campaignType: campaignType as 'sp_auto' | 'sp_manual' | 'sb' | 'sd',
-        targetingType: apiCampaign.targetingType as 'auto' | 'manual',
-        dailyBudget: String(apiCampaign.dailyBudget),
+        targetingType: normalizedTargetingType,
+        dailyBudget: String(dailyBudgetValue),
         status: apiCampaign.state as 'enabled' | 'paused' | 'archived',
         placementTopMultiplier: this.getPlacementMultiplier(apiCampaign, 'placementTop'),
         placementProductPageMultiplier: this.getPlacementMultiplier(apiCampaign, 'placementProductPage'),
@@ -1081,8 +1108,12 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
     }
 
     return result;
-  } catch (error) {
-    console.error('Error syncing SP campaigns with tracking:', error);
+  } catch (error: any) {
+    console.error('[SP Sync] Error syncing SP campaigns with tracking:', error?.message || error);
+    if (error?.response) {
+      console.error('[SP Sync] API Response status:', error.response.status);
+      console.error('[SP Sync] API Response data:', JSON.stringify(error.response.data));
+    }
     return result;
   }
 };
@@ -1417,12 +1448,15 @@ AmazonSyncService.prototype.syncSpAdGroupsWithTracking = async function(
         }
       }
 
+      // Amazon API返回的state可能是大写的ENABLED/PAUSED/ARCHIVED，需要转换为小写
+      const normalizedState = (apiAdGroup.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
+      
       const adGroupData = {
         campaignId: campaign.id,
         adGroupId: String(apiAdGroup.adGroupId),
         adGroupName: apiAdGroup.name,
-        defaultBid: String(apiAdGroup.defaultBid),
-        adGroupStatus: apiAdGroup.state as 'enabled' | 'paused' | 'archived',
+        defaultBid: String(apiAdGroup.defaultBid || 0),
+        adGroupStatus: normalizedState,
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 
@@ -1560,13 +1594,17 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
         }
       }
 
+      // Amazon API返回的matchType和state可能是大写，需要转换为小写
+      const normalizedMatchType = (apiKeyword.matchType || 'broad').toLowerCase() as 'broad' | 'phrase' | 'exact';
+      const normalizedState = (apiKeyword.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
+      
       const keywordData = {
         adGroupId: adGroup.id,
         keywordId: String(apiKeyword.keywordId),
         keywordText: apiKeyword.keywordText,
-        matchType: apiKeyword.matchType as 'broad' | 'phrase' | 'exact',
-        bid: String(apiKeyword.bid),
-        keywordStatus: apiKeyword.state as 'enabled' | 'paused' | 'archived',
+        matchType: normalizedMatchType,
+        bid: String(apiKeyword.bid || 0),
+        keywordStatus: normalizedState,
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 
@@ -1709,17 +1747,23 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
       let targetValue = '';
       if (apiTarget.expression && apiTarget.expression.length > 0) {
         const expr = apiTarget.expression[0];
-        targetType = expr.type || 'asin';
+        // Amazon API返回的type可能是大写，需要转换为小写
+        const rawType = (expr.type || 'asin').toLowerCase();
+        // 将asinSameAs等转换为asin
+        targetType = rawType.includes('asin') ? 'asin' : rawType.includes('category') ? 'category' : 'asin';
         targetValue = expr.value || '';
       }
+      
+      // Amazon API返回的state可能是大写，需要转换为小写
+      const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
 
       const targetData = {
         adGroupId: adGroup.id,
         targetId: String(apiTarget.targetId),
         targetType: targetType as 'asin' | 'category',
         targetValue,
-        bid: String(apiTarget.bid),
-        targetStatus: apiTarget.state as 'enabled' | 'paused' | 'archived',
+        bid: String(apiTarget.bid || 0),
+        targetStatus: normalizedState,
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 

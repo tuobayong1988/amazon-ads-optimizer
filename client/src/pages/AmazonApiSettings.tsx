@@ -971,108 +971,186 @@ export default function AmazonApiSettings() {
           <TabsContent value="accounts" className="space-y-4">
             {accounts && accounts.length > 0 ? (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {accounts.map((account) => {
-                  const marketplace = MARKETPLACES.find(m => m.id === account.marketplace);
-                  return (
-                    <Card 
-                      key={account.id} 
-                      className={`relative cursor-pointer transition-all hover:shadow-lg ${
-                        selectedAccountId === account.id ? 'ring-2 ring-primary' : ''
-                      }`}
-                      onClick={() => setSelectedAccountId(account.id)}
-                    >
-                      {/* Color indicator */}
-                      <div 
-                        className="absolute top-0 left-0 w-1 h-full rounded-l-lg"
-                        style={{ backgroundColor: account.storeColor || '#3B82F6' }}
-                      />
-                      
-                      <CardHeader className="pb-2">
-                        <div className="flex items-start justify-between">
-                          <div className="flex items-center gap-2">
-                            <div 
-                              className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold"
-                              style={{ backgroundColor: account.storeColor || '#3B82F6' }}
-                            >
-                              {(account.storeName || account.accountName).charAt(0).toUpperCase()}
+                {/* 按店铺名称分组显示多站点 */}
+                {(() => {
+                  // 按storeName分组
+                  const groupedAccounts = accounts.reduce((groups, account) => {
+                    const groupKey = account.storeName || account.accountName || 'default';
+                    if (!groups[groupKey]) {
+                      groups[groupKey] = [];
+                    }
+                    groups[groupKey].push(account);
+                    return groups;
+                  }, {} as Record<string, typeof accounts>);
+
+                  return Object.entries(groupedAccounts).map(([storeName, storeAccounts]) => {
+                    const primaryAccount = storeAccounts.find(a => a.isDefault) || storeAccounts[0];
+                    const hasMultipleMarkets = storeAccounts.length > 1;
+                    const isAnySelected = storeAccounts.some(a => a.id === selectedAccountId);
+                    
+                    return (
+                      <Card 
+                        key={storeName} 
+                        className={`relative transition-all hover:shadow-lg ${
+                          isAnySelected ? 'ring-2 ring-primary' : ''
+                        }`}
+                      >
+                        {/* Color indicator */}
+                        <div 
+                          className="absolute top-0 left-0 w-1 h-full rounded-l-lg"
+                          style={{ backgroundColor: primaryAccount.storeColor || '#3B82F6' }}
+                        />
+                        
+                        <CardHeader className="pb-2">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-center gap-2">
+                              <div 
+                                className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold"
+                                style={{ backgroundColor: primaryAccount.storeColor || '#3B82F6' }}
+                              >
+                                {storeName.charAt(0).toUpperCase()}
+                              </div>
+                              <div>
+                                <CardTitle className="text-base flex items-center gap-2">
+                                  {storeName}
+                                  {primaryAccount.isDefault && (
+                                    <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                                  )}
+                                </CardTitle>
+                                <CardDescription className="text-xs">
+                                  {hasMultipleMarkets 
+                                    ? `${storeAccounts.length} 个站点`
+                                    : (() => {
+                                        const mp = MARKETPLACES.find(m => m.id === primaryAccount.marketplace);
+                                        return `${mp?.flag || ''} ${mp?.name || primaryAccount.marketplace}`;
+                                      })()
+                                  }
+                                </CardDescription>
+                              </div>
                             </div>
-                            <div>
-                              <CardTitle className="text-base flex items-center gap-2">
-                                {account.storeName || account.accountName}
-                                {account.isDefault && (
-                                  <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
-                                )}
-                              </CardTitle>
-                              <CardDescription className="text-xs">
-                                {marketplace?.flag} {marketplace?.name || account.marketplace}
-                              </CardDescription>
-                            </div>
-                          </div>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                              <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreVertical className="h-4 w-4" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openEditDialog(account); }}>
-                                <Edit2 className="h-4 w-4 mr-2" />
-                                编辑信息
-                              </DropdownMenuItem>
-                              {!account.isDefault && (
-                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleSetDefault(account.id); }}>
-                                  <Star className="h-4 w-4 mr-2" />
-                                  设为默认
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                <Button variant="ghost" size="icon" className="h-8 w-8">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); openEditDialog(primaryAccount); }}>
+                                  <Edit2 className="h-4 w-4 mr-2" />
+                                  编辑店铺信息
                                 </DropdownMenuItem>
-                              )}
-                              <DropdownMenuItem 
-                                onClick={(e) => { 
-                                  e.stopPropagation(); 
-                                  setSelectedAccountId(account.id);
-                                  setActiveTab("api-config");
-                                }}
-                              >
-                                <Key className="h-4 w-4 mr-2" />
-                                配置API
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem 
-                                className="text-red-500"
-                                onClick={(e) => { e.stopPropagation(); handleDeleteAccount(account.id); }}
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                删除账号
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-2">
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground">账号ID</span>
-                            <span className="font-mono text-xs">{account.accountId}</span>
+                                {!primaryAccount.isDefault && (
+                                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleSetDefault(primaryAccount.id); }}>
+                                    <Star className="h-4 w-4 mr-2" />
+                                    设为默认
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem 
+                                  className="text-red-500"
+                                  onClick={(e) => { e.stopPropagation(); handleDeleteAccount(primaryAccount.id); }}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  删除店铺
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
-                          {account.sellerId && (
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-muted-foreground">卖家ID</span>
-                              <span className="font-mono text-xs">{account.sellerId}</span>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-3">
+                            {/* 站点列表 */}
+                            <div className="space-y-2">
+                              {storeAccounts.map((account) => {
+                                const marketplace = MARKETPLACES.find(m => m.id === account.marketplace);
+                                const isSelected = selectedAccountId === account.id;
+                                return (
+                                  <div 
+                                    key={account.id}
+                                    className={`flex items-center justify-between p-2 rounded-lg cursor-pointer transition-colors ${
+                                      isSelected 
+                                        ? 'bg-primary/10 border border-primary/30' 
+                                        : 'hover:bg-muted/50 border border-transparent'
+                                    }`}
+                                    onClick={() => setSelectedAccountId(account.id)}
+                                  >
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-lg">{marketplace?.flag || '🌐'}</span>
+                                      <div>
+                                        <div className="text-sm font-medium flex items-center gap-1">
+                                          {marketplace?.name || account.marketplace}
+                                          {account.isDefault && (
+                                            <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />
+                                          )}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground font-mono">
+                                          {account.accountId}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {getConnectionStatusBadge(account.connectionStatus)}
+                                      <DropdownMenu>
+                                        <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+                                          <Button variant="ghost" size="icon" className="h-6 w-6">
+                                            <MoreVertical className="h-3 w-3" />
+                                          </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                          <DropdownMenuItem 
+                                            onClick={(e) => { 
+                                              e.stopPropagation(); 
+                                              setSelectedAccountId(account.id);
+                                              setActiveTab("api-config");
+                                            }}
+                                          >
+                                            <Key className="h-4 w-4 mr-2" />
+                                            配置API
+                                          </DropdownMenuItem>
+                                          <DropdownMenuItem 
+                                            onClick={(e) => { 
+                                              e.stopPropagation(); 
+                                              setSelectedAccountId(account.id);
+                                              setActiveTab("sync");
+                                            }}
+                                          >
+                                            <RefreshCw className="h-4 w-4 mr-2" />
+                                            数据同步
+                                          </DropdownMenuItem>
+                                          {!account.isDefault && (
+                                            <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleSetDefault(account.id); }}>
+                                              <Star className="h-4 w-4 mr-2" />
+                                              设为默认
+                                            </DropdownMenuItem>
+                                          )}
+                                          <DropdownMenuSeparator />
+                                          <DropdownMenuItem 
+                                            className="text-red-500"
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteAccount(account.id); }}
+                                          >
+                                            <Trash2 className="h-4 w-4 mr-2" />
+                                            移除站点
+                                          </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                      </DropdownMenu>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
-                          )}
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground">连接状态</span>
-                            {getConnectionStatusBadge(account.connectionStatus)}
+                            
+                            {/* 店铺描述 */}
+                            {primaryAccount.storeDescription && (
+                              <p className="text-xs text-muted-foreground pt-2 border-t line-clamp-2">
+                                {primaryAccount.storeDescription}
+                              </p>
+                            )}
                           </div>
-                          {account.storeDescription && (
-                            <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
-                              {account.storeDescription}
-                            </p>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
+                        </CardContent>
+                      </Card>
+                    );
+                  });
+                })()}
               </div>
             ) : (
               <Card>
