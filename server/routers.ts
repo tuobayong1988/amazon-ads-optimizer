@@ -22,6 +22,7 @@ import * as abTestService from './abTestService';
 import * as budgetAutoExecutionService from './budgetAutoExecutionService';
 import { reviewRouter } from './reviewRouter';
 import * as apiSecurityService from './apiSecurityService';
+import * as specialScenarioOptimizationService from './specialScenarioOptimizationService';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
@@ -7808,9 +7809,144 @@ const apiSecurityRouter = router({
     }),
 });
 
+// ==================== Special Scenario Optimization Router ====================
+const specialScenarioRouter = router({
+  // 预算耗尽风险分析
+  analyzeBudgetDepletionRisk: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      return specialScenarioOptimizationService.analyzeBudgetDepletionRisk(input.accountId);
+    }),
+
+  // 单个广告活动预算耗尽预测
+  predictBudgetDepletion: protectedProcedure
+    .input(z.object({
+      campaignId: z.number(),
+      currentSpend: z.number(),
+      dailyBudget: z.number(),
+      currentHour: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      return specialScenarioOptimizationService.predictBudgetDepletion(
+        input.campaignId,
+        input.currentSpend,
+        input.dailyBudget,
+        input.currentHour
+      );
+    }),
+
+  // 归因延迟调整后的近期数据
+  getAttributionAdjustedData: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      days: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      return specialScenarioOptimizationService.adjustRecentPerformanceData(
+        input.accountId,
+        input.days || 7
+      );
+    }),
+
+  // 获取归因模型
+  getAttributionModel: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      return specialScenarioOptimizationService.getAttributionModel(input.accountId);
+    }),
+
+  // 竞价效率分析
+  analyzeBidEfficiency: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      targetAcos: z.number().optional(),
+      profitMargin: z.number().optional(),
+      minClicks: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      return specialScenarioOptimizationService.analyzeBidEfficiency(
+        input.accountId,
+        input.targetAcos,
+        input.profitMargin,
+        input.minClicks
+      );
+    }),
+
+  // 季节性调整策略
+  getSeasonalStrategy: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      targetDate: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      const date = input.targetDate ? new Date(input.targetDate) : new Date();
+      return specialScenarioOptimizationService.generateSeasonalStrategy(
+        input.accountId,
+        date
+      );
+    }),
+
+  // 学习季节性模式
+  learnSeasonalPatterns: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      metric: z.enum(['sales', 'roas', 'spend']).optional(),
+    }))
+    .query(async ({ input }) => {
+      return specialScenarioOptimizationService.learnSeasonalPatterns(
+        input.accountId,
+        input.metric
+      );
+    }),
+
+  // 大促渐进式调整计划
+  getEventTransitionPlan: protectedProcedure
+    .input(z.object({
+      eventName: z.string(),
+      eventDate: z.string(),
+      baseBudget: z.number(),
+      baseBid: z.number(),
+    }))
+    .query(async ({ input }) => {
+      return specialScenarioOptimizationService.generateEventTransitionPlan(
+        input.eventName,
+        new Date(input.eventDate),
+        input.baseBudget,
+        input.baseBid
+      );
+    }),
+
+  // 获取即将到来的大促事件
+  getUpcomingEvents: protectedProcedure
+    .input(z.object({ daysAhead: z.number().optional() }))
+    .query(async ({ input }) => {
+      return specialScenarioOptimizationService.getUpcomingPromotionalEvents(
+        input.daysAhead || 30
+      );
+    }),
+
+  // 综合特殊场景分析
+  runFullAnalysis: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      targetAcos: z.number().optional(),
+      profitMargin: z.number().optional(),
+      minClicks: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      return specialScenarioOptimizationService.runSpecialScenarioAnalysis(
+        input.accountId,
+        {
+          targetAcos: input.targetAcos,
+          profitMargin: input.profitMargin,
+          minClicks: input.minClicks,
+        }
+      );
+    }),
+});
+
 // ==================== Main Router ====================
-export const appRouter = router({
-  system: systemRouter,
+export const appRouter = router({system: systemRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
@@ -7855,6 +7991,7 @@ export const appRouter = router({
   budgetAutoExecution: budgetAutoExecutionRouter,
   review: reviewRouter,
   apiSecurity: apiSecurityRouter,
+  specialScenario: specialScenarioRouter,
 });
 
 export type AppRouter = typeof appRouter;

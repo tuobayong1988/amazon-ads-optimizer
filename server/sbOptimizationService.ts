@@ -4,11 +4,20 @@
  * 支持三种品牌广告类型的智能优化：
  * - product_collection: 商品集合广告
  * - store_spotlight: 品牌旗舰店聚焦广告
- * - video: 视频广告
+ * - video: 视频广告（基于搜索，应用市场曲线建模和边际分析）
+ * 
+ * 注意：视频广告虽然属于品牌广告，但其核心依旧是搜索广告类型，
+ * 因此在优化算法中充分应用市场曲线建模、边际分析和决策树逻辑
  */
 
 import { getDb } from "./db";
 import { sql } from "drizzle-orm";
+import {
+  generateSBVideoOptimizationSuggestion,
+  SBVideoPerformance,
+  DEFAULT_SB_VIDEO_PARAMS,
+  SearchAdOptimizationSuggestion
+} from "./searchAdsOptimizationEngine";
 
 // 品牌广告类型
 export type SBCampaignType = 'product_collection' | 'store_spotlight' | 'video';
