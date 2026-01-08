@@ -3153,3 +3153,23 @@
   - [x] 前端：在失败站点旁显示重试按钮
   - [x] 前端：显示失败原因和重试次数
   - [x] 前端：添加"全部重试"按钮支持批量重试失败站点
+
+
+### 2026-01-08 数据同步数量不一致问题修复
+- [x] 排查数据同步数量与亚马逊后台不一致的问题
+  - [x] 检查Amazon API同步代码的分页逻辑
+  - [x] 确认存在100条记录限制（maxResults: 100）
+  - [x] 修复分页逻辑，确保获取所有数据
+    - [x] SP广告活动 (listSpCampaigns) - 添加nextToken分页
+    - [x] SP广告组 (listSpAdGroups) - 添加nextToken分页
+    - [x] SP关键词 (listSpKeywords) - 添加nextToken分页
+    - [x] SP商品定位 (listSpProductTargets) - 添加nextToken分页
+    - [x] SB广告组 (listSbAdGroups) - 添加nextToken分页
+    - [x] SB关键词 (listSbKeywords) - 添加nextToken分页
+    - [x] SB商品定位 (listSbTargets) - 添加nextToken分页
+    - [x] SD广告活动 (listSdCampaigns) - 添加startIndex分页
+    - [x] SD广告组 (listSdAdGroups) - 添加startIndex分页
+    - [x] SD商品定位 (listSdTargets) - 添加startIndex分页
+    - [x] SP活动级否定词 (listSpCampaignNegativeKeywords) - 添加nextToken分页
+    - [x] SP广告组否定词 (listSpNegativeKeywords) - 添加nextToken分页
+  - [x] 测试修复效果
