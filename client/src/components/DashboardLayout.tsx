@@ -64,18 +64,18 @@ import AccountSwitcher from "./AccountSwitcher";
 // 菜单分组配置 - 极简化设计
 // 算法自主决策执行，用户只需监督
 const menuGroups = [
-  {
-    title: "监控中心",
-    description: "实时状态、健康度、预警统一视图",
+{
+    title: "主页",
+    description: "多账户数据概览",
     items: [
-      { icon: LayoutDashboard, label: "监控仪表盘", path: "/monitoring-center", badge: "核心" },
+      { icon: LayoutDashboard, label: "数据概览", path: "/" },
     ]
   },
   {
     title: "策略中心",
     description: "优化目标、广告活动管理",
     items: [
-      { icon: Target, label: "策略管理", path: "/strategy-center", badge: "核心" },
+      { icon: Target, label: "策略管理", path: "/strategy-center" },
       { icon: Megaphone, label: "广告活动", path: "/campaigns" },
     ]
   },
@@ -83,14 +83,14 @@ const menuGroups = [
     title: "优化引擎",
     description: "AI驱动的全自动广告优化",
     items: [
-      { icon: Brain, label: "智能优化中心", path: "/optimization-engine", badge: "核心" },
+      { icon: Brain, label: "智能优化中心", path: "/optimization-engine" },
     ]
   },
   {
     title: "分析洞察",
     description: "数据分析与报告",
     items: [
-      { icon: BarChart3, label: "数据分析", path: "/analytics-insights", badge: "核心" },
+      { icon: BarChart3, label: "数据分析", path: "/analytics-insights" },
     ]
   },
   {

@@ -59,8 +59,9 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={Home} />
-      <Route path="/dashboard" component={Dashboard} />
-      <Route path="/monitoring-center" component={MonitoringCenter} />
+      {/* 登录后的主界面统一为根路径 */}
+      <Route path="/dashboard">{() => { window.location.href = '/'; return null; }}</Route>
+      <Route path="/monitoring-center">{() => { window.location.href = '/'; return null; }}</Route>
       <Route path="/analytics-insights" component={AnalyticsInsights} />
       <Route path="/strategy-center" component={StrategyCenter} />
       <Route path="/optimization-engine" component={SmartOptimizationCenter} />

@@ -1,49 +1,118 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { getLoginUrl } from "@/const";
-import { useLocation } from "wouter";
-import { useEffect } from "react";
+import { useEffect, useState, useMemo } from "react";
+import DashboardLayout from "@/components/DashboardLayout";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { trpc } from "@/lib/trpc";
 import { 
   BarChart3, 
   Target, 
   TrendingUp, 
+  TrendingDown,
   Zap, 
   ArrowRight, 
   Shield, 
-  Clock,
-  LineChart,
-  Settings,
-  FileSpreadsheet,
   Brain,
-  Layers,
   RefreshCw,
+  DollarSign,
+  ShoppingCart,
+  Percent,
+  Activity,
+  CheckCircle2,
   AlertTriangle,
-  GitBranch,
-  Workflow
+  XCircle,
+  FileText
 } from "lucide-react";
+import toast from "react-hot-toast";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend
+} from "recharts";
+import { Link } from "wouter";
 
-export default function Home() {
-  const { user, loading, isAuthenticated } = useAuth();
-  const [, setLocation] = useLocation();
+// 生成最近7天的模拟数据
+const generateLast7DaysData = () => {
+  const data = [];
+  const now = new Date();
+  
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date(now);
+    date.setDate(date.getDate() - i);
+    const dateStr = `${date.getMonth() + 1}/${date.getDate()}`;
+    
+    const spend = 80 + Math.random() * 60;
+    const acos = 18 + Math.random() * 12;
+    const sales = spend / (acos / 100);
+    
+    data.push({
+      date: dateStr,
+      spend: parseFloat(spend.toFixed(0)),
+      sales: parseFloat(sales.toFixed(0)),
+      acos: parseFloat(acos.toFixed(1)),
+      orders: Math.floor(sales / 35),
+    });
+  }
+  return data;
+};
 
-  useEffect(() => {
-    if (isAuthenticated) {
-      setLocation("/dashboard");
+// 生成多账户数据
+const generateAccountsData = () => {
+  return [
+    {
+      id: 1,
+      name: 'ElaraFit',
+      marketplace: 'US',
+      spend: 640.13,
+      sales: 1920.45,
+      acos: 20.2,
+      roas: 3.0,
+      orders: 55,
+      status: 'warning',
+      alerts: 1,
+      change: { spend: 5.2, sales: 8.3, acos: -2.1 }
+    },
+    {
+      id: 2,
+      name: 'ElaraFit EU',
+      marketplace: 'DE',
+      spend: 320.50,
+      sales: 890.20,
+      acos: 25.8,
+      roas: 2.78,
+      orders: 28,
+      status: 'healthy',
+      alerts: 0,
+      change: { spend: -3.1, sales: 2.5, acos: -4.2 }
+    },
+    {
+      id: 3,
+      name: 'ElaraFit UK',
+      marketplace: 'UK',
+      spend: 180.25,
+      sales: 520.80,
+      acos: 22.5,
+      roas: 2.89,
+      orders: 18,
+      status: 'healthy',
+      alerts: 0,
+      change: { spend: 1.8, sales: 5.6, acos: -1.5 }
     }
-  }, [isAuthenticated, setLocation]);
+  ];
+};
 
-  // 设置页面标题用于SEO
+// 营销页面组件（未登录时显示）
+function MarketingPage() {
   useEffect(() => {
     document.title = "亚马逊广告智能优化系统 - Amazon Ads Optimizer";
   }, []);
-
-  if (loading || isAuthenticated) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -84,278 +153,486 @@ export default function Home() {
                   <ArrowRight className="ml-2 h-5 w-5" />
                 </a>
               </Button>
-              <Button size="lg" variant="outline">
-                了解更多
-              </Button>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Core Algorithm Section */}
+      {/* Features Section */}
       <section className="py-24 bg-card/50">
         <div className="container">
           <div className="text-center mb-16">
             <h2 className="text-3xl font-bold mb-4">核心算法引擎</h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              自主研发的六大核心算法，实现广告优化的全流程自动化
+              六大核心算法协同工作，实现广告优化的全自动化
             </p>
           </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <AlgorithmCard
-              icon={<LineChart className="w-6 h-6" />}
-              title="市场曲线建模"
-              description="分析出价-流量-转化关系，构建市场响应曲线，识别流量天花板和最优出价点"
-              highlight="边际收入 = 边际成本"
-            />
-            <AlgorithmCard
-              icon={<TrendingUp className="w-6 h-6" />}
-              title="智能预算分配"
-              description="多时间窗口分析（7/14/30天），边际效益递减模型，自动在高效广告活动间分配预算"
-              highlight="多维度评分引擎"
-            />
-            <AlgorithmCard
-              icon={<Layers className="w-6 h-6" />}
-              title="N-Gram流量分析"
-              description="提取搜索词词根，识别无转化高频词根，自动生成否定词建议，节省无效花费"
-              highlight="置信度算法"
-            />
-            <AlgorithmCard
-              icon={<GitBranch className="w-6 h-6" />}
-              title="流量冲突检测"
-              description="识别同一搜索词在多个广告活动中的重复竞争，自动选择最优广告活动承接流量"
-              highlight="动态归一化评分"
-            />
-            <AlgorithmCard
-              icon={<Workflow className="w-6 h-6" />}
-              title="漏斗否定词同步"
-              description="精准层→发现层→广泛层的漏斗模型，自动同步否定词，实现流量的精准隔离"
-              highlight="三层漏斗架构"
-            />
-            <AlgorithmCard
-              icon={<RefreshCw className="w-6 h-6" />}
-              title="关键词迁移引擎"
-              description="识别广泛匹配中的高转化搜索词，自动建议迁移到精确匹配，提升广告效率"
-              highlight="自动化迁移建议"
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Auto Operation Section */}
-      <section className="py-24">
-        <div className="container">
-          <div className="grid lg:grid-cols-2 gap-16 items-center">
-            <div>
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-chart-4/10 text-chart-4 text-sm font-medium mb-6">
-                <Clock className="w-4 h-4" />
-                <span>每2小时自动运营</span>
-              </div>
-              <h2 className="text-3xl font-bold mb-6">全自动运营策略</h2>
-              <p className="text-muted-foreground mb-8 leading-relaxed">
-                系统每2小时自动执行完整的优化流程，无需人工干预。从数据同步到优化执行，
-                全程自动化，让您的广告投放始终保持最佳状态。
-              </p>
-              <div className="space-y-4">
-                <AutoStepItem step="1" title="数据同步" description="自动从Amazon API获取最新广告数据" />
-                <AutoStepItem step="2" title="N-Gram分析" description="分析搜索词词根，识别无效流量" />
-                <AutoStepItem step="3" title="漏斗同步" description="自动同步否定词到各层漏斗" />
-                <AutoStepItem step="4" title="冲突检测" description="检测并解决流量冲突问题" />
-                <AutoStepItem step="5" title="迁移建议" description="生成关键词迁移建议" />
-                <AutoStepItem step="6" title="出价优化" description="基于市场曲线自动调整出价" />
-              </div>
-            </div>
-            <div className="bg-card rounded-2xl p-8 border border-border/50">
-              <h3 className="text-xl font-semibold mb-6">安全边界保护</h3>
-              <div className="space-y-4">
-                <SafetyItem icon={<Shield className="w-5 h-5" />} title="调整幅度限制" description="单次出价调整不超过30%，预算调整不超过50%" />
-                <SafetyItem icon={<AlertTriangle className="w-5 h-5" />} title="异常检测" description="自动检测数据异常，暂停可疑调整" />
-                <SafetyItem icon={<RefreshCw className="w-5 h-5" />} title="自动回滚" description="效果恶化时自动回滚到之前的设置" />
-                <SafetyItem icon={<FileSpreadsheet className="w-5 h-5" />} title="完整日志" description="所有调整记录可追溯，支持审计" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Features Section */}
-      <section className="py-24 bg-card/50">
-        <div className="container">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold mb-4">功能特性</h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              为亚马逊卖家提供专业的广告优化解决方案
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <FeatureCard
-              icon={<Target className="w-6 h-6" />}
-              title="绩效组目标配置"
-              description="支持目标ACoS、目标ROAS、每日花费上限、销售最大化等多种优化目标"
-            />
-            <FeatureCard
-              icon={<Clock className="w-6 h-6" />}
-              title="日内多次竞价"
-              description="一天内根据实时数据多次调整出价，快速响应市场变化"
-            />
-            <FeatureCard
-              icon={<BarChart3 className="w-6 h-6" />}
-              title="数据可视化仪表盘"
-              description="展示核心KPI、趋势图表、时间段对比分析，一目了然"
-            />
-            <FeatureCard
-              icon={<FileSpreadsheet className="w-6 h-6" />}
-              title="竞价日志透明化"
-              description="公开所有竞价调整记录，包括时间、广告活动、出价变化、调整原因"
-            />
-            <FeatureCard
-              icon={<Settings className="w-6 h-6" />}
-              title="灵活的优化设置"
-              description="账号级和广告活动级的配置，支持配置继承，满足不同场景需求"
-            />
-            <FeatureCard
-              icon={<Brain className="w-6 h-6" />}
-              title="智能决策解释"
-              description="每个优化决策都有详细的理由说明，让您了解系统的优化逻辑"
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* Ad Types Section */}
-      <section className="py-24">
-        <div className="container">
-          <div className="text-center mb-16">
-            <h2 className="text-3xl font-bold mb-4">支持全部亚马逊广告类型</h2>
-            <p className="text-muted-foreground max-w-2xl mx-auto">
-              针对不同广告类型制定相应的优化策略
-            </p>
-          </div>
-
           <div className="grid md:grid-cols-3 gap-8">
-            <AdTypeCard
-              type="SP"
-              title="Sponsored Products"
-              description="支持自动广告和手动广告，关键词（Broad/Phrase/Exact）和商品定位优化"
-              color="primary"
-            />
-            <AdTypeCard
-              type="SB"
-              title="Sponsored Brands"
-              description="品牌推广广告优化，提升品牌曝光和知名度"
-              color="chart-4"
-            />
-            <AdTypeCard
-              type="SD"
-              title="Sponsored Display"
-              description="展示型推广广告优化，精准触达目标受众"
-              color="chart-5"
-            />
+            {[
+              { icon: BarChart3, title: "市场曲线建模", desc: "基于历史数据构建竞价-流量响应曲线" },
+              { icon: Target, title: "智能预算分配", desc: "边际效益分析，最优化预算配置" },
+              { icon: Brain, title: "N-Gram流量分析", desc: "搜索词词根分析，精准否定无效流量" },
+              { icon: Shield, title: "流量冲突检测", desc: "识别广告活动间的流量竞争" },
+              { icon: TrendingUp, title: "关键词迁移引擎", desc: "自动将高效关键词升级到精准匹配" },
+              { icon: RefreshCw, title: "每2小时自动运营", desc: "全自动执行优化，无需人工干预" },
+            ].map((feature, i) => (
+              <Card key={i} className="bg-card/50 border-border/50">
+                <CardContent className="p-6">
+                  <feature.icon className="w-10 h-10 text-primary mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
+                  <p className="text-muted-foreground text-sm">{feature.desc}</p>
+                </CardContent>
+              </Card>
+            ))}
           </div>
         </div>
       </section>
 
       {/* CTA Section */}
-      <section className="py-24 bg-gradient-to-br from-primary/20 to-background">
+      <section className="py-24">
         <div className="container text-center">
-          <h2 className="text-3xl font-bold mb-4">开始优化您的亚马逊广告</h2>
-          <p className="text-muted-foreground mb-8 max-w-2xl mx-auto">
-            立即登录，体验全自动智能优化带来的效率提升
+          <h2 className="text-3xl font-bold mb-4">开始优化您的广告</h2>
+          <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
+            立即登录，体验全自动广告优化
           </p>
           <Button size="lg" asChild>
             <a href={getLoginUrl()}>
-              免费开始
+              立即开始
               <ArrowRight className="ml-2 h-5 w-5" />
             </a>
           </Button>
         </div>
       </section>
+    </div>
+  );
+}
 
-      {/* Footer */}
-      <footer className="py-12 border-t border-border">
-        <div className="container">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <Zap className="w-4 h-4 text-primary-foreground" />
-              </div>
-              <span className="font-semibold">Amazon Ads Optimizer</span>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              © 2025 Amazon Ads Optimizer. All rights reserved.
+// 仪表盘组件（登录后显示）
+function DashboardContent() {
+  const { user } = useAuth();
+  const [timeRange, setTimeRange] = useState<'today' | '7days' | '30days'>('7days');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // 获取账户列表
+  const { data: accounts } = trpc.adAccount.list.useQuery(
+    undefined,
+    { enabled: !!user }
+  );
+  
+  // 生成数据
+  const chartData = useMemo(() => generateLast7DaysData(), []);
+  const accountsData = useMemo(() => generateAccountsData(), []);
+  
+  // 计算汇总数据
+  const summary = useMemo(() => {
+    const totalSpend = accountsData.reduce((sum, a) => sum + a.spend, 0);
+    const totalSales = accountsData.reduce((sum, a) => sum + a.sales, 0);
+    const totalOrders = accountsData.reduce((sum, a) => sum + a.orders, 0);
+    const avgAcos = totalSpend / totalSales * 100;
+    const avgRoas = totalSales / totalSpend;
+    
+    return {
+      totalSpend,
+      totalSales,
+      totalOrders,
+      avgAcos,
+      avgRoas,
+      healthyCount: accountsData.filter(a => a.status === 'healthy').length,
+      warningCount: accountsData.filter(a => a.status === 'warning').length,
+      criticalCount: accountsData.filter(a => a.status === 'critical').length,
+    };
+  }, [accountsData]);
+  
+  // 刷新数据
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    setTimeout(() => {
+      setIsRefreshing(false);
+      toast.success('数据已刷新');
+    }, 1000);
+  };
+  
+  // 获取状态背景色
+  const getStatusBg = (status: string) => {
+    switch (status) {
+      case 'healthy': return 'bg-green-500/20 border-green-500/30';
+      case 'warning': return 'bg-amber-500/20 border-amber-500/30';
+      case 'critical': return 'bg-red-500/20 border-red-500/30';
+      default: return 'bg-gray-500/20 border-gray-500/30';
+    }
+  };
+
+  return (
+    <DashboardLayout>
+      <div className="container py-6 space-y-6">
+        {/* 页面标题 */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <Activity className="h-6 w-6 text-blue-400" />
+              数据概览
+            </h1>
+            <p className="text-muted-foreground text-sm mt-1">
+              多账户广告数据一览
             </p>
           </div>
+          <div className="flex items-center gap-3">
+            {/* 时间范围选择 */}
+            <div className="flex items-center gap-1 bg-gray-800/50 rounded-lg p-1">
+              {(['today', '7days', '30days'] as const).map((range) => (
+                <Button
+                  key={range}
+                  variant={timeRange === range ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setTimeRange(range)}
+                  className="text-xs"
+                >
+                  {range === 'today' ? '今天' : range === '7days' ? '近7天' : '近30天'}
+                </Button>
+              ))}
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+            >
+              <RefreshCw className={`h-4 w-4 mr-1 ${isRefreshing ? 'animate-spin' : ''}`} />
+              刷新
+            </Button>
+          </div>
         </div>
-      </footer>
-    </div>
+        
+        {/* 核心指标汇总 */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <Card className="bg-gradient-to-br from-blue-500/10 to-blue-500/5 border-blue-500/20">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">总花费</p>
+                  <p className="text-xl font-bold">${summary.totalSpend.toFixed(0)}</p>
+                </div>
+                <DollarSign className="h-8 w-8 text-blue-400/50" />
+              </div>
+              <div className="flex items-center gap-1 mt-2 text-xs">
+                <TrendingUp className="h-3 w-3 text-green-400" />
+                <span className="text-green-400">+5.2%</span>
+                <span className="text-muted-foreground">vs上周</span>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-gradient-to-br from-green-500/10 to-green-500/5 border-green-500/20">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">总销售额</p>
+                  <p className="text-xl font-bold">${summary.totalSales.toFixed(0)}</p>
+                </div>
+                <ShoppingCart className="h-8 w-8 text-green-400/50" />
+              </div>
+              <div className="flex items-center gap-1 mt-2 text-xs">
+                <TrendingUp className="h-3 w-3 text-green-400" />
+                <span className="text-green-400">+8.3%</span>
+                <span className="text-muted-foreground">vs上周</span>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-gradient-to-br from-amber-500/10 to-amber-500/5 border-amber-500/20">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">平均ACoS</p>
+                  <p className="text-xl font-bold">{summary.avgAcos.toFixed(1)}%</p>
+                </div>
+                <Percent className="h-8 w-8 text-amber-400/50" />
+              </div>
+              <div className="flex items-center gap-1 mt-2 text-xs">
+                <TrendingDown className="h-3 w-3 text-green-400" />
+                <span className="text-green-400">-2.1%</span>
+                <span className="text-muted-foreground">vs上周</span>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-gradient-to-br from-purple-500/10 to-purple-500/5 border-purple-500/20">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">平均ROAS</p>
+                  <p className="text-xl font-bold">{summary.avgRoas.toFixed(2)}</p>
+                </div>
+                <Target className="h-8 w-8 text-purple-400/50" />
+              </div>
+              <div className="flex items-center gap-1 mt-2 text-xs">
+                <TrendingUp className="h-3 w-3 text-green-400" />
+                <span className="text-green-400">+0.15</span>
+                <span className="text-muted-foreground">vs上周</span>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card className="bg-gradient-to-br from-cyan-500/10 to-cyan-500/5 border-cyan-500/20">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground">总订单</p>
+                  <p className="text-xl font-bold">{summary.totalOrders}</p>
+                </div>
+                <BarChart3 className="h-8 w-8 text-cyan-400/50" />
+              </div>
+              <div className="flex items-center gap-1 mt-2 text-xs">
+                <TrendingUp className="h-3 w-3 text-green-400" />
+                <span className="text-green-400">+12</span>
+                <span className="text-muted-foreground">vs上周</span>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        
+        {/* 账户状态概览 */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-lg">账户状态</CardTitle>
+              <div className="flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-1">
+                  <CheckCircle2 className="h-4 w-4 text-green-400" />
+                  <span>健康 {summary.healthyCount}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <AlertTriangle className="h-4 w-4 text-amber-400" />
+                  <span>警告 {summary.warningCount}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <XCircle className="h-4 w-4 text-red-400" />
+                  <span>严重 {summary.criticalCount}</span>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {accountsData.map((account) => (
+                <Card 
+                  key={account.id} 
+                  className={`${getStatusBg(account.status)} cursor-pointer hover:scale-[1.02] transition-transform`}
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold">{account.name}</span>
+                        <Badge variant="outline" className="text-xs">{account.marketplace}</Badge>
+                      </div>
+                      {account.alerts > 0 && (
+                        <Badge variant="destructive" className="text-xs">
+                          {account.alerts} 警告
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-muted-foreground text-xs">花费</p>
+                        <p className="font-medium">${account.spend.toFixed(0)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground text-xs">销售额</p>
+                        <p className="font-medium">${account.sales.toFixed(0)}</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground text-xs">ACoS</p>
+                        <p className="font-medium">{account.acos.toFixed(1)}%</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground text-xs">ROAS</p>
+                        <p className="font-medium">{account.roas.toFixed(2)}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+        
+        {/* 趋势图表 */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          {/* 花费与销售趋势 */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">花费与销售趋势</CardTitle>
+              <CardDescription>最近7天数据</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[250px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData}>
+                    <defs>
+                      <linearGradient id="spendGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                      </linearGradient>
+                      <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} />
+                    <YAxis stroke="#9ca3af" fontSize={12} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#1f2937', 
+                        border: '1px solid #374151',
+                        borderRadius: '8px'
+                      }}
+                    />
+                    <Legend />
+                    <Area 
+                      type="monotone" 
+                      dataKey="spend" 
+                      stroke="#3b82f6" 
+                      fill="url(#spendGradient)"
+                      strokeWidth={2}
+                      name="花费"
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="sales" 
+                      stroke="#10b981" 
+                      fill="url(#salesGradient)"
+                      strokeWidth={2}
+                      name="销售额"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+          
+          {/* ACoS趋势 */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base">ACoS趋势</CardTitle>
+              <CardDescription>最近7天数据</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[250px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData}>
+                    <defs>
+                      <linearGradient id="acosGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                    <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} />
+                    <YAxis stroke="#9ca3af" fontSize={12} unit="%" />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: '#1f2937', 
+                        border: '1px solid #374151',
+                        borderRadius: '8px'
+                      }}
+                      formatter={(value: number) => [`${value}%`, 'ACoS']}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="acos" 
+                      stroke="#f59e0b" 
+                      fill="url(#acosGradient)"
+                      strokeWidth={2}
+                      name="ACoS"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+        
+        {/* 快速操作 */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Link href="/optimization-engine">
+            <Card className="cursor-pointer hover:bg-gray-800/50 transition-colors">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-purple-500/20">
+                  <Brain className="h-5 w-5 text-purple-400" />
+                </div>
+                <div>
+                  <p className="font-medium text-sm">智能优化中心</p>
+                  <p className="text-xs text-muted-foreground">自动优化广告</p>
+                </div>
+                <ArrowRight className="h-4 w-4 ml-auto text-muted-foreground" />
+              </CardContent>
+            </Card>
+          </Link>
+          
+          <Link href="/strategy-center">
+            <Card className="cursor-pointer hover:bg-gray-800/50 transition-colors">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-blue-500/20">
+                  <Target className="h-5 w-5 text-blue-400" />
+                </div>
+                <div>
+                  <p className="font-medium text-sm">策略管理</p>
+                  <p className="text-xs text-muted-foreground">配置优化策略</p>
+                </div>
+                <ArrowRight className="h-4 w-4 ml-auto text-muted-foreground" />
+              </CardContent>
+            </Card>
+          </Link>
+          
+          <Link href="/campaigns">
+            <Card className="cursor-pointer hover:bg-gray-800/50 transition-colors">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-green-500/20">
+                  <BarChart3 className="h-5 w-5 text-green-400" />
+                </div>
+                <div>
+                  <p className="font-medium text-sm">广告活动</p>
+                  <p className="text-xs text-muted-foreground">管理广告活动</p>
+                </div>
+                <ArrowRight className="h-4 w-4 ml-auto text-muted-foreground" />
+              </CardContent>
+            </Card>
+          </Link>
+          
+          <Link href="/analytics-insights">
+            <Card className="cursor-pointer hover:bg-gray-800/50 transition-colors">
+              <CardContent className="p-4 flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-amber-500/20">
+                  <FileText className="h-5 w-5 text-amber-400" />
+                </div>
+                <div>
+                  <p className="font-medium text-sm">数据分析</p>
+                  <p className="text-xs text-muted-foreground">查看详细报告</p>
+                </div>
+                <ArrowRight className="h-4 w-4 ml-auto text-muted-foreground" />
+              </CardContent>
+            </Card>
+          </Link>
+        </div>
+      </div>
+    </DashboardLayout>
   );
 }
 
-function AlgorithmCard({ icon, title, description, highlight }: { icon: React.ReactNode; title: string; description: string; highlight: string }) {
-  return (
-    <div className="bg-card rounded-xl p-6 border border-border/50 hover:border-primary/50 transition-colors group">
-      <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-4 group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
-        {icon}
-      </div>
-      <h3 className="text-lg font-semibold mb-2">{title}</h3>
-      <p className="text-muted-foreground text-sm leading-relaxed mb-3">{description}</p>
-      <div className="inline-flex items-center px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium">
-        {highlight}
-      </div>
-    </div>
-  );
-}
+// 主组件
+export default function Home() {
+  const { user, loading, isAuthenticated } = useAuth();
 
-function FeatureCard({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
-  return (
-    <div className="bg-card rounded-xl p-6 border border-border/50 hover:border-primary/50 transition-colors">
-      <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-primary mb-4">
-        {icon}
+  // 加载中显示loading
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
       </div>
-      <h3 className="text-lg font-semibold mb-2">{title}</h3>
-      <p className="text-muted-foreground text-sm leading-relaxed">{description}</p>
-    </div>
-  );
-}
+    );
+  }
 
-function AdTypeCard({ type, title, description, color }: { type: string; title: string; description: string; color: string }) {
-  return (
-    <div className="bg-card rounded-xl p-8 border border-border/50 text-center hover:shadow-lg transition-shadow">
-      <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full bg-${color}/20 text-${color} text-2xl font-bold mb-4`}>
-        {type}
-      </div>
-      <h3 className="text-xl font-semibold mb-2">{title}</h3>
-      <p className="text-muted-foreground text-sm">{description}</p>
-    </div>
-  );
-}
-
-function AutoStepItem({ step, title, description }: { step: string; title: string; description: string }) {
-  return (
-    <div className="flex items-start gap-4">
-      <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-bold shrink-0">
-        {step}
-      </div>
-      <div>
-        <h4 className="font-medium">{title}</h4>
-        <p className="text-sm text-muted-foreground">{description}</p>
-      </div>
-    </div>
-  );
-}
-
-function SafetyItem({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
-  return (
-    <div className="flex items-start gap-3">
-      <div className="w-10 h-10 rounded-lg bg-chart-4/10 text-chart-4 flex items-center justify-center shrink-0">
-        {icon}
-      </div>
-      <div>
-        <h4 className="font-medium">{title}</h4>
-        <p className="text-sm text-muted-foreground">{description}</p>
-      </div>
-    </div>
-  );
+  // 已登录显示仪表盘，未登录显示营销页面
+  return isAuthenticated ? <DashboardContent /> : <MarketingPage />;
 }
