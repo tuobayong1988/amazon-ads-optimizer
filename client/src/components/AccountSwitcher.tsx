@@ -472,7 +472,7 @@ export default function AccountSwitcher({ compact = false, showStatus = true }: 
                       <span className="font-medium truncate">
                         {account.storeName || account.accountName}
                       </span>
-                      {account.isDefault && (
+                      {!!account.isDefault && (
                         <Badge variant="outline" className="text-[10px] px-1 py-0">默认</Badge>
                       )}
                     </div>

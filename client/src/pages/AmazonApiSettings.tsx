@@ -184,7 +184,7 @@ export default function AmazonApiSettings() {
     current: '',
     results: { sp: 0, sb: 0, sd: 0, adGroups: 0, keywords: 0, targets: 0 }
   });
-  const [authStep, setAuthStep] = useState<'idle' | 'exchanging' | 'saving' | 'syncing' | 'complete' | 'error'>('idle');
+  const [authStep, setAuthStep] = useState<'idle' | 'oauth' | 'exchanging' | 'saving' | 'syncing' | 'complete' | 'error'>('idle');
   const [authProgress, setAuthProgress] = useState(0);
   const [authError, setAuthError] = useState<{ step: string; message: string; canRetry: boolean } | null>(null);
   const [lastSuccessfulStep, setLastSuccessfulStep] = useState<'idle' | 'exchanging' | 'saving' | 'syncing'>('idle');
@@ -1013,7 +1013,7 @@ export default function AmazonApiSettings() {
                               <div>
                                 <CardTitle className="text-base flex items-center gap-2">
                                   {storeName}
-                                  {primaryAccount.isDefault && (
+                                  {!!primaryAccount.isDefault && (
                                     <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
                                   )}
                                 </CardTitle>
@@ -1079,7 +1079,7 @@ export default function AmazonApiSettings() {
                                       <div>
                                         <div className="text-sm font-medium flex items-center gap-1">
                                           {marketplace?.name || account.marketplace}
-                                          {account.isDefault && (
+                                          {!!account.isDefault && (
                                             <Star className="h-3 w-3 text-yellow-500 fill-yellow-500" />
                                           )}
                                         </div>

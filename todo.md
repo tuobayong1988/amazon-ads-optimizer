@@ -3058,3 +3058,15 @@
 - [ ] 修复站点名称中的"0"后缀问题（应保存为中文市场名称或国家代码）
 - [ ] 清除错误创建的"我的店铺0"账号
 - [ ] 测试并验证多站点授权功能
+
+
+## Bug修复
+
+### 2026-01-08 店铺账号显示"0"后缀问题
+- [x] 修复店铺账号列表中站点名称显示"0"后缀的问题
+  - 问题原因：`account.isDefault` 返回数字0而非布尔值false，在React条件渲染 `{account.isDefault && <Star />}` 中，数字0会被渲染出来
+  - 修复方案：将 `{account.isDefault &&` 改为 `{!!account.isDefault &&` 强制转换为布尔值
+  - 修复文件：
+    - client/src/pages/AmazonApiSettings.tsx
+    - client/src/components/AccountSwitcher.tsx
+  - 同时修复了authStep状态类型缺少'oauth'选项的TypeScript错误
