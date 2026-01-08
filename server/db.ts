@@ -4025,3 +4025,39 @@ export async function getLocalDataStats(accountId: number) {
     productTargets: Number(productTargetsResult?.count || 0),
   };
 }
+
+
+// 获取账户绩效汇总
+export async function getAccountPerformanceSummary(accountId: number): Promise<{
+  totalSpend: number;
+  totalSales: number;
+  totalOrders: number;
+  totalImpressions: number;
+  totalClicks: number;
+} | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  try {
+    const [result] = await db.select({
+      totalSpend: sql<number>`COALESCE(SUM(${campaigns.spend}), 0)`,
+      totalSales: sql<number>`COALESCE(SUM(${campaigns.sales}), 0)`,
+      totalOrders: sql<number>`COALESCE(SUM(${campaigns.orders}), 0)`,
+      totalImpressions: sql<number>`COALESCE(SUM(${campaigns.impressions}), 0)`,
+      totalClicks: sql<number>`COALESCE(SUM(${campaigns.clicks}), 0)`,
+    })
+    .from(campaigns)
+    .where(eq(campaigns.accountId, accountId));
+    
+    return {
+      totalSpend: Number(result?.totalSpend || 0),
+      totalSales: Number(result?.totalSales || 0),
+      totalOrders: Number(result?.totalOrders || 0),
+      totalImpressions: Number(result?.totalImpressions || 0),
+      totalClicks: Number(result?.totalClicks || 0),
+    };
+  } catch (error) {
+    console.error('[getAccountPerformanceSummary] Error:', error);
+    return null;
+  }
+}

@@ -213,15 +213,22 @@ function DashboardContent() {
   const [timeRange, setTimeRange] = useState<'today' | '7days' | '30days'>('7days');
   const [isRefreshing, setIsRefreshing] = useState(false);
   
-  // 获取账户列表
-  const { data: accounts } = trpc.adAccount.list.useQuery(
+  // 获取账户列表及绩效数据
+  const { data: accountsWithPerformance, refetch: refetchAccounts } = trpc.adAccount.listWithPerformance.useQuery(
     undefined,
     { enabled: !!user }
   );
   
-  // 生成数据
+  // 生成图表数据
   const chartData = useMemo(() => generateLast7DaysData(), []);
-  const accountsData = useMemo(() => generateAccountsData(), []);
+  
+  // 使用真实账户数据
+  const accountsData = useMemo(() => {
+    if (!accountsWithPerformance || accountsWithPerformance.length === 0) {
+      return [];
+    }
+    return accountsWithPerformance;
+  }, [accountsWithPerformance]);
   
   // 计算汇总数据
   const summary = useMemo(() => {
@@ -244,12 +251,16 @@ function DashboardContent() {
   }, [accountsData]);
   
   // 刷新数据
-  const handleRefresh = () => {
+  const handleRefresh = async () => {
     setIsRefreshing(true);
-    setTimeout(() => {
-      setIsRefreshing(false);
+    try {
+      await refetchAccounts();
       toast.success('数据已刷新');
-    }, 1000);
+    } catch (error) {
+      toast.error('刷新失败');
+    } finally {
+      setIsRefreshing(false);
+    }
   };
   
   // 获取状态背景色

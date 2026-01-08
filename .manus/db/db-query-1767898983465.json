@@ -1,0 +1,18 @@
+{
+  "query": "SELECT \n  COUNT(*) as total_keywords,\n  SUM(impressions) as total_impressions,\n  SUM(clicks) as total_clicks,\n  SUM(spend) as total_spend,\n  SUM(sales) as total_sales,\n  SUM(orders) as total_orders\nFROM keywords\nLIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT \n  COUNT(*) as total_keywords,\n  SUM(impressions) as total_impressions,\n  SUM(clicks) as total_clicks,\n  SUM(spend) as total_spend,\n  SUM(sales) as total_sales,\n  SUM(orders) as total_orders\nFROM keywords\nLIMIT 1;",
+  "rows": [
+    {
+      "total_keywords": "27994",
+      "total_impressions": "0",
+      "total_clicks": "0",
+      "total_spend": "0.00",
+      "total_sales": "0.00",
+      "total_orders": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_keywords\ttotal_impressions\ttotal_clicks\ttotal_spend\ttotal_sales\ttotal_orders\n27994\t0\t0\t0.00\t0.00\t0\n",
+  "stderr": "",
+  "execution_time_ms": 153
+}

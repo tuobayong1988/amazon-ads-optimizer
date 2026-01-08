@@ -650,17 +650,17 @@ export const dataSyncLogs = mysqlTable("data_sync_logs", {
 
 export const dataSyncSchedules = mysqlTable("data_sync_schedules", {
 	id: int().autoincrement().notNull(),
-	userId: int('user_id').notNull(),
-	accountId: int('account_id').notNull(),
-	syncType: mysqlEnum('sync_type', ['campaigns','ad_groups','keywords','product_targets','search_terms','performance_daily','performance_hourly','full_sync']).notNull(),
+	userId: int().notNull(),
+	accountId: int().notNull(),
+	syncType: mysqlEnum('syncType', ['campaigns','ad_groups','keywords','product_targets','search_terms','performance_daily','performance_hourly','full_sync']).notNull(),
 	frequency: mysqlEnum(['hourly','every_2_hours','every_4_hours','every_6_hours','every_12_hours','daily','weekly']).default('daily'),
-	preferredTime: varchar('preferred_time', { length: 5 }),
-	preferredDayOfWeek: int('preferred_day_of_week'),
-	isEnabled: tinyint('is_enabled').default(1),
-	lastRunAt: timestamp('last_run_at', { mode: 'string' }),
-	nextRunAt: timestamp('next_run_at', { mode: 'string' }),
-	createdAt: timestamp('created_at', { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp('updated_at', { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	preferredTime: varchar({ length: 5 }),
+	preferredDayOfWeek: int(),
+	isEnabled: tinyint().default(1),
+	lastRunAt: timestamp({ mode: 'string' }),
+	nextRunAt: timestamp({ mode: 'string' }),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
 
 export const dataSyncTasks = mysqlTable("data_sync_tasks", {
@@ -2560,4 +2560,41 @@ export const autoOperationLogs = mysqlTable("auto_operation_logs", {
 	details: json(), // 详细执行信息
 	errorMessage: text(),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});
+
+
+// Amazon Ads 报告请求队列表
+export const reportRequests = mysqlTable("report_requests", {
+	id: int().autoincrement().primaryKey(),
+	accountId: int().notNull(),
+	profileId: varchar({ length: 64 }).notNull(),
+	marketplace: varchar({ length: 10 }).notNull(),
+	reportType: mysqlEnum(['sp_campaigns', 'sp_keywords', 'sp_targets', 'sb_campaigns', 'sb_keywords', 'sd_campaigns']).notNull(),
+	reportId: varchar({ length: 128 }), // Amazon返回的报告ID
+	startDate: varchar({ length: 10 }).notNull(), // YYYY-MM-DD
+	endDate: varchar({ length: 10 }).notNull(), // YYYY-MM-DD
+	status: mysqlEnum(['pending', 'submitted', 'processing', 'completed', 'failed', 'timeout']).default('pending'),
+	downloadUrl: text(), // 报告下载URL
+	recordsCount: int(), // 报告记录数
+	processedAt: timestamp({ mode: 'string' }), // 数据处理完成时间
+	errorMessage: text(),
+	retryCount: int().default(0),
+	maxRetries: int().default(3),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});
+
+// 绩效数据同步配置表
+export const performanceSyncConfig = mysqlTable("performance_sync_config", {
+	id: int().autoincrement().primaryKey(),
+	accountId: int().notNull(),
+	isEnabled: tinyint().default(1),
+	syncFrequency: mysqlEnum(['hourly', 'every_4_hours', 'every_12_hours', 'daily']).default('daily'),
+	syncTime: varchar({ length: 5 }).default('02:00'), // HH:MM
+	lookbackDays: int().default(7), // 回溯天数
+	lastSyncAt: timestamp({ mode: 'string' }),
+	nextSyncAt: timestamp({ mode: 'string' }),
+	dataSource: mysqlEnum(['real', 'mock', 'mixed']).default('real'), // 数据来源
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });

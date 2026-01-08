@@ -671,6 +671,7 @@ export class AmazonAdsApiClient {
           adProduct: 'SPONSORED_PRODUCTS',
           groupBy: ['campaign'],
           columns: [
+            'date',
             'campaignId',
             'campaignName',
             'impressions',
@@ -701,39 +702,74 @@ export class AmazonAdsApiClient {
   }
 
   /**
-   * 请求SP关键词绩效报告
+   * 请求SP关键词绩效报告 (Amazon Ads API v3)
+   * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
    */
   async requestSpKeywordReport(
     startDate: string,
-    endDate: string,
-    metrics: string[] = ['impressions', 'clicks', 'cost', 'attributedSales14d', 'attributedConversions14d']
+    endDate: string
   ): Promise<string> {
-    const response = await this.axiosInstance.post('/sp/keywords/report', {
-      startDate,
-      endDate,
-      configuration: {
-        adProduct: 'SPONSORED_PRODUCTS',
-        groupBy: ['keyword'],
-        columns: metrics,
-        reportTypeId: 'spTargeting',
-        timeUnit: 'SUMMARY',
-        format: 'GZIP_JSON',
-      },
-    }, {
-      headers: { 'Content-Type': 'application/vnd.createasyncreportrequest.v3+json' },
-    });
-    return response.data.reportId;
+    try {
+      console.log(`[Amazon API] 请求SP关键词报告: ${startDate} - ${endDate}`);
+      
+      // Amazon Ads Reporting API v3 正确格式
+      const requestBody = {
+        name: `SP Keyword Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_PRODUCTS',
+          groupBy: ['targeting'],
+          columns: [
+            'date',
+            'campaignId',
+            'adGroupId',
+            'keywordId',
+            'keyword',
+            'matchType',
+            'impressions',
+            'clicks',
+            'cost',
+            'sales14d',
+            'purchases14d'
+          ],
+          reportTypeId: 'spTargeting',
+          timeUnit: 'SUMMARY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      console.log(`[Amazon API] 关键词报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: any) {
+      console.error('[Amazon API] 请求SP关键词报告失败:', error.response?.data || error.message);
+      throw error;
+    }
   }
 
   /**
    * 获取报告状态
    */
-  async getReportStatus(reportId: string): Promise<{ status: string; url?: string }> {
-    const response = await this.axiosInstance.get(`/reporting/reports/${reportId}`);
-    return {
-      status: response.data.status,
-      url: response.data.url,
-    };
+  async getReportStatus(reportId: string): Promise<{ status: string; url?: string; failureReason?: string }> {
+    try {
+      const response = await this.axiosInstance.get(`/reporting/reports/${reportId}`);
+      console.log(`[Amazon API] 报告状态响应:`, JSON.stringify(response.data, null, 2));
+      return {
+        status: response.data.status,
+        url: response.data.url,
+        failureReason: response.data.failureReason,
+      };
+    } catch (error: any) {
+      console.error(`[Amazon API] 获取报告状态失败:`, error.response?.data || error.message);
+      throw error;
+    }
   }
 
   /**
@@ -753,24 +789,32 @@ export class AmazonAdsApiClient {
   /**
    * 等待报告完成并下载
    */
-  async waitAndDownloadReport(reportId: string, maxWaitMs: number = 300000): Promise<any[]> {
+  async waitAndDownloadReport(reportId: string, maxWaitMs: number = 900000): Promise<any[]> {
     const startTime = Date.now();
+    console.log(`[Amazon API] 开始等待报告完成: ${reportId}`);
     
     while (Date.now() - startTime < maxWaitMs) {
       const status = await this.getReportStatus(reportId);
+      console.log(`[Amazon API] 报告状态: ${status.status}, url: ${status.url ? '有' : '无'}`);
       
       if (status.status === 'COMPLETED' && status.url) {
-        return this.downloadReport(status.url);
+        console.log(`[Amazon API] 报告已完成，开始下载...`);
+        const data = await this.downloadReport(status.url);
+        console.log(`[Amazon API] 报告下载完成，数据条数: ${data?.length || 0}`);
+        return data;
       }
       
       if (status.status === 'FAILED') {
+        console.error(`[Amazon API] 报告生成失败`);
         throw new Error('Report generation failed');
       }
       
       // 等待5秒后重试
+      console.log(`[Amazon API] 报告未完成，等待5秒后重试...`);
       await new Promise(resolve => setTimeout(resolve, 5000));
     }
     
+    console.error(`[Amazon API] 报告生成超时`);
     throw new Error('Report generation timeout');
   }
 

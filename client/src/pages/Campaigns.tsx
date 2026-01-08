@@ -471,7 +471,10 @@ export default function Campaigns() {
 
   // Fetch accounts
   const { data: accounts } = trpc.adAccount.list.useQuery();
-  const accountId = selectedAccountId || accounts?.[0]?.id;
+  
+  // 当选择全部站点时，不传accountId，获取所有账户的campaigns
+  const shouldFetchAll = storeFilter === 'all' && marketplaceFilter === 'all';
+  const accountId = shouldFetchAll ? undefined : (selectedAccountId || accounts?.[0]?.id);
 
   // 计算时间范围
   const dateRange = useMemo(() => {
@@ -481,11 +484,11 @@ export default function Campaigns() {
   // Fetch campaigns with performance data
   const { data: campaigns, isLoading, refetch } = trpc.campaign.list.useQuery(
     { 
-      accountId: accountId!, 
+      accountId: accountId, 
       startDate: dateRange.startDate,
       endDate: dateRange.endDate,
     },
-    { enabled: !!accountId }
+    { enabled: shouldFetchAll || !!accountId }
   );
 
   // Fetch performance groups for assignment

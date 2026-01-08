@@ -188,6 +188,56 @@ const adAccountRouter = router({
       return { success: true };
     }),
   
+  // 获取账号列表及绩效汇总
+  listWithPerformance: protectedProcedure.query(async ({ ctx }) => {
+    const accounts = await db.getAdAccountsByUserId(ctx.user.id);
+    
+    // 过滤掉空店铺占位记录（marketplace为空）
+    const actualSites = accounts.filter(a => a.marketplace && a.marketplace !== '');
+    
+    // 为每个账户获取绩效汇总
+    const accountsWithPerformance = await Promise.all(
+      actualSites.map(async (account) => {
+        // 从 campaigns 表汇总绩效数据
+        const performance = await db.getAccountPerformanceSummary(account.id);
+        
+        const spend = performance?.totalSpend || 0;
+        const sales = performance?.totalSales || 0;
+        const orders = performance?.totalOrders || 0;
+        const acos = spend > 0 && sales > 0 ? (spend / sales) * 100 : 0;
+        const roas = spend > 0 && sales > 0 ? sales / spend : 0;
+        
+        // 确定账户状态
+        let status: 'healthy' | 'warning' | 'critical' = 'healthy';
+        let alerts = 0;
+        if (acos > 35) {
+          status = 'warning';
+          alerts = 1;
+        }
+        if (acos > 50) {
+          status = 'critical';
+          alerts = 2;
+        }
+        
+        return {
+          id: account.id,
+          name: account.storeName || account.accountName,
+          marketplace: account.marketplace,
+          spend,
+          sales,
+          orders,
+          acos,
+          roas,
+          status,
+          alerts,
+          change: { spend: 0, sales: 0, acos: 0 }, // TODO: 计算环比变化
+        };
+      })
+    );
+    
+    return accountsWithPerformance;
+  }),
+
   // 获取账号统计信息
   getStats: protectedProcedure.query(async ({ ctx }) => {
     const accounts = await db.getAdAccountsByUserId(ctx.user.id);
@@ -3023,7 +3073,7 @@ const amazonApiRouter = router({
         await updateProgress('绩效数据', currentStepIndex);
         try {
           const performanceCount = await executeWithRetry(
-            () => syncService.syncPerformanceData(30),
+            () => syncService.syncPerformanceData(7),
             '绩效数据同步'
           );
           results.performance = performanceCount;
@@ -3599,6 +3649,37 @@ const amazonApiRouter = router({
       marketplaceMapping: MARKETPLACE_TO_REGION,
     };
   }),
+
+  // 生成模拟绩效数据（当Amazon Reporting API不可用时使用）
+  generateMockPerformance: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      days: z.number().min(1).max(30).default(7),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const credentials = await db.getAmazonApiCredentials(input.accountId);
+      if (!credentials) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'API credentials not found',
+        });
+      }
+
+      const syncService = await AmazonSyncService.createFromCredentials(
+        {
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+          profileId: credentials.profileId,
+          region: credentials.region as 'NA' | 'EU' | 'FE',
+        },
+        input.accountId,
+        ctx.user.id
+      );
+
+      const count = await syncService.generateMockPerformanceData(input.days);
+      return { generated: count };
+    }),
 });
 
 // ==================== Notification Router ====================

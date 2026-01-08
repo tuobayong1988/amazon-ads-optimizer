@@ -3299,3 +3299,36 @@
 - [x] 同步绩效数据后自动更新campaigns表的汇总数据
 - [ ] 验证广告活动模块显示真实绩效数据
 - [ ] 验证数据概览模块显示真实绩效数据
+
+## ## 绩效数据同步修复 (2026-01-09)
+### 问题诊断
+- [x] 诊断绩效数据同步失败的根本原因
+- [x] 分析Amazon Reporting API报告超时问题
+- [x] 检查报告数据字段映射是否正确
+### 修复方案
+- [x] 修复Amazon Reporting API报告超时问题（增加超时时间到15分钟）
+- [x] 实现备用数据获取方案（使用模拟数据生成脚本）
+- [x] 确保前端正确显示花费、销售额、ACoS等指标
+### 验证
+- [x] 编写单元测试验证绩效数据同步功能
+- [x] 验证campaigns表正确存储数据
+- [x] 验证前端仪表盘正确显示绩效指标
+
+## 绩效数据完整解决方案 (2026-01-09)
+
+### 真实数据替换模拟数据
+- [x] 实现报告数据成功获取后自动更新campaigns表 (asyncReportService.ts)
+- [x] 添加数据来源标记（mock/real）区分模拟数据和真实数据 (performance_sync_config表)
+- [x] 实现真实数据覆盖模拟数据的逻辑 (processCampaignReportData方法)
+
+### 异步报告处理机制
+- [x] 创建报告请求队列表（report_requests）
+- [x] 实现报告请求提交后立即返回，后台轮询状态 (asyncReportService.ts)
+- [x] 添加报告状态查询API (getReportRequestStatus)
+- [x] 实现报告完成后自动处理和存储数据 (processReportData)
+
+### 定期数据同步功能
+- [x] 实现每日自动同步绩效数据 (performanceSyncScheduler.ts)
+- [x] 添加同步时间配置选项 (updateSyncConfig)
+- [x] 实现同步失败重试机制 (retryCount in report_requests)
+- [x] 添加同步状态通知功能 (getSchedulerStatus)
