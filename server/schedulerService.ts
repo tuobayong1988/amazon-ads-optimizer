@@ -12,7 +12,8 @@ export type TaskType =
   | 'traffic_conflict'
   | 'smart_bidding'
   | 'health_check'
-  | 'data_sync';
+  | 'data_sync'
+  | 'traffic_isolation_full';  // 完整流量隔离自动化周期
 
 // Task configuration
 export interface TaskConfig {
@@ -88,9 +89,17 @@ export const defaultTaskConfigs: Record<TaskType, Partial<TaskConfig>> = {
   },
   data_sync: {
     name: '数据同步',
-    description: '从Amazon API同步最新广告数据',
+    description: '从TAmazon API同步最新广告数据',
     schedule: 'daily',
     runTime: '05:00',
+    autoApply: true,
+    requireApproval: false
+  },
+  traffic_isolation_full: {
+    name: '流量隔离自动化',
+    description: '完整流量隔离周期：N-Gram分析+漏斗同步+关键词迁移+冲突解决',
+    schedule: 'daily',
+    runTime: '06:00',
     autoApply: true,
     requireApproval: false
   }
@@ -524,7 +533,89 @@ function getTaskTypeName(taskType: TaskType): string {
     traffic_conflict: '流量冲突检测',
     smart_bidding: '智能竞价调整',
     health_check: '健康度检查',
-    data_sync: '数据同步'
+    data_sync: '数据同步',
+    traffic_isolation_full: '流量隔离自动化'
   };
   return names[taskType];
+}
+
+// ==================== 流量隔离自动化任务 ====================
+
+import { runFullTrafficIsolationCycle, AutomationConfig } from './automationExecutionEngine';
+
+/**
+ * 执行完整流量隔离自动化周期
+ * 包含：N-Gram分析 + 漏斗否定词同步 + 关键词迁移 + 流量冲突解决
+ */
+export async function executeTrafficIsolationFull(
+  accountId: number,
+  config?: Partial<AutomationConfig>
+): Promise<TaskExecutionResult> {
+  const startedAt = new Date();
+  
+  try {
+    // 使用默认配置或传入的配置
+    const fullConfig: AutomationConfig = {
+      mode: config?.mode || 'full_auto',
+      safetyLimits: config?.safetyLimits || {
+        maxBidChangePercent: 30,
+        maxBudgetChangePercent: 50,
+        maxDailyExecutions: 100,
+        minConfidenceScore: 0.7,
+      },
+      notificationConfig: config?.notificationConfig || {
+        notifyOnSuccess: true,
+        notifyOnFailure: true,
+        dailySummary: true,
+      },
+      enabledTypes: config?.enabledTypes || [
+        'ngram_analysis',
+        'funnel_negative_sync',
+        'keyword_migration',
+        'traffic_conflict_resolution',
+      ],
+    };
+    
+    const result = await runFullTrafficIsolationCycle(accountId, fullConfig);
+    
+    const completedAt = new Date();
+    
+    return {
+      taskId: 0,
+      taskType: 'traffic_isolation_full',
+      status: result.success ? 'success' : 'failed',
+      startedAt,
+      completedAt,
+      duration: Math.round((completedAt.getTime() - startedAt.getTime()) / 1000),
+      itemsProcessed: result.summary.totalNegativesAdded + result.summary.totalKeywordsMigrated + result.summary.totalConflictsResolved,
+      suggestionsGenerated: result.summary.totalNegativesAdded + result.summary.totalKeywordsMigrated + result.summary.totalConflictsResolved,
+      suggestionsApplied: fullConfig.mode === 'full_auto' ? 
+        result.summary.totalNegativesAdded + result.summary.totalKeywordsMigrated + result.summary.totalConflictsResolved : 0,
+      resultSummary: {
+        negativesAdded: result.summary.totalNegativesAdded,
+        keywordsMigrated: result.summary.totalKeywordsMigrated,
+        conflictsResolved: result.summary.totalConflictsResolved,
+        estimatedSavings: result.summary.estimatedSavings,
+        ngramAnalysis: result.ngramResult.success,
+        funnelSync: result.funnelResult.success,
+        migration: result.migrationResult.success,
+        conflictResolution: result.conflictResult.success,
+      }
+    };
+  } catch (error) {
+    const completedAt = new Date();
+    return {
+      taskId: 0,
+      taskType: 'traffic_isolation_full',
+      status: 'failed',
+      startedAt,
+      completedAt,
+      duration: Math.round((completedAt.getTime() - startedAt.getTime()) / 1000),
+      itemsProcessed: 0,
+      suggestionsGenerated: 0,
+      suggestionsApplied: 0,
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      resultSummary: {}
+    };
+  }
 }

@@ -1380,7 +1380,7 @@ export async function getScheduledTaskById(id: number) {
 export async function createScheduledTask(data: {
   userId: number;
   accountId?: number;
-  taskType: 'ngram_analysis' | 'funnel_migration' | 'traffic_conflict' | 'smart_bidding' | 'health_check' | 'data_sync';
+  taskType: 'ngram_analysis' | 'funnel_migration' | 'traffic_conflict' | 'smart_bidding' | 'health_check' | 'data_sync' | 'traffic_isolation_full';
   name: string;
   description?: string;
   schedule?: 'hourly' | 'daily' | 'weekly' | 'monthly';

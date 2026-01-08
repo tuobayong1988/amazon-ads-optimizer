@@ -629,6 +629,174 @@ export class AmazonAdsApiClient {
     await this.axiosInstance.put('/sd/targets', updates);
   }
 
+  // ==================== 否定关键词 API ====================
+
+  /**
+   * 获取SP活动级别否定关键词列表
+   */
+  async listSpCampaignNegativeKeywords(campaignId?: number): Promise<any[]> {
+    const body: any = {};
+    if (campaignId) {
+      body.campaignIdFilter = { include: [campaignId] };
+    }
+    const response = await this.axiosInstance.post('/sp/campaignNegativeKeywords/list', body, {
+      headers: { 'Content-Type': 'application/vnd.spCampaignNegativeKeyword.v3+json' },
+    });
+    return response.data.campaignNegativeKeywords || [];
+  }
+
+  /**
+   * 创建SP活动级别否定关键词
+   */
+  async createSpCampaignNegativeKeywords(
+    negatives: Array<{
+      campaignId: number;
+      keywordText: string;
+      matchType: 'negativeExact' | 'negativePhrase';
+      state?: 'enabled' | 'paused';
+    }>
+  ): Promise<Array<{ keywordId: number; code: string; details: string }>> {
+    const response = await this.axiosInstance.post('/sp/campaignNegativeKeywords', {
+      campaignNegativeKeywords: negatives.map(n => ({
+        ...n,
+        state: n.state || 'enabled',
+      })),
+    }, {
+      headers: { 'Content-Type': 'application/vnd.spCampaignNegativeKeyword.v3+json' },
+    });
+    return response.data.campaignNegativeKeywords || [];
+  }
+
+  /**
+   * 删除SP活动级别否定关键词
+   */
+  async deleteSpCampaignNegativeKeywords(keywordIds: number[]): Promise<void> {
+    await this.axiosInstance.post('/sp/campaignNegativeKeywords/delete', {
+      keywordIdFilter: { include: keywordIds },
+    }, {
+      headers: { 'Content-Type': 'application/vnd.spCampaignNegativeKeyword.v3+json' },
+    });
+  }
+
+  /**
+   * 获取SP广告组级别否定关键词列表
+   */
+  async listSpNegativeKeywords(adGroupId?: number): Promise<any[]> {
+    const body: any = {};
+    if (adGroupId) {
+      body.adGroupIdFilter = { include: [adGroupId] };
+    }
+    const response = await this.axiosInstance.post('/sp/negativeKeywords/list', body, {
+      headers: { 'Content-Type': 'application/vnd.spNegativeKeyword.v3+json' },
+    });
+    return response.data.negativeKeywords || [];
+  }
+
+  /**
+   * 创建SP广告组级别否定关键词
+   */
+  async createSpNegativeKeywords(
+    negatives: Array<{
+      adGroupId: number;
+      campaignId: number;
+      keywordText: string;
+      matchType: 'negativeExact' | 'negativePhrase';
+      state?: 'enabled' | 'paused';
+    }>
+  ): Promise<Array<{ keywordId: number; code: string; details: string }>> {
+    const response = await this.axiosInstance.post('/sp/negativeKeywords', {
+      negativeKeywords: negatives.map(n => ({
+        ...n,
+        state: n.state || 'enabled',
+      })),
+    }, {
+      headers: { 'Content-Type': 'application/vnd.spNegativeKeyword.v3+json' },
+    });
+    return response.data.negativeKeywords || [];
+  }
+
+  /**
+   * 删除SP广告组级别否定关键词
+   */
+  async deleteSpNegativeKeywords(keywordIds: number[]): Promise<void> {
+    await this.axiosInstance.post('/sp/negativeKeywords/delete', {
+      keywordIdFilter: { include: keywordIds },
+    }, {
+      headers: { 'Content-Type': 'application/vnd.spNegativeKeyword.v3+json' },
+    });
+  }
+
+  /**
+   * 获取SP否定商品定位列表（活动级别）
+   */
+  async listSpCampaignNegativeTargets(campaignId?: number): Promise<any[]> {
+    const body: any = {};
+    if (campaignId) {
+      body.campaignIdFilter = { include: [campaignId] };
+    }
+    const response = await this.axiosInstance.post('/sp/campaignNegativeTargets/list', body, {
+      headers: { 'Content-Type': 'application/vnd.spCampaignNegativeTargetingClause.v3+json' },
+    });
+    return response.data.campaignNegativeTargetingClauses || [];
+  }
+
+  /**
+   * 创建SP否定商品定位（活动级别）
+   */
+  async createSpCampaignNegativeTargets(
+    negatives: Array<{
+      campaignId: number;
+      expression: Array<{ type: string; value?: string }>;
+      state?: 'enabled' | 'paused';
+    }>
+  ): Promise<Array<{ targetId: number; code: string; details: string }>> {
+    const response = await this.axiosInstance.post('/sp/campaignNegativeTargets', {
+      campaignNegativeTargetingClauses: negatives.map(n => ({
+        ...n,
+        state: n.state || 'enabled',
+      })),
+    }, {
+      headers: { 'Content-Type': 'application/vnd.spCampaignNegativeTargetingClause.v3+json' },
+    });
+    return response.data.campaignNegativeTargetingClauses || [];
+  }
+
+  /**
+   * 获取SP否定商品定位列表（广告组级别）
+   */
+  async listSpNegativeTargets(adGroupId?: number): Promise<any[]> {
+    const body: any = {};
+    if (adGroupId) {
+      body.adGroupIdFilter = { include: [adGroupId] };
+    }
+    const response = await this.axiosInstance.post('/sp/negativeTargets/list', body, {
+      headers: { 'Content-Type': 'application/vnd.spNegativeTargetingClause.v3+json' },
+    });
+    return response.data.negativeTargetingClauses || [];
+  }
+
+  /**
+   * 创建SP否定商品定位（广告组级别）
+   */
+  async createSpNegativeTargets(
+    negatives: Array<{
+      adGroupId: number;
+      campaignId: number;
+      expression: Array<{ type: string; value?: string }>;
+      state?: 'enabled' | 'paused';
+    }>
+  ): Promise<Array<{ targetId: number; code: string; details: string }>> {
+    const response = await this.axiosInstance.post('/sp/negativeTargets', {
+      negativeTargetingClauses: negatives.map(n => ({
+        ...n,
+        state: n.state || 'enabled',
+      })),
+    }, {
+      headers: { 'Content-Type': 'application/vnd.spNegativeTargetingClause.v3+json' },
+    });
+    return response.data.negativeTargetingClauses || [];
+  }
+
   // ==================== 出价建议 API ====================
 
   /**

@@ -1044,7 +1044,7 @@ export const scheduledTasks = mysqlTable("scheduled_tasks", {
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
 	accountId: int(),
-	taskType: mysqlEnum(['ngram_analysis','funnel_migration','traffic_conflict','smart_bidding','health_check','data_sync']).notNull(),
+	taskType: mysqlEnum(['ngram_analysis','funnel_migration','traffic_conflict','smart_bidding','health_check','data_sync','traffic_isolation_full']).notNull(),
 	name: varchar({ length: 255 }).notNull(),
 	description: text(),
 	enabled: tinyint().default(1),

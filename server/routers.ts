@@ -3179,7 +3179,7 @@ const schedulerRouter = router({
   createTask: protectedProcedure
     .input(z.object({
       accountId: z.number().optional(),
-      taskType: z.enum(['ngram_analysis', 'funnel_migration', 'traffic_conflict', 'smart_bidding', 'health_check', 'data_sync']),
+      taskType: z.enum(['ngram_analysis', 'funnel_migration', 'traffic_conflict', 'smart_bidding', 'health_check', 'data_sync', 'traffic_isolation_full']),
       name: z.string(),
       description: z.string().optional(),
       schedule: z.enum(['hourly', 'daily', 'weekly', 'monthly']).optional().default('daily'),
@@ -3195,7 +3195,7 @@ const schedulerRouter = router({
       const id = await db.createScheduledTask({
         userId: ctx.user.id,
         accountId: input.accountId,
-        taskType: input.taskType,
+        taskType: input.taskType as 'ngram_analysis' | 'funnel_migration' | 'traffic_conflict' | 'smart_bidding' | 'health_check' | 'data_sync' | 'traffic_isolation_full',
         name: input.name,
         description: input.description,
         schedule: input.schedule,
@@ -3299,6 +3299,21 @@ const schedulerRouter = router({
               currentSpend: h.currentMetrics.spend,
               previousSpend: h.historicalAverage.spend,
             }))
+          );
+          break;
+        case 'traffic_isolation_full':
+          // 执行完整流量隔离自动化周期
+          result = await schedulerService.executeTrafficIsolationFull(
+            accountId,
+            {
+              mode: input.autoApply ? 'full_auto' : 'supervised',
+              enabledTypes: [
+                'ngram_analysis',
+                'funnel_negative_sync',
+                'keyword_migration',
+                'traffic_conflict_resolution',
+              ],
+            }
           );
           break;
         default:
