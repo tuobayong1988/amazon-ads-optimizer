@@ -427,39 +427,35 @@ export default function Dashboard() {
     { enabled: !!user?.id }
   );
 
-  // Mock trend data for charts
+  // 获取真实趋势数据
+  const { data: realTrendData } = trpc.analytics.getTrendData.useQuery(
+    { accountId: accountId!, days: 30 },
+    { enabled: !!accountId }
+  );
+  
+  // 如果没有真实数据，显示空数据提示
   const trendData = useMemo(() => {
-    const days = 30;
-    const data = [];
-    const baseDate = new Date();
-    baseDate.setDate(baseDate.getDate() - days);
-
-    for (let i = 0; i < days; i++) {
-      const date = new Date(baseDate);
-      date.setDate(date.getDate() + i);
-      data.push({
-        date: date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }),
-        sales: Math.round(500 + Math.random() * 500 + i * 10),
-        spend: Math.round(100 + Math.random() * 100 + i * 2),
-        conversions: Math.round(10 + Math.random() * 20),
-        acos: Math.round((15 + Math.random() * 10) * 100) / 100,
-      });
+    if (realTrendData && realTrendData.length > 0) {
+      return realTrendData;
     }
-    return data;
-  }, []);
+    // 返回空数组，不再使用模拟数据
+    return [];
+  }, [realTrendData]);
 
-  // 周数据对比
+  // 获取真实周对比数据
+  const { data: realWeeklyComparison } = trpc.analytics.getWeeklyComparison.useQuery(
+    { accountId: accountId! },
+    { enabled: !!accountId }
+  );
+  
+  // 如果没有真实数据，显示空数据
   const weeklyComparison = useMemo(() => {
-    return [
-      { name: '周一', thisWeek: 850, lastWeek: 720 },
-      { name: '周二', thisWeek: 920, lastWeek: 810 },
-      { name: '周三', thisWeek: 780, lastWeek: 850 },
-      { name: '周四', thisWeek: 1100, lastWeek: 920 },
-      { name: '周五', thisWeek: 1250, lastWeek: 1050 },
-      { name: '周六', thisWeek: 680, lastWeek: 620 },
-      { name: '周日', thisWeek: 590, lastWeek: 540 },
-    ];
-  }, []);
+    if (realWeeklyComparison && realWeeklyComparison.length > 0) {
+      return realWeeklyComparison;
+    }
+    // 返回空数组，不再使用模拟数据
+    return [];
+  }, [realWeeklyComparison]);
 
   if (accountsLoading) {
     return (
@@ -836,6 +832,15 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent>
+              {trendData.length === 0 ? (
+                <div className="h-[280px] flex items-center justify-center">
+                  <div className="text-center text-muted-foreground">
+                    <BarChart3 className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                    <p className="font-medium">暂无绩效数据</p>
+                    <p className="text-sm mt-1">请先在设置页面同步数据</p>
+                  </div>
+                </div>
+              ) : (
               <div className="h-[280px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={trendData}>
@@ -892,6 +897,7 @@ export default function Dashboard() {
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
+              )}
             </CardContent>
           </Card>
 
@@ -902,6 +908,14 @@ export default function Dashboard() {
               <CardDescription>过去30天数据</CardDescription>
             </CardHeader>
             <CardContent>
+              {trendData.length === 0 ? (
+                <div className="h-[280px] flex items-center justify-center">
+                  <div className="text-center text-muted-foreground">
+                    <Percent className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                    <p className="font-medium">暂无ACoS数据</p>
+                  </div>
+                </div>
+              ) : (
               <div className="h-[280px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={trendData}>
@@ -940,6 +954,7 @@ export default function Dashboard() {
                   </LineChart>
                 </ResponsiveContainer>
               </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -957,6 +972,14 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent>
+              {weeklyComparison.length === 0 || weeklyComparison.every(w => w.thisWeek === 0 && w.lastWeek === 0) ? (
+                <div className="h-[200px] flex items-center justify-center">
+                  <div className="text-center text-muted-foreground">
+                    <BarChart3 className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                    <p className="font-medium">暂无周对比数据</p>
+                  </div>
+                </div>
+              ) : (
               <div className="h-[200px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={weeklyComparison} barGap={8}>
@@ -989,6 +1012,7 @@ export default function Dashboard() {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
+              )}
             </CardContent>
           </Card>
 

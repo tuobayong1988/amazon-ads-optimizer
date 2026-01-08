@@ -3921,3 +3921,58 @@ export async function createSyncLog(data: {
   
   return (result as any).insertId;
 }
+
+
+// 获取本地数据统计
+export async function getLocalDataStats(accountId: number) {
+  const db = await getDb();
+  if (!db) {
+    return {
+      spCampaigns: 0,
+      sbCampaigns: 0,
+      sdCampaigns: 0,
+      adGroups: 0,
+      keywords: 0,
+      productTargets: 0,
+    };
+  }
+
+  // 统计各类数据的数量 - 使用原生SQL查询避免类型问题
+  const [spCampaignsResult] = await db.select({ count: sql<number>`count(*)` })
+    .from(campaigns)
+    .where(sql`${campaigns.accountId} = ${accountId} AND (${campaigns.campaignType} = 'sp_auto' OR ${campaigns.campaignType} = 'sp_manual')`);
+  
+  const [sbCampaignsResult] = await db.select({ count: sql<number>`count(*)` })
+    .from(campaigns)
+    .where(sql`${campaigns.accountId} = ${accountId} AND ${campaigns.campaignType} = 'sb'`);
+  
+  const [sdCampaignsResult] = await db.select({ count: sql<number>`count(*)` })
+    .from(campaigns)
+    .where(sql`${campaigns.accountId} = ${accountId} AND ${campaigns.campaignType} = 'sd'`);
+  
+  const [adGroupsResult] = await db.select({ count: sql<number>`count(*)` })
+    .from(adGroups)
+    .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+    .where(eq(campaigns.accountId, accountId));
+  
+  const [keywordsResult] = await db.select({ count: sql<number>`count(*)` })
+    .from(keywords)
+    .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
+    .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+    .where(eq(campaigns.accountId, accountId));
+  
+  const [productTargetsResult] = await db.select({ count: sql<number>`count(*)` })
+    .from(productTargets)
+    .innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id))
+    .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+    .where(eq(campaigns.accountId, accountId));
+
+  return {
+    spCampaigns: Number(spCampaignsResult?.count || 0),
+    sbCampaigns: Number(sbCampaignsResult?.count || 0),
+    sdCampaigns: Number(sdCampaignsResult?.count || 0),
+    adGroups: Number(adGroupsResult?.count || 0),
+    keywords: Number(keywordsResult?.count || 0),
+    productTargets: Number(productTargetsResult?.count || 0),
+  };
+}

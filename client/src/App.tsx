@@ -54,6 +54,8 @@ import AnalyticsInsights from "@/pages/AnalyticsInsights";
 import StrategyCenter from "@/pages/StrategyCenter";
 import OptimizationEngine from "@/pages/OptimizationEngine";
 import SmartOptimizationCenter from "@/pages/SmartOptimizationCenter";
+import SyncLogs from "@/pages/SyncLogs";
+import DataValidation from "@/pages/DataValidation";
 
 function Router() {
   return (
@@ -81,6 +83,8 @@ function Router() {
       <Route path="/scheduler">{() => { window.location.href = '/dashboard'; return null; }}</Route>
       <Route path="/data-sync">{() => { window.location.href = '/amazon-api'; return null; }}</Route>
       <Route path="/amazon-api" component={AmazonApiSettings} />
+      <Route path="/sync-logs" component={SyncLogs} />
+      <Route path="/data-validation" component={DataValidation} />
       <Route path="/automation" component={AdAutomation} />
       <Route path="/health" component={HealthMonitor} />
       <Route path="/notifications" component={NotificationSettings} />
