@@ -279,15 +279,21 @@ export async function getUserAuditStats(userId: number, days: number = 30): Prom
   }
 
   // 按天统计 - 使用DATE_FORMAT避免DATE函数兼容性问题
-  const dayStats = await db
-    .select({
-      date: sql<string>`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`,
-      count: sql<number>`COUNT(*)`,
-    })
-    .from(auditLogs)
-    .where(and(eq(auditLogs.userId, userId), gte(auditLogs.createdAt, startDateStr)))
-    .groupBy(sql`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`)
-    .orderBy(sql`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`);
+  let dayStats: any[] = [];
+  try {
+    dayStats = await db
+      .select({
+        date: sql<string>`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`,
+        count: sql<number>`COUNT(*)`,
+      })
+      .from(auditLogs)
+      .where(and(eq(auditLogs.userId, userId), gte(auditLogs.createdAt, startDateStr)))
+      .groupBy(sql`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`)
+      .orderBy(sql`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`);
+  } catch (error) {
+    console.warn("Failed to get audit logs by day:", error);
+    dayStats = [];
+  }
 
   const actionsByDay = dayStats.map((stat: { date: string; count: number }) => ({
     date: stat.date,

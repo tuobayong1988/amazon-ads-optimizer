@@ -64,9 +64,9 @@ import AccountSwitcher from "./AccountSwitcher";
 // 菜单分组配置 - 极简化设计
 // 算法自主决策执行，用户只需监督
 const menuGroups = [
-{
-    title: "主页",
-    description: "多账户数据概览",
+  {
+    title: "数据概览",
+    description: "多账户数据一览",
     items: [
       { icon: LayoutDashboard, label: "数据概览", path: "/" },
     ]
@@ -87,37 +87,24 @@ const menuGroups = [
     ]
   },
   {
-    title: "分析洞察",
+    title: "数据报告",
     description: "数据分析与报告",
     items: [
       { icon: BarChart3, label: "数据分析", path: "/analytics-insights" },
-    ]
-  },
-  {
-    title: "数据与报告",
-    items: [
       { icon: FileText, label: "竞价日志", path: "/bidding-logs" },
       { icon: History, label: "出价调整历史", path: "/bid-adjustment-history" },
       { icon: LineChart, label: "效果追踪报告", path: "/effect-tracking-report" },
-      { icon: BarChart3, label: "跨账号汇总", path: "/accounts-summary" },
       { icon: Shield, label: "审计日志", path: "/audit-logs" },
     ]
   },
   {
-    title: "系统设置",
+    title: "设置",
+    description: "系统配置与团队管理",
     items: [
       { icon: Cloud, label: "Amazon API", path: "/amazon-api" },
-      { icon: Activity, label: "API安全中心", path: "/api-security" },
       { icon: Settings, label: "优化设置", path: "/settings" },
       { icon: Bell, label: "通知设置", path: "/notifications" },
-    ]
-  },
-  {
-    title: "团队协作",
-    items: [
       { icon: Users, label: "团队管理", path: "/team" },
-      { icon: MessageSquare, label: "协作通知", path: "/collaboration" },
-      { icon: Mail, label: "邮件报表", path: "/email-reports" },
     ]
   },
 ];
@@ -265,36 +252,29 @@ function DashboardLayoutContent({
                 <PanelLeft className="h-4 w-4 text-muted-foreground" />
               </button>
               {!isCollapsed ? (
-                <div className="flex items-center gap-2 min-w-0">
+                <button
+                  onClick={() => setLocation("/")}
+                  className="flex items-center gap-2 min-w-0 hover:opacity-80 transition-opacity"
+                >
                   <div className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center shrink-0">
                     <Zap className="w-4 h-4 text-primary-foreground" />
                   </div>
                   <span className="font-semibold tracking-tight truncate text-sm">
                     Ads Optimizer
                   </span>
-                </div>
-              ) : null}
+                </button>
+              ) : (
+                <button
+                  onClick={() => setLocation("/")}
+                  className="w-7 h-7 rounded-lg bg-primary flex items-center justify-center shrink-0 hover:opacity-80 transition-opacity"
+                >
+                  <Zap className="w-4 h-4 text-primary-foreground" />
+                </button>
+              )}
             </div>
           </SidebarHeader>
 
           <SidebarContent className="gap-0 overflow-y-auto">
-            {/* 返回主界面按钮 - 始终显示在顶部 */}
-            <div className="px-2 py-2 border-b border-border/50">
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton
-                    isActive={location === "/dashboard"}
-                    onClick={() => setLocation("/dashboard")}
-                    tooltip="返回主界面"
-                    className="h-10 transition-all font-medium bg-primary/10 hover:bg-primary/20"
-                  >
-                    <Home className={`h-4 w-4 ${location === "/dashboard" ? "text-primary" : "text-primary"}`} />
-                    <span className="text-primary">返回主界面</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </div>
-
             {/* 菜单分组 */}
             {menuGroups.map((group, groupIndex) => (
               <MenuGroup 
