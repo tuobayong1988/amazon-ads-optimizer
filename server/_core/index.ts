@@ -61,9 +61,9 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
     
-    // 启动定时同步调度器（每2小时执行一次）
-    startDataSyncScheduler(2 * 60 * 60 * 1000);
-    console.log('[DataSyncScheduler] 定时同步调度器已启动，间隔: 2小时');
+    // 启动定时同步调度器（每1小时执行一次）
+    startDataSyncScheduler(60 * 60 * 1000);
+    console.log('[DataSyncScheduler] 定时同步调度器已启动，间隔: 1小时');
   });
 }
 

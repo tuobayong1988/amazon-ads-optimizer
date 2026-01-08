@@ -2236,6 +2236,31 @@ const amazonApiRouter = router({
         // 同步失败不影响授权成功，只是记录错误
       }
 
+      // 授权成功后自动创建每小时定时同步配置
+      try {
+        console.log(`[授权后自动同步] 为账号 ${input.accountId} 创建每小时定时同步配置...`);
+        
+        // 检查是否已存在定时同步配置
+        const existingSchedule = await db.getSyncScheduleByAccountId(ctx.user.id, input.accountId);
+        
+        if (!existingSchedule) {
+          // 创建新的每小时定时同步配置
+          await db.createSyncSchedule({
+            userId: ctx.user.id,
+            accountId: input.accountId,
+            syncType: 'all',
+            frequency: 'hourly',
+            isEnabled: true,
+          });
+          console.log(`[授权后自动同步] 已为账号 ${input.accountId} 创建每小时定时同步配置`);
+        } else {
+          console.log(`[授权后自动同步] 账号 ${input.accountId} 已存在定时同步配置，跳过创建`);
+        }
+      } catch (scheduleError: any) {
+        console.error(`[授权后自动同步] 创建定时同步配置失败:`, scheduleError);
+        // 创建定时同步配置失败不影响授权成功
+      }
+
       return { 
         success: true,
         syncResult,
