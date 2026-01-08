@@ -613,6 +613,8 @@ export class AmazonSyncService {
       
       let synced = 0;
 
+      console.log(`[SyncService] 开始处理报告数据, 共 ${reportData.length} 条记录`);
+      
       for (const row of reportData) {
         // 查找对应的campaign
         const [campaign] = await db
@@ -626,7 +628,10 @@ export class AmazonSyncService {
           )
           .limit(1);
 
-        if (!campaign) continue;
+        if (!campaign) {
+          console.log(`[SyncService] 未找到广告活动: campaignId=${row.campaignId}`);
+          continue;
+        }
 
         // 使用报告日期或当前日期
         const reportDate = row.date ? new Date(row.date) : new Date();
@@ -644,20 +649,25 @@ export class AmazonSyncService {
           )
           .limit(1);
 
+        // 使用 Amazon Ads API v3 的字段名
+        const cost = row.cost || 0;
+        const sales = row.sales14d || row.attributedSales14d || 0;
+        const orders = row.purchases14d || row.attributedConversions14d || 0;
+        
         const perfData = {
           accountId: this.accountId,
           campaignId: campaign.id,
           date: reportDateStr,
           impressions: row.impressions || 0,
           clicks: row.clicks || 0,
-          spend: String(row.cost || 0),
-          sales: String(row.attributedSales14d || 0),
-          orders: row.attributedConversions14d || 0,
-          acos: row.cost && row.attributedSales14d 
-            ? String((row.cost / row.attributedSales14d) * 100) 
+          spend: String(cost),
+          sales: String(sales),
+          orders: orders,
+          acos: cost && sales 
+            ? String((cost / sales) * 100) 
             : '0',
-          roas: row.cost && row.attributedSales14d 
-            ? String(row.attributedSales14d / row.cost) 
+          roas: cost && sales 
+            ? String(sales / cost) 
             : '0',
         };
 
@@ -674,6 +684,9 @@ export class AmazonSyncService {
         }
         synced++;
       }
+
+      // 同步完成后，更新campaigns表的绩效汇总数据
+      await this.updateCampaignPerformanceSummary();
 
       return synced;
     } catch (error) {
@@ -900,6 +913,78 @@ export class AmazonSyncService {
     }
 
     return results;
+  }
+
+  /**
+   * 更新campaigns表的绩效汇总数据
+   * 从dailyPerformance表汇总最近30天的数据到campaigns表
+   */
+  async updateCampaignPerformanceSummary(): Promise<void> {
+    const db = await getDb();
+    if (!db) return;
+
+    try {
+      // 获取该账户下所有广告活动
+      const accountCampaigns = await db
+        .select()
+        .from(campaigns)
+        .where(eq(campaigns.accountId, this.accountId));
+
+      console.log(`[SyncService] 开始更新 ${accountCampaigns.length} 个广告活动的绩效汇总`);
+
+      // 计算最近30天的日期范围
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 30);
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+
+      for (const campaign of accountCampaigns) {
+        // 汇总该广告活动的绩效数据
+        const [summary] = await db
+          .select({
+            totalImpressions: sql<number>`COALESCE(SUM(impressions), 0)`,
+            totalClicks: sql<number>`COALESCE(SUM(clicks), 0)`,
+            totalSpend: sql<string>`COALESCE(SUM(spend), 0)`,
+            totalSales: sql<string>`COALESCE(SUM(sales), 0)`,
+            totalOrders: sql<number>`COALESCE(SUM(orders), 0)`,
+          })
+          .from(dailyPerformance)
+          .where(
+            and(
+              eq(dailyPerformance.campaignId, campaign.id),
+              sql`${dailyPerformance.date} >= ${startDateStr}`,
+              sql`${dailyPerformance.date} <= ${endDateStr}`
+            )
+          );
+
+        if (summary) {
+          const spend = parseFloat(summary.totalSpend || '0');
+          const sales = parseFloat(summary.totalSales || '0');
+          
+          // 更新campaigns表
+          await db
+            .update(campaigns)
+            .set({
+              impressions: summary.totalImpressions || 0,
+              clicks: summary.totalClicks || 0,
+              spend: String(spend.toFixed(2)),
+              sales: String(sales.toFixed(2)),
+              orders: summary.totalOrders || 0,
+              acos: spend > 0 && sales > 0 ? String(((spend / sales) * 100).toFixed(2)) : null,
+              roas: spend > 0 && sales > 0 ? String((sales / spend).toFixed(2)) : null,
+              ctr: summary.totalImpressions > 0 ? String((summary.totalClicks / summary.totalImpressions).toFixed(4)) : null,
+              cvr: summary.totalClicks > 0 ? String((summary.totalOrders / summary.totalClicks).toFixed(4)) : null,
+              cpc: summary.totalClicks > 0 ? String((spend / summary.totalClicks).toFixed(2)) : null,
+            })
+            .where(eq(campaigns.id, campaign.id));
+        }
+      }
+
+      console.log(`[SyncService] 广告活动绩效汇总更新完成`);
+    } catch (error) {
+      console.error('[SyncService] 更新广告活动绩效汇总失败:', error);
+    }
   }
 
   /**

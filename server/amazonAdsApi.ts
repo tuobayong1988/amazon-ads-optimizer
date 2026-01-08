@@ -651,28 +651,53 @@ export class AmazonAdsApiClient {
   // ==================== 报告 API ====================
 
   /**
-   * 请求SP广告活动绩效报告
+   * 请求SP广告活动绩效报告 (Amazon Ads API v3)
+   * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
    */
   async requestSpCampaignReport(
     startDate: string,
     endDate: string,
-    metrics: string[] = ['impressions', 'clicks', 'cost', 'attributedSales14d', 'attributedConversions14d']
+    metrics: string[] = ['impressions', 'clicks', 'cost', 'sales14d', 'purchases14d']
   ): Promise<string> {
-    const response = await this.axiosInstance.post('/sp/campaigns/report', {
-      startDate,
-      endDate,
-      configuration: {
-        adProduct: 'SPONSORED_PRODUCTS',
-        groupBy: ['campaign'],
-        columns: metrics,
-        reportTypeId: 'spCampaigns',
-        timeUnit: 'SUMMARY',
-        format: 'GZIP_JSON',
-      },
-    }, {
-      headers: { 'Content-Type': 'application/vnd.createasyncreportrequest.v3+json' },
-    });
-    return response.data.reportId;
+    try {
+      console.log(`[Amazon API] 请求SP广告活动报告: ${startDate} - ${endDate}`);
+      
+      // Amazon Ads Reporting API v3 正确格式
+      const requestBody = {
+        name: `SP Campaign Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_PRODUCTS',
+          groupBy: ['campaign'],
+          columns: [
+            'campaignId',
+            'campaignName',
+            'impressions',
+            'clicks',
+            'cost',
+            'sales14d',
+            'purchases14d'
+          ],
+          reportTypeId: 'spCampaigns',
+          timeUnit: 'DAILY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      console.log(`[Amazon API] 报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: any) {
+      console.error('[Amazon API] 请求SP广告活动报告失败:', error.response?.data || error.message);
+      throw error;
+    }
   }
 
   /**
