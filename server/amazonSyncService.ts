@@ -824,6 +824,104 @@ export class AmazonSyncService {
     );
     return adjustment ? String(adjustment.percentage) : '0';
   }
+
+  /**
+   * 仅同步广告活动（高频同步）
+   * 用于快速获取广告活动状态和预算变化
+   */
+  async syncCampaignsOnly(): Promise<{
+    campaigns: number;
+    spCampaigns: number;
+    sbCampaigns: number;
+    sdCampaigns: number;
+  }> {
+    const results = {
+      campaigns: 0,
+      spCampaigns: 0,
+      sbCampaigns: 0,
+      sdCampaigns: 0,
+    };
+
+    try {
+      // 同步SP广告活动
+      const spResult = await this.syncSpCampaigns();
+      results.spCampaigns = typeof spResult === 'number' ? spResult : spResult.synced;
+      results.campaigns += results.spCampaigns;
+      
+      // 同步SB广告活动
+      const sbResult = await this.syncSbCampaigns();
+      results.sbCampaigns = typeof sbResult === 'number' ? sbResult : sbResult.synced;
+      results.campaigns += results.sbCampaigns;
+      
+      // 同步SD广告活动
+      const sdResult = await this.syncSdCampaigns();
+      results.sdCampaigns = typeof sdResult === 'number' ? sdResult : sdResult.synced;
+      results.campaigns += results.sdCampaigns;
+
+      console.log(`[SyncService] 广告活动同步完成: SP=${results.spCampaigns}, SB=${results.sbCampaigns}, SD=${results.sdCampaigns}`);
+    } catch (error) {
+      console.error('[SyncService] 广告活动同步失败:', error);
+    }
+
+    return results;
+  }
+
+  /**
+   * 同步广告组和定位数据（中频同步）
+   * 用于获取广告组、关键词和商品定位的变化
+   */
+  async syncAdGroupsAndTargeting(): Promise<{
+    adGroups: number;
+    keywords: number;
+    targets: number;
+  }> {
+    const results = {
+      adGroups: 0,
+      keywords: 0,
+      targets: 0,
+    };
+
+    try {
+      // 同步广告组
+      const adGroupResult = await this.syncSpAdGroups();
+      results.adGroups = typeof adGroupResult === 'number' ? adGroupResult : adGroupResult.synced;
+      
+      // 同步关键词
+      const keywordResult = await this.syncSpKeywords();
+      results.keywords = typeof keywordResult === 'number' ? keywordResult : keywordResult.synced;
+      
+      // 同步商品定位
+      const targetResult = await this.syncSpProductTargets();
+      results.targets = typeof targetResult === 'number' ? targetResult : targetResult.synced;
+
+      console.log(`[SyncService] 广告组和定位同步完成: 广告组=${results.adGroups}, 关键词=${results.keywords}, 定位=${results.targets}`);
+    } catch (error) {
+      console.error('[SyncService] 广告组和定位同步失败:', error);
+    }
+
+    return results;
+  }
+
+  /**
+   * 仅同步绩效数据（低频同步）
+   * 用于获取历史绩效数据
+   */
+  async syncPerformanceOnly(days: number = 7): Promise<{
+    performance: number;
+  }> {
+    const results = {
+      performance: 0,
+    };
+
+    try {
+      results.performance = await this.syncPerformanceData(days);
+      console.log(`[SyncService] 绩效数据同步完成: ${results.performance} 条记录`);
+    } catch (error) {
+      console.error('[SyncService] 绩效数据同步失败:', error);
+    }
+
+    return results;
+  }
 }
 
 /**

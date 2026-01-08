@@ -1,11 +1,47 @@
 /**
  * Data Sync Scheduler Service - 定时数据同步调度服务
- * 支持每2小时自动同步Amazon广告数据
+ * 实现分层同步策略，根据Amazon API速率限制优化同步频率
+ * 
+ * 同步策略：
+ * - 高频同步（每15分钟）：广告活动状态、预算
+ * - 中频同步（每30分钟）：广告组、关键词、定位
+ * - 低频同步（每2小时）：完整数据同步
  */
 
 import * as db from './db';
 import { AmazonSyncService } from './amazonSyncService';
 import { notifyOwner } from './_core/notification';
+
+// 同步层级定义
+export type SyncTier = 'high' | 'medium' | 'low' | 'full';
+
+// 同步层级配置
+const SYNC_TIER_CONFIG: Record<SyncTier, {
+  intervalMs: number;
+  description: string;
+  syncTypes: string[];
+}> = {
+  high: {
+    intervalMs: 15 * 60 * 1000, // 15分钟
+    description: '高频同步 - 广告活动状态和预算',
+    syncTypes: ['campaigns_status', 'budgets'],
+  },
+  medium: {
+    intervalMs: 30 * 60 * 1000, // 30分钟
+    description: '中频同步 - 广告组、关键词、定位',
+    syncTypes: ['ad_groups', 'keywords', 'targets'],
+  },
+  low: {
+    intervalMs: 2 * 60 * 60 * 1000, // 2小时
+    description: '低频同步 - 完整数据同步',
+    syncTypes: ['full_sync'],
+  },
+  full: {
+    intervalMs: 60 * 60 * 1000, // 1小时（默认完整同步）
+    description: '完整同步 - 所有数据',
+    syncTypes: ['all'],
+  },
+};
 
 // 调度器状态
 interface SchedulerStatus {
@@ -16,6 +52,8 @@ interface SchedulerStatus {
   successfulSyncs: number;
   failedSyncs: number;
   errors: string[];
+  currentTier: SyncTier | null;
+  tierLastRun: Record<SyncTier, Date | null>;
 }
 
 let schedulerStatus: SchedulerStatus = {
@@ -26,12 +64,40 @@ let schedulerStatus: SchedulerStatus = {
   successfulSyncs: 0,
   failedSyncs: 0,
   errors: [],
+  currentTier: null,
+  tierLastRun: {
+    high: null,
+    medium: null,
+    low: null,
+    full: null,
+  },
 };
 
-let schedulerInterval: NodeJS.Timeout | null = null;
+let schedulerIntervals: Record<SyncTier, NodeJS.Timeout | null> = {
+  high: null,
+  medium: null,
+  low: null,
+  full: null,
+};
 
-// 频率到毫秒的映射
+// API请求队列，用于控制请求速率
+interface QueuedRequest {
+  accountId: number;
+  userId: number;
+  tier: SyncTier;
+  timestamp: number;
+}
+
+const requestQueue: QueuedRequest[] = [];
+let isProcessingQueue = false;
+
+// 请求间隔（毫秒）- 每个API调用之间的最小间隔
+const REQUEST_INTERVAL_MS = 200;
+
+// 频率到毫秒的映射（用于用户自定义配置）
 const frequencyToMs: Record<string, number> = {
+  'every_15_minutes': 15 * 60 * 1000,
+  'every_30_minutes': 30 * 60 * 1000,
   'hourly': 60 * 60 * 1000,
   'every_2_hours': 2 * 60 * 60 * 1000,
   'every_4_hours': 4 * 60 * 60 * 1000,
@@ -49,25 +115,40 @@ export function getSchedulerStatus(): SchedulerStatus {
 }
 
 /**
- * 启动定时同步调度器
- * @param intervalMs 执行间隔（毫秒），默认每2小时
+ * 启动分层同步调度器
+ * @param defaultIntervalMs 默认执行间隔（毫秒），用于完整同步
  */
-export function startDataSyncScheduler(intervalMs: number = 2 * 60 * 60 * 1000): void {
+export function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60 * 1000): void {
   if (schedulerStatus.isRunning) {
     console.log('[DataSyncScheduler] 定时同步调度器已在运行中');
     return;
   }
 
   schedulerStatus.isRunning = true;
-  schedulerStatus.nextRunTime = new Date(Date.now() + intervalMs);
+  
+  // 启动分层同步
+  console.log('[DataSyncScheduler] 启动分层同步调度器...');
+  
+  // 高频同步：每15分钟
+  schedulerIntervals.high = setInterval(async () => {
+    await executeLayeredSync('high');
+  }, SYNC_TIER_CONFIG.high.intervalMs);
+  console.log(`[DataSyncScheduler] 高频同步已启动，间隔: ${SYNC_TIER_CONFIG.high.intervalMs / 1000 / 60} 分钟`);
 
-  console.log(`[DataSyncScheduler] 定时同步调度器已启动，执行间隔: ${intervalMs / 1000 / 60} 分钟`);
+  // 中频同步：每30分钟
+  schedulerIntervals.medium = setInterval(async () => {
+    await executeLayeredSync('medium');
+  }, SYNC_TIER_CONFIG.medium.intervalMs);
+  console.log(`[DataSyncScheduler] 中频同步已启动，间隔: ${SYNC_TIER_CONFIG.medium.intervalMs / 1000 / 60} 分钟`);
 
-  // 设置定时执行
-  schedulerInterval = setInterval(async () => {
-    schedulerStatus.nextRunTime = new Date(Date.now() + intervalMs);
+  // 低频/完整同步：使用传入的间隔（默认1小时）
+  schedulerIntervals.full = setInterval(async () => {
     await executeScheduledSync();
-  }, intervalMs);
+  }, defaultIntervalMs);
+  
+  schedulerStatus.nextRunTime = new Date(Date.now() + defaultIntervalMs);
+  console.log(`[DataSyncScheduler] 完整同步已启动，间隔: ${defaultIntervalMs / 1000 / 60} 分钟`);
+  console.log(`[DataSyncScheduler] 定时同步调度器已启动，执行间隔: ${defaultIntervalMs / 1000 / 60} 分钟`);
 }
 
 /**
@@ -79,19 +160,160 @@ export function stopDataSyncScheduler(): void {
     return;
   }
 
-  if (schedulerInterval) {
-    clearInterval(schedulerInterval);
-    schedulerInterval = null;
-  }
+  // 停止所有层级的调度器
+  Object.keys(schedulerIntervals).forEach((tier) => {
+    const interval = schedulerIntervals[tier as SyncTier];
+    if (interval) {
+      clearInterval(interval);
+      schedulerIntervals[tier as SyncTier] = null;
+    }
+  });
 
   schedulerStatus.isRunning = false;
   schedulerStatus.nextRunTime = null;
+  schedulerStatus.currentTier = null;
 
   console.log('[DataSyncScheduler] 定时同步调度器已停止');
 }
 
 /**
- * 执行定时同步任务
+ * 执行分层同步
+ */
+async function executeLayeredSync(tier: SyncTier): Promise<void> {
+  console.log(`[DataSyncScheduler] 开始执行${SYNC_TIER_CONFIG[tier].description} - ${new Date().toISOString()}`);
+  schedulerStatus.currentTier = tier;
+
+  try {
+    // 获取所有启用了定时同步的账号
+    const schedules = await db.getEnabledSyncSchedules();
+
+    if (schedules.length === 0) {
+      console.log('[DataSyncScheduler] 没有启用的定时同步配置');
+      return;
+    }
+
+    for (const schedule of schedules) {
+      // 将请求加入队列
+      addToQueue({
+        accountId: schedule.accountId,
+        userId: schedule.userId,
+        tier,
+        timestamp: Date.now(),
+      });
+    }
+
+    // 处理队列
+    await processQueue();
+
+    schedulerStatus.tierLastRun[tier] = new Date();
+    console.log(`[DataSyncScheduler] ${SYNC_TIER_CONFIG[tier].description}完成`);
+
+  } catch (error: any) {
+    console.error(`[DataSyncScheduler] ${tier}层同步执行失败:`, error);
+    schedulerStatus.errors.push(`${tier}层同步失败: ${error.message}`);
+  }
+
+  schedulerStatus.currentTier = null;
+}
+
+/**
+ * 添加请求到队列
+ */
+function addToQueue(request: QueuedRequest): void {
+  requestQueue.push(request);
+}
+
+/**
+ * 处理请求队列（带速率限制）
+ */
+async function processQueue(): Promise<void> {
+  if (isProcessingQueue) {
+    return;
+  }
+
+  isProcessingQueue = true;
+
+  while (requestQueue.length > 0) {
+    const request = requestQueue.shift();
+    if (!request) continue;
+
+    try {
+      await executeTieredSyncForAccount(request);
+      schedulerStatus.successfulSyncs++;
+    } catch (error: any) {
+      schedulerStatus.failedSyncs++;
+      schedulerStatus.errors.push(`账号 ${request.accountId} ${request.tier}层同步失败: ${error.message}`);
+      console.error(`[DataSyncScheduler] 账号 ${request.accountId} ${request.tier}层同步失败:`, error);
+    }
+
+    schedulerStatus.totalSyncs++;
+
+    // 请求间隔，避免触发速率限制
+    if (requestQueue.length > 0) {
+      await sleep(REQUEST_INTERVAL_MS);
+    }
+  }
+
+  isProcessingQueue = false;
+  // 只保留最近10条错误
+  schedulerStatus.errors = schedulerStatus.errors.slice(-10);
+}
+
+/**
+ * 为指定账号执行分层同步
+ */
+async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void> {
+  const { accountId, userId, tier } = request;
+  console.log(`[DataSyncScheduler] 开始${tier}层同步账号 ${accountId}`);
+
+  // 获取账号信息
+  const account = await db.getAdAccountById(accountId);
+  if (!account) {
+    throw new Error(`账号 ${accountId} 不存在`);
+  }
+
+  // 获取API凭证
+  const credentials = await (db as any).getApiCredentialsByAccountId?.(accountId) || account;
+  if (!credentials) {
+    throw new Error(`账号 ${accountId} 未配置API凭证`);
+  }
+
+  const syncService = await AmazonSyncService.createFromCredentials(
+    {
+      clientId: credentials.clientId || '',
+      clientSecret: credentials.clientSecret || '',
+      refreshToken: credentials.refreshToken || '',
+      profileId: account.profileId || '',
+      region: (credentials.region as 'NA' | 'EU' | 'FE') || 'NA'
+    },
+    accountId,
+    userId
+  );
+
+  // 根据层级执行不同的同步
+  let result;
+  switch (tier) {
+    case 'high':
+      // 高频同步：只同步广告活动状态
+      result = await syncService.syncCampaignsOnly();
+      break;
+    case 'medium':
+      // 中频同步：同步广告组、关键词、定位
+      result = await syncService.syncAdGroupsAndTargeting();
+      break;
+    case 'low':
+    case 'full':
+    default:
+      // 完整同步
+      result = await syncService.syncAll();
+      break;
+  }
+
+  console.log(`[DataSyncScheduler] 账号 ${accountId} ${tier}层同步完成:`, result);
+}
+
+/**
+ * 执行定时同步任务（完整同步）
  */
 async function executeScheduledSync(): Promise<void> {
   console.log(`[DataSyncScheduler] 开始执行定时同步任务 - ${new Date().toISOString()}`);
@@ -121,6 +343,9 @@ async function executeScheduledSync(): Promise<void> {
       }
 
       schedulerStatus.totalSyncs++;
+      
+      // 请求间隔
+      await sleep(REQUEST_INTERVAL_MS);
     }
 
     schedulerStatus.lastRunTime = new Date();
@@ -142,8 +367,8 @@ function shouldExecuteSync(schedule: db.DataSyncSchedule): boolean {
   }
 
   const now = new Date();
-  const frequency = schedule.frequency || 'daily';
-  const intervalMs = frequencyToMs[frequency] || frequencyToMs['daily'];
+  const frequency = schedule.frequency || 'hourly';
+  const intervalMs = frequencyToMs[frequency] || frequencyToMs['hourly'];
 
   // 如果有上次运行时间，检查是否已经过了间隔时间
   if (schedule.lastRunAt) {
@@ -183,7 +408,7 @@ function shouldExecuteSync(schedule: db.DataSyncSchedule): boolean {
 }
 
 /**
- * 为指定账号执行同步
+ * 为指定账号执行完整同步
  */
 async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<void> {
   console.log(`[DataSyncScheduler] 开始同步账号 ${schedule.accountId}`);
@@ -364,6 +589,43 @@ export async function deleteSyncSchedule(scheduleId: number): Promise<void> {
   await db.deleteSyncSchedule(scheduleId);
 }
 
-// 服务器启动时自动启动调度器（每2小时）
-// 注意：这会在模块加载时执行
-// startDataSyncScheduler(2 * 60 * 60 * 1000);
+/**
+ * 辅助函数：延迟执行
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * 指数退避重试
+ */
+export async function withExponentialBackoff<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  baseDelayMs: number = 1000
+): Promise<T> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+      
+      // 如果是429错误，使用指数退避
+      if (error.response?.status === 429 || error.message?.includes('429')) {
+        const delay = baseDelayMs * Math.pow(2, attempt);
+        console.log(`[DataSyncScheduler] 遇到速率限制，等待 ${delay}ms 后重试 (尝试 ${attempt + 1}/${maxRetries})`);
+        await sleep(delay);
+      } else {
+        // 其他错误直接抛出
+        throw error;
+      }
+    }
+  }
+  
+  throw lastError || new Error('重试次数已用尽');
+}
+
+// 导出同步层级配置供外部使用
+export { SYNC_TIER_CONFIG, frequencyToMs };
