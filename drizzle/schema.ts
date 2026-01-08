@@ -629,6 +629,13 @@ export const dataSyncJobs = mysqlTable("data_sync_jobs", {
 	adGroupsSynced: int().default(0),
 	keywordsSynced: int().default(0),
 	targetsSynced: int().default(0),
+	// 同步进度详情字段
+	currentStep: varchar('current_step', { length: 100 }),
+	totalSteps: int('total_steps').default(0),
+	currentStepIndex: int('current_step_index').default(0),
+	progressPercent: int('progress_percent').default(0),
+	siteProgress: json('site_progress'),
+	updatedAt: timestamp('updated_at', { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
 
 export const dataSyncLogs = mysqlTable("data_sync_logs", {

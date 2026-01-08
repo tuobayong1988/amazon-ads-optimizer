@@ -3250,3 +3250,24 @@
 - [x] 添加getLastSyncData API获取上次同步数据
 - [x] 在同步完成后显示与上次同步的数据量对比
 - [x] 显示各类数据的增减变化
+
+
+### 2026-01-08 同步站点API返回HTML错误修复
+- [x] 排查同步站点时API返回HTML而非JSON的错误
+- [x] 检查Amazon API调用的endpoint和请求格式
+- [x] 添加更好的错误处理和日志记录
+  - [x] 添加响应拦截器处理HTML错误响应
+  - [x] 改进getAccessToken函数的错误处理
+  - [x] 根据状态码提供更有用的错误信息
+- [x] 修复API请求问题
+
+
+### 2026-01-08 同步进度持久化功能
+- [x] 实现同步进度持久化，确保用户随时进入页面都能看到真实的同步进度
+  - [x] 分析现有同步进度存储结构
+  - [x] 扩展data_sync_jobs表添加进度字段(current_step, total_steps, progress_percent, site_progress)
+  - [x] 实现后端同步进度更新功能(updateSyncJob扩展)
+  - [x] 实现后端获取当前同步进度API(getActiveSyncJobs, getAccountActiveSyncJob)
+  - [x] 前端页面加载时自动获取正在进行的同步任务状态
+  - [x] 前端定时轮询更新同步进度(每2秒)
+  - [x] 确保离开页面再返回时进度信息不丢失

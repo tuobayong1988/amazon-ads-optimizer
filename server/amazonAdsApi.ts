@@ -162,6 +162,46 @@ export class AmazonAdsApiClient {
       config.headers.Authorization = `Bearer ${token}`;
       return config;
     });
+
+    // 添加响应拦截器处理错误
+    this.axiosInstance.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        // 检查是否返回HTML而不是JSON
+        if (error.response) {
+          const contentType = error.response.headers['content-type'] || '';
+          const data = error.response.data;
+          
+          // 如果返回的是HTML，提取有用的错误信息
+          if (contentType.includes('text/html') || (typeof data === 'string' && data.startsWith('<'))) {
+            console.error('[Amazon API] Received HTML response instead of JSON');
+            console.error('[Amazon API] Status:', error.response.status);
+            console.error('[Amazon API] URL:', error.config?.url);
+            
+            // 根据状态码提供更有用的错误信息
+            let errorMessage = 'Amazon API returned an error page';
+            if (error.response.status === 401) {
+              errorMessage = 'Token已过期或无效，请重新授权';
+            } else if (error.response.status === 403) {
+              errorMessage = '没有访问权限，请检查API凭证和权限设置';
+            } else if (error.response.status === 404) {
+              errorMessage = 'API端点不存在，请检查请求URL';
+            } else if (error.response.status === 429) {
+              errorMessage = 'API请求过于频繁，请稍后重试';
+            } else if (error.response.status >= 500) {
+              errorMessage = 'Amazon API服务器错误，请稍后重试';
+            }
+            
+            const enhancedError = new Error(errorMessage);
+            (enhancedError as any).originalError = error;
+            (enhancedError as any).status = error.response.status;
+            (enhancedError as any).isHtmlResponse = true;
+            throw enhancedError;
+          }
+        }
+        throw error;
+      }
+    );
   }
 
   /**
@@ -230,18 +270,45 @@ export class AmazonAdsApiClient {
       return this.accessToken;
     }
 
-    const response = await axios.post(OAUTH_TOKEN_URL, new URLSearchParams({
-      grant_type: 'refresh_token',
-      refresh_token: this.credentials.refreshToken,
-      client_id: this.credentials.clientId,
-      client_secret: this.credentials.clientSecret,
-    }), {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    });
+    try {
+      console.log('[Amazon API] Refreshing access token...');
+      const response = await axios.post(OAUTH_TOKEN_URL, new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: this.credentials.refreshToken,
+        client_id: this.credentials.clientId,
+        client_secret: this.credentials.clientSecret,
+      }), {
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
 
-    this.accessToken = response.data.access_token;
-    this.tokenExpiry = new Date(Date.now() + (response.data.expires_in - 60) * 1000);
-    return this.accessToken!;
+      this.accessToken = response.data.access_token;
+      this.tokenExpiry = new Date(Date.now() + (response.data.expires_in - 60) * 1000);
+      console.log('[Amazon API] Access token refreshed successfully');
+      return this.accessToken!;
+    } catch (error: any) {
+      console.error('[Amazon API] Failed to refresh access token:', error.message);
+      
+      // 检查是否返回HTML响应
+      if (error.response) {
+        const contentType = error.response.headers?.['content-type'] || '';
+        const data = error.response.data;
+        
+        if (contentType.includes('text/html') || (typeof data === 'string' && data.startsWith('<'))) {
+          console.error('[Amazon API] Token refresh returned HTML instead of JSON');
+          console.error('[Amazon API] Status:', error.response.status);
+          throw new Error('Token刷新失败，请重新授权。可能原因：Refresh Token已过期或无效');
+        }
+        
+        if (error.response.status === 400) {
+          const errorData = error.response.data;
+          if (errorData?.error === 'invalid_grant') {
+            throw new Error('Refresh Token已过期或无效，请重新授权');
+          }
+        }
+      }
+      
+      throw error;
+    }
   }
 
   /**

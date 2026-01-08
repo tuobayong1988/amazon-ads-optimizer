@@ -2906,8 +2906,41 @@ const amazonApiRouter = router({
         conflictsResolved: 0,
       };
 
+      // 定义同步步骤
+      const syncSteps = [
+        { name: 'SP广告活动', key: 'spCampaigns' },
+        { name: 'SB广告活动', key: 'sbCampaigns' },
+        { name: 'SD广告活动', key: 'sdCampaigns' },
+        { name: '广告组', key: 'adGroups' },
+        { name: '关键词', key: 'keywords' },
+        { name: '商品定位', key: 'targets' },
+        { name: '绩效数据', key: 'performance' },
+      ];
+      const totalSteps = syncSteps.length;
+      let currentStepIndex = 0;
+
+      // 更新进度的辅助函数
+      const updateProgress = async (stepName: string, stepIndex: number, stepResults?: any) => {
+        if (!jobId) return; // 如果jobId不存在则跳过
+        const progressPercent = Math.round(((stepIndex + 1) / totalSteps) * 100);
+        await db.updateSyncJob(jobId, {
+          currentStep: stepName,
+          totalSteps,
+          currentStepIndex: stepIndex,
+          progressPercent,
+          siteProgress: {
+            currentStep: stepName,
+            stepIndex,
+            totalSteps,
+            progressPercent,
+            results: stepResults || results,
+          },
+        });
+      };
+
       try {
         // 同步SP广告活动（带变更跟踪）
+        await updateProgress('SP广告活动', currentStepIndex);
         const spResult = await executeWithRetry(
           () => syncService.syncSpCampaignsWithTracking(lastSyncTime, jobId),
           'SP广告同步'
@@ -2917,8 +2950,10 @@ const amazonApiRouter = router({
         changeSummary.campaignsCreated += spResult.created || 0;
         changeSummary.campaignsUpdated += spResult.updated || 0;
         changeSummary.conflictsDetected += spResult.conflicts || 0;
+        currentStepIndex++;
 
         // 同步SB广告活动（带变更跟踪）
+        await updateProgress('SB广告活动', currentStepIndex);
         const sbResult = await executeWithRetry(
           () => syncService.syncSbCampaignsWithTracking(lastSyncTime, jobId),
           'SB广告同步'
@@ -2928,8 +2963,10 @@ const amazonApiRouter = router({
         changeSummary.campaignsCreated += sbResult.created || 0;
         changeSummary.campaignsUpdated += sbResult.updated || 0;
         changeSummary.conflictsDetected += sbResult.conflicts || 0;
+        currentStepIndex++;
 
         // 同步SD广告活动（带变更跟踪）
+        await updateProgress('SD广告活动', currentStepIndex);
         const sdResult = await executeWithRetry(
           () => syncService.syncSdCampaignsWithTracking(lastSyncTime, jobId),
           'SD广告同步'
@@ -2939,8 +2976,10 @@ const amazonApiRouter = router({
         changeSummary.campaignsCreated += sdResult.created || 0;
         changeSummary.campaignsUpdated += sdResult.updated || 0;
         changeSummary.conflictsDetected += sdResult.conflicts || 0;
+        currentStepIndex++;
 
         // 同步广告组（带变更跟踪）
+        await updateProgress('广告组', currentStepIndex);
         const adGroupsResult = await executeWithRetry(
           () => syncService.syncSpAdGroupsWithTracking(lastSyncTime, jobId),
           '广告组同步'
@@ -2950,8 +2989,10 @@ const amazonApiRouter = router({
         changeSummary.adGroupsCreated += adGroupsResult.created || 0;
         changeSummary.adGroupsUpdated += adGroupsResult.updated || 0;
         changeSummary.conflictsDetected += adGroupsResult.conflicts || 0;
+        currentStepIndex++;
 
         // 同步关键词（带变更跟踪）
+        await updateProgress('关键词', currentStepIndex);
         const keywordsResult = await executeWithRetry(
           () => syncService.syncSpKeywordsWithTracking(lastSyncTime, jobId),
           '关键词同步'
@@ -2961,8 +3002,10 @@ const amazonApiRouter = router({
         changeSummary.keywordsCreated += keywordsResult.created || 0;
         changeSummary.keywordsUpdated += keywordsResult.updated || 0;
         changeSummary.conflictsDetected += keywordsResult.conflicts || 0;
+        currentStepIndex++;
 
         // 同步商品定位（带变更跟踪）
+        await updateProgress('商品定位', currentStepIndex);
         const targetsResult = await executeWithRetry(
           () => syncService.syncSpProductTargetsWithTracking(lastSyncTime, jobId),
           '商品定位同步'
@@ -2972,10 +3015,12 @@ const amazonApiRouter = router({
         changeSummary.targetsCreated += targetsResult.created || 0;
         changeSummary.targetsUpdated += targetsResult.updated || 0;
         changeSummary.conflictsDetected += targetsResult.conflicts || 0;
+        currentStepIndex++;
 
         results.campaigns = results.spCampaigns + results.sbCampaigns + results.sdCampaigns;
 
         // 同步绩效数据（最近30天）
+        await updateProgress('绩效数据', currentStepIndex);
         try {
           const performanceCount = await executeWithRetry(
             () => syncService.syncPerformanceData(30),
@@ -3116,6 +3161,26 @@ const amazonApiRouter = router({
     }))
     .query(async ({ input }) => {
       return db.getSyncHistory(input.accountId, input.limit);
+    }),
+
+  // 获取用户正在进行的同步任务
+  getActiveSyncJobs: protectedProcedure
+    .query(async ({ ctx }) => {
+      return db.getActiveSyncJobs(ctx.user.id);
+    }),
+
+  // 获取账户正在进行的同步任务
+  getAccountActiveSyncJob: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getAccountActiveSyncJob(input.accountId);
+    }),
+
+  // 获取同步任务详情
+  getSyncJobDetail: protectedProcedure
+    .input(z.object({ jobId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getSyncJob(input.jobId);
     }),
 
   // 获取同步统计信息

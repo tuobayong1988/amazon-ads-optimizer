@@ -3094,6 +3094,12 @@ export async function updateSyncJob(jobId: number, data: {
   adGroupsSynced?: number;
   keywordsSynced?: number;
   targetsSynced?: number;
+  // 进度相关字段
+  currentStep?: string;
+  totalSteps?: number;
+  currentStepIndex?: number;
+  progressPercent?: number;
+  siteProgress?: any;
 }) {
   const db = await getDb();
   if (!db) return;
@@ -3102,6 +3108,8 @@ export async function updateSyncJob(jobId: number, data: {
   if (data.status === 'completed' || data.status === 'failed') {
     updateData.completedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
   }
+  // 更新时间戳
+  updateData.updatedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
   
   await db.update(dataSyncJobs)
     .set(updateData)
@@ -3116,6 +3124,47 @@ export async function getSyncJob(jobId: number) {
   if (!db) return null;
   
   const [job] = await db.select().from(dataSyncJobs).where(eq(dataSyncJobs.id, jobId));
+  return job || null;
+}
+
+/**
+ * 获取用户正在进行的同步任务
+ */
+export async function getActiveSyncJobs(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const jobs = await db.select()
+    .from(dataSyncJobs)
+    .where(
+      and(
+        eq(dataSyncJobs.userId, userId),
+        inArray(dataSyncJobs.status, ['pending', 'running'])
+      )
+    )
+    .orderBy(desc(dataSyncJobs.createdAt));
+  
+  return jobs;
+}
+
+/**
+ * 获取账户正在进行的同步任务
+ */
+export async function getAccountActiveSyncJob(accountId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const [job] = await db.select()
+    .from(dataSyncJobs)
+    .where(
+      and(
+        eq(dataSyncJobs.accountId, accountId),
+        inArray(dataSyncJobs.status, ['pending', 'running'])
+      )
+    )
+    .orderBy(desc(dataSyncJobs.createdAt))
+    .limit(1);
+  
   return job || null;
 }
 

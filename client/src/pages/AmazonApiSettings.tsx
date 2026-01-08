@@ -246,6 +246,66 @@ export default function AmazonApiSettings() {
 
   const utils = trpc.useUtils();
 
+  // 获取用户正在进行的同步任务
+  const { data: activeSyncJobs, refetch: refetchActiveSyncJobs } = trpc.amazonApi.getActiveSyncJobs.useQuery(undefined, {
+    enabled: !!user,
+    refetchInterval: syncProgress.step !== 'idle' && syncProgress.step !== 'complete' && syncProgress.step !== 'error' ? 2000 : false,
+  });
+
+  // 获取当前账户正在进行的同步任务
+  const { data: accountActiveSyncJob, refetch: refetchAccountActiveSyncJob } = trpc.amazonApi.getAccountActiveSyncJob.useQuery(
+    { accountId: selectedAccountId! },
+    {
+      enabled: !!selectedAccountId,
+      refetchInterval: 2000, // 每2秒轮询一次
+    }
+  );
+
+  // 当有活动的同步任务时，更新前端进度状态
+  useEffect(() => {
+    if (accountActiveSyncJob && accountActiveSyncJob.status === 'running') {
+      const siteProgress = accountActiveSyncJob.siteProgress as any;
+      setSyncProgress(prev => ({
+        ...prev,
+        step: 'sp', // 表示正在同步
+        progress: accountActiveSyncJob.progressPercent || 0,
+        current: accountActiveSyncJob.currentStep || '同步中...',
+        results: {
+          sp: accountActiveSyncJob.spCampaigns || 0,
+          sb: accountActiveSyncJob.sbCampaigns || 0,
+          sd: accountActiveSyncJob.sdCampaigns || 0,
+          adGroups: accountActiveSyncJob.adGroupsSynced || 0,
+          keywords: accountActiveSyncJob.keywordsSynced || 0,
+          targets: accountActiveSyncJob.targetsSynced || 0,
+        },
+      }));
+    } else if (accountActiveSyncJob && accountActiveSyncJob.status === 'completed') {
+      setSyncProgress(prev => ({
+        ...prev,
+        step: 'complete',
+        progress: 100,
+        current: '同步完成',
+        results: {
+          sp: accountActiveSyncJob.spCampaigns || 0,
+          sb: accountActiveSyncJob.sbCampaigns || 0,
+          sd: accountActiveSyncJob.sdCampaigns || 0,
+          adGroups: accountActiveSyncJob.adGroupsSynced || 0,
+          keywords: accountActiveSyncJob.keywordsSynced || 0,
+          targets: accountActiveSyncJob.targetsSynced || 0,
+        },
+      }));
+    } else if (accountActiveSyncJob && accountActiveSyncJob.status === 'failed') {
+      setSyncProgress(prev => ({
+        ...prev,
+        step: 'error',
+        error: accountActiveSyncJob.errorMessage || '同步失败',
+      }));
+    } else if (!accountActiveSyncJob && syncProgress.step !== 'idle' && syncProgress.step !== 'complete' && syncProgress.step !== 'error') {
+      // 没有活动任务且当前状态不是空闲/完成/错误，则重置为空闲
+      // 这种情况可能是任务已经完成但前端还没有收到更新
+    }
+  }, [accountActiveSyncJob]);
+
   // Fetch accounts
   const { data: accounts, isLoading: accountsLoading } = trpc.adAccount.list.useQuery(undefined, {
     enabled: !!user,
