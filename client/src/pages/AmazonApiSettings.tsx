@@ -462,6 +462,28 @@ export default function AmazonApiSettings() {
     },
   });
 
+  // 一键使用远程数据解决所有冲突
+  const resolveAllConflictsMutation = trpc.amazonApi.resolveAllConflictsUseRemote.useMutation({
+    onSuccess: (data) => {
+      toast.success(`已解决 ${data.resolved} 个冲突`);
+      refetchConflicts();
+    },
+    onError: (error) => {
+      toast.error(`解决失败: ${error.message}`);
+    },
+  });
+
+  // 一键忽略所有冲突
+  const ignoreAllConflictsMutation = trpc.amazonApi.ignoreAllConflicts.useMutation({
+    onSuccess: (data) => {
+      toast.success(`已忽略 ${data.ignored} 个冲突`);
+      refetchConflicts();
+    },
+    onError: (error) => {
+      toast.error(`忽略失败: ${error.message}`);
+    },
+  });
+
   // 添加到队列mutation
   const addToQueueMutation = trpc.amazonApi.addToSyncQueue.useMutation({
     onSuccess: () => {
@@ -2881,12 +2903,42 @@ export default function AmazonApiSettings() {
                           <Badge variant="destructive">{pendingConflictsCount}</Badge>
                         )}
                       </CardTitle>
-                      <Button variant="ghost" size="sm" onClick={() => setShowSyncConflicts(false)}>
-                        关闭
-                      </Button>
+                      <div className="flex gap-2">
+                        {pendingConflictsCount && pendingConflictsCount > 0 && (
+                          <>
+                            <Button 
+                              variant="outline" 
+                              size="sm"
+                              onClick={() => {
+                                if (selectedAccountId) {
+                                  resolveAllConflictsMutation.mutate({ accountId: selectedAccountId });
+                                }
+                              }}
+                              disabled={resolveAllConflictsMutation.isPending}
+                            >
+                              {resolveAllConflictsMutation.isPending ? '处理中...' : '一键使用远程数据'}
+                            </Button>
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => {
+                                if (selectedAccountId) {
+                                  ignoreAllConflictsMutation.mutate({ accountId: selectedAccountId });
+                                }
+                              }}
+                              disabled={ignoreAllConflictsMutation.isPending}
+                            >
+                              {ignoreAllConflictsMutation.isPending ? '处理中...' : '一键忽略全部'}
+                            </Button>
+                          </>
+                        )}
+                        <Button variant="ghost" size="sm" onClick={() => setShowSyncConflicts(false)}>
+                          关闭
+                        </Button>
+                      </div>
                     </div>
                     <CardDescription>
-                      同步时检测到的数据冲突，请选择处理方式
+                      同步时检测到的数据冲突，请选择处理方式。建议首次同步时使用"一键使用远程数据"来快速解决所有冲突。
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">

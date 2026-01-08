@@ -3089,6 +3089,34 @@ const amazonApiRouter = router({
       return db.ignoreSyncConflict(input.conflictId, ctx.user.id);
     }),
 
+  // 一键清除所有冲突（使用远程数据）
+  resolveAllConflictsUseRemote: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      // 获取所有待处理的冲突
+      const conflicts = await db.getSyncConflicts(input.accountId, 'pending');
+      if (conflicts.length === 0) return { resolved: 0 };
+      
+      const conflictIds = conflicts.map(c => c.id);
+      const resolved = await db.resolveSyncConflictsBatch(conflictIds, 'use_remote', ctx.user.id);
+      return { resolved };
+    }),
+
+  // 一键忽略所有冲突
+  ignoreAllConflicts: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const conflicts = await db.getSyncConflicts(input.accountId, 'pending');
+      if (conflicts.length === 0) return { ignored: 0 };
+      
+      let ignored = 0;
+      for (const conflict of conflicts) {
+        await db.ignoreSyncConflict(conflict.id, ctx.user.id);
+        ignored++;
+      }
+      return { ignored };
+    }),
+
   // ==================== 同步任务队列API ====================
 
   // 添加同步任务到队列

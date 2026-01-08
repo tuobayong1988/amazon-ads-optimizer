@@ -1029,6 +1029,8 @@ import type {
 
 /**
  * 检测数据冲突
+ * 注意：空值（空字符串、"0"、null、undefined）被视为"无数据"，不与远程数据产生冲突
+ * 这样可以避免首次同步时本地数据为空导致的大量虚假冲突
  */
 function detectConflict(
   existing: any,
@@ -1037,19 +1039,34 @@ function detectConflict(
 ): { hasConflict: boolean; conflictFields: string[] } {
   const conflictFields: string[] = [];
   
+  // 判断值是否为"无数据"（空值）
+  const isEmptyValue = (value: any): boolean => {
+    if (value === undefined || value === null) return true;
+    const strValue = String(value).trim();
+    // 空字符串、"0"、"0.00" 都视为空值（默认值）
+    return strValue === '' || strValue === '0' || strValue === '0.00' || strValue === '0.0';
+  };
+  
   for (const field of fieldsToCheck) {
     const existingValue = existing[field];
     const newValue = newData[field];
     
-    // 如果两个值都存在且不相等，可能是冲突
-    if (existingValue !== undefined && newValue !== undefined) {
-      // 转换为字符串进行比较
-      const existingStr = String(existingValue);
-      const newStr = String(newValue);
-      
-      if (existingStr !== newStr) {
-        conflictFields.push(field);
-      }
+    // 如果本地值为空，不视为冲突（应该直接使用远程数据更新）
+    if (isEmptyValue(existingValue)) {
+      continue;
+    }
+    
+    // 如果远程值为空，也不视为冲突（保留本地数据）
+    if (isEmptyValue(newValue)) {
+      continue;
+    }
+    
+    // 两个值都存在且不相等，才是真正的冲突
+    const existingStr = String(existingValue).trim();
+    const newStr = String(newValue).trim();
+    
+    if (existingStr !== newStr) {
+      conflictFields.push(field);
     }
   }
   
