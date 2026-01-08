@@ -45,7 +45,8 @@ import {
   Upload,
   FileJson,
   FileSpreadsheet,
-  Eye
+  Eye,
+  TrendingUp
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -204,6 +205,15 @@ export default function AmazonApiSettings() {
     failedSites?: SiteSyncStatus[];
     totalSites?: number;
     completedSites?: number;
+    // 新增：上次同步数据对比
+    previousResults?: {
+      sp: number;
+      sb: number;
+      sd: number;
+      adGroups: number;
+      keywords: number;
+      targets: number;
+    };
   }>({
     step: 'idle',
     progress: 0,
@@ -412,6 +422,12 @@ export default function AmazonApiSettings() {
   const { data: syncStats } = trpc.amazonApi.getSyncStats.useQuery(
     { accountId: selectedAccountId!, days: 30 },
     { enabled: !!selectedAccountId && showSyncHistory }
+  );
+
+  // 上次同步数据查询
+  const { data: lastSyncData } = trpc.amazonApi.getLastSyncData.useQuery(
+    { accountId: selectedAccountId! },
+    { enabled: !!selectedAccountId }
   );
 
   // 同步冲突查询
@@ -949,6 +965,16 @@ export default function AmazonApiSettings() {
       };
     });
 
+    // 获取上次同步数据用于对比
+    const previousResults = lastSyncData ? {
+      sp: lastSyncData.sp,
+      sb: lastSyncData.sb,
+      sd: lastSyncData.sd,
+      adGroups: lastSyncData.adGroups,
+      keywords: lastSyncData.keywords,
+      targets: lastSyncData.targets,
+    } : undefined;
+
     setIsSyncing(true);
     setSyncProgress({
       step: 'sp',
@@ -959,6 +985,7 @@ export default function AmazonApiSettings() {
       failedSites: [],
       totalSites: storeSites.length,
       completedSites: 0,
+      previousResults,
     });
 
     try {
@@ -1079,6 +1106,7 @@ export default function AmazonApiSettings() {
         failedSites: failedSites,
         totalSites: storeSites.length,
         completedSites: successCount,
+        previousResults, // 保留上次同步数据用于对比显示
       });
 
       if (hasFailures) {
@@ -3020,29 +3048,125 @@ export default function AmazonApiSettings() {
                       
                       {/* 同步结果汇总 */}
                       {(syncProgress.step === 'complete' || syncProgress.step === 'error') && (
-                        <div className="mt-4 grid grid-cols-3 gap-4">
-                          <div className="text-center p-3 bg-blue-500/10 rounded-lg">
-                            <div className="text-2xl font-bold text-blue-500">
-                              {syncProgress.results.sp + syncProgress.results.sb + syncProgress.results.sd}
+                        <div className="mt-4 space-y-4">
+                          <div className="grid grid-cols-3 gap-4">
+                            <div className="text-center p-3 bg-blue-500/10 rounded-lg">
+                              <div className="text-2xl font-bold text-blue-500">
+                                {syncProgress.results.sp + syncProgress.results.sb + syncProgress.results.sd}
+                              </div>
+                              <div className="text-xs text-muted-foreground">广告活动</div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                SP:{syncProgress.results.sp} SB:{syncProgress.results.sb} SD:{syncProgress.results.sd}
+                              </div>
+                              {/* 与上次同步对比 */}
+                              {syncProgress.previousResults && (() => {
+                                const currentTotal = syncProgress.results.sp + syncProgress.results.sb + syncProgress.results.sd;
+                                const previousTotal = syncProgress.previousResults.sp + syncProgress.previousResults.sb + syncProgress.previousResults.sd;
+                                const diff = currentTotal - previousTotal;
+                                if (diff !== 0) {
+                                  return (
+                                    <div className={`text-xs mt-1 ${diff > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                      {diff > 0 ? '+' : ''}{diff} vs上次
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
                             </div>
-                            <div className="text-xs text-muted-foreground">广告活动</div>
-                            <div className="text-xs text-muted-foreground mt-1">
-                              SP:{syncProgress.results.sp} SB:{syncProgress.results.sb} SD:{syncProgress.results.sd}
+                            <div className="text-center p-3 bg-green-500/10 rounded-lg">
+                              <div className="text-2xl font-bold text-green-500">{syncProgress.results.adGroups}</div>
+                              <div className="text-xs text-muted-foreground">广告组</div>
+                              {/* 与上次同步对比 */}
+                              {syncProgress.previousResults && (() => {
+                                const diff = syncProgress.results.adGroups - syncProgress.previousResults.adGroups;
+                                if (diff !== 0) {
+                                  return (
+                                    <div className={`text-xs mt-1 ${diff > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                      {diff > 0 ? '+' : ''}{diff} vs上次
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </div>
+                            <div className="text-center p-3 bg-purple-500/10 rounded-lg">
+                              <div className="text-2xl font-bold text-purple-500">
+                                {syncProgress.results.keywords + syncProgress.results.targets}
+                              </div>
+                              <div className="text-xs text-muted-foreground">关键词/定位</div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                关键词:{syncProgress.results.keywords} 定位:{syncProgress.results.targets}
+                              </div>
+                              {/* 与上次同步对比 */}
+                              {syncProgress.previousResults && (() => {
+                                const currentTotal = syncProgress.results.keywords + syncProgress.results.targets;
+                                const previousTotal = syncProgress.previousResults.keywords + syncProgress.previousResults.targets;
+                                const diff = currentTotal - previousTotal;
+                                if (diff !== 0) {
+                                  return (
+                                    <div className={`text-xs mt-1 ${diff > 0 ? 'text-green-500' : 'text-red-500'}`}>
+                                      {diff > 0 ? '+' : ''}{diff} vs上次
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
                             </div>
                           </div>
-                          <div className="text-center p-3 bg-green-500/10 rounded-lg">
-                            <div className="text-2xl font-bold text-green-500">{syncProgress.results.adGroups}</div>
-                            <div className="text-xs text-muted-foreground">广告组</div>
-                          </div>
-                          <div className="text-center p-3 bg-purple-500/10 rounded-lg">
-                            <div className="text-2xl font-bold text-purple-500">
-                              {syncProgress.results.keywords + syncProgress.results.targets}
+                          
+                          {/* 详细对比表格 */}
+                          {syncProgress.previousResults && (
+                            <div className="p-3 bg-muted/30 rounded-lg border">
+                              <div className="text-sm font-medium mb-2 flex items-center gap-2">
+                                <TrendingUp className="h-4 w-4" />
+                                与上次同步对比
+                              </div>
+                              <div className="grid grid-cols-6 gap-2 text-xs">
+                                <div className="text-center">
+                                  <div className="text-muted-foreground">SP活动</div>
+                                  <div className="font-medium">{syncProgress.results.sp}</div>
+                                  <div className={syncProgress.results.sp - syncProgress.previousResults.sp > 0 ? 'text-green-500' : syncProgress.results.sp - syncProgress.previousResults.sp < 0 ? 'text-red-500' : 'text-muted-foreground'}>
+                                    {syncProgress.results.sp - syncProgress.previousResults.sp > 0 ? '+' : ''}{syncProgress.results.sp - syncProgress.previousResults.sp}
+                                  </div>
+                                </div>
+                                <div className="text-center">
+                                  <div className="text-muted-foreground">SB活动</div>
+                                  <div className="font-medium">{syncProgress.results.sb}</div>
+                                  <div className={syncProgress.results.sb - syncProgress.previousResults.sb > 0 ? 'text-green-500' : syncProgress.results.sb - syncProgress.previousResults.sb < 0 ? 'text-red-500' : 'text-muted-foreground'}>
+                                    {syncProgress.results.sb - syncProgress.previousResults.sb > 0 ? '+' : ''}{syncProgress.results.sb - syncProgress.previousResults.sb}
+                                  </div>
+                                </div>
+                                <div className="text-center">
+                                  <div className="text-muted-foreground">SD活动</div>
+                                  <div className="font-medium">{syncProgress.results.sd}</div>
+                                  <div className={syncProgress.results.sd - syncProgress.previousResults.sd > 0 ? 'text-green-500' : syncProgress.results.sd - syncProgress.previousResults.sd < 0 ? 'text-red-500' : 'text-muted-foreground'}>
+                                    {syncProgress.results.sd - syncProgress.previousResults.sd > 0 ? '+' : ''}{syncProgress.results.sd - syncProgress.previousResults.sd}
+                                  </div>
+                                </div>
+                                <div className="text-center">
+                                  <div className="text-muted-foreground">广告组</div>
+                                  <div className="font-medium">{syncProgress.results.adGroups}</div>
+                                  <div className={syncProgress.results.adGroups - syncProgress.previousResults.adGroups > 0 ? 'text-green-500' : syncProgress.results.adGroups - syncProgress.previousResults.adGroups < 0 ? 'text-red-500' : 'text-muted-foreground'}>
+                                    {syncProgress.results.adGroups - syncProgress.previousResults.adGroups > 0 ? '+' : ''}{syncProgress.results.adGroups - syncProgress.previousResults.adGroups}
+                                  </div>
+                                </div>
+                                <div className="text-center">
+                                  <div className="text-muted-foreground">关键词</div>
+                                  <div className="font-medium">{syncProgress.results.keywords}</div>
+                                  <div className={syncProgress.results.keywords - syncProgress.previousResults.keywords > 0 ? 'text-green-500' : syncProgress.results.keywords - syncProgress.previousResults.keywords < 0 ? 'text-red-500' : 'text-muted-foreground'}>
+                                    {syncProgress.results.keywords - syncProgress.previousResults.keywords > 0 ? '+' : ''}{syncProgress.results.keywords - syncProgress.previousResults.keywords}
+                                  </div>
+                                </div>
+                                <div className="text-center">
+                                  <div className="text-muted-foreground">商品定位</div>
+                                  <div className="font-medium">{syncProgress.results.targets}</div>
+                                  <div className={syncProgress.results.targets - syncProgress.previousResults.targets > 0 ? 'text-green-500' : syncProgress.results.targets - syncProgress.previousResults.targets < 0 ? 'text-red-500' : 'text-muted-foreground'}>
+                                    {syncProgress.results.targets - syncProgress.previousResults.targets > 0 ? '+' : ''}{syncProgress.results.targets - syncProgress.previousResults.targets}
+                                  </div>
+                                </div>
+                              </div>
                             </div>
-                            <div className="text-xs text-muted-foreground">关键词/定位</div>
-                            <div className="text-xs text-muted-foreground mt-1">
-                              关键词:{syncProgress.results.keywords} 定位:{syncProgress.results.targets}
-                            </div>
-                          </div>
+                          )}
                         </div>
                       )}
                       

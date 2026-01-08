@@ -3173,3 +3173,11 @@
     - [x] SP活动级否定词 (listSpCampaignNegativeKeywords) - 添加nextToken分页
     - [x] SP广告组否定词 (listSpNegativeKeywords) - 添加nextToken分页
   - [x] 测试修复效果
+
+### 2026-01-08 同步统计对比功能
+- [x] 添加同步统计对比功能
+  - [x] 后端：添加getLastSyncData API获取上次同步数据
+  - [x] 前端：在同步完成后显示与上次同步的数据量对比
+  - [x] 前端：显示各类数据的增减变化（SP/SB/SD活动、广告组、关键词、商品定位）
+  - [x] 前端：添加详细对比表格显示每项数据的变化
+  - [x] 测试：编写同步统计对比功能的单元测试

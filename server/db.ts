@@ -3100,6 +3100,35 @@ export async function getLastSuccessfulSync(accountId: number): Promise<string |
 }
 
 /**
+ * 获取上次成功同步的数据统计
+ */
+export async function getLastSyncData(accountId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const [lastJob] = await db.select()
+    .from(dataSyncJobs)
+    .where(and(
+      eq(dataSyncJobs.accountId, accountId),
+      eq(dataSyncJobs.status, 'completed')
+    ))
+    .orderBy(desc(dataSyncJobs.completedAt))
+    .limit(1);
+  
+  if (!lastJob) return null;
+  
+  return {
+    sp: lastJob.spCampaigns || 0,
+    sb: lastJob.sbCampaigns || 0,
+    sd: lastJob.sdCampaigns || 0,
+    adGroups: lastJob.adGroupsSynced || 0,
+    keywords: lastJob.keywordsSynced || 0,
+    targets: lastJob.targetsSynced || 0,
+    syncedAt: lastJob.completedAt,
+  };
+}
+
+/**
  * 获取同步统计信息
  */
 export async function getSyncStats(accountId: number, days: number = 30) {

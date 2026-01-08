@@ -3011,6 +3011,13 @@ const amazonApiRouter = router({
       return db.getSyncStats(input.accountId, input.days);
     }),
 
+  // 获取上次成功同步的数据统计
+  getLastSyncData: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getLastSyncData(input.accountId);
+    }),
+
   // 获取同步任务日志
   getSyncLogs: protectedProcedure
     .input(z.object({ jobId: z.number() }))
