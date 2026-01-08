@@ -363,26 +363,26 @@ export default function AnalyticsInsights() {
                           <Calendar className="h-4 w-4 text-muted-foreground" />
                           <span className="font-medium">{format(new Date(day.date), 'MM-dd EEEE', { locale: zhCN })}</span>
                         </div>
-                        <Badge variant={day.adjusted.confidence === 'high' ? 'default' : day.adjusted.confidence === 'medium' ? 'secondary' : 'outline'}>
-                          {day.adjusted.confidence === 'high' ? '高置信度' : day.adjusted.confidence === 'medium' ? '中置信度' : '低置信度'}
+                        <Badge variant={day.adjusted?.confidence === 'high' ? 'default' : day.adjusted?.confidence === 'medium' ? 'secondary' : 'outline'}>
+                          {day.adjusted?.confidence === 'high' ? '高置信度' : day.adjusted?.confidence === 'medium' ? '中置信度' : '低置信度'}
                         </Badge>
                       </div>
                       <div className="grid grid-cols-4 gap-4 text-sm">
                         <div>
                           <p className="text-muted-foreground">原始销售额</p>
-                          <p className="font-medium">${day.original.sales.toFixed(0)}</p>
+                          <p className="font-medium">${(day.original?.sales ?? 0).toFixed(0)}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">调整后销售额</p>
-                          <p className="font-medium text-green-400">${day.adjusted.sales.toFixed(0)}</p>
+                          <p className="font-medium text-green-400">${(day.adjusted?.sales ?? 0).toFixed(0)}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">调整系数</p>
-                          <p className="font-medium">{day.adjusted.adjustmentFactor.toFixed(2)}x</p>
+                          <p className="font-medium">{(day.adjusted?.adjustmentFactor ?? 1).toFixed(2)}x</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">预期增量</p>
-                          <p className="font-medium text-blue-400">+${(day.adjusted.sales - day.original.sales).toFixed(0)}</p>
+                          <p className="font-medium text-blue-400">+${((day.adjusted?.sales ?? 0) - (day.original?.sales ?? 0)).toFixed(0)}</p>
                         </div>
                       </div>
                     </div>
