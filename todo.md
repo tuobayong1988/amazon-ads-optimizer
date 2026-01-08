@@ -2894,3 +2894,8 @@
 - [x] 流量冲突检测归一化参数动态化
 - [x] 自动化执行引擎通知机制完善
 - [x] 出价优化算法单元测试（27个测试通过）
+
+
+## Bug修复（第二十六阶段）
+- [x] 修复StrategyCenter页面的dailyBudget类型错误（toFixed is not a function）
+- [x] 修复AutomationControl页面的API调用错误（已验证正常）

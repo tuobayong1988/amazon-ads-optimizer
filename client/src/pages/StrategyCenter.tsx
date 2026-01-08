@@ -265,7 +265,7 @@ export default function StrategyCenter() {
                       </div>
                       <div>
                         <p className="text-muted-foreground">目标ROAS</p>
-                        <p className="font-medium">{group.targetRoas?.toFixed(1) || '-'}</p>
+                        <p className="font-medium">{typeof group.targetRoas === 'number' ? group.targetRoas.toFixed(1) : (parseFloat(group.targetRoas as any) || 0).toFixed(1) || '-'}</p>
                       </div>
                       <div>
                         <p className="text-muted-foreground">广告活动数</p>
@@ -314,15 +314,15 @@ export default function StrategyCenter() {
                       <div className="flex items-center gap-6 text-sm">
                         <div className="text-right">
                           <p className="text-muted-foreground">日预算</p>
-                          <p className="font-medium">${campaign.dailyBudget?.toFixed(2) || '0.00'}</p>
+                          <p className="font-medium">${typeof campaign.dailyBudget === 'number' ? campaign.dailyBudget.toFixed(2) : (parseFloat(campaign.dailyBudget) || 0).toFixed(2)}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-muted-foreground">花费</p>
-                          <p className="font-medium">${campaign.spend?.toFixed(2) || '0.00'}</p>
+                          <p className="font-medium">${typeof campaign.spend === 'number' ? campaign.spend.toFixed(2) : (parseFloat(campaign.spend as any) || 0).toFixed(2)}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-muted-foreground">ACoS</p>
-                          <p className="font-medium">{campaign.acos?.toFixed(1) || '0.0'}%</p>
+                          <p className="font-medium">{typeof campaign.acos === 'number' ? campaign.acos.toFixed(1) : (parseFloat(campaign.acos as any) || 0).toFixed(1)}%</p>
                         </div>
                       </div>
                     </div>
