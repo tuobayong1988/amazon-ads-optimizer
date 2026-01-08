@@ -994,6 +994,30 @@ export default function AmazonApiSettings() {
     }
   };
   
+  // 并行同步的并发控制数（默认最多同时同步3个站点）
+  const MAX_CONCURRENT_SYNCS = 3;
+
+  // 并行执行任务的辅助函数，控制并发数
+  const executeWithConcurrencyLimit = async <T,>(
+    tasks: (() => Promise<T>)[],
+    limit: number,
+    onProgress?: (completed: number, total: number) => void
+  ): Promise<PromiseSettledResult<T>[]> => {
+    const results: PromiseSettledResult<T>[] = [];
+    let completed = 0;
+    
+    // 分批执行任务
+    for (let i = 0; i < tasks.length; i += limit) {
+      const batch = tasks.slice(i, i + limit);
+      const batchResults = await Promise.allSettled(batch.map(task => task()));
+      results.push(...batchResults);
+      completed += batch.length;
+      onProgress?.(completed, tasks.length);
+    }
+    
+    return results;
+  };
+
   const handleSyncAll = async () => {
     if (!selectedAccount) {
       toast.error("请先选择店铺");
@@ -1036,10 +1060,17 @@ export default function AmazonApiSettings() {
     } : undefined;
 
     setIsSyncing(true);
+    
+    // 初始化进度状态
+    let currentSiteStatuses = [...initialSiteStatuses];
+    let totalResults = { sp: 0, sb: 0, sd: 0, adGroups: 0, keywords: 0, targets: 0 };
+    let failedSites: SiteSyncStatus[] = [];
+    let completedCount = 0;
+
     setSyncProgress({
       step: 'sp',
       progress: 5,
-      current: `正在同步 ${storeSites.length} 个站点的数据...`,
+      current: `正在并行同步 ${storeSites.length} 个站点的数据（最多${MAX_CONCURRENT_SYNCS}个并行）...`,
       results: { sp: 0, sb: 0, sd: 0, adGroups: 0, keywords: 0, targets: 0 },
       siteStatuses: initialSiteStatuses,
       failedSites: [],
@@ -1049,130 +1080,146 @@ export default function AmazonApiSettings() {
     });
 
     try {
-      let totalResults = { sp: 0, sb: 0, sd: 0, adGroups: 0, keywords: 0, targets: 0 };
-      let failedSites: SiteSyncStatus[] = [];
-      let currentSiteStatuses = [...initialSiteStatuses];
-      
-      // 依次同步每个站点
-      for (let i = 0; i < storeSites.length; i++) {
-        const site = storeSites[i];
+      // 创建同步任务列表
+      const syncTasks = storeSites.map((site, index) => {
         const mp = MARKETPLACES.find(m => m.id === site.marketplace);
         const siteName = mp?.name || site.marketplace;
         const siteFlag = mp?.flag || '🌐';
-        
-        // 更新当前站点状态为同步中
-        currentSiteStatuses = currentSiteStatuses.map(s => 
-          s.id === site.id ? { ...s, status: 'syncing' as const, progress: 10 } : s
-        );
-        
-        const overallProgress = Math.round((i / storeSites.length) * 80) + 10;
-        setSyncProgress(prev => ({
-          ...prev,
-          progress: overallProgress,
-          current: `正在同步 ${siteName} (${i + 1}/${storeSites.length})...`,
-          siteStatuses: currentSiteStatuses,
-          completedSites: i,
-        }));
 
-        try {
-          // 模拟同步进度更新
-          for (const progress of [30, 50, 70, 90]) {
-            await new Promise(resolve => setTimeout(resolve, 50));
+        return async () => {
+          // 更新当前站点状态为同步中
+          currentSiteStatuses = currentSiteStatuses.map(s => 
+            s.id === site.id ? { ...s, status: 'syncing' as const, progress: 10 } : s
+          );
+          setSyncProgress(prev => ({
+            ...prev,
+            siteStatuses: [...currentSiteStatuses],
+            current: `正在并行同步: ${currentSiteStatuses.filter(s => s.status === 'syncing').map(s => s.name).join(', ')}`,
+          }));
+
+          try {
+            // 模拟同步进度更新
+            for (const progress of [30, 50, 70, 90]) {
+              await new Promise(resolve => setTimeout(resolve, 100));
+              currentSiteStatuses = currentSiteStatuses.map(s => 
+                s.id === site.id && s.status === 'syncing' ? { ...s, progress } : s
+              );
+              setSyncProgress(prev => ({
+                ...prev,
+                siteStatuses: [...currentSiteStatuses],
+              }));
+            }
+            
+            const result = await syncAllMutation.mutateAsync({ 
+              accountId: site.id,
+              isIncremental: useIncrementalSync,
+            });
+            
+            const siteResults = {
+              sp: result.spCampaigns || 0,
+              sb: result.sbCampaigns || 0,
+              sd: result.sdCampaigns || 0,
+              adGroups: result.adGroups || 0,
+              keywords: result.keywords || 0,
+              targets: result.targets || 0,
+            };
+            
+            // 累加结果
+            totalResults.sp += siteResults.sp;
+            totalResults.sb += siteResults.sb;
+            totalResults.sd += siteResults.sd;
+            totalResults.adGroups += siteResults.adGroups;
+            totalResults.keywords += siteResults.keywords;
+            totalResults.targets += siteResults.targets;
+            
+            // 更新站点状态为成功
             currentSiteStatuses = currentSiteStatuses.map(s => 
-              s.id === site.id ? { ...s, progress } : s
+              s.id === site.id ? { 
+                ...s, 
+                status: 'success' as const, 
+                progress: 100,
+                results: siteResults 
+              } : s
             );
+            
+            completedCount++;
+            const overallProgress = Math.round((completedCount / storeSites.length) * 90) + 5;
+            
             setSyncProgress(prev => ({
               ...prev,
-              siteStatuses: currentSiteStatuses,
+              progress: overallProgress,
+              siteStatuses: [...currentSiteStatuses],
+              results: { ...totalResults },
+              completedSites: completedCount,
             }));
+
+            return { site, result: siteResults };
+          } catch (siteError: any) {
+            console.error(`同步站点 ${siteName} 失败:`, siteError);
+            
+            // 更新站点状态为失败
+            const failedSiteStatus: SiteSyncStatus = {
+              id: site.id,
+              marketplace: site.marketplace,
+              name: siteName,
+              flag: siteFlag,
+              status: 'failed' as const,
+              progress: 0,
+              error: siteError.message || '同步失败',
+              retryCount: 0,
+            };
+            
+            currentSiteStatuses = currentSiteStatuses.map(s => 
+              s.id === site.id ? failedSiteStatus : s
+            );
+            failedSites.push(failedSiteStatus);
+            
+            completedCount++;
+            const overallProgress = Math.round((completedCount / storeSites.length) * 90) + 5;
+            
+            setSyncProgress(prev => ({
+              ...prev,
+              progress: overallProgress,
+              siteStatuses: [...currentSiteStatuses],
+              failedSites: [...failedSites],
+              completedSites: completedCount,
+            }));
+
+            throw siteError;
           }
-          
-          const result = await syncAllMutation.mutateAsync({ 
-            accountId: site.id,
-            isIncremental: useIncrementalSync,
-          });
-          
-          const siteResults = {
-            sp: result.spCampaigns || 0,
-            sb: result.sbCampaigns || 0,
-            sd: result.sdCampaigns || 0,
-            adGroups: result.adGroups || 0,
-            keywords: result.keywords || 0,
-            targets: result.targets || 0,
-          };
-          
-          // 累加结果
-          totalResults.sp += siteResults.sp;
-          totalResults.sb += siteResults.sb;
-          totalResults.sd += siteResults.sd;
-          totalResults.adGroups += siteResults.adGroups;
-          totalResults.keywords += siteResults.keywords;
-          totalResults.targets += siteResults.targets;
-          
-          // 更新站点状态为成功
-          currentSiteStatuses = currentSiteStatuses.map(s => 
-            s.id === site.id ? { 
-              ...s, 
-              status: 'success' as const, 
-              progress: 100,
-              results: siteResults 
-            } : s
-          );
-          
-          setSyncProgress(prev => ({
-            ...prev,
-            siteStatuses: currentSiteStatuses,
-            results: totalResults,
-          }));
-        } catch (siteError: any) {
-          console.error(`同步站点 ${siteName} 失败:`, siteError);
-          
-          // 更新站点状态为失败
-          const failedSiteStatus: SiteSyncStatus = {
-            id: site.id,
-            marketplace: site.marketplace,
-            name: siteName,
-            flag: siteFlag,
-            status: 'failed' as const,
-            progress: 0,
-            error: siteError.message || '同步失败',
-            retryCount: 0,
-          };
-          
-          currentSiteStatuses = currentSiteStatuses.map(s => 
-            s.id === site.id ? failedSiteStatus : s
-          );
-          failedSites.push(failedSiteStatus);
-          
-          setSyncProgress(prev => ({
-            ...prev,
-            siteStatuses: currentSiteStatuses,
-            failedSites: failedSites,
-          }));
+        };
+      });
+
+      // 使用并发控制执行所有同步任务
+      await executeWithConcurrencyLimit(
+        syncTasks,
+        MAX_CONCURRENT_SYNCS,
+        (completed, total) => {
+          console.log(`同步进度: ${completed}/${total}`);
         }
-      }
+      );
       
       const successCount = storeSites.length - failedSites.length;
       const hasFailures = failedSites.length > 0;
       
       setSyncProgress({
         step: hasFailures ? 'error' : 'complete',
-        progress: hasFailures ? 90 : 100,
+        progress: hasFailures ? 95 : 100,
         current: hasFailures 
-          ? `同步完成，${successCount} 个站点成功，${failedSites.length} 个站点失败`
-          : `同步完成！已同步 ${storeSites.length} 个站点`,
+          ? `并行同步完成，${successCount} 个站点成功，${failedSites.length} 个站点失败`
+          : `并行同步完成！已同步 ${storeSites.length} 个站点`,
         results: totalResults,
         siteStatuses: currentSiteStatuses,
         failedSites: failedSites,
         totalSites: storeSites.length,
         completedSites: successCount,
-        previousResults, // 保留上次同步数据用于对比显示
+        previousResults,
       });
 
       if (hasFailures) {
-        toast(`同步完成，${failedSites.length} 个站点失败，可单独重试`, { icon: '⚠️' });
+        toast(`并行同步完成，${failedSites.length} 个站点失败，可单独重试`, { icon: '⚠️' });
       } else {
-        toast.success(`已成功同步 ${storeSites.length} 个站点的数据`);
+        toast.success(`已并行同步 ${storeSites.length} 个站点的数据`);
       }
 
       // 如果没有失败，10秒后重置进度
