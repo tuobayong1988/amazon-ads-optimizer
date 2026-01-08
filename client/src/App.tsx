@@ -53,6 +53,7 @@ import MonitoringCenter from "@/pages/MonitoringCenter";
 import AnalyticsInsights from "@/pages/AnalyticsInsights";
 import StrategyCenter from "@/pages/StrategyCenter";
 import OptimizationEngine from "@/pages/OptimizationEngine";
+import SmartOptimizationCenter from "@/pages/SmartOptimizationCenter";
 
 function Router() {
   return (
@@ -62,7 +63,9 @@ function Router() {
       <Route path="/monitoring-center" component={MonitoringCenter} />
       <Route path="/analytics-insights" component={AnalyticsInsights} />
       <Route path="/strategy-center" component={StrategyCenter} />
-      <Route path="/optimization-engine" component={OptimizationEngine} />
+      <Route path="/optimization-engine" component={SmartOptimizationCenter} />
+      {/* 旧的优化引擎页面重定向到智能优化中心 */}
+      <Route path="/smart-optimization" component={SmartOptimizationCenter} />
       <Route path="/optimization-targets" component={OptimizationTargets} />
       <Route path="/optimization-targets/:id" component={PerformanceGroupDetail} />
       <Route path="/performance-groups" component={PerformanceGroups} />
@@ -109,8 +112,9 @@ function Router() {
       <Route path="/budget-auto-execution">{() => { window.location.href = '/settings'; return null; }}</Route>
       <Route path="/api-security" component={ApiSecurityCenter} />
       <Route path="/special-scenario" component={SpecialScenarioAnalysis} />
-      <Route path="/automation-control" component={AutomationControl} />
-      <Route path="/auto-operation" component={AutoOperation} />
+      {/* 自动化控制和自动运营已整合到智能优化中心 */}
+      <Route path="/automation-control">{() => { window.location.href = '/optimization-engine'; return null; }}</Route>
+      <Route path="/auto-operation">{() => { window.location.href = '/optimization-engine'; return null; }}</Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

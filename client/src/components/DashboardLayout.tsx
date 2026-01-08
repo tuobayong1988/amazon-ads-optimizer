@@ -61,8 +61,8 @@ import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 import AccountSwitcher from "./AccountSwitcher";
 
-// 菜单分组配置 - 合并优化后的4个核心模块
-// 算法自主决策执行，人只做监督
+// 菜单分组配置 - 极简化设计
+// 算法自主决策执行，用户只需监督
 const menuGroups = [
   {
     title: "监控中心",
@@ -73,7 +73,7 @@ const menuGroups = [
   },
   {
     title: "策略中心",
-    description: "优化目标、广告活动、自动化配置",
+    description: "优化目标、广告活动管理",
     items: [
       { icon: Target, label: "策略管理", path: "/strategy-center", badge: "核心" },
       { icon: Megaphone, label: "广告活动", path: "/campaigns" },
@@ -81,18 +81,16 @@ const menuGroups = [
   },
   {
     title: "优化引擎",
-    description: "智能优化建议和自动执行",
+    description: "AI驱动的全自动广告优化",
     items: [
-      { icon: Zap, label: "优化引擎", path: "/optimization-engine", badge: "核心" },
-      { icon: Bot, label: "自动化控制", path: "/automation-control" },
-      { icon: RefreshCw, label: "自动运营", path: "/auto-operation", badge: "新" },
+      { icon: Brain, label: "智能优化中心", path: "/optimization-engine", badge: "核心" },
     ]
   },
   {
     title: "分析洞察",
-    description: "特殊场景、纠错复盘、季节性分析",
+    description: "数据分析与报告",
     items: [
-      { icon: Brain, label: "分析洞察", path: "/analytics-insights", badge: "核心" },
+      { icon: BarChart3, label: "数据分析", path: "/analytics-insights", badge: "核心" },
     ]
   },
   {
