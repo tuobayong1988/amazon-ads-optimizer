@@ -1,51 +1,47 @@
-# 问题调试记录
-
-## 当前问题
-
-从API响应可以看到：
-1. **ElaraFit** 店铺 - marketplace: "US" - 正确
-2. **我的店铺** 的三个站点：
-   - id: 60006, marketplace: "加拿大" - 保存的是中文名称
-   - id: 60007, marketplace: "墨西哥" - 保存的是中文名称
-   - id: 60008, marketplace: "美国" - 保存的是中文名称
+# 授权流程问题分析和修复方案
 
 ## 问题根源
 
-前端MARKETPLACES常量使用的是国家代码（US, CA, MX等）作为id：
+### 前端问题
+在 `AmazonApiSettings.tsx` 第1478行：
 ```javascript
-const MARKETPLACES = [
-  { id: "US", name: "美国", ... },
-  { id: "CA", name: "加拿大", ... },
-  { id: "MX", name: "墨西哥", ... },
-  ...
-];
+const storeName = selectedAccount?.storeName || formData.storeName || '我的店铺';
 ```
 
-但后端saveMultipleProfiles保存的是中文市场名称：
-```javascript
-const marketplace = countryToMarketplace[profile.countryCode] || profile.countryCode;
-// 这里 countryToMarketplace['CA'] = '加拿大'
-```
+问题：
+1. `selectedAccount` 是通过 `selectedAccountId` 从 `accounts` 列表中查找的
+2. 但 `selectedAccountId` 可能没有正确设置，导致 `selectedAccount` 为 null
+3. `formData.storeName` 也可能为空
+4. 最终回退到默认值 '我的店铺'
 
-所以前端在查找时：
-```javascript
-const marketplace = MARKETPLACES.find(m => m.id === account.marketplace);
-// account.marketplace = "加拿大"
-// 但 MARKETPLACES 的 id 是 "CA"
-// 所以找不到匹配，显示 account.marketplace 原值 "加拿大"
-```
+### 后端问题
+在 `server/routers.ts` 的 `saveMultipleProfiles` 中：
+- 后端直接使用传入的 `storeName` 创建新账号
+- 没有检查是否应该将站点添加到已有店铺
 
-但为什么显示"加拿大0"呢？需要检查前端显示逻辑...
+## 修复方案
 
-## 进一步分析
+### 方案1：前端确保传递正确的店铺名称
+1. 在API配置Tab中，用户必须先选择一个店铺才能进行授权
+2. 授权时强制使用 `selectedAccount.storeName`
+3. 如果没有选择店铺，禁用授权按钮
 
-截图显示的是"加拿大0"、"墨西哥0"、"美国0"，但API返回的是"加拿大"、"墨西哥"、"美国"。
+### 方案2：后端支持按店铺名称关联
+1. 后端接收 `storeName` 后，先查找是否已存在该名称的店铺
+2. 如果存在，将新站点添加到该店铺下
+3. 如果不存在，创建新店铺
 
-这说明问题可能在：
-1. 店铺名称分组逻辑 - storeName是"我的店铺"，但显示为"我的店铺0"
-2. 需要检查分组key的生成逻辑
+### 选择方案2
+因为方案2更健壮，即使前端传递了错误的店铺名称，后端也能正确处理。
 
-## 解决方案
+## 具体修改
 
-1. 修改后端saveMultipleProfiles，保存国家代码而不是中文名称
-2. 或者修改前端MARKETPLACES查找逻辑，同时支持id和name匹配
+### 1. 前端修改 (AmazonApiSettings.tsx)
+- 在授权前检查是否已选择店铺
+- 确保使用 `selectedAccount.storeName`
+- 添加日志输出便于调试
+
+### 2. 后端修改 (server/routers.ts)
+- `saveMultipleProfiles` 接收额外参数 `existingStoreId`（可选）
+- 如果提供了 `existingStoreId`，将站点添加到该店铺
+- 如果没有提供，按 `storeName` 查找或创建店铺

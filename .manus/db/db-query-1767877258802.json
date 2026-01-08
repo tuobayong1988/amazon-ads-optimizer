@@ -1,0 +1,9 @@
+{
+  "query": "-- 先删除关联的凭证\nDELETE FROM amazon_api_credentials WHERE accountId IN (\n  SELECT id FROM ad_accounts WHERE storeName = 'ElaraFit' AND profileId IN ('1902077932438117', '1080055356599494', '599502392622991')\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute -- 先删除关联的凭证\nDELETE FROM amazon_api_credentials WHERE accountId IN (\n  SELECT id FROM ad_accounts WHERE storeName = 'ElaraFit' AND profileId IN ('1902077932438117', '1080055356599494', '599502392622991')\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 64
+}

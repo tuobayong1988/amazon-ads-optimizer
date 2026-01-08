@@ -288,6 +288,32 @@ export default function AmazonApiSettings() {
     },
   });
 
+  // Create empty store mutation
+  const createStoreMutation = trpc.adAccount.createStore.useMutation({
+    onSuccess: (data) => {
+      toast.success(`店铺 "${data.storeName}" 创建成功！请在"API配置"中进行授权。`);
+      utils.adAccount.list.invalidate();
+      utils.adAccount.getStats.invalidate();
+      setIsAddDialogOpen(false);
+      // 重置表单
+      setFormData({
+        accountId: '',
+        accountName: '',
+        storeName: '',
+        storeDescription: '',
+        storeColor: '#3B82F6',
+        marketplace: '',
+        marketplaceId: '',
+        profileId: '',
+        sellerId: '',
+        isDefault: false,
+      });
+    },
+    onError: (error) => {
+      toast.error(`创建失败: ${error.message}`);
+    },
+  });
+
   // Set default account mutation
   const setDefaultMutation = trpc.adAccount.setDefault.useMutation({
     onSuccess: () => {
@@ -593,6 +619,20 @@ export default function AmazonApiSettings() {
     }
   };
 
+  // 创建空店铺
+  const handleCreateEmptyStore = async () => {
+    if (!formData.storeName) {
+      toast.error("请输入店铺名称");
+      return;
+    }
+
+    await createStoreMutation.mutateAsync({
+      storeName: formData.storeName,
+      storeDescription: formData.storeDescription,
+      storeColor: formData.storeColor,
+    });
+  };
+
   // 旧的创建账号流程（不再使用）
   const handleCreateAccount = async () => {
     if (!formData.accountId || !formData.accountName || !formData.marketplace) {
@@ -824,11 +864,11 @@ export default function AmazonApiSettings() {
                   添加店铺账号
                 </Button>
               </DialogTrigger>
-            <DialogContent className="max-w-2xl">
+            <DialogContent className="max-w-md">
               <DialogHeader>
                 <DialogTitle>添加新店铺</DialogTitle>
                 <DialogDescription>
-                  输入店铺名称，然后通过Amazon OAuth授权。授权时可以选择要同步的站点（美国、加拿大、墨西哥等）。
+                  输入店铺名称创建店铺，创建后可在“API配置”中进行授权。
                 </DialogDescription>
               </DialogHeader>
 
@@ -843,7 +883,7 @@ export default function AmazonApiSettings() {
                     className="text-base"
                   />
                   <p className="text-xs text-muted-foreground">
-                    此名称将用于区分不同的店铺，所有授权的站点将显示在这个店铺下
+                    此名称将用于区分不同的店铺
                   </p>
                 </div>
 
@@ -870,12 +910,9 @@ export default function AmazonApiSettings() {
                   </div>
                 </div>
 
-                <Separator />
-
-                <div className="space-y-3">
-                  <p className="text-sm font-medium">下一步：授权Amazon API</p>
+                <div className="p-3 bg-muted/50 rounded-lg">
                   <p className="text-sm text-muted-foreground">
-                    点击下方按鐐，将跳转到Amazon授权页面。在授权页面中，您可以选择要同步的所有站点。授权成功后，系统会自动为这些站点创建账号。
+                    <strong>提示：</strong>店铺创建后，请在“API配置”Tab中进行Amazon广告API授权。
                   </p>
                 </div>
               </div>
@@ -885,11 +922,11 @@ export default function AmazonApiSettings() {
                   取消
                 </Button>
                 <Button 
-                  onClick={handleAuthorizeAmazon}
-                  disabled={!formData.storeName || authStep !== 'idle'}
+                  onClick={handleCreateEmptyStore}
+                  disabled={!formData.storeName || createStoreMutation.isPending}
                 >
-                  {authStep === 'oauth' && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  {authStep === 'oauth' ? '授权中...' : '授权Amazon API'}
+                  {createStoreMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {createStoreMutation.isPending ? '创建中...' : '创建店铺'}
                 </Button>
               </DialogFooter>
             </DialogContent>
@@ -904,7 +941,7 @@ export default function AmazonApiSettings() {
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-muted-foreground">总账号数</p>
+                    <p className="text-sm text-muted-foreground">总店铺数</p>
                     <p className="text-2xl font-bold">{accountStats.total}</p>
                   </div>
                   <Store className="h-8 w-8 text-blue-500" />
@@ -949,7 +986,7 @@ export default function AmazonApiSettings() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-muted-foreground">市场覆盖</p>
-                    <p className="text-2xl font-bold text-purple-500">{Object.keys(accountStats.byMarketplace).length}</p>
+                    <p className="text-2xl font-bold text-purple-500">{accountStats.marketplaceCount || Object.keys(accountStats.byMarketplace).length}</p>
                   </div>
                   <Globe className="h-8 w-8 text-purple-500" />
                 </div>
@@ -973,20 +1010,34 @@ export default function AmazonApiSettings() {
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {/* 按店铺名称分组显示多站点 */}
                 {(() => {
-                  // 按storeName分组
+                  // 按storeName分组，过滤掉空站点记录（marketplace为空的占位记录）
                   const groupedAccounts = accounts.reduce((groups, account) => {
                     const groupKey = account.storeName || account.accountName || 'default';
                     if (!groups[groupKey]) {
-                      groups[groupKey] = [];
+                      groups[groupKey] = { accounts: [], emptyStore: null as typeof account | null };
                     }
-                    groups[groupKey].push(account);
+                    // 检查是否是空店铺占位记录
+                    if (!account.marketplace || account.marketplace === '') {
+                      groups[groupKey].emptyStore = account;
+                    } else {
+                      groups[groupKey].accounts.push(account);
+                    }
                     return groups;
-                  }, {} as Record<string, typeof accounts>);
+                  }, {} as Record<string, { accounts: typeof accounts; emptyStore: typeof accounts[0] | null }>);
 
-                  return Object.entries(groupedAccounts).map(([storeName, storeAccounts]) => {
-                    const primaryAccount = storeAccounts.find(a => a.isDefault) || storeAccounts[0];
+                  return Object.entries(groupedAccounts).map(([storeName, { accounts: storeAccounts, emptyStore }]) => {
+                    // 如果没有实际站点，使用空店铺记录作为primaryAccount
+                    const primaryAccount = storeAccounts.length > 0 
+                      ? (storeAccounts.find(a => a.isDefault) || storeAccounts[0])
+                      : emptyStore;
+                    
+                    // 如果没有任何记录，跳过
+                    if (!primaryAccount) return null;
+                    
                     const hasMultipleMarkets = storeAccounts.length > 1;
-                    const isAnySelected = storeAccounts.some(a => a.id === selectedAccountId);
+                    const isEmptyStore = storeAccounts.length === 0;
+                    const isAnySelected = storeAccounts.some(a => a.id === selectedAccountId) || 
+                      (isEmptyStore && emptyStore && selectedAccountId === emptyStore.id);
                     
                     return (
                       <Card 
@@ -1018,12 +1069,14 @@ export default function AmazonApiSettings() {
                                   )}
                                 </CardTitle>
                                 <CardDescription className="text-xs">
-                                  {hasMultipleMarkets 
-                                    ? `${storeAccounts.length} 个站点`
-                                    : (() => {
-                                        const mp = MARKETPLACES.find(m => m.id === primaryAccount.marketplace);
-                                        return `${mp?.flag || ''} ${mp?.name || primaryAccount.marketplace}`;
-                                      })()
+                                  {isEmptyStore 
+                                    ? '待授权 - 请在API配置中进行授权'
+                                    : hasMultipleMarkets 
+                                      ? `${storeAccounts.length} 个站点`
+                                      : (() => {
+                                          const mp = MARKETPLACES.find(m => m.id === primaryAccount.marketplace);
+                                          return `${mp?.flag || ''} ${mp?.name || primaryAccount.marketplace}`;
+                                        })()
                                   }
                                 </CardDescription>
                               </div>
@@ -1061,6 +1114,31 @@ export default function AmazonApiSettings() {
                           <div className="space-y-3">
                             {/* 站点列表 */}
                             <div className="space-y-2">
+                              {/* 空店铺显示授权提示 */}
+                              {isEmptyStore && emptyStore && (
+                                <div 
+                                  className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors border-2 border-dashed ${
+                                    selectedAccountId === emptyStore.id
+                                      ? 'bg-primary/10 border-primary/50' 
+                                      : 'hover:bg-muted/50 border-muted-foreground/30'
+                                  }`}
+                                  onClick={() => {
+                                    setSelectedAccountId(emptyStore.id);
+                                    setActiveTab('api-config');
+                                  }}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-lg">🔑</span>
+                                    <div>
+                                      <div className="text-sm font-medium">点击进行API授权</div>
+                                      <div className="text-xs text-muted-foreground">授权后可同步广告数据</div>
+                                    </div>
+                                  </div>
+                                  <Badge variant="outline" className="text-yellow-500 border-yellow-500">
+                                    待授权
+                                  </Badge>
+                                </div>
+                              )}
                               {storeAccounts.map((account) => {
                                 const marketplace = MARKETPLACES.find(m => m.id === account.marketplace);
                                 const isSelected = selectedAccountId === account.id;
@@ -1474,11 +1552,18 @@ export default function AmazonApiSettings() {
                                 
                                 // 如果检测到多个profiles，自动为所有站点创建账号
                                 if (result.profiles && result.profiles.length > 0) {
-                                  // 使用当前表单中的店铺名称，如果没有则使用默认名称
-                                  const storeName = formData.storeName || '我的店铺';
+                                  // 优先使用当前选中账号的店铺名称，其次是表单中的名称
+                                  const storeName = selectedAccount?.storeName || formData.storeName || '我的店铺';
+                                  
+                                  console.log('[Auth] 保存多站点授权，使用店铺名称:', {
+                                    selectedAccountStoreName: selectedAccount?.storeName,
+                                    formDataStoreName: formData.storeName,
+                                    finalStoreName: storeName,
+                                  });
                                   
                                   await saveMultipleProfilesMutation.mutateAsync({
                                     storeName,
+                                    existingStoreName: selectedAccount?.storeName || undefined, // 传递已有店铺名称
                                     clientId: newCredentials.clientId,
                                     clientSecret: newCredentials.clientSecret,
                                     refreshToken: newCredentials.refreshToken,
@@ -1912,6 +1997,20 @@ export default function AmazonApiSettings() {
 
                     <Separator className="bg-purple-500/20" />
 
+                    {/* 当前店铺提示 - 如果已选中店铺则显示 */}
+                    {selectedAccount && (
+                      <div className="p-3 bg-purple-900/30 rounded-lg border border-purple-500/30">
+                        <div className="flex items-center gap-2">
+                          <Store className="h-4 w-4 text-purple-400" />
+                          <span className="text-purple-300">当前店铺：</span>
+                          <span className="font-semibold text-purple-200">{selectedAccount.storeName}</span>
+                        </div>
+                        <p className="text-xs text-purple-400 mt-1">授权完成后，新站点将自动添加到此店铺下</p>
+                      </div>
+                    )}
+
+                    <Separator className="bg-purple-500/20" />
+
                     <div className="space-y-3">
                       <Label className="text-purple-400 font-medium">粘贴授权完成后的URL</Label>
                       <p className="text-sm text-purple-300">
@@ -1925,7 +2024,15 @@ export default function AmazonApiSettings() {
                       />
                       <Button 
                         className="w-full bg-purple-600 hover:bg-purple-700"
+                        disabled={!selectedAccount || (authStep !== 'idle' && authStep !== 'error')}
                         onClick={async () => {
+                          // 使用已选中店铺的名称
+                          const storeName = selectedAccount?.storeName;
+                          if (!storeName) {
+                            toast.error('请先选择一个店铺');
+                            return;
+                          }
+                          
                           const urlInput = document.getElementById('manualAuthUrl') as HTMLTextAreaElement;
                           const inputValue = urlInput?.value?.trim();
                           if (!inputValue) {
@@ -2006,10 +2113,17 @@ export default function AmazonApiSettings() {
                               
                               // 如果检测到多个profiles，自动为所有站点创建账号
                               if (result.profiles && result.profiles.length > 0) {
-                                const storeName = formData.storeName || '我的店铺';
+                                // 直接使用已选中店铺的名称
+                                const finalStoreName = selectedAccount?.storeName || storeName;
+                                
+                                console.log('[紫鸟Auth] 保存多站点授权，使用店铺名称:', {
+                                  selectedAccountStoreName: selectedAccount?.storeName,
+                                  finalStoreName,
+                                });
                                 
                                 await saveMultipleProfilesMutation.mutateAsync({
-                                  storeName,
+                                  storeName: finalStoreName,
+                                  existingStoreName: selectedAccount?.storeName || undefined, // 传递已有店铺名称
                                   clientId: newCredentials.clientId,
                                   clientSecret: newCredentials.clientSecret,
                                   refreshToken: newCredentials.refreshToken,
@@ -2018,7 +2132,7 @@ export default function AmazonApiSettings() {
                                     profileId: p.profileId,
                                     countryCode: p.countryCode,
                                     currencyCode: (p as any).currencyCode || 'USD',
-                                    accountName: (p as any).accountInfo?.name || p.accountName || storeName,
+                                    accountName: (p as any).accountInfo?.name || p.accountName || finalStoreName,
                                   })),
                                 });
                               } else if (selectedAccountId) {
@@ -2055,7 +2169,6 @@ export default function AmazonApiSettings() {
                             toast.error(`授权失败: ${error.message}`);
                           }
                         }}
-                        disabled={authStep !== 'idle' && authStep !== 'error'}
                       >
                         {authStep !== 'idle' && authStep !== 'error' ? (
                           <Loader2 className="h-4 w-4 mr-2 animate-spin" />

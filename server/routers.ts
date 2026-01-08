@@ -79,6 +79,36 @@ const adAccountRouter = router({
       return { id };
     }),
   
+  // 创建空店铺（不包含站点）
+  createStore: protectedProcedure
+    .input(z.object({
+      storeName: z.string(),
+      storeDescription: z.string().optional(),
+      storeColor: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // 检查是否已存在同名店铺
+      const existingAccounts = await db.getAdAccountsByUserId(ctx.user.id);
+      const existingStore = existingAccounts.find(a => a.storeName === input.storeName);
+      if (existingStore) {
+        throw new TRPCError({ code: 'CONFLICT', message: '已存在同名店铺' });
+      }
+      
+      // 创建空店铺（使用店铺名称作为accountId和accountName，marketplace为空）
+      const id = await db.createAdAccount({
+        userId: ctx.user.id,
+        storeName: input.storeName,
+        storeDescription: input.storeDescription,
+        storeColor: input.storeColor,
+        accountId: `store_${Date.now()}`, // 临时ID，授权后会更新
+        accountName: input.storeName,
+        marketplace: '', // 空店铺没有站点
+        connectionStatus: 'pending',
+        isDefault: existingAccounts.length === 0 ? 1 : 0, // 第一个店铺设为默认
+      });
+      return { id, storeName: input.storeName };
+    }),
+  
   // 更新账号信息
   update: protectedProcedure
     .input(z.object({
@@ -161,17 +191,32 @@ const adAccountRouter = router({
   // 获取账号统计信息
   getStats: protectedProcedure.query(async ({ ctx }) => {
     const accounts = await db.getAdAccountsByUserId(ctx.user.id);
+    
+    // 过滤掉空店铺占位记录（marketplace为空），只统计实际站点
+    const actualSites = accounts.filter(a => a.marketplace && a.marketplace !== '');
+    
+    // 按店铺名称分组，统计店铺数量
+    const storeNames = new Set(accounts.map(a => a.storeName || a.accountName));
+    
     const stats = {
-      total: accounts.length,
-      connected: accounts.filter(a => a.connectionStatus === 'connected').length,
-      disconnected: accounts.filter(a => a.connectionStatus === 'disconnected').length,
-      error: accounts.filter(a => a.connectionStatus === 'error').length,
-      pending: accounts.filter(a => a.connectionStatus === 'pending').length,
+      // 总店铺数（按storeName去重）
+      total: storeNames.size,
+      // 已连接的站点数
+      connected: actualSites.filter(a => a.connectionStatus === 'connected').length,
+      // 待配置的站点数（包括空店铺）
+      pending: accounts.filter(a => a.connectionStatus === 'pending' || !a.marketplace || a.marketplace === '').length,
+      // 连接错误的站点数
+      error: actualSites.filter(a => a.connectionStatus === 'error').length,
+      // 市场覆盖（去重后的国家数量）
+      marketplaceCount: new Set(actualSites.map(a => a.marketplace)).size,
+      // 按市场分组统计
       byMarketplace: {} as Record<string, number>,
     };
     
-    for (const account of accounts) {
-      stats.byMarketplace[account.marketplace] = (stats.byMarketplace[account.marketplace] || 0) + 1;
+    for (const account of actualSites) {
+      if (account.marketplace) {
+        stats.byMarketplace[account.marketplace] = (stats.byMarketplace[account.marketplace] || 0) + 1;
+      }
     }
     
     return stats;
@@ -2271,6 +2316,7 @@ const amazonApiRouter = router({
   saveMultipleProfiles: protectedProcedure
     .input(z.object({
       storeName: z.string(),
+      existingStoreName: z.string().optional(), // 已有店铺名称，用于将新站点添加到已有店铺
       clientId: z.string(),
       clientSecret: z.string(),
       refreshToken: z.string(),
@@ -2282,8 +2328,13 @@ const amazonApiRouter = router({
       })),
     }))
     .mutation(async ({ ctx, input }) => {
+      // 优先使用existingStoreName（已有店铺名称），否则使用storeName
+      const effectiveStoreName = input.existingStoreName || input.storeName;
+      
       console.log('[saveMultipleProfiles] 收到多站点授权请求:', {
         storeName: input.storeName,
+        existingStoreName: input.existingStoreName,
+        effectiveStoreName,
         profilesCount: input.profiles.length,
         profiles: input.profiles.map(p => ({ profileId: p.profileId, countryCode: p.countryCode })),
         region: input.region,
@@ -2321,29 +2372,61 @@ const amazonApiRouter = router({
         error?: string;
       }> = [];
 
+      // 先检查是否存在空店铺占位记录（marketplace为空），如果存在则删除
+      const allAccounts = await db.getAdAccountsByUserId(ctx.user.id);
+      const emptyStoreRecord = allAccounts.find(
+        a => a.storeName === effectiveStoreName && (!a.marketplace || a.marketplace === '')
+      );
+      if (emptyStoreRecord) {
+        console.log(`[saveMultipleProfiles] 删除空店铺占位记录 ${emptyStoreRecord.id}`);
+        await db.deleteAdAccount(emptyStoreRecord.id);
+      }
+
       // 为每个profile创建账号和保存凭证
       for (const profile of input.profiles) {
         try {
-          const marketplace = countryToMarketplace[profile.countryCode] || profile.countryCode;
+          const marketplaceName = countryToMarketplace[profile.countryCode] || profile.countryCode;
+          // 保存国家代码（如US, CA, MX），而不是中文名称，以便前端正确显示国旗
+          const marketplaceCode = profile.countryCode;
           
           // 检查是否已存在相同profileId的账号
           const existingAccounts = await db.getAdAccountsByUserId(ctx.user.id);
-          const existingAccount = existingAccounts.find(a => a.profileId === profile.profileId);
+          const existingAccountByProfileId = existingAccounts.find(a => a.profileId === profile.profileId);
+          
+          // 同时检查同一店铺下是否已存在相同国家的站点（避免重复）
+          const existingAccountByCountry = existingAccounts.find(
+            a => a.storeName === effectiveStoreName && a.marketplace === marketplaceCode
+          );
           
           let accountId: number;
           
-          if (existingAccount) {
-            // 更新现有账号
-            accountId = existingAccount.id;
-            console.log(`[saveMultipleProfiles] 更新现有账号 ${accountId} (${profile.countryCode})`);
+          if (existingAccountByProfileId) {
+            // 更新现有账号（按profileId匹配）
+            accountId = existingAccountByProfileId.id;
+            // 更新店铺名称和marketplace代码
+            await db.updateAdAccount(accountId, {
+              storeName: effectiveStoreName,
+              marketplace: marketplaceCode,
+            });
+            console.log(`[saveMultipleProfiles] 更新现有账号 ${accountId} (${profile.countryCode}) - 按profileId匹配`);
+          } else if (existingAccountByCountry) {
+            // 更新现有账号（同店铺同国家）
+            accountId = existingAccountByCountry.id;
+            // 更新profileId和其他信息
+            await db.updateAdAccount(accountId, {
+              profileId: profile.profileId,
+              accountId: profile.profileId,
+            });
+            console.log(`[saveMultipleProfiles] 更新现有账号 ${accountId} (${profile.countryCode}) - 按店铺+国家匹配`);
           } else {
             // 创建新账号 - createAdAccount返回insertId数字
+            // 使用effectiveStoreName确保新站点添加到正确的店铺下
             accountId = await db.createAdAccount({
               userId: ctx.user.id,
-              storeName: input.storeName,
-              accountName: `${input.storeName} ${marketplace}`,
+              storeName: effectiveStoreName,
+              accountName: `${effectiveStoreName} ${marketplaceName}`,
               accountId: profile.profileId,
-              marketplace: marketplace,  // 保存中文市场名称或国家代码，而不是仅保存国家代码
+              marketplace: marketplaceCode,  // 保存国家代码（如US, CA, MX）
               profileId: profile.profileId,
               connectionStatus: 'pending',
             });
