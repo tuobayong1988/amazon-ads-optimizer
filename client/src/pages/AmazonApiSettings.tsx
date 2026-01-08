@@ -695,66 +695,74 @@ export default function AmazonApiSettings() {
   };
 
   const handleSyncAll = async () => {
-    if (!selectedAccountId) {
-      toast.error("请先选择广告账号");
+    if (!selectedAccount) {
+      toast.error("请先选择店铺");
+      return;
+    }
+
+    // 获取该店铺下所有站点
+    const storeSites = accounts?.filter(a => 
+      (a.storeName === selectedAccount.storeName) && 
+      a.marketplace && a.marketplace !== ''
+    ) || [];
+
+    if (storeSites.length === 0) {
+      toast.error("该店铺下没有已授权的站点");
       return;
     }
 
     setIsSyncing(true);
     setSyncProgress({
       step: 'sp',
-      progress: 10,
-      current: '正在同步 SP 商品推广广告...',
+      progress: 5,
+      current: `正在同步 ${storeSites.length} 个站点的数据...`,
       results: { sp: 0, sb: 0, sd: 0, adGroups: 0, keywords: 0, targets: 0 }
     });
 
     try {
-      // 模拟进度更新（因为API是一次性返回）
-      const progressSteps = [
-        { step: 'sp' as const, progress: 15, current: '正在同步 SP 商品推广广告...' },
-        { step: 'sb' as const, progress: 30, current: '正在同步 SB 品牌广告...' },
-        { step: 'sd' as const, progress: 45, current: '正在同步 SD 展示广告...' },
-        { step: 'adgroups' as const, progress: 60, current: '正在同步广告组...' },
-        { step: 'keywords' as const, progress: 75, current: '正在同步关键词...' },
-        { step: 'targets' as const, progress: 90, current: '正在同步商品定位...' },
-      ];
-
-      // 启动进度动画
-      let stepIndex = 0;
-      const progressInterval = setInterval(() => {
-        if (stepIndex < progressSteps.length) {
-          setSyncProgress(prev => ({
-            ...prev,
-            step: progressSteps[stepIndex].step,
-            progress: progressSteps[stepIndex].progress,
-            current: progressSteps[stepIndex].current,
-          }));
-          stepIndex++;
-        }
-      }, 2000);
-
-      const result = await syncAllMutation.mutateAsync({ 
-        accountId: selectedAccountId,
-        isIncremental: useIncrementalSync,
-      });
+      let totalResults = { sp: 0, sb: 0, sd: 0, adGroups: 0, keywords: 0, targets: 0 };
       
-      clearInterval(progressInterval);
+      // 依次同步每个站点
+      for (let i = 0; i < storeSites.length; i++) {
+        const site = storeSites[i];
+        const mp = MARKETPLACES.find(m => m.id === site.marketplace);
+        const siteName = mp?.name || site.marketplace;
+        
+        setSyncProgress(prev => ({
+          ...prev,
+          progress: Math.round((i / storeSites.length) * 80) + 10,
+          current: `正在同步 ${siteName} (${i + 1}/${storeSites.length})...`,
+        }));
+
+        try {
+          const result = await syncAllMutation.mutateAsync({ 
+            accountId: site.id,
+            isIncremental: useIncrementalSync,
+          });
+          
+          // 累加结果
+          totalResults.sp += result.spCampaigns || 0;
+          totalResults.sb += result.sbCampaigns || 0;
+          totalResults.sd += result.sdCampaigns || 0;
+          totalResults.adGroups += result.adGroups || 0;
+          totalResults.keywords += result.keywords || 0;
+          totalResults.targets += result.targets || 0;
+        } catch (siteError: any) {
+          console.error(`同步站点 ${siteName} 失败:`, siteError);
+          toast.error(`同步 ${siteName} 失败: ${siteError.message}`);
+        }
+      }
       
       setSyncProgress({
         step: 'complete',
         progress: 100,
-        current: '同步完成！',
-        results: {
-          sp: result.spCampaigns || 0,
-          sb: result.sbCampaigns || 0,
-          sd: result.sdCampaigns || 0,
-          adGroups: result.adGroups || 0,
-          keywords: result.keywords || 0,
-          targets: result.targets || 0,
-        }
+        current: `同步完成！已同步 ${storeSites.length} 个站点`,
+        results: totalResults
       });
 
-      // 3秒后重置进度
+      toast.success(`已成功同步 ${storeSites.length} 个站点的数据`);
+
+      // 5秒后重置进度
       setTimeout(() => {
         setSyncProgress({
           step: 'idle',
@@ -1092,6 +1100,19 @@ export default function AmazonApiSettings() {
                                   <Edit2 className="h-4 w-4 mr-2" />
                                   编辑店铺信息
                                 </DropdownMenuItem>
+                                {!isEmptyStore && (
+                                  <DropdownMenuItem 
+                                    onClick={(e) => { 
+                                      e.stopPropagation(); 
+                                      // 设置当前店铺名称用于同步
+                                      setSelectedAccountId(primaryAccount.id);
+                                      setActiveTab('sync');
+                                    }}
+                                  >
+                                    <RefreshCw className="h-4 w-4 mr-2" />
+                                    数据同步
+                                  </DropdownMenuItem>
+                                )}
                                 {!primaryAccount.isDefault && (
                                   <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleSetDefault(primaryAccount.id); }}>
                                     <Star className="h-4 w-4 mr-2" />
@@ -1185,16 +1206,7 @@ export default function AmazonApiSettings() {
                                             <Key className="h-4 w-4 mr-2" />
                                             配置API
                                           </DropdownMenuItem>
-                                          <DropdownMenuItem 
-                                            onClick={(e) => { 
-                                              e.stopPropagation(); 
-                                              setSelectedAccountId(account.id);
-                                              setActiveTab("sync");
-                                            }}
-                                          >
-                                            <RefreshCw className="h-4 w-4 mr-2" />
-                                            数据同步
-                                          </DropdownMenuItem>
+
                                           {!account.isDefault && (
                                             <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleSetDefault(account.id); }}>
                                               <Star className="h-4 w-4 mr-2" />
@@ -2420,18 +2432,40 @@ export default function AmazonApiSettings() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Database className="h-5 w-5" />
-                    数据同步
+                    店铺数据同步 - {selectedAccount.storeName}
                   </CardTitle>
                   <CardDescription>
-                    从Amazon Advertising API同步广告数据到本地系统
+                    一键同步该店铺下所有站点的广告数据到本地系统
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* 显示该店铺下的所有站点 */}
+                  {(() => {
+                    const storeSites = accounts?.filter(a => 
+                      (a.storeName === selectedAccount.storeName) && 
+                      a.marketplace && a.marketplace !== ''
+                    ) || [];
+                    return storeSites.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        <span className="text-sm text-muted-foreground">将同步以下站点：</span>
+                        {storeSites.map(site => {
+                          const mp = MARKETPLACES.find(m => m.id === site.marketplace);
+                          return (
+                            <Badge key={site.id} variant="outline" className="flex items-center gap-1">
+                              <span>{mp?.flag || '🌐'}</span>
+                              <span>{mp?.name || site.marketplace}</span>
+                            </Badge>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                  
                   <Alert>
                     <Info className="h-4 w-4" />
                     <AlertTitle>同步说明</AlertTitle>
                     <AlertDescription>
-                      点击同步按钮将从Amazon API拉取最新的广告活动、广告组、关键词和商品定位数据。
+                      点击同步按钮将一键同步该店铺下所有站点的广告活动、广告组、关键词和商品定位数据。
                       首次同步可能需要较长时间，请耐心等待。
                     </AlertDescription>
                   </Alert>
