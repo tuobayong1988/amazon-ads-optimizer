@@ -3460,3 +3460,26 @@
 - [ ] 添加广告活动详情页显示广告组
 - [ ] 添加广告组详情页显示投放词
 - [ ] 添加搜索词报告页面
+
+
+## Amazon API数据同步逻辑修复（第四十八阶段）
+
+### 同步逻辑修复
+- [x] 区分首次同步和增量同步（使用lastSyncAt字段判断）
+- [x] 首次同步：获取60天历史数据（Amazon API最多支持90天）
+- [x] 增量同步：获取30天数据（覆盖亚马逊广告14天归因窗口期）
+- [x] 确保历史数据永久保留，不被覆盖或删除
+- [x] 数据查询支持从首次授权到现在的所有累积数据
+
+### 数据存储优化
+- [x] 检查daily_performance表的数据存储逻辑（已使用upsert模式）
+- [x] 确保同步时使用upsert而非覆盖
+- [x] 使用lastSyncAt字段判断是否首次同步
+
+### 修改的文件
+- amazonSyncService.ts: syncAll方法添加isFirstSync参数
+- routers.ts: syncAll路由根据lastSyncAt判断同步类型
+- routers.ts: 授权后自动同步使用首次同步(60天)
+- routers.ts: saveMultipleProfiles使用首次同步(60天)
+- dataSyncScheduler.ts: 定时同步使用增量同步(30天)
+- dataSyncScheduler.ts: 手动触发同步使用增量同步(30天)

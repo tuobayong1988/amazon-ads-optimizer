@@ -71,8 +71,9 @@ export class AmazonSyncService {
 
   /**
    * 完整同步所有数据
+   * @param isFirstSync 是否是首次同步，首次同步获取60天历史数据，增量同步获取30天数据
    */
-  async syncAll(): Promise<{
+  async syncAll(isFirstSync: boolean = false): Promise<{
     campaigns: number;
     adGroups: number;
     keywords: number;
@@ -120,8 +121,12 @@ export class AmazonSyncService {
     const targetResult = await this.syncSpProductTargets();
     results.targets += typeof targetResult === 'number' ? targetResult : targetResult.synced;
     
-    // 同步绩效数据（最近30天）
-    results.performance += await this.syncPerformanceData(30);
+    // 同步绩效数据
+    // 首次同步：获取60天历史数据（Amazon API最多支持90天）
+    // 增量同步：获取30天数据（覆盖亚马逊广告14天归因窗口期，确保数据准确）
+    const performanceDays = isFirstSync ? 60 : 30;
+    console.log(`[SyncService] ${isFirstSync ? '首次同步' : '增量同步'}，获取最近${performanceDays}天绩效数据`);
+    results.performance += await this.syncPerformanceData(performanceDays);
 
     return results;
   }

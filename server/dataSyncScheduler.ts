@@ -304,8 +304,8 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
     case 'low':
     case 'full':
     default:
-      // 完整同步
-      result = await syncService.syncAll();
+      // 完整同步（增量同步，获取30天数据）
+      result = await syncService.syncAll(false); // isFirstSync = false
       break;
   }
 
@@ -437,8 +437,8 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
     schedule.userId
   );
 
-  // 执行同步
-  const result = await syncService.syncAll();
+  // 执行增量同步（获取30天数据，覆盖归因窗口期）
+  const result = await syncService.syncAll(false); // isFirstSync = false
 
   // 更新调度记录
   await db.updateSyncScheduleLastRun(schedule.id);
@@ -507,7 +507,8 @@ export async function triggerManualSync(userId: number, accountId: number): Prom
       userId
     );
 
-    const result = await syncService.syncAll();
+    // 手动触发同步使用增量同步（获取30天数据）
+    const result = await syncService.syncAll(false); // isFirstSync = false
 
     return {
       success: true,
