@@ -92,16 +92,15 @@ export async function createAuditLog(input: CreateAuditLogInput): Promise<{ succ
     
     await db.execute(sql`
       INSERT INTO audit_logs (
-        organization_id, user_id, user_name, action_type, action_category,
-        resource_type, resource_id, resource_name, description,
-        old_value, new_value, ip_address, user_agent, request_id,
-        status, error_message, created_at
+        organization_id, user_id, user_name, actionType,
+        targetType, targetId, targetName, description,
+        previousValue, newValue, ipAddress, userAgent, requestId,
+        status, errorMessage, createdAt
       ) VALUES (
         ${input.organizationId || null},
         ${input.userId || null},
         ${input.userName || null},
         ${input.actionType},
-        ${input.actionCategory || null},
         ${input.resourceType || null},
         ${input.resourceId || null},
         ${input.resourceName || null},
@@ -133,12 +132,12 @@ export async function queryAuditLogs(query: AuditLogQuery): Promise<{ logs: Audi
     
     if (query.organizationId) conditions.push(`organization_id = ${query.organizationId}`);
     if (query.userId) conditions.push(`user_id = ${query.userId}`);
-    if (query.actionType) conditions.push(`action_type = '${query.actionType}'`);
-    if (query.actionCategory) conditions.push(`action_category = '${query.actionCategory}'`);
-    if (query.resourceType) conditions.push(`resource_type = '${query.resourceType}'`);
+    if (query.actionType) conditions.push(`actionType = '${query.actionType}'`);
+    if (query.actionCategory) conditions.push(`actionCategory = '${query.actionCategory}'`);
+    if (query.resourceType) conditions.push(`targetType = '${query.resourceType}'`);
     if (query.status) conditions.push(`status = '${query.status}'`);
-    if (query.startDate) conditions.push(`created_at >= '${query.startDate}'`);
-    if (query.endDate) conditions.push(`created_at <= '${query.endDate}'`);
+    if (query.startDate) conditions.push(`createdAt >= '${query.startDate}'`);
+    if (query.endDate) conditions.push(`createdAt <= '${query.endDate}'`);
     
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
     const limit = query.limit || 50;
