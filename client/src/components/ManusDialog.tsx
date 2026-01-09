@@ -9,7 +9,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-interface ManusDialogProps {
+interface LoginDialogProps {
   title?: string;
   logo?: string;
   open?: boolean;
@@ -25,7 +25,7 @@ export function ManusDialog({
   onLogin,
   onOpenChange,
   onClose,
-}: ManusDialogProps) {
+}: LoginDialogProps) {
   const [internalOpen, setInternalOpen] = useState(open);
 
   useEffect(() => {
@@ -70,7 +70,7 @@ export function ManusDialog({
             </DialogTitle>
           ) : null}
           <DialogDescription className="text-sm text-[#858481] leading-5 tracking-[-0.154px]">
-            Please login with Manus to continue
+            请登录以继续使用
           </DialogDescription>
         </div>
 
@@ -80,7 +80,7 @@ export function ManusDialog({
             onClick={onLogin}
             className="w-full h-10 bg-[#1a1a19] hover:bg-[#1a1a19]/90 text-white rounded-[10px] text-sm font-medium leading-5 tracking-[-0.154px]"
           >
-            Login with Manus
+            登录
           </Button>
         </DialogFooter>
       </DialogContent>

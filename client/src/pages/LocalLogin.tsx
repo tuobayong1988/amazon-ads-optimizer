@@ -73,8 +73,7 @@ export default function LocalLogin() {
               {loginMutation.isPending ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />登录中...</> : "登录"}
             </Button>
             <div className="text-center text-sm text-gray-400">还没有账号？ <a href="/register" className="text-blue-400 hover:text-blue-300">使用邀请码注册</a></div>
-            <div className="relative my-6"><div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-700"></div></div><div className="relative flex justify-center text-sm"><span className="px-2 bg-gray-800/50 text-gray-400">或</span></div></div>
-            <Button type="button" variant="outline" className="w-full border-gray-600 text-gray-300 hover:bg-gray-700" onClick={() => setLocation("/")}>使用 Manus 账号登录</Button>
+
           </form>
         </CardContent>
       </Card>
