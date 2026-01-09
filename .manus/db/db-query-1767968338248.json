@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS `ab_test_variants` (\n  `id` int NOT NULL AUTO_INCREMENT,\n  `testId` int NOT NULL,\n  `variantName` varchar(255) NOT NULL,\n  `variantType` varchar(50) NOT NULL DEFAULT 'control',\n  `description` text,\n  `bidMultiplier` decimal(5,2) DEFAULT 1.00,\n  `createdAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  PRIMARY KEY (`id`),\n  KEY `idx_ab_test_variants_testId` (`testId`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute CREATE TABLE IF NOT EXISTS `ab_test_variants` (\n  `id` int NOT NULL AUTO_INCREMENT,\n  `testId` int NOT NULL,\n  `variantName` varchar(255) NOT NULL,\n  `variantType` varchar(50) NOT NULL DEFAULT 'control',\n  `description` text,\n  `bidMultiplier` decimal(5,2) DEFAULT 1.00,\n  `createdAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  PRIMARY KEY (`id`),\n  KEY `idx_ab_test_variants_testId` (`testId`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 331
+}

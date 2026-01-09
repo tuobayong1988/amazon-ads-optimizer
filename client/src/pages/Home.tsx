@@ -55,6 +55,7 @@ import {
 import { Link } from "wouter";
 import { TimeRangeSelector, TimeRangeValue, getDefaultTimeRangeValue, TIME_RANGE_PRESETS, PresetTimeRange } from "@/components/TimeRangeSelector";
 import { format } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 
 // 生成最近7天的模拟数据
 const generateLast7DaysData = () => {
@@ -751,7 +752,7 @@ function DashboardContent() {
               数据概览
             </h1>
             <p className="text-muted-foreground text-sm mt-1">
-              多账户广告数据一览 · <span className="text-primary">数据截至 {endDate}</span> (最后同步: {format(new Date(), 'MM/dd HH:mm')})
+              多账户广告数据一览 · <span className="text-primary">数据截至 {endDate}</span> (最后同步: {formatInTimeZone(new Date(), 'America/Los_Angeles', 'MM/dd HH:mm')} PST)
             </p>
           </div>
           <div className="flex items-center gap-2">
