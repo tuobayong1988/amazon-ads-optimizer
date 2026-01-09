@@ -4196,11 +4196,12 @@ export async function getDailyTrendData(accountIds: number[], days: number, time
 }
 
 
-// 获取数据可用日期范围
+// 获取数据可用日期范围和最后同步时间
 export async function getDataDateRange(accountIds: number[]): Promise<{
   minDate: string;
   maxDate: string;
   hasData: boolean;
+  lastSyncAt?: string; // 最后同步时间
 }> {
   const db = await getDb();
   if (!db) {
@@ -4228,10 +4229,20 @@ export async function getDataDateRange(accountIds: number[]): Promise<{
     const row = Array.isArray(rows) ? rows[0] : rows;
     
     if (row && row.min_date && row.max_date) {
+      // 获取最后同步时间
+      const syncResults = await db.execute(sql`
+        SELECT MAX(lastSyncAt) as last_sync
+        FROM amazon_api_credentials
+        WHERE accountId IN (${sql.raw(accountIds.join(','))})
+      `) as any;
+      const syncRows = syncResults[0] || syncResults;
+      const syncRow = Array.isArray(syncRows) ? syncRows[0] : syncRows;
+      
       return {
         minDate: row.min_date,
         maxDate: row.max_date,
         hasData: true,
+        lastSyncAt: syncRow?.last_sync || undefined,
       };
     }
     

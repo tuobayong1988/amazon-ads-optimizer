@@ -341,7 +341,12 @@ function DashboardContent() {
               多账户广告数据一览
               {dataDateRange?.maxDate && (
                 <span className="ml-2 text-xs text-blue-400">
-                  · 数据更新至 {format(new Date(dataDateRange.maxDate), 'MM/dd HH:mm')}
+                  · 数据截至 {dataDateRange.maxDate}
+                  {dataDateRange.lastSyncAt && (
+                    <span className="ml-1 text-gray-500">
+                      (最后同步: {format(new Date(dataDateRange.lastSyncAt), 'MM/dd HH:mm')})
+                    </span>
+                  )}
                 </span>
               )}
             </p>
