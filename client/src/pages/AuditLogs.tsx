@@ -39,12 +39,46 @@ export default function AuditLogs() {
   const [selectedLog, setSelectedLog] = useState<any>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
   const [viewAll, setViewAll] = useState(true); // 管理员默认查看所有用户日志
+  const [startDate, setStartDate] = useState<string>(""); // 开始日期
+  const [endDate, setEndDate] = useState<string>(""); // 结束日期
+  const [dateRange, setDateRange] = useState<string>("all"); // 日期范围快捷选择
 
   // 管理员权限检查 - 默认允许查看所有日志（实际权限由后端控制）
   const isAdmin = true; // 后端会根据用户角色判断是否有权限查看所有日志
 
   // 获取操作类型和描述
   const { data: actionTypes } = trpc.audit.getActionTypes.useQuery();
+
+  // 计算日期范围
+  const getDateRange = () => {
+    const now = new Date();
+    let start: Date | undefined;
+    let end: Date | undefined;
+    
+    switch (dateRange) {
+      case "today":
+        start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+        break;
+      case "yesterday":
+        start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+        end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59);
+        break;
+      case "7days":
+        start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+        break;
+      case "30days":
+        start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      case "custom":
+        if (startDate) start = new Date(startDate);
+        if (endDate) end = new Date(endDate + "T23:59:59");
+        break;
+    }
+    return { start, end };
+  };
+
+  const { start: queryStartDate, end: queryEndDate } = getDateRange();
 
   // 获取审计日志列表
   const { data: logsData, isLoading, refetch } = trpc.audit.list.useQuery({
@@ -54,6 +88,8 @@ export default function AuditLogs() {
     page,
     pageSize,
     viewAll: isAdmin ? viewAll : false, // 管理员可以查看所有用户日志
+    startDate: queryStartDate,
+    endDate: queryEndDate,
   });
 
   // 获取用户操作统计
@@ -295,6 +331,57 @@ export default function AuditLogs() {
                       <SelectItem value="partial">部分成功</SelectItem>
                     </SelectContent>
                   </Select>
+                  {/* 日期范围筛选器 */}
+                  <Select
+                    value={dateRange}
+                    onValueChange={(value) => {
+                      setDateRange(value);
+                      if (value !== "custom") {
+                        setStartDate("");
+                        setEndDate("");
+                      }
+                      setPage(1);
+                    }}
+                  >
+                    <SelectTrigger className="w-[140px]">
+                      <Calendar className="w-4 h-4 mr-2" />
+                      <SelectValue placeholder="日期范围" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">全部时间</SelectItem>
+                      <SelectItem value="today">今天</SelectItem>
+                      <SelectItem value="yesterday">昨天</SelectItem>
+                      <SelectItem value="7days">近 7 天</SelectItem>
+                      <SelectItem value="30days">近 30 天</SelectItem>
+                      <SelectItem value="custom">自定义</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {/* 自定义日期范围 */}
+                  {dateRange === "custom" && (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="date"
+                        value={startDate}
+                        onChange={(e) => {
+                          setStartDate(e.target.value);
+                          setPage(1);
+                        }}
+                        className="w-[140px]"
+                        placeholder="开始日期"
+                      />
+                      <span className="text-muted-foreground">至</span>
+                      <Input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => {
+                          setEndDate(e.target.value);
+                          setPage(1);
+                        }}
+                        className="w-[140px]"
+                        placeholder="结束日期"
+                      />
+                    </div>
+                  )}
                   {/* 管理员查看所有用户日志开关 */}
                   {isAdmin && (
                     <div className="flex items-center gap-2">

@@ -651,13 +651,41 @@ const campaignRouter = router({
       placementRestBidAdjustment: z.number().optional(),
       campaignStatus: z.enum(["enabled", "paused", "archived"]).optional(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      // 获取更新前的广告活动信息
+      const previousCampaign = await db.getCampaignById(input.id);
+      
       const { id, intradayBiddingEnabled, ...rest } = input;
       const data = {
         ...rest,
         ...(intradayBiddingEnabled !== undefined && { intradayBiddingEnabled: intradayBiddingEnabled ? 1 : 0 }),
       };
       await db.updateCampaign(id, data);
+      
+      // 记录审计日志
+      const { logAudit } = await import("./auditService");
+      const changes: string[] = [];
+      if (input.campaignName) changes.push(`名称: ${input.campaignName}`);
+      if (input.maxBid) changes.push(`最高出价: $${input.maxBid}`);
+      if (input.dailyBudget) changes.push(`日预算: $${input.dailyBudget}`);
+      if (input.campaignStatus) changes.push(`状态: ${input.campaignStatus}`);
+      if (input.intradayBiddingEnabled !== undefined) changes.push(`分时竞价: ${input.intradayBiddingEnabled ? '开启' : '关闭'}`);
+      
+      await logAudit({
+        userId: ctx.user.id,
+        userName: ctx.user.name || undefined,
+        userEmail: ctx.user.email || undefined,
+        actionType: 'campaign_update',
+        targetType: 'campaign',
+        targetId: String(input.id),
+        targetName: previousCampaign?.campaignName || undefined,
+        description: `更新广告活动（${changes.join(', ')}）`,
+        previousValue: previousCampaign ? { maxBid: previousCampaign.maxBid, dailyBudget: previousCampaign.dailyBudget, status: previousCampaign.campaignStatus } : undefined,
+        newValue: { maxBid: input.maxBid, dailyBudget: input.dailyBudget, status: input.campaignStatus },
+        accountId: previousCampaign?.accountId,
+        status: 'success',
+      });
+      
       return { success: true };
     }),
   
@@ -862,7 +890,7 @@ ${topKeywords.map((k, i) => `${i + 1}. "${k.keywordText}" - 销售额: $${parseF
         throw new TRPCError({ code: "NOT_FOUND", message: "广告活动不存在" });
       }
       
-      return executeOptimizationSuggestions(
+      const result = await executeOptimizationSuggestions(
         ctx.user.id,
         campaign.accountId,
         input.campaignId,
@@ -870,6 +898,24 @@ ${topKeywords.map((k, i) => `${i + 1}. "${k.keywordText}" - 销售额: $${parseF
         input.predictions,
         input.aiSummary
       );
+      
+      // 记录AI优化执行审计日志
+      const { logAudit } = await import("./auditService");
+      await logAudit({
+        userId: ctx.user.id,
+        userName: ctx.user.name || undefined,
+        userEmail: ctx.user.email || undefined,
+        actionType: 'automation_config_update',
+        targetType: 'campaign',
+        targetId: String(input.campaignId),
+        targetName: campaign.campaignName || undefined,
+        description: `执行AI优化建议（${input.suggestions.length}条建议）`,
+        metadata: { suggestionsCount: input.suggestions.length, aiSummary: input.aiSummary },
+        accountId: campaign.accountId,
+        status: 'success',
+      });
+      
+      return result;
     }),
   
   // 获取AI优化执行历史
@@ -906,8 +952,29 @@ const keywordRouter = router({
       id: z.number(),
       bid: z.string(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      // 获取关键词信息用于审计日志
+      const keyword = await db.getKeywordById(input.id);
+      const previousBid = keyword?.bid || '0';
+      
       await db.updateKeywordBid(input.id, input.bid);
+      
+      // 记录审计日志
+      const { logAudit } = await import("./auditService");
+      await logAudit({
+        userId: ctx.user.id,
+        userName: ctx.user.name || undefined,
+        userEmail: ctx.user.email || undefined,
+        actionType: 'bid_adjust_single',
+        targetType: 'keyword',
+        targetId: String(input.id),
+        targetName: keyword?.keywordText || keyword?.keywordId || undefined,
+        description: `调整关键词出价从$${previousBid}到$${input.bid}`,
+        previousValue: { bid: previousBid },
+        newValue: { bid: input.bid },
+        status: 'success',
+      });
+      
       return { success: true };
     }),
   
@@ -930,7 +997,7 @@ const keywordRouter = router({
       bidType: z.enum(["fixed", "increase_percent", "decrease_percent", "cpc_multiplier", "cpc_increase_percent", "cpc_decrease_percent"]),
       bidValue: z.number(),
     }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
       const results = [];
       for (const id of input.ids) {
         const keyword = await db.getKeywordById(id);
@@ -965,6 +1032,32 @@ const keywordRouter = router({
         await db.updateKeywordBid(id, newBid.toFixed(2));
         results.push({ id, oldBid: currentBid, newBid, cpc });
       }
+      
+      // 记录批量出价调整审计日志
+      if (results.length > 0) {
+        const { logAudit } = await import("./auditService");
+        const bidTypeDesc: Record<string, string> = {
+          fixed: `固定出价$${input.bidValue}`,
+          increase_percent: `提高${input.bidValue}%`,
+          decrease_percent: `降低${input.bidValue}%`,
+          cpc_multiplier: `CPC的${input.bidValue}倍`,
+          cpc_increase_percent: `CPC提高${input.bidValue}%`,
+          cpc_decrease_percent: `CPC降低${input.bidValue}%`,
+        };
+        await logAudit({
+          userId: ctx.user.id,
+          userName: ctx.user.name || undefined,
+          userEmail: ctx.user.email || undefined,
+          actionType: 'bid_adjust_batch',
+          targetType: 'keyword',
+          description: `批量调整${results.length}个关键词出价（${bidTypeDesc[input.bidType]}）`,
+          metadata: { bidType: input.bidType, bidValue: input.bidValue, count: results.length },
+          previousValue: results.map(r => ({ id: r.id, bid: r.oldBid })),
+          newValue: results.map(r => ({ id: r.id, bid: r.newBid })),
+          status: 'success',
+        });
+      }
+      
       return { success: true, updated: results.length, results };
     }),
   
@@ -6039,8 +6132,35 @@ const dataSyncRouter = router({
       syncType: z.enum(["campaigns", "keywords", "performance", "all"]).default("all"),
     }))
     .mutation(async ({ ctx, input }) => {
+      // 获取账号信息
+      const account = await db.getAdAccountById(input.accountId);
+      
       const jobId = await dataSyncService.createSyncJob(ctx.user.id, input.accountId, input.syncType);
       if (!jobId) return { success: false, message: "创建任务失败" };
+      
+      // 记录审计日志
+      const { logAudit } = await import("./auditService");
+      const syncTypeDesc: Record<string, string> = {
+        campaigns: "广告活动",
+        keywords: "关键词",
+        performance: "效果数据",
+        all: "全部数据",
+      };
+      await logAudit({
+        userId: ctx.user.id,
+        userName: ctx.user.name || undefined,
+        userEmail: ctx.user.email || undefined,
+        actionType: 'data_import',
+        targetType: 'account',
+        targetId: String(input.accountId),
+        targetName: account?.accountName || undefined,
+        description: `启动数据同步（${syncTypeDesc[input.syncType]}）`,
+        metadata: { syncType: input.syncType, jobId },
+        accountId: input.accountId,
+        accountName: account?.accountName || undefined,
+        status: 'success',
+      });
+      
       // 异步执行任务
       dataSyncService.executeSyncJob(jobId).catch(console.error);
       return { success: true, jobId };
