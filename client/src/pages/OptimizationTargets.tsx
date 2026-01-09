@@ -1,4 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { useDebounce } from "@/hooks/useDebounce";
 import { useLocation } from "wouter";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -63,6 +65,7 @@ function CreateOptimizationTargetDialog({
   // 筛选条件
   const [filterAccountId, setFilterAccountId] = useState<string>("all");
   const [filterCampaignName, setFilterCampaignName] = useState("");
+  const debouncedFilterCampaignName = useDebounce(filterCampaignName, 300); // 搜索防抖300ms
   const [filterCampaignType, setFilterCampaignType] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [filterMinConversions, setFilterMinConversions] = useState("");
@@ -94,13 +97,15 @@ function CreateOptimizationTargetDialog({
     },
   });
 
-  // 筛选广告活动
+  // 筛选广告活动 - 使用防抖后的搜索词
   const filteredCampaigns = useMemo(() => {
     if (!campaignsData) return [];
     
+    const searchLower = debouncedFilterCampaignName.toLowerCase();
+    
     return campaignsData.filter(campaign => {
-      // 按名称筛选
-      if (filterCampaignName && !campaign.campaignName?.toLowerCase().includes(filterCampaignName.toLowerCase())) {
+      // 按名称筛选 - 使用防抖后的搜索词
+      if (searchLower && !campaign.campaignName?.toLowerCase().includes(searchLower)) {
         return false;
       }
       // 按类型筛选
@@ -145,7 +150,7 @@ function CreateOptimizationTargetDialog({
       }
       return true;
     });
-  }, [campaignsData, filterCampaignName, filterCampaignType, filterStatus, filterMinConversions, filterMinSpend, filterMaxAcos]);
+  }, [campaignsData, debouncedFilterCampaignName, filterCampaignType, filterStatus, filterMinConversions, filterMinSpend, filterMaxAcos]);
 
   // 筛选统计信息
   const filterStats = useMemo(() => {
@@ -253,6 +258,17 @@ function CreateOptimizationTargetDialog({
         : [...prev, campaignId]
     );
   };
+
+  // 虚拟滚动配置 - 用于广告活动列表优化
+  const campaignListRef = useRef<HTMLDivElement>(null);
+  const CAMPAIGN_ITEM_HEIGHT = 72; // 每个广告活动项的高度
+  
+  const campaignVirtualizer = useVirtualizer({
+    count: filteredCampaigns.length,
+    getScrollElement: () => campaignListRef.current,
+    estimateSize: () => CAMPAIGN_ITEM_HEIGHT,
+    overscan: 5,
+  });
 
   const handleCreate = () => {
     if (!name.trim()) {
@@ -577,39 +593,68 @@ function CreateOptimizationTargetDialog({
                     没有符合条件的广告活动
                   </div>
                 ) : (
-                  <div className="max-h-[300px] overflow-y-auto space-y-2">
-                    {filteredCampaigns.map(campaign => (
-                      <div 
-                        key={campaign.id}
-                        className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
-                          selectedCampaignIds.includes(campaign.id) 
-                            ? "border-primary bg-primary/5" 
-                            : "border-border hover:bg-muted/50"
-                        }`}
-                        onClick={() => handleToggleCampaign(campaign.id)}
-                      >
-                        <div className="flex items-center gap-3">
-                          <Checkbox 
-                            checked={selectedCampaignIds.includes(campaign.id)}
-                            onCheckedChange={() => handleToggleCampaign(campaign.id)}
-                          />
-                          <div>
-                            <div className="font-medium text-sm">{campaign.campaignName}</div>
-                            <div className="text-xs text-muted-foreground flex items-center gap-2">
-                              <Badge variant="outline" className="text-xs">
-                                {campaign.campaignType}
+                  <div 
+                    ref={campaignListRef}
+                    className="max-h-[300px] overflow-y-auto"
+                  >
+                    <div
+                      style={{
+                        height: `${campaignVirtualizer.getTotalSize()}px`,
+                        width: '100%',
+                        position: 'relative',
+                      }}
+                    >
+                      {campaignVirtualizer.getVirtualItems().map((virtualRow) => {
+                        const campaign = filteredCampaigns[virtualRow.index];
+                        if (!campaign) return null;
+                        return (
+                          <div
+                            key={campaign.id}
+                            style={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '100%',
+                              height: `${virtualRow.size}px`,
+                              transform: `translateY(${virtualRow.start}px)`,
+                              padding: '4px 0',
+                            }}
+                          >
+                            <div 
+                              className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
+                                selectedCampaignIds.includes(campaign.id) 
+                                  ? "border-primary bg-primary/5" 
+                                  : "border-border hover:bg-muted/50"
+                              }`}
+                              onClick={() => handleToggleCampaign(campaign.id)}
+                            >
+                              <div className="flex items-center gap-3">
+                                <Checkbox 
+                                  checked={selectedCampaignIds.includes(campaign.id)}
+                                  onCheckedChange={() => handleToggleCampaign(campaign.id)}
+                                />
+                                <div>
+                                  <div className="font-medium text-sm truncate max-w-[400px]" title={campaign.campaignName}>
+                                    {campaign.campaignName}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                    <Badge variant="outline" className="text-xs">
+                                      {campaign.campaignType}
+                                    </Badge>
+                                    <span>花费: ${parseFloat(campaign.spend || "0").toFixed(2)}</span>
+                                    <span>销售: ${parseFloat(campaign.sales || "0").toFixed(2)}</span>
+                                    <span>ACoS: {parseFloat(campaign.acos || "0").toFixed(1)}%</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <Badge variant={campaign.campaignStatus === "enabled" ? "default" : "secondary"}>
+                                {campaign.campaignStatus === "enabled" ? "投放中" : "已暂停"}
                               </Badge>
-                              <span>花费: ${parseFloat(campaign.spend || "0").toFixed(2)}</span>
-                              <span>销售: ${parseFloat(campaign.sales || "0").toFixed(2)}</span>
-                              <span>ACoS: {parseFloat(campaign.acos || "0").toFixed(1)}%</span>
                             </div>
                           </div>
-                        </div>
-                        <Badge variant={campaign.campaignStatus === "enabled" ? "default" : "secondary"}>
-                          {campaign.campaignStatus === "enabled" ? "投放中" : "已暂停"}
-                        </Badge>
-                      </div>
-                    ))}
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </CardContent>

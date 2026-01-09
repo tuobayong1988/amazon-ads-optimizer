@@ -1,4 +1,6 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { useDebounce } from "@/hooks/useDebounce";
 import DashboardLayout from "@/components/DashboardLayout";
 import { TimeRangeSelector, TimeRangeValue, getDefaultTimeRangeValue } from "@/components/TimeRangeSelector";
 import OperationConfirmDialog, { useOperationConfirm } from "@/components/OperationConfirmDialog";
@@ -417,6 +419,7 @@ function getDateRange(rangeType: string, customStart?: string, customEnd?: strin
 export default function Campaigns() {
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 300); // 搜索防抖300ms
   const [storeFilter, setStoreFilter] = useState<string>("all");
   const [marketplaceFilter, setMarketplaceFilter] = useState<string>("all");
   const [typeFilter, setTypeFilter] = useState<string>("all");
@@ -583,19 +586,37 @@ export default function Campaigns() {
       .map(a => a.id);
   }, [accounts, storeFilter, marketplaceFilter]);
 
-  // Filter campaigns
-  const filteredCampaigns = campaigns?.filter((campaign) => {
-    const matchesSearch = campaign.campaignName.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesAccount = storeFilter === "all" && marketplaceFilter === "all" || filteredAccountIds.includes(campaign.accountId);
-    const matchesType = typeFilter === "all" || campaign.campaignType === typeFilter;
-    const matchesBillingType = billingTypeFilter === "all" || (campaign as any).billingType === billingTypeFilter;
-    const matchesRunningStatus = runningStatusFilter === "all" || campaign.campaignStatus === runningStatusFilter;
-    const matchesOptimizationStatus = optimizationStatusFilter === "all" || 
-      (campaign as any).optimizationStatus === optimizationStatusFilter ||
-      (optimizationStatusFilter === "managed" && (campaign as any).performanceGroupId) ||
-      (optimizationStatusFilter === "unmanaged" && !(campaign as any).performanceGroupId);
-    return matchesSearch && matchesAccount && matchesType && matchesBillingType && matchesRunningStatus && matchesOptimizationStatus;
-  });
+  // Filter campaigns - 使用useMemo优化性能
+  const filteredCampaigns = useMemo(() => {
+    if (!campaigns) return [];
+    
+    const searchLower = debouncedSearchTerm.toLowerCase();
+    
+    return campaigns.filter((campaign) => {
+      // 搜索匹配 - 使用防抖后的搜索词
+      const matchesSearch = !searchLower || campaign.campaignName.toLowerCase().includes(searchLower);
+      
+      // 账号匹配
+      const matchesAccount = (storeFilter === "all" && marketplaceFilter === "all") || filteredAccountIds.includes(campaign.accountId);
+      
+      // 类型匹配
+      const matchesType = typeFilter === "all" || campaign.campaignType === typeFilter;
+      
+      // 计费方式匹配
+      const matchesBillingType = billingTypeFilter === "all" || (campaign as any).billingType === billingTypeFilter;
+      
+      // 运行状态匹配
+      const matchesRunningStatus = runningStatusFilter === "all" || campaign.campaignStatus === runningStatusFilter;
+      
+      // 优化状态匹配
+      const matchesOptimizationStatus = optimizationStatusFilter === "all" || 
+        (campaign as any).optimizationStatus === optimizationStatusFilter ||
+        (optimizationStatusFilter === "managed" && (campaign as any).performanceGroupId) ||
+        (optimizationStatusFilter === "unmanaged" && !(campaign as any).performanceGroupId);
+      
+      return matchesSearch && matchesAccount && matchesType && matchesBillingType && matchesRunningStatus && matchesOptimizationStatus;
+    });
+  }, [campaigns, debouncedSearchTerm, storeFilter, marketplaceFilter, filteredAccountIds, typeFilter, billingTypeFilter, runningStatusFilter, optimizationStatusFilter]);
 
   // 计算各状态数量
   const statusCounts = useMemo(() => {
@@ -763,6 +784,17 @@ export default function Campaigns() {
       return 0;
     });
   }, [filteredCampaigns, sortField, sortDirection, performanceGroups]);
+
+  // 虚拟滚动配置 - 用于大数据量表格优化
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const ROW_HEIGHT = 52; // 每行高度
+  
+  const rowVirtualizer = useVirtualizer({
+    count: sortedCampaigns.length,
+    getScrollElement: () => tableContainerRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 10, // 预渲染10行
+  });
 
   // 计算各类型数量
   const typeCounts = campaigns?.reduce((acc, campaign) => {
@@ -1421,12 +1453,15 @@ export default function Campaigns() {
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
             ) : sortedCampaigns.length > 0 ? (
-              <div className="overflow-x-auto">
+              <div 
+                ref={tableContainerRef}
+                className="overflow-auto max-h-[600px]"
+              >
                 <Table>
-                  <TableHeader>
+                  <TableHeader className="sticky top-0 z-20 bg-background">
                     <TableRow className="bg-muted/50">
                       {/* 复选框列 */}
-                      <TableHead className="w-[40px] sticky left-0 bg-muted/50 z-10">
+                      <TableHead className="w-[40px] sticky left-0 bg-muted/50 z-30">
                         <Checkbox
                           checked={selectedCampaigns.size === sortedCampaigns.length && sortedCampaigns.length > 0}
                           onCheckedChange={toggleSelectAll}
@@ -1435,7 +1470,7 @@ export default function Campaigns() {
                       {columns.filter(col => visibleColumns.has(col.key)).map((column) => (
                         <TableHead 
                           key={column.key}
-                          className={`min-w-[${column.minWidth}] ${column.sticky ? 'sticky left-[40px] bg-muted/50 z-10' : ''} ${column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : ''}`}
+                          className={`min-w-[${column.minWidth}] ${column.sticky ? 'sticky left-[40px] bg-muted/50 z-30' : ''} ${column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : ''}`}
                           style={{ minWidth: column.minWidth }}
                         >
                           {column.sortable ? (
@@ -1454,28 +1489,38 @@ export default function Campaigns() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {sortedCampaigns.map((campaign) => (
-                      <TableRow 
-                        key={campaign.id} 
-                        className={`hover:bg-muted/30 ${selectedCampaigns.has(campaign.id) ? 'bg-primary/5' : ''}`}
-                      >
-                        {/* 复选框列 */}
-                        <TableCell className="sticky left-0 bg-background z-10">
-                          <Checkbox
-                            checked={selectedCampaigns.has(campaign.id)}
-                            onCheckedChange={() => toggleSelectCampaign(campaign.id)}
-                          />
-                        </TableCell>
-                        {columns.filter(col => visibleColumns.has(col.key)).map((column) => (
-                          <TableCell 
-                            key={column.key}
-                            className={`${column.sticky ? 'sticky left-[40px] bg-background z-10' : ''} ${column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : ''}`}
-                          >
-                            {renderCell(campaign, column.key)}
+                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                      const campaign = sortedCampaigns[virtualRow.index];
+                      if (!campaign) return null;
+                      return (
+                        <TableRow 
+                          key={campaign.id}
+                          data-index={virtualRow.index}
+                          ref={rowVirtualizer.measureElement}
+                          className={`hover:bg-muted/30 ${selectedCampaigns.has(campaign.id) ? 'bg-primary/5' : ''}`}
+                          style={{
+                            height: `${virtualRow.size}px`,
+                          }}
+                        >
+                          {/* 复选框列 */}
+                          <TableCell className="sticky left-0 bg-background z-10 w-[40px]">
+                            <Checkbox
+                              checked={selectedCampaigns.has(campaign.id)}
+                              onCheckedChange={() => toggleSelectCampaign(campaign.id)}
+                            />
                           </TableCell>
-                        ))}
-                      </TableRow>
-                    ))}
+                          {columns.filter(col => visibleColumns.has(col.key)).map((column) => (
+                            <TableCell 
+                              key={column.key}
+                              className={`${column.sticky ? 'sticky left-[40px] bg-background z-10' : ''} ${column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : ''}`}
+                              style={{ minWidth: column.minWidth }}
+                            >
+                              {renderCell(campaign, column.key)}
+                            </TableCell>
+                          ))}
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
