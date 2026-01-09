@@ -1,0 +1,52 @@
+{
+  "query": "SELECT \n  DATE(date) as report_date,\n  COUNT(*) as record_count,\n  SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,\n  SUM(CAST(sales AS DECIMAL(10,2))) as total_sales\nFROM daily_performance \nWHERE DATE(date) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)\nGROUP BY DATE(date)\nORDER BY report_date DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT \n  DATE(date) as report_date,\n  COUNT(*) as record_count,\n  SUM(CAST(spend AS DECIMAL(10,2))) as total_spend,\n  SUM(CAST(sales AS DECIMAL(10,2))) as total_sales\nFROM daily_performance \nWHERE DATE(date) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)\nGROUP BY DATE(date)\nORDER BY report_date DESC;",
+  "rows": [
+    {
+      "report_date": "2026-01-08",
+      "record_count": "50",
+      "total_spend": "352.57",
+      "total_sales": "357.89"
+    },
+    {
+      "report_date": "2026-01-07",
+      "record_count": "53",
+      "total_spend": "430.98",
+      "total_sales": "478.84"
+    },
+    {
+      "report_date": "2026-01-06",
+      "record_count": "54",
+      "total_spend": "514.68",
+      "total_sales": "913.68"
+    },
+    {
+      "report_date": "2026-01-05",
+      "record_count": "51",
+      "total_spend": "338.28",
+      "total_sales": "809.70"
+    },
+    {
+      "report_date": "2026-01-04",
+      "record_count": "65",
+      "total_spend": "362.74",
+      "total_sales": "513.81"
+    },
+    {
+      "report_date": "2026-01-03",
+      "record_count": "63",
+      "total_spend": "668.60",
+      "total_sales": "1518.47"
+    },
+    {
+      "report_date": "2026-01-02",
+      "record_count": "66",
+      "total_spend": "533.43",
+      "total_sales": "1220.60"
+    }
+  ],
+  "messages": [],
+  "stdout": "report_date\trecord_count\ttotal_spend\ttotal_sales\n2026-01-08\t50\t352.57\t357.89\n2026-01-07\t53\t430.98\t478.84\n2026-01-06\t54\t514.68\t913.68\n2026-01-05\t51\t338.28\t809.70\n2026-01-04\t65\t362.74\t513.81\n2026-01-03\t63\t668.60\t1518.47\n2026-01-02\t66\t533.43\t1220.60\n",
+  "stderr": "",
+  "execution_time_ms": 442
+}

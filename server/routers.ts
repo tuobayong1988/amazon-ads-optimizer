@@ -2765,11 +2765,11 @@ const amazonApiRouter = router({
           ctx.user.id
         );
 
-        // 执行首次同步（获取60天历史数据）
-        const result = await syncService.syncAll(true); // isFirstSync = true
+        // 执行完整同步（获取90天历史数据）
+        const result = await syncService.syncAll();
         syncResult = { ...result, error: null };
         
-        console.log(`[授权后自动同步] 首次同步完成，获取60天历史数据:`, syncResult);
+        console.log(`[授权后自动同步] 同步完成，获取90天历史数据:`, syncResult);
 
         // 更新最后同步时间
         await db.updateAmazonApiCredentialsLastSync(input.accountId);
@@ -2984,9 +2984,9 @@ const amazonApiRouter = router({
             ctx.user.id
           );
 
-          // 异步执行首次同步（获取60天历史数据），不阻塞返回
-          syncService.syncAll(true).then(result => { // isFirstSync = true
-            console.log(`[saveMultipleProfiles] 账号 ${account.accountId} (${account.countryCode}) 首次同步完成，获取60天历史数据:`, result);
+          // 异步执行完整同步（获取90天历史数据），不阻塞返回
+          syncService.syncAll().then(result => {
+            console.log(`[saveMultipleProfiles] 账号 ${account.accountId} (${account.countryCode}) 同步完成，获取90天历史数据:`, result);
             db.updateAmazonApiCredentialsLastSync(account.accountId);
           }).catch(err => {
             console.error(`[saveMultipleProfiles] 账号 ${account.accountId} (${account.countryCode}) 同步失败:`, err);

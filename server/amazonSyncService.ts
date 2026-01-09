@@ -71,9 +71,9 @@ export class AmazonSyncService {
 
   /**
    * 完整同步所有数据
-   * @param isFirstSync 是否是首次同步，首次同步获取60天历史数据，增量同步获取30天数据
+   * 每次同步都获取60天历史数据（包含当日），确保数据完整性和归因窗口期数据准确
    */
-  async syncAll(isFirstSync: boolean = false): Promise<{
+  async syncAll(): Promise<{
     campaigns: number;
     adGroups: number;
     keywords: number;
@@ -121,11 +121,10 @@ export class AmazonSyncService {
     const targetResult = await this.syncSpProductTargets();
     results.targets += typeof targetResult === 'number' ? targetResult : targetResult.synced;
     
-    // 同步绩效数据
-    // 首次同步：获取60天历史数据（Amazon API最多支持90天）
-    // 增量同步：获取30天数据（覆盖亚马逊广告14天归因窗口期，确保数据准确）
-    const performanceDays = isFirstSync ? 60 : 30;
-    console.log(`[SyncService] ${isFirstSync ? '首次同步' : '增量同步'}，获取最近${performanceDays}天绩效数据`);
+    // 同步绩效数据（每次都获取90天历史数据，包含当日）
+    // SP支持95天，SB支持60天，取90天作为平衡，确保数据完整性和归因窗口期数据准确
+    const performanceDays = 90;
+    console.log(`[SyncService] 同步最近${performanceDays}天绩效数据（包含当日）`);
     results.performance += await this.syncPerformanceData(performanceDays);
 
     return results;
@@ -597,8 +596,10 @@ export class AmazonSyncService {
 
   /**
    * 同步绩效数据
+   * 支持分批请求，每批最多31天（Amazon API限制）
+   * @param days 同步天数，默认90天
    */
-  async syncPerformanceData(days: number = 7): Promise<number> {
+  async syncPerformanceData(days: number = 90): Promise<number> {
     const db = await getDb();
     if (!db) {
       console.error('[SyncService] 数据库连接失败');
@@ -606,17 +607,74 @@ export class AmazonSyncService {
     }
 
     try {
+      // Amazon API单次请求最多31天，需要分批请求
+      const MAX_DAYS_PER_REQUEST = 31;
+      const totalDays = Math.min(days, 90); // 最多90天（SP支持95天，SB只支持60天，取90天作为平衡）
+      
+      let totalSynced = 0;
       const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - days);
+      
+      // 计算需要分几批请求
+      const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
+      console.log(`[SyncService] 开始同步绩效数据: 共${totalDays}天，分${batches}批请求`);
+      
+      for (let batch = 0; batch < batches; batch++) {
+        // 计算每批的日期范围
+        const batchEndDate = new Date(endDate);
+        batchEndDate.setDate(batchEndDate.getDate() - (batch * MAX_DAYS_PER_REQUEST));
+        
+        const batchStartDate = new Date(batchEndDate);
+        const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - (batch * MAX_DAYS_PER_REQUEST));
+        batchStartDate.setDate(batchStartDate.getDate() - daysInBatch + 1);
+        
+        const startDateStr = batchStartDate.toISOString().split('T')[0];
+        const endDateStr = batchEndDate.toISOString().split('T')[0];
+        
+        console.log(`[SyncService] 第${batch + 1}/${batches}批: ${startDateStr} - ${endDateStr} (共${daysInBatch}天)`);
+        
+        try {
+          const batchSynced = await this.syncPerformanceDataBatch(startDateStr, endDateStr);
+          totalSynced += batchSynced;
+          console.log(`[SyncService] 第${batch + 1}批同步完成: ${batchSynced}条记录`);
+          
+          // 批次之间稍作延迟，避免触发API速率限制
+          if (batch < batches - 1) {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+          }
+        } catch (batchError: any) {
+          console.error(`[SyncService] 第${batch + 1}批同步失败:`, batchError.message);
+          // 继续下一批，不中断整个同步过程
+        }
+      }
+      
+      // 同步完成后，更新campaigns表的绩效汇总数据
+      await this.updateCampaignPerformanceSummary();
+      
+      console.log(`[SyncService] 绩效数据同步完成: 共${totalSynced}条记录`);
+      return totalSynced;
+    } catch (error: any) {
+      console.error('[SyncService] 同步绩效数据失败:', error);
+      
+      // 如果报告超时或失败，使用模拟数据作为备用方案
+      if (error.message?.includes('timeout') || error.message?.includes('PENDING') || error.message?.includes('Report generation')) {
+        console.log('[SyncService] 报告超时，使用模拟数据填充绩效数据...');
+        return await this.generateMockPerformanceData(days);
+      }
+      
+      return 0;
+    }
+  }
+  
+  /**
+   * 同步单批绩效数据（内部方法）
+   */
+  private async syncPerformanceDataBatch(startDateStr: string, endDateStr: string): Promise<number> {
+    const db = await getDb();
+    if (!db) return 0;
 
-      const startDateStr = startDate.toISOString().split('T')[0];
-      const endDateStr = endDate.toISOString().split('T')[0];
-
-      console.log(`[SyncService] 开始同步绩效数据: ${startDateStr} - ${endDateStr}`);
-
+    try {
       // 请求报告
-      console.log('[SyncService] 正在请求Amazon报告...');
+      console.log(`[SyncService] 正在请求Amazon报告: ${startDateStr} - ${endDateStr}`);
       const reportId = await this.client.requestSpCampaignReport(startDateStr, endDateStr);
       console.log(`[SyncService] 报告请求成功, reportId: ${reportId}`);
       
@@ -638,9 +696,6 @@ export class AmazonSyncService {
       console.log(`[SyncService] 开始处理报告数据, 共 ${reportData.length} 条记录`);
       
       for (const row of reportData) {
-        // 输出每行数据的关键字段
-        console.log(`[SyncService] 处理行数据: campaignId=${row.campaignId}, date=${row.date}, cost=${row.cost}, sales14d=${row.sales14d}`);
-        
         // 查找对应的campaign
         const [campaign] = await db
           .select()
@@ -654,10 +709,6 @@ export class AmazonSyncService {
           .limit(1);
 
         if (!campaign) {
-          console.log(`[SyncService] 未找到广告活动: campaignId=${row.campaignId}, accountId=${this.accountId}`);
-          // 列出该账号下的所有campaign ID用于对比
-          const allCampaigns = await db.select({ campaignId: campaigns.campaignId }).from(campaigns).where(eq(campaigns.accountId, this.accountId)).limit(5);
-          console.log(`[SyncService] 该账号下的campaign IDs示例:`, allCampaigns.map(c => c.campaignId));
           continue;
         }
 
@@ -713,19 +764,9 @@ export class AmazonSyncService {
         synced++;
       }
 
-      // 同步完成后，更新campaigns表的绩效汇总数据
-      await this.updateCampaignPerformanceSummary();
-
       return synced;
     } catch (error: any) {
-      console.error('Error syncing performance data:', error);
-      
-      // 如果报告超时或失败，使用模拟数据作为备用方案
-      if (error.message?.includes('timeout') || error.message?.includes('PENDING') || error.message?.includes('Report generation')) {
-        console.log('[SyncService] 报告超时，使用模拟数据填充绩效数据...');
-        return await this.generateMockPerformanceData(days);
-      }
-      
+      console.error(`[SyncService] 批次同步失败 (${startDateStr} - ${endDateStr}):`, error.message);
       return 0;
     }
   }

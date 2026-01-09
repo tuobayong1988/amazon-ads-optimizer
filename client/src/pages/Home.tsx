@@ -339,6 +339,11 @@ function DashboardContent() {
             </h1>
             <p className="text-muted-foreground text-sm mt-1">
               多账户广告数据一览
+              {dataDateRange?.maxDate && (
+                <span className="ml-2 text-xs text-blue-400">
+                  · 数据更新至 {format(new Date(dataDateRange.maxDate), 'MM/dd HH:mm')}
+                </span>
+              )}
             </p>
           </div>
           <div className="flex items-center gap-3">

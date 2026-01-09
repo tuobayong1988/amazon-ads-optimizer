@@ -31,13 +31,13 @@ describe('分层同步调度器', () => {
       expect(SYNC_TIER_CONFIG.medium.description).toContain('中频');
     });
 
-    it('应该正确配置低频同步间隔为2小时', () => {
-      expect(SYNC_TIER_CONFIG.low.intervalMs).toBe(2 * 60 * 60 * 1000);
+    it('应该正确配置低频同步间隔为1小时', () => {
+      expect(SYNC_TIER_CONFIG.low.intervalMs).toBe(60 * 60 * 1000);
       expect(SYNC_TIER_CONFIG.low.description).toContain('低频');
     });
 
-    it('应该正确配置完整同步间隔为1小时', () => {
-      expect(SYNC_TIER_CONFIG.full.intervalMs).toBe(60 * 60 * 1000);
+    it('应该正确配置完整同步间隔为30分钟', () => {
+      expect(SYNC_TIER_CONFIG.full.intervalMs).toBe(30 * 60 * 1000);
       expect(SYNC_TIER_CONFIG.full.description).toContain('完整');
     });
   });

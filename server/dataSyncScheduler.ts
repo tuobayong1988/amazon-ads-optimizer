@@ -32,13 +32,13 @@ const SYNC_TIER_CONFIG: Record<SyncTier, {
     syncTypes: ['ad_groups', 'keywords', 'targets'],
   },
   low: {
-    intervalMs: 2 * 60 * 60 * 1000, // 2小时
+    intervalMs: 60 * 60 * 1000, // 1小时
     description: '低频同步 - 完整数据同步',
     syncTypes: ['full_sync'],
   },
   full: {
-    intervalMs: 60 * 60 * 1000, // 1小时（默认完整同步）
-    description: '完整同步 - 所有数据',
+    intervalMs: 30 * 60 * 1000, // 30分钟（完整同步，获取60天历史数据）
+    description: '完整同步 - 所有数据（60天历史）',
     syncTypes: ['all'],
   },
 };
@@ -116,9 +116,9 @@ export function getSchedulerStatus(): SchedulerStatus {
 
 /**
  * 启动分层同步调度器
- * @param defaultIntervalMs 默认执行间隔（毫秒），用于完整同步
+ * @param defaultIntervalMs 默认执行间隔（毫秒），用于完整同步，默认30分钟
  */
-export function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60 * 1000): void {
+export function startDataSyncScheduler(defaultIntervalMs: number = 30 * 60 * 1000): void {
   if (schedulerStatus.isRunning) {
     console.log('[DataSyncScheduler] 定时同步调度器已在运行中');
     return;
@@ -304,8 +304,8 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
     case 'low':
     case 'full':
     default:
-      // 完整同步（增量同步，获取30天数据）
-      result = await syncService.syncAll(false); // isFirstSync = false
+      // 完整同步（获取90天数据）
+      result = await syncService.syncAll();
       break;
   }
 
@@ -437,8 +437,8 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
     schedule.userId
   );
 
-  // 执行增量同步（获取30天数据，覆盖归因窗口期）
-  const result = await syncService.syncAll(false); // isFirstSync = false
+  // 执行完整同步（获取90天数据）
+  const result = await syncService.syncAll();
 
   // 更新调度记录
   await db.updateSyncScheduleLastRun(schedule.id);
@@ -507,8 +507,8 @@ export async function triggerManualSync(userId: number, accountId: number): Prom
       userId
     );
 
-    // 手动触发同步使用增量同步（获取30天数据）
-    const result = await syncService.syncAll(false); // isFirstSync = false
+    // 手动触发同步（获取90天数据）
+    const result = await syncService.syncAll();
 
     return {
       success: true,
