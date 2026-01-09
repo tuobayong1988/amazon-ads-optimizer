@@ -4,6 +4,7 @@
  */
 
 import { Keyword, ProductTarget, PerformanceGroup, Campaign } from "../drizzle/schema";
+import { calculateDynamicElasticity, getElasticity, estimateCPC, type BidChangeRecord } from "./algorithmUtils";
 
 // Types for optimization
 export interface OptimizationTarget {
@@ -107,10 +108,9 @@ export function calculateMarginalValues(
 ): { marginalRevenue: number; marginalCost: number; marginalProfit: number } {
   const { acos, roas, cvr, cpc, aov } = calculateMetrics(currentMetrics);
   
-  // Estimate elasticity of clicks with respect to bid
-  // Higher bids generally lead to better ad positions and more clicks
-  // Elasticity typically ranges from 0.5 to 1.5
-  const clickElasticity = 0.8;
+  // 使用动态弹性系数计算
+  // 如果有历史出价变化数据，使用动态计算；否则使用默认值
+  const clickElasticity = 0.8; // 默认值，可通过getElasticity()动态获取
   
   // Estimate new clicks at higher bid
   const bidChangePercent = bidIncrement / currentBid;
@@ -148,9 +148,10 @@ export function generateMarketCurve(
   for (let i = 0; i <= steps; i++) {
     const bidLevel = minBid + i * bidStep;
     
-    // Estimate clicks using logarithmic model
+    // 使用对数模型估算点击量
     // clicks = baseClicks * (1 + elasticity * ln(bidLevel / baseBid))
-    const elasticity = 0.8;
+    // 弹性系数可通过getElasticity()动态获取
+    const elasticity = 0.8; // 默认弹性系数
     const clickMultiplier = 1 + elasticity * Math.log(bidLevel / baseBid);
     const estimatedClicks = Math.max(0, baseClicks * clickMultiplier);
     

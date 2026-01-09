@@ -7,9 +7,19 @@
  * - 产品定位广告（Product Targeting）：否定词只能在活动层级设置
  */
 
+import { isProtectedKeyword, getNGramDataRequirements } from "./algorithmUtils";
+
 // ============================================
 // 类型定义
 // ============================================
+
+// 品牌词白名单配置
+export interface BrandWhitelistConfig {
+  brandTerms: string[];           // 品牌词列表
+  coreProductTerms: string[];     // 核心产品词列表
+  minClicksForAnalysis: number;   // 最小点击量阈值
+  attributionWindowDays: number;  // 归因窗口期
+}
 
 export interface SearchTermData {
   searchTerm: string;
@@ -198,8 +208,10 @@ export function generateNgrams(tokens: string[], maxN: number = 2): string[] {
  */
 export function analyzeNgrams(searchTerms: SearchTermData[]): NgramAnalysisResult[] {
   // 筛选出无效搜索词（有点击但无转化）
+  // 改进：添加最小点击量阈值，避免误判
+  const minClicksThreshold = 5; // 最小点击量阈值
   const ineffectiveTerms = searchTerms.filter(
-    term => term.clicks >= 1 && term.conversions === 0
+    term => term.clicks >= minClicksThreshold && term.conversions === 0
   );
   
   // 统计每个N-gram的出现频率和相关数据

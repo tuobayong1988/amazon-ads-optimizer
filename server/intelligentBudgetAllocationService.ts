@@ -10,6 +10,7 @@
  */
 
 import { getDb } from "./db";
+import { calculateUCB, calculateMinExplorationBudget, needsReEvaluation } from "./algorithmUtils";
 import { 
   campaigns, 
   performanceGroups, 

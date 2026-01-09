@@ -145,7 +145,7 @@ function MarketingPage() {
               系统
             </h1>
             <p className="text-xl text-muted-foreground mb-8 leading-relaxed">
-              基于<strong>市场曲线建模</strong>、<strong>边际效益分析</strong>和<strong>流量隔离算法</strong>，
+              基于<strong>动态弹性系数计算</strong>、<strong>UCB探索-利用平衡</strong>和<strong>时区感知分时分析</strong>，
               实现广告出价、预算、否定词的全自动优化。每2小时自动运营，让您的广告投放效率持续提升。
             </p>
             <div className="flex flex-wrap gap-4">
@@ -171,11 +171,11 @@ function MarketingPage() {
           </div>
           <div className="grid md:grid-cols-3 gap-8">
             {[
-              { icon: BarChart3, title: "市场曲线建模", desc: "基于历史数据构建竞价-流量响应曲线" },
-              { icon: Target, title: "智能预算分配", desc: "边际效益分析，最优化预算配置" },
-              { icon: Brain, title: "N-Gram流量分析", desc: "搜索词词根分析，精准否定无效流量" },
-              { icon: Shield, title: "流量冲突检测", desc: "识别广告活动间的流量竞争" },
-              { icon: TrendingUp, title: "关键词迁移引擎", desc: "自动将高效关键词升级到精准匹配" },
+              { icon: BarChart3, title: "动态弹性系数", desc: "基于历史出价变化数据动态计算点击弹性，精准预测竞价效果" },
+              { icon: Target, title: "UCB预算分配", desc: "探索-利用平衡算法，确保每个广告活动都有机会被评估" },
+              { icon: Brain, title: "智能N-Gram分析", desc: "最小点击量阈值+品牌词白名单，避免误判核心关键词" },
+              { icon: Shield, title: "时区感知分时", desc: "根据站点本地时间分析消费者行为，智能调整分时策略" },
+              { icon: TrendingUp, title: "新词探索策略", desc: "新关键词7天探索期保护，避免过早否定潜力词" },
               { icon: RefreshCw, title: "每2小时自动运营", desc: "全自动执行优化，无需人工干预" },
             ].map((feature, i) => (
               <Card key={i} className="bg-card/50 border-border/50">

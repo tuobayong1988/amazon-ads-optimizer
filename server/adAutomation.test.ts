@@ -42,13 +42,14 @@ describe("N-Gram Analysis", () => {
 
   describe("analyzeNgrams", () => {
     it("should identify negative candidate ngrams from ineffective search terms", () => {
+      // 注意：最小点击量阈值为5，所以每个搜索词需要至少5次点击才会被分析
       const searchTerms = [
-        { searchTerm: "cheap wireless headphones", clicks: 5, conversions: 0, spend: 10, sales: 0, impressions: 100 },
-        { searchTerm: "cheap bluetooth earbuds", clicks: 3, conversions: 0, spend: 6, sales: 0, impressions: 80 },
-        { searchTerm: "cheap audio speakers", clicks: 4, conversions: 0, spend: 8, sales: 0, impressions: 90 },
-        { searchTerm: "cheap headset gaming", clicks: 2, conversions: 0, spend: 4, sales: 0, impressions: 60 },
-        { searchTerm: "cheap earphones wired", clicks: 3, conversions: 0, spend: 6, sales: 0, impressions: 70 },
-        { searchTerm: "wireless headphones premium", clicks: 2, conversions: 1, spend: 4, sales: 50, impressions: 50 },
+        { searchTerm: "cheap wireless headphones", clicks: 8, conversions: 0, spend: 16, sales: 0, impressions: 200 },
+        { searchTerm: "cheap bluetooth earbuds", clicks: 6, conversions: 0, spend: 12, sales: 0, impressions: 150 },
+        { searchTerm: "cheap audio speakers", clicks: 7, conversions: 0, spend: 14, sales: 0, impressions: 180 },
+        { searchTerm: "cheap headset gaming", clicks: 5, conversions: 0, spend: 10, sales: 0, impressions: 120 },
+        { searchTerm: "cheap earphones wired", clicks: 6, conversions: 0, spend: 12, sales: 0, impressions: 140 },
+        { searchTerm: "wireless headphones premium", clicks: 5, conversions: 1, spend: 10, sales: 50, impressions: 100 },
       ];
 
       const result = analyzeNgrams(searchTerms);
