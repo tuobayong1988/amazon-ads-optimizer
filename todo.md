@@ -3543,3 +3543,19 @@ Amazon Advertising API数据有12-24小时延迟，当天广告数据通常在�
 - getMarketplaceCurrentDate: 获取站点当前日期
 - getMarketplaceDateRange: 计算站点时区的日期范围
 - getMarketplaceYesterday: 获取站点昨天日期
+
+
+## 数据概览模块时区修复（第五十一阶段）
+
+### 问题描述
+- 中国时间下午4点 = 美国1月9号凌晨
+- 用户查询"昨天"（美国1月8号）的数据，没有任何数据显示
+- 需要修复前端时间筛选的时区处理
+
+### 修复任务
+- [x] 检查数据库中的实际数据日期范围（2026-01-02到2026-01-08）
+- [x] 检查数据概览页面的时间筛选逻辑
+- [x] 修复日期比较格式问题（toISOString改为YYYY-MM-DD格式）
+- [x] 修复getAccountPerformanceSummary函数的日期查询
+- [x] 修复getDailyTrendData函数优先使用前端传入的日期
+- [x] 验证“昨天”数据正确显示（$353花费，$358销售额）

@@ -4059,6 +4059,10 @@ export async function getAccountPerformanceSummary(
   try {
     // 如果有时间范围，从日报表查询；否则从 campaigns 表查询累计数据
     if (startDate && endDate) {
+      // 将Date对象转换为YYYY-MM-DD格式字符串，与数据库中的日期格式匹配
+      const startDateStr = startDate.toISOString().split('T')[0];
+      const endDateStr = endDate.toISOString().split('T')[0];
+      
       // 从daily_performance表查询指定时间范围的数据
       const [result] = await db.select({
         totalSpend: sql<number>`COALESCE(SUM(${dailyPerformance.spend}), 0)`,
@@ -4070,8 +4074,8 @@ export async function getAccountPerformanceSummary(
       .from(dailyPerformance)
       .where(and(
         eq(dailyPerformance.accountId, accountId),
-        gte(dailyPerformance.date, startDate.toISOString()),
-        lte(dailyPerformance.date, endDate.toISOString())
+        sql`DATE(${dailyPerformance.date}) >= ${startDateStr}`,
+        sql`DATE(${dailyPerformance.date}) <= ${endDateStr}`
       ));
       
       return {
@@ -4120,27 +4124,31 @@ export async function getDailyTrendData(accountIds: number[], days: number, time
   if (!db) return [];
   
   try {
-    let endDate = new Date();
-    let startDate = new Date();
+    // 优先使用前端传入的日期字符串（已根据站点时区计算）
+    let startDateStr: string;
+    let endDateStr: string;
     
-    // 处理不同时间范围
-    if (timeRange === 'custom' && customStartDate && customEndDate) {
-      // 自定义日期范围
-      startDate = new Date(customStartDate);
-      endDate = new Date(customEndDate);
-    } else if (timeRange === 'yesterday') {
-      endDate = new Date();
-      endDate.setDate(endDate.getDate() - 1);
-      startDate = new Date(endDate);
-    } else if (timeRange === 'today') {
-      startDate = new Date();
+    if (customStartDate && customEndDate) {
+      // 前端传入的日期已经是YYYY-MM-DD格式
+      startDateStr = customStartDate;
+      endDateStr = customEndDate;
     } else {
-      startDate.setDate(startDate.getDate() - days);
+      // 如果没有传入日期，使用默认计算（回退方案）
+      let endDate = new Date();
+      let startDate = new Date();
+      
+      if (timeRange === 'yesterday') {
+        endDate.setDate(endDate.getDate() - 1);
+        startDate = new Date(endDate);
+      } else if (timeRange === 'today') {
+        // startDate和endDate都是今天
+      } else {
+        startDate.setDate(startDate.getDate() - days);
+      }
+      
+      startDateStr = startDate.toISOString().split('T')[0];
+      endDateStr = endDate.toISOString().split('T')[0];
     }
-    
-    // 使用原生SQL查询避免GROUP BY问题
-    const startDateStr = startDate.toISOString().split('T')[0];
-    const endDateStr = endDate.toISOString().split('T')[0];
     
     const results = await db.execute(sql`
       SELECT 
