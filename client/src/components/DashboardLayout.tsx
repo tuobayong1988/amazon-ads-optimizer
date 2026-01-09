@@ -53,7 +53,8 @@ import {
   Brain,
   History,
   FlaskConical,
-  Bot
+  Bot,
+  UserPlus
 } from "lucide-react";
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
@@ -105,6 +106,7 @@ const menuGroups = [
       { icon: Settings, label: "优化设置", path: "/settings" },
       { icon: Bell, label: "通知设置", path: "/notifications" },
       { icon: Users, label: "团队管理", path: "/team" },
+      { icon: UserPlus, label: "邀请码管理", path: "/invite-codes" },
     ]
   },
 ];

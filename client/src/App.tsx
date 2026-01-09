@@ -56,6 +56,9 @@ import OptimizationEngine from "@/pages/OptimizationEngine";
 import SmartOptimizationCenter from "@/pages/SmartOptimizationCenter";
 import SyncLogs from "@/pages/SyncLogs";
 import DataValidation from "@/pages/DataValidation";
+import InviteRegister from "@/pages/InviteRegister";
+import InviteCodeManagement from "@/pages/InviteCodeManagement";
+import LocalLogin from "@/pages/LocalLogin";
 
 function Router() {
   return (
@@ -120,6 +123,9 @@ function Router() {
       {/* 自动化控制和自动运营已整合到智能优化中心 */}
       <Route path="/automation-control">{() => { window.location.href = '/optimization-engine'; return null; }}</Route>
       <Route path="/auto-operation">{() => { window.location.href = '/optimization-engine'; return null; }}</Route>
+      <Route path="/register" component={InviteRegister} />
+      <Route path="/local-login" component={LocalLogin} />
+      <Route path="/invite-codes" component={InviteCodeManagement} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

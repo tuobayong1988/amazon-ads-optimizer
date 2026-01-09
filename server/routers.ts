@@ -8834,6 +8834,109 @@ const autoOperationRouter = router({
     }),
 });
 
+// ==================== Invite Code Router ====================
+const inviteCodeRouter = router({
+  // 生成邀请码
+  create: protectedProcedure
+    .input(z.object({
+      inviteType: z.enum(['team_member', 'external_user']).default('external_user'),
+      maxUses: z.number().min(0).max(1000).default(1),
+      expiresInDays: z.number().min(1).max(365).optional(),
+      note: z.string().max(255).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { createInviteCode } = await import('./inviteCodeService');
+      const { createAuditLog } = await import('./auditLogService');
+      
+      const result = await createInviteCode({
+        createdBy: ctx.user.id,
+        organizationId: (ctx.user as any).organizationId || 1,
+        ...input,
+      });
+      
+      if (result.success && result.inviteCode) {
+        await createAuditLog({
+          organizationId: (ctx.user as any).organizationId || 1,
+          userId: ctx.user.id,
+          userName: ctx.user.name || ctx.user.email || undefined,
+          actionType: 'invite_create',
+          actionCategory: 'invite',
+          resourceType: 'invite_code',
+          resourceId: result.inviteCode.code,
+          description: `创建邀请码: ${result.inviteCode.code}`,
+          newValue: { inviteType: input.inviteType, maxUses: input.maxUses },
+        });
+      }
+      
+      return result;
+    }),
+
+  // 批量生成邀请码
+  createBatch: protectedProcedure
+    .input(z.object({
+      count: z.number().min(1).max(100),
+      inviteType: z.enum(['team_member', 'external_user']).default('external_user'),
+      maxUses: z.number().min(0).max(1000).default(1),
+      expiresInDays: z.number().min(1).max(365).optional(),
+      note: z.string().max(255).optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const { createInviteCodesBatch } = await import('./inviteCodeService');
+      return createInviteCodesBatch({
+        createdBy: ctx.user.id,
+        organizationId: (ctx.user as any).organizationId || 1,
+        inviteType: input.inviteType,
+        maxUses: input.maxUses,
+        expiresInDays: input.expiresInDays,
+        note: input.note,
+      }, input.count);
+    }),
+
+  // 验证邀请码（公开接口）
+  validate: publicProcedure
+    .input(z.object({ code: z.string() }))
+    .query(async ({ input }) => {
+      const { validateInviteCode } = await import('./inviteCodeService');
+      return validateInviteCode(input.code);
+    }),
+
+  // 获取邀请码列表
+  list: protectedProcedure.query(async ({ ctx }) => {
+    const { getInviteCodes } = await import('./inviteCodeService');
+    return getInviteCodes(ctx.user.id);
+  }),
+
+  // 获取邀请码统计
+  stats: protectedProcedure.query(async ({ ctx }) => {
+    const { getInviteCodeStats } = await import('./inviteCodeService');
+    return getInviteCodeStats(ctx.user.id);
+  }),
+
+  // 禁用邀请码
+  disable: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const { disableInviteCode } = await import('./inviteCodeService');
+      return disableInviteCode(input.id);
+    }),
+
+  // 启用邀请码
+  enable: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const { enableInviteCode } = await import('./inviteCodeService');
+      return enableInviteCode(input.id);
+    }),
+
+  // 删除邀请码
+  delete: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      const { deleteInviteCode } = await import('./inviteCodeService');
+      return deleteInviteCode(input.id);
+    }),
+});
+
 // ==================== Main Router ====================
 export const appRouter = router({system: systemRouter,
   auth: router({
@@ -8843,6 +8946,51 @@ export const appRouter = router({system: systemRouter,
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
     }),
+    // 本地用户注册（需要邀请码）
+    localRegister: publicProcedure
+      .input(z.object({
+        inviteCode: z.string().min(1, '邀请码不能为空'),
+        username: z.string().min(3, '用户名至少3个字符').max(50),
+        password: z.string().min(6, '密码至少6个字符'),
+        name: z.string().min(1, '姓名不能为空'),
+        email: z.string().email().optional(),
+        organizationName: z.string().optional(),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { registerWithInviteCode } = await import('./localAuthService');
+        const ipAddress = ctx.req.headers['x-forwarded-for'] as string || ctx.req.socket.remoteAddress;
+        const userAgent = ctx.req.headers['user-agent'];
+        return registerWithInviteCode(input, ipAddress, userAgent);
+      }),
+    // 本地用户登录
+    localLogin: publicProcedure
+      .input(z.object({
+        username: z.string().min(1),
+        password: z.string().min(1),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { loginLocalUser } = await import('./localAuthService');
+        const ipAddress = ctx.req.headers['x-forwarded-for'] as string || ctx.req.socket.remoteAddress;
+        const userAgent = ctx.req.headers['user-agent'];
+        return loginLocalUser(input, ipAddress, userAgent);
+      }),
+    // 验证Token
+    verifyToken: publicProcedure
+      .input(z.object({ token: z.string() }))
+      .query(async ({ input }) => {
+        const { verifyToken } = await import('./localAuthService');
+        return verifyToken(input.token);
+      }),
+    // 修改密码
+    changePassword: protectedProcedure
+      .input(z.object({
+        oldPassword: z.string().min(1),
+        newPassword: z.string().min(6),
+      }))
+      .mutation(async ({ ctx, input }) => {
+        const { changePassword } = await import('./localAuthService');
+        return changePassword(ctx.user.id, input.oldPassword, input.newPassword);
+      }),
   }),
   
   adAccount: adAccountRouter,
@@ -8883,6 +9031,7 @@ export const appRouter = router({system: systemRouter,
   specialScenario: specialScenarioRouter,
   automation: automationRouter,
   autoOperation: autoOperationRouter,
+  inviteCode: inviteCodeRouter,
 });
 
 export type AppRouter = typeof appRouter;
