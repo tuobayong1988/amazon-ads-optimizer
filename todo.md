@@ -3518,3 +3518,28 @@
 
 ### 关于今天数据缺失的说明
 Amazon Advertising API数据有12-24小时延迟，当天广告数据通常在次日才能通过API获取。这是Amazon的正常行为，不是系统bug。
+
+
+## Amazon广告数据时区修复（第五十阶段）
+
+### 问题描述
+系统使用中国时间（UTC+8）来判断"今天"和"昨天"，但亚马逊各站点使用当地时区记录数据。
+
+### 站点时区映射
+- US/CA/MX: 美国太平洋时间 (PST/PDT, UTC-8/-7)
+- UK: 英国时间 (GMT/BST, UTC+0/+1)
+- DE/FR/IT/ES: 中欧时间 (CET/CEST, UTC+1/+2)
+- JP: 日本时间 (JST, UTC+9)
+- AU: 澳大利亚东部时间 (AEST/AEDT, UTC+10/+11)
+
+### 修复任务
+- [x] 创建站点时区映射配置 (server/utils/timezone.ts)
+- [x] 修改数据同步服务的时区处理 (amazonSyncService.ts)
+- [x] 修改数据查询的时区处理 (routers.ts - 所有createFromCredentials调用)
+- [x] AmazonSyncService类添加marketplace属性
+
+### 时区工具函数
+- getMarketplaceTimezone: 获取站点对应的IANA时区
+- getMarketplaceCurrentDate: 获取站点当前日期
+- getMarketplaceDateRange: 计算站点时区的日期范围
+- getMarketplaceYesterday: 获取站点昨天日期

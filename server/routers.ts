@@ -2753,6 +2753,10 @@ const amazonApiRouter = router({
       try {
         console.log(`[授权后自动同步] 开始为账号 ${input.accountId} 同步数据...`);
         
+        // 获取账号的站点信息
+        const accountInfo = await db.getAdAccountById(input.accountId);
+        const marketplace = accountInfo?.marketplace || 'US';
+        
         const syncService = await AmazonSyncService.createFromCredentials(
           {
             clientId: input.clientId,
@@ -2762,7 +2766,8 @@ const amazonApiRouter = router({
             region: input.region,
           },
           input.accountId,
-          ctx.user.id
+          ctx.user.id,
+          marketplace // 传入站点代码用于时区计算
         );
 
         // 执行完整同步（获取90天历史数据）
@@ -2981,7 +2986,8 @@ const amazonApiRouter = router({
               region: input.region,
             },
             account.accountId,
-            ctx.user.id
+            ctx.user.id,
+            account.countryCode || 'US' // 传入站点代码用于时区计算
           );
 
           // 异步执行完整同步（获取90天历史数据），不阻塞返回
@@ -3238,6 +3244,10 @@ const amazonApiRouter = router({
         ? await db.getLastSuccessfulSync(input.accountId)
         : null;
 
+      // 获取账号的站点信息
+      const account = await db.getAdAccountById(input.accountId);
+      const marketplace = account?.marketplace || 'US';
+
       const syncService = await AmazonSyncService.createFromCredentials(
         {
           clientId: credentials.clientId,
@@ -3247,7 +3257,8 @@ const amazonApiRouter = router({
           region: credentials.region as 'NA' | 'EU' | 'FE',
         },
         input.accountId,
-        ctx.user.id
+        ctx.user.id,
+        marketplace // 传入站点代码用于时区计算
       );
 
       // 带重试的执行函数
@@ -3510,6 +3521,10 @@ const amazonApiRouter = router({
         });
       }
 
+      // 获取账号的站点信息
+      const accountInfo = await db.getAdAccountById(input.accountId);
+      const marketplace = accountInfo?.marketplace || 'US';
+
       const syncService = await AmazonSyncService.createFromCredentials(
         {
           clientId: credentials.clientId,
@@ -3519,7 +3534,8 @@ const amazonApiRouter = router({
           region: credentials.region as 'NA' | 'EU' | 'FE',
         },
         input.accountId,
-        ctx.user.id
+        ctx.user.id,
+        marketplace
       );
 
       const count = await syncService.syncSpCampaigns();
@@ -3541,6 +3557,10 @@ const amazonApiRouter = router({
         });
       }
 
+      // 获取账号的站点信息
+      const accountInfo = await db.getAdAccountById(input.accountId);
+      const marketplace = accountInfo?.marketplace || 'US';
+
       const syncService = await AmazonSyncService.createFromCredentials(
         {
           clientId: credentials.clientId,
@@ -3550,7 +3570,8 @@ const amazonApiRouter = router({
           region: credentials.region as 'NA' | 'EU' | 'FE',
         },
         input.accountId,
-        ctx.user.id
+        ctx.user.id,
+        marketplace
       );
 
       const count = await syncService.syncPerformanceData(input.days);
@@ -3841,6 +3862,10 @@ const amazonApiRouter = router({
           return { error: 'API凭证未找到' };
         }
 
+        // 获取账号的站点信息
+        const accountInfo = await db.getAdAccountById(task.accountId);
+        const marketplace = accountInfo?.marketplace || 'US';
+
         const syncService = await AmazonSyncService.createFromCredentials(
           {
             clientId: credentials.clientId,
@@ -3850,7 +3875,8 @@ const amazonApiRouter = router({
             region: credentials.region as 'NA' | 'EU' | 'FE',
           },
           task.accountId,
-          task.userId
+          task.userId,
+          marketplace
         );
 
         // 执行同步并更新进度
@@ -3913,6 +3939,10 @@ const amazonApiRouter = router({
         });
       }
 
+      // 获取账号的站点信息
+      const accountInfo = await db.getAdAccountById(input.accountId);
+      const marketplace = accountInfo?.marketplace || 'US';
+
       const syncService = await AmazonSyncService.createFromCredentials(
         {
           clientId: credentials.clientId,
@@ -3922,7 +3952,8 @@ const amazonApiRouter = router({
           region: credentials.region as 'NA' | 'EU' | 'FE',
         },
         input.accountId,
-        ctx.user.id
+        ctx.user.id,
+        marketplace
       );
 
       const success = await syncService.applyBidAdjustment(
@@ -3980,6 +4011,10 @@ const amazonApiRouter = router({
         }
       }
 
+      // 获取账号的站点信息
+      const accountInfo = await db.getAdAccountById(input.accountId);
+      const marketplace = accountInfo?.marketplace || 'US';
+
       const syncService = await AmazonSyncService.createFromCredentials(
         {
           clientId: credentials.clientId,
@@ -3989,7 +4024,8 @@ const amazonApiRouter = router({
           region: credentials.region as 'NA' | 'EU' | 'FE',
         },
         input.accountId,
-        ctx.user.id
+        ctx.user.id,
+        marketplace
       );
 
       const results = await runAutoBidOptimization(syncService, input.accountId, config);
@@ -4019,6 +4055,10 @@ const amazonApiRouter = router({
         });
       }
 
+      // 获取账号的站点信息
+      const accountInfo = await db.getAdAccountById(input.accountId);
+      const marketplace = accountInfo?.marketplace || 'US';
+
       const syncService = await AmazonSyncService.createFromCredentials(
         {
           clientId: credentials.clientId,
@@ -4028,7 +4068,8 @@ const amazonApiRouter = router({
           region: credentials.region as 'NA' | 'EU' | 'FE',
         },
         input.accountId,
-        ctx.user.id
+        ctx.user.id,
+        marketplace
       );
 
       const count = await syncService.generateMockPerformanceData(input.days);

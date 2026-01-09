@@ -25,6 +25,7 @@ import {
   SpCampaign,
 } from './amazonAdsApi';
 import { calculateBidAdjustment, OptimizationTarget, PerformanceGroupConfig } from './bidOptimizer';
+import { getMarketplaceDateRange, getMarketplaceCurrentDate, getMarketplaceYesterday } from './utils/timezone';
 
 // API凭证存储接口
 interface StoredApiCredentials {
@@ -42,11 +43,13 @@ export class AmazonSyncService {
   public client: AmazonAdsApiClient;
   public accountId: number;
   public userId: number;
+  public marketplace: string; // 站点代码，用于时区计算
 
-  constructor(client: AmazonAdsApiClient, accountId: number, userId: number) {
+  constructor(client: AmazonAdsApiClient, accountId: number, userId: number, marketplace: string = 'US') {
     this.client = client;
     this.accountId = accountId;
     this.userId = userId;
+    this.marketplace = marketplace;
   }
 
   /**
@@ -55,7 +58,8 @@ export class AmazonSyncService {
   static async createFromCredentials(
     credentials: StoredApiCredentials,
     accountId: number,
-    userId: number
+    userId: number,
+    marketplace: string = 'US' // 站点代码，用于时区计算
   ): Promise<AmazonSyncService> {
     const apiCredentials: AmazonApiCredentials = {
       clientId: credentials.clientId,
@@ -66,7 +70,7 @@ export class AmazonSyncService {
     };
 
     const client = createAmazonAdsClient(apiCredentials);
-    return new AmazonSyncService(client, accountId, userId);
+    return new AmazonSyncService(client, accountId, userId, marketplace);
   }
 
   /**
@@ -612,23 +616,26 @@ export class AmazonSyncService {
       const totalDays = Math.min(days, 90); // 最多90天（SP支持95天，SB只支持60天，取90天作为平衡）
       
       let totalSynced = 0;
-      const endDate = new Date();
+      
+      // 使用站点时区计算日期范围
+      const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceDateRange(this.marketplace, totalDays);
+      console.log(`[SyncService] 站点${this.marketplace}当前日期: ${getMarketplaceCurrentDate(this.marketplace)}`);
       
       // 计算需要分几批请求
       const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
-      console.log(`[SyncService] 开始同步绩效数据: 共${totalDays}天，分${batches}批请求`);
+      console.log(`[SyncService] 开始同步绩效数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
       
       for (let batch = 0; batch < batches; batch++) {
-        // 计算每批的日期范围
-        const batchEndDate = new Date(endDate);
-        batchEndDate.setDate(batchEndDate.getDate() - (batch * MAX_DAYS_PER_REQUEST));
+        // 计算每批的日期范围（基于站点时区）
+        const endDateObj = new Date(rangeEndDate);
+        endDateObj.setDate(endDateObj.getDate() - (batch * MAX_DAYS_PER_REQUEST));
         
-        const batchStartDate = new Date(batchEndDate);
+        const startDateObj = new Date(endDateObj);
         const daysInBatch = Math.min(MAX_DAYS_PER_REQUEST, totalDays - (batch * MAX_DAYS_PER_REQUEST));
-        batchStartDate.setDate(batchStartDate.getDate() - daysInBatch + 1);
+        startDateObj.setDate(startDateObj.getDate() - daysInBatch + 1);
         
-        const startDateStr = batchStartDate.toISOString().split('T')[0];
-        const endDateStr = batchEndDate.toISOString().split('T')[0];
+        const startDateStr = startDateObj.toISOString().split('T')[0];
+        const endDateStr = endDateObj.toISOString().split('T')[0];
         
         console.log(`[SyncService] 第${batch + 1}/${batches}批: ${startDateStr} - ${endDateStr} (共${daysInBatch}天)`);
         
@@ -789,12 +796,17 @@ export class AmazonSyncService {
 
       let synced = 0;
 
+      // 使用站点时区计算日期
+      const marketplaceToday = getMarketplaceCurrentDate(this.marketplace);
+      console.log(`[SyncService] 站点${this.marketplace}当前日期: ${marketplaceToday}`);
+      
       for (const campaign of accountCampaigns) {
         // 为每个广告活动生成最近N天的模拟数据
         for (let i = 0; i < days; i++) {
-          const date = new Date();
-          date.setDate(date.getDate() - i);
-          const dateStr = date.toISOString().split('T')[0];
+          // 基于站点当前日期计算
+          const baseDate = new Date(marketplaceToday);
+          baseDate.setDate(baseDate.getDate() - i);
+          const dateStr = baseDate.toISOString().split('T')[0];
 
           // 检查是否已存在当天数据
           const [existing] = await db
@@ -866,14 +878,10 @@ export class AmazonSyncService {
     }
 
     try {
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - days);
+      // 使用站点时区计算日期范围
+      const { startDate: startDateStr, endDate: endDateStr } = getMarketplaceDateRange(this.marketplace, days);
 
-      const startDateStr = startDate.toISOString().split('T')[0];
-      const endDateStr = endDate.toISOString().split('T')[0];
-
-      console.log(`[SyncService] 开始同步关键词绩效数据: ${startDateStr} - ${endDateStr}`);
+      console.log(`[SyncService] 开始同步关键词绩效数据: ${startDateStr} - ${endDateStr} (站点: ${this.marketplace})`);
 
       // 请求关键词报告
       console.log('[SyncService] 正在请求Amazon关键词报告...');
@@ -1175,14 +1183,10 @@ export class AmazonSyncService {
         .from(campaigns)
         .where(eq(campaigns.accountId, this.accountId));
 
-      console.log(`[SyncService] 开始更新 ${accountCampaigns.length} 个广告活动的绩效汇总`);
+      console.log(`[SyncService] 开始更新 ${accountCampaigns.length} 个广告活动的绩效汇总 (站点: ${this.marketplace})`);
 
-      // 计算最近30天的日期范围
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - 30);
-      const startDateStr = startDate.toISOString().split('T')[0];
-      const endDateStr = endDate.toISOString().split('T')[0];
+      // 使用站点时区计算最近30天的日期范围
+      const { startDate: startDateStr, endDate: endDateStr } = getMarketplaceDateRange(this.marketplace, 30);
 
       for (const campaign of accountCampaigns) {
         // 首先尝试仍ailyPerformance表汇总
