@@ -1,0 +1,26 @@
+{
+  "query": "SELECT campaignType, COUNT(*) as count FROM campaigns GROUP BY campaignType;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT campaignType, COUNT(*) as count FROM campaigns GROUP BY campaignType;",
+  "rows": [
+    {
+      "campaignType": "sb",
+      "count": "1350"
+    },
+    {
+      "campaignType": "sp_auto",
+      "count": "128"
+    },
+    {
+      "campaignType": "sd",
+      "count": "29"
+    },
+    {
+      "campaignType": "sp_manual",
+      "count": "1248"
+    }
+  ],
+  "messages": [],
+  "stdout": "campaignType\tcount\nsb\t1350\nsp_auto\t128\nsd\t29\nsp_manual\t1248\n",
+  "stderr": "",
+  "execution_time_ms": 86
+}
