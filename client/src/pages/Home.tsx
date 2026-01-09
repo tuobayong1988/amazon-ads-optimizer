@@ -37,6 +37,8 @@ import {
   Legend
 } from "recharts";
 import { Link } from "wouter";
+import { TimeRangeSelector, TimeRangeValue, getDefaultTimeRangeValue, TIME_RANGE_PRESETS, PresetTimeRange } from "@/components/TimeRangeSelector";
+import { format } from "date-fns";
 
 // 生成最近7天的模拟数据
 const generateLast7DaysData = () => {
@@ -210,24 +212,64 @@ function MarketingPage() {
 // 仪表盘组件（登录后显示）
 function DashboardContent() {
   const { user } = useAuth();
-  const [timeRange, setTimeRange] = useState<'today' | '7days' | '30days'>('7days');
+  const [timeRangeValue, setTimeRangeValue] = useState<TimeRangeValue>(getDefaultTimeRangeValue('7days'));
   const [isRefreshing, setIsRefreshing] = useState(false);
   
-  // 获取账户列表及绩效数据
-  const { data: accountsWithPerformance, refetch: refetchAccounts } = trpc.adAccount.listWithPerformance.useQuery(
+  // 获取数据可用日期范围（用于限制自定义日期选择器）
+  const { data: dataDateRange } = trpc.adAccount.getDataDateRange.useQuery(
     undefined,
     { enabled: !!user }
   );
   
-  // 生成图表数据
-  const chartData = useMemo(() => generateLast7DaysData(), []);
+  // 计算时间范围的天数和日期
+  const days = timeRangeValue.days;
+  const startDate = format(timeRangeValue.dateRange.from, 'yyyy-MM-dd');
+  const endDate = format(timeRangeValue.dateRange.to, 'yyyy-MM-dd');
+  const timeRange = timeRangeValue.preset === 'custom' ? 'custom' : timeRangeValue.preset;
   
-  // 使用真实账户数据
+  // 获取账户列表及绩效数据（支持时间范围筛选）
+  const { data: accountsWithPerformance, refetch: refetchAccounts } = trpc.adAccount.listWithPerformance.useQuery(
+    { timeRange: timeRange as any, days, startDate, endDate },
+    { enabled: !!user }
+  );
+  
+  // 获取图表数据（真实数据）
+  const { data: trendData } = trpc.adAccount.getDailyTrend.useQuery(
+    { days, timeRange: timeRange as any, startDate, endDate },
+    { enabled: !!user }
+  );
+  
+  // 图表数据：优先使用真实数据，否则使用模拟数据
+  const chartData = useMemo(() => {
+    if (trendData && trendData.length > 0) {
+      return trendData;
+    }
+    return generateLast7DaysData();
+  }, [trendData]);
+  
+  // 使用真实账户数据，按市场优先级排序
   const accountsData = useMemo(() => {
     if (!accountsWithPerformance || accountsWithPerformance.length === 0) {
       return [];
     }
-    return accountsWithPerformance;
+    // 市场优先级排序：US > CA > MX > 其他
+    const marketplacePriority: Record<string, number> = {
+      'US': 1,
+      'CA': 2,
+      'MX': 3,
+      'UK': 4,
+      'DE': 5,
+      'FR': 6,
+      'IT': 7,
+      'ES': 8,
+      'JP': 9,
+      'AU': 10,
+    };
+    return [...accountsWithPerformance].sort((a, b) => {
+      const priorityA = marketplacePriority[a.marketplace] || 99;
+      const priorityB = marketplacePriority[b.marketplace] || 99;
+      return priorityA - priorityB;
+    });
   }, [accountsWithPerformance]);
   
   // 计算汇总数据
@@ -235,8 +277,15 @@ function DashboardContent() {
     const totalSpend = accountsData.reduce((sum, a) => sum + a.spend, 0);
     const totalSales = accountsData.reduce((sum, a) => sum + a.sales, 0);
     const totalOrders = accountsData.reduce((sum, a) => sum + a.orders, 0);
-    const avgAcos = totalSpend / totalSales * 100;
-    const avgRoas = totalSales / totalSpend;
+    const avgAcos = totalSpend > 0 && totalSales > 0 ? (totalSpend / totalSales) * 100 : 0;
+    const avgRoas = totalSpend > 0 && totalSales > 0 ? totalSales / totalSpend : 0;
+    
+    // 计算环比变化
+    const spendChange = accountsData.reduce((sum, a) => sum + (a.change?.spend || 0), 0) / Math.max(accountsData.length, 1);
+    const salesChange = accountsData.reduce((sum, a) => sum + (a.change?.sales || 0), 0) / Math.max(accountsData.length, 1);
+    const acosChange = accountsData.reduce((sum, a) => sum + (a.change?.acos || 0), 0) / Math.max(accountsData.length, 1);
+    const roasChange = avgRoas > 0 ? salesChange - spendChange : 0; // 简化计算
+    const ordersChange = accountsData.reduce((sum, a) => sum + (a.orders || 0), 0) - accountsData.reduce((sum, a) => sum + (a.orders || 0), 0); // TODO: 需要上期数据
     
     return {
       totalSpend,
@@ -244,6 +293,11 @@ function DashboardContent() {
       totalOrders,
       avgAcos,
       avgRoas,
+      spendChange,
+      salesChange,
+      acosChange,
+      roasChange,
+      ordersChange,
       healthyCount: accountsData.filter(a => a.status === 'healthy').length,
       warningCount: accountsData.filter(a => a.status === 'warning').length,
       criticalCount: accountsData.filter(a => a.status === 'critical').length,
@@ -288,20 +342,14 @@ function DashboardContent() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            {/* 时间范围选择 */}
-            <div className="flex items-center gap-1 bg-gray-800/50 rounded-lg p-1">
-              {(['today', '7days', '30days'] as const).map((range) => (
-                <Button
-                  key={range}
-                  variant={timeRange === range ? 'secondary' : 'ghost'}
-                  size="sm"
-                  onClick={() => setTimeRange(range)}
-                  className="text-xs"
-                >
-                  {range === 'today' ? '今天' : range === '7days' ? '近7天' : '近30天'}
-                </Button>
-              ))}
-            </div>
+            {/* 时间范围选择器 */}
+            <TimeRangeSelector
+              value={timeRangeValue}
+              onChange={setTimeRangeValue}
+              minDataDate={dataDateRange?.minDate ? new Date(dataDateRange.minDate) : undefined}
+              maxDataDate={dataDateRange?.maxDate ? new Date(dataDateRange.maxDate) : undefined}
+              hasData={dataDateRange?.hasData}
+            />
             <Button 
               variant="outline" 
               size="sm"
@@ -326,9 +374,15 @@ function DashboardContent() {
                 <DollarSign className="h-8 w-8 text-blue-400/50" />
               </div>
               <div className="flex items-center gap-1 mt-2 text-xs">
-                <TrendingUp className="h-3 w-3 text-green-400" />
-                <span className="text-green-400">+5.2%</span>
-                <span className="text-muted-foreground">vs上周</span>
+                {summary.spendChange >= 0 ? (
+                  <TrendingUp className="h-3 w-3 text-green-400" />
+                ) : (
+                  <TrendingDown className="h-3 w-3 text-red-400" />
+                )}
+                <span className={summary.spendChange >= 0 ? "text-green-400" : "text-red-400"}>
+                  {summary.spendChange >= 0 ? '+' : ''}{summary.spendChange.toFixed(1)}%
+                </span>
+                <span className="text-muted-foreground">vs上期</span>
               </div>
             </CardContent>
           </Card>
@@ -343,9 +397,15 @@ function DashboardContent() {
                 <ShoppingCart className="h-8 w-8 text-green-400/50" />
               </div>
               <div className="flex items-center gap-1 mt-2 text-xs">
-                <TrendingUp className="h-3 w-3 text-green-400" />
-                <span className="text-green-400">+8.3%</span>
-                <span className="text-muted-foreground">vs上周</span>
+                {summary.salesChange >= 0 ? (
+                  <TrendingUp className="h-3 w-3 text-green-400" />
+                ) : (
+                  <TrendingDown className="h-3 w-3 text-red-400" />
+                )}
+                <span className={summary.salesChange >= 0 ? "text-green-400" : "text-red-400"}>
+                  {summary.salesChange >= 0 ? '+' : ''}{summary.salesChange.toFixed(1)}%
+                </span>
+                <span className="text-muted-foreground">vs上期</span>
               </div>
             </CardContent>
           </Card>
@@ -360,9 +420,15 @@ function DashboardContent() {
                 <Percent className="h-8 w-8 text-amber-400/50" />
               </div>
               <div className="flex items-center gap-1 mt-2 text-xs">
-                <TrendingDown className="h-3 w-3 text-green-400" />
-                <span className="text-green-400">-2.1%</span>
-                <span className="text-muted-foreground">vs上周</span>
+                {summary.acosChange <= 0 ? (
+                  <TrendingDown className="h-3 w-3 text-green-400" />
+                ) : (
+                  <TrendingUp className="h-3 w-3 text-red-400" />
+                )}
+                <span className={summary.acosChange <= 0 ? "text-green-400" : "text-red-400"}>
+                  {summary.acosChange >= 0 ? '+' : ''}{summary.acosChange.toFixed(1)}%
+                </span>
+                <span className="text-muted-foreground">vs上期</span>
               </div>
             </CardContent>
           </Card>
@@ -377,9 +443,15 @@ function DashboardContent() {
                 <Target className="h-8 w-8 text-purple-400/50" />
               </div>
               <div className="flex items-center gap-1 mt-2 text-xs">
-                <TrendingUp className="h-3 w-3 text-green-400" />
-                <span className="text-green-400">+0.15</span>
-                <span className="text-muted-foreground">vs上周</span>
+                {summary.roasChange >= 0 ? (
+                  <TrendingUp className="h-3 w-3 text-green-400" />
+                ) : (
+                  <TrendingDown className="h-3 w-3 text-red-400" />
+                )}
+                <span className={summary.roasChange >= 0 ? "text-green-400" : "text-red-400"}>
+                  {summary.roasChange >= 0 ? '+' : ''}{summary.roasChange.toFixed(2)}
+                </span>
+                <span className="text-muted-foreground">vs上期</span>
               </div>
             </CardContent>
           </Card>
@@ -394,9 +466,15 @@ function DashboardContent() {
                 <BarChart3 className="h-8 w-8 text-cyan-400/50" />
               </div>
               <div className="flex items-center gap-1 mt-2 text-xs">
-                <TrendingUp className="h-3 w-3 text-green-400" />
-                <span className="text-green-400">+12</span>
-                <span className="text-muted-foreground">vs上周</span>
+                {summary.ordersChange >= 0 ? (
+                  <TrendingUp className="h-3 w-3 text-green-400" />
+                ) : (
+                  <TrendingDown className="h-3 w-3 text-red-400" />
+                )}
+                <span className={summary.ordersChange >= 0 ? "text-green-400" : "text-red-400"}>
+                  {summary.ordersChange >= 0 ? '+' : ''}{summary.ordersChange}
+                </span>
+                <span className="text-muted-foreground">vs上期</span>
               </div>
             </CardContent>
           </Card>
@@ -473,7 +551,7 @@ function DashboardContent() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">花费与销售趋势</CardTitle>
-              <CardDescription>最近7天数据</CardDescription>
+              <CardDescription>{timeRangeValue.preset === 'custom' ? `${format(timeRangeValue.dateRange.from, 'MM/dd')} - ${format(timeRangeValue.dateRange.to, 'MM/dd')}` : TIME_RANGE_PRESETS[timeRangeValue.preset as keyof typeof TIME_RANGE_PRESETS]?.label || '近7天'}数据</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[250px]">
@@ -526,7 +604,7 @@ function DashboardContent() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-base">ACoS趋势</CardTitle>
-              <CardDescription>最近7天数据</CardDescription>
+              <CardDescription>{timeRangeValue.preset === 'custom' ? `${format(timeRangeValue.dateRange.from, 'MM/dd')} - ${format(timeRangeValue.dateRange.to, 'MM/dd')}` : TIME_RANGE_PRESETS[timeRangeValue.preset as keyof typeof TIME_RANGE_PRESETS]?.label || '近7天'}数据</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[250px]">

@@ -188,24 +188,102 @@ const adAccountRouter = router({
       return { success: true };
     }),
   
-  // 获取账号列表及绩效汇总
-  listWithPerformance: protectedProcedure.query(async ({ ctx }) => {
+  // 获取账号列表及绩效汇总（支持时间范围筛选）
+  listWithPerformance: protectedProcedure
+    .input(z.object({
+      timeRange: z.enum(['today', 'yesterday', '7days', '14days', '30days', '60days', '90days', 'custom']).optional().default('7days'),
+      days: z.number().optional(),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+    }).optional())
+    .query(async ({ ctx, input }) => {
+    const timeRange = input?.timeRange || '7days';
     const accounts = await db.getAdAccountsByUserId(ctx.user.id);
     
     // 过滤掉空店铺占位记录（marketplace为空）
     const actualSites = accounts.filter(a => a.marketplace && a.marketplace !== '');
     
+    // 计算时间范围
+    const now = new Date();
+    let startDate: Date;
+    let prevStartDate: Date;
+    let prevEndDate: Date;
+    
+    // 根据时间范围计算开始日期和上期日期
+    let endDate = now;
+    if (timeRange === 'custom' && input?.startDate && input?.endDate) {
+      // 自定义日期范围
+      startDate = new Date(input.startDate);
+      endDate = new Date(input.endDate);
+      const rangeDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+      prevEndDate = new Date(startDate);
+      prevStartDate = new Date(prevEndDate);
+      prevStartDate.setDate(prevStartDate.getDate() - rangeDays);
+    } else if (timeRange === 'today') {
+      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      prevStartDate = new Date(startDate);
+      prevStartDate.setDate(prevStartDate.getDate() - 1);
+      prevEndDate = new Date(startDate);
+    } else if (timeRange === 'yesterday') {
+      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+      endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+      prevStartDate = new Date(startDate);
+      prevStartDate.setDate(prevStartDate.getDate() - 1);
+      prevEndDate = new Date(startDate);
+    } else if (timeRange === '7days') {
+      startDate = new Date(now);
+      startDate.setDate(startDate.getDate() - 7);
+      prevStartDate = new Date(startDate);
+      prevStartDate.setDate(prevStartDate.getDate() - 7);
+      prevEndDate = new Date(startDate);
+    } else if (timeRange === '14days') {
+      startDate = new Date(now);
+      startDate.setDate(startDate.getDate() - 14);
+      prevStartDate = new Date(startDate);
+      prevStartDate.setDate(prevStartDate.getDate() - 14);
+      prevEndDate = new Date(startDate);
+    } else if (timeRange === '30days') {
+      startDate = new Date(now);
+      startDate.setDate(startDate.getDate() - 30);
+      prevStartDate = new Date(startDate);
+      prevStartDate.setDate(prevStartDate.getDate() - 30);
+      prevEndDate = new Date(startDate);
+    } else if (timeRange === '60days') {
+      startDate = new Date(now);
+      startDate.setDate(startDate.getDate() - 60);
+      prevStartDate = new Date(startDate);
+      prevStartDate.setDate(prevStartDate.getDate() - 60);
+      prevEndDate = new Date(startDate);
+    } else { // 90days
+      startDate = new Date(now);
+      startDate.setDate(startDate.getDate() - 90);
+      prevStartDate = new Date(startDate);
+      prevStartDate.setDate(prevStartDate.getDate() - 90);
+      prevEndDate = new Date(startDate);
+    }
+    
     // 为每个账户获取绩效汇总
     const accountsWithPerformance = await Promise.all(
       actualSites.map(async (account) => {
-        // 从 campaigns 表汇总绩效数据
-        const performance = await db.getAccountPerformanceSummary(account.id);
+        // 从 campaigns 表汇总绩效数据（当前期间）
+        const performance = await db.getAccountPerformanceSummary(account.id, startDate, endDate);
+        // 上一期间数据（用于计算环比）
+        const prevPerformance = await db.getAccountPerformanceSummary(account.id, prevStartDate, prevEndDate);
         
         const spend = performance?.totalSpend || 0;
         const sales = performance?.totalSales || 0;
         const orders = performance?.totalOrders || 0;
         const acos = spend > 0 && sales > 0 ? (spend / sales) * 100 : 0;
         const roas = spend > 0 && sales > 0 ? sales / spend : 0;
+        
+        // 计算环比变化
+        const prevSpend = prevPerformance?.totalSpend || 0;
+        const prevSales = prevPerformance?.totalSales || 0;
+        const prevAcos = prevSpend > 0 && prevSales > 0 ? (prevSpend / prevSales) * 100 : 0;
+        
+        const spendChange = prevSpend > 0 ? ((spend - prevSpend) / prevSpend) * 100 : 0;
+        const salesChange = prevSales > 0 ? ((sales - prevSales) / prevSales) * 100 : 0;
+        const acosChange = prevAcos > 0 ? acos - prevAcos : 0;
         
         // 确定账户状态
         let status: 'healthy' | 'warning' | 'critical' = 'healthy';
@@ -230,7 +308,11 @@ const adAccountRouter = router({
           roas,
           status,
           alerts,
-          change: { spend: 0, sales: 0, acos: 0 }, // TODO: 计算环比变化
+          change: { 
+            spend: parseFloat(spendChange.toFixed(1)), 
+            sales: parseFloat(salesChange.toFixed(1)), 
+            acos: parseFloat(acosChange.toFixed(1)) 
+          },
         };
       })
     );
@@ -270,6 +352,51 @@ const adAccountRouter = router({
     }
     
     return stats;
+  }),
+  
+  // 获取每日趋势数据
+  getDailyTrend: protectedProcedure
+    .input(z.object({
+      days: z.number().default(7),
+      timeRange: z.enum(['today', 'yesterday', '7days', '14days', '30days', '60days', '90days', 'custom']).optional(),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      const accounts = await db.getAdAccountsByUserId(ctx.user.id);
+      const actualSites = accounts.filter(a => a.marketplace && a.marketplace !== '');
+      const accountIds = actualSites.map(a => a.id);
+      
+      if (accountIds.length === 0) {
+        return [];
+      }
+      
+      // 获取每日绩效数据
+      const trendData = await db.getDailyTrendData(accountIds, input.days, input.timeRange, input.startDate, input.endDate);
+      return trendData;
+    }),
+  
+  // 获取数据可用日期范围（用于自定义日期选择器的限制）
+  getDataDateRange: protectedProcedure.query(async ({ ctx }) => {
+    const accounts = await db.getAdAccountsByUserId(ctx.user.id);
+    const actualSites = accounts.filter(a => a.marketplace && a.marketplace !== '');
+    const accountIds = actualSites.map(a => a.id);
+    
+    if (accountIds.length === 0) {
+      // 没有账户时，返回默认90天范围
+      const now = new Date();
+      const minDate = new Date(now);
+      minDate.setDate(minDate.getDate() - 90);
+      return {
+        minDate: minDate.toISOString().split('T')[0],
+        maxDate: now.toISOString().split('T')[0],
+        hasData: false,
+      };
+    }
+    
+    // 获取最早和最晚的数据日期
+    const dateRange = await db.getDataDateRange(accountIds);
+    return dateRange;
   }),
 });
 

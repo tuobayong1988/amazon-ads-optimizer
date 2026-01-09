@@ -4028,7 +4028,11 @@ export async function getLocalDataStats(accountId: number) {
 
 
 // 获取账户绩效汇总
-export async function getAccountPerformanceSummary(accountId: number): Promise<{
+export async function getAccountPerformanceSummary(
+  accountId: number,
+  startDate?: Date,
+  endDate?: Date
+): Promise<{
   totalSpend: number;
   totalSales: number;
   totalOrders: number;
@@ -4039,6 +4043,33 @@ export async function getAccountPerformanceSummary(accountId: number): Promise<{
   if (!db) return null;
   
   try {
+    // 如果有时间范围，从日报表查询；否则从 campaigns 表查询累计数据
+    if (startDate && endDate) {
+      // 从daily_performance表查询指定时间范围的数据
+      const [result] = await db.select({
+        totalSpend: sql<number>`COALESCE(SUM(${dailyPerformance.spend}), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(${dailyPerformance.sales}), 0)`,
+        totalOrders: sql<number>`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
+        totalImpressions: sql<number>`COALESCE(SUM(${dailyPerformance.impressions}), 0)`,
+        totalClicks: sql<number>`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
+      })
+      .from(dailyPerformance)
+      .where(and(
+        eq(dailyPerformance.accountId, accountId),
+        gte(dailyPerformance.date, startDate.toISOString()),
+        lte(dailyPerformance.date, endDate.toISOString())
+      ));
+      
+      return {
+        totalSpend: Number(result?.totalSpend || 0),
+        totalSales: Number(result?.totalSales || 0),
+        totalOrders: Number(result?.totalOrders || 0),
+        totalImpressions: Number(result?.totalImpressions || 0),
+        totalClicks: Number(result?.totalClicks || 0),
+      };
+    }
+    
+    // 无时间范围时，从campaigns表查询累计数据
     const [result] = await db.select({
       totalSpend: sql<number>`COALESCE(SUM(${campaigns.spend}), 0)`,
       totalSales: sql<number>`COALESCE(SUM(${campaigns.sales}), 0)`,
@@ -4059,5 +4090,167 @@ export async function getAccountPerformanceSummary(accountId: number): Promise<{
   } catch (error) {
     console.error('[getAccountPerformanceSummary] Error:', error);
     return null;
+  }
+}
+
+
+// 获取每日趋势数据
+export async function getDailyTrendData(accountIds: number[], days: number, timeRange?: string, customStartDate?: string, customEndDate?: string): Promise<{
+  date: string;
+  spend: number;
+  sales: number;
+  orders: number;
+  acos: number;
+}[]> {
+  const db = await getDb();
+  if (!db) return [];
+  
+  try {
+    let endDate = new Date();
+    let startDate = new Date();
+    
+    // 处理不同时间范围
+    if (timeRange === 'custom' && customStartDate && customEndDate) {
+      // 自定义日期范围
+      startDate = new Date(customStartDate);
+      endDate = new Date(customEndDate);
+    } else if (timeRange === 'yesterday') {
+      endDate = new Date();
+      endDate.setDate(endDate.getDate() - 1);
+      startDate = new Date(endDate);
+    } else if (timeRange === 'today') {
+      startDate = new Date();
+    } else {
+      startDate.setDate(startDate.getDate() - days);
+    }
+    
+    // 使用原生SQL查询避免GROUP BY问题
+    const startDateStr = startDate.toISOString().split('T')[0];
+    const endDateStr = endDate.toISOString().split('T')[0];
+    
+    const results = await db.execute(sql`
+      SELECT 
+        DATE(date) as report_date,
+        COALESCE(SUM(spend), 0) as spend,
+        COALESCE(SUM(sales), 0) as sales,
+        COALESCE(SUM(orders), 0) as orders
+      FROM daily_performance
+      WHERE accountId IN (${sql.raw(accountIds.join(','))})
+        AND DATE(date) >= ${startDateStr}
+        AND DATE(date) <= ${endDateStr}
+      GROUP BY DATE(date)
+      ORDER BY DATE(date)
+    `) as any;
+    
+    const rows = results[0] || results;
+    
+    return (rows as any[]).map((r: any) => {
+      const spend = Number(r.spend) || 0;
+      const sales = Number(r.sales) || 0;
+      const acos = spend > 0 && sales > 0 ? (spend / sales) * 100 : 0;
+      
+      // 格式化日期为 M/D 格式，使用report_date字段
+      let dateStr = 'N/A';
+      const dateValue = r.report_date || r.date;
+      if (dateValue) {
+        const dateObj = new Date(dateValue);
+        if (!isNaN(dateObj.getTime())) {
+          dateStr = `${dateObj.getMonth() + 1}/${dateObj.getDate()}`;
+        }
+      }
+      
+      return {
+        date: dateStr,
+        spend: parseFloat(spend.toFixed(0)),
+        sales: parseFloat(sales.toFixed(0)),
+        orders: Number(r.orders) || 0,
+        acos: parseFloat(acos.toFixed(1)),
+      };
+    });
+  } catch (error) {
+    console.error('[getDailyTrendData] Error:', error);
+    return [];
+  }
+}
+
+
+// 获取数据可用日期范围
+export async function getDataDateRange(accountIds: number[]): Promise<{
+  minDate: string;
+  maxDate: string;
+  hasData: boolean;
+}> {
+  const db = await getDb();
+  if (!db) {
+    const now = new Date();
+    const minDate = new Date(now);
+    minDate.setDate(minDate.getDate() - 90);
+    return {
+      minDate: minDate.toISOString().split('T')[0],
+      maxDate: now.toISOString().split('T')[0],
+      hasData: false,
+    };
+  }
+  
+  try {
+    // 从daily_performance表获取最早和最晚的数据日期
+    const results = await db.execute(sql`
+      SELECT 
+        MIN(DATE(date)) as min_date,
+        MAX(DATE(date)) as max_date
+      FROM daily_performance
+      WHERE accountId IN (${sql.raw(accountIds.join(','))})
+    `) as any;
+    
+    const rows = results[0] || results;
+    const row = Array.isArray(rows) ? rows[0] : rows;
+    
+    if (row && row.min_date && row.max_date) {
+      return {
+        minDate: row.min_date,
+        maxDate: row.max_date,
+        hasData: true,
+      };
+    }
+    
+    // 如果daily_performance没有数据，尝试从campaigns表获取
+    const campaignResults = await db.execute(sql`
+      SELECT 
+        MIN(DATE(createdAt)) as min_date,
+        MAX(DATE(updatedAt)) as max_date
+      FROM campaigns
+      WHERE accountId IN (${sql.raw(accountIds.join(','))})
+    `) as any;
+    
+    const campaignRows = campaignResults[0] || campaignResults;
+    const campaignRow = Array.isArray(campaignRows) ? campaignRows[0] : campaignRows;
+    
+    if (campaignRow && campaignRow.min_date && campaignRow.max_date) {
+      return {
+        minDate: campaignRow.min_date,
+        maxDate: campaignRow.max_date,
+        hasData: true,
+      };
+    }
+    
+    // 没有数据时返回默认90天范围
+    const now = new Date();
+    const minDate = new Date(now);
+    minDate.setDate(minDate.getDate() - 90);
+    return {
+      minDate: minDate.toISOString().split('T')[0],
+      maxDate: now.toISOString().split('T')[0],
+      hasData: false,
+    };
+  } catch (error) {
+    console.error('[getDataDateRange] Error:', error);
+    const now = new Date();
+    const minDate = new Date(now);
+    minDate.setDate(minDate.getDate() - 90);
+    return {
+      minDate: minDate.toISOString().split('T')[0],
+      maxDate: now.toISOString().split('T')[0],
+      hasData: false,
+    };
   }
 }
