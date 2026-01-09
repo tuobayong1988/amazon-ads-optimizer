@@ -85,6 +85,7 @@ const menuGroups = [
     description: "AI驱动的全自动广告优化",
     items: [
       { icon: Brain, label: "智能优化中心", path: "/optimization-engine" },
+      { icon: FlaskConical, label: "A/B测试", path: "/ab-test" },
     ]
   },
   {
@@ -95,6 +96,7 @@ const menuGroups = [
       { icon: FileText, label: "竞价日志", path: "/bidding-logs" },
       { icon: History, label: "出价调整历史", path: "/bid-adjustment-history" },
       { icon: LineChart, label: "效果追踪报告", path: "/effect-tracking-report" },
+      { icon: Activity, label: "算法效果仪表盘", path: "/algorithm-effect-dashboard" },
       { icon: Shield, label: "审计日志", path: "/audit-logs" },
     ]
   },

@@ -58,6 +58,7 @@ import SmartOptimizationCenter from "@/pages/SmartOptimizationCenter";
 import SyncLogs from "@/pages/SyncLogs";
 import DataValidation from "@/pages/DataValidation";
 import InviteRegister from "@/pages/InviteRegister";
+import AlgorithmEffectDashboard from "@/pages/AlgorithmEffectDashboard";
 import InviteCodeManagement from "@/pages/InviteCodeManagement";
 import LocalLogin from "@/pages/LocalLogin";
 
@@ -114,11 +115,12 @@ function Router() {
       <Route path="/optimization-center" component={OptimizationCenter} />
       <Route path="/bid-adjustment-history" component={BidAdjustmentHistory} />
       <Route path="/effect-tracking-report" component={EffectTrackingReport} />
+      <Route path="/algorithm-effect-dashboard" component={AlgorithmEffectDashboard} />
       {/* 智能优化功能已整合到优化设置和优化中心 */}
       <Route path="/auto-rollback">{() => { window.location.href = '/settings'; return null; }}</Route>
       <Route path="/algorithm-optimization">{() => { window.location.href = '/settings'; return null; }}</Route>
       <Route path="/intelligent-budget">{() => { window.location.href = '/optimization-center'; return null; }}</Route>
-      <Route path="/ab-test">{() => { window.location.href = '/optimization-center'; return null; }}</Route>
+      <Route path="/ab-test" component={ABTest} />
       <Route path="/budget-auto-execution">{() => { window.location.href = '/settings'; return null; }}</Route>
       <Route path="/api-security" component={ApiSecurityCenter} />
       <Route path="/special-scenario" component={SpecialScenarioAnalysis} />

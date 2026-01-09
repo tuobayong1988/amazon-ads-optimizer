@@ -755,6 +755,108 @@ export class AmazonAdsApiClient {
   }
 
   /**
+   * 请求SB品牌广告活动报告 (Amazon Ads API v3)
+   * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
+   */
+  async requestSbCampaignReport(
+    startDate: string,
+    endDate: string,
+    metrics: string[] = ['impressions', 'clicks', 'cost', 'sales14d', 'purchases14d']
+  ): Promise<string> {
+    try {
+      console.log(`[Amazon API] 请求SB品牌广告活动报告: ${startDate} - ${endDate}`);
+      
+      // Amazon Ads Reporting API v3 正确格式
+      const requestBody = {
+        name: `SB Campaign Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_BRANDS',
+          groupBy: ['campaign'],
+          columns: [
+            'date',
+            'campaignId',
+            'campaignName',
+            'impressions',
+            'clicks',
+            'cost',
+            'sales14d',
+            'purchases14d'
+          ],
+          reportTypeId: 'sbCampaigns',
+          timeUnit: 'DAILY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      console.log(`[Amazon API] SB报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: any) {
+      console.error('[Amazon API] 请求SB广告活动报告失败:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * 请求SD展示广告活动报告 (Amazon Ads API v3)
+   * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
+   */
+  async requestSdCampaignReport(
+    startDate: string,
+    endDate: string,
+    metrics: string[] = ['impressions', 'clicks', 'cost', 'sales14d', 'purchases14d']
+  ): Promise<string> {
+    try {
+      console.log(`[Amazon API] 请求SD展示广告活动报告: ${startDate} - ${endDate}`);
+      
+      // Amazon Ads Reporting API v3 正确格式
+      const requestBody = {
+        name: `SD Campaign Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_DISPLAY',
+          groupBy: ['campaign'],
+          columns: [
+            'date',
+            'campaignId',
+            'campaignName',
+            'impressions',
+            'clicks',
+            'cost',
+            'sales14d',
+            'purchases14d'
+          ],
+          reportTypeId: 'sdCampaigns',
+          timeUnit: 'DAILY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      console.log(`[Amazon API] SD报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: any) {
+      console.error('[Amazon API] 请求SD广告活动报告失败:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
    * 获取报告状态
    */
   async getReportStatus(reportId: string): Promise<{ status: string; url?: string; failureReason?: string }> {

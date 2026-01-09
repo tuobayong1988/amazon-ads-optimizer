@@ -679,16 +679,66 @@ export class AmazonSyncService {
     const db = await getDb();
     if (!db) return 0;
 
+    let totalSynced = 0;
+
+    // 同步SP广告绩效数据
     try {
-      // 请求报告
-      console.log(`[SyncService] 正在请求Amazon报告: ${startDateStr} - ${endDateStr}`);
-      const reportId = await this.client.requestSpCampaignReport(startDateStr, endDateStr);
-      console.log(`[SyncService] 报告请求成功, reportId: ${reportId}`);
+      console.log(`[SyncService] 正在请求SP广告报告: ${startDateStr} - ${endDateStr}`);
+      const spReportId = await this.client.requestSpCampaignReport(startDateStr, endDateStr);
+      console.log(`[SyncService] SP报告请求成功, reportId: ${spReportId}`);
+      const spReportData = await this.client.waitAndDownloadReport(spReportId, 900000);
+      console.log(`[SyncService] SP报告下载完成, 数据条数: ${spReportData?.length || 0}`);
+      if (spReportData && spReportData.length > 0) {
+        totalSynced += await this.processReportData(db, spReportData, 'SP');
+      }
+    } catch (spError: any) {
+      console.error('[SyncService] SP报告同步失败:', spError.message);
+    }
+
+    // 同步SB品牌广告绩效数据
+    try {
+      console.log(`[SyncService] 正在请求SB品牌广告报告: ${startDateStr} - ${endDateStr}`);
+      const sbReportId = await this.client.requestSbCampaignReport(startDateStr, endDateStr);
+      console.log(`[SyncService] SB报告请求成功, reportId: ${sbReportId}`);
+      const sbReportData = await this.client.waitAndDownloadReport(sbReportId, 900000);
+      console.log(`[SyncService] SB报告下载完成, 数据条数: ${sbReportData?.length || 0}`);
+      if (sbReportData && sbReportData.length > 0) {
+        totalSynced += await this.processReportData(db, sbReportData, 'SB');
+      }
+    } catch (sbError: any) {
+      console.error('[SyncService] SB报告同步失败:', sbError.message);
+      // SB报告失败不影响整体同步
+    }
+
+    // 同步SD展示广告绩效数据
+    try {
+      console.log(`[SyncService] 正在请求SD展示广告报告: ${startDateStr} - ${endDateStr}`);
+      const sdReportId = await this.client.requestSdCampaignReport(startDateStr, endDateStr);
+      console.log(`[SyncService] SD报告请求成功, reportId: ${sdReportId}`);
+      const sdReportData = await this.client.waitAndDownloadReport(sdReportId, 900000);
+      console.log(`[SyncService] SD报告下载完成, 数据条数: ${sdReportData?.length || 0}`);
+      if (sdReportData && sdReportData.length > 0) {
+        totalSynced += await this.processReportData(db, sdReportData, 'SD');
+      }
+    } catch (sdError: any) {
+      console.error('[SyncService] SD报告同步失败:', sdError.message);
+      // SD报告失败不影响整体同步
+    }
+
+    return totalSynced;
+  }
+
+  /**
+   * 处理报告数据并存储到数据库
+   */
+  private async processReportData(db: any, reportData: any[], adType: string): Promise<number> {
+    try {
+      console.log(`[SyncService] 开始处理${adType}报告数据, 共 ${reportData.length} 条记录`);
       
-      // 等待并下载报告（超时时间增加到15分钟）
-      console.log('[SyncService] 正在等待并下载报告...');
-      const reportData = await this.client.waitAndDownloadReport(reportId, 900000);
-      console.log(`[SyncService] 报告下载完成, 数据条数: ${reportData?.length || 0}`);
+      // 输出第一条数据的结构，用于调试
+      if (reportData.length > 0) {
+        console.log(`[SyncService] ${adType}报告数据第一条示例:`, JSON.stringify(reportData[0], null, 2));
+      }
       
       if (!reportData || reportData.length === 0) {
         console.warn('[SyncService] 报告数据为空');
@@ -771,9 +821,10 @@ export class AmazonSyncService {
         synced++;
       }
 
+      console.log(`[SyncService] ${adType}报告数据处理完成, 同步 ${synced} 条记录`);
       return synced;
     } catch (error: any) {
-      console.error(`[SyncService] 批次同步失败 (${startDateStr} - ${endDateStr}):`, error.message);
+      console.error(`[SyncService] ${adType}报告数据处理失败:`, error.message);
       return 0;
     }
   }
