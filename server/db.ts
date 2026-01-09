@@ -446,6 +446,20 @@ export async function getAdGroupById(id: number) {
   return result[0];
 }
 
+export async function updateAdGroupDefaultBid(id: number, defaultBid: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(adGroups).set({ defaultBid }).where(eq(adGroups.id, id));
+}
+
+export async function updateAdGroupStatus(id: number, status: 'enabled' | 'paused' | 'archived') {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(adGroups).set({ adGroupStatus: status }).where(eq(adGroups.id, id));
+}
+
 // ==================== Keyword Functions ====================
 export async function createKeyword(keyword: InsertKeyword) {
   const db = await getDb();

@@ -25,6 +25,7 @@ import * as apiSecurityService from './apiSecurityService';
 import * as specialScenarioOptimizationService from './specialScenarioOptimizationService';
 import * as automationExecutionEngine from './automationExecutionEngine';
 import * as autoOperationService from './autoOperationService';
+import { calculateDateRangeByMarketplace, getMarketplaceLocalDate, MARKETPLACE_TIMEZONES } from '../shared/timezone';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
@@ -188,7 +189,7 @@ const adAccountRouter = router({
       return { success: true };
     }),
   
-  // 获取账号列表及绩效汇总（支持时间范围筛选）
+  // 获取账号列表及绩效汇总（支持时间范围筛选，根据站点时区计算日期）
   listWithPerformance: protectedProcedure
     .input(z.object({
       timeRange: z.enum(['today', 'yesterday', '7days', '14days', '30days', '60days', '90days', 'custom']).optional().default('7days'),
@@ -203,68 +204,93 @@ const adAccountRouter = router({
     // 过滤掉空店铺占位记录（marketplace为空）
     const actualSites = accounts.filter(a => a.marketplace && a.marketplace !== '');
     
-    // 计算时间范围
-    const now = new Date();
-    let startDate: Date;
-    let prevStartDate: Date;
-    let prevEndDate: Date;
+    // 辅助函数：根据站点时区计算日期范围
+    const calculateDatesForMarketplace = (marketplace: string) => {
+      // 获取站点本地日期
+      const localDateStr = getMarketplaceLocalDate(marketplace);
+      const [year, month, day] = localDateStr.split('-').map(Number);
+      const localToday = new Date(year, month - 1, day);
+      
+      let startDate: Date;
+      let endDate: Date;
+      let prevStartDate: Date;
+      let prevEndDate: Date;
+      
+      if (timeRange === 'custom' && input?.startDate && input?.endDate) {
+        startDate = new Date(input.startDate);
+        endDate = new Date(input.endDate);
+        const rangeDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+        prevEndDate = new Date(startDate);
+        prevStartDate = new Date(prevEndDate);
+        prevStartDate.setDate(prevStartDate.getDate() - rangeDays);
+      } else if (timeRange === 'today') {
+        // 使用站点本地的"今天"
+        startDate = localToday;
+        endDate = localToday;
+        prevStartDate = new Date(localToday);
+        prevStartDate.setDate(prevStartDate.getDate() - 1);
+        prevEndDate = new Date(localToday);
+        prevEndDate.setDate(prevEndDate.getDate() - 1);
+      } else if (timeRange === 'yesterday') {
+        // 使用站点本地的"昨天"
+        startDate = new Date(localToday);
+        startDate.setDate(startDate.getDate() - 1);
+        endDate = new Date(startDate);
+        prevStartDate = new Date(startDate);
+        prevStartDate.setDate(prevStartDate.getDate() - 1);
+        prevEndDate = new Date(startDate);
+        prevEndDate.setDate(prevEndDate.getDate() - 1);
+      } else if (timeRange === '7days') {
+        startDate = new Date(localToday);
+        startDate.setDate(startDate.getDate() - 6);
+        endDate = localToday;
+        prevStartDate = new Date(startDate);
+        prevStartDate.setDate(prevStartDate.getDate() - 7);
+        prevEndDate = new Date(startDate);
+        prevEndDate.setDate(prevEndDate.getDate() - 1);
+      } else if (timeRange === '14days') {
+        startDate = new Date(localToday);
+        startDate.setDate(startDate.getDate() - 13);
+        endDate = localToday;
+        prevStartDate = new Date(startDate);
+        prevStartDate.setDate(prevStartDate.getDate() - 14);
+        prevEndDate = new Date(startDate);
+        prevEndDate.setDate(prevEndDate.getDate() - 1);
+      } else if (timeRange === '30days') {
+        startDate = new Date(localToday);
+        startDate.setDate(startDate.getDate() - 29);
+        endDate = localToday;
+        prevStartDate = new Date(startDate);
+        prevStartDate.setDate(prevStartDate.getDate() - 30);
+        prevEndDate = new Date(startDate);
+        prevEndDate.setDate(prevEndDate.getDate() - 1);
+      } else if (timeRange === '60days') {
+        startDate = new Date(localToday);
+        startDate.setDate(startDate.getDate() - 59);
+        endDate = localToday;
+        prevStartDate = new Date(startDate);
+        prevStartDate.setDate(prevStartDate.getDate() - 60);
+        prevEndDate = new Date(startDate);
+        prevEndDate.setDate(prevEndDate.getDate() - 1);
+      } else { // 90days
+        startDate = new Date(localToday);
+        startDate.setDate(startDate.getDate() - 89);
+        endDate = localToday;
+        prevStartDate = new Date(startDate);
+        prevStartDate.setDate(prevStartDate.getDate() - 90);
+        prevEndDate = new Date(startDate);
+        prevEndDate.setDate(prevEndDate.getDate() - 1);
+      }
+      
+      return { startDate, endDate, prevStartDate, prevEndDate, localToday };
+    };
     
-    // 根据时间范围计算开始日期和上期日期
-    let endDate = now;
-    if (timeRange === 'custom' && input?.startDate && input?.endDate) {
-      // 自定义日期范围
-      startDate = new Date(input.startDate);
-      endDate = new Date(input.endDate);
-      const rangeDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-      prevEndDate = new Date(startDate);
-      prevStartDate = new Date(prevEndDate);
-      prevStartDate.setDate(prevStartDate.getDate() - rangeDays);
-    } else if (timeRange === 'today') {
-      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      prevStartDate = new Date(startDate);
-      prevStartDate.setDate(prevStartDate.getDate() - 1);
-      prevEndDate = new Date(startDate);
-    } else if (timeRange === 'yesterday') {
-      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-      endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-      prevStartDate = new Date(startDate);
-      prevStartDate.setDate(prevStartDate.getDate() - 1);
-      prevEndDate = new Date(startDate);
-    } else if (timeRange === '7days') {
-      startDate = new Date(now);
-      startDate.setDate(startDate.getDate() - 7);
-      prevStartDate = new Date(startDate);
-      prevStartDate.setDate(prevStartDate.getDate() - 7);
-      prevEndDate = new Date(startDate);
-    } else if (timeRange === '14days') {
-      startDate = new Date(now);
-      startDate.setDate(startDate.getDate() - 14);
-      prevStartDate = new Date(startDate);
-      prevStartDate.setDate(prevStartDate.getDate() - 14);
-      prevEndDate = new Date(startDate);
-    } else if (timeRange === '30days') {
-      startDate = new Date(now);
-      startDate.setDate(startDate.getDate() - 30);
-      prevStartDate = new Date(startDate);
-      prevStartDate.setDate(prevStartDate.getDate() - 30);
-      prevEndDate = new Date(startDate);
-    } else if (timeRange === '60days') {
-      startDate = new Date(now);
-      startDate.setDate(startDate.getDate() - 60);
-      prevStartDate = new Date(startDate);
-      prevStartDate.setDate(prevStartDate.getDate() - 60);
-      prevEndDate = new Date(startDate);
-    } else { // 90days
-      startDate = new Date(now);
-      startDate.setDate(startDate.getDate() - 90);
-      prevStartDate = new Date(startDate);
-      prevStartDate.setDate(prevStartDate.getDate() - 90);
-      prevEndDate = new Date(startDate);
-    }
-    
-    // 为每个账户获取绩效汇总
+    // 为每个账户获取绩效汇总（根据各自站点时区计算日期）
     const accountsWithPerformance = await Promise.all(
       actualSites.map(async (account) => {
+        // 根据站点时区计算日期范围
+        const { startDate, endDate, prevStartDate, prevEndDate, localToday } = calculateDatesForMarketplace(account.marketplace || 'US');
+        
         // 从 campaigns 表汇总绩效数据（当前期间）
         const performance = await db.getAccountPerformanceSummary(account.id, startDate, endDate);
         // 上一期间数据（用于计算环比）
@@ -1057,6 +1083,108 @@ ${topKeywords.map((k, i) => `${i + 1}. "${k.keywordText}" - 销售额: $${parseF
     .input(z.object({ executionId: z.number() }))
     .query(async ({ input }) => {
       return db.getAiOptimizationExecutionDetail(input.executionId);
+    }),
+});
+
+// ==================== Ad Group Router ====================
+const adGroupRouter = router({
+  // 获取广告活动下的所有广告组
+  listByCampaign: protectedProcedure
+    .input(z.object({ 
+      campaignId: z.number(),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      return db.getAdGroupsByCampaignId(input.campaignId);
+    }),
+  
+  // 获取广告组详情
+  get: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      return db.getAdGroupById(input.id);
+    }),
+  
+  // 获取广告组及其关键词统计
+  getWithKeywordStats: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .query(async ({ input }) => {
+      const adGroup = await db.getAdGroupById(input.id);
+      if (!adGroup) return null;
+      
+      const keywords = await db.getKeywordsByAdGroupId(input.id);
+      const productTargets = await db.getProductTargetsByAdGroupId(input.id);
+      
+      return {
+        ...adGroup,
+        keywordCount: keywords.length,
+        productTargetCount: productTargets.length,
+        keywords: keywords.slice(0, 10), // 返回前10个关键词
+        productTargets: productTargets.slice(0, 10), // 返回前10个商品定位
+      };
+    }),
+  
+  // 更新广告组默认出价
+  updateDefaultBid: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      defaultBid: z.string(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const adGroup = await db.getAdGroupById(input.id);
+      const previousBid = adGroup?.defaultBid || '0';
+      
+      await db.updateAdGroupDefaultBid(input.id, input.defaultBid);
+      
+      // 记录审计日志
+      const { logAudit } = await import("./auditService");
+      await logAudit({
+        userId: ctx.user.id,
+        userName: ctx.user.name || undefined,
+        userEmail: ctx.user.email || undefined,
+        actionType: 'bid_adjust_single',
+        targetType: 'ad_group',
+        targetId: String(input.id),
+        targetName: adGroup?.adGroupName || undefined,
+        description: `调整广告组默认出价从$${previousBid}到$${input.defaultBid}`,
+        previousValue: { defaultBid: previousBid },
+        newValue: { defaultBid: input.defaultBid },
+        status: 'success',
+      });
+      
+      return { success: true };
+    }),
+  
+  // 更新广告组状态
+  updateStatus: protectedProcedure
+    .input(z.object({
+      id: z.number(),
+      status: z.enum(['enabled', 'paused', 'archived']),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const adGroup = await db.getAdGroupById(input.id);
+      const previousStatus = adGroup?.adGroupStatus || 'enabled';
+      
+      await db.updateAdGroupStatus(input.id, input.status);
+      
+      // 记录审计日志
+      const { logAudit } = await import("./auditService");
+      await logAudit({
+        userId: ctx.user.id,
+        userName: ctx.user.name || undefined,
+        userEmail: ctx.user.email || undefined,
+        actionType: 'campaign_pause',
+        targetType: 'ad_group',
+        targetId: String(input.id),
+        targetName: adGroup?.adGroupName || undefined,
+        description: `更新广告组状态从${previousStatus}到${input.status}`,
+        previousValue: { status: previousStatus },
+        newValue: { status: input.status },
+        status: 'success',
+      });
+      
+      return { success: true };
     }),
 });
 
@@ -9248,6 +9376,7 @@ export const appRouter = router({system: systemRouter,
   adAccount: adAccountRouter,
   performanceGroup: performanceGroupRouter,
   campaign: campaignRouter,
+  adGroup: adGroupRouter,
   keyword: keywordRouter,
   productTarget: productTargetRouter,
   biddingLog: biddingLogRouter,

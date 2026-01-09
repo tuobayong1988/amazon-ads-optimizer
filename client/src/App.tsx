@@ -32,6 +32,7 @@ import BudgetTracking from "@/pages/BudgetTracking";
 import SeasonalBudget from "@/pages/SeasonalBudget";
 import DataSync from "@/pages/DataSync";
 import CampaignDetail from "@/pages/CampaignDetail";
+import AdGroupDetail from "@/pages/AdGroupDetail";
 import DaypartingStrategy from "@/pages/DaypartingStrategy";
 import AIOptimizationHistory from "@/pages/AIOptimizationHistory";
 import PlacementOptimization from "@/pages/PlacementOptimization";
@@ -79,6 +80,7 @@ function Router() {
       <Route path="/campaigns" component={Campaigns} />
       <Route path="/campaigns/:id" component={CampaignDetail} />
       <Route path="/campaigns/:id/ai-history" component={AIOptimizationHistory} />
+      <Route path="/ad-groups/:id" component={AdGroupDetail} />
       <Route path="/bidding-logs" component={BiddingLogs} />
       <Route path="/settings" component={Settings} />
       {/* 功能整合重定向 - 极简化设计 */}
