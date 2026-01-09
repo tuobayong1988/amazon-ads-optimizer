@@ -642,6 +642,47 @@ function DashboardContent() {
           </Card>
         </div>
         
+        {/* 订单趋势图 */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base">订单趋势</CardTitle>
+            <CardDescription>{timeRangeValue.preset === 'custom' ? `${format(timeRangeValue.dateRange.from, 'MM/dd')} - ${format(timeRangeValue.dateRange.to, 'MM/dd')}` : TIME_RANGE_PRESETS[timeRangeValue.preset as keyof typeof TIME_RANGE_PRESETS]?.label || '近7天'}数据</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[250px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData}>
+                  <defs>
+                    <linearGradient id="ordersGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
+                      <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                  <XAxis dataKey="date" stroke="#9ca3af" fontSize={12} />
+                  <YAxis stroke="#9ca3af" fontSize={12} />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: '#1f2937', 
+                      border: '1px solid #374151',
+                      borderRadius: '8px'
+                    }}
+                    formatter={(value: number) => [value, '订单数']}
+                  />
+                  <Area 
+                    type="monotone" 
+                    dataKey="orders" 
+                    stroke="#06b6d4" 
+                    fill="url(#ordersGradient)"
+                    strokeWidth={2}
+                    name="订单数"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+        
         {/* 快速操作 */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Link href="/optimization-engine">

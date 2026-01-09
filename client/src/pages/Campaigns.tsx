@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { TimeRangeSelector, TimeRangeValue, getDefaultTimeRangeValue } from "@/components/TimeRangeSelector";
 import OperationConfirmDialog, { useOperationConfirm } from "@/components/OperationConfirmDialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -427,11 +428,8 @@ export default function Campaigns() {
   const [selectedCampaigns, setSelectedCampaigns] = useState<Set<number>>(new Set());
   const [isSyncing, setIsSyncing] = useState(false);
   
-  // 时间范围状态
-  const [timeRange, setTimeRange] = useState<string>('7days');
-  const [customStartDate, setCustomStartDate] = useState<string>('');
-  const [customEndDate, setCustomEndDate] = useState<string>('');
-  const [showCustomDatePicker, setShowCustomDatePicker] = useState(false);
+  // 时间范围状态 - 使用TimeRangeSelector组件
+  const [timeRangeValue, setTimeRangeValue] = useState<TimeRangeValue>(() => getDefaultTimeRangeValue('7days'));
   
   // 列显示状态
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
@@ -478,8 +476,17 @@ export default function Campaigns() {
 
   // 计算时间范围
   const dateRange = useMemo(() => {
-    return getDateRange(timeRange, customStartDate, customEndDate);
-  }, [timeRange, customStartDate, customEndDate]);
+    const formatDate = (date: Date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    return {
+      startDate: formatDate(timeRangeValue.dateRange.from),
+      endDate: formatDate(timeRangeValue.dateRange.to),
+    };
+  }, [timeRangeValue]);
 
   // Fetch campaigns with performance data
   const { data: campaigns, isLoading, refetch } = trpc.campaign.list.useQuery(
@@ -1094,6 +1101,11 @@ export default function Campaigns() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {/* 时间范围选择器 */}
+            <TimeRangeSelector
+              value={timeRangeValue}
+              onChange={setTimeRangeValue}
+            />
             {/* 列设置 */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -1128,70 +1140,11 @@ export default function Campaigns() {
           </div>
         </div>
 
-        {/* 筛选器卡片 - 按优先级排列 */}
+        {/* 筛选器卡片 */}
         <Card>
           <CardContent className="pt-6">
             <div className="space-y-4">
-              {/* 第一行：时间范围筛选（最高优先级） */}
-              <div className="flex flex-wrap items-center gap-4">
-                {/* 时间范围筛选 */}
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-foreground">时间范围:</span>
-                  <div className="flex gap-1">
-                    {timeRangeOptions.filter(o => o.value !== 'custom').map((option) => (
-                      <Button
-                        key={option.value}
-                        variant={timeRange === option.value ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => {
-                          setTimeRange(option.value);
-                          setShowCustomDatePicker(false);
-                        }}
-                        className="h-8"
-                      >
-                        {option.label}
-                      </Button>
-                    ))}
-                    <Button
-                      variant={timeRange === 'custom' ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => {
-                        setTimeRange('custom');
-                        setShowCustomDatePicker(true);
-                      }}
-                      className="h-8"
-                    >
-                      自定义
-                    </Button>
-                  </div>
-                </div>
-                
-                {/* 自定义日期选择器 */}
-                {showCustomDatePicker && (
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="date"
-                      value={customStartDate}
-                      onChange={(e) => setCustomStartDate(e.target.value)}
-                      className="h-8 w-[140px]"
-                    />
-                    <span className="text-muted-foreground">至</span>
-                    <Input
-                      type="date"
-                      value={customEndDate}
-                      onChange={(e) => setCustomEndDate(e.target.value)}
-                      className="h-8 w-[140px]"
-                    />
-                  </div>
-                )}
-                
-                {/* 显示当前日期范围 */}
-                <span className="text-xs text-muted-foreground">
-                  {dateRange.startDate} 至 {dateRange.endDate}
-                </span>
-              </div>
-              
-              {/* 第二行：店铺和站点筛选 */}
+              {/* 第一行：店铺和站点筛选 */}
               <div className="flex flex-wrap items-center gap-4">
                 {/* 店铺筛选 */}
                 <div className="flex items-center gap-2">
