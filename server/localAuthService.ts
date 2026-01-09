@@ -5,6 +5,7 @@
 import { getDb } from "./db";
 import { sql } from "drizzle-orm";
 import * as bcrypt from "bcryptjs";
+import jwt from "jsonwebtoken";
 
 export interface LocalUser {
   id: number;
@@ -333,7 +334,7 @@ export async function verifyToken(token: string): Promise<{
  * 生成JWT token
  */
 function generateToken(userId: number, organizationId: number, username: string, name: string): string {
-  const jwt = require('jsonwebtoken');
+  // Using imported jwt module
   const secret = process.env.JWT_SECRET || 'default-secret-key';
   
   return jwt.sign(

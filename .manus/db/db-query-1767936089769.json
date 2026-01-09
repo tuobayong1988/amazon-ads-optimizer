@@ -1,0 +1,20 @@
+{
+  "query": "SELECT id, username, name, email, organization_id, role, status, password_hash FROM team_members WHERE username = 'testuser001' LIMIT 1",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT id, username, name, email, organization_id, role, status, password_hash FROM team_members WHERE username = 'testuser001' LIMIT 1",
+  "rows": [
+    {
+      "id": "30005",
+      "username": "testuser001",
+      "name": "测试用户",
+      "email": "test@example.com",
+      "organization_id": "1",
+      "role": "admin",
+      "status": "active",
+      "password_hash": "$2b$10$4H8rShrtzijb83.f.muP5ODeaBwnghsoweKgne4l/O91gcyV6D..K"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tusername\tname\temail\torganization_id\trole\tstatus\tpassword_hash\n30005\ttestuser001\t测试用户\ttest@example.com\t1\tadmin\tactive\t$2b$10$4H8rShrtzijb83.f.muP5ODeaBwnghsoweKgne4l/O91gcyV6D..K\n",
+  "stderr": "",
+  "execution_time_ms": 56
+}

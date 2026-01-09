@@ -38,6 +38,10 @@ export default function AuditLogs() {
   const [pageSize] = useState(20);
   const [selectedLog, setSelectedLog] = useState<any>(null);
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
+  const [viewAll, setViewAll] = useState(true); // 管理员默认查看所有用户日志
+
+  // 管理员权限检查 - 默认允许查看所有日志（实际权限由后端控制）
+  const isAdmin = true; // 后端会根据用户角色判断是否有权限查看所有日志
 
   // 获取操作类型和描述
   const { data: actionTypes } = trpc.audit.getActionTypes.useQuery();
@@ -49,6 +53,7 @@ export default function AuditLogs() {
     search: search || undefined,
     page,
     pageSize,
+    viewAll: isAdmin ? viewAll : false, // 管理员可以查看所有用户日志
   });
 
   // 获取用户操作统计
@@ -290,6 +295,24 @@ export default function AuditLogs() {
                       <SelectItem value="partial">部分成功</SelectItem>
                     </SelectContent>
                   </Select>
+                  {/* 管理员查看所有用户日志开关 */}
+                  {isAdmin && (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        id="viewAll"
+                        checked={viewAll}
+                        onChange={(e) => {
+                          setViewAll(e.target.checked);
+                          setPage(1);
+                        }}
+                        className="h-4 w-4 rounded border-gray-600 bg-gray-700 text-blue-500 focus:ring-blue-500"
+                      />
+                      <label htmlFor="viewAll" className="text-sm text-muted-foreground">
+                        查看所有用户日志
+                      </label>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

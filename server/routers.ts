@@ -5552,12 +5552,17 @@ const auditRouter = router({
       search: z.string().optional(),
       page: z.number().default(1),
       pageSize: z.number().default(20),
+      viewAll: z.boolean().optional(), // 管理员查看所有用户日志
+      filterUserId: z.number().optional(), // 管理员筛选特定用户
     }))
     .query(async ({ ctx, input }) => {
       const { getAuditLogs } = await import("./auditService");
+      // 管理员可以查看所有用户的日志
+      const isAdmin = ctx.user.role === 'admin';
+      const userId = isAdmin && input.viewAll ? (input.filterUserId || undefined) : ctx.user.id;
       return getAuditLogs({
         ...input,
-        userId: ctx.user.id,
+        userId,
       });
     }),
 

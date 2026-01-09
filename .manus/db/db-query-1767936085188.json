@@ -1,0 +1,37 @@
+{
+  "query": "SELECT id, username, name, email, organization_id, role, status FROM team_members WHERE username LIKE 'test%'",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT id, username, name, email, organization_id, role, status FROM team_members WHERE username LIKE 'test%'",
+  "rows": [
+    {
+      "id": "1",
+      "username": "test_user_1767932442258",
+      "name": "测试用户",
+      "email": "test@example.com",
+      "organization_id": "1",
+      "role": "admin",
+      "status": "active"
+    },
+    {
+      "id": "4",
+      "username": "test_user_1767933314388",
+      "name": "测试用户",
+      "email": "test@example.com",
+      "organization_id": "1",
+      "role": "admin",
+      "status": "active"
+    },
+    {
+      "id": "30005",
+      "username": "testuser001",
+      "name": "测试用户",
+      "email": "test@example.com",
+      "organization_id": "1",
+      "role": "admin",
+      "status": "active"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tusername\tname\temail\torganization_id\trole\tstatus\n1\ttest_user_1767932442258\t测试用户\ttest@example.com\t1\tadmin\tactive\n4\ttest_user_1767933314388\t测试用户\ttest@example.com\t1\tadmin\tactive\n30005\ttestuser001\t测试用户\ttest@example.com\t1\tadmin\tactive\n",
+  "stderr": "",
+  "execution_time_ms": 56
+}

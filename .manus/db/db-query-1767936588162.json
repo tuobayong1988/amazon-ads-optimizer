@@ -1,0 +1,40 @@
+{
+  "query": "SELECT id, name, email, role FROM users LIMIT 5",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT id, name, email, role FROM users LIMIT 5",
+  "rows": [
+    {
+      "id": "1",
+      "name": "Sonicking",
+      "email": "mcoceanyet@gmail.com",
+      "role": "admin"
+    },
+    {
+      "id": "90001",
+      "name": "vip",
+      "email": "vip@mucers.com",
+      "role": "user"
+    },
+    {
+      "id": "360477",
+      "name": "Su_ssshan",
+      "email": "sussshan98l@gmail.com",
+      "role": "user"
+    },
+    {
+      "id": "540332",
+      "name": "Phoenix League",
+      "email": "huangzhenlin96@gmail.com",
+      "role": "user"
+    },
+    {
+      "id": "540394",
+      "name": "545235837",
+      "email": "545235837@qq.com",
+      "role": "user"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tname\temail\trole\n1\tSonicking\tmcoceanyet@gmail.com\tadmin\n90001\tvip\tvip@mucers.com\tuser\n360477\tSu_ssshan\tsussshan98l@gmail.com\tuser\n540332\tPhoenix League\thuangzhenlin96@gmail.com\tuser\n540394\t545235837\t545235837@qq.com\tuser\n",
+  "stderr": "",
+  "execution_time_ms": 91
+}
