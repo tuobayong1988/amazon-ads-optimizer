@@ -7986,6 +7986,140 @@ const placementRouter = router({
         failCount,
       };
     }),
+
+  // ==================== 边际效益分析（V2新增）====================
+
+  // 计算单个位置的边际效益
+  calculateMarginalBenefit: protectedProcedure
+    .input(z.object({
+      campaignId: z.string(),
+      accountId: z.number(),
+      placementType: z.enum(['top_of_search', 'product_page', 'rest_of_search']),
+      currentAdjustment: z.number().default(0),
+      days: z.number().default(30),
+    }))
+    .query(async ({ input }) => {
+      const { calculateMarginalBenefit } = await import('./marginalBenefitAnalysisService');
+      return calculateMarginalBenefit(
+        input.campaignId,
+        input.accountId,
+        input.placementType,
+        input.currentAdjustment,
+        input.days
+      );
+    }),
+
+  // 优化流量分配
+  optimizeTrafficAllocation: protectedProcedure
+    .input(z.object({
+      campaignId: z.string(),
+      accountId: z.number(),
+      currentAdjustments: z.object({
+        top_of_search: z.number().default(0),
+        product_page: z.number().default(0),
+        rest_of_search: z.number().default(0),
+      }),
+      goal: z.enum(['maximize_roas', 'minimize_acos', 'maximize_sales', 'balanced']).default('balanced'),
+      constraints: z.object({
+        maxTotalAdjustment: z.number().optional(),
+        minAdjustmentPerPlacement: z.number().optional(),
+        maxAdjustmentPerPlacement: z.number().optional(),
+        maxSpendIncrease: z.number().optional(),
+        targetACoS: z.number().optional(),
+        targetROAS: z.number().optional(),
+      }).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { optimizeTrafficAllocation } = await import('./marginalBenefitAnalysisService');
+      return optimizeTrafficAllocation(
+        input.campaignId,
+        input.accountId,
+        input.currentAdjustments,
+        input.goal,
+        input.constraints
+      );
+    }),
+
+  // 批量分析多个广告活动的边际效益
+  batchAnalyzeMarginalBenefits: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      campaignIds: z.array(z.string()).optional(),
+    }))
+    .query(async ({ input }) => {
+      const { batchAnalyzeMarginalBenefits } = await import('./marginalBenefitAnalysisService');
+      const results = await batchAnalyzeMarginalBenefits(
+        input.accountId,
+        input.campaignIds
+      );
+      // 将Map转换为普通对象以便序列化
+      const resultsObj: Record<string, any> = {};
+      results.forEach((value, key) => {
+        resultsObj[key] = value;
+      });
+      return resultsObj;
+    }),
+
+  // 生成边际效益分析报告
+  generateMarginalBenefitReport: protectedProcedure
+    .input(z.object({
+      campaignId: z.string(),
+      accountId: z.number(),
+      goal: z.enum(['maximize_roas', 'minimize_acos', 'maximize_sales', 'balanced']).default('balanced'),
+    }))
+    .query(async ({ input }) => {
+      const { 
+        calculateMarginalBenefit, 
+        optimizeTrafficAllocation, 
+        generateMarginalBenefitReport 
+      } = await import('./marginalBenefitAnalysisService');
+      
+      // 获取当前设置
+      const currentSettings = await placementService.getCampaignPlacementSettings(
+        input.campaignId,
+        input.accountId
+      );
+      
+      const currentAdjustments = {
+        top_of_search: currentSettings?.top_of_search || 0,
+        product_page: currentSettings?.product_page || 0,
+        rest_of_search: currentSettings?.rest_of_search || 0,
+      };
+      
+      // 计算各位置的边际效益
+      const placements: Array<'top_of_search' | 'product_page' | 'rest_of_search'> = ['top_of_search', 'product_page', 'rest_of_search'];
+      const marginalBenefits: Record<string, any> = {};
+      
+      for (const placement of placements) {
+        marginalBenefits[placement] = await calculateMarginalBenefit(
+          input.campaignId,
+          input.accountId,
+          placement,
+          currentAdjustments[placement],
+          30
+        );
+      }
+      
+      // 优化流量分配
+      const allocationResult = await optimizeTrafficAllocation(
+        input.campaignId,
+        input.accountId,
+        currentAdjustments,
+        input.goal
+      );
+      
+      // 生成报告
+      const report = generateMarginalBenefitReport(
+        marginalBenefits as any,
+        allocationResult
+      );
+      
+      return {
+        marginalBenefits,
+        allocationResult,
+        report,
+      };
+    }),
 });
 
 // ==================== 趋势数据辅助函数 ====================
