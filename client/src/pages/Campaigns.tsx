@@ -4,6 +4,7 @@ import { useDebounce } from "@/hooks/useDebounce";
 import { useIsMobile } from "@/hooks/useMobile";
 import { MobileFilterPanel, MobileFilterRow } from "@/components/MobileFilterPanel";
 import { MobileBottomSpacer } from "@/components/MobileBottomNav";
+import { FloatingActionButton, FloatingAction, commonActions } from "@/components/FloatingActionButton";
 import { useUrlFilters, serializers } from "@/hooks/useUrlFilters";
 import { useFilterPresets, FilterPreset } from "@/hooks/useFilterPresets";
 import { exportToCSV, exportToExcel, ExportColumn } from "@/utils/exportTable";
@@ -57,7 +58,9 @@ import {
   Bookmark,
   BookmarkCheck,
   Trash2,
-  Plus
+  Plus,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -297,6 +300,9 @@ type ColumnKey = 'campaignName' | 'campaignType' | 'billingType' | 'createdAt' |
   'dailyBudget' | 'dailySpend' | 'impressions' | 'clicks' | 'ctr' | 'totalSpend' | 
   'dailySales' | 'totalSales' | 'acos' | 'roas' | 'performanceGroup' | 'optimalBid' | 'autoOptimization' | 'actions';
 
+// 移动端列优先级: 'core' = 核心列(始终显示), 'important' = 重要列(默认显示), 'secondary' = 次要列(移动端隐藏)
+type MobilePriority = 'core' | 'important' | 'secondary';
+
 interface ColumnConfig {
   key: ColumnKey;
   label: string;
@@ -305,28 +311,32 @@ interface ColumnConfig {
   sortable: boolean;
   defaultVisible: boolean;
   sticky?: boolean;
+  mobilePriority: MobilePriority; // 移动端优先级
 }
 
 const columns: ColumnConfig[] = [
-  { key: 'campaignName', label: '广告活动名称', minWidth: '250px', align: 'left', sortable: true, defaultVisible: true, sticky: true },
-  { key: 'campaignType', label: '类型', minWidth: '80px', align: 'left', sortable: true, defaultVisible: true },
-  { key: 'billingType', label: '计费方式', minWidth: '100px', align: 'left', sortable: true, defaultVisible: true },
-  { key: 'createdAt', label: '创建日期', minWidth: '100px', align: 'left', sortable: true, defaultVisible: true },
-  { key: 'status', label: '状态', minWidth: '80px', align: 'left', sortable: true, defaultVisible: true },
-  { key: 'dailyBudget', label: '日预算', minWidth: '100px', align: 'right', sortable: true, defaultVisible: true },
-  { key: 'dailySpend', label: '当日花费', minWidth: '100px', align: 'right', sortable: true, defaultVisible: true },
-  { key: 'impressions', label: '曝光', minWidth: '80px', align: 'right', sortable: true, defaultVisible: true },
-  { key: 'clicks', label: '点击', minWidth: '80px', align: 'right', sortable: true, defaultVisible: true },
-  { key: 'ctr', label: '点击率', minWidth: '80px', align: 'right', sortable: true, defaultVisible: true },
-  { key: 'totalSpend', label: '累计花费', minWidth: '100px', align: 'right', sortable: true, defaultVisible: true },
-  { key: 'dailySales', label: '日销售额', minWidth: '100px', align: 'right', sortable: true, defaultVisible: true },
-  { key: 'totalSales', label: '累计销售额', minWidth: '100px', align: 'right', sortable: true, defaultVisible: true },
-  { key: 'acos', label: 'ACoS', minWidth: '80px', align: 'right', sortable: true, defaultVisible: true },
-  { key: 'roas', label: 'ROAS', minWidth: '80px', align: 'right', sortable: true, defaultVisible: true },
-  { key: 'performanceGroup', label: '所属绩效组', minWidth: '120px', align: 'left', sortable: true, defaultVisible: true },
-  { key: 'optimalBid', label: '最优出价', minWidth: '180px', align: 'center', sortable: false, defaultVisible: true },
-  { key: 'autoOptimization', label: '自动优化', minWidth: '140px', align: 'center', sortable: false, defaultVisible: true },
-  { key: 'actions', label: '操作', minWidth: '120px', align: 'center', sortable: false, defaultVisible: true },
+  // 核心列 - 移动端始终显示
+  { key: 'campaignName', label: '广告活动名称', minWidth: '250px', align: 'left', sortable: true, defaultVisible: true, sticky: true, mobilePriority: 'core' },
+  { key: 'status', label: '状态', minWidth: '80px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'core' },
+  { key: 'dailySpend', label: '当日花费', minWidth: '100px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'core' },
+  { key: 'acos', label: 'ACoS', minWidth: '80px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'core' },
+  { key: 'actions', label: '操作', minWidth: '120px', align: 'center', sortable: false, defaultVisible: true, mobilePriority: 'core' },
+  // 重要列 - 移动端默认显示
+  { key: 'campaignType', label: '类型', minWidth: '80px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'important' },
+  { key: 'dailyBudget', label: '日预算', minWidth: '100px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'important' },
+  { key: 'dailySales', label: '日销售额', minWidth: '100px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'important' },
+  { key: 'roas', label: 'ROAS', minWidth: '80px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'important' },
+  // 次要列 - 移动端默认隐藏
+  { key: 'billingType', label: '计费方式', minWidth: '100px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'createdAt', label: '创建日期', minWidth: '100px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'impressions', label: '曝光', minWidth: '80px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'clicks', label: '点击', minWidth: '80px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'ctr', label: '点击率', minWidth: '80px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'totalSpend', label: '累计花费', minWidth: '100px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'totalSales', label: '累计销售额', minWidth: '100px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'performanceGroup', label: '所属绩效组', minWidth: '120px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'optimalBid', label: '最优出价', minWidth: '180px', align: 'center', sortable: false, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'autoOptimization', label: '自动优化', minWidth: '140px', align: 'center', sortable: false, defaultVisible: true, mobilePriority: 'secondary' },
 ];
 
 // 排序字段类型
@@ -528,6 +538,9 @@ export default function Campaigns() {
   // 时间范围状态 - 使用TimeRangeSelector组件
   const [timeRangeValue, setTimeRangeValue] = useState<TimeRangeValue>(() => getDefaultTimeRangeValue('7days'));
   
+  // 移动端显示更多列状态
+  const [showAllColumnsOnMobile, setShowAllColumnsOnMobile] = useState(false);
+  
   // 列显示状态
   const [visibleColumns, setVisibleColumns] = useState<Set<ColumnKey>>(() => {
     const saved = localStorage.getItem(COLUMN_VISIBILITY_KEY);
@@ -540,6 +553,29 @@ export default function Campaigns() {
     }
     return new Set(columns.filter(c => c.defaultVisible).map(c => c.key));
   });
+  
+  // 移动端实际显示的列（根据优先级过滤）
+  const mobileVisibleColumns = useMemo(() => {
+    if (!isMobile || showAllColumnsOnMobile) {
+      return visibleColumns;
+    }
+    // 移动端只显示核心列和重要列
+    const mobileColumns = new Set<ColumnKey>();
+    columns.forEach(col => {
+      if (visibleColumns.has(col.key) && (col.mobilePriority === 'core' || col.mobilePriority === 'important')) {
+        mobileColumns.add(col.key);
+      }
+    });
+    return mobileColumns;
+  }, [isMobile, showAllColumnsOnMobile, visibleColumns]);
+  
+  // 计算隐藏的次要列数量
+  const hiddenSecondaryColumnsCount = useMemo(() => {
+    if (!isMobile || showAllColumnsOnMobile) return 0;
+    return columns.filter(col => 
+      visibleColumns.has(col.key) && col.mobilePriority === 'secondary'
+    ).length;
+  }, [isMobile, showAllColumnsOnMobile, visibleColumns]);
 
   // 编辑预算弹窗状态
   const [editBudgetDialog, setEditBudgetDialog] = useState<{
@@ -1810,7 +1846,7 @@ export default function Campaigns() {
                             onCheckedChange={toggleSelectAll}
                           />
                         </TableHead>
-                        {columns.filter(col => visibleColumns.has(col.key)).map((column, colIndex) => {
+                        {columns.filter(col => mobileVisibleColumns.has(col.key)).map((column, colIndex) => {
                           const colWidth = getWidth(column.key);
                           const colIsPinned = isPinned(column.key);
                           const pinnedOffset = colIsPinned ? getPinnedOffset(column.key) + 40 : 0; // 40 for checkbox column
@@ -1876,7 +1912,7 @@ export default function Campaigns() {
                                 onCheckedChange={() => toggleSelectCampaign(campaign.id)}
                               />
                             </TableCell>
-                            {columns.filter(col => visibleColumns.has(col.key)).map((column) => {
+                            {columns.filter(col => mobileVisibleColumns.has(col.key)).map((column) => {
                               const colWidth = getWidth(column.key);
                               const colIsPinned = isPinned(column.key);
                               const pinnedOffset = colIsPinned ? getPinnedOffset(column.key) + 40 : 0;
@@ -1901,6 +1937,30 @@ export default function Campaigns() {
                     </TableBody>
                   </Table>
                 </div>
+                
+                {/* 移动端显示更多列按钮 */}
+                {isMobile && hiddenSecondaryColumnsCount > 0 && (
+                  <div className="flex justify-center py-3 border-t border-border/50">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowAllColumnsOnMobile(!showAllColumnsOnMobile)}
+                      className="text-xs"
+                    >
+                      {showAllColumnsOnMobile ? (
+                        <>
+                          <EyeOff className="w-3 h-3 mr-1" />
+                          隐藏次要列
+                        </>
+                      ) : (
+                        <>
+                          <Eye className="w-3 h-3 mr-1" />
+                          显示更多列 ({hiddenSecondaryColumnsCount})
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
                 
                 {/* 分页组件 */}
                 <Pagination
@@ -2025,6 +2085,21 @@ export default function Campaigns() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      
+      {/* 移动端快捷操作浮动按钮 */}
+      <FloatingActionButton
+        actions={[
+          commonActions.refresh(() => refetch()),
+          commonActions.export(() => handleExport('csv')),
+          {
+            id: 'preset',
+            icon: Bookmark,
+            label: '保存筛选预设',
+            onClick: () => setSavePresetDialog(true),
+          },
+        ]}
+        mainIcon={Plus}
+      />
       
       {/* 移动端底部间距 */}
       <MobileBottomSpacer />
