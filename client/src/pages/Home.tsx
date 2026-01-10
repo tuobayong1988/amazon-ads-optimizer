@@ -3,6 +3,8 @@ import { Button } from "@/components/ui/button";
 import { getLoginUrl } from "@/const";
 import { useEffect, useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { useIsMobile } from "@/hooks/useMobile";
+import { PullToRefresh } from "@/components/PullToRefresh";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
@@ -741,8 +743,16 @@ function DashboardContent() {
     return value >= 0 ? 'text-green-500' : 'text-red-500';
   };
 
+  const isMobile = useIsMobile();
+
+  // 下拉刷新处理函数
+  const handlePullRefresh = async () => {
+    await handleRefresh();
+  };
+
   return (
     <DashboardLayout>
+      <PullToRefresh onRefresh={handlePullRefresh} className="h-full">
       <div className="space-y-6">
         {/* 页面标题和时间范围选择器 */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -773,8 +783,8 @@ function DashboardContent() {
           </div>
         </div>
         
-        {/* 汇总指标卡片 */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+        {/* 汇总指标卡片 - 移动端2列2列网格 */}
+        <div className={`grid gap-4 ${isMobile ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-6'}`}>
           <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
@@ -859,9 +869,9 @@ function DashboardContent() {
         {/* 账户状态概览 */}
         <Card>
           <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
+            <div className={`flex ${isMobile ? 'flex-col gap-2' : 'items-center justify-between'}`}>
               <CardTitle className="text-lg">账户状态</CardTitle>
-              <div className="flex items-center gap-4 text-sm">
+              <div className={`flex items-center ${isMobile ? 'gap-3 text-xs' : 'gap-4 text-sm'}`}>
                 <span className="flex items-center gap-1">
                   <CheckCircle2 className="w-4 h-4 text-green-500" />
                   健康 {healthStats.healthy}
@@ -878,7 +888,7 @@ function DashboardContent() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'md:grid-cols-2 lg:grid-cols-3'}`}>
               {accountsData.map((account) => (
                 <div 
                   key={account.id}
@@ -920,14 +930,14 @@ function DashboardContent() {
         </Card>
         
         {/* 趋势图表 */}
-        <div className="grid lg:grid-cols-2 gap-6">
+        <div className={`grid gap-6 ${isMobile ? 'grid-cols-1' : 'lg:grid-cols-2'}`}>
           <Card>
             <CardHeader>
               <CardTitle className="text-lg">花费与销售趋势</CardTitle>
               <CardDescription>近{days}天数据</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[300px]">
+              <div className={isMobile ? 'h-[200px]' : 'h-[300px]'}>
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData}>
                     <defs>
@@ -979,7 +989,7 @@ function DashboardContent() {
               <CardDescription>近{days}天数据</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="h-[300px]">
+              <div className={isMobile ? 'h-[200px]' : 'h-[300px]'}>
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData}>
                     <defs>
@@ -1117,6 +1127,7 @@ function DashboardContent() {
           </Link>
         </div>
       </div>
+      </PullToRefresh>
     </DashboardLayout>
   );
 }
