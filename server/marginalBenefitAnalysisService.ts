@@ -912,3 +912,256 @@ export {
   calculateOptimalRange,
   calculateAnalysisConfidence
 };
+
+
+// ==================== 简化版本函数（供前端直接调用） ====================
+
+/**
+ * 简化版边际效益计算（不需要数据库查询）
+ * 直接基于传入的指标数据计算边际效益
+ */
+export function calculateMarginalBenefitSimple(
+  metrics: {
+    impressions: number;
+    clicks: number;
+    spend: number;
+    sales: number;
+    orders: number;
+    ctr: number;
+    cvr: number;
+    cpc: number;
+    acos: number;
+    roas: number;
+  },
+  currentAdjustment: number
+): {
+  marginalROAS: number;
+  marginalACoS: number;
+  marginalSales: number;
+  marginalSpend: number;
+  elasticity: number;
+  diminishingPoint: number;
+  optimalRange: { min: number; max: number };
+  confidence: number;
+} {
+  // 基于当前指标估算边际效益
+  const baseROAS = metrics.roas || 1;
+  const baseACoS = metrics.acos || 100;
+  
+  // 边际效益递减模型：随着倾斜增加，边际效益下降
+  const decayFactor = Math.exp(-currentAdjustment / 100);
+  
+  // 计算边际ROAS（考虑递减效应）
+  const marginalROAS = Math.max(0.1, baseROAS * decayFactor * (1 - currentAdjustment / 400));
+  
+  // 计算边际ACoS（边际ROAS的倒数）
+  const marginalACoS = marginalROAS > 0 ? 100 / marginalROAS : 100;
+  
+  // 计算边际销售额和花费
+  const avgOrderValue = metrics.orders > 0 ? metrics.sales / metrics.orders : 50;
+  const marginalSales = avgOrderValue * marginalROAS * 0.1;
+  const marginalSpend = marginalSales / (marginalROAS || 1);
+  
+  // 计算弹性系数
+  const elasticity = baseROAS > 1 ? Math.log(baseROAS) / Math.log(2) : 0.5;
+  
+  // 识别递减拐点（基于ROAS和当前倾斜）
+  const diminishingPoint = Math.max(30, Math.min(150, 50 + baseROAS * 20));
+  
+  // 计算最优范围
+  const optimalMin = Math.max(0, diminishingPoint - 30);
+  const optimalMax = Math.min(200, diminishingPoint + 30);
+  
+  // 计算置信度（基于数据量）
+  let confidence = 0.3;
+  if (metrics.orders >= 50) confidence += 0.3;
+  else if (metrics.orders >= 20) confidence += 0.2;
+  else if (metrics.orders >= 10) confidence += 0.1;
+  
+  if (metrics.clicks >= 500) confidence += 0.2;
+  else if (metrics.clicks >= 200) confidence += 0.1;
+  
+  if (metrics.impressions >= 10000) confidence += 0.2;
+  else if (metrics.impressions >= 5000) confidence += 0.1;
+  
+  confidence = Math.min(1.0, confidence);
+  
+  return {
+    marginalROAS,
+    marginalACoS,
+    marginalSales,
+    marginalSpend,
+    elasticity,
+    diminishingPoint,
+    optimalRange: { min: optimalMin, max: optimalMax },
+    confidence,
+  };
+}
+
+/**
+ * 简化版流量分配优化（不需要数据库查询）
+ */
+export function optimizeTrafficAllocationSimple(
+  marginalBenefits: Record<string, {
+    marginalROAS: number;
+    marginalACoS: number;
+    marginalSales: number;
+    marginalSpend: number;
+    elasticity: number;
+    diminishingPoint: number;
+    optimalRange: { min: number; max: number };
+    confidence: number;
+  }>,
+  currentAdjustments: Record<string, number>,
+  goal: 'maximize_roas' | 'minimize_acos' | 'maximize_sales' | 'balanced' = 'balanced'
+): {
+  optimizedAdjustments: Record<string, number>;
+  expectedSalesIncrease: number;
+  expectedSpendChange: number;
+  expectedROASChange: number;
+  confidence: number;
+} {
+  const placements = ['top_of_search', 'product_page', 'rest_of_search'];
+  const optimized: Record<string, number> = { ...currentAdjustments };
+  
+  // 计算各位置的优先级分数
+  const scores = placements.map(placement => {
+    const mb = marginalBenefits[placement] || {
+      marginalROAS: 1,
+      marginalACoS: 100,
+      marginalSales: 0,
+      elasticity: 0.5,
+      diminishingPoint: 50,
+      optimalRange: { min: 0, max: 50 },
+      confidence: 0.3,
+    };
+    
+    let score = 0;
+    switch (goal) {
+      case 'maximize_roas':
+        score = mb.marginalROAS * mb.confidence;
+        break;
+      case 'minimize_acos':
+        score = (100 - mb.marginalACoS) * mb.confidence / 100;
+        break;
+      case 'maximize_sales':
+        score = mb.marginalSales * mb.confidence;
+        break;
+      case 'balanced':
+      default:
+        score = (mb.marginalROAS * 0.6 + mb.elasticity * 0.4) * mb.confidence;
+    }
+    
+    return { placement, score, mb };
+  }).sort((a, b) => b.score - a.score);
+  
+  // 迭代优化
+  const stepSize = 5;
+  const maxIterations = 20;
+  let totalAdjustment = Object.values(optimized).reduce((sum, v) => sum + v, 0);
+  
+  for (let i = 0; i < maxIterations; i++) {
+    let improved = false;
+    
+    for (const { placement, mb } of scores) {
+      const current = optimized[placement] || 0;
+      
+      if (current < 200 && current < mb.diminishingPoint + 20 && totalAdjustment + stepSize <= 400) {
+        if (mb.marginalROAS > 1 || goal === 'maximize_sales') {
+          const newValue = Math.min(current + stepSize, 200, mb.optimalRange.max);
+          if (newValue > current) {
+            optimized[placement] = newValue;
+            totalAdjustment += (newValue - current);
+            improved = true;
+          }
+        }
+      }
+    }
+    
+    if (!improved) break;
+  }
+  
+  // 计算预期效果
+  let expectedSalesIncrease = 0;
+  let expectedSpendChange = 0;
+  let totalConfidence = 0;
+  
+  for (const placement of placements) {
+    const mb = marginalBenefits[placement];
+    if (mb) {
+      const delta = (optimized[placement] || 0) - (currentAdjustments[placement] || 0);
+      expectedSalesIncrease += mb.marginalSales * delta / 10;
+      expectedSpendChange += mb.marginalSpend * delta / 10;
+      totalConfidence += mb.confidence;
+    }
+  }
+  
+  const avgConfidence = totalConfidence / placements.length;
+  const expectedROASChange = expectedSpendChange > 0 
+    ? (expectedSalesIncrease / expectedSpendChange - 1) * 0.1 
+    : 0;
+  
+  return {
+    optimizedAdjustments: optimized,
+    expectedSalesIncrease,
+    expectedSpendChange,
+    expectedROASChange,
+    confidence: avgConfidence,
+  };
+}
+
+/**
+ * 批量分析（简化版，供前端测试使用）
+ */
+export function batchAnalyzeMarginalBenefitsSimple(
+  campaignData: Array<{
+    campaignId: string;
+    placements: Record<string, {
+      metrics: {
+        impressions: number;
+        clicks: number;
+        spend: number;
+        sales: number;
+        orders: number;
+        ctr: number;
+        cvr: number;
+        cpc: number;
+        acos: number;
+        roas: number;
+      };
+      currentAdjustment: number;
+    }>;
+  }>
+): Array<{
+  campaignId: string;
+  marginalBenefits: Record<string, any>;
+  optimizationResult: any;
+}> {
+  return campaignData.map(campaign => {
+    const marginalBenefits: Record<string, any> = {};
+    
+    for (const [placement, data] of Object.entries(campaign.placements)) {
+      marginalBenefits[placement] = calculateMarginalBenefitSimple(
+        data.metrics,
+        data.currentAdjustment
+      );
+    }
+    
+    const currentAdjustments: Record<string, number> = {};
+    for (const [placement, data] of Object.entries(campaign.placements)) {
+      currentAdjustments[placement] = data.currentAdjustment;
+    }
+    
+    const optimizationResult = optimizeTrafficAllocationSimple(
+      marginalBenefits,
+      currentAdjustments,
+      'balanced'
+    );
+    
+    return {
+      campaignId: campaign.campaignId,
+      marginalBenefits,
+      optimizationResult,
+    };
+  });
+}

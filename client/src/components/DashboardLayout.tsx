@@ -86,6 +86,7 @@ const menuGroups = [
     description: "AI驱动的全自动广告优化",
     items: [
       { icon: Brain, label: "智能优化中心", path: "/optimization-engine" },
+      { icon: Activity, label: "边际效益分析", path: "/marginal-benefit-analysis" },
       { icon: FlaskConical, label: "A/B测试", path: "/ab-test" },
     ]
   },

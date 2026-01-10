@@ -32,7 +32,9 @@ import {
   Layers,
   Search,
   Package,
-  List
+  List,
+  Activity,
+  ExternalLink
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -255,6 +257,11 @@ export default function PlacementOptimization() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => window.location.href = '/marginal-benefit-analysis'}>
+              <Activity className="h-4 w-4 mr-2" />
+              边际效益分析
+              <ExternalLink className="h-3 w-3 ml-1" />
+            </Button>
             <Button variant="outline" onClick={() => setSettingsDialogOpen(true)}>
               <Settings className="h-4 w-4 mr-2" />
               优化设置

@@ -63,6 +63,7 @@ import InviteCodeManagement from "@/pages/InviteCodeManagement";
 import LocalLogin from "@/pages/LocalLogin";
 import Blog from "@/pages/Blog";
 import BlogPost from "@/pages/BlogPost";
+import MarginalBenefitAnalysis from "@/pages/MarginalBenefitAnalysis";
 
 function Router() {
   return (
@@ -114,6 +115,7 @@ function Router() {
       <Route path="/dayparting" component={DaypartingStrategy} />
       <Route path="/placement-optimization" component={PlacementOptimization} />
       <Route path="/advanced-placement" component={AdvancedPlacementOptimization} />
+      <Route path="/marginal-benefit-analysis" component={MarginalBenefitAnalysis} />
       <Route path="/optimization-center" component={OptimizationCenter} />
       <Route path="/bid-adjustment-history" component={BidAdjustmentHistory} />
       <Route path="/effect-tracking-report" component={EffectTrackingReport} />

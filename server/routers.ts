@@ -26,6 +26,7 @@ import * as specialScenarioOptimizationService from './specialScenarioOptimizati
 import * as automationExecutionEngine from './automationExecutionEngine';
 import * as autoOperationService from './autoOperationService';
 import { calculateDateRangeByMarketplace, getMarketplaceLocalDate, MARKETPLACE_TIMEZONES } from '../shared/timezone';
+import * as marginalBenefitService from './marginalBenefitAnalysisService';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
@@ -6880,10 +6881,47 @@ const placementRouter = router({
         input.accountId
       );
       
+      // 集成边际效益分析
+      let marginalBenefitInsights = null;
+      try {
+        const marginalBenefits: Record<string, any> = {};
+        for (const p of performance) {
+          const placementType = p.placementType as 'top_of_search' | 'product_page' | 'rest_of_search';
+          const currentAdjustment = currentSettings?.[placementType] || 0;
+          const benefit = marginalBenefitService.calculateMarginalBenefitSimple(
+            p.metrics || { impressions: 0, clicks: 0, spend: 0, sales: 0, orders: 0, ctr: 0, cvr: 0, cpc: 0, acos: 0, roas: 0 },
+            currentAdjustment
+          );
+          marginalBenefits[placementType] = {
+            ...benefit,
+            currentAdjustment,
+          };
+        }
+        
+        // 计算最优流量分配
+        const optimizationResult = marginalBenefitService.optimizeTrafficAllocationSimple(
+          marginalBenefits,
+          {
+            top_of_search: currentSettings?.top_of_search || 0,
+            product_page: currentSettings?.product_page || 0,
+            rest_of_search: currentSettings?.rest_of_search || 0,
+          },
+          'balanced'
+        );
+        
+        marginalBenefitInsights = {
+          marginalBenefits,
+          optimizationResult,
+        };
+      } catch (e) {
+        console.error('[generateSuggestions] 边际效益分析失败:', e);
+      }
+      
       return {
         performance,
         currentSettings,
         suggestions,
+        marginalBenefitInsights,
       };
     }),
 
