@@ -3771,3 +3771,11 @@ Amazon Advertising API数据有12-24小时延迟，当天广告数据通常在�
 - [x] 添加JSON-LD结构化数据（SoftwareApplication, Organization, FAQPage）
 - [x] 优化图片alt属性（ManusDialog组件）
 - [x] 添加robots和canonical标签
+
+
+## SEO完善（第三十一阶段）
+
+- [x] 创建og-image.png社交分享图片（1200x630px）
+- [x] 添加sitemap.xml站点地图（9个页面）
+- [x] 添加robots.txt文件
+- [x] 配置VITE_APP_URL环境变量
