@@ -61,6 +61,7 @@ import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
 import AccountSwitcher from "./AccountSwitcher";
+import { MobileBottomNav } from "./MobileBottomNav";
 
 // 菜单分组配置 - 极简化设计
 // 算法自主决策执行，用户只需监督
@@ -348,8 +349,11 @@ function DashboardLayoutContent({
             <AccountSwitcher compact />
           </div>
         </div>
-        <main className="flex-1 p-6">{children}</main>
+        <main className={`flex-1 ${isMobile ? 'p-4 pb-20' : 'p-6'}`}>{children}</main>
       </SidebarInset>
+      
+      {/* 移动端底部导航栏 */}
+      <MobileBottomNav />
     </>
   );
 }

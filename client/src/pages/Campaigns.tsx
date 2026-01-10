@@ -1,7 +1,12 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useIsMobile } from "@/hooks/useMobile";
+import { MobileFilterPanel, MobileFilterRow } from "@/components/MobileFilterPanel";
+import { MobileBottomSpacer } from "@/components/MobileBottomNav";
 import { useUrlFilters, serializers } from "@/hooks/useUrlFilters";
+import { useFilterPresets, FilterPreset } from "@/hooks/useFilterPresets";
+import { exportToCSV, exportToExcel, ExportColumn } from "@/utils/exportTable";
 import { Pagination, usePagination } from "@/components/Pagination";
 import { useResizableColumns, ResizeHandle, PinButton } from "@/components/ResizableTable";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -44,7 +49,15 @@ import {
   CircleDollarSign,
   TrendingDown,
   PinOff,
-  Share2
+  Share2,
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Save,
+  Bookmark,
+  BookmarkCheck,
+  Trash2,
+  Plus
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -437,6 +450,7 @@ const filterConfigs = [
 ];
 
 export default function Campaigns() {
+  const isMobile = useIsMobile();
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   
   // URL筛选条件持久化
@@ -544,6 +558,14 @@ export default function Campaigns() {
   
   // 确认弹窗状态
   const { showConfirm, dialogProps } = useOperationConfirm();
+  
+  // 筛选预设功能
+  const { presets, addPreset, deletePreset } = useFilterPresets('campaigns_filter_presets');
+  const [savePresetDialog, setSavePresetDialog] = useState(false);
+  const [newPresetName, setNewPresetName] = useState('');
+  
+  // 导出加载状态
+  const [isExporting, setIsExporting] = useState(false);
 
   // 保存列显示设置到localStorage
   useEffect(() => {
@@ -961,6 +983,138 @@ export default function Campaigns() {
     setVisibleColumns(new Set(columns.filter(c => c.defaultVisible).map(c => c.key)));
   };
 
+  // 导出数据函数
+  const handleExport = useCallback((format: 'csv' | 'excel') => {
+    if (!sortedCampaigns || sortedCampaigns.length === 0) {
+      toast.error('没有可导出的数据');
+      return;
+    }
+    
+    setIsExporting(true);
+    
+    try {
+      // 准备导出列（只导出可见列）
+      const exportColumns: ExportColumn[] = columns
+        .filter(col => visibleColumns.has(col.key) && col.key !== 'actions' && col.key !== 'optimalBid' && col.key !== 'autoOptimization')
+        .map(col => ({ key: col.key, label: col.label }));
+      
+      // 准备导出数据
+      const exportData = sortedCampaigns.map(campaign => {
+        const row: Record<string, any> = {};
+        exportColumns.forEach(col => {
+          switch (col.key) {
+            case 'campaignName':
+              row[col.key] = campaign.campaignName;
+              break;
+            case 'campaignType':
+              const typeConfig = campaignTypes.find(t => t.value === campaign.campaignType);
+              row[col.key] = typeConfig?.label || campaign.campaignType;
+              break;
+            case 'billingType':
+              row[col.key] = billingTypeLabels[(campaign as any).billingType || 'cpc'] || (campaign as any).billingType || 'CPC';
+              break;
+            case 'createdAt':
+              row[col.key] = campaign.createdAt ? new Date(campaign.createdAt).toLocaleDateString('zh-CN') : '';
+              break;
+            case 'status':
+              row[col.key] = campaign.campaignStatus === 'enabled' ? '投放中' : '已暂停';
+              break;
+            case 'dailyBudget':
+              row[col.key] = `$${parseFloat((campaign as any).dailyBudget || '0').toFixed(2)}`;
+              break;
+            case 'dailySpend':
+              row[col.key] = `$${((campaign as any).performance?.spend || 0).toFixed(2)}`;
+              break;
+            case 'impressions':
+              row[col.key] = (campaign as any).performance?.impressions || 0;
+              break;
+            case 'clicks':
+              row[col.key] = (campaign as any).performance?.clicks || 0;
+              break;
+            case 'ctr':
+              const impressions = (campaign as any).performance?.impressions || 0;
+              const clicks = (campaign as any).performance?.clicks || 0;
+              row[col.key] = impressions > 0 ? `${((clicks / impressions) * 100).toFixed(2)}%` : '-';
+              break;
+            case 'totalSpend':
+              row[col.key] = `$${((campaign as any).performance?.totalSpend || 0).toFixed(2)}`;
+              break;
+            case 'dailySales':
+              row[col.key] = `$${((campaign as any).performance?.sales || 0).toFixed(2)}`;
+              break;
+            case 'totalSales':
+              row[col.key] = `$${((campaign as any).performance?.totalSales || 0).toFixed(2)}`;
+              break;
+            case 'acos':
+              row[col.key] = `${((campaign as any).performance?.acos || 0).toFixed(1)}%`;
+              break;
+            case 'roas':
+              row[col.key] = ((campaign as any).performance?.roas || 0).toFixed(2);
+              break;
+            case 'performanceGroup':
+              const group = performanceGroups?.find(g => g.id === campaign.performanceGroupId);
+              row[col.key] = group?.name || '';
+              break;
+            default:
+              row[col.key] = (campaign as any)[col.key] || '';
+          }
+        });
+        return row;
+      });
+      
+      const filename = `广告活动_${new Date().toISOString().split('T')[0]}`;
+      
+      if (format === 'csv') {
+        exportToCSV({ filename, columns: exportColumns, data: exportData });
+      } else {
+        exportToExcel({ filename, columns: exportColumns, data: exportData });
+      }
+      
+      toast.success(`已导出 ${exportData.length} 条记录`);
+    } catch (error) {
+      toast.error('导出失败');
+      console.error('Export error:', error);
+    } finally {
+      setIsExporting(false);
+    }
+  }, [sortedCampaigns, visibleColumns, performanceGroups]);
+
+  // 保存筛选预设
+  const handleSavePreset = useCallback(() => {
+    if (!newPresetName.trim()) {
+      toast.error('请输入预设名称');
+      return;
+    }
+    
+    const currentFilters = {
+      search: filters.search,
+      store: filters.store,
+      marketplace: filters.marketplace,
+      type: filters.type,
+      billing: filters.billing,
+      status: filters.status,
+      optimization: filters.optimization,
+    };
+    
+    addPreset(newPresetName.trim(), currentFilters);
+    toast.success(`预设“${newPresetName.trim()}”已保存`);
+    setNewPresetName('');
+    setSavePresetDialog(false);
+  }, [newPresetName, filters, addPreset]);
+
+  // 应用筛选预设
+  const handleApplyPreset = useCallback((preset: FilterPreset) => {
+    setFilters(preset.filters);
+    toast.success(`已应用预设“${preset.name}”`);
+  }, [setFilters]);
+
+  // 删除筛选预设
+  const handleDeletePreset = useCallback((preset: FilterPreset, e: React.MouseEvent) => {
+    e.stopPropagation();
+    deletePreset(preset.id);
+    toast.success(`预设“${preset.name}”已删除`);
+  }, [deletePreset]);
+
   // 处理暂停/启用操作
   const handleToggleStatus = (campaign: any) => {
     const newStatus = campaign.campaignStatus === "enabled" ? "paused" : "enabled";
@@ -1224,14 +1378,14 @@ export default function Campaigns() {
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className={`flex ${isMobile ? 'flex-col gap-4' : 'items-center justify-between'}`}>
           <div>
-            <h1 className="text-2xl font-bold">广告活动</h1>
-            <p className="text-muted-foreground">
+            <h1 className={`font-bold ${isMobile ? 'text-xl' : 'text-2xl'}`}>广告活动</h1>
+            <p className={`text-muted-foreground ${isMobile ? 'text-sm' : ''}`}>
               管理和优化您的亚马逊广告活动 · <span className="text-green-500">算法自动决策执行，人只做监督</span>
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className={`flex items-center gap-2 ${isMobile ? 'flex-wrap' : ''}`}>
             {/* 时间范围选择器 */}
             <TimeRangeSelector
               value={timeRangeValue}
@@ -1241,8 +1395,8 @@ export default function Campaigns() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="outline" size="sm">
-                  <Settings2 className="w-4 h-4 mr-2" />
-                  列设置
+                  <Settings2 className="w-4 h-4" />
+                  {!isMobile && <span className="ml-2">列设置</span>}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
@@ -1280,24 +1434,101 @@ export default function Campaigns() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+            {/* 导出按钮 */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" disabled={isExporting}>
+                  <Download className="w-4 h-4" />
+                  {!isMobile && <span className="ml-2">{isExporting ? '导出中...' : '导出'}</span>}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => handleExport('csv')}>
+                  <FileText className="w-4 h-4 mr-2" />
+                  导出 CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => handleExport('excel')}>
+                  <FileSpreadsheet className="w-4 h-4 mr-2" />
+                  导出 Excel
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            
+            {/* 筛选预设 */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Bookmark className="w-4 h-4" />
+                  {!isMobile && <span className="ml-2">筛选预设</span>}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>快捷筛选</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {presets.length === 0 ? (
+                  <div className="px-2 py-3 text-sm text-muted-foreground text-center">
+                    暂无保存的预设
+                  </div>
+                ) : (
+                  presets.map((preset) => (
+                    <DropdownMenuItem
+                      key={preset.id}
+                      className="flex items-center justify-between group"
+                      onClick={() => handleApplyPreset(preset)}
+                    >
+                      <div className="flex items-center">
+                        <BookmarkCheck className="w-4 h-4 mr-2 text-primary" />
+                        <span className="truncate max-w-[140px]">{preset.name}</span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100"
+                        onClick={(e) => handleDeletePreset(preset, e)}
+                      >
+                        <Trash2 className="w-3 h-3 text-destructive" />
+                      </Button>
+                    </DropdownMenuItem>
+                  ))
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setSavePresetDialog(true)}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  保存当前筛选
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            
             <Button variant="outline" onClick={handleSyncData} disabled={isSyncing}>
-              <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? 'animate-spin' : ''}`} />
-              {isSyncing ? '同步中...' : '同步数据'}
+              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+              {!isMobile && <span className="ml-2">{isSyncing ? '同步中...' : '同步数据'}</span>}
             </Button>
           </div>
         </div>
 
         {/* 筛选器卡片 */}
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className={isMobile ? 'pt-4 px-3' : 'pt-6'}>
+            <MobileFilterPanel
+              activeFiltersCount={
+                (typeFilter !== 'all' ? 1 : 0) +
+                (billingTypeFilter !== 'all' ? 1 : 0) +
+                (runningStatusFilter !== 'all' ? 1 : 0) +
+                (optimizationStatusFilter !== 'all' ? 1 : 0) +
+                (storeFilter !== 'all' ? 1 : 0) +
+                (marketplaceFilter !== 'all' ? 1 : 0) +
+                (searchTerm ? 1 : 0)
+              }
+              onClearAll={resetFilters}
+            >
             <div className="space-y-4">
               {/* 第一行：店铺和站点筛选 */}
-              <div className="flex flex-wrap items-center gap-4">
+              <div className={`flex ${isMobile ? 'flex-col gap-3' : 'flex-wrap items-center gap-4'}`}>
                 {/* 店铺筛选 */}
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-foreground">店铺:</span>
+                <div className={`flex items-center gap-2 ${isMobile ? 'w-full' : ''}`}>
+                  <span className="text-sm font-medium text-foreground whitespace-nowrap">店铺:</span>
                   <Select value={storeFilter} onValueChange={setStoreFilter}>
-                    <SelectTrigger className="w-[180px] h-9">
+                    <SelectTrigger className={`h-9 ${isMobile ? 'flex-1' : 'w-[180px]'}`}>
                       <SelectValue placeholder="选择店铺" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1311,10 +1542,10 @@ export default function Campaigns() {
                 </div>
 
                 {/* 站点筛选 */}
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium text-foreground">站点:</span>
+                <div className={`flex items-center gap-2 ${isMobile ? 'w-full' : ''}`}>
+                  <span className="text-sm font-medium text-foreground whitespace-nowrap">站点:</span>
                   <Select value={marketplaceFilter} onValueChange={setMarketplaceFilter}>
-                    <SelectTrigger className="w-[160px] h-9">
+                    <SelectTrigger className={`h-9 ${isMobile ? 'flex-1' : 'w-[160px]'}`}>
                       <SelectValue placeholder="选择站点" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1328,7 +1559,7 @@ export default function Campaigns() {
                 </div>
 
                 {/* 搜索框 */}
-                <div className="flex-1 min-w-[200px]">
+                <div className={`${isMobile ? 'w-full' : 'flex-1 min-w-[200px]'}`}>
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <Input
@@ -1479,6 +1710,8 @@ export default function Campaigns() {
               )}
             </div>
 
+            </MobileFilterPanel>
+
             {/* 批量操作栏 */}
             {selectedCampaigns.size > 0 && (
               <div className="mt-4 p-3 bg-primary/5 border border-primary/20 rounded-lg flex items-center justify-between">
@@ -1564,7 +1797,8 @@ export default function Campaigns() {
               <>
                 <div 
                   ref={tableContainerRef}
-                  className="overflow-auto max-h-[600px]"
+                  className={`overflow-auto ${isMobile ? 'max-h-[400px]' : 'max-h-[600px]'}`}
+                  style={{ WebkitOverflowScrolling: 'touch' }}
                 >
                   <Table>
                     <TableHeader className="sticky top-0 z-20 bg-background">
@@ -1740,6 +1974,60 @@ export default function Campaigns() {
 
       {/* 操作确认弹窗 */}
       {dialogProps && <OperationConfirmDialog {...dialogProps} />}
+
+      {/* 保存筛选预设弹窗 */}
+      <Dialog open={savePresetDialog} onOpenChange={setSavePresetDialog}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>保存筛选预设</DialogTitle>
+            <DialogDescription>
+              保存当前筛选条件为预设，方便下次快速应用
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="presetName">预设名称</Label>
+              <Input
+                id="presetName"
+                value={newPresetName}
+                onChange={(e) => setNewPresetName(e.target.value)}
+                placeholder="例如：SP手动活跃广告"
+                onKeyDown={(e) => e.key === 'Enter' && handleSavePreset()}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>当前筛选条件</Label>
+              <div className="text-sm text-muted-foreground bg-muted/50 rounded-md p-3 space-y-1">
+                {filters.search && <div>搜索: {filters.search}</div>}
+                {filters.store !== 'all' && <div>店铺: {storeOptions.find(s => s.value === filters.store)?.label}</div>}
+                {filters.marketplace !== 'all' && <div>站点: {marketplaceOptions.find(m => m.value === filters.marketplace)?.label}</div>}
+                {filters.type !== 'all' && <div>类型: {campaignTypes.find(t => t.value === filters.type)?.label}</div>}
+                {filters.billing !== 'all' && <div>计费: {billingTypeOptions.find(b => b.value === filters.billing)?.label}</div>}
+                {filters.status !== 'all' && <div>状态: {runningStatusOptions.find(s => s.value === filters.status)?.label}</div>}
+                {filters.optimization !== 'all' && <div>优化: {optimizationStatusOptions.find(o => o.value === filters.optimization)?.label}</div>}
+                {Object.values(filters).every(v => v === '' || v === 'all' || v === '1' || v === '25') && (
+                  <div className="text-muted-foreground">无筛选条件</div>
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setSavePresetDialog(false);
+              setNewPresetName('');
+            }}>
+              取消
+            </Button>
+            <Button onClick={handleSavePreset} disabled={!newPresetName.trim()}>
+              <Save className="w-4 h-4 mr-2" />
+              保存预设
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* 移动端底部间距 */}
+      <MobileBottomSpacer />
     </DashboardLayout>
   );
 }
