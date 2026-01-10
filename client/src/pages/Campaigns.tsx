@@ -1,6 +1,9 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useDebounce } from "@/hooks/useDebounce";
+import { useUrlFilters, serializers } from "@/hooks/useUrlFilters";
+import { Pagination, usePagination } from "@/components/Pagination";
+import { useResizableColumns, ResizeHandle, PinButton } from "@/components/ResizableTable";
 import DashboardLayout from "@/components/DashboardLayout";
 import { TimeRangeSelector, TimeRangeValue, getDefaultTimeRangeValue } from "@/components/TimeRangeSelector";
 import OperationConfirmDialog, { useOperationConfirm } from "@/components/OperationConfirmDialog";
@@ -39,7 +42,9 @@ import {
   AlertCircle,
   Clock,
   CircleDollarSign,
-  TrendingDown
+  TrendingDown,
+  PinOff,
+  Share2
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -416,20 +421,95 @@ function getDateRange(rangeType: string, customStart?: string, customEnd?: strin
   };
 }
 
+// URL筛选条件配置
+const filterConfigs = [
+  { key: 'search', defaultValue: '' },
+  { key: 'store', defaultValue: 'all' },
+  { key: 'marketplace', defaultValue: 'all' },
+  { key: 'type', defaultValue: 'all' },
+  { key: 'billing', defaultValue: 'all' },
+  { key: 'status', defaultValue: 'all' },
+  { key: 'optimization', defaultValue: 'all' },
+  { key: 'sort', defaultValue: '' },
+  { key: 'order', defaultValue: 'asc' },
+  { key: 'page', defaultValue: '1', ...serializers.string },
+  { key: 'pageSize', defaultValue: '25', ...serializers.string },
+];
+
 export default function Campaigns() {
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const debouncedSearchTerm = useDebounce(searchTerm, 300); // 搜索防抖300ms
-  const [storeFilter, setStoreFilter] = useState<string>("all");
-  const [marketplaceFilter, setMarketplaceFilter] = useState<string>("all");
-  const [typeFilter, setTypeFilter] = useState<string>("all");
-  const [billingTypeFilter, setBillingTypeFilter] = useState<string>("all");
-  const [runningStatusFilter, setRunningStatusFilter] = useState<string>("all");
-  const [optimizationStatusFilter, setOptimizationStatusFilter] = useState<string>("all");
-  const [sortField, setSortField] = useState<SortField | null>(null);
-  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  
+  // URL筛选条件持久化
+  const { filters, setFilter, setFilters, resetFilters, getShareableUrl } = useUrlFilters<{
+    search: string;
+    store: string;
+    marketplace: string;
+    type: string;
+    billing: string;
+    status: string;
+    optimization: string;
+    sort: string;
+    order: string;
+    page: string;
+    pageSize: string;
+  }>(filterConfigs, { debounceMs: 300 });
+  
+  // 从筛选状态中提取值
+  const searchTerm = filters.search;
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
+  const storeFilter = filters.store;
+  const marketplaceFilter = filters.marketplace;
+  const typeFilter = filters.type;
+  const billingTypeFilter = filters.billing;
+  const runningStatusFilter = filters.status;
+  const optimizationStatusFilter = filters.optimization;
+  const sortField = filters.sort as SortField | null || null;
+  const sortDirection = filters.order as SortDirection;
+  const currentPage = parseInt(filters.page) || 1;
+  const pageSize = parseInt(filters.pageSize) || 25;
+  
+  // 筛选条件设置函数
+  const setSearchTerm = (v: string) => setFilter('search', v);
+  const setStoreFilter = (v: string) => setFilter('store', v);
+  const setMarketplaceFilter = (v: string) => setFilter('marketplace', v);
+  const setTypeFilter = (v: string) => setFilter('type', v);
+  const setBillingTypeFilter = (v: string) => setFilter('billing', v);
+  const setRunningStatusFilter = (v: string) => setFilter('status', v);
+  const setOptimizationStatusFilter = (v: string) => setFilter('optimization', v);
+  const setSortField = (v: SortField | null) => setFilter('sort', v || '');
+  const setSortDirection = (v: SortDirection) => setFilter('order', v);
+  const setCurrentPage = (v: number) => setFilter('page', String(v));
+  const setPageSize = (v: number) => {
+    setFilters({ pageSize: String(v), page: '1' });
+  };
+  
   const [selectedCampaigns, setSelectedCampaigns] = useState<Set<number>>(new Set());
   const [isSyncing, setIsSyncing] = useState(false);
+  
+  // 列宽调整和固定功能
+  const resizableColumnDefs = columns.map(col => ({
+    key: col.key,
+    label: col.label,
+    minWidth: parseInt(col.minWidth) || 80,
+    maxWidth: 400,
+    defaultWidth: parseInt(col.minWidth) || 150,
+    resizable: col.key !== 'actions',
+    pinnable: col.key !== 'actions',
+    align: col.align,
+  }));
+  
+  const {
+    columnWidths,
+    pinnedColumns,
+    resizing,
+    startResize,
+    togglePin,
+    resetWidths,
+    resetPinned,
+    getPinnedOffset,
+    isPinned,
+    getWidth,
+  } = useResizableColumns(resizableColumnDefs, 'campaigns_columns');
   
   // 时间范围状态 - 使用TimeRangeSelector组件
   const [timeRangeValue, setTimeRangeValue] = useState<TimeRangeValue>(() => getDefaultTimeRangeValue('7days'));
@@ -785,12 +865,31 @@ export default function Campaigns() {
     });
   }, [filteredCampaigns, sortField, sortDirection, performanceGroups]);
 
-  // 虚拟滚动配置 - 用于大数据量表格优化
+  // 分页数据计算
+  const totalItems = sortedCampaigns.length;
+  const totalPages = Math.ceil(totalItems / pageSize);
+  const validCurrentPage = Math.min(currentPage, Math.max(1, totalPages));
+  
+  // 当当前页超出范围时自动调整
+  useEffect(() => {
+    if (validCurrentPage !== currentPage && totalPages > 0) {
+      setCurrentPage(validCurrentPage);
+    }
+  }, [validCurrentPage, currentPage, totalPages]);
+  
+  // 当前页的数据
+  const paginatedCampaigns = useMemo(() => {
+    const start = (validCurrentPage - 1) * pageSize;
+    const end = start + pageSize;
+    return sortedCampaigns.slice(start, end);
+  }, [sortedCampaigns, validCurrentPage, pageSize]);
+
+  // 虚拟滚动配置 - 用于当前页数据优化
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const ROW_HEIGHT = 52; // 每行高度
   
   const rowVirtualizer = useVirtualizer({
-    count: sortedCampaigns.length,
+    count: paginatedCampaigns.length,
     getScrollElement: () => tableContainerRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 10, // 预渲染10行
@@ -1161,7 +1260,23 @@ export default function Campaigns() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={resetColumns}>
                   <RotateCcw className="w-4 h-4 mr-2" />
-                  重置为默认
+                  重置显示列
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={resetWidths}>
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  重置列宽
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={resetPinned}>
+                  <PinOff className="w-4 h-4 mr-2" />
+                  取消所有固定
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => {
+                  navigator.clipboard.writeText(getShareableUrl());
+                  toast.success('已复制分享链接');
+                }}>
+                  <Share2 className="w-4 h-4 mr-2" />
+                  复制分享链接
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -1356,14 +1471,7 @@ export default function Campaigns() {
                         优化: {optimizationStatusOptions.find(t => t.value === optimizationStatusFilter)?.label} ×
                       </Badge>
                     )}
-                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => {
-                      setStoreFilter("all");
-                      setMarketplaceFilter("all");
-                      setTypeFilter("all");
-                      setBillingTypeFilter("all");
-                      setRunningStatusFilter("all");
-                      setOptimizationStatusFilter("all");
-                    }}>
+                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={resetFilters}>
                       清除全部
                     </Button>
                   </div>
@@ -1452,78 +1560,125 @@ export default function Campaigns() {
               <div className="flex items-center justify-center h-64">
                 <Loader2 className="w-8 h-8 animate-spin text-primary" />
               </div>
-            ) : sortedCampaigns.length > 0 ? (
-              <div 
-                ref={tableContainerRef}
-                className="overflow-auto max-h-[600px]"
-              >
-                <Table>
-                  <TableHeader className="sticky top-0 z-20 bg-background">
-                    <TableRow className="bg-muted/50">
-                      {/* 复选框列 */}
-                      <TableHead className="w-[40px] sticky left-0 bg-muted/50 z-30">
-                        <Checkbox
-                          checked={selectedCampaigns.size === sortedCampaigns.length && sortedCampaigns.length > 0}
-                          onCheckedChange={toggleSelectAll}
-                        />
-                      </TableHead>
-                      {columns.filter(col => visibleColumns.has(col.key)).map((column) => (
-                        <TableHead 
-                          key={column.key}
-                          className={`min-w-[${column.minWidth}] ${column.sticky ? 'sticky left-[40px] bg-muted/50 z-30' : ''} ${column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : ''}`}
-                          style={{ minWidth: column.minWidth }}
-                        >
-                          {column.sortable ? (
-                            <button
-                              className="flex items-center gap-1 hover:text-primary transition-colors"
-                              onClick={() => handleSort(column.key as SortField)}
-                            >
-                              {column.label}
-                              {getSortIcon(column.key as SortField)}
-                            </button>
-                          ) : (
-                            column.label
-                          )}
+            ) : paginatedCampaigns.length > 0 ? (
+              <>
+                <div 
+                  ref={tableContainerRef}
+                  className="overflow-auto max-h-[600px]"
+                >
+                  <Table>
+                    <TableHeader className="sticky top-0 z-20 bg-background">
+                      <TableRow className="bg-muted/50">
+                        {/* 复选框列 */}
+                        <TableHead className="w-[40px] sticky left-0 bg-muted/50 z-30">
+                          <Checkbox
+                            checked={selectedCampaigns.size === paginatedCampaigns.length && paginatedCampaigns.length > 0}
+                            onCheckedChange={toggleSelectAll}
+                          />
                         </TableHead>
-                      ))}
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                      const campaign = sortedCampaigns[virtualRow.index];
-                      if (!campaign) return null;
-                      return (
-                        <TableRow 
-                          key={campaign.id}
-                          data-index={virtualRow.index}
-                          ref={rowVirtualizer.measureElement}
-                          className={`hover:bg-muted/30 ${selectedCampaigns.has(campaign.id) ? 'bg-primary/5' : ''}`}
-                          style={{
-                            height: `${virtualRow.size}px`,
-                          }}
-                        >
-                          {/* 复选框列 */}
-                          <TableCell className="sticky left-0 bg-background z-10 w-[40px]">
-                            <Checkbox
-                              checked={selectedCampaigns.has(campaign.id)}
-                              onCheckedChange={() => toggleSelectCampaign(campaign.id)}
-                            />
-                          </TableCell>
-                          {columns.filter(col => visibleColumns.has(col.key)).map((column) => (
-                            <TableCell 
+                        {columns.filter(col => visibleColumns.has(col.key)).map((column, colIndex) => {
+                          const colWidth = getWidth(column.key);
+                          const colIsPinned = isPinned(column.key);
+                          const pinnedOffset = colIsPinned ? getPinnedOffset(column.key) + 40 : 0; // 40 for checkbox column
+                          
+                          return (
+                            <TableHead 
                               key={column.key}
-                              className={`${column.sticky ? 'sticky left-[40px] bg-background z-10' : ''} ${column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : ''}`}
-                              style={{ minWidth: column.minWidth }}
+                              className={`relative ${colIsPinned ? 'sticky bg-muted/50 z-30' : ''} ${column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : ''}`}
+                              style={{ 
+                                width: colWidth,
+                                minWidth: colWidth,
+                                left: colIsPinned ? pinnedOffset : undefined,
+                              }}
                             >
-                              {renderCell(campaign, column.key)}
+                              <div className="flex items-center gap-1">
+                                {column.sortable ? (
+                                  <button
+                                    className="flex items-center gap-1 hover:text-primary transition-colors flex-1"
+                                    onClick={() => handleSort(column.key as SortField)}
+                                  >
+                                    {column.label}
+                                    {getSortIcon(column.key as SortField)}
+                                  </button>
+                                ) : (
+                                  <span className="flex-1">{column.label}</span>
+                                )}
+                                {column.key !== 'actions' && (
+                                  <PinButton
+                                    isPinned={colIsPinned}
+                                    onClick={() => togglePin(column.key)}
+                                  />
+                                )}
+                              </div>
+                              {column.key !== 'actions' && (
+                                <ResizeHandle
+                                  onMouseDown={(e) => startResize(column.key, e)}
+                                  isResizing={resizing === column.key}
+                                />
+                              )}
+                            </TableHead>
+                          );
+                        })}
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                        const campaign = paginatedCampaigns[virtualRow.index];
+                        if (!campaign) return null;
+                        return (
+                          <TableRow 
+                            key={campaign.id}
+                            data-index={virtualRow.index}
+                            ref={rowVirtualizer.measureElement}
+                            className={`hover:bg-muted/30 ${selectedCampaigns.has(campaign.id) ? 'bg-primary/5' : ''}`}
+                            style={{
+                              height: `${virtualRow.size}px`,
+                            }}
+                          >
+                            {/* 复选框列 */}
+                            <TableCell className="sticky left-0 bg-background z-10 w-[40px]">
+                              <Checkbox
+                                checked={selectedCampaigns.has(campaign.id)}
+                                onCheckedChange={() => toggleSelectCampaign(campaign.id)}
+                              />
                             </TableCell>
-                          ))}
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </div>
+                            {columns.filter(col => visibleColumns.has(col.key)).map((column) => {
+                              const colWidth = getWidth(column.key);
+                              const colIsPinned = isPinned(column.key);
+                              const pinnedOffset = colIsPinned ? getPinnedOffset(column.key) + 40 : 0;
+                              
+                              return (
+                                <TableCell 
+                                  key={column.key}
+                                  className={`${colIsPinned ? 'sticky bg-background z-10' : ''} ${column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : ''}`}
+                                  style={{ 
+                                    width: colWidth,
+                                    minWidth: colWidth,
+                                    left: colIsPinned ? pinnedOffset : undefined,
+                                  }}
+                                >
+                                  {renderCell(campaign, column.key)}
+                                </TableCell>
+                              );
+                            })}
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+                
+                {/* 分页组件 */}
+                <Pagination
+                  currentPage={validCurrentPage}
+                  totalPages={totalPages}
+                  totalItems={totalItems}
+                  pageSize={pageSize}
+                  pageSizeOptions={[10, 25, 50, 100]}
+                  onPageChange={setCurrentPage}
+                  onPageSizeChange={setPageSize}
+                />
+              </>
             ) : (
               <div className="text-center py-16">
                 <RefreshCw className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
