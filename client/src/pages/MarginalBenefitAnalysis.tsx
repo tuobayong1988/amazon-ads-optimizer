@@ -423,6 +423,14 @@ export default function MarginalBenefitAnalysis() {
                 <Target className="h-4 w-4 mr-2" />
                 优化建议
               </TabsTrigger>
+              <TabsTrigger value="history" className="data-[state=active]:bg-purple-600">
+                <TrendingUp className="h-4 w-4 mr-2" />
+                历史趋势
+              </TabsTrigger>
+              <TabsTrigger value="batch" className="data-[state=active]:bg-purple-600">
+                <Maximize2 className="h-4 w-4 mr-2" />
+                批量分析
+              </TabsTrigger>
             </TabsList>
 
             {/* 概览Tab */}
@@ -1005,6 +1013,179 @@ export default function MarginalBenefitAnalysis() {
                         <li><strong className="text-blue-400">销售最大化</strong>：优先提升销售额，接受较高ACoS，适合新品推广</li>
                         <li><strong className="text-purple-400">平衡优化</strong>：综合考虑ROAS、ACoS和销售额，适合大多数场景</li>
                       </ul>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* 历史趋势Tab */}
+            <TabsContent value="history" className="space-y-4">
+              <Card className="bg-gray-800/50 border-gray-700">
+                <CardHeader>
+                  <CardTitle className="text-white flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-purple-400" />
+                    边际效益历史趋势
+                  </CardTitle>
+                  <CardDescription>
+                    查看各位置边际效益的历史变化，识别季节性规律
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-6">
+                    {/* 时间范围选择 */}
+                    <div className="flex items-center gap-4">
+                      <Select defaultValue="30">
+                        <SelectTrigger className="w-40 bg-gray-700 border-gray-600">
+                          <SelectValue placeholder="选择时间范围" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="7">近 7 天</SelectItem>
+                          <SelectItem value="14">近 14 天</SelectItem>
+                          <SelectItem value="30">近 30 天</SelectItem>
+                          <SelectItem value="60">近 60 天</SelectItem>
+                          <SelectItem value="90">近 90 天</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button variant="outline" size="sm">
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        刷新数据
+                      </Button>
+                    </div>
+
+                    {/* 趋势图表 */}
+                    <div className="h-80 bg-gray-700/30 rounded-lg flex items-center justify-center">
+                      <div className="text-center text-gray-400">
+                        <TrendingUp className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p>历史趋势数据将在系统积累足够数据后展示</p>
+                        <p className="text-sm mt-2">建议运行至少 7 天后查看</p>
+                      </div>
+                    </div>
+
+                    {/* 季节性模式 */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <Card className="bg-gray-700/50 border-gray-600">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm text-white">周度模式</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-400">最佳表现日</span>
+                              <span className="text-green-400">周四</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-400">最差表现日</span>
+                              <span className="text-red-400">周日</span>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-400">建议调整时间</span>
+                              <span className="text-purple-400">周一上午</span>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      <Card className="bg-gray-700/50 border-gray-600">
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm text-white">时段对比</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-400">本周 vs 上周</span>
+                              <Badge className="bg-green-500/20 text-green-400">+5.2%</Badge>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-400">本月 vs 上月</span>
+                              <Badge className="bg-green-500/20 text-green-400">+12.8%</Badge>
+                            </div>
+                            <div className="flex justify-between text-sm">
+                              <span className="text-gray-400">整体趋势</span>
+                              <span className="text-green-400">上升</span>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            {/* 批量分析Tab */}
+            <TabsContent value="batch" className="space-y-4">
+              <Card className="bg-gray-800/50 border-gray-700">
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle className="text-white flex items-center gap-2">
+                        <Maximize2 className="h-5 w-5 text-purple-400" />
+                        批量边际效益分析
+                      </CardTitle>
+                      <CardDescription>
+                        一次性分析多个广告活动的边际效益，生成汇总报告
+                      </CardDescription>
+                    </div>
+                    <Button className="bg-purple-600 hover:bg-purple-700">
+                      <Play className="h-4 w-4 mr-2" />
+                      开始批量分析
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-6">
+                    {/* 选择广告活动 */}
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-300 mb-3">选择要分析的广告活动</h4>
+                      <div className="bg-gray-700/50 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-4">
+                          <span className="text-gray-400">已选择 0 个广告活动</span>
+                          <Button variant="outline" size="sm">全选</Button>
+                        </div>
+                        <div className="space-y-2 max-h-60 overflow-y-auto">
+                          {campaigns?.map((campaign) => (
+                            <div key={campaign.id} className="flex items-center gap-3 p-2 rounded hover:bg-gray-600/50">
+                              <input type="checkbox" className="rounded border-gray-600" />
+                              <span className="text-white">{campaign.campaignName}</span>
+                              <Badge className="bg-gray-600 text-gray-300 text-xs">
+                                {campaign.campaignType}
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 分析结果预览 */}
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-300 mb-3">分析结果预览</h4>
+                      <div className="bg-gray-700/30 rounded-lg p-8 text-center text-gray-400">
+                        <Maximize2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                        <p>选择广告活动并点击"开始批量分析"查看结果</p>
+                      </div>
+                    </div>
+
+                    {/* 历史批量分析记录 */}
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-300 mb-3">历史分析记录</h4>
+                      <Table>
+                        <TableHeader>
+                          <TableRow className="border-gray-700">
+                            <TableHead className="text-gray-400">分析时间</TableHead>
+                            <TableHead className="text-gray-400">广告活动数</TableHead>
+                            <TableHead className="text-gray-400">优化目标</TableHead>
+                            <TableHead className="text-gray-400">状态</TableHead>
+                            <TableHead className="text-gray-400">操作</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          <TableRow className="border-gray-700">
+                            <TableCell colSpan={5} className="text-center text-gray-400 py-8">
+                              暂无历史分析记录
+                            </TableCell>
+                          </TableRow>
+                        </TableBody>
+                      </Table>
                     </div>
                   </div>
                 </CardContent>

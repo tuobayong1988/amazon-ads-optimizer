@@ -2598,3 +2598,102 @@ export const performanceSyncConfig = mysqlTable("performance_sync_config", {
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
+
+
+// ==================== 边际效益分析相关表 ====================
+
+// 边际效益历史记录表
+export const marginalBenefitHistory = mysqlTable("marginal_benefit_history", {
+	id: int().autoincrement().primaryKey(),
+	accountId: int().notNull(),
+	campaignId: varchar({ length: 64 }).notNull(),
+	placementType: mysqlEnum(['top_of_search', 'product_page', 'rest_of_search']).notNull(),
+	analysisDate: date({ mode: 'string' }).notNull(),
+	currentAdjustment: int().default(0),
+	marginalROAS: decimal({ precision: 10, scale: 4 }),
+	marginalACoS: decimal({ precision: 10, scale: 4 }),
+	marginalSales: decimal({ precision: 12, scale: 2 }),
+	marginalSpend: decimal({ precision: 12, scale: 2 }),
+	elasticity: decimal({ precision: 10, scale: 4 }),
+	diminishingPoint: int(),
+	optimalRangeMin: int(),
+	optimalRangeMax: int(),
+	confidence: decimal({ precision: 5, scale: 4 }),
+	dataPoints: int(),
+	totalImpressions: int(),
+	totalClicks: int(),
+	totalSpend: decimal({ precision: 12, scale: 2 }),
+	totalSales: decimal({ precision: 12, scale: 2 }),
+	totalOrders: int(),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+}, (table) => [
+	index("mb_history_account_campaign").on(table.accountId, table.campaignId),
+	index("mb_history_date").on(table.analysisDate),
+]);
+
+// 边际效益优化应用记录表
+export const marginalBenefitApplications = mysqlTable("marginal_benefit_applications", {
+	id: int().autoincrement().primaryKey(),
+	accountId: int().notNull(),
+	campaignId: varchar({ length: 64 }).notNull(),
+	userId: int().notNull(),
+	optimizationGoal: mysqlEnum(['maximize_roas', 'minimize_acos', 'maximize_sales', 'balanced']).notNull(),
+	applicationStatus: mysqlEnum(['pending', 'applied', 'failed', 'rolled_back']).default('pending'),
+	// 应用前状态
+	beforeTopOfSearch: int(),
+	beforeProductPage: int(),
+	// 应用后状态
+	afterTopOfSearch: int(),
+	afterProductPage: int(),
+	// 预期效果
+	expectedSalesChange: decimal({ precision: 12, scale: 2 }),
+	expectedSpendChange: decimal({ precision: 12, scale: 2 }),
+	expectedROASChange: decimal({ precision: 10, scale: 4 }),
+	expectedACoSChange: decimal({ precision: 10, scale: 4 }),
+	// 实际效果（7天后评估）
+	actualSalesChange: decimal({ precision: 12, scale: 2 }),
+	actualSpendChange: decimal({ precision: 12, scale: 2 }),
+	actualROASChange: decimal({ precision: 10, scale: 4 }),
+	actualACoSChange: decimal({ precision: 10, scale: 4 }),
+	evaluatedAt: timestamp({ mode: 'string' }),
+	// 应用详情
+	applicationNote: text(),
+	errorMessage: text(),
+	appliedAt: timestamp({ mode: 'string' }),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+}, (table) => [
+	index("mb_app_account_campaign").on(table.accountId, table.campaignId),
+	index("mb_app_status").on(table.applicationStatus),
+]);
+
+// 批量边际效益分析记录表
+export const batchMarginalBenefitAnalysis = mysqlTable("batch_marginal_benefit_analysis", {
+	id: int().autoincrement().primaryKey(),
+	accountId: int().notNull(),
+	userId: int().notNull(),
+	analysisName: varchar({ length: 255 }),
+	campaignIds: json(), // 分析的广告活动ID列表
+	campaignCount: int().default(0),
+	optimizationGoal: mysqlEnum(['maximize_roas', 'minimize_acos', 'maximize_sales', 'balanced']).notNull(),
+	analysisStatus: mysqlEnum(['pending', 'running', 'completed', 'failed']).default('pending'),
+	// 汇总结果
+	totalCurrentSpend: decimal({ precision: 15, scale: 2 }),
+	totalCurrentSales: decimal({ precision: 15, scale: 2 }),
+	totalExpectedSpend: decimal({ precision: 15, scale: 2 }),
+	totalExpectedSales: decimal({ precision: 15, scale: 2 }),
+	overallROASChange: decimal({ precision: 10, scale: 4 }),
+	overallACoSChange: decimal({ precision: 10, scale: 4 }),
+	avgConfidence: decimal({ precision: 5, scale: 4 }),
+	// 详细结果
+	analysisResults: json(), // 每个广告活动的分析结果
+	recommendations: json(), // 优化建议
+	errorMessage: text(),
+	startedAt: timestamp({ mode: 'string' }),
+	completedAt: timestamp({ mode: 'string' }),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+}, (table) => [
+	index("batch_mb_account").on(table.accountId),
+	index("batch_mb_status").on(table.analysisStatus),
+]);

@@ -8078,24 +8078,162 @@ const placementRouter = router({
       );
     }),
 
-  // 批量分析多个广告活动的边际效益
-  batchAnalyzeMarginalBenefits: protectedProcedure
+  // 批量分析边际效益（带优化建议）
+  batchAnalyzeMarginalBenefitsWithOptimization: protectedProcedure
     .input(z.object({
       accountId: z.number(),
-      campaignIds: z.array(z.string()).optional(),
+      campaignIds: z.array(z.string()),
+      optimizationGoal: z.enum(['maximize_roas', 'minimize_acos', 'maximize_sales', 'balanced']).default('balanced'),
+      analysisName: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { createBatchAnalysis, executeBatchAnalysis } = await import('./marginalBenefitBatchService');
+      
+      const analysisId = await createBatchAnalysis({
+        accountId: input.accountId,
+        userId: ctx.user.id,
+        campaignIds: input.campaignIds,
+        optimizationGoal: input.optimizationGoal,
+        analysisName: input.analysisName,
+      });
+      
+      const result = await executeBatchAnalysis(analysisId, {
+        accountId: input.accountId,
+        userId: ctx.user.id,
+        campaignIds: input.campaignIds,
+        optimizationGoal: input.optimizationGoal,
+        analysisName: input.analysisName,
+      });
+      
+      return result;
+    }),
+
+  // 获取批量分析历史
+  getBatchAnalysisHistory: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      limit: z.number().default(10),
     }))
     .query(async ({ input }) => {
-      const { batchAnalyzeMarginalBenefits } = await import('./marginalBenefitAnalysisService');
-      const results = await batchAnalyzeMarginalBenefits(
-        input.accountId,
-        input.campaignIds
-      );
-      // 将Map转换为普通对象以便序列化
-      const resultsObj: Record<string, any> = {};
-      results.forEach((value, key) => {
-        resultsObj[key] = value;
+      const { getBatchAnalysisHistory } = await import('./marginalBenefitBatchService');
+      return getBatchAnalysisHistory(input.accountId, input.limit);
+    }),
+
+  // 获取批量分析详情
+  getBatchAnalysisDetail: protectedProcedure
+    .input(z.object({ analysisId: z.number() }))
+    .query(async ({ input }) => {
+      const { getBatchAnalysisDetail } = await import('./marginalBenefitBatchService');
+      return getBatchAnalysisDetail(input.analysisId);
+    }),
+
+  // 一键应用优化建议
+  applyOptimization: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      campaignId: z.string(),
+      optimizationGoal: z.enum(['maximize_roas', 'minimize_acos', 'maximize_sales', 'balanced']),
+      suggestedTopOfSearch: z.number(),
+      suggestedProductPage: z.number(),
+      expectedSalesChange: z.number(),
+      expectedSpendChange: z.number(),
+      expectedROASChange: z.number(),
+      expectedACoSChange: z.number(),
+      note: z.string().optional(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { applyOptimization } = await import('./marginalBenefitBatchService');
+      return applyOptimization({
+        ...input,
+        userId: ctx.user.id,
       });
-      return resultsObj;
+    }),
+
+  // 批量应用优化建议
+  batchApplyOptimization: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      applications: z.array(z.object({
+        campaignId: z.string(),
+        optimizationGoal: z.enum(['maximize_roas', 'minimize_acos', 'maximize_sales', 'balanced']),
+        suggestedTopOfSearch: z.number(),
+        suggestedProductPage: z.number(),
+        expectedSalesChange: z.number(),
+        expectedSpendChange: z.number(),
+        expectedROASChange: z.number(),
+        expectedACoSChange: z.number(),
+      })),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const { batchApplyOptimization } = await import('./marginalBenefitBatchService');
+      return batchApplyOptimization(input.accountId, ctx.user.id, input.applications);
+    }),
+
+  // 回滚优化应用
+  rollbackApplication: protectedProcedure
+    .input(z.object({ applicationId: z.number() }))
+    .mutation(async ({ input }) => {
+      const { rollbackApplication } = await import('./marginalBenefitBatchService');
+      return rollbackApplication(input.applicationId);
+    }),
+
+  // 获取应用历史
+  getApplicationHistory: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      campaignId: z.string().optional(),
+      limit: z.number().default(20),
+    }))
+    .query(async ({ input }) => {
+      const { getApplicationHistory } = await import('./marginalBenefitBatchService');
+      return getApplicationHistory(input.accountId, input.campaignId, input.limit);
+    }),
+
+  // 获取历史趋势数据
+  getHistoryTrend: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      campaignId: z.string(),
+      placementType: z.enum(['top_of_search', 'product_page', 'rest_of_search']),
+      days: z.number().default(30),
+    }))
+    .query(async ({ input }) => {
+      const { getHistoryTrend } = await import('./marginalBenefitHistoryService');
+      return getHistoryTrend(input.accountId, input.campaignId, input.days);
+    }),
+
+  // 获取季节性模式
+  getSeasonalPattern: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      campaignId: z.string(),
+      period: z.enum(['weekly', 'monthly']).default('weekly'),
+    }))
+    .query(async ({ input }) => {
+      const { analyzeSeasonalPatterns } = await import('./marginalBenefitHistoryService');
+      return analyzeSeasonalPatterns(input.accountId, input.campaignId, input.period);
+    }),
+
+  // 时段对比分析
+  comparePeriods: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      campaignId: z.string(),
+      period1Start: z.string(),
+      period1End: z.string(),
+      period2Start: z.string(),
+      period2End: z.string(),
+    }))
+    .query(async ({ input }) => {
+      const { comparePeriods } = await import('./marginalBenefitHistoryService');
+      return comparePeriods(
+        input.accountId,
+        input.campaignId,
+        input.period1Start,
+        input.period1End,
+        input.period2Start,
+        input.period2End
+      );
     }),
 
   // 生成边际效益分析报告
