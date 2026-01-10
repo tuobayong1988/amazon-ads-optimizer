@@ -1,5 +1,6 @@
 import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { PageMeta, PAGE_META_CONFIG } from "@/components/PageMeta";
 import { useOnboarding } from "@/components/OnboardingWizard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -70,6 +71,7 @@ export default function Settings() {
 
   return (
     <DashboardLayout>
+      <PageMeta {...PAGE_META_CONFIG.settings} />
       <div className="space-y-6">
         {/* Header */}
         <div>

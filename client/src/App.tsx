@@ -61,6 +61,8 @@ import InviteRegister from "@/pages/InviteRegister";
 import AlgorithmEffectDashboard from "@/pages/AlgorithmEffectDashboard";
 import InviteCodeManagement from "@/pages/InviteCodeManagement";
 import LocalLogin from "@/pages/LocalLogin";
+import Blog from "@/pages/Blog";
+import BlogPost from "@/pages/BlogPost";
 
 function Router() {
   return (
@@ -129,6 +131,8 @@ function Router() {
       <Route path="/auto-operation">{() => { window.location.href = '/optimization-engine'; return null; }}</Route>
       <Route path="/register" component={InviteRegister} />
       <Route path="/local-login" component={LocalLogin} />
+      <Route path="/blog" component={Blog} />
+      <Route path="/blog/:slug" component={BlogPost} />
       <Route path="/invite-codes" component={InviteCodeManagement} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />

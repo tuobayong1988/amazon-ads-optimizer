@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import DashboardLayout from '@/components/DashboardLayout';
+import { PageMeta, PAGE_META_CONFIG } from '@/components/PageMeta';
 import { useAuth } from '@/_core/hooks/useAuth';
 import { trpc } from '@/lib/trpc';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -128,6 +129,7 @@ export default function ABTest() {
 
   return (
     <DashboardLayout>
+      <PageMeta {...PAGE_META_CONFIG.abTesting} />
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>

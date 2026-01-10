@@ -11,6 +11,7 @@ import { exportToCSV, exportToExcel, ExportColumn } from "@/utils/exportTable";
 import { Pagination, usePagination } from "@/components/Pagination";
 import { useResizableColumns, ResizeHandle, PinButton } from "@/components/ResizableTable";
 import DashboardLayout from "@/components/DashboardLayout";
+import { PageMeta, PAGE_META_CONFIG } from "@/components/PageMeta";
 import { TimeRangeSelector, TimeRangeValue, getDefaultTimeRangeValue } from "@/components/TimeRangeSelector";
 import OperationConfirmDialog, { useOperationConfirm } from "@/components/OperationConfirmDialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1412,6 +1413,7 @@ export default function Campaigns() {
 
   return (
     <DashboardLayout>
+      <PageMeta {...PAGE_META_CONFIG.campaigns} />
       <div className="space-y-6">
         {/* Header */}
         <div className={`flex ${isMobile ? 'flex-col gap-4' : 'items-center justify-between'}`}>

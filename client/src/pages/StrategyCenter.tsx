@@ -5,6 +5,7 @@
 
 import { useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { PageMeta, PAGE_META_CONFIG } from "@/components/PageMeta";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -118,6 +119,7 @@ export default function StrategyCenter() {
 
   return (
     <DashboardLayout>
+      <PageMeta {...PAGE_META_CONFIG.strategyCenter} />
       <div className="space-y-6">
         {/* 页面标题 */}
         <div className="flex items-center justify-between">

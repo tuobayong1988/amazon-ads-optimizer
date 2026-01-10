@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { getLoginUrl } from "@/const";
 import { useEffect, useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { PageMeta, PAGE_META_CONFIG } from "@/components/PageMeta";
 import { useIsMobile } from "@/hooks/useMobile";
 import { PullToRefresh } from "@/components/PullToRefresh";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -55,6 +56,7 @@ import {
   Legend
 } from "recharts";
 import { Link } from "wouter";
+import { getAllPosts } from "@/data/blogPosts";
 import { TimeRangeSelector, TimeRangeValue, getDefaultTimeRangeValue, TIME_RANGE_PRESETS, PresetTimeRange } from "@/components/TimeRangeSelector";
 import { format } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
@@ -513,6 +515,60 @@ function MarketingPage() {
         </div>
       </section>
 
+      {/* Blog Section */}
+      <section className="py-24 bg-gradient-to-b from-background to-card/30">
+        <div className="container">
+          <div className="text-center mb-16">
+            <Badge variant="outline" className="mb-4">知识库</Badge>
+            <h2 className="text-3xl lg:text-4xl font-bold mb-4">广告优化博客</h2>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              探索亚马逊广告优化的最新策略、算法解析和成功案例
+            </p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
+            {getAllPosts().slice(0, 6).map((post) => (
+              <Link key={post.id} href={`/blog/${post.slug}`}>
+                <Card className="overflow-hidden hover:shadow-lg transition-all duration-300 group cursor-pointer h-full">
+                  <div className="relative aspect-video overflow-hidden">
+                    <img
+                      src={post.coverImage}
+                      alt={post.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <Badge className="absolute top-3 left-3 bg-primary/90">
+                      {post.category === 'algorithm' ? '算法解析' : post.category === 'case-study' ? '客户案例' : '教程'}
+                    </Badge>
+                  </div>
+                  <CardContent className="p-5">
+                    <h3 className="text-lg font-semibold mb-2 line-clamp-2 group-hover:text-primary transition-colors">
+                      {post.title}
+                    </h3>
+                    <p className="text-muted-foreground text-sm mb-4 line-clamp-2">
+                      {post.excerpt}
+                    </p>
+                    <div className="flex items-center justify-between text-sm text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-4 h-4" />
+                        {post.readingTime}分钟阅读
+                      </span>
+                      <span>{post.publishedAt}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+          <div className="text-center">
+            <Button variant="outline" size="lg" asChild>
+              <Link href="/blog">
+                查看更多文章
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </section>
+
       {/* FAQ Section */}
       <section className="py-24 bg-card/30">
         <div className="container">
@@ -752,6 +808,7 @@ function DashboardContent() {
 
   return (
     <DashboardLayout>
+      <PageMeta {...PAGE_META_CONFIG.dashboard} />
       <PullToRefresh onRefresh={handlePullRefresh} className="h-full">
       <div className="space-y-6">
         {/* 页面标题和时间范围选择器 */}

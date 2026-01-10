@@ -7,6 +7,7 @@
 import { useState, useMemo } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
+import { PageMeta, PAGE_META_CONFIG } from "@/components/PageMeta";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
@@ -223,6 +224,7 @@ export default function SmartOptimizationCenter() {
 
   return (
     <DashboardLayout>
+      <PageMeta {...PAGE_META_CONFIG.smartOptimization} />
       <div className="container py-6 space-y-6">
         {/* 页面标题 */}
         <div className="flex items-center justify-between">
