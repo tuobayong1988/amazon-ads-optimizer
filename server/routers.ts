@@ -6873,9 +6873,11 @@ const placementRouter = router({
       );
       
       // 生成建议
-      const suggestions = placementService.calculateOptimalAdjustment(
+      const suggestions = await placementService.calculateOptimalAdjustment(
         performance,
-        currentSettings
+        currentSettings,
+        input.campaignId,
+        input.accountId
       );
       
       return {
@@ -6897,7 +6899,13 @@ const placementRouter = router({
         adjustmentDelta: z.number(),
         efficiencyScore: z.number(),
         confidence: z.number(), // 0-1的置信度数值
+        isReliable: z.boolean().optional().default(true), // V2新增：数据是否可靠
         reason: z.string(),
+        cooldownStatus: z.object({
+          inCooldown: z.boolean(),
+          lastAdjustmentDate: z.date().optional(),
+          daysRemaining: z.number().optional(),
+        }).optional(), // V2新增：冷却期状态
       })),
     }))
     .mutation(async ({ input }) => {
