@@ -3,6 +3,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useCurrentAccountId, setCurrentAccountId } from "@/components/AccountSwitcher";
 import { ApiHealthMonitor } from "@/components/ApiHealthMonitor";
+import { DualTrackSyncPanel } from "@/components/DualTrackSyncPanel";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1475,6 +1476,7 @@ export default function AmazonApiSettings() {
             <TabsTrigger value="accounts">店铺账号列表</TabsTrigger>
             <TabsTrigger value="api-config" disabled={!selectedAccountId}>API配置</TabsTrigger>
             <TabsTrigger value="sync" disabled={!selectedAccountId}>数据同步</TabsTrigger>
+            <TabsTrigger value="dual-track" disabled={!selectedAccountId}>双轨制同步</TabsTrigger>
             <TabsTrigger value="guide">接入指南</TabsTrigger>
           </TabsList>
 
@@ -3866,6 +3868,11 @@ export default function AmazonApiSettings() {
                 </Card>
               )}
             </>)}
+          </TabsContent>
+
+          {/* Dual Track Sync Tab */}
+          <TabsContent value="dual-track" className="space-y-4">
+            <DualTrackSyncPanel accountId={selectedAccountId!} />
           </TabsContent>
 
           {/* Guide Tab */}

@@ -4076,6 +4076,49 @@ const amazonApiRouter = router({
       const count = await syncService.generateMockPerformanceData(input.days);
       return { generated: count };
     }),
+  
+  // ==================== 双轨制同步相关API ====================
+  
+  // 获取双轨制同步状态
+  getDualTrackStatus: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      const { getDualTrackStatus } = await import('./services/dualTrackSyncService');
+      return getDualTrackStatus(input.accountId);
+    }),
+  
+  // 获取数据源统计
+  getDataSourceStats: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      const { getDataSourceStats } = await import('./services/dualTrackSyncService');
+      return getDataSourceStats(input.accountId);
+    }),
+  
+  // 执行数据一致性检查
+  runConsistencyCheck: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      startDate: z.string(),
+      endDate: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const { runConsistencyCheck } = await import('./services/dualTrackSyncService');
+      return runConsistencyCheck(input.accountId, input.startDate, input.endDate);
+    }),
+  
+  // 获取合并后的绩效数据
+  getMergedPerformanceData: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      startDate: z.string(),
+      endDate: z.string(),
+      priority: z.enum(['realtime', 'historical', 'reporting']).optional().default('historical'),
+    }))
+    .query(async ({ input }) => {
+      const { getMergedPerformanceData } = await import('./services/dualTrackSyncService');
+      return getMergedPerformanceData(input.accountId, input.startDate, input.endDate, input.priority);
+    }),
 });
 
 // ==================== Notification Router ====================
