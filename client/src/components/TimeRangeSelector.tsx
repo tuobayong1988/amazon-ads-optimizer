@@ -19,9 +19,9 @@ import { zhCN } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 
 // 预设时间范围类型
-export type PresetTimeRange = 'today' | 'yesterday' | '7days' | '14days' | '30days' | '60days' | '90days' | '180days' | '365days' | 'all' | 'custom';
+export type PresetTimeRange = 'today' | 'yesterday' | '7days' | '14days' | '30days' | '60days' | '90days' | 'custom';
 
-// 时间范围配置
+// 时间范围配置 - 按显示顺序排列
 export const TIME_RANGE_PRESETS: Record<Exclude<PresetTimeRange, 'custom'>, { label: string; days: number }> = {
   'today': { label: '今天', days: 0 },
   'yesterday': { label: '昨天', days: 1 },
@@ -30,10 +30,18 @@ export const TIME_RANGE_PRESETS: Record<Exclude<PresetTimeRange, 'custom'>, { la
   '30days': { label: '近30天', days: 30 },
   '60days': { label: '近60天', days: 60 },
   '90days': { label: '近90天', days: 90 },
-  '180days': { label: '近180天', days: 180 },
-  '365days': { label: '近1年', days: 365 },
-  'all': { label: '全部数据', days: 9999 }, // 特殊值，表示获取所有可用数据
 };
+
+// 时间范围显示顺序
+const TIME_RANGE_ORDER: Exclude<PresetTimeRange, 'custom'>[] = [
+  'today',
+  'yesterday',
+  '7days',
+  '14days',
+  '30days',
+  '60days',
+  '90days',
+];
 
 export interface DateRange {
   from: Date;
@@ -78,14 +86,6 @@ function getDateRangeFromPreset(preset: Exclude<PresetTimeRange, 'custom'>, minD
     };
   }
   
-  // 全部数据：从最早可用日期开始
-  if (preset === 'all') {
-    return {
-      from: minDataDate ? startOfDay(minDataDate) : startOfDay(subDays(now, 365)), // 默认1年
-      to: endOfDay(now),
-    };
-  }
-  
   return {
     from: startOfDay(subDays(now, config.days)),
     to: endOfDay(now),
@@ -123,8 +123,6 @@ export function TimeRangeSelector({
     let days: number;
     if (preset === 'today' || preset === 'yesterday') {
       days = 1;
-    } else if (preset === 'all') {
-      days = getDaysFromDateRange(dateRange);
     } else {
       days = TIME_RANGE_PRESETS[preset].days;
     }
@@ -183,7 +181,7 @@ export function TimeRangeSelector({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-[200px]">
-          {(Object.keys(TIME_RANGE_PRESETS) as Exclude<PresetTimeRange, 'custom'>[]).map((preset) => (
+          {TIME_RANGE_ORDER.map((preset) => (
             <DropdownMenuItem
               key={preset}
               onClick={() => handlePresetSelect(preset)}
@@ -204,7 +202,7 @@ export function TimeRangeSelector({
                 }}
                 className="flex items-center justify-between"
               >
-                <span>自定义日期范围</span>
+                <span>自定义日期</span>
                 {value.preset === 'custom' && <Check className="h-4 w-4" />}
               </DropdownMenuItem>
             </PopoverTrigger>
@@ -266,8 +264,8 @@ export function TimeRangeSelector({
   );
 }
 
-// 默认值生成函数
-export function getDefaultTimeRangeValue(preset: Exclude<PresetTimeRange, 'custom'> = '7days'): TimeRangeValue {
+// 默认值生成函数 - 默认为今天
+export function getDefaultTimeRangeValue(preset: Exclude<PresetTimeRange, 'custom'> = 'today'): TimeRangeValue {
   const dateRange = getDateRangeFromPreset(preset);
   const days = preset === 'today' || preset === 'yesterday' ? 1 : TIME_RANGE_PRESETS[preset].days;
   return {

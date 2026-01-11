@@ -651,7 +651,7 @@ function MarketingPage() {
 // 仪表盘组件（登录后显示）
 function DashboardContent() {
   const { user } = useAuth();
-  const [timeRangeValue, setTimeRangeValue] = useState<TimeRangeValue>(getDefaultTimeRangeValue('7days'));
+  const [timeRangeValue, setTimeRangeValue] = useState<TimeRangeValue>(getDefaultTimeRangeValue('today'));
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   // 获取数据可用日期范围（用于限制自定义日期选择器）

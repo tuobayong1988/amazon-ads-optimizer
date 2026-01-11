@@ -537,7 +537,7 @@ export default function Campaigns() {
   } = useResizableColumns(resizableColumnDefs, 'campaigns_columns');
   
   // 时间范围状态 - 使用TimeRangeSelector组件
-  const [timeRangeValue, setTimeRangeValue] = useState<TimeRangeValue>(() => getDefaultTimeRangeValue('7days'));
+  const [timeRangeValue, setTimeRangeValue] = useState<TimeRangeValue>(() => getDefaultTimeRangeValue('today'));
   
   // 移动端显示更多列状态
   const [showAllColumnsOnMobile, setShowAllColumnsOnMobile] = useState(false);

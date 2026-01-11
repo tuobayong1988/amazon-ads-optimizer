@@ -116,7 +116,7 @@ const generateAccountsData = () => {
 
 export default function MonitoringCenter() {
   const { user } = useAuth();
-  const [timeRange, setTimeRange] = useState<'today' | '7days' | '30days'>('7days');
+  const [timeRange, setTimeRange] = useState<'today' | '7days' | '30days'>('today');
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Onboarding
