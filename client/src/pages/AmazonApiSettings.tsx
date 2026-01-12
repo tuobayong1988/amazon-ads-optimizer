@@ -613,41 +613,19 @@ export default function AmazonApiSettings() {
     },
   });
 
-  // Sync all mutation
+  // Sync all mutation (async mode - returns jobId immediately)
   const syncAllMutation = trpc.amazonApi.syncAll.useMutation({
     onSuccess: (data) => {
-      // 显示基本同步结果
-      toast.success(`同步完成！广告活动: ${data.campaigns}, 广告组: ${data.adGroups}, 关键词: ${data.keywords}, 商品定位: ${data.targets}`);
-      
-      // 显示变更摘要
-      if (data.changeSummary) {
-        const cs = data.changeSummary;
-        const changes = [];
-        if (cs.campaignsCreated > 0) changes.push(`新增${cs.campaignsCreated}个广告活动`);
-        if (cs.campaignsUpdated > 0) changes.push(`更新${cs.campaignsUpdated}个广告活动`);
-        if (cs.adGroupsCreated > 0) changes.push(`新增${cs.adGroupsCreated}个广告组`);
-        if (cs.adGroupsUpdated > 0) changes.push(`更新${cs.adGroupsUpdated}个广告组`);
-        if (cs.keywordsCreated > 0) changes.push(`新增${cs.keywordsCreated}个关键词`);
-        if (cs.keywordsUpdated > 0) changes.push(`更新${cs.keywordsUpdated}个关键词`);
-        if (cs.conflictsDetected > 0) {
-          toast(`检测到${cs.conflictsDetected}个数据冲突，请查看冲突列表`, { icon: '⚠️' });
-        }
-        if (changes.length > 0) {
-          toast(`变更摘要: ${changes.join(', ')}`, { duration: 5000 });
-        }
-      }
-      
-      // 保存jobId用于查看详细变更
+      // 异步模式：同步任务已启动，通过轮询获取进度
       if (data.jobId) {
         setSelectedSyncJobId(data.jobId);
+        toast.success(`同步任务已启动，正在后台执行...`);
+        // 立即开始轮询同步进度
+        refetchAccountActiveSyncJob();
       }
-      
-      refetchStatus();
-      refetchSyncHistory();
-      refetchConflicts();
     },
     onError: (error) => {
-      toast.error(`同步失败: ${error.message}`);
+      toast.error(`启动同步失败: ${error.message}`);
     },
   });
 
@@ -823,7 +801,46 @@ export default function AmazonApiSettings() {
     }
   };
 
-  // 同步单个站点的函数（支持重试）
+  // 轮询同步任务状态的辅助函数
+  const pollSyncJobStatus = async (jobId: number, maxAttempts = 120): Promise<{
+    success: boolean;
+    results?: { sp: number; sb: number; sd: number; adGroups: number; keywords: number; targets: number };
+    error?: string;
+  }> => {
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const response = await fetch(`/api/trpc/amazonApi.getSyncJobById?input=${encodeURIComponent(JSON.stringify({ json: { jobId } }))}`, {
+          credentials: 'include',
+        });
+        const result = await response.json();
+        const job = result.result?.data?.json;
+        
+        if (job?.status === 'completed') {
+          return {
+            success: true,
+            results: {
+              sp: job.spCampaigns || 0,
+              sb: job.sbCampaigns || 0,
+              sd: job.sdCampaigns || 0,
+              adGroups: job.adGroupsSynced || 0,
+              keywords: job.keywordsSynced || 0,
+              targets: job.targetsSynced || 0,
+            },
+          };
+        } else if (job?.status === 'failed') {
+          return { success: false, error: job.errorMessage || '同步失败' };
+        }
+        // 继续等待
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      } catch (e) {
+        // 轮询失败，继续尝试
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    }
+    return { success: false, error: '同步超时' };
+  };
+
+  // 同步单个站点的函数（异步模式 + 轮询）
   const syncSingleSite = async (
     site: NonNullable<typeof accounts>[number],
     siteStatuses: SiteSyncStatus[],
@@ -831,7 +848,6 @@ export default function AmazonApiSettings() {
   ): Promise<{ success: boolean; results?: typeof syncProgress.results; error?: string }> => {
     const mp = MARKETPLACES.find(m => m.id === site.marketplace);
     const siteName = mp?.name || site.marketplace;
-    const siteFlag = mp?.flag || '🌐';
     
     // 更新站点状态为同步中
     const updatedStatuses = siteStatuses.map(s => 
@@ -840,42 +856,40 @@ export default function AmazonApiSettings() {
     updateProgress(updatedStatuses);
     
     try {
-      // 模拟同步进度更新
-      const progressSteps = [20, 40, 60, 80];
-      for (const progress of progressSteps) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        const stepStatuses = siteStatuses.map(s => 
-          s.id === site.id ? { ...s, status: 'syncing' as const, progress } : s
-        );
-        updateProgress(stepStatuses);
-      }
-      
+      // 启动异步同步任务
       const result = await syncAllMutation.mutateAsync({ 
         accountId: site.id,
         isIncremental: useIncrementalSync,
       });
       
-      const siteResults = {
-        sp: result.spCampaigns || 0,
-        sb: result.sbCampaigns || 0,
-        sd: result.sdCampaigns || 0,
-        adGroups: result.adGroups || 0,
-        keywords: result.keywords || 0,
-        targets: result.targets || 0,
-      };
+      if (!result.jobId) {
+        throw new Error('启动同步任务失败');
+      }
       
-      // 更新站点状态为成功
-      const successStatuses = siteStatuses.map(s => 
-        s.id === site.id ? { 
-          ...s, 
-          status: 'success' as const, 
-          progress: 100,
-          results: siteResults 
-        } : s
+      // 更新进度为30%
+      const progressStatuses = siteStatuses.map(s => 
+        s.id === site.id ? { ...s, status: 'syncing' as const, progress: 30 } : s
       );
-      updateProgress(successStatuses);
+      updateProgress(progressStatuses);
       
-      return { success: true, results: siteResults };
+      // 轮询同步任务状态
+      const pollResult = await pollSyncJobStatus(result.jobId);
+      
+      if (pollResult.success && pollResult.results) {
+        // 更新站点状态为成功
+        const successStatuses = siteStatuses.map(s => 
+          s.id === site.id ? { 
+            ...s, 
+            status: 'success' as const, 
+            progress: 100,
+            results: pollResult.results 
+          } : s
+        );
+        updateProgress(successStatuses);
+        return { success: true, results: pollResult.results };
+      } else {
+        throw new Error(pollResult.error || '同步失败');
+      }
     } catch (error: any) {
       console.error(`同步站点 ${siteName} 失败:`, error);
       
@@ -901,7 +915,6 @@ export default function AmazonApiSettings() {
     
     const mp = MARKETPLACES.find(m => m.id === site.marketplace);
     const siteName = mp?.name || site.marketplace;
-    const siteFlag = mp?.flag || '🌐';
     
     // 更新站点状态
     setSyncProgress(prev => {
@@ -916,19 +929,24 @@ export default function AmazonApiSettings() {
     });
     
     try {
+      // 启动异步同步任务
       const result = await syncAllMutation.mutateAsync({ 
         accountId: siteId,
         isIncremental: useIncrementalSync,
       });
       
-      const siteResults = {
-        sp: result.spCampaigns || 0,
-        sb: result.sbCampaigns || 0,
-        sd: result.sdCampaigns || 0,
-        adGroups: result.adGroups || 0,
-        keywords: result.keywords || 0,
-        targets: result.targets || 0,
-      };
+      if (!result.jobId) {
+        throw new Error('启动同步任务失败');
+      }
+      
+      // 轮询同步任务状态
+      const pollResult = await pollSyncJobStatus(result.jobId);
+      
+      if (!pollResult.success) {
+        throw new Error(pollResult.error || '同步失败');
+      }
+      
+      const siteResults = pollResult.results || { sp: 0, sb: 0, sd: 0, adGroups: 0, keywords: 0, targets: 0 };
       
       // 更新站点状态为成功，并累加结果
       setSyncProgress(prev => {
@@ -1099,31 +1117,33 @@ export default function AmazonApiSettings() {
           }));
 
           try {
-            // 模拟同步进度更新
-            for (const progress of [30, 50, 70, 90]) {
-              await new Promise(resolve => setTimeout(resolve, 100));
-              currentSiteStatuses = currentSiteStatuses.map(s => 
-                s.id === site.id && s.status === 'syncing' ? { ...s, progress } : s
-              );
-              setSyncProgress(prev => ({
-                ...prev,
-                siteStatuses: [...currentSiteStatuses],
-              }));
-            }
-            
+            // 启动异步同步任务
             const result = await syncAllMutation.mutateAsync({ 
               accountId: site.id,
               isIncremental: useIncrementalSync,
             });
             
-            const siteResults = {
-              sp: result.spCampaigns || 0,
-              sb: result.sbCampaigns || 0,
-              sd: result.sdCampaigns || 0,
-              adGroups: result.adGroups || 0,
-              keywords: result.keywords || 0,
-              targets: result.targets || 0,
-            };
+            if (!result.jobId) {
+              throw new Error('启动同步任务失败');
+            }
+            
+            // 更新进度为30%
+            currentSiteStatuses = currentSiteStatuses.map(s => 
+              s.id === site.id && s.status === 'syncing' ? { ...s, progress: 30 } : s
+            );
+            setSyncProgress(prev => ({
+              ...prev,
+              siteStatuses: [...currentSiteStatuses],
+            }));
+            
+            // 轮询同步任务状态
+            const pollResult = await pollSyncJobStatus(result.jobId);
+            
+            if (!pollResult.success) {
+              throw new Error(pollResult.error || '同步失败');
+            }
+            
+            const siteResults = pollResult.results || { sp: 0, sb: 0, sd: 0, adGroups: 0, keywords: 0, targets: 0 };
             
             // 累加结果
             totalResults.sp += siteResults.sp;

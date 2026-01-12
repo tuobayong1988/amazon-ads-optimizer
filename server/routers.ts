@@ -3214,7 +3214,7 @@ const amazonApiRouter = router({
       return profiles;
     }),
 
-  // Sync all data from Amazon
+  // Sync all data from Amazon (async mode - returns jobId immediately)
   syncAll: protectedProcedure
     .input(z.object({ 
       accountId: z.number(),
@@ -3222,7 +3222,6 @@ const amazonApiRouter = router({
       maxRetries: z.number().optional().default(3),
     }))
     .mutation(async ({ ctx, input }) => {
-      const startTime = Date.now();
       const credentials = await db.getAmazonApiCredentials(input.accountId);
       if (!credentials) {
         throw new TRPCError({
@@ -3240,274 +3239,265 @@ const amazonApiRouter = router({
         maxRetries: input.maxRetries,
       });
 
-      // 获取上次成功同步时间（用于增量同步）
-      const lastSyncTime = input.isIncremental 
-        ? await db.getLastSuccessfulSync(input.accountId)
-        : null;
-
       // 获取账号的站点信息
       const account = await db.getAdAccountById(input.accountId);
       const marketplace = account?.marketplace || 'US';
 
-      const syncService = await AmazonSyncService.createFromCredentials(
-        {
-          clientId: credentials.clientId,
-          clientSecret: credentials.clientSecret,
-          refreshToken: credentials.refreshToken,
-          profileId: credentials.profileId,
-          region: credentials.region as 'NA' | 'EU' | 'FE',
-        },
-        input.accountId,
-        ctx.user.id,
-        marketplace // 传入站点代码用于时区计算
-      );
+      // 异步执行同步任务，立即返回jobId
+      const runSyncAsync = async () => {
+        const startTime = Date.now();
+        
+        // 获取上次成功同步时间（用于增量同步）
+        const lastSyncTime = input.isIncremental 
+          ? await db.getLastSuccessfulSync(input.accountId)
+          : null;
 
-      // 带重试的执行函数
-      const executeWithRetry = async <T>(
-        fn: () => Promise<T>,
-        stepName: string,
-        maxRetries: number = input.maxRetries
-      ): Promise<T> => {
-        let lastError: Error | null = null;
-        for (let attempt = 0; attempt <= maxRetries; attempt++) {
-          try {
-            return await fn();
-          } catch (error: any) {
-            lastError = error;
-            console.error(`${stepName} 失败 (尝试 ${attempt + 1}/${maxRetries + 1}):`, error.message);
-            if (attempt < maxRetries) {
-              // 指数退避延迟
-              const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
-              await new Promise(resolve => setTimeout(resolve, delay));
+        const syncService = await AmazonSyncService.createFromCredentials(
+          {
+            clientId: credentials.clientId,
+            clientSecret: credentials.clientSecret,
+            refreshToken: credentials.refreshToken,
+            profileId: credentials.profileId,
+            region: credentials.region as 'NA' | 'EU' | 'FE',
+          },
+          input.accountId,
+          ctx.user.id,
+          marketplace
+        );
+
+        // 带重试的执行函数
+        const executeWithRetry = async <T>(
+          fn: () => Promise<T>,
+          stepName: string,
+          maxRetries: number = input.maxRetries
+        ): Promise<T> => {
+          let lastError: Error | null = null;
+          for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+              return await fn();
+            } catch (error: any) {
+              lastError = error;
+              console.error(`${stepName} 失败 (尝试 ${attempt + 1}/${maxRetries + 1}):`, error.message);
+              if (attempt < maxRetries) {
+                const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+                await new Promise(resolve => setTimeout(resolve, delay));
+              }
             }
           }
-        }
-        throw lastError;
-      };
-
-      let totalRetries = 0;
-      let results: any = {
-        campaigns: 0,
-        spCampaigns: 0,
-        sbCampaigns: 0,
-        sdCampaigns: 0,
-        adGroups: 0,
-        keywords: 0,
-        targets: 0,
-        performance: 0,
-        skipped: 0,
-      };
-
-      // 变更统计
-      const changeSummary = {
-        campaignsCreated: 0,
-        campaignsUpdated: 0,
-        campaignsDeleted: 0,
-        adGroupsCreated: 0,
-        adGroupsUpdated: 0,
-        adGroupsDeleted: 0,
-        keywordsCreated: 0,
-        keywordsUpdated: 0,
-        keywordsDeleted: 0,
-        targetsCreated: 0,
-        targetsUpdated: 0,
-        targetsDeleted: 0,
-        conflictsDetected: 0,
-        conflictsResolved: 0,
-      };
-
-      // 定义同步步骤
-      const syncSteps = [
-        { name: 'SP广告活动', key: 'spCampaigns' },
-        { name: 'SB广告活动', key: 'sbCampaigns' },
-        { name: 'SD广告活动', key: 'sdCampaigns' },
-        { name: '广告组', key: 'adGroups' },
-        { name: '关键词', key: 'keywords' },
-        { name: '商品定位', key: 'targets' },
-        { name: '绩效数据', key: 'performance' },
-      ];
-      const totalSteps = syncSteps.length;
-      let currentStepIndex = 0;
-
-      // 更新进度的辅助函数
-      const updateProgress = async (stepName: string, stepIndex: number, stepResults?: any) => {
-        if (!jobId) return; // 如果jobId不存在则跳过
-        const progressPercent = Math.round(((stepIndex + 1) / totalSteps) * 100);
-        await db.updateSyncJob(jobId, {
-          currentStep: stepName,
-          totalSteps,
-          currentStepIndex: stepIndex,
-          progressPercent,
-          siteProgress: {
-            currentStep: stepName,
-            stepIndex,
-            totalSteps,
-            progressPercent,
-            results: stepResults || results,
-          },
-        });
-      };
-
-      try {
-        // 同步SP广告活动（带变更跟踪）
-        await updateProgress('SP广告活动', currentStepIndex);
-        const spResult = await executeWithRetry(
-          () => syncService.syncSpCampaignsWithTracking(lastSyncTime, jobId),
-          'SP广告同步'
-        );
-        results.spCampaigns = spResult.synced;
-        results.skipped += spResult.skipped || 0;
-        changeSummary.campaignsCreated += spResult.created || 0;
-        changeSummary.campaignsUpdated += spResult.updated || 0;
-        changeSummary.conflictsDetected += spResult.conflicts || 0;
-        currentStepIndex++;
-
-        // 同步SB广告活动（带变更跟踪）
-        await updateProgress('SB广告活动', currentStepIndex);
-        const sbResult = await executeWithRetry(
-          () => syncService.syncSbCampaignsWithTracking(lastSyncTime, jobId),
-          'SB广告同步'
-        );
-        results.sbCampaigns = sbResult.synced;
-        results.skipped += sbResult.skipped || 0;
-        changeSummary.campaignsCreated += sbResult.created || 0;
-        changeSummary.campaignsUpdated += sbResult.updated || 0;
-        changeSummary.conflictsDetected += sbResult.conflicts || 0;
-        currentStepIndex++;
-
-        // 同步SD广告活动（带变更跟踪）
-        await updateProgress('SD广告活动', currentStepIndex);
-        const sdResult = await executeWithRetry(
-          () => syncService.syncSdCampaignsWithTracking(lastSyncTime, jobId),
-          'SD广告同步'
-        );
-        results.sdCampaigns = sdResult.synced;
-        results.skipped += sdResult.skipped || 0;
-        changeSummary.campaignsCreated += sdResult.created || 0;
-        changeSummary.campaignsUpdated += sdResult.updated || 0;
-        changeSummary.conflictsDetected += sdResult.conflicts || 0;
-        currentStepIndex++;
-
-        // 同步广告组（带变更跟踪）
-        await updateProgress('广告组', currentStepIndex);
-        const adGroupsResult = await executeWithRetry(
-          () => syncService.syncSpAdGroupsWithTracking(lastSyncTime, jobId),
-          '广告组同步'
-        );
-        results.adGroups = adGroupsResult.synced;
-        results.skipped += adGroupsResult.skipped || 0;
-        changeSummary.adGroupsCreated += adGroupsResult.created || 0;
-        changeSummary.adGroupsUpdated += adGroupsResult.updated || 0;
-        changeSummary.conflictsDetected += adGroupsResult.conflicts || 0;
-        currentStepIndex++;
-
-        // 同步关键词（带变更跟踪）
-        await updateProgress('关键词', currentStepIndex);
-        const keywordsResult = await executeWithRetry(
-          () => syncService.syncSpKeywordsWithTracking(lastSyncTime, jobId),
-          '关键词同步'
-        );
-        results.keywords = keywordsResult.synced;
-        results.skipped += keywordsResult.skipped || 0;
-        changeSummary.keywordsCreated += keywordsResult.created || 0;
-        changeSummary.keywordsUpdated += keywordsResult.updated || 0;
-        changeSummary.conflictsDetected += keywordsResult.conflicts || 0;
-        currentStepIndex++;
-
-        // 同步商品定位（带变更跟踪）
-        await updateProgress('商品定位', currentStepIndex);
-        const targetsResult = await executeWithRetry(
-          () => syncService.syncSpProductTargetsWithTracking(lastSyncTime, jobId),
-          '商品定位同步'
-        );
-        results.targets = targetsResult.synced;
-        results.skipped += targetsResult.skipped || 0;
-        changeSummary.targetsCreated += targetsResult.created || 0;
-        changeSummary.targetsUpdated += targetsResult.updated || 0;
-        changeSummary.conflictsDetected += targetsResult.conflicts || 0;
-        currentStepIndex++;
-
-        results.campaigns = results.spCampaigns + results.sbCampaigns + results.sdCampaigns;
-
-        // 判断是否是首次同步（根据lastSyncAt是否为空）
-        // 首次同步：获取60天历史数据（Amazon API最多支持90天）
-        // 增量同步：获取30天数据（覆盖亚马逊广告14天归因窗口期，确保数据准确）
-        const isFirstSync = !credentials.lastSyncAt;
-        const performanceDays = isFirstSync ? 60 : 30;
-        
-        await updateProgress('绩效数据', currentStepIndex);
-        try {
-          console.log(`[绩效数据同步] ${isFirstSync ? '首次同步' : '增量同步'}，获取最近${performanceDays}天数据`);
-          const performanceCount = await executeWithRetry(
-            () => syncService.syncPerformanceData(performanceDays),
-            '绩效数据同步'
-          );
-          results.performance = performanceCount;
-          console.log(`[绩效数据同步] 完成: ${performanceCount} 条记录`);
-        } catch (error: any) {
-          console.error('[绩效数据同步] 失败:', error.message);
-          // 绩效数据同步失败不影响整体同步结果
-          results.performance = 0;
-          results.performanceError = error.message;
-        }
-
-        // 保存变更摘要
-        if (jobId) {
-          await db.upsertSyncChangeSummary({
-            syncJobId: jobId,
-            accountId: input.accountId,
-            userId: ctx.user.id,
-            ...changeSummary,
-          });
-        }
-
-        // 更新同步任务记录
-        const durationMs = Date.now() - startTime;
-        if (jobId) {
-          await db.updateSyncJob(jobId, {
-            status: 'completed',
-            recordsSynced: results.campaigns + results.adGroups + results.keywords + results.targets,
-            recordsSkipped: results.skipped,
-            durationMs,
-            retryCount: totalRetries,
-            spCampaigns: results.spCampaigns,
-            sbCampaigns: results.sbCampaigns,
-            sdCampaigns: results.sdCampaigns,
-            adGroupsSynced: results.adGroups,
-            keywordsSynced: results.keywords,
-            targetsSynced: results.targets,
-          });
-        }
-
-        // Update last sync time
-        await db.updateAmazonApiCredentials(input.accountId, {
-          lastSyncAt: new Date().toISOString(),
-        });
-
-        return {
-          ...results,
-          performance: results.performance,
-          durationMs,
-          retryCount: totalRetries,
-          isIncremental: input.isIncremental,
-          changeSummary,
-          jobId,
+          throw lastError;
         };
-      } catch (error: any) {
-        // 更新同步任务记录为失败
-        if (jobId) {
+
+        let totalRetries = 0;
+        let results: any = {
+          campaigns: 0,
+          spCampaigns: 0,
+          sbCampaigns: 0,
+          sdCampaigns: 0,
+          adGroups: 0,
+          keywords: 0,
+          targets: 0,
+          performance: 0,
+          skipped: 0,
+        };
+
+        const changeSummary = {
+          campaignsCreated: 0,
+          campaignsUpdated: 0,
+          campaignsDeleted: 0,
+          adGroupsCreated: 0,
+          adGroupsUpdated: 0,
+          adGroupsDeleted: 0,
+          keywordsCreated: 0,
+          keywordsUpdated: 0,
+          keywordsDeleted: 0,
+          targetsCreated: 0,
+          targetsUpdated: 0,
+          targetsDeleted: 0,
+          conflictsDetected: 0,
+          conflictsResolved: 0,
+        };
+
+        const totalSteps = 7;
+        let currentStepIndex = 0;
+
+        const updateProgress = async (stepName: string, stepIndex: number, stepResults?: any) => {
+          if (!jobId) return;
+          const progressPercent = Math.round(((stepIndex + 1) / totalSteps) * 100);
           await db.updateSyncJob(jobId, {
-            status: 'failed',
-            errorMessage: error.message,
-            durationMs: Date.now() - startTime,
-            retryCount: totalRetries,
+            currentStep: stepName,
+            totalSteps,
+            currentStepIndex: stepIndex,
+            progressPercent,
+            siteProgress: {
+              currentStep: stepName,
+              stepIndex,
+              totalSteps,
+              progressPercent,
+              results: stepResults || results,
+            },
           });
+        };
+
+        try {
+          // SP广告活动
+          await updateProgress('SP广告活动', currentStepIndex);
+          const spResult = await executeWithRetry(
+            () => syncService.syncSpCampaignsWithTracking(lastSyncTime, jobId),
+            'SP广告同步'
+          );
+          results.spCampaigns = spResult.synced;
+          results.skipped += spResult.skipped || 0;
+          changeSummary.campaignsCreated += spResult.created || 0;
+          changeSummary.campaignsUpdated += spResult.updated || 0;
+          changeSummary.conflictsDetected += spResult.conflicts || 0;
+          currentStepIndex++;
+
+          // SB广告活动
+          await updateProgress('SB广告活动', currentStepIndex);
+          const sbResult = await executeWithRetry(
+            () => syncService.syncSbCampaignsWithTracking(lastSyncTime, jobId),
+            'SB广告同步'
+          );
+          results.sbCampaigns = sbResult.synced;
+          results.skipped += sbResult.skipped || 0;
+          changeSummary.campaignsCreated += sbResult.created || 0;
+          changeSummary.campaignsUpdated += sbResult.updated || 0;
+          changeSummary.conflictsDetected += sbResult.conflicts || 0;
+          currentStepIndex++;
+
+          // SD广告活动
+          await updateProgress('SD广告活动', currentStepIndex);
+          const sdResult = await executeWithRetry(
+            () => syncService.syncSdCampaignsWithTracking(lastSyncTime, jobId),
+            'SD广告同步'
+          );
+          results.sdCampaigns = sdResult.synced;
+          results.skipped += sdResult.skipped || 0;
+          changeSummary.campaignsCreated += sdResult.created || 0;
+          changeSummary.campaignsUpdated += sdResult.updated || 0;
+          changeSummary.conflictsDetected += sdResult.conflicts || 0;
+          currentStepIndex++;
+
+          // 广告组
+          await updateProgress('广告组', currentStepIndex);
+          const adGroupsResult = await executeWithRetry(
+            () => syncService.syncSpAdGroupsWithTracking(lastSyncTime, jobId),
+            '广告组同步'
+          );
+          results.adGroups = adGroupsResult.synced;
+          results.skipped += adGroupsResult.skipped || 0;
+          changeSummary.adGroupsCreated += adGroupsResult.created || 0;
+          changeSummary.adGroupsUpdated += adGroupsResult.updated || 0;
+          changeSummary.conflictsDetected += adGroupsResult.conflicts || 0;
+          currentStepIndex++;
+
+          // 关键词
+          await updateProgress('关键词', currentStepIndex);
+          const keywordsResult = await executeWithRetry(
+            () => syncService.syncSpKeywordsWithTracking(lastSyncTime, jobId),
+            '关键词同步'
+          );
+          results.keywords = keywordsResult.synced;
+          results.skipped += keywordsResult.skipped || 0;
+          changeSummary.keywordsCreated += keywordsResult.created || 0;
+          changeSummary.keywordsUpdated += keywordsResult.updated || 0;
+          changeSummary.conflictsDetected += keywordsResult.conflicts || 0;
+          currentStepIndex++;
+
+          // 商品定位
+          await updateProgress('商品定位', currentStepIndex);
+          const targetsResult = await executeWithRetry(
+            () => syncService.syncSpProductTargetsWithTracking(lastSyncTime, jobId),
+            '商品定位同步'
+          );
+          results.targets = targetsResult.synced;
+          results.skipped += targetsResult.skipped || 0;
+          changeSummary.targetsCreated += targetsResult.created || 0;
+          changeSummary.targetsUpdated += targetsResult.updated || 0;
+          changeSummary.conflictsDetected += targetsResult.conflicts || 0;
+          currentStepIndex++;
+
+          results.campaigns = results.spCampaigns + results.sbCampaigns + results.sdCampaigns;
+
+          // 绩效数据
+          const isFirstSync = !credentials.lastSyncAt;
+          const performanceDays = isFirstSync ? 60 : 30;
+          
+          await updateProgress('绩效数据', currentStepIndex);
+          try {
+            console.log(`[绩效数据同步] ${isFirstSync ? '首次同步' : '增量同步'}，获取最近${performanceDays}天数据`);
+            const performanceCount = await executeWithRetry(
+              () => syncService.syncPerformanceData(performanceDays),
+              '绩效数据同步'
+            );
+            results.performance = performanceCount;
+            console.log(`[绩效数据同步] 完成: ${performanceCount} 条记录`);
+          } catch (error: any) {
+            console.error('[绩效数据同步] 失败:', error.message);
+            results.performance = 0;
+            results.performanceError = error.message;
+          }
+
+          // 保存变更摘要
+          if (jobId) {
+            await db.upsertSyncChangeSummary({
+              syncJobId: jobId,
+              accountId: input.accountId,
+              userId: ctx.user.id,
+              ...changeSummary,
+            });
+          }
+
+          // 更新同步任务记录为完成
+          const durationMs = Date.now() - startTime;
+          if (jobId) {
+            await db.updateSyncJob(jobId, {
+              status: 'completed',
+              recordsSynced: results.campaigns + results.adGroups + results.keywords + results.targets,
+              recordsSkipped: results.skipped,
+              durationMs,
+              retryCount: totalRetries,
+              spCampaigns: results.spCampaigns,
+              sbCampaigns: results.sbCampaigns,
+              sdCampaigns: results.sdCampaigns,
+              adGroupsSynced: results.adGroups,
+              keywordsSynced: results.keywords,
+              targetsSynced: results.targets,
+            });
+          }
+
+          // 更新最后同步时间
+          await db.updateAmazonApiCredentials(input.accountId, {
+            lastSyncAt: new Date().toISOString(),
+          });
+
+          console.log(`[同步完成] 账号 ${input.accountId} 同步完成，耗时 ${durationMs}ms`);
+        } catch (error: any) {
+          // 更新同步任务记录为失败
+          console.error(`[同步失败] 账号 ${input.accountId}:`, error.message);
+          if (jobId) {
+            await db.updateSyncJob(jobId, {
+              status: 'failed',
+              errorMessage: error.message,
+              durationMs: Date.now() - startTime,
+              retryCount: totalRetries,
+            });
+          }
         }
-        throw new TRPCError({
-          code: 'INTERNAL_SERVER_ERROR',
-          message: `同步失败: ${error.message}`,
-        });
-      }
+      };
+
+      // 异步执行同步任务，不等待完成
+      runSyncAsync().catch(err => {
+        console.error(`[同步异常] 账号 ${input.accountId}:`, err);
+      });
+
+      // 立即返回jobId，前端通过轮询获取进度
+      return {
+        jobId,
+        status: 'started',
+        message: '同步任务已启动，请通过轮询获取进度',
+        accountId: input.accountId,
+      };
     }),
 
   // Sync campaigns only
@@ -3607,6 +3597,33 @@ const amazonApiRouter = router({
     .input(z.object({ jobId: z.number() }))
     .query(async ({ input }) => {
       return db.getSyncJob(input.jobId);
+    }),
+
+  // 根据jobId获取同步任务状态（用于轮询）
+  getSyncJobById: protectedProcedure
+    .input(z.object({ jobId: z.number() }))
+    .query(async ({ input }) => {
+      const job = await db.getSyncJob(input.jobId);
+      if (!job) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Sync job not found',
+        });
+      }
+      return {
+        jobId: job.id,
+        status: job.status,
+        progressPercent: job.progressPercent || 0,
+        currentStep: job.currentStep,
+        errorMessage: job.errorMessage,
+        spCampaigns: job.spCampaigns || 0,
+        sbCampaigns: job.sbCampaigns || 0,
+        sdCampaigns: job.sdCampaigns || 0,
+        adGroupsSynced: job.adGroupsSynced || 0,
+        keywordsSynced: job.keywordsSynced || 0,
+        targetsSynced: job.targetsSynced || 0,
+        durationMs: job.durationMs,
+      };
     }),
 
   // 获取同步统计信息

@@ -654,15 +654,48 @@ export default function Campaigns() {
     },
   });
 
-  // Sync all data mutation
+  // Sync all data mutation (async mode)
   const syncAllMutation = trpc.amazonApi.syncAll.useMutation({
     onSuccess: (data) => {
-      toast.success(`同步完成！广告活动: ${data.campaigns}, 广告组: ${data.adGroups}, 关键词: ${data.keywords}, 商品定位: ${data.targets}`);
-      setIsSyncing(false);
-      refetch();
+      if (data.jobId) {
+        toast.success(`同步任务已启动，正在后台执行...`);
+        // 使用轮询检查同步状态
+        const checkSyncStatus = async () => {
+          try {
+            const response = await fetch(`/api/trpc/amazonApi.getSyncJobById?input=${encodeURIComponent(JSON.stringify({ json: { jobId: data.jobId } }))}`, {
+              credentials: 'include',
+            });
+            const result = await response.json();
+            const job = result.result?.data?.json;
+            if (job?.status === 'completed') {
+              toast.success(`同步完成！`);
+              setIsSyncing(false);
+              refetch();
+              return true;
+            } else if (job?.status === 'failed') {
+              toast.error(`同步失败: ${job.errorMessage || '未知错误'}`);
+              setIsSyncing(false);
+              return true;
+            }
+            return false;
+          } catch (e) {
+            return false;
+          }
+        };
+        // 开始轮询
+        const pollInterval = setInterval(async () => {
+          const done = await checkSyncStatus();
+          if (done) clearInterval(pollInterval);
+        }, 3000);
+        // 5分钟后自动停止轮询
+        setTimeout(() => {
+          clearInterval(pollInterval);
+          setIsSyncing(false);
+        }, 300000);
+      }
     },
     onError: (error) => {
-      toast.error(`同步失败: ${error.message}`);
+      toast.error(`启动同步失败: ${error.message}`);
       setIsSyncing(false);
     },
   });
