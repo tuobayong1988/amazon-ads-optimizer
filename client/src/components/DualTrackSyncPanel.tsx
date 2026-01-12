@@ -4,6 +4,7 @@
 
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';
+import { toast } from 'sonner';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,7 +21,11 @@ import {
   Clock,
   BarChart3,
   Shield,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Plus,
+  Trash2,
+  Radio,
+  Settings2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
@@ -31,12 +36,44 @@ interface DualTrackSyncPanelProps {
 
 export function DualTrackSyncPanel({ accountId }: DualTrackSyncPanelProps) {
   const [isCheckingConsistency, setIsCheckingConsistency] = useState(false);
+  const [isCreatingSubscriptions, setIsCreatingSubscriptions] = useState(false);
+
   
   const { data: dualTrackStatus, isLoading: isLoadingStatus, refetch: refetchStatus } = 
     trpc.amazonApi.getDualTrackStatus.useQuery({ accountId });
   
   const { data: dataSourceStats, isLoading: isLoadingStats, refetch: refetchStats } = 
     trpc.amazonApi.getDataSourceStats.useQuery({ accountId });
+  
+  // AMS订阅查询
+  const { data: amsSubscriptions, isLoading: isLoadingSubscriptions, refetch: refetchSubscriptions } = 
+    trpc.amazonApi.listAmsSubscriptions.useQuery({ accountId });
+  
+  // SQS配置查询
+  const { data: sqsConfig } = trpc.amazonApi.getSqsConfig.useQuery();
+  
+  // 批量创建AMS订阅
+  const createAllSubscriptionsMutation = trpc.amazonApi.createAllTrafficSubscriptions.useMutation({
+    onSuccess: (data) => {
+      toast.success(`AMS订阅创建成功: ${data.message}`);
+      refetchSubscriptions();
+      refetchStatus();
+    },
+    onError: (error) => {
+      toast.error(`AMS订阅创建失败: ${error.message}`);
+    },
+  });
+  
+  // 归档AMS订阅
+  const archiveSubscriptionMutation = trpc.amazonApi.archiveAmsSubscription.useMutation({
+    onSuccess: () => {
+      toast.success('AMS订阅已成功归档');
+      refetchSubscriptions();
+    },
+    onError: (error) => {
+      toast.error(`归档失败: ${error.message}`);
+    },
+  });
   
   const consistencyCheckMutation = trpc.amazonApi.runConsistencyCheck.useMutation({
     onSuccess: () => {
@@ -60,6 +97,32 @@ export function DualTrackSyncPanel({ accountId }: DualTrackSyncPanelProps) {
     } finally {
       setIsCheckingConsistency(false);
     }
+  };
+  
+  const handleCreateAllSubscriptions = async () => {
+    setIsCreatingSubscriptions(true);
+    try {
+      await createAllSubscriptionsMutation.mutateAsync({ accountId });
+    } finally {
+      setIsCreatingSubscriptions(false);
+    }
+  };
+  
+  const handleArchiveSubscription = async (subscriptionId: string) => {
+    await archiveSubscriptionMutation.mutateAsync({ accountId, subscriptionId });
+  };
+  
+  const getDatasetLabel = (dataSetId: string) => {
+    const labels: Record<string, string> = {
+      'sp-traffic': 'SP实时流量',
+      'sb-traffic': 'SB实时流量',
+      'sd-traffic': 'SD实时流量',
+      'sp-conversion': 'SP转化数据',
+      'sp-budget-usage': 'SP预算监控',
+      'sb-budget-usage': 'SB预算监控',
+      'sd-budget-usage': 'SD预算监控',
+    };
+    return labels[dataSetId] || dataSetId;
   };
   
   const getStatusIcon = (status: string) => {
@@ -175,6 +238,97 @@ export function DualTrackSyncPanel({ accountId }: DualTrackSyncPanelProps) {
               </div>
             </div>
           </div>
+        </CardContent>
+      </Card>
+      
+      {/* AMS订阅管理 */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Radio className="w-5 h-5 text-primary" />
+              <CardTitle className="text-lg">AMS订阅管理</CardTitle>
+            </div>
+            <Button 
+              variant="default" 
+              size="sm"
+              onClick={handleCreateAllSubscriptions}
+              disabled={isCreatingSubscriptions}
+            >
+              {isCreatingSubscriptions ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  创建中...
+                </>
+              ) : (
+                <>
+                  <Plus className="w-4 h-4 mr-2" />
+                  创建所有订阅
+                </>
+              )}
+            </Button>
+          </div>
+          <CardDescription>
+            管理Amazon Marketing Stream订阅，接收实时广告数据
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {/* SQS配置信息 */}
+          {sqsConfig && (
+            <div className="p-3 rounded-lg bg-muted/50 mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Settings2 className="w-4 h-4 text-muted-foreground" />
+                <span className="text-sm font-medium">SQS配置</span>
+              </div>
+              <div className="text-xs text-muted-foreground font-mono break-all">
+                {sqsConfig.queueArn || '未配置'}
+              </div>
+            </div>
+          )}
+          
+          {/* 订阅列表 */}
+          {isLoadingSubscriptions ? (
+            <div className="flex items-center justify-center p-4">
+              <RefreshCw className="w-4 h-4 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-sm text-muted-foreground">加载订阅列表...</span>
+            </div>
+          ) : amsSubscriptions?.subscriptions && amsSubscriptions.subscriptions.length > 0 ? (
+            <div className="space-y-2">
+              {amsSubscriptions.subscriptions.map((sub: { subscriptionId: string; dataSetId: string; status: string; statusDetails?: string }) => (
+                <div 
+                  key={sub.subscriptionId} 
+                  className="flex items-center justify-between p-3 rounded-lg border bg-card"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-2 h-2 rounded-full ${sub.status === 'ACTIVE' ? 'bg-green-500' : 'bg-yellow-500'}`} />
+                    <div>
+                      <div className="font-medium text-sm">{getDatasetLabel(sub.dataSetId)}</div>
+                      <div className="text-xs text-muted-foreground">{sub.subscriptionId}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={sub.status === 'ACTIVE' ? 'default' : 'secondary'}>
+                      {sub.status}
+                    </Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleArchiveSubscription(sub.subscriptionId)}
+                      disabled={archiveSubscriptionMutation.isPending}
+                    >
+                      <Trash2 className="w-4 h-4 text-muted-foreground" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <Radio className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">暂无AMS订阅</p>
+              <p className="text-xs mt-1">点击"创建所有订阅"开始接收实时数据</p>
+            </div>
+          )}
         </CardContent>
       </Card>
       
