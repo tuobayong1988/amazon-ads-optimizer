@@ -1,8 +1,0 @@
-{
-  "query": "SELECT type, COUNT(*) as count FROM campaigns GROUP BY type;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT type, COUNT(*) as count FROM campaigns GROUP BY type;",
-  "returncode": 1,
-  "logs": [
-    "ERROR 1054 (42S22) at line 1: Unknown column 'type' in 'group statement'"
-  ]
-}

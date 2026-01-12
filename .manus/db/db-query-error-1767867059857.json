@@ -1,8 +1,0 @@
-{
-  "query": "SELECT a.id, a.name, a.marketplace, a.status, c.profile_id, c.region, c.last_sync_at FROM ad_accounts a LEFT JOIN amazon_api_credentials c ON a.id = c.account_id ORDER BY a.id",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT a.id, a.name, a.marketplace, a.status, c.profile_id, c.region, c.last_sync_at FROM ad_accounts a LEFT JOIN amazon_api_credentials c ON a.id = c.account_id ORDER BY a.id",
-  "returncode": 1,
-  "logs": [
-    "ERROR 1054 (42S22) at line 1: Unknown column 'c.account_id' in 'on clause'"
-  ]
-}

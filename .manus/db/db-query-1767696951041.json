@@ -1,9 +1,0 @@
-{
-  "query": "CREATE TABLE IF NOT EXISTS decision_tree_models (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  accountId INT NOT NULL,\n  modelType ENUM('cr_prediction', 'cv_prediction') NOT NULL,\n  treeStructure JSON,\n  totalSamples INT,\n  treeDepth INT,\n  leafCount INT,\n  avgLeafSamples DECIMAL(10, 2),\n  trainingR2 DECIMAL(5, 4),\n  validationR2 DECIMAL(5, 4),\n  meanAbsoluteError DECIMAL(10, 6),\n  featureImportance JSON,\n  version INT DEFAULT 1,\n  isActive BOOLEAN DEFAULT TRUE,\n  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP\n)",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute CREATE TABLE IF NOT EXISTS decision_tree_models (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  accountId INT NOT NULL,\n  modelType ENUM('cr_prediction', 'cv_prediction') NOT NULL,\n  treeStructure JSON,\n  totalSamples INT,\n  treeDepth INT,\n  leafCount INT,\n  avgLeafSamples DECIMAL(10, 2),\n  trainingR2 DECIMAL(5, 4),\n  validationR2 DECIMAL(5, 4),\n  meanAbsoluteError DECIMAL(10, 6),\n  featureImportance JSON,\n  version INT DEFAULT 1,\n  isActive BOOLEAN DEFAULT TRUE,\n  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP\n)",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 525
-}

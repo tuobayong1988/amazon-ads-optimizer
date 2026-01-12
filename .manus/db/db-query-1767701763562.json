@@ -1,9 +1,0 @@
-{
-  "query": "ALTER TABLE bid_adjustment_history \nADD COLUMN actual_profit_7d DECIMAL(10,2) DEFAULT NULL COMMENT '7天实际利润',\nADD COLUMN actual_profit_14d DECIMAL(10,2) DEFAULT NULL COMMENT '14天实际利润',\nADD COLUMN actual_profit_30d DECIMAL(10,2) DEFAULT NULL COMMENT '30天实际利润',\nADD COLUMN actual_impressions_7d INT DEFAULT NULL COMMENT '7天实际展现',\nADD COLUMN actual_clicks_7d INT DEFAULT NULL COMMENT '7天实际点击',\nADD COLUMN actual_conversions_7d INT DEFAULT NULL COMMENT '7天实际转化',\nADD COLUMN actual_spend_7d DECIMAL(10,2) DEFAULT NULL COMMENT '7天实际花费',\nADD COLUMN actual_revenue_7d DECIMAL(10,2) DEFAULT NULL COMMENT '7天实际收入',\nADD COLUMN tracking_updated_at TIMESTAMP DEFAULT NULL COMMENT '效果追踪更新时间',\nADD COLUMN rolled_back_at TIMESTAMP DEFAULT NULL COMMENT '回滚时间',\nADD COLUMN rolled_back_by VARCHAR(255) DEFAULT NULL COMMENT '回滚操作人';",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute ALTER TABLE bid_adjustment_history \nADD COLUMN actual_profit_7d DECIMAL(10,2) DEFAULT NULL COMMENT '7天实际利润',\nADD COLUMN actual_profit_14d DECIMAL(10,2) DEFAULT NULL COMMENT '14天实际利润',\nADD COLUMN actual_profit_30d DECIMAL(10,2) DEFAULT NULL COMMENT '30天实际利润',\nADD COLUMN actual_impressions_7d INT DEFAULT NULL COMMENT '7天实际展现',\nADD COLUMN actual_clicks_7d INT DEFAULT NULL COMMENT '7天实际点击',\nADD COLUMN actual_conversions_7d INT DEFAULT NULL COMMENT '7天实际转化',\nADD COLUMN actual_spend_7d DECIMAL(10,2) DEFAULT NULL COMMENT '7天实际花费',\nADD COLUMN actual_revenue_7d DECIMAL(10,2) DEFAULT NULL COMMENT '7天实际收入',\nADD COLUMN tracking_updated_at TIMESTAMP DEFAULT NULL COMMENT '效果追踪更新时间',\nADD COLUMN rolled_back_at TIMESTAMP DEFAULT NULL COMMENT '回滚时间',\nADD COLUMN rolled_back_by VARCHAR(255) DEFAULT NULL COMMENT '回滚操作人';",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 3448
-}

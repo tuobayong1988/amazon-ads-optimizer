@@ -707,6 +707,7 @@ export class AmazonSyncService {
       }
     } catch (sbError: any) {
       console.error('[SyncService] SB报告同步失败:', sbError.message);
+      console.error('[SyncService] SB报告同步失败详情:', sbError.response?.data || sbError.stack);
       // SB报告失败不影响整体同步
     }
 
@@ -722,6 +723,7 @@ export class AmazonSyncService {
       }
     } catch (sdError: any) {
       console.error('[SyncService] SD报告同步失败:', sdError.message);
+      console.error('[SyncService] SD报告同步失败详情:', sdError.response?.data || sdError.stack);
       // SD报告失败不影响整体同步
     }
 
@@ -752,9 +754,17 @@ export class AmazonSyncService {
 
       console.log(`[SyncService] 开始处理报告数据, 共 ${reportData.length} 条记录`);
       
+      // 统计匹配情况
+      let matchedById = 0;
+      let matchedByName = 0;
+      let notMatched = 0;
+      
       for (const row of reportData) {
-        // 查找对应的campaign
-        const [campaign] = await db
+        // 策略：先用campaignId匹配，失败后用campaignName匹配
+        // 这是因为SB/SD的报告ID可能与List API返回的ID不一致
+        
+        // 策略1: 先用campaignId匹配
+        let [campaign] = await db
           .select()
           .from(campaigns)
           .where(
@@ -765,7 +775,37 @@ export class AmazonSyncService {
           )
           .limit(1);
 
+        if (campaign) {
+          matchedById++;
+        } else if (row.campaignName) {
+          // 策略2: 用campaignName匹配（紧急规避方案）
+          // 亚马逊广告活动名称是唯一的，可以用作关联
+          [campaign] = await db
+            .select()
+            .from(campaigns)
+            .where(
+              and(
+                eq(campaigns.accountId, this.accountId),
+                eq(campaigns.campaignName, row.campaignName)
+              )
+            )
+            .limit(1);
+          
+          if (campaign) {
+            matchedByName++;
+            // 注意：只做只读匹配，不修改campaigns表的campaignId
+            // 因为Management API (List)返回的V4 ID是系统的唯一真理
+            // 报表API返回的可能是Legacy ID，如果覆盖V4 ID会导致下次同步出错
+            console.log(`[SyncService] ${adType}通过名称匹配成功: ${row.campaignName} (reportId=${row.campaignId}, dbId=${campaign.campaignId})`);
+          }
+        }
+
         if (!campaign) {
+          notMatched++;
+          // 记录未找到的campaign，用于调试
+          if (notMatched <= 10) {
+            console.warn(`[SyncService] ${adType}未找到campaign: accountId=${this.accountId}, campaignId=${row.campaignId}, campaignName=${row.campaignName || 'N/A'}`);
+          }
           continue;
         }
 
@@ -786,9 +826,21 @@ export class AmazonSyncService {
           .limit(1);
 
         // 使用 Amazon Ads API v3 的字段名
+        // SP使用 sales14d/purchases14d
+        // SB/SD使用 attributedSales14d/attributedConversions14d
         const cost = row.cost || 0;
-        const sales = row.sales14d || row.attributedSales14d || 0;
-        const orders = row.purchases14d || row.attributedConversions14d || 0;
+        let sales = 0;
+        let orders = 0;
+        
+        if (adType === 'SP') {
+          // SP报告使用 sales14d 和 purchases14d
+          sales = row.sales14d || 0;
+          orders = row.purchases14d || 0;
+        } else {
+          // SB/SD报告使用 attributedSales14d 和 attributedConversions14d
+          sales = row.attributedSales14d || 0;
+          orders = row.attributedConversions14d || 0;
+        }
         
         const perfData = {
           accountId: this.accountId,
@@ -821,7 +873,12 @@ export class AmazonSyncService {
         synced++;
       }
 
-      console.log(`[SyncService] ${adType}报告数据处理完成, 同步 ${synced} 条记录`);
+      // 输出匹配统计
+      console.log(`[SyncService] ${adType}报告数据处理完成:`);
+      console.log(`  - 通过ID匹配: ${matchedById} 条`);
+      console.log(`  - 通过名称匹配: ${matchedByName} 条`);
+      console.log(`  - 未匹配: ${notMatched} 条`);
+      console.log(`  - 总同步: ${synced} 条`);
       return synced;
     } catch (error: any) {
       console.error(`[SyncService] ${adType}报告数据处理失败:`, error.message);
@@ -967,9 +1024,10 @@ export class AmazonSyncService {
         }
 
         // 使用 Amazon Ads API v3 的字段名
+        // SP关键词报告使用 sales14d/purchases14d
         const cost = row.cost || 0;
-        const sales = row.sales14d || row.attributedSales14d || 0;
-        const orders = row.purchases14d || row.attributedConversions14d || 0;
+        const sales = row.sales14d || 0;
+        const orders = row.purchases14d || 0;
         const impressions = row.impressions || 0;
         const clicks = row.clicks || 0;
         

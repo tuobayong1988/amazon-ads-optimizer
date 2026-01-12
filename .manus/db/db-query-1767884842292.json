@@ -1,9 +1,0 @@
-{
-  "query": "SELECT * FROM daily_performance ORDER BY date DESC LIMIT 10",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT * FROM daily_performance ORDER BY date DESC LIMIT 10",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 61
-}

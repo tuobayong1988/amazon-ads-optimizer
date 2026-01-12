@@ -9,6 +9,10 @@
  */
 
 import axios, { AxiosInstance } from 'axios';
+import JSONBig from 'json-bigint';
+
+// 配置json-bigint，将所有BigInt转换为字符串
+const JSONBigString = JSONBig({ storeAsString: true });
 
 // API区域端点
 export const API_ENDPOINTS = {
@@ -154,6 +158,21 @@ export class AmazonAdsApiClient {
         'Amazon-Advertising-API-Scope': credentials.profileId,
         'Content-Type': 'application/json',
       },
+      // 设置responseType为text，确保axios返回原始字符串
+      // 这样json-bigint才能正确解析BigInt
+      responseType: 'text',
+      // 使用json-bigint解析响应，防止BigInt精度丢失
+      transformResponse: [(data) => {
+        if (typeof data === 'string') {
+          try {
+            return JSONBigString.parse(data);
+          } catch (e) {
+            // 如果解析失败，返回原始数据
+            return data;
+          }
+        }
+        return data;
+      }],
     });
 
     // 添加请求拦截器自动添加认证头
@@ -757,16 +776,18 @@ export class AmazonAdsApiClient {
   /**
    * 请求SB品牌广告活动报告 (Amazon Ads API v3)
    * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
+   * 注意: SB报告使用 'attributedConversions14d' 和 'attributedSales14d' 字段
    */
   async requestSbCampaignReport(
     startDate: string,
     endDate: string,
-    metrics: string[] = ['impressions', 'clicks', 'cost', 'sales14d', 'purchases14d']
+    metrics: string[] = ['impressions', 'clicks', 'cost', 'attributedConversions14d', 'attributedSales14d']
   ): Promise<string> {
     try {
       console.log(`[Amazon API] 请求SB品牌广告活动报告: ${startDate} - ${endDate}`);
       
       // Amazon Ads Reporting API v3 正确格式
+      // SB报告使用 attributedConversions14d 和 attributedSales14d 字段
       const requestBody = {
         name: `SB Campaign Report ${startDate} to ${endDate}`,
         startDate,
@@ -781,8 +802,8 @@ export class AmazonAdsApiClient {
             'impressions',
             'clicks',
             'cost',
-            'sales14d',
-            'purchases14d'
+            'attributedSales14d',        // SB使用 attributedSales14d
+            'attributedConversions14d'   // SB使用 attributedConversions14d
           ],
           reportTypeId: 'sbCampaigns',
           timeUnit: 'DAILY',
@@ -808,16 +829,18 @@ export class AmazonAdsApiClient {
   /**
    * 请求SD展示广告活动报告 (Amazon Ads API v3)
    * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
+   * 注意: SD报告使用 'attributedConversions14d' 和 'attributedSales14d' 字段
    */
   async requestSdCampaignReport(
     startDate: string,
     endDate: string,
-    metrics: string[] = ['impressions', 'clicks', 'cost', 'sales14d', 'purchases14d']
+    metrics: string[] = ['impressions', 'clicks', 'cost', 'attributedConversions14d', 'attributedSales14d']
   ): Promise<string> {
     try {
       console.log(`[Amazon API] 请求SD展示广告活动报告: ${startDate} - ${endDate}`);
       
       // Amazon Ads Reporting API v3 正确格式
+      // SD报告使用 attributedConversions14d 和 attributedSales14d 字段
       const requestBody = {
         name: `SD Campaign Report ${startDate} to ${endDate}`,
         startDate,
@@ -832,8 +855,8 @@ export class AmazonAdsApiClient {
             'impressions',
             'clicks',
             'cost',
-            'sales14d',
-            'purchases14d'
+            'attributedSales14d',        // SD使用 attributedSales14d
+            'attributedConversions14d'   // SD使用 attributedConversions14d
           ],
           reportTypeId: 'sdCampaigns',
           timeUnit: 'DAILY',

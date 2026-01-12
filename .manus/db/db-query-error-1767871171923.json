@@ -1,8 +1,0 @@
-{
-  "query": "DELETE FROM data_sync_configs;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute DELETE FROM data_sync_configs;",
-  "returncode": 1,
-  "logs": [
-    "ERROR 1146 (42S02) at line 1: Table '5muj5ahkiaehb9itzndxtq.data_sync_configs' doesn't exist"
-  ]
-}

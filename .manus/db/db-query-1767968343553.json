@@ -1,9 +1,0 @@
-{
-  "query": "CREATE TABLE IF NOT EXISTS `ab_test_campaign_assignments` (\n  `id` int NOT NULL AUTO_INCREMENT,\n  `testId` int NOT NULL,\n  `variantId` int NOT NULL,\n  `campaignId` int NOT NULL,\n  `assignedAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  PRIMARY KEY (`id`),\n  KEY `idx_ab_test_campaign_assignments_testId` (`testId`),\n  KEY `idx_ab_test_campaign_assignments_variantId` (`variantId`),\n  KEY `idx_ab_test_campaign_assignments_campaignId` (`campaignId`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute CREATE TABLE IF NOT EXISTS `ab_test_campaign_assignments` (\n  `id` int NOT NULL AUTO_INCREMENT,\n  `testId` int NOT NULL,\n  `variantId` int NOT NULL,\n  `campaignId` int NOT NULL,\n  `assignedAt` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,\n  PRIMARY KEY (`id`),\n  KEY `idx_ab_test_campaign_assignments_testId` (`testId`),\n  KEY `idx_ab_test_campaign_assignments_variantId` (`variantId`),\n  KEY `idx_ab_test_campaign_assignments_campaignId` (`campaignId`)\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 190
-}

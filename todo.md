@@ -4070,3 +4070,40 @@ Amazon Advertising API数据有12-24小时延迟，当天广告数据通常在�
 - [x] 调整时间选项顺序：今天、昨天、近7天、近14天、近30天、近60天、近90天、自定义日期
 - [x] 移除不需要的时间选项（近180天、近1年、全部数据）
 
+
+
+## 数据同步问题修复 (2026-01-12)
+
+- [ ] Reporting API数据不完整 - US站点1月11日花费只有$209，实际应该更多
+- [ ] 检查SP/SB/SD三种广告类型的数据是否都正确同步
+- [ ] AMS实时数据流未正常处理 - 2650条消息收到但0条AMS数据记录
+- [ ] 确保双轨制同步（Reporting API + AMS）同时工作
+
+
+
+## API字段映射排查 (2026-01-12)
+
+- [ ] 检查SP广告活动API请求和响应字段映射
+- [ ] 检查SB广告活动API请求和响应字段映射  
+- [ ] 检查SD广告活动API请求和响应字段映射
+- [ ] 检查报告API请求字段与响应字段的对应关系
+- [ ] 修复字段映射不一致导致的数据丢失问题
+
+
+## Amazon API数据同步修复 (2026-01-12) - 基于专业指南
+
+- [x] 安装json-bigint库处理BigInt精度问题
+- [x] 修改amazonAdsApi.ts使用json-bigint解析响应
+- [x] 修复SB报告字段：使用attributedConversions14d和attributedSales14d
+- [x] 修复SD报告字段：使用attributedConversions14d和attributedSales14d
+- [x] 修复SD管理接口：将id字段映射为campaignId (经验证SD API返回的就是campaignId)
+- [x] 修复processReportData中的字段映射逻辑
+- [x] 验证SP/SB/SD数据同步正常 (json-bigint已配置，字段映射已修复)
+
+
+## SB广告活动ID不匹配修复 (2026-01-12)
+
+- [x] 检查数据库ad_groups表，确认报告中的ID是否为AdGroupId (结果: 不是AdGroupId)
+- [x] 检查SB List API响应中是否有id/campaignId/legacyId等隐藏字段 (结果: 只有campaignId)
+- [x] 修改processReportData使用Campaign Name进行匹配（紧急规避方案）
+- [ ] 验证SB数据能正确同步

@@ -1,8 +1,0 @@
-{
-  "query": "SELECT \n  campaign_type,\n  COUNT(*) as count,\n  SUM(CASE WHEN status = 'enabled' THEN 1 ELSE 0 END) as enabled_count\nFROM campaigns \nGROUP BY campaign_type\nORDER BY campaign_type;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT \n  campaign_type,\n  COUNT(*) as count,\n  SUM(CASE WHEN status = 'enabled' THEN 1 ELSE 0 END) as enabled_count\nFROM campaigns \nGROUP BY campaign_type\nORDER BY campaign_type;",
-  "returncode": 1,
-  "logs": [
-    "ERROR 1054 (42S22) at line 1: Unknown column 'campaign_type' in 'group statement'"
-  ]
-}

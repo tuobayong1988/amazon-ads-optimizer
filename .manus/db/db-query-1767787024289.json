@@ -1,9 +1,0 @@
-{
-  "query": "CREATE TABLE IF NOT EXISTS sync_change_summary (\n  id INT AUTO_INCREMENT NOT NULL,\n  sync_job_id INT NOT NULL,\n  account_id INT NOT NULL,\n  user_id INT NOT NULL,\n  campaigns_created INT DEFAULT 0,\n  campaigns_updated INT DEFAULT 0,\n  campaigns_deleted INT DEFAULT 0,\n  ad_groups_created INT DEFAULT 0,\n  ad_groups_updated INT DEFAULT 0,\n  ad_groups_deleted INT DEFAULT 0,\n  keywords_created INT DEFAULT 0,\n  keywords_updated INT DEFAULT 0,\n  keywords_deleted INT DEFAULT 0,\n  targets_created INT DEFAULT 0,\n  targets_updated INT DEFAULT 0,\n  targets_deleted INT DEFAULT 0,\n  conflicts_detected INT DEFAULT 0,\n  conflicts_resolved INT DEFAULT 0,\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,\n  PRIMARY KEY (id),\n  INDEX idx_sync_job (sync_job_id),\n  INDEX idx_account (account_id)\n);",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute CREATE TABLE IF NOT EXISTS sync_change_summary (\n  id INT AUTO_INCREMENT NOT NULL,\n  sync_job_id INT NOT NULL,\n  account_id INT NOT NULL,\n  user_id INT NOT NULL,\n  campaigns_created INT DEFAULT 0,\n  campaigns_updated INT DEFAULT 0,\n  campaigns_deleted INT DEFAULT 0,\n  ad_groups_created INT DEFAULT 0,\n  ad_groups_updated INT DEFAULT 0,\n  ad_groups_deleted INT DEFAULT 0,\n  keywords_created INT DEFAULT 0,\n  keywords_updated INT DEFAULT 0,\n  keywords_deleted INT DEFAULT 0,\n  targets_created INT DEFAULT 0,\n  targets_updated INT DEFAULT 0,\n  targets_deleted INT DEFAULT 0,\n  conflicts_detected INT DEFAULT 0,\n  conflicts_resolved INT DEFAULT 0,\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP NOT NULL,\n  PRIMARY KEY (id),\n  INDEX idx_sync_job (sync_job_id),\n  INDEX idx_account (account_id)\n);",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 181
-}

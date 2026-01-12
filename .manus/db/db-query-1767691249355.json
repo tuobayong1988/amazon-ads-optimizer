@@ -1,9 +1,0 @@
-{
-  "query": "CREATE TABLE IF NOT EXISTS `ai_optimization_predictions` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`executionId` int NOT NULL,\n\t`predictionPeriod` enum('7_days','14_days','30_days') NOT NULL,\n\t`predictedSpend` decimal(12,2),\n\t`predictedSales` decimal(12,2),\n\t`predictedAcos` decimal(5,2),\n\t`predictedRoas` decimal(10,2),\n\t`predictedClicks` int,\n\t`predictedImpressions` int,\n\t`predictedOrders` int,\n\t`spendChangePercent` decimal(5,2),\n\t`salesChangePercent` decimal(5,2),\n\t`acosChangePercent` decimal(5,2),\n\t`roasChangePercent` decimal(5,2),\n\t`confidenceLevel` decimal(3,2),\n\t`predictionRationale` text,\n\t`predictionCreatedAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `ai_optimization_predictions_id` PRIMARY KEY(`id`)\n);",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute CREATE TABLE IF NOT EXISTS `ai_optimization_predictions` (\n\t`id` int AUTO_INCREMENT NOT NULL,\n\t`executionId` int NOT NULL,\n\t`predictionPeriod` enum('7_days','14_days','30_days') NOT NULL,\n\t`predictedSpend` decimal(12,2),\n\t`predictedSales` decimal(12,2),\n\t`predictedAcos` decimal(5,2),\n\t`predictedRoas` decimal(10,2),\n\t`predictedClicks` int,\n\t`predictedImpressions` int,\n\t`predictedOrders` int,\n\t`spendChangePercent` decimal(5,2),\n\t`salesChangePercent` decimal(5,2),\n\t`acosChangePercent` decimal(5,2),\n\t`roasChangePercent` decimal(5,2),\n\t`confidenceLevel` decimal(3,2),\n\t`predictionRationale` text,\n\t`predictionCreatedAt` timestamp NOT NULL DEFAULT (now()),\n\tCONSTRAINT `ai_optimization_predictions_id` PRIMARY KEY(`id`)\n);",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 512
-}
