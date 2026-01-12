@@ -4395,3 +4395,23 @@ Amazon Advertising API数据有12-24小时延迟，当天广告数据通常在�
 - [x] 实现数据库函数支持AMS数据存储（upsertDailyPerformanceFromAms/updateDailyPerformanceConversion）
 - [x] 编写单元测试（23个测试全部通过）
 # Last updated: Mon Jan 12 03:04:23 EST 2026
+
+
+## V11版本发布（2026-01-12）
+
+### Amazon API和AMS数据同步功能完善
+- [x] 诊断Amazon API数据同步问题
+- [x] 修复数据概览模块自动同步功能
+- [x] 修复广告活动模块自动同步功能
+- [x] 验证数据同步功能正常工作（3092个广告活动成功同步）
+- [x] 推送代码到GitHub并标记V11版本
+
+### V11版本主要更新内容
+- AMS数据时区转换服务（UTC到店铺当地时间，22个站点时区映射）
+- 竞价协调服务（多策略竞价协调，防止竞价冲突）
+- 日内预算调整服务（日内预算分配优化，实时监控）
+- 数据同步优化（SB/SD报表修复、14天归因回溯、异步任务模式）
+- API安全迁移修复
+- 数据概览和广告活动模块自动同步功能完善
+
+# Last updated: Mon Jan 12 05:19:30 EST 2026
