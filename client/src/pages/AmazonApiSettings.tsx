@@ -177,6 +177,8 @@ export default function AmazonApiSettings() {
     status: 'pending' | 'syncing' | 'success' | 'failed';
     progress: number;
     error?: string;
+    currentStep?: string; // 当前同步步骤（如"SP广告活动"、"SB广告活动"等）
+    stepProgress?: number; // 当前步骤进度
     results?: {
       sp: number;
       sb: number;
@@ -802,7 +804,11 @@ export default function AmazonApiSettings() {
   };
 
   // 轮询同步任务状态的辅助函数
-  const pollSyncJobStatus = async (jobId: number, maxAttempts = 120): Promise<{
+  const pollSyncJobStatus = async (
+    jobId: number, 
+    maxAttempts = 120,
+    onProgress?: (currentStep: string, stepProgress: number) => void
+  ): Promise<{
     success: boolean;
     results?: { sp: number; sb: number; sd: number; adGroups: number; keywords: number; targets: number };
     error?: string;
@@ -830,6 +836,12 @@ export default function AmazonApiSettings() {
         } else if (job?.status === 'failed') {
           return { success: false, error: job.errorMessage || '同步失败' };
         }
+        
+        // 回调当前进度
+        if (onProgress && job?.currentStep) {
+          onProgress(job.currentStep, job.progressPercent || 0);
+        }
+        
         // 继续等待
         await new Promise(resolve => setTimeout(resolve, 2000));
       } catch (e) {
@@ -1136,8 +1148,26 @@ export default function AmazonApiSettings() {
               siteStatuses: [...currentSiteStatuses],
             }));
             
-            // 轮询同步任务状态
-            const pollResult = await pollSyncJobStatus(result.jobId);
+            // 轮询同步任务状态，并实时更新进度
+            const pollResult = await pollSyncJobStatus(
+              result.jobId,
+              120,
+              (currentStep, stepProgress) => {
+                // 更新站点的当前步骤和进度
+                currentSiteStatuses = currentSiteStatuses.map(s => 
+                  s.id === site.id && s.status === 'syncing' ? { 
+                    ...s, 
+                    currentStep,
+                    stepProgress,
+                    progress: Math.max(30, stepProgress) // 最小30%，因为已经启动
+                  } : s
+                );
+                setSyncProgress(prev => ({
+                  ...prev,
+                  siteStatuses: [...currentSiteStatuses],
+                }));
+              }
+            );
             
             if (!pollResult.success) {
               throw new Error(pollResult.error || '同步失败');
@@ -1153,12 +1183,14 @@ export default function AmazonApiSettings() {
             totalResults.keywords += siteResults.keywords;
             totalResults.targets += siteResults.targets;
             
-            // 更新站点状态为成功
+            // 更新站点状态为成功，清除步骤信息
             currentSiteStatuses = currentSiteStatuses.map(s => 
               s.id === site.id ? { 
                 ...s, 
                 status: 'success' as const, 
                 progress: 100,
+                currentStep: undefined,
+                stepProgress: undefined,
                 results: siteResults 
               } : s
             );
@@ -3091,7 +3123,10 @@ export default function AmazonApiSettings() {
                                   <div>
                                     <div className="font-medium text-sm">{site.name}</div>
                                     {site.status === 'syncing' && (
-                                      <div className="text-xs text-muted-foreground">正在同步...</div>
+                                      <div className="text-xs text-muted-foreground">
+                                        {site.currentStep ? `正在同步: ${site.currentStep}` : '正在同步...'}
+                                        {site.stepProgress && ` (${site.stepProgress}%)`}
+                                      </div>
                                     )}
                                     {site.status === 'success' && site.results && (
                                       <div className="text-xs text-green-600">

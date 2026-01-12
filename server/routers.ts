@@ -3317,7 +3317,7 @@ const amazonApiRouter = router({
           conflictsResolved: 0,
         };
 
-        const totalSteps = 7;
+        const totalSteps = 8; // 增加了“获取账户信息”步骤
         let currentStepIndex = 0;
 
         const updateProgress = async (stepName: string, stepIndex: number, stepResults?: any) => {
@@ -3339,6 +3339,26 @@ const amazonApiRouter = router({
         };
 
         try {
+          // 首先获取profile信息，包括时区和货币
+          await updateProgress('获取账户信息', currentStepIndex);
+          try {
+            const profiles = await syncService.client.getProfiles();
+            const matchingProfile = profiles.find(p => p.profileId.toString() === credentials.profileId);
+            if (matchingProfile) {
+              // 存储timezone和currencyCode到数据库
+              await db.updateAmazonApiCredentialsTimezone(
+                input.accountId,
+                matchingProfile.timezone,
+                matchingProfile.currencyCode
+              );
+              console.log(`[同步] 已更新账户 ${input.accountId} 的时区: ${matchingProfile.timezone}, 货币: ${matchingProfile.currencyCode}`);
+            }
+          } catch (profileError: any) {
+            console.error('[同步] 获取profile信息失败:', profileError.message);
+            // 不影响后续同步
+          }
+          currentStepIndex++;
+
           // SP广告活动
           await updateProgress('SP广告活动', currentStepIndex);
           const spResult = await executeWithRetry(

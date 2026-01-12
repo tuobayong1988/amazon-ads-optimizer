@@ -820,6 +820,26 @@ export async function updateAmazonApiCredentialsLastSync(accountId: number) {
     .where(eq(amazonApiCredentials.accountId, accountId));
 }
 
+/**
+ * 更新账户的时区和货币信息
+ * 从 Amazon Advertising API 的 GET /v2/profiles 获取
+ */
+export async function updateAmazonApiCredentialsTimezone(
+  accountId: number,
+  timezone: string,
+  currencyCode: string
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(amazonApiCredentials)
+    .set({ 
+      timezone,
+      currencyCode,
+      updatedAt: new Date().toISOString() 
+    })
+    .where(eq(amazonApiCredentials.accountId, accountId));
+}
 
 // ==================== Ad Automation Functions ====================
 
