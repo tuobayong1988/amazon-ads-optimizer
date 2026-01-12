@@ -1003,8 +1003,10 @@ export class AmazonAdsApiClient {
       
       // 调试日志：输出第一页第一个广告活动的完整结构
       if (pageCount === 0 && campaigns.length > 0) {
-        console.log('[SB API] 第一个SB广告活动的完整结构:');
+        console.log('[SB API DEBUG] First campaign full structure:');
         console.log(JSON.stringify(campaigns[0], null, 2));
+        console.log('[SB API DEBUG] First campaign startDate:', campaigns[0].startDate);
+        console.log('[SB API DEBUG] First campaign keys:', Object.keys(campaigns[0]));
         // 特别输出预算相关字段
         console.log('[SB API] 预算字段检查:');
         console.log('  - budget:', campaigns[0].budget);
@@ -1169,6 +1171,7 @@ export class AmazonAdsApiClient {
   /**
    * 获取SD广告活动列表
    * 注意：SD API使用GET方法，使用startIndex和count参数进行分页
+   * 使用extended端点获取更多字段，包括startDate
    * 已修复：添加分页逻辑，确保获取所有数据
    */
   async listSdCampaigns(): Promise<any[]> {
@@ -1177,12 +1180,31 @@ export class AmazonAdsApiClient {
     const count = 100;
     
     while (true) {
-      const response = await this.axiosInstance.get('/sd/campaigns', {
-        params: { startIndex, count }
-      });
+      // 优先使用extended端点获取更多字段（包括startDate）
+      let response;
+      try {
+        response = await this.axiosInstance.get('/sd/campaigns/extended', {
+          params: { startIndex, count }
+        });
+        console.log('[SD API] Using extended endpoint for more fields');
+      } catch (error: any) {
+        // 如果extended端点失败，回退到标准端点
+        console.log('[SD API] Extended endpoint failed, falling back to standard endpoint');
+        response = await this.axiosInstance.get('/sd/campaigns', {
+          params: { startIndex, count }
+        });
+      }
+      
       const campaigns = response.data || [];
       allCampaigns.push(...campaigns);
       console.log(`[SD API] Fetched ${campaigns.length} campaigns, total: ${allCampaigns.length}`);
+      
+      // 调试：打印第一个广告活动的完整结构
+      if (allCampaigns.length > 0 && startIndex === 0) {
+        console.log('[SD API DEBUG] First campaign full structure:', JSON.stringify(allCampaigns[0], null, 2));
+        console.log('[SD API DEBUG] First campaign startDate:', allCampaigns[0].startDate);
+        console.log('[SD API DEBUG] First campaign keys:', Object.keys(allCampaigns[0]));
+      }
       
       // 如果返回的数据少于请求的数量，说明没有更多数据
       if (campaigns.length < count) {

@@ -4481,3 +4481,31 @@ Amazon Advertising API数据有12-24小时延迟，当天广告数据通常在�
 - [x] 整理Campaign API字段和数据结构文档
 - [x] 整理API速率限制和最佳实践文档
 - [x] 创建Amazon Ads API完整研究报告
+
+
+### API请求字段优化和数据同步
+- [ ] 检查当前API配置和授权状态
+- [ ] 根据研究成果优化SP Campaign API请求字段
+- [ ] 根据研究成果优化SD Campaign API请求字段
+- [ ] 根据研究成果优化SB Campaign API请求字段
+- [ ] 触发完整数据同步
+- [ ] 验证同步结果和startDate字段数据
+
+
+## Amazon Ads API数据同步优化（第二十四阶段）
+
+### API请求字段优化和数据同步
+- [x] 检查当前API配置和授权状态
+- [x] 根据研究成果优化SP Campaign API请求字段
+- [x] 根据研究成果优化SD Campaign API请求字段
+- [x] 根据研究成果优化SB Campaign API请求字段
+- [x] 触发完整数据同步
+- [x] 验证同步结果和startDate字段数据
+
+### 同步结果统计
+- 总广告活动数: 3155
+- SP自动广告: 132
+- SP手动广告: 1273
+- SB品牌广告: 1721
+- SD展示广告: 29
+- 已同步startDate的广告活动: 已验证显示正确
