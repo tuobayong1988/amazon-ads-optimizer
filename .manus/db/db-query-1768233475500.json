@@ -1,0 +1,24 @@
+{
+  "query": "SELECT c.accountId, a.id as adAccountId, a.accountName, a.marketplace, COUNT(*) as campaignCount \nFROM campaigns c \nLEFT JOIN ad_accounts a ON c.accountId = a.id \nGROUP BY c.accountId, a.id, a.accountName, a.marketplace;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT c.accountId, a.id as adAccountId, a.accountName, a.marketplace, COUNT(*) as campaignCount \nFROM campaigns c \nLEFT JOIN ad_accounts a ON c.accountId = a.id \nGROUP BY c.accountId, a.id, a.accountName, a.marketplace;",
+  "rows": [
+    {
+      "accountId": "60017",
+      "adAccountId": "60017",
+      "accountName": "ElaraFit 加拿大",
+      "marketplace": "CA",
+      "campaignCount": "97"
+    },
+    {
+      "accountId": "60019",
+      "adAccountId": "60019",
+      "accountName": "ElaraFit 美国",
+      "marketplace": "US",
+      "campaignCount": "3058"
+    }
+  ],
+  "messages": [],
+  "stdout": "accountId\tadAccountId\taccountName\tmarketplace\tcampaignCount\n60017\t60017\tElaraFit 加拿大\tCA\t97\n60019\t60019\tElaraFit 美国\tUS\t3058\n",
+  "stderr": "",
+  "execution_time_ms": 56
+}

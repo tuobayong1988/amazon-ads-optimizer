@@ -1,0 +1,14 @@
+{
+  "query": "SELECT id, countrycode FROM campaigns LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT id, countrycode FROM campaigns LIMIT 1;",
+  "rows": [
+    {
+      "id": "126251",
+      "countrycode": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tcountrycode\n126251\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 55
+}

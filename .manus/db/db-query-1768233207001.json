@@ -1,0 +1,28 @@
+{
+  "query": "SELECT id, campaignName, campaignType, campaignStatus FROM campaigns LIMIT 3;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT id, campaignName, campaignType, campaignStatus FROM campaigns LIMIT 3;",
+  "rows": [
+    {
+      "id": "126251",
+      "campaignName": "2025.12.01-CPC-SP-AUTO-B0F29R4MFV-Loose Match",
+      "campaignType": "sp_auto",
+      "campaignStatus": "paused"
+    },
+    {
+      "id": "126252",
+      "campaignName": "2025.12.01-CPC-SP-B0F6BJ9YQS-KW-Broad-高弱-order1至3-大词",
+      "campaignType": "sp_manual",
+      "campaignStatus": "paused"
+    },
+    {
+      "id": "126253",
+      "campaignName": "眼镜广告",
+      "campaignType": "sp_auto",
+      "campaignStatus": "paused"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tcampaignName\tcampaignType\tcampaignStatus\n126251\t2025.12.01-CPC-SP-AUTO-B0F29R4MFV-Loose Match\tsp_auto\tpaused\n126252\t2025.12.01-CPC-SP-B0F6BJ9YQS-KW-Broad-高弱-order1至3-大词\tsp_manual\tpaused\n126253\t眼镜广告\tsp_auto\tpaused\n",
+  "stderr": "",
+  "execution_time_ms": 52
+}

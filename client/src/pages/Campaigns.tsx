@@ -296,10 +296,33 @@ const billingTypeLabels: Record<string, string> = {
   cpm: "CPM (按千次展示)",
 };
 
-// 列配置
-type ColumnKey = 'campaignName' | 'campaignType' | 'billingType' | 'startDate' | 'status' | 
-  'dailyBudget' | 'dailySpend' | 'impressions' | 'clicks' | 'ctr' | 'totalSpend' | 
-  'dailySales' | 'totalSales' | 'acos' | 'roas' | 'performanceGroup' | 'optimalBid' | 'autoOptimization' | 'actions';
+// 列配置 - 按亚马逊后台顺序
+type ColumnKey = 
+  // 基本信息
+  'state' | 'campaignName' | 'countryCode' | 'status' | 'campaignType' | 'targetingType' | 
+  'retailer' | 'portfolioName' | 'biddingStrategy' |
+  // 日期和预算
+  'startDate' | 'endDate' | 'avgTimeInBudget' | 'budgetConverted' | 'dailyBudget' | 'costType' |
+  // 曝光指标
+  'impressions' | 'topOfSearchImpressionShare' | 'topOfSearchBidAdjustment' |
+  // 点击和花费指标
+  'clicks' | 'ctr' | 'spendConverted' | 'dailySpend' | 'totalSpend' | 'cpcConverted' | 'cpc' |
+  // 浏览指标
+  'detailPageViews' | 'brandStorePageViews' |
+  // 订单和销售指标
+  'orders' | 'salesConverted' | 'dailySales' | 'totalSales' | 'acos' | 'roas' |
+  // 新客指标 (NTB)
+  'ntbOrders' | 'ntbOrdersPercent' | 'ntbSalesConverted' | 'ntbSales' | 'ntbSalesPercent' |
+  // 长期指标
+  'longTermSalesConverted' | 'longTermSales' | 'longTermRoas' |
+  // 触达指标
+  'cumulativeReach' | 'householdReach' |
+  // 可见性指标
+  'viewableImpressions' | 'cpmConverted' | 'cpm' | 'vcpmConverted' | 'vcpm' |
+  // 视频指标
+  'videoFirstQuartile' | 'videoMidpoint' | 'videoThirdQuartile' | 'videoComplete' | 'videoUnmute' | 'vtr' | 'vctr' |
+  // 系统字段
+  'performanceGroup' | 'optimalBid' | 'autoOptimization' | 'actions';
 
 // 移动端列优先级: 'core' = 核心列(始终显示), 'important' = 重要列(默认显示), 'secondary' = 次要列(移动端隐藏)
 type MobilePriority = 'core' | 'important' | 'secondary';
@@ -316,28 +339,88 @@ interface ColumnConfig {
 }
 
 const columns: ColumnConfig[] = [
-  // 核心列 - 移动端始终显示
-  { key: 'campaignName', label: '广告活动名称', minWidth: '250px', align: 'left', sortable: true, defaultVisible: true, sticky: true, mobilePriority: 'core' },
+  // === 基本信息（按亚马逊后台顺序） ===
+  { key: 'state', label: 'State', minWidth: '80px', align: 'left', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'campaignName', label: '广告活动', minWidth: '250px', align: 'left', sortable: true, defaultVisible: true, sticky: true, mobilePriority: 'core' },
+  { key: 'countryCode', label: '国家', minWidth: '70px', align: 'center', sortable: true, defaultVisible: true, mobilePriority: 'important' },
   { key: 'status', label: '状态', minWidth: '80px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'core' },
-  { key: 'dailySpend', label: '当日花费', minWidth: '100px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'core' },
-  { key: 'acos', label: 'ACoS', minWidth: '80px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'core' },
-  { key: 'actions', label: '操作', minWidth: '120px', align: 'center', sortable: false, defaultVisible: true, mobilePriority: 'core' },
-  // 重要列 - 移动端默认显示
   { key: 'campaignType', label: '类型', minWidth: '80px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'important' },
-  { key: 'dailyBudget', label: '日预算', minWidth: '100px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'important' },
-  { key: 'dailySales', label: '日销售额', minWidth: '100px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'important' },
-  { key: 'roas', label: 'ROAS', minWidth: '80px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'important' },
-  // 次要列 - 移动端默认隐藏
-  { key: 'billingType', label: '计费方式', minWidth: '100px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'targetingType', label: '定向', minWidth: '70px', align: 'left', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'retailer', label: '零售商', minWidth: '100px', align: 'left', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'portfolioName', label: '组合', minWidth: '120px', align: 'left', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'biddingStrategy', label: '竞价策略', minWidth: '100px', align: 'left', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  
+  // === 日期和预算 ===
   { key: 'startDate', label: '开始日期', minWidth: '100px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
-  { key: 'impressions', label: '曝光', minWidth: '80px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'endDate', label: '结束日期', minWidth: '100px', align: 'left', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'avgTimeInBudget', label: '预算内时间', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'budgetConverted', label: '预算(转换)', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'dailyBudget', label: '日预算', minWidth: '100px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'important' },
+  { key: 'costType', label: '计费类型', minWidth: '80px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  
+  // === 曝光指标 ===
+  { key: 'impressions', label: '曝光', minWidth: '90px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'topOfSearchImpressionShare', label: '搜索顶部曝光份额', minWidth: '130px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'topOfSearchBidAdjustment', label: '搜索顶部出价调整', minWidth: '130px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  
+  // === 点击和花费指标 ===
   { key: 'clicks', label: '点击', minWidth: '80px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
-  { key: 'ctr', label: '点击率', minWidth: '80px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'ctr', label: 'CTR', minWidth: '70px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'spendConverted', label: '花费(转换)', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'dailySpend', label: '当日花费', minWidth: '100px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'core' },
   { key: 'totalSpend', label: '累计花费', minWidth: '100px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'cpcConverted', label: 'CPC(转换)', minWidth: '90px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'cpc', label: 'CPC', minWidth: '70px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  
+  // === 浏览指标 ===
+  { key: 'detailPageViews', label: '详情页浏览', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'brandStorePageViews', label: '品牌店铺浏览', minWidth: '110px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  
+  // === 订单和销售指标 ===
+  { key: 'orders', label: '订单', minWidth: '70px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'salesConverted', label: '销售额(转换)', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'dailySales', label: '当日销售额', minWidth: '100px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'important' },
   { key: 'totalSales', label: '累计销售额', minWidth: '100px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
-  { key: 'performanceGroup', label: '所属绩效组', minWidth: '120px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
-  { key: 'optimalBid', label: '最优出价', minWidth: '180px', align: 'center', sortable: false, defaultVisible: true, mobilePriority: 'secondary' },
-  { key: 'autoOptimization', label: '自动优化', minWidth: '140px', align: 'center', sortable: false, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'acos', label: 'ACoS', minWidth: '70px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'core' },
+  { key: 'roas', label: 'ROAS', minWidth: '70px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'important' },
+  
+  // === 新客指标 (NTB - New To Brand) ===
+  { key: 'ntbOrders', label: '新客订单', minWidth: '90px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'ntbOrdersPercent', label: '新客订单占比', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'ntbSalesConverted', label: '新客销售额(转换)', minWidth: '120px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'ntbSales', label: '新客销售额', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'ntbSalesPercent', label: '新客销售占比', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  
+  // === 长期指标 ===
+  { key: 'longTermSalesConverted', label: '长期销售额(转换)', minWidth: '130px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'longTermSales', label: '长期销售额', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'longTermRoas', label: '长期ROAS', minWidth: '90px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  
+  // === 触达指标 ===
+  { key: 'cumulativeReach', label: '累计触达', minWidth: '90px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'householdReach', label: '家庭触达', minWidth: '90px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  
+  // === 可见性指标 ===
+  { key: 'viewableImpressions', label: '可见曝光', minWidth: '90px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'cpmConverted', label: 'CPM(转换)', minWidth: '90px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'cpm', label: 'CPM', minWidth: '70px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'vcpmConverted', label: 'VCPM(转换)', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'vcpm', label: 'VCPM', minWidth: '70px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  
+  // === 视频指标 ===
+  { key: 'videoFirstQuartile', label: '视频25%', minWidth: '80px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'videoMidpoint', label: '视频50%', minWidth: '80px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'videoThirdQuartile', label: '视频75%', minWidth: '80px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'videoComplete', label: '视频完整播放', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'videoUnmute', label: '视频取消静音', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'vtr', label: 'VTR', minWidth: '70px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'vctr', label: 'vCTR', minWidth: '70px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  
+  // === 系统字段 ===
+  { key: 'performanceGroup', label: '所属绩效组', minWidth: '120px', align: 'left', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'optimalBid', label: '最优出价', minWidth: '180px', align: 'center', sortable: false, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'autoOptimization', label: '自动优化', minWidth: '140px', align: 'center', sortable: false, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'actions', label: '操作', minWidth: '120px', align: 'center', sortable: false, defaultVisible: true, mobilePriority: 'core' },
 ];
 
 // 排序字段类型
@@ -361,8 +444,8 @@ const optimizationStatusOptions = [
   { value: "unmanaged", label: "未介入" },
 ];
 
-// 计费方式筛选选项
-const billingTypeOptions = [
+// 计费类型筛选选项
+const costTypeOptions = [
   { value: "all", label: "全部计费" },
   { value: "cpc", label: "CPC" },
   { value: "vcpm", label: "vCPM" },
@@ -891,9 +974,9 @@ export default function Campaigns() {
           aValue = a.campaignType;
           bValue = b.campaignType;
           break;
-        case 'billingType':
-          aValue = (a as any).billingType || 'cpc';
-          bValue = (b as any).billingType || 'cpc';
+        case 'costType':
+          aValue = (a as any).costType || 'cpc';
+          bValue = (b as any).costType || 'cpc';
           break;
         case 'startDate':
           aValue = new Date((a as any).startDate || 0).getTime();
@@ -1080,8 +1163,8 @@ export default function Campaigns() {
               const typeConfig = campaignTypes.find(t => t.value === campaign.campaignType);
               row[col.key] = typeConfig?.label || campaign.campaignType;
               break;
-            case 'billingType':
-              row[col.key] = billingTypeLabels[(campaign as any).billingType || 'cpc'] || (campaign as any).billingType || 'CPC';
+            case 'costType':
+              row[col.key] = billingTypeLabels[(campaign as any).costType || 'cpc'] || (campaign as any).costType || 'CPC';
               break;
             case 'startDate':
               row[col.key] = (campaign as any).startDate ? new Date((campaign as any).startDate).toLocaleDateString('zh-CN') : '';
@@ -1291,16 +1374,262 @@ export default function Campaigns() {
             {getCampaignTypeLabel(campaign.campaignType)}
           </Badge>
         );
-      case 'billingType':
+      case 'costType':
         return (
           <span className="text-sm text-muted-foreground">
-            {billingTypeLabels[(campaign as any).billingType] || "CPC (按点击)"}
+            {billingTypeLabels[(campaign as any).costType] || "CPC (按点击)"}
           </span>
         );
       case 'startDate':
         return (
           <span className="text-sm text-muted-foreground">
             {formatDate((campaign as any).startDate)}
+          </span>
+        );
+      case 'endDate':
+        return (
+          <span className="text-sm text-muted-foreground">
+            {(campaign as any).endDate ? formatDate((campaign as any).endDate) : '-'}
+          </span>
+        );
+      case 'state':
+        return (
+          <span className="text-sm text-muted-foreground capitalize">
+            {(campaign as any).state || campaign.campaignStatus || '-'}
+          </span>
+        );
+      case 'countryCode':
+        return (
+          <span className="text-sm font-medium">
+            {(campaign as any).countryCode || '-'}
+          </span>
+        );
+      case 'targetingType':
+        return (
+          <span className="text-sm text-muted-foreground capitalize">
+            {(campaign as any).targetingType || '-'}
+          </span>
+        );
+      case 'retailer':
+        return (
+          <span className="text-sm text-muted-foreground">
+            {(campaign as any).retailer || '-'}
+          </span>
+        );
+      case 'portfolioName':
+        return (
+          <span className="text-sm text-muted-foreground">
+            {(campaign as any).portfolioName || '-'}
+          </span>
+        );
+      case 'biddingStrategy':
+        const strategyLabels: Record<string, string> = {
+          'legacyForSales': '动态竞价-仅降低',
+          'autoForSales': '动态竞价-提高和降低',
+          'manual': '固定竞价',
+          'ruleBasedBidding': '规则竞价'
+        };
+        return (
+          <span className="text-sm text-muted-foreground">
+            {strategyLabels[(campaign as any).biddingStrategy] || (campaign as any).biddingStrategy || '-'}
+          </span>
+        );
+      case 'avgTimeInBudget':
+        return (
+          <span className="text-sm tabular-nums">
+            {(campaign as any).avgTimeInBudget ? `${parseFloat((campaign as any).avgTimeInBudget).toFixed(1)}%` : '-'}
+          </span>
+        );
+      case 'budgetConverted':
+        return (
+          <span className="text-sm tabular-nums">
+            {(campaign as any).budgetConverted ? `$${parseFloat((campaign as any).budgetConverted).toFixed(2)}` : '-'}
+          </span>
+        );
+      case 'topOfSearchImpressionShare':
+        return (
+          <span className="text-sm tabular-nums">
+            {(campaign as any).topOfSearchImpressionShare ? `${parseFloat((campaign as any).topOfSearchImpressionShare).toFixed(1)}%` : '-'}
+          </span>
+        );
+      case 'topOfSearchBidAdjustment':
+        return (
+          <span className="text-sm tabular-nums">
+            {(campaign as any).placementTopSearchBidAdjustment ? `${(campaign as any).placementTopSearchBidAdjustment}%` : '-'}
+          </span>
+        );
+      case 'spendConverted':
+        return (
+          <span className="text-sm tabular-nums">
+            {(campaign as any).spendConverted ? `$${parseFloat((campaign as any).spendConverted).toFixed(2)}` : '-'}
+          </span>
+        );
+      case 'cpcConverted':
+        return (
+          <span className="text-sm tabular-nums">
+            {(campaign as any).cpcConverted ? `$${parseFloat((campaign as any).cpcConverted).toFixed(2)}` : '-'}
+          </span>
+        );
+      case 'cpc':
+        return (
+          <span className="text-sm tabular-nums">
+            {(campaign as any).cpc ? `$${parseFloat((campaign as any).cpc).toFixed(2)}` : '-'}
+          </span>
+        );
+      case 'detailPageViews':
+        return (
+          <span className="text-sm tabular-nums">
+            {((campaign as any).detailPageViews || 0).toLocaleString()}
+          </span>
+        );
+      case 'brandStorePageViews':
+        return (
+          <span className="text-sm tabular-nums">
+            {((campaign as any).brandStorePageViews || 0).toLocaleString()}
+          </span>
+        );
+      case 'orders':
+        return (
+          <span className="text-sm tabular-nums">
+            {((campaign as any).orders || 0).toLocaleString()}
+          </span>
+        );
+      case 'salesConverted':
+        return (
+          <span className="text-sm tabular-nums text-green-600">
+            {(campaign as any).salesConverted ? `$${parseFloat((campaign as any).salesConverted).toFixed(2)}` : '-'}
+          </span>
+        );
+      case 'ntbOrders':
+        return (
+          <span className="text-sm tabular-nums">
+            {((campaign as any).ntbOrders || 0).toLocaleString()}
+          </span>
+        );
+      case 'ntbOrdersPercent':
+        return (
+          <span className="text-sm tabular-nums">
+            {(campaign as any).ntbOrdersPercent ? `${parseFloat((campaign as any).ntbOrdersPercent).toFixed(1)}%` : '-'}
+          </span>
+        );
+      case 'ntbSalesConverted':
+        return (
+          <span className="text-sm tabular-nums text-green-600">
+            {(campaign as any).ntbSalesConverted ? `$${parseFloat((campaign as any).ntbSalesConverted).toFixed(2)}` : '-'}
+          </span>
+        );
+      case 'ntbSales':
+        return (
+          <span className="text-sm tabular-nums text-green-600">
+            {(campaign as any).ntbSales ? `$${parseFloat((campaign as any).ntbSales).toFixed(2)}` : '-'}
+          </span>
+        );
+      case 'ntbSalesPercent':
+        return (
+          <span className="text-sm tabular-nums">
+            {(campaign as any).ntbSalesPercent ? `${parseFloat((campaign as any).ntbSalesPercent).toFixed(1)}%` : '-'}
+          </span>
+        );
+      case 'longTermSalesConverted':
+        return (
+          <span className="text-sm tabular-nums text-green-600">
+            {(campaign as any).longTermSalesConverted ? `$${parseFloat((campaign as any).longTermSalesConverted).toFixed(2)}` : '-'}
+          </span>
+        );
+      case 'longTermSales':
+        return (
+          <span className="text-sm tabular-nums text-green-600">
+            {(campaign as any).longTermSales ? `$${parseFloat((campaign as any).longTermSales).toFixed(2)}` : '-'}
+          </span>
+        );
+      case 'longTermRoas':
+        return (
+          <span className="text-sm tabular-nums">
+            {(campaign as any).longTermRoas ? parseFloat((campaign as any).longTermRoas).toFixed(2) : '-'}
+          </span>
+        );
+      case 'cumulativeReach':
+        return (
+          <span className="text-sm tabular-nums">
+            {((campaign as any).cumulativeReach || 0).toLocaleString()}
+          </span>
+        );
+      case 'householdReach':
+        return (
+          <span className="text-sm tabular-nums">
+            {((campaign as any).householdReach || 0).toLocaleString()}
+          </span>
+        );
+      case 'viewableImpressions':
+        return (
+          <span className="text-sm tabular-nums">
+            {((campaign as any).viewableImpressions || 0).toLocaleString()}
+          </span>
+        );
+      case 'cpmConverted':
+        return (
+          <span className="text-sm tabular-nums">
+            {(campaign as any).cpmConverted ? `$${parseFloat((campaign as any).cpmConverted).toFixed(2)}` : '-'}
+          </span>
+        );
+      case 'cpm':
+        return (
+          <span className="text-sm tabular-nums">
+            {(campaign as any).cpm ? `$${parseFloat((campaign as any).cpm).toFixed(2)}` : '-'}
+          </span>
+        );
+      case 'vcpmConverted':
+        return (
+          <span className="text-sm tabular-nums">
+            {(campaign as any).vcpmConverted ? `$${parseFloat((campaign as any).vcpmConverted).toFixed(2)}` : '-'}
+          </span>
+        );
+      case 'vcpm':
+        return (
+          <span className="text-sm tabular-nums">
+            {(campaign as any).vcpm ? `$${parseFloat((campaign as any).vcpm).toFixed(2)}` : '-'}
+          </span>
+        );
+      case 'videoFirstQuartile':
+        return (
+          <span className="text-sm tabular-nums">
+            {((campaign as any).videoFirstQuartile || 0).toLocaleString()}
+          </span>
+        );
+      case 'videoMidpoint':
+        return (
+          <span className="text-sm tabular-nums">
+            {((campaign as any).videoMidpoint || 0).toLocaleString()}
+          </span>
+        );
+      case 'videoThirdQuartile':
+        return (
+          <span className="text-sm tabular-nums">
+            {((campaign as any).videoThirdQuartile || 0).toLocaleString()}
+          </span>
+        );
+      case 'videoComplete':
+        return (
+          <span className="text-sm tabular-nums">
+            {((campaign as any).videoComplete || 0).toLocaleString()}
+          </span>
+        );
+      case 'videoUnmute':
+        return (
+          <span className="text-sm tabular-nums">
+            {((campaign as any).videoUnmute || 0).toLocaleString()}
+          </span>
+        );
+      case 'vtr':
+        return (
+          <span className="text-sm tabular-nums">
+            {(campaign as any).vtr ? `${(parseFloat((campaign as any).vtr) * 100).toFixed(2)}%` : '-'}
+          </span>
+        );
+      case 'vctr':
+        return (
+          <span className="text-sm tabular-nums">
+            {(campaign as any).vctr ? `${(parseFloat((campaign as any).vctr) * 100).toFixed(2)}%` : '-'}
           </span>
         );
       case 'status':
@@ -1672,7 +2001,7 @@ export default function Campaigns() {
               {/* 第四行：计费方式筛选 */}
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm text-muted-foreground">计费方式:</span>
-                {billingTypeOptions.map((option) => (
+                {costTypeOptions.map((option: { value: string; label: string }) => (
                   <Button
                     key={option.value}
                     variant={billingTypeFilter === option.value ? "default" : "outline"}
@@ -1760,7 +2089,7 @@ export default function Campaigns() {
                     )}
                     {billingTypeFilter !== "all" && (
                       <Badge variant="secondary" className="cursor-pointer hover:bg-destructive/20" onClick={() => setBillingTypeFilter("all")}>
-                        计费: {billingTypeOptions.find(t => t.value === billingTypeFilter)?.label} ×
+                        计费: {costTypeOptions.find((t: { value: string; label: string }) => t.value === billingTypeFilter)?.label} ×
                       </Badge>
                     )}
                     {runningStatusFilter !== "all" && (
@@ -2097,7 +2426,7 @@ export default function Campaigns() {
                 {filters.store !== 'all' && <div>店铺: {storeOptions.find(s => s.value === filters.store)?.label}</div>}
                 {filters.marketplace !== 'all' && <div>站点: {marketplaceOptions.find(m => m.value === filters.marketplace)?.label}</div>}
                 {filters.type !== 'all' && <div>类型: {campaignTypes.find(t => t.value === filters.type)?.label}</div>}
-                {filters.billing !== 'all' && <div>计费: {billingTypeOptions.find(b => b.value === filters.billing)?.label}</div>}
+                {filters.billing !== 'all' && <div>计费: {costTypeOptions.find((b: { value: string; label: string }) => b.value === filters.billing)?.label}</div>}
                 {filters.status !== 'all' && <div>状态: {runningStatusOptions.find(s => s.value === filters.status)?.label}</div>}
                 {filters.optimization !== 'all' && <div>优化: {optimizationStatusOptions.find(o => o.value === filters.optimization)?.label}</div>}
                 {Object.values(filters).every(v => v === '' || v === 'all' || v === '1' || v === '25') && (

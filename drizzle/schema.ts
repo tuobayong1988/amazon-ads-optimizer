@@ -501,34 +501,94 @@ export const campaigns = mysqlTable("campaigns", {
 	accountId: int().notNull(),
 	performanceGroupId: int(),
 	campaignId: varchar({ length: 64 }).notNull(),
-	campaignName: varchar({ length: 500 }).notNull(),
-	campaignType: mysqlEnum(['sp_auto','sp_manual','sb','sd']).notNull(),
-	targetingType: mysqlEnum(['auto','manual']).default('manual'),
+	
+	// === 基本信息（按亚马逊后台顺序） ===
+	state: mysqlEnum(['enabled','paused','archived','pending','other']).default('enabled'), // State - 广告活动状态
+	campaignName: varchar({ length: 500 }).notNull(), // Campaigns - 广告活动名称
+	countryCode: varchar({ length: 10 }), // Country - 国家代码
+	campaignStatus: mysqlEnum(['enabled','paused','archived']).default('enabled'), // Status - 运行状态
+	campaignType: mysqlEnum(['sp_auto','sp_manual','sb','sd']).notNull(), // Type - 类型
+	targetingType: mysqlEnum(['auto','manual']).default('manual'), // Targeting - 定向类型
+	retailer: varchar({ length: 255 }), // Retailer - 零售商
+	portfolioId: varchar({ length: 64 }), // Portfolio ID
+	portfolioName: varchar({ length: 255 }), // Portfolio - 组合名称
+	biddingStrategy: mysqlEnum(['legacyForSales','autoForSales','manual','ruleBasedBidding']).default('legacyForSales'), // Campaign bidding strategy
+	
+	// === 日期和预算 ===
+	startDate: date({ mode: 'string' }), // Start date - 开始日期
+	endDate: date({ mode: 'string' }), // End date - 结束日期
+	avgTimeInBudget: decimal({ precision: 5, scale: 2 }), // Avg. time in budget - 平均预算内时间(%)
+	budgetConverted: decimal({ precision: 15, scale: 2 }), // Budget (converted) - 转换后预算
+	dailyBudget: decimal({ precision: 10, scale: 2 }), // Budget - 每日预算
+	costType: mysqlEnum(['cpc','vcpm','cpm']).default('cpc'), // Cost type - 计费类型
+	
+	// === 曝光指标 ===
+	impressions: int().default(0), // Impressions - 曝光
+	topOfSearchImpressionShare: decimal({ precision: 5, scale: 2 }), // Top-of-search impression share
+	placementTopSearchBidAdjustment: int().default(0), // Top-of-search bid adjustment (%)
+	placementProductPageBidAdjustment: int().default(0), // Product page bid adjustment (%)
+	placementRestBidAdjustment: int().default(0), // Rest of search bid adjustment (%)
+	
+	// === 点击和花费指标 ===
+	clicks: int().default(0), // Clicks - 点击
+	ctr: decimal({ precision: 5, scale: 4 }), // CTR - 点击率
+	spendConverted: decimal({ precision: 15, scale: 2 }), // Spend (converted) - 转换后花费
+	spend: decimal({ precision: 10, scale: 2 }).default('0.00'), // Spend - 花费
+	cpcConverted: decimal({ precision: 10, scale: 2 }), // CPC (converted) - 转换后CPC
+	cpc: decimal({ precision: 10, scale: 2 }), // CPC
+	
+	// === 浏览指标 ===
+	detailPageViews: int().default(0), // Detail page views - 详情页浏览
+	brandStorePageViews: int().default(0), // Brand Store page views - 品牌店铺浏览
+	
+	// === 订单和销售指标 ===
+	orders: int().default(0), // Orders - 订单
+	salesConverted: decimal({ precision: 15, scale: 2 }), // Sales (converted) - 转换后销售额
+	sales: decimal({ precision: 10, scale: 2 }).default('0.00'), // Sales - 销售额
+	acos: decimal({ precision: 5, scale: 2 }), // ACOS
+	roas: decimal({ precision: 10, scale: 2 }), // ROAS
+	
+	// === 新客指标 (NTB - New To Brand) ===
+	ntbOrders: int().default(0), // NTB orders - 新客订单
+	ntbOrdersPercent: decimal({ precision: 5, scale: 2 }), // % of orders NTB - 新客订单占比
+	ntbSalesConverted: decimal({ precision: 15, scale: 2 }), // NTB sales (converted) - 新客销售额(转换)
+	ntbSales: decimal({ precision: 15, scale: 2 }), // NTB sales - 新客销售额
+	ntbSalesPercent: decimal({ precision: 5, scale: 2 }), // % of sales NTB - 新客销售额占比
+	
+	// === 长期指标 ===
+	longTermSalesConverted: decimal({ precision: 15, scale: 2 }), // Long-term sales (converted)
+	longTermSales: decimal({ precision: 15, scale: 2 }), // Long-term sales
+	longTermRoas: decimal({ precision: 10, scale: 2 }), // Long-term ROAS
+	
+	// === 触达指标 ===
+	cumulativeReach: int().default(0), // Cumulative reach - 累计触达
+	householdReach: int().default(0), // Household reach - 家庭触达
+	
+	// === 可见性指标 ===
+	viewableImpressions: int().default(0), // Viewable impressions - 可见曝光
+	cpmConverted: decimal({ precision: 10, scale: 2 }), // CPM (converted)
+	cpm: decimal({ precision: 10, scale: 2 }), // CPM
+	vcpmConverted: decimal({ precision: 10, scale: 2 }), // VCPM (converted)
+	vcpm: decimal({ precision: 10, scale: 2 }), // VCPM
+	
+	// === 视频指标 ===
+	videoFirstQuartile: int().default(0), // Video first quartile - 视频25%播放
+	videoMidpoint: int().default(0), // Video midpoint - 视频50%播放
+	videoThirdQuartile: int().default(0), // Video third quartile - 视频75%播放
+	videoComplete: int().default(0), // Video complete - 视频完整播放
+	videoUnmute: int().default(0), // Video unmute - 视频取消静音
+	vtr: decimal({ precision: 5, scale: 4 }), // VTR - 视频播放率
+	vctr: decimal({ precision: 5, scale: 4 }), // vCTR - 可见点击率
+	
+	// === 系统字段 ===
 	maxBid: decimal({ precision: 10, scale: 2 }),
 	intradayBiddingEnabled: tinyint(),
 	campaignConversionValueType: mysqlEnum(['sales','units','custom','inherit']).default('inherit'),
 	campaignConversionValueSource: mysqlEnum(['platform','custom','inherit']).default('inherit'),
-	placementTopSearchBidAdjustment: int().default(0),
-	placementProductPageBidAdjustment: int().default(0),
-	placementRestBidAdjustment: int().default(0),
-	impressions: int().default(0),
-	clicks: int().default(0),
-	spend: decimal({ precision: 10, scale: 2 }).default('0.00'),
-	sales: decimal({ precision: 10, scale: 2 }).default('0.00'),
-	orders: int().default(0),
-	acos: decimal({ precision: 5, scale: 2 }),
-	roas: decimal({ precision: 10, scale: 2 }),
-	ctr: decimal({ precision: 5, scale: 4 }),
 	cvr: decimal({ precision: 5, scale: 4 }),
-	cpc: decimal({ precision: 10, scale: 2 }),
-	campaignStatus: mysqlEnum(['enabled','paused','archived']).default('enabled'),
 	optimizationStatus: mysqlEnum(['managed','unmanaged']).default('unmanaged'),
-	// Amazon广告活动的开始和结束日期
-	startDate: date({ mode: 'string' }),  // 广告活动开始日期，从Amazon API获取
-	endDate: date({ mode: 'string' }),    // 广告活动结束日期，从Amazon API获取（可选）
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-	dailyBudget: decimal({ precision: 10, scale: 2 }),
 });
 
 export const collaborationNotificationRules = mysqlTable("collaboration_notification_rules", {

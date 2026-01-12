@@ -223,6 +223,14 @@ export class AmazonSyncService {
           }
         }
 
+        // 获取SB广告的组合ID
+        const sbPortfolioId = (apiCampaign as any).portfolioId ? String((apiCampaign as any).portfolioId) : null;
+
+        // 获取SB广告的竞价策略
+        const sbBiddingStrategy = (apiCampaign as any).bidding?.strategy || 
+                                  (apiCampaign as any).biddingStrategy || 
+                                  'legacyForSales';
+
         const campaignData = {
           accountId: this.accountId,
           campaignId: String(apiCampaign.campaignId),
@@ -230,10 +238,13 @@ export class AmazonSyncService {
           campaignType: 'sb' as const,
           targetingType: 'manual' as const,
           dailyBudget: String(dailyBudget),
-          budgetType: budgetType,
           campaignStatus: normalizedState,
+          state: normalizedState as 'enabled' | 'paused' | 'archived' | 'pending' | 'other',
           startDate: sbStartDate,
           endDate: sbEndDate,
+          costType: 'cpc' as 'cpc' | 'vcpm' | 'cpm', // SB广告都是CPC
+          portfolioId: sbPortfolioId,
+          biddingStrategy: sbBiddingStrategy as 'legacyForSales' | 'autoForSales' | 'manual' | 'ruleBasedBidding',
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
 
@@ -346,6 +357,17 @@ export class AmazonSyncService {
           }
         }
 
+        // 获取SD广告的计费类型
+        const sdCostType = (apiCampaign as any).costType?.toLowerCase() || 'cpc';
+        const validCostTypes = ['cpc', 'vcpm', 'cpm'];
+        const normalizedCostType = validCostTypes.includes(sdCostType) ? sdCostType : 'cpc';
+
+        // 获受组合ID
+        const sdPortfolioId = (apiCampaign as any).portfolioId ? String((apiCampaign as any).portfolioId) : null;
+
+        // 获取定向类型
+        const sdTargetingType = (apiCampaign as any).tactic || 'manual';
+
         const campaignData = {
           accountId: this.accountId,
           campaignId: String(apiCampaign.campaignId),
@@ -353,10 +375,12 @@ export class AmazonSyncService {
           campaignType: 'sd' as const,
           targetingType: 'manual' as const,
           dailyBudget: String(dailyBudget),
-          budgetType: budgetType,
           campaignStatus: normalizedState,
+          state: normalizedState as 'enabled' | 'paused' | 'archived' | 'pending' | 'other',
           startDate: sdStartDate,
           endDate: sdEndDate,
+          costType: normalizedCostType as 'cpc' | 'vcpm' | 'cpm',
+          portfolioId: sdPortfolioId,
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
 
@@ -473,6 +497,14 @@ export class AmazonSyncService {
           }
         }
 
+        // 获取竞价策略
+        const biddingStrategy = (apiCampaign as any).dynamicBidding?.strategy || 
+                               (apiCampaign as any).bidding?.strategy || 
+                               'legacyForSales';
+
+        // 获取组合信息
+        const portfolioId = (apiCampaign as any).portfolioId ? String((apiCampaign as any).portfolioId) : null;
+
         const campaignData = {
           accountId: this.accountId,
           campaignId: String(apiCampaign.campaignId),
@@ -481,10 +513,14 @@ export class AmazonSyncService {
           targetingType: normalizedTargetingType,
           dailyBudget: String(dailyBudgetValue),
           campaignStatus: (apiCampaign.state?.toLowerCase() || 'enabled') as 'enabled' | 'paused' | 'archived',
+          state: (apiCampaign.state?.toLowerCase() || 'enabled') as 'enabled' | 'paused' | 'archived' | 'pending' | 'other',
           startDate: startDateValue,
           endDate: endDateValue,
           placementTopSearchBidAdjustment: this.getPlacementMultiplier(apiCampaign, 'placementTop'),
           placementProductPageBidAdjustment: this.getPlacementMultiplier(apiCampaign, 'placementProductPage'),
+          biddingStrategy: biddingStrategy as 'legacyForSales' | 'autoForSales' | 'manual' | 'ruleBasedBidding',
+          portfolioId: portfolioId,
+          costType: 'cpc' as 'cpc' | 'vcpm' | 'cpm', // SP广告都是CPC
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
 

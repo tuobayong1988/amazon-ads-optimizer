@@ -1,0 +1,349 @@
+{
+  "query": "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'campaigns' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'campaigns' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id"
+    },
+    {
+      "COLUMN_NAME": "accountId"
+    },
+    {
+      "COLUMN_NAME": "performanceGroupId"
+    },
+    {
+      "COLUMN_NAME": "campaignId"
+    },
+    {
+      "COLUMN_NAME": "campaignName"
+    },
+    {
+      "COLUMN_NAME": "campaignType"
+    },
+    {
+      "COLUMN_NAME": "targetingType"
+    },
+    {
+      "COLUMN_NAME": "maxBid"
+    },
+    {
+      "COLUMN_NAME": "intradayBiddingEnabled"
+    },
+    {
+      "COLUMN_NAME": "campaignConversionValueType"
+    },
+    {
+      "COLUMN_NAME": "campaignConversionValueSource"
+    },
+    {
+      "COLUMN_NAME": "placementTopSearchBidAdjustment"
+    },
+    {
+      "COLUMN_NAME": "placementProductPageBidAdjustment"
+    },
+    {
+      "COLUMN_NAME": "placementRestBidAdjustment"
+    },
+    {
+      "COLUMN_NAME": "impressions"
+    },
+    {
+      "COLUMN_NAME": "clicks"
+    },
+    {
+      "COLUMN_NAME": "spend"
+    },
+    {
+      "COLUMN_NAME": "sales"
+    },
+    {
+      "COLUMN_NAME": "orders"
+    },
+    {
+      "COLUMN_NAME": "acos"
+    },
+    {
+      "COLUMN_NAME": "roas"
+    },
+    {
+      "COLUMN_NAME": "ctr"
+    },
+    {
+      "COLUMN_NAME": "cvr"
+    },
+    {
+      "COLUMN_NAME": "cpc"
+    },
+    {
+      "COLUMN_NAME": "campaignStatus"
+    },
+    {
+      "COLUMN_NAME": "createdAt"
+    },
+    {
+      "COLUMN_NAME": "updatedAt"
+    },
+    {
+      "COLUMN_NAME": "dailyBudget"
+    },
+    {
+      "COLUMN_NAME": "optimizationStatus"
+    },
+    {
+      "COLUMN_NAME": "units_ordered"
+    },
+    {
+      "COLUMN_NAME": "average_order_value"
+    },
+    {
+      "COLUMN_NAME": "sales_7d"
+    },
+    {
+      "COLUMN_NAME": "orders_7d"
+    },
+    {
+      "COLUMN_NAME": "units_ordered_7d"
+    },
+    {
+      "COLUMN_NAME": "sales_30d"
+    },
+    {
+      "COLUMN_NAME": "orders_30d"
+    },
+    {
+      "COLUMN_NAME": "units_ordered_30d"
+    },
+    {
+      "COLUMN_NAME": "ntb_orders"
+    },
+    {
+      "COLUMN_NAME": "ntb_sales"
+    },
+    {
+      "COLUMN_NAME": "ntb_units_ordered"
+    },
+    {
+      "COLUMN_NAME": "ntb_orders_percent"
+    },
+    {
+      "COLUMN_NAME": "ntb_sales_percent"
+    },
+    {
+      "COLUMN_NAME": "top_of_search_impressions"
+    },
+    {
+      "COLUMN_NAME": "top_of_search_clicks"
+    },
+    {
+      "COLUMN_NAME": "top_of_search_spend"
+    },
+    {
+      "COLUMN_NAME": "top_of_search_sales"
+    },
+    {
+      "COLUMN_NAME": "product_page_impressions"
+    },
+    {
+      "COLUMN_NAME": "product_page_clicks"
+    },
+    {
+      "COLUMN_NAME": "product_page_spend"
+    },
+    {
+      "COLUMN_NAME": "product_page_sales"
+    },
+    {
+      "COLUMN_NAME": "rest_of_search_impressions"
+    },
+    {
+      "COLUMN_NAME": "rest_of_search_clicks"
+    },
+    {
+      "COLUMN_NAME": "rest_of_search_spend"
+    },
+    {
+      "COLUMN_NAME": "rest_of_search_sales"
+    },
+    {
+      "COLUMN_NAME": "branded_searches"
+    },
+    {
+      "COLUMN_NAME": "branded_searches_clicks"
+    },
+    {
+      "COLUMN_NAME": "video_views"
+    },
+    {
+      "COLUMN_NAME": "video_view_rate"
+    },
+    {
+      "COLUMN_NAME": "video_first_quartile_views"
+    },
+    {
+      "COLUMN_NAME": "video_midpoint_views"
+    },
+    {
+      "COLUMN_NAME": "video_third_quartile_views"
+    },
+    {
+      "COLUMN_NAME": "video_complete_views"
+    },
+    {
+      "COLUMN_NAME": "viewable_impressions"
+    },
+    {
+      "COLUMN_NAME": "view_through_conversions"
+    },
+    {
+      "COLUMN_NAME": "view_through_sales"
+    },
+    {
+      "COLUMN_NAME": "bidding_strategy"
+    },
+    {
+      "COLUMN_NAME": "budget_type"
+    },
+    {
+      "COLUMN_NAME": "lifetime_budget"
+    },
+    {
+      "COLUMN_NAME": "budget_usage_percent"
+    },
+    {
+      "COLUMN_NAME": "start_date"
+    },
+    {
+      "COLUMN_NAME": "end_date"
+    },
+    {
+      "COLUMN_NAME": "negative_keywords_count"
+    },
+    {
+      "COLUMN_NAME": "negative_targets_count"
+    },
+    {
+      "COLUMN_NAME": "state"
+    },
+    {
+      "COLUMN_NAME": "country"
+    },
+    {
+      "COLUMN_NAME": "retailer"
+    },
+    {
+      "COLUMN_NAME": "portfolio"
+    },
+    {
+      "COLUMN_NAME": "biddingStrategy"
+    },
+    {
+      "COLUMN_NAME": "startDate"
+    },
+    {
+      "COLUMN_NAME": "endDate"
+    },
+    {
+      "COLUMN_NAME": "avgTimeInBudget"
+    },
+    {
+      "COLUMN_NAME": "budgetConverted"
+    },
+    {
+      "COLUMN_NAME": "costType"
+    },
+    {
+      "COLUMN_NAME": "topOfSearchImpressionShare"
+    },
+    {
+      "COLUMN_NAME": "spendConverted"
+    },
+    {
+      "COLUMN_NAME": "cpcConverted"
+    },
+    {
+      "COLUMN_NAME": "detailPageViews"
+    },
+    {
+      "COLUMN_NAME": "brandStorePageViews"
+    },
+    {
+      "COLUMN_NAME": "salesConverted"
+    },
+    {
+      "COLUMN_NAME": "ntbOrders"
+    },
+    {
+      "COLUMN_NAME": "ntbOrdersPercent"
+    },
+    {
+      "COLUMN_NAME": "ntbSalesConverted"
+    },
+    {
+      "COLUMN_NAME": "ntbSales"
+    },
+    {
+      "COLUMN_NAME": "ntbSalesPercent"
+    },
+    {
+      "COLUMN_NAME": "longTermSalesConverted"
+    },
+    {
+      "COLUMN_NAME": "longTermSales"
+    },
+    {
+      "COLUMN_NAME": "longTermRoas"
+    },
+    {
+      "COLUMN_NAME": "cumulativeReach"
+    },
+    {
+      "COLUMN_NAME": "householdReach"
+    },
+    {
+      "COLUMN_NAME": "viewableImpressions"
+    },
+    {
+      "COLUMN_NAME": "cpmConverted"
+    },
+    {
+      "COLUMN_NAME": "cpm"
+    },
+    {
+      "COLUMN_NAME": "vcpmConverted"
+    },
+    {
+      "COLUMN_NAME": "vcpm"
+    },
+    {
+      "COLUMN_NAME": "videoFirstQuartile"
+    },
+    {
+      "COLUMN_NAME": "videoMidpoint"
+    },
+    {
+      "COLUMN_NAME": "videoThirdQuartile"
+    },
+    {
+      "COLUMN_NAME": "videoComplete"
+    },
+    {
+      "COLUMN_NAME": "videoUnmute"
+    },
+    {
+      "COLUMN_NAME": "vtr"
+    },
+    {
+      "COLUMN_NAME": "vctr"
+    },
+    {
+      "COLUMN_NAME": "topOfSearchBidAdjustment"
+    },
+    {
+      "COLUMN_NAME": "countryCode"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nid\naccountId\nperformanceGroupId\ncampaignId\ncampaignName\ncampaignType\ntargetingType\nmaxBid\nintradayBiddingEnabled\ncampaignConversionValueType\ncampaignConversionValueSource\nplacementTopSearchBidAdjustment\nplacementProductPageBidAdjustment\nplacementRestBidAdjustment\nimpressions\nclicks\nspend\nsales\norders\nacos\nroas\nctr\ncvr\ncpc\ncampaignStatus\ncreatedAt\nupdatedAt\ndailyBudget\noptimizationStatus\nunits_ordered\naverage_order_value\nsales_7d\norders_7d\nunits_ordered_7d\nsales_30d\norders_30d\nunits_ordered_30d\nntb_orders\nntb_sales\nntb_units_ordered\nntb_orders_percent\nntb_sales_percent\ntop_of_search_impressions\ntop_of_search_clicks\ntop_of_search_spend\ntop_of_search_sales\nproduct_page_impressions\nproduct_page_clicks\nproduct_page_spend\nproduct_page_sales\nrest_of_search_impressions\nrest_of_search_clicks\nrest_of_search_spend\nrest_of_search_sales\nbranded_searches\nbranded_searches_clicks\nvideo_views\nvideo_view_rate\nvideo_first_quartile_views\nvideo_midpoint_views\nvideo_third_quartile_views\nvideo_complete_views\nviewable_impressions\nview_through_conversions\nview_through_sales\nbidding_strategy\nbudget_type\nlifetime_budget\nbudget_usage_percent\nstart_date\nend_date\nnegative_keywords_count\nnegative_targets_count\nstate\ncountry\nretailer\nportfolio\nbiddingStrategy\nstartDate\nendDate\navgTimeInBudget\nbudgetConverted\ncostType\ntopOfSearchImpressionShare\nspendConverted\ncpcConverted\ndetailPageViews\nbrandStorePageViews\nsalesConverted\nntbOrders\nntbOrdersPercent\nntbSalesConverted\nntbSales\nntbSalesPercent\nlongTermSalesConverted\nlongTermSales\nlongTermRoas\ncumulativeReach\nhouseholdReach\nviewableImpressions\ncpmConverted\ncpm\nvcpmConverted\nvcpm\nvideoFirstQuartile\nvideoMidpoint\nvideoThirdQuartile\nvideoComplete\nvideoUnmute\nvtr\nvctr\ntopOfSearchBidAdjustment\ncountryCode\n",
+  "stderr": "",
+  "execution_time_ms": 65
+}

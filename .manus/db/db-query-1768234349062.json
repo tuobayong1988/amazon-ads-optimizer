@@ -1,0 +1,15 @@
+{
+  "query": "SELECT id, accountid, campaignname FROM campaigns LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT id, accountid, campaignname FROM campaigns LIMIT 1;",
+  "rows": [
+    {
+      "id": "126251",
+      "accountid": "60017",
+      "campaignname": "2025.12.01-CPC-SP-AUTO-B0F29R4MFV-Loose Match"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\taccountid\tcampaignname\n126251\t60017\t2025.12.01-CPC-SP-AUTO-B0F29R4MFV-Loose Match\n",
+  "stderr": "",
+  "execution_time_ms": 63
+}

@@ -1,0 +1,28 @@
+{
+  "query": "SELECT id, userId, accountName, marketplace FROM ad_accounts;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT id, userId, accountName, marketplace FROM ad_accounts;",
+  "rows": [
+    {
+      "id": "60017",
+      "userId": "1",
+      "accountName": "ElaraFit 加拿大",
+      "marketplace": "CA"
+    },
+    {
+      "id": "60018",
+      "userId": "1",
+      "accountName": "ElaraFit 墨西哥",
+      "marketplace": "MX"
+    },
+    {
+      "id": "60019",
+      "userId": "1",
+      "accountName": "ElaraFit 美国",
+      "marketplace": "US"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tuserId\taccountName\tmarketplace\n60017\t1\tElaraFit 加拿大\tCA\n60018\t1\tElaraFit 墨西哥\tMX\n60019\t1\tElaraFit 美国\tUS\n",
+  "stderr": "",
+  "execution_time_ms": 51
+}

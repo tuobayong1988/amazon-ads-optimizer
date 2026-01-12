@@ -4509,3 +4509,113 @@ Amazon Advertising API数据有12-24小时延迟，当天广告数据通常在�
 - SB品牌广告: 1721
 - SD展示广告: 29
 - 已同步startDate的广告活动: 已验证显示正确
+
+
+## Amazon Ads API进一步优化（第二十五阶段）
+
+### 任务1：验证SB广告的startDate
+- [x] 查看服务器日志确认SB API返回数据
+- [x] 调试SB Campaign API的startDate字段解析
+- [x] 确保SB广告的startDate正确存储到数据库
+
+### 任务2：设置定时同步
+- [ ] 配置每日自动同步任务
+- [ ] 设置同步时间（建议凌晨低峰期）
+- [ ] 添加同步失败告警通知
+
+### 任务3：优化Report API v3集成
+- [ ] 添加campaignBudgetCurrencyCode字段
+- [ ] 添加campaignBudgetType字段
+- [ ] 添加其他Report API v3新增字段
+- [ ] 更新数据库schema支持新字段
+- [ ] 测试Report API数据同步
+
+
+## 广告活动参数更新（与亚马逊后台完全一致）
+
+### 亚马逊后台广告活动参数列表（按顺序）
+1. State - 状态
+2. Campaigns - 广告活动名称
+3. Country - 国家
+4. Status - 运行状态
+5. Type - 类型
+6. Targeting - 定向类型
+7. Retailer - 零售商
+8. Portfolio - 组合
+9. Campaign bidding strategy - 竞价策略
+10. Start date - 开始日期
+11. End date - 结束日期
+12. Avg. time in budget - 平均预算内时间
+13. Budget (converted) - 预算（转换）
+14. Budget - 预算
+15. Cost type - 计费类型
+16. Impressions - 曝光
+17. Top-of-search impression share - 搜索顶部曝光份额
+18. Top-of-search bid adjustment - 搜索顶部出价调整
+19. Clicks - 点击
+20. CTR - 点击率
+21. Spend (converted) - 花费（转换）
+22. Spend - 花费
+23. CPC (converted) - CPC（转换）
+24. CPC - CPC
+25. Detail page views - 详情页浏览
+26. Brand Store page views - 品牌店铺浏览
+27. Orders - 订单
+28. Sales (converted) - 销售额（转换）
+29. Sales - 销售额
+30. ACOS - ACoS
+31. ROAS - ROAS
+32. NTB orders - 新客订单
+33. % of orders NTB - 新客订单占比
+34. NTB sales (converted) - 新客销售额（转换）
+35. NTB sales - 新客销售额
+36. % of sales NTB - 新客销售额占比
+37. Long-term sales (converted) - 长期销售额（转换）
+38. Long-term sales - 长期销售额
+39. Long-term ROAS - 长期ROAS
+40. Cumulative reach - 累计触达
+41. Household reach - 家庭触达
+42. Viewable impressions - 可见曝光
+43. CPM (converted) - CPM（转换）
+44. CPM - CPM
+45. VCPM (converted) - VCPM（转换）
+46. VCPM - VCPM
+47. Video first quartile - 视频25%播放
+48. Video midpoint - 视频50%播放
+49. Video third quartile - 视频75%播放
+50. Video complete - 视频完整播放
+51. Video unmute - 视频取消静音
+52. VTR - 视频播放率
+53. vCTR - 可见点击率
+
+### 任务清单
+- [ ] 更新campaigns表schema添加缺失字段
+- [ ] 更新前端广告活动列表列配置
+- [ ] 更新API同步逻辑获取新增字段
+- [ ] 验证参数顺序与亚马逊后台一致
+
+
+
+## Amazon Ads API数据同步优化（第二十五阶段）
+
+### SB广告startDate验证
+- [x] 查看服务器日志确认SB API返回数据
+- [x] 调试SB Campaign API的startDate字段解析
+- [x] 确保SB广告的startDate正确存储到数据库
+
+### 定时同步配置
+- [x] 检查现有定时同步功能
+- [x] 配置每日自动同步任务
+- [x] 启用定时同步开关
+
+### 广告活动参数更新（与亚马逊后台完全一致）
+- [x] 添加所有缺失的字段到数据库schema（53个字段）
+- [x] 更新前端广告活动列表显示参数和顺序
+- [x] 更新API同步逻辑获取新增字段
+- [x] 修复数据库列名大小写问题（添加portfolioId、portfolioName列）
+- [x] 配置Drizzle ORM的casing选项
+
+### 数据同步验证
+- [x] 触发完整数据同步
+- [x] 验证3155个广告活动正确显示
+- [x] 验证startDate字段正确显示（如2025/11/30）
