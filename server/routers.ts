@@ -863,6 +863,13 @@ const campaignRouter = router({
       return db.getCampaignPlacementStats(input.campaignId);
     }),
   
+  // 获取广告位置绩效数据（用于CampaignDetail页面）
+  getPlacementPerformance: protectedProcedure
+    .input(z.object({ campaignId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getPlacementPerformanceByCampaignId(input.campaignId);
+    }),
+  
   // 获取广告活动所有投放词（关键词+商品定向）
   getTargets: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
@@ -3456,6 +3463,61 @@ const amazonApiRouter = router({
             console.error('[绩效数据同步] 失败:', error.message);
             results.performance = 0;
             results.performanceError = error.message;
+          }
+
+          // 搜索词数据同步（新增）
+          try {
+            console.log('[搜索词同步] 开始同步搜索词数据...');
+            const searchTermsCount = await syncService.syncSearchTerms(performanceDays);
+            results.searchTerms = searchTermsCount;
+            console.log(`[搜索词同步] 完成: ${searchTermsCount} 条记录`);
+          } catch (error: any) {
+            console.error('[搜索词同步] 失败:', error.message);
+            results.searchTerms = 0;
+          }
+
+          // 广告位置绩效同步（新增）
+          try {
+            console.log('[位置绩效同步] 开始同步广告位置绩效...');
+            const placementsCount = await syncService.syncPlacementPerformance(performanceDays);
+            results.placements = placementsCount;
+            console.log(`[位置绩效同步] 完成: ${placementsCount} 条记录`);
+          } catch (error: any) {
+            console.error('[位置绩效同步] 失败:', error.message);
+            results.placements = 0;
+          }
+
+          // 自动定向数据同步（新增）
+          try {
+            console.log('[自动定向同步] 开始同步SP自动定向数据...');
+            const autoTargetsCount = await syncService.syncAutoTargeting(performanceDays);
+            results.autoTargets = autoTargetsCount;
+            console.log(`[自动定向同步] 完成: ${autoTargetsCount} 条记录`);
+          } catch (error: any) {
+            console.error('[自动定向同步] 失败:', error.message);
+            results.autoTargets = 0;
+          }
+
+          // SD定向数据同步（新增）
+          try {
+            console.log('[SD定向同步] 开始同步SD定向数据...');
+            const sdTargetsCount = await syncService.syncSdTargeting(performanceDays);
+            results.sdTargets = sdTargetsCount;
+            console.log(`[SD定向同步] 完成: ${sdTargetsCount} 条记录`);
+          } catch (error: any) {
+            console.error('[SD定向同步] 失败:', error.message);
+            results.sdTargets = 0;
+          }
+
+          // SB定向数据同步（新增）
+          try {
+            console.log('[SB定向同步] 开始同步SB定向数据...');
+            const sbTargetsCount = await syncService.syncSbTargeting(performanceDays);
+            results.sbTargets = sbTargetsCount;
+            console.log(`[SB定向同步] 完成: ${sbTargetsCount} 条记录`);
+          } catch (error: any) {
+            console.error('[SB定向同步] 失败:', error.message);
+            results.sbTargets = 0;
           }
 
           // 保存变更摘要

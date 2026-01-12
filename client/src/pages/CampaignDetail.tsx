@@ -57,6 +57,60 @@ const campaignTypeLabels: Record<string, string> = {
   sd: "SD 展示",
 };
 
+// SP自动广告匹配组类型映射
+const autoTargetingTypeLabels: Record<string, string> = {
+  "QUERY_HIGH_REL_MATCHES": "紧密匹配",
+  "QUERY_BROAD_REL_MATCHES": "宽泛匹配",
+  "ASIN_ACCESSORY_RELATED": "关联商品",
+  "ASIN_SUBSTITUTE_RELATED": "同类商品",
+  "close-match": "紧密匹配",
+  "loose-match": "宽泛匹配",
+  "complements": "关联商品",
+  "substitutes": "同类商品",
+};
+
+// 格式化自动定向表达式为用户友好的显示名称
+function formatAutoTargetingExpression(expression: string): string {
+  if (!expression) return 'ASIN定向';
+  
+  // 尝试解析JSON格式
+  try {
+    const parsed = JSON.parse(expression);
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      const type = parsed[0]?.type;
+      if (type && autoTargetingTypeLabels[type]) {
+        return autoTargetingTypeLabels[type];
+      }
+    }
+  } catch (e) {
+    // 不是JSON格式，继续处理
+  }
+  
+  // 检查是否是已知的自动定向类型
+  if (autoTargetingTypeLabels[expression]) {
+    return autoTargetingTypeLabels[expression];
+  }
+  
+  // 检查是否包含自动定向关键词
+  for (const [key, label] of Object.entries(autoTargetingTypeLabels)) {
+    if (expression.includes(key)) {
+      return label;
+    }
+  }
+  
+  // 检查是否是ASIN格式 (B0xxxxxxxxx)
+  if (/^B0[A-Z0-9]{8,}$/i.test(expression)) {
+    return `ASIN: ${expression}`;
+  }
+  
+  // 检查是否是品类定向
+  if (expression.toLowerCase().includes('category')) {
+    return '品类定向';
+  }
+  
+  return expression;
+}
+
 export default function CampaignDetail() {
   const [, setLocation] = useLocation();
   const [match, params] = useRoute("/campaigns/:id");
@@ -623,43 +677,354 @@ export default function CampaignDetail() {
             <TabsTrigger value="adgroups">广告组</TabsTrigger>
             <TabsTrigger value="targets">投放词</TabsTrigger>
             <TabsTrigger value="searchterms">搜索词</TabsTrigger>
+            <TabsTrigger value="placements">广告位置</TabsTrigger>
             <TabsTrigger value="keywords">关键词</TabsTrigger>
           </TabsList>
           
           <TabsContent value="overview" className="mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>广告活动信息</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground">活动ID</p>
-                    <p className="font-medium">{campaign.campaignId}</p>
+            <div className="space-y-4">
+              {/* 基本信息卡片 */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>基本信息</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div>
+                      <p className="text-sm text-muted-foreground">活动ID</p>
+                      <p className="font-medium">{campaign.campaignId}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">活动类型</p>
+                      <p className="font-medium">{campaignTypeLabels[campaign.campaignType] || campaign.campaignType}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">定向类型</p>
+                      <p className="font-medium">{campaign.targetingType === "auto" ? "自动" : "手动"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">计费方式</p>
+                      <p className="font-medium">{campaign.costType === "vcpm" ? "VCPM (可见千次曝光)" : campaign.costType === "cpm" ? "CPM (千次曝光)" : "CPC (按点击)"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">日预算</p>
+                      <p className="font-medium">${campaign.dailyBudget || "N/A"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">竞价策略</p>
+                      <p className="font-medium">{
+                        campaign.biddingStrategy === "autoForSales" ? "自动竞价(销售优化)" :
+                        campaign.biddingStrategy === "legacyForSales" ? "固定竞价" :
+                        campaign.biddingStrategy === "ruleBasedBidding" ? "基于规则" : "手动竞价"
+                      }</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">开始日期</p>
+                      <p className="font-medium">{campaign.startDate || "N/A"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-muted-foreground">结束日期</p>
+                      <p className="font-medium">{campaign.endDate || "无限期"}</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">活动类型</p>
-                    <p className="font-medium">{campaignTypeLabels[campaign.campaignType] || campaign.campaignType}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">定向类型</p>
-                    <p className="font-medium">{campaign.targetingType === "auto" ? "自动" : "手动"}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">日预算</p>
-                    <p className="font-medium">${campaign.dailyBudget || "N/A"}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">最高出价</p>
-                    <p className="font-medium">${campaign.maxBid || "N/A"}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">创建时间</p>
-                    <p className="font-medium">{campaign.createdAt ? new Date(campaign.createdAt).toLocaleDateString() : "N/A"}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+              
+              {/* SP自动广告特有信息 */}
+              {campaign.campaignType === "sp_auto" && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Zap className="h-5 w-5" />
+                      SP自动广告设置
+                    </CardTitle>
+                    <CardDescription>自动定向匹配组设置</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="p-3 border rounded-lg">
+                        <p className="text-sm text-muted-foreground">紧密匹配</p>
+                        <p className="font-medium text-green-500">启用</p>
+                        <p className="text-xs text-muted-foreground mt-1">与商品高度相关的搜索词</p>
+                      </div>
+                      <div className="p-3 border rounded-lg">
+                        <p className="text-sm text-muted-foreground">宽泛匹配</p>
+                        <p className="font-medium text-green-500">启用</p>
+                        <p className="text-xs text-muted-foreground mt-1">与商品松散相关的搜索词</p>
+                      </div>
+                      <div className="p-3 border rounded-lg">
+                        <p className="text-sm text-muted-foreground">同类商品</p>
+                        <p className="font-medium text-green-500">启用</p>
+                        <p className="text-xs text-muted-foreground mt-1">与您商品相似的商品页</p>
+                      </div>
+                      <div className="p-3 border rounded-lg">
+                        <p className="text-sm text-muted-foreground">关联商品</p>
+                        <p className="font-medium text-green-500">启用</p>
+                        <p className="text-xs text-muted-foreground mt-1">与您商品互补的商品页</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {/* SP手动广告特有信息 */}
+              {campaign.campaignType === "sp_manual" && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Target className="h-5 w-5" />
+                      SP手动广告设置
+                    </CardTitle>
+                    <CardDescription>关键词/商品定向设置</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">最高出价</p>
+                        <p className="font-medium">${campaign.maxBid || "N/A"}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">搜索顶部出价调整</p>
+                        <p className="font-medium">{campaign.placementTopSearchBidAdjustment || 0}%</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">商品页出价调整</p>
+                        <p className="font-medium">{campaign.placementProductPageBidAdjustment || 0}%</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {/* SB品牌广告特有信息 */}
+              {campaign.campaignType === "sb" && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Megaphone className="h-5 w-5" />
+                      SB品牌广告设置
+                    </CardTitle>
+                    <CardDescription>品牌推广广告配置</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">广告格式</p>
+                        <p className="font-medium">{
+                          campaign.adFormat === "productCollection" ? "商品集" :
+                          campaign.adFormat === "video" ? "品牌视频" :
+                          campaign.adFormat === "storeSpotlight" ? "品牌旗舰店焦点" :
+                          campaign.adFormat === "brandVideo" ? "品牌视频" : "N/A"
+                        }</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">落地页类型</p>
+                        <p className="font-medium">{
+                          campaign.landingPageType === "store" ? "品牌旗舰店" :
+                          campaign.landingPageType === "productList" ? "商品列表" :
+                          campaign.landingPageType === "customUrl" ? "自定义URL" : "N/A"
+                        }</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">品牌实体ID</p>
+                        <p className="font-medium">{campaign.brandEntityId || "N/A"}</p>
+                      </div>
+                      {campaign.headline && (
+                        <div className="col-span-full">
+                          <p className="text-sm text-muted-foreground">广告标题</p>
+                          <p className="font-medium">{campaign.headline}</p>
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* SB新客指标 */}
+                    <div className="mt-4 pt-4 border-t">
+                      <h4 className="text-sm font-medium mb-3">新客指标 (NTB)</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                          <p className="text-sm text-muted-foreground">新客订单</p>
+                          <p className="font-medium">{campaign.ntbOrders || 0}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">新客订单占比</p>
+                          <p className="font-medium">{campaign.ntbOrdersPercent || 0}%</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">新客销售额</p>
+                          <p className="font-medium">${parseFloat(campaign.ntbSales || "0").toFixed(2)}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">新客销售占比</p>
+                          <p className="font-medium">{campaign.ntbSalesPercent || 0}%</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* SB视频指标 */}
+                    {(campaign.adFormat === "video" || campaign.adFormat === "brandVideo") && (
+                      <div className="mt-4 pt-4 border-t">
+                        <h4 className="text-sm font-medium mb-3">视频指标</h4>
+                        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                          <div>
+                            <p className="text-sm text-muted-foreground">25%播放</p>
+                            <p className="font-medium">{campaign.videoFirstQuartile || 0}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">50%播放</p>
+                            <p className="font-medium">{campaign.videoMidpoint || 0}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">75%播放</p>
+                            <p className="font-medium">{campaign.videoThirdQuartile || 0}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">完整播放</p>
+                            <p className="font-medium">{campaign.videoComplete || 0}</p>
+                          </div>
+                          <div>
+                            <p className="text-sm text-muted-foreground">VTR</p>
+                            <p className="font-medium">{((campaign.vtr || 0) * 100).toFixed(2)}%</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+              
+              {/* SD展示广告特有信息 */}
+              {campaign.campaignType === "sd" && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Monitor className="h-5 w-5" />
+                      SD展示广告设置
+                    </CardTitle>
+                    <CardDescription>展示型推广广告配置</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">计费方式</p>
+                        <p className="font-medium">{campaign.costType === "vcpm" ? "VCPM (可见千次曝光)" : "CPC (按点击)"}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">竞价优化目标</p>
+                        <p className="font-medium">{
+                          campaign.bidOptimization === "reach" ? "触达优化" :
+                          campaign.bidOptimization === "pageVisits" ? "页面访问优化" :
+                          campaign.bidOptimization === "conversions" ? "转化优化" : "N/A"
+                        }</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">定向策略</p>
+                        <p className="font-medium">{
+                          campaign.tactic === "T00001" ? "商品定向" :
+                          campaign.tactic === "T00020" ? "浏览再营销" :
+                          campaign.tactic === "T00030" ? "购买再营销" :
+                          campaign.tactic === "T00040" ? "亚马逊受众" : "N/A"
+                        }</p>
+                      </div>
+                    </div>
+                    
+                    {/* SD可见性指标 */}
+                    <div className="mt-4 pt-4 border-t">
+                      <h4 className="text-sm font-medium mb-3">可见性指标</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                          <p className="text-sm text-muted-foreground">可见曝光</p>
+                          <p className="font-medium">{campaign.viewableImpressions || 0}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">VCPM</p>
+                          <p className="font-medium">${parseFloat(campaign.vcpm || "0").toFixed(2)}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">vCTR</p>
+                          <p className="font-medium">{((campaign.vctr || 0) * 100).toFixed(2)}%</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">详情页浏览</p>
+                          <p className="font-medium">{campaign.detailPageViews || 0}</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* SD浏览归因指标 */}
+                    <div className="mt-4 pt-4 border-t">
+                      <h4 className="text-sm font-medium mb-3">浏览归因指标</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                          <p className="text-sm text-muted-foreground">浏览归因销售额</p>
+                          <p className="font-medium">${parseFloat(campaign.viewAttributedSales || "0").toFixed(2)}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">浏览归因订单</p>
+                          <p className="font-medium">{campaign.viewAttributedOrders || 0}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">浏览归因详情页</p>
+                          <p className="font-medium">{campaign.viewAttributedDpv || 0}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">浏览归因新客销售</p>
+                          <p className="font-medium">${parseFloat(campaign.viewAttributedNtbSales || "0").toFixed(2)}</p>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* SD新客指标 */}
+                    <div className="mt-4 pt-4 border-t">
+                      <h4 className="text-sm font-medium mb-3">新客指标 (NTB)</h4>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                          <p className="text-sm text-muted-foreground">新客订单</p>
+                          <p className="font-medium">{campaign.ntbOrders || 0}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">新客订单占比</p>
+                          <p className="font-medium">{campaign.ntbOrdersPercent || 0}%</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">新客销售额</p>
+                          <p className="font-medium">${parseFloat(campaign.ntbSales || "0").toFixed(2)}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm text-muted-foreground">新客销售占比</p>
+                          <p className="font-medium">{campaign.ntbSalesPercent || 0}%</p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              
+              {/* 位置出价调整卡片 (SP广告) */}
+              {(campaign.campaignType === "sp_auto" || campaign.campaignType === "sp_manual") && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>位置出价调整</CardTitle>
+                    <CardDescription>不同广告位置的出价调整百分比</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="p-3 border rounded-lg text-center">
+                        <p className="text-sm text-muted-foreground">搜索顶部</p>
+                        <p className="text-2xl font-bold text-primary">{campaign.placementTopSearchBidAdjustment || 0}%</p>
+                      </div>
+                      <div className="p-3 border rounded-lg text-center">
+                        <p className="text-sm text-muted-foreground">商品详情页</p>
+                        <p className="text-2xl font-bold text-primary">{campaign.placementProductPageBidAdjustment || 0}%</p>
+                      </div>
+                      <div className="p-3 border rounded-lg text-center">
+                        <p className="text-sm text-muted-foreground">其他位置</p>
+                        <p className="text-2xl font-bold text-primary">{campaign.placementRestBidAdjustment || 0}%</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
           </TabsContent>
           
           <TabsContent value="adgroups" className="mt-4">
@@ -741,6 +1106,18 @@ export default function CampaignDetail() {
               </CardHeader>
               <CardContent>
                 <SearchTermsList campaignId={campaignId} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+          
+          <TabsContent value="placements" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>广告位置绩效</CardTitle>
+                <CardDescription>不同广告展示位置的绩效数据</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PlacementPerformanceList campaignId={campaignId} campaignType={campaign.campaignType} />
               </CardContent>
             </Card>
           </TabsContent>
@@ -1220,7 +1597,7 @@ function TargetsList({ campaignId }: { campaignId: number }) {
       allTargets.push({
         id: `pt-${pt.id}`,
         realId: pt.id,
-        text: pt.targetExpression || pt.asin || 'ASIN定向',
+        text: formatAutoTargetingExpression(pt.targetExpression || pt.asin || ''),
         type: 'product',
         matchType: null,
         status: pt.status,
@@ -1684,7 +2061,12 @@ function TargetsList({ campaignId }: { campaignId: number }) {
                   </TableCell>
                   <TableCell>
                     <Badge variant={isKeyword ? "default" : "secondary"}>
-                      {isKeyword ? "关键词" : "商品定向"}
+                      {isKeyword ? "关键词" : (
+                        // 检查是否是SP自动广告的匹配组
+                        ["紧密匹配", "宽泛匹配", "关联商品", "同类商品"].includes(target.text) 
+                          ? "自动定向" 
+                          : "商品定向"
+                      )}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -2734,6 +3116,153 @@ function SearchTermsList({ campaignId }: { campaignId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+
+// 广告位置绩效列表组件
+function PlacementPerformanceList({ campaignId, campaignType }: { campaignId: number | null, campaignType: string }) {
+  const { data: placements, isLoading } = trpc.campaign.getPlacementPerformance.useQuery(
+    { campaignId: campaignId! },
+    { enabled: !!campaignId }
+  );
+  
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-8">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+  
+  // SP广告的位置类型
+  const spPlacements = [
+    { type: 'TOP_OF_SEARCH', label: '搜索顶部', description: '搜索结果首页顶部位置' },
+    { type: 'DETAIL_PAGE', label: '商品详情页', description: '商品详情页上的广告位' },
+    { type: 'OTHER', label: '其他位置', description: '搜索结果其余位置' },
+  ];
+  
+  // SD广告的位置类型
+  const sdPlacements = [
+    { type: 'AMAZON_OWNED', label: 'Amazon自有', description: 'Amazon网站和应用内' },
+    { type: 'THIRD_PARTY', label: '第三方', description: '第三方网站和应用' },
+  ];
+  
+  const placementTypes = campaignType === 'sd' ? sdPlacements : spPlacements;
+  
+  if (!placements || placements.length === 0) {
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-muted-foreground mb-4">
+          {campaignType === 'sd' 
+            ? 'SD展示广告在Amazon自有平台和第三方网站展示'
+            : 'SP广告在搜索结果和商品详情页展示'}
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {placementTypes.map((placement) => (
+            <Card key={placement.type} className="border-dashed">
+              <CardContent className="pt-6">
+                <div className="text-center">
+                  <h4 className="font-medium">{placement.label}</h4>
+                  <p className="text-xs text-muted-foreground mt-1">{placement.description}</p>
+                  <div className="mt-4 space-y-2 text-sm text-muted-foreground">
+                    <p>曝光: --</p>
+                    <p>点击: --</p>
+                    <p>花费: --</p>
+                    <p>销售额: --</p>
+                    <p>ACoS: --</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground text-center mt-4">
+          暂无位置绩效数据，请先同步广告数据
+        </p>
+      </div>
+    );
+  }
+  
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-muted-foreground mb-4">
+        {campaignType === 'sd' 
+          ? 'SD展示广告在Amazon自有平台和第三方网站展示'
+          : 'SP广告在搜索结果和商品详情页展示'}
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {placements.map((placement: any) => {
+          const spend = parseFloat(placement.spend || "0");
+          const sales = parseFloat(placement.sales || "0");
+          const acos = sales > 0 ? (spend / sales * 100) : 0;
+          const roas = spend > 0 ? (sales / spend) : 0;
+          const ctr = placement.impressions > 0 ? (placement.clicks / placement.impressions * 100) : 0;
+          const cvr = placement.clicks > 0 ? (placement.orders / placement.clicks * 100) : 0;
+          
+          const placementInfo = placementTypes.find(p => p.type === placement.placementType) || {
+            label: placement.placementType,
+            description: ''
+          };
+          
+          return (
+            <Card key={placement.id || placement.placementType}>
+              <CardContent className="pt-6">
+                <div className="text-center">
+                  <h4 className="font-medium">{placementInfo.label}</h4>
+                  <p className="text-xs text-muted-foreground mt-1">{placementInfo.description}</p>
+                  <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+                    <div className="text-left">
+                      <span className="text-muted-foreground">曝光:</span>
+                      <span className="ml-2 font-medium">{(placement.impressions || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="text-left">
+                      <span className="text-muted-foreground">点击:</span>
+                      <span className="ml-2 font-medium">{(placement.clicks || 0).toLocaleString()}</span>
+                    </div>
+                    <div className="text-left">
+                      <span className="text-muted-foreground">CTR:</span>
+                      <span className="ml-2 font-medium">{ctr.toFixed(2)}%</span>
+                    </div>
+                    <div className="text-left">
+                      <span className="text-muted-foreground">CPC:</span>
+                      <span className="ml-2 font-medium">${placement.clicks > 0 ? (spend / placement.clicks).toFixed(2) : '0.00'}</span>
+                    </div>
+                    <div className="text-left">
+                      <span className="text-muted-foreground">花费:</span>
+                      <span className="ml-2 font-medium">${spend.toFixed(2)}</span>
+                    </div>
+                    <div className="text-left">
+                      <span className="text-muted-foreground">订单:</span>
+                      <span className="ml-2 font-medium">{placement.orders || 0}</span>
+                    </div>
+                    <div className="text-left">
+                      <span className="text-muted-foreground">销售额:</span>
+                      <span className="ml-2 font-medium">${sales.toFixed(2)}</span>
+                    </div>
+                    <div className="text-left">
+                      <span className="text-muted-foreground">CVR:</span>
+                      <span className="ml-2 font-medium">{cvr.toFixed(2)}%</span>
+                    </div>
+                    <div className="text-left col-span-2 pt-2 border-t">
+                      <span className="text-muted-foreground">ACoS:</span>
+                      <span className={`ml-2 font-medium ${acos > 30 ? 'text-red-500' : acos > 20 ? 'text-yellow-500' : 'text-green-500'}`}>
+                        {acos.toFixed(2)}%
+                      </span>
+                      <span className="mx-2 text-muted-foreground">|</span>
+                      <span className="text-muted-foreground">ROAS:</span>
+                      <span className={`ml-2 font-medium ${roas < 2 ? 'text-red-500' : roas < 3 ? 'text-yellow-500' : 'text-green-500'}`}>
+                        {roas.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
     </div>
   );
 }

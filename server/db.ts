@@ -4437,3 +4437,39 @@ export async function getDataDateRange(accountIds: number[]): Promise<{
     };
   }
 }
+
+// 获取广告活动的位置绩效数据
+export async function getPlacementPerformanceByCampaignId(campaignId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  try {
+    // 使用原生SQL查询placement_performance表
+    const result = await db.execute(sql`
+      SELECT 
+        id,
+        campaign_id as campaignId,
+        placement_type as placementType,
+        impressions,
+        clicks,
+        spend,
+        sales,
+        orders,
+        acos,
+        roas,
+        ctr,
+        cvr,
+        cpc,
+        report_date as reportDate,
+        created_at as createdAt
+      FROM placement_performance
+      WHERE campaign_id = ${campaignId}
+      ORDER BY placement_type
+    `);
+    
+    return result.rows || [];
+  } catch (error) {
+    console.error('[getPlacementPerformanceByCampaignId] Error:', error);
+    return [];
+  }
+}

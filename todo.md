@@ -4619,3 +4619,152 @@ Amazon Advertising API数据有12-24小时延迟，当天广告数据通常在�
 - [x] 触发完整数据同步
 - [x] 验证3155个广告活动正确显示
 - [x] 验证startDate字段正确显示（如2025/11/30）
+
+## Report API v3集成和绩效数据同步（2026-01-13）
+
+### 任务1：优化Report API v3集成
+- [ ] 研究Report API v3文档和可用字段
+- [ ] 添加campaignBudgetCurrencyCode字段同步
+- [ ] 添加campaignBudgetType字段同步
+- [ ] 添加Top-of-search impression share字段同步
+- [ ] 添加其他Report API v3新增指标
+- [ ] 更新数据库schema支持新字段
+- [ ] 实现Report API v3报告请求和解析
+
+### 任务2：添加绩效数据同步
+- [ ] 触发完整绩效报告同步
+- [ ] 解决仪表盘显示$0问题
+- [ ] 验证绩效数据正确显示
+
+### 任务3：配置预算预警
+- [ ] 设置预算消耗预警阈值
+- [ ] 配置预警通知规则
+- [ ] 测试预警功能
+
+## 广告活动完整数据同步（2026-01-13）
+
+### 任务0：完成数据库迁移
+- [ ] 完成drizzle数据库迁移
+- [ ] 验证新增字段已添加到数据库
+
+### 任务1：补充广告位置（Placement）数据同步
+- [ ] 检查现有placement_performance表结构
+- [ ] 实现Placement Report API请求
+- [ ] 同步搜索顶部、商品详情页、其他位置的表现数据
+
+### 任务2：补充广告组（Ad Groups）数据同步
+- [ ] 检查现有ad_groups表结构
+- [ ] 实现Ad Groups List API请求
+- [ ] 同步广告组基本信息和绩效数据
+
+### 任务3：补充投放词（Keywords/Targets）数据同步
+- [ ] 检查现有keywords和product_targets表结构
+- [ ] 实现Keywords List API请求
+- [ ] 实现Product Targets List API请求
+- [ ] 同步投放词基本信息和绩效数据
+
+### 任务4：补充客户搜索词（Search Terms）数据同步
+- [ ] 检查现有search_terms表结构
+- [ ] 实现Search Terms Report API请求
+- [ ] 同步客户搜索词和绩效数据
+
+### 任务5：优化Report API v3集成
+- [ ] 添加campaignBudgetCurrencyCode字段同步
+- [ ] 添加campaignBudgetType字段同步
+- [ ] 添加其他Report API v3新增指标
+
+### 任务6：触发完整数据同步
+- [ ] 触发完整绩效报告同步
+- [ ] 验证仪表盘显示正确数据
+
+### 任务7：配置预算预警
+- [ ] 设置预算消耗预警阈值
+- [ ] 配置预警通知规则
+
+
+## 广告活动模块UI完善（2026-01-13）
+
+### SP广告活动详情页
+- [ ] SP自动广告：展示匹配组（紧密匹配、宽泛匹配、同类商品、关联商品）
+- [ ] SP手动关键词广告：展示关键词投放（广泛/短语/精准匹配）
+- [ ] SP商品定位广告：展示ASIN/品类定向
+- [ ] 添加广告组列表Tab
+- [ ] 添加投放词列表Tab
+- [ ] 添加搜索词报告Tab
+- [ ] 添加广告位置绩效Tab
+
+### SB品牌广告活动详情页
+- [ ] 展示关键词/商品定向
+- [ ] 展示新客指标（NTB）
+- [ ] 添加广告组列表Tab
+
+### SD展示广告活动详情页
+- [ ] 展示受众定向/商品定向
+- [ ] 展示浏览归因数据
+- [ ] 添加广告组列表Tab
+
+### 数据同步优化
+- [ ] 优化Report API v3集成：获取campaignBudgetCurrencyCode、campaignBudgetType、Top-of-search impression share等新增指标
+- [ ] 添加绩效数据同步：触发完整绩效报告同步，解决仪表盘显示$0问题
+- [ ] 配置预算预警：设置预算消耗预警阈值，确保广告投放效率
+
+## 已完成 (2026-01-13)
+
+- [x] 完善SP广告活动详情页（自动/手动关键词/商品定位）
+- [x] 完善SB品牌广告活动详情页
+- [x] 完善SD展示广告活动详情页
+- [x] 添加广告位置绩效展示
+- [x] SP自动广告匹配组显示优化（紧密匹配、宽泛匹配、关联商品、同类商品）
+- [x] 数据库表结构更新（campaigns、adGroups添加SB/SD特有字段）
+- [x] 创建sd_audiences表用于SD受众定向
+- [x] 添加Report API v3新增方法（位置报告、搜索词报告、自动定向报告等）
+
+## 任务完成总结 (2026-01-13)
+
+### Report API v3集成优化
+- [x] 添加SP Placement Report方法（广告位置报告）
+- [x] 添加SP Search Term Report方法（搜索词报告）
+- [x] 添加SP Auto Targeting Report方法（自动定向报告）
+- [x] 添加SD Targeting Report方法（SD定向报告）
+- [x] 添加SB Targeting Report方法（SB定向报告）
+- [x] 更新Report API v3字段（campaignBudgetCurrencyCode、campaignBudgetType等）
+
+### 数据同步服务完善
+- [x] 实现syncPlacementPerformance方法
+- [x] 实现syncSearchTerms方法
+- [x] 实现syncAutoTargeting方法
+- [x] 实现syncSdTargeting方法
+- [x] 实现syncSbTargeting方法
+- [x] 实现syncAllAdData完整同步方法
+- [x] 集成到syncAll路由
+
+### 数据库表结构更新
+- [x] campaigns表添加SB/SD特有字段（adFormat、landingPageType、bidOptimization等）
+- [x] campaigns表添加浏览归因指标（viewAttributedSales、viewAttributedOrders等）
+- [x] adGroups表添加SD/SB特有字段（tactic、headline、creativeType等）
+- [x] 创建sd_audiences表用于SD受众定向
+- [x] 创建budget_allocation_configs表
+- [x] 创建budget_auto_execution相关表
+
+### 前端UI完善
+- [x] SP自动广告匹配组中文显示（紧密匹配、宽泛匹配、关联商品、同类商品）
+- [x] SB品牌广告详情页（广告格式、落地页类型、新客指标、视频指标）
+- [x] SD展示广告详情页（计费方式、竞价优化、定向策略、可见性指标、浏览归因指标）
+- [x] 广告位置绩效Tab
+- [x] 预算预警页面
+
+### 预算预警功能
+- [x] 预算消耗分析服务
+- [x] 预警类型：消耗过快、消耗过慢、预算耗尽、即将耗尽
+- [x] 预警通知发送
+- [x] 预警设置配置
+
+
+## 2026-01-13 新任务（第二批）
+
+- [ ] 推送当前代码到GitHub仓库
+- [ ] 查询Amazon广告API文档确定最长时间范围（60天或90天）
+- [ ] 执行全局广告活动和绩效数据同步
+- [ ] 优化移动端时间线模块显示效果
+- [ ] 修复移动端自定义时间线日期筛选功能
+- [ ] 最终推送所有代码到GitHub

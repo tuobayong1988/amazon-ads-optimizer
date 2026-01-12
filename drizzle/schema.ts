@@ -1,5 +1,95 @@
-import { mysqlTable, mysqlSchema, AnyMySqlColumn, int, mysqlEnum, timestamp, varchar, decimal, text, index, json, date, tinyint } from "drizzle-orm/mysql-core"
+import { mysqlTable, mysqlSchema, AnyMySqlColumn, index, int, datetime, date, decimal, varchar, text, mysqlEnum, timestamp, json, time, foreignKey, tinyint } from "drizzle-orm/mysql-core"
 import { sql } from "drizzle-orm"
+
+export const abTestCampaignAssignments = mysqlTable("ab_test_campaign_assignments", {
+	id: int().autoincrement().notNull(),
+	testId: int().notNull(),
+	variantId: int().notNull(),
+	campaignId: int().notNull(),
+	assignedAt: datetime({ mode: 'string'}).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("idx_ab_test_campaign_assignments_testId").on(table.testId),
+	index("idx_ab_test_campaign_assignments_variantId").on(table.variantId),
+	index("idx_ab_test_campaign_assignments_campaignId").on(table.campaignId),
+]);
+
+export const abTestDailyMetrics = mysqlTable("ab_test_daily_metrics", {
+	id: int().autoincrement().notNull(),
+	testId: int().notNull(),
+	variantId: int().notNull(),
+	// you can use { mode: 'date' }, if you want to have Date as type for this column
+	date: date({ mode: 'string' }).notNull(),
+	impressions: int().default(0).notNull(),
+	clicks: int().default(0).notNull(),
+	spend: decimal({ precision: 10, scale: 2 }).default('0.00').notNull(),
+	sales: decimal({ precision: 10, scale: 2 }).default('0.00').notNull(),
+	orders: int().default(0).notNull(),
+	acos: decimal({ precision: 10, scale: 2 }),
+	roas: decimal({ precision: 10, scale: 2 }),
+	ctr: decimal({ precision: 10, scale: 4 }),
+	cvr: decimal({ precision: 10, scale: 4 }),
+	createdAt: datetime({ mode: 'string'}).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("idx_ab_test_daily_metrics_unique").on(table.testId, table.variantId, table.date),
+	index("idx_ab_test_daily_metrics_testId").on(table.testId),
+	index("idx_ab_test_daily_metrics_variantId").on(table.variantId),
+]);
+
+export const abTestResults = mysqlTable("ab_test_results", {
+	id: int().autoincrement().notNull(),
+	testId: int().notNull(),
+	variantId: int().notNull(),
+	metricName: varchar({ length: 50 }).notNull(),
+	controlValue: decimal({ precision: 10, scale: 4 }),
+	treatmentValue: decimal({ precision: 10, scale: 4 }),
+	absoluteDiff: decimal({ precision: 10, scale: 4 }),
+	relativeDiff: decimal({ precision: 10, scale: 4 }),
+	pValue: decimal({ precision: 10, scale: 6 }),
+	confidenceInterval: varchar({ length: 100 }),
+	isSignificant: tinyint().default(0),
+	calculatedAt: datetime({ mode: 'string'}).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("idx_ab_test_results_testId").on(table.testId),
+	index("idx_ab_test_results_variantId").on(table.variantId),
+]);
+
+export const abTestVariants = mysqlTable("ab_test_variants", {
+	id: int().autoincrement().notNull(),
+	testId: int().notNull(),
+	variantName: varchar({ length: 255 }).notNull(),
+	variantType: varchar({ length: 50 }).default('control').notNull(),
+	description: text(),
+	bidMultiplier: decimal({ precision: 5, scale: 2 }).default('1.00'),
+	createdAt: datetime({ mode: 'string'}).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("idx_ab_test_variants_testId").on(table.testId),
+]);
+
+export const abTests = mysqlTable("ab_tests", {
+	id: int().autoincrement().notNull(),
+	accountId: int().notNull(),
+	performanceGroupId: int(),
+	testName: varchar({ length: 255 }).notNull(),
+	testDescription: text(),
+	testType: varchar({ length: 50 }).default('bid_optimization').notNull(),
+	status: varchar({ length: 50 }).default('draft').notNull(),
+	startDate: datetime({ mode: 'string'}),
+	endDate: datetime({ mode: 'string'}),
+	targetMetric: varchar({ length: 50 }).default('acos').notNull(),
+	minSampleSize: int().default(100).notNull(),
+	confidenceLevel: decimal({ precision: 5, scale: 2 }).default('0.95').notNull(),
+	createdAt: datetime({ mode: 'string'}).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: datetime({ mode: 'string'}).default(sql`(CURRENT_TIMESTAMP)`).notNull(),
+	createdBy: int(),
+},
+(table) => [
+	index("idx_ab_tests_accountId").on(table.accountId),
+	index("idx_ab_tests_status").on(table.status),
+]);
 
 export const accountPermissions = mysqlTable("account_permissions", {
 	id: int().autoincrement().notNull(),
@@ -16,6 +106,7 @@ export const accountPermissions = mysqlTable("account_permissions", {
 
 export const adAccounts = mysqlTable("ad_accounts", {
 	id: int().autoincrement().notNull(),
+	organizationId: int("organization_id").default(1),
 	userId: int().notNull(),
 	accountId: varchar({ length: 64 }).notNull(),
 	accountName: varchar({ length: 255 }).notNull(),
@@ -38,7 +129,11 @@ export const adAccounts = mysqlTable("ad_accounts", {
 	connectionErrorMessage: text(),
 	isDefault: tinyint().default(0),
 	sortOrder: int().default(0),
-});
+	organizationId: int(),
+},
+(table) => [
+	index("idx_ad_organization").on(table.organizationId),
+]);
 
 export const adGroups = mysqlTable("ad_groups", {
 	id: int().autoincrement().notNull(),
@@ -54,6 +149,22 @@ export const adGroups = mysqlTable("ad_groups", {
 	adGroupStatus: mysqlEnum(['enabled','paused','archived']).default('enabled'),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+	tactic: varchar({ length: 20 }),
+	headline: varchar({ length: 500 }),
+	creativeType: varchar("creative_type", { length: 50 }),
+	brandLogoAssetId: varchar("brand_logo_asset_id", { length: 64 }),
+	customImageAssetId: varchar("custom_image_asset_id", { length: 64 }),
+	videoAssetId: varchar("video_asset_id", { length: 64 }),
+	ctr: decimal({ precision: 5, scale: 4 }),
+	cvr: decimal({ precision: 5, scale: 4 }),
+	acos: decimal({ precision: 5, scale: 2 }),
+	roas: decimal({ precision: 10, scale: 2 }),
+	cpc: decimal({ precision: 10, scale: 2 }),
+	dpv: int().default(0),
+	ntbOrders: int("ntb_orders").default(0),
+	ntbSales: decimal("ntb_sales", { precision: 15, scale: 2 }).default('0'),
+	viewAttributedSales: decimal("view_attributed_sales", { precision: 15, scale: 2 }).default('0'),
+	viewAttributedOrders: int("view_attributed_orders").default(0),
 });
 
 export const aiOptimizationActions = mysqlTable("ai_optimization_actions", {
@@ -147,6 +258,7 @@ export const aiOptimizationReviews = mysqlTable("ai_optimization_reviews", {
 
 export const amazonApiCredentials = mysqlTable("amazon_api_credentials", {
 	id: int().autoincrement().notNull(),
+	organizationId: int("organization_id").default(1),
 	accountId: int().notNull(),
 	clientId: varchar({ length: 255 }).notNull(),
 	clientSecret: varchar({ length: 255 }).notNull(),
@@ -155,18 +267,186 @@ export const amazonApiCredentials = mysqlTable("amazon_api_credentials", {
 	tokenExpiresAt: timestamp({ mode: 'string' }),
 	profileId: varchar({ length: 64 }).notNull(),
 	region: mysqlEnum(['NA','EU','FE']).default('NA').notNull(),
-	// 时区配置 - 从 Amazon API /v2/profiles 获取
-	timezone: varchar('timezone', { length: 64 }),  // 例如 'America/Los_Angeles', 'Asia/Tokyo'
-	currencyCode: varchar('currency_code', { length: 10 }),  // 例如 'USD', 'CAD', 'JPY'
 	lastSyncAt: timestamp({ mode: 'string' }),
 	syncStatus: mysqlEnum(['idle','syncing','error']).default('idle'),
 	syncErrorMessage: text(),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+	organizationId: int(),
+	timezone: varchar({ length: 64 }),
+	currencyCode: varchar("currency_code", { length: 10 }),
 },
 (table) => [
 	index("amazon_api_credentials_accountId_unique").on(table.accountId),
+	index("idx_api_organization").on(table.organizationId),
 ]);
+
+export const amsConsumerStatus = mysqlTable("ams_consumer_status", {
+	id: int().autoincrement().notNull(),
+	consumerId: varchar("consumer_id", { length: 64 }).notNull(),
+	queueUrl: varchar("queue_url", { length: 512 }).notNull(),
+	status: mysqlEnum(['running','stopped','error']).default('stopped'),
+	lastHeartbeat: timestamp("last_heartbeat", { mode: 'string' }),
+	messagesProcessed: int("messages_processed").default(0),
+	messagesErrored: int("messages_errored").default(0),
+	lastError: text("last_error"),
+	startedAt: timestamp("started_at", { mode: 'string' }),
+	stoppedAt: timestamp("stopped_at", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+	index("ams_consumer_id").on(table.consumerId),
+	index("ams_consumer_status_idx").on(table.status),
+]);
+
+export const amsMessages = mysqlTable("ams_messages", {
+	id: int().autoincrement().notNull(),
+	accountId: int().notNull(),
+	subscriptionId: varchar({ length: 255 }),
+	messageId: varchar({ length: 255 }).notNull(),
+	dataSetId: varchar({ length: 100 }),
+	profileId: varchar({ length: 100 }),
+	marketplace: varchar({ length: 50 }),
+	messageType: varchar({ length: 100 }),
+	eventTime: datetime({ mode: 'string'}),
+	rawPayload: json(),
+	processStatus: varchar({ length: 50 }).default('pending'),
+	processError: text(),
+	processedAt: datetime({ mode: 'string'}),
+	campaignId: varchar({ length: 100 }),
+	adGroupId: varchar({ length: 100 }),
+	keywordId: varchar({ length: 100 }),
+	impressions: int(),
+	clicks: int(),
+	spend: decimal({ precision: 10, scale: 2 }),
+	sales: decimal({ precision: 10, scale: 2 }),
+	orders: int(),
+	receivedAt: datetime({ mode: 'string'}).default('CURRENT_TIMESTAMP'),
+	createdAt: datetime({ mode: 'string'}).default('CURRENT_TIMESTAMP'),
+},
+(table) => [
+	index("idx_account_received").on(table.accountId, table.receivedAt),
+	index("idx_message_id").on(table.messageId),
+	index("idx_process_status").on(table.processStatus),
+	index("messageId").on(table.messageId),
+]);
+
+export const amsPerformanceBuffer = mysqlTable("ams_performance_buffer", {
+	id: int().autoincrement().notNull(),
+	accountId: int().notNull(),
+	campaignId: int(),
+	amazonCampaignId: varchar({ length: 64 }).notNull(),
+	date: varchar({ length: 10 }).notNull(),
+	adType: mysqlEnum(['SP','SB','SD']).notNull(),
+	impressions: int().default(0),
+	clicks: int().default(0),
+	spend: decimal({ precision: 12, scale: 4 }).default('0.0000'),
+	sales: decimal({ precision: 12, scale: 4 }).default('0.0000'),
+	orders: int().default(0),
+	messageCount: int().default(0),
+	firstMessageAt: timestamp({ mode: 'string' }),
+	lastMessageAt: timestamp({ mode: 'string' }),
+	lastEventTime: timestamp({ mode: 'string' }),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP'),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow(),
+},
+(table) => [
+	index("ams_perf_account_date").on(table.accountId, table.date),
+	index("ams_perf_campaign_date").on(table.amazonCampaignId, table.date),
+]);
+
+export const amsPerformanceData = mysqlTable("ams_performance_data", {
+	id: int().autoincrement().notNull(),
+	accountId: int("account_id").notNull(),
+	campaignId: varchar("campaign_id", { length: 64 }).notNull(),
+	adGroupId: varchar("ad_group_id", { length: 64 }),
+	keywordId: varchar("keyword_id", { length: 64 }),
+	targetId: varchar("target_id", { length: 64 }),
+	dataSetId: varchar("data_set_id", { length: 64 }).notNull(),
+	// you can use { mode: 'date' }, if you want to have Date as type for this column
+	reportDate: date("report_date", { mode: 'string' }).notNull(),
+	reportHour: int("report_hour"),
+	impressions: int().default(0),
+	clicks: int().default(0),
+	spend: decimal({ precision: 12, scale: 4 }).default('0.0000'),
+	sales: decimal({ precision: 12, scale: 2 }).default('0.00'),
+	orders: int().default(0),
+	units: int().default(0),
+	dataSource: mysqlEnum("data_source", ['ams','api','merged']).default('ams'),
+	lastUpdatedFromAms: timestamp("last_updated_from_ams", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+	index("ams_perf_account_date").on(table.accountId, table.reportDate),
+	index("ams_perf_campaign").on(table.campaignId),
+	index("ams_perf_dataset").on(table.dataSetId),
+]);
+
+export const amsSubscriptions = mysqlTable("ams_subscriptions", {
+	id: int().autoincrement().notNull(),
+	accountId: int().notNull(),
+	subscriptionId: varchar({ length: 255 }).notNull(),
+	dataSetId: varchar({ length: 100 }).notNull(),
+	name: varchar({ length: 255 }),
+	sqsArn: varchar({ length: 500 }),
+	status: varchar({ length: 50 }).default('PENDING'),
+	profileId: varchar({ length: 100 }),
+	marketplace: varchar({ length: 50 }),
+	errorMessage: text(),
+	lastMessageAt: datetime({ mode: 'string'}),
+	messageCount: int().default(0),
+	createdAt: datetime({ mode: 'string'}).default('CURRENT_TIMESTAMP'),
+	updatedAt: datetime({ mode: 'string'}).default(sql`(CURRENT_TIMESTAMP)`),
+},
+(table) => [
+	index("idx_account").on(table.accountId),
+	index("idx_status").on(table.status),
+	index("subscriptionId").on(table.subscriptionId),
+]);
+
+export const anomalyAlertLogs = mysqlTable("anomaly_alert_logs", {
+	id: int().autoincrement().notNull(),
+	ruleId: int().notNull(),
+	userId: int().notNull(),
+	accountId: int(),
+	anomalyType: mysqlEnum(['bid_spike','bid_drop','batch_size','budget_change','acos_spike','spend_velocity','click_anomaly','conversion_drop']).notNull(),
+	detectedValue: decimal({ precision: 10, scale: 2 }).notNull(),
+	thresholdValue: decimal({ precision: 10, scale: 2 }).notNull(),
+	deviationPercent: decimal({ precision: 5, scale: 2 }),
+	affectedTargetType: varchar({ length: 50 }),
+	affectedTargetId: int(),
+	affectedTargetName: varchar({ length: 500 }),
+	operationLogId: int(),
+	actionTaken: mysqlEnum(['none','alerted','paused','rolled_back','blocked']).default('alerted').notNull(),
+	notificationSent: tinyint().default(0).notNull(),
+	notificationSentAt: timestamp({ mode: 'string' }),
+	acknowledged: tinyint().default(0).notNull(),
+	acknowledgedBy: int(),
+	acknowledgedAt: timestamp({ mode: 'string' }),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});
+
+export const anomalyDetectionRules = mysqlTable("anomaly_detection_rules", {
+	id: int().autoincrement().notNull(),
+	userId: int().notNull(),
+	accountId: int(),
+	ruleName: varchar({ length: 200 }).notNull(),
+	ruleDescription: text(),
+	anomalyType: mysqlEnum(['bid_spike','bid_drop','batch_size','budget_change','acos_spike','spend_velocity','click_anomaly','conversion_drop']).notNull(),
+	detectionMethod: mysqlEnum(['threshold','percentage_change','absolute_change','rate_limit','statistical']).notNull(),
+	thresholdValue: decimal({ precision: 10, scale: 2 }),
+	percentageThreshold: decimal({ precision: 5, scale: 2 }),
+	absoluteThreshold: decimal({ precision: 10, scale: 2 }),
+	timeWindowMinutes: int().default(60),
+	minDataPoints: int().default(5),
+	actionType: mysqlEnum(['alert_only','pause_and_alert','rollback_and_alert','block_operation']).default('alert_only').notNull(),
+	isEnabled: tinyint().default(1).notNull(),
+	priority: int().default(0),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+});
 
 export const apiCallLogs = mysqlTable("api_call_logs", {
 	id: int().autoincrement().notNull(),
@@ -183,6 +463,34 @@ export const apiCallLogs = mysqlTable("api_call_logs", {
 	retryCount: int().default(0),
 	isRetry: tinyint().default(0),
 	originalRequestId: int(),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});
+
+export const apiOperationLogs = mysqlTable("api_operation_logs", {
+	id: int().autoincrement().notNull(),
+	userId: int().notNull(),
+	accountId: int(),
+	operationType: mysqlEnum(['bid_adjustment','budget_change','campaign_status','keyword_status','negative_keyword','target_status','batch_operation','api_sync','auto_optimization','manual_operation','other']).notNull(),
+	targetType: mysqlEnum(['campaign','ad_group','keyword','product_target','search_term','account','multiple']).notNull(),
+	targetId: int(),
+	targetName: varchar({ length: 500 }),
+	actionDescription: text().notNull(),
+	previousValue: text(),
+	newValue: text(),
+	changeAmount: decimal({ precision: 10, scale: 2 }),
+	changePercent: decimal({ precision: 5, scale: 2 }),
+	affectedCount: int().default(1),
+	batchOperationId: int(),
+	status: mysqlEnum(['success','failed','pending','rolled_back']).default('success').notNull(),
+	errorMessage: text(),
+	source: mysqlEnum(['manual','auto_optimization','scheduled_task','api_callback','batch_operation']).default('manual').notNull(),
+	ipAddress: varchar({ length: 45 }),
+	userAgent: text(),
+	riskLevel: mysqlEnum(['low','medium','high','critical']).default('low').notNull(),
+	requiresReview: tinyint().default(0),
+	reviewedBy: int(),
+	reviewedAt: timestamp({ mode: 'string' }),
+	executedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
 
@@ -250,6 +558,9 @@ export const attributionCorrectionRecords = mysqlTable("attribution_correction_r
 });
 
 export const auditLogs = mysqlTable("audit_logs", {
+	organizationId: int("organization_id"),
+	userId: int("user_id"),
+	userName: varchar("user_name", { length: 255 }),
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
 	userEmail: varchar({ length: 255 }),
@@ -271,6 +582,99 @@ export const auditLogs = mysqlTable("audit_logs", {
 	errorMessage: text(),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
+
+export const autoPauseRecords = mysqlTable("auto_pause_records", {
+	id: int().autoincrement().notNull(),
+	userId: int().notNull(),
+	accountId: int().notNull(),
+	pauseReason: mysqlEnum(['spend_limit','anomaly_detected','manual_trigger','scheduled','api_error']).notNull(),
+	triggerSource: varchar({ length: 100 }).notNull(),
+	triggerRuleId: int(),
+	affectedCampaigns: int().default(0),
+	affectedAdGroups: int().default(0),
+	affectedKeywords: int().default(0),
+	previousState: text(),
+	isPaused: tinyint().default(1).notNull(),
+	pausedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	resumedAt: timestamp({ mode: 'string' }),
+	resumedBy: int(),
+	resumeReason: text(),
+	autoResumeEnabled: tinyint().default(0).notNull(),
+	autoResumeAt: timestamp({ mode: 'string' }),
+	notificationSent: tinyint().default(0).notNull(),
+	notificationSentAt: timestamp({ mode: 'string' }),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});
+
+export const autoTargetingPerformance = mysqlTable("auto_targeting_performance", {
+	id: int().autoincrement().notNull(),
+	campaignId: varchar("campaign_id", { length: 50 }).notNull(),
+	adGroupId: varchar("ad_group_id", { length: 50 }).notNull(),
+	targetingType: mysqlEnum("targeting_type", ['close_match','loose_match','substitutes','complements']).notNull(),
+	// you can use { mode: 'date' }, if you want to have Date as type for this column
+	date: date({ mode: 'string' }).notNull(),
+	impressions: int().default(0),
+	clicks: int().default(0),
+	cost: decimal({ precision: 10, scale: 2 }).default('0'),
+	sales: decimal({ precision: 10, scale: 2 }).default('0'),
+	orders: int().default(0),
+	units: int().default(0),
+	acos: decimal({ precision: 10, scale: 4 }),
+	roas: decimal({ precision: 10, scale: 4 }),
+	ctr: decimal({ precision: 10, scale: 6 }),
+	cvr: decimal({ precision: 10, scale: 6 }),
+	cpc: decimal({ precision: 10, scale: 4 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+},
+(table) => [
+	index("unique_perf").on(table.campaignId, table.adGroupId, table.targetingType, table.date),
+]);
+
+export const autoTargetingSettings = mysqlTable("auto_targeting_settings", {
+	id: int().autoincrement().notNull(),
+	campaignId: varchar("campaign_id", { length: 50 }).notNull(),
+	adGroupId: varchar("ad_group_id", { length: 50 }).notNull(),
+	targetingType: mysqlEnum("targeting_type", ['close_match','loose_match','substitutes','complements']).notNull(),
+	targetingStatus: mysqlEnum("targeting_status", ['enabled','paused']).default('enabled'),
+	bid: decimal({ precision: 10, scale: 2 }),
+	suggestedBid: decimal("suggested_bid", { precision: 10, scale: 2 }),
+	bidRangeLow: decimal("bid_range_low", { precision: 10, scale: 2 }),
+	bidRangeHigh: decimal("bid_range_high", { precision: 10, scale: 2 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+},
+(table) => [
+	index("unique_targeting").on(table.campaignId, table.adGroupId, table.targetingType),
+]);
+
+export const batchMarginalBenefitAnalysis = mysqlTable("batch_marginal_benefit_analysis", {
+	id: int().autoincrement().notNull(),
+	accountId: int("account_id").notNull(),
+	userId: int("user_id").notNull(),
+	analysisName: varchar("analysis_name", { length: 255 }),
+	campaignIds: json("campaign_ids"),
+	campaignCount: int("campaign_count").default(0),
+	optimizationGoal: mysqlEnum("optimization_goal", ['maximize_roas','minimize_acos','maximize_sales','balanced']).notNull(),
+	analysisStatus: mysqlEnum("analysis_status", ['pending','running','completed','failed']).default('pending'),
+	totalCurrentSpend: decimal("total_current_spend", { precision: 15, scale: 2 }),
+	totalCurrentSales: decimal("total_current_sales", { precision: 15, scale: 2 }),
+	totalExpectedSpend: decimal("total_expected_spend", { precision: 15, scale: 2 }),
+	totalExpectedSales: decimal("total_expected_sales", { precision: 15, scale: 2 }),
+	overallRoasChange: decimal("overall_roas_change", { precision: 10, scale: 4 }),
+	overallAcosChange: decimal("overall_acos_change", { precision: 10, scale: 4 }),
+	avgConfidence: decimal("avg_confidence", { precision: 5, scale: 4 }),
+	analysisResults: json("analysis_results"),
+	recommendations: json(),
+	errorMessage: text("error_message"),
+	startedAt: timestamp("started_at", { mode: 'string' }),
+	completedAt: timestamp("completed_at", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+},
+(table) => [
+	index("batch_mb_account").on(table.accountId),
+	index("batch_mb_status").on(table.analysisStatus),
+]);
 
 export const batchOperationItems = mysqlTable("batch_operation_items", {
 	id: int().autoincrement().notNull(),
@@ -319,6 +723,110 @@ export const batchOperations = mysqlTable("batch_operations", {
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
+export const bidAdjustmentHistory = mysqlTable("bid_adjustment_history", {
+	id: int().autoincrement().notNull(),
+	accountId: int("account_id").notNull(),
+	campaignId: int("campaign_id"),
+	campaignName: varchar("campaign_name", { length: 500 }),
+	performanceGroupId: int("performance_group_id"),
+	performanceGroupName: varchar("performance_group_name", { length: 255 }),
+	keywordId: int("keyword_id"),
+	keywordText: varchar("keyword_text", { length: 500 }),
+	matchType: varchar("match_type", { length: 32 }),
+	previousBid: decimal("previous_bid", { precision: 10, scale: 2 }).notNull(),
+	newBid: decimal("new_bid", { precision: 10, scale: 2 }).notNull(),
+	bidChangePercent: decimal("bid_change_percent", { precision: 10, scale: 2 }),
+	adjustmentType: mysqlEnum("adjustment_type", ['manual','auto_optimal','auto_dayparting','auto_placement','batch_campaign','batch_group']).default('manual'),
+	adjustmentReason: text("adjustment_reason"),
+	expectedProfitIncrease: decimal("expected_profit_increase", { precision: 10, scale: 2 }),
+	optimizationScore: int("optimization_score"),
+	appliedBy: varchar("applied_by", { length: 255 }),
+	appliedAt: timestamp("applied_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+	status: mysqlEnum(['applied','pending','failed','rolled_back']).default('applied'),
+	errorMessage: text("error_message"),
+	actualProfit7D: decimal("actual_profit_7d", { precision: 10, scale: 2 }),
+	actualProfit14D: decimal("actual_profit_14d", { precision: 10, scale: 2 }),
+	actualProfit30D: decimal("actual_profit_30d", { precision: 10, scale: 2 }),
+	actualImpressions7D: int("actual_impressions_7d"),
+	actualClicks7D: int("actual_clicks_7d"),
+	actualConversions7D: int("actual_conversions_7d"),
+	actualSpend7D: decimal("actual_spend_7d", { precision: 10, scale: 2 }),
+	actualRevenue7D: decimal("actual_revenue_7d", { precision: 10, scale: 2 }),
+	trackingUpdatedAt: timestamp("tracking_updated_at", { mode: 'string' }),
+	rolledBackAt: timestamp("rolled_back_at", { mode: 'string' }),
+	rolledBackBy: varchar("rolled_back_by", { length: 255 }),
+},
+(table) => [
+	index("idx_account_id").on(table.accountId),
+	index("idx_campaign_id").on(table.campaignId),
+	index("idx_performance_group_id").on(table.performanceGroupId),
+	index("idx_applied_at").on(table.appliedAt),
+	index("idx_adjustment_type").on(table.adjustmentType),
+]);
+
+export const bidObjectProfitEstimates = mysqlTable("bid_object_profit_estimates", {
+	id: int().autoincrement().notNull(),
+	accountId: int().notNull(),
+	campaignId: varchar({ length: 50 }).notNull(),
+	bidObjectType: mysqlEnum(['keyword','asin']).notNull(),
+	bidObjectId: varchar({ length: 100 }).notNull(),
+	baseBid: decimal({ precision: 10, scale: 4 }),
+	recommendedBaseBid: decimal({ precision: 10, scale: 4 }),
+	topOfSearchAdjustment: int().default(0),
+	productPageAdjustment: int().default(0),
+	recommendedTopAdjustment: int(),
+	recommendedProductAdjustment: int(),
+	effectiveBidTop: decimal({ precision: 10, scale: 4 }),
+	effectiveBidProduct: decimal({ precision: 10, scale: 4 }),
+	effectiveBidRest: decimal({ precision: 10, scale: 4 }),
+	estimatedProfitTop: decimal({ precision: 12, scale: 2 }),
+	estimatedProfitProduct: decimal({ precision: 12, scale: 2 }),
+	estimatedProfitRest: decimal({ precision: 12, scale: 2 }),
+	totalEstimatedProfit: decimal({ precision: 12, scale: 2 }),
+	estimatedClicksTop: int(),
+	estimatedClicksProduct: int(),
+	estimatedClicksRest: int(),
+	estimatedSpendTop: decimal({ precision: 12, scale: 2 }),
+	estimatedSpendProduct: decimal({ precision: 12, scale: 2 }),
+	estimatedSpendRest: decimal({ precision: 12, scale: 2 }),
+	totalEstimatedSpend: decimal({ precision: 12, scale: 2 }),
+	estimatedRevenueTop: decimal({ precision: 12, scale: 2 }),
+	estimatedRevenueProduct: decimal({ precision: 12, scale: 2 }),
+	estimatedRevenueRest: decimal({ precision: 12, scale: 2 }),
+	totalEstimatedRevenue: decimal({ precision: 12, scale: 2 }),
+	estimatedRoas: decimal({ precision: 10, scale: 4 }),
+	estimatedAcoS: decimal({ precision: 8, scale: 4 }),
+	profitImprovementPotential: decimal({ precision: 12, scale: 2 }),
+	profitImprovementPercent: decimal({ precision: 8, scale: 4 }),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP'),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow(),
+});
+
+export const bidPerformanceHistory = mysqlTable("bid_performance_history", {
+	id: int().autoincrement().notNull(),
+	accountId: int().notNull(),
+	campaignId: varchar({ length: 50 }).notNull(),
+	bidObjectType: mysqlEnum(['keyword','asin']).notNull(),
+	bidObjectId: varchar({ length: 100 }).notNull(),
+	bid: decimal({ precision: 10, scale: 4 }).notNull(),
+	effectiveCpc: decimal({ precision: 10, scale: 4 }),
+	// you can use { mode: 'date' }, if you want to have Date as type for this column
+	date: date({ mode: 'string' }).notNull(),
+	timeSlot: int(),
+	impressions: int().default(0),
+	clicks: int().default(0),
+	spend: decimal({ precision: 12, scale: 2 }).default('0'),
+	sales: decimal({ precision: 12, scale: 2 }).default('0'),
+	orders: int().default(0),
+	ctr: decimal({ precision: 8, scale: 6 }),
+	cvr: decimal({ precision: 8, scale: 6 }),
+	acos: decimal({ precision: 8, scale: 4 }),
+	roas: decimal({ precision: 10, scale: 4 }),
+	revenue: decimal({ precision: 12, scale: 2 }),
+	profit: decimal({ precision: 12, scale: 2 }),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP'),
+});
+
 export const biddingLogs = mysqlTable("bidding_logs", {
 	id: int().autoincrement().notNull(),
 	accountId: int().notNull(),
@@ -355,6 +863,42 @@ export const budgetAlertSettings = mysqlTable("budget_alert_settings", {
 	updatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
 
+export const budgetAllocationConfigs = mysqlTable("budget_allocation_configs", {
+	id: int().autoincrement().notNull(),
+	accountId: int("account_id").notNull(),
+	performanceGroupId: int("performance_group_id"),
+	totalDailyBudget: decimal("total_daily_budget", { precision: 15, scale: 2 }).notNull(),
+	minCampaignBudget: decimal("min_campaign_budget", { precision: 10, scale: 2 }).default('5.00'),
+	maxCampaignBudgetPercent: decimal("max_campaign_budget_percent", { precision: 5, scale: 2 }).default('50.00'),
+	reallocationFrequency: mysqlEnum("reallocation_frequency", ['daily','weekly','bi_weekly']).default('daily'),
+	optimizationGoal: mysqlEnum("optimization_goal", ['maximize_sales','target_acos','target_roas','balanced']).default('balanced'),
+	targetAcos: decimal("target_acos", { precision: 5, scale: 2 }),
+	targetRoas: decimal("target_roas", { precision: 10, scale: 2 }),
+	riskTolerance: mysqlEnum("risk_tolerance", ['low','medium','high']).default('medium'),
+	isActive: tinyint("is_active").default(1),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+},
+(table) => [
+	index("idx_account_id").on(table.accountId),
+	index("idx_performance_group_id").on(table.performanceGroupId),
+]);
+
+export const budgetAllocationHistory = mysqlTable("budget_allocation_history", {
+	id: int().autoincrement().notNull(),
+	configId: int("config_id").notNull(),
+	campaignId: int("campaign_id").notNull(),
+	previousBudget: decimal("previous_budget", { precision: 10, scale: 2 }).notNull(),
+	newBudget: decimal("new_budget", { precision: 10, scale: 2 }).notNull(),
+	changeReason: text("change_reason"),
+	appliedBy: int("applied_by"),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+},
+(table) => [
+	index("idx_config_id").on(table.configId),
+	index("idx_campaign_id").on(table.campaignId),
+]);
+
 export const budgetAllocationItems = mysqlTable("budget_allocation_items", {
 	id: int().autoincrement().notNull(),
 	allocationId: int().notNull(),
@@ -380,6 +924,27 @@ export const budgetAllocationItems = mysqlTable("budget_allocation_items", {
 	appliedAt: timestamp({ mode: 'string' }),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
+
+export const budgetAllocationSuggestions = mysqlTable("budget_allocation_suggestions", {
+	id: int().autoincrement().notNull(),
+	configId: int("config_id").notNull(),
+	campaignId: int("campaign_id").notNull(),
+	currentBudget: decimal("current_budget", { precision: 10, scale: 2 }).notNull(),
+	suggestedBudget: decimal("suggested_budget", { precision: 10, scale: 2 }).notNull(),
+	budgetChange: decimal("budget_change", { precision: 10, scale: 2 }).notNull(),
+	budgetChangePercent: decimal("budget_change_percent", { precision: 5, scale: 2 }).notNull(),
+	reason: text(),
+	confidenceScore: decimal("confidence_score", { precision: 3, scale: 2 }),
+	expectedImpact: text("expected_impact"),
+	status: mysqlEnum(['pending','approved','rejected','applied']).default('pending'),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+	appliedAt: timestamp("applied_at", { mode: 'string' }),
+},
+(table) => [
+	index("idx_config_id").on(table.configId),
+	index("idx_campaign_id").on(table.campaignId),
+	index("idx_status").on(table.status),
+]);
 
 export const budgetAllocationTracking = mysqlTable("budget_allocation_tracking", {
 	id: int().autoincrement().notNull(),
@@ -435,6 +1000,72 @@ export const budgetAllocations = mysqlTable("budget_allocations", {
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
+
+export const budgetAutoExecutionConfigs = mysqlTable("budget_auto_execution_configs", {
+	id: int().autoincrement().notNull(),
+	accountId: int("account_id").notNull(),
+	isEnabled: tinyint("is_enabled").default(0),
+	executionTime: time("execution_time").default('06:00:00'),
+	minConfidenceScore: decimal("min_confidence_score", { precision: 3, scale: 2 }).default('0.70'),
+	maxBudgetChangePercent: decimal("max_budget_change_percent", { precision: 5, scale: 2 }).default('30.00'),
+	requireApprovalAbove: decimal("require_approval_above", { precision: 10, scale: 2 }).default('100.00'),
+	notificationEmail: varchar("notification_email", { length: 255 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+},
+(table) => [
+	index("idx_account_id").on(table.accountId),
+]);
+
+export const budgetAutoExecutionDetails = mysqlTable("budget_auto_execution_details", {
+	id: int().autoincrement().notNull(),
+	historyId: int("history_id").notNull(),
+	campaignId: int("campaign_id").notNull(),
+	previousBudget: decimal("previous_budget", { precision: 10, scale: 2 }).notNull(),
+	newBudget: decimal("new_budget", { precision: 10, scale: 2 }).notNull(),
+	budgetChange: decimal("budget_change", { precision: 10, scale: 2 }).notNull(),
+	changeReason: text("change_reason"),
+	status: mysqlEnum(['success','failed','skipped']).default('success'),
+	errorMessage: text("error_message"),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+},
+(table) => [
+	index("idx_history_id").on(table.historyId),
+	index("idx_campaign_id").on(table.campaignId),
+]);
+
+export const budgetAutoExecutionHistory = mysqlTable("budget_auto_execution_history", {
+	id: int().autoincrement().notNull(),
+	configId: int("config_id").notNull(),
+	executionTime: timestamp("execution_time", { mode: 'string' }).notNull(),
+	totalCampaigns: int("total_campaigns").default(0),
+	campaignsAdjusted: int("campaigns_adjusted").default(0),
+	totalBudgetIncrease: decimal("total_budget_increase", { precision: 10, scale: 2 }).default('0'),
+	totalBudgetDecrease: decimal("total_budget_decrease", { precision: 10, scale: 2 }).default('0'),
+	status: mysqlEnum(['success','partial','failed','skipped']).default('success'),
+	errorMessage: text("error_message"),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+},
+(table) => [
+	index("idx_config_id").on(table.configId),
+	index("idx_execution_time").on(table.executionTime),
+]);
+
+export const budgetAutoExecutionLogs = mysqlTable("budget_auto_execution_logs", {
+	id: int().autoincrement().notNull(),
+	configId: int("config_id").notNull(),
+	executionTime: timestamp("execution_time", { mode: 'string' }).notNull(),
+	totalCampaigns: int("total_campaigns").default(0),
+	campaignsAdjusted: int("campaigns_adjusted").default(0),
+	totalBudgetChange: decimal("total_budget_change", { precision: 10, scale: 2 }).default('0'),
+	status: mysqlEnum(['success','partial','failed']).default('success'),
+	errorMessage: text("error_message"),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+},
+(table) => [
+	index("idx_config_id").on(table.configId),
+	index("idx_execution_time").on(table.executionTime),
+]);
 
 export const budgetConsumptionAlerts = mysqlTable("budget_consumption_alerts", {
 	id: int().autoincrement().notNull(),
@@ -496,99 +1127,158 @@ export const budgetHistory = mysqlTable("budget_history", {
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
 
+export const campaignPerformanceSnapshots = mysqlTable("campaign_performance_snapshots", {
+	id: int().autoincrement().notNull(),
+	campaignId: int("campaign_id").notNull(),
+	// you can use { mode: 'date' }, if you want to have Date as type for this column
+	snapshotDate: date("snapshot_date", { mode: 'string' }).notNull(),
+	impressions: int().default(0),
+	clicks: int().default(0),
+	spend: decimal({ precision: 10, scale: 2 }).default('0'),
+	sales: decimal({ precision: 10, scale: 2 }).default('0'),
+	orders: int().default(0),
+	acos: decimal({ precision: 5, scale: 2 }),
+	roas: decimal({ precision: 10, scale: 2 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+},
+(table) => [
+	index("uk_campaign_date").on(table.campaignId, table.snapshotDate),
+	index("idx_campaign_id").on(table.campaignId),
+	index("idx_snapshot_date").on(table.snapshotDate),
+]);
+
 export const campaigns = mysqlTable("campaigns", {
 	id: int().autoincrement().notNull(),
 	accountId: int().notNull(),
 	performanceGroupId: int(),
 	campaignId: varchar({ length: 64 }).notNull(),
-	
-	// === 基本信息（按亚马逊后台顺序） ===
-	state: mysqlEnum(['enabled','paused','archived','pending','other']).default('enabled'), // State - 广告活动状态
-	campaignName: varchar({ length: 500 }).notNull(), // Campaigns - 广告活动名称
-	countryCode: varchar({ length: 10 }), // Country - 国家代码
-	campaignStatus: mysqlEnum(['enabled','paused','archived']).default('enabled'), // Status - 运行状态
-	campaignType: mysqlEnum(['sp_auto','sp_manual','sb','sd']).notNull(), // Type - 类型
-	targetingType: mysqlEnum(['auto','manual']).default('manual'), // Targeting - 定向类型
-	retailer: varchar({ length: 255 }), // Retailer - 零售商
-	portfolioId: varchar({ length: 64 }), // Portfolio ID
-	portfolioName: varchar({ length: 255 }), // Portfolio - 组合名称
-	biddingStrategy: mysqlEnum(['legacyForSales','autoForSales','manual','ruleBasedBidding']).default('legacyForSales'), // Campaign bidding strategy
-	
-	// === 日期和预算 ===
-	startDate: date({ mode: 'string' }), // Start date - 开始日期
-	endDate: date({ mode: 'string' }), // End date - 结束日期
-	avgTimeInBudget: decimal({ precision: 5, scale: 2 }), // Avg. time in budget - 平均预算内时间(%)
-	budgetConverted: decimal({ precision: 15, scale: 2 }), // Budget (converted) - 转换后预算
-	dailyBudget: decimal({ precision: 10, scale: 2 }), // Budget - 每日预算
-	costType: mysqlEnum(['cpc','vcpm','cpm']).default('cpc'), // Cost type - 计费类型
-	
-	// === 曝光指标 ===
-	impressions: int().default(0), // Impressions - 曝光
-	topOfSearchImpressionShare: decimal({ precision: 5, scale: 2 }), // Top-of-search impression share
-	placementTopSearchBidAdjustment: int().default(0), // Top-of-search bid adjustment (%)
-	placementProductPageBidAdjustment: int().default(0), // Product page bid adjustment (%)
-	placementRestBidAdjustment: int().default(0), // Rest of search bid adjustment (%)
-	
-	// === 点击和花费指标 ===
-	clicks: int().default(0), // Clicks - 点击
-	ctr: decimal({ precision: 5, scale: 4 }), // CTR - 点击率
-	spendConverted: decimal({ precision: 15, scale: 2 }), // Spend (converted) - 转换后花费
-	spend: decimal({ precision: 10, scale: 2 }).default('0.00'), // Spend - 花费
-	cpcConverted: decimal({ precision: 10, scale: 2 }), // CPC (converted) - 转换后CPC
-	cpc: decimal({ precision: 10, scale: 2 }), // CPC
-	
-	// === 浏览指标 ===
-	detailPageViews: int().default(0), // Detail page views - 详情页浏览
-	brandStorePageViews: int().default(0), // Brand Store page views - 品牌店铺浏览
-	
-	// === 订单和销售指标 ===
-	orders: int().default(0), // Orders - 订单
-	salesConverted: decimal({ precision: 15, scale: 2 }), // Sales (converted) - 转换后销售额
-	sales: decimal({ precision: 10, scale: 2 }).default('0.00'), // Sales - 销售额
-	acos: decimal({ precision: 5, scale: 2 }), // ACOS
-	roas: decimal({ precision: 10, scale: 2 }), // ROAS
-	
-	// === 新客指标 (NTB - New To Brand) ===
-	ntbOrders: int().default(0), // NTB orders - 新客订单
-	ntbOrdersPercent: decimal({ precision: 5, scale: 2 }), // % of orders NTB - 新客订单占比
-	ntbSalesConverted: decimal({ precision: 15, scale: 2 }), // NTB sales (converted) - 新客销售额(转换)
-	ntbSales: decimal({ precision: 15, scale: 2 }), // NTB sales - 新客销售额
-	ntbSalesPercent: decimal({ precision: 5, scale: 2 }), // % of sales NTB - 新客销售额占比
-	
-	// === 长期指标 ===
-	longTermSalesConverted: decimal({ precision: 15, scale: 2 }), // Long-term sales (converted)
-	longTermSales: decimal({ precision: 15, scale: 2 }), // Long-term sales
-	longTermRoas: decimal({ precision: 10, scale: 2 }), // Long-term ROAS
-	
-	// === 触达指标 ===
-	cumulativeReach: int().default(0), // Cumulative reach - 累计触达
-	householdReach: int().default(0), // Household reach - 家庭触达
-	
-	// === 可见性指标 ===
-	viewableImpressions: int().default(0), // Viewable impressions - 可见曝光
-	cpmConverted: decimal({ precision: 10, scale: 2 }), // CPM (converted)
-	cpm: decimal({ precision: 10, scale: 2 }), // CPM
-	vcpmConverted: decimal({ precision: 10, scale: 2 }), // VCPM (converted)
-	vcpm: decimal({ precision: 10, scale: 2 }), // VCPM
-	
-	// === 视频指标 ===
-	videoFirstQuartile: int().default(0), // Video first quartile - 视频25%播放
-	videoMidpoint: int().default(0), // Video midpoint - 视频50%播放
-	videoThirdQuartile: int().default(0), // Video third quartile - 视频75%播放
-	videoComplete: int().default(0), // Video complete - 视频完整播放
-	videoUnmute: int().default(0), // Video unmute - 视频取消静音
-	vtr: decimal({ precision: 5, scale: 4 }), // VTR - 视频播放率
-	vctr: decimal({ precision: 5, scale: 4 }), // vCTR - 可见点击率
-	
-	// === 系统字段 ===
+	campaignName: varchar({ length: 500 }).notNull(),
+	campaignType: mysqlEnum(['sp_auto','sp_manual','sb','sd']).notNull(),
+	targetingType: mysqlEnum(['auto','manual']).default('manual'),
 	maxBid: decimal({ precision: 10, scale: 2 }),
 	intradayBiddingEnabled: tinyint(),
 	campaignConversionValueType: mysqlEnum(['sales','units','custom','inherit']).default('inherit'),
 	campaignConversionValueSource: mysqlEnum(['platform','custom','inherit']).default('inherit'),
+	placementTopSearchBidAdjustment: int().default(0),
+	placementProductPageBidAdjustment: int().default(0),
+	placementRestBidAdjustment: int().default(0),
+	impressions: int().default(0),
+	clicks: int().default(0),
+	spend: decimal({ precision: 10, scale: 2 }).default('0.00'),
+	sales: decimal({ precision: 10, scale: 2 }).default('0.00'),
+	orders: int().default(0),
+	acos: decimal({ precision: 5, scale: 2 }),
+	roas: decimal({ precision: 10, scale: 2 }),
+	ctr: decimal({ precision: 5, scale: 4 }),
 	cvr: decimal({ precision: 5, scale: 4 }),
-	optimizationStatus: mysqlEnum(['managed','unmanaged']).default('unmanaged'),
+	cpc: decimal({ precision: 10, scale: 2 }),
+	campaignStatus: mysqlEnum(['enabled','paused','archived']).default('enabled'),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+	dailyBudget: decimal({ precision: 10, scale: 2 }),
+	optimizationStatus: mysqlEnum(['managed','unmanaged']).default('unmanaged'),
+	unitsOrdered: int("units_ordered").default(0),
+	averageOrderValue: decimal("average_order_value", { precision: 10, scale: 2 }),
+	sales7D: decimal("sales_7d", { precision: 10, scale: 2 }).default('0'),
+	orders7D: int("orders_7d").default(0),
+	unitsOrdered7D: int("units_ordered_7d").default(0),
+	sales30D: decimal("sales_30d", { precision: 10, scale: 2 }).default('0'),
+	orders30D: int("orders_30d").default(0),
+	unitsOrdered30D: int("units_ordered_30d").default(0),
+	ntbOrders: int("ntb_orders").default(0),
+	ntbSales: decimal("ntb_sales", { precision: 10, scale: 2 }).default('0'),
+	ntbUnitsOrdered: int("ntb_units_ordered").default(0),
+	ntbOrdersPercent: decimal("ntb_orders_percent", { precision: 5, scale: 2 }),
+	ntbSalesPercent: decimal("ntb_sales_percent", { precision: 5, scale: 2 }),
+	topOfSearchImpressions: int("top_of_search_impressions").default(0),
+	topOfSearchClicks: int("top_of_search_clicks").default(0),
+	topOfSearchSpend: decimal("top_of_search_spend", { precision: 10, scale: 2 }).default('0'),
+	topOfSearchSales: decimal("top_of_search_sales", { precision: 10, scale: 2 }).default('0'),
+	productPageImpressions: int("product_page_impressions").default(0),
+	productPageClicks: int("product_page_clicks").default(0),
+	productPageSpend: decimal("product_page_spend", { precision: 10, scale: 2 }).default('0'),
+	productPageSales: decimal("product_page_sales", { precision: 10, scale: 2 }).default('0'),
+	restOfSearchImpressions: int("rest_of_search_impressions").default(0),
+	restOfSearchClicks: int("rest_of_search_clicks").default(0),
+	restOfSearchSpend: decimal("rest_of_search_spend", { precision: 10, scale: 2 }).default('0'),
+	restOfSearchSales: decimal("rest_of_search_sales", { precision: 10, scale: 2 }).default('0'),
+	brandedSearches: int("branded_searches").default(0),
+	brandedSearchesClicks: int("branded_searches_clicks").default(0),
+	videoViews: int("video_views").default(0),
+	videoViewRate: decimal("video_view_rate", { precision: 5, scale: 4 }),
+	videoFirstQuartileViews: int("video_first_quartile_views").default(0),
+	videoMidpointViews: int("video_midpoint_views").default(0),
+	videoThirdQuartileViews: int("video_third_quartile_views").default(0),
+	videoCompleteViews: int("video_complete_views").default(0),
+	viewableImpressions: int("viewable_impressions").default(0),
+	viewThroughConversions: int("view_through_conversions").default(0),
+	viewThroughSales: decimal("view_through_sales", { precision: 10, scale: 2 }).default('0'),
+	biddingStrategy: mysqlEnum("bidding_strategy", ['legacyForSales','autoForSales','manual','ruleBasedBidding']).default('legacyForSales'),
+	budgetType: mysqlEnum("budget_type", ['daily','lifetime']).default('daily'),
+	lifetimeBudget: decimal("lifetime_budget", { precision: 10, scale: 2 }),
+	budgetUsagePercent: decimal("budget_usage_percent", { precision: 5, scale: 2 }),
+	startDate: varchar("start_date", { length: 10 }),
+	endDate: varchar("end_date", { length: 10 }),
+	negativeKeywordsCount: int("negative_keywords_count").default(0),
+	negativeTargetsCount: int("negative_targets_count").default(0),
+	state: varchar({ length: 20 }).default('enabled'),
+	country: varchar({ length: 50 }),
+	retailer: varchar({ length: 100 }),
+	portfolio: varchar({ length: 255 }),
+	biddingStrategy: varchar({ length: 50 }),
+	// you can use { mode: 'date' }, if you want to have Date as type for this column
+	startDate: date({ mode: 'string' }),
+	// you can use { mode: 'date' }, if you want to have Date as type for this column
+	endDate: date({ mode: 'string' }),
+	avgTimeInBudget: decimal({ precision: 5, scale: 2 }),
+	budgetConverted: decimal({ precision: 10, scale: 2 }),
+	costType: varchar({ length: 20 }),
+	topOfSearchImpressionShare: decimal({ precision: 5, scale: 2 }),
+	spendConverted: decimal({ precision: 10, scale: 2 }),
+	cpcConverted: decimal({ precision: 10, scale: 2 }),
+	detailPageViews: int().default(0),
+	brandStorePageViews: int().default(0),
+	salesConverted: decimal({ precision: 10, scale: 2 }),
+	ntbOrders: int().default(0),
+	ntbOrdersPercent: decimal({ precision: 5, scale: 2 }),
+	ntbSalesConverted: decimal({ precision: 10, scale: 2 }),
+	ntbSales: decimal({ precision: 10, scale: 2 }),
+	ntbSalesPercent: decimal({ precision: 5, scale: 2 }),
+	longTermSalesConverted: decimal({ precision: 10, scale: 2 }),
+	longTermSales: decimal({ precision: 10, scale: 2 }),
+	longTermRoas: decimal({ precision: 10, scale: 2 }),
+	cumulativeReach: int().default(0),
+	householdReach: int().default(0),
+	viewableImpressions: int().default(0),
+	cpmConverted: decimal({ precision: 10, scale: 2 }),
+	cpm: decimal({ precision: 10, scale: 2 }),
+	vcpmConverted: decimal({ precision: 10, scale: 2 }),
+	vcpm: decimal({ precision: 10, scale: 2 }),
+	videoFirstQuartile: int().default(0),
+	videoMidpoint: int().default(0),
+	videoThirdQuartile: int().default(0),
+	videoComplete: int().default(0),
+	videoUnmute: int().default(0),
+	vtr: decimal({ precision: 5, scale: 4 }),
+	vctr: decimal({ precision: 5, scale: 4 }),
+	topOfSearchBidAdjustment: decimal({ precision: 5, scale: 2 }),
+	countryCode: varchar({ length: 10 }),
+	portfolioId: varchar({ length: 64 }),
+	portfolioName: varchar({ length: 255 }),
+	adFormat: mysqlEnum("ad_format", ['productCollection','video','storeSpotlight','brandVideo']),
+	landingPageType: mysqlEnum("landing_page_type", ['store','productList','customUrl']),
+	landingPageUrl: varchar("landing_page_url", { length: 1000 }),
+	storePageId: varchar("store_page_id", { length: 64 }),
+	brandEntityId: varchar("brand_entity_id", { length: 64 }),
+	headline: varchar({ length: 500 }),
+	bidOptimization: mysqlEnum("bid_optimization", ['reach','pageVisits','conversions']),
+	tactic: varchar({ length: 20 }),
+	viewAttributedSales: decimal("view_attributed_sales", { precision: 15, scale: 2 }).default('0'),
+	viewAttributedOrders: int("view_attributed_orders").default(0),
+	viewAttributedUnits: int("view_attributed_units").default(0),
+	viewAttributedDpv: int("view_attributed_dpv").default(0),
+	viewAttributedNtbSales: decimal("view_attributed_ntb_sales", { precision: 15, scale: 2 }).default('0'),
+	viewAttributedNtbOrders: int("view_attributed_ntb_orders").default(0),
 });
 
 export const collaborationNotificationRules = mysqlTable("collaboration_notification_rules", {
@@ -669,11 +1359,69 @@ export const dailyPerformance = mysqlTable("daily_performance", {
 	dailyAcos: decimal({ precision: 5, scale: 2 }),
 	dailyRoas: decimal({ precision: 10, scale: 2 }),
 	conversions: int().default(0),
-	// 数据对齐架构新增字段
-	dataSource: mysqlEnum('data_source', ['api', 'ams']).default('api'),  // 标记数据来源
-	isFinalized: tinyint('is_finalized').default(0),  // 标记是否为最终财务数据（API拉取后设为1）
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	dataSource: varchar({ length: 10 }).default('api'),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow(),
+	unitsOrdered: int("units_ordered").default(0),
+	averageOrderValue: decimal("average_order_value", { precision: 10, scale: 2 }),
+	ctr: decimal({ precision: 5, scale: 4 }),
+	cvr: decimal({ precision: 5, scale: 4 }),
+	cpc: decimal({ precision: 10, scale: 2 }),
+	sales7D: decimal("sales_7d", { precision: 10, scale: 2 }).default('0'),
+	orders7D: int("orders_7d").default(0),
+	unitsOrdered7D: int("units_ordered_7d").default(0),
+	sales30D: decimal("sales_30d", { precision: 10, scale: 2 }).default('0'),
+	orders30D: int("orders_30d").default(0),
+	unitsOrdered30D: int("units_ordered_30d").default(0),
+	ntbOrders: int("ntb_orders").default(0),
+	ntbSales: decimal("ntb_sales", { precision: 10, scale: 2 }).default('0'),
+	ntbUnitsOrdered: int("ntb_units_ordered").default(0),
+	topOfSearchImpressions: int("top_of_search_impressions").default(0),
+	topOfSearchClicks: int("top_of_search_clicks").default(0),
+	topOfSearchSpend: decimal("top_of_search_spend", { precision: 10, scale: 2 }).default('0'),
+	topOfSearchSales: decimal("top_of_search_sales", { precision: 10, scale: 2 }).default('0'),
+	productPageImpressions: int("product_page_impressions").default(0),
+	productPageClicks: int("product_page_clicks").default(0),
+	productPageSpend: decimal("product_page_spend", { precision: 10, scale: 2 }).default('0'),
+	productPageSales: decimal("product_page_sales", { precision: 10, scale: 2 }).default('0'),
+	restOfSearchImpressions: int("rest_of_search_impressions").default(0),
+	restOfSearchClicks: int("rest_of_search_clicks").default(0),
+	restOfSearchSpend: decimal("rest_of_search_spend", { precision: 10, scale: 2 }).default('0'),
+	restOfSearchSales: decimal("rest_of_search_sales", { precision: 10, scale: 2 }).default('0'),
+	brandedSearches: int("branded_searches").default(0),
+	brandedSearchesClicks: int("branded_searches_clicks").default(0),
+	videoViews: int("video_views").default(0),
+	videoViewRate: decimal("video_view_rate", { precision: 5, scale: 4 }),
+	videoFirstQuartileViews: int("video_first_quartile_views").default(0),
+	videoMidpointViews: int("video_midpoint_views").default(0),
+	videoThirdQuartileViews: int("video_third_quartile_views").default(0),
+	videoCompleteViews: int("video_complete_views").default(0),
+	viewableImpressions: int("viewable_impressions").default(0),
+	viewThroughConversions: int("view_through_conversions").default(0),
+	viewThroughSales: decimal("view_through_sales", { precision: 10, scale: 2 }).default('0'),
+	dataSource: mysqlEnum("data_source", ['api','ams']).default('api'),
+	isFinalized: tinyint("is_finalized").default(0),
 });
+
+export const dataConsistencyChecks = mysqlTable("data_consistency_checks", {
+	id: int().autoincrement().notNull(),
+	accountId: int().notNull(),
+	checkTime: datetime({ mode: 'string'}).default('CURRENT_TIMESTAMP'),
+	// you can use { mode: 'date' }, if you want to have Date as type for this column
+	dateRangeStart: date({ mode: 'string' }),
+	// you can use { mode: 'date' }, if you want to have Date as type for this column
+	dateRangeEnd: date({ mode: 'string' }),
+	apiRecords: int().default(0),
+	amsRecords: int().default(0),
+	matchedRecords: int().default(0),
+	overallConsistency: decimal({ precision: 5, scale: 2 }),
+	checkStatus: varchar({ length: 50 }).default('completed'),
+	deviationDetails: json(),
+	createdAt: datetime({ mode: 'string'}).default('CURRENT_TIMESTAMP'),
+},
+(table) => [
+	index("idx_account_time").on(table.accountId, table.checkTime),
+]);
 
 export const dataSyncJobs = mysqlTable("data_sync_jobs", {
 	id: int().autoincrement().notNull(),
@@ -686,7 +1434,22 @@ export const dataSyncJobs = mysqlTable("data_sync_jobs", {
 	startedAt: timestamp({ mode: 'string' }),
 	completedAt: timestamp({ mode: 'string' }),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	// 增量同步和重试相关字段
+	isIncremental: tinyint("is_incremental").default(0),
+	spCampaignsSynced: int("sp_campaigns_synced").default(0),
+	sbCampaignsSynced: int("sb_campaigns_synced").default(0),
+	sdCampaignsSynced: int("sd_campaigns_synced").default(0),
+	adGroupsSynced: int("ad_groups_synced").default(0),
+	keywordsSynced: int("keywords_synced").default(0),
+	targetsSynced: int("targets_synced").default(0),
+	performanceSynced: int("performance_synced").default(0),
+	retryCount: int("retry_count").default(0),
+	maxRetries: int("max_retries").default(3),
+	lastRetryAt: timestamp("last_retry_at", { mode: 'string' }),
+	durationMs: int("duration_ms"),
+	recordsSkipped: int("records_skipped").default(0),
+	spCampaigns: int("sp_campaigns").default(0),
+	sbCampaigns: int("sb_campaigns").default(0),
+	sdCampaigns: int("sd_campaigns").default(0),
 	isIncremental: tinyint().default(0),
 	retryCount: int().default(0),
 	maxRetries: int().default(3),
@@ -698,13 +1461,12 @@ export const dataSyncJobs = mysqlTable("data_sync_jobs", {
 	adGroupsSynced: int().default(0),
 	keywordsSynced: int().default(0),
 	targetsSynced: int().default(0),
-	// 同步进度详情字段
-	currentStep: varchar('current_step', { length: 100 }),
-	totalSteps: int('total_steps').default(0),
-	currentStepIndex: int('current_step_index').default(0),
-	progressPercent: int('progress_percent').default(0),
-	siteProgress: json('site_progress'),
-	updatedAt: timestamp('updated_at', { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	currentStep: varchar("current_step", { length: 100 }),
+	totalSteps: int("total_steps").default(0),
+	currentStepIndex: int("current_step_index").default(0),
+	progressPercent: int("progress_percent").default(0),
+	siteProgress: json("site_progress"),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
 });
 
 export const dataSyncLogs = mysqlTable("data_sync_logs", {
@@ -721,7 +1483,7 @@ export const dataSyncSchedules = mysqlTable("data_sync_schedules", {
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
 	accountId: int().notNull(),
-	syncType: mysqlEnum('syncType', ['campaigns','ad_groups','keywords','product_targets','search_terms','performance_daily','performance_hourly','full_sync']).notNull(),
+	syncType: mysqlEnum(['campaigns','ad_groups','keywords','product_targets','search_terms','performance_daily','performance_hourly','full_sync']).notNull(),
 	frequency: mysqlEnum(['hourly','every_2_hours','every_4_hours','every_6_hours','every_12_hours','daily','weekly']).default('daily'),
 	preferredTime: varchar({ length: 5 }),
 	preferredDayOfWeek: int(),
@@ -730,6 +1492,7 @@ export const dataSyncSchedules = mysqlTable("data_sync_schedules", {
 	nextRunAt: timestamp({ mode: 'string' }),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	isEnabled: tinyint("is_enabled").default(1),
 });
 
 export const dataSyncTasks = mysqlTable("data_sync_tasks", {
@@ -748,6 +1511,20 @@ export const dataSyncTasks = mysqlTable("data_sync_tasks", {
 	startedAt: timestamp({ mode: 'string' }),
 	completedAt: timestamp({ mode: 'string' }),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});
+
+export const daypartingBidRules = mysqlTable("dayparting_bid_rules", {
+	id: int().autoincrement().notNull(),
+	campaignId: varchar("campaign_id", { length: 50 }).notNull(),
+	ruleName: varchar("rule_name", { length: 100 }).notNull(),
+	dayOfWeek: tinyint("day_of_week").notNull(),
+	startHour: tinyint("start_hour").notNull(),
+	endHour: tinyint("end_hour").notNull(),
+	bidMultiplier: decimal("bid_multiplier", { precision: 5, scale: 2 }).default('1.00'),
+	budgetMultiplier: decimal("budget_multiplier", { precision: 5, scale: 2 }).default('1.00'),
+	ruleEnabled: tinyint("rule_enabled").default(1),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
 });
 
 export const daypartingBudgetRules = mysqlTable("dayparting_budget_rules", {
@@ -804,6 +1581,25 @@ export const daypartingStrategies = mysqlTable("dayparting_strategies", {
 	lastAppliedAt: timestamp({ mode: 'string' }),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+});
+
+export const decisionTreeModels = mysqlTable("decision_tree_models", {
+	id: int().autoincrement().notNull(),
+	accountId: int().notNull(),
+	modelType: mysqlEnum(['cr_prediction','cv_prediction']).notNull(),
+	treeStructure: json(),
+	totalSamples: int(),
+	treeDepth: int(),
+	leafCount: int(),
+	avgLeafSamples: decimal({ precision: 10, scale: 2 }),
+	trainingR2: decimal({ precision: 5, scale: 4 }),
+	validationR2: decimal({ precision: 5, scale: 4 }),
+	meanAbsoluteError: decimal({ precision: 10, scale: 6 }),
+	featureImportance: json(),
+	version: int().default(1),
+	isActive: tinyint().default(1),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP'),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow(),
 });
 
 export const emailReportSubscriptions = mysqlTable("email_report_subscriptions", {
@@ -899,6 +1695,63 @@ export const importJobs = mysqlTable("import_jobs", {
 	completedAt: timestamp({ mode: 'string' }),
 });
 
+export const inviteCodeUsages = mysqlTable("invite_code_usages", {
+	id: int().autoincrement().notNull(),
+	inviteCodeId: int("invite_code_id").notNull().references(() => inviteCodes.id, { onDelete: "cascade" } ),
+	userId: int("user_id").notNull().references(() => users.id, { onDelete: "set null" } ),
+	usedAt: timestamp("used_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+	ipAddress: varchar("ip_address", { length: 45 }),
+	userAgent: text("user_agent"),
+	organizationId: int("organization_id"),
+},
+(table) => [
+	index("idx_invite_code").on(table.inviteCodeId),
+	index("idx_user").on(table.userId),
+]);
+
+export const inviteCodes = mysqlTable("invite_codes", {
+	id: int().autoincrement().notNull(),
+	code: varchar({ length: 32 }).notNull(),
+	createdBy: int("created_by").notNull().references(() => users.id, { onDelete: "cascade" } ),
+	organizationId: int("organization_id"),
+	inviteType: mysqlEnum("invite_type", ['team_member','external_user']).default('external_user'),
+	maxUses: int("max_uses").default(1),
+	usedCount: int("used_count").default(0),
+	usedBy: int("used_by").references(() => users.id, { onDelete: "set null" } ),
+	expiresAt: timestamp("expires_at", { mode: 'string' }),
+	isActive: tinyint("is_active").default(1),
+	note: varchar({ length: 255 }),
+	usedAt: timestamp("used_at", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+},
+(table) => [
+	index("idx_code").on(table.code),
+	index("code").on(table.code),
+]);
+
+export const keywordPredictions = mysqlTable("keyword_predictions", {
+	id: int().autoincrement().notNull(),
+	accountId: int().notNull(),
+	keywordId: int().notNull(),
+	predictedCr: decimal({ precision: 8, scale: 6 }),
+	predictedCv: decimal({ precision: 12, scale: 2 }),
+	crLow: decimal({ precision: 8, scale: 6 }),
+	crHigh: decimal({ precision: 8, scale: 6 }),
+	cvLow: decimal({ precision: 12, scale: 2 }),
+	cvHigh: decimal({ precision: 12, scale: 2 }),
+	predictionSource: mysqlEnum(['historical','decision_tree','bayesian_update']).default('decision_tree'),
+	confidence: decimal({ precision: 5, scale: 4 }),
+	sampleCount: int(),
+	matchType: mysqlEnum(['broad','phrase','exact']),
+	wordCount: int(),
+	keywordType: mysqlEnum(['brand','competitor','generic','product']),
+	actualCr: decimal({ precision: 8, scale: 6 }),
+	actualCv: decimal({ precision: 12, scale: 2 }),
+	predictionError: decimal({ precision: 8, scale: 6 }),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP'),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow(),
+});
+
 export const keywords = mysqlTable("keywords", {
 	id: int().autoincrement().notNull(),
 	adGroupId: int().notNull(),
@@ -925,6 +1778,81 @@ export const keywords = mysqlTable("keywords", {
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
+export const localUsers = mysqlTable("local_users", {
+	id: int().autoincrement().notNull(),
+	userId: int("user_id").notNull().references(() => users.id, { onDelete: "cascade" } ),
+	username: varchar({ length: 64 }).notNull(),
+	passwordHash: varchar("password_hash", { length: 256 }).notNull(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+},
+(table) => [
+	index("idx_username").on(table.username),
+	index("user_id").on(table.userId),
+	index("username").on(table.username),
+]);
+
+export const marginalBenefitApplications = mysqlTable("marginal_benefit_applications", {
+	id: int().autoincrement().notNull(),
+	accountId: int("account_id").notNull(),
+	campaignId: varchar("campaign_id", { length: 64 }).notNull(),
+	userId: int("user_id").notNull(),
+	optimizationGoal: mysqlEnum("optimization_goal", ['maximize_roas','minimize_acos','maximize_sales','balanced']).notNull(),
+	applicationStatus: mysqlEnum("application_status", ['pending','applied','failed','rolled_back']).default('pending'),
+	beforeTopOfSearch: int("before_top_of_search"),
+	beforeProductPage: int("before_product_page"),
+	afterTopOfSearch: int("after_top_of_search"),
+	afterProductPage: int("after_product_page"),
+	expectedSalesChange: decimal("expected_sales_change", { precision: 12, scale: 2 }),
+	expectedSpendChange: decimal("expected_spend_change", { precision: 12, scale: 2 }),
+	expectedRoasChange: decimal("expected_roas_change", { precision: 10, scale: 4 }),
+	expectedAcosChange: decimal("expected_acos_change", { precision: 10, scale: 4 }),
+	actualSalesChange: decimal("actual_sales_change", { precision: 12, scale: 2 }),
+	actualSpendChange: decimal("actual_spend_change", { precision: 12, scale: 2 }),
+	actualRoasChange: decimal("actual_roas_change", { precision: 10, scale: 4 }),
+	actualAcosChange: decimal("actual_acos_change", { precision: 10, scale: 4 }),
+	evaluatedAt: timestamp("evaluated_at", { mode: 'string' }),
+	applicationNote: text("application_note"),
+	errorMessage: text("error_message"),
+	appliedAt: timestamp("applied_at", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+},
+(table) => [
+	index("mb_app_account_campaign").on(table.accountId, table.campaignId),
+	index("mb_app_status").on(table.applicationStatus),
+]);
+
+export const marginalBenefitHistory = mysqlTable("marginal_benefit_history", {
+	id: int().autoincrement().notNull(),
+	accountId: int("account_id").notNull(),
+	campaignId: varchar("campaign_id", { length: 64 }).notNull(),
+	placementType: mysqlEnum("placement_type", ['top_of_search','product_page','rest_of_search']).notNull(),
+	// you can use { mode: 'date' }, if you want to have Date as type for this column
+	analysisDate: date("analysis_date", { mode: 'string' }).notNull(),
+	currentAdjustment: int("current_adjustment").default(0),
+	marginalRoas: decimal("marginal_roas", { precision: 10, scale: 4 }),
+	marginalAcos: decimal("marginal_acos", { precision: 10, scale: 4 }),
+	marginalSales: decimal("marginal_sales", { precision: 12, scale: 2 }),
+	marginalSpend: decimal("marginal_spend", { precision: 12, scale: 2 }),
+	elasticity: decimal({ precision: 10, scale: 4 }),
+	diminishingPoint: int("diminishing_point"),
+	optimalRangeMin: int("optimal_range_min"),
+	optimalRangeMax: int("optimal_range_max"),
+	confidence: decimal({ precision: 5, scale: 4 }),
+	dataPoints: int("data_points"),
+	totalImpressions: int("total_impressions"),
+	totalClicks: int("total_clicks"),
+	totalSpend: decimal("total_spend", { precision: 12, scale: 2 }),
+	totalSales: decimal("total_sales", { precision: 12, scale: 2 }),
+	totalOrders: int("total_orders"),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+},
+(table) => [
+	index("mb_history_account_campaign").on(table.accountId, table.campaignId),
+	index("mb_history_date").on(table.analysisDate),
+]);
+
 export const marketCurveData = mysqlTable("market_curve_data", {
 	id: int().autoincrement().notNull(),
 	curveTargetType: mysqlEnum(['keyword','product_target']).notNull(),
@@ -942,6 +1870,37 @@ export const marketCurveData = mysqlTable("market_curve_data", {
 	optimalBidPoint: decimal({ precision: 10, scale: 2 }),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+});
+
+export const marketCurveModels = mysqlTable("market_curve_models", {
+	id: int().autoincrement().notNull(),
+	accountId: int().notNull(),
+	campaignId: varchar({ length: 50 }).notNull(),
+	bidObjectType: mysqlEnum(['keyword','asin','audience']).notNull(),
+	bidObjectId: varchar({ length: 100 }).notNull(),
+	bidObjectText: varchar({ length: 500 }),
+	impressionCurveA: decimal({ precision: 15, scale: 6 }),
+	impressionCurveB: decimal({ precision: 15, scale: 6 }),
+	impressionCurveC: decimal({ precision: 15, scale: 6 }),
+	impressionCurveR2: decimal({ precision: 5, scale: 4 }),
+	baseCtr: decimal({ precision: 8, scale: 6 }),
+	positionBonus: decimal({ precision: 8, scale: 6 }),
+	topSearchCtrBonus: decimal({ precision: 8, scale: 6 }),
+	cvr: decimal({ precision: 8, scale: 6 }),
+	aov: decimal({ precision: 12, scale: 2 }),
+	conversionDelayDays: int().default(7),
+	cvrSource: mysqlEnum(['historical','decision_tree','bayesian']).default('historical'),
+	optimalBid: decimal({ precision: 10, scale: 4 }),
+	maxProfit: decimal({ precision: 12, scale: 2 }),
+	profitMargin: decimal({ precision: 5, scale: 4 }),
+	breakEvenCpc: decimal({ precision: 10, scale: 4 }),
+	currentBid: decimal({ precision: 10, scale: 4 }),
+	bidGap: decimal({ precision: 10, scale: 4 }),
+	bidGapPercent: decimal({ precision: 8, scale: 4 }),
+	dataPoints: int().default(0),
+	confidence: decimal({ precision: 5, scale: 4 }),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP'),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow(),
 });
 
 export const negativeKeywords = mysqlTable("negative_keywords", {
@@ -994,6 +1953,54 @@ export const notificationSettings = mysqlTable("notification_settings", {
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
+export const optimizationRecommendations = mysqlTable("optimization_recommendations", {
+	id: int().autoincrement().notNull(),
+	accountId: int().notNull(),
+	campaignId: varchar({ length: 50 }),
+	bidObjectType: mysqlEnum(['keyword','asin','campaign','placement']),
+	bidObjectId: varchar({ length: 100 }),
+	recommendationType: mysqlEnum(['bid_adjustment','placement_adjustment','budget_reallocation','keyword_optimization','data_collection']).notNull(),
+	priority: mysqlEnum(['critical','high','medium','low']).default('medium'),
+	title: varchar({ length: 255 }),
+	description: text(),
+	expectedImpact: text(),
+	currentValue: json(),
+	recommendedValue: json(),
+	expectedProfitChange: decimal({ precision: 12, scale: 2 }),
+	expectedProfitChangePercent: decimal({ precision: 8, scale: 4 }),
+	expectedAcosChange: decimal({ precision: 8, scale: 4 }),
+	expectedRoasChange: decimal({ precision: 10, scale: 4 }),
+	status: mysqlEnum(['pending','applied','rejected','expired']).default('pending'),
+	appliedAt: timestamp({ mode: 'string' }),
+	appliedBy: int(),
+	actualProfitChange: decimal({ precision: 12, scale: 2 }),
+	actualAcosChange: decimal({ precision: 8, scale: 4 }),
+	actualRoasChange: decimal({ precision: 10, scale: 4 }),
+	reviewedAt: timestamp({ mode: 'string' }),
+	expiresAt: timestamp({ mode: 'string' }),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP'),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow(),
+});
+
+export const organizations = mysqlTable("organizations", {
+	id: int().autoincrement().notNull(),
+	name: varchar({ length: 255 }).notNull(),
+	type: mysqlEnum(['internal','external']).default('external'),
+	ownerId: int("owner_id"),
+	status: mysqlEnum(['active','suspended','deleted']).default('active'),
+	maxUsers: int("max_users").default(10),
+	maxAccounts: int("max_accounts").default(5),
+	features: json(),
+	settings: json(),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+},
+(table) => [
+	index("idx_owner").on(table.ownerId),
+	index("idx_status").on(table.status),
+	index("idx_type").on(table.type),
+]);
+
 export const performanceGroups = mysqlTable("performance_groups", {
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
@@ -1011,27 +2018,41 @@ export const performanceGroups = mysqlTable("performance_groups", {
 	currentDailySales: decimal({ precision: 10, scale: 2 }),
 	conversionsPerDay: decimal({ precision: 10, scale: 2 }),
 	status: mysqlEnum(['active','paused','archived']).default('active'),
-	// 分时预算分配配置
-	daypartingEnabled: tinyint().default(1), // 是否启用分时预算分配
-	daypartingStrategy: mysqlEnum(['performance_based','equal','custom']).default('performance_based'), // 分配策略
-	daypartingAutoAdjust: tinyint().default(1), // 是否自动调整
-	daypartingMinBudgetPercent: decimal({ precision: 5, scale: 2 }).default('2.00'), // 最小时段预算百分比
-	daypartingMaxBudgetPercent: decimal({ precision: 5, scale: 2 }).default('15.00'), // 最大时段预算百分比
-	daypartingReserveBudget: decimal({ precision: 5, scale: 2 }).default('10.00'), // 预留预算百分比
-	daypartingLastAnalysis: timestamp({ mode: 'string' }), // 上次分析时间
-	daypartingLastExecution: timestamp({ mode: 'string' }), // 上次执行时间
-	// 投放词自动执行配置
-	keywordAutoEnabled: tinyint().default(1), // 是否启用投放词自动执行
-	keywordAutoPauseEnabled: tinyint().default(1), // 是否启用自动暂停
-	keywordAutoEnableEnabled: tinyint().default(0), // 是否启用自动启用
-	keywordPauseMinSpend: decimal({ precision: 10, scale: 2 }).default('10.00'), // 暂停最低花费阈值
-	keywordPauseMaxAcos: decimal({ precision: 5, scale: 2 }).default('100.00'), // 暂停最大ACoS阈值
-	keywordLastAutoExecution: timestamp({ mode: 'string' }), // 上次自动执行时间
-	dailyBudget: decimal('daily_budget', { precision: 10, scale: 2 }), // 每日预算
-	maxBid: decimal('max_bid', { precision: 10, scale: 2 }), // 最大出价
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+	daypartingEnabled: tinyint().default(1),
+	daypartingStrategy: mysqlEnum(['performance_based','equal','custom']).default('performance_based'),
+	daypartingAutoAdjust: tinyint().default(1),
+	daypartingMinBudgetPercent: int().default(50),
+	daypartingMaxBudgetPercent: int().default(150),
+	daypartingReserveBudget: decimal({ precision: 10, scale: 2 }).default('0'),
+	daypartingLastAnalysis: timestamp({ mode: 'string' }),
+	daypartingLastExecution: timestamp({ mode: 'string' }),
+	keywordAutoEnabled: tinyint().default(1),
+	keywordAutoPauseEnabled: tinyint().default(1),
+	keywordAutoEnableEnabled: tinyint().default(0),
+	keywordPauseMinSpend: decimal({ precision: 10, scale: 2 }).default('10'),
+	keywordPauseMaxAcos: decimal({ precision: 5, scale: 2 }).default('50'),
+	keywordLastAutoExecution: timestamp({ mode: 'string' }),
+	dailyBudget: decimal("daily_budget", { precision: 10, scale: 2 }),
+	maxBid: decimal("max_bid", { precision: 10, scale: 2 }),
 });
+
+export const placementBidSettings = mysqlTable("placement_bid_settings", {
+	id: int().autoincrement().notNull(),
+	campaignId: varchar("campaign_id", { length: 50 }).notNull(),
+	placementType: mysqlEnum("placement_type", ['top_of_search','product_page','rest_of_search']).notNull(),
+	bidAdjustmentPercent: decimal("bid_adjustment_percent", { precision: 5, scale: 2 }).default('0'),
+	autoOptimize: tinyint("auto_optimize").default(0),
+	targetAcos: decimal("target_acos", { precision: 10, scale: 4 }),
+	minAdjustment: decimal("min_adjustment", { precision: 5, scale: 2 }).default('-99'),
+	maxAdjustment: decimal("max_adjustment", { precision: 5, scale: 2 }).default('900'),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+},
+(table) => [
+	index("unique_placement").on(table.campaignId, table.placementType),
+]);
 
 export const placementPerformance = mysqlTable("placement_performance", {
 	id: int().autoincrement().notNull(),
@@ -1116,11 +2137,32 @@ export const promotionalEvents = mysqlTable("promotional_events", {
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
 
+export const sbCampaignSettings = mysqlTable("sb_campaign_settings", {
+	id: int().autoincrement().notNull(),
+	campaignId: varchar("campaign_id", { length: 50 }).notNull(),
+	accountId: varchar("account_id", { length: 50 }).notNull(),
+	campaignName: varchar("campaign_name", { length: 255 }),
+	campaignType: mysqlEnum("campaign_type", ['video','store_spotlight','product_collection']).default('product_collection'),
+	landingPageType: mysqlEnum("landing_page_type", ['store','product_list','custom_url']).default('store'),
+	brandEntityId: varchar("brand_entity_id", { length: 50 }),
+	autoOptimizeKeywords: tinyint("auto_optimize_keywords").default(0),
+	autoOptimizeBids: tinyint("auto_optimize_bids").default(0),
+	targetAcos: decimal("target_acos", { precision: 10, scale: 4 }),
+	minBid: decimal("min_bid", { precision: 10, scale: 2 }),
+	maxBid: decimal("max_bid", { precision: 10, scale: 2 }),
+	creativeOptimizationEnabled: tinyint("creative_optimization_enabled").default(0),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+},
+(table) => [
+	index("campaign_id").on(table.campaignId),
+]);
+
 export const scheduledTasks = mysqlTable("scheduled_tasks", {
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
 	accountId: int(),
-	taskType: mysqlEnum(['ngram_analysis','funnel_migration','traffic_conflict','smart_bidding','health_check','data_sync','traffic_isolation_full']).notNull(),
+	taskType: mysqlEnum(['ngram_analysis','funnel_migration','traffic_conflict','smart_bidding','health_check','data_sync']).notNull(),
 	name: varchar({ length: 255 }).notNull(),
 	description: text(),
 	enabled: tinyint().default(1),
@@ -1138,6 +2180,114 @@ export const scheduledTasks = mysqlTable("scheduled_tasks", {
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
+
+export const sdAudienceTargeting = mysqlTable("sd_audience_targeting", {
+	id: int().autoincrement().notNull(),
+	campaignId: varchar("campaign_id", { length: 50 }).notNull(),
+	adGroupId: varchar("ad_group_id", { length: 50 }).notNull(),
+	audienceType: mysqlEnum("audience_type", ['views','purchases','similar_products','categories','audiences']).notNull(),
+	audienceId: varchar("audience_id", { length: 100 }),
+	audienceName: varchar("audience_name", { length: 255 }),
+	lookbackWindow: int("lookback_window"),
+	bid: decimal({ precision: 10, scale: 2 }),
+	targetingStatus: mysqlEnum("targeting_status", ['enabled','paused']).default('enabled'),
+	impressions: int().default(0),
+	clicks: int().default(0),
+	cost: decimal({ precision: 10, scale: 2 }).default('0'),
+	sales: decimal({ precision: 10, scale: 2 }).default('0'),
+	orders: int().default(0),
+	acos: decimal({ precision: 10, scale: 4 }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+},
+(table) => [
+	index("idx_campaign").on(table.campaignId),
+	index("idx_audience_type").on(table.audienceType),
+]);
+
+export const sdAudiences = mysqlTable("sd_audiences", {
+	id: int().autoincrement().notNull(),
+	accountId: int("account_id").notNull(),
+	adGroupId: int("ad_group_id").notNull(),
+	audienceId: varchar("audience_id", { length: 64 }).notNull(),
+	audienceName: varchar("audience_name", { length: 500 }),
+	audienceType: mysqlEnum("audience_type", ['views','purchases','inMarket','lifestyle','custom']).notNull(),
+	lookbackDays: int("lookback_days").default(30),
+	bid: decimal({ precision: 10, scale: 2 }),
+	state: mysqlEnum(['enabled','paused','archived']).default('enabled'),
+	impressions: int().default(0),
+	viewableImpressions: int("viewable_impressions").default(0),
+	clicks: int().default(0),
+	spend: decimal({ precision: 10, scale: 2 }).default('0'),
+	sales: decimal({ precision: 10, scale: 2 }).default('0'),
+	orders: int().default(0),
+	dpv: int().default(0),
+	viewAttributedSales: decimal("view_attributed_sales", { precision: 15, scale: 2 }).default('0'),
+	viewAttributedOrders: int("view_attributed_orders").default(0),
+	ntbOrders: int("ntb_orders").default(0),
+	ntbSales: decimal("ntb_sales", { precision: 15, scale: 2 }).default('0'),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+},
+(table) => [
+	index("idx_ad_group_id").on(table.adGroupId),
+	index("idx_audience_type").on(table.audienceType),
+	index("idx_state").on(table.state),
+]);
+
+export const sdCampaignSettings = mysqlTable("sd_campaign_settings", {
+	id: int().autoincrement().notNull(),
+	campaignId: varchar("campaign_id", { length: 50 }).notNull(),
+	accountId: varchar("account_id", { length: 50 }).notNull(),
+	campaignName: varchar("campaign_name", { length: 255 }),
+	tactic: mysqlEnum(['T00020','T00030','remarketing','contextual']).default('contextual'),
+	costType: mysqlEnum("cost_type", ['cpc','vcpm']).default('cpc'),
+	optimizationGoal: mysqlEnum("optimization_goal", ['reach','page_visits','conversions']).default('conversions'),
+	autoOptimizeAudiences: tinyint("auto_optimize_audiences").default(0),
+	autoOptimizeBids: tinyint("auto_optimize_bids").default(0),
+	targetAcos: decimal("target_acos", { precision: 10, scale: 4 }),
+	targetRoas: decimal("target_roas", { precision: 10, scale: 4 }),
+	minBid: decimal("min_bid", { precision: 10, scale: 2 }),
+	maxBid: decimal("max_bid", { precision: 10, scale: 2 }),
+	audienceBidOptimization: tinyint("audience_bid_optimization").default(0),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+},
+(table) => [
+	index("campaign_id").on(table.campaignId),
+]);
+
+export const searchTermAnalysis = mysqlTable("search_term_analysis", {
+	id: int().autoincrement().notNull(),
+	accountId: varchar("account_id", { length: 50 }).notNull(),
+	campaignId: varchar("campaign_id", { length: 50 }).notNull(),
+	adGroupId: varchar("ad_group_id", { length: 50 }).notNull(),
+	searchTerm: varchar("search_term", { length: 500 }).notNull(),
+	keywordId: varchar("keyword_id", { length: 50 }),
+	matchType: varchar("match_type", { length: 20 }),
+	classification: mysqlEnum(['high_performer','potential','low_performer','negative_candidate']).default('potential'),
+	impressions: int().default(0),
+	clicks: int().default(0),
+	cost: decimal({ precision: 10, scale: 2 }).default('0'),
+	sales: decimal({ precision: 10, scale: 2 }).default('0'),
+	orders: int().default(0),
+	acos: decimal({ precision: 10, scale: 4 }),
+	cvr: decimal({ precision: 10, scale: 6 }),
+	recommendationType: mysqlEnum("recommendation_type", ['add_as_keyword','add_as_negative','increase_bid','decrease_bid','monitor']).default('monitor'),
+	recommendationReason: text("recommendation_reason"),
+	isProcessed: tinyint("is_processed").default(0),
+	// you can use { mode: 'date' }, if you want to have Date as type for this column
+	firstSeenDate: date("first_seen_date", { mode: 'string' }),
+	// you can use { mode: 'date' }, if you want to have Date as type for this column
+	lastSeenDate: date("last_seen_date", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+},
+(table) => [
+	index("idx_campaign").on(table.campaignId),
+	index("idx_classification").on(table.classification),
+	index("idx_recommendation").on(table.recommendationType),
+]);
 
 export const searchTerms = mysqlTable("search_terms", {
 	id: int().autoincrement().notNull(),
@@ -1205,6 +2355,116 @@ export const seasonalTrends = mysqlTable("seasonal_trends", {
 	updatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
 
+export const spendAlertLogs = mysqlTable("spend_alert_logs", {
+	id: int().autoincrement().notNull(),
+	configId: int().notNull(),
+	userId: int().notNull(),
+	accountId: int().notNull(),
+	alertType: mysqlEnum(['warning_50','warning_80','critical_95','limit_reached','auto_stopped']).notNull(),
+	alertLevel: mysqlEnum(['info','warning','critical']).notNull(),
+	currentSpend: decimal({ precision: 12, scale: 2 }).notNull(),
+	dailyLimit: decimal({ precision: 12, scale: 2 }).notNull(),
+	spendPercent: decimal({ precision: 5, scale: 2 }).notNull(),
+	notificationSent: tinyint().default(0).notNull(),
+	notificationSentAt: timestamp({ mode: 'string' }),
+	notificationError: text(),
+	acknowledged: tinyint().default(0).notNull(),
+	acknowledgedBy: int(),
+	acknowledgedAt: timestamp({ mode: 'string' }),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+});
+
+export const spendLimitConfigs = mysqlTable("spend_limit_configs", {
+	id: int().autoincrement().notNull(),
+	userId: int().notNull(),
+	accountId: int().notNull(),
+	dailySpendLimit: decimal({ precision: 12, scale: 2 }).notNull(),
+	warningThreshold1: decimal({ precision: 5, scale: 2 }).default('50.00').notNull(),
+	warningThreshold2: decimal({ precision: 5, scale: 2 }).default('80.00').notNull(),
+	criticalThreshold: decimal({ precision: 5, scale: 2 }).default('95.00').notNull(),
+	autoStopEnabled: tinyint().default(0).notNull(),
+	autoStopThreshold: decimal({ precision: 5, scale: 2 }).default('100.00'),
+	notifyOnWarning1: tinyint().default(1).notNull(),
+	notifyOnWarning2: tinyint().default(1).notNull(),
+	notifyOnCritical: tinyint().default(1).notNull(),
+	notifyOnAutoStop: tinyint().default(1).notNull(),
+	isEnabled: tinyint().default(1).notNull(),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+});
+
+export const syncChangeRecords = mysqlTable("sync_change_records", {
+	id: int().autoincrement().notNull(),
+	syncJobId: int("sync_job_id").notNull(),
+	accountId: int("account_id").notNull(),
+	userId: int("user_id").notNull(),
+	entityType: mysqlEnum("entity_type", ['campaign','ad_group','keyword','product_target']).notNull(),
+	changeType: mysqlEnum("change_type", ['created','updated','deleted']).notNull(),
+	entityId: varchar("entity_id", { length: 64 }).notNull(),
+	entityName: varchar("entity_name", { length: 500 }),
+	previousData: json("previous_data"),
+	newData: json("new_data"),
+	changedFields: json("changed_fields"),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("idx_sync_job").on(table.syncJobId),
+	index("idx_account").on(table.accountId),
+	index("idx_entity_type").on(table.entityType),
+	index("idx_change_type").on(table.changeType),
+]);
+
+export const syncChangeSummary = mysqlTable("sync_change_summary", {
+	id: int().autoincrement().notNull(),
+	syncJobId: int("sync_job_id").notNull(),
+	accountId: int("account_id").notNull(),
+	userId: int("user_id").notNull(),
+	campaignsCreated: int("campaigns_created").default(0),
+	campaignsUpdated: int("campaigns_updated").default(0),
+	campaignsDeleted: int("campaigns_deleted").default(0),
+	adGroupsCreated: int("ad_groups_created").default(0),
+	adGroupsUpdated: int("ad_groups_updated").default(0),
+	adGroupsDeleted: int("ad_groups_deleted").default(0),
+	keywordsCreated: int("keywords_created").default(0),
+	keywordsUpdated: int("keywords_updated").default(0),
+	keywordsDeleted: int("keywords_deleted").default(0),
+	targetsCreated: int("targets_created").default(0),
+	targetsUpdated: int("targets_updated").default(0),
+	targetsDeleted: int("targets_deleted").default(0),
+	conflictsDetected: int("conflicts_detected").default(0),
+	conflictsResolved: int("conflicts_resolved").default(0),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("idx_sync_job").on(table.syncJobId),
+	index("idx_account").on(table.accountId),
+]);
+
+export const syncConflicts = mysqlTable("sync_conflicts", {
+	id: int().autoincrement().notNull(),
+	syncJobId: int("sync_job_id").notNull(),
+	accountId: int("account_id").notNull(),
+	userId: int("user_id").notNull(),
+	entityType: mysqlEnum("entity_type", ['campaign','ad_group','keyword','product_target']).notNull(),
+	entityId: varchar("entity_id", { length: 64 }).notNull(),
+	entityName: varchar("entity_name", { length: 500 }),
+	conflictType: mysqlEnum("conflict_type", ['data_mismatch','missing_local','missing_remote','status_conflict']).notNull(),
+	localData: json("local_data"),
+	remoteData: json("remote_data"),
+	conflictFields: json("conflict_fields"),
+	suggestedResolution: mysqlEnum("suggested_resolution", ['use_local','use_remote','merge','manual']).default('use_remote'),
+	resolutionStatus: mysqlEnum("resolution_status", ['pending','resolved','ignored']).default('pending'),
+	resolvedAt: timestamp("resolved_at", { mode: 'string' }),
+	resolvedBy: int("resolved_by"),
+	resolutionNotes: text("resolution_notes"),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("idx_sync_job").on(table.syncJobId),
+	index("idx_account").on(table.accountId),
+	index("idx_resolution_status").on(table.resolutionStatus),
+]);
+
 export const syncSchedules = mysqlTable("sync_schedules", {
 	id: int().autoincrement().notNull(),
 	userId: int("user_id").notNull(),
@@ -1220,6 +2480,33 @@ export const syncSchedules = mysqlTable("sync_schedules", {
 	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp("updated_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
+
+export const syncTaskQueue = mysqlTable("sync_task_queue", {
+	id: int().autoincrement().notNull(),
+	userId: int("user_id").notNull(),
+	accountId: int("account_id").notNull(),
+	accountName: varchar("account_name", { length: 255 }),
+	syncType: mysqlEnum("sync_type", ['campaigns','ad_groups','keywords','product_targets','performance','full']).default('full'),
+	priority: int().default(0),
+	status: mysqlEnum(['queued','running','completed','failed','cancelled']).default('queued'),
+	progress: int().default(0),
+	currentStep: varchar("current_step", { length: 100 }),
+	totalSteps: int("total_steps").default(6),
+	completedSteps: int("completed_steps").default(0),
+	estimatedTimeMs: int("estimated_time_ms"),
+	startedAt: timestamp("started_at", { mode: 'string' }),
+	completedAt: timestamp("completed_at", { mode: 'string' }),
+	errorMessage: text("error_message"),
+	resultSummary: json("result_summary"),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+	index("idx_user").on(table.userId),
+	index("idx_account").on(table.accountId),
+	index("idx_status").on(table.status),
+	index("idx_priority").on(table.priority),
+]);
 
 export const taskExecutionLog = mysqlTable("task_execution_log", {
 	id: int().autoincrement().notNull(),
@@ -1241,6 +2528,9 @@ export const taskExecutionLog = mysqlTable("task_execution_log", {
 
 export const teamMembers = mysqlTable("team_members", {
 	id: int().autoincrement().notNull(),
+	organizationId: int("organization_id").default(1),
+	username: varchar({ length: 100 }),
+	passwordHash: varchar("password_hash", { length: 255 }),
 	ownerId: int().notNull(),
 	memberId: int(),
 	email: varchar({ length: 320 }).notNull(),
@@ -1253,7 +2543,13 @@ export const teamMembers = mysqlTable("team_members", {
 	lastActiveAt: timestamp({ mode: 'string' }),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-});
+	lastLoginAt: timestamp("last_login_at", { mode: 'string' }),
+	organizationId: int(),
+},
+(table) => [
+	index("idx_team_organization").on(table.organizationId),
+	index("idx_username").on(table.username),
+]);
 
 export const userNotificationPreferences = mysqlTable("user_notification_preferences", {
 	id: int().autoincrement().notNull(),
@@ -1280,6 +2576,7 @@ export const userNotificationPreferences = mysqlTable("user_notification_prefere
 
 export const users = mysqlTable("users", {
 	id: int().autoincrement().notNull(),
+	organizationId: int("organization_id").default(1),
 	openId: varchar({ length: 64 }).notNull(),
 	name: text(),
 	email: varchar({ length: 320 }),
@@ -1291,1478 +2588,5 @@ export const users = mysqlTable("users", {
 },
 (table) => [
 	index("users_openId_unique").on(table.openId),
-]);
-
-
-// ==================== Adspert算法相关表 ====================
-
-// 市场曲线模型表
-export const marketCurveModels = mysqlTable("market_curve_models", {
-	id: int().autoincrement().notNull().primaryKey(),
-	accountId: int().notNull(),
-	campaignId: varchar({ length: 64 }),
-	bidObjectType: mysqlEnum(['keyword', 'asin', 'audience']).notNull(),
-	bidObjectId: varchar({ length: 64 }).notNull(),
-	bidObjectText: varchar({ length: 500 }),
-	impressionCurveA: decimal({ precision: 15, scale: 6 }),
-	impressionCurveB: decimal({ precision: 15, scale: 6 }),
-	impressionCurveC: decimal({ precision: 15, scale: 6 }),
-	impressionCurveR2: decimal({ precision: 10, scale: 6 }),
-	baseCTR: decimal({ precision: 10, scale: 6 }),
-	positionBonus: decimal({ precision: 10, scale: 6 }),
-	topSearchCTRBonus: decimal({ precision: 10, scale: 6 }),
-	cvr: decimal({ precision: 10, scale: 6 }),
-	aov: decimal({ precision: 15, scale: 2 }),
-	conversionDelayDays: int().default(7),
-	cvrSource: mysqlEnum(['historical', 'predicted', 'default']).default('historical'),
-	optimalBid: decimal({ precision: 10, scale: 4 }),
-	maxProfit: decimal({ precision: 15, scale: 2 }),
-	profitMargin: decimal({ precision: 10, scale: 4 }),
-	breakEvenCPC: decimal({ precision: 10, scale: 4 }),
-	currentBid: decimal({ precision: 10, scale: 4 }),
-	bidGap: decimal({ precision: 10, scale: 4 }),
-	bidGapPercent: decimal({ precision: 10, scale: 4 }),
-	dataPoints: int().default(0),
-	confidence: decimal({ precision: 10, scale: 4 }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-// 决策树模型表
-export const decisionTreeModels = mysqlTable("decision_tree_models", {
-	id: int().autoincrement().notNull().primaryKey(),
-	accountId: int("account_id").notNull(),
-	modelType: mysqlEnum("model_type", ['cr_prediction', 'cv_prediction']).notNull(),
-	treeStructure: text("tree_structure"),
-	featureImportance: text("feature_importance"),
-	trainingR2: decimal("training_r2", { precision: 10, scale: 6 }),
-	validationR2: decimal("validation_r2", { precision: 10, scale: 6 }),
-	totalSamples: int("total_samples").default(0),
-	depth: int().default(0),
-	leafCount: int("leaf_count").default(0),
-	isActive: tinyint("is_active").default(1),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-// 关键词预测结果表
-export const keywordPredictions = mysqlTable("keyword_predictions", {
-	id: int().autoincrement().notNull().primaryKey(),
-	accountId: int("account_id").notNull(),
-	keywordId: int("keyword_id").notNull(),
-	keywordText: varchar("keyword_text", { length: 500 }),
-	matchType: mysqlEnum("match_type", ['broad', 'phrase', 'exact']),
-	wordCount: int("word_count"),
-	keywordType: mysqlEnum("keyword_type", ['brand', 'competitor', 'generic', 'product']),
-	predictedCR: decimal("predicted_cr", { precision: 10, scale: 6 }),
-	predictedCV: decimal("predicted_cv", { precision: 15, scale: 2 }),
-	actualCR: decimal("actual_cr", { precision: 10, scale: 6 }),
-	actualCV: decimal("actual_cv", { precision: 15, scale: 2 }),
-	confidence: decimal({ precision: 10, scale: 4 }),
-	predictionSource: mysqlEnum("prediction_source", ['decision_tree', 'bayesian', 'default']).default('decision_tree'),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-// 竞价对象利润估算表
-export const bidObjectProfitEstimates = mysqlTable("bid_object_profit_estimates", {
-	id: int().autoincrement().notNull().primaryKey(),
-	accountId: int("account_id").notNull(),
-	campaignId: varchar("campaign_id", { length: 64 }),
-	bidObjectType: mysqlEnum("bid_object_type", ['keyword', 'asin']).notNull(),
-	bidObjectId: varchar("bid_object_id", { length: 64 }).notNull(),
-	bidObjectText: varchar("bid_object_text", { length: 500 }),
-	currentBaseBid: decimal("current_base_bid", { precision: 10, scale: 4 }),
-	currentTopAdjustment: int("current_top_adjustment").default(0),
-	currentProductAdjustment: int("current_product_adjustment").default(0),
-	estimatedProfitTop: decimal("estimated_profit_top", { precision: 15, scale: 2 }),
-	estimatedProfitProduct: decimal("estimated_profit_product", { precision: 15, scale: 2 }),
-	estimatedProfitRest: decimal("estimated_profit_rest", { precision: 15, scale: 2 }),
-	totalEstimatedProfit: decimal("total_estimated_profit", { precision: 15, scale: 2 }),
-	recommendedBaseBid: decimal("recommended_base_bid", { precision: 10, scale: 4 }),
-	recommendedTopAdjustment: int("recommended_top_adjustment").default(0),
-	recommendedProductAdjustment: int("recommended_product_adjustment").default(0),
-	profitImprovementPotential: decimal("profit_improvement_potential", { precision: 15, scale: 2 }),
-	profitImprovementPercent: decimal("profit_improvement_percent", { precision: 10, scale: 4 }),
-	confidence: decimal({ precision: 10, scale: 4 }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-// 优化建议表
-export const optimizationRecommendations = mysqlTable("optimization_recommendations", {
-	id: int().autoincrement().notNull().primaryKey(),
-	accountId: int("account_id").notNull(),
-	campaignId: varchar("campaign_id", { length: 64 }),
-	recommendationType: varchar("recommendation_type", { length: 64 }).notNull(),
-	priority: mysqlEnum(['critical', 'high', 'medium', 'low']).default('medium'),
-	title: varchar({ length: 255 }),
-	description: text(),
-	expectedImpact: varchar("expected_impact", { length: 255 }),
-	currentValue: json("current_value"),
-	recommendedValue: json("recommended_value"),
-	expectedProfitChange: decimal("expected_profit_change", { precision: 15, scale: 2 }),
-	status: mysqlEnum(['pending', 'applied', 'dismissed', 'expired']).default('pending'),
-	appliedAt: timestamp("applied_at", { mode: 'string' }),
-	appliedBy: int("applied_by"),
-	expiresAt: timestamp("expires_at", { mode: 'string' }),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp("updated_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-// 出价表现历史表
-export const bidPerformanceHistory = mysqlTable("bid_performance_history", {
-	id: int().autoincrement().notNull().primaryKey(),
-	accountId: int("account_id").notNull(),
-	campaignId: varchar("campaign_id", { length: 64 }),
-	bidObjectType: mysqlEnum("bid_object_type", ['keyword', 'asin', 'audience']).notNull(),
-	bidObjectId: varchar("bid_object_id", { length: 64 }).notNull(),
-	date: varchar({ length: 10 }).notNull(),
-	bid: decimal({ precision: 10, scale: 4 }),
-	effectiveCPC: decimal("effective_cpc", { precision: 10, scale: 4 }),
-	impressions: int().default(0),
-	clicks: int().default(0),
-	spend: decimal({ precision: 15, scale: 2 }),
-	sales: decimal({ precision: 15, scale: 2 }),
-	orders: int().default(0),
-	ctr: decimal({ precision: 10, scale: 6 }),
-	cvr: decimal({ precision: 10, scale: 6 }),
-	acos: decimal({ precision: 10, scale: 4 }),
-	roas: decimal({ precision: 10, scale: 4 }),
-	placement: mysqlEnum(['top_of_search', 'product_page', 'rest_of_search']),
-	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-
-// 出价调整历史记录表
-export const bidAdjustmentHistory = mysqlTable("bid_adjustment_history", {
-  id: int().autoincrement().notNull(),
-  accountId: int("account_id").notNull(),
-  campaignId: int("campaign_id"),
-  campaignName: varchar("campaign_name", { length: 500 }),
-  performanceGroupId: int("performance_group_id"),
-  performanceGroupName: varchar("performance_group_name", { length: 255 }),
-  keywordId: int("keyword_id"),
-  keywordText: varchar("keyword_text", { length: 500 }),
-  matchType: varchar("match_type", { length: 32 }),
-  previousBid: decimal("previous_bid", { precision: 10, scale: 2 }).notNull(),
-  newBid: decimal("new_bid", { precision: 10, scale: 2 }).notNull(),
-  bidChangePercent: decimal("bid_change_percent", { precision: 10, scale: 2 }),
-  adjustmentType: mysqlEnum("adjustment_type", ['manual', 'auto_optimal', 'auto_dayparting', 'auto_placement', 'batch_campaign', 'batch_group']).default('manual'),
-  adjustmentReason: text("adjustment_reason"),
-  expectedProfitIncrease: decimal("expected_profit_increase", { precision: 10, scale: 2 }),
-  optimizationScore: int("optimization_score"),
-  appliedBy: varchar("applied_by", { length: 255 }),
-  appliedAt: timestamp("applied_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
-  status: mysqlEnum("status", ['applied', 'pending', 'failed', 'rolled_back']).default('applied'),
-  errorMessage: text("error_message"),
-  // 效果追踪字段
-  actualProfit7d: decimal("actual_profit_7d", { precision: 10, scale: 2 }),
-  actualProfit14d: decimal("actual_profit_14d", { precision: 10, scale: 2 }),
-  actualProfit30d: decimal("actual_profit_30d", { precision: 10, scale: 2 }),
-  actualImpressions7d: int("actual_impressions_7d"),
-  actualClicks7d: int("actual_clicks_7d"),
-  actualConversions7d: int("actual_conversions_7d"),
-  actualSpend7d: decimal("actual_spend_7d", { precision: 10, scale: 2 }),
-  actualRevenue7d: decimal("actual_revenue_7d", { precision: 10, scale: 2 }),
-  trackingUpdatedAt: timestamp("tracking_updated_at", { mode: 'string' }),
-  // 回滚字段
-  rolledBackAt: timestamp("rolled_back_at", { mode: 'string' }),
-  rolledBackBy: varchar("rolled_back_by", { length: 255 }),
-});
-
-
-// 智能预算分配配置表
-export const budgetAllocationConfigs = mysqlTable("budget_allocation_configs", {
-  id: int().autoincrement().notNull(),
-  performanceGroupId: int().notNull(),
-  userId: int().notNull(),
-  // 是否启用智能预算分配
-  enabled: tinyint().default(0),
-  // 分配模式: auto=全自动, semi_auto=半自动(需确认), manual=手动
-  allocationMode: mysqlEnum(['auto', 'semi_auto', 'manual']).default('semi_auto'),
-  // 评分权重配置
-  conversionEfficiencyWeight: decimal({ precision: 3, scale: 2 }).default('0.40'),
-  roasWeight: decimal({ precision: 3, scale: 2 }).default('0.35'),
-  growthPotentialWeight: decimal({ precision: 3, scale: 2 }).default('0.25'),
-  // 调整约束
-  maxAdjustmentPercent: decimal({ precision: 5, scale: 2 }).default('10.00'),
-  minDailyBudget: decimal({ precision: 10, scale: 2 }).default('5.00'),
-  cooldownDays: int().default(3),
-  newCampaignProtectionDays: int().default(7),
-  // 数据窗口
-  dataWindowDays: int().default(30),
-  // 调整频率: daily=每天, weekly=每周, biweekly=每两周
-  adjustmentFrequency: mysqlEnum(['daily', 'weekly', 'biweekly']).default('weekly'),
-  // 上次运行时间
-  lastRunAt: timestamp({ mode: 'string' }),
-  nextRunAt: timestamp({ mode: 'string' }),
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-  updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-});
-
-// 预算分配建议表
-export const budgetAllocationSuggestions = mysqlTable("budget_allocation_suggestions", {
-  id: int().autoincrement().notNull(),
-  performanceGroupId: int().notNull(),
-  campaignId: int().notNull(),
-  userId: int().notNull(),
-  // 当前预算
-  currentBudget: decimal({ precision: 10, scale: 2 }).notNull(),
-  // 建议预算
-  suggestedBudget: decimal({ precision: 10, scale: 2 }).notNull(),
-  // 调整金额
-  adjustmentAmount: decimal({ precision: 10, scale: 2 }).notNull(),
-  // 调整百分比
-  adjustmentPercent: decimal({ precision: 5, scale: 2 }).notNull(),
-  // 综合得分
-  compositeScore: decimal({ precision: 5, scale: 2 }).notNull(),
-  // 转化效率得分
-  conversionEfficiencyScore: decimal({ precision: 5, scale: 2 }),
-  // ROAS得分
-  roasScore: decimal({ precision: 5, scale: 2 }),
-  // 增长潜力得分
-  growthPotentialScore: decimal({ precision: 5, scale: 2 }),
-  // 建议原因
-  suggestionReason: text(),
-  // 预测效果
-  predictedConversions: decimal({ precision: 10, scale: 2 }),
-  predictedRoas: decimal({ precision: 10, scale: 2 }),
-  predictedSpend: decimal({ precision: 10, scale: 2 }),
-  predictedSales: decimal({ precision: 10, scale: 2 }),
-  // 状态: pending=待处理, approved=已批准, rejected=已拒绝, applied=已应用, expired=已过期
-  status: mysqlEnum(['pending', 'approved', 'rejected', 'applied', 'expired']).default('pending'),
-  // 处理时间
-  processedAt: timestamp({ mode: 'string' }),
-  processedBy: int(),
-  // 过期时间
-  expiresAt: timestamp({ mode: 'string' }),
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-  updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-});
-
-// 预算分配历史表
-export const budgetAllocationHistory = mysqlTable("budget_allocation_history", {
-  id: int().autoincrement().notNull(),
-  suggestionId: int(),
-  performanceGroupId: int().notNull(),
-  campaignId: int().notNull(),
-  userId: int().notNull(),
-  // 调整前预算
-  previousBudget: decimal({ precision: 10, scale: 2 }).notNull(),
-  // 调整后预算
-  newBudget: decimal({ precision: 10, scale: 2 }).notNull(),
-  // 调整金额
-  adjustmentAmount: decimal({ precision: 10, scale: 2 }).notNull(),
-  // 调整百分比
-  adjustmentPercent: decimal({ precision: 5, scale: 2 }).notNull(),
-  // 调整原因
-  adjustmentReason: text(),
-  // 调整类型: auto=自动, manual=手动, rollback=回滚
-  adjustmentType: mysqlEnum(['auto', 'manual', 'rollback']).default('auto'),
-  // 调整前指标
-  baselineSpend: decimal({ precision: 10, scale: 2 }),
-  baselineSales: decimal({ precision: 10, scale: 2 }),
-  baselineConversions: int(),
-  baselineRoas: decimal({ precision: 10, scale: 2 }),
-  baselineAcos: decimal({ precision: 5, scale: 2 }),
-  // 调整后指标(效果追踪)
-  actualSpend: decimal({ precision: 10, scale: 2 }),
-  actualSales: decimal({ precision: 10, scale: 2 }),
-  actualConversions: int(),
-  actualRoas: decimal({ precision: 10, scale: 2 }),
-  actualAcos: decimal({ precision: 5, scale: 2 }),
-  // 效果追踪状态
-  trackingStatus: mysqlEnum(['pending', 'tracking', 'completed']).default('pending'),
-  trackingStartDate: timestamp({ mode: 'string' }),
-  trackingEndDate: timestamp({ mode: 'string' }),
-  // 是否已回滚
-  isRolledBack: tinyint().default(0),
-  rolledBackAt: timestamp({ mode: 'string' }),
-  rollbackReason: text(),
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-  updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-});
-
-// 广告活动表现快照表(用于预算分配计算)
-export const campaignPerformanceSnapshots = mysqlTable("campaign_performance_snapshots", {
-  id: int().autoincrement().notNull(),
-  performanceGroupId: int().notNull(),
-  campaignId: int().notNull(),
-  snapshotDate: date({ mode: 'string' }).notNull(),
-  // 30天汇总数据
-  dailyAvgSpend: decimal({ precision: 10, scale: 2 }),
-  totalSpend: decimal({ precision: 12, scale: 2 }),
-  totalSales: decimal({ precision: 12, scale: 2 }),
-  totalConversions: int(),
-  totalClicks: int(),
-  totalImpressions: int(),
-  // 计算指标
-  roas: decimal({ precision: 10, scale: 2 }),
-  acos: decimal({ precision: 5, scale: 2 }),
-  ctr: decimal({ precision: 8, scale: 6 }),
-  cvr: decimal({ precision: 8, scale: 6 }),
-  cpc: decimal({ precision: 10, scale: 2 }),
-  // 预算利用率
-  budgetUtilization: decimal({ precision: 5, scale: 2 }),
-  currentBudget: decimal({ precision: 10, scale: 2 }),
-  // 综合得分
-  compositeScore: decimal({ precision: 5, scale: 2 }),
-  conversionEfficiencyScore: decimal({ precision: 5, scale: 2 }),
-  roasScore: decimal({ precision: 5, scale: 2 }),
-  growthPotentialScore: decimal({ precision: 5, scale: 2 }),
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-
-// A/B测试表
-export const abTests = mysqlTable("ab_tests", {
-  id: int().autoincrement().notNull().primaryKey(),
-  accountId: int().notNull(),
-  performanceGroupId: int(),
-  testName: varchar({ length: 255 }).notNull(),
-  testDescription: text(),
-  testType: mysqlEnum(['budget_allocation', 'bid_strategy', 'targeting']).default('budget_allocation').notNull(),
-  status: mysqlEnum(['draft', 'running', 'paused', 'completed', 'cancelled']).default('draft').notNull(),
-  startDate: timestamp({ mode: 'string' }),
-  endDate: timestamp({ mode: 'string' }),
-  targetMetric: mysqlEnum(['roas', 'acos', 'conversions', 'revenue', 'profit']).default('roas').notNull(),
-  minSampleSize: int().default(100),
-  confidenceLevel: decimal({ precision: 5, scale: 2 }).default('0.95'),
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-  updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-  createdBy: int(),
-});
-
-// A/B测试变体表
-export const abTestVariants = mysqlTable("ab_test_variants", {
-  id: int().autoincrement().notNull().primaryKey(),
-  testId: int().notNull(),
-  variantName: varchar({ length: 100 }).notNull(),
-  variantType: mysqlEnum(['control', 'treatment']).notNull(),
-  description: text(),
-  configJson: text(), // 存储变体的具体配置，如预算分配策略参数
-  trafficAllocation: decimal({ precision: 5, scale: 2 }).default('0.50'), // 流量分配比例
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-// A/B测试广告活动分配表
-export const abTestCampaignAssignments = mysqlTable("ab_test_campaign_assignments", {
-  id: int().autoincrement().notNull().primaryKey(),
-  testId: int().notNull(),
-  variantId: int().notNull(),
-  campaignId: int().notNull(),
-  assignedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-// A/B测试每日指标表
-export const abTestDailyMetrics = mysqlTable("ab_test_daily_metrics", {
-  id: int().autoincrement().notNull().primaryKey(),
-  testId: int().notNull(),
-  variantId: int().notNull(),
-  metricDate: timestamp({ mode: 'string' }).notNull(),
-  impressions: int().default(0),
-  clicks: int().default(0),
-  spend: decimal({ precision: 12, scale: 2 }).default('0.00'),
-  sales: decimal({ precision: 12, scale: 2 }).default('0.00'),
-  conversions: int().default(0),
-  roas: decimal({ precision: 10, scale: 4 }),
-  acos: decimal({ precision: 10, scale: 4 }),
-  ctr: decimal({ precision: 10, scale: 4 }),
-  cvr: decimal({ precision: 10, scale: 4 }),
-  cpc: decimal({ precision: 10, scale: 4 }),
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-// A/B测试结果表
-export const abTestResults = mysqlTable("ab_test_results", {
-  id: int().autoincrement().notNull().primaryKey(),
-  testId: int().notNull(),
-  analysisDate: timestamp({ mode: 'string' }).notNull(),
-  controlVariantId: int().notNull(),
-  treatmentVariantId: int().notNull(),
-  metricName: varchar({ length: 50 }).notNull(),
-  controlValue: decimal({ precision: 12, scale: 4 }),
-  treatmentValue: decimal({ precision: 12, scale: 4 }),
-  absoluteDifference: decimal({ precision: 12, scale: 4 }),
-  relativeDifference: decimal({ precision: 10, scale: 4 }), // 百分比变化
-  pValue: decimal({ precision: 10, scale: 6 }),
-  confidenceInterval: varchar({ length: 100 }), // 存储为JSON字符串，如 "[1.2, 1.8]"
-  isStatisticallySignificant: tinyint().default(0),
-  winningVariant: mysqlEnum(['control', 'treatment', 'inconclusive']),
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-// 预算自动执行配置表
-export const budgetAutoExecutionConfigs = mysqlTable("budget_auto_execution_configs", {
-  id: int().autoincrement().notNull().primaryKey(),
-  accountId: int().notNull(),
-  performanceGroupId: int(),
-  configName: varchar({ length: 255 }).notNull(),
-  isEnabled: tinyint().default(0).notNull(),
-  executionFrequency: mysqlEnum(['daily', 'weekly', 'biweekly', 'monthly']).default('daily').notNull(),
-  executionTime: varchar({ length: 5 }).default('06:00'), // HH:MM格式
-  executionDayOfWeek: int(), // 0-6，周日到周六，用于weekly
-  executionDayOfMonth: int(), // 1-31，用于monthly
-  minDataDays: int().default(7), // 最少需要多少天数据才执行
-  maxAdjustmentPercent: decimal({ precision: 5, scale: 2 }).default('15.00'), // 单次最大调整幅度
-  minBudget: decimal({ precision: 10, scale: 2 }).default('5.00'), // 最小预算
-  requireApproval: tinyint().default(0), // 是否需要人工审批
-  notifyOnExecution: tinyint().default(1), // 执行后是否通知
-  notifyOnError: tinyint().default(1), // 错误时是否通知
-  lastExecutionAt: timestamp({ mode: 'string' }),
-  nextExecutionAt: timestamp({ mode: 'string' }),
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-  updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-  createdBy: int(),
-});
-
-// 预算自动执行历史表
-export const budgetAutoExecutionHistory = mysqlTable("budget_auto_execution_history", {
-  id: int().autoincrement().notNull().primaryKey(),
-  configId: int().notNull(),
-  accountId: int().notNull(),
-  executionStartAt: timestamp({ mode: 'string' }).notNull(),
-  executionEndAt: timestamp({ mode: 'string' }),
-  status: mysqlEnum(['running', 'completed', 'failed', 'cancelled', 'pending_approval']).default('running').notNull(),
-  totalCampaigns: int().default(0),
-  adjustedCampaigns: int().default(0),
-  skippedCampaigns: int().default(0),
-  errorCampaigns: int().default(0),
-  totalBudgetBefore: decimal({ precision: 12, scale: 2 }),
-  totalBudgetAfter: decimal({ precision: 12, scale: 2 }),
-  executionSummary: text(), // JSON格式的执行摘要
-  errorMessage: text(),
-  approvedBy: int(),
-  approvedAt: timestamp({ mode: 'string' }),
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-// 预算自动执行明细表
-export const budgetAutoExecutionDetails = mysqlTable("budget_auto_execution_details", {
-  id: int().autoincrement().notNull().primaryKey(),
-  executionId: int().notNull(),
-  campaignId: int().notNull(),
-  campaignName: varchar({ length: 500 }),
-  budgetBefore: decimal({ precision: 10, scale: 2 }),
-  budgetAfter: decimal({ precision: 10, scale: 2 }),
-  adjustmentPercent: decimal({ precision: 10, scale: 2 }),
-  adjustmentReason: text(),
-  compositeScore: decimal({ precision: 10, scale: 4 }),
-  riskLevel: mysqlEnum(['low', 'medium', 'high']),
-  status: mysqlEnum(['applied', 'skipped', 'error', 'pending']).default('pending').notNull(),
-  errorMessage: text(),
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-// 基础表类型导出
-export type User = typeof users.$inferSelect;
-export type InsertUser = typeof users.$inferInsert;
-export type AdAccount = typeof adAccounts.$inferSelect;
-export type InsertAdAccount = typeof adAccounts.$inferInsert;
-export type PerformanceGroup = typeof performanceGroups.$inferSelect;
-export type InsertPerformanceGroup = typeof performanceGroups.$inferInsert;
-export type Campaign = typeof campaigns.$inferSelect;
-export type InsertCampaign = typeof campaigns.$inferInsert;
-export type AdGroup = typeof adGroups.$inferSelect;
-export type InsertAdGroup = typeof adGroups.$inferInsert;
-export type Keyword = typeof keywords.$inferSelect;
-export type InsertKeyword = typeof keywords.$inferInsert;
-export type ProductTarget = typeof productTargets.$inferSelect;
-export type InsertProductTarget = typeof productTargets.$inferInsert;
-export type BiddingLog = typeof biddingLogs.$inferSelect;
-export type InsertBiddingLog = typeof biddingLogs.$inferInsert;
-export type DailyPerformance = typeof dailyPerformance.$inferSelect;
-export type InsertDailyPerformance = typeof dailyPerformance.$inferInsert;
-export type ImportJob = typeof importJobs.$inferSelect;
-export type InsertImportJob = typeof importJobs.$inferInsert;
-export type NegativeKeyword = typeof negativeKeywords.$inferSelect;
-export type InsertNegativeKeyword = typeof negativeKeywords.$inferInsert;
-export type NotificationSetting = typeof notificationSettings.$inferSelect;
-export type InsertNotificationSetting = typeof notificationSettings.$inferInsert;
-export type NotificationHistoryRecord = typeof notificationHistory.$inferSelect;
-export type InsertNotificationHistory = typeof notificationHistory.$inferInsert;
-export type ScheduledTask = typeof scheduledTasks.$inferSelect;
-export type InsertScheduledTask = typeof scheduledTasks.$inferInsert;
-export type TaskExecutionLogRecord = typeof taskExecutionLog.$inferSelect;
-export type InsertTaskExecutionLog = typeof taskExecutionLog.$inferInsert;
-export type BatchOperation = typeof batchOperations.$inferSelect;
-export type InsertBatchOperation = typeof batchOperations.$inferInsert;
-export type BatchOperationItem = typeof batchOperationItems.$inferSelect;
-export type InsertBatchOperationItem = typeof batchOperationItems.$inferInsert;
-export type AttributionCorrectionRecord = typeof attributionCorrectionRecords.$inferSelect;
-export type InsertAttributionCorrectionRecord = typeof attributionCorrectionRecords.$inferInsert;
-export type CorrectionReviewSession = typeof correctionReviewSessions.$inferSelect;
-export type InsertCorrectionReviewSession = typeof correctionReviewSessions.$inferInsert;
-export type TeamMember = typeof teamMembers.$inferSelect;
-export type InsertTeamMember = typeof teamMembers.$inferInsert;
-export type AccountPermission = typeof accountPermissions.$inferSelect;
-export type InsertAccountPermission = typeof accountPermissions.$inferInsert;
-export type EmailReportSubscription = typeof emailReportSubscriptions.$inferSelect;
-export type InsertEmailReportSubscription = typeof emailReportSubscriptions.$inferInsert;
-export type EmailSendLog = typeof emailSendLogs.$inferSelect;
-export type InsertEmailSendLog = typeof emailSendLogs.$inferInsert;
-export type SearchTerm = typeof searchTerms.$inferSelect;
-export type InsertSearchTerm = typeof searchTerms.$inferInsert;
-export type AiOptimizationExecution = typeof aiOptimizationExecutions.$inferSelect;
-export type InsertAiOptimizationExecution = typeof aiOptimizationExecutions.$inferInsert;
-export type AiOptimizationAction = typeof aiOptimizationActions.$inferSelect;
-export type InsertAiOptimizationAction = typeof aiOptimizationActions.$inferInsert;
-export type AiOptimizationPrediction = typeof aiOptimizationPredictions.$inferSelect;
-export type InsertAiOptimizationPrediction = typeof aiOptimizationPredictions.$inferInsert;
-export type AiOptimizationReview = typeof aiOptimizationReviews.$inferSelect;
-export type InsertAiOptimizationReview = typeof aiOptimizationReviews.$inferInsert;
-export type MarketCurveData = typeof marketCurveData.$inferSelect;
-export type InsertMarketCurveData = typeof marketCurveData.$inferInsert;
-export type BidAdjustmentHistory = typeof bidAdjustmentHistory.$inferSelect;
-export type InsertBidAdjustmentHistory = typeof bidAdjustmentHistory.$inferInsert;
-export type AmazonApiCredential = typeof amazonApiCredentials.$inferSelect;
-export type InsertAmazonApiCredential = typeof amazonApiCredentials.$inferInsert;
-
-// AB测试相关类型
-export type ABTest = typeof abTests.$inferSelect;
-export type InsertABTest = typeof abTests.$inferInsert;
-export type ABTestVariant = typeof abTestVariants.$inferSelect;
-export type InsertABTestVariant = typeof abTestVariants.$inferInsert;
-export type ABTestCampaignAssignment = typeof abTestCampaignAssignments.$inferSelect;
-export type InsertABTestCampaignAssignment = typeof abTestCampaignAssignments.$inferInsert;
-export type ABTestDailyMetric = typeof abTestDailyMetrics.$inferSelect;
-export type InsertABTestDailyMetric = typeof abTestDailyMetrics.$inferInsert;
-export type ABTestResult = typeof abTestResults.$inferSelect;
-export type InsertABTestResult = typeof abTestResults.$inferInsert;
-export type BudgetAutoExecutionConfig = typeof budgetAutoExecutionConfigs.$inferSelect;
-export type InsertBudgetAutoExecutionConfig = typeof budgetAutoExecutionConfigs.$inferInsert;
-export type BudgetAutoExecutionHistory = typeof budgetAutoExecutionHistory.$inferSelect;
-export type InsertBudgetAutoExecutionHistory = typeof budgetAutoExecutionHistory.$inferInsert;
-export type BudgetAutoExecutionDetail = typeof budgetAutoExecutionDetails.$inferSelect;
-export type InsertBudgetAutoExecutionDetail = typeof budgetAutoExecutionDetails.$inferInsert;
-
-
-// 投放词自动执行配置表
-export const keywordAutoExecutionConfigs = mysqlTable("keyword_auto_execution_configs", {
-  id: int().autoincrement().notNull().primaryKey(),
-  accountId: int().notNull(),
-  name: varchar({ length: 255 }).notNull(),
-  description: text(),
-  isEnabled: tinyint().default(1).notNull(),
-  
-  // 自动暂停规则 - 高花费低转化
-  autoPauseEnabled: tinyint().default(1),
-  pauseMinSpend: decimal({ precision: 10, scale: 2 }).default('10.00'), // 最低花费阈值
-  pauseMinClicks: int().default(20), // 最低点击阈值
-  pauseMaxAcos: decimal({ precision: 5, scale: 2 }).default('100.00'), // 最大ACoS阈值
-  pauseMinDays: int().default(7), // 最少观察天数
-  pauseZeroConversions: tinyint().default(1), // 零转化是否暂停
-  
-  // 自动启用规则 - 潜力词恢复
-  autoEnableEnabled: tinyint().default(0),
-  enableMinConversions: int().default(2), // 最低转化阈值
-  enableMinRoas: decimal({ precision: 10, scale: 2 }).default('2.00'), // 最低ROAS阈值
-  enableCooldownDays: int().default(14), // 暂停后多少天可以重新启用
-  
-  // 安全阈值
-  maxDailyPauses: int().default(10), // 每日最大暂停数量
-  maxDailyEnables: int().default(5), // 每日最大启用数量
-  excludeTopPerformers: tinyint().default(1), // 排除表现最好的词
-  topPerformerThreshold: decimal({ precision: 5, scale: 2 }).default('20.00'), // 表现好的ACoS阈值
-  
-  // 回滚设置
-  enableRollback: tinyint().default(1), // 是否启用回滚
-  rollbackWindowHours: int().default(24), // 回滚窗口（小时）
-  rollbackTriggerSpendDrop: decimal({ precision: 5, scale: 2 }).default('30.00'), // 花费下降多少触发回滚
-  
-  // 通知设置
-  notifyOnExecution: tinyint().default(1),
-  notifyOnRollback: tinyint().default(1),
-  requireApproval: tinyint().default(0), // 是否需要人工审批
-  
-  // 执行调度
-  executionSchedule: mysqlEnum(['hourly', 'daily', 'weekly']).default('daily'),
-  executionHour: int().default(6), // 每日执行时间（小时）
-  lastExecutionAt: timestamp({ mode: 'string' }),
-  nextExecutionAt: timestamp({ mode: 'string' }),
-  
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-  updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-  createdBy: int(),
-});
-
-// 投放词自动执行历史表
-export const keywordAutoExecutionHistory = mysqlTable("keyword_auto_execution_history", {
-  id: int().autoincrement().notNull().primaryKey(),
-  configId: int().notNull(),
-  accountId: int().notNull(),
-  executionStartAt: timestamp({ mode: 'string' }).notNull(),
-  executionEndAt: timestamp({ mode: 'string' }),
-  executionType: mysqlEnum(['auto_pause', 'auto_enable', 'rollback', 'manual']).notNull(),
-  status: mysqlEnum(['running', 'completed', 'failed', 'cancelled', 'pending_approval', 'rolled_back']).default('running').notNull(),
-  
-  // 统计
-  totalKeywordsAnalyzed: int().default(0),
-  keywordsPaused: int().default(0),
-  keywordsEnabled: int().default(0),
-  keywordsSkipped: int().default(0),
-  keywordsError: int().default(0),
-  
-  // 影响指标
-  estimatedSpendSaved: decimal({ precision: 12, scale: 2 }),
-  estimatedSalesImpact: decimal({ precision: 12, scale: 2 }),
-  
-  executionSummary: text(), // JSON格式的执行摘要
-  errorMessage: text(),
-  
-  // 审批
-  approvedBy: int(),
-  approvedAt: timestamp({ mode: 'string' }),
-  
-  // 回滚
-  rollbackTriggeredAt: timestamp({ mode: 'string' }),
-  rollbackReason: text(),
-  rollbackBy: int(),
-  
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-// 投放词自动执行明细表
-export const keywordAutoExecutionDetails = mysqlTable("keyword_auto_execution_details", {
-  id: int().autoincrement().notNull().primaryKey(),
-  executionId: int().notNull(),
-  keywordId: int().notNull(),
-  keywordText: varchar({ length: 500 }),
-  matchType: varchar({ length: 50 }),
-  campaignId: int(),
-  campaignName: varchar({ length: 500 }),
-  adGroupId: int(),
-  adGroupName: varchar({ length: 500 }),
-  
-  // 执行前状态
-  statusBefore: mysqlEnum(['enabled', 'paused', 'archived']),
-  bidBefore: decimal({ precision: 10, scale: 2 }),
-  
-  // 执行后状态
-  statusAfter: mysqlEnum(['enabled', 'paused', 'archived']),
-  bidAfter: decimal({ precision: 10, scale: 2 }),
-  
-  // 触发条件
-  actionType: mysqlEnum(['pause', 'enable', 'rollback']).notNull(),
-  triggerReason: text(), // 触发原因详情
-  
-  // 执行时的指标
-  spend: decimal({ precision: 10, scale: 2 }),
-  sales: decimal({ precision: 10, scale: 2 }),
-  clicks: int(),
-  impressions: int(),
-  orders: int(),
-  acos: decimal({ precision: 5, scale: 2 }),
-  roas: decimal({ precision: 10, scale: 2 }),
-  
-  // 执行状态
-  status: mysqlEnum(['applied', 'skipped', 'error', 'pending', 'rolled_back']).default('pending').notNull(),
-  errorMessage: text(),
-  
-  // 回滚信息
-  rolledBackAt: timestamp({ mode: 'string' }),
-  rollbackReason: text(),
-  
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-// 分时预算分配配置表
-export const daypartingBudgetConfigs = mysqlTable("dayparting_budget_configs", {
-  id: int().autoincrement().notNull().primaryKey(),
-  accountId: int().notNull(),
-  campaignId: int(),
-  name: varchar({ length: 255 }).notNull(),
-  description: text(),
-  isEnabled: tinyint().default(1).notNull(),
-  
-  // 总预算设置
-  totalDailyBudget: decimal({ precision: 10, scale: 2 }).notNull(),
-  optimizationGoal: mysqlEnum(['maximize_sales', 'target_acos', 'target_roas', 'balanced']).default('balanced'),
-  targetAcos: decimal({ precision: 5, scale: 2 }),
-  targetRoas: decimal({ precision: 10, scale: 2 }),
-  
-  // 时段分配策略
-  allocationStrategy: mysqlEnum(['performance_based', 'equal', 'custom']).default('performance_based'),
-  
-  // 安全设置
-  minHourlyBudget: decimal({ precision: 10, scale: 2 }).default('1.00'),
-  maxHourlyBudget: decimal({ precision: 10, scale: 2 }),
-  reserveBudgetPercent: decimal({ precision: 5, scale: 2 }).default('10.00'), // 预留预算百分比
-  
-  // 自动调整
-  autoAdjustEnabled: tinyint().default(1),
-  adjustmentSensitivity: mysqlEnum(['low', 'medium', 'high']).default('medium'),
-  
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-  updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-  createdBy: int(),
-});
-
-// 分时预算分配规则表
-export const daypartingBudgetAllocations = mysqlTable("dayparting_budget_allocations", {
-  id: int().autoincrement().notNull().primaryKey(),
-  configId: int().notNull(),
-  hour: int().notNull(), // 0-23
-  dayOfWeek: int(), // 0-6, null表示所有天
-  
-  // 预算分配
-  budgetPercent: decimal({ precision: 5, scale: 2 }).notNull(), // 该时段分配的预算百分比
-  budgetAmount: decimal({ precision: 10, scale: 2 }), // 具体金额（可选）
-  
-  // 优先级
-  priority: mysqlEnum(['low', 'normal', 'high', 'critical']).default('normal'),
-  
-  // 基于历史表现的调整
-  historicalRoas: decimal({ precision: 10, scale: 2 }),
-  historicalAcos: decimal({ precision: 5, scale: 2 }),
-  historicalConversionRate: decimal({ precision: 5, scale: 2 }),
-  
-  isEnabled: tinyint().default(1).notNull(),
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-  updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-});
-
-// 分时预算执行日志表
-export const daypartingBudgetLogs = mysqlTable("dayparting_budget_logs", {
-  id: int().autoincrement().notNull().primaryKey(),
-  configId: int().notNull(),
-  campaignId: int(),
-  executionTime: timestamp({ mode: 'string' }).notNull(),
-  hour: int().notNull(),
-  dayOfWeek: int().notNull(),
-  
-  // 预算变更
-  budgetBefore: decimal({ precision: 10, scale: 2 }),
-  budgetAfter: decimal({ precision: 10, scale: 2 }),
-  budgetChange: decimal({ precision: 10, scale: 2 }),
-  
-  // 当时的表现指标
-  currentSpend: decimal({ precision: 10, scale: 2 }),
-  currentSales: decimal({ precision: 10, scale: 2 }),
-  currentClicks: int(),
-  currentImpressions: int(),
-  currentAcos: decimal({ precision: 5, scale: 2 }),
-  
-  // 执行结果
-  status: mysqlEnum(['success', 'failed', 'skipped']).default('success').notNull(),
-  reason: text(),
-  errorMessage: text(),
-  
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-export type KeywordAutoExecutionConfig = typeof keywordAutoExecutionConfigs.$inferSelect;
-export type InsertKeywordAutoExecutionConfig = typeof keywordAutoExecutionConfigs.$inferInsert;
-export type KeywordAutoExecutionHistory = typeof keywordAutoExecutionHistory.$inferSelect;
-export type InsertKeywordAutoExecutionHistory = typeof keywordAutoExecutionHistory.$inferInsert;
-export type KeywordAutoExecutionDetail = typeof keywordAutoExecutionDetails.$inferSelect;
-export type InsertKeywordAutoExecutionDetail = typeof keywordAutoExecutionDetails.$inferInsert;
-export type DaypartingBudgetConfig = typeof daypartingBudgetConfigs.$inferSelect;
-export type InsertDaypartingBudgetConfig = typeof daypartingBudgetConfigs.$inferInsert;
-export type DaypartingBudgetAllocation = typeof daypartingBudgetAllocations.$inferSelect;
-export type InsertDaypartingBudgetAllocation = typeof daypartingBudgetAllocations.$inferInsert;
-export type DaypartingBudgetLog = typeof daypartingBudgetLogs.$inferSelect;
-export type InsertDaypartingBudgetLog = typeof daypartingBudgetLogs.$inferInsert;
-
-// 季节性相关类型导出
-export type SeasonalTrend = typeof seasonalTrends.$inferSelect;
-export type InsertSeasonalTrend = typeof seasonalTrends.$inferInsert;
-export type PromotionalEvent = typeof promotionalEvents.$inferSelect;
-export type InsertPromotionalEvent = typeof promotionalEvents.$inferInsert;
-export type SeasonalBudgetRecommendation = typeof seasonalBudgetRecommendations.$inferSelect;
-export type InsertSeasonalBudgetRecommendation = typeof seasonalBudgetRecommendations.$inferInsert;
-
-
-// ==================== API安全三件套 ====================
-
-// API操作日志表 - 详细记录所有API调用
-export const apiOperationLogs = mysqlTable("api_operation_logs", {
-  id: int().autoincrement().notNull().primaryKey(),
-  userId: int().notNull(),
-  accountId: int(),
-  
-  // 操作信息
-  operationType: mysqlEnum([
-    'bid_adjustment',      // 出价调整
-    'budget_change',       // 预算变更
-    'campaign_status',     // 广告活动状态变更
-    'keyword_status',      // 关键词状态变更
-    'negative_keyword',    // 否定关键词操作
-    'target_status',       // 商品定向状态变更
-    'batch_operation',     // 批量操作
-    'api_sync',            // API数据同步
-    'auto_optimization',   // 自动优化执行
-    'manual_operation',    // 手动操作
-    'other'
-  ]).notNull(),
-  
-  // 目标对象
-  targetType: mysqlEnum(['campaign', 'ad_group', 'keyword', 'product_target', 'search_term', 'account', 'multiple']).notNull(),
-  targetId: int(),
-  targetName: varchar({ length: 500 }),
-  
-  // 操作详情
-  actionDescription: text().notNull(),
-  previousValue: text(),
-  newValue: text(),
-  changeAmount: decimal({ precision: 10, scale: 2 }),
-  changePercent: decimal({ precision: 5, scale: 2 }),
-  
-  // 批量操作信息
-  affectedCount: int().default(1),
-  batchOperationId: int(),
-  
-  // 执行结果
-  status: mysqlEnum(['success', 'failed', 'pending', 'rolled_back']).default('success').notNull(),
-  errorMessage: text(),
-  
-  // 来源信息
-  source: mysqlEnum(['manual', 'auto_optimization', 'scheduled_task', 'api_callback', 'batch_operation']).default('manual').notNull(),
-  ipAddress: varchar({ length: 45 }),
-  userAgent: text(),
-  
-  // 风险评估
-  riskLevel: mysqlEnum(['low', 'medium', 'high', 'critical']).default('low').notNull(),
-  requiresReview: tinyint().default(0),
-  reviewedBy: int(),
-  reviewedAt: timestamp({ mode: 'string' }),
-  
-  // 时间戳
-  executedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-// 每日花费限额配置表
-export const spendLimitConfigs = mysqlTable("spend_limit_configs", {
-  id: int().autoincrement().notNull().primaryKey(),
-  userId: int().notNull(),
-  accountId: int().notNull(),
-  
-  // 限额设置
-  dailySpendLimit: decimal({ precision: 12, scale: 2 }).notNull(),
-  warningThreshold1: decimal({ precision: 5, scale: 2 }).default('50.00').notNull(), // 50%告警
-  warningThreshold2: decimal({ precision: 5, scale: 2 }).default('80.00').notNull(), // 80%告警
-  criticalThreshold: decimal({ precision: 5, scale: 2 }).default('95.00').notNull(), // 95%严重告警
-  
-  // 自动暂停设置
-  autoStopEnabled: tinyint().default(0).notNull(),
-  autoStopThreshold: decimal({ precision: 5, scale: 2 }).default('100.00'), // 达到100%时自动暂停
-  
-  // 通知设置
-  notifyOnWarning1: tinyint().default(1).notNull(),
-  notifyOnWarning2: tinyint().default(1).notNull(),
-  notifyOnCritical: tinyint().default(1).notNull(),
-  notifyOnAutoStop: tinyint().default(1).notNull(),
-  
-  // 状态
-  isEnabled: tinyint().default(1).notNull(),
-  
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-  updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-});
-
-// 花费告警记录表
-export const spendAlertLogs = mysqlTable("spend_alert_logs", {
-  id: int().autoincrement().notNull().primaryKey(),
-  configId: int().notNull(),
-  userId: int().notNull(),
-  accountId: int().notNull(),
-  
-  // 告警信息
-  alertType: mysqlEnum(['warning_50', 'warning_80', 'critical_95', 'limit_reached', 'auto_stopped']).notNull(),
-  alertLevel: mysqlEnum(['info', 'warning', 'critical']).notNull(),
-  
-  // 花费数据
-  currentSpend: decimal({ precision: 12, scale: 2 }).notNull(),
-  dailyLimit: decimal({ precision: 12, scale: 2 }).notNull(),
-  spendPercent: decimal({ precision: 5, scale: 2 }).notNull(),
-  
-  // 通知状态
-  notificationSent: tinyint().default(0).notNull(),
-  notificationSentAt: timestamp({ mode: 'string' }),
-  notificationError: text(),
-  
-  // 处理状态
-  acknowledged: tinyint().default(0).notNull(),
-  acknowledgedBy: int(),
-  acknowledgedAt: timestamp({ mode: 'string' }),
-  
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-// 异常检测规则表
-export const anomalyDetectionRules = mysqlTable("anomaly_detection_rules", {
-  id: int().autoincrement().notNull().primaryKey(),
-  userId: int().notNull(),
-  accountId: int(),
-  
-  // 规则信息
-  ruleName: varchar({ length: 255 }).notNull(),
-  ruleDescription: text(),
-  ruleType: mysqlEnum([
-    'bid_spike',           // 出价异常飙升
-    'bid_drop',            // 出价异常下降
-    'batch_size',          // 批量操作数量异常
-    'frequency',           // 操作频率异常
-    'budget_change',       // 预算变更异常
-    'spend_velocity',      // 花费速度异常
-    'conversion_drop',     // 转化率骤降
-    'acos_spike',          // ACoS异常飙升
-    'custom'               // 自定义规则
-  ]).notNull(),
-  
-  // 检测条件
-  conditionType: mysqlEnum(['threshold', 'percentage_change', 'absolute_change', 'rate_limit']).notNull(),
-  conditionValue: decimal({ precision: 10, scale: 2 }).notNull(),
-  conditionTimeWindow: int().default(60), // 时间窗口（分钟）
-  
-  // 触发动作
-  actionOnTrigger: mysqlEnum(['alert_only', 'pause_and_alert', 'rollback_and_alert', 'block_operation']).default('alert_only').notNull(),
-  
-  // 通知设置
-  notifyOwner: tinyint().default(1).notNull(),
-  notifyTeam: tinyint().default(0).notNull(),
-  
-  // 状态
-  isEnabled: tinyint().default(1).notNull(),
-  priority: int().default(5), // 1-10，数字越大优先级越高
-  
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-  updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-});
-
-// 异常检测告警记录表
-export const anomalyAlertLogs = mysqlTable("anomaly_alert_logs", {
-  id: int().autoincrement().notNull().primaryKey(),
-  ruleId: int().notNull(),
-  userId: int().notNull(),
-  accountId: int(),
-  
-  // 触发信息
-  triggerValue: decimal({ precision: 10, scale: 2 }).notNull(),
-  thresholdValue: decimal({ precision: 10, scale: 2 }).notNull(),
-  triggerDescription: text().notNull(),
-  
-  // 关联操作
-  relatedOperationId: int(),
-  relatedOperationType: varchar({ length: 50 }),
-  
-  // 执行的动作
-  actionTaken: mysqlEnum(['alert_sent', 'operation_paused', 'operation_rolled_back', 'operation_blocked']).notNull(),
-  
-  // 通知状态
-  notificationSent: tinyint().default(0).notNull(),
-  notificationSentAt: timestamp({ mode: 'string' }),
-  
-  // 处理状态
-  status: mysqlEnum(['active', 'acknowledged', 'resolved', 'false_positive']).default('active').notNull(),
-  resolvedBy: int(),
-  resolvedAt: timestamp({ mode: 'string' }),
-  resolutionNotes: text(),
-  
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-// 自动暂停记录表
-export const autoPauseRecords = mysqlTable("auto_pause_records", {
-  id: int().autoincrement().notNull().primaryKey(),
-  userId: int().notNull(),
-  accountId: int().notNull(),
-  
-  // 暂停原因
-  pauseReason: mysqlEnum([
-    'spend_limit_reached',  // 花费限额达到
-    'anomaly_detected',     // 异常检测触发
-    'acos_threshold',       // ACoS超过阈值
-    'manual_trigger',       // 手动触发
-    'scheduled'             // 定时暂停
-  ]).notNull(),
-  
-  // 关联信息
-  relatedAlertId: int(),
-  relatedRuleId: int(),
-  
-  // 暂停范围
-  pauseScope: mysqlEnum(['account', 'campaign', 'ad_group', 'keyword', 'target']).notNull(),
-  pausedEntityIds: text(), // JSON数组存储暂停的实体ID
-  pausedEntityCount: int().default(1).notNull(),
-  
-  // 暂停前状态
-  previousStates: text(), // JSON存储暂停前的状态
-  
-  // 通知状态
-  notificationSent: tinyint().default(0).notNull(),
-  notificationSentAt: timestamp({ mode: 'string' }),
-  
-  // 恢复信息
-  isResumed: tinyint().default(0).notNull(),
-  resumedBy: int(),
-  resumedAt: timestamp({ mode: 'string' }),
-  resumeReason: text(),
-  
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-// API安全三件套类型导出
-export type ApiOperationLog = typeof apiOperationLogs.$inferSelect;
-export type InsertApiOperationLog = typeof apiOperationLogs.$inferInsert;
-export type SpendLimitConfig = typeof spendLimitConfigs.$inferSelect;
-export type InsertSpendLimitConfig = typeof spendLimitConfigs.$inferInsert;
-export type SpendAlertLog = typeof spendAlertLogs.$inferSelect;
-export type InsertSpendAlertLog = typeof spendAlertLogs.$inferInsert;
-export type AnomalyDetectionRule = typeof anomalyDetectionRules.$inferSelect;
-export type InsertAnomalyDetectionRule = typeof anomalyDetectionRules.$inferInsert;
-export type AnomalyAlertLog = typeof anomalyAlertLogs.$inferSelect;
-export type InsertAnomalyAlertLog = typeof anomalyAlertLogs.$inferInsert;
-export type AutoPauseRecord = typeof autoPauseRecords.$inferSelect;
-export type InsertAutoPauseRecord = typeof autoPauseRecords.$inferInsert;
-
-
-// 授权历史记录表
-export const authorizationLogs = mysqlTable("authorization_logs", {
-  id: int().autoincrement().notNull().primaryKey(),
-  userId: int().notNull(),
-  accountId: int().notNull(),
-  
-  // 授权类型
-  authType: mysqlEnum(['oauth_code_exchange', 'manual_credentials', 'token_refresh']).notNull(),
-  
-  // 授权结果
-  status: mysqlEnum(['success', 'failed', 'pending']).default('pending').notNull(),
-  
-  // 错误信息
-  errorCode: varchar({ length: 100 }),
-  errorMessage: text(),
-  errorDetails: text(), // JSON格式的详细错误信息
-  
-  // 诊断信息
-  diagnosticInfo: text(), // JSON格式的诊断信息
-  suggestedFix: text(), // 建议的修复方案
-  
-  // 授权详情
-  region: varchar({ length: 10 }), // NA, EU, FE
-  profileId: varchar({ length: 64 }),
-  profileCount: int(), // 检测到的Profile数量
-  
-  // 同步信息
-  syncTriggered: tinyint().default(0),
-  syncStatus: mysqlEnum(['not_started', 'in_progress', 'completed', 'failed']).default('not_started'),
-  syncProgress: text(), // JSON格式的同步进度详情
-  syncCampaigns: int().default(0),
-  syncAdGroups: int().default(0),
-  syncKeywords: int().default(0),
-  syncTargets: int().default(0),
-  syncPerformance: int().default(0),
-  
-  // 重试信息
-  retryCount: int().default(0),
-  lastRetryAt: timestamp({ mode: 'string' }),
-  
-  // IP和设备信息（用于安全审计）
-  ipAddress: varchar({ length: 45 }),
-  userAgent: text(),
-  
-  createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-  completedAt: timestamp({ mode: 'string' }),
-});
-
-export type AuthorizationLog = typeof authorizationLogs.$inferSelect;
-export type InsertAuthorizationLog = typeof authorizationLogs.$inferInsert;
-
-
-// 同步变更记录表 - 记录每次同步的数据变化
-export const syncChangeRecords = mysqlTable("sync_change_records", {
-  id: int().autoincrement().notNull(),
-  syncJobId: int('sync_job_id').notNull(),
-  accountId: int('account_id').notNull(),
-  userId: int('user_id').notNull(),
-  entityType: mysqlEnum('entity_type', ['campaign', 'ad_group', 'keyword', 'product_target']).notNull(),
-  changeType: mysqlEnum('change_type', ['created', 'updated', 'deleted']).notNull(),
-  entityId: varchar('entity_id', { length: 64 }).notNull(),
-  entityName: varchar('entity_name', { length: 500 }),
-  previousData: json('previous_data'), // 变更前的数据快照
-  newData: json('new_data'), // 变更后的数据快照
-  changedFields: json('changed_fields'), // 变更的字段列表
-  createdAt: timestamp('created_at', { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-export type SyncChangeRecord = typeof syncChangeRecords.$inferSelect;
-export type InsertSyncChangeRecord = typeof syncChangeRecords.$inferInsert;
-
-// 同步冲突记录表 - 记录本地数据与API数据的冲突
-export const syncConflicts = mysqlTable("sync_conflicts", {
-  id: int().autoincrement().notNull(),
-  syncJobId: int('sync_job_id').notNull(),
-  accountId: int('account_id').notNull(),
-  userId: int('user_id').notNull(),
-  entityType: mysqlEnum('entity_type', ['campaign', 'ad_group', 'keyword', 'product_target']).notNull(),
-  entityId: varchar('entity_id', { length: 64 }).notNull(),
-  entityName: varchar('entity_name', { length: 500 }),
-  conflictType: mysqlEnum('conflict_type', ['data_mismatch', 'missing_local', 'missing_remote', 'status_conflict']).notNull(),
-  localData: json('local_data'), // 本地数据
-  remoteData: json('remote_data'), // API返回的数据
-  conflictFields: json('conflict_fields'), // 冲突的字段列表
-  suggestedResolution: mysqlEnum('suggested_resolution', ['use_local', 'use_remote', 'merge', 'manual']).default('use_remote'),
-  resolutionStatus: mysqlEnum('resolution_status', ['pending', 'resolved', 'ignored']).default('pending'),
-  resolvedAt: timestamp('resolved_at', { mode: 'string' }),
-  resolvedBy: int('resolved_by'),
-  resolutionNotes: text('resolution_notes'),
-  createdAt: timestamp('created_at', { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-export type SyncConflict = typeof syncConflicts.$inferSelect;
-export type InsertSyncConflict = typeof syncConflicts.$inferInsert;
-
-// 同步任务队列表 - 管理多账号同步任务
-export const syncTaskQueue = mysqlTable("sync_task_queue", {
-  id: int().autoincrement().notNull(),
-  userId: int('user_id').notNull(),
-  accountId: int('account_id').notNull(),
-  accountName: varchar('account_name', { length: 255 }),
-  syncType: mysqlEnum('sync_type', ['campaigns', 'ad_groups', 'keywords', 'product_targets', 'performance', 'full']).default('full'),
-  priority: int().default(0), // 优先级，数字越大优先级越高
-  status: mysqlEnum(['queued', 'running', 'completed', 'failed', 'cancelled']).default('queued'),
-  progress: int().default(0), // 0-100的进度百分比
-  currentStep: varchar('current_step', { length: 100 }), // 当前执行的步骤
-  totalSteps: int('total_steps').default(6), // 总步骤数
-  completedSteps: int('completed_steps').default(0), // 已完成步骤数
-  estimatedTimeMs: int('estimated_time_ms'), // 预计剩余时间（毫秒）
-  startedAt: timestamp('started_at', { mode: 'string' }),
-  completedAt: timestamp('completed_at', { mode: 'string' }),
-  errorMessage: text('error_message'),
-  resultSummary: json('result_summary'), // 同步结果摘要
-  createdAt: timestamp('created_at', { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-  updatedAt: timestamp('updated_at', { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-});
-export type SyncTaskQueue = typeof syncTaskQueue.$inferSelect;
-export type InsertSyncTaskQueue = typeof syncTaskQueue.$inferInsert;
-
-// 同步变更摘要表 - 汇总每次同步的变更统计
-export const syncChangeSummary = mysqlTable("sync_change_summary", {
-  id: int().autoincrement().notNull(),
-  syncJobId: int('sync_job_id').notNull(),
-  accountId: int('account_id').notNull(),
-  userId: int('user_id').notNull(),
-  // 广告活动变更统计
-  campaignsCreated: int('campaigns_created').default(0),
-  campaignsUpdated: int('campaigns_updated').default(0),
-  campaignsDeleted: int('campaigns_deleted').default(0),
-  // 广告组变更统计
-  adGroupsCreated: int('ad_groups_created').default(0),
-  adGroupsUpdated: int('ad_groups_updated').default(0),
-  adGroupsDeleted: int('ad_groups_deleted').default(0),
-  // 关键词变更统计
-  keywordsCreated: int('keywords_created').default(0),
-  keywordsUpdated: int('keywords_updated').default(0),
-  keywordsDeleted: int('keywords_deleted').default(0),
-  // 商品定位变更统计
-  targetsCreated: int('targets_created').default(0),
-  targetsUpdated: int('targets_updated').default(0),
-  targetsDeleted: int('targets_deleted').default(0),
-  // 冲突统计
-  conflictsDetected: int('conflicts_detected').default(0),
-  conflictsResolved: int('conflicts_resolved').default(0),
-  createdAt: timestamp('created_at', { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-export type SyncChangeSummary = typeof syncChangeSummary.$inferSelect;
-export type InsertSyncChangeSummary = typeof syncChangeSummary.$inferInsert;
-
-
-// 自动广告匹配类型配置表
-export const autoTargetingSettings = mysqlTable("auto_targeting_settings", {
-	id: int().autoincrement().notNull(),
-	campaignId: int().notNull(),
-	adGroupId: int(),
-	// 四种匹配类型的启用状态和竞价
-	closeMatchEnabled: tinyint().default(1),
-	closeMatchBid: decimal({ precision: 10, scale: 2 }),
-	closeMatchBidMultiplier: decimal({ precision: 5, scale: 2 }).default('1.00'),
-	looseMatchEnabled: tinyint().default(1),
-	looseMatchBid: decimal({ precision: 10, scale: 2 }),
-	looseMatchBidMultiplier: decimal({ precision: 5, scale: 2 }).default('1.00'),
-	substitutesEnabled: tinyint().default(1),
-	substitutesBid: decimal({ precision: 10, scale: 2 }),
-	substitutesBidMultiplier: decimal({ precision: 5, scale: 2 }).default('1.00'),
-	complementsEnabled: tinyint().default(1),
-	complementsBid: decimal({ precision: 10, scale: 2 }),
-	complementsBidMultiplier: decimal({ precision: 5, scale: 2 }).default('1.00'),
-	// 自动优化设置
-	autoOptimizeEnabled: tinyint().default(0),
-	optimizationStrategy: mysqlEnum(['maximize_sales','target_acos','target_roas','minimize_acos']).default('target_acos'),
-	targetAcos: decimal({ precision: 5, scale: 2 }),
-	targetRoas: decimal({ precision: 10, scale: 2 }),
-	minBid: decimal({ precision: 10, scale: 2 }).default('0.10'),
-	maxBid: decimal({ precision: 10, scale: 2 }).default('10.00'),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-});
-
-// 自动广告匹配类型绩效数据表
-export const autoTargetingPerformance = mysqlTable("auto_targeting_performance", {
-	id: int().autoincrement().notNull(),
-	campaignId: int().notNull(),
-	adGroupId: int(),
-	matchType: mysqlEnum(['close_match','loose_match','substitutes','complements']).notNull(),
-	reportDate: timestamp({ mode: 'string' }).notNull(),
-	impressions: int().default(0),
-	clicks: int().default(0),
-	spend: decimal({ precision: 10, scale: 2 }).default('0.00'),
-	sales: decimal({ precision: 10, scale: 2 }).default('0.00'),
-	orders: int().default(0),
-	acos: decimal({ precision: 5, scale: 2 }),
-	roas: decimal({ precision: 10, scale: 2 }),
-	ctr: decimal({ precision: 5, scale: 4 }),
-	cvr: decimal({ precision: 5, scale: 4 }),
-	cpc: decimal({ precision: 10, scale: 2 }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-// 竞价位置优化设置表
-export const placementBidSettings = mysqlTable("placement_bid_settings", {
-	id: int().autoincrement().notNull(),
-	campaignId: int().notNull(),
-	// 三种位置的竞价调整百分比（0-900%）
-	topOfSearchAdjustment: int().default(0),
-	productPagesAdjustment: int().default(0),
-	restOfSearchAdjustment: int().default(0),
-	// 自动优化设置
-	autoOptimizeEnabled: tinyint().default(0),
-	optimizationStrategy: mysqlEnum(['maximize_visibility','maximize_conversions','target_acos','balanced']).default('balanced'),
-	targetAcos: decimal({ precision: 5, scale: 2 }),
-	maxAdjustment: int().default(300),
-	// 动态竞价策略
-	biddingStrategy: mysqlEnum(['fixed','down_only','up_and_down']).default('down_only'),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-});
-
-// 分时竞价规则表
-export const daypartingBidRules = mysqlTable("dayparting_bid_rules", {
-	id: int().autoincrement().notNull(),
-	campaignId: int().notNull(),
-	ruleName: varchar({ length: 255 }).notNull(),
-	ruleDescription: text(),
-	ruleEnabled: tinyint().default(1),
-	// 时间设置
-	dayOfWeek: json(), // [0,1,2,3,4,5,6] 0=周日
-	startHour: int().notNull(), // 0-23
-	endHour: int().notNull(), // 0-23
-	timezone: varchar({ length: 64 }).default('America/Los_Angeles'),
-	// 竞价调整
-	bidAdjustmentType: mysqlEnum(['percentage','fixed']).default('percentage'),
-	bidAdjustmentValue: decimal({ precision: 10, scale: 2 }).notNull(),
-	// 预算调整
-	budgetAdjustmentEnabled: tinyint().default(0),
-	budgetAdjustmentType: mysqlEnum(['percentage','fixed']).default('percentage'),
-	budgetAdjustmentValue: decimal({ precision: 10, scale: 2 }),
-	// 优先级（数字越大优先级越高）
-	priority: int().default(0),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-});
-
-// 自动广告优化建议表
-export const autoTargetingOptimizationSuggestions = mysqlTable("auto_targeting_optimization_suggestions", {
-	id: int().autoincrement().notNull(),
-	campaignId: int().notNull(),
-	adGroupId: int(),
-	matchType: mysqlEnum(['close_match','loose_match','substitutes','complements']).notNull(),
-	suggestionType: mysqlEnum(['increase_bid','decrease_bid','pause','enable','adjust_multiplier']).notNull(),
-	currentValue: decimal({ precision: 10, scale: 2 }),
-	suggestedValue: decimal({ precision: 10, scale: 2 }),
-	changePercent: decimal({ precision: 5, scale: 2 }),
-	reason: text(),
-	confidenceScore: decimal({ precision: 3, scale: 2 }),
-	expectedImpact: text(),
-	performanceData: json(),
-	suggestionStatus: mysqlEnum(['pending','approved','applied','dismissed']).default('pending'),
-	appliedAt: timestamp({ mode: 'string' }),
-	appliedBy: int(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-// 位置竞价优化建议表
-export const placementOptimizationSuggestions = mysqlTable("placement_optimization_suggestions", {
-	id: int().autoincrement().notNull(),
-	campaignId: int().notNull(),
-	placement: mysqlEnum(['top_of_search','product_pages','rest_of_search']).notNull(),
-	suggestionType: mysqlEnum(['increase_adjustment','decrease_adjustment','set_adjustment']).notNull(),
-	currentAdjustment: int(),
-	suggestedAdjustment: int(),
-	reason: text(),
-	confidenceScore: decimal({ precision: 3, scale: 2 }),
-	expectedImpact: text(),
-	performanceData: json(),
-	suggestionStatus: mysqlEnum(['pending','approved','applied','dismissed']).default('pending'),
-	appliedAt: timestamp({ mode: 'string' }),
-	appliedBy: int(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-
-// 自动运营配置表
-export const autoOperationConfigs = mysqlTable("auto_operation_configs", {
-	id: int().autoincrement().primaryKey(),
-	accountId: int().notNull(),
-	enabled: tinyint().default(1),
-	intervalHours: int().default(2), // 默认每2小时执行一次
-	enableDataSync: tinyint().default(1),
-	enableNgramAnalysis: tinyint().default(1),
-	enableFunnelSync: tinyint().default(1),
-	enableConflictDetection: tinyint().default(1),
-	enableMigrationSuggestion: tinyint().default(1),
-	enableBidOptimization: tinyint().default(1),
-	lastRunAt: timestamp({ mode: 'string' }),
-	nextRunAt: timestamp({ mode: 'string' }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
-});
-
-// 自动运营日志表
-export const autoOperationLogs = mysqlTable("auto_operation_logs", {
-	id: int().autoincrement().primaryKey(),
-	accountId: int().notNull(),
-	operationType: varchar({ length: 64 }).notNull(), // full_operation, data_sync, ngram_analysis, etc.
-	status: mysqlEnum(['pending', 'running', 'completed', 'failed']).default('pending'),
-	startedAt: timestamp({ mode: 'string' }).notNull(),
-	completedAt: timestamp({ mode: 'string' }),
-	duration: int(), // 毫秒
-	details: json(), // 详细执行信息
-	errorMessage: text(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-
-// Amazon Ads 报告请求队列表
-export const reportRequests = mysqlTable("report_requests", {
-	id: int().autoincrement().primaryKey(),
-	accountId: int().notNull(),
-	profileId: varchar({ length: 64 }).notNull(),
-	marketplace: varchar({ length: 10 }).notNull(),
-	reportType: mysqlEnum(['sp_campaigns', 'sp_keywords', 'sp_targets', 'sb_campaigns', 'sb_keywords', 'sd_campaigns']).notNull(),
-	reportId: varchar({ length: 128 }), // Amazon返回的报告ID
-	startDate: varchar({ length: 10 }).notNull(), // YYYY-MM-DD
-	endDate: varchar({ length: 10 }).notNull(), // YYYY-MM-DD
-	status: mysqlEnum(['pending', 'submitted', 'processing', 'completed', 'failed', 'timeout']).default('pending'),
-	downloadUrl: text(), // 报告下载URL
-	recordsCount: int(), // 报告记录数
-	processedAt: timestamp({ mode: 'string' }), // 数据处理完成时间
-	errorMessage: text(),
-	retryCount: int().default(0),
-	maxRetries: int().default(3),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-// 绩效数据同步配置表
-export const performanceSyncConfig = mysqlTable("performance_sync_config", {
-	id: int().autoincrement().primaryKey(),
-	accountId: int().notNull(),
-	isEnabled: tinyint().default(1),
-	syncFrequency: mysqlEnum(['hourly', 'every_4_hours', 'every_12_hours', 'daily']).default('daily'),
-	syncTime: varchar({ length: 5 }).default('02:00'), // HH:MM
-	lookbackDays: int().default(7), // 回溯天数
-	lastSyncAt: timestamp({ mode: 'string' }),
-	nextSyncAt: timestamp({ mode: 'string' }),
-	dataSource: mysqlEnum(['real', 'mock', 'mixed']).default('real'), // 数据来源
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-});
-
-
-// ==================== 边际效益分析相关表 ====================
-
-// 边际效益历史记录表
-export const marginalBenefitHistory = mysqlTable("marginal_benefit_history", {
-	id: int().autoincrement().primaryKey(),
-	accountId: int().notNull(),
-	campaignId: varchar({ length: 64 }).notNull(),
-	placementType: mysqlEnum(['top_of_search', 'product_page', 'rest_of_search']).notNull(),
-	analysisDate: date({ mode: 'string' }).notNull(),
-	currentAdjustment: int().default(0),
-	marginalROAS: decimal({ precision: 10, scale: 4 }),
-	marginalACoS: decimal({ precision: 10, scale: 4 }),
-	marginalSales: decimal({ precision: 12, scale: 2 }),
-	marginalSpend: decimal({ precision: 12, scale: 2 }),
-	elasticity: decimal({ precision: 10, scale: 4 }),
-	diminishingPoint: int(),
-	optimalRangeMin: int(),
-	optimalRangeMax: int(),
-	confidence: decimal({ precision: 5, scale: 4 }),
-	dataPoints: int(),
-	totalImpressions: int(),
-	totalClicks: int(),
-	totalSpend: decimal({ precision: 12, scale: 2 }),
-	totalSales: decimal({ precision: 12, scale: 2 }),
-	totalOrders: int(),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-}, (table) => [
-	index("mb_history_account_campaign").on(table.accountId, table.campaignId),
-	index("mb_history_date").on(table.analysisDate),
-]);
-
-// 边际效益优化应用记录表
-export const marginalBenefitApplications = mysqlTable("marginal_benefit_applications", {
-	id: int().autoincrement().primaryKey(),
-	accountId: int().notNull(),
-	campaignId: varchar({ length: 64 }).notNull(),
-	userId: int().notNull(),
-	optimizationGoal: mysqlEnum(['maximize_roas', 'minimize_acos', 'maximize_sales', 'balanced']).notNull(),
-	applicationStatus: mysqlEnum(['pending', 'applied', 'failed', 'rolled_back']).default('pending'),
-	// 应用前状态
-	beforeTopOfSearch: int(),
-	beforeProductPage: int(),
-	// 应用后状态
-	afterTopOfSearch: int(),
-	afterProductPage: int(),
-	// 预期效果
-	expectedSalesChange: decimal({ precision: 12, scale: 2 }),
-	expectedSpendChange: decimal({ precision: 12, scale: 2 }),
-	expectedROASChange: decimal({ precision: 10, scale: 4 }),
-	expectedACoSChange: decimal({ precision: 10, scale: 4 }),
-	// 实际效果（7天后评估）
-	actualSalesChange: decimal({ precision: 12, scale: 2 }),
-	actualSpendChange: decimal({ precision: 12, scale: 2 }),
-	actualROASChange: decimal({ precision: 10, scale: 4 }),
-	actualACoSChange: decimal({ precision: 10, scale: 4 }),
-	evaluatedAt: timestamp({ mode: 'string' }),
-	// 应用详情
-	applicationNote: text(),
-	errorMessage: text(),
-	appliedAt: timestamp({ mode: 'string' }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-}, (table) => [
-	index("mb_app_account_campaign").on(table.accountId, table.campaignId),
-	index("mb_app_status").on(table.applicationStatus),
-]);
-
-// 批量边际效益分析记录表
-export const batchMarginalBenefitAnalysis = mysqlTable("batch_marginal_benefit_analysis", {
-	id: int().autoincrement().primaryKey(),
-	accountId: int().notNull(),
-	userId: int().notNull(),
-	analysisName: varchar({ length: 255 }),
-	campaignIds: json(), // 分析的广告活动ID列表
-	campaignCount: int().default(0),
-	optimizationGoal: mysqlEnum(['maximize_roas', 'minimize_acos', 'maximize_sales', 'balanced']).notNull(),
-	analysisStatus: mysqlEnum(['pending', 'running', 'completed', 'failed']).default('pending'),
-	// 汇总结果
-	totalCurrentSpend: decimal({ precision: 15, scale: 2 }),
-	totalCurrentSales: decimal({ precision: 15, scale: 2 }),
-	totalExpectedSpend: decimal({ precision: 15, scale: 2 }),
-	totalExpectedSales: decimal({ precision: 15, scale: 2 }),
-	overallROASChange: decimal({ precision: 10, scale: 4 }),
-	overallACoSChange: decimal({ precision: 10, scale: 4 }),
-	avgConfidence: decimal({ precision: 5, scale: 4 }),
-	// 详细结果
-	analysisResults: json(), // 每个广告活动的分析结果
-	recommendations: json(), // 优化建议
-	errorMessage: text(),
-	startedAt: timestamp({ mode: 'string' }),
-	completedAt: timestamp({ mode: 'string' }),
-	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-	updatedAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
-}, (table) => [
-	index("batch_mb_account").on(table.accountId),
-	index("batch_mb_status").on(table.analysisStatus),
+	index("idx_organization").on(table.organizationId),
 ]);

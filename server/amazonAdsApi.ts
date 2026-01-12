@@ -685,6 +685,16 @@ export class AmazonAdsApiClient {
    * 请求SP广告活动绩效报告 (Amazon Ads API v3)
    * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
    * 重要: SP报表可以直接获取campaignBudget和campaignStatus
+   * 
+   * Report API v3 支持的字段（2026年1月更新）:
+   * - campaignBudgetAmount: 预算金额
+   * - campaignBudgetType: 预算类型 (DAILY/LIFETIME)
+   * - campaignBudgetCurrencyCode: 预算货币代码
+   * - unitsSoldClicks14d: 14天点击归因销售单位数
+   * - unitsSoldSameSku14d: 14天同SKU销售单位数
+   * - dpv14d: 14天详情页浏览量
+   * - addToCart14d: 14天加购数
+   * 注意: topOfSearchImpressionShare 目前不支持通过 Report API v3 获取
    */
   async requestSpCampaignReport(
     startDate: string,
@@ -707,13 +717,18 @@ export class AmazonAdsApiClient {
             'date',
             'campaignId',
             'campaignName',
-            'campaignStatus',    // ⚠️ 添加状态字段
-            'campaignBudget',    // ⚠️ SP可以直接获取预算
-            'impressions',
-            'clicks',
-            'cost',
-            'purchases14d',      // 订单数 (14天归因)
-            'sales14d'           // 销售额 (14天归因)
+            'campaignStatus',              // 广告活动状态
+            'campaignBudgetAmount',        // ✅ 预算金额 (替代campaignBudget)
+            'campaignBudgetType',          // ✅ 预算类型 (DAILY/LIFETIME)
+            'campaignBudgetCurrencyCode',  // ✅ 预算货币代码
+            'impressions',                 // 曝光量
+            'clicks',                      // 点击量
+            'cost',                        // 花费
+            'purchases14d',                // 订单数 (14天归因)
+            'sales14d',                    // 销售额 (14天归因)
+            'unitsSoldClicks14d',          // ✅ 14天点击归因销售单位数
+            'dpv14d',                      // ✅ 14天详情页浏览量
+            'addToCart14d'                 // ✅ 14天加购数
           ],
           reportTypeId: 'spCampaigns',
           timeUnit: 'DAILY',
@@ -794,6 +809,13 @@ export class AmazonAdsApiClient {
    * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
    * 重要修复: SB报告必须使用 attributedSales14d 和 attributedConversions14d 字段
    * 使用 sales/purchases 会导致数据为空！
+   * 
+   * Report API v3 支持的SB字段（2026年1月更新）:
+   * - attributedSales14d: 14天归因销售额
+   * - attributedConversions14d: 14天归因转化数
+   * - brandedSearches14d: 14天品牌搜索数
+   * - brandedSearchesClicks14d: 14天品牌搜索点击数
+   * - dpv14d: 14天详情页浏览量
    */
   async requestSbCampaignReport(
     startDate: string,
@@ -819,13 +841,16 @@ export class AmazonAdsApiClient {
             'date',
             'campaignId',
             'campaignName',
-            'campaignStatus',            // ⚠️ 添加状态字段
+            'campaignStatus',              // 广告活动状态
             // ❌ 不要请求 campaignBudget，去 List 接口拿
-            'impressions',
-            'clicks',
-            'cost',
-            'attributedConversions14d',  // ✅ SB 专用订单字段
-            'attributedSales14d'         // ✅ SB 专用销售额字段
+            'impressions',                 // 曝光量
+            'clicks',                      // 点击量
+            'cost',                        // 花费
+            'attributedConversions14d',    // ✅ SB 专用订单字段
+            'attributedSales14d',          // ✅ SB 专用销售额字段
+            'dpv14d',                      // ✅ 14天详情页浏览量
+            'newToBrandPurchases14d',      // ✅ 14天新客购买数
+            'newToBrandSales14d'           // ✅ 14天新客销售额
           ],
           reportTypeId: 'sbCampaigns',
           timeUnit: 'DAILY',
@@ -853,6 +878,16 @@ export class AmazonAdsApiClient {
    * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
    * 重要修复: SD报告必须使用 attributedSales14d 和 attributedConversions14d 字段
    * SD还需要 viewAttributedSales14d 来获取浏览归因数据
+   * 
+   * Report API v3 支持的SD字段（2026年1月更新）:
+   * - attributedSales14d: 14天点击归因销售额
+   * - attributedConversions14d: 14天点击归因转化数
+   * - viewAttributedSales14d: 14天浏览归因销售额 (vCPM核心)
+   * - viewAttributedConversions14d: 14天浏览归因转化数
+   * - viewableImpressions: 可见曝光数
+   * - dpv14d: 14天详情页浏览量
+   * - newToBrandPurchases14d: 14天新客购买数
+   * - newToBrandSales14d: 14天新客销售额
    */
   async requestSdCampaignReport(
     startDate: string,
@@ -877,14 +912,18 @@ export class AmazonAdsApiClient {
             'date',
             'campaignId',
             'campaignName',
-            'campaignStatus',              // ⚠️ 添加状态字段
-            'impressions',
-            'clicks',
-            'cost',
+            'campaignStatus',              // 广告活动状态
+            'impressions',                 // 曝光量
+            'viewableImpressions',         // ✅ 可见曝光数
+            'clicks',                      // 点击量
+            'cost',                        // 花费
             'attributedConversions14d',    // 点击带来的转化
             'attributedSales14d',          // 点击带来的销售额
             'viewAttributedConversions14d',// 👁️ 浏览带来的转化 (vCPM核心)
-            'viewAttributedSales14d'       // 👁️ 浏览带来的销售额
+            'viewAttributedSales14d',      // 👁️ 浏览带来的销售额
+            'dpv14d',                      // ✅ 14天详情页浏览量
+            'newToBrandPurchases14d',      // ✅ 14天新客购买数
+            'newToBrandSales14d'           // ✅ 14天新客销售额
           ],
           reportTypeId: 'sdCampaigns',
           timeUnit: 'DAILY',
@@ -903,6 +942,306 @@ export class AmazonAdsApiClient {
       return response.data.reportId;
     } catch (error: any) {
       console.error('[Amazon API] 请求SD广告活动报告失败:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * 请求SP广告位置报告 (Amazon Ads API v3)
+   * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
+   * 
+   * 广告位置类型:
+   * - TOP_OF_SEARCH: 搜索结果顶部
+   * - DETAIL_PAGE: 商品详情页
+   * - OTHER: 其他位置
+   */
+  async requestSpPlacementReport(
+    startDate: string,
+    endDate: string
+  ): Promise<string> {
+    try {
+      console.log(`[Amazon API] 请求SP广告位置报告: ${startDate} - ${endDate}`);
+      
+      const requestBody = {
+        name: `SP Placement Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_PRODUCTS',
+          groupBy: ['campaign', 'placement'],
+          columns: [
+            'date',
+            'campaignId',
+            'campaignName',
+            'placementClassification',    // TOP_OF_SEARCH / DETAIL_PAGE / OTHER
+            'impressions',
+            'clicks',
+            'cost',
+            'purchases14d',
+            'sales14d',
+            'unitsSoldClicks14d'
+          ],
+          reportTypeId: 'spCampaigns',
+          timeUnit: 'DAILY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      console.log(`[Amazon API] SP位置报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: any) {
+      console.error('[Amazon API] 请求SP位置报告失败:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * 请求SP搜索词报告 (Amazon Ads API v3)
+   * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
+   * 
+   * 搜索词报告字段:
+   * - searchTerm: 客户实际搜索的关键词
+   * - keywordId/keyword: 触发广告的投放词
+   * - matchType: 匹配类型
+   */
+  async requestSpSearchTermReport(
+    startDate: string,
+    endDate: string
+  ): Promise<string> {
+    try {
+      console.log(`[Amazon API] 请求SP搜索词报告: ${startDate} - ${endDate}`);
+      
+      const requestBody = {
+        name: `SP Search Term Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_PRODUCTS',
+          groupBy: ['searchTerm'],
+          columns: [
+            'date',
+            'campaignId',
+            'campaignName',
+            'adGroupId',
+            'adGroupName',
+            'keywordId',
+            'keyword',
+            'matchType',
+            'searchTerm',
+            'impressions',
+            'clicks',
+            'cost',
+            'purchases14d',
+            'sales14d',
+            'unitsSoldClicks14d'
+          ],
+          reportTypeId: 'spSearchTerm',
+          timeUnit: 'SUMMARY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      console.log(`[Amazon API] SP搜索词报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: any) {
+      console.error('[Amazon API] 请求SP搜索词报告失败:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * 请求SP自动定向报告 (Amazon Ads API v3)
+   * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
+   * 
+   * 自动广告匹配组类型:
+   * - CLOSE_MATCH: 紧密匹配
+   * - LOOSE_MATCH: 宽泛匹配
+   * - SUBSTITUTES: 同类商品
+   * - COMPLEMENTS: 关联商品
+   */
+  async requestSpAutoTargetingReport(
+    startDate: string,
+    endDate: string
+  ): Promise<string> {
+    try {
+      console.log(`[Amazon API] 请求SP自动定向报告: ${startDate} - ${endDate}`);
+      
+      const requestBody = {
+        name: `SP Auto Targeting Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_PRODUCTS',
+          groupBy: ['targeting'],
+          columns: [
+            'date',
+            'campaignId',
+            'campaignName',
+            'adGroupId',
+            'adGroupName',
+            'targetId',
+            'targetingExpression',
+            'targetingType',              // AUTO / MANUAL
+            'targetingText',
+            'impressions',
+            'clicks',
+            'cost',
+            'purchases14d',
+            'sales14d',
+            'unitsSoldClicks14d'
+          ],
+          reportTypeId: 'spTargeting',
+          timeUnit: 'SUMMARY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      console.log(`[Amazon API] SP自动定向报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: any) {
+      console.error('[Amazon API] 请求SP自动定向报告失败:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * 请求SD定向报告 (Amazon Ads API v3)
+   * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
+   * 
+   * SD定向类型:
+   * - 受众定向: 浏览再营销、购买再营销等
+   * - 商品定向: ASIN/品类定向
+   */
+  async requestSdTargetingReport(
+    startDate: string,
+    endDate: string
+  ): Promise<string> {
+    try {
+      console.log(`[Amazon API] 请求SD定向报告: ${startDate} - ${endDate}`);
+      
+      const requestBody = {
+        name: `SD Targeting Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_DISPLAY',
+          groupBy: ['targeting'],
+          columns: [
+            'date',
+            'campaignId',
+            'campaignName',
+            'adGroupId',
+            'adGroupName',
+            'targetId',
+            'targetingExpression',
+            'targetingType',
+            'impressions',
+            'viewableImpressions',
+            'clicks',
+            'cost',
+            'attributedConversions14d',
+            'attributedSales14d',
+            'viewAttributedConversions14d',
+            'viewAttributedSales14d',
+            'dpv14d',
+            'newToBrandPurchases14d',
+            'newToBrandSales14d'
+          ],
+          reportTypeId: 'sdTargeting',
+          timeUnit: 'SUMMARY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      console.log(`[Amazon API] SD定向报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: any) {
+      console.error('[Amazon API] 请求SD定向报告失败:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * 请求SB定向报告 (Amazon Ads API v3)
+   * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
+   */
+  async requestSbTargetingReport(
+    startDate: string,
+    endDate: string
+  ): Promise<string> {
+    try {
+      console.log(`[Amazon API] 请求SB定向报告: ${startDate} - ${endDate}`);
+      
+      const requestBody = {
+        name: `SB Targeting Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_BRANDS',
+          groupBy: ['targeting'],
+          columns: [
+            'date',
+            'campaignId',
+            'campaignName',
+            'adGroupId',
+            'adGroupName',
+            'keywordId',
+            'keyword',
+            'matchType',
+            'impressions',
+            'clicks',
+            'cost',
+            'attributedConversions14d',
+            'attributedSales14d',
+            'dpv14d',
+            'newToBrandPurchases14d',
+            'newToBrandSales14d'
+          ],
+          reportTypeId: 'sbTargeting',
+          timeUnit: 'SUMMARY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      console.log(`[Amazon API] SB定向报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: any) {
+      console.error('[Amazon API] 请求SB定向报告失败:', error.response?.data || error.message);
       throw error;
     }
   }
