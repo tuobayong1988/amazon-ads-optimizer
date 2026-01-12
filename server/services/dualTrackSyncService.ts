@@ -35,7 +35,40 @@ export const CONSISTENCY_THRESHOLDS = {
   timeDelay: 60,
   // 触发告警的连续不一致次数
   alertThreshold: 3,
+  // AMS无数据触发回补的时间阈值（小时）
+  amsBackfillThreshold: 4,
 };
+
+// ==================== 专家建议新增：数据冻结区策略 ====================
+
+/**
+ * 数据冻结区配置
+ * 专家建议：区分"用于决策的数据"和"用于展示的数据"
+ */
+export const DATA_FREEZING_CONFIG = {
+  // 归因延迟窗口（小时）- 转化数据通常有12-48小时延迟
+  attributionDelayHours: 48,
+  
+  // 分时策略排除天数 - 排除最近3天数据
+  daypartingExcludeDays: 3,
+  
+  // 竞价算法排除天数 - 排除最近1天数据
+  bidAlgorithmExcludeDays: 1,
+  
+  // 位置优化排除天数 - 排除最近3天数据
+  placementExcludeDays: 3,
+  
+  // 实时监控可信字段 - AMS实时数据只看这些字段
+  realtimeTrustedFields: ['spend', 'clicks', 'impressions'] as const,
+  
+  // 实时监控不可信字段 - 这些字段有归因延迟
+  realtimeUntrustedFields: ['sales', 'orders', 'roas', 'acos', 'cvr'] as const,
+};
+
+/**
+ * 算法类型定义
+ */
+export type AlgorithmType = 'bid' | 'dayparting' | 'placement' | 'search_term';
 
 // 同步状态
 interface SyncStatus {
@@ -401,12 +434,263 @@ export async function autoRepairDataDeviations(
   return { repaired: 0, failed: 0 };
 }
 
+// ==================== 专家建议新增：数据冻结区函数 ====================
+
+/**
+ * 获取用于【算法决策】的安全数据
+ * 专家建议：强制剔除最近N小时/天的数据，防止归因延迟误导算法
+ * 
+ * @param accountId - 账号ID
+ * @param algorithmType - 算法类型
+ * @param lookbackDays - 回看天数（默认30天）
+ */
+export async function getDataForAlgorithm(
+  accountId: number,
+  algorithmType: AlgorithmType,
+  lookbackDays: number = 30
+): Promise<{
+  data: any[];
+  safeEndDate: Date;
+  excludedDays: number;
+  warning?: string;
+}> {
+  const db = await getDb();
+  if (!db) {
+    return { data: [], safeEndDate: new Date(), excludedDays: 0, warning: '数据库连接失败' };
+  }
+
+  // 根据算法类型确定排除天数
+  let excludeDays: number;
+  switch (algorithmType) {
+    case 'dayparting':
+      excludeDays = DATA_FREEZING_CONFIG.daypartingExcludeDays;
+      break;
+    case 'placement':
+      excludeDays = DATA_FREEZING_CONFIG.placementExcludeDays;
+      break;
+    case 'search_term':
+      // Search Term应该是T+1任务，排除今天
+      excludeDays = 1;
+      break;
+    case 'bid':
+    default:
+      excludeDays = DATA_FREEZING_CONFIG.bidAlgorithmExcludeDays;
+      break;
+  }
+
+  // 计算安全的结束日期（排除最近N天）
+  const safeEndDate = new Date();
+  safeEndDate.setDate(safeEndDate.getDate() - excludeDays);
+  safeEndDate.setHours(23, 59, 59, 999);
+
+  // 计算开始日期
+  const startDate = new Date(safeEndDate);
+  startDate.setDate(startDate.getDate() - lookbackDays);
+  startDate.setHours(0, 0, 0, 0);
+
+  try {
+    // 只获取历史数据（API + 已归因的AMS数据）
+    // 绝对不要把"今天"的AMS转化数据嗂给算法
+    const [rows] = await db.execute(sql`
+      SELECT 
+        DATE(date) as reportDate,
+        campaignId,
+        adGroupId,
+        keywordId,
+        impressions,
+        clicks,
+        spend,
+        sales,
+        orders,
+        CASE WHEN clicks > 0 THEN orders / clicks ELSE 0 END as cvr,
+        CASE WHEN spend > 0 THEN sales / spend ELSE 0 END as roas,
+        CASE WHEN sales > 0 THEN (spend / sales) * 100 ELSE 100 END as acos
+      FROM daily_performance
+      WHERE accountId = ${accountId}
+        AND DATE(date) >= ${startDate.toISOString().split('T')[0]}
+        AND DATE(date) <= ${safeEndDate.toISOString().split('T')[0]}
+      ORDER BY DATE(date) DESC, campaignId
+    `) as any;
+
+    const data = Array.isArray(rows) ? rows : [];
+
+    return {
+      data,
+      safeEndDate,
+      excludedDays: excludeDays,
+      warning: excludeDays > 0 
+        ? `已排除最近${excludeDays}天数据以避免归因延迟误判` 
+        : undefined,
+    };
+  } catch (error: any) {
+    console.error('[DualTrackSync] 获取算法数据失败:', error);
+    return { data: [], safeEndDate, excludedDays: excludeDays, warning: error.message };
+  }
+}
+
+/**
+ * 获取用于【实时监控/风控】的数据
+ * 专家建议：包含AMS的实时花费，用于防超支
+ * 注意：只看Spend和Clicks，不看ROAS
+ * 
+ * @param accountId - 账号ID
+ * @param campaignId - 广告活动ID（可选）
+ */
+export async function getRealtimeSpendForGuard(
+  accountId: number,
+  campaignId?: string
+): Promise<{
+  todaySpend: number;
+  todayClicks: number;
+  todayImpressions: number;
+  lastUpdateTime: Date | null;
+  dataSource: 'ams' | 'api';
+  warning?: string;
+}> {
+  const db = await getDb();
+  if (!db) {
+    return {
+      todaySpend: 0,
+      todayClicks: 0,
+      todayImpressions: 0,
+      lastUpdateTime: null,
+      dataSource: 'api',
+      warning: '数据库连接失败',
+    };
+  }
+
+  const today = new Date().toISOString().split('T')[0];
+
+  try {
+    // 优先从AMS缓冲表获取实时数据
+    let dataSource: 'ams' | 'api' = 'api';
+    let result: any = null;
+
+    // 尝试从AMS缓冲表获取
+    try {
+      const [amsRows] = await db.execute(sql`
+        SELECT 
+          SUM(spend) as todaySpend,
+          SUM(clicks) as todayClicks,
+          SUM(impressions) as todayImpressions,
+          MAX(eventTime) as lastUpdateTime
+        FROM ams_performance_buffer
+        WHERE accountId = ${accountId}
+          AND DATE(eventTime) = ${today}
+          ${campaignId ? sql`AND campaignId = ${campaignId}` : sql``}
+      `) as any;
+
+      if (Array.isArray(amsRows) && amsRows.length > 0 && amsRows[0]?.todaySpend !== null) {
+        result = amsRows[0];
+        dataSource = 'ams';
+      }
+    } catch {
+      // AMS表可能不存在，回退到API数据
+    }
+
+    // 如果AMS没数据，从API数据获取
+    if (!result) {
+      const [apiRows] = await db.execute(sql`
+        SELECT 
+          SUM(spend) as todaySpend,
+          SUM(clicks) as todayClicks,
+          SUM(impressions) as todayImpressions,
+          MAX(updatedAt) as lastUpdateTime
+        FROM daily_performance
+        WHERE accountId = ${accountId}
+          AND DATE(date) = ${today}
+          ${campaignId ? sql`AND campaignId = ${campaignId}` : sql``}
+      `) as any;
+
+      result = Array.isArray(apiRows) && apiRows.length > 0 ? apiRows[0] : null;
+    }
+
+    return {
+      todaySpend: result?.todaySpend || 0,
+      todayClicks: result?.todayClicks || 0,
+      todayImpressions: result?.todayImpressions || 0,
+      lastUpdateTime: result?.lastUpdateTime ? new Date(result.lastUpdateTime) : null,
+      dataSource,
+      warning: dataSource === 'api' ? '使用API数据，可能有延迟' : undefined,
+    };
+  } catch (error: any) {
+    console.error('[DualTrackSync] 获取实时花费失败:', error);
+    return {
+      todaySpend: 0,
+      todayClicks: 0,
+      todayImpressions: 0,
+      lastUpdateTime: null,
+      dataSource: 'api',
+      warning: error.message,
+    };
+  }
+}
+
+/**
+ * 检查数据是否在冻结区内
+ * 专家建议：用于防止算法误用未归因数据
+ * 
+ * @param date - 要检查的日期
+ * @param algorithmType - 算法类型
+ */
+export function isDataInFreezingZone(
+  date: Date,
+  algorithmType: AlgorithmType
+): boolean {
+  let excludeDays: number;
+  switch (algorithmType) {
+    case 'dayparting':
+      excludeDays = DATA_FREEZING_CONFIG.daypartingExcludeDays;
+      break;
+    case 'placement':
+      excludeDays = DATA_FREEZING_CONFIG.placementExcludeDays;
+      break;
+    case 'search_term':
+      excludeDays = 1;
+      break;
+    case 'bid':
+    default:
+      excludeDays = DATA_FREEZING_CONFIG.bidAlgorithmExcludeDays;
+      break;
+  }
+
+  const freezeDate = new Date();
+  freezeDate.setDate(freezeDate.getDate() - excludeDays);
+  freezeDate.setHours(0, 0, 0, 0);
+
+  return date >= freezeDate;
+}
+
+/**
+ * 获取实时数据的可信字段
+ * 专家建议：AMS实时数据只看Spend/Clicks/Impressions，不看ROAS
+ */
+export function getRealtimeTrustedFields(): readonly string[] {
+  return DATA_FREEZING_CONFIG.realtimeTrustedFields;
+}
+
+/**
+ * 获取实时数据的不可信字段
+ * 专家建议：这些字段有归因延迟，不应用于实时决策
+ */
+export function getRealtimeUntrustedFields(): readonly string[] {
+  return DATA_FREEZING_CONFIG.realtimeUntrustedFields;
+}
+
 export default {
   getDualTrackStatus,
   runConsistencyCheck,
   getMergedPerformanceData,
   autoRepairDataDeviations,
   getDataSourceStats,
+  // 专家建议新增：数据冻结区函数
+  getDataForAlgorithm,
+  getRealtimeSpendForGuard,
+  isDataInFreezingZone,
+  getRealtimeTrustedFields,
+  getRealtimeUntrustedFields,
+  // 配置
   DATA_SOURCE_PRIORITY,
   CONSISTENCY_THRESHOLDS,
+  DATA_FREEZING_CONFIG,
 };

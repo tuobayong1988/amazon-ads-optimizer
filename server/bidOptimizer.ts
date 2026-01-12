@@ -17,6 +17,11 @@ export interface OptimizationTarget {
   sales: number;
   orders: number;
   matchType?: string;
+  // 专家建议新增：库存与业务感知
+  inventoryLevel?: 'normal' | 'low' | 'critical' | 'out_of_stock'; // 库存水平
+  inventoryDays?: number; // 剩余库存天数
+  organicRank?: number; // 自然排名（如果有）
+  isStockout?: boolean; // 是否缺货
 }
 
 export interface OptimizationResult {
@@ -48,6 +53,12 @@ export interface PerformanceGroupConfig {
   dailyCostTarget?: number;
   dailyBudget?: number;
   maxBid?: number;
+  // 专家建议新增：广告组/Campaign平均CVR作为贝叶斯先验数据
+  groupAvgCvr?: number;
+  // 专家建议新增：广告组/Campaign平均CPC
+  groupAvgCpc?: number;
+  // 专家建议新增：平均订单价值
+  groupAvgAov?: number;
 }
 
 /**
@@ -272,7 +283,136 @@ export function findOptimalBid(
 }
 
 /**
+ * 数据充足性检查阈值
+ * 专家建议：点击>=15且订单>=3才认为数据充足
+ */
+const DATA_SUFFICIENCY_THRESHOLDS = {
+  minClicks: 15,
+  minOrders: 3,
+};
+
+/**
+ * 贝叶斯平滑信心参数
+ * 越大表示越信任先验数据（广告组平均值）
+ */
+const BAYESIAN_CONFIDENCE = 1;
+
+/**
+ * 计算贝叶斯平滑后的转化率
+ * 公式：smoothedCvr = (orders + confidence * priorCvr) / (clicks + confidence)
+ * 
+ * @param orders - 当前订单数
+ * @param clicks - 当前点击数
+ * @param priorCvr - 先验转化率（广告组/Campaign平均值）
+ * @param confidence - 信心参数，默认1
+ */
+export function calculateBayesianSmoothedCvr(
+  orders: number,
+  clicks: number,
+  priorCvr: number,
+  confidence: number = BAYESIAN_CONFIDENCE
+): number {
+  return (orders + confidence * priorCvr) / (clicks + confidence);
+}
+
+/**
+ * 检查数据是否充足，决定使用市场曲线模型还是贝叶斯平滑策略
+ */
+export function isDataSufficient(target: OptimizationTarget): boolean {
+  return target.clicks >= DATA_SUFFICIENCY_THRESHOLDS.minClicks && 
+         target.orders >= DATA_SUFFICIENCY_THRESHOLDS.minOrders;
+}
+
+/**
+ * 数据稀疏场景的保守竞价策略（贝叶斯平滑）
+ * 专家建议：当数据不足时，不要拟合曲线，使用基于规则的保守策略
+ * 
+ * @param target - 优化目标
+ * @param config - 绩效组配置
+ * @param maxBidLimit - 最高出价限制
+ * @param minBidLimit - 最低出价限制
+ */
+function calculateSparseDataBidAdjustment(
+  target: OptimizationTarget,
+  config: PerformanceGroupConfig,
+  maxBidLimit: number = 10.00,
+  minBidLimit: number = 0.02
+): OptimizationResult {
+  let newBid = target.currentBid;
+  let reason = "";
+
+  // 获取广告组或Campaign的平均CVR作为先验数据 (Bayesian Prior)
+  const groupAvgCvr = config.groupAvgCvr || 0.05; // 默认5%转化率
+  const groupAvgAov = config.groupAvgAov || 30; // 默认平均订单价值$30
+  
+  // 贝叶斯平均转化率 = (当前转化 + 信心参数*平均转化) / (当前点击 + 信心参数)
+  const smoothedCvr = calculateBayesianSmoothedCvr(
+    target.orders,
+    target.clicks,
+    groupAvgCvr
+  );
+  
+  // 计算目标CPA
+  let targetCpa: number;
+  if (config.targetAcos && target.orders > 0) {
+    // 基于目标ACoS计算目标CPA
+    const avgOrderValue = target.sales / target.orders;
+    targetCpa = config.targetAcos / 100 * avgOrderValue;
+  } else if (config.targetRoas) {
+    // 基于目标ROAS计算目标CPA
+    targetCpa = groupAvgAov / config.targetRoas;
+  } else {
+    // 默认目标CPA：平均订单价值的30%
+    targetCpa = groupAvgAov * 0.3;
+  }
+  
+  // 基于平滑后的CVR计算理论出价
+  // 理论出价 = 平滑CVR * 目标CPA
+  const theoreticalBid = smoothedCvr * targetCpa;
+
+  // 专家建议：限制调整幅度，长尾词不宜大起大落（最多±20%）
+  const MAX_SPARSE_CHANGE_PERCENT = 0.20;
+  
+  if (theoreticalBid > target.currentBid) {
+    newBid = Math.min(theoreticalBid, target.currentBid * (1 + MAX_SPARSE_CHANGE_PERCENT));
+    reason = `数据稀疏（点击${target.clicks}，订单${target.orders}），基于贝叶斯平滑CVR(${(smoothedCvr * 100).toFixed(1)}%)尝试提价`;
+  } else {
+    newBid = Math.max(theoreticalBid, target.currentBid * (1 - MAX_SPARSE_CHANGE_PERCENT));
+    reason = `数据稀疏（点击${target.clicks}，订单${target.orders}），表现不及预期，保守降价`;
+  }
+
+  // 应用出价限制
+  newBid = Math.min(newBid, maxBidLimit);
+  newBid = Math.max(newBid, minBidLimit);
+  newBid = Math.round(newBid * 100) / 100;
+
+  // 确定操作类型
+  let actionType: "increase" | "decrease" | "set" = "set";
+  if (newBid > target.currentBid) {
+    actionType = "increase";
+  } else if (newBid < target.currentBid) {
+    actionType = "decrease";
+  }
+
+  const bidChangePercent = ((newBid - target.currentBid) / target.currentBid) * 100;
+
+  return {
+    targetId: target.id,
+    targetType: target.type,
+    previousBid: target.currentBid,
+    newBid,
+    actionType,
+    bidChangePercent: Math.round(bidChangePercent * 100) / 100,
+    reason,
+  };
+}
+
+/**
  * Calculate bid adjustment based on performance
+ * 
+ * 专家建议优化：
+ * - 数据充足时（clicks>=15, orders>=3）：使用市场曲线模型
+ * - 数据稀疏时：使用贝叶斯平滑的保守策略
  */
 export function calculateBidAdjustment(
   target: OptimizationTarget,
@@ -280,6 +420,13 @@ export function calculateBidAdjustment(
   maxBidLimit: number = 10.00,
   minBidLimit: number = 0.02
 ): OptimizationResult {
+  // 专家建议：数据充足性检查
+  if (!isDataSufficient(target)) {
+    // 数据稀疏时，使用贝叶斯平滑的保守策略
+    return calculateSparseDataBidAdjustment(target, config, maxBidLimit, minBidLimit);
+  }
+
+  // 数据充足时，使用原有的市场曲线模型
   const metrics = calculateMetrics(target);
   const marketCurve = generateMarketCurve(target);
   const optimalBid = findOptimalBid(marketCurve, config);
@@ -537,4 +684,231 @@ export function getAdjustmentReason(
   }
   
   return `基于历史表现优化出价`;
+}
+
+// ==================== 专家建议新增：库存与业务感知 ====================
+
+/**
+ * 库存保护配置
+ */
+export const INVENTORY_PROTECTION_CONFIG = {
+  // 库存水平阈值（天数）
+  lowInventoryThreshold: 7,      // 低库存阈值
+  criticalInventoryThreshold: 3, // 危急库存阈值
+  
+  // 出价调整倍数
+  lowInventoryBidMultiplier: 0.7,      // 低库存时出价倍数
+  criticalInventoryBidMultiplier: 0.5, // 危急库存时出价倍数（强制降价50%）
+  outOfStockBidMultiplier: 0,          // 缺货时暂停广告
+  
+  // 自然排名策略
+  organicRankThreshold: 10,            // 自然排名前10名可以降低广告投入
+  organicRankBidReduction: 0.3,        // 自然排名好时出价降低30%
+};
+
+/**
+ * 库存保护结果
+ */
+export interface InventoryProtectionResult {
+  originalBid: number;
+  adjustedBid: number;
+  bidMultiplier: number;
+  inventoryLevel: string;
+  inventoryDays?: number;
+  action: 'normal' | 'reduce' | 'pause';
+  reason: string;
+}
+
+/**
+ * 计算库存保护调整
+ * 专家建议：库存告急时强制降价50%延长售卖时间
+ * 
+ * @param currentBid - 当前出价
+ * @param inventoryLevel - 库存水平
+ * @param inventoryDays - 剩余库存天数
+ */
+export function calculateInventoryProtection(
+  currentBid: number,
+  inventoryLevel: OptimizationTarget['inventoryLevel'],
+  inventoryDays?: number
+): InventoryProtectionResult {
+  const {
+    lowInventoryThreshold,
+    criticalInventoryThreshold,
+    lowInventoryBidMultiplier,
+    criticalInventoryBidMultiplier,
+    outOfStockBidMultiplier,
+  } = INVENTORY_PROTECTION_CONFIG;
+  
+  // 缺货时暂停广告
+  if (inventoryLevel === 'out_of_stock') {
+    return {
+      originalBid: currentBid,
+      adjustedBid: 0,
+      bidMultiplier: outOfStockBidMultiplier,
+      inventoryLevel: 'out_of_stock',
+      inventoryDays,
+      action: 'pause',
+      reason: '库存已缺货，暂停广告投放避免浪费广告费',
+    };
+  }
+  
+  // 危急库存（小于3天）
+  if (inventoryLevel === 'critical' || (inventoryDays !== undefined && inventoryDays <= criticalInventoryThreshold)) {
+    const adjustedBid = Math.round(currentBid * criticalInventoryBidMultiplier * 100) / 100;
+    return {
+      originalBid: currentBid,
+      adjustedBid,
+      bidMultiplier: criticalInventoryBidMultiplier,
+      inventoryLevel: 'critical',
+      inventoryDays,
+      action: 'reduce',
+      reason: `库存危急（剩余${inventoryDays || '<3'}天），强制降价50%延长售卖时间`,
+    };
+  }
+  
+  // 低库存（小于7天）
+  if (inventoryLevel === 'low' || (inventoryDays !== undefined && inventoryDays <= lowInventoryThreshold)) {
+    const adjustedBid = Math.round(currentBid * lowInventoryBidMultiplier * 100) / 100;
+    return {
+      originalBid: currentBid,
+      adjustedBid,
+      bidMultiplier: lowInventoryBidMultiplier,
+      inventoryLevel: 'low',
+      inventoryDays,
+      action: 'reduce',
+      reason: `库存偏低（剩余${inventoryDays || '<7'}天），降低出价30%控制销售速度`,
+    };
+  }
+  
+  // 库存正常
+  return {
+    originalBid: currentBid,
+    adjustedBid: currentBid,
+    bidMultiplier: 1,
+    inventoryLevel: 'normal',
+    inventoryDays,
+    action: 'normal',
+    reason: '库存正常，无需库存保护调整',
+  };
+}
+
+/**
+ * 自然排名策略结果
+ */
+export interface OrganicRankStrategyResult {
+  originalBid: number;
+  adjustedBid: number;
+  bidReduction: number;
+  organicRank: number;
+  shouldReduceBid: boolean;
+  reason: string;
+}
+
+/**
+ * 计算自然排名策略调整
+ * 专家建议：自然排名前10名时降低广告投入，避免重复购买已有流量
+ * 
+ * @param currentBid - 当前出价
+ * @param organicRank - 自然排名
+ */
+export function calculateOrganicRankStrategy(
+  currentBid: number,
+  organicRank?: number
+): OrganicRankStrategyResult {
+  const { organicRankThreshold, organicRankBidReduction } = INVENTORY_PROTECTION_CONFIG;
+  
+  // 没有自然排名数据
+  if (organicRank === undefined || organicRank <= 0) {
+    return {
+      originalBid: currentBid,
+      adjustedBid: currentBid,
+      bidReduction: 0,
+      organicRank: 0,
+      shouldReduceBid: false,
+      reason: '无自然排名数据，保持当前出价',
+    };
+  }
+  
+  // 自然排名在前10名
+  if (organicRank <= organicRankThreshold) {
+    const bidReduction = organicRankBidReduction;
+    const adjustedBid = Math.round(currentBid * (1 - bidReduction) * 100) / 100;
+    return {
+      originalBid: currentBid,
+      adjustedBid,
+      bidReduction,
+      organicRank,
+      shouldReduceBid: true,
+      reason: `自然排名第${organicRank}名（前${organicRankThreshold}名），降低广告出价${Math.round(bidReduction * 100)}%避免重复购买已有流量`,
+    };
+  }
+  
+  // 自然排名较差
+  return {
+    originalBid: currentBid,
+    adjustedBid: currentBid,
+    bidReduction: 0,
+    organicRank,
+    shouldReduceBid: false,
+    reason: `自然排名第${organicRank}名，需要广告补充流量`,
+  };
+}
+
+/**
+ * 综合应用库存和自然排名策略
+ * 专家建议：库存保护优先级最高
+ * 
+ * @param target - 优化目标
+ * @param baseBid - 基础出价（经过其他算法计算后的出价）
+ */
+export function applyBusinessAwareAdjustments(
+  target: OptimizationTarget,
+  baseBid: number
+): {
+  finalBid: number;
+  inventoryProtection?: InventoryProtectionResult;
+  organicRankStrategy?: OrganicRankStrategyResult;
+  totalAdjustmentReason: string;
+} {
+  let finalBid = baseBid;
+  const reasons: string[] = [];
+  
+  // 1. 库存保护（优先级最高）
+  let inventoryProtection: InventoryProtectionResult | undefined;
+  if (target.inventoryLevel || target.inventoryDays !== undefined || target.isStockout) {
+    const level = target.isStockout ? 'out_of_stock' : target.inventoryLevel;
+    inventoryProtection = calculateInventoryProtection(finalBid, level, target.inventoryDays);
+    
+    if (inventoryProtection.action !== 'normal') {
+      finalBid = inventoryProtection.adjustedBid;
+      reasons.push(inventoryProtection.reason);
+    }
+  }
+  
+  // 2. 自然排名策略（仅当库存正常时应用）
+  let organicRankStrategy: OrganicRankStrategyResult | undefined;
+  if (target.organicRank !== undefined && 
+      (!inventoryProtection || inventoryProtection.action === 'normal')) {
+    organicRankStrategy = calculateOrganicRankStrategy(finalBid, target.organicRank);
+    
+    if (organicRankStrategy.shouldReduceBid) {
+      finalBid = organicRankStrategy.adjustedBid;
+      reasons.push(organicRankStrategy.reason);
+    }
+  }
+  
+  // 确保出价不低于最低限制（除非缺货暂停）
+  if (finalBid > 0) {
+    finalBid = Math.max(finalBid, 0.02);
+  }
+  
+  return {
+    finalBid: Math.round(finalBid * 100) / 100,
+    inventoryProtection,
+    organicRankStrategy,
+    totalAdjustmentReason: reasons.length > 0 
+      ? reasons.join('；') 
+      : '无业务感知调整',
+  };
 }

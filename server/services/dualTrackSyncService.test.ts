@@ -2,7 +2,7 @@
  * 双轨制数据同步服务单元测试
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock getDb
 vi.mock('../db', () => ({
@@ -13,12 +13,24 @@ import { getDb } from '../db';
 import {
   getDualTrackStatus,
   getDataSourceStats,
+  getMergedPerformanceData,
   DATA_SOURCE_PRIORITY,
   CONSISTENCY_THRESHOLDS,
 } from './dualTrackSyncService';
 
 describe('DualTrackSyncService', () => {
+  let mockDb: any;
+  let mockExecute: any;
+
   beforeEach(() => {
+    mockExecute = vi.fn();
+    mockDb = {
+      execute: mockExecute,
+    };
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
     vi.clearAllMocks();
   });
 
@@ -121,6 +133,40 @@ describe('DualTrackSyncService', () => {
     it('reporting mode should prioritize merged data', () => {
       const priority = DATA_SOURCE_PRIORITY.reporting;
       expect(priority[0]).toBe('merged');
+    });
+  });
+
+  describe('getMergedPerformanceData', () => {
+    it('should return empty array when database connection fails', async () => {
+      vi.mocked(getDb).mockResolvedValue(null);
+
+      const result = await getMergedPerformanceData(1, '2024-01-01', '2024-01-07');
+
+      expect(result).toEqual([]);
+    });
+
+    it('should return API data for historical priority', async () => {
+      const mockApiData = [
+        { campaignId: 1, amazonCampaignId: 'C001', reportDate: '2024-01-01', impressions: 1000, clicks: 50 },
+      ];
+      mockExecute.mockResolvedValueOnce([mockApiData]);
+      vi.mocked(getDb).mockResolvedValue(mockDb as any);
+
+      const result = await getMergedPerformanceData(1, '2024-01-01', '2024-01-07', 'historical');
+
+      expect(result).toEqual(mockApiData);
+    });
+  });
+
+  describe('Consistency Thresholds', () => {
+    it('should have reasonable AMS backfill threshold', () => {
+      expect(CONSISTENCY_THRESHOLDS.amsBackfillThreshold).toBeGreaterThan(0);
+      expect(CONSISTENCY_THRESHOLDS.amsBackfillThreshold).toBeLessThanOrEqual(24);
+    });
+
+    it('should have reasonable value deviation threshold', () => {
+      expect(CONSISTENCY_THRESHOLDS.valueDeviation).toBeGreaterThan(0);
+      expect(CONSISTENCY_THRESHOLDS.valueDeviation).toBeLessThan(0.5);
     });
   });
 });

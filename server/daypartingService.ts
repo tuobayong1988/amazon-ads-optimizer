@@ -100,8 +100,20 @@ export async function analyzeWeeklyPerformance(
 }
 
 /**
+ * 归因时差校正配置
+ * 专家建议：亚马逊的Hourly Data报告中，Spend/Clicks是基于"点击时间"，
+ * 但Sales/Orders往往是基于"购买时间"或存在数小时甚至数天的归因延迟
+ */
+const ATTRIBUTION_DELAY_DAYS = 3; // 排除最近3天的数据，避免归因延迟导致的误判
+
+/**
  * 分析广告活动的每小时表现
  * 返回每天每小时的平均表现数据
+ * 
+ * 专家建议优化：
+ * 1. 排除最近3天数据，避免归因延迟导致的误判
+ * 2. 引入流量热度得分（CTR权重0.6 + Clicks权量0.4）
+ * 3. 高热度低转化时段仅轻微降价（保持曝光）
  */
 export async function analyzeHourlyPerformance(
   campaignId: number,
@@ -115,14 +127,21 @@ export async function analyzeHourlyPerformance(
   avgCvr: number;
   avgCpc: number;
   avgAcos: number;
+  avgCtr: number; // 新增：平均点击率
+  avgImpressions: number; // 新增：平均曝光
+  trafficScore: number; // 新增：流量热度得分
   dataPoints: number;
   performanceScore: number;
 }[]> {
   const db = await getDb();
   if (!db) return [];
 
+  // 专家建议：排除最近3天的数据，避免归因延迟导致的误判
+  const endDate = new Date();
+  endDate.setDate(endDate.getDate() - ATTRIBUTION_DELAY_DAYS);
+  
   const startDate = new Date();
-  startDate.setDate(startDate.getDate() - lookbackDays);
+  startDate.setDate(startDate.getDate() - lookbackDays - ATTRIBUTION_DELAY_DAYS);
 
   // 从hourly_performance表获取数据
   const result = await db
@@ -133,26 +152,44 @@ export async function analyzeHourlyPerformance(
       avgSales: sql<string>`AVG(${hourlyPerformance.sales})`,
       avgClicks: sql<string>`AVG(${hourlyPerformance.clicks})`,
       avgOrders: sql<string>`AVG(${hourlyPerformance.orders})`,
+      avgImpressions: sql<string>`AVG(${hourlyPerformance.impressions})`,
       dataPoints: sql<number>`COUNT(*)`,
     })
     .from(hourlyPerformance)
     .where(
       and(
         eq(hourlyPerformance.campaignId, campaignId),
-        gte(hourlyPerformance.date, startDate.toISOString().split('T')[0])
+        gte(hourlyPerformance.date, startDate.toISOString().split('T')[0]),
+        lte(hourlyPerformance.date, endDate.toISOString().split('T')[0]) // 排除最近3天
       )
     )
     .groupBy(hourlyPerformance.dayOfWeek, hourlyPerformance.hour);
+
+  // 计算最大值用于归一化
+  const maxClicks = Math.max(...result.map(r => parseFloat(r.avgClicks || "0")), 1);
+  const maxImpressions = Math.max(...result.map(r => parseFloat(r.avgImpressions || "0")), 1);
 
   return result.map((row) => {
     const avgSpend = parseFloat(row.avgSpend || "0");
     const avgSales = parseFloat(row.avgSales || "0");
     const avgClicks = parseFloat(row.avgClicks || "0");
     const avgOrders = parseFloat(row.avgOrders || "0");
+    const avgImpressions = parseFloat(row.avgImpressions || "0");
     const avgCvr = avgClicks > 0 ? (avgOrders / avgClicks) * 100 : 0;
     const avgCpc = avgClicks > 0 ? avgSpend / avgClicks : 0;
     const avgAcos = avgSales > 0 ? (avgSpend / avgSales) * 100 : 0;
     const avgRoas = avgSpend > 0 ? avgSales / avgSpend : 0;
+    const avgCtr = avgImpressions > 0 ? (avgClicks / avgImpressions) * 100 : 0;
+
+    // 专家建议：流量热度得分 = CTR权重0.6 + Clicks权重0.4
+    // 归一化后计算
+    const normalizedClicks = avgClicks / maxClicks;
+    const normalizedCtr = avgCtr / Math.max(...result.map(r => {
+      const imp = parseFloat(r.avgImpressions || "0");
+      const clk = parseFloat(r.avgClicks || "0");
+      return imp > 0 ? (clk / imp) * 100 : 0;
+    }), 1);
+    const trafficScore = normalizedClicks * 0.4 + normalizedCtr * 0.6;
 
     // 综合表现评分
     const performanceScore = Math.min(100, Math.max(0, avgRoas * 25));
@@ -166,6 +203,9 @@ export async function analyzeHourlyPerformance(
       avgCvr,
       avgCpc,
       avgAcos,
+      avgCtr,
+      avgImpressions,
+      trafficScore,
       dataPoints: row.dataPoints,
       performanceScore,
     };
@@ -252,6 +292,10 @@ export function calculateOptimalBudgetAllocation(
 /**
  * 计算最优分时竞价调整
  * 基于每小时的表现数据，计算出价倍数
+ * 
+ * 专家建议优化：
+ * - 高热度低转化时段仅轻微降价（保持曝光）
+ * - 这些时段可能是黄金"种草"时段，用户点击加购后可能在其他时段付款
  */
 export function calculateOptimalBidAdjustments(
   hourlyData: Awaited<ReturnType<typeof analyzeHourlyPerformance>>,
@@ -266,6 +310,8 @@ export function calculateOptimalBidAdjustments(
   dayOfWeek: number;
   hour: number;
   bidMultiplier: number;
+  trafficScore?: number; // 新增：流量热度得分
+  isHighTrafficLowConversion?: boolean; // 新增：是否为高热度低转化时段
   reason: string;
 }[] {
   const { optimizationGoal, targetAcos, targetRoas, maxMultiplier = 2.0, minMultiplier = 0.2 } = options;
@@ -293,16 +339,32 @@ export function calculateOptimalBidAdjustments(
     return { ...hourData, score: Math.max(0, score) };
   });
 
-  // 计算平均分
+  // 计算平均分和平均流量得分
   const avgScore = scores.reduce((sum, h) => sum + h.score, 0) / scores.length || 1;
+  const avgTrafficScore = scores.reduce((sum, h) => sum + (h.trafficScore || 0), 0) / scores.length || 0.5;
 
   // 计算每小时的出价倍数
   return scores.map((hourData) => {
     let multiplier = hourData.score / avgScore;
+    
+    // 专家建议：检测高热度低转化时段
+    // 如果流量热度高（>0.8）但ROAS低，可能是"种草"时段
+    const trafficScore = hourData.trafficScore || 0;
+    const avgRoas = hourData.avgSpend > 0 ? hourData.avgSales / hourData.avgSpend : 0;
+    const targetRoasValue = targetRoas || 2.0; // 默认目标ROAS
+    const isHighTrafficLowConversion = trafficScore > 0.8 && avgRoas < targetRoasValue;
+    
+    // 高热度低转化时段：仅轻微降价，不要重罚
+    if (isHighTrafficLowConversion && multiplier < 1) {
+      multiplier = Math.max(0.9, multiplier); // 最多降10%，保持曝光
+    }
+    
     multiplier = Math.max(minMultiplier, Math.min(maxMultiplier, multiplier));
 
     let reason = "";
-    if (multiplier > 1.3) {
+    if (isHighTrafficLowConversion) {
+      reason = "高流量时段（可能为种草时段），仅轻微调整保持曝光";
+    } else if (multiplier > 1.3) {
       reason = "高转化时段，建议提高出价";
     } else if (multiplier < 0.7) {
       reason = "低效时段，建议降低出价";
@@ -314,6 +376,8 @@ export function calculateOptimalBidAdjustments(
       dayOfWeek: hourData.dayOfWeek,
       hour: hourData.hour,
       bidMultiplier: Math.round(multiplier * 100) / 100,
+      trafficScore,
+      isHighTrafficLowConversion,
       reason,
     };
   });

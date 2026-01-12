@@ -4188,3 +4188,81 @@ Amazon Advertising API数据有12-24小时延迟，当天广告数据通常在�
 - [x] 修改API同步策略：只拉取T-1（昨天）及之前的数据
 - [ ] 实现SQS消息处理逻辑
 - [ ] 测试AMS订阅和数据接收
+
+
+## 广告优化算法实战优化（专家建议）
+
+### 1. 竞价算法：数据稀疏场景贝叶斯平滑
+- [x] 实现数据充足性检查（clicks>=15, orders>=3）
+- [x] 数据充足时使用市场曲线模型
+- [x] 数据稀疏时使用贝叶斯平滑策略
+- [x] 获取广告组/Campaign平均CVR作为先验数据
+- [x] 限制长尾词调整幅度（最多±20%）
+
+### 2. 分时策略：归因时差校正
+- [x] 排除最近3天数据避免归因延迟误判
+- [x] 引入流量热度得分（CTR权重0.6 + Clicks权重0.4）
+- [x] 高热度低转化时段仅轻微降价（保持曝光）
+- [x] 确保时区正确转换（UTC到卖家中心当地时间）
+### 3. 位置与竞价协同：防止双重加价螺旋
+- [x] 实现竞价归一化（剔除位置溢价计算真实Base Bid表现）
+- [x] 位置溢价增加时同步降低基础出价
+- [x] 在统一优化引擎中协调位置和竞价决策
+- [x] 添加总 CPC监控防止指数级暴涨
+
+### 4. 流量隔离：软隔离策略
+- [x] 默认不添加否定词（suggestAddNegative: false）
+- [x] Exact组出价设为Broad组1.5倍
+- [x] 仅当Exact组流量稳定后才建议添加否定词
+- [x] 防止流量断层导致词流量归零
+
+### 5. 库存与业务感知
+- [x] 扩展OptimizationContext接口（inventoryLevel, organicRank）
+- [x] 库存告急时强制降价50%延长售卖时间
+- [x] 自然排名前10名时降低广告投入
+- [x] 缺货时自动暂停广告投放商品自动暂停广告优化
+
+
+
+## 数据层与算法层协同优化（专家评估第二轮）
+
+### 核心协同风险修复
+
+#### 1. 致命的"归因时差"错位修复
+- [x] 实施"数据冻结区"策略，区分决策数据和展示数据
+- [x] 算法决策数据强制剔除最近48小时的转化数据
+- [x] 分时策略排除最近3天数据避免归因延迟误判
+
+#### 2. 构建"中央竞价协调器"（解决多头马车问题）
+- [x] 创建bidCoordinator.ts中央协调模块
+- [x] 各服务提交"建议"而非直接写数据库
+- [x] 计算理论最高CPC并实施熔断机制
+- [x] 防止Base Bid + 分时 + 位置溢价叠加导致CPC爆炸
+
+#### 3. AMS数据正确用法——日内调整(Intraday Pacing)
+- [x] 创建intradayPacingService.ts日内调整服务
+- [x] AMS实时数据只用于监控花费速度，不用于算ROAS
+- [x] 实现预算消耗速度监控和动态调整
+- [x] 花费过快时临时压低分时系数而非改Base Bid
+
+#### 4. Search Term异步处理
+- [x] 明确Search Term为T+1任务，不监听AMS流
+- [x] 每天凌晨运行N-Gram和冲突检测
+- [x] 基于API全量Search Term报表而非实时数据
+
+### 调整后的协同工作流
+
+#### 实时层（每小时，AMS驱动）
+- [x] 监控预算流失速度 (intradayPacingService)
+- [x] 异常流量攻击检测和紧急暂停 (detectAnomalies)
+- [x] 禁止根据实时ROAS调整Base Bid (DATA_FREEZING_CONFIG)
+
+#### 分析层（每天凌晨，API驱动）
+- [x] 运行bidOptimizer计算Base Bid (getDataForAlgorithm)
+- [x] 运行trafficIsolation做否词和移词 (runT1SearchTermAnalysis)
+- [x] 运行placementOptimization调整位置溢价 (bidCoordinator)
+
+#### 策略层（每周）
+- [x] 更新分时策略模型（排除最近3天数据） (daypartingExcludeDays: 3)
+- [x] 更新季节性系数 (已有seasonalBudgetService)
+

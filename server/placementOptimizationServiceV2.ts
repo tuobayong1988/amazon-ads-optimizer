@@ -146,6 +146,35 @@ const ATTRIBUTION_DELAY_DAYS = 3;
 // 归因延迟权重系数
 const ATTRIBUTION_DELAY_WEIGHT = 0.7;
 
+// ==================== 专家建议新增：竞价归一化配置 ====================
+
+/**
+ * 竞价归一化接口
+ * 专家建议：剔除位置溢价计算真实Base Bid表现
+ */
+export interface NormalizedBidMetrics {
+  originalBid: number;           // 原始出价
+  effectiveBid: number;          // 实际生效出价（含位置溢价）
+  normalizedBid: number;         // 归一化后的基础出价
+  placementMultiplier: number;   // 位置溢价倍数
+  placementType: PlacementType;
+}
+
+/**
+ * 竞价与位置协同调整结果
+ * 专家建议：防止双重加价螺旋
+ */
+export interface CoordinatedAdjustmentResult {
+  baseBidAdjustment: number;     // 基础出价调整百分比
+  placementAdjustments: {        // 位置调整
+    topOfSearch: number;
+    productPage: number;
+    restOfSearch: number;
+  };
+  totalEffectiveCpcChange: number; // 总有效CPC变化百分比
+  warning?: string;              // 警告信息
+}
+
 // ==================== 核心算法函数 ====================
 
 /**
@@ -1056,6 +1085,148 @@ export async function getPlacementAdjustmentEffectAnalysis(
   return { adjustmentRecord, effectAnalysis: null };
 }
 
+// ==================== 专家建议新增：竞价归一化和协同调整 ====================
+
+/**
+ * 计算归一化的基础出价
+ * 专家建议：剔除位置溢价计算真实Base Bid表现
+ * 
+ * 例如：如果基础出价$1，搜索顶部溢价50%，则实际出价$1.5
+ * 归一化后的基础出价 = $1.5 / 1.5 = $1
+ * 
+ * @param actualCpc - 实际CPC
+ * @param placementAdjustment - 位置溢价百分比（如50表示50%）
+ */
+export function normalizeBaseBid(
+  actualCpc: number,
+  placementAdjustment: number
+): NormalizedBidMetrics {
+  const multiplier = 1 + (placementAdjustment / 100);
+  const normalizedBid = actualCpc / multiplier;
+  
+  return {
+    originalBid: normalizedBid,
+    effectiveBid: actualCpc,
+    normalizedBid,
+    placementMultiplier: multiplier,
+    placementType: 'top_of_search' // 默认，实际使用时需指定
+  };
+}
+
+/**
+ * 计算协同调整方案
+ * 专家建议：防止双重加价螺旋
+ * 
+ * 核心逻辑：
+ * 1. 当位置溢价增加时，同步降低基础出价
+ * 2. 保持总有效CPC在可控范围内
+ * 3. 监控并防止指数级增长
+ * 
+ * @param currentBaseBid - 当前基础出价
+ * @param currentPlacements - 当前位置调整
+ * @param suggestedPlacements - 建议的位置调整
+ * @param targetMaxCpcIncrease - 目标最大CPC增幅百分比（默认30%）
+ */
+export function calculateCoordinatedAdjustment(
+  currentBaseBid: number,
+  currentPlacements: {
+    topOfSearch: number;
+    productPage: number;
+    restOfSearch: number;
+  },
+  suggestedPlacements: {
+    topOfSearch: number;
+    productPage: number;
+    restOfSearch: number;
+  },
+  targetMaxCpcIncrease: number = 30
+): CoordinatedAdjustmentResult {
+  // 计算当前最高有效CPC（以搜索顶部为例）
+  const currentMaxEffectiveCpc = currentBaseBid * (1 + currentPlacements.topOfSearch / 100);
+  
+  // 计算建议后的最高有效CPC
+  const suggestedMaxEffectiveCpc = currentBaseBid * (1 + suggestedPlacements.topOfSearch / 100);
+  
+  // 计算CPC变化百分比
+  const cpcChangePercent = ((suggestedMaxEffectiveCpc - currentMaxEffectiveCpc) / currentMaxEffectiveCpc) * 100;
+  
+  let baseBidAdjustment = 0;
+  let finalPlacements = { ...suggestedPlacements };
+  let warning: string | undefined;
+  
+  // 专家建议：如果CPC增幅超过目标，需要协同调整
+  if (cpcChangePercent > targetMaxCpcIncrease) {
+    // 计算需要降低的基础出价比例
+    // 目标：保持总有效CPC增幅在targetMaxCpcIncrease以内
+    const targetMaxCpc = currentMaxEffectiveCpc * (1 + targetMaxCpcIncrease / 100);
+    const requiredBaseBid = targetMaxCpc / (1 + suggestedPlacements.topOfSearch / 100);
+    baseBidAdjustment = ((requiredBaseBid - currentBaseBid) / currentBaseBid) * 100;
+    
+    warning = `位置溢价增加将导致CPC增幅${cpcChangePercent.toFixed(1)}%，超过目标${targetMaxCpcIncrease}%。建议同步降低基础出价${Math.abs(baseBidAdjustment).toFixed(1)}%以控制总成本。`;
+  } else if (cpcChangePercent < -targetMaxCpcIncrease) {
+    // CPC降幅过大，可以适当提高基础出价以保持竞争力
+    const targetMinCpc = currentMaxEffectiveCpc * (1 - targetMaxCpcIncrease / 100);
+    const requiredBaseBid = targetMinCpc / (1 + suggestedPlacements.topOfSearch / 100);
+    baseBidAdjustment = ((requiredBaseBid - currentBaseBid) / currentBaseBid) * 100;
+    
+    warning = `位置溢价降低将导致CPC降幅${Math.abs(cpcChangePercent).toFixed(1)}%。可考虑适当提高基础出价${baseBidAdjustment.toFixed(1)}%以保持竞争力。`;
+  }
+  
+  // 计算最终有效CPC变化
+  const finalBaseBid = currentBaseBid * (1 + baseBidAdjustment / 100);
+  const finalMaxEffectiveCpc = finalBaseBid * (1 + finalPlacements.topOfSearch / 100);
+  const totalEffectiveCpcChange = ((finalMaxEffectiveCpc - currentMaxEffectiveCpc) / currentMaxEffectiveCpc) * 100;
+  
+  return {
+    baseBidAdjustment: Math.round(baseBidAdjustment * 100) / 100,
+    placementAdjustments: finalPlacements,
+    totalEffectiveCpcChange: Math.round(totalEffectiveCpcChange * 100) / 100,
+    warning
+  };
+}
+
+/**
+ * 监控总有效CPC是否超过安全阈值
+ * 专家建议：防止指数级暴涨
+ * 
+ * @param baseBid - 基础出价
+ * @param placementAdjustment - 位置溢价百分比
+ * @param biddingStrategy - 竞价策略
+ * @param maxSafeEffectiveCpc - 最大安全有效CPC（默认$10）
+ */
+export function checkEffectiveCpcSafety(
+  baseBid: number,
+  placementAdjustment: number,
+  biddingStrategy: BiddingStrategy,
+  maxSafeEffectiveCpc: number = 10
+): {
+  isSafe: boolean;
+  effectiveCpc: number;
+  maxPossibleCpc: number;
+  warning?: string;
+} {
+  // 计算有效CPC
+  const effectiveCpc = baseBid * (1 + placementAdjustment / 100);
+  
+  // 计算最大可能的CPC（考虑动态竞价策略）
+  let maxPossibleCpc = effectiveCpc;
+  if (biddingStrategy === 'up_and_down') {
+    // 动态竞价-提高和降低：Amazon可能将竞价提高100%
+    maxPossibleCpc = effectiveCpc * 2;
+  }
+  
+  const isSafe = maxPossibleCpc <= maxSafeEffectiveCpc;
+  
+  return {
+    isSafe,
+    effectiveCpc,
+    maxPossibleCpc,
+    warning: !isSafe 
+      ? `警告：最大可能CPC ($${maxPossibleCpc.toFixed(2)}) 超过安全阈值 ($${maxSafeEffectiveCpc})。建议降低基础出价或位置溢价。`
+      : undefined
+  };
+}
+
 // ==================== 导出 ====================
 
 export default {
@@ -1080,6 +1251,11 @@ export default {
   // 效果追踪
   recordPlacementAdjustment,
   getPlacementAdjustmentEffectAnalysis,
+  
+  // 专家建议新增：竞价归一化和协同调整
+  normalizeBaseBid,
+  calculateCoordinatedAdjustment,
+  checkEffectiveCpcSafety,
   
   // 常量
   ADJUSTMENT_COOLDOWN_DAYS,

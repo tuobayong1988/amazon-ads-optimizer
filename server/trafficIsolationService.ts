@@ -123,6 +123,32 @@ export interface KeywordMigrationSuggestion {
 
 // ==================== 配置参数 ====================
 
+/**
+ * 专家建议：Search Term分析应该是T+1任务
+ * 
+ * 不要试图实时处理Search Term：
+ * 1. 不要监听AMS流来做否词
+ * 2. 每天凌晨，利用API拉取的全量Search Term报表（Yesterday），运行N-Gram和冲突检测
+ * 3. 原因：搜索词报告数据量大，且单次点击没有统计意义
+ * 4. 只有积累了一天的数据后，N-Gram的统计显著性才足以支撑决策
+ */
+export const SEARCH_TERM_SCHEDULING = {
+  // 建议执行时间：每天凌晨3点（等待数据完全归因）
+  recommendedHour: 3,
+  
+  // 数据来源：仅使用API报表，不使用AMS实时数据
+  dataSource: 'api_report' as const,
+  
+  // 分析时间范围：昨天的数据（T-1）
+  analysisDateRange: 'yesterday' as const,
+  
+  // 禁止实时分析
+  allowRealtimeAnalysis: false,
+  
+  // 分析说明
+  description: 'Search Term分析是T+1任务，不应监听AMS流。每天凌晨运行，基于API全量报表。',
+};
+
 export const TRAFFIC_ISOLATION_CONFIG = {
   // N-Gram分析参数
   ngram: {
@@ -141,6 +167,20 @@ export const TRAFFIC_ISOLATION_CONFIG = {
     aovWeight: 0.3,             // AOV权重
     roasWeight: 0.2,            // ROAS权重
     dataVolumeWeight: 0.1,      // 数据量权重
+  },
+  
+  // 专家建议新增：软隔离策略参数
+  softIsolation: {
+    // 默认不添加否定词，通过出价差异实现流量分配
+    suggestAddNegative: false,
+    // Exact组出价相对于Broad组的倍数
+    exactToBroadBidMultiplier: 1.5,
+    // Exact组流量稳定阈值（达到此点击数后才建议添加否定词）
+    exactGroupStabilityThreshold: 50,
+    // Exact组流量稳定所需的最小转化数
+    exactGroupMinConversions: 5,
+    // 软隔离策略说明
+    strategyDescription: '通过出价差异而非否定词实现流量分配，避免流量断层',
   },
   
   // 漏斗模型参数
@@ -986,4 +1026,291 @@ export async function applyNegativeKeywords(
   }
   
   return { applied, skipped, errors };
+}
+
+// ==================== 专家建议新增：软隔离策略 ====================
+
+/**
+ * 软隔离策略建议结果
+ */
+export interface SoftIsolationSuggestion {
+  searchTerm: string;
+  broadCampaignId: number;
+  broadCampaignName: string;
+  exactCampaignId: number;
+  exactCampaignName: string;
+  currentBroadBid: number;
+  currentExactBid: number;
+  suggestedExactBid: number;
+  exactGroupClicks: number;
+  exactGroupConversions: number;
+  isExactGroupStable: boolean;
+  suggestAddNegative: boolean;
+  reason: string;
+}
+
+/**
+ * 评估Exact组流量是否稳定
+ * 专家建议：仅当Exact组流量稳定后才建议添加否定词
+ * 
+ * @param exactGroupClicks - Exact组点击数
+ * @param exactGroupConversions - Exact组转化数
+ */
+export function isExactGroupStable(
+  exactGroupClicks: number,
+  exactGroupConversions: number
+): boolean {
+  const { exactGroupStabilityThreshold, exactGroupMinConversions } = TRAFFIC_ISOLATION_CONFIG.softIsolation;
+  return exactGroupClicks >= exactGroupStabilityThreshold && 
+         exactGroupConversions >= exactGroupMinConversions;
+}
+
+/**
+ * 计算软隔离策略的建议出价
+ * 专家建议：Exact组出价设为Broad组1.5倍
+ * 
+ * @param broadBid - Broad组当前出价
+ */
+export function calculateSoftIsolationBid(broadBid: number): number {
+  const { exactToBroadBidMultiplier } = TRAFFIC_ISOLATION_CONFIG.softIsolation;
+  return Math.round(broadBid * exactToBroadBidMultiplier * 100) / 100;
+}
+
+/**
+ * 生成软隔离策略建议
+ * 专家建议：
+ * 1. 默认不添加否定词，通过出价差异实现流量分配
+ * 2. 仅当Exact组流量稳定后才建议添加否定词
+ * 3. 防止流量断层导致词流量归零
+ * 
+ * @param accountId - 账号ID
+ * @param startDate - 开始日期
+ * @param endDate - 结束日期
+ */
+export async function generateSoftIsolationSuggestions(
+  accountId: number,
+  startDate: Date,
+  endDate: Date
+): Promise<{
+  suggestions: SoftIsolationSuggestion[];
+  summary: {
+    totalConflicts: number;
+    stableExactGroups: number;
+    unstableExactGroups: number;
+    suggestedBidAdjustments: number;
+    suggestedNegatives: number;
+  };
+}> {
+  // 先检测流量冲突
+  const conflictAnalysis = await detectTrafficConflicts(accountId, startDate, endDate);
+  
+  const suggestions: SoftIsolationSuggestion[] = [];
+  let stableExactGroups = 0;
+  let unstableExactGroups = 0;
+  let suggestedBidAdjustments = 0;
+  let suggestedNegatives = 0;
+  
+  for (const conflict of conflictAnalysis.conflicts) {
+    // 找到Exact和Broad广告活动
+    const exactCampaign = conflict.conflictingCampaigns.find(c => 
+      c.matchType?.toLowerCase().includes('exact')
+    );
+    const broadCampaign = conflict.conflictingCampaigns.find(c => 
+      c.matchType?.toLowerCase().includes('broad') || 
+      c.matchType?.toLowerCase().includes('phrase')
+    );
+    
+    if (!exactCampaign || !broadCampaign) continue;
+    
+    // 评估Exact组流量稳定性
+    const exactStable = isExactGroupStable(
+      exactCampaign.clicks,
+      exactCampaign.conversions
+    );
+    
+    if (exactStable) {
+      stableExactGroups++;
+    } else {
+      unstableExactGroups++;
+    }
+    
+    // 计算建议出价（假设Broad组CPC为基准）
+    const broadCpc = broadCampaign.clicks > 0 
+      ? broadCampaign.spend / broadCampaign.clicks 
+      : 1.0;
+    const suggestedExactBid = calculateSoftIsolationBid(broadCpc);
+    
+    // 决定是否建议添加否定词
+    const { suggestAddNegative: defaultSuggestNegative } = TRAFFIC_ISOLATION_CONFIG.softIsolation;
+    const shouldSuggestNegative = defaultSuggestNegative && exactStable;
+    
+    if (shouldSuggestNegative) {
+      suggestedNegatives++;
+    } else {
+      suggestedBidAdjustments++;
+    }
+    
+    // 生成建议原因
+    let reason = '';
+    if (!exactStable) {
+      reason = `Exact组流量尚未稳定（点击${exactCampaign.clicks}，转化${exactCampaign.conversions}），建议通过提高Exact组出价至$${suggestedExactBid}吸引流量，暂不添加否定词以避免流量断层`;
+    } else if (shouldSuggestNegative) {
+      reason = `Exact组流量已稳定（点击${exactCampaign.clicks}，转化${exactCampaign.conversions}），可以在Broad组添加否定词实现完全隔离`;
+    } else {
+      reason = `Exact组流量已稳定，但根据软隔离策略，建议继续通过出价差异实现流量分配，保持灵活性`;
+    }
+    
+    suggestions.push({
+      searchTerm: conflict.searchTerm,
+      broadCampaignId: broadCampaign.campaignId,
+      broadCampaignName: broadCampaign.campaignName,
+      exactCampaignId: exactCampaign.campaignId,
+      exactCampaignName: exactCampaign.campaignName,
+      currentBroadBid: broadCpc,
+      currentExactBid: exactCampaign.clicks > 0 
+        ? exactCampaign.spend / exactCampaign.clicks 
+        : suggestedExactBid,
+      suggestedExactBid,
+      exactGroupClicks: exactCampaign.clicks,
+      exactGroupConversions: exactCampaign.conversions,
+      isExactGroupStable: exactStable,
+      suggestAddNegative: shouldSuggestNegative,
+      reason,
+    });
+  }
+  
+  return {
+    suggestions,
+    summary: {
+      totalConflicts: conflictAnalysis.totalConflicts,
+      stableExactGroups,
+      unstableExactGroups,
+      suggestedBidAdjustments,
+      suggestedNegatives,
+    },
+  };
+}
+
+
+// ==================== 专家建议新增：T+1调度函数 ====================
+
+/**
+ * 获取T+1分析的日期范围
+ * 专家建议：只分析昨天的数据，确保归因完成
+ */
+export function getT1AnalysisDateRange(): {
+  startDate: Date;
+  endDate: Date;
+  description: string;
+} {
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  yesterday.setHours(0, 0, 0, 0);
+  
+  const endOfYesterday = new Date(yesterday);
+  endOfYesterday.setHours(23, 59, 59, 999);
+  
+  return {
+    startDate: yesterday,
+    endDate: endOfYesterday,
+    description: `分析日期: ${yesterday.toISOString().split('T')[0]} (T-1)`,
+  };
+}
+
+/**
+ * 检查是否应该运行Search Term分析
+ * 专家建议：只在凌晨运行，不允许实时分析
+ */
+export function shouldRunSearchTermAnalysis(): {
+  shouldRun: boolean;
+  reason: string;
+  nextRunTime?: Date;
+} {
+  const now = new Date();
+  const currentHour = now.getHours();
+  
+  // 检查是否允许实时分析
+  if (!SEARCH_TERM_SCHEDULING.allowRealtimeAnalysis) {
+    // 只在建议的时间运行
+    if (currentHour === SEARCH_TERM_SCHEDULING.recommendedHour) {
+      return {
+        shouldRun: true,
+        reason: `当前时间是凌晨${currentHour}点，是建议的Search Term分析时间`,
+      };
+    } else {
+      // 计算下次运行时间
+      const nextRun = new Date(now);
+      if (currentHour >= SEARCH_TERM_SCHEDULING.recommendedHour) {
+        nextRun.setDate(nextRun.getDate() + 1);
+      }
+      nextRun.setHours(SEARCH_TERM_SCHEDULING.recommendedHour, 0, 0, 0);
+      
+      return {
+        shouldRun: false,
+        reason: `Search Term分析是T+1任务，应在凌晨${SEARCH_TERM_SCHEDULING.recommendedHour}点运行，不应实时分析`,
+        nextRunTime: nextRun,
+      };
+    }
+  }
+  
+  return {
+    shouldRun: true,
+    reason: '实时分析已启用（不建议）',
+  };
+}
+
+/**
+ * 运行T+1 Search Term分析任务
+ * 专家建议：每天凌晨调用，基于API全量报表
+ */
+export async function runT1SearchTermAnalysis(
+  accountId: number,
+  options?: {
+    forceRun?: boolean; // 强制运行（跳过时间检查）
+    includeNGram?: boolean;
+    includeConflictDetection?: boolean;
+  }
+): Promise<{
+  success: boolean;
+  reason: string;
+  ngramResult?: NGramAnalysisResult;
+  conflictResult?: TrafficConflictAnalysisResult;
+}> {
+  // 检查是否应该运行
+  if (!options?.forceRun) {
+    const runCheck = shouldRunSearchTermAnalysis();
+    if (!runCheck.shouldRun) {
+      return {
+        success: false,
+        reason: runCheck.reason,
+      };
+    }
+  }
+  
+  // 获取T-1日期范围
+  const { startDate, endDate, description } = getT1AnalysisDateRange();
+  
+  console.log(`[TrafficIsolation] 开始T+1分析: ${description}`);
+  
+  let ngramResult: NGramAnalysisResult | undefined;
+  let conflictResult: TrafficConflictAnalysisResult | undefined;
+  
+  // 运行N-Gram分析
+  if (options?.includeNGram !== false) {
+    ngramResult = await runNGramAnalysis(accountId, startDate, endDate);
+    console.log(`[TrafficIsolation] N-Gram分析完成: ${ngramResult.highRiskTokens.length}个高风险词根`);
+  }
+  
+  // 运行冲突检测
+  if (options?.includeConflictDetection !== false) {
+    conflictResult = await detectTrafficConflicts(accountId, startDate, endDate);
+    console.log(`[TrafficIsolation] 冲突检测完成: ${conflictResult.totalConflicts}个冲突`);
+  }
+  
+  return {
+    success: true,
+    reason: `T+1分析完成: ${description}`,
+    ngramResult,
+    conflictResult,
+  };
 }
