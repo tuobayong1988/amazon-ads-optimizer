@@ -827,7 +827,7 @@ export class AmazonSyncService {
 
         // 使用 Amazon Ads API v3 的字段名
         // SP使用 sales14d/purchases14d
-        // SB/SD使用 attributedSales14d/attributedConversions14d
+        // SB/SD使用 sales/purchases
         const cost = row.cost || 0;
         let sales = 0;
         let orders = 0;
@@ -837,9 +837,9 @@ export class AmazonSyncService {
           sales = row.sales14d || 0;
           orders = row.purchases14d || 0;
         } else {
-          // SB/SD报告使用 attributedSales14d 和 attributedConversions14d
-          sales = row.attributedSales14d || 0;
-          orders = row.attributedConversions14d || 0;
+          // SB/SD报告使用 sales 和 purchases
+          sales = row.sales || 0;
+          orders = row.purchases || 0;
         }
         
         const perfData = {

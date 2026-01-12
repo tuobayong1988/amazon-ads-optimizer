@@ -776,18 +776,18 @@ export class AmazonAdsApiClient {
   /**
    * 请求SB品牌广告活动报告 (Amazon Ads API v3)
    * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
-   * 注意: SB报告使用 'attributedConversions14d' 和 'attributedSales14d' 字段
+   * 注意: SB报告使用 'purchases' 和 'sales' 字段（不是attributedXxx）
    */
   async requestSbCampaignReport(
     startDate: string,
     endDate: string,
-    metrics: string[] = ['impressions', 'clicks', 'cost', 'attributedConversions14d', 'attributedSales14d']
+    metrics: string[] = ['impressions', 'clicks', 'cost', 'purchases', 'sales']
   ): Promise<string> {
     try {
       console.log(`[Amazon API] 请求SB品牌广告活动报告: ${startDate} - ${endDate}`);
       
       // Amazon Ads Reporting API v3 正确格式
-      // SB报告使用 attributedConversions14d 和 attributedSales14d 字段
+      // SB报告使用 purchases 和 sales 字段
       const requestBody = {
         name: `SB Campaign Report ${startDate} to ${endDate}`,
         startDate,
@@ -802,8 +802,8 @@ export class AmazonAdsApiClient {
             'impressions',
             'clicks',
             'cost',
-            'attributedSales14d',        // SB使用 attributedSales14d
-            'attributedConversions14d'   // SB使用 attributedConversions14d
+            'sales',        // SB使用 sales
+            'purchases'     // SB使用 purchases
           ],
           reportTypeId: 'sbCampaigns',
           timeUnit: 'DAILY',
@@ -829,18 +829,18 @@ export class AmazonAdsApiClient {
   /**
    * 请求SD展示广告活动报告 (Amazon Ads API v3)
    * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
-   * 注意: SD报告使用 'attributedConversions14d' 和 'attributedSales14d' 字段
+   * 注意: SD报告使用 'purchases' 和 'sales' 字段（与SB一致）
    */
   async requestSdCampaignReport(
     startDate: string,
     endDate: string,
-    metrics: string[] = ['impressions', 'clicks', 'cost', 'attributedConversions14d', 'attributedSales14d']
+    metrics: string[] = ['impressions', 'clicks', 'cost', 'purchases', 'sales']
   ): Promise<string> {
     try {
       console.log(`[Amazon API] 请求SD展示广告活动报告: ${startDate} - ${endDate}`);
       
       // Amazon Ads Reporting API v3 正确格式
-      // SD报告使用 attributedConversions14d 和 attributedSales14d 字段
+      // SD报告使用 purchases 和 sales 字段
       const requestBody = {
         name: `SD Campaign Report ${startDate} to ${endDate}`,
         startDate,
@@ -855,8 +855,8 @@ export class AmazonAdsApiClient {
             'impressions',
             'clicks',
             'cost',
-            'attributedSales14d',        // SD使用 attributedSales14d
-            'attributedConversions14d'   // SD使用 attributedConversions14d
+            'sales',        // SD使用 sales
+            'purchases'     // SD使用 purchases
           ],
           reportTypeId: 'sdCampaigns',
           timeUnit: 'DAILY',

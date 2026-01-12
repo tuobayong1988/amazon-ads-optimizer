@@ -4107,3 +4107,12 @@ Amazon Advertising API数据有12-24小时延迟，当天广告数据通常在�
 - [x] 检查SB List API响应中是否有id/campaignId/legacyId等隐藏字段 (结果: 只有campaignId)
 - [x] 修改processReportData使用Campaign Name进行匹配（紧急规避方案）
 - [ ] 验证SB数据能正确同步
+
+
+## SB/SD报告字段修复 (2026-01-12)
+
+- [x] 发现SB报告正确字段名: sales, purchases (不是attributedSales14d, attributedConversions14d)
+- [x] 修复amazonAdsApi.ts中SB报告请求字段
+- [x] 修复amazonAdsApi.ts中SD报告请求字段
+- [x] 修复amazonSyncService.ts中processReportData的字段映射
+- [ ] 验证SB/SD数据能正确同步
