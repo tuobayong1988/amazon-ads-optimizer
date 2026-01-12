@@ -661,6 +661,136 @@ export async function getPerformanceSummary(accountId: number, startDate: Date, 
   return result[0];
 }
 
+// ==================== AMS Data Functions ====================
+
+/**
+ * 获取指定日期和账号的绩效数据
+ * 注意：当前dailyPerformance表没有adType字段，按账号+日期查询
+ */
+export async function getDailyPerformanceByAccountAndDate(
+  accountId: number,
+  date: string
+): Promise<DailyPerformance | null> {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select()
+    .from(dailyPerformance)
+    .where(and(
+      eq(dailyPerformance.accountId, accountId),
+      sql`DATE(${dailyPerformance.date}) = ${date}`
+    ))
+    .limit(1);
+  
+  return result[0] || null;
+}
+
+/**
+ * 从SQS/AMS插入或更新绩效数据
+ * 不覆盖已校准的数据（isFinalized=1）
+ */
+export async function upsertDailyPerformanceFromAms(data: {
+  accountId: number;
+  date: string;
+  impressions: number;
+  clicks: number;
+  cost: number;
+}): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // 检查是否已有已校准的数据
+  const existing = await getDailyPerformanceByAccountAndDate(
+    data.accountId,
+    data.date
+  );
+  
+  if (existing?.isFinalized) {
+    console.log(`[AMS DB] 跳过已校准数据: ${data.date} accountId=${data.accountId}`);
+    return;
+  }
+  
+  // 如果已存在，累加数据；否则插入新记录
+  if (existing) {
+    await db.update(dailyPerformance)
+      .set({
+        impressions: sql`${dailyPerformance.impressions} + ${data.impressions}`,
+        clicks: sql`${dailyPerformance.clicks} + ${data.clicks}`,
+        spend: sql`${dailyPerformance.spend} + ${data.cost}`,
+        dataSource: 'ams',
+      })
+      .where(eq(dailyPerformance.id, existing.id));
+  } else {
+    await db.insert(dailyPerformance).values({
+      accountId: data.accountId,
+      date: data.date,
+      impressions: data.impressions,
+      clicks: data.clicks,
+      spend: String(data.cost),
+      sales: '0',
+      orders: 0,
+      conversions: 0,
+      dataSource: 'ams',
+      isFinalized: 0,
+    });
+  }
+}
+
+/**
+ * 更新转化数据（销售额和订单数）
+ */
+export async function updateDailyPerformanceConversion(data: {
+  accountId: number;
+  date: string;
+  sales: number;
+  orders: number;
+}): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  // 检查是否已有已校准的数据
+  const existing = await getDailyPerformanceByAccountAndDate(
+    data.accountId,
+    data.date
+  );
+  
+  if (existing?.isFinalized) {
+    console.log(`[AMS DB] 跳过已校准数据: ${data.date} accountId=${data.accountId}`);
+    return;
+  }
+  
+  if (existing) {
+    await db.update(dailyPerformance)
+      .set({
+        sales: sql`${dailyPerformance.sales} + ${data.sales}`,
+        orders: sql`${dailyPerformance.orders} + ${data.orders}`,
+        dataSource: 'ams',
+      })
+      .where(eq(dailyPerformance.id, existing.id));
+  }
+}
+
+/**
+ * 标记数据为已校准（由API数据覆盖后调用）
+ */
+export async function markDailyPerformanceAsFinalized(
+  accountId: number,
+  date: string
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(dailyPerformance)
+    .set({
+      isFinalized: 1,
+      dataSource: 'api',
+    })
+    .where(and(
+      eq(dailyPerformance.accountId, accountId),
+      sql`DATE(${dailyPerformance.date}) = ${date}`
+    ));
+}
+
 // ==================== Market Curve Data Functions ====================
 export async function upsertMarketCurveData(data: InsertMarketCurveData) {
   const db = await getDb();

@@ -4372,3 +4372,25 @@ Amazon Advertising API数据有12-24小时延迟，当天广告数据通常在�
 - [x] 显示当前同步步骤（如"获取账户信息"、"SP广告活动"、"SB广告活动"等）
 - [x] 轮询时实时回调更新站点的当前步骤和进度
 - [ ] 优化进度更新频率
+
+
+## 同步功能测试与AMS时区转换（第二十四阶段）
+
+### 测试完整同步流程
+- [x] 在Amazon API设置页面触发同步
+- [x] 验证进度显示是否正确显示当前步骤（显示"获取账户信息"、"SP广告活动"、"广告组"、"关键词"等）
+- [x] 检查同步完成后数据是否正确（加拿大同步63广告31广告组581关键词）
+
+### 实现AMS数据时区转换
+- [ ] 分析AMS数据处理流程
+- [ ] 从数据库获取账户的timezone
+- [ ] 将AMS推送的UTC时间转换为店铺当地时间
+- [ ] 确保日期数据与Reporting API数据对齐
+
+### AMS时区转换服务实现
+- [x] 创建amsDataService.ts服务
+- [x] 实现UTC到店铺当地时间的转换（convertUtcToLocalDate）
+- [x] 实现站点时区映射表（MARKETPLACE_TIMEZONE_MAP）
+- [x] 实现AMS消息处理逻辑（processAmsTrafficMessage/processAmsConversionMessage）
+- [x] 实现数据库函数支持AMS数据存储（upsertDailyPerformanceFromAms/updateDailyPerformanceConversion）
+- [x] 编写单元测试（23个测试全部通过）
