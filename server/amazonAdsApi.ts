@@ -1455,6 +1455,268 @@ export class AmazonAdsApiClient {
     });
     return response.data.recommendations || [];
   }
+
+  // ==================== Amazon Marketing Stream (AMS) Methods ====================
+
+  /**
+   * 创建AMS订阅
+   * 参考: https://advertising.amazon.com/API/docs/en-us/amazon-marketing-stream/stream-api
+   * 
+   * 注意: 
+   * 1. AMS API端点与普通广告API端点不同
+   * 2. 必须使用嵌套结构: destination: { type, arn }, dataSet: { id }
+   * 3. clientRequestToken必须是UUID-v4格式，不超过36字符
+   */
+  async createAmsSubscription(
+    dataSetId: AmsDatasetType,
+    destinationArn: string,
+    name?: string
+  ): Promise<AmsSubscription> {
+    // 生成UUID-v4格式的幂等性token（不超过36字符）
+    const clientRequestToken = generateUuidV4();
+    
+    console.log(`[AMS] 创建订阅: dataSetId=${dataSetId}, destinationArn=${destinationArn}`);
+    console.log(`[AMS] clientRequestToken: ${clientRequestToken} (长度: ${clientRequestToken.length})`);
+    
+    // 使用正确的嵌套结构
+    const requestBody = {
+      clientRequestToken,
+      name: name || `${dataSetId}-subscription`,
+      destination: {
+        type: 'SQS',
+        arn: destinationArn,
+      },
+      dataSet: {
+        id: dataSetId,  // 注意: key是 "dataSet" (驼峰), 内部是 "id"
+      },
+    };
+    
+    console.log(`[AMS] 请求体:`, JSON.stringify(requestBody, null, 2));
+    
+    const response = await this.axiosInstance.post('/streams/subscriptions', requestBody);
+    
+    console.log(`[AMS] 订阅创建成功:`, response.data);
+    return response.data;
+  }
+
+  /**
+   * 获取所有AMS订阅列表
+   */
+  async listAmsSubscriptions(): Promise<AmsSubscription[]> {
+    console.log('[AMS] 获取订阅列表...');
+    
+    const response = await this.axiosInstance.get('/streams/subscriptions');
+    const subscriptions = response.data.subscriptions || response.data || [];
+    
+    console.log(`[AMS] 获取到 ${subscriptions.length} 个订阅`);
+    return subscriptions;
+  }
+
+  /**
+   * 获取单个AMS订阅详情
+   */
+  async getAmsSubscription(subscriptionId: string): Promise<AmsSubscription | null> {
+    try {
+      const response = await this.axiosInstance.get(`/streams/subscriptions/${subscriptionId}`);
+      return response.data;
+    } catch (error: any) {
+      if (error.response?.status === 404) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * 更新AMS订阅状态
+   */
+  async updateAmsSubscription(
+    subscriptionId: string,
+    updates: { status?: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED'; notes?: string }
+  ): Promise<AmsSubscription> {
+    console.log(`[AMS] 更新订阅 ${subscriptionId}:`, updates);
+    
+    const response = await this.axiosInstance.put(
+      `/streams/subscriptions/${subscriptionId}`,
+      updates
+    );
+    
+    return response.data;
+  }
+
+  /**
+   * 删除/归档AMS订阅
+   */
+  async archiveAmsSubscription(subscriptionId: string): Promise<void> {
+    console.log(`[AMS] 归档订阅 ${subscriptionId}`);
+    
+    await this.updateAmsSubscription(subscriptionId, { status: 'ARCHIVED' });
+  }
+
+  /**
+   * 批量创建AMS订阅（快车道所需的所有数据集）
+   * 
+   * 快车道数据集 (有效的Dataset ID白名单):
+   * - sp-traffic: SP实时流量（每小时推送，延迟2-5分钟）
+   * - sb-traffic: SB实时流量
+   * - sd-traffic: SD实时流量
+   * - sp-budget-usage: SP预算监控（秒级/分钟级推送）
+   * - sb-budget-usage: SB预算监控
+   * - sd-budget-usage: SD预算监控
+   * 
+   * 注意: 没有sb-conversion和sd-conversion，只有sp-conversion
+   */
+  async createAllTrafficSubscriptions(destinationArn: string): Promise<{
+    created: AmsSubscription[];
+    failed: Array<{ dataSetId: string; error: string }>;
+  }> {
+    // 使用有效的数据集白名单
+    const trafficDatasets: AmsDatasetType[] = VALID_TRAFFIC_DATASETS;
+    
+    const created: AmsSubscription[] = [];
+    const failed: Array<{ dataSetId: string; error: string }> = [];
+    
+    for (const dataSetId of trafficDatasets) {
+      try {
+        // 检查是否已存在
+        const existing = await this.listAmsSubscriptions();
+        const existingSubscription = existing.find(
+          s => s.dataSetId === dataSetId && s.status === 'ACTIVE'
+        );
+        
+        if (existingSubscription) {
+          console.log(`[AMS] 订阅 ${dataSetId} 已存在，跳过创建`);
+          created.push(existingSubscription);
+          continue;
+        }
+        
+        const subscription = await this.createAmsSubscription(
+          dataSetId,
+          destinationArn,
+          `Fast lane subscription for ${dataSetId}`
+        );
+        created.push(subscription);
+        
+        // 避免过快请求导致限流
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error: any) {
+        console.error(`[AMS] 创建订阅 ${dataSetId} 失败:`, error.message);
+        failed.push({
+          dataSetId,
+          error: error.response?.data?.message || error.message,
+        });
+      }
+    }
+    
+    return { created, failed };
+  }
+}
+
+// ==================== Amazon Marketing Stream (AMS) Types ====================
+
+/**
+ * AMS数据集类型
+ * 参考: https://advertising.amazon.com/API/docs/en-us/amazon-marketing-stream/overview
+ */
+/**
+ * AMS数据集类型 - 有效的Dataset ID白名单
+ * 参考: https://advertising.amazon.com/API/docs/en-us/amazon-marketing-stream/overview
+ * 
+ * SP: sp-traffic, sp-conversion, sp-budget-usage
+ * SB: sb-traffic, sb-budget-usage (注意: 没有sb-conversion)
+ * SD: sd-traffic, sd-budget-usage (注意: 没有sd-conversion)
+ */
+export type AmsDatasetType = 
+  | 'sp-traffic'      // SP实时流量数据（曝光、点击、花费）
+  | 'sb-traffic'      // SB实时流量数据
+  | 'sd-traffic'      // SD实时流量数据
+  | 'sp-conversion'   // SP转化数据（订单、销售额）
+  | 'sp-budget-usage' // SP预算消耗监控
+  | 'sb-budget-usage' // SB预算消耗监控
+  | 'sd-budget-usage';// SD预算消耗监控
+
+// 有效的快车道数据集（用于实时数据同步）
+export const VALID_TRAFFIC_DATASETS: AmsDatasetType[] = [
+  'sp-traffic',
+  'sb-traffic',
+  'sd-traffic',
+  'sp-budget-usage',
+  'sb-budget-usage',
+  'sd-budget-usage',
+];
+
+/**
+ * 生成UUID-v4格式的clientRequestToken
+ * 长度不超过36字符
+ */
+function generateUuidV4(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+/**
+ * AMS订阅请求参数
+ */
+export interface AmsSubscriptionRequest {
+  dataSetId: AmsDatasetType;
+  destinationArn: string;  // SQS队列ARN
+  clientRequestToken?: string;  // 幂等性token
+  notes?: string;
+}
+
+/**
+ * AMS订阅响应
+ */
+export interface AmsSubscription {
+  subscriptionId: string;
+  dataSetId: AmsDatasetType;
+  destinationArn: string;
+  status: 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
+  createdAt: string;
+  updatedAt: string;
+  notes?: string;
+}
+
+/**
+ * AMS消息结构（从SQS接收）
+ */
+export interface AmsMessage {
+  messageId: string;
+  subscriptionId: string;
+  dataSetId: AmsDatasetType;
+  timestamp: string;
+  data: any;  // 具体数据结构根据dataSetId不同而不同
+}
+
+/**
+ * SP Traffic数据结构
+ */
+export interface SpTrafficData {
+  campaignId: string;
+  adGroupId?: string;
+  keywordId?: string;
+  targetId?: string;
+  date: string;
+  hour: number;
+  impressions: number;
+  clicks: number;
+  cost: number;
+  currency: string;
+}
+
+/**
+ * Budget Usage数据结构
+ */
+export interface BudgetUsageData {
+  campaignId: string;
+  budgetType: 'DAILY' | 'LIFETIME';
+  budget: number;
+  usedBudget: number;
+  percentUsed: number;
+  timestamp: string;
 }
 
 /**

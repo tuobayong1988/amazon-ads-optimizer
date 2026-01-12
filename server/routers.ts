@@ -4119,6 +4119,189 @@ const amazonApiRouter = router({
       const { getMergedPerformanceData } = await import('./services/dualTrackSyncService');
       return getMergedPerformanceData(input.accountId, input.startDate, input.endDate, input.priority);
     }),
+
+  // ==================== AMS订阅管理API ====================
+
+  // 获取AMS订阅列表
+  listAmsSubscriptions: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      try {
+        // 获取账号凭证
+        const account = await db.getAdAccountById(input.accountId);
+        if (!account) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: '账号不存在' });
+        }
+        
+        const credentials = await db.getAmazonApiCredentials(input.accountId);
+        if (!credentials) {
+          return { subscriptions: [], error: '账号未配置API凭证' };
+        }
+        
+        const region = MARKETPLACE_TO_REGION[account.marketplace || 'US'] || 'NA';
+        const client = new AmazonAdsApiClient({
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+          profileId: credentials.profileId,
+          region,
+        });
+        
+        const subscriptions = await client.listAmsSubscriptions();
+        return { subscriptions };
+      } catch (error: any) {
+        console.error('[AMS] 获取订阅列表失败:', error.message);
+        return { subscriptions: [], error: error.message };
+      }
+    }),
+
+  // 创建单个AMS订阅
+  createAmsSubscription: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      dataSetId: z.enum(['sp-traffic', 'sb-traffic', 'sd-traffic', 'sp-conversion', 'sp-budget-usage', 'sb-budget-usage', 'sd-budget-usage']),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const account = await db.getAdAccountById(input.accountId);
+        if (!account) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: '账号不存在' });
+        }
+        
+        const credentials = await db.getAmazonApiCredentials(input.accountId);
+        if (!credentials) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '账号未配置API凭证' });
+        }
+        
+        // 获取SQS队列ARN
+        const sqsQueueArn = process.env.AWS_SQS_QUEUE_ARN;
+        if (!sqsQueueArn) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '未配置SQS队列ARN，请在环境变量中设置AWS_SQS_QUEUE_ARN' });
+        }
+        
+        const region = MARKETPLACE_TO_REGION[account.marketplace || 'US'] || 'NA';
+        const client = new AmazonAdsApiClient({
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+          profileId: credentials.profileId,
+          region,
+        });
+        
+        const subscription = await client.createAmsSubscription(
+          input.dataSetId as any,
+          sqsQueueArn,
+          input.notes
+        );
+        
+        return { success: true, subscription };
+      } catch (error: any) {
+        console.error('[AMS] 创建订阅失败:', error.message);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `创建AMS订阅失败: ${error.response?.data?.message || error.message}`,
+        });
+      }
+    }),
+
+  // 批量创建快车道订阅（sp-traffic, sb-traffic, sd-traffic, sp-budget-usage）
+  createAllTrafficSubscriptions: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ input }) => {
+      try {
+        const account = await db.getAdAccountById(input.accountId);
+        if (!account) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: '账号不存在' });
+        }
+        
+        const credentials = await db.getAmazonApiCredentials(input.accountId);
+        if (!credentials) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '账号未配置API凭证' });
+        }
+        
+        const sqsQueueArn = process.env.AWS_SQS_QUEUE_ARN;
+        if (!sqsQueueArn) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '未配置SQS队列ARN' });
+        }
+        
+        const region = MARKETPLACE_TO_REGION[account.marketplace || 'US'] || 'NA';
+        const client = new AmazonAdsApiClient({
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+          profileId: credentials.profileId,
+          region,
+        });
+        
+        const result = await client.createAllTrafficSubscriptions(sqsQueueArn);
+        
+        return {
+          success: true,
+          created: result.created,
+          failed: result.failed,
+          message: `成功创建 ${result.created.length} 个订阅，失败 ${result.failed.length} 个`,
+        };
+      } catch (error: any) {
+        console.error('[AMS] 批量创建订阅失败:', error.message);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `批量创建AMS订阅失败: ${error.message}`,
+        });
+      }
+    }),
+
+  // 归档/删除AMS订阅
+  archiveAmsSubscription: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      subscriptionId: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const account = await db.getAdAccountById(input.accountId);
+        if (!account) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: '账号不存在' });
+        }
+        
+        const credentials = await db.getAmazonApiCredentials(input.accountId);
+        if (!credentials) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '账号未配置API凭证' });
+        }
+        
+        const region = MARKETPLACE_TO_REGION[account.marketplace || 'US'] || 'NA';
+        const client = new AmazonAdsApiClient({
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+          profileId: credentials.profileId,
+          region,
+        });
+        
+        await client.archiveAmsSubscription(input.subscriptionId);
+        
+        return { success: true };
+      } catch (error: any) {
+        console.error('[AMS] 归档订阅失败:', error.message);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `归档AMS订阅失败: ${error.message}`,
+        });
+      }
+    }),
+
+  // 获取SQS配置信息
+  getSqsConfig: protectedProcedure
+    .query(async () => {
+      const queueArn = process.env.AWS_SQS_QUEUE_ARN;
+      const queueUrl = process.env.AWS_SQS_QUEUE_URL;
+      
+      return {
+        configured: !!(queueArn && queueUrl),
+        queueArn: queueArn ? `${queueArn.substring(0, 30)}...` : null,
+        queueUrl: queueUrl ? `${queueUrl.substring(0, 50)}...` : null,
+      };
+    }),
 });
 
 // ==================== Notification Router ====================

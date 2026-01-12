@@ -230,3 +230,37 @@ export function getMarketplaceLatestDataDate(marketplace: string): string {
   // Amazon广告数据通常在次日才可用，所以返回昨天的日期
   return getMarketplaceYesterday(marketplace);
 }
+
+/**
+ * 计算站点时区的历史日期范围（用于API同步，排除今天）
+ * 
+ * 快慢双轨架构说明：
+ * - API（慢车道）：只负责拉取T-1（昨天）及之前的数据，用于历史校准
+ * - AMS（快车道）：负责今天的实时数据推送
+ * 
+ * @param marketplace 站点代码
+ * @param daysBack 往前推的天数（从昨天开始计算）
+ * @returns { startDate: string, endDate: string } 日期范围（YYYY-MM-DD格式）
+ */
+export function getMarketplaceHistoricalDateRange(marketplace: string, daysBack: number): { startDate: string; endDate: string } {
+  const timezone = getMarketplaceTimezone(marketplace);
+  const now = new Date();
+  
+  // endDate 是昨天（T-1），不是今天
+  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  
+  const endDate = formatter.format(yesterday);
+  
+  // startDate 是从昨天往前推 daysBack 天
+  const startDateTime = new Date(yesterday.getTime() - (daysBack - 1) * 24 * 60 * 60 * 1000);
+  const startDate = formatter.format(startDateTime);
+  
+  return { startDate, endDate };
+}

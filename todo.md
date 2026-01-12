@@ -4116,3 +4116,53 @@ Amazon Advertising API数据有12-24小时延迟，当天广告数据通常在�
 - [x] 修复amazonAdsApi.ts中SD报告请求字段
 - [x] 修复amazonSyncService.ts中processReportData的字段映射
 - [ ] 验证SB/SD数据能正确同步
+
+
+## 快慢双轨数据同步架构重构 (2026-01-12)
+
+### 快车道 (AMS - 今日实时数据)
+- [ ] 检查当前AMS订阅配置状态
+- [ ] 实现sp-traffic/sd-traffic/sb-traffic数据流处理
+- [ ] 实现sp-budget-usage预算监控数据流处理
+- [ ] 实现AMS History流处理（广告结构变更）
+
+### 慢车道 (API - 昨日及历史数据)
+- [ ] 修改API同步策略：只拉取T-1（昨天）的报表数据
+- [ ] 全量结构同步：每4-6小时一次Campaign/AdGroup/Keyword列表
+- [ ] 实现"今日转化数据"每4小时补录（因归因延迟）
+
+### API限流防护
+- [ ] 实现令牌桶算法限制每秒请求数
+- [ ] 实现指数退避（429错误时等待重试）
+- [ ] 实现优先级队列（用户操作优先）
+
+
+## 快慢双轨数据同步架构重构 (2026-01-12)
+
+### 慢车道（API）优化
+- [x] 修改API同步策略：只拉取T-1（昨天）及之前的数据
+- [x] 添加getMarketplaceHistoricalDateRange函数
+- [ ] 优化同步频率：全量结构每4-6小时一次
+- [ ] 优化同步频率：历史报表每天一次
+
+### 快车道（AMS）实现
+- [ ] 实现AMS实时数据处理：处理SQS队列中的消息
+- [ ] 处理sp-traffic数据集（实时花费/流量）
+- [ ] 处理sd-traffic数据集
+- [ ] 处理sb-traffic数据集
+- [ ] 处理sp-budget-usage数据集（预算监控）
+- [ ] 创建ams_messages和ams_subscriptions表
+
+### 数据合并策略
+- [ ] 实现数据合并逻辑：AMS数据优先用于实时展示
+- [ ] 实现数据校验：API数据用于校准和修正
+- [ ] 实现一致性检查和自动修复
+
+
+## AMS订阅创建 (2026-01-12)
+
+- [x] 检查SQS配置和环境变量
+- [x] 实现AMS订阅创建API（sp-traffic, sd-traffic, sb-traffic, sp-budget-usage）
+- [ ] 创建AMS订阅管理前端界面
+- [ ] 实现SQS消息处理逻辑
+- [ ] 测试AMS订阅和数据接收

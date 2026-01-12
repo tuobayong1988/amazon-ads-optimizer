@@ -25,7 +25,7 @@ import {
   SpCampaign,
 } from './amazonAdsApi';
 import { calculateBidAdjustment, OptimizationTarget, PerformanceGroupConfig } from './bidOptimizer';
-import { getMarketplaceDateRange, getMarketplaceCurrentDate, getMarketplaceYesterday } from './utils/timezone';
+import { getMarketplaceDateRange, getMarketplaceCurrentDate, getMarketplaceYesterday, getMarketplaceHistoricalDateRange } from './utils/timezone';
 
 // API凭证存储接口
 interface StoredApiCredentials {
@@ -125,10 +125,11 @@ export class AmazonSyncService {
     const targetResult = await this.syncSpProductTargets();
     results.targets += typeof targetResult === 'number' ? targetResult : targetResult.synced;
     
-    // 同步绩效数据（每次都获取90天历史数据，包含当日）
-    // SP支持95天，SB支持60天，取90天作为平衡，确保数据完整性和归因窗口期数据准确
+    // 同步绩效数据（快慢双轨架构：API只拉取T-1及之前的历史数据）
+    // SP支持95天，SB支持60天，取90天作为平衡
+    // 今日数据由AMS实时推送，不通过API拉取
     const performanceDays = 90;
-    console.log(`[SyncService] 同步最近${performanceDays}天绩效数据（包含当日）`);
+    console.log(`[SyncService] 同步最近${performanceDays}天历史绩效数据（排除今天，今日数据由AMS提供）`);
     results.performance += await this.syncPerformanceData(performanceDays);
 
     return results;
@@ -617,9 +618,11 @@ export class AmazonSyncService {
       
       let totalSynced = 0;
       
-      // 使用站点时区计算日期范围
-      const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceDateRange(this.marketplace, totalDays);
+      // 使用站点时区计算历史日期范围（排除今天，只拉取T-1及之前的数据）
+      // 快慢双轨架构：API只负责历史数据，今日数据由AMS实时推送
+      const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceHistoricalDateRange(this.marketplace, totalDays);
       console.log(`[SyncService] 站点${this.marketplace}当前日期: ${getMarketplaceCurrentDate(this.marketplace)}`);
+      console.log(`[SyncService] API同步范围: ${rangeStartDate} - ${rangeEndDate} (排除今天，今日数据由AMS提供)`);
       
       // 计算需要分几批请求
       const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
