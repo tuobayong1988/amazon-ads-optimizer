@@ -4394,3 +4394,4 @@ Amazon Advertising API数据有12-24小时延迟，当天广告数据通常在�
 - [x] 实现AMS消息处理逻辑（processAmsTrafficMessage/processAmsConversionMessage）
 - [x] 实现数据库函数支持AMS数据存储（upsertDailyPerformanceFromAms/updateDailyPerformanceConversion）
 - [x] 编写单元测试（23个测试全部通过）
+# Last updated: Mon Jan 12 03:04:23 EST 2026
