@@ -523,6 +523,9 @@ export const campaigns = mysqlTable("campaigns", {
 	cpc: decimal({ precision: 10, scale: 2 }),
 	campaignStatus: mysqlEnum(['enabled','paused','archived']).default('enabled'),
 	optimizationStatus: mysqlEnum(['managed','unmanaged']).default('unmanaged'),
+	// Amazon广告活动的开始和结束日期
+	startDate: date({ mode: 'string' }),  // 广告活动开始日期，从Amazon API获取
+	endDate: date({ mode: 'string' }),    // 广告活动结束日期，从Amazon API获取（可选）
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	dailyBudget: decimal({ precision: 10, scale: 2 }),

@@ -4415,3 +4415,69 @@ Amazon Advertising API数据有12-24小时延迟，当天广告数据通常在�
 - 数据概览和广告活动模块自动同步功能完善
 
 # Last updated: Mon Jan 12 05:19:30 EST 2026
+
+
+## 使用Amazon Report API获取广告活动创建日期（当前进行中）
+
+### 研究和实现
+- [ ] 研究Amazon Report API文档，确定获取startDate的正确方法
+- [ ] 实现Report API调用逻辑获取广告活动创建日期
+- [ ] 更新数据库中campaigns表的startDate字段
+- [ ] 验证前端显示正确的开始日期
+
+
+## Amazon Advertising API文档深入研究（当前进行中）
+
+### API文档阅读
+- [ ] 阅读Amazon Advertising API概述文档
+- [ ] 阅读Campaign管理API文档，了解可用字段
+- [ ] 阅读Report API文档，了解报告类型和可用列
+- [ ] 阅读API速率限制和最佳实践文档
+- [ ] 整理文档要点并实现startDate获取逻辑
+
+
+## Amazon Ads API完整研究（当前进行中）
+
+### Postman集合分析
+- [ ] 分析所有API端点分类和结构
+- [ ] 分析Report API端点和请求格式
+- [ ] 分析Campaign管理API端点和请求格式
+- [ ] 分析认证和授权流程
+
+### Report API v3研究
+- [ ] 研究所有报告类型（Campaign、Targeting、Search term等）
+- [ ] 研究所有可用列和指标
+- [ ] 研究报告请求和下载流程
+- [ ] 研究报告数据格式和解析方法
+
+### Campaign管理API研究
+- [ ] 研究SP Campaign API字段和数据结构
+- [ ] 研究SD Campaign API字段和数据结构
+- [ ] 研究SB Campaign API字段和数据结构
+- [ ] 研究startDate字段的获取方式
+
+### 数据同步优化
+- [ ] 研究API速率限制和配额
+- [ ] 设计高效的数据同步策略
+- [ ] 实现广告活动开始日期的获取
+- [ ] 优化数据同步的及时性
+
+
+## Amazon Ads API数据同步优化（第二十三阶段）
+
+### 广告活动开始日期(startDate)获取
+- [x] 研究Amazon Ads API文档，确定获取startDate的正确方法
+- [x] 在campaigns表schema中添加startDate和endDate字段
+- [x] 运行数据库迁移添加新字段
+- [x] 修复SP campaigns同步逻辑，正确解析startDate字段
+- [x] 修复SD campaigns同步逻辑，处理YYYYMMDD格式转换
+- [x] 修复SB campaigns同步逻辑，正确解析startDate字段
+- [x] 修复字段名映射问题（campaignStatus, placementTopSearchBidAdjustment等）
+- [x] 创建单元测试验证日期格式转换逻辑
+- [ ] 验证前端显示正确的开始日期（待实际数据同步后测试）
+
+### API文档研究成果
+- [x] 整理Report API v3完整分析文档
+- [x] 整理Campaign API字段和数据结构文档
+- [x] 整理API速率限制和最佳实践文档
+- [x] 创建Amazon Ads API完整研究报告

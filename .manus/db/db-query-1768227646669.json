@@ -1,0 +1,31 @@
+{
+  "query": "SELECT id, accountId, clientId, clientSecret IS NOT NULL as hasClientSecret, refreshToken IS NOT NULL as hasRefreshToken FROM amazon_api_credentials LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT id, accountId, clientId, clientSecret IS NOT NULL as hasClientSecret, refreshToken IS NOT NULL as hasRefreshToken FROM amazon_api_credentials LIMIT 5;",
+  "rows": [
+    {
+      "id": "60018",
+      "accountId": "60017",
+      "clientId": "amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6",
+      "hasClientSecret": "1",
+      "hasRefreshToken": "1"
+    },
+    {
+      "id": "60019",
+      "accountId": "60018",
+      "clientId": "amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6",
+      "hasClientSecret": "1",
+      "hasRefreshToken": "1"
+    },
+    {
+      "id": "60020",
+      "accountId": "60019",
+      "clientId": "amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6",
+      "hasClientSecret": "1",
+      "hasRefreshToken": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\taccountId\tclientId\thasClientSecret\thasRefreshToken\n60018\t60017\tamzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6\t1\t1\n60019\t60018\tamzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6\t1\t1\n60020\t60019\tamzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6\t1\t1\n",
+  "stderr": "",
+  "execution_time_ms": 58
+}

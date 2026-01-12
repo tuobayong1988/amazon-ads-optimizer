@@ -1,0 +1,15 @@
+{
+  "query": "SELECT COUNT(*) as total, COUNT(startdate) as with_start_date, COUNT(CASE WHEN startdate IS NULL THEN 1 END) as without_start_date FROM campaigns;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT COUNT(*) as total, COUNT(startdate) as with_start_date, COUNT(CASE WHEN startdate IS NULL THEN 1 END) as without_start_date FROM campaigns;",
+  "rows": [
+    {
+      "total": "3155",
+      "with_start_date": "1471",
+      "without_start_date": "1684"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\twith_start_date\twithout_start_date\n3155\t1471\t1684\n",
+  "stderr": "",
+  "execution_time_ms": 92
+}

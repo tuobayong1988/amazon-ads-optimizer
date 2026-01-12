@@ -372,7 +372,11 @@ export class AmazonAdsApiClient {
     let lastError: any = null;
     
     do {
-      const body: any = { maxResults: 100 };
+      const body: any = { 
+        maxResults: 100,
+        // 请求扩展字段，包括startDate和endDate
+        includeExtendedDataFields: true
+      };
       if (filters?.stateFilter) {
         body.stateFilter = { include: [filters.stateFilter] };
       }
@@ -424,6 +428,14 @@ export class AmazonAdsApiClient {
     } while (nextToken);
     
     console.log(`[SP API] Total campaigns fetched: ${allCampaigns.length}`);
+    
+    // 调试：打印第一个广告活动的完整结构
+    if (allCampaigns.length > 0) {
+      console.log('[SP API DEBUG] First campaign full structure:', JSON.stringify(allCampaigns[0], null, 2));
+      console.log('[SP API DEBUG] First campaign startDate:', allCampaigns[0].startDate);
+      console.log('[SP API DEBUG] First campaign keys:', Object.keys(allCampaigns[0]));
+    }
+    
     return allCampaigns;
   }
 

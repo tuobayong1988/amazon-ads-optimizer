@@ -202,6 +202,27 @@ export class AmazonSyncService {
           ? campaignState.toLowerCase() as 'enabled' | 'paused' | 'archived'
           : 'enabled';
 
+        // 解析SB广告活动的startDate和endDate
+        let sbStartDate: string | null = null;
+        if (apiCampaign.startDate) {
+          const dateStr = String(apiCampaign.startDate);
+          if (dateStr.includes('-')) {
+            sbStartDate = dateStr;
+          } else if (dateStr.length === 8) {
+            sbStartDate = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`;
+          }
+        }
+
+        let sbEndDate: string | null = null;
+        if (apiCampaign.endDate) {
+          const dateStr = String(apiCampaign.endDate);
+          if (dateStr.includes('-')) {
+            sbEndDate = dateStr;
+          } else if (dateStr.length === 8) {
+            sbEndDate = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`;
+          }
+        }
+
         const campaignData = {
           accountId: this.accountId,
           campaignId: String(apiCampaign.campaignId),
@@ -211,6 +232,8 @@ export class AmazonSyncService {
           dailyBudget: String(dailyBudget),
           budgetType: budgetType,
           campaignStatus: normalizedState,
+          startDate: sbStartDate,
+          endDate: sbEndDate,
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
 
@@ -302,6 +325,27 @@ export class AmazonSyncService {
           ? campaignState.toLowerCase() as 'enabled' | 'paused' | 'archived'
           : 'enabled';
 
+        // 解析SD广告活动的startDate和endDate
+        let sdStartDate: string | null = null;
+        if (apiCampaign.startDate) {
+          const dateStr = String(apiCampaign.startDate);
+          if (dateStr.includes('-')) {
+            sdStartDate = dateStr;
+          } else if (dateStr.length === 8) {
+            sdStartDate = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`;
+          }
+        }
+
+        let sdEndDate: string | null = null;
+        if (apiCampaign.endDate) {
+          const dateStr = String(apiCampaign.endDate);
+          if (dateStr.includes('-')) {
+            sdEndDate = dateStr;
+          } else if (dateStr.length === 8) {
+            sdEndDate = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`;
+          }
+        }
+
         const campaignData = {
           accountId: this.accountId,
           campaignId: String(apiCampaign.campaignId),
@@ -311,6 +355,8 @@ export class AmazonSyncService {
           dailyBudget: String(dailyBudget),
           budgetType: budgetType,
           campaignStatus: normalizedState,
+          startDate: sdStartDate,
+          endDate: sdEndDate,
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
 
@@ -354,6 +400,13 @@ export class AmazonSyncService {
       }
       console.log(`[SyncService] 获取到 ${apiCampaigns.length} 个SP广告活动`);
 
+      // 调试：输出第一个广告活动的完整结构
+      if (apiCampaigns.length > 0) {
+        console.log('[SP Sync Debug] 第一个广告活动的完整结构:', JSON.stringify(apiCampaigns[0], null, 2));
+        console.log('[SP Sync Debug] startDate字段:', apiCampaigns[0].startDate);
+        console.log('[SP Sync Debug] endDate字段:', apiCampaigns[0].endDate);
+      }
+
       for (const apiCampaign of apiCampaigns) {
         // 检查是否已存在
         const [existing] = await db
@@ -388,6 +441,38 @@ export class AmazonSyncService {
                                  apiCampaign.dailyBudget || 
                                  0;
 
+        // 调试日志：打印第一个广告活动的完整结构
+        if (synced === 0 && skipped === 0) {
+          console.log('[SP Sync Debug] 第一个广告活动的完整结构:');
+          console.log(JSON.stringify(apiCampaign, null, 2));
+          console.log('[SP Sync Debug] startDate字段:', apiCampaign.startDate);
+          console.log('[SP Sync Debug] endDate字段:', apiCampaign.endDate);
+        }
+
+        // 解析Amazon API返回的startDate（格式可能是YYYY-MM-DD或YYYYMMDD）
+        let startDateValue: string | null = null;
+        if (apiCampaign.startDate) {
+          const dateStr = String(apiCampaign.startDate);
+          if (dateStr.includes('-')) {
+            // YYYY-MM-DD格式
+            startDateValue = dateStr;
+          } else if (dateStr.length === 8) {
+            // YYYYMMDD格式
+            startDateValue = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`;
+          }
+        }
+
+        // 解析endDate
+        let endDateValue: string | null = null;
+        if (apiCampaign.endDate) {
+          const dateStr = String(apiCampaign.endDate);
+          if (dateStr.includes('-')) {
+            endDateValue = dateStr;
+          } else if (dateStr.length === 8) {
+            endDateValue = `${dateStr.slice(0, 4)}-${dateStr.slice(4, 6)}-${dateStr.slice(6, 8)}`;
+          }
+        }
+
         const campaignData = {
           accountId: this.accountId,
           campaignId: String(apiCampaign.campaignId),
@@ -395,9 +480,11 @@ export class AmazonSyncService {
           campaignType: campaignType as 'sp_auto' | 'sp_manual' | 'sb' | 'sd',
           targetingType: normalizedTargetingType,
           dailyBudget: String(dailyBudgetValue),
-          status: apiCampaign.state as 'enabled' | 'paused' | 'archived',
-          placementTopMultiplier: this.getPlacementMultiplier(apiCampaign, 'placementTop'),
-          placementProductPageMultiplier: this.getPlacementMultiplier(apiCampaign, 'placementProductPage'),
+          campaignStatus: (apiCampaign.state?.toLowerCase() || 'enabled') as 'enabled' | 'paused' | 'archived',
+          startDate: startDateValue,
+          endDate: endDateValue,
+          placementTopSearchBidAdjustment: this.getPlacementMultiplier(apiCampaign, 'placementTop'),
+          placementProductPageBidAdjustment: this.getPlacementMultiplier(apiCampaign, 'placementProductPage'),
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
 
@@ -1283,11 +1370,11 @@ export class AmazonSyncService {
   /**
    * 获取展示位置调整系数
    */
-  public getPlacementMultiplier(campaign: SpCampaign, placement: string): string {
+  public getPlacementMultiplier(campaign: SpCampaign, placement: string): number {
     const adjustment = campaign.bidding?.adjustments?.find(
       a => a.predicate === placement
     );
-    return adjustment ? String(adjustment.percentage) : '0';
+    return adjustment ? Number(adjustment.percentage) : 0;
   }
 
   /**
@@ -1722,9 +1809,9 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
         campaignType: campaignType as 'sp_auto' | 'sp_manual' | 'sb' | 'sd',
         targetingType: normalizedTargetingType,
         dailyBudget: String(dailyBudgetValue),
-        status: apiCampaign.state as 'enabled' | 'paused' | 'archived',
-        placementTopMultiplier: this.getPlacementMultiplier(apiCampaign, 'placementTop'),
-        placementProductPageMultiplier: this.getPlacementMultiplier(apiCampaign, 'placementProductPage'),
+        campaignStatus: (apiCampaign.state?.toLowerCase() || 'enabled') as 'enabled' | 'paused' | 'archived',
+        placementTopSearchBidAdjustment: this.getPlacementMultiplier(apiCampaign, 'placementTop'),
+        placementProductPageBidAdjustment: this.getPlacementMultiplier(apiCampaign, 'placementProductPage'),
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 

@@ -297,7 +297,7 @@ const billingTypeLabels: Record<string, string> = {
 };
 
 // 列配置
-type ColumnKey = 'campaignName' | 'campaignType' | 'billingType' | 'createdAt' | 'status' | 
+type ColumnKey = 'campaignName' | 'campaignType' | 'billingType' | 'startDate' | 'status' | 
   'dailyBudget' | 'dailySpend' | 'impressions' | 'clicks' | 'ctr' | 'totalSpend' | 
   'dailySales' | 'totalSales' | 'acos' | 'roas' | 'performanceGroup' | 'optimalBid' | 'autoOptimization' | 'actions';
 
@@ -329,7 +329,7 @@ const columns: ColumnConfig[] = [
   { key: 'roas', label: 'ROAS', minWidth: '80px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'important' },
   // 次要列 - 移动端默认隐藏
   { key: 'billingType', label: '计费方式', minWidth: '100px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
-  { key: 'createdAt', label: '创建日期', minWidth: '100px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'startDate', label: '开始日期', minWidth: '100px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
   { key: 'impressions', label: '曝光', minWidth: '80px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
   { key: 'clicks', label: '点击', minWidth: '80px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
   { key: 'ctr', label: '点击率', minWidth: '80px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
@@ -895,9 +895,9 @@ export default function Campaigns() {
           aValue = (a as any).billingType || 'cpc';
           bValue = (b as any).billingType || 'cpc';
           break;
-        case 'createdAt':
-          aValue = new Date(a.createdAt || 0).getTime();
-          bValue = new Date(b.createdAt || 0).getTime();
+        case 'startDate':
+          aValue = new Date((a as any).startDate || 0).getTime();
+          bValue = new Date((b as any).startDate || 0).getTime();
           break;
         case 'status':
           aValue = a.campaignStatus || '';
@@ -1083,8 +1083,8 @@ export default function Campaigns() {
             case 'billingType':
               row[col.key] = billingTypeLabels[(campaign as any).billingType || 'cpc'] || (campaign as any).billingType || 'CPC';
               break;
-            case 'createdAt':
-              row[col.key] = campaign.createdAt ? new Date(campaign.createdAt).toLocaleDateString('zh-CN') : '';
+            case 'startDate':
+              row[col.key] = (campaign as any).startDate ? new Date((campaign as any).startDate).toLocaleDateString('zh-CN') : '';
               break;
             case 'status':
               row[col.key] = campaign.campaignStatus === 'enabled' ? '投放中' : '已暂停';
@@ -1297,10 +1297,10 @@ export default function Campaigns() {
             {billingTypeLabels[(campaign as any).billingType] || "CPC (按点击)"}
           </span>
         );
-      case 'createdAt':
+      case 'startDate':
         return (
           <span className="text-sm text-muted-foreground">
-            {formatDate(campaign.createdAt)}
+            {formatDate((campaign as any).startDate)}
           </span>
         );
       case 'status':
