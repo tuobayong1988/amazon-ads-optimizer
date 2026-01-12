@@ -4798,3 +4798,14 @@ Amazon Advertising API数据有12-24小时延迟，当天广告数据通常在�
 - [x] 添加时间线数据聚合API（支持daily/weekly/monthly粒度）
 - [x] 添加新的API路由（getSmartMergedData, getTimelineAggregatedData, getRealtimeDashboardData, checkAndBackfillData）
 - [x] 测试双轨制同步功能
+
+## 2026-01-13 系统全面排查与问题修复
+
+- [ ] 检查开发服务器状态和项目健康度
+- [ ] 排查Amazon API和AMS数据同步状态
+- [ ] 验证广告活动数据和状态
+- [ ] 测试数据概览模块不同时间线
+- [ ] 检查移动端界面和功能有效性
+- [ ] 分析数据同步和优化算法问题
+- [ ] 修复发现的问题
+- [ ] 推送代码到GitHub
