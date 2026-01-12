@@ -4219,6 +4219,57 @@ const amazonApiRouter = router({
       return getMergedPerformanceData(input.accountId, input.startDate, input.endDate, input.priority);
     }),
 
+  // 获取智能合并数据（增强版）
+  getSmartMergedData: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      startDate: z.string(),
+      endDate: z.string(),
+      purpose: z.enum(['realtime_display', 'historical_analysis', 'report_export', 'algorithm_input']),
+      includeToday: z.boolean().optional(),
+      campaignIds: z.array(z.string()).optional(),
+    }))
+    .query(async ({ input }) => {
+      const { getSmartMergedData } = await import('./services/enhancedDualTrackService');
+      return getSmartMergedData(input.accountId, input.startDate, input.endDate, {
+        purpose: input.purpose,
+        includeToday: input.includeToday,
+        campaignIds: input.campaignIds,
+      });
+    }),
+
+  // 获取时间线聚合数据
+  getTimelineAggregatedData: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      startDate: z.string(),
+      endDate: z.string(),
+      granularity: z.enum(['daily', 'weekly', 'monthly']).optional().default('daily'),
+    }))
+    .query(async ({ input }) => {
+      const { getTimelineAggregatedData } = await import('./services/enhancedDualTrackService');
+      return getTimelineAggregatedData(input.accountId, input.startDate, input.endDate, input.granularity);
+    }),
+
+  // 获取实时仪表盘数据（区分可信/不可信字段）
+  getRealtimeDashboardData: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      const { getRealtimeDashboardData } = await import('./services/enhancedDualTrackService');
+      return getRealtimeDashboardData(input.accountId);
+    }),
+
+  // 检查并执行数据回补
+  checkAndBackfillData: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      date: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const { checkAndBackfillData } = await import('./services/enhancedDualTrackService');
+      return checkAndBackfillData(input.accountId, input.date);
+    }),
+
   // ==================== AMS订阅管理API ====================
 
   // 获取AMS订阅列表

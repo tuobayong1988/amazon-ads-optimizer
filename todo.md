@@ -4777,3 +4777,24 @@ Amazon Advertising API数据有12-24小时延迟，当天广告数据通常在�
 - [x] 修复移动端自定义时间线日期筛选功能（单月视图、底部滑入、快捷选择）
 - [ ] 执行全局广告活动和绩效数据同步（待用户触发）
 - [x] 最终推送所有代码到GitHub
+
+## 2026-01-13 双轨制数据同步优化
+
+- [ ] 触发全局广告活动和绩效数据同步
+- [ ] 研究现有的双轨制数据同步架构
+- [ ] 优化AMS实时数据流与API历史数据的协同逻辑
+- [ ] 实现数据融合和去重机制
+- [ ] 测试双轨制数据同步效果
+- [ ] 推送代码到GitHub
+
+## 2026-01-13 双轨制数据协同优化（已完成）
+
+- [x] 研究现有双轨制数据同步架构
+- [x] 创建增强版双轨制数据协同服务（enhancedDualTrackService.ts）
+- [x] 实现智能数据融合机制（根据用途自动选择数据源）
+- [x] 实现数据去重逻辑（避免API和AMS数据重复计算）
+- [x] 实现实时数据展示优化（区分可信和不可信字段）
+- [x] 实现数据回补机制（当AMS数据缺失时自动使用API数据）
+- [x] 添加时间线数据聚合API（支持daily/weekly/monthly粒度）
+- [x] 添加新的API路由（getSmartMergedData, getTimelineAggregatedData, getRealtimeDashboardData, checkAndBackfillData）
+- [x] 测试双轨制同步功能
