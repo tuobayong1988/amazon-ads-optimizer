@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -106,6 +106,7 @@ export function TimeRangeSelector({
   maxDataDate,
   hasData = true,
 }: TimeRangeSelectorProps) {
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [tempDateRange, setTempDateRange] = useState<DateRange | undefined>(value.dateRange);
 
@@ -131,6 +132,17 @@ export function TimeRangeSelector({
       dateRange,
       days,
     });
+    setIsDropdownOpen(false);
+  };
+
+  // 打开自定义日期选择器
+  const handleOpenCustom = () => {
+    setTempDateRange(value.dateRange);
+    setIsDropdownOpen(false);
+    // 延迟打开日历，确保下拉菜单已关闭
+    setTimeout(() => {
+      setIsCalendarOpen(true);
+    }, 100);
   };
 
   // 应用自定义日期范围
@@ -170,7 +182,8 @@ export function TimeRangeSelector({
 
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      <DropdownMenu>
+      {/* 预设时间范围下拉菜单 */}
+      <DropdownMenu open={isDropdownOpen} onOpenChange={setIsDropdownOpen}>
         <DropdownMenuTrigger asChild>
           <Button variant="outline" size="sm" className="min-w-[140px] justify-between">
             <span className="flex items-center gap-2">
@@ -192,74 +205,83 @@ export function TimeRangeSelector({
             </DropdownMenuItem>
           ))}
           <DropdownMenuSeparator />
-          <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-            <PopoverTrigger asChild>
-              <DropdownMenuItem
-                onSelect={(e) => {
-                  e.preventDefault();
-                  setIsCalendarOpen(true);
-                  setTempDateRange(value.dateRange);
-                }}
-                className="flex items-center justify-between"
-              >
-                <span>自定义日期</span>
-                {value.preset === 'custom' && <Check className="h-4 w-4" />}
-              </DropdownMenuItem>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="end" side="bottom" sideOffset={8}>
-              <div className="p-3">
-                {/* 数据可用范围提示 */}
-                {minDataDate && (
-                  <div className="mb-3 p-2 bg-blue-500/10 border border-blue-500/20 rounded-md text-xs text-blue-400">
-                    <CalendarIcon className="h-3 w-3 inline mr-1" />
-                    数据可用范围：{format(minDataDate, 'yyyy/MM/dd', { locale: zhCN })} - {format(maxDataDate || new Date(), 'yyyy/MM/dd', { locale: zhCN })}
-                  </div>
-                )}
-                <Calendar
-                  mode="range"
-                  selected={{
-                    from: tempDateRange?.from,
-                    to: tempDateRange?.to,
-                  }}
-                  onSelect={handleCalendarSelect}
-                  numberOfMonths={2}
-                  locale={zhCN}
-                  disabled={isDateDisabled}
-                  defaultMonth={tempDateRange?.from || subDays(new Date(), 30)}
-                />
-                <div className="flex items-center justify-between mt-3 pt-3 border-t">
-                  <div className="text-sm text-muted-foreground">
-                    {tempDateRange?.from && tempDateRange?.to ? (
-                      <>
-                        {format(tempDateRange.from, 'yyyy/MM/dd', { locale: zhCN })} - {format(tempDateRange.to, 'yyyy/MM/dd', { locale: zhCN })}
-                        <span className="ml-2 text-blue-400">({getDaysFromDateRange(tempDateRange)}天)</span>
-                      </>
-                    ) : (
-                      '请选择日期范围'
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsCalendarOpen(false)}
-                    >
-                      取消
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={handleApplyCustomRange}
-                      disabled={!tempDateRange?.from || !tempDateRange?.to}
-                    >
-                      应用
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
+          <DropdownMenuItem
+            onClick={handleOpenCustom}
+            className="flex items-center justify-between"
+          >
+            <span>自定义日期</span>
+            {value.preset === 'custom' && <Check className="h-4 w-4" />}
+          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      {/* 独立的日历弹出框 - 使用固定定位 */}
+      {isCalendarOpen && (
+        <div 
+          className="fixed inset-0 z-50 flex items-start justify-end pt-16 pr-4"
+          onClick={(e) => {
+            // 点击背景关闭
+            if (e.target === e.currentTarget) {
+              setIsCalendarOpen(false);
+            }
+          }}
+        >
+          <div 
+            className="bg-popover border rounded-lg shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+          <div className="p-3">
+            {/* 数据可用范围提示 */}
+            {minDataDate && (
+              <div className="mb-3 p-2 bg-blue-500/10 border border-blue-500/20 rounded-md text-xs text-blue-400">
+                <CalendarIcon className="h-3 w-3 inline mr-1" />
+                数据可用范围：{format(minDataDate, 'yyyy/MM/dd', { locale: zhCN })} - {format(maxDataDate || new Date(), 'yyyy/MM/dd', { locale: zhCN })}
+              </div>
+            )}
+            <Calendar
+              mode="range"
+              selected={{
+                from: tempDateRange?.from,
+                to: tempDateRange?.to,
+              }}
+              onSelect={handleCalendarSelect}
+              numberOfMonths={2}
+              locale={zhCN}
+              disabled={isDateDisabled}
+              defaultMonth={tempDateRange?.from || subDays(new Date(), 30)}
+            />
+            <div className="flex items-center justify-between mt-3 pt-3 border-t">
+              <div className="text-sm text-muted-foreground">
+                {tempDateRange?.from && tempDateRange?.to ? (
+                  <>
+                    {format(tempDateRange.from, 'yyyy/MM/dd', { locale: zhCN })} - {format(tempDateRange.to, 'yyyy/MM/dd', { locale: zhCN })}
+                    <span className="ml-2 text-blue-400">({getDaysFromDateRange(tempDateRange)}天)</span>
+                  </>
+                ) : (
+                  '请选择日期范围'
+                )}
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsCalendarOpen(false)}
+                >
+                  取消
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleApplyCustomRange}
+                  disabled={!tempDateRange?.from || !tempDateRange?.to}
+                >
+                  应用
+                </Button>
+              </div>
+            </div>
+          </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

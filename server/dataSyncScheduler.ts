@@ -272,10 +272,10 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
     throw new Error(`账号 ${accountId} 不存在`);
   }
 
-  // 获取API凭证
-  const credentials = await (db as any).getApiCredentialsByAccountId?.(accountId) || account;
+  // 获取API凭证 - 从amazonApiCredentials表获取
+  const credentials = await db.getAmazonApiCredentials(accountId);
   if (!credentials) {
-    throw new Error(`账号 ${accountId} 未配置API凭证`);
+    throw new Error(`账号 ${accountId} 未配置API凭证，请先完成Amazon API授权`);
   }
 
   const syncService = await AmazonSyncService.createFromCredentials(
@@ -419,10 +419,10 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
     throw new Error(`账号 ${schedule.accountId} 不存在`);
   }
 
-  // 创建同步服务实例 - 需要从凭证存储获取完整凭证
-  const credentials = await (db as any).getApiCredentialsByAccountId?.(schedule.accountId) || account;
+  // 创建同步服务实例 - 从amazonApiCredentials表获取完整凭证
+  const credentials = await db.getAmazonApiCredentials(schedule.accountId);
   if (!credentials) {
-    throw new Error(`账号 ${schedule.accountId} 未配置API凭证`);
+    throw new Error(`账号 ${schedule.accountId} 未配置API凭证，请先完成Amazon API授权`);
   }
   
   const syncService = await AmazonSyncService.createFromCredentials(
@@ -490,9 +490,9 @@ export async function triggerManualSync(userId: number, accountId: number): Prom
       return { success: false, message: '账号不存在' };
     }
 
-    const credentials = await (db as any).getApiCredentialsByAccountId?.(accountId) || account;
+    const credentials = await db.getAmazonApiCredentials(accountId);
     if (!credentials) {
-      return { success: false, message: '账号未配置API凭证' };
+      return { success: false, message: '账号未配置API凭证，请先完成Amazon API授权' };
     }
 
     const syncService = await AmazonSyncService.createFromCredentials(

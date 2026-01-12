@@ -95,11 +95,17 @@ export async function submitReportRequest(requestId: number): Promise<void> {
     throw new Error(`Account ${req.accountId} not found`);
   }
 
+  // 从amazonApiCredentials表获取API凭证
+  const credentials = await db.getAmazonApiCredentials(req.accountId);
+  if (!credentials) {
+    throw new Error(`Account ${req.accountId} 未配置API凭证，请先完成Amazon API授权`);
+  }
+
   // 创建Amazon API客户端
   const client = new AmazonAdsApiClient({
-    clientId: process.env.AMAZON_ADS_CLIENT_ID || '',
-    clientSecret: process.env.AMAZON_ADS_CLIENT_SECRET || '',
-    refreshToken: (account as any).refreshToken || '',
+    clientId: credentials.clientId || process.env.AMAZON_ADS_CLIENT_ID || '',
+    clientSecret: credentials.clientSecret || process.env.AMAZON_ADS_CLIENT_SECRET || '',
+    refreshToken: credentials.refreshToken || '',
     profileId: req.profileId,
     region: req.marketplace === 'US' ? 'NA' : req.marketplace === 'UK' || req.marketplace === 'DE' || req.marketplace === 'FR' || req.marketplace === 'IT' || req.marketplace === 'ES' ? 'EU' : 'NA'
   });
@@ -164,11 +170,18 @@ export async function checkAndDownloadReport(requestId: number): Promise<boolean
     return false;
   }
 
+  // 从amazonApiCredentials表获取API凭证
+  const credentials = await db.getAmazonApiCredentials(req.accountId);
+  if (!credentials) {
+    console.error(`[AsyncReportService] Account ${req.accountId} 未配置API凭证`);
+    return false;
+  }
+
   // 创建Amazon API客户端
   const client = new AmazonAdsApiClient({
-    clientId: process.env.AMAZON_ADS_CLIENT_ID || '',
-    clientSecret: process.env.AMAZON_ADS_CLIENT_SECRET || '',
-    refreshToken: (account as any).refreshToken || '',
+    clientId: credentials.clientId || process.env.AMAZON_ADS_CLIENT_ID || '',
+    clientSecret: credentials.clientSecret || process.env.AMAZON_ADS_CLIENT_SECRET || '',
+    refreshToken: credentials.refreshToken || '',
     profileId: req.profileId,
     region: req.marketplace === 'US' ? 'NA' : req.marketplace === 'UK' || req.marketplace === 'DE' || req.marketplace === 'FR' || req.marketplace === 'IT' || req.marketplace === 'ES' ? 'EU' : 'NA'
   });

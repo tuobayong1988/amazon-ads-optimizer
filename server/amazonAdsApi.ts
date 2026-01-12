@@ -672,6 +672,7 @@ export class AmazonAdsApiClient {
   /**
    * 请求SP广告活动绩效报告 (Amazon Ads API v3)
    * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
+   * 重要: SP报表可以直接获取campaignBudget和campaignStatus
    */
   async requestSpCampaignReport(
     startDate: string,
@@ -682,6 +683,7 @@ export class AmazonAdsApiClient {
       console.log(`[Amazon API] 请求SP广告活动报告: ${startDate} - ${endDate}`);
       
       // Amazon Ads Reporting API v3 正确格式
+      // 注意: SP报表可以直接获取预算和状态，SB/SD不行
       const requestBody = {
         name: `SP Campaign Report ${startDate} to ${endDate}`,
         startDate,
@@ -693,11 +695,13 @@ export class AmazonAdsApiClient {
             'date',
             'campaignId',
             'campaignName',
+            'campaignStatus',    // ⚠️ 添加状态字段
+            'campaignBudget',    // ⚠️ SP可以直接获取预算
             'impressions',
             'clicks',
             'cost',
-            'sales14d',
-            'purchases14d'
+            'purchases14d',      // 订单数 (14天归因)
+            'sales14d'           // 销售额 (14天归因)
           ],
           reportTypeId: 'spCampaigns',
           timeUnit: 'DAILY',
@@ -776,18 +780,22 @@ export class AmazonAdsApiClient {
   /**
    * 请求SB品牌广告活动报告 (Amazon Ads API v3)
    * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
-   * 注意: SB报告使用 'purchases' 和 'sales' 字段（不是attributedXxx）
+   * 重要修复: SB报告必须使用 attributedSales14d 和 attributedConversions14d 字段
+   * 使用 sales/purchases 会导致数据为空！
    */
   async requestSbCampaignReport(
     startDate: string,
     endDate: string,
-    metrics: string[] = ['impressions', 'clicks', 'cost', 'purchases', 'sales']
+    metrics: string[] = ['impressions', 'clicks', 'cost', 'attributedConversions14d', 'attributedSales14d']
   ): Promise<string> {
     try {
       console.log(`[Amazon API] 请求SB品牌广告活动报告: ${startDate} - ${endDate}`);
       
       // Amazon Ads Reporting API v3 正确格式
-      // SB报告使用 purchases 和 sales 字段
+      // 重要: SB报告必须使用 attributedSales14d 和 attributedConversions14d
+      // 使用 sales/purchases 字段会导致API返回空数据或0
+      // ⚠️ 注意: SB报表不能请求campaignBudget，否则可能报错或导致任务失败
+      // 预算需要通过 POST /sb/v4/campaigns/list 接口单独获取
       const requestBody = {
         name: `SB Campaign Report ${startDate} to ${endDate}`,
         startDate,
@@ -799,11 +807,13 @@ export class AmazonAdsApiClient {
             'date',
             'campaignId',
             'campaignName',
+            'campaignStatus',            // ⚠️ 添加状态字段
+            // ❌ 不要请求 campaignBudget，去 List 接口拿
             'impressions',
             'clicks',
             'cost',
-            'sales',        // SB使用 sales
-            'purchases'     // SB使用 purchases
+            'attributedConversions14d',  // ✅ SB 专用订单字段
+            'attributedSales14d'         // ✅ SB 专用销售额字段
           ],
           reportTypeId: 'sbCampaigns',
           timeUnit: 'DAILY',
@@ -829,18 +839,21 @@ export class AmazonAdsApiClient {
   /**
    * 请求SD展示广告活动报告 (Amazon Ads API v3)
    * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
-   * 注意: SD报告使用 'purchases' 和 'sales' 字段（与SB一致）
+   * 重要修复: SD报告必须使用 attributedSales14d 和 attributedConversions14d 字段
+   * SD还需要 viewAttributedSales14d 来获取浏览归因数据
    */
   async requestSdCampaignReport(
     startDate: string,
     endDate: string,
-    metrics: string[] = ['impressions', 'clicks', 'cost', 'purchases', 'sales']
+    metrics: string[] = ['impressions', 'clicks', 'cost', 'attributedConversions14d', 'attributedSales14d', 'viewAttributedSales14d']
   ): Promise<string> {
     try {
       console.log(`[Amazon API] 请求SD展示广告活动报告: ${startDate} - ${endDate}`);
       
       // Amazon Ads Reporting API v3 正确格式
-      // SD报告使用 purchases 和 sales 字段
+      // 重要: SD报告必须使用 attributedSales14d 和 attributedConversions14d
+      // SD还需要 viewAttributedSales14d 和 viewAttributedConversions14d 来获取浏览归因数据
+      // 如果后台数据比API多，很可能是没加上浏览归因
       const requestBody = {
         name: `SD Campaign Report ${startDate} to ${endDate}`,
         startDate,
@@ -852,11 +865,14 @@ export class AmazonAdsApiClient {
             'date',
             'campaignId',
             'campaignName',
+            'campaignStatus',              // ⚠️ 添加状态字段
             'impressions',
             'clicks',
             'cost',
-            'sales',        // SD使用 sales
-            'purchases'     // SD使用 purchases
+            'attributedConversions14d',    // 点击带来的转化
+            'attributedSales14d',          // 点击带来的销售额
+            'viewAttributedConversions14d',// 👁️ 浏览带来的转化 (vCPM核心)
+            'viewAttributedSales14d'       // 👁️ 浏览带来的销售额
           ],
           reportTypeId: 'sdCampaigns',
           timeUnit: 'DAILY',
@@ -953,6 +969,7 @@ export class AmazonAdsApiClient {
     // SB API maxResults最大为100，需要分页获取
     const allCampaigns: any[] = [];
     let nextToken: string | undefined;
+    let pageCount = 0;
     
     do {
       const body: any = { maxResults: 100 };
@@ -971,10 +988,26 @@ export class AmazonAdsApiClient {
       );
       
       const campaigns = response.data.campaigns || [];
+      
+      // 调试日志：输出第一页第一个广告活动的完整结构
+      if (pageCount === 0 && campaigns.length > 0) {
+        console.log('[SB API] 第一个SB广告活动的完整结构:');
+        console.log(JSON.stringify(campaigns[0], null, 2));
+        // 特别输出预算相关字段
+        console.log('[SB API] 预算字段检查:');
+        console.log('  - budget:', campaigns[0].budget);
+        console.log('  - dailyBudget:', campaigns[0].dailyBudget);
+        console.log('  - state:', campaigns[0].state);
+        console.log('  - status:', campaigns[0].status);
+      }
+      
       allCampaigns.push(...campaigns);
       nextToken = response.data.nextToken;
+      pageCount++;
+      console.log(`[SB API] 第${pageCount}页获取到 ${campaigns.length} 个SB广告活动, 总计: ${allCampaigns.length}`);
     } while (nextToken);
     
+    console.log(`[SB API] 共获取到 ${allCampaigns.length} 个SB广告活动`);
     return allCampaigns;
   }
 

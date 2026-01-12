@@ -126,10 +126,11 @@ export class AmazonSyncService {
     results.targets += typeof targetResult === 'number' ? targetResult : targetResult.synced;
     
     // 同步绩效数据（快慢双轨架构：API只拉取T-1及之前的历史数据）
-    // SP支持95天，SB支持60天，取90天作为平衡
-    // 今日数据由AMS实时推送，不通过API拉取
-    const performanceDays = 90;
-    console.log(`[SyncService] 同步最近${performanceDays}天历史绩效数据（排除今天，今日数据由AMS提供）`);
+    // 重要：亚马逊的销售数据在7-14天内会变动（用户点击后过几天才买）
+    // 因此每次同步都需要回溯过去14天的数据，覆盖旧记录
+    // 这能确保存下来的数据和亚马逊后台最终结算的数据一致
+    const performanceDays = 14; // ⚠️ 修改为14天归因回溯
+    console.log(`[SyncService] 同步最近${performanceDays}天历史绩效数据（归因回溯机制，覆盖旧记录）`);
     results.performance += await this.syncPerformanceData(performanceDays);
 
     return results;
@@ -147,6 +148,12 @@ export class AmazonSyncService {
       const apiCampaigns = await this.client.listSbCampaigns();
       let synced = 0;
       let skipped = 0;
+      
+      // 输出第一个广告活动的结构用于调试
+      if (apiCampaigns.length > 0) {
+        console.log('[SyncService] SB广告活动API返回结构示例:', JSON.stringify(apiCampaigns[0], null, 2));
+      }
+      console.log(`[SyncService] 获取到 ${apiCampaigns.length} 个SB广告活动`);
 
       for (const apiCampaign of apiCampaigns) {
         // 检查是否已存在
@@ -171,14 +178,39 @@ export class AmazonSyncService {
           }
         }
 
+        // SB API v4 返回的预算结构:
+        // - budget: 直接是数字（如 30）
+        // - budgetType: 独立字段（"DAILY" 或 "LIFETIME"）
+        let dailyBudget = 0;
+        if (typeof apiCampaign.budget === 'number') {
+          dailyBudget = apiCampaign.budget;
+        } else if (apiCampaign.budget && typeof apiCampaign.budget === 'object') {
+          // 兑容旧版本的对象格式
+          dailyBudget = apiCampaign.budget.budget || apiCampaign.budget.dailyBudget || 0;
+        } else if (apiCampaign.dailyBudget) {
+          dailyBudget = apiCampaign.dailyBudget;
+        }
+        
+        // budgetType 是独立字段
+        const budgetType = (apiCampaign.budgetType || 'DAILY').toLowerCase() as 'daily' | 'lifetime';
+        
+        // SB API v4 的状态字段可能是 state 或 status
+        const campaignState = apiCampaign.state || apiCampaign.status || 'enabled';
+        // 确保状态值是有效的枚举值
+        const validStates = ['enabled', 'paused', 'archived'];
+        const normalizedState = validStates.includes(campaignState.toLowerCase()) 
+          ? campaignState.toLowerCase() as 'enabled' | 'paused' | 'archived'
+          : 'enabled';
+
         const campaignData = {
           accountId: this.accountId,
           campaignId: String(apiCampaign.campaignId),
           campaignName: apiCampaign.name,
           campaignType: 'sb' as const,
           targetingType: 'manual' as const,
-          dailyBudget: String(apiCampaign.budget?.budget || 0),
-          status: (apiCampaign.state || 'enabled') as 'enabled' | 'paused' | 'archived',
+          dailyBudget: String(dailyBudget),
+          budgetType: budgetType,
+          campaignStatus: normalizedState,
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
 
@@ -215,6 +247,12 @@ export class AmazonSyncService {
       const apiCampaigns = await this.client.listSdCampaigns();
       let synced = 0;
       let skipped = 0;
+      
+      // 输出第一个广告活动的结构用于调试
+      if (apiCampaigns.length > 0) {
+        console.log('[SyncService] SD广告活动API返回结构示例:', JSON.stringify(apiCampaigns[0], null, 2));
+      }
+      console.log(`[SyncService] 获取到 ${apiCampaigns.length} 个SD广告活动`);
 
       for (const apiCampaign of apiCampaigns) {
         // 检查是否已存在
@@ -239,14 +277,40 @@ export class AmazonSyncService {
           }
         }
 
+        // SD API 返回的预算结构可能是:
+        // 1. budget (直接数字，可能是daily或lifetime)
+        // 2. budget.budget
+        // 3. dailyBudget
+        let dailyBudget = 0;
+        let budgetType: 'daily' | 'lifetime' = 'daily';
+        
+        if (apiCampaign.budget) {
+          if (typeof apiCampaign.budget === 'number') {
+            dailyBudget = apiCampaign.budget;
+          } else if (typeof apiCampaign.budget === 'object') {
+            dailyBudget = apiCampaign.budget.budget || apiCampaign.budget.dailyBudget || 0;
+            budgetType = apiCampaign.budget.budgetType || 'daily';
+          }
+        } else if (apiCampaign.dailyBudget) {
+          dailyBudget = apiCampaign.dailyBudget;
+        }
+        
+        // SD API 的状态字段可能是 state 或 status
+        const campaignState = apiCampaign.state || apiCampaign.status || 'enabled';
+        const validStates = ['enabled', 'paused', 'archived'];
+        const normalizedState = validStates.includes(campaignState.toLowerCase()) 
+          ? campaignState.toLowerCase() as 'enabled' | 'paused' | 'archived'
+          : 'enabled';
+
         const campaignData = {
           accountId: this.accountId,
           campaignId: String(apiCampaign.campaignId),
           campaignName: apiCampaign.name,
           campaignType: 'sd' as const,
           targetingType: 'manual' as const,
-          dailyBudget: String(apiCampaign.budget || 0),
-          status: (apiCampaign.state || 'enabled') as 'enabled' | 'paused' | 'archived',
+          dailyBudget: String(dailyBudget),
+          budgetType: budgetType,
+          campaignStatus: normalizedState,
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
 
@@ -283,6 +347,12 @@ export class AmazonSyncService {
       const apiCampaigns = await this.client.listSpCampaigns();
       let synced = 0;
       let skipped = 0;
+      
+      // 输出第一个广告活动的结构用于调试
+      if (apiCampaigns.length > 0) {
+        console.log('[SyncService] SP广告活动API返回结构示例:', JSON.stringify(apiCampaigns[0], null, 2));
+      }
+      console.log(`[SyncService] 获取到 ${apiCampaigns.length} 个SP广告活动`);
 
       for (const apiCampaign of apiCampaigns) {
         // 检查是否已存在
@@ -602,9 +672,14 @@ export class AmazonSyncService {
   /**
    * 同步绩效数据
    * 支持分批请求，每批最多31天（Amazon API限制）
-   * @param days 同步天数，默认90天
+   * 
+   * 重要：亚马逊的销售数据在7-14天内会变动（用户点击后过几天才买）
+   * 因此每次同步都需要回溯过去14天的数据，覆盖旧记录
+   * 这能确保存下来的数据和亚马逊后台最终结算的数据一致
+   * 
+   * @param days 同步天数，默认14天（归因回溯机制）
    */
-  async syncPerformanceData(days: number = 90): Promise<number> {
+  async syncPerformanceData(days: number = 14): Promise<number> {
     const db = await getDb();
     if (!db) {
       console.error('[SyncService] 数据库连接失败');
@@ -829,8 +904,10 @@ export class AmazonSyncService {
           .limit(1);
 
         // 使用 Amazon Ads API v3 的字段名
-        // SP使用 sales14d/purchases14d
-        // SB/SD使用 sales/purchases
+        // 重要修复: 所有广告类型都使用 14d 后缀的字段
+        // SP: sales14d, purchases14d
+        // SB: attributedSales14d, attributedConversions14d
+        // SD: attributedSales14d, attributedConversions14d, viewAttributedSales14d
         const cost = row.cost || 0;
         let sales = 0;
         let orders = 0;
@@ -839,10 +916,20 @@ export class AmazonSyncService {
           // SP报告使用 sales14d 和 purchases14d
           sales = row.sales14d || 0;
           orders = row.purchases14d || 0;
+        } else if (adType === 'SB') {
+          // ⚠️ 重要修复: SB报告必须使用 attributedSales14d 和 attributedConversions14d
+          // 使用 sales/purchases 会导致数据为空！
+          sales = row.attributedSales14d || 0;
+          orders = row.attributedConversions14d || 0;
         } else {
-          // SB/SD报告使用 sales 和 purchases
-          sales = row.sales || 0;
-          orders = row.purchases || 0;
+          // ⚠️ 重要修复: SD报告使用 attributedSales14d 和 attributedConversions14d
+          // SD还有 viewAttributedSales14d 和 viewAttributedConversions14d 用于浏览归因
+          const clickSales = row.attributedSales14d || 0;
+          const viewSales = row.viewAttributedSales14d || 0;
+          const clickOrders = row.attributedConversions14d || 0;
+          const viewOrders = row.viewAttributedConversions14d || 0;
+          sales = clickSales + viewSales;    // 总销售额 = 点击归因 + 浏览归因
+          orders = clickOrders + viewOrders; // 总订单 = 点击转化 + 浏览转化
         }
         
         const perfData = {
@@ -1396,8 +1483,10 @@ export class AmazonSyncService {
   /**
    * 仅同步绩效数据（低频同步）
    * 用于获取历史绩效数据
+   * 
+   * 重要：默认14天归因回溯，确保数据与亚马逊后台一致
    */
-  async syncPerformanceOnly(days: number = 7): Promise<{
+  async syncPerformanceOnly(days: number = 14): Promise<{
     performance: number;
   }> {
     const results = {
@@ -2449,3 +2538,31 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
     return result;
   }
 };
+
+
+/**
+ * 首次同步：获取90天历史数据
+ * 仅在账户首次连接时调用，用于填充历史数据
+ * 后续定时同步只需要14天归因回溯
+ */
+export async function syncInitialHistoricalData(
+  syncService: AmazonSyncService,
+  accountId: number,
+  userId: number
+): Promise<{ performance: number }> {
+  console.log(`[SyncService] 开始首次同步90天历史数据 (账号: ${accountId})`);
+  
+  const results = {
+    performance: 0,
+  };
+
+  try {
+    // 首次同步获取90天历史数据（SP支持95天，SB只支持60天，取90天作为平衡）
+    results.performance = await syncService.syncPerformanceData(90);
+    console.log(`[SyncService] 首次同步完成: ${results.performance} 条历史绩效记录`);
+  } catch (error) {
+    console.error('[SyncService] 首次同步失败:', error);
+  }
+
+  return results;
+}

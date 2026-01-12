@@ -4266,3 +4266,81 @@ Amazon Advertising API数据有12-24小时延迟，当天广告数据通常在�
 - [x] 更新分时策略模型（排除最近3天数据） (daypartingExcludeDays: 3)
 - [x] 更新季节性系数 (已有seasonalBudgetService)
 
+
+
+## Bug修复
+
+- [ ] 修复数据概览模块时间线自定义日期无法自由选择的问题
+- [ ] 修复广告活动模块时间线自定义日期无法自由选择的问题
+
+
+## Bug修复
+
+- [x] 修复数据概览模块时间线自定义日期无法自由选择的问题
+- [x] 修复广告活动模块时间线自定义日期无法自由选择的问题（共用同一组件）
+
+
+## 数据同步准确性修复
+
+- [ ] 分析1月8日数据偏差情况（系统数据 vs Amazon后台数据）
+- [ ] 检查数据库中daily_performance表的原始数据
+- [ ] 检查amazonSyncService.ts的报表字段映射逻辑
+- [ ] 检查asyncReportService.ts的数据解析逻辑
+- [ ] 修复数据同步字段映射问题
+- [ ] 重新同步历史数据
+- [ ] 验证修复后的数据准确性
+
+## 广告活动数量同步修复
+
+- [ ] 分析当前数据库中各类型广告活动数量
+- [ ] 检查SP广告活动同步逻辑（目标:1347，当前:50）
+- [ ] 检查SB广告活动同步逻辑（目标:1619）
+- [ ] 检查SD广告活动同步逻辑（目标:29）
+- [ ] 修复API分页和状态过滤问题
+- [ ] 重新同步所有广告活动
+- [ ] 验证同步结果与Amazon后台一致
+
+
+
+## Token获取逻辑修复
+
+- [ ] 检查AmazonAdsApiClient中的Token获取逻辑
+- [ ] 修复Token获取逻辑使用amazonApiCredentials表而非adAccounts表
+- [ ] 验证修复并重新同步CA账户数据
+
+## 数据对齐架构重构 (基于数据库专家建议)
+
+### 核心问题诊断
+- [x] 时区铁律：AMS推送UTC时间，API返回店铺当地时间，需统一转换
+- [x] 权威性铁律：T-1及以前用API为准，T0用AMS为准
+- [x] 粒度铁律：SP/SB/SD字段定义不同，不能强行合并
+
+### 数据库Schema调整
+- [x] 在daily_performance表添加dataSource字段（'api'或'ams'）
+- [x] 在daily_performance表添加isFinalized字段（标记是否为最终财务数据）
+- [x] 存储每个profileId对应的timezone
+
+### 时区转换实现
+- [ ] 获取Profile时区配置（GET /v2/profiles）
+- [ ] AMS数据处理时将UTC转换为店铺当地时间
+- [ ] 使用date-fns-tz库进行时区转换
+
+### Reporting API请求规范修复
+- [x] SP报表：使用purchases14d、sales14d、campaignStatus、campaignBudget字段
+- [x] SB报表：使用attributedConversions14d、attributedSales14d、campaignStatus字段（不请求campaignBudget）
+- [x] SD报表：使用attributedConversions14d、attributedSales14d、viewAttributedConversions14d、viewAttributedSales14d、campaignStatus字段
+
+### 归因回溯机制
+- [x] 实现14天归因回溯：每次同步回溯过去14天的数据，覆盖旧记录
+- [x] 首次同步仍然获取90天历史数据
+- [x] SD数据处理：总销售额 = 点击归因 + 浏览归因，总订单 = 点击转化 + 浏览转化
+
+### AMS实时数据处理修正
+- [ ] 接收消息时提取eventTime（UTC）
+- [ ] 转换为店铺当地时间的日期
+- [ ] 聚合存储时检查isFinalized，已校准数据不被覆盖
+
+### 每日修正任务
+- [ ] 每天凌晨02:00触发
+- [ ] 用API数据强制覆盖AMS数据
+- [ ] 设置isFinalized=true标记已校准

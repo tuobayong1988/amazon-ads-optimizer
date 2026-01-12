@@ -155,6 +155,9 @@ export const amazonApiCredentials = mysqlTable("amazon_api_credentials", {
 	tokenExpiresAt: timestamp({ mode: 'string' }),
 	profileId: varchar({ length: 64 }).notNull(),
 	region: mysqlEnum(['NA','EU','FE']).default('NA').notNull(),
+	// 时区配置 - 从 Amazon API /v2/profiles 获取
+	timezone: varchar('timezone', { length: 64 }),  // 例如 'America/Los_Angeles', 'Asia/Tokyo'
+	currencyCode: varchar('currency_code', { length: 10 }),  // 例如 'USD', 'CAD', 'JPY'
 	lastSyncAt: timestamp({ mode: 'string' }),
 	syncStatus: mysqlEnum(['idle','syncing','error']).default('idle'),
 	syncErrorMessage: text(),
@@ -603,6 +606,9 @@ export const dailyPerformance = mysqlTable("daily_performance", {
 	dailyAcos: decimal({ precision: 5, scale: 2 }),
 	dailyRoas: decimal({ precision: 10, scale: 2 }),
 	conversions: int().default(0),
+	// 数据对齐架构新增字段
+	dataSource: mysqlEnum('data_source', ['api', 'ams']).default('api'),  // 标记数据来源
+	isFinalized: tinyint('is_finalized').default(0),  // 标记是否为最终财务数据（API拉取后设为1）
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
 
