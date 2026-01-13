@@ -1,0 +1,24 @@
+{
+  "query": "SELECT \n  accountId,\n  dataSource,\n  COUNT(*) as records,\n  MIN(date) as earliest,\n  MAX(date) as latest\nFROM daily_performance \nGROUP BY accountId, dataSource\nORDER BY accountId, dataSource;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT \n  accountId,\n  dataSource,\n  COUNT(*) as records,\n  MIN(date) as earliest,\n  MAX(date) as latest\nFROM daily_performance \nGROUP BY accountId, dataSource\nORDER BY accountId, dataSource;",
+  "rows": [
+    {
+      "accountId": "60017",
+      "dataSource": "api",
+      "records": "788",
+      "earliest": "2025-11-30 00:00:00",
+      "latest": "2026-01-07 00:00:00"
+    },
+    {
+      "accountId": "60019",
+      "dataSource": "api",
+      "records": "4283",
+      "earliest": "2025-12-13 00:00:00",
+      "latest": "2026-01-13 00:00:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "accountId\tdataSource\trecords\tearliest\tlatest\n60017\tapi\t788\t2025-11-30 00:00:00\t2026-01-07 00:00:00\n60019\tapi\t4283\t2025-12-13 00:00:00\t2026-01-13 00:00:00\n",
+  "stderr": "",
+  "execution_time_ms": 61
+}

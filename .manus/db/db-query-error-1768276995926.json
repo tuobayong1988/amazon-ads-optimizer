@@ -1,0 +1,8 @@
+{
+  "query": "SELECT \n  campaign_type as \"广告类型\",\n  COUNT(*) as \"数量\",\n  COUNT(DISTINCT account_id) as \"账户数\"\nFROM campaigns \nGROUP BY campaign_type\nORDER BY COUNT(*) DESC;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT \n  campaign_type as \"广告类型\",\n  COUNT(*) as \"数量\",\n  COUNT(DISTINCT account_id) as \"账户数\"\nFROM campaigns \nGROUP BY campaign_type\nORDER BY COUNT(*) DESC;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'campaign_type' in 'group statement'"
+  ]
+}

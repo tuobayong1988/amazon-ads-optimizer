@@ -719,16 +719,18 @@ export class AmazonAdsApiClient {
             'campaignId',
             'campaignName',
             'campaignStatus',              // 广告活动状态
-            'campaignBudget',              // 预算金额
-            'campaignRuleBasedBudget',     // 规则预算
+            'campaignBudgetAmount',        // 预算金额 (修正字段名)
+            'campaignBudgetCurrencyCode',  // 预算货币
+            'campaignBudgetType',          // 预算类型
+            'campaignRuleBasedBudgetAmount', // 规则预算金额 (修正字段名)
             'impressions',                 // 曝光量
             'clicks',                      // 点击量
             'cost',                        // 花费
-            'attributedSales7d',           // ✅ 7天归因销售额 (SP专用)
-            'attributedUnitsOrdered7d',    // ✅ 7天归因订单单位数
-            'attributedConversions7d',     // ✅ 7天归因转化数
-            'attributedSales7dSameSKU',    // ✅ 7天同SKU销售额
-            'attributedUnitsOrdered7dSameSKU' // ✅ 7天同SKU订单单位数
+            'sales7d',                     // ✅ 7天归因销售额 (修正字段名)
+            'unitsSoldClicks7d',           // ✅ 7天归因订单单位数 (修正字段名)
+            'purchases7d',                 // ✅ 7天归因转化数 (修正字段名)
+            'attributedSalesSameSku7d',    // ✅ 7天同SKU销售额 (修正字段名)
+            'unitsSoldSameSku7d'           // ✅ 7天同SKU订单单位数 (修正字段名)
           ],
           reportTypeId: 'spCampaigns',
           timeUnit: 'DAILY',
@@ -784,9 +786,9 @@ export class AmazonAdsApiClient {
             'impressions',
             'clicks',
             'cost',
-            'attributedSales7d',         // ✅ 7天归因销售额 (SP专用)
-            'attributedUnitsOrdered7d',  // ✅ 7天归因订单单位数
-            'attributedConversions7d'    // ✅ 7天归因转化数
+            'sales7d',                   // ✅ 7天归因销售额 (修正字段名)
+            'unitsSoldClicks7d',         // ✅ 7天归因订单单位数 (修正字段名)
+            'purchases7d'                // ✅ 7天归因转化数 (修正字段名)
           ],
           reportTypeId: 'spTargeting',
           timeUnit: 'SUMMARY',
@@ -847,15 +849,18 @@ export class AmazonAdsApiClient {
             'campaignId',
             'campaignName',
             'campaignStatus',              // 广告活动状态
-            // ❌ 不要请求 campaignBudget，去 List 接口拿
+            'campaignBudgetAmount',        // 预算金额
+            'campaignBudgetCurrencyCode',  // 预算货币
+            'campaignBudgetType',          // 预算类型
             'impressions',                 // 曝光量
             'clicks',                      // 点击量
             'cost',                        // 花费
-            'attributedConversions14d',    // ✅ SB 专用订单字段
-            'attributedSales14d',          // ✅ SB 专用销售额字段
-            'dpv14d',                      // ✅ 14天详情页浏览量
-            'newToBrandPurchases14d',      // ✅ 14天新客购买数
-            'newToBrandSales14d'           // ✅ 14天新客销售额
+            'purchasesClicks',             // ✅ 订单数 (修正字段名 - 点击归因)
+            'salesClicks',                 // ✅ 销售额 (修正字段名 - 点击归因)
+            'detailPageViewsClicks',       // ✅ 详情页浏览量 (修正字段名)
+            'newToBrandPurchasesClicks',   // ✅ 新客购买数 (修正字段名)
+            'newToBrandSalesClicks',       // ✅ 新客销售额 (修正字段名)
+            'unitsSoldClicks'              // ✅ 售出单位数 (修正字段名)
           ],
           reportTypeId: 'sbCampaigns',
           timeUnit: 'DAILY',
@@ -918,17 +923,18 @@ export class AmazonAdsApiClient {
             'campaignId',
             'campaignName',
             'campaignStatus',              // 广告活动状态
+            'campaignBudgetAmount',        // 预算金额
+            'campaignBudgetCurrencyCode',  // 预算货币
+            // SD不支持 campaignBudgetType 和 viewableImpressions
             'impressions',                 // 曝光量
-            'viewableImpressions',         // ✅ 可见曝光数
             'clicks',                      // 点击量
             'cost',                        // 花费
-            'attributedConversions14d',    // 点击带来的转化
-            'attributedSales14d',          // 点击带来的销售额
-            'viewAttributedConversions14d',// 👁️ 浏览带来的转化 (vCPM核心)
-            'viewAttributedSales14d',      // 👁️ 浏览带来的销售额
-            'dpv14d',                      // ✅ 14天详情页浏览量
-            'newToBrandPurchases14d',      // ✅ 14天新客购买数
-            'newToBrandSales14d'           // ✅ 14天新客销售额
+            'purchasesClicks',             // ✅ 订单数 (点击归因)
+            'salesClicks',                 // ✅ 销售额 (点击归因)
+            'detailPageViewsClicks',       // ✅ 详情页浏览量
+            'newToBrandPurchasesClicks',   // ✅ 新客购买数
+            'newToBrandSalesClicks',       // ✅ 新客销售额
+            'unitsSoldClicks'              // ✅ 售出单位数
           ],
           reportTypeId: 'sdCampaigns',
           timeUnit: 'DAILY',
@@ -982,9 +988,9 @@ export class AmazonAdsApiClient {
             'impressions',
             'clicks',
             'cost',
-            'attributedSales7d',           // ✅ 7天归因销售额 (SP专用)
-            'attributedUnitsOrdered7d',    // ✅ 7天归因订单单位数
-            'attributedConversions7d'      // ✅ 7天归因转化数
+            'sales7d',                     // ✅ 7天归因销售额 (修正字段名)
+            'unitsSoldClicks7d',           // ✅ 7天归因订单单位数 (修正字段名)
+            'purchases7d'                  // ✅ 7天归因转化数 (修正字段名)
           ],
           reportTypeId: 'spCampaigns',
           timeUnit: 'DAILY',
@@ -1043,9 +1049,9 @@ export class AmazonAdsApiClient {
             'impressions',
             'clicks',
             'cost',
-            'attributedSales7d',           // ✅ 7天归因销售额 (SP专用)
-            'attributedUnitsOrdered7d',    // ✅ 7天归因订单单位数
-            'attributedConversions7d'      // ✅ 7天归因转化数
+            'sales7d',                     // ✅ 7天归因销售额 (修正字段名)
+            'unitsSoldClicks7d',           // ✅ 7天归因订单单位数 (修正字段名)
+            'purchases7d'                  // ✅ 7天归因转化数 (修正字段名)
           ],
           reportTypeId: 'spSearchTerm',
           timeUnit: 'SUMMARY',
@@ -1105,9 +1111,9 @@ export class AmazonAdsApiClient {
             'impressions',
             'clicks',
             'cost',
-            'attributedSales7d',           // ✅ 7天归因销售额 (SP专用)
-            'attributedUnitsOrdered7d',    // ✅ 7天归因订单单位数
-            'attributedConversions7d'      // ✅ 7天归因转化数
+            'sales7d',                     // ✅ 7天归因销售额 (修正字段名)
+            'unitsSoldClicks7d',           // ✅ 7天归因订单单位数 (修正字段名)
+            'purchases7d'                  // ✅ 7天归因转化数 (修正字段名)
           ],
           reportTypeId: 'spTargeting',
           timeUnit: 'SUMMARY',

@@ -1063,11 +1063,11 @@ export class AmazonSyncService {
           )
           .limit(1);
 
-        // 使用 Amazon Ads API v3 的字段名
-        // ⚠️ 重要: 不同广告类型使用不同的归因窗口
-        // SP: 使用 7天归因 (attributedSales7d, attributedConversions7d, attributedUnitsOrdered7d)
-        // SB: 使用 14天归因 (attributedSales14d, attributedConversions14d)
-        // SD: 使用 14天归因 (attributedSales14d, attributedConversions14d, viewAttributedSales14d)
+        // 使用 Amazon Ads API v3 的字段名 (2026年1月更新)
+        // ⚠️ 重要: 不同广告类型使用不同的字段名
+        // SP: 使用 7天归因 (sales7d, purchases7d, unitsSoldClicks7d)
+        // SB: 使用 Clicks后缀 (salesClicks, purchasesClicks, unitsSoldClicks, detailPageViewsClicks)
+        // SD: 使用 Clicks后缀 (salesClicks, purchasesClicks, unitsSoldClicks, detailPageViewsClicks, viewableImpressions)
         const cost = row.cost || 0;
         let sales = 0;
         let orders = 0;
@@ -1079,35 +1079,31 @@ export class AmazonSyncService {
         let viewableImpressions = 0;
         
         if (adType === 'SP') {
-          // ✅ SP报告使用 7天归因窗口 (7d)
+          // ✅ SP报告使用 7天归因窗口 (7d) - 修正字段名
           // 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
-          sales = row.attributedSales7d || 0;
-          orders = row.attributedConversions7d || 0;
-          unitsSold = row.attributedUnitsOrdered7d || 0;
+          sales = row.sales7d || 0;
+          orders = row.purchases7d || 0;
+          unitsSold = row.unitsSoldClicks7d || 0;
           // SP不支持 dpv 和 addToCart 在 7d 字段中
           dpv = 0;
           addToCart = 0;
         } else if (adType === 'SB') {
-          // ⚠️ 重要修复: SB报告必须使用 attributedSales14d 和 attributedConversions14d
-          // 使用 sales/purchases 会导致数据为空！
-          sales = row.attributedSales14d || 0;
-          orders = row.attributedConversions14d || 0;
-          dpv = row.dpv14d || 0;
-          ntbOrders = row.newToBrandPurchases14d || 0;
-          ntbSales = row.newToBrandSales14d || 0;
+          // ✅ SB报告使用修正后的字段名 (Clicks后缀)
+          sales = row.salesClicks || 0;
+          orders = row.purchasesClicks || 0;
+          unitsSold = row.unitsSoldClicks || 0;
+          dpv = row.detailPageViewsClicks || 0;
+          ntbOrders = row.newToBrandPurchasesClicks || 0;
+          ntbSales = row.newToBrandSalesClicks || 0;
         } else {
-          // ⚠️ 重要修复: SD报告使用 attributedSales14d 和 attributedConversions14d
-          // SD还有 viewAttributedSales14d 和 viewAttributedConversions14d 用于浏览归因
-          const clickSales = row.attributedSales14d || 0;
-          const viewSales = row.viewAttributedSales14d || 0;
-          const clickOrders = row.attributedConversions14d || 0;
-          const viewOrders = row.viewAttributedConversions14d || 0;
-          sales = clickSales + viewSales;    // 总销售额 = 点击归因 + 浏览归因
-          orders = clickOrders + viewOrders; // 总订单 = 点击转化 + 浏览转化
+          // ✅ SD报告使用修正后的字段名 (Clicks后缀)
+          sales = row.salesClicks || 0;
+          orders = row.purchasesClicks || 0;
+          unitsSold = row.unitsSoldClicks || 0;
           viewableImpressions = row.viewableImpressions || 0;
-          dpv = row.dpv14d || 0;
-          ntbOrders = row.newToBrandPurchases14d || 0;
-          ntbSales = row.newToBrandSales14d || 0;
+          dpv = row.detailPageViewsClicks || 0;
+          ntbOrders = row.newToBrandPurchasesClicks || 0;
+          ntbSales = row.newToBrandSalesClicks || 0;
         }
         
         const perfData = {
@@ -1930,11 +1926,11 @@ export class AmazonSyncService {
           )
           .limit(1);
 
-        // SD的销售额需要加上浏览归因
-        const clickSales = row.attributedSales14d || 0;
-        const viewSales = row.viewAttributedSales14d || 0;
-        const clickOrders = row.attributedConversions14d || 0;
-        const viewOrders = row.viewAttributedConversions14d || 0;
+        // SD的销售额 - 使用修正后的字段名 (Clicks后缀)
+        const clickSales = row.salesClicks || 0;
+        const viewSales = 0; // 浏览归因已合并到salesClicks字段
+        const clickOrders = row.purchasesClicks || 0;
+        const viewOrders = 0; // 浏览归因已合并到purchasesClicks字段
         const cost = row.cost || 0;
         const sales = clickSales + viewSales;
         const orders = clickOrders + viewOrders;
@@ -2042,10 +2038,10 @@ export class AmazonSyncService {
             .limit(1);
 
           const cost = row.cost || 0;
-          const sales = row.attributedSales14d || 0;
+          const sales = row.salesClicks || 0;  // 修正字段名 (Clicks后缀)
           const clicks = row.clicks || 0;
           const impressions = row.impressions || 0;
-          const orders = row.attributedConversions14d || 0;
+          const orders = row.purchasesClicks || 0;  // 修正字段名 (Clicks后缀)
 
           const keywordData = {
             adGroupId: adGroup.id,

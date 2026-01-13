@@ -1,0 +1,28 @@
+{
+  "query": "SELECT \n  accountId,\n  data_source,\n  is_finalized,\n  COUNT(*) as count\nFROM daily_performance \nGROUP BY accountId, data_source, is_finalized;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT \n  accountId,\n  data_source,\n  is_finalized,\n  COUNT(*) as count\nFROM daily_performance \nGROUP BY accountId, data_source, is_finalized;",
+  "rows": [
+    {
+      "accountId": "60019",
+      "data_source": "ams",
+      "is_finalized": "0",
+      "count": "1"
+    },
+    {
+      "accountId": "60017",
+      "data_source": "api",
+      "is_finalized": "0",
+      "count": "788"
+    },
+    {
+      "accountId": "60019",
+      "data_source": "api",
+      "is_finalized": "0",
+      "count": "4282"
+    }
+  ],
+  "messages": [],
+  "stdout": "accountId\tdata_source\tis_finalized\tcount\n60019\tams\t0\t1\n60017\tapi\t0\t788\n60019\tapi\t0\t4282\n",
+  "stderr": "",
+  "execution_time_ms": 58
+}
