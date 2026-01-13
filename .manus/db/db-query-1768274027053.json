@@ -1,0 +1,14 @@
+{
+  "query": "SELECT COUNT(*) as count, MAX(date) as lastDate FROM daily_performance WHERE \"dataSource\" = 'ams';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT COUNT(*) as count, MAX(date) as lastDate FROM daily_performance WHERE \"dataSource\" = 'ams';",
+  "rows": [
+    {
+      "count": "0",
+      "lastDate": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "count\tlastDate\n0\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 52
+}

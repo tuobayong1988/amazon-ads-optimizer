@@ -13,6 +13,7 @@
 
 import { getDb } from '../db';
 import { sql } from 'drizzle-orm';
+import { getSQSConsumer } from '../sqsConsumerService';
 
 // 数据源类型
 export type DataSource = 'api' | 'ams' | 'merged';
@@ -181,59 +182,97 @@ async function getApiSyncStatus(db: any, accountId: number): Promise<SyncStatus>
 
 /**
  * 获取AMS同步状态
+ * 改进版：检查SQS消费者实际运行状态和daily_performance表中的AMS数据
  */
 async function getAmsSyncStatus(db: any, accountId: number): Promise<SyncStatus> {
   try {
-    // 查询AMS消息统计
-    const [statsResult] = await db.execute(sql`
+    // 1. 检查SQS消费者服务状态
+    const sqsConsumer = getSQSConsumer();
+    const consumerStatuses = sqsConsumer.getStatus();
+    const hasRunningConsumers = consumerStatuses.some(s => s.isRunning);
+    const totalMessagesProcessed = consumerStatuses.reduce((sum, s) => sum + s.messagesProcessed, 0);
+    const lastProcessedAt = consumerStatuses
+      .map(s => s.lastProcessedAt)
+      .filter(Boolean)
+      .sort()
+      .reverse()[0];
+    
+    // 2. 查询daily_performance表中AMS来源的数据
+    const [amsDataResult] = await db.execute(sql`
       SELECT 
-        COUNT(*) as totalMessages,
-        MAX(receivedAt) as lastMessageAt
-      FROM ams_messages
-      WHERE accountId = ${accountId}
-        AND receivedAt >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        COUNT(*) as totalRecords,
+        MAX("createdAt") as lastUpdate
+      FROM daily_performance
+      WHERE "accountId" = ${accountId}
+        AND "dataSource" = 'ams'
+        AND "createdAt" >= NOW() - INTERVAL '24 hours'
     `) as any;
 
-    const stats = Array.isArray(statsResult) && statsResult.length > 0 ? statsResult[0] : null;
-
-    // 查询活跃订阅数
-    const [subResult] = await db.execute(sql`
-      SELECT COUNT(*) as activeCount
-      FROM ams_subscriptions
-      WHERE accountId = ${accountId}
-        AND status = 'ACTIVE'
-    `) as any;
-
-    const subscriptions = Array.isArray(subResult) && subResult.length > 0 ? subResult[0] : null;
-
-    const hasActiveSubscriptions = (subscriptions?.activeCount || 0) > 0;
-    const hasRecentMessages = (stats?.totalMessages || 0) > 0;
-
+    const amsData = Array.isArray(amsDataResult) && amsDataResult.length > 0 ? amsDataResult[0] : null;
+    const hasRecentAmsData = (amsData?.totalRecords || 0) > 0;
+    
+    // 3. 综合判断状态
     let status: 'healthy' | 'degraded' | 'error' = 'healthy';
     let errorMessage: string | undefined;
-
-    if (!hasActiveSubscriptions) {
+    let recordCount = totalMessagesProcessed;
+    let lastSyncAt: Date | null = null;
+    
+    if (lastProcessedAt) {
+      lastSyncAt = new Date(lastProcessedAt);
+    } else if (amsData?.lastUpdate) {
+      lastSyncAt = new Date(amsData.lastUpdate);
+    }
+    
+    if (!hasRunningConsumers) {
+      status = 'error';
+      errorMessage = 'SQS消费者服务未运行';
+    } else if (!hasRecentAmsData && totalMessagesProcessed === 0) {
       status = 'degraded';
-      errorMessage = '没有活跃的AMS订阅';
-    } else if (!hasRecentMessages) {
-      status = 'degraded';
-      errorMessage = '24小时内没有收到AMS消息';
+      errorMessage = '24小时内没有收到AMS数据';
+    } else {
+      status = 'healthy';
+      recordCount = Math.max(totalMessagesProcessed, amsData?.totalRecords || 0);
     }
 
     return {
       source: 'ams',
-      lastSyncAt: stats?.lastMessageAt ? new Date(stats.lastMessageAt) : null,
-      recordCount: stats?.totalMessages || 0,
+      lastSyncAt,
+      recordCount,
       status,
       errorMessage,
     };
   } catch (error: any) {
+    // 如果查询失败，尝试只检查SQS消费者状态
+    try {
+      const sqsConsumer = getSQSConsumer();
+      const consumerStatuses = sqsConsumer.getStatus();
+      const hasRunningConsumers = consumerStatuses.some(s => s.isRunning);
+      const totalMessagesProcessed = consumerStatuses.reduce((sum, s) => sum + s.messagesProcessed, 0);
+      const lastProcessedAt = consumerStatuses
+        .map(s => s.lastProcessedAt)
+        .filter(Boolean)
+        .sort()
+        .reverse()[0];
+      
+      if (hasRunningConsumers) {
+        return {
+          source: 'ams',
+          lastSyncAt: lastProcessedAt ? new Date(lastProcessedAt) : null,
+          recordCount: totalMessagesProcessed,
+          status: 'healthy',
+          errorMessage: undefined,
+        };
+      }
+    } catch (e) {
+      // 忽略
+    }
+    
     return {
       source: 'ams',
       lastSyncAt: null,
       recordCount: 0,
       status: 'degraded',
-      errorMessage: 'AMS表可能不存在',
+      errorMessage: error.message || 'AMS状态检查失败',
     };
   }
 }
