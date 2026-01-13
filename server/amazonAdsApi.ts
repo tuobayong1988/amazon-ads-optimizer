@@ -224,6 +224,24 @@ export class AmazonAdsApiClient {
   }
 
   /**
+   * 动态设置Profile ID
+   * 用于在同一个API客户端实例中切换不同的广告配置文件
+   * @param profileId - 新的Profile ID
+   */
+  setProfileId(profileId: string): void {
+    this.credentials.profileId = profileId;
+    // 更新axios实例的默认headers
+    this.axiosInstance.defaults.headers['Amazon-Advertising-API-Scope'] = profileId;
+  }
+
+  /**
+   * 获取当前Profile ID
+   */
+  getProfileId(): string {
+    return this.credentials.profileId;
+  }
+
+  /**
    * 生成OAuth授权URL
    * @param clientId - 客户端编号
    * @param redirectUri - 回调地址

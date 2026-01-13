@@ -107,9 +107,9 @@ export function calculateProfitAccuracy(estimated: number, actual: number): numb
  */
 export function aggregateTrackingStats(records: Array<{ 
   expectedProfitIncrease: number; 
-  actualProfit7d: number | null;
-  actualProfit14d?: number | null;
-  actualProfit30d?: number | null;
+  actualProfit7D: number | null;
+  actualProfit14D?: number | null;
+  actualProfit30D?: number | null;
 }>): {
   totalEstimated: number;
   totalActual7Day: number;
@@ -134,30 +134,30 @@ export function aggregateTrackingStats(records: Array<{
   }
   
   const totalEstimated = records.reduce((sum: number, r: any) => sum + (r.expectedProfitIncrease || 0), 0);
-  const totalActual7Day = records.reduce((sum: number, r: any) => sum + (r.actualProfit7d || 0), 0);
-  const totalActual14Day = records.reduce((sum: number, r: any) => sum + (r.actualProfit14d || 0), 0);
-  const totalActual30Day = records.reduce((sum: number, r: any) => sum + (r.actualProfit30d || 0), 0);
+  const totalActual7Day = records.reduce((sum: number, r: any) => sum + (r.actualProfit7D || 0), 0);
+  const totalActual14Day = records.reduce((sum: number, r: any) => sum + (r.actualProfit14D || 0), 0);
+  const totalActual30Day = records.reduce((sum: number, r: any) => sum + (r.actualProfit30D || 0), 0);
   
   // 计算7天准确度
   const accuracies7Day = records
-    .filter((r: any) => r.actualProfit7d !== null)
-    .map((r: any) => calculateProfitAccuracy(r.expectedProfitIncrease, r.actualProfit7d!));
+    .filter((r: any) => r.actualProfit7D !== null)
+    .map((r: any) => calculateProfitAccuracy(r.expectedProfitIncrease, r.actualProfit7D!));
   const averageAccuracy7Day = accuracies7Day.length > 0 
     ? accuracies7Day.reduce((sum: number, a: number) => sum + a, 0) / accuracies7Day.length 
     : 0;
   
   // 计算14天准确度
   const accuracies14Day = records
-    .filter((r: any) => r.actualProfit14d !== null && r.actualProfit14d !== undefined)
-    .map((r: any) => calculateProfitAccuracy(r.expectedProfitIncrease, r.actualProfit14d!));
+    .filter((r: any) => r.actualProfit14D !== null && r.actualProfit14D !== undefined)
+    .map((r: any) => calculateProfitAccuracy(r.expectedProfitIncrease, r.actualProfit14D!));
   const averageAccuracy14Day = accuracies14Day.length > 0 
     ? accuracies14Day.reduce((sum: number, a: number) => sum + a, 0) / accuracies14Day.length 
     : 0;
   
   // 计算30天准确度
   const accuracies30Day = records
-    .filter((r: any) => r.actualProfit30d !== null && r.actualProfit30d !== undefined)
-    .map((r: any) => calculateProfitAccuracy(r.expectedProfitIncrease, r.actualProfit30d!));
+    .filter((r: any) => r.actualProfit30D !== null && r.actualProfit30D !== undefined)
+    .map((r: any) => calculateProfitAccuracy(r.expectedProfitIncrease, r.actualProfit30D!));
   const averageAccuracy30Day = accuracies30Day.length > 0 
     ? accuracies30Day.reduce((sum: number, a: number) => sum + a, 0) / accuracies30Day.length 
     : 0;
@@ -204,9 +204,9 @@ export async function getPendingTrackingRecords(): Promise<any[]> {
       const daysSince = calculateDaysSinceAdjustment(new Date(record.appliedAt!));
       const needs = shouldCollectData(
         daysSince,
-        record.actualProfit7d !== null,
-        record.actualProfit14d !== null,
-        record.actualProfit30d !== null
+        record.actualProfit7D !== null,
+        record.actualProfit14D !== null,
+        record.actualProfit30D !== null
       );
       return needs.collect7Day || needs.collect14Day || needs.collect30Day;
     });
@@ -264,16 +264,16 @@ export async function updateTrackingData(
     const updateData: any = {};
     
     if (period === 7) {
-      updateData.actualProfit7d = data.profit;
+      updateData.actualProfit7D = data.profit;
       updateData.actualImpressions7d = data.impressions;
       updateData.actualClicks7d = data.clicks;
       updateData.actualSpend7d = data.spend;
       updateData.actualRevenue7d = data.sales;
       updateData.actualConversions7d = data.orders;
     } else if (period === 14) {
-      updateData.actualProfit14d = data.profit;
+      updateData.actualProfit14D = data.profit;
     } else if (period === 30) {
-      updateData.actualProfit30d = data.profit;
+      updateData.actualProfit30D = data.profit;
     }
     updateData.trackingUpdatedAt = new Date().toISOString();
     
@@ -318,9 +318,9 @@ export async function runEffectTrackingTask(): Promise<{
       const daysSince = calculateDaysSinceAdjustment(new Date(record.appliedAt!));
       const needs = shouldCollectData(
         daysSince,
-        record.actualProfit7d !== null,
-        record.actualProfit14d !== null,
-        record.actualProfit30d !== null
+        record.actualProfit7D !== null,
+        record.actualProfit14D !== null,
+        record.actualProfit30D !== null
       );
       
       // 收集7天数据
@@ -518,32 +518,32 @@ export async function generateEffectTrackingReport(options: {
     }
     
     // 计算汇总统计
-    const recordsWith7DayData = filteredRecords.filter((r: any) => r.actualProfit7d !== null);
-    const recordsWith14DayData = filteredRecords.filter((r: any) => r.actualProfit14d !== null);
-    const recordsWith30DayData = filteredRecords.filter((r: any) => r.actualProfit30d !== null);
+    const recordsWith7DayData = filteredRecords.filter((r: any) => r.actualProfit7D !== null);
+    const recordsWith14DayData = filteredRecords.filter((r: any) => r.actualProfit14D !== null);
+    const recordsWith30DayData = filteredRecords.filter((r: any) => r.actualProfit30D !== null);
     
     const totalEstimatedProfit = filteredRecords.reduce((sum: number, r: any) => 
       sum + (r.expectedProfitIncrease || 0), 0
     );
     const totalActual7DayProfit = recordsWith7DayData.reduce((sum: number, r: any) => 
-      sum + (r.actualProfit7d || 0), 0
+      sum + (r.actualProfit7D || 0), 0
     );
     const totalActual14DayProfit = recordsWith14DayData.reduce((sum: number, r: any) => 
-      sum + (r.actualProfit14d || 0), 0
+      sum + (r.actualProfit14D || 0), 0
     );
     const totalActual30DayProfit = recordsWith30DayData.reduce((sum: number, r: any) => 
-      sum + (r.actualProfit30d || 0), 0
+      sum + (r.actualProfit30D || 0), 0
     );
     
     // 计算准确度
     const accuracies7Day = recordsWith7DayData.map((r: any) => 
-      calculateProfitAccuracy(r.expectedProfitIncrease || 0, r.actualProfit7d || 0)
+      calculateProfitAccuracy(r.expectedProfitIncrease || 0, r.actualProfit7D || 0)
     );
     const accuracies14Day = recordsWith14DayData.map((r: any) => 
-      calculateProfitAccuracy(r.expectedProfitIncrease || 0, r.actualProfit14d || 0)
+      calculateProfitAccuracy(r.expectedProfitIncrease || 0, r.actualProfit14D || 0)
     );
     const accuracies30Day = recordsWith30DayData.map((r: any) => 
-      calculateProfitAccuracy(r.expectedProfitIncrease || 0, r.actualProfit30d || 0)
+      calculateProfitAccuracy(r.expectedProfitIncrease || 0, r.actualProfit30D || 0)
     );
     
     const averageAccuracy7Day = accuracies7Day.length > 0 
@@ -560,34 +560,34 @@ export async function generateEffectTrackingReport(options: {
     // MAE (Mean Absolute Error)
     const mae7Day = recordsWith7DayData.length > 0
       ? recordsWith7DayData.reduce((sum: number, r: any) => 
-          sum + Math.abs((r.expectedProfitIncrease || 0) - (r.actualProfit7d || 0)), 0
+          sum + Math.abs((r.expectedProfitIncrease || 0) - (r.actualProfit7D || 0)), 0
         ) / recordsWith7DayData.length
       : 0;
     const mae14Day = recordsWith14DayData.length > 0
       ? recordsWith14DayData.reduce((sum: number, r: any) => 
-          sum + Math.abs((r.expectedProfitIncrease || 0) - (r.actualProfit14d || 0)), 0
+          sum + Math.abs((r.expectedProfitIncrease || 0) - (r.actualProfit14D || 0)), 0
         ) / recordsWith14DayData.length
       : 0;
     const mae30Day = recordsWith30DayData.length > 0
       ? recordsWith30DayData.reduce((sum: number, r: any) => 
-          sum + Math.abs((r.expectedProfitIncrease || 0) - (r.actualProfit30d || 0)), 0
+          sum + Math.abs((r.expectedProfitIncrease || 0) - (r.actualProfit30D || 0)), 0
         ) / recordsWith30DayData.length
       : 0;
     
     // RMSE (Root Mean Square Error)
     const rmse7Day = recordsWith7DayData.length > 0
       ? Math.sqrt(recordsWith7DayData.reduce((sum: number, r: any) => 
-          sum + Math.pow((r.expectedProfitIncrease || 0) - (r.actualProfit7d || 0), 2), 0
+          sum + Math.pow((r.expectedProfitIncrease || 0) - (r.actualProfit7D || 0), 2), 0
         ) / recordsWith7DayData.length)
       : 0;
     const rmse14Day = recordsWith14DayData.length > 0
       ? Math.sqrt(recordsWith14DayData.reduce((sum: number, r: any) => 
-          sum + Math.pow((r.expectedProfitIncrease || 0) - (r.actualProfit14d || 0), 2), 0
+          sum + Math.pow((r.expectedProfitIncrease || 0) - (r.actualProfit14D || 0), 2), 0
         ) / recordsWith14DayData.length)
       : 0;
     const rmse30Day = recordsWith30DayData.length > 0
       ? Math.sqrt(recordsWith30DayData.reduce((sum: number, r: any) => 
-          sum + Math.pow((r.expectedProfitIncrease || 0) - (r.actualProfit30d || 0), 2), 0
+          sum + Math.pow((r.expectedProfitIncrease || 0) - (r.actualProfit30D || 0), 2), 0
         ) / recordsWith30DayData.length)
       : 0;
     
@@ -595,21 +595,21 @@ export async function generateEffectTrackingReport(options: {
     const hitRate7Day = recordsWith7DayData.length > 0
       ? recordsWith7DayData.filter((r: any) => {
           const est = r.expectedProfitIncrease || 0;
-          const act = r.actualProfit7d || 0;
+          const act = r.actualProfit7D || 0;
           return (est >= 0 && act >= 0) || (est < 0 && act < 0);
         }).length / recordsWith7DayData.length * 100
       : 0;
     const hitRate14Day = recordsWith14DayData.length > 0
       ? recordsWith14DayData.filter((r: any) => {
           const est = r.expectedProfitIncrease || 0;
-          const act = r.actualProfit14d || 0;
+          const act = r.actualProfit14D || 0;
           return (est >= 0 && act >= 0) || (est < 0 && act < 0);
         }).length / recordsWith14DayData.length * 100
       : 0;
     const hitRate30Day = recordsWith30DayData.length > 0
       ? recordsWith30DayData.filter((r: any) => {
           const est = r.expectedProfitIncrease || 0;
-          const act = r.actualProfit30d || 0;
+          const act = r.actualProfit30D || 0;
           return (est >= 0 && act >= 0) || (est < 0 && act < 0);
         }).length / recordsWith30DayData.length * 100
       : 0;

@@ -1,0 +1,130 @@
+{
+  "query": "SELECT COLUMN_NAME, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ad_accounts' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT COLUMN_NAME, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ad_accounts' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id",
+      "COLUMN_TYPE": "int(11)"
+    },
+    {
+      "COLUMN_NAME": "organization_id",
+      "COLUMN_TYPE": "int(11)"
+    },
+    {
+      "COLUMN_NAME": "userId",
+      "COLUMN_TYPE": "int(11)"
+    },
+    {
+      "COLUMN_NAME": "accountId",
+      "COLUMN_TYPE": "varchar(64)"
+    },
+    {
+      "COLUMN_NAME": "accountName",
+      "COLUMN_TYPE": "varchar(255)"
+    },
+    {
+      "COLUMN_NAME": "marketplace",
+      "COLUMN_TYPE": "varchar(32)"
+    },
+    {
+      "COLUMN_NAME": "profileId",
+      "COLUMN_TYPE": "varchar(64)"
+    },
+    {
+      "COLUMN_NAME": "conversionValueType",
+      "COLUMN_TYPE": "enum('sales','units','custom')"
+    },
+    {
+      "COLUMN_NAME": "conversionValueSource",
+      "COLUMN_TYPE": "enum('platform','custom')"
+    },
+    {
+      "COLUMN_NAME": "intradayBiddingEnabled",
+      "COLUMN_TYPE": "tinyint(1)"
+    },
+    {
+      "COLUMN_NAME": "defaultMaxBid",
+      "COLUMN_TYPE": "decimal(10,2)"
+    },
+    {
+      "COLUMN_NAME": "status",
+      "COLUMN_TYPE": "enum('active','paused','archived')"
+    },
+    {
+      "COLUMN_NAME": "createdAt",
+      "COLUMN_TYPE": "timestamp"
+    },
+    {
+      "COLUMN_NAME": "updatedAt",
+      "COLUMN_TYPE": "timestamp"
+    },
+    {
+      "COLUMN_NAME": "storeName",
+      "COLUMN_TYPE": "varchar(255)"
+    },
+    {
+      "COLUMN_NAME": "storeDescription",
+      "COLUMN_TYPE": "text"
+    },
+    {
+      "COLUMN_NAME": "storeColor",
+      "COLUMN_TYPE": "varchar(7)"
+    },
+    {
+      "COLUMN_NAME": "marketplaceId",
+      "COLUMN_TYPE": "varchar(32)"
+    },
+    {
+      "COLUMN_NAME": "sellerId",
+      "COLUMN_TYPE": "varchar(64)"
+    },
+    {
+      "COLUMN_NAME": "connectionStatus",
+      "COLUMN_TYPE": "enum('connected','disconnected','error','pending')"
+    },
+    {
+      "COLUMN_NAME": "lastConnectionCheck",
+      "COLUMN_TYPE": "timestamp"
+    },
+    {
+      "COLUMN_NAME": "connectionErrorMessage",
+      "COLUMN_TYPE": "text"
+    },
+    {
+      "COLUMN_NAME": "isDefault",
+      "COLUMN_TYPE": "tinyint(1)"
+    },
+    {
+      "COLUMN_NAME": "sortOrder",
+      "COLUMN_TYPE": "int(11)"
+    },
+    {
+      "COLUMN_NAME": "organizationId",
+      "COLUMN_TYPE": "int(11)"
+    },
+    {
+      "COLUMN_NAME": "initialization_status",
+      "COLUMN_TYPE": "varchar(20)"
+    },
+    {
+      "COLUMN_NAME": "initialization_started_at",
+      "COLUMN_TYPE": "timestamp"
+    },
+    {
+      "COLUMN_NAME": "initialization_completed_at",
+      "COLUMN_TYPE": "timestamp"
+    },
+    {
+      "COLUMN_NAME": "initialization_progress",
+      "COLUMN_TYPE": "int(11)"
+    },
+    {
+      "COLUMN_NAME": "initialization_error",
+      "COLUMN_TYPE": "text"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\tCOLUMN_TYPE\nid\tint(11)\norganization_id\tint(11)\nuserId\tint(11)\naccountId\tvarchar(64)\naccountName\tvarchar(255)\nmarketplace\tvarchar(32)\nprofileId\tvarchar(64)\nconversionValueType\tenum('sales','units','custom')\nconversionValueSource\tenum('platform','custom')\nintradayBiddingEnabled\ttinyint(1)\ndefaultMaxBid\tdecimal(10,2)\nstatus\tenum('active','paused','archived')\ncreatedAt\ttimestamp\nupdatedAt\ttimestamp\nstoreName\tvarchar(255)\nstoreDescription\ttext\nstoreColor\tvarchar(7)\nmarketplaceId\tvarchar(32)\nsellerId\tvarchar(64)\nconnectionStatus\tenum('connected','disconnected','error','pending')\nlastConnectionCheck\ttimestamp\nconnectionErrorMessage\ttext\nisDefault\ttinyint(1)\nsortOrder\tint(11)\norganizationId\tint(11)\ninitialization_status\tvarchar(20)\ninitialization_started_at\ttimestamp\ninitialization_completed_at\ttimestamp\ninitialization_progress\tint(11)\ninitialization_error\ttext\n",
+  "stderr": "",
+  "execution_time_ms": 1523
+}

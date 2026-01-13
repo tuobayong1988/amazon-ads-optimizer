@@ -1,0 +1,31 @@
+{
+  "query": "SELECT id, accountName, marketplaceId, profileId, status FROM ad_accounts;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT id, accountName, marketplaceId, profileId, status FROM ad_accounts;",
+  "rows": [
+    {
+      "id": "60017",
+      "accountName": "ElaraFit 加拿大",
+      "marketplaceId": "NULL",
+      "profileId": "1902077932438117",
+      "status": "active"
+    },
+    {
+      "id": "60018",
+      "accountName": "ElaraFit 墨西哥",
+      "marketplaceId": "NULL",
+      "profileId": "1080055356599494",
+      "status": "active"
+    },
+    {
+      "id": "60019",
+      "accountName": "ElaraFit 美国",
+      "marketplaceId": "NULL",
+      "profileId": "599502392622991",
+      "status": "active"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\taccountName\tmarketplaceId\tprofileId\tstatus\n60017\tElaraFit 加拿大\tNULL\t1902077932438117\tactive\n60018\tElaraFit 墨西哥\tNULL\t1080055356599494\tactive\n60019\tElaraFit 美国\tNULL\t599502392622991\tactive\n",
+  "stderr": "",
+  "execution_time_ms": 1538
+}

@@ -1,0 +1,18 @@
+{
+  "query": "SELECT status, COUNT(*) as count FROM report_jobs GROUP BY status;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT status, COUNT(*) as count FROM report_jobs GROUP BY status;",
+  "rows": [
+    {
+      "status": "failed",
+      "count": "5"
+    },
+    {
+      "status": "pending",
+      "count": "181"
+    }
+  ],
+  "messages": [],
+  "stdout": "status\tcount\nfailed\t5\npending\t181\n",
+  "stderr": "",
+  "execution_time_ms": 1517
+}

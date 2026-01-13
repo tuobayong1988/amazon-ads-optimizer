@@ -1,0 +1,35 @@
+{
+  "query": "SELECT status, priority, COUNT(*) as count FROM report_jobs GROUP BY status, priority ORDER BY priority;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT status, priority, COUNT(*) as count FROM report_jobs GROUP BY status, priority ORDER BY priority;",
+  "rows": [
+    {
+      "status": "failed",
+      "priority": "critical",
+      "count": "5"
+    },
+    {
+      "status": "pending",
+      "priority": "critical",
+      "count": "79"
+    },
+    {
+      "status": "pending",
+      "priority": "high",
+      "count": "48"
+    },
+    {
+      "status": "pending",
+      "priority": "medium",
+      "count": "24"
+    },
+    {
+      "status": "pending",
+      "priority": "low",
+      "count": "30"
+    }
+  ],
+  "messages": [],
+  "stdout": "status\tpriority\tcount\nfailed\tcritical\t5\npending\tcritical\t79\npending\thigh\t48\npending\tmedium\t24\npending\tlow\t30\n",
+  "stderr": "",
+  "execution_time_ms": 1524
+}

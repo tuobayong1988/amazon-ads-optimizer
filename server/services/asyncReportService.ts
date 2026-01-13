@@ -10,7 +10,7 @@
  */
 
 import { getDb } from '../db';
-import { reportJobs, amazonApiCredentials, dailyPerformance, campaigns } from '../../drizzle/schema';
+import { reportJobs, amazonApiCredentials, amsPerformanceData, campaigns } from '../../drizzle/schema';
 import { eq, and, inArray, sql, isNull, or } from 'drizzle-orm';
 import { AmazonAdsApiClient } from '../amazonAdsApi';
 
@@ -545,18 +545,18 @@ export class AsyncReportService {
           spend: parseFloat(row.cost || row.spend) || 0,
           sales: parseFloat(row.sales14d || row.attributedSales14d || row.sales7d || row.attributedSales7d || row.sales) || 0,
           orders: parseInt(row.purchases14d || row.attributedConversions14d || row.purchases7d || row.attributedConversions7d || row.orders) || 0,
-          dataSource: 'reporting_api' as const,
+          dataSource: 'api' as const,
         };
 
-        // Upsert到daily_performance表
+        // Upsert到ams_performance_data表
         const existingRecord = await db
           .select()
-          .from(dailyPerformance)
+          .from(amsPerformanceData)
           .where(
             and(
-              eq(dailyPerformance.accountId, accountId),
-              eq(dailyPerformance.amazonCampaignId, campaignId),
-              eq(dailyPerformance.date, date)
+              eq(amsPerformanceData.accountId, accountId),
+              eq(amsPerformanceData.campaignId, campaignId),
+              eq(amsPerformanceData.reportDate, date)
             )
           )
           .limit(1);
@@ -564,30 +564,29 @@ export class AsyncReportService {
         if (existingRecord.length > 0) {
           // 更新现有记录
           await db
-            .update(dailyPerformance)
+            .update(amsPerformanceData)
             .set({
               impressions: performanceData.impressions,
               clicks: performanceData.clicks,
               spend: performanceData.spend.toString(),
               sales: performanceData.sales.toString(),
               orders: performanceData.orders,
-              dataSource: 'reporting_api',
+              dataSource: 'api',
             })
-            .where(eq(dailyPerformance.id, existingRecord[0].id));
+            .where(eq(amsPerformanceData.id, existingRecord[0].id));
         } else {
           // 插入新记录
-          await db.insert(dailyPerformance).values({
+          await db.insert(amsPerformanceData).values({
             accountId: performanceData.accountId,
-            campaignId: performanceData.campaignId,
-            amazonCampaignId: performanceData.amazonCampaignId,
-            date: performanceData.date,
-            adType: performanceData.adType,
+            campaignId: campaignId, // 使用Amazon Campaign ID
+            reportDate: performanceData.date,
+            dataSetId: `api-${adType.toLowerCase()}`, // 标识数据来源
             impressions: performanceData.impressions,
             clicks: performanceData.clicks,
             spend: performanceData.spend.toString(),
             sales: performanceData.sales.toString(),
             orders: performanceData.orders,
-            dataSource: 'reporting_api',
+            dataSource: 'api',
           });
         }
 

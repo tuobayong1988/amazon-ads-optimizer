@@ -1,0 +1,100 @@
+{
+  "query": "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ad_accounts' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'ad_accounts' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id"
+    },
+    {
+      "COLUMN_NAME": "organization_id"
+    },
+    {
+      "COLUMN_NAME": "userId"
+    },
+    {
+      "COLUMN_NAME": "accountId"
+    },
+    {
+      "COLUMN_NAME": "accountName"
+    },
+    {
+      "COLUMN_NAME": "marketplace"
+    },
+    {
+      "COLUMN_NAME": "profileId"
+    },
+    {
+      "COLUMN_NAME": "conversionValueType"
+    },
+    {
+      "COLUMN_NAME": "conversionValueSource"
+    },
+    {
+      "COLUMN_NAME": "intradayBiddingEnabled"
+    },
+    {
+      "COLUMN_NAME": "defaultMaxBid"
+    },
+    {
+      "COLUMN_NAME": "status"
+    },
+    {
+      "COLUMN_NAME": "createdAt"
+    },
+    {
+      "COLUMN_NAME": "updatedAt"
+    },
+    {
+      "COLUMN_NAME": "storeName"
+    },
+    {
+      "COLUMN_NAME": "storeDescription"
+    },
+    {
+      "COLUMN_NAME": "storeColor"
+    },
+    {
+      "COLUMN_NAME": "marketplaceId"
+    },
+    {
+      "COLUMN_NAME": "sellerId"
+    },
+    {
+      "COLUMN_NAME": "connectionStatus"
+    },
+    {
+      "COLUMN_NAME": "lastConnectionCheck"
+    },
+    {
+      "COLUMN_NAME": "connectionErrorMessage"
+    },
+    {
+      "COLUMN_NAME": "isDefault"
+    },
+    {
+      "COLUMN_NAME": "sortOrder"
+    },
+    {
+      "COLUMN_NAME": "organizationId"
+    },
+    {
+      "COLUMN_NAME": "initialization_status"
+    },
+    {
+      "COLUMN_NAME": "initialization_started_at"
+    },
+    {
+      "COLUMN_NAME": "initialization_completed_at"
+    },
+    {
+      "COLUMN_NAME": "initialization_progress"
+    },
+    {
+      "COLUMN_NAME": "initialization_error"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nid\norganization_id\nuserId\naccountId\naccountName\nmarketplace\nprofileId\nconversionValueType\nconversionValueSource\nintradayBiddingEnabled\ndefaultMaxBid\nstatus\ncreatedAt\nupdatedAt\nstoreName\nstoreDescription\nstoreColor\nmarketplaceId\nsellerId\nconnectionStatus\nlastConnectionCheck\nconnectionErrorMessage\nisDefault\nsortOrder\norganizationId\ninitialization_status\ninitialization_started_at\ninitialization_completed_at\ninitialization_progress\ninitialization_error\n",
+  "stderr": "",
+  "execution_time_ms": 1609
+}

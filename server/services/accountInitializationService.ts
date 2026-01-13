@@ -61,7 +61,8 @@ export class AccountInitializationService {
     message: string;
     phases?: { phase: string; totalTasks: number }[];
   }> {
-    const db = getDb();
+    const db = await getDb();
+    if (!db) return { success: false, message: '数据库不可用' };
 
     // 获取账号信息
     const [account] = await db
@@ -295,7 +296,8 @@ export class AccountInitializationService {
     completedAt?: string;
     error?: string;
   }> {
-    const db = getDb();
+    const db = await getDb();
+    if (!db) throw new Error('数据库不可用');
 
     // 获取账号状态
     const [account] = await db
@@ -326,8 +328,8 @@ export class AccountInitializationService {
     }));
 
     // 计算总进度
-    const totalTasks = phases.reduce((sum, p) => sum + p.totalTasks, 0);
-    const completedTasks = phases.reduce((sum, p) => sum + p.completedTasks, 0);
+    const totalTasks = phases.reduce((sum: number, p: { totalTasks: number }) => sum + p.totalTasks, 0);
+    const completedTasks = phases.reduce((sum: number, p: { completedTasks: number }) => sum + p.completedTasks, 0);
     const overallProgress = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
 
     // 估算剩余时间（假设每个任务平均需要30秒）
@@ -354,7 +356,8 @@ export class AccountInitializationService {
     completedTasks: number,
     failedTasks: number = 0
   ): Promise<void> {
-    const db = getDb();
+    const db = await getDb();
+    if (!db) return;
 
     // 获取阶段记录
     const [record] = await db
@@ -398,7 +401,8 @@ export class AccountInitializationService {
    * 检查并更新整体初始化状态
    */
   private async checkAndUpdateOverallStatus(accountId: number): Promise<void> {
-    const db = getDb();
+    const db = await getDb();
+    if (!db) return;
 
     const progressRecords = await db
       .select()
@@ -456,7 +460,8 @@ export class AccountInitializationService {
     success: boolean;
     message: string;
   }> {
-    const db = getDb();
+    const db = await getDb();
+    if (!db) return { success: false, message: '数据库不可用' };
 
     // 获取失败的阶段
     const failedPhases = await db
@@ -507,7 +512,8 @@ export class AccountInitializationService {
    * 检查账号是否已完成初始化
    */
   async isInitializationCompleted(accountId: number): Promise<boolean> {
-    const db = getDb();
+    const db = await getDb();
+    if (!db) return false;
 
     const [account] = await db
       .select({ status: adAccounts.initializationStatus })
@@ -527,7 +533,8 @@ export class AccountInitializationService {
     marketplace: string;
     status: string;
   }[]> {
-    const db = getDb();
+    const db = await getDb();
+    if (!db) return [];
 
     const accounts = await db
       .select({

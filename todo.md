@@ -5140,3 +5140,14 @@ Amazon Advertising API数据有12-24小时延迟，当天广告数据通常在�
 ### 数据库更新
 - [x] report_jobs表添加priority字段
 - [x] report_jobs表添加metadata字段（存储分层信息和进度追踪）
+
+
+## 修复数据库和API客户端问题（第五十二阶段）
+
+### 数据库同步
+- [ ] 同步drizzle schema中的initializationStatus等字段与数据库
+- [ ] 修复SQS Consumer查询ad_accounts表的错误
+
+### API客户端修复
+- [ ] 修复asyncReportService中的apiClient.setProfileId调用
+- [ ] 确保报告任务能正常提交到Amazon API
