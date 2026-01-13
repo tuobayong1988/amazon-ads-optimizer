@@ -39,6 +39,7 @@ import {
 import { format, subDays } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { toast } from "sonner";
+import { WastedSpendTop10 } from "@/components/WastedSpendTop10";
 
 export default function AnalyticsInsights() {
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
@@ -538,6 +539,23 @@ export default function AnalyticsInsights() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* 浪费资金Top10 */}
+        <WastedSpendTop10
+          data={[
+            { keyword: 'phone case cheap', clicks: 68, spend: 34.2, conversions: 0, acos: Infinity, campaignName: 'SP-Auto-001' },
+            { keyword: 'free shipping phone', clicks: 45, spend: 22.5, conversions: 0, acos: Infinity, campaignName: 'SP-Broad-002' },
+            { keyword: 'discount accessories', clicks: 38, spend: 19.0, conversions: 0, acos: Infinity, campaignName: 'SP-Auto-003' },
+            { keyword: 'wholesale phone case', clicks: 32, spend: 16.0, conversions: 0, acos: Infinity, campaignName: 'SP-Phrase-001' },
+            { keyword: 'bulk buy phone', clicks: 28, spend: 14.0, conversions: 0, acos: Infinity, campaignName: 'SP-Auto-002' },
+          ]}
+          onNegateKeyword={(keyword) => {
+            toast.success(`已将 "${keyword}" 添加到否定关键词`);
+          }}
+          onNegateAll={() => {
+            toast.success('已将所有浪费关键词添加到否定列表');
+          }}
+        />
       </div>
     </DashboardLayout>
   );

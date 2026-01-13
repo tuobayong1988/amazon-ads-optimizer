@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useUserRole } from "@/hooks/useUserRole";
 import DashboardLayout from "@/components/DashboardLayout";
 import { useCurrentAccountId, setCurrentAccountId } from "@/components/AccountSwitcher";
 import { ApiHealthMonitor } from "@/components/ApiHealthMonitor";
@@ -113,6 +114,7 @@ const initialFormData: AccountFormData = {
 
 export default function AmazonApiSettings() {
   const { user, loading: authLoading } = useAuth();
+  const { canViewTechnicalDetails } = useUserRole();
   const globalAccountId = useCurrentAccountId();
   const [selectedAccountId, setSelectedAccountIdLocal] = useState<number | null>(null);
   
@@ -3927,7 +3929,7 @@ export default function AmazonApiSettings() {
 
           {/* Dual Track Sync Tab */}
           <TabsContent value="dual-track" className="space-y-4">
-            <DualTrackSyncPanel accountId={selectedAccountId!} />
+            <DualTrackSyncPanel accountId={selectedAccountId!} isPlatformAdmin={canViewTechnicalDetails} />
           </TabsContent>
 
           {/* Guide Tab */}

@@ -268,8 +268,13 @@ async function processReportData(request: ReportRequest, data: any[]): Promise<v
 
 /**
  * 处理广告活动报告数据
+ * 
+ * 字段映射说明 (基于亓马逊广告API专家提供的Postman配置):
+ * - SP (Sponsored Products): 使用 spend, sales7d, purchases7d
+ * - SB (Sponsored Brands): 使用 cost, salesClicks, purchasesClicks
+ * - SD (Sponsored Display): 使用 cost, salesClicks, purchasesClicks
  */
-async function processCampaignReportData(accountId: number, data: any[]): Promise<void> {
+async function processCampaignReportData(accountId: number, data: any[], adType?: string): Promise<void> {
   const database = await db.getDb();
   if (!database) {
     return;
@@ -283,18 +288,43 @@ async function processCampaignReportData(accountId: number, data: any[]): Promis
 
     // 查找本地campaign
     const campaignResult = await database.execute(sql`
-      SELECT id FROM campaigns WHERE amazonCampaignId = ${campaignId} AND accountId = ${accountId}
+      SELECT id, adType FROM campaigns WHERE amazonCampaignId = ${campaignId} AND accountId = ${accountId}
     `);
 
     const campaigns = (campaignResult as any[])[0] || campaignResult;
     if (!campaigns || campaigns.length === 0) continue;
 
     const localCampaignId = campaigns[0].id;
+    const campaignAdType = adType || campaigns[0].adType || 'SP';
+    
+    // 根据广告类型提取正确的字段
     const impressions = row.impressions || 0;
     const clicks = row.clicks || 0;
-    const spend = row.cost || row.spend || 0;
-    const sales = row.sales || row.attributedSales14d || 0;
-    const orders = row.orders || row.attributedConversions14d || 0;
+    
+    // 花费字段映射: SP使用spend, SB/SD使用cost
+    const spend = row.spend || row.cost || 0;
+    
+    // 销售额字段映射:
+    // SP: sales7d > sales14d > sales
+    // SB/SD: salesClicks > sales
+    let sales = 0;
+    if (campaignAdType === 'SP') {
+      sales = row.sales7d || row.sales14d || row.sales || 0;
+    } else {
+      // SB/SD 使用 Clicks 后缀
+      sales = row.salesClicks || row.sales || 0;
+    }
+    
+    // 订单数字段映射:
+    // SP: purchases7d > purchases14d > purchases
+    // SB/SD: purchasesClicks > purchases
+    let orders = 0;
+    if (campaignAdType === 'SP') {
+      orders = row.purchases7d || row.purchases14d || row.purchases || 0;
+    } else {
+      // SB/SD 使用 Clicks 后缀
+      orders = row.purchasesClicks || row.purchases || 0;
+    }
 
     // 更新绩效数据
     await database.execute(sql`
@@ -311,29 +341,51 @@ async function processCampaignReportData(accountId: number, data: any[]): Promis
     updatedCount++;
   }
 
-  console.log(`[AsyncReportService] 更新了 ${updatedCount} 个广告活动的绩效数据`);
+  console.log(`[AsyncReportService] 更新了 ${updatedCount} 个广告活动的绩效数据 (广告类型: ${adType || 'mixed'})`);
 }
 
 /**
- * 处理关键词报告数据
+ * 处理关键词/定向报告数据
+ * 
+ * 字段映射说明 (基于亓马逊广告API专家提供的Postman配置):
+ * - SP: 使用 sales7d, purchases7d, acosClicks7d, roasClicks7d
+ * - SB/SD: 使用 salesClicks, purchasesClicks
  */
-async function processKeywordReportData(accountId: number, data: any[]): Promise<void> {
+async function processKeywordReportData(accountId: number, data: any[], adType?: string): Promise<void> {
   const database = await db.getDb();
   if (!database) {
     return;
   }
 
   let updatedCount = 0;
+  const detectedAdType = adType || 'SP';
 
   for (const row of data) {
-    const keywordId = row.keywordId;
+    // 支持多种ID字段: keywordId, targetId
+    const keywordId = row.keywordId || row.targetId;
     if (!keywordId) continue;
 
     const impressions = row.impressions || 0;
     const clicks = row.clicks || 0;
-    const spend = row.cost || row.spend || 0;
-    const sales = row.sales || row.attributedSales14d || 0;
-    const orders = row.orders || row.attributedConversions14d || 0;
+    
+    // 花费字段映射
+    const spend = row.spend || row.cost || 0;
+    
+    // 销售额字段映射
+    let sales = 0;
+    if (detectedAdType === 'SP') {
+      sales = row.sales7d || row.sales14d || row.sales || 0;
+    } else {
+      sales = row.salesClicks || row.sales || 0;
+    }
+    
+    // 订单数字段映射
+    let orders = 0;
+    if (detectedAdType === 'SP') {
+      orders = row.purchases7d || row.purchases14d || row.purchases || 0;
+    } else {
+      orders = row.purchasesClicks || row.purchases || 0;
+    }
 
     // 更新关键词绩效数据
     await database.execute(sql`
@@ -350,7 +402,7 @@ async function processKeywordReportData(accountId: number, data: any[]): Promise
     updatedCount++;
   }
 
-  console.log(`[AsyncReportService] 更新了 ${updatedCount} 个关键词的绩效数据`);
+  console.log(`[AsyncReportService] 更新了 ${updatedCount} 个关键词/定向的绩效数据 (广告类型: ${detectedAdType})`);
 }
 
 /**

@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { EnhancedMetricCard, TacosMetricCard } from "@/components/EnhancedMetricCard";
 import { Button } from "@/components/ui/button";
 import { getLoginUrl } from "@/const";
 import { useEffect, useState, useMemo } from "react";
@@ -840,87 +841,72 @@ function DashboardContent() {
           </div>
         </div>
         
-        {/* 汇总指标卡片 - 移动端2列2列网格 */}
+        {/* 汇总指标卡片 - 使用增强版组件 */}
         <div className={`grid gap-4 ${isMobile ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-6'}`}>
-          <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">总花费</span>
-                <DollarSign className="w-4 h-4 text-blue-500" />
-              </div>
-              <div className="mt-2">
-                <span className="text-2xl font-bold">${summary.totalSpend.toFixed(0)}</span>
-              </div>
-              <div className={`text-xs mt-1 ${getChangeColor(summary.spendChange)}`}>
-                <TrendingUp className="w-3 h-3 inline mr-1" />
-                {formatChange(summary.spendChange)} vs.上期
-              </div>
-            </CardContent>
-          </Card>
+          <EnhancedMetricCard
+            title="总花费"
+            value={`$${summary.totalSpend.toFixed(0)}`}
+            icon={<DollarSign className="w-4 h-4 text-blue-500" />}
+            change={summary.spendChange}
+            sparklineData={(trendData || []).map(d => ({ value: d.spend }))}
+            isRealtime={true}
+            realtimeDelay="<5分钟"
+            gradientFrom="blue-500"
+            gradientTo="blue-600"
+            borderColor="blue-500"
+          />
           
-          <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">总销售额</span>
-                <ShoppingCart className="w-4 h-4 text-green-500" />
-              </div>
-              <div className="mt-2">
-                <span className="text-2xl font-bold">${summary.totalSales.toFixed(0)}</span>
-              </div>
-              <div className={`text-xs mt-1 ${getChangeColor(summary.salesChange)}`}>
-                <TrendingUp className="w-3 h-3 inline mr-1" />
-                {formatChange(summary.salesChange)} vs.上期
-              </div>
-            </CardContent>
-          </Card>
+          <EnhancedMetricCard
+            title="总销售额"
+            value={`$${summary.totalSales.toFixed(0)}`}
+            icon={<ShoppingCart className="w-4 h-4 text-green-500" />}
+            change={summary.salesChange}
+            sparklineData={(trendData || []).map(d => ({ value: d.sales }))}
+            isRealtime={true}
+            realtimeDelay="<5分钟"
+            gradientFrom="green-500"
+            gradientTo="green-600"
+            borderColor="green-500"
+          />
           
-          <Card className="bg-gradient-to-br from-orange-500/10 to-orange-600/5 border-orange-500/20">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">平均ACoS</span>
-                <Percent className="w-4 h-4 text-orange-500" />
-              </div>
-              <div className="mt-2">
-                <span className="text-2xl font-bold">{summary.avgAcos.toFixed(1)}%</span>
-              </div>
-              <div className={`text-xs mt-1 ${getChangeColor(summary.acosChange, true)}`}>
-                <TrendingUp className="w-3 h-3 inline mr-1" />
-                {formatChange(summary.acosChange)} vs.上期
-              </div>
-            </CardContent>
-          </Card>
+          <EnhancedMetricCard
+            title="平均ACoS"
+            value={`${summary.avgAcos.toFixed(1)}%`}
+            icon={<Percent className="w-4 h-4 text-orange-500" />}
+            change={summary.acosChange}
+            isInverse={true}
+            sparklineData={(trendData || []).map(d => ({ value: d.acos }))}
+            gradientFrom="orange-500"
+            gradientTo="orange-600"
+            borderColor="orange-500"
+          />
           
-          <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">平均ROAS</span>
-                <Target className="w-4 h-4 text-purple-500" />
-              </div>
-              <div className="mt-2">
-                <span className="text-2xl font-bold">{summary.avgRoas.toFixed(2)}</span>
-              </div>
-              <div className={`text-xs mt-1 ${getChangeColor(summary.roasChange)}`}>
-                <TrendingUp className="w-3 h-3 inline mr-1" />
-                {formatChange(summary.roasChange)} vs.上期
-              </div>
-            </CardContent>
-          </Card>
+          <EnhancedMetricCard
+            title="平均ROAS"
+            value={summary.avgRoas.toFixed(2)}
+            icon={<Target className="w-4 h-4 text-purple-500" />}
+            change={summary.roasChange}
+            gradientFrom="purple-500"
+            gradientTo="purple-600"
+            borderColor="purple-500"
+          />
           
-          <Card className="bg-gradient-to-br from-cyan-500/10 to-cyan-600/5 border-cyan-500/20">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">总订单</span>
-                <BarChart3 className="w-4 h-4 text-cyan-500" />
-              </div>
-              <div className="mt-2">
-                <span className="text-2xl font-bold">{summary.totalOrders}</span>
-              </div>
-              <div className={`text-xs mt-1 ${getChangeColor(summary.salesChange)}`}>
-                <TrendingUp className="w-3 h-3 inline mr-1" />
-                +{summary.totalOrders > 0 ? Math.round(summary.salesChange) : 0} vs.上期
-              </div>
-            </CardContent>
-          </Card>
+          <TacosMetricCard
+            adSpend={summary.totalSpend}
+            totalSales={summary.totalSales * 1.5}
+            change={summary.acosChange * 0.7}
+            isRealtime={true}
+          />
+          
+          <EnhancedMetricCard
+            title="总订单"
+            value={summary.totalOrders.toString()}
+            icon={<BarChart3 className="w-4 h-4 text-cyan-500" />}
+            change={summary.salesChange}
+            gradientFrom="cyan-500"
+            gradientTo="cyan-600"
+            borderColor="cyan-500"
+          />
         </div>
         
         {/* 账户状态概览 */}

@@ -64,6 +64,7 @@ import LocalLogin from "@/pages/LocalLogin";
 import Blog from "@/pages/Blog";
 import BlogPost from "@/pages/BlogPost";
 import MarginalBenefitAnalysis from "@/pages/MarginalBenefitAnalysis";
+import SellerOnboarding from "@/pages/SellerOnboarding";
 
 function Router() {
   return (
@@ -131,6 +132,8 @@ function Router() {
       {/* 自动化控制和自动运营已整合到智能优化中心 */}
       <Route path="/automation-control">{() => { window.location.href = '/optimization-engine'; return null; }}</Route>
       <Route path="/auto-operation">{() => { window.location.href = '/optimization-engine'; return null; }}</Route>
+      <Route path="/onboarding" component={SellerOnboarding} />
+      <Route path="/seller-onboarding" component={SellerOnboarding} />
       <Route path="/register" component={InviteRegister} />
       <Route path="/local-login" component={LocalLogin} />
       <Route path="/blog" component={Blog} />

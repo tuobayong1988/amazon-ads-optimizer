@@ -715,22 +715,33 @@ export class AmazonAdsApiClient {
           adProduct: 'SPONSORED_PRODUCTS',
           groupBy: ['campaign'],
           columns: [
+            // 基础信息
             'date',
             'campaignId',
             'campaignName',
-            'campaignStatus',              // 广告活动状态
-            'campaignBudgetAmount',        // 预算金额 (修正字段名)
-            'campaignBudgetCurrencyCode',  // 预算货币
-            'campaignBudgetType',          // 预算类型
-            'campaignRuleBasedBudgetAmount', // 规则预算金额 (修正字段名)
-            'impressions',                 // 曝光量
-            'clicks',                      // 点击量
-            'cost',                        // 花费
-            'sales7d',                     // ✅ 7天归因销售额 (修正字段名)
-            'unitsSoldClicks7d',           // ✅ 7天归因订单单位数 (修正字段名)
-            'purchases7d',                 // ✅ 7天归因转化数 (修正字段名)
-            'attributedSalesSameSku7d',    // ✅ 7天同SKU销售额 (修正字段名)
-            'unitsSoldSameSku7d'           // ✅ 7天同SKU订单单位数 (修正字段名)
+            'campaignStatus',
+            'campaignBudgetAmount',
+            'campaignBudgetCurrencyCode',
+            'campaignBudgetType',
+            // 流量指标
+            'impressions',
+            'clicks',
+            'clickThroughRate',
+            // 花费指标 (SP使用spend而非cost)
+            'spend',
+            'costPerClick',
+            // 7天归因销售指标 (SP专用 - 基于专家Postman配置)
+            'sales7d',
+            'purchases7d',
+            'unitsSoldClicks7d',
+            // 同SKU指标
+            'attributedSalesSameSku7d',
+            'unitsSoldSameSku7d',
+            'purchasesSameSku7d',
+            // 14天归因指标
+            'sales14d',
+            'purchases14d',
+            'unitsSoldClicks14d'
           ],
           reportTypeId: 'spCampaigns',
           timeUnit: 'DAILY',
@@ -845,22 +856,49 @@ export class AmazonAdsApiClient {
           adProduct: 'SPONSORED_BRANDS',
           groupBy: ['campaign'],
           columns: [
+            // 基础信息
             'date',
             'campaignId',
             'campaignName',
-            'campaignStatus',              // 广告活动状态
-            'campaignBudgetAmount',        // 预算金额
-            'campaignBudgetCurrencyCode',  // 预算货币
-            'campaignBudgetType',          // 预算类型
-            'impressions',                 // 曝光量
-            'clicks',                      // 点击量
-            'cost',                        // 花费
-            'purchasesClicks',             // ✅ 订单数 (修正字段名 - 点击归因)
-            'salesClicks',                 // ✅ 销售额 (修正字段名 - 点击归因)
-            'detailPageViewsClicks',       // ✅ 详情页浏览量 (修正字段名)
-            'newToBrandPurchasesClicks',   // ✅ 新客购买数 (修正字段名)
-            'newToBrandSalesClicks',       // ✅ 新客销售额 (修正字段名)
-            'unitsSoldClicks'              // ✅ 售出单位数 (修正字段名)
+            'campaignStatus',
+            'campaignBudgetAmount',
+            'campaignBudgetCurrencyCode',
+            'campaignBudgetType',
+            'costType',
+            // 流量指标
+            'impressions',
+            'clicks',
+            'viewClickThroughRate',
+            'viewabilityRate',
+            'viewableImpressions',
+            // 花费指标 (SB使用cost)
+            'cost',
+            // 销售指标 (SB使用Clicks后缀 - 基于专家Postman配置)
+            'sales',
+            'salesClicks',
+            'purchases',
+            'purchasesClicks',
+            'unitsSold',
+            'unitsSoldClicks',
+            // 详情页浏览
+            'detailPageViews',
+            'detailPageViewsClicks',
+            // 加购指标
+            'addToCart',
+            'addToCartClicks',
+            'addToCartRate',
+            // 品牌搜索
+            'brandedSearches',
+            'brandedSearchesClicks',
+            // 新客指标
+            'newToBrandPurchases',
+            'newToBrandPurchasesClicks',
+            'newToBrandSales',
+            'newToBrandSalesClicks',
+            'newToBrandUnitsSold',
+            'newToBrandUnitsSoldClicks',
+            // 搜索份额
+            'topOfSearchImpressionShare'
           ],
           reportTypeId: 'sbCampaigns',
           timeUnit: 'DAILY',
@@ -919,22 +957,49 @@ export class AmazonAdsApiClient {
           adProduct: 'SPONSORED_DISPLAY',
           groupBy: ['campaign'],
           columns: [
+            // 基础信息
             'date',
             'campaignId',
             'campaignName',
-            'campaignStatus',              // 广告活动状态
-            'campaignBudgetAmount',        // 预算金额
-            'campaignBudgetCurrencyCode',  // 预算货币
-            // SD不支持 campaignBudgetType 和 viewableImpressions
-            'impressions',                 // 曝光量
-            'clicks',                      // 点击量
-            'cost',                        // 花费
-            'purchasesClicks',             // ✅ 订单数 (点击归因)
-            'salesClicks',                 // ✅ 销售额 (点击归因)
-            'detailPageViewsClicks',       // ✅ 详情页浏览量
-            'newToBrandPurchasesClicks',   // ✅ 新客购买数
-            'newToBrandSalesClicks',       // ✅ 新客销售额
-            'unitsSoldClicks'              // ✅ 售出单位数
+            'campaignStatus',
+            'campaignBudgetAmount',
+            'campaignBudgetCurrencyCode',
+            'costType',
+            // 流量指标
+            'impressions',
+            'impressionsViews',
+            'cumulativeReach',
+            'clicks',
+            'viewClickThroughRate',
+            'viewabilityRate',
+            // 花费指标 (SD使用cost)
+            'cost',
+            // 销售指标 (SD使用Clicks后缀 - 基于专家Postman配置)
+            'sales',
+            'salesClicks',
+            'purchases',
+            'purchasesClicks',
+            'unitsSold',
+            'unitsSoldClicks',
+            // 详情页浏览
+            'detailPageViews',
+            'detailPageViewsClicks',
+            // 加购指标
+            'addToCart',
+            'addToCartClicks',
+            'addToCartViews',
+            'addToCartRate',
+            // 品牌搜索
+            'brandedSearches',
+            'brandedSearchesClicks',
+            'brandedSearchesViews',
+            // 新客指标
+            'newToBrandPurchases',
+            'newToBrandPurchasesClicks',
+            'newToBrandSales',
+            'newToBrandSalesClicks',
+            'newToBrandUnitsSold',
+            'newToBrandUnitsSoldClicks'
           ],
           reportTypeId: 'sdCampaigns',
           timeUnit: 'DAILY',

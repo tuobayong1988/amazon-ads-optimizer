@@ -23,6 +23,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { QuickActions } from "@/components/QuickActions";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { 
@@ -1728,45 +1729,23 @@ export default function Campaigns() {
         );
       case 'actions':
         return (
-          <div className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 p-0"
-              onClick={() => handleToggleStatus(campaign)}
-              title={campaign.campaignStatus === "enabled" ? "暂停" : "启用"}
-            >
-              {campaign.campaignStatus === "enabled" ? (
-                <Pause className="w-4 h-4 text-yellow-500" />
-              ) : (
-                <Play className="w-4 h-4 text-green-500" />
-              )}
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 p-0"
-              onClick={() => handleEditBudget(campaign)}
-              title="编辑预算"
-            >
-              <DollarSign className="w-4 h-4 text-blue-500" />
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                  <MoreHorizontal className="w-4 h-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => toast.info("功能开发中")}>
-                  查看关键词
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => toast.info("功能开发中")}>
-                  查看竞价日志
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
+          <QuickActions
+            campaignId={campaign.campaignId}
+            campaignName={campaign.campaignName}
+            currentStatus={campaign.campaignStatus as "enabled" | "paused"}
+            currentBudget={campaign.dailyBudget || 0}
+            currentBid={campaign.defaultBid || 0}
+            onStatusChange={(newStatus) => {
+              handleToggleStatus(campaign);
+            }}
+            onBudgetChange={(newBudget) => {
+              handleEditBudget(campaign);
+            }}
+            onBidChange={(newBid) => {
+              toast.info("竞价调整功能开发中");
+            }}
+            compact={true}
+          />
         );
       default:
         return null;

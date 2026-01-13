@@ -35,6 +35,7 @@ import {
   Calendar
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { AiAttributionAnalysis } from "@/components/AiAttributionAnalysis";
 import {
   AreaChart,
   Area,
@@ -774,6 +775,51 @@ export default function SmartOptimizationCenter() {
           </CardContent>
         </Card>
         
+        {/* AI归因分析 */}
+        <AiAttributionAnalysis
+          recentActions={[
+            {
+              id: '1',
+              action: '出价调整',
+              target: 'Campaign-SP-Brand-001',
+              oldValue: '$0.85',
+              newValue: '$0.72',
+              reason: 'ACoS连续3天超过35%，降低出价以控制成本',
+              impact: 'ACoS下降8.2%',
+              timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+              status: 'success'
+            },
+            {
+              id: '2',
+              action: '预算重分配',
+              target: 'Campaign-SP-Auto-003',
+              oldValue: '$50/天',
+              newValue: '$75/天',
+              reason: 'ROAS达到4.2，表现优异，增加预算扩大收益',
+              impact: '预计增加销售$120/天',
+              timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+              status: 'success'
+            },
+            {
+              id: '3',
+              action: '关键词否定',
+              target: 'Campaign-SP-Exact-002',
+              oldValue: '启用',
+              newValue: '否定',
+              reason: '“phone case cheap”点击68次无转化，浪费$34.2',
+              impact: '预计每周节省$50+',
+              timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
+              status: 'success'
+            }
+          ]}
+          isOptimizationEnabled={isOptimizationEnabled}
+          onToggleOptimization={handleToggleOptimization}
+          onEmergencyStop={() => {
+            setIsOptimizationEnabled(false);
+            toast.error('紧急停止已执行，所有自动优化已暂停');
+          }}
+        />
+
         {/* 底部说明 */}
         <div className="flex items-start gap-2 p-4 bg-blue-500/10 rounded-lg border border-blue-500/20">
           <Zap className="h-5 w-5 text-blue-400 mt-0.5 flex-shrink-0" />

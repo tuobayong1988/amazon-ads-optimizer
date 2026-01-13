@@ -32,9 +32,10 @@ import { zhCN } from 'date-fns/locale';
 
 interface DualTrackSyncPanelProps {
   accountId: number;
+  isPlatformAdmin?: boolean; // 是否为平台管理员，用于控制SQS/AWS配置的显示
 }
 
-export function DualTrackSyncPanel({ accountId }: DualTrackSyncPanelProps) {
+export function DualTrackSyncPanel({ accountId, isPlatformAdmin = false }: DualTrackSyncPanelProps) {
   const [isCheckingConsistency, setIsCheckingConsistency] = useState(false);
   const [isCreatingSubscriptions, setIsCreatingSubscriptions] = useState(false);
 
@@ -273,12 +274,13 @@ export function DualTrackSyncPanel({ accountId }: DualTrackSyncPanelProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {/* SQS配置信息 */}
-          {sqsConfig && (
+          {/* SQS配置信息 - 仅平台管理员可见 */}
+          {isPlatformAdmin && sqsConfig && (
             <div className="p-3 rounded-lg bg-muted/50 mb-4">
               <div className="flex items-center gap-2 mb-2">
                 <Settings2 className="w-4 h-4 text-muted-foreground" />
                 <span className="text-sm font-medium">SQS配置</span>
+                <Badge variant="outline" className="text-xs">管理员</Badge>
               </div>
               <div className="text-xs text-muted-foreground font-mono break-all">
                 {sqsConfig.queueArn || '未配置'}

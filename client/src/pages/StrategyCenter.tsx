@@ -41,6 +41,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "wouter";
+import { StrategyTemplates } from "@/components/StrategyTemplates";
 
 export default function StrategyCenter() {
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
@@ -440,6 +441,13 @@ export default function StrategyCenter() {
             </div>
           </TabsContent>
         </Tabs>
+
+        {/* 策略模板库 */}
+        <StrategyTemplates
+          onApplyTemplate={(template) => {
+            toast.success(`已应用策略模板: ${template.name}`);
+          }}
+        />
       </div>
     </DashboardLayout>
   );

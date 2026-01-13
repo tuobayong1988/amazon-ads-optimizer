@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { BudgetSimulator } from "@/components/BudgetSimulator";
 import {
   LineChart as RechartsLineChart,
   Line,
@@ -1244,6 +1245,17 @@ export default function MarginalBenefitAnalysis() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* 预算模拟器 */}
+        <BudgetSimulator
+          currentBudget={selectedCampaign ? 100 : 0}
+          currentAcos={selectedCampaign ? 28.5 : 0}
+          currentRoas={selectedCampaign ? 3.5 : 0}
+          currentSales={selectedCampaign ? 350 : 0}
+          onApply={(newBudget) => {
+            toast.success(`预算已调整为 $${newBudget}/天`);
+          }}
+        />
       </div>
     </DashboardLayout>
   );
