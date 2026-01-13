@@ -285,9 +285,25 @@ export class AsyncReportService {
 
         // 根据广告类型提交报告请求
         let reportId: string;
-        const payload = JSON.parse(job.requestPayload as string || '{}');
+        let payload: { adType?: string } = {};
+        
+        // 处理requestPayload可能是字符串或对象的情况
+        if (job.requestPayload) {
+          if (typeof job.requestPayload === 'string') {
+            try {
+              payload = JSON.parse(job.requestPayload);
+            } catch (e) {
+              console.log(`[AsyncReportService] Failed to parse requestPayload for job ${job.id}, using adProduct`);
+            }
+          } else if (typeof job.requestPayload === 'object') {
+            payload = job.requestPayload as { adType?: string };
+          }
+        }
+        
+        // 如果payload中没有adType，尝试使用adProduct字段
+        const adType = payload.adType || (job as any).adProduct;
 
-        switch (payload.adType) {
+        switch (adType) {
           case 'SP':
             reportId = await apiClient.requestSpCampaignReport(job.startDate, job.endDate);
             break;

@@ -2,6 +2,8 @@
  * 触发智能分层全量同步脚本
  * 
  * 使用方法: node scripts/trigger-tiered-sync.mjs
+ * 
+ * 注意：每个任务为每种广告类型(SP/SB/SD)创建单独的任务
  */
 
 import mysql from 'mysql2/promise';
@@ -49,6 +51,9 @@ const TIER_CONFIG = {
     priority: 'low',
   },
 };
+
+// 广告类型
+const AD_TYPES = ['SP', 'SB', 'SD'];
 
 // 生成日期切片
 function generateDateSlices(startDay, endDay, sliceSize) {
@@ -117,39 +122,46 @@ async function main() {
         const config = TIER_CONFIG[tier];
         const slices = generateDateSlices(config.startDay, config.endDay, config.sliceSize);
         
-        console.log(`   📊 ${config.name}: ${slices.length} 个切片 × ${config.reportTypes.length} 种报告类型`);
+        const tasksPerTier = slices.length * config.reportTypes.length * AD_TYPES.length;
+        console.log(`   📊 ${config.name}: ${slices.length} 切片 × ${config.reportTypes.length} 报告类型 × ${AD_TYPES.length} 广告类型 = ${tasksPerTier} 任务`);
         
         for (const slice of slices) {
           for (const reportType of config.reportTypes) {
-            // 创建任务
-            const metadata = JSON.stringify({
-              tier,
-              reportType,
-              tierConfig: config,
-              processedRanges: [],
-              failedRanges: [],
-            });
-            
-            await connection.execute(
-              `INSERT INTO report_jobs 
-               (accountId, profileId, reportType, adProduct, startDate, endDate, status, priority, retryCount, metadata, createdAt)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-              [
-                account.id,
-                account.profileId || '',
-                `tiered_${tier}_${reportType}`,
-                'ALL',
-                slice.startDate,
-                slice.endDate,
-                'pending',
-                config.priority,
-                0,
-                metadata,
-              ]
-            );
-            
-            tasksByTier[tier]++;
-            totalTasksCreated++;
+            // 为每种广告类型创建单独的任务
+            for (const adType of AD_TYPES) {
+              const metadata = JSON.stringify({
+                tier,
+                reportType,
+                adType,
+                tierConfig: config,
+                processedRanges: [],
+                failedRanges: [],
+              });
+              
+              const requestPayload = JSON.stringify({ adType });
+              
+              await connection.execute(
+                `INSERT INTO report_jobs 
+                 (accountId, profileId, reportType, adProduct, startDate, endDate, status, priority, retryCount, requestPayload, metadata, createdAt)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+                [
+                  account.id,
+                  account.profileId || '',
+                  `tiered_${tier}_${reportType}`,
+                  adType,
+                  slice.startDate,
+                  slice.endDate,
+                  'pending',
+                  config.priority,
+                  0,
+                  requestPayload,
+                  metadata,
+                ]
+              );
+              
+              tasksByTier[tier]++;
+              totalTasksCreated++;
+            }
           }
         }
       }

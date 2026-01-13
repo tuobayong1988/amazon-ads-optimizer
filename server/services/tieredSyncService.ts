@@ -241,29 +241,33 @@ export class TieredSyncService {
       
       for (const slice of slices) {
         for (const reportType of config.reportTypes) {
-          // 创建任务（合并SP/SB/SD在一个任务中）
-          const [result] = await db.insert(reportJobs).values({
-            accountId,
-            profileId,
-            reportType: `tiered_${tier}_${reportType}`,
-            adProduct: 'ALL', // 合并所有广告类型
-            startDate: slice.startDate,
-            endDate: slice.endDate,
-            status: 'pending',
-            priority: config.priority,
-            retryCount: 0,
-            metadata: JSON.stringify({
-              tier,
-              reportType,
-              tierConfig: config,
-              processedRanges: [],
-              failedRanges: [],
-            }),
-            createdAt: new Date().toISOString(),
-          });
-          
-          taskIds.push(result.insertId);
-          tasksByTier[tier]++;
+          // 为每种广告类型创建单独的任务
+          for (const adType of ['SP', 'SB', 'SD'] as const) {
+            const [result] = await db.insert(reportJobs).values({
+              accountId,
+              profileId,
+              reportType: `tiered_${tier}_${reportType}`,
+              adProduct: adType,
+              startDate: slice.startDate,
+              endDate: slice.endDate,
+              status: 'pending',
+              priority: config.priority,
+              retryCount: 0,
+              requestPayload: JSON.stringify({ adType }),
+              metadata: JSON.stringify({
+                tier,
+                reportType,
+                adType,
+                tierConfig: config,
+                processedRanges: [],
+                failedRanges: [],
+              }),
+              createdAt: new Date().toISOString(),
+            });
+            
+            taskIds.push(result.insertId);
+            tasksByTier[tier]++;
+          }
         }
       }
     }
