@@ -345,6 +345,7 @@ export const SB_SEARCH_TERM_REPORT_CONFIG = {
 };
 
 // SD Campaign 报告配置 (基于专家提供的 sdCampaignDailyReport)
+// ✅ 确认: reportTypeId: 'sdCampaigns' 是正确的（Postman中有954次使用）
 export const SD_CAMPAIGN_REPORT_CONFIG = {
   adProduct: 'SPONSORED_DISPLAY',
   reportTypeId: 'sdCampaigns',
@@ -357,10 +358,7 @@ export const SD_CAMPAIGN_REPORT_CONFIG = {
     'date',
     'campaignId',
     'campaignName',
-    'campaignStatus',
-    'campaignBudgetAmount',
     'campaignBudgetCurrencyCode',
-    'costType',
     // 流量指标
     'impressions',
     'impressionsViews',
@@ -371,6 +369,7 @@ export const SD_CAMPAIGN_REPORT_CONFIG = {
     'viewabilityRate',
     // 花费指标
     'cost',
+    'costType',
     // 销售指标 (SD使用Clicks后缀)
     'sales',
     'salesClicks',
@@ -419,8 +418,6 @@ export const SD_CAMPAIGN_REPORT_CONFIG = {
     'date',
     'campaignId',
     'campaignName',
-    'campaignStatus',
-    'campaignBudgetAmount',
     'campaignBudgetCurrencyCode',
     'impressions',
     'clicks',

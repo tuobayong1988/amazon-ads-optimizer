@@ -120,6 +120,13 @@ export async function submitReportRequest(requestId: number): Promise<void> {
       case 'sp_keywords':
         reportId = await client.requestSpKeywordReport(req.startDate, req.endDate);
         break;
+      case 'sb_campaigns':
+        reportId = await client.requestSbCampaignReport(req.startDate, req.endDate);
+        break;
+      // SB keywords报告暂不支持，SB广告的关键词数据通过sb_campaigns报告获取
+      case 'sd_campaigns':
+        reportId = await client.requestSdCampaignReport(req.startDate, req.endDate);
+        break;
       default:
         throw new Error(`Unsupported report type: ${req.reportType}`);
     }
@@ -251,10 +258,17 @@ async function processReportData(request: ReportRequest, data: any[]): Promise<v
 
   switch (request.reportType) {
     case 'sp_campaigns':
-      await processCampaignReportData(request.accountId, data);
+      await processCampaignReportData(request.accountId, data, 'SP');
       break;
     case 'sp_keywords':
       await processKeywordReportData(request.accountId, data);
+      break;
+    case 'sb_campaigns':
+      await processCampaignReportData(request.accountId, data, 'SB');
+      break;
+    // SB keywords报告暂不支持
+    case 'sd_campaigns':
+      await processCampaignReportData(request.accountId, data, 'SD');
       break;
     default:
       console.log(`[AsyncReportService] 未实现的报告类型处理: ${request.reportType}`);
@@ -513,7 +527,29 @@ export async function createPerformanceSyncRequests(
   );
   requestIds.push(keywordRequestId);
 
-  console.log(`[AsyncReportService] 创建了 ${requestIds.length} 个绩效数据同步请求`);
+  // 创建SB品牌广告报告请求
+  const sbCampaignRequestId = await createReportRequest(
+    accountId,
+    account.profileId || '',
+    account.marketplace || '',
+    'sb_campaigns',
+    startDate,
+    endDate
+  );
+  requestIds.push(sbCampaignRequestId);
+
+  // 创建SD展示广告报告请求
+  const sdCampaignRequestId = await createReportRequest(
+    accountId,
+    account.profileId || '',
+    account.marketplace || '',
+    'sd_campaigns',
+    startDate,
+    endDate
+  );
+  requestIds.push(sdCampaignRequestId);
+
+  console.log(`[AsyncReportService] 创建了 ${requestIds.length} 个绩效数据同步请求 (SP/SB/SD)`);
   return requestIds;
 }
 

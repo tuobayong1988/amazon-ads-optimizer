@@ -4935,3 +4935,71 @@ Amazon Advertising API数据有12-24小时延迟，当天广告数据通常在�
 - [ ] 实现一键授权店铺功能
 - [ ] 授权后自动创建AMS订阅
 - [ ] 添加接入进度指示器
+
+## SB/SD报告同步修复（紧急）
+- [ ] 在asyncReportService.ts中添加SB报告处理逻辑
+- [ ] 在asyncReportService.ts中添加SD报告处理逻辑
+- [ ] 测试SB/SD报告同步功能
+
+
+## API请求配置修复（2026-01-13）
+- [x] SB报告添加filters配置
+- [x] SD报告确认reportTypeId并修复
+- [x] 补充SB/SD缺失的重要字段
+- [ ] 验证修复后的同步功能
+
+
+
+## API报告配置更新（根据Excel文档）
+
+### SB/SD报告字段配置更新
+- [x] 根据Excel文档更新SB Campaign报告请求字段配置
+- [x] 根据Excel文档更新SD Campaign报告请求字段配置
+- [x] 添加SD报告的campaignStatus和campaignBudgetAmount字段
+- [x] 为SD报告添加filters配置（与SB一致）
+- [x] 验证字段名称与API文档一致
+
+
+## 完整API报告配置更新（根据Excel文档）
+
+### SP广告报告配置
+- [ ] SP Campaign报告字段配置
+- [ ] SP Targeting报告字段配置
+- [ ] SP Search Term报告字段配置
+- [ ] SP Advertised Product报告字段配置
+- [ ] SP Placement报告字段配置
+- [ ] SP Purchased Product报告字段配置
+- [ ] SP Gross and Invalid Traffic报告字段配置
+
+### SB广告报告配置
+- [ ] SB Campaign报告字段配置
+- [ ] SB Keyword(Targeting)报告字段配置
+- [ ] SB Search Term报告字段配置
+- [ ] SB Campaign Placement报告字段配置
+- [ ] SB Category Benchmarks报告字段配置
+- [ ] SB Attributed Purchases报告字段配置
+- [ ] SB Gross and Invalid Traffic报告字段配置
+
+### SD广告报告配置
+- [ ] SD Campaign报告字段配置
+- [ ] SD Targeting报告字段配置
+- [ ] SD Advertised Product报告字段配置
+- [ ] SD Matched Target报告字段配置
+- [ ] SD Gross and Invalid Traffic报告字段配置
+
+
+## 根据Postman和API分析报告完善配置
+- [x] 对比Postman文档中的报告类型与当前配置
+- [x] 添加缺失的报告类型（sbAds、sdAdGroup、sdPurchasedProduct等）
+- [x] 补充缺失的字段（品牌光环指标、加购指标等）
+- [x] 验证reportTypeId和groupBy配置正确性
+- [x] 确保所有归因窗口字段配置正确
+
+
+## 广告活动API分页逻辑
+- [ ] 分析当前SP/SB/SD广告活动API的实现方式
+- [ ] 研究Amazon Ads API的分页机制（nextToken/maxResults）
+- [ ] 为SP广告活动列表API添加分页逻辑
+- [ ] 为SB广告活动列表API添加分页逻辑
+- [ ] 为SD广告活动列表API添加分页逻辑
+- [ ] 验证分页功能能够获取完整数据

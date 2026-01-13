@@ -715,33 +715,37 @@ export class AmazonAdsApiClient {
           adProduct: 'SPONSORED_PRODUCTS',
           groupBy: ['campaign'],
           columns: [
-            // 基础信息
+            // 基础信息 - 根据Excel文档SP Campaign sheet
             'date',
             'campaignId',
             'campaignName',
-            'campaignStatus',
-            'campaignBudgetAmount',
-            'campaignBudgetCurrencyCode',
-            'campaignBudgetType',
+            'campaignStatus',                    // Excel: campaignStatus - 状态
+            'campaignBudgetAmount',              // Excel: campaignBudgetAmount - 预算金额
+            'campaignBudgetCurrencyCode',        // Excel: campaignBudgetCurrencyCode - 货币
+            'campaignBudgetType',                // Excel: campaignBudgetType - 预算类型
             // 流量指标
-            'impressions',
-            'clicks',
-            'clickThroughRate',
-            // 花费指标 (SP使用spend而非cost)
-            'spend',
-            'costPerClick',
-            // 7天归因销售指标 (SP专用 - 基于专家Postman配置)
-            'sales7d',
-            'purchases7d',
-            'unitsSoldClicks7d',
+            'impressions',                       // Excel: impressions - 展示次数
+            'clicks',                            // Excel: clicks - 点击次数
+            'clickThroughRate',                  // Excel: clickThroughRate - 点击率
+            // 花费指标 (SP使用cost)
+            'cost',                              // Excel: cost - 支出 (注意: Excel显示为cost而非spend)
+            'costPerClick',                      // Excel: costPerClick - 每次点击费用
+            // 7天归因销售指标 (SP专用)
+            'sales7d',                           // Excel: sales7d - 7天总销售额
+            'purchases7d',                       // Excel: purchases7d - 7天订单总数
+            'unitsSoldClicks7d',                 // Excel: unitsSoldClicks7d - 7天总销量
             // 同SKU指标
-            'attributedSalesSameSku7d',
-            'unitsSoldSameSku7d',
-            'purchasesSameSku7d',
-            // 14天归因指标
-            'sales14d',
-            'purchases14d',
-            'unitsSoldClicks14d'
+            'attributedSalesSameSku7d',          // Excel: attributedSalesSameSku7d - 7天广告SKU销售额
+            'unitsSoldSameSku7d',                // Excel: unitsSoldSameSku7d - 7天广告SKU数量
+            'salesOtherSku7d',                   // Excel: salesOtherSku7d - 7天其他SKU销售额
+            'unitsSoldOtherSku7d'                // Excel: unitsSoldOtherSku7d - 7天其他SKU数量
+          ],
+          // 添加filters配置
+          filters: [
+            {
+              field: 'campaignStatus',
+              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
+            }
           ],
           reportTypeId: 'spCampaigns',
           timeUnit: 'DAILY',
@@ -784,22 +788,38 @@ export class AmazonAdsApiClient {
           adProduct: 'SPONSORED_PRODUCTS',
           groupBy: ['targeting'],
           columns: [
+            // 基础信息 - 根据Excel文档SP-Targeting sheet
             'date',
             'campaignId',
-            'campaignName',
+            'campaignName',                      // Excel: campaignName - 广告系列名称
+            'campaignBudgetCurrencyCode',        // Excel: campaignBudgetCurrencyCode - 货币
             'adGroupId',
-            'adGroupName',
+            'adGroupName',                       // Excel: adGroupName - 广告组名称
+            'advertisedSku',                     // Excel: advertisedSku - 已投放广告的SKU
+            'advertisedAsin',                    // Excel: advertisedAsin - 已投放广告的ASIN
             'targetId',
             'targetingExpression',
             'targetingText',
             'keywordType',
             'matchType',
-            'impressions',
-            'clicks',
-            'cost',
-            'sales7d',                   // ✅ 7天归因销售额 (修正字段名)
-            'unitsSoldClicks7d',         // ✅ 7天归因订单单位数 (修正字段名)
-            'purchases7d'                // ✅ 7天归因转化数 (修正字段名)
+            // 流量指标
+            'impressions',                       // Excel: impressions - 展示次数
+            'clicks',                            // Excel: clicks - 点击次数
+            'clickThroughRate',                  // Excel: clickThroughRate - 点击率
+            // 花费指标
+            'cost',                              // Excel: cost - 支出
+            'costPerClick',                      // Excel: costPerClick - 每次点击费用
+            // 7天归因销售指标
+            'sales7d',                           // Excel: sales7d - 7天总销售额
+            'acosClicks7d',                      // Excel: acosClicks7d - ACOS
+            'roasClicks7d',                      // Excel: roasClicks7d - ROAS
+            'purchases7d',                       // Excel: purchases7d - 7天订单总数
+            'unitsSoldClicks7d',                 // Excel: unitsSoldClicks7d - 7天总销量
+            // 同SKU/其他SKU指标
+            'unitsSoldSameSku7d',                // Excel: unitsSoldSameSku7d - 7天广告SKU数量
+            'unitsSoldOtherSku7d',               // Excel: unitsSoldOtherSku7d - 7天其他SKU数量
+            'attributedSalesSameSku7d',          // Excel: attributedSalesSameSku7d - 7天广告SKU销售额
+            'salesOtherSku7d'                    // Excel: salesOtherSku7d - 7天其他SKU销售额
           ],
           reportTypeId: 'spTargeting',
           timeUnit: 'SUMMARY',
@@ -844,10 +864,8 @@ export class AmazonAdsApiClient {
       console.log(`[Amazon API] 请求SB品牌广告活动报告: ${startDate} - ${endDate}`);
       
       // Amazon Ads Reporting API v3 正确格式
-      // 重要: SB报告必须使用 attributedSales14d 和 attributedConversions14d
-      // 使用 sales/purchases 字段会导致API返回空数据或0
-      // ⚠️ 注意: SB报表不能请求campaignBudget，否则可能报错或导致任务失败
-      // 预算需要通过 POST /sb/v4/campaigns/list 接口单独获取
+      // 重要: 基于专家提供的Postman配置
+      // ⚠️ 必须添加filters配置，否则可能返回空数据！
       const requestBody = {
         name: `SB Campaign Report ${startDate} to ${endDate}`,
         startDate,
@@ -856,49 +874,69 @@ export class AmazonAdsApiClient {
           adProduct: 'SPONSORED_BRANDS',
           groupBy: ['campaign'],
           columns: [
-            // 基础信息
+            // 基础信息 - 根据Excel文档SB Campaign sheet
             'date',
             'campaignId',
-            'campaignName',
+            'campaignName',                      // Excel: campaignName - 广告系列名称
             'campaignStatus',
             'campaignBudgetAmount',
-            'campaignBudgetCurrencyCode',
+            'campaignBudgetCurrencyCode',        // Excel: campaignBudgetCurrencyCode - 货币
             'campaignBudgetType',
-            'costType',
+            'costType',                          // Excel: costType - 费用类型
             // 流量指标
-            'impressions',
-            'clicks',
-            'viewClickThroughRate',
-            'viewabilityRate',
-            'viewableImpressions',
+            'impressions',                       // Excel: impressions - 展示次数
+            'clicks',                            // Excel: clicks - 点击次数
+            'viewableImpressions',               // Excel: viewableImpressions - 可见展示次数
+            'viewabilityRate',                   // Excel: viewabilityRate - 观看率 (VTR)
+            'viewClickThroughRate',              // Excel: viewClickThroughRate - 观看点击率 (vCTR)
             // 花费指标 (SB使用cost)
-            'cost',
-            // 销售指标 (SB使用Clicks后缀 - 基于专家Postman配置)
-            'sales',
-            'salesClicks',
-            'purchases',
-            'purchasesClicks',
-            'unitsSold',
-            'unitsSoldClicks',
+            'cost',                              // Excel: cost - 支出
+            // 14天归因销售指标 (SB使用14天归因)
+            'sales',                             // Excel: sales - 14天总销售额
+            'purchases',                         // Excel: purchases - 14天总订单量
+            'unitsSold',                         // Excel: unitsSold - 14天总单位数
+            // 点击归因指标
+            'salesClicks',                       // Excel: salesClicks - 14天总销售额(点击)
+            'purchasesClicks',                   // Excel: purchasesClicks - 14天订单总数(点击)
+            'unitsSoldClicks',                   // Excel: unitsSoldClicks - 14天总数量(点击)
             // 详情页浏览
-            'detailPageViews',
-            'detailPageViewsClicks',
-            // 加购指标
-            'addToCart',
-            'addToCartClicks',
-            'addToCartRate',
+            'detailPageViews',                   // Excel: detailPageViews - 14天详情页浏览量
+            // 视频指标
+            'videoFirstQuartileViews',           // Excel: videoFirstQuartileViews - 视频第一四分位观看次数
+            'videoMidpointViews',                // Excel: videoMidpointViews - 视频中间点观看次数
+            'videoThirdQuartileViews',           // Excel: videoThirdQuartileViews - 视频第三四分位观看次数
+            'videoCompleteViews',                // Excel: videoCompleteViews - 视频完整观看次数
+            'videoUnmutes',                      // Excel: videoUnmutes - 视频取消静音次数
+            'video5SecondViews',                 // Excel: video5SecondViews - 5秒观看次数
+            'video5SecondViewRate',              // Excel: video5SecondViewRate - 5秒观看率
             // 品牌搜索
-            'brandedSearches',
-            'brandedSearchesClicks',
+            'brandedSearches',                   // Excel: brandedSearches - 14天品牌搜索次数
+            'brandedSearchesClicks',             // Excel: brandedSearchesClicks - 品牌搜索点击转化率
             // 新客指标
-            'newToBrandPurchases',
-            'newToBrandPurchasesClicks',
-            'newToBrandSales',
-            'newToBrandSalesClicks',
-            'newToBrandUnitsSold',
-            'newToBrandUnitsSoldClicks',
-            // 搜索份额
-            'topOfSearchImpressionShare'
+            'newToBrandPurchases',               // Excel: newToBrandPurchases - 14天品牌新客户订单数
+            'newToBrandPurchasesPercentage',     // Excel: newToBrandPurchasesPercentage - 14天订单占比新品牌
+            'newToBrandSales',                   // Excel: newToBrandSales - 14天新品牌销售额
+            'newToBrandSalesPercentage',         // Excel: newToBrandSalesPercentage - 14天新品牌销售额占比
+            'newToBrandUnitsSold',               // Excel: newToBrandUnitsSold - 14天新品牌数量
+            'newToBrandUnitsSoldPercentage',     // Excel: newToBrandUnitsSoldPercentage - 14天新品牌数量占比
+            'newToBrandPurchasesRate',           // Excel: newToBrandPurchasesRate - 14天新品牌订单率
+            // 新品牌详情页
+            'newToBrandDetailPageViews',         // Excel: newToBrandDetailPageViews - 新品牌详情页浏览量
+            'newToBrandDetailPageViewsClicks',   // Excel: newToBrandDetailPageViewsClicks - 新品牌详情页浏览点击转化率
+            'newToBrandDetailPageViewRate',      // Excel: newToBrandDetailPageViewRate - 新品牌详情页浏览率
+            'newToBrandECPDetailPageView',       // Excel: newToBrandECPDetailPageView - 新品牌详情页每次浏览有效费用
+            // 加购指标
+            'addToCart',                         // Excel: addToCart - 14天ATC
+            'addToCartClicks',                   // Excel: addToCartClicks - 14天ATC点击次数
+            'addToCartRate',                     // Excel: addToCartRate - 14天ATCR
+            'eCPAddToCart'                       // Excel: eCPAddToCart - 每次加入购物车有效费用
+          ],
+          // ⚠️ 关键修复: 添加filters配置 - 基于专家Postman配置
+          filters: [
+            {
+              field: 'campaignStatus',
+              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
+            }
           ],
           reportTypeId: 'sbCampaigns',
           timeUnit: 'DAILY',
@@ -946,9 +984,8 @@ export class AmazonAdsApiClient {
       console.log(`[Amazon API] 请求SD展示广告活动报告: ${startDate} - ${endDate}`);
       
       // Amazon Ads Reporting API v3 正确格式
-      // 重要: SD报告必须使用 attributedSales14d 和 attributedConversions14d
-      // SD还需要 viewAttributedSales14d 和 viewAttributedConversions14d 来获取浏览归因数据
-      // 如果后台数据比API多，很可能是没加上浏览归因
+      // 重要: 基于专家提供的Postman配置
+      // reportTypeId: sdCampaigns 是正确的（Postman中有954次使用）
       const requestBody = {
         name: `SD Campaign Report ${startDate} to ${endDate}`,
         startDate,
@@ -957,17 +994,18 @@ export class AmazonAdsApiClient {
           adProduct: 'SPONSORED_DISPLAY',
           groupBy: ['campaign'],
           columns: [
-            // 基础信息
+            // 基础信息 - 根据Excel文档SD Campaign sheet
             'date',
             'campaignId',
             'campaignName',
-            'campaignStatus',
-            'campaignBudgetAmount',
-            'campaignBudgetCurrencyCode',
-            'costType',
+            'campaignStatus',              // Excel: campaignStatus - 状态
+            'campaignBudgetAmount',         // Excel: campaignBudgetAmount - 预算
+            'campaignBudgetCurrencyCode',   // Excel: campaignBudgetCurrencyCode - 货币
+            'costType',                     // Excel: costType - 费用类型
             // 流量指标
             'impressions',
             'impressionsViews',
+            'impressionsFrequencyAverage',
             'cumulativeReach',
             'clicks',
             'viewClickThroughRate',
@@ -977,8 +1015,10 @@ export class AmazonAdsApiClient {
             // 销售指标 (SD使用Clicks后缀 - 基于专家Postman配置)
             'sales',
             'salesClicks',
+            'salesPromotedClicks',
             'purchases',
             'purchasesClicks',
+            'purchasesPromotedClicks',
             'unitsSold',
             'unitsSoldClicks',
             // 详情页浏览
@@ -989,17 +1029,38 @@ export class AmazonAdsApiClient {
             'addToCartClicks',
             'addToCartViews',
             'addToCartRate',
+            'eCPAddToCart',
             // 品牌搜索
             'brandedSearches',
             'brandedSearchesClicks',
             'brandedSearchesViews',
+            'brandedSearchRate',
+            'eCPBrandSearch',
             // 新客指标
             'newToBrandPurchases',
             'newToBrandPurchasesClicks',
             'newToBrandSales',
             'newToBrandSalesClicks',
             'newToBrandUnitsSold',
-            'newToBrandUnitsSoldClicks'
+            'newToBrandUnitsSoldClicks',
+            'newToBrandDetailPageViews',
+            'newToBrandDetailPageViewClicks',
+            'newToBrandDetailPageViewViews',
+            'newToBrandDetailPageViewRate',
+            'newToBrandECPDetailPageView',
+            // 视频指标
+            'videoCompleteViews',
+            'videoFirstQuartileViews',
+            'videoMidpointViews',
+            'videoThirdQuartileViews',
+            'videoUnmutes'
+          ],
+          // ⚠️ 关键修复: 添加filters配置 - 与SB报告一致
+          filters: [
+            {
+              field: 'campaignStatus',
+              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
+            }
           ],
           reportTypeId: 'sdCampaigns',
           timeUnit: 'DAILY',
@@ -1046,16 +1107,22 @@ export class AmazonAdsApiClient {
           adProduct: 'SPONSORED_PRODUCTS',
           groupBy: ['campaign', 'placement'],
           columns: [
+            // 基础信息 - 根据Excel文档SP Placement sheet
             'date',
             'campaignId',
-            'campaignName',
-            'placementClassification',    // TOP_OF_SEARCH / DETAIL_PAGE / OTHER
-            'impressions',
-            'clicks',
-            'cost',
-            'sales7d',                     // ✅ 7天归因销售额 (修正字段名)
-            'unitsSoldClicks7d',           // ✅ 7天归因订单单位数 (修正字段名)
-            'purchases7d'                  // ✅ 7天归因转化数 (修正字段名)
+            'campaignName',                      // Excel: campaignName - 广告系列名称
+            'campaignBiddingStrategy',           // Excel: campaignBiddingStrategy - 出价策略
+            'placementClassification',           // Excel: placementClassification - 展示位置 (TOP_OF_SEARCH/DETAIL_PAGE/OTHER)
+            // 流量指标
+            'impressions',                       // Excel: impressions - 展示次数
+            'clicks',                            // Excel: clicks - 点击次数
+            // 花费指标
+            'cost',                              // Excel: cost - 支出
+            'costPerClick',                      // Excel: costPerClick - 每次点击费用
+            // 7天归因销售指标
+            'sales7d',                           // Excel: sales7d - 7天总销售额
+            'purchases7d',                       // Excel: purchases7d - 7天总订单量
+            'unitsSoldClicks7d'                  // Excel: unitsSoldClicks7d - 7天总单位数
           ],
           reportTypeId: 'spCampaigns',
           timeUnit: 'DAILY',
@@ -1102,21 +1169,34 @@ export class AmazonAdsApiClient {
           adProduct: 'SPONSORED_PRODUCTS',
           groupBy: ['searchTerm'],
           columns: [
+            // 基础信息 - 根据Excel文档SP Search term sheet
             'date',
             'campaignId',
-            'campaignName',
+            'campaignName',                      // Excel: campaignName - 广告系列名称
+            'campaignBudgetCurrencyCode',        // Excel: campaignBudgetCurrencyCode - 货币
             'adGroupId',
-            'adGroupName',
-            'keywordId',
-            'keyword',
-            'matchType',
-            'searchTerm',
-            'impressions',
-            'clicks',
-            'cost',
-            'sales7d',                     // ✅ 7天归因销售额 (修正字段名)
-            'unitsSoldClicks7d',           // ✅ 7天归因订单单位数 (修正字段名)
-            'purchases7d'                  // ✅ 7天归因转化数 (修正字段名)
+            'adGroupName',                       // Excel: adGroupName - 广告组名称
+            'targeting',                         // Excel: targeting - 定位
+            'keywordType',                       // Excel: keywordType - 匹配类型
+            'searchTerm',                        // Excel: searchTerm - 客户搜索词
+            // 流量指标
+            'impressions',                       // Excel: impressions - 展示次数
+            'clicks',                            // Excel: clicks - 点击次数
+            'clickThroughRate',                  // Excel: clickThroughRate - 点击率
+            // 花费指标
+            'cost',                              // Excel: cost - 支出
+            'costPerClick',                      // Excel: costPerClick - 每次点击费用
+            // 7天归因销售指标
+            'sales7d',                           // Excel: sales7d - 7天总销售额
+            'acosClicks7d',                      // Excel: acosClicks7d - ACOS
+            'roasClicks7d',                      // Excel: roasClicks7d - ROAS
+            'purchases7d',                       // Excel: purchases7d - 7天订单总数
+            'unitsSoldClicks7d',                 // Excel: unitsSoldClicks7d - 7天总销量
+            // 同SKU/其他SKU指标
+            'unitsSoldSameSku7d',                // Excel: unitsSoldSameSku7d - 7天广告SKU数量
+            'unitsSoldOtherSku7d',               // Excel: unitsSoldOtherSku7d - 7天其他SKU数量
+            'attributedSalesSameSku7d',          // Excel: attributedSalesSameSku7d - 7天广告SKU销售额
+            'salesOtherSku7d'                    // Excel: salesOtherSku7d - 7天其他SKU销售额
           ],
           reportTypeId: 'spSearchTerm',
           timeUnit: 'SUMMARY',
@@ -1135,6 +1215,135 @@ export class AmazonAdsApiClient {
       return response.data.reportId;
     } catch (error: any) {
       console.error('[Amazon API] 请求SP搜索词报告失败:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * 请求SP已推广商品报告 (Amazon Ads API v3)
+   * 根据Excel文档: SP Advertised Product sheet
+   * 字段: date, campaignName, adGroupName, advertisedSku, advertisedAsin, impressions, clicks,
+   *       clickThroughRate, costPerClick, cost, sales7d, acosClicks7d, roasClicks7d, purchases7d,
+   *       unitsSoldClicks7d, unitsSoldSameSku7d, unitsSoldOtherSku7d, attributedSalesSameSku7d, salesOtherSku7d
+   */
+  async requestSpAdvertisedProductReport(
+    startDate: string,
+    endDate: string
+  ): Promise<string> {
+    try {
+      console.log(`[Amazon API] 请求SP已推广商品报告: ${startDate} - ${endDate}`);
+      
+      const requestBody = {
+        name: `SP Advertised Product Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_PRODUCTS',
+          groupBy: ['advertiser'],
+          columns: [
+            // 基础信息 - 根据Excel文档SP Advertised Product sheet
+            'date',
+            'campaignId',
+            'campaignName',                      // Excel: campaignName - 广告系列名称
+            'campaignBudgetCurrencyCode',        // Excel: campaignBudgetCurrencyCode - 货币
+            'adGroupId',
+            'adGroupName',                       // Excel: adGroupName - 广告组名称
+            'advertisedSku',                     // Excel: advertisedSku - 已投放广告的SKU
+            'advertisedAsin',                    // Excel: advertisedAsin - 已投放广告的ASIN
+            // 流量指标
+            'impressions',                       // Excel: impressions - 展示次数
+            'clicks',                            // Excel: clicks - 点击次数
+            'clickThroughRate',                  // Excel: clickThroughRate - 点击率
+            // 花费指标
+            'cost',                              // Excel: cost - 支出
+            'costPerClick',                      // Excel: costPerClick - 每次点击费用
+            // 7天归因销售指标
+            'sales7d',                           // Excel: sales7d - 7天总销售额
+            'acosClicks7d',                      // Excel: acosClicks7d - ACOS
+            'roasClicks7d',                      // Excel: roasClicks7d - ROAS
+            'purchases7d',                       // Excel: purchases7d - 7天订单总数
+            'unitsSoldClicks7d',                 // Excel: unitsSoldClicks7d - 7天总销量
+            // 同SKU/其他SKU指标
+            'unitsSoldSameSku7d',                // Excel: unitsSoldSameSku7d - 7天广告SKU数量
+            'unitsSoldOtherSku7d',               // Excel: unitsSoldOtherSku7d - 7天其他SKU数量
+            'attributedSalesSameSku7d',          // Excel: attributedSalesSameSku7d - 7天广告SKU销售额
+            'salesOtherSku7d'                    // Excel: salesOtherSku7d - 7天其他SKU销售额
+          ],
+          reportTypeId: 'spAdvertisedProduct',
+          timeUnit: 'DAILY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      console.log(`[Amazon API] SP已推广商品报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: any) {
+      console.error('[Amazon API] 请求SP已推广商品报告失败:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * 请求SP已购买商品报告 (Amazon Ads API v3)
+   * 根据Excel文档: SP Purchased Product sheet
+   * 字段: date, campaignName, adGroupName, advertisedSku, advertisedAsin, keyword, matchType,
+   *       purchasedAsin, unitsSoldOtherSku14d, purchasesOtherSku7d, salesOtherSku14d
+   */
+  async requestSpPurchasedProductReport(
+    startDate: string,
+    endDate: string
+  ): Promise<string> {
+    try {
+      console.log(`[Amazon API] 请求SP已购买商品报告: ${startDate} - ${endDate}`);
+      
+      const requestBody = {
+        name: `SP Purchased Product Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_PRODUCTS',
+          groupBy: ['asin'],
+          columns: [
+            // 基础信息 - 根据Excel文档SP Purchased Product sheet
+            'date',
+            'campaignId',
+            'campaignName',                      // Excel: campaignName - 广告系列名称
+            'adGroupId',
+            'adGroupName',                       // Excel: adGroupName - 广告组名称
+            'advertisedSku',                     // Excel: advertisedSku - 已投放SKU
+            'advertisedAsin',                    // Excel: advertisedAsin - 已投放ASIN
+            'keyword',                           // Excel: keyword - 定位
+            'matchType',                         // Excel: matchType - 匹配类型
+            'purchasedAsin',                     // Excel: purchasedAsin - 已购买ASIN
+            // 销售指标
+            'unitsSoldOtherSku7d',               // Excel: unitsSoldOtherSku14d - 7天其他SKU数量
+            'purchasesOtherSku7d',               // Excel: purchasesOtherSku7d - 7天其他SKU订单
+            'salesOtherSku7d'                    // Excel: salesOtherSku14d - 7天其他SKU销量
+          ],
+          reportTypeId: 'spPurchasedProduct',
+          timeUnit: 'SUMMARY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      console.log(`[Amazon API] SP已购买商品报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: any) {
+      console.error('[Amazon API] 请求SP已购买商品报告失败:', error.response?.data || error.message);
       throw error;
     }
   }
@@ -1224,25 +1433,43 @@ export class AmazonAdsApiClient {
           adProduct: 'SPONSORED_DISPLAY',
           groupBy: ['targeting'],
           columns: [
+            // 基础信息 - 根据Excel文档SD Targeting sheet
             'date',
             'campaignId',
-            'campaignName',
+            'campaignName',                      // Excel: campaignName - 广告系列名称
+            'campaignBudgetCurrencyCode',        // Excel: campaignBudgetCurrencyCode - 货币
             'adGroupId',
-            'adGroupName',
-            'targetId',
-            'targetingExpression',
-            'targetingType',
-            'impressions',
-            'viewableImpressions',
-            'clicks',
-            'cost',
-            'attributedConversions14d',
-            'attributedSales14d',
-            'viewAttributedConversions14d',
-            'viewAttributedSales14d',
-            'dpv14d',
-            'newToBrandPurchases14d',
-            'newToBrandSales14d'
+            'adGroupName',                       // Excel: adGroupName - 广告组名称
+            'targetingText',                     // Excel: targetingText - 定位
+            // 流量指标
+            'impressions',                       // Excel: impressions - 展示次数
+            'impressionsViews',                  // Excel: impressionsViews - 可见展示次数
+            'clicks',                            // Excel: clicks - 点击次数
+            'detailPageViews',                   // Excel: detailPageViews - 14天详情页浏览量
+            // 花费指标
+            'cost',                              // Excel: cost - 支出
+            // 14天归因销售指标 (SD使用14天归因)
+            'sales',                             // Excel: sales - 14天总销售额
+            'purchases',                         // Excel: purchases - 14天总订单数
+            'unitsSold',                         // Excel: unitsSold - 14天总单位数
+            // 新客指标
+            'newToBrandPurchases',               // Excel: newToBrandPurchases - 14天新品牌订单数
+            'newToBrandSales',                   // Excel: newToBrandSales - 14天新品牌销售额
+            'newToBrandUnitsSold',               // Excel: newToBrandUnitsSold - 14天新品牌单位数
+            // 点击归因指标
+            'salesClicks',                       // Excel: salesClicks - 14天总销售额(点击)
+            'purchasesClicks',                   // Excel: purchasesClicks - 14天总订单数(点击)
+            'unitsSoldClicks',                   // Excel: unitsSoldClicks - 14天总单位数(点击)
+            'newToBrandPurchasesClicks',         // Excel: newToBrandPurchasesClicks - 14天新品牌订单(点击)
+            'newToBrandSalesClicks',             // Excel: newToBrandSalesClicks - 14天新品牌销售额(点击)
+            'newToBrandUnitsSoldClicks'          // Excel: newToBrandUnitsSoldClicks - 14天新品牌单位(点击)
+          ],
+          // 添加filters配置
+          filters: [
+            {
+              field: 'campaignStatus',
+              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
+            }
           ],
           reportTypeId: 'sdTargeting',
           timeUnit: 'SUMMARY',
@@ -1266,6 +1493,157 @@ export class AmazonAdsApiClient {
   }
 
   /**
+   * 请求SD已推广商品报告 (Amazon Ads API v3)
+   * 根据Excel文档: SD Advertised product sheet
+   * 字段: date, campaignName, adGroupName, bidOptimization, promotedSku, promotedAsin,
+   *       impressions, impressionsViews, clicks, detailPageViews, cost, sales, purchases,
+   *       unitsSold, newToBrandPurchases, newToBrandSales, newToBrandUnitsSold,
+   *       salesClicks, purchasesClicks, unitsSoldClicks, newToBrandPurchasesClicks,
+   *       newToBrandSalesClicks, newToBrandUnitsSoldClicks
+   */
+  async requestSdAdvertisedProductReport(
+    startDate: string,
+    endDate: string
+  ): Promise<string> {
+    try {
+      console.log(`[Amazon API] 请求SD已推广商品报告: ${startDate} - ${endDate}`);
+      
+      const requestBody = {
+        name: `SD Advertised Product Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_DISPLAY',
+          groupBy: ['advertiser'],
+          columns: [
+            // 基础信息 - 根据Excel文档SD Advertised product sheet
+            'date',
+            'campaignId',
+            'campaignName',                      // Excel: campaignName - 广告系列名称
+            'campaignBudgetCurrencyCode',        // Excel: campaignBudgetCurrencyCode - 货币
+            'adGroupId',
+            'adGroupName',                       // Excel: adGroupName - 广告组名称
+            'bidOptimization',                   // Excel: bidOptimization - 出价优化
+            'promotedSku',                       // Excel: promotedSku - 已投放SKU
+            'promotedAsin',                      // Excel: promotedAsin - 已投放ASIN
+            // 流量指标
+            'impressions',                       // Excel: impressions - 展示次数
+            'impressionsViews',                  // Excel: impressionsViews - 可见展示次数
+            'clicks',                            // Excel: clicks - 点击次数
+            'detailPageViews',                   // Excel: detailPageViews - 14天详情页浏览量
+            // 花费指标
+            'cost',                              // Excel: cost - 支出
+            // 14天归因销售指标
+            'sales',                             // Excel: sales - 14天总销售额
+            'purchases',                         // Excel: purchases - 14天总订单数
+            'unitsSold',                         // Excel: unitsSold - 14天总销量
+            // 新客指标
+            'newToBrandPurchases',               // Excel: newToBrandPurchases - 14天新品牌订单数
+            'newToBrandSales',                   // Excel: newToBrandSales - 14天新品牌销售额
+            'newToBrandUnitsSold',               // Excel: newToBrandUnitsSold - 14天新品牌销量
+            // 点击归因指标
+            'salesClicks',                       // Excel: salesClicks - 14天总销售额(点击)
+            'purchasesClicks',                   // Excel: purchasesClicks - 14天总订单数(点击)
+            'unitsSoldClicks',                   // Excel: unitsSoldClicks - 14天总销量(点击)
+            'newToBrandPurchasesClicks',         // Excel: newToBrandPurchasesClicks - 14天新品牌订单数(点击)
+            'newToBrandSalesClicks',             // Excel: newToBrandSalesClicks - 14天新品牌销量(点击)
+            'newToBrandUnitsSoldClicks'          // Excel: newToBrandUnitsSoldClicks - 14天新品牌销量(点击)
+          ],
+          // 添加filters配置
+          filters: [
+            {
+              field: 'campaignStatus',
+              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
+            }
+          ],
+          reportTypeId: 'sdAdvertisedProduct',
+          timeUnit: 'DAILY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      console.log(`[Amazon API] SD已推广商品报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: any) {
+      console.error('[Amazon API] 请求SD已推广商品报告失败:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * 请求SD匹配目标报告 (Amazon Ads API v3)
+   * 根据Excel文档: SD Matchd Target sheet
+   * 字段: date, campaignName, targetingText, matchedTargetAsin, impressions, clicks,
+   *       cost, sales, purchases, unitsSold
+   */
+  async requestSdMatchedTargetReport(
+    startDate: string,
+    endDate: string
+  ): Promise<string> {
+    try {
+      console.log(`[Amazon API] 请求SD匹配目标报告: ${startDate} - ${endDate}`);
+      
+      const requestBody = {
+        name: `SD Matched Target Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_DISPLAY',
+          groupBy: ['matchedTarget'],
+          columns: [
+            // 基础信息 - 根据Excel文档SD Matchd Target sheet
+            'date',
+            'campaignId',
+            'campaignName',                      // Excel: campaignName - 广告系列名称
+            'campaignBudgetCurrencyCode',        // Excel: campaignBudgetCurrencyCode - 货币
+            'targetingText',                     // Excel: targetingText - 定位
+            'matchedTargetAsin',                 // Excel: matchedTargetAsin - 匹配目标
+            // 流量指标
+            'impressions',                       // Excel: impressions - 展示次数
+            'clicks',                            // Excel: clicks - 点击次数
+            // 花费指标
+            'cost',                              // Excel: cost - 支出
+            // 14天归因销售指标
+            'sales',                             // Excel: sales - 14天销售总额
+            'purchases',                         // Excel: purchases - 14天订单总数
+            'unitsSold'                          // Excel: unitsSold - 14天单位总数
+          ],
+          // 添加filters配置
+          filters: [
+            {
+              field: 'campaignStatus',
+              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
+            }
+          ],
+          reportTypeId: 'sdMatchedTarget',
+          timeUnit: 'SUMMARY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      console.log(`[Amazon API] SD匹配目标报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: any) {
+      console.error('[Amazon API] 请求SD匹配目标报告失败:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
    * 请求SB定向报告 (Amazon Ads API v3)
    * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
    */
@@ -1284,22 +1662,59 @@ export class AmazonAdsApiClient {
           adProduct: 'SPONSORED_BRANDS',
           groupBy: ['targeting'],
           columns: [
+            // 基础信息 - 根据Excel文档SB Keyword sheet
             'date',
             'campaignId',
-            'campaignName',
+            'campaignName',                      // Excel: campaignName - 广告系列名称
+            'campaignBudgetCurrencyCode',        // Excel: campaignBudgetCurrencyCode - 币种
             'adGroupId',
-            'adGroupName',
-            'keywordId',
-            'keyword',
-            'matchType',
-            'impressions',
-            'clicks',
-            'cost',
-            'attributedConversions14d',
-            'attributedSales14d',
-            'dpv14d',
-            'newToBrandPurchases14d',
-            'newToBrandSales14d'
+            'adGroupName',                       // Excel: adGroupName - 广告组名称
+            'targetingText',                     // Excel: targetingText - 定位
+            'matchType',                         // Excel: matchType - 匹配类型
+            'costType',                          // Excel: costType - 费用类型
+            // 流量指标
+            'impressions',                       // Excel: impressions - 展示次数
+            'topOfSearchImpressionShare',        // Excel: topOfSearchImpressionShare - 搜索结果顶部展示次数份额
+            'clicks',                            // Excel: clicks - 点击次数
+            'viewabilityRate',                   // Excel: viewabilityRate - 观看率 (VTR)
+            'viewClickThroughRate',              // Excel: viewClickThroughRate - 观看点击率 (vCTR)
+            // 花费指标
+            'cost',                              // Excel: cost - 支出
+            // 14天归因销售指标
+            'sales',                             // Excel: sales - 14天总销售额
+            'purchases',                         // Excel: purchases - 14天总订单量
+            'unitsSold',                         // Excel: unitsSold - 14天总单位数
+            // 点击归因指标
+            'salesClicks',                       // Excel: salesClicks - 14天总销售额(点击)
+            'purchasesClicks',                   // Excel: purchasesClicks - 14天总订单数(点击)
+            'unitsSoldClicks',                   // Excel: unitsSoldClicks - 14天总单位数(点击)
+            // 视频指标
+            'videoFirstQuartileViews',           // Excel: videoFirstQuartileViews
+            'videoMidpointViews',                // Excel: videoMidpointViews
+            'videoThirdQuartileViews',           // Excel: videoThirdQuartileViews
+            'videoCompleteViews',                // Excel: videoCompleteViews
+            'videoUnmutes',                      // Excel: videoUnmutes
+            'video5SecondViews',                 // Excel: video5SecondViews
+            'video5SecondViewRate',              // Excel: video5SecondViewRate
+            // 品牌搜索
+            'brandedSearches',                   // Excel: brandedSearches
+            // 详情页浏览
+            'detailPageViews',                   // Excel: detailPageViews
+            // 新客指标
+            'newToBrandPurchases',               // Excel: newToBrandPurchases
+            'newToBrandPurchasesPercentage',     // Excel: newToBrandPurchasesPercentage
+            'newToBrandSales',                   // Excel: newToBrandSales
+            'newToBrandSalesPercentage',         // Excel: newToBrandSalesPercentage
+            'newToBrandUnitsSold',               // Excel: newToBrandUnitsSold
+            'newToBrandUnitsSoldPercentage',     // Excel: newToBrandUnitsSoldPercentage
+            'newToBrandPurchasesRate'            // Excel: newToBrandPurchasesRate
+          ],
+          // 添加filters配置
+          filters: [
+            {
+              field: 'campaignStatus',
+              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
+            }
           ],
           reportTypeId: 'sbTargeting',
           timeUnit: 'SUMMARY',
@@ -1318,6 +1733,555 @@ export class AmazonAdsApiClient {
       return response.data.reportId;
     } catch (error: any) {
       console.error('[Amazon API] 请求SB定向报告失败:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * 请求SB搜索词报告 (Amazon Ads API v3)
+   * 根据Excel文档: SB Search term sheet
+   * 字段: date, campaignName, adGroupName, keywordText, matchType, searchTerm, costType,
+   *       impressions, viewableImpressions, clicks, cost, sales, purchases, unitsSold,
+   *       salesClicks, purchasesClicks
+   */
+  async requestSbSearchTermReport(
+    startDate: string,
+    endDate: string
+  ): Promise<string> {
+    try {
+      console.log(`[Amazon API] 请求SB搜索词报告: ${startDate} - ${endDate}`);
+      
+      const requestBody = {
+        name: `SB Search Term Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_BRANDS',
+          groupBy: ['searchTerm'],
+          columns: [
+            // 基础信息 - 根据Excel文档SB Search term sheet
+            'date',
+            'campaignId',
+            'campaignName',                      // Excel: campaignName - 广告系列名称
+            'campaignBudgetCurrencyCode',        // Excel: campaignBudgetCurrencyCode - 货币
+            'adGroupId',
+            'adGroupName',                       // Excel: adGroupName - 广告组名称
+            'keywordText',                       // Excel: keywordText - 定位
+            'matchType',                         // Excel: matchType - 匹配类型
+            'searchTerm',                        // Excel: searchTerm - 客户搜索词
+            'costType',                          // Excel: costType - 费用类型
+            // 流量指标
+            'impressions',                       // Excel: impressions - 展示次数
+            'viewableImpressions',               // Excel: viewableImpressions - 可见展示次数
+            'clicks',                            // Excel: clicks - 点击次数
+            // 花费指标
+            'cost',                              // Excel: cost - 支出
+            // 14天归因销售指标
+            'sales',                             // Excel: sales - 14天总销售额
+            'purchases',                         // Excel: purchases - 14天总订单数
+            'unitsSold',                         // Excel: unitsSold - 14天总单位数
+            // 点击归因指标
+            'salesClicks',                       // Excel: salesClicks - 14天总销售额(点击)
+            'purchasesClicks'                    // Excel: purchasesClicks - 14天总订单数(点击)
+          ],
+          // 添加filters配置
+          filters: [
+            {
+              field: 'campaignStatus',
+              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
+            }
+          ],
+          reportTypeId: 'sbSearchTerm',
+          timeUnit: 'SUMMARY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      console.log(`[Amazon API] SB搜索词报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: any) {
+      console.error('[Amazon API] 请求SB搜索词报告失败:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * 请求SB广告位置报告 (Amazon Ads API v3)
+   * 根据Excel文档: SB Campaign Placement sheet
+   * 字段: date, campaignName, costType, placementClassification, impressions, viewableImpressions,
+   *       clicks, cost, sales, purchases, unitsSold, viewabilityRate, viewClickThroughRate,
+   *       videoFirstQuartileViews, videoMidpointViews, videoThirdQuartileViews, videoCompleteViews,
+   *       videoUnmutes, video5SecondViews, video5SecondViewRate, brandedSearches, detailPageViews,
+   *       newToBrandPurchases, newToBrandSales, newToBrandUnitsSold, salesClicks, purchasesClicks, unitsSoldClicks
+   */
+  async requestSbCampaignPlacementReport(
+    startDate: string,
+    endDate: string
+  ): Promise<string> {
+    try {
+      console.log(`[Amazon API] 请求SB广告位置报告: ${startDate} - ${endDate}`);
+      
+      const requestBody = {
+        name: `SB Campaign Placement Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_BRANDS',
+          groupBy: ['campaign', 'placement'],
+          columns: [
+            // 基础信息 - 根据Excel文档SB Campaign Placement sheet
+            'date',
+            'campaignId',
+            'campaignName',                      // Excel: campaignName - 广告系列名称
+            'campaignBudgetCurrencyCode',        // Excel: campaignBudgetCurrencyCode - 币种
+            'costType',                          // Excel: costType - 费用类型
+            'placementClassification',           // Excel: placementClassification - 展示位置
+            // 流量指标
+            'impressions',                       // Excel: impressions - 展示次数
+            'viewableImpressions',               // Excel: viewableImpressions - 可见展示次数
+            'clicks',                            // Excel: clicks - 点击次数
+            'viewabilityRate',                   // Excel: viewabilityRate - 观看率 (VTR)
+            'viewClickThroughRate',              // Excel: viewClickThroughRate - 观看点击率 (vCTR)
+            // 花费指标
+            'cost',                              // Excel: cost - 支出
+            // 14天归因销售指标
+            'sales',                             // Excel: sales - 14天总销售额
+            'purchases',                         // Excel: purchases - 14天总订单量
+            'unitsSold',                         // Excel: unitsSold - 14天总单位数
+            // 点击归因指标
+            'salesClicks',                       // Excel: salesClicks - 14天总销售额(点击)
+            'purchasesClicks',                   // Excel: purchasesClicks - 14天总订单数量(点击)
+            'unitsSoldClicks',                   // Excel: unitsSoldClicks - 14天总单位数量(点击)
+            // 视频指标
+            'videoFirstQuartileViews',           // Excel: videoFirstQuartileViews
+            'videoMidpointViews',                // Excel: videoMidpointViews
+            'videoThirdQuartileViews',           // Excel: videoThirdQuartileViews
+            'videoCompleteViews',                // Excel: videoCompleteViews
+            'videoUnmutes',                      // Excel: videoUnmutes
+            'video5SecondViews',                 // Excel: video5SecondViews
+            'video5SecondViewRate',              // Excel: video5SecondViewRate
+            // 品牌搜索
+            'brandedSearches',                   // Excel: brandedSearches
+            // 详情页浏览
+            'detailPageViews',                   // Excel: detailPageViews
+            // 新客指标
+            'newToBrandPurchases',               // Excel: newToBrandPurchases
+            'newToBrandPurchasesPercentage',     // Excel: newToBrandPurchasesPercentage
+            'newToBrandSales',                   // Excel: newToBrandSales
+            'newToBrandSalesPercentage',         // Excel: newToBrandSalesPercentage
+            'newToBrandUnitsSold',               // Excel: newToBrandUnitsSold
+            'newToBrandUnitsSoldPercentage',     // Excel: newToBrandUnitsSoldPercentage
+            'newToBrandPurchasesRate'            // Excel: newToBrandPurchasesRate
+          ],
+          // 添加filters配置
+          filters: [
+            {
+              field: 'campaignStatus',
+              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
+            }
+          ],
+          reportTypeId: 'sbCampaigns',
+          timeUnit: 'DAILY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      console.log(`[Amazon API] SB广告位置报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: any) {
+      console.error('[Amazon API] 请求SB广告位置报告失败:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * 请求SB广告报告 (广告素材级别)
+   * 基于Postman文档: reportTypeId = sbAds, groupBy = ["ads"]
+   */
+  async requestSbAdsReport(profileId: string, startDate: string, endDate: string): Promise<string> {
+    try {
+      this.setProfileId(profileId);
+      
+      const requestBody = {
+        name: `SB Ads Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_BRANDS',
+          groupBy: ['ads'],
+          columns: [
+            'date',
+            'campaignId',
+            'campaignName',
+            'campaignStatus',
+            'campaignBudgetAmount',
+            'adGroupId',
+            'adGroupName',
+            'adId',
+            'adStatus',
+            'impressions',
+            'clicks',
+            'clickThroughRate',
+            'cost',
+            'costPerClick',
+            'sales',
+            'salesClicks',
+            'purchases',
+            'purchasesClicks',
+            'unitsSold',
+            'unitsSoldClicks',
+            'newToBrandSales',
+            'newToBrandPurchases',
+            'newToBrandUnitsSold',
+            'video5SecondViews',
+            'video5SecondViewRate',
+            'videoFirstQuartileViews',
+            'videoMidpointViews',
+            'videoThirdQuartileViews',
+            'videoCompleteViews',
+            'videoUnmutes',
+            'viewClickThroughRate'
+          ],
+          filters: [
+            {
+              field: 'campaignStatus',
+              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
+            }
+          ],
+          reportTypeId: 'sbAds',
+          timeUnit: 'DAILY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      console.log(`[Amazon API] SB广告报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: any) {
+      console.error('[Amazon API] 请求SB广告报告失败:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * 请求SD广告组报告
+   * 基于Postman文档: reportTypeId = sdAdGroup, groupBy = ["adGroup"]
+   */
+  async requestSdAdGroupReport(profileId: string, startDate: string, endDate: string): Promise<string> {
+    try {
+      this.setProfileId(profileId);
+      
+      const requestBody = {
+        name: `SD AdGroup Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_DISPLAY',
+          groupBy: ['adGroup'],
+          columns: [
+            'date',
+            'campaignId',
+            'campaignName',
+            'campaignStatus',
+            'campaignBudgetAmount',
+            'adGroupId',
+            'adGroupName',
+            'costType',
+            'bidOptimization',
+            'impressions',
+            'impressionsViews',
+            'clicks',
+            'clickThroughRate',
+            'cost',
+            'costPerClick',
+            'detailPageViews',
+            'detailPageViewsClicks',
+            'sales',
+            'salesClicks',
+            'purchases',
+            'purchasesClicks',
+            'unitsSold',
+            'unitsSoldClicks',
+            'newToBrandSales',
+            'newToBrandSalesClicks',
+            'newToBrandPurchases',
+            'newToBrandPurchasesClicks',
+            'newToBrandUnitsSold',
+            'newToBrandUnitsSoldClicks',
+            'salesBrandHalo',
+            'salesBrandHaloClicks',
+            'unitsSoldBrandHalo',
+            'unitsSoldBrandHaloClicks',
+            'viewabilityRate',
+            'viewClickThroughRate'
+          ],
+          filters: [
+            {
+              field: 'campaignStatus',
+              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
+            }
+          ],
+          reportTypeId: 'sdAdGroup',
+          timeUnit: 'DAILY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      console.log(`[Amazon API] SD广告组报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: any) {
+      console.error('[Amazon API] 请求SD广告组报告失败:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * 请求SD已购买商品报告
+   * 基于Postman文档: reportTypeId = sdPurchasedProduct, groupBy = ["asin"]
+   */
+  async requestSdPurchasedProductReport(profileId: string, startDate: string, endDate: string): Promise<string> {
+    try {
+      this.setProfileId(profileId);
+      
+      const requestBody = {
+        name: `SD Purchased Product Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_DISPLAY',
+          groupBy: ['asin'],
+          columns: [
+            'date',
+            'campaignId',
+            'campaignName',
+            'adGroupId',
+            'adGroupName',
+            'purchasedAsin',
+            'impressions',
+            'clicks',
+            'cost',
+            'sales',
+            'salesClicks',
+            'purchases',
+            'purchasesClicks',
+            'unitsSold',
+            'unitsSoldClicks',
+            'newToBrandSales',
+            'newToBrandPurchases',
+            'newToBrandUnitsSold'
+          ],
+          filters: [
+            {
+              field: 'campaignStatus',
+              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
+            }
+          ],
+          reportTypeId: 'sdPurchasedProduct',
+          timeUnit: 'DAILY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      console.log(`[Amazon API] SD已购买商品报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: any) {
+      console.error('[Amazon API] 请求SD已购买商品报告失败:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * 请求SP无效流量报告
+   * 基于Postman文档: reportTypeId = spGrossAndInvalids, groupBy = ["campaign"]
+   * 数据保留天数: 365天
+   */
+  async requestSpGrossAndInvalidsReport(profileId: string, startDate: string, endDate: string): Promise<string> {
+    try {
+      this.setProfileId(profileId);
+      
+      const requestBody = {
+        name: `SP Gross And Invalids Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_PRODUCTS',
+          groupBy: ['campaign'],
+          columns: [
+            'date',
+            'campaignId',
+            'campaignName',
+            'grossImpressions',
+            'grossClickThroughs',
+            'invalidImpressions',
+            'invalidClickThroughs',
+            'invalidImpressionRate',
+            'invalidClickThroughRate'
+          ],
+          filters: [
+            {
+              field: 'campaignStatus',
+              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
+            }
+          ],
+          reportTypeId: 'spGrossAndInvalids',
+          timeUnit: 'DAILY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      console.log(`[Amazon API] SP无效流量报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: any) {
+      console.error('[Amazon API] 请求SP无效流量报告失败:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * 请求SB无效流量报告
+   * 基于Postman文档: reportTypeId = sbGrossAndInvalids, groupBy = ["campaign"]
+   * 数据保留天数: 365天
+   */
+  async requestSbGrossAndInvalidsReport(profileId: string, startDate: string, endDate: string): Promise<string> {
+    try {
+      this.setProfileId(profileId);
+      
+      const requestBody = {
+        name: `SB Gross And Invalids Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_BRANDS',
+          groupBy: ['campaign'],
+          columns: [
+            'date',
+            'campaignId',
+            'campaignName',
+            'grossImpressions',
+            'grossClickThroughs',
+            'invalidImpressions',
+            'invalidClickThroughs',
+            'invalidImpressionRate',
+            'invalidClickThroughRate'
+          ],
+          filters: [
+            {
+              field: 'campaignStatus',
+              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
+            }
+          ],
+          reportTypeId: 'sbGrossAndInvalids',
+          timeUnit: 'DAILY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      console.log(`[Amazon API] SB无效流量报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: any) {
+      console.error('[Amazon API] 请求SB无效流量报告失败:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * 请求SD无效流量报告
+   * 基于Postman文档: reportTypeId = sdGrossAndInvalids, groupBy = ["campaign"]
+   * 数据保留天数: 365天
+   */
+  async requestSdGrossAndInvalidsReport(profileId: string, startDate: string, endDate: string): Promise<string> {
+    try {
+      this.setProfileId(profileId);
+      
+      const requestBody = {
+        name: `SD Gross And Invalids Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_DISPLAY',
+          groupBy: ['campaign'],
+          columns: [
+            'date',
+            'campaignId',
+            'campaignName',
+            'grossImpressions',
+            'grossClickThroughs',
+            'invalidImpressions',
+            'invalidClickThroughs',
+            'invalidImpressionRate',
+            'invalidClickThroughRate'
+          ],
+          filters: [
+            {
+              field: 'campaignStatus',
+              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
+            }
+          ],
+          reportTypeId: 'sdGrossAndInvalids',
+          timeUnit: 'DAILY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      console.log(`[Amazon API] SD无效流量报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: any) {
+      console.error('[Amazon API] 请求SD无效流量报告失败:', error.response?.data || error.message);
       throw error;
     }
   }
