@@ -131,43 +131,68 @@ export async function getDualTrackStatus(accountId: number): Promise<{
 
 /**
  * 获取API同步状态
+ * 改进版：如果data_sync_jobs表中没有记录，则从daily_performance表中获取API数据的状态
  */
 async function getApiSyncStatus(db: any, accountId: number): Promise<SyncStatus> {
   try {
+    // 1. 先查询data_sync_jobs表
     const [result] = await db.execute(sql`
       SELECT 
-        completedAt as lastSyncAt,
-        recordsSynced as recordCount,
+        "completedAt" as "lastSyncAt",
+        "recordsSynced" as "recordCount",
         status,
-        errorMessage
+        "errorMessage"
       FROM data_sync_jobs
-      WHERE accountId = ${accountId}
-        AND syncType IN ('all', 'performance')
-      ORDER BY createdAt DESC
+      WHERE "accountId" = ${accountId}
+        AND "syncType" IN ('all', 'performance')
+      ORDER BY "createdAt" DESC
       LIMIT 1
     `) as any;
 
     const lastSync = Array.isArray(result) && result.length > 0 ? result[0] : null;
 
-    if (!lastSync) {
+    if (lastSync) {
+      const syncStatus = lastSync.status === 'completed' ? 'healthy' : 
+                         lastSync.status === 'running' ? 'healthy' : 'error';
       return {
         source: 'api',
-        lastSyncAt: null,
-        recordCount: 0,
-        status: 'degraded',
-        errorMessage: '尚未进行过同步',
+        lastSyncAt: lastSync.lastSyncAt ? new Date(lastSync.lastSyncAt) : null,
+        recordCount: lastSync.recordCount || 0,
+        status: syncStatus,
+        errorMessage: lastSync.errorMessage,
       };
     }
 
-    const syncStatus = lastSync.status === 'completed' ? 'healthy' : 
-                       lastSync.status === 'running' ? 'healthy' : 'error';
+    // 2. 如果没有sync_jobs记录，从daily_performance表获取API数据的状态
+    const [perfResult] = await db.execute(sql`
+      SELECT 
+        COUNT(*) as "recordCount",
+        MAX("createdAt") as "lastUpdate"
+      FROM daily_performance
+      WHERE "accountId" = ${accountId}
+        AND ("dataSource" = 'api' OR "dataSource" IS NULL)
+    `) as any;
+
+    const perfData = Array.isArray(perfResult) && perfResult.length > 0 ? perfResult[0] : null;
+    const recordCount = parseInt(perfData?.recordCount || '0', 10);
+    const lastUpdate = perfData?.lastUpdate ? new Date(perfData.lastUpdate) : null;
+
+    if (recordCount > 0) {
+      return {
+        source: 'api',
+        lastSyncAt: lastUpdate,
+        recordCount,
+        status: 'healthy',
+        errorMessage: undefined,
+      };
+    }
 
     return {
       source: 'api',
-      lastSyncAt: lastSync.lastSyncAt ? new Date(lastSync.lastSyncAt) : null,
-      recordCount: lastSync.recordCount || 0,
-      status: syncStatus,
-      errorMessage: lastSync.errorMessage,
+      lastSyncAt: null,
+      recordCount: 0,
+      status: 'degraded',
+      errorMessage: '尚未同步过API数据',
     };
   } catch (error: any) {
     return {
@@ -337,24 +362,60 @@ export async function getDataSourceStats(accountId: number): Promise<{
   }
 
   try {
-    // 获取总记录数作为API数据（因为dataSource字段可能还没有）
-    const [totalResult] = await db.execute(sql`
+    // 获取API数据源的记录数（dataSource为'api'或NULL）
+    const [apiResult] = await db.execute(sql`
       SELECT 
-        COUNT(*) as recordCount,
-        MAX(createdAt) as lastUpdate
+        COUNT(*) as "recordCount",
+        MAX("createdAt") as "lastUpdate"
       FROM daily_performance
-      WHERE accountId = ${accountId}
+      WHERE "accountId" = ${accountId}
+        AND ("dataSource" = 'api' OR "dataSource" IS NULL)
     `) as any;
 
-    const total = Array.isArray(totalResult) && totalResult.length > 0 ? totalResult[0] : null;
+    const apiData = Array.isArray(apiResult) && apiResult.length > 0 ? apiResult[0] : null;
+    const apiRecords = parseInt(apiData?.recordCount || '0', 10);
+    const apiLastUpdate = apiData?.lastUpdate ? new Date(apiData.lastUpdate) : null;
+
+    // 获取AMS数据源的记录数
+    const [amsResult] = await db.execute(sql`
+      SELECT 
+        COUNT(*) as "recordCount",
+        MAX("createdAt") as "lastUpdate"
+      FROM daily_performance
+      WHERE "accountId" = ${accountId}
+        AND "dataSource" = 'ams'
+    `) as any;
+
+    const amsData = Array.isArray(amsResult) && amsResult.length > 0 ? amsResult[0] : null;
+    const amsRecords = parseInt(amsData?.recordCount || '0', 10);
+    const amsLastUpdate = amsData?.lastUpdate ? new Date(amsData.lastUpdate) : null;
+
+    // 获取总记录数
+    const [totalResult] = await db.execute(sql`
+      SELECT 
+        COUNT(*) as "recordCount",
+        MAX("createdAt") as "lastUpdate"
+      FROM daily_performance
+      WHERE "accountId" = ${accountId}
+    `) as any;
+
+    const totalData = Array.isArray(totalResult) && totalResult.length > 0 ? totalResult[0] : null;
+    const totalRecords = parseInt(totalData?.recordCount || '0', 10);
+    const totalLastUpdate = totalData?.lastUpdate ? new Date(totalData.lastUpdate) : null;
 
     return {
       api: { 
-        records: total?.recordCount || 0, 
-        lastUpdate: total?.lastUpdate ? new Date(total.lastUpdate) : null 
+        records: apiRecords, 
+        lastUpdate: apiLastUpdate 
       },
-      ams: { records: 0, lastUpdate: null },
-      merged: { records: 0, lastUpdate: null },
+      ams: { 
+        records: amsRecords, 
+        lastUpdate: amsLastUpdate 
+      },
+      merged: { 
+        records: totalRecords, 
+        lastUpdate: totalLastUpdate 
+      },
     };
   } catch (error) {
     console.error('[DualTrackSync] 获取数据源统计失败:', error);

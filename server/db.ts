@@ -4480,3 +4480,29 @@ export async function getPlacementPerformanceByCampaignId(campaignId: number) {
     return [];
   }
 }
+
+
+/**
+ * 更新广告活动的预算使用情况（快照模式，直接覆盖）
+ * 用于处理AMS的budget-usage消息
+ * 
+ * ⚠️ 重要: 预算数据是快照(Snapshot)，不是累加!
+ * 参考文档: https://advertising.amazon.com/API/docs/en-us/guides/amazon-marketing-stream/overview
+ */
+export async function updateCampaignBudgetUsage(
+  campaignId: string,
+  data: {
+    budgetUsage: number;
+    budgetUsagePercentage: number;
+    lastBudgetUpdateAt: string;
+  }
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(campaigns)
+    .set({
+      budgetUsagePercent: String(data.budgetUsagePercentage),
+    })
+    .where(eq(campaigns.campaignId, campaignId));
+}

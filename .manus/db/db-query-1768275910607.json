@@ -1,0 +1,55 @@
+{
+  "query": "SELECT * FROM data_sync_schedules WHERE is_enabled = 1 LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT * FROM data_sync_schedules WHERE is_enabled = 1 LIMIT 10;",
+  "rows": [
+    {
+      "id": "1",
+      "userId": "1",
+      "accountId": "60017",
+      "syncType": "full_sync",
+      "frequency": "hourly",
+      "preferredTime": "NULL",
+      "preferredDayOfWeek": "NULL",
+      "isEnabled": "1",
+      "lastRunAt": "2026-01-13 01:21:48",
+      "nextRunAt": "2026-01-13 02:00:00",
+      "createdAt": "2026-01-10 15:36:34",
+      "updatedAt": "2026-01-13 01:21:48",
+      "is_enabled": "1"
+    },
+    {
+      "id": "2",
+      "userId": "1",
+      "accountId": "60018",
+      "syncType": "full_sync",
+      "frequency": "hourly",
+      "preferredTime": "NULL",
+      "preferredDayOfWeek": "NULL",
+      "isEnabled": "1",
+      "lastRunAt": "2026-01-13 01:21:49",
+      "nextRunAt": "2026-01-13 02:00:00",
+      "createdAt": "2026-01-10 15:36:34",
+      "updatedAt": "2026-01-13 01:21:49",
+      "is_enabled": "1"
+    },
+    {
+      "id": "3",
+      "userId": "1",
+      "accountId": "60019",
+      "syncType": "full_sync",
+      "frequency": "hourly",
+      "preferredTime": "NULL",
+      "preferredDayOfWeek": "NULL",
+      "isEnabled": "1",
+      "lastRunAt": "2026-01-12 19:26:08",
+      "nextRunAt": "2026-01-12 20:00:00",
+      "createdAt": "2026-01-10 15:36:34",
+      "updatedAt": "2026-01-12 19:26:08",
+      "is_enabled": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tuserId\taccountId\tsyncType\tfrequency\tpreferredTime\tpreferredDayOfWeek\tisEnabled\tlastRunAt\tnextRunAt\tcreatedAt\tupdatedAt\tis_enabled\n1\t1\t60017\tfull_sync\thourly\tNULL\tNULL\t1\t2026-01-13 01:21:48\t2026-01-13 02:00:00\t2026-01-10 15:36:34\t2026-01-13 01:21:48\t1\n2\t1\t60018\tfull_sync\thourly\tNULL\tNULL\t1\t2026-01-13 01:21:49\t2026-01-13 02:00:00\t2026-01-10 15:36:34\t2026-01-13 01:21:49\t1\n3\t1\t60019\tfull_sync\thourly\tNULL\tNULL\t1\t2026-01-12 19:26:08\t2026-01-12 20:00:00\t2026-01-10 15:36:34\t2026-01-12 19:26:08\t1\n",
+  "stderr": "",
+  "execution_time_ms": 52
+}

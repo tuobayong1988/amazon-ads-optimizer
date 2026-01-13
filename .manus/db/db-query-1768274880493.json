@@ -1,0 +1,100 @@
+{
+  "query": "SELECT id, \"accountId\", \"syncType\", status, \"recordsSynced\", \"completedAt\", \"createdAt\" FROM data_sync_jobs ORDER BY \"createdAt\" DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT id, \"accountId\", \"syncType\", status, \"recordsSynced\", \"completedAt\", \"createdAt\" FROM data_sync_jobs ORDER BY \"createdAt\" DESC LIMIT 10;",
+  "rows": [
+    {
+      "id": "30001",
+      "accountId": "accountId",
+      "syncType": "syncType",
+      "status": "failed",
+      "recordsSynced": "recordsSynced",
+      "completedAt": "completedAt",
+      "createdAt": "createdAt"
+    },
+    {
+      "id": "30002",
+      "accountId": "accountId",
+      "syncType": "syncType",
+      "status": "failed",
+      "recordsSynced": "recordsSynced",
+      "completedAt": "completedAt",
+      "createdAt": "createdAt"
+    },
+    {
+      "id": "30003",
+      "accountId": "accountId",
+      "syncType": "syncType",
+      "status": "failed",
+      "recordsSynced": "recordsSynced",
+      "completedAt": "completedAt",
+      "createdAt": "createdAt"
+    },
+    {
+      "id": "60001",
+      "accountId": "accountId",
+      "syncType": "syncType",
+      "status": "failed",
+      "recordsSynced": "recordsSynced",
+      "completedAt": "completedAt",
+      "createdAt": "createdAt"
+    },
+    {
+      "id": "60002",
+      "accountId": "accountId",
+      "syncType": "syncType",
+      "status": "failed",
+      "recordsSynced": "recordsSynced",
+      "completedAt": "completedAt",
+      "createdAt": "createdAt"
+    },
+    {
+      "id": "90001",
+      "accountId": "accountId",
+      "syncType": "syncType",
+      "status": "completed",
+      "recordsSynced": "recordsSynced",
+      "completedAt": "completedAt",
+      "createdAt": "createdAt"
+    },
+    {
+      "id": "90002",
+      "accountId": "accountId",
+      "syncType": "syncType",
+      "status": "completed",
+      "recordsSynced": "recordsSynced",
+      "completedAt": "completedAt",
+      "createdAt": "createdAt"
+    },
+    {
+      "id": "90003",
+      "accountId": "accountId",
+      "syncType": "syncType",
+      "status": "completed",
+      "recordsSynced": "recordsSynced",
+      "completedAt": "completedAt",
+      "createdAt": "createdAt"
+    },
+    {
+      "id": "90004",
+      "accountId": "accountId",
+      "syncType": "syncType",
+      "status": "completed",
+      "recordsSynced": "recordsSynced",
+      "completedAt": "completedAt",
+      "createdAt": "createdAt"
+    },
+    {
+      "id": "90005",
+      "accountId": "accountId",
+      "syncType": "syncType",
+      "status": "completed",
+      "recordsSynced": "recordsSynced",
+      "completedAt": "completedAt",
+      "createdAt": "createdAt"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\taccountId\tsyncType\tstatus\trecordsSynced\tcompletedAt\tcreatedAt\n30001\taccountId\tsyncType\tfailed\trecordsSynced\tcompletedAt\tcreatedAt\n30002\taccountId\tsyncType\tfailed\trecordsSynced\tcompletedAt\tcreatedAt\n30003\taccountId\tsyncType\tfailed\trecordsSynced\tcompletedAt\tcreatedAt\n60001\taccountId\tsyncType\tfailed\trecordsSynced\tcompletedAt\tcreatedAt\n60002\taccountId\tsyncType\tfailed\trecordsSynced\tcompletedAt\tcreatedAt\n90001\taccountId\tsyncType\tcompleted\trecordsSynced\tcompletedAt\tcreatedAt\n90002\taccountId\tsyncType\tcompleted\trecordsSynced\tcompletedAt\tcreatedAt\n90003\taccountId\tsyncType\tcompleted\trecordsSynced\tcompletedAt\tcreatedAt\n90004\taccountId\tsyncType\tcompleted\trecordsSynced\tcompletedAt\tcreatedAt\n90005\taccountId\tsyncType\tcompleted\trecordsSynced\tcompletedAt\tcreatedAt\n",
+  "stderr": "",
+  "execution_time_ms": 181
+}

@@ -1064,10 +1064,10 @@ export class AmazonSyncService {
           .limit(1);
 
         // 使用 Amazon Ads API v3 的字段名
-        // 重要修复: 所有广告类型都使用 14d 后缀的字段
-        // SP: sales14d, purchases14d, unitsSoldClicks14d, dpv14d, addToCart14d
-        // SB: attributedSales14d, attributedConversions14d, dpv14d, newToBrandPurchases14d, newToBrandSales14d
-        // SD: attributedSales14d, attributedConversions14d, viewAttributedSales14d, viewableImpressions, dpv14d
+        // ⚠️ 重要: 不同广告类型使用不同的归因窗口
+        // SP: 使用 7天归因 (attributedSales7d, attributedConversions7d, attributedUnitsOrdered7d)
+        // SB: 使用 14天归因 (attributedSales14d, attributedConversions14d)
+        // SD: 使用 14天归因 (attributedSales14d, attributedConversions14d, viewAttributedSales14d)
         const cost = row.cost || 0;
         let sales = 0;
         let orders = 0;
@@ -1079,12 +1079,14 @@ export class AmazonSyncService {
         let viewableImpressions = 0;
         
         if (adType === 'SP') {
-          // SP报告使用 sales14d 和 purchases14d
-          sales = row.sales14d || 0;
-          orders = row.purchases14d || 0;
-          unitsSold = row.unitsSoldClicks14d || 0;
-          dpv = row.dpv14d || 0;
-          addToCart = row.addToCart14d || 0;
+          // ✅ SP报告使用 7天归因窗口 (7d)
+          // 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
+          sales = row.attributedSales7d || 0;
+          orders = row.attributedConversions7d || 0;
+          unitsSold = row.attributedUnitsOrdered7d || 0;
+          // SP不支持 dpv 和 addToCart 在 7d 字段中
+          dpv = 0;
+          addToCart = 0;
         } else if (adType === 'SB') {
           // ⚠️ 重要修复: SB报告必须使用 attributedSales14d 和 attributedConversions14d
           // 使用 sales/purchases 会导致数据为空！

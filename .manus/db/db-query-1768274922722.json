@@ -1,0 +1,45 @@
+{
+  "query": "SELECT \"accountId\", \"syncType\", status, \"recordsSynced\", \"completedAt\" FROM data_sync_jobs LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT \"accountId\", \"syncType\", status, \"recordsSynced\", \"completedAt\" FROM data_sync_jobs LIMIT 5;",
+  "rows": [
+    {
+      "accountId": "accountId",
+      "syncType": "syncType",
+      "status": "failed",
+      "recordsSynced": "recordsSynced",
+      "completedAt": "completedAt"
+    },
+    {
+      "accountId": "accountId",
+      "syncType": "syncType",
+      "status": "failed",
+      "recordsSynced": "recordsSynced",
+      "completedAt": "completedAt"
+    },
+    {
+      "accountId": "accountId",
+      "syncType": "syncType",
+      "status": "failed",
+      "recordsSynced": "recordsSynced",
+      "completedAt": "completedAt"
+    },
+    {
+      "accountId": "accountId",
+      "syncType": "syncType",
+      "status": "failed",
+      "recordsSynced": "recordsSynced",
+      "completedAt": "completedAt"
+    },
+    {
+      "accountId": "accountId",
+      "syncType": "syncType",
+      "status": "failed",
+      "recordsSynced": "recordsSynced",
+      "completedAt": "completedAt"
+    }
+  ],
+  "messages": [],
+  "stdout": "accountId\tsyncType\tstatus\trecordsSynced\tcompletedAt\naccountId\tsyncType\tfailed\trecordsSynced\tcompletedAt\naccountId\tsyncType\tfailed\trecordsSynced\tcompletedAt\naccountId\tsyncType\tfailed\trecordsSynced\tcompletedAt\naccountId\tsyncType\tfailed\trecordsSynced\tcompletedAt\naccountId\tsyncType\tfailed\trecordsSynced\tcompletedAt\n",
+  "stderr": "",
+  "execution_time_ms": 58
+}

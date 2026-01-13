@@ -408,11 +408,14 @@ export class SQSConsumerService {
   private async processTrafficMessage(data: AmsTrafficMessage): Promise<void> {
     const impressions = data.impressions || 0;
     const clicks = data.clicks || 0;
-    const cost = (data.cost || 0) / 100; // 从micro转换为美元
+    // ✅ AMS的cost已经是美元单位，不需要转换
+    // 消息中包含 "currency":"USD" 字段确认单位
+    // 例如: rawCost=1.25 表示 1.25 美元
+    const cost = data.cost || 0;
     const campaignId = data.campaign_id;
     const eventHour = data.event_hour;
     
-    console.log(`[SQS Consumer] 处理流量消息: advertiser_id=${data.advertiser_id}, marketplace=${data.marketplace_id}, campaignId=${campaignId}, impressions=${impressions}, clicks=${clicks}, cost=$${cost.toFixed(2)}`);
+    console.log(`[SQS Consumer] 处理流量消息: advertiser_id=${data.advertiser_id}, marketplace=${data.marketplace_id}, campaignId=${campaignId}, impressions=${impressions}, clicks=${clicks}, cost=$${cost.toFixed(4)}, rawCost=${data.cost}`);
     
     // 根据advertiser_id和marketplace_id查找对应的账户
     const account = await this.findAccountByAdvertiserId(data.advertiser_id, data.marketplace_id);
@@ -443,13 +446,14 @@ export class SQSConsumerService {
    * 处理转化消息（销售、订单）
    */
   private async processConversionMessage(data: AmsConversionMessage): Promise<void> {
+    // ✅ AMS的sales已经是美元单位，不需要转换
     // 使用 14天归因窗口的数据（与Amazon后台一致）
-    const sales = (data.attributed_sales_14d || data.attributed_sales_7d || 0) / 100; // 从micro转换为美元
+    const sales = data.attributed_sales_14d || data.attributed_sales_7d || 0;
     const orders = data.attributed_conversions_14d || data.attributed_conversions_7d || data.purchases_14d || data.purchases_7d || 0;
     const campaignId = data.campaign_id;
     const eventHour = data.event_hour;
     
-    console.log(`[SQS Consumer] 处理转化消息: advertiser_id=${data.advertiser_id}, marketplace=${data.marketplace_id}, campaignId=${campaignId}, sales=$${sales.toFixed(2)}, orders=${orders}`);
+    console.log(`[SQS Consumer] 处理转化消息: advertiser_id=${data.advertiser_id}, marketplace=${data.marketplace_id}, campaignId=${campaignId}, sales=$${sales.toFixed(4)}, orders=${orders}, rawSales=${data.attributed_sales_14d || data.attributed_sales_7d}`);
     
     // 根据advertiser_id和marketplace_id查找对应的账户
     const account = await this.findAccountByAdvertiserId(data.advertiser_id, data.marketplace_id);
@@ -479,13 +483,32 @@ export class SQSConsumerService {
    * 处理预算消息
    */
   private async processBudgetMessage(data: AmsBudgetMessage): Promise<void> {
+    const budget = data.budget || 0;
     const budgetUsage = data.budget_usage || 0;
     const budgetPercentage = data.budget_usage_percentage || 0;
     const campaignId = data.campaign_id;
     
-    console.log(`[SQS Consumer] 处理预算消息: advertiser_id=${data.advertiser_id}, campaignId=${campaignId}, usage=${budgetUsage}, percentage=${budgetPercentage}%`);
+    console.log(`[SQS Consumer] 处理预算消息: advertiser_id=${data.advertiser_id}, campaignId=${campaignId}, budget=${budget}, usage=${budgetUsage}, percentage=${budgetPercentage}%`);
     
-    // 预算消息可以用于实时预算监控和告警
+    // ⚠️ 重要: 预算数据是快照(Snapshot)，不是累加!
+    // 直接覆盖数据库中的值，不要累加
+    // 参考文档: https://advertising.amazon.com/API/docs/en-us/guides/amazon-marketing-stream/overview
+    
+    if (campaignId) {
+      try {
+        // 更新广告活动的预算使用情况
+        await db.updateCampaignBudgetUsage(campaignId, {
+          budgetUsage: budgetUsage,
+          budgetUsagePercentage: budgetPercentage,
+          lastBudgetUpdateAt: new Date().toISOString(),
+        });
+        console.log(`[SQS Consumer] 预算状态已更新: campaignId=${campaignId}`);
+      } catch (error: any) {
+        console.error(`[SQS Consumer] 更新预算状态失败:`, error.message);
+      }
+    }
+    
+    // 预算告警逻辑
     if (budgetPercentage > 80) {
       console.warn(`[SQS Consumer] 预算告警: campaignId=${campaignId} 已使用 ${budgetPercentage}%`);
       // TODO: 发送预算告警通知

@@ -699,13 +699,14 @@ export class AmazonAdsApiClient {
   async requestSpCampaignReport(
     startDate: string,
     endDate: string,
-    metrics: string[] = ['impressions', 'clicks', 'cost', 'sales14d', 'purchases14d']
+    metrics: string[] = ['impressions', 'clicks', 'cost', 'attributedSales7d', 'attributedConversions7d']
   ): Promise<string> {
     try {
       console.log(`[Amazon API] 请求SP广告活动报告: ${startDate} - ${endDate}`);
       
       // Amazon Ads Reporting API v3 正确格式
-      // 注意: SP报表可以直接获取预算和状态，SB/SD不行
+      // ⚠️ 重要: SP必须使用7天归因窗口 (7d)，不是14天!
+      // 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
       const requestBody = {
         name: `SP Campaign Report ${startDate} to ${endDate}`,
         startDate,
@@ -718,17 +719,16 @@ export class AmazonAdsApiClient {
             'campaignId',
             'campaignName',
             'campaignStatus',              // 广告活动状态
-            'campaignBudgetAmount',        // ✅ 预算金额 (替代campaignBudget)
-            'campaignBudgetType',          // ✅ 预算类型 (DAILY/LIFETIME)
-            'campaignBudgetCurrencyCode',  // ✅ 预算货币代码
+            'campaignBudget',              // 预算金额
+            'campaignRuleBasedBudget',     // 规则预算
             'impressions',                 // 曝光量
             'clicks',                      // 点击量
             'cost',                        // 花费
-            'purchases14d',                // 订单数 (14天归因)
-            'sales14d',                    // 销售额 (14天归因)
-            'unitsSoldClicks14d',          // ✅ 14天点击归因销售单位数
-            'dpv14d',                      // ✅ 14天详情页浏览量
-            'addToCart14d'                 // ✅ 14天加购数
+            'attributedSales7d',           // ✅ 7天归因销售额 (SP专用)
+            'attributedUnitsOrdered7d',    // ✅ 7天归因订单单位数
+            'attributedConversions7d',     // ✅ 7天归因转化数
+            'attributedSales7dSameSKU',    // ✅ 7天同SKU销售额
+            'attributedUnitsOrdered7dSameSKU' // ✅ 7天同SKU订单单位数
           ],
           reportTypeId: 'spCampaigns',
           timeUnit: 'DAILY',
@@ -773,15 +773,20 @@ export class AmazonAdsApiClient {
           columns: [
             'date',
             'campaignId',
+            'campaignName',
             'adGroupId',
-            'keywordId',
-            'keyword',
+            'adGroupName',
+            'targetId',
+            'targetingExpression',
+            'targetingText',
+            'keywordType',
             'matchType',
             'impressions',
             'clicks',
             'cost',
-            'sales14d',
-            'purchases14d'
+            'attributedSales7d',         // ✅ 7天归因销售额 (SP专用)
+            'attributedUnitsOrdered7d',  // ✅ 7天归因订单单位数
+            'attributedConversions7d'    // ✅ 7天归因转化数
           ],
           reportTypeId: 'spTargeting',
           timeUnit: 'SUMMARY',
@@ -977,9 +982,9 @@ export class AmazonAdsApiClient {
             'impressions',
             'clicks',
             'cost',
-            'purchases14d',
-            'sales14d',
-            'unitsSoldClicks14d'
+            'attributedSales7d',           // ✅ 7天归因销售额 (SP专用)
+            'attributedUnitsOrdered7d',    // ✅ 7天归因订单单位数
+            'attributedConversions7d'      // ✅ 7天归因转化数
           ],
           reportTypeId: 'spCampaigns',
           timeUnit: 'DAILY',
@@ -1038,9 +1043,9 @@ export class AmazonAdsApiClient {
             'impressions',
             'clicks',
             'cost',
-            'purchases14d',
-            'sales14d',
-            'unitsSoldClicks14d'
+            'attributedSales7d',           // ✅ 7天归因销售额 (SP专用)
+            'attributedUnitsOrdered7d',    // ✅ 7天归因订单单位数
+            'attributedConversions7d'      // ✅ 7天归因转化数
           ],
           reportTypeId: 'spSearchTerm',
           timeUnit: 'SUMMARY',
@@ -1100,9 +1105,9 @@ export class AmazonAdsApiClient {
             'impressions',
             'clicks',
             'cost',
-            'purchases14d',
-            'sales14d',
-            'unitsSoldClicks14d'
+            'attributedSales7d',           // ✅ 7天归因销售额 (SP专用)
+            'attributedUnitsOrdered7d',    // ✅ 7天归因订单单位数
+            'attributedConversions7d'      // ✅ 7天归因转化数
           ],
           reportTypeId: 'spTargeting',
           timeUnit: 'SUMMARY',
@@ -1268,14 +1273,47 @@ export class AmazonAdsApiClient {
    * 下载报告数据
    */
   async downloadReport(url: string): Promise<any[]> {
+    // ✅ 优化: 使用流式处理大文件，避免内存溢出
+    // 参考文档: SP报告可能达到500MB+，必须流式处理
     const response = await axios.get(url, {
-      responseType: 'arraybuffer',
+      responseType: 'stream',
     });
     
-    // 解压GZIP数据
     const zlib = await import('zlib');
-    const decompressed = zlib.gunzipSync(response.data);
-    return JSON.parse(decompressed.toString());
+    const { Readable } = await import('stream');
+    
+    return new Promise((resolve, reject) => {
+      const chunks: Buffer[] = [];
+      let totalSize = 0;
+      const MAX_SIZE = 500 * 1024 * 1024; // 500MB限制
+      
+      const gunzip = zlib.createGunzip();
+      
+      response.data
+        .pipe(gunzip)
+        .on('data', (chunk: Buffer) => {
+          totalSize += chunk.length;
+          if (totalSize > MAX_SIZE) {
+            gunzip.destroy();
+            reject(new Error(`Report too large: ${totalSize} bytes exceeds ${MAX_SIZE} bytes limit`));
+            return;
+          }
+          chunks.push(chunk);
+        })
+        .on('end', () => {
+          try {
+            const data = Buffer.concat(chunks).toString('utf-8');
+            const result = JSON.parse(data);
+            console.log(`[Amazon API] 报告解压完成，原始大小: ${totalSize} bytes, 数据条数: ${result?.length || 0}`);
+            resolve(result);
+          } catch (parseError: any) {
+            reject(new Error(`Failed to parse report JSON: ${parseError.message}`));
+          }
+        })
+        .on('error', (err: Error) => {
+          reject(new Error(`Failed to decompress report: ${err.message}`));
+        });
+    });
   }
 
   /**
