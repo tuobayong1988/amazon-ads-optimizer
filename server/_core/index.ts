@@ -8,6 +8,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { startDataSyncScheduler } from "../dataSyncScheduler";
+import { startSQSConsumer } from "../sqsConsumerService";
 import sitemapRouter from "../routes/sitemap";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -67,6 +68,17 @@ async function startServer() {
     // 启动定时同步调度器（每1小时执行一次）
     startDataSyncScheduler(60 * 60 * 1000);
     console.log('[DataSyncScheduler] 定时同步调度器已启动，间隔: 1小时');
+    
+    // 启动SQS消费者服务（AMS实时数据流）
+    if (process.env.AWS_SQS_QUEUE_TRAFFIC_URL || process.env.AWS_SQS_QUEUE_CONVERSION_URL || process.env.AWS_SQS_QUEUE_BUDGET_URL) {
+      startSQSConsumer().then(() => {
+        console.log('[SQS Consumer] AMS实时数据流消费者已启动');
+      }).catch(err => {
+        console.error('[SQS Consumer] 启动失败:', err.message);
+      });
+    } else {
+      console.log('[SQS Consumer] 未配置SQS队列URL，跳过AMS消费者启动');
+    }
   });
 }
 

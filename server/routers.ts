@@ -26,6 +26,7 @@ import * as specialScenarioOptimizationService from './specialScenarioOptimizati
 import * as automationExecutionEngine from './automationExecutionEngine';
 import * as autoOperationService from './autoOperationService';
 import { calculateDateRangeByMarketplace, getMarketplaceLocalDate, MARKETPLACE_TIMEZONES } from '../shared/timezone';
+import { getSQSConsumer, startSQSConsumer, stopSQSConsumer } from './sqsConsumerService';
 import * as marginalBenefitService from './marginalBenefitAnalysisService';
 
 // ==================== Ad Account Router ====================
@@ -4445,12 +4446,72 @@ const amazonApiRouter = router({
     .query(async () => {
       const queueArn = process.env.AWS_SQS_QUEUE_ARN;
       const queueUrl = process.env.AWS_SQS_QUEUE_URL;
+      const trafficQueueUrl = process.env.AWS_SQS_QUEUE_TRAFFIC_URL;
+      const conversionQueueUrl = process.env.AWS_SQS_QUEUE_CONVERSION_URL;
+      const budgetQueueUrl = process.env.AWS_SQS_QUEUE_BUDGET_URL;
       
       return {
-        configured: !!(queueArn && queueUrl),
+        configured: !!(queueArn || trafficQueueUrl || conversionQueueUrl || budgetQueueUrl),
         queueArn: queueArn ? `${queueArn.substring(0, 30)}...` : null,
         queueUrl: queueUrl ? `${queueUrl.substring(0, 50)}...` : null,
+        multiQueueConfigured: !!(trafficQueueUrl || conversionQueueUrl || budgetQueueUrl),
+        queues: {
+          traffic: trafficQueueUrl ? `${trafficQueueUrl.substring(0, 50)}...` : null,
+          conversion: conversionQueueUrl ? `${conversionQueueUrl.substring(0, 50)}...` : null,
+          budget: budgetQueueUrl ? `${budgetQueueUrl.substring(0, 50)}...` : null,
+        },
       };
+    }),
+
+  // 获取SQS消费者状态
+  getSqsConsumerStatus: protectedProcedure
+    .query(async () => {
+      try {
+        const consumer = getSQSConsumer();
+        const status = consumer.getStatus();
+        const queueStats = await consumer.getQueueStats();
+        
+        return {
+          isRunning: status.length > 0 && status.some(s => s.isRunning),
+          consumers: status,
+          queueStats,
+        };
+      } catch (error: any) {
+        return {
+          isRunning: false,
+          consumers: [],
+          queueStats: [],
+          error: error.message,
+        };
+      }
+    }),
+
+  // 启动SQS消费者
+  startSqsConsumer: protectedProcedure
+    .mutation(async () => {
+      try {
+        await startSQSConsumer();
+        return { success: true, message: 'SQS消费者已启动' };
+      } catch (error: any) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `启动SQS消费者失败: ${error.message}`,
+        });
+      }
+    }),
+
+  // 停止SQS消费者
+  stopSqsConsumer: protectedProcedure
+    .mutation(async () => {
+      try {
+        stopSQSConsumer();
+        return { success: true, message: 'SQS消费者已停止' };
+      } catch (error: any) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `停止SQS消费者失败: ${error.message}`,
+        });
+      }
     }),
 });
 

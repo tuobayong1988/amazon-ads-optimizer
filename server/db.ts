@@ -142,6 +142,13 @@ export async function getAdAccountsByUserId(userId: number) {
     .orderBy(adAccounts.sortOrder, adAccounts.createdAt);
 }
 
+export async function getAdAccounts() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(adAccounts);
+}
+
 export async function getAdAccountById(id: number) {
   const db = await getDb();
   if (!db) return undefined;

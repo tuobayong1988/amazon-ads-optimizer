@@ -4809,3 +4809,49 @@ Amazon Advertising API数据有12-24小时延迟，当天广告数据通常在�
 - [ ] 分析数据同步和优化算法问题
 - [ ] 修复发现的问题
 - [ ] 推送代码到GitHub
+
+
+## 2026-01-13 AMS多队列数据接收修复
+
+### 问题发现
+- AMS已配置成功，数据正在发送到AWS SQS
+- AmzStream-NA-sp-traffic-IngressQueue: 15,587条消息
+- AmzStream-NA-budget-usage-IngressQueue: 440条消息
+- AmzStream-NA-sp-conversion-IngressQueue: 55条消息
+- 系统配置的队列ARN指向空队列，导致无法接收数据
+
+### 修复任务
+- [ ] 分析现有AMS配置和SQS队列设置
+- [ ] 修改系统支持多个SQS队列监听
+- [ ] 创建SQS消费者服务读取三个队列数据
+- [ ] 实现数据解析和数据库存储逻辑
+- [ ] 测试数据接收并验证Dashboard显示
+- [ ] 保存检查点并推送代码到GitHub
+
+
+## AMS多队列数据接收修复（2026-01-13）
+
+### 问题诊断
+- [x] 发现系统配置的SQS队列与Amazon实际发送数据的队列不一致
+- [x] 确认Amazon正在向三个队列发送数据：
+  - AmzStream-NA-sp-traffic-IngressQueue: 15,587条消息
+  - AmzStream-NA-sp-conversion-IngressQueue: 55条消息
+  - AmzStream-NA-budget-usage-IngressQueue: 440条消息
+
+### 修复实施
+- [x] 创建SQS消费者服务（sqsConsumerService.ts）
+- [x] 支持监听多个SQS队列（Traffic、Conversion、Budget）
+- [x] 实现AMS消息解析（正确处理advertiser_id、marketplace_id等字段）
+- [x] 实现账户匹配逻辑（通过marketplace_id映射到数据库账户）
+- [x] 集成数据库存储（upsertDailyPerformanceFromAms）
+- [x] 服务器启动时自动启动SQS消费者
+
+### 测试验证
+- [x] SQS队列连接测试通过
+- [x] 消息解析测试通过
+- [x] 数据保存到数据库成功
+- [x] Dashboard显示近7天数据：$2,769花费，$3,486销售，117订单
+
+### 待优化
+- [ ] SB广告数据仍然缺失（V3 API限制，需要V2 API或CSV导入）
+- [ ] 添加CSV绩效数据导入功能作为备选方案

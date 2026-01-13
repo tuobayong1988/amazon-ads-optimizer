@@ -1004,12 +1004,47 @@ export class AmazonSyncService {
         }
 
         if (!campaign) {
-          notMatched++;
-          // 记录未找到的campaign，用于调试
-          if (notMatched <= 10) {
-            console.warn(`[SyncService] ${adType}未找到campaign: accountId=${this.accountId}, campaignId=${row.campaignId}, campaignName=${row.campaignName || 'N/A'}`);
+          // 尝试自动创建campaign记录，以保存报告数据
+          if (row.campaignId && row.campaignName) {
+            try {
+              console.log(`[SyncService] ${adType}自动创建campaign: ${row.campaignName}`);
+              const [newCampaign] = await db.insert(campaigns).values({
+                accountId: this.accountId,
+                campaignId: String(row.campaignId),
+                campaignName: row.campaignName,
+                campaignType: adType.toLowerCase() as 'sp' | 'sb' | 'sd',
+                targetingType: 'manual',
+                status: row.campaignStatus || 'enabled',
+                dailyBudget: row.campaignBudget ? String(row.campaignBudget) : '0',
+                createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+                updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+              }).returning();
+              campaign = newCampaign;
+              console.log(`[SyncService] ${adType}自动创建campaign成功: id=${campaign.id}, name=${campaign.campaignName}`);
+            } catch (createError: any) {
+              // 可能是重复插入，尝试再次查询
+              console.warn(`[SyncService] ${adType}创建campaign失败，尝试再次查询:`, createError.message);
+              [campaign] = await db
+                .select()
+                .from(campaigns)
+                .where(
+                  and(
+                    eq(campaigns.accountId, this.accountId),
+                    eq(campaigns.campaignName, row.campaignName)
+                  )
+                )
+                .limit(1);
+            }
           }
-          continue;
+          
+          if (!campaign) {
+            notMatched++;
+            // 记录未找到的campaign，用于调试
+            if (notMatched <= 10) {
+              console.warn(`[SyncService] ${adType}未找到campaign: accountId=${this.accountId}, campaignId=${row.campaignId}, campaignName=${row.campaignName || 'N/A'}`);
+            }
+            continue;
+          }
         }
 
         // 使用报告日期或当前日期

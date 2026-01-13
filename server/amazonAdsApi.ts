@@ -2016,6 +2016,179 @@ export class AmazonAdsApiClient {
     
     return { created, failed };
   }
+
+  // ==================== V2 SB报告API（用于获取旧版SB广告数据） ====================
+
+  /**
+   * 请求V2 SB广告活动报告
+   * V2 API用于获取2023年5月之前创建的旧版SB广告活动数据
+   */
+  async requestSbCampaignReportV2(reportDate: string, metrics: string[] = [
+    'campaignName', 'campaignId', 'campaignStatus', 'campaignBudget', 'campaignBudgetType',
+    'impressions', 'clicks', 'cost', 'attributedSales14d', 'attributedConversions14d'
+  ]): Promise<{ reportId: string }> {
+    console.log('[Amazon API V2] 请求SB报告, 日期:', reportDate);
+    
+    const response = await this.axiosInstance.post('/v2/hsa/campaigns/report', {
+      reportDate,
+      metrics,
+    }, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+    
+    console.log('[Amazon API V2] SB报告请求成功, reportId:', response.data.reportId);
+    return { reportId: response.data.reportId };
+  }
+
+  /**
+   * 请求V2 SB视频广告报告
+   */
+  async requestSbVideoCampaignReportV2(reportDate: string, metrics: string[] = [
+    'campaignName', 'campaignId', 'campaignStatus', 'campaignBudget', 'campaignBudgetType',
+    'impressions', 'clicks', 'cost', 'attributedSales14d', 'attributedConversions14d', 'videoCompleteViews', 'videoFirstQuartileViews', 'videoMidpointViews', 'videoThirdQuartileViews'
+  ]): Promise<{ reportId: string }> {
+    console.log('[Amazon API V2] 请求SB视频报告, 日期:', reportDate);
+    
+    const response = await this.axiosInstance.post('/v2/hsa/campaigns/report', {
+      reportDate,
+      metrics,
+      creativeType: 'video',
+    }, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+    
+    console.log('[Amazon API V2] SB视频报告请求成功, reportId:', response.data.reportId);
+    return { reportId: response.data.reportId };
+  }
+
+  /**
+   * 获取V2报告状态
+   */
+  async getReportStatusV2(reportId: string): Promise<{ status: string; location?: string }> {
+    const response = await this.axiosInstance.get(`/v2/reports/${reportId}`, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+    
+    console.log('[Amazon API V2] 报告状态:', response.data.status);
+    return {
+      status: response.data.status,
+      location: response.data.location,
+    };
+  }
+
+  /**
+   * 等待并下载V2报告
+   */
+  async waitAndDownloadReportV2(reportId: string, maxWaitMs: number = 300000): Promise<any[]> {
+    const startTime = Date.now();
+    const pollInterval = 3000; // 3秒轮询一次
+    
+    while (Date.now() - startTime < maxWaitMs) {
+      try {
+        const status = await this.getReportStatusV2(reportId);
+        
+        if (status.status === 'SUCCESS' && status.location) {
+          console.log('[Amazon API V2] 报告已完成，开始下载...');
+          
+          // 下载报告（V2报告是gzip压缩的）
+          const reportResponse = await this.axiosInstance.get(status.location, {
+            responseType: 'arraybuffer',
+            headers: { 'Accept-Encoding': 'gzip' },
+          });
+          
+          // 解压gzip
+          const zlib = await import('zlib');
+          const decompressed = zlib.gunzipSync(Buffer.from(reportResponse.data));
+          const reportData = JSON.parse(decompressed.toString('utf-8'));
+          
+          console.log('[Amazon API V2] 报告下载完成，共', Array.isArray(reportData) ? reportData.length : 0, '条记录');
+          return Array.isArray(reportData) ? reportData : [];
+        } else if (status.status === 'FAILURE') {
+          console.error('[Amazon API V2] 报告生成失败');
+          return [];
+        }
+        
+        // 等待后继续轮询
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+      } catch (error: any) {
+        console.error('[Amazon API V2] 轮询报告状态失败:', error.message);
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+      }
+    }
+    
+    console.error('[Amazon API V2] 报告等待超时');
+    return [];
+  }
+
+  /**
+   * 获取完整的SB广告活动报告（结合V2和V3）
+   */
+  async getCompleteSbCampaignReport(startDate: string, endDate: string): Promise<any[]> {
+    const allData: any[] = [];
+    const seenCampaignIds = new Set<string>();
+    
+    // 1. 先尝试V3 API
+    try {
+      console.log('[Amazon API] 尝试V3 SB报告...');
+      const v3Report = await this.requestSbCampaignReport(startDate, endDate);
+      const v3Data = await this.waitAndDownloadReport(v3Report.reportId);
+      
+      for (const row of v3Data) {
+        const campaignId = row.campaignId?.toString();
+        if (campaignId && !seenCampaignIds.has(campaignId)) {
+          seenCampaignIds.add(campaignId);
+          allData.push(row);
+        }
+      }
+      console.log('[Amazon API] V3 SB报告获取', v3Data.length, '条记录');
+    } catch (error: any) {
+      console.error('[Amazon API] V3 SB报告失败:', error.message);
+    }
+    
+    // 2. 然后用V2 API补充旧版数据（逐天请求）
+    try {
+      console.log('[Amazon API] 尝试V2 SB报告...');
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split('T')[0].replace(/-/g, '');
+        
+        try {
+          // 普通SB报告
+          const v2Report = await this.requestSbCampaignReportV2(dateStr);
+          const v2Data = await this.waitAndDownloadReportV2(v2Report.reportId);
+          
+          for (const row of v2Data) {
+            const campaignId = row.campaignId?.toString();
+            if (campaignId && !seenCampaignIds.has(campaignId + '_' + dateStr)) {
+              seenCampaignIds.add(campaignId + '_' + dateStr);
+              allData.push({ ...row, date: d.toISOString().split('T')[0] });
+            }
+          }
+          
+          // SB视频报告
+          const v2VideoReport = await this.requestSbVideoCampaignReportV2(dateStr);
+          const v2VideoData = await this.waitAndDownloadReportV2(v2VideoReport.reportId);
+          
+          for (const row of v2VideoData) {
+            const campaignId = row.campaignId?.toString();
+            if (campaignId && !seenCampaignIds.has(campaignId + '_video_' + dateStr)) {
+              seenCampaignIds.add(campaignId + '_video_' + dateStr);
+              allData.push({ ...row, date: d.toISOString().split('T')[0], isVideo: true });
+            }
+          }
+        } catch (error: any) {
+          console.error('[Amazon API V2] 日期', dateStr, '报告失败:', error.message);
+        }
+      }
+    } catch (error: any) {
+      console.error('[Amazon API] V2 SB报告失败:', error.message);
+    }
+    
+    console.log('[Amazon API] 完整SB报告共', allData.length, '条记录');
+    return allData;
+  }
 }
 
 // ==================== Amazon Marketing Stream (AMS) Types ====================
