@@ -32,7 +32,7 @@ export function QuickActions({ campaignId, accountId, currentBudget, status, onB
     if (isNaN(amount) || amount <= 0) { toast.error("请输入有效的预算金额"); return; }
     setIsLoading(true);
     setTimeout(() => {
-      onBudgetChange?.(currentBudget + amount);
+      onBudgetChange?.((Number(currentBudget) || 0) + amount);
       toast.success(`预算已增加 $${amount}`);
       setIsLoading(false);
     }, 500);
@@ -81,7 +81,7 @@ export function QuickActions({ campaignId, accountId, currentBudget, status, onB
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
                 <Input type="number" value={budgetAmount} onChange={(e) => setBudgetAmount(e.target.value)} placeholder="20" className="h-8" />
               </div>
-              <div className="text-xs text-muted-foreground">当前预算: ${currentBudget.toFixed(2)}</div>
+              <div className="text-xs text-muted-foreground">当前预算: ${(Number(currentBudget) || 0).toFixed(2)}</div>
               <Button size="sm" className="w-full" onClick={handleAddBudget} disabled={isLoading}>
                 {isLoading && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
                 确认增加 ${budgetAmount}
