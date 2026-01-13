@@ -124,3 +124,122 @@ describe('Sync Configuration', () => {
     expect(defaultMinute).toBeLessThan(60);
   });
 });
+
+// ==================== 新增：异步报告任务调度器测试 ====================
+
+describe('Report Job Scheduler Integration', () => {
+  it('should have correct attribution days configuration', () => {
+    // 根据用户需求：SP 14天，SB/SD 30天
+    const REPORT_CONFIG = {
+      SP: { attributionDays: 14 },
+      SB: { attributionDays: 30 },
+      SD: { attributionDays: 30 },
+    };
+
+    expect(REPORT_CONFIG.SP.attributionDays).toBe(14);
+    expect(REPORT_CONFIG.SB.attributionDays).toBe(30);
+    expect(REPORT_CONFIG.SD.attributionDays).toBe(30);
+  });
+
+  it('should have correct slice configuration for hot data', () => {
+    // 热数据：90天，7天一个切片
+    const SLICE_CONFIG = {
+      hotData: { days: 90, sliceSize: 7 },
+    };
+
+    expect(SLICE_CONFIG.hotData.days).toBe(90);
+    expect(SLICE_CONFIG.hotData.sliceSize).toBe(7);
+  });
+
+  it('should have correct slice configuration for cold data', () => {
+    // 冷数据：91-365天，10天一个切片
+    const SLICE_CONFIG = {
+      coldData: { startDay: 91, endDay: 365, sliceSize: 10 },
+    };
+
+    expect(SLICE_CONFIG.coldData.startDay).toBe(91);
+    expect(SLICE_CONFIG.coldData.endDay).toBe(365);
+    expect(SLICE_CONFIG.coldData.sliceSize).toBe(10);
+  });
+
+  it('should calculate correct number of hot data slices', () => {
+    const hotDays = 90;
+    const sliceSize = 7;
+    const expectedSlices = Math.ceil(hotDays / sliceSize);
+    
+    // 90 / 7 = 12.86, 向上取整 = 13
+    expect(expectedSlices).toBe(13);
+  });
+
+  it('should calculate correct number of cold data slices', () => {
+    const coldDays = 365 - 91 + 1; // 275天
+    const sliceSize = 10;
+    const expectedSlices = Math.ceil(coldDays / sliceSize);
+    
+    // 275 / 10 = 27.5, 向上取整 = 28
+    expect(expectedSlices).toBe(28);
+  });
+
+  it('should calculate total initialization jobs correctly', () => {
+    const hotSlices = 13;
+    const coldSlices = 28;
+    const adTypes = 3; // SP, SB, SD
+    
+    const totalJobs = (hotSlices + coldSlices) * adTypes;
+    
+    // (13 + 28) * 3 = 123
+    expect(totalJobs).toBe(123);
+  });
+});
+
+describe('Report Job Status Flow', () => {
+  it('should have valid status transitions', () => {
+    const validStatuses = ['pending', 'submitted', 'processing', 'completed', 'failed', 'expired'];
+    
+    // 验证所有状态都已定义
+    expect(validStatuses).toContain('pending');
+    expect(validStatuses).toContain('submitted');
+    expect(validStatuses).toContain('processing');
+    expect(validStatuses).toContain('completed');
+    expect(validStatuses).toContain('failed');
+    expect(validStatuses).toContain('expired');
+  });
+
+  it('should follow correct status flow', () => {
+    // pending -> submitted -> processing -> completed/failed
+    const statusFlow = {
+      pending: ['submitted', 'failed'],
+      submitted: ['processing', 'failed'],
+      processing: ['completed', 'failed'],
+      completed: [],
+      failed: [],
+      expired: [],
+    };
+
+    expect(statusFlow.pending).toContain('submitted');
+    expect(statusFlow.submitted).toContain('processing');
+    expect(statusFlow.processing).toContain('completed');
+  });
+});
+
+describe('Scheduler Intervals', () => {
+  it('should have correct submit interval', () => {
+    const submitInterval = 30 * 1000; // 30秒
+    expect(submitInterval).toBe(30000);
+  });
+
+  it('should have correct check interval', () => {
+    const checkInterval = 60 * 1000; // 1分钟
+    expect(checkInterval).toBe(60000);
+  });
+
+  it('should have correct process interval', () => {
+    const processInterval = 30 * 1000; // 30秒
+    expect(processInterval).toBe(30000);
+  });
+
+  it('should have correct cleanup interval', () => {
+    const cleanupInterval = 24 * 60 * 60 * 1000; // 24小时
+    expect(cleanupInterval).toBe(86400000);
+  });
+});

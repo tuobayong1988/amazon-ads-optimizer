@@ -7035,6 +7035,158 @@ const dataSyncRouter = router({
     }),
 });
 
+// ==================== Report Jobs Router ====================
+import { asyncReportService } from './services/asyncReportService';
+import { reportJobScheduler } from './services/reportJobScheduler';
+import { accountInitializationService } from './services/accountInitializationService';
+import { smartSyncService } from './services/smartSyncService';
+import { tieredSyncService } from './services/tieredSyncService';
+
+const reportJobsRouter = router({
+  // 获取报告任务统计
+  getStats: protectedProcedure.query(async () => {
+    return asyncReportService.getJobStats();
+  }),
+
+  // 获取调度器状态
+  getSchedulerStatus: protectedProcedure.query(async () => {
+    return reportJobScheduler.getStatus();
+  }),
+
+  // 手动触发一次处理周期
+  runOnce: protectedProcedure.mutation(async () => {
+    return reportJobScheduler.runOnce();
+  }),
+
+  // 创建归因回溯任务
+  createAttributionJobs: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      profileId: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const jobIds = await asyncReportService.createAttributionJobs(input.accountId, input.profileId);
+      return { success: true, jobCount: jobIds.length, jobIds };
+    }),
+
+  // 创建初始化任务（新店铺）
+  createInitializationJobs: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      profileId: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const jobIds = await asyncReportService.createInitializationJobs(input.accountId, input.profileId);
+      return { success: true, jobCount: jobIds.length, jobIds };
+    }),
+
+  // 清理过期任务
+  cleanupExpiredJobs: protectedProcedure
+    .input(z.object({ daysOld: z.number().default(7) }))
+    .mutation(async ({ input }) => {
+      const count = await asyncReportService.cleanupExpiredJobs(input.daysOld);
+      return { success: true, deletedCount: count };
+    }),
+
+  // 开始账号初始化
+  startInitialization: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ input }) => {
+      return accountInitializationService.startInitialization(input.accountId);
+    }),
+
+  // 获取初始化进度
+  getInitializationProgress: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      return accountInitializationService.getInitializationProgress(input.accountId);
+    }),
+
+  // 重试失败的初始化
+  retryFailedInitialization: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ input }) => {
+      return accountInitializationService.retryFailedInitialization(input.accountId);
+    }),
+
+  // 获取待初始化的账号列表
+  getPendingInitializationAccounts: protectedProcedure.query(async () => {
+    return accountInitializationService.getPendingInitializationAccounts();
+  }),
+
+  // 执行智能同步
+  executeSmartSync: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ input }) => {
+      return smartSyncService.executeSmartSync(input.accountId);
+    }),
+
+  // 获取同步统计
+  getSyncStats: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      return smartSyncService.getSyncStats(input.accountId);
+    }),
+
+  // 获取任务数量对比
+  getTaskComparison: protectedProcedure.query(async () => {
+    return smartSyncService.getTaskComparison();
+  }),
+
+  // ===== 智能分层同步（方案五） =====
+  
+  // 获取分层配置
+  getTierConfig: protectedProcedure.query(async () => {
+    return tieredSyncService.getTierConfig();
+  }),
+
+  // 计算各层任务数量
+  calculateTieredTaskCounts: protectedProcedure.query(async () => {
+    return tieredSyncService.calculateTaskCounts();
+  }),
+
+  // 创建分层初始化任务
+  createTieredInitializationTasks: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      profileId: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      return tieredSyncService.createTieredInitializationTasks(input.accountId, input.profileId);
+    }),
+
+  // 获取分层初始化进度
+  getTieredInitializationStats: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      return tieredSyncService.getInitializationStats(input.accountId);
+    }),
+
+  // 获取任务进度（断点续传支持）
+  getTaskProgress: protectedProcedure
+    .input(z.object({ taskId: z.number() }))
+    .query(async ({ input }) => {
+      return tieredSyncService.getTaskProgress(input.taskId);
+    }),
+
+  // 重试失败的任务（增量重试）
+  retryFailedTieredTasks: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      maxRetries: z.number().default(3),
+    }))
+    .mutation(async ({ input }) => {
+      return tieredSyncService.retryFailedTasks(input.accountId, input.maxRetries);
+    }),
+
+  // 检查任务完成状态
+  checkTaskCompletion: protectedProcedure
+    .input(z.object({ taskId: z.number() }))
+    .query(async ({ input }) => {
+      return tieredSyncService.checkTaskCompletion(input.taskId);
+    }),
+});
+
 // ==================== Dayparting Router ====================
 const daypartingRouter = router({
   // 获取账号的所有分时策略
@@ -10215,6 +10367,7 @@ export const appRouter = router({system: systemRouter,
   automation: automationRouter,
   autoOperation: autoOperationRouter,
   inviteCode: inviteCodeRouter,
+  reportJobs: reportJobsRouter,
 });
 
 export type AppRouter = typeof appRouter;

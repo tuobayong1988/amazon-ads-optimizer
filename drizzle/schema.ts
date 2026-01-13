@@ -129,7 +129,12 @@ export const adAccounts = mysqlTable("ad_accounts", {
 	connectionErrorMessage: text(),
 	isDefault: tinyint().default(0),
 	sortOrder: int().default(0),
-	organizationId: int(),
+	// 初始化状态字段
+	initializationStatus: varchar({ length: 20 }).default('pending'),
+	initializationStartedAt: timestamp({ mode: 'string' }),
+	initializationCompletedAt: timestamp({ mode: 'string' }),
+	initializationProgress: int().default(0),
+	initializationError: text(),
 },
 (table) => [
 	index("idx_ad_organization").on(table.organizationId),
@@ -2589,4 +2594,58 @@ export const users = mysqlTable("users", {
 (table) => [
 	index("users_openId_unique").on(table.openId),
 	index("idx_organization").on(table.organizationId),
+]);
+
+
+// 报告任务表 - 用于异步报告处理
+export const reportJobs = mysqlTable("report_jobs", {
+	id: int().autoincrement().primaryKey().notNull(),
+	accountId: int().notNull(),
+	profileId: varchar({ length: 64 }).notNull(),
+	reportType: varchar({ length: 64 }).notNull(), // spCampaigns, sbCampaigns, sdCampaigns, etc.
+	adProduct: varchar({ length: 32 }).notNull(), // SPONSORED_PRODUCTS, SPONSORED_BRANDS, SPONSORED_DISPLAY
+	reportId: varchar({ length: 128 }), // Amazon报告ID
+	status: mysqlEnum(['pending', 'submitted', 'processing', 'completed', 'failed', 'expired']).default('pending').notNull(),
+	startDate: varchar({ length: 10 }).notNull(), // YYYY-MM-DD
+	endDate: varchar({ length: 10 }).notNull(), // YYYY-MM-DD
+	requestPayload: json(), // 报告请求的完整配置
+	downloadUrl: text(), // 报告下载URL
+	recordsProcessed: int().default(0), // 处理的记录数
+	errorMessage: text(), // 错误信息
+	retryCount: int().default(0), // 重试次数
+	maxRetries: int().default(3), // 最大重试次数
+	priority: mysqlEnum(['critical', 'high', 'medium', 'low']).default('medium'), // 任务优先级
+	metadata: json(), // 任务元数据（分层信息、进度追踪等）
+	submittedAt: timestamp({ mode: 'string' }), // 提交时间
+	completedAt: timestamp({ mode: 'string' }), // 完成时间
+	processedAt: timestamp({ mode: 'string' }), // 数据处理时间
+	expiresAt: timestamp({ mode: 'string' }), // 报告过期时间
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+	index("idx_report_jobs_account").on(table.accountId),
+	index("idx_report_jobs_status").on(table.status),
+	index("idx_report_jobs_report_id").on(table.reportId),
+	index("idx_report_jobs_profile").on(table.profileId),
+]);
+
+
+// 账号初始化进度表 - 追踪新店铺数据初始化进度
+export const accountInitializationProgress = mysqlTable("account_initialization_progress", {
+	id: int().autoincrement().primaryKey().notNull(),
+	accountId: int().notNull(),
+	phase: varchar({ length: 50 }).notNull(), // hot_data, cold_data, structure_data
+	phaseStatus: varchar({ length: 20 }).default('pending').notNull(), // pending, in_progress, completed, failed
+	totalTasks: int().default(0).notNull(),
+	completedTasks: int().default(0).notNull(),
+	failedTasks: int().default(0).notNull(),
+	startedAt: timestamp({ mode: 'string' }),
+	completedAt: timestamp({ mode: 'string' }),
+	errorMessage: text(),
+	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+	index("idx_account_phase").on(table.accountId, table.phase),
 ]);

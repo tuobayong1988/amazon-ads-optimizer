@@ -9,6 +9,7 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { startDataSyncScheduler } from "../dataSyncScheduler";
 import { startSQSConsumer } from "../sqsConsumerService";
+import { reportJobScheduler } from "../services/reportJobScheduler";
 import sitemapRouter from "../routes/sitemap";
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -79,6 +80,10 @@ async function startServer() {
     } else {
       console.log('[SQS Consumer] 未配置SQS队列URL，跳过AMS消费者启动');
     }
+    
+    // 启动异步报告任务调度器
+    reportJobScheduler.start();
+    console.log('[ReportJobScheduler] 异步报告任务调度器已启动');
   });
 }
 

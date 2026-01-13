@@ -12,7 +12,9 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { Activity, AlertTriangle, Calendar, CheckCircle, Clock, Database, Gauge, History, Loader2, Pause, Play, Plus, RefreshCw, RotateCcw, Server, Trash2, XCircle } from "lucide-react";
+import { Activity, AlertTriangle, Calendar, CheckCircle, Clock, Database, Gauge, History, Loader2, Pause, Play, Plus, RefreshCw, RotateCcw, Server, Trash2, XCircle, Zap } from "lucide-react";
+import { InitializationProgress } from "@/components/InitializationProgress";
+import { TieredSyncProgress } from "@/components/TieredSyncProgress";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -24,7 +26,7 @@ type ScheduleFrequency = "hourly" | "daily" | "weekly" | "monthly";
 
 export default function DataSync() {
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState("jobs");
+  const [activeTab, setActiveTab] = useState("tiered");
   const [syncType, setSyncType] = useState<SyncType>("all");
   const [statusFilter, setStatusFilter] = useState<SyncStatus | "all">("all");
 
@@ -311,6 +313,14 @@ export default function DataSync() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
+          <TabsTrigger value="initialization">
+            <Zap className="h-4 w-4 mr-2" />
+            初始化进度
+          </TabsTrigger>
+          <TabsTrigger value="tiered">
+            <Zap className="h-4 w-4 mr-2" />
+            智能分层
+          </TabsTrigger>
           <TabsTrigger value="jobs">
             <Database className="h-4 w-4 mr-2" />
             同步任务
@@ -324,6 +334,36 @@ export default function DataSync() {
             API限流
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="initialization" className="space-y-4">
+          {accountId ? (
+            <InitializationProgress 
+              accountId={accountId} 
+              accountName={accounts?.find(a => a.id === accountId)?.accountName}
+            />
+          ) : (
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-muted-foreground text-center">请先选择一个账号</p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="tiered" className="space-y-4">
+          {accountId ? (
+            <TieredSyncProgress 
+              accountId={accountId} 
+              accountName={accounts?.find(a => a.id === accountId)?.accountName}
+            />
+          ) : (
+            <Card>
+              <CardContent className="pt-6">
+                <p className="text-center text-muted-foreground">请先选择一个广告账号</p>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
 
         <TabsContent value="jobs" className="space-y-4">
           {/* 创建任务 */}

@@ -340,7 +340,14 @@ export default function MarginalBenefitAnalysis() {
                   <SelectContent>
                     {accounts?.map((account) => (
                       <SelectItem key={account.id} value={account.id.toString()}>
-                        {account.storeName || account.profileId}
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{account.storeName || account.accountName || 'Unknown'}</span>
+                          {account.marketplace && (
+                            <Badge variant="outline" className="text-xs px-1.5 py-0">
+                              {account.marketplace}
+                            </Badge>
+                          )}
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1248,10 +1255,13 @@ export default function MarginalBenefitAnalysis() {
 
         {/* 预算模拟器 */}
         <BudgetSimulator
-          currentBudget={selectedCampaign ? 100 : 0}
-          currentAcos={selectedCampaign ? 28.5 : 0}
-          currentRoas={selectedCampaign ? 3.5 : 0}
-          currentSales={selectedCampaign ? 350 : 0}
+          currentBudget={selectedCampaignId ? 100 : 0}
+          currentSpend={selectedCampaignId ? 85 : 0}
+          currentSales={selectedCampaignId ? 350 : 0}
+          currentAcos={selectedCampaignId ? 28.5 : 0}
+          marginalCost={selectedCampaignId ? 1.2 : 0}
+          marginalRevenue={selectedCampaignId ? 1.5 : 0}
+          elasticity={selectedCampaignId ? 0.8 : 0}
           onApply={(newBudget) => {
             toast.success(`预算已调整为 $${newBudget}/天`);
           }}
