@@ -18,6 +18,7 @@ import * as daypartingService from "./daypartingService";
 import * as placementOptimizationService from "./placementOptimizationService";
 import * as adAutomation from "./adAutomation";
 import * as intelligentBudgetAllocationService from "./intelligentBudgetAllocationService";
+import * as bidCoordinator from "./services/bidCoordinator";
 
 // 优化执行结果类型
 export interface OptimizationExecutionResult {
@@ -62,6 +63,14 @@ export interface OptimizationExecutionResult {
     executed: boolean;
     pausedCount: number;
     enabledCount: number;
+    details: any[];
+  };
+  
+  // 中央竞价协调器执行结果
+  bidCoordination: {
+    executed: boolean;
+    campaignsCoordinated: number;
+    circuitBreakerTriggered: number;
     details: any[];
   };
   
@@ -174,6 +183,7 @@ export async function executeOptimizationTarget(
     searchTermAnalysis: { executed: false, negativeKeywordsAdded: 0, newKeywordsAdded: 0, details: [] },
     budgetAllocation: { executed: false, adjustmentsCount: 0, details: [] },
     keywordStatusChanges: { executed: false, pausedCount: 0, enabledCount: 0, details: [] },
+    bidCoordination: { executed: false, campaignsCoordinated: 0, circuitBreakerTriggered: 0, details: [] },
     errors: [],
     warnings: [],
   };
@@ -252,9 +262,35 @@ export async function executeOptimizationTarget(
     }
   }
   
+  // 7. 执行中央竞价协调（收集各服务建议并统一处理）
+  if (shouldExecute('coordination')) {
+    try {
+      const coordinationResults = await executeBidCoordination(
+        config,
+        campaigns,
+        result.bidOptimization.details,
+        result.placementOptimization.details,
+        result.daypartingOptimization.details,
+        dryRun
+      );
+      result.bidCoordination = coordinationResults;
+      
+      // 将协调器的警告添加到结果中
+      if (coordinationResults.details.length > 0) {
+        for (const detail of coordinationResults.details) {
+          if (detail.warnings && detail.warnings.length > 0) {
+            result.warnings.push(...detail.warnings);
+          }
+        }
+      }
+    } catch (error: any) {
+      result.errors.push(`中央竞价协调失败: ${error.message}`);
+    }
+  }
+  
   // 更新执行状态
   if (result.errors.length > 0) {
-    result.status = result.errors.length === 6 ? 'failed' : 'partial';
+    result.status = result.errors.length === 7 ? 'failed' : 'partial';
   }
   
   // 记录执行日志
@@ -682,6 +718,140 @@ async function executeKeywordStatusChanges(
 }
 
 /**
+ * 执行中央竞价协调
+ * 收集bidOptimizer、daypartingService、placementService的建议
+ * 计算理论最高CPC并实施熔断机制
+ */
+async function executeBidCoordination(
+  config: OptimizationTargetConfig,
+  campaigns: any[],
+  bidDetails: any[],
+  placementDetails: any[],
+  daypartingDetails: any[],
+  dryRun: boolean
+): Promise<{ executed: boolean; campaignsCoordinated: number; circuitBreakerTriggered: number; details: any[] }> {
+  const details: any[] = [];
+  let campaignsCoordinated = 0;
+  let circuitBreakerTriggered = 0;
+  
+  // 按广告活动分组处理
+  for (const campaign of campaigns) {
+    try {
+      const proposals: bidCoordinator.BidProposal[] = [];
+      
+      // 1. 收集出价优化建议
+      const bidSuggestions = bidDetails.filter(d => d.campaignId === campaign.id);
+      for (const suggestion of bidSuggestions) {
+        if (suggestion.newBid && suggestion.currentBid) {
+          const multiplier = suggestion.newBid / suggestion.currentBid;
+          proposals.push(bidCoordinator.createBidProposal(
+            campaign.id,
+            'campaign',
+            'base_algo',
+            {
+              suggestedMultiplier: multiplier,
+              confidence: 0.85,
+              reason: suggestion.reason || '基于市场曲线的最优出价调整',
+            }
+          ));
+        }
+      }
+      
+      // 2. 收集位置优化建议
+      const placementSuggestions = placementDetails.filter(d => d.campaignId === campaign.id);
+      for (const suggestion of placementSuggestions) {
+        if (suggestion.suggestedMultiplier !== undefined) {
+          proposals.push(bidCoordinator.createBidProposal(
+            campaign.id,
+            'campaign',
+            'placement',
+            {
+              suggestedMultiplier: 1 + (suggestion.suggestedMultiplier - suggestion.currentMultiplier) / 100,
+              confidence: 0.75,
+              reason: suggestion.reason || '位置效率优化',
+            }
+          ));
+        }
+      }
+      
+      // 3. 收集分时策略建议
+      const daypartingSuggestions = daypartingDetails.filter(d => d.campaignId === campaign.id);
+      for (const suggestion of daypartingSuggestions) {
+        if (suggestion.bidMultiplier && suggestion.bidMultiplier !== 1) {
+          proposals.push(bidCoordinator.createBidProposal(
+            campaign.id,
+            'campaign',
+            'dayparting',
+            {
+              suggestedMultiplier: suggestion.bidMultiplier,
+              confidence: 0.8,
+              reason: `分时策略: ${suggestion.hour}:00 乘数${suggestion.bidMultiplier}`,
+            }
+          ));
+        }
+      }
+      
+      // 如果没有建议，跳过该广告活动
+      if (proposals.length === 0) continue;
+      
+      // 4. 获取当前广告活动的竞价配置
+      const currentBaseBid = parseFloat(campaign.defaultBid || '1');
+      const currentPlacementMultiplier = parseFloat(campaign.topOfSearchMultiplier || '0');
+      const currentDaypartingMultiplier = 1; // 分时乘数需要从策略中获取
+      
+      // 5. 调用中央协调器
+      const coordinatedResult = await bidCoordinator.applyCoordinatedBids(
+        campaign.amazonCampaignId || campaign.id.toString(),
+        config.accountId,
+        proposals,
+        currentBaseBid,
+        currentPlacementMultiplier,
+        currentDaypartingMultiplier
+      );
+      
+      // 6. 记录协调结果
+      const coordinationDetail = {
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+        proposalsCount: proposals.length,
+        originalBaseBid: coordinatedResult.originalBaseBid,
+        finalBaseBid: coordinatedResult.finalBaseBid,
+        theoreticalMaxCPC: coordinatedResult.theoreticalMaxCPC,
+        effectiveMultiplier: coordinatedResult.effectiveMultiplier,
+        circuitBreakerTriggered: coordinatedResult.circuitBreakerTriggered,
+        circuitBreakerReason: coordinatedResult.circuitBreakerReason,
+        warnings: coordinatedResult.warnings,
+      };
+      
+      details.push(coordinationDetail);
+      campaignsCoordinated++;
+      
+      if (coordinatedResult.circuitBreakerTriggered) {
+        circuitBreakerTriggered++;
+      }
+      
+      // 7. 如果不是干运行且有实际调整，记录日志
+      if (!dryRun && coordinatedResult.finalBaseBid !== coordinatedResult.originalBaseBid) {
+        console.log(`[BidCoordination] 广告活动 ${campaign.name} 竞价协调完成:`, {
+          original: coordinatedResult.originalBaseBid,
+          final: coordinatedResult.finalBaseBid,
+          maxCPC: coordinatedResult.theoreticalMaxCPC,
+          circuitBreaker: coordinatedResult.circuitBreakerTriggered,
+        });
+      }
+    } catch (error: any) {
+      details.push({
+        campaignId: campaign.id,
+        campaignName: campaign.name,
+        error: error.message,
+      });
+    }
+  }
+  
+  return { executed: true, campaignsCoordinated, circuitBreakerTriggered, details };
+}
+
+/**
  * 记录执行日志
  */
 async function recordExecutionLog(result: OptimizationExecutionResult): Promise<void> {
@@ -696,6 +866,10 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
     budgetAdjustments: result.budgetAllocation.adjustmentsCount,
     keywordsPaused: result.keywordStatusChanges.pausedCount,
     keywordsEnabled: result.keywordStatusChanges.enabledCount,
+    bidCoordination: {
+      campaignsCoordinated: result.bidCoordination.campaignsCoordinated,
+      circuitBreakerTriggered: result.bidCoordination.circuitBreakerTriggered,
+    },
     errors: result.errors.length,
   });
 }
@@ -751,6 +925,7 @@ export async function executeAllEnabledTargets(
         searchTermAnalysis: { executed: false, negativeKeywordsAdded: 0, newKeywordsAdded: 0, details: [] },
         budgetAllocation: { executed: false, adjustmentsCount: 0, details: [] },
         keywordStatusChanges: { executed: false, pausedCount: 0, enabledCount: 0, details: [] },
+        bidCoordination: { executed: false, campaignsCoordinated: 0, circuitBreakerTriggered: 0, details: [] },
         errors: [error.message],
         warnings: [],
       });

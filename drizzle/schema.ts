@@ -2648,3 +2648,112 @@ export const accountInitializationProgress = mysqlTable("account_initialization_
 (table) => [
 	index("idx_account_phase").on(table.accountId, table.phase),
 ]);
+
+// ==================== 类型导出 ====================
+import { InferSelectModel, InferInsertModel } from "drizzle-orm";
+
+// 竞价日志相关类型
+export type BiddingLog = InferSelectModel<typeof biddingLogs>;
+export type InsertBiddingLog = InferInsertModel<typeof biddingLogs>;
+
+// 每日表现相关类型
+export type DailyPerformance = InferSelectModel<typeof dailyPerformance>;
+export type InsertDailyPerformance = InferInsertModel<typeof dailyPerformance>;
+
+// 市场曲线数据相关类型
+export type MarketCurveData = InferSelectModel<typeof marketCurveData>;
+export type InsertMarketCurveData = InferInsertModel<typeof marketCurveData>;
+
+// 导入任务相关类型
+export type ImportJob = InferSelectModel<typeof importJobs>;
+export type InsertImportJob = InferInsertModel<typeof importJobs>;
+
+// 通知设置相关类型
+export type NotificationSetting = InferSelectModel<typeof notificationSettings>;
+export type InsertNotificationSetting = InferInsertModel<typeof notificationSettings>;
+
+// 通知历史相关类型
+export type NotificationHistoryRecord = InferSelectModel<typeof notificationHistory>;
+export type InsertNotificationHistory = InferInsertModel<typeof notificationHistory>;
+
+// 计划任务相关类型
+export type ScheduledTask = InferSelectModel<typeof scheduledTasks>;
+export type InsertScheduledTask = InferInsertModel<typeof scheduledTasks>;
+
+// 任务执行日志相关类型
+export type TaskExecutionLogRecord = InferSelectModel<typeof taskExecutionLog>;
+export type InsertTaskExecutionLog = InferInsertModel<typeof taskExecutionLog>;
+
+// 批量操作相关类型
+export type BatchOperation = InferSelectModel<typeof batchOperations>;
+export type InsertBatchOperation = InferInsertModel<typeof batchOperations>;
+export type BatchOperationItem = InferSelectModel<typeof batchOperationItems>;
+export type InsertBatchOperationItem = InferInsertModel<typeof batchOperationItems>;
+
+// 归因校正相关类型
+export type AttributionCorrectionRecord = InferSelectModel<typeof attributionCorrectionRecords>;
+export type InsertAttributionCorrectionRecord = InferInsertModel<typeof attributionCorrectionRecords>;
+
+// 校正审核会话相关类型
+export type CorrectionReviewSession = InferSelectModel<typeof correctionReviewSessions>;
+export type InsertCorrectionReviewSession = InferInsertModel<typeof correctionReviewSessions>;
+
+// 账号权限相关类型
+export type AccountPermission = InferSelectModel<typeof accountPermissions>;
+export type InsertAccountPermission = InferInsertModel<typeof accountPermissions>;
+
+// 邮件报告订阅相关类型
+export type EmailReportSubscription = InferSelectModel<typeof emailReportSubscriptions>;
+export type InsertEmailReportSubscription = InferInsertModel<typeof emailReportSubscriptions>;
+
+// 邮件发送日志相关类型
+export type EmailSendLog = InferSelectModel<typeof emailSendLogs>;
+export type InsertEmailSendLog = InferInsertModel<typeof emailSendLogs>;
+
+// AI优化执行相关类型
+export type AiOptimizationExecution = InferSelectModel<typeof aiOptimizationExecutions>;
+export type InsertAiOptimizationExecution = InferInsertModel<typeof aiOptimizationExecutions>;
+
+// 出价调整历史相关类型
+export type BidAdjustmentHistory = InferSelectModel<typeof bidAdjustmentHistory>;
+export type InsertBidAdjustmentHistory = InferInsertModel<typeof bidAdjustmentHistory>;
+
+// 位置表现相关类型
+export type PlacementPerformance = InferSelectModel<typeof placementPerformance>;
+export type InsertPlacementPerformance = InferInsertModel<typeof placementPerformance>;
+
+// 位置设置相关类型
+export type PlacementSetting = InferSelectModel<typeof placementSettings>;
+export type InsertPlacementSetting = InferInsertModel<typeof placementSettings>;
+
+// 每小时表现相关类型
+export type HourlyPerformance = InferSelectModel<typeof hourlyPerformance>;
+export type InsertHourlyPerformance = InferInsertModel<typeof hourlyPerformance>;
+
+// 分时策略相关类型
+export type DaypartingStrategy = InferSelectModel<typeof daypartingStrategies>;
+export type InsertDaypartingStrategy = InferInsertModel<typeof daypartingStrategies>;
+
+// 分时预算规则相关类型
+export type DaypartingBudgetRule = InferSelectModel<typeof daypartingBudgetRules>;
+export type InsertDaypartingBudgetRule = InferInsertModel<typeof daypartingBudgetRules>;
+
+// 分时竞价规则相关类型
+export type HourpartingBidRule = InferSelectModel<typeof hourpartingBidRules>;
+export type InsertHourpartingBidRule = InferInsertModel<typeof hourpartingBidRules>;
+
+// 分时执行日志相关类型
+export type DaypartingExecutionLog = InferSelectModel<typeof daypartingExecutionLogs>;
+export type InsertDaypartingExecutionLog = InferInsertModel<typeof daypartingExecutionLogs>;
+
+// 预算分配相关类型
+export type BudgetAllocationConfig = InferSelectModel<typeof budgetAllocationConfigs>;
+export type InsertBudgetAllocationConfig = InferInsertModel<typeof budgetAllocationConfigs>;
+export type BudgetAllocationSuggestion = InferSelectModel<typeof budgetAllocationSuggestions>;
+export type InsertBudgetAllocationSuggestion = InferInsertModel<typeof budgetAllocationSuggestions>;
+export type BudgetAllocationHistory = InferSelectModel<typeof budgetAllocationHistory>;
+export type InsertBudgetAllocationHistory = InferInsertModel<typeof budgetAllocationHistory>;
+
+// 广告活动表现快照相关类型
+export type CampaignPerformanceSnapshot = InferSelectModel<typeof campaignPerformanceSnapshots>;
+export type InsertCampaignPerformanceSnapshot = InferInsertModel<typeof campaignPerformanceSnapshots>;
