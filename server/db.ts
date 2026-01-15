@@ -4474,7 +4474,7 @@ export async function getPlacementPerformanceByCampaignId(campaignId: number) {
       ORDER BY placement_type
     `);
     
-    return result.rows || [];
+    return (result as any) || [];
   } catch (error) {
     console.error('[getPlacementPerformanceByCampaignId] Error:', error);
     return [];

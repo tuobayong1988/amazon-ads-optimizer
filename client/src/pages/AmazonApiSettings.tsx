@@ -1385,10 +1385,20 @@ export default function AmazonApiSettings() {
               导入
             </Button>
 
+            {/* 批量授权按钮 */}
+            <Button 
+              variant="default" 
+              className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+              onClick={() => window.location.href = '/batch-authorization'}
+            >
+              <Globe className="h-4 w-4 mr-2" />
+              批量授权多站点
+            </Button>
+
             {/* 添加账号按钮 */}
             <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
               <DialogTrigger asChild>
-                <Button onClick={handleOpenAddDialog}>
+                <Button variant="outline" onClick={handleOpenAddDialog}>
                   <Plus className="h-4 w-4 mr-2" />
                   添加店铺账号
                 </Button>

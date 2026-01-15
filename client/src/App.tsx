@@ -72,6 +72,7 @@ const Blog = lazy(() => import("./pages/Blog"));
 const BlogPost = lazy(() => import("./pages/BlogPost"));
 const MarginalBenefitAnalysis = lazy(() => import("./pages/MarginalBenefitAnalysis"));
 const SellerOnboarding = lazy(() => import("./pages/SellerOnboarding"));
+const BatchAuthorization = lazy(() => import("./pages/BatchAuthorization"));
 
 // 加载中组件
 function PageLoading() {
@@ -161,6 +162,7 @@ function Router() {
       <Route path="/auto-operation">{() => { window.location.href = '/optimization-engine'; return null; }}</Route>
       <Route path="/onboarding">{() => <LazyRoute component={SellerOnboarding} />}</Route>
       <Route path="/seller-onboarding">{() => <LazyRoute component={SellerOnboarding} />}</Route>
+      <Route path="/batch-authorization">{() => <LazyRoute component={BatchAuthorization} />}</Route>
       <Route path="/register">{() => <LazyRoute component={InviteRegister} />}</Route>
       <Route path="/local-login">{() => <LazyRoute component={LocalLogin} />}</Route>
       <Route path="/blog">{() => <LazyRoute component={Blog} />}</Route>

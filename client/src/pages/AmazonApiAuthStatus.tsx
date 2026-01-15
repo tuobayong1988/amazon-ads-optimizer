@@ -5,7 +5,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AlertTriangle, CheckCircle, Clock, RefreshCw, AlertCircle } from 'lucide-react';
-import { client } from '@/lib/trpc';
+import { trpc } from '@/lib/trpc';
 
 interface ApiAuthStatus {
   accountId: number;
@@ -36,7 +36,7 @@ export default function AmazonApiAuthStatus() {
   const { data: summary, isLoading, refetch } = useQuery({
     queryKey: ['amazon-api-auth-status'],
     queryFn: async () => {
-      const response = await client.amazonApi.getAllAuthStatus.query();
+      const response = await (trpc as any).amazonApi.getAllAuthStatus.query();
       return response as ApiAuthStatusSummary;
     },
     refetchInterval: 60000, // 每分钟刷新一次
@@ -45,7 +45,7 @@ export default function AmazonApiAuthStatus() {
   const handleRefreshToken = async (accountId: number) => {
     setRefreshing(accountId);
     try {
-      await client.amazonApi.refreshToken.mutate({ accountId });
+      await (trpc as any).amazonApi.refreshToken.mutate({ accountId });
       // 刷新数据
       await refetch();
     } catch (error) {

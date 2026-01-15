@@ -5,7 +5,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { TrendingUp, TrendingDown, Activity, CheckCircle, AlertCircle, Clock } from 'lucide-react';
-import { client } from '@/lib/trpc';
+import { trpc } from '@/lib/trpc';
 
 interface OptimizationAction {
   id: number;
@@ -49,7 +49,7 @@ export default function AutoOptimizationDashboard() {
   const { data: metrics, isLoading: metricsLoading } = useQuery({
     queryKey: ['optimization-metrics'],
     queryFn: async () => {
-      const response = await client.optimization.getMetrics.query();
+      const response = await (trpc as any).optimization.getMetrics.query();
       return response as OptimizationMetrics;
     },
     refetchInterval: 30000, // 每30秒刷新一次
@@ -59,7 +59,7 @@ export default function AutoOptimizationDashboard() {
   const { data: recentActions, isLoading: actionsLoading } = useQuery({
     queryKey: ['recent-optimization-actions'],
     queryFn: async () => {
-      const response = await client.optimization.getRecentActions.query({ limit: 10 });
+      const response = await (trpc as any).optimization.getRecentActions.query({ limit: 10 });
       return response as OptimizationAction[];
     },
     refetchInterval: 30000,
@@ -69,7 +69,7 @@ export default function AutoOptimizationDashboard() {
   const { data: trends, isLoading: trendsLoading } = useQuery({
     queryKey: ['optimization-trends'],
     queryFn: async () => {
-      const response = await client.optimization.getTrends.query({ days: 7 });
+      const response = await (trpc as any).optimization.getTrends.query({ days: 7 });
       return response as OptimizationTrend[];
     },
   });

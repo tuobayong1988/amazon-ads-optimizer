@@ -3221,8 +3221,8 @@ export class AmazonAdsApiClient {
     // 1. 先尝试V3 API
     try {
       console.log('[Amazon API] 尝试V3 SB报告...');
-      const v3Report = await this.requestSbCampaignReport(startDate, endDate);
-      const v3Data = await this.waitAndDownloadReport(v3Report.reportId);
+      const v3ReportId = await this.requestSbCampaignReport(startDate, endDate);
+      const v3Data = await this.waitAndDownloadReport(v3ReportId);
       
       for (const row of v3Data) {
         const campaignId = row.campaignId?.toString();

@@ -4,7 +4,7 @@
  */
 
 import { getDb } from "./db";
-import { amazonApiCredentials, accounts } from "../drizzle/schema";
+import { amazonApiCredentials, adAccounts } from "../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 
 export interface ApiAuthStatus {
@@ -47,8 +47,8 @@ export async function getAccountApiAuthStatus(accountId: number): Promise<ApiAut
 
   const [account] = await db
     .select()
-    .from(accounts)
-    .where(eq(accounts.id, accountId));
+    .from(adAccounts)
+    .where(eq(adAccounts.id, accountId));
 
   if (!account) {
     return null;
@@ -76,12 +76,12 @@ export async function getAccountApiAuthStatus(accountId: number): Promise<ApiAut
     accountId,
     accountName: account.accountName || '',
     profileId: credential.profileId || '',
-    marketplace: credential.marketplace || '',
+    marketplace: account.marketplace || credential.region || '', // 使用account的marketplace或credential的region
     tokenExpiresAt: credential.tokenExpiresAt,
     tokenExpired,
     daysUntilExpiry,
     lastRefreshAt: credential.updatedAt,
-    authScope: credential.authScope ? JSON.parse(credential.authScope) : [],
+    authScope: ['advertising::campaign_management'], // 默认授权范围
     status,
     refreshUrl: `/api/amazon-api/refresh-auth?accountId=${accountId}`,
   };
@@ -100,8 +100,8 @@ export async function getAllAccountsApiAuthStatus(userId?: number): Promise<ApiA
     // 如果指定了userId，需要过滤该用户有权限的账号
     const userAccounts = await db
       .select()
-      .from(accounts)
-      .where(eq(accounts.userId, userId));
+      .from(adAccounts)
+      .where(eq(adAccounts.userId, userId));
 
     const userAccountIds = userAccounts.map(a => a.id);
     credentials = credentials.filter(c => userAccountIds.includes(c.accountId));
@@ -171,7 +171,6 @@ export async function updateTokenExpiryTime(
     .update(amazonApiCredentials)
     .set({
       tokenExpiresAt: expiresAt.toISOString(),
-      updatedAt: new Date(),
     })
     .where(eq(amazonApiCredentials.accountId, accountId));
 }

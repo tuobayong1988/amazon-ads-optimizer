@@ -4513,6 +4513,316 @@ const amazonApiRouter = router({
         });
       }
     }),
+
+  // ==================== 批量授权API ====================
+
+  // 获取所有区域配置信息
+  getBatchAuthRegions: publicProcedure
+    .query(() => {
+      return {
+        regions: [
+          {
+            code: 'NA',
+            name: '北美区域',
+            displayFlags: '🇺🇸🇨🇦🇲🇽🇧🇷',
+            marketplaces: [
+              { code: 'US', name: '美国', flag: '🇺🇸' },
+              { code: 'CA', name: '加拿大', flag: '🇨🇦' },
+              { code: 'MX', name: '墨西哥', flag: '🇲🇽' },
+              { code: 'BR', name: '巴西', flag: '🇧🇷' },
+            ],
+          },
+          {
+            code: 'EU',
+            name: '欧洲区域',
+            displayFlags: '🇬🇧🇩🇪🇫🇷🇮🇹🇪🇸',
+            marketplaces: [
+              { code: 'UK', name: '英国', flag: '🇬🇧' },
+              { code: 'DE', name: '德国', flag: '🇩🇪' },
+              { code: 'FR', name: '法国', flag: '🇫🇷' },
+              { code: 'IT', name: '意大利', flag: '🇮🇹' },
+              { code: 'ES', name: '西班牙', flag: '🇪🇸' },
+              { code: 'NL', name: '荷兰', flag: '🇳🇱' },
+              { code: 'SE', name: '瑞典', flag: '🇸🇪' },
+              { code: 'PL', name: '波兰', flag: '🇵🇱' },
+              { code: 'AE', name: '阿联酋', flag: '🇦🇪' },
+              { code: 'SA', name: '沙特', flag: '🇸🇦' },
+              { code: 'IN', name: '印度', flag: '🇮🇳' },
+            ],
+          },
+          {
+            code: 'FE',
+            name: '远东区域',
+            displayFlags: '🇯🇵🇦🇺🇸🇬',
+            marketplaces: [
+              { code: 'JP', name: '日本', flag: '🇯🇵' },
+              { code: 'AU', name: '澳大利亚', flag: '🇦🇺' },
+              { code: 'SG', name: '新加坡', flag: '🇸🇬' },
+            ],
+          },
+        ],
+      };
+    }),
+
+  // 创建批量授权会话
+  createBatchAuthSession: protectedProcedure
+    .input(z.object({
+      storeName: z.string(),
+      selectedRegions: z.array(z.enum(['NA', 'EU', 'FE'])),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const sessionId = `batch_${ctx.user.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // 生成每个区域的授权URL
+      const clientId = process.env.AMAZON_ADS_CLIENT_ID || '';
+      const redirectUri = 'https://sellerps.com';
+      
+      const authEndpoints: Record<string, string> = {
+        NA: 'https://www.amazon.com/ap/oa',
+        EU: 'https://eu.account.amazon.com/ap/oa',
+        FE: 'https://apac.account.amazon.com/ap/oa',
+      };
+      
+      const regionAuthUrls = input.selectedRegions.map(regionCode => {
+        const state = `${sessionId}:${regionCode}`;
+        const params = new URLSearchParams({
+          client_id: clientId,
+          scope: 'advertising::campaign_management',
+          response_type: 'code',
+          redirect_uri: redirectUri,
+          state,
+        });
+        return {
+          regionCode,
+          authUrl: `${authEndpoints[regionCode]}?${params.toString()}`,
+          status: 'pending' as const,
+        };
+      });
+      
+      return {
+        sessionId,
+        storeName: input.storeName,
+        regions: regionAuthUrls,
+        createdAt: new Date().toISOString(),
+      };
+    }),
+
+  // 批量处理多个区域的授权码
+  processBatchAuthCodes: protectedProcedure
+    .input(z.object({
+      storeName: z.string(),
+      authCodes: z.array(z.object({
+        regionCode: z.enum(['NA', 'EU', 'FE']),
+        code: z.string(),
+      })),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const clientId = process.env.AMAZON_ADS_CLIENT_ID || '';
+      const clientSecret = process.env.AMAZON_ADS_CLIENT_SECRET || '';
+      const redirectUri = 'https://sellerps.com';
+      
+      if (!clientId || !clientSecret) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '缺少Amazon API凭证配置',
+        });
+      }
+      
+      const results: Array<{
+        regionCode: string;
+        status: 'success' | 'error';
+        profilesCount?: number;
+        accountsCreated?: number;
+        error?: string;
+      }> = [];
+      
+      // 依次处理每个区域的授权码
+      for (const { regionCode, code } of input.authCodes) {
+        try {
+          console.log(`[BatchAuth] 处理 ${regionCode} 区域授权码...`);
+          
+          // 1. 换取Token
+          const tokens = await AmazonAdsApiClient.exchangeCodeForToken(
+            code,
+            clientId,
+            clientSecret,
+            redirectUri
+          );
+          
+          // 2. 获取该区域的所有Profile
+          const client = new AmazonAdsApiClient({
+            clientId,
+            clientSecret,
+            refreshToken: tokens.refresh_token,
+            profileId: '',
+            region: regionCode as 'NA' | 'EU' | 'FE',
+          });
+          
+          const profiles = await client.getProfiles();
+          console.log(`[BatchAuth] ${regionCode} 区域获取到 ${profiles.length} 个Profile`);
+          
+          // 3. 为每个Profile创建账号
+          let accountsCreated = 0;
+          for (const profile of profiles) {
+            try {
+              // 检查是否已存在
+              const existingAccounts = await db.getAdAccountsByUserId(ctx.user.id);
+              const existingByProfile = existingAccounts.find(
+                a => a.profileId === String(profile.profileId)
+              );
+              
+              let accountId: number;
+              
+              if (existingByProfile) {
+                // 更新现有账号
+                accountId = existingByProfile.id;
+                await db.updateAdAccount(accountId, {
+                  storeName: input.storeName,
+                  marketplace: profile.countryCode,
+                });
+                console.log(`[BatchAuth] 更新现有账号 ${accountId} (${profile.countryCode})`);
+              } else {
+                // 创建新账号
+                accountId = await db.createAdAccount({
+                  userId: ctx.user.id,
+                  accountId: String(profile.profileId),
+                  accountName: (profile as any).accountInfo?.name || `${input.storeName} - ${profile.countryCode}`,
+                  storeName: input.storeName,
+                  marketplace: profile.countryCode,
+                  profileId: String(profile.profileId),
+                  connectionStatus: 'pending',
+                });
+                accountsCreated++;
+                console.log(`[BatchAuth] 创建新账号 ${accountId} (${profile.countryCode})`);
+              }
+              
+              // 4. 保存API凭证
+              await db.saveAmazonApiCredentials({
+                accountId,
+                clientId,
+                clientSecret,
+                refreshToken: tokens.refresh_token,
+                profileId: String(profile.profileId),
+                region: regionCode,
+              });
+              
+              // 5. 更新连接状态
+              await db.updateAdAccount(accountId, {
+                connectionStatus: 'connected',
+              });
+              
+              // 6. 异步启动数据同步
+              const syncService = await AmazonSyncService.createFromCredentials(
+                {
+                  clientId,
+                  clientSecret,
+                  refreshToken: tokens.refresh_token,
+                  profileId: String(profile.profileId),
+                  region: regionCode as 'NA' | 'EU' | 'FE',
+                },
+                accountId,
+                ctx.user.id,
+                profile.countryCode
+              );
+              
+              // 异步执行同步，不阻塞返回
+              syncService.syncAll().then(result => {
+                console.log(`[BatchAuth] 账号 ${accountId} (${profile.countryCode}) 同步完成`);
+                db.updateAmazonApiCredentialsLastSync(accountId);
+              }).catch(err => {
+                console.error(`[BatchAuth] 账号 ${accountId} (${profile.countryCode}) 同步失败:`, err);
+              });
+              
+            } catch (profileError: any) {
+              console.error(`[BatchAuth] 处理Profile ${profile.profileId} 失败:`, profileError);
+            }
+          }
+          
+          results.push({
+            regionCode,
+            status: 'success',
+            profilesCount: profiles.length,
+            accountsCreated,
+          });
+          
+        } catch (error: any) {
+          console.error(`[BatchAuth] ${regionCode} 区域授权失败:`, error);
+          results.push({
+            regionCode,
+            status: 'error',
+            error: error.message,
+          });
+        }
+      }
+      
+      const successCount = results.filter(r => r.status === 'success').length;
+      const totalProfiles = results.reduce((sum, r) => sum + (r.profilesCount || 0), 0);
+      const totalAccountsCreated = results.reduce((sum, r) => sum + (r.accountsCreated || 0), 0);
+      
+      return {
+        success: successCount > 0,
+        message: successCount === input.authCodes.length
+          ? `所有 ${successCount} 个区域授权成功，共创建 ${totalAccountsCreated} 个站点账号`
+          : `${successCount}/${input.authCodes.length} 个区域授权成功`,
+        results,
+        summary: {
+          totalRegions: input.authCodes.length,
+          successRegions: successCount,
+          totalProfiles,
+          totalAccountsCreated,
+        },
+      };
+    }),
+
+  // 获取用户已授权的区域状态
+  getAuthorizedRegions: protectedProcedure
+    .query(async ({ ctx }) => {
+      const accounts = await db.getAdAccountsByUserId(ctx.user.id);
+      
+      // 按区域分组统计
+      const regionStats: Record<string, {
+        authorized: boolean;
+        accountCount: number;
+        marketplaces: string[];
+        lastSyncAt?: string;
+      }> = {
+        NA: { authorized: false, accountCount: 0, marketplaces: [] },
+        EU: { authorized: false, accountCount: 0, marketplaces: [] },
+        FE: { authorized: false, accountCount: 0, marketplaces: [] },
+      };
+      
+      const marketplaceToRegion: Record<string, string> = {
+        US: 'NA', CA: 'NA', MX: 'NA', BR: 'NA',
+        UK: 'EU', DE: 'EU', FR: 'EU', IT: 'EU', ES: 'EU', NL: 'EU', SE: 'EU', PL: 'EU', AE: 'EU', SA: 'EU', IN: 'EU',
+        JP: 'FE', AU: 'FE', SG: 'FE',
+      };
+      
+      for (const account of accounts) {
+        if (!account.marketplace) continue;
+        
+        const region = marketplaceToRegion[account.marketplace];
+        if (!region || !regionStats[region]) continue;
+        
+        const credentials = await db.getAmazonApiCredentials(account.id);
+        if (credentials) {
+          regionStats[region].authorized = true;
+          regionStats[region].accountCount++;
+          regionStats[region].marketplaces.push(account.marketplace);
+          if (credentials.lastSyncAt) {
+            regionStats[region].lastSyncAt = credentials.lastSyncAt;
+          }
+        }
+      }
+      
+      return {
+        regions: Object.entries(regionStats).map(([code, stats]) => ({
+          code,
+          ...stats,
+        })),
+        totalAccounts: accounts.length,
+        authorizedAccounts: accounts.filter(a => a.connectionStatus === 'connected').length,
+      };
+    }),
 });
 
 // ==================== Notification Router ====================

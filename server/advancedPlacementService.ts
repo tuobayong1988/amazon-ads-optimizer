@@ -772,12 +772,12 @@ export async function getPendingRecommendations(
     .filter(r => !campaignId || r.campaignId === campaignId)
     .map(r => ({
       id: r.id,
-      type: r.recommendationType,
-      priority: r.priority || 'medium',
+      type: r.recommendationType as string,
+      priority: (r.priority || 'medium') as string,
       title: r.title || '',
       description: r.description || '',
       expectedProfitChange: Number(r.expectedProfitChange) || 0,
-      createdAt: r.createdAt
+      createdAt: r.createdAt || new Date().toISOString()
     }));
 }
 

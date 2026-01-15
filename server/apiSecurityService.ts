@@ -500,16 +500,45 @@ export async function createAnomalyRule(params: AnomalyRuleParams): Promise<numb
   if (!db) return null;
 
   try {
+    // 映射ruleType到anomalyType枚举值
+    const anomalyTypeMap: Record<string, 'bid_spike' | 'bid_drop' | 'batch_size' | 'budget_change' | 'acos_spike' | 'spend_velocity' | 'click_anomaly' | 'conversion_drop'> = {
+      'bid_spike': 'bid_spike',
+      'bid_drop': 'bid_drop',
+      'batch_size': 'batch_size',
+      'budget_change': 'budget_change',
+      'acos_spike': 'acos_spike',
+      'spend_velocity': 'spend_velocity',
+      'conversion_drop': 'conversion_drop',
+      'frequency': 'click_anomaly',
+      'custom': 'bid_spike',
+    };
+    
+    // 映射conditionType到detectionMethod枚举值
+    const detectionMethodMap: Record<string, 'threshold' | 'percentage_change' | 'absolute_change' | 'rate_limit' | 'statistical'> = {
+      'threshold': 'threshold',
+      'percentage_change': 'percentage_change',
+      'absolute_change': 'absolute_change',
+      'rate_limit': 'rate_limit',
+    };
+    
+    // 映射actionOnTrigger到actionType枚举值
+    const actionTypeMap: Record<string, 'alert_only' | 'pause_and_alert' | 'rollback_and_alert' | 'block_operation'> = {
+      'alert_only': 'alert_only',
+      'pause_and_alert': 'pause_and_alert',
+      'rollback_and_alert': 'rollback_and_alert',
+      'block_operation': 'block_operation',
+    };
+    
     const result = await db.insert(anomalyDetectionRules).values({
       userId: params.userId,
       accountId: params.accountId || null,
       ruleName: params.ruleName,
       ruleDescription: params.ruleDescription || null,
-      ruleType: params.ruleType,
-      conditionType: params.conditionType,
-      conditionValue: params.conditionValue.toString(),
-      conditionTimeWindow: params.conditionTimeWindow || 60,
-      actionOnTrigger: params.actionOnTrigger || 'alert_only',
+      anomalyType: anomalyTypeMap[params.ruleType] || 'bid_spike',
+      detectionMethod: detectionMethodMap[params.conditionType] || 'threshold',
+      thresholdValue: params.conditionValue.toString(),
+      timeWindowMinutes: params.conditionTimeWindow || 60,
+      actionType: actionTypeMap[params.actionOnTrigger || 'alert_only'] || 'alert_only',
       priority: params.priority || 5,
     });
 
@@ -604,19 +633,39 @@ export async function checkAnomalyRules(
     }
 
     if (triggered) {
+      // 映射ruleType到anomalyType枚举值
+      const anomalyTypeMap: Record<string, 'bid_spike' | 'bid_drop' | 'batch_size' | 'budget_change' | 'acos_spike' | 'spend_velocity' | 'click_anomaly' | 'conversion_drop'> = {
+        'bid_spike': 'bid_spike',
+        'bid_drop': 'bid_drop',
+        'batch_size': 'batch_size',
+        'budget_change': 'budget_change',
+        'acos_spike': 'acos_spike',
+        'spend_velocity': 'spend_velocity',
+        'conversion_drop': 'conversion_drop',
+        'frequency': 'click_anomaly',
+        'custom': 'bid_spike',
+      };
+      
+      // 映射actionTaken到枚举值
+      const actionTakenMap: Record<string, 'none' | 'alerted' | 'paused' | 'rolled_back' | 'blocked'> = {
+        'alert_only': 'alerted',
+        'pause_and_alert': 'paused',
+        'rollback_and_alert': 'rolled_back',
+        'block_operation': 'blocked',
+      };
+      
       // 记录异常告警
       await db.insert(anomalyAlertLogs).values({
         ruleId: rule.id,
         userId,
         accountId,
+        anomalyType: anomalyTypeMap[rule.ruleType] || 'bid_spike',
         detectedValue: value.toString(),
         thresholdValue: threshold.toString(),
         affectedTargetName: `${rule.ruleName}: 检测值 ${value} 超过阈值 ${threshold}`,
         operationLogId: operationId || null,
         affectedTargetType: operationType,
-        actionTaken: rule.actionOnTrigger === 'alert_only' ? 'alerted' : 
-                     rule.actionOnTrigger === 'pause_and_alert' ? 'paused' :
-                     rule.actionOnTrigger === 'block_operation' ? 'blocked' : 'alerted',
+        actionTaken: actionTakenMap[rule.actionOnTrigger || 'alert_only'] || 'alerted',
       });
 
       // 发送异常通知
@@ -681,17 +730,35 @@ export async function recordAutoPause(params: {
   const db = await getDb();
   if (!db) return null;
 
+  // 映射pauseReason到数据库枚举值
+  const pauseReasonMap: Record<string, 'spend_limit' | 'anomaly_detected' | 'manual_trigger' | 'scheduled' | 'api_error'> = {
+    'spend_limit': 'spend_limit',
+    'anomaly_detected': 'anomaly_detected',
+    'acos_threshold': 'anomaly_detected', // acos_threshold映射到anomaly_detected
+    'manual_trigger': 'manual_trigger',
+    'scheduled': 'scheduled',
+  };
+  
+  // 映射pauseScope到triggerSource
+  const triggerSourceMap: Record<string, string> = {
+    'account': 'account_level',
+    'campaign': 'campaign_level',
+    'ad_group': 'ad_group_level',
+    'keyword': 'keyword_level',
+    'target': 'target_level',
+  };
+
   try {
     const result = await db.insert(autoPauseRecords).values({
       userId: params.userId,
       accountId: params.accountId,
-      pauseReason: params.pauseReason,
-      pauseScope: params.pauseScope,
-      pausedEntityIds: JSON.stringify(params.pausedEntityIds),
-      pausedEntityCount: params.pausedEntityIds.length,
-      previousStates: params.previousStates ? JSON.stringify(params.previousStates) : null,
-      relatedAlertId: params.relatedAlertId || null,
-      relatedRuleId: params.relatedRuleId || null,
+      pauseReason: pauseReasonMap[params.pauseReason] || 'anomaly_detected',
+      triggerSource: triggerSourceMap[params.pauseScope] || 'system',
+      triggerRuleId: params.relatedRuleId || null,
+      affectedCampaigns: params.pauseScope === 'campaign' ? params.pausedEntityIds.length : 0,
+      affectedAdGroups: params.pauseScope === 'ad_group' ? params.pausedEntityIds.length : 0,
+      affectedKeywords: params.pauseScope === 'keyword' ? params.pausedEntityIds.length : 0,
+      previousState: params.previousStates ? JSON.stringify(params.previousStates) : null,
     });
 
     const recordId = Number(result[0].insertId);
