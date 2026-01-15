@@ -1838,7 +1838,7 @@ export const keywordPredictions = mysqlTable("keyword_predictions", {
 	crHigh: decimal({ precision: 8, scale: 6 }),
 	cvLow: decimal({ precision: 12, scale: 2 }),
 	cvHigh: decimal({ precision: 12, scale: 2 }),
-	predictionSource: mysqlEnum(['historical','decision_tree','bayesian_update']).default('decision_tree'),
+	predictionSource: mysqlEnum(['historical','decision_tree','bayesian_update','default','bayesian']).default('decision_tree'),
 	confidence: decimal({ precision: 5, scale: 4 }),
 	sampleCount: int(),
 	matchType: mysqlEnum(['broad','phrase','exact']),

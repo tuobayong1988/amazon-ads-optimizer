@@ -53,15 +53,19 @@ export default function SellerOnboarding() {
   const { data: accounts, refetch: refetchAccounts } = trpc.adAccount.list.useQuery();
 
   // 获取Amazon OAuth URL
-  const getOAuthUrlMutation = trpc.amazonApi.getAuthUrl.useMutation({
-    onSuccess: (data: { url?: string }) => {
-      if (data.url) window.location.href = data.url;
-    },
-    onError: (error: Error) => {
-      toast.error(`获取授权链接失败: ${error.message}`);
-      setIsAuthorizing(false);
-    }
-  });
+  const getOAuthUrl = (clientId: string, redirectUri: string, region?: 'NA' | 'EU' | 'FE') => {
+    // 使用直接URL生成而不是调用API
+    const regionEndpoints: Record<string, string> = {
+      'NA': 'https://www.amazon.com/ap/oa',
+      'EU': 'https://eu.account.amazon.com/ap/oa',
+      'FE': 'https://apac.account.amazon.com/ap/oa'
+    };
+    const baseUrl = regionEndpoints[region || 'NA'];
+    const state = `user_${Date.now()}`;
+    const scope = 'advertising::campaign_management';
+    const authUrl = `${baseUrl}?client_id=${clientId}&scope=${scope}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
+    return authUrl;
+  };
 
   // 计算当前步骤
   const getCurrentStep = () => {
@@ -78,8 +82,15 @@ export default function SellerOnboarding() {
   const handleAuthorize = async () => {
     setIsAuthorizing(true);
     try {
-      await getOAuthUrlMutation.mutateAsync({});
-    } catch { setIsAuthorizing(false); }
+      // 使用环境变量中的配置
+      const clientId = import.meta.env.VITE_AMAZON_ADS_CLIENT_ID || '';
+      const redirectUri = `${window.location.origin}/api/amazon/callback`;
+      const authUrl = getOAuthUrl(clientId, redirectUri, 'NA');
+      window.location.href = authUrl;
+    } catch (error) {
+      toast.error('获取授权链接失败');
+      setIsAuthorizing(false);
+    }
   };
 
   const handleSync = async () => {

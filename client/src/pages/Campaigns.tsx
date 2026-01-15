@@ -1731,20 +1731,18 @@ export default function Campaigns() {
         return (
           <QuickActions
             campaignId={campaign.campaignId}
-            campaignName={campaign.campaignName}
-            currentStatus={campaign.campaignStatus as "enabled" | "paused"}
+            accountId={campaign.accountId || 0}
             currentBudget={campaign.dailyBudget || 0}
-            currentBid={campaign.defaultBid || 0}
+            status={campaign.campaignStatus || 'enabled'}
             onStatusChange={(newStatus) => {
               handleToggleStatus(campaign);
             }}
             onBudgetChange={(newBudget) => {
               handleEditBudget(campaign);
             }}
-            onBidChange={(newBid) => {
+            onBidChange={(multiplier) => {
               toast.info("竞价调整功能开发中");
             }}
-            compact={true}
           />
         );
       default:

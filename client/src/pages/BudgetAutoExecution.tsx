@@ -423,7 +423,7 @@ export default function BudgetAutoExecution() {
                         <TableCell>
                           {execution.executionStartAt ? new Date(execution.executionStartAt).toLocaleString() : '-'}
                         </TableCell>
-                        <TableCell>{getStatusBadge(execution.status)}</TableCell>
+                        <TableCell>{getStatusBadge(execution.status || 'pending')}</TableCell>
                         <TableCell>{execution.totalCampaigns}</TableCell>
                         <TableCell>{execution.campaignsAdjusted}</TableCell>
                         <TableCell>

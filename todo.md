@@ -5288,3 +5288,20 @@ Amazon Advertising API数据有12-24小时延迟，当天广告数据通常在�
 - [x] 测试配置参数验证
 - [x] 测试执行历史记录
 - [x] 测试安全限制功能
+
+
+## 代码质量和性能优化（当前阶段）
+
+### TypeScript错误修复
+- [ ] 修复剩余17个TypeScript错误
+- [ ] 更新schema添加"default"枚举值到predictionSource
+- [ ] 修复decisionTreeService.ts类型问题
+
+### Amazon API授权检查
+- [ ] 检查Token过期状态
+- [ ] 处理403错误的报告任务
+
+### 前端Bundle优化
+- [ ] 进一步拆分业务组件
+- [ ] 使用动态导入减少首屏加载时间
+- [ ] 减少主bundle大小（当前4.5MB）

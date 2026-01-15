@@ -542,15 +542,16 @@ export default function AnalyticsInsights() {
 
         {/* 浪费资金Top10 */}
         <WastedSpendTop10
-          data={[
-            { keyword: 'phone case cheap', clicks: 68, spend: 34.2, conversions: 0, acos: Infinity, campaignName: 'SP-Auto-001' },
-            { keyword: 'free shipping phone', clicks: 45, spend: 22.5, conversions: 0, acos: Infinity, campaignName: 'SP-Broad-002' },
-            { keyword: 'discount accessories', clicks: 38, spend: 19.0, conversions: 0, acos: Infinity, campaignName: 'SP-Auto-003' },
-            { keyword: 'wholesale phone case', clicks: 32, spend: 16.0, conversions: 0, acos: Infinity, campaignName: 'SP-Phrase-001' },
-            { keyword: 'bulk buy phone', clicks: 28, spend: 14.0, conversions: 0, acos: Infinity, campaignName: 'SP-Auto-002' },
+          keywords={[
+            { id: '1', keyword: 'phone case cheap', matchType: 'broad', clicks: 68, spend: 34.2, conversions: 0, impressions: 1200, ctr: 0.057, cpc: 0.50, campaignName: 'SP-Auto-001' },
+            { id: '2', keyword: 'free shipping phone', matchType: 'broad', clicks: 45, spend: 22.5, conversions: 0, impressions: 900, ctr: 0.05, cpc: 0.50, campaignName: 'SP-Broad-002' },
+            { id: '3', keyword: 'discount accessories', matchType: 'broad', clicks: 38, spend: 19.0, conversions: 0, impressions: 760, ctr: 0.05, cpc: 0.50, campaignName: 'SP-Auto-003' },
+            { id: '4', keyword: 'wholesale phone case', matchType: 'phrase', clicks: 32, spend: 16.0, conversions: 0, impressions: 640, ctr: 0.05, cpc: 0.50, campaignName: 'SP-Phrase-001' },
+            { id: '5', keyword: 'bulk buy phone', matchType: 'broad', clicks: 28, spend: 14.0, conversions: 0, impressions: 560, ctr: 0.05, cpc: 0.50, campaignName: 'SP-Auto-002' },
           ]}
-          onNegateKeyword={(keyword) => {
-            toast.success(`已将 "${keyword}" 添加到否定关键词`);
+          totalWastedSpend={105.7}
+          onNegateKeyword={(keywordId) => {
+            toast.success(`已将关键词 ${keywordId} 添加到否定关键词`);
           }}
           onNegateAll={() => {
             toast.success('已将所有浪费关键词添加到否定列表');

@@ -883,7 +883,7 @@ export default function CampaignDetail() {
                           </div>
                           <div>
                             <p className="text-sm text-muted-foreground">VTR</p>
-                            <p className="font-medium">{((campaign.vtr || 0) * 100).toFixed(2)}%</p>
+                            <p className="font-medium">{((Number(campaign.vtr) || 0) * 100).toFixed(2)}%</p>
                           </div>
                         </div>
                       </div>
@@ -941,7 +941,7 @@ export default function CampaignDetail() {
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">vCTR</p>
-                          <p className="font-medium">{((campaign.vctr || 0) * 100).toFixed(2)}%</p>
+                          <p className="font-medium">{((Number(campaign.vctr) || 0) * 100).toFixed(2)}%</p>
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">详情页浏览</p>

@@ -444,6 +444,7 @@ export default function StrategyCenter() {
 
         {/* 策略模板库 */}
         <StrategyTemplates
+          currentAcos={25}
           onApplyTemplate={(template) => {
             toast.success(`已应用策略模板: ${template.name}`);
           }}
