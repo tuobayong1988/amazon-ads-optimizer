@@ -3,10 +3,17 @@ import fs from "fs";
 import { type Server } from "http";
 import { nanoid } from "nanoid";
 import path from "path";
-import { createServer as createViteServer } from "vite";
-import viteConfig from "../../vite.config";
 
+// 动态导入vite，只在开发模式下使用
+// 这样可以避免esbuild在生产构建时将vite打包进dist/index.js
 export async function setupVite(app: Express, server: Server) {
+  // 使用动态导入，确保vite只在开发模式下加载
+  const { createServer: createViteServer } = await import("vite");
+  
+  // 动态导入vite配置
+  const viteConfigModule = await import("../../vite.config");
+  const viteConfig = viteConfigModule.default;
+  
   const serverOptions = {
     middlewareMode: true,
     hmr: { server },

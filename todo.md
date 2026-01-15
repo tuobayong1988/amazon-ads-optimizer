@@ -5151,3 +5151,26 @@ Amazon Advertising API数据有12-24小时延迟，当天广告数据通常在�
 ### API客户端修复
 - [ ] 修复asyncReportService中的apiClient.setProfileId调用
 - [ ] 确保报告任务能正常提交到Amazon API
+
+
+## 代码排查和构建修复（当前阶段）
+
+### schema.ts重复属性排查
+- [ ] 检查所有表定义中的重复属性
+- [ ] 修复重复的isIncremental字段
+- [ ] 检查其他可能的重复字段
+
+### Manus OAuth依赖排查
+- [ ] 检查是否有对Manus OAuth的直接依赖
+- [ ] 确保使用本地认证系统
+- [ ] 移除不必要的OAuth依赖
+
+### vite动态导入排查
+- [ ] 检查是否有动态导入vite的代码
+- [ ] 检查vite.config是否被错误引用
+- [ ] 确保esbuild正确处理外部依赖
+
+### 构建验证
+- [ ] 执行完整构建测试
+- [ ] 验证dist/index.js不包含vite依赖
+- [ ] 确保所有TypeScript错误不影响构建
