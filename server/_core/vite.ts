@@ -4,15 +4,68 @@ import { type Server } from "http";
 import { nanoid } from "nanoid";
 import path from "path";
 
+// 开发模式下的vite配置（内联，避免动态导入vite.config）
+// 这样可以确保esbuild在生产构建时不会尝试打包vite.config
+async function getViteConfig() {
+  // 动态导入vite插件，只在开发模式下使用
+  const [
+    { default: react },
+    { default: tailwindcss },
+    { jsxLocPlugin },
+    { vitePluginManusRuntime }
+  ] = await Promise.all([
+    import("@vitejs/plugin-react"),
+    import("@tailwindcss/vite"),
+    import("@builder.io/vite-plugin-jsx-loc"),
+    import("vite-plugin-manus-runtime")
+  ]);
+
+  const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusRuntime()];
+  const rootDir = path.resolve(import.meta.dirname, "../..");
+
+  return {
+    plugins,
+    resolve: {
+      alias: {
+        "@": path.resolve(rootDir, "client", "src"),
+        "@shared": path.resolve(rootDir, "shared"),
+        "@assets": path.resolve(rootDir, "attached_assets"),
+      },
+    },
+    envDir: rootDir,
+    root: path.resolve(rootDir, "client"),
+    publicDir: path.resolve(rootDir, "client", "public"),
+    build: {
+      outDir: path.resolve(rootDir, "dist/public"),
+      emptyOutDir: true,
+    },
+    server: {
+      host: true,
+      allowedHosts: [
+        ".manuspre.computer",
+        ".manus.computer",
+        ".manus-asia.computer",
+        ".manuscomputer.ai",
+        ".manusvm.computer",
+        "localhost",
+        "127.0.0.1",
+      ],
+      fs: {
+        strict: true,
+        deny: ["**/.*"],
+      },
+    },
+  };
+}
+
 // 动态导入vite，只在开发模式下使用
 // 这样可以避免esbuild在生产构建时将vite打包进dist/index.js
 export async function setupVite(app: Express, server: Server) {
   // 使用动态导入，确保vite只在开发模式下加载
   const { createServer: createViteServer } = await import("vite");
   
-  // 动态导入vite配置
-  const viteConfigModule = await import("../../vite.config");
-  const viteConfig = viteConfigModule.default;
+  // 使用内联配置，避免动态导入vite.config
+  const viteConfig = await getViteConfig();
   
   const serverOptions = {
     middlewareMode: true,
