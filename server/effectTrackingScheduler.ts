@@ -80,11 +80,11 @@ export async function getRecordsToTrack(period: number): Promise<any[]> {
   // 过滤出尚未追踪指定周期的记录
   return records.filter(record => {
     if (period === TRACKING_PERIODS.DAY_7) {
-      return record.actualProfit7d === null;
+      return record.actualProfit7D === null;
     } else if (period === TRACKING_PERIODS.DAY_14) {
-      return record.actualProfit14d === null;
+      return record.actualProfit14D === null;
     } else {
-      return record.actualProfit30d === null;
+      return record.actualProfit30D === null;
     }
   });
 }
@@ -148,17 +148,17 @@ export async function updateTrackingData(
   const updateData: any = {};
   
   if (period === TRACKING_PERIODS.DAY_7) {
-    updateData.actualProfit7d = trackingData.profit.toString();
+    updateData.actualProfit7D = trackingData.profit.toString();
     updateData.actualClicks7d = trackingData.clicks;
     updateData.actualSales7d = trackingData.sales.toString();
     updateData.actualAcos7d = trackingData.acos.toString();
   } else if (period === TRACKING_PERIODS.DAY_14) {
-    updateData.actualProfit14d = trackingData.profit.toString();
+    updateData.actualProfit14D = trackingData.profit.toString();
     updateData.actualClicks14d = trackingData.clicks;
     updateData.actualSales14d = trackingData.sales.toString();
     updateData.actualAcos14d = trackingData.acos.toString();
   } else {
-    updateData.actualProfit30d = trackingData.profit.toString();
+    updateData.actualProfit30D = trackingData.profit.toString();
     updateData.actualClicks30d = trackingData.clicks;
     updateData.actualSales30d = trackingData.sales.toString();
     updateData.actualAcos30d = trackingData.acos.toString();
@@ -271,8 +271,8 @@ export async function getTrackingStatsSummary(): Promise<{
     const estimated = parseFloat((record as any).estimatedProfitChange || '0');
     totalEstimated += estimated;
     
-    if (record.actualProfit7d !== null) {
-      const actual = parseFloat(record.actualProfit7d);
+    if (record.actualProfit7D !== null) {
+      const actual = parseFloat(record.actualProfit7D);
       const accuracy = estimated !== 0 
         ? Math.min(100, Math.max(0, (1 - Math.abs(actual - estimated) / Math.abs(estimated)) * 100))
         : (actual >= 0 ? 100 : 0);
@@ -281,8 +281,8 @@ export async function getTrackingStatsSummary(): Promise<{
       totalTracked++;
     }
     
-    if (record.actualProfit14d !== null) {
-      const actual = parseFloat(record.actualProfit14d);
+    if (record.actualProfit14D !== null) {
+      const actual = parseFloat(record.actualProfit14D);
       const accuracy = estimated !== 0 
         ? Math.min(100, Math.max(0, (1 - Math.abs(actual - estimated) / Math.abs(estimated)) * 100))
         : (actual >= 0 ? 100 : 0);
@@ -290,8 +290,8 @@ export async function getTrackingStatsSummary(): Promise<{
       count14d++;
     }
     
-    if (record.actualProfit30d !== null) {
-      const actual = parseFloat(record.actualProfit30d);
+    if (record.actualProfit30D !== null) {
+      const actual = parseFloat(record.actualProfit30D);
       totalActual += actual;
       const accuracy = estimated !== 0 
         ? Math.min(100, Math.max(0, (1 - Math.abs(actual - estimated) / Math.abs(estimated)) * 100))

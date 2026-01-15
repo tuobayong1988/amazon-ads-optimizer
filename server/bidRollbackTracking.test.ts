@@ -67,11 +67,11 @@ describe('出价回滚功能', () => {
 describe('效果追踪功能', () => {
   it('应该正确计算7天实际利润', () => {
     const trackingData = {
-      actualRevenue7d: 150.00,
-      actualSpend7d: 50.00
+      actualRevenue7D: 150.00,
+      actualSpend7D: 50.00
     };
     
-    const actualProfit7d = trackingData.actualRevenue7d - trackingData.actualSpend7d;
+    const actualProfit7d = trackingData.actualRevenue7D - trackingData.actualSpend7D;
     expect(actualProfit7d).toBe(100.00);
   });
 

@@ -18,11 +18,11 @@ describe("Market Curve Service", () => {
     it("should fit a logarithmic curve to impression data", () => {
       // 模拟历史数据：出价越高，展现量越多（对数增长）
       const historicalData: BidPerformanceData[] = [
-        { bid: 0.5, effectiveCPC: 0.45, impressions: 500, clicks: 10, spend: 4.5, sales: 30, orders: 1, ctr: 0.02, cvr: 0.1 },
-        { bid: 1.0, effectiveCPC: 0.9, impressions: 800, clicks: 16, spend: 14.4, sales: 60, orders: 2, ctr: 0.02, cvr: 0.125 },
-        { bid: 1.5, effectiveCPC: 1.3, impressions: 1000, clicks: 20, spend: 26, sales: 90, orders: 3, ctr: 0.02, cvr: 0.15 },
-        { bid: 2.0, effectiveCPC: 1.7, impressions: 1150, clicks: 23, spend: 39.1, sales: 120, orders: 4, ctr: 0.02, cvr: 0.17 },
-        { bid: 2.5, effectiveCPC: 2.1, impressions: 1250, clicks: 25, spend: 52.5, sales: 150, orders: 5, ctr: 0.02, cvr: 0.2 },
+        { bid: 0.5, effectiveCpc: 0.45, impressions: 500, clicks: 10, spend: 4.5, sales: 30, orders: 1, ctr: 0.02, cvr: 0.1 },
+        { bid: 1.0, effectiveCpc: 0.9, impressions: 800, clicks: 16, spend: 14.4, sales: 60, orders: 2, ctr: 0.02, cvr: 0.125 },
+        { bid: 1.5, effectiveCpc: 1.3, impressions: 1000, clicks: 20, spend: 26, sales: 90, orders: 3, ctr: 0.02, cvr: 0.15 },
+        { bid: 2.0, effectiveCpc: 1.7, impressions: 1150, clicks: 23, spend: 39.1, sales: 120, orders: 4, ctr: 0.02, cvr: 0.17 },
+        { bid: 2.5, effectiveCpc: 2.1, impressions: 1250, clicks: 25, spend: 52.5, sales: 150, orders: 5, ctr: 0.02, cvr: 0.2 },
       ];
 
       const result = buildImpressionCurve(historicalData);
@@ -41,8 +41,8 @@ describe("Market Curve Service", () => {
 
     it("should handle edge case with minimal data points", () => {
       const minimalData: BidPerformanceData[] = [
-        { bid: 1.0, effectiveCPC: 0.9, impressions: 1000, clicks: 20, spend: 18, sales: 60, orders: 2, ctr: 0.02, cvr: 0.1 },
-        { bid: 2.0, effectiveCPC: 1.8, impressions: 1500, clicks: 30, spend: 54, sales: 90, orders: 3, ctr: 0.02, cvr: 0.1 },
+        { bid: 1.0, effectiveCpc: 0.9, impressions: 1000, clicks: 20, spend: 18, sales: 60, orders: 2, ctr: 0.02, cvr: 0.1 },
+        { bid: 2.0, effectiveCpc: 1.8, impressions: 1500, clicks: 30, spend: 54, sales: 90, orders: 3, ctr: 0.02, cvr: 0.1 },
       ];
 
       const result = buildImpressionCurve(minimalData);
@@ -66,23 +66,23 @@ describe("Market Curve Service", () => {
   describe("buildCTRCurve", () => {
     it("should calculate CTR curve parameters", () => {
       const data: BidPerformanceData[] = [
-        { bid: 0.5, effectiveCPC: 0.45, impressions: 1000, clicks: 15, spend: 6.75, sales: 45, orders: 1, ctr: 0.015, cvr: 0.067 },
-        { bid: 1.0, effectiveCPC: 0.9, impressions: 1000, clicks: 20, spend: 18, sales: 60, orders: 2, ctr: 0.02, cvr: 0.1 },
-        { bid: 1.5, effectiveCPC: 1.3, impressions: 1000, clicks: 25, spend: 32.5, sales: 75, orders: 2, ctr: 0.025, cvr: 0.08 },
-        { bid: 2.0, effectiveCPC: 1.7, impressions: 1000, clicks: 30, spend: 51, sales: 90, orders: 3, ctr: 0.03, cvr: 0.1 },
+        { bid: 0.5, effectiveCpc: 0.45, impressions: 1000, clicks: 15, spend: 6.75, sales: 45, orders: 1, ctr: 0.015, cvr: 0.067 },
+        { bid: 1.0, effectiveCpc: 0.9, impressions: 1000, clicks: 20, spend: 18, sales: 60, orders: 2, ctr: 0.02, cvr: 0.1 },
+        { bid: 1.5, effectiveCpc: 1.3, impressions: 1000, clicks: 25, spend: 32.5, sales: 75, orders: 2, ctr: 0.025, cvr: 0.08 },
+        { bid: 2.0, effectiveCpc: 1.7, impressions: 1000, clicks: 30, spend: 51, sales: 90, orders: 3, ctr: 0.03, cvr: 0.1 },
       ];
 
       const result = buildCTRCurve(data);
 
-      expect(result.baseCTR).toBeGreaterThan(0);
+      expect(result.baseCtr).toBeGreaterThan(0);
       expect(result.positionBonus).toBeDefined();
-      expect(result.topSearchCTRBonus).toBeDefined();
+      expect(result.topSearchCtrBonus).toBeDefined();
     });
 
     it("should return default params for insufficient data", () => {
       const result = buildCTRCurve([]);
       
-      expect(result.baseCTR).toBe(0.01);
+      expect(result.baseCtr).toBe(0.01);
       expect(result.positionBonus).toBe(0.5);
     });
   });
@@ -90,9 +90,9 @@ describe("Market Curve Service", () => {
   describe("calculateConversionParams", () => {
     it("should calculate conversion parameters from data", () => {
       const data: BidPerformanceData[] = [
-        { bid: 1.0, effectiveCPC: 0.9, impressions: 1000, clicks: 100, spend: 90, sales: 300, orders: 10, ctr: 0.1, cvr: 0.1 },
-        { bid: 1.5, effectiveCPC: 1.3, impressions: 1000, clicks: 100, spend: 130, sales: 450, orders: 15, ctr: 0.1, cvr: 0.15 },
-        { bid: 2.0, effectiveCPC: 1.7, impressions: 1000, clicks: 100, spend: 170, sales: 600, orders: 20, ctr: 0.1, cvr: 0.2 },
+        { bid: 1.0, effectiveCpc: 0.9, impressions: 1000, clicks: 100, spend: 90, sales: 300, orders: 10, ctr: 0.1, cvr: 0.1 },
+        { bid: 1.5, effectiveCpc: 1.3, impressions: 1000, clicks: 100, spend: 130, sales: 450, orders: 15, ctr: 0.1, cvr: 0.15 },
+        { bid: 2.0, effectiveCpc: 1.7, impressions: 1000, clicks: 100, spend: 170, sales: 600, orders: 20, ctr: 0.1, cvr: 0.2 },
       ];
 
       const result = calculateConversionParams(data);
@@ -156,9 +156,9 @@ describe("Market Curve Service", () => {
   describe("calculateCTR", () => {
     it("should calculate CTR based on position", () => {
       const curve: CTRCurveParams = {
-        baseCTR: 0.02,
+        baseCtr: 0.02,
         positionBonus: 0.5,
-        topSearchCTRBonus: 0.3
+        topSearchCtrBonus: 0.3
       };
 
       const ctr1 = calculateCTR(0.5, curve, 5);
@@ -184,9 +184,9 @@ describe("Market Curve Service", () => {
         r2: 0.9
       };
       const ctrCurve: CTRCurveParams = {
-        baseCTR: 0.02,
+        baseCtr: 0.02,
         positionBonus: 0.5,
-        topSearchCTRBonus: 0.3
+        topSearchCtrBonus: 0.3
       };
       const conversion: ConversionParams = {
         cvr: 0.05,
@@ -209,9 +209,9 @@ describe("Market Curve Service", () => {
         r2: 0.9
       };
       const ctrCurve: CTRCurveParams = {
-        baseCTR: 0.02,
+        baseCtr: 0.02,
         positionBonus: 0.5,
-        topSearchCTRBonus: 0.3
+        topSearchCtrBonus: 0.3
       };
       const conversion: ConversionParams = {
         cvr: 0.05,
@@ -238,9 +238,9 @@ describe("Market Curve Service", () => {
         r2: 0.9
       };
       const ctrCurve: CTRCurveParams = {
-        baseCTR: 0.02,
+        baseCtr: 0.02,
         positionBonus: 0.5,
-        topSearchCTRBonus: 0.3
+        topSearchCtrBonus: 0.3
       };
       const conversion: ConversionParams = {
         cvr: 0.05,
@@ -255,7 +255,7 @@ describe("Market Curve Service", () => {
       expect(result.optimalBid).toBeLessThan(10);
       
       // 盈亏平衡点应该是 CVR * AOV = 0.05 * 30 = 1.5
-      expect(result.breakEvenCPC).toBeCloseTo(1.5, 1);
+      expect(result.breakEvenCpc).toBeCloseTo(1.5, 1);
       
       // 利润曲线应该存在
       expect(result.profitCurve.length).toBeGreaterThan(0);
@@ -269,9 +269,9 @@ describe("Market Curve Service", () => {
         r2: 0.9
       };
       const ctrCurve: CTRCurveParams = {
-        baseCTR: 0.02,
+        baseCtr: 0.02,
         positionBonus: 0.5,
-        topSearchCTRBonus: 0.3
+        topSearchCtrBonus: 0.3
       };
       
       const highCVR: ConversionParams = {

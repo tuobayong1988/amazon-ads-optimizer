@@ -53,8 +53,8 @@ export interface DecisionTreeConfig {
 }
 
 export interface PredictionResult {
-  predictedCR: number;
-  predictedCV: number;
+  predictedCr: number;
+  predictedCv: number;
   crLow: number;
   crHigh: number;
   cvLow: number;
@@ -564,8 +564,8 @@ export async function predictKeywordPerformance(
   // 获取CV预测模型
   const cvTree = await getActiveDecisionTreeModel(accountId, 'cv_prediction');
   
-  let predictedCR = 0.05; // 默认值
-  let predictedCV = 30; // 默认值
+  let predictedCr = 0.05; // 默认值
+  let predictedCv = 30; // 默认值
   let crSamples = 0;
   let cvSamples = 0;
   let crVariance = 0;
@@ -574,7 +574,7 @@ export async function predictKeywordPerformance(
   
   if (crTree) {
     const crResult = predictWithTree(crTree, features);
-    predictedCR = crResult.prediction;
+    predictedCr = crResult.prediction;
     crSamples = crResult.samples;
     crVariance = crResult.variance;
     predictionSource = 'decision_tree';
@@ -582,7 +582,7 @@ export async function predictKeywordPerformance(
   
   if (cvTree) {
     const cvResult = predictWithTree(cvTree, features);
-    predictedCV = cvResult.prediction;
+    predictedCv = cvResult.prediction;
     cvSamples = cvResult.samples;
     cvVariance = cvResult.variance;
   }
@@ -596,12 +596,12 @@ export async function predictKeywordPerformance(
   const confidence = Math.min(1, sampleCount / 100) * (1 - Math.min(crVariance, 1));
   
   return {
-    predictedCR: Math.max(0, predictedCR),
-    predictedCV: Math.max(0, predictedCV),
-    crLow: Math.max(0, predictedCR - 1.96 * crStdDev),
-    crHigh: predictedCR + 1.96 * crStdDev,
-    cvLow: Math.max(0, predictedCV - 1.96 * cvStdDev),
-    cvHigh: predictedCV + 1.96 * cvStdDev,
+    predictedCr: Math.max(0, predictedCr),
+    predictedCv: Math.max(0, predictedCv),
+    crLow: Math.max(0, predictedCr - 1.96 * crStdDev),
+    crHigh: predictedCr + 1.96 * crStdDev,
+    cvLow: Math.max(0, predictedCv - 1.96 * cvStdDev),
+    cvHigh: predictedCv + 1.96 * cvStdDev,
     confidence,
     sampleCount,
     predictionSource
@@ -665,14 +665,14 @@ export async function batchPredictAndSaveKeywords(accountId: number): Promise<{
         accountId,
         keywordId: kw.id,
         keywordText: kw.keywordText,
-        predictedCR: String(prediction.predictedCR),
-        predictedCV: String(prediction.predictedCV),
+        predictedCr: String(prediction.predictedCr),
+        predictedCv: String(prediction.predictedCv),
         predictionSource: prediction.predictionSource === 'historical' ? 'default' as const : prediction.predictionSource as 'decision_tree' | 'bayesian',
         confidence: String(prediction.confidence),
         matchType: features.matchType,
         wordCount: features.wordCount,
         keywordType: features.keywordType,
-        actualCR: String(Number(kw.keywordCvr) || 0),
+        actualCr: String(Number(kw.keywordCvr) || 0),
         actualCV: String((kw.orders || 0) > 0 ? Number(kw.sales) / (kw.orders || 1) : 0)
       };
       
@@ -752,15 +752,15 @@ export async function getKeywordPredictionSummary(accountId: number): Promise<{
   
   const totalPredictions = predictions.length;
   const avgConfidence = predictions.reduce((sum, p) => sum + Number(p.confidence), 0) / totalPredictions;
-  const avgPredictedCR = predictions.reduce((sum, p) => sum + Number(p.predictedCR), 0) / totalPredictions;
-  const avgPredictedCV = predictions.reduce((sum, p) => sum + Number(p.predictedCV), 0) / totalPredictions;
+  const avgPredictedCR = predictions.reduce((sum, p) => sum + Number(p.predictedCr), 0) / totalPredictions;
+  const avgPredictedCV = predictions.reduce((sum, p) => sum + Number(p.predictedCv), 0) / totalPredictions;
   
   // 计算预测准确率
-  const validPredictions = predictions.filter(p => Number(p.actualCR) > 0);
+  const validPredictions = predictions.filter(p => Number(p.actualCr) > 0);
   let predictionAccuracy = 0;
   if (validPredictions.length > 0) {
     const errors = validPredictions.map(p => 
-      Math.abs(Number(p.predictedCR) - Number(p.actualCR)) / Math.max(Number(p.actualCR), 0.001)
+      Math.abs(Number(p.predictedCr) - Number(p.actualCr)) / Math.max(Number(p.actualCr), 0.001)
     );
     predictionAccuracy = 1 - (errors.reduce((a, b) => a + b, 0) / errors.length);
   }
@@ -777,15 +777,15 @@ export async function getKeywordPredictionSummary(accountId: number): Promise<{
       byMatchType[mt] = { count: 0, avgCR: 0, avgCV: 0 };
     }
     byMatchType[mt].count++;
-    byMatchType[mt].avgCR += Number(p.predictedCR);
-    byMatchType[mt].avgCV += Number(p.predictedCV);
+    byMatchType[mt].avgCR += Number(p.predictedCr);
+    byMatchType[mt].avgCV += Number(p.predictedCv);
     
     if (!byKeywordType[kt]) {
       byKeywordType[kt] = { count: 0, avgCR: 0, avgCV: 0 };
     }
     byKeywordType[kt].count++;
-    byKeywordType[kt].avgCR += Number(p.predictedCR);
-    byKeywordType[kt].avgCV += Number(p.predictedCV);
+    byKeywordType[kt].avgCR += Number(p.predictedCr);
+    byKeywordType[kt].avgCV += Number(p.predictedCv);
   }
   
   // 计算平均值

@@ -197,10 +197,10 @@ export function calculateOptimalBaseBid(
   targetProfitMargin: number = 0.3
 ): number {
   // 盈亏平衡CPC = CVR × AOV
-  const breakEvenCPC = cvr * aov;
+  const breakEvenCpc = cvr * aov;
   
   // 最优出价 = 盈亏平衡CPC × (1 - 目标利润率)
-  const optimalBid = breakEvenCPC * (1 - targetProfitMargin);
+  const optimalBid = breakEvenCpc * (1 - targetProfitMargin);
   
   return Math.round(optimalBid * 100) / 100;
 }
@@ -805,7 +805,7 @@ export async function generateProfitVisualizationData(
     model.ctrCurve,
     model.conversion,
     0.1,
-    model.breakEvenCPC * 1.5,
+    model.breakEvenCpc * 1.5,
     50
   );
   
@@ -825,7 +825,7 @@ export async function generateProfitVisualizationData(
       profit: 0
     },
     breakEvenPoint: {
-      cpc: model.breakEvenCPC
+      cpc: model.breakEvenCpc
     }
   };
 }

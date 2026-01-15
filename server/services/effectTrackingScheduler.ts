@@ -267,8 +267,8 @@ export async function updateTrackingData(
       updateData.actualProfit7D = data.profit;
       updateData.actualImpressions7d = data.impressions;
       updateData.actualClicks7d = data.clicks;
-      updateData.actualSpend7d = data.spend;
-      updateData.actualRevenue7d = data.sales;
+      updateData.actualSpend7D = data.spend;
+      updateData.actualRevenue7D = data.sales;
       updateData.actualConversions7d = data.orders;
     } else if (period === 14) {
       updateData.actualProfit14D = data.profit;

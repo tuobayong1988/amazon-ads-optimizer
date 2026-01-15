@@ -3047,28 +3047,28 @@ export async function getBidAdjustmentById(adjustmentId: number) {
 
 // 更新效果追踪数据
 export async function updateBidAdjustmentTracking(adjustmentId: number, trackingData: {
-  actualProfit7d?: number;
-  actualProfit14d?: number;
-  actualProfit30d?: number;
+  actualProfit7D?: number;
+  actualProfit14D?: number;
+  actualProfit30D?: number;
   actualImpressions7d?: number;
   actualClicks7d?: number;
   actualConversions7d?: number;
-  actualSpend7d?: number;
-  actualRevenue7d?: number;
+  actualSpend7D?: number;
+  actualRevenue7D?: number;
 }) {
   const db = await getDb();
   if (!db) return null;
   
   await db.update(bidAdjustmentHistory)
     .set({
-      actualProfit7d: trackingData.actualProfit7d !== undefined ? String(trackingData.actualProfit7d) : undefined,
-      actualProfit14d: trackingData.actualProfit14d !== undefined ? String(trackingData.actualProfit14d) : undefined,
-      actualProfit30d: trackingData.actualProfit30d !== undefined ? String(trackingData.actualProfit30d) : undefined,
+      actualProfit7D: trackingData.actualProfit7D !== undefined ? String(trackingData.actualProfit7D) : undefined,
+      actualProfit14D: trackingData.actualProfit14D !== undefined ? String(trackingData.actualProfit14D) : undefined,
+      actualProfit30D: trackingData.actualProfit30D !== undefined ? String(trackingData.actualProfit30D) : undefined,
       actualImpressions7d: trackingData.actualImpressions7d,
       actualClicks7d: trackingData.actualClicks7d,
       actualConversions7d: trackingData.actualConversions7d,
-      actualSpend7d: trackingData.actualSpend7d !== undefined ? String(trackingData.actualSpend7d) : undefined,
-      actualRevenue7d: trackingData.actualRevenue7d !== undefined ? String(trackingData.actualRevenue7d) : undefined,
+      actualSpend7D: trackingData.actualSpend7D !== undefined ? String(trackingData.actualSpend7D) : undefined,
+      actualRevenue7D: trackingData.actualRevenue7D !== undefined ? String(trackingData.actualRevenue7D) : undefined,
       trackingUpdatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
     })
     .where(eq(bidAdjustmentHistory.id, adjustmentId));
@@ -3188,7 +3188,7 @@ export async function getBidAdjustmentTrackingStats(accountId: number, days: num
         eq(bidAdjustmentHistory.accountId, accountId),
         eq(bidAdjustmentHistory.status, 'applied'),
         sql`${bidAdjustmentHistory.appliedAt} >= ${cutoffDateStr}`,
-        sql`${bidAdjustmentHistory.actualProfit7d} IS NOT NULL`
+        sql`${bidAdjustmentHistory.actualProfit7D} IS NOT NULL`
       )
     );
   
@@ -3201,9 +3201,9 @@ export async function getBidAdjustmentTrackingStats(accountId: number, days: num
   
   results.forEach(r => {
     totalExpectedProfit += Number(r.expectedProfitIncrease || 0);
-    totalActualProfit7d += Number(r.actualProfit7d || 0);
-    totalActualProfit14d += Number(r.actualProfit14d || 0);
-    totalActualProfit30d += Number(r.actualProfit30d || 0);
+    totalActualProfit7d += Number(r.actualProfit7D || 0);
+    totalActualProfit14d += Number(r.actualProfit14D || 0);
+    totalActualProfit30d += Number(r.actualProfit30D || 0);
     trackedCount++;
   });
   

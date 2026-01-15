@@ -2731,3 +2731,281 @@ export type InsertBudgetAllocationHistory = InferInsertModel<typeof budgetAlloca
 // 广告活动表现快照相关类型
 export type CampaignPerformanceSnapshot = InferSelectModel<typeof campaignPerformanceSnapshots>;
 export type InsertCampaignPerformanceSnapshot = InferInsertModel<typeof campaignPerformanceSnapshots>;
+
+// ==================== 补充缺失的类型导出 ====================
+
+// 广告账户相关类型
+export type AdAccount = InferSelectModel<typeof adAccounts>;
+export type InsertAdAccount = InferInsertModel<typeof adAccounts>;
+
+// 广告活动相关类型
+export type Campaign = InferSelectModel<typeof campaigns>;
+export type InsertCampaign = InferInsertModel<typeof campaigns>;
+
+// 广告组相关类型
+export type AdGroup = InferSelectModel<typeof adGroups>;
+export type InsertAdGroup = InferInsertModel<typeof adGroups>;
+
+// 关键词相关类型
+export type Keyword = InferSelectModel<typeof keywords>;
+export type InsertKeyword = InferInsertModel<typeof keywords>;
+
+// 产品定向相关类型
+export type ProductTarget = InferSelectModel<typeof productTargets>;
+export type InsertProductTarget = InferInsertModel<typeof productTargets>;
+
+// 效果组相关类型
+export type PerformanceGroup = InferSelectModel<typeof performanceGroups>;
+export type InsertPerformanceGroup = InferInsertModel<typeof performanceGroups>;
+
+// 否定关键词相关类型
+export type NegativeKeyword = InferSelectModel<typeof negativeKeywords>;
+export type InsertNegativeKeyword = InferInsertModel<typeof negativeKeywords>;
+
+// 团队成员相关类型
+export type TeamMember = InferSelectModel<typeof teamMembers>;
+export type InsertTeamMember = InferInsertModel<typeof teamMembers>;
+
+// 搜索词相关类型
+export type SearchTerm = InferSelectModel<typeof searchTerms>;
+export type InsertSearchTerm = InferInsertModel<typeof searchTerms>;
+
+// AI优化动作相关类型
+export type AiOptimizationAction = InferSelectModel<typeof aiOptimizationActions>;
+export type InsertAiOptimizationAction = InferInsertModel<typeof aiOptimizationActions>;
+
+// AI优化预测相关类型
+export type AiOptimizationPrediction = InferSelectModel<typeof aiOptimizationPredictions>;
+export type InsertAiOptimizationPrediction = InferInsertModel<typeof aiOptimizationPredictions>;
+
+// A/B测试相关类型
+export type ABTest = InferSelectModel<typeof abTests>;
+export type InsertABTest = InferInsertModel<typeof abTests>;
+export type ABTestVariant = InferSelectModel<typeof abTestVariants>;
+export type InsertABTestVariant = InferInsertModel<typeof abTestVariants>;
+export type ABTestResult = InferSelectModel<typeof abTestResults>;
+export type InsertABTestResult = InferInsertModel<typeof abTestResults>;
+export type ABTestDailyMetric = InferSelectModel<typeof abTestDailyMetrics>;
+export type InsertABTestDailyMetric = InferInsertModel<typeof abTestDailyMetrics>;
+export type ABTestCampaignAssignment = InferSelectModel<typeof abTestCampaignAssignments>;
+export type InsertABTestCampaignAssignment = InferInsertModel<typeof abTestCampaignAssignments>;
+
+// 预算自动执行相关类型
+export type BudgetAutoExecutionConfig = InferSelectModel<typeof budgetAutoExecutionConfigs>;
+export type InsertBudgetAutoExecutionConfig = InferInsertModel<typeof budgetAutoExecutionConfigs>;
+export type BudgetAutoExecutionHistory = InferSelectModel<typeof budgetAutoExecutionHistory>;
+export type InsertBudgetAutoExecutionHistory = InferInsertModel<typeof budgetAutoExecutionHistory>;
+export type BudgetAutoExecutionDetail = InferSelectModel<typeof budgetAutoExecutionDetails>;
+export type InsertBudgetAutoExecutionDetail = InferInsertModel<typeof budgetAutoExecutionDetails>;
+export type BudgetAutoExecutionLog = InferSelectModel<typeof budgetAutoExecutionLogs>;
+export type InsertBudgetAutoExecutionLog = InferInsertModel<typeof budgetAutoExecutionLogs>;
+
+// 同步变更记录相关类型
+export type SyncChangeRecord = InferSelectModel<typeof syncChangeRecords>;
+export type InsertSyncChangeRecord = InferInsertModel<typeof syncChangeRecords>;
+export type SyncConflict = InferSelectModel<typeof syncConflicts>;
+export type InsertSyncConflict = InferInsertModel<typeof syncConflicts>;
+
+// 季节性预算推荐相关类型
+export type SeasonalBudgetRecommendation = InferSelectModel<typeof seasonalBudgetRecommendations>;
+export type InsertSeasonalBudgetRecommendation = InferInsertModel<typeof seasonalBudgetRecommendations>;
+
+// 促销活动相关类型
+export type PromotionalEvent = InferSelectModel<typeof promotionalEvents>;
+export type InsertPromotionalEvent = InferInsertModel<typeof promotionalEvents>;
+
+// 季节性趋势相关类型
+export type SeasonalTrend = InferSelectModel<typeof seasonalTrends>;
+export type InsertSeasonalTrend = InferInsertModel<typeof seasonalTrends>;
+
+// 智能分配相关类型
+export type BudgetAllocation = InferSelectModel<typeof budgetAllocations>;
+export type InsertBudgetAllocation = InferInsertModel<typeof budgetAllocations>;
+export type BudgetAllocationItem = InferSelectModel<typeof budgetAllocationItems>;
+export type InsertBudgetAllocationItem = InferInsertModel<typeof budgetAllocationItems>;
+export type BudgetAllocationTracking = InferSelectModel<typeof budgetAllocationTracking>;
+export type InsertBudgetAllocationTracking = InferInsertModel<typeof budgetAllocationTracking>;
+
+// 决策树模型相关类型
+export type DecisionTreeModel = InferSelectModel<typeof decisionTreeModels>;
+export type InsertDecisionTreeModel = InferInsertModel<typeof decisionTreeModels>;
+
+// 边际效益相关类型
+export type MarginalBenefitHistory = InferSelectModel<typeof marginalBenefitHistory>;
+export type InsertMarginalBenefitHistory = InferInsertModel<typeof marginalBenefitHistory>;
+export type MarginalBenefitApplication = InferSelectModel<typeof marginalBenefitApplications>;
+export type InsertMarginalBenefitApplication = InferInsertModel<typeof marginalBenefitApplications>;
+export type BatchMarginalBenefitAnalysis = InferSelectModel<typeof batchMarginalBenefitAnalysis>;
+export type InsertBatchMarginalBenefitAnalysis = InferInsertModel<typeof batchMarginalBenefitAnalysis>;
+
+// 预算目标相关类型
+export type BudgetGoal = InferSelectModel<typeof budgetGoals>;
+export type InsertBudgetGoal = InferInsertModel<typeof budgetGoals>;
+
+// 预算历史相关类型
+export type BudgetHistory = InferSelectModel<typeof budgetHistory>;
+export type InsertBudgetHistory = InferInsertModel<typeof budgetHistory>;
+
+// 数据同步相关类型
+export type DataSyncJob = InferSelectModel<typeof dataSyncJobs>;
+export type InsertDataSyncJob = InferInsertModel<typeof dataSyncJobs>;
+export type DataSyncLog = InferSelectModel<typeof dataSyncLogs>;
+export type InsertDataSyncLog = InferInsertModel<typeof dataSyncLogs>;
+export type DataSyncSchedule = InferSelectModel<typeof dataSyncSchedules>;
+export type InsertDataSyncSchedule = InferInsertModel<typeof dataSyncSchedules>;
+export type DataSyncTask = InferSelectModel<typeof dataSyncTasks>;
+export type InsertDataSyncTask = InferInsertModel<typeof dataSyncTasks>;
+
+// 用户相关类型
+export type User = InferSelectModel<typeof users>;
+export type InsertUser = InferInsertModel<typeof users>;
+
+// 组织相关类型
+export type Organization = InferSelectModel<typeof organizations>;
+export type InsertOrganization = InferInsertModel<typeof organizations>;
+
+// 本地用户相关类型
+export type LocalUser = InferSelectModel<typeof localUsers>;
+export type InsertLocalUser = InferInsertModel<typeof localUsers>;
+
+// 邀请码相关类型
+export type InviteCode = InferSelectModel<typeof inviteCodes>;
+export type InsertInviteCode = InferInsertModel<typeof inviteCodes>;
+export type InviteCodeUsage = InferSelectModel<typeof inviteCodeUsages>;
+export type InsertInviteCodeUsage = InferInsertModel<typeof inviteCodeUsages>;
+
+// 审计日志相关类型
+export type AuditLog = InferSelectModel<typeof auditLogs>;
+export type InsertAuditLog = InferInsertModel<typeof auditLogs>;
+
+// 协作通知相关类型
+export type CollaborationNotification = InferSelectModel<typeof collaborationNotifications>;
+export type InsertCollaborationNotification = InferInsertModel<typeof collaborationNotifications>;
+export type CollaborationNotificationRule = InferSelectModel<typeof collaborationNotificationRules>;
+export type InsertCollaborationNotificationRule = InferInsertModel<typeof collaborationNotificationRules>;
+
+// 报告任务相关类型
+export type ReportJob = InferSelectModel<typeof reportJobs>;
+export type InsertReportJob = InferInsertModel<typeof reportJobs>;
+
+// 账号初始化进度相关类型
+export type AccountInitializationProgress = InferSelectModel<typeof accountInitializationProgress>;
+export type InsertAccountInitializationProgress = InferInsertModel<typeof accountInitializationProgress>;
+
+// 搜索词分析相关类型
+export type SearchTermAnalysis = InferSelectModel<typeof searchTermAnalysis>;
+export type InsertSearchTermAnalysis = InferInsertModel<typeof searchTermAnalysis>;
+
+// 关键词预测相关类型
+export type KeywordPrediction = InferSelectModel<typeof keywordPredictions>;
+export type InsertKeywordPrediction = InferInsertModel<typeof keywordPredictions>;
+
+// 优化建议相关类型
+export type OptimizationRecommendation = InferSelectModel<typeof optimizationRecommendations>;
+export type InsertOptimizationRecommendation = InferInsertModel<typeof optimizationRecommendations>;
+
+// 异常检测规则相关类型
+export type AnomalyDetectionRule = InferSelectModel<typeof anomalyDetectionRules>;
+export type InsertAnomalyDetectionRule = InferInsertModel<typeof anomalyDetectionRules>;
+export type AnomalyAlertLog = InferSelectModel<typeof anomalyAlertLogs>;
+export type InsertAnomalyAlertLog = InferInsertModel<typeof anomalyAlertLogs>;
+
+// 花费限制相关类型
+export type SpendLimitConfig = InferSelectModel<typeof spendLimitConfigs>;
+export type InsertSpendLimitConfig = InferInsertModel<typeof spendLimitConfigs>;
+export type SpendAlertLog = InferSelectModel<typeof spendAlertLogs>;
+export type InsertSpendAlertLog = InferInsertModel<typeof spendAlertLogs>;
+
+// 预算消耗告警相关类型
+export type BudgetConsumptionAlert = InferSelectModel<typeof budgetConsumptionAlerts>;
+export type InsertBudgetConsumptionAlert = InferInsertModel<typeof budgetConsumptionAlerts>;
+
+// 预算告警设置相关类型
+export type BudgetAlertSetting = InferSelectModel<typeof budgetAlertSettings>;
+export type InsertBudgetAlertSetting = InferInsertModel<typeof budgetAlertSettings>;
+
+// API相关类型
+export type ApiCallLog = InferSelectModel<typeof apiCallLogs>;
+export type InsertApiCallLog = InferInsertModel<typeof apiCallLogs>;
+export type ApiOperationLog = InferSelectModel<typeof apiOperationLogs>;
+export type InsertApiOperationLog = InferInsertModel<typeof apiOperationLogs>;
+export type ApiRateLimit = InferSelectModel<typeof apiRateLimits>;
+export type InsertApiRateLimit = InferInsertModel<typeof apiRateLimits>;
+export type ApiRequestQueue = InferSelectModel<typeof apiRequestQueue>;
+export type InsertApiRequestQueue = InferInsertModel<typeof apiRequestQueue>;
+
+// Amazon API凭证相关类型
+export type AmazonApiCredential = InferSelectModel<typeof amazonApiCredentials>;
+export type InsertAmazonApiCredential = InferInsertModel<typeof amazonApiCredentials>;
+
+// AMS相关类型
+export type AmsSubscription = InferSelectModel<typeof amsSubscriptions>;
+export type InsertAmsSubscription = InferInsertModel<typeof amsSubscriptions>;
+export type AmsMessage = InferSelectModel<typeof amsMessages>;
+export type InsertAmsMessage = InferInsertModel<typeof amsMessages>;
+export type AmsPerformanceData = InferSelectModel<typeof amsPerformanceData>;
+export type InsertAmsPerformanceData = InferInsertModel<typeof amsPerformanceData>;
+export type AmsPerformanceBuffer = InferSelectModel<typeof amsPerformanceBuffer>;
+export type InsertAmsPerformanceBuffer = InferInsertModel<typeof amsPerformanceBuffer>;
+export type AmsConsumerStatus = InferSelectModel<typeof amsConsumerStatus>;
+export type InsertAmsConsumerStatus = InferInsertModel<typeof amsConsumerStatus>;
+
+// 自动暂停记录相关类型
+export type AutoPauseRecord = InferSelectModel<typeof autoPauseRecords>;
+export type InsertAutoPauseRecord = InferInsertModel<typeof autoPauseRecords>;
+
+// 自动定向相关类型
+export type AutoTargetingSetting = InferSelectModel<typeof autoTargetingSettings>;
+export type InsertAutoTargetingSetting = InferInsertModel<typeof autoTargetingSettings>;
+export type AutoTargetingPerformance = InferSelectModel<typeof autoTargetingPerformance>;
+export type InsertAutoTargetingPerformance = InferInsertModel<typeof autoTargetingPerformance>;
+
+// 出价对象利润估算相关类型
+export type BidObjectProfitEstimate = InferSelectModel<typeof bidObjectProfitEstimates>;
+export type InsertBidObjectProfitEstimate = InferInsertModel<typeof bidObjectProfitEstimates>;
+
+// 出价表现历史相关类型
+export type BidPerformanceHistory = InferSelectModel<typeof bidPerformanceHistory>;
+export type InsertBidPerformanceHistory = InferInsertModel<typeof bidPerformanceHistory>;
+
+// 分时竞价规则相关类型
+export type DaypartingBidRule = InferSelectModel<typeof daypartingBidRules>;
+export type InsertDaypartingBidRule = InferInsertModel<typeof daypartingBidRules>;
+
+// 市场曲线模型相关类型
+export type MarketCurveModel = InferSelectModel<typeof marketCurveModels>;
+export type InsertMarketCurveModel = InferInsertModel<typeof marketCurveModels>;
+
+// 位置出价设置相关类型
+export type PlacementBidSetting = InferSelectModel<typeof placementBidSettings>;
+export type InsertPlacementBidSetting = InferInsertModel<typeof placementBidSettings>;
+
+// SB广告活动设置相关类型
+export type SbCampaignSetting = InferSelectModel<typeof sbCampaignSettings>;
+export type InsertSbCampaignSetting = InferInsertModel<typeof sbCampaignSettings>;
+
+// SD广告活动设置相关类型
+export type SdCampaignSetting = InferSelectModel<typeof sdCampaignSettings>;
+export type InsertSdCampaignSetting = InferInsertModel<typeof sdCampaignSettings>;
+export type SdAudience = InferSelectModel<typeof sdAudiences>;
+export type InsertSdAudience = InferInsertModel<typeof sdAudiences>;
+export type SdAudienceTargeting = InferSelectModel<typeof sdAudienceTargeting>;
+export type InsertSdAudienceTargeting = InferInsertModel<typeof sdAudienceTargeting>;
+
+// 同步相关类型
+export type SyncSchedule = InferSelectModel<typeof syncSchedules>;
+export type InsertSyncSchedule = InferInsertModel<typeof syncSchedules>;
+export type SyncTaskQueue = InferSelectModel<typeof syncTaskQueue>;
+export type InsertSyncTaskQueue = InferInsertModel<typeof syncTaskQueue>;
+export type SyncChangeSummary = InferSelectModel<typeof syncChangeSummary>;
+export type InsertSyncChangeSummary = InferInsertModel<typeof syncChangeSummary>;
+export type DataConsistencyCheck = InferSelectModel<typeof dataConsistencyChecks>;
+export type InsertDataConsistencyCheck = InferInsertModel<typeof dataConsistencyChecks>;
+
+// 用户通知偏好相关类型
+export type UserNotificationPreference = InferSelectModel<typeof userNotificationPreferences>;
+export type InsertUserNotificationPreference = InferInsertModel<typeof userNotificationPreferences>;
+
+// AI优化审核相关类型
+export type AiOptimizationReview = InferSelectModel<typeof aiOptimizationReviews>;
+export type InsertAiOptimizationReview = InferInsertModel<typeof aiOptimizationReviews>;

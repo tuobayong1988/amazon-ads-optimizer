@@ -26,7 +26,7 @@ async function getDbInstance() {
 
 export interface BidPerformanceData {
   bid: number;
-  effectiveCPC: number;
+  effectiveCpc: number;
   impressions: number;
   clicks: number;
   spend: number;
@@ -44,9 +44,9 @@ export interface ImpressionCurveParams {
 }
 
 export interface CTRCurveParams {
-  baseCTR: number;
+  baseCtr: number;
   positionBonus: number;
-  topSearchCTRBonus: number;
+  topSearchCtrBonus: number;
 }
 
 export interface ConversionParams {
@@ -62,7 +62,7 @@ export interface MarketCurveResult {
   optimalBid: number;
   maxProfit: number;
   profitMargin: number;
-  breakEvenCPC: number;
+  breakEvenCpc: number;
   dataPoints: number;
   confidence: number;
 }
@@ -71,7 +71,7 @@ export interface OptimalBidResult {
   optimalBid: number;
   maxProfit: number;
   profitMargin: number;
-  breakEvenCPC: number;
+  breakEvenCpc: number;
   profitCurve: Array<{ cpc: number; profit: number }>;
 }
 
@@ -129,23 +129,23 @@ export function buildImpressionCurve(dataPoints: BidPerformanceData[]): Impressi
 
 /**
  * 构建点击率曲线
- * CTR = baseCTR × (1 + positionBonus × positionScore)
+ * CTR = baseCtr × (1 + positionBonus × positionScore)
  */
 export function buildCTRCurve(dataPoints: BidPerformanceData[]): CTRCurveParams {
   const validPoints = dataPoints.filter(p => p.clicks > 0 && p.impressions > 0);
   
   if (validPoints.length < 3) {
     return {
-      baseCTR: 0.01,
+      baseCtr: 0.01,
       positionBonus: 0.5,
-      topSearchCTRBonus: 0.3
+      topSearchCtrBonus: 0.3
     };
   }
   
   // 计算平均CTR
   const totalClicks = validPoints.reduce((sum, p) => sum + p.clicks, 0);
   const totalImpressions = validPoints.reduce((sum, p) => sum + p.impressions, 0);
-  const baseCTR = totalClicks / totalImpressions;
+  const baseCtr = totalClicks / totalImpressions;
   
   // 分析出价与CTR的关系（高出价通常获得更好位置，CTR更高）
   const sortedByBid = [...validPoints].sort((a, b) => b.bid - a.bid);
@@ -158,9 +158,9 @@ export function buildCTRCurve(dataPoints: BidPerformanceData[]): CTRCurveParams 
   const positionBonus = bottomCTR > 0 ? (topCTR - bottomCTR) / bottomCTR : 0.5;
   
   return {
-    baseCTR,
+    baseCtr,
     positionBonus: Math.max(0, Math.min(2, positionBonus)),
-    topSearchCTRBonus: positionBonus * 0.6 // 搜索顶部额外加成
+    topSearchCtrBonus: positionBonus * 0.6 // 搜索顶部额外加成
   };
 }
 
@@ -205,7 +205,7 @@ export function calculateImpressions(cpc: number, curve: ImpressionCurveParams):
 export function calculateCTR(cpc: number, curve: CTRCurveParams, maxCPC: number = 5): number {
   // 假设CPC越高，位置越好，CTR越高
   const positionScore = Math.min(cpc / maxCPC, 1);
-  return curve.baseCTR * (1 + curve.positionBonus * positionScore);
+  return curve.baseCtr * (1 + curve.positionBonus * positionScore);
 }
 
 /**
@@ -277,11 +277,11 @@ export function calculateOptimalBid(
   const { cvr, aov } = conversion;
   
   // 盈亏平衡点
-  const breakEvenCPC = cvr * aov;
+  const breakEvenCpc = cvr * aov;
   
   // 搜索范围
   const minCPC = 0.02;
-  const maxCPC = Math.min(breakEvenCPC * 1.5, 10);
+  const maxCPC = Math.min(breakEvenCpc * 1.5, 10);
   
   // 粗略搜索找到利润最大化区域
   const step = 0.05;
@@ -319,7 +319,7 @@ export function calculateOptimalBid(
     optimalBid: Math.round(optimalBid * 100) / 100,
     maxProfit: Math.round(finalProfit * 100) / 100,
     profitMargin: Math.round(profitMargin * 10000) / 10000,
-    breakEvenCPC: Math.round(breakEvenCPC * 100) / 100,
+    breakEvenCpc: Math.round(breakEvenCpc * 100) / 100,
     profitCurve
   };
 }
@@ -368,7 +368,7 @@ export async function buildMarketCurveForKeyword(
     // 使用关键词汇总数据构建简化模型
     const dataPoints: BidPerformanceData[] = [{
       bid: Number(kw.bid) || 1,
-      effectiveCPC: Number(kw.spend) / Math.max(Number(kw.clicks), 1),
+      effectiveCpc: Number(kw.spend) / Math.max(Number(kw.clicks), 1),
       impressions: kw.impressions || 0,
       clicks: kw.clicks || 0,
       spend: Number(kw.spend) || 0,
@@ -396,7 +396,7 @@ export async function buildMarketCurveForKeyword(
   // 转换数据格式
   const dataPoints: BidPerformanceData[] = historyData.map(h => ({
     bid: Number(h.bid),
-    effectiveCPC: Number(h.effectiveCPC) || Number(h.bid),
+    effectiveCpc: Number(h.effectiveCpc) || Number(h.bid),
     impressions: h.impressions || 0,
     clicks: h.clicks || 0,
     spend: Number(h.spend) || 0,
@@ -487,9 +487,9 @@ export async function saveMarketCurveModel(
     impressionCurveB: String(model.impressionCurve.b),
     impressionCurveC: String(model.impressionCurve.c),
     impressionCurveR2: String(model.impressionCurve.r2),
-    baseCTR: String(model.ctrCurve.baseCTR),
+    baseCtr: String(model.ctrCurve.baseCtr),
     positionBonus: String(model.ctrCurve.positionBonus),
-    topSearchCTRBonus: String(model.ctrCurve.topSearchCTRBonus),
+    topSearchCtrBonus: String(model.ctrCurve.topSearchCtrBonus),
     cvr: String(model.conversion.cvr),
     aov: String(model.conversion.aov),
     conversionDelayDays: model.conversion.conversionDelayDays,
@@ -497,7 +497,7 @@ export async function saveMarketCurveModel(
     optimalBid: String(model.optimalBid),
     maxProfit: String(model.maxProfit),
     profitMargin: String(model.profitMargin),
-    breakEvenCPC: String(model.breakEvenCPC),
+    breakEvenCpc: String(model.breakEvenCpc),
     currentBid: String(currentBid),
     bidGap: String(bidGap),
     bidGapPercent: String(bidGapPercent),
@@ -550,9 +550,9 @@ export async function getMarketCurveModel(
       r2: Number(m.impressionCurveR2) || 0
     },
     ctrCurve: {
-      baseCTR: Number(m.baseCTR) || 0,
+      baseCtr: Number(m.baseCtr) || 0,
       positionBonus: Number(m.positionBonus) || 0,
-      topSearchCTRBonus: Number(m.topSearchCTRBonus) || 0
+      topSearchCtrBonus: Number(m.topSearchCtrBonus) || 0
     },
     conversion: {
       cvr: Number(m.cvr) || 0,
@@ -562,7 +562,7 @@ export async function getMarketCurveModel(
     optimalBid: Number(m.optimalBid) || 0,
     maxProfit: Number(m.maxProfit) || 0,
     profitMargin: Number(m.profitMargin) || 0,
-    breakEvenCPC: Number(m.breakEvenCPC) || 0,
+    breakEvenCpc: Number(m.breakEvenCpc) || 0,
     dataPoints: m.dataPoints || 0,
     confidence: Number(m.confidence) || 0
   };

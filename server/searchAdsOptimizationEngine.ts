@@ -197,7 +197,7 @@ export interface SearchAdOptimizationSuggestion {
       optimalBid: number;
       maxProfit: number;
       profitMargin: number;
-      breakEvenCPC: number;
+      breakEvenCpc: number;
     };
     marginalAnalysis?: {
       currentMarginalProfit: number;
@@ -283,7 +283,7 @@ export async function buildSearchAdMarketCurve(
     // 转换为BidPerformanceData格式
     const dataPoints: BidPerformanceData[] = historyData.map(h => ({
       bid: Number(h.bid) || 0,
-      effectiveCPC: Number(h.effectiveCPC) || 0,
+      effectiveCpc: Number(h.effectiveCpc) || 0,
       impressions: h.impressions || 0,
       clicks: h.clicks || 0,
       spend: Number(h.spend) || 0,
@@ -428,7 +428,7 @@ function calculateImpressions(bid: number, curve: ImpressionCurveParams): number
  */
 function calculateCTR(bid: number, curve: CTRCurveParams, maxBid: number = 5): number {
   const positionScore = Math.min(bid / maxBid, 1);
-  return curve.baseCTR * (1 + curve.positionBonus * positionScore);
+  return curve.baseCtr * (1 + curve.positionBonus * positionScore);
 }
 
 // ==================== 决策树逻辑 ====================
@@ -742,7 +742,7 @@ export async function generateSearchAdOptimizationSuggestion(
             optimalBid: optimalBidResult.optimalBid,
             maxProfit: optimalBidResult.maxProfit,
             profitMargin: optimalBidResult.profitMargin,
-            breakEvenCPC: optimalBidResult.breakEvenCPC
+            breakEvenCpc: optimalBidResult.breakEvenCpc
           },
           marginalAnalysis: {
             currentMarginalProfit: marginalAnalysis.currentMarginalProfit,

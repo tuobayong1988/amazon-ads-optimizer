@@ -200,9 +200,9 @@ export function evaluateAdjustment(
     bidChangePercent: string | number;
     adjustedAt: Date | string | number;
     estimatedProfitChange: string | number | null;
-    actualProfit7d: string | number | null;
-    actualProfit14d: string | number | null;
-    actualProfit30d: string | number | null;
+    actualProfit7D: string | number | null;
+    actualProfit14D: string | number | null;
+    actualProfit30D: string | number | null;
   },
   rule: RollbackRule
 ): RollbackSuggestion | null {
@@ -213,14 +213,14 @@ export function evaluateAdjustment(
   let actualProfit: number | null = null;
   let trackingDays: number = 0;
   
-  if (rule.conditions.minTrackingDays <= 7 && record.actualProfit7d !== null) {
-    actualProfit = parseFloat(String(record.actualProfit7d));
+  if (rule.conditions.minTrackingDays <= 7 && record.actualProfit7D !== null) {
+    actualProfit = parseFloat(String(record.actualProfit7D));
     trackingDays = 7;
-  } else if (rule.conditions.minTrackingDays <= 14 && record.actualProfit14d !== null) {
-    actualProfit = parseFloat(String(record.actualProfit14d));
+  } else if (rule.conditions.minTrackingDays <= 14 && record.actualProfit14D !== null) {
+    actualProfit = parseFloat(String(record.actualProfit14D));
     trackingDays = 14;
-  } else if (rule.conditions.minTrackingDays <= 30 && record.actualProfit30d !== null) {
-    actualProfit = parseFloat(String(record.actualProfit30d));
+  } else if (rule.conditions.minTrackingDays <= 30 && record.actualProfit30D !== null) {
+    actualProfit = parseFloat(String(record.actualProfit30D));
     trackingDays = 30;
   }
   
@@ -315,7 +315,7 @@ export async function runRollbackEvaluation(accountId?: number): Promise<{
       and(
         sql`${bidAdjustmentHistory.status} != 'rolled_back'`,
         // 至少有7天追踪数据
-        isNotNull(bidAdjustmentHistory.actualProfit7d)
+        isNotNull(bidAdjustmentHistory.actualProfit7D)
       )
     );
   

@@ -315,8 +315,8 @@ export async function trackAdjustmentEffect(
     // 更新调整记录中的效果数据
     await db.update(bidAdjustmentHistory)
       .set({
-        actualRevenue7d: metricsAfter.sales.toString(),
-        actualSpend7d: metricsAfter.spend.toString(),
+        actualRevenue7D: metricsAfter.sales.toString(),
+        actualSpend7D: metricsAfter.spend.toString(),
         actualClicks7d: metricsAfter.clicks,
         actualConversions7d: metricsAfter.orders,
         actualImpressions7d: metricsAfter.impressions,
@@ -463,8 +463,8 @@ export async function analyzeAdjustmentHistory(
     
     for (const adj of adjustments) {
       // 简化的效果判断：基于实际收入和花费
-      const revenue = Number(adj.actualRevenue7d) || 0;
-      const spend = Number(adj.actualSpend7d) || 0;
+      const revenue = Number(adj.actualRevenue7D) || 0;
+      const spend = Number(adj.actualSpend7D) || 0;
       const actualRoas = spend > 0 ? revenue / spend : 0;
       
       // 假设基准ROAS为3（可以从历史数据计算）
@@ -489,8 +489,8 @@ export async function analyzeAdjustmentHistory(
     // 分析最近趋势（最近10次调整）
     const recentAdjustments = adjustments.slice(0, 10);
     const recentPositive = recentAdjustments.filter(adj => {
-      const revenue = Number(adj.actualRevenue7d) || 0;
-      const spend = Number(adj.actualSpend7d) || 0;
+      const revenue = Number(adj.actualRevenue7D) || 0;
+      const spend = Number(adj.actualSpend7D) || 0;
       return spend > 0 && (revenue / spend) > 3;
     }).length;
     
@@ -586,8 +586,8 @@ export async function checkForRollbackNeeded(
     }
     
     const adjustment = recentAdjustments[0];
-    const revenue = Number(adjustment.actualRevenue7d) || 0;
-    const spend = Number(adjustment.actualSpend7d) || 0;
+    const revenue = Number(adjustment.actualRevenue7D) || 0;
+    const spend = Number(adjustment.actualSpend7D) || 0;
     const actualRoas = spend > 0 ? revenue / spend : 0;
     
     // 如果ROAS低于2，建议回滚

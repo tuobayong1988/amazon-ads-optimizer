@@ -1137,12 +1137,12 @@ export async function getPlacementAdjustmentEffectAnalysis(
   }
   
   // 如果有7天后的效果数据，进行分析
-  if (adjustmentRecord.actualRevenue7d !== null && adjustmentRecord.actualSpend7d !== null) {
-    const actualRoas = adjustmentRecord.actualSpend7d > 0 
-      ? adjustmentRecord.actualRevenue7d / adjustmentRecord.actualSpend7d 
+  if (adjustmentRecord.actualRevenue7D !== null && adjustmentRecord.actualSpend7D !== null) {
+    const actualRoas = adjustmentRecord.actualSpend7D > 0 
+      ? adjustmentRecord.actualRevenue7D / adjustmentRecord.actualSpend7D 
       : 0;
-    const actualAcos = adjustmentRecord.actualRevenue7d > 0 
-      ? (adjustmentRecord.actualSpend7d / adjustmentRecord.actualRevenue7d) * 100 
+    const actualAcos = adjustmentRecord.actualRevenue7D > 0 
+      ? (adjustmentRecord.actualSpend7D / adjustmentRecord.actualRevenue7D) * 100 
       : 100;
     
     return {

@@ -7813,7 +7813,7 @@ const placementRouter = router({
             optimalBid: optimalBid.optimalBid,
             maxProfit: optimalBid.maxProfit,
             profitMargin: optimalBid.profitMargin,
-            breakEvenCPC: optimalBid.breakEvenCPC,
+            breakEvenCpc: optimalBid.breakEvenCpc,
             bidDifference: optimalBid.optimalBid - (Number(keyword.bid) || 0),
             bidDifferencePercent: keyword.bid ? ((optimalBid.optimalBid - Number(keyword.bid)) / Number(keyword.bid) * 100) : 0,
             recommendation: optimalBid.optimalBid > (Number(keyword.bid) || 0) ? 'increase' : 
@@ -8297,7 +8297,7 @@ const placementRouter = router({
       const aov = input.aov || 30;
       
       const defaultImpressionCurve = { a: 1000, b: 0.5, c: 500, r2: 0.8 };
-      const defaultCtrCurve = { baseCTR: 0.01, positionBonus: 0.5, topSearchCTRBonus: 0.3 };
+      const defaultCtrCurve = { baseCtr: 0.01, positionBonus: 0.5, topSearchCtrBonus: 0.3 };
       const defaultConversion = { cvr, aov, conversionDelayDays: 7 };
       
       const optimalBid = marketCurveService.calculateOptimalBid(
@@ -8390,14 +8390,14 @@ const placementRouter = router({
     .input(z.object({
       adjustmentId: z.number(),
       trackingData: z.object({
-        actualProfit7d: z.number().optional(),
-        actualProfit14d: z.number().optional(),
-        actualProfit30d: z.number().optional(),
+        actualProfit7D: z.number().optional(),
+        actualProfit14D: z.number().optional(),
+        actualProfit30D: z.number().optional(),
         actualImpressions7d: z.number().optional(),
         actualClicks7d: z.number().optional(),
         actualConversions7d: z.number().optional(),
-        actualSpend7d: z.number().optional(),
-        actualRevenue7d: z.number().optional(),
+        actualSpend7D: z.number().optional(),
+        actualRevenue7D: z.number().optional(),
       }),
     }))
     .mutation(async ({ input }) => {
@@ -8513,8 +8513,8 @@ const placementRouter = router({
         }
         
         // 统计已追踪的记录
-        if (record.actualProfit7d !== null) {
-          const actual = parseFloat(record.actualProfit7d);
+        if (record.actualProfit7D !== null) {
+          const actual = parseFloat(record.actualProfit7D);
           totalActualProfit7d += actual;
           count7d++;
           trackedRecords++;
@@ -8523,12 +8523,12 @@ const placementRouter = router({
             byCampaign[record.campaignId].actual += actual;
           }
         }
-        if (record.actualProfit14d !== null) {
-          totalActualProfit14d += parseFloat(record.actualProfit14d);
+        if (record.actualProfit14D !== null) {
+          totalActualProfit14d += parseFloat(record.actualProfit14D);
           count14d++;
         }
-        if (record.actualProfit30d !== null) {
-          totalActualProfit30d += parseFloat(record.actualProfit30d);
+        if (record.actualProfit30D !== null) {
+          totalActualProfit30d += parseFloat(record.actualProfit30D);
           count30d++;
         }
       }
@@ -8570,9 +8570,9 @@ const placementRouter = router({
           previousBid: r.previousBid,
           newBid: r.newBid,
           estimatedProfitChange: r.expectedProfitIncrease,
-          actualProfit7d: r.actualProfit7d,
-          actualProfit14d: r.actualProfit14d,
-          actualProfit30d: r.actualProfit30d,
+          actualProfit7D: r.actualProfit7D,
+          actualProfit14D: r.actualProfit14D,
+          actualProfit30D: r.actualProfit30D,
           adjustedAt: r.appliedAt,
         })),
       };
