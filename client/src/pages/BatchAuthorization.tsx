@@ -10,6 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { trpc } from "@/lib/trpc";
 import toast from "react-hot-toast";
 import {
@@ -25,10 +26,28 @@ import {
   AlertCircle,
   Zap,
   Shield,
+  Bird,
+  Lock,
+  Smartphone,
 } from "lucide-react";
 
 // 区域类型
 type RegionCode = 'NA' | 'EU' | 'FE';
+
+// 授权方式类型
+type AuthMethod = 'standard' | 'ziniao';
+
+// 区域配置类型
+interface RegionConfig {
+  code: string;
+  name: string;
+  displayFlags: string;
+  marketplaces: Array<{
+    code: string;
+    name: string;
+    flag: string;
+  }>;
+}
 
 // 授权状态类型
 interface RegionAuthState {
@@ -44,6 +63,49 @@ interface RegionAuthState {
 // 步骤类型
 type Step = 'select_regions' | 'authorize' | 'complete';
 
+// 默认区域配置（当API未返回时使用）
+const DEFAULT_REGIONS: RegionConfig[] = [
+  {
+    code: 'NA',
+    name: '北美区域',
+    displayFlags: '🇺🇸🇨🇦🇲🇽🇧🇷',
+    marketplaces: [
+      { code: 'US', name: '美国', flag: '🇺🇸' },
+      { code: 'CA', name: '加拿大', flag: '🇨🇦' },
+      { code: 'MX', name: '墨西哥', flag: '🇲🇽' },
+      { code: 'BR', name: '巴西', flag: '🇧🇷' },
+    ],
+  },
+  {
+    code: 'EU',
+    name: '欧洲区域',
+    displayFlags: '🇬🇧🇩🇪🇫🇷🇮🇹🇪🇸',
+    marketplaces: [
+      { code: 'UK', name: '英国', flag: '🇬🇧' },
+      { code: 'DE', name: '德国', flag: '🇩🇪' },
+      { code: 'FR', name: '法国', flag: '🇫🇷' },
+      { code: 'IT', name: '意大利', flag: '🇮🇹' },
+      { code: 'ES', name: '西班牙', flag: '🇪🇸' },
+      { code: 'NL', name: '荷兰', flag: '🇳🇱' },
+      { code: 'SE', name: '瑞典', flag: '🇸🇪' },
+      { code: 'PL', name: '波兰', flag: '🇵🇱' },
+      { code: 'AE', name: '阿联酋', flag: '🇦🇪' },
+      { code: 'SA', name: '沙特', flag: '🇸🇦' },
+      { code: 'IN', name: '印度', flag: '🇮🇳' },
+    ],
+  },
+  {
+    code: 'FE',
+    name: '远东区域',
+    displayFlags: '🇯🇵🇦🇺🇸🇬',
+    marketplaces: [
+      { code: 'JP', name: '日本', flag: '🇯🇵' },
+      { code: 'AU', name: '澳大利亚', flag: '🇦🇺' },
+      { code: 'SG', name: '新加坡', flag: '🇸🇬' },
+    ],
+  },
+];
+
 export default function BatchAuthorization() {
   const { user, loading: authLoading } = useAuth();
   
@@ -53,9 +115,10 @@ export default function BatchAuthorization() {
   const [selectedRegions, setSelectedRegions] = useState<RegionCode[]>([]);
   const [regionAuthStates, setRegionAuthStates] = useState<RegionAuthState[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [authMethod, setAuthMethod] = useState<AuthMethod>('standard');
   
   // 获取区域配置
-  const { data: regionsData } = trpc.amazonApi.getBatchAuthRegions.useQuery();
+  const { data: regionsData, isLoading: regionsLoading } = trpc.amazonApi.getBatchAuthRegions.useQuery();
   
   // 获取已授权区域状态
   const { data: authorizedRegions, refetch: refetchAuthorized } = trpc.amazonApi.getAuthorizedRegions.useQuery();
@@ -66,8 +129,8 @@ export default function BatchAuthorization() {
   // 处理批量授权码
   const processBatchAuthMutation = trpc.amazonApi.processBatchAuthCodes.useMutation();
   
-  // 区域配置
-  const regions = regionsData?.regions || [];
+  // 区域配置 - 使用API数据或默认配置
+  const regions: RegionConfig[] = regionsData?.regions || DEFAULT_REGIONS;
   
   // 切换区域选择
   const toggleRegion = (regionCode: RegionCode) => {
@@ -113,14 +176,19 @@ export default function BatchAuthorization() {
       
       setCurrentStep('authorize');
       
-      // 自动打开所有授权页面
-      result.regions.forEach((region, index) => {
-        setTimeout(() => {
-          window.open(region.authUrl, `_blank_${region.regionCode}`);
-        }, index * 500); // 间隔500ms打开，避免被浏览器拦截
-      });
-      
-      toast.success(`已打开 ${result.regions.length} 个区域的授权页面，请在每个页面完成授权后复制授权码`);
+      // 根据授权方式处理
+      if (authMethod === 'ziniao') {
+        // 紫鸟浏览器模式：显示提示，让用户手动在紫鸟浏览器中打开
+        toast.success(`请在紫鸟浏览器中打开授权链接，完成 ${result.regions.length} 个区域的授权`);
+      } else {
+        // 标准模式：自动打开所有授权页面
+        result.regions.forEach((region, index) => {
+          setTimeout(() => {
+            window.open(region.authUrl, `_blank_${region.regionCode}`);
+          }, index * 500);
+        });
+        toast.success(`已打开 ${result.regions.length} 个区域的授权页面，请在每个页面完成授权后复制授权码`);
+      }
       
     } catch (error: any) {
       toast.error(`创建授权会话失败: ${error.message}`);
@@ -164,7 +232,7 @@ export default function BatchAuthorization() {
         authCodes: codesWithRegion,
       });
       
-      // 更新每个区域的状态
+      // 更新结果状态
       setRegionAuthStates(prev => prev.map(state => {
         const regionResult = result.results.find(r => r.regionCode === state.regionCode);
         if (regionResult) {
@@ -179,12 +247,19 @@ export default function BatchAuthorization() {
         return state;
       }));
       
-      if (result.success) {
-        toast.success(result.message);
+      // 刷新已授权区域
+      refetchAuthorized();
+      
+      // 检查是否全部成功
+      const successCount = result.results.filter(r => r.status === 'success').length;
+      if (successCount === codesWithRegion.length) {
+        toast.success('所有区域授权成功！');
         setCurrentStep('complete');
-        refetchAuthorized();
+      } else if (successCount > 0) {
+        toast.success(`${successCount}/${codesWithRegion.length} 个区域授权成功`);
+        setCurrentStep('complete');
       } else {
-        toast.error('部分区域授权失败，请检查错误信息');
+        toast.error('授权失败，请检查授权码是否正确');
       }
       
     } catch (error: any) {
@@ -206,6 +281,12 @@ export default function BatchAuthorization() {
     setSelectedRegions([]);
     setRegionAuthStates([]);
     setIsProcessing(false);
+  };
+  
+  // 复制授权链接
+  const copyAuthUrl = (url: string) => {
+    navigator.clipboard.writeText(url);
+    toast.success('授权链接已复制到剪贴板');
   };
   
   // 计算进度
@@ -302,6 +383,65 @@ export default function BatchAuthorization() {
                 </CardContent>
               </Card>
               
+              {/* 授权方式选择 */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    选择授权方式
+                  </CardTitle>
+                  <CardDescription>
+                    根据您的网络环境选择合适的授权方式
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Tabs value={authMethod} onValueChange={(v) => setAuthMethod(v as AuthMethod)}>
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="standard" className="flex items-center gap-2">
+                        <Globe className="h-4 w-4" />
+                        标准授权
+                      </TabsTrigger>
+                      <TabsTrigger value="ziniao" className="flex items-center gap-2">
+                        <Bird className="h-4 w-4" />
+                        紫鸟浏览器授权
+                      </TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="standard" className="mt-4">
+                      <Alert>
+                        <Globe className="h-4 w-4" />
+                        <AlertTitle>标准授权模式</AlertTitle>
+                        <AlertDescription>
+                          适合海外卖家或可直接访问Amazon的用户。系统将自动打开Amazon授权页面，您只需登录并授权即可。
+                        </AlertDescription>
+                      </Alert>
+                    </TabsContent>
+                    <TabsContent value="ziniao" className="mt-4">
+                      <Alert className="border-purple-500/50 bg-purple-500/5">
+                        <Bird className="h-4 w-4 text-purple-500" />
+                        <AlertTitle className="text-purple-500">紫鸟浏览器专用授权（推荐中国大陆卖家）</AlertTitle>
+                        <AlertDescription className="space-y-2">
+                          <p>适合中国大陆卖家，通过紫鸟超级浏览器完成授权，更加安全稳定：</p>
+                          <ul className="list-disc list-inside text-sm space-y-1 mt-2">
+                            <li>使用店铺专属IP环境，避免账号关联风险</li>
+                            <li>无需科学上网，直接在紫鸟浏览器中完成授权</li>
+                            <li>支持多店铺同时授权，环境隔离更安全</li>
+                          </ul>
+                          <div className="mt-3 p-3 bg-muted rounded-lg">
+                            <p className="text-sm font-medium">使用步骤：</p>
+                            <ol className="list-decimal list-inside text-sm space-y-1 mt-1">
+                              <li>点击"开始授权"后，复制授权链接</li>
+                              <li>在紫鸟浏览器中打开对应店铺的环境</li>
+                              <li>粘贴授权链接并完成Amazon登录授权</li>
+                              <li>复制回调URL中的授权码，粘贴到本页面</li>
+                            </ol>
+                          </div>
+                        </AlertDescription>
+                      </Alert>
+                    </TabsContent>
+                  </Tabs>
+                </CardContent>
+              </Card>
+              
               {/* 区域选择 */}
               <Card>
                 <CardHeader>
@@ -321,49 +461,64 @@ export default function BatchAuthorization() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {regions.map((region) => {
-                    const isSelected = selectedRegions.includes(region.code as RegionCode);
-                    const isAuthorized = authorizedRegions?.regions.find(r => r.code === region.code)?.authorized;
-                    
-                    return (
-                      <div
-                        key={region.code}
-                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
-                          isSelected 
-                            ? 'border-primary bg-primary/5' 
-                            : 'border-border hover:border-primary/50'
-                        }`}
-                        onClick={() => toggleRegion(region.code as RegionCode)}
-                      >
-                        <div className="flex items-start gap-4">
-                          <Checkbox 
-                            checked={isSelected}
-                            onCheckedChange={() => toggleRegion(region.code as RegionCode)}
-                          />
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-2xl">{region.displayFlags}</span>
-                              <span className="font-semibold">{region.name}</span>
-                              <Badge variant="outline">{region.code}</Badge>
-                              {isAuthorized && (
-                                <Badge variant="secondary" className="bg-green-500/10 text-green-500">
-                                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                                  已授权
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="mt-2 flex flex-wrap gap-2">
-                              {region.marketplaces.map((mp) => (
-                                <Badge key={mp.code} variant="outline" className="text-xs">
-                                  {mp.flag} {mp.name}
-                                </Badge>
-                              ))}
+                  {regionsLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                      <span>加载区域配置...</span>
+                    </div>
+                  ) : regions.length === 0 ? (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>加载失败</AlertTitle>
+                      <AlertDescription>
+                        无法加载区域配置，请刷新页面重试
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    regions.map((region) => {
+                      const isSelected = selectedRegions.includes(region.code as RegionCode);
+                      const isAuthorized = authorizedRegions?.regions?.find(r => r.code === region.code)?.authorized;
+                      
+                      return (
+                        <div
+                          key={region.code}
+                          className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                            isSelected 
+                              ? 'border-primary bg-primary/5' 
+                              : 'border-border hover:border-primary/50'
+                          }`}
+                          onClick={() => toggleRegion(region.code as RegionCode)}
+                        >
+                          <div className="flex items-start gap-4">
+                            <Checkbox 
+                              checked={isSelected}
+                              onCheckedChange={() => toggleRegion(region.code as RegionCode)}
+                            />
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-2xl">{region.displayFlags}</span>
+                                <span className="font-semibold">{region.name}</span>
+                                <Badge variant="outline">{region.code}</Badge>
+                                {isAuthorized && (
+                                  <Badge variant="secondary" className="bg-green-500/10 text-green-500">
+                                    <CheckCircle2 className="h-3 w-3 mr-1" />
+                                    已授权
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="mt-2 flex flex-wrap gap-2">
+                                {region.marketplaces.map((mp) => (
+                                  <Badge key={mp.code} variant="outline" className="text-xs">
+                                    {mp.flag} {mp.name}
+                                  </Badge>
+                                ))}
+                              </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    })
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -402,6 +557,25 @@ export default function BatchAuthorization() {
                 </CardContent>
               </Card>
               
+              {authMethod === 'ziniao' && (
+                <Card className="border-purple-500/50">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-purple-500">
+                      <Lock className="h-5 w-5" />
+                      安全提示
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="text-sm space-y-2">
+                    <p>使用紫鸟浏览器授权时，请确保：</p>
+                    <ul className="list-disc list-inside space-y-1 text-muted-foreground">
+                      <li>在正确的店铺环境中打开授权链接</li>
+                      <li>授权完成后及时复制授权码</li>
+                      <li>不要在同一环境中授权多个店铺</li>
+                    </ul>
+                  </CardContent>
+                </Card>
+              )}
+              
               <Alert>
                 <Info className="h-4 w-4" />
                 <AlertTitle>授权说明</AlertTitle>
@@ -430,16 +604,29 @@ export default function BatchAuthorization() {
         {/* 步骤2: 完成授权 */}
         {currentStep === 'authorize' && (
           <div className="space-y-6">
-            <Alert className="bg-blue-500/10 border-blue-500/30">
-              <Info className="h-4 w-4 text-blue-500" />
-              <AlertTitle>请完成以下步骤</AlertTitle>
-              <AlertDescription>
-                1. 在每个打开的Amazon页面中登录并授权<br />
-                2. 授权成功后，从回调URL中复制授权码（code参数）<br />
-                3. 将授权码粘贴到下方对应的输入框中<br />
-                4. 点击"处理所有授权码"完成授权
-              </AlertDescription>
-            </Alert>
+            {authMethod === 'ziniao' ? (
+              <Alert className="bg-purple-500/10 border-purple-500/30">
+                <Bird className="h-4 w-4 text-purple-500" />
+                <AlertTitle>紫鸟浏览器授权模式</AlertTitle>
+                <AlertDescription>
+                  1. 复制下方的授权链接<br />
+                  2. 在紫鸟浏览器对应店铺环境中打开链接<br />
+                  3. 完成Amazon登录并授权<br />
+                  4. 从回调URL中复制授权码（code参数）粘贴到下方
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <Alert className="bg-blue-500/10 border-blue-500/30">
+                <Info className="h-4 w-4 text-blue-500" />
+                <AlertTitle>请完成以下步骤</AlertTitle>
+                <AlertDescription>
+                  1. 在每个打开的Amazon页面中登录并授权<br />
+                  2. 授权成功后，从回调URL中复制授权码（code参数）<br />
+                  3. 将授权码粘贴到下方对应的输入框中<br />
+                  4. 点击"处理所有授权码"完成授权
+                </AlertDescription>
+              </Alert>
+            )}
             
             <div className="grid gap-4">
               {regionAuthStates.map((state) => {
@@ -453,7 +640,7 @@ export default function BatchAuthorization() {
                     ''
                   }>
                     <CardContent className="pt-6">
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-start gap-4">
                         <div className="flex-shrink-0">
                           {state.status === 'success' ? (
                             <CheckCircle2 className="h-8 w-8 text-green-500" />
@@ -465,47 +652,69 @@ export default function BatchAuthorization() {
                             <Globe className="h-8 w-8 text-muted-foreground" />
                           )}
                         </div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-2">
+                        <div className="flex-1 space-y-3">
+                          <div className="flex items-center gap-2">
                             <span className="text-xl">{region?.displayFlags}</span>
                             <span className="font-semibold">{region?.name}</span>
                             <Badge variant="outline">{state.regionCode}</Badge>
                             {state.status === 'success' && (
-                              <Badge className="bg-green-500">
-                                {state.profilesCount} 个站点
-                              </Badge>
+                              <Badge className="bg-green-500">授权成功</Badge>
+                            )}
+                            {state.status === 'error' && (
+                              <Badge variant="destructive">授权失败</Badge>
+                            )}
+                            {state.status === 'exchanging' && (
+                              <Badge className="bg-yellow-500">处理中...</Badge>
                             )}
                           </div>
                           
-                          {state.status === 'success' ? (
-                            <p className="text-sm text-green-600">
-                              授权成功！已创建 {state.accountsCreated} 个新账号，正在后台同步数据...
-                            </p>
-                          ) : state.status === 'error' ? (
-                            <p className="text-sm text-red-600">
-                              授权失败: {state.error}
-                            </p>
-                          ) : state.status === 'exchanging' ? (
-                            <p className="text-sm text-yellow-600">
-                              正在处理授权码...
-                            </p>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <Input
-                                placeholder="粘贴授权码 (code)"
-                                value={state.code || ''}
-                                onChange={(e) => updateAuthCode(state.regionCode, e.target.value)}
-                                className="flex-1"
-                              />
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => window.open(state.authUrl, '_blank')}
-                              >
-                                <ExternalLink className="h-4 w-4" />
-                              </Button>
+                          {state.status !== 'success' && (
+                            <div className="space-y-2">
+                              {/* 授权链接（紫鸟模式显示复制按钮） */}
+                              {authMethod === 'ziniao' && (
+                                <div className="flex items-center gap-2">
+                                  <Input 
+                                    value={state.authUrl}
+                                    readOnly
+                                    className="text-xs font-mono"
+                                  />
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => copyAuthUrl(state.authUrl)}
+                                  >
+                                    复制链接
+                                  </Button>
+                                </div>
+                              )}
+                              
+                              <div className="flex items-center gap-2">
+                                <Input
+                                  placeholder="粘贴授权码 (code参数)"
+                                  value={state.code || ''}
+                                  onChange={(e) => updateAuthCode(state.regionCode, e.target.value)}
+                                  disabled={state.status === 'exchanging'}
+                                />
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => window.open(state.authUrl, '_blank')}
+                                  title="在新窗口打开授权页面"
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                </Button>
+                              </div>
                             </div>
+                          )}
+                          
+                          {state.error && (
+                            <p className="text-sm text-red-500">{state.error}</p>
+                          )}
+                          
+                          {state.status === 'success' && (
+                            <p className="text-sm text-green-600">
+                              已创建 {state.accountsCreated} 个账号，共 {state.profilesCount} 个站点
+                            </p>
                           )}
                         </div>
                       </div>
