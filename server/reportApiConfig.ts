@@ -513,6 +513,10 @@ export const FIELD_MAPPING = {
     unitsSold: ['unitsSoldClicks', 'unitsSold'],
     // 花费
     spend: ['cost'],
+    // ACoS
+    acos: ['acos'],
+    // ROAS
+    roas: ['roas'],
   },
   // SD字段映射 (Clicks后缀)
   SD: {
@@ -524,6 +528,10 @@ export const FIELD_MAPPING = {
     unitsSold: ['unitsSoldClicks', 'unitsSold'],
     // 花费
     spend: ['cost'],
+    // ACoS
+    acos: ['acos'],
+    // ROAS
+    roas: ['roas'],
   },
 };
 

@@ -633,7 +633,7 @@ export async function rollbackLastExecution(
         // 恢复原状态
         await db
           .update(keywords)
-          .set({ keywordStatus: detail.statusBefore })
+          .set({ keywordStatus: detail.statusBefore as 'enabled' | 'paused' | 'archived' | null })
           .where(eq(keywords.id, detail.keywordId));
         
         // 更新明细状态

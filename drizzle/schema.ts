@@ -64,6 +64,7 @@ export const abTestVariants = mysqlTable("ab_test_variants", {
 	description: text(),
 	bidMultiplier: decimal({ precision: 5, scale: 2 }).default('1.00'),
 	trafficAllocation: decimal({ precision: 5, scale: 2 }).default('50.00'),
+	configJson: text("config_json"),
 	createdAt: datetime({ mode: 'string'}).default('CURRENT_TIMESTAMP').notNull(),
 },
 (table) => [
@@ -1179,7 +1180,7 @@ export const keywordAutoExecutionDetails = mysqlTable("keyword_auto_execution_de
 	clicks: int(),
 	impression: int(),
 	orders: int(),
-	status: mysqlEnum("status", ['success','failed','skipped']).default('success'),
+	status: mysqlEnum("status", ['success','failed','skipped','applied']).default('success'),
 	errorMessage: text("error_message"),
 	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
 },

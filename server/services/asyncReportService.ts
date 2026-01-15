@@ -330,18 +330,52 @@ export class AsyncReportService {
         submittedCount++;
         console.log(`[AsyncReportService] Submitted job ${job.id} with reportId ${reportId}`);
       } catch (error: any) {
-        console.error(`[AsyncReportService] Failed to submit job ${job.id}:`, error.message);
+        const errorMessage = error.message || 'Unknown error';
+        const statusCode = error.response?.status || error.status;
+        
+        // 详细记录错误信息
+        console.error(`[AsyncReportService] Failed to submit job ${job.id}:`, {
+          message: errorMessage,
+          statusCode,
+          accountId: job.accountId,
+          profileId: job.profileId,
+        });
+
+        // 根据错误类型决定处理方式
+        let newStatus: 'pending' | 'submitted' | 'processing' | 'completed' | 'failed' | 'expired' = 'pending';
+        let shouldRetry = true;
+        
+        // 403错误通常表示API授权问题，不应重试
+        if (statusCode === 403) {
+          newStatus = 'failed' as const;
+          shouldRetry = false;
+          console.warn(`[AsyncReportService] Job ${job.id} failed with 403 - API authorization issue, marking as failed`);
+        }
+        // 429错误表示速率限制，应该重试但增加延迟
+        else if (statusCode === 429) {
+          console.warn(`[AsyncReportService] Job ${job.id} hit rate limit, will retry later`);
+        }
+        // 401错误表示token过期，可以重试（token会自动刷新）
+        else if (statusCode === 401) {
+          console.warn(`[AsyncReportService] Job ${job.id} token expired, will retry with refreshed token`);
+        }
+        // 5xx错误表示服务器问题，可以重试
+        else if (statusCode >= 500) {
+          console.warn(`[AsyncReportService] Job ${job.id} server error, will retry`);
+        }
 
         // 增加重试次数
         const newRetryCount = (job.retryCount || 0) + 1;
-        const newStatus = newRetryCount >= (job.maxRetries || 3) ? 'failed' : 'pending';
+        if (shouldRetry && newRetryCount >= (job.maxRetries || 3)) {
+          newStatus = 'failed' as const;
+        }
 
         await db
           .update(reportJobs)
           .set({
             retryCount: newRetryCount,
             status: newStatus,
-            errorMessage: error.message,
+            errorMessage: `[${statusCode || 'N/A'}] ${errorMessage}`,
           })
           .where(eq(reportJobs.id, job.id));
       }

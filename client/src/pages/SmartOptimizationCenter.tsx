@@ -775,47 +775,38 @@ export default function SmartOptimizationCenter() {
           </CardContent>
         </Card>
         
-        {/* AI归因分析 */}
+{/* AI归因分析 */}
         <AiAttributionAnalysis
-          recentActions={[
+          acosChange={-8.2}
+          roasChange={15.5}
+          spendChange={-5.3}
+          salesChange={12.8}
+          actions={[
             {
-              id: '1',
-              action: '出价调整',
-              target: 'Campaign-SP-Brand-001',
-              oldValue: '$0.85',
-              newValue: '$0.72',
-              reason: 'ACoS连续3天超过35%，降低出价以控制成本',
-              impact: 'ACoS下降8.2%',
-              timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-              status: 'success'
+              type: 'bid_decrease',
+              description: 'ACoS连续3天超过35%，降低出价以控制成本',
+              impact: 'ACoS下陃8.2%',
+              count: 5,
+              campaigns: ['Campaign-SP-Brand-001']
             },
             {
-              id: '2',
-              action: '预算重分配',
-              target: 'Campaign-SP-Auto-003',
-              oldValue: '$50/天',
-              newValue: '$75/天',
-              reason: 'ROAS达到4.2，表现优异，增加预算扩大收益',
+              type: 'budget_adjust',
+              description: 'ROAS达到4.2，表现优异，增加预算扩大收益',
               impact: '预计增加销售$120/天',
-              timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-              status: 'success'
+              count: 3,
+              campaigns: ['Campaign-SP-Auto-003']
             },
             {
-              id: '3',
-              action: '关键词否定',
-              target: 'Campaign-SP-Exact-002',
-              oldValue: '启用',
-              newValue: '否定',
-              reason: '“phone case cheap”点击68次无转化，浪费$34.2',
+              type: 'negative_keyword',
+              description: '"phone case cheap"点击68次无转化，浪费$34.2',
               impact: '预计每周节省$50+',
-              timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-              status: 'success'
+              count: 12,
+              keywords: ['phone case cheap', 'cheap phone cover']
             }
           ]}
-          isOptimizationEnabled={isOptimizationEnabled}
-          onToggleOptimization={handleToggleOptimization}
+          isAutoMode={true}
+          onModeChange={() => {}}
           onEmergencyStop={() => {
-            setIsOptimizationEnabled(false);
             toast.error('紧急停止已执行，所有自动优化已暂停');
           }}
         />

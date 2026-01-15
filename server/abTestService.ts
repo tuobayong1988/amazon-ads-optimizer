@@ -221,17 +221,16 @@ export async function recordDailyMetrics(
   await db.insert(abTestDailyMetrics).values({
     testId,
     variantId,
-    metricDate: new Date().toISOString().slice(0, 19).replace('T', ' '),
+    date: new Date().toISOString().slice(0, 10),
     impressions: metrics.impressions,
     clicks: metrics.clicks,
     spend: String(metrics.spend),
     sales: String(metrics.sales),
-    conversions: metrics.conversions,
+    orders: metrics.conversions,
     roas: String(roas),
     acos: String(acos),
     ctr: String(ctr),
     cvr: String(cvr),
-    cpc: String(cpc),
   });
 }
 
@@ -425,18 +424,15 @@ export async function analyzeABTestResults(testId: number): Promise<{
   for (const result of analysisResults) {
     await db.insert(abTestResults).values({
       testId,
-      analysisDate: new Date().toISOString().slice(0, 19).replace('T', ' '),
-      controlVariantId: controlVariant.id,
-      treatmentVariantId: treatmentVariant.id,
+      variantId: treatmentVariant.id,
       metricName: result.metricName,
       controlValue: String(result.controlValue),
       treatmentValue: String(result.treatmentValue),
-      absoluteDifference: String(result.absoluteDifference),
-      relativeDifference: String(result.relativeDifference),
+      absoluteDiff: String(result.absoluteDifference),
+      relativeDiff: String(result.relativeDifference),
       pValue: String(result.pValue),
       confidenceInterval: JSON.stringify(result.confidenceInterval),
-      isStatisticallySignificant: result.isSignificant ? 1 : 0,
-      winningVariant: result.winner,
+      isSignificant: result.isSignificant ? 1 : 0,
     });
   }
 

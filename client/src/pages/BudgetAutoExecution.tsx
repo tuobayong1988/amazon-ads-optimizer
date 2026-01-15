@@ -331,7 +331,7 @@ export default function BudgetAutoExecution() {
                       <div>
                         <CardTitle className="text-lg">{config.configName}</CardTitle>
                         <CardDescription>
-                          {frequencyLabels[config.executionFrequency]} {config.executionTime} 执行
+                          {frequencyLabels[config.executionFrequency || 'daily']} {config.executionTime} 执行
                         </CardDescription>
                       </div>
                     </div>
@@ -421,11 +421,11 @@ export default function BudgetAutoExecution() {
                     {history?.map((execution) => (
                       <TableRow key={execution.id}>
                         <TableCell>
-                          {new Date(execution.executionStartAt).toLocaleString()}
+                          {execution.executionStartAt ? new Date(execution.executionStartAt).toLocaleString() : '-'}
                         </TableCell>
                         <TableCell>{getStatusBadge(execution.status)}</TableCell>
                         <TableCell>{execution.totalCampaigns}</TableCell>
-                        <TableCell>{execution.adjustedCampaigns}</TableCell>
+                        <TableCell>{execution.campaignsAdjusted}</TableCell>
                         <TableCell>
                           ${parseFloat(execution.totalBudgetBefore || '0').toFixed(2)} → 
                           ${parseFloat(execution.totalBudgetAfter || '0').toFixed(2)}
@@ -489,7 +489,7 @@ export default function BudgetAutoExecution() {
                       </div>
                       <div className="p-3 bg-green-500/10 rounded-lg">
                         <p className="text-sm text-muted-foreground">已调整</p>
-                        <p className="text-xl font-bold text-green-600">{executionDetails.execution.adjustedCampaigns}</p>
+                        <p className="text-xl font-bold text-green-600">{executionDetails.execution.campaignsAdjusted}</p>
                       </div>
                       <div className="p-3 bg-yellow-500/10 rounded-lg">
                         <p className="text-sm text-muted-foreground">已跳过</p>
