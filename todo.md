@@ -5373,3 +5373,50 @@ Amazon Advertising API数据有12-24小时延迟，当天广告数据通常在�
 ### P2优先级（3-4周）
 - [x] 语义相似度聚类否词服务
 - [x] 单元测试编写和验证
+
+
+## 算法集成与效果追踪（第二十七阶段）
+
+### 集成新算法到bidOptimizer
+- [ ] 将时间衰减权重集成到主优化函数
+- [ ] 将UCB探索-利用平衡集成到主优化函数
+- [ ] 将节假日调整集成到主优化函数
+- [ ] 更新优化结果记录包含算法类型
+
+### 算法效果追踪仪表板
+- [ ] 设计效果追踪数据库表结构
+- [ ] 实现效果追踪API
+- [ ] 创建效果追踪前端页面
+- [ ] 显示优化前后ROAS/ACoS对比
+
+### 节假日日历管理
+- [ ] 设计节假日配置数据库表结构
+- [ ] 实现节假日CRUD API
+- [ ] 创建节假日管理前端页面
+- [ ] 支持不同站点的本地化配置
+
+
+## 算法集成与效果追踪（第二十七阶段）
+
+### 集成算法到优化流程
+- [x] 将时间衰减权重集成到bidOptimizer
+- [x] 将UCB探索-利用平衡集成到bidOptimizer
+- [x] 将节假日调整集成到bidOptimizer
+- [x] 创建增强出价优化函数（calculateEnhancedBidAdjustment）
+
+### 算法效果追踪仪表板
+- [x] 创建算法效果追踪数据库表（algorithm_effect_records）
+- [x] 创建算法效果追踪服务（algorithmEffectService.ts）
+- [x] 创建算法效果追踪API路由
+- [x] 创建算法效果追踪前端页面
+
+### 节假日日历管理
+- [x] 创建节假日配置数据库表（holiday_configurations）
+- [x] 创建节假日配置服务（holidayConfigService.ts）
+- [x] 创建节假日配置API路由
+- [x] 创建节假日日历管理前端页面（HolidayCalendarManagement.tsx）
+- [x] 支持不同站点的本地化配置
+- [x] 预置主要节假日（Prime Day、Black Friday、Cyber Monday等）
+
+### 单元测试
+- [x] 编写算法集成单元测试（16个测试用例全部通过）

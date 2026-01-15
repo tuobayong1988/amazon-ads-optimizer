@@ -73,6 +73,9 @@ const BlogPost = lazy(() => import("./pages/BlogPost"));
 const MarginalBenefitAnalysis = lazy(() => import("./pages/MarginalBenefitAnalysis"));
 const SellerOnboarding = lazy(() => import("./pages/SellerOnboarding"));
 const BatchAuthorization = lazy(() => import("./pages/BatchAuthorization"));
+const HolidayCalendarManagement = lazy(() => import("./pages/HolidayCalendarManagement"));
+const AmazonApiAuthStatus = lazy(() => import("./pages/AmazonApiAuthStatus"));
+const AutoOptimizationDashboard = lazy(() => import("./pages/AutoOptimizationDashboard"));
 
 // 加载中组件
 function PageLoading() {
@@ -163,6 +166,9 @@ function Router() {
       <Route path="/onboarding">{() => <LazyRoute component={SellerOnboarding} />}</Route>
       <Route path="/seller-onboarding">{() => <LazyRoute component={SellerOnboarding} />}</Route>
       <Route path="/batch-authorization">{() => <LazyRoute component={BatchAuthorization} />}</Route>
+      <Route path="/holiday-calendar">{() => <LazyRoute component={HolidayCalendarManagement} />}</Route>
+      <Route path="/amazon-api-auth-status">{() => <LazyRoute component={AmazonApiAuthStatus} />}</Route>
+      <Route path="/auto-optimization-dashboard">{() => <LazyRoute component={AutoOptimizationDashboard} />}</Route>
       <Route path="/register">{() => <LazyRoute component={InviteRegister} />}</Route>
       <Route path="/local-login">{() => <LazyRoute component={LocalLogin} />}</Route>
       <Route path="/blog">{() => <LazyRoute component={Blog} />}</Route>

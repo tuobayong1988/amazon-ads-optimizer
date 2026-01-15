@@ -3129,3 +3129,74 @@ export type InsertUserNotificationPreference = InferInsertModel<typeof userNotif
 // AI优化审核相关类型
 export type AiOptimizationReview = InferSelectModel<typeof aiOptimizationReviews>;
 export type InsertAiOptimizationReview = InferInsertModel<typeof aiOptimizationReviews>;
+
+
+// ==================== 算法效果追踪表 ====================
+
+export const algorithmEffectRecords = mysqlTable("algorithm_effect_records", {
+  id: int().autoincrement().notNull().primaryKey(),
+  userId: int().notNull(),
+  accountId: int().notNull(),
+  targetId: int().notNull(),
+  targetType: varchar({ length: 20 }).notNull(), // 'keyword' | 'product_target'
+  algorithmUsed: varchar({ length: 50 }).notNull(), // 'time_decay' | 'ucb' | 'holiday' | 'bayesian' | 'market_curve' | 'combined'
+  previousBid: decimal({ precision: 10, scale: 2 }).notNull(),
+  newBid: decimal({ precision: 10, scale: 2 }).notNull(),
+  bidChangePercent: decimal({ precision: 10, scale: 2 }).notNull(),
+  previousROAS: decimal({ precision: 10, scale: 2 }),
+  previousACoS: decimal({ precision: 10, scale: 2 }),
+  optimizationDate: datetime({ mode: 'string' }).notNull(),
+  // 效果追踪字段（优化后7天填充）
+  postROAS: decimal({ precision: 10, scale: 2 }),
+  postACoS: decimal({ precision: 10, scale: 2 }),
+  roasChange: decimal({ precision: 10, scale: 2 }),
+  acosChange: decimal({ precision: 10, scale: 2 }),
+  effectScore: decimal({ precision: 10, scale: 2 }),
+  effectCalculatedAt: datetime({ mode: 'string' }),
+  // 额外信息
+  confidenceScore: decimal({ precision: 10, scale: 2 }),
+  holidayName: varchar({ length: 100 }),
+  reason: text(),
+  createdAt: datetime({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+  index("idx_algorithm_effect_userId").on(table.userId),
+  index("idx_algorithm_effect_accountId").on(table.accountId),
+  index("idx_algorithm_effect_targetId").on(table.targetId),
+  index("idx_algorithm_effect_algorithmUsed").on(table.algorithmUsed),
+  index("idx_algorithm_effect_optimizationDate").on(table.optimizationDate),
+]);
+
+// ==================== 节假日配置表 ====================
+
+export const holidayConfigurations = mysqlTable("holiday_configurations", {
+  id: int().autoincrement().notNull().primaryKey(),
+  userId: int().notNull(),
+  marketplace: varchar({ length: 10 }).notNull(), // 'US', 'UK', 'DE', 'JP', etc.
+  name: varchar({ length: 100 }).notNull(),
+  startDate: date({ mode: 'string' }).notNull(),
+  endDate: date({ mode: 'string' }).notNull(),
+  bidMultiplier: decimal({ precision: 5, scale: 2 }).default('1.00').notNull(),
+  budgetMultiplier: decimal({ precision: 5, scale: 2 }).default('1.00').notNull(),
+  priority: varchar({ length: 20 }).default('medium').notNull(), // 'high', 'medium', 'low'
+  isActive: tinyint().default(1).notNull(),
+  isSystemDefault: tinyint().default(0).notNull(), // 系统默认节假日
+  preHolidayDays: int().default(7).notNull(), // 预热期天数
+  notes: text(),
+  createdAt: datetime({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+  updatedAt: datetime({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+  index("idx_holiday_config_userId").on(table.userId),
+  index("idx_holiday_config_marketplace").on(table.marketplace),
+  index("idx_holiday_config_startDate").on(table.startDate),
+  index("idx_holiday_config_endDate").on(table.endDate),
+]);
+
+// 算法效果追踪相关类型
+export type AlgorithmEffectRecord = InferSelectModel<typeof algorithmEffectRecords>;
+export type InsertAlgorithmEffectRecord = InferInsertModel<typeof algorithmEffectRecords>;
+
+// 节假日配置相关类型
+export type HolidayConfiguration = InferSelectModel<typeof holidayConfigurations>;
+export type InsertHolidayConfiguration = InferInsertModel<typeof holidayConfigurations>;

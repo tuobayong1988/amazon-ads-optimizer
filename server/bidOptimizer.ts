@@ -912,3 +912,354 @@ export function applyBusinessAwareAdjustments(
       : '无业务感知调整',
   };
 }
+
+
+// ==================== 新算法集成 ====================
+
+import {
+  calculateTimeWeightedROAS,
+  calculateTimeWeightedACoS,
+  calculateUCBBidSuggestion,
+  getDateAdjustmentMultipliers,
+  getHolidayConfig,
+  type UCBBidSuggestion,
+  type HolidayConfig
+} from './algorithmUtils';
+
+/**
+ * 增强版优化目标 - 包含历史数据用于时间衰减计算
+ */
+export interface EnhancedOptimizationTarget extends OptimizationTarget {
+  dailyData?: Array<{ date: Date; spend: number; sales: number; clicks: number; orders: number }>;
+  marketplace?: string;
+  campaignId?: number;
+  adGroupId?: number;
+}
+
+/**
+ * 增强版优化结果 - 包含算法类型和详细信息
+ */
+export interface EnhancedOptimizationResult extends OptimizationResult {
+  algorithmUsed: 'time_decay' | 'ucb' | 'holiday' | 'bayesian' | 'market_curve' | 'combined';
+  timeDecayROAS?: number;
+  ucbSuggestion?: UCBBidSuggestion;
+  holidayConfig?: HolidayConfig | null;
+  holidayMultiplier?: number;
+  confidenceScore: number;
+}
+
+/**
+ * 算法效果追踪记录
+ */
+export interface AlgorithmEffectRecord {
+  targetId: number;
+  targetType: 'keyword' | 'product_target';
+  algorithmUsed: string;
+  previousBid: number;
+  newBid: number;
+  previousROAS: number;
+  previousACoS: number;
+  optimizationDate: Date;
+  // 效果追踪字段（优化后7天填充）
+  postROAS?: number;
+  postACoS?: number;
+  roasChange?: number;
+  acosChange?: number;
+  effectScore?: number;
+}
+
+/**
+ * 增强版竞价调整 - 集成时间衰减、UCB和节假日调整
+ */
+export function calculateEnhancedBidAdjustment(
+  target: EnhancedOptimizationTarget,
+  config: PerformanceGroupConfig,
+  maxBidLimit: number = 10.00,
+  minBidLimit: number = 0.02,
+  currentDate: Date = new Date()
+): EnhancedOptimizationResult {
+  const metrics = calculateMetrics(target);
+  let algorithmUsed: EnhancedOptimizationResult['algorithmUsed'] = 'market_curve';
+  let confidenceScore = 0.5;
+  let timeDecayROAS: number | undefined;
+  let ucbSuggestion: UCBBidSuggestion | undefined;
+  let holidayConfig: HolidayConfig | null = null;
+  let holidayMultiplier = 1;
+  
+  // 1. 计算时间衰减加权的ROAS（如果有历史数据）
+  if (target.dailyData && target.dailyData.length > 0) {
+    timeDecayROAS = calculateTimeWeightedROAS(target.dailyData);
+    algorithmUsed = 'time_decay';
+    confidenceScore = Math.min(0.9, 0.5 + target.dailyData.length / 30);
+  }
+  
+  // 2. 获取UCB竞价建议（用于探索-利用平衡）
+  const targetROAS = config.targetRoas || 3;
+  ucbSuggestion = calculateUCBBidSuggestion(
+    target.currentBid,
+    target.clicks,
+    timeDecayROAS || metrics.roas,
+    targetROAS
+  );
+  
+  // 如果UCB建议探索，使用UCB算法
+  if (ucbSuggestion.strategy === 'explore') {
+    algorithmUsed = 'ucb';
+    confidenceScore = ucbSuggestion.confidence;
+  }
+  
+  // 3. 检查节假日配置
+  const marketplace = target.marketplace || 'US';
+  const dateAdjustment = getDateAdjustmentMultipliers(currentDate, marketplace);
+  holidayConfig = getHolidayConfig(currentDate, marketplace);
+  holidayMultiplier = dateAdjustment.bidMultiplier;
+  
+  if (holidayMultiplier !== 1) {
+    algorithmUsed = 'holiday';
+  }
+  
+  // 4. 计算基础竞价
+  let baseBid: number;
+  
+  if (!isDataSufficient(target)) {
+    // 数据稀疏：使用贝叶斯平滑
+    const sparseResult = calculateSparseDataBidAdjustment(target, config, maxBidLimit, minBidLimit);
+    baseBid = sparseResult.newBid;
+    algorithmUsed = 'bayesian';
+    confidenceScore = 0.3;
+  } else if (ucbSuggestion.strategy === 'explore') {
+    // 探索阶段：使用UCB建议
+    baseBid = ucbSuggestion.suggestedBid;
+  } else if (timeDecayROAS !== undefined) {
+    // 有历史数据：基于时间衰减ROAS计算
+    const targetAcos = config.targetAcos || 30;
+    const currentAcos = timeDecayROAS > 0 ? (1 / timeDecayROAS) * 100 : 100;
+    
+    if (currentAcos < targetAcos) {
+      // ACoS低于目标，可以提高出价
+      const adjustmentFactor = Math.min(1.25, 1 + (targetAcos - currentAcos) / targetAcos * 0.5);
+      baseBid = target.currentBid * adjustmentFactor;
+    } else {
+      // ACoS高于目标，需要降低出价
+      const adjustmentFactor = Math.max(0.75, targetAcos / currentAcos);
+      baseBid = target.currentBid * adjustmentFactor;
+    }
+  } else {
+    // 默认：使用市场曲线模型
+    const marketCurve = generateMarketCurve(target);
+    baseBid = findOptimalBid(marketCurve, config);
+  }
+  
+  // 5. 应用节假日乘数
+  let newBid = baseBid * holidayMultiplier;
+  
+  // 6. 应用出价限制
+  newBid = Math.min(newBid, maxBidLimit);
+  newBid = Math.max(newBid, minBidLimit);
+  
+  // 7. 限制单次调整幅度（最大30%）
+  const maxChangePercent = 0.30;
+  const maxIncrease = target.currentBid * (1 + maxChangePercent);
+  const maxDecrease = target.currentBid * (1 - maxChangePercent);
+  
+  newBid = Math.min(newBid, maxIncrease);
+  newBid = Math.max(newBid, maxDecrease);
+  
+  // 8. 四舍五入
+  newBid = Math.round(newBid * 100) / 100;
+  
+  // 9. 确定操作类型
+  let actionType: 'increase' | 'decrease' | 'set' = 'set';
+  if (newBid > target.currentBid) {
+    actionType = 'increase';
+  } else if (newBid < target.currentBid) {
+    actionType = 'decrease';
+  }
+  
+  // 10. 计算变化百分比
+  const bidChangePercent = ((newBid - target.currentBid) / target.currentBid) * 100;
+  
+  // 11. 生成原因
+  const reasons: string[] = [];
+  
+  if (timeDecayROAS !== undefined) {
+    reasons.push(`时间加权ROAS: ${timeDecayROAS.toFixed(2)}`);
+  }
+  
+  if (ucbSuggestion.strategy === 'explore') {
+    reasons.push(`UCB探索策略 (置信度: ${(ucbSuggestion.confidence * 100).toFixed(0)}%)`);
+  } else if (ucbSuggestion.strategy === 'exploit') {
+    reasons.push(`UCB利用策略 (置信度: ${(ucbSuggestion.confidence * 100).toFixed(0)}%)`);
+  }
+  
+  if (holidayMultiplier !== 1) {
+    reasons.push(`${dateAdjustment.reason} (乘数: ${holidayMultiplier})`);
+  }
+  
+  if (reasons.length === 0) {
+    reasons.push(generateOptimizationReason(target, metrics, config, newBid));
+  }
+  
+  // 如果使用了多种算法，标记为combined
+  const algorithmsUsed = [
+    timeDecayROAS !== undefined,
+    ucbSuggestion.strategy !== 'exploit',
+    holidayMultiplier !== 1
+  ].filter(Boolean).length;
+  
+  if (algorithmsUsed > 1) {
+    algorithmUsed = 'combined';
+  }
+  
+  return {
+    targetId: target.id,
+    targetType: target.type,
+    previousBid: target.currentBid,
+    newBid,
+    actionType,
+    bidChangePercent: Math.round(bidChangePercent * 100) / 100,
+    reason: reasons.join('；'),
+    algorithmUsed,
+    timeDecayROAS,
+    ucbSuggestion,
+    holidayConfig,
+    holidayMultiplier,
+    confidenceScore: Math.round(confidenceScore * 100) / 100
+  };
+}
+
+/**
+ * 增强版绩效组优化 - 使用新算法
+ */
+export function optimizePerformanceGroupEnhanced(
+  targets: EnhancedOptimizationTarget[],
+  config: PerformanceGroupConfig,
+  maxBidLimit: number = 10.00,
+  currentDate: Date = new Date()
+): EnhancedOptimizationResult[] {
+  const results: EnhancedOptimizationResult[] = [];
+  
+  for (const target of targets) {
+    // 跳过数据不足的目标
+    if (target.clicks < 5 && target.impressions < 100) {
+      continue;
+    }
+    
+    const result = calculateEnhancedBidAdjustment(target, config, maxBidLimit, 0.02, currentDate);
+    
+    // 只包含有意义的变化（> 1%）
+    if (Math.abs(result.bidChangePercent) > 1) {
+      results.push(result);
+    }
+  }
+  
+  return results;
+}
+
+/**
+ * 创建算法效果追踪记录
+ */
+export function createAlgorithmEffectRecord(
+  result: EnhancedOptimizationResult,
+  currentROAS: number,
+  currentACoS: number
+): AlgorithmEffectRecord {
+  return {
+    targetId: result.targetId,
+    targetType: result.targetType,
+    algorithmUsed: result.algorithmUsed,
+    previousBid: result.previousBid,
+    newBid: result.newBid,
+    previousROAS: currentROAS,
+    previousACoS: currentACoS,
+    optimizationDate: new Date()
+  };
+}
+
+/**
+ * 更新算法效果追踪记录（优化后7天调用）
+ */
+export function updateAlgorithmEffectRecord(
+  record: AlgorithmEffectRecord,
+  postROAS: number,
+  postACoS: number
+): AlgorithmEffectRecord {
+  const roasChange = postROAS - record.previousROAS;
+  const acosChange = record.previousACoS - postACoS; // ACoS降低为正向
+  
+  // 计算效果分数：ROAS提升和ACoS降低的加权平均
+  const roasScore = roasChange > 0 ? Math.min(1, roasChange / record.previousROAS) : Math.max(-1, roasChange / record.previousROAS);
+  const acosScore = acosChange > 0 ? Math.min(1, acosChange / record.previousACoS) : Math.max(-1, acosChange / record.previousACoS);
+  const effectScore = (roasScore * 0.6 + acosScore * 0.4);
+  
+  return {
+    ...record,
+    postROAS,
+    postACoS,
+    roasChange: Math.round(roasChange * 100) / 100,
+    acosChange: Math.round(acosChange * 100) / 100,
+    effectScore: Math.round(effectScore * 100) / 100
+  };
+}
+
+/**
+ * 计算算法效果统计
+ */
+export function calculateAlgorithmEffectStats(
+  records: AlgorithmEffectRecord[]
+): Record<string, {
+  count: number;
+  avgROASChange: number;
+  avgACoSChange: number;
+  avgEffectScore: number;
+  positiveRate: number;
+}> {
+  const stats: Record<string, {
+    count: number;
+    totalROASChange: number;
+    totalACoSChange: number;
+    totalEffectScore: number;
+    positiveCount: number;
+  }> = {};
+  
+  for (const record of records) {
+    if (record.effectScore === undefined) continue;
+    
+    if (!stats[record.algorithmUsed]) {
+      stats[record.algorithmUsed] = {
+        count: 0,
+        totalROASChange: 0,
+        totalACoSChange: 0,
+        totalEffectScore: 0,
+        positiveCount: 0
+      };
+    }
+    
+    const s = stats[record.algorithmUsed];
+    s.count++;
+    s.totalROASChange += record.roasChange || 0;
+    s.totalACoSChange += record.acosChange || 0;
+    s.totalEffectScore += record.effectScore;
+    if (record.effectScore > 0) s.positiveCount++;
+  }
+  
+  const result: Record<string, {
+    count: number;
+    avgROASChange: number;
+    avgACoSChange: number;
+    avgEffectScore: number;
+    positiveRate: number;
+  }> = {};
+  
+  for (const [algorithm, s] of Object.entries(stats)) {
+    result[algorithm] = {
+      count: s.count,
+      avgROASChange: Math.round((s.totalROASChange / s.count) * 100) / 100,
+      avgACoSChange: Math.round((s.totalACoSChange / s.count) * 100) / 100,
+      avgEffectScore: Math.round((s.totalEffectScore / s.count) * 100) / 100,
+      positiveRate: Math.round((s.positiveCount / s.count) * 100)
+    };
+  }
+  
+  return result;
+}
