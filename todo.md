@@ -5198,3 +5198,26 @@ Amazon Advertising API数据有12-24小时延迟，当天广告数据通常在�
 - [x] 分离Mermaid图表（2.2MB，按需加载）
 - [x] 构建成功验证
 
+
+
+## TypeScript类型修复（当前阶段）
+
+### 已完成的修复
+- [x] 修复schema.ts中的重复属性定义（organizationId, userId, userName, biddingStrategy等）
+- [x] 添加缺失的Insert类型导出到schema.ts
+- [x] 修复字段名称大小写问题（actualProfit7d→actualProfit7D, predictedCR→predictedCr等）
+- [x] 更新budgetAutoExecutionConfigs表添加缺失字段
+- [x] 更新budgetAutoExecutionHistory表添加缺失字段
+- [x] 更新budgetAutoExecutionDetails表添加缺失字段
+- [x] 更新budgetAllocationConfigs表添加缺失字段
+- [x] 添加keywordAutoExecution相关表定义
+- [x] 修复intelligentBudgetAllocationService.ts中的字段名称问题
+- [x] 修复keywordAutoExecutionService.ts中的字段名称问题
+- [x] 修复budgetAutoExecutionService.ts中的字段名称问题
+- [x] 修复algorithmOptimizationService.ts中的字段名称问题
+- [x] 修复advancedPlacementService.ts中的字段名称问题
+
+### 构建状态
+- [x] 前端构建成功
+- [x] 后端构建成功
+- [x] TypeScript错误从127个减少到48个

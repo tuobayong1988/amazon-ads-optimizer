@@ -549,21 +549,12 @@ export async function executeAutoActions(
     await db
       .update(keywordAutoExecutionHistory)
       .set({
-        executionEndAt: new Date().toISOString(),
         status: 'completed',
-        totalKeywordsAnalyzed: keywordsPaused + keywordsEnabled + keywordsSkipped + keywordsError,
         keywordsPaused,
         keywordsEnabled,
         keywordsSkipped,
         keywordsError,
         estimatedSpendSaved: estimatedSpendSaved.toString(),
-        executionSummary: JSON.stringify({
-          paused: keywordsPaused,
-          enabled: keywordsEnabled,
-          skipped: keywordsSkipped,
-          errors: keywordsError,
-          estimatedSpendSaved,
-        }),
         errorMessage: errors.length > 0 ? errors.join('; ') : null,
       })
       .where(eq(keywordAutoExecutionHistory.id, executionId));
@@ -592,7 +583,6 @@ export async function executeAutoActions(
     await db
       .update(keywordAutoExecutionHistory)
       .set({
-        executionEndAt: new Date().toISOString(),
         status: 'failed',
         errorMessage: String(err),
       })
@@ -650,9 +640,8 @@ export async function rollbackLastExecution(
         await db
           .update(keywordAutoExecutionDetails)
           .set({
-            status: 'rolled_back',
-            rolledBackAt: new Date().toISOString(),
-            rollbackReason: reason,
+            status: 'skipped',
+            errorMessage: `Rolled back: ${reason}`,
           })
           .where(eq(keywordAutoExecutionDetails.id, detail.id));
         
@@ -666,10 +655,8 @@ export async function rollbackLastExecution(
     await db
       .update(keywordAutoExecutionHistory)
       .set({
-        status: 'rolled_back',
-        rollbackTriggeredAt: new Date().toISOString(),
-        rollbackReason: reason,
-        rollbackBy: userId,
+        status: 'cancelled',
+        errorMessage: `Rolled back: ${reason}`,
       })
       .where(eq(keywordAutoExecutionHistory.id, executionId));
     
@@ -702,7 +689,7 @@ export async function getExecutionHistory(
     .select()
     .from(keywordAutoExecutionHistory)
     .where(eq(keywordAutoExecutionHistory.accountId, accountId))
-    .orderBy(desc(keywordAutoExecutionHistory.executionStartAt))
+    .orderBy(desc(keywordAutoExecutionHistory.executionTime))
     .limit(limit);
   
   return history;

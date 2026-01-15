@@ -367,16 +367,19 @@ export async function executeBudgetAllocation(configId: number): Promise<{
 
       // 保存执行明细
       await db.insert(budgetAutoExecutionDetails).values({
-        executionId,
+        historyId: executionId,
         campaignId: suggestion.campaignId,
         campaignName: suggestion.campaignName,
+        previousBudget: String(budgetBefore),
+        newBudget: String(details[details.length - 1].status === 'applied' ? budgetAfter : budgetBefore),
         budgetBefore: String(budgetBefore),
         budgetAfter: String(details[details.length - 1].status === 'applied' ? budgetAfter : budgetBefore),
+        budgetChange: String(budgetAfter - budgetBefore),
         adjustmentPercent: String(details[details.length - 1].adjustmentPercent),
         adjustmentReason: suggestion.reasons.join('; '),
         compositeScore: String((suggestion as any).compositeScore || 0),
         riskLevel: suggestion.riskLevel,
-        status: details[details.length - 1].status,
+        status: details[details.length - 1].status as any,
         errorMessage: details[details.length - 1].reason,
       });
     }
@@ -397,14 +400,13 @@ export async function executeBudgetAllocation(configId: number): Promise<{
     await db.update(budgetAutoExecutionHistory)
       .set({
         executionEndAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        status: finalStatus,
+        status: finalStatus as any,
         totalCampaigns: summary.totalCampaigns,
-        adjustedCampaigns: summary.adjustedCampaigns,
+        campaignsAdjusted: summary.adjustedCampaigns,
         skippedCampaigns: summary.skippedCampaigns,
         errorCampaigns: summary.errorCampaigns,
         totalBudgetBefore: String(summary.totalBudgetBefore),
         totalBudgetAfter: String(summary.totalBudgetAfter),
-        executionSummary: JSON.stringify(summary),
       })
       .where(eq(budgetAutoExecutionHistory.id, executionId));
 
@@ -502,7 +504,7 @@ export async function getExecutionDetails(executionId: number): Promise<{
 
   const details = await db.select()
     .from(budgetAutoExecutionDetails)
-    .where(eq(budgetAutoExecutionDetails.executionId, executionId));
+    .where(eq(budgetAutoExecutionDetails.historyId, executionId));
 
   return {
     execution: executionResults[0],
@@ -516,7 +518,7 @@ export async function getExecutionDetails(executionId: number): Promise<{
       adjustmentReason: d.adjustmentReason,
       compositeScore: d.compositeScore,
       riskLevel: d.riskLevel,
-      status: d.status,
+      status: d.status as string,
       errorMessage: d.errorMessage,
     })),
   };
@@ -552,18 +554,14 @@ export async function approveExecution(
     // 更新执行状态
     await db.update(budgetAutoExecutionHistory)
       .set({
-        status: 'completed',
-        approvedBy: userId,
-        approvedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        status: 'completed' as any,
       })
       .where(eq(budgetAutoExecutionHistory.id, executionId));
   } else {
     // 拒绝执行
     await db.update(budgetAutoExecutionHistory)
       .set({
-        status: 'cancelled',
-        approvedBy: userId,
-        approvedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        status: 'cancelled' as any,
       })
       .where(eq(budgetAutoExecutionHistory.id, executionId));
   }

@@ -296,8 +296,8 @@ export async function analyzeBidObjectProfit(
   }
   
   // 3. 确定CVR和AOV
-  const cvr = prediction?.predictedCR || marketCurve?.conversion.cvr || 0.05;
-  const aov = prediction?.predictedCV || marketCurve?.conversion.aov || 30;
+  const cvr = prediction?.predictedCr || marketCurve?.conversion.cvr || 0.05;
+  const aov = prediction?.predictedCv || marketCurve?.conversion.aov || 30;
   
   // 4. 计算当前有效出价
   const currentEffectiveBids = calculateEffectiveBids(

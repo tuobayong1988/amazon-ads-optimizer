@@ -157,9 +157,9 @@ export async function calculateAlgorithmPerformance(
   });
   
   const totalAdjustments = records.length;
-  const tracked7d = records.filter(r => r.actualProfit7d !== null);
-  const tracked14d = records.filter(r => r.actualProfit14d !== null);
-  const tracked30d = records.filter(r => r.actualProfit30d !== null);
+  const tracked7d = records.filter(r => r.actualProfit7D !== null);
+  const tracked14d = records.filter(r => r.actualProfit14D !== null);
+  const tracked30d = records.filter(r => r.actualProfit30D !== null);
   
   // 计算各项指标
   const metrics: AlgorithmPerformanceMetrics = {
@@ -167,26 +167,26 @@ export async function calculateAlgorithmPerformance(
     trackedAdjustments: tracked7d.length,
     trackingRate: totalAdjustments > 0 ? (tracked7d.length / totalAdjustments) * 100 : 0,
     
-    accuracy7d: calculateAccuracy(tracked7d, 'actualProfit7d'),
-    accuracy14d: calculateAccuracy(tracked14d, 'actualProfit14d'),
-    accuracy30d: calculateAccuracy(tracked30d, 'actualProfit30d'),
+    accuracy7d: calculateAccuracy(tracked7d, 'actualProfit7D'),
+    accuracy14d: calculateAccuracy(tracked14d, 'actualProfit14D'),
+    accuracy30d: calculateAccuracy(tracked30d, 'actualProfit30D'),
     
-    mae7d: calculateMAE(tracked7d, 'actualProfit7d'),
-    mae14d: calculateMAE(tracked14d, 'actualProfit14d'),
-    mae30d: calculateMAE(tracked30d, 'actualProfit30d'),
+    mae7d: calculateMAE(tracked7d, 'actualProfit7D'),
+    mae14d: calculateMAE(tracked14d, 'actualProfit14D'),
+    mae30d: calculateMAE(tracked30d, 'actualProfit30D'),
     
-    rmse7d: calculateRMSE(tracked7d, 'actualProfit7d'),
-    rmse14d: calculateRMSE(tracked14d, 'actualProfit14d'),
-    rmse30d: calculateRMSE(tracked30d, 'actualProfit30d'),
+    rmse7d: calculateRMSE(tracked7d, 'actualProfit7D'),
+    rmse14d: calculateRMSE(tracked14d, 'actualProfit14D'),
+    rmse30d: calculateRMSE(tracked30d, 'actualProfit30D'),
     
-    directionAccuracy7d: calculateDirectionAccuracy(tracked7d, 'actualProfit7d'),
-    directionAccuracy14d: calculateDirectionAccuracy(tracked14d, 'actualProfit14d'),
-    directionAccuracy30d: calculateDirectionAccuracy(tracked30d, 'actualProfit30d'),
+    directionAccuracy7d: calculateDirectionAccuracy(tracked7d, 'actualProfit7D'),
+    directionAccuracy14d: calculateDirectionAccuracy(tracked14d, 'actualProfit14D'),
+    directionAccuracy30d: calculateDirectionAccuracy(tracked30d, 'actualProfit30D'),
     
     totalEstimatedProfit: records.reduce((sum, r) => sum + parseFloat(String(r.expectedProfitIncrease || 0)), 0),
-    totalActualProfit7d: tracked7d.reduce((sum, r) => sum + parseFloat(String(r.actualProfit7d || 0)), 0),
-    totalActualProfit14d: tracked14d.reduce((sum, r) => sum + parseFloat(String(r.actualProfit14d || 0)), 0),
-    totalActualProfit30d: tracked30d.reduce((sum, r) => sum + parseFloat(String(r.actualProfit30d || 0)), 0),
+    totalActualProfit7d: tracked7d.reduce((sum, r) => sum + parseFloat(String(r.actualProfit7D || 0)), 0),
+    totalActualProfit14d: tracked14d.reduce((sum, r) => sum + parseFloat(String(r.actualProfit14D || 0)), 0),
+    totalActualProfit30d: tracked30d.reduce((sum, r) => sum + parseFloat(String(r.actualProfit30D || 0)), 0),
   };
   
   return metrics;
@@ -284,7 +284,7 @@ export async function analyzeByAdjustmentType(
     .where(
       and(
         sql`${bidAdjustmentHistory.status} != 'rolled_back'`,
-        isNotNull(bidAdjustmentHistory.actualProfit7d)
+        isNotNull(bidAdjustmentHistory.actualProfit7D)
       )
     );
   
@@ -308,9 +308,9 @@ export async function analyzeByAdjustmentType(
   
   for (const [type, typeRecords] of Object.entries(byType)) {
     const totalEstimated = typeRecords.reduce((sum, r) => sum + parseFloat(String(r.expectedProfitIncrease || 0)), 0);
-    const totalActual = typeRecords.reduce((sum, r) => sum + parseFloat(String(r.actualProfit7d || 0)), 0);
-    const accuracy = calculateAccuracy(typeRecords, 'actualProfit7d') || 0;
-    const mae = calculateMAE(typeRecords, 'actualProfit7d') || 0;
+    const totalActual = typeRecords.reduce((sum, r) => sum + parseFloat(String(r.actualProfit7D || 0)), 0);
+    const accuracy = calculateAccuracy(typeRecords, 'actualProfit7D') || 0;
+    const mae = calculateMAE(typeRecords, 'actualProfit7D') || 0;
     
     results.push({
       dimension: 'adjustmentType',
@@ -345,7 +345,7 @@ export async function analyzeByBidChangeRange(
     .where(
       and(
         sql`${bidAdjustmentHistory.status} != 'rolled_back'`,
-        isNotNull(bidAdjustmentHistory.actualProfit7d)
+        isNotNull(bidAdjustmentHistory.actualProfit7D)
       )
     );
   
@@ -379,9 +379,9 @@ export async function analyzeByBidChangeRange(
     if (rangeRecords.length === 0) continue;
     
     const totalEstimated = rangeRecords.reduce((sum, r) => sum + parseFloat(String(r.expectedProfitIncrease || 0)), 0);
-    const totalActual = rangeRecords.reduce((sum, r) => sum + parseFloat(String(r.actualProfit7d || 0)), 0);
-    const accuracy = calculateAccuracy(rangeRecords, 'actualProfit7d') || 0;
-    const mae = calculateMAE(rangeRecords, 'actualProfit7d') || 0;
+    const totalActual = rangeRecords.reduce((sum, r) => sum + parseFloat(String(r.actualProfit7D || 0)), 0);
+    const accuracy = calculateAccuracy(rangeRecords, 'actualProfit7D') || 0;
+    const mae = calculateMAE(rangeRecords, 'actualProfit7D') || 0;
     
     results.push({
       dimension: 'bidChangeRange',

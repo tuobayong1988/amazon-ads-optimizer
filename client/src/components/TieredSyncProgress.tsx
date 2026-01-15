@@ -234,39 +234,39 @@ export function TieredSyncProgress({ accountId, accountName }: TieredSyncProgres
           )}
 
           {/* 分层进度详情 */}
-          {tieredStats?.tierStats && tieredStats.tierStats.length > 0 && (
+          {tieredStats?.progressByTier && Object.keys(tieredStats.progressByTier).length > 0 && (
             <div className="space-y-4">
               <h4 className="font-medium flex items-center gap-2">
                 <Layers className="h-4 w-4" />
                 各层进度
               </h4>
               <div className="space-y-3">
-                {tieredStats.tierStats.map((tier: TierStats) => (
-                  <div key={tier.tier} className="space-y-2 p-3 bg-muted/30 rounded-lg">
+                {Object.entries(tieredStats.progressByTier).map(([tierName, tier]) => (
+                  <div key={tierName} className="space-y-2 p-3 bg-muted/30 rounded-lg">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        {getTierIcon(tier.tier)}
+                        {getTierIcon(tierName)}
                         <span className="font-medium">
-                          {tier.tier === 'realtime' && '实时层（1-7天）'}
-                          {tier.tier === 'hot' && '热数据层（8-30天）'}
-                          {tier.tier === 'warm' && '温数据层（31-90天）'}
-                          {tier.tier === 'cold' && '冷数据层（91-365天）'}
+                          {tierName === 'realtime' && '实时层（1-7天）'}
+                          {tierName === 'hot' && '热数据层（8-30天）'}
+                          {tierName === 'warm' && '温数据层（31-90天）'}
+                          {tierName === 'cold' && '冷数据层（91-365天）'}
                         </span>
-                        <Badge className={getTierColor(tier.tier)}>
-                          {tier.tier === 'realtime' && '高优先级'}
-                          {tier.tier === 'hot' && '中高优先级'}
-                          {tier.tier === 'warm' && '中优先级'}
-                          {tier.tier === 'cold' && '低优先级'}
+                        <Badge className={getTierColor(tierName)}>
+                          {tierName === 'realtime' && '高优先级'}
+                          {tierName === 'hot' && '中高优先级'}
+                          {tierName === 'warm' && '中优先级'}
+                          {tierName === 'cold' && '低优先级'}
                         </Badge>
                       </div>
                       <span className="text-sm text-muted-foreground">
                         {tier.completed}/{tier.total}
                       </span>
                     </div>
-                    <Progress value={tier.progressPercent} className="h-2" />
+                    <Progress value={tier.percent} className="h-2" />
                     <div className="flex gap-4 text-xs text-muted-foreground">
                       <span>待处理: {tier.pending}</span>
-                      <span>进行中: {tier.submitted + tier.processing}</span>
+                      <span>进行中: {tier.processing}</span>
                       <span className="text-green-600">完成: {tier.completed}</span>
                       {tier.failed > 0 && (
                         <span className="text-red-500">失败: {tier.failed}</span>
@@ -305,7 +305,7 @@ export function TieredSyncProgress({ accountId, accountName }: TieredSyncProgres
                   </tr>
                 </thead>
                 <tbody>
-                  {tierConfig.tiers?.map((tier: TierConfig) => (
+                  {(tierConfig as any).tiers?.map((tier: TierConfig) => (
                     <tr key={tier.name} className="border-b">
                       <td className="py-2 px-3">
                         <div className="flex items-center gap-2">
@@ -360,32 +360,32 @@ export function TieredSyncProgress({ accountId, accountName }: TieredSyncProgres
                       {getTierIcon('realtime')}
                       <span>实时层</span>
                     </div>
-                    <span className="font-medium">{taskCounts.realtime || 0} 任务</span>
+                    <span className="font-medium">{(taskCounts as any).realtime || 0} 任务</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-2">
                       {getTierIcon('hot')}
                       <span>热数据层</span>
                     </div>
-                    <span className="font-medium">{taskCounts.hot || 0} 任务</span>
+                    <span className="font-medium">{(taskCounts as any).hot || 0} 任务</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-2">
                       {getTierIcon('warm')}
                       <span>温数据层</span>
                     </div>
-                    <span className="font-medium">{taskCounts.warm || 0} 任务</span>
+                    <span className="font-medium">{(taskCounts as any).warm || 0} 任务</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-2">
                       {getTierIcon('cold')}
                       <span>冷数据层</span>
                     </div>
-                    <span className="font-medium">{taskCounts.cold || 0} 任务</span>
+                    <span className="font-medium">{(taskCounts as any).cold || 0} 任务</span>
                   </div>
                   <div className="flex justify-between items-center pt-2 border-t font-medium">
                     <span>总计</span>
-                    <span>{taskCounts.total || 0} 任务</span>
+                    <span>{(taskCounts as any).total || 0} 任务</span>
                   </div>
                 </div>
               </div>
@@ -403,7 +403,7 @@ export function TieredSyncProgress({ accountId, accountName }: TieredSyncProgres
                   </div>
                   <div className="flex justify-between text-green-600 font-medium">
                     <span>方案五（智能分层）</span>
-                    <span>{taskCounts.total || 61} 任务</span>
+                    <span>{(taskCounts as any).total || 61} 任务</span>
                   </div>
                 </div>
                 <div className="p-3 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">

@@ -837,25 +837,19 @@ export async function applyBudgetAllocationSuggestions(
       
       // 记录历史
       await dbInstance.insert(budgetAllocationHistory).values({
-        suggestionId: suggestion.id,
-        performanceGroupId: suggestion.performanceGroupId,
+        configId: suggestion.configId,
         campaignId: suggestion.campaignId,
-        userId,
         previousBudget: suggestion.currentBudget?.toString(),
         newBudget: suggestion.suggestedBudget?.toString(),
-        adjustmentAmount: suggestion.adjustmentAmount?.toString(),
-        adjustmentPercent: suggestion.adjustmentPercent?.toString(),
-        adjustmentReason: suggestion.suggestionReason,
-        adjustmentType: 'auto',
-        trackingStatus: 'pending'
+        changeReason: suggestion.reason || 'auto',
+        appliedBy: userId
       });
       
       // 更新建议状态
       await dbInstance.update(budgetAllocationSuggestions)
         .set({ 
           status: 'applied',
-          processedAt: new Date().toISOString(),
-          processedBy: userId
+          appliedAt: new Date().toISOString()
         })
         .where(eq(budgetAllocationSuggestions.id, suggestionId));
       
@@ -895,7 +889,7 @@ export async function getBudgetAllocationConfig(
   
   return {
     conversionEfficiencyWeight: Number(config.conversionEfficiencyWeight) || DEFAULT_CONFIG.conversionEfficiencyWeight,
-    roasWeight: Number(config.roasWeight) || DEFAULT_CONFIG.roasWeight,
+    roasWeight: DEFAULT_CONFIG.roasWeight,
     growthPotentialWeight: Number(config.growthPotentialWeight) || DEFAULT_CONFIG.growthPotentialWeight,
     stabilityWeight: DEFAULT_CONFIG.stabilityWeight,
     trendWeight: DEFAULT_CONFIG.trendWeight,
@@ -927,7 +921,7 @@ export async function updateBudgetAllocationConfig(
     await dbInstance.update(budgetAllocationConfigs)
       .set({
         conversionEfficiencyWeight: updates.conversionEfficiencyWeight?.toString(),
-        roasWeight: updates.roasWeight?.toString(),
+
         growthPotentialWeight: updates.growthPotentialWeight?.toString(),
         maxAdjustmentPercent: updates.maxAdjustmentPercent?.toString(),
         minDailyBudget: updates.minDailyBudget?.toString(),
@@ -937,11 +931,10 @@ export async function updateBudgetAllocationConfig(
       .where(eq(budgetAllocationConfigs.performanceGroupId, performanceGroupId));
   } else {
     await dbInstance.insert(budgetAllocationConfigs).values({
+      accountId: 0, // 需要从上下文获取
       performanceGroupId,
-      userId,
-      enabled: 1,
+      totalDailyBudget: '0',
       conversionEfficiencyWeight: (updates.conversionEfficiencyWeight || DEFAULT_CONFIG.conversionEfficiencyWeight).toString(),
-      roasWeight: (updates.roasWeight || DEFAULT_CONFIG.roasWeight).toString(),
       growthPotentialWeight: (updates.growthPotentialWeight || DEFAULT_CONFIG.growthPotentialWeight).toString(),
       maxAdjustmentPercent: (updates.maxAdjustmentPercent || DEFAULT_CONFIG.maxAdjustmentPercent).toString(),
       minDailyBudget: (updates.minDailyBudget || DEFAULT_CONFIG.minDailyBudget).toString(),
