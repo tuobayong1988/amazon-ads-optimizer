@@ -1,0 +1,194 @@
+{
+  "query": "DESCRIBE ad_accounts",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute DESCRIBE ad_accounts",
+  "rows": [
+    {
+      "Field": "id",
+      "Type": "int(11)",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": "NULL",
+      "Extra": "auto_increment"
+    },
+    {
+      "Field": "userId",
+      "Type": "int(11)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "accountId",
+      "Type": "varchar(64)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "accountName",
+      "Type": "varchar(255)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "marketplace",
+      "Type": "varchar(32)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "profileId",
+      "Type": "varchar(64)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "conversionValueType",
+      "Type": "enum('sales','units','custom')",
+      "Null": "YES",
+      "Key": "",
+      "Default": "sales",
+      "Extra": ""
+    },
+    {
+      "Field": "conversionValueSource",
+      "Type": "enum('platform','custom')",
+      "Null": "YES",
+      "Key": "",
+      "Default": "platform",
+      "Extra": ""
+    },
+    {
+      "Field": "intradayBiddingEnabled",
+      "Type": "tinyint(1)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "1",
+      "Extra": ""
+    },
+    {
+      "Field": "defaultMaxBid",
+      "Type": "decimal(10,2)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "2.00",
+      "Extra": ""
+    },
+    {
+      "Field": "status",
+      "Type": "enum('active','paused','archived')",
+      "Null": "YES",
+      "Key": "",
+      "Default": "active",
+      "Extra": ""
+    },
+    {
+      "Field": "createdAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    },
+    {
+      "Field": "updatedAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    },
+    {
+      "Field": "storeName",
+      "Type": "varchar(255)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "storeDescription",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "storeColor",
+      "Type": "varchar(7)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "marketplaceId",
+      "Type": "varchar(32)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "sellerId",
+      "Type": "varchar(64)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "connectionStatus",
+      "Type": "enum('connected','disconnected','error','pending')",
+      "Null": "YES",
+      "Key": "",
+      "Default": "pending",
+      "Extra": ""
+    },
+    {
+      "Field": "lastConnectionCheck",
+      "Type": "timestamp",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "connectionErrorMessage",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "isDefault",
+      "Type": "tinyint(1)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "sortOrder",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nid\tint(11)\tNO\tPRI\tNULL\tauto_increment\nuserId\tint(11)\tNO\t\tNULL\t\naccountId\tvarchar(64)\tNO\t\tNULL\t\naccountName\tvarchar(255)\tNO\t\tNULL\t\nmarketplace\tvarchar(32)\tNO\t\tNULL\t\nprofileId\tvarchar(64)\tYES\t\tNULL\t\nconversionValueType\tenum('sales','units','custom')\tYES\t\tsales\t\nconversionValueSource\tenum('platform','custom')\tYES\t\tplatform\t\nintradayBiddingEnabled\ttinyint(1)\tYES\t\t1\t\ndefaultMaxBid\tdecimal(10,2)\tYES\t\t2.00\t\nstatus\tenum('active','paused','archived')\tYES\t\tactive\t\ncreatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\t\nupdatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\tDEFAULT_GENERATED on update CURRENT_TIMESTAMP\nstoreName\tvarchar(255)\tYES\t\tNULL\t\nstoreDescription\ttext\tYES\t\tNULL\t\nstoreColor\tvarchar(7)\tYES\t\tNULL\t\nmarketplaceId\tvarchar(32)\tYES\t\tNULL\t\nsellerId\tvarchar(64)\tYES\t\tNULL\t\nconnectionStatus\tenum('connected','disconnected','error','pending')\tYES\t\tpending\t\nlastConnectionCheck\ttimestamp\tYES\t\tNULL\t\nconnectionErrorMessage\ttext\tYES\t\tNULL\t\nisDefault\ttinyint(1)\tYES\t\t0\t\nsortOrder\tint(11)\tYES\t\t0\t\n",
+  "stderr": "",
+  "execution_time_ms": 50
+}

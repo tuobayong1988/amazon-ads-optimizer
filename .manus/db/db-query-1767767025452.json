@@ -1,0 +1,138 @@
+{
+  "query": "SHOW COLUMNS FROM spend_alert_logs;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SHOW COLUMNS FROM spend_alert_logs;",
+  "rows": [
+    {
+      "Field": "id",
+      "Type": "int(11)",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": "NULL",
+      "Extra": "auto_increment"
+    },
+    {
+      "Field": "config_id",
+      "Type": "int(11)",
+      "Null": "NO",
+      "Key": "MUL",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "user_id",
+      "Type": "int(11)",
+      "Null": "NO",
+      "Key": "MUL",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "account_id",
+      "Type": "int(11)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "alert_type",
+      "Type": "enum('warning_50','warning_80','critical_95','limit_reached','auto_stopped')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "alert_level",
+      "Type": "enum('info','warning','critical')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "current_spend",
+      "Type": "decimal(12,2)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "daily_limit",
+      "Type": "decimal(12,2)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "spend_percent",
+      "Type": "decimal(5,2)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "notification_sent",
+      "Type": "tinyint(4)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "notification_sent_at",
+      "Type": "timestamp",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "notification_error",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "acknowledged",
+      "Type": "tinyint(4)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "acknowledged_by",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "acknowledged_at",
+      "Type": "timestamp",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "created_at",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "MUL",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nid\tint(11)\tNO\tPRI\tNULL\tauto_increment\nconfig_id\tint(11)\tNO\tMUL\tNULL\t\nuser_id\tint(11)\tNO\tMUL\tNULL\t\naccount_id\tint(11)\tNO\t\tNULL\t\nalert_type\tenum('warning_50','warning_80','critical_95','limit_reached','auto_stopped')\tNO\t\tNULL\t\nalert_level\tenum('info','warning','critical')\tNO\t\tNULL\t\ncurrent_spend\tdecimal(12,2)\tNO\t\tNULL\t\ndaily_limit\tdecimal(12,2)\tNO\t\tNULL\t\nspend_percent\tdecimal(5,2)\tNO\t\tNULL\t\nnotification_sent\ttinyint(4)\tNO\t\t0\t\nnotification_sent_at\ttimestamp\tYES\t\tNULL\t\nnotification_error\ttext\tYES\t\tNULL\t\nacknowledged\ttinyint(4)\tNO\t\t0\t\nacknowledged_by\tint(11)\tYES\t\tNULL\t\nacknowledged_at\ttimestamp\tYES\t\tNULL\t\ncreated_at\ttimestamp\tNO\tMUL\tCURRENT_TIMESTAMP\t\n",
+  "stderr": "",
+  "execution_time_ms": 57
+}

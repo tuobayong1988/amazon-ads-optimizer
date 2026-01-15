@@ -1,0 +1,66 @@
+{
+  "query": "DESCRIBE ab_test_variants;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute DESCRIBE ab_test_variants;",
+  "rows": [
+    {
+      "Field": "id",
+      "Type": "int(11)",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": "NULL",
+      "Extra": "auto_increment"
+    },
+    {
+      "Field": "testId",
+      "Type": "int(11)",
+      "Null": "NO",
+      "Key": "MUL",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "variantName",
+      "Type": "varchar(255)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "variantType",
+      "Type": "varchar(50)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "control",
+      "Extra": ""
+    },
+    {
+      "Field": "description",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "bidMultiplier",
+      "Type": "decimal(5,2)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "1.00",
+      "Extra": ""
+    },
+    {
+      "Field": "createdAt",
+      "Type": "datetime",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nid\tint(11)\tNO\tPRI\tNULL\tauto_increment\ntestId\tint(11)\tNO\tMUL\tNULL\t\nvariantName\tvarchar(255)\tNO\t\tNULL\t\nvariantType\tvarchar(50)\tNO\t\tcontrol\t\ndescription\ttext\tYES\t\tNULL\t\nbidMultiplier\tdecimal(5,2)\tYES\t\t1.00\t\ncreatedAt\tdatetime\tNO\t\tCURRENT_TIMESTAMP\t\n",
+  "stderr": "",
+  "execution_time_ms": 50
+}

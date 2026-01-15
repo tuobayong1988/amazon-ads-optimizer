@@ -1,0 +1,25 @@
+{
+  "query": "SELECT id, profileId, lastSyncAt FROM amazon_api_credentials;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT id, profileId, lastSyncAt FROM amazon_api_credentials;",
+  "rows": [
+    {
+      "id": "60018",
+      "profileId": "1902077932438117",
+      "lastSyncAt": "2026-01-09 02:49:39"
+    },
+    {
+      "id": "60019",
+      "profileId": "1080055356599494",
+      "lastSyncAt": "2026-01-09 02:49:14"
+    },
+    {
+      "id": "60020",
+      "profileId": "599502392622991",
+      "lastSyncAt": "2026-01-09 03:12:14"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tprofileId\tlastSyncAt\n60018\t1902077932438117\t2026-01-09 02:49:39\n60019\t1080055356599494\t2026-01-09 02:49:14\n60020\t599502392622991\t2026-01-09 03:12:14\n",
+  "stderr": "",
+  "execution_time_ms": 397
+}

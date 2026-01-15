@@ -1,0 +1,8 @@
+{
+  "query": "SELECT id, accountId, clientId, profileId, apiRegion, createdAt, updatedAt, lastSyncAt FROM amazon_api_credentials;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT id, accountId, clientId, profileId, apiRegion, createdAt, updatedAt, lastSyncAt FROM amazon_api_credentials;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'apiregion' in 'field list'"
+  ]
+}

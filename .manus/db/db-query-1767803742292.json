@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS auto_targeting_settings (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  campaign_id VARCHAR(50) NOT NULL,\n  ad_group_id VARCHAR(50) NOT NULL,\n  targeting_type ENUM('close_match', 'loose_match', 'substitutes', 'complements') NOT NULL,\n  targeting_status ENUM('enabled', 'paused') DEFAULT 'enabled',\n  bid DECIMAL(10, 2),\n  suggested_bid DECIMAL(10, 2),\n  bid_range_low DECIMAL(10, 2),\n  bid_range_high DECIMAL(10, 2),\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  UNIQUE KEY unique_targeting (campaign_id, ad_group_id, targeting_type)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute CREATE TABLE IF NOT EXISTS auto_targeting_settings (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  campaign_id VARCHAR(50) NOT NULL,\n  ad_group_id VARCHAR(50) NOT NULL,\n  targeting_type ENUM('close_match', 'loose_match', 'substitutes', 'complements') NOT NULL,\n  targeting_status ENUM('enabled', 'paused') DEFAULT 'enabled',\n  bid DECIMAL(10, 2),\n  suggested_bid DECIMAL(10, 2),\n  bid_range_low DECIMAL(10, 2),\n  bid_range_high DECIMAL(10, 2),\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  UNIQUE KEY unique_targeting (campaign_id, ad_group_id, targeting_type)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 393
+}

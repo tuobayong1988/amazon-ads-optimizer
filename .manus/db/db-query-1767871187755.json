@@ -1,0 +1,21 @@
+{
+  "query": "SELECT \n  (SELECT COUNT(*) FROM ad_accounts) as ad_accounts_count,\n  (SELECT COUNT(*) FROM campaigns) as campaigns_count,\n  (SELECT COUNT(*) FROM ad_groups) as ad_groups_count,\n  (SELECT COUNT(*) FROM keywords) as keywords_count,\n  (SELECT COUNT(*) FROM product_targets) as product_targets_count,\n  (SELECT COUNT(*) FROM daily_performance) as daily_performance_count,\n  (SELECT COUNT(*) FROM amazon_api_credentials) as api_credentials_count,\n  (SELECT COUNT(*) FROM sync_change_records) as sync_change_records_count,\n  (SELECT COUNT(*) FROM sync_conflicts) as sync_conflicts_count;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT \n  (SELECT COUNT(*) FROM ad_accounts) as ad_accounts_count,\n  (SELECT COUNT(*) FROM campaigns) as campaigns_count,\n  (SELECT COUNT(*) FROM ad_groups) as ad_groups_count,\n  (SELECT COUNT(*) FROM keywords) as keywords_count,\n  (SELECT COUNT(*) FROM product_targets) as product_targets_count,\n  (SELECT COUNT(*) FROM daily_performance) as daily_performance_count,\n  (SELECT COUNT(*) FROM amazon_api_credentials) as api_credentials_count,\n  (SELECT COUNT(*) FROM sync_change_records) as sync_change_records_count,\n  (SELECT COUNT(*) FROM sync_conflicts) as sync_conflicts_count;",
+  "rows": [
+    {
+      "ad_accounts_count": "0",
+      "campaigns_count": "0",
+      "ad_groups_count": "0",
+      "keywords_count": "0",
+      "product_targets_count": "0",
+      "daily_performance_count": "0",
+      "api_credentials_count": "0",
+      "sync_change_records_count": "0",
+      "sync_conflicts_count": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "ad_accounts_count\tcampaigns_count\tad_groups_count\tkeywords_count\tproduct_targets_count\tdaily_performance_count\tapi_credentials_count\tsync_change_records_count\tsync_conflicts_count\n0\t0\t0\t0\t0\t0\t0\t0\t0\n",
+  "stderr": "",
+  "execution_time_ms": 74
+}

@@ -1,0 +1,13 @@
+{
+  "query": "SELECT count(*) FROM sync_conflicts WHERE account_id = 30001 AND resolution_status = 'pending';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT count(*) FROM sync_conflicts WHERE account_id = 30001 AND resolution_status = 'pending';",
+  "rows": [
+    {
+      "count(*)": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "count(*)\n0\n",
+  "stderr": "",
+  "execution_time_ms": 50
+}

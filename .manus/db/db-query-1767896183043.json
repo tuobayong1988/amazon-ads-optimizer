@@ -1,0 +1,14 @@
+{
+  "query": "SELECT COUNT(*) as total, SUM(CASE WHEN spend > 0 THEN 1 ELSE 0 END) as with_spend FROM campaigns",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT COUNT(*) as total, SUM(CASE WHEN spend > 0 THEN 1 ELSE 0 END) as with_spend FROM campaigns",
+  "rows": [
+    {
+      "total": "8976",
+      "with_spend": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\twith_spend\n8976\t0\n",
+  "stderr": "",
+  "execution_time_ms": 57
+}

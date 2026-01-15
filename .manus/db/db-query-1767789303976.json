@@ -1,0 +1,241 @@
+{
+  "query": "SHOW TABLES;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SHOW TABLES;",
+  "rows": [
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "__drizzle_migrations"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "account_permissions"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "ad_accounts"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "ad_groups"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "ai_optimization_actions"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "ai_optimization_executions"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "ai_optimization_predictions"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "ai_optimization_reviews"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "amazon_api_credentials"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "anomaly_alert_logs"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "anomaly_detection_rules"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "api_call_logs"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "api_operation_logs"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "api_rate_limits"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "api_request_queue"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "attribution_correction_records"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "audit_logs"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "auto_pause_records"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "batch_operation_items"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "batch_operations"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "bid_adjustment_history"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "bid_object_profit_estimates"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "bid_performance_history"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "bidding_logs"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "budget_alert_settings"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "budget_allocation_items"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "budget_allocation_tracking"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "budget_allocations"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "budget_consumption_alerts"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "budget_goals"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "budget_history"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "campaigns"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "collaboration_notification_rules"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "collaboration_notifications"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "correction_review_sessions"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "daily_performance"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "data_sync_jobs"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "data_sync_logs"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "data_sync_schedules"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "data_sync_tasks"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "dayparting_budget_rules"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "dayparting_execution_logs"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "dayparting_strategies"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "decision_tree_models"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "email_report_subscriptions"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "email_send_logs"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "hourly_performance"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "hourparting_bid_rules"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "import_jobs"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "keyword_predictions"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "keywords"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "market_curve_data"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "market_curve_models"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "negative_keywords"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "notification_history"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "notification_settings"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "optimization_recommendations"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "performance_groups"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "placement_performance"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "placement_settings"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "product_targets"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "promotional_events"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "scheduled_tasks"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "search_terms"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "seasonal_budget_recommendations"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "seasonal_trends"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "spend_alert_logs"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "spend_limit_configs"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "sync_change_records"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "sync_change_summary"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "sync_conflicts"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "sync_schedules"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "sync_task_queue"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "task_execution_log"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "team_members"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "user_notification_preferences"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq": "users"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_5MUJ5aHkiAehb9iTzNdxTq\n__drizzle_migrations\naccount_permissions\nad_accounts\nad_groups\nai_optimization_actions\nai_optimization_executions\nai_optimization_predictions\nai_optimization_reviews\namazon_api_credentials\nanomaly_alert_logs\nanomaly_detection_rules\napi_call_logs\napi_operation_logs\napi_rate_limits\napi_request_queue\nattribution_correction_records\naudit_logs\nauto_pause_records\nbatch_operation_items\nbatch_operations\nbid_adjustment_history\nbid_object_profit_estimates\nbid_performance_history\nbidding_logs\nbudget_alert_settings\nbudget_allocation_items\nbudget_allocation_tracking\nbudget_allocations\nbudget_consumption_alerts\nbudget_goals\nbudget_history\ncampaigns\ncollaboration_notification_rules\ncollaboration_notifications\ncorrection_review_sessions\ndaily_performance\ndata_sync_jobs\ndata_sync_logs\ndata_sync_schedules\ndata_sync_tasks\ndayparting_budget_rules\ndayparting_execution_logs\ndayparting_strategies\ndecision_tree_models\nemail_report_subscriptions\nemail_send_logs\nhourly_performance\nhourparting_bid_rules\nimport_jobs\nkeyword_predictions\nkeywords\nmarket_curve_data\nmarket_curve_models\nnegative_keywords\nnotification_history\nnotification_settings\noptimization_recommendations\nperformance_groups\nplacement_performance\nplacement_settings\nproduct_targets\npromotional_events\nscheduled_tasks\nsearch_terms\nseasonal_budget_recommendations\nseasonal_trends\nspend_alert_logs\nspend_limit_configs\nsync_change_records\nsync_change_summary\nsync_conflicts\nsync_schedules\nsync_task_queue\ntask_execution_log\nteam_members\nuser_notification_preferences\nusers\n",
+  "stderr": "",
+  "execution_time_ms": 53
+}

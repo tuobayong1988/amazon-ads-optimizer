@@ -1,0 +1,8 @@
+{
+  "query": "SELECT pg.id, pg.name, pg.account_id, aa.id as ad_account_id, aa.account_name \nFROM performance_groups pg \nLEFT JOIN ad_accounts aa ON pg.account_id = aa.id \nLIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT pg.id, pg.name, pg.account_id, aa.id as ad_account_id, aa.account_name \nFROM performance_groups pg \nLEFT JOIN ad_accounts aa ON pg.account_id = aa.id \nLIMIT 10;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'pg.account_id' in 'on clause'"
+  ]
+}

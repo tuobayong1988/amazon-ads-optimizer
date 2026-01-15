@@ -1,0 +1,55 @@
+{
+  "query": "SELECT id, accountId, syncType, status, recordsSynced, errorMessage, createdAt FROM data_sync_jobs ORDER BY createdAt DESC LIMIT 5",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT id, accountId, syncType, status, recordsSynced, errorMessage, createdAt FROM data_sync_jobs ORDER BY createdAt DESC LIMIT 5",
+  "rows": [
+    {
+      "id": "150003",
+      "accountId": "60017",
+      "syncType": "all",
+      "status": "completed",
+      "recordsSynced": "750",
+      "errorMessage": "NULL",
+      "createdAt": "2026-01-08 18:12:36"
+    },
+    {
+      "id": "150002",
+      "accountId": "60019",
+      "syncType": "all",
+      "status": "running",
+      "recordsSynced": "0",
+      "errorMessage": "NULL",
+      "createdAt": "2026-01-08 18:12:36"
+    },
+    {
+      "id": "150001",
+      "accountId": "60018",
+      "syncType": "all",
+      "status": "completed",
+      "recordsSynced": "0",
+      "errorMessage": "NULL",
+      "createdAt": "2026-01-08 18:12:36"
+    },
+    {
+      "id": "120010",
+      "accountId": "60017",
+      "syncType": "all",
+      "status": "completed",
+      "recordsSynced": "758",
+      "errorMessage": "NULL",
+      "createdAt": "2026-01-08 16:33:51"
+    },
+    {
+      "id": "120008",
+      "accountId": "60018",
+      "syncType": "all",
+      "status": "completed",
+      "recordsSynced": "0",
+      "errorMessage": "NULL",
+      "createdAt": "2026-01-08 16:33:51"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\taccountId\tsyncType\tstatus\trecordsSynced\terrorMessage\tcreatedAt\n150003\t60017\tall\tcompleted\t750\tNULL\t2026-01-08 18:12:36\n150002\t60019\tall\trunning\t0\tNULL\t2026-01-08 18:12:36\n150001\t60018\tall\tcompleted\t0\tNULL\t2026-01-08 18:12:36\n120010\t60017\tall\tcompleted\t758\tNULL\t2026-01-08 16:33:51\n120008\t60018\tall\tcompleted\t0\tNULL\t2026-01-08 16:33:51\n",
+  "stderr": "",
+  "execution_time_ms": 57
+}

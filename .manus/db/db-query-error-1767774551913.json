@@ -1,0 +1,8 @@
+{
+  "query": "SELECT id, user_id, store_name, client_id, LEFT(client_secret, 20) as client_secret_preview, LEFT(refresh_token, 30) as refresh_token_preview, profile_id, region, is_active, last_sync_at, created_at FROM amazon_api_credentials LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT id, user_id, store_name, client_id, LEFT(client_secret, 20) as client_secret_preview, LEFT(refresh_token, 30) as refresh_token_preview, profile_id, region, is_active, last_sync_at, created_at FROM amazon_api_credentials LIMIT 10;",
+  "returncode": 1,
+  "logs": [
+    "ERROR 1054 (42S22) at line 1: Unknown column 'user_id' in 'field list'"
+  ]
+}

@@ -239,3 +239,359 @@ export function getNGramDataRequirements(matchType: 'broad' | 'phrase' | 'exact'
   if (averageCpc > 2) { minClicks = Math.max(5, Math.floor(minClicks * 0.7)); minImpressions = Math.max(200, Math.floor(minImpressions * 0.7)); }
   return { minClicks, minImpressions, attributionWindowDays: 14 };
 }
+
+
+// ==================== 时间衰减权重计算 ====================
+
+/**
+ * 计算时间衰减权重
+ * 使用指数衰减模型，使近期数据获得更高权重
+ * 
+ * @param dataDate 数据日期
+ * @param halfLifeDays 半衰期（天数），默认7天
+ * @param referenceDate 参考日期，默认为当前时间
+ * @returns 权重值 (0-1)
+ */
+export function calculateTimeDecayWeight(
+  dataDate: Date,
+  halfLifeDays: number = 7,
+  referenceDate: Date = new Date()
+): number {
+  const daysDiff = (referenceDate.getTime() - dataDate.getTime()) / (1000 * 60 * 60 * 24);
+  if (daysDiff < 0) return 1; // 未来数据给予最高权重
+  return Math.pow(0.5, daysDiff / halfLifeDays);
+}
+
+/**
+ * 批量计算时间衰减权重
+ * 返回归一化后的权重数组
+ */
+export function calculateTimeDecayWeights(
+  dates: Date[],
+  halfLifeDays: number = 7,
+  referenceDate: Date = new Date()
+): number[] {
+  const weights = dates.map(date => calculateTimeDecayWeight(date, halfLifeDays, referenceDate));
+  const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+  if (totalWeight === 0) return weights.map(() => 1 / weights.length);
+  return weights.map(w => w / totalWeight);
+}
+
+/**
+ * 计算时间加权平均值
+ * 对数据应用时间衰减权重后计算加权平均
+ */
+export function calculateTimeWeightedAverage(
+  values: number[],
+  dates: Date[],
+  halfLifeDays: number = 7
+): number {
+  if (values.length !== dates.length || values.length === 0) return 0;
+  
+  const weights = calculateTimeDecayWeights(dates, halfLifeDays);
+  let weightedSum = 0;
+  
+  for (let i = 0; i < values.length; i++) {
+    weightedSum += values[i] * weights[i];
+  }
+  
+  return weightedSum;
+}
+
+/**
+ * 计算时间加权ROAS
+ * 专门用于计算考虑时间衰减的ROAS指标
+ */
+export function calculateTimeWeightedROAS(
+  dailyData: Array<{ date: Date; spend: number; sales: number }>,
+  halfLifeDays: number = 7
+): number {
+  if (dailyData.length === 0) return 0;
+  
+  const dates = dailyData.map(d => d.date);
+  const weights = calculateTimeDecayWeights(dates, halfLifeDays);
+  
+  let weightedSpend = 0;
+  let weightedSales = 0;
+  
+  for (let i = 0; i < dailyData.length; i++) {
+    weightedSpend += dailyData[i].spend * weights[i];
+    weightedSales += dailyData[i].sales * weights[i];
+  }
+  
+  return weightedSpend > 0 ? weightedSales / weightedSpend : 0;
+}
+
+/**
+ * 计算时间加权ACoS
+ */
+export function calculateTimeWeightedACoS(
+  dailyData: Array<{ date: Date; spend: number; sales: number }>,
+  halfLifeDays: number = 7
+): number {
+  const roas = calculateTimeWeightedROAS(dailyData, halfLifeDays);
+  return roas > 0 ? 1 / roas : 0;
+}
+
+// ==================== UCB探索-利用平衡改进 ====================
+
+/**
+ * UCB1-Tuned算法 - 更精确的探索-利用平衡
+ * 考虑了奖励的方差，在高方差情况下增加探索
+ */
+export function calculateUCBTuned(
+  averageReward: number,
+  totalTrials: number,
+  armTrials: number,
+  rewardVariance: number,
+  explorationFactor: number = 2
+): number {
+  if (armTrials === 0) return Infinity;
+  
+  const logN = Math.log(totalTrials);
+  // 高方差应该导致更高的探索奖励
+  // 使用方差的平方根作为额外的探索乘数
+  const varianceMultiplier = 1 + Math.sqrt(rewardVariance) * 0.5;
+  const explorationBonus = Math.sqrt(logN / armTrials) * varianceMultiplier;
+  
+  return averageReward + explorationFactor * explorationBonus;
+}
+
+/**
+ * 计算关键词的UCB竞价建议
+ * 用于在新关键词探索和高效词利用之间取得平衡
+ */
+export interface UCBBidSuggestion {
+  suggestedBid: number;
+  ucbScore: number;
+  explorationBonus: number;
+  strategy: 'explore' | 'exploit' | 'balanced';
+  confidence: number;
+}
+
+export function calculateUCBBidSuggestion(
+  currentBid: number,
+  averageROAS: number,
+  clicks: number,
+  totalClicks: number,
+  roasVariance: number = 0,
+  targetROAS: number = 3,
+  explorationFactor: number = 1.5
+): UCBBidSuggestion {
+  // 计算UCB分数
+  const ucbScore = roasVariance > 0
+    ? calculateUCBTuned(averageROAS, totalClicks, clicks, roasVariance, explorationFactor)
+    : calculateUCB(averageROAS, totalClicks, clicks, explorationFactor);
+  
+  // 计算探索奖励
+  const explorationBonus = clicks > 0
+    ? explorationFactor * Math.sqrt(Math.log(totalClicks) / clicks)
+    : Infinity;
+  
+  // 确定策略
+  let strategy: 'explore' | 'exploit' | 'balanced';
+  let confidence: number;
+  
+  if (clicks < 10) {
+    strategy = 'explore';
+    confidence = 0.3;
+  } else if (clicks < 50) {
+    strategy = 'balanced';
+    confidence = 0.5 + (clicks - 10) / 80;
+  } else {
+    strategy = 'exploit';
+    confidence = Math.min(0.95, 0.7 + clicks / 500);
+  }
+  
+  // 计算建议竞价
+  let suggestedBid: number;
+  
+  if (strategy === 'explore') {
+    // 探索阶段：略微提高竞价以获取更多数据
+    suggestedBid = currentBid * (1 + 0.1 * (1 - clicks / 10));
+  } else if (strategy === 'exploit') {
+    // 利用阶段：基于ROAS调整竞价
+    if (averageROAS >= targetROAS) {
+      suggestedBid = currentBid * Math.min(1.2, 1 + (averageROAS - targetROAS) / targetROAS * 0.1);
+    } else {
+      suggestedBid = currentBid * Math.max(0.8, averageROAS / targetROAS);
+    }
+  } else {
+    // 平衡阶段：结合探索和利用
+    const exploitBid = averageROAS >= targetROAS
+      ? currentBid * (1 + (averageROAS - targetROAS) / targetROAS * 0.05)
+      : currentBid * (averageROAS / targetROAS);
+    const exploreBid = currentBid * (1 + 0.05);
+    const exploitWeight = (clicks - 10) / 40;
+    suggestedBid = exploreBid * (1 - exploitWeight) + exploitBid * exploitWeight;
+  }
+  
+  // 限制竞价调整幅度
+  suggestedBid = Math.max(currentBid * 0.7, Math.min(currentBid * 1.3, suggestedBid));
+  
+  return {
+    suggestedBid: Math.round(suggestedBid * 100) / 100,
+    ucbScore: Math.round(ucbScore * 100) / 100,
+    explorationBonus: Math.round(explorationBonus * 100) / 100,
+    strategy,
+    confidence: Math.round(confidence * 100) / 100
+  };
+}
+
+// ==================== 节假日和促销日配置 ====================
+
+export interface HolidayConfig {
+  name: string;
+  date: string; // YYYY-MM-DD 格式，或 'YYYY-MM-DD~YYYY-MM-DD' 表示日期范围
+  bidMultiplier: number; // 竞价乘数
+  budgetMultiplier: number; // 预算乘数
+  priority: 'high' | 'medium' | 'low';
+}
+
+export const MARKETPLACE_HOLIDAYS: Record<string, HolidayConfig[]> = {
+  'US': [
+    { name: 'Prime Day', date: '2026-07-15~2026-07-16', bidMultiplier: 1.5, budgetMultiplier: 2.0, priority: 'high' },
+    { name: 'Black Friday', date: '2026-11-27', bidMultiplier: 1.8, budgetMultiplier: 2.5, priority: 'high' },
+    { name: 'Cyber Monday', date: '2026-11-30', bidMultiplier: 1.8, budgetMultiplier: 2.5, priority: 'high' },
+    { name: 'Thanksgiving', date: '2026-11-26', bidMultiplier: 1.3, budgetMultiplier: 1.5, priority: 'medium' },
+    { name: 'Christmas Eve', date: '2026-12-24', bidMultiplier: 1.2, budgetMultiplier: 1.3, priority: 'medium' },
+    { name: 'Christmas', date: '2026-12-25', bidMultiplier: 0.8, budgetMultiplier: 0.8, priority: 'low' },
+    { name: 'New Year Eve', date: '2026-12-31', bidMultiplier: 1.1, budgetMultiplier: 1.2, priority: 'medium' },
+    { name: 'New Year', date: '2026-01-01', bidMultiplier: 0.9, budgetMultiplier: 1.0, priority: 'low' },
+    { name: 'Valentine Day', date: '2026-02-14', bidMultiplier: 1.3, budgetMultiplier: 1.5, priority: 'medium' },
+    { name: 'Easter', date: '2026-04-05', bidMultiplier: 1.2, budgetMultiplier: 1.3, priority: 'medium' },
+    { name: 'Mother Day', date: '2026-05-10', bidMultiplier: 1.3, budgetMultiplier: 1.5, priority: 'medium' },
+    { name: 'Father Day', date: '2026-06-21', bidMultiplier: 1.2, budgetMultiplier: 1.3, priority: 'medium' },
+    { name: 'Independence Day', date: '2026-07-04', bidMultiplier: 1.2, budgetMultiplier: 1.3, priority: 'medium' },
+    { name: 'Labor Day', date: '2026-09-07', bidMultiplier: 1.2, budgetMultiplier: 1.3, priority: 'medium' },
+    { name: 'Halloween', date: '2026-10-31', bidMultiplier: 1.2, budgetMultiplier: 1.3, priority: 'medium' },
+  ],
+  'UK': [
+    { name: 'Prime Day', date: '2026-07-15~2026-07-16', bidMultiplier: 1.5, budgetMultiplier: 2.0, priority: 'high' },
+    { name: 'Black Friday', date: '2026-11-27', bidMultiplier: 1.8, budgetMultiplier: 2.5, priority: 'high' },
+    { name: 'Boxing Day', date: '2026-12-26', bidMultiplier: 1.5, budgetMultiplier: 1.8, priority: 'high' },
+    { name: 'Christmas', date: '2026-12-25', bidMultiplier: 0.7, budgetMultiplier: 0.7, priority: 'low' },
+  ],
+  'DE': [
+    { name: 'Prime Day', date: '2026-07-15~2026-07-16', bidMultiplier: 1.5, budgetMultiplier: 2.0, priority: 'high' },
+    { name: 'Black Friday', date: '2026-11-27', bidMultiplier: 1.8, budgetMultiplier: 2.5, priority: 'high' },
+    { name: 'Christmas', date: '2026-12-25~2026-12-26', bidMultiplier: 0.7, budgetMultiplier: 0.7, priority: 'low' },
+  ],
+  'JP': [
+    { name: 'Prime Day', date: '2026-07-15~2026-07-16', bidMultiplier: 1.5, budgetMultiplier: 2.0, priority: 'high' },
+    { name: 'Black Friday', date: '2026-11-27', bidMultiplier: 1.5, budgetMultiplier: 2.0, priority: 'high' },
+    { name: 'New Year', date: '2026-01-01~2026-01-03', bidMultiplier: 0.8, budgetMultiplier: 0.8, priority: 'low' },
+    { name: 'Golden Week', date: '2026-04-29~2026-05-05', bidMultiplier: 1.3, budgetMultiplier: 1.5, priority: 'medium' },
+  ],
+  'CA': [
+    { name: 'Prime Day', date: '2026-07-15~2026-07-16', bidMultiplier: 1.5, budgetMultiplier: 2.0, priority: 'high' },
+    { name: 'Black Friday', date: '2026-11-27', bidMultiplier: 1.8, budgetMultiplier: 2.5, priority: 'high' },
+    { name: 'Boxing Day', date: '2026-12-26', bidMultiplier: 1.5, budgetMultiplier: 1.8, priority: 'high' },
+  ],
+  'MX': [
+    { name: 'Prime Day', date: '2026-07-15~2026-07-16', bidMultiplier: 1.5, budgetMultiplier: 2.0, priority: 'high' },
+    { name: 'Buen Fin', date: '2026-11-13~2026-11-16', bidMultiplier: 1.8, budgetMultiplier: 2.5, priority: 'high' },
+    { name: 'Hot Sale', date: '2026-05-25~2026-06-02', bidMultiplier: 1.5, budgetMultiplier: 2.0, priority: 'high' },
+  ],
+  'AU': [
+    { name: 'Prime Day', date: '2026-07-15~2026-07-16', bidMultiplier: 1.5, budgetMultiplier: 2.0, priority: 'high' },
+    { name: 'Black Friday', date: '2026-11-27', bidMultiplier: 1.8, budgetMultiplier: 2.5, priority: 'high' },
+    { name: 'Boxing Day', date: '2026-12-26', bidMultiplier: 1.5, budgetMultiplier: 1.8, priority: 'high' },
+    { name: 'Click Frenzy', date: '2026-11-10~2026-11-12', bidMultiplier: 1.5, budgetMultiplier: 1.8, priority: 'high' },
+  ],
+};
+
+/**
+ * 检查指定日期是否为节假日或促销日
+ */
+export function getHolidayConfig(
+  date: Date,
+  marketplace: string
+): HolidayConfig | null {
+  const holidays = MARKETPLACE_HOLIDAYS[marketplace] || MARKETPLACE_HOLIDAYS['US'];
+  const dateStr = date.toISOString().split('T')[0];
+  
+  for (const holiday of holidays) {
+    if (holiday.date.includes('~')) {
+      const [startStr, endStr] = holiday.date.split('~');
+      if (dateStr >= startStr && dateStr <= endStr) {
+        return holiday;
+      }
+    } else if (holiday.date === dateStr) {
+      return holiday;
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * 获取节假日前的预热期配置
+ * 在大促前7天开始逐步提高竞价和预算
+ */
+export function getPreHolidayMultiplier(
+  date: Date,
+  marketplace: string,
+  preHolidayDays: number = 7
+): { bidMultiplier: number; budgetMultiplier: number; holidayName: string | null } {
+  const holidays = MARKETPLACE_HOLIDAYS[marketplace] || MARKETPLACE_HOLIDAYS['US'];
+  const dateMs = date.getTime();
+  
+  for (const holiday of holidays) {
+    if (holiday.priority !== 'high') continue;
+    
+    let holidayStartDate: Date;
+    if (holiday.date.includes('~')) {
+      holidayStartDate = new Date(holiday.date.split('~')[0]);
+    } else {
+      holidayStartDate = new Date(holiday.date);
+    }
+    
+    const daysUntilHoliday = (holidayStartDate.getTime() - dateMs) / (1000 * 60 * 60 * 24);
+    
+    if (daysUntilHoliday > 0 && daysUntilHoliday <= preHolidayDays) {
+      // 线性增加乘数
+      const progress = 1 - daysUntilHoliday / preHolidayDays;
+      const bidMultiplier = 1 + (holiday.bidMultiplier - 1) * progress * 0.5;
+      const budgetMultiplier = 1 + (holiday.budgetMultiplier - 1) * progress * 0.5;
+      
+      return {
+        bidMultiplier: Math.round(bidMultiplier * 100) / 100,
+        budgetMultiplier: Math.round(budgetMultiplier * 100) / 100,
+        holidayName: holiday.name
+      };
+    }
+  }
+  
+  return { bidMultiplier: 1, budgetMultiplier: 1, holidayName: null };
+}
+
+/**
+ * 获取完整的日期调整乘数（包括节假日和预热期）
+ */
+export function getDateAdjustmentMultipliers(
+  date: Date,
+  marketplace: string
+): { bidMultiplier: number; budgetMultiplier: number; reason: string } {
+  // 首先检查是否为节假日
+  const holidayConfig = getHolidayConfig(date, marketplace);
+  if (holidayConfig) {
+    return {
+      bidMultiplier: holidayConfig.bidMultiplier,
+      budgetMultiplier: holidayConfig.budgetMultiplier,
+      reason: `${holidayConfig.name} (${holidayConfig.priority} priority)`
+    };
+  }
+  
+  // 检查是否为预热期
+  const preHoliday = getPreHolidayMultiplier(date, marketplace);
+  if (preHoliday.holidayName) {
+    return {
+      bidMultiplier: preHoliday.bidMultiplier,
+      budgetMultiplier: preHoliday.budgetMultiplier,
+      reason: `Pre-${preHoliday.holidayName} warm-up period`
+    };
+  }
+  
+  return { bidMultiplier: 1, budgetMultiplier: 1, reason: 'Normal day' };
+}

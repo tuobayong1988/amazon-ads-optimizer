@@ -1,0 +1,26 @@
+{
+  "query": "SHOW COLUMNS FROM performance_groups WHERE Field LIKE '%budget%' OR Field LIKE '%bid%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SHOW COLUMNS FROM performance_groups WHERE Field LIKE '%budget%' OR Field LIKE '%bid%';",
+  "rows": [
+    {
+      "Field": "daily_budget",
+      "Type": "decimal(10,2)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "max_bid",
+      "Type": "decimal(10,2)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\ndaily_budget\tdecimal(10,2)\tYES\t\tNULL\t\nmax_bid\tdecimal(10,2)\tYES\t\tNULL\t\n",
+  "stderr": "",
+  "execution_time_ms": 60
+}

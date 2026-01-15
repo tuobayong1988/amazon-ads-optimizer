@@ -1,0 +1,242 @@
+{
+  "query": "SHOW COLUMNS FROM campaigns;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SHOW COLUMNS FROM campaigns;",
+  "rows": [
+    {
+      "Field": "id",
+      "Type": "int(11)",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": "NULL",
+      "Extra": "auto_increment"
+    },
+    {
+      "Field": "accountId",
+      "Type": "int(11)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "performanceGroupId",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "campaignId",
+      "Type": "varchar(64)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "campaignName",
+      "Type": "varchar(500)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "campaignType",
+      "Type": "enum('sp_auto','sp_manual','sb','sd')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "targetingType",
+      "Type": "enum('auto','manual')",
+      "Null": "YES",
+      "Key": "",
+      "Default": "manual",
+      "Extra": ""
+    },
+    {
+      "Field": "maxBid",
+      "Type": "decimal(10,2)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "intradayBiddingEnabled",
+      "Type": "tinyint(1)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "campaignConversionValueType",
+      "Type": "enum('sales','units','custom','inherit')",
+      "Null": "YES",
+      "Key": "",
+      "Default": "inherit",
+      "Extra": ""
+    },
+    {
+      "Field": "campaignConversionValueSource",
+      "Type": "enum('platform','custom','inherit')",
+      "Null": "YES",
+      "Key": "",
+      "Default": "inherit",
+      "Extra": ""
+    },
+    {
+      "Field": "placementTopSearchBidAdjustment",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "placementProductPageBidAdjustment",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "placementRestBidAdjustment",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "impressions",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "clicks",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "spend",
+      "Type": "decimal(10,2)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0.00",
+      "Extra": ""
+    },
+    {
+      "Field": "sales",
+      "Type": "decimal(10,2)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0.00",
+      "Extra": ""
+    },
+    {
+      "Field": "orders",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "acos",
+      "Type": "decimal(5,2)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "roas",
+      "Type": "decimal(10,2)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "ctr",
+      "Type": "decimal(5,4)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "cvr",
+      "Type": "decimal(5,4)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "cpc",
+      "Type": "decimal(10,2)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "campaignStatus",
+      "Type": "enum('enabled','paused','archived')",
+      "Null": "YES",
+      "Key": "",
+      "Default": "enabled",
+      "Extra": ""
+    },
+    {
+      "Field": "createdAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    },
+    {
+      "Field": "updatedAt",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    },
+    {
+      "Field": "dailyBudget",
+      "Type": "decimal(10,2)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "optimizationStatus",
+      "Type": "enum('managed','unmanaged')",
+      "Null": "YES",
+      "Key": "",
+      "Default": "unmanaged",
+      "Extra": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nid\tint(11)\tNO\tPRI\tNULL\tauto_increment\naccountId\tint(11)\tNO\t\tNULL\t\nperformanceGroupId\tint(11)\tYES\t\tNULL\t\ncampaignId\tvarchar(64)\tNO\t\tNULL\t\ncampaignName\tvarchar(500)\tNO\t\tNULL\t\ncampaignType\tenum('sp_auto','sp_manual','sb','sd')\tNO\t\tNULL\t\ntargetingType\tenum('auto','manual')\tYES\t\tmanual\t\nmaxBid\tdecimal(10,2)\tYES\t\tNULL\t\nintradayBiddingEnabled\ttinyint(1)\tYES\t\tNULL\t\ncampaignConversionValueType\tenum('sales','units','custom','inherit')\tYES\t\tinherit\t\ncampaignConversionValueSource\tenum('platform','custom','inherit')\tYES\t\tinherit\t\nplacementTopSearchBidAdjustment\tint(11)\tYES\t\t0\t\nplacementProductPageBidAdjustment\tint(11)\tYES\t\t0\t\nplacementRestBidAdjustment\tint(11)\tYES\t\t0\t\nimpressions\tint(11)\tYES\t\t0\t\nclicks\tint(11)\tYES\t\t0\t\nspend\tdecimal(10,2)\tYES\t\t0.00\t\nsales\tdecimal(10,2)\tYES\t\t0.00\t\norders\tint(11)\tYES\t\t0\t\nacos\tdecimal(5,2)\tYES\t\tNULL\t\nroas\tdecimal(10,2)\tYES\t\tNULL\t\nctr\tdecimal(5,4)\tYES\t\tNULL\t\ncvr\tdecimal(5,4)\tYES\t\tNULL\t\ncpc\tdecimal(10,2)\tYES\t\tNULL\t\ncampaignStatus\tenum('enabled','paused','archived')\tYES\t\tenabled\t\ncreatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\t\nupdatedAt\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\tDEFAULT_GENERATED on update CURRENT_TIMESTAMP\ndailyBudget\tdecimal(10,2)\tYES\t\tNULL\t\noptimizationStatus\tenum('managed','unmanaged')\tYES\t\tunmanaged\t\n",
+  "stderr": "",
+  "execution_time_ms": 57
+}

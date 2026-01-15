@@ -1,0 +1,210 @@
+{
+  "query": "DESCRIBE api_operation_logs;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute DESCRIBE api_operation_logs;",
+  "rows": [
+    {
+      "Field": "id",
+      "Type": "int(11)",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": "NULL",
+      "Extra": "auto_increment"
+    },
+    {
+      "Field": "user_id",
+      "Type": "int(11)",
+      "Null": "NO",
+      "Key": "MUL",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "account_id",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "MUL",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "operation_type",
+      "Type": "enum('bid_adjustment','budget_change','campaign_status','keyword_status','negative_keyword','target_status','batch_operation','api_sync','auto_optimization','manual_operation','other')",
+      "Null": "NO",
+      "Key": "MUL",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "target_type",
+      "Type": "enum('campaign','ad_group','keyword','product_target','search_term','account','multiple')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "target_id",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "target_name",
+      "Type": "varchar(500)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "action_description",
+      "Type": "text",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "previous_value",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "new_value",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "change_amount",
+      "Type": "decimal(10,2)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "change_percent",
+      "Type": "decimal(5,2)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "affected_count",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "1",
+      "Extra": ""
+    },
+    {
+      "Field": "batch_operation_id",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "status",
+      "Type": "enum('success','failed','pending','rolled_back')",
+      "Null": "NO",
+      "Key": "MUL",
+      "Default": "success",
+      "Extra": ""
+    },
+    {
+      "Field": "error_message",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "source",
+      "Type": "enum('manual','auto_optimization','scheduled_task','api_callback','batch_operation')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "manual",
+      "Extra": ""
+    },
+    {
+      "Field": "ip_address",
+      "Type": "varchar(45)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "user_agent",
+      "Type": "text",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "risk_level",
+      "Type": "enum('low','medium','high','critical')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "low",
+      "Extra": ""
+    },
+    {
+      "Field": "requires_review",
+      "Type": "tinyint(4)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "reviewed_by",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "reviewed_at",
+      "Type": "timestamp",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "executed_at",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "MUL",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    },
+    {
+      "Field": "created_at",
+      "Type": "timestamp",
+      "Null": "NO",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nid\tint(11)\tNO\tPRI\tNULL\tauto_increment\nuser_id\tint(11)\tNO\tMUL\tNULL\t\naccount_id\tint(11)\tYES\tMUL\tNULL\t\noperation_type\tenum('bid_adjustment','budget_change','campaign_status','keyword_status','negative_keyword','target_status','batch_operation','api_sync','auto_optimization','manual_operation','other')\tNO\tMUL\tNULL\t\ntarget_type\tenum('campaign','ad_group','keyword','product_target','search_term','account','multiple')\tNO\t\tNULL\t\ntarget_id\tint(11)\tYES\t\tNULL\t\ntarget_name\tvarchar(500)\tYES\t\tNULL\t\naction_description\ttext\tNO\t\tNULL\t\nprevious_value\ttext\tYES\t\tNULL\t\nnew_value\ttext\tYES\t\tNULL\t\nchange_amount\tdecimal(10,2)\tYES\t\tNULL\t\nchange_percent\tdecimal(5,2)\tYES\t\tNULL\t\naffected_count\tint(11)\tYES\t\t1\t\nbatch_operation_id\tint(11)\tYES\t\tNULL\t\nstatus\tenum('success','failed','pending','rolled_back')\tNO\tMUL\tsuccess\t\nerror_message\ttext\tYES\t\tNULL\t\nsource\tenum('manual','auto_optimization','scheduled_task','api_callback','batch_operation')\tNO\t\tmanual\t\nip_address\tvarchar(45)\tYES\t\tNULL\t\nuser_agent\ttext\tYES\t\tNULL\t\nrisk_level\tenum('low','medium','high','critical')\tNO\t\tlow\t\nrequires_review\ttinyint(4)\tYES\t\t0\t\nreviewed_by\tint(11)\tYES\t\tNULL\t\nreviewed_at\ttimestamp\tYES\t\tNULL\t\nexecuted_at\ttimestamp\tNO\tMUL\tCURRENT_TIMESTAMP\t\ncreated_at\ttimestamp\tNO\t\tCURRENT_TIMESTAMP\t\n",
+  "stderr": "",
+  "execution_time_ms": 82
+}

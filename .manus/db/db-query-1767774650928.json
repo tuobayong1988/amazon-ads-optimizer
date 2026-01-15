@@ -1,0 +1,97 @@
+{
+  "query": "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'campaigns' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'campaigns' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id"
+    },
+    {
+      "COLUMN_NAME": "accountId"
+    },
+    {
+      "COLUMN_NAME": "performanceGroupId"
+    },
+    {
+      "COLUMN_NAME": "campaignId"
+    },
+    {
+      "COLUMN_NAME": "campaignName"
+    },
+    {
+      "COLUMN_NAME": "campaignType"
+    },
+    {
+      "COLUMN_NAME": "targetingType"
+    },
+    {
+      "COLUMN_NAME": "maxBid"
+    },
+    {
+      "COLUMN_NAME": "intradayBiddingEnabled"
+    },
+    {
+      "COLUMN_NAME": "campaignConversionValueType"
+    },
+    {
+      "COLUMN_NAME": "campaignConversionValueSource"
+    },
+    {
+      "COLUMN_NAME": "placementTopSearchBidAdjustment"
+    },
+    {
+      "COLUMN_NAME": "placementProductPageBidAdjustment"
+    },
+    {
+      "COLUMN_NAME": "placementRestBidAdjustment"
+    },
+    {
+      "COLUMN_NAME": "impressions"
+    },
+    {
+      "COLUMN_NAME": "clicks"
+    },
+    {
+      "COLUMN_NAME": "spend"
+    },
+    {
+      "COLUMN_NAME": "sales"
+    },
+    {
+      "COLUMN_NAME": "orders"
+    },
+    {
+      "COLUMN_NAME": "acos"
+    },
+    {
+      "COLUMN_NAME": "roas"
+    },
+    {
+      "COLUMN_NAME": "ctr"
+    },
+    {
+      "COLUMN_NAME": "cvr"
+    },
+    {
+      "COLUMN_NAME": "cpc"
+    },
+    {
+      "COLUMN_NAME": "campaignStatus"
+    },
+    {
+      "COLUMN_NAME": "createdAt"
+    },
+    {
+      "COLUMN_NAME": "updatedAt"
+    },
+    {
+      "COLUMN_NAME": "dailyBudget"
+    },
+    {
+      "COLUMN_NAME": "optimizationStatus"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\nid\naccountId\nperformanceGroupId\ncampaignId\ncampaignName\ncampaignType\ntargetingType\nmaxBid\nintradayBiddingEnabled\ncampaignConversionValueType\ncampaignConversionValueSource\nplacementTopSearchBidAdjustment\nplacementProductPageBidAdjustment\nplacementRestBidAdjustment\nimpressions\nclicks\nspend\nsales\norders\nacos\nroas\nctr\ncvr\ncpc\ncampaignStatus\ncreatedAt\nupdatedAt\ndailyBudget\noptimizationStatus\n",
+  "stderr": "",
+  "execution_time_ms": 57
+}

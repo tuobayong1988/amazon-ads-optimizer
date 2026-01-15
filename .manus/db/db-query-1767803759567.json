@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS placement_bid_settings (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  campaign_id VARCHAR(50) NOT NULL,\n  placement_type ENUM('top_of_search', 'product_page', 'rest_of_search') NOT NULL,\n  bid_adjustment_percent DECIMAL(5, 2) DEFAULT 0,\n  auto_optimize TINYINT(1) DEFAULT 0,\n  target_acos DECIMAL(10, 4),\n  min_adjustment DECIMAL(5, 2) DEFAULT -99,\n  max_adjustment DECIMAL(5, 2) DEFAULT 900,\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  UNIQUE KEY unique_placement (campaign_id, placement_type)\n);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute CREATE TABLE IF NOT EXISTS placement_bid_settings (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  campaign_id VARCHAR(50) NOT NULL,\n  placement_type ENUM('top_of_search', 'product_page', 'rest_of_search') NOT NULL,\n  bid_adjustment_percent DECIMAL(5, 2) DEFAULT 0,\n  auto_optimize TINYINT(1) DEFAULT 0,\n  target_acos DECIMAL(10, 4),\n  min_adjustment DECIMAL(5, 2) DEFAULT -99,\n  max_adjustment DECIMAL(5, 2) DEFAULT 900,\n  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,\n  UNIQUE KEY unique_placement (campaign_id, placement_type)\n);",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 182
+}

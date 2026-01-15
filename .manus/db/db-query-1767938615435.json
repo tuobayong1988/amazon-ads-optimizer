@@ -1,0 +1,65 @@
+{
+  "query": "SELECT id, accountId, campaignName, spend, sales, orders, impressions, clicks, createdAt FROM campaigns LIMIT 5;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT id, accountId, campaignName, spend, sales, orders, impressions, clicks, createdAt FROM campaigns LIMIT 5;",
+  "rows": [
+    {
+      "id": "126251",
+      "accountId": "60017",
+      "campaignName": "2025.12.01-CPC-SP-AUTO-B0F29R4MFV-Loose Match",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0",
+      "impressions": "0",
+      "clicks": "0",
+      "createdAt": "2026-01-08 13:15:39"
+    },
+    {
+      "id": "126252",
+      "accountId": "60017",
+      "campaignName": "2025.12.01-CPC-SP-B0F6BJ9YQS-KW-Broad-高弱-order1至3-大词",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0",
+      "impressions": "0",
+      "clicks": "0",
+      "createdAt": "2026-01-08 13:15:39"
+    },
+    {
+      "id": "126253",
+      "accountId": "60019",
+      "campaignName": "眼镜广告",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0",
+      "impressions": "0",
+      "clicks": "0",
+      "createdAt": "2026-01-08 13:15:39"
+    },
+    {
+      "id": "126254",
+      "accountId": "60017",
+      "campaignName": "2025.12.01-CPC-SP-B0F6BJ9YQS-KW-Broad-高弱-order1至3-小词7",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0",
+      "impressions": "0",
+      "clicks": "0",
+      "createdAt": "2026-01-08 13:15:39"
+    },
+    {
+      "id": "126255",
+      "accountId": "60019",
+      "campaignName": "球类眼镜盒-手动",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0",
+      "impressions": "0",
+      "clicks": "0",
+      "createdAt": "2026-01-08 13:15:39"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\taccountId\tcampaignName\tspend\tsales\torders\timpressions\tclicks\tcreatedAt\n126251\t60017\t2025.12.01-CPC-SP-AUTO-B0F29R4MFV-Loose Match\t0.00\t0.00\t0\t0\t0\t2026-01-08 13:15:39\n126252\t60017\t2025.12.01-CPC-SP-B0F6BJ9YQS-KW-Broad-高弱-order1至3-大词\t0.00\t0.00\t0\t0\t0\t2026-01-08 13:15:39\n126253\t60019\t眼镜广告\t0.00\t0.00\t0\t0\t0\t2026-01-08 13:15:39\n126254\t60017\t2025.12.01-CPC-SP-B0F6BJ9YQS-KW-Broad-高弱-order1至3-小词7\t0.00\t0.00\t0\t0\t0\t2026-01-08 13:15:39\n126255\t60019\t球类眼镜盒-手动\t0.00\t0.00\t0\t0\t0\t2026-01-08 13:15:39\n",
+  "stderr": "",
+  "execution_time_ms": 111
+}

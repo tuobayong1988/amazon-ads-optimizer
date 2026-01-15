@@ -1,0 +1,95 @@
+{
+  "query": "SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'sync_conflicts' ORDER BY ORDINAL_POSITION;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'sync_conflicts' ORDER BY ORDINAL_POSITION;",
+  "rows": [
+    {
+      "COLUMN_NAME": "id",
+      "DATA_TYPE": "int",
+      "COLUMN_TYPE": "int(11)"
+    },
+    {
+      "COLUMN_NAME": "sync_job_id",
+      "DATA_TYPE": "int",
+      "COLUMN_TYPE": "int(11)"
+    },
+    {
+      "COLUMN_NAME": "account_id",
+      "DATA_TYPE": "int",
+      "COLUMN_TYPE": "int(11)"
+    },
+    {
+      "COLUMN_NAME": "user_id",
+      "DATA_TYPE": "int",
+      "COLUMN_TYPE": "int(11)"
+    },
+    {
+      "COLUMN_NAME": "entity_type",
+      "DATA_TYPE": "enum",
+      "COLUMN_TYPE": "enum('campaign','ad_group','keyword','product_target')"
+    },
+    {
+      "COLUMN_NAME": "entity_id",
+      "DATA_TYPE": "varchar",
+      "COLUMN_TYPE": "varchar(64)"
+    },
+    {
+      "COLUMN_NAME": "entity_name",
+      "DATA_TYPE": "varchar",
+      "COLUMN_TYPE": "varchar(500)"
+    },
+    {
+      "COLUMN_NAME": "conflict_type",
+      "DATA_TYPE": "enum",
+      "COLUMN_TYPE": "enum('data_mismatch','missing_local','missing_remote','status_conflict')"
+    },
+    {
+      "COLUMN_NAME": "local_data",
+      "DATA_TYPE": "json",
+      "COLUMN_TYPE": "json"
+    },
+    {
+      "COLUMN_NAME": "remote_data",
+      "DATA_TYPE": "json",
+      "COLUMN_TYPE": "json"
+    },
+    {
+      "COLUMN_NAME": "conflict_fields",
+      "DATA_TYPE": "json",
+      "COLUMN_TYPE": "json"
+    },
+    {
+      "COLUMN_NAME": "suggested_resolution",
+      "DATA_TYPE": "enum",
+      "COLUMN_TYPE": "enum('use_local','use_remote','merge','manual')"
+    },
+    {
+      "COLUMN_NAME": "resolution_status",
+      "DATA_TYPE": "enum",
+      "COLUMN_TYPE": "enum('pending','resolved','ignored')"
+    },
+    {
+      "COLUMN_NAME": "resolved_at",
+      "DATA_TYPE": "timestamp",
+      "COLUMN_TYPE": "timestamp"
+    },
+    {
+      "COLUMN_NAME": "resolved_by",
+      "DATA_TYPE": "int",
+      "COLUMN_TYPE": "int(11)"
+    },
+    {
+      "COLUMN_NAME": "resolution_notes",
+      "DATA_TYPE": "text",
+      "COLUMN_TYPE": "text"
+    },
+    {
+      "COLUMN_NAME": "created_at",
+      "DATA_TYPE": "timestamp",
+      "COLUMN_TYPE": "timestamp"
+    }
+  ],
+  "messages": [],
+  "stdout": "COLUMN_NAME\tDATA_TYPE\tCOLUMN_TYPE\nid\tint\tint(11)\nsync_job_id\tint\tint(11)\naccount_id\tint\tint(11)\nuser_id\tint\tint(11)\nentity_type\tenum\tenum('campaign','ad_group','keyword','product_target')\nentity_id\tvarchar\tvarchar(64)\nentity_name\tvarchar\tvarchar(500)\nconflict_type\tenum\tenum('data_mismatch','missing_local','missing_remote','status_conflict')\nlocal_data\tjson\tjson\nremote_data\tjson\tjson\nconflict_fields\tjson\tjson\nsuggested_resolution\tenum\tenum('use_local','use_remote','merge','manual')\nresolution_status\tenum\tenum('pending','resolved','ignored')\nresolved_at\ttimestamp\ttimestamp\nresolved_by\tint\tint(11)\nresolution_notes\ttext\ttext\ncreated_at\ttimestamp\ttimestamp\n",
+  "stderr": "",
+  "execution_time_ms": 53
+}

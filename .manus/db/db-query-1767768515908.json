@@ -1,0 +1,13 @@
+{
+  "query": "SELECT COUNT(*) as total_adgroups FROM ad_groups;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT COUNT(*) as total_adgroups FROM ad_groups;",
+  "rows": [
+    {
+      "total_adgroups": "11"
+    }
+  ],
+  "messages": [],
+  "stdout": "total_adgroups\n11\n",
+  "stderr": "",
+  "execution_time_ms": 87
+}

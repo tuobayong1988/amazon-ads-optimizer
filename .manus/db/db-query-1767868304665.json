@@ -1,0 +1,26 @@
+{
+  "query": "SELECT * FROM amazon_api_credentials LIMIT 1;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT * FROM amazon_api_credentials LIMIT 1;",
+  "rows": [
+    {
+      "id": "1",
+      "accountId": "30001",
+      "clientId": "amzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6",
+      "clientSecret": "amzn1.oa2-cs.v1.4f0f1f688f9e0ca249908f41f54385a28d1ac097c6f627bc06d374954d63fcb8",
+      "refreshToken": "Atzr|IwEBIB1o-3pz8MzXfFuGipW94DoSLaesKOLGNZVzNn5azSmdXbb5jJxCEkK5HVwgaNKxFEGnoiOULDgz4oV9_FpDuoVIhoOIYspbcMhfwBjC-Fmt-oFKBUkdDSP0IlrYv8IQ-wU9LPFf4Ksdb4gJCaaFAoZTbmSWP5fNMvHpf2ozNGu3ohTRTLTUqqVBl6fSm-l3eM0zAUA9NfbzkP8jlHW8CwPooDQsDDr48yOn1FtMT3RMEac35QA8aigaJp-3bGKCaiX4QV1q5CELipdtH6ZzkTFr8PlDjhEX1nbcqfFjmc1HPTCOvnflzzxVIH8RsNyKXEi1J4m970x_vwXV1_P9cMsdBwDFUhA8Fkxn8kG4iE3uEZtG_mmnfdXWtQ2JZwXVdGpztPbmNlfhsq9zTu1AhoXT0uDOcrX9sPT2EjhfOUdLFo87wyffwqieTR9SUcpGbB5IaYeaGtr-daKm0gotQSdiPIlLDckVEPPfDqn104fDXQu3gWjBbUMlT0fSv7SiARvxRVIRJzyJq2nyx6E3qCqv",
+      "accessToken": "NULL",
+      "tokenExpiresAt": "NULL",
+      "profileId": "1902077932438117",
+      "region": "NA",
+      "lastSyncAt": "2026-01-08 10:14:55",
+      "syncStatus": "idle",
+      "syncErrorMessage": "NULL",
+      "createdAt": "2026-01-07 06:16:28",
+      "updatedAt": "2026-01-08 10:14:55"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\taccountId\tclientId\tclientSecret\trefreshToken\taccessToken\ttokenExpiresAt\tprofileId\tregion\tlastSyncAt\tsyncStatus\tsyncErrorMessage\tcreatedAt\tupdatedAt\n1\t30001\tamzn1.application-oa2-client.81dcbfb7c11944e19c59e85dc4f6b2a6\tamzn1.oa2-cs.v1.4f0f1f688f9e0ca249908f41f54385a28d1ac097c6f627bc06d374954d63fcb8\tAtzr|IwEBIB1o-3pz8MzXfFuGipW94DoSLaesKOLGNZVzNn5azSmdXbb5jJxCEkK5HVwgaNKxFEGnoiOULDgz4oV9_FpDuoVIhoOIYspbcMhfwBjC-Fmt-oFKBUkdDSP0IlrYv8IQ-wU9LPFf4Ksdb4gJCaaFAoZTbmSWP5fNMvHpf2ozNGu3ohTRTLTUqqVBl6fSm-l3eM0zAUA9NfbzkP8jlHW8CwPooDQsDDr48yOn1FtMT3RMEac35QA8aigaJp-3bGKCaiX4QV1q5CELipdtH6ZzkTFr8PlDjhEX1nbcqfFjmc1HPTCOvnflzzxVIH8RsNyKXEi1J4m970x_vwXV1_P9cMsdBwDFUhA8Fkxn8kG4iE3uEZtG_mmnfdXWtQ2JZwXVdGpztPbmNlfhsq9zTu1AhoXT0uDOcrX9sPT2EjhfOUdLFo87wyffwqieTR9SUcpGbB5IaYeaGtr-daKm0gotQSdiPIlLDckVEPPfDqn104fDXQu3gWjBbUMlT0fSv7SiARvxRVIRJzyJq2nyx6E3qCqv\tNULL\tNULL\t1902077932438117\tNA\t2026-01-08 10:14:55\tidle\tNULL\t2026-01-07 06:16:28\t2026-01-08 10:14:55\n",
+  "stderr": "",
+  "execution_time_ms": 59
+}

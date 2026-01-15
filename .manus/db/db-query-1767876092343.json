@@ -1,0 +1,34 @@
+{
+  "query": "SELECT id, storeName, accountName, marketplace, profileId, connectionStatus FROM ad_accounts WHERE storeName = '我的店铺';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT id, storeName, accountName, marketplace, profileId, connectionStatus FROM ad_accounts WHERE storeName = '我的店铺';",
+  "rows": [
+    {
+      "id": "60006",
+      "storeName": "我的店铺",
+      "accountName": "我的店铺 加拿大",
+      "marketplace": "加拿大",
+      "profileId": "1902077932438117",
+      "connectionStatus": "connected"
+    },
+    {
+      "id": "60007",
+      "storeName": "我的店铺",
+      "accountName": "我的店铺 墨西哥",
+      "marketplace": "墨西哥",
+      "profileId": "1080055356599494",
+      "connectionStatus": "connected"
+    },
+    {
+      "id": "60008",
+      "storeName": "我的店铺",
+      "accountName": "我的店铺 美国",
+      "marketplace": "美国",
+      "profileId": "599502392622991",
+      "connectionStatus": "connected"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstoreName\taccountName\tmarketplace\tprofileId\tconnectionStatus\n60006\t我的店铺\t我的店铺 加拿大\t加拿大\t1902077932438117\tconnected\n60007\t我的店铺\t我的店铺 墨西哥\t墨西哥\t1080055356599494\tconnected\n60008\t我的店铺\t我的店铺 美国\t美国\t599502392622991\tconnected\n",
+  "stderr": "",
+  "execution_time_ms": 69
+}

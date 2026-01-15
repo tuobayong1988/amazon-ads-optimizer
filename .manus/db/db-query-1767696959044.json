@@ -1,0 +1,9 @@
+{
+  "query": "CREATE TABLE IF NOT EXISTS keyword_predictions (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  accountId INT NOT NULL,\n  keywordId INT NOT NULL,\n  predictedCR DECIMAL(8, 6),\n  predictedCV DECIMAL(12, 2),\n  crLow DECIMAL(8, 6),\n  crHigh DECIMAL(8, 6),\n  cvLow DECIMAL(12, 2),\n  cvHigh DECIMAL(12, 2),\n  predictionSource ENUM('historical', 'decision_tree', 'bayesian_update') DEFAULT 'decision_tree',\n  confidence DECIMAL(5, 4),\n  sampleCount INT,\n  matchType ENUM('broad', 'phrase', 'exact'),\n  wordCount INT,\n  keywordType ENUM('brand', 'competitor', 'generic', 'product'),\n  actualCR DECIMAL(8, 6),\n  actualCV DECIMAL(12, 2),\n  predictionError DECIMAL(8, 6),\n  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP\n)",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute CREATE TABLE IF NOT EXISTS keyword_predictions (\n  id INT AUTO_INCREMENT PRIMARY KEY,\n  accountId INT NOT NULL,\n  keywordId INT NOT NULL,\n  predictedCR DECIMAL(8, 6),\n  predictedCV DECIMAL(12, 2),\n  crLow DECIMAL(8, 6),\n  crHigh DECIMAL(8, 6),\n  cvLow DECIMAL(12, 2),\n  cvHigh DECIMAL(12, 2),\n  predictionSource ENUM('historical', 'decision_tree', 'bayesian_update') DEFAULT 'decision_tree',\n  confidence DECIMAL(5, 4),\n  sampleCount INT,\n  matchType ENUM('broad', 'phrase', 'exact'),\n  wordCount INT,\n  keywordType ENUM('brand', 'competitor', 'generic', 'product'),\n  actualCR DECIMAL(8, 6),\n  actualCV DECIMAL(12, 2),\n  predictionError DECIMAL(8, 6),\n  createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,\n  updatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP\n)",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 525
+}

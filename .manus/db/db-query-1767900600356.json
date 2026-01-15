@@ -1,0 +1,80 @@
+{
+  "query": "SELECT id, accountId, spend, sales, orders FROM campaigns LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT id, accountId, spend, sales, orders FROM campaigns LIMIT 10;",
+  "rows": [
+    {
+      "id": "120030",
+      "accountId": "60001",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0"
+    },
+    {
+      "id": "120031",
+      "accountId": "60001",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0"
+    },
+    {
+      "id": "120032",
+      "accountId": "60001",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0"
+    },
+    {
+      "id": "120033",
+      "accountId": "60001",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0"
+    },
+    {
+      "id": "120034",
+      "accountId": "60001",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0"
+    },
+    {
+      "id": "120035",
+      "accountId": "60001",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0"
+    },
+    {
+      "id": "120036",
+      "accountId": "60001",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0"
+    },
+    {
+      "id": "120037",
+      "accountId": "60001",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0"
+    },
+    {
+      "id": "120038",
+      "accountId": "60001",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0"
+    },
+    {
+      "id": "120039",
+      "accountId": "60001",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\taccountId\tspend\tsales\torders\n120030\t60001\t0.00\t0.00\t0\n120031\t60001\t0.00\t0.00\t0\n120032\t60001\t0.00\t0.00\t0\n120033\t60001\t0.00\t0.00\t0\n120034\t60001\t0.00\t0.00\t0\n120035\t60001\t0.00\t0.00\t0\n120036\t60001\t0.00\t0.00\t0\n120037\t60001\t0.00\t0.00\t0\n120038\t60001\t0.00\t0.00\t0\n120039\t60001\t0.00\t0.00\t0\n",
+  "stderr": "",
+  "execution_time_ms": 55
+}

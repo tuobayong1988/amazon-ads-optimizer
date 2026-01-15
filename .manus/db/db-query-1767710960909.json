@@ -1,0 +1,234 @@
+{
+  "query": "SHOW COLUMNS FROM market_curve_models;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SHOW COLUMNS FROM market_curve_models;",
+  "rows": [
+    {
+      "Field": "id",
+      "Type": "int(11)",
+      "Null": "NO",
+      "Key": "PRI",
+      "Default": "NULL",
+      "Extra": "auto_increment"
+    },
+    {
+      "Field": "accountId",
+      "Type": "int(11)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "campaignId",
+      "Type": "varchar(50)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "bidObjectType",
+      "Type": "enum('keyword','asin','audience')",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "bidObjectId",
+      "Type": "varchar(100)",
+      "Null": "NO",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "bidObjectText",
+      "Type": "varchar(500)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "impressionCurveA",
+      "Type": "decimal(15,6)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "impressionCurveB",
+      "Type": "decimal(15,6)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "impressionCurveC",
+      "Type": "decimal(15,6)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "impressionCurveR2",
+      "Type": "decimal(5,4)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "baseCTR",
+      "Type": "decimal(8,6)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "positionBonus",
+      "Type": "decimal(8,6)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "topSearchCTRBonus",
+      "Type": "decimal(8,6)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "cvr",
+      "Type": "decimal(8,6)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "aov",
+      "Type": "decimal(12,2)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "conversionDelayDays",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "7",
+      "Extra": ""
+    },
+    {
+      "Field": "cvrSource",
+      "Type": "enum('historical','decision_tree','bayesian')",
+      "Null": "YES",
+      "Key": "",
+      "Default": "historical",
+      "Extra": ""
+    },
+    {
+      "Field": "optimalBid",
+      "Type": "decimal(10,4)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "maxProfit",
+      "Type": "decimal(12,2)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "profitMargin",
+      "Type": "decimal(5,4)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "breakEvenCPC",
+      "Type": "decimal(10,4)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "currentBid",
+      "Type": "decimal(10,4)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "bidGap",
+      "Type": "decimal(10,4)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "bidGapPercent",
+      "Type": "decimal(8,4)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "dataPoints",
+      "Type": "int(11)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "0",
+      "Extra": ""
+    },
+    {
+      "Field": "confidence",
+      "Type": "decimal(5,4)",
+      "Null": "YES",
+      "Key": "",
+      "Default": "NULL",
+      "Extra": ""
+    },
+    {
+      "Field": "createdAt",
+      "Type": "timestamp",
+      "Null": "YES",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": ""
+    },
+    {
+      "Field": "updatedAt",
+      "Type": "timestamp",
+      "Null": "YES",
+      "Key": "",
+      "Default": "CURRENT_TIMESTAMP",
+      "Extra": "DEFAULT_GENERATED on update CURRENT_TIMESTAMP"
+    }
+  ],
+  "messages": [],
+  "stdout": "Field\tType\tNull\tKey\tDefault\tExtra\nid\tint(11)\tNO\tPRI\tNULL\tauto_increment\naccountId\tint(11)\tNO\t\tNULL\t\ncampaignId\tvarchar(50)\tNO\t\tNULL\t\nbidObjectType\tenum('keyword','asin','audience')\tNO\t\tNULL\t\nbidObjectId\tvarchar(100)\tNO\t\tNULL\t\nbidObjectText\tvarchar(500)\tYES\t\tNULL\t\nimpressionCurveA\tdecimal(15,6)\tYES\t\tNULL\t\nimpressionCurveB\tdecimal(15,6)\tYES\t\tNULL\t\nimpressionCurveC\tdecimal(15,6)\tYES\t\tNULL\t\nimpressionCurveR2\tdecimal(5,4)\tYES\t\tNULL\t\nbaseCTR\tdecimal(8,6)\tYES\t\tNULL\t\npositionBonus\tdecimal(8,6)\tYES\t\tNULL\t\ntopSearchCTRBonus\tdecimal(8,6)\tYES\t\tNULL\t\ncvr\tdecimal(8,6)\tYES\t\tNULL\t\naov\tdecimal(12,2)\tYES\t\tNULL\t\nconversionDelayDays\tint(11)\tYES\t\t7\t\ncvrSource\tenum('historical','decision_tree','bayesian')\tYES\t\thistorical\t\noptimalBid\tdecimal(10,4)\tYES\t\tNULL\t\nmaxProfit\tdecimal(12,2)\tYES\t\tNULL\t\nprofitMargin\tdecimal(5,4)\tYES\t\tNULL\t\nbreakEvenCPC\tdecimal(10,4)\tYES\t\tNULL\t\ncurrentBid\tdecimal(10,4)\tYES\t\tNULL\t\nbidGap\tdecimal(10,4)\tYES\t\tNULL\t\nbidGapPercent\tdecimal(8,4)\tYES\t\tNULL\t\ndataPoints\tint(11)\tYES\t\t0\t\nconfidence\tdecimal(5,4)\tYES\t\tNULL\t\ncreatedAt\ttimestamp\tYES\t\tCURRENT_TIMESTAMP\t\nupdatedAt\ttimestamp\tYES\t\tCURRENT_TIMESTAMP\tDEFAULT_GENERATED on update CURRENT_TIMESTAMP\n",
+  "stderr": "",
+  "execution_time_ms": 370
+}
