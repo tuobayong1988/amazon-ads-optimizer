@@ -3050,9 +3050,9 @@ export async function updateBidAdjustmentTracking(adjustmentId: number, tracking
   actualProfit7D?: number;
   actualProfit14D?: number;
   actualProfit30D?: number;
-  actualImpressions7d?: number;
-  actualClicks7d?: number;
-  actualConversions7d?: number;
+  actualImpressions7D?: number;
+  actualClicks7D?: number;
+  actualConversions7D?: number;
   actualSpend7D?: number;
   actualRevenue7D?: number;
 }) {
@@ -3064,9 +3064,9 @@ export async function updateBidAdjustmentTracking(adjustmentId: number, tracking
       actualProfit7D: trackingData.actualProfit7D !== undefined ? String(trackingData.actualProfit7D) : undefined,
       actualProfit14D: trackingData.actualProfit14D !== undefined ? String(trackingData.actualProfit14D) : undefined,
       actualProfit30D: trackingData.actualProfit30D !== undefined ? String(trackingData.actualProfit30D) : undefined,
-      actualImpressions7d: trackingData.actualImpressions7d,
-      actualClicks7d: trackingData.actualClicks7d,
-      actualConversions7d: trackingData.actualConversions7d,
+      actualImpressions7D: trackingData.actualImpressions7D,
+      actualClicks7D: trackingData.actualClicks7D,
+      actualConversions7D: trackingData.actualConversions7D,
       actualSpend7D: trackingData.actualSpend7D !== undefined ? String(trackingData.actualSpend7D) : undefined,
       actualRevenue7D: trackingData.actualRevenue7D !== undefined ? String(trackingData.actualRevenue7D) : undefined,
       trackingUpdatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),

@@ -79,9 +79,9 @@ export default function EffectTrackingReport() {
         r.previousBid,
         r.newBid,
         r.estimatedProfitChange,
-        r.actualProfit7d || '',
-        r.actualProfit14d || '',
-        r.actualProfit30d || '',
+        r.actualProfit7D || '',
+        r.actualProfit14D || '',
+        r.actualProfit30D || '',
         r.adjustedAt ? new Date(r.adjustedAt).toLocaleString() : '',
       ].join(','))
     ].join('\n');
@@ -539,14 +539,14 @@ export default function EffectTrackingReport() {
                             <TableCell className="text-right text-blue-500">
                               ${parseFloat(record.estimatedProfitChange || '0').toFixed(2)}
                             </TableCell>
-                            <TableCell className={`text-right ${record.actualProfit7d ? (parseFloat(record.actualProfit7d) >= 0 ? 'text-green-500' : 'text-red-500') : 'text-muted-foreground'}`}>
-                              {record.actualProfit7d ? `$${parseFloat(record.actualProfit7d).toFixed(2)}` : '-'}
+                            <TableCell className={`text-right ${record.actualProfit7D ? (parseFloat(record.actualProfit7D) >= 0 ? 'text-green-500' : 'text-red-500') : 'text-muted-foreground'}`}>
+                              {record.actualProfit7D ? `$${parseFloat(record.actualProfit7D).toFixed(2)}` : '-'}
                             </TableCell>
-                            <TableCell className={`text-right ${record.actualProfit14d ? (parseFloat(record.actualProfit14d) >= 0 ? 'text-green-500' : 'text-red-500') : 'text-muted-foreground'}`}>
-                              {record.actualProfit14d ? `$${parseFloat(record.actualProfit14d).toFixed(2)}` : '-'}
+                            <TableCell className={`text-right ${record.actualProfit14D ? (parseFloat(record.actualProfit14D) >= 0 ? 'text-green-500' : 'text-red-500') : 'text-muted-foreground'}`}>
+                              {record.actualProfit14D ? `$${parseFloat(record.actualProfit14D).toFixed(2)}` : '-'}
                             </TableCell>
-                            <TableCell className={`text-right ${record.actualProfit30d ? (parseFloat(record.actualProfit30d) >= 0 ? 'text-green-500' : 'text-red-500') : 'text-muted-foreground'}`}>
-                              {record.actualProfit30d ? `$${parseFloat(record.actualProfit30d).toFixed(2)}` : '-'}
+                            <TableCell className={`text-right ${record.actualProfit30D ? (parseFloat(record.actualProfit30D) >= 0 ? 'text-green-500' : 'text-red-500') : 'text-muted-foreground'}`}>
+                              {record.actualProfit30D ? `$${parseFloat(record.actualProfit30D).toFixed(2)}` : '-'}
                             </TableCell>
                             <TableCell className="text-muted-foreground text-sm">
                               {new Date(record.adjustedAt).toLocaleDateString()}

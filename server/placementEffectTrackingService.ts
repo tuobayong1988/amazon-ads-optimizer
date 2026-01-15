@@ -317,9 +317,9 @@ export async function trackAdjustmentEffect(
       .set({
         actualRevenue7D: metricsAfter.sales.toString(),
         actualSpend7D: metricsAfter.spend.toString(),
-        actualClicks7d: metricsAfter.clicks,
-        actualConversions7d: metricsAfter.orders,
-        actualImpressions7d: metricsAfter.impressions,
+        actualClicks7D: metricsAfter.clicks,
+        actualConversions7D: metricsAfter.orders,
+        actualImpressions7D: metricsAfter.impressions,
         trackingUpdatedAt: new Date().toISOString()
       })
       .where(eq(bidAdjustmentHistory.id, adjustmentId));

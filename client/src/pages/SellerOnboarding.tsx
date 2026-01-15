@@ -53,11 +53,11 @@ export default function SellerOnboarding() {
   const { data: accounts, refetch: refetchAccounts } = trpc.adAccount.list.useQuery();
 
   // 获取Amazon OAuth URL
-  const getOAuthUrlMutation = trpc.amazonApi.getOAuthUrl.useMutation({
-    onSuccess: (data) => {
+  const getOAuthUrlMutation = trpc.amazonApi.getAuthUrl.useMutation({
+    onSuccess: (data: { url?: string }) => {
       if (data.url) window.location.href = data.url;
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast.error(`获取授权链接失败: ${error.message}`);
       setIsAuthorizing(false);
     }

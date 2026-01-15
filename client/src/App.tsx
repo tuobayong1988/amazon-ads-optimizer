@@ -5,66 +5,94 @@ import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
-import DashboardLayout from "./components/DashboardLayout";
+import { lazy, Suspense } from "react";
+
+// 核心页面 - 直接导入（首屏需要）
 import Home from "./pages/Home";
-import Dashboard from "./pages/Dashboard";
-import PerformanceGroups from "./pages/PerformanceGroups";
-import PerformanceGroupDetail from "./pages/PerformanceGroupDetail";
-import Campaigns from "./pages/Campaigns";
-import BiddingLogs from "./pages/BiddingLogs";
-import Settings from "./pages/Settings";
-// DataImport已移除，改为使用API自动同步
-import AmazonApiSettings from "./pages/AmazonApiSettings";
-import AdAutomation from "./pages/AdAutomation";
-import HealthMonitor from "./pages/HealthMonitor";
-import NotificationSettings from "./pages/NotificationSettings";
-import Scheduler from "./pages/Scheduler";
-import BatchOperations from "./pages/BatchOperations";
-import CorrectionReview from "./pages/CorrectionReview";
-import AccountsSummary from "./pages/AccountsSummary";
-import TeamManagement from "./pages/TeamManagement";
-import EmailReports from "@/pages/EmailReports";
-import AuditLogs from "@/pages/AuditLogs";
-import CollaborationNotifications from "@/pages/CollaborationNotifications";
-// import BudgetAllocation from "@/pages/BudgetAllocation"; // 已整合到智能预算分配
-import BudgetAlerts from "@/pages/BudgetAlerts";
-import BudgetTracking from "@/pages/BudgetTracking";
-import SeasonalBudget from "@/pages/SeasonalBudget";
-import DataSync from "@/pages/DataSync";
-import CampaignDetail from "@/pages/CampaignDetail";
-import AdGroupDetail from "@/pages/AdGroupDetail";
-import DaypartingStrategy from "@/pages/DaypartingStrategy";
-import AIOptimizationHistory from "@/pages/AIOptimizationHistory";
-import PlacementOptimization from "@/pages/PlacementOptimization";
-import AdvancedPlacementOptimization from "@/pages/AdvancedPlacementOptimization";
-import OptimizationCenter from "@/pages/OptimizationCenter";
-import BidAdjustmentHistory from "@/pages/BidAdjustmentHistory";
-import EffectTrackingReport from "@/pages/EffectTrackingReport";
-import AutoRollbackSettings from "@/pages/AutoRollbackSettings";
-import AlgorithmOptimization from "@/pages/AlgorithmOptimization";
-import IntelligentBudgetAllocation from "@/pages/IntelligentBudgetAllocation";
-import ABTest from "@/pages/ABTest";
-import BudgetAutoExecution from "@/pages/BudgetAutoExecution";
-import OptimizationTargets from "@/pages/OptimizationTargets";
-import ApiSecurityCenter from "@/pages/ApiSecurityCenter";
-import SpecialScenarioAnalysis from "@/pages/SpecialScenarioAnalysis";
-import AutomationControl from "@/pages/AutomationControl";
-import AutoOperation from "@/pages/AutoOperation";
-import MonitoringCenter from "@/pages/MonitoringCenter";
-import AnalyticsInsights from "@/pages/AnalyticsInsights";
-import StrategyCenter from "@/pages/StrategyCenter";
-import OptimizationEngine from "@/pages/OptimizationEngine";
-import SmartOptimizationCenter from "@/pages/SmartOptimizationCenter";
-import SyncLogs from "@/pages/SyncLogs";
-import DataValidation from "@/pages/DataValidation";
-import InviteRegister from "@/pages/InviteRegister";
-import AlgorithmEffectDashboard from "@/pages/AlgorithmEffectDashboard";
-import InviteCodeManagement from "@/pages/InviteCodeManagement";
-import LocalLogin from "@/pages/LocalLogin";
-import Blog from "@/pages/Blog";
-import BlogPost from "@/pages/BlogPost";
-import MarginalBenefitAnalysis from "@/pages/MarginalBenefitAnalysis";
-import SellerOnboarding from "@/pages/SellerOnboarding";
+
+// 懒加载页面 - 按使用频率分组
+// 高频页面
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Campaigns = lazy(() => import("./pages/Campaigns"));
+const CampaignDetail = lazy(() => import("./pages/CampaignDetail"));
+const AnalyticsInsights = lazy(() => import("./pages/AnalyticsInsights"));
+const StrategyCenter = lazy(() => import("./pages/StrategyCenter"));
+const SmartOptimizationCenter = lazy(() => import("./pages/SmartOptimizationCenter"));
+
+// 中频页面
+const PerformanceGroups = lazy(() => import("./pages/PerformanceGroups"));
+const PerformanceGroupDetail = lazy(() => import("./pages/PerformanceGroupDetail"));
+const OptimizationTargets = lazy(() => import("./pages/OptimizationTargets"));
+const BiddingLogs = lazy(() => import("./pages/BiddingLogs"));
+const Settings = lazy(() => import("./pages/Settings"));
+const AmazonApiSettings = lazy(() => import("./pages/AmazonApiSettings"));
+const AdAutomation = lazy(() => import("./pages/AdAutomation"));
+const HealthMonitor = lazy(() => import("./pages/HealthMonitor"));
+const OptimizationCenter = lazy(() => import("./pages/OptimizationCenter"));
+
+// 低频页面
+const AdGroupDetail = lazy(() => import("./pages/AdGroupDetail"));
+const NotificationSettings = lazy(() => import("./pages/NotificationSettings"));
+const Scheduler = lazy(() => import("./pages/Scheduler"));
+const BatchOperations = lazy(() => import("./pages/BatchOperations"));
+const CorrectionReview = lazy(() => import("./pages/CorrectionReview"));
+const AccountsSummary = lazy(() => import("./pages/AccountsSummary"));
+const TeamManagement = lazy(() => import("./pages/TeamManagement"));
+const EmailReports = lazy(() => import("./pages/EmailReports"));
+const AuditLogs = lazy(() => import("./pages/AuditLogs"));
+const CollaborationNotifications = lazy(() => import("./pages/CollaborationNotifications"));
+const BudgetAlerts = lazy(() => import("./pages/BudgetAlerts"));
+const BudgetTracking = lazy(() => import("./pages/BudgetTracking"));
+const SeasonalBudget = lazy(() => import("./pages/SeasonalBudget"));
+const DataSync = lazy(() => import("./pages/DataSync"));
+const DaypartingStrategy = lazy(() => import("./pages/DaypartingStrategy"));
+const AIOptimizationHistory = lazy(() => import("./pages/AIOptimizationHistory"));
+const PlacementOptimization = lazy(() => import("./pages/PlacementOptimization"));
+const AdvancedPlacementOptimization = lazy(() => import("./pages/AdvancedPlacementOptimization"));
+const BidAdjustmentHistory = lazy(() => import("./pages/BidAdjustmentHistory"));
+const EffectTrackingReport = lazy(() => import("./pages/EffectTrackingReport"));
+const AutoRollbackSettings = lazy(() => import("./pages/AutoRollbackSettings"));
+const AlgorithmOptimization = lazy(() => import("./pages/AlgorithmOptimization"));
+const IntelligentBudgetAllocation = lazy(() => import("./pages/IntelligentBudgetAllocation"));
+const ABTest = lazy(() => import("./pages/ABTest"));
+const BudgetAutoExecution = lazy(() => import("./pages/BudgetAutoExecution"));
+const ApiSecurityCenter = lazy(() => import("./pages/ApiSecurityCenter"));
+const SpecialScenarioAnalysis = lazy(() => import("./pages/SpecialScenarioAnalysis"));
+const AutomationControl = lazy(() => import("./pages/AutomationControl"));
+const AutoOperation = lazy(() => import("./pages/AutoOperation"));
+const MonitoringCenter = lazy(() => import("./pages/MonitoringCenter"));
+const OptimizationEngine = lazy(() => import("./pages/OptimizationEngine"));
+const SyncLogs = lazy(() => import("./pages/SyncLogs"));
+const DataValidation = lazy(() => import("./pages/DataValidation"));
+const InviteRegister = lazy(() => import("./pages/InviteRegister"));
+const AlgorithmEffectDashboard = lazy(() => import("./pages/AlgorithmEffectDashboard"));
+const InviteCodeManagement = lazy(() => import("./pages/InviteCodeManagement"));
+const LocalLogin = lazy(() => import("./pages/LocalLogin"));
+const Blog = lazy(() => import("./pages/Blog"));
+const BlogPost = lazy(() => import("./pages/BlogPost"));
+const MarginalBenefitAnalysis = lazy(() => import("./pages/MarginalBenefitAnalysis"));
+const SellerOnboarding = lazy(() => import("./pages/SellerOnboarding"));
+
+// 加载中组件
+function PageLoading() {
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gray-900">
+      <div className="flex flex-col items-center gap-4">
+        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-gray-400 text-sm">加载中...</p>
+      </div>
+    </div>
+  );
+}
+
+// 懒加载包装组件
+function LazyRoute({ component: Component }: { component: React.LazyExoticComponent<React.ComponentType<any>> }) {
+  return (
+    <Suspense fallback={<PageLoading />}>
+      <Component />
+    </Suspense>
+  );
+}
 
 function Router() {
   return (
@@ -73,72 +101,71 @@ function Router() {
       {/* 登录后的主界面统一为根路径 */}
       <Route path="/dashboard">{() => { window.location.href = '/'; return null; }}</Route>
       <Route path="/monitoring-center">{() => { window.location.href = '/'; return null; }}</Route>
-      <Route path="/analytics-insights" component={AnalyticsInsights} />
-      <Route path="/strategy-center" component={StrategyCenter} />
-      <Route path="/optimization-engine" component={SmartOptimizationCenter} />
+      <Route path="/analytics-insights">{() => <LazyRoute component={AnalyticsInsights} />}</Route>
+      <Route path="/strategy-center">{() => <LazyRoute component={StrategyCenter} />}</Route>
+      <Route path="/optimization-engine">{() => <LazyRoute component={SmartOptimizationCenter} />}</Route>
       {/* 旧的优化引擎页面重定向到智能优化中心 */}
-      <Route path="/smart-optimization" component={SmartOptimizationCenter} />
-      <Route path="/optimization-targets" component={OptimizationTargets} />
-      <Route path="/optimization-targets/:id" component={PerformanceGroupDetail} />
-      <Route path="/performance-groups" component={PerformanceGroups} />
-      <Route path="/performance-groups/:id" component={PerformanceGroupDetail} />
-      <Route path="/campaigns" component={Campaigns} />
-      <Route path="/campaigns/:id" component={CampaignDetail} />
-      <Route path="/campaigns/:id/ai-history" component={AIOptimizationHistory} />
-      <Route path="/ad-groups/:id" component={AdGroupDetail} />
-      <Route path="/bidding-logs" component={BiddingLogs} />
-      <Route path="/settings" component={Settings} />
+      <Route path="/smart-optimization">{() => <LazyRoute component={SmartOptimizationCenter} />}</Route>
+      <Route path="/optimization-targets">{() => <LazyRoute component={OptimizationTargets} />}</Route>
+      <Route path="/optimization-targets/:id">{() => <LazyRoute component={PerformanceGroupDetail} />}</Route>
+      <Route path="/performance-groups">{() => <LazyRoute component={PerformanceGroups} />}</Route>
+      <Route path="/performance-groups/:id">{() => <LazyRoute component={PerformanceGroupDetail} />}</Route>
+      <Route path="/campaigns">{() => <LazyRoute component={Campaigns} />}</Route>
+      <Route path="/campaigns/:id">{() => <LazyRoute component={CampaignDetail} />}</Route>
+      <Route path="/campaigns/:id/ai-history">{() => <LazyRoute component={AIOptimizationHistory} />}</Route>
+      <Route path="/ad-groups/:id">{() => <LazyRoute component={AdGroupDetail} />}</Route>
+      <Route path="/bidding-logs">{() => <LazyRoute component={BiddingLogs} />}</Route>
+      <Route path="/settings">{() => <LazyRoute component={Settings} />}</Route>
       {/* 功能整合重定向 - 极简化设计 */}
       <Route path="/import">{() => { window.location.href = '/amazon-api'; return null; }}</Route>
       <Route path="/scheduler">{() => { window.location.href = '/dashboard'; return null; }}</Route>
       <Route path="/data-sync">{() => { window.location.href = '/amazon-api'; return null; }}</Route>
-      <Route path="/amazon-api" component={AmazonApiSettings} />
-      <Route path="/sync-logs" component={SyncLogs} />
-      <Route path="/data-validation" component={DataValidation} />
-      <Route path="/automation" component={AdAutomation} />
-      <Route path="/health" component={HealthMonitor} />
-      <Route path="/notifications" component={NotificationSettings} />
+      <Route path="/amazon-api">{() => <LazyRoute component={AmazonApiSettings} />}</Route>
+      <Route path="/sync-logs">{() => <LazyRoute component={SyncLogs} />}</Route>
+      <Route path="/data-validation">{() => <LazyRoute component={DataValidation} />}</Route>
+      <Route path="/automation">{() => <LazyRoute component={AdAutomation} />}</Route>
+      <Route path="/health">{() => <LazyRoute component={HealthMonitor} />}</Route>
+      <Route path="/notifications">{() => <LazyRoute component={NotificationSettings} />}</Route>
       {/* /scheduler已重定向到/dashboard */}
-      <Route path="/batch-operations" component={BatchOperations} />
-      <Route path="/correction-review" component={CorrectionReview} />
-      <Route path="/accounts-summary" component={AccountsSummary} />
-      <Route path="/team" component={TeamManagement} />
-      <Route path="/email-reports" component={EmailReports} />
-      <Route path="/audit-logs" component={AuditLogs} />
-      <Route path="/collaboration" component={CollaborationNotifications} />
-      {/* <Route path="/budget-allocation" component={BudgetAllocation} /> */}
-      {/* 旧版预算分配已整合到智能预算分配，访问 /budget-allocation 将重定向到 /intelligent-budget */}
+      <Route path="/batch-operations">{() => <LazyRoute component={BatchOperations} />}</Route>
+      <Route path="/correction-review">{() => <LazyRoute component={CorrectionReview} />}</Route>
+      <Route path="/accounts-summary">{() => <LazyRoute component={AccountsSummary} />}</Route>
+      <Route path="/team">{() => <LazyRoute component={TeamManagement} />}</Route>
+      <Route path="/email-reports">{() => <LazyRoute component={EmailReports} />}</Route>
+      <Route path="/audit-logs">{() => <LazyRoute component={AuditLogs} />}</Route>
+      <Route path="/collaboration">{() => <LazyRoute component={CollaborationNotifications} />}</Route>
+      {/* 旧版预算分配已整合到智能预算分配，访问 /budget-allocation 将重定向到 /optimization-center */}
       <Route path="/budget-allocation">{() => { window.location.href = '/optimization-center'; return null; }}</Route>
-      <Route path="/budget-alerts" component={BudgetAlerts} />
-      <Route path="/budget-tracking" component={BudgetTracking} />
-      <Route path="/seasonal-budget" component={SeasonalBudget} />
+      <Route path="/budget-alerts">{() => <LazyRoute component={BudgetAlerts} />}</Route>
+      <Route path="/budget-tracking">{() => <LazyRoute component={BudgetTracking} />}</Route>
+      <Route path="/seasonal-budget">{() => <LazyRoute component={SeasonalBudget} />}</Route>
       {/* /data-sync已重定向到/amazon-api */}
-      <Route path="/dayparting" component={DaypartingStrategy} />
-      <Route path="/placement-optimization" component={PlacementOptimization} />
-      <Route path="/advanced-placement" component={AdvancedPlacementOptimization} />
-      <Route path="/marginal-benefit-analysis" component={MarginalBenefitAnalysis} />
-      <Route path="/optimization-center" component={OptimizationCenter} />
-      <Route path="/bid-adjustment-history" component={BidAdjustmentHistory} />
-      <Route path="/effect-tracking-report" component={EffectTrackingReport} />
-      <Route path="/algorithm-effect-dashboard" component={AlgorithmEffectDashboard} />
+      <Route path="/dayparting">{() => <LazyRoute component={DaypartingStrategy} />}</Route>
+      <Route path="/placement-optimization">{() => <LazyRoute component={PlacementOptimization} />}</Route>
+      <Route path="/advanced-placement">{() => <LazyRoute component={AdvancedPlacementOptimization} />}</Route>
+      <Route path="/marginal-benefit-analysis">{() => <LazyRoute component={MarginalBenefitAnalysis} />}</Route>
+      <Route path="/optimization-center">{() => <LazyRoute component={OptimizationCenter} />}</Route>
+      <Route path="/bid-adjustment-history">{() => <LazyRoute component={BidAdjustmentHistory} />}</Route>
+      <Route path="/effect-tracking-report">{() => <LazyRoute component={EffectTrackingReport} />}</Route>
+      <Route path="/algorithm-effect-dashboard">{() => <LazyRoute component={AlgorithmEffectDashboard} />}</Route>
       {/* 智能优化功能已整合到优化设置和优化中心 */}
       <Route path="/auto-rollback">{() => { window.location.href = '/settings'; return null; }}</Route>
       <Route path="/algorithm-optimization">{() => { window.location.href = '/settings'; return null; }}</Route>
       <Route path="/intelligent-budget">{() => { window.location.href = '/optimization-center'; return null; }}</Route>
-      <Route path="/ab-test" component={ABTest} />
+      <Route path="/ab-test">{() => <LazyRoute component={ABTest} />}</Route>
       <Route path="/budget-auto-execution">{() => { window.location.href = '/settings'; return null; }}</Route>
-      <Route path="/api-security" component={ApiSecurityCenter} />
-      <Route path="/special-scenario" component={SpecialScenarioAnalysis} />
+      <Route path="/api-security">{() => <LazyRoute component={ApiSecurityCenter} />}</Route>
+      <Route path="/special-scenario">{() => <LazyRoute component={SpecialScenarioAnalysis} />}</Route>
       {/* 自动化控制和自动运营已整合到智能优化中心 */}
       <Route path="/automation-control">{() => { window.location.href = '/optimization-engine'; return null; }}</Route>
       <Route path="/auto-operation">{() => { window.location.href = '/optimization-engine'; return null; }}</Route>
-      <Route path="/onboarding" component={SellerOnboarding} />
-      <Route path="/seller-onboarding" component={SellerOnboarding} />
-      <Route path="/register" component={InviteRegister} />
-      <Route path="/local-login" component={LocalLogin} />
-      <Route path="/blog" component={Blog} />
-      <Route path="/blog/:slug" component={BlogPost} />
-      <Route path="/invite-codes" component={InviteCodeManagement} />
+      <Route path="/onboarding">{() => <LazyRoute component={SellerOnboarding} />}</Route>
+      <Route path="/seller-onboarding">{() => <LazyRoute component={SellerOnboarding} />}</Route>
+      <Route path="/register">{() => <LazyRoute component={InviteRegister} />}</Route>
+      <Route path="/local-login">{() => <LazyRoute component={LocalLogin} />}</Route>
+      <Route path="/blog">{() => <LazyRoute component={Blog} />}</Route>
+      <Route path="/blog/:slug">{() => <LazyRoute component={BlogPost} />}</Route>
+      <Route path="/invite-codes">{() => <LazyRoute component={InviteCodeManagement} />}</Route>
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

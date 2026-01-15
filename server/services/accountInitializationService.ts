@@ -234,7 +234,7 @@ export class AccountInitializationService {
                         adProduct === 'SPONSORED_BRANDS' ? 'sbCampaigns' : 'sdCampaigns';
       
       for (const slice of slices) {
-        await this.asyncReportService.createReportJob({
+        await this.asyncReportService.createReportJobExtended({
           accountId,
           profileId,
           reportType,

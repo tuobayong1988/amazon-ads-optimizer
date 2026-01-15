@@ -11,6 +11,7 @@
     "jsx": "preserve",
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "downlevelIteration": true,
     "allowImportingTsExtensions": true,
     "moduleResolution": "bundler",
     "baseUrl": ".",
