@@ -513,7 +513,7 @@ export async function saveDecisionTreeModel(
     modelType,
     treeStructure: JSON.stringify(modelResult.tree),
     totalSamples: modelResult.totalSamples,
-    depth: modelResult.depth,
+    treeDepth: modelResult.depth,
     leafCount: modelResult.leafCount,
     trainingR2: String(modelResult.trainingR2),
     featureImportance: JSON.stringify(modelResult.featureImportance),

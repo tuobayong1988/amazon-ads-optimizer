@@ -609,14 +609,14 @@ export async function checkAnomalyRules(
         ruleId: rule.id,
         userId,
         accountId,
-        triggerValue: value.toString(),
+        detectedValue: value.toString(),
         thresholdValue: threshold.toString(),
-        triggerDescription: `${rule.ruleName}: 检测值 ${value} 超过阈值 ${threshold}`,
-        relatedOperationId: operationId || null,
-        relatedOperationType: operationType,
-        actionTaken: rule.actionOnTrigger === 'alert_only' ? 'alert_sent' : 
-                     rule.actionOnTrigger === 'pause_and_alert' ? 'operation_paused' :
-                     rule.actionOnTrigger === 'block_operation' ? 'operation_blocked' : 'alert_sent',
+        affectedTargetName: `${rule.ruleName}: 检测值 ${value} 超过阈值 ${threshold}`,
+        operationLogId: operationId || null,
+        affectedTargetType: operationType,
+        actionTaken: rule.actionOnTrigger === 'alert_only' ? 'alerted' : 
+                     rule.actionOnTrigger === 'pause_and_alert' ? 'paused' :
+                     rule.actionOnTrigger === 'block_operation' ? 'blocked' : 'alerted',
       });
 
       // 发送异常通知
@@ -671,7 +671,7 @@ ${rule.ruleDescription || ''}
 export async function recordAutoPause(params: {
   userId: number;
   accountId: number;
-  pauseReason: 'spend_limit_reached' | 'anomaly_detected' | 'acos_threshold' | 'manual_trigger' | 'scheduled';
+  pauseReason: 'spend_limit' | 'anomaly_detected' | 'acos_threshold' | 'manual_trigger' | 'scheduled';
   pauseScope: 'account' | 'campaign' | 'ad_group' | 'keyword' | 'target';
   pausedEntityIds: number[];
   previousStates?: Record<number, string>;
@@ -716,7 +716,7 @@ async function sendAutoPauseNotification(params: {
   accountId: number;
 }): Promise<void> {
   const reasonMessages: Record<string, string> = {
-    'spend_limit_reached': '花费达到每日限额',
+    'spend_limit': '花费达到每日限额',
     'anomaly_detected': '检测到异常操作',
     'acos_threshold': 'ACoS超过阈值',
     'manual_trigger': '手动触发',

@@ -363,10 +363,10 @@ export async function getAccountAuditStats(accountId: number, days: number = 30)
     })
     .from(auditLogs)
     .where(and(eq(auditLogs.accountId, accountId), gte(auditLogs.createdAt, startDateStr)))
-    .groupBy(auditLogs.userId, auditLogs.userName);
+    .groupBy(auditLogs.userId, auditLogs.userName) as any;
 
-  const actionsByUser = userStats.map((stat: { userId: number; userName: string | null; count: number }) => ({
-    userId: stat.userId,
+  const actionsByUser = userStats.map((stat: any) => ({
+    userId: stat.userId || 0,
     userName: stat.userName || "未知用户",
     count: stat.count,
   }));
