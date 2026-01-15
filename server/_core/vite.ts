@@ -60,9 +60,18 @@ async function getViteConfig() {
 
 // 动态导入vite，只在开发模式下使用
 // 这样可以避免esbuild在生产构建时将vite打包进dist/index.js
+// 注意：这个函数只会在 NODE_ENV === "development" 时被调用
 export async function setupVite(app: Express, server: Server) {
+  // 双重检查确保只在开发模式下运行
+  if (process.env.NODE_ENV !== "development") {
+    console.warn("[Vite] setupVite called in non-development mode, skipping...");
+    return;
+  }
+  
   // 使用动态导入，确保vite只在开发模式下加载
-  const { createServer: createViteServer } = await import("vite");
+  // 这是关键：使用字符串变量来防止esbuild静态分析
+  const vitePkg = "vite";
+  const { createServer: createViteServer } = await import(/* @vite-ignore */ vitePkg);
   
   // 使用内联配置，避免动态导入vite.config
   const viteConfig = await getViteConfig();
