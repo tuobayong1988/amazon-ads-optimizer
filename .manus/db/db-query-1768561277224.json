@@ -1,0 +1,40 @@
+{
+  "query": "SELECT 'ad_accounts' as source, id, storeName, marketplace FROM ad_accounts\nUNION ALL\nSELECT 'daily_performance' as source, accountId as id, NULL as storeName, NULL as marketplace FROM daily_performance GROUP BY accountId;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT 'ad_accounts' as source, id, storeName, marketplace FROM ad_accounts\nUNION ALL\nSELECT 'daily_performance' as source, accountId as id, NULL as storeName, NULL as marketplace FROM daily_performance GROUP BY accountId;",
+  "rows": [
+    {
+      "source": "ad_accounts",
+      "id": "60017",
+      "storeName": "ElaraFit",
+      "marketplace": "CA"
+    },
+    {
+      "source": "ad_accounts",
+      "id": "60018",
+      "storeName": "ElaraFit",
+      "marketplace": "MX"
+    },
+    {
+      "source": "ad_accounts",
+      "id": "60019",
+      "storeName": "ElaraFit",
+      "marketplace": "US"
+    },
+    {
+      "source": "daily_performance",
+      "id": "60017",
+      "storeName": "NULL",
+      "marketplace": "NULL"
+    },
+    {
+      "source": "daily_performance",
+      "id": "60019",
+      "storeName": "NULL",
+      "marketplace": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "source\tid\tstoreName\tmarketplace\nad_accounts\t60017\tElaraFit\tCA\nad_accounts\t60018\tElaraFit\tMX\nad_accounts\t60019\tElaraFit\tUS\ndaily_performance\t60017\tNULL\tNULL\ndaily_performance\t60019\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 56
+}

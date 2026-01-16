@@ -1,0 +1,17 @@
+{
+  "query": "SELECT \n  SUM(impressions) as totalImpressions,\n  SUM(clicks) as totalClicks,\n  SUM(spend) as totalSpend,\n  SUM(sales) as totalSales,\n  SUM(orders) as totalOrders\nFROM daily_performance\nWHERE accountId = 1 \n  AND date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)\n  AND date <= CURDATE();",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT \n  SUM(impressions) as totalImpressions,\n  SUM(clicks) as totalClicks,\n  SUM(spend) as totalSpend,\n  SUM(sales) as totalSales,\n  SUM(orders) as totalOrders\nFROM daily_performance\nWHERE accountId = 1 \n  AND date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)\n  AND date <= CURDATE();",
+  "rows": [
+    {
+      "totalImpressions": "NULL",
+      "totalClicks": "NULL",
+      "totalSpend": "NULL",
+      "totalSales": "NULL",
+      "totalOrders": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "totalImpressions\ttotalClicks\ttotalSpend\ttotalSales\ttotalOrders\nNULL\tNULL\tNULL\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 58
+}

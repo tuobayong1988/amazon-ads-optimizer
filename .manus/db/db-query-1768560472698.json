@@ -1,0 +1,31 @@
+{
+  "query": "SELECT a.id, a.storeName, a.marketplace, a.profileId, \n       (SELECT COUNT(*) FROM daily_performance dp WHERE dp.accountId = a.id) as perfCount\nFROM ad_accounts a \nORDER BY a.id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT a.id, a.storeName, a.marketplace, a.profileId, \n       (SELECT COUNT(*) FROM daily_performance dp WHERE dp.accountId = a.id) as perfCount\nFROM ad_accounts a \nORDER BY a.id;",
+  "rows": [
+    {
+      "id": "60017",
+      "storeName": "ElaraFit",
+      "marketplace": "CA",
+      "profileId": "1902077932438117",
+      "perfCount": "49"
+    },
+    {
+      "id": "60018",
+      "storeName": "ElaraFit",
+      "marketplace": "MX",
+      "profileId": "1080055356599494",
+      "perfCount": "0"
+    },
+    {
+      "id": "60019",
+      "storeName": "ElaraFit",
+      "marketplace": "US",
+      "profileId": "599502392622991",
+      "perfCount": "4"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tstoreName\tmarketplace\tprofileId\tperfCount\n60017\tElaraFit\tCA\t1902077932438117\t49\n60018\tElaraFit\tMX\t1080055356599494\t0\n60019\tElaraFit\tUS\t599502392622991\t4\n",
+  "stderr": "",
+  "execution_time_ms": 57
+}

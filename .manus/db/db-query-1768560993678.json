@@ -1,0 +1,26 @@
+{
+  "query": "SELECT accountId, COUNT(*) as recordCount, \n       SUM(spend) as totalSpend, \n       SUM(sales) as totalSales,\n       MIN(date) as minDate,\n       MAX(date) as maxDate\nFROM daily_performance \nGROUP BY accountId \nORDER BY accountId;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT accountId, COUNT(*) as recordCount, \n       SUM(spend) as totalSpend, \n       SUM(sales) as totalSales,\n       MIN(date) as minDate,\n       MAX(date) as maxDate\nFROM daily_performance \nGROUP BY accountId \nORDER BY accountId;",
+  "rows": [
+    {
+      "accountId": "60017",
+      "recordCount": "49",
+      "totalSpend": "59.26",
+      "totalSales": "167.96",
+      "minDate": "2025-12-30 00:00:00",
+      "maxDate": "2026-01-14 00:00:00"
+    },
+    {
+      "accountId": "60019",
+      "recordCount": "4",
+      "totalSpend": "1617.79",
+      "totalSales": "1839.39",
+      "minDate": "2026-01-13 00:00:00",
+      "maxDate": "2026-01-16 00:00:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "accountId\trecordCount\ttotalSpend\ttotalSales\tminDate\tmaxDate\n60017\t49\t59.26\t167.96\t2025-12-30 00:00:00\t2026-01-14 00:00:00\n60019\t4\t1617.79\t1839.39\t2026-01-13 00:00:00\t2026-01-16 00:00:00\n",
+  "stderr": "",
+  "execution_time_ms": 70
+}

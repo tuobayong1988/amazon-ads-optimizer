@@ -1,0 +1,9 @@
+{
+  "query": "SELECT accountId, date, spend, sales, orders, impressions, clicks\nFROM daily_performance\nWHERE accountId = 1\nORDER BY date DESC\nLIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT accountId, date, spend, sales, orders, impressions, clicks\nFROM daily_performance\nWHERE accountId = 1\nORDER BY date DESC\nLIMIT 10;",
+  "rows": [],
+  "messages": [],
+  "stdout": "",
+  "stderr": "",
+  "execution_time_ms": 67
+}

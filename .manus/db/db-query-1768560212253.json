@@ -1,0 +1,14 @@
+{
+  "query": "SELECT COUNT(*) as recordCount, MAX(createdAt) as lastUpdate FROM daily_performance WHERE accountId = 1 AND (dataSource = 'api' OR dataSource IS NULL);",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT COUNT(*) as recordCount, MAX(createdAt) as lastUpdate FROM daily_performance WHERE accountId = 1 AND (dataSource = 'api' OR dataSource IS NULL);",
+  "rows": [
+    {
+      "recordCount": "0",
+      "lastUpdate": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "recordCount\tlastUpdate\n0\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 56
+}

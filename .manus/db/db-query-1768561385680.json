@@ -1,0 +1,24 @@
+{
+  "query": "SELECT u.id as userId, u.name, u.email, \n       (SELECT COUNT(*) FROM ad_accounts a WHERE a.userId = u.id) as accountCount,\n       (SELECT GROUP_CONCAT(a.id) FROM ad_accounts a WHERE a.userId = u.id) as accountIds\nFROM users u\nWHERE u.email IN ('vip@mucers.com', 'mcoceanyet@gmail.com');",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT u.id as userId, u.name, u.email, \n       (SELECT COUNT(*) FROM ad_accounts a WHERE a.userId = u.id) as accountCount,\n       (SELECT GROUP_CONCAT(a.id) FROM ad_accounts a WHERE a.userId = u.id) as accountIds\nFROM users u\nWHERE u.email IN ('vip@mucers.com', 'mcoceanyet@gmail.com');",
+  "rows": [
+    {
+      "userId": "1",
+      "name": "拓跋勇",
+      "email": "mcoceanyet@gmail.com",
+      "accountCount": "3",
+      "accountIds": "60017,60018,60019"
+    },
+    {
+      "userId": "90001",
+      "name": "系统管理员",
+      "email": "vip@mucers.com",
+      "accountCount": "0",
+      "accountIds": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "userId\tname\temail\taccountCount\taccountIds\n1\t拓跋勇\tmcoceanyet@gmail.com\t3\t60017,60018,60019\n90001\t系统管理员\tvip@mucers.com\t0\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 53
+}

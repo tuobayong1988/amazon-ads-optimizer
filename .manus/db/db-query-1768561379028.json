@@ -1,0 +1,98 @@
+{
+  "query": "SELECT u.id as userId, u.name, u.email, \n       a.id as accountId, a.storeName, a.marketplace\nFROM users u\nLEFT JOIN ad_accounts a ON u.id = a.userId\nORDER BY u.id, a.id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT u.id as userId, u.name, u.email, \n       a.id as accountId, a.storeName, a.marketplace\nFROM users u\nLEFT JOIN ad_accounts a ON u.id = a.userId\nORDER BY u.id, a.id;",
+  "rows": [
+    {
+      "userId": "1",
+      "name": "拓跋勇",
+      "email": "mcoceanyet@gmail.com",
+      "accountId": "60017",
+      "storeName": "ElaraFit",
+      "marketplace": "CA"
+    },
+    {
+      "userId": "1",
+      "name": "拓跋勇",
+      "email": "mcoceanyet@gmail.com",
+      "accountId": "60018",
+      "storeName": "ElaraFit",
+      "marketplace": "MX"
+    },
+    {
+      "userId": "1",
+      "name": "拓跋勇",
+      "email": "mcoceanyet@gmail.com",
+      "accountId": "60019",
+      "storeName": "ElaraFit",
+      "marketplace": "US"
+    },
+    {
+      "userId": "90001",
+      "name": "系统管理员",
+      "email": "vip@mucers.com",
+      "accountId": "NULL",
+      "storeName": "NULL",
+      "marketplace": "NULL"
+    },
+    {
+      "userId": "360477",
+      "name": "Su_ssshan",
+      "email": "sussshan98l@gmail.com",
+      "accountId": "NULL",
+      "storeName": "NULL",
+      "marketplace": "NULL"
+    },
+    {
+      "userId": "540332",
+      "name": "Phoenix League",
+      "email": "huangzhenlin96@gmail.com",
+      "accountId": "NULL",
+      "storeName": "NULL",
+      "marketplace": "NULL"
+    },
+    {
+      "userId": "540394",
+      "name": "545235837",
+      "email": "545235837@qq.com",
+      "accountId": "NULL",
+      "storeName": "NULL",
+      "marketplace": "NULL"
+    },
+    {
+      "userId": "720017",
+      "name": "28344227",
+      "email": "28344227@qq.com",
+      "accountId": "NULL",
+      "storeName": "NULL",
+      "marketplace": "NULL"
+    },
+    {
+      "userId": "750018",
+      "name": "琪 蔡",
+      "email": "aicoqiqi@gmail.com",
+      "accountId": "NULL",
+      "storeName": "NULL",
+      "marketplace": "NULL"
+    },
+    {
+      "userId": "750033",
+      "name": "chupei peng",
+      "email": "757482347@qq.com",
+      "accountId": "NULL",
+      "storeName": "NULL",
+      "marketplace": "NULL"
+    },
+    {
+      "userId": "814530",
+      "name": "AI03",
+      "email": "541145981@qq.com",
+      "accountId": "NULL",
+      "storeName": "NULL",
+      "marketplace": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "userId\tname\temail\taccountId\tstoreName\tmarketplace\n1\t拓跋勇\tmcoceanyet@gmail.com\t60017\tElaraFit\tCA\n1\t拓跋勇\tmcoceanyet@gmail.com\t60018\tElaraFit\tMX\n1\t拓跋勇\tmcoceanyet@gmail.com\t60019\tElaraFit\tUS\n90001\t系统管理员\tvip@mucers.com\tNULL\tNULL\tNULL\n360477\tSu_ssshan\tsussshan98l@gmail.com\tNULL\tNULL\tNULL\n540332\tPhoenix League\thuangzhenlin96@gmail.com\tNULL\tNULL\tNULL\n540394\t545235837\t545235837@qq.com\tNULL\tNULL\tNULL\n720017\t28344227\t28344227@qq.com\tNULL\tNULL\tNULL\n750018\t琪 蔡\taicoqiqi@gmail.com\tNULL\tNULL\tNULL\n750033\tchupei peng\t757482347@qq.com\tNULL\tNULL\tNULL\n814530\tAI03\t541145981@qq.com\tNULL\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 58
+}

@@ -1,0 +1,34 @@
+{
+  "query": "SELECT 'user' as type, id, name, email FROM users WHERE email = 'vip@mucers.com'\nUNION ALL\nSELECT 'account' as type, id, storeName, marketplace FROM ad_accounts WHERE storeName = 'ElaraFit';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT 'user' as type, id, name, email FROM users WHERE email = 'vip@mucers.com'\nUNION ALL\nSELECT 'account' as type, id, storeName, marketplace FROM ad_accounts WHERE storeName = 'ElaraFit';",
+  "rows": [
+    {
+      "type": "user",
+      "id": "90001",
+      "name": "系统管理员",
+      "email": "vip@mucers.com"
+    },
+    {
+      "type": "account",
+      "id": "60017",
+      "name": "ElaraFit",
+      "email": "CA"
+    },
+    {
+      "type": "account",
+      "id": "60018",
+      "name": "ElaraFit",
+      "email": "MX"
+    },
+    {
+      "type": "account",
+      "id": "60019",
+      "name": "ElaraFit",
+      "email": "US"
+    }
+  ],
+  "messages": [],
+  "stdout": "type\tid\tname\temail\nuser\t90001\t系统管理员\tvip@mucers.com\naccount\t60017\tElaraFit\tCA\naccount\t60018\tElaraFit\tMX\naccount\t60019\tElaraFit\tUS\n",
+  "stderr": "",
+  "execution_time_ms": 69
+}

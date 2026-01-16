@@ -1,0 +1,18 @@
+{
+  "query": "SELECT u.id as userId, u.name, u.email, a.id as accountId, a.storeName, a.marketplace\nFROM users u\nLEFT JOIN ad_accounts a ON u.id = a.userId\nWHERE u.email = 'vip@mucers.com';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT u.id as userId, u.name, u.email, a.id as accountId, a.storeName, a.marketplace\nFROM users u\nLEFT JOIN ad_accounts a ON u.id = a.userId\nWHERE u.email = 'vip@mucers.com';",
+  "rows": [
+    {
+      "userId": "90001",
+      "name": "系统管理员",
+      "email": "vip@mucers.com",
+      "accountId": "NULL",
+      "storeName": "NULL",
+      "marketplace": "NULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "userId\tname\temail\taccountId\tstoreName\tmarketplace\n90001\t系统管理员\tvip@mucers.com\tNULL\tNULL\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 58
+}

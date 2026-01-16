@@ -101,9 +101,19 @@ export function DualTrackSyncPanel({ accountId, isPlatformAdmin = false }: DualT
   };
   
   const handleCreateAllSubscriptions = async () => {
+    console.log('[DualTrackSyncPanel] handleCreateAllSubscriptions called, accountId:', accountId);
+    if (!accountId || accountId <= 0) {
+      toast.error('请先选择一个有效的账号');
+      console.error('[DualTrackSyncPanel] Invalid accountId:', accountId);
+      return;
+    }
     setIsCreatingSubscriptions(true);
     try {
+      console.log('[DualTrackSyncPanel] Calling createAllSubscriptionsMutation...');
       await createAllSubscriptionsMutation.mutateAsync({ accountId });
+      console.log('[DualTrackSyncPanel] Mutation completed successfully');
+    } catch (error) {
+      console.error('[DualTrackSyncPanel] Mutation error:', error);
     } finally {
       setIsCreatingSubscriptions(false);
     }

@@ -1,0 +1,190 @@
+{
+  "query": "SELECT accountId, date, spend, sales, orders, impressions, clicks\nFROM daily_performance\nWHERE accountId IN (60017, 60018, 60019)\nORDER BY date DESC\nLIMIT 20;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT accountId, date, spend, sales, orders, impressions, clicks\nFROM daily_performance\nWHERE accountId IN (60017, 60018, 60019)\nORDER BY date DESC\nLIMIT 20;",
+  "rows": [
+    {
+      "accountId": "60019",
+      "date": "2026-01-16 00:00:00",
+      "spend": "494.50",
+      "sales": "559.82",
+      "orders": "18",
+      "impressions": "70415",
+      "clicks": "435"
+    },
+    {
+      "accountId": "60019",
+      "date": "2026-01-15 00:00:00",
+      "spend": "380.49",
+      "sales": "144.95",
+      "orders": "5",
+      "impressions": "60080",
+      "clicks": "301"
+    },
+    {
+      "accountId": "60017",
+      "date": "2026-01-14 00:00:00",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0",
+      "impressions": "1",
+      "clicks": "0"
+    },
+    {
+      "accountId": "60019",
+      "date": "2026-01-14 00:00:00",
+      "spend": "624.59",
+      "sales": "1008.66",
+      "orders": "34",
+      "impressions": "76183",
+      "clicks": "464"
+    },
+    {
+      "accountId": "60017",
+      "date": "2026-01-14 00:00:00",
+      "spend": "2.98",
+      "sales": "41.99",
+      "orders": "1",
+      "impressions": "255",
+      "clicks": "3"
+    },
+    {
+      "accountId": "60017",
+      "date": "2026-01-14 00:00:00",
+      "spend": "24.15",
+      "sales": "0.00",
+      "orders": "0",
+      "impressions": "3818",
+      "clicks": "28"
+    },
+    {
+      "accountId": "60017",
+      "date": "2026-01-14 00:00:00",
+      "spend": "14.85",
+      "sales": "83.98",
+      "orders": "2",
+      "impressions": "1085",
+      "clicks": "16"
+    },
+    {
+      "accountId": "60017",
+      "date": "2026-01-14 00:00:00",
+      "spend": "1.93",
+      "sales": "0.00",
+      "orders": "0",
+      "impressions": "750",
+      "clicks": "2"
+    },
+    {
+      "accountId": "60017",
+      "date": "2026-01-14 00:00:00",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0",
+      "impressions": "1",
+      "clicks": "0"
+    },
+    {
+      "accountId": "60017",
+      "date": "2026-01-14 00:00:00",
+      "spend": "14.35",
+      "sales": "41.99",
+      "orders": "1",
+      "impressions": "1358",
+      "clicks": "16"
+    },
+    {
+      "accountId": "60017",
+      "date": "2026-01-13 00:00:00",
+      "spend": "1.00",
+      "sales": "0.00",
+      "orders": "0",
+      "impressions": "146",
+      "clicks": "1"
+    },
+    {
+      "accountId": "60017",
+      "date": "2026-01-13 00:00:00",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0",
+      "impressions": "1",
+      "clicks": "0"
+    },
+    {
+      "accountId": "60017",
+      "date": "2026-01-13 00:00:00",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0",
+      "impressions": "2",
+      "clicks": "0"
+    },
+    {
+      "accountId": "60017",
+      "date": "2026-01-13 00:00:00",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0",
+      "impressions": "34",
+      "clicks": "0"
+    },
+    {
+      "accountId": "60019",
+      "date": "2026-01-13 00:00:00",
+      "spend": "121.50",
+      "sales": "125.96",
+      "orders": "4",
+      "impressions": "10095",
+      "clicks": "93"
+    },
+    {
+      "accountId": "60017",
+      "date": "2026-01-12 00:00:00",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0",
+      "impressions": "0",
+      "clicks": "0"
+    },
+    {
+      "accountId": "60017",
+      "date": "2026-01-07 00:00:00",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0",
+      "impressions": "0",
+      "clicks": "0"
+    },
+    {
+      "accountId": "60017",
+      "date": "2026-01-03 00:00:00",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0",
+      "impressions": "0",
+      "clicks": "0"
+    },
+    {
+      "accountId": "60017",
+      "date": "2026-01-03 00:00:00",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0",
+      "impressions": "0",
+      "clicks": "0"
+    },
+    {
+      "accountId": "60017",
+      "date": "2026-01-03 00:00:00",
+      "spend": "0.00",
+      "sales": "0.00",
+      "orders": "0",
+      "impressions": "0",
+      "clicks": "0"
+    }
+  ],
+  "messages": [],
+  "stdout": "accountId\tdate\tspend\tsales\torders\timpressions\tclicks\n60019\t2026-01-16 00:00:00\t494.50\t559.82\t18\t70415\t435\n60019\t2026-01-15 00:00:00\t380.49\t144.95\t5\t60080\t301\n60017\t2026-01-14 00:00:00\t0.00\t0.00\t0\t1\t0\n60019\t2026-01-14 00:00:00\t624.59\t1008.66\t34\t76183\t464\n60017\t2026-01-14 00:00:00\t2.98\t41.99\t1\t255\t3\n60017\t2026-01-14 00:00:00\t24.15\t0.00\t0\t3818\t28\n60017\t2026-01-14 00:00:00\t14.85\t83.98\t2\t1085\t16\n60017\t2026-01-14 00:00:00\t1.93\t0.00\t0\t750\t2\n60017\t2026-01-14 00:00:00\t0.00\t0.00\t0\t1\t0\n60017\t2026-01-14 00:00:00\t14.35\t41.99\t1\t1358\t16\n60017\t2026-01-13 00:00:00\t1.00\t0.00\t0\t146\t1\n60017\t2026-01-13 00:00:00\t0.00\t0.00\t0\t1\t0\n60017\t2026-01-13 00:00:00\t0.00\t0.00\t0\t2\t0\n60017\t2026-01-13 00:00:00\t0.00\t0.00\t0\t34\t0\n60019\t2026-01-13 00:00:00\t121.50\t125.96\t4\t10095\t93\n60017\t2026-01-12 00:00:00\t0.00\t0.00\t0\t0\t0\n60017\t2026-01-07 00:00:00\t0.00\t0.00\t0\t0\t0\n60017\t2026-01-03 00:00:00\t0.00\t0.00\t0\t0\t0\n60017\t2026-01-03 00:00:00\t0.00\t0.00\t0\t0\t0\n60017\t2026-01-03 00:00:00\t0.00\t0.00\t0\t0\t0\n",
+  "stderr": "",
+  "execution_time_ms": 58
+}

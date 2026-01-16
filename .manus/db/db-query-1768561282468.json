@@ -1,0 +1,28 @@
+{
+  "query": "SELECT a.id as account_id, a.storeName, a.marketplace, \n       (SELECT COUNT(*) FROM daily_performance dp WHERE dp.accountId = a.id) as performance_records\nFROM ad_accounts a;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT a.id as account_id, a.storeName, a.marketplace, \n       (SELECT COUNT(*) FROM daily_performance dp WHERE dp.accountId = a.id) as performance_records\nFROM ad_accounts a;",
+  "rows": [
+    {
+      "account_id": "60017",
+      "storeName": "ElaraFit",
+      "marketplace": "CA",
+      "performance_records": "49"
+    },
+    {
+      "account_id": "60018",
+      "storeName": "ElaraFit",
+      "marketplace": "MX",
+      "performance_records": "0"
+    },
+    {
+      "account_id": "60019",
+      "storeName": "ElaraFit",
+      "marketplace": "US",
+      "performance_records": "4"
+    }
+  ],
+  "messages": [],
+  "stdout": "account_id\tstoreName\tmarketplace\tperformance_records\n60017\tElaraFit\tCA\t49\n60018\tElaraFit\tMX\t0\n60019\tElaraFit\tUS\t4\n",
+  "stderr": "",
+  "execution_time_ms": 55
+}

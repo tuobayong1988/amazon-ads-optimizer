@@ -1,0 +1,34 @@
+{
+  "query": "SELECT \n  a.id as ad_account_id,\n  a.storeName,\n  a.marketplace,\n  dp.accountId as performance_accountId,\n  dp.records,\n  dp.totalSpend\nFROM ad_accounts a\nLEFT JOIN (\n  SELECT accountId, COUNT(*) as records, SUM(spend) as totalSpend\n  FROM daily_performance \n  GROUP BY accountId\n) dp ON a.id = dp.accountId;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT \n  a.id as ad_account_id,\n  a.storeName,\n  a.marketplace,\n  dp.accountId as performance_accountId,\n  dp.records,\n  dp.totalSpend\nFROM ad_accounts a\nLEFT JOIN (\n  SELECT accountId, COUNT(*) as records, SUM(spend) as totalSpend\n  FROM daily_performance \n  GROUP BY accountId\n) dp ON a.id = dp.accountId;",
+  "rows": [
+    {
+      "ad_account_id": "60017",
+      "storeName": "ElaraFit",
+      "marketplace": "CA",
+      "performance_accountId": "60017",
+      "records": "49",
+      "totalSpend": "59.26"
+    },
+    {
+      "ad_account_id": "60018",
+      "storeName": "ElaraFit",
+      "marketplace": "MX",
+      "performance_accountId": "NULL",
+      "records": "NULL",
+      "totalSpend": "NULL"
+    },
+    {
+      "ad_account_id": "60019",
+      "storeName": "ElaraFit",
+      "marketplace": "US",
+      "performance_accountId": "60019",
+      "records": "4",
+      "totalSpend": "1617.79"
+    }
+  ],
+  "messages": [],
+  "stdout": "ad_account_id\tstoreName\tmarketplace\tperformance_accountId\trecords\ttotalSpend\n60017\tElaraFit\tCA\t60017\t49\t59.26\n60018\tElaraFit\tMX\tNULL\tNULL\tNULL\n60019\tElaraFit\tUS\t60019\t4\t1617.79\n",
+  "stderr": "",
+  "execution_time_ms": 56
+}

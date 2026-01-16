@@ -1,0 +1,46 @@
+{
+  "query": "SELECT COUNT(*) as total FROM data_sync_jobs; SELECT id, accountId, syncType, status, recordsSynced, completedAt FROM data_sync_jobs ORDER BY createdAt DESC LIMIT 10;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT COUNT(*) as total FROM data_sync_jobs; SELECT id, accountId, syncType, status, recordsSynced, completedAt FROM data_sync_jobs ORDER BY createdAt DESC LIMIT 10;",
+  "rows": [
+    {
+      "total": "310"
+    },
+    {
+      "total": "id\taccountId\tsyncType\tstatus\trecordsSynced\tcompletedAt"
+    },
+    {
+      "total": "720003\t60018\tall\trunning\t0\tNULL"
+    },
+    {
+      "total": "720001\t60017\tall\trunning\t0\tNULL"
+    },
+    {
+      "total": "720002\t60019\tall\trunning\t0\tNULL"
+    },
+    {
+      "total": "690030\t60017\tall\tcompleted\t758\t2026-01-13 10:44:55"
+    },
+    {
+      "total": "690027\t60017\tall\trunning\t0\tNULL"
+    },
+    {
+      "total": "690028\t60018\tall\tcompleted\t0\t2026-01-13 10:12:33"
+    },
+    {
+      "total": "690029\t60019\tall\trunning\t0\tNULL"
+    },
+    {
+      "total": "690026\t60017\tall\tcompleted\t675\t2026-01-13 10:08:29"
+    },
+    {
+      "total": "690024\t60018\tall\tcompleted\t0\t2026-01-13 10:08:05"
+    },
+    {
+      "total": "690025\t60019\tall\trunning\t0\tNULL"
+    }
+  ],
+  "messages": [],
+  "stdout": "total\n310\nid\taccountId\tsyncType\tstatus\trecordsSynced\tcompletedAt\n720003\t60018\tall\trunning\t0\tNULL\n720001\t60017\tall\trunning\t0\tNULL\n720002\t60019\tall\trunning\t0\tNULL\n690030\t60017\tall\tcompleted\t758\t2026-01-13 10:44:55\n690027\t60017\tall\trunning\t0\tNULL\n690028\t60018\tall\tcompleted\t0\t2026-01-13 10:12:33\n690029\t60019\tall\trunning\t0\tNULL\n690026\t60017\tall\tcompleted\t675\t2026-01-13 10:08:29\n690024\t60018\tall\tcompleted\t0\t2026-01-13 10:08:05\n690025\t60019\tall\trunning\t0\tNULL\n",
+  "stderr": "",
+  "execution_time_ms": 57
+}

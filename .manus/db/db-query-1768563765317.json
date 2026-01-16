@@ -1,0 +1,34 @@
+{
+  "query": "SELECT id, profileId, marketplace, sellerId, userId, accountName FROM ad_accounts ORDER BY id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT id, profileId, marketplace, sellerId, userId, accountName FROM ad_accounts ORDER BY id;",
+  "rows": [
+    {
+      "id": "60017",
+      "profileId": "1902077932438117",
+      "marketplace": "CA",
+      "sellerId": "NULL",
+      "userId": "1",
+      "accountName": "ElaraFit 加拿大"
+    },
+    {
+      "id": "60018",
+      "profileId": "1080055356599494",
+      "marketplace": "MX",
+      "sellerId": "NULL",
+      "userId": "1",
+      "accountName": "ElaraFit 墨西哥"
+    },
+    {
+      "id": "60019",
+      "profileId": "599502392622991",
+      "marketplace": "US",
+      "sellerId": "NULL",
+      "userId": "1",
+      "accountName": "ElaraFit 美国"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\tprofileId\tmarketplace\tsellerId\tuserId\taccountName\n60017\t1902077932438117\tCA\tNULL\t1\tElaraFit 加拿大\n60018\t1080055356599494\tMX\tNULL\t1\tElaraFit 墨西哥\n60019\t599502392622991\tUS\tNULL\t1\tElaraFit 美国\n",
+  "stderr": "",
+  "execution_time_ms": 55
+}

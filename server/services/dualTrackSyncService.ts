@@ -138,14 +138,14 @@ async function getApiSyncStatus(db: any, accountId: number): Promise<SyncStatus>
     // 1. 先查询data_sync_jobs表
     const [result] = await db.execute(sql`
       SELECT 
-        "completedAt" as "lastSyncAt",
-        "recordsSynced" as "recordCount",
+        completedAt as lastSyncAt,
+        recordsSynced as recordCount,
         status,
-        "errorMessage"
+        errorMessage
       FROM data_sync_jobs
-      WHERE "accountId" = ${accountId}
-        AND "syncType" IN ('all', 'performance')
-      ORDER BY "createdAt" DESC
+      WHERE accountId = ${accountId}
+        AND syncType IN ('all', 'performance')
+      ORDER BY createdAt DESC
       LIMIT 1
     `) as any;
 
@@ -166,11 +166,11 @@ async function getApiSyncStatus(db: any, accountId: number): Promise<SyncStatus>
     // 2. 如果没有sync_jobs记录，从daily_performance表获取API数据的状态
     const [perfResult] = await db.execute(sql`
       SELECT 
-        COUNT(*) as "recordCount",
-        MAX("createdAt") as "lastUpdate"
+        COUNT(*) as recordCount,
+        MAX(createdAt) as lastUpdate
       FROM daily_performance
-      WHERE "accountId" = ${accountId}
-        AND ("dataSource" = 'api' OR "dataSource" IS NULL)
+      WHERE accountId = ${accountId}
+        AND (dataSource = 'api' OR dataSource IS NULL)
     `) as any;
 
     const perfData = Array.isArray(perfResult) && perfResult.length > 0 ? perfResult[0] : null;
@@ -226,11 +226,11 @@ async function getAmsSyncStatus(db: any, accountId: number): Promise<SyncStatus>
     const [amsDataResult] = await db.execute(sql`
       SELECT 
         COUNT(*) as totalRecords,
-        MAX("createdAt") as lastUpdate
+        MAX(createdAt) as lastUpdate
       FROM daily_performance
-      WHERE "accountId" = ${accountId}
-        AND "dataSource" = 'ams'
-        AND "createdAt" >= NOW() - INTERVAL '24 hours'
+      WHERE accountId = ${accountId}
+        AND dataSource = 'ams'
+        AND createdAt >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
     `) as any;
 
     const amsData = Array.isArray(amsDataResult) && amsDataResult.length > 0 ? amsDataResult[0] : null;
@@ -365,11 +365,11 @@ export async function getDataSourceStats(accountId: number): Promise<{
     // 获取API数据源的记录数（dataSource为'api'或NULL）
     const [apiResult] = await db.execute(sql`
       SELECT 
-        COUNT(*) as "recordCount",
-        MAX("createdAt") as "lastUpdate"
+        COUNT(*) as recordCount,
+        MAX(createdAt) as lastUpdate
       FROM daily_performance
-      WHERE "accountId" = ${accountId}
-        AND ("dataSource" = 'api' OR "dataSource" IS NULL)
+      WHERE accountId = ${accountId}
+        AND (dataSource = 'api' OR dataSource IS NULL)
     `) as any;
 
     const apiData = Array.isArray(apiResult) && apiResult.length > 0 ? apiResult[0] : null;
@@ -379,11 +379,11 @@ export async function getDataSourceStats(accountId: number): Promise<{
     // 获取AMS数据源的记录数
     const [amsResult] = await db.execute(sql`
       SELECT 
-        COUNT(*) as "recordCount",
-        MAX("createdAt") as "lastUpdate"
+        COUNT(*) as recordCount,
+        MAX(createdAt) as lastUpdate
       FROM daily_performance
-      WHERE "accountId" = ${accountId}
-        AND "dataSource" = 'ams'
+      WHERE accountId = ${accountId}
+        AND dataSource = 'ams'
     `) as any;
 
     const amsData = Array.isArray(amsResult) && amsResult.length > 0 ? amsResult[0] : null;
@@ -393,10 +393,10 @@ export async function getDataSourceStats(accountId: number): Promise<{
     // 获取总记录数
     const [totalResult] = await db.execute(sql`
       SELECT 
-        COUNT(*) as "recordCount",
-        MAX("createdAt") as "lastUpdate"
+        COUNT(*) as recordCount,
+        MAX(createdAt) as lastUpdate
       FROM daily_performance
-      WHERE "accountId" = ${accountId}
+      WHERE accountId = ${accountId}
     `) as any;
 
     const totalData = Array.isArray(totalResult) && totalResult.length > 0 ? totalResult[0] : null;

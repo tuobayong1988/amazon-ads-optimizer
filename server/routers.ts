@@ -33,8 +33,12 @@ import * as holidayConfigService from './holidayConfigService';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
-  // 获取用户所有账号列表
+  // 获取用户所有账号列表（管理员可以看到所有账户）
   list: protectedProcedure.query(async ({ ctx }) => {
+    // 管理员可以访问所有账户
+    if (ctx.user.role === 'admin') {
+      return db.getAdAccounts();
+    }
     return db.getAdAccountsByUserId(ctx.user.id);
   }),
   
@@ -203,7 +207,10 @@ const adAccountRouter = router({
     }).optional())
     .query(async ({ ctx, input }) => {
     const timeRange = input?.timeRange || '7days';
-    const accounts = await db.getAdAccountsByUserId(ctx.user.id);
+    // 管理员可以访问所有账户
+    const accounts = ctx.user.role === 'admin' 
+      ? await db.getAdAccounts() 
+      : await db.getAdAccountsByUserId(ctx.user.id);
     
     // 过滤掉空店铺占位记录（marketplace为空）
     const actualSites = accounts.filter(a => a.marketplace && a.marketplace !== '');
@@ -352,7 +359,10 @@ const adAccountRouter = router({
 
   // 获取账号统计信息
   getStats: protectedProcedure.query(async ({ ctx }) => {
-    const accounts = await db.getAdAccountsByUserId(ctx.user.id);
+    // 管理员可以访问所有账户
+    const accounts = ctx.user.role === 'admin' 
+      ? await db.getAdAccounts() 
+      : await db.getAdAccountsByUserId(ctx.user.id);
     
     // 过滤掉空店铺占位记录（marketplace为空），只统计实际站点
     const actualSites = accounts.filter(a => a.marketplace && a.marketplace !== '');
@@ -393,7 +403,10 @@ const adAccountRouter = router({
       endDate: z.string().optional(),
     }))
     .query(async ({ ctx, input }) => {
-      const accounts = await db.getAdAccountsByUserId(ctx.user.id);
+      // 管理员可以访问所有账户
+      const accounts = ctx.user.role === 'admin' 
+        ? await db.getAdAccounts() 
+        : await db.getAdAccountsByUserId(ctx.user.id);
       const actualSites = accounts.filter(a => a.marketplace && a.marketplace !== '');
       const accountIds = actualSites.map(a => a.id);
       
@@ -408,7 +421,10 @@ const adAccountRouter = router({
   
   // 获取数据可用日期范围（用于自定义日期选择器的限制）
   getDataDateRange: protectedProcedure.query(async ({ ctx }) => {
-    const accounts = await db.getAdAccountsByUserId(ctx.user.id);
+    // 管理员可以访问所有账户
+    const accounts = ctx.user.role === 'admin' 
+      ? await db.getAdAccounts() 
+      : await db.getAdAccountsByUserId(ctx.user.id);
     const actualSites = accounts.filter(a => a.marketplace && a.marketplace !== '');
     const accountIds = actualSites.map(a => a.id);
     

@@ -1,0 +1,16 @@
+{
+  "query": "SELECT DISTINCT accountId FROM daily_performance;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT DISTINCT accountId FROM daily_performance;",
+  "rows": [
+    {
+      "accountId": "60017"
+    },
+    {
+      "accountId": "60019"
+    }
+  ],
+  "messages": [],
+  "stdout": "accountId\n60017\n60019\n",
+  "stderr": "",
+  "execution_time_ms": 61
+}

@@ -1,0 +1,37 @@
+{
+  "query": "SHOW TABLES LIKE '%sync%';",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SHOW TABLES LIKE '%sync%';",
+  "rows": [
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq (%sync%)": "data_sync_jobs"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq (%sync%)": "data_sync_logs"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq (%sync%)": "data_sync_schedules"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq (%sync%)": "data_sync_tasks"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq (%sync%)": "sync_change_records"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq (%sync%)": "sync_change_summary"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq (%sync%)": "sync_conflicts"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq (%sync%)": "sync_schedules"
+    },
+    {
+      "Tables_in_5MUJ5aHkiAehb9iTzNdxTq (%sync%)": "sync_task_queue"
+    }
+  ],
+  "messages": [],
+  "stdout": "Tables_in_5MUJ5aHkiAehb9iTzNdxTq (%sync%)\ndata_sync_jobs\ndata_sync_logs\ndata_sync_schedules\ndata_sync_tasks\nsync_change_records\nsync_change_summary\nsync_conflicts\nsync_schedules\nsync_task_queue\n",
+  "stderr": "",
+  "execution_time_ms": 55
+}

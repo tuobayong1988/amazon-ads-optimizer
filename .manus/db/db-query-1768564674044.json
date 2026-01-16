@@ -1,0 +1,31 @@
+{
+  "query": "SELECT id, accountId, storeName, marketplace, userId FROM ad_accounts;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT id, accountId, storeName, marketplace, userId FROM ad_accounts;",
+  "rows": [
+    {
+      "id": "60017",
+      "accountId": "1902077932438117",
+      "storeName": "ElaraFit",
+      "marketplace": "CA",
+      "userId": "1"
+    },
+    {
+      "id": "60018",
+      "accountId": "1080055356599494",
+      "storeName": "ElaraFit",
+      "marketplace": "MX",
+      "userId": "1"
+    },
+    {
+      "id": "60019",
+      "accountId": "599502392622991",
+      "storeName": "ElaraFit",
+      "marketplace": "US",
+      "userId": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "id\taccountId\tstoreName\tmarketplace\tuserId\n60017\t1902077932438117\tElaraFit\tCA\t1\n60018\t1080055356599494\tElaraFit\tMX\t1\n60019\t599502392622991\tElaraFit\tUS\t1\n",
+  "stderr": "",
+  "execution_time_ms": 55
+}

@@ -221,11 +221,18 @@ export default function AccountSwitcher({ compact = false, showStatus = true }: 
   // 当前选中的账号
   const currentAccount = accounts?.find(a => a.id === currentAccountId);
 
-  // 如果没有选中账号但有账号列表，自动选择默认账号或第一个
+  // 如果没有选中账号或选中的账号无效，自动选择默认账号或第一个
   useEffect(() => {
-    if (!currentAccountId && accounts && accounts.length > 0) {
-      const defaultAccount = accounts.find(a => a.isDefault) || accounts[0];
-      setCurrentAccountId(defaultAccount.id);
+    if (accounts && accounts.length > 0) {
+      // 检查当前选中的账号是否有效（存在于账号列表中）
+      const isCurrentAccountValid = currentAccountId && accounts.some(a => a.id === currentAccountId);
+      
+      if (!isCurrentAccountValid) {
+        // 选择默认账号或第一个账号
+        const defaultAccount = accounts.find(a => a.isDefault) || accounts[0];
+        setCurrentAccountId(defaultAccount.id);
+        console.log('[AccountSwitcher] Auto-selected account:', defaultAccount.id, defaultAccount.storeName);
+      }
     }
   }, [currentAccountId, accounts]);
 

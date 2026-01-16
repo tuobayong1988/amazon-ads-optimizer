@@ -1,0 +1,40 @@
+{
+  "query": "SELECT u.id as userId, u.name, u.email, a.id as accountId, a.storeName, a.marketplace,\n       (SELECT COUNT(*) FROM daily_performance dp WHERE dp.accountId = a.id) as perfCount,\n       (SELECT SUM(spend) FROM daily_performance dp WHERE dp.accountId = a.id) as totalSpend\nFROM users u \nLEFT JOIN ad_accounts a ON a.userId = u.id\nWHERE a.id IS NOT NULL\nORDER BY u.id, a.id;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT u.id as userId, u.name, u.email, a.id as accountId, a.storeName, a.marketplace,\n       (SELECT COUNT(*) FROM daily_performance dp WHERE dp.accountId = a.id) as perfCount,\n       (SELECT SUM(spend) FROM daily_performance dp WHERE dp.accountId = a.id) as totalSpend\nFROM users u \nLEFT JOIN ad_accounts a ON a.userId = u.id\nWHERE a.id IS NOT NULL\nORDER BY u.id, a.id;",
+  "rows": [
+    {
+      "userId": "1",
+      "name": "拓跋勇",
+      "email": "mcoceanyet@gmail.com",
+      "accountId": "60017",
+      "storeName": "ElaraFit",
+      "marketplace": "CA",
+      "perfCount": "49",
+      "totalSpend": "59.26"
+    },
+    {
+      "userId": "1",
+      "name": "拓跋勇",
+      "email": "mcoceanyet@gmail.com",
+      "accountId": "60018",
+      "storeName": "ElaraFit",
+      "marketplace": "MX",
+      "perfCount": "0",
+      "totalSpend": "NULL"
+    },
+    {
+      "userId": "1",
+      "name": "拓跋勇",
+      "email": "mcoceanyet@gmail.com",
+      "accountId": "60019",
+      "storeName": "ElaraFit",
+      "marketplace": "US",
+      "perfCount": "4",
+      "totalSpend": "1617.79"
+    }
+  ],
+  "messages": [],
+  "stdout": "userId\tname\temail\taccountId\tstoreName\tmarketplace\tperfCount\ttotalSpend\n1\t拓跋勇\tmcoceanyet@gmail.com\t60017\tElaraFit\tCA\t49\t59.26\n1\t拓跋勇\tmcoceanyet@gmail.com\t60018\tElaraFit\tMX\t0\tNULL\n1\t拓跋勇\tmcoceanyet@gmail.com\t60019\tElaraFit\tUS\t4\t1617.79\n",
+  "stderr": "",
+  "execution_time_ms": 60
+}

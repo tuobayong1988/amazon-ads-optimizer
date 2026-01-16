@@ -1,0 +1,14 @@
+{
+  "query": "SELECT \n  (SELECT id FROM users WHERE email = 'vip@mucers.com') as admin_userId,\n  (SELECT userId FROM ad_accounts WHERE storeName = 'ElaraFit' LIMIT 1) as elarafit_userId;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT \n  (SELECT id FROM users WHERE email = 'vip@mucers.com') as admin_userId,\n  (SELECT userId FROM ad_accounts WHERE storeName = 'ElaraFit' LIMIT 1) as elarafit_userId;",
+  "rows": [
+    {
+      "admin_userId": "90001",
+      "elarafit_userId": "1"
+    }
+  ],
+  "messages": [],
+  "stdout": "admin_userId\telarafit_userId\n90001\t1\n",
+  "stderr": "",
+  "execution_time_ms": 51
+}

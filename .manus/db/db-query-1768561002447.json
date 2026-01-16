@@ -1,0 +1,32 @@
+{
+  "query": "SELECT dp.accountId, a.storeName, a.marketplace, a.userId,\n       COUNT(*) as recordCount, \n       SUM(dp.spend) as totalSpend, \n       SUM(dp.sales) as totalSales,\n       MIN(dp.date) as minDate,\n       MAX(dp.date) as maxDate\nFROM daily_performance dp\nLEFT JOIN ad_accounts a ON dp.accountId = a.id\nGROUP BY dp.accountId\nORDER BY dp.accountId;",
+  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user GdNjKxkKZgeVtwE.root --database 5MUJ5aHkiAehb9iTzNdxTq --execute SELECT dp.accountId, a.storeName, a.marketplace, a.userId,\n       COUNT(*) as recordCount, \n       SUM(dp.spend) as totalSpend, \n       SUM(dp.sales) as totalSales,\n       MIN(dp.date) as minDate,\n       MAX(dp.date) as maxDate\nFROM daily_performance dp\nLEFT JOIN ad_accounts a ON dp.accountId = a.id\nGROUP BY dp.accountId\nORDER BY dp.accountId;",
+  "rows": [
+    {
+      "accountId": "60017",
+      "storeName": "ElaraFit",
+      "marketplace": "CA",
+      "userId": "1",
+      "recordCount": "49",
+      "totalSpend": "59.26",
+      "totalSales": "167.96",
+      "minDate": "2025-12-30 00:00:00",
+      "maxDate": "2026-01-14 00:00:00"
+    },
+    {
+      "accountId": "60019",
+      "storeName": "ElaraFit",
+      "marketplace": "US",
+      "userId": "1",
+      "recordCount": "4",
+      "totalSpend": "1617.79",
+      "totalSales": "1839.39",
+      "minDate": "2026-01-13 00:00:00",
+      "maxDate": "2026-01-16 00:00:00"
+    }
+  ],
+  "messages": [],
+  "stdout": "accountId\tstoreName\tmarketplace\tuserId\trecordCount\ttotalSpend\ttotalSales\tminDate\tmaxDate\n60017\tElaraFit\tCA\t1\t49\t59.26\t167.96\t2025-12-30 00:00:00\t2026-01-14 00:00:00\n60019\tElaraFit\tUS\t1\t4\t1617.79\t1839.39\t2026-01-13 00:00:00\t2026-01-16 00:00:00\n",
+  "stderr": "",
+  "execution_time_ms": 55
+}
