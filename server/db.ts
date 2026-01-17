@@ -702,6 +702,7 @@ export async function upsertDailyPerformanceFromAms(data: {
   impressions: number;
   clicks: number;
   cost: number;
+  adType?: string;  // SP, SB, SD
 }): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -751,6 +752,7 @@ export async function updateDailyPerformanceConversion(data: {
   date: string;
   sales: number;
   orders: number;
+  adType?: string;  // SP, SB, SD
 }): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
