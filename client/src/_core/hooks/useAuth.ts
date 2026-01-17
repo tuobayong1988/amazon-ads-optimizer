@@ -32,13 +32,29 @@ export function useAuth(options?: UseAuthOptions) {
         error instanceof TRPCClientError &&
         error.data?.code === "UNAUTHORIZED"
       ) {
-        return;
+        // 即使未授权错误也继续执行跳转
+      } else {
+        console.error("Logout error:", error);
       }
-      throw error;
-    } finally {
-      utils.auth.me.setData(undefined, null);
-      await utils.auth.me.invalidate();
     }
+    
+    // 清除本地状态
+    utils.auth.me.setData(undefined, null);
+    
+    // 清除 localStorage 中的用户信息
+    localStorage.removeItem("ads-optimizer-user-info");
+    
+    // 清除所有可能的缓存
+    try {
+      await utils.auth.me.invalidate();
+    } catch (e) {
+      // 忽略 invalidate 错误
+    }
+    
+    // 强制刷新页面并跳转到首页
+    // 使用 window.location.href 而不是 React Router，确保完全重新加载页面
+    // 这样可以确保所有状态都被清除
+    window.location.href = "/";
   }, [logoutMutation, utils]);
 
   const state = useMemo(() => {
