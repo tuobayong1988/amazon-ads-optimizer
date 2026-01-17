@@ -4389,10 +4389,68 @@ const amazonApiRouter = router({
           throw new TRPCError({ code: 'BAD_REQUEST', message: '账号未配置API凭证' });
         }
         
-        const sqsQueueArn = process.env.AWS_SQS_QUEUE_ARN;
-        if (!sqsQueueArn) {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: '未配置SQS队列ARN' });
+        // 辅助函数: 将SQS URL转换为ARN
+        const urlToArn = (url: string | undefined): string | undefined => {
+          if (!url) return undefined;
+          // URL格式: https://sqs.{region}.amazonaws.com/{accountId}/{queueName}
+          let match = url.match(/sqs\.([^.]+)\.amazonaws\.com\/(\d+)\/(.+)/);
+          if (match) {
+            const [, region, accountId, queueName] = match;
+            return `arn:aws:sqs:${region}:${accountId}:${queueName}`;
+          }
+          // 处理 queue.amazonaws.com 格式
+          match = url.match(/queue\.amazonaws\.com\/(\d+)\/(.+)/);
+          if (match) {
+            const [, accountId, queueName] = match;
+            const region = process.env.AWS_REGION || 'us-east-1';
+            return `arn:aws:sqs:${region}:${accountId}:${queueName}`;
+          }
+          return url; // 如果已经是ARN格式，直接返回
+        };
+        
+        // 构建队列ARN映射 - 每个数据集使用对应的队列
+        const queueArnMapping: Record<string, string | undefined> = {
+          'sp-traffic': urlToArn(process.env.AWS_SQS_QUEUE_TRAFFIC_URL),
+          'sp-conversion': urlToArn(process.env.AWS_SQS_QUEUE_CONVERSION_URL),
+          'sp-budget-usage': urlToArn(process.env.AWS_SQS_QUEUE_BUDGET_URL),
+          'sb-traffic': urlToArn(process.env.AWS_SQS_QUEUE_SB_TRAFFIC_URL),
+          'sb-conversion': urlToArn(process.env.AWS_SQS_QUEUE_SB_CONVERSION_URL),
+          'sb-budget-usage': urlToArn(process.env.AWS_SQS_QUEUE_SB_BUDGET_URL),
+          'sd-traffic': urlToArn(process.env.AWS_SQS_QUEUE_SD_TRAFFIC_URL),
+          'sd-conversion': urlToArn(process.env.AWS_SQS_QUEUE_SD_CONVERSION_URL),
+          'sd-budget-usage': urlToArn(process.env.AWS_SQS_QUEUE_SD_BUDGET_URL),
+        };
+        
+        // 检查是否有任何队列配置
+        const configuredQueues = Object.entries(queueArnMapping).filter(([_, arn]) => arn);
+        if (configuredQueues.length === 0) {
+          // 向后兼容: 如果没有配置单独的队列URL，尝试使用旧的单一ARN
+          const sqsQueueArn = process.env.AWS_SQS_QUEUE_ARN;
+          if (!sqsQueueArn) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: '未配置SQS队列环境变量' });
+          }
+          console.log('[AMS] 使用单一队列ARN模式:', sqsQueueArn);
+          
+          const region = MARKETPLACE_TO_REGION[account.marketplace || 'US'] || 'NA';
+          const client = new AmazonAdsApiClient({
+            clientId: credentials.clientId,
+            clientSecret: credentials.clientSecret,
+            refreshToken: credentials.refreshToken,
+            profileId: credentials.profileId,
+            region,
+          });
+          
+          const result = await client.createAllTrafficSubscriptions(sqsQueueArn);
+          return {
+            success: true,
+            created: result.created,
+            failed: result.failed,
+            message: `成功创建 ${result.created.length} 个订阅，失败 ${result.failed.length} 个`,
+          };
         }
+        
+        console.log(`[AMS] 使用队列映射模式，已配置 ${configuredQueues.length} 个队列:`);
+        configuredQueues.forEach(([name, arn]) => console.log(`  - ${name}: ${arn}`));
         
         const region = MARKETPLACE_TO_REGION[account.marketplace || 'US'] || 'NA';
         const client = new AmazonAdsApiClient({
@@ -4403,7 +4461,8 @@ const amazonApiRouter = router({
           region,
         });
         
-        const result = await client.createAllTrafficSubscriptions(sqsQueueArn);
+        // 使用队列映射创建订阅
+        const result = await client.createAllTrafficSubscriptions(queueArnMapping as Record<string, string>);
         
         return {
           success: true,

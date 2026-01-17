@@ -3064,7 +3064,15 @@ export class AmazonAdsApiClient {
    * - sd-conversion: SD转化数据 (beta)
    * - sd-budget-usage: SD预算监控
    */
-  async createAllTrafficSubscriptions(destinationArn: string): Promise<{
+  /**
+   * 批量创建AMS订阅（快车道所需的所有 9 个数据集）
+   * 支持两种调用方式:
+   * 1. 传入队列ARN映射对象 - 每个数据集使用对应的队列
+   * 2. 传入单一ARN字符串 - 所有数据集使用同一队列（向后兼容）
+   */
+  async createAllTrafficSubscriptions(
+    queueArnOrMapping: string | Partial<Record<AmsDatasetType, string>>
+  ): Promise<{
     created: AmsSubscription[];
     failed: Array<{ dataSetId: string; error: string }>;
   }> {
@@ -3074,8 +3082,24 @@ export class AmazonAdsApiClient {
     const created: AmsSubscription[] = [];
     const failed: Array<{ dataSetId: string; error: string }> = [];
     
+    // 判断是映射对象还是单一ARN
+    const isMapping = typeof queueArnOrMapping === 'object';
+    
     for (const dataSetId of trafficDatasets) {
       try {
+        // 获取该数据集对应的队列ARN
+        let destinationArn: string;
+        if (isMapping) {
+          destinationArn = (queueArnOrMapping as Record<string, string>)[dataSetId];
+          if (!destinationArn) {
+            console.warn(`[AMS] 数据集 ${dataSetId} 未配置队列ARN，跳过`);
+            failed.push({ dataSetId, error: `未配置队列ARN` });
+            continue;
+          }
+        } else {
+          destinationArn = queueArnOrMapping as string;
+        }
+        
         // 检查是否已存在
         const existing = await this.listAmsSubscriptions();
         const existingSubscription = existing.find(
@@ -3088,6 +3112,7 @@ export class AmazonAdsApiClient {
           continue;
         }
         
+        console.log(`[AMS] 创建订阅: ${dataSetId} -> ${destinationArn}`);
         const subscription = await this.createAmsSubscription(
           dataSetId,
           destinationArn,
