@@ -3051,17 +3051,18 @@ export class AmazonAdsApiClient {
   }
 
   /**
-   * 批量创建AMS订阅（快车道所需的所有数据集）
+   * 批量创建AMS订阅（快车道所需的所有 9 个数据集）
    * 
    * 快车道数据集 (有效的Dataset ID白名单):
    * - sp-traffic: SP实时流量（每小时推送，延迟2-5分钟）
-   * - sb-traffic: SB实时流量
-   * - sd-traffic: SD实时流量
+   * - sp-conversion: SP转化数据
    * - sp-budget-usage: SP预算监控（秒级/分钟级推送）
+   * - sb-traffic: SB实时流量
+   * - sb-conversion: SB转化数据 (beta)
    * - sb-budget-usage: SB预算监控
+   * - sd-traffic: SD实时流量
+   * - sd-conversion: SD转化数据 (beta)
    * - sd-budget-usage: SD预算监控
-   * 
-   * 注意: 没有sb-conversion和sd-conversion，只有sp-conversion
    */
   async createAllTrafficSubscriptions(destinationArn: string): Promise<{
     created: AmsSubscription[];
@@ -3293,25 +3294,31 @@ export class AmazonAdsApiClient {
  * 参考: https://advertising.amazon.com/API/docs/en-us/amazon-marketing-stream/overview
  * 
  * SP: sp-traffic, sp-conversion, sp-budget-usage
- * SB: sb-traffic, sb-budget-usage (注意: 没有sb-conversion)
- * SD: sd-traffic, sd-budget-usage (注意: 没有sd-conversion)
+ * SB: sb-traffic, sb-conversion (beta), sb-budget-usage
+ * SD: sd-traffic, sd-conversion (beta), sd-budget-usage
  */
 export type AmsDatasetType = 
   | 'sp-traffic'      // SP实时流量数据（曝光、点击、花费）
   | 'sb-traffic'      // SB实时流量数据
   | 'sd-traffic'      // SD实时流量数据
   | 'sp-conversion'   // SP转化数据（订单、销售额）
+  | 'sb-conversion'   // SB转化数据（订单、销售额）- beta
+  | 'sd-conversion'   // SD转化数据（订单、销售额）- beta
   | 'sp-budget-usage' // SP预算消耗监控
   | 'sb-budget-usage' // SB预算消耗监控
   | 'sd-budget-usage';// SD预算消耗监控
 
 // 有效的快车道数据集（用于实时数据同步）
+// 包含所有 9 个数据集: traffic(3) + conversion(3) + budget-usage(3)
 export const VALID_TRAFFIC_DATASETS: AmsDatasetType[] = [
   'sp-traffic',
-  'sb-traffic',
-  'sd-traffic',
+  'sp-conversion',
   'sp-budget-usage',
+  'sb-traffic',
+  'sb-conversion',
   'sb-budget-usage',
+  'sd-traffic',
+  'sd-conversion',
   'sd-budget-usage',
 ];
 

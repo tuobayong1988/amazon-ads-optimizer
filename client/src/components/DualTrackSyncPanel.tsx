@@ -126,11 +126,13 @@ export function DualTrackSyncPanel({ accountId, isPlatformAdmin = false }: DualT
   const getDatasetLabel = (dataSetId: string) => {
     const labels: Record<string, string> = {
       'sp-traffic': 'SP实时流量',
-      'sb-traffic': 'SB实时流量',
-      'sd-traffic': 'SD实时流量',
       'sp-conversion': 'SP转化数据',
       'sp-budget-usage': 'SP预算监控',
+      'sb-traffic': 'SB实时流量',
+      'sb-conversion': 'SB转化数据 (beta)',
       'sb-budget-usage': 'SB预算监控',
+      'sd-traffic': 'SD实时流量',
+      'sd-conversion': 'SD转化数据 (beta)',
       'sd-budget-usage': 'SD预算监控',
     };
     return labels[dataSetId] || dataSetId;

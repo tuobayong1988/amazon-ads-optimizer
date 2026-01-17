@@ -4374,7 +4374,7 @@ const amazonApiRouter = router({
       }
     }),
 
-  // 批量创建快车道订阅（sp-traffic, sb-traffic, sd-traffic, sp-budget-usage）
+  // 批量创建快车道订阅（全部 9 个数据集: traffic/conversion/budget-usage 各 3 个）
   createAllTrafficSubscriptions: protectedProcedure
     .input(z.object({ accountId: z.number() }))
     .mutation(async ({ input }) => {

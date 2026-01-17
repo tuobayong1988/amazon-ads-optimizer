@@ -35,6 +35,8 @@ export type AmsDatasetType =
   | 'sb-traffic'      // SB实时流量数据
   | 'sd-traffic'      // SD实时流量数据
   | 'sp-conversion'   // SP转化数据
+  | 'sb-conversion'   // SB转化数据 (beta)
+  | 'sd-conversion'   // SD转化数据 (beta)
   | 'sp-budget-usage' // SP预算使用
   | 'sb-budget-usage' // SB预算使用
   | 'sd-budget-usage';// SD预算使用
