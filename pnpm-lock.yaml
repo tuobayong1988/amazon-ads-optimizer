@@ -22,6 +22,9 @@ importers:
       '@aws-sdk/client-sns':
         specifier: ^3.967.0
         version: 3.967.0
+      '@aws-sdk/client-sqs':
+        specifier: ^3.967.0
+        version: 3.967.0
       '@aws-sdk/s3-request-presigner':
         specifier: ^3.693.0
         version: 3.907.0
@@ -169,6 +172,9 @@ importers:
       jose:
         specifier: 6.1.0
         version: 6.1.0
+      json-bigint:
+        specifier: ^1.0.0
+        version: 1.0.0
       jsonwebtoken:
         specifier: ^9.0.3
         version: 9.0.3
@@ -233,9 +239,6 @@ importers:
         specifier: ^4.1.12
         version: 4.1.12
     devDependencies:
-      '@aws-sdk/client-sqs':
-        specifier: ^3.967.0
-        version: 3.967.0
       '@builder.io/vite-plugin-jsx-loc':
         specifier: ^0.1.1
         version: 0.1.1(vite@7.1.9(@types/node@24.7.0)(jiti@2.6.1)(lightningcss@1.30.1)(tsx@4.20.6))
@@ -284,9 +287,6 @@ importers:
       esbuild:
         specifier: ^0.25.0
         version: 0.25.10
-      json-bigint:
-        specifier: ^1.0.0
-        version: 1.0.0
       pnpm:
         specifier: ^10.15.1
         version: 10.18.0
