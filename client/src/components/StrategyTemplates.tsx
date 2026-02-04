@@ -1,6 +1,12 @@
 /**
  * 策略模板库组件
  * 提供预设的优化策略模板，让用户一键应用
+ * 
+ * 重要说明：
+ * - 每个策略模板卡片只应该有一个"应用此策略"按钮
+ * - 不要在构建后的index.html中添加任何增强脚本（如strategy-center-v221.js）
+ * - 增强脚本会动态添加额外的按钮（查看详情、启用、删除），这不是预期的行为
+ * - 如果需要添加新功能，应该直接修改此组件的源代码
  */
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
