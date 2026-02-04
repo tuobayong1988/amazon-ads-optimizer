@@ -220,7 +220,15 @@ export default function StrategyCenter() {
           </Card>
         </div>
 
-        {/* 主要标签页 */}
+        {/* 策略模板库 - 显示在页面上部 */}
+        <StrategyTemplates
+          currentAcos={25}
+          onApplyTemplate={(template) => {
+            toast.success(`已应用策略模板: ${template.name}`);
+          }}
+        />
+
+        {/* 主要标签页 - 优化目标、广告活动、自动化配置 */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="bg-muted/50">
             <TabsTrigger value="targets" className="gap-2">
@@ -442,13 +450,6 @@ export default function StrategyCenter() {
           </TabsContent>
         </Tabs>
 
-        {/* 策略模板库 */}
-        <StrategyTemplates
-          currentAcos={25}
-          onApplyTemplate={(template) => {
-            toast.success(`已应用策略模板: ${template.name}`);
-          }}
-        />
       </div>
     </DashboardLayout>
   );
