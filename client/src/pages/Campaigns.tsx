@@ -297,11 +297,35 @@ const billingTypeLabels: Record<string, string> = {
   cpm: "CPM (按千次展示)",
 };
 
+// 广告目标映射
+const campaignGoalLabels: Record<string, string> = {
+  // SB广告目标
+  'DRIVE_PAGE_VISITS': '驱动页面访问',
+  'drivePageVisits': '驱动页面访问',
+  'GROW_BRAND_IMPRESSION_SHARE': '增长品牌展示份额',
+  'growBrandImpressionShare': '增长品牌展示份额',
+  'PROMOTE_PRODUCTS': '推广产品',
+  'promoteProducts': '推广产品',
+  // SD广告目标
+  'reach': '触达用户',
+  'pageVisits': '驱动页面访问',
+  'page_visits': '驱动页面访问',
+  'conversions': '促进转化',
+};
+
+// 广告格式映射（SB广告特有）
+const adFormatLabels: Record<string, string> = {
+  'productCollection': '商品集',
+  'video': '视频广告',
+  'storeSpotlight': '旗舰店聚焦',
+  'brandVideo': '品牌视频',
+};
+
 // 列配置 - 按亚马逊后台顺序
 type ColumnKey = 
   // 基本信息
   'state' | 'campaignName' | 'countryCode' | 'status' | 'campaignType' | 'targetingType' | 
-  'retailer' | 'portfolioName' | 'biddingStrategy' |
+  'retailer' | 'portfolioName' | 'biddingStrategy' | 'campaignGoal' | 'adFormat' |
   // 日期和预算
   'startDate' | 'endDate' | 'avgTimeInBudget' | 'budgetConverted' | 'dailyBudget' | 'costType' |
   // 曝光指标
@@ -358,6 +382,8 @@ const columns: ColumnConfig[] = [
   { key: 'budgetConverted', label: '预算(转换)', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
   { key: 'dailyBudget', label: '日预算', minWidth: '100px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'important' },
   { key: 'costType', label: '计费类型', minWidth: '80px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'campaignGoal', label: '广告目标', minWidth: '120px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'adFormat', label: '广告格式', minWidth: '100px', align: 'left', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
   
   // === 曝光指标 ===
   { key: 'impressions', label: '曝光', minWidth: '90px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
@@ -979,6 +1005,14 @@ export default function Campaigns() {
           aValue = (a as any).costType || 'cpc';
           bValue = (b as any).costType || 'cpc';
           break;
+        case 'campaignGoal':
+          aValue = (a as any).campaignGoal || '';
+          bValue = (b as any).campaignGoal || '';
+          break;
+        case 'adFormat':
+          aValue = (a as any).adFormat || '';
+          bValue = (b as any).adFormat || '';
+          break;
         case 'startDate':
           aValue = new Date((a as any).startDate || 0).getTime();
           bValue = new Date((b as any).startDate || 0).getTime();
@@ -1166,6 +1200,12 @@ export default function Campaigns() {
               break;
             case 'costType':
               row[col.key] = billingTypeLabels[(campaign as any).costType || 'cpc'] || (campaign as any).costType || 'CPC';
+              break;
+            case 'campaignGoal':
+              row[col.key] = campaignGoalLabels[(campaign as any).campaignGoal] || (campaign as any).campaignGoal || '-';
+              break;
+            case 'adFormat':
+              row[col.key] = adFormatLabels[(campaign as any).adFormat] || (campaign as any).adFormat || '-';
               break;
             case 'startDate':
               row[col.key] = (campaign as any).startDate ? new Date((campaign as any).startDate).toLocaleDateString('zh-CN') : '';
@@ -1381,6 +1421,32 @@ export default function Campaigns() {
             {billingTypeLabels[(campaign as any).costType] || "CPC (按点击)"}
           </span>
         );
+      case 'campaignGoal': {
+        const goal = (campaign as any).campaignGoal;
+        if (!goal) {
+          // SP广告没有goal字段，显示“-”
+          return <span className="text-sm text-muted-foreground">-</span>;
+        }
+        const goalLabel = campaignGoalLabels[goal] || goal;
+        // 根据目标类型显示不同颜色
+        const isImpressionGoal = goal === 'GROW_BRAND_IMPRESSION_SHARE' || goal === 'growBrandImpressionShare' || goal === 'reach';
+        return (
+          <Badge variant="outline" className={isImpressionGoal ? 'bg-purple-500/10 text-purple-600 border-purple-500/20' : 'bg-blue-500/10 text-blue-600 border-blue-500/20'}>
+            {goalLabel}
+          </Badge>
+        );
+      }
+      case 'adFormat': {
+        const format = (campaign as any).adFormat;
+        if (!format) {
+          return <span className="text-sm text-muted-foreground">-</span>;
+        }
+        return (
+          <span className="text-sm text-muted-foreground">
+            {adFormatLabels[format] || format}
+          </span>
+        );
+      }
       case 'startDate':
         return (
           <span className="text-sm text-muted-foreground">

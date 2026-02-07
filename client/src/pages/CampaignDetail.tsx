@@ -707,6 +707,32 @@ export default function CampaignDetail() {
                       <p className="text-sm text-muted-foreground">计费方式</p>
                       <p className="font-medium">{campaign.costType === "vcpm" ? "VCPM (可见千次曝光)" : campaign.costType === "cpm" ? "CPM (千次曝光)" : "CPC (按点击)"}</p>
                     </div>
+                    {(campaign as any).campaignGoal && (
+                      <div>
+                        <p className="text-sm text-muted-foreground">广告目标</p>
+                        <p className="font-medium">{
+                          (campaign as any).campaignGoal === 'DRIVE_PAGE_VISITS' || (campaign as any).campaignGoal === 'drivePageVisits' ? '驱动页面访问' :
+                          (campaign as any).campaignGoal === 'GROW_BRAND_IMPRESSION_SHARE' || (campaign as any).campaignGoal === 'growBrandImpressionShare' ? '增长品牌展示份额' :
+                          (campaign as any).campaignGoal === 'PROMOTE_PRODUCTS' || (campaign as any).campaignGoal === 'promoteProducts' ? '推广产品' :
+                          (campaign as any).campaignGoal === 'reach' ? '触达用户' :
+                          (campaign as any).campaignGoal === 'pageVisits' || (campaign as any).campaignGoal === 'page_visits' ? '驱动页面访问' :
+                          (campaign as any).campaignGoal === 'conversions' ? '促进转化' :
+                          (campaign as any).campaignGoal
+                        }</p>
+                      </div>
+                    )}
+                    {(campaign as any).adFormat && (
+                      <div>
+                        <p className="text-sm text-muted-foreground">广告格式</p>
+                        <p className="font-medium">{
+                          (campaign as any).adFormat === 'productCollection' ? '商品集' :
+                          (campaign as any).adFormat === 'video' ? '视频广告' :
+                          (campaign as any).adFormat === 'storeSpotlight' ? '旗舰店聚焦' :
+                          (campaign as any).adFormat === 'brandVideo' ? '品牌视频' :
+                          (campaign as any).adFormat
+                        }</p>
+                      </div>
+                    )}
                     <div>
                       <p className="text-sm text-muted-foreground">日预算</p>
                       <p className="font-medium">${campaign.dailyBudget || "N/A"}</p>

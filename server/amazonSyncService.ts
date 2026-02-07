@@ -314,6 +314,43 @@ export class AmazonSyncService {
                                   (apiCampaign as any).biddingStrategy || 
                                   'legacyForSales';
 
+        // ✅ 根据SB广告的Campaign Goal确定计费方式
+        // SB v4 API返回的goal字段决定计费模式:
+        //   - DRIVE_PAGE_VISITS → CPC计费（按点击付费）
+        //   - GROW_BRAND_IMPRESSION_SHARE → vCPM计费（按千次可见展示付费）
+        //   - PROMOTE_PRODUCTS → CPC计费（推广产品）
+        // 注意：同一种SB广告格式（Video/Product Collection/Store Spotlight）
+        //       既可以是CPC也可以是vCPM，完全取决于创建时选择的Goal
+        const sbGoal = (apiCampaign as any).goal || (apiCampaign as any).campaignGoal || '';
+        let sbCostType: 'cpc' | 'vcpm' | 'cpm' = 'cpc'; // 默认CPC
+        if (sbGoal === 'GROW_BRAND_IMPRESSION_SHARE' || sbGoal === 'growBrandImpressionShare') {
+          sbCostType = 'vcpm';
+        }
+        // 也检查API是否直接返回了costType字段（某些API版本可能直接返回）
+        if ((apiCampaign as any).costType) {
+          const apiCostType = String((apiCampaign as any).costType).toLowerCase();
+          if (apiCostType === 'vcpm' || apiCostType === 'cpm') {
+            sbCostType = apiCostType as 'vcpm' | 'cpm';
+          }
+        }
+
+        // 获取SB广告格式
+        const sbAdFormat = (apiCampaign as any).adFormat || (apiCampaign as any).creative?.adFormat || null;
+        const validAdFormats = ['productCollection', 'video', 'storeSpotlight', 'brandVideo'];
+        const normalizedAdFormat = validAdFormats.includes(sbAdFormat) ? sbAdFormat : null;
+
+        // 获取SB广告的竞价优化目标
+        const sbBidOptimization = (apiCampaign as any).bidOptimization || null;
+        const validBidOpts = ['reach', 'pageVisits', 'conversions'];
+        const normalizedBidOpt = validBidOpts.includes(sbBidOptimization) ? sbBidOptimization : null;
+
+        // 获取SB广告的landing page信息
+        const sbLandingPageType = (apiCampaign as any).landingPage?.pageType || (apiCampaign as any).landingPageType || null;
+        const sbLandingPageUrl = (apiCampaign as any).landingPage?.url || (apiCampaign as any).landingPageUrl || null;
+        const sbBrandEntityId = (apiCampaign as any).brandEntityId || null;
+
+        console.log(`[SyncService] SB广告 ${apiCampaign.name}: goal=${sbGoal}, costType=${sbCostType}, adFormat=${normalizedAdFormat}`);
+
         const campaignData = {
           accountId: this.accountId,
           campaignId: String(apiCampaign.campaignId),
@@ -325,7 +362,13 @@ export class AmazonSyncService {
           state: normalizedState as 'enabled' | 'paused' | 'archived' | 'pending' | 'other',
           startDate: sbStartDate,
           endDate: sbEndDate,
-          costType: 'cpc' as 'cpc' | 'vcpm' | 'cpm', // SB广告都是CPC
+          costType: sbCostType, // ✅ 根据Goal动态设置，而非硬编码CPC
+          campaignGoal: sbGoal || null, // ✅ 存储原始Goal值
+          adFormat: normalizedAdFormat, // ✅ 存储广告格式
+          bidOptimization: normalizedBidOpt, // ✅ 存储竞价优化目标
+          landingPageType: sbLandingPageType,
+          landingPageUrl: sbLandingPageUrl,
+          brandEntityId: sbBrandEntityId,
           portfolioId: sbPortfolioId,
           biddingStrategy: sbBiddingStrategy as 'legacyForSales' | 'autoForSales' | 'manual' | 'ruleBasedBidding',
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
@@ -445,11 +488,38 @@ export class AmazonSyncService {
         const validCostTypes = ['cpc', 'vcpm', 'cpm'];
         const normalizedCostType = validCostTypes.includes(sdCostType) ? sdCostType : 'cpc';
 
-        // 获受组合ID
+        // 获取组合ID
         const sdPortfolioId = (apiCampaign as any).portfolioId ? String((apiCampaign as any).portfolioId) : null;
 
-        // 获取定向类型
-        const sdTargetingType = (apiCampaign as any).tactic || 'manual';
+        // ✅ 获取SD广告的Campaign Goal（广告目标）
+        // SD API返回的goal/optimizationGoal字段决定广告目标:
+        //   - reach → 触达用户（通常配合vCPM计费）
+        //   - page_visits / pageVisits → 驱动页面访问（通常配合CPC计费）
+        //   - conversions → 促进转化（通常配合CPC计费）
+        // 注意：SD的costType由API直接返回，不goal共同决定广告的计费和优化方式
+        const sdGoal = (apiCampaign as any).goal || 
+                       (apiCampaign as any).optimizationGoal || 
+                       (apiCampaign as any).bidOptimization || '';
+        
+        // 获取SD广告的tactic（定向策略）
+        // T00020 = 受众定向(Audiences), T00030 = 商品定向(Contextual)
+        // remarketing = 再营销, contextual = 上下文定向
+        const sdTactic = (apiCampaign as any).tactic || null;
+        
+        // 根据goal和costType的组合确定实际计费方式
+        // SD的costType由API直接返回，但也可以通过goal推断
+        let finalCostType = normalizedCostType;
+        if (sdGoal === 'reach' && normalizedCostType === 'cpc') {
+          // reach目标通常使用vCPM，但以API返回的costType为准
+          console.log(`[SyncService] SD广告 ${apiCampaign.name}: goal=reach 但 costType=cpc，以API返回为准`);
+        }
+
+        // 获取SD广告的竞价优化目标
+        const sdBidOptimization = (apiCampaign as any).bidOptimization || null;
+        const validBidOpts = ['reach', 'pageVisits', 'conversions'];
+        const normalizedBidOpt = validBidOpts.includes(sdBidOptimization) ? sdBidOptimization : null;
+
+        console.log(`[SyncService] SD广告 ${apiCampaign.name}: goal=${sdGoal}, costType=${finalCostType}, tactic=${sdTactic}`);
 
         const campaignData = {
           accountId: this.accountId,
@@ -462,7 +532,10 @@ export class AmazonSyncService {
           state: normalizedState as 'enabled' | 'paused' | 'archived' | 'pending' | 'other',
           startDate: sdStartDate,
           endDate: sdEndDate,
-          costType: normalizedCostType as 'cpc' | 'vcpm' | 'cpm',
+          costType: finalCostType as 'cpc' | 'vcpm' | 'cpm',
+          campaignGoal: sdGoal || null, // ✅ 存储SD广告目标
+          bidOptimization: normalizedBidOpt, // ✅ 存储竞价优化目标
+          tactic: sdTactic, // ✅ 存储定向策略
           portfolioId: sdPortfolioId,
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
@@ -3849,14 +3922,36 @@ AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
         }
       }
 
+      // ✅ 根据SB广告的Campaign Goal确定计费方式
+      const sbGoal = (apiCampaign as any).goal || (apiCampaign as any).campaignGoal || '';
+      let sbCostType: 'cpc' | 'vcpm' | 'cpm' = 'cpc';
+      if (sbGoal === 'GROW_BRAND_IMPRESSION_SHARE' || sbGoal === 'growBrandImpressionShare') {
+        sbCostType = 'vcpm';
+      }
+      if ((apiCampaign as any).costType) {
+        const apiCostType = String((apiCampaign as any).costType).toLowerCase();
+        if (apiCostType === 'vcpm' || apiCostType === 'cpm') {
+          sbCostType = apiCostType as 'vcpm' | 'cpm';
+        }
+      }
+
+      // 获取SB广告格式
+      const sbAdFormat = (apiCampaign as any).adFormat || (apiCampaign as any).creative?.adFormat || null;
+      const validAdFormats = ['productCollection', 'video', 'storeSpotlight', 'brandVideo'];
+      const normalizedAdFormat = validAdFormats.includes(sbAdFormat) ? sbAdFormat : null;
+
       const campaignData = {
         accountId: this.accountId,
         campaignId: String(apiCampaign.campaignId),
         campaignName: apiCampaign.name,
         campaignType: 'sb' as const,
         targetingType: 'manual' as const,
-        dailyBudget: String(apiCampaign.budget?.budget || 0),
-        status: (apiCampaign.state || 'enabled') as 'enabled' | 'paused' | 'archived',
+        dailyBudget: String(apiCampaign.budget?.budget || apiCampaign.budget || 0),
+        campaignStatus: ((apiCampaign.state || 'enabled').toLowerCase()) as 'enabled' | 'paused' | 'archived',
+        state: ((apiCampaign.state || 'enabled').toLowerCase()) as 'enabled' | 'paused' | 'archived' | 'pending' | 'other',
+        costType: sbCostType, // ✅ 根据Goal动态设置
+        campaignGoal: sbGoal || null, // ✅ 存储原始Goal值
+        adFormat: normalizedAdFormat, // ✅ 存储广告格式
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 
@@ -3983,14 +4078,37 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
         }
       }
 
+      // ✅ 获取SD广告的计费类型
+      const sdCostType = ((apiCampaign as any).costType || 'cpc').toLowerCase();
+      const validCostTypes = ['cpc', 'vcpm', 'cpm'];
+      const normalizedCostType = validCostTypes.includes(sdCostType) ? sdCostType : 'cpc';
+
+      // ✅ 获取SD广告的Campaign Goal（广告目标）
+      const sdGoal = (apiCampaign as any).goal || 
+                     (apiCampaign as any).optimizationGoal || 
+                     (apiCampaign as any).bidOptimization || '';
+
+      // ✅ 获取SD广告的tactic（定向策略）
+      const sdTactic = (apiCampaign as any).tactic || null;
+
+      // ✅ 获取SD广告的竞价优化目标
+      const sdBidOptimization = (apiCampaign as any).bidOptimization || null;
+      const validBidOpts = ['reach', 'pageVisits', 'conversions'];
+      const normalizedBidOpt = validBidOpts.includes(sdBidOptimization) ? sdBidOptimization : null;
+
       const campaignData = {
         accountId: this.accountId,
         campaignId: String(apiCampaign.campaignId),
         campaignName: apiCampaign.name,
         campaignType: 'sd' as const,
         targetingType: 'manual' as const,
-        dailyBudget: String(apiCampaign.budget || 0),
-        status: (apiCampaign.state || 'enabled') as 'enabled' | 'paused' | 'archived',
+        dailyBudget: String(apiCampaign.budget?.budget || apiCampaign.budget || 0),
+        campaignStatus: ((apiCampaign.state || 'enabled').toLowerCase()) as 'enabled' | 'paused' | 'archived',
+        state: ((apiCampaign.state || 'enabled').toLowerCase()) as 'enabled' | 'paused' | 'archived' | 'pending' | 'other',
+        costType: normalizedCostType as 'cpc' | 'vcpm' | 'cpm', // ✅ 从API获取
+        campaignGoal: sdGoal || null, // ✅ 存储SD广告目标
+        bidOptimization: normalizedBidOpt, // ✅ 存储竞价优化目标
+        tactic: sdTactic, // ✅ 存储定向策略
         updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
       };
 

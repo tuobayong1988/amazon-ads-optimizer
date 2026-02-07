@@ -1381,6 +1381,7 @@ export const campaigns = mysqlTable("campaigns", {
 	portfolioId: varchar({ length: 64 }),
 	portfolioName: varchar({ length: 255 }),
 	adFormat: mysqlEnum("ad_format", ['productCollection','video','storeSpotlight','brandVideo']),
+	campaignGoal: mysqlEnum("campaign_goal", ['DRIVE_PAGE_VISITS','GROW_BRAND_IMPRESSION_SHARE','PROMOTE_PRODUCTS']),
 	landingPageType: mysqlEnum("landing_page_type", ['store','productList','customUrl']),
 	landingPageUrl: varchar("landing_page_url", { length: 1000 }),
 	storePageId: varchar("store_page_id", { length: 64 }),
