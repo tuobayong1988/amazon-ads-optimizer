@@ -55,53 +55,124 @@ export const CATEGORY_ELASTICITY: Record<string, number> = {
 
 // ==================== 动态弹性系数计算 ====================
 
-export function calculateDynamicElasticity(historicalData: BidChangeRecord[], category?: string): ElasticityResult {
+/**
+ * 带时间衰减的加权OLS回归（Weighted Ordinary Least Squares）
+ * 专家建议：用真实的出价变动→曝光变动数据对做回归，而不是用固定值0.8
+ * 
+ * 模型: impression_change% = β * bid_change%
+ * 其中 β 就是真实弹性系数
+ * 
+ * @param historicalData 历史出价变动记录
+ * @param category 商品类目（用于fallback）
+ * @param halfLifeDays 时间衰减半衰期（天），近期数据权重更高
+ */
+export function calculateDynamicElasticity(
+  historicalData: BidChangeRecord[], 
+  category?: string,
+  halfLifeDays: number = 14
+): ElasticityResult {
+  // 筛选有效记录：出价变动>=5%且旧点击>0
   const validRecords = historicalData.filter(record => {
     const bidChangePercent = Math.abs((record.newBid - record.oldBid) / record.oldBid);
     return bidChangePercent >= 0.05 && record.oldClicks > 0;
   });
   
+  // 数据不足：fallback到类目默认值
   if (validRecords.length < 5) {
     const categoryElasticity = category ? (CATEGORY_ELASTICITY[category] || CATEGORY_ELASTICITY['default']) : CATEGORY_ELASTICITY['default'];
-    return { elasticity: categoryElasticity, confidence: 0.3, sampleSize: validRecords.length, method: category ? 'category_default' : 'global_default' };
+    return { 
+      elasticity: categoryElasticity, 
+      confidence: 0.3, 
+      sampleSize: validRecords.length, 
+      method: category ? 'category_default' : 'global_default' 
+    };
   }
   
-  const elasticities: number[] = [];
+  // 构建回归数据对：(bid_change%, click_change%, 时间权重)
+  const now = new Date();
+  const regressionData: Array<{ x: number; y: number; weight: number }> = [];
+  
   for (const record of validRecords) {
     const bidChangePercent = (record.newBid - record.oldBid) / record.oldBid;
     const clickChangePercent = (record.newClicks - record.oldClicks) / record.oldClicks;
-    if (bidChangePercent !== 0) {
-      const elasticity = clickChangePercent / bidChangePercent;
-      if (elasticity >= 0 && elasticity <= 3) elasticities.push(elasticity);
+    
+    if (bidChangePercent === 0) continue;
+    
+    // 计算时间衰减权重：近期数据权重更高
+    const daysDiff = (now.getTime() - record.timestamp.getTime()) / (1000 * 60 * 60 * 24);
+    const timeWeight = Math.pow(0.5, daysDiff / halfLifeDays);
+    
+    // 过滤异常值：弹性系数应在[0, 3]范围内
+    const pointElasticity = clickChangePercent / bidChangePercent;
+    if (pointElasticity >= 0 && pointElasticity <= 3) {
+      regressionData.push({ x: bidChangePercent, y: clickChangePercent, weight: timeWeight });
     }
   }
   
-  if (elasticities.length < 3) {
+  if (regressionData.length < 3) {
     const categoryElasticity = category ? (CATEGORY_ELASTICITY[category] || CATEGORY_ELASTICITY['default']) : CATEGORY_ELASTICITY['default'];
-    return { elasticity: categoryElasticity, confidence: 0.4, sampleSize: elasticities.length, method: 'category_default' };
+    return { 
+      elasticity: categoryElasticity, 
+      confidence: 0.4, 
+      sampleSize: regressionData.length, 
+      method: 'category_default' 
+    };
   }
   
-  elasticities.sort((a, b) => a - b);
-  const medianIndex = Math.floor(elasticities.length / 2);
-  const medianElasticity = elasticities.length % 2 === 0 ? (elasticities[medianIndex - 1] + elasticities[medianIndex]) / 2 : elasticities[medianIndex];
+  // === 加权OLS回归：y = β * x（过原点） ===
+  // β = Σ(w_i * x_i * y_i) / Σ(w_i * x_i^2)
+  let sumWXY = 0;
+  let sumWXX = 0;
+  let totalWeight = 0;
   
-  const mean = elasticities.reduce((a, b) => a + b, 0) / elasticities.length;
-  const variance = elasticities.reduce((sum, e) => sum + Math.pow(e - mean, 2), 0) / elasticities.length;
-  const stdDev = Math.sqrt(variance);
-  const coefficientOfVariation = mean > 0 ? stdDev / mean : 1;
-  const sampleConfidence = Math.min(1, elasticities.length / 20);
-  const consistencyConfidence = Math.max(0, 1 - coefficientOfVariation);
-  const confidence = sampleConfidence * 0.6 + consistencyConfidence * 0.4;
+  for (const point of regressionData) {
+    sumWXY += point.weight * point.x * point.y;
+    sumWXX += point.weight * point.x * point.x;
+    totalWeight += point.weight;
+  }
   
-  return { elasticity: Math.round(medianElasticity * 100) / 100, confidence: Math.round(confidence * 100) / 100, sampleSize: elasticities.length, method: 'historical' };
+  const olsElasticity = sumWXX > 0 ? sumWXY / sumWXX : CATEGORY_ELASTICITY['default'];
+  
+  // 限制弹性系数范围 [0.1, 2.5]
+  const clampedElasticity = Math.max(0.1, Math.min(2.5, olsElasticity));
+  
+  // === 计算置信度 ===
+  // 1. 样本量置信度：样本越多越可信
+  const sampleConfidence = Math.min(1, regressionData.length / 20);
+  
+  // 2. 拟合优度（R²）：计算加权残差
+  let ssRes = 0;
+  let ssTot = 0;
+  const weightedMeanY = regressionData.reduce((sum, p) => sum + p.weight * p.y, 0) / totalWeight;
+  for (const point of regressionData) {
+    const predicted = clampedElasticity * point.x;
+    ssRes += point.weight * Math.pow(point.y - predicted, 2);
+    ssTot += point.weight * Math.pow(point.y - weightedMeanY, 2);
+  }
+  const rSquared = ssTot > 0 ? Math.max(0, 1 - ssRes / ssTot) : 0;
+  
+  // 3. 综合置信度 = 40%样本量 + 60%拟合优度
+  const confidence = sampleConfidence * 0.4 + rSquared * 0.6;
+  
+  return { 
+    elasticity: Math.round(clampedElasticity * 100) / 100, 
+    confidence: Math.round(confidence * 100) / 100, 
+    sampleSize: regressionData.length, 
+    method: 'historical' 
+  };
 }
 
+/**
+ * 获取弹性系数（带置信度加权混合）
+ * 专家建议：当回归置信度不足时，将回归结果与类目默认值混合
+ */
 export function getElasticity(historicalData: BidChangeRecord[], category?: string, minConfidence: number = 0.5): number {
   const result = calculateDynamicElasticity(historicalData, category);
   if (result.confidence < minConfidence && result.method === 'historical') {
+    // 置信度不足：将回归结果与类目默认值混合
     const categoryElasticity = category ? (CATEGORY_ELASTICITY[category] || CATEGORY_ELASTICITY['default']) : CATEGORY_ELASTICITY['default'];
     const weight = result.confidence / minConfidence;
-    return result.elasticity * weight + categoryElasticity * (1 - weight);
+    return Math.round((result.elasticity * weight + categoryElasticity * (1 - weight)) * 100) / 100;
   }
   return result.elasticity;
 }

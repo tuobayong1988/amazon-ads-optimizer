@@ -7,7 +7,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
-import { startDataSyncScheduler } from "../dataSyncScheduler";
+import { startDataSyncScheduler, startOptimizationScheduler } from "../dataSyncScheduler";
 import { startSQSConsumer } from "../sqsConsumerService";
 import { reportJobScheduler } from "../services/reportJobScheduler";
 import sitemapRouter from "../routes/sitemap";
@@ -69,6 +69,10 @@ async function startServer() {
     // 启动定时同步调度器（每1小时执行一次）
     startDataSyncScheduler(60 * 60 * 1000);
     console.log('[DataSyncScheduler] 定时同步调度器已启动，间隔: 1小时');
+    
+    // 启动分层优化调度器（专家建议：独立于数据同步的优化调度）
+    startOptimizationScheduler();
+    console.log('[OptimizationScheduler] 分层优化调度器已启动');
     
     // 启动SQS消费者服务（AMS实时数据流）
     if (process.env.AWS_SQS_QUEUE_TRAFFIC_URL || process.env.AWS_SQS_QUEUE_CONVERSION_URL || process.env.AWS_SQS_QUEUE_BUDGET_URL) {

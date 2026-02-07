@@ -17,11 +17,20 @@ export interface OptimizationTarget {
   sales: number;
   orders: number;
   matchType?: string;
+  // 冷启动探测所需字段
+  campaignStartDate?: Date; // Campaign创建日期，用于判断是否为新品
+  historicalAvgImpressions?: number; // 历史日均曝光量，用于断货检测
+  // ASP变动感知字段
+  currentASP?: number; // 当前ASP (Average Selling Price)
+  historicalASP?: number; // 过去14天平均ASP
   // 专家建议新增：库存与业务感知
   inventoryLevel?: 'normal' | 'low' | 'critical' | 'out_of_stock'; // 库存水平
   inventoryDays?: number; // 剩余库存天数
   organicRank?: number; // 自然排名（如果有）
   isStockout?: boolean; // 是否缺货
+  // 专家建议：动态弹性系数所需字段
+  bidChangeHistory?: BidChangeRecord[]; // 历史出价变动记录，用于OLS回归计算真实弹性
+  category?: string; // 商品类目，用于fallback弹性系数
 }
 
 export interface OptimizationResult {
@@ -121,7 +130,9 @@ export function calculateMarginalValues(
   
   // 使用动态弹性系数计算
   // 如果有历史出价变化数据，使用动态计算；否则使用默认值
-  const clickElasticity = 0.8; // 默认值，可通过getElasticity()动态获取
+  // 专家建议：使用动态弹性系数替代固定0.8
+  // 如果有历史出价变动数据，通过加权OLS回归计算真实弹性；否则fallback到类目默认值
+  const clickElasticity = getElasticity(target.bidChangeHistory || [], target.category)
   
   // Estimate new clicks at higher bid
   const bidChangePercent = bidIncrement / currentBid;
@@ -162,7 +173,8 @@ export function generateMarketCurve(
     // 使用对数模型估算点击量
     // clicks = baseClicks * (1 + elasticity * ln(bidLevel / baseBid))
     // 弹性系数可通过getElasticity()动态获取
-    const elasticity = 0.8; // 默认弹性系数
+    // 专家建议：使用动态弹性系数替代固定0.8
+    const elasticity = getElasticity(target.bidChangeHistory || [], target.category)
     const clickMultiplier = 1 + elasticity * Math.log(bidLevel / baseBid);
     const estimatedClicks = Math.max(0, baseClicks * clickMultiplier);
     
@@ -426,10 +438,21 @@ export function calculateBidAdjustment(
     return calculateSparseDataBidAdjustment(target, config, maxBidLimit, minBidLimit);
   }
 
-  // 数据充足时，使用原有的市场曲线模型
+  // === ASP变动感知：动态调整ACoS目标 ===
+  const aspSensitivity = calculateASPSensitivity(target.currentASP, target.historicalASP);
+  const adjustedConfig = { ...config };
+  if (aspSensitivity.acosAdjustmentMultiplier !== 1 && adjustedConfig.targetAcos) {
+    adjustedConfig.targetAcos = adjustedConfig.targetAcos * aspSensitivity.acosAdjustmentMultiplier;
+  }
+  if (aspSensitivity.acosAdjustmentMultiplier !== 1 && adjustedConfig.targetRoas) {
+    // ROAS目标与ACoS目标反向调整
+    adjustedConfig.targetRoas = adjustedConfig.targetRoas / aspSensitivity.acosAdjustmentMultiplier;
+  }
+
+  // 数据充足时，使用原有的市场曲线模型（使用ASP调整后的配置）
   const metrics = calculateMetrics(target);
   const marketCurve = generateMarketCurve(target);
-  const optimalBid = findOptimalBid(marketCurve, config);
+  const optimalBid = findOptimalBid(marketCurve, adjustedConfig);
   
   // Calculate new bid with constraints
   let newBid = optimalBid;
@@ -460,8 +483,11 @@ export function calculateBidAdjustment(
   // Calculate change percentage
   const bidChangePercent = ((newBid - target.currentBid) / target.currentBid) * 100;
   
-  // Generate reason
-  const reason = generateOptimizationReason(target, metrics, config, newBid);
+  // Generate reason (包含ASP变动信息)
+  let reason = generateOptimizationReason(target, metrics, adjustedConfig, newBid);
+  if (aspSensitivity.priceAction !== 'stable') {
+    reason = `[${aspSensitivity.reason}] ${reason}`;
+  }
   
   return {
     targetId: target.id,
@@ -533,7 +559,86 @@ function generateOptimizationReason(
 }
 
 /**
+ * 零曝光探测配置
+ */
+const ZERO_IMPRESSION_PROBING_CONFIG = {
+  newCampaignDays: 7,           // Campaign创建7天内视为新品
+  probingBidIncrementPercent: 0.10, // 每次探测提价百分比
+  probingBidIncrementFixed: 0.05,   // 每次探测提价固定金额($)
+  probingImpressionThreshold: 500,  // 曝光达到500后退出探测模式
+  oosHistoricalAvgThreshold: 1000,  // 历史日均曝光>1000且昨日曝光=0，判定为疑似断货
+};
+
+/**
+ * 检测是否为疑似断货/揉购物车丢失
+ * 专家建议：历史日均曝光>1000且昨日曝光=0 → 疑似断货
+ */
+function detectSuspectedOOS(target: OptimizationTarget): boolean {
+  if (target.historicalAvgImpressions !== undefined && 
+      target.historicalAvgImpressions > ZERO_IMPRESSION_PROBING_CONFIG.oosHistoricalAvgThreshold &&
+      target.impressions === 0) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * 检测是否为新品/新广告活动（冷启动阶段）
+ */
+function isNewCampaign(target: OptimizationTarget): boolean {
+  if (!target.campaignStartDate) return false;
+  const daysSinceStart = (Date.now() - target.campaignStartDate.getTime()) / (1000 * 60 * 60 * 24);
+  return daysSinceStart <= ZERO_IMPRESSION_PROBING_CONFIG.newCampaignDays;
+}
+
+/**
+ * 零曝光探测策略
+ * 专家建议：对新品的零曝光关键词执行探测性提价，打破“零曝光→跳过→零曝光”的死循环
+ */
+function calculateZeroImpressionProbing(
+  target: OptimizationTarget,
+  config: PerformanceGroupConfig,
+  maxBidLimit: number
+): OptimizationResult {
+  const { probingBidIncrementPercent, probingBidIncrementFixed, probingImpressionThreshold } = ZERO_IMPRESSION_PROBING_CONFIG;
+  
+  // 使用百分比和固定金额中的较大值作为提价幅度
+  const percentIncrease = target.currentBid * probingBidIncrementPercent;
+  const bidIncrement = Math.max(percentIncrease, probingBidIncrementFixed);
+  let newBid = target.currentBid + bidIncrement;
+  
+  // 应用最高出价限制
+  const effectiveMaxBid = config.maxBid || maxBidLimit;
+  newBid = Math.min(newBid, effectiveMaxBid);
+  newBid = Math.round(newBid * 100) / 100;
+  
+  const bidChangePercent = ((newBid - target.currentBid) / target.currentBid) * 100;
+  
+  let reason = '';
+  if (target.impressions === 0) {
+    reason = `冷启动探测：零曝光，探测性提价+$${bidIncrement.toFixed(2)}寻找入场价位`;
+  } else {
+    reason = `冷启动探测：低曝光(${target.impressions})，探测性提价+$${bidIncrement.toFixed(2)}获取更多流量`;
+  }
+  
+  return {
+    targetId: target.id,
+    targetType: target.type,
+    previousBid: target.currentBid,
+    newBid,
+    actionType: 'increase',
+    bidChangePercent: Math.round(bidChangePercent * 100) / 100,
+    reason,
+  };
+}
+
+/**
  * Batch optimize all targets in a performance group
+ * 
+ * 专家建议改进：
+ * - 移除“clicks<5 && impressions<100 → skip”的死锁逻辑
+ * - 新增零曝光探测机制，解决新品冷启动问题
+ * - 新增疑似断货检测，防止算法在异常情况下乱动
  */
 export function optimizePerformanceGroup(
   targets: OptimizationTarget[],
@@ -543,11 +648,33 @@ export function optimizePerformanceGroup(
   const results: OptimizationResult[] = [];
   
   for (const target of targets) {
-    // Skip targets with insufficient data
-    if (target.clicks < 5 && target.impressions < 100) {
+    // === 第1层：疑似断货检测（优先级最高） ===
+    if (detectSuspectedOOS(target)) {
+      // 强制保持当前出价，不做任何调整，防止浪费预算
+      results.push({
+        targetId: target.id,
+        targetType: target.type,
+        previousBid: target.currentBid,
+        newBid: target.currentBid,
+        actionType: 'set',
+        bidChangePercent: 0,
+        reason: `疑似断货/揉购物车丢失：历史日均曝光${target.historicalAvgImpressions}但当前曝光为0，强制暂停优化保持当前出价`,
+      });
       continue;
     }
     
+    // === 第2层：零曝光探测（新品冷启动） ===
+    if (target.clicks < 5 && target.impressions < 100) {
+      if (isNewCampaign(target)) {
+        // 新品冷启动：执行探测性提价，打破死循环
+        const probingResult = calculateZeroImpressionProbing(target, config, maxBidLimit);
+        results.push(probingResult);
+      }
+      // 非新品且数据不足：跳过（保持原有逻辑，避免对老广告活动的无效调整）
+      continue;
+    }
+    
+    // === 第3层：正常优化流程 ===
     const result = calculateBidAdjustment(target, config, maxBidLimit);
     
     // Only include if there's a meaningful change (> 1%)
@@ -684,6 +811,79 @@ export function getAdjustmentReason(
   }
   
   return `基于历史表现优化出价`;
+}
+
+// ==================== 专家建议新增：ASP变动感知与价格敏感度 ====================
+
+/**
+ * ASP变动感知配置
+ */
+export const ASP_SENSITIVITY_CONFIG = {
+  significantDropPercent: 0.10,   // ASP下降>10%视为显著降价（秒杀/促销）
+  significantRisePercent: 0.10,   // ASP上升>10%视为显著涨价
+  acosRelaxMultiplier: 1.3,       // 降价期间ACoS目标放宽30%
+  acosStricterMultiplier: 0.85,   // 涨价期间ACoS目标收紧15%
+};
+
+/**
+ * ASP变动感知结果
+ */
+export interface ASPSensitivityResult {
+  aspChangePercent: number;        // ASP变动百分比
+  priceAction: 'price_drop' | 'price_rise' | 'stable'; // 价格动作
+  acosAdjustmentMultiplier: number; // ACoS目标调整乘数
+  reason: string;
+}
+
+/**
+ * 计算ASP变动感知
+ * 专家建议：通过Ads API的销量和曝光数据反推业务状态
+ * - ASP下降>10%：说明在做秒杀或降价，CVR通常会飙升，临时放宽 ACoS 目标
+ * - ASP上升>10%：说明涨价了，CVR可能下降，收紧ACoS目标
+ */
+export function calculateASPSensitivity(
+  currentASP: number | undefined,
+  historicalASP: number | undefined
+): ASPSensitivityResult {
+  // 没有ASP数据，返回稳定
+  if (!currentASP || !historicalASP || historicalASP === 0) {
+    return {
+      aspChangePercent: 0,
+      priceAction: 'stable',
+      acosAdjustmentMultiplier: 1,
+      reason: '无ASP数据，保持标准ACoS目标',
+    };
+  }
+  
+  const aspChangePercent = (currentASP - historicalASP) / historicalASP;
+  
+  // 降价检测：ASP下降>10%
+  if (aspChangePercent < -ASP_SENSITIVITY_CONFIG.significantDropPercent) {
+    return {
+      aspChangePercent: Math.round(aspChangePercent * 100) / 100,
+      priceAction: 'price_drop',
+      acosAdjustmentMultiplier: ASP_SENSITIVITY_CONFIG.acosRelaxMultiplier,
+      reason: `检测到降价/秒杀：ASP从$${historicalASP.toFixed(2)}降至$${currentASP.toFixed(2)}(${(aspChangePercent * 100).toFixed(1)}%)，临时放宽 ACoS目标${Math.round((ASP_SENSITIVITY_CONFIG.acosRelaxMultiplier - 1) * 100)}%抓住流量红利`,
+    };
+  }
+  
+  // 涨价检测：ASP上升>10%
+  if (aspChangePercent > ASP_SENSITIVITY_CONFIG.significantRisePercent) {
+    return {
+      aspChangePercent: Math.round(aspChangePercent * 100) / 100,
+      priceAction: 'price_rise',
+      acosAdjustmentMultiplier: ASP_SENSITIVITY_CONFIG.acosStricterMultiplier,
+      reason: `检测到涨价：ASP从$${historicalASP.toFixed(2)}升至$${currentASP.toFixed(2)}(+${(aspChangePercent * 100).toFixed(1)}%)，收紧ACoS目标${Math.round((1 - ASP_SENSITIVITY_CONFIG.acosStricterMultiplier) * 100)}%保护利润`,
+    };
+  }
+  
+  // 价格稳定
+  return {
+    aspChangePercent: Math.round(aspChangePercent * 100) / 100,
+    priceAction: 'stable',
+    acosAdjustmentMultiplier: 1,
+    reason: `ASP稳定($${currentASP.toFixed(2)}，变动${(aspChangePercent * 100).toFixed(1)}%)，保持标准ACoS目标`,
+  };
 }
 
 // ==================== 专家建议新增：库存与业务感知 ====================
@@ -1140,11 +1340,38 @@ export function optimizePerformanceGroupEnhanced(
   const results: EnhancedOptimizationResult[] = [];
   
   for (const target of targets) {
-    // 跳过数据不足的目标
-    if (target.clicks < 5 && target.impressions < 100) {
+    // === 第1层：疑似断货检测（优先级最高） ===
+    if (detectSuspectedOOS(target)) {
+      results.push({
+        targetId: target.id,
+        targetType: target.type,
+        previousBid: target.currentBid,
+        newBid: target.currentBid,
+        actionType: 'set',
+        bidChangePercent: 0,
+        reason: `疑似断货/揉购物车丢失：历史日均曝光${target.historicalAvgImpressions}但当前曝光为0，强制暂停优化`,
+        algorithmUsed: 'combined',
+        confidenceScore: 1.0,
+        holidayMultiplier: 1,
+      } as EnhancedOptimizationResult);
       continue;
     }
     
+    // === 第2层：零曝光探测（新品冷启动） ===
+    if (target.clicks < 5 && target.impressions < 100) {
+      if (isNewCampaign(target)) {
+        const probingResult = calculateZeroImpressionProbing(target, config, maxBidLimit);
+        results.push({
+          ...probingResult,
+          algorithmUsed: 'bayesian',
+          confidenceScore: 0.2,
+          holidayMultiplier: 1,
+        } as EnhancedOptimizationResult);
+      }
+      continue;
+    }
+    
+    // === 第3层：正常增强版优化流程 ===
     const result = calculateEnhancedBidAdjustment(target, config, maxBidLimit, 0.02, currentDate);
     
     // 只包含有意义的变化（> 1%）
