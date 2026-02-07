@@ -260,7 +260,49 @@ class SDKServer {
   }
 
   async authenticateRequest(req: Request): Promise<User> {
-    // Regular authentication flow
+    // Check for JWT token from local auth (Authorization: Bearer <token>)
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.slice(7);
+      try {
+        const jwt = await import('jsonwebtoken');
+        const secret = process.env.JWT_SECRET || 'default-secret-key';
+        const decoded = jwt.default.verify(token, secret) as any;
+        if (decoded && decoded.userId) {
+          // Return a user-like object for local auth users
+          const { sql } = await import('drizzle-orm');
+          const localDb = (await import('../db')).default;
+          const result = await localDb.execute(sql`
+            SELECT tm.*, o.name as organization_name 
+            FROM team_members tm 
+            LEFT JOIN organizations o ON tm.organization_id = o.id 
+            WHERE tm.id = ${decoded.userId}
+          `);
+          const rows = (result as any)[0];
+          if (rows && rows.length > 0) {
+            const localUser = rows[0];
+            // Return as User type with required fields
+            return {
+              id: localUser.id,
+              openId: `local_${localUser.id}`,
+              name: localUser.name,
+              email: localUser.email,
+              loginMethod: 'local',
+              lastSignedIn: localUser.last_login_at,
+              organizationId: localUser.organization_id,
+              role: localUser.role,
+            } as any;
+          }
+        }
+      } catch (jwtError: any) {
+        // JWT verification failed, fall through to cookie auth
+        if (jwtError.name !== 'TokenExpiredError') {
+          console.error('[Auth] JWT verification failed:', jwtError.message);
+        }
+      }
+    }
+
+    // Regular OAuth authentication flow
     const cookies = this.parseCookies(req.headers.cookie);
     const sessionCookie = cookies.get(COOKIE_NAME);
     const session = await this.verifySession(sessionCookie);
