@@ -27,54 +27,9 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
-        manualChunks(id) {
-          // React核心库
-          if (id.includes('node_modules/react/') || 
-              id.includes('node_modules/react-dom/') || 
-              id.includes('node_modules/wouter/')) {
-            return 'react-vendor';
-          }
-          // Radix UI组件库
-          if (id.includes('node_modules/@radix-ui/')) {
-            return 'ui-vendor';
-          }
-          // 图表库
-          if (id.includes('node_modules/recharts/') || 
-              id.includes('node_modules/chart.js/') || 
-              id.includes('node_modules/react-chartjs-2/')) {
-            return 'chart-vendor';
-          }
-          // Mermaid图表（较大）
-          if (id.includes('node_modules/mermaid/')) {
-            return 'mermaid-vendor';
-          }
-          // 表单处理
-          if (id.includes('node_modules/react-hook-form/') || 
-              id.includes('node_modules/@hookform/') || 
-              id.includes('node_modules/zod/')) {
-            return 'form-vendor';
-          }
-          // 工具库
-          if (id.includes('node_modules/date-fns/') || 
-              id.includes('node_modules/lodash/') || 
-              id.includes('node_modules/axios/')) {
-            return 'utils-vendor';
-          }
-          // 代码编辑器
-          if (id.includes('node_modules/@uiw/') || 
-              id.includes('node_modules/@codemirror/')) {
-            return 'editor-vendor';
-          }
-          // 语法高亮库
-          if (id.includes('node_modules/prismjs/') || 
-              id.includes('node_modules/@highlightjs/')) {
-            return 'highlight-vendor';
-          }
-          // 通知库
-          if (id.includes('node_modules/react-hot-toast/') || 
-              id.includes('node_modules/sonner/')) {
-            return 'notification-vendor';
-          }
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'wouter'],
+          'ui-vendor': ['@radix-ui/react-dialog', '@radix-ui/react-select', '@radix-ui/react-tabs', '@radix-ui/react-tooltip', '@radix-ui/react-popover', '@radix-ui/react-dropdown-menu'],
         },
       },
     },
