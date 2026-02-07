@@ -167,11 +167,26 @@ export class AmazonSyncService {
     try {
       console.log(`[SyncService] 开始同步SP否定关键词...`);
       const negResult = await this.syncSpNegativeKeywords();
-      console.log(`[SyncService] SP否定关键词同步完成: ${negResult.synced}条`);
+      console.log(`[SyncService] SP否定关键词同步完成: ${negResult.synced}条新增, ${negResult.updated}条更新`);
     } catch (e: any) {
       console.error('[SyncService] SP否定关键词同步失败:', e.message);
     }
-
+    // ==================== 同步SP否定商品定向 ====================
+    try {
+      console.log(`[SyncService] 开始同步SP否定商品定向...`);
+      const negPtResult = await this.syncSpNegativeProductTargets();
+      console.log(`[SyncService] SP否定商品定向同步完成: ${negPtResult.synced}条新增, ${negPtResult.updated}条更新`);
+    } catch (e: any) {
+      console.error('[SyncService] SP否定商品定向同步失败:', e.message);
+    }
+    // ==================== 同步SP搜索词 ====================
+    try {
+      console.log(`[SyncService] 开始同步SP搜索词数据...`);
+      const spSearchTermSynced = await this.syncSearchTerms(14);
+      console.log(`[SyncService] SP搜索词同步完成: ${spSearchTermSynced}条`);
+    } catch (e: any) {
+      console.error('[SyncService] SP搜索词同步失败:', e.message);
+    }
     // ==================== 同步SB搜索词 ====================
     try {
       console.log(`[SyncService] 开始同步SB搜索词数据...`);
@@ -179,6 +194,14 @@ export class AmazonSyncService {
       console.log(`[SyncService] SB搜索词同步完成: ${sbSearchTermSynced}条`);
     } catch (e: any) {
       console.error('[SyncService] SB搜索词同步失败:', e.message);
+    }
+    // ==================== 同步广告位绩效 ====================
+    try {
+      console.log(`[SyncService] 开始同步广告位绩效数据...`);
+      const placementSynced = await this.syncPlacementPerformance(14);
+      console.log(`[SyncService] 广告位绩效同步完成: ${placementSynced}条`);
+    } catch (e: any) {
+      console.error('[SyncService] 广告位绩效同步失败:', e.message);
     }
     
     // 同步绩效数据（快慢双轨架构：API只拉取T-1及之前的历史数据）
@@ -1228,12 +1251,13 @@ export class AmazonSyncService {
    * 同步SP否定关键词（活动级别 + 广告组级别）
    * 从Amazon API获取否定关键词并同步到本地negativeKeywords表
    */
-  async syncSpNegativeKeywords(): Promise<{ synced: number }> {
+  async syncSpNegativeKeywords(): Promise<{ synced: number; updated: number }> {
     const db = await getDb();
-    if (!db) return { synced: 0 };
+    if (!db) return { synced: 0, updated: 0 };
 
     try {
       let synced = 0;
+      let updated = 0;
 
       // 1. 同步活动级别否定关键词
       console.log(`[SyncService] 开始同步SP活动级别否定关键词...`);
@@ -1241,7 +1265,6 @@ export class AmazonSyncService {
       console.log(`[SyncService] 获取到 ${campaignNegatives.length} 个活动级别否定关键词`);
 
       for (const neg of campaignNegatives) {
-        // 查找对应的campaign
         const [campaign] = await db
           .select()
           .from(campaigns)
@@ -1252,17 +1275,13 @@ export class AmazonSyncService {
             )
           )
           .limit(1);
-
         if (!campaign) continue;
-
         const negState = (neg.state || 'enabled').toLowerCase();
-        if (negState === 'archived') continue; // 跳过已归档的
-
+        if (negState === 'archived') continue;
         const matchType = (neg.matchType || '').toLowerCase().includes('phrase') 
           ? 'negative_phrase' as const 
           : 'negative_exact' as const;
-
-        // 检查是否已存在
+        const amazonKeywordId = String(neg.keywordId || neg.campaignNegativeKeywordId || '');
         const [existing] = await db
           .select()
           .from(negativeKeywords)
@@ -1275,8 +1294,12 @@ export class AmazonSyncService {
             )
           )
           .limit(1);
-
-        if (!existing) {
+        if (existing) {
+          await db.update(negativeKeywords)
+            .set({ negativeMatchType: matchType, amazonNegativeKeywordId: amazonKeywordId || null, negativeStatus: 'active' as const })
+            .where(eq(negativeKeywords.id, existing.id));
+          updated++;
+        } else {
           await db.insert(negativeKeywords).values({
             accountId: this.accountId,
             campaignId: campaign.id,
@@ -1284,6 +1307,7 @@ export class AmazonSyncService {
             negativeType: 'keyword',
             negativeText: neg.keywordText || '',
             negativeMatchType: matchType,
+            amazonNegativeKeywordId: amazonKeywordId || null,
             negativeSource: 'manual',
             negativeStatus: 'active',
           });
@@ -1299,30 +1323,22 @@ export class AmazonSyncService {
       for (const neg of adGroupNegatives) {
         const negState = (neg.state || 'enabled').toLowerCase();
         if (negState === 'archived') continue;
-
-        // 查找对应的adGroup
         const [adGroup] = await db
           .select()
           .from(adGroups)
           .where(eq(adGroups.adGroupId, String(neg.adGroupId)))
           .limit(1);
-
         if (!adGroup) continue;
-
-        // 查找对应的campaign
         const [campaign] = await db
           .select()
           .from(campaigns)
           .where(eq(campaigns.id, adGroup.campaignId))
           .limit(1);
-
         if (!campaign) continue;
-
         const matchType = (neg.matchType || '').toLowerCase().includes('phrase') 
           ? 'negative_phrase' as const 
           : 'negative_exact' as const;
-
-        // 检查是否已存在
+        const amazonKeywordId = String(neg.keywordId || neg.negativeKeywordId || '');
         const [existing] = await db
           .select()
           .from(negativeKeywords)
@@ -1336,8 +1352,12 @@ export class AmazonSyncService {
             )
           )
           .limit(1);
-
-        if (!existing) {
+        if (existing) {
+          await db.update(negativeKeywords)
+            .set({ negativeMatchType: matchType, amazonNegativeKeywordId: amazonKeywordId || null, negativeStatus: 'active' as const })
+            .where(eq(negativeKeywords.id, existing.id));
+          updated++;
+        } else {
           await db.insert(negativeKeywords).values({
             accountId: this.accountId,
             campaignId: campaign.id,
@@ -1346,6 +1366,7 @@ export class AmazonSyncService {
             negativeType: 'keyword',
             negativeText: neg.keywordText || '',
             negativeMatchType: matchType,
+            amazonNegativeKeywordId: amazonKeywordId || null,
             negativeSource: 'manual',
             negativeStatus: 'active',
           });
@@ -1353,11 +1374,142 @@ export class AmazonSyncService {
         }
       }
 
-      console.log(`[SyncService] SP否定关键词同步完成: ${synced} 条新记录`);
-      return { synced };
+      console.log(`[SyncService] SP否定关键词同步完成: ${synced} 条新记录, ${updated} 条更新`);
+      return { synced, updated };
     } catch (error) {
       console.error('Error syncing SP negative keywords:', error);
-      return { synced: 0 };
+      return { synced: 0, updated: 0 };
+    }
+  }
+
+  /**
+   * 同步SP否定商品定向
+   * 从Amazon API获取否定商品定向并同步到本地negativeKeywords表
+   */
+  async syncSpNegativeProductTargets(): Promise<{ synced: number; updated: number }> {
+    const db = await getDb();
+    if (!db) return { synced: 0, updated: 0 };
+    try {
+      let synced = 0;
+      let updated = 0;
+      // 1. 同步活动级别否定商品定向
+      console.log(`[SyncService] 开始同步SP活动级别否定商品定向...`);
+      const campaignNegTargets = await this.client.listSpCampaignNegativeTargets();
+      console.log(`[SyncService] 获取到 ${campaignNegTargets.length} 个活动级别否定商品定向`);
+      for (const neg of campaignNegTargets) {
+        const [campaign] = await db
+          .select()
+          .from(campaigns)
+          .where(
+            and(
+              eq(campaigns.accountId, this.accountId),
+              eq(campaigns.campaignId, String(neg.campaignId))
+            )
+          )
+          .limit(1);
+        if (!campaign) continue;
+        const negState = (neg.state || 'enabled').toLowerCase();
+        if (negState === 'archived') continue;
+        const expression = neg.expression || [];
+        const asinExpr = expression.find((e: any) => e.type?.toLowerCase().includes('asin'));
+        const negativeText = asinExpr?.value || JSON.stringify(expression);
+        const amazonTargetId = String(neg.targetId || '');
+        const [existing] = await db
+          .select()
+          .from(negativeKeywords)
+          .where(
+            and(
+              eq(negativeKeywords.accountId, this.accountId),
+              eq(negativeKeywords.campaignId, campaign.id),
+              eq(negativeKeywords.negativeLevel, 'campaign'),
+              eq(negativeKeywords.negativeType, 'product'),
+              eq(negativeKeywords.negativeText, negativeText)
+            )
+          )
+          .limit(1);
+        if (existing) {
+          await db.update(negativeKeywords)
+            .set({ amazonNegativeKeywordId: amazonTargetId || null, negativeStatus: 'active' as const })
+            .where(eq(negativeKeywords.id, existing.id));
+          updated++;
+        } else {
+          await db.insert(negativeKeywords).values({
+            accountId: this.accountId,
+            campaignId: campaign.id,
+            negativeLevel: 'campaign',
+            negativeType: 'product',
+            negativeText: negativeText,
+            negativeMatchType: 'negative_exact',
+            amazonNegativeKeywordId: amazonTargetId || null,
+            negativeSource: 'manual',
+            negativeStatus: 'active',
+          });
+          synced++;
+        }
+      }
+      // 2. 同步广告组级别否定商品定向
+      console.log(`[SyncService] 开始同步SP广告组级别否定商品定向...`);
+      const adGroupNegTargets = await this.client.listSpNegativeTargets();
+      console.log(`[SyncService] 获取到 ${adGroupNegTargets.length} 个广告组级别否定商品定向`);
+      for (const neg of adGroupNegTargets) {
+        const negState = (neg.state || 'enabled').toLowerCase();
+        if (negState === 'archived') continue;
+        const [adGroup] = await db
+          .select()
+          .from(adGroups)
+          .where(eq(adGroups.adGroupId, String(neg.adGroupId)))
+          .limit(1);
+        if (!adGroup) continue;
+        const [campaign] = await db
+          .select()
+          .from(campaigns)
+          .where(eq(campaigns.id, adGroup.campaignId))
+          .limit(1);
+        if (!campaign) continue;
+        const expression = neg.expression || [];
+        const asinExpr = expression.find((e: any) => e.type?.toLowerCase().includes('asin'));
+        const negativeText = asinExpr?.value || JSON.stringify(expression);
+        const amazonTargetId = String(neg.targetId || '');
+        const [existing] = await db
+          .select()
+          .from(negativeKeywords)
+          .where(
+            and(
+              eq(negativeKeywords.accountId, this.accountId),
+              eq(negativeKeywords.campaignId, campaign.id),
+              eq(negativeKeywords.adGroupId, adGroup.id),
+              eq(negativeKeywords.negativeLevel, 'ad_group'),
+              eq(negativeKeywords.negativeType, 'product'),
+              eq(negativeKeywords.negativeText, negativeText)
+            )
+          )
+          .limit(1);
+        if (existing) {
+          await db.update(negativeKeywords)
+            .set({ amazonNegativeKeywordId: amazonTargetId || null, negativeStatus: 'active' as const })
+            .where(eq(negativeKeywords.id, existing.id));
+          updated++;
+        } else {
+          await db.insert(negativeKeywords).values({
+            accountId: this.accountId,
+            campaignId: campaign.id,
+            adGroupId: adGroup.id,
+            negativeLevel: 'ad_group',
+            negativeType: 'product',
+            negativeText: negativeText,
+            negativeMatchType: 'negative_exact',
+            amazonNegativeKeywordId: amazonTargetId || null,
+            negativeSource: 'manual',
+            negativeStatus: 'active',
+          });
+          synced++;
+        }
+      }
+      console.log(`[SyncService] SP否定商品定向同步完成: ${synced} 条新记录, ${updated} 条更新`);
+      return { synced, updated };
+    } catch (error) {
+      console.error('Error syncing SP negative product targets:', error);
+      return { synced: 0, updated: 0 };
     }
   }
 
@@ -3385,34 +3537,68 @@ export class AmazonSyncService {
                          (typeof sbResult === 'number' ? sbResult : sbResult.synced) +
                          (typeof sdResult === 'number' ? sdResult : sdResult.synced);
 
-      // 2. 同步广告组
+      // 2. 同步广告组（SP + SB + SD）
       const adGroupResult = await this.syncSpAdGroups();
       results.adGroups = typeof adGroupResult === 'number' ? adGroupResult : adGroupResult.synced;
+      try {
+        const sbAdGroupResult = await this.syncSbAdGroups();
+        results.adGroups += sbAdGroupResult.synced;
+      } catch (e: any) { console.error('[SyncAllAd] SB广告组同步失败:', e.message); }
+      try {
+        const sdAdGroupResult = await this.syncSdAdGroups();
+        results.adGroups += sdAdGroupResult.synced;
+      } catch (e: any) { console.error('[SyncAllAd] SD广告组同步失败:', e.message); }
 
-      // 3. 同步投放词
+      // 3. 同步投放词（SP + SB）
       const keywordResult = await this.syncSpKeywords();
       results.keywords = typeof keywordResult === 'number' ? keywordResult : keywordResult.synced;
+      try {
+        const sbKeywordResult = await this.syncSbKeywords();
+        results.keywords += sbKeywordResult.synced;
+      } catch (e: any) { console.error('[SyncAllAd] SB关键词同步失败:', e.message); }
 
-      // 4. 同步商品定向
+      // 4. 同步商品定向（SP + SB + SD）
       const targetResult = await this.syncSpProductTargets();
       results.targets = typeof targetResult === 'number' ? targetResult : targetResult.synced;
+      try {
+        const sbPtResult = await this.syncSbProductTargets();
+        results.targets += sbPtResult.synced;
+      } catch (e: any) { console.error('[SyncAllAd] SB商品定向同步失败:', e.message); }
+      try {
+        const sdPtResult = await this.syncSdProductTargets();
+        results.targets += sdPtResult.synced;
+      } catch (e: any) { console.error('[SyncAllAd] SD商品定向同步失败:', e.message); }
 
       // 5. 同步自动定向
       const autoTargetResult = await this.syncAutoTargeting(days);
       results.targets += autoTargetResult;
 
-      // 6. 同步SD定向
+      // 6. 同步SD定向报告
       const sdTargetResult = await this.syncSdTargeting(days);
       results.targets += sdTargetResult;
 
-      // 7. 同步SB定向
+      // 7. 同步SB定向报告
       const sbTargetResult = await this.syncSbTargeting(days);
       results.keywords += sbTargetResult;
 
-      // 8. 同步搜索词
-      results.searchTerms = await this.syncSearchTerms(days);
+      // 8. 同步否定关键词和否定商品定向
+      try {
+        const negKwResult = await this.syncSpNegativeKeywords();
+        console.log(`[SyncAllAd] SP否定关键词: ${negKwResult.synced}新增, ${negKwResult.updated}更新`);
+      } catch (e: any) { console.error('[SyncAllAd] SP否定关键词同步失败:', e.message); }
+      try {
+        const negPtResult = await this.syncSpNegativeProductTargets();
+        console.log(`[SyncAllAd] SP否定商品定向: ${negPtResult.synced}新增, ${negPtResult.updated}更新`);
+      } catch (e: any) { console.error('[SyncAllAd] SP否定商品定向同步失败:', e.message); }
 
-      // 9. 同步位置绩效
+      // 9. 同步搜索词（SP + SB）
+      results.searchTerms = await this.syncSearchTerms(days);
+      try {
+        const sbStSynced = await this.syncSbSearchTerms(days);
+        results.searchTerms += sbStSynced;
+      } catch (e: any) { console.error('[SyncAllAd] SB搜索词同步失败:', e.message); }
+
+      // 10. 同步位置绩效
       results.placements = await this.syncPlacementPerformance(days);
 
       console.log(`[SyncService] 完整同步完成:`, results);

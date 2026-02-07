@@ -331,7 +331,6 @@ async function executeBidOptimization(
       if (currentBid <= 0) continue;
       
       // 计算最优出价
-      // 生成市场曲线并计算最优出价
       const marketCurve = bidOptimizer.generateMarketCurve(keyword as any);
       const optimalBid = bidOptimizer.findOptimalBid(marketCurve, bidConfig);
       
@@ -350,9 +349,49 @@ async function executeBidOptimization(
         details.push(adjustment);
         
         if (!dryRun) {
-          // 实际执行出价调整
           await db.updateKeyword(keyword.id, { bid: optimalBid.toFixed(2) });
           adjustmentsCount++;
+        }
+      }
+    }
+    
+    // 获取广告活动下的所有商品定向
+    const adGroupsList = await db.getAdGroupsByCampaignId(campaign.id);
+    for (const ag of adGroupsList) {
+      const targets = await db.getProductTargetsByAdGroupId(ag.id);
+      for (const target of targets) {
+        if (target.targetStatus !== 'enabled') continue;
+        const currentBid = parseFloat(target.bid || '0');
+        if (currentBid <= 0) continue;
+        
+        // 将商品定向转换为与bidOptimizer兼容的格式
+        const targetAsKeyword = {
+          ...target,
+          keywordText: target.targetText || target.targetValue || `ASIN ${target.id}`,
+          matchType: target.targetMatchType || 'exact',
+        };
+        const marketCurve = bidOptimizer.generateMarketCurve(targetAsKeyword as any);
+        const optimalBid = bidOptimizer.findOptimalBid(marketCurve, bidConfig);
+        
+        if (optimalBid && Math.abs(optimalBid - currentBid) > 0.01) {
+          const adjustment = {
+            keywordId: target.id,
+            keywordText: target.targetText || target.targetValue || `商品定向 ${target.id}`,
+            campaignId: campaign.id,
+            campaignName: campaign.name,
+            currentBid,
+            newBid: optimalBid,
+            changePercent: ((optimalBid - currentBid) / currentBid * 100).toFixed(2),
+            reason: `商品定向(匹配:${target.targetMatchType || 'auto'}) - ${bidOptimizer.getAdjustmentReason(targetAsKeyword, bidConfig)}`,
+            isProductTarget: true,
+          };
+          
+          details.push(adjustment);
+          
+          if (!dryRun) {
+            await db.updateProductTarget(target.id, { bid: optimalBid.toFixed(2) });
+            adjustmentsCount++;
+          }
         }
       }
     }
@@ -855,23 +894,119 @@ async function executeBidCoordination(
  * 记录执行日志
  */
 async function recordExecutionLog(result: OptimizationExecutionResult): Promise<void> {
-  // 这里可以将执行结果记录到数据库
-  console.log(`[OptimizationTargetEngine] 执行完成: ${result.targetName}`, {
-    status: result.status,
-    bidAdjustments: result.bidOptimization.adjustmentsCount,
-    placementAdjustments: result.placementOptimization.adjustmentsCount,
-    daypartingAdjustments: result.daypartingOptimization.adjustmentsCount,
-    negativeKeywords: result.searchTermAnalysis.negativeKeywordsAdded,
-    newKeywords: result.searchTermAnalysis.newKeywordsAdded,
-    budgetAdjustments: result.budgetAllocation.adjustmentsCount,
-    keywordsPaused: result.keywordStatusChanges.pausedCount,
-    keywordsEnabled: result.keywordStatusChanges.enabledCount,
-    bidCoordination: {
-      campaignsCoordinated: result.bidCoordination.campaignsCoordinated,
-      circuitBreakerTriggered: result.bidCoordination.circuitBreakerTriggered,
-    },
-    errors: result.errors.length,
-  });
+  const dbInstance = await db.getDb();
+  if (!dbInstance) return;
+  
+  try {
+    const { optimizationLogs } = await import('../drizzle/schema');
+    const now = new Date().toISOString();
+    
+    // 记录出价调整日志
+    if (result.bidOptimization.executed && result.bidOptimization.adjustmentsCount > 0) {
+      for (const detail of result.bidOptimization.details.slice(0, 50)) {
+        await dbInstance.insert(optimizationLogs).values({
+          performanceGroupId: result.targetId,
+          performanceGroupName: result.targetName,
+          accountId: detail.accountId || 0,
+          logCategory: 'bid_adjustment',
+          actionType: detail.newBid > detail.currentBid ? 'bid_increase' : 'bid_decrease',
+          campaignId: detail.campaignId,
+          campaignName: detail.campaignName,
+          actionDetail: JSON.stringify(detail),
+          previousValue: `$${detail.currentBid.toFixed(2)}`,
+          newValue: `$${detail.newBid.toFixed(2)}`,
+          changeReason: detail.reason || `出价调整 ${detail.changePercent}%`,
+          status: 'success',
+          createdAt: now,
+          executedAt: now,
+        });
+      }
+    }
+    
+    // 记录位置调整日志
+    if (result.placementOptimization.executed && result.placementOptimization.adjustmentsCount > 0) {
+      for (const detail of result.placementOptimization.details.slice(0, 20)) {
+        await dbInstance.insert(optimizationLogs).values({
+          performanceGroupId: result.targetId,
+          performanceGroupName: result.targetName,
+          accountId: detail.accountId || 0,
+          logCategory: 'placement_adjustment',
+          actionType: 'placement_adjust',
+          campaignId: detail.campaignId,
+          campaignName: detail.campaignName,
+          actionDetail: JSON.stringify(detail),
+          previousValue: detail.previousValue || '',
+          newValue: detail.newValue || '',
+          changeReason: detail.reason || '位置优化调整',
+          status: 'success',
+          createdAt: now,
+          executedAt: now,
+        });
+      }
+    }
+    
+    // 记录搜索词分析日志（否定词和新关键词）
+    if (result.searchTermAnalysis.executed) {
+      for (const detail of result.searchTermAnalysis.details.slice(0, 50)) {
+        const actionType = detail.action === 'add_negative' ? 'negative_keyword_add' : 'keyword_create';
+        await dbInstance.insert(optimizationLogs).values({
+          performanceGroupId: result.targetId,
+          performanceGroupName: result.targetName,
+          accountId: detail.accountId || 0,
+          logCategory: 'optimization_settings',
+          actionType: actionType,
+          campaignId: detail.campaignId,
+          campaignName: detail.campaignName,
+          actionDetail: JSON.stringify(detail),
+          previousValue: '',
+          newValue: detail.searchTerm || '',
+          changeReason: detail.reason || '',
+          status: 'success',
+          createdAt: now,
+          executedAt: now,
+        });
+      }
+    }
+    
+    // 记录投放词状态变更日志
+    if (result.keywordStatusChanges.executed) {
+      for (const detail of result.keywordStatusChanges.details.slice(0, 50)) {
+        await dbInstance.insert(optimizationLogs).values({
+          performanceGroupId: result.targetId,
+          performanceGroupName: result.targetName,
+          accountId: detail.accountId || 0,
+          logCategory: 'bid_adjustment',
+          actionType: detail.action === 'pause' ? 'target_pause' : 'target_enable',
+          campaignId: detail.campaignId,
+          campaignName: detail.campaignName,
+          actionDetail: JSON.stringify(detail),
+          previousValue: detail.currentStatus || '',
+          newValue: detail.action || '',
+          changeReason: detail.reason || '',
+          status: 'success',
+          createdAt: now,
+          executedAt: now,
+        });
+      }
+    }
+    
+    console.log(`[OptimizationTargetEngine] 执行日志已写入数据库: ${result.targetName}`, {
+      status: result.status,
+      bidAdjustments: result.bidOptimization.adjustmentsCount,
+      placementAdjustments: result.placementOptimization.adjustmentsCount,
+      negativeKeywords: result.searchTermAnalysis.negativeKeywordsAdded,
+      newKeywords: result.searchTermAnalysis.newKeywordsAdded,
+      keywordsPaused: result.keywordStatusChanges.pausedCount,
+      keywordsEnabled: result.keywordStatusChanges.enabledCount,
+    });
+  } catch (error: any) {
+    console.error(`[OptimizationTargetEngine] 日志写入失败:`, error.message);
+    // 回退到console.log
+    console.log(`[OptimizationTargetEngine] 执行完成(日志回退): ${result.targetName}`, {
+      status: result.status,
+      errors: result.errors.length,
+    });
+  }
 }
 
 /**

@@ -16,7 +16,8 @@ import { getDb } from "./db";
 import { 
   campaigns, 
   performanceGroups, 
-  keywords
+  keywords,
+  productTargets
 } from "../drizzle/schema";
 import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
 import { 
@@ -459,6 +460,79 @@ async function analyzeBidAdjustments(campaign: any, costType: 'cpc' | 'vcpm' = '
     }
   }
   
+  // ========== 商品定向的竞价优化 ==========
+  const campaignTargets = await db
+    .select()
+    .from(productTargets)
+    .where(sql`${productTargets.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`);
+  
+  for (const pt of campaignTargets) {
+    const rawImpressions = Number(pt.impressions) || 0;
+    const rawClicks = Number(pt.clicks) || 0;
+    const rawOrders = Number(pt.orders) || 0;
+    const rawSpend = Number(pt.spend) || 0;
+    const rawSales = Number(pt.sales) || 0;
+    const currentBid = Number(pt.bid) || 0;
+    
+    if (isVcpm) {
+      if (rawImpressions < 1000) continue;
+      const corrected = applyAttributionCorrection(
+        { impressions: rawImpressions, clicks: rawClicks, spend: rawSpend, sales: rawSales, orders: rawOrders },
+        correctionFactor, 'bid_optimization'
+      );
+      const viewCvr = corrected.impressions > 0 ? corrected.orders / corrected.impressions : 0;
+      const aov = corrected.orders > 0 ? corrected.sales / corrected.orders : 30;
+      const targetAcos = 30;
+      const optimalVcpm = viewCvr * aov * (targetAcos / 100) * 1000;
+      const bidDiff = currentBid > 0 ? Math.abs(optimalVcpm - currentBid) / currentBid : 1;
+      if (bidDiff > 0.15 && optimalVcpm > 0.5) {
+        decisions.push({
+          id: `vcpm_pt_bid_${campaign.id}_${pt.id}_${Date.now()}`,
+          type: 'bid_adjustment',
+          targetType: 'keyword',
+          targetId: pt.id,
+          targetName: pt.targetText || `商品定向 ${pt.id}`,
+          currentValue: currentBid,
+          suggestedValue: Math.round(optimalVcpm * 100) / 100,
+          expectedImpact: { metric: 'CPM', currentValue: corrected.impressions > 0 ? (corrected.spend / corrected.impressions) * 1000 : 0, expectedValue: optimalVcpm, changePercent: 0 },
+          confidence: Math.min(0.90, 0.4 + (corrected.impressions / 10000) * 0.5),
+          reasoning: `[vCPM商品定向优化] 匹配方式:${pt.targetMatchType || 'auto'}, 展示CVR=${(viewCvr*100000).toFixed(2)}‰${correctionApplied ? ` [归因校正×${correctionFactor.toFixed(2)}]` : ''}`,
+          status: 'pending',
+          createdAt: new Date()
+        });
+      }
+    } else {
+      if (rawClicks < 10) continue;
+      const corrected = applyAttributionCorrection(
+        { impressions: rawImpressions, clicks: rawClicks, spend: rawSpend, sales: rawSales, orders: rawOrders },
+        correctionFactor, 'bid_optimization'
+      );
+      const cvr = corrected.clicks > 0 ? corrected.orders / corrected.clicks : 0;
+      const acos = corrected.sales > 0 ? (corrected.spend / corrected.sales) * 100 : 999;
+      const aov = corrected.orders > 0 ? corrected.sales / corrected.orders : 30;
+      const targetAcos = 30;
+      const optimalBid = cvr * aov * (targetAcos / 100);
+      const bidDiff = currentBid > 0 ? Math.abs(optimalBid - currentBid) / currentBid : 1;
+      if (bidDiff > 0.1 && optimalBid > 0.1) {
+        const expectedAcos = optimalBid > 0 ? (optimalBid / (cvr * aov)) * 100 : acos;
+        decisions.push({
+          id: `pt_bid_${campaign.id}_${pt.id}_${Date.now()}`,
+          type: 'bid_adjustment',
+          targetType: 'keyword',
+          targetId: pt.id,
+          targetName: pt.targetText || `商品定向 ${pt.id}`,
+          currentValue: currentBid,
+          suggestedValue: Math.round(optimalBid * 100) / 100,
+          expectedImpact: { metric: 'ACoS', currentValue: acos, expectedValue: expectedAcos, changePercent: acos > 0 ? ((expectedAcos - acos) / acos) * 100 : 0 },
+          confidence: Math.min(0.95, 0.5 + (corrected.clicks / 100) * 0.45),
+          reasoning: `[CPC商品定向优化] 匹配方式:${pt.targetMatchType || 'auto'}, CVR=${(cvr*100).toFixed(2)}%, AOV=$${aov.toFixed(2)}${correctionApplied ? ` [归因校正×${correctionFactor.toFixed(2)}]` : ''}`,
+          status: 'pending',
+          createdAt: new Date()
+        });
+      }
+    }
+  }
+  
   return decisions;
 }
 
@@ -635,6 +709,66 @@ async function analyzeNegativeKeywords(campaign: any, costType: 'cpc' | 'vcpm' =
         },
         confidence: 0.9,
         reasoning: `[CPC] 该关键词已获得${kw.clicks}次点击但0转化，花费$${kw.spend}，建议添加为否定词`,
+        status: 'pending',
+        createdAt: new Date()
+      });
+    }
+  }
+  
+  // ========== 商品定向的否定分析 ==========
+  if (isVcpm) {
+    const poorTargets = await db
+      .select()
+      .from(productTargets)
+      .where(and(
+        sql`${productTargets.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`,
+        sql`${productTargets.impressions} > 5000`,
+        sql`${productTargets.clicks} = 0`,
+        sql`${productTargets.orders} = 0`
+      ))
+      .limit(10);
+    
+    for (const pt of poorTargets) {
+      const impressions = Number(pt.impressions) || 0;
+      const spend = Number(pt.spend) || 0;
+      decisions.push({
+        id: `negative_vcpm_pt_${campaign.id}_${pt.id}_${Date.now()}`,
+        type: 'negative_keyword',
+        targetType: 'keyword',
+        targetId: pt.id,
+        targetName: pt.targetText || `商品定向 ${pt.id}`,
+        currentValue: '正常投放',
+        suggestedValue: '添加为否定商品定向',
+        expectedImpact: { metric: '花费', currentValue: spend, expectedValue: 0, changePercent: -100 },
+        confidence: 0.85,
+        reasoning: `[vCPM商品定向] 匹配方式:${pt.targetMatchType || 'auto'}, 已获得${impressions}次展示但0点击0转化，花费$${spend.toFixed(2)}，建议否定`,
+        status: 'pending',
+        createdAt: new Date()
+      });
+    }
+  } else {
+    const poorTargets = await db
+      .select()
+      .from(productTargets)
+      .where(and(
+        sql`${productTargets.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`,
+        sql`${productTargets.clicks} > 20`,
+        sql`${productTargets.orders} = 0`
+      ))
+      .limit(10);
+    
+    for (const pt of poorTargets) {
+      decisions.push({
+        id: `negative_pt_${campaign.id}_${pt.id}_${Date.now()}`,
+        type: 'negative_keyword',
+        targetType: 'keyword',
+        targetId: pt.id,
+        targetName: pt.targetText || `商品定向 ${pt.id}`,
+        currentValue: '正常投放',
+        suggestedValue: '添加为否定商品定向',
+        expectedImpact: { metric: '花费', currentValue: Number(pt.spend) || 0, expectedValue: 0, changePercent: -100 },
+        confidence: 0.9,
+        reasoning: `[CPC商品定向] 匹配方式:${pt.targetMatchType || 'auto'}, 已获得${pt.clicks}次点击但0转化，花费$${pt.spend}，建议否定`,
         status: 'pending',
         createdAt: new Date()
       });

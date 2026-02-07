@@ -2026,7 +2026,7 @@ export const negativeKeywords = mysqlTable("negative_keywords", {
 	negativeText: varchar({ length: 500 }).notNull(),
 	negativeMatchType: mysqlEnum(['negative_exact','negative_phrase']).notNull(),
 	amazonNegativeKeywordId: varchar('amazon_negative_keyword_id', { length: 64 }),
-	negativeSource: mysqlEnum(['manual','ngram_analysis','traffic_conflict','funnel_migration','search_term_harvest']).default('manual'),
+	negativeSource: mysqlEnum(['manual','ngram_analysis','traffic_conflict','funnel_migration','search_term_harvest','auto_optimization']).default('manual'),
 	sourceReason: text(),
 	negativeStatus: mysqlEnum(['active','pending','removed']).default('active'),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
