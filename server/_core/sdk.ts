@@ -271,7 +271,9 @@ class SDKServer {
         if (decoded && decoded.userId) {
           // Return a user-like object for local auth users
           const { sql } = await import('drizzle-orm');
-          const localDb = (await import('../db')).default;
+          const { getDb } = await import('../db');
+          const localDb = await getDb();
+          if (!localDb) throw new Error('Database not available');
           const result = await localDb.execute(sql`
             SELECT tm.*, o.name as organization_name 
             FROM team_members tm 

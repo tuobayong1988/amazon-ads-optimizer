@@ -23740,7 +23740,9 @@ var SDKServer = class {
         const decoded = jwt2.default.verify(token, secret);
         if (decoded && decoded.userId) {
           const { sql: sql45 } = await import("drizzle-orm");
-          const localDb = (await Promise.resolve().then(() => (init_db(), db_exports))).default;
+          const { getDb: getDb2 } = await Promise.resolve().then(() => (init_db(), db_exports));
+          const localDb = await getDb2();
+          if (!localDb) throw new Error("Database not available");
           const result = await localDb.execute(sql45`
             SELECT tm.*, o.name as organization_name 
             FROM team_members tm 
