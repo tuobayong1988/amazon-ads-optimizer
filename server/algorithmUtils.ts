@@ -10,6 +10,9 @@ export interface BidChangeRecord {
   oldClicks: number;
   newClicks: number;
   timestamp: Date;
+  impressions?: number;        // 当日曝光量（用于断货日检测）
+  dailyAvgImpressions?: number; // 过去30天日均曝光（用于断货日检测）
+  marketplace?: string;        // 市场（用于节假日检测）
 }
 
 export interface ElasticityResult {
@@ -69,10 +72,31 @@ export const CATEGORY_ELASTICITY: Record<string, number> = {
 export function calculateDynamicElasticity(
   historicalData: BidChangeRecord[], 
   category?: string,
-  halfLifeDays: number = 14
+  halfLifeDays: number = 14,
+  marketplace?: string
 ): ElasticityResult {
+  // === 数据清洗步骤（Data Sanitization） ===
+  // 专家建议：回归模型对异常值非常敏感，必须先清洗脏数据
+  const sanitizedData = historicalData.filter(record => {
+    // 1. 排除节假日/大促日数据点（Prime Day/黑五等转化率暴涨会严重扭曲平日弹性）
+    const mkt = record.marketplace || marketplace || 'US';
+    const holidayConfig = getHolidayConfig(record.timestamp, mkt);
+    if (holidayConfig && holidayConfig.priority === 'high') {
+      return false; // 剔除高优先级大促日
+    }
+    
+    // 2. 排除断货日数据点（曝光驤降会拉低回归斜率）
+    if (record.impressions !== undefined && record.dailyAvgImpressions !== undefined) {
+      if (record.dailyAvgImpressions > 0 && record.impressions < record.dailyAvgImpressions * 0.1) {
+        return false; // 剔除曝光 < 日均×0.1 的断货日
+      }
+    }
+    
+    return true;
+  });
+  
   // 筛选有效记录：出价变动>=5%且旧点击>0
-  const validRecords = historicalData.filter(record => {
+  const validRecords = sanitizedData.filter(record => {
     const bidChangePercent = Math.abs((record.newBid - record.oldBid) / record.oldBid);
     return bidChangePercent >= 0.05 && record.oldClicks > 0;
   });
@@ -151,7 +175,18 @@ export function calculateDynamicElasticity(
   }
   const rSquared = ssTot > 0 ? Math.max(0, 1 - ssRes / ssTot) : 0;
   
-  // 3. 综合置信度 = 40%样本量 + 60%拟合优度
+  // 3. R²校验（专家建议）：R² < 0.3 说明数据杂乱无章，强制回退到默认弹性
+  if (rSquared < 0.3) {
+    const categoryElasticity = category ? (CATEGORY_ELASTICITY[category] || CATEGORY_ELASTICITY['default']) : CATEGORY_ELASTICITY['default'];
+    return { 
+      elasticity: categoryElasticity, 
+      confidence: Math.round(rSquared * 100) / 100, 
+      sampleSize: regressionData.length, 
+      method: 'category_default' 
+    };
+  }
+  
+  // 4. 综合置信度 = 40%样本量 + 60%拟合优度
   const confidence = sampleConfidence * 0.4 + rSquared * 0.6;
   
   return { 

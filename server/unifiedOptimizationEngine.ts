@@ -19,6 +19,13 @@ import {
   keywords
 } from "../drizzle/schema";
 import { eq, and, desc, sql, gte, lte } from "drizzle-orm";
+import { 
+  calculateAttributionCorrectionFactor, 
+  applyAttributionCorrection, 
+  shouldApplyCorrection,
+  detectRiskSignals,
+  type DataWindowType 
+} from './attributionWindowHelper';
 
 // 获取db实例
 async function getDbInstance() {
@@ -304,6 +311,30 @@ async function analyzeBidAdjustments(campaign: any): Promise<OptimizationDecisio
   const db = await getDbInstance();
   const decisions: OptimizationDecision[] = [];
   
+  // ✅ 改进3：归因延迟隔离 - 计算Campaign级别的归因校正系数
+  let correctionFactor = 1.0;
+  let correctionApplied = false;
+  try {
+    const correctionResult = await calculateAttributionCorrectionFactor(
+      campaign.accountId, campaign.id
+    );
+    const campaignAge = campaign.createdAt 
+      ? Math.floor((Date.now() - new Date(campaign.createdAt).getTime()) / (24 * 60 * 60 * 1000))
+      : 30;
+    
+    if (shouldApplyCorrection(
+      correctionResult.correctionFactor,
+      correctionResult.maturePerformance.clicks,
+      campaignAge
+    )) {
+      correctionFactor = correctionResult.correctionFactor;
+      correctionApplied = true;
+      console.log(`[UnifiedOptEngine] Campaign ${campaign.id} 归因校正系数: ${correctionFactor.toFixed(3)}`);
+    }
+  } catch (corrErr: any) {
+    console.warn(`[UnifiedOptEngine] 归因校正计算失败, 使用原始数据:`, corrErr.message);
+  }
+  
   // 获取广告活动的关键词
   const campaignKeywords = await db
     .select()
@@ -311,19 +342,30 @@ async function analyzeBidAdjustments(campaign: any): Promise<OptimizationDecisio
     .where(sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`);
   
   for (const kw of campaignKeywords) {
-    const clicks = Number(kw.clicks) || 0;
-    const orders = Number(kw.orders) || 0;
-    const spend = Number(kw.spend) || 0;
-    const sales = Number(kw.sales) || 0;
+    const rawClicks = Number(kw.clicks) || 0;
+    const rawOrders = Number(kw.orders) || 0;
+    const rawSpend = Number(kw.spend) || 0;
+    const rawSales = Number(kw.sales) || 0;
     const currentBid = Number(kw.bid) || 0;
     
-    if (clicks < 10) continue; // 数据不足
+    if (rawClicks < 10) continue; // 数据不足
+    
+    // ✅ 归因校正：对销售和订单应用校正系数
+    const corrected = applyAttributionCorrection(
+      { impressions: Number(kw.impressions) || 0, clicks: rawClicks, spend: rawSpend, sales: rawSales, orders: rawOrders },
+      correctionFactor,
+      'bid_optimization'
+    );
+    const clicks = corrected.clicks;
+    const orders = corrected.orders;
+    const spend = corrected.spend;
+    const sales = corrected.sales;
     
     const cvr = clicks > 0 ? orders / clicks : 0;
     const acos = sales > 0 ? (spend / sales) * 100 : 999;
     const cpc = clicks > 0 ? spend / clicks : 0;
     
-    // 计算建议出价（基于利润最大化公式）
+    // 计算建议出价（基于利润最大化公式，使用归因校正后的数据）
     const aov = orders > 0 ? sales / orders : 30; // 默认AOV
     const targetAcos = 30; // 目标ACoS
     const optimalBid = cvr * aov * (targetAcos / 100);
@@ -348,7 +390,7 @@ async function analyzeBidAdjustments(campaign: any): Promise<OptimizationDecisio
           changePercent: ((expectedAcos - acos) / acos) * 100
         },
         confidence: Math.min(0.95, 0.5 + (clicks / 100) * 0.45),
-        reasoning: `基于利润最大化公式计算：CVR=${(cvr*100).toFixed(2)}%, AOV=$${aov.toFixed(2)}, 目标ACoS=${targetAcos}%`,
+        reasoning: `基于利润最大化公式计算：CVR=${(cvr*100).toFixed(2)}%, AOV=$${aov.toFixed(2)}, 目标ACoS=${targetAcos}%${correctionApplied ? ` [归因校正×${correctionFactor.toFixed(2)}]` : ''}`,
         status: 'pending',
         createdAt: new Date()
       });

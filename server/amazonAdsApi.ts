@@ -611,6 +611,44 @@ export class AmazonAdsApiClient {
   }
 
   /**
+   * 创建SP关键词（用于搜索词收割：将高转化搜索词添加为精确匹配关键词）
+   */
+  async createSpKeywords(
+    keywords: Array<{
+      adGroupId: number;
+      campaignId: number;
+      keywordText: string;
+      matchType: 'exact' | 'phrase' | 'broad';
+      bid: number;
+      state?: 'enabled' | 'paused';
+    }>
+  ): Promise<{ success: boolean; createdKeywords: Array<{ keywordId: number; keywordText: string; code: string }>; errors: any[] }> {
+    try {
+      const response = await this.axiosInstance.post('/sp/keywords', {
+        keywords: keywords.map(k => ({
+          ...k,
+          state: k.state || 'enabled',
+        })),
+      }, {
+        headers: { 'Content-Type': 'application/vnd.spKeyword.v3+json' },
+      });
+      
+      const createdKeywords = (response.data.keywords || []).map((k: any) => ({
+        keywordId: k.keywordId,
+        keywordText: k.keywordText,
+        code: k.code || 'SUCCESS',
+      }));
+      const errors = createdKeywords.filter((k: any) => k.code !== 'SUCCESS');
+      
+      console.log(`[SP API] Created ${createdKeywords.length - errors.length} keywords, ${errors.length} errors`);
+      return { success: errors.length === 0, createdKeywords, errors };
+    } catch (error: any) {
+      console.error('[SP API] createSpKeywords error:', error.response?.data || error.message);
+      return { success: false, createdKeywords: [], errors: [error.message] };
+    }
+  }
+
+  /**
    * 更新关键词出价
    */
   async updateKeywordBids(updates: Array<{ keywordId: number; bid: number }>): Promise<{ success: boolean; errors: any[] }> {

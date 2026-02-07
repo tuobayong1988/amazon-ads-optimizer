@@ -132,7 +132,7 @@ export function calculateMarginalValues(
   // 如果有历史出价变化数据，使用动态计算；否则使用默认值
   // 专家建议：使用动态弹性系数替代固定0.8
   // 如果有历史出价变动数据，通过加权OLS回归计算真实弹性；否则fallback到类目默认值
-  const clickElasticity = getElasticity(target.bidChangeHistory || [], target.category)
+  const clickElasticity = getElasticity(currentMetrics.bidChangeHistory || [], currentMetrics.category)
   
   // Estimate new clicks at higher bid
   const bidChangePercent = bidIncrement / currentBid;

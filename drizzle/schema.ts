@@ -2011,7 +2011,7 @@ export const negativeKeywords = mysqlTable("negative_keywords", {
 	negativeType: mysqlEnum(['keyword','product']).notNull(),
 	negativeText: varchar({ length: 500 }).notNull(),
 	negativeMatchType: mysqlEnum(['negative_exact','negative_phrase']).notNull(),
-	negativeSource: mysqlEnum(['manual','ngram_analysis','traffic_conflict','funnel_migration']).default('manual'),
+	negativeSource: mysqlEnum(['manual','ngram_analysis','traffic_conflict','funnel_migration','search_term_harvest']).default('manual'),
 	sourceReason: text(),
 	negativeStatus: mysqlEnum(['active','pending','removed']).default('active'),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),

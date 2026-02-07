@@ -12,6 +12,8 @@ import * as db from './db';
 import { AmazonSyncService } from './amazonSyncService';
 import { notifyOwner } from './_core/notification';
 import * as automationExecutionEngine from './automationExecutionEngine';
+import * as searchTermHarvester from './searchTermHarvester';
+import { detectRiskSignals } from './attributionWindowHelper';
 
 // 同步层级定义
 export type SyncTier = 'high' | 'medium' | 'low' | 'full';
@@ -800,8 +802,28 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
         
         switch (taskType) {
           case 'risk_scan':
-            // 风控扫描：检查零曝光风暴、异常花销、CPC飙升
-            console.log(`[OptimizationScheduler] 账号 ${schedule.accountId} 执行风控扫描`);
+            // ✅ 改进3：风控扫描使用D-0~D-3实时数据（归因延迟隔离）
+            console.log(`[OptimizationScheduler] 账号 ${schedule.accountId} 执行风控扫描(归因隔离)`);
+            try {
+              // 获取账号下所有启用的Campaign
+              const riskCampaigns = await db.getCampaignsByAccountId(schedule.accountId);
+              const enabledCampaigns = riskCampaigns.filter((c: any) => c.campaignStatus === 'enabled');
+              let totalRisks = 0;
+              for (const campaign of enabledCampaigns) {
+                const riskResult = await detectRiskSignals(schedule.accountId, campaign.id);
+                if (riskResult.hasRisk) {
+                  totalRisks += riskResult.risks.length;
+                  for (const risk of riskResult.risks) {
+                    console.warn(`[RiskScan] Campaign ${campaign.campaignName}: ` +
+                      `[${risk.severity}] ${risk.description}`);
+                  }
+                }
+              }
+              console.log(`[OptimizationScheduler] 风控扫描完成: ${enabledCampaigns.length}个Campaign, ${totalRisks}个风险信号`);
+            } catch (riskError: any) {
+              console.error(`[OptimizationScheduler] 风控扫描异常:`, riskError.message);
+            }
+            // 原有的自动化循环仍然执行
             await automationExecutionEngine.runFullAutomationCycle(schedule.accountId);
             break;
             
@@ -818,9 +840,21 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
             break;
             
           case 'search_term_harvest':
-            // 搜索词收割：自动收割高转化搜索词
+            // 搜索词收割：自动收割高转化搜索词（原子操作）
             console.log(`[OptimizationScheduler] 账号 ${schedule.accountId} 执行搜索词收割`);
-            // TODO: 实现搜索词收割的专用逻辑
+            try {
+              const harvestResult = await searchTermHarvester.batchHarvestSearchTerms(
+                schedule.accountId,
+                { dryRun: false }
+              );
+              console.log(`[OptimizationScheduler] 搜索词收割完成: ` +
+                `候选=${harvestResult.summary.total}, ` +
+                `成功=${harvestResult.summary.success}, ` +
+                `失败=${harvestResult.summary.failed}, ` +
+                `回滚=${harvestResult.summary.rolledBack}`);
+            } catch (harvestError: any) {
+              console.error(`[OptimizationScheduler] 搜索词收割异常:`, harvestError.message);
+            }
             break;
             
           case 'weekly_report':
