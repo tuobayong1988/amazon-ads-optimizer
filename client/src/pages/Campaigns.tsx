@@ -347,7 +347,7 @@ type ColumnKey =
   // 视频指标
   'videoFirstQuartile' | 'videoMidpoint' | 'videoThirdQuartile' | 'videoComplete' | 'videoUnmute' | 'vtr' | 'vctr' |
   // 系统字段
-  'performanceGroup' | 'optimalBid' | 'autoOptimization' | 'actions';
+  'performanceGroup' | 'recommendedStrategy' | 'amazonCreatedDate' | 'optimalBid' | 'autoOptimization' | 'actions';
 
 // 移动端列优先级: 'core' = 核心列(始终显示), 'important' = 重要列(默认显示), 'secondary' = 次要列(移动端隐藏)
 type MobilePriority = 'core' | 'important' | 'secondary';
@@ -444,7 +444,9 @@ const columns: ColumnConfig[] = [
   { key: 'vctr', label: 'vCTR', minWidth: '70px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
   
   // === 系统字段 ===
-  { key: 'performanceGroup', label: '所属绩效组', minWidth: '120px', align: 'left', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'amazonCreatedDate', label: '创建日期(Amazon)', minWidth: '120px', align: 'left', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'performanceGroup', label: '优化目标', minWidth: '140px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'recommendedStrategy', label: '建议策略模板', minWidth: '160px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
   { key: 'optimalBid', label: '最优出价', minWidth: '180px', align: 'center', sortable: false, defaultVisible: false, mobilePriority: 'secondary' },
   { key: 'autoOptimization', label: '自动优化', minWidth: '140px', align: 'center', sortable: false, defaultVisible: false, mobilePriority: 'secondary' },
   { key: 'actions', label: '操作', minWidth: '120px', align: 'center', sortable: false, defaultVisible: true, mobilePriority: 'core' },
@@ -1736,6 +1738,23 @@ export default function Campaigns() {
           </span>
         );
       case 'performanceGroup':
+        const pgName = (campaign as any).performanceGroupName;
+        const pgStrategy = (campaign as any).performanceGroupStrategyTemplate;
+        if (pgName) {
+          return (
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-1">
+                <Target className="w-3 h-3 text-blue-500" />
+                <span className="text-sm font-medium truncate max-w-[120px]" title={pgName}>{pgName}</span>
+              </div>
+              {pgStrategy && (
+                <span className="text-xs text-muted-foreground truncate max-w-[120px]" title={`策略: ${pgStrategy}`}>
+                  策略: {pgStrategy}
+                </span>
+              )}
+            </div>
+          );
+        }
         return (
           <Select
             value={(campaign as any).performanceGroupId?.toString() || ""}
@@ -1747,7 +1766,7 @@ export default function Campaigns() {
             }}
           >
             <SelectTrigger className="h-8 w-[110px]">
-              <SelectValue placeholder="选择绩效组" />
+              <SelectValue placeholder="选择优化目标" />
             </SelectTrigger>
             <SelectContent>
               {performanceGroups?.map((group) => (
@@ -1757,6 +1776,40 @@ export default function Campaigns() {
               ))}
             </SelectContent>
           </Select>
+        );
+      case 'recommendedStrategy':
+        const recTemplateId = (campaign as any).recommendedStrategyTemplateId;
+        const recTemplateName = (campaign as any).recommendedStrategyTemplateName;
+        const recReason = (campaign as any).recommendationReason;
+        if (!recTemplateName) {
+          return <span className="text-xs text-muted-foreground">待分析</span>;
+        }
+        const strategyColorMap: Record<string, string> = {
+          'aggressive-growth': 'bg-red-100 text-red-700 border-red-200',
+          'balanced': 'bg-blue-100 text-blue-700 border-blue-200',
+          'profit-focused': 'bg-green-100 text-green-700 border-green-200',
+          'seasonal-boost': 'bg-yellow-100 text-yellow-700 border-yellow-200',
+          'brand-defense': 'bg-purple-100 text-purple-700 border-purple-200',
+        };
+        const strategyColor = strategyColorMap[recTemplateId] || 'bg-gray-100 text-gray-700 border-gray-200';
+        return (
+          <div className="flex flex-col gap-0.5" title={recReason || ''}>
+            <Badge variant="outline" className={`text-xs px-2 py-0.5 ${strategyColor}`}>
+              {recTemplateName}
+            </Badge>
+            {recReason && (
+              <span className="text-[10px] text-muted-foreground truncate max-w-[150px]" title={recReason}>
+                {recReason}
+              </span>
+            )}
+          </div>
+        );
+      case 'amazonCreatedDate':
+        const amazonDate = (campaign as any).amazonCreatedDate;
+        return amazonDate ? (
+          <span className="text-sm">{amazonDate}</span>
+        ) : (
+          <span className="text-xs text-muted-foreground">-</span>
         );
       case 'optimalBid':
         // 利润最大化出价点显示

@@ -466,6 +466,15 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
 
   console.log(`[DataSyncScheduler] 账号 ${schedule.accountId} 同步完成:`, result);
 
+  // ✅ 数据同步完成后，自动更新策略模板推荐
+  try {
+    const { updateAllCampaignRecommendations } = await import('./strategyRecommendationService');
+    const recUpdated = await updateAllCampaignRecommendations(schedule.accountId);
+    console.log(`[DataSyncScheduler] 账号 ${schedule.accountId} 策略模板推荐已更新: ${recUpdated} 个广告活动`);
+  } catch (recError: any) {
+    console.error(`[DataSyncScheduler] 账号 ${schedule.accountId} 策略模板推荐更新失败:`, recError.message);
+  }
+
   // ✅ 数据同步完成后，自动触发优化执行（闭环调度）
   try {
     const autoConfig = automationExecutionEngine.getAccountAutomationConfig(schedule.accountId);

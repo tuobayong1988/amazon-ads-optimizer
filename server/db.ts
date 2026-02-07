@@ -340,7 +340,19 @@ export async function getCampaignsWithPerformance(
     }
   }
   
-  // 合并数据
+  // 获取所有优化目标组名称用于关联展示
+  const allGroups = await db.select({
+    id: performanceGroups.id,
+    name: performanceGroups.name,
+    strategyTemplateId: performanceGroups.strategyTemplateId,
+    strategyTemplateName: performanceGroups.strategyTemplateName,
+  }).from(performanceGroups);
+  const groupMap = new Map<number, typeof allGroups[0]>();
+  for (const g of allGroups) {
+    groupMap.set(g.id, g);
+  }
+  
+  // 合并数据 - 包含优化目标组名称和策略模板推荐
   return campaignList.map(campaign => {
     const perf = perfMap.get(campaign.id);
     const impressions = perf?.totalImpressions || 0;
@@ -348,6 +360,9 @@ export async function getCampaignsWithPerformance(
     const spend = parseFloat(perf?.totalSpend || '0');
     const sales = parseFloat(perf?.totalSales || '0');
     const orders = perf?.totalOrders || 0;
+    
+    // 获取优化目标组信息
+    const group = campaign.performanceGroupId ? groupMap.get(campaign.performanceGroupId) : null;
     
     return {
       ...campaign,
@@ -361,6 +376,13 @@ export async function getCampaignsWithPerformance(
       ctr: impressions > 0 ? ((clicks / impressions) * 100).toFixed(4) : null,
       cvr: clicks > 0 ? ((orders / clicks) * 100).toFixed(4) : null,
       cpc: clicks > 0 ? (spend / clicks).toFixed(2) : null,
+      // 优化目标组信息
+      performanceGroupName: group?.name || null,
+      performanceGroupStrategyTemplate: group?.strategyTemplateName || null,
+      // 策略模板推荐信息（已存储在campaigns表中）
+      recommendedStrategyTemplateId: campaign.recommendedStrategyTemplateId || null,
+      recommendedStrategyTemplateName: campaign.recommendedStrategyTemplateName || null,
+      recommendationReason: campaign.recommendationReason || null,
     };
   });
 }

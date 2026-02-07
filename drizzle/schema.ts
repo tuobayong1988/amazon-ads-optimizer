@@ -172,6 +172,8 @@ export const adGroups = mysqlTable("ad_groups", {
 	ntbSales: decimal("ntb_sales", { precision: 15, scale: 2 }).default('0'),
 	viewAttributedSales: decimal("view_attributed_sales", { precision: 15, scale: 2 }).default('0'),
 	viewAttributedOrders: int("view_attributed_orders").default(0),
+	unitsOrdered: int("units_ordered").default(0),
+	adGroupState: varchar("ad_group_state", { length: 20 }).default('enabled'),
 });
 
 export const aiOptimizationActions = mysqlTable("ai_optimization_actions", {
@@ -1395,6 +1397,11 @@ export const campaigns = mysqlTable("campaigns", {
 	viewAttributedDpv: int("view_attributed_dpv").default(0),
 	viewAttributedNtbSales: decimal("view_attributed_ntb_sales", { precision: 15, scale: 2 }).default('0'),
 	viewAttributedNtbOrders: int("view_attributed_ntb_orders").default(0),
+	recommendedStrategyTemplateId: varchar("recommended_strategy_template_id", { length: 50 }),
+	recommendedStrategyTemplateName: varchar("recommended_strategy_template_name", { length: 100 }),
+	recommendationReason: text("recommendation_reason"),
+	recommendationUpdatedAt: timestamp("recommendation_updated_at", { mode: 'string' }),
+	amazonCreatedDate: varchar("amazon_created_date", { length: 10 }),
 });
 
 export const collaborationNotificationRules = mysqlTable("collaboration_notification_rules", {
@@ -1887,6 +1894,7 @@ export const keywords = mysqlTable("keywords", {
 	marginalRevenue: decimal({ precision: 10, scale: 2 }),
 	marginalCost: decimal({ precision: 10, scale: 2 }),
 	keywordStatus: mysqlEnum(['enabled','paused','archived']).default('enabled'),
+	unitsOrdered: int("units_ordered").default(0),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
@@ -2029,6 +2037,10 @@ export const negativeKeywords = mysqlTable("negative_keywords", {
 	negativeSource: mysqlEnum(['manual','ngram_analysis','traffic_conflict','funnel_migration','search_term_harvest','auto_optimization']).default('manual'),
 	sourceReason: text(),
 	negativeStatus: mysqlEnum(['active','pending','removed']).default('active'),
+	blockedImpressions: int("blocked_impressions").default(0),
+	blockedSpend: decimal("blocked_spend", { precision: 10, scale: 2 }).default('0'),
+	preNegativeAcos: decimal("pre_negative_acos", { precision: 5, scale: 2 }),
+	preNegativeSpend: decimal("pre_negative_spend", { precision: 10, scale: 2 }),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
@@ -2150,6 +2162,9 @@ export const performanceGroups = mysqlTable("performance_groups", {
 	keywordLastAutoExecution: timestamp({ mode: 'string' }),
 	dailyBudget: decimal("daily_budget", { precision: 10, scale: 2 }),
 	maxBid: decimal("max_bid", { precision: 10, scale: 2 }),
+	strategyTemplateId: varchar("strategy_template_id", { length: 50 }),
+	strategyTemplateName: varchar("strategy_template_name", { length: 100 }),
+	strategyApplicationId: int("strategy_application_id"),
 });
 
 export const placementBidSettings = mysqlTable("placement_bid_settings", {
@@ -2236,6 +2251,10 @@ export const productTargets = mysqlTable("product_targets", {
 	targetOptimalBid: decimal({ precision: 10, scale: 2 }),
 	targetMatchType: mysqlEnum('target_match_type', ['exact','expanded','category_exact','brand_exact','substitute','accessory','loose','close']).default('exact'),
 	targetStatus: mysqlEnum(['enabled','paused','archived']).default('enabled'),
+	categoryName: varchar("category_name", { length: 500 }),
+	categoryRefinements: text("category_refinements"),
+	asinTitle: varchar("asin_title", { length: 500 }),
+	unitsOrdered: int("units_ordered").default(0),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
@@ -2430,6 +2449,10 @@ export const searchTerms = mysqlTable("search_terms", {
 	searchTermCpc: decimal({ precision: 10, scale: 2 }),
 	reportStartDate: timestamp({ mode: 'string' }),
 	reportEndDate: timestamp({ mode: 'string' }),
+	sourceMatchType: varchar("source_match_type", { length: 32 }),
+	sourceTargetType: varchar("source_target_type", { length: 32 }),
+	searchTermType: varchar("search_term_type", { length: 32 }).default('keyword'),
+	searchTermUnitsOrdered: int("search_term_units_ordered").default(0),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });

@@ -1615,6 +1615,7 @@ function TargetsList({ campaignId }: { campaignId: number }) {
     targetsData.keywords.forEach((k: any) => {
       allTargets.push({
         id: `kw-${k.id}`,
+        originalId: k.id,
         realId: k.id,
         text: k.keywordText,
         type: 'keyword',
@@ -1626,6 +1627,7 @@ function TargetsList({ campaignId }: { campaignId: number }) {
         spend: k.spend,
         sales: k.sales,
         orders: k.orders || 0,
+        unitsOrdered: k.unitsOrdered || 0,
         adGroupName: k.adGroupName
       });
     });
@@ -1635,6 +1637,7 @@ function TargetsList({ campaignId }: { campaignId: number }) {
     targetsData.productTargets.forEach((pt: any) => {
       allTargets.push({
         id: `pt-${pt.id}`,
+        originalId: pt.id,
         realId: pt.id,
         text: formatAutoTargetingExpression(pt.targetExpression || pt.asin || ''),
         type: 'product',
@@ -1646,7 +1649,13 @@ function TargetsList({ campaignId }: { campaignId: number }) {
         spend: pt.spend,
         sales: pt.sales,
         orders: pt.orders || 0,
-        adGroupName: pt.adGroupName
+        unitsOrdered: pt.unitsOrdered || 0,
+        adGroupName: pt.adGroupName,
+        // 品类定向字段
+        categoryName: pt.categoryName || null,
+        categoryRefinements: pt.categoryRefinements || null,
+        asinTitle: pt.asinTitle || null,
+        targetType: pt.targetType || null,
       });
     });
   }
@@ -2045,6 +2054,7 @@ function TargetsList({ campaignId }: { campaignId: number }) {
                 />
               </TableHead>
               <TableHead>投放词</TableHead>
+              <TableHead>定向详情</TableHead>
               <TableHead>类型</TableHead>
               <TableHead>匹配方式</TableHead>
               <TableHead>状态</TableHead>
@@ -2055,6 +2065,7 @@ function TargetsList({ campaignId }: { campaignId: number }) {
               <TableHead className="text-right">点击率</TableHead>
               <TableHead className="text-right">花费</TableHead>
               <TableHead className="text-right">订单</TableHead>
+              <TableHead className="text-right">订购件数</TableHead>
               <TableHead className="text-right">销售额</TableHead>
               <TableHead className="text-right">转化率</TableHead>
               <TableHead className="text-right">ACoS</TableHead>
@@ -2098,24 +2109,48 @@ function TargetsList({ campaignId }: { campaignId: number }) {
                       {target.text}
                     </button>
                   </TableCell>
+                  <TableCell className="max-w-[160px]">
+                    {!isKeyword && (target.categoryName || target.asinTitle) ? (
+                      <div className="flex flex-col gap-0.5">
+                        {target.categoryName && (
+                          <span className="text-xs text-teal-600 truncate" title={`品类: ${target.categoryName}`}>
+                            📂 {target.categoryName}
+                          </span>
+                        )}
+                        {target.asinTitle && (
+                          <span className="text-xs text-blue-600 truncate" title={target.asinTitle}>
+                            {target.asinTitle}
+                          </span>
+                        )}
+                        {target.categoryRefinements && (
+                          <span className="text-[10px] text-muted-foreground truncate" title={`细化: ${target.categoryRefinements}`}>
+                            细化: {target.categoryRefinements}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
                   <TableCell>
                     <Badge variant={isKeyword ? "default" : "secondary"}>
                       {isKeyword ? "关键词" : (
                         // 检查是否是SP自动广告的匹配组
+                        target.categoryName ? "品类定向" :
                         ["紧密匹配", "宽泛匹配", "关联商品", "同类商品"].includes(target.text) 
                           ? "自动定向" 
-                          : "商品定向"
+                          : "ASIN定向"
                       )}
                     </Badge>
                   </TableCell>
                   <TableCell>
                     {isKeyword ? (
-                      <Badge variant="outline">
+                      <Badge variant="outline" className={({exact: 'bg-red-50 text-red-700 border-red-200', phrase: 'bg-green-50 text-green-700 border-green-200', broad: 'bg-blue-50 text-blue-700 border-blue-200'} as Record<string, string>)[target.matchType as string] || 'bg-gray-50'}>
                         {target.matchType === "exact" ? "精确" : target.matchType === "phrase" ? "词组" : "广泛"}
                       </Badge>
                     ) : target.matchType ? (
-                      <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
-                        {target.matchType === "exact" ? "精确定向" : target.matchType === "expanded" ? "拓展定向" : target.matchType}
+                      <Badge variant="outline" className={({exact: 'bg-purple-50 text-purple-700 border-purple-200', expanded: 'bg-indigo-50 text-indigo-700 border-indigo-200', category: 'bg-teal-50 text-teal-700 border-teal-200', brand: 'bg-cyan-50 text-cyan-700 border-cyan-200', close: 'bg-rose-50 text-rose-700 border-rose-200', loose: 'bg-orange-50 text-orange-700 border-orange-200', substitutes: 'bg-amber-50 text-amber-700 border-amber-200', complements: 'bg-lime-50 text-lime-700 border-lime-200'} as Record<string, string>)[target.matchType as string] || 'bg-gray-50 text-gray-700 border-gray-200'}>
+                        {({exact: '精确定向', expanded: '拓展定向', category: '品类定向', brand: '品牌定向', close: '紧密匹配', loose: '宽泛匹配', substitutes: '替代商品', complements: '关联商品'} as Record<string, string>)[target.matchType as string] || target.matchType}
                       </Badge>
                     ) : (
                       <span className="text-muted-foreground">-</span>
@@ -2139,6 +2174,7 @@ function TargetsList({ campaignId }: { campaignId: number }) {
                   </TableCell>
                   <TableCell className="text-right">${tSpend.toFixed(2)}</TableCell>
                   <TableCell className="text-right">{target.orders || 0}</TableCell>
+                  <TableCell className="text-right">{target.unitsOrdered || 0}</TableCell>
                   <TableCell className="text-right">${tSales.toFixed(2)}</TableCell>
                   <TableCell className="text-right">
                     <span className={(target.clicks > 0 ? ((target.orders || 0) / target.clicks * 100) : 0) >= 10 ? "text-green-500" : (target.clicks > 0 ? ((target.orders || 0) / target.clicks * 100) : 0) >= 5 ? "text-yellow-500" : "text-red-500"}>
@@ -2881,14 +2917,17 @@ function SearchTermsList({ campaignId }: { campaignId: number }) {
                 />
               </TableHead>
               <TableHead>客户搜索词</TableHead>
+              <TableHead>搜索词类型</TableHead>
               <TableHead>源头投放词/ASIN</TableHead>
               <TableHead>来源类型</TableHead>
-              <TableHead>匹配方式</TableHead>
+              <TableHead>来源匹配方式</TableHead>
               <TableHead className="text-right">展示</TableHead>
               <TableHead className="text-right">点击</TableHead>
               <TableHead className="text-right">点击率</TableHead>
               <TableHead className="text-right">花费</TableHead>
+              <TableHead className="text-right">CPC</TableHead>
               <TableHead className="text-right">订单</TableHead>
+              <TableHead className="text-right">订购件数</TableHead>
               <TableHead className="text-right">销售额</TableHead>
               <TableHead className="text-right">转化率</TableHead>
               <TableHead className="text-right">ACoS</TableHead>
@@ -2925,32 +2964,59 @@ function SearchTermsList({ campaignId }: { campaignId: number }) {
                       {term.searchTerm}
                     </div>
                   </TableCell>
+                  <TableCell>
+                    {term.searchTermType === 'asin' ? (
+                      <Badge variant="secondary" className="text-xs bg-orange-50 text-orange-700">ASIN</Badge>
+                    ) : (
+                      <Badge variant="secondary" className="text-xs bg-blue-50 text-blue-700">关键词</Badge>
+                    )}
+                  </TableCell>
                   <TableCell className="max-w-[140px] truncate text-muted-foreground" title={term.targetText}>
                     {term.targetText || "-"}
                   </TableCell>
                   <TableCell>
-                    {term.targetType === "product_target" ? (
+                    {(term.sourceTargetType || term.targetType) === "product_target" ? (
                       <Badge variant="secondary" className="text-xs bg-purple-50 text-purple-700">商品定向</Badge>
                     ) : (
                       <Badge variant="secondary" className="text-xs">关键词</Badge>
                     )}
                   </TableCell>
                   <TableCell>
-                    {term.targetType === "product_target" ? (
-                      <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
-                        {term.matchType === "exact" ? "精确定向" : term.matchType === "expanded" ? "拓展定向" : (term.matchType || "自动")}
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-xs">
-                        {term.matchType === "exact" ? "精确" : term.matchType === "phrase" ? "词组" : "广泛"}
-                      </Badge>
-                    )}
+                    {(() => {
+                      const mt = term.sourceMatchType || term.matchType || '';
+                      if ((term.sourceTargetType || term.targetType) === "product_target") {
+                        const ptMatchMap: Record<string, {label: string, color: string}> = {
+                          'exact': { label: '精确定向', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+                          'expanded': { label: '拓展定向', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+                          'category_exact': { label: '品类定向', color: 'bg-teal-50 text-teal-700 border-teal-200' },
+                          'brand_exact': { label: '品牌定向', color: 'bg-cyan-50 text-cyan-700 border-cyan-200' },
+                          'substitute': { label: '替代商品', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+                          'accessory': { label: '关联商品', color: 'bg-lime-50 text-lime-700 border-lime-200' },
+                          'loose': { label: '宽泛匹配', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+                          'close': { label: '紧密匹配', color: 'bg-rose-50 text-rose-700 border-rose-200' },
+                        };
+                        const info = ptMatchMap[mt] || { label: mt || '自动', color: 'bg-gray-50 text-gray-700 border-gray-200' };
+                        return <Badge variant="outline" className={`text-xs ${info.color}`}>{info.label}</Badge>;
+                      } else {
+                        const kwMatchMap: Record<string, {label: string, color: string}> = {
+                          'broad': { label: '广泛', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+                          'phrase': { label: '词组', color: 'bg-green-50 text-green-700 border-green-200' },
+                          'exact': { label: '精确', color: 'bg-red-50 text-red-700 border-red-200' },
+                        };
+                        const info = kwMatchMap[mt] || { label: mt || '广泛', color: 'bg-gray-50 text-gray-700 border-gray-200' };
+                        return <Badge variant="outline" className={`text-xs ${info.color}`}>{info.label}</Badge>;
+                      }
+                    })()}
                   </TableCell>
                   <TableCell className="text-right">{term.impressions?.toLocaleString() || 0}</TableCell>
                   <TableCell className="text-right">{term.clicks?.toLocaleString() || 0}</TableCell>
                   <TableCell className="text-right">{stCtr.toFixed(2)}%</TableCell>
                   <TableCell className="text-right">${stSpend.toFixed(2)}</TableCell>
+                  <TableCell className="text-right">
+                    {term.clicks > 0 ? `$${(stSpend / term.clicks).toFixed(2)}` : "-"}
+                  </TableCell>
                   <TableCell className="text-right">{term.orders || 0}</TableCell>
+                  <TableCell className="text-right">{term.unitsOrdered || term.searchTermUnitsOrdered || 0}</TableCell>
                   <TableCell className="text-right">${stSales.toFixed(2)}</TableCell>
                   <TableCell className="text-right">
                     <span className={stCvr >= 10 ? "text-green-500" : stCvr >= 5 ? "text-yellow-500" : "text-muted-foreground"}>

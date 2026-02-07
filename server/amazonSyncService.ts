@@ -394,6 +394,7 @@ export class AmazonSyncService {
           brandEntityId: sbBrandEntityId,
           portfolioId: sbPortfolioId,
           biddingStrategy: sbBiddingStrategy as 'legacyForSales' | 'autoForSales' | 'manual' | 'ruleBasedBidding',
+          amazonCreatedDate: sbStartDate, // Amazon侧创建日期
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
 
@@ -560,6 +561,7 @@ export class AmazonSyncService {
           bidOptimization: normalizedBidOpt, // ✅ 存储竞价优化目标
           tactic: sdTactic, // ✅ 存储定向策略
           portfolioId: sdPortfolioId,
+          amazonCreatedDate: sdStartDate, // Amazon侧创建日期
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
 
@@ -700,6 +702,7 @@ export class AmazonSyncService {
           biddingStrategy: biddingStrategy as 'legacyForSales' | 'autoForSales' | 'manual' | 'ruleBasedBidding',
           portfolioId: portfolioId,
           costType: 'cpc' as 'cpc' | 'vcpm' | 'cpm', // SP广告都是CPC
+          amazonCreatedDate: startDateValue, // 使用广告活动的startDate作为Amazon侧创建日期
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
 
@@ -1059,39 +1062,66 @@ export class AmazonSyncService {
 
         if (!adGroup) continue;
 
-        // 解析定向表达式和匹配类型
+        // 解析定向表达式和匹配类型 - 支持ASIN定向和品类定向
         let targetType: 'asin' | 'category' = 'category';
         let targetValue = '';
         let targetExpression = '';
         let targetMatchType: 'exact' | 'expanded' | 'category_exact' | 'brand_exact' | 'substitute' | 'accessory' | 'loose' | 'close' = 'exact';
+        let categoryName: string | null = null;
+        let categoryRefinements: string | null = null;
+        const refinements: Record<string, any> = {};
 
-        if (apiTarget.expression && Array.isArray(apiTarget.expression)) {
-          targetExpression = JSON.stringify(apiTarget.expression);
-          const asinExpr = apiTarget.expression.find((e: any) => 
-            (e.type || '').toLowerCase().includes('asin') || (e.type || '').toLowerCase().includes('query'));
-          if (asinExpr) {
-            targetType = 'asin';
-            targetValue = asinExpr.value || '';
-            // 解析匹配类型
-            const et = (asinExpr.type || '').toLowerCase();
-            if (et.includes('expanded')) targetMatchType = 'expanded';
-            else if (et.includes('category')) targetMatchType = 'category_exact';
-            else if (et.includes('brand')) targetMatchType = 'brand_exact';
-            else if (et.includes('substitute')) targetMatchType = 'substitute';
-            else if (et.includes('accessory')) targetMatchType = 'accessory';
-            else if (et.includes('broadrel') || et.includes('loose')) targetMatchType = 'loose';
-            else if (et.includes('highrel') || et.includes('close')) targetMatchType = 'close';
-            else targetMatchType = 'exact';
-          } else {
-            const catExpr = apiTarget.expression.find((e: any) => 
-              (e.type || '').toLowerCase().includes('category'));
-            if (catExpr) {
-              targetValue = catExpr.value || '';
+        const exprArray = apiTarget.expression || apiTarget.expressions || [];
+        if (Array.isArray(exprArray) && exprArray.length > 0) {
+          targetExpression = JSON.stringify(exprArray);
+          
+          for (const expr of exprArray) {
+            const et = (expr.type || '').toLowerCase();
+            
+            if (et.includes('categorysame') || et.includes('category')) {
+              targetType = 'category';
+              targetValue = expr.value || '';
               targetMatchType = 'category_exact';
+            } else if (et.includes('brandsame')) {
+              targetType = 'category';
+              targetValue = expr.value || '';
+              targetMatchType = 'brand_exact';
+            } else if (et.includes('pricebetween') || et.includes('price')) {
+              refinements.priceRange = expr.value;
+            } else if (et.includes('reviewrating') || et.includes('star') || et.includes('rating')) {
+              refinements.starRating = expr.value;
+            } else if (et.includes('expanded') || et.includes('expandedfrom')) {
+              targetType = 'asin';
+              targetValue = expr.value || '';
+              targetMatchType = 'expanded';
+            } else if (et.includes('substitute')) {
+              targetType = 'asin';
+              targetValue = expr.value || 'AUTO_SUBSTITUTES';
+              targetMatchType = 'substitute';
+            } else if (et.includes('accessory') || et.includes('complement')) {
+              targetType = 'asin';
+              targetValue = expr.value || 'AUTO_COMPLEMENTS';
+              targetMatchType = 'accessory';
+            } else if (et.includes('asin') && et.includes('same')) {
+              targetType = 'asin';
+              targetValue = expr.value || '';
+              targetMatchType = 'exact';
+            } else if (et.includes('broadrel') || et.includes('loose')) {
+              targetValue = expr.value || 'AUTO_LOOSE';
+              targetMatchType = 'loose';
+            } else if (et.includes('highrel') || et.includes('close')) {
+              targetValue = expr.value || 'AUTO_CLOSE';
+              targetMatchType = 'close';
+            } else if (expr.value && !targetValue) {
+              targetValue = expr.value;
             }
           }
-        } else if (apiTarget.expressions) {
-          targetExpression = JSON.stringify(apiTarget.expressions);
+          
+          if (Object.keys(refinements).length > 0) {
+            categoryRefinements = JSON.stringify(refinements);
+          }
+        } else if (typeof exprArray === 'string') {
+          targetExpression = exprArray;
         }
 
         // 检查是否已存在
@@ -1117,8 +1147,14 @@ export class AmazonSyncService {
           targetMatchType,
           bid: String(apiTarget.bid || 0),
           targetStatus: normalizedState,
+          categoryName: categoryName,
+          categoryRefinements: categoryRefinements,
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
+
+        if (synced === 0) {
+          console.log(`[SyncService] SB产品定向示例: type=${targetType}, value=${targetValue}, matchType=${targetMatchType}, categoryName=${categoryName}`);
+        }
 
         if (existing) {
           await db
@@ -1167,35 +1203,69 @@ export class AmazonSyncService {
 
         if (!adGroup) continue;
 
-        // 解析定向表达式和匹配类型
+        // 解析定向表达式和匹配类型 - 支持ASIN定向和品类定向
         let targetType: 'asin' | 'category' = 'category';
         let targetValue = '';
         let targetExpression = '';
         let targetMatchType: 'exact' | 'expanded' | 'category_exact' | 'brand_exact' | 'substitute' | 'accessory' | 'loose' | 'close' = 'exact';
+        let categoryName: string | null = null;
+        let categoryRefinements: string | null = null;
+        const refinements: Record<string, any> = {};
 
-        if (apiTarget.expression && Array.isArray(apiTarget.expression)) {
-          targetExpression = JSON.stringify(apiTarget.expression);
-          const asinExpr = apiTarget.expression.find((e: any) => 
-            (e.type || '').toLowerCase().includes('asin') || (e.type || '').toLowerCase().includes('query'));
-          if (asinExpr) {
-            targetType = 'asin';
-            targetValue = asinExpr.value || '';
-            // 解析匹配类型
-            const et = (asinExpr.type || '').toLowerCase();
-            if (et.includes('expanded')) targetMatchType = 'expanded';
-            else if (et.includes('category')) targetMatchType = 'category_exact';
-            else if (et.includes('brand')) targetMatchType = 'brand_exact';
-            else if (et.includes('substitute')) targetMatchType = 'substitute';
-            else if (et.includes('accessory')) targetMatchType = 'accessory';
-            else if (et.includes('broadrel') || et.includes('loose')) targetMatchType = 'loose';
-            else if (et.includes('highrel') || et.includes('close')) targetMatchType = 'close';
-            else targetMatchType = 'exact';
+        const exprArray = apiTarget.expression || [];
+        if (Array.isArray(exprArray) && exprArray.length > 0) {
+          targetExpression = JSON.stringify(exprArray);
+          
+          for (const expr of exprArray) {
+            const et = (expr.type || '').toLowerCase();
+            
+            if (et.includes('categorysame') || et.includes('category')) {
+              targetType = 'category';
+              targetValue = expr.value || '';
+              targetMatchType = 'category_exact';
+            } else if (et.includes('brandsame')) {
+              targetType = 'category';
+              targetValue = expr.value || '';
+              targetMatchType = 'brand_exact';
+            } else if (et.includes('pricebetween') || et.includes('price')) {
+              refinements.priceRange = expr.value;
+            } else if (et.includes('reviewrating') || et.includes('star') || et.includes('rating')) {
+              refinements.starRating = expr.value;
+            } else if (et.includes('expanded') || et.includes('expandedfrom')) {
+              targetType = 'asin';
+              targetValue = expr.value || '';
+              targetMatchType = 'expanded';
+            } else if (et.includes('substitute')) {
+              targetType = 'asin';
+              targetValue = expr.value || 'AUTO_SUBSTITUTES';
+              targetMatchType = 'substitute';
+            } else if (et.includes('accessory') || et.includes('complement')) {
+              targetType = 'asin';
+              targetValue = expr.value || 'AUTO_COMPLEMENTS';
+              targetMatchType = 'accessory';
+            } else if (et.includes('asin') && et.includes('same')) {
+              targetType = 'asin';
+              targetValue = expr.value || '';
+              targetMatchType = 'exact';
+            } else if (et.includes('broadrel') || et.includes('loose')) {
+              targetValue = expr.value || 'AUTO_LOOSE';
+              targetMatchType = 'loose';
+            } else if (et.includes('highrel') || et.includes('close')) {
+              targetValue = expr.value || 'AUTO_CLOSE';
+              targetMatchType = 'close';
+            } else if (expr.value && !targetValue) {
+              targetValue = expr.value;
+            }
+          }
+          
+          if (Object.keys(refinements).length > 0) {
+            categoryRefinements = JSON.stringify(refinements);
           }
         } else if (apiTarget.expressionType) {
           targetExpression = apiTarget.expressionType;
           if (apiTarget.expressionType === 'auto') {
             targetValue = 'AUTO';
-            targetMatchType = 'loose'; // 自动定位默认为广泛
+            targetMatchType = 'loose';
           }
         }
 
@@ -1222,8 +1292,14 @@ export class AmazonSyncService {
           targetMatchType,
           bid: String(apiTarget.bid || 0),
           targetStatus: normalizedState,
+          categoryName: categoryName,
+          categoryRefinements: categoryRefinements,
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
+
+        if (synced === 0) {
+          console.log(`[SyncService] SD产品定向示例: type=${targetType}, value=${targetValue}, matchType=${targetMatchType}, categoryName=${categoryName}`);
+        }
 
         if (existing) {
           await db
@@ -1624,11 +1700,19 @@ export class AmazonSyncService {
           }
         }
 
+        // 判断搜索词类型：是关键词搜索词还是ASIN搜索词
+        const searchTermText = row.searchTerm || '';
+        const isAsinSearchTerm = /^[Bb]0[A-Za-z0-9]{8,}$/.test(searchTermText.trim());
+        const searchTermType = isAsinSearchTerm ? 'asin' : 'keyword';
+        const sourceMatchType = resolvedMatchType;
+        const sourceTargetType = isProductTarget ? 'product_target' : 'keyword';
+        const unitsOrdered = row.unitsSold7d || row.unitsSold14d || row.unitsSold || row.unitsSoldClicks || 0;
+
         const searchTermData = {
           accountId: this.accountId,
           campaignId: campaign.id,
           adGroupId: adGroup.id,
-          searchTerm: row.searchTerm || '',
+          searchTerm: searchTermText,
           searchTermTargetType: isProductTarget ? 'product_target' as const : 'keyword' as const,
           searchTermTargetId,
           targetText: targetingText,
@@ -1645,6 +1729,10 @@ export class AmazonSyncService {
           searchTermCpc: clicks > 0 ? String(cost / clicks) : null,
           reportStartDate: startDate,
           reportEndDate: endDate,
+          sourceMatchType: sourceMatchType,
+          sourceTargetType: sourceTargetType,
+          searchTermType: searchTermType,
+          searchTermUnitsOrdered: unitsOrdered,
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
 
@@ -1769,29 +1857,100 @@ export class AmazonSyncService {
 
         if (!adGroup) continue;
 
-        // 解析ASIN和匹配类型 - Amazon API返回的expression.type包含匹配信息
-        // asinSameAs = 精准匹配, asinExpandedFrom = 拓展匹配
-        // asinCategorySameAs = 品类精准, asinBrandSameAs = 品牌精准
-        // asinSubstituteSameAs = 替代品, asinAccessorySameAs = 配件
-        // queryBroadRelMatches = 广泛(loose), queryHighRelMatches = 紧密(close)
-        const asinExpression = apiTarget.expression.find(e => {
-          const exprType = (e.type || '').toLowerCase();
-          return exprType.includes('asin') || exprType.includes('query');
-        });
-        const targetValue = asinExpression?.value || '';
-        const targetType = asinExpression && !asinExpression.type?.toLowerCase().includes('category') ? 'asin' : 'category';
+        // ============================================================
+        // 解析定向表达式 - 支持ASIN定向和品类定向两种模式
+        // ============================================================
+        // Amazon SP API expression数组可能包含以下type:
+        // ASIN定向: asinSameAs(精准), asinExpandedFrom(拓展)
+        // 品类定向: asinCategorySameAs(品类精准+品类ID)
+        // 品牌定向: asinBrandSameAs(品牌精准)
+        // 自动定向: queryBroadRelMatches(广泛/loose), queryHighRelMatches(紧密/close)
+        //          asinSubstituteSameAs(替代品), asinAccessorySameAs(配件)
+        // 品类细化: asinPriceBetween(价格范围), asinReviewRatingBetween(星级范围)
         
-        // 解析匹配类型
-        const exprType = (asinExpression?.type || '').toLowerCase();
+        let targetType: 'asin' | 'category' = 'asin';
+        let targetValue = '';
         let targetMatchType: 'exact' | 'expanded' | 'category_exact' | 'brand_exact' | 'substitute' | 'accessory' | 'loose' | 'close' = 'exact';
-        if (exprType.includes('expanded')) targetMatchType = 'expanded';
-        else if (exprType.includes('category')) targetMatchType = 'category_exact';
-        else if (exprType.includes('brand')) targetMatchType = 'brand_exact';
-        else if (exprType.includes('substitute')) targetMatchType = 'substitute';
-        else if (exprType.includes('accessory')) targetMatchType = 'accessory';
-        else if (exprType.includes('broadrel') || exprType.includes('loose')) targetMatchType = 'loose';
-        else if (exprType.includes('highrel') || exprType.includes('close')) targetMatchType = 'close';
-        else targetMatchType = 'exact';
+        let categoryName: string | null = null;
+        let categoryRefinements: string | null = null;
+        
+        // 收集品类细化条件
+        const refinements: Record<string, any> = {};
+        
+        for (const expr of (apiTarget.expression || [])) {
+          const et = (expr.type || '').toLowerCase();
+          
+          if (et.includes('categorysame') || et === 'asincategorysameAs' || et === 'asincategorysame') {
+            // 品类定向
+            targetType = 'category';
+            targetValue = expr.value || '';
+            targetMatchType = 'category_exact';
+          } else if (et.includes('brandsame') || et === 'asinbrandsameAs' || et === 'asinbrandsame') {
+            // 品牌定向（属于品类定向的子类型）
+            targetType = 'category';
+            targetValue = expr.value || '';
+            targetMatchType = 'brand_exact';
+          } else if (et.includes('pricebetween') || et.includes('price')) {
+            // 价格范围细化
+            refinements.priceRange = expr.value;
+          } else if (et.includes('reviewrating') || et.includes('star') || et.includes('rating')) {
+            // 星级范围细化
+            refinements.starRating = expr.value;
+          } else if (et.includes('isprime')) {
+            // Prime筛选
+            refinements.isPrime = expr.value;
+          } else if (et.includes('expanded') || et.includes('expandedfrom')) {
+            // ASIN拓展匹配
+            targetType = 'asin';
+            targetValue = expr.value || '';
+            targetMatchType = 'expanded';
+          } else if (et.includes('substitute')) {
+            targetType = 'asin';
+            targetValue = expr.value || 'AUTO_SUBSTITUTES';
+            targetMatchType = 'substitute';
+          } else if (et.includes('accessory') || et.includes('complement')) {
+            targetType = 'asin';
+            targetValue = expr.value || 'AUTO_COMPLEMENTS';
+            targetMatchType = 'accessory';
+          } else if (et.includes('broadrel') || et.includes('loose')) {
+            targetValue = expr.value || 'AUTO_LOOSE';
+            targetMatchType = 'loose';
+          } else if (et.includes('highrel') || et.includes('close')) {
+            targetValue = expr.value || 'AUTO_CLOSE';
+            targetMatchType = 'close';
+          } else if (et.includes('asin') && et.includes('same')) {
+            // ASIN精准匹配 (asinSameAs)
+            targetType = 'asin';
+            targetValue = expr.value || '';
+            targetMatchType = 'exact';
+          } else if (expr.value && !targetValue) {
+            // 兜底：取第一个有值的expression
+            targetValue = expr.value;
+          }
+        }
+        
+        // 如果没有从expression中提取到值，尝试从resolvedExpression获取
+        if (!targetValue && (apiTarget as any).resolvedExpression) {
+          const resolved = (apiTarget as any).resolvedExpression;
+          if (Array.isArray(resolved)) {
+            for (const re of resolved) {
+              const ret = (re.type || '').toLowerCase();
+              if (ret.includes('category')) {
+                targetType = 'category';
+                targetValue = re.value || '';
+                targetMatchType = 'category_exact';
+                categoryName = re.name || null;
+              } else if (re.value) {
+                targetValue = re.value;
+              }
+            }
+          }
+        }
+        
+        // 构建品类细化条件JSON
+        if (Object.keys(refinements).length > 0) {
+          categoryRefinements = JSON.stringify(refinements);
+        }
         
         // Amazon API返回的state可能是大写，需要转换为小写
         const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
@@ -1827,8 +1986,14 @@ export class AmazonSyncService {
           targetMatchType,
           targetStatus: normalizedState,
           bid: String(apiTarget.bid || 0),
+          categoryName: categoryName,
+          categoryRefinements: categoryRefinements,
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
+
+        if (synced === 0) {
+          console.log(`[SyncService] SP产品定向示例: type=${targetType}, value=${targetValue}, matchType=${targetMatchType}, categoryName=${categoryName}`);
+        }
 
         if (existing) {
           await db
@@ -1844,6 +2009,7 @@ export class AmazonSyncService {
         synced++;
       }
 
+      console.log(`[SyncService] SP产品定向同步完成: synced=${synced}, skipped=${skipped}`);
       return { synced, skipped };
     } catch (error) {
       console.error('Error syncing SP product targets:', error);
@@ -3134,11 +3300,19 @@ export class AmazonSyncService {
           }
         }
 
+        // 判断搜索词类型：是关键词搜索词还是ASIN搜索词
+        const searchTermText = row.searchTerm || '';
+        const isAsinSearchTerm = /^[Bb]0[A-Za-z0-9]{8,}$/.test(searchTermText.trim());
+        const searchTermType = isAsinSearchTerm ? 'asin' : 'keyword';
+        const sourceMatchType = resolvedMatchType;
+        const sourceTargetType = isProductTarget ? 'product_target' : 'keyword';
+        const unitsOrdered = row.unitsSold7d || row.unitsSold14d || row.unitsSold || row.unitsSoldClicks || 0;
+
         const searchTermData = {
           accountId: this.accountId,
           campaignId: campaign.id,
           adGroupId: adGroup.id,
-          searchTerm: row.searchTerm || '',
+          searchTerm: searchTermText,
           searchTermTargetType: isProductTarget ? 'product_target' as const : 'keyword' as const,
           searchTermTargetId,
           targetText: targetingText,
@@ -3155,6 +3329,10 @@ export class AmazonSyncService {
           searchTermCpc: clicks > 0 ? String(cost / clicks) : null,
           reportStartDate: startDate,
           reportEndDate: endDate,
+          sourceMatchType: sourceMatchType,
+          sourceTargetType: sourceTargetType,
+          searchTermType: searchTermType,
+          searchTermUnitsOrdered: unitsOrdered,
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
 

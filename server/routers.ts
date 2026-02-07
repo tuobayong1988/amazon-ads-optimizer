@@ -1286,6 +1286,15 @@ ${topKeywords.map((k, i) => `${i + 1}. "${k.keywordText}" - 销售额: $${parseF
     .query(async ({ input }) => {
       return db.getAiOptimizationExecutionDetail(input.executionId);
     }),
+
+  // 更新广告活动的策略模板推荐
+  updateStrategyRecommendations: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ input }) => {
+      const { updateAllCampaignRecommendations } = await import('./strategyRecommendationService');
+      const updated = await updateAllCampaignRecommendations(input.accountId);
+      return { updated };
+    }),
 });
 
 // ==================== Ad Group Router ====================
