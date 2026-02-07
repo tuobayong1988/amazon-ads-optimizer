@@ -1495,6 +1495,180 @@ export class AmazonAdsApiClient {
   }
 
   /**
+   * 请求SP广告组绩效报告 (Amazon Ads API v3)
+   * 用于同步广告组级别的绩效数据（曝光、点击、花费、销售、订单等）
+   */
+  async requestSpAdGroupReport(
+    startDate: string,
+    endDate: string
+  ): Promise<string> {
+    try {
+      console.log(`[Amazon API] 请求SP广告组报告: ${startDate} - ${endDate}`);
+      
+      const requestBody = {
+        name: `SP AdGroup Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_PRODUCTS',
+          groupBy: ['adGroup'],
+          columns: [
+            'date',
+            'campaignId',
+            'campaignName',
+            'adGroupId',
+            'adGroupName',
+            'impressions',
+            'clicks',
+            'clickThroughRate',
+            'cost',
+            'costPerClick',
+            'sales7d',
+            'purchases7d',
+            'unitsSoldClicks7d',
+            'attributedSalesSameSku7d',
+            'unitsSoldSameSku7d',
+            'salesOtherSku7d',
+            'unitsSoldOtherSku7d'
+          ],
+          reportTypeId: 'spCampaigns',
+          timeUnit: 'SUMMARY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      console.log(`[Amazon API] SP广告组报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: any) {
+      console.error('[Amazon API] 请求SP广告组报告失败:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * 请求SB广告组绩效报告 (Amazon Ads API v3)
+   * SB使用14天归因窗口
+   */
+  async requestSbAdGroupReport(
+    startDate: string,
+    endDate: string
+  ): Promise<string> {
+    try {
+      console.log(`[Amazon API] 请求SB广告组报告: ${startDate} - ${endDate}`);
+      
+      const requestBody = {
+        name: `SB AdGroup Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_BRANDS',
+          groupBy: ['adGroup'],
+          columns: [
+            'date',
+            'campaignId',
+            'campaignName',
+            'adGroupId',
+            'adGroupName',
+            'impressions',
+            'clicks',
+            'clickThroughRate',
+            'cost',
+            'costPerClick',
+            'salesClicks14d',
+            'purchasesClicks14d',
+            'unitsSoldClicks14d',
+            'dpv14d',
+            'attributedSalesNewToBrand14d',
+            'attributedOrdersNewToBrand14d'
+          ],
+          reportTypeId: 'sbCampaigns',
+          timeUnit: 'SUMMARY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      console.log(`[Amazon API] SB广告组报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: any) {
+      console.error('[Amazon API] 请求SB广告组报告失败:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * 请求SD广告组绩效报告 (Amazon Ads API v3)
+   * SD使用14天归因窗口 + 浏览归因
+   */
+  async requestSdAdGroupReport(
+    startDate: string,
+    endDate: string
+  ): Promise<string> {
+    try {
+      console.log(`[Amazon API] 请求SD广告组报告: ${startDate} - ${endDate}`);
+      
+      const requestBody = {
+        name: `SD AdGroup Report ${startDate} to ${endDate}`,
+        startDate,
+        endDate,
+        configuration: {
+          adProduct: 'SPONSORED_DISPLAY',
+          groupBy: ['adGroup'],
+          columns: [
+            'date',
+            'campaignId',
+            'campaignName',
+            'adGroupId',
+            'adGroupName',
+            'impressions',
+            'clicks',
+            'clickThroughRate',
+            'cost',
+            'costPerClick',
+            'sales14d',
+            'purchases14d',
+            'unitsSoldClicks14d',
+            'dpv14d',
+            'viewAttributedSales14d',
+            'viewAttributedUnitsOrdered14d',
+            'attributedOrdersNewToBrand14d',
+            'attributedSalesNewToBrand14d'
+          ],
+          reportTypeId: 'sdCampaigns',
+          timeUnit: 'SUMMARY',
+          format: 'GZIP_JSON',
+        },
+      };
+      
+      const response = await this.axiosInstance.post('/reporting/reports', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.createasyncreportrequest.v3+json',
+          'Accept': 'application/vnd.createasyncreportrequest.v3+json'
+        },
+      });
+      
+      console.log(`[Amazon API] SD广告组报告请求成功, reportId: ${response.data.reportId}`);
+      return response.data.reportId;
+    } catch (error: any) {
+      console.error('[Amazon API] 请求SD广告组报告失败:', error.response?.data || error.message);
+      throw error;
+    }
+  }
+
+  /**
    * 请求SD定向报告 (Amazon Ads API v3)
    * 参考文档: https://advertising.amazon.com/API/docs/en-us/reporting/v3/report-types
    * 
@@ -2071,12 +2245,12 @@ export class AmazonAdsApiClient {
    * 请求SD广告组报告
    * 基于Postman文档: reportTypeId = sdAdGroup, groupBy = ["adGroup"]
    */
-  async requestSdAdGroupReport(profileId: string, startDate: string, endDate: string): Promise<string> {
+  async requestSdAdGroupReportDetailed(profileId: string, startDate: string, endDate: string): Promise<string> {
     try {
       this.setProfileId(profileId);
       
       const requestBody = {
-        name: `SD AdGroup Report ${startDate} to ${endDate}`,
+        name: `SD AdGroup Report Detailed ${startDate} to ${endDate}`,
         startDate,
         endDate,
         configuration: {

@@ -276,14 +276,18 @@ export async function runUnifiedOptimizationAnalysis(
   ];
   
   for (const campaign of targetCampaigns) {
-    // 1. 竞价调整分析
+    // 识别广告计费方式：SP/SB都是CPC，SD可能是CPC或vCPM
+    const costType: 'cpc' | 'vcpm' = (campaign.costType === 'vcpm') ? 'vcpm' : 'cpc';
+    const isVcpm = costType === 'vcpm';
+    
+    // 1. 竞价调整分析（CPC和vCPM使用不同的优化公式）
     if (types.includes('bid_adjustment')) {
-      const bidDecisions = await analyzeBidAdjustments(campaign);
+      const bidDecisions = await analyzeBidAdjustments(campaign, costType);
       decisions.push(...bidDecisions);
     }
     
-    // 2. 位置倾斜分析
-    if (types.includes('placement_tilt')) {
+    // 2. 位置倾斜分析（仅SP广告支持位置调整，SD vCPM不支持）
+    if (types.includes('placement_tilt') && !isVcpm) {
       const placementDecisions = await analyzePlacementTilt(campaign);
       decisions.push(...placementDecisions);
     }
@@ -294,9 +298,9 @@ export async function runUnifiedOptimizationAnalysis(
       decisions.push(...daypartingDecisions);
     }
     
-    // 4. 否定词分析
+    // 4. 否定词分析（vCPM广告使用展示效率指标而非点击转化指标）
     if (types.includes('negative_keyword')) {
-      const negativeDecisions = await analyzeNegativeKeywords(campaign);
+      const negativeDecisions = await analyzeNegativeKeywords(campaign, costType);
       decisions.push(...negativeDecisions);
     }
   }
@@ -307,9 +311,10 @@ export async function runUnifiedOptimizationAnalysis(
 /**
  * 分析竞价调整
  */
-async function analyzeBidAdjustments(campaign: any): Promise<OptimizationDecision[]> {
+async function analyzeBidAdjustments(campaign: any, costType: 'cpc' | 'vcpm' = 'cpc'): Promise<OptimizationDecision[]> {
   const db = await getDbInstance();
   const decisions: OptimizationDecision[] = [];
+  const isVcpm = costType === 'vcpm';
   
   // ✅ 改进3：归因延迟隔离 - 计算Campaign级别的归因校正系数
   let correctionFactor = 1.0;
@@ -342,17 +347,74 @@ async function analyzeBidAdjustments(campaign: any): Promise<OptimizationDecisio
     .where(sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`);
   
   for (const kw of campaignKeywords) {
+    const rawImpressions = Number(kw.impressions) || 0;
     const rawClicks = Number(kw.clicks) || 0;
     const rawOrders = Number(kw.orders) || 0;
     const rawSpend = Number(kw.spend) || 0;
     const rawSales = Number(kw.sales) || 0;
     const currentBid = Number(kw.bid) || 0;
     
+    // ========== vCPM广告的竞价优化逻辑 ==========
+    if (isVcpm) {
+      // vCPM广告基于展示效率优化，而非点击转化
+      if (rawImpressions < 1000) continue; // vCPM需要更多展示数据才能判断
+      
+      // 归因校正
+      const corrected = applyAttributionCorrection(
+        { impressions: rawImpressions, clicks: rawClicks, spend: rawSpend, sales: rawSales, orders: rawOrders },
+        correctionFactor,
+        'bid_optimization'
+      );
+      const impressions = corrected.impressions;
+      const spend = corrected.spend;
+      const sales = corrected.sales;
+      const orders = corrected.orders;
+      const clicks = corrected.clicks;
+      
+      // vCPM核心指标
+      const currentCpm = impressions > 0 ? (spend / impressions) * 1000 : 0; // 实际CPM
+      const ctr = impressions > 0 ? clicks / impressions : 0;
+      const viewCvr = impressions > 0 ? orders / impressions : 0; // 展示转化率
+      const acos = sales > 0 ? (spend / sales) * 100 : 999;
+      
+      // vCPM最优出价公式：
+      // 最优vCPM = 展示转化率 × 平均订单价值 × 目标ACoS率 × 1000
+      // 即：每1000次展示能带来多少销售额 × 目标利润率
+      const aov = orders > 0 ? sales / orders : 30;
+      const targetAcos = 30; // 目标ACoS
+      const optimalVcpm = viewCvr * aov * (targetAcos / 100) * 1000;
+      
+      const bidDiff = currentBid > 0 ? Math.abs(optimalVcpm - currentBid) / currentBid : 1;
+      if (bidDiff > 0.15 && optimalVcpm > 0.5) { // vCPM调整阈值稍高（15%）
+        decisions.push({
+          id: `vcpm_bid_${campaign.id}_${kw.id}_${Date.now()}`,
+          type: 'bid_adjustment',
+          targetType: 'keyword',
+          targetId: kw.id,
+          targetName: kw.keywordText || `关键词 ${kw.id}`,
+          currentValue: currentBid,
+          suggestedValue: Math.round(optimalVcpm * 100) / 100,
+          expectedImpact: {
+            metric: 'CPM',
+            currentValue: currentCpm,
+            expectedValue: optimalVcpm,
+            changePercent: currentCpm > 0 ? ((optimalVcpm - currentCpm) / currentCpm) * 100 : 0
+          },
+          confidence: Math.min(0.90, 0.4 + (impressions / 10000) * 0.5),
+          reasoning: `[vCPM优化] 基于展示转化率计算：展示CVR=${(viewCvr*100000).toFixed(2)}‰, CTR=${(ctr*100).toFixed(3)}%, AOV=$${aov.toFixed(2)}, ACoS=${acos.toFixed(1)}%, 目标ACoS=${targetAcos}%${correctionApplied ? ` [归因校正×${correctionFactor.toFixed(2)}]` : ''}`,
+          status: 'pending',
+          createdAt: new Date()
+        });
+      }
+      continue; // vCPM关键词处理完毕，跳过CPC逻辑
+    }
+    
+    // ========== CPC广告的竞价优化逻辑 ==========
     if (rawClicks < 10) continue; // 数据不足
     
     // ✅ 归因校正：对销售和订单应用校正系数
     const corrected = applyAttributionCorrection(
-      { impressions: Number(kw.impressions) || 0, clicks: rawClicks, spend: rawSpend, sales: rawSales, orders: rawOrders },
+      { impressions: rawImpressions, clicks: rawClicks, spend: rawSpend, sales: rawSales, orders: rawOrders },
       correctionFactor,
       'bid_optimization'
     );
@@ -365,7 +427,7 @@ async function analyzeBidAdjustments(campaign: any): Promise<OptimizationDecisio
     const acos = sales > 0 ? (spend / sales) * 100 : 999;
     const cpc = clicks > 0 ? spend / clicks : 0;
     
-    // 计算建议出价（基于利润最大化公式，使用归因校正后的数据）
+    // CPC最优出价公式：最优Bid = CVR × AOV × 目标ACoS率
     const aov = orders > 0 ? sales / orders : 30; // 默认AOV
     const targetAcos = 30; // 目标ACoS
     const optimalBid = cvr * aov * (targetAcos / 100);
@@ -390,7 +452,7 @@ async function analyzeBidAdjustments(campaign: any): Promise<OptimizationDecisio
           changePercent: ((expectedAcos - acos) / acos) * 100
         },
         confidence: Math.min(0.95, 0.5 + (clicks / 100) * 0.45),
-        reasoning: `基于利润最大化公式计算：CVR=${(cvr*100).toFixed(2)}%, AOV=$${aov.toFixed(2)}, 目标ACoS=${targetAcos}%${correctionApplied ? ` [归因校正×${correctionFactor.toFixed(2)}]` : ''}`,
+        reasoning: `[CPC优化] 基于利润最大化公式计算：CVR=${(cvr*100).toFixed(2)}%, AOV=$${aov.toFixed(2)}, 目标ACoS=${targetAcos}%${correctionApplied ? ` [归因校正×${correctionFactor.toFixed(2)}]` : ''}`,
         status: 'pending',
         createdAt: new Date()
       });
@@ -501,41 +563,82 @@ async function analyzeDayparting(campaign: any): Promise<OptimizationDecision[]>
 /**
  * 分析否定词
  */
-async function analyzeNegativeKeywords(campaign: any): Promise<OptimizationDecision[]> {
+async function analyzeNegativeKeywords(campaign: any, costType: 'cpc' | 'vcpm' = 'cpc'): Promise<OptimizationDecision[]> {
   const db = await getDbInstance();
   const decisions: OptimizationDecision[] = [];
+  const isVcpm = costType === 'vcpm';
   
-  // 获取表现差的关键词（高花费低转化）
-  const poorKeywords = await db
-    .select()
-    .from(keywords)
-    .where(and(
-      sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`,
-      sql`${keywords.clicks} > 20`,
-      sql`${keywords.orders} = 0`
-    ))
-    .limit(10);
-  
-  for (const kw of poorKeywords) {
-    decisions.push({
-      id: `negative_${campaign.id}_${kw.id}_${Date.now()}`,
-      type: 'negative_keyword',
-      targetType: 'keyword',
-      targetId: kw.id,
-      targetName: kw.keywordText || `关键词 ${kw.id}`,
-      currentValue: '正常投放',
-      suggestedValue: '添加为否定词',
-      expectedImpact: {
-        metric: '花费',
-        currentValue: Number(kw.spend) || 0,
-        expectedValue: 0,
-        changePercent: -100
-      },
-      confidence: 0.9,
-      reasoning: `该关键词已获得${kw.clicks}次点击但0转化，花费$${kw.spend}，建议添加为否定词`,
-      status: 'pending',
-      createdAt: new Date()
-    });
+  if (isVcpm) {
+    // ========== vCPM广告的否定词分析 ==========
+    // vCPM广告以展示为主，判断标准是：高展示但零点击且零转化（展示无效）
+    const poorKeywords = await db
+      .select()
+      .from(keywords)
+      .where(and(
+        sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`,
+        sql`${keywords.impressions} > 5000`,  // vCPM需要更多展示数据
+        sql`${keywords.clicks} = 0`,           // 零点击表示展示完全无效
+        sql`${keywords.orders} = 0`
+      ))
+      .limit(10);
+    
+    for (const kw of poorKeywords) {
+      const impressions = Number(kw.impressions) || 0;
+      const spend = Number(kw.spend) || 0;
+      decisions.push({
+        id: `negative_vcpm_${campaign.id}_${kw.id}_${Date.now()}`,
+        type: 'negative_keyword',
+        targetType: 'keyword',
+        targetId: kw.id,
+        targetName: kw.keywordText || `关键词 ${kw.id}`,
+        currentValue: '正常投放',
+        suggestedValue: '添加为否定词',
+        expectedImpact: {
+          metric: '花费',
+          currentValue: spend,
+          expectedValue: 0,
+          changePercent: -100
+        },
+        confidence: 0.85,
+        reasoning: `[vCPM] 该关键词已获得${impressions}次展示但0点击0转化，花费$${spend.toFixed(2)}，展示完全无效，建议添加为否定词`,
+        status: 'pending',
+        createdAt: new Date()
+      });
+    }
+  } else {
+    // ========== CPC广告的否定词分析 ==========
+    // CPC广告判断标准：高点击但零转化
+    const poorKeywords = await db
+      .select()
+      .from(keywords)
+      .where(and(
+        sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`,
+        sql`${keywords.clicks} > 20`,
+        sql`${keywords.orders} = 0`
+      ))
+      .limit(10);
+    
+    for (const kw of poorKeywords) {
+      decisions.push({
+        id: `negative_${campaign.id}_${kw.id}_${Date.now()}`,
+        type: 'negative_keyword',
+        targetType: 'keyword',
+        targetId: kw.id,
+        targetName: kw.keywordText || `关键词 ${kw.id}`,
+        currentValue: '正常投放',
+        suggestedValue: '添加为否定词',
+        expectedImpact: {
+          metric: '花费',
+          currentValue: Number(kw.spend) || 0,
+          expectedValue: 0,
+          changePercent: -100
+        },
+        confidence: 0.9,
+        reasoning: `[CPC] 该关键词已获得${kw.clicks}次点击但0转化，花费$${kw.spend}，建议添加为否定词`,
+        status: 'pending',
+        createdAt: new Date()
+      });
+    }
   }
   
   return decisions;

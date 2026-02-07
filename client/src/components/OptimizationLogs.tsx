@@ -101,7 +101,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
   });
 
   // 日志统计暂时禁用
-  const statsData = null;
+  const statsData: { totalLogs: number; byCategory: Array<{ category: string; count: number }> } | null = null;
 
   // 过滤日志
   const filteredLogs = useMemo(() => {

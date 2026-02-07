@@ -579,6 +579,18 @@ export class SQSConsumerService {
     // 从 event_hour 提取日期
     const date = eventHour ? eventHour.split('T')[0] : new Date().toISOString().split('T')[0];
 
+    // 尝试将Amazon的campaignId映射到本地数据库ID
+    let localCampaignId: number | null = null;
+    if (campaignId) {
+      try {
+        const dbModule = await import('./db');
+        const campaign = await dbModule.getCampaignByAmazonId(account.id, String(campaignId));
+        if (campaign) localCampaignId = campaign.id;
+      } catch (e) {
+        // 映射失败不影响账户级别数据写入
+      }
+    }
+
     // 更新数据库
     try {
       await db.upsertDailyPerformanceFromAms({
@@ -588,8 +600,9 @@ export class SQSConsumerService {
         clicks: clicks,
         cost: cost,
         adType: adType,
+        campaignId: localCampaignId,
       });
-      console.log(`[SQS Consumer] ${adType}流量数据已保存: accountId=${account.id}, date=${date}`);
+      console.log(`[SQS Consumer] ${adType}流量数据已保存: accountId=${account.id}, campaignId=${localCampaignId || 'N/A'}, date=${date}`);
     } catch (error: any) {
       console.error(`[SQS Consumer] 保存${adType}流量数据失败:`, error.message);
     }
@@ -628,6 +641,18 @@ export class SQSConsumerService {
     // 从 event_hour 提取日期
     const date = eventHour ? eventHour.split('T')[0] : new Date().toISOString().split('T')[0];
 
+    // 尝试将Amazon的campaignId映射到本地数据库ID
+    let localCampaignId: number | null = null;
+    if (campaignId) {
+      try {
+        const dbModule = await import('./db');
+        const campaign = await dbModule.getCampaignByAmazonId(account.id, String(campaignId));
+        if (campaign) localCampaignId = campaign.id;
+      } catch (e) {
+        // 映射失败不影响账户级别数据写入
+      }
+    }
+
     // 更新数据库
     try {
       await db.updateDailyPerformanceConversion({
@@ -636,8 +661,9 @@ export class SQSConsumerService {
         sales: sales,
         orders: orders,
         adType: adType,
+        campaignId: localCampaignId,
       });
-      console.log(`[SQS Consumer] ${adType}转化数据已保存: accountId=${account.id}, date=${date}`);
+      console.log(`[SQS Consumer] ${adType}转化数据已保存: accountId=${account.id}, campaignId=${localCampaignId || 'N/A'}, date=${date}`);
     } catch (error: any) {
       console.error(`[SQS Consumer] 保存${adType}转化数据失败:`, error.message);
     }
@@ -690,16 +716,24 @@ export class SQSConsumerService {
       const accounts = await db.getAdAccounts();
       const country = this.marketplaceIdToCountry[marketplaceId];
       
-      console.log(`[SQS Consumer] 查找账户: advertiserId=${advertiserId}, marketplaceId=${marketplaceId}, country=${country}`);
-      console.log(`[SQS Consumer] 数据库中的账户: ${accounts.map(a => `${a.marketplace}(id=${a.id})`).join(', ')}`);
+      // 策略1：优先通过profileId精确匹配（支持多店铺同站点）
+      // Amazon AMS的advertiser_id通常对应adAccounts表的profileId
+      let account = accounts.find(a => a.profileId === advertiserId);
       
-      // 通过marketplace字段匹配国家代码
-      let account = accounts.find(a => a.marketplace === country);
+      // 策略2：通过accountId匹配（部分店铺的accountId就是advertiser_id）
+      if (!account) {
+        account = accounts.find(a => a.accountId === advertiserId);
+      }
+      
+      // 策略3：回退到marketplace+country匹配（单店铺场景）
+      if (!account && country) {
+        account = accounts.find(a => a.marketplace === country);
+      }
       
       if (account) {
-        console.log(`[SQS Consumer] 找到匹配账户: id=${account.id}, marketplace=${account.marketplace}`);
+        console.log(`[SQS Consumer] 找到匹配账户: id=${account.id}, marketplace=${account.marketplace}, profileId=${account.profileId}`);
       } else {
-        console.warn(`[SQS Consumer] 未找到匹配账户，country=${country}`);
+        console.warn(`[SQS Consumer] 未找到匹配账户: advertiserId=${advertiserId}, country=${country}`);
       }
       
       return account ? { id: account.id } : null;

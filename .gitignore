@@ -107,3 +107,4 @@ temp/
 *.sqlite3
 deploy*.zip
 deploy.zip
+.elasticbeanstalk/app_versions/

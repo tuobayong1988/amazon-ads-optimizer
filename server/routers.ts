@@ -454,8 +454,73 @@ const performanceGroupRouter = router({
     .query(async ({ input }) => {
       console.log('[performanceGroup.list] accountId:', input.accountId);
       const result = await db.getPerformanceGroupsByAccountId(input.accountId);
-      console.log('[performanceGroup.list] result count:', result.length, 'data:', JSON.stringify(result));
-      return result;
+      console.log('[performanceGroup.list] result count:', result.length);
+      
+      // 为每个绩效组实时计算绩效汇总数据
+      const enrichedResult = await Promise.all(result.map(async (group) => {
+        try {
+          const campaigns = await db.getCampaignsByPerformanceGroupId(group.id);
+          let totalSpend = 0;
+          let totalSales = 0;
+          let totalOrders = 0;
+          let totalClicks = 0;
+          let totalImpressions = 0;
+          
+          for (const campaign of campaigns) {
+            totalSpend += Number(campaign.spend) || 0;
+            totalSales += Number(campaign.sales) || 0;
+            totalOrders += (campaign.orders || 0);
+            totalClicks += (campaign.clicks || 0);
+            totalImpressions += (campaign.impressions || 0);
+          }
+          
+          const avgAcos = totalSales > 0 ? (totalSpend / totalSales) * 100 : 0;
+          const avgRoas = totalSpend > 0 ? totalSales / totalSpend : 0;
+          const ctr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+          const cvr = totalClicks > 0 ? (totalOrders / totalClicks) * 100 : 0;
+          const cpc = totalClicks > 0 ? totalSpend / totalClicks : 0;
+          
+          return {
+            ...group,
+            campaignCount: campaigns.length,
+            totalSpend,
+            totalSales,
+            totalOrders,
+            totalClicks,
+            totalImpressions,
+            avgAcos,
+            avgRoas,
+            ctr,
+            cvr,
+            cpc,
+            // 目标达成度
+            goalProgress: group.optimizationGoal === 'target_acos' && group.targetAcos
+              ? Math.min(100, (Number(group.targetAcos) / Math.max(avgAcos, 0.01)) * 100)
+              : group.optimizationGoal === 'target_roas' && group.targetRoas
+              ? Math.min(100, (avgRoas / Math.max(Number(group.targetRoas), 0.01)) * 100)
+              : null,
+          };
+        } catch (error) {
+          console.error(`[performanceGroup.list] Error enriching group ${group.id}:`, error);
+          return {
+            ...group,
+            campaignCount: 0,
+            totalSpend: 0,
+            totalSales: 0,
+            totalOrders: 0,
+            totalClicks: 0,
+            totalImpressions: 0,
+            avgAcos: 0,
+            avgRoas: 0,
+            ctr: 0,
+            cvr: 0,
+            cpc: 0,
+            goalProgress: null,
+          };
+        }
+      }));
+      
+      return enrichedResult;
     }),
   
   get: publicProcedure
@@ -977,7 +1042,40 @@ const campaignRouter = router({
   getSearchTerms: protectedProcedure
     .input(z.object({ campaignId: z.number() }))
     .query(async ({ input }) => {
-      return db.getSearchTermsByCampaignId(input.campaignId);
+      const rawTerms = await db.getSearchTermsByCampaignId(input.campaignId);
+      // 数据映射：将数据库字段名转换为前端友好的字段名
+      return rawTerms.map(t => ({
+        id: t.id,
+        accountId: t.accountId,
+        campaignId: t.campaignId,
+        adGroupId: t.adGroupId,
+        searchTerm: t.searchTerm,
+        targetType: t.searchTermTargetType,     // keyword | product_target
+        targetId: t.searchTermTargetId,
+        targetText: t.targetText,                // 来源投放词/ASIN文本
+        matchType: t.searchTermMatchType,        // 来源投放词的匹配类型
+        impressions: t.searchTermImpressions || 0,
+        clicks: t.searchTermClicks || 0,
+        spend: t.searchTermSpend || '0',
+        sales: t.searchTermSales || '0',
+        orders: t.searchTermOrders || 0,
+        acos: t.searchTermAcos,
+        roas: t.searchTermRoas,
+        ctr: t.searchTermCtr,
+        cvr: t.searchTermCvr,
+        cpc: t.searchTermCpc,
+        reportStartDate: t.reportStartDate,
+        reportEndDate: t.reportEndDate,
+        createdAt: t.createdAt,
+        updatedAt: t.updatedAt,
+      }));
+    }),
+  
+  // 获取否定关键词列表
+  getNegativeKeywords: protectedProcedure
+    .input(z.object({ campaignId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getNegativeKeywordsByCampaignId(input.campaignId);
     }),
   
   // AI摘要功能 - 生成广告活动表现摘要
@@ -1767,39 +1865,52 @@ const analyticsRouter = router({
     .input(z.object({ 
       accountId: z.number(),
       days: z.number().optional().default(30),
+      startDate: z.string().optional(),  // YYYY-MM-DD
+      endDate: z.string().optional(),    // YYYY-MM-DD
     }))
     .query(async ({ input }) => {
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - input.days);
+      // ✅ 支持自定义日期范围，默认近N天
+      const endDate = input.endDate ? new Date(input.endDate) : new Date();
+      const startDate = input.startDate ? new Date(input.startDate) : (() => {
+        const d = new Date();
+        d.setDate(d.getDate() - input.days);
+        return d;
+      })();
       
-      const dailyData = await db.getDailyPerformanceByDateRange(
+      // ✅ 使用按天聚合的查询，确保每天只有一条汇总记录
+      const dailyAggregated = await db.getDailyPerformanceAggregatedByDate(
         input.accountId,
         startDate,
         endDate
       );
       
-      // 如果没有数据，返回空数组
-      if (!dailyData || dailyData.length === 0) {
+      if (!dailyAggregated || dailyAggregated.length === 0) {
         return [];
       }
       
-      // 转换为前端需要的格式
-      return dailyData.map(day => ({
-        date: new Date(day.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }),
-        fullDate: day.date,
-        sales: parseFloat(day.sales || '0'),
-        spend: parseFloat(day.spend || '0'),
-        impressions: day.impressions || 0,
-        clicks: day.clicks || 0,
-        orders: day.orders || 0,
-        acos: parseFloat(day.sales || '0') > 0 
-          ? (parseFloat(day.spend || '0') / parseFloat(day.sales || '0')) * 100 
-          : 0,
-        roas: parseFloat(day.spend || '0') > 0 
-          ? parseFloat(day.sales || '0') / parseFloat(day.spend || '0') 
-          : 0,
-      }));
+      return dailyAggregated.map(day => {
+        const sales = parseFloat(day.totalSales || '0');
+        const spend = parseFloat(day.totalSpend || '0');
+        const impressions = day.totalImpressions || 0;
+        const clicks = day.totalClicks || 0;
+        const orders = day.totalOrders || 0;
+        
+        return {
+          date: new Date(day.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }),
+          fullDate: day.date,
+          sales,
+          spend,
+          impressions,
+          clicks,
+          orders,
+          // ✅ 加权计算派生指标
+          acos: sales > 0 ? (spend / sales) * 100 : 0,
+          roas: spend > 0 ? sales / spend : 0,
+          ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+          cvr: clicks > 0 ? (orders / clicks) * 100 : 0,
+          cpc: clicks > 0 ? spend / clicks : 0,
+        };
+      });
     }),
   
   // 获取周对比数据（真实数据）
@@ -1822,10 +1933,10 @@ const analyticsRouter = router({
       lastWeekEnd.setDate(lastWeekEnd.getDate() - 1);
       lastWeekEnd.setHours(23, 59, 59, 999);
       
-      // 获取本周和上周的数据
+      // ✅ 使用按天聚合的查询，避免同一天多条记录导致数据翻倍
       const [thisWeekData, lastWeekData] = await Promise.all([
-        db.getDailyPerformanceByDateRange(input.accountId, thisWeekStart, today),
-        db.getDailyPerformanceByDateRange(input.accountId, lastWeekStart, lastWeekEnd),
+        db.getDailyPerformanceAggregatedByDate(input.accountId, thisWeekStart, today),
+        db.getDailyPerformanceAggregatedByDate(input.accountId, lastWeekStart, lastWeekEnd),
       ]);
       
       const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
@@ -1846,8 +1957,8 @@ const analyticsRouter = router({
         
         return {
           name,
-          thisWeek: parseFloat(thisWeekDay?.sales || '0'),
-          lastWeek: parseFloat(lastWeekDay?.sales || '0'),
+          thisWeek: parseFloat(thisWeekDay?.totalSales || '0'),
+          lastWeek: parseFloat(lastWeekDay?.totalSales || '0'),
         };
       });
       
@@ -1855,43 +1966,87 @@ const analyticsRouter = router({
     }),
 
   getKPIs: protectedProcedure
-    .input(z.object({ accountId: z.number() }))
+    .input(z.object({ 
+      accountId: z.number(),
+      startDate: z.string().optional(),  // YYYY-MM-DD
+      endDate: z.string().optional(),    // YYYY-MM-DD
+    }))
     .query(async ({ input }) => {
-      // Get last 30 days performance
-      const endDate = new Date();
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - 30);
+      // ✅ 支持前端传入日期范围，默认近30天
+      const endDate = input.endDate ? new Date(input.endDate) : new Date();
+      const startDate = input.startDate ? new Date(input.startDate) : new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+      
+      // 计算实际天数（用于日均计算）
+      const diffMs = endDate.getTime() - startDate.getTime();
+      const days = Math.max(1, Math.ceil(diffMs / (24 * 60 * 60 * 1000)) + 1); // +1包含开始日
       
       const summary = await db.getPerformanceSummary(input.accountId, startDate, endDate);
       
+      const emptyResult = {
+        conversionsPerDay: 0,
+        roas: 0,
+        totalSales: 0,
+        acos: 0,
+        revenuePerDay: 0,
+        totalSpend: 0,
+        totalOrders: 0,
+        totalClicks: 0,
+        totalImpressions: 0,
+        ctr: 0,
+        cvr: 0,
+        cpc: 0,
+        days,
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0],
+      };
+      
       if (!summary) {
-        return {
-          conversionsPerDay: 0,
-          roas: 0,
-          totalSales: 0,
-          acos: 0,
-          revenuePerDay: 0,
-          totalSpend: 0,
-          totalOrders: 0,
-          totalClicks: 0,
-          totalImpressions: 0,
-        };
+        return emptyResult;
       }
       
-      const days = 30;
       const totalSpend = parseFloat(summary.totalSpend || "0");
       const totalSales = parseFloat(summary.totalSales || "0");
+      const totalClicks = summary.totalClicks || 0;
+      const totalImpressions = summary.totalImpressions || 0;
+      const totalOrders = summary.totalOrders || 0;
+      
+      // ✅ 计算归因期数据成熟度
+      // SP归因期=7天, SB/SD归因期=14天
+      const now = new Date();
+      const daysSinceEnd = Math.ceil((now.getTime() - endDate.getTime()) / (24 * 60 * 60 * 1000));
+      const spDataMaturity = daysSinceEnd >= 7 ? 'finalized' : 'pending'; // SP 7天归因
+      const sbSdDataMaturity = daysSinceEnd >= 14 ? 'finalized' : 'pending'; // SB/SD 14天归因
       
       return {
-        conversionsPerDay: (summary.totalConversions || 0) / days,
+        conversionsPerDay: totalOrders / days,
+        // ✅ 加权计算派生指标，而非简单平均
         roas: totalSpend > 0 ? totalSales / totalSpend : 0,
         totalSales,
         acos: totalSales > 0 ? (totalSpend / totalSales) * 100 : 0,
         revenuePerDay: totalSales / days,
         totalSpend,
-        totalOrders: summary.totalOrders || 0,
-        totalClicks: summary.totalClicks || 0,
-        totalImpressions: summary.totalImpressions || 0,
+        totalOrders,
+        totalClicks,
+        totalImpressions,
+        // ✅ 新增派生指标
+        ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
+        cvr: totalClicks > 0 ? (totalOrders / totalClicks) * 100 : 0,
+        cpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
+        days,
+        startDate: startDate.toISOString().split('T')[0],
+        endDate: endDate.toISOString().split('T')[0],
+        // ✅ 归因期数据成熟度标注
+        dataMaturity: {
+          sp: spDataMaturity,
+          sb: sbSdDataMaturity,
+          sd: sbSdDataMaturity,
+          overall: spDataMaturity === 'finalized' && sbSdDataMaturity === 'finalized' ? 'finalized' : 'pending',
+          message: spDataMaturity === 'finalized' && sbSdDataMaturity === 'finalized' 
+            ? '所有广告类型的归因数据已稳定' 
+            : daysSinceEnd < 7 
+              ? `近${daysSinceEnd}天数据尚在归因窗口内（SP:7天, SB/SD:14天），转化数据可能不完整`
+              : `SB/SD广告的近${14 - daysSinceEnd}天数据尚在归因窗口内，转化数据可能不完整`,
+        },
       };
     }),
   
@@ -2902,78 +3057,37 @@ const amazonApiRouter = router({
         connectionStatus: 'connected',
       });
 
-      // 授权成功后自动触发数据同步
-      let syncResult = {
-        campaigns: 0,
-        adGroups: 0,
-        keywords: 0,
-        targets: 0,
-        performance: 0,
-        error: null as string | null,
-      };
-
-      try {
-        console.log(`[授权后自动同步] 开始为账号 ${input.accountId} 同步数据...`);
-        
-        // 获取账号的站点信息
-        const accountInfo = await db.getAdAccountById(input.accountId);
-        const marketplace = accountInfo?.marketplace || 'US';
-        
-        const syncService = await AmazonSyncService.createFromCredentials(
-          {
-            clientId: input.clientId,
-            clientSecret: input.clientSecret,
-            refreshToken: input.refreshToken,
-            profileId: input.profileId,
-            region: input.region,
-          },
-          input.accountId,
-          ctx.user.id,
-          marketplace // 传入站点代码用于时区计算
-        );
-
-        // 执行完整同步（获取90天历史数据）
-        const result = await syncService.syncAll();
-        syncResult = { ...result, error: null };
-        
-        console.log(`[授权后自动同步] 同步完成，获取90天历史数据:`, syncResult);
-
-        // 更新最后同步时间
-        await db.updateAmazonApiCredentialsLastSync(input.accountId);
-      } catch (syncError: any) {
-        console.error(`[授权后自动同步] 同步失败:`, syncError);
-        syncResult.error = syncError.message || '同步失败';
-        // 同步失败不影响授权成功，只是记录错误
-      }
-
-      // 授权成功后自动创建每小时定时同步配置
-      try {
-        console.log(`[授权后自动同步] 为账号 ${input.accountId} 创建每小时定时同步配置...`);
-        
-        // 检查是否已存在定时同步配置
-        const existingSchedule = await db.getSyncScheduleByAccountId(ctx.user.id, input.accountId);
-        
-        if (!existingSchedule) {
-          // 创建新的每小时定时同步配置
-          await db.createSyncSchedule({
-            userId: ctx.user.id,
-            accountId: input.accountId,
-            syncType: 'all',
-            frequency: 'hourly',
-            isEnabled: true,
-          });
-          console.log(`[授权后自动同步] 已为账号 ${input.accountId} 创建每小时定时同步配置`);
-        } else {
-          console.log(`[授权后自动同步] 账号 ${input.accountId} 已存在定时同步配置，跳过创建`);
-        }
-      } catch (scheduleError: any) {
-        console.error(`[授权后自动同步] 创建定时同步配置失败:`, scheduleError);
-        // 创建定时同步配置失败不影响授权成功
-      }
+      // ✅ 授权成功后执行完整初始化（全量同步 + 定时调度 + AMS订阅）
+      const accountInfo = await db.getAdAccountById(input.accountId);
+      const marketplace = accountInfo?.marketplace || 'US';
+      
+      const { initializeAccount } = await import('./accountInitializationService');
+      
+      // 异步执行初始化，不阻塞返回
+      const initPromise = initializeAccount({
+        accountId: input.accountId,
+        userId: ctx.user.id,
+        clientId: input.clientId,
+        clientSecret: input.clientSecret,
+        refreshToken: input.refreshToken,
+        profileId: input.profileId,
+        region: input.region as 'NA' | 'EU' | 'FE',
+        marketplace,
+      });
+      
+      initPromise.then(initResult => {
+        console.log(`[授权后初始化] 账号 ${input.accountId} (${marketplace}) 初始化完成:`, {
+          sync: initResult.syncResult.success ? '✅' : '❌',
+          schedule: initResult.scheduleResult.success ? '✅' : '❌',
+          ams: initResult.amsResult.success ? '✅' : '❌',
+        });
+      }).catch(err => {
+        console.error(`[授权后初始化] 账号 ${input.accountId} 初始化失败:`, err);
+      });
 
       return { 
         success: true,
-        syncResult,
+        syncResult: { campaigns: 0, adGroups: 0, keywords: 0, targets: 0, performance: 0, error: null as string | null },
       };
     }),
 
@@ -3133,36 +3247,33 @@ const amazonApiRouter = router({
         }
       }
 
-      // 为所有成功创建的账号触发数据同步
+      // ✅ 为所有成功创建的账号执行完整初始化（全量同步 + 定时调度 + AMS订阅）
       const successfulAccounts = results.filter(r => r.success);
-      for (const account of successfulAccounts) {
-        try {
-          console.log(`[saveMultipleProfiles] 开始为账号 ${account.accountId} (${account.countryCode}) 同步数据...`);
-          
-          const syncService = await AmazonSyncService.createFromCredentials(
-            {
-              clientId: input.clientId,
-              clientSecret: input.clientSecret,
-              refreshToken: input.refreshToken,
-              profileId: account.profileId,
-              region: input.region,
-            },
-            account.accountId,
-            ctx.user.id,
-            account.countryCode || 'US' // 传入站点代码用于时区计算
-          );
-
-          // 异步执行完整同步（获取90天历史数据），不阻塞返回
-          syncService.syncAll().then(result => {
-            console.log(`[saveMultipleProfiles] 账号 ${account.accountId} (${account.countryCode}) 同步完成，获取90天历史数据:`, result);
-            db.updateAmazonApiCredentialsLastSync(account.accountId);
-          }).catch(err => {
-            console.error(`[saveMultipleProfiles] 账号 ${account.accountId} (${account.countryCode}) 同步失败:`, err);
+      const { initializeMultipleAccounts } = await import('./accountInitializationService');
+      
+      // 异步执行初始化，不阻塞返回
+      initializeMultipleAccounts(
+        successfulAccounts.map(account => ({
+          accountId: account.accountId,
+          userId: ctx.user.id,
+          clientId: input.clientId,
+          clientSecret: input.clientSecret,
+          refreshToken: input.refreshToken,
+          profileId: account.profileId,
+          region: input.region as 'NA' | 'EU' | 'FE',
+          marketplace: account.countryCode || 'US',
+        }))
+      ).then(initResults => {
+        for (const initResult of initResults) {
+          console.log(`[saveMultipleProfiles] 账号 ${initResult.accountId} (${initResult.marketplace}) 初始化完成:`, {
+            sync: initResult.syncResult.success ? '✅' : '❌',
+            schedule: initResult.scheduleResult.success ? '✅' : '❌',
+            ams: initResult.amsResult.success ? '✅' : '❌',
           });
-        } catch (syncError: any) {
-          console.error(`[saveMultipleProfiles] 启动同步失败 (${account.countryCode}):`, syncError);
         }
-      }
+      }).catch(err => {
+        console.error(`[saveMultipleProfiles] 批量初始化失败:`, err);
+      });
 
       return {
         success: true,
@@ -3388,6 +3499,23 @@ const amazonApiRouter = router({
         throw new TRPCError({
           code: 'NOT_FOUND',
           message: 'API credentials not found',
+        });
+      }
+
+      // ✅ 幂等性保护：检查是否已有同步任务在进行
+      const { isSyncLocked, acquireSyncLock, releaseSyncLock } = await import('./syncIdempotencyService');
+      if (isSyncLocked(input.accountId, 'all')) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: '该账号已有同步任务在进行中，请等待当前同步完成后再试',
+        });
+      }
+      
+      const lockId = acquireSyncLock(input.accountId, 'all');
+      if (!lockId) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: '获取同步锁失败，请稍后重试',
         });
       }
 
@@ -3725,6 +3853,10 @@ const amazonApiRouter = router({
       // 异步执行同步任务，不等待完成
       runSyncAsync().catch(err => {
         console.error(`[同步异常] 账号 ${input.accountId}:`, err);
+      }).finally(() => {
+        // ✅ 始终释放同步锁，无论成功或失败
+        releaseSyncLock(input.accountId, 'all', lockId);
+        console.log(`[同步锁] 账号 ${input.accountId} 同步锁已释放`);
       });
 
       // 立即返回jobId，前端通过轮询获取进度
@@ -4923,26 +5055,25 @@ const amazonApiRouter = router({
                 connectionStatus: 'connected',
               });
               
-              // 6. 异步启动数据同步
-              const syncService = await AmazonSyncService.createFromCredentials(
-                {
-                  clientId,
-                  clientSecret,
-                  refreshToken: tokens.refresh_token,
-                  profileId: String(profile.profileId),
-                  region: regionCode as 'NA' | 'EU' | 'FE',
-                },
+              // 6. ✅ 异步启动完整初始化（全量同步 + 定时调度 + AMS订阅）
+              const { initializeAccount } = await import('./accountInitializationService');
+              initializeAccount({
                 accountId,
-                ctx.user.id,
-                profile.countryCode
-              );
-              
-              // 异步执行同步，不阻塞返回
-              syncService.syncAll().then(result => {
-                console.log(`[BatchAuth] 账号 ${accountId} (${profile.countryCode}) 同步完成`);
-                db.updateAmazonApiCredentialsLastSync(accountId);
+                userId: ctx.user.id,
+                clientId,
+                clientSecret,
+                refreshToken: tokens.refresh_token,
+                profileId: String(profile.profileId),
+                region: regionCode as 'NA' | 'EU' | 'FE',
+                marketplace: profile.countryCode,
+              }).then(initResult => {
+                console.log(`[BatchAuth] 账号 ${accountId} (${profile.countryCode}) 初始化完成:`, {
+                  sync: initResult.syncResult.success ? '✅' : '❌',
+                  schedule: initResult.scheduleResult.success ? '✅' : '❌',
+                  ams: initResult.amsResult.success ? '✅' : '❌',
+                });
               }).catch(err => {
-                console.error(`[BatchAuth] 账号 ${accountId} (${profile.countryCode}) 同步失败:`, err);
+                console.error(`[BatchAuth] 账号 ${accountId} (${profile.countryCode}) 初始化失败:`, err);
               });
               
             } catch (profileError: any) {

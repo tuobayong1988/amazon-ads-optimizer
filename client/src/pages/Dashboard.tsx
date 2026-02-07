@@ -320,9 +320,13 @@ export default function Dashboard() {
   // Use first account if none selected
   const accountId = selectedAccountId || accounts?.[0]?.id;
 
-  // Fetch KPIs
+  // ✅ Fetch KPIs - 与日期选择器联动
   const { data: kpis, isLoading: kpisLoading, refetch: refetchKpis } = trpc.analytics.getKPIs.useQuery(
-    { accountId: accountId! },
+    { 
+      accountId: accountId!,
+      startDate: kpiDateRange.startDate,
+      endDate: kpiDateRange.endDate,
+    },
     { enabled: !!accountId }
   );
 
@@ -365,6 +369,26 @@ export default function Dashboard() {
 
   // 是否显示归因调整后的数据
   const [showAdjustedData, setShowAdjustedData] = useState(true);
+  
+  // ✅ KPI日期范围状态 - 与日期选择器联动
+  const [kpiDatePreset, setKpiDatePreset] = useState<DatePreset>('last30days');
+  const [kpiCustomStartDate, setKpiCustomStartDate] = useState<Date | undefined>(subDays(new Date(), 30));
+  const [kpiCustomEndDate, setKpiCustomEndDate] = useState<Date | undefined>(new Date());
+  
+  // 计算KPI日期范围
+  const kpiDateRange = useMemo(() => {
+    if (kpiDatePreset === 'custom') {
+      return {
+        startDate: kpiCustomStartDate ? format(kpiCustomStartDate, 'yyyy-MM-dd') : undefined,
+        endDate: kpiCustomEndDate ? format(kpiCustomEndDate, 'yyyy-MM-dd') : undefined,
+      };
+    }
+    const range = getDateRange(kpiDatePreset);
+    return {
+      startDate: format(range.start, 'yyyy-MM-dd'),
+      endDate: format(range.end, 'yyyy-MM-dd'),
+    };
+  }, [kpiDatePreset, kpiCustomStartDate, kpiCustomEndDate]);
 
   // 刷新数据的回调函数
   const handleRefreshData = useCallback(async () => {
@@ -427,9 +451,13 @@ export default function Dashboard() {
     { enabled: !!user?.id }
   );
 
-  // 获取真实趋势数据
+  // ✅ 获取真实趋势数据 - 与日期选择器联动
   const { data: realTrendData } = trpc.analytics.getTrendData.useQuery(
-    { accountId: accountId!, days: 30 },
+    { 
+      accountId: accountId!, 
+      startDate: kpiDateRange.startDate,
+      endDate: kpiDateRange.endDate,
+    },
     { enabled: !!accountId }
   );
   
@@ -620,6 +648,22 @@ export default function Dashboard() {
             color="cyan"
           />
         </div>
+
+        {/* ✅ 归因期数据成熟度提示 */}
+        {kpis?.dataMaturity && kpis.dataMaturity.overall === 'pending' && (
+          <div className="flex items-center gap-2 p-3 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800">
+            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+            <div className="text-sm">
+              <span className="font-medium text-amber-700 dark:text-amber-300">归因期提示：</span>
+              <span className="text-amber-600 dark:text-amber-400">{kpis.dataMaturity.message}</span>
+              <span className="text-muted-foreground ml-2">
+                (SP: {kpis.dataMaturity.sp === 'finalized' ? '✅已稳定' : '⏳归因中'} | 
+                 SB: {kpis.dataMaturity.sb === 'finalized' ? '✅已稳定' : '⏳归因中'} | 
+                 SD: {kpis.dataMaturity.sd === 'finalized' ? '✅已稳定' : '⏳归因中'})
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* 区域数据对比 - 移动到头部 */}
         {regionComparison && regionComparison.length > 0 && (

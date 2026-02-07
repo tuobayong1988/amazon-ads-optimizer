@@ -19,6 +19,7 @@ import {
   biddingLogs,
   placementPerformance,
   searchTerms,
+  negativeKeywords,
 } from '../drizzle/schema';
 import {
   AmazonAdsApiClient,
@@ -115,17 +116,70 @@ export class AmazonSyncService {
     results.sdCampaigns = typeof sdResult === 'number' ? sdResult : sdResult.synced;
     results.campaigns += results.sdCampaigns;
     
-    // 同步广告组
-    const adGroupResult = await this.syncSpAdGroups();
-    results.adGroups += typeof adGroupResult === 'number' ? adGroupResult : adGroupResult.synced;
+    // ==================== 同步广告组（SP + SB + SD） ====================
+    const spAdGroupResult = await this.syncSpAdGroups();
+    results.adGroups += typeof spAdGroupResult === 'number' ? spAdGroupResult : spAdGroupResult.synced;
+
+    try {
+      const sbAdGroupResult = await this.syncSbAdGroups();
+      results.adGroups += sbAdGroupResult.synced;
+    } catch (e: any) {
+      console.error('[SyncService] SB广告组同步失败:', e.message);
+    }
+
+    try {
+      const sdAdGroupResult = await this.syncSdAdGroups();
+      results.adGroups += sdAdGroupResult.synced;
+    } catch (e: any) {
+      console.error('[SyncService] SD广告组同步失败:', e.message);
+    }
     
-    // 同步关键词
-    const keywordResult = await this.syncSpKeywords();
-    results.keywords += typeof keywordResult === 'number' ? keywordResult : keywordResult.synced;
+    // ==================== 同步关键词投放（SP + SB） ====================
+    const spKeywordResult = await this.syncSpKeywords();
+    results.keywords += typeof spKeywordResult === 'number' ? spKeywordResult : spKeywordResult.synced;
+
+    try {
+      const sbKeywordResult = await this.syncSbKeywords();
+      results.keywords += sbKeywordResult.synced;
+    } catch (e: any) {
+      console.error('[SyncService] SB关键词同步失败:', e.message);
+    }
     
-    // 同步商品定位
-    const targetResult = await this.syncSpProductTargets();
-    results.targets += typeof targetResult === 'number' ? targetResult : targetResult.synced;
+    // ==================== 同步商品定位（SP + SB + SD） ====================
+    const spTargetResult = await this.syncSpProductTargets();
+    results.targets += typeof spTargetResult === 'number' ? spTargetResult : spTargetResult.synced;
+
+    try {
+      const sbTargetResult = await this.syncSbProductTargets();
+      results.targets += sbTargetResult.synced;
+    } catch (e: any) {
+      console.error('[SyncService] SB商品定位同步失败:', e.message);
+    }
+
+    try {
+      const sdTargetResult = await this.syncSdProductTargets();
+      results.targets += sdTargetResult.synced;
+    } catch (e: any) {
+      console.error('[SyncService] SD商品定位同步失败:', e.message);
+    }
+
+    // ==================== 同步否定关键词 ====================
+    try {
+      console.log(`[SyncService] 开始同步SP否定关键词...`);
+      const negResult = await this.syncSpNegativeKeywords();
+      console.log(`[SyncService] SP否定关键词同步完成: ${negResult.synced}条`);
+    } catch (e: any) {
+      console.error('[SyncService] SP否定关键词同步失败:', e.message);
+    }
+
+    // ==================== 同步SB搜索词 ====================
+    try {
+      console.log(`[SyncService] 开始同步SB搜索词数据...`);
+      const sbSearchTermSynced = await this.syncSbSearchTerms(14);
+      console.log(`[SyncService] SB搜索词同步完成: ${sbSearchTermSynced}条`);
+    } catch (e: any) {
+      console.error('[SyncService] SB搜索词同步失败:', e.message);
+    }
     
     // 同步绩效数据（快慢双轨架构：API只拉取T-1及之前的历史数据）
     // 重要：亚马逊的销售数据在7-14天内会变动（用户点击后过几天才买）
@@ -151,6 +205,15 @@ export class AmazonSyncService {
       console.log(`[SyncService] 商品定位绩效数据同步完成: ${targetPerfSynced}条`);
     } catch (ptPerfError: any) {
       console.error('[SyncService] 商品定位绩效数据同步失败:', ptPerfError.message);
+    }
+
+    // ✅ 同步广告组级别绩效数据（SP/SB/SD）
+    try {
+      console.log(`[SyncService] 开始同步广告组级别绩效数据...`);
+      const adGroupPerfSynced = await this.syncAdGroupPerformanceData(performanceDays);
+      console.log(`[SyncService] 广告组绩效数据同步完成: ${adGroupPerfSynced}条`);
+    } catch (agPerfError: any) {
+      console.error('[SyncService] 广告组绩效数据同步失败:', agPerfError.message);
     }
 
     return results;
@@ -649,6 +712,740 @@ export class AmazonSyncService {
   }
 
   /**
+   * 同步SB品牌广告组
+   * 从Amazon SB API获取广告组列表并同步到本地数据库
+   */
+  async syncSbAdGroups(): Promise<{ synced: number; skipped: number }> {
+    const db = await getDb();
+    if (!db) return { synced: 0, skipped: 0 };
+
+    try {
+      const apiAdGroups = await this.client.listSbAdGroups();
+      let synced = 0;
+      let skipped = 0;
+
+      console.log(`[SyncService] 获取到 ${apiAdGroups.length} 个SB广告组`);
+
+      for (const apiAdGroup of apiAdGroups) {
+        // 查找对应的campaign
+        const [campaign] = await db
+          .select()
+          .from(campaigns)
+          .where(
+            and(
+              eq(campaigns.accountId, this.accountId),
+              eq(campaigns.campaignId, String(apiAdGroup.campaignId))
+            )
+          )
+          .limit(1);
+
+        if (!campaign) continue;
+
+        // 检查是否已存在
+        const [existing] = await db
+          .select()
+          .from(adGroups)
+          .where(
+            and(
+              eq(adGroups.campaignId, campaign.id),
+              eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
+            )
+          )
+          .limit(1);
+
+        const normalizedState = (apiAdGroup.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
+
+        const adGroupData = {
+          campaignId: campaign.id,
+          adGroupId: String(apiAdGroup.adGroupId),
+          adGroupName: apiAdGroup.name || apiAdGroup.adGroupName || 'SB Ad Group',
+          adGroupStatus: normalizedState,
+          defaultBid: String(apiAdGroup.bid || apiAdGroup.defaultBid || 0),
+          creativeType: apiAdGroup.creativeType || null,
+          updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        };
+
+        if (existing) {
+          await db
+            .update(adGroups)
+            .set(adGroupData)
+            .where(eq(adGroups.id, existing.id));
+        } else {
+          await db.insert(adGroups).values({
+            ...adGroupData,
+            createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+          });
+        }
+        synced++;
+      }
+
+      console.log(`[SyncService] SB广告组同步完成: synced=${synced}, skipped=${skipped}`);
+      return { synced, skipped };
+    } catch (error) {
+      console.error('Error syncing SB ad groups:', error);
+      return { synced: 0, skipped: 0 };
+    }
+  }
+
+  /**
+   * 同步SD展示广告组
+   * 从Amazon SD API获取广告组列表并同步到本地数据库
+   */
+  async syncSdAdGroups(): Promise<{ synced: number; skipped: number }> {
+    const db = await getDb();
+    if (!db) return { synced: 0, skipped: 0 };
+
+    try {
+      const apiAdGroups = await this.client.listSdAdGroups();
+      let synced = 0;
+      let skipped = 0;
+
+      console.log(`[SyncService] 获取到 ${apiAdGroups.length} 个SD广告组`);
+
+      for (const apiAdGroup of apiAdGroups) {
+        // 查找对应的campaign
+        const [campaign] = await db
+          .select()
+          .from(campaigns)
+          .where(
+            and(
+              eq(campaigns.accountId, this.accountId),
+              eq(campaigns.campaignId, String(apiAdGroup.campaignId))
+            )
+          )
+          .limit(1);
+
+        if (!campaign) continue;
+
+        // 检查是否已存在
+        const [existing] = await db
+          .select()
+          .from(adGroups)
+          .where(
+            and(
+              eq(adGroups.campaignId, campaign.id),
+              eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
+            )
+          )
+          .limit(1);
+
+        const normalizedState = (apiAdGroup.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
+
+        // SD广告组可能有tactic字段（如T00020 = 受众定向, T00030 = 商品定向）
+        const tactic = apiAdGroup.tactic || null;
+
+        const adGroupData = {
+          campaignId: campaign.id,
+          adGroupId: String(apiAdGroup.adGroupId),
+          adGroupName: apiAdGroup.name || apiAdGroup.adGroupName || 'SD Ad Group',
+          adGroupStatus: normalizedState,
+          defaultBid: String(apiAdGroup.defaultBid || apiAdGroup.bid || 0),
+          tactic: tactic,
+          updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        };
+
+        if (existing) {
+          await db
+            .update(adGroups)
+            .set(adGroupData)
+            .where(eq(adGroups.id, existing.id));
+        } else {
+          await db.insert(adGroups).values({
+            ...adGroupData,
+            createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+          });
+        }
+        synced++;
+      }
+
+      console.log(`[SyncService] SD广告组同步完成: synced=${synced}, skipped=${skipped}`);
+      return { synced, skipped };
+    } catch (error) {
+      console.error('Error syncing SD ad groups:', error);
+      return { synced: 0, skipped: 0 };
+    }
+  }
+
+  /**
+   * 同步SB关键词投放
+   * 从Amazon SB API获取关键词列表并同步到本地数据库
+   */
+  async syncSbKeywords(): Promise<{ synced: number; skipped: number }> {
+    const db = await getDb();
+    if (!db) return { synced: 0, skipped: 0 };
+
+    try {
+      const apiKeywords = await this.client.listSbKeywords();
+      let synced = 0;
+      let skipped = 0;
+
+      console.log(`[SyncService] 获取到 ${apiKeywords.length} 个SB关键词`);
+
+      for (const apiKeyword of apiKeywords) {
+        // 查找对应的ad group
+        const [adGroup] = await db
+          .select()
+          .from(adGroups)
+          .where(eq(adGroups.adGroupId, String(apiKeyword.adGroupId)))
+          .limit(1);
+
+        if (!adGroup) continue;
+
+        // 检查是否已存在
+        const [existing] = await db
+          .select()
+          .from(keywords)
+          .where(
+            and(
+              eq(keywords.adGroupId, adGroup.id),
+              eq(keywords.keywordId, String(apiKeyword.keywordId))
+            )
+          )
+          .limit(1);
+
+        const normalizedMatchType = (apiKeyword.matchType || 'broad').toLowerCase() as 'broad' | 'phrase' | 'exact';
+        const normalizedState = (apiKeyword.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
+
+        const keywordData = {
+          adGroupId: adGroup.id,
+          keywordId: String(apiKeyword.keywordId),
+          keywordText: apiKeyword.keywordText || apiKeyword.keyword || '',
+          matchType: normalizedMatchType,
+          bid: String(apiKeyword.bid || 0),
+          keywordStatus: normalizedState,
+          updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        };
+
+        if (existing) {
+          await db
+            .update(keywords)
+            .set(keywordData)
+            .where(eq(keywords.id, existing.id));
+        } else {
+          await db.insert(keywords).values({
+            ...keywordData,
+            createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+          });
+        }
+        synced++;
+      }
+
+      console.log(`[SyncService] SB关键词同步完成: synced=${synced}, skipped=${skipped}`);
+      return { synced, skipped };
+    } catch (error) {
+      console.error('Error syncing SB keywords:', error);
+      return { synced: 0, skipped: 0 };
+    }
+  }
+
+  /**
+   * 同步SB商品定位
+   * 从Amazon SB API获取商品定位列表并同步到本地数据库
+   */
+  async syncSbProductTargets(): Promise<{ synced: number; skipped: number }> {
+    const db = await getDb();
+    if (!db) return { synced: 0, skipped: 0 };
+
+    try {
+      const apiTargets = await this.client.listSbTargets();
+      let synced = 0;
+      let skipped = 0;
+
+      console.log(`[SyncService] 获取到 ${apiTargets.length} 个SB商品定位`);
+
+      for (const apiTarget of apiTargets) {
+        // 查找对应的ad group
+        const [adGroup] = await db
+          .select()
+          .from(adGroups)
+          .where(eq(adGroups.adGroupId, String(apiTarget.adGroupId)))
+          .limit(1);
+
+        if (!adGroup) continue;
+
+        // 解析定向表达式和匹配类型
+        let targetType: 'asin' | 'category' = 'category';
+        let targetValue = '';
+        let targetExpression = '';
+        let targetMatchType: 'exact' | 'expanded' | 'category_exact' | 'brand_exact' | 'substitute' | 'accessory' | 'loose' | 'close' = 'exact';
+
+        if (apiTarget.expression && Array.isArray(apiTarget.expression)) {
+          targetExpression = JSON.stringify(apiTarget.expression);
+          const asinExpr = apiTarget.expression.find((e: any) => 
+            (e.type || '').toLowerCase().includes('asin') || (e.type || '').toLowerCase().includes('query'));
+          if (asinExpr) {
+            targetType = 'asin';
+            targetValue = asinExpr.value || '';
+            // 解析匹配类型
+            const et = (asinExpr.type || '').toLowerCase();
+            if (et.includes('expanded')) targetMatchType = 'expanded';
+            else if (et.includes('category')) targetMatchType = 'category_exact';
+            else if (et.includes('brand')) targetMatchType = 'brand_exact';
+            else if (et.includes('substitute')) targetMatchType = 'substitute';
+            else if (et.includes('accessory')) targetMatchType = 'accessory';
+            else if (et.includes('broadrel') || et.includes('loose')) targetMatchType = 'loose';
+            else if (et.includes('highrel') || et.includes('close')) targetMatchType = 'close';
+            else targetMatchType = 'exact';
+          } else {
+            const catExpr = apiTarget.expression.find((e: any) => 
+              (e.type || '').toLowerCase().includes('category'));
+            if (catExpr) {
+              targetValue = catExpr.value || '';
+              targetMatchType = 'category_exact';
+            }
+          }
+        } else if (apiTarget.expressions) {
+          targetExpression = JSON.stringify(apiTarget.expressions);
+        }
+
+        // 检查是否已存在
+        const [existing] = await db
+          .select()
+          .from(productTargets)
+          .where(
+            and(
+              eq(productTargets.adGroupId, adGroup.id),
+              eq(productTargets.targetId, String(apiTarget.targetId))
+            )
+          )
+          .limit(1);
+
+        const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
+
+        const targetData = {
+          adGroupId: adGroup.id,
+          targetId: String(apiTarget.targetId),
+          targetType,
+          targetValue,
+          targetExpression,
+          targetMatchType,
+          bid: String(apiTarget.bid || 0),
+          targetStatus: normalizedState,
+          updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        };
+
+        if (existing) {
+          await db
+            .update(productTargets)
+            .set(targetData)
+            .where(eq(productTargets.id, existing.id));
+        } else {
+          await db.insert(productTargets).values({
+            ...targetData,
+            createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+          });
+        }
+        synced++;
+      }
+
+      console.log(`[SyncService] SB商品定位同步完成: synced=${synced}, skipped=${skipped}`);
+      return { synced, skipped };
+    } catch (error) {
+      console.error('Error syncing SB product targets:', error);
+      return { synced: 0, skipped: 0 };
+    }
+  }
+
+  /**
+   * 同步SD商品定位（从List API）
+   * 从Amazon SD API获取商品定位列表并同步到本地数据库
+   */
+  async syncSdProductTargets(): Promise<{ synced: number; skipped: number }> {
+    const db = await getDb();
+    if (!db) return { synced: 0, skipped: 0 };
+
+    try {
+      const apiTargets = await this.client.listSdTargets();
+      let synced = 0;
+      let skipped = 0;
+
+      console.log(`[SyncService] 获取到 ${apiTargets.length} 个SD商品定位`);
+
+      for (const apiTarget of apiTargets) {
+        // 查找对应的ad group
+        const [adGroup] = await db
+          .select()
+          .from(adGroups)
+          .where(eq(adGroups.adGroupId, String(apiTarget.adGroupId)))
+          .limit(1);
+
+        if (!adGroup) continue;
+
+        // 解析定向表达式和匹配类型
+        let targetType: 'asin' | 'category' = 'category';
+        let targetValue = '';
+        let targetExpression = '';
+        let targetMatchType: 'exact' | 'expanded' | 'category_exact' | 'brand_exact' | 'substitute' | 'accessory' | 'loose' | 'close' = 'exact';
+
+        if (apiTarget.expression && Array.isArray(apiTarget.expression)) {
+          targetExpression = JSON.stringify(apiTarget.expression);
+          const asinExpr = apiTarget.expression.find((e: any) => 
+            (e.type || '').toLowerCase().includes('asin') || (e.type || '').toLowerCase().includes('query'));
+          if (asinExpr) {
+            targetType = 'asin';
+            targetValue = asinExpr.value || '';
+            // 解析匹配类型
+            const et = (asinExpr.type || '').toLowerCase();
+            if (et.includes('expanded')) targetMatchType = 'expanded';
+            else if (et.includes('category')) targetMatchType = 'category_exact';
+            else if (et.includes('brand')) targetMatchType = 'brand_exact';
+            else if (et.includes('substitute')) targetMatchType = 'substitute';
+            else if (et.includes('accessory')) targetMatchType = 'accessory';
+            else if (et.includes('broadrel') || et.includes('loose')) targetMatchType = 'loose';
+            else if (et.includes('highrel') || et.includes('close')) targetMatchType = 'close';
+            else targetMatchType = 'exact';
+          }
+        } else if (apiTarget.expressionType) {
+          targetExpression = apiTarget.expressionType;
+          if (apiTarget.expressionType === 'auto') {
+            targetValue = 'AUTO';
+            targetMatchType = 'loose'; // 自动定位默认为广泛
+          }
+        }
+
+        // 检查是否已存在
+        const [existing] = await db
+          .select()
+          .from(productTargets)
+          .where(
+            and(
+              eq(productTargets.adGroupId, adGroup.id),
+              eq(productTargets.targetId, String(apiTarget.targetId))
+            )
+          )
+          .limit(1);
+
+        const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
+
+        const targetData = {
+          adGroupId: adGroup.id,
+          targetId: String(apiTarget.targetId),
+          targetType,
+          targetValue,
+          targetExpression,
+          targetMatchType,
+          bid: String(apiTarget.bid || 0),
+          targetStatus: normalizedState,
+          updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        };
+
+        if (existing) {
+          await db
+            .update(productTargets)
+            .set(targetData)
+            .where(eq(productTargets.id, existing.id));
+        } else {
+          await db.insert(productTargets).values({
+            ...targetData,
+            createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+          });
+        }
+        synced++;
+      }
+
+      console.log(`[SyncService] SD商品定位同步完成: synced=${synced}, skipped=${skipped}`);
+      return { synced, skipped };
+    } catch (error) {
+      console.error('Error syncing SD product targets:', error);
+      return { synced: 0, skipped: 0 };
+    }
+  }
+
+  /**
+   * 同步SP否定关键词（活动级别 + 广告组级别）
+   * 从Amazon API获取否定关键词并同步到本地negativeKeywords表
+   */
+  async syncSpNegativeKeywords(): Promise<{ synced: number }> {
+    const db = await getDb();
+    if (!db) return { synced: 0 };
+
+    try {
+      let synced = 0;
+
+      // 1. 同步活动级别否定关键词
+      console.log(`[SyncService] 开始同步SP活动级别否定关键词...`);
+      const campaignNegatives = await this.client.listSpCampaignNegativeKeywords();
+      console.log(`[SyncService] 获取到 ${campaignNegatives.length} 个活动级别否定关键词`);
+
+      for (const neg of campaignNegatives) {
+        // 查找对应的campaign
+        const [campaign] = await db
+          .select()
+          .from(campaigns)
+          .where(
+            and(
+              eq(campaigns.accountId, this.accountId),
+              eq(campaigns.campaignId, String(neg.campaignId))
+            )
+          )
+          .limit(1);
+
+        if (!campaign) continue;
+
+        const negState = (neg.state || 'enabled').toLowerCase();
+        if (negState === 'archived') continue; // 跳过已归档的
+
+        const matchType = (neg.matchType || '').toLowerCase().includes('phrase') 
+          ? 'negative_phrase' as const 
+          : 'negative_exact' as const;
+
+        // 检查是否已存在
+        const [existing] = await db
+          .select()
+          .from(negativeKeywords)
+          .where(
+            and(
+              eq(negativeKeywords.accountId, this.accountId),
+              eq(negativeKeywords.campaignId, campaign.id),
+              eq(negativeKeywords.negativeLevel, 'campaign'),
+              eq(negativeKeywords.negativeText, neg.keywordText || '')
+            )
+          )
+          .limit(1);
+
+        if (!existing) {
+          await db.insert(negativeKeywords).values({
+            accountId: this.accountId,
+            campaignId: campaign.id,
+            negativeLevel: 'campaign',
+            negativeType: 'keyword',
+            negativeText: neg.keywordText || '',
+            negativeMatchType: matchType,
+            negativeSource: 'manual',
+            negativeStatus: 'active',
+          });
+          synced++;
+        }
+      }
+
+      // 2. 同步广告组级别否定关键词
+      console.log(`[SyncService] 开始同步SP广告组级别否定关键词...`);
+      const adGroupNegatives = await this.client.listSpNegativeKeywords();
+      console.log(`[SyncService] 获取到 ${adGroupNegatives.length} 个广告组级别否定关键词`);
+
+      for (const neg of adGroupNegatives) {
+        const negState = (neg.state || 'enabled').toLowerCase();
+        if (negState === 'archived') continue;
+
+        // 查找对应的adGroup
+        const [adGroup] = await db
+          .select()
+          .from(adGroups)
+          .where(eq(adGroups.adGroupId, String(neg.adGroupId)))
+          .limit(1);
+
+        if (!adGroup) continue;
+
+        // 查找对应的campaign
+        const [campaign] = await db
+          .select()
+          .from(campaigns)
+          .where(eq(campaigns.id, adGroup.campaignId))
+          .limit(1);
+
+        if (!campaign) continue;
+
+        const matchType = (neg.matchType || '').toLowerCase().includes('phrase') 
+          ? 'negative_phrase' as const 
+          : 'negative_exact' as const;
+
+        // 检查是否已存在
+        const [existing] = await db
+          .select()
+          .from(negativeKeywords)
+          .where(
+            and(
+              eq(negativeKeywords.accountId, this.accountId),
+              eq(negativeKeywords.campaignId, campaign.id),
+              eq(negativeKeywords.adGroupId, adGroup.id),
+              eq(negativeKeywords.negativeLevel, 'ad_group'),
+              eq(negativeKeywords.negativeText, neg.keywordText || '')
+            )
+          )
+          .limit(1);
+
+        if (!existing) {
+          await db.insert(negativeKeywords).values({
+            accountId: this.accountId,
+            campaignId: campaign.id,
+            adGroupId: adGroup.id,
+            negativeLevel: 'ad_group',
+            negativeType: 'keyword',
+            negativeText: neg.keywordText || '',
+            negativeMatchType: matchType,
+            negativeSource: 'manual',
+            negativeStatus: 'active',
+          });
+          synced++;
+        }
+      }
+
+      console.log(`[SyncService] SP否定关键词同步完成: ${synced} 条新记录`);
+      return { synced };
+    } catch (error) {
+      console.error('Error syncing SP negative keywords:', error);
+      return { synced: 0 };
+    }
+  }
+
+  /**
+   * 同步SB搜索词报告
+   * 从Amazon SB搜索词报告获取数据并同步到searchTerms表
+   */
+  async syncSbSearchTerms(days: number = 14): Promise<number> {
+    const db = await getDb();
+    if (!db) return 0;
+
+    try {
+      const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
+      console.log(`[SyncService] 开始同步SB搜索词数据: ${startDate} - ${endDate}`);
+
+      // 请求SB搜索词报告
+      const reportId = await this.client.requestSbSearchTermReport(startDate, endDate);
+      const reportData = await this.client.waitAndDownloadReport(reportId, 300000);
+
+      if (!reportData || reportData.length === 0) {
+        console.log('[SyncService] SB搜索词报告数据为空');
+        return 0;
+      }
+
+      console.log(`[SyncService] 获取到 ${reportData.length} 条SB搜索词数据`);
+      let synced = 0;
+
+      for (const row of reportData) {
+        // 查找对应的campaign
+        const [campaign] = await db
+          .select()
+          .from(campaigns)
+          .where(
+            and(
+              eq(campaigns.accountId, this.accountId),
+              eq(campaigns.campaignId, String(row.campaignId))
+            )
+          )
+          .limit(1);
+
+        if (!campaign) continue;
+
+        // 查找对应的adGroup
+        const [adGroup] = await db
+          .select()
+          .from(adGroups)
+          .where(eq(adGroups.adGroupId, String(row.adGroupId)))
+          .limit(1);
+
+        if (!adGroup) continue;
+
+        // 检查是否已存在
+        const [existing] = await db
+          .select()
+          .from(searchTerms)
+          .where(
+            and(
+              eq(searchTerms.accountId, this.accountId),
+              eq(searchTerms.campaignId, campaign.id),
+              eq(searchTerms.adGroupId, adGroup.id),
+              eq(searchTerms.searchTerm, row.searchTerm || '')
+            )
+          )
+          .limit(1);
+
+        const cost = row.cost || 0;
+        const sales = row.sales || row.salesClicks || 0;
+        const clicks = row.clicks || 0;
+        const impressions = row.impressions || 0;
+        const orders = row.purchases || row.purchasesClicks || 0;
+
+        // SB搜索词报告字段映射：
+        // keywordText = 投放词文本, matchType = 匹配类型
+        const targetingText = row.keywordText || row.targeting || '';
+        const matchType = (row.matchType || '').toLowerCase();
+        const isProductTarget = matchType === 'targeting';
+
+        // 尝试关联到本地数据库中的投放词/投放ASIN记录
+        let searchTermTargetId: number | null = null;
+        let resolvedMatchType = matchType; // 默认使用报告中的匹配类型
+        if (!isProductTarget) {
+          const [matchedKeyword] = await db
+            .select({ id: keywords.id, matchType: keywords.matchType })
+            .from(keywords)
+            .where(
+              and(
+                eq(keywords.adGroupId, adGroup.id),
+                eq(keywords.keywordText, targetingText)
+              )
+            )
+            .limit(1);
+          if (matchedKeyword) {
+            searchTermTargetId = matchedKeyword.id;
+            // 使用数据库中存储的精确匹配类型（broad/phrase/exact）
+            resolvedMatchType = matchedKeyword.matchType || matchType;
+          }
+        } else {
+          const [matchedTarget] = await db
+            .select({ id: productTargets.id, targetMatchType: productTargets.targetMatchType })
+            .from(productTargets)
+            .where(
+              and(
+                eq(productTargets.adGroupId, adGroup.id),
+                eq(productTargets.targetValue, targetingText)
+              )
+            )
+            .limit(1);
+          if (matchedTarget) {
+            searchTermTargetId = matchedTarget.id;
+            // 使用productTarget的具体匹配类型（exact/expanded/loose/close等）
+            resolvedMatchType = matchedTarget.targetMatchType || 'targeting';
+          }
+        }
+
+        const searchTermData = {
+          accountId: this.accountId,
+          campaignId: campaign.id,
+          adGroupId: adGroup.id,
+          searchTerm: row.searchTerm || '',
+          searchTermTargetType: isProductTarget ? 'product_target' as const : 'keyword' as const,
+          searchTermTargetId,
+          targetText: targetingText,
+          searchTermMatchType: resolvedMatchType,
+          searchTermImpressions: impressions,
+          searchTermClicks: clicks,
+          searchTermSpend: String(cost),
+          searchTermSales: String(sales),
+          searchTermOrders: orders,
+          searchTermAcos: sales > 0 ? String((cost / sales) * 100) : null,
+          searchTermRoas: cost > 0 ? String(sales / cost) : null,
+          searchTermCtr: impressions > 0 ? String(clicks / impressions) : null,
+          searchTermCvr: clicks > 0 ? String(orders / clicks) : null,
+          searchTermCpc: clicks > 0 ? String(cost / clicks) : null,
+          reportStartDate: startDate,
+          reportEndDate: endDate,
+          updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        };
+
+        if (existing) {
+          await db
+            .update(searchTerms)
+            .set(searchTermData)
+            .where(eq(searchTerms.id, existing.id));
+        } else {
+          await db.insert(searchTerms).values({
+            ...searchTermData,
+            createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+          });
+        }
+        synced++;
+      }
+
+      console.log(`[SyncService] SB搜索词同步完成: ${synced} 条记录`);
+      return synced;
+    } catch (error) {
+      console.error('[SyncService] 同步SB搜索词失败:', error);
+      return 0;
+    }
+  }
+
+  /**
    * 同步SP关键词
    * @param lastSyncTime 上次同步时间，用于增量同步
    */
@@ -747,13 +1544,29 @@ export class AmazonSyncService {
 
         if (!adGroup) continue;
 
-        // 解析ASIN - Amazon API返回的type可能是大写或包含asinSameAs等格式
+        // 解析ASIN和匹配类型 - Amazon API返回的expression.type包含匹配信息
+        // asinSameAs = 精准匹配, asinExpandedFrom = 拓展匹配
+        // asinCategorySameAs = 品类精准, asinBrandSameAs = 品牌精准
+        // asinSubstituteSameAs = 替代品, asinAccessorySameAs = 配件
+        // queryBroadRelMatches = 广泛(loose), queryHighRelMatches = 紧密(close)
         const asinExpression = apiTarget.expression.find(e => {
           const exprType = (e.type || '').toLowerCase();
-          return exprType.includes('asin');
+          return exprType.includes('asin') || exprType.includes('query');
         });
         const targetValue = asinExpression?.value || '';
-        const targetType = asinExpression ? 'asin' : 'category';
+        const targetType = asinExpression && !asinExpression.type?.toLowerCase().includes('category') ? 'asin' : 'category';
+        
+        // 解析匹配类型
+        const exprType = (asinExpression?.type || '').toLowerCase();
+        let targetMatchType: 'exact' | 'expanded' | 'category_exact' | 'brand_exact' | 'substitute' | 'accessory' | 'loose' | 'close' = 'exact';
+        if (exprType.includes('expanded')) targetMatchType = 'expanded';
+        else if (exprType.includes('category')) targetMatchType = 'category_exact';
+        else if (exprType.includes('brand')) targetMatchType = 'brand_exact';
+        else if (exprType.includes('substitute')) targetMatchType = 'substitute';
+        else if (exprType.includes('accessory')) targetMatchType = 'accessory';
+        else if (exprType.includes('broadrel') || exprType.includes('loose')) targetMatchType = 'loose';
+        else if (exprType.includes('highrel') || exprType.includes('close')) targetMatchType = 'close';
+        else targetMatchType = 'exact';
         
         // Amazon API返回的state可能是大写，需要转换为小写
         const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
@@ -786,6 +1599,7 @@ export class AmazonSyncService {
           targetType: targetType as 'asin' | 'category',
           targetValue,
           targetExpression: JSON.stringify(apiTarget.expression),
+          targetMatchType,
           targetStatus: normalizedState,
           bid: String(apiTarget.bid || 0),
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
@@ -1030,7 +1844,7 @@ export class AmazonSyncService {
                 accountId: this.accountId,
                 campaignId: String(row.campaignId),
                 campaignName: row.campaignName,
-                campaignType: adType.toLowerCase() as 'sp' | 'sb' | 'sd',
+                campaignType: adType === 'SP' ? 'sp_manual' : adType.toLowerCase() as 'sp_auto' | 'sp_manual' | 'sb' | 'sd',
                 targetingType: 'manual',
                 status: row.campaignStatus || 'enabled',
                 dailyBudget: row.campaignBudget ? String(row.campaignBudget) : '0',
@@ -1139,6 +1953,9 @@ export class AmazonSyncService {
           dailyRoas: cost && sales 
             ? String(sales / cost) 
             : '0',
+          ctr: (row.impressions || 0) > 0 ? String(((row.clicks || 0) / (row.impressions || 0))) : null,
+          cvr: (row.clicks || 0) > 0 ? String((orders / (row.clicks || 0))) : null,
+          cpc: (row.clicks || 0) > 0 ? String((cost / (row.clicks || 0))) : null,
           // ✅ Report API v3 新增字段
           unitsSold: unitsSold,
           dpv: dpv,
@@ -1146,6 +1963,12 @@ export class AmazonSyncService {
           ntbOrders: ntbOrders,
           ntbSales: String(ntbSales),
           viewableImpressions: viewableImpressions,
+          // ✅ 广告类型和归因窗口标记（SP=7天, SB=14天, SD=14天）
+          adType: adType as 'SP' | 'SB' | 'SD',
+          attributionWindow: adType === 'SP' ? 7 : 14,
+          // ✅ 标记为API报告数据（已经过归因窗口校准），防止AMS实时数据覆盖
+          isFinalized: 1,
+          dataSource: 'api' as const,
         };
 
         if (existing) {
@@ -1346,6 +2169,11 @@ export class AmazonSyncService {
                 spend: String(cost),
                 sales: String(sales),
                 orders,
+                targetAcos: cost > 0 && sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
+                targetRoas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
+                targetCtr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
+                targetCvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
+                targetCpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
                 updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
               })
               .where(eq(productTargets.id, pt.id));
@@ -1377,6 +2205,8 @@ export class AmazonSyncService {
             keywordAcos: cost > 0 && sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
             keywordCtr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
             keywordCvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
+            keywordCpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
+            keywordRoas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
             updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
           })
           .where(eq(keywords.id, kw.id));
@@ -1606,24 +2436,251 @@ export class AmazonSyncService {
     };
 
     try {
-      // 同步广告组
-      const adGroupResult = await this.syncSpAdGroups();
-      results.adGroups = typeof adGroupResult === 'number' ? adGroupResult : adGroupResult.synced;
-      
-      // 同步关键词
-      const keywordResult = await this.syncSpKeywords();
-      results.keywords = typeof keywordResult === 'number' ? keywordResult : keywordResult.synced;
-      
-      // 同步商品定位
-      const targetResult = await this.syncSpProductTargets();
-      results.targets = typeof targetResult === 'number' ? targetResult : targetResult.synced;
+      // ==================== 同步广告组（SP + SB + SD） ====================
+      const spAdGroupResult = await this.syncSpAdGroups();
+      results.adGroups += typeof spAdGroupResult === 'number' ? spAdGroupResult : spAdGroupResult.synced;
 
-      console.log(`[SyncService] 广告组和定位同步完成: 广告组=${results.adGroups}, 关键词=${results.keywords}, 定位=${results.targets}`);
+      try {
+        const sbAdGroupResult = await this.syncSbAdGroups();
+        results.adGroups += sbAdGroupResult.synced;
+      } catch (e: any) {
+        console.error('[SyncService] SB广告组同步失败:', e.message);
+      }
+
+      try {
+        const sdAdGroupResult = await this.syncSdAdGroups();
+        results.adGroups += sdAdGroupResult.synced;
+      } catch (e: any) {
+        console.error('[SyncService] SD广告组同步失败:', e.message);
+      }
+      
+      // ==================== 同步关键词投放（SP + SB） ====================
+      const spKeywordResult = await this.syncSpKeywords();
+      results.keywords += typeof spKeywordResult === 'number' ? spKeywordResult : spKeywordResult.synced;
+
+      try {
+        const sbKeywordResult = await this.syncSbKeywords();
+        results.keywords += sbKeywordResult.synced;
+      } catch (e: any) {
+        console.error('[SyncService] SB关键词同步失败:', e.message);
+      }
+      
+      // ==================== 同步商品定位（SP + SB + SD） ====================
+      const spTargetResult = await this.syncSpProductTargets();
+      results.targets += typeof spTargetResult === 'number' ? spTargetResult : spTargetResult.synced;
+
+      try {
+        const sbTargetResult = await this.syncSbProductTargets();
+        results.targets += sbTargetResult.synced;
+      } catch (e: any) {
+        console.error('[SyncService] SB商品定位同步失败:', e.message);
+      }
+
+      try {
+        const sdTargetResult = await this.syncSdProductTargets();
+        results.targets += sdTargetResult.synced;
+      } catch (e: any) {
+        console.error('[SyncService] SD商品定位同步失败:', e.message);
+      }
+
+      console.log(`[SyncService] 全渠道广告组和定位同步完成: 广告组=${results.adGroups}, 关键词=${results.keywords}, 定位=${results.targets}`);
     } catch (error) {
       console.error('[SyncService] 广告组和定位同步失败:', error);
     }
 
     return results;
+  }
+
+  /**
+   * 同步广告组绩效数据
+   * 通过SP/SB/SD广告组报告获取广告组级别的绩效数据
+   * 并写入adGroups表的绩效字段（impressions/clicks/spend/sales/orders/ctr/cvr/acos/roas/cpc等）
+   * 
+   * 归因窗口: SP=7天, SB/SD=14天
+   */
+  async syncAdGroupPerformanceData(days: number = 14): Promise<number> {
+    const db = await getDb();
+    if (!db) return 0;
+
+    let synced = 0;
+    try {
+      const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
+      console.log(`[SyncService] 开始同步广告组绩效数据: ${startDate} - ${endDate} (站点: ${this.marketplace})`);
+
+      // 获取该账户下所有广告活动
+      const accountCampaigns = await db
+        .select()
+        .from(campaigns)
+        .where(eq(campaigns.accountId, this.accountId));
+
+      // 按广告类型分组
+      const spCampaigns = accountCampaigns.filter(c => c.campaignType === 'sp_auto' || c.campaignType === 'sp_manual');
+      const sbCampaigns = accountCampaigns.filter(c => c.campaignType === 'sb');
+      const sdCampaigns = accountCampaigns.filter(c => c.campaignType === 'sd');
+
+      // 1. SP广告组报告（7天归因）
+      if (spCampaigns.length > 0) {
+        try {
+          const { startDate: spStart, endDate: spEnd } = getMarketplaceDateRange(this.marketplace, 7);
+          const spReportId = await this.client.requestSpAdGroupReport(spStart, spEnd);
+          const spData = await this.client.waitAndDownloadReport(spReportId);
+          if (spData && spData.length > 0) {
+            for (const row of spData) {
+              const adGroupId = String(row.adGroupId);
+              // 查找对应的广告组
+              const [adGroup] = await db
+                .select()
+                .from(adGroups)
+                .where(eq(adGroups.adGroupId, adGroupId))
+                .limit(1);
+              if (!adGroup) continue;
+
+              const cost = row.cost || 0;
+              const sales = row.sales7d || 0;
+              const orders = row.purchases7d || 0;
+              const impressions = row.impressions || 0;
+              const clicks = row.clicks || 0;
+
+              await db
+                .update(adGroups)
+                .set({
+                  impressions,
+                  clicks,
+                  spend: String(cost),
+                  sales: String(sales),
+                  orders,
+                  ctr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
+                  cvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
+                  acos: cost > 0 && sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
+                  roas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
+                  cpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
+                })
+                .where(eq(adGroups.id, adGroup.id));
+              synced++;
+            }
+            console.log(`[SyncService] SP广告组绩效同步: ${synced} 条记录`);
+          }
+        } catch (error) {
+          console.error('[SyncService] SP广告组绩效同步失败:', error);
+        }
+      }
+
+      // 2. SB广告组报告（14天归因）
+      if (sbCampaigns.length > 0) {
+        try {
+          const sbReportId = await this.client.requestSbAdGroupReport(startDate, endDate);
+          const sbData = await this.client.waitAndDownloadReport(sbReportId);
+          if (sbData && sbData.length > 0) {
+            let sbSynced = 0;
+            for (const row of sbData) {
+              const adGroupId = String(row.adGroupId);
+              const [adGroup] = await db
+                .select()
+                .from(adGroups)
+                .where(eq(adGroups.adGroupId, adGroupId))
+                .limit(1);
+              if (!adGroup) continue;
+
+              const cost = row.cost || 0;
+              const sales = row.salesClicks14d || row.sales14d || 0;
+              const orders = row.purchasesClicks14d || row.purchases14d || 0;
+              const impressions = row.impressions || 0;
+              const clicks = row.clicks || 0;
+              const dpv = row.dpv14d || 0;
+              const ntbOrders = row.attributedOrdersNewToBrand14d || 0;
+              const ntbSales = row.attributedSalesNewToBrand14d || 0;
+
+              await db
+                .update(adGroups)
+                .set({
+                  impressions,
+                  clicks,
+                  spend: String(cost),
+                  sales: String(sales),
+                  orders,
+                  ctr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
+                  cvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
+                  acos: cost > 0 && sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
+                  roas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
+                  cpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
+                  dpv,
+                  ntbOrders,
+                  ntbSales: String(ntbSales),
+                })
+                .where(eq(adGroups.id, adGroup.id));
+              sbSynced++;
+            }
+            synced += sbSynced;
+            console.log(`[SyncService] SB广告组绩效同步: ${sbSynced} 条记录`);
+          }
+        } catch (error) {
+          console.error('[SyncService] SB广告组绩效同步失败:', error);
+        }
+      }
+
+      // 3. SD广告组报告（14天归因 + 浏览归因）
+      if (sdCampaigns.length > 0) {
+        try {
+          const sdReportId = await this.client.requestSdAdGroupReport(startDate, endDate);
+          const sdData = await this.client.waitAndDownloadReport(sdReportId);
+          if (sdData && sdData.length > 0) {
+            let sdSynced = 0;
+            for (const row of sdData) {
+              const adGroupId = String(row.adGroupId);
+              const [adGroup] = await db
+                .select()
+                .from(adGroups)
+                .where(eq(adGroups.adGroupId, adGroupId))
+                .limit(1);
+              if (!adGroup) continue;
+
+              const cost = row.cost || 0;
+              const sales = row.sales14d || 0;
+              const orders = row.purchases14d || 0;
+              const impressions = row.impressions || 0;
+              const clicks = row.clicks || 0;
+              const dpv = row.dpv14d || 0;
+              const viewSales = row.viewAttributedSales14d || 0;
+              const viewOrders = row.viewAttributedUnitsOrdered14d || 0;
+              const ntbOrders = row.attributedOrdersNewToBrand14d || 0;
+              const ntbSales = row.attributedSalesNewToBrand14d || 0;
+
+              await db
+                .update(adGroups)
+                .set({
+                  impressions,
+                  clicks,
+                  spend: String(cost),
+                  sales: String(sales),
+                  orders,
+                  ctr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
+                  cvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
+                  acos: cost > 0 && sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
+                  roas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
+                  cpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
+                  dpv,
+                  ntbOrders,
+                  ntbSales: String(ntbSales),
+                  viewAttributedSales: String(viewSales),
+                  viewAttributedOrders: viewOrders,
+                })
+                .where(eq(adGroups.id, adGroup.id));
+              sdSynced++;
+            }
+            synced += sdSynced;
+            console.log(`[SyncService] SD广告组绩效同步: ${sdSynced} 条记录`);
+          }
+        } catch (error) {
+          console.error('[SyncService] SD广告组绩效同步失败:', error);
+        }
+      }
+
+      console.log(`[SyncService] 广告组绩效同步完成: 共 ${synced} 条记录`);
+      return synced;
+    } catch (error) {
+      console.error('[SyncService] 广告组绩效同步失败:', error);
+      return synced;
+    }
   }
 
   /**
@@ -1689,10 +2746,11 @@ export class AmazonSyncService {
           .limit(1);
 
         const cost = row.cost || 0;
-        const sales = row.sales14d || 0;
+        // SP广告位置报告使用7天归因窗口（与SP其他报告一致）
+        const sales = row.sales7d || row.sales14d || 0;
         const clicks = row.clicks || 0;
         const impressions = row.impressions || 0;
-        const orders = row.purchases14d || 0;
+        const orders = row.purchases7d || row.purchases14d || 0;
 
         const perfData = {
           campaignId: String(campaign.campaignId),
@@ -1797,20 +2855,69 @@ export class AmazonSyncService {
           .limit(1);
 
         const cost = row.cost || 0;
-        const sales = row.sales14d || 0;
+        const sales = row.sales7d || row.sales14d || 0;
         const clicks = row.clicks || 0;
         const impressions = row.impressions || 0;
-        const orders = row.purchases14d || 0;
+        const orders = row.purchases7d || row.purchases14d || 0;
+
+        // SP搜索词报告字段映射：
+        // targeting = 投放词文本（如 "wireless earbuds" 或 ASIN）
+        // keywordType = 投放词的匹配类型（BROAD/PHRASE/EXACT/TARGETING）
+        // searchTerm = 客户搜索词
+        const targetingText = row.targeting || row.keyword || '';
+        const keywordType = (row.keywordType || row.matchType || '').toLowerCase();
+        
+        // 判断是关键词还是产品定位：keywordType为TARGETING表示产品定位
+        const isProductTarget = keywordType === 'targeting';
+        
+        // 尝试关联到本地数据库中的投放词/投放ASIN记录
+        let searchTermTargetId: number | null = null;
+        let resolvedMatchType = keywordType; // 默认使用报告中的匹配类型
+        if (!isProductTarget) {
+          // 关键词定位：通过文本+广告组查找对应的keyword记录
+          const [matchedKeyword] = await db
+            .select({ id: keywords.id, matchType: keywords.matchType })
+            .from(keywords)
+            .where(
+              and(
+                eq(keywords.adGroupId, adGroup.id),
+                eq(keywords.keywordText, targetingText)
+              )
+            )
+            .limit(1);
+          if (matchedKeyword) {
+            searchTermTargetId = matchedKeyword.id;
+            // 使用数据库中存储的精确匹配类型（broad/phrase/exact）
+            resolvedMatchType = matchedKeyword.matchType || keywordType;
+          }
+        } else {
+          // 产品定位：通过ASIN+广告组查找对应的productTarget记录
+          const [matchedTarget] = await db
+            .select({ id: productTargets.id, targetMatchType: productTargets.targetMatchType })
+            .from(productTargets)
+            .where(
+              and(
+                eq(productTargets.adGroupId, adGroup.id),
+                eq(productTargets.targetValue, targetingText)
+              )
+            )
+            .limit(1);
+          if (matchedTarget) {
+            searchTermTargetId = matchedTarget.id;
+            // 使用productTarget的具体匹配类型（exact/expanded/loose/close等）
+            resolvedMatchType = matchedTarget.targetMatchType || 'targeting';
+          }
+        }
 
         const searchTermData = {
           accountId: this.accountId,
           campaignId: campaign.id,
           adGroupId: adGroup.id,
           searchTerm: row.searchTerm || '',
-          searchTermTargetType: row.keywordId ? 'keyword' as const : 'product_target' as const,
-          searchTermTargetId: row.keywordId ? parseInt(row.keywordId) : null,
-          targetText: row.keyword || '',
-          searchTermMatchType: row.matchType || '',
+          searchTermTargetType: isProductTarget ? 'product_target' as const : 'keyword' as const,
+          searchTermTargetId,
+          targetText: targetingText,
+          searchTermMatchType: resolvedMatchType,
           searchTermImpressions: impressions,
           searchTermClicks: clicks,
           searchTermSpend: String(cost),
@@ -1898,10 +3005,11 @@ export class AmazonSyncService {
           .limit(1);
 
         const cost = row.cost || 0;
-        const sales = row.sales14d || 0;
+        // 自动定向报告使用14天归因窗口（SB/SD类型）
+        const sales = row.sales14d || row.salesClicks14d || 0;
         const clicks = row.clicks || 0;
         const impressions = row.impressions || 0;
-        const orders = row.purchases14d || 0;
+        const orders = row.purchases14d || row.purchasesClicks14d || 0;
 
         // 解析自动定向类型
         const targetingExpression = row.targetingExpression || '';
@@ -1931,7 +3039,11 @@ export class AmazonSyncService {
           spend: String(cost),
           sales: String(sales),
           orders,
-          targetAcos: sales > 0 ? String((cost / sales) * 100) : null,
+          targetAcos: sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
+          targetRoas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
+          targetCtr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
+          targetCvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
+          targetCpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
           targetStatus: 'enabled' as const,
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
@@ -2040,7 +3152,11 @@ export class AmazonSyncService {
           spend: String(cost),
           sales: String(sales),
           orders,
-          targetAcos: sales > 0 ? String((cost / sales) * 100) : null,
+          targetAcos: sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
+          targetRoas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
+          targetCtr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
+          targetCvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
+          targetCpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
           targetStatus: 'enabled' as const,
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
@@ -2132,9 +3248,11 @@ export class AmazonSyncService {
             spend: String(cost),
             sales: String(sales),
             orders,
-            keywordAcos: sales > 0 ? String((cost / sales) * 100) : null,
-            keywordCtr: impressions > 0 ? String(clicks / impressions) : null,
-            keywordCvr: clicks > 0 ? String(orders / clicks) : null,
+            keywordAcos: sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
+            keywordCtr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
+            keywordCvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
+            keywordCpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
+            keywordRoas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
             keywordStatus: 'enabled' as const,
             updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
           };

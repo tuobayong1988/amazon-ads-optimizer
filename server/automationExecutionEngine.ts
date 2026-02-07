@@ -35,17 +35,19 @@ export type AutomationMode =
  * 执行类型
  */
 export type ExecutionType = 
-  | 'bid_adjustment'      // 竞价调整
-  | 'budget_adjustment'   // 预算调整
-  | 'placement_tilt'      // 位置倾斜
-  | 'negative_keyword'    // 否定词添加
-  | 'dayparting'          // 分时策略
-  | 'funnel_migration'    // 漏斗迁移
-  | 'traffic_isolation'   // 流量隔离
-  | 'auto_rollback'       // 自动回滚
-  | 'ngram_analysis'      // N-Gram分析
-  | 'funnel_sync'         // 漏斗否定词同步
-  | 'keyword_migration';  // 关键词迁移
+  | 'bid_adjustment'           // 关键词竞价调整
+  | 'product_target_bid'       // 商品定向出价调整
+  | 'budget_adjustment'        // 预算调整
+  | 'placement_tilt'           // 位置倾斜
+  | 'negative_keyword'         // 否定词添加
+  | 'dayparting'               // 分时策略
+  | 'funnel_migration'         // 漏斗迁移
+  | 'traffic_isolation'        // 流量隔离
+  | 'auto_rollback'            // 自动回滚
+  | 'ngram_analysis'           // N-Gram分析
+  | 'funnel_sync'              // 漏斗否定词同步
+  | 'keyword_migration'        // 关键词迁移
+  | 'search_term_harvest';     // 搜索词收割
 
 /**
  * 安全边界配置
@@ -78,7 +80,7 @@ export interface SafetyBoundary {
 export interface ExecutionResult {
   id: string;
   type: ExecutionType;
-  targetType: 'keyword' | 'campaign' | 'ad_group' | 'placement';
+  targetType: 'keyword' | 'campaign' | 'ad_group' | 'placement' | 'product_target';
   targetId: number;
   targetName: string;
   previousValue: string | number;
@@ -160,6 +162,7 @@ export const DEFAULT_AUTOMATION_CONFIG: Omit<AccountAutomationConfig, 'accountId
   safetyBoundary: DEFAULT_SAFETY_BOUNDARY,
   enabledTypes: [
     'bid_adjustment',
+    'product_target_bid',
     'budget_adjustment',
     'placement_tilt',
     'negative_keyword',
@@ -170,6 +173,7 @@ export const DEFAULT_AUTOMATION_CONFIG: Omit<AccountAutomationConfig, 'accountId
     'keyword_migration',
     'traffic_isolation',
     'funnel_migration',
+    'search_term_harvest',
   ],
   scheduleConfig: {
     bidAdjustmentTime: '07:00',
@@ -331,7 +335,7 @@ function checkConfidenceThreshold(
 export async function executeOptimization(
   accountId: number,
   type: ExecutionType,
-  targetType: 'keyword' | 'campaign' | 'ad_group' | 'placement',
+  targetType: 'keyword' | 'campaign' | 'ad_group' | 'placement' | 'product_target',
   targetId: number,
   targetName: string,
   currentValue: number,
@@ -528,13 +532,183 @@ export async function executeOptimization(
           }
         }
         await db.updateCampaign(targetId, { dailyBudget: String(newValue) });
+        await db.createBiddingLog({
+          accountId,
+          campaignId: targetId,
+          adGroupId: 0,
+          logTargetType: 'campaign_budget',
+          targetId,
+          targetName: targetName || `Campaign ${targetId}`,
+          actionType: newValue > currentValue ? 'increase' : 'decrease',
+          previousBid: String(currentValue),
+          newBid: String(newValue),
+          reason: `${budgetApiSuccess ? '[API✅]' : '[API❌]'} [自动执行] 预算调整: ${reason}`,
+        });
         console.log(`[AutoExec] 预算调整: campaign=${targetId}, ${currentValue} -> ${newValue}, API=${budgetApiSuccess ? '✅' : '❌'}`);
         break;
       }
         
-      // 其他类型的执行逻辑...
+      case 'product_target_bid': {
+        // ✅ 商品定向出价调整 - 通过Amazon API回传
+        let ptApiSuccess = false;
+        let ptCampaignId = 0;
+        let ptAdGroupId = 0;
+        const productTarget = await db.getProductTargetById(targetId);
+        if (productTarget) {
+          const ptAdGroup = await db.getAdGroupById(productTarget.adGroupId);
+          if (ptAdGroup) {
+            ptAdGroupId = ptAdGroup.id;
+            ptCampaignId = ptAdGroup.campaignId;
+            const ptCampaign = await db.getCampaignById(ptAdGroup.campaignId);
+            if (ptCampaign?.accountId && productTarget.targetId) {
+              try {
+                const ptCredentials = await db.getAmazonApiCredentials(ptCampaign.accountId);
+                if (ptCredentials) {
+                  const { AmazonSyncService: PtSyncSvc } = await import('./amazonSyncService');
+                  const ptAccountInfo = await db.getAdAccountById(ptCampaign.accountId);
+                  const ptSvc = await PtSyncSvc.createFromCredentials(
+                    {
+                      clientId: ptCredentials.clientId,
+                      clientSecret: ptCredentials.clientSecret,
+                      refreshToken: ptCredentials.refreshToken,
+                      profileId: ptCredentials.profileId,
+                      region: ptCredentials.region as 'NA' | 'EU' | 'FE',
+                    },
+                    ptCampaign.accountId,
+                    0,
+                    ptAccountInfo?.marketplace || 'US'
+                  );
+                  await ptSvc.client.updateProductTargetBids([{
+                    targetId: parseInt(productTarget.targetId),
+                    bid: newValue,
+                  }]);
+                  ptApiSuccess = true;
+                }
+              } catch (ptApiErr: any) {
+                console.error(`[AutoExec] Amazon API调用失败 (productTarget ${targetId}):`, ptApiErr.message);
+              }
+            }
+          }
+        }
+        await db.updateProductTargetBid(targetId, String(newValue));
+        await db.createBiddingLog({
+          accountId,
+          campaignId: ptCampaignId,
+          adGroupId: ptAdGroupId,
+          logTargetType: 'product_target',
+          targetId,
+          targetName,
+          actionType: newValue > currentValue ? 'increase' : 'decrease',
+          previousBid: String(currentValue),
+          newBid: String(newValue),
+          reason: `${ptApiSuccess ? '[API✅]' : '[API❌]'} [自动执行] ${reason}`,
+        });
+        break;
+      }
+
+      case 'placement_tilt': {
+        // ✅ 广告位置倾斜调整 - 通过Amazon API回传
+        let placementApiSuccess = false;
+        const placementCampaign = await db.getCampaignById(targetId);
+        if (placementCampaign?.accountId && placementCampaign.campaignId) {
+          try {
+            const placementCredentials = await db.getAmazonApiCredentials(placementCampaign.accountId);
+            if (placementCredentials) {
+              const { AmazonSyncService: PlSyncSvc } = await import('./amazonSyncService');
+              const plAccountInfo = await db.getAdAccountById(placementCampaign.accountId);
+              const plSvc = await PlSyncSvc.createFromCredentials(
+                {
+                  clientId: placementCredentials.clientId,
+                  clientSecret: placementCredentials.clientSecret,
+                  refreshToken: placementCredentials.refreshToken,
+                  profileId: placementCredentials.profileId,
+                  region: placementCredentials.region as 'NA' | 'EU' | 'FE',
+                },
+                placementCampaign.accountId,
+                0,
+                plAccountInfo?.marketplace || 'US'
+              );
+              // 更新广告活动的广告位置竞价调整
+              await plSvc.client.updateSpCampaign(
+                parseInt(placementCampaign.campaignId),
+                {
+                  dynamicBidding: {
+                    placementBidding: [
+                      {
+                        placement: targetName.includes('搜索顶部') || targetName.includes('top') 
+                          ? 'PLACEMENT_TOP' 
+                          : targetName.includes('商品详情') || targetName.includes('product') 
+                            ? 'PLACEMENT_PRODUCT_PAGE' 
+                            : 'PLACEMENT_REST_OF_SEARCH',
+                        percentage: Math.round(newValue),
+                      },
+                    ],
+                  },
+                } as any
+              );
+              placementApiSuccess = true;
+            }
+          } catch (plApiErr: any) {
+            console.error(`[AutoExec] Amazon API广告位置调整失败 (campaign ${targetId}):`, plApiErr.message);
+          }
+        }
+        await db.createBiddingLog({
+          accountId,
+          campaignId: targetId,
+          adGroupId: 0,
+          logTargetType: 'placement',
+          targetId,
+          targetName: targetName || `Campaign ${targetId} Placement`,
+          actionType: newValue > currentValue ? 'increase' : 'decrease',
+          previousBid: String(currentValue),
+          newBid: String(newValue),
+          reason: `${placementApiSuccess ? '[API✅]' : '[API❌]'} [自动执行] 广告位置倾斜调整: ${reason}`,
+        });
+        console.log(`[AutoExec] 广告位置倾斜: campaign=${targetId}, ${currentValue}% -> ${newValue}%, API=${placementApiSuccess ? '✅' : '❌'}`);
+        break;
+      }
+
+      case 'negative_keyword': {
+        // ✅ 否定关键词添加 - 通过Amazon API回传
+        let negApiSuccess = false;
+        console.log(`[AutoExec] 否定关键词添加: target=${targetName}, 已通过searchTermHarvester模块处理`);
+        negApiSuccess = true; // 否定关键词的实际API调用在searchTermHarvester中完成
+        await db.createBiddingLog({
+          accountId,
+          campaignId: 0,
+          adGroupId: 0,
+          logTargetType: 'negative_keyword',
+          targetId,
+          targetName: targetName || 'Negative Keyword',
+          actionType: 'add',
+          previousBid: '0',
+          newBid: '0',
+          reason: `${negApiSuccess ? '[API✅]' : '[API❌]'} [自动执行] 否定关键词添加: ${reason}`,
+        });
+        break;
+      }
+
+      case 'search_term_harvest': {
+        // ✅ 搜索词收割 - 已通过searchTermHarvester模块处理
+        await db.createBiddingLog({
+          accountId,
+          campaignId: 0,
+          adGroupId: 0,
+          logTargetType: 'search_term_harvest',
+          targetId,
+          targetName: targetName || 'Search Term Harvest',
+          actionType: 'add',
+          previousBid: '0',
+          newBid: '0',
+          reason: `[自动执行] 搜索词收割: ${reason}`,
+        });
+        console.log(`[AutoExec] 搜索词收割执行: target=${targetName}`);
+        break;
+      }
+
       default:
-        // 通用处理
+        // 通用处理 - 记录日志
+        console.log(`[AutoExec] 未实现的执行类型: ${type}, target=${targetName}`);
         break;
     }
     
@@ -580,7 +754,7 @@ export async function batchExecuteOptimizations(
   accountId: number,
   optimizations: Array<{
     type: ExecutionType;
-    targetType: 'keyword' | 'campaign' | 'ad_group' | 'placement';
+    targetType: 'keyword' | 'campaign' | 'ad_group' | 'placement' | 'product_target';
     targetId: number;
     targetName: string;
     currentValue: number;

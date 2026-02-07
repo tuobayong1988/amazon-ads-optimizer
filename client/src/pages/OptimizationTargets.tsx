@@ -900,8 +900,26 @@ function OptimizationTargetCard({
           </div>
         </div>
 
+        {/* 目标达成度 */}
+        {target.goalProgress !== null && target.goalProgress !== undefined && (
+          <div className="pt-2 border-t">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs text-muted-foreground">目标达成度</p>
+              <p className={`text-xs font-medium ${target.goalProgress >= 90 ? 'text-green-600' : target.goalProgress >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
+                {target.goalProgress.toFixed(0)}%
+              </p>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-1.5">
+              <div 
+                className={`h-1.5 rounded-full transition-all ${target.goalProgress >= 90 ? 'bg-green-500' : target.goalProgress >= 60 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                style={{ width: `${Math.min(100, target.goalProgress)}%` }}
+              />
+            </div>
+          </div>
+        )}
+
         {/* KPI汇总 */}
-        <div className="grid grid-cols-4 gap-2 pt-2 border-t">
+        <div className="grid grid-cols-3 gap-2 pt-2 border-t">
           <div className="text-center">
             <p className="text-xs text-muted-foreground">花费</p>
             <p className="font-medium text-sm">${(target.totalSpend || 0).toFixed(0)}</p>
@@ -911,12 +929,26 @@ function OptimizationTargetCard({
             <p className="font-medium text-sm">${(target.totalSales || 0).toFixed(0)}</p>
           </div>
           <div className="text-center">
+            <p className="text-xs text-muted-foreground">订单</p>
+            <p className="font-medium text-sm">{target.totalOrders || 0}</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          <div className="text-center">
             <p className="text-xs text-muted-foreground">ACoS</p>
             <p className="font-medium text-sm">{(target.avgAcos || 0).toFixed(1)}%</p>
           </div>
           <div className="text-center">
             <p className="text-xs text-muted-foreground">ROAS</p>
             <p className="font-medium text-sm">{(target.avgRoas || 0).toFixed(2)}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-xs text-muted-foreground">CTR</p>
+            <p className="font-medium text-sm">{(target.ctr || 0).toFixed(2)}%</p>
+          </div>
+          <div className="text-center">
+            <p className="text-xs text-muted-foreground">CVR</p>
+            <p className="font-medium text-sm">{(target.cvr || 0).toFixed(2)}%</p>
           </div>
         </div>
 

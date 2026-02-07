@@ -77,7 +77,7 @@ export default function StrategyCenter() {
 
   // 获取广告活动列表
   const campaignsQuery = trpc.campaign.list.useQuery(
-    { accountId: accountId },
+    { accountId: accountId! },
     { enabled: !!accountId }
   );
 

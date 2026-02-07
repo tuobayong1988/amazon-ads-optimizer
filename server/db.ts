@@ -314,17 +314,19 @@ export async function getCampaignsWithPerformance(
   const campaignList = await db.select().from(campaigns).where(eq(campaigns.accountId, accountId));
   
   // 获取时间范围内的绩效数据汇总
+  // ✅ 只汇总campaign级别的记录，排除账户级汇总记录
   const perfData = await db.select({
     campaignId: dailyPerformance.campaignId,
     totalImpressions: sql<number>`COALESCE(SUM(${dailyPerformance.impressions}), 0)`,
     totalClicks: sql<number>`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
-    totalSpend: sql<string>`COALESCE(SUM(${dailyPerformance.spend}), 0)`,
-    totalSales: sql<string>`COALESCE(SUM(${dailyPerformance.sales}), 0)`,
+    totalSpend: sql<string>`COALESCE(SUM(${dailyPerformance.spend}), '0')`,
+    totalSales: sql<string>`COALESCE(SUM(${dailyPerformance.sales}), '0')`,
     totalOrders: sql<number>`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
   })
     .from(dailyPerformance)
     .where(and(
       eq(dailyPerformance.accountId, accountId),
+      sql`${dailyPerformance.campaignId} IS NOT NULL`,
       sql`DATE(${dailyPerformance.date}) >= ${startDate}`,
       sql`DATE(${dailyPerformance.date}) <= ${endDate}`
     ))
@@ -399,6 +401,26 @@ export async function getCampaignById(id: number) {
   if (!db) return undefined;
   
   const result = await db.select().from(campaigns).where(eq(campaigns.id, id)).limit(1);
+  return result[0];
+}
+
+/**
+ * 通过Amazon广告活动ID和账户ID查找本地广告活动记录
+ * 用于AMS数据流中将Amazon campaignId映射到本地数据库ID
+ */
+export async function getCampaignByAmazonId(accountId: number, amazonCampaignId: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  
+  const result = await db.select()
+    .from(campaigns)
+    .where(
+      and(
+        eq(campaigns.accountId, accountId),
+        eq(campaigns.campaignId, amazonCampaignId)
+      )
+    )
+    .limit(1);
   return result[0];
 }
 
@@ -647,23 +669,72 @@ export async function getDailyPerformanceByDateRange(
     .orderBy(dailyPerformance.date);
 }
 
+/**
+ * 按天聚合绩效数据 - 确保每天只有一条汇总记录
+ * 
+ * ❗ 重要设计原则：
+ * 1. 只汇总 campaign 级别的记录（campaignId IS NOT NULL）
+ * 2. 按日期 GROUP BY，确保同一天多个campaign的数据被正确汇总而非重复展示
+ * 3. 用于趋势图、日历视图等按天展示的场景
+ */
+export async function getDailyPerformanceAggregatedByDate(
+  accountId: number,
+  startDate: Date,
+  endDate: Date
+) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const startDateStr = startDate.toISOString().split('T')[0];
+  const endDateStr = endDate.toISOString().split('T')[0];
+  
+  return db.select({
+    date: sql<string>`DATE(${dailyPerformance.date})`.as('date'),
+    totalImpressions: sql<number>`COALESCE(SUM(${dailyPerformance.impressions}), 0)`.as('totalImpressions'),
+    totalClicks: sql<number>`COALESCE(SUM(${dailyPerformance.clicks}), 0)`.as('totalClicks'),
+    totalSpend: sql<string>`COALESCE(SUM(${dailyPerformance.spend}), '0')`.as('totalSpend'),
+    totalSales: sql<string>`COALESCE(SUM(${dailyPerformance.sales}), '0')`.as('totalSales'),
+    totalOrders: sql<number>`COALESCE(SUM(${dailyPerformance.orders}), 0)`.as('totalOrders'),
+  })
+    .from(dailyPerformance)
+    .where(and(
+      eq(dailyPerformance.accountId, accountId),
+      // ✅ 只汇总campaign级别的记录
+      sql`${dailyPerformance.campaignId} IS NOT NULL`,
+      sql`DATE(${dailyPerformance.date}) >= ${startDateStr}`,
+      sql`DATE(${dailyPerformance.date}) <= ${endDateStr}`
+    ))
+    .groupBy(sql`DATE(${dailyPerformance.date})`)
+    .orderBy(sql`DATE(${dailyPerformance.date})`);
+}
+
+/**
+ * 获取指定账号和日期范围的绩效汇总
+ * 
+ * ❗ 重要设计原则：
+ * 1. 只汇总 campaign 级别的记录（campaignId IS NOT NULL），排除账户级汇总记录，避免双重计算
+ * 2. 使用 SUM 汇总曝光/点击/花费/销售额/订单数
+ * 3. ACoS/RoAS/CTR/CVR 等派生指标由调用方基于汇总值计算（加权计算）
+ */
 export async function getPerformanceSummary(accountId: number, startDate: Date, endDate: Date) {
   const db = await getDb();
   if (!db) return null;
   
   const result = await db.select({
-    totalImpressions: sql<number>`SUM(impressions)`,
-    totalClicks: sql<number>`SUM(clicks)`,
-    totalSpend: sql<string>`SUM(spend)`,
-    totalSales: sql<string>`SUM(sales)`,
-    totalOrders: sql<number>`SUM(orders)`,
-    totalConversions: sql<number>`SUM(conversions)`,
+    totalImpressions: sql<number>`COALESCE(SUM(impressions), 0)`,
+    totalClicks: sql<number>`COALESCE(SUM(clicks), 0)`,
+    totalSpend: sql<string>`COALESCE(SUM(spend), '0')`,
+    totalSales: sql<string>`COALESCE(SUM(sales), '0')`,
+    totalOrders: sql<number>`COALESCE(SUM(orders), 0)`,
+    totalConversions: sql<number>`COALESCE(SUM(conversions), 0)`,
   })
     .from(dailyPerformance)
     .where(and(
       eq(dailyPerformance.accountId, accountId),
-      sql`${dailyPerformance.date} >= ${startDate.toISOString().split('T')[0]}`,
-      sql`${dailyPerformance.date} <= ${endDate.toISOString().split('T')[0]}`
+      // ✅ 只汇总campaign级别的记录，排除账户级汇总记录（campaignId IS NULL）
+      sql`${dailyPerformance.campaignId} IS NOT NULL`,
+      sql`DATE(${dailyPerformance.date}) >= ${startDate.toISOString().split('T')[0]}`,
+      sql`DATE(${dailyPerformance.date}) <= ${endDate.toISOString().split('T')[0]}`
     ));
   
   return result[0];
@@ -677,17 +748,27 @@ export async function getPerformanceSummary(accountId: number, startDate: Date, 
  */
 export async function getDailyPerformanceByAccountAndDate(
   accountId: number,
-  date: string
+  date: string,
+  campaignId?: number | null
 ): Promise<DailyPerformance | null> {
   const db = await getDb();
   if (!db) return null;
   
+  const conditions = [
+    eq(dailyPerformance.accountId, accountId),
+    sql`DATE(${dailyPerformance.date}) = ${date}`,
+  ];
+  
+  // 如果指定了campaignId，按campaignId维度查找；否则查找账户级别汇总记录
+  if (campaignId !== undefined && campaignId !== null) {
+    conditions.push(eq(dailyPerformance.campaignId, campaignId));
+  } else {
+    conditions.push(sql`${dailyPerformance.campaignId} IS NULL`);
+  }
+  
   const result = await db.select()
     .from(dailyPerformance)
-    .where(and(
-      eq(dailyPerformance.accountId, accountId),
-      sql`DATE(${dailyPerformance.date}) = ${date}`
-    ))
+    .where(and(...conditions))
     .limit(1);
   
   return result[0] || null;
@@ -695,7 +776,14 @@ export async function getDailyPerformanceByAccountAndDate(
 
 /**
  * 从SQS/AMS插入或更新绩效数据
- * 不覆盖已校准的数据（isFinalized=1）
+ * 
+ * ⚠️ 重要设计原则：使用【覆盖写入】而非累加
+ * AMS实时数据流会持续推送同一天的最新快照数据，
+ * 每次写入都应该用最新值覆盖旧值，而不是累加。
+ * 这确保了无论一天内触发多少次同步，数据始终是准确的。
+ * 
+ * 不覆盖已被API校准的数据（isFinalized=1），
+ * 因为API报告数据经过归因窗口校准，比AMS实时数据更准确。
  */
 export async function upsertDailyPerformanceFromAms(data: {
   accountId: number;
@@ -704,31 +792,71 @@ export async function upsertDailyPerformanceFromAms(data: {
   clicks: number;
   cost: number;
   adType?: string;  // SP, SB, SD
+  campaignId?: number | null;  // 广告活动ID（本地数据库ID）
 }): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  // 检查是否已有已校准的数据
-  const existing = await getDailyPerformanceByAccountAndDate(
+  // === 1. 写入campaign维度的记录（如果有campaignId） ===
+  if (data.campaignId) {
+    const existingCampaign = await getDailyPerformanceByAccountAndDate(
+      data.accountId,
+      data.date,
+      data.campaignId
+    );
+    
+    if (existingCampaign?.isFinalized) {
+      // 已校准的campaign级数据不覆盖
+      console.log(`[AMS DB] 跳过已校准campaign数据: ${data.date} campaignId=${data.campaignId}`);
+    } else if (existingCampaign) {
+      // ✅ 覆盖写入：用AMS最新快照数据直接替换旧值
+      await db.update(dailyPerformance)
+        .set({
+          impressions: data.impressions,
+          clicks: data.clicks,
+          spend: String(data.cost),
+          dataSource: 'ams',
+        })
+        .where(eq(dailyPerformance.id, existingCampaign.id));
+    } else {
+      await db.insert(dailyPerformance).values({
+        accountId: data.accountId,
+        campaignId: data.campaignId,
+        date: data.date,
+        impressions: data.impressions,
+        clicks: data.clicks,
+        spend: String(data.cost),
+        sales: '0',
+        orders: 0,
+        conversions: 0,
+        dataSource: 'ams',
+        isFinalized: 0,
+      });
+    }
+  }
+  
+  // === 2. 同时维护账户级别汇总记录（campaignId=NULL） ===
+  const existingAccount = await getDailyPerformanceByAccountAndDate(
     data.accountId,
-    data.date
+    data.date,
+    null
   );
   
-  if (existing?.isFinalized) {
-    console.log(`[AMS DB] 跳过已校准数据: ${data.date} accountId=${data.accountId}`);
+  if (existingAccount?.isFinalized) {
+    console.log(`[AMS DB] 跳过已校准账户汇总数据: ${data.date} accountId=${data.accountId}`);
     return;
   }
   
-  // 如果已存在，累加数据；否则插入新记录
-  if (existing) {
+  if (existingAccount) {
+    // ✅ 覆盖写入：用AMS最新快照数据直接替换旧值
     await db.update(dailyPerformance)
       .set({
-        impressions: sql`${dailyPerformance.impressions} + ${data.impressions}`,
-        clicks: sql`${dailyPerformance.clicks} + ${data.clicks}`,
-        spend: sql`${dailyPerformance.spend} + ${data.cost}`,
+        impressions: data.impressions,
+        clicks: data.clicks,
+        spend: String(data.cost),
         dataSource: 'ams',
       })
-      .where(eq(dailyPerformance.id, existing.id));
+      .where(eq(dailyPerformance.id, existingAccount.id));
   } else {
     await db.insert(dailyPerformance).values({
       accountId: data.accountId,
@@ -747,6 +875,10 @@ export async function upsertDailyPerformanceFromAms(data: {
 
 /**
  * 更新转化数据（销售额和订单数）
+ * 
+ * ⚠️ 重要设计原则：使用【覆盖写入】而非累加
+ * AMS转化数据流推送的是归因窗口内的累计快照值，
+ * 每次写入都应用最新值覆盖旧值，避免重复触发导致数据翻倍。
  */
 export async function updateDailyPerformanceConversion(data: {
   accountId: number;
@@ -754,26 +886,49 @@ export async function updateDailyPerformanceConversion(data: {
   sales: number;
   orders: number;
   adType?: string;  // SP, SB, SD
+  campaignId?: number | null;  // 广告活动ID（本地数据库ID）
 }): Promise<void> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
-  // 检查是否已有已校准的数据
+  // === 1. 更新campaign维度的转化数据（如果有campaignId） ===
+  if (data.campaignId) {
+    const existingCampaign = await getDailyPerformanceByAccountAndDate(
+      data.accountId,
+      data.date,
+      data.campaignId
+    );
+    
+    if (existingCampaign && !existingCampaign.isFinalized) {
+      // ✅ 覆盖写入：用AMS最新转化快照直接替换旧值
+      await db.update(dailyPerformance)
+        .set({
+          sales: String(data.sales),
+          orders: data.orders,
+          dataSource: 'ams',
+        })
+        .where(eq(dailyPerformance.id, existingCampaign.id));
+    }
+  }
+  
+  // === 2. 同时更新账户级别汇总记录 ===
   const existing = await getDailyPerformanceByAccountAndDate(
     data.accountId,
-    data.date
+    data.date,
+    null
   );
   
   if (existing?.isFinalized) {
-    console.log(`[AMS DB] 跳过已校准数据: ${data.date} accountId=${data.accountId}`);
+    console.log(`[AMS DB] 跳过已校准转化数据: ${data.date} accountId=${data.accountId}`);
     return;
   }
   
   if (existing) {
+    // ✅ 覆盖写入：用AMS最新转化快照直接替换旧值
     await db.update(dailyPerformance)
       .set({
-        sales: sql`${dailyPerformance.sales} + ${data.sales}`,
-        orders: sql`${dailyPerformance.orders} + ${data.orders}`,
+        sales: String(data.sales),
+        orders: data.orders,
         dataSource: 'ams',
       })
       .where(eq(dailyPerformance.id, existing.id));
@@ -799,6 +954,33 @@ export async function markDailyPerformanceAsFinalized(
       eq(dailyPerformance.accountId, accountId),
       sql`DATE(${dailyPerformance.date}) = ${date}`
     ));
+}
+
+/**
+ * 删除指定账号和日期范围的绩效数据
+ * 用于全量同步前清除旧数据，确保覆盖写入而非累积
+ * 
+ * @param accountId 账号ID
+ * @param startDate 开始日期 (YYYY-MM-DD)
+ * @param endDate 结束日期 (YYYY-MM-DD)
+ * @returns 删除的记录数
+ */
+export async function deleteDailyPerformanceByDateRange(
+  accountId: number,
+  startDate: string,
+  endDate: string
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.delete(dailyPerformance)
+    .where(and(
+      eq(dailyPerformance.accountId, accountId),
+      sql`DATE(${dailyPerformance.date}) >= ${startDate}`,
+      sql`DATE(${dailyPerformance.date}) <= ${endDate}`
+    ));
+  
+  return (result as any)[0]?.affectedRows || 0;
 }
 
 // ==================== Market Curve Data Functions ====================
@@ -1475,6 +1657,22 @@ export async function addNegativeKeyword(data: {
   });
 }
 
+
+// 获取广告活动的否定关键词列表
+export async function getNegativeKeywordsByCampaignId(campaignId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(negativeKeywords).where(eq(negativeKeywords.campaignId, campaignId));
+}
+
+// 获取账号的所有否定关键词列表
+export async function getNegativeKeywordsByAccountId(accountId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(negativeKeywords).where(eq(negativeKeywords.accountId, accountId));
+}
 
 // ==================== Notification Functions ====================
 

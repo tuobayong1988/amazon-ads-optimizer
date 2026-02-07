@@ -837,11 +837,11 @@ export const biddingLogs = mysqlTable("bidding_logs", {
 	accountId: int().notNull(),
 	campaignId: int().notNull(),
 	adGroupId: int(),
-	logTargetType: mysqlEnum(['keyword','product_target','placement']).notNull(),
+	logTargetType: mysqlEnum(['keyword','product_target','placement','campaign_budget','negative_keyword','search_term_harvest']).notNull(),
 	targetId: int().notNull(),
 	targetName: varchar({ length: 500 }),
 	logMatchType: varchar({ length: 32 }),
-	actionType: mysqlEnum(['increase','decrease','set']).notNull(),
+	actionType: mysqlEnum(['increase','decrease','set','add','remove']).notNull(),
 	previousBid: decimal({ precision: 10, scale: 2 }).notNull(),
 	newBid: decimal({ precision: 10, scale: 2 }).notNull(),
 	bidChangePercent: decimal({ precision: 5, scale: 2 }),
@@ -849,6 +849,9 @@ export const biddingLogs = mysqlTable("bidding_logs", {
 	algorithmVersion: varchar({ length: 32 }),
 	performanceData: json(),
 	isIntradayAdjustment: tinyint().default(0),
+	executionStatus: mysqlEnum('execution_status', ['pending','success','failed','skipped']).default('pending'),
+	apiResponseId: varchar('api_response_id', { length: 128 }),
+	errorMessage: text('error_message'),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
 
@@ -1510,6 +1513,14 @@ export const dailyPerformance = mysqlTable("daily_performance", {
 	viewableImpressions: int("viewable_impressions").default(0),
 	viewThroughConversions: int("view_through_conversions").default(0),
 	viewThroughSales: decimal("view_through_sales", { precision: 10, scale: 2 }).default('0'),
+	// 报告API v3新增字段
+	dpv: int().default(0),
+	addToCart: int("add_to_cart").default(0),
+	unitsSold: int("units_sold").default(0),
+	// 广告类型标记（用于区分不同归因期：SP=7天, SB=14天, SD=14天）
+	adType: mysqlEnum("ad_type", ['SP','SB','SD']),
+	// 归因窗口天数（SP=7, SB=14, SD=14）
+	attributionWindow: int("attribution_window"),
 	dataSource: mysqlEnum("data_source", ['api','ams']).default('api'),
 	isFinalized: tinyint("is_finalized").default(0),
 });
@@ -1867,6 +1878,8 @@ export const keywords = mysqlTable("keywords", {
 	keywordAcos: decimal({ precision: 5, scale: 2 }),
 	keywordCtr: decimal({ precision: 5, scale: 4 }),
 	keywordCvr: decimal({ precision: 5, scale: 4 }),
+	keywordCpc: decimal({ precision: 10, scale: 2 }),
+	keywordRoas: decimal({ precision: 10, scale: 2 }),
 	estimatedTraffic: int(),
 	trafficCeiling: int(),
 	optimalBid: decimal({ precision: 10, scale: 2 }),
@@ -2011,6 +2024,7 @@ export const negativeKeywords = mysqlTable("negative_keywords", {
 	negativeType: mysqlEnum(['keyword','product']).notNull(),
 	negativeText: varchar({ length: 500 }).notNull(),
 	negativeMatchType: mysqlEnum(['negative_exact','negative_phrase']).notNull(),
+	amazonNegativeKeywordId: varchar('amazon_negative_keyword_id', { length: 64 }),
 	negativeSource: mysqlEnum(['manual','ngram_analysis','traffic_conflict','funnel_migration','search_term_harvest']).default('manual'),
 	sourceReason: text(),
 	negativeStatus: mysqlEnum(['active','pending','removed']).default('active'),
@@ -2214,7 +2228,12 @@ export const productTargets = mysqlTable("product_targets", {
 	sales: decimal({ precision: 10, scale: 2 }).default('0.00'),
 	orders: int().default(0),
 	targetAcos: decimal({ precision: 5, scale: 2 }),
+	targetRoas: decimal({ precision: 10, scale: 2 }),
+	targetCtr: decimal({ precision: 5, scale: 4 }),
+	targetCvr: decimal({ precision: 5, scale: 4 }),
+	targetCpc: decimal({ precision: 10, scale: 2 }),
 	targetOptimalBid: decimal({ precision: 10, scale: 2 }),
+	targetMatchType: mysqlEnum('target_match_type', ['exact','expanded','category_exact','brand_exact','substitute','accessory','loose','close']).default('exact'),
 	targetStatus: mysqlEnum(['enabled','paused','archived']).default('enabled'),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
@@ -3250,7 +3269,14 @@ export const optimizationLogs = mysqlTable("optimization_logs", {
     // 优化设置
     'settings_update',
     'strategy_change',
-    'schedule_update'
+    'schedule_update',
+    // 搜索词收割和否定关键词操作
+    'search_term_harvest',
+    'negative_keyword_add',
+    'negative_keyword_remove',
+    'keyword_create',
+    'target_pause',
+    'target_enable'
   ]).notNull(),
   
   // 策略模板信息
