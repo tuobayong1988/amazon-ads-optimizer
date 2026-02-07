@@ -495,9 +495,42 @@ export async function executeOptimization(
         break;
       }
         
-      case 'budget_adjustment':
+      case 'budget_adjustment': {
+        // ✅ 修复: budget_adjustment也需要通过Amazon API执行
+        let budgetApiSuccess = false;
+        const budgetCampaign = await db.getCampaignById(targetId);
+        if (budgetCampaign?.accountId && budgetCampaign.campaignId) {
+          try {
+            const budgetCredentials = await db.getAmazonApiCredentials(budgetCampaign.accountId);
+            if (budgetCredentials) {
+              const { AmazonSyncService: BudgetSyncSvc } = await import('./amazonSyncService');
+              const budgetAccountInfo = await db.getAdAccountById(budgetCampaign.accountId);
+              const budgetSvc = await BudgetSyncSvc.createFromCredentials(
+                {
+                  clientId: budgetCredentials.clientId,
+                  clientSecret: budgetCredentials.clientSecret,
+                  refreshToken: budgetCredentials.refreshToken,
+                  profileId: budgetCredentials.profileId,
+                  region: budgetCredentials.region as 'NA' | 'EU' | 'FE',
+                },
+                budgetCampaign.accountId,
+                0,
+                budgetAccountInfo?.marketplace || 'US'
+              );
+              await budgetSvc.client.updateSpCampaign(
+                parseInt(budgetCampaign.campaignId),
+                { dailyBudget: newValue } as any
+              );
+              budgetApiSuccess = true;
+            }
+          } catch (budgetApiErr: any) {
+            console.error(`[AutoExec] Amazon API预算调整失败 (campaign ${targetId}):`, budgetApiErr.message);
+          }
+        }
         await db.updateCampaign(targetId, { dailyBudget: String(newValue) });
+        console.log(`[AutoExec] 预算调整: campaign=${targetId}, ${currentValue} -> ${newValue}, API=${budgetApiSuccess ? '✅' : '❌'}`);
         break;
+      }
         
       // 其他类型的执行逻辑...
       default:

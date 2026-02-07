@@ -613,12 +613,26 @@ export class AmazonAdsApiClient {
   /**
    * 更新关键词出价
    */
-  async updateKeywordBids(updates: Array<{ keywordId: number; bid: number }>): Promise<void> {
-    await this.axiosInstance.put('/sp/keywords', {
+  async updateKeywordBids(updates: Array<{ keywordId: number; bid: number }>): Promise<{ success: boolean; errors: any[] }> {
+    const response = await this.axiosInstance.put('/sp/keywords', {
       keywords: updates,
     }, {
       headers: { 'Content-Type': 'application/vnd.spKeyword.v3+json' },
     });
+    
+    // ✅ 检查API响应，记录失败的更新
+    const errors: any[] = [];
+    if (response.data?.keywords) {
+      for (const kw of response.data.keywords) {
+        if (kw.code && kw.code !== 'SUCCESS') {
+          errors.push({ keywordId: kw.keywordId, code: kw.code, details: kw.details });
+          console.error(`[SP API] 关键词出价更新失败: keywordId=${kw.keywordId}, code=${kw.code}, details=${kw.details}`);
+        }
+      }
+    }
+    
+    console.log(`[SP API] 关键词出价更新完成: 总计=${updates.length}, 失败=${errors.length}`);
+    return { success: errors.length === 0, errors };
   }
 
   /**
@@ -689,12 +703,26 @@ export class AmazonAdsApiClient {
   /**
    * 更新商品定位出价
    */
-  async updateProductTargetBids(updates: Array<{ targetId: number; bid: number }>): Promise<void> {
-    await this.axiosInstance.put('/sp/targets', {
+  async updateProductTargetBids(updates: Array<{ targetId: number; bid: number }>): Promise<{ success: boolean; errors: any[] }> {
+    const response = await this.axiosInstance.put('/sp/targets', {
       targetingClauses: updates,
     }, {
       headers: { 'Content-Type': 'application/vnd.spTargetingClause.v3+json' },
     });
+    
+    // ✅ 检查API响应，记录失败的更新
+    const errors: any[] = [];
+    if (response.data?.targetingClauses) {
+      for (const tc of response.data.targetingClauses) {
+        if (tc.code && tc.code !== 'SUCCESS') {
+          errors.push({ targetId: tc.targetId, code: tc.code, details: tc.details });
+          console.error(`[SP API] 商品定位出价更新失败: targetId=${tc.targetId}, code=${tc.code}, details=${tc.details}`);
+        }
+      }
+    }
+    
+    console.log(`[SP API] 商品定位出价更新完成: 总计=${updates.length}, 失败=${errors.length}`);
+    return { success: errors.length === 0, errors };
   }
 
   // ==================== 报告 API ====================

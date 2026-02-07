@@ -11,6 +11,7 @@
 import * as db from './db';
 import { AmazonSyncService } from './amazonSyncService';
 import { notifyOwner } from './_core/notification';
+import * as automationExecutionEngine from './automationExecutionEngine';
 
 // 同步层级定义
 export type SyncTier = 'high' | 'medium' | 'low' | 'full';
@@ -462,6 +463,25 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
   });
 
   console.log(`[DataSyncScheduler] 账号 ${schedule.accountId} 同步完成:`, result);
+
+  // ✅ 数据同步完成后，自动触发优化执行（闭环调度）
+  try {
+    const autoConfig = automationExecutionEngine.getAccountAutomationConfig(schedule.accountId);
+    if (autoConfig.enabled) {
+      console.log(`[DataSyncScheduler] 账号 ${schedule.accountId} 自动优化已启用，触发优化执行...`);
+      const optimizationResult = await automationExecutionEngine.runFullAutomationCycle(schedule.accountId);
+      console.log(`[DataSyncScheduler] 账号 ${schedule.accountId} 自动优化完成:`, {
+        analyzed: optimizationResult.summary.totalAnalyzed,
+        executed: optimizationResult.summary.totalExecuted,
+        skipped: optimizationResult.summary.totalSkipped,
+        blocked: optimizationResult.summary.totalBlocked,
+      });
+    } else {
+      console.log(`[DataSyncScheduler] 账号 ${schedule.accountId} 自动优化未启用，跳过优化执行`);
+    }
+  } catch (autoOptError: any) {
+    console.error(`[DataSyncScheduler] 账号 ${schedule.accountId} 自动优化执行失败:`, autoOptError.message);
+  }
 
   // 发送通知（如果配置了）
   if (result.campaigns > 0 || result.adGroups > 0) {
