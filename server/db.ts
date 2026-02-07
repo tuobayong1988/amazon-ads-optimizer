@@ -35,7 +35,8 @@ import {
   syncChangeRecords, SyncChangeRecord, InsertSyncChangeRecord,
   syncConflicts, SyncConflict, InsertSyncConflict,
   syncTaskQueue, SyncTaskQueue, InsertSyncTaskQueue,
-  syncChangeSummary, SyncChangeSummary, InsertSyncChangeSummary
+  syncChangeSummary, SyncChangeSummary, InsertSyncChangeSummary,
+  optimizationLogs, OptimizationLog, InsertOptimizationLog
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -4507,4 +4508,150 @@ export async function updateCampaignBudgetUsage(
       budgetUsagePercent: String(data.budgetUsagePercentage),
     })
     .where(eq(campaigns.campaignId, campaignId));
+}
+
+
+// ==================== 优化日志函数 ====================
+
+/**
+ * 创建优化日志
+ */
+export async function createOptimizationLog(data: InsertOptimizationLog): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(optimizationLogs).values(data);
+  return Number(result[0].insertId);
+}
+
+/**
+ * 获取优化日志列表
+ */
+export async function getOptimizationLogs(params: {
+  performanceGroupId: number;
+  category?: string;
+  startDate?: string;
+  endDate?: string;
+  page?: number;
+  pageSize?: number;
+}): Promise<{ logs: OptimizationLog[]; total: number; page: number; pageSize: number }> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const { performanceGroupId, category = 'all', startDate, endDate, page = 1, pageSize = 50 } = params;
+  const offset = (page - 1) * pageSize;
+  
+  // 构建查询条件
+  let conditions = [eq(optimizationLogs.performanceGroupId, performanceGroupId)];
+  
+  if (category && category !== 'all') {
+    conditions.push(eq(optimizationLogs.logCategory, category as any));
+  }
+  
+  if (startDate) {
+    conditions.push(gte(optimizationLogs.createdAt, startDate));
+  }
+  
+  if (endDate) {
+    conditions.push(lte(optimizationLogs.createdAt, endDate));
+  }
+  
+  // 获取总数
+  const countResult = await db.select({ count: sql<number>`count(*)` })
+    .from(optimizationLogs)
+    .where(and(...conditions));
+  const total = countResult[0]?.count || 0;
+  
+  // 获取日志列表
+  const logs = await db.select()
+    .from(optimizationLogs)
+    .where(and(...conditions))
+    .orderBy(desc(optimizationLogs.createdAt))
+    .limit(pageSize)
+    .offset(offset);
+  
+  return { logs, total, page, pageSize };
+}
+
+/**
+ * 获取优化日志统计信息
+ */
+export async function getOptimizationLogStats(performanceGroupId: number, days: number = 30): Promise<{
+  totalLogs: number;
+  byCategory: { category: string; count: number }[];
+  byActionType: { actionType: string; count: number }[];
+  recentActivity: { date: string; count: number }[];
+}> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+  const startDateStr = startDate.toISOString().slice(0, 19).replace('T', ' ');
+  
+  // 总日志数
+  const totalResult = await db.select({ count: sql<number>`count(*)` })
+    .from(optimizationLogs)
+    .where(and(
+      eq(optimizationLogs.performanceGroupId, performanceGroupId),
+      gte(optimizationLogs.createdAt, startDateStr)
+    ));
+  const totalLogs = totalResult[0]?.count || 0;
+  
+  // 按分类统计
+  const byCategoryResult = await db.select({
+    category: optimizationLogs.logCategory,
+    count: sql<number>`count(*)`
+  })
+    .from(optimizationLogs)
+    .where(and(
+      eq(optimizationLogs.performanceGroupId, performanceGroupId),
+      gte(optimizationLogs.createdAt, startDateStr)
+    ))
+    .groupBy(optimizationLogs.logCategory);
+  
+  // 按操作类型统计
+  const byActionTypeResult = await db.select({
+    actionType: optimizationLogs.actionType,
+    count: sql<number>`count(*)`
+  })
+    .from(optimizationLogs)
+    .where(and(
+      eq(optimizationLogs.performanceGroupId, performanceGroupId),
+      gte(optimizationLogs.createdAt, startDateStr)
+    ))
+    .groupBy(optimizationLogs.actionType);
+  
+  // 最近活动趋势（按天）
+  const recentActivityResult = await db.select({
+    date: sql<string>`DATE(created_at)`,
+    count: sql<number>`count(*)`
+  })
+    .from(optimizationLogs)
+    .where(and(
+      eq(optimizationLogs.performanceGroupId, performanceGroupId),
+      gte(optimizationLogs.createdAt, startDateStr)
+    ))
+    .groupBy(sql`DATE(created_at)`)
+    .orderBy(sql`DATE(created_at)`);
+  
+  return {
+    totalLogs,
+    byCategory: byCategoryResult.map(r => ({ category: r.category, count: r.count })),
+    byActionType: byActionTypeResult.map(r => ({ actionType: r.actionType, count: r.count })),
+    recentActivity: recentActivityResult.map(r => ({ date: r.date, count: r.count }))
+  };
+}
+
+/**
+ * 批量创建优化日志
+ */
+export async function batchCreateOptimizationLogs(logs: InsertOptimizationLog[]): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  if (logs.length === 0) return 0;
+  
+  await db.insert(optimizationLogs).values(logs);
+  return logs.length;
 }

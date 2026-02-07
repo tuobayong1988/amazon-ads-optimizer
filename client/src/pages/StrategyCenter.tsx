@@ -1,9 +1,11 @@
 /**
  * StrategyCenter - 策略中心
  * 合并原有的优化目标、广告活动管理、自动化配置功能
+ * 布局顺序：策略模板库 → 优化目标 → 统计信息
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useLocation } from "wouter";
 import DashboardLayout from "@/components/DashboardLayout";
 import { PageMeta, PAGE_META_CONFIG } from "@/components/PageMeta";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,20 +39,35 @@ import {
   BarChart3,
   Zap,
   Shield,
-  Clock
+  Clock,
+  Archive,
+  Eye
 } from "lucide-react";
 import { toast } from "sonner";
 import { Link } from "wouter";
 import { StrategyTemplates } from "@/components/StrategyTemplates";
+import { useCurrentAccountId, setCurrentAccountId } from "@/components/AccountSwitcher";
 
 export default function StrategyCenter() {
-  const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
+  const [, setLocation] = useLocation();
+  const globalAccountId = useCurrentAccountId();
   const [activeTab, setActiveTab] = useState("targets");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // 获取账号列表
   const { data: accounts } = trpc.adAccount.list.useQuery();
-  const accountId = selectedAccountId || accounts?.[0]?.id;
+  
+  // 优先使用全局选择的accountId，只有在用户从未选择过账号时才使用默认值
+  // 并且在使用默认值时同步更新localStorage，避免下次访问时再次出现不一致
+  const accountId = useMemo(() => {
+    if (globalAccountId) return globalAccountId;
+    if (accounts?.[0]?.id) {
+      // 用户从未选择过账号，使用第一个账号并保存到localStorage
+      setCurrentAccountId(accounts[0].id);
+      return accounts[0].id;
+    }
+    return null;
+  }, [globalAccountId, accounts]);
 
   // 获取优化目标（绩效组）
   const performanceGroupsQuery = trpc.performanceGroup.list.useQuery(
@@ -69,6 +86,57 @@ export default function StrategyCenter() {
     { accountId: accountId! },
     { enabled: !!accountId }
   );
+
+  // 更新绩效组状态的mutation
+  const updateGroupMutation = trpc.performanceGroup.update.useMutation({
+    onSuccess: () => {
+      performanceGroupsQuery.refetch();
+      toast.success("状态更新成功");
+    },
+    onError: (error) => {
+      toast.error(`更新失败: ${error.message}`);
+    }
+  });
+
+  // 删除绩效组的mutation
+  const deleteGroupMutation = trpc.performanceGroup.delete.useMutation({
+    onSuccess: () => {
+      performanceGroupsQuery.refetch();
+      toast.success("删除成功");
+    },
+    onError: (error) => {
+      toast.error(`删除失败: ${error.message}`);
+    }
+  });
+
+  // 点击优化目标跳转到详情页
+  const handleGoToDetail = (groupId: number) => {
+    setLocation(`/optimization-targets/${groupId}`);
+  };
+
+  // 切换优化目标状态（启用/暂停）
+  const handleToggleStatus = (groupId: number, currentStatus: string) => {
+    const newStatus = currentStatus === 'active' ? 'paused' : 'active';
+    updateGroupMutation.mutate({
+      id: groupId,
+      status: newStatus
+    });
+  };
+
+  // 归档优化目标
+  const handleArchiveGroup = (groupId: number) => {
+    updateGroupMutation.mutate({
+      id: groupId,
+      status: 'archived'
+    });
+  };
+
+  // 删除优化目标
+  const handleDeleteGroup = (groupId: number, groupName: string) => {
+    if (confirm(`确定要删除优化目标 "${groupName}" 吗？此操作不可撤销。`)) {
+      deleteGroupMutation.mutate({ id: groupId });
+    }
+  };
 
   // 刷新所有数据
   const handleRefresh = async () => {
@@ -118,6 +186,15 @@ export default function StrategyCenter() {
     }
   };
 
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case 'active': return '活跃';
+      case 'paused': return '暂停';
+      case 'archived': return '归档';
+      default: return status;
+    }
+  };
+
   return (
     <DashboardLayout>
       <PageMeta {...PAGE_META_CONFIG.strategyCenter} />
@@ -136,7 +213,7 @@ export default function StrategyCenter() {
           <div className="flex items-center gap-3">
             <Select
               value={accountId?.toString() || ""}
-              onValueChange={(v) => setSelectedAccountId(parseInt(v))}
+              onValueChange={(v) => setCurrentAccountId(parseInt(v))}
             >
               <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="选择账号" />
@@ -161,7 +238,122 @@ export default function StrategyCenter() {
           </div>
         </div>
 
-        {/* 策略摘要卡片 */}
+        {/* 1. 策略模板库 - 放在页面上部 */}
+        <StrategyTemplates
+          currentAcos={25}
+          onApplyTemplate={(template) => {
+            toast.success(`已应用策略模板: ${template.name}`);
+          }}
+        />
+
+        {/* 2. 优化目标（绩效组）- 放在页面中间 */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Target className="h-5 w-5 text-blue-400" />
+              优化目标（绩效组）
+            </h2>
+            <Link href="/optimization-targets">
+              <Button variant="outline" size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                管理目标
+              </Button>
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+            {performanceGroupsQuery.data?.map((group: any) => (
+              <Card 
+                key={group.id} 
+                className="hover:border-primary/50 transition-all cursor-pointer hover:shadow-md"
+                onClick={() => handleGoToDetail(group.id)}
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base">{group.name}</CardTitle>
+                    <Badge className={getStatusColor(group.status)}>
+                      {getStatusText(group.status)}
+                    </Badge>
+                  </div>
+                  <CardDescription>
+                    {group.description || '无描述'}
+                    {group.strategyTemplate && (
+                      <span className="ml-2 text-blue-400">策略: {group.strategyTemplate}</span>
+                    )}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 gap-4 text-sm mb-4">
+                    <div>
+                      <p className="text-muted-foreground">目标ACoS</p>
+                      <p className="font-medium">{group.targetAcos}%</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">目标ROAS</p>
+                      <p className="font-medium">{typeof group.targetRoas === 'number' ? group.targetRoas.toFixed(1) : (parseFloat(group.targetRoas as any) || 0).toFixed(1) || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">广告活动数</p>
+                      <p className="font-medium">{group.campaignCount || 0}</p>
+                    </div>
+                  </div>
+                  {/* 操作按钮 */}
+                  <div className="flex items-center gap-2 pt-3 border-t border-border/50">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleGoToDetail(group.id);
+                      }}
+                    >
+                      <Eye className="h-4 w-4 mr-1" />
+                      查看详情
+                    </Button>
+                    <Button
+                      variant={group.status === 'active' ? 'secondary' : 'default'}
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleStatus(group.id, group.status);
+                      }}
+                      disabled={group.status === 'archived'}
+                    >
+                      {group.status === 'active' ? (
+                        <>
+                          <Pause className="h-4 w-4 mr-1" />
+                          暂停
+                        </>
+                      ) : (
+                        <>
+                          <Play className="h-4 w-4 mr-1" />
+                          启用
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteGroup(group.id, group.name);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+            {(!performanceGroupsQuery.data || performanceGroupsQuery.data.length === 0) && (
+              <p className="col-span-full text-center text-muted-foreground py-8">
+                暂无优化目标，请先从策略模板库中选择一个策略模板创建优化目标
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/* 3. 策略摘要卡片 - 放在页面底部 */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="pt-6">
@@ -258,18 +450,22 @@ export default function StrategyCenter() {
             </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               {performanceGroupsQuery.data?.map((group: any) => (
-                <Card key={group.id} className="hover:border-primary/50 transition-colors">
+                <Card 
+                  key={group.id} 
+                  className="hover:border-primary/50 transition-all cursor-pointer hover:shadow-md"
+                  onClick={() => handleGoToDetail(group.id)}
+                >
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-base">{group.name}</CardTitle>
                       <Badge className={getStatusColor(group.status)}>
-                        {group.status === 'active' ? '活跃' : group.status === 'paused' ? '暂停' : '归档'}
+                        {getStatusText(group.status)}
                       </Badge>
                     </div>
                     <CardDescription>{group.description || '无描述'}</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid grid-cols-3 gap-4 text-sm">
+                    <div className="grid grid-cols-3 gap-4 text-sm mb-4">
                       <div>
                         <p className="text-muted-foreground">目标ACoS</p>
                         <p className="font-medium">{group.targetAcos}%</p>
@@ -282,6 +478,52 @@ export default function StrategyCenter() {
                         <p className="text-muted-foreground">广告活动数</p>
                         <p className="font-medium">{group.campaignCount || 0}</p>
                       </div>
+                    </div>
+                    {/* 操作按钮 */}
+                    <div className="flex items-center gap-2 pt-3 border-t border-border/50">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleGoToDetail(group.id);
+                        }}
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        查看详情
+                      </Button>
+                      <Button
+                        variant={group.status === 'active' ? 'secondary' : 'default'}
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleStatus(group.id, group.status);
+                        }}
+                        disabled={group.status === 'archived'}
+                      >
+                        {group.status === 'active' ? (
+                          <>
+                            <Pause className="h-4 w-4 mr-1" />
+                            暂停
+                          </>
+                        ) : (
+                          <>
+                            <Play className="h-4 w-4 mr-1" />
+                            启用
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteGroup(group.id, group.name);
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>

@@ -3200,3 +3200,91 @@ export type InsertAlgorithmEffectRecord = InferInsertModel<typeof algorithmEffec
 // 节假日配置相关类型
 export type HolidayConfiguration = InferSelectModel<typeof holidayConfigurations>;
 export type InsertHolidayConfiguration = InferInsertModel<typeof holidayConfigurations>;
+
+
+// =====================================================
+// 优化日志表 - Optimization Logs
+// =====================================================
+
+/**
+ * 优化日志表 - 记录优化目标的所有操作日志
+ * 包含：绩效组和目标、出价、层面调整、优化设置
+ */
+export const optimizationLogs = mysqlTable("optimization_logs", {
+  id: int().autoincrement().notNull(),
+  // 基础信息
+  performanceGroupId: int("performance_group_id").notNull(),
+  performanceGroupName: varchar("performance_group_name", { length: 255 }).notNull(),
+  accountId: int("account_id").notNull(),
+  accountName: varchar("account_name", { length: 255 }),
+  userId: int("user_id"),
+  userName: varchar("user_name", { length: 255 }),
+  
+  // 日志分类
+  logCategory: mysqlEnum("log_category", [
+    'performance_target',  // 绩效组和目标
+    'bid_adjustment',      // 出价调整
+    'placement_adjustment', // 层面调整
+    'optimization_settings' // 优化设置
+  ]).notNull(),
+  
+  // 操作类型
+  actionType: mysqlEnum("action_type", [
+    // 绩效组操作
+    'create_target',
+    'update_target',
+    'delete_target',
+    'pause_target',
+    'resume_target',
+    'add_campaign',
+    'remove_campaign',
+    // 出价操作
+    'bid_increase',
+    'bid_decrease',
+    'bid_set',
+    'bid_auto_adjust',
+    // 层面调整
+    'placement_adjust',
+    'placement_enable',
+    'placement_disable',
+    // 优化设置
+    'settings_update',
+    'strategy_change',
+    'schedule_update'
+  ]).notNull(),
+  
+  // 策略模板信息
+  strategyTemplateId: int("strategy_template_id"),
+  strategyTemplateName: varchar("strategy_template_name", { length: 255 }),
+  
+  // Campaign信息
+  campaignId: int("campaign_id"),
+  campaignName: varchar("campaign_name", { length: 500 }),
+  
+  // 操作详情
+  actionDetail: text("action_detail"), // JSON格式的详细操作信息
+  previousValue: varchar("previous_value", { length: 500 }),
+  newValue: varchar("new_value", { length: 500 }),
+  changeReason: text("change_reason"),
+  
+  // 执行状态
+  status: mysqlEnum("status", ['pending', 'success', 'failed', 'rolled_back']).default('success'),
+  errorMessage: text("error_message"),
+  
+  // 时间戳
+  createdAt: datetime("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+  executedAt: datetime("executed_at", { mode: 'string' }),
+},
+(table) => [
+  index("idx_opt_log_performance_group").on(table.performanceGroupId),
+  index("idx_opt_log_account").on(table.accountId),
+  index("idx_opt_log_user").on(table.userId),
+  index("idx_opt_log_category").on(table.logCategory),
+  index("idx_opt_log_action_type").on(table.actionType),
+  index("idx_opt_log_campaign").on(table.campaignId),
+  index("idx_opt_log_created_at").on(table.createdAt),
+]);
+
+// 优化日志类型导出
+export type OptimizationLog = InferSelectModel<typeof optimizationLogs>;
+export type InsertOptimizationLog = InferInsertModel<typeof optimizationLogs>;

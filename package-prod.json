@@ -1,0 +1,33 @@
+{
+  "name": "amazon-ads-optimizer",
+  "version": "1.0.0",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "start": "NODE_ENV=production node dist/index.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.693.0",
+    "@aws-sdk/client-sns": "^3.967.0",
+    "@aws-sdk/client-sqs": "^3.967.0",
+    "@aws-sdk/s3-request-presigner": "^3.693.0",
+    "@trpc/client": "^11.6.0",
+    "@trpc/react-query": "^11.6.0",
+    "@trpc/server": "^11.6.0",
+    "axios": "^1.12.0",
+    "bcryptjs": "^3.0.3",
+    "cookie": "^1.0.2",
+    "date-fns": "^4.1.0",
+    "date-fns-tz": "^3.2.0",
+    "dotenv": "^17.2.2",
+    "drizzle-orm": "^0.44.5",
+    "express": "^4.21.2",
+    "jose": "6.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "mysql2": "^3.15.0",
+    "nanoid": "^5.1.5",
+    "superjson": "^1.13.3",
+    "zod": "^4.1.12",
+    "json-bigint": "^1.0.0"
+  }
+}

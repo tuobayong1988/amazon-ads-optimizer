@@ -1,0 +1,37 @@
+-- 优化日志表 - 记录优化目标的所有操作日志
+CREATE TABLE IF NOT EXISTS optimization_logs (
+  id INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
+  performance_group_id INT NOT NULL,
+  performance_group_name VARCHAR(255) NOT NULL,
+  account_id INT NOT NULL,
+  account_name VARCHAR(255),
+  user_id INT,
+  user_name VARCHAR(255),
+  log_category ENUM('performance_target', 'bid_adjustment', 'placement_adjustment', 'optimization_settings') NOT NULL,
+  action_type ENUM(
+    'create_target', 'update_target', 'delete_target', 'pause_target', 'resume_target',
+    'add_campaign', 'remove_campaign',
+    'bid_increase', 'bid_decrease', 'bid_set', 'bid_auto_adjust',
+    'placement_adjust', 'placement_enable', 'placement_disable',
+    'settings_update', 'strategy_change', 'schedule_update'
+  ) NOT NULL,
+  strategy_template_id INT,
+  strategy_template_name VARCHAR(255),
+  campaign_id INT,
+  campaign_name VARCHAR(500),
+  action_detail TEXT,
+  previous_value VARCHAR(500),
+  new_value VARCHAR(500),
+  change_reason TEXT,
+  status ENUM('pending', 'success', 'failed', 'rolled_back') DEFAULT 'success',
+  error_message TEXT,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+  executed_at DATETIME,
+  INDEX idx_opt_log_performance_group (performance_group_id),
+  INDEX idx_opt_log_account (account_id),
+  INDEX idx_opt_log_user (user_id),
+  INDEX idx_opt_log_category (log_category),
+  INDEX idx_opt_log_action_type (action_type),
+  INDEX idx_opt_log_campaign (campaign_id),
+  INDEX idx_opt_log_created_at (created_at)
+);

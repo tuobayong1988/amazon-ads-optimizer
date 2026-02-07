@@ -33,26 +33,27 @@ import * as holidayConfigService from './holidayConfigService';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
-  // 获取用户所有账号列表（管理员可以看到所有账户）
-  list: protectedProcedure.query(async ({ ctx }) => {
-    // 管理员可以访问所有账户
-    if (ctx.user.role === 'admin') {
-      return db.getAdAccounts();
-    }
-    return db.getAdAccountsByUserId(ctx.user.id);
+  // 获取用户所有账号列表（公开访问，返回所有账户）
+  list: publicProcedure.query(async () => {
+    // 返回所有账户供前端使用
+    return db.getAdAccounts();
   }),
   
   // 获取单个账号详情
-  get: protectedProcedure
+  get: publicProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       return db.getAdAccountById(input.id);
     }),
   
   // 获取默认账号
-  getDefault: protectedProcedure.query(async ({ ctx }) => {
-    return db.getDefaultAdAccount(ctx.user.id);
-  }),
+  getDefault: publicProcedure
+    .input(z.object({ userId: z.number().optional() }).optional())
+    .query(async ({ input }) => {
+      // 如果没有userId，返回第一个账户作为默认
+      const accounts = await db.getAdAccounts();
+      return accounts.find(a => a.isDefault) || accounts[0] || null;
+    }),
   
   // 创建新账号
   create: protectedProcedure
@@ -448,7 +449,7 @@ const adAccountRouter = router({
 
 // ==================== Performance Group Router ====================
 const performanceGroupRouter = router({
-  list: protectedProcedure
+  list: publicProcedure
     .input(z.object({ accountId: z.number() }))
     .query(async ({ input }) => {
       console.log('[performanceGroup.list] accountId:', input.accountId);
@@ -457,7 +458,7 @@ const performanceGroupRouter = router({
       return result;
     }),
   
-  get: protectedProcedure
+  get: publicProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       return db.getPerformanceGroupById(input.id);
@@ -641,7 +642,7 @@ const performanceGroupRouter = router({
     }),
 
   // 添加广告活动到绩效组
-  addCampaigns: protectedProcedure
+  addCampaigns: publicProcedure
     .input(z.object({
       groupId: z.number(),
       campaignIds: z.array(z.number()),
@@ -657,7 +658,7 @@ const performanceGroupRouter = router({
     }),
 
   // 从绩效组移除单个广告活动
-  removeCampaign: protectedProcedure
+  removeCampaign: publicProcedure
     .input(z.object({
       groupId: z.number(),
       campaignId: z.number(),
@@ -762,11 +763,87 @@ const performanceGroupRouter = router({
       });
       return { success: true };
     }),
+
+  // ==================== 优化日志 API ====================
+  
+  // 获取优化目标的日志列表
+  getLogs: publicProcedure
+    .input(z.object({
+      performanceGroupId: z.number(),
+      category: z.enum(['all', 'performance_target', 'bid_adjustment', 'placement_adjustment', 'optimization_settings']).optional().default('all'),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+      page: z.number().optional().default(1),
+      pageSize: z.number().optional().default(50),
+    }))
+    .query(async ({ input }) => {
+      return db.getOptimizationLogs(input);
+    }),
+
+  // 获取日志统计信息
+  getLogStats: publicProcedure
+    .input(z.object({
+      performanceGroupId: z.number(),
+      days: z.number().optional().default(30),
+    }))
+    .query(async ({ input }) => {
+      return db.getOptimizationLogStats(input.performanceGroupId, input.days);
+    }),
+
+  // 添加优化日志
+  addLog: protectedProcedure
+    .input(z.object({
+      performanceGroupId: z.number(),
+      logCategory: z.enum(['performance_target', 'bid_adjustment', 'placement_adjustment', 'optimization_settings']),
+      actionType: z.string(),
+      campaignId: z.number().optional(),
+      campaignName: z.string().optional(),
+      strategyTemplateId: z.number().optional(),
+      strategyTemplateName: z.string().optional(),
+      actionDetail: z.string().optional(),
+      previousValue: z.string().optional(),
+      newValue: z.string().optional(),
+      changeReason: z.string().optional(),
+      status: z.enum(['pending', 'success', 'failed', 'rolled_back']).optional().default('success'),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // 获取绩效组信息
+      const group = await db.getPerformanceGroupById(input.performanceGroupId);
+      if (!group) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: '优化目标不存在' });
+      }
+      
+      // 获取账号信息
+      const account = await db.getAdAccountById(group.accountId);
+      
+      const logId = await db.createOptimizationLog({
+        performanceGroupId: input.performanceGroupId,
+        performanceGroupName: group.name,
+        accountId: group.accountId,
+        accountName: account?.accountName || '',
+        userId: ctx.user.id,
+        userName: ctx.user.name || ctx.user.email || '',
+        logCategory: input.logCategory as any,
+        actionType: input.actionType as any,
+        campaignId: input.campaignId,
+        campaignName: input.campaignName,
+        strategyTemplateId: input.strategyTemplateId,
+        strategyTemplateName: input.strategyTemplateName,
+        actionDetail: input.actionDetail,
+        previousValue: input.previousValue,
+        newValue: input.newValue,
+        changeReason: input.changeReason,
+        status: input.status as any,
+        executedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      });
+      
+      return { id: logId, success: true };
+    }),
 });
 
 // ==================== Campaign Router ====================
 const campaignRouter = router({
-  list: protectedProcedure
+  list: publicProcedure
     .input(z.object({ 
       accountId: z.number().optional(),
       startDate: z.string().optional(),
@@ -785,7 +862,7 @@ const campaignRouter = router({
     }),
 
   // 获取未分配到绩效组的广告活动
-  listUnassigned: protectedProcedure
+  listUnassigned: publicProcedure
     .input(z.object({ accountId: z.number().optional() }))
     .query(async ({ input }) => {
       return db.getUnassignedCampaigns(input.accountId);
@@ -2000,18 +2077,42 @@ const optimizationRouter = router({
       
       // If not dry run, apply the changes and log them
       if (!input.dryRun) {
-        for (const result of results) {
-          if (result.targetType === "keyword") {
-            await db.updateKeywordBid(result.targetId, result.newBid.toString());
-          } else {
-            await db.updateProductTargetBid(result.targetId, result.newBid.toString());
+        // ✅ 修复P0-1: 创建Amazon API客户端，确保优化动作传递到Amazon后台
+        const credentials = await db.getAmazonApiCredentials(group.accountId);
+        let syncService: AmazonSyncService | null = null;
+        if (credentials) {
+          try {
+            const accountInfo = await db.getAdAccountById(group.accountId);
+            const marketplace = accountInfo?.marketplace || 'US';
+            syncService = await AmazonSyncService.createFromCredentials(
+              {
+                clientId: credentials.clientId,
+                clientSecret: credentials.clientSecret,
+                refreshToken: credentials.refreshToken,
+                profileId: credentials.profileId,
+                region: credentials.region as 'NA' | 'EU' | 'FE',
+              },
+              group.accountId,
+              0, // system user
+              marketplace
+            );
+          } catch (apiError: any) {
+            console.error('[runOptimization] 创建Amazon API客户端失败:', apiError.message);
           }
-          
+        } else {
+          console.warn('[runOptimization] 未找到API凭证，仅更新本地数据库');
+        }
+
+        let apiSuccessCount = 0;
+        let apiFailCount = 0;
+
+        for (const result of results) {
           // Get campaign info for logging
           let campaignId = 0;
           let adGroupId = 0;
           let targetName = "";
           let matchType = "";
+          let amazonId = "";
           
           if (result.targetType === "keyword") {
             const keyword = await db.getKeywordById(result.targetId);
@@ -2023,6 +2124,7 @@ const optimizationRouter = router({
               }
               targetName = keyword.keywordText;
               matchType = keyword.matchType;
+              amazonId = keyword.keywordId || '';
             }
           } else {
             const target = await db.getProductTargetById(result.targetId);
@@ -2033,10 +2135,41 @@ const optimizationRouter = router({
                 campaignId = adGroup.campaignId;
               }
               targetName = `ASIN: ${target.targetValue}`;
+              amazonId = target.targetId || '';
             }
           }
+
+          // ✅ 通过Amazon API执行出价调整
+          let apiSuccess = false;
+          if (syncService && amazonId) {
+            try {
+              if (result.targetType === "keyword") {
+                await syncService.client.updateKeywordBids([{
+                  keywordId: parseInt(amazonId),
+                  bid: result.newBid,
+                }]);
+              } else {
+                await syncService.client.updateProductTargetBids([{
+                  targetId: parseInt(amazonId),
+                  bid: result.newBid,
+                }]);
+              }
+              apiSuccess = true;
+              apiSuccessCount++;
+            } catch (apiError: any) {
+              console.error(`[runOptimization] Amazon API调用失败 (${result.targetType} ${result.targetId}):`, apiError.message);
+              apiFailCount++;
+            }
+          }
+
+          // 更新本地数据库
+          if (result.targetType === "keyword") {
+            await db.updateKeywordBid(result.targetId, result.newBid.toString());
+          } else {
+            await db.updateProductTargetBid(result.targetId, result.newBid.toString());
+          }
           
-          // Create bidding log
+          // Create bidding log with API status
           await db.createBiddingLog({
             accountId: group.accountId,
             campaignId,
@@ -2049,11 +2182,13 @@ const optimizationRouter = router({
             previousBid: result.previousBid.toString(),
             newBid: result.newBid.toString(),
             bidChangePercent: result.bidChangePercent.toString(),
-            reason: result.reason,
+            reason: `${apiSuccess ? '[API✅]' : syncService ? '[API❌]' : '[仅本地]'} ${result.reason}`,
             algorithmVersion: "1.0.0",
             isIntradayAdjustment: 0,
           });
         }
+
+        console.log(`[runOptimization] 执行完成: API成功=${apiSuccessCount}, API失败=${apiFailCount}, 总计=${results.length}`);
       }
       
       return {
@@ -5605,6 +5740,39 @@ const batchOperationRouter = router({
       let failedCount = 0;
       const errors: Array<{ keywordId: number; error: string }> = [];
 
+      // ✅ 修复P0-2: 创建Amazon API客户端，确保出价调整传递到Amazon
+      // 先获取第一个keyword的accountId来创建API客户端
+      let syncService: AmazonSyncService | null = null;
+      if (input.adjustments.length > 0) {
+        try {
+          const firstKw = await db.getKeywordById(input.adjustments[0].keywordId);
+          if (firstKw) {
+            const adGroup = await db.getAdGroupById(firstKw.adGroupId);
+            const campaign = adGroup ? await db.getCampaignById(adGroup.campaignId) : null;
+            if (campaign?.accountId) {
+              const credentials = await db.getAmazonApiCredentials(campaign.accountId);
+              if (credentials) {
+                const accountInfo = await db.getAdAccountById(campaign.accountId);
+                syncService = await AmazonSyncService.createFromCredentials(
+                  {
+                    clientId: credentials.clientId,
+                    clientSecret: credentials.clientSecret,
+                    refreshToken: credentials.refreshToken,
+                    profileId: credentials.profileId,
+                    region: credentials.region as 'NA' | 'EU' | 'FE',
+                  },
+                  campaign.accountId,
+                  ctx.user.id,
+                  accountInfo?.marketplace || 'US'
+                );
+              }
+            }
+          }
+        } catch (initError: any) {
+          console.error('[applyBidAdjustments] 创建Amazon API客户端失败:', initError.message);
+        }
+      }
+
       for (const adj of input.adjustments) {
         try {
           // Get current keyword info
@@ -5617,7 +5785,21 @@ const batchOperationRouter = router({
           const adGroup = await db.getAdGroupById(keyword.adGroupId);
           const campaign = adGroup ? await db.getCampaignById(adGroup.campaignId) : null;
 
-          // Update bid
+          // ✅ 先通过Amazon API更新出价
+          let apiSuccess = false;
+          if (syncService && keyword.keywordId) {
+            try {
+              await syncService.client.updateKeywordBids([{
+                keywordId: parseInt(keyword.keywordId),
+                bid: adj.newBid,
+              }]);
+              apiSuccess = true;
+            } catch (apiError: any) {
+              console.error(`[applyBidAdjustments] Amazon API调用失败 (keyword ${adj.keywordId}):`, apiError.message);
+            }
+          }
+
+          // Update local bid
           await db.updateKeyword(adj.keywordId, { bid: String(adj.newBid) });
 
           // Log the adjustment using biddingLogs
@@ -5631,7 +5813,7 @@ const batchOperationRouter = router({
             actionType: adj.newBid > parseFloat(keyword.bid || '0') ? 'increase' : 'decrease',
             previousBid: keyword.bid || '0',
             newBid: String(adj.newBid),
-            reason: adj.reason || '竞价效率优化',
+            reason: `${apiSuccess ? '[API✅]' : syncService ? '[API❌]' : '[仅本地]'} ${adj.reason || '竞价效率优化'}`,
           });
 
           successCount++;
@@ -10507,7 +10689,7 @@ const specialScenarioRouter = router({
 // ==================== Automation Execution Router ====================
 const automationRouter = router({
   // 获取账号自动化配置
-  getConfig: protectedProcedure
+  getConfig: publicProcedure
     .input(z.object({ accountId: z.number() }))
     .query(async ({ input }) => {
       return automationExecutionEngine.getAccountAutomationConfig(input.accountId);

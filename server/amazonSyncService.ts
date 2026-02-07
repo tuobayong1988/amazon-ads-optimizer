@@ -135,6 +135,24 @@ export class AmazonSyncService {
     console.log(`[SyncService] 同步最近${performanceDays}天历史绩效数据（归因回溯机制，覆盖旧记录）`);
     results.performance += await this.syncPerformanceData(performanceDays);
 
+    // ✅ 修复P0-4/P1-1: 同步关键词级别绩效数据（之前缺失，导致keywords表绩效全为0）
+    try {
+      console.log(`[SyncService] 开始同步关键词级别绩效数据...`);
+      const keywordPerfSynced = await this.syncKeywordPerformanceData(performanceDays);
+      console.log(`[SyncService] 关键词绩效数据同步完成: ${keywordPerfSynced}条`);
+    } catch (kwPerfError: any) {
+      console.error('[SyncService] 关键词绩效数据同步失败:', kwPerfError.message);
+    }
+
+    // ✅ 修复P1-2: 同步商品定位级别绩效数据
+    try {
+      console.log(`[SyncService] 开始同步商品定位级别绩效数据...`);
+      const targetPerfSynced = await this.syncProductTargetPerformanceData(performanceDays);
+      console.log(`[SyncService] 商品定位绩效数据同步完成: ${targetPerfSynced}条`);
+    } catch (ptPerfError: any) {
+      console.error('[SyncService] 商品定位绩效数据同步失败:', ptPerfError.message);
+    }
+
     return results;
   }
 
@@ -1281,24 +1299,69 @@ export class AmazonSyncService {
       console.log('[SyncService] 关键词报告数据第一条示例:', JSON.stringify(reportData[0], null, 2));
       
       let synced = 0;
-
+      let notMatched = 0;
       for (const row of reportData) {
-        // 查找对应的keyword
-        const [kw] = await db
+        // ✅ 修复: SP-Targeting报告返回的是targetId，不是keywordId
+        // 需要通过targetId匹配到keywords表的keywordId或product_targets表的targetId
+        const reportTargetId = String(row.targetId || row.keywordId || '');
+        if (!reportTargetId) continue;
+        
+        // 先尝试匹配keywords表
+        let [kw] = await db
           .select()
           .from(keywords)
-          .where(eq(keywords.keywordId, String(row.keywordId)))
+          .where(eq(keywords.keywordId, reportTargetId))
           .limit(1);
-
+        
         if (!kw) {
+          // 尝试通过targetingText匹配
+          if (row.targetingText) {
+            [kw] = await db
+              .select()
+              .from(keywords)
+              .where(eq(keywords.keywordText, row.targetingText))
+              .limit(1);
+          }
+        }
+        
+        if (!kw) {
+          // 尝试匹配product_targets表
+          const [pt] = await db
+            .select()
+            .from(productTargets)
+            .where(eq(productTargets.targetId, reportTargetId))
+            .limit(1);
+          if (pt) {
+            // 更新product_targets表的绩效数据
+            const cost = row.cost || 0;
+            const sales = row.sales7d || row.sales14d || 0;
+            const orders = row.purchases7d || row.purchases14d || 0;
+            const impressions = row.impressions || 0;
+            const clicks = row.clicks || 0;
+            await db
+              .update(productTargets)
+              .set({
+                impressions,
+                clicks,
+                spend: String(cost),
+                sales: String(sales),
+                orders,
+                updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+              })
+              .where(eq(productTargets.id, pt.id));
+            synced++;
+            continue;
+          }
+          notMatched++;
+          if (notMatched <= 10) {
+            console.warn(`[SyncService] 未找到匹配的keyword/target: targetId=${reportTargetId}, text=${row.targetingText || 'N/A'}`);
+          }
           continue;
         }
-
-        // 使用 Amazon Ads API v3 的字段名
-        // SP关键词报告使用 sales14d/purchases14d
+        // ✅ 修复: SP-Targeting报告使用 sales7d/purchases7d（不是sales14d）
         const cost = row.cost || 0;
-        const sales = row.sales14d || 0;
-        const orders = row.purchases14d || 0;
+        const sales = row.sales7d || row.sales14d || 0;
+        const orders = row.purchases7d || row.purchases14d || 0;
         const impressions = row.impressions || 0;
         const clicks = row.clicks || 0;
         
@@ -1320,12 +1383,27 @@ export class AmazonSyncService {
         synced++;
       }
 
+      if (notMatched > 0) {
+        console.warn(`[SyncService] 关键词绩效数据同步: ${notMatched}条报告数据未匹配到本地keyword/target`);
+      }
       console.log(`[SyncService] 关键词绩效数据同步完成: ${synced} 条记录`);
       return synced;
     } catch (error) {
       console.error('Error syncing keyword performance data:', error);
       return 0;
     }
+  }
+
+  /**
+   * 同步商品定位级别绩效数据
+   * 注意: SP-Targeting报告已包含商品定位数据，syncKeywordPerformanceData中已处理
+   * 此方法作为补充，确保数据完整性
+   */
+  async syncProductTargetPerformanceData(days: number): Promise<number> {
+    // SP-Targeting报告已在syncKeywordPerformanceData中处理了product_targets的更新
+    // 这里返回0表示不需要额外同步
+    console.log('[SyncService] 商品定位绩效数据已在syncKeywordPerformanceData中一并处理');
+    return 0;
   }
 
   /**
@@ -2302,12 +2380,19 @@ export async function runAutoBidOptimization(
   const db = await getDb();
   if (!db) return { optimized: 0, skipped: 0 };
 
-  // 获取需要优化的关键词
+  // ✅ 修复: 添加accountId过滤，避免跨账号优化
+  // 通过campaigns和adGroups关联获取当前账号的关键词
   const keywordsToOptimize = await db
-    .select()
+    .select({ keyword: keywords })
     .from(keywords)
-    .where(eq(keywords.keywordStatus, 'enabled'))
-    .limit(100);
+    .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
+    .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+    .where(and(
+      eq(campaigns.accountId, accountId),
+      eq(keywords.keywordStatus, 'enabled')
+    ))
+    .limit(100)
+    .then(rows => rows.map(r => r.keyword));
 
   const results = { optimized: 0, skipped: 0 };
 

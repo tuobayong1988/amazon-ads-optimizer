@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { OptimizationLogs } from "@/components/OptimizationLogs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -311,6 +312,7 @@ export default function PerformanceGroupDetail() {
           <TabsList>
             <TabsTrigger value="overview">概览</TabsTrigger>
             <TabsTrigger value="campaigns">广告活动 ({groupCampaigns?.length || 0})</TabsTrigger>
+            <TabsTrigger value="logs">优化日志</TabsTrigger>
             <TabsTrigger value="scenario">场景模拟</TabsTrigger>
           </TabsList>
 
@@ -438,6 +440,14 @@ export default function PerformanceGroupDetail() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* 优化日志Tab */}
+          <TabsContent value="logs" className="space-y-4">
+            <OptimizationLogs 
+              performanceGroupId={groupId!} 
+              performanceGroupName={group.name}
+            />
           </TabsContent>
 
           {/* 场景模拟Tab */}

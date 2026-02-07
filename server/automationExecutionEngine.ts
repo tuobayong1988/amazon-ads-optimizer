@@ -437,21 +437,63 @@ export async function executeOptimization(
   // 执行实际操作
   try {
     switch (type) {
-      case 'bid_adjustment':
+      case 'bid_adjustment': {
+        // ✅ 修复P0-3: 添加Amazon API调用，确保自动优化动作传递到Amazon
+        let bidApiSuccess = false;
+        let bidCampaignId = 0;
+        let bidAdGroupId = 0;
+        const keyword = await db.getKeywordById(targetId);
+        if (keyword) {
+          const adGroup = await db.getAdGroupById(keyword.adGroupId);
+          if (adGroup) {
+            bidAdGroupId = adGroup.id;
+            bidCampaignId = adGroup.campaignId;
+            const campaign = await db.getCampaignById(adGroup.campaignId);
+            if (campaign?.accountId) {
+              try {
+                const credentials = await db.getAmazonApiCredentials(campaign.accountId);
+                if (credentials && keyword.keywordId) {
+                  const { AmazonSyncService: SyncSvc } = await import('./amazonSyncService');
+                  const accountInfo = await db.getAdAccountById(campaign.accountId);
+                  const svc = await SyncSvc.createFromCredentials(
+                    {
+                      clientId: credentials.clientId,
+                      clientSecret: credentials.clientSecret,
+                      refreshToken: credentials.refreshToken,
+                      profileId: credentials.profileId,
+                      region: credentials.region as 'NA' | 'EU' | 'FE',
+                    },
+                    campaign.accountId,
+                    0,
+                    accountInfo?.marketplace || 'US'
+                  );
+                  await svc.client.updateKeywordBids([{
+                    keywordId: parseInt(keyword.keywordId),
+                    bid: newValue,
+                  }]);
+                  bidApiSuccess = true;
+                }
+              } catch (apiErr: any) {
+                console.error(`[AutoExec] Amazon API调用失败 (keyword ${targetId}):`, apiErr.message);
+              }
+            }
+          }
+        }
         await db.updateKeyword(targetId, { bid: String(newValue) });
         await db.createBiddingLog({
           accountId,
-          campaignId: 0, // TODO: 获取实际campaignId
-          adGroupId: 0,
+          campaignId: bidCampaignId,
+          adGroupId: bidAdGroupId,
           logTargetType: 'keyword',
           targetId,
           targetName,
           actionType: newValue > currentValue ? 'increase' : 'decrease',
           previousBid: String(currentValue),
           newBid: String(newValue),
-          reason: `[自动执行] ${reason}`,
+          reason: `${bidApiSuccess ? '[API✅]' : '[API❌]'} [自动执行] ${reason}`,
         });
         break;
+      }
         
       case 'budget_adjustment':
         await db.updateCampaign(targetId, { dailyBudget: String(newValue) });

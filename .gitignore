@@ -105,3 +105,5 @@ temp/
 *.db
 *.sqlite
 *.sqlite3
+deploy*.zip
+deploy.zip
