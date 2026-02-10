@@ -544,14 +544,7 @@ export default function PerformanceGroupDetail() {
                       {filteredAvailableCampaigns.map((campaign: any) => (
                         <div 
                           key={campaign.id}
-                          className="flex items-center gap-2 p-2 border rounded hover:bg-muted/50 cursor-pointer"
-                          onClick={() => {
-                            if (selectedCampaigns.includes(campaign.id)) {
-                              setSelectedCampaigns(prev => prev.filter(id => id !== campaign.id));
-                            } else {
-                              setSelectedCampaigns(prev => [...prev, campaign.id]);
-                            }
-                          }}
+                          className="flex items-center gap-2 p-2 border rounded hover:bg-muted/50"
                         >
                           <Checkbox 
                             checked={selectedCampaigns.includes(campaign.id)}

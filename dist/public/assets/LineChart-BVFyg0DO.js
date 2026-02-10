@@ -1,1 +1,0 @@
-import{ak as a,a1 as i,a2 as s,al as r}from"./index-DtTwuMvk.js";import{L as x}from"./Line-CidkHpLc.js";var t=a({chartName:"LineChart",GraphicalChild:x,axisComponents:[{axisType:"xAxis",AxisComp:i},{axisType:"yAxis",AxisComp:s}],formatAxisMap:r});export{t as L};
