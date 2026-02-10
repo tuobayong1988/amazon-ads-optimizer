@@ -60,7 +60,7 @@ import { CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from './DashboardLayoutSkeleton';
 import { Button } from "./ui/button";
-import AccountSwitcher from "./AccountSwitcher";
+import GlobalAccountSelector from "./GlobalAccountSelector";
 import { MobileBottomNav } from "./MobileBottomNav";
 
 // 菜单分组配置 - 极简化设计
@@ -347,7 +347,7 @@ function DashboardLayoutContent({
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <AccountSwitcher compact />
+            <GlobalAccountSelector compact />
           </div>
         </div>
         <main className={`flex-1 ${isMobile ? 'p-4 pb-20' : 'p-6'}`}>{children}</main>
