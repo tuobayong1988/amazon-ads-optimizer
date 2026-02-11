@@ -425,7 +425,7 @@ export default function PerformanceGroupDetail() {
                           <div>
                             <p className="font-medium">{campaign.campaignName}</p>
                             <p className="text-sm text-muted-foreground">
-                              {campaign.campaignType} | 花费: ${campaign.spend?.toFixed(2) || '0.00'} | ACoS: {Number(campaign.acos)?.toFixed(2) || '0.00'}%
+                              {campaign.campaignType} | 花费: ${Number(campaign.spend || 0).toFixed(2)} | ACoS: {Number(campaign.acos || 0).toFixed(2)}%
                             </p>
                           </div>
                         </div>

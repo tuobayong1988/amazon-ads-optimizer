@@ -1,1 +1,0 @@
-import{aj as a,a3 as i,a0 as s,a1 as t,ak as e}from"./index-CeWB269q.js";var x=a({chartName:"BarChart",GraphicalChild:i,defaultTooltipEventType:"axis",validateTooltipEventTypes:["axis","item"],axisComponents:[{axisType:"xAxis",AxisComp:s},{axisType:"yAxis",AxisComp:t}],formatAxisMap:e});export{x as B};

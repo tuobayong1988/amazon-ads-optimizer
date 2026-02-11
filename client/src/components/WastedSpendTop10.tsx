@@ -129,7 +129,7 @@ export function WastedSpendTop10({
                   </div>
                   <div className="flex flex-col items-end gap-2">
                     <div className="text-lg font-bold text-red-500">
-                      ${keyword.spend.toFixed(2)}
+                      ${Number(keyword.spend || 0).toFixed(2)}
                     </div>
                     <Button
                       variant="ghost"

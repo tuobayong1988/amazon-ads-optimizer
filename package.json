@@ -4,14 +4,14 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "start": "NODE_ENV=production node dist/index.js",
-    "build": "NODE_OPTIONS='--max-old-space-size=4096' vite build -c vite.build.config.ts"
+    "start": "NODE_ENV=production node dist/index.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",
     "@aws-sdk/client-sns": "^3.967.0",
     "@aws-sdk/client-sqs": "^3.967.0",
     "@aws-sdk/s3-request-presigner": "^3.693.0",
+    "@tanstack/react-query": "^5.90.21",
     "@trpc/client": "^11.6.0",
     "@trpc/react-query": "^11.6.0",
     "@trpc/server": "^11.6.0",
@@ -24,11 +24,23 @@
     "drizzle-orm": "^0.44.5",
     "express": "^4.21.2",
     "jose": "6.1.0",
+    "json-bigint": "^1.0.0",
     "jsonwebtoken": "^9.0.3",
     "mysql2": "^3.15.0",
     "nanoid": "^5.1.5",
     "superjson": "^1.13.3",
-    "zod": "^4.1.12",
-    "json-bigint": "^1.0.0"
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@builder.io/vite-plugin-jsx-loc": "^0.1.1",
+    "@tailwindcss/vite": "^4.1.18",
+    "@vitejs/plugin-react": "^5.1.4",
+    "esbuild": "^0.27.3",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "tailwindcss": "^4.1.18",
+    "tw-animate-css": "^1.4.0",
+    "vite": "^7.3.1",
+    "vite-plugin-manus-runtime": "^0.0.57"
   }
 }
