@@ -772,7 +772,7 @@ export default function Campaigns() {
       startDate: dateRange.startDate,
       endDate: dateRange.endDate,
     },
-    { enabled: shouldFetchAll || !!accountId }
+    { enabled: !!accountId }
   );
 
   // Fetch performance groups for assignment

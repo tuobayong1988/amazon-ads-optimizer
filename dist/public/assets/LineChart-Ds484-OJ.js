@@ -1,1 +1,0 @@
-import{aj as a,a0 as i,a1 as s,ak as r}from"./index-CkvIt5SF.js";import{L as x}from"./Line-D0iftpAA.js";var t=a({chartName:"LineChart",GraphicalChild:x,axisComponents:[{axisType:"xAxis",AxisComp:i},{axisType:"yAxis",AxisComp:s}],formatAxisMap:r});export{t as L};
