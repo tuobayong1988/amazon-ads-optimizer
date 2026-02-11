@@ -296,7 +296,7 @@ export default function PerformanceGroupDetail() {
               <CardDescription>实际ACoS</CardDescription>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Percent className="w-5 h-5 text-blue-500" />
-                {kpiSummary?.acos?.toFixed(2) || '0.00'}%
+                {(kpiSummary?.acos != null ? Number(kpiSummary.acos).toFixed(2) : '0.00')}%
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -417,7 +417,7 @@ export default function PerformanceGroupDetail() {
                           <div>
                             <p className="font-medium">{campaign.campaignName}</p>
                             <p className="text-sm text-muted-foreground">
-                              {campaign.campaignType} | 花费: ${campaign.spend?.toFixed(2) || '0.00'} | ACoS: {campaign.acos?.toFixed(2) || '0.00'}%
+                              {campaign.campaignType} | 花费: ${campaign.spend != null ? Number(campaign.spend).toFixed(2) : '0.00'} | ACoS: {campaign.acos != null ? Number(campaign.acos).toFixed(2) : '0.00'}%
                             </p>
                           </div>
                         </div>
@@ -559,7 +559,7 @@ export default function PerformanceGroupDetail() {
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate">{campaign.campaignName}</p>
                             <p className="text-xs text-muted-foreground">
-                              {campaign.campaignType} | ACoS: {campaign.acos?.toFixed(2) || '0'}%
+                              {campaign.campaignType} | ACoS: {campaign.acos != null ? Number(campaign.acos).toFixed(2) : '0'}%
                             </p>
                           </div>
                         </div>
