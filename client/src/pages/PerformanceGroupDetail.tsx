@@ -61,12 +61,28 @@ export default function PerformanceGroupDetail() {
   const [showEditGoalDialog, setShowEditGoalDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCampaigns, setSelectedCampaigns] = useState<number[]>([]);
+  
+  // 筛选条件状态
+  const [filterCampaignType, setFilterCampaignType] = useState<string>("all");
+  const [filterBiddingStrategy, setFilterBiddingStrategy] = useState<string>("all");
+  const [filterState, setFilterState] = useState<string>("all");
+  const [filterMinSpend, setFilterMinSpend] = useState<string>("");
+  const [filterMaxSpend, setFilterMaxSpend] = useState<string>("");
+  const [filterMinAcos, setFilterMinAcos] = useState<string>("");
+  const [filterMaxAcos, setFilterMaxAcos] = useState<string>("");
 
-  // 对话框关闭时清空选择
+  // 对话框关闭时清空选择和筛选条件
   useEffect(() => {
     if (!showAddCampaignsDialog) {
       setSelectedCampaigns([]);
       setSearchQuery("");
+      setFilterCampaignType("all");
+      setFilterBiddingStrategy("all");
+      setFilterState("all");
+      setFilterMinSpend("");
+      setFilterMaxSpend("");
+      setFilterMinAcos("");
+      setFilterMaxAcos("");
     }
   }, [showAddCampaignsDialog]);
   
@@ -144,11 +160,49 @@ export default function PerformanceGroupDetail() {
   // 筛选可添加的广告活动
   const filteredAvailableCampaigns = useMemo(() => {
     if (!availableCampaigns) return [];
-    if (!searchQuery) return availableCampaigns;
-    return availableCampaigns.filter(c => 
-      c.campaignName.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [availableCampaigns, searchQuery]);
+    
+    return availableCampaigns.filter((c: any) => {
+      // 搜索关键词筛选(支持模糊搜索)
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const name = c.campaignName?.toLowerCase() || '';
+        if (!name.includes(query)) return false;
+      }
+      
+      // 广告类型筛选
+      if (filterCampaignType !== "all") {
+        const type = c.campaignType?.toLowerCase() || '';
+        if (filterCampaignType === "sp" && !type.includes('sp')) return false;
+        if (filterCampaignType === "sb" && !type.includes('sb')) return false;
+        if (filterCampaignType === "sd" && !type.includes('sd')) return false;
+      }
+      
+      // 计费方式筛选
+      if (filterBiddingStrategy !== "all") {
+        const type = c.campaignType?.toLowerCase() || '';
+        if (filterBiddingStrategy === "manual" && !type.includes('manual')) return false;
+        if (filterBiddingStrategy === "auto" && !type.includes('auto')) return false;
+      }
+      
+      // 运行状态筛选
+      if (filterState !== "all") {
+        const state = c.state?.toLowerCase() || '';
+        if (state !== filterState) return false;
+      }
+      
+      // 花费范围筛选
+      const spend = Number(c.spend || 0);
+      if (filterMinSpend && spend < Number(filterMinSpend)) return false;
+      if (filterMaxSpend && spend > Number(filterMaxSpend)) return false;
+      
+      // ACoS范围筛选
+      const acos = Number(c.acos || 0);
+      if (filterMinAcos && acos < Number(filterMinAcos)) return false;
+      if (filterMaxAcos && acos > Number(filterMaxAcos)) return false;
+      
+      return true;
+    });
+  }, [availableCampaigns, searchQuery, filterCampaignType, filterBiddingStrategy, filterState, filterMinSpend, filterMaxSpend, filterMinAcos, filterMaxAcos]);
 
   // 处理添加广告活动
   const handleAddCampaigns = () => {
@@ -527,13 +581,68 @@ export default function PerformanceGroupDetail() {
               </DialogDescription>
             </DialogHeader>
             
+            {/* 筛选条件 */}
+            <div className="grid grid-cols-4 gap-2 mb-3">
+              <Select value={filterCampaignType} onValueChange={setFilterCampaignType}>
+                <SelectTrigger className="h-8">
+                  <SelectValue placeholder="广告类型" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部类型</SelectItem>
+                  <SelectItem value="sp">SP广告</SelectItem>
+                  <SelectItem value="sb">SB广告</SelectItem>
+                  <SelectItem value="sd">SD广告</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Select value={filterBiddingStrategy} onValueChange={setFilterBiddingStrategy}>
+                <SelectTrigger className="h-8">
+                  <SelectValue placeholder="计费方式" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部方式</SelectItem>
+                  <SelectItem value="manual">手动竞价</SelectItem>
+                  <SelectItem value="auto">自动竞价</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <Select value={filterState} onValueChange={setFilterState}>
+                <SelectTrigger className="h-8">
+                  <SelectValue placeholder="运行状态" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部状态</SelectItem>
+                  <SelectItem value="enabled">已启用</SelectItem>
+                  <SelectItem value="paused">已暂停</SelectItem>
+                  <SelectItem value="archived">已归档</SelectItem>
+                </SelectContent>
+              </Select>
+              
+              <div className="flex gap-1">
+                <Input 
+                  placeholder="最小花费" 
+                  value={filterMinSpend}
+                  onChange={(e) => setFilterMinSpend(e.target.value)}
+                  type="number"
+                  className="h-8 w-20"
+                />
+                <Input 
+                  placeholder="最大花费" 
+                  value={filterMaxSpend}
+                  onChange={(e) => setFilterMaxSpend(e.target.value)}
+                  type="number"
+                  className="h-8 w-20"
+                />
+              </div>
+            </div>
+            
             <div className="grid grid-cols-2 gap-4 h-96">
               {/* 左侧：可选广告活动 */}
               <div className="border rounded-lg p-4">
                 <div className="flex items-center gap-2 mb-3">
                   <Search className="w-4 h-4 text-muted-foreground" />
                   <Input 
-                    placeholder="搜索广告活动..." 
+                    placeholder="搜索广告活动名称..." 
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="h-8"
