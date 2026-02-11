@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { OptimizationLogs } from "@/components/OptimizationLogs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,6 +61,14 @@ export default function PerformanceGroupDetail() {
   const [showEditGoalDialog, setShowEditGoalDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCampaigns, setSelectedCampaigns] = useState<number[]>([]);
+
+  // 对话框关闭时清空选择
+  useEffect(() => {
+    if (!showAddCampaignsDialog) {
+      setSelectedCampaigns([]);
+      setSearchQuery("");
+    }
+  }, [showAddCampaignsDialog]);
   
   // 目标设置状态
   const [editingGoal, setEditingGoal] = useState({
@@ -296,7 +304,7 @@ export default function PerformanceGroupDetail() {
               <CardDescription>实际ACoS</CardDescription>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Percent className="w-5 h-5 text-blue-500" />
-                {(kpiSummary?.acos != null ? Number(kpiSummary.acos).toFixed(2) : '0.00')}%
+                {Number(kpiSummary?.acos)?.toFixed(2) || '0.00'}%
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -417,7 +425,7 @@ export default function PerformanceGroupDetail() {
                           <div>
                             <p className="font-medium">{campaign.campaignName}</p>
                             <p className="text-sm text-muted-foreground">
-                              {campaign.campaignType} | 花费: ${campaign.spend != null ? Number(campaign.spend).toFixed(2) : '0.00'} | ACoS: {campaign.acos != null ? Number(campaign.acos).toFixed(2) : '0.00'}%
+                              {campaign.campaignType} | 花费: ${campaign.spend?.toFixed(2) || '0.00'} | ACoS: {Number(campaign.acos)?.toFixed(2) || '0.00'}%
                             </p>
                           </div>
                         </div>
@@ -547,19 +555,29 @@ export default function PerformanceGroupDetail() {
                           className="flex items-center gap-2 p-2 border rounded hover:bg-muted/50"
                         >
                           <Checkbox 
+                            id={`campaign-${campaign.id}`}
                             checked={selectedCampaigns.includes(campaign.id)}
                             onCheckedChange={(checked) => {
+                              console.log('Checkbox changed:', campaign.id, checked, 'current:', selectedCampaigns);
                               if (checked) {
-                                setSelectedCampaigns(prev => [...prev, campaign.id]);
+                                setSelectedCampaigns(prev => {
+                                  const newState = [...prev, campaign.id];
+                                  console.log('New state after add:', newState);
+                                  return newState;
+                                });
                               } else {
-                                setSelectedCampaigns(prev => prev.filter(id => id !== campaign.id));
+                                setSelectedCampaigns(prev => {
+                                  const newState = prev.filter(id => id !== campaign.id);
+                                  console.log('New state after remove:', newState);
+                                  return newState;
+                                });
                               }
                             }}
                           />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium truncate">{campaign.campaignName}</p>
                             <p className="text-xs text-muted-foreground">
-                              {campaign.campaignType} | ACoS: {campaign.acos != null ? Number(campaign.acos).toFixed(2) : '0'}%
+                              {campaign.campaignType} | ACoS: {Number(campaign.acos)?.toFixed(2) || '0'}%
                             </p>
                           </div>
                         </div>
@@ -617,11 +635,14 @@ export default function PerformanceGroupDetail() {
                 取消
               </Button>
               <Button 
-                onClick={handleAddCampaigns}
+                onClick={() => {
+                  console.log('Button clicked, selected:', selectedCampaigns);
+                  handleAddCampaigns();
+                }}
                 disabled={selectedCampaigns.length === 0 || addCampaignsMutation.isPending}
               >
                 {addCampaignsMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                添加 {selectedCampaigns.length} 个广告活动
+                {selectedCampaigns.length > 0 ? `添加 ${selectedCampaigns.length} 个广告活动` : '确认添加'}
               </Button>
             </DialogFooter>
           </DialogContent>

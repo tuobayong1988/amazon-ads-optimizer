@@ -46,28 +46,27 @@ import {
 import { toast } from "sonner";
 import { Link } from "wouter";
 import { StrategyTemplates } from "@/components/StrategyTemplates";
-import { useCurrentAccountId, setCurrentAccountId } from "@/components/AccountSwitcher";
+import { useCurrentStore, useCurrentMarketplace } from "@/components/GlobalAccountSelector";
 
 export default function StrategyCenter() {
   const [, setLocation] = useLocation();
-  const globalAccountId = useCurrentAccountId();
+  const currentStore = useCurrentStore();
+  const currentMarketplace = useCurrentMarketplace();
   const [activeTab, setActiveTab] = useState("targets");
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // 获取账号列表
   const { data: accounts } = trpc.adAccount.list.useQuery();
   
-  // 优先使用全局选择的accountId，只有在用户从未选择过账号时才使用默认值
-  // 并且在使用默认值时同步更新localStorage，避免下次访问时再次出现不一致
+  // 根据店铺+站点查找对应的accountId
   const accountId = useMemo(() => {
-    if (globalAccountId) return globalAccountId;
-    if (accounts?.[0]?.id) {
-      // 用户从未选择过账号，使用第一个账号并保存到localStorage
-      setCurrentAccountId(accounts[0].id);
-      return accounts[0].id;
-    }
-    return null;
-  }, [globalAccountId, accounts]);
+    if (!accounts || !currentStore || !currentMarketplace) return null;
+    const account = accounts.find(a => 
+      (a.storeName || a.accountName) === currentStore && 
+      a.marketplace === currentMarketplace
+    );
+    return account?.id || null;
+  }, [accounts, currentStore, currentMarketplace]);
 
   // 获取优化目标（绩效组）
   const performanceGroupsQuery = trpc.performanceGroup.list.useQuery(
@@ -211,21 +210,6 @@ export default function StrategyCenter() {
             </p>
           </div>
           <div className="flex items-center gap-3">
-            <Select
-              value={accountId?.toString() || ""}
-              onValueChange={(v) => setCurrentAccountId(parseInt(v))}
-            >
-              <SelectTrigger className="w-[180px]">
-                <SelectValue placeholder="选择账号" />
-              </SelectTrigger>
-              <SelectContent>
-                {accounts?.map((account) => (
-                  <SelectItem key={account.id} value={account.id.toString()}>
-                    {account.accountName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
             <Button
               variant="outline"
               size="sm"

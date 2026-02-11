@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useCurrentStore, useCurrentMarketplace } from "@/components/GlobalAccountSelector";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useIsMobile } from "@/hooks/useMobile";
@@ -576,6 +577,10 @@ export default function Campaigns() {
   const isMobile = useIsMobile();
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   
+  // 使用GlobalAccountSelector的选择
+  const currentStore = useCurrentStore();
+  const currentMarketplace = useCurrentMarketplace();
+  
   // URL筛选条件持久化
   const { filters, setFilter, setFilters, resetFilters, getShareableUrl } = useUrlFilters<{
     search: string;
@@ -724,9 +729,27 @@ export default function Campaigns() {
   // Fetch accounts
   const { data: accounts } = trpc.adAccount.list.useQuery();
   
-  // 当选择全部站点时，不传accountId，获取所有账户的campaigns
-  const shouldFetchAll = storeFilter === 'all' && marketplaceFilter === 'all';
-  const accountId = shouldFetchAll ? undefined : (selectedAccountId || accounts?.[0]?.id);
+  // 使用GlobalAccountSelector的选择查找对应的accountId
+  const accountId = useMemo(() => {
+    if (!accounts || !currentStore || !currentMarketplace) return undefined;
+    const account = accounts.find(a => 
+      (a.storeName || a.accountName) === currentStore && 
+      a.marketplace === currentMarketplace
+    );
+    return account?.id;
+  }, [accounts, currentStore, currentMarketplace]);
+  
+  // 同步GlobalAccountSelector的选择到URL筛选（仅用于显示）
+  useEffect(() => {
+    if (currentStore && currentMarketplace) {
+      if (storeFilter !== currentStore) {
+        setFilter('store', currentStore);
+      }
+      if (marketplaceFilter !== currentMarketplace) {
+        setFilter('marketplace', currentMarketplace);
+      }
+    }
+  }, [currentStore, currentMarketplace, storeFilter, marketplaceFilter, setFilter]);
 
   // 计算时间范围
   const dateRange = useMemo(() => {
@@ -2011,48 +2034,13 @@ export default function Campaigns() {
                 (billingTypeFilter !== 'all' ? 1 : 0) +
                 (runningStatusFilter !== 'all' ? 1 : 0) +
                 (optimizationStatusFilter !== 'all' ? 1 : 0) +
-                (storeFilter !== 'all' ? 1 : 0) +
-                (marketplaceFilter !== 'all' ? 1 : 0) +
                 (searchTerm ? 1 : 0)
               }
               onClearAll={resetFilters}
             >
             <div className="space-y-4">
-              {/* 第一行：店铺和站点筛选 */}
+              {/* 第一行：搜索和筛选 */}
               <div className={`flex ${isMobile ? 'flex-col gap-3' : 'flex-wrap items-center gap-4'}`}>
-                {/* 店铺筛选 */}
-                <div className={`flex items-center gap-2 ${isMobile ? 'w-full' : ''}`}>
-                  <span className="text-sm font-medium text-foreground whitespace-nowrap">店铺:</span>
-                  <Select value={storeFilter} onValueChange={setStoreFilter}>
-                    <SelectTrigger className={`h-9 ${isMobile ? 'flex-1' : 'w-[180px]'}`}>
-                      <SelectValue placeholder="选择店铺" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {storeOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* 站点筛选 */}
-                <div className={`flex items-center gap-2 ${isMobile ? 'w-full' : ''}`}>
-                  <span className="text-sm font-medium text-foreground whitespace-nowrap">站点:</span>
-                  <Select value={marketplaceFilter} onValueChange={setMarketplaceFilter}>
-                    <SelectTrigger className={`h-9 ${isMobile ? 'flex-1' : 'w-[160px]'}`}>
-                      <SelectValue placeholder="选择站点" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {marketplaceOptions.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
 
                 {/* 搜索框 */}
                 <div className={`${isMobile ? 'w-full' : 'flex-1 min-w-[200px]'}`}>
@@ -2164,20 +2152,10 @@ export default function Campaigns() {
               </div>
 
               {/* 当前筛选条件摘要 */}
-              {(storeFilter !== "all" || marketplaceFilter !== "all" || typeFilter !== "all" || billingTypeFilter !== "all" || runningStatusFilter !== "all" || optimizationStatusFilter !== "all") && (
+              {(typeFilter !== "all" || billingTypeFilter !== "all" || runningStatusFilter !== "all" || optimizationStatusFilter !== "all") && (
                 <div className="flex items-center gap-2 pt-2 border-t">
                   <span className="text-sm text-muted-foreground">当前筛选:</span>
                   <div className="flex flex-wrap gap-1">
-                    {storeFilter !== "all" && (
-                      <Badge variant="secondary" className="cursor-pointer hover:bg-destructive/20" onClick={() => setStoreFilter("all")}>
-                        店铺: {storeFilter} ×
-                      </Badge>
-                    )}
-                    {marketplaceFilter !== "all" && (
-                      <Badge variant="secondary" className="cursor-pointer hover:bg-destructive/20" onClick={() => setMarketplaceFilter("all")}>
-                        站点: {marketplaceLabels[marketplaceFilter] || marketplaceFilter} ×
-                      </Badge>
-                    )}
                     {typeFilter !== "all" && (
                       <Badge variant="secondary" className="cursor-pointer hover:bg-destructive/20" onClick={() => setTypeFilter("all")}>
                         类型: {campaignTypes.find(t => t.value === typeFilter)?.label} ×
