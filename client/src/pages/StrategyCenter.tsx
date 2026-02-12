@@ -246,7 +246,7 @@ export default function StrategyCenter() {
         <StrategyTemplates
           currentAcos={25}
           onApplyTemplate={(template) => {
-            toast.success(`已应用策略模板: ${template.name}`);
+            setLocation(`/optimization-targets?template=${encodeURIComponent(template.id)}&name=${encodeURIComponent(template.name)}&targetAcos=${template.targetAcos}`);
           }}
         />
 
@@ -420,7 +420,7 @@ export default function StrategyCenter() {
         <StrategyTemplates
           currentAcos={25}
           onApplyTemplate={(template) => {
-            toast.success(`已应用策略模板: ${template.name}`);
+            setLocation(`/optimization-targets?template=${encodeURIComponent(template.id)}&name=${encodeURIComponent(template.name)}&targetAcos=${template.targetAcos}`);
           }}
         />
 
