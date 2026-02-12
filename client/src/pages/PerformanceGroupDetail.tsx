@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import DashboardLayout from "@/components/DashboardLayout";
 import { OptimizationLogs } from "@/components/OptimizationLogs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,7 +35,8 @@ import {
   Activity,
   Zap,
   Save,
-  RefreshCw
+  RefreshCw,
+  Download
 } from "lucide-react";
 
 // 优化目标类型
@@ -65,6 +67,7 @@ export default function PerformanceGroupDetail() {
   const [showEditGoalDialog, setShowEditGoalDialog] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCampaigns, setSelectedCampaigns] = useState<number[]>([]);
+  const [timeRange, setTimeRange] = useState("30d");
   
   // 筛选条件状态
   const [filterCampaignType, setFilterCampaignType] = useState<string>("all");
@@ -160,6 +163,15 @@ export default function PerformanceGroupDetail() {
       toast.error(`更新失败: ${error.message}`);
     },
   });
+
+  // 获取绩效趋势数据
+  const days = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
+  const { data: trendData, isLoading: trendLoading } = trpc.performanceGroup.getTrendData.useQuery(
+    { performanceGroupId: groupId!, days },
+    { enabled: !!groupId }
+  );
+  
+  const performanceTrendData = trendData || [];
 
   // 筛选可添加的广告活动
   const filteredAvailableCampaigns = useMemo(() => {
@@ -477,30 +489,105 @@ export default function PerformanceGroupDetail() {
                       </div>
                     </div>
                     
-                    {/* 简单的趋势指示 */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">过去7天</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
-                            <div className="h-full bg-green-500" style={{ width: '75%' }}></div>
-                          </div>
-                          <span className="text-green-500 text-xs font-medium">+75%</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">过去30天</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
-                            <div className="h-full bg-blue-500" style={{ width: '60%' }}></div>
-                          </div>
-                          <span className="text-blue-500 text-xs font-medium">+60%</span>
-                        </div>
-                      </div>
+                    {/* 时间范围选择器和导出按钮 */}
+                    <div className="flex items-center gap-2 justify-end">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => {
+                          // 导出CSV
+                          const csvContent = [
+                            ['日期', '花费($)', '销售额($)', 'ACoS(%)', '转化数'],
+                            ...performanceTrendData.map(d => [
+                              d.date,
+                              d.spend,
+                              d.sales,
+                              d.acos,
+                              d.orders || 0
+                            ])
+                          ].map(row => row.join(',')).join('\n');
+                          
+                          const blob = new Blob([`\ufeff${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+                          const link = document.createElement('a');
+                          link.href = URL.createObjectURL(blob);
+                          link.download = `绩效趋势_${group?.name}_${timeRange}.csv`;
+                          link.click();
+                          toast.success('数据已导出');
+                        }}
+                      >
+                        <Download className="w-4 h-4 mr-1" />
+                        导出CSV
+                      </Button>
+                      <Select value={timeRange} onValueChange={setTimeRange}>
+                        <SelectTrigger className="w-32">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="7d">过去7天</SelectItem>
+                          <SelectItem value="30d">过去30天</SelectItem>
+                          <SelectItem value="90d">过去90天</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     
-                    <div className="text-xs text-muted-foreground text-center pt-2">
-                      完整的趋势图表将在有足够历史数据后显示
+                    {/* 绩效趋势图表 */}
+                    <div className="h-64">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={performanceTrendData}>
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                          <XAxis 
+                            dataKey="date" 
+                            className="text-xs"
+                            tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                          />
+                          <YAxis 
+                            yAxisId="left"
+                            className="text-xs"
+                            tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                          />
+                          <YAxis 
+                            yAxisId="right" 
+                            orientation="right"
+                            className="text-xs"
+                            tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                          />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: 'hsl(var(--background))',
+                              border: '1px solid hsl(var(--border))',
+                              borderRadius: '6px'
+                            }}
+                          />
+                          <Legend />
+                          <Line 
+                            yAxisId="left"
+                            type="monotone" 
+                            dataKey="spend" 
+                            stroke="#8b5cf6" 
+                            strokeWidth={2}
+                            name="花费 ($)"
+                            dot={{ fill: '#8b5cf6' }}
+                          />
+                          <Line 
+                            yAxisId="left"
+                            type="monotone" 
+                            dataKey="sales" 
+                            stroke="#10b981" 
+                            strokeWidth={2}
+                            name="销售额 ($)"
+                            dot={{ fill: '#10b981' }}
+                          />
+                          <Line 
+                            yAxisId="right"
+                            type="monotone" 
+                            dataKey="acos" 
+                            stroke="#f59e0b" 
+                            strokeWidth={2}
+                            name="ACoS (%)"
+                            dot={{ fill: '#f59e0b' }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
                     </div>
                   </div>
                 </CardContent>

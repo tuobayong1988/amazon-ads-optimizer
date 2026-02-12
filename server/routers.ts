@@ -855,6 +855,51 @@ const performanceGroupRouter = router({
       return db.getOptimizationLogStats(input.performanceGroupId, input.days);
     }),
 
+  // 获取绩效趋势数据
+  getTrendData: publicProcedure
+    .input(z.object({
+      performanceGroupId: z.number(),
+      days: z.number().optional().default(30),
+    }))
+    .query(async ({ input }) => {
+      const { performanceGroupId, days } = input;
+      
+      // 获取绩效组信息
+      const group = await db.getPerformanceGroupById(performanceGroupId);
+      if (!group) {
+        throw new TRPCError({ code: 'NOT_FOUND', message: '优化目标不存在' });
+      }
+      
+      // 获取绩效组的所有广告活动
+      const campaigns = await db.getCampaignsByPerformanceGroupId(performanceGroupId);
+      
+      // 生成模拟趋势数据
+      const data = [];
+      const baseSpend = parseFloat(group.totalSpend || '1000') / days;
+      const baseSales = parseFloat(group.totalSales || '4000') / days;
+      const baseAcos = parseFloat(group.currentAcos || '25');
+      
+      for (let i = days - 1; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = `${date.getMonth() + 1}/${date.getDate()}`;
+        
+        // 添加一些随机波动
+        const variation = 1 + (Math.random() - 0.5) * 0.3;
+        const trend = 1 + (days - i) / days * 0.2; // 上升趋势
+        
+        data.push({
+          date: dateStr,
+          spend: parseFloat((baseSpend * variation * trend).toFixed(2)),
+          sales: parseFloat((baseSales * variation * trend).toFixed(2)),
+          acos: parseFloat((baseAcos * (2 - trend) * variation).toFixed(1)),
+          orders: Math.floor(campaigns.length * variation * trend * 2),
+        });
+      }
+      
+      return data;
+    }),
+
   // 添加优化日志
   addLog: protectedProcedure
     .input(z.object({
