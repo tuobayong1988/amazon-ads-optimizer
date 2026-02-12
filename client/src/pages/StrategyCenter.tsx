@@ -44,6 +44,16 @@ import {
   Eye
 } from "lucide-react";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Link } from "wouter";
 import { StrategyTemplates } from "@/components/StrategyTemplates";
 import { useCurrentStore, useCurrentMarketplace } from "@/components/GlobalAccountSelector";
@@ -54,6 +64,8 @@ export default function StrategyCenter() {
   const currentMarketplace = useCurrentMarketplace();
   const [activeTab, setActiveTab] = useState("targets");
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [groupToDelete, setGroupToDelete] = useState<{ id: number; name: string } | null>(null);
 
   // 获取账号列表
   const { data: accounts } = trpc.adAccount.list.useQuery();
@@ -132,9 +144,17 @@ export default function StrategyCenter() {
 
   // 删除优化目标
   const handleDeleteGroup = (groupId: number, groupName: string) => {
-    if (confirm(`确定要删除优化目标 "${groupName}" 吗？此操作不可撤销。`)) {
-      deleteGroupMutation.mutate({ id: groupId });
+    setGroupToDelete({ id: groupId, name: groupName });
+    setDeleteDialogOpen(true);
+  };
+
+  // 确认删除
+  const confirmDelete = () => {
+    if (groupToDelete) {
+      deleteGroupMutation.mutate({ id: groupToDelete.id });
     }
+    setDeleteDialogOpen(false);
+    setGroupToDelete(null);
   };
 
   // 刷新所有数据
@@ -677,6 +697,28 @@ export default function StrategyCenter() {
         </Tabs>
 
       </div>
+
+      {/* 删除确认对话框 */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除优化目标 "{groupToDelete?.name}" 吗？
+              此操作不可撤销，关联的广告活动将不再属于此优化目标。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              确认删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

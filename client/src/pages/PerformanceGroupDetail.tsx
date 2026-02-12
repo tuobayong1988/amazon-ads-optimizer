@@ -52,8 +52,12 @@ const OPTIMIZATION_CATEGORIES = [
 ];
 
 export default function PerformanceGroupDetail() {
-  const [, params] = useRoute("/performance-groups/:id");
+  // 支持两种路由格式
+  const [matchPerformance, paramsPerformance] = useRoute("/performance-groups/:id");
+  const [matchOptimization, paramsOptimization] = useRoute("/optimization-targets/:id");
   const [, setLocation] = useLocation();
+  
+  const params = matchPerformance ? paramsPerformance : paramsOptimization;
   const groupId = params?.id ? parseInt(params.id) : null;
   
   const [activeTab, setActiveTab] = useState("overview");
