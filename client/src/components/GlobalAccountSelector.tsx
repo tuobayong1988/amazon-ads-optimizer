@@ -240,7 +240,7 @@ export default function GlobalAccountSelector({ compact = false }: GlobalAccount
             className={`gap-2 ${compact ? 'h-8' : 'h-9'} min-w-[120px]`}
           >
             <Store className="h-4 w-4 shrink-0" />
-            <span className="truncate hidden sm:inline">
+            <span className="truncate max-w-[100px] sm:max-w-[150px]">
               {currentStore || "选择店铺"}
             </span>
             <ChevronDown className="h-3 w-3 opacity-50 shrink-0" />
@@ -274,7 +274,7 @@ export default function GlobalAccountSelector({ compact = false }: GlobalAccount
             disabled={!currentStore}
           >
             <Globe className="h-4 w-4 shrink-0" />
-            <span className="truncate hidden sm:inline">
+            <span className="truncate max-w-[100px] sm:max-w-[150px]">
               {currentMarketplace 
                 ? `${MARKETPLACE_FLAGS[currentMarketplace] || ''} ${MARKETPLACE_NAMES[currentMarketplace] || currentMarketplace}`
                 : "选择站点"

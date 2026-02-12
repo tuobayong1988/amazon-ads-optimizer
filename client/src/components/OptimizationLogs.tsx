@@ -154,47 +154,86 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
 
     return (
       <div key={log.id} className="border rounded-lg mb-2 overflow-hidden">
-        {/* 日志头部 */}
+        {/* 日志头部 - 响应式布局 */}
         <div 
-          className="flex items-center gap-3 p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+          className="p-3 cursor-pointer hover:bg-muted/50 transition-colors"
           onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
         >
-          {/* 展开/收起图标 */}
-          {isExpanded ? (
-            <ChevronDown className="w-4 h-4 text-muted-foreground" />
-          ) : (
-            <ChevronRight className="w-4 h-4 text-muted-foreground" />
-          )}
-          
-          {/* 分类图标 */}
-          <CategoryIcon className={`w-5 h-5 ${categoryConfig.color}`} />
-          
-          {/* 时间 */}
-          <div className="flex items-center gap-1 text-sm text-muted-foreground min-w-[140px]">
-            <Calendar className="w-3 h-3" />
-            {formatDateTime(log.createdAt)}
-          </div>
-          
-          {/* 操作类型 */}
-          <Badge className={`${actionConfig.color} text-xs`}>
-            {actionConfig.label}
-          </Badge>
-          
-          {/* 状态 */}
-          <StatusIcon className={`w-4 h-4 ${statusConfig.color}`} />
-          
-          {/* 操作用户 */}
-          <div className="flex items-center gap-1 text-sm">
-            <User className="w-3 h-3 text-muted-foreground" />
-            <span>{log.userName || '系统'}</span>
-          </div>
-          
-          {/* Campaign名称（如果有） */}
-          {log.campaignName && (
-            <div className="flex-1 truncate text-sm text-muted-foreground">
-              {log.campaignName}
+          {/* 移动端布局 */}
+          <div className="md:hidden space-y-2">
+            {/* 第一行: 展开图标 + 分类图标 + 操作类型 + 状态 */}
+            <div className="flex items-center gap-2">
+              {isExpanded ? (
+                <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+              ) : (
+                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+              )}
+              <CategoryIcon className={`w-4 h-4 ${categoryConfig.color} shrink-0`} />
+              <Badge className={`${actionConfig.color} text-xs`}>
+                {actionConfig.label}
+              </Badge>
+              <StatusIcon className={`w-4 h-4 ${statusConfig.color} shrink-0`} />
             </div>
-          )}
+            
+            {/* 第二行: 时间 */}
+            <div className="flex items-center gap-1 text-xs text-muted-foreground pl-6">
+              <Calendar className="w-3 h-3" />
+              <span>{formatDateTime(log.createdAt)}</span>
+            </div>
+            
+            {/* 第三行: 用户 + Campaign */}
+            <div className="flex items-center gap-3 text-xs pl-6">
+              <div className="flex items-center gap-1">
+                <User className="w-3 h-3 text-muted-foreground" />
+                <span>{log.userName || '系统'}</span>
+              </div>
+              {log.campaignName && (
+                <div className="flex-1 truncate text-muted-foreground">
+                  {log.campaignName}
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* PC端布局 */}
+          <div className="hidden md:flex items-center gap-3">
+            {/* 展开/收起图标 */}
+            {isExpanded ? (
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            )}
+            
+            {/* 分类图标 */}
+            <CategoryIcon className={`w-5 h-5 ${categoryConfig.color}`} />
+            
+            {/* 时间 */}
+            <div className="flex items-center gap-1 text-sm text-muted-foreground min-w-[140px]">
+              <Calendar className="w-3 h-3" />
+              {formatDateTime(log.createdAt)}
+            </div>
+            
+            {/* 操作类型 */}
+            <Badge className={`${actionConfig.color} text-xs`}>
+              {actionConfig.label}
+            </Badge>
+            
+            {/* 状态 */}
+            <StatusIcon className={`w-4 h-4 ${statusConfig.color}`} />
+            
+            {/* 操作用户 */}
+            <div className="flex items-center gap-1 text-sm">
+              <User className="w-3 h-3 text-muted-foreground" />
+              <span>{log.userName || '系统'}</span>
+            </div>
+            
+            {/* Campaign名称（如果有） */}
+            {log.campaignName && (
+              <div className="flex-1 truncate text-sm text-muted-foreground">
+                {log.campaignName}
+              </div>
+            )}
+          </div>
         </div>
         
         {/* 展开的详情 */}

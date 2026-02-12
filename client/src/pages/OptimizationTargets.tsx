@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useLocation } from "wouter";
@@ -49,17 +49,23 @@ interface FilterCondition {
 function CreateOptimizationTargetDialog({ 
   open, 
   onOpenChange, 
-  onSuccess 
+  onSuccess,
+  templateData
 }: { 
   open: boolean; 
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
+  templateData?: {
+    template: string;
+    name: string;
+    targetAcos: string;
+  };
 }) {
   const [step, setStep] = useState(1);
-  const [name, setName] = useState("");
+  const [name, setName] = useState(templateData?.name || "");
   const [description, setDescription] = useState("");
   const [targetType, setTargetType] = useState("target_acos");
-  const [targetValue, setTargetValue] = useState("");
+  const [targetValue, setTargetValue] = useState(templateData?.targetAcos || "");
   const [dailyBudget, setDailyBudget] = useState("");
   const [maxBid, setMaxBid] = useState("");
   
@@ -311,6 +317,29 @@ function CreateOptimizationTargetDialog({
             {step === 3 && "第三步：确认并创建优化目标"}
           </DialogDescription>
         </DialogHeader>
+        
+        {/* 模板信息提示 */}
+        {templateData && (
+          <div className="bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg p-3 flex items-start gap-3">
+            <div className="flex-shrink-0">
+              <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                <Target className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              </div>
+            </div>
+            <div className="flex-1">
+              <div className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-1">
+                基于策略模板创建
+              </div>
+              <div className="text-xs text-blue-700 dark:text-blue-300">
+                模板名称: <span className="font-medium">{templateData.name}</span> | 
+                目标ACoS: <span className="font-medium">{templateData.targetAcos}%</span>
+              </div>
+              <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                以下参数已自动填充，您可以根据需要进行调整
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 步骤指示器 */}
         <div className="flex items-center justify-center gap-2 py-4">
@@ -1004,6 +1033,28 @@ function OptimizationTargetCard({
 export default function OptimizationTargets() {
   const [, setLocation] = useLocation();
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [templateData, setTemplateData] = useState<{
+    template: string;
+    name: string;
+    targetAcos: string;
+  } | undefined>(undefined);
+
+  // 解析URL参数，检测是否有模板信息
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const template = params.get('template');
+    const name = params.get('name');
+    const targetAcos = params.get('targetAcos');
+    
+    if (template && name && targetAcos) {
+      // 设置模板数据
+      setTemplateData({ template, name, targetAcos });
+      // 自动打开创建对话框
+      setCreateDialogOpen(true);
+      // 清除URL参数，避免刷新页面时重复打开
+      window.history.replaceState({}, '', '/optimization-targets');
+    }
+  }, []);
 
   // 获取账号列表
   const { data: accounts } = trpc.adAccount.list.useQuery();
@@ -1141,6 +1192,7 @@ export default function OptimizationTargets() {
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
         onSuccess={refetch}
+        templateData={templateData}
       />
     </DashboardLayout>
   );
