@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- 首页 -->
+  <url>
+    <loc>https://amazon-ads-optimizer.manus.space/</loc>
+    <lastmod>2026-01-10</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  
+  <!-- 数据概览 -->
+  <url>
+    <loc>https://amazon-ads-optimizer.manus.space/dashboard</loc>
+    <lastmod>2026-01-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  
+  <!-- 广告活动 -->
+  <url>
+    <loc>https://amazon-ads-optimizer.manus.space/campaigns</loc>
+    <lastmod>2026-01-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  
+  <!-- 策略管理 -->
+  <url>
+    <loc>https://amazon-ads-optimizer.manus.space/strategy-center</loc>
+    <lastmod>2026-01-10</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  
+  <!-- 优化目标 -->
+  <url>
+    <loc>https://amazon-ads-optimizer.manus.space/optimization-targets</loc>
+    <lastmod>2026-01-10</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  
+  <!-- 智能优化中心 -->
+  <url>
+    <loc>https://amazon-ads-optimizer.manus.space/smart-optimization</loc>
+    <lastmod>2026-01-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  
+  <!-- A/B测试 -->
+  <url>
+    <loc>https://amazon-ads-optimizer.manus.space/ab-testing</loc>
+    <lastmod>2026-01-10</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  
+  <!-- 数据报告 -->
+  <url>
+    <loc>https://amazon-ads-optimizer.manus.space/reports</loc>
+    <lastmod>2026-01-10</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  
+  <!-- 设置 -->
+  <url>
+    <loc>https://amazon-ads-optimizer.manus.space/settings</loc>
+    <lastmod>2026-01-10</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+</urlset>
