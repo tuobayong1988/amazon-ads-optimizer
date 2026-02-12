@@ -855,7 +855,7 @@ const performanceGroupRouter = router({
       return db.getOptimizationLogStats(input.performanceGroupId, input.days);
     }),
 
-  // 获取绩效趋势数据
+  // 获取绩效趋势数据 (使用真实历史数据)
   getTrendData: publicProcedure
     .input(z.object({
       performanceGroupId: z.number(),
@@ -870,34 +870,48 @@ const performanceGroupRouter = router({
         throw new TRPCError({ code: 'NOT_FOUND', message: '优化目标不存在' });
       }
       
-      // 获取绩效组的所有广告活动
-      const campaigns = await db.getCampaignsByPerformanceGroupId(performanceGroupId);
+      // 计算日期范围
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - days);
       
-      // 生成模拟趋势数据
-      const data = [];
-      const baseSpend = parseFloat(group.totalSpend || '1000') / days;
-      const baseSales = parseFloat(group.totalSales || '4000') / days;
-      const baseAcos = parseFloat(group.currentAcos || '25');
+      // 从数据库获取真实历史数据
+      const { getDailyPerformanceByPerformanceGroup } = await import('./db-performance-trend');
+      const dailyData = await getDailyPerformanceByPerformanceGroup(
+        performanceGroupId,
+        startDate,
+        endDate
+      );
       
-      for (let i = days - 1; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        const dateStr = `${date.getMonth() + 1}/${date.getDate()}`;
-        
-        // 添加一些随机波动
-        const variation = 1 + (Math.random() - 0.5) * 0.3;
-        const trend = 1 + (days - i) / days * 0.2; // 上升趋势
-        
-        data.push({
-          date: dateStr,
-          spend: parseFloat((baseSpend * variation * trend).toFixed(2)),
-          sales: parseFloat((baseSales * variation * trend).toFixed(2)),
-          acos: parseFloat((baseAcos * (2 - trend) * variation).toFixed(1)),
-          orders: Math.floor(campaigns.length * variation * trend * 2),
-        });
+      // 如果没有历史数据,返回空数组(前端会显示“暂无数据”)
+      if (!dailyData || dailyData.length === 0) {
+        return [];
       }
       
-      return data;
+      // 转换为前端需要的格式
+      return dailyData.map(day => {
+        const sales = parseFloat(day.totalSales || '0');
+        const spend = parseFloat(day.totalSpend || '0');
+        const impressions = day.totalImpressions || 0;
+        const clicks = day.totalClicks || 0;
+        const orders = day.totalOrders || 0;
+        
+        return {
+          date: new Date(day.date).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }),
+          fullDate: day.date,
+          spend,
+          sales,
+          impressions,
+          clicks,
+          orders,
+          // 计算派生指标
+          acos: sales > 0 ? (spend / sales) * 100 : 0,
+          roas: spend > 0 ? sales / spend : 0,
+          ctr: impressions > 0 ? (clicks / impressions) * 100 : 0,
+          cvr: clicks > 0 ? (orders / clicks) * 100 : 0,
+          cpc: clicks > 0 ? spend / clicks : 0,
+        };
+      });
     }),
 
   // 添加优化日志

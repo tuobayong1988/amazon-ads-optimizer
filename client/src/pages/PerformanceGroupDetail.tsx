@@ -1,5 +1,14 @@
-import { useState, useMemo, useEffect } from "react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { useState, useMemo, useEffect, useRef } from "react";
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
+import { 
+  LineChart, Line, 
+  BarChart, Bar,
+  AreaChart, Area,
+  ComposedChart,
+  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
+} from 'recharts';
 import DashboardLayout from "@/components/DashboardLayout";
 import { OptimizationLogs } from "@/components/OptimizationLogs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,6 +77,7 @@ export default function PerformanceGroupDetail() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCampaigns, setSelectedCampaigns] = useState<number[]>([]);
   const [timeRange, setTimeRange] = useState("30d");
+  const [chartType, setChartType] = useState<'line' | 'bar' | 'area' | 'composed'>('line');
   
   // 筛选条件状态
   const [filterCampaignType, setFilterCampaignType] = useState<string>("all");
@@ -489,36 +499,86 @@ export default function PerformanceGroupDetail() {
                       </div>
                     </div>
                     
-                    {/* 时间范围选择器和导出按钮 */}
-                    <div className="flex items-center gap-2 justify-end">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => {
-                          // 导出CSV
-                          const csvContent = [
-                            ['日期', '花费($)', '销售额($)', 'ACoS(%)', '转化数'],
-                            ...performanceTrendData.map(d => [
-                              d.date,
-                              d.spend,
-                              d.sales,
-                              d.acos,
-                              d.orders || 0
-                            ])
-                          ].map(row => row.join(',')).join('\n');
-                          
-                          const blob = new Blob([`\ufeff${csvContent}`], { type: 'text/csv;charset=utf-8;' });
-                          const link = document.createElement('a');
-                          link.href = URL.createObjectURL(blob);
-                          link.download = `绩效趋势_${group?.name}_${timeRange}.csv`;
-                          link.click();
-                          toast.success('数据已导出');
-                        }}
-                      >
-                        <Download className="w-4 h-4 mr-1" />
-                        导出CSV
-                      </Button>
-                      <Select value={timeRange} onValueChange={setTimeRange}>
+                    {/* 图表类型和时间范围选择器 */}
+                    <div className="flex items-center gap-2 justify-between">
+                      <Select value={chartType} onValueChange={(v: any) => setChartType(v)}>
+                        <SelectTrigger className="w-32">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="line">折线图</SelectItem>
+                          <SelectItem value="bar">柱状图</SelectItem>
+                          <SelectItem value="area">面积图</SelectItem>
+                          <SelectItem value="composed">组合图</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      
+                      <div className="flex items-center gap-2">
+                        <Select 
+                          value="" 
+                          onValueChange={(format) => {
+                            if (format === 'csv') {
+                              // 导出CSV
+                              const csvContent = [
+                                ['日期', '花费($)', '销售额($)', 'ACoS(%)', '转化数'],
+                                ...performanceTrendData.map(d => [
+                                  d.date,
+                                  d.spend,
+                                  d.sales,
+                                  d.acos,
+                                  d.orders || 0
+                                ])
+                              ].map(row => row.join(',')).join('\n');
+                              
+                              const blob = new Blob([`\ufeff${csvContent}`], { type: 'text/csv;charset=utf-8;' });
+                              const link = document.createElement('a');
+                              link.href = URL.createObjectURL(blob);
+                              link.download = `绩效趋势_${group?.name}_${timeRange}.csv`;
+                              link.click();
+                              toast.success('CSV已导出');
+                            } else if (format === 'excel') {
+                              // 导出Excel
+                              const ws = XLSX.utils.json_to_sheet(performanceTrendData.map(d => ({
+                                '日期': d.date,
+                                '花费($)': d.spend,
+                                '销售额($)': d.sales,
+                                'ACoS(%)': d.acos,
+                                '转化数': d.orders || 0,
+                                '点击数': d.clicks || 0,
+                                '展示数': d.impressions || 0
+                              })));
+                              const wb = XLSX.utils.book_new();
+                              XLSX.utils.book_append_sheet(wb, ws, '绩效趋势');
+                              XLSX.writeFile(wb, `绩效趋势_${group?.name}_${timeRange}.xlsx`);
+                              toast.success('Excel已导出');
+                            } else if (format === 'pdf') {
+                              // 导出PDF (包含图表)
+                              const chartElement = document.querySelector('.h-64') as HTMLElement;
+                              if (chartElement) {
+                                html2canvas(chartElement, { scale: 2 }).then(canvas => {
+                                  const imgData = canvas.toDataURL('image/png');
+                                  const pdf = new jsPDF('l', 'mm', 'a4');
+                                  const imgWidth = 280;
+                                  const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                                  pdf.text(`绩效趋势 - ${group?.name}`, 10, 10);
+                                  pdf.addImage(imgData, 'PNG', 10, 20, imgWidth, imgHeight);
+                                  pdf.save(`绩效趋势_${group?.name}_${timeRange}.pdf`);
+                                  toast.success('PDF已导出');
+                                });
+                              }
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="w-32">
+                            <SelectValue placeholder="导出数据" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="csv">导出CSV</SelectItem>
+                            <SelectItem value="excel">导出Excel</SelectItem>
+                            <SelectItem value="pdf">导出PDF</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Select value={timeRange} onValueChange={setTimeRange}>
                         <SelectTrigger className="w-32">
                           <SelectValue />
                         </SelectTrigger>
@@ -528,12 +588,14 @@ export default function PerformanceGroupDetail() {
                           <SelectItem value="90d">过去90天</SelectItem>
                         </SelectContent>
                       </Select>
+                      </div>
                     </div>
                     
                     {/* 绩效趋势图表 */}
                     <div className="h-64">
                       <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={performanceTrendData}>
+                        {chartType === 'line' ? (
+                          <LineChart data={performanceTrendData}>
                           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                           <XAxis 
                             dataKey="date" 
@@ -587,6 +649,151 @@ export default function PerformanceGroupDetail() {
                             dot={{ fill: '#f59e0b' }}
                           />
                         </LineChart>
+                        ) : chartType === 'bar' ? (
+                          <BarChart data={performanceTrendData}>
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                          <XAxis 
+                            dataKey="date" 
+                            className="text-xs"
+                            tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                          />
+                          <YAxis 
+                            yAxisId="left"
+                            className="text-xs"
+                            tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                          />
+                          <YAxis 
+                            yAxisId="right" 
+                            orientation="right"
+                            className="text-xs"
+                            tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                          />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: 'hsl(var(--background))',
+                              border: '1px solid hsl(var(--border))',
+                              borderRadius: '6px'
+                            }}
+                          />
+                          <Legend />
+                          <Bar 
+                            yAxisId="left"
+                            dataKey="spend" 
+                            fill="#8b5cf6" 
+                            name="花费 ($)"
+                          />
+                          <Bar 
+                            yAxisId="left"
+                            dataKey="sales" 
+                            fill="#10b981" 
+                            name="销售额 ($)"
+                          />
+                        </BarChart>
+                        ) : chartType === 'area' ? (
+                          <AreaChart data={performanceTrendData}>
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                          <XAxis 
+                            dataKey="date" 
+                            className="text-xs"
+                            tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                          />
+                          <YAxis 
+                            yAxisId="left"
+                            className="text-xs"
+                            tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                          />
+                          <YAxis 
+                            yAxisId="right" 
+                            orientation="right"
+                            className="text-xs"
+                            tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                          />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: 'hsl(var(--background))',
+                              border: '1px solid hsl(var(--border))',
+                              borderRadius: '6px'
+                            }}
+                          />
+                          <Legend />
+                          <Area 
+                            yAxisId="left"
+                            type="monotone" 
+                            dataKey="spend" 
+                            fill="#8b5cf6" 
+                            stroke="#8b5cf6"
+                            fillOpacity={0.6}
+                            name="花费 ($)"
+                          />
+                          <Area 
+                            yAxisId="left"
+                            type="monotone" 
+                            dataKey="sales" 
+                            fill="#10b981" 
+                            stroke="#10b981"
+                            fillOpacity={0.6}
+                            name="销售额 ($)"
+                          />
+                          <Area 
+                            yAxisId="right"
+                            type="monotone" 
+                            dataKey="acos" 
+                            fill="#f59e0b" 
+                            stroke="#f59e0b"
+                            fillOpacity={0.6}
+                            name="ACoS (%)"
+                          />
+                        </AreaChart>
+                        ) : (
+                          <ComposedChart data={performanceTrendData}>
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                          <XAxis 
+                            dataKey="date" 
+                            className="text-xs"
+                            tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                          />
+                          <YAxis 
+                            yAxisId="left"
+                            className="text-xs"
+                            tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                          />
+                          <YAxis 
+                            yAxisId="right" 
+                            orientation="right"
+                            className="text-xs"
+                            tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                          />
+                          <Tooltip 
+                            contentStyle={{ 
+                              backgroundColor: 'hsl(var(--background))',
+                              border: '1px solid hsl(var(--border))',
+                              borderRadius: '6px'
+                            }}
+                          />
+                          <Legend />
+                          <Bar 
+                            yAxisId="left"
+                            dataKey="spend" 
+                            fill="#8b5cf6" 
+                            name="花费 ($)"
+                          />
+                          <Bar 
+                            yAxisId="left"
+                            dataKey="sales" 
+                            fill="#10b981" 
+                            name="销售额 ($)"
+                          />
+                          <Line 
+                            yAxisId="right"
+                            type="monotone" 
+                            dataKey="acos" 
+                            stroke="#f59e0b" 
+                            strokeWidth={2}
+                            name="ACoS (%)"
+                            dot={{ fill: '#f59e0b' }}
+                          />
+                        </ComposedChart>
+                        )}
                       </ResponsiveContainer>
                     </div>
                   </div>
