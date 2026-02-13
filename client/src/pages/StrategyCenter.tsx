@@ -56,6 +56,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Link } from "wouter";
 import { StrategyTemplates } from "@/components/StrategyTemplates";
+import { StrategyCustomizer } from "@/components/StrategyCustomizer";
 import { useCurrentStore, useCurrentMarketplace } from "@/components/GlobalAccountSelector";
 
 export default function StrategyCenter() {
@@ -423,6 +424,9 @@ export default function StrategyCenter() {
             setLocation(`/optimization-targets?template=${encodeURIComponent(template.id)}&name=${encodeURIComponent(template.name)}&targetAcos=${template.targetAcos}`);
           }}
         />
+
+        {/* 自定义策略编辑器 */}
+        <StrategyCustomizer />
 
         {/* 主要标签页 - 优化目标、广告活动、自动化配置 */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
