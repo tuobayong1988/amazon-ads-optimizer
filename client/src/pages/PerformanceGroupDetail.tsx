@@ -7,6 +7,8 @@ import {
   BarChart, Bar,
   AreaChart, Area,
   ComposedChart,
+  PieChart, Pie, Cell,
+  RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer 
 } from 'recharts';
 import DashboardLayout from "@/components/DashboardLayout";
@@ -25,6 +27,8 @@ import { Separator } from "@/components/ui/separator";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { useRoute, useLocation } from "wouter";
+import { predictFutureDays, predictTrend, detectSeasonality } from "@/lib/trendPrediction";
+import { detectAnomaliesCombined, generateAnomalyReport, type Anomaly } from "@/lib/anomalyDetection";
 import { 
   ArrowLeft,
   Target, 
@@ -77,7 +81,9 @@ export default function PerformanceGroupDetail() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCampaigns, setSelectedCampaigns] = useState<number[]>([]);
   const [timeRange, setTimeRange] = useState("30d");
-  const [chartType, setChartType] = useState<'line' | 'bar' | 'area' | 'composed'>('line');
+  const [chartType, setChartType] = useState<'line' | 'bar' | 'area' | 'composed' | 'pie' | 'radar'>('line');
+  const [showPrediction, setShowPrediction] = useState(false);
+  const [showAnomalies, setShowAnomalies] = useState(false);
   
   // 筛选条件状态
   const [filterCampaignType, setFilterCampaignType] = useState<string>("all");
@@ -182,6 +188,96 @@ export default function PerformanceGroupDetail() {
   );
   
   const performanceTrendData = trendData || [];
+  
+  // 计算趋势预测
+  const trendPrediction = useMemo(() => {
+    if (performanceTrendData.length < 3) return null;
+    
+    // 预测花费趋势
+    const spendData = performanceTrendData.map(d => ({ date: d.date, value: d.spend || 0 }));
+    const spendPrediction = predictFutureDays(spendData, 7);
+    const spendTrend = predictTrend(spendData);
+    
+    // 预测销售额趋势
+    const salesData = performanceTrendData.map(d => ({ date: d.date, value: d.sales || 0 }));
+    const salesPrediction = predictFutureDays(salesData, 7);
+    const salesTrend = predictTrend(salesData);
+    
+    // 检测季节性
+    const seasonality = detectSeasonality(spendData);
+    
+    return {
+      spend: { prediction: spendPrediction, trend: spendTrend },
+      sales: { prediction: salesPrediction, trend: salesTrend },
+      seasonality
+    };
+  }, [performanceTrendData]);
+  
+  // 合并历史数据和预测数据用于图表显示
+  const chartData = useMemo(() => {
+    if (!showPrediction || !trendPrediction) {
+      return performanceTrendData;
+    }
+    
+    // 添加预测数据点
+    const predictionData = trendPrediction.spend.prediction.map((pred, i) => ({
+      date: pred.date,
+      spend: pred.predicted,
+      sales: trendPrediction.sales.prediction[i]?.predicted || 0,
+      acos: 0, // 预测的ACoS需要根据花费和销售额计算
+      isPrediction: true
+    }));
+    
+    return [...performanceTrendData, ...predictionData];
+  }, [performanceTrendData, showPrediction, trendPrediction]);
+  
+  // 计算异常检测
+  const anomalyDetection = useMemo(() => {
+    if (performanceTrendData.length < 4) return null;
+    
+    // 检测花费异常
+    const spendData = performanceTrendData.map(d => ({ date: d.date, value: d.spend || 0 }));
+    const spendAnomalies = detectAnomaliesCombined(spendData);
+    
+    // 检测销售额异常
+    const salesData = performanceTrendData.map(d => ({ date: d.date, value: d.sales || 0 }));
+    const salesAnomalies = detectAnomaliesCombined(salesData);
+    
+    // 检测ACoS异常
+    const acosData = performanceTrendData.map(d => ({ date: d.date, value: d.acos || 0 }));
+    const acosAnomalies = detectAnomaliesCombined(acosData);
+    
+    // 生成报告
+    const spendReport = generateAnomalyReport(spendAnomalies);
+    const salesReport = generateAnomalyReport(salesAnomalies);
+    const acosReport = generateAnomalyReport(acosAnomalies);
+    
+    return {
+      spend: { anomalies: spendAnomalies, report: spendReport },
+      sales: { anomalies: salesAnomalies, report: salesReport },
+      acos: { anomalies: acosAnomalies, report: acosReport },
+      totalAnomalies: spendAnomalies.length + salesAnomalies.length + acosAnomalies.length
+    };
+  }, [performanceTrendData]);
+  
+  // 标记异常数据点
+  const chartDataWithAnomalies = useMemo(() => {
+    if (!showAnomalies || !anomalyDetection) {
+      return chartData;
+    }
+    
+    // 创建异常日期集合
+    const anomalyDates = new Set([
+      ...anomalyDetection.spend.anomalies.map(a => a.date),
+      ...anomalyDetection.sales.anomalies.map(a => a.date),
+      ...anomalyDetection.acos.anomalies.map(a => a.date)
+    ]);
+    
+    return chartData.map(d => ({
+      ...d,
+      isAnomaly: anomalyDates.has(d.date)
+    }));
+  }, [chartData, showAnomalies, anomalyDetection]);
 
   // 筛选可添加的广告活动
   const filteredAvailableCampaigns = useMemo(() => {
@@ -500,18 +596,55 @@ export default function PerformanceGroupDetail() {
                     </div>
                     
                     {/* 图表类型和时间范围选择器 */}
-                    <div className="flex items-center gap-2 justify-between">
-                      <Select value={chartType} onValueChange={(v: any) => setChartType(v)}>
-                        <SelectTrigger className="w-32">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="line">折线图</SelectItem>
-                          <SelectItem value="bar">柱状图</SelectItem>
-                          <SelectItem value="area">面积图</SelectItem>
-                          <SelectItem value="composed">组合图</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="flex items-center gap-2 justify-between flex-wrap">
+                      <div className="flex items-center gap-2">
+                        <Select value={chartType} onValueChange={(v: any) => setChartType(v)}>
+                          <SelectTrigger className="w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="line">折线图</SelectItem>
+                            <SelectItem value="bar">柱状图</SelectItem>
+                            <SelectItem value="area">面积图</SelectItem>
+                            <SelectItem value="composed">组合图</SelectItem>
+                            <SelectItem value="pie">饼图</SelectItem>
+                            <SelectItem value="radar">雷达图</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        
+                        {/* 趋势预测开关 */}
+                        {trendPrediction && chartType !== 'pie' && chartType !== 'radar' && (
+                          <div className="flex items-center gap-2">
+                            <Checkbox 
+                              id="show-prediction" 
+                              checked={showPrediction}
+                              onCheckedChange={(checked) => setShowPrediction(!!checked)}
+                            />
+                            <Label htmlFor="show-prediction" className="text-sm cursor-pointer">
+                              显示预测
+                            </Label>
+                          </div>
+                        )}
+                        
+                        {/* 异常检测开关 */}
+                        {anomalyDetection && chartType !== 'pie' && chartType !== 'radar' && (
+                          <div className="flex items-center gap-2">
+                            <Checkbox 
+                              id="show-anomalies" 
+                              checked={showAnomalies}
+                              onCheckedChange={(checked) => setShowAnomalies(!!checked)}
+                            />
+                            <Label htmlFor="show-anomalies" className="text-sm cursor-pointer">
+                              显示异常
+                            </Label>
+                            {anomalyDetection.totalAnomalies > 0 && (
+                              <Badge variant="destructive" className="text-xs">
+                                {anomalyDetection.totalAnomalies}
+                              </Badge>
+                            )}
+                          </div>
+                        )}
+                      </div>
                       
                       <div className="flex items-center gap-2">
                         <Select 
@@ -595,7 +728,7 @@ export default function PerformanceGroupDetail() {
                     <div className="h-64">
                       <ResponsiveContainer width="100%" height="100%">
                         {chartType === 'line' ? (
-                          <LineChart data={performanceTrendData}>
+                          <LineChart data={chartDataWithAnomalies}>
                           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                           <XAxis 
                             dataKey="date" 
@@ -650,7 +783,7 @@ export default function PerformanceGroupDetail() {
                           />
                         </LineChart>
                         ) : chartType === 'bar' ? (
-                          <BarChart data={performanceTrendData}>
+                          <BarChart data={chartDataWithAnomalies}>
                           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                           <XAxis 
                             dataKey="date" 
@@ -690,7 +823,7 @@ export default function PerformanceGroupDetail() {
                           />
                         </BarChart>
                         ) : chartType === 'area' ? (
-                          <AreaChart data={performanceTrendData}>
+                          <AreaChart data={chartDataWithAnomalies}>
                           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                           <XAxis 
                             dataKey="date" 
@@ -744,8 +877,72 @@ export default function PerformanceGroupDetail() {
                             name="ACoS (%)"
                           />
                         </AreaChart>
+                        ) : chartType === 'pie' ? (
+                          <PieChart>
+                            <Pie
+                              data={[
+                                { name: '花费', value: performanceTrendData.reduce((sum, d) => sum + (d.spend || 0), 0), fill: '#8b5cf6' },
+                                { name: '销售额', value: performanceTrendData.reduce((sum, d) => sum + (d.sales || 0), 0), fill: '#10b981' },
+                              ]}
+                              cx="50%"
+                              cy="50%"
+                              labelLine={false}
+                              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                              outerRadius={80}
+                              dataKey="value"
+                            >
+                              {[
+                                { name: '花费', value: performanceTrendData.reduce((sum, d) => sum + (d.spend || 0), 0), fill: '#8b5cf6' },
+                                { name: '销售额', value: performanceTrendData.reduce((sum, d) => sum + (d.sales || 0), 0), fill: '#10b981' },
+                              ].map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.fill} />
+                              ))}
+                            </Pie>
+                            <Tooltip 
+                              contentStyle={{ 
+                                backgroundColor: 'hsl(var(--background))',
+                                border: '1px solid hsl(var(--border))',
+                                borderRadius: '6px'
+                              }}
+                            />
+                            <Legend />
+                          </PieChart>
+                        ) : chartType === 'radar' ? (
+                          <RadarChart data={performanceTrendData.slice(-7)}>
+                            <PolarGrid stroke="hsl(var(--border))" />
+                            <PolarAngleAxis 
+                              dataKey="date" 
+                              tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                            />
+                            <PolarRadiusAxis 
+                              angle={90} 
+                              tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                            />
+                            <Radar 
+                              name="花费 ($)" 
+                              dataKey="spend" 
+                              stroke="#8b5cf6" 
+                              fill="#8b5cf6" 
+                              fillOpacity={0.5}
+                            />
+                            <Radar 
+                              name="销售额 ($)" 
+                              dataKey="sales" 
+                              stroke="#10b981" 
+                              fill="#10b981" 
+                              fillOpacity={0.5}
+                            />
+                            <Tooltip 
+                              contentStyle={{ 
+                                backgroundColor: 'hsl(var(--background))',
+                                border: '1px solid hsl(var(--border))',
+                                borderRadius: '6px'
+                              }}
+                            />
+                            <Legend />
+                          </RadarChart>
                         ) : (
-                          <ComposedChart data={performanceTrendData}>
+                          <ComposedChart data={chartDataWithAnomalies}>
                           <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                           <XAxis 
                             dataKey="date" 

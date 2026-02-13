@@ -60,6 +60,7 @@
     "json-bigint": "^1.0.0",
     "jsonwebtoken": "^9.0.3",
     "jspdf": "^4.1.0",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.563.0",
     "mysql2": "^3.15.0",
     "nanoid": "^5.1.5",

@@ -30,6 +30,8 @@ import { getSQSConsumer, startSQSConsumer, stopSQSConsumer } from './sqsConsumer
 import * as marginalBenefitService from './marginalBenefitAnalysisService';
 import * as algorithmEffectService from './algorithmEffectService';
 import * as holidayConfigService from './holidayConfigService';
+import { dailySyncRouter } from './routes/dailySync';
+import * as dailySyncTask from './daily-sync-task';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
@@ -11309,6 +11311,7 @@ export const appRouter = router({
   reportJobs: reportJobsRouter,
   algorithmEffect: algorithmEffectRouter,
   holidayConfig: holidayConfigRouter,
+  dailySync: dailySyncRouter,
 });
 
 export type AppRouter = typeof appRouter;
