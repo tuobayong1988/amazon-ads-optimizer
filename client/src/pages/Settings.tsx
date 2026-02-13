@@ -1,5 +1,6 @@
 import { useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { OrganizationManagement } from "@/components/OrganizationManagement";
 import { PageMeta, PAGE_META_CONFIG } from "@/components/PageMeta";
 import { useOnboarding } from "@/components/OnboardingWizard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -169,11 +170,7 @@ export default function Settings() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <Building2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>组织管理功能正在开发中</p>
-                  <p className="text-sm">即将支持多租户、成员管理、订阅计划等功能</p>
-                </div>
+                <OrganizationManagement />
               </CardContent>
             </Card>
           </TabsContent>
