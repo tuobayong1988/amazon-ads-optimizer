@@ -69,11 +69,44 @@ export function SmartInsights({ campaignId, accountId, compact = false }: SmartI
   const [insights, setInsights] = useState<Insight[]>([]);
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
-  // TODO: 从后端获取洞察数据
-  // const { data: insightsData } = trpc.insights.get.useQuery({ campaignId, accountId });
+  // 从后端获取智能决策建议
+  const { data: decisions } = trpc.smartCampaign.generateDecisions.useQuery(
+    { accountId },
+    { enabled: !!accountId }
+  );
 
-  // 模拟数据
+  // 将决策转换为洞察
   useEffect(() => {
+    if (!decisions) return;
+    
+    const convertedInsights: Insight[] = decisions.decisions.map((decision: any) => ({
+      id: decision.campaignId.toString(),
+      type: decision.priority === 'high' ? InsightType.CRITICAL : 
+            decision.priority === 'medium' ? InsightType.WARNING : InsightType.INFO,
+      priority: decision.priority === 'high' ? InsightPriority.CRITICAL :
+                decision.priority === 'medium' ? InsightPriority.HIGH : InsightPriority.MEDIUM,
+      title: `${decision.campaignName}: ${decision.action}`,
+      description: decision.reason,
+      impact: {
+        metric: decision.metrics.acos ? 'ACoS' : 'ROAS',
+        value: decision.metrics.acos || decision.metrics.roas || 0,
+        unit: decision.metrics.acos ? '%' : 'x',
+      },
+      action: {
+        label: '应用建议',
+        onClick: () => {
+          toast.info(`正在应用对 ${decision.campaignName} 的优化建议...`);
+        },
+      },
+      dismissible: true,
+    }));
+    
+    setInsights(convertedInsights);
+  }, [decisions]);
+
+  // 备用模拟数据(如果没有API数据)
+  useEffect(() => {
+    if (decisions) return;
     const mockInsights: Insight[] = [
       {
         id: '1',

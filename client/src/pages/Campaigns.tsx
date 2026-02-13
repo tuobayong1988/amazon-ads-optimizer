@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useCurrentStore, useCurrentMarketplace } from "@/components/GlobalAccountSelector";
+import { SmartInsights } from "@/components/SmartInsights";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useIsMobile } from "@/hooks/useMobile";
