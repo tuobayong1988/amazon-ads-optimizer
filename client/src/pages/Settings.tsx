@@ -109,7 +109,7 @@ export default function Settings() {
 
         {/* Settings Tabs */}
         <Tabs defaultValue="account" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:w-[500px]">
+          <TabsList className="grid w-full grid-cols-5 lg:w-[600px]">
             <TabsTrigger value="account">
               <Building2 className="w-4 h-4 mr-2" />
               账号设置
@@ -121,6 +121,10 @@ export default function Settings() {
             <TabsTrigger value="intraday">
               <Clock className="w-4 h-4 mr-2" />
               日内竞价
+            </TabsTrigger>
+            <TabsTrigger value="organization">
+              <Building2 className="w-4 h-4 mr-2" />
+              组织管理
             </TabsTrigger>
             <TabsTrigger value="guide">
               <Rocket className="w-4 h-4 mr-2" />
@@ -153,6 +157,25 @@ export default function Settings() {
               onSave={(data) => updateAccount.mutate({ id: accountId!, ...data })}
               isLoading={updateAccount.isPending}
             />
+          </TabsContent>
+
+          {/* Organization Management */}
+          <TabsContent value="organization">
+            <Card>
+              <CardHeader>
+                <CardTitle>组织管理</CardTitle>
+                <CardDescription>
+                  管理组织信息、成员和订阅计划
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8 text-muted-foreground">
+                  <Building2 className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>组织管理功能正在开发中</p>
+                  <p className="text-sm">即将支持多租户、成员管理、订阅计划等功能</p>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           {/* Guide Settings */}
