@@ -10,10 +10,27 @@ export default defineConfig({
       "@": path.resolve(templateRoot, "client", "src"),
       "@shared": path.resolve(templateRoot, "shared"),
       "@assets": path.resolve(templateRoot, "attached_assets"),
+      "@db": path.resolve(templateRoot, "db"),
     },
   },
   test: {
-    environment: "node",
-    include: ["server/**/*.test.ts", "server/**/*.spec.ts"],
+    globals: true,
+    environment: "happy-dom",
+    setupFiles: ["./client/src/test/setup.ts"],
+    include: [
+      "client/**/*.{test,spec}.{ts,tsx}",
+      "server/**/*.{test,spec}.ts",
+    ],
+    coverage: {
+      provider: "v8",
+      reporter: ["text", "json", "html"],
+      exclude: [
+        "node_modules/",
+        "dist/",
+        "**/*.config.ts",
+        "**/*.d.ts",
+        "**/test/**",
+      ],
+    },
   },
 });

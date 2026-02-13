@@ -211,6 +211,145 @@ export function detectSeasonality(data: DataPoint[], period: number = 7): {
  * 组合预测
  * 结合线性回归和移动平均的预测结果
  */
+/**
+ * 线性回归(接受索引数据)
+ */
+export function linearRegressionIndexed(data: Array<{ value: number; index: number }>): {
+  slope: number;
+  intercept: number;
+  rSquared: number;
+} {
+  const n = data.length;
+  if (n === 0) {
+    return { slope: 0, intercept: 0, rSquared: 0 };
+  }
+  if (n === 1) {
+    return { slope: 0, intercept: data[0].value, rSquared: 1 };
+  }
+
+  const sumX = data.reduce((sum, p) => sum + p.index, 0);
+  const sumY = data.reduce((sum, p) => sum + p.value, 0);
+  const meanX = sumX / n;
+  const meanY = sumY / n;
+
+  const numerator = data.reduce((sum, p) => sum + (p.index - meanX) * (p.value - meanY), 0);
+  const denominator = data.reduce((sum, p) => sum + Math.pow(p.index - meanX, 2), 0);
+  
+  const slope = denominator === 0 ? 0 : numerator / denominator;
+  const intercept = meanY - slope * meanX;
+
+  const predictions = data.map(p => slope * p.index + intercept);
+  const ssRes = data.reduce((sum, p, i) => sum + Math.pow(p.value - predictions[i], 2), 0);
+  const ssTot = data.reduce((sum, p) => sum + Math.pow(p.value - meanY, 2), 0);
+  const rSquared = ssTot === 0 ? 1 : 1 - (ssRes / ssTot);
+
+  return { slope, intercept, rSquared };
+}
+
+/**
+ * 移动平均(接受数值数组)
+ */
+export function movingAverage(data: number[], window: number): number[] {
+  if (data.length === 0) return [];
+  
+  const result: number[] = [];
+  
+  for (let i = 0; i < data.length; i++) {
+    const start = Math.max(0, i - window + 1);
+    const windowData = data.slice(start, i + 1);
+    const avg = windowData.reduce((sum, v) => sum + v, 0) / windowData.length;
+    result.push(avg);
+  }
+  
+  return result;
+}
+
+/**
+ * 预测趋势(返回详细信息)
+ */
+export function predictTrendDetailed(
+  historicalData: DataPoint[],
+  futureDays: number
+): {
+  predictions: Array<{ date: string; value: number; lower: number; upper: number }>;
+  trend: { direction: 'up' | 'down' | 'stable'; strength: number };
+  rSquared: number;
+} {
+  if (historicalData.length < 2) {
+    const lastValue = historicalData.length > 0 ? historicalData[0].value : 0;
+    const predictions = [];
+    const lastDate = historicalData.length > 0 ? new Date(historicalData[0].date) : new Date();
+    
+    for (let i = 1; i <= futureDays; i++) {
+      const futureDate = new Date(lastDate);
+      futureDate.setDate(futureDate.getDate() + i);
+      predictions.push({
+        date: futureDate.toISOString().split('T')[0],
+        value: lastValue,
+        lower: lastValue * 0.9,
+        upper: lastValue * 1.1,
+      });
+    }
+    
+    return {
+      predictions,
+      trend: { direction: 'stable', strength: 0 },
+      rSquared: 0,
+    };
+  }
+
+  const { slope, intercept, r2 } = linearRegression(historicalData);
+  const trendInfo = predictTrend(historicalData);
+  const futurePredictions = predictFutureDays(historicalData, futureDays);
+  
+  return {
+    predictions: futurePredictions.map(p => ({
+      date: p.date,
+      value: p.predicted,
+      lower: p.confidence.lower,
+      upper: p.confidence.upper,
+    })),
+    trend: { direction: trendInfo.direction, strength: trendInfo.strength },
+    rSquared: r2,
+  };
+}
+
+/**
+ * 分析趋势
+ */
+export function analyzeTrend(data: DataPoint[]): {
+  direction: 'up' | 'down' | 'stable';
+  strength: number;
+  rSquared: number;
+  slope: number;
+} {
+  if (data.length < 2) {
+    return { direction: 'stable', strength: 0, rSquared: 0, slope: 0 };
+  }
+
+  const { slope, r2 } = linearRegression(data);
+  const avgValue = data.reduce((sum, d) => sum + d.value, 0) / data.length;
+  const normalizedSlope = avgValue === 0 ? 0 : slope / avgValue;
+  
+  let direction: 'up' | 'down' | 'stable';
+  if (Math.abs(normalizedSlope) < 0.01) {
+    direction = 'stable';
+  } else if (normalizedSlope > 0) {
+    direction = 'up';
+  } else {
+    direction = 'down';
+  }
+  
+  const strength = Math.min(1, Math.abs(normalizedSlope) * 10);
+  
+  return {
+    direction,
+    strength,
+    rSquared: Math.max(0, r2),
+    slope: normalizedSlope,
+  };
+}
+
 export function combinedPrediction(
   data: DataPoint[],
   days: number
