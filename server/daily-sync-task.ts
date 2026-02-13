@@ -8,7 +8,7 @@
  */
 
 import { AmazonAdsApiClient } from './amazonAdsApi';
-import { db } from './db';
+import * as db from './db';
 import { dailyPerformance } from '../drizzle/schema';
 
 export interface SyncTaskConfig {

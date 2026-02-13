@@ -3,9 +3,9 @@
  */
 
 import { z } from 'zod';
-import { publicProcedure, router } from '../trpc';
+import { publicProcedure, router } from '../_core/trpc';
 import { BidOptimizer, BudgetAllocator, type HistoricalData, type OptimizationTarget } from '../ml/bidOptimizer';
-import { db } from '../db';
+import * as db from '../db';
 import { eq, and, gte, desc } from 'drizzle-orm';
 import { dailyPerformance, campaigns } from '@db/schema';
 

@@ -1,9 +1,9 @@
 {
   "name": "amazon-ads-optimizer",
   "version": "1.0.0",
-  "type": "module",
   "license": "MIT",
   "scripts": {
+    "build": "vite build --config vite.build.config.ts && node build-server.js",
     "start": "NODE_ENV=production node dist/index.js",
     "test": "vitest",
     "test:ui": "vitest --ui",
@@ -76,6 +76,7 @@
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
     "sonner": "^2.0.7",
+    "sqlstring": "^2.3.3",
     "streamdown": "^2.2.0",
     "superjson": "^1.13.3",
     "tailwind-merge": "^3.4.0",
