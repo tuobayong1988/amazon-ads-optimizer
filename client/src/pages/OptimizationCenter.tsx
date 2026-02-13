@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { MLBudgetOptimization } from "@/components/MLBudgetOptimization";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -413,11 +414,7 @@ export default function OptimizationCenter() {
                 <CardDescription>基于机器学习的智能预算分配建议</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="text-center py-8 text-muted-foreground">
-                  <Bot className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>ML预算优化功能正在开发中</p>
-                  <p className="text-sm">即将为您提供基于历史数据的智能预算分配建议</p>
-                </div>
+                <MLBudgetOptimization accountId={selectedAccount} />
               </CardContent>
             </Card>
           </TabsContent>
