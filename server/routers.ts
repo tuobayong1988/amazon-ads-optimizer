@@ -32,6 +32,9 @@ import * as algorithmEffectService from './algorithmEffectService';
 import * as holidayConfigService from './holidayConfigService';
 import { dailySyncRouter } from './routes/dailySync';
 import * as dailySyncTask from './daily-sync-task';
+import { mlOptimizationRouter } from './routes/mlOptimization';
+import { smartCampaignRouter } from './routes/smartCampaign';
+import { multiTenantRouter } from './routes/multiTenant';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
@@ -11312,6 +11315,9 @@ export const appRouter = router({
   algorithmEffect: algorithmEffectRouter,
   holidayConfig: holidayConfigRouter,
   dailySync: dailySyncRouter,
+  mlOptimization: mlOptimizationRouter,
+  smartCampaign: smartCampaignRouter,
+  multiTenant: multiTenantRouter,
 });
 
 export type AppRouter = typeof appRouter;
