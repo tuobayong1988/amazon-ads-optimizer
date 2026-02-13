@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Loader2, TrendingUp, DollarSign, Target, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { OptimizationVisualizer } from "@/components/OptimizationVisualizer";
 import {
   Table,
   TableBody,
@@ -197,6 +198,12 @@ export function MLBudgetOptimization({ accountId }: MLBudgetOptimizationProps) {
                 <Target className="w-4 h-4 mr-2" />
                 应用预算分配建议
               </Button>
+
+              {/* 优化决策可视化 */}
+              <OptimizationVisualizer
+                data={allocation.allocations}
+                type="budget"
+              />
             </div>
           </CardContent>
         </Card>
