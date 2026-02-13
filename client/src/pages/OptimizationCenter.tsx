@@ -255,6 +255,7 @@ export default function OptimizationCenter() {
           <TabsList>
             <TabsTrigger value="overview">概览</TabsTrigger>
             <TabsTrigger value="decisions">优化决策</TabsTrigger>
+            <TabsTrigger value="ml-budget">ML预算优化</TabsTrigger>
             <TabsTrigger value="settings">引擎设置</TabsTrigger>
             <TabsTrigger value="history">执行历史</TabsTrigger>
           </TabsList>
@@ -397,6 +398,25 @@ export default function OptimizationCenter() {
                 <div className="text-center py-8 text-muted-foreground">
                   <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
                   <p>暂无待审批的决策</p>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="ml-budget" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bot className="w-5 h-5" />
+                  ML预算优化
+                </CardTitle>
+                <CardDescription>基于机器学习的智能预算分配建议</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="text-center py-8 text-muted-foreground">
+                  <Bot className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>ML预算优化功能正在开发中</p>
+                  <p className="text-sm">即将为您提供基于历史数据的智能预算分配建议</p>
                 </div>
               </CardContent>
             </Card>
