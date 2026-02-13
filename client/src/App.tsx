@@ -170,6 +170,7 @@ function Router() {
       <Route path="/amazon-api-auth-status">{() => <LazyRoute component={AmazonApiAuthStatus} />}</Route>
       <Route path="/auto-optimization-dashboard">{() => <LazyRoute component={AutoOptimizationDashboard} />}</Route>
       <Route path="/register">{() => <LazyRoute component={InviteRegister} />}</Route>
+      <Route path="/login">{() => <LazyRoute component={LocalLogin} />}</Route>
       <Route path="/local-login">{() => <LazyRoute component={LocalLogin} />}</Route>
       <Route path="/blog">{() => <LazyRoute component={Blog} />}</Route>
       <Route path="/blog/:slug">{() => <LazyRoute component={BlogPost} />}</Route>
