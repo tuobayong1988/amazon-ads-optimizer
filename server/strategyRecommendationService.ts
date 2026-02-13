@@ -9,6 +9,12 @@
  * 3. profit-focused（利润优先）- 严格控制成本，追求最大化利润
  * 4. seasonal-boost（旺季冲刺）- 大促期间短期最大化销量
  * 5. brand-defense（品牌防御）- 保护品牌词不被竞争对手抢占
+ * 6. inventory-clearance（库存清理）- 快速清理FBA库存，避免长期仓储费
+ * 7. competitor-attack（竞品攻击）- 抢占指定竞品的流量和市场份额
+ * 8. market-expansion（新市场拓展）- 在新站点快速建立初始销量和排名
+ * 9. seasonal-pattern（季节性模式）- 适应季节性产品的周期性波动
+ * 10. decline-management（衰退期管理）- 在产品生命周期末期，维持利润
+ * 11. emergency-response（紧急响应）- 应对差评、断货等突发负面事件
  */
 
 import { eq, and, sql, desc } from 'drizzle-orm';
@@ -66,6 +72,66 @@ export const STRATEGY_TEMPLATES = [
     maxAcos: 15,
     bidMultiplier: 1.1,
     budgetMultiplier: 0.9,
+  },
+  {
+    id: 'inventory-clearance',
+    name: '库存清理',
+    description: '快速清理FBA库存，避免长期仓储费。大幅提高预算和出价，接受高ACoS，配合促销。',
+    targetAcos: 60,
+    minAcos: 40,
+    maxAcos: 150,
+    bidMultiplier: 1.5,
+    budgetMultiplier: 2.5,
+  },
+  {
+    id: 'competitor-attack',
+    name: '竞品攻击',
+    description: '抢占指定竞品的流量和市场份额。针对竞品ASIN和品牌词进行高强度投放。',
+    targetAcos: 45,
+    minAcos: 30,
+    maxAcos: 70,
+    bidMultiplier: 1.6,
+    budgetMultiplier: 1.8,
+  },
+  {
+    id: 'market-expansion',
+    name: '新市场拓展',
+    description: '在新站点快速建立初始销量和排名。采用激进策略，但更关注本地化关键词的测试。',
+    targetAcos: 50,
+    minAcos: 30,
+    maxAcos: 80,
+    bidMultiplier: 1.3,
+    budgetMultiplier: 1.6,
+  },
+  {
+    id: 'seasonal-pattern',
+    name: '季节性模式',
+    description: '适应季节性产品的周期性波动。根据历史同期数据，自动在旺季前提升预算，淡季降低。',
+    targetAcos: 30,
+    minAcos: 20,
+    maxAcos: 45,
+    bidMultiplier: 1.2,
+    budgetMultiplier: 1.4,
+  },
+  {
+    id: 'decline-management',
+    name: '衰退期管理',
+    description: '在产品生命周期末期，维持利润，平稳过渡。逐步降低预算，暂停低效广告，聚焦核心盈利词。',
+    targetAcos: 20,
+    minAcos: 10,
+    maxAcos: 30,
+    bidMultiplier: 0.7,
+    budgetMultiplier: 0.6,
+  },
+  {
+    id: 'emergency-response',
+    name: '紧急响应',
+    description: '应对差评、断货等突发负面事件。立即暂停相关广告，或切换到品牌防御模式，降低负面影响。',
+    targetAcos: 15,
+    minAcos: 0,
+    maxAcos: 25,
+    bidMultiplier: 0.5,
+    budgetMultiplier: 0.4,
   },
 ];
 
