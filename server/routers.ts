@@ -35,6 +35,7 @@ import * as dailySyncTask from './daily-sync-task';
 import { mlOptimizationRouter } from './routes/mlOptimization';
 import { smartCampaignRouter } from './routes/smartCampaign';
 import { multiTenantRouter } from './routes/multiTenant';
+import { debugSyncRouter } from './debug-sync';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
@@ -11322,7 +11323,6 @@ export const appRouter = router({
 
 export type AppRouter = typeof appRouter;
 
-import { devRouter } from './devRouter';
-import { debugSyncRouter } from './debug-sync';;
+import { devRouter } from './devRouter';;
 
 // This needs to be merged into the main appRouter
