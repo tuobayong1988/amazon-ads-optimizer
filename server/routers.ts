@@ -37,6 +37,7 @@ import { smartCampaignRouter } from './routes/smartCampaign';
 import { multiTenantRouter } from './routes/multiTenant';
 import { debugLogRouter } from './debug-log-reader';
 import { readLogRouter } from './read-log-endpoint';
+import { debugLogsRouter } from './debugLogsRouter';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
@@ -11218,7 +11219,7 @@ const inviteCodeRouter = router({
 
 // ==================== Main Router ====================
 export const appRouter = router({
-  dev: devRouter,system: systemRouter,debugLog: debugLogRouter,readLog: readLogRouter,
+  dev: devRouter,system: systemRouter,debugLog: debugLogRouter,readLog: readLogRouter,debugLogs: debugLogsRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {

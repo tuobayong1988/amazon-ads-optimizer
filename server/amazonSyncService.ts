@@ -4265,8 +4265,29 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
   lastSyncTime?: string | null,
   syncJobId?: number | null
 ): Promise<SyncResultWithTracking> {
+  // 导入日志记录器
+  const { logDebug } = await import('./debugLogger');
+  
+  await logDebug({
+    log_type: 'sync_start',
+    account_id: this.accountId,
+    marketplace: this.marketplace,
+    sync_job_id: syncJobId || undefined,
+    message: '开始同步SP广告活动(WithTracking)',
+    data: { lastSyncTime, syncJobId }
+  });
+  
   const db = await getDb();
-  if (!db) return { synced: 0, skipped: 0, created: 0, updated: 0, deleted: 0, conflicts: 0 };
+  if (!db) {
+    await logDebug({
+      log_type: 'error',
+      account_id: this.accountId,
+      sync_job_id: syncJobId || undefined,
+      message: '数据库连接失败',
+      data: null
+    });
+    return { synced: 0, skipped: 0, created: 0, updated: 0, deleted: 0, conflicts: 0 };
+  }
 
   const result: SyncResultWithTracking = {
     synced: 0,
@@ -4282,8 +4303,27 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
 
   try {
     console.log('[SP Sync] Starting SP campaigns sync...');
+    
+    await logDebug({
+      log_type: 'api_call',
+      account_id: this.accountId,
+      marketplace: this.marketplace,
+      sync_job_id: syncJobId || undefined,
+      message: '正在调用Amazon API: listSpCampaigns()',
+      data: null
+    });
+    
     const apiCampaigns = await this.client.listSpCampaigns();
     console.log(`[SP Sync] Retrieved ${apiCampaigns.length} SP campaigns from API`);
+    
+    await logDebug({
+      log_type: 'api_call',
+      account_id: this.accountId,
+      marketplace: this.marketplace,
+      sync_job_id: syncJobId || undefined,
+      message: `API返回 ${apiCampaigns.length} 条SP广告活动`,
+      data: { count: apiCampaigns.length, sample: apiCampaigns.slice(0, 2) }
+    });
 
     for (const apiCampaign of apiCampaigns) {
       const [existing] = await db
@@ -4373,6 +4413,15 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
           .set(campaignData)
           .where(eq(campaigns.id, existing.id));
         result.updated++;
+        
+        await logDebug({
+          log_type: 'db_write',
+          account_id: this.accountId,
+          marketplace: this.marketplace,
+          sync_job_id: syncJobId || undefined,
+          message: `更新广告活动: ${apiCampaign.name || 'unknown'}`,
+          data: { campaignId: String(apiCampaign.campaignId), action: 'update' }
+        });
       } else {
         // 记录新建
         if (syncJobId) {
@@ -4393,6 +4442,15 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
           createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         });
         result.created++;
+        
+        await logDebug({
+          log_type: 'db_write',
+          account_id: this.accountId,
+          marketplace: this.marketplace,
+          sync_job_id: syncJobId || undefined,
+          message: `创建广告活动: ${apiCampaign.name || 'unknown'}`,
+          data: { campaignId: String(apiCampaign.campaignId), action: 'create' }
+        });
       }
       result.synced++;
     }
@@ -4412,6 +4470,20 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
       console.error('[SP Sync] API Response status:', error.response.status);
       console.error('[SP Sync] API Response data:', JSON.stringify(error.response.data));
     }
+    
+    await logDebug({
+      log_type: 'error',
+      account_id: this.accountId,
+      marketplace: this.marketplace,
+      sync_job_id: syncJobId || undefined,
+      message: 'SP广告活动同步失败',
+      data: { 
+        error: error?.message || String(error),
+        stack: error?.stack,
+        response: error?.response?.data 
+      }
+    });
+    
     return result;
   }
 };
@@ -4537,6 +4609,15 @@ AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
           .set(campaignData)
           .where(eq(campaigns.id, existing.id));
         result.updated++;
+        
+        await logDebug({
+          log_type: 'db_write',
+          account_id: this.accountId,
+          marketplace: this.marketplace,
+          sync_job_id: syncJobId || undefined,
+          message: `更新广告活动: ${apiCampaign.name || 'unknown'}`,
+          data: { campaignId: String(apiCampaign.campaignId), action: 'update' }
+        });
       } else {
         if (syncJobId) {
           changeRecords.push({
@@ -4556,6 +4637,15 @@ AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
           createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         });
         result.created++;
+        
+        await logDebug({
+          log_type: 'db_write',
+          account_id: this.accountId,
+          marketplace: this.marketplace,
+          sync_job_id: syncJobId || undefined,
+          message: `创建广告活动: ${apiCampaign.name || 'unknown'}`,
+          data: { campaignId: String(apiCampaign.campaignId), action: 'create' }
+        });
       }
       result.synced++;
     }
@@ -4696,6 +4786,15 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
           .set(campaignData)
           .where(eq(campaigns.id, existing.id));
         result.updated++;
+        
+        await logDebug({
+          log_type: 'db_write',
+          account_id: this.accountId,
+          marketplace: this.marketplace,
+          sync_job_id: syncJobId || undefined,
+          message: `更新广告活动: ${apiCampaign.name || 'unknown'}`,
+          data: { campaignId: String(apiCampaign.campaignId), action: 'update' }
+        });
       } else {
         if (syncJobId) {
           changeRecords.push({
@@ -4715,6 +4814,15 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
           createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         });
         result.created++;
+        
+        await logDebug({
+          log_type: 'db_write',
+          account_id: this.accountId,
+          marketplace: this.marketplace,
+          sync_job_id: syncJobId || undefined,
+          message: `创建广告活动: ${apiCampaign.name || 'unknown'}`,
+          data: { campaignId: String(apiCampaign.campaignId), action: 'create' }
+        });
       }
       result.synced++;
     }
