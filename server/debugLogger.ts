@@ -14,7 +14,7 @@ export interface DebugLogEntry {
  */
 export async function logDebug(entry: DebugLogEntry): Promise<void> {
   try {
-    const db = getDb();
+    const db = await getDb();
     if (!db) {
       console.error('[DebugLogger] 数据库连接失败');
       return;
@@ -64,7 +64,7 @@ export async function logDebug(entry: DebugLogEntry): Promise<void> {
  */
 export async function cleanOldLogs(): Promise<void> {
   try {
-    const db = getDb();
+    const db = await getDb();
     if (!db) return;
 
     await db.execute(

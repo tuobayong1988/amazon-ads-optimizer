@@ -54802,7 +54802,7 @@ __export(debugLogger_exports, {
 });
 async function logDebug2(entry) {
   try {
-    const db = getDb();
+    const db = await getDb();
     if (!db) {
       console.error("[DebugLogger] \u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25");
       return;
@@ -54842,7 +54842,7 @@ async function logDebug2(entry) {
 }
 async function cleanOldLogs() {
   try {
-    const db = getDb();
+    const db = await getDb();
     if (!db) return;
     await db.execute(
       `DELETE FROM debug_logs WHERE created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)`
