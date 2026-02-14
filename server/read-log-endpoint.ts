@@ -1,8 +1,8 @@
 import { readFileSync, existsSync } from 'fs';
-import { router } from './_core/trpc';
+import { router, publicProcedure } from './_core/trpc';
 
 export const readLogRouter = router({
-  getSyncLog: router.procedure.query(async () => {
+  getSyncLog: publicProcedure.query(async () => {
     const logPath = '/tmp/sync-debug.log';
     
     if (!existsSync(logPath)) {

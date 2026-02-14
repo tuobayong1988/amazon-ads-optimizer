@@ -104,7 +104,7 @@ var require_package = __commonJS({
 // node_modules/dotenv/lib/main.js
 var require_main = __commonJS({
   "node_modules/dotenv/lib/main.js"(exports2, module2) {
-    var fs5 = require("fs");
+    var fs6 = require("fs");
     var path6 = require("path");
     var os2 = require("os");
     var crypto6 = require("crypto");
@@ -246,7 +246,7 @@ var require_main = __commonJS({
       if (options && options.path && options.path.length > 0) {
         if (Array.isArray(options.path)) {
           for (const filepath of options.path) {
-            if (fs5.existsSync(filepath)) {
+            if (fs6.existsSync(filepath)) {
               possibleVaultPath = filepath.endsWith(".vault") ? filepath : `${filepath}.vault`;
             }
           }
@@ -256,7 +256,7 @@ var require_main = __commonJS({
       } else {
         possibleVaultPath = path6.resolve(process.cwd(), ".env.vault");
       }
-      if (fs5.existsSync(possibleVaultPath)) {
+      if (fs6.existsSync(possibleVaultPath)) {
         return possibleVaultPath;
       }
       return null;
@@ -309,7 +309,7 @@ var require_main = __commonJS({
       const parsedAll = {};
       for (const path7 of optionPaths) {
         try {
-          const parsed = DotenvModule.parse(fs5.readFileSync(path7, { encoding }));
+          const parsed = DotenvModule.parse(fs6.readFileSync(path7, { encoding }));
           DotenvModule.populate(parsedAll, parsed, options);
         } catch (e6) {
           if (debug2) {
@@ -534,7 +534,7 @@ var require_depd = __commonJS({
       var site = callSiteLocation(stack[1]);
       var file2 = site[0];
       function deprecate(message2) {
-        log2.call(deprecate, message2);
+        log3.call(deprecate, message2);
       }
       deprecate._file = file2;
       deprecate._ignored = isignored(namespace);
@@ -563,7 +563,7 @@ var require_depd = __commonJS({
       var str = process.env.TRACE_DEPRECATION || "";
       return containsNamespace(str, namespace);
     }
-    function log2(message2, site) {
+    function log3(message2, site) {
       var haslisteners = eehaslisteners(process, "deprecation");
       if (!haslisteners && this._ignored) {
         return;
@@ -703,7 +703,7 @@ var require_depd = __commonJS({
         "message",
         "site",
         '"use strict"\nreturn function (' + args + ") {log.call(deprecate, message, site)\nreturn fn.apply(this, arguments)\n}"
-      )(fn2, log2, this, message2, site);
+      )(fn2, log3, this, message2, site);
       return deprecatedfn;
     }
     function wrapproperty(obj, prop, message2) {
@@ -728,13 +728,13 @@ var require_depd = __commonJS({
       var set2 = descriptor.set;
       if (typeof get7 === "function") {
         descriptor.get = function getter() {
-          log2.call(deprecate, message2, site);
+          log3.call(deprecate, message2, site);
           return get7.apply(this, arguments);
         };
       }
       if (typeof set2 === "function") {
         descriptor.set = function setter() {
-          log2.call(deprecate, message2, site);
+          log3.call(deprecate, message2, site);
           return set2.apply(this, arguments);
         };
       }
@@ -1571,7 +1571,7 @@ var require_debug = __commonJS({
 var require_browser = __commonJS({
   "node_modules/debug/src/browser.js"(exports2, module2) {
     exports2 = module2.exports = require_debug();
-    exports2.log = log2;
+    exports2.log = log3;
     exports2.formatArgs = formatArgs2;
     exports2.save = save2;
     exports2.load = load;
@@ -1619,7 +1619,7 @@ var require_browser = __commonJS({
       });
       args.splice(lastC, 0, c5);
     }
-    function log2() {
+    function log3() {
       return "object" === typeof console && console.log && Function.prototype.apply.call(console.log, console, arguments);
     }
     function save2(namespaces) {
@@ -1660,7 +1660,7 @@ var require_node = __commonJS({
     var util3 = require("util");
     exports2 = module2.exports = require_debug();
     exports2.init = init2;
-    exports2.log = log2;
+    exports2.log = log3;
     exports2.formatArgs = formatArgs2;
     exports2.save = save2;
     exports2.load = load;
@@ -1711,7 +1711,7 @@ var require_node = __commonJS({
         args[0] = (/* @__PURE__ */ new Date()).toUTCString() + " " + name2 + " " + args[0];
       }
     }
-    function log2() {
+    function log3() {
       return stream4.write(util3.format.apply(util3, arguments) + "\n");
     }
     function save2(namespaces) {
@@ -1736,8 +1736,8 @@ var require_node = __commonJS({
           }
           break;
         case "FILE":
-          var fs5 = require("fs");
-          stream5 = new fs5.SyncWriteStream(fd2, { autoClose: false });
+          var fs6 = require("fs");
+          stream5 = new fs6.SyncWriteStream(fd2, { autoClose: false });
           stream5._type = "fs";
           break;
         case "PIPE":
@@ -18719,7 +18719,7 @@ var require_view = __commonJS({
     "use strict";
     var debug2 = require_src()("express:view");
     var path6 = require("path");
-    var fs5 = require("fs");
+    var fs6 = require("fs");
     var dirname7 = path6.dirname;
     var basename5 = path6.basename;
     var extname4 = path6.extname;
@@ -18785,7 +18785,7 @@ var require_view = __commonJS({
     function tryStat(path7) {
       debug2('stat "%s"', path7);
       try {
-        return fs5.statSync(path7);
+        return fs6.statSync(path7);
       } catch (e6) {
         return void 0;
       }
@@ -19154,7 +19154,7 @@ var require_types = __commonJS({
 var require_mime = __commonJS({
   "node_modules/mime/mime.js"(exports2, module2) {
     var path6 = require("path");
-    var fs5 = require("fs");
+    var fs6 = require("fs");
     function Mime() {
       this.types = /* @__PURE__ */ Object.create(null);
       this.extensions = /* @__PURE__ */ Object.create(null);
@@ -19175,7 +19175,7 @@ var require_mime = __commonJS({
     };
     Mime.prototype.load = function(file2) {
       this._loading = file2;
-      var map9 = {}, content = fs5.readFileSync(file2, "ascii"), lines = content.split(/[\r\n]+/);
+      var map9 = {}, content = fs6.readFileSync(file2, "ascii"), lines = content.split(/[\r\n]+/);
       lines.forEach(function(line) {
         var fields = line.replace(/\s*#.*|^\s*|\s*$/g, "").split(/\s+/);
         map9[fields.shift()] = fields;
@@ -19413,7 +19413,7 @@ var require_send = __commonJS({
     var escapeHtml = require_escape_html();
     var etag = require_etag();
     var fresh = require_fresh();
-    var fs5 = require("fs");
+    var fs6 = require("fs");
     var mime = require_mime();
     var ms = require_ms2();
     var onFinished = require_on_finished();
@@ -19746,7 +19746,7 @@ var require_send = __commonJS({
       var i4 = 0;
       var self2 = this;
       debug2('stat "%s"', path7);
-      fs5.stat(path7, function onstat(err2, stat) {
+      fs6.stat(path7, function onstat(err2, stat) {
         if (err2 && err2.code === "ENOENT" && !extname4(path7) && path7[path7.length - 1] !== sep3) {
           return next(err2);
         }
@@ -19761,7 +19761,7 @@ var require_send = __commonJS({
         }
         var p4 = path7 + "." + self2._extensions[i4++];
         debug2('stat "%s"', p4);
-        fs5.stat(p4, function(err3, stat) {
+        fs6.stat(p4, function(err3, stat) {
           if (err3) return next(err3);
           if (stat.isDirectory()) return next();
           self2.emit("file", p4, stat);
@@ -19779,7 +19779,7 @@ var require_send = __commonJS({
         }
         var p4 = join3(path7, self2._index[i4]);
         debug2('stat "%s"', p4);
-        fs5.stat(p4, function(err3, stat) {
+        fs6.stat(p4, function(err3, stat) {
           if (err3) return next(err3);
           if (stat.isDirectory()) return next();
           self2.emit("file", p4, stat);
@@ -19791,7 +19791,7 @@ var require_send = __commonJS({
     SendStream.prototype.stream = function stream4(path7, options) {
       var self2 = this;
       var res = this.res;
-      var stream5 = fs5.createReadStream(path7, options);
+      var stream5 = fs6.createReadStream(path7, options);
       this.emit("stream", stream5);
       stream5.pipe(res);
       function cleanup() {
@@ -35040,10 +35040,10 @@ async function updateProductTarget(id, data4) {
   if (!db) throw new Error("Database not available");
   await db.update(productTargets).set(data4).where(eq(productTargets.id, id));
 }
-async function createBiddingLog(log2) {
+async function createBiddingLog(log3) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(biddingLogs).values(log2);
+  const result = await db.insert(biddingLogs).values(log3);
   return result[0].insertId;
 }
 async function getBiddingLogsByAccountId(accountId, limit = 100, offset2 = 0) {
@@ -35522,12 +35522,12 @@ async function getBidChangeRecords(accountId, days) {
   startDate.setDate(startDate.getDate() - days);
   const logs = await db.select().from(biddingLogs).where(eq(biddingLogs.accountId, accountId)).orderBy(desc(biddingLogs.createdAt)).limit(500);
   const records = [];
-  for (const log2 of logs) {
-    if (log2.actionType !== "increase" && log2.actionType !== "decrease" && log2.actionType !== "set") {
+  for (const log3 of logs) {
+    if (log3.actionType !== "increase" && log3.actionType !== "decrease" && log3.actionType !== "set") {
       continue;
     }
-    const oldBid = parseFloat(log2.previousBid || "0");
-    const newBid = parseFloat(log2.newBid || "0");
+    const oldBid = parseFloat(log3.previousBid || "0");
+    const newBid = parseFloat(log3.newBid || "0");
     if (oldBid === 0 || newBid === 0) continue;
     const performanceAfter = {
       clicks: Math.floor(Math.random() * 50),
@@ -35540,16 +35540,16 @@ async function getBidChangeRecords(accountId, days) {
     performanceAfter.roas = performanceAfter.spend > 0 ? performanceAfter.sales / performanceAfter.spend : 0;
     performanceAfter.acos = performanceAfter.sales > 0 ? performanceAfter.spend / performanceAfter.sales * 100 : 0;
     records.push({
-      id: log2.id,
-      targetId: log2.targetId || 0,
-      targetName: log2.targetName || "",
-      targetType: log2.logTargetType,
-      campaignId: log2.campaignId || 0,
+      id: log3.id,
+      targetId: log3.targetId || 0,
+      targetName: log3.targetName || "",
+      targetType: log3.logTargetType,
+      campaignId: log3.campaignId || 0,
       campaignName: "",
       oldBid,
       newBid,
-      changeDate: log2.createdAt || (/* @__PURE__ */ new Date()).toISOString(),
-      changeReason: log2.reason || "",
+      changeDate: log3.createdAt || (/* @__PURE__ */ new Date()).toISOString(),
+      changeReason: log3.reason || "",
       performanceAfter
     });
   }
@@ -36181,8 +36181,8 @@ async function createEmailSendLog(data4) {
   if (!db) return null;
   const result = await db.insert(emailSendLogs).values(data4);
   const insertId = result[0].insertId;
-  const [log2] = await db.select().from(emailSendLogs).where(eq(emailSendLogs.id, insertId));
-  return log2 || null;
+  const [log3] = await db.select().from(emailSendLogs).where(eq(emailSendLogs.id, insertId));
+  return log3 || null;
 }
 async function getEmailSendLogsBySubscription(subscriptionId, limit = 20) {
   const db = await getDb();
@@ -38544,7 +38544,7 @@ var require_form_data = __commonJS({
     var http2 = require("http");
     var https2 = require("https");
     var parseUrl5 = require("url").parse;
-    var fs5 = require("fs");
+    var fs6 = require("fs");
     var Stream = require("stream").Stream;
     var crypto6 = require("crypto");
     var mime = require_mime_types();
@@ -38611,7 +38611,7 @@ var require_form_data = __commonJS({
         if (value2.end != void 0 && value2.end != Infinity && value2.start != void 0) {
           callback2(null, value2.end + 1 - (value2.start ? value2.start : 0));
         } else {
-          fs5.stat(value2.path, function(err2, stat) {
+          fs6.stat(value2.path, function(err2, stat) {
             if (err2) {
               callback2(err2);
               return;
@@ -54794,6 +54794,70 @@ var init_timezone = __esm({
   }
 });
 
+// server/debugLogger.ts
+var debugLogger_exports = {};
+__export(debugLogger_exports, {
+  cleanOldLogs: () => cleanOldLogs,
+  logDebug: () => logDebug2
+});
+async function logDebug2(entry) {
+  try {
+    const db = getDb();
+    if (!db) {
+      console.error("[DebugLogger] \u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25");
+      return;
+    }
+    await db.execute(`
+      CREATE TABLE IF NOT EXISTS debug_logs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        log_type VARCHAR(50) NOT NULL,
+        account_id INT,
+        marketplace VARCHAR(10),
+        sync_job_id INT,
+        message TEXT NOT NULL,
+        data JSON,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_sync_job (sync_job_id),
+        INDEX idx_account (account_id),
+        INDEX idx_created (created_at),
+        INDEX idx_type (log_type)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+    `);
+    await db.execute(
+      `INSERT INTO debug_logs (log_type, account_id, marketplace, sync_job_id, message, data) 
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        entry.log_type,
+        entry.account_id || null,
+        entry.marketplace || null,
+        entry.sync_job_id || null,
+        entry.message,
+        entry.data ? JSON.stringify(entry.data) : null
+      ]
+    );
+    console.log(`[DebugLog:${entry.log_type}] ${entry.message}`, entry.data || "");
+  } catch (error54) {
+    console.error("[DebugLogger] \u5199\u5165\u65E5\u5FD7\u5931\u8D25:", error54);
+  }
+}
+async function cleanOldLogs() {
+  try {
+    const db = getDb();
+    if (!db) return;
+    await db.execute(
+      `DELETE FROM debug_logs WHERE created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)`
+    );
+  } catch (error54) {
+    console.error("[DebugLogger] \u6E05\u7406\u65E7\u65E5\u5FD7\u5931\u8D25:", error54);
+  }
+}
+var init_debugLogger = __esm({
+  "server/debugLogger.ts"() {
+    "use strict";
+    init_db2();
+  }
+});
+
 // server/amazonSyncService.ts
 var amazonSyncService_exports = {};
 __export(amazonSyncService_exports, {
@@ -55059,20 +55123,21 @@ var init_amazonSyncService = __esm({
             console.log("[SyncService] SB\u5E7F\u544A\u6D3B\u52A8API\u8FD4\u56DE\u7ED3\u6784\u793A\u4F8B:", JSON.stringify(apiCampaigns[0], null, 2));
           }
           console.log(`[SyncService] \u83B7\u53D6\u5230 ${apiCampaigns.length} \u4E2ASB\u5E7F\u544A\u6D3B\u52A8`);
-          for (const apiCampaign of apiCampaigns) {
+          for (let i4 = 0; i4 < apiCampaigns.length; i4++) {
+            const apiCampaign = apiCampaigns[i4];
+            log(`[\u540C\u6B65] ------- \u5904\u7406\u7B2C ${i4 + 1}/${apiCampaigns.length} \u4E2A\u5E7F\u544A\u6D3B\u52A8 -------`);
+            log(`[\u540C\u6B65] \u5E7F\u544A\u6D3B\u52A8\u540D\u79F0: ${apiCampaign.name}`);
+            log(`[\u540C\u6B65] \u5E7F\u544A\u6D3B\u52A8ID: ${apiCampaign.campaignId}`);
+            log(`[\u540C\u6B65] \u67E5\u8BE2\u6570\u636E\u5E93: accountId=${this.accountId}, campaignId=${String(apiCampaign.campaignId)}`);
             const [existing] = await db.select().from(campaigns).where(
               and(
                 eq(campaigns.accountId, this.accountId),
                 eq(campaigns.campaignId, String(apiCampaign.campaignId))
               )
             ).limit(1);
-            if (lastSyncTime && existing) {
-              const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-              const lastSync = new Date(lastSyncTime).getTime();
-              if (existingUpdated >= lastSync) {
-                skipped++;
-                continue;
-              }
+            log(`[\u540C\u6B65] \u6570\u636E\u5E93\u67E5\u8BE2\u7ED3\u679C: ${existing ? "\u5DF2\u5B58\u5728" : "\u4E0D\u5B58\u5728"}`);
+            if (existing) {
+              log(`[\u540C\u6B65] \u73B0\u6709\u8BB0\u5F55ID: ${existing.id}, updatedAt: ${existing.updatedAt}`);
             }
             let dailyBudget = 0;
             if (typeof apiCampaign.budget === "number") {
@@ -55186,20 +55251,21 @@ var init_amazonSyncService = __esm({
             console.log("[SyncService] SD\u5E7F\u544A\u6D3B\u52A8API\u8FD4\u56DE\u7ED3\u6784\u793A\u4F8B:", JSON.stringify(apiCampaigns[0], null, 2));
           }
           console.log(`[SyncService] \u83B7\u53D6\u5230 ${apiCampaigns.length} \u4E2ASD\u5E7F\u544A\u6D3B\u52A8`);
-          for (const apiCampaign of apiCampaigns) {
+          for (let i4 = 0; i4 < apiCampaigns.length; i4++) {
+            const apiCampaign = apiCampaigns[i4];
+            log(`[\u540C\u6B65] ------- \u5904\u7406\u7B2C ${i4 + 1}/${apiCampaigns.length} \u4E2A\u5E7F\u544A\u6D3B\u52A8 -------`);
+            log(`[\u540C\u6B65] \u5E7F\u544A\u6D3B\u52A8\u540D\u79F0: ${apiCampaign.name}`);
+            log(`[\u540C\u6B65] \u5E7F\u544A\u6D3B\u52A8ID: ${apiCampaign.campaignId}`);
+            log(`[\u540C\u6B65] \u67E5\u8BE2\u6570\u636E\u5E93: accountId=${this.accountId}, campaignId=${String(apiCampaign.campaignId)}`);
             const [existing] = await db.select().from(campaigns).where(
               and(
                 eq(campaigns.accountId, this.accountId),
                 eq(campaigns.campaignId, String(apiCampaign.campaignId))
               )
             ).limit(1);
-            if (lastSyncTime && existing) {
-              const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-              const lastSync = new Date(lastSyncTime).getTime();
-              if (existingUpdated >= lastSync) {
-                skipped++;
-                continue;
-              }
+            log(`[\u540C\u6B65] \u6570\u636E\u5E93\u67E5\u8BE2\u7ED3\u679C: ${existing ? "\u5DF2\u5B58\u5728" : "\u4E0D\u5B58\u5728"}`);
+            if (existing) {
+              log(`[\u540C\u6B65] \u73B0\u6709\u8BB0\u5F55ID: ${existing.id}, updatedAt: ${existing.updatedAt}`);
             }
             let dailyBudget = 0;
             let budgetType = "daily";
@@ -55292,10 +55358,30 @@ var init_amazonSyncService = __esm({
        * @param lastSyncTime 上次同步时间，用于增量同步
        */
       async syncSpCampaigns(lastSyncTime) {
+        const fs6 = require("fs");
+        const logFile = "/tmp/sync-debug.log";
+        const log3 = (msg) => {
+          const timestamp2 = (/* @__PURE__ */ new Date()).toISOString();
+          fs6.appendFileSync(logFile, `[${timestamp2}] ${msg}
+`);
+          console.log(msg);
+        };
+        log3("[\u540C\u6B65] ========== \u5F00\u59CB\u540C\u6B65SP\u5E7F\u544A\u6D3B\u52A8 ==========");
+        log3(`[\u540C\u6B65] \u53C2\u6570: accountId=${this.accountId}, lastSyncTime=${lastSyncTime}`);
         const db = await getDb();
-        if (!db) return { synced: 0, skipped: 0 };
+        if (!db) {
+          console.error("[\u540C\u6B65] \u274C \u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25");
+          return { synced: 0, skipped: 0 };
+        }
+        console.log("[\u540C\u6B65] \u2705 \u6570\u636E\u5E93\u8FDE\u63A5\u6210\u529F");
         try {
+          console.log("[\u540C\u6B65] \u6B63\u5728\u8C03\u7528Amazon API: listSpCampaigns()...");
           const apiCampaigns = await this.client.listSpCampaigns();
+          console.log(`[\u540C\u6B65] \u2705 API\u8C03\u7528\u6210\u529F,\u8FD4\u56DE ${apiCampaigns.length} \u4E2ASP\u5E7F\u544A\u6D3B\u52A8`);
+          if (apiCampaigns.length === 0) {
+            console.warn("[\u540C\u6B65] \u26A0\uFE0F API\u8FD4\u56DE\u7A7A\u6570\u7EC4 - \u6CA1\u6709SP\u5E7F\u544A\u6D3B\u52A8");
+            return { synced: 0, skipped: 0 };
+          }
           let synced = 0;
           let skipped = 0;
           if (apiCampaigns.length > 0) {
@@ -55307,20 +55393,21 @@ var init_amazonSyncService = __esm({
             console.log("[SP Sync Debug] startDate\u5B57\u6BB5:", apiCampaigns[0].startDate);
             console.log("[SP Sync Debug] endDate\u5B57\u6BB5:", apiCampaigns[0].endDate);
           }
-          for (const apiCampaign of apiCampaigns) {
+          for (let i4 = 0; i4 < apiCampaigns.length; i4++) {
+            const apiCampaign = apiCampaigns[i4];
+            log3(`[\u540C\u6B65] ------- \u5904\u7406\u7B2C ${i4 + 1}/${apiCampaigns.length} \u4E2A\u5E7F\u544A\u6D3B\u52A8 -------`);
+            log3(`[\u540C\u6B65] \u5E7F\u544A\u6D3B\u52A8\u540D\u79F0: ${apiCampaign.name}`);
+            log3(`[\u540C\u6B65] \u5E7F\u544A\u6D3B\u52A8ID: ${apiCampaign.campaignId}`);
+            log3(`[\u540C\u6B65] \u67E5\u8BE2\u6570\u636E\u5E93: accountId=${this.accountId}, campaignId=${String(apiCampaign.campaignId)}`);
             const [existing] = await db.select().from(campaigns).where(
               and(
                 eq(campaigns.accountId, this.accountId),
                 eq(campaigns.campaignId, String(apiCampaign.campaignId))
               )
             ).limit(1);
-            if (lastSyncTime && existing) {
-              const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-              const lastSync = new Date(lastSyncTime).getTime();
-              if (existingUpdated >= lastSync) {
-                skipped++;
-                continue;
-              }
+            log3(`[\u540C\u6B65] \u6570\u636E\u5E93\u67E5\u8BE2\u7ED3\u679C: ${existing ? "\u5DF2\u5B58\u5728" : "\u4E0D\u5B58\u5728"}`);
+            if (existing) {
+              log3(`[\u540C\u6B65] \u73B0\u6709\u8BB0\u5F55ID: ${existing.id}, updatedAt: ${existing.updatedAt}`);
             }
             const normalizedTargetingType = (apiCampaign.targetingType || "manual").toLowerCase();
             const campaignType = normalizedTargetingType === "auto" ? "sp_auto" : "sp_manual";
@@ -55372,19 +55459,38 @@ var init_amazonSyncService = __esm({
               // 使用广告活动的startDate作为Amazon侧创建日期
               updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
             };
+            log3(`[\u540C\u6B65] \u51C6\u5907\u5199\u5165\u6570\u636E\u5E93...`);
+            log3(`[\u540C\u6B65] campaignData: ${JSON.stringify(campaignData, null, 2)}`);
             if (existing) {
+              log3(`[\u540C\u6B65] \u6267\u884CUPDATE\u64CD\u4F5C: \u66F4\u65B0\u73B0\u6709\u8BB0\u5F55ID=${existing.id}`);
               await db.update(campaigns).set(campaignData).where(eq(campaigns.id, existing.id));
+              log3(`[\u540C\u6B65] \u2705 UPDATE\u6210\u529F: ${apiCampaign.name}`);
             } else {
+              log3(`[\u540C\u6B65] \u6267\u884CINSERT\u64CD\u4F5C: \u521B\u5EFA\u65B0\u8BB0\u5F55`);
               await db.insert(campaigns).values({
                 ...campaignData,
                 createdAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
               });
+              log3(`[\u540C\u6B65] \u2705 INSERT\u6210\u529F: ${apiCampaign.name}`);
             }
             synced++;
+            log3(`[\u540C\u6B65] synced\u8BA1\u6570\u5668\u589E\u52A0: ${synced}`);
+            if (synced % 10 === 0) {
+              console.log(`[\u540C\u6B65] \u8FDB\u5EA6: ${synced}/${apiCampaigns.length}`);
+            }
           }
+          log3("[\u540C\u6B65] ========== SP\u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u5B8C\u6210 ==========");
+          log3(`[\u540C\u6B65] \u7ED3\u679C: synced=${synced}, skipped=${skipped}, total=${apiCampaigns.length}`);
           return { synced, skipped };
         } catch (error54) {
-          console.error("Error syncing SP campaigns:", error54);
+          log3("[\u540C\u6B65] \u274C SP\u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u5931\u8D25");
+          log3(`[\u540C\u6B65] \u9519\u8BEF\u7C7B\u578B: ${error54 instanceof Error ? error54.name : typeof error54}`);
+          log3(`[\u540C\u6B65] \u9519\u8BEF\u6D88\u606F: ${error54 instanceof Error ? error54.message : String(error54)}`);
+          log3(`[\u540C\u6B65] \u9519\u8BEF\u5806\u6808: ${error54 instanceof Error ? error54.stack : "N/A"}`);
+          console.error("[\u540C\u6B65] \u274C SP\u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u5931\u8D25");
+          console.error("[\u540C\u6B65] \u9519\u8BEF\u7C7B\u578B:", error54 instanceof Error ? error54.name : typeof error54);
+          console.error("[\u540C\u6B65] \u9519\u8BEF\u6D88\u606F:", error54 instanceof Error ? error54.message : String(error54));
+          console.error("[\u540C\u6B65] \u9519\u8BEF\u5806\u6808:", error54 instanceof Error ? error54.stack : "N/A");
           return { synced: 0, skipped: 0 };
         }
       }
@@ -55413,14 +55519,6 @@ var init_amazonSyncService = __esm({
                 eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
               )
             ).limit(1);
-            if (lastSyncTime && existing) {
-              const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-              const lastSync = new Date(lastSyncTime).getTime();
-              if (existingUpdated >= lastSync) {
-                skipped++;
-                continue;
-              }
-            }
             const normalizedState = (apiAdGroup.state || "enabled").toLowerCase();
             const adGroupData = {
               campaignId: campaign.id,
@@ -56169,14 +56267,6 @@ var init_amazonSyncService = __esm({
                 eq(keywords.keywordId, String(apiKeyword.keywordId))
               )
             ).limit(1);
-            if (lastSyncTime && existing) {
-              const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-              const lastSync = new Date(lastSyncTime).getTime();
-              if (existingUpdated >= lastSync) {
-                skipped++;
-                continue;
-              }
-            }
             const keywordData = {
               adGroupId: adGroup.id,
               keywordId: String(apiKeyword.keywordId),
@@ -56290,14 +56380,6 @@ var init_amazonSyncService = __esm({
                 eq(productTargets.targetId, String(apiTarget.targetId))
               )
             ).limit(1);
-            if (lastSyncTime && existing) {
-              const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-              const lastSync = new Date(lastSyncTime).getTime();
-              if (existingUpdated >= lastSync) {
-                skipped++;
-                continue;
-              }
-            }
             const targetData = {
               adGroupId: adGroup.id,
               targetId: String(apiTarget.targetId),
@@ -57692,8 +57774,26 @@ var init_amazonSyncService = __esm({
       }
     };
     AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(lastSyncTime, syncJobId) {
+      const { logDebug: logDebug3 } = await Promise.resolve().then(() => (init_debugLogger(), debugLogger_exports));
+      await logDebug3({
+        log_type: "sync_start",
+        account_id: this.accountId,
+        marketplace: this.marketplace,
+        sync_job_id: syncJobId || void 0,
+        message: "\u5F00\u59CB\u540C\u6B65SP\u5E7F\u544A\u6D3B\u52A8(WithTracking)",
+        data: { lastSyncTime, syncJobId }
+      });
       const db = await getDb();
-      if (!db) return { synced: 0, skipped: 0, created: 0, updated: 0, deleted: 0, conflicts: 0 };
+      if (!db) {
+        await logDebug3({
+          log_type: "error",
+          account_id: this.accountId,
+          sync_job_id: syncJobId || void 0,
+          message: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25",
+          data: null
+        });
+        return { synced: 0, skipped: 0, created: 0, updated: 0, deleted: 0, conflicts: 0 };
+      }
       const result = {
         synced: 0,
         skipped: 0,
@@ -57706,8 +57806,24 @@ var init_amazonSyncService = __esm({
       const conflictRecords = [];
       try {
         console.log("[SP Sync] Starting SP campaigns sync...");
+        await logDebug3({
+          log_type: "api_call",
+          account_id: this.accountId,
+          marketplace: this.marketplace,
+          sync_job_id: syncJobId || void 0,
+          message: "\u6B63\u5728\u8C03\u7528Amazon API: listSpCampaigns()",
+          data: null
+        });
         const apiCampaigns = await this.client.listSpCampaigns();
         console.log(`[SP Sync] Retrieved ${apiCampaigns.length} SP campaigns from API`);
+        await logDebug3({
+          log_type: "api_call",
+          account_id: this.accountId,
+          marketplace: this.marketplace,
+          sync_job_id: syncJobId || void 0,
+          message: `API\u8FD4\u56DE ${apiCampaigns.length} \u6761SP\u5E7F\u544A\u6D3B\u52A8`,
+          data: { count: apiCampaigns.length, sample: apiCampaigns.slice(0, 2) }
+        });
         for (const apiCampaign of apiCampaigns) {
           const [existing] = await db.select().from(campaigns).where(
             and(
@@ -57715,14 +57831,6 @@ var init_amazonSyncService = __esm({
               eq(campaigns.campaignId, String(apiCampaign.campaignId))
             )
           ).limit(1);
-          if (lastSyncTime && existing) {
-            const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-            const lastSync = new Date(lastSyncTime).getTime();
-            if (existingUpdated >= lastSync) {
-              result.skipped++;
-              continue;
-            }
-          }
           const normalizedTargetingType = (apiCampaign.targetingType || "manual").toLowerCase();
           const campaignType = normalizedTargetingType === "auto" ? "sp_auto" : "sp_manual";
           const dailyBudgetValue = apiCampaign.budget?.budget || apiCampaign.budget?.dailyBudget || apiCampaign.dailyBudget || 0;
@@ -57773,6 +57881,14 @@ var init_amazonSyncService = __esm({
             }
             await db.update(campaigns).set(campaignData).where(eq(campaigns.id, existing.id));
             result.updated++;
+            await logDebug3({
+              log_type: "db_write",
+              account_id: this.accountId,
+              marketplace: this.marketplace,
+              sync_job_id: syncJobId || void 0,
+              message: `\u66F4\u65B0\u5E7F\u544A\u6D3B\u52A8: ${apiCampaign.name || "unknown"}`,
+              data: { campaignId: String(apiCampaign.campaignId), action: "update" }
+            });
           } else {
             if (syncJobId) {
               changeRecords.push({
@@ -57791,6 +57907,14 @@ var init_amazonSyncService = __esm({
               createdAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
             });
             result.created++;
+            await logDebug3({
+              log_type: "db_write",
+              account_id: this.accountId,
+              marketplace: this.marketplace,
+              sync_job_id: syncJobId || void 0,
+              message: `\u521B\u5EFA\u5E7F\u544A\u6D3B\u52A8: ${apiCampaign.name || "unknown"}`,
+              data: { campaignId: String(apiCampaign.campaignId), action: "create" }
+            });
           }
           result.synced++;
         }
@@ -57807,6 +57931,18 @@ var init_amazonSyncService = __esm({
           console.error("[SP Sync] API Response status:", error54.response.status);
           console.error("[SP Sync] API Response data:", JSON.stringify(error54.response.data));
         }
+        await logDebug3({
+          log_type: "error",
+          account_id: this.accountId,
+          marketplace: this.marketplace,
+          sync_job_id: syncJobId || void 0,
+          message: "SP\u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u5931\u8D25",
+          data: {
+            error: error54?.message || String(error54),
+            stack: error54?.stack,
+            response: error54?.response?.data
+          }
+        });
         return result;
       }
     };
@@ -57832,14 +57968,6 @@ var init_amazonSyncService = __esm({
               eq(campaigns.campaignId, String(apiCampaign.campaignId))
             )
           ).limit(1);
-          if (lastSyncTime && existing) {
-            const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-            const lastSync = new Date(lastSyncTime).getTime();
-            if (existingUpdated >= lastSync) {
-              result.skipped++;
-              continue;
-            }
-          }
           const sbGoal = apiCampaign.goal || apiCampaign.campaignGoal || "";
           let sbCostType = "cpc";
           if (sbGoal === "GROW_BRAND_IMPRESSION_SHARE" || sbGoal === "growBrandImpressionShare") {
@@ -57906,6 +58034,14 @@ var init_amazonSyncService = __esm({
             }
             await db.update(campaigns).set(campaignData).where(eq(campaigns.id, existing.id));
             result.updated++;
+            await logDebug({
+              log_type: "db_write",
+              account_id: this.accountId,
+              marketplace: this.marketplace,
+              sync_job_id: syncJobId || void 0,
+              message: `\u66F4\u65B0\u5E7F\u544A\u6D3B\u52A8: ${apiCampaign.name || "unknown"}`,
+              data: { campaignId: String(apiCampaign.campaignId), action: "update" }
+            });
           } else {
             if (syncJobId) {
               changeRecords.push({
@@ -57924,6 +58060,14 @@ var init_amazonSyncService = __esm({
               createdAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
             });
             result.created++;
+            await logDebug({
+              log_type: "db_write",
+              account_id: this.accountId,
+              marketplace: this.marketplace,
+              sync_job_id: syncJobId || void 0,
+              message: `\u521B\u5EFA\u5E7F\u544A\u6D3B\u52A8: ${apiCampaign.name || "unknown"}`,
+              data: { campaignId: String(apiCampaign.campaignId), action: "create" }
+            });
           }
           result.synced++;
         }
@@ -57961,14 +58105,6 @@ var init_amazonSyncService = __esm({
               eq(campaigns.campaignId, String(apiCampaign.campaignId))
             )
           ).limit(1);
-          if (lastSyncTime && existing) {
-            const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-            const lastSync = new Date(lastSyncTime).getTime();
-            if (existingUpdated >= lastSync) {
-              result.skipped++;
-              continue;
-            }
-          }
           const sdCostType = (apiCampaign.costType || "cpc").toLowerCase();
           const validCostTypes = ["cpc", "vcpm", "cpm"];
           const normalizedCostType = validCostTypes.includes(sdCostType) ? sdCostType : "cpc";
@@ -58031,6 +58167,14 @@ var init_amazonSyncService = __esm({
             }
             await db.update(campaigns).set(campaignData).where(eq(campaigns.id, existing.id));
             result.updated++;
+            await logDebug({
+              log_type: "db_write",
+              account_id: this.accountId,
+              marketplace: this.marketplace,
+              sync_job_id: syncJobId || void 0,
+              message: `\u66F4\u65B0\u5E7F\u544A\u6D3B\u52A8: ${apiCampaign.name || "unknown"}`,
+              data: { campaignId: String(apiCampaign.campaignId), action: "update" }
+            });
           } else {
             if (syncJobId) {
               changeRecords.push({
@@ -58049,6 +58193,14 @@ var init_amazonSyncService = __esm({
               createdAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
             });
             result.created++;
+            await logDebug({
+              log_type: "db_write",
+              account_id: this.accountId,
+              marketplace: this.marketplace,
+              sync_job_id: syncJobId || void 0,
+              message: `\u521B\u5EFA\u5E7F\u544A\u6D3B\u52A8: ${apiCampaign.name || "unknown"}`,
+              data: { campaignId: String(apiCampaign.campaignId), action: "create" }
+            });
           }
           result.synced++;
         }
@@ -58096,14 +58248,6 @@ var init_amazonSyncService = __esm({
               eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
             )
           ).limit(1);
-          if (lastSyncTime && existing) {
-            const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-            const lastSync = new Date(lastSyncTime).getTime();
-            if (existingUpdated >= lastSync) {
-              result.skipped++;
-              continue;
-            }
-          }
           const normalizedState = (apiAdGroup.state || "enabled").toLowerCase();
           const adGroupData = {
             campaignId: campaign.id,
@@ -58208,14 +58352,6 @@ var init_amazonSyncService = __esm({
               eq(keywords.keywordId, String(apiKeyword.keywordId))
             )
           ).limit(1);
-          if (lastSyncTime && existing) {
-            const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-            const lastSync = new Date(lastSyncTime).getTime();
-            if (existingUpdated >= lastSync) {
-              result.skipped++;
-              continue;
-            }
-          }
           const normalizedMatchType = (apiKeyword.matchType || "broad").toLowerCase();
           const normalizedState = (apiKeyword.state || "enabled").toLowerCase();
           const keywordData = {
@@ -58322,14 +58458,6 @@ var init_amazonSyncService = __esm({
               eq(productTargets.targetId, String(apiTarget.targetId))
             )
           ).limit(1);
-          if (lastSyncTime && existing) {
-            const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-            const lastSync = new Date(lastSyncTime).getTime();
-            if (existingUpdated >= lastSync) {
-              result.skipped++;
-              continue;
-            }
-          }
           let targetType = "asin";
           let targetValue = "";
           if (apiTarget.expression && apiTarget.expression.length > 0) {
@@ -112226,7 +112354,7 @@ var require_dist_cjs102 = __commonJS({
     var httpAuthSchemes = (init_httpAuthSchemes6(), __toCommonJS(httpAuthSchemes_exports));
     var propertyProvider = require_dist_cjs42();
     var sharedIniFileLoader = require_dist_cjs59();
-    var fs5 = require("fs");
+    var fs6 = require("fs");
     var fromEnvSigningName = ({ logger: logger7, signingName } = {}) => async () => {
       logger7?.debug?.("@aws-sdk/token-providers - fromEnvSigningName");
       if (!signingName) {
@@ -112272,7 +112400,7 @@ var require_dist_cjs102 = __commonJS({
         throw new propertyProvider.TokenProviderError(`Value not present for '${key}' in SSO Token${forRefresh ? ". Cannot refresh" : ""}. ${REFRESH_MESSAGE}`, false);
       }
     };
-    var { writeFile } = fs5.promises;
+    var { writeFile } = fs6.promises;
     var writeSSOTokenToFile = (id, ssoToken) => {
       const tokenFilepath = sharedIniFileLoader.getSSOTokenFilepath(id);
       const tokenString = JSON.stringify(ssoToken, null, 2);
@@ -126322,8 +126450,8 @@ async function createAuditLog(data4) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const result = await db.insert(auditLogs).values(data4);
-  const [log2] = await db.select().from(auditLogs).where(eq(auditLogs.id, result[0]?.insertId || 0));
-  return log2;
+  const [log3] = await db.select().from(auditLogs).where(eq(auditLogs.id, result[0]?.insertId || 0));
+  return log3;
 }
 async function logAudit(params) {
   const description = params.description || ACTION_DESCRIPTIONS[params.actionType] || "\u672A\u77E5\u64CD\u4F5C";
@@ -126386,8 +126514,8 @@ async function getAuditLogs(params) {
 async function getAuditLogById(id) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const [log2] = await db.select().from(auditLogs).where(eq(auditLogs.id, id));
-  return log2 || null;
+  const [log3] = await db.select().from(auditLogs).where(eq(auditLogs.id, id));
+  return log3 || null;
 }
 async function getUserAuditStats(userId, days = 30) {
   const db = await getDb();
@@ -126479,18 +126607,18 @@ async function exportAuditLogsToCSV(params) {
     "\u72B6\u6001",
     "IP\u5730\u5740"
   ];
-  const rows = logs.map((log2) => [
-    log2.id,
-    String(log2.createdAt),
-    log2.userName || "",
-    log2.userEmail || "",
-    ACTION_DESCRIPTIONS[log2.actionType] || log2.actionType,
-    log2.description || "",
-    TARGET_TYPE_DESCRIPTIONS[log2.targetType || ""] || log2.targetType || "",
-    log2.targetName || "",
-    log2.accountName || "",
-    log2.status,
-    log2.ipAddress || ""
+  const rows = logs.map((log3) => [
+    log3.id,
+    String(log3.createdAt),
+    log3.userName || "",
+    log3.userEmail || "",
+    ACTION_DESCRIPTIONS[log3.actionType] || log3.actionType,
+    log3.description || "",
+    TARGET_TYPE_DESCRIPTIONS[log3.targetType || ""] || log3.targetType || "",
+    log3.targetName || "",
+    log3.accountName || "",
+    log3.status,
+    log3.ipAddress || ""
   ]);
   const csvContent = [
     headers.join(","),
@@ -133478,7 +133606,7 @@ var init_logger2 = __esm({
 // node_modules/rollup/dist/native.js
 var require_native = __commonJS({
   "node_modules/rollup/dist/native.js"(exports2, module2) {
-    var { existsSync: existsSync3 } = require("node:fs");
+    var { existsSync: existsSync5 } = require("node:fs");
     var path6 = require("node:path");
     var { platform: platform3, arch: arch2, report: report2 } = require("node:process");
     var { spawnSync } = require("node:child_process");
@@ -133575,7 +133703,7 @@ var require_native = __commonJS({
       }
     };
     var { parse: parse9, parseAsync: parseAsync5, xxhashBase64Url: xxhashBase64Url2, xxhashBase36: xxhashBase362, xxhashBase16: xxhashBase162 } = requireWithFriendlyError(
-      existsSync3(path6.join(__dirname, localName)) ? localName : `@rollup/rollup-${packageBase}`
+      existsSync5(path6.join(__dirname, localName)) ? localName : `@rollup/rollup-${packageBase}`
     );
     function getPackageBase() {
       const imported = bindingsByPlatformAndArch[platform3]?.[arch2];
@@ -133802,23 +133930,23 @@ function augmentCodeLocation(properties, pos, source, id) {
     properties.frame = getCodeFrame(source, line, column);
   }
 }
-function augmentLogMessage(log2) {
-  if (!(log2.plugin || log2.loc) || log2[symbolAugmented]) {
+function augmentLogMessage(log3) {
+  if (!(log3.plugin || log3.loc) || log3[symbolAugmented]) {
     return;
   }
-  log2[symbolAugmented] = true;
+  log3[symbolAugmented] = true;
   let prefix = "";
-  if (log2.plugin) {
-    prefix += `[plugin ${log2.plugin}] `;
+  if (log3.plugin) {
+    prefix += `[plugin ${log3.plugin}] `;
   }
-  const id = log2.id || log2.loc?.file;
+  const id = log3.id || log3.loc?.file;
   if (id) {
-    const position = log2.loc ? ` (${log2.loc.line}:${log2.loc.column})` : "";
+    const position = log3.loc ? ` (${log3.loc.line}:${log3.loc.column})` : "";
     prefix += `${relativeId(id)}${position}: `;
   }
-  const oldMessage = log2.message;
-  log2.message = prefix + log2.message;
-  tweakStackMessage(log2, oldMessage);
+  const oldMessage = log3.message;
+  log3.message = prefix + log3.message;
+  tweakStackMessage(log3, oldMessage);
 }
 function logAddonNotGenerated(message2, hook, plugin2) {
   return {
@@ -134448,13 +134576,13 @@ function logFailedValidation(message2) {
 function warnDeprecation(deprecation, urlSnippet, activeDeprecation, options, plugin2) {
   warnDeprecationWithOptions(deprecation, urlSnippet, activeDeprecation, options.onLog, options.strictDeprecations);
 }
-function warnDeprecationWithOptions(deprecation, urlSnippet, activeDeprecation, log2, strictDeprecations, plugin2) {
+function warnDeprecationWithOptions(deprecation, urlSnippet, activeDeprecation, log3, strictDeprecations, plugin2) {
   if (activeDeprecation || strictDeprecations) {
     const warning = logDeprecation(deprecation, urlSnippet);
     if (strictDeprecations) {
       return error52(warning);
     }
-    log2(LOGLEVEL_WARN, warning);
+    log3(LOGLEVEL_WARN, warning);
   }
 }
 function convertProgram(buffer) {
@@ -138801,7 +138929,7 @@ ${file2}:${line}:${column}: ERROR: ${pluginText}${e6.text}`;
       if (regexp.flags) result = `(?${regexp.flags})${result}`;
       return result;
     }
-    var fs5 = require("fs");
+    var fs6 = require("fs");
     var os2 = require("os");
     var path6 = require("path");
     var ESBUILD_BINARY_PATH = process.env.ESBUILD_BINARY_PATH || ESBUILD_BINARY_PATH;
@@ -138867,14 +138995,14 @@ ${file2}:${line}:${column}: ERROR: ${pluginText}${e6.text}`;
         for (const unixKey in knownUnixlikePackages) {
           try {
             const pkg = knownUnixlikePackages[unixKey];
-            if (fs5.existsSync(path6.join(nodeModulesDirectory, pkg))) return pkg;
+            if (fs6.existsSync(path6.join(nodeModulesDirectory, pkg))) return pkg;
           } catch {
           }
         }
         for (const windowsKey in knownWindowsPackages) {
           try {
             const pkg = knownWindowsPackages[windowsKey];
-            if (fs5.existsSync(path6.join(nodeModulesDirectory, pkg))) return pkg;
+            if (fs6.existsSync(path6.join(nodeModulesDirectory, pkg))) return pkg;
           } catch {
           }
         }
@@ -138887,7 +139015,7 @@ ${file2}:${line}:${column}: ERROR: ${pluginText}${e6.text}`;
     }
     function generateBinPath() {
       if (isValidBinaryPath(ESBUILD_BINARY_PATH)) {
-        if (!fs5.existsSync(ESBUILD_BINARY_PATH)) {
+        if (!fs6.existsSync(ESBUILD_BINARY_PATH)) {
           console.warn(`[esbuild] Ignoring bad configuration: ESBUILD_BINARY_PATH=${ESBUILD_BINARY_PATH}`);
         } else {
           return { binPath: ESBUILD_BINARY_PATH, isWASM: false };
@@ -138899,7 +139027,7 @@ ${file2}:${line}:${column}: ERROR: ${pluginText}${e6.text}`;
         binPath = require.resolve(`${pkg}/${subpath}`);
       } catch (e6) {
         binPath = downloadedBinPath(pkg, subpath);
-        if (!fs5.existsSync(binPath)) {
+        if (!fs6.existsSync(binPath)) {
           try {
             require.resolve(pkg);
           } catch {
@@ -138980,10 +139108,10 @@ for your current platform.`);
             "esbuild",
             `pnpapi-${pkg.replace("/", "-")}-${"0.27.3"}-${path6.basename(subpath)}`
           );
-          if (!fs5.existsSync(binTargetPath)) {
-            fs5.mkdirSync(path6.dirname(binTargetPath), { recursive: true });
-            fs5.copyFileSync(binPath, binTargetPath);
-            fs5.chmodSync(binTargetPath, 493);
+          if (!fs6.existsSync(binTargetPath)) {
+            fs6.mkdirSync(path6.dirname(binTargetPath), { recursive: true });
+            fs6.copyFileSync(binPath, binTargetPath);
+            fs6.chmodSync(binTargetPath, 493);
           }
           return { binPath: binTargetPath, isWASM };
         }
@@ -139604,11 +139732,11 @@ var init_dist3 = __esm({
     empty = () => {
     };
     resolveSymlinksAsync = function(path6, state6, callback$1) {
-      const { queue, fs: fs5, options: { suppressErrors } } = state6;
+      const { queue, fs: fs6, options: { suppressErrors } } = state6;
       queue.enqueue();
-      fs5.realpath(path6, (error54, resolvedPath7) => {
+      fs6.realpath(path6, (error54, resolvedPath7) => {
         if (error54) return queue.dequeue(suppressErrors ? null : error54, state6);
-        fs5.stat(resolvedPath7, (error$1, stat) => {
+        fs6.stat(resolvedPath7, (error$1, stat) => {
           if (error$1) return queue.dequeue(suppressErrors ? null : error$1, state6);
           if (stat.isDirectory() && isRecursive(path6, resolvedPath7, state6)) return queue.dequeue(null, state6);
           callback$1(stat, resolvedPath7);
@@ -139617,11 +139745,11 @@ var init_dist3 = __esm({
       });
     };
     resolveSymlinks = function(path6, state6, callback$1) {
-      const { queue, fs: fs5, options: { suppressErrors } } = state6;
+      const { queue, fs: fs6, options: { suppressErrors } } = state6;
       queue.enqueue();
       try {
-        const resolvedPath7 = fs5.realpathSync(path6);
-        const stat = fs5.statSync(resolvedPath7);
+        const resolvedPath7 = fs6.realpathSync(path6);
+        const stat = fs6.statSync(resolvedPath7);
         if (stat.isDirectory() && isRecursive(path6, resolvedPath7, state6)) return;
         callback$1(stat, resolvedPath7);
       } catch (e6) {
@@ -139660,22 +139788,22 @@ var init_dist3 = __esm({
     walkAsync = (state6, crawlPath, directoryPath, currentDepth, callback$1) => {
       state6.queue.enqueue();
       if (currentDepth < 0) return state6.queue.dequeue(null, state6);
-      const { fs: fs5 } = state6;
+      const { fs: fs6 } = state6;
       state6.visited.push(crawlPath);
       state6.counts.directories++;
-      fs5.readdir(crawlPath || ".", readdirOpts, (error54, entries = []) => {
+      fs6.readdir(crawlPath || ".", readdirOpts, (error54, entries = []) => {
         callback$1(entries, directoryPath, currentDepth);
         state6.queue.dequeue(state6.options.suppressErrors ? null : error54, state6);
       });
     };
     walkSync = (state6, crawlPath, directoryPath, currentDepth, callback$1) => {
-      const { fs: fs5 } = state6;
+      const { fs: fs6 } = state6;
       if (currentDepth < 0) return;
       state6.visited.push(crawlPath);
       state6.counts.directories++;
       let entries = [];
       try {
-        entries = fs5.readdirSync(crawlPath || ".", readdirOpts);
+        entries = fs6.readdirSync(crawlPath || ".", readdirOpts);
       } catch (e6) {
         if (!state6.options.suppressErrors) throw e6;
       }
@@ -140035,7 +140163,7 @@ function isDynamicPattern(pattern, options) {
   const scan = import_picomatch.default.scan(pattern);
   return scan.isGlob || scan.negated;
 }
-function log(...tasks) {
+function log2(...tasks) {
   console.log(`[tinyglobby ${(/* @__PURE__ */ new Date()).toLocaleTimeString("es")}]`, ...tasks);
 }
 function normalizePattern(pattern, expandDirectories, cwd2, props, isIgnore) {
@@ -140118,7 +140246,7 @@ function getCrawler(patterns, inputOptions = {}) {
     debug: true
   } : inputOptions;
   const cwd2 = normalizeCwd(options.cwd);
-  if (options.debug) log("globbing with:", {
+  if (options.debug) log2("globbing with:", {
     patterns,
     options,
     cwd: cwd2
@@ -140136,7 +140264,7 @@ function getCrawler(patterns, inputOptions = {}) {
     ...options,
     patterns
   }, cwd2, props);
-  if (options.debug) log("internal processing patterns:", processed);
+  if (options.debug) log2("internal processing patterns:", processed);
   const matchOptions = {
     dot: options.dot,
     nobrace: options.braceExpansion === false,
@@ -140157,26 +140285,26 @@ function getCrawler(patterns, inputOptions = {}) {
     filters: [options.debug ? (p4, isDirectory2) => {
       const path$12 = format8(p4, isDirectory2);
       const matches2 = matcher(path$12);
-      if (matches2) log(`matched ${path$12}`);
+      if (matches2) log2(`matched ${path$12}`);
       return matches2;
     } : (p4, isDirectory2) => matcher(format8(p4, isDirectory2))],
     exclude: options.debug ? (_3, p4) => {
       const relativePath = formatExclude(p4, true);
       const skipped = relativePath !== "." && !partialMatcher(relativePath) || ignore(relativePath);
-      if (skipped) log(`skipped ${p4}`);
-      else log(`crawling ${p4}`);
+      if (skipped) log2(`skipped ${p4}`);
+      else log2(`crawling ${p4}`);
       return skipped;
     } : (_3, p4) => {
       const relativePath = formatExclude(p4, true);
       return relativePath !== "." && !partialMatcher(relativePath) || ignore(relativePath);
     },
     fs: options.fs ? {
-      readdir: options.fs.readdir || import_fs.default.readdir,
-      readdirSync: options.fs.readdirSync || import_fs.default.readdirSync,
-      realpath: options.fs.realpath || import_fs.default.realpath,
-      realpathSync: options.fs.realpathSync || import_fs.default.realpathSync,
-      stat: options.fs.stat || import_fs.default.stat,
-      statSync: options.fs.statSync || import_fs.default.statSync
+      readdir: options.fs.readdir || import_fs2.default.readdir,
+      readdirSync: options.fs.readdirSync || import_fs2.default.readdirSync,
+      realpath: options.fs.realpath || import_fs2.default.realpath,
+      realpathSync: options.fs.realpathSync || import_fs2.default.realpathSync,
+      stat: options.fs.stat || import_fs2.default.stat,
+      statSync: options.fs.statSync || import_fs2.default.statSync
     } : void 0,
     pathSeparator: "/",
     relativePaths: true,
@@ -140199,7 +140327,7 @@ function getCrawler(patterns, inputOptions = {}) {
   } else if (options.onlyFiles === false) fdirOptions.includeDirs = true;
   props.root = props.root.replace(BACKSLASHES, "");
   const root2 = props.root;
-  if (options.debug) log("internal properties:", props);
+  if (options.debug) log2("internal properties:", props);
   const relative5 = cwd2 !== root2 && !options.absolute && buildRelative(cwd2, props.root);
   return [new Builder(fdirOptions).crawl(root2), relative5];
 }
@@ -140221,10 +140349,10 @@ function globSync(patternsOrOptions, options) {
   if (!relative5) return crawler.sync();
   return formatPaths(crawler.sync(), relative5);
 }
-var import_fs, import_path2, import_url2, import_picomatch, isReadonlyArray, isWin, ONLY_PARENT_DIRECTORIES, WIN32_ROOT_DIR, isRoot, splitPatternOptions, POSIX_UNESCAPED_GLOB_SYMBOLS, WIN32_UNESCAPED_GLOB_SYMBOLS, escapePosixPath, escapeWin32Path, escapePath, PARENT_DIRECTORY, ESCAPING_BACKSLASHES, BACKSLASHES;
+var import_fs2, import_path2, import_url2, import_picomatch, isReadonlyArray, isWin, ONLY_PARENT_DIRECTORIES, WIN32_ROOT_DIR, isRoot, splitPatternOptions, POSIX_UNESCAPED_GLOB_SYMBOLS, WIN32_UNESCAPED_GLOB_SYMBOLS, escapePosixPath, escapeWin32Path, escapePath, PARENT_DIRECTORY, ESCAPING_BACKSLASHES, BACKSLASHES;
 var init_dist4 = __esm({
   "node_modules/tinyglobby/dist/index.mjs"() {
-    import_fs = __toESM(require("fs"), 1);
+    import_fs2 = __toESM(require("fs"), 1);
     import_path2 = __toESM(require("path"), 1);
     import_url2 = require("url");
     init_dist3();
@@ -152665,15 +152793,15 @@ function requirePicomatch$2() {
 function requireReaddirp() {
   if (hasRequiredReaddirp) return readdirp_1;
   hasRequiredReaddirp = 1;
-  const fs5 = import_fs2.default;
+  const fs6 = import_fs3.default;
   const { Readable: Readable2 } = import_stream5.default;
   const sysPath = import_path3.default;
   const { promisify: promisify2 } = import_util5.default;
   const picomatch5 = /* @__PURE__ */ requirePicomatch$2();
-  const readdir = promisify2(fs5.readdir);
-  const stat = promisify2(fs5.stat);
-  const lstat = promisify2(fs5.lstat);
-  const realpath = promisify2(fs5.realpath);
+  const readdir = promisify2(fs6.readdir);
+  const stat = promisify2(fs6.stat);
+  const lstat = promisify2(fs6.lstat);
+  const realpath = promisify2(fs6.realpath);
   const BANG = "!";
   const RECURSIVE_ERROR_CODE = "READDIRP_RECURSIVE_ERROR";
   const NORMAL_FLOW_ERRORS = /* @__PURE__ */ new Set(["ENOENT", "EPERM", "EACCES", "ELOOP", RECURSIVE_ERROR_CODE]);
@@ -152747,7 +152875,7 @@ function requireReaddirp() {
       this._wantsFile = [FILE_TYPE, FILE_DIR_TYPE, EVERYTHING_TYPE].includes(type);
       this._wantsEverything = type === EVERYTHING_TYPE;
       this._root = sysPath.resolve(root2);
-      this._isDirent = "Dirent" in fs5 && !opts.alwaysStat;
+      this._isDirent = "Dirent" in fs6 && !opts.alwaysStat;
       this._statsProp = this._isDirent ? "dirent" : "stats";
       this._rdOptions = { encoding: "utf8", withFileTypes: this._isDirent };
       this.parents = [this._exploreDir(root2, 1)];
@@ -155795,7 +155923,7 @@ function requireConstants() {
 function requireNodefsHandler() {
   if (hasRequiredNodefsHandler) return nodefsHandler;
   hasRequiredNodefsHandler = 1;
-  const fs5 = import_fs2.default;
+  const fs6 = import_fs3.default;
   const sysPath = import_path3.default;
   const { promisify: promisify2 } = import_util5.default;
   const isBinaryPath2 = /* @__PURE__ */ requireIsBinaryPath();
@@ -155818,11 +155946,11 @@ function requireNodefsHandler() {
     STAR
   } = /* @__PURE__ */ requireConstants();
   const THROTTLE_MODE_WATCH = "watch";
-  const open2 = promisify2(fs5.open);
-  const stat = promisify2(fs5.stat);
-  const lstat = promisify2(fs5.lstat);
-  const close = promisify2(fs5.close);
-  const fsrealpath = promisify2(fs5.realpath);
+  const open2 = promisify2(fs6.open);
+  const stat = promisify2(fs6.stat);
+  const lstat = promisify2(fs6.lstat);
+  const close = promisify2(fs6.close);
+  const fsrealpath = promisify2(fs6.realpath);
   const statMethods = { lstat, stat };
   const foreach = (val, fn2) => {
     if (val instanceof Set) {
@@ -155869,7 +155997,7 @@ function requireNodefsHandler() {
       }
     };
     try {
-      return fs5.watch(path6, options, handleEvent);
+      return fs6.watch(path6, options, handleEvent);
     } catch (error54) {
       errHandler(error54);
     }
@@ -155950,7 +156078,7 @@ function requireNodefsHandler() {
     let cont = FsWatchFileInstances.get(fullPath);
     const copts = cont && cont.options;
     if (copts && (copts.persistent < options.persistent || copts.interval > options.interval)) {
-      fs5.unwatchFile(fullPath);
+      fs6.unwatchFile(fullPath);
       cont = void 0;
     }
     if (cont) {
@@ -155961,7 +156089,7 @@ function requireNodefsHandler() {
         listeners: listener,
         rawEmitters: rawEmitter,
         options,
-        watcher: fs5.watchFile(fullPath, options, (curr, prev) => {
+        watcher: fs6.watchFile(fullPath, options, (curr, prev) => {
           foreach(cont.rawEmitters, (rawEmitter2) => {
             rawEmitter2(EV_CHANGE, fullPath, { curr, prev });
           });
@@ -155978,7 +156106,7 @@ function requireNodefsHandler() {
       delFromSet(cont, KEY_RAW, rawEmitter);
       if (isEmptySet(cont.listeners)) {
         FsWatchFileInstances.delete(fullPath);
-        fs5.unwatchFile(fullPath);
+        fs6.unwatchFile(fullPath);
         cont.options = cont.watcher = void 0;
         Object.freeze(cont);
       }
@@ -156280,7 +156408,7 @@ function requireNodefsHandler() {
 function requireFseventsHandler() {
   if (hasRequiredFseventsHandler) return fseventsHandler.exports;
   hasRequiredFseventsHandler = 1;
-  const fs5 = import_fs2.default;
+  const fs6 = import_fs3.default;
   const sysPath = import_path3.default;
   const { promisify: promisify2 } = import_util5.default;
   let fsevents;
@@ -156325,9 +156453,9 @@ function requireFseventsHandler() {
     IDENTITY_FN
   } = /* @__PURE__ */ requireConstants();
   const Depth = (value2) => isNaN(value2) ? {} : { depth: value2 };
-  const stat = promisify2(fs5.stat);
-  const lstat = promisify2(fs5.lstat);
-  const realpath = promisify2(fs5.realpath);
+  const stat = promisify2(fs6.stat);
+  const lstat = promisify2(fs6.lstat);
+  const realpath = promisify2(fs6.realpath);
   const statMethods = { stat, lstat };
   const FSEventsWatchers = /* @__PURE__ */ new Map();
   const consolidateThreshhold = 10;
@@ -156675,7 +156803,7 @@ function requireChokidar() {
   if (hasRequiredChokidar) return chokidar$1;
   hasRequiredChokidar = 1;
   const { EventEmitter: EventEmitter3 } = import_events2.default;
-  const fs5 = import_fs2.default;
+  const fs6 = import_fs3.default;
   const sysPath = import_path3.default;
   const { promisify: promisify2 } = import_util5.default;
   const readdirp = /* @__PURE__ */ requireReaddirp();
@@ -156720,8 +156848,8 @@ function requireChokidar() {
     isMacos,
     isIBMi
   } = /* @__PURE__ */ requireConstants();
-  const stat = promisify2(fs5.stat);
-  const readdir = promisify2(fs5.readdir);
+  const stat = promisify2(fs6.stat);
+  const readdir = promisify2(fs6.readdir);
   const arrify = (value2 = []) => Array.isArray(value2) ? value2 : [value2];
   const flatten = (list8, result = []) => {
     list8.forEach((item) => {
@@ -157215,7 +157343,7 @@ function requireChokidar() {
       }
       const now = /* @__PURE__ */ new Date();
       const awaitWriteFinish = (prevStat) => {
-        fs5.stat(fullPath, (err2, curStat) => {
+        fs6.stat(fullPath, (err2, curStat) => {
           if (err2 || !this._pendingWrites.has(path6)) {
             if (err2 && err2.code !== "ENOENT") awfEmit(err2);
             return;
@@ -157414,14 +157542,14 @@ function requireChokidar() {
   chokidar$1.watch = watch2;
   return chokidar$1;
 }
-var import_node_path3, import_node_process, import_path3, import_fs2, import_util5, import_stream5, import_os, import_events2, import_node_os, import_native3, chokidar$1, utils$2, constants$3, hasRequiredConstants$3, hasRequiredUtils$2, scan_1$1, hasRequiredScan$1, parse_1$2, hasRequiredParse$2, picomatch_1$1, hasRequiredPicomatch$3, picomatch$1, hasRequiredPicomatch$2, readdirp_1, hasRequiredReaddirp, anymatch, utils$1, constants$2, hasRequiredConstants$2, hasRequiredUtils$1, scan_1, hasRequiredScan, parse_1$1, hasRequiredParse$1, picomatch_1, hasRequiredPicomatch$1, picomatch2, hasRequiredPicomatch, normalizePath2, hasRequiredNormalizePath, anymatch_1, hasRequiredAnymatch, isExtglob, hasRequiredIsExtglob, isGlob, hasRequiredIsGlob, globParent, hasRequiredGlobParent, utils, hasRequiredUtils, stringify, hasRequiredStringify, isNumber3, hasRequiredIsNumber, toRegexRange_1, hasRequiredToRegexRange, fillRange, hasRequiredFillRange, compile_1, hasRequiredCompile, expand_1, hasRequiredExpand, constants$1, hasRequiredConstants$1, parse_1, hasRequiredParse, braces_1, hasRequiredBraces, require$$0, binaryExtensions, hasRequiredBinaryExtensions, isBinaryPath, hasRequiredIsBinaryPath, constants, hasRequiredConstants, nodefsHandler, hasRequiredNodefsHandler, fseventsHandler, require$$3, hasRequiredFseventsHandler, hasRequiredChokidar, chokidarExports, chokidar, FileWatcher, eventsRewrites, Watcher, Task;
+var import_node_path3, import_node_process, import_path3, import_fs3, import_util5, import_stream5, import_os, import_events2, import_node_os, import_native3, chokidar$1, utils$2, constants$3, hasRequiredConstants$3, hasRequiredUtils$2, scan_1$1, hasRequiredScan$1, parse_1$2, hasRequiredParse$2, picomatch_1$1, hasRequiredPicomatch$3, picomatch$1, hasRequiredPicomatch$2, readdirp_1, hasRequiredReaddirp, anymatch, utils$1, constants$2, hasRequiredConstants$2, hasRequiredUtils$1, scan_1, hasRequiredScan, parse_1$1, hasRequiredParse$1, picomatch_1, hasRequiredPicomatch$1, picomatch2, hasRequiredPicomatch, normalizePath2, hasRequiredNormalizePath, anymatch_1, hasRequiredAnymatch, isExtglob, hasRequiredIsExtglob, isGlob, hasRequiredIsGlob, globParent, hasRequiredGlobParent, utils, hasRequiredUtils, stringify, hasRequiredStringify, isNumber3, hasRequiredIsNumber, toRegexRange_1, hasRequiredToRegexRange, fillRange, hasRequiredFillRange, compile_1, hasRequiredCompile, expand_1, hasRequiredExpand, constants$1, hasRequiredConstants$1, parse_1, hasRequiredParse, braces_1, hasRequiredBraces, require$$0, binaryExtensions, hasRequiredBinaryExtensions, isBinaryPath, hasRequiredIsBinaryPath, constants, hasRequiredConstants, nodefsHandler, hasRequiredNodefsHandler, fseventsHandler, require$$3, hasRequiredFseventsHandler, hasRequiredChokidar, chokidarExports, chokidar, FileWatcher, eventsRewrites, Watcher, Task;
 var init_watch = __esm({
   "node_modules/rollup/dist/es/shared/watch.js"() {
     init_node_entry();
     import_node_path3 = __toESM(require("node:path"), 1);
     import_node_process = __toESM(require("node:process"), 1);
     import_path3 = __toESM(require("path"), 1);
-    import_fs2 = __toESM(require("fs"), 1);
+    import_fs3 = __toESM(require("fs"), 1);
     import_util5 = __toESM(require("util"), 1);
     import_stream5 = __toESM(require("stream"), 1);
     import_os = __toESM(require("os"), 1);
@@ -158878,14 +159006,14 @@ function updateExtensionForRelativeAmdId(id, forceJsExtensionForImports) {
   }
   return forceJsExtensionForImports ? addJsExtension(id) : removeJsExtension(id);
 }
-function warnOnBuiltins(log2, dependencies) {
+function warnOnBuiltins(log3, dependencies) {
   const externalBuiltins = dependencies.map(({ importPath }) => importPath).filter((importPath) => nodeBuiltins.has(importPath) || importPath.startsWith("node:"));
   if (externalBuiltins.length === 0)
     return;
-  log2(LOGLEVEL_WARN, logMissingNodeBuiltins(externalBuiltins));
+  log3(LOGLEVEL_WARN, logMissingNodeBuiltins(externalBuiltins));
 }
-function amd(magicString, { accessedGlobals, dependencies, exports: exports$1, hasDefaultExport, hasExports, id, indent: t7, intro, isEntryFacade, isModuleFacade, namedExportsMode, log: log2, outro, snippets }, { amd: amd2, esModule, externalLiveBindings, freeze, generatedCode: { symbols }, interop, reexportProtoFromExternal, strict }) {
-  warnOnBuiltins(log2, dependencies);
+function amd(magicString, { accessedGlobals, dependencies, exports: exports$1, hasDefaultExport, hasExports, id, indent: t7, intro, isEntryFacade, isModuleFacade, namedExportsMode, log: log3, outro, snippets }, { amd: amd2, esModule, externalLiveBindings, freeze, generatedCode: { symbols }, interop, reexportProtoFromExternal, strict }) {
+  warnOnBuiltins(log3, dependencies);
   const deps = dependencies.map((m4) => `'${updateExtensionForRelativeAmdId(m4.importPath, amd2.forceJsExtensionForImports)}'`);
   const parameters = dependencies.map((m4) => m4.name);
   const { n: n7, getNonArrowFunctionIntro, _: _3 } = snippets;
@@ -159041,11 +159169,11 @@ function getExportBlock(exports$1, { _: _3, cnst }) {
   }
   return exportBlock;
 }
-function setupNamespace(name2, root2, globals, { _: _3, getPropertyAccess, s: s4 }, compact, log2) {
+function setupNamespace(name2, root2, globals, { _: _3, getPropertyAccess, s: s4 }, compact, log3) {
   const parts = name2.split(".");
   const isReserved = parts[0] in Object.prototype;
-  if (log2 && isReserved) {
-    log2(LOGLEVEL_WARN, logReservedNamespace(parts[0]));
+  if (log3 && isReserved) {
+    log3(LOGLEVEL_WARN, logReservedNamespace(parts[0]));
   }
   parts[0] = (typeof globals === "function" ? globals(parts[0]) : isReserved ? parts[0] : globals[parts[0]]) || parts[0];
   parts.pop();
@@ -159055,11 +159183,11 @@ function setupNamespace(name2, root2, globals, { _: _3, getPropertyAccess, s: s4
     return `${propertyPath}${_3}=${_3}${propertyPath}${_3}||${_3}{}${s4}`;
   }).join(compact ? "," : "\n") + (compact && parts.length > 0 ? ";" : "\n");
 }
-function assignToDeepVariable(deepName, root2, globals, assignment, { _: _3, getPropertyAccess }, log2) {
+function assignToDeepVariable(deepName, root2, globals, assignment, { _: _3, getPropertyAccess }, log3) {
   const parts = deepName.split(".");
   const isReserved = parts[0] in Object.prototype;
-  if (log2 && isReserved) {
-    log2(LOGLEVEL_WARN, logReservedNamespace(parts[0]));
+  if (log3 && isReserved) {
+    log3(LOGLEVEL_WARN, logReservedNamespace(parts[0]));
   }
   parts[0] = (typeof globals === "function" ? globals(parts[0]) : isReserved ? parts[0] : globals[parts[0]]) || parts[0];
   const last = parts.pop();
@@ -159086,19 +159214,19 @@ function trimEmptyImports(dependencies) {
   }
   return [];
 }
-function iife2(magicString, { accessedGlobals, dependencies, exports: exports$1, hasDefaultExport, hasExports, indent: t7, intro, namedExportsMode, log: log2, outro, snippets }, { compact, esModule, extend: extend3, freeze, externalLiveBindings, reexportProtoFromExternal, globals, interop, name: name2, generatedCode: { symbols }, strict }) {
+function iife2(magicString, { accessedGlobals, dependencies, exports: exports$1, hasDefaultExport, hasExports, indent: t7, intro, namedExportsMode, log: log3, outro, snippets }, { compact, esModule, extend: extend3, freeze, externalLiveBindings, reexportProtoFromExternal, globals, interop, name: name2, generatedCode: { symbols }, strict }) {
   const { _: _3, getNonArrowFunctionIntro, getPropertyAccess, n: n7 } = snippets;
   const isNamespaced = name2 && name2.includes(".");
   const useVariableAssignment = !extend3 && !isNamespaced;
   if (name2 && useVariableAssignment && !isLegal(name2)) {
     return error52(logIllegalIdentifierAsName(name2));
   }
-  warnOnBuiltins(log2, dependencies);
+  warnOnBuiltins(log3, dependencies);
   const external = trimEmptyImports(dependencies);
   const deps = external.map((dep) => dep.globalName || "null");
   const parameters = external.map((m4) => m4.name);
   if (hasExports && !name2) {
-    log2(LOGLEVEL_WARN, logMissingNameOptionForIifeExport());
+    log3(LOGLEVEL_WARN, logMissingNameOptionForIifeExport());
   }
   if (hasExports && (namedExportsMode || exports$1[0]?.local === "exports.default")) {
     if (extend3) {
@@ -159121,7 +159249,7 @@ function iife2(magicString, { accessedGlobals, dependencies, exports: exports$1,
       wrapperIntro = (useVariableAssignment ? `var ${name2}` : `this${keypath(name2, getPropertyAccess)}`) + `${_3}=${_3}${wrapperIntro}`;
     }
     if (isNamespaced) {
-      wrapperIntro = setupNamespace(name2, "this", globals, snippets, compact, log2) + wrapperIntro;
+      wrapperIntro = setupNamespace(name2, "this", globals, snippets, compact, log3) + wrapperIntro;
     }
   }
   let wrapperOutro = `${n7}${n7}})(${deps.join(`,${_3}`)});`;
@@ -159222,14 +159350,14 @@ function safeAccess(name2, globalVariable, { _: _3, getPropertyAccess }) {
   let propertyPath = globalVariable;
   return name2.split(".").map((part) => propertyPath += getPropertyAccess(part)).join(`${_3}&&${_3}`);
 }
-function umd(magicString, { accessedGlobals, dependencies, exports: exports$1, hasDefaultExport, hasExports, id, indent: t7, intro, namedExportsMode, log: log2, outro, snippets }, { amd: amd2, compact, esModule, extend: extend3, externalLiveBindings, freeze, interop, name: name2, generatedCode: { symbols }, globals, noConflict, reexportProtoFromExternal, strict }) {
+function umd(magicString, { accessedGlobals, dependencies, exports: exports$1, hasDefaultExport, hasExports, id, indent: t7, intro, namedExportsMode, log: log3, outro, snippets }, { amd: amd2, compact, esModule, extend: extend3, externalLiveBindings, freeze, interop, name: name2, generatedCode: { symbols }, globals, noConflict, reexportProtoFromExternal, strict }) {
   const { _: _3, cnst, getFunctionIntro, getNonArrowFunctionIntro, getPropertyAccess, n: n7, s: s4 } = snippets;
   const factoryVariable = compact ? "f" : "factory";
   const globalVariable = compact ? "g" : "global";
   if (hasExports && !name2) {
     return error52(logMissingNameOptionForUmdExport());
   }
-  warnOnBuiltins(log2, dependencies);
+  warnOnBuiltins(log3, dependencies);
   const amdDeps = dependencies.map((m4) => `'${updateExtensionForRelativeAmdId(m4.importPath, amd2.forceJsExtensionForImports)}'`);
   const cjsDeps = dependencies.map((m4) => `require('${m4.importPath}')`);
   const trimmedImports = trimEmptyImports(dependencies);
@@ -159238,7 +159366,7 @@ function umd(magicString, { accessedGlobals, dependencies, exports: exports$1, h
   if ((hasExports || noConflict) && (namedExportsMode || hasExports && exports$1[0]?.local === "exports.default")) {
     amdDeps.unshift(`'exports'`);
     cjsDeps.unshift(`exports`);
-    globalDeps.unshift(assignToDeepVariable(name2, globalVariable, globals, `${extend3 ? `${globalProperty(name2, globalVariable, getPropertyAccess)}${_3}||${_3}` : ""}{}`, snippets, log2));
+    globalDeps.unshift(assignToDeepVariable(name2, globalVariable, globals, `${extend3 ? `${globalProperty(name2, globalVariable, getPropertyAccess)}${_3}||${_3}` : ""}{}`, snippets, log3));
     factoryParameters.unshift("exports");
   }
   const completeAmdId = getCompleteAmdId(amd2, id);
@@ -159251,7 +159379,7 @@ function umd(magicString, { accessedGlobals, dependencies, exports: exports$1, h
     const noConflictExportsVariable = compact ? "e" : "exports";
     let factory2;
     if (!namedExportsMode && hasExports) {
-      factory2 = `${cnst} ${noConflictExportsVariable}${_3}=${_3}${assignToDeepVariable(name2, globalVariable, globals, `${factoryVariable}(${globalDeps.join(`,${_3}`)})`, snippets, log2)};`;
+      factory2 = `${cnst} ${noConflictExportsVariable}${_3}=${_3}${assignToDeepVariable(name2, globalVariable, globals, `${factoryVariable}(${globalDeps.join(`,${_3}`)})`, snippets, log3)};`;
     } else {
       const module2 = globalDeps.shift();
       factory2 = `${cnst} ${noConflictExportsVariable}${_3}=${_3}${module2};${n7}${t7}${t7}${factoryVariable}(${[noConflictExportsVariable, ...globalDeps].join(`,${_3}`)});`;
@@ -159263,7 +159391,7 @@ function umd(magicString, { accessedGlobals, dependencies, exports: exports$1, h
   } else {
     iifeExport = `${factoryVariable}(${globalDeps.join(`,${_3}`)})`;
     if (!namedExportsMode && hasExports) {
-      iifeExport = assignToDeepVariable(name2, globalVariable, globals, iifeExport, snippets, log2);
+      iifeExport = assignToDeepVariable(name2, globalVariable, globals, iifeExport, snippets, log3);
     }
   }
   const iifeNeedsGlobal = hasExports || noConflict && namedExportsMode || globalDeps.length > 0;
@@ -161433,7 +161561,7 @@ function assignExportsToNames(exports$1, exportsByName, exportNamesByVariable) {
     exportNamesByVariable.set(variable, [exportName]);
   }
 }
-function getExportMode(chunk, { exports: exportMode, name: name2, format: format8 }, facadeModuleId, log2) {
+function getExportMode(chunk, { exports: exportMode, name: name2, format: format8 }, facadeModuleId, log3) {
   const exportKeys = chunk.getExportNames();
   if (exportMode === "default") {
     if (exportKeys.length !== 1 || exportKeys[0] !== "default") {
@@ -161449,7 +161577,7 @@ function getExportMode(chunk, { exports: exportMode, name: name2, format: format
       exportMode = "default";
     } else {
       if (format8 !== "es" && format8 !== "system" && exportKeys.includes("default")) {
-        log2(LOGLEVEL_WARN, logMixedExport(facadeModuleId, name2));
+        log3(LOGLEVEL_WARN, logMixedExport(facadeModuleId, name2));
       }
       exportMode = "named";
     }
@@ -161542,13 +161670,13 @@ function makeUnique(name2, { [lowercaseBundleKeys]: reservedLowercaseBundleKeys 
     ;
   return uniqueName;
 }
-function getGlobalName(chunk, globals, hasExports, log2) {
+function getGlobalName(chunk, globals, hasExports, log3) {
   const globalName = typeof globals === "function" ? globals(chunk.id) : globals[chunk.id];
   if (globalName) {
     return globalName;
   }
   if (hasExports) {
-    log2(LOGLEVEL_WARN, logMissingGlobalName(chunk.id, chunk.variableName));
+    log3(LOGLEVEL_WARN, logMissingGlobalName(chunk.id, chunk.variableName));
     return chunk.variableName;
   }
 }
@@ -161581,7 +161709,7 @@ function* concatLazy(iterables) {
     yield* iterable;
   }
 }
-function getChunkAssignments(entries, manualChunkAliasByEntry, minChunkSize, log2, isManualChunksFunctionForm, onlyExplicitManualChunks) {
+function getChunkAssignments(entries, manualChunkAliasByEntry, minChunkSize, log3, isManualChunksFunctionForm, onlyExplicitManualChunks) {
   const { chunkDefinitions, modulesInManualChunks } = getChunkDefinitionsFromManualChunks(manualChunkAliasByEntry, isManualChunksFunctionForm, onlyExplicitManualChunks);
   const { allEntries, dependentEntriesByModule, dynamicallyDependentEntriesByDynamicEntry, dynamicImportsByEntry, dynamicallyDependentEntriesByAwaitedDynamicEntry, awaitedDynamicImportsByEntry } = analyzeModuleGraph(entries);
   const chunkAtoms = getChunksWithSameDependentEntries(getModulesWithDependentEntriesAndHandleTLACycles(dependentEntriesByModule, modulesInManualChunks, chunkDefinitions));
@@ -161590,7 +161718,7 @@ function getChunkAssignments(entries, manualChunkAliasByEntry, minChunkSize, log
   const awaitedAlreadyLoadedAtomsByEntry = getAlreadyLoadedAtomsByEntry(staticDependencyAtomsByEntry, dynamicallyDependentEntriesByAwaitedDynamicEntry, awaitedDynamicImportsByEntry, allEntries);
   removeUnnecessaryDependentEntries(chunkAtoms, alreadyLoadedAtomsByEntry, awaitedAlreadyLoadedAtomsByEntry);
   const { chunks, sideEffectAtoms, sizeByAtom } = getChunksWithSameDependentEntriesAndCorrelatedAtoms(chunkAtoms, staticDependencyAtomsByEntry, alreadyLoadedAtomsByEntry, minChunkSize);
-  chunkDefinitions.push(...getOptimizedChunks(chunks, minChunkSize, sideEffectAtoms, sizeByAtom, log2).map(({ modules }) => ({
+  chunkDefinitions.push(...getOptimizedChunks(chunks, minChunkSize, sideEffectAtoms, sizeByAtom, log3).map(({ modules }) => ({
     alias: null,
     modules
   })));
@@ -161877,7 +162005,7 @@ function addChunkDependenciesAndGetExternalSideEffectAtoms(chunks, chunkByModule
   }
   return externalSideEffectAtoms;
 }
-function getOptimizedChunks(chunks, minChunkSize, sideEffectAtoms, sizeByAtom, log2) {
+function getOptimizedChunks(chunks, minChunkSize, sideEffectAtoms, sizeByAtom, log3) {
   timeStart("optimize chunks", 3);
   const chunkPartition = getPartitionedChunks(chunks, minChunkSize);
   if (!chunkPartition) {
@@ -161885,11 +162013,11 @@ function getOptimizedChunks(chunks, minChunkSize, sideEffectAtoms, sizeByAtom, l
     return chunks;
   }
   if (minChunkSize > 1) {
-    log2("info", logOptimizeChunkStatus(chunks.length, chunkPartition.small.size, "Initially"));
+    log3("info", logOptimizeChunkStatus(chunks.length, chunkPartition.small.size, "Initially"));
   }
   mergeChunks(chunkPartition, minChunkSize, sideEffectAtoms, sizeByAtom);
   if (minChunkSize > 1) {
-    log2("info", logOptimizeChunkStatus(chunkPartition.small.size + chunkPartition.big.size, chunkPartition.small.size, "After merging chunks"));
+    log3("info", logOptimizeChunkStatus(chunkPartition.small.size + chunkPartition.big.size, chunkPartition.small.size, "After merging chunks"));
   }
   timeEnd("optimize chunks", 3);
   return [...chunkPartition.small, ...chunkPartition.big];
@@ -162143,12 +162271,12 @@ function getGenerateCodeSnippets({ compact, generatedCode: { arrowFunctions, con
     s: s4
   };
 }
-function getLinkMap(log2) {
+function getLinkMap(log3) {
   return function linkMap(source, map9) {
     if (!map9.missing) {
       return new Link(map9, [source]);
     }
-    log2(LOGLEVEL_WARN, logSourcemapBroken(map9.plugin));
+    log3(LOGLEVEL_WARN, logSourcemapBroken(map9.plugin));
     return new Link({
       mappings: [],
       names: []
@@ -162169,8 +162297,8 @@ function getCollapsedSourcemap(id, originalCode, originalSourcemap, sourcemapCha
   }
   return sourcemapChain.reduce(linkMap, source);
 }
-function collapseSourcemaps(file2, map9, modules, bundleSourcemapChain, excludeContent, log2) {
-  const linkMap = getLinkMap(log2);
+function collapseSourcemaps(file2, map9, modules, bundleSourcemapChain, excludeContent, log3) {
+  const linkMap = getLinkMap(log3);
   const moduleSources = modules.filter((module2) => !module2.excludeFromSourcemap).map((module2) => getCollapsedSourcemap(module2.id, module2.originalCode, module2.originalSourcemap, module2.sourcemapChain, linkMap));
   const link = new Link(map9, moduleSources);
   const source = bundleSourcemapChain.reduce(linkMap, link);
@@ -162191,11 +162319,11 @@ function collapseSourcemaps(file2, map9, modules, bundleSourcemapChain, excludeC
     sourcesContent: excludeContent ? void 0 : sourcesContent
   });
 }
-function collapseSourcemap(id, originalCode, originalSourcemap, sourcemapChain, log2) {
+function collapseSourcemap(id, originalCode, originalSourcemap, sourcemapChain, log3) {
   if (sourcemapChain.length === 0) {
     return originalSourcemap;
   }
-  const source = getCollapsedSourcemap(id, originalCode, originalSourcemap, sourcemapChain, getLinkMap(log2));
+  const source = getCollapsedSourcemap(id, originalCode, originalSourcemap, sourcemapChain, getLinkMap(log3));
   const map9 = source.traceMappings();
   return decodedSourcemap({ version: 3, ...map9 });
 }
@@ -162209,7 +162337,7 @@ function ensureBuffer(input) {
   }
   return input;
 }
-async function renderChunks(chunks, bundle, pluginDriver, outputOptions, log2) {
+async function renderChunks(chunks, bundle, pluginDriver, outputOptions, log3) {
   timeStart("render chunks", 2);
   reserveEntryChunksInBundle(chunks);
   const renderedChunks = await Promise.all(chunks.map((chunk) => chunk.render()));
@@ -162217,7 +162345,7 @@ async function renderChunks(chunks, bundle, pluginDriver, outputOptions, log2) {
   timeStart("transform chunks", 2);
   const getHash2 = hasherByType[outputOptions.hashCharacters];
   const chunkGraph = getChunkGraph(chunks);
-  const { hashDependenciesByPlaceholder, initialHashesByPlaceholder, nonHashedChunksWithPlaceholders, placeholders, renderedChunksByPlaceholder } = await transformChunksAndGenerateContentHashes(renderedChunks, chunkGraph, outputOptions, pluginDriver, getHash2, log2);
+  const { hashDependenciesByPlaceholder, initialHashesByPlaceholder, nonHashedChunksWithPlaceholders, placeholders, renderedChunksByPlaceholder } = await transformChunksAndGenerateContentHashes(renderedChunks, chunkGraph, outputOptions, pluginDriver, getHash2, log3);
   const hashesByPlaceholder = generateFinalHashes(renderedChunksByPlaceholder, hashDependenciesByPlaceholder, initialHashesByPlaceholder, placeholders, bundle, getHash2);
   addChunksToBundle(renderedChunksByPlaceholder, hashesByPlaceholder, bundle, nonHashedChunksWithPlaceholders, pluginDriver, outputOptions);
   timeEnd("transform chunks", 2);
@@ -162235,7 +162363,7 @@ function getChunkGraph(chunks) {
     return [renderedChunkInfo.fileName, renderedChunkInfo];
   }));
 }
-async function transformChunk(magicString, fileName, usedModules, chunkGraph, options, outputPluginDriver, log2) {
+async function transformChunk(magicString, fileName, usedModules, chunkGraph, options, outputPluginDriver, log3) {
   let map9 = null;
   const sourcemapChain = [];
   let code = await outputPluginDriver.hookReduceArg0("renderChunk", [magicString.toString(), chunkGraph[fileName], options, { chunks: chunkGraph }], (code2, result, plugin2) => {
@@ -162265,7 +162393,7 @@ async function transformChunk(magicString, fileName, usedModules, chunkGraph, op
     else
       resultingFile = (0, import_node_path4.resolve)(fileName);
     const decodedMap2 = magicString.generateDecodedMap({});
-    map9 = collapseSourcemaps(resultingFile, decodedMap2, usedModules, sourcemapChain, sourcemapExcludeSources, log2);
+    map9 = collapseSourcemaps(resultingFile, decodedMap2, usedModules, sourcemapChain, sourcemapExcludeSources, log3);
     for (let sourcesIndex = 0; sourcesIndex < map9.sources.length; ++sourcesIndex) {
       let sourcePath = map9.sources[sourcesIndex];
       const sourcemapPath = `${resultingFile}.map`;
@@ -162296,7 +162424,7 @@ async function transformChunk(magicString, fileName, usedModules, chunkGraph, op
     map: map9
   };
 }
-async function transformChunksAndGenerateContentHashes(renderedChunks, chunkGraph, outputOptions, pluginDriver, getHash2, log2) {
+async function transformChunksAndGenerateContentHashes(renderedChunks, chunkGraph, outputOptions, pluginDriver, getHash2, log3) {
   const nonHashedChunksWithPlaceholders = [];
   const renderedChunksByPlaceholder = /* @__PURE__ */ new Map();
   const hashDependenciesByPlaceholder = /* @__PURE__ */ new Map();
@@ -162311,7 +162439,7 @@ async function transformChunksAndGenerateContentHashes(renderedChunks, chunkGrap
       chunk,
       fileName,
       sourcemapFileName: preliminarySourcemapFileName?.fileName ?? null,
-      ...await transformChunk(magicString, fileName, usedModules, chunkGraph, outputOptions, pluginDriver, log2)
+      ...await transformChunk(magicString, fileName, usedModules, chunkGraph, outputOptions, pluginDriver, log3)
     };
     const { code, map: map9 } = transformedChunk;
     if (hashPlaceholder) {
@@ -162431,7 +162559,7 @@ function calculateDebugIdAndGetComment(code, map9) {
   map9.debugId = debugId;
   return "//# debugId=" + debugId + "\n";
 }
-function validateOptionsForMultiChunkOutput(outputOptions, log2) {
+function validateOptionsForMultiChunkOutput(outputOptions, log3) {
   if (outputOptions.format === "umd" || outputOptions.format === "iife")
     return error52(logInvalidOption("output.format", URL_OUTPUT_FORMAT, "UMD and IIFE output formats are not supported for code-splitting builds", outputOptions.format));
   if (typeof outputOptions.file === "string")
@@ -162439,7 +162567,7 @@ function validateOptionsForMultiChunkOutput(outputOptions, log2) {
   if (outputOptions.sourcemapFile)
     return error52(logInvalidOption("output.sourcemapFile", URL_OUTPUT_SOURCEMAPFILE, '"output.sourcemapFile" is only supported for single-file builds'));
   if (!outputOptions.amd.autoId && outputOptions.amd.id)
-    log2(LOGLEVEL_WARN, logInvalidOption("output.amd.id", URL_OUTPUT_AMD_ID, 'this option is only properly supported for single-file builds. Use "output.amd.autoId" and "output.amd.basePath" instead'));
+    log3(LOGLEVEL_WARN, logInvalidOption("output.amd.id", URL_OUTPUT_AMD_ID, 'this option is only properly supported for single-file builds. Use "output.amd.autoId" and "output.amd.basePath" instead'));
 }
 function getIncludedModules(modulesById) {
   const includedModules = [];
@@ -162539,7 +162667,7 @@ function resolveIdViaPlugins(source, importer, pluginDriver, moduleLoaderResolve
   }
   return pluginDriver.hookFirstAndGetPlugin("resolveId", [source, importer, { attributes, custom: customOptions, importerAttributes, isEntry }], replaceContext, skipped);
 }
-async function resolveId(source, importer, preserveSymlinks, pluginDriver, moduleLoaderResolveId, skip, customOptions, isEntry, attributes, importerAttributes, fs5) {
+async function resolveId(source, importer, preserveSymlinks, pluginDriver, moduleLoaderResolveId, skip, customOptions, isEntry, attributes, importerAttributes, fs6) {
   const pluginResult = await resolveIdViaPlugins(source, importer, pluginDriver, moduleLoaderResolveId, skip, customOptions, isEntry, attributes, importerAttributes);
   if (pluginResult != null) {
     const [resolveIdResult, plugin2] = pluginResult;
@@ -162559,19 +162687,19 @@ async function resolveId(source, importer, preserveSymlinks, pluginDriver, modul
   }
   if (importer !== void 0 && !isAbsolute(source) && source[0] !== ".")
     return null;
-  return addJsExtensionIfNecessary(importer ? (0, import_node_path4.resolve)((0, import_node_path4.dirname)(importer), source) : (0, import_node_path4.resolve)(source), preserveSymlinks, fs5);
+  return addJsExtensionIfNecessary(importer ? (0, import_node_path4.resolve)((0, import_node_path4.dirname)(importer), source) : (0, import_node_path4.resolve)(source), preserveSymlinks, fs6);
 }
-async function addJsExtensionIfNecessary(file2, preserveSymlinks, fs5) {
-  return await findFile(file2, preserveSymlinks, fs5) ?? await findFile(file2 + ".mjs", preserveSymlinks, fs5) ?? await findFile(file2 + ".js", preserveSymlinks, fs5);
+async function addJsExtensionIfNecessary(file2, preserveSymlinks, fs6) {
+  return await findFile(file2, preserveSymlinks, fs6) ?? await findFile(file2 + ".mjs", preserveSymlinks, fs6) ?? await findFile(file2 + ".js", preserveSymlinks, fs6);
 }
-async function findFile(file2, preserveSymlinks, fs5) {
+async function findFile(file2, preserveSymlinks, fs6) {
   try {
-    const stats = await fs5.lstat(file2);
+    const stats = await fs6.lstat(file2);
     if (!preserveSymlinks && stats.isSymbolicLink())
-      return await findFile(await fs5.realpath(file2), preserveSymlinks, fs5);
+      return await findFile(await fs6.realpath(file2), preserveSymlinks, fs6);
     if (preserveSymlinks && stats.isSymbolicLink() || stats.isFile()) {
       const name2 = (0, import_node_path4.basename)(file2);
-      const files = await fs5.readdir((0, import_node_path4.dirname)(file2));
+      const files = await fs6.readdir((0, import_node_path4.dirname)(file2));
       if (files.includes(name2))
         return file2;
     }
@@ -162590,11 +162718,11 @@ async function asyncFlatten(array2) {
   } while (array2.some((v6) => v6?.then));
   return array2;
 }
-function warnUnknownOptions(passedOptions, validOptions, optionType, log2, ignoredKeys = /$./) {
+function warnUnknownOptions(passedOptions, validOptions, optionType, log3, ignoredKeys = /$./) {
   const validOptionSet = new Set(validOptions);
   const unknownOptions = Object.keys(passedOptions).filter((key) => !(validOptionSet.has(key) || ignoredKeys.test(key)));
   if (unknownOptions.length > 0) {
-    log2(LOGLEVEL_WARN, logUnknownOption(optionType, unknownOptions, [...validOptionSet].sort()));
+    log3(LOGLEVEL_WARN, logUnknownOption(optionType, unknownOptions, [...validOptionSet].sort()));
   }
 }
 function createPluginCache(cache6) {
@@ -162704,13 +162832,13 @@ async function transform2(source, module2, pluginDriver, options) {
     currentSource = code2;
     return code2;
   }
-  const getLogHandler2 = (handler) => (log2, pos) => {
-    log2 = normalizeLog(log2);
+  const getLogHandler2 = (handler) => (log3, pos) => {
+    log3 = normalizeLog(log3);
     if (pos)
-      augmentCodeLocation(log2, pos, currentSource, id);
-    log2.id = id;
-    log2.hook = "transform";
-    handler(log2);
+      augmentCodeLocation(log3, pos, currentSource, id);
+    log3.id = id;
+    log3.hook = "transform";
+    handler(log3);
   };
   let code;
   try {
@@ -162827,9 +162955,9 @@ function generateAssetFileName(name2, names, source, originalFileName, originalF
     name: () => emittedName.slice(0, Math.max(0, emittedName.length - (0, import_node_path4.extname)(emittedName).length))
   }), bundle);
 }
-function reserveFileNameInBundle(fileName, { bundle }, log2) {
+function reserveFileNameInBundle(fileName, { bundle }, log3) {
   if (bundle[lowercaseBundleKeys].has(fileName.toLowerCase())) {
-    log2(LOGLEVEL_WARN, logFileNameConflict(fileName));
+    log3(LOGLEVEL_WARN, logFileNameConflict(fileName));
   } else {
     bundle[fileName] = FILE_PLACEHOLDER;
   }
@@ -162882,17 +163010,17 @@ function getLogHandler(level, code, logger7, pluginName, logLevel) {
   if (logLevelPriority[level] < logLevelPriority[logLevel]) {
     return doNothing;
   }
-  return (log2, pos) => {
+  return (log3, pos) => {
     if (pos != null) {
       logger7(LOGLEVEL_WARN, logInvalidLogPosition(pluginName));
     }
-    log2 = normalizeLog(log2);
-    if (log2.code && !log2.pluginCode) {
-      log2.pluginCode = log2.code;
+    log3 = normalizeLog(log3);
+    if (log3.code && !log3.pluginCode) {
+      log3.pluginCode = log3.code;
     }
-    log2.code = code;
-    log2.plugin = pluginName;
-    logger7(level, log2);
+    log3.code = code;
+    log3.plugin = pluginName;
+    logger7(level, log3);
   };
 }
 function getPluginContext(plugin2, pluginCache, graph, options, fileEmitter, existingPluginNames) {
@@ -163164,8 +163292,8 @@ async function initWasm() {
 function getLogger(plugins, onLog, watchMode, logLevel) {
   plugins = getSortedValidatedPlugins("onLog", plugins);
   const minimalPriority = logLevelPriority[logLevel];
-  const logger7 = (level, log2, skipped = EMPTY_SET) => {
-    augmentLogMessage(log2);
+  const logger7 = (level, log3, skipped = EMPTY_SET) => {
+    augmentLogMessage(log3);
     const logPriority = logLevelPriority[level];
     if (logPriority < minimalPriority) {
       return;
@@ -163178,20 +163306,20 @@ function getLogger(plugins, onLog, watchMode, logLevel) {
         if (logLevelPriority[level2] < minimalPriority) {
           return doNothing;
         }
-        return (log3) => logger7(level2, normalizeLog(log3), new Set(skipped).add(plugin2));
+        return (log4) => logger7(level2, normalizeLog(log4), new Set(skipped).add(plugin2));
       };
       const handler = "handler" in pluginOnLog ? pluginOnLog.handler : pluginOnLog;
       if (handler.call({
         debug: getLogHandler2(LOGLEVEL_DEBUG),
-        error: (log3) => error52(normalizeLog(log3)),
+        error: (log4) => error52(normalizeLog(log4)),
         info: getLogHandler2(LOGLEVEL_INFO),
         meta: { rollupVersion: version4, watchMode },
         warn: getLogHandler2(LOGLEVEL_WARN)
-      }, level, log2) === false) {
+      }, level, log3) === false) {
         return;
       }
     }
-    onLog(level, log2);
+    onLog(level, log3);
   };
   return logger7;
 }
@@ -163209,7 +163337,7 @@ async function normalizeInputOptions(config2, watchMode) {
     experimentalCacheExpiry: config2.experimentalCacheExpiry ?? 10,
     experimentalLogSideEffects: config2.experimentalLogSideEffects || false,
     external: getIdMatcher(config2.external),
-    fs: config2.fs ?? fs,
+    fs: config2.fs ?? fs2,
     input: getInput(config2),
     jsx: getJsx(config2),
     logLevel,
@@ -163598,15 +163726,15 @@ async function mergeOptions(config2, watchMode, rawCommandOptions = EMPTY_COMMAN
   const plugins = await normalizePluginOption(config2.plugins);
   const logLevel = config2.logLevel || LOGLEVEL_INFO;
   const onLog = getOnLog(config2, logLevel, printLog);
-  const log2 = getLogger(plugins, onLog, watchMode, logLevel);
-  const inputOptions = mergeInputOptions(config2, command, plugins, log2, onLog);
+  const log3 = getLogger(plugins, onLog, watchMode, logLevel);
+  const inputOptions = mergeInputOptions(config2, command, plugins, log3, onLog);
   if (command.output) {
     Object.assign(command, command.output);
   }
   const outputOptionsArray = ensureArray2(config2.output);
   if (outputOptionsArray.length === 0)
     outputOptionsArray.push({});
-  const outputOptions = await Promise.all(outputOptionsArray.map((singleOutputOptions) => mergeOutputOptions(singleOutputOptions, command, log2)));
+  const outputOptions = await Promise.all(outputOptionsArray.map((singleOutputOptions) => mergeOutputOptions(singleOutputOptions, command, log3)));
   warnUnknownOptions(command, [
     ...Object.keys(inputOptions).filter((option) => option !== "fs"),
     ...Object.keys(outputOptions[0]).filter((option) => option !== "sourcemapIgnoreList" && option !== "sourcemapPathTransform"),
@@ -163623,7 +163751,7 @@ async function mergeOptions(config2, watchMode, rawCommandOptions = EMPTY_COMMAN
     "silent",
     "stdin",
     "waitForBundleInput"
-  ], "CLI flags", log2, /^_$|output$|config/);
+  ], "CLI flags", log3, /^_$|output$|config/);
   inputOptions.output = outputOptions;
   return inputOptions;
 }
@@ -163642,7 +163770,7 @@ function getCommandOptions(rawCommandOptions) {
     }, /* @__PURE__ */ Object.create(null)) : void 0
   };
 }
-function mergeInputOptions(config2, overrides, plugins, log2, onLog) {
+function mergeInputOptions(config2, overrides, plugins, log3, onLog) {
   const getOption = (name2) => overrides[name2] ?? config2[name2];
   const inputOptions = {
     cache: config2.cache,
@@ -163668,10 +163796,10 @@ function mergeInputOptions(config2, overrides, plugins, log2, onLog) {
     treeshake: getObjectOption(config2, overrides, "treeshake", objectifyOptionWithPresets(treeshakePresets, "treeshake", URL_TREESHAKE, "false, true, ")),
     watch: getWatch(config2, overrides)
   };
-  warnUnknownOptions(config2, Object.keys(inputOptions), "input options", log2, /^output$/);
+  warnUnknownOptions(config2, Object.keys(inputOptions), "input options", log3, /^output$/);
   return inputOptions;
 }
-async function mergeOutputOptions(config2, overrides, log2) {
+async function mergeOutputOptions(config2, overrides, log3) {
   const getOption = (name2) => overrides[name2] ?? config2[name2];
   const outputOptions = {
     amd: getObjectOption(config2, overrides, "amd"),
@@ -163727,7 +163855,7 @@ async function mergeOutputOptions(config2, overrides, log2) {
     validate: getOption("validate"),
     virtualDirname: getOption("virtualDirname")
   };
-  warnUnknownOptions(config2, Object.keys(outputOptions), "output options", log2);
+  warnUnknownOptions(config2, Object.keys(outputOptions), "output options", log3);
   return outputOptions;
 }
 async function loadFsEvents() {
@@ -163787,7 +163915,7 @@ async function watchInternal(configs, emitter) {
   const { Watcher: Watcher2 } = await Promise.resolve().then(() => (init_watch(), watch_exports));
   new Watcher2(watchOptionsList, emitter);
 }
-var import_node_path4, import_path4, import_native4, import_node_process2, import_node_perf_hooks, promises, version4, comma2, semicolon, chars$1, intToChar2, charToInt2, bufLength, td, StringWriter, StringReader2, BitSet, Chunk$1, btoa2, SourceMap, toString3, wordRegex, Mappings, n4, warned, MagicString, hasOwnProp, Bundle$1, NO_SEMICOLON, NON_WHITESPACE, WHITESPACE, UnknownKey, UnknownNonAccessorKey, UnknownInteger, UnknownWellKnown, SymbolToStringTag, SymbolDispose, SymbolAsyncDispose, SymbolHasInstance, WELL_KNOWN_SYMBOLS_LIST, WELL_KNOWN_SYMBOLS, isAnyWellKnown, TREE_SHAKEABLE_SYMBOLS_LIST, TREE_SHAKEABLE_SYMBOLS, isConcreteKey, EMPTY_PATH, UNKNOWN_PATH, UNKNOWN_NON_ACCESSOR_PATH, UNKNOWN_INTEGER_PATH, INSTANCEOF_PATH, EntitiesKey, EntityPathTracker, SHARED_RECURSION_TRACKER, DiscriminatedPathTracker, UNKNOWN_INCLUDED_PATH, IncludedFullPathTracker, UNKNOWN_INCLUDED_TOP_LEVEL_PATH, IncludedTopLevelPathTracker, UnknownValue, UnknownTruthyValue, UnknownFalsyValue, ExpressionEntity, UNKNOWN_EXPRESSION, UNKNOWN_RETURN_EXPRESSION, deoptimizeInteraction, includeInteraction, includeInteractionWithoutThis, INTERACTION_ACCESSED, INTERACTION_ASSIGNED, INTERACTION_CALLED, NODE_INTERACTION_UNKNOWN_ACCESS, NODE_INTERACTION_UNKNOWN_ASSIGNMENT, NODE_INTERACTION_UNKNOWN_CALL, PureFunctionKey, getPureFunctions, Variable, ExternalVariable, RESERVED_NAMES, illegalCharacters, startsWithDigit, needsEscape, VALID_IDENTIFIER_REGEXP, NUMBER_REGEXP, ExternalModule, doNothing, childNodeKeys, INCLUDE_PARAMETERS, IS_SKIPPED_CHAIN, NodeBase, UNDEFINED_EXPRESSION, returnsUnknown, UNKNOWN_LITERAL_BOOLEAN, returnsBoolean, UNKNOWN_LITERAL_NUMBER, returnsNumber, UNKNOWN_LITERAL_STRING, returnsString, stringReplace, objectMembers, literalBooleanMembers, literalNumberMembers, literalRegExpMembers, literalStringMembers, Method, METHOD_RETURNS_BOOLEAN, METHOD_RETURNS_STRING, METHOD_RETURNS_NUMBER, METHOD_RETURNS_UNKNOWN, INTEGER_REG_EXP, ObjectEntity, isInteger, OBJECT_PROTOTYPE_FALLBACK, OBJECT_PROTOTYPE, NEW_ARRAY_PROPERTIES, METHOD_CALLS_ARG_DEOPTS_SELF_RETURNS_BOOLEAN, METHOD_CALLS_ARG_DEOPTS_SELF_RETURNS_NUMBER, METHOD_MUTATES_SELF_RETURNS_NEW_ARRAY, METHOD_DEOPTS_SELF_RETURNS_NEW_ARRAY, METHOD_CALLS_ARG_DEOPTS_SELF_RETURNS_NEW_ARRAY, METHOD_MUTATES_SELF_AND_ARGS_RETURNS_NUMBER, METHOD_MUTATES_SELF_RETURNS_UNKNOWN, METHOD_DEOPTS_SELF_RETURNS_UNKNOWN, METHOD_CALLS_ARG_DEOPTS_SELF_RETURNS_UNKNOWN, METHOD_MUTATES_SELF_RETURNS_SELF, METHOD_CALLS_ARG_MUTATES_SELF_RETURNS_SELF, ARRAY_PROTOTYPE, SpreadElement, ArrayExpression, ValueProperties, getUnknownValue, returnFalse, returnTrue, getWellKnownSymbol, PURE, IMPURE, PURE_WITH_ARRAY, GETTER_ACCESS, O, PF, PF_NO_GETTER, MUTATES_ARG_WITHOUT_ACCESSOR, C2, PC, PC_WITH_ARRAY, ARRAY_TYPE, INTL_MEMBER, UNKNOWN_WELL_KNOWN, knownGlobals, GlobalVariable, MAX_PATH_DEPTH, limitConcatenatedPathDepth, LocalVariable, tdzVariableKinds, IdentifierBase, ObjectMember, Identifier2, chars2, base, Scope, ChildScope, MethodBase, MethodDefinition, BlockScope, StaticBlock2, ClassNode, ClassDeclaration, ArgumentsVariable, MAX_TRACKED_INTERACTIONS, NO_INTERACTIONS, UNKNOWN_DEOPTIMIZED_FIELD, EMPTY_PATH_TRACKER, UNKNOWN_DEOPTIMIZED_ENTITY, ParameterVariable, ThisVariable, CatchBodyScope, FunctionBodyScope, ParameterScope, ReturnValueScope, FunctionScope, ExpressionStatement2, BlockStatement2, RestElement2, getIncludedPatternPath$1, FunctionBase, FunctionNode, FunctionDeclaration, ExportDefaultDeclaration2, needsEscapeRegEx, quoteNewlineRegEx, backSlashRegEx, INTEROP_DEFAULT_VARIABLE, INTEROP_DEFAULT_COMPAT_VARIABLE, INTEROP_NAMESPACE_VARIABLE, INTEROP_NAMESPACE_COMPAT_VARIABLE, INTEROP_NAMESPACE_DEFAULT_VARIABLE, INTEROP_NAMESPACE_DEFAULT_ONLY_VARIABLE, MERGE_NAMESPACES_VARIABLE, DOCUMENT_CURRENT_SCRIPT, defaultInteropHelpersByInteropType, isDefaultAProperty, namespaceInteropHelpersByInteropType, canDefaultBeTakenFromNamespace, getHelpersBlock, HELPER_GENERATORS, getDefaultLiveBinding, getDefaultStatic, getIsCompatNamespace, createNamespaceObject, loopOverKeys, loopOverNamespaces, copyNonDefaultOwnPropertyLiveBinding, copyOwnPropertyLiveBinding, copyPropertyLiveBinding, copyPropertyStatic, getFrozen, getWithToStringTag, HELPER_NAMES, Literal2, MemberExpression2, FILE_PREFIX, FILE_OBJ_PREFIX, IMPORT, MetaProperty, formatsMaybeAccessDocumentCurrentScript, accessedMetaUrlGlobals, accessedFileUrlGlobals, getResolveUrl, getRelativeUrlFromDocument, getGenericImportMetaMechanism, getFileUrlFromFullPath, getFileUrlFromRelativePath, getUrlFromDocument, relativeUrlMechanisms, importMetaMechanisms, UndefinedVariable, ExportDefaultVariable, NamespaceVariable, getDynamicNamespaceVariable, SyntheticNamedExportVariable, ExternalChunk, getDefineProperty, builtinModules, nodeBuiltins, keypath, MISSING_EXPORT_SHIM_VARIABLE, getStarExcludes, getStarExcludesBlock, getImportBindingsBlock, getHoistedExportsBlock, getSyntheticExportsBlock, getMissingExportsBlock, finalisers, utils2, constants2, hasRequiredConstants2, hasRequiredUtils2, scan_12, hasRequiredScan2, parse_12, hasRequiredParse2, picomatch_1$12, hasRequiredPicomatch$12, picomatch_12, hasRequiredPicomatch2, picomatchExports, picomatch3, extractors, extractAssignedNames, normalizePathRegExp, normalizePath3, createFilter$1, reservedWords2, builtins, forbiddenIdentifiers, ArrayPattern, getIncludedPatternPath, ArrowFunctionExpression2, ObjectPattern, AssignmentExpression, AssignmentPattern, AwaitExpression2, THEN_PATH, binaryOperators, UNASSIGNED$1, BinaryExpression, BreakStatement, CallExpressionBase, CallExpression2, CatchClause2, ChainExpression, ClassBodyScope, ClassBody, ClassExpression, MultiExpression, ConditionalExpression, ContinueStatement, DebuggerStatement, Decorator, DoWhileStatement, EmptyStatement, ExportAllDeclaration, ExportNamedDeclaration, ExportSpecifier, ForInStatement, ForOfStatement, ForStatement, FunctionExpression2, TrackingScope, unset, IfStatement, ImportAttribute, ImportDeclaration, ImportDefaultSpecifier, ObjectPromiseHandler, EmptyPromiseHandler, ImportExpression, accessedImportGlobals, ImportNamespaceSpecifier, ImportSpecifier, JSXIdentifier, JSXAttribute, JSXClosingBase, JSXClosingElement, JSXClosingFragment, JSXSpreadAttribute, JSXEmptyExpression, JSXExpressionContainer, RE_WHITESPACE_TRIM, RE_WHITESPACE_MERGE, JSXText, JSXElementBase, JSXElement, JSXFragment, JSXMemberExpression, JSXNamespacedName, JSXOpeningElement, JSXOpeningFragment, JSXSpreadChild, LabeledStatement, LogicalExpression, NewExpression, ObjectExpression2, PanicError2, ParseError2, PrivateIdentifier, Program2, Property2, PropertyDefinition, ReturnStatement2, SequenceExpression, Super, SwitchCase, SwitchStatement, TaggedTemplateExpression, TemplateElement, TemplateLiteral2, ModuleScope, ThisExpression, ThrowStatement, TryStatement, unaryOperators, UNASSIGNED, UnaryExpression, CHARACTERS_THAT_DO_NOT_REQUIRE_SPACE, UpdateExpression, VariableDeclaration, VariableDeclarator2, SYMBOL_DISPOSE_PATH, SYMBOL_ASYNC_DISPOSE_PATH, WhileStatement, YieldExpression, nodeTypeStrings, nodeConstructors$1, bufferParsers, UnknownNode, nodeConstructors, ExportShimVariable, BuildPhase, sourceMapCache2, ATTRIBUTE_KEYWORDS, getPropertyKey, timers, timeStart, timeEnd, TIMED_PLUGIN_HOOKS, MISSING_EXPORT_SHIM_DESCRIPTION, Module, copyNameToModulesMap, sortExportedVariables, concatSeparator, concatDblSeparator, DECONFLICT_IMPORTED_VARIABLES_BY_FORMAT, hashPlaceholderLeft, hashPlaceholderRight, hashPlaceholderOverhead, MAX_HASH_SIZE, DEFAULT_HASH_SIZE, getHashPlaceholderGenerator, REPLACER_REGEX, replacePlaceholders, replaceSinglePlaceholder, replacePlaceholdersWithDefaultAndGetContainedPlaceholders, lowercaseBundleKeys, FILE_PLACEHOLDER, getOutputBundle, removeUnreferencedAssets, RESERVED_USED_NAMES, NON_ASSET_EXTENSIONS, Chunk2, QUERY_HASH_REGEX, resolveFileName, compareExecIndex, wrapIfNeeded, Source, Link, textEncoder2, getHash64, getHash36, getHash16, hasherByType, SOURCEMAPPING_URL2, Bundle2, GlobalScope, getOnLog, getDefaultOnLog, addLogToString, normalizeLog, defaultPrintLog, treeshakePresets, jsxPresets, generatedCodePresets, objectifyOption, objectifyOptionWithPresets, getOptionWithPreset, normalizePluginOption, ANONYMOUS_PLUGIN_PREFIX, ANONYMOUS_OUTPUT_PLUGIN_PREFIX, NO_CACHE, RESOLVE_DEPENDENCIES, ModuleLoader, emittedFileTypes, FileEmitter, inputHookNames, inputHooks, PluginDriver, Queue3, Graph, handleBeforeExit, rejectByPluginDriver, fs, getCache, getIdMatcher, getInput, getJsx, getMaxParallelFileOps, getModuleContext, getTreeshake, getHasModuleSideEffects, INVALID_CHAR_REGEX, DRIVE_LETTER_REGEX, getFile, getFormat, getInlineDynamicImports, getPreserveModules, getPreserveModulesRoot, getAmd, getAddon, getDir, getEntryFileNames, getExternalImportAttributes, getGeneratedCode, getIndent, ALLOWED_INTEROP_TYPES, getInterop, validateInterop, getManualChunks, getMinifyInternalExports, getSourcemapFileNames, getSourcemapBaseUrl, SortingFileType, picocolors, hasRequiredPicocolors, picocolorsExports, pc, bold, cyan, dim, red, stderr, commandAliases, EMPTY_COMMAND_OPTIONS, getExternal, getObjectOption, getWatch, normalizeObjectOptionValue, fsEvents, fsEventsImportError, fseventsImporter, WatchEmitter;
+var import_node_path4, import_path4, import_native4, import_node_process2, import_node_perf_hooks, promises, version4, comma2, semicolon, chars$1, intToChar2, charToInt2, bufLength, td, StringWriter, StringReader2, BitSet, Chunk$1, btoa2, SourceMap, toString3, wordRegex, Mappings, n4, warned, MagicString, hasOwnProp, Bundle$1, NO_SEMICOLON, NON_WHITESPACE, WHITESPACE, UnknownKey, UnknownNonAccessorKey, UnknownInteger, UnknownWellKnown, SymbolToStringTag, SymbolDispose, SymbolAsyncDispose, SymbolHasInstance, WELL_KNOWN_SYMBOLS_LIST, WELL_KNOWN_SYMBOLS, isAnyWellKnown, TREE_SHAKEABLE_SYMBOLS_LIST, TREE_SHAKEABLE_SYMBOLS, isConcreteKey, EMPTY_PATH, UNKNOWN_PATH, UNKNOWN_NON_ACCESSOR_PATH, UNKNOWN_INTEGER_PATH, INSTANCEOF_PATH, EntitiesKey, EntityPathTracker, SHARED_RECURSION_TRACKER, DiscriminatedPathTracker, UNKNOWN_INCLUDED_PATH, IncludedFullPathTracker, UNKNOWN_INCLUDED_TOP_LEVEL_PATH, IncludedTopLevelPathTracker, UnknownValue, UnknownTruthyValue, UnknownFalsyValue, ExpressionEntity, UNKNOWN_EXPRESSION, UNKNOWN_RETURN_EXPRESSION, deoptimizeInteraction, includeInteraction, includeInteractionWithoutThis, INTERACTION_ACCESSED, INTERACTION_ASSIGNED, INTERACTION_CALLED, NODE_INTERACTION_UNKNOWN_ACCESS, NODE_INTERACTION_UNKNOWN_ASSIGNMENT, NODE_INTERACTION_UNKNOWN_CALL, PureFunctionKey, getPureFunctions, Variable, ExternalVariable, RESERVED_NAMES, illegalCharacters, startsWithDigit, needsEscape, VALID_IDENTIFIER_REGEXP, NUMBER_REGEXP, ExternalModule, doNothing, childNodeKeys, INCLUDE_PARAMETERS, IS_SKIPPED_CHAIN, NodeBase, UNDEFINED_EXPRESSION, returnsUnknown, UNKNOWN_LITERAL_BOOLEAN, returnsBoolean, UNKNOWN_LITERAL_NUMBER, returnsNumber, UNKNOWN_LITERAL_STRING, returnsString, stringReplace, objectMembers, literalBooleanMembers, literalNumberMembers, literalRegExpMembers, literalStringMembers, Method, METHOD_RETURNS_BOOLEAN, METHOD_RETURNS_STRING, METHOD_RETURNS_NUMBER, METHOD_RETURNS_UNKNOWN, INTEGER_REG_EXP, ObjectEntity, isInteger, OBJECT_PROTOTYPE_FALLBACK, OBJECT_PROTOTYPE, NEW_ARRAY_PROPERTIES, METHOD_CALLS_ARG_DEOPTS_SELF_RETURNS_BOOLEAN, METHOD_CALLS_ARG_DEOPTS_SELF_RETURNS_NUMBER, METHOD_MUTATES_SELF_RETURNS_NEW_ARRAY, METHOD_DEOPTS_SELF_RETURNS_NEW_ARRAY, METHOD_CALLS_ARG_DEOPTS_SELF_RETURNS_NEW_ARRAY, METHOD_MUTATES_SELF_AND_ARGS_RETURNS_NUMBER, METHOD_MUTATES_SELF_RETURNS_UNKNOWN, METHOD_DEOPTS_SELF_RETURNS_UNKNOWN, METHOD_CALLS_ARG_DEOPTS_SELF_RETURNS_UNKNOWN, METHOD_MUTATES_SELF_RETURNS_SELF, METHOD_CALLS_ARG_MUTATES_SELF_RETURNS_SELF, ARRAY_PROTOTYPE, SpreadElement, ArrayExpression, ValueProperties, getUnknownValue, returnFalse, returnTrue, getWellKnownSymbol, PURE, IMPURE, PURE_WITH_ARRAY, GETTER_ACCESS, O, PF, PF_NO_GETTER, MUTATES_ARG_WITHOUT_ACCESSOR, C2, PC, PC_WITH_ARRAY, ARRAY_TYPE, INTL_MEMBER, UNKNOWN_WELL_KNOWN, knownGlobals, GlobalVariable, MAX_PATH_DEPTH, limitConcatenatedPathDepth, LocalVariable, tdzVariableKinds, IdentifierBase, ObjectMember, Identifier2, chars2, base, Scope, ChildScope, MethodBase, MethodDefinition, BlockScope, StaticBlock2, ClassNode, ClassDeclaration, ArgumentsVariable, MAX_TRACKED_INTERACTIONS, NO_INTERACTIONS, UNKNOWN_DEOPTIMIZED_FIELD, EMPTY_PATH_TRACKER, UNKNOWN_DEOPTIMIZED_ENTITY, ParameterVariable, ThisVariable, CatchBodyScope, FunctionBodyScope, ParameterScope, ReturnValueScope, FunctionScope, ExpressionStatement2, BlockStatement2, RestElement2, getIncludedPatternPath$1, FunctionBase, FunctionNode, FunctionDeclaration, ExportDefaultDeclaration2, needsEscapeRegEx, quoteNewlineRegEx, backSlashRegEx, INTEROP_DEFAULT_VARIABLE, INTEROP_DEFAULT_COMPAT_VARIABLE, INTEROP_NAMESPACE_VARIABLE, INTEROP_NAMESPACE_COMPAT_VARIABLE, INTEROP_NAMESPACE_DEFAULT_VARIABLE, INTEROP_NAMESPACE_DEFAULT_ONLY_VARIABLE, MERGE_NAMESPACES_VARIABLE, DOCUMENT_CURRENT_SCRIPT, defaultInteropHelpersByInteropType, isDefaultAProperty, namespaceInteropHelpersByInteropType, canDefaultBeTakenFromNamespace, getHelpersBlock, HELPER_GENERATORS, getDefaultLiveBinding, getDefaultStatic, getIsCompatNamespace, createNamespaceObject, loopOverKeys, loopOverNamespaces, copyNonDefaultOwnPropertyLiveBinding, copyOwnPropertyLiveBinding, copyPropertyLiveBinding, copyPropertyStatic, getFrozen, getWithToStringTag, HELPER_NAMES, Literal2, MemberExpression2, FILE_PREFIX, FILE_OBJ_PREFIX, IMPORT, MetaProperty, formatsMaybeAccessDocumentCurrentScript, accessedMetaUrlGlobals, accessedFileUrlGlobals, getResolveUrl, getRelativeUrlFromDocument, getGenericImportMetaMechanism, getFileUrlFromFullPath, getFileUrlFromRelativePath, getUrlFromDocument, relativeUrlMechanisms, importMetaMechanisms, UndefinedVariable, ExportDefaultVariable, NamespaceVariable, getDynamicNamespaceVariable, SyntheticNamedExportVariable, ExternalChunk, getDefineProperty, builtinModules, nodeBuiltins, keypath, MISSING_EXPORT_SHIM_VARIABLE, getStarExcludes, getStarExcludesBlock, getImportBindingsBlock, getHoistedExportsBlock, getSyntheticExportsBlock, getMissingExportsBlock, finalisers, utils2, constants2, hasRequiredConstants2, hasRequiredUtils2, scan_12, hasRequiredScan2, parse_12, hasRequiredParse2, picomatch_1$12, hasRequiredPicomatch$12, picomatch_12, hasRequiredPicomatch2, picomatchExports, picomatch3, extractors, extractAssignedNames, normalizePathRegExp, normalizePath3, createFilter$1, reservedWords2, builtins, forbiddenIdentifiers, ArrayPattern, getIncludedPatternPath, ArrowFunctionExpression2, ObjectPattern, AssignmentExpression, AssignmentPattern, AwaitExpression2, THEN_PATH, binaryOperators, UNASSIGNED$1, BinaryExpression, BreakStatement, CallExpressionBase, CallExpression2, CatchClause2, ChainExpression, ClassBodyScope, ClassBody, ClassExpression, MultiExpression, ConditionalExpression, ContinueStatement, DebuggerStatement, Decorator, DoWhileStatement, EmptyStatement, ExportAllDeclaration, ExportNamedDeclaration, ExportSpecifier, ForInStatement, ForOfStatement, ForStatement, FunctionExpression2, TrackingScope, unset, IfStatement, ImportAttribute, ImportDeclaration, ImportDefaultSpecifier, ObjectPromiseHandler, EmptyPromiseHandler, ImportExpression, accessedImportGlobals, ImportNamespaceSpecifier, ImportSpecifier, JSXIdentifier, JSXAttribute, JSXClosingBase, JSXClosingElement, JSXClosingFragment, JSXSpreadAttribute, JSXEmptyExpression, JSXExpressionContainer, RE_WHITESPACE_TRIM, RE_WHITESPACE_MERGE, JSXText, JSXElementBase, JSXElement, JSXFragment, JSXMemberExpression, JSXNamespacedName, JSXOpeningElement, JSXOpeningFragment, JSXSpreadChild, LabeledStatement, LogicalExpression, NewExpression, ObjectExpression2, PanicError2, ParseError2, PrivateIdentifier, Program2, Property2, PropertyDefinition, ReturnStatement2, SequenceExpression, Super, SwitchCase, SwitchStatement, TaggedTemplateExpression, TemplateElement, TemplateLiteral2, ModuleScope, ThisExpression, ThrowStatement, TryStatement, unaryOperators, UNASSIGNED, UnaryExpression, CHARACTERS_THAT_DO_NOT_REQUIRE_SPACE, UpdateExpression, VariableDeclaration, VariableDeclarator2, SYMBOL_DISPOSE_PATH, SYMBOL_ASYNC_DISPOSE_PATH, WhileStatement, YieldExpression, nodeTypeStrings, nodeConstructors$1, bufferParsers, UnknownNode, nodeConstructors, ExportShimVariable, BuildPhase, sourceMapCache2, ATTRIBUTE_KEYWORDS, getPropertyKey, timers, timeStart, timeEnd, TIMED_PLUGIN_HOOKS, MISSING_EXPORT_SHIM_DESCRIPTION, Module, copyNameToModulesMap, sortExportedVariables, concatSeparator, concatDblSeparator, DECONFLICT_IMPORTED_VARIABLES_BY_FORMAT, hashPlaceholderLeft, hashPlaceholderRight, hashPlaceholderOverhead, MAX_HASH_SIZE, DEFAULT_HASH_SIZE, getHashPlaceholderGenerator, REPLACER_REGEX, replacePlaceholders, replaceSinglePlaceholder, replacePlaceholdersWithDefaultAndGetContainedPlaceholders, lowercaseBundleKeys, FILE_PLACEHOLDER, getOutputBundle, removeUnreferencedAssets, RESERVED_USED_NAMES, NON_ASSET_EXTENSIONS, Chunk2, QUERY_HASH_REGEX, resolveFileName, compareExecIndex, wrapIfNeeded, Source, Link, textEncoder2, getHash64, getHash36, getHash16, hasherByType, SOURCEMAPPING_URL2, Bundle2, GlobalScope, getOnLog, getDefaultOnLog, addLogToString, normalizeLog, defaultPrintLog, treeshakePresets, jsxPresets, generatedCodePresets, objectifyOption, objectifyOptionWithPresets, getOptionWithPreset, normalizePluginOption, ANONYMOUS_PLUGIN_PREFIX, ANONYMOUS_OUTPUT_PLUGIN_PREFIX, NO_CACHE, RESOLVE_DEPENDENCIES, ModuleLoader, emittedFileTypes, FileEmitter, inputHookNames, inputHooks, PluginDriver, Queue3, Graph, handleBeforeExit, rejectByPluginDriver, fs2, getCache, getIdMatcher, getInput, getJsx, getMaxParallelFileOps, getModuleContext, getTreeshake, getHasModuleSideEffects, INVALID_CHAR_REGEX, DRIVE_LETTER_REGEX, getFile, getFormat, getInlineDynamicImports, getPreserveModules, getPreserveModulesRoot, getAmd, getAddon, getDir, getEntryFileNames, getExternalImportAttributes, getGeneratedCode, getIndent, ALLOWED_INTEROP_TYPES, getInterop, validateInterop, getManualChunks, getMinifyInternalExports, getSourcemapFileNames, getSourcemapBaseUrl, SortingFileType, picocolors, hasRequiredPicocolors, picocolorsExports, pc, bold, cyan, dim, red, stderr, commandAliases, EMPTY_COMMAND_OPTIONS, getExternal, getObjectOption, getWatch, normalizeObjectOptionValue, fsEvents, fsEventsImportError, fseventsImporter, WatchEmitter;
 var init_node_entry = __esm({
   "node_modules/rollup/dist/es/shared/node-entry.js"() {
     init_parseAst();
@@ -173353,8 +173481,8 @@ var init_node_entry = __esm({
           if (node.hasEffects(context)) {
             if (this.scope.context.options.experimentalLogSideEffects && !this.hasLoggedEffect) {
               this.hasLoggedEffect = true;
-              const { code, log: log2, module: module2 } = this.scope.context;
-              log2(LOGLEVEL_INFO, logFirstSideEffect(code, module2.id, locate(code, node.start, { offsetLine: 1 })), node.start);
+              const { code, log: log3, module: module2 } = this.scope.context;
+              log3(LOGLEVEL_INFO, logFirstSideEffect(code, module2.id, locate(code, node.start, { offsetLine: 1 })), node.start);
             }
             return this.hasCachedEffect = true;
           }
@@ -177511,7 +177639,7 @@ ${next}` : out;
       const defaultOnLog = getDefaultOnLog(printLog, onwarn);
       if (onLog) {
         const minimalPriority = logLevelPriority[logLevel];
-        return (level, log2) => onLog(level, addLogToString(log2), (level2, handledLog) => {
+        return (level, log3) => onLog(level, addLogToString(log3), (level2, handledLog) => {
           if (level2 === LOGLEVEL_ERROR) {
             return error52(normalizeLog(handledLog));
           }
@@ -177522,21 +177650,21 @@ ${next}` : out;
       }
       return defaultOnLog;
     };
-    getDefaultOnLog = (printLog, onwarn) => onwarn ? (level, log2) => {
+    getDefaultOnLog = (printLog, onwarn) => onwarn ? (level, log3) => {
       if (level === LOGLEVEL_WARN) {
-        onwarn(addLogToString(log2), (warning) => printLog(LOGLEVEL_WARN, normalizeLog(warning)));
+        onwarn(addLogToString(log3), (warning) => printLog(LOGLEVEL_WARN, normalizeLog(warning)));
       } else {
-        printLog(level, log2);
+        printLog(level, log3);
       }
     } : printLog;
-    addLogToString = (log2) => {
-      Object.defineProperty(log2, "toString", {
-        value: () => log2.message,
+    addLogToString = (log3) => {
+      Object.defineProperty(log3, "toString", {
+        value: () => log3.message,
         writable: true
       });
-      return log2;
+      return log3;
     };
-    normalizeLog = (log2) => typeof log2 === "string" ? { message: log2 } : typeof log2 === "function" ? normalizeLog(log2()) : log2;
+    normalizeLog = (log3) => typeof log3 === "string" ? { message: log3 } : typeof log3 === "function" ? normalizeLog(log3()) : log3;
     defaultPrintLog = (level, { message: message2 }) => {
       switch (level) {
         case LOGLEVEL_WARN: {
@@ -178736,7 +178864,7 @@ ${next}` : out;
     };
     handleBeforeExit = null;
     rejectByPluginDriver = /* @__PURE__ */ new Map();
-    fs = /* @__PURE__ */ _mergeNamespaces({
+    fs2 = /* @__PURE__ */ _mergeNamespaces({
       __proto__: null
     }, [promises]);
     getCache = (config2) => config2.cache === true ? void 0 : config2.cache?.cache || config2.cache;
@@ -180036,9 +180164,9 @@ var init_build2 = __esm({
           throw Error("writeFile not implemented");
         }
       };
-      function setFileSystem(fs5) {
-        fileSystem.readFile = fs5.readFile;
-        fileSystem.writeFile = fs5.writeFile;
+      function setFileSystem(fs6) {
+        fileSystem.readFile = fs6.readFile;
+        fileSystem.writeFile = fs6.writeFile;
       }
       function getFileSystem() {
         return fileSystem;
@@ -188570,7 +188698,7 @@ var require_source_map = __commonJS({
 var require_previous_map = __commonJS({
   "node_modules/postcss/lib/previous-map.js"(exports2, module2) {
     "use strict";
-    var { existsSync: existsSync3, readFileSync: readFileSync5 } = require("fs");
+    var { existsSync: existsSync5, readFileSync: readFileSync7 } = require("fs");
     var { dirname: dirname7, join: join3 } = require("path");
     var { SourceMapConsumer, SourceMapGenerator } = require_source_map();
     function fromBase6420(str) {
@@ -188633,9 +188761,9 @@ var require_previous_map = __commonJS({
       }
       loadFile(path6) {
         this.root = dirname7(path6);
-        if (existsSync3(path6)) {
+        if (existsSync5(path6)) {
           this.mapFile = path6;
-          return readFileSync5(path6, "utf-8").toString().trim();
+          return readFileSync7(path6, "utf-8").toString().trim();
         }
       }
       loadMap(file2, prev) {
@@ -192861,14 +192989,14 @@ function getStrictRequiresFilter({ strictRequires }) {
 function getPackageEntryPoint(dirPath) {
   let entryPoint = "index.js";
   try {
-    if ((0, import_fs3.existsSync)((0, import_path5.join)(dirPath, "package.json"))) entryPoint = JSON.parse((0, import_fs3.readFileSync)((0, import_path5.join)(dirPath, "package.json"), { encoding: "utf8" })).main || entryPoint;
+    if ((0, import_fs4.existsSync)((0, import_path5.join)(dirPath, "package.json"))) entryPoint = JSON.parse((0, import_fs4.readFileSync)((0, import_path5.join)(dirPath, "package.json"), { encoding: "utf8" })).main || entryPoint;
   } catch (ignored) {
   }
   return entryPoint;
 }
 function isDirectory$1(path$13) {
   try {
-    if ((0, import_fs3.statSync)(path$13).isDirectory()) return true;
+    if ((0, import_fs4.statSync)(path$13).isDirectory()) return true;
   } catch (ignored) {
   }
   return false;
@@ -193062,7 +193190,7 @@ function resolveExtensions(importee, importer, extensions$1) {
   if (importee[0] !== "." || !importer) return void 0;
   const candidates = getCandidates((0, import_path5.resolve)((0, import_path5.dirname)(importer), importee), extensions$1);
   for (let i$1 = 0; i$1 < candidates.length; i$1 += 1) try {
-    if ((0, import_fs3.statSync)(candidates[i$1]).isFile()) return { id: candidates[i$1] };
+    if ((0, import_fs4.statSync)(candidates[i$1]).isFile()) return { id: candidates[i$1] };
   } catch (err$2) {
   }
 }
@@ -197036,11 +197164,11 @@ function send(req$4, res, content, type, options$1) {
 }
 function totalist(dir, callback2, pre = "") {
   dir = (0, import_path5.resolve)(".", dir);
-  let arr = (0, import_fs3.readdirSync)(dir);
+  let arr = (0, import_fs4.readdirSync)(dir);
   let i$1 = 0, abs, stats;
   for (; i$1 < arr.length; i$1++) {
     abs = (0, import_path5.join)(dir, arr[i$1]);
-    stats = (0, import_fs3.statSync)(abs);
+    stats = (0, import_fs4.statSync)(abs);
     stats.isDirectory() ? totalist(abs, callback2, (0, import_path5.join)(pre, arr[i$1])) : callback2((0, import_path5.join)(pre, arr[i$1]), abs, stats);
   }
 }
@@ -207089,7 +207217,7 @@ function optimizeDepsDisabledBackwardCompatibility(resolved, optimizeDeps$1, opt
   `));
   }
 }
-var import_node_module3, fs$1, import_node_fs2, import_node_path5, import_promises, import_node_url2, import_node_util, import_node_perf_hooks2, import_node_crypto2, import_picomatch2, import_esbuild, import_node_os2, import_node_net, import_node_child_process, import_node_dns, import_node_tty, import_path5, import_fs3, import_node_zlib, import_node_readline2, import_module2, import_node_worker_threads, import_node_assert, import_node_process3, import_node_v8, import_node_buffer, import_node_events2, import_node_http, import_node_https, import_zlib2, qs, import_meta6, VALID_ID_PREFIX, NULL_BYTE_PLACEHOLDER, SOURCEMAPPING_URL3, MODULE_RUNNER_SOURCEMAPPING_SOURCE, ERR_OUTDATED_OPTIMIZED_DEP, isWindows2, windowsSlashRE2, postfixRE2, customizationHookNamespace2, customizationHooksModule2, importMetaResolveWithCustomHookString, comma3, semicolon2, chars$12, intToChar3, charToInt3, bufLength2, td2, StringWriter2, StringReader3, schemeRegex, urlRegex, fileRegex, COLUMN$1, SOURCES_INDEX$1, SOURCE_LINE$1, SOURCE_COLUMN$1, NAMES_INDEX$1, found2, LINE_GTR_ZERO2, COL_GTR_EQ_ZERO2, LEAST_UPPER_BOUND2, GREATEST_LOWER_BOUND2, TraceMap, SetArray, COLUMN2, SOURCES_INDEX2, SOURCE_LINE2, SOURCE_COLUMN2, NAMES_INDEX2, NO_NAME, GenMapping, maybeAddSegment, SOURCELESS_MAPPING, EMPTY_SOURCES, SourceMap$1, init_core2, node_exports, require$1, colors$35, inspectOpts, humanize$1, createDebug, node_default2, init_node2, WalkerBase$1, SyncWalker$1, extractors2, extractAssignedNames3, blockDeclarations, Scope2, attachScopes, normalizePathRegExp2, normalizePath$3, createFilter$2, forbiddenIdentifiers2, makeLegalIdentifier, hasStringIsWellFormed, dataToEsm, pnp, import_picocolors$33, createFilter3, replaceSlashOrColonRE, replaceDotRE, replaceNestedIdRE, replaceHashRE, flattenId, FLATTEN_ID_HASH_LENGTH, FLATTEN_ID_MAX_FILE_LENGTH, limitFlattenIdLength, normalizeId, NODE_BUILTIN_NAMESPACE, BUN_BUILTIN_NAMESPACE, nodeBuiltins2, isBuiltinCache, nodeLikeBuiltins, bareImportRE, deepImportRE, _dirname, rollupVersion, filter2, DEBUG, isCaseInsensitiveFS, VOLUME_RE, externalRE, isExternalUrl, dataUrlRE, isDataUrl, virtualModuleRE, virtualModulePrefix, knownJsSrcRE, isJSRequest, isCSSRequest, importQueryRE, directRequestRE$1, internalPrefixes, InternalPrefixRE, trailingSeparatorRE, isImportRequest, isInternalRequest, urlRE, rawRE, timestampRE, splitRE, range7, MAX_DISPLAY_LEN, ELLIPSIS2, splitFirstDirRE, ERR_SYMLINK_IN_RECURSIVE_READDIR, safeRealpathSync, windowsNetworkMap, parseNetUseRE, firstSafeRealPathSyncRun, imageCandidateRegex, escapedSpaceCharacters, windowsDriveRE, replaceWindowsDriveRE, linuxAbsolutePathRE, revertWindowsDriveRE, nullSourceMap, multilineCommentsRE, singlelineCommentsRE, requestQuerySplitRE, requestQueryMaybeEscapedSplitRE, blankReplacer, environmentPathRE, windowsDrivePathPrefixRE, isNonDriveRelativeAbsolutePath, escapeRegexRE$1, sigtermCallbacks, parentSigtermCallback, setupSIGTERMListener, teardownSIGTERMListener, lastDateNow, require_commondir, BitSet2, Chunk3, btoa$1, SourceMap2, toString$1, wordRegex2, Mappings2, n$1, warned2, MagicString2, require_is_reference, import_commondir, import_is_reference, version$1, peerDependencies, firstpassGlobal, firstpassNoGlobal, getVirtualPathForDynamicRequirePath, FAILED_REQUIRE_ERROR, COMMONJS_REQUIRE_EXPORT, CREATE_COMMONJS_REQUIRE_EXPORT, isWrappedId, wrapId$1, unwrapId$1, PROXY_SUFFIX, WRAPPED_SUFFIX, EXTERNAL_SUFFIX, EXPORTS_SUFFIX, MODULE_SUFFIX, ENTRY_SUFFIX, ES_IMPORT_SUFFIX, DYNAMIC_MODULES_ID, HELPERS_ID, IS_WRAPPED_COMMONJS, HELPERS, operators, KEY_COMPILED_ESM, reservedMethod, exportsPattern, functionType, PLUGIN_NAME, import_picocolors$32, groups, COMPRESSIBLE_ASSETS_RE, POSIX_SEP_RE, NATIVE_SEP_RE, PATTERN_REGEX_CACHE, GLOB_ALL_PATTERN, TS_EXTENSIONS, TSJS_EXTENSIONS, TS_EXTENSIONS_RE_GROUP, TSJS_EXTENSIONS_RE_GROUP, IS_POSIX, isInNodeModules$1, posix2native, native2posix, resolve2posix, singleComment, multiComment, not_found_result, EXTENDABLE_KEYS, REBASE_KEYS, TSConfckParseError, DEFAULT_JSCONFIG_COMPILER_OPTIONS, TSConfckCache, import_picocolors$31, debug$17, IIFE_BEGIN_RE, validExtensionRE, jsxExtensionsRE, defaultEsbuildSupported, rollupToEsbuildFormatMap, injectEsbuildHelpers, buildEsbuildPlugin, globalTSConfckCache, tsconfckCacheMap, AsyncFunction2, codeToDataUrl, viteSsrDynamicImport, stackBlitzImport, Worker$1, importRe, internalImportName, FakeWorker, WorkerWithFallback, HASH_RE, AMPERSAND_RE, SLASH_RE, EQUAL_RE, PLUS_RE, ENC_CARET_RE, ENC_BACKTICK_RE, ENC_PIPE_RE, ENC_SPACE_RE, BUILTIN_MODULES, own$1, classRegExp, kTypes, codes$1, messages, nodeInternalPrefix, userStackTraceLimit, captureLargerStackTrace, ESM_STATIC_IMPORT_RE, TYPE_RE, ESM_RE, COMMENT_RE, escapeRegexRE2, ImportType, A2, C3, E2, init, require_src$12, require_req, require_options, require_plugins, require_src3, require_convert_source_map, import_convert_source_map$2, debug$16, virtualSourceRE, publicFilesMap, mimes, import_picocolors$30, assetUrlRE, jsSourceMapRE, noInlineRE, inlineRE$3, assetCache, cssEntriesMap, publicAssetUrlCache, publicAssetUrlRE, GIT_LFS_PREFIX, nestedQuotesRE, jsonExtRE, jsonObjRE, jsonLangRE, isJSONRequest, import_picocolors$29, debug$15, require_package4, require_main$1, require_main3, import_main, import_main$1, debug$14, import_picocolors$28, docsURL, deprecationCode, deprecationMessages, _ignoreDeprecationWarnings, import_picocolors$27, require_encodeurl3, require_escape_html2, require_ee_first2, require_on_finished2, require_parseurl2, require_codes2, require_statuses2, require_unpipe2, require_finalhandler2, require_utils_merge2, require_connect, require_object_assign, require_vary2, require_lib$1, require_readdirp, require_normalize_path, require_anymatch, require_is_extglob, require_is_glob, require_glob_parent, require_utils4, require_stringify5, require_is_number, require_to_regex_range, require_fill_range, require_compile, require_expand, require_constants$2, require_parse$2, require_braces, require_binary_extensions$1, require_binary_extensions, require_is_binary_path, require_constants$1, require_nodefs_handler, require_fsevents_handler, require_chokidar, require_quote, require_parse$1, require_shell_quote, require_macos, require_linux, require_windows$1, require_guess, require_get_args, require_launch_editor, require_launch_editor_middleware, import_picocolors$26, offset, rewroteStacktraces, prepareStackTrace2, createServerModuleRunnerTransport, import_picocolors$25, SSRCompatModuleRunner, WalkerBase, SyncWalker, ssrModuleExportsKey2, ssrImportKey2, ssrDynamicImportKey2, ssrExportAllKey2, ssrExportNameKey2, ssrImportMetaKey2, hashbangRE, isNodeInPatternWeakSet, setIsNodeInPattern, isNodeInPattern, isStaticProperty, isStaticPropertyKey, functionNodeTypeRE, blockNodeTypeRE, isDockerCached, cachedResult, hasContainerEnv, isWsl, is_wsl_default, wslDrivesMountPoint, powerShellPathFromWsl, powerShellPath, execFileAsync$3, execFileAsync$2, execFileAsync$1, windowsBrowserProgIds, UnknownBrowserError, execFileAsync, titleize, execFile$1, __dirname2, localXdgOpenPath, platform2, arch, pTryEach, baseOpen, open, apps, open_default, require_windows, require_mode, require_isexe, require_which, require_path_key, require_resolveCommand, require_escape, require_shebang_regex, require_shebang_command, require_readShebang, require_parse7, require_enoent, require_cross_spawn, import_cross_spawn, import_picocolors$24, supportedChromiumBrowsers, import_picocolors$23, BASE_DEV_SHORTCUTS, BASE_PREVIEW_SHORTCUTS, import_picocolors$22, NoopWatcher, require_constants3, require_buffer_util, require_limiter, require_permessage_deflate, require_validation, require_receiver, require_sender, require_event_target, require_extension, require_websocket, require_stream, require_subprotocol, require_websocket_server, import_stream6, import_receiver, import_sender, import_websocket, import_websocket_server, isFileOrExtensionProtocolRE, cache5, import_picocolors$21, WebSocketServerRaw, HMR_HEADER, isWebSocketServer, wsServerEvents, require_common, require_web_outgoing, require_debug4, require_follow_redirects2, require_web_incoming, require_ws_incoming, require_http_proxy, require_lib4, import_lib$2, import_picocolors$20, debug$9, rewriteOriginHeader, debug$8, require_etag2, import_convert_source_map$1, import_etag$1, debug$7, alias$1, noop4, ENCODING, import_escape_html$1, knownJavascriptExtensionRE, ERR_DENIED_FILE, sirvOptions, import_etag, import_picocolors$19, ERR_LOAD_URL, ERR_LOAD_PUBLIC_URL, ERR_DENIED_ID, debugLoad, debugTransform, debugCache$1, require_js_tokens, import_js_tokens, FILL_COMMENT, ALLOWED_META_NAME, ALLOWED_META_PROPERTY, DEFAULT_HTML_ASSET_SOURCES, import_convert_source_map, isModernFlag, preloadMethod, preloadMarker, preloadHelperId, preloadMarkerRE, dynamicImportPrefixRE, dynamicImportTreeshakenRE, modulePreloadPolyfillId, resolvedModulePreloadPolyfillId, import_picocolors$18, import_escape_html, htmlProxyRE$1, isHtmlProxyRE, inlineCSSRE$1, inlineImportRE, htmlLangRE, spaceRe, importMapRE, importMapAppendRE, isHTMLProxy, isHTMLRequest, htmlProxyMap, htmlProxyResult, noInlineLinkRels, isAsyncScriptMap, attrValueStartRE, elementsAllowedInHead, importRE, commentRE$1, headInjectRE, headPrependInjectRE, htmlInjectRE, htmlPrependInjectRE, bodyInjectRE, bodyPrependInjectRE, doctypePrependInjectRE, unaryTags, import_picocolors$17, debugCache, knownIgnoreList, documentFetchDests, urlRE$1, rawRE$1, inlineRE$2, svgRE, wordCharRE, processNodeUrl, devHtmlHook, logTime, EMPTY_OBJECT$1, ModuleNode, ModuleGraph, DualWeakMap, ROOT_FILES, import_connect$1, import_lib$1, import_picocolors$16, import_chokidar, import_launch_editor_middleware, usedConfigs, _serverConfigDefaults, serverConfigDefaults, import_picocolors$15, debugHmr, whitespaceRE, normalizedClientDir, normalizeHotChannel, sortedHotUpdatePluginsCache, LexerState, debug$6, isExternalCache, nonJsRe, isNonJsRequest, importMetaEnvMarker, importMetaEnvKeyReCache, escapedDotRE, import_picocolors$14, WorkerOutputCache, workerOrSharedWorkerRE, workerFileRE, inlineRE$1, WORKER_FILE_ID, workerOutputCaches, workerAssetUrlRE, import_picocolors$13, debug$5, clientDir, skipRE, canSkipImportAnalysis, optimizedDepChunkRE, optimizedDepDynamicRE, hasViteIgnoreRE, urlIsStringRE, templateLiteralRE, interopHelper, interopHelperStr, normalizedClientEntry$1, normalizedEnvEntry$1, wasmHelperId, wasmInitRE, wasmHelper, wasmHelperCode, wasmHelperPlugin, wasmFallbackPlugin, workerImportMetaUrlRE, VariableDynamicImportError, example, defaultProtocol, ignoredProtocols, dynamicImportHelperId, relativePathRE, hasDynamicImportRE, dynamicImportHelper, import_picocolors$12, importGlobRE, objectKeysRE, objectValuesRE, knownOptions, forceDefaultAs, importPrefix, basename$2, dirname$2, relative$2, filterForPlugin, viteAliasCustomResolver, import_picocolors$11, EMPTY_OBJECT2, debugSourcemapCombineFilter, debugSourcemapCombine, debugResolve, debugPluginResolve, debugPluginTransform, debugPluginContainerContext, ERR_CLOSED_SERVER, EnvironmentPluginContainer, basePluginContextMeta, BasicMinimalPluginContext, MinimalPluginContext, fsModule, PluginContext, ResolveIdContext, LoadPluginContext, TransformPluginContext, PluginContainer, import_picocolors$10, environmentColors, PartialEnvironment, BaseEnvironment, endsWithJSRE, import_src, import_picocolors$9, decoder2, _cssConfigDefaults, cssConfigDefaults, cssModuleRE, directRequestRE, htmlProxyRE, htmlProxyIndexRE, commonjsProxyRE, inlineRE, inlineCSSRE, styleAttrRE, functionCallRE, transformOnlyRE, nonEscapedDoubleQuoteRe, defaultCssBundleName, PreprocessLang, PostCssDialectLang, isModuleCSSRequest, isDirectCSSRequest, isDirectRequest, cssModulesCache, removedPureCssFilesCache, cssBundleNameCache, postcssConfigCache, cssUrlAssetRE, fileURLWithWindowsDriveRE, configToAtImportResolvers, importPostcssImport, importPostcssModules, importPostcss, preprocessorWorkerControllerCache, alwaysFakeWorkerWorkerControllerCache, viteHashUpdateMarker, viteHashUpdateMarkerRE, cssUrlRE, cssDataUriRE, importCssRE, cssImageSetRE, UrlRewritePostcssPlugin, cssNotProcessedRE, atImportRE, atCharsetRE, loadedPreprocessorPath, cachedSss, makeScssWorker, scssProcessor, makeLessWorker, lessProcessor, makeStylWorker, stylProcessor, createPreprocessorWorkerController, normalizeMaxWorkers, preprocessorSet, importLightningCSS, map8, esMap, esRE, versionRE, convertTargetsCache, convertTargets, externalWithConversionNamespace, convertedExternalPrefix, cjsExternalFacadeNamespace, nonFacadePrefix, externalTypes, matchesEntireLine, import_picocolors$8, ScanEnvironment, debug$4, htmlTypesRE, importsRE, scriptRE, commentRE, srcRE, typeRE, langRE, svelteScriptModuleRE, svelteModuleRE, import_picocolors$7, debug$3, jsExtensionRE, jsMapExtensionRE, firstLoadCachedDepOptimizationMetadata, lockfileFormats, lockfilePaths, MAX_TEMP_DIR_AGE_MS, GRACEFUL_RENAME_TIMEOUT, safeRename, import_picocolors$6, normalizedClientEntry, normalizedEnvEntry, ERR_RESOLVE_PACKAGE_ENTRY_FAIL, browserExternalId, optionalPeerDepId, subpathImportsPrefix, relativePrefixRE, startsWithWordCharRE, debug$2, knownTsOutputRE, isPossibleTsOutput, terserPath, dataUriRE, base64RE, dataUriPrefix, licenseConfigDefaults, licenseFiles, import_picocolors$5, import_picocolors$4, _buildEnvironmentOptionsDefaults, buildEnvironmentOptionsDefaults, warningIgnoreList, dynamicImportWarningIgnoreList, normalizeLog2, needsEscapeRegEx2, quoteNewlineRegEx2, backSlashRegEx2, getResolveUrl2, getRelativeUrlFromDocument2, getFileUrlFromFullPath2, getFileUrlFromRelativePath2, customRelativeUrlMechanisms, toOutputFilePathInCss, toOutputFilePathInHtml, BuildEnvironment, _builderOptionsDefaults, builderOptionsDefaults, OTHER_SOURCE_MAP_REGEXP, import_picocolors$3, debug$1, debounceMs, EnvironmentModuleNode, EnvironmentModuleGraph, import_picocolors$2, import_picocolors$1, DevEnvironment, callCrawlEndIfIdleAfterMs, RunnableDevEnvironment, NOOP2, MIMES, import_connect, import_lib3, _ssrConfigDefaults, ssrConfigDefaults, import_picocolors2, debug, promisifiedRealpath, SYMBOL_RESOLVED_CONFIG, configDefaults, clientAlias, _require;
+var import_node_module3, fs$1, import_node_fs2, import_node_path5, import_promises, import_node_url2, import_node_util, import_node_perf_hooks2, import_node_crypto2, import_picomatch2, import_esbuild, import_node_os2, import_node_net, import_node_child_process, import_node_dns, import_node_tty, import_path5, import_fs4, import_node_zlib, import_node_readline2, import_module2, import_node_worker_threads, import_node_assert, import_node_process3, import_node_v8, import_node_buffer, import_node_events2, import_node_http, import_node_https, import_zlib2, qs, import_meta6, VALID_ID_PREFIX, NULL_BYTE_PLACEHOLDER, SOURCEMAPPING_URL3, MODULE_RUNNER_SOURCEMAPPING_SOURCE, ERR_OUTDATED_OPTIMIZED_DEP, isWindows2, windowsSlashRE2, postfixRE2, customizationHookNamespace2, customizationHooksModule2, importMetaResolveWithCustomHookString, comma3, semicolon2, chars$12, intToChar3, charToInt3, bufLength2, td2, StringWriter2, StringReader3, schemeRegex, urlRegex, fileRegex, COLUMN$1, SOURCES_INDEX$1, SOURCE_LINE$1, SOURCE_COLUMN$1, NAMES_INDEX$1, found2, LINE_GTR_ZERO2, COL_GTR_EQ_ZERO2, LEAST_UPPER_BOUND2, GREATEST_LOWER_BOUND2, TraceMap, SetArray, COLUMN2, SOURCES_INDEX2, SOURCE_LINE2, SOURCE_COLUMN2, NAMES_INDEX2, NO_NAME, GenMapping, maybeAddSegment, SOURCELESS_MAPPING, EMPTY_SOURCES, SourceMap$1, init_core2, node_exports, require$1, colors$35, inspectOpts, humanize$1, createDebug, node_default2, init_node2, WalkerBase$1, SyncWalker$1, extractors2, extractAssignedNames3, blockDeclarations, Scope2, attachScopes, normalizePathRegExp2, normalizePath$3, createFilter$2, forbiddenIdentifiers2, makeLegalIdentifier, hasStringIsWellFormed, dataToEsm, pnp, import_picocolors$33, createFilter3, replaceSlashOrColonRE, replaceDotRE, replaceNestedIdRE, replaceHashRE, flattenId, FLATTEN_ID_HASH_LENGTH, FLATTEN_ID_MAX_FILE_LENGTH, limitFlattenIdLength, normalizeId, NODE_BUILTIN_NAMESPACE, BUN_BUILTIN_NAMESPACE, nodeBuiltins2, isBuiltinCache, nodeLikeBuiltins, bareImportRE, deepImportRE, _dirname, rollupVersion, filter2, DEBUG, isCaseInsensitiveFS, VOLUME_RE, externalRE, isExternalUrl, dataUrlRE, isDataUrl, virtualModuleRE, virtualModulePrefix, knownJsSrcRE, isJSRequest, isCSSRequest, importQueryRE, directRequestRE$1, internalPrefixes, InternalPrefixRE, trailingSeparatorRE, isImportRequest, isInternalRequest, urlRE, rawRE, timestampRE, splitRE, range7, MAX_DISPLAY_LEN, ELLIPSIS2, splitFirstDirRE, ERR_SYMLINK_IN_RECURSIVE_READDIR, safeRealpathSync, windowsNetworkMap, parseNetUseRE, firstSafeRealPathSyncRun, imageCandidateRegex, escapedSpaceCharacters, windowsDriveRE, replaceWindowsDriveRE, linuxAbsolutePathRE, revertWindowsDriveRE, nullSourceMap, multilineCommentsRE, singlelineCommentsRE, requestQuerySplitRE, requestQueryMaybeEscapedSplitRE, blankReplacer, environmentPathRE, windowsDrivePathPrefixRE, isNonDriveRelativeAbsolutePath, escapeRegexRE$1, sigtermCallbacks, parentSigtermCallback, setupSIGTERMListener, teardownSIGTERMListener, lastDateNow, require_commondir, BitSet2, Chunk3, btoa$1, SourceMap2, toString$1, wordRegex2, Mappings2, n$1, warned2, MagicString2, require_is_reference, import_commondir, import_is_reference, version$1, peerDependencies, firstpassGlobal, firstpassNoGlobal, getVirtualPathForDynamicRequirePath, FAILED_REQUIRE_ERROR, COMMONJS_REQUIRE_EXPORT, CREATE_COMMONJS_REQUIRE_EXPORT, isWrappedId, wrapId$1, unwrapId$1, PROXY_SUFFIX, WRAPPED_SUFFIX, EXTERNAL_SUFFIX, EXPORTS_SUFFIX, MODULE_SUFFIX, ENTRY_SUFFIX, ES_IMPORT_SUFFIX, DYNAMIC_MODULES_ID, HELPERS_ID, IS_WRAPPED_COMMONJS, HELPERS, operators, KEY_COMPILED_ESM, reservedMethod, exportsPattern, functionType, PLUGIN_NAME, import_picocolors$32, groups, COMPRESSIBLE_ASSETS_RE, POSIX_SEP_RE, NATIVE_SEP_RE, PATTERN_REGEX_CACHE, GLOB_ALL_PATTERN, TS_EXTENSIONS, TSJS_EXTENSIONS, TS_EXTENSIONS_RE_GROUP, TSJS_EXTENSIONS_RE_GROUP, IS_POSIX, isInNodeModules$1, posix2native, native2posix, resolve2posix, singleComment, multiComment, not_found_result, EXTENDABLE_KEYS, REBASE_KEYS, TSConfckParseError, DEFAULT_JSCONFIG_COMPILER_OPTIONS, TSConfckCache, import_picocolors$31, debug$17, IIFE_BEGIN_RE, validExtensionRE, jsxExtensionsRE, defaultEsbuildSupported, rollupToEsbuildFormatMap, injectEsbuildHelpers, buildEsbuildPlugin, globalTSConfckCache, tsconfckCacheMap, AsyncFunction2, codeToDataUrl, viteSsrDynamicImport, stackBlitzImport, Worker$1, importRe, internalImportName, FakeWorker, WorkerWithFallback, HASH_RE, AMPERSAND_RE, SLASH_RE, EQUAL_RE, PLUS_RE, ENC_CARET_RE, ENC_BACKTICK_RE, ENC_PIPE_RE, ENC_SPACE_RE, BUILTIN_MODULES, own$1, classRegExp, kTypes, codes$1, messages, nodeInternalPrefix, userStackTraceLimit, captureLargerStackTrace, ESM_STATIC_IMPORT_RE, TYPE_RE, ESM_RE, COMMENT_RE, escapeRegexRE2, ImportType, A2, C3, E2, init, require_src$12, require_req, require_options, require_plugins, require_src3, require_convert_source_map, import_convert_source_map$2, debug$16, virtualSourceRE, publicFilesMap, mimes, import_picocolors$30, assetUrlRE, jsSourceMapRE, noInlineRE, inlineRE$3, assetCache, cssEntriesMap, publicAssetUrlCache, publicAssetUrlRE, GIT_LFS_PREFIX, nestedQuotesRE, jsonExtRE, jsonObjRE, jsonLangRE, isJSONRequest, import_picocolors$29, debug$15, require_package4, require_main$1, require_main3, import_main, import_main$1, debug$14, import_picocolors$28, docsURL, deprecationCode, deprecationMessages, _ignoreDeprecationWarnings, import_picocolors$27, require_encodeurl3, require_escape_html2, require_ee_first2, require_on_finished2, require_parseurl2, require_codes2, require_statuses2, require_unpipe2, require_finalhandler2, require_utils_merge2, require_connect, require_object_assign, require_vary2, require_lib$1, require_readdirp, require_normalize_path, require_anymatch, require_is_extglob, require_is_glob, require_glob_parent, require_utils4, require_stringify5, require_is_number, require_to_regex_range, require_fill_range, require_compile, require_expand, require_constants$2, require_parse$2, require_braces, require_binary_extensions$1, require_binary_extensions, require_is_binary_path, require_constants$1, require_nodefs_handler, require_fsevents_handler, require_chokidar, require_quote, require_parse$1, require_shell_quote, require_macos, require_linux, require_windows$1, require_guess, require_get_args, require_launch_editor, require_launch_editor_middleware, import_picocolors$26, offset, rewroteStacktraces, prepareStackTrace2, createServerModuleRunnerTransport, import_picocolors$25, SSRCompatModuleRunner, WalkerBase, SyncWalker, ssrModuleExportsKey2, ssrImportKey2, ssrDynamicImportKey2, ssrExportAllKey2, ssrExportNameKey2, ssrImportMetaKey2, hashbangRE, isNodeInPatternWeakSet, setIsNodeInPattern, isNodeInPattern, isStaticProperty, isStaticPropertyKey, functionNodeTypeRE, blockNodeTypeRE, isDockerCached, cachedResult, hasContainerEnv, isWsl, is_wsl_default, wslDrivesMountPoint, powerShellPathFromWsl, powerShellPath, execFileAsync$3, execFileAsync$2, execFileAsync$1, windowsBrowserProgIds, UnknownBrowserError, execFileAsync, titleize, execFile$1, __dirname2, localXdgOpenPath, platform2, arch, pTryEach, baseOpen, open, apps, open_default, require_windows, require_mode, require_isexe, require_which, require_path_key, require_resolveCommand, require_escape, require_shebang_regex, require_shebang_command, require_readShebang, require_parse7, require_enoent, require_cross_spawn, import_cross_spawn, import_picocolors$24, supportedChromiumBrowsers, import_picocolors$23, BASE_DEV_SHORTCUTS, BASE_PREVIEW_SHORTCUTS, import_picocolors$22, NoopWatcher, require_constants3, require_buffer_util, require_limiter, require_permessage_deflate, require_validation, require_receiver, require_sender, require_event_target, require_extension, require_websocket, require_stream, require_subprotocol, require_websocket_server, import_stream6, import_receiver, import_sender, import_websocket, import_websocket_server, isFileOrExtensionProtocolRE, cache5, import_picocolors$21, WebSocketServerRaw, HMR_HEADER, isWebSocketServer, wsServerEvents, require_common, require_web_outgoing, require_debug4, require_follow_redirects2, require_web_incoming, require_ws_incoming, require_http_proxy, require_lib4, import_lib$2, import_picocolors$20, debug$9, rewriteOriginHeader, debug$8, require_etag2, import_convert_source_map$1, import_etag$1, debug$7, alias$1, noop4, ENCODING, import_escape_html$1, knownJavascriptExtensionRE, ERR_DENIED_FILE, sirvOptions, import_etag, import_picocolors$19, ERR_LOAD_URL, ERR_LOAD_PUBLIC_URL, ERR_DENIED_ID, debugLoad, debugTransform, debugCache$1, require_js_tokens, import_js_tokens, FILL_COMMENT, ALLOWED_META_NAME, ALLOWED_META_PROPERTY, DEFAULT_HTML_ASSET_SOURCES, import_convert_source_map, isModernFlag, preloadMethod, preloadMarker, preloadHelperId, preloadMarkerRE, dynamicImportPrefixRE, dynamicImportTreeshakenRE, modulePreloadPolyfillId, resolvedModulePreloadPolyfillId, import_picocolors$18, import_escape_html, htmlProxyRE$1, isHtmlProxyRE, inlineCSSRE$1, inlineImportRE, htmlLangRE, spaceRe, importMapRE, importMapAppendRE, isHTMLProxy, isHTMLRequest, htmlProxyMap, htmlProxyResult, noInlineLinkRels, isAsyncScriptMap, attrValueStartRE, elementsAllowedInHead, importRE, commentRE$1, headInjectRE, headPrependInjectRE, htmlInjectRE, htmlPrependInjectRE, bodyInjectRE, bodyPrependInjectRE, doctypePrependInjectRE, unaryTags, import_picocolors$17, debugCache, knownIgnoreList, documentFetchDests, urlRE$1, rawRE$1, inlineRE$2, svgRE, wordCharRE, processNodeUrl, devHtmlHook, logTime, EMPTY_OBJECT$1, ModuleNode, ModuleGraph, DualWeakMap, ROOT_FILES, import_connect$1, import_lib$1, import_picocolors$16, import_chokidar, import_launch_editor_middleware, usedConfigs, _serverConfigDefaults, serverConfigDefaults, import_picocolors$15, debugHmr, whitespaceRE, normalizedClientDir, normalizeHotChannel, sortedHotUpdatePluginsCache, LexerState, debug$6, isExternalCache, nonJsRe, isNonJsRequest, importMetaEnvMarker, importMetaEnvKeyReCache, escapedDotRE, import_picocolors$14, WorkerOutputCache, workerOrSharedWorkerRE, workerFileRE, inlineRE$1, WORKER_FILE_ID, workerOutputCaches, workerAssetUrlRE, import_picocolors$13, debug$5, clientDir, skipRE, canSkipImportAnalysis, optimizedDepChunkRE, optimizedDepDynamicRE, hasViteIgnoreRE, urlIsStringRE, templateLiteralRE, interopHelper, interopHelperStr, normalizedClientEntry$1, normalizedEnvEntry$1, wasmHelperId, wasmInitRE, wasmHelper, wasmHelperCode, wasmHelperPlugin, wasmFallbackPlugin, workerImportMetaUrlRE, VariableDynamicImportError, example, defaultProtocol, ignoredProtocols, dynamicImportHelperId, relativePathRE, hasDynamicImportRE, dynamicImportHelper, import_picocolors$12, importGlobRE, objectKeysRE, objectValuesRE, knownOptions, forceDefaultAs, importPrefix, basename$2, dirname$2, relative$2, filterForPlugin, viteAliasCustomResolver, import_picocolors$11, EMPTY_OBJECT2, debugSourcemapCombineFilter, debugSourcemapCombine, debugResolve, debugPluginResolve, debugPluginTransform, debugPluginContainerContext, ERR_CLOSED_SERVER, EnvironmentPluginContainer, basePluginContextMeta, BasicMinimalPluginContext, MinimalPluginContext, fsModule, PluginContext, ResolveIdContext, LoadPluginContext, TransformPluginContext, PluginContainer, import_picocolors$10, environmentColors, PartialEnvironment, BaseEnvironment, endsWithJSRE, import_src, import_picocolors$9, decoder2, _cssConfigDefaults, cssConfigDefaults, cssModuleRE, directRequestRE, htmlProxyRE, htmlProxyIndexRE, commonjsProxyRE, inlineRE, inlineCSSRE, styleAttrRE, functionCallRE, transformOnlyRE, nonEscapedDoubleQuoteRe, defaultCssBundleName, PreprocessLang, PostCssDialectLang, isModuleCSSRequest, isDirectCSSRequest, isDirectRequest, cssModulesCache, removedPureCssFilesCache, cssBundleNameCache, postcssConfigCache, cssUrlAssetRE, fileURLWithWindowsDriveRE, configToAtImportResolvers, importPostcssImport, importPostcssModules, importPostcss, preprocessorWorkerControllerCache, alwaysFakeWorkerWorkerControllerCache, viteHashUpdateMarker, viteHashUpdateMarkerRE, cssUrlRE, cssDataUriRE, importCssRE, cssImageSetRE, UrlRewritePostcssPlugin, cssNotProcessedRE, atImportRE, atCharsetRE, loadedPreprocessorPath, cachedSss, makeScssWorker, scssProcessor, makeLessWorker, lessProcessor, makeStylWorker, stylProcessor, createPreprocessorWorkerController, normalizeMaxWorkers, preprocessorSet, importLightningCSS, map8, esMap, esRE, versionRE, convertTargetsCache, convertTargets, externalWithConversionNamespace, convertedExternalPrefix, cjsExternalFacadeNamespace, nonFacadePrefix, externalTypes, matchesEntireLine, import_picocolors$8, ScanEnvironment, debug$4, htmlTypesRE, importsRE, scriptRE, commentRE, srcRE, typeRE, langRE, svelteScriptModuleRE, svelteModuleRE, import_picocolors$7, debug$3, jsExtensionRE, jsMapExtensionRE, firstLoadCachedDepOptimizationMetadata, lockfileFormats, lockfilePaths, MAX_TEMP_DIR_AGE_MS, GRACEFUL_RENAME_TIMEOUT, safeRename, import_picocolors$6, normalizedClientEntry, normalizedEnvEntry, ERR_RESOLVE_PACKAGE_ENTRY_FAIL, browserExternalId, optionalPeerDepId, subpathImportsPrefix, relativePrefixRE, startsWithWordCharRE, debug$2, knownTsOutputRE, isPossibleTsOutput, terserPath, dataUriRE, base64RE, dataUriPrefix, licenseConfigDefaults, licenseFiles, import_picocolors$5, import_picocolors$4, _buildEnvironmentOptionsDefaults, buildEnvironmentOptionsDefaults, warningIgnoreList, dynamicImportWarningIgnoreList, normalizeLog2, needsEscapeRegEx2, quoteNewlineRegEx2, backSlashRegEx2, getResolveUrl2, getRelativeUrlFromDocument2, getFileUrlFromFullPath2, getFileUrlFromRelativePath2, customRelativeUrlMechanisms, toOutputFilePathInCss, toOutputFilePathInHtml, BuildEnvironment, _builderOptionsDefaults, builderOptionsDefaults, OTHER_SOURCE_MAP_REGEXP, import_picocolors$3, debug$1, debounceMs, EnvironmentModuleNode, EnvironmentModuleGraph, import_picocolors$2, import_picocolors$1, DevEnvironment, callCrawlEndIfIdleAfterMs, RunnableDevEnvironment, NOOP2, MIMES, import_connect, import_lib3, _ssrConfigDefaults, ssrConfigDefaults, import_picocolors2, debug, promisifiedRealpath, SYMBOL_RESOLVED_CONFIG, configDefaults, clientAlias, _require;
 var init_config = __esm({
   "node_modules/vite/dist/node/chunks/config.js"() {
     init_chunk();
@@ -207112,7 +207240,7 @@ var init_config = __esm({
     import_node_dns = require("node:dns");
     import_node_tty = require("node:tty");
     import_path5 = __toESM(require("path"), 1);
-    import_fs3 = require("fs");
+    import_fs4 = require("fs");
     init_dist3();
     import_node_zlib = require("node:zlib");
     import_node_readline2 = __toESM(require("node:readline"), 1);
@@ -220399,7 +220527,7 @@ Error: ${e$1.message}`);
       const node_events_1 = __require("node:events");
       const debug_1 = __importDefault2((init_node2(), __toCommonJS2(node_exports)));
       const common_1 = require_common();
-      const log2 = (0, debug_1.default)("http-proxy-3");
+      const log3 = (0, debug_1.default)("http-proxy-3");
       var ProxyServer = class ProxyServer2 extends node_events_1.EventEmitter {
         /**
         * Creates the proxy server with specified options.
@@ -220408,11 +220536,11 @@ Error: ${e$1.message}`);
         constructor(options$1 = {}) {
           super();
           this.createRightProxy = (type) => {
-            log2("createRightProxy", { type });
+            log3("createRightProxy", { type });
             return (options$2) => {
               return (...args) => {
                 const req$4 = args[0];
-                log2("proxy: ", {
+                log3("proxy: ", {
                   type,
                   path: req$4.url
                 });
@@ -220451,7 +220579,7 @@ Error: ${e$1.message}`);
             if (this.listeners("error").length === 1) throw err$2;
           };
           this.listen = (port, hostname3) => {
-            log2("listen", {
+            log3("listen", {
               port,
               hostname: hostname3
             });
@@ -220501,7 +220629,7 @@ Error: ${e$1.message}`);
             if (i$1 === false) throw new Error("No such pass");
             passes.splice(i$1++, 0, cb);
           };
-          log2("creating a ProxyServer", options$1);
+          log3("creating a ProxyServer", options$1);
           options$1.prependPath = options$1.prependPath === false ? false : true;
           this.options = options$1;
           this.web = this.createRightProxy("web")(options$1);
@@ -255486,7 +255614,7 @@ var require_node4 = __commonJS({
     var tty = require("tty");
     var util3 = require("util");
     exports2.init = init2;
-    exports2.log = log2;
+    exports2.log = log3;
     exports2.formatArgs = formatArgs2;
     exports2.save = save2;
     exports2.load = load;
@@ -255621,7 +255749,7 @@ var require_node4 = __commonJS({
       }
       return (/* @__PURE__ */ new Date()).toISOString() + " ";
     }
-    function log2(...args) {
+    function log3(...args) {
       return process.stderr.write(util3.formatWithOptions(exports2.inspectOpts, ...args) + "\n");
     }
     function save2(namespaces) {
@@ -272693,7 +272821,7 @@ var require_utils6 = __commonJS({
     });
     exports2.makeStaticFileCache = makeStaticFileCache;
     var _caching = require_caching();
-    var fs5 = require_fs2();
+    var fs6 = require_fs2();
     function _fs2() {
       const data4 = require("fs");
       _fs2 = function() {
@@ -272707,7 +272835,7 @@ var require_utils6 = __commonJS({
         if (cached2 === null) {
           return null;
         }
-        return fn2(filepath, yield* fs5.readFile(filepath, "utf8"));
+        return fn2(filepath, yield* fs6.readFile(filepath, "utf8"));
       });
     }
     function fileMtime(filepath) {
@@ -273260,7 +273388,7 @@ var require_node6 = __commonJS({
     var tty = require("tty");
     var util3 = require("util");
     exports2.init = init2;
-    exports2.log = log2;
+    exports2.log = log3;
     exports2.formatArgs = formatArgs2;
     exports2.save = save2;
     exports2.load = load;
@@ -273395,7 +273523,7 @@ var require_node6 = __commonJS({
       }
       return (/* @__PURE__ */ new Date()).toISOString() + " ";
     }
-    function log2(...args) {
+    function log3(...args) {
       return process.stderr.write(util3.formatWithOptions(exports2.inspectOpts, ...args) + "\n");
     }
     function save2(namespaces) {
@@ -275416,7 +275544,7 @@ var require_node7 = __commonJS({
   "node_modules/browserslist/node.js"(exports2, module2) {
     var feature = require_feature().default;
     var region = require_region().default;
-    var fs5 = require("fs");
+    var fs6 = require("fs");
     var path6 = require("path");
     var BrowserslistError = require_error();
     var IS_SECTION = /^\s*\[(.+)]\s*$/;
@@ -275451,7 +275579,7 @@ var require_node7 = __commonJS({
     function getPathType(filepath) {
       var stats;
       try {
-        stats = fs5.existsSync(filepath) && fs5.statSync(filepath);
+        stats = fs6.existsSync(filepath) && fs6.statSync(filepath);
       } catch (err2) {
         if (err2.code !== "ENOENT" && err2.code !== "EACCES" && err2.code !== "ERR_ACCESS_DENIED") {
           throw err2;
@@ -275537,7 +275665,7 @@ var require_node7 = __commonJS({
       return config2[name2] || config2.defaults;
     }
     function parsePackage(file2) {
-      var text2 = fs5.readFileSync(file2).toString().replace(/^\uFEFF/m, "");
+      var text2 = fs6.readFileSync(file2).toString().replace(/^\uFEFF/m, "");
       var list8;
       if (text2.indexOf('"browserslist"') >= 0) {
         list8 = JSON.parse(text2).browserslist;
@@ -275657,7 +275785,7 @@ var require_node7 = __commonJS({
           stats = opts.stats;
         } else if (process.env.BROWSERSLIST_STATS) {
           stats = process.env.BROWSERSLIST_STATS;
-        } else if (opts.path && path6.resolve && fs5.existsSync) {
+        } else if (opts.path && path6.resolve && fs6.existsSync) {
           stats = eachParent(
             opts.path,
             function(dir) {
@@ -275669,7 +275797,7 @@ var require_node7 = __commonJS({
         }
         if (typeof stats === "string") {
           try {
-            stats = JSON.parse(fs5.readFileSync(stats));
+            stats = JSON.parse(fs6.readFileSync(stats));
           } catch (e6) {
             throw new BrowserslistError("Can't read " + stats);
           }
@@ -275755,7 +275883,7 @@ var require_node7 = __commonJS({
         if (!isFile2(file2)) {
           throw new BrowserslistError("Can't read " + file2 + " config");
         }
-        return module2.exports.parseConfig(fs5.readFileSync(file2));
+        return module2.exports.parseConfig(fs6.readFileSync(file2));
       },
       findConfigFile: function findConfigFile(from) {
         return eachParent(
@@ -284013,14 +284141,14 @@ var require_transform_file = __commonJS({
     }
     var _index = require_config();
     var _index2 = require_transformation();
-    var fs5 = require_fs2();
+    var fs6 = require_fs2();
     var transformFileRunner = _gensync()(function* (filename, opts) {
       const options = Object.assign({}, opts, {
         filename
       });
       const config2 = yield* (0, _index.default)(options);
       if (config2 === null) return null;
-      const code = yield* fs5.readFile(filename, "utf8");
+      const code = yield* fs6.readFile(filename, "utf8");
       return yield* (0, _index2.run)(config2, code);
     });
     function transformFile(...args) {
@@ -284325,7 +284453,7 @@ var require_configuration = __commonJS({
     var _moduleTypes = require_module_types();
     var _patternToRegex = require_pattern_to_regex();
     var _configError = require_config_error();
-    var fs5 = require_fs2();
+    var fs6 = require_fs2();
     require("module");
     var _rewriteStackTrace = require_rewrite_stack_trace();
     var _async = require_async2();
@@ -284520,7 +284648,7 @@ from ${dirname7}`);
       const targetPath = process.env.BABEL_SHOW_CONFIG_FOR;
       if (targetPath != null) {
         const absolutePath = _path().resolve(dirname7, targetPath);
-        const stats = yield* fs5.stat(absolutePath);
+        const stats = yield* fs6.stat(absolutePath);
         if (!stats.isFile()) {
           throw new Error(`${absolutePath}: BABEL_SHOW_CONFIG_FOR must refer to a regular file, directories are not supported.`);
         }
@@ -287203,9 +287331,9 @@ var require_CachedInputFileSystem = __commonJS({
         const readFile = this._readFileBackend.provide;
         this.readFile = /** @type {FileSystem["readFile"]} */
         readFile;
-        const readFileSync5 = this._readFileBackend.provideSync;
+        const readFileSync7 = this._readFileBackend.provideSync;
         this.readFileSync = /** @type {SyncFileSystem["readFileSync"]} */
-        readFileSync5;
+        readFileSync7;
         this._readJsonBackend = createBackend(
           duration3,
           // prettier-ignore
@@ -287316,54 +287444,54 @@ var require_polyfills = __commonJS({
     }
     var chdir;
     module2.exports = patch;
-    function patch(fs5) {
+    function patch(fs6) {
       if (constants4.hasOwnProperty("O_SYMLINK") && process.version.match(/^v0\.6\.[0-2]|^v0\.5\./)) {
-        patchLchmod(fs5);
+        patchLchmod(fs6);
       }
-      if (!fs5.lutimes) {
-        patchLutimes(fs5);
+      if (!fs6.lutimes) {
+        patchLutimes(fs6);
       }
-      fs5.chown = chownFix(fs5.chown);
-      fs5.fchown = chownFix(fs5.fchown);
-      fs5.lchown = chownFix(fs5.lchown);
-      fs5.chmod = chmodFix(fs5.chmod);
-      fs5.fchmod = chmodFix(fs5.fchmod);
-      fs5.lchmod = chmodFix(fs5.lchmod);
-      fs5.chownSync = chownFixSync(fs5.chownSync);
-      fs5.fchownSync = chownFixSync(fs5.fchownSync);
-      fs5.lchownSync = chownFixSync(fs5.lchownSync);
-      fs5.chmodSync = chmodFixSync(fs5.chmodSync);
-      fs5.fchmodSync = chmodFixSync(fs5.fchmodSync);
-      fs5.lchmodSync = chmodFixSync(fs5.lchmodSync);
-      fs5.stat = statFix(fs5.stat);
-      fs5.fstat = statFix(fs5.fstat);
-      fs5.lstat = statFix(fs5.lstat);
-      fs5.statSync = statFixSync(fs5.statSync);
-      fs5.fstatSync = statFixSync(fs5.fstatSync);
-      fs5.lstatSync = statFixSync(fs5.lstatSync);
-      if (fs5.chmod && !fs5.lchmod) {
-        fs5.lchmod = function(path6, mode, cb) {
+      fs6.chown = chownFix(fs6.chown);
+      fs6.fchown = chownFix(fs6.fchown);
+      fs6.lchown = chownFix(fs6.lchown);
+      fs6.chmod = chmodFix(fs6.chmod);
+      fs6.fchmod = chmodFix(fs6.fchmod);
+      fs6.lchmod = chmodFix(fs6.lchmod);
+      fs6.chownSync = chownFixSync(fs6.chownSync);
+      fs6.fchownSync = chownFixSync(fs6.fchownSync);
+      fs6.lchownSync = chownFixSync(fs6.lchownSync);
+      fs6.chmodSync = chmodFixSync(fs6.chmodSync);
+      fs6.fchmodSync = chmodFixSync(fs6.fchmodSync);
+      fs6.lchmodSync = chmodFixSync(fs6.lchmodSync);
+      fs6.stat = statFix(fs6.stat);
+      fs6.fstat = statFix(fs6.fstat);
+      fs6.lstat = statFix(fs6.lstat);
+      fs6.statSync = statFixSync(fs6.statSync);
+      fs6.fstatSync = statFixSync(fs6.fstatSync);
+      fs6.lstatSync = statFixSync(fs6.lstatSync);
+      if (fs6.chmod && !fs6.lchmod) {
+        fs6.lchmod = function(path6, mode, cb) {
           if (cb) process.nextTick(cb);
         };
-        fs5.lchmodSync = function() {
+        fs6.lchmodSync = function() {
         };
       }
-      if (fs5.chown && !fs5.lchown) {
-        fs5.lchown = function(path6, uid, gid, cb) {
+      if (fs6.chown && !fs6.lchown) {
+        fs6.lchown = function(path6, uid, gid, cb) {
           if (cb) process.nextTick(cb);
         };
-        fs5.lchownSync = function() {
+        fs6.lchownSync = function() {
         };
       }
       if (platform3 === "win32") {
-        fs5.rename = typeof fs5.rename !== "function" ? fs5.rename : (function(fs$rename) {
+        fs6.rename = typeof fs6.rename !== "function" ? fs6.rename : (function(fs$rename) {
           function rename(from, to, cb) {
             var start = Date.now();
             var backoff = 0;
             fs$rename(from, to, function CB(er2) {
               if (er2 && (er2.code === "EACCES" || er2.code === "EPERM" || er2.code === "EBUSY") && Date.now() - start < 6e4) {
                 setTimeout(function() {
-                  fs5.stat(to, function(stater, st3) {
+                  fs6.stat(to, function(stater, st3) {
                     if (stater && stater.code === "ENOENT")
                       fs$rename(from, to, CB);
                     else
@@ -287379,9 +287507,9 @@ var require_polyfills = __commonJS({
           }
           if (Object.setPrototypeOf) Object.setPrototypeOf(rename, fs$rename);
           return rename;
-        })(fs5.rename);
+        })(fs6.rename);
       }
-      fs5.read = typeof fs5.read !== "function" ? fs5.read : (function(fs$read) {
+      fs6.read = typeof fs6.read !== "function" ? fs6.read : (function(fs$read) {
         function read(fd, buffer, offset2, length, position, callback_) {
           var callback2;
           if (callback_ && typeof callback_ === "function") {
@@ -287389,22 +287517,22 @@ var require_polyfills = __commonJS({
             callback2 = function(er2, _3, __) {
               if (er2 && er2.code === "EAGAIN" && eagCounter < 10) {
                 eagCounter++;
-                return fs$read.call(fs5, fd, buffer, offset2, length, position, callback2);
+                return fs$read.call(fs6, fd, buffer, offset2, length, position, callback2);
               }
               callback_.apply(this, arguments);
             };
           }
-          return fs$read.call(fs5, fd, buffer, offset2, length, position, callback2);
+          return fs$read.call(fs6, fd, buffer, offset2, length, position, callback2);
         }
         if (Object.setPrototypeOf) Object.setPrototypeOf(read, fs$read);
         return read;
-      })(fs5.read);
-      fs5.readSync = typeof fs5.readSync !== "function" ? fs5.readSync : /* @__PURE__ */ (function(fs$readSync) {
+      })(fs6.read);
+      fs6.readSync = typeof fs6.readSync !== "function" ? fs6.readSync : /* @__PURE__ */ (function(fs$readSync) {
         return function(fd, buffer, offset2, length, position) {
           var eagCounter = 0;
           while (true) {
             try {
-              return fs$readSync.call(fs5, fd, buffer, offset2, length, position);
+              return fs$readSync.call(fs6, fd, buffer, offset2, length, position);
             } catch (er2) {
               if (er2.code === "EAGAIN" && eagCounter < 10) {
                 eagCounter++;
@@ -287414,10 +287542,10 @@ var require_polyfills = __commonJS({
             }
           }
         };
-      })(fs5.readSync);
-      function patchLchmod(fs6) {
-        fs6.lchmod = function(path6, mode, callback2) {
-          fs6.open(
+      })(fs6.readSync);
+      function patchLchmod(fs7) {
+        fs7.lchmod = function(path6, mode, callback2) {
+          fs7.open(
             path6,
             constants4.O_WRONLY | constants4.O_SYMLINK,
             mode,
@@ -287426,80 +287554,80 @@ var require_polyfills = __commonJS({
                 if (callback2) callback2(err2);
                 return;
               }
-              fs6.fchmod(fd, mode, function(err3) {
-                fs6.close(fd, function(err22) {
+              fs7.fchmod(fd, mode, function(err3) {
+                fs7.close(fd, function(err22) {
                   if (callback2) callback2(err3 || err22);
                 });
               });
             }
           );
         };
-        fs6.lchmodSync = function(path6, mode) {
-          var fd = fs6.openSync(path6, constants4.O_WRONLY | constants4.O_SYMLINK, mode);
+        fs7.lchmodSync = function(path6, mode) {
+          var fd = fs7.openSync(path6, constants4.O_WRONLY | constants4.O_SYMLINK, mode);
           var threw = true;
           var ret;
           try {
-            ret = fs6.fchmodSync(fd, mode);
+            ret = fs7.fchmodSync(fd, mode);
             threw = false;
           } finally {
             if (threw) {
               try {
-                fs6.closeSync(fd);
+                fs7.closeSync(fd);
               } catch (er2) {
               }
             } else {
-              fs6.closeSync(fd);
+              fs7.closeSync(fd);
             }
           }
           return ret;
         };
       }
-      function patchLutimes(fs6) {
-        if (constants4.hasOwnProperty("O_SYMLINK") && fs6.futimes) {
-          fs6.lutimes = function(path6, at2, mt3, cb) {
-            fs6.open(path6, constants4.O_SYMLINK, function(er2, fd) {
+      function patchLutimes(fs7) {
+        if (constants4.hasOwnProperty("O_SYMLINK") && fs7.futimes) {
+          fs7.lutimes = function(path6, at2, mt3, cb) {
+            fs7.open(path6, constants4.O_SYMLINK, function(er2, fd) {
               if (er2) {
                 if (cb) cb(er2);
                 return;
               }
-              fs6.futimes(fd, at2, mt3, function(er3) {
-                fs6.close(fd, function(er22) {
+              fs7.futimes(fd, at2, mt3, function(er3) {
+                fs7.close(fd, function(er22) {
                   if (cb) cb(er3 || er22);
                 });
               });
             });
           };
-          fs6.lutimesSync = function(path6, at2, mt3) {
-            var fd = fs6.openSync(path6, constants4.O_SYMLINK);
+          fs7.lutimesSync = function(path6, at2, mt3) {
+            var fd = fs7.openSync(path6, constants4.O_SYMLINK);
             var ret;
             var threw = true;
             try {
-              ret = fs6.futimesSync(fd, at2, mt3);
+              ret = fs7.futimesSync(fd, at2, mt3);
               threw = false;
             } finally {
               if (threw) {
                 try {
-                  fs6.closeSync(fd);
+                  fs7.closeSync(fd);
                 } catch (er2) {
                 }
               } else {
-                fs6.closeSync(fd);
+                fs7.closeSync(fd);
               }
             }
             return ret;
           };
-        } else if (fs6.futimes) {
-          fs6.lutimes = function(_a4, _b, _c4, cb) {
+        } else if (fs7.futimes) {
+          fs7.lutimes = function(_a4, _b, _c4, cb) {
             if (cb) process.nextTick(cb);
           };
-          fs6.lutimesSync = function() {
+          fs7.lutimesSync = function() {
           };
         }
       }
       function chmodFix(orig) {
         if (!orig) return orig;
         return function(target, mode, cb) {
-          return orig.call(fs5, target, mode, function(er2) {
+          return orig.call(fs6, target, mode, function(er2) {
             if (chownErOk(er2)) er2 = null;
             if (cb) cb.apply(this, arguments);
           });
@@ -287509,7 +287637,7 @@ var require_polyfills = __commonJS({
         if (!orig) return orig;
         return function(target, mode) {
           try {
-            return orig.call(fs5, target, mode);
+            return orig.call(fs6, target, mode);
           } catch (er2) {
             if (!chownErOk(er2)) throw er2;
           }
@@ -287518,7 +287646,7 @@ var require_polyfills = __commonJS({
       function chownFix(orig) {
         if (!orig) return orig;
         return function(target, uid, gid, cb) {
-          return orig.call(fs5, target, uid, gid, function(er2) {
+          return orig.call(fs6, target, uid, gid, function(er2) {
             if (chownErOk(er2)) er2 = null;
             if (cb) cb.apply(this, arguments);
           });
@@ -287528,7 +287656,7 @@ var require_polyfills = __commonJS({
         if (!orig) return orig;
         return function(target, uid, gid) {
           try {
-            return orig.call(fs5, target, uid, gid);
+            return orig.call(fs6, target, uid, gid);
           } catch (er2) {
             if (!chownErOk(er2)) throw er2;
           }
@@ -287548,13 +287676,13 @@ var require_polyfills = __commonJS({
             }
             if (cb) cb.apply(this, arguments);
           }
-          return options ? orig.call(fs5, target, options, callback2) : orig.call(fs5, target, callback2);
+          return options ? orig.call(fs6, target, options, callback2) : orig.call(fs6, target, callback2);
         };
       }
       function statFixSync(orig) {
         if (!orig) return orig;
         return function(target, options) {
-          var stats = options ? orig.call(fs5, target, options) : orig.call(fs5, target);
+          var stats = options ? orig.call(fs6, target, options) : orig.call(fs6, target);
           if (stats) {
             if (stats.uid < 0) stats.uid += 4294967296;
             if (stats.gid < 0) stats.gid += 4294967296;
@@ -287583,7 +287711,7 @@ var require_legacy_streams = __commonJS({
   "node_modules/graceful-fs/legacy-streams.js"(exports2, module2) {
     var Stream = require("stream").Stream;
     module2.exports = legacy;
-    function legacy(fs5) {
+    function legacy(fs6) {
       return {
         ReadStream,
         WriteStream
@@ -287626,7 +287754,7 @@ var require_legacy_streams = __commonJS({
           });
           return;
         }
-        fs5.open(this.path, this.flags, this.mode, function(err2, fd) {
+        fs6.open(this.path, this.flags, this.mode, function(err2, fd) {
           if (err2) {
             self2.emit("error", err2);
             self2.readable = false;
@@ -287665,7 +287793,7 @@ var require_legacy_streams = __commonJS({
         this.busy = false;
         this._queue = [];
         if (this.fd === null) {
-          this._open = fs5.open;
+          this._open = fs6.open;
           this._queue.push([this._open, this.path, this.flags, this.mode, void 0]);
           this.flush();
         }
@@ -287700,7 +287828,7 @@ var require_clone2 = __commonJS({
 // node_modules/graceful-fs/graceful-fs.js
 var require_graceful_fs = __commonJS({
   "node_modules/graceful-fs/graceful-fs.js"(exports2, module2) {
-    var fs5 = require("fs");
+    var fs6 = require("fs");
     var polyfills = require_polyfills();
     var legacy = require_legacy_streams();
     var clone3 = require_clone2();
@@ -287732,12 +287860,12 @@ var require_graceful_fs = __commonJS({
         m4 = "GFS4: " + m4.split(/\n/).join("\nGFS4: ");
         console.error(m4);
       };
-    if (!fs5[gracefulQueue]) {
+    if (!fs6[gracefulQueue]) {
       queue = global[gracefulQueue] || [];
-      publishQueue(fs5, queue);
-      fs5.close = (function(fs$close) {
+      publishQueue(fs6, queue);
+      fs6.close = (function(fs$close) {
         function close(fd, cb) {
-          return fs$close.call(fs5, fd, function(err2) {
+          return fs$close.call(fs6, fd, function(err2) {
             if (!err2) {
               resetQueue();
             }
@@ -287749,40 +287877,40 @@ var require_graceful_fs = __commonJS({
           value: fs$close
         });
         return close;
-      })(fs5.close);
-      fs5.closeSync = (function(fs$closeSync) {
+      })(fs6.close);
+      fs6.closeSync = (function(fs$closeSync) {
         function closeSync(fd) {
-          fs$closeSync.apply(fs5, arguments);
+          fs$closeSync.apply(fs6, arguments);
           resetQueue();
         }
         Object.defineProperty(closeSync, previousSymbol, {
           value: fs$closeSync
         });
         return closeSync;
-      })(fs5.closeSync);
+      })(fs6.closeSync);
       if (/\bgfs4\b/i.test(process.env.NODE_DEBUG || "")) {
         process.on("exit", function() {
-          debug2(fs5[gracefulQueue]);
-          require("assert").equal(fs5[gracefulQueue].length, 0);
+          debug2(fs6[gracefulQueue]);
+          require("assert").equal(fs6[gracefulQueue].length, 0);
         });
       }
     }
     var queue;
     if (!global[gracefulQueue]) {
-      publishQueue(global, fs5[gracefulQueue]);
+      publishQueue(global, fs6[gracefulQueue]);
     }
-    module2.exports = patch(clone3(fs5));
-    if (process.env.TEST_GRACEFUL_FS_GLOBAL_PATCH && !fs5.__patched) {
-      module2.exports = patch(fs5);
-      fs5.__patched = true;
+    module2.exports = patch(clone3(fs6));
+    if (process.env.TEST_GRACEFUL_FS_GLOBAL_PATCH && !fs6.__patched) {
+      module2.exports = patch(fs6);
+      fs6.__patched = true;
     }
-    function patch(fs6) {
-      polyfills(fs6);
-      fs6.gracefulify = patch;
-      fs6.createReadStream = createReadStream2;
-      fs6.createWriteStream = createWriteStream;
-      var fs$readFile = fs6.readFile;
-      fs6.readFile = readFile;
+    function patch(fs7) {
+      polyfills(fs7);
+      fs7.gracefulify = patch;
+      fs7.createReadStream = createReadStream2;
+      fs7.createWriteStream = createWriteStream;
+      var fs$readFile = fs7.readFile;
+      fs7.readFile = readFile;
       function readFile(path6, options, cb) {
         if (typeof options === "function")
           cb = options, options = null;
@@ -287798,8 +287926,8 @@ var require_graceful_fs = __commonJS({
           });
         }
       }
-      var fs$writeFile = fs6.writeFile;
-      fs6.writeFile = writeFile;
+      var fs$writeFile = fs7.writeFile;
+      fs7.writeFile = writeFile;
       function writeFile(path6, data4, options, cb) {
         if (typeof options === "function")
           cb = options, options = null;
@@ -287815,9 +287943,9 @@ var require_graceful_fs = __commonJS({
           });
         }
       }
-      var fs$appendFile = fs6.appendFile;
+      var fs$appendFile = fs7.appendFile;
       if (fs$appendFile)
-        fs6.appendFile = appendFile;
+        fs7.appendFile = appendFile;
       function appendFile(path6, data4, options, cb) {
         if (typeof options === "function")
           cb = options, options = null;
@@ -287833,9 +287961,9 @@ var require_graceful_fs = __commonJS({
           });
         }
       }
-      var fs$copyFile = fs6.copyFile;
+      var fs$copyFile = fs7.copyFile;
       if (fs$copyFile)
-        fs6.copyFile = copyFile;
+        fs7.copyFile = copyFile;
       function copyFile(src, dest, flags, cb) {
         if (typeof flags === "function") {
           cb = flags;
@@ -287853,8 +287981,8 @@ var require_graceful_fs = __commonJS({
           });
         }
       }
-      var fs$readdir = fs6.readdir;
-      fs6.readdir = readdir;
+      var fs$readdir = fs7.readdir;
+      fs7.readdir = readdir;
       var noReaddirOptionVersions = /^v[0-5]\./;
       function readdir(path6, options, cb) {
         if (typeof options === "function")
@@ -287895,21 +288023,21 @@ var require_graceful_fs = __commonJS({
         }
       }
       if (process.version.substr(0, 4) === "v0.8") {
-        var legStreams = legacy(fs6);
+        var legStreams = legacy(fs7);
         ReadStream = legStreams.ReadStream;
         WriteStream = legStreams.WriteStream;
       }
-      var fs$ReadStream = fs6.ReadStream;
+      var fs$ReadStream = fs7.ReadStream;
       if (fs$ReadStream) {
         ReadStream.prototype = Object.create(fs$ReadStream.prototype);
         ReadStream.prototype.open = ReadStream$open;
       }
-      var fs$WriteStream = fs6.WriteStream;
+      var fs$WriteStream = fs7.WriteStream;
       if (fs$WriteStream) {
         WriteStream.prototype = Object.create(fs$WriteStream.prototype);
         WriteStream.prototype.open = WriteStream$open;
       }
-      Object.defineProperty(fs6, "ReadStream", {
+      Object.defineProperty(fs7, "ReadStream", {
         get: function() {
           return ReadStream;
         },
@@ -287919,7 +288047,7 @@ var require_graceful_fs = __commonJS({
         enumerable: true,
         configurable: true
       });
-      Object.defineProperty(fs6, "WriteStream", {
+      Object.defineProperty(fs7, "WriteStream", {
         get: function() {
           return WriteStream;
         },
@@ -287930,7 +288058,7 @@ var require_graceful_fs = __commonJS({
         configurable: true
       });
       var FileReadStream = ReadStream;
-      Object.defineProperty(fs6, "FileReadStream", {
+      Object.defineProperty(fs7, "FileReadStream", {
         get: function() {
           return FileReadStream;
         },
@@ -287941,7 +288069,7 @@ var require_graceful_fs = __commonJS({
         configurable: true
       });
       var FileWriteStream = WriteStream;
-      Object.defineProperty(fs6, "FileWriteStream", {
+      Object.defineProperty(fs7, "FileWriteStream", {
         get: function() {
           return FileWriteStream;
         },
@@ -287990,13 +288118,13 @@ var require_graceful_fs = __commonJS({
         });
       }
       function createReadStream2(path6, options) {
-        return new fs6.ReadStream(path6, options);
+        return new fs7.ReadStream(path6, options);
       }
       function createWriteStream(path6, options) {
-        return new fs6.WriteStream(path6, options);
+        return new fs7.WriteStream(path6, options);
       }
-      var fs$open = fs6.open;
-      fs6.open = open2;
+      var fs$open = fs7.open;
+      fs7.open = open2;
       function open2(path6, flags, mode, cb) {
         if (typeof mode === "function")
           cb = mode, mode = null;
@@ -288012,20 +288140,20 @@ var require_graceful_fs = __commonJS({
           });
         }
       }
-      return fs6;
+      return fs7;
     }
     function enqueue(elem) {
       debug2("ENQUEUE", elem[0].name, elem[1]);
-      fs5[gracefulQueue].push(elem);
+      fs6[gracefulQueue].push(elem);
       retry();
     }
     var retryTimer;
     function resetQueue() {
       var now = Date.now();
-      for (var i4 = 0; i4 < fs5[gracefulQueue].length; ++i4) {
-        if (fs5[gracefulQueue][i4].length > 2) {
-          fs5[gracefulQueue][i4][3] = now;
-          fs5[gracefulQueue][i4][4] = now;
+      for (var i4 = 0; i4 < fs6[gracefulQueue].length; ++i4) {
+        if (fs6[gracefulQueue][i4].length > 2) {
+          fs6[gracefulQueue][i4][3] = now;
+          fs6[gracefulQueue][i4][4] = now;
         }
       }
       retry();
@@ -288033,9 +288161,9 @@ var require_graceful_fs = __commonJS({
     function retry() {
       clearTimeout(retryTimer);
       retryTimer = void 0;
-      if (fs5[gracefulQueue].length === 0)
+      if (fs6[gracefulQueue].length === 0)
         return;
-      var elem = fs5[gracefulQueue].shift();
+      var elem = fs6[gracefulQueue].shift();
       var fn2 = elem[0];
       var args = elem[1];
       var err2 = elem[2];
@@ -288057,7 +288185,7 @@ var require_graceful_fs = __commonJS({
           debug2("RETRY", fn2.name, args);
           fn2.apply(null, args.concat([startTime]));
         } else {
-          fs5[gracefulQueue].push(elem);
+          fs6[gracefulQueue].push(elem);
         }
       }
       if (retryTimer === void 0) {
@@ -288856,10 +288984,10 @@ var require_DirectoryExistsPlugin = __commonJS({
         resolver3.getHook(this.source).tapAsync(
           "DirectoryExistsPlugin",
           (request, resolveContext, callback2) => {
-            const fs5 = resolver3.fileSystem;
+            const fs6 = resolver3.fileSystem;
             const directory = request.path;
             if (!directory) return callback2();
-            fs5.stat(directory, (err2, stat) => {
+            fs6.stat(directory, (err2, stat) => {
               if (err2 || !stat) {
                 if (resolveContext.missingDependencies) {
                   resolveContext.missingDependencies.add(directory);
@@ -289531,11 +289659,11 @@ var require_FileExistsPlugin = __commonJS({
        */
       apply(resolver3) {
         const target = resolver3.ensureHook(this.target);
-        const fs5 = resolver3.fileSystem;
+        const fs6 = resolver3.fileSystem;
         resolver3.getHook(this.source).tapAsync("FileExistsPlugin", (request, resolveContext, callback2) => {
           const file2 = request.path;
           if (!file2) return callback2();
-          fs5.stat(file2, (err2, stat) => {
+          fs6.stat(file2, (err2, stat) => {
             if (err2 || !stat) {
               if (resolveContext.missingDependencies) {
                 resolveContext.missingDependencies.add(file2);
@@ -289956,7 +290084,7 @@ var require_ModulesUtils = __commonJS({
     var forEachBail = require_forEachBail();
     var getPaths = require_getPaths();
     function modulesResolveHandler(resolver3, directories, target, request, resolveContext, callback2) {
-      const fs5 = resolver3.fileSystem;
+      const fs6 = resolver3.fileSystem;
       const addrs = getPaths(
         /** @type {string} */
         request.path
@@ -289974,7 +290102,7 @@ var require_ModulesUtils = __commonJS({
          * @returns {void}
          */
         (addr, callback3) => {
-          fs5.stat(addr, (err2, stat) => {
+          fs6.stat(addr, (err2, stat) => {
             if (!err2 && stat && stat.isDirectory()) {
               const obj = {
                 ...request,
@@ -291688,15 +291816,15 @@ var require_Resolver = __commonJS({
           result.path === false ? false : `${result.path.replace(/#/g, "\0#")}${result.query ? result.query.replace(/#/g, "\0#") : ""}${result.fragment || ""}`,
           result
         );
-        const finishWithoutResolve = (log2) => {
+        const finishWithoutResolve = (log3) => {
           const error54 = new Error(`Can't ${message2}`);
-          error54.details = log2.join("\n");
+          error54.details = log3.join("\n");
           this.hooks.noResolve.call(obj, error54);
           return callback2(error54);
         };
         if (resolveContext.log) {
           const parentLog = resolveContext.log;
-          const log2 = [];
+          const log3 = [];
           return this.doResolve(
             this.hooks.resolve,
             obj,
@@ -291704,7 +291832,7 @@ var require_Resolver = __commonJS({
             {
               log: (msg) => {
                 parentLog(msg);
-                log2.push(msg);
+                log3.push(msg);
               },
               yield: yield_,
               fileDependencies: resolveContext.fileDependencies,
@@ -291724,7 +291852,7 @@ var require_Resolver = __commonJS({
                 );
               }
               if (result) return finishResolved(result);
-              return finishWithoutResolve(log2);
+              return finishWithoutResolve(log3);
             }
           );
         }
@@ -291752,13 +291880,13 @@ var require_Resolver = __commonJS({
               );
             }
             if (result) return finishResolved(result);
-            const log2 = [];
+            const log3 = [];
             return this.doResolve(
               this.hooks.resolve,
               obj,
               message2,
               {
-                log: (msg) => log2.push(msg),
+                log: (msg) => log3.push(msg),
                 yield: yield_,
                 stack: resolveContext.stack
               },
@@ -291773,7 +291901,7 @@ var require_Resolver = __commonJS({
                     )
                   );
                 }
-                return finishWithoutResolve(log2);
+                return finishWithoutResolve(log3);
               }
             );
           }
@@ -292138,7 +292266,7 @@ var require_SymlinkPlugin = __commonJS({
        */
       apply(resolver3) {
         const target = resolver3.ensureHook(this.target);
-        const fs5 = resolver3.fileSystem;
+        const fs6 = resolver3.fileSystem;
         resolver3.getHook(this.source).tapAsync("SymlinkPlugin", (request, resolveContext, callback2) => {
           if (request.ignoreSymlinks) return callback2();
           const pathsResult = getPaths(
@@ -292161,7 +292289,7 @@ var require_SymlinkPlugin = __commonJS({
               if (resolveContext.fileDependencies) {
                 resolveContext.fileDependencies.add(path6);
               }
-              fs5.readlink(path6, (err2, result) => {
+              fs6.readlink(path6, (err2, result) => {
                 if (!err2 && result) {
                   pathSegments[idx] = /** @type {string} */
                   result;
@@ -292208,18 +292336,18 @@ var require_SymlinkPlugin = __commonJS({
 var require_SyncAsyncFileSystemDecorator = __commonJS({
   "node_modules/enhanced-resolve/lib/SyncAsyncFileSystemDecorator.js"(exports2, module2) {
     "use strict";
-    function SyncAsyncFileSystemDecorator(fs5) {
-      this.fs = fs5;
+    function SyncAsyncFileSystemDecorator(fs6) {
+      this.fs = fs6;
       this.lstat = void 0;
       this.lstatSync = void 0;
-      const { lstatSync } = fs5;
+      const { lstatSync } = fs6;
       if (lstatSync) {
         this.lstat = /** @type {FileSystem["lstat"]} */
         ((arg, options, callback2) => {
           let result;
           try {
             result = /** @type {SyncOrAsyncFunction | undefined} */
-            callback2 ? lstatSync.call(fs5, arg, options) : lstatSync.call(fs5, arg);
+            callback2 ? lstatSync.call(fs6, arg, options) : lstatSync.call(fs6, arg);
           } catch (err2) {
             return (callback2 || options)(
               /** @type {NodeJS.ErrnoException | null} */
@@ -292233,14 +292361,14 @@ var require_SyncAsyncFileSystemDecorator = __commonJS({
           );
         });
         this.lstatSync = /** @type {SyncFileSystem["lstatSync"]} */
-        ((arg, options) => lstatSync.call(fs5, arg, options));
+        ((arg, options) => lstatSync.call(fs6, arg, options));
       }
       this.stat = /** @type {FileSystem["stat"]} */
       ((arg, options, callback2) => {
         let result;
         try {
           result = /** @type {SyncOrAsyncFunction | undefined} */
-          callback2 ? fs5.statSync(arg, options) : fs5.statSync(arg);
+          callback2 ? fs6.statSync(arg, options) : fs6.statSync(arg);
         } catch (err2) {
           return (callback2 || options)(
             /** @type {NodeJS.ErrnoException | null} */
@@ -292254,17 +292382,17 @@ var require_SyncAsyncFileSystemDecorator = __commonJS({
         );
       });
       this.statSync = /** @type {SyncFileSystem["statSync"]} */
-      ((arg, options) => fs5.statSync(arg, options));
+      ((arg, options) => fs6.statSync(arg, options));
       this.readdir = /** @type {FileSystem["readdir"]} */
       ((arg, options, callback2) => {
         let result;
         try {
           result = /** @type {SyncOrAsyncFunction | undefined} */
-          callback2 ? fs5.readdirSync(
+          callback2 ? fs6.readdirSync(
             arg,
             /** @type {Exclude<Parameters<FileSystem["readdir"]>[1], (err: NodeJS.ErrnoException | null, files: string[]) => void>} */
             options
-          ) : fs5.readdirSync(arg);
+          ) : fs6.readdirSync(arg);
         } catch (err2) {
           return (callback2 || options)(
             /** @type {NodeJS.ErrnoException | null} */
@@ -292279,7 +292407,7 @@ var require_SyncAsyncFileSystemDecorator = __commonJS({
         );
       });
       this.readdirSync = /** @type {SyncFileSystem["readdirSync"]} */
-      ((arg, options) => fs5.readdirSync(
+      ((arg, options) => fs6.readdirSync(
         arg,
         /** @type {Parameters<SyncFileSystem["readdirSync"]>[1]} */
         options
@@ -292289,7 +292417,7 @@ var require_SyncAsyncFileSystemDecorator = __commonJS({
         let result;
         try {
           result = /** @type {SyncOrAsyncFunction | undefined} */
-          callback2 ? fs5.readFileSync(arg, options) : fs5.readFileSync(arg);
+          callback2 ? fs6.readFileSync(arg, options) : fs6.readFileSync(arg);
         } catch (err2) {
           return (callback2 || options)(
             /** @type {NodeJS.ErrnoException | null} */
@@ -292303,17 +292431,17 @@ var require_SyncAsyncFileSystemDecorator = __commonJS({
         );
       });
       this.readFileSync = /** @type {SyncFileSystem["readFileSync"]} */
-      ((arg, options) => fs5.readFileSync(arg, options));
+      ((arg, options) => fs6.readFileSync(arg, options));
       this.readlink = /** @type {FileSystem["readlink"]} */
       ((arg, options, callback2) => {
         let result;
         try {
           result = /** @type {SyncOrAsyncFunction | undefined} */
-          callback2 ? fs5.readlinkSync(
+          callback2 ? fs6.readlinkSync(
             arg,
             /** @type {Exclude<Parameters<FileSystem["readlink"]>[1], StringCallback>} */
             options
-          ) : fs5.readlinkSync(arg);
+          ) : fs6.readlinkSync(arg);
         } catch (err2) {
           return (callback2 || options)(
             /** @type {NodeJS.ErrnoException | null} */
@@ -292327,20 +292455,20 @@ var require_SyncAsyncFileSystemDecorator = __commonJS({
         );
       });
       this.readlinkSync = /** @type {SyncFileSystem["readlinkSync"]} */
-      ((arg, options) => fs5.readlinkSync(
+      ((arg, options) => fs6.readlinkSync(
         arg,
         /** @type {Parameters<SyncFileSystem["readlinkSync"]>[1]} */
         options
       ));
       this.readJson = void 0;
       this.readJsonSync = void 0;
-      const { readJsonSync } = fs5;
+      const { readJsonSync } = fs6;
       if (readJsonSync) {
         this.readJson = /** @type {FileSystem["readJson"]} */
         ((arg, callback2) => {
           let result;
           try {
-            result = readJsonSync.call(fs5, arg);
+            result = readJsonSync.call(fs6, arg);
           } catch (err2) {
             return callback2(
               /** @type {NodeJS.ErrnoException | Error | null} */
@@ -292350,11 +292478,11 @@ var require_SyncAsyncFileSystemDecorator = __commonJS({
           callback2(null, result);
         });
         this.readJsonSync = /** @type {SyncFileSystem["readJsonSync"]} */
-        ((arg) => readJsonSync.call(fs5, arg));
+        ((arg) => readJsonSync.call(fs6, arg));
       }
       this.realpath = void 0;
       this.realpathSync = void 0;
-      const { realpathSync } = fs5;
+      const { realpathSync } = fs6;
       if (realpathSync) {
         this.realpath = /** @type {FileSystem["realpath"]} */
         ((arg, options, callback2) => {
@@ -292362,11 +292490,11 @@ var require_SyncAsyncFileSystemDecorator = __commonJS({
           try {
             result = /** @type {SyncOrAsyncFunction | undefined} */
             callback2 ? realpathSync.call(
-              fs5,
+              fs6,
               arg,
               /** @type {Exclude<Parameters<NonNullable<FileSystem["realpath"]>>[1], StringCallback>} */
               options
-            ) : realpathSync.call(fs5, arg);
+            ) : realpathSync.call(fs6, arg);
           } catch (err2) {
             return (callback2 || options)(
               /** @type {NodeJS.ErrnoException | null} */
@@ -292381,7 +292509,7 @@ var require_SyncAsyncFileSystemDecorator = __commonJS({
         });
         this.realpathSync = /** @type {SyncFileSystem["realpathSync"]} */
         ((arg, options) => realpathSync.call(
-          fs5,
+          fs6,
           arg,
           /** @type {Parameters<NonNullable<SyncFileSystem["realpathSync"]>>[1]} */
           options
@@ -293608,29 +293736,29 @@ var require_LogInfoPlugin = __commonJS({
         const { source } = this;
         resolver3.getHook(this.source).tapAsync("LogInfoPlugin", (request, resolveContext, callback2) => {
           if (!resolveContext.log) return callback2();
-          const { log: log2 } = resolveContext;
+          const { log: log3 } = resolveContext;
           const prefix = `[${source}] `;
           if (request.path) {
-            log2(`${prefix}Resolving in directory: ${request.path}`);
+            log3(`${prefix}Resolving in directory: ${request.path}`);
           }
           if (request.request) {
-            log2(`${prefix}Resolving request: ${request.request}`);
+            log3(`${prefix}Resolving request: ${request.request}`);
           }
-          if (request.module) log2(`${prefix}Request is an module request.`);
-          if (request.directory) log2(`${prefix}Request is a directory request.`);
+          if (request.module) log3(`${prefix}Request is an module request.`);
+          if (request.directory) log3(`${prefix}Request is a directory request.`);
           if (request.query) {
-            log2(`${prefix}Resolving request query: ${request.query}`);
+            log3(`${prefix}Resolving request query: ${request.query}`);
           }
           if (request.fragment) {
-            log2(`${prefix}Resolving request fragment: ${request.fragment}`);
+            log3(`${prefix}Resolving request fragment: ${request.fragment}`);
           }
           if (request.descriptionFilePath) {
-            log2(
+            log3(
               `${prefix}Has description data from ${request.descriptionFilePath}`
             );
           }
           if (request.relativePath) {
-            log2(
+            log3(
               `${prefix}Relative path from description file is: ${request.relativePath}`
             );
           }
@@ -293648,9 +293776,9 @@ var require_lib21 = __commonJS({
     var memoize = require_memoize();
     var getCachedFileSystem = memoize(() => require_CachedInputFileSystem());
     var getNodeFileSystem = memoize(() => {
-      const fs5 = require_graceful_fs();
+      const fs6 = require_graceful_fs();
       const CachedInputFileSystem = getCachedFileSystem();
-      return new CachedInputFileSystem(fs5, 4e3);
+      return new CachedInputFileSystem(fs6, 4e3);
     });
     var getNodeContext = memoize(() => ({
       environments: ["node+es3+es5+process+native"]
@@ -301749,14 +301877,14 @@ function yu(e6) {
 `, t7;
   } };
 }
-var ce2, import_url3, import_enhanced_resolve, import_fs4, import_promises2, import_path6, import_url4, import_promises3, import_path7, Te2, import_lightningcss, import_source_map_js, import_meta8, St2, $t2, pe3, fe, Et2, Nt, Vt2, Rt2, _e5, It2, Ie2, De2, Dt2, Ue2, Le2, Ke2, ze2, Ut2, Lt2, Kt2, Me2, Fe2, g5, ui2, te3, me3, w5, ki2, bi2, xi2, Mt2, O3, Oi2, Pi2, _i2, Ft2, Ii2, jt2, Di2, Ui2, Yt2, on2, er, Ge, Cn2, Sn2, H3, ie, ne4, et, tt2, pr2, oe2, T2, ae, q5, Z3, rt2, ye2, xe2, it2, dr2, mr2, nt2, ke2, gr2, E5, Se2, N2, b5, _2, lt3, le2, kr2, st2, br2, Ar2, Ee2, ut2, Sr2, $r2, Tr2, Er2, Nr2, Vr2, Rr2, Or2, Pr2, gt3, Re2, jr2, Br2, Yr2, At;
+var ce2, import_url3, import_enhanced_resolve, import_fs5, import_promises2, import_path6, import_url4, import_promises3, import_path7, Te2, import_lightningcss, import_source_map_js, import_meta8, St2, $t2, pe3, fe, Et2, Nt, Vt2, Rt2, _e5, It2, Ie2, De2, Dt2, Ue2, Le2, Ke2, ze2, Ut2, Lt2, Kt2, Me2, Fe2, g5, ui2, te3, me3, w5, ki2, bi2, xi2, Mt2, O3, Oi2, Pi2, _i2, Ft2, Ii2, jt2, Di2, Ui2, Yt2, on2, er, Ge, Cn2, Sn2, H3, ie, ne4, et, tt2, pr2, oe2, T2, ae, q5, Z3, rt2, ye2, xe2, it2, dr2, mr2, nt2, ke2, gr2, E5, Se2, N2, b5, _2, lt3, le2, kr2, st2, br2, Ar2, Ee2, ut2, Sr2, $r2, Tr2, Er2, Nr2, Vr2, Rr2, Or2, Pr2, gt3, Re2, jr2, Br2, Yr2, At;
 var init_dist7 = __esm({
   "node_modules/@tailwindcss/node/dist/index.mjs"() {
     ce2 = __toESM(require("module"), 1);
     import_url3 = require("url");
     import_enhanced_resolve = __toESM(require_lib21(), 1);
     init_jiti();
-    import_fs4 = __toESM(require("fs"), 1);
+    import_fs5 = __toESM(require("fs"), 1);
     import_promises2 = __toESM(require("fs/promises"), 1);
     import_path6 = __toESM(require("path"), 1);
     import_url4 = require("url");
@@ -301927,9 +302055,9 @@ var init_dist7 = __esm({
     Pr2 = (e6) => Tr2.test(e6);
     gt3 = null;
     Re2 = ["node_modules", ...process.env.NODE_PATH ? [process.env.NODE_PATH] : []];
-    jr2 = import_enhanced_resolve.default.ResolverFactory.createResolver({ fileSystem: new import_enhanced_resolve.default.CachedInputFileSystem(import_fs4.default, 4e3), useSyncFileSystemCalls: true, extensions: [".css"], mainFields: ["style"], conditionNames: ["style"], modules: Re2 });
-    Br2 = import_enhanced_resolve.default.ResolverFactory.createResolver({ fileSystem: new import_enhanced_resolve.default.CachedInputFileSystem(import_fs4.default, 4e3), useSyncFileSystemCalls: true, extensions: [".js", ".json", ".node", ".ts"], conditionNames: ["node", "import"], modules: Re2 });
-    Yr2 = import_enhanced_resolve.default.ResolverFactory.createResolver({ fileSystem: new import_enhanced_resolve.default.CachedInputFileSystem(import_fs4.default, 4e3), useSyncFileSystemCalls: true, extensions: [".js", ".json", ".node", ".ts"], conditionNames: ["node", "require"], modules: Re2 });
+    jr2 = import_enhanced_resolve.default.ResolverFactory.createResolver({ fileSystem: new import_enhanced_resolve.default.CachedInputFileSystem(import_fs5.default, 4e3), useSyncFileSystemCalls: true, extensions: [".css"], mainFields: ["style"], conditionNames: ["style"], modules: Re2 });
+    Br2 = import_enhanced_resolve.default.ResolverFactory.createResolver({ fileSystem: new import_enhanced_resolve.default.CachedInputFileSystem(import_fs5.default, 4e3), useSyncFileSystemCalls: true, extensions: [".js", ".json", ".node", ".ts"], conditionNames: ["node", "import"], modules: Re2 });
+    Yr2 = import_enhanced_resolve.default.ResolverFactory.createResolver({ fileSystem: new import_enhanced_resolve.default.CachedInputFileSystem(import_fs5.default, 4e3), useSyncFileSystemCalls: true, extensions: [".js", ".json", ".node", ".ts"], conditionNames: ["node", "require"], modules: Re2 });
     Symbol.dispose ??= /* @__PURE__ */ Symbol("Symbol.dispose");
     Symbol.asyncDispose ??= /* @__PURE__ */ Symbol("Symbol.asyncDispose");
     At = class {
@@ -303911,7 +304039,7 @@ __export(dist_exports4, {
 });
 function loadContentSource() {
   if (cachedContentSource === void 0) {
-    cachedContentSource = fs3.readFileSync(RUNTIME_FILE_PATH, "utf8");
+    cachedContentSource = fs4.readFileSync(RUNTIME_FILE_PATH, "utf8");
   }
   return cachedContentSource;
 }
@@ -303935,10 +304063,10 @@ ${loadContentSource()}`,
     }
   };
 }
-var fs3, import_meta9, RUNTIME_FILE_PATH, DEFAULT_SCRIPT_ID, cachedContentSource;
+var fs4, import_meta9, RUNTIME_FILE_PATH, DEFAULT_SCRIPT_ID, cachedContentSource;
 var init_dist9 = __esm({
   "node_modules/vite-plugin-manus-runtime/dist/index.js"() {
-    fs3 = __toESM(require("node:fs"), 1);
+    fs4 = __toESM(require("node:fs"), 1);
     import_meta9 = {};
     RUNTIME_FILE_PATH = new URL("../runtime_dist/manus-runtime.js", import_meta9.url);
     DEFAULT_SCRIPT_ID = "manus-runtime";
@@ -326405,7 +326533,7 @@ var autoOperationService = {
       config2 = await this.upsertConfig({ accountId });
     }
     const logId = `log_${Date.now()}_${accountId}`;
-    const log2 = {
+    const log3 = {
       id: logId,
       accountId,
       operationType: "full_operation",
@@ -326416,7 +326544,7 @@ var autoOperationService = {
       details: { config: config2 },
       errorMessage: null
     };
-    logStore.push(log2);
+    logStore.push(log3);
     try {
       if (config2.enableDataSync) {
         const stepResult = await this.executeDataSync(accountId);
@@ -326463,10 +326591,10 @@ var autoOperationService = {
         skippedSteps: steps.filter((s4) => s4.status === "skipped").length
       };
       const status = summary.failedSteps === 0 ? "completed" : summary.successSteps > 0 ? "partial" : "failed";
-      log2.status = status === "failed" ? "failed" : "completed";
-      log2.completedAt = completedAt;
-      log2.duration = totalDuration;
-      log2.details = { config: config2, steps, summary };
+      log3.status = status === "failed" ? "failed" : "completed";
+      log3.completedAt = completedAt;
+      log3.duration = totalDuration;
+      log3.details = { config: config2, steps, summary };
       const nextRunAt = new Date(completedAt.getTime() + config2.intervalHours * 60 * 60 * 1e3);
       config2.lastRunAt = completedAt;
       config2.nextRunAt = nextRunAt;
@@ -326483,11 +326611,11 @@ var autoOperationService = {
     } catch (error54) {
       const completedAt = /* @__PURE__ */ new Date();
       const totalDuration = completedAt.getTime() - startedAt.getTime();
-      log2.status = "failed";
-      log2.completedAt = completedAt;
-      log2.duration = totalDuration;
-      log2.errorMessage = error54 instanceof Error ? error54.message : String(error54);
-      log2.details = { config: config2, steps, error: String(error54) };
+      log3.status = "failed";
+      log3.completedAt = completedAt;
+      log3.duration = totalDuration;
+      log3.errorMessage = error54 instanceof Error ? error54.message : String(error54);
+      log3.details = { config: config2, steps, error: String(error54) };
       throw error54;
     }
   },
@@ -326721,7 +326849,7 @@ var autoOperationService = {
    * 获取运营日志
    */
   async getLogs(accountId, limit = 50) {
-    return logStore.filter((log2) => log2.accountId === accountId).sort((a4, b6) => b6.startedAt.getTime() - a4.startedAt.getTime()).slice(0, limit);
+    return logStore.filter((log3) => log3.accountId === accountId).sort((a4, b6) => b6.startedAt.getTime() - a4.startedAt.getTime()).slice(0, limit);
   },
   /**
    * 获取所有需要执行的账号
@@ -328910,6 +329038,151 @@ async function createApiKey(data4) {
 }
 async function revokeApiKey(organizationId, keyId) {
 }
+
+// server/debug-log-reader.ts
+var fs = __toESM(require("fs"));
+var debugLogRouter = router({
+  readSyncLog: publicProcedure.input(object({
+    lines: number2().optional().default(500)
+  })).query(async ({ input }) => {
+    const logFile = "/tmp/sync-debug.log";
+    try {
+      if (!fs.existsSync(logFile)) {
+        return {
+          success: false,
+          message: "\u65E5\u5FD7\u6587\u4EF6\u4E0D\u5B58\u5728",
+          content: null
+        };
+      }
+      const content = fs.readFileSync(logFile, "utf-8");
+      const lines = content.split("\n");
+      const lastLines = lines.slice(-input.lines);
+      return {
+        success: true,
+        message: `\u8BFB\u53D6\u6700\u540E ${lastLines.length} \u884C`,
+        content: lastLines.join("\n"),
+        totalLines: lines.length
+      };
+    } catch (error54) {
+      return {
+        success: false,
+        message: error54 instanceof Error ? error54.message : String(error54),
+        content: null
+      };
+    }
+  }),
+  clearSyncLog: publicProcedure.mutation(async () => {
+    const logFile = "/tmp/sync-debug.log";
+    try {
+      if (fs.existsSync(logFile)) {
+        fs.unlinkSync(logFile);
+      }
+      return {
+        success: true,
+        message: "\u65E5\u5FD7\u6587\u4EF6\u5DF2\u6E05\u9664"
+      };
+    } catch (error54) {
+      return {
+        success: false,
+        message: error54 instanceof Error ? error54.message : String(error54)
+      };
+    }
+  })
+});
+
+// server/read-log-endpoint.ts
+var import_fs = require("fs");
+var readLogRouter = router({
+  getSyncLog: publicProcedure.query(async () => {
+    const logPath = "/tmp/sync-debug.log";
+    if (!(0, import_fs.existsSync)(logPath)) {
+      return {
+        success: false,
+        error: "Log file not found",
+        path: logPath
+      };
+    }
+    try {
+      const content = (0, import_fs.readFileSync)(logPath, "utf-8");
+      const lines = content.split("\n");
+      return {
+        success: true,
+        path: logPath,
+        totalLines: lines.length,
+        lastLines: lines.slice(-100),
+        // 最后100行
+        fullContent: content
+      };
+    } catch (error54) {
+      return {
+        success: false,
+        error: error54.message,
+        path: logPath
+      };
+    }
+  })
+});
+
+// server/debugLogsRouter.ts
+init_db2();
+init_drizzle_orm();
+var debugLogsRouter = router({
+  /**
+   * 读取最近的debug日志
+   */
+  getRecentLogs: protectedProcedure.input(external_exports.object({
+    limit: external_exports.number().optional().default(100),
+    accountId: external_exports.number().optional(),
+    logType: external_exports.string().optional()
+  })).query(async ({ input }) => {
+    const db = await getDb();
+    if (!db) {
+      return { logs: [], error: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" };
+    }
+    try {
+      let query2 = "SELECT * FROM debug_logs WHERE 1=1";
+      const params = [];
+      if (input.accountId) {
+        query2 += " AND account_id = ?";
+        params.push(input.accountId);
+      }
+      if (input.logType) {
+        query2 += " AND log_type = ?";
+        params.push(input.logType);
+      }
+      query2 += " ORDER BY created_at DESC LIMIT ?";
+      params.push(input.limit);
+      const logs = await db.execute(sql.raw(query2, params));
+      return {
+        logs: logs.rows || [],
+        total: logs.rows?.length || 0
+      };
+    } catch (error54) {
+      return {
+        logs: [],
+        error: error54.message || "\u67E5\u8BE2\u5931\u8D25"
+      };
+    }
+  }),
+  /**
+   * 清空debug日志
+   */
+  clearLogs: protectedProcedure.mutation(async () => {
+    const db = await getDb();
+    if (!db) {
+      return { success: false, error: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" };
+    }
+    try {
+      await db.execute(sql`DELETE FROM debug_logs`);
+      return { success: true };
+    } catch (error54) {
+      return {
+        success: false,
+        error: error54.message || "\u6E05\u7A7A\u5931\u8D25"
+      };
+    }
+  })
+});
 
 // server/budgetAlertService.ts
 init_drizzle_orm();
@@ -341930,6 +342203,9 @@ var inviteCodeRouter = router({
 var appRouter = router({
   dev: devRouter,
   system: systemRouter,
+  debugLog: debugLogRouter,
+  readLog: readLogRouter,
+  debugLogs: debugLogsRouter,
   auth: router({
     me: publicProcedure.query((opts) => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
@@ -342041,7 +342317,7 @@ async function createContext(opts) {
 
 // server/_core/vite.ts
 var import_express = __toESM(require_express2());
-var import_fs5 = __toESM(require("fs"));
+var import_fs6 = __toESM(require("fs"));
 
 // node_modules/nanoid/index.js
 var import_node_crypto = require("node:crypto");
@@ -342156,7 +342432,7 @@ async function setupVite(app, server) {
         "client",
         "index.html"
       );
-      let template = await import_fs5.default.promises.readFile(clientTemplate, "utf-8");
+      let template = await import_fs6.default.promises.readFile(clientTemplate, "utf-8");
       template = template.replace(
         `src="/src/main.tsx"`,
         `src="/src/main.tsx?v=${nanoid3()}"`
@@ -342172,7 +342448,7 @@ async function setupVite(app, server) {
 function serveStatic(app) {
   const baseDir = typeof __dirname !== "undefined" ? __dirname : import_meta10.dirname;
   const distPath = process.env.NODE_ENV === "development" ? import_path9.default.resolve(baseDir, "../..", "dist", "public") : import_path9.default.resolve(baseDir, "public");
-  if (!import_fs5.default.existsSync(distPath)) {
+  if (!import_fs6.default.existsSync(distPath)) {
     console.error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`
     );

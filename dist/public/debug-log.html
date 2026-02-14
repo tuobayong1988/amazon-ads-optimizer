@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>同步日志查看器</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1e1e1e;
+            color: #d4d4d4;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #4ec9b0;
+            margin-bottom: 20px;
+        }
+        .controls {
+            margin-bottom: 20px;
+        }
+        button {
+            background: #0e639c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            margin-right: 10px;
+            border-radius: 4px;
+        }
+        button:hover {
+            background: #1177bb;
+        }
+        .log-container {
+            background: #252526;
+            border: 1px solid #3e3e42;
+            border-radius: 4px;
+            padding: 15px;
+            max-height: 600px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .error {
+            color: #f48771;
+        }
+        .success {
+            color: #4ec9b0;
+        }
+        .warning {
+            color: #dcdcaa;
+        }
+        .timestamp {
+            color: #858585;
+        }
+        .loading {
+            color: #4ec9b0;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 同步日志查看器</h1>
+        <div class="controls">
+            <button onclick="loadLog()">刷新日志</button>
+            <button onclick="clearLog()">清空日志</button>
+            <button onclick="downloadLog()">下载日志</button>
+        </div>
+        <div id="log" class="log-container">
+            <div class="loading">正在加载日志...</div>
+        </div>
+    </div>
+
+    <script>
+        async function loadLog() {
+            const logDiv = document.getElementById('log');
+            logDiv.innerHTML = '<div class="loading">正在加载日志...</div>';
+            
+            try {
+                const response = await fetch('/api/trpc/debugLog.readSyncLog?input={"lines":1000}');
+                const data = await response.json();
+                
+                if (data.error) {
+                    logDiv.innerHTML = `<div class="error">错误: ${data.error.json.message}</div>`;
+                    return;
+                }
+                
+                const logContent = data.result.data.json.content || '日志文件为空';
+                const lines = logContent.split('\\n');
+                
+                let html = '';
+                lines.forEach(line => {
+                    let className = '';
+                    if (line.includes('❌') || line.includes('ERROR') || line.includes('Error')) {
+                        className = 'error';
+                    } else if (line.includes('✅') || line.includes('SUCCESS') || line.includes('成功')) {
+                        className = 'success';
+                    } else if (line.includes('⚠️') || line.includes('WARNING') || line.includes('警告')) {
+                        className = 'warning';
+                    }
+                    
+                    html += `<div class="${className}">${escapeHtml(line)}</div>`;
+                });
+                
+                logDiv.innerHTML = html || '<div class="warning">日志文件为空</div>';
+                logDiv.scrollTop = logDiv.scrollHeight;
+            } catch (error) {
+                logDiv.innerHTML = `<div class="error">加载失败: ${error.message}</div>`;
+            }
+        }
+        
+        async function clearLog() {
+            if (!confirm('确定要清空日志文件吗?')) return;
+            
+            try {
+                const response = await fetch('/api/trpc/debugLog.clearSyncLog', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert('清空失败: ' + data.error.json.message);
+                } else {
+                    alert('日志已清空');
+                    loadLog();
+                }
+            } catch (error) {
+                alert('清空失败: ' + error.message);
+            }
+        }
+        
+        function downloadLog() {
+            const logDiv = document.getElementById('log');
+            const content = logDiv.innerText;
+            const blob = new Blob([content], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `sync-debug-${new Date().toISOString()}.log`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // 自动加载
+        loadLog();
+        
+        // 每10秒自动刷新
+        setInterval(loadLog, 10000);
+    </script>
+</body>
+</html>

@@ -3,14 +3,6 @@ import * as fs from 'fs';
 import * as z from 'zod';
 
 export const debugLogRouter = router({
-  clearSyncLog: publicProcedure.mutation(async () => {
-    try {
-      fs.writeFileSync('/tmp/sync-debug.log', '');
-      return { success: true, message: '日志已清空' };
-    } catch (error: any) {
-      return { success: false, message: error.message };
-    }
-  }),
   readSyncLog: publicProcedure
     .input(z.object({
       lines: z.number().optional().default(500),
