@@ -58489,7 +58489,24 @@ var init_amazonSyncService = __esm({
                 )
               });
             }
-            await db.update(adGroups).set(adGroupData).where(eq(adGroups.id, existing.id));
+            const mysql2 = await import("mysql2/promise");
+            const conn = await mysql2.createConnection(process.env.DATABASE_URL);
+            try {
+              await conn.execute(
+                `UPDATE ad_groups SET
+              adGroupName = ?, defaultBid = ?, adGroupStatus = ?, updatedAt = ?
+            WHERE id = ?`,
+                [
+                  adGroupData.adGroupName,
+                  adGroupData.defaultBid,
+                  adGroupData.adGroupStatus,
+                  adGroupData.updatedAt,
+                  existing.id
+                ]
+              );
+            } finally {
+              await conn.end();
+            }
             result.updated++;
           } else {
             if (syncJobId) {
@@ -58504,10 +58521,26 @@ var init_amazonSyncService = __esm({
                 newData: adGroupData
               });
             }
-            await db.insert(adGroups).values({
-              ...adGroupData,
-              createdAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
-            });
+            const mysql2 = await import("mysql2/promise");
+            const conn = await mysql2.createConnection(process.env.DATABASE_URL);
+            try {
+              await conn.execute(
+                `INSERT INTO ad_groups (
+              campaignId, adGroupId, adGroupName, defaultBid, adGroupStatus, updatedAt, createdAt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                [
+                  adGroupData.campaignId,
+                  adGroupData.adGroupId,
+                  adGroupData.adGroupName,
+                  adGroupData.defaultBid,
+                  adGroupData.adGroupStatus,
+                  adGroupData.updatedAt,
+                  (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
+                ]
+              );
+            } finally {
+              await conn.end();
+            }
             result.created++;
           }
           result.synced++;
@@ -58595,7 +58628,25 @@ var init_amazonSyncService = __esm({
                 )
               });
             }
-            await db.update(keywords).set(keywordData).where(eq(keywords.id, existing.id));
+            const mysql2 = await import("mysql2/promise");
+            const conn = await mysql2.createConnection(process.env.DATABASE_URL);
+            try {
+              await conn.execute(
+                `UPDATE keywords SET
+              keywordText = ?, matchType = ?, bid = ?, keywordStatus = ?, updatedAt = ?
+            WHERE id = ?`,
+                [
+                  keywordData.keywordText,
+                  keywordData.matchType,
+                  keywordData.bid,
+                  keywordData.keywordStatus,
+                  keywordData.updatedAt,
+                  existing.id
+                ]
+              );
+            } finally {
+              await conn.end();
+            }
             result.updated++;
           } else {
             if (syncJobId) {
@@ -58610,10 +58661,27 @@ var init_amazonSyncService = __esm({
                 newData: keywordData
               });
             }
-            await db.insert(keywords).values({
-              ...keywordData,
-              createdAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
-            });
+            const mysql2 = await import("mysql2/promise");
+            const conn = await mysql2.createConnection(process.env.DATABASE_URL);
+            try {
+              await conn.execute(
+                `INSERT INTO keywords (
+              adGroupId, keywordId, keywordText, matchType, bid, keywordStatus, updatedAt, createdAt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                  keywordData.adGroupId,
+                  keywordData.keywordId,
+                  keywordData.keywordText,
+                  keywordData.matchType,
+                  keywordData.bid,
+                  keywordData.keywordStatus,
+                  keywordData.updatedAt,
+                  (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
+                ]
+              );
+            } finally {
+              await conn.end();
+            }
             result.created++;
           }
           result.synced++;
@@ -58708,7 +58776,25 @@ var init_amazonSyncService = __esm({
                 )
               });
             }
-            await db.update(productTargets).set(targetData).where(eq(productTargets.id, existing.id));
+            const mysql2 = await import("mysql2/promise");
+            const conn = await mysql2.createConnection(process.env.DATABASE_URL);
+            try {
+              await conn.execute(
+                `UPDATE product_targets SET
+              targetType = ?, targetValue = ?, bid = ?, targetStatus = ?, updatedAt = ?
+            WHERE id = ?`,
+                [
+                  targetData.targetType,
+                  targetData.targetValue,
+                  targetData.bid,
+                  targetData.targetStatus,
+                  targetData.updatedAt,
+                  existing.id
+                ]
+              );
+            } finally {
+              await conn.end();
+            }
             result.updated++;
           } else {
             if (syncJobId) {
@@ -58723,10 +58809,27 @@ var init_amazonSyncService = __esm({
                 newData: targetData
               });
             }
-            await db.insert(productTargets).values({
-              ...targetData,
-              createdAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
-            });
+            const mysql2 = await import("mysql2/promise");
+            const conn = await mysql2.createConnection(process.env.DATABASE_URL);
+            try {
+              await conn.execute(
+                `INSERT INTO product_targets (
+              adGroupId, targetId, targetType, targetValue, bid, targetStatus, updatedAt, createdAt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                  targetData.adGroupId,
+                  targetData.targetId,
+                  targetData.targetType,
+                  targetData.targetValue,
+                  targetData.bid,
+                  targetData.targetStatus,
+                  targetData.updatedAt,
+                  (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
+                ]
+              );
+            } finally {
+              await conn.end();
+            }
             result.created++;
           }
           result.synced++;
