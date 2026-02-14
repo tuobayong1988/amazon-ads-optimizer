@@ -312,7 +312,6 @@ export class AmazonSyncService {
 
 
         // }
-        }
 
         // SB API v4 返回的预算结构:
         // - budget: 直接是数字（如 30）
@@ -519,7 +518,6 @@ export class AmazonSyncService {
 
 
         // }
-        }
 
         // SD API 返回的预算结构可能是:
         // 1. budget (直接数字，可能是daily或lifetime)
@@ -910,7 +908,6 @@ export class AmazonSyncService {
 
 
         // }
-        }
 
         // Amazon API返回的state可能是大写的ENABLED/PAUSED/ARCHIVED，需要转换为小写
         const normalizedState = (apiAdGroup.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
@@ -1956,7 +1953,6 @@ export class AmazonSyncService {
 
 
         // }
-        }
 
         const keywordData = {
           adGroupId: adGroup.id,
@@ -2150,7 +2146,6 @@ export class AmazonSyncService {
 
 
         // }
-        }
 
         const targetData = {
           adGroupId: adGroup.id,
