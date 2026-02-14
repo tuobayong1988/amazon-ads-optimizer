@@ -284,14 +284,34 @@ export class AmazonSyncService {
           log(`[同步] 现有记录ID: ${existing.id}, updatedAt: ${existing.updatedAt}`);
         }
 
-        // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
-        if (lastSyncTime && existing) {
-          const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-          const lastSync = new Date(lastSyncTime).getTime();
-          if (existingUpdated >= lastSync) {
-            skipped++;
-            continue;
-          }
+        // 注释掉错误的增量同步逻辑 - Amazon API不会告诉我们哪些记录被更新
+
+
+        // 应该始终更新记录,采用覆盖式同步
+
+
+        // if (lastSyncTime && existing) {
+
+
+        //   const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+
+
+        //   const lastSync = new Date(lastSyncTime).getTime();
+
+
+        //   if (existingUpdated >= lastSync) {
+
+
+        //     result.skipped++; // or skipped++
+
+
+        //     continue;
+
+
+        //   }
+
+
+        // }
         }
 
         // SB API v4 返回的预算结构:
@@ -471,14 +491,34 @@ export class AmazonSyncService {
           log(`[同步] 现有记录ID: ${existing.id}, updatedAt: ${existing.updatedAt}`);
         }
 
-        // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
-        if (lastSyncTime && existing) {
-          const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-          const lastSync = new Date(lastSyncTime).getTime();
-          if (existingUpdated >= lastSync) {
-            skipped++;
-            continue;
-          }
+        // 注释掉错误的增量同步逻辑 - Amazon API不会告诉我们哪些记录被更新
+
+
+        // 应该始终更新记录,采用覆盖式同步
+
+
+        // if (lastSyncTime && existing) {
+
+
+        //   const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+
+
+        //   const lastSync = new Date(lastSyncTime).getTime();
+
+
+        //   if (existingUpdated >= lastSync) {
+
+
+        //     result.skipped++; // or skipped++
+
+
+        //     continue;
+
+
+        //   }
+
+
+        // }
         }
 
         // SD API 返回的预算结构可能是:
@@ -842,14 +882,34 @@ export class AmazonSyncService {
           )
           .limit(1);
 
-        // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
-        if (lastSyncTime && existing) {
-          const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-          const lastSync = new Date(lastSyncTime).getTime();
-          if (existingUpdated >= lastSync) {
-            skipped++;
-            continue;
-          }
+        // 注释掉错误的增量同步逻辑 - Amazon API不会告诉我们哪些记录被更新
+
+
+        // 应该始终更新记录,采用覆盖式同步
+
+
+        // if (lastSyncTime && existing) {
+
+
+        //   const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+
+
+        //   const lastSync = new Date(lastSyncTime).getTime();
+
+
+        //   if (existingUpdated >= lastSync) {
+
+
+        //     result.skipped++; // or skipped++
+
+
+        //     continue;
+
+
+        //   }
+
+
+        // }
         }
 
         // Amazon API返回的state可能是大写的ENABLED/PAUSED/ARCHIVED，需要转换为小写
@@ -1868,14 +1928,34 @@ export class AmazonSyncService {
           )
           .limit(1);
 
-        // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
-        if (lastSyncTime && existing) {
-          const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-          const lastSync = new Date(lastSyncTime).getTime();
-          if (existingUpdated >= lastSync) {
-            skipped++;
-            continue;
-          }
+        // 注释掉错误的增量同步逻辑 - Amazon API不会告诉我们哪些记录被更新
+
+
+        // 应该始终更新记录,采用覆盖式同步
+
+
+        // if (lastSyncTime && existing) {
+
+
+        //   const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+
+
+        //   const lastSync = new Date(lastSyncTime).getTime();
+
+
+        //   if (existingUpdated >= lastSync) {
+
+
+        //     result.skipped++; // or skipped++
+
+
+        //     continue;
+
+
+        //   }
+
+
+        // }
         }
 
         const keywordData = {
@@ -2042,14 +2122,34 @@ export class AmazonSyncService {
           )
           .limit(1);
 
-        // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
-        if (lastSyncTime && existing) {
-          const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-          const lastSync = new Date(lastSyncTime).getTime();
-          if (existingUpdated >= lastSync) {
-            skipped++;
-            continue;
-          }
+        // 注释掉错误的增量同步逻辑 - Amazon API不会告诉我们哪些记录被更新
+
+
+        // 应该始终更新记录,采用覆盖式同步
+
+
+        // if (lastSyncTime && existing) {
+
+
+        //   const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+
+
+        //   const lastSync = new Date(lastSyncTime).getTime();
+
+
+        //   if (existingUpdated >= lastSync) {
+
+
+        //     result.skipped++; // or skipped++
+
+
+        //     continue;
+
+
+        //   }
+
+
+        // }
         }
 
         const targetData = {
@@ -4197,15 +4297,16 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
         )
         .limit(1);
 
-      // 增量同步检查
-      if (lastSyncTime && existing) {
-        const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-        const lastSync = new Date(lastSyncTime).getTime();
-        if (existingUpdated >= lastSync) {
-          result.skipped++;
-          continue;
-        }
-      }
+      // 注释掉错误的增量同步逻辑 - Amazon API不会告诉我们哪些记录被更新
+      // 应该始终更新记录,采用覆盖式同步
+      // if (lastSyncTime && existing) {
+      //   const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+      //   const lastSync = new Date(lastSyncTime).getTime();
+      //   if (existingUpdated >= lastSync) {
+      //     result.skipped++;
+      //     continue;
+      //   }
+      // }
 
       // Amazon API返回的targetingType是大写的AUTO/MANUAL，需要转换为小写
       const normalizedTargetingType = (apiCampaign.targetingType || 'manual').toLowerCase() as 'auto' | 'manual';
@@ -4352,14 +4453,16 @@ AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
         )
         .limit(1);
 
-      if (lastSyncTime && existing) {
-        const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-        const lastSync = new Date(lastSyncTime).getTime();
-        if (existingUpdated >= lastSync) {
-          result.skipped++;
-          continue;
-        }
-      }
+      // 注释掉错误的增量同步逻辑 - Amazon API不会告诉我们哪些记录被更新
+      // 应该始终更新记录,采用覆盖式同步
+      // if (lastSyncTime && existing) {
+      // const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+      // const lastSync = new Date(lastSyncTime).getTime();
+      // if (existingUpdated >= lastSync) {
+      // result.skipped++;
+      // continue;
+      // }
+      // }
 
       // ✅ 根据SB广告的Campaign Goal确定计费方式
       const sbGoal = (apiCampaign as any).goal || (apiCampaign as any).campaignGoal || '';
@@ -4508,14 +4611,16 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
         )
         .limit(1);
 
-      if (lastSyncTime && existing) {
-        const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-        const lastSync = new Date(lastSyncTime).getTime();
-        if (existingUpdated >= lastSync) {
-          result.skipped++;
-          continue;
-        }
-      }
+      // 注释掉错误的增量同步逻辑 - Amazon API不会告诉我们哪些记录被更新
+      // 应该始终更新记录,采用覆盖式同步
+      // if (lastSyncTime && existing) {
+      // const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+      // const lastSync = new Date(lastSyncTime).getTime();
+      // if (existingUpdated >= lastSync) {
+      // result.skipped++;
+      // continue;
+      // }
+      // }
 
       // ✅ 获取SD广告的计费类型
       const sdCostType = ((apiCampaign as any).costType || 'cpc').toLowerCase();
@@ -4681,14 +4786,16 @@ AmazonSyncService.prototype.syncSpAdGroupsWithTracking = async function(
         )
         .limit(1);
 
-      if (lastSyncTime && existing) {
-        const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-        const lastSync = new Date(lastSyncTime).getTime();
-        if (existingUpdated >= lastSync) {
-          result.skipped++;
-          continue;
-        }
-      }
+      // 注释掉错误的增量同步逻辑 - Amazon API不会告诉我们哪些记录被更新
+      // 应该始终更新记录,采用覆盖式同步
+      // if (lastSyncTime && existing) {
+      // const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+      // const lastSync = new Date(lastSyncTime).getTime();
+      // if (existingUpdated >= lastSync) {
+      // result.skipped++;
+      // continue;
+      // }
+      // }
 
       // Amazon API返回的state可能是大写的ENABLED/PAUSED/ARCHIVED，需要转换为小写
       const normalizedState = (apiAdGroup.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
@@ -4827,14 +4934,16 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
         )
         .limit(1);
 
-      if (lastSyncTime && existing) {
-        const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-        const lastSync = new Date(lastSyncTime).getTime();
-        if (existingUpdated >= lastSync) {
-          result.skipped++;
-          continue;
-        }
-      }
+      // 注释掉错误的增量同步逻辑 - Amazon API不会告诉我们哪些记录被更新
+      // 应该始终更新记录,采用覆盖式同步
+      // if (lastSyncTime && existing) {
+      // const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+      // const lastSync = new Date(lastSyncTime).getTime();
+      // if (existingUpdated >= lastSync) {
+      // result.skipped++;
+      // continue;
+      // }
+      // }
 
       // Amazon API返回的matchType和state可能是大写，需要转换为小写
       const normalizedMatchType = (apiKeyword.matchType || 'broad').toLowerCase() as 'broad' | 'phrase' | 'exact';
@@ -4975,14 +5084,16 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
         )
         .limit(1);
 
-      if (lastSyncTime && existing) {
-        const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-        const lastSync = new Date(lastSyncTime).getTime();
-        if (existingUpdated >= lastSync) {
-          result.skipped++;
-          continue;
-        }
-      }
+      // 注释掉错误的增量同步逻辑 - Amazon API不会告诉我们哪些记录被更新
+      // 应该始终更新记录,采用覆盖式同步
+      // if (lastSyncTime && existing) {
+      // const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+      // const lastSync = new Date(lastSyncTime).getTime();
+      // if (existingUpdated >= lastSync) {
+      // result.skipped++;
+      // continue;
+      // }
+      // }
 
       // 解析表达式获取目标类型和值
       let targetType = 'asin';
