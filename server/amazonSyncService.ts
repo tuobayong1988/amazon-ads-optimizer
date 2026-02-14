@@ -4415,10 +4415,36 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
           });
         }
 
-        await db
-          .update(campaigns)
-          .set(campaignData)
-          .where(eq(campaigns.id, existing.id));
+        // 使用原生SQL进行UPDATE
+        const mysql = await import('mysql2/promise');
+        const conn = await mysql.createConnection(process.env.DATABASE_URL!);
+        try {
+          await conn.execute(
+            `UPDATE campaigns SET 
+              campaignName = ?, 
+              campaignType = ?,
+              targetingType = ?,
+              dailyBudget = ?,
+              campaignStatus = ?,
+              placementTopSearchBidAdjustment = ?,
+              placementProductPageBidAdjustment = ?,
+              updatedAt = ?
+            WHERE id = ?`,
+            [
+              campaignData.campaignName,
+              campaignData.campaignType,
+              campaignData.targetingType,
+              campaignData.dailyBudget,
+              campaignData.campaignStatus,
+              campaignData.placementTopSearchBidAdjustment,
+              campaignData.placementProductPageBidAdjustment,
+              campaignData.updatedAt,
+              existing.id
+            ]
+          );
+        } finally {
+          await conn.end();
+        }
         result.updated++;
         
         await logDebug({
@@ -4444,19 +4470,33 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
           });
         }
 
-        await db.insert(campaigns).values({
-          accountId: campaignData.accountId,
-          campaignId: campaignData.campaignId,
-          campaignName: campaignData.campaignName,
-          campaignType: campaignData.campaignType,
-          targetingType: campaignData.targetingType,
-          dailyBudget: campaignData.dailyBudget,
-          campaignStatus: campaignData.campaignStatus,
-          placementTopSearchBidAdjustment: campaignData.placementTopSearchBidAdjustment,
-          placementProductPageBidAdjustment: campaignData.placementProductPageBidAdjustment,
-          updatedAt: campaignData.updatedAt,
-          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        });
+        // 使用原生SQL进行INSERT
+        const mysql = await import('mysql2/promise');
+        const conn = await mysql.createConnection(process.env.DATABASE_URL!);
+        try {
+          await conn.execute(
+            `INSERT INTO campaigns (
+              accountId, campaignId, campaignName, campaignType, targetingType,
+              dailyBudget, campaignStatus, placementTopSearchBidAdjustment,
+              placementProductPageBidAdjustment, updatedAt, createdAt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              campaignData.accountId,
+              campaignData.campaignId,
+              campaignData.campaignName,
+              campaignData.campaignType,
+              campaignData.targetingType,
+              campaignData.dailyBudget,
+              campaignData.campaignStatus,
+              campaignData.placementTopSearchBidAdjustment,
+              campaignData.placementProductPageBidAdjustment,
+              campaignData.updatedAt,
+              new Date().toISOString().slice(0, 19).replace('T', ' ')
+            ]
+          );
+        } finally {
+          await conn.end();
+        }
         result.created++;
         
         await logDebug({
@@ -4632,10 +4672,36 @@ AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
           });
         }
 
-        await db
-          .update(campaigns)
-          .set(campaignData)
-          .where(eq(campaigns.id, existing.id));
+        // 使用原生SQL进行UPDATE
+        const mysql = await import('mysql2/promise');
+        const conn = await mysql.createConnection(process.env.DATABASE_URL!);
+        try {
+          await conn.execute(
+            `UPDATE campaigns SET 
+              campaignName = ?, 
+              campaignType = ?,
+              targetingType = ?,
+              dailyBudget = ?,
+              campaignStatus = ?,
+              placementTopSearchBidAdjustment = ?,
+              placementProductPageBidAdjustment = ?,
+              updatedAt = ?
+            WHERE id = ?`,
+            [
+              campaignData.campaignName,
+              campaignData.campaignType,
+              campaignData.targetingType,
+              campaignData.dailyBudget,
+              campaignData.campaignStatus,
+              campaignData.placementTopSearchBidAdjustment,
+              campaignData.placementProductPageBidAdjustment,
+              campaignData.updatedAt,
+              existing.id
+            ]
+          );
+        } finally {
+          await conn.end();
+        }
         result.updated++;
         
         await logDebug({
@@ -4660,19 +4726,33 @@ AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
           });
         }
 
-        await db.insert(campaigns).values({
-          accountId: campaignData.accountId,
-          campaignId: campaignData.campaignId,
-          campaignName: campaignData.campaignName,
-          campaignType: campaignData.campaignType,
-          targetingType: campaignData.targetingType,
-          dailyBudget: campaignData.dailyBudget,
-          campaignStatus: campaignData.campaignStatus,
-          placementTopSearchBidAdjustment: campaignData.placementTopSearchBidAdjustment,
-          placementProductPageBidAdjustment: campaignData.placementProductPageBidAdjustment,
-          updatedAt: campaignData.updatedAt,
-          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        });
+        // 使用原生SQL进行INSERT
+        const mysql = await import('mysql2/promise');
+        const conn = await mysql.createConnection(process.env.DATABASE_URL!);
+        try {
+          await conn.execute(
+            `INSERT INTO campaigns (
+              accountId, campaignId, campaignName, campaignType, targetingType,
+              dailyBudget, campaignStatus, placementTopSearchBidAdjustment,
+              placementProductPageBidAdjustment, updatedAt, createdAt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              campaignData.accountId,
+              campaignData.campaignId,
+              campaignData.campaignName,
+              campaignData.campaignType,
+              campaignData.targetingType,
+              campaignData.dailyBudget,
+              campaignData.campaignStatus,
+              campaignData.placementTopSearchBidAdjustment,
+              campaignData.placementProductPageBidAdjustment,
+              campaignData.updatedAt,
+              new Date().toISOString().slice(0, 19).replace('T', ' ')
+            ]
+          );
+        } finally {
+          await conn.end();
+        }
         result.created++;
         
         await logDebug({
@@ -4830,10 +4910,36 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
           });
         }
 
-        await db
-          .update(campaigns)
-          .set(campaignData)
-          .where(eq(campaigns.id, existing.id));
+        // 使用原生SQL进行UPDATE
+        const mysql = await import('mysql2/promise');
+        const conn = await mysql.createConnection(process.env.DATABASE_URL!);
+        try {
+          await conn.execute(
+            `UPDATE campaigns SET 
+              campaignName = ?, 
+              campaignType = ?,
+              targetingType = ?,
+              dailyBudget = ?,
+              campaignStatus = ?,
+              placementTopSearchBidAdjustment = ?,
+              placementProductPageBidAdjustment = ?,
+              updatedAt = ?
+            WHERE id = ?`,
+            [
+              campaignData.campaignName,
+              campaignData.campaignType,
+              campaignData.targetingType,
+              campaignData.dailyBudget,
+              campaignData.campaignStatus,
+              campaignData.placementTopSearchBidAdjustment,
+              campaignData.placementProductPageBidAdjustment,
+              campaignData.updatedAt,
+              existing.id
+            ]
+          );
+        } finally {
+          await conn.end();
+        }
         result.updated++;
         
         await logDebug({
@@ -4858,19 +4964,33 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
           });
         }
 
-        await db.insert(campaigns).values({
-          accountId: campaignData.accountId,
-          campaignId: campaignData.campaignId,
-          campaignName: campaignData.campaignName,
-          campaignType: campaignData.campaignType,
-          targetingType: campaignData.targetingType,
-          dailyBudget: campaignData.dailyBudget,
-          campaignStatus: campaignData.campaignStatus,
-          placementTopSearchBidAdjustment: campaignData.placementTopSearchBidAdjustment,
-          placementProductPageBidAdjustment: campaignData.placementProductPageBidAdjustment,
-          updatedAt: campaignData.updatedAt,
-          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-        });
+        // 使用原生SQL进行INSERT
+        const mysql = await import('mysql2/promise');
+        const conn = await mysql.createConnection(process.env.DATABASE_URL!);
+        try {
+          await conn.execute(
+            `INSERT INTO campaigns (
+              accountId, campaignId, campaignName, campaignType, targetingType,
+              dailyBudget, campaignStatus, placementTopSearchBidAdjustment,
+              placementProductPageBidAdjustment, updatedAt, createdAt
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              campaignData.accountId,
+              campaignData.campaignId,
+              campaignData.campaignName,
+              campaignData.campaignType,
+              campaignData.targetingType,
+              campaignData.dailyBudget,
+              campaignData.campaignStatus,
+              campaignData.placementTopSearchBidAdjustment,
+              campaignData.placementProductPageBidAdjustment,
+              campaignData.updatedAt,
+              new Date().toISOString().slice(0, 19).replace('T', ' ')
+            ]
+          );
+        } finally {
+          await conn.end();
+        }
         result.created++;
         
         await logDebug({
