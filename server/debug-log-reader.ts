@@ -1,4 +1,4 @@
-import { router, publicProcedure } from "./trpc";
+import { router, publicProcedure } from "./_core/trpc";
 import * as fs from 'fs';
 import * as z from 'zod';
 
