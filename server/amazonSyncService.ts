@@ -4322,7 +4322,19 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
 
     for (const apiCampaign of apiCampaigns) {
       const [existing] = await db
-        .select()
+        .select({
+          id: campaigns.id,
+          accountId: campaigns.accountId,
+          campaignId: campaigns.campaignId,
+          campaignName: campaigns.campaignName,
+          campaignType: campaigns.campaignType,
+          targetingType: campaigns.targetingType,
+          dailyBudget: campaigns.dailyBudget,
+          campaignStatus: campaigns.campaignStatus,
+          placementTopSearchBidAdjustment: campaigns.placementTopSearchBidAdjustment,
+          placementProductPageBidAdjustment: campaigns.placementProductPageBidAdjustment,
+          updatedAt: campaigns.updatedAt,
+        })
         .from(campaigns)
         .where(
           and(
@@ -4510,7 +4522,19 @@ AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
 
     for (const apiCampaign of apiCampaigns) {
       const [existing] = await db
-        .select()
+        .select({
+          id: campaigns.id,
+          accountId: campaigns.accountId,
+          campaignId: campaigns.campaignId,
+          campaignName: campaigns.campaignName,
+          campaignType: campaigns.campaignType,
+          targetingType: campaigns.targetingType,
+          dailyBudget: campaigns.dailyBudget,
+          campaignStatus: campaigns.campaignStatus,
+          placementTopSearchBidAdjustment: campaigns.placementTopSearchBidAdjustment,
+          placementProductPageBidAdjustment: campaigns.placementProductPageBidAdjustment,
+          updatedAt: campaigns.updatedAt,
+        })
         .from(campaigns)
         .where(
           and(
@@ -4686,7 +4710,19 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
 
     for (const apiCampaign of apiCampaigns) {
       const [existing] = await db
-        .select()
+        .select({
+          id: campaigns.id,
+          accountId: campaigns.accountId,
+          campaignId: campaigns.campaignId,
+          campaignName: campaigns.campaignName,
+          campaignType: campaigns.campaignType,
+          targetingType: campaigns.targetingType,
+          dailyBudget: campaigns.dailyBudget,
+          campaignStatus: campaigns.campaignStatus,
+          placementTopSearchBidAdjustment: campaigns.placementTopSearchBidAdjustment,
+          placementProductPageBidAdjustment: campaigns.placementProductPageBidAdjustment,
+          updatedAt: campaigns.updatedAt,
+        })
         .from(campaigns)
         .where(
           and(

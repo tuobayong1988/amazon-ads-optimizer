@@ -57838,7 +57838,19 @@ var init_amazonSyncService = __esm({
           data: { count: apiCampaigns.length, sample: apiCampaigns.slice(0, 2) }
         });
         for (const apiCampaign of apiCampaigns) {
-          const [existing] = await db.select().from(campaigns).where(
+          const [existing] = await db.select({
+            id: campaigns.id,
+            accountId: campaigns.accountId,
+            campaignId: campaigns.campaignId,
+            campaignName: campaigns.campaignName,
+            campaignType: campaigns.campaignType,
+            targetingType: campaigns.targetingType,
+            dailyBudget: campaigns.dailyBudget,
+            campaignStatus: campaigns.campaignStatus,
+            placementTopSearchBidAdjustment: campaigns.placementTopSearchBidAdjustment,
+            placementProductPageBidAdjustment: campaigns.placementProductPageBidAdjustment,
+            updatedAt: campaigns.updatedAt
+          }).from(campaigns).where(
             and(
               eq(campaigns.accountId, this.accountId),
               eq(campaigns.campaignId, String(apiCampaign.campaignId))
@@ -57975,7 +57987,19 @@ var init_amazonSyncService = __esm({
       try {
         const apiCampaigns = await this.client.listSbCampaigns();
         for (const apiCampaign of apiCampaigns) {
-          const [existing] = await db.select().from(campaigns).where(
+          const [existing] = await db.select({
+            id: campaigns.id,
+            accountId: campaigns.accountId,
+            campaignId: campaigns.campaignId,
+            campaignName: campaigns.campaignName,
+            campaignType: campaigns.campaignType,
+            targetingType: campaigns.targetingType,
+            dailyBudget: campaigns.dailyBudget,
+            campaignStatus: campaigns.campaignStatus,
+            placementTopSearchBidAdjustment: campaigns.placementTopSearchBidAdjustment,
+            placementProductPageBidAdjustment: campaigns.placementProductPageBidAdjustment,
+            updatedAt: campaigns.updatedAt
+          }).from(campaigns).where(
             and(
               eq(campaigns.accountId, this.accountId),
               eq(campaigns.campaignId, String(apiCampaign.campaignId))
@@ -58112,7 +58136,19 @@ var init_amazonSyncService = __esm({
       try {
         const apiCampaigns = await this.client.listSdCampaigns();
         for (const apiCampaign of apiCampaigns) {
-          const [existing] = await db.select().from(campaigns).where(
+          const [existing] = await db.select({
+            id: campaigns.id,
+            accountId: campaigns.accountId,
+            campaignId: campaigns.campaignId,
+            campaignName: campaigns.campaignName,
+            campaignType: campaigns.campaignType,
+            targetingType: campaigns.targetingType,
+            dailyBudget: campaigns.dailyBudget,
+            campaignStatus: campaigns.campaignStatus,
+            placementTopSearchBidAdjustment: campaigns.placementTopSearchBidAdjustment,
+            placementProductPageBidAdjustment: campaigns.placementProductPageBidAdjustment,
+            updatedAt: campaigns.updatedAt
+          }).from(campaigns).where(
             and(
               eq(campaigns.accountId, this.accountId),
               eq(campaigns.campaignId, String(apiCampaign.campaignId))
