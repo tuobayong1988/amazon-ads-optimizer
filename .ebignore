@@ -1,0 +1,38 @@
+# EB Ignore - 排除不需要部署的文件
+node_modules/
+.git/
+.gitignore
+.ebignore
+*.zip
+*.log
+*.md
+.vscode/
+.idea/
+test/
+tests/
+*.test.ts
+*.test.js
+*.spec.ts
+*.spec.js
+docs/
+documentation/
+.elasticbeanstalk/app_versions/
+
+# 排除client源码,只保留dist
+client/src/
+client/public/
+client/index.html
+client/tsconfig.json
+client/vite.config.ts
+client/package.json
+
+# 排除测试和脚本文件
+test-*.mjs
+test-*.js
+test_*.mjs
+test_*.js
+sync-data*.mjs
+update_*.mjs
+vite.build.config.ts
+vitest.config.ts
+tests/

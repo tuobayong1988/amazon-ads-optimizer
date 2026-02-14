@@ -35,6 +35,7 @@ import * as dailySyncTask from './daily-sync-task';
 import { mlOptimizationRouter } from './routes/mlOptimization';
 import { smartCampaignRouter } from './routes/smartCampaign';
 import { multiTenantRouter } from './routes/multiTenant';
+import { debugLogRouter } from './debug-log-reader';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
@@ -11216,7 +11217,7 @@ const inviteCodeRouter = router({
 
 // ==================== Main Router ====================
 export const appRouter = router({
-  dev: devRouter,system: systemRouter,
+  dev: devRouter,system: systemRouter,debugLog: debugLogRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
