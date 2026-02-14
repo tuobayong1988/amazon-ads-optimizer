@@ -591,11 +591,26 @@ export class AmazonSyncService {
    * @param lastSyncTime 上次同步时间，用于增量同步
    */
   async syncSpCampaigns(lastSyncTime?: string | null): Promise<number | { synced: number; skipped: number }> {
+    console.log('[同步] ========== 开始同步SP广告活动 ==========');
+    console.log('[同步] 参数:', { accountId: this.accountId, lastSyncTime });
+    
     const db = await getDb();
-    if (!db) return { synced: 0, skipped: 0 };
+    if (!db) {
+      console.error('[同步] ❌ 数据库连接失败');
+      return { synced: 0, skipped: 0 };
+    }
+    console.log('[同步] ✅ 数据库连接成功');
 
     try {
+      console.log('[同步] 正在调用Amazon API: listSpCampaigns()...');
       const apiCampaigns = await this.client.listSpCampaigns();
+      console.log(`[同步] ✅ API调用成功,返回 ${apiCampaigns.length} 个SP广告活动`);
+      
+      if (apiCampaigns.length === 0) {
+        console.warn('[同步] ⚠️ API返回空数组 - 没有SP广告活动');
+        return { synced: 0, skipped: 0 };
+      }
+      
       let synced = 0;
       let skipped = 0;
       
@@ -707,22 +722,34 @@ export class AmazonSyncService {
         };
 
         if (existing) {
+          console.log(`[同步] 更新广告活动: ${apiCampaign.name} (ID: ${apiCampaign.campaignId})`);
           await db
             .update(campaigns)
             .set(campaignData)
             .where(eq(campaigns.id, existing.id));
         } else {
+          console.log(`[同步] 创建新广告活动: ${apiCampaign.name} (ID: ${apiCampaign.campaignId})`);
           await db.insert(campaigns).values({
             ...campaignData,
             createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
           });
         }
         synced++;
+        
+        // 每10个输出一次进度
+        if (synced % 10 === 0) {
+          console.log(`[同步] 进度: ${synced}/${apiCampaigns.length}`);
+        }
       }
 
+      console.log('[同步] ========== SP广告活动同步完成 ==========');
+      console.log('[同步] 结果:', { synced, skipped, total: apiCampaigns.length });
       return { synced, skipped };
     } catch (error) {
-      console.error('Error syncing SP campaigns:', error);
+      console.error('[同步] ❌ SP广告活动同步失败');
+      console.error('[同步] 错误类型:', error instanceof Error ? error.name : typeof error);
+      console.error('[同步] 错误消息:', error instanceof Error ? error.message : String(error));
+      console.error('[同步] 错误堆栈:', error instanceof Error ? error.stack : 'N/A');
       return { synced: 0, skipped: 0 };
     }
   }
