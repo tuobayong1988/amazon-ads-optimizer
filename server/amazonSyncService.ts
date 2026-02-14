@@ -640,16 +640,16 @@ export class AmazonSyncService {
           )
           .limit(1);
 
-        // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
-        if (lastSyncTime && existing) {
-          const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-          const lastSync = new Date(lastSyncTime).getTime();
-          // 如果记录在上次同步后没有更新，跳过
-          if (existingUpdated >= lastSync) {
-            skipped++;
-            continue;
-          }
-        }
+        // 注释掉错误的增量同步逻辑 - Amazon API不会告诉我们哪些记录被更新
+        // 应该始终更新记录,而不是基于updatedAt字段跳过
+        // if (lastSyncTime && existing) {
+        //   const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+        //   const lastSync = new Date(lastSyncTime).getTime();
+        //   if (existingUpdated >= lastSync) {
+        //     skipped++;
+        //     continue;
+        //   }
+        // }
 
         // Amazon API返回的targetingType是大写的AUTO/MANUAL，需要转换为小写
         const normalizedTargetingType = (apiCampaign.targetingType || 'manual').toLowerCase() as 'auto' | 'manual';
