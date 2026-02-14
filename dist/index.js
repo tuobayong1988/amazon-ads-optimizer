@@ -34821,7 +34821,22 @@ async function createCampaign(campaign) {
 async function getCampaignsByAccountId(accountId) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(campaigns).where(eq(campaigns.accountId, accountId));
+  const campaignList = await db.select().from(campaigns).where(eq(campaigns.accountId, accountId));
+  return campaignList.map((campaign) => {
+    const impressions = campaign.impressions || 0;
+    const clicks = campaign.clicks || 0;
+    const spend = parseFloat(String(campaign.spend || "0"));
+    const sales = parseFloat(String(campaign.sales || "0"));
+    const orders = campaign.orders || 0;
+    return {
+      ...campaign,
+      acos: sales > 0 ? (spend / sales * 100).toFixed(2) : null,
+      roas: spend > 0 ? (sales / spend).toFixed(2) : null,
+      ctr: impressions > 0 ? (clicks / impressions * 100).toFixed(4) : null,
+      cvr: clicks > 0 ? (orders / clicks * 100).toFixed(4) : null,
+      cpc: clicks > 0 ? (spend / clicks).toFixed(2) : null
+    };
+  });
 }
 async function getCampaignsWithPerformance(accountId, startDate, endDate) {
   const db = await getDb();
@@ -34889,25 +34904,72 @@ async function getCampaignsWithPerformance(accountId, startDate, endDate) {
 async function getAllCampaigns() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(campaigns);
+  const campaignList = await db.select().from(campaigns);
+  return campaignList.map((campaign) => {
+    const impressions = campaign.impressions || 0;
+    const clicks = campaign.clicks || 0;
+    const spend = parseFloat(String(campaign.spend || "0"));
+    const sales = parseFloat(String(campaign.sales || "0"));
+    const orders = campaign.orders || 0;
+    return {
+      ...campaign,
+      acos: sales > 0 ? (spend / sales * 100).toFixed(2) : null,
+      roas: spend > 0 ? (sales / spend).toFixed(2) : null,
+      ctr: impressions > 0 ? (clicks / impressions * 100).toFixed(4) : null,
+      cvr: clicks > 0 ? (orders / clicks * 100).toFixed(4) : null,
+      cpc: clicks > 0 ? (spend / clicks).toFixed(2) : null
+    };
+  });
 }
 async function getCampaignsByPerformanceGroupId(performanceGroupId) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(campaigns).where(eq(campaigns.performanceGroupId, performanceGroupId));
+  const campaignList = await db.select().from(campaigns).where(eq(campaigns.performanceGroupId, performanceGroupId));
+  return campaignList.map((campaign) => {
+    const impressions = campaign.impressions || 0;
+    const clicks = campaign.clicks || 0;
+    const spend = parseFloat(String(campaign.spend || "0"));
+    const sales = parseFloat(String(campaign.sales || "0"));
+    const orders = campaign.orders || 0;
+    return {
+      ...campaign,
+      acos: sales > 0 ? (spend / sales * 100).toFixed(2) : null,
+      roas: spend > 0 ? (sales / spend).toFixed(2) : null,
+      ctr: impressions > 0 ? (clicks / impressions * 100).toFixed(4) : null,
+      cvr: clicks > 0 ? (orders / clicks * 100).toFixed(4) : null,
+      cpc: clicks > 0 ? (spend / clicks).toFixed(2) : null
+    };
+  });
 }
 async function getUnassignedCampaigns(accountId) {
   const db = await getDb();
   if (!db) return [];
+  let campaignList;
   if (accountId) {
-    return db.select().from(campaigns).where(
+    campaignList = await db.select().from(campaigns).where(
       and(
         eq(campaigns.accountId, accountId),
         isNull(campaigns.performanceGroupId)
       )
     );
+  } else {
+    campaignList = await db.select().from(campaigns).where(isNull(campaigns.performanceGroupId));
   }
-  return db.select().from(campaigns).where(isNull(campaigns.performanceGroupId));
+  return campaignList.map((campaign) => {
+    const impressions = campaign.impressions || 0;
+    const clicks = campaign.clicks || 0;
+    const spend = parseFloat(String(campaign.spend || "0"));
+    const sales = parseFloat(String(campaign.sales || "0"));
+    const orders = campaign.orders || 0;
+    return {
+      ...campaign,
+      acos: sales > 0 ? (spend / sales * 100).toFixed(2) : null,
+      roas: spend > 0 ? (sales / spend).toFixed(2) : null,
+      ctr: impressions > 0 ? (clicks / impressions * 100).toFixed(4) : null,
+      cvr: clicks > 0 ? (orders / clicks * 100).toFixed(4) : null,
+      cpc: clicks > 0 ? (spend / clicks).toFixed(2) : null
+    };
+  });
 }
 async function getCampaignById(id) {
   const db = await getDb();
@@ -34953,7 +35015,22 @@ async function createAdGroup(adGroup) {
 async function getAdGroupsByCampaignId(campaignId) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(adGroups).where(eq(adGroups.campaignId, campaignId));
+  const adGroupList = await db.select().from(adGroups).where(eq(adGroups.campaignId, campaignId));
+  return adGroupList.map((adGroup) => {
+    const impressions = adGroup.impressions || 0;
+    const clicks = adGroup.clicks || 0;
+    const spend = parseFloat(String(adGroup.spend || "0"));
+    const sales = parseFloat(String(adGroup.sales || "0"));
+    const orders = adGroup.orders || 0;
+    return {
+      ...adGroup,
+      acos: sales > 0 ? (spend / sales * 100).toFixed(2) : null,
+      roas: spend > 0 ? (sales / spend).toFixed(2) : null,
+      ctr: impressions > 0 ? (clicks / impressions * 100).toFixed(4) : null,
+      cvr: clicks > 0 ? (orders / clicks * 100).toFixed(4) : null,
+      cpc: clicks > 0 ? (spend / clicks).toFixed(2) : null
+    };
+  });
 }
 async function getAdGroupById(id) {
   const db = await getDb();
@@ -34980,7 +35057,22 @@ async function createKeyword(keyword) {
 async function getKeywordsByAdGroupId(adGroupId) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(keywords).where(eq(keywords.adGroupId, adGroupId));
+  const keywordList = await db.select().from(keywords).where(eq(keywords.adGroupId, adGroupId));
+  return keywordList.map((keyword) => {
+    const impressions = keyword.impressions || 0;
+    const clicks = keyword.clicks || 0;
+    const spend = parseFloat(String(keyword.spend || "0"));
+    const sales = parseFloat(String(keyword.sales || "0"));
+    const orders = keyword.orders || 0;
+    return {
+      ...keyword,
+      acos: sales > 0 ? (spend / sales * 100).toFixed(2) : null,
+      roas: spend > 0 ? (sales / spend).toFixed(2) : null,
+      ctr: impressions > 0 ? (clicks / impressions * 100).toFixed(4) : null,
+      cvr: clicks > 0 ? (orders / clicks * 100).toFixed(4) : null,
+      cpc: clicks > 0 ? (spend / clicks).toFixed(2) : null
+    };
+  });
 }
 async function getKeywordById(id) {
   const db = await getDb();
@@ -35022,7 +35114,22 @@ async function createProductTarget(target) {
 async function getProductTargetsByAdGroupId(adGroupId) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(productTargets).where(eq(productTargets.adGroupId, adGroupId));
+  const targetList = await db.select().from(productTargets).where(eq(productTargets.adGroupId, adGroupId));
+  return targetList.map((target) => {
+    const impressions = target.impressions || 0;
+    const clicks = target.clicks || 0;
+    const spend = parseFloat(String(target.spend || "0"));
+    const sales = parseFloat(String(target.sales || "0"));
+    const orders = target.orders || 0;
+    return {
+      ...target,
+      acos: sales > 0 ? (spend / sales * 100).toFixed(2) : null,
+      roas: spend > 0 ? (sales / spend).toFixed(2) : null,
+      ctr: impressions > 0 ? (clicks / impressions * 100).toFixed(4) : null,
+      cvr: clicks > 0 ? (orders / clicks * 100).toFixed(4) : null,
+      cpc: clicks > 0 ? (spend / clicks).toFixed(2) : null
+    };
+  });
 }
 async function getProductTargetById(id) {
   const db = await getDb();
@@ -57064,12 +57171,7 @@ var init_amazonSyncService = __esm({
                     clicks,
                     spend: String(cost),
                     sales: String(sales),
-                    orders,
-                    ctr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
-                    cvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
-                    acos: cost > 0 && sales > 0 ? String((cost / sales * 100).toFixed(2)) : null,
-                    roas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
-                    cpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null
+                    orders
                   }).where(eq(adGroups.id, adGroup.id));
                   synced++;
                 }
@@ -57103,11 +57205,6 @@ var init_amazonSyncService = __esm({
                     spend: String(cost),
                     sales: String(sales),
                     orders,
-                    ctr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
-                    cvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
-                    acos: cost > 0 && sales > 0 ? String((cost / sales * 100).toFixed(2)) : null,
-                    roas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
-                    cpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
                     dpv,
                     ntbOrders,
                     ntbSales: String(ntbSales)
@@ -57147,11 +57244,6 @@ var init_amazonSyncService = __esm({
                     spend: String(cost),
                     sales: String(sales),
                     orders,
-                    ctr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
-                    cvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
-                    acos: cost > 0 && sales > 0 ? String((cost / sales * 100).toFixed(2)) : null,
-                    roas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
-                    cpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
                     dpv,
                     ntbOrders,
                     ntbSales: String(ntbSales),
@@ -57230,11 +57322,6 @@ var init_amazonSyncService = __esm({
               spend: String(cost),
               sales: String(sales),
               orders,
-              ctr: impressions > 0 ? String(clicks / impressions) : null,
-              cpc: clicks > 0 ? String(cost / clicks) : null,
-              cvr: clicks > 0 ? String(orders / clicks) : null,
-              acos: sales > 0 ? String(cost / sales * 100) : null,
-              roas: cost > 0 ? String(sales / cost) : null,
               updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
             };
             if (existing) {

@@ -3110,11 +3110,6 @@ export class AmazonSyncService {
                   spend: String(cost),
                   sales: String(sales),
                   orders,
-                  ctr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
-                  cvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
-                  acos: cost > 0 && sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
-                  roas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
-                  cpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
                 })
                 .where(eq(adGroups.id, adGroup.id));
               synced++;
@@ -3159,11 +3154,6 @@ export class AmazonSyncService {
                   spend: String(cost),
                   sales: String(sales),
                   orders,
-                  ctr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
-                  cvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
-                  acos: cost > 0 && sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
-                  roas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
-                  cpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
                   dpv,
                   ntbOrders,
                   ntbSales: String(ntbSales),
@@ -3214,11 +3204,6 @@ export class AmazonSyncService {
                   spend: String(cost),
                   sales: String(sales),
                   orders,
-                  ctr: impressions > 0 ? String((clicks / impressions).toFixed(4)) : null,
-                  cvr: clicks > 0 ? String((orders / clicks).toFixed(4)) : null,
-                  acos: cost > 0 && sales > 0 ? String(((cost / sales) * 100).toFixed(2)) : null,
-                  roas: cost > 0 && sales > 0 ? String((sales / cost).toFixed(2)) : null,
-                  cpc: clicks > 0 ? String((cost / clicks).toFixed(2)) : null,
                   dpv,
                   ntbOrders,
                   ntbSales: String(ntbSales),
@@ -3323,11 +3308,6 @@ export class AmazonSyncService {
           spend: String(cost),
           sales: String(sales),
           orders,
-          ctr: impressions > 0 ? String(clicks / impressions) : null,
-          cpc: clicks > 0 ? String(cost / clicks) : null,
-          cvr: clicks > 0 ? String(orders / clicks) : null,
-          acos: sales > 0 ? String((cost / sales) * 100) : null,
-          roas: cost > 0 ? String(sales / cost) : null,
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
 

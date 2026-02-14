@@ -298,7 +298,25 @@ export async function getCampaignsByAccountId(accountId: number) {
   const db = await getDb();
   if (!db) return [];
   
-  return db.select().from(campaigns).where(eq(campaigns.accountId, accountId));
+  const campaignList = await db.select().from(campaigns).where(eq(campaigns.accountId, accountId));
+  
+  // 运行时计算比率指标
+  return campaignList.map(campaign => {
+    const impressions = campaign.impressions || 0;
+    const clicks = campaign.clicks || 0;
+    const spend = parseFloat(String(campaign.spend || '0'));
+    const sales = parseFloat(String(campaign.sales || '0'));
+    const orders = campaign.orders || 0;
+    
+    return {
+      ...campaign,
+      acos: sales > 0 ? ((spend / sales) * 100).toFixed(2) : null,
+      roas: spend > 0 ? (sales / spend).toFixed(2) : null,
+      ctr: impressions > 0 ? ((clicks / impressions) * 100).toFixed(4) : null,
+      cvr: clicks > 0 ? ((orders / clicks) * 100).toFixed(4) : null,
+      cpc: clicks > 0 ? (spend / clicks).toFixed(2) : null,
+    };
+  });
 }
 
 // 获取带时间范围绩效数据的广告活动列表
@@ -391,14 +409,50 @@ export async function getAllCampaigns() {
   const db = await getDb();
   if (!db) return [];
   
-  return db.select().from(campaigns);
+  const campaignList = await db.select().from(campaigns);
+  
+  // 运行时计算比率指标
+  return campaignList.map(campaign => {
+    const impressions = campaign.impressions || 0;
+    const clicks = campaign.clicks || 0;
+    const spend = parseFloat(String(campaign.spend || '0'));
+    const sales = parseFloat(String(campaign.sales || '0'));
+    const orders = campaign.orders || 0;
+    
+    return {
+      ...campaign,
+      acos: sales > 0 ? ((spend / sales) * 100).toFixed(2) : null,
+      roas: spend > 0 ? (sales / spend).toFixed(2) : null,
+      ctr: impressions > 0 ? ((clicks / impressions) * 100).toFixed(4) : null,
+      cvr: clicks > 0 ? ((orders / clicks) * 100).toFixed(4) : null,
+      cpc: clicks > 0 ? (spend / clicks).toFixed(2) : null,
+    };
+  });
 }
 
 export async function getCampaignsByPerformanceGroupId(performanceGroupId: number) {
   const db = await getDb();
   if (!db) return [];
   
-  return db.select().from(campaigns).where(eq(campaigns.performanceGroupId, performanceGroupId));
+  const campaignList = await db.select().from(campaigns).where(eq(campaigns.performanceGroupId, performanceGroupId));
+  
+  // 运行时计算比率指标
+  return campaignList.map(campaign => {
+    const impressions = campaign.impressions || 0;
+    const clicks = campaign.clicks || 0;
+    const spend = parseFloat(String(campaign.spend || '0'));
+    const sales = parseFloat(String(campaign.sales || '0'));
+    const orders = campaign.orders || 0;
+    
+    return {
+      ...campaign,
+      acos: sales > 0 ? ((spend / sales) * 100).toFixed(2) : null,
+      roas: spend > 0 ? (sales / spend).toFixed(2) : null,
+      ctr: impressions > 0 ? ((clicks / impressions) * 100).toFixed(4) : null,
+      cvr: clicks > 0 ? ((orders / clicks) * 100).toFixed(4) : null,
+      cpc: clicks > 0 ? (spend / clicks).toFixed(2) : null,
+    };
+  });
 }
 
 // 获取未分配到绩效组的广告活动
@@ -406,16 +460,35 @@ export async function getUnassignedCampaigns(accountId?: number) {
   const db = await getDb();
   if (!db) return [];
   
+  let campaignList;
   if (accountId) {
-    return db.select().from(campaigns).where(
+    campaignList = await db.select().from(campaigns).where(
       and(
         eq(campaigns.accountId, accountId),
         isNull(campaigns.performanceGroupId)
       )
     );
+  } else {
+    campaignList = await db.select().from(campaigns).where(isNull(campaigns.performanceGroupId));
   }
   
-  return db.select().from(campaigns).where(isNull(campaigns.performanceGroupId));
+  // 运行时计算比率指标
+  return campaignList.map(campaign => {
+    const impressions = campaign.impressions || 0;
+    const clicks = campaign.clicks || 0;
+    const spend = parseFloat(String(campaign.spend || '0'));
+    const sales = parseFloat(String(campaign.sales || '0'));
+    const orders = campaign.orders || 0;
+    
+    return {
+      ...campaign,
+      acos: sales > 0 ? ((spend / sales) * 100).toFixed(2) : null,
+      roas: spend > 0 ? (sales / spend).toFixed(2) : null,
+      ctr: impressions > 0 ? ((clicks / impressions) * 100).toFixed(4) : null,
+      cvr: clicks > 0 ? ((orders / clicks) * 100).toFixed(4) : null,
+      cpc: clicks > 0 ? (spend / clicks).toFixed(2) : null,
+    };
+  });
 }
 
 export async function getCampaignById(id: number) {
@@ -487,7 +560,25 @@ export async function getAdGroupsByCampaignId(campaignId: number) {
   const db = await getDb();
   if (!db) return [];
   
-  return db.select().from(adGroups).where(eq(adGroups.campaignId, campaignId));
+  const adGroupList = await db.select().from(adGroups).where(eq(adGroups.campaignId, campaignId));
+  
+  // 运行时计算比率指标
+  return adGroupList.map(adGroup => {
+    const impressions = adGroup.impressions || 0;
+    const clicks = adGroup.clicks || 0;
+    const spend = parseFloat(String(adGroup.spend || '0'));
+    const sales = parseFloat(String(adGroup.sales || '0'));
+    const orders = adGroup.orders || 0;
+    
+    return {
+      ...adGroup,
+      acos: sales > 0 ? ((spend / sales) * 100).toFixed(2) : null,
+      roas: spend > 0 ? (sales / spend).toFixed(2) : null,
+      ctr: impressions > 0 ? ((clicks / impressions) * 100).toFixed(4) : null,
+      cvr: clicks > 0 ? ((orders / clicks) * 100).toFixed(4) : null,
+      cpc: clicks > 0 ? (spend / clicks).toFixed(2) : null,
+    };
+  });
 }
 
 export async function getAdGroupById(id: number) {
@@ -525,7 +616,25 @@ export async function getKeywordsByAdGroupId(adGroupId: number) {
   const db = await getDb();
   if (!db) return [];
   
-  return db.select().from(keywords).where(eq(keywords.adGroupId, adGroupId));
+  const keywordList = await db.select().from(keywords).where(eq(keywords.adGroupId, adGroupId));
+  
+  // 运行时计算比率指标
+  return keywordList.map(keyword => {
+    const impressions = keyword.impressions || 0;
+    const clicks = keyword.clicks || 0;
+    const spend = parseFloat(String(keyword.spend || '0'));
+    const sales = parseFloat(String(keyword.sales || '0'));
+    const orders = keyword.orders || 0;
+    
+    return {
+      ...keyword,
+      acos: sales > 0 ? ((spend / sales) * 100).toFixed(2) : null,
+      roas: spend > 0 ? (sales / spend).toFixed(2) : null,
+      ctr: impressions > 0 ? ((clicks / impressions) * 100).toFixed(4) : null,
+      cvr: clicks > 0 ? ((orders / clicks) * 100).toFixed(4) : null,
+      cpc: clicks > 0 ? (spend / clicks).toFixed(2) : null,
+    };
+  });
 }
 
 export async function getKeywordById(id: number) {
@@ -588,7 +697,25 @@ export async function getProductTargetsByAdGroupId(adGroupId: number) {
   const db = await getDb();
   if (!db) return [];
   
-  return db.select().from(productTargets).where(eq(productTargets.adGroupId, adGroupId));
+  const targetList = await db.select().from(productTargets).where(eq(productTargets.adGroupId, adGroupId));
+  
+  // 运行时计算比率指标
+  return targetList.map(target => {
+    const impressions = target.impressions || 0;
+    const clicks = target.clicks || 0;
+    const spend = parseFloat(String(target.spend || '0'));
+    const sales = parseFloat(String(target.sales || '0'));
+    const orders = target.orders || 0;
+    
+    return {
+      ...target,
+      acos: sales > 0 ? ((spend / sales) * 100).toFixed(2) : null,
+      roas: spend > 0 ? (sales / spend).toFixed(2) : null,
+      ctr: impressions > 0 ? ((clicks / impressions) * 100).toFixed(4) : null,
+      cvr: clicks > 0 ? ((orders / clicks) * 100).toFixed(4) : null,
+      cpc: clicks > 0 ? (spend / clicks).toFixed(2) : null,
+    };
+  });
 }
 
 export async function getProductTargetById(id: number) {
