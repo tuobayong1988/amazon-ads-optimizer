@@ -54800,14 +54800,25 @@ __export(debugLogger_exports, {
   cleanOldLogs: () => cleanOldLogs,
   logDebug: () => logDebug2
 });
+async function getMysqlConnection() {
+  if (!_connection && process.env.DATABASE_URL) {
+    try {
+      _connection = await import_promise.default.createConnection(process.env.DATABASE_URL);
+    } catch (error54) {
+      console.error("[DebugLogger] MySQL\u8FDE\u63A5\u5931\u8D25:", error54);
+      return null;
+    }
+  }
+  return _connection;
+}
 async function logDebug2(entry) {
   try {
-    const db = await getDb();
-    if (!db) {
+    const conn = await getMysqlConnection();
+    if (!conn) {
       console.error("[DebugLogger] \u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25");
       return;
     }
-    await db.execute(`
+    await conn.execute(`
       CREATE TABLE IF NOT EXISTS debug_logs (
         id INT AUTO_INCREMENT PRIMARY KEY,
         log_type VARCHAR(50) NOT NULL,
@@ -54823,7 +54834,7 @@ async function logDebug2(entry) {
         INDEX idx_type (log_type)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
     `);
-    await db.execute(
+    await conn.execute(
       `INSERT INTO debug_logs (log_type, account_id, marketplace, sync_job_id, message, data) 
        VALUES (?, ?, ?, ?, ?, ?)`,
       [
@@ -54842,19 +54853,21 @@ async function logDebug2(entry) {
 }
 async function cleanOldLogs() {
   try {
-    const db = await getDb();
-    if (!db) return;
-    await db.execute(
+    const conn = await getMysqlConnection();
+    if (!conn) return;
+    await conn.execute(
       `DELETE FROM debug_logs WHERE created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)`
     );
   } catch (error54) {
     console.error("[DebugLogger] \u6E05\u7406\u65E7\u65E5\u5FD7\u5931\u8D25:", error54);
   }
 }
+var import_promise, _connection;
 var init_debugLogger = __esm({
   "server/debugLogger.ts"() {
     "use strict";
-    init_db2();
+    import_promise = __toESM(require("mysql2/promise"));
+    _connection = null;
   }
 });
 

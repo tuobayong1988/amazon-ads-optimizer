@@ -1,4 +1,4 @@
-import { getDb } from './db';
+import mysql from 'mysql2/promise';
 
 export interface DebugLogEntry {
   log_type: 'sync_start' | 'api_call' | 'db_write' | 'sync_end' | 'error' | 'info';
@@ -9,19 +9,36 @@ export interface DebugLogEntry {
   data?: any;
 }
 
+let _connection: mysql.Connection | null = null;
+
+/**
+ * 获取原生MySQL连接
+ */
+async function getMysqlConnection(): Promise<mysql.Connection | null> {
+  if (!_connection && process.env.DATABASE_URL) {
+    try {
+      _connection = await mysql.createConnection(process.env.DATABASE_URL);
+    } catch (error) {
+      console.error('[DebugLogger] MySQL连接失败:', error);
+      return null;
+    }
+  }
+  return _connection;
+}
+
 /**
  * 记录调试日志到数据库
  */
 export async function logDebug(entry: DebugLogEntry): Promise<void> {
   try {
-    const db = await getDb();
-    if (!db) {
+    const conn = await getMysqlConnection();
+    if (!conn) {
       console.error('[DebugLogger] 数据库连接失败');
       return;
     }
 
     // 确保debug_logs表存在
-    await db.execute(`
+    await conn.execute(`
       CREATE TABLE IF NOT EXISTS debug_logs (
         id INT AUTO_INCREMENT PRIMARY KEY,
         log_type VARCHAR(50) NOT NULL,
@@ -39,7 +56,7 @@ export async function logDebug(entry: DebugLogEntry): Promise<void> {
     `);
 
     // 插入日志记录
-    await db.execute(
+    await conn.execute(
       `INSERT INTO debug_logs (log_type, account_id, marketplace, sync_job_id, message, data) 
        VALUES (?, ?, ?, ?, ?, ?)`,
       [
@@ -64,10 +81,10 @@ export async function logDebug(entry: DebugLogEntry): Promise<void> {
  */
 export async function cleanOldLogs(): Promise<void> {
   try {
-    const db = await getDb();
-    if (!db) return;
+    const conn = await getMysqlConnection();
+    if (!conn) return;
 
-    await db.execute(
+    await conn.execute(
       `DELETE FROM debug_logs WHERE created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)`
     );
   } catch (error) {
