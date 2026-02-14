@@ -11216,7 +11216,7 @@ const inviteCodeRouter = router({
 
 // ==================== Main Router ====================
 export const appRouter = router({
-  dev: devRouter,system: systemRouter,
+  dev: devRouter,system: systemRouter,debugSync: debugSyncRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
@@ -11322,6 +11322,7 @@ export const appRouter = router({
 
 export type AppRouter = typeof appRouter;
 
-import { devRouter } from './routes/dev';
+import { devRouter } from './devRouter';
+import { debugSyncRouter } from './debug-sync';;
 
 // This needs to be merged into the main appRouter
