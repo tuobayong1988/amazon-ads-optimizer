@@ -11217,7 +11217,9 @@ const inviteCodeRouter = router({
 
 // ==================== Main Router ====================
 export const appRouter = router({
-  dev: devRouter,system: systemRouter,debugSync: debugSyncRouter,
+  dev: devRouter,
+  system: systemRouter,
+  debugSync: debugSyncRouter,
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {

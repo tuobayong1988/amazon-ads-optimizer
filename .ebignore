@@ -1,0 +1,67 @@
+# Dependencies
+**/node_modules
+.pnpm-store/
+
+# Build outputs (keep dist for deployment)
+build/
+*.dist
+
+# Environment variables
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Documentation
+*.md
+!README.md
+
+# Git
+.git/
+.gitignore
+
+# Large files
+screenshots/
+*.zip
+*.tar.gz
+
+# Elastic Beanstalk
+.elasticbeanstalk/app_versions/
+
+# Git objects
+.git/objects/
+
+# Test and development
+test/
+tests/
+__tests__/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
