@@ -591,11 +591,20 @@ export class AmazonSyncService {
    * @param lastSyncTime 上次同步时间，用于增量同步
    */
   async syncSpCampaigns(lastSyncTime?: string | null): Promise<number | { synced: number; skipped: number }> {
+    console.log('[同步] ========== 开始同步SP广告活动 ==========');
+    console.log('[同步] 参数:', { accountId: this.accountId, lastSyncTime, marketplace: this.marketplace });
+    
     const db = await getDb();
-    if (!db) return { synced: 0, skipped: 0 };
+    if (!db) {
+      console.error('[同步] ❌ 数据库连接失败 - getDb()返回null');
+      return { synced: 0, skipped: 0 };
+    }
+    console.log('[同步] ✅ 数据库连接成功');
 
     try {
+      console.log('[同步] 正在调用Amazon API: listSpCampaigns()...');
       const apiCampaigns = await this.client.listSpCampaigns();
+      console.log(`[同步] ✅ API调用成功,返回 ${apiCampaigns.length} 个SP广告活动`);
       let synced = 0;
       let skipped = 0;
       
@@ -718,11 +727,23 @@ export class AmazonSyncService {
           });
         }
         synced++;
+        if (synced === 1 || synced % 10 === 0) {
+          console.log(`[同步] 进度: 已同步 ${synced}/${apiCampaigns.length} 个广告活动`);
+        }
       }
 
+      console.log(`[同步] ========== SP广告活动同步完成 ==========`);
+      console.log(`[同步] 结果: 同步 ${synced} 个, 跳过 ${skipped} 个`);
       return { synced, skipped };
-    } catch (error) {
-      console.error('Error syncing SP campaigns:', error);
+    } catch (error: any) {
+      console.error('[同步] ❌ SP广告活动同步失败');
+      console.error('[同步] 错误类型:', error.constructor.name);
+      console.error('[同步] 错误消息:', error.message);
+      console.error('[同步] 错误堆栈:', error.stack);
+      if (error.response) {
+        console.error('[同步] API响应状态:', error.response.status);
+        console.error('[同步] API响应数据:', JSON.stringify(error.response.data, null, 2));
+      }
       return { synced: 0, skipped: 0 };
     }
   }
@@ -4090,8 +4111,15 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
   lastSyncTime?: string | null,
   syncJobId?: number | null
 ): Promise<SyncResultWithTracking> {
+  console.log('[同步WithTracking] ========== 开始同步SP广告活动(带跟踪) ==========');
+  console.log('[同步WithTracking] 参数:', { accountId: this.accountId, lastSyncTime, syncJobId });
+  
   const db = await getDb();
-  if (!db) return { synced: 0, skipped: 0, created: 0, updated: 0, deleted: 0, conflicts: 0 };
+  if (!db) {
+    console.error('[同步WithTracking] ❌ 数据库连接失败');
+    return { synced: 0, skipped: 0, created: 0, updated: 0, deleted: 0, conflicts: 0 };
+  }
+  console.log('[同步WithTracking] ✅ 数据库连接成功');
 
   const result: SyncResultWithTracking = {
     synced: 0,
@@ -4106,9 +4134,14 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
   const conflictRecords: InsertSyncConflict[] = [];
 
   try {
-    console.log('[SP Sync] Starting SP campaigns sync...');
+    console.log('[同步WithTracking] 正在调用Amazon API: listSpCampaigns()...');
     const apiCampaigns = await this.client.listSpCampaigns();
-    console.log(`[SP Sync] Retrieved ${apiCampaigns.length} SP campaigns from API`);
+    console.log(`[同步WithTracking] ✅ API调用成功,返回 ${apiCampaigns.length} 个SP广告活动`);
+    
+    if (apiCampaigns.length === 0) {
+      console.warn('[同步WithTracking] ⚠️ API返回空数组 - 没有SP广告活动');
+      return result;
+    }
 
     for (const apiCampaign of apiCampaigns) {
       const [existing] = await db
@@ -4229,12 +4262,17 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
       await createSyncConflictsBatch(conflictRecords);
     }
 
+    console.log('[同步WithTracking] ========== SP广告活动同步完成 ==========');
+    console.log('[同步WithTracking] 结果:', result);
     return result;
   } catch (error: any) {
-    console.error('[SP Sync] Error syncing SP campaigns with tracking:', error?.message || error);
+    console.error('[同步WithTracking] ❌ SP广告活动同步失败');
+    console.error('[同步WithTracking] 错误类型:', error.constructor?.name);
+    console.error('[同步WithTracking] 错误消息:', error?.message || error);
+    console.error('[同步WithTracking] 错误堆栈:', error?.stack);
     if (error?.response) {
-      console.error('[SP Sync] API Response status:', error.response.status);
-      console.error('[SP Sync] API Response data:', JSON.stringify(error.response.data));
+      console.error('[同步WithTracking] API响应状态:', error.response.status);
+      console.error('[同步WithTracking] API响应数据:', JSON.stringify(error.response.data, null, 2));
     }
     return result;
   }
