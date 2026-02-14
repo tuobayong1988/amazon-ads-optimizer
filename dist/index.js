@@ -57928,7 +57928,16 @@ var init_amazonSyncService = __esm({
               });
             }
             await db.insert(campaigns).values({
-              ...campaignData,
+              accountId: campaignData.accountId,
+              campaignId: campaignData.campaignId,
+              campaignName: campaignData.campaignName,
+              campaignType: campaignData.campaignType,
+              targetingType: campaignData.targetingType,
+              dailyBudget: campaignData.dailyBudget,
+              campaignStatus: campaignData.campaignStatus,
+              placementTopSearchBidAdjustment: campaignData.placementTopSearchBidAdjustment,
+              placementProductPageBidAdjustment: campaignData.placementProductPageBidAdjustment,
+              updatedAt: campaignData.updatedAt,
               createdAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
             });
             result.created++;
@@ -58093,7 +58102,16 @@ var init_amazonSyncService = __esm({
               });
             }
             await db.insert(campaigns).values({
-              ...campaignData,
+              accountId: campaignData.accountId,
+              campaignId: campaignData.campaignId,
+              campaignName: campaignData.campaignName,
+              campaignType: campaignData.campaignType,
+              targetingType: campaignData.targetingType,
+              dailyBudget: campaignData.dailyBudget,
+              campaignStatus: campaignData.campaignStatus,
+              placementTopSearchBidAdjustment: campaignData.placementTopSearchBidAdjustment,
+              placementProductPageBidAdjustment: campaignData.placementProductPageBidAdjustment,
+              updatedAt: campaignData.updatedAt,
               createdAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
             });
             result.created++;
@@ -58238,7 +58256,16 @@ var init_amazonSyncService = __esm({
               });
             }
             await db.insert(campaigns).values({
-              ...campaignData,
+              accountId: campaignData.accountId,
+              campaignId: campaignData.campaignId,
+              campaignName: campaignData.campaignName,
+              campaignType: campaignData.campaignType,
+              targetingType: campaignData.targetingType,
+              dailyBudget: campaignData.dailyBudget,
+              campaignStatus: campaignData.campaignStatus,
+              placementTopSearchBidAdjustment: campaignData.placementTopSearchBidAdjustment,
+              placementProductPageBidAdjustment: campaignData.placementProductPageBidAdjustment,
+              updatedAt: campaignData.updatedAt,
               createdAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
             });
             result.created++;
