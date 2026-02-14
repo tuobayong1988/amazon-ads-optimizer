@@ -261,8 +261,14 @@ export class AmazonSyncService {
       }
       console.log(`[SyncService] 获取到 ${apiCampaigns.length} 个SB广告活动`);
 
-      for (const apiCampaign of apiCampaigns) {
+      for (let i = 0; i < apiCampaigns.length; i++) {
+        const apiCampaign = apiCampaigns[i];
+        log(`[同步] ------- 处理第 ${i+1}/${apiCampaigns.length} 个广告活动 -------`);
+        log(`[同步] 广告活动名称: ${apiCampaign.name}`);
+        log(`[同步] 广告活动ID: ${apiCampaign.campaignId}`);
+        
         // 检查是否已存在
+        log(`[同步] 查询数据库: accountId=${this.accountId}, campaignId=${String(apiCampaign.campaignId)}`);
         const [existing] = await db
           .select()
           .from(campaigns)
@@ -273,6 +279,10 @@ export class AmazonSyncService {
             )
           )
           .limit(1);
+        log(`[同步] 数据库查询结果: ${existing ? '已存在' : '不存在'}`);
+        if (existing) {
+          log(`[同步] 现有记录ID: ${existing.id}, updatedAt: ${existing.updatedAt}`);
+        }
 
         // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
         if (lastSyncTime && existing) {
@@ -438,8 +448,14 @@ export class AmazonSyncService {
       }
       console.log(`[SyncService] 获取到 ${apiCampaigns.length} 个SD广告活动`);
 
-      for (const apiCampaign of apiCampaigns) {
+      for (let i = 0; i < apiCampaigns.length; i++) {
+        const apiCampaign = apiCampaigns[i];
+        log(`[同步] ------- 处理第 ${i+1}/${apiCampaigns.length} 个广告活动 -------`);
+        log(`[同步] 广告活动名称: ${apiCampaign.name}`);
+        log(`[同步] 广告活动ID: ${apiCampaign.campaignId}`);
+        
         // 检查是否已存在
+        log(`[同步] 查询数据库: accountId=${this.accountId}, campaignId=${String(apiCampaign.campaignId)}`);
         const [existing] = await db
           .select()
           .from(campaigns)
@@ -450,6 +466,10 @@ export class AmazonSyncService {
             )
           )
           .limit(1);
+        log(`[同步] 数据库查询结果: ${existing ? '已存在' : '不存在'}`);
+        if (existing) {
+          log(`[同步] 现有记录ID: ${existing.id}, updatedAt: ${existing.updatedAt}`);
+        }
 
         // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
         if (lastSyncTime && existing) {
@@ -591,8 +611,16 @@ export class AmazonSyncService {
    * @param lastSyncTime 上次同步时间，用于增量同步
    */
   async syncSpCampaigns(lastSyncTime?: string | null): Promise<number | { synced: number; skipped: number }> {
-    console.log('[同步] ========== 开始同步SP广告活动 ==========');
-    console.log('[同步] 参数:', { accountId: this.accountId, lastSyncTime });
+    const fs = require('fs');
+    const logFile = '/tmp/sync-debug.log';
+    const log = (msg: string) => {
+      const timestamp = new Date().toISOString();
+      fs.appendFileSync(logFile, `[${timestamp}] ${msg}\n`);
+      console.log(msg);
+    };
+    
+    log('[同步] ========== 开始同步SP广告活动 ==========');
+    log(`[同步] 参数: accountId=${this.accountId}, lastSyncTime=${lastSyncTime}`);
     
     const db = await getDb();
     if (!db) {
@@ -627,8 +655,14 @@ export class AmazonSyncService {
         console.log('[SP Sync Debug] endDate字段:', apiCampaigns[0].endDate);
       }
 
-      for (const apiCampaign of apiCampaigns) {
+      for (let i = 0; i < apiCampaigns.length; i++) {
+        const apiCampaign = apiCampaigns[i];
+        log(`[同步] ------- 处理第 ${i+1}/${apiCampaigns.length} 个广告活动 -------`);
+        log(`[同步] 广告活动名称: ${apiCampaign.name}`);
+        log(`[同步] 广告活动ID: ${apiCampaign.campaignId}`);
+        
         // 检查是否已存在
+        log(`[同步] 查询数据库: accountId=${this.accountId}, campaignId=${String(apiCampaign.campaignId)}`);
         const [existing] = await db
           .select()
           .from(campaigns)
@@ -639,6 +673,10 @@ export class AmazonSyncService {
             )
           )
           .limit(1);
+        log(`[同步] 数据库查询结果: ${existing ? '已存在' : '不存在'}`);
+        if (existing) {
+          log(`[同步] 现有记录ID: ${existing.id}, updatedAt: ${existing.updatedAt}`);
+        }
 
         // 注释掉错误的增量同步逻辑 - Amazon API不会告诉我们哪些记录被更新
         // 应该始终更新记录,而不是基于updatedAt字段跳过
@@ -721,20 +759,26 @@ export class AmazonSyncService {
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
 
+        log(`[同步] 准备写入数据库...`);
+        log(`[同步] campaignData: ${JSON.stringify(campaignData, null, 2)}`);
+        
         if (existing) {
-          console.log(`[同步] 更新广告活动: ${apiCampaign.name} (ID: ${apiCampaign.campaignId})`);
+          log(`[同步] 执行UPDATE操作: 更新现有记录ID=${existing.id}`);
           await db
             .update(campaigns)
             .set(campaignData)
             .where(eq(campaigns.id, existing.id));
+          log(`[同步] ✅ UPDATE成功: ${apiCampaign.name}`);
         } else {
-          console.log(`[同步] 创建新广告活动: ${apiCampaign.name} (ID: ${apiCampaign.campaignId})`);
+          log(`[同步] 执行INSERT操作: 创建新记录`);
           await db.insert(campaigns).values({
             ...campaignData,
             createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
           });
+          log(`[同步] ✅ INSERT成功: ${apiCampaign.name}`);
         }
         synced++;
+        log(`[同步] synced计数器增加: ${synced}`);
         
         // 每10个输出一次进度
         if (synced % 10 === 0) {
@@ -742,10 +786,14 @@ export class AmazonSyncService {
         }
       }
 
-      console.log('[同步] ========== SP广告活动同步完成 ==========');
-      console.log('[同步] 结果:', { synced, skipped, total: apiCampaigns.length });
+      log('[同步] ========== SP广告活动同步完成 ==========');
+      log(`[同步] 结果: synced=${synced}, skipped=${skipped}, total=${apiCampaigns.length}`);
       return { synced, skipped };
     } catch (error) {
+      log('[同步] ❌ SP广告活动同步失败');
+      log(`[同步] 错误类型: ${error instanceof Error ? error.name : typeof error}`);
+      log(`[同步] 错误消息: ${error instanceof Error ? error.message : String(error)}`);
+      log(`[同步] 错误堆栈: ${error instanceof Error ? error.stack : 'N/A'}`);
       console.error('[同步] ❌ SP广告活动同步失败');
       console.error('[同步] 错误类型:', error instanceof Error ? error.name : typeof error);
       console.error('[同步] 错误消息:', error instanceof Error ? error.message : String(error));
