@@ -808,7 +808,7 @@ export default function AmazonApiSettings() {
   // 轮询同步任务状态的辅助函数
   const pollSyncJobStatus = async (
     jobId: number, 
-    maxAttempts = 120,
+    maxAttempts = 900,
     onProgress?: (currentStep: string, stepProgress: number) => void
   ): Promise<{
     success: boolean;

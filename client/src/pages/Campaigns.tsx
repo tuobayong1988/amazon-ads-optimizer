@@ -823,11 +823,11 @@ export default function Campaigns() {
           const done = await checkSyncStatus();
           if (done) clearInterval(pollInterval);
         }, 3000);
-        // 5分钟后自动停止轮询
+        // 30分钟后自动停止轮询
         setTimeout(() => {
           clearInterval(pollInterval);
           setIsSyncing(false);
-        }, 300000);
+        }, 1800000);
       }
     },
     onError: (error) => {
