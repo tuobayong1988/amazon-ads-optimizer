@@ -3,7 +3,7 @@
  * 用于诊断同步问题,返回详细的同步过程信息
  */
 
-import { publicProcedure, router } from './trpc';
+import { publicProcedure, router } from './_core/trpc';
 import { z } from 'zod';
 import { getDb } from './db';
 import { AmazonSyncService } from './amazonSyncService';
