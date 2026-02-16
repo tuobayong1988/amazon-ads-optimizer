@@ -248,15 +248,48 @@ function QuickActionCard({
 }
 
 // 时间范围预设选项
+
+// v103: Marketplace timezone utilities for correct date calculation
+const MARKETPLACE_TIMEZONES: Record<string, string> = {
+  "US": "America/Los_Angeles",
+  "CA": "America/Vancouver", 
+  "MX": "America/Mexico_City",
+  "UK": "Europe/London",
+  "DE": "Europe/Berlin",
+  "FR": "Europe/Paris",
+  "IT": "Europe/Rome",
+  "ES": "Europe/Madrid",
+  "JP": "Asia/Tokyo",
+  "AU": "Australia/Sydney",
+  "SG": "Asia/Singapore",
+  "IN": "Asia/Kolkata",
+  "AE": "Asia/Dubai",
+  "BR": "America/Sao_Paulo",
+};
+
+function getMarketplaceToday(marketplace: string): Date {
+  const tz = MARKETPLACE_TIMEZONES[marketplace] || "America/Los_Angeles";
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: tz,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const dateStr = formatter.format(now); // "2026-02-15"
+  return new Date(dateStr + "T00:00:00");
+}
+
 type DatePreset = 'today' | 'yesterday' | 'last7days' | 'last30days' | 'thisMonth' | 'lastMonth' | 'custom';
 
-const getDateRange = (preset: DatePreset): { start: Date; end: Date } => {
-  const today = new Date();
+const getDateRange = (preset: DatePreset, marketplace?: string): { start: Date; end: Date } => {
+  // v103: Use marketplace timezone for date calculation
+  const today = marketplace ? getMarketplaceToday(marketplace) : new Date();
   today.setHours(23, 59, 59, 999);
   
   switch (preset) {
     case 'today':
-      const todayStart = new Date();
+      const todayStart = marketplace ? getMarketplaceToday(marketplace) : new Date();
       todayStart.setHours(0, 0, 0, 0);
       return { start: todayStart, end: today };
     case 'yesterday':
@@ -320,6 +353,8 @@ export default function Dashboard() {
 
   // Use first account if none selected
   const accountId = selectedAccountId || accounts?.[0]?.id;
+  // v103: Get current account's marketplace for timezone-aware date calculation
+  const currentMarketplace = accounts?.find(a => a.id === accountId)?.marketplace || 'US';
 
   // ✅ Fetch KPIs - 与日期选择器联动
   const { data: kpis, isLoading: kpisLoading, refetch: refetchKpis } = trpc.analytics.getKPIs.useQuery(
@@ -387,12 +422,12 @@ export default function Dashboard() {
         endDate: kpiCustomEndDate ? format(kpiCustomEndDate, 'yyyy-MM-dd') : undefined,
       };
     }
-    const range = getDateRange(kpiDatePreset);
+    const range = getDateRange(kpiDatePreset, currentMarketplace);
     return {
       startDate: format(range.start, 'yyyy-MM-dd'),
       endDate: format(range.end, 'yyyy-MM-dd'),
     };
-  }, [kpiDatePreset, kpiCustomStartDate, kpiCustomEndDate]);
+  }, [kpiDatePreset, kpiCustomStartDate, kpiCustomEndDate, currentMarketplace]);
 
   // 刷新数据的回调函数
   const handleRefreshData = useCallback(async () => {
@@ -438,12 +473,12 @@ export default function Dashboard() {
         endDate: regionCustomEndDate ? format(regionCustomEndDate, 'yyyy-MM-dd') : undefined,
       };
     }
-    const range = getDateRange(regionDatePreset);
+    const range = getDateRange(regionDatePreset, currentMarketplace);
     return {
       startDate: format(range.start, 'yyyy-MM-dd'),
       endDate: format(range.end, 'yyyy-MM-dd'),
     };
-  }, [regionDatePreset, regionCustomStartDate, regionCustomEndDate]);
+  }, [regionDatePreset, regionCustomStartDate, regionCustomEndDate, currentMarketplace]);
 
   // Fetch region comparison data
   const { data: regionComparison, isLoading: regionLoading } = trpc.analytics.getRegionComparison.useQuery(
