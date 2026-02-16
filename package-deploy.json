@@ -1,7 +1,6 @@
 {
   "name": "amazon-ads-optimizer",
   "version": "1.0.0",
-  "type": "module",
   "description": "Amazon Ads Optimization System",
   "main": "server.js",
   "scripts": {
