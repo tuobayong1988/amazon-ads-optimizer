@@ -298,17 +298,30 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
   let result;
   switch (tier) {
     case 'high':
-      // 高频同步：只同步广告活动状态
+      // 高频同步：同步广告活动状态（SP/SB/SD全覆盖）
       result = await syncService.syncCampaignsOnly();
+      // 同时同步当日绩效数据（T-1归因回溯）
+      try {
+        await syncService.syncPerformanceOnly(1);
+      } catch (e: any) {
+        console.error(`[DataSyncScheduler] 账号 ${accountId} 高频绩效同步失败:`, e.message);
+      }
       break;
     case 'medium':
-      // 中频同步：同步广告组、关键词、定位
+      // 中频同步：同步广告组、关键词、定位（SP/SB/SD全覆盖）
       result = await syncService.syncAdGroupsAndTargeting();
+      // 同时同步7天绩效数据（归因窗口期数据更新）
+      try {
+        await syncService.syncPerformanceOnly(7);
+      } catch (e: any) {
+        console.error(`[DataSyncScheduler] 账号 ${accountId} 中频绩效同步失败:`, e.message);
+      }
       break;
     case 'low':
     case 'full':
     default:
-      // 完整同步（获取90天数据）
+      // 完整同步：覆盖式全量同步，确保数据与亚马逊后台一致
+      // 包含所有层级：广告活动、广告组、关键词、定位、否定词、搜索词、广告位、素材URL、绩效数据
       result = await syncService.syncAll();
       break;
   }

@@ -267,6 +267,15 @@ export class AmazonSyncService {
       console.error('[SyncService] SB定向报告同步失败:', e.message);
     }
     
+    // ==================== 解析SB素材Asset URL ====================
+    try {
+      console.log(`[SyncService] 开始解析SB广告素材URL...`);
+      const assetUrlsSynced = await this.syncAssetUrls();
+      console.log(`[SyncService] SB素材URL解析完成: ${assetUrlsSynced}个广告组已更新`);
+    } catch (e: any) {
+      console.error('[SyncService] SB素材URL解析失败:', e.message);
+    }
+
     // 同步绩效数据（快慢双轨架构：API只拉取T-1及之前的历史数据）
     // 重要：亚马逊的销售数据在7-14天内会变动（用户点击后过几天才买）
     // 因此每次同步都需要回溯过去14天的数据，覆盖旧记录
@@ -4390,8 +4399,106 @@ export class AmazonSyncService {
     }
     return synced;
   }
-}
 
+  /**
+   * 解析SB广告组中的素材ID为实际URL
+   * 查找所有有assetId但没有对应URL的广告组，调用Creative Asset Library API解析
+   */
+  async syncAssetUrls(): Promise<number> {
+    const db = await getDb();
+    if (!db) return 0;
+
+    try {
+      // 查找所有有素材ID但没有URL的SB广告组
+      const adGroupsNeedingUrls = await db
+        .select()
+        .from(adGroups)
+        .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+        .where(
+          and(
+            eq(campaigns.accountId, this.accountId),
+            sql`(${adGroups.videoAssetId} IS NOT NULL AND ${adGroups.videoAssetId} != '' AND (${adGroups.videoUrl} IS NULL OR ${adGroups.videoUrl} = ''))
+              OR (${adGroups.brandLogoAssetId} IS NOT NULL AND ${adGroups.brandLogoAssetId} != '' AND (${adGroups.brandLogoUrl} IS NULL OR ${adGroups.brandLogoUrl} = ''))
+              OR (${adGroups.customImageAssetId} IS NOT NULL AND ${adGroups.customImageAssetId} != '' AND (${adGroups.customImageUrl} IS NULL OR ${adGroups.customImageUrl} = ''))`
+          )
+        );
+
+      if (adGroupsNeedingUrls.length === 0) {
+        console.log('[SyncService] 所有SB广告组的素材URL已是最新');
+        return 0;
+      }
+
+      console.log(`[SyncService] 找到 ${adGroupsNeedingUrls.length} 个需要解析素材URL的广告组`);
+
+      // 收集所有需要解析的assetId
+      const assetIdsToResolve = new Set<string>();
+      for (const row of adGroupsNeedingUrls) {
+        if (row.ad_groups.videoAssetId && !row.ad_groups.videoUrl) {
+          assetIdsToResolve.add(row.ad_groups.videoAssetId);
+        }
+        if (row.ad_groups.brandLogoAssetId && !row.ad_groups.brandLogoUrl) {
+          assetIdsToResolve.add(row.ad_groups.brandLogoAssetId);
+        }
+        if (row.ad_groups.customImageAssetId && !row.ad_groups.customImageUrl) {
+          assetIdsToResolve.add(row.ad_groups.customImageAssetId);
+        }
+      }
+
+      console.log(`[SyncService] 需要解析 ${assetIdsToResolve.size} 个唯一素材ID`);
+
+      // 批量解析素材URL
+      const resolvedUrls = await this.client.resolveAssetUrls(Array.from(assetIdsToResolve));
+      console.log(`[SyncService] 成功解析 ${resolvedUrls.size} 个素材URL`);
+
+      // 更新数据库
+      let updated = 0;
+      for (const row of adGroupsNeedingUrls) {
+        const updates: any = {};
+        let needsUpdate = false;
+
+        if (row.ad_groups.videoAssetId && !row.ad_groups.videoUrl) {
+          const resolved = resolvedUrls.get(row.ad_groups.videoAssetId);
+          if (resolved) {
+            updates.videoUrl = resolved.url;
+            if (resolved.thumbnailUrl) {
+              updates.videoThumbnailUrl = resolved.thumbnailUrl;
+            }
+            needsUpdate = true;
+          }
+        }
+
+        if (row.ad_groups.brandLogoAssetId && !row.ad_groups.brandLogoUrl) {
+          const resolved = resolvedUrls.get(row.ad_groups.brandLogoAssetId);
+          if (resolved) {
+            updates.brandLogoUrl = resolved.url;
+            needsUpdate = true;
+          }
+        }
+
+        if (row.ad_groups.customImageAssetId && !row.ad_groups.customImageUrl) {
+          const resolved = resolvedUrls.get(row.ad_groups.customImageAssetId);
+          if (resolved) {
+            updates.customImageUrl = resolved.url;
+            needsUpdate = true;
+          }
+        }
+
+        if (needsUpdate) {
+          await db
+            .update(adGroups)
+            .set(updates)
+            .where(eq(adGroups.id, row.ad_groups.id));
+          updated++;
+        }
+      }
+
+      return updated;
+    } catch (error: any) {
+      console.error('[SyncService] syncAssetUrls失败:', error.message);
+      throw error;
+    }
+  }
+}
 /**
  * 执行自动出价优化
  */

@@ -674,12 +674,11 @@ export default function CampaignDetail() {
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="overview">概览</TabsTrigger>
+            <TabsTrigger value="placements">广告位置</TabsTrigger>
             <TabsTrigger value="adgroups">广告组</TabsTrigger>
             <TabsTrigger value="targets">投放词</TabsTrigger>
-            <TabsTrigger value="searchterms">搜索词</TabsTrigger>
+            <TabsTrigger value="searchterms">客户搜索词</TabsTrigger>
             <TabsTrigger value="negatives">否定词</TabsTrigger>
-            <TabsTrigger value="placements">广告位置</TabsTrigger>
-            <TabsTrigger value="keywords">关键词</TabsTrigger>
           </TabsList>
           
           <TabsContent value="overview" className="mt-4">
@@ -1053,7 +1052,19 @@ export default function CampaignDetail() {
               )}
             </div>
           </TabsContent>
-          
+
+          <TabsContent value="placements" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>广告位置绩效</CardTitle>
+                <CardDescription>不同广告展示位置的绩效数据</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <PlacementPerformanceList campaignId={campaignId} campaignType={campaign.campaignType} />
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="adgroups" className="mt-4">
             <Card>
               <CardHeader>
@@ -1066,43 +1077,150 @@ export default function CampaignDetail() {
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
                 ) : adGroups && adGroups.length > 0 ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>广告组名称</TableHead>
-                        <TableHead>状态</TableHead>
-                        <TableHead className="text-right">默认出价</TableHead>
-                        <TableHead className="text-right">花费</TableHead>
-                        <TableHead className="text-right">销售额</TableHead>
-                        <TableHead className="text-right">ACoS</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {adGroups.map((adGroup: any) => {
-                        const agSpend = parseFloat(adGroup.spend || "0");
-                        const agSales = parseFloat(adGroup.sales || "0");
-                        const agAcos = agSales > 0 ? (agSpend / agSales * 100) : 0;
-                        return (
-                          <TableRow key={adGroup.id}>
-                            <TableCell className="font-medium">{adGroup.adGroupName}</TableCell>
-                            <TableCell>
-                              <Badge variant={adGroup.status === "enabled" ? "default" : "secondary"}>
-                                {adGroup.status === "enabled" ? "启用" : "暂停"}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-right">${adGroup.defaultBid || "N/A"}</TableCell>
-                            <TableCell className="text-right">${agSpend.toFixed(2)}</TableCell>
-                            <TableCell className="text-right">${agSales.toFixed(2)}</TableCell>
-                            <TableCell className="text-right">
-                              <span className={agAcos > 30 ? "text-red-500" : agAcos > 20 ? "text-yellow-500" : "text-green-500"}>
-                                {agAcos.toFixed(2)}%
-                              </span>
-                            </TableCell>
+                  <div className="space-y-6">
+                    {/* 广告组数据表格 */}
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>广告组名称</TableHead>
+                            <TableHead>状态</TableHead>
+                            <TableHead className="text-right">默认出价</TableHead>
+                            <TableHead className="text-right">曝光</TableHead>
+                            <TableHead className="text-right">点击</TableHead>
+                            <TableHead className="text-right">CTR</TableHead>
+                            <TableHead className="text-right">CPC</TableHead>
+                            <TableHead className="text-right">花费</TableHead>
+                            <TableHead className="text-right">订单</TableHead>
+                            <TableHead className="text-right">销售额</TableHead>
+                            <TableHead className="text-right">ACoS</TableHead>
+                            <TableHead className="text-right">ROAS</TableHead>
                           </TableRow>
-                        );
-                      })}
-                    </TableBody>
-                  </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {adGroups.map((adGroup: any) => {
+                            const agSpend = parseFloat(adGroup.spend || "0");
+                            const agSales = parseFloat(adGroup.sales || "0");
+                            const agImpressions = adGroup.impressions || 0;
+                            const agClicks = adGroup.clicks || 0;
+                            const agOrders = adGroup.orders || 0;
+                            const agAcos = agSales > 0 ? (agSpend / agSales * 100) : 0;
+                            const agRoas = agSpend > 0 ? (agSales / agSpend) : 0;
+                            const agCtr = agImpressions > 0 ? (agClicks / agImpressions * 100) : 0;
+                            const agCpc = agClicks > 0 ? (agSpend / agClicks) : 0;
+                            return (
+                              <TableRow key={adGroup.id} className="cursor-pointer hover:bg-muted/50" onClick={() => window.location.href = `/ad-group/${adGroup.id}`}>
+                                <TableCell className="font-medium max-w-[200px] truncate" title={adGroup.adGroupName}>{adGroup.adGroupName}</TableCell>
+                                <TableCell>
+                                  <Badge variant={adGroup.adGroupStatus === "enabled" || adGroup.status === "enabled" ? "default" : "secondary"}>
+                                    {adGroup.adGroupStatus === "enabled" || adGroup.status === "enabled" ? "启用" : "暂停"}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="text-right">${adGroup.defaultBid || "N/A"}</TableCell>
+                                <TableCell className="text-right">{agImpressions.toLocaleString()}</TableCell>
+                                <TableCell className="text-right">{agClicks.toLocaleString()}</TableCell>
+                                <TableCell className="text-right">{agCtr.toFixed(2)}%</TableCell>
+                                <TableCell className="text-right">${agCpc.toFixed(2)}</TableCell>
+                                <TableCell className="text-right">${agSpend.toFixed(2)}</TableCell>
+                                <TableCell className="text-right">{agOrders}</TableCell>
+                                <TableCell className="text-right">${agSales.toFixed(2)}</TableCell>
+                                <TableCell className="text-right">
+                                  <span className={agAcos > 30 ? "text-red-500" : agAcos > 20 ? "text-yellow-500" : "text-green-500"}>
+                                    {agSales > 0 ? `${agAcos.toFixed(2)}%` : "N/A"}
+                                  </span>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <span className={agRoas < 2 ? "text-red-500" : agRoas < 3 ? "text-yellow-500" : "text-green-500"}>
+                                    {agSpend > 0 ? agRoas.toFixed(2) : "N/A"}
+                                  </span>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
+                        </TableBody>
+                      </Table>
+                    </div>
+
+                    {/* SB品牌广告素材信息 */}
+                    {campaign.campaignType === "sb" && adGroups.some((ag: any) => ag.headline || ag.videoAssetId || ag.brandLogoAssetId || ag.customImageAssetId || ag.videoUrl || ag.brandLogoUrl || ag.customImageUrl) && (
+                      <Card className="border-blue-200 bg-blue-50/30">
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-base">品牌广告素材信息</CardTitle>
+                          <CardDescription>该广告活动下的SB品牌广告创意素材</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-4">
+                            {adGroups.filter((ag: any) => ag.headline || ag.videoAssetId || ag.brandLogoAssetId || ag.customImageAssetId || ag.videoUrl || ag.brandLogoUrl || ag.customImageUrl).map((adGroup: any) => (
+                              <div key={adGroup.id} className="border rounded-lg p-4 bg-white">
+                                <h4 className="font-medium text-sm mb-3">{adGroup.adGroupName}</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                  {/* 标题 */}
+                                  {adGroup.headline && (
+                                    <div>
+                                      <p className="text-xs text-muted-foreground mb-1">广告标题</p>
+                                      <p className="text-sm font-medium">{adGroup.headline}</p>
+                                    </div>
+                                  )}
+                                  {/* 创意类型 */}
+                                  {adGroup.creativeType && (
+                                    <div>
+                                      <p className="text-xs text-muted-foreground mb-1">创意类型</p>
+                                      <Badge variant="outline">{adGroup.creativeType === 'video' ? '视频广告' : adGroup.creativeType === 'productCollection' ? '商品集' : adGroup.creativeType === 'storeSpotlight' ? '店铺聚焦' : adGroup.creativeType}</Badge>
+                                    </div>
+                                  )}
+                                  {/* 落地页 */}
+                                  {adGroup.landingPageUrl && (
+                                    <div>
+                                      <p className="text-xs text-muted-foreground mb-1">落地页</p>
+                                      <a href={adGroup.landingPageUrl} target="_blank" rel="noopener noreferrer" className="text-sm text-blue-600 hover:underline truncate block max-w-[250px]" title={adGroup.landingPageUrl}>{adGroup.landingPageUrl}</a>
+                                    </div>
+                                  )}
+                                  {/* 品牌Logo */}
+                                  {(adGroup.brandLogoUrl || adGroup.brandLogoAssetId) && (
+                                    <div>
+                                      <p className="text-xs text-muted-foreground mb-1">品牌Logo</p>
+                                      {adGroup.brandLogoUrl ? (
+                                        <img src={adGroup.brandLogoUrl} alt="Brand Logo" className="h-12 w-auto rounded border" />
+                                      ) : (
+                                        <p className="text-xs text-muted-foreground">Asset ID: {adGroup.brandLogoAssetId}</p>
+                                      )}
+                                    </div>
+                                  )}
+                                  {/* 自定义图片 */}
+                                  {(adGroup.customImageUrl || adGroup.customImageAssetId) && (
+                                    <div>
+                                      <p className="text-xs text-muted-foreground mb-1">自定义图片</p>
+                                      {adGroup.customImageUrl ? (
+                                        <img src={adGroup.customImageUrl} alt="Custom Image" className="h-20 w-auto rounded border" />
+                                      ) : (
+                                        <p className="text-xs text-muted-foreground">Asset ID: {adGroup.customImageAssetId}</p>
+                                      )}
+                                    </div>
+                                  )}
+                                  {/* 视频素材 */}
+                                  {(adGroup.videoUrl || adGroup.videoAssetId) && (
+                                    <div>
+                                      <p className="text-xs text-muted-foreground mb-1">视频素材</p>
+                                      {adGroup.videoUrl ? (
+                                        <div className="space-y-1">
+                                          {adGroup.videoThumbnailUrl && (
+                                            <img src={adGroup.videoThumbnailUrl} alt="Video Thumbnail" className="h-16 w-auto rounded border" />
+                                          )}
+                                          <a href={adGroup.videoUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">查看视频</a>
+                                        </div>
+                                      ) : (
+                                        <p className="text-xs text-muted-foreground">Video Asset ID: {adGroup.videoAssetId}</p>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
                 ) : (
                   <div className="text-center py-8 text-muted-foreground">
                     <Layers className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -1149,29 +1267,7 @@ export default function CampaignDetail() {
             </Card>
           </TabsContent>
           
-          <TabsContent value="placements" className="mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>广告位置绩效</CardTitle>
-                <CardDescription>不同广告展示位置的绩效数据</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <PlacementPerformanceList campaignId={campaignId} campaignType={campaign.campaignType} />
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          <TabsContent value="keywords" className="mt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>关键词列表</CardTitle>
-                <CardDescription>该广告活动下所有广告组的关键词（按销售额排序，显示前20个）</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <KeywordsList adGroups={adGroups || []} />
-              </CardContent>
-            </Card>
-          </TabsContent>
+
         </Tabs>
       </div>
     </DashboardLayout>
@@ -3389,8 +3485,15 @@ function PlacementPerformanceList({ campaignId, campaignType }: { campaignId: nu
     { type: 'AMAZON_OWNED', label: 'Amazon自有', description: 'Amazon网站和应用内' },
     { type: 'THIRD_PARTY', label: '第三方', description: '第三方网站和应用' },
   ];
+
+  // SB品牌广告的位置类型
+  const sbPlacements = [
+    { type: 'TOP_OF_SEARCH', label: '搜索顶部', description: '搜索结果首页顶部品牌广告位' },
+    { type: 'DETAIL_PAGE', label: '商品详情页', description: '商品详情页上的品牌广告位' },
+    { type: 'OTHER', label: '其他位置', description: '搜索结果其余位置的品牌广告' },
+  ];
   
-  const placementTypes = campaignType === 'sd' ? sdPlacements : spPlacements;
+  const placementTypes = campaignType === 'sd' ? sdPlacements : campaignType === 'sb' ? sbPlacements : spPlacements;
   
   if (!placements || placements.length === 0) {
     return (
@@ -3398,6 +3501,8 @@ function PlacementPerformanceList({ campaignId, campaignType }: { campaignId: nu
         <p className="text-sm text-muted-foreground mb-4">
           {campaignType === 'sd' 
             ? 'SD展示广告在Amazon自有平台和第三方网站展示'
+            : campaignType === 'sb'
+            ? 'SB品牌广告在搜索结果和商品详情页展示'
             : 'SP广告在搜索结果和商品详情页展示'}
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

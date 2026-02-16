@@ -3664,6 +3664,97 @@ export class AmazonAdsApiClient {
     console.log(`[SB API] Total SB negative targets fetched: ${allNegatives.length}`);
     return allNegatives;
   }
+
+  /**
+   * 获取创意素材详情 - Creative Asset Library API
+   * GET /assets?assetId={assetId}
+   * 返回素材的完整URL（包括视频URL、缩略图等）
+   */
+  async getAssetDetails(assetId: string): Promise<any> {
+    try {
+      const headers = await this.getHeaders();
+      const response = await this.axiosInstance.get('/assets', {
+        params: { assetId },
+        headers: {
+          ...headers,
+          'Accept': 'application/vnd.creativeassetsgetresponse.v3+json',
+        },
+      });
+      return response.data;
+    } catch (error: any) {
+      console.error(`[Assets API] Failed to get asset ${assetId}:`, error.response?.data || error.message);
+      return null;
+    }
+  }
+
+  /**
+   * 批量解析素材ID为实际URL
+   * 对每个assetId调用getAssetDetails，提取关键URL
+   */
+  async resolveAssetUrls(assetIds: string[]): Promise<Map<string, { url: string; thumbnailUrl?: string; type?: string }>> {
+    const result = new Map<string, { url: string; thumbnailUrl?: string; type?: string }>();
+    
+    for (const assetId of assetIds) {
+      if (!assetId) continue;
+      try {
+        const assetData = await this.getAssetDetails(assetId);
+        if (!assetData) continue;
+        
+        const version = assetData.assetVersionList?.[0];
+        const assetType = assetData.assetGlobal?.assetType;
+        
+        let url = version?.url || version?.assetFiles?.defaultUrl || version?.storageLocationUrls?.defaultUrl || '';
+        let thumbnailUrl = '';
+        
+        // 从processedFiles中提取优化后的URL
+        if (version?.assetFiles?.processedFiles) {
+          for (const file of version.assetFiles.processedFiles) {
+            if (file.profile === 'VIDEO_DEFAULT_OPTIMIZED' && !url) {
+              url = file.url;
+            }
+            if (file.profile === 'IMAGE_THUMBNAIL_500') {
+              thumbnailUrl = file.url;
+            }
+          }
+        }
+        
+        // 从storageLocationUrls.processedUrls中提取
+        if (version?.storageLocationUrls?.processedUrls) {
+          const processedUrls = version.storageLocationUrls.processedUrls;
+          if (processedUrls['VIDEO_DEFAULT_OPTIMIZED'] && !url) {
+            url = processedUrls['VIDEO_DEFAULT_OPTIMIZED'];
+          }
+          if (processedUrls['IMAGE_THUMBNAIL_500']) {
+            thumbnailUrl = processedUrls['IMAGE_THUMBNAIL_500'];
+          }
+        }
+        
+        if (url) {
+          result.set(assetId, { url, thumbnailUrl, type: assetType });
+        }
+        
+        // 限速 - 避免API请求过快
+        await new Promise(resolve => setTimeout(resolve, 200));
+      } catch (error: any) {
+        console.error(`[Assets API] Error resolving asset ${assetId}:`, error.message);
+      }
+    }
+    
+    return result;
+  }
+
+  /**
+   * 获取请求头（内部辅助方法）
+   */
+  private async getHeaders(): Promise<Record<string, string>> {
+    const token = await this.getAccessToken();
+    return {
+      'Authorization': `Bearer ${token}`,
+      'Amazon-Advertising-API-ClientId': this.credentials.clientId,
+      'Amazon-Advertising-API-Scope': this.credentials.profileId,
+      'Content-Type': 'application/json',
+    };
+  }
 }
 // ==================== Amazon Marketing Stream (AMS) Types ====================
 

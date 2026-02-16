@@ -31584,6 +31584,11 @@ var init_schema2 = __esm({
       brandLogoAssetId: varchar("brand_logo_asset_id", { length: 64 }),
       customImageAssetId: varchar("custom_image_asset_id", { length: 64 }),
       videoAssetId: varchar("video_asset_id", { length: 64 }),
+      videoUrl: varchar("video_url", { length: 1024 }),
+      videoThumbnailUrl: varchar("video_thumbnail_url", { length: 1024 }),
+      brandLogoUrl: varchar("brand_logo_url", { length: 1024 }),
+      customImageUrl: varchar("custom_image_url", { length: 1024 }),
+      landingPageUrl: varchar("landing_page_url", { length: 1024 }),
       ctr: decimal({ precision: 5, scale: 4 }),
       cvr: decimal({ precision: 5, scale: 4 }),
       acos: decimal({ precision: 5, scale: 2 }),
@@ -53883,6 +53888,83 @@ var init_amazonAdsApi = __esm({
         console.log(`[SB API] Total SB negative targets fetched: ${allNegatives.length}`);
         return allNegatives;
       }
+      /**
+       * 获取创意素材详情 - Creative Asset Library API
+       * GET /assets?assetId={assetId}
+       * 返回素材的完整URL（包括视频URL、缩略图等）
+       */
+      async getAssetDetails(assetId) {
+        try {
+          const headers = await this.getHeaders();
+          const response = await this.axiosInstance.get("/assets", {
+            params: { assetId },
+            headers: {
+              ...headers,
+              "Accept": "application/vnd.creativeassetsgetresponse.v3+json"
+            }
+          });
+          return response.data;
+        } catch (error54) {
+          console.error(`[Assets API] Failed to get asset ${assetId}:`, error54.response?.data || error54.message);
+          return null;
+        }
+      }
+      /**
+       * 批量解析素材ID为实际URL
+       * 对每个assetId调用getAssetDetails，提取关键URL
+       */
+      async resolveAssetUrls(assetIds) {
+        const result = /* @__PURE__ */ new Map();
+        for (const assetId of assetIds) {
+          if (!assetId) continue;
+          try {
+            const assetData = await this.getAssetDetails(assetId);
+            if (!assetData) continue;
+            const version5 = assetData.assetVersionList?.[0];
+            const assetType = assetData.assetGlobal?.assetType;
+            let url3 = version5?.url || version5?.assetFiles?.defaultUrl || version5?.storageLocationUrls?.defaultUrl || "";
+            let thumbnailUrl = "";
+            if (version5?.assetFiles?.processedFiles) {
+              for (const file2 of version5.assetFiles.processedFiles) {
+                if (file2.profile === "VIDEO_DEFAULT_OPTIMIZED" && !url3) {
+                  url3 = file2.url;
+                }
+                if (file2.profile === "IMAGE_THUMBNAIL_500") {
+                  thumbnailUrl = file2.url;
+                }
+              }
+            }
+            if (version5?.storageLocationUrls?.processedUrls) {
+              const processedUrls = version5.storageLocationUrls.processedUrls;
+              if (processedUrls["VIDEO_DEFAULT_OPTIMIZED"] && !url3) {
+                url3 = processedUrls["VIDEO_DEFAULT_OPTIMIZED"];
+              }
+              if (processedUrls["IMAGE_THUMBNAIL_500"]) {
+                thumbnailUrl = processedUrls["IMAGE_THUMBNAIL_500"];
+              }
+            }
+            if (url3) {
+              result.set(assetId, { url: url3, thumbnailUrl, type: assetType });
+            }
+            await new Promise((resolve8) => setTimeout(resolve8, 200));
+          } catch (error54) {
+            console.error(`[Assets API] Error resolving asset ${assetId}:`, error54.message);
+          }
+        }
+        return result;
+      }
+      /**
+       * 获取请求头（内部辅助方法）
+       */
+      async getHeaders() {
+        const token = await this.getAccessToken();
+        return {
+          "Authorization": `Bearer ${token}`,
+          "Amazon-Advertising-API-ClientId": this.credentials.clientId,
+          "Amazon-Advertising-API-Scope": this.credentials.profileId,
+          "Content-Type": "application/json"
+        };
+      }
     };
     VALID_TRAFFIC_DATASETS = [
       "sp-traffic",
@@ -55154,6 +55236,13 @@ var init_amazonSyncService = __esm({
           console.log(`[SyncService] SB\u5B9A\u5411\u62A5\u544A\u540C\u6B65\u5B8C\u6210: ${sbTargetSynced}\u6761`);
         } catch (e6) {
           console.error("[SyncService] SB\u5B9A\u5411\u62A5\u544A\u540C\u6B65\u5931\u8D25:", e6.message);
+        }
+        try {
+          console.log(`[SyncService] \u5F00\u59CB\u89E3\u6790SB\u5E7F\u544A\u7D20\u6750URL...`);
+          const assetUrlsSynced = await this.syncAssetUrls();
+          console.log(`[SyncService] SB\u7D20\u6750URL\u89E3\u6790\u5B8C\u6210: ${assetUrlsSynced}\u4E2A\u5E7F\u544A\u7EC4\u5DF2\u66F4\u65B0`);
+        } catch (e6) {
+          console.error("[SyncService] SB\u7D20\u6750URL\u89E3\u6790\u5931\u8D25:", e6.message);
         }
         const performanceDays = 14;
         console.log(`[SyncService] \u540C\u6B65\u6700\u8FD1${performanceDays}\u5929\u5386\u53F2\u7EE9\u6548\u6570\u636E\uFF08\u5F52\u56E0\u56DE\u6EAF\u673A\u5236\uFF0C\u8986\u76D6\u65E7\u8BB0\u5F55\uFF09`);
@@ -58153,6 +58242,81 @@ var init_amazonSyncService = __esm({
           console.error("[SyncService] SB\u5E7F\u544A\u4F4D\u7EE9\u6548\u540C\u6B65\u5931\u8D25:", error54.message);
         }
         return synced;
+      }
+      /**
+       * 解析SB广告组中的素材ID为实际URL
+       * 查找所有有assetId但没有对应URL的广告组，调用Creative Asset Library API解析
+       */
+      async syncAssetUrls() {
+        const db = await getDb();
+        if (!db) return 0;
+        try {
+          const adGroupsNeedingUrls = await db.select().from(adGroups).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id)).where(
+            and(
+              eq(campaigns.accountId, this.accountId),
+              sql`(${adGroups.videoAssetId} IS NOT NULL AND ${adGroups.videoAssetId} != '' AND (${adGroups.videoUrl} IS NULL OR ${adGroups.videoUrl} = ''))
+              OR (${adGroups.brandLogoAssetId} IS NOT NULL AND ${adGroups.brandLogoAssetId} != '' AND (${adGroups.brandLogoUrl} IS NULL OR ${adGroups.brandLogoUrl} = ''))
+              OR (${adGroups.customImageAssetId} IS NOT NULL AND ${adGroups.customImageAssetId} != '' AND (${adGroups.customImageUrl} IS NULL OR ${adGroups.customImageUrl} = ''))`
+            )
+          );
+          if (adGroupsNeedingUrls.length === 0) {
+            console.log("[SyncService] \u6240\u6709SB\u5E7F\u544A\u7EC4\u7684\u7D20\u6750URL\u5DF2\u662F\u6700\u65B0");
+            return 0;
+          }
+          console.log(`[SyncService] \u627E\u5230 ${adGroupsNeedingUrls.length} \u4E2A\u9700\u8981\u89E3\u6790\u7D20\u6750URL\u7684\u5E7F\u544A\u7EC4`);
+          const assetIdsToResolve = /* @__PURE__ */ new Set();
+          for (const row of adGroupsNeedingUrls) {
+            if (row.ad_groups.videoAssetId && !row.ad_groups.videoUrl) {
+              assetIdsToResolve.add(row.ad_groups.videoAssetId);
+            }
+            if (row.ad_groups.brandLogoAssetId && !row.ad_groups.brandLogoUrl) {
+              assetIdsToResolve.add(row.ad_groups.brandLogoAssetId);
+            }
+            if (row.ad_groups.customImageAssetId && !row.ad_groups.customImageUrl) {
+              assetIdsToResolve.add(row.ad_groups.customImageAssetId);
+            }
+          }
+          console.log(`[SyncService] \u9700\u8981\u89E3\u6790 ${assetIdsToResolve.size} \u4E2A\u552F\u4E00\u7D20\u6750ID`);
+          const resolvedUrls = await this.client.resolveAssetUrls(Array.from(assetIdsToResolve));
+          console.log(`[SyncService] \u6210\u529F\u89E3\u6790 ${resolvedUrls.size} \u4E2A\u7D20\u6750URL`);
+          let updated = 0;
+          for (const row of adGroupsNeedingUrls) {
+            const updates = {};
+            let needsUpdate = false;
+            if (row.ad_groups.videoAssetId && !row.ad_groups.videoUrl) {
+              const resolved = resolvedUrls.get(row.ad_groups.videoAssetId);
+              if (resolved) {
+                updates.videoUrl = resolved.url;
+                if (resolved.thumbnailUrl) {
+                  updates.videoThumbnailUrl = resolved.thumbnailUrl;
+                }
+                needsUpdate = true;
+              }
+            }
+            if (row.ad_groups.brandLogoAssetId && !row.ad_groups.brandLogoUrl) {
+              const resolved = resolvedUrls.get(row.ad_groups.brandLogoAssetId);
+              if (resolved) {
+                updates.brandLogoUrl = resolved.url;
+                needsUpdate = true;
+              }
+            }
+            if (row.ad_groups.customImageAssetId && !row.ad_groups.customImageUrl) {
+              const resolved = resolvedUrls.get(row.ad_groups.customImageAssetId);
+              if (resolved) {
+                updates.customImageUrl = resolved.url;
+                needsUpdate = true;
+              }
+            }
+            if (needsUpdate) {
+              await db.update(adGroups).set(updates).where(eq(adGroups.id, row.ad_groups.id));
+              updated++;
+            }
+          }
+          return updated;
+        } catch (error54) {
+          console.error("[SyncService] syncAssetUrls\u5931\u8D25:", error54.message);
+          throw error54;
+        }
       }
     };
     AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(lastSyncTime, syncJobId) {
@@ -343315,9 +343479,19 @@ async function executeTieredSyncForAccount(request) {
   switch (tier) {
     case "high":
       result = await syncService.syncCampaignsOnly();
+      try {
+        await syncService.syncPerformanceOnly(1);
+      } catch (e6) {
+        console.error(`[DataSyncScheduler] \u8D26\u53F7 ${accountId} \u9AD8\u9891\u7EE9\u6548\u540C\u6B65\u5931\u8D25:`, e6.message);
+      }
       break;
     case "medium":
       result = await syncService.syncAdGroupsAndTargeting();
+      try {
+        await syncService.syncPerformanceOnly(7);
+      } catch (e6) {
+        console.error(`[DataSyncScheduler] \u8D26\u53F7 ${accountId} \u4E2D\u9891\u7EE9\u6548\u540C\u6B65\u5931\u8D25:`, e6.message);
+      }
       break;
     case "low":
     case "full":
