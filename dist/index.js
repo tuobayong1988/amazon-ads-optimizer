@@ -35171,36 +35171,9 @@ async function upsertDailyPerformanceFromAms(data4) {
       });
     }
   }
-  const existingAccount = await getDailyPerformanceByAccountAndDate(
-    data4.accountId,
-    data4.date,
-    null
-  );
-  if (existingAccount?.isFinalized) {
-    console.log(`[AMS DB] \u8DF3\u8FC7\u5DF2\u6821\u51C6\u8D26\u6237\u6C47\u603B\u6570\u636E: ${data4.date} accountId=${data4.accountId}`);
-    return;
-  }
-  if (existingAccount) {
-    await db.update(dailyPerformance).set({
-      impressions: data4.impressions,
-      clicks: data4.clicks,
-      spend: String(data4.cost),
-      dataSource: "ams"
-    }).where(eq(dailyPerformance.id, existingAccount.id));
-  } else {
-    await db.insert(dailyPerformance).values({
-      accountId: data4.accountId,
-      date: data4.date,
-      impressions: data4.impressions,
-      clicks: data4.clicks,
-      spend: String(data4.cost),
-      sales: "0",
-      orders: 0,
-      conversions: 0,
-      dataSource: "ams",
-      isFinalized: 0
-    });
-  }
+  // v100: Skip account-level summary records (no campaignId) to prevent NULL ad_type records
+  // Account-level summaries are redundant when we have campaign-level data from API reports
+  console.log(`[AMS DB] v100: Skipping account-level summary for accountId=${data4.accountId}, date=${data4.date}`);
 }
 async function updateDailyPerformanceConversion(data4) {
   const db = await getDb();
@@ -56575,7 +56548,9 @@ var init_amazonSyncService = __esm({
               attributionWindow: adType === "SP" ? 7 : 14,
               // ✅ 标记为API报告数据（已经过归因窗口校准），防止AMS实时数据覆盖
               isFinalized: 1,
-              dataSource: "api"
+              dataSource: "api",
+              // v100: Add currency info based on marketplace
+              currency: this.marketplace === "CA" ? "CAD" : this.marketplace === "MX" ? "MXN" : "USD"
             };
             if (existing) {
               await db.update(dailyPerformance).set(perfData).where(eq(dailyPerformance.id, existing.id));
