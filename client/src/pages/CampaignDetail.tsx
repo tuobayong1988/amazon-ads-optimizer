@@ -1180,9 +1180,14 @@ export default function CampaignDetail() {
                                     <div>
                                       <p className="text-xs text-muted-foreground mb-1">品牌Logo</p>
                                       {adGroup.brandLogoUrl ? (
-                                        <img src={adGroup.brandLogoUrl} alt="Brand Logo" className="h-12 w-auto rounded border" />
+                                        <a href={adGroup.brandLogoUrl} target="_blank" rel="noopener noreferrer" title="点击查看原图">
+                                          <img src={adGroup.brandLogoUrl} alt="Brand Logo" className="h-14 w-auto rounded border hover:shadow-md hover:border-blue-300 transition-all cursor-pointer" />
+                                        </a>
                                       ) : (
-                                        <p className="text-xs text-muted-foreground">Asset ID: {adGroup.brandLogoAssetId}</p>
+                                        <div className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-dashed">
+                                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                          <p className="text-xs text-muted-foreground">Asset ID: {adGroup.brandLogoAssetId}</p>
+                                        </div>
                                       )}
                                     </div>
                                   )}
@@ -1191,25 +1196,47 @@ export default function CampaignDetail() {
                                     <div>
                                       <p className="text-xs text-muted-foreground mb-1">自定义图片</p>
                                       {adGroup.customImageUrl ? (
-                                        <img src={adGroup.customImageUrl} alt="Custom Image" className="h-20 w-auto rounded border" />
+                                        <a href={adGroup.customImageUrl} target="_blank" rel="noopener noreferrer" title="点击查看原图">
+                                          <img src={adGroup.customImageUrl} alt="Custom Image" className="h-24 w-auto rounded border hover:shadow-md hover:border-blue-300 transition-all cursor-pointer" />
+                                        </a>
                                       ) : (
-                                        <p className="text-xs text-muted-foreground">Asset ID: {adGroup.customImageAssetId}</p>
+                                        <div className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-dashed">
+                                          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                          <p className="text-xs text-muted-foreground">Asset ID: {adGroup.customImageAssetId}</p>
+                                        </div>
                                       )}
                                     </div>
                                   )}
                                   {/* 视频素材 */}
                                   {(adGroup.videoUrl || adGroup.videoAssetId) && (
-                                    <div>
+                                    <div className="col-span-full">
                                       <p className="text-xs text-muted-foreground mb-1">视频素材</p>
                                       {adGroup.videoUrl ? (
-                                        <div className="space-y-1">
-                                          {adGroup.videoThumbnailUrl && (
-                                            <img src={adGroup.videoThumbnailUrl} alt="Video Thumbnail" className="h-16 w-auto rounded border" />
-                                          )}
-                                          <a href={adGroup.videoUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">查看视频</a>
+                                        <div className="space-y-2">
+                                          <div className="relative max-w-md rounded-lg overflow-hidden border bg-black">
+                                            <video 
+                                              controls 
+                                              preload="metadata"
+                                              poster={adGroup.videoThumbnailUrl || undefined}
+                                              className="w-full max-h-[280px]"
+                                            >
+                                              <source src={adGroup.videoUrl} type="video/mp4" />
+                                              您的浏览器不支持视频播放
+                                            </video>
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <a href={adGroup.videoUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">在新窗口打开视频</a>
+                                            {adGroup.videoAssetId && <span className="text-xs text-muted-foreground">| Asset ID: {adGroup.videoAssetId}</span>}
+                                          </div>
                                         </div>
                                       ) : (
-                                        <p className="text-xs text-muted-foreground">Video Asset ID: {adGroup.videoAssetId}</p>
+                                        <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg border border-dashed">
+                                          <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+                                          <div>
+                                            <p className="text-xs text-muted-foreground">Video Asset ID: {adGroup.videoAssetId}</p>
+                                            <p className="text-xs text-muted-foreground mt-0.5">视频URL将在下次同步后自动解析</p>
+                                          </div>
+                                        </div>
                                       )}
                                     </div>
                                   )}
