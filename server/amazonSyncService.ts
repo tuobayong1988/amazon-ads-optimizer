@@ -2351,6 +2351,35 @@ export class AmazonSyncService {
           ntbSales = row.newToBrandSalesClicks || 0;
         }
         
+        // ✅ v104: 货币转换 - Amazon API返回的金额是各站点本地货币
+        // CA=CAD, MX=MXN, US/UK/DE等=各自货币
+        // 需要转换为USD以便跨站点汇总
+        const EXCHANGE_RATES_TO_USD: Record<string, number> = {
+          'USD': 1.0,
+          'CAD': 0.7345,  // 1 CAD = 0.7345 USD
+          'MXN': 0.0495,  // 1 MXN = 0.0495 USD
+          'GBP': 1.27,
+          'EUR': 1.08,
+          'JPY': 0.0067,
+          'AUD': 0.65,
+          'SGD': 0.74,
+          'INR': 0.012,
+          'AED': 0.2723,
+          'SAR': 0.2667,
+          'BRL': 0.17,
+          'SEK': 0.096,
+          'PLN': 0.25,
+        };
+        const MARKETPLACE_CURRENCY: Record<string, string> = {
+          'US': 'USD', 'CA': 'CAD', 'MX': 'MXN', 'BR': 'BRL',
+          'UK': 'GBP', 'DE': 'EUR', 'FR': 'EUR', 'IT': 'EUR', 'ES': 'EUR', 'NL': 'EUR', 'SE': 'SEK', 'PL': 'PLN', 'BE': 'EUR',
+          'JP': 'JPY', 'AU': 'AUD', 'SG': 'SGD', 'IN': 'INR', 'AE': 'AED', 'SA': 'SAR',
+        };
+        const currency = MARKETPLACE_CURRENCY[this.marketplace] || 'USD';
+        const exchangeRate = EXCHANGE_RATES_TO_USD[currency] || 1.0;
+        const spendUsd = cost * exchangeRate;
+        const salesUsd = sales * exchangeRate;
+
         const perfData = {
           accountId: this.accountId,
           campaignId: campaign.id,
@@ -2389,11 +2418,21 @@ export class AmazonSyncService {
             .update(dailyPerformance)
             .set(perfData)
             .where(eq(dailyPerformance.id, existing.id));
+          // v104: Update currency fields via raw SQL (not in Drizzle schema)
+          await db.execute(sql`UPDATE daily_performance SET currency = ${currency}, exchange_rate = ${exchangeRate}, spend_usd = ${spendUsd.toFixed(2)}, sales_usd = ${salesUsd.toFixed(2)} WHERE id = ${existing.id}`);
         } else {
-          await db.insert(dailyPerformance).values({
+          const insertResult = await db.insert(dailyPerformance).values({
             ...perfData,
             createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
           });
+          // v104: Update currency fields via raw SQL for newly inserted record
+          const insertId = insertResult?.[0]?.insertId || insertResult?.insertId;
+          if (insertId) {
+            await db.execute(sql`UPDATE daily_performance SET currency = ${currency}, exchange_rate = ${exchangeRate}, spend_usd = ${spendUsd.toFixed(2)}, sales_usd = ${salesUsd.toFixed(2)} WHERE id = ${insertId}`);
+          } else {
+            // Fallback: update by composite key
+            await db.execute(sql`UPDATE daily_performance SET currency = ${currency}, exchange_rate = ${exchangeRate}, spend_usd = ${spendUsd.toFixed(2)}, sales_usd = ${salesUsd.toFixed(2)} WHERE campaignId = ${campaign.id} AND DATE(date) = ${reportDateStr} AND accountId = ${this.accountId}`);
+          }
         }
         synced++;
       }

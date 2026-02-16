@@ -34833,10 +34833,7 @@ async function getCampaignsWithPerformance(accountId, startDate, endDate) {
     totalClicks: sql`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
     totalSpend: sql`COALESCE(SUM(${dailyPerformance.spend}), '0')`,
     totalSales: sql`COALESCE(SUM(${dailyPerformance.sales}), '0')`,
-    totalSpendUsd: sql`COALESCE(SUM(CASE WHEN spend_usd > 0 THEN spend_usd ELSE spend END), '0')`,
-    totalSalesUsd: sql`COALESCE(SUM(CASE WHEN sales_usd > 0 THEN sales_usd ELSE sales END), '0')`,
-    totalOrders: sql`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
-    currency: sql`MAX(${dailyPerformance.currency})`
+    totalOrders: sql`COALESCE(SUM(${dailyPerformance.orders}), 0)`
   }).from(dailyPerformance).where(and(
     eq(dailyPerformance.accountId, accountId),
     sql`${dailyPerformance.campaignId} IS NOT NULL`,
@@ -34867,19 +34864,12 @@ async function getCampaignsWithPerformance(accountId, startDate, endDate) {
     const sales = parseFloat(perf?.totalSales || "0");
     const orders = perf?.totalOrders || 0;
     const group = campaign.performanceGroupId ? groupMap.get(campaign.performanceGroupId) : null;
-    // v101: Include currency info and USD-converted values
-    const spendUsd = parseFloat(perf?.totalSpendUsd || perf?.totalSpend || "0");
-    const salesUsd = parseFloat(perf?.totalSalesUsd || perf?.totalSales || "0");
-    const currency = perf?.currency || "USD";
     return {
       ...campaign,
       impressions,
       clicks,
       spend: spend.toFixed(2),
       sales: sales.toFixed(2),
-      spendUsd: spendUsd.toFixed(2),
-      salesUsd: salesUsd.toFixed(2),
-      currency,
       orders,
       acos: sales > 0 ? (spend / sales * 100).toFixed(2) : null,
       roas: spend > 0 ? (sales / spend).toFixed(2) : null,
@@ -35132,24 +35122,6 @@ async function getPerformanceSummary(accountId, startDate, endDate) {
   ));
   return result[0];
 }
-async function getPerformanceSummaryUSD(accountId, startDate, endDate) {
-  const db = await getDb();
-  if (!db) return null;
-  const result = await db.select({
-    totalImpressions: sql`COALESCE(SUM(impressions), 0)`,
-    totalClicks: sql`COALESCE(SUM(clicks), 0)`,
-    totalSpend: sql`COALESCE(SUM(CASE WHEN spend_usd > 0 THEN spend_usd ELSE spend END), '0')`,
-    totalSales: sql`COALESCE(SUM(CASE WHEN sales_usd > 0 THEN sales_usd ELSE sales END), '0')`,
-    totalOrders: sql`COALESCE(SUM(orders), 0)`,
-    totalConversions: sql`COALESCE(SUM(conversions), 0)`
-  }).from(dailyPerformance).where(and(
-    eq(dailyPerformance.accountId, accountId),
-    sql`${dailyPerformance.campaignId} IS NOT NULL`,
-    sql`DATE(${dailyPerformance.date}) >= ${startDate.toISOString().split("T")[0]}`,
-    sql`DATE(${dailyPerformance.date}) <= ${endDate.toISOString().split("T")[0]}`
-  ));
-  return result[0];
-}
 async function getDailyPerformanceByAccountAndDate(accountId, date12, campaignId) {
   const db = await getDb();
   if (!db) return null;
@@ -35199,9 +35171,36 @@ async function upsertDailyPerformanceFromAms(data4) {
       });
     }
   }
-  // v100: Skip account-level summary records (no campaignId) to prevent NULL ad_type records
-  // Account-level summaries are redundant when we have campaign-level data from API reports
-  console.log(`[AMS DB] v100: Skipping account-level summary for accountId=${data4.accountId}, date=${data4.date}`);
+  const existingAccount = await getDailyPerformanceByAccountAndDate(
+    data4.accountId,
+    data4.date,
+    null
+  );
+  if (existingAccount?.isFinalized) {
+    console.log(`[AMS DB] \u8DF3\u8FC7\u5DF2\u6821\u51C6\u8D26\u6237\u6C47\u603B\u6570\u636E: ${data4.date} accountId=${data4.accountId}`);
+    return;
+  }
+  if (existingAccount) {
+    await db.update(dailyPerformance).set({
+      impressions: data4.impressions,
+      clicks: data4.clicks,
+      spend: String(data4.cost),
+      dataSource: "ams"
+    }).where(eq(dailyPerformance.id, existingAccount.id));
+  } else {
+    await db.insert(dailyPerformance).values({
+      accountId: data4.accountId,
+      date: data4.date,
+      impressions: data4.impressions,
+      clicks: data4.clicks,
+      spend: String(data4.cost),
+      sales: "0",
+      orders: 0,
+      conversions: 0,
+      dataSource: "ams",
+      isFinalized: 0
+    });
+  }
 }
 async function updateDailyPerformanceConversion(data4) {
   const db = await getDb();
@@ -37225,8 +37224,8 @@ async function getAccountPerformanceSummary(accountId, startDate, endDate) {
       const startDateStr = startDate.toISOString().split("T")[0];
       const endDateStr = endDate.toISOString().split("T")[0];
       const [result2] = await db.select({
-        totalSpend: sql`COALESCE(SUM(${dailyPerformance.spend}), 0)`,
-        totalSales: sql`COALESCE(SUM(${dailyPerformance.sales}), 0)`,
+        totalSpend: sql`COALESCE(SUM(CASE WHEN spend_usd > 0 THEN spend_usd ELSE ${dailyPerformance.spend} END), 0)`,
+        totalSales: sql`COALESCE(SUM(CASE WHEN sales_usd > 0 THEN sales_usd ELSE ${dailyPerformance.sales} END), 0)`,
         totalOrders: sql`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
         totalImpressions: sql`COALESCE(SUM(${dailyPerformance.impressions}), 0)`,
         totalClicks: sql`COALESCE(SUM(${dailyPerformance.clicks}), 0)`
@@ -37287,8 +37286,8 @@ async function getDailyTrendData(accountIds, days, timeRange, customStartDate, c
     const results = await db.execute(sql`
       SELECT 
         DATE(date) as report_date,
-        COALESCE(SUM(spend), 0) as spend,
-        COALESCE(SUM(sales), 0) as sales,
+        COALESCE(SUM(CASE WHEN spend_usd > 0 THEN spend_usd ELSE spend END), 0) as spend,
+        COALESCE(SUM(CASE WHEN sales_usd > 0 THEN sales_usd ELSE sales END), 0) as sales,
         COALESCE(SUM(orders), 0) as orders
       FROM daily_performance
       WHERE accountId IN (${sql.raw(accountIds.join(","))})
@@ -54746,21 +54745,6 @@ function getMarketplaceDateRange(marketplace, daysBack) {
   const startDate = endDateFormatter.format(startDateTime);
   return { startDate, endDate };
 }
-function getMarketplaceHistoricalDateRange(marketplace, daysBack) {
-  const timezone = getMarketplaceTimezone(marketplace);
-  const now = /* @__PURE__ */ new Date();
-  const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1e3);
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  });
-  const endDate = formatter.format(yesterday);
-  const startDateTime = new Date(yesterday.getTime() - (daysBack - 1) * 24 * 60 * 60 * 1e3);
-  const startDate = formatter.format(startDateTime);
-  return { startDate, endDate };
-}
 var MARKETPLACE_TIMEZONES, DEFAULT_TIMEZONE;
 var init_timezone = __esm({
   "server/utils/timezone.ts"() {
@@ -55293,10 +55277,18 @@ var init_amazonSyncService = __esm({
        * @param lastSyncTime 上次同步时间，用于增量同步
        */
       async syncSpCampaigns(lastSyncTime) {
+        console.log("[\u540C\u6B65] ========== \u5F00\u59CB\u540C\u6B65SP\u5E7F\u544A\u6D3B\u52A8 ==========");
+        console.log("[\u540C\u6B65] \u53C2\u6570:", { accountId: this.accountId, lastSyncTime, marketplace: this.marketplace });
         const db = await getDb();
-        if (!db) return { synced: 0, skipped: 0 };
+        if (!db) {
+          console.error("[\u540C\u6B65] \u274C \u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25 - getDb()\u8FD4\u56DEnull");
+          return { synced: 0, skipped: 0 };
+        }
+        console.log("[\u540C\u6B65] \u2705 \u6570\u636E\u5E93\u8FDE\u63A5\u6210\u529F");
         try {
+          console.log("[\u540C\u6B65] \u6B63\u5728\u8C03\u7528Amazon API: listSpCampaigns()...");
           const apiCampaigns = await this.client.listSpCampaigns();
+          console.log(`[\u540C\u6B65] \u2705 API\u8C03\u7528\u6210\u529F,\u8FD4\u56DE ${apiCampaigns.length} \u4E2ASP\u5E7F\u544A\u6D3B\u52A8`);
           let synced = 0;
           let skipped = 0;
           if (apiCampaigns.length > 0) {
@@ -55382,10 +55374,22 @@ var init_amazonSyncService = __esm({
               });
             }
             synced++;
+            if (synced === 1 || synced % 10 === 0) {
+              console.log(`[\u540C\u6B65] \u8FDB\u5EA6: \u5DF2\u540C\u6B65 ${synced}/${apiCampaigns.length} \u4E2A\u5E7F\u544A\u6D3B\u52A8`);
+            }
           }
+          console.log(`[\u540C\u6B65] ========== SP\u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u5B8C\u6210 ==========`);
+          console.log(`[\u540C\u6B65] \u7ED3\u679C: \u540C\u6B65 ${synced} \u4E2A, \u8DF3\u8FC7 ${skipped} \u4E2A`);
           return { synced, skipped };
         } catch (error54) {
-          console.error("Error syncing SP campaigns:", error54);
+          console.error("[\u540C\u6B65] \u274C SP\u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u5931\u8D25");
+          console.error("[\u540C\u6B65] \u9519\u8BEF\u7C7B\u578B:", error54.constructor.name);
+          console.error("[\u540C\u6B65] \u9519\u8BEF\u6D88\u606F:", error54.message);
+          console.error("[\u540C\u6B65] \u9519\u8BEF\u5806\u6808:", error54.stack);
+          if (error54.response) {
+            console.error("[\u540C\u6B65] API\u54CD\u5E94\u72B6\u6001:", error54.response.status);
+            console.error("[\u540C\u6B65] API\u54CD\u5E94\u6570\u636E:", JSON.stringify(error54.response.data, null, 2));
+          }
           return { synced: 0, skipped: 0 };
         }
       }
@@ -56352,10 +56356,9 @@ var init_amazonSyncService = __esm({
           const MAX_DAYS_PER_REQUEST = 31;
           const totalDays = Math.min(days, 90);
           let totalSynced = 0;
-          // v102: Include today in sync range - use getMarketplaceDateRange instead of getMarketplaceHistoricalDateRange
           const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceDateRange(this.marketplace, totalDays);
           console.log(`[SyncService] \u7AD9\u70B9${this.marketplace}\u5F53\u524D\u65E5\u671F: ${getMarketplaceCurrentDate(this.marketplace)}`);
-          console.log(`[SyncService] API\u540C\u6B65\u8303\u56F4: ${rangeStartDate} - ${rangeEndDate} (v102: \u5305\u542B\u4ECA\u5929\u7684\u6570\u636E)`);
+          console.log(`[SyncService] API\u540C\u6B65\u8303\u56F4: ${rangeStartDate} - ${rangeEndDate} (\u6392\u9664\u4ECA\u5929\uFF0C\u4ECA\u65E5\u6570\u636E\u7531AMS\u63D0\u4F9B)`);
           const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
           console.log(`[SyncService] \u5F00\u59CB\u540C\u6B65\u7EE9\u6548\u6570\u636E: \u5171${totalDays}\u5929\uFF0C\u5206${batches}\u6279\u8BF7\u6C42 (\u7AD9\u70B9: ${this.marketplace})`);
           for (let batch = 0; batch < batches; batch++) {
@@ -56551,6 +56554,49 @@ var init_amazonSyncService = __esm({
               ntbOrders = row.newToBrandPurchasesClicks || 0;
               ntbSales = row.newToBrandSalesClicks || 0;
             }
+            const EXCHANGE_RATES_TO_USD = {
+              "USD": 1,
+              "CAD": 0.7345,
+              // 1 CAD = 0.7345 USD
+              "MXN": 0.0495,
+              // 1 MXN = 0.0495 USD
+              "GBP": 1.27,
+              "EUR": 1.08,
+              "JPY": 67e-4,
+              "AUD": 0.65,
+              "SGD": 0.74,
+              "INR": 0.012,
+              "AED": 0.2723,
+              "SAR": 0.2667,
+              "BRL": 0.17,
+              "SEK": 0.096,
+              "PLN": 0.25
+            };
+            const MARKETPLACE_CURRENCY = {
+              "US": "USD",
+              "CA": "CAD",
+              "MX": "MXN",
+              "BR": "BRL",
+              "UK": "GBP",
+              "DE": "EUR",
+              "FR": "EUR",
+              "IT": "EUR",
+              "ES": "EUR",
+              "NL": "EUR",
+              "SE": "SEK",
+              "PL": "PLN",
+              "BE": "EUR",
+              "JP": "JPY",
+              "AU": "AUD",
+              "SG": "SGD",
+              "IN": "INR",
+              "AE": "AED",
+              "SA": "SAR"
+            };
+            const currency = MARKETPLACE_CURRENCY[this.marketplace] || "USD";
+            const exchangeRate = EXCHANGE_RATES_TO_USD[currency] || 1;
+            const spendUsd = cost * exchangeRate;
+            const salesUsd = sales * exchangeRate;
             const perfData = {
               accountId: this.accountId,
               campaignId: campaign.id,
@@ -56575,19 +56621,24 @@ var init_amazonSyncService = __esm({
               // ✅ 广告类型和归因窗口标记（SP=7天, SB=14天, SD=14天）
               adType,
               attributionWindow: adType === "SP" ? 7 : 14,
-              // v102: Today data is incomplete, mark as non-finalized; historical data is finalized
+              // ✅ 标记为API报告数据（已经过归因窗口校准），防止AMS实时数据覆盖
               isFinalized: reportDateStr === getMarketplaceCurrentDate(this.marketplace) ? 0 : 1,
-              dataSource: "api",
-              // v100: Add currency info based on marketplace
-              currency: this.marketplace === "CA" ? "CAD" : this.marketplace === "MX" ? "MXN" : "USD"
+              dataSource: "api"
             };
             if (existing) {
               await db.update(dailyPerformance).set(perfData).where(eq(dailyPerformance.id, existing.id));
+              await db.execute(sql`UPDATE daily_performance SET currency = ${currency}, exchange_rate = ${exchangeRate}, spend_usd = ${spendUsd.toFixed(2)}, sales_usd = ${salesUsd.toFixed(2)} WHERE id = ${existing.id}`);
             } else {
-              await db.insert(dailyPerformance).values({
+              const insertResult = await db.insert(dailyPerformance).values({
                 ...perfData,
                 createdAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
               });
+              const insertId = insertResult?.[0]?.insertId || insertResult?.insertId;
+              if (insertId) {
+                await db.execute(sql`UPDATE daily_performance SET currency = ${currency}, exchange_rate = ${exchangeRate}, spend_usd = ${spendUsd.toFixed(2)}, sales_usd = ${salesUsd.toFixed(2)} WHERE id = ${insertId}`);
+              } else {
+                await db.execute(sql`UPDATE daily_performance SET currency = ${currency}, exchange_rate = ${exchangeRate}, spend_usd = ${spendUsd.toFixed(2)}, sales_usd = ${salesUsd.toFixed(2)} WHERE campaignId = ${campaign.id} AND DATE(date) = ${reportDateStr} AND accountId = ${this.accountId}`);
+              }
             }
             synced++;
           }
@@ -57696,8 +57747,14 @@ var init_amazonSyncService = __esm({
       }
     };
     AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(lastSyncTime, syncJobId) {
+      console.log("[\u540C\u6B65WithTracking] ========== \u5F00\u59CB\u540C\u6B65SP\u5E7F\u544A\u6D3B\u52A8(\u5E26\u8DDF\u8E2A) ==========");
+      console.log("[\u540C\u6B65WithTracking] \u53C2\u6570:", { accountId: this.accountId, lastSyncTime, syncJobId });
       const db = await getDb();
-      if (!db) return { synced: 0, skipped: 0, created: 0, updated: 0, deleted: 0, conflicts: 0 };
+      if (!db) {
+        console.error("[\u540C\u6B65WithTracking] \u274C \u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25");
+        return { synced: 0, skipped: 0, created: 0, updated: 0, deleted: 0, conflicts: 0 };
+      }
+      console.log("[\u540C\u6B65WithTracking] \u2705 \u6570\u636E\u5E93\u8FDE\u63A5\u6210\u529F");
       const result = {
         synced: 0,
         skipped: 0,
@@ -57709,9 +57766,13 @@ var init_amazonSyncService = __esm({
       const changeRecords = [];
       const conflictRecords = [];
       try {
-        console.log("[SP Sync] Starting SP campaigns sync...");
+        console.log("[\u540C\u6B65WithTracking] \u6B63\u5728\u8C03\u7528Amazon API: listSpCampaigns()...");
         const apiCampaigns = await this.client.listSpCampaigns();
-        console.log(`[SP Sync] Retrieved ${apiCampaigns.length} SP campaigns from API`);
+        console.log(`[\u540C\u6B65WithTracking] \u2705 API\u8C03\u7528\u6210\u529F,\u8FD4\u56DE ${apiCampaigns.length} \u4E2ASP\u5E7F\u544A\u6D3B\u52A8`);
+        if (apiCampaigns.length === 0) {
+          console.warn("[\u540C\u6B65WithTracking] \u26A0\uFE0F API\u8FD4\u56DE\u7A7A\u6570\u7EC4 - \u6CA1\u6709SP\u5E7F\u544A\u6D3B\u52A8");
+          return result;
+        }
         for (const apiCampaign of apiCampaigns) {
           const [existing] = await db.select().from(campaigns).where(
             and(
@@ -57804,12 +57865,17 @@ var init_amazonSyncService = __esm({
         if (conflictRecords.length > 0) {
           await createSyncConflictsBatch(conflictRecords);
         }
+        console.log("[\u540C\u6B65WithTracking] ========== SP\u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u5B8C\u6210 ==========");
+        console.log("[\u540C\u6B65WithTracking] \u7ED3\u679C:", result);
         return result;
       } catch (error54) {
-        console.error("[SP Sync] Error syncing SP campaigns with tracking:", error54?.message || error54);
+        console.error("[\u540C\u6B65WithTracking] \u274C SP\u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u5931\u8D25");
+        console.error("[\u540C\u6B65WithTracking] \u9519\u8BEF\u7C7B\u578B:", error54.constructor?.name);
+        console.error("[\u540C\u6B65WithTracking] \u9519\u8BEF\u6D88\u606F:", error54?.message || error54);
+        console.error("[\u540C\u6B65WithTracking] \u9519\u8BEF\u5806\u6808:", error54?.stack);
         if (error54?.response) {
-          console.error("[SP Sync] API Response status:", error54.response.status);
-          console.error("[SP Sync] API Response data:", JSON.stringify(error54.response.data));
+          console.error("[\u540C\u6B65WithTracking] API\u54CD\u5E94\u72B6\u6001:", error54.response.status);
+          console.error("[\u540C\u6B65WithTracking] API\u54CD\u5E94\u6570\u636E:", JSON.stringify(error54.response.data, null, 2));
         }
         return result;
       }
@@ -121585,7 +121651,7 @@ var require_dist_cjs116 = __commonJS({
       extensions.forEach((extension) => extension.configure(extensionConfiguration));
       return Object.assign(runtimeConfig2, regionConfigResolver.resolveAwsRegionExtensionConfiguration(extensionConfiguration), smithyClient.resolveDefaultRuntimeConfig(extensionConfiguration), protocolHttp.resolveHttpHandlerRuntimeConfig(extensionConfiguration), resolveHttpAuthRuntimeConfig4(extensionConfiguration));
     };
-    var SQSClient3 = class extends smithyClient.Client {
+    var SQSClient2 = class extends smithyClient.Client {
       config;
       constructor(...[configuration]) {
         const _config_0 = runtimeConfig.getRuntimeConfig(configuration || {});
@@ -123208,7 +123274,7 @@ var require_dist_cjs116 = __commonJS({
       return [middlewareEndpoint.getEndpointPlugin(config2, Command.getEndpointParameterInstructions())];
     }).s("AmazonSQS", "DeleteQueue", {}).n("SQSClient", "DeleteQueueCommand").sc(DeleteQueue$).build() {
     };
-    var GetQueueAttributesCommand3 = class extends smithyClient.Command.classBuilder().ep(commonParams4).m(function(Command, cs, config2, o6) {
+    var GetQueueAttributesCommand2 = class extends smithyClient.Command.classBuilder().ep(commonParams4).m(function(Command, cs, config2, o6) {
       return [middlewareEndpoint.getEndpointPlugin(config2, Command.getEndpointParameterInstructions())];
     }).s("AmazonSQS", "GetQueueAttributes", {}).n("SQSClient", "GetQueueAttributesCommand").sc(GetQueueAttributes$).build() {
     };
@@ -123277,8 +123343,8 @@ var require_dist_cjs116 = __commonJS({
       return [middlewareEndpoint.getEndpointPlugin(config2, Command.getEndpointParameterInstructions())];
     }).s("AmazonSQS", "UntagQueue", {}).n("SQSClient", "UntagQueueCommand").sc(UntagQueue$).build() {
     };
-    var paginateListDeadLetterSourceQueues = core.createPaginator(SQSClient3, ListDeadLetterSourceQueuesCommand, "NextToken", "NextToken", "MaxResults");
-    var paginateListQueues = core.createPaginator(SQSClient3, ListQueuesCommand, "NextToken", "NextToken", "MaxResults");
+    var paginateListDeadLetterSourceQueues = core.createPaginator(SQSClient2, ListDeadLetterSourceQueuesCommand, "NextToken", "NextToken", "MaxResults");
+    var paginateListQueues = core.createPaginator(SQSClient2, ListQueuesCommand, "NextToken", "NextToken", "MaxResults");
     var commands4 = {
       AddPermissionCommand,
       CancelMessageMoveTaskCommand,
@@ -123288,7 +123354,7 @@ var require_dist_cjs116 = __commonJS({
       DeleteMessageCommand: DeleteMessageCommand2,
       DeleteMessageBatchCommand,
       DeleteQueueCommand,
-      GetQueueAttributesCommand: GetQueueAttributesCommand3,
+      GetQueueAttributesCommand: GetQueueAttributesCommand2,
       GetQueueUrlCommand,
       ListDeadLetterSourceQueuesCommand,
       ListMessageMoveTasksCommand,
@@ -123308,7 +123374,7 @@ var require_dist_cjs116 = __commonJS({
       paginateListDeadLetterSourceQueues,
       paginateListQueues
     };
-    var SQS = class extends SQSClient3 {
+    var SQS = class extends SQSClient2 {
     };
     smithyClient.createAggregatedClient(commands4, SQS, { paginators });
     var QueueAttributeName = {
@@ -123402,7 +123468,7 @@ var require_dist_cjs116 = __commonJS({
     exports2.EmptyBatchRequest = EmptyBatchRequest;
     exports2.EmptyBatchRequest$ = EmptyBatchRequest$;
     exports2.GetQueueAttributes$ = GetQueueAttributes$;
-    exports2.GetQueueAttributesCommand = GetQueueAttributesCommand3;
+    exports2.GetQueueAttributesCommand = GetQueueAttributesCommand2;
     exports2.GetQueueAttributesRequest$ = GetQueueAttributesRequest$;
     exports2.GetQueueAttributesResult$ = GetQueueAttributesResult$;
     exports2.GetQueueUrl$ = GetQueueUrl$;
@@ -123489,7 +123555,7 @@ var require_dist_cjs116 = __commonJS({
     exports2.ResourceNotFoundException = ResourceNotFoundException;
     exports2.ResourceNotFoundException$ = ResourceNotFoundException$;
     exports2.SQS = SQS;
-    exports2.SQSClient = SQSClient3;
+    exports2.SQSClient = SQSClient2;
     exports2.SQSServiceException = SQSServiceException;
     exports2.SQSServiceException$ = SQSServiceException$;
     exports2.SendMessage$ = SendMessage$;
@@ -328915,6 +328981,130 @@ async function createApiKey(data4) {
 async function revokeApiKey(organizationId, keyId) {
 }
 
+// server/debug-sync.ts
+init_db2();
+init_amazonSyncService();
+var debugSyncRouter = router({
+  /**
+   * 测试API连接并返回原始数据
+   */
+  testApiConnection: publicProcedure.input(external_exports.object({
+    accountId: external_exports.number()
+  })).query(async ({ input }) => {
+    const db = getDb();
+    if (!db) {
+      return { success: false, error: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" };
+    }
+    try {
+      const credentials = await db.getAmazonCredentials(input.accountId);
+      if (!credentials) {
+        return { success: false, error: "\u672A\u627E\u5230API\u51ED\u8BC1" };
+      }
+      const account = await db.getAdAccountById(input.accountId);
+      const marketplace = account?.marketplace || "US";
+      const syncService = await AmazonSyncService.createFromCredentials(
+        {
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+          profileId: credentials.profileId,
+          region: credentials.region
+        },
+        input.accountId,
+        1,
+        // userId
+        marketplace
+      );
+      const apiResponse = await syncService.client.listSpCampaigns();
+      return {
+        success: true,
+        data: {
+          accountId: input.accountId,
+          marketplace,
+          profileId: credentials.profileId,
+          region: credentials.region,
+          apiResponseCount: Array.isArray(apiResponse) ? apiResponse.length : 0,
+          apiResponse,
+          timestamp: (/* @__PURE__ */ new Date()).toISOString()
+        }
+      };
+    } catch (error54) {
+      return {
+        success: false,
+        error: error54.message,
+        stack: error54.stack,
+        details: error54.response?.data || error54.toString()
+      };
+    }
+  }),
+  /**
+   * 检查数据库中的campaigns数据
+   */
+  checkDatabaseCampaigns: publicProcedure.input(external_exports.object({
+    accountId: external_exports.number()
+  })).query(async ({ input }) => {
+    const db = getDb();
+    if (!db) {
+      return { success: false, error: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" };
+    }
+    try {
+      const campaigns6 = await db.getCampaignsByAccount(input.accountId);
+      return {
+        success: true,
+        data: {
+          accountId: input.accountId,
+          campaignCount: campaigns6.length,
+          campaigns: campaigns6.slice(0, 10),
+          // 只返回前10个
+          timestamp: (/* @__PURE__ */ new Date()).toISOString()
+        }
+      };
+    } catch (error54) {
+      return {
+        success: false,
+        error: error54.message,
+        stack: error54.stack
+      };
+    }
+  }),
+  /**
+   * 检查sync_tasks表
+   */
+  checkSyncTasks: publicProcedure.input(external_exports.object({
+    accountId: external_exports.number(),
+    limit: external_exports.number().default(10)
+  })).query(async ({ input }) => {
+    const db = getDb();
+    if (!db) {
+      return { success: false, error: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" };
+    }
+    try {
+      const tasks = await db.query(
+        `SELECT * FROM sync_tasks 
+           WHERE account_id = ? 
+           ORDER BY created_at DESC 
+           LIMIT ?`,
+        [input.accountId, input.limit]
+      );
+      return {
+        success: true,
+        data: {
+          accountId: input.accountId,
+          taskCount: tasks.length,
+          tasks,
+          timestamp: (/* @__PURE__ */ new Date()).toISOString()
+        }
+      };
+    } catch (error54) {
+      return {
+        success: false,
+        error: error54.message,
+        stack: error54.stack
+      };
+    }
+  })
+});
+
 // server/budgetAlertService.ts
 init_drizzle_orm();
 init_db2();
@@ -333023,99 +333213,6 @@ async function generateProfitVisualizationData(accountId, bidObjectType, bidObje
   };
 }
 
-// server/routes/dev.ts
-var import_client_sqs2 = __toESM(require_dist_cjs116());
-init_db2();
-init_drizzle_orm();
-var SQS_QUEUE_URLS = {
-  "sp-traffic": process.env.AWS_SQS_QUEUE_TRAFFIC_URL,
-  "sp-conversion": process.env.AWS_SQS_QUEUE_CONVERSION_URL,
-  "sp-budget-usage": process.env.AWS_SQS_QUEUE_BUDGET_URL,
-  "sb-traffic": process.env.AWS_SQS_QUEUE_SB_TRAFFIC_URL,
-  "sb-conversion": process.env.AWS_SQS_QUEUE_SB_CONVERSION_URL,
-  "sb-budget-usage": process.env.AWS_SQS_QUEUE_SB_BUDGET_URL,
-  "sd-traffic": process.env.AWS_SQS_QUEUE_SD_TRAFFIC_URL,
-  "sd-conversion": process.env.AWS_SQS_QUEUE_SD_CONVERSION_URL,
-  "sd-budget-usage": process.env.AWS_SQS_QUEUE_SD_BUDGET_URL
-};
-async function checkSqsQueues() {
-  const sqsClient = new import_client_sqs2.SQSClient({ region: process.env.AWS_REGION || "us-east-1" });
-  const results = [];
-  let allQueuesActive = true;
-  for (const [name2, url3] of Object.entries(SQS_QUEUE_URLS)) {
-    if (!url3) {
-      results.push({ name: name2, status: "skipped", reason: "URL not configured" });
-      allQueuesActive = false;
-      continue;
-    }
-    try {
-      const command = new import_client_sqs2.GetQueueAttributesCommand({
-        QueueUrl: url3,
-        AttributeNames: ["ApproximateNumberOfMessages", "ApproximateNumberOfMessagesNotVisible", "LastModifiedTimestamp"]
-      });
-      const response = await sqsClient.send(command);
-      const attributes = response.Attributes;
-      const messageCount = attributes ? parseInt(attributes.ApproximateNumberOfMessages || "0") : 0;
-      const lastModified = attributes ? new Date(parseInt(attributes.LastModifiedTimestamp || "0") * 1e3).toISOString() : "N/A";
-      results.push({ name: name2, status: "ok", messageCount, lastModified });
-    } catch (error54) {
-      results.push({ name: name2, status: "error", reason: error54.message });
-      allQueuesActive = false;
-    }
-  }
-  return { allQueuesActive, results };
-}
-async function checkDatabase() {
-  const db = await getDb();
-  if (!db) {
-    return { dbStatus: "error", reason: "Database connection failed" };
-  }
-  const results = {};
-  try {
-    const [amsResult] = await db.execute(sql`
-      SELECT COUNT(*) as count, MAX(createdAt) as lastReceived 
-      FROM ams_performance_data 
-      WHERE createdAt >= NOW() - INTERVAL '24 hours'
-    `);
-    results.amsData = amsResult[0];
-  } catch (e6) {
-    results.amsData = { error: e6.message };
-  }
-  try {
-    const [reportResult] = await db.execute(sql`
-      SELECT status, COUNT(*) as count
-      FROM report_jobs
-      WHERE createdAt >= NOW() - INTERVAL '24 hours'
-      GROUP BY status
-    `);
-    results.reportJobs = reportResult;
-  } catch (e6) {
-    results.reportJobs = { error: e6.message };
-  }
-  try {
-    const [fusionResult] = await db.execute(sql`
-      SELECT dataSource, COUNT(*) as count, MAX(date) as latestDate
-      FROM daily_performance
-      WHERE date >= CURRENT_DATE - INTERVAL '3 days'
-      GROUP BY dataSource
-    `);
-    results.dataFusion = fusionResult;
-  } catch (e6) {
-    results.dataFusion = { error: e6.message };
-  }
-  return { dbStatus: "ok", ...results };
-}
-var devRouter = router({
-  verifySync: publicProcedure.query(async () => {
-    const sqsResults = await checkSqsQueues();
-    const dbResults = await checkDatabase();
-    return {
-      sqs: sqsResults,
-      database: dbResults
-    };
-  })
-});
-
 // server/routers.ts
 var adAccountRouter = router({
   // 获取用户所有账号列表（公开访问，返回所有账户）
@@ -333417,7 +333514,32 @@ var adAccountRouter = router({
     if (accountIds.length === 0) {
       return [];
     }
-    const trendData = await getDailyTrendData(accountIds, input.days, input.timeRange, input.startDate, input.endDate);
+    let startDate = input.startDate;
+    let endDate = input.endDate;
+    const timeRange = input.timeRange || "7days";
+    if (timeRange !== "custom") {
+      const localDateStr = getMarketplaceLocalDate("US");
+      const [year9, month, day2] = localDateStr.split("-").map(Number);
+      const localToday = new Date(year9, month - 1, day2);
+      if (timeRange === "today") {
+        startDate = localDateStr;
+        endDate = localDateStr;
+      } else if (timeRange === "yesterday") {
+        const yesterday = new Date(localToday);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yd = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
+        startDate = yd;
+        endDate = yd;
+      } else {
+        const daysMap = { "7days": 6, "14days": 13, "30days": 29, "60days": 59, "90days": 89 };
+        const daysBack = daysMap[timeRange] || 6;
+        const sd = new Date(localToday);
+        sd.setDate(sd.getDate() - daysBack);
+        startDate = `${sd.getFullYear()}-${String(sd.getMonth() + 1).padStart(2, "0")}-${String(sd.getDate()).padStart(2, "0")}`;
+        endDate = localDateStr;
+      }
+    }
+    const trendData = await getDailyTrendData(accountIds, input.days, "custom", startDate, endDate);
     return trendData;
   }),
   // 获取数据可用日期范围（用于自定义日期选择器的限制）
@@ -334712,10 +334834,6 @@ var analyticsRouter = router({
     const daysSinceEnd = Math.ceil((now.getTime() - endDate.getTime()) / (24 * 60 * 60 * 1e3));
     const spDataMaturity = daysSinceEnd >= 7 ? "finalized" : "pending";
     const sbSdDataMaturity = daysSinceEnd >= 14 ? "finalized" : "pending";
-    // v101: Get account info to determine currency
-    const accountInfo = await getAdAccountById(input.accountId);
-    const marketplaceCurrencyMap = { US: 'USD', CA: 'CAD', MX: 'MXN', BR: 'BRL', UK: 'GBP', DE: 'EUR', FR: 'EUR', IT: 'EUR', ES: 'EUR', NL: 'EUR', SE: 'SEK', PL: 'PLN', JP: 'JPY', AU: 'AUD', SG: 'SGD', AE: 'AED', SA: 'SAR', IN: 'INR' };
-    const accountCurrency = marketplaceCurrencyMap[accountInfo?.marketplace || 'US'] || 'USD';
     return {
       conversionsPerDay: totalOrders / days,
       // ✅ 加权计算派生指标，而非简单平均
@@ -334727,8 +334845,6 @@ var analyticsRouter = router({
       totalOrders,
       totalClicks,
       totalImpressions,
-      // v101: Currency info for frontend display
-      currency: accountCurrency,
       // ✅ 新增派生指标
       ctr: totalImpressions > 0 ? totalClicks / totalImpressions * 100 : 0,
       cvr: totalClicks > 0 ? totalOrders / totalClicks * 100 : 0,
@@ -334787,8 +334903,7 @@ var analyticsRouter = router({
           break;
         }
       }
-      // v101: Use USD-converted summary for cross-region comparison
-      const summary = await getPerformanceSummaryUSD(account.id, startDate, endDate);
+      const summary = await getPerformanceSummary(account.id, startDate, endDate);
       if (summary) {
         const sales = parseFloat(summary.totalSales || "0");
         const spend = parseFloat(summary.totalSpend || "0");
@@ -341941,6 +342056,7 @@ var inviteCodeRouter = router({
 var appRouter = router({
   dev: devRouter,
   system: systemRouter,
+  debugSync: debugSyncRouter,
   auth: router({
     me: publicProcedure.query((opts) => opts.ctx.user),
     logout: publicProcedure.mutation(({ ctx }) => {
@@ -342717,10 +342833,9 @@ async function executeScheduledSync2() {
       return;
     }
     for (const schedule of schedules) {
-      // v99 fix: Removed shouldExecuteSync check - full sync always runs for all enabled accounts
-      // Root cause: lastRunAt was updated by high/medium tier syncs (every 5/15 min),
-      // so shouldExecuteSync() always returned false for the hourly full sync
-      console.log("[DataSyncScheduler] Full sync: starting account " + schedule.accountId + " (skip time check)");
+      if (!shouldExecuteSync(schedule)) {
+        continue;
+      }
       try {
         await executeSyncForAccount(schedule);
         schedulerStatus2.successfulSyncs++;
@@ -343079,91 +343194,6 @@ async function startServer2() {
   app.use(import_express3.default.json({ limit: "50mb" }));
   app.use(import_express3.default.urlencoded({ limit: "50mb", extended: true }));
   registerOAuthRoutes(app);
-  // v99: Manual sync trigger endpoint
-  app.post("/api/trigger-full-sync", async (req, res) => {
-    const { accountId } = req.body || {};
-    console.log("[ManualSync] Received trigger-full-sync request, accountId:", accountId);
-    try {
-      const schedules = await getEnabledSyncSchedules();
-      if (schedules.length === 0) {
-        return res.json({ success: false, message: "No enabled sync schedules" });
-      }
-      const targetSchedules = accountId 
-        ? schedules.filter(s => s.accountId === Number(accountId))
-        : schedules;
-      console.log("[ManualSync] Will sync " + targetSchedules.length + " accounts");
-      // Run async - don't wait
-      (async () => {
-        for (const schedule of targetSchedules) {
-          try {
-            console.log("[ManualSync] Starting full sync for account " + schedule.accountId);
-            await executeSyncForAccount(schedule);
-            console.log("[ManualSync] Completed full sync for account " + schedule.accountId);
-          } catch (err) {
-            console.error("[ManualSync] Failed sync for account " + schedule.accountId + ":", err.message);
-          }
-        }
-        console.log("[ManualSync] All accounts sync completed");
-      })();
-      res.json({ success: true, message: "Full sync triggered for " + targetSchedules.length + " accounts", accounts: targetSchedules.map(s => s.accountId) });
-    } catch (error) {
-      console.error("[ManualSync] Error:", error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
-  // v99: Quick performance-only sync endpoint
-  app.post("/api/trigger-performance-sync", async (req, res) => {
-    const { accountId, days } = req.body || {};
-    const syncDays = days || 14;
-    console.log("[ManualSync] Received trigger-performance-sync request, accountId:", accountId, "days:", syncDays);
-    try {
-      const schedules = await getEnabledSyncSchedules();
-      const targetSchedules = accountId 
-        ? schedules.filter(s => s.accountId === Number(accountId))
-        : schedules;
-      // Run async
-      (async () => {
-        for (const schedule of targetSchedules) {
-          try {
-            const account = await getAdAccountById(schedule.accountId);
-            if (!account) continue;
-            const credentials = await getAmazonApiCredentials(schedule.accountId);
-            if (!credentials) continue;
-            const syncService = await AmazonSyncService.createFromCredentials(
-              {
-                clientId: credentials.clientId || "",
-                clientSecret: credentials.clientSecret || "",
-                refreshToken: credentials.refreshToken || "",
-                profileId: account.profileId || "",
-                region: credentials.region || "NA"
-              },
-              schedule.accountId,
-              schedule.userId,
-              account.marketplace || "US"
-            );
-            console.log("[ManualSync] Starting performance sync for account " + schedule.accountId);
-            const perfResult = await syncService.syncPerformanceData(syncDays);
-            console.log("[ManualSync] Performance sync done for account " + schedule.accountId + ": " + perfResult + " records");
-            try {
-              const placementResult = await syncService.syncPlacementPerformance(syncDays);
-              console.log("[ManualSync] Placement sync done: " + placementResult + " records");
-            } catch(e) { console.error("[ManualSync] Placement sync failed:", e.message); }
-            try {
-              const searchTermResult = await syncService.syncSearchTerms(syncDays);
-              console.log("[ManualSync] Search term sync done: " + searchTermResult + " records");
-            } catch(e) { console.error("[ManualSync] Search term sync failed:", e.message); }
-          } catch (err) {
-            console.error("[ManualSync] Failed performance sync for account " + schedule.accountId + ":", err.message);
-          }
-        }
-        console.log("[ManualSync] All performance syncs completed");
-      })();
-      res.json({ success: true, message: "Performance sync triggered for " + targetSchedules.length + " accounts" });
-    } catch (error) {
-      console.error("[ManualSync] Error:", error);
-      res.status(500).json({ success: false, message: error.message });
-    }
-  });
   app.use("/api", sitemap_default);
   app.use(
     "/api/trpc",

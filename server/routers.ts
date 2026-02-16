@@ -421,8 +421,39 @@ const adAccountRouter = router({
         return [];
       }
       
+      // v104: 对于预设时间范围，使用站点时区计算日期
+      // 数据概览页面汇总所有站点，使用US时区作为基准（因为所有北美站点都用PST）
+      let startDate = input.startDate;
+      let endDate = input.endDate;
+      const timeRange = input.timeRange || '7days';
+      
+      if (timeRange !== 'custom') {
+        // 使用US时区计算日期范围（北美站点统一使用PST）
+        const localDateStr = getMarketplaceLocalDate('US');
+        const [year, month, day] = localDateStr.split('-').map(Number);
+        const localToday = new Date(year, month - 1, day);
+        
+        if (timeRange === 'today') {
+          startDate = localDateStr;
+          endDate = localDateStr;
+        } else if (timeRange === 'yesterday') {
+          const yesterday = new Date(localToday);
+          yesterday.setDate(yesterday.getDate() - 1);
+          const yd = `${yesterday.getFullYear()}-${String(yesterday.getMonth()+1).padStart(2,'0')}-${String(yesterday.getDate()).padStart(2,'0')}`;
+          startDate = yd;
+          endDate = yd;
+        } else {
+          const daysMap: Record<string, number> = { '7days': 6, '14days': 13, '30days': 29, '60days': 59, '90days': 89 };
+          const daysBack = daysMap[timeRange] || 6;
+          const sd = new Date(localToday);
+          sd.setDate(sd.getDate() - daysBack);
+          startDate = `${sd.getFullYear()}-${String(sd.getMonth()+1).padStart(2,'0')}-${String(sd.getDate()).padStart(2,'0')}`;
+          endDate = localDateStr;
+        }
+      }
+      
       // 获取每日绩效数据
-      const trendData = await db.getDailyTrendData(accountIds, input.days, input.timeRange, input.startDate, input.endDate);
+      const trendData = await db.getDailyTrendData(accountIds, input.days, 'custom', startDate, endDate);
       return trendData;
     }),
   

@@ -4443,10 +4443,11 @@ export async function getAccountPerformanceSummary(
       const startDateStr = startDate.toISOString().split('T')[0];
       const endDateStr = endDate.toISOString().split('T')[0];
       
-      // 从daily_performance表查询指定时间范围的数据
+      // v104: 从daily_performance表查询指定时间范围的数据
+      // 使用 spend_usd/sales_usd（如果有）进行USD汇总，否则回退到 spend/sales
       const [result] = await db.select({
-        totalSpend: sql<number>`COALESCE(SUM(${dailyPerformance.spend}), 0)`,
-        totalSales: sql<number>`COALESCE(SUM(${dailyPerformance.sales}), 0)`,
+        totalSpend: sql<number>`COALESCE(SUM(CASE WHEN spend_usd > 0 THEN spend_usd ELSE ${dailyPerformance.spend} END), 0)`,
+        totalSales: sql<number>`COALESCE(SUM(CASE WHEN sales_usd > 0 THEN sales_usd ELSE ${dailyPerformance.sales} END), 0)`,
         totalOrders: sql<number>`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
         totalImpressions: sql<number>`COALESCE(SUM(${dailyPerformance.impressions}), 0)`,
         totalClicks: sql<number>`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
@@ -4530,11 +4531,12 @@ export async function getDailyTrendData(accountIds: number[], days: number, time
       endDateStr = endDate.toISOString().split('T')[0];
     }
     
+    // v104: 使用 spend_usd/sales_usd 进行USD汇总
     const results = await db.execute(sql`
       SELECT 
         DATE(date) as report_date,
-        COALESCE(SUM(spend), 0) as spend,
-        COALESCE(SUM(sales), 0) as sales,
+        COALESCE(SUM(CASE WHEN spend_usd > 0 THEN spend_usd ELSE spend END), 0) as spend,
+        COALESCE(SUM(CASE WHEN sales_usd > 0 THEN sales_usd ELSE sales END), 0) as sales,
         COALESCE(SUM(orders), 0) as orders
       FROM daily_performance
       WHERE accountId IN (${sql.raw(accountIds.join(','))})
