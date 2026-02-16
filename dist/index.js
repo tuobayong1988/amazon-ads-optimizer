@@ -56352,9 +56352,10 @@ var init_amazonSyncService = __esm({
           const MAX_DAYS_PER_REQUEST = 31;
           const totalDays = Math.min(days, 90);
           let totalSynced = 0;
-          const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceHistoricalDateRange(this.marketplace, totalDays);
+          // v102: Include today in sync range - use getMarketplaceDateRange instead of getMarketplaceHistoricalDateRange
+          const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceDateRange(this.marketplace, totalDays);
           console.log(`[SyncService] \u7AD9\u70B9${this.marketplace}\u5F53\u524D\u65E5\u671F: ${getMarketplaceCurrentDate(this.marketplace)}`);
-          console.log(`[SyncService] API\u540C\u6B65\u8303\u56F4: ${rangeStartDate} - ${rangeEndDate} (\u6392\u9664\u4ECA\u5929\uFF0C\u4ECA\u65E5\u6570\u636E\u7531AMS\u63D0\u4F9B)`);
+          console.log(`[SyncService] API\u540C\u6B65\u8303\u56F4: ${rangeStartDate} - ${rangeEndDate} (v102: \u5305\u542B\u4ECA\u5929\u7684\u6570\u636E)`);
           const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
           console.log(`[SyncService] \u5F00\u59CB\u540C\u6B65\u7EE9\u6548\u6570\u636E: \u5171${totalDays}\u5929\uFF0C\u5206${batches}\u6279\u8BF7\u6C42 (\u7AD9\u70B9: ${this.marketplace})`);
           for (let batch = 0; batch < batches; batch++) {
@@ -56574,8 +56575,8 @@ var init_amazonSyncService = __esm({
               // ✅ 广告类型和归因窗口标记（SP=7天, SB=14天, SD=14天）
               adType,
               attributionWindow: adType === "SP" ? 7 : 14,
-              // ✅ 标记为API报告数据（已经过归因窗口校准），防止AMS实时数据覆盖
-              isFinalized: 1,
+              // v102: Today data is incomplete, mark as non-finalized; historical data is finalized
+              isFinalized: reportDateStr === getMarketplaceCurrentDate(this.marketplace) ? 0 : 1,
               dataSource: "api",
               // v100: Add currency info based on marketplace
               currency: this.marketplace === "CA" ? "CAD" : this.marketplace === "MX" ? "MXN" : "USD"

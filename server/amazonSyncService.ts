@@ -2064,7 +2064,8 @@ export class AmazonSyncService {
       
       // 使用站点时区计算历史日期范围（排除今天，只拉取T-1及之前的数据）
       // 快慢双轨架构：API只负责历史数据，今日数据由AMS实时推送
-      const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceHistoricalDateRange(this.marketplace, totalDays);
+      // v102: Include today in sync range
+      const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceDateRange(this.marketplace, totalDays);
       console.log(`[SyncService] 站点${this.marketplace}当前日期: ${getMarketplaceCurrentDate(this.marketplace)}`);
       console.log(`[SyncService] API同步范围: ${rangeStartDate} - ${rangeEndDate} (排除今天，今日数据由AMS提供)`);
       
@@ -2379,7 +2380,7 @@ export class AmazonSyncService {
           adType: adType as 'SP' | 'SB' | 'SD',
           attributionWindow: adType === 'SP' ? 7 : 14,
           // ✅ 标记为API报告数据（已经过归因窗口校准），防止AMS实时数据覆盖
-          isFinalized: 1,
+          isFinalized: reportDateStr === getMarketplaceCurrentDate(this.marketplace) ? 0 : 1,
           dataSource: 'api' as const,
         };
 
