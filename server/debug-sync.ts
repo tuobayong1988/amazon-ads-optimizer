@@ -5,7 +5,7 @@
 
 import { publicProcedure, router } from './_core/trpc';
 import { z } from 'zod';
-import { getDb } from './db';
+import * as db from './db';
 import { AmazonSyncService } from './amazonSyncService';
 
 export const debugSyncRouter = router({
@@ -17,14 +17,9 @@ export const debugSyncRouter = router({
       accountId: z.number(),
     }))
     .query(async ({ input }) => {
-      const db = getDb();
-      if (!db) {
-        return { success: false, error: '数据库连接失败' };
-      }
-
       try {
         // 获取API凭证
-        const credentials = await db.getAmazonCredentials(input.accountId);
+        const credentials = await db.getAmazonApiCredentials(input.accountId);
         if (!credentials) {
           return { success: false, error: '未找到API凭证' };
         }
@@ -80,13 +75,8 @@ export const debugSyncRouter = router({
       accountId: z.number(),
     }))
     .query(async ({ input }) => {
-      const db = getDb();
-      if (!db) {
-        return { success: false, error: '数据库连接失败' };
-      }
-
       try {
-        const campaigns = await db.getCampaignsByAccount(input.accountId);
+        const campaigns = await db.getCampaignsByAccountId(input.accountId);
         
         return {
           success: true,
@@ -115,11 +105,6 @@ export const debugSyncRouter = router({
       limit: z.number().default(10),
     }))
     .query(async ({ input }) => {
-      const db = getDb();
-      if (!db) {
-        return { success: false, error: '数据库连接失败' };
-      }
-
       try {
         // 直接查询sync_tasks表
         const tasks = await (db as any).query(
@@ -156,13 +141,8 @@ export const debugSyncRouter = router({
       accountId: z.number(),
     }))
     .mutation(async ({ input }) => {
-      const db = getDb();
-      if (!db) {
-        return { success: false, error: '数据库连接失败' };
-      }
-
       try {
-        const credentials = await db.getAmazonCredentials(input.accountId);
+        const credentials = await db.getAmazonApiCredentials(input.accountId);
         if (!credentials) {
           return { success: false, error: '未找到API凭证' };
         }
@@ -211,11 +191,6 @@ export const debugSyncRouter = router({
    */
   triggerFullSyncAll: publicProcedure
     .mutation(async () => {
-      const db = getDb();
-      if (!db) {
-        return { success: false, error: '数据库连接失败' };
-      }
-
       try {
         const accounts = await db.getAdAccounts();
         const activeAccounts = accounts.filter((a: any) => 
@@ -227,7 +202,7 @@ export const debugSyncRouter = router({
 
         for (const account of activeAccounts) {
           try {
-            const credentials = await db.getAmazonCredentials(account.id);
+            const credentials = await db.getAmazonApiCredentials(account.id);
             if (!credentials) {
               results.push({ accountId: account.id, store: account.storeName, marketplace: account.marketplace, status: 'skipped', reason: '无API凭证' });
               continue;

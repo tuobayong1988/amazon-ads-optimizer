@@ -17680,14 +17680,14 @@ var require_parseurl = __commonJS({
         return parse9(str);
       }
       var pathname = str;
-      var query2 = null;
+      var query3 = null;
       var search = null;
       for (var i4 = 1; i4 < str.length; i4++) {
         switch (str.charCodeAt(i4)) {
           case 63:
             if (search === null) {
               pathname = str.substring(0, i4);
-              query2 = str.substring(i4 + 1);
+              query3 = str.substring(i4 + 1);
               search = str.substring(i4);
             }
             break;
@@ -17713,7 +17713,7 @@ var require_parseurl = __commonJS({
       url4.href = str;
       url4.pathname = pathname;
       if (search !== null) {
-        url4.query = query2;
+        url4.query = query3;
         url4.search = search;
       }
       return url4;
@@ -18692,7 +18692,7 @@ var require_query = __commonJS({
     var merge3 = require_utils_merge();
     var parseUrl5 = require_parseurl();
     var qs2 = require_lib2();
-    module2.exports = function query2(options) {
+    module2.exports = function query3(options) {
       var opts = merge3({}, options);
       var queryparse = qs2.parse;
       if (typeof options === "function") {
@@ -18702,7 +18702,7 @@ var require_query = __commonJS({
       if (opts !== void 0 && opts.allowPrototypes === void 0) {
         opts.allowPrototypes = true;
       }
-      return function query3(req, res, next) {
+      return function query4(req, res, next) {
         if (!req.query) {
           var val = parseUrl5(req).query;
           req.query = queryparse(val, opts);
@@ -20919,7 +20919,7 @@ var require_application = __commonJS({
     var Router2 = require_router();
     var methods = require_methods();
     var middleware = require_init();
-    var query2 = require_query();
+    var query3 = require_query();
     var debug2 = require_src()("express:application");
     var View2 = require_view();
     var http2 = require("http");
@@ -20985,7 +20985,7 @@ var require_application = __commonJS({
           caseSensitive: this.enabled("case sensitive routing"),
           strict: this.enabled("strict routing")
         });
-        this._router.use(query2(this.get("query parser fn")));
+        this._router.use(query3(this.get("query parser fn")));
         this._router.use(middleware.init(this));
       }
     };
@@ -21832,12 +21832,12 @@ var require_request = __commonJS({
     req.param = function param2(name2, defaultValue) {
       var params = this.params || {};
       var body = this.body || {};
-      var query2 = this.query || {};
+      var query3 = this.query || {};
       var args = arguments.length === 1 ? "name" : "name, default";
       deprecate("req.param(" + args + "): Use req.params, req.body, or req.query instead");
       if (null != params[name2] && params.hasOwnProperty(name2)) return params[name2];
       if (null != body[name2]) return body[name2];
-      if (null != query2[name2]) return query2[name2];
+      if (null != query3[name2]) return query3[name2];
       return defaultValue;
     };
     req.is = function is2(types) {
@@ -24596,14 +24596,14 @@ function isSQLWrapper(value2) {
 }
 function mergeQueries(queries) {
   const result = { sql: "", params: [] };
-  for (const query2 of queries) {
-    result.sql += query2.sql;
-    result.params.push(...query2.params);
-    if (query2.typings?.length) {
+  for (const query3 of queries) {
+    result.sql += query3.sql;
+    result.params.push(...query3.params);
+    if (query3.typings?.length) {
       if (!result.typings) {
         result.typings = [];
       }
-      result.typings.push(...query2.typings);
+      result.typings.push(...query3.typings);
     }
   }
   return result;
@@ -24694,18 +24694,18 @@ var init_sql = __esm({
       shouldInlineParams = false;
       /** @internal */
       usedTables = [];
-      append(query2) {
-        this.queryChunks.push(...query2.queryChunks);
+      append(query3) {
+        this.queryChunks.push(...query3.queryChunks);
         return this;
       }
       toQuery(config2) {
         return tracer.startActiveSpan("drizzle.buildSQL", (span) => {
-          const query2 = this.buildQueryFromSourceParams(this.queryChunks, config2);
+          const query3 = this.buildQueryFromSourceParams(this.queryChunks, config2);
           span?.setAttributes({
-            "drizzle.query.text": query2.sql,
-            "drizzle.query.params": JSON.stringify(query2.params)
+            "drizzle.query.text": query3.sql,
+            "drizzle.query.params": JSON.stringify(query3.params)
           });
-          return query2;
+          return query3;
         });
       }
       buildQueryFromSourceParams(chunks, _config) {
@@ -24984,14 +24984,14 @@ var init_sql = __esm({
       [ViewBaseConfig];
       /** @internal */
       [IsDrizzleView] = true;
-      constructor({ name: name2, schema, selectedFields, query: query2 }) {
+      constructor({ name: name2, schema, selectedFields, query: query3 }) {
         this[ViewBaseConfig] = {
           name: name2,
           originalName: name2,
           schema,
           selectedFields,
-          query: query2,
-          isExisting: !query2,
+          query: query3,
+          isExisting: !query3,
           isAlias: false
         };
       }
@@ -25024,11 +25024,11 @@ function aliasedTableColumn(column, tableAlias) {
     new ColumnAliasProxyHandler(new Proxy(column.table, new TableAliasProxyHandler(tableAlias, false)))
   );
 }
-function mapColumnsInAliasedSQLToAlias(query2, alias2) {
-  return new SQL.Aliased(mapColumnsInSQLToAlias(query2.sql, alias2), query2.fieldAlias);
+function mapColumnsInAliasedSQLToAlias(query3, alias2) {
+  return new SQL.Aliased(mapColumnsInSQLToAlias(query3.sql, alias2), query3.fieldAlias);
 }
-function mapColumnsInSQLToAlias(query2, alias2) {
-  return sql.join(query2.queryChunks.map((c5) => {
+function mapColumnsInSQLToAlias(query3, alias2) {
+  return sql.join(query3.queryChunks.map((c5) => {
     if (is(c5, Column)) {
       return aliasedTableColumn(c5, alias2);
     }
@@ -25134,10 +25134,10 @@ var init_errors = __esm({
       }
     };
     DrizzleQueryError = class _DrizzleQueryError extends Error {
-      constructor(query2, params, cause) {
-        super(`Failed query: ${query2}
+      constructor(query3, params, cause) {
+        super(`Failed query: ${query3}
 params: ${params}`);
-        this.query = query2;
+        this.query = query3;
         this.params = params;
         this.cause = cause;
         Error.captureStackTrace(this, _DrizzleQueryError);
@@ -25170,7 +25170,7 @@ var init_logger = __esm({
       constructor(config2) {
         this.writer = config2?.writer ?? new ConsoleLogWriter();
       }
-      logQuery(query2, params) {
+      logQuery(query3, params) {
         const stringifiedParams = params.map((p4) => {
           try {
             return JSON.stringify(p4);
@@ -25179,7 +25179,7 @@ var init_logger = __esm({
           }
         });
         const paramsStr = stringifiedParams.length ? ` -- params: [${stringifiedParams.join(", ")}]` : "";
-        this.writer.write(`Query: ${query2}${paramsStr}`);
+        this.writer.write(`Query: ${query3}${paramsStr}`);
       }
     };
     NoopLogger = class {
@@ -28248,11 +28248,11 @@ var init_dialect = __esm({
           if (is(field, SQL.Aliased) && field.isSelectionField) {
             chunk.push(sql.identifier(field.fieldAlias));
           } else if (is(field, SQL.Aliased) || is(field, SQL)) {
-            const query2 = is(field, SQL.Aliased) ? field.sql : field;
+            const query3 = is(field, SQL.Aliased) ? field.sql : field;
             if (isSingleTable) {
               chunk.push(
                 new SQL(
-                  query2.queryChunks.map((c5) => {
+                  query3.queryChunks.map((c5) => {
                     if (is(c5, MySqlColumn)) {
                       return sql.identifier(this.casing.getColumnCasing(c5));
                     }
@@ -28261,7 +28261,7 @@ var init_dialect = __esm({
                 )
               );
             } else {
-              chunk.push(query2);
+              chunk.push(query3);
             }
             if (is(field, SQL.Aliased)) {
               chunk.push(sql` as ${sql.identifier(field.fieldAlias)}`);
@@ -29789,12 +29789,12 @@ var init_select2 = __esm({
           throw new Error("Cannot execute a query on a query builder. Please use a database instance instead.");
         }
         const fieldsList = orderSelectedFields(this.config.fields);
-        const query2 = this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), fieldsList, void 0, void 0, void 0, {
+        const query3 = this.session.prepareQuery(this.dialect.sqlToQuery(this.getSQL()), fieldsList, void 0, void 0, void 0, {
           type: "select",
           tables: [...this.usedTables]
         }, this.cacheConfig);
-        query2.joinsNotNullableMap = this.joinsNotNullableMap;
-        return query2;
+        query3.joinsNotNullableMap = this.joinsNotNullableMap;
+        return query3;
       }
       execute = (placeholderValues) => {
         return this.prepare().execute(placeholderValues);
@@ -30253,12 +30253,12 @@ var init_query = __esm({
       }
       static [entityKind] = "MySqlRelationalQuery";
       prepare() {
-        const { query: query2, builtQuery } = this._toSQL();
+        const { query: query3, builtQuery } = this._toSQL();
         return this.session.prepareQuery(
           builtQuery,
           void 0,
           (rawRows) => {
-            const rows = rawRows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, query2.selection));
+            const rows = rawRows.map((row) => mapRelationalRow(this.schema, this.tableConfig, row, query3.selection));
             if (this.queryMode === "first") {
               return rows[0];
             }
@@ -30267,7 +30267,7 @@ var init_query = __esm({
         );
       }
       _getQuery() {
-        const query2 = this.mode === "planetscale" ? this.dialect.buildRelationalQueryWithoutLateralSubqueries({
+        const query3 = this.mode === "planetscale" ? this.dialect.buildRelationalQueryWithoutLateralSubqueries({
           fullSchema: this.fullSchema,
           schema: this.schema,
           tableNamesMap: this.tableNamesMap,
@@ -30284,12 +30284,12 @@ var init_query = __esm({
           queryConfig: this.config,
           tableAlias: this.tableConfig.tsName
         });
-        return query2;
+        return query3;
       }
       _toSQL() {
-        const query2 = this._getQuery();
-        const builtQuery = this.dialect.sqlToQuery(query2.sql);
-        return { builtQuery, query: query2 };
+        const query3 = this._getQuery();
+        const builtQuery = this.dialect.sqlToQuery(query3.sql);
+        return { builtQuery, query: query3 };
       }
       /** @internal */
       getSQL() {
@@ -30529,8 +30529,8 @@ var init_db = __esm({
       delete(table) {
         return new MySqlDeleteBase(table, this.session, this.dialect);
       }
-      execute(query2) {
-        return this.session.execute(typeof query2 === "string" ? sql.raw(query2) : query2.getSQL());
+      execute(query3) {
+        return this.session.execute(typeof query3 === "string" ? sql.raw(query3) : query3.getSQL());
       }
       transaction(transaction, config2) {
         return this.session.transaction(transaction, config2);
@@ -30602,17 +30602,17 @@ var init_session = __esm({
       }
       static [entityKind] = "MySqlPreparedQuery";
       /** @internal */
-      async queryWithCache(queryString, params, query2) {
+      async queryWithCache(queryString, params, query3) {
         if (this.cache === void 0 || is(this.cache, NoopCache) || this.queryMetadata === void 0) {
           try {
-            return await query2();
+            return await query3();
           } catch (e6) {
             throw new DrizzleQueryError(queryString, params, e6);
           }
         }
         if (this.cacheConfig && !this.cacheConfig.enable) {
           try {
-            return await query2();
+            return await query3();
           } catch (e6) {
             throw new DrizzleQueryError(queryString, params, e6);
           }
@@ -30620,7 +30620,7 @@ var init_session = __esm({
         if ((this.queryMetadata.type === "insert" || this.queryMetadata.type === "update" || this.queryMetadata.type === "delete") && this.queryMetadata.tables.length > 0) {
           try {
             const [res] = await Promise.all([
-              query2(),
+              query3(),
               this.cache.onMutate({ tables: this.queryMetadata.tables })
             ]);
             return res;
@@ -30630,7 +30630,7 @@ var init_session = __esm({
         }
         if (!this.cacheConfig) {
           try {
-            return await query2();
+            return await query3();
           } catch (e6) {
             throw new DrizzleQueryError(queryString, params, e6);
           }
@@ -30645,7 +30645,7 @@ var init_session = __esm({
           if (fromCache === void 0) {
             let result;
             try {
-              result = await query2();
+              result = await query3();
             } catch (e6) {
               throw new DrizzleQueryError(queryString, params, e6);
             }
@@ -30662,7 +30662,7 @@ var init_session = __esm({
           return fromCache;
         }
         try {
-          return await query2();
+          return await query3();
         } catch (e6) {
           throw new DrizzleQueryError(queryString, params, e6);
         }
@@ -30675,9 +30675,9 @@ var init_session = __esm({
         this.dialect = dialect;
       }
       static [entityKind] = "MySqlSession";
-      execute(query2) {
+      execute(query3) {
         return this.prepareQuery(
-          this.dialect.sqlToQuery(query2),
+          this.dialect.sqlToQuery(query3),
           void 0
         ).execute();
       }
@@ -30771,7 +30771,7 @@ var init_session2 = __esm({
       async execute(placeholderValues = {}) {
         const params = fillPlaceholders(this.params, placeholderValues);
         this.logger.logQuery(this.rawQuery.sql, params);
-        const { fields, client, rawQuery, query: query2, joinsNotNullableMap, customResultMapper, returningIds, generatedIds } = this;
+        const { fields, client, rawQuery, query: query3, joinsNotNullableMap, customResultMapper, returningIds, generatedIds } = this;
         if (!fields && !customResultMapper) {
           const res = await this.queryWithCache(rawQuery.sql, params, async () => {
             return await client.query(rawQuery, params);
@@ -30799,8 +30799,8 @@ var init_session2 = __esm({
           }
           return res;
         }
-        const result = await this.queryWithCache(query2.sql, params, async () => {
-          return await client.query(query2, params);
+        const result = await this.queryWithCache(query3.sql, params, async () => {
+          return await client.query(query3, params);
         });
         const rows = result[0];
         if (customResultMapper) {
@@ -30811,9 +30811,9 @@ var init_session2 = __esm({
       async *iterator(placeholderValues = {}) {
         const params = fillPlaceholders(this.params, placeholderValues);
         const conn = (isPool(this.client) ? await this.client.getConnection() : this.client).connection;
-        const { fields, query: query2, rawQuery, joinsNotNullableMap, client, customResultMapper } = this;
+        const { fields, query: query3, rawQuery, joinsNotNullableMap, client, customResultMapper } = this;
         const hasRowsMapper = Boolean(fields || customResultMapper);
-        const driverQuery = hasRowsMapper ? conn.query(query2, params) : conn.query(rawQuery, params);
+        const driverQuery = hasRowsMapper ? conn.query(query3, params) : conn.query(rawQuery, params);
         const stream4 = driverQuery.stream();
         function dataListener() {
           stream4.pause();
@@ -30864,11 +30864,11 @@ var init_session2 = __esm({
       logger;
       mode;
       cache;
-      prepareQuery(query2, fields, customResultMapper, generatedIds, returningIds, queryMetadata, cacheConfig) {
+      prepareQuery(query3, fields, customResultMapper, generatedIds, returningIds, queryMetadata, cacheConfig) {
         return new MySql2PreparedQuery(
           this.client,
-          query2.sql,
-          query2.params,
+          query3.sql,
+          query3.params,
           this.logger,
           this.cache,
           queryMetadata,
@@ -30883,10 +30883,10 @@ var init_session2 = __esm({
        * @internal
        * What is its purpose?
        */
-      async query(query2, params) {
-        this.logger.logQuery(query2, params);
+      async query(query3, params) {
+        this.logger.logQuery(query3, params);
         const result = await this.client.query({
-          sql: query2,
+          sql: query3,
           values: params,
           rowsAsArray: true,
           typeCast: function(field, next) {
@@ -30898,8 +30898,8 @@ var init_session2 = __esm({
         });
         return result;
       }
-      all(query2) {
-        const querySql = this.dialect.sqlToQuery(query2);
+      all(query3) {
+        const querySql = this.dialect.sqlToQuery(query3);
         this.logger.logQuery(querySql.sql, querySql.params);
         return this.client.execute(querySql.sql, querySql.params).then((result) => result[0]);
       }
@@ -31201,7 +31201,7 @@ var init_view = __esm({
           })
         );
       }
-      as(query2) {
+      as(query3) {
         return new Proxy(
           new MySqlView({
             mysqlConfig: this.config,
@@ -31209,7 +31209,7 @@ var init_view = __esm({
               name: this.name,
               schema: this.schema,
               selectedFields: this.columns,
-              query: query2.inlineParams()
+              query: query3.inlineParams()
             }
           }),
           new SelectionProxyHandler({
@@ -35888,8 +35888,8 @@ async function getBatchOperationItems(batchId) {
 async function listBatchOperations(userId, options) {
   const db = await getDb();
   if (!db) return [];
-  let query2 = db.select().from(batchOperations).where(eq(batchOperations.userId, userId)).orderBy(desc(batchOperations.createdAt)).limit(options?.limit || 50);
-  return await query2;
+  let query3 = db.select().from(batchOperations).where(eq(batchOperations.userId, userId)).orderBy(desc(batchOperations.createdAt)).limit(options?.limit || 50);
+  return await query3;
 }
 async function approveBatchOperation(id, approvedBy) {
   const db = await getDb();
@@ -60135,9 +60135,9 @@ var require_dist_cjs2 = __commonJS({
         return _HttpRequest.clone(this);
       }
     };
-    function cloneQuery(query2) {
-      return Object.keys(query2).reduce((carry, paramName) => {
-        const param2 = query2[paramName];
+    function cloneQuery(query3) {
+      return Object.keys(query3).reduce((carry, paramName) => {
+        const param2 = query3[paramName];
         return {
           ...carry,
           [paramName]: Array.isArray(param2) ? [...param2] : param2
@@ -60594,9 +60594,9 @@ var require_dist_cjs6 = __commonJS({
         return _HttpRequest.clone(this);
       }
     };
-    function cloneQuery(query2) {
-      return Object.keys(query2).reduce((carry, paramName) => {
-        const param2 = query2[paramName];
+    function cloneQuery(query3) {
+      return Object.keys(query3).reduce((carry, paramName) => {
+        const param2 = query3[paramName];
         return {
           ...carry,
           [paramName]: Array.isArray(param2) ? [...param2] : param2
@@ -61847,9 +61847,9 @@ var require_dist_cjs14 = __commonJS({
         return _HttpRequest.clone(this);
       }
     };
-    function cloneQuery(query2) {
-      return Object.keys(query2).reduce((carry, paramName) => {
-        const param2 = query2[paramName];
+    function cloneQuery(query3) {
+      return Object.keys(query3).reduce((carry, paramName) => {
+        const param2 = query3[paramName];
         return {
           ...carry,
           [paramName]: Array.isArray(param2) ? [...param2] : param2
@@ -61905,10 +61905,10 @@ var require_dist_cjs16 = __commonJS({
   "node_modules/@smithy/node-http-handler/node_modules/@smithy/querystring-builder/dist-cjs/index.js"(exports2) {
     "use strict";
     var utilUriEscape = require_dist_cjs15();
-    function buildQueryString(query2) {
+    function buildQueryString(query3) {
       const parts = [];
-      for (let key of Object.keys(query2).sort()) {
-        const value2 = query2[key];
+      for (let key of Object.keys(query3).sort()) {
+        const value2 = query3[key];
         key = utilUriEscape.escapeUri(key);
         if (Array.isArray(value2)) {
           for (let i4 = 0, iLen = value2.length; i4 < iLen; i4++) {
@@ -62474,7 +62474,7 @@ or increase socketAcquisitionWarningTimeout=(millis) in the NodeHttpHandler conf
             reject(abortError);
             return;
           }
-          const { hostname: hostname3, method, port, protocol, query: query2 } = request;
+          const { hostname: hostname3, method, port, protocol, query: query3 } = request;
           let auth = "";
           if (request.username != null || request.password != null) {
             const username = request.username ?? "";
@@ -62494,7 +62494,7 @@ or increase socketAcquisitionWarningTimeout=(millis) in the NodeHttpHandler conf
             fulfilled = true;
             reject(err2);
           };
-          const queryString = querystringBuilder.buildQueryString(query2 || {});
+          const queryString = querystringBuilder.buildQueryString(query3 || {});
           let path6 = request.path;
           if (queryString) {
             path6 += `?${queryString}`;
@@ -62839,9 +62839,9 @@ var require_dist_cjs19 = __commonJS({
         return _HttpRequest.clone(this);
       }
     };
-    function cloneQuery(query2) {
-      return Object.keys(query2).reduce((carry, paramName) => {
-        const param2 = query2[paramName];
+    function cloneQuery(query3) {
+      return Object.keys(query3).reduce((carry, paramName) => {
+        const param2 = query3[paramName];
         return {
           ...carry,
           [paramName]: Array.isArray(param2) ? [...param2] : param2
@@ -62885,10 +62885,10 @@ var require_dist_cjs20 = __commonJS({
   "node_modules/@smithy/fetch-http-handler/node_modules/@smithy/querystring-builder/dist-cjs/index.js"(exports2) {
     "use strict";
     var utilUriEscape = require_dist_cjs15();
-    function buildQueryString(query2) {
+    function buildQueryString(query3) {
       const parts = [];
-      for (let key of Object.keys(query2).sort()) {
-        const value2 = query2[key];
+      for (let key of Object.keys(query3).sort()) {
+        const value2 = query3[key];
         key = utilUriEscape.escapeUri(key);
         if (Array.isArray(value2)) {
           for (let i4 = 0, iLen = value2.length; i4 < iLen; i4++) {
@@ -63680,9 +63680,9 @@ var require_dist_cjs25 = __commonJS({
         return _HttpRequest.clone(this);
       }
     };
-    function cloneQuery(query2) {
-      return Object.keys(query2).reduce((carry, paramName) => {
-        const param2 = query2[paramName];
+    function cloneQuery(query3) {
+      return Object.keys(query3).reduce((carry, paramName) => {
+        const param2 = query3[paramName];
         return {
           ...carry,
           [paramName]: Array.isArray(param2) ? [...param2] : param2
@@ -66218,7 +66218,7 @@ var init_HttpBindingProtocol = __esm({
           ..._input ?? {}
         };
         const serializer = this.serializer;
-        const query2 = {};
+        const query3 = {};
         const headers = {};
         const endpoint = await context.endpoint();
         const ns = NormalizedSchema.of(operationSchema?.input);
@@ -66231,7 +66231,7 @@ var init_HttpBindingProtocol = __esm({
           port: void 0,
           path: "",
           fragment: void 0,
-          query: query2,
+          query: query3,
           headers,
           body: void 0
         });
@@ -66248,7 +66248,7 @@ var init_HttpBindingProtocol = __esm({
               request.path += path6;
             }
             const traitSearchParams = new URLSearchParams(search ?? "");
-            Object.assign(query2, Object.fromEntries(traitSearchParams));
+            Object.assign(query3, Object.fromEntries(traitSearchParams));
           }
         }
         for (const [memberName, memberNs] of ns.structIterator()) {
@@ -66302,7 +66302,7 @@ var init_HttpBindingProtocol = __esm({
             }
             delete input[memberName];
           } else if (memberTraits.httpQuery || memberTraits.httpQueryParams) {
-            this.serializeQuery(memberNs, inputMemberValue, query2);
+            this.serializeQuery(memberNs, inputMemberValue, query3);
             delete input[memberName];
           } else {
             hasNonHttpBindingMember = true;
@@ -66313,23 +66313,23 @@ var init_HttpBindingProtocol = __esm({
           payload4 = serializer.flush();
         }
         request.headers = headers;
-        request.query = query2;
+        request.query = query3;
         request.body = payload4;
         return request;
       }
-      serializeQuery(ns, data4, query2) {
+      serializeQuery(ns, data4, query3) {
         const serializer = this.serializer;
         const traits = ns.getMergedTraits();
         if (traits.httpQueryParams) {
           for (const [key, val] of Object.entries(data4)) {
-            if (!(key in query2)) {
+            if (!(key in query3)) {
               const valueSchema = ns.getValueSchema();
               Object.assign(valueSchema.getMergedTraits(), {
                 ...traits,
                 httpQuery: key,
                 httpQueryParams: void 0
               });
-              this.serializeQuery(valueSchema, val, query2);
+              this.serializeQuery(valueSchema, val, query3);
             }
           }
           return;
@@ -66344,10 +66344,10 @@ var init_HttpBindingProtocol = __esm({
               buffer.push(serializable);
             }
           }
-          query2[traits.httpQuery] = buffer;
+          query3[traits.httpQuery] = buffer;
         } else {
           serializer.write([ns, traits], data4);
-          query2[traits.httpQuery] = serializer.flush();
+          query3[traits.httpQuery] = serializer.flush();
         }
       }
       async deserializeResponse(operationSchema, context, response) {
@@ -66469,7 +66469,7 @@ var init_RpcProtocol = __esm({
     RpcProtocol = class extends HttpProtocol {
       async serializeRequest(operationSchema, input, context) {
         const serializer = this.serializer;
-        const query2 = {};
+        const query3 = {};
         const headers = {};
         const endpoint = await context.endpoint();
         const ns = NormalizedSchema.of(operationSchema?.input);
@@ -66481,7 +66481,7 @@ var init_RpcProtocol = __esm({
           port: void 0,
           path: "/",
           fragment: void 0,
-          query: query2,
+          query: query3,
           headers,
           body: void 0
         });
@@ -66515,7 +66515,7 @@ var init_RpcProtocol = __esm({
           }
         }
         request.headers = headers;
-        request.query = query2;
+        request.query = query3;
         request.body = payload4;
         request.method = "POST";
         return request;
@@ -66637,8 +66637,8 @@ var init_requestBuilder = __esm({
         this.headers = headers;
         return this;
       }
-      q(query2) {
-        this.query = query2;
+      q(query3) {
+        this.query = query3;
         return this;
       }
       b(body) {
@@ -68145,9 +68145,9 @@ var require_dist_cjs33 = __commonJS({
         return _HttpRequest.clone(this);
       }
     };
-    function cloneQuery(query2) {
-      return Object.keys(query2).reduce((carry, paramName) => {
-        const param2 = query2[paramName];
+    function cloneQuery(query3) {
+      return Object.keys(query3).reduce((carry, paramName) => {
+        const param2 = query3[paramName];
         return {
           ...carry,
           [paramName]: Array.isArray(param2) ? [...param2] : param2
@@ -68435,9 +68435,9 @@ var require_dist_cjs35 = __commonJS({
         return _HttpRequest.clone(this);
       }
     };
-    function cloneQuery(query2) {
-      return Object.keys(query2).reduce((carry, paramName) => {
-        const param2 = query2[paramName];
+    function cloneQuery(query3) {
+      return Object.keys(query3).reduce((carry, paramName) => {
+        const param2 = query3[paramName];
         return {
           ...carry,
           [paramName]: Array.isArray(param2) ? [...param2] : param2
@@ -71366,7 +71366,7 @@ var init_HttpBindingProtocol2 = __esm({
           ..._input ?? {}
         };
         const serializer = this.serializer;
-        const query2 = {};
+        const query3 = {};
         const headers = {};
         const endpoint = await context.endpoint();
         const ns = NormalizedSchema2.of(operationSchema?.input);
@@ -71379,7 +71379,7 @@ var init_HttpBindingProtocol2 = __esm({
           port: void 0,
           path: "",
           fragment: void 0,
-          query: query2,
+          query: query3,
           headers,
           body: void 0
         });
@@ -71396,7 +71396,7 @@ var init_HttpBindingProtocol2 = __esm({
               request.path += path6;
             }
             const traitSearchParams = new URLSearchParams(search ?? "");
-            Object.assign(query2, Object.fromEntries(traitSearchParams));
+            Object.assign(query3, Object.fromEntries(traitSearchParams));
           }
         }
         for (const [memberName, memberNs] of ns.structIterator()) {
@@ -71450,7 +71450,7 @@ var init_HttpBindingProtocol2 = __esm({
             }
             delete input[memberName];
           } else if (memberTraits.httpQuery || memberTraits.httpQueryParams) {
-            this.serializeQuery(memberNs, inputMemberValue, query2);
+            this.serializeQuery(memberNs, inputMemberValue, query3);
             delete input[memberName];
           } else {
             hasNonHttpBindingMember = true;
@@ -71461,23 +71461,23 @@ var init_HttpBindingProtocol2 = __esm({
           payload4 = serializer.flush();
         }
         request.headers = headers;
-        request.query = query2;
+        request.query = query3;
         request.body = payload4;
         return request;
       }
-      serializeQuery(ns, data4, query2) {
+      serializeQuery(ns, data4, query3) {
         const serializer = this.serializer;
         const traits = ns.getMergedTraits();
         if (traits.httpQueryParams) {
           for (const [key, val] of Object.entries(data4)) {
-            if (!(key in query2)) {
+            if (!(key in query3)) {
               const valueSchema = ns.getValueSchema();
               Object.assign(valueSchema.getMergedTraits(), {
                 ...traits,
                 httpQuery: key,
                 httpQueryParams: void 0
               });
-              this.serializeQuery(valueSchema, val, query2);
+              this.serializeQuery(valueSchema, val, query3);
             }
           }
           return;
@@ -71492,10 +71492,10 @@ var init_HttpBindingProtocol2 = __esm({
               buffer.push(serializable);
             }
           }
-          query2[traits.httpQuery] = buffer;
+          query3[traits.httpQuery] = buffer;
         } else {
           serializer.write([ns, traits], data4);
-          query2[traits.httpQuery] = serializer.flush();
+          query3[traits.httpQuery] = serializer.flush();
         }
       }
       async deserializeResponse(operationSchema, context, response) {
@@ -71617,7 +71617,7 @@ var init_RpcProtocol2 = __esm({
     RpcProtocol2 = class extends HttpProtocol2 {
       async serializeRequest(operationSchema, input, context) {
         const serializer = this.serializer;
-        const query2 = {};
+        const query3 = {};
         const headers = {};
         const endpoint = await context.endpoint();
         const ns = NormalizedSchema2.of(operationSchema?.input);
@@ -71629,7 +71629,7 @@ var init_RpcProtocol2 = __esm({
           port: void 0,
           path: "/",
           fragment: void 0,
-          query: query2,
+          query: query3,
           headers,
           body: void 0
         });
@@ -71663,7 +71663,7 @@ var init_RpcProtocol2 = __esm({
           }
         }
         request.headers = headers;
-        request.query = query2;
+        request.query = query3;
         request.body = payload4;
         request.method = "POST";
         return request;
@@ -71785,8 +71785,8 @@ var init_requestBuilder2 = __esm({
         this.headers = headers;
         return this;
       }
-      q(query2) {
-        this.query = query2;
+      q(query3) {
+        this.query = query3;
         return this;
       }
       b(body) {
@@ -72558,9 +72558,9 @@ var require_dist_cjs38 = __commonJS({
             return value2;
           }
           if (typeof value2 === "object" && "hostname" in value2) {
-            const { hostname: hostname4, port, protocol: protocol2 = "", path: path6 = "", query: query2 = {} } = value2;
+            const { hostname: hostname4, port, protocol: protocol2 = "", path: path6 = "", query: query3 = {} } = value2;
             const url3 = new URL(`${protocol2}//${hostname4}${port ? `:${port}` : ""}${path6}`);
-            url3.search = Object.entries(query2).map(([k5, v6]) => `${k5}=${v6}`).join("&");
+            url3.search = Object.entries(query3).map(([k5, v6]) => `${k5}=${v6}`).join("&");
             return url3;
           }
           return new URL(value2);
@@ -72858,7 +72858,7 @@ var require_dist_cjs39 = __commonJS({
   "node_modules/@smithy/url-parser/node_modules/@smithy/querystring-parser/dist-cjs/index.js"(exports2) {
     "use strict";
     function parseQueryString(querystring) {
-      const query2 = {};
+      const query3 = {};
       querystring = querystring.replace(/^\?/, "");
       if (querystring) {
         for (const pair of querystring.split("&")) {
@@ -72867,16 +72867,16 @@ var require_dist_cjs39 = __commonJS({
           if (value2) {
             value2 = decodeURIComponent(value2);
           }
-          if (!(key in query2)) {
-            query2[key] = value2;
-          } else if (Array.isArray(query2[key])) {
-            query2[key].push(value2);
+          if (!(key in query3)) {
+            query3[key] = value2;
+          } else if (Array.isArray(query3[key])) {
+            query3[key].push(value2);
           } else {
-            query2[key] = [query2[key], value2];
+            query3[key] = [query3[key], value2];
           }
         }
       }
-      return query2;
+      return query3;
     }
     exports2.parseQueryString = parseQueryString;
   }
@@ -72892,16 +72892,16 @@ var require_dist_cjs40 = __commonJS({
         return parseUrl5(new URL(url3));
       }
       const { hostname: hostname3, pathname, port, protocol, search } = url3;
-      let query2;
+      let query3;
       if (search) {
-        query2 = querystringParser.parseQueryString(search);
+        query3 = querystringParser.parseQueryString(search);
       }
       return {
         hostname: hostname3,
         port: port ? parseInt(port) : void 0,
         protocol,
         path: pathname,
-        query: query2
+        query: query3
       };
     };
     exports2.parseUrl = parseUrl5;
@@ -73978,18 +73978,18 @@ var require_dist_cjs43 = __commonJS({
       return false;
     };
     var moveHeadersToQuery = (request, options = {}) => {
-      const { headers, query: query2 = {} } = protocolHttp.HttpRequest.clone(request);
+      const { headers, query: query3 = {} } = protocolHttp.HttpRequest.clone(request);
       for (const name2 of Object.keys(headers)) {
         const lname = name2.toLowerCase();
         if (lname.slice(0, 6) === "x-amz-" && !options.unhoistableHeaders?.has(lname) || options.hoistableHeaders?.has(lname)) {
-          query2[name2] = headers[name2];
+          query3[name2] = headers[name2];
           delete headers[name2];
         }
       }
       return {
         ...request,
         headers,
-        query: query2
+        query: query3
       };
     };
     var prepareRequest = (request) => {
@@ -74001,16 +74001,16 @@ var require_dist_cjs43 = __commonJS({
       }
       return request;
     };
-    var getCanonicalQuery = ({ query: query2 = {} }) => {
+    var getCanonicalQuery = ({ query: query3 = {} }) => {
       const keys = [];
       const serialized = {};
-      for (const key of Object.keys(query2)) {
+      for (const key of Object.keys(query3)) {
         if (key.toLowerCase() === SIGNATURE_HEADER) {
           continue;
         }
         const encodedKey = utilUriEscape.escapeUri(key);
         keys.push(encodedKey);
-        const value2 = query2[key];
+        const value2 = query3[key];
         if (typeof value2 === "string") {
           serialized[encodedKey] = `${encodedKey}=${utilUriEscape.escapeUri(value2)}`;
         } else if (Array.isArray(value2)) {
@@ -79927,9 +79927,9 @@ var require_dist_cjs53 = __commonJS({
         return _HttpRequest.clone(this);
       }
     };
-    function cloneQuery(query2) {
-      return Object.keys(query2).reduce((carry, paramName) => {
-        const param2 = query2[paramName];
+    function cloneQuery(query3) {
+      return Object.keys(query3).reduce((carry, paramName) => {
+        const param2 = query3[paramName];
         return {
           ...carry,
           [paramName]: Array.isArray(param2) ? [...param2] : param2
@@ -82858,7 +82858,7 @@ var init_HttpBindingProtocol3 = __esm({
           ..._input ?? {}
         };
         const serializer = this.serializer;
-        const query2 = {};
+        const query3 = {};
         const headers = {};
         const endpoint = await context.endpoint();
         const ns = NormalizedSchema3.of(operationSchema?.input);
@@ -82871,7 +82871,7 @@ var init_HttpBindingProtocol3 = __esm({
           port: void 0,
           path: "",
           fragment: void 0,
-          query: query2,
+          query: query3,
           headers,
           body: void 0
         });
@@ -82888,7 +82888,7 @@ var init_HttpBindingProtocol3 = __esm({
               request.path += path6;
             }
             const traitSearchParams = new URLSearchParams(search ?? "");
-            Object.assign(query2, Object.fromEntries(traitSearchParams));
+            Object.assign(query3, Object.fromEntries(traitSearchParams));
           }
         }
         for (const [memberName, memberNs] of ns.structIterator()) {
@@ -82942,7 +82942,7 @@ var init_HttpBindingProtocol3 = __esm({
             }
             delete input[memberName];
           } else if (memberTraits.httpQuery || memberTraits.httpQueryParams) {
-            this.serializeQuery(memberNs, inputMemberValue, query2);
+            this.serializeQuery(memberNs, inputMemberValue, query3);
             delete input[memberName];
           } else {
             hasNonHttpBindingMember = true;
@@ -82953,23 +82953,23 @@ var init_HttpBindingProtocol3 = __esm({
           payload4 = serializer.flush();
         }
         request.headers = headers;
-        request.query = query2;
+        request.query = query3;
         request.body = payload4;
         return request;
       }
-      serializeQuery(ns, data4, query2) {
+      serializeQuery(ns, data4, query3) {
         const serializer = this.serializer;
         const traits = ns.getMergedTraits();
         if (traits.httpQueryParams) {
           for (const [key, val] of Object.entries(data4)) {
-            if (!(key in query2)) {
+            if (!(key in query3)) {
               const valueSchema = ns.getValueSchema();
               Object.assign(valueSchema.getMergedTraits(), {
                 ...traits,
                 httpQuery: key,
                 httpQueryParams: void 0
               });
-              this.serializeQuery(valueSchema, val, query2);
+              this.serializeQuery(valueSchema, val, query3);
             }
           }
           return;
@@ -82984,10 +82984,10 @@ var init_HttpBindingProtocol3 = __esm({
               buffer.push(serializable);
             }
           }
-          query2[traits.httpQuery] = buffer;
+          query3[traits.httpQuery] = buffer;
         } else {
           serializer.write([ns, traits], data4);
-          query2[traits.httpQuery] = serializer.flush();
+          query3[traits.httpQuery] = serializer.flush();
         }
       }
       async deserializeResponse(operationSchema, context, response) {
@@ -83109,7 +83109,7 @@ var init_RpcProtocol3 = __esm({
     RpcProtocol3 = class extends HttpProtocol3 {
       async serializeRequest(operationSchema, input, context) {
         const serializer = this.serializer;
-        const query2 = {};
+        const query3 = {};
         const headers = {};
         const endpoint = await context.endpoint();
         const ns = NormalizedSchema3.of(operationSchema?.input);
@@ -83121,7 +83121,7 @@ var init_RpcProtocol3 = __esm({
           port: void 0,
           path: "/",
           fragment: void 0,
-          query: query2,
+          query: query3,
           headers,
           body: void 0
         });
@@ -83155,7 +83155,7 @@ var init_RpcProtocol3 = __esm({
           }
         }
         request.headers = headers;
-        request.query = query2;
+        request.query = query3;
         request.body = payload4;
         request.method = "POST";
         return request;
@@ -83277,8 +83277,8 @@ var init_requestBuilder4 = __esm({
         this.headers = headers;
         return this;
       }
-      q(query2) {
-        this.query = query2;
+      q(query3) {
+        this.query = query3;
         return this;
       }
       b(body) {
@@ -84032,9 +84032,9 @@ var require_dist_cjs56 = __commonJS({
         return _HttpRequest.clone(this);
       }
     };
-    function cloneQuery(query2) {
-      return Object.keys(query2).reduce((carry, paramName) => {
-        const param2 = query2[paramName];
+    function cloneQuery(query3) {
+      return Object.keys(query3).reduce((carry, paramName) => {
+        const param2 = query3[paramName];
         return {
           ...carry,
           [paramName]: Array.isArray(param2) ? [...param2] : param2
@@ -85366,9 +85366,9 @@ var require_dist_cjs65 = __commonJS({
         return _HttpRequest.clone(this);
       }
     };
-    function cloneQuery(query2) {
-      return Object.keys(query2).reduce((carry, paramName) => {
-        const param2 = query2[paramName];
+    function cloneQuery(query3) {
+      return Object.keys(query3).reduce((carry, paramName) => {
+        const param2 = query3[paramName];
         return {
           ...carry,
           [paramName]: Array.isArray(param2) ? [...param2] : param2
@@ -88264,7 +88264,7 @@ var init_HttpBindingProtocol4 = __esm({
           ..._input ?? {}
         };
         const serializer = this.serializer;
-        const query2 = {};
+        const query3 = {};
         const headers = {};
         const endpoint = await context.endpoint();
         const ns = NormalizedSchema4.of(operationSchema?.input);
@@ -88277,7 +88277,7 @@ var init_HttpBindingProtocol4 = __esm({
           port: void 0,
           path: "",
           fragment: void 0,
-          query: query2,
+          query: query3,
           headers,
           body: void 0
         });
@@ -88294,7 +88294,7 @@ var init_HttpBindingProtocol4 = __esm({
               request.path += path6;
             }
             const traitSearchParams = new URLSearchParams(search ?? "");
-            Object.assign(query2, Object.fromEntries(traitSearchParams));
+            Object.assign(query3, Object.fromEntries(traitSearchParams));
           }
         }
         for (const [memberName, memberNs] of ns.structIterator()) {
@@ -88348,7 +88348,7 @@ var init_HttpBindingProtocol4 = __esm({
             }
             delete input[memberName];
           } else if (memberTraits.httpQuery || memberTraits.httpQueryParams) {
-            this.serializeQuery(memberNs, inputMemberValue, query2);
+            this.serializeQuery(memberNs, inputMemberValue, query3);
             delete input[memberName];
           } else {
             hasNonHttpBindingMember = true;
@@ -88359,23 +88359,23 @@ var init_HttpBindingProtocol4 = __esm({
           payload4 = serializer.flush();
         }
         request.headers = headers;
-        request.query = query2;
+        request.query = query3;
         request.body = payload4;
         return request;
       }
-      serializeQuery(ns, data4, query2) {
+      serializeQuery(ns, data4, query3) {
         const serializer = this.serializer;
         const traits = ns.getMergedTraits();
         if (traits.httpQueryParams) {
           for (const [key, val] of Object.entries(data4)) {
-            if (!(key in query2)) {
+            if (!(key in query3)) {
               const valueSchema = ns.getValueSchema();
               Object.assign(valueSchema.getMergedTraits(), {
                 ...traits,
                 httpQuery: key,
                 httpQueryParams: void 0
               });
-              this.serializeQuery(valueSchema, val, query2);
+              this.serializeQuery(valueSchema, val, query3);
             }
           }
           return;
@@ -88390,10 +88390,10 @@ var init_HttpBindingProtocol4 = __esm({
               buffer.push(serializable);
             }
           }
-          query2[traits.httpQuery] = buffer;
+          query3[traits.httpQuery] = buffer;
         } else {
           serializer.write([ns, traits], data4);
-          query2[traits.httpQuery] = serializer.flush();
+          query3[traits.httpQuery] = serializer.flush();
         }
       }
       async deserializeResponse(operationSchema, context, response) {
@@ -88515,7 +88515,7 @@ var init_RpcProtocol4 = __esm({
     RpcProtocol4 = class extends HttpProtocol4 {
       async serializeRequest(operationSchema, input, context) {
         const serializer = this.serializer;
-        const query2 = {};
+        const query3 = {};
         const headers = {};
         const endpoint = await context.endpoint();
         const ns = NormalizedSchema4.of(operationSchema?.input);
@@ -88527,7 +88527,7 @@ var init_RpcProtocol4 = __esm({
           port: void 0,
           path: "/",
           fragment: void 0,
-          query: query2,
+          query: query3,
           headers,
           body: void 0
         });
@@ -88561,7 +88561,7 @@ var init_RpcProtocol4 = __esm({
           }
         }
         request.headers = headers;
-        request.query = query2;
+        request.query = query3;
         request.body = payload4;
         request.method = "POST";
         return request;
@@ -88683,8 +88683,8 @@ var init_requestBuilder6 = __esm({
         this.headers = headers;
         return this;
       }
-      q(query2) {
-        this.query = query2;
+      q(query3) {
+        this.query = query3;
         return this;
       }
       b(body) {
@@ -91108,18 +91108,18 @@ var require_dist_cjs72 = __commonJS({
       return false;
     };
     var moveHeadersToQuery = (request, options = {}) => {
-      const { headers, query: query2 = {} } = protocolHttp.HttpRequest.clone(request);
+      const { headers, query: query3 = {} } = protocolHttp.HttpRequest.clone(request);
       for (const name2 of Object.keys(headers)) {
         const lname = name2.toLowerCase();
         if (lname.slice(0, 6) === "x-amz-" && !options.unhoistableHeaders?.has(lname) || options.hoistableHeaders?.has(lname)) {
-          query2[name2] = headers[name2];
+          query3[name2] = headers[name2];
           delete headers[name2];
         }
       }
       return {
         ...request,
         headers,
-        query: query2
+        query: query3
       };
     };
     var prepareRequest = (request) => {
@@ -91131,16 +91131,16 @@ var require_dist_cjs72 = __commonJS({
       }
       return request;
     };
-    var getCanonicalQuery = ({ query: query2 = {} }) => {
+    var getCanonicalQuery = ({ query: query3 = {} }) => {
       const keys = [];
       const serialized = {};
-      for (const key of Object.keys(query2)) {
+      for (const key of Object.keys(query3)) {
         if (key.toLowerCase() === SIGNATURE_HEADER) {
           continue;
         }
         const encodedKey = utilUriEscape.escapeUri(key);
         keys.push(encodedKey);
-        const value2 = query2[key];
+        const value2 = query3[key];
         if (typeof value2 === "string") {
           serialized[encodedKey] = `${encodedKey}=${utilUriEscape.escapeUri(value2)}`;
         } else if (Array.isArray(value2)) {
@@ -96580,9 +96580,9 @@ var require_dist_cjs78 = __commonJS({
         return _HttpRequest.clone(this);
       }
     };
-    function cloneQuery(query2) {
-      return Object.keys(query2).reduce((carry, paramName) => {
-        const param2 = query2[paramName];
+    function cloneQuery(query3) {
+      return Object.keys(query3).reduce((carry, paramName) => {
+        const param2 = query3[paramName];
         return {
           ...carry,
           [paramName]: Array.isArray(param2) ? [...param2] : param2
@@ -99407,7 +99407,7 @@ var init_HttpBindingProtocol5 = __esm({
           ..._input ?? {}
         };
         const serializer = this.serializer;
-        const query2 = {};
+        const query3 = {};
         const headers = {};
         const endpoint = await context.endpoint();
         const ns = NormalizedSchema5.of(operationSchema?.input);
@@ -99420,7 +99420,7 @@ var init_HttpBindingProtocol5 = __esm({
           port: void 0,
           path: "",
           fragment: void 0,
-          query: query2,
+          query: query3,
           headers,
           body: void 0
         });
@@ -99437,7 +99437,7 @@ var init_HttpBindingProtocol5 = __esm({
               request.path += path6;
             }
             const traitSearchParams = new URLSearchParams(search ?? "");
-            Object.assign(query2, Object.fromEntries(traitSearchParams));
+            Object.assign(query3, Object.fromEntries(traitSearchParams));
           }
         }
         for (const [memberName, memberNs] of ns.structIterator()) {
@@ -99491,7 +99491,7 @@ var init_HttpBindingProtocol5 = __esm({
             }
             delete input[memberName];
           } else if (memberTraits.httpQuery || memberTraits.httpQueryParams) {
-            this.serializeQuery(memberNs, inputMemberValue, query2);
+            this.serializeQuery(memberNs, inputMemberValue, query3);
             delete input[memberName];
           } else {
             hasNonHttpBindingMember = true;
@@ -99502,23 +99502,23 @@ var init_HttpBindingProtocol5 = __esm({
           payload4 = serializer.flush();
         }
         request.headers = headers;
-        request.query = query2;
+        request.query = query3;
         request.body = payload4;
         return request;
       }
-      serializeQuery(ns, data4, query2) {
+      serializeQuery(ns, data4, query3) {
         const serializer = this.serializer;
         const traits = ns.getMergedTraits();
         if (traits.httpQueryParams) {
           for (const [key, val] of Object.entries(data4)) {
-            if (!(key in query2)) {
+            if (!(key in query3)) {
               const valueSchema = ns.getValueSchema();
               Object.assign(valueSchema.getMergedTraits(), {
                 ...traits,
                 httpQuery: key,
                 httpQueryParams: void 0
               });
-              this.serializeQuery(valueSchema, val, query2);
+              this.serializeQuery(valueSchema, val, query3);
             }
           }
           return;
@@ -99533,10 +99533,10 @@ var init_HttpBindingProtocol5 = __esm({
               buffer.push(serializable);
             }
           }
-          query2[traits.httpQuery] = buffer;
+          query3[traits.httpQuery] = buffer;
         } else {
           serializer.write([ns, traits], data4);
-          query2[traits.httpQuery] = serializer.flush();
+          query3[traits.httpQuery] = serializer.flush();
         }
       }
       async deserializeResponse(operationSchema, context, response) {
@@ -99658,7 +99658,7 @@ var init_RpcProtocol5 = __esm({
     RpcProtocol5 = class extends HttpProtocol5 {
       async serializeRequest(operationSchema, input, context) {
         const serializer = this.serializer;
-        const query2 = {};
+        const query3 = {};
         const headers = {};
         const endpoint = await context.endpoint();
         const ns = NormalizedSchema5.of(operationSchema?.input);
@@ -99670,7 +99670,7 @@ var init_RpcProtocol5 = __esm({
           port: void 0,
           path: "/",
           fragment: void 0,
-          query: query2,
+          query: query3,
           headers,
           body: void 0
         });
@@ -99704,7 +99704,7 @@ var init_RpcProtocol5 = __esm({
           }
         }
         request.headers = headers;
-        request.query = query2;
+        request.query = query3;
         request.body = payload4;
         request.method = "POST";
         return request;
@@ -99826,8 +99826,8 @@ var init_requestBuilder7 = __esm({
         this.headers = headers;
         return this;
       }
-      q(query2) {
-        this.query = query2;
+      q(query3) {
+        this.query = query3;
         return this;
       }
       b(body) {
@@ -101866,18 +101866,18 @@ var require_dist_cjs83 = __commonJS({
       return false;
     };
     var moveHeadersToQuery = (request, options = {}) => {
-      const { headers, query: query2 = {} } = protocolHttp.HttpRequest.clone(request);
+      const { headers, query: query3 = {} } = protocolHttp.HttpRequest.clone(request);
       for (const name2 of Object.keys(headers)) {
         const lname = name2.toLowerCase();
         if (lname.slice(0, 6) === "x-amz-" && !options.unhoistableHeaders?.has(lname) || options.hoistableHeaders?.has(lname)) {
-          query2[name2] = headers[name2];
+          query3[name2] = headers[name2];
           delete headers[name2];
         }
       }
       return {
         ...request,
         headers,
-        query: query2
+        query: query3
       };
     };
     var prepareRequest = (request) => {
@@ -101889,16 +101889,16 @@ var require_dist_cjs83 = __commonJS({
       }
       return request;
     };
-    var getCanonicalQuery = ({ query: query2 = {} }) => {
+    var getCanonicalQuery = ({ query: query3 = {} }) => {
       const keys = [];
       const serialized = {};
-      for (const key of Object.keys(query2)) {
+      for (const key of Object.keys(query3)) {
         if (key.toLowerCase() === SIGNATURE_HEADER) {
           continue;
         }
         const encodedKey = utilUriEscape.escapeUri(key);
         keys.push(encodedKey);
-        const value2 = query2[key];
+        const value2 = query3[key];
         if (typeof value2 === "string") {
           serialized[encodedKey] = `${encodedKey}=${utilUriEscape.escapeUri(value2)}`;
         } else if (Array.isArray(value2)) {
@@ -102686,9 +102686,9 @@ var require_dist_cjs86 = __commonJS({
         return _HttpRequest.clone(this);
       }
     };
-    function cloneQuery(query2) {
-      return Object.keys(query2).reduce((carry, paramName) => {
-        const param2 = query2[paramName];
+    function cloneQuery(query3) {
+      return Object.keys(query3).reduce((carry, paramName) => {
+        const param2 = query3[paramName];
         return {
           ...carry,
           [paramName]: Array.isArray(param2) ? [...param2] : param2
@@ -105617,7 +105617,7 @@ var init_HttpBindingProtocol6 = __esm({
           ..._input ?? {}
         };
         const serializer = this.serializer;
-        const query2 = {};
+        const query3 = {};
         const headers = {};
         const endpoint = await context.endpoint();
         const ns = NormalizedSchema6.of(operationSchema?.input);
@@ -105630,7 +105630,7 @@ var init_HttpBindingProtocol6 = __esm({
           port: void 0,
           path: "",
           fragment: void 0,
-          query: query2,
+          query: query3,
           headers,
           body: void 0
         });
@@ -105647,7 +105647,7 @@ var init_HttpBindingProtocol6 = __esm({
               request.path += path6;
             }
             const traitSearchParams = new URLSearchParams(search ?? "");
-            Object.assign(query2, Object.fromEntries(traitSearchParams));
+            Object.assign(query3, Object.fromEntries(traitSearchParams));
           }
         }
         for (const [memberName, memberNs] of ns.structIterator()) {
@@ -105701,7 +105701,7 @@ var init_HttpBindingProtocol6 = __esm({
             }
             delete input[memberName];
           } else if (memberTraits.httpQuery || memberTraits.httpQueryParams) {
-            this.serializeQuery(memberNs, inputMemberValue, query2);
+            this.serializeQuery(memberNs, inputMemberValue, query3);
             delete input[memberName];
           } else {
             hasNonHttpBindingMember = true;
@@ -105712,23 +105712,23 @@ var init_HttpBindingProtocol6 = __esm({
           payload4 = serializer.flush();
         }
         request.headers = headers;
-        request.query = query2;
+        request.query = query3;
         request.body = payload4;
         return request;
       }
-      serializeQuery(ns, data4, query2) {
+      serializeQuery(ns, data4, query3) {
         const serializer = this.serializer;
         const traits = ns.getMergedTraits();
         if (traits.httpQueryParams) {
           for (const [key, val] of Object.entries(data4)) {
-            if (!(key in query2)) {
+            if (!(key in query3)) {
               const valueSchema = ns.getValueSchema();
               Object.assign(valueSchema.getMergedTraits(), {
                 ...traits,
                 httpQuery: key,
                 httpQueryParams: void 0
               });
-              this.serializeQuery(valueSchema, val, query2);
+              this.serializeQuery(valueSchema, val, query3);
             }
           }
           return;
@@ -105743,10 +105743,10 @@ var init_HttpBindingProtocol6 = __esm({
               buffer.push(serializable);
             }
           }
-          query2[traits.httpQuery] = buffer;
+          query3[traits.httpQuery] = buffer;
         } else {
           serializer.write([ns, traits], data4);
-          query2[traits.httpQuery] = serializer.flush();
+          query3[traits.httpQuery] = serializer.flush();
         }
       }
       async deserializeResponse(operationSchema, context, response) {
@@ -105868,7 +105868,7 @@ var init_RpcProtocol6 = __esm({
     RpcProtocol6 = class extends HttpProtocol6 {
       async serializeRequest(operationSchema, input, context) {
         const serializer = this.serializer;
-        const query2 = {};
+        const query3 = {};
         const headers = {};
         const endpoint = await context.endpoint();
         const ns = NormalizedSchema6.of(operationSchema?.input);
@@ -105880,7 +105880,7 @@ var init_RpcProtocol6 = __esm({
           port: void 0,
           path: "/",
           fragment: void 0,
-          query: query2,
+          query: query3,
           headers,
           body: void 0
         });
@@ -105914,7 +105914,7 @@ var init_RpcProtocol6 = __esm({
           }
         }
         request.headers = headers;
-        request.query = query2;
+        request.query = query3;
         request.body = payload4;
         request.method = "POST";
         return request;
@@ -106036,8 +106036,8 @@ var init_requestBuilder9 = __esm({
         this.headers = headers;
         return this;
       }
-      q(query2) {
-        this.query = query2;
+      q(query3) {
+        this.query = query3;
         return this;
       }
       b(body) {
@@ -108006,18 +108006,18 @@ var require_dist_cjs91 = __commonJS({
       return false;
     };
     var moveHeadersToQuery = (request, options = {}) => {
-      const { headers, query: query2 = {} } = protocolHttp.HttpRequest.clone(request);
+      const { headers, query: query3 = {} } = protocolHttp.HttpRequest.clone(request);
       for (const name2 of Object.keys(headers)) {
         const lname = name2.toLowerCase();
         if (lname.slice(0, 6) === "x-amz-" && !options.unhoistableHeaders?.has(lname) || options.hoistableHeaders?.has(lname)) {
-          query2[name2] = headers[name2];
+          query3[name2] = headers[name2];
           delete headers[name2];
         }
       }
       return {
         ...request,
         headers,
-        query: query2
+        query: query3
       };
     };
     var prepareRequest = (request) => {
@@ -108029,16 +108029,16 @@ var require_dist_cjs91 = __commonJS({
       }
       return request;
     };
-    var getCanonicalQuery = ({ query: query2 = {} }) => {
+    var getCanonicalQuery = ({ query: query3 = {} }) => {
       const keys = [];
       const serialized = {};
-      for (const key of Object.keys(query2)) {
+      for (const key of Object.keys(query3)) {
         if (key.toLowerCase() === SIGNATURE_HEADER) {
           continue;
         }
         const encodedKey = utilUriEscape.escapeUri(key);
         keys.push(encodedKey);
-        const value2 = query2[key];
+        const value2 = query3[key];
         if (typeof value2 === "string") {
           serialized[encodedKey] = `${encodedKey}=${utilUriEscape.escapeUri(value2)}`;
         } else if (Array.isArray(value2)) {
@@ -119111,9 +119111,9 @@ var require_dist_cjs109 = __commonJS({
         return _HttpRequest.clone(this);
       }
     };
-    function cloneQuery(query2) {
-      return Object.keys(query2).reduce((carry, paramName) => {
-        const param2 = query2[paramName];
+    function cloneQuery(query3) {
+      return Object.keys(query3).reduce((carry, paramName) => {
+        const param2 = query3[paramName];
         return {
           ...carry,
           [paramName]: Array.isArray(param2) ? [...param2] : param2
@@ -129049,7 +129049,7 @@ async function getSmartMergedData(accountId, startDate, endDate, options) {
 }
 async function getApiPerformanceData(db, accountId, startDate, endDate, campaignIds) {
   try {
-    let query2 = sql`
+    let query3 = sql`
       SELECT 
         DATE(date) as reportDate,
         campaignId,
@@ -129069,7 +129069,7 @@ async function getApiPerformanceData(db, accountId, startDate, endDate, campaign
         AND DATE(date) >= ${startDate}
         AND DATE(date) <= ${endDate}
     `;
-    const [rows] = await db.execute(query2);
+    const [rows] = await db.execute(query3);
     return Array.isArray(rows) ? rows : [];
   } catch (error54) {
     console.error("[EnhancedDualTrack] \u83B7\u53D6API\u6570\u636E\u5931\u8D25:", error54);
@@ -130161,31 +130161,31 @@ async function applyBudgetAllocation(allocationId, userId) {
 async function getBudgetAllocationHistory(userId, accountId, limit = 20) {
   const db = await getDb();
   if (!db) return [];
-  const query2 = accountId ? and(
+  const query3 = accountId ? and(
     eq(budgetAllocations.userId, userId),
     eq(budgetAllocations.accountId, accountId)
   ) : eq(budgetAllocations.userId, userId);
-  const allocations = await db.select().from(budgetAllocations).where(query2).orderBy(desc(budgetAllocations.createdAt)).limit(limit);
+  const allocations = await db.select().from(budgetAllocations).where(query3).orderBy(desc(budgetAllocations.createdAt)).limit(limit);
   return allocations;
 }
 async function getBudgetHistory(userId, options = {}) {
   const db = await getDb();
   if (!db) return [];
   const { accountId, campaignId, startDate, endDate, limit = 50 } = options;
-  let query2 = eq(budgetHistory.userId, userId);
+  let query3 = eq(budgetHistory.userId, userId);
   if (accountId) {
-    query2 = and(query2, eq(budgetHistory.accountId, accountId));
+    query3 = and(query3, eq(budgetHistory.accountId, accountId));
   }
   if (campaignId) {
-    query2 = and(query2, eq(budgetHistory.campaignId, campaignId));
+    query3 = and(query3, eq(budgetHistory.campaignId, campaignId));
   }
   if (startDate) {
-    query2 = and(query2, gte(budgetHistory.createdAt, startDate.toISOString()));
+    query3 = and(query3, gte(budgetHistory.createdAt, startDate.toISOString()));
   }
   if (endDate) {
-    query2 = and(query2, lte(budgetHistory.createdAt, endDate.toISOString()));
+    query3 = and(query3, lte(budgetHistory.createdAt, endDate.toISOString()));
   }
-  const history = await db.select().from(budgetHistory).where(query2).orderBy(desc(budgetHistory.createdAt)).limit(limit);
+  const history = await db.select().from(budgetHistory).where(query3).orderBy(desc(budgetHistory.createdAt)).limit(limit);
   return history;
 }
 async function createBudgetGoal(userId, data4) {
@@ -130211,8 +130211,8 @@ async function createBudgetGoal(userId, data4) {
 async function getBudgetGoals(userId, accountId) {
   const db = await getDb();
   if (!db) return [];
-  const query2 = accountId ? and(eq(budgetGoals.userId, userId), eq(budgetGoals.accountId, accountId)) : eq(budgetGoals.userId, userId);
-  const goals = await db.select().from(budgetGoals).where(query2).orderBy(desc(budgetGoals.createdAt));
+  const query3 = accountId ? and(eq(budgetGoals.userId, userId), eq(budgetGoals.accountId, accountId)) : eq(budgetGoals.userId, userId);
+  const goals = await db.select().from(budgetGoals).where(query3).orderBy(desc(budgetGoals.createdAt));
   return goals;
 }
 async function updateBudgetGoal(goalId, data4) {
@@ -131207,9 +131207,9 @@ async function getApplicationHistory(accountId, campaignId, limit = 20) {
   if (!db) {
     return [];
   }
-  let query2;
+  let query3;
   if (campaignId) {
-    query2 = sql`
+    query3 = sql`
       SELECT * FROM marginal_benefit_applications
       WHERE account_id = ${accountId}
       AND campaign_id = ${campaignId}
@@ -131217,14 +131217,14 @@ async function getApplicationHistory(accountId, campaignId, limit = 20) {
       LIMIT ${limit}
     `;
   } else {
-    query2 = sql`
+    query3 = sql`
       SELECT * FROM marginal_benefit_applications
       WHERE account_id = ${accountId}
       ORDER BY created_at DESC
       LIMIT ${limit}
     `;
   }
-  const result = await db.execute(query2);
+  const result = await db.execute(query3);
   return result[0] || [];
 }
 async function getBatchAnalysisHistory(accountId, limit = 10) {
@@ -131598,22 +131598,22 @@ async function createAuditLog2(input) {
     return { success: false, error: error54.message };
   }
 }
-async function queryAuditLogs(query2) {
+async function queryAuditLogs(query3) {
   const db = await getDb();
   if (!db) return { logs: [], total: 0 };
   try {
     const conditions = [];
-    if (query2.organizationId) conditions.push(`organization_id = ${query2.organizationId}`);
-    if (query2.userId) conditions.push(`user_id = ${query2.userId}`);
-    if (query2.actionType) conditions.push(`actionType = '${query2.actionType}'`);
-    if (query2.actionCategory) conditions.push(`actionCategory = '${query2.actionCategory}'`);
-    if (query2.resourceType) conditions.push(`targetType = '${query2.resourceType}'`);
-    if (query2.status) conditions.push(`status = '${query2.status}'`);
-    if (query2.startDate) conditions.push(`createdAt >= '${query2.startDate}'`);
-    if (query2.endDate) conditions.push(`createdAt <= '${query2.endDate}'`);
+    if (query3.organizationId) conditions.push(`organization_id = ${query3.organizationId}`);
+    if (query3.userId) conditions.push(`user_id = ${query3.userId}`);
+    if (query3.actionType) conditions.push(`actionType = '${query3.actionType}'`);
+    if (query3.actionCategory) conditions.push(`actionCategory = '${query3.actionCategory}'`);
+    if (query3.resourceType) conditions.push(`targetType = '${query3.resourceType}'`);
+    if (query3.status) conditions.push(`status = '${query3.status}'`);
+    if (query3.startDate) conditions.push(`createdAt >= '${query3.startDate}'`);
+    if (query3.endDate) conditions.push(`createdAt <= '${query3.endDate}'`);
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-    const limit = query2.limit || 50;
-    const offset2 = query2.offset || 0;
+    const limit = query3.limit || 50;
+    const offset2 = query3.offset || 0;
     const countResult = await db.execute(sql.raw(`SELECT COUNT(*) as total FROM audit_logs ${whereClause}`));
     const total = countResult[0]?.[0]?.total || 0;
     const result = await db.execute(sql.raw(`
@@ -181841,7 +181841,7 @@ var init_build2 = __esm({
         let basename5 = "file";
         let directory = "";
         let folder = "";
-        let query2 = "";
+        let query3 = "";
         if (loaderContext.resourcePath) {
           const parsed = path$12.parse(loaderContext.resourcePath);
           let resourcePath = loaderContext.resourcePath;
@@ -181858,13 +181858,13 @@ var init_build2 = __esm({
           else folder = path$12.basename(directory);
         }
         if (loaderContext.resourceQuery && loaderContext.resourceQuery.length > 1) {
-          query2 = loaderContext.resourceQuery;
-          const hashIdx = query2.indexOf("#");
-          if (hashIdx >= 0) query2 = query2.substr(0, hashIdx);
+          query3 = loaderContext.resourceQuery;
+          const hashIdx = query3.indexOf("#");
+          if (hashIdx >= 0) query3 = query3.substr(0, hashIdx);
         }
         let url3 = filename;
         if (content) url3 = url3.replace(/\[(?:([^[:\]]+):)?(?:hash|contenthash)(?::([a-z]+\d*(?:safe)?))?(?::(\d+))?\]/gi, (all3, hashType, digestType, maxLength) => getHashDigest(content, hashType, digestType, parseInt(maxLength, 10)));
-        url3 = url3.replace(/\[ext\]/gi, () => ext).replace(/\[name\]/gi, () => basename5).replace(/\[path\]/gi, () => directory).replace(/\[folder\]/gi, () => folder).replace(/\[query\]/gi, () => query2);
+        url3 = url3.replace(/\[ext\]/gi, () => ext).replace(/\[name\]/gi, () => basename5).replace(/\[path\]/gi, () => directory).replace(/\[folder\]/gi, () => folder).replace(/\[query\]/gi, () => query3);
         if (regExp && loaderContext.resourcePath) {
           const match = loaderContext.resourcePath.match(new RegExp(regExp));
           match && match.forEach((matched, i$1) => {
@@ -191719,14 +191719,14 @@ function parseFileUrl(input) {
   const path$13 = match[2];
   return makeUrl("file:", "", match[1] || "", "", isAbsolutePath(path$13) ? path$13 : "/" + path$13, match[3] || "", match[4] || "");
 }
-function makeUrl(scheme, user, host, port, path$13, query2, hash$1) {
+function makeUrl(scheme, user, host, port, path$13, query3, hash$1) {
   return {
     scheme,
     user,
     host,
     port,
     path: path$13,
-    query: query2,
+    query: query3,
     hash: hash$1,
     type: 7
   };
@@ -195636,8 +195636,8 @@ function encodeQueryItem(key, value$1) {
   if (Array.isArray(value$1)) return value$1.map((_value) => `${encodeQueryKey(key)}=${encodeQueryValue(_value)}`).join("&");
   return `${encodeQueryKey(key)}=${encodeQueryValue(value$1)}`;
 }
-function stringifyQuery(query2) {
-  return Object.keys(query2).filter((k5) => query2[k5] !== void 0).map((k5) => encodeQueryItem(k5, query2[k5])).filter(Boolean).join("&");
+function stringifyQuery(query3) {
+  return Object.keys(query3).filter((k5) => query3[k5] !== void 0).map((k5) => encodeQueryItem(k5, query3[k5])).filter(Boolean).join("&");
 }
 function clearImports(imports) {
   return (imports || "").replace(/\/\/[^\n]*\n|\/\*.*\*\//g, "").replace(/\s+/g, " ");
@@ -197692,19 +197692,19 @@ function parse$1(req$4) {
   if (raw == null) return;
   let prev = req$4._parsedUrl;
   if (prev && prev.raw === raw) return prev;
-  let pathname = raw, search = "", query2;
+  let pathname = raw, search = "", query3;
   if (raw.length > 1) {
     let idx = raw.indexOf("?", 1);
     if (idx !== -1) {
       search = raw.substring(idx);
       pathname = raw.substring(0, idx);
-      if (search.length > 1) query2 = qs.parse(search.substring(1));
+      if (search.length > 1) query3 = qs.parse(search.substring(1));
     }
   }
   return req$4._parsedUrl = {
     pathname,
     search,
-    query: query2,
+    query: query3,
     raw
   };
 }
@@ -211835,13 +211835,13 @@ Error: ${e$1.message}`);
       function fastparse(str) {
         if (typeof str !== "string" || str.charCodeAt(0) !== 47) return parse$10(str);
         var pathname = str;
-        var query2 = null;
+        var query3 = null;
         var search = null;
         for (var i$1 = 1; i$1 < str.length; i$1++) switch (str.charCodeAt(i$1)) {
           case 63:
             if (search === null) {
               pathname = str.substring(0, i$1);
-              query2 = str.substring(i$1 + 1);
+              query3 = str.substring(i$1 + 1);
               search = str.substring(i$1);
             }
             break;
@@ -211860,7 +211860,7 @@ Error: ${e$1.message}`);
         url$3.href = str;
         url$3.pathname = pathname;
         if (search !== null) {
-          url$3.query = query2;
+          url$3.query = query3;
           url$3.search = search;
         }
         return url$3;
@@ -258655,14 +258655,14 @@ var require_resolve_uri_umd = __commonJS({
         const path6 = match[2];
         return makeUrl3("file:", "", match[1] || "", "", isAbsolutePath3(path6) ? path6 : "/" + path6, match[3] || "", match[4] || "");
       }
-      function makeUrl3(scheme, user, host, port, path6, query2, hash3) {
+      function makeUrl3(scheme, user, host, port, path6, query3, hash3) {
         return {
           scheme,
           user,
           host,
           port,
           path: path6,
-          query: query2,
+          query: query3,
           hash: hash3,
           type: 7
         };
@@ -276497,15 +276497,15 @@ var require_parse10 = __commonJS({
       }
       return "";
     }
-    function matchQuery(all3, query2) {
-      var node = { query: query2 };
-      if (query2.indexOf("not ") === 0) {
+    function matchQuery(all3, query3) {
+      var node = { query: query3 };
+      if (query3.indexOf("not ") === 0) {
         node.not = true;
-        query2 = query2.slice(4);
+        query3 = query3.slice(4);
       }
       for (var name2 in all3) {
         var type = all3[name2];
-        var match = query2.match(type.regexp);
+        var match = query3.match(type.regexp);
         if (match) {
           node.type = name2;
           for (var i4 = 0; i4 < type.matches.length; i4++) {
@@ -276799,9 +276799,9 @@ var require_browserslist = __commonJS({
       if (!data4) throw new BrowserslistError("Unknown browser " + name2);
       return data4;
     }
-    function unknownQuery(query2) {
+    function unknownQuery(query3) {
       return new BrowserslistError(
-        "Unknown browser query `" + query2 + "`. Maybe you are using old Browserslist or made typo in query."
+        "Unknown browser query `" + query3 + "`. Maybe you are using old Browserslist or made typo in query."
       );
     }
     function filterJumps(list8, name2, nVersions, context) {
@@ -290022,7 +290022,7 @@ var require_ExportsFieldPlugin = __commonJS({
             (path6, callback3, i4) => {
               const parsedIdentifier = parseIdentifier(path6);
               if (!parsedIdentifier) return callback3();
-              const [relativePath, query2, fragment] = parsedIdentifier;
+              const [relativePath, query3, fragment] = parsedIdentifier;
               if (relativePath.length === 0 || !relativePath.startsWith("./")) {
                 if (paths.length === i4) {
                   return callback3(
@@ -290052,7 +290052,7 @@ var require_ExportsFieldPlugin = __commonJS({
                   relativePath
                 ),
                 relativePath,
-                query: query2,
+                query: query3,
                 fragment
               };
               resolver3.doResolve(
@@ -290315,7 +290315,7 @@ var require_ImportsFieldPlugin = __commonJS({
             (path6, callback3, i4) => {
               const parsedIdentifier = parseIdentifier(path6);
               if (!parsedIdentifier) return callback3();
-              const [path_, query2, fragment] = parsedIdentifier;
+              const [path_, query3, fragment] = parsedIdentifier;
               switch (path_.charCodeAt(0)) {
                 // should be relative
                 case dotCode: {
@@ -290338,7 +290338,7 @@ var require_ImportsFieldPlugin = __commonJS({
                       path_
                     ),
                     relativePath: path_,
-                    query: query2,
+                    query: query3,
                     fragment
                   };
                   resolver3.doResolve(
@@ -290361,7 +290361,7 @@ var require_ImportsFieldPlugin = __commonJS({
                     request: path_,
                     relativePath: path_,
                     fullySpecified: true,
-                    query: query2,
+                    query: query3,
                     fragment
                   };
                   resolver3.doResolve(
@@ -299970,14 +299970,14 @@ function parseFileUrl2(input) {
   const path6 = match[2];
   return makeUrl2("file:", "", match[1] || "", "", isAbsolutePath2(path6) ? path6 : "/" + path6, match[3] || "", match[4] || "");
 }
-function makeUrl2(scheme, user, host, port, path6, query2, hash3) {
+function makeUrl2(scheme, user, host, port, path6, query3, hash3) {
   return {
     scheme,
     user,
     host,
     port,
     path: path6,
-    query: query2,
+    query: query3,
     hash: hash3,
     type: 7
   };
@@ -323994,14 +323994,14 @@ function generateRollbackReason(rule2, estimatedProfit, actualProfit, profitDiff
 async function runRollbackEvaluation(accountId) {
   const db = await getDb();
   if (!db) return { evaluated: 0, suggestions: [] };
-  let query2 = db.select().from(bidAdjustmentHistory).where(
+  let query3 = db.select().from(bidAdjustmentHistory).where(
     and(
       sql`${bidAdjustmentHistory.status} != 'rolled_back'`,
       // 至少有7天追踪数据
       isNotNull(bidAdjustmentHistory.actualProfit7D)
     )
   );
-  const records = await query2;
+  const records = await query3;
   const filteredRecords = accountId ? records.filter((r5) => r5.accountId === accountId) : records;
   const newSuggestions = [];
   const enabledRules = rollbackRules.filter((r5) => r5.enabled);
@@ -325259,17 +325259,17 @@ function generateNgrams2(tokens, n7) {
 async function getCoreKeywordRoots(accountId, campaignIds) {
   const db = await getDb();
   if (!db) return /* @__PURE__ */ new Set();
-  let query2 = `
+  let query3 = `
     SELECT DISTINCT keyword_text 
     FROM keywords 
     WHERE account_id = ?
   `;
   const params = [accountId];
   if (campaignIds && campaignIds.length > 0) {
-    query2 += ` AND campaign_id IN (${campaignIds.map(() => "?").join(",")})`;
+    query3 += ` AND campaign_id IN (${campaignIds.map(() => "?").join(",")})`;
     params.push(...campaignIds);
   }
-  const result = await db.execute(sql.raw(query2));
+  const result = await db.execute(sql.raw(query3));
   const rows = result[0] || [];
   const coreRoots = /* @__PURE__ */ new Set();
   for (const row of rows) {
@@ -325285,7 +325285,7 @@ async function analyzeSearchTermNgrams(accountId, campaignIds, days = 30) {
   startDate.setDate(startDate.getDate() - days);
   const startDateStr = startDate.toISOString().split("T")[0];
   const coreRoots = await getCoreKeywordRoots(accountId, campaignIds);
-  let query2 = `
+  let query3 = `
     SELECT 
       search_term,
       SUM(search_term_impressions) as impressions,
@@ -325299,11 +325299,11 @@ async function analyzeSearchTermNgrams(accountId, campaignIds, days = 30) {
   `;
   const params = [accountId, startDateStr];
   if (campaignIds && campaignIds.length > 0) {
-    query2 += ` AND campaign_id IN (${campaignIds.map(() => "?").join(",")})`;
+    query3 += ` AND campaign_id IN (${campaignIds.map(() => "?").join(",")})`;
     params.push(...campaignIds);
   }
-  query2 += ` GROUP BY search_term`;
-  const result = await db.execute(sql.raw(query2));
+  query3 += ` GROUP BY search_term`;
+  const result = await db.execute(sql.raw(query3));
   const searchTermData = result[0] || [];
   const ngramStats = /* @__PURE__ */ new Map();
   for (const row of searchTermData) {
@@ -325539,7 +325539,7 @@ async function analyzeSearchTermPerformance(accountId, campaignIds, days = 30) {
   const startDate = /* @__PURE__ */ new Date();
   startDate.setDate(startDate.getDate() - days);
   const startDateStr = startDate.toISOString().split("T")[0];
-  let query2 = `
+  let query3 = `
     SELECT 
       st.search_term,
       st.campaign_id,
@@ -325558,11 +325558,11 @@ async function analyzeSearchTermPerformance(accountId, campaignIds, days = 30) {
   `;
   const params = [accountId, startDateStr];
   if (campaignIds && campaignIds.length > 0) {
-    query2 += ` AND st.campaign_id IN (${campaignIds.map(() => "?").join(",")})`;
+    query3 += ` AND st.campaign_id IN (${campaignIds.map(() => "?").join(",")})`;
     params.push(...campaignIds);
   }
-  query2 += ` GROUP BY st.search_term, st.campaign_id, c.campaign_name, st.ad_group_id, st.search_term_match_type`;
-  const result = await db.execute(sql.raw(query2));
+  query3 += ` GROUP BY st.search_term, st.campaign_id, c.campaign_name, st.ad_group_id, st.search_term_match_type`;
+  const result = await db.execute(sql.raw(query3));
   const rows = result[0] || [];
   return rows.map((t7) => {
     const impressions = Number(t7.impressions) || 0;
@@ -329564,16 +329564,12 @@ var debugSyncRouter = router({
   testApiConnection: publicProcedure.input(external_exports.object({
     accountId: external_exports.number()
   })).query(async ({ input }) => {
-    const db = getDb();
-    if (!db) {
-      return { success: false, error: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" };
-    }
     try {
-      const credentials = await db.getAmazonCredentials(input.accountId);
+      const credentials = await getAmazonApiCredentials(input.accountId);
       if (!credentials) {
         return { success: false, error: "\u672A\u627E\u5230API\u51ED\u8BC1" };
       }
-      const account = await db.getAdAccountById(input.accountId);
+      const account = await getAdAccountById(input.accountId);
       const marketplace = account?.marketplace || "US";
       const syncService = await AmazonSyncService.createFromCredentials(
         {
@@ -329616,12 +329612,8 @@ var debugSyncRouter = router({
   checkDatabaseCampaigns: publicProcedure.input(external_exports.object({
     accountId: external_exports.number()
   })).query(async ({ input }) => {
-    const db = getDb();
-    if (!db) {
-      return { success: false, error: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" };
-    }
     try {
-      const campaigns6 = await db.getCampaignsByAccount(input.accountId);
+      const campaigns6 = await getCampaignsByAccountId(input.accountId);
       return {
         success: true,
         data: {
@@ -329647,12 +329639,8 @@ var debugSyncRouter = router({
     accountId: external_exports.number(),
     limit: external_exports.number().default(10)
   })).query(async ({ input }) => {
-    const db = getDb();
-    if (!db) {
-      return { success: false, error: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" };
-    }
     try {
-      const tasks = await db.query(
+      const tasks = await (void 0)(
         `SELECT * FROM sync_tasks 
            WHERE account_id = ? 
            ORDER BY created_at DESC 
@@ -329682,16 +329670,12 @@ var debugSyncRouter = router({
   triggerFullSync: publicProcedure.input(external_exports.object({
     accountId: external_exports.number()
   })).mutation(async ({ input }) => {
-    const db = getDb();
-    if (!db) {
-      return { success: false, error: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" };
-    }
     try {
-      const credentials = await db.getAmazonCredentials(input.accountId);
+      const credentials = await getAmazonApiCredentials(input.accountId);
       if (!credentials) {
         return { success: false, error: "\u672A\u627E\u5230API\u51ED\u8BC1" };
       }
-      const account = await db.getAdAccountById(input.accountId);
+      const account = await getAdAccountById(input.accountId);
       const marketplace = account?.marketplace || "US";
       const syncService = await AmazonSyncService.createFromCredentials(
         {
@@ -329731,12 +329715,8 @@ var debugSyncRouter = router({
    * 批量触发所有账户的全量同步
    */
   triggerFullSyncAll: publicProcedure.mutation(async () => {
-    const db = getDb();
-    if (!db) {
-      return { success: false, error: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" };
-    }
     try {
-      const accounts = await db.getAdAccounts();
+      const accounts = await getAdAccounts();
       const activeAccounts = accounts.filter(
         (a4) => a4.marketplace && a4.marketplace !== "" && a4.connectionStatus === "connected"
       );
@@ -329744,7 +329724,7 @@ var debugSyncRouter = router({
       const startTime = (/* @__PURE__ */ new Date()).toISOString();
       for (const account of activeAccounts) {
         try {
-          const credentials = await db.getAmazonCredentials(account.id);
+          const credentials = await getAmazonApiCredentials(account.id);
           if (!credentials) {
             results.push({ accountId: account.id, store: account.storeName, marketplace: account.marketplace, status: "skipped", reason: "\u65E0API\u51ED\u8BC1" });
             continue;
@@ -330829,17 +330809,17 @@ async function getSyncScheduleById(id, userId) {
 async function getSyncSchedules(userId, accountId) {
   const db = await getDb();
   if (!db) return [];
-  let query2 = sql`
+  let query3 = sql`
     SELECT id, user_id as userId, account_id as accountId, sync_type as syncType, frequency, hour, day_of_week as dayOfWeek, day_of_month as dayOfMonth, is_enabled as isEnabled, last_run_at as lastRunAt, next_run_at as nextRunAt
     FROM sync_schedules WHERE user_id = ${userId}
   `;
   if (accountId) {
-    query2 = sql`
+    query3 = sql`
       SELECT id, user_id as userId, account_id as accountId, sync_type as syncType, frequency, hour, day_of_week as dayOfWeek, day_of_month as dayOfMonth, is_enabled as isEnabled, last_run_at as lastRunAt, next_run_at as nextRunAt
       FROM sync_schedules WHERE user_id = ${userId} AND account_id = ${accountId}
     `;
   }
-  const result = await db.execute(query2);
+  const result = await db.execute(query3);
   return result[0] || [];
 }
 async function executeScheduledSync(scheduleId) {
@@ -333935,13 +333915,13 @@ async function applyOptimizationRecommendation(recommendationId, userId) {
 }
 async function getPendingRecommendations(accountId, campaignId) {
   const db = await getDbInstance4();
-  let query2 = db.select().from(optimizationRecommendations).where(
+  let query3 = db.select().from(optimizationRecommendations).where(
     and(
       eq(optimizationRecommendations.accountId, accountId),
       eq(optimizationRecommendations.status, "pending")
     )
   ).orderBy(desc(optimizationRecommendations.createdAt));
-  const results = await query2;
+  const results = await query3;
   return results.filter((r5) => !campaignId || r5.campaignId === campaignId).map((r5) => ({
     id: r5.id,
     type: r5.recommendationType,
