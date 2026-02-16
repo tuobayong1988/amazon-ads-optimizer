@@ -342706,9 +342706,10 @@ async function executeScheduledSync2() {
       return;
     }
     for (const schedule of schedules) {
-      if (!shouldExecuteSync(schedule)) {
-        continue;
-      }
+      // v99 fix: Removed shouldExecuteSync check - full sync always runs for all enabled accounts
+      // Root cause: lastRunAt was updated by high/medium tier syncs (every 5/15 min),
+      // so shouldExecuteSync() always returned false for the hourly full sync
+      console.log("[DataSyncScheduler] Full sync: starting account " + schedule.accountId + " (skip time check)");
       try {
         await executeSyncForAccount(schedule);
         schedulerStatus2.successfulSyncs++;
@@ -343067,6 +343068,91 @@ async function startServer2() {
   app.use(import_express3.default.json({ limit: "50mb" }));
   app.use(import_express3.default.urlencoded({ limit: "50mb", extended: true }));
   registerOAuthRoutes(app);
+  // v99: Manual sync trigger endpoint
+  app.post("/api/trigger-full-sync", async (req, res) => {
+    const { accountId } = req.body || {};
+    console.log("[ManualSync] Received trigger-full-sync request, accountId:", accountId);
+    try {
+      const schedules = await getEnabledSyncSchedules();
+      if (schedules.length === 0) {
+        return res.json({ success: false, message: "No enabled sync schedules" });
+      }
+      const targetSchedules = accountId 
+        ? schedules.filter(s => s.accountId === Number(accountId))
+        : schedules;
+      console.log("[ManualSync] Will sync " + targetSchedules.length + " accounts");
+      // Run async - don't wait
+      (async () => {
+        for (const schedule of targetSchedules) {
+          try {
+            console.log("[ManualSync] Starting full sync for account " + schedule.accountId);
+            await executeSyncForAccount(schedule);
+            console.log("[ManualSync] Completed full sync for account " + schedule.accountId);
+          } catch (err) {
+            console.error("[ManualSync] Failed sync for account " + schedule.accountId + ":", err.message);
+          }
+        }
+        console.log("[ManualSync] All accounts sync completed");
+      })();
+      res.json({ success: true, message: "Full sync triggered for " + targetSchedules.length + " accounts", accounts: targetSchedules.map(s => s.accountId) });
+    } catch (error) {
+      console.error("[ManualSync] Error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
+  // v99: Quick performance-only sync endpoint
+  app.post("/api/trigger-performance-sync", async (req, res) => {
+    const { accountId, days } = req.body || {};
+    const syncDays = days || 14;
+    console.log("[ManualSync] Received trigger-performance-sync request, accountId:", accountId, "days:", syncDays);
+    try {
+      const schedules = await getEnabledSyncSchedules();
+      const targetSchedules = accountId 
+        ? schedules.filter(s => s.accountId === Number(accountId))
+        : schedules;
+      // Run async
+      (async () => {
+        for (const schedule of targetSchedules) {
+          try {
+            const account = await getAdAccountById(schedule.accountId);
+            if (!account) continue;
+            const credentials = await getAmazonApiCredentials(schedule.accountId);
+            if (!credentials) continue;
+            const syncService = await AmazonSyncService.createFromCredentials(
+              {
+                clientId: credentials.clientId || "",
+                clientSecret: credentials.clientSecret || "",
+                refreshToken: credentials.refreshToken || "",
+                profileId: account.profileId || "",
+                region: credentials.region || "NA"
+              },
+              schedule.accountId,
+              schedule.userId,
+              account.marketplace || "US"
+            );
+            console.log("[ManualSync] Starting performance sync for account " + schedule.accountId);
+            const perfResult = await syncService.syncPerformanceData(syncDays);
+            console.log("[ManualSync] Performance sync done for account " + schedule.accountId + ": " + perfResult + " records");
+            try {
+              const placementResult = await syncService.syncPlacementPerformance(syncDays);
+              console.log("[ManualSync] Placement sync done: " + placementResult + " records");
+            } catch(e) { console.error("[ManualSync] Placement sync failed:", e.message); }
+            try {
+              const searchTermResult = await syncService.syncSearchTerms(syncDays);
+              console.log("[ManualSync] Search term sync done: " + searchTermResult + " records");
+            } catch(e) { console.error("[ManualSync] Search term sync failed:", e.message); }
+          } catch (err) {
+            console.error("[ManualSync] Failed performance sync for account " + schedule.accountId + ":", err.message);
+          }
+        }
+        console.log("[ManualSync] All performance syncs completed");
+      })();
+      res.json({ success: true, message: "Performance sync triggered for " + targetSchedules.length + " accounts" });
+    } catch (error) {
+      console.error("[ManualSync] Error:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  });
   app.use("/api", sitemap_default);
   app.use(
     "/api/trpc",
