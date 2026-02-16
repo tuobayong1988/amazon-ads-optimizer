@@ -121651,7 +121651,7 @@ var require_dist_cjs116 = __commonJS({
       extensions.forEach((extension) => extension.configure(extensionConfiguration));
       return Object.assign(runtimeConfig2, regionConfigResolver.resolveAwsRegionExtensionConfiguration(extensionConfiguration), smithyClient.resolveDefaultRuntimeConfig(extensionConfiguration), protocolHttp.resolveHttpHandlerRuntimeConfig(extensionConfiguration), resolveHttpAuthRuntimeConfig4(extensionConfiguration));
     };
-    var SQSClient2 = class extends smithyClient.Client {
+    var SQSClient3 = class extends smithyClient.Client {
       config;
       constructor(...[configuration]) {
         const _config_0 = runtimeConfig.getRuntimeConfig(configuration || {});
@@ -123274,7 +123274,7 @@ var require_dist_cjs116 = __commonJS({
       return [middlewareEndpoint.getEndpointPlugin(config2, Command.getEndpointParameterInstructions())];
     }).s("AmazonSQS", "DeleteQueue", {}).n("SQSClient", "DeleteQueueCommand").sc(DeleteQueue$).build() {
     };
-    var GetQueueAttributesCommand2 = class extends smithyClient.Command.classBuilder().ep(commonParams4).m(function(Command, cs, config2, o6) {
+    var GetQueueAttributesCommand3 = class extends smithyClient.Command.classBuilder().ep(commonParams4).m(function(Command, cs, config2, o6) {
       return [middlewareEndpoint.getEndpointPlugin(config2, Command.getEndpointParameterInstructions())];
     }).s("AmazonSQS", "GetQueueAttributes", {}).n("SQSClient", "GetQueueAttributesCommand").sc(GetQueueAttributes$).build() {
     };
@@ -123343,8 +123343,8 @@ var require_dist_cjs116 = __commonJS({
       return [middlewareEndpoint.getEndpointPlugin(config2, Command.getEndpointParameterInstructions())];
     }).s("AmazonSQS", "UntagQueue", {}).n("SQSClient", "UntagQueueCommand").sc(UntagQueue$).build() {
     };
-    var paginateListDeadLetterSourceQueues = core.createPaginator(SQSClient2, ListDeadLetterSourceQueuesCommand, "NextToken", "NextToken", "MaxResults");
-    var paginateListQueues = core.createPaginator(SQSClient2, ListQueuesCommand, "NextToken", "NextToken", "MaxResults");
+    var paginateListDeadLetterSourceQueues = core.createPaginator(SQSClient3, ListDeadLetterSourceQueuesCommand, "NextToken", "NextToken", "MaxResults");
+    var paginateListQueues = core.createPaginator(SQSClient3, ListQueuesCommand, "NextToken", "NextToken", "MaxResults");
     var commands4 = {
       AddPermissionCommand,
       CancelMessageMoveTaskCommand,
@@ -123354,7 +123354,7 @@ var require_dist_cjs116 = __commonJS({
       DeleteMessageCommand: DeleteMessageCommand2,
       DeleteMessageBatchCommand,
       DeleteQueueCommand,
-      GetQueueAttributesCommand: GetQueueAttributesCommand2,
+      GetQueueAttributesCommand: GetQueueAttributesCommand3,
       GetQueueUrlCommand,
       ListDeadLetterSourceQueuesCommand,
       ListMessageMoveTasksCommand,
@@ -123374,7 +123374,7 @@ var require_dist_cjs116 = __commonJS({
       paginateListDeadLetterSourceQueues,
       paginateListQueues
     };
-    var SQS = class extends SQSClient2 {
+    var SQS = class extends SQSClient3 {
     };
     smithyClient.createAggregatedClient(commands4, SQS, { paginators });
     var QueueAttributeName = {
@@ -123468,7 +123468,7 @@ var require_dist_cjs116 = __commonJS({
     exports2.EmptyBatchRequest = EmptyBatchRequest;
     exports2.EmptyBatchRequest$ = EmptyBatchRequest$;
     exports2.GetQueueAttributes$ = GetQueueAttributes$;
-    exports2.GetQueueAttributesCommand = GetQueueAttributesCommand2;
+    exports2.GetQueueAttributesCommand = GetQueueAttributesCommand3;
     exports2.GetQueueAttributesRequest$ = GetQueueAttributesRequest$;
     exports2.GetQueueAttributesResult$ = GetQueueAttributesResult$;
     exports2.GetQueueUrl$ = GetQueueUrl$;
@@ -123555,7 +123555,7 @@ var require_dist_cjs116 = __commonJS({
     exports2.ResourceNotFoundException = ResourceNotFoundException;
     exports2.ResourceNotFoundException$ = ResourceNotFoundException$;
     exports2.SQS = SQS;
-    exports2.SQSClient = SQSClient2;
+    exports2.SQSClient = SQSClient3;
     exports2.SQSServiceException = SQSServiceException;
     exports2.SQSServiceException$ = SQSServiceException$;
     exports2.SendMessage$ = SendMessage$;
@@ -329102,6 +329102,99 @@ var debugSyncRouter = router({
         stack: error54.stack
       };
     }
+  })
+});
+
+// server/routes/dev.ts
+var import_client_sqs2 = __toESM(require_dist_cjs116());
+init_db2();
+init_drizzle_orm();
+var SQS_QUEUE_URLS = {
+  "sp-traffic": process.env.AWS_SQS_QUEUE_TRAFFIC_URL,
+  "sp-conversion": process.env.AWS_SQS_QUEUE_CONVERSION_URL,
+  "sp-budget-usage": process.env.AWS_SQS_QUEUE_BUDGET_URL,
+  "sb-traffic": process.env.AWS_SQS_QUEUE_SB_TRAFFIC_URL,
+  "sb-conversion": process.env.AWS_SQS_QUEUE_SB_CONVERSION_URL,
+  "sb-budget-usage": process.env.AWS_SQS_QUEUE_SB_BUDGET_URL,
+  "sd-traffic": process.env.AWS_SQS_QUEUE_SD_TRAFFIC_URL,
+  "sd-conversion": process.env.AWS_SQS_QUEUE_SD_CONVERSION_URL,
+  "sd-budget-usage": process.env.AWS_SQS_QUEUE_SD_BUDGET_URL
+};
+async function checkSqsQueues() {
+  const sqsClient = new import_client_sqs2.SQSClient({ region: process.env.AWS_REGION || "us-east-1" });
+  const results = [];
+  let allQueuesActive = true;
+  for (const [name2, url3] of Object.entries(SQS_QUEUE_URLS)) {
+    if (!url3) {
+      results.push({ name: name2, status: "skipped", reason: "URL not configured" });
+      allQueuesActive = false;
+      continue;
+    }
+    try {
+      const command = new import_client_sqs2.GetQueueAttributesCommand({
+        QueueUrl: url3,
+        AttributeNames: ["ApproximateNumberOfMessages", "ApproximateNumberOfMessagesNotVisible", "LastModifiedTimestamp"]
+      });
+      const response = await sqsClient.send(command);
+      const attributes = response.Attributes;
+      const messageCount = attributes ? parseInt(attributes.ApproximateNumberOfMessages || "0") : 0;
+      const lastModified = attributes ? new Date(parseInt(attributes.LastModifiedTimestamp || "0") * 1e3).toISOString() : "N/A";
+      results.push({ name: name2, status: "ok", messageCount, lastModified });
+    } catch (error54) {
+      results.push({ name: name2, status: "error", reason: error54.message });
+      allQueuesActive = false;
+    }
+  }
+  return { allQueuesActive, results };
+}
+async function checkDatabase() {
+  const db = await getDb();
+  if (!db) {
+    return { dbStatus: "error", reason: "Database connection failed" };
+  }
+  const results = {};
+  try {
+    const [amsResult] = await db.execute(sql`
+      SELECT COUNT(*) as count, MAX(createdAt) as lastReceived 
+      FROM ams_performance_data 
+      WHERE createdAt >= NOW() - INTERVAL '24 hours'
+    `);
+    results.amsData = amsResult[0];
+  } catch (e6) {
+    results.amsData = { error: e6.message };
+  }
+  try {
+    const [reportResult] = await db.execute(sql`
+      SELECT status, COUNT(*) as count
+      FROM report_jobs
+      WHERE createdAt >= NOW() - INTERVAL '24 hours'
+      GROUP BY status
+    `);
+    results.reportJobs = reportResult;
+  } catch (e6) {
+    results.reportJobs = { error: e6.message };
+  }
+  try {
+    const [fusionResult] = await db.execute(sql`
+      SELECT dataSource, COUNT(*) as count, MAX(date) as latestDate
+      FROM daily_performance
+      WHERE date >= CURRENT_DATE - INTERVAL '3 days'
+      GROUP BY dataSource
+    `);
+    results.dataFusion = fusionResult;
+  } catch (e6) {
+    results.dataFusion = { error: e6.message };
+  }
+  return { dbStatus: "ok", ...results };
+}
+var devRouter = router({
+  verifySync: publicProcedure.query(async () => {
+    const sqsResults = await checkSqsQueues();
+    const dbResults = await checkDatabase();
+    return {
+      sqs: sqsResults,
+      database: dbResults
+    };
   })
 });
 

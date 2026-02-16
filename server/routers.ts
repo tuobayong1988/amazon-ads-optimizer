@@ -36,6 +36,7 @@ import { mlOptimizationRouter } from './routes/mlOptimization';
 import { smartCampaignRouter } from './routes/smartCampaign';
 import { multiTenantRouter } from './routes/multiTenant';
 import { debugSyncRouter } from './debug-sync';
+import { devRouter } from './routes/dev';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
