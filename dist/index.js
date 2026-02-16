@@ -35136,17 +35136,17 @@ async function getPerformanceSummaryUSD(accountId, startDate, endDate) {
   const db = await getDb();
   if (!db) return null;
   const result = await db.select({
-    totalImpressions: sql\`COALESCE(SUM(impressions), 0)\`,
-    totalClicks: sql\`COALESCE(SUM(clicks), 0)\`,
-    totalSpend: sql\`COALESCE(SUM(CASE WHEN spend_usd > 0 THEN spend_usd ELSE spend END), '0')\`,
-    totalSales: sql\`COALESCE(SUM(CASE WHEN sales_usd > 0 THEN sales_usd ELSE sales END), '0')\`,
-    totalOrders: sql\`COALESCE(SUM(orders), 0)\`,
-    totalConversions: sql\`COALESCE(SUM(conversions), 0)\`
+    totalImpressions: sql`COALESCE(SUM(impressions), 0)`,
+    totalClicks: sql`COALESCE(SUM(clicks), 0)`,
+    totalSpend: sql`COALESCE(SUM(CASE WHEN spend_usd > 0 THEN spend_usd ELSE spend END), '0')`,
+    totalSales: sql`COALESCE(SUM(CASE WHEN sales_usd > 0 THEN sales_usd ELSE sales END), '0')`,
+    totalOrders: sql`COALESCE(SUM(orders), 0)`,
+    totalConversions: sql`COALESCE(SUM(conversions), 0)`
   }).from(dailyPerformance).where(and(
     eq(dailyPerformance.accountId, accountId),
-    sql\`\${dailyPerformance.campaignId} IS NOT NULL\`,
-    sql\`DATE(\${dailyPerformance.date}) >= \${startDate.toISOString().split("T")[0]}\`,
-    sql\`DATE(\${dailyPerformance.date}) <= \${endDate.toISOString().split("T")[0]}\`
+    sql`${dailyPerformance.campaignId} IS NOT NULL`,
+    sql`DATE(${dailyPerformance.date}) >= ${startDate.toISOString().split("T")[0]}`,
+    sql`DATE(${dailyPerformance.date}) <= ${endDate.toISOString().split("T")[0]}`
   ));
   return result[0];
 }
