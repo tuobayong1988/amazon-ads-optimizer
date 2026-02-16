@@ -414,7 +414,7 @@ export default function OptimizationCenter() {
                 <CardDescription>基于机器学习的智能预算分配建议</CardDescription>
               </CardHeader>
               <CardContent>
-                <MLBudgetOptimization accountId={selectedAccount} />
+                <MLBudgetOptimization accountId={accountId} />
               </CardContent>
             </Card>
           </TabsContent>
