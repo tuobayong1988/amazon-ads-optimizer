@@ -1,3 +1,4 @@
+import { getCurrencySymbol } from "@/utils/currency";
 /**
  * StrategyCenter - 策略中心
  * 合并原有的优化目标、广告活动管理、自动化配置功能
@@ -63,6 +64,7 @@ export default function StrategyCenter() {
   const [, setLocation] = useLocation();
   const currentStore = useCurrentStore();
   const currentMarketplace = useCurrentMarketplace();
+  const currencySymbol = getCurrencySymbol(currentMarketplace);
   const [activeTab, setActiveTab] = useState("targets");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -575,11 +577,11 @@ export default function StrategyCenter() {
                       <div className="flex items-center gap-6 text-sm">
                         <div className="text-right">
                           <p className="text-muted-foreground">日预算</p>
-                          <p className="font-medium">${typeof campaign.dailyBudget === 'number' ? campaign.dailyBudget.toFixed(2) : (parseFloat(campaign.dailyBudget) || 0).toFixed(2)}</p>
+                          <p className="font-medium">{currencySymbol}{typeof campaign.dailyBudget === 'number' ? campaign.dailyBudget.toFixed(2) : (parseFloat(campaign.dailyBudget) || 0).toFixed(2)}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-muted-foreground">花费</p>
-                          <p className="font-medium">${typeof campaign.spend === 'number' ? campaign.spend.toFixed(2) : (parseFloat(campaign.spend as any) || 0).toFixed(2)}</p>
+                          <p className="font-medium">{currencySymbol}{typeof campaign.spend === 'number' ? campaign.spend.toFixed(2) : (parseFloat(campaign.spend as any) || 0).toFixed(2)}</p>
                         </div>
                         <div className="text-right">
                           <p className="text-muted-foreground">ACoS</p>

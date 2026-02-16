@@ -34833,7 +34833,10 @@ async function getCampaignsWithPerformance(accountId, startDate, endDate) {
     totalClicks: sql`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
     totalSpend: sql`COALESCE(SUM(${dailyPerformance.spend}), '0')`,
     totalSales: sql`COALESCE(SUM(${dailyPerformance.sales}), '0')`,
-    totalOrders: sql`COALESCE(SUM(${dailyPerformance.orders}), 0)`
+    totalSpendUsd: sql`COALESCE(SUM(CASE WHEN spend_usd > 0 THEN spend_usd ELSE spend END), '0')`,
+    totalSalesUsd: sql`COALESCE(SUM(CASE WHEN sales_usd > 0 THEN sales_usd ELSE sales END), '0')`,
+    totalOrders: sql`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
+    currency: sql`MAX(${dailyPerformance.currency})`
   }).from(dailyPerformance).where(and(
     eq(dailyPerformance.accountId, accountId),
     sql`${dailyPerformance.campaignId} IS NOT NULL`,
@@ -34864,12 +34867,19 @@ async function getCampaignsWithPerformance(accountId, startDate, endDate) {
     const sales = parseFloat(perf?.totalSales || "0");
     const orders = perf?.totalOrders || 0;
     const group = campaign.performanceGroupId ? groupMap.get(campaign.performanceGroupId) : null;
+    // v101: Include currency info and USD-converted values
+    const spendUsd = parseFloat(perf?.totalSpendUsd || perf?.totalSpend || "0");
+    const salesUsd = parseFloat(perf?.totalSalesUsd || perf?.totalSales || "0");
+    const currency = perf?.currency || "USD";
     return {
       ...campaign,
       impressions,
       clicks,
       spend: spend.toFixed(2),
       sales: sales.toFixed(2),
+      spendUsd: spendUsd.toFixed(2),
+      salesUsd: salesUsd.toFixed(2),
+      currency,
       orders,
       acos: sales > 0 ? (spend / sales * 100).toFixed(2) : null,
       roas: spend > 0 ? (sales / spend).toFixed(2) : null,
@@ -35119,6 +35129,24 @@ async function getPerformanceSummary(accountId, startDate, endDate) {
     sql`${dailyPerformance.campaignId} IS NOT NULL`,
     sql`DATE(${dailyPerformance.date}) >= ${startDate.toISOString().split("T")[0]}`,
     sql`DATE(${dailyPerformance.date}) <= ${endDate.toISOString().split("T")[0]}`
+  ));
+  return result[0];
+}
+async function getPerformanceSummaryUSD(accountId, startDate, endDate) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select({
+    totalImpressions: sql\`COALESCE(SUM(impressions), 0)\`,
+    totalClicks: sql\`COALESCE(SUM(clicks), 0)\`,
+    totalSpend: sql\`COALESCE(SUM(CASE WHEN spend_usd > 0 THEN spend_usd ELSE spend END), '0')\`,
+    totalSales: sql\`COALESCE(SUM(CASE WHEN sales_usd > 0 THEN sales_usd ELSE sales END), '0')\`,
+    totalOrders: sql\`COALESCE(SUM(orders), 0)\`,
+    totalConversions: sql\`COALESCE(SUM(conversions), 0)\`
+  }).from(dailyPerformance).where(and(
+    eq(dailyPerformance.accountId, accountId),
+    sql\`\${dailyPerformance.campaignId} IS NOT NULL\`,
+    sql\`DATE(\${dailyPerformance.date}) >= \${startDate.toISOString().split("T")[0]}\`,
+    sql\`DATE(\${dailyPerformance.date}) <= \${endDate.toISOString().split("T")[0]}\`
   ));
   return result[0];
 }
@@ -334683,6 +334711,10 @@ var analyticsRouter = router({
     const daysSinceEnd = Math.ceil((now.getTime() - endDate.getTime()) / (24 * 60 * 60 * 1e3));
     const spDataMaturity = daysSinceEnd >= 7 ? "finalized" : "pending";
     const sbSdDataMaturity = daysSinceEnd >= 14 ? "finalized" : "pending";
+    // v101: Get account info to determine currency
+    const accountInfo = await getAdAccountById(input.accountId);
+    const marketplaceCurrencyMap = { US: 'USD', CA: 'CAD', MX: 'MXN', BR: 'BRL', UK: 'GBP', DE: 'EUR', FR: 'EUR', IT: 'EUR', ES: 'EUR', NL: 'EUR', SE: 'SEK', PL: 'PLN', JP: 'JPY', AU: 'AUD', SG: 'SGD', AE: 'AED', SA: 'SAR', IN: 'INR' };
+    const accountCurrency = marketplaceCurrencyMap[accountInfo?.marketplace || 'US'] || 'USD';
     return {
       conversionsPerDay: totalOrders / days,
       // ✅ 加权计算派生指标，而非简单平均
@@ -334694,6 +334726,8 @@ var analyticsRouter = router({
       totalOrders,
       totalClicks,
       totalImpressions,
+      // v101: Currency info for frontend display
+      currency: accountCurrency,
       // ✅ 新增派生指标
       ctr: totalImpressions > 0 ? totalClicks / totalImpressions * 100 : 0,
       cvr: totalClicks > 0 ? totalOrders / totalClicks * 100 : 0,
@@ -334752,7 +334786,8 @@ var analyticsRouter = router({
           break;
         }
       }
-      const summary = await getPerformanceSummary(account.id, startDate, endDate);
+      // v101: Use USD-converted summary for cross-region comparison
+      const summary = await getPerformanceSummaryUSD(account.id, startDate, endDate);
       if (summary) {
         const sales = parseFloat(summary.totalSales || "0");
         const spend = parseFloat(summary.totalSpend || "0");

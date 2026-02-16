@@ -602,6 +602,7 @@ export default function Campaigns() {
   const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const storeFilter = filters.store;
   const marketplaceFilter = filters.marketplace;
+  const currencySymbol = marketplaceFilter && marketplaceFilter !== 'all' ? getCurrencySymbol(marketplaceFilter) : '$';
   const typeFilter = filters.type;
   const billingTypeFilter = filters.billing;
   const runningStatusFilter = filters.status;
@@ -1240,10 +1241,10 @@ export default function Campaigns() {
               row[col.key] = campaign.campaignStatus === 'enabled' ? '投放中' : '已暂停';
               break;
             case 'dailyBudget':
-              row[col.key] = `$${parseFloat((campaign as any).dailyBudget || '0').toFixed(2)}`;
+              row[col.key] = `${currencySymbol}${parseFloat((campaign as any).dailyBudget || '0').toFixed(2)}`;
               break;
             case 'dailySpend':
-              row[col.key] = `$${((campaign as any).performance?.spend || 0).toFixed(2)}`;
+              row[col.key] = `${currencySymbol}${((campaign as any).performance?.spend || 0).toFixed(2)}`;
               break;
             case 'impressions':
               row[col.key] = (campaign as any).performance?.impressions || 0;
@@ -1257,13 +1258,13 @@ export default function Campaigns() {
               row[col.key] = impressions > 0 ? `${((clicks / impressions) * 100).toFixed(2)}%` : '-';
               break;
             case 'totalSpend':
-              row[col.key] = `$${((campaign as any).performance?.totalSpend || 0).toFixed(2)}`;
+              row[col.key] = `${currencySymbol}${((campaign as any).performance?.totalSpend || 0).toFixed(2)}`;
               break;
             case 'dailySales':
-              row[col.key] = `$${((campaign as any).performance?.sales || 0).toFixed(2)}`;
+              row[col.key] = `${currencySymbol}${((campaign as any).performance?.sales || 0).toFixed(2)}`;
               break;
             case 'totalSales':
-              row[col.key] = `$${((campaign as any).performance?.totalSales || 0).toFixed(2)}`;
+              row[col.key] = `${currencySymbol}${((campaign as any).performance?.totalSales || 0).toFixed(2)}`;
               break;
             case 'acos':
               row[col.key] = `${((campaign as any).performance?.acos || 0).toFixed(1)}%`;
@@ -1392,8 +1393,8 @@ export default function Campaigns() {
         name: editBudgetDialog.campaignName,
         field: 'dailyBudget',
         fieldLabel: '日预算',
-        oldValue: `$${editBudgetDialog.currentBudget.toFixed(2)}`,
-        newValue: `$${newBudget.toFixed(2)}`,
+        oldValue: `${currencySymbol}${editBudgetDialog.currentBudget.toFixed(2)}`,
+        newValue: `${currencySymbol}${newBudget.toFixed(2)}`,
       }],
       warningMessage: newBudget > editBudgetDialog.currentBudget * 2 
         ? '新预算超过原预算的2倍，请确认是否正确' 
@@ -1536,7 +1537,7 @@ export default function Campaigns() {
       case 'budgetConverted':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).budgetConverted ? `$${parseFloat((campaign as any).budgetConverted).toFixed(2)}` : '-'}
+            {(campaign as any).budgetConverted ? `${currencySymbol}${parseFloat((campaign as any).budgetConverted).toFixed(2)}` : '-'}
           </span>
         );
       case 'topOfSearchImpressionShare':
@@ -1554,19 +1555,19 @@ export default function Campaigns() {
       case 'spendConverted':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).spendConverted ? `$${parseFloat((campaign as any).spendConverted).toFixed(2)}` : '-'}
+            {(campaign as any).spendConverted ? `${currencySymbol}${parseFloat((campaign as any).spendConverted).toFixed(2)}` : '-'}
           </span>
         );
       case 'cpcConverted':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).cpcConverted ? `$${parseFloat((campaign as any).cpcConverted).toFixed(2)}` : '-'}
+            {(campaign as any).cpcConverted ? `${currencySymbol}${parseFloat((campaign as any).cpcConverted).toFixed(2)}` : '-'}
           </span>
         );
       case 'cpc':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).cpc ? `$${parseFloat((campaign as any).cpc).toFixed(2)}` : '-'}
+            {(campaign as any).cpc ? `${currencySymbol}${parseFloat((campaign as any).cpc).toFixed(2)}` : '-'}
           </span>
         );
       case 'detailPageViews':
@@ -1590,7 +1591,7 @@ export default function Campaigns() {
       case 'salesConverted':
         return (
           <span className="text-sm tabular-nums text-green-600">
-            {(campaign as any).salesConverted ? `$${parseFloat((campaign as any).salesConverted).toFixed(2)}` : '-'}
+            {(campaign as any).salesConverted ? `${currencySymbol}${parseFloat((campaign as any).salesConverted).toFixed(2)}` : '-'}
           </span>
         );
       case 'ntbOrders':
@@ -1608,13 +1609,13 @@ export default function Campaigns() {
       case 'ntbSalesConverted':
         return (
           <span className="text-sm tabular-nums text-green-600">
-            {(campaign as any).ntbSalesConverted ? `$${parseFloat((campaign as any).ntbSalesConverted).toFixed(2)}` : '-'}
+            {(campaign as any).ntbSalesConverted ? `${currencySymbol}${parseFloat((campaign as any).ntbSalesConverted).toFixed(2)}` : '-'}
           </span>
         );
       case 'ntbSales':
         return (
           <span className="text-sm tabular-nums text-green-600">
-            {(campaign as any).ntbSales ? `$${parseFloat((campaign as any).ntbSales).toFixed(2)}` : '-'}
+            {(campaign as any).ntbSales ? `${currencySymbol}${parseFloat((campaign as any).ntbSales).toFixed(2)}` : '-'}
           </span>
         );
       case 'ntbSalesPercent':
@@ -1626,13 +1627,13 @@ export default function Campaigns() {
       case 'longTermSalesConverted':
         return (
           <span className="text-sm tabular-nums text-green-600">
-            {(campaign as any).longTermSalesConverted ? `$${parseFloat((campaign as any).longTermSalesConverted).toFixed(2)}` : '-'}
+            {(campaign as any).longTermSalesConverted ? `${currencySymbol}${parseFloat((campaign as any).longTermSalesConverted).toFixed(2)}` : '-'}
           </span>
         );
       case 'longTermSales':
         return (
           <span className="text-sm tabular-nums text-green-600">
-            {(campaign as any).longTermSales ? `$${parseFloat((campaign as any).longTermSales).toFixed(2)}` : '-'}
+            {(campaign as any).longTermSales ? `${currencySymbol}${parseFloat((campaign as any).longTermSales).toFixed(2)}` : '-'}
           </span>
         );
       case 'longTermRoas':
@@ -1662,25 +1663,25 @@ export default function Campaigns() {
       case 'cpmConverted':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).cpmConverted ? `$${parseFloat((campaign as any).cpmConverted).toFixed(2)}` : '-'}
+            {(campaign as any).cpmConverted ? `${currencySymbol}${parseFloat((campaign as any).cpmConverted).toFixed(2)}` : '-'}
           </span>
         );
       case 'cpm':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).cpm ? `$${parseFloat((campaign as any).cpm).toFixed(2)}` : '-'}
+            {(campaign as any).cpm ? `${currencySymbol}${parseFloat((campaign as any).cpm).toFixed(2)}` : '-'}
           </span>
         );
       case 'vcpmConverted':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).vcpmConverted ? `$${parseFloat((campaign as any).vcpmConverted).toFixed(2)}` : '-'}
+            {(campaign as any).vcpmConverted ? `${currencySymbol}${parseFloat((campaign as any).vcpmConverted).toFixed(2)}` : '-'}
           </span>
         );
       case 'vcpm':
         return (
           <span className="text-sm tabular-nums">
-            {(campaign as any).vcpm ? `$${parseFloat((campaign as any).vcpm).toFixed(2)}` : '-'}
+            {(campaign as any).vcpm ? `${currencySymbol}${parseFloat((campaign as any).vcpm).toFixed(2)}` : '-'}
           </span>
         );
       case 'videoFirstQuartile':

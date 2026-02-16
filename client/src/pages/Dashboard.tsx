@@ -38,6 +38,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CalendarIcon } from "lucide-react";
 import toast from "react-hot-toast";
+import { getCurrencySymbolByCode } from "@/utils/currency";
 
 // 全局变量用于存储刷新函数
 declare global {
@@ -329,6 +330,9 @@ export default function Dashboard() {
     },
     { enabled: !!accountId }
   );
+
+  // 获取当前账户的货币符号
+  const currencySymbol = getCurrencySymbolByCode(kpis?.currency);
 
   // 获取归因调整后的近期数据
   const { data: attributionData } = trpc.specialScenario.getAttributionAdjustedData.useQuery(
@@ -624,7 +628,7 @@ export default function Dashboard() {
           />
           <KPICard
             title={showAdjustedData && adjustedKpis ? "销售额*" : "销售额"}
-            value={`$${((showAdjustedData && adjustedKpis ? adjustedKpis.totalSales : kpis?.totalSales) || 0).toLocaleString()}`}
+            value={`${currencySymbol}${((showAdjustedData && adjustedKpis ? adjustedKpis.totalSales : kpis?.totalSales) || 0).toLocaleString()}`}
             icon={<DollarSign className="w-5 h-5" />}
             trend={15.2}
             trendLabel="vs 上周"
@@ -641,7 +645,7 @@ export default function Dashboard() {
           />
           <KPICard
             title="收入/天"
-            value={`$${((showAdjustedData && adjustedKpis ? adjustedKpis.revenuePerDay : kpis?.revenuePerDay) || 0).toFixed(0)}`}
+            value={`${currencySymbol}${((showAdjustedData && adjustedKpis ? adjustedKpis.revenuePerDay : kpis?.revenuePerDay) || 0).toFixed(0)}`}
             icon={<TrendingUp className="w-5 h-5" />}
             trend={10.8}
             trendLabel="vs 上周"
@@ -766,11 +770,11 @@ export default function Dashboard() {
                     
                     <div className="grid grid-cols-2 gap-3 text-sm">
                       <div>
-                        <p className="text-muted-foreground">销售额</p>
+                        <p className="text-muted-foreground">销售额 (USD)</p>
                         <p className="font-semibold text-lg">${region.totalSales.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
                       </div>
                       <div>
-                        <p className="text-muted-foreground">花费</p>
+                        <p className="text-muted-foreground">花费 (USD)</p>
                         <p className="font-semibold text-lg">${region.totalSpend.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
                       </div>
                       <div>
@@ -911,7 +915,7 @@ export default function Dashboard() {
                       fontSize={11}
                       tickLine={false}
                       axisLine={false}
-                      tickFormatter={(value) => `$${value}`}
+                      tickFormatter={(value) => `${currencySymbol}${value}`}
                     />
                     <Tooltip 
                       contentStyle={{ 
@@ -920,7 +924,7 @@ export default function Dashboard() {
                         borderRadius: '8px',
                         boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                       }}
-                      formatter={(value: number) => [`$${value}`, '']}
+                      formatter={(value: number) => [`${currencySymbol}${value}`, '']}
                     />
                     <Area 
                       type="monotone" 
@@ -1040,7 +1044,7 @@ export default function Dashboard() {
                       fontSize={11}
                       tickLine={false}
                       axisLine={false}
-                      tickFormatter={(value) => `$${value}`}
+                      tickFormatter={(value) => `${currencySymbol}${value}`}
                     />
                     <Tooltip 
                       contentStyle={{ 
@@ -1049,7 +1053,7 @@ export default function Dashboard() {
                         borderRadius: '8px',
                         boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                       }}
-                      formatter={(value: number) => [`$${value}`, '']}
+                      formatter={(value: number) => [`${currencySymbol}${value}`, '']}
                     />
                     <Bar dataKey="thisWeek" name="本周" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="lastWeek" name="上周" fill="#64748b" radius={[4, 4, 0, 0]} />
@@ -1166,7 +1170,7 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold tabular-nums">
-                    ${(kpis?.totalSpend || 0).toLocaleString()}
+                    {currencySymbol}{(kpis?.totalSpend || 0).toLocaleString()}
                   </p>
                   <p className="text-sm text-muted-foreground">总花费</p>
                 </div>
