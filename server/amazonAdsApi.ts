@@ -821,8 +821,8 @@ export class AmazonAdsApiClient {
             // 同SKU指标
             'attributedSalesSameSku7d',          // Excel: attributedSalesSameSku7d - 7天广告SKU销售额
             'unitsSoldSameSku7d',                // Excel: unitsSoldSameSku7d - 7天广告SKU数量
-            'salesOtherSku7d',                   // Excel: salesOtherSku7d - 7天其他SKU销售额
-            'unitsSoldOtherSku7d'                // Excel: unitsSoldOtherSku7d - 7天其他SKU数量
+            // 'salesOtherSku7d' and 'unitsSoldOtherSku7d' are NOT valid SP Campaign columns (removed in v104)
+            // Use attributedSalesSameSku7d and unitsSoldSameSku7d instead
           ],
           // 添加filters配置
           filters: [
@@ -1139,13 +1139,7 @@ export class AmazonAdsApiClient {
             'videoThirdQuartileViews',
             'videoUnmutes'
           ],
-          // ⚠️ 关键修复: 添加filters配置 - 与SB报告一致
-          filters: [
-            {
-              field: 'campaignStatus',
-              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
-            }
-          ],
+          // SD reports do NOT support filters (removed in v104 - causes 400 error)
           reportTypeId: 'sdCampaigns',
           timeUnit: 'DAILY',
           format: 'GZIP_JSON',
@@ -1189,14 +1183,14 @@ export class AmazonAdsApiClient {
         endDate,
         configuration: {
           adProduct: 'SPONSORED_PRODUCTS',
-          groupBy: ['campaign', 'placement'],
+          groupBy: ['campaign', 'campaignPlacement'],
           columns: [
             // 基础信息 - 根据Excel文档SP Placement sheet
             'date',
             'campaignId',
             'campaignName',                      // Excel: campaignName - 广告系列名称
             'campaignBiddingStrategy',           // Excel: campaignBiddingStrategy - 出价策略
-            'placementClassification',           // Excel: placementClassification - 展示位置 (TOP_OF_SEARCH/DETAIL_PAGE/OTHER)
+            // 'placementClassification' is NOT a valid column (removed in v104)
             // 流量指标
             'impressions',                       // Excel: impressions - 展示次数
             'clicks',                            // Excel: clicks - 点击次数
