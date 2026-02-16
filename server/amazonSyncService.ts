@@ -195,13 +195,76 @@ export class AmazonSyncService {
     } catch (e: any) {
       console.error('[SyncService] SB搜索词同步失败:', e.message);
     }
-    // ==================== 同步广告位绩效 ====================
+    // ==================== 同步SB广告素材（品牌广告创意） ====================
     try {
-      console.log(`[SyncService] 开始同步广告位绩效数据...`);
-      const placementSynced = await this.syncPlacementPerformance(14);
-      console.log(`[SyncService] 广告位绩效同步完成: ${placementSynced}条`);
+      console.log(`[SyncService] 开始同步SB广告素材...`);
+      const sbAdsResult = await this.syncSbAds();
+      console.log(`[SyncService] SB广告素材同步完成: ${sbAdsResult.synced}条同步, ${sbAdsResult.skipped}条跳过`);
     } catch (e: any) {
-      console.error('[SyncService] 广告位绩效同步失败:', e.message);
+      console.error('[SyncService] SB广告素材同步失败:', e.message);
+    }
+
+    // ==================== 同步SB否定关键词 ====================
+    try {
+      console.log(`[SyncService] 开始同步SB否定关键词...`);
+      const sbNegKwResult = await this.syncSbNegativeKeywords();
+      console.log(`[SyncService] SB否定关键词同步完成: ${sbNegKwResult.synced}条新增, ${sbNegKwResult.updated}条更新`);
+    } catch (e: any) {
+      console.error('[SyncService] SB否定关键词同步失败:', e.message);
+    }
+
+    // ==================== 同步SB否定商品定向 ====================
+    try {
+      console.log(`[SyncService] 开始同步SB否定商品定向...`);
+      const sbNegTgtResult = await this.syncSbNegativeTargets();
+      console.log(`[SyncService] SB否定商品定向同步完成: ${sbNegTgtResult.synced}条新增, ${sbNegTgtResult.updated}条更新`);
+    } catch (e: any) {
+      console.error('[SyncService] SB否定商品定向同步失败:', e.message);
+    }
+
+    // ==================== 同步SP广告位绩效 ====================
+    try {
+      console.log(`[SyncService] 开始同步SP广告位绩效数据...`);
+      const placementSynced = await this.syncPlacementPerformance(14);
+      console.log(`[SyncService] SP广告位绩效同步完成: ${placementSynced}条`);
+    } catch (e: any) {
+      console.error('[SyncService] SP广告位绩效同步失败:', e.message);
+    }
+
+    // ==================== 同步SB广告位绩效 ====================
+    try {
+      console.log(`[SyncService] 开始同步SB广告位绩效数据...`);
+      const sbPlacementSynced = await this.syncSbPlacementPerformance(14);
+      console.log(`[SyncService] SB广告位绩效同步完成: ${sbPlacementSynced}条`);
+    } catch (e: any) {
+      console.error('[SyncService] SB广告位绩效同步失败:', e.message);
+    }
+
+    // ==================== 同步SP自动定向报告 ====================
+    try {
+      console.log(`[SyncService] 开始同步SP自动定向报告数据...`);
+      const autoTargetSynced = await this.syncAutoTargeting(14);
+      console.log(`[SyncService] SP自动定向报告同步完成: ${autoTargetSynced}条`);
+    } catch (e: any) {
+      console.error('[SyncService] SP自动定向报告同步失败:', e.message);
+    }
+
+    // ==================== 同步SD定向报告 ====================
+    try {
+      console.log(`[SyncService] 开始同步SD定向报告数据...`);
+      const sdTargetSynced = await this.syncSdTargeting(14);
+      console.log(`[SyncService] SD定向报告同步完成: ${sdTargetSynced}条`);
+    } catch (e: any) {
+      console.error('[SyncService] SD定向报告同步失败:', e.message);
+    }
+
+    // ==================== 同步SB定向报告 ====================
+    try {
+      console.log(`[SyncService] 开始同步SB定向报告数据...`);
+      const sbTargetSynced = await this.syncSbTargeting(14);
+      console.log(`[SyncService] SB定向报告同步完成: ${sbTargetSynced}条`);
+    } catch (e: any) {
+      console.error('[SyncService] SB定向报告同步失败:', e.message);
     }
     
     // 同步绩效数据（快慢双轨架构：API只拉取T-1及之前的历史数据）
@@ -3973,15 +4036,359 @@ export class AmazonSyncService {
     const results = {
       performance: 0,
     };
-
     try {
       results.performance = await this.syncPerformanceData(days);
       console.log(`[SyncService] 绩效数据同步完成: ${results.performance} 条记录`);
     } catch (error) {
       console.error('[SyncService] 绩效数据同步失败:', error);
     }
-
     return results;
+  }
+
+  /**
+   * 同步SB广告素材（品牌广告的创意素材详情）
+   * 包含: headline, brandLogo, customImage, video, brandName等
+   * 写入ad_groups表的creative字段
+   */
+  async syncSbAds(): Promise<{ synced: number; skipped: number }> {
+    const db = await getDb();
+    if (!db) return { synced: 0, skipped: 0 };
+    try {
+      const apiAds = await this.client.listSbAds();
+      let synced = 0;
+      let skipped = 0;
+      console.log(`[SyncService] 获取到 ${apiAds.length} 个SB广告素材`);
+      
+      // 调试：输出第一个广告素材的完整结构
+      if (apiAds.length > 0) {
+        console.log('[SyncService] SB广告素材API返回结构示例:', JSON.stringify(apiAds[0], null, 2));
+      }
+      
+      for (const ad of apiAds) {
+        // 查找对应的广告组
+        const adGroupIdStr = String(ad.adGroupId);
+        const [adGroup] = await db
+          .select()
+          .from(adGroups)
+          .where(eq(adGroups.adGroupId, adGroupIdStr))
+          .limit(1);
+        
+        if (!adGroup) {
+          skipped++;
+          continue;
+        }
+        
+        // 提取素材信息
+        const creative = ad.creative || ad;
+        const headline = creative.headline || ad.headline || null;
+        const brandLogoAssetId = creative.brandLogoAssetID || creative.brandLogoAssetId || 
+                                creative.brandLogo?.assetId || null;
+        const customImageAssetId = creative.customImageAssetID || creative.customImageAssetId || 
+                                  creative.customImage?.assetId || null;
+        const videoAssetId = creative.video?.assetId || creative.videoAssetId || null;
+        const creativeType = ad.creativeType || creative.type || null;
+        
+        // 更新广告组的素材字段
+        const updateData: any = {
+          updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        };
+        if (headline) updateData.headline = headline;
+        if (brandLogoAssetId) updateData.brandLogoAssetId = brandLogoAssetId;
+        if (customImageAssetId) updateData.customImageAssetId = customImageAssetId;
+        if (videoAssetId) updateData.videoAssetId = videoAssetId;
+        if (creativeType) updateData.creativeType = creativeType;
+        
+        await db.update(adGroups)
+          .set(updateData)
+          .where(eq(adGroups.id, adGroup.id));
+        synced++;
+      }
+      
+      console.log(`[SyncService] SB广告素材同步完成: synced=${synced}, skipped=${skipped}`);
+      return { synced, skipped };
+    } catch (error: any) {
+      console.error('[SyncService] SB广告素材同步失败:', error.message);
+      return { synced: 0, skipped: 0 };
+    }
+  }
+
+  /**
+   * 同步SB否定关键词
+   * 从SB API获取否定关键词并同步到negative_keywords表
+   */
+  async syncSbNegativeKeywords(): Promise<{ synced: number; updated: number }> {
+    const db = await getDb();
+    if (!db) return { synced: 0, updated: 0 };
+    try {
+      let synced = 0;
+      let updated = 0;
+      
+      const sbNegatives = await this.client.listSbNegativeKeywords();
+      console.log(`[SyncService] 获取到 ${sbNegatives.length} 个SB否定关键词`);
+      
+      for (const neg of sbNegatives) {
+        const negState = (neg.state || 'enabled').toLowerCase();
+        if (negState === 'archived') continue;
+        
+        // 查找对应的campaign
+        const [campaign] = await db
+          .select()
+          .from(campaigns)
+          .where(
+            and(
+              eq(campaigns.accountId, this.accountId),
+              eq(campaigns.campaignId, String(neg.campaignId))
+            )
+          )
+          .limit(1);
+        if (!campaign) continue;
+        
+        // 查找对应的广告组（如果有）
+        let adGroupId: number | null = null;
+        if (neg.adGroupId) {
+          const [adGroup] = await db
+            .select()
+            .from(adGroups)
+            .where(eq(adGroups.adGroupId, String(neg.adGroupId)))
+            .limit(1);
+          if (adGroup) adGroupId = adGroup.id;
+        }
+        
+        const matchType = (neg.matchType || '').toLowerCase().includes('phrase') 
+          ? 'negative_phrase' as const 
+          : 'negative_exact' as const;
+        const amazonKeywordId = String(neg.keywordId || neg.negativeKeywordId || '');
+        const negLevel = adGroupId ? 'ad_group' as const : 'campaign' as const;
+        
+        const [existing] = await db
+          .select()
+          .from(negativeKeywords)
+          .where(
+            and(
+              eq(negativeKeywords.accountId, this.accountId),
+              eq(negativeKeywords.campaignId, campaign.id),
+              eq(negativeKeywords.negativeLevel, negLevel),
+              eq(negativeKeywords.negativeText, neg.keywordText || '')
+            )
+          )
+          .limit(1);
+        
+        if (existing) {
+          await db.update(negativeKeywords)
+            .set({ negativeMatchType: matchType, amazonNegativeKeywordId: amazonKeywordId || null, negativeStatus: 'active' as const })
+            .where(eq(negativeKeywords.id, existing.id));
+          updated++;
+        } else {
+          await db.insert(negativeKeywords).values({
+            accountId: this.accountId,
+            campaignId: campaign.id,
+            adGroupId: adGroupId,
+            negativeLevel: negLevel,
+            negativeType: 'keyword',
+            negativeText: neg.keywordText || '',
+            negativeMatchType: matchType,
+            amazonNegativeKeywordId: amazonKeywordId || null,
+            negativeSource: 'manual',
+            negativeStatus: 'active',
+          });
+          synced++;
+        }
+      }
+      
+      console.log(`[SyncService] SB否定关键词同步完成: ${synced}条新增, ${updated}条更新`);
+      return { synced, updated };
+    } catch (error: any) {
+      console.error('[SyncService] SB否定关键词同步失败:', error.message);
+      return { synced: 0, updated: 0 };
+    }
+  }
+
+  /**
+   * 同步SB否定商品定向
+   */
+  async syncSbNegativeTargets(): Promise<{ synced: number; updated: number }> {
+    const db = await getDb();
+    if (!db) return { synced: 0, updated: 0 };
+    try {
+      let synced = 0;
+      let updated = 0;
+      
+      const sbNegTargets = await this.client.listSbNegativeTargets();
+      console.log(`[SyncService] 获取到 ${sbNegTargets.length} 个SB否定商品定向`);
+      
+      for (const neg of sbNegTargets) {
+        const negState = (neg.state || 'enabled').toLowerCase();
+        if (negState === 'archived') continue;
+        
+        const [campaign] = await db
+          .select()
+          .from(campaigns)
+          .where(
+            and(
+              eq(campaigns.accountId, this.accountId),
+              eq(campaigns.campaignId, String(neg.campaignId))
+            )
+          )
+          .limit(1);
+        if (!campaign) continue;
+        
+        let adGroupId: number | null = null;
+        if (neg.adGroupId) {
+          const [adGroup] = await db
+            .select()
+            .from(adGroups)
+            .where(eq(adGroups.adGroupId, String(neg.adGroupId)))
+            .limit(1);
+          if (adGroup) adGroupId = adGroup.id;
+        }
+        
+        const expression = neg.expression || [];
+        const asinExpr = expression.find((e: any) => e.type?.toLowerCase().includes('asin'));
+        const negativeText = asinExpr?.value || JSON.stringify(expression);
+        const amazonTargetId = String(neg.targetId || '');
+        const negLevel = adGroupId ? 'ad_group' as const : 'campaign' as const;
+        
+        const [existing] = await db
+          .select()
+          .from(negativeKeywords)
+          .where(
+            and(
+              eq(negativeKeywords.accountId, this.accountId),
+              eq(negativeKeywords.campaignId, campaign.id),
+              eq(negativeKeywords.negativeLevel, negLevel),
+              eq(negativeKeywords.negativeType, 'product'),
+              eq(negativeKeywords.negativeText, negativeText)
+            )
+          )
+          .limit(1);
+        
+        if (existing) {
+          await db.update(negativeKeywords)
+            .set({ amazonNegativeKeywordId: amazonTargetId || null, negativeStatus: 'active' as const })
+            .where(eq(negativeKeywords.id, existing.id));
+          updated++;
+        } else {
+          await db.insert(negativeKeywords).values({
+            accountId: this.accountId,
+            campaignId: campaign.id,
+            adGroupId: adGroupId,
+            negativeLevel: negLevel,
+            negativeType: 'product',
+            negativeText: negativeText,
+            negativeMatchType: 'negative_exact',
+            amazonNegativeKeywordId: amazonTargetId || null,
+            negativeSource: 'manual',
+            negativeStatus: 'active',
+          });
+          synced++;
+        }
+      }
+      
+      console.log(`[SyncService] SB否定商品定向同步完成: ${synced}条新增, ${updated}条更新`);
+      return { synced, updated };
+    } catch (error: any) {
+      console.error('[SyncService] SB否定商品定向同步失败:', error.message);
+      return { synced: 0, updated: 0 };
+    }
+  }
+
+  /**
+   * 同步SB广告位绩效数据
+   * 通过SB Placement报告获取广告位级别的绩效数据
+   */
+  async syncSbPlacementPerformance(days: number = 14): Promise<number> {
+    const db = await getDb();
+    if (!db) return 0;
+    let synced = 0;
+    try {
+      const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
+      console.log(`[SyncService] 开始同步SB广告位绩效: ${startDate} - ${endDate}`);
+      
+      const reportId = await this.client.requestSbCampaignPlacementReport(
+        startDate,
+        endDate
+      );
+      const reportData = await this.client.waitAndDownloadReport(reportId);
+      console.log(`[SyncService] SB广告位报告获取到 ${reportData.length} 条记录`);
+      
+      for (const row of reportData) {
+        const campaignIdStr = String(row.campaignId);
+        const [campaign] = await db
+          .select()
+          .from(campaigns)
+          .where(
+            and(
+              eq(campaigns.accountId, this.accountId),
+              eq(campaigns.campaignId, campaignIdStr)
+            )
+          )
+          .limit(1);
+        if (!campaign) continue;
+        
+        const dateStr = row.date || startDate;
+        const rawPlacement = row.placementClassification || row.placement || 'OTHER';
+        // 转换位置类型
+        const placementMap: Record<string, 'top_of_search' | 'product_page' | 'rest_of_search'> = {
+          'TOP_OF_SEARCH': 'top_of_search',
+          'DETAIL_PAGE': 'product_page',
+          'OTHER': 'rest_of_search',
+        };
+        const placement = placementMap[rawPlacement] || 'rest_of_search';
+        
+        // 写入placement_performance表
+        const [existing] = await db
+          .select()
+          .from(placementPerformance)
+          .where(
+            and(
+              eq(placementPerformance.campaignId, String(campaign.campaignId)),
+              eq(placementPerformance.accountId, this.accountId),
+              eq(placementPerformance.placement, placement),
+              eq(placementPerformance.date, dateStr)
+            )
+          )
+          .limit(1);
+        
+        const cost = parseFloat(row.cost || row.spend || '0');
+        const sales = parseFloat(row.sales || row.attributedSales14d || '0');
+        const clicks = parseInt(row.clicks || '0');
+        const impressions = parseInt(row.impressions || '0');
+        const orders = parseInt(row.orders || row.attributedConversions14d || '0');
+        
+        const perfData = {
+          campaignId: String(campaign.campaignId),
+          accountId: this.accountId,
+          placement: placement,
+          date: dateStr,
+          impressions,
+          clicks,
+          spend: String(cost),
+          sales: String(sales),
+          orders,
+          ctr: impressions > 0 ? String(clicks / impressions) : null,
+          cpc: clicks > 0 ? String(cost / clicks) : null,
+          cvr: clicks > 0 ? String(orders / clicks) : null,
+          acos: sales > 0 ? String((cost / sales) * 100) : null,
+          roas: cost > 0 ? String(sales / cost) : null,
+          updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        };
+        
+        if (existing) {
+          await db.update(placementPerformance).set(perfData).where(eq(placementPerformance.id, existing.id));
+        } else {
+          await db.insert(placementPerformance).values({
+            ...perfData,
+            createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+          });
+        }
+        synced++;
+      }
+      
+      console.log(`[SyncService] SB广告位绩效同步完成: ${synced}条`);
+    } catch (error: any) {
+      console.error('[SyncService] SB广告位绩效同步失败:', error.message);
+    }
+    return synced;
   }
 }
 

@@ -53771,6 +53771,118 @@ var init_amazonAdsApi = __esm({
         console.log("[Amazon API] \u5B8C\u6574SB\u62A5\u544A\u5171", allData.length, "\u6761\u8BB0\u5F55");
         return allData;
       }
+      /**
+       * 获取SB广告素材列表（品牌广告的创意素材）
+       * 包含headline, brandLogo, customImage, video等素材信息
+       */
+      async listSbAds(campaignId) {
+        const allAds = [];
+        let nextToken;
+        do {
+          const body = { maxResults: 100 };
+          if (campaignId) {
+            body.campaignIdFilter = { include: [campaignId] };
+          }
+          if (nextToken) {
+            body.nextToken = nextToken;
+          }
+          try {
+            const response = await this.axiosInstance.post(
+              "/sb/v4/ads/list",
+              body,
+              {
+                headers: {
+                  "Content-Type": "application/vnd.sbadresource.v4+json",
+                  "Accept": "application/vnd.sbadresource.v4+json"
+                }
+              }
+            );
+            const ads = response.data.ads || [];
+            allAds.push(...ads);
+            nextToken = response.data.nextToken;
+            console.log(`[SB API] Fetched ${ads.length} ads, total: ${allAds.length}, hasMore: ${!!nextToken}`);
+          } catch (error54) {
+            console.error("[SB API] Error fetching SB ads:", error54.message);
+            break;
+          }
+        } while (nextToken);
+        console.log(`[SB API] Total ads fetched: ${allAds.length}`);
+        return allAds;
+      }
+      /**
+       * 获取SB否定关键词列表
+       */
+      async listSbNegativeKeywords(campaignId) {
+        const allNegatives = [];
+        let nextToken;
+        do {
+          const body = { maxResults: 100 };
+          if (campaignId) {
+            body.campaignIdFilter = { include: [campaignId] };
+          }
+          if (nextToken) {
+            body.nextToken = nextToken;
+          }
+          try {
+            const response = await this.axiosInstance.post(
+              "/sb/v4/negativeKeywords/list",
+              body,
+              {
+                headers: {
+                  "Content-Type": "application/vnd.sbnegativekeywordresource.v4+json",
+                  "Accept": "application/vnd.sbnegativekeywordresource.v4+json"
+                }
+              }
+            );
+            const negatives = response.data.negativeKeywords || [];
+            allNegatives.push(...negatives);
+            nextToken = response.data.nextToken;
+            console.log(`[SB API] Fetched ${negatives.length} negative keywords, total: ${allNegatives.length}`);
+          } catch (error54) {
+            console.error("[SB API] Error fetching SB negative keywords:", error54.message);
+            break;
+          }
+        } while (nextToken);
+        console.log(`[SB API] Total SB negative keywords fetched: ${allNegatives.length}`);
+        return allNegatives;
+      }
+      /**
+       * 获取SB否定商品定向列表
+       */
+      async listSbNegativeTargets(campaignId) {
+        const allNegatives = [];
+        let nextToken;
+        do {
+          const body = { maxResults: 100 };
+          if (campaignId) {
+            body.campaignIdFilter = { include: [campaignId] };
+          }
+          if (nextToken) {
+            body.nextToken = nextToken;
+          }
+          try {
+            const response = await this.axiosInstance.post(
+              "/sb/v4/negativeTargets/list",
+              body,
+              {
+                headers: {
+                  "Content-Type": "application/vnd.sbnegativetargetresource.v4+json",
+                  "Accept": "application/vnd.sbnegativetargetresource.v4+json"
+                }
+              }
+            );
+            const negatives = response.data.negativeTargets || [];
+            allNegatives.push(...negatives);
+            nextToken = response.data.nextToken;
+            console.log(`[SB API] Fetched ${negatives.length} negative targets, total: ${allNegatives.length}`);
+          } catch (error54) {
+            console.error("[SB API] Error fetching SB negative targets:", error54.message);
+            break;
+          }
+        } while (nextToken);
+        console.log(`[SB API] Total SB negative targets fetched: ${allNegatives.length}`);
+        return allNegatives;
+      }
     };
     VALID_TRAFFIC_DATASETS = [
       "sp-traffic",
@@ -54988,11 +55100,60 @@ var init_amazonSyncService = __esm({
           console.error("[SyncService] SB\u641C\u7D22\u8BCD\u540C\u6B65\u5931\u8D25:", e6.message);
         }
         try {
-          console.log(`[SyncService] \u5F00\u59CB\u540C\u6B65\u5E7F\u544A\u4F4D\u7EE9\u6548\u6570\u636E...`);
-          const placementSynced = await this.syncPlacementPerformance(14);
-          console.log(`[SyncService] \u5E7F\u544A\u4F4D\u7EE9\u6548\u540C\u6B65\u5B8C\u6210: ${placementSynced}\u6761`);
+          console.log(`[SyncService] \u5F00\u59CB\u540C\u6B65SB\u5E7F\u544A\u7D20\u6750...`);
+          const sbAdsResult = await this.syncSbAds();
+          console.log(`[SyncService] SB\u5E7F\u544A\u7D20\u6750\u540C\u6B65\u5B8C\u6210: ${sbAdsResult.synced}\u6761\u540C\u6B65, ${sbAdsResult.skipped}\u6761\u8DF3\u8FC7`);
         } catch (e6) {
-          console.error("[SyncService] \u5E7F\u544A\u4F4D\u7EE9\u6548\u540C\u6B65\u5931\u8D25:", e6.message);
+          console.error("[SyncService] SB\u5E7F\u544A\u7D20\u6750\u540C\u6B65\u5931\u8D25:", e6.message);
+        }
+        try {
+          console.log(`[SyncService] \u5F00\u59CB\u540C\u6B65SB\u5426\u5B9A\u5173\u952E\u8BCD...`);
+          const sbNegKwResult = await this.syncSbNegativeKeywords();
+          console.log(`[SyncService] SB\u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65\u5B8C\u6210: ${sbNegKwResult.synced}\u6761\u65B0\u589E, ${sbNegKwResult.updated}\u6761\u66F4\u65B0`);
+        } catch (e6) {
+          console.error("[SyncService] SB\u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65\u5931\u8D25:", e6.message);
+        }
+        try {
+          console.log(`[SyncService] \u5F00\u59CB\u540C\u6B65SB\u5426\u5B9A\u5546\u54C1\u5B9A\u5411...`);
+          const sbNegTgtResult = await this.syncSbNegativeTargets();
+          console.log(`[SyncService] SB\u5426\u5B9A\u5546\u54C1\u5B9A\u5411\u540C\u6B65\u5B8C\u6210: ${sbNegTgtResult.synced}\u6761\u65B0\u589E, ${sbNegTgtResult.updated}\u6761\u66F4\u65B0`);
+        } catch (e6) {
+          console.error("[SyncService] SB\u5426\u5B9A\u5546\u54C1\u5B9A\u5411\u540C\u6B65\u5931\u8D25:", e6.message);
+        }
+        try {
+          console.log(`[SyncService] \u5F00\u59CB\u540C\u6B65SP\u5E7F\u544A\u4F4D\u7EE9\u6548\u6570\u636E...`);
+          const placementSynced = await this.syncPlacementPerformance(14);
+          console.log(`[SyncService] SP\u5E7F\u544A\u4F4D\u7EE9\u6548\u540C\u6B65\u5B8C\u6210: ${placementSynced}\u6761`);
+        } catch (e6) {
+          console.error("[SyncService] SP\u5E7F\u544A\u4F4D\u7EE9\u6548\u540C\u6B65\u5931\u8D25:", e6.message);
+        }
+        try {
+          console.log(`[SyncService] \u5F00\u59CB\u540C\u6B65SB\u5E7F\u544A\u4F4D\u7EE9\u6548\u6570\u636E...`);
+          const sbPlacementSynced = await this.syncSbPlacementPerformance(14);
+          console.log(`[SyncService] SB\u5E7F\u544A\u4F4D\u7EE9\u6548\u540C\u6B65\u5B8C\u6210: ${sbPlacementSynced}\u6761`);
+        } catch (e6) {
+          console.error("[SyncService] SB\u5E7F\u544A\u4F4D\u7EE9\u6548\u540C\u6B65\u5931\u8D25:", e6.message);
+        }
+        try {
+          console.log(`[SyncService] \u5F00\u59CB\u540C\u6B65SP\u81EA\u52A8\u5B9A\u5411\u62A5\u544A\u6570\u636E...`);
+          const autoTargetSynced = await this.syncAutoTargeting(14);
+          console.log(`[SyncService] SP\u81EA\u52A8\u5B9A\u5411\u62A5\u544A\u540C\u6B65\u5B8C\u6210: ${autoTargetSynced}\u6761`);
+        } catch (e6) {
+          console.error("[SyncService] SP\u81EA\u52A8\u5B9A\u5411\u62A5\u544A\u540C\u6B65\u5931\u8D25:", e6.message);
+        }
+        try {
+          console.log(`[SyncService] \u5F00\u59CB\u540C\u6B65SD\u5B9A\u5411\u62A5\u544A\u6570\u636E...`);
+          const sdTargetSynced = await this.syncSdTargeting(14);
+          console.log(`[SyncService] SD\u5B9A\u5411\u62A5\u544A\u540C\u6B65\u5B8C\u6210: ${sdTargetSynced}\u6761`);
+        } catch (e6) {
+          console.error("[SyncService] SD\u5B9A\u5411\u62A5\u544A\u540C\u6B65\u5931\u8D25:", e6.message);
+        }
+        try {
+          console.log(`[SyncService] \u5F00\u59CB\u540C\u6B65SB\u5B9A\u5411\u62A5\u544A\u6570\u636E...`);
+          const sbTargetSynced = await this.syncSbTargeting(14);
+          console.log(`[SyncService] SB\u5B9A\u5411\u62A5\u544A\u540C\u6B65\u5B8C\u6210: ${sbTargetSynced}\u6761`);
+        } catch (e6) {
+          console.error("[SyncService] SB\u5B9A\u5411\u62A5\u544A\u540C\u6B65\u5931\u8D25:", e6.message);
         }
         const performanceDays = 14;
         console.log(`[SyncService] \u540C\u6B65\u6700\u8FD1${performanceDays}\u5929\u5386\u53F2\u7EE9\u6548\u6570\u636E\uFF08\u5F52\u56E0\u56DE\u6EAF\u673A\u5236\uFF0C\u8986\u76D6\u65E7\u8BB0\u5F55\uFF09`);
@@ -57735,6 +57896,263 @@ var init_amazonSyncService = __esm({
           console.error("[SyncService] \u7EE9\u6548\u6570\u636E\u540C\u6B65\u5931\u8D25:", error54);
         }
         return results;
+      }
+      /**
+       * 同步SB广告素材（品牌广告的创意素材详情）
+       * 包含: headline, brandLogo, customImage, video, brandName等
+       * 写入ad_groups表的creative字段
+       */
+      async syncSbAds() {
+        const db = await getDb();
+        if (!db) return { synced: 0, skipped: 0 };
+        try {
+          const apiAds = await this.client.listSbAds();
+          let synced = 0;
+          let skipped = 0;
+          console.log(`[SyncService] \u83B7\u53D6\u5230 ${apiAds.length} \u4E2ASB\u5E7F\u544A\u7D20\u6750`);
+          if (apiAds.length > 0) {
+            console.log("[SyncService] SB\u5E7F\u544A\u7D20\u6750API\u8FD4\u56DE\u7ED3\u6784\u793A\u4F8B:", JSON.stringify(apiAds[0], null, 2));
+          }
+          for (const ad of apiAds) {
+            const adGroupIdStr = String(ad.adGroupId);
+            const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, adGroupIdStr)).limit(1);
+            if (!adGroup) {
+              skipped++;
+              continue;
+            }
+            const creative = ad.creative || ad;
+            const headline = creative.headline || ad.headline || null;
+            const brandLogoAssetId = creative.brandLogoAssetID || creative.brandLogoAssetId || creative.brandLogo?.assetId || null;
+            const customImageAssetId = creative.customImageAssetID || creative.customImageAssetId || creative.customImage?.assetId || null;
+            const videoAssetId = creative.video?.assetId || creative.videoAssetId || null;
+            const creativeType = ad.creativeType || creative.type || null;
+            const updateData = {
+              updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
+            };
+            if (headline) updateData.headline = headline;
+            if (brandLogoAssetId) updateData.brandLogoAssetId = brandLogoAssetId;
+            if (customImageAssetId) updateData.customImageAssetId = customImageAssetId;
+            if (videoAssetId) updateData.videoAssetId = videoAssetId;
+            if (creativeType) updateData.creativeType = creativeType;
+            await db.update(adGroups).set(updateData).where(eq(adGroups.id, adGroup.id));
+            synced++;
+          }
+          console.log(`[SyncService] SB\u5E7F\u544A\u7D20\u6750\u540C\u6B65\u5B8C\u6210: synced=${synced}, skipped=${skipped}`);
+          return { synced, skipped };
+        } catch (error54) {
+          console.error("[SyncService] SB\u5E7F\u544A\u7D20\u6750\u540C\u6B65\u5931\u8D25:", error54.message);
+          return { synced: 0, skipped: 0 };
+        }
+      }
+      /**
+       * 同步SB否定关键词
+       * 从SB API获取否定关键词并同步到negative_keywords表
+       */
+      async syncSbNegativeKeywords() {
+        const db = await getDb();
+        if (!db) return { synced: 0, updated: 0 };
+        try {
+          let synced = 0;
+          let updated = 0;
+          const sbNegatives = await this.client.listSbNegativeKeywords();
+          console.log(`[SyncService] \u83B7\u53D6\u5230 ${sbNegatives.length} \u4E2ASB\u5426\u5B9A\u5173\u952E\u8BCD`);
+          for (const neg of sbNegatives) {
+            const negState = (neg.state || "enabled").toLowerCase();
+            if (negState === "archived") continue;
+            const [campaign] = await db.select().from(campaigns).where(
+              and(
+                eq(campaigns.accountId, this.accountId),
+                eq(campaigns.campaignId, String(neg.campaignId))
+              )
+            ).limit(1);
+            if (!campaign) continue;
+            let adGroupId = null;
+            if (neg.adGroupId) {
+              const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, String(neg.adGroupId))).limit(1);
+              if (adGroup) adGroupId = adGroup.id;
+            }
+            const matchType = (neg.matchType || "").toLowerCase().includes("phrase") ? "negative_phrase" : "negative_exact";
+            const amazonKeywordId = String(neg.keywordId || neg.negativeKeywordId || "");
+            const negLevel = adGroupId ? "ad_group" : "campaign";
+            const [existing] = await db.select().from(negativeKeywords).where(
+              and(
+                eq(negativeKeywords.accountId, this.accountId),
+                eq(negativeKeywords.campaignId, campaign.id),
+                eq(negativeKeywords.negativeLevel, negLevel),
+                eq(negativeKeywords.negativeText, neg.keywordText || "")
+              )
+            ).limit(1);
+            if (existing) {
+              await db.update(negativeKeywords).set({ negativeMatchType: matchType, amazonNegativeKeywordId: amazonKeywordId || null, negativeStatus: "active" }).where(eq(negativeKeywords.id, existing.id));
+              updated++;
+            } else {
+              await db.insert(negativeKeywords).values({
+                accountId: this.accountId,
+                campaignId: campaign.id,
+                adGroupId,
+                negativeLevel: negLevel,
+                negativeType: "keyword",
+                negativeText: neg.keywordText || "",
+                negativeMatchType: matchType,
+                amazonNegativeKeywordId: amazonKeywordId || null,
+                negativeSource: "manual",
+                negativeStatus: "active"
+              });
+              synced++;
+            }
+          }
+          console.log(`[SyncService] SB\u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65\u5B8C\u6210: ${synced}\u6761\u65B0\u589E, ${updated}\u6761\u66F4\u65B0`);
+          return { synced, updated };
+        } catch (error54) {
+          console.error("[SyncService] SB\u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65\u5931\u8D25:", error54.message);
+          return { synced: 0, updated: 0 };
+        }
+      }
+      /**
+       * 同步SB否定商品定向
+       */
+      async syncSbNegativeTargets() {
+        const db = await getDb();
+        if (!db) return { synced: 0, updated: 0 };
+        try {
+          let synced = 0;
+          let updated = 0;
+          const sbNegTargets = await this.client.listSbNegativeTargets();
+          console.log(`[SyncService] \u83B7\u53D6\u5230 ${sbNegTargets.length} \u4E2ASB\u5426\u5B9A\u5546\u54C1\u5B9A\u5411`);
+          for (const neg of sbNegTargets) {
+            const negState = (neg.state || "enabled").toLowerCase();
+            if (negState === "archived") continue;
+            const [campaign] = await db.select().from(campaigns).where(
+              and(
+                eq(campaigns.accountId, this.accountId),
+                eq(campaigns.campaignId, String(neg.campaignId))
+              )
+            ).limit(1);
+            if (!campaign) continue;
+            let adGroupId = null;
+            if (neg.adGroupId) {
+              const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, String(neg.adGroupId))).limit(1);
+              if (adGroup) adGroupId = adGroup.id;
+            }
+            const expression = neg.expression || [];
+            const asinExpr = expression.find((e6) => e6.type?.toLowerCase().includes("asin"));
+            const negativeText = asinExpr?.value || JSON.stringify(expression);
+            const amazonTargetId = String(neg.targetId || "");
+            const negLevel = adGroupId ? "ad_group" : "campaign";
+            const [existing] = await db.select().from(negativeKeywords).where(
+              and(
+                eq(negativeKeywords.accountId, this.accountId),
+                eq(negativeKeywords.campaignId, campaign.id),
+                eq(negativeKeywords.negativeLevel, negLevel),
+                eq(negativeKeywords.negativeType, "product"),
+                eq(negativeKeywords.negativeText, negativeText)
+              )
+            ).limit(1);
+            if (existing) {
+              await db.update(negativeKeywords).set({ amazonNegativeKeywordId: amazonTargetId || null, negativeStatus: "active" }).where(eq(negativeKeywords.id, existing.id));
+              updated++;
+            } else {
+              await db.insert(negativeKeywords).values({
+                accountId: this.accountId,
+                campaignId: campaign.id,
+                adGroupId,
+                negativeLevel: negLevel,
+                negativeType: "product",
+                negativeText,
+                negativeMatchType: "negative_exact",
+                amazonNegativeKeywordId: amazonTargetId || null,
+                negativeSource: "manual",
+                negativeStatus: "active"
+              });
+              synced++;
+            }
+          }
+          console.log(`[SyncService] SB\u5426\u5B9A\u5546\u54C1\u5B9A\u5411\u540C\u6B65\u5B8C\u6210: ${synced}\u6761\u65B0\u589E, ${updated}\u6761\u66F4\u65B0`);
+          return { synced, updated };
+        } catch (error54) {
+          console.error("[SyncService] SB\u5426\u5B9A\u5546\u54C1\u5B9A\u5411\u540C\u6B65\u5931\u8D25:", error54.message);
+          return { synced: 0, updated: 0 };
+        }
+      }
+      /**
+       * 同步SB广告位绩效数据
+       * 通过SB Placement报告获取广告位级别的绩效数据
+       */
+      async syncSbPlacementPerformance(days = 14) {
+        const db = await getDb();
+        if (!db) return 0;
+        let synced = 0;
+        try {
+          const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
+          console.log(`[SyncService] \u5F00\u59CB\u540C\u6B65SB\u5E7F\u544A\u4F4D\u7EE9\u6548: ${startDate} - ${endDate}`);
+          const reportId = await this.client.requestSbCampaignPlacementReport(
+            startDate,
+            endDate
+          );
+          const reportData = await this.client.waitAndDownloadReport(reportId);
+          console.log(`[SyncService] SB\u5E7F\u544A\u4F4D\u62A5\u544A\u83B7\u53D6\u5230 ${reportData.length} \u6761\u8BB0\u5F55`);
+          for (const row of reportData) {
+            const campaignIdStr = String(row.campaignId);
+            const [campaign] = await db.select().from(campaigns).where(
+              and(
+                eq(campaigns.accountId, this.accountId),
+                eq(campaigns.campaignId, campaignIdStr)
+              )
+            ).limit(1);
+            if (!campaign) continue;
+            const dateStr = row.date || startDate;
+            const rawPlacement = row.placementClassification || row.placement || "OTHER";
+            const placementMap = {
+              "TOP_OF_SEARCH": "top_of_search",
+              "DETAIL_PAGE": "product_page",
+              "OTHER": "rest_of_search"
+            };
+            const placement = placementMap[rawPlacement] || "rest_of_search";
+            const [existing] = await db.select().from(placementPerformance).where(
+              and(
+                eq(placementPerformance.campaignId, String(campaign.campaignId)),
+                eq(placementPerformance.accountId, this.accountId),
+                eq(placementPerformance.placement, placement),
+                eq(placementPerformance.date, dateStr)
+              )
+            ).limit(1);
+            const cost = parseFloat(row.cost || row.spend || "0");
+            const sales = parseFloat(row.sales || row.attributedSales14d || "0");
+            const clicks = parseInt(row.clicks || "0");
+            const impressions = parseInt(row.impressions || "0");
+            const orders = parseInt(row.orders || row.attributedConversions14d || "0");
+            const perfData = {
+              campaignId: String(campaign.campaignId),
+              accountId: this.accountId,
+              placement,
+              date: dateStr,
+              impressions,
+              clicks,
+              spend: String(cost),
+              sales: String(sales),
+              orders,
+              ctr: impressions > 0 ? String(clicks / impressions) : null,
+              cpc: clicks > 0 ? String(cost / clicks) : null,
+              cvr: clicks > 0 ? String(orders / clicks) : null,
+              acos: sales > 0 ? String(cost / sales * 100) : null,
+              roas: cost > 0 ? String(sales / cost) : null,
+              updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
+            };
+            if (existing) {
+              await db.update(placementPerformance).set(perfData).where(eq(placementPerformance.id, existing.id));
+            } else {
+              await db.insert(placementPerformance).values({
+                ...perfData,
+                createdAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
+              });
+            }
+            synced++;
+          }
+          console.log(`[SyncService] SB\u5E7F\u544A\u4F4D\u7EE9\u6548\u540C\u6B65\u5B8C\u6210: ${synced}\u6761`);
+        } catch (error54) {
+          console.error("[SyncService] SB\u5E7F\u544A\u4F4D\u7EE9\u6548\u540C\u6B65\u5931\u8D25:", error54.message);
+        }
+        return synced;
       }
     };
     AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(lastSyncTime, syncJobId) {

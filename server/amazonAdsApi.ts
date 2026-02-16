@@ -3537,11 +3537,134 @@ export class AmazonAdsApiClient {
       console.error('[Amazon API] V2 SB报告失败:', error.message);
     }
     
-    console.log('[Amazon API] 完整SB报告共', allData.length, '条记录');
+     console.log('[Amazon API] 完整SB报告共', allData.length, '条记录');
     return allData;
   }
-}
 
+  /**
+   * 获取SB广告素材列表（品牌广告的创意素材）
+   * 包含headline, brandLogo, customImage, video等素材信息
+   */
+  async listSbAds(campaignId?: string): Promise<any[]> {
+    const allAds: any[] = [];
+    let nextToken: string | undefined;
+    
+    do {
+      const body: any = { maxResults: 100 };
+      if (campaignId) {
+        body.campaignIdFilter = { include: [campaignId] };
+      }
+      if (nextToken) {
+        body.nextToken = nextToken;
+      }
+      
+      try {
+        const response = await this.axiosInstance.post('/sb/v4/ads/list', 
+          body,
+          {
+            headers: {
+              'Content-Type': 'application/vnd.sbadresource.v4+json',
+              'Accept': 'application/vnd.sbadresource.v4+json',
+            },
+          }
+        );
+        
+        const ads = response.data.ads || [];
+        allAds.push(...ads);
+        nextToken = response.data.nextToken;
+        console.log(`[SB API] Fetched ${ads.length} ads, total: ${allAds.length}, hasMore: ${!!nextToken}`);
+      } catch (error: any) {
+        console.error('[SB API] Error fetching SB ads:', error.message);
+        break;
+      }
+    } while (nextToken);
+    
+    console.log(`[SB API] Total ads fetched: ${allAds.length}`);
+    return allAds;
+  }
+
+  /**
+   * 获取SB否定关键词列表
+   */
+  async listSbNegativeKeywords(campaignId?: string): Promise<any[]> {
+    const allNegatives: any[] = [];
+    let nextToken: string | undefined;
+    
+    do {
+      const body: any = { maxResults: 100 };
+      if (campaignId) {
+        body.campaignIdFilter = { include: [campaignId] };
+      }
+      if (nextToken) {
+        body.nextToken = nextToken;
+      }
+      
+      try {
+        const response = await this.axiosInstance.post('/sb/v4/negativeKeywords/list', 
+          body,
+          {
+            headers: {
+              'Content-Type': 'application/vnd.sbnegativekeywordresource.v4+json',
+              'Accept': 'application/vnd.sbnegativekeywordresource.v4+json',
+            },
+          }
+        );
+        
+        const negatives = response.data.negativeKeywords || [];
+        allNegatives.push(...negatives);
+        nextToken = response.data.nextToken;
+        console.log(`[SB API] Fetched ${negatives.length} negative keywords, total: ${allNegatives.length}`);
+      } catch (error: any) {
+        console.error('[SB API] Error fetching SB negative keywords:', error.message);
+        break;
+      }
+    } while (nextToken);
+    
+    console.log(`[SB API] Total SB negative keywords fetched: ${allNegatives.length}`);
+    return allNegatives;
+  }
+
+  /**
+   * 获取SB否定商品定向列表
+   */
+  async listSbNegativeTargets(campaignId?: string): Promise<any[]> {
+    const allNegatives: any[] = [];
+    let nextToken: string | undefined;
+    
+    do {
+      const body: any = { maxResults: 100 };
+      if (campaignId) {
+        body.campaignIdFilter = { include: [campaignId] };
+      }
+      if (nextToken) {
+        body.nextToken = nextToken;
+      }
+      
+      try {
+        const response = await this.axiosInstance.post('/sb/v4/negativeTargets/list', 
+          body,
+          {
+            headers: {
+              'Content-Type': 'application/vnd.sbnegativetargetresource.v4+json',
+              'Accept': 'application/vnd.sbnegativetargetresource.v4+json',
+            },
+          }
+        );
+        
+        const negatives = response.data.negativeTargets || [];
+        allNegatives.push(...negatives);
+        nextToken = response.data.nextToken;
+        console.log(`[SB API] Fetched ${negatives.length} negative targets, total: ${allNegatives.length}`);
+      } catch (error: any) {
+        console.error('[SB API] Error fetching SB negative targets:', error.message);
+        break;
+      }
+    } while (nextToken);
+    
+    console.log(`[SB API] Total SB negative targets fetched: ${allNegatives.length}`);
+    return allNegatives;
+  }
+}
 // ==================== Amazon Marketing Stream (AMS) Types ====================
 
 /**
