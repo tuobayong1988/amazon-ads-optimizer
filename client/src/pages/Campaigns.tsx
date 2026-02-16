@@ -27,6 +27,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { QuickActions } from "@/components/QuickActions";
 import { trpc } from "@/lib/trpc";
+import { getCurrencySymbol } from "@/utils/currency";
 import { toast } from "sonner";
 import { 
   Search, 

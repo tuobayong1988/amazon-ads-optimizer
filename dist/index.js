@@ -342890,7 +342890,8 @@ async function executeTieredSyncForAccount(request) {
       region: credentials.region || "NA"
     },
     accountId,
-    userId
+    userId,
+    account.marketplace || "US"
   );
   let result;
   switch (tier) {
@@ -342990,7 +342991,8 @@ async function executeSyncForAccount(schedule) {
       region: credentials.region || "NA"
     },
     schedule.accountId,
-    schedule.userId
+    schedule.userId,
+    account.marketplace || "US"
   );
   const result = await syncService.syncAll();
   await updateSyncScheduleLastRun(schedule.id);

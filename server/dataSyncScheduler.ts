@@ -290,7 +290,8 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
       region: (credentials.region as 'NA' | 'EU' | 'FE') || 'NA'
     },
     accountId,
-    userId
+    userId,
+    account.marketplace || 'US'
   );
 
   // 根据层级执行不同的同步
@@ -437,7 +438,8 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
       region: (credentials.region as 'NA' | 'EU' | 'FE') || 'NA'
     },
     schedule.accountId,
-    schedule.userId
+    schedule.userId,
+    account.marketplace || 'US'
   );
 
   // 执行完整同步（获取90天数据）
@@ -535,7 +537,8 @@ export async function triggerManualSync(userId: number, accountId: number): Prom
         region: (credentials.region as 'NA' | 'EU' | 'FE') || 'NA'
       },
       accountId,
-      userId
+      userId,
+      account.marketplace || 'US'
     );
 
     // 手动触发同步（获取90天数据）
