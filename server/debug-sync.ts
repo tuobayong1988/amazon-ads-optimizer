@@ -147,4 +147,129 @@ export const debugSyncRouter = router({
         };
       }
     }),
+
+  /**
+   * 触发全量同步 - 用于手动触发指定账户的全量数据同步
+   */
+  triggerFullSync: publicProcedure
+    .input(z.object({
+      accountId: z.number(),
+    }))
+    .mutation(async ({ input }) => {
+      const db = getDb();
+      if (!db) {
+        return { success: false, error: '数据库连接失败' };
+      }
+
+      try {
+        const credentials = await db.getAmazonCredentials(input.accountId);
+        if (!credentials) {
+          return { success: false, error: '未找到API凭证' };
+        }
+
+        const account = await db.getAdAccountById(input.accountId);
+        const marketplace = account?.marketplace || 'US';
+
+        const syncService = await AmazonSyncService.createFromCredentials(
+          {
+            clientId: credentials.clientId,
+            clientSecret: credentials.clientSecret,
+            refreshToken: credentials.refreshToken,
+            profileId: credentials.profileId,
+            region: credentials.region as 'NA' | 'EU' | 'FE',
+          },
+          input.accountId,
+          1,
+          marketplace
+        );
+
+        // 异步执行全量同步，立即返回
+        const startTime = new Date().toISOString();
+        syncService.syncAll().then((result: any) => {
+          console.log(`[FullSync] Account ${input.accountId} (${account?.storeName} ${marketplace}) completed:`, 
+            JSON.stringify(result).substring(0, 500));
+        }).catch((err: any) => {
+          console.error(`[FullSync] Account ${input.accountId} (${account?.storeName} ${marketplace}) failed:`, err.message);
+        });
+
+        return {
+          success: true,
+          message: `全量同步已触发: ${account?.storeName} ${marketplace} (ID: ${input.accountId})`,
+          startTime,
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          error: error.message,
+          stack: error.stack,
+        };
+      }
+    }),
+
+  /**
+   * 批量触发所有账户的全量同步
+   */
+  triggerFullSyncAll: publicProcedure
+    .mutation(async () => {
+      const db = getDb();
+      if (!db) {
+        return { success: false, error: '数据库连接失败' };
+      }
+
+      try {
+        const accounts = await db.getAdAccounts();
+        const activeAccounts = accounts.filter((a: any) => 
+          a.marketplace && a.marketplace !== '' && a.connectionStatus === 'connected'
+        );
+
+        const results: any[] = [];
+        const startTime = new Date().toISOString();
+
+        for (const account of activeAccounts) {
+          try {
+            const credentials = await db.getAmazonCredentials(account.id);
+            if (!credentials) {
+              results.push({ accountId: account.id, store: account.storeName, marketplace: account.marketplace, status: 'skipped', reason: '无API凭证' });
+              continue;
+            }
+
+            const syncService = await AmazonSyncService.createFromCredentials(
+              {
+                clientId: credentials.clientId,
+                clientSecret: credentials.clientSecret,
+                refreshToken: credentials.refreshToken,
+                profileId: credentials.profileId,
+                region: credentials.region as 'NA' | 'EU' | 'FE',
+              },
+              account.id,
+              1,
+              account.marketplace || 'US'
+            );
+
+            // 异步执行，不等待完成
+            syncService.syncAll().then((result: any) => {
+              console.log(`[FullSyncAll] Account ${account.id} (${account.storeName} ${account.marketplace}) completed`);
+            }).catch((err: any) => {
+              console.error(`[FullSyncAll] Account ${account.id} (${account.storeName} ${account.marketplace}) failed:`, err.message);
+            });
+
+            results.push({ accountId: account.id, store: account.storeName, marketplace: account.marketplace, status: 'triggered' });
+          } catch (err: any) {
+            results.push({ accountId: account.id, store: account.storeName, marketplace: account.marketplace, status: 'error', error: err.message });
+          }
+        }
+
+        return {
+          success: true,
+          message: `已触发 ${results.filter(r => r.status === 'triggered').length} 个账户的全量同步`,
+          startTime,
+          accounts: results,
+        };
+      } catch (error: any) {
+        return {
+          success: false,
+          error: error.message,
+        };
+      }
+    }),
 });

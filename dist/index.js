@@ -329675,6 +329675,114 @@ var debugSyncRouter = router({
         stack: error54.stack
       };
     }
+  }),
+  /**
+   * 触发全量同步 - 用于手动触发指定账户的全量数据同步
+   */
+  triggerFullSync: publicProcedure.input(external_exports.object({
+    accountId: external_exports.number()
+  })).mutation(async ({ input }) => {
+    const db = getDb();
+    if (!db) {
+      return { success: false, error: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" };
+    }
+    try {
+      const credentials = await db.getAmazonCredentials(input.accountId);
+      if (!credentials) {
+        return { success: false, error: "\u672A\u627E\u5230API\u51ED\u8BC1" };
+      }
+      const account = await db.getAdAccountById(input.accountId);
+      const marketplace = account?.marketplace || "US";
+      const syncService = await AmazonSyncService.createFromCredentials(
+        {
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+          profileId: credentials.profileId,
+          region: credentials.region
+        },
+        input.accountId,
+        1,
+        marketplace
+      );
+      const startTime = (/* @__PURE__ */ new Date()).toISOString();
+      syncService.syncAll().then((result) => {
+        console.log(
+          `[FullSync] Account ${input.accountId} (${account?.storeName} ${marketplace}) completed:`,
+          JSON.stringify(result).substring(0, 500)
+        );
+      }).catch((err2) => {
+        console.error(`[FullSync] Account ${input.accountId} (${account?.storeName} ${marketplace}) failed:`, err2.message);
+      });
+      return {
+        success: true,
+        message: `\u5168\u91CF\u540C\u6B65\u5DF2\u89E6\u53D1: ${account?.storeName} ${marketplace} (ID: ${input.accountId})`,
+        startTime
+      };
+    } catch (error54) {
+      return {
+        success: false,
+        error: error54.message,
+        stack: error54.stack
+      };
+    }
+  }),
+  /**
+   * 批量触发所有账户的全量同步
+   */
+  triggerFullSyncAll: publicProcedure.mutation(async () => {
+    const db = getDb();
+    if (!db) {
+      return { success: false, error: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" };
+    }
+    try {
+      const accounts = await db.getAdAccounts();
+      const activeAccounts = accounts.filter(
+        (a4) => a4.marketplace && a4.marketplace !== "" && a4.connectionStatus === "connected"
+      );
+      const results = [];
+      const startTime = (/* @__PURE__ */ new Date()).toISOString();
+      for (const account of activeAccounts) {
+        try {
+          const credentials = await db.getAmazonCredentials(account.id);
+          if (!credentials) {
+            results.push({ accountId: account.id, store: account.storeName, marketplace: account.marketplace, status: "skipped", reason: "\u65E0API\u51ED\u8BC1" });
+            continue;
+          }
+          const syncService = await AmazonSyncService.createFromCredentials(
+            {
+              clientId: credentials.clientId,
+              clientSecret: credentials.clientSecret,
+              refreshToken: credentials.refreshToken,
+              profileId: credentials.profileId,
+              region: credentials.region
+            },
+            account.id,
+            1,
+            account.marketplace || "US"
+          );
+          syncService.syncAll().then((result) => {
+            console.log(`[FullSyncAll] Account ${account.id} (${account.storeName} ${account.marketplace}) completed`);
+          }).catch((err2) => {
+            console.error(`[FullSyncAll] Account ${account.id} (${account.storeName} ${account.marketplace}) failed:`, err2.message);
+          });
+          results.push({ accountId: account.id, store: account.storeName, marketplace: account.marketplace, status: "triggered" });
+        } catch (err2) {
+          results.push({ accountId: account.id, store: account.storeName, marketplace: account.marketplace, status: "error", error: err2.message });
+        }
+      }
+      return {
+        success: true,
+        message: `\u5DF2\u89E6\u53D1 ${results.filter((r5) => r5.status === "triggered").length} \u4E2A\u8D26\u6237\u7684\u5168\u91CF\u540C\u6B65`,
+        startTime,
+        accounts: results
+      };
+    } catch (error54) {
+      return {
+        success: false,
+        error: error54.message
+      };
+    }
   })
 });
 
