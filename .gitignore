@@ -108,3 +108,5 @@ temp/
 deploy*.zip
 deploy.zip
 .elasticbeanstalk/app_versions/
+.org.chromium.Chromium*
+.X0-lock
