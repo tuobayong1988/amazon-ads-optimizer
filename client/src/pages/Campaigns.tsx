@@ -65,7 +65,11 @@ import {
   Trash2,
   Plus,
   Eye,
-  EyeOff
+  EyeOff,
+  Filter,
+  ChevronDown,
+  ChevronUp,
+  X
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -371,83 +375,83 @@ const columns: ColumnConfig[] = [
   { key: 'state', label: 'State', minWidth: '80px', align: 'left', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
   { key: 'campaignName', label: '广告活动', minWidth: '250px', align: 'left', sortable: true, defaultVisible: true, sticky: true, mobilePriority: 'core' },
   { key: 'countryCode', label: '国家', minWidth: '70px', align: 'center', sortable: true, defaultVisible: true, mobilePriority: 'important' },
-  { key: 'status', label: '状态', minWidth: '80px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'core' },
-  { key: 'campaignType', label: '类型', minWidth: '80px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'important' },
-  { key: 'targetingType', label: '定向', minWidth: '70px', align: 'left', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'retailer', label: '零售商', minWidth: '100px', align: 'left', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'portfolioName', label: '组合', minWidth: '120px', align: 'left', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'biddingStrategy', label: '竞价策略', minWidth: '100px', align: 'left', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'status', label: '状态', minWidth: '80px', align: 'center', sortable: true, defaultVisible: true, mobilePriority: 'core' },
+  { key: 'campaignType', label: '类型', minWidth: '80px', align: 'center', sortable: true, defaultVisible: true, mobilePriority: 'important' },
+  { key: 'targetingType', label: '定向', minWidth: '70px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'retailer', label: '零售商', minWidth: '100px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'portfolioName', label: '组合', minWidth: '120px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'biddingStrategy', label: '竞价策略', minWidth: '100px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
   
   // === 日期和预算 ===
-  { key: 'startDate', label: '开始日期', minWidth: '100px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
-  { key: 'endDate', label: '结束日期', minWidth: '100px', align: 'left', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'avgTimeInBudget', label: '预算内时间', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'budgetConverted', label: '预算(转换)', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'dailyBudget', label: '日预算', minWidth: '100px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'important' },
-  { key: 'costType', label: '计费类型', minWidth: '80px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
-  { key: 'campaignGoal', label: '广告目标', minWidth: '120px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
-  { key: 'adFormat', label: '广告格式', minWidth: '100px', align: 'left', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'startDate', label: '开始日期', minWidth: '100px', align: 'center', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'endDate', label: '结束日期', minWidth: '100px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'avgTimeInBudget', label: '预算内时间', minWidth: '100px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'budgetConverted', label: '预算(转换)', minWidth: '100px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'dailyBudget', label: '日预算', minWidth: '100px', align: 'center', sortable: true, defaultVisible: true, mobilePriority: 'important' },
+  { key: 'costType', label: '计费类型', minWidth: '80px', align: 'center', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'campaignGoal', label: '广告目标', minWidth: '120px', align: 'center', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'adFormat', label: '广告格式', minWidth: '100px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
   
   // === 曝光指标 ===
-  { key: 'impressions', label: '曝光', minWidth: '90px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
-  { key: 'topOfSearchImpressionShare', label: '搜索顶部曝光份额', minWidth: '130px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'topOfSearchBidAdjustment', label: '搜索顶部出价调整', minWidth: '130px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'impressions', label: '曝光', minWidth: '90px', align: 'center', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'topOfSearchImpressionShare', label: '搜索顶部曝光份额', minWidth: '130px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'topOfSearchBidAdjustment', label: '搜索顶部出价调整', minWidth: '130px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
   
   // === 点击和花费指标 ===
-  { key: 'clicks', label: '点击', minWidth: '80px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
-  { key: 'ctr', label: 'CTR', minWidth: '70px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
-  { key: 'spendConverted', label: '花费(转换)', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'dailySpend', label: '当日花费', minWidth: '100px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'core' },
-  { key: 'totalSpend', label: '累计花费', minWidth: '100px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
-  { key: 'cpcConverted', label: 'CPC(转换)', minWidth: '90px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'cpc', label: 'CPC', minWidth: '70px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'clicks', label: '点击', minWidth: '80px', align: 'center', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'ctr', label: 'CTR', minWidth: '70px', align: 'center', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'spendConverted', label: '花费(转换)', minWidth: '100px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'dailySpend', label: '当日花费', minWidth: '100px', align: 'center', sortable: true, defaultVisible: true, mobilePriority: 'core' },
+  { key: 'totalSpend', label: '累计花费', minWidth: '100px', align: 'center', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'cpcConverted', label: 'CPC(转换)', minWidth: '90px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'cpc', label: 'CPC', minWidth: '70px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
   
   // === 浏览指标 ===
-  { key: 'detailPageViews', label: '详情页浏览', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'brandStorePageViews', label: '品牌店铺浏览', minWidth: '110px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'detailPageViews', label: '详情页浏览', minWidth: '100px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'brandStorePageViews', label: '品牌店铺浏览', minWidth: '110px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
   
   // === 订单和销售指标 ===
-  { key: 'orders', label: '订单', minWidth: '70px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'salesConverted', label: '销售额(转换)', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'dailySales', label: '当日销售额', minWidth: '100px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'important' },
-  { key: 'totalSales', label: '累计销售额', minWidth: '100px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
-  { key: 'acos', label: 'ACoS', minWidth: '70px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'core' },
-  { key: 'roas', label: 'ROAS', minWidth: '70px', align: 'right', sortable: true, defaultVisible: true, mobilePriority: 'important' },
+  { key: 'orders', label: '订单', minWidth: '70px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'salesConverted', label: '销售额(转换)', minWidth: '100px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'dailySales', label: '当日销售额', minWidth: '100px', align: 'center', sortable: true, defaultVisible: true, mobilePriority: 'important' },
+  { key: 'totalSales', label: '累计销售额', minWidth: '100px', align: 'center', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
+  { key: 'acos', label: 'ACoS', minWidth: '70px', align: 'center', sortable: true, defaultVisible: true, mobilePriority: 'core' },
+  { key: 'roas', label: 'ROAS', minWidth: '70px', align: 'center', sortable: true, defaultVisible: true, mobilePriority: 'important' },
   
   // === 新客指标 (NTB - New To Brand) ===
-  { key: 'ntbOrders', label: '新客订单', minWidth: '90px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'ntbOrdersPercent', label: '新客订单占比', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'ntbSalesConverted', label: '新客销售额(转换)', minWidth: '120px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'ntbSales', label: '新客销售额', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'ntbSalesPercent', label: '新客销售占比', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'ntbOrders', label: '新客订单', minWidth: '90px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'ntbOrdersPercent', label: '新客订单占比', minWidth: '100px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'ntbSalesConverted', label: '新客销售额(转换)', minWidth: '120px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'ntbSales', label: '新客销售额', minWidth: '100px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'ntbSalesPercent', label: '新客销售占比', minWidth: '100px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
   
   // === 长期指标 ===
-  { key: 'longTermSalesConverted', label: '长期销售额(转换)', minWidth: '130px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'longTermSales', label: '长期销售额', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'longTermRoas', label: '长期ROAS', minWidth: '90px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'longTermSalesConverted', label: '长期销售额(转换)', minWidth: '130px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'longTermSales', label: '长期销售额', minWidth: '100px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'longTermRoas', label: '长期ROAS', minWidth: '90px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
   
   // === 触达指标 ===
-  { key: 'cumulativeReach', label: '累计触达', minWidth: '90px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'householdReach', label: '家庭触达', minWidth: '90px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'cumulativeReach', label: '累计触达', minWidth: '90px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'householdReach', label: '家庭触达', minWidth: '90px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
   
   // === 可见性指标 ===
-  { key: 'viewableImpressions', label: '可见曝光', minWidth: '90px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'cpmConverted', label: 'CPM(转换)', minWidth: '90px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'cpm', label: 'CPM', minWidth: '70px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'vcpmConverted', label: 'VCPM(转换)', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'vcpm', label: 'VCPM', minWidth: '70px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'viewableImpressions', label: '可见曝光', minWidth: '90px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'cpmConverted', label: 'CPM(转换)', minWidth: '90px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'cpm', label: 'CPM', minWidth: '70px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'vcpmConverted', label: 'VCPM(转换)', minWidth: '100px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'vcpm', label: 'VCPM', minWidth: '70px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
   
   // === 视频指标 ===
-  { key: 'videoFirstQuartile', label: '视频25%', minWidth: '80px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'videoMidpoint', label: '视频50%', minWidth: '80px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'videoThirdQuartile', label: '视频75%', minWidth: '80px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'videoComplete', label: '视频完整播放', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'videoUnmute', label: '视频取消静音', minWidth: '100px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'vtr', label: 'VTR', minWidth: '70px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
-  { key: 'vctr', label: 'vCTR', minWidth: '70px', align: 'right', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'videoFirstQuartile', label: '视频25%', minWidth: '80px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'videoMidpoint', label: '视频50%', minWidth: '80px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'videoThirdQuartile', label: '视频75%', minWidth: '80px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'videoComplete', label: '视频完整播放', minWidth: '100px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'videoUnmute', label: '视频取消静音', minWidth: '100px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'vtr', label: 'VTR', minWidth: '70px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'vctr', label: 'vCTR', minWidth: '70px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
   
   // === 系统字段 ===
-  { key: 'amazonCreatedDate', label: '创建日期(Amazon)', minWidth: '120px', align: 'left', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
+  { key: 'amazonCreatedDate', label: '创建日期(Amazon)', minWidth: '120px', align: 'center', sortable: true, defaultVisible: false, mobilePriority: 'secondary' },
   { key: 'performanceGroup', label: '优化目标', minWidth: '140px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
   { key: 'recommendedStrategy', label: '建议策略模板', minWidth: '160px', align: 'left', sortable: true, defaultVisible: true, mobilePriority: 'secondary' },
   { key: 'optimalBid', label: '最优出价', minWidth: '180px', align: 'center', sortable: false, defaultVisible: false, mobilePriority: 'secondary' },
@@ -573,6 +577,23 @@ const filterConfigs = [
   { key: 'order', defaultValue: 'asc' },
   { key: 'page', defaultValue: '1', ...serializers.string },
   { key: 'pageSize', defaultValue: '25', ...serializers.string },
+  // 高级筛选参数
+  { key: 'impMin', defaultValue: '' },
+  { key: 'impMax', defaultValue: '' },
+  { key: 'clickMin', defaultValue: '' },
+  { key: 'clickMax', defaultValue: '' },
+  { key: 'spendMin', defaultValue: '' },
+  { key: 'spendMax', defaultValue: '' },
+  { key: 'orderMin', defaultValue: '' },
+  { key: 'orderMax', defaultValue: '' },
+  { key: 'acosMin', defaultValue: '' },
+  { key: 'acosMax', defaultValue: '' },
+  { key: 'roasMin', defaultValue: '' },
+  { key: 'roasMax', defaultValue: '' },
+  { key: 'cpcMin', defaultValue: '' },
+  { key: 'cpcMax', defaultValue: '' },
+  { key: 'budgetMin', defaultValue: '' },
+  { key: 'budgetMax', defaultValue: '' },
 ];
 
 export default function Campaigns() {
@@ -596,6 +617,22 @@ export default function Campaigns() {
     order: string;
     page: string;
     pageSize: string;
+    impMin: string;
+    impMax: string;
+    clickMin: string;
+    clickMax: string;
+    spendMin: string;
+    spendMax: string;
+    orderMin: string;
+    orderMax: string;
+    acosMin: string;
+    acosMax: string;
+    roasMin: string;
+    roasMax: string;
+    cpcMin: string;
+    cpcMax: string;
+    budgetMin: string;
+    budgetMax: string;
   }>(filterConfigs, { debounceMs: 300 });
   
   // 从筛选状态中提取值
@@ -630,6 +667,24 @@ export default function Campaigns() {
   
   const [selectedCampaigns, setSelectedCampaigns] = useState<Set<number>>(new Set());
   const [isSyncing, setIsSyncing] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+
+  // 高级筛选是否激活
+  const hasAdvancedFilters = !!(filters.impMin || filters.impMax || filters.clickMin || filters.clickMax || 
+    filters.spendMin || filters.spendMax || filters.orderMin || filters.orderMax || 
+    filters.acosMin || filters.acosMax || filters.roasMin || filters.roasMax || 
+    filters.cpcMin || filters.cpcMax || filters.budgetMin || filters.budgetMax);
+
+  // 清除所有高级筛选
+  const clearAdvancedFilters = () => {
+    setFilters({
+      impMin: '', impMax: '', clickMin: '', clickMax: '',
+      spendMin: '', spendMax: '', orderMin: '', orderMax: '',
+      acosMin: '', acosMax: '', roasMin: '', roasMax: '',
+      cpcMin: '', cpcMax: '', budgetMin: '', budgetMax: '',
+      page: '1',
+    });
+  };
   
   // 列宽调整和固定功能
   const resizableColumnDefs = columns.map(col => ({
@@ -924,9 +979,53 @@ export default function Campaigns() {
         (optimizationStatusFilter === "managed" && (campaign as any).performanceGroupId) ||
         (optimizationStatusFilter === "unmanaged" && !(campaign as any).performanceGroupId);
       
-      return matchesSearch && matchesAccount && matchesType && matchesBillingType && matchesRunningStatus && matchesOptimizationStatus;
+      // 高级筛选 - 曝光
+      const impressions = Number(campaign.impressions) || 0;
+      const matchesImpMin = !filters.impMin || impressions >= Number(filters.impMin);
+      const matchesImpMax = !filters.impMax || impressions <= Number(filters.impMax);
+      
+      // 高级筛选 - 点击
+      const clicks = Number(campaign.clicks) || 0;
+      const matchesClickMin = !filters.clickMin || clicks >= Number(filters.clickMin);
+      const matchesClickMax = !filters.clickMax || clicks <= Number(filters.clickMax);
+      
+      // 高级筛选 - 花费
+      const spend = Number((campaign as any).totalSpend) || Number((campaign as any).spendConverted) || 0;
+      const matchesSpendMin = !filters.spendMin || spend >= Number(filters.spendMin);
+      const matchesSpendMax = !filters.spendMax || spend <= Number(filters.spendMax);
+      
+      // 高级筛选 - 订单数
+      const orders = Number((campaign as any).orders) || 0;
+      const matchesOrderMin = !filters.orderMin || orders >= Number(filters.orderMin);
+      const matchesOrderMax = !filters.orderMax || orders <= Number(filters.orderMax);
+      
+      // 高级筛选 - ACoS
+      const acos = Number((campaign as any).acos) || 0;
+      const matchesAcosMin = !filters.acosMin || acos >= Number(filters.acosMin);
+      const matchesAcosMax = !filters.acosMax || acos <= Number(filters.acosMax);
+      
+      // 高级筛选 - ROAS
+      const roas = Number((campaign as any).roas) || 0;
+      const matchesRoasMin = !filters.roasMin || roas >= Number(filters.roasMin);
+      const matchesRoasMax = !filters.roasMax || roas <= Number(filters.roasMax);
+      
+      // 高级筛选 - CPC
+      const cpc = Number((campaign as any).cpc) || Number((campaign as any).cpcConverted) || 0;
+      const matchesCpcMin = !filters.cpcMin || cpc >= Number(filters.cpcMin);
+      const matchesCpcMax = !filters.cpcMax || cpc <= Number(filters.cpcMax);
+      
+      // 高级筛选 - 日预算
+      const budget = Number((campaign as any).dailyBudget) || 0;
+      const matchesBudgetMin = !filters.budgetMin || budget >= Number(filters.budgetMin);
+      const matchesBudgetMax = !filters.budgetMax || budget <= Number(filters.budgetMax);
+      
+      return matchesSearch && matchesAccount && matchesType && matchesBillingType && matchesRunningStatus && matchesOptimizationStatus &&
+        matchesImpMin && matchesImpMax && matchesClickMin && matchesClickMax &&
+        matchesSpendMin && matchesSpendMax && matchesOrderMin && matchesOrderMax &&
+        matchesAcosMin && matchesAcosMax && matchesRoasMin && matchesRoasMax &&
+        matchesCpcMin && matchesCpcMax && matchesBudgetMin && matchesBudgetMax;
     });
-  }, [campaigns, debouncedSearchTerm, storeFilter, marketplaceFilter, filteredAccountIds, typeFilter, billingTypeFilter, runningStatusFilter, optimizationStatusFilter]);
+  }, [campaigns, debouncedSearchTerm, storeFilter, marketplaceFilter, filteredAccountIds, typeFilter, billingTypeFilter, runningStatusFilter, optimizationStatusFilter, filters.impMin, filters.impMax, filters.clickMin, filters.clickMax, filters.spendMin, filters.spendMax, filters.orderMin, filters.orderMax, filters.acosMin, filters.acosMax, filters.roasMin, filters.roasMax, filters.cpcMin, filters.cpcMax, filters.budgetMin, filters.budgetMax]);
 
   // 计算各状态数量
   const statusCounts = useMemo(() => {
@@ -2154,8 +2253,215 @@ export default function Campaigns() {
                 </div>
               </div>
 
+              {/* 第六行：高级筛选切换按钮 */}
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={showAdvancedFilters ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                  className="h-8"
+                >
+                  <Filter className="w-3 h-3 mr-1" />
+                  高级筛选
+                  {hasAdvancedFilters && <Badge variant="destructive" className="ml-1 text-xs h-4 w-4 p-0 flex items-center justify-center">!</Badge>}
+                  {showAdvancedFilters ? <ChevronUp className="w-3 h-3 ml-1" /> : <ChevronDown className="w-3 h-3 ml-1" />}
+                </Button>
+                {hasAdvancedFilters && (
+                  <Button variant="ghost" size="sm" className="h-8 text-xs text-destructive" onClick={clearAdvancedFilters}>
+                    <X className="w-3 h-3 mr-1" />
+                    清除高级筛选
+                  </Button>
+                )}
+              </div>
+
+              {/* 高级筛选面板 */}
+              {showAdvancedFilters && (
+                <div className="p-4 bg-muted/30 rounded-lg border space-y-3">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    {/* 曝光量 */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">曝光量 (Impressions)</label>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          placeholder="最小"
+                          value={filters.impMin || ''}
+                          onChange={(e) => setFilters({ impMin: e.target.value, page: '1' })}
+                          className="h-8 text-xs"
+                        />
+                        <span className="text-xs text-muted-foreground">~</span>
+                        <Input
+                          type="number"
+                          placeholder="最大"
+                          value={filters.impMax || ''}
+                          onChange={(e) => setFilters({ impMax: e.target.value, page: '1' })}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    </div>
+                    {/* 点击量 */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">点击量 (Clicks)</label>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          placeholder="最小"
+                          value={filters.clickMin || ''}
+                          onChange={(e) => setFilters({ clickMin: e.target.value, page: '1' })}
+                          className="h-8 text-xs"
+                        />
+                        <span className="text-xs text-muted-foreground">~</span>
+                        <Input
+                          type="number"
+                          placeholder="最大"
+                          value={filters.clickMax || ''}
+                          onChange={(e) => setFilters({ clickMax: e.target.value, page: '1' })}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    </div>
+                    {/* 花费 */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">花费 (Spend)</label>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          placeholder="最小"
+                          step="0.01"
+                          value={filters.spendMin || ''}
+                          onChange={(e) => setFilters({ spendMin: e.target.value, page: '1' })}
+                          className="h-8 text-xs"
+                        />
+                        <span className="text-xs text-muted-foreground">~</span>
+                        <Input
+                          type="number"
+                          placeholder="最大"
+                          step="0.01"
+                          value={filters.spendMax || ''}
+                          onChange={(e) => setFilters({ spendMax: e.target.value, page: '1' })}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    </div>
+                    {/* 订单数 */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">订单数 (Orders)</label>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          placeholder="最小"
+                          value={filters.orderMin || ''}
+                          onChange={(e) => setFilters({ orderMin: e.target.value, page: '1' })}
+                          className="h-8 text-xs"
+                        />
+                        <span className="text-xs text-muted-foreground">~</span>
+                        <Input
+                          type="number"
+                          placeholder="最大"
+                          value={filters.orderMax || ''}
+                          onChange={(e) => setFilters({ orderMax: e.target.value, page: '1' })}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    </div>
+                    {/* ACoS */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">ACoS (%)</label>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          placeholder="最小"
+                          step="0.1"
+                          value={filters.acosMin || ''}
+                          onChange={(e) => setFilters({ acosMin: e.target.value, page: '1' })}
+                          className="h-8 text-xs"
+                        />
+                        <span className="text-xs text-muted-foreground">~</span>
+                        <Input
+                          type="number"
+                          placeholder="最大"
+                          step="0.1"
+                          value={filters.acosMax || ''}
+                          onChange={(e) => setFilters({ acosMax: e.target.value, page: '1' })}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    </div>
+                    {/* ROAS */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">ROAS</label>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          placeholder="最小"
+                          step="0.01"
+                          value={filters.roasMin || ''}
+                          onChange={(e) => setFilters({ roasMin: e.target.value, page: '1' })}
+                          className="h-8 text-xs"
+                        />
+                        <span className="text-xs text-muted-foreground">~</span>
+                        <Input
+                          type="number"
+                          placeholder="最大"
+                          step="0.01"
+                          value={filters.roasMax || ''}
+                          onChange={(e) => setFilters({ roasMax: e.target.value, page: '1' })}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    </div>
+                    {/* CPC */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">CPC</label>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          placeholder="最小"
+                          step="0.01"
+                          value={filters.cpcMin || ''}
+                          onChange={(e) => setFilters({ cpcMin: e.target.value, page: '1' })}
+                          className="h-8 text-xs"
+                        />
+                        <span className="text-xs text-muted-foreground">~</span>
+                        <Input
+                          type="number"
+                          placeholder="最大"
+                          step="0.01"
+                          value={filters.cpcMax || ''}
+                          onChange={(e) => setFilters({ cpcMax: e.target.value, page: '1' })}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    </div>
+                    {/* 日预算 */}
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-muted-foreground">日预算 (Daily Budget)</label>
+                      <div className="flex items-center gap-1">
+                        <Input
+                          type="number"
+                          placeholder="最小"
+                          step="0.01"
+                          value={filters.budgetMin || ''}
+                          onChange={(e) => setFilters({ budgetMin: e.target.value, page: '1' })}
+                          className="h-8 text-xs"
+                        />
+                        <span className="text-xs text-muted-foreground">~</span>
+                        <Input
+                          type="number"
+                          placeholder="最大"
+                          step="0.01"
+                          value={filters.budgetMax || ''}
+                          onChange={(e) => setFilters({ budgetMax: e.target.value, page: '1' })}
+                          className="h-8 text-xs"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* 当前筛选条件摘要 */}
-              {(typeFilter !== "all" || billingTypeFilter !== "all" || runningStatusFilter !== "all" || optimizationStatusFilter !== "all") && (
+              {(typeFilter !== "all" || billingTypeFilter !== "all" || runningStatusFilter !== "all" || optimizationStatusFilter !== "all" || hasAdvancedFilters) && (
                 <div className="flex items-center gap-2 pt-2 border-t">
                   <span className="text-sm text-muted-foreground">当前筛选:</span>
                   <div className="flex flex-wrap gap-1">
@@ -2179,7 +2485,47 @@ export default function Campaigns() {
                         优化: {optimizationStatusOptions.find(t => t.value === optimizationStatusFilter)?.label} ×
                       </Badge>
                     )}
-                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={resetFilters}>
+                    {(filters.impMin || filters.impMax) && (
+                      <Badge variant="secondary" className="cursor-pointer hover:bg-destructive/20" onClick={() => setFilters({ impMin: '', impMax: '', page: '1' })}>
+                        曝光: {filters.impMin || '0'}~{filters.impMax || '∞'} ×
+                      </Badge>
+                    )}
+                    {(filters.clickMin || filters.clickMax) && (
+                      <Badge variant="secondary" className="cursor-pointer hover:bg-destructive/20" onClick={() => setFilters({ clickMin: '', clickMax: '', page: '1' })}>
+                        点击: {filters.clickMin || '0'}~{filters.clickMax || '∞'} ×
+                      </Badge>
+                    )}
+                    {(filters.spendMin || filters.spendMax) && (
+                      <Badge variant="secondary" className="cursor-pointer hover:bg-destructive/20" onClick={() => setFilters({ spendMin: '', spendMax: '', page: '1' })}>
+                        花费: {filters.spendMin || '0'}~{filters.spendMax || '∞'} ×
+                      </Badge>
+                    )}
+                    {(filters.orderMin || filters.orderMax) && (
+                      <Badge variant="secondary" className="cursor-pointer hover:bg-destructive/20" onClick={() => setFilters({ orderMin: '', orderMax: '', page: '1' })}>
+                        订单: {filters.orderMin || '0'}~{filters.orderMax || '∞'} ×
+                      </Badge>
+                    )}
+                    {(filters.acosMin || filters.acosMax) && (
+                      <Badge variant="secondary" className="cursor-pointer hover:bg-destructive/20" onClick={() => setFilters({ acosMin: '', acosMax: '', page: '1' })}>
+                        ACoS: {filters.acosMin || '0'}%~{filters.acosMax || '∞'}% ×
+                      </Badge>
+                    )}
+                    {(filters.roasMin || filters.roasMax) && (
+                      <Badge variant="secondary" className="cursor-pointer hover:bg-destructive/20" onClick={() => setFilters({ roasMin: '', roasMax: '', page: '1' })}>
+                        ROAS: {filters.roasMin || '0'}~{filters.roasMax || '∞'} ×
+                      </Badge>
+                    )}
+                    {(filters.cpcMin || filters.cpcMax) && (
+                      <Badge variant="secondary" className="cursor-pointer hover:bg-destructive/20" onClick={() => setFilters({ cpcMin: '', cpcMax: '', page: '1' })}>
+                        CPC: {filters.cpcMin || '0'}~{filters.cpcMax || '∞'} ×
+                      </Badge>
+                    )}
+                    {(filters.budgetMin || filters.budgetMax) && (
+                      <Badge variant="secondary" className="cursor-pointer hover:bg-destructive/20" onClick={() => setFilters({ budgetMin: '', budgetMax: '', page: '1' })}>
+                        日预算: {filters.budgetMin || '0'}~{filters.budgetMax || '∞'} ×
+                      </Badge>
+                    )}
+                    <Button variant="ghost" size="sm" className="h-6 text-xs" onClick={() => { resetFilters(); clearAdvancedFilters(); }}>
                       清除全部
                     </Button>
                   </div>
