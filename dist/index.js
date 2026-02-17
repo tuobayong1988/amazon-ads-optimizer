@@ -50441,6 +50441,122 @@ function getElasticity(historicalData, category, minConfidence = 0.5) {
   }
   return result.elasticity;
 }
+function getLocalHour(utcTime, marketplace) {
+  const timezone = MARKETPLACE_TIMEZONES[marketplace] || "UTC";
+  const formatter = new Intl.DateTimeFormat("en-US", { timeZone: timezone, hour: "numeric", hour12: false });
+  return parseInt(formatter.format(utcTime));
+}
+function getLocalDayOfWeek(utcTime, marketplace) {
+  const timezone = MARKETPLACE_TIMEZONES[marketplace] || "UTC";
+  const formatter = new Intl.DateTimeFormat("en-US", { timeZone: timezone, weekday: "short" });
+  const dayMap = { "Sun": 0, "Mon": 1, "Tue": 2, "Wed": 3, "Thu": 4, "Fri": 5, "Sat": 6 };
+  return dayMap[formatter.format(utcTime)] ?? 0;
+}
+function isNewKeyword(createdAt, totalClicks, totalImpressions, explorationDays = 7) {
+  const daysSinceCreation = ((/* @__PURE__ */ new Date()).getTime() - createdAt.getTime()) / (1e3 * 60 * 60 * 24);
+  return daysSinceCreation <= explorationDays || totalClicks < 10 && totalImpressions < 500;
+}
+function getExplorationStrategy(createdAt, totalClicks, totalImpressions, currentBid, suggestedBidRange, explorationDays = 7) {
+  const daysSinceCreation = ((/* @__PURE__ */ new Date()).getTime() - createdAt.getTime()) / (1e3 * 60 * 60 * 24);
+  const isNew = isNewKeyword(createdAt, totalClicks, totalImpressions, explorationDays);
+  if (!isNew) return { isNewKeyword: false, explorationDaysRemaining: 0, suggestedBid: currentBid, strategy: "exploit" };
+  const daysRemaining = Math.max(0, explorationDays - daysSinceCreation);
+  let suggestedBid = currentBid;
+  let strategy = "explore";
+  if (suggestedBidRange) {
+    if (daysSinceCreation <= explorationDays * 0.5) {
+      suggestedBid = suggestedBidRange.median;
+    } else if (totalClicks >= 5) {
+      strategy = "transition";
+      const ctr = totalImpressions > 0 ? totalClicks / totalImpressions : 0;
+      suggestedBid = ctr > 5e-3 ? suggestedBidRange.median : suggestedBidRange.low;
+    } else {
+      suggestedBid = suggestedBidRange.median;
+    }
+  } else {
+    suggestedBid = currentBid * 1.2;
+  }
+  return { isNewKeyword: true, explorationDaysRemaining: Math.round(daysRemaining * 10) / 10, suggestedBid: Math.round(suggestedBid * 100) / 100, strategy };
+}
+function isProtectedKeyword(keyword, brandTerms, coreProductTerms = []) {
+  const normalizedKeyword = keyword.toLowerCase().trim();
+  for (const brand of brandTerms) if (normalizedKeyword.includes(brand.toLowerCase())) return true;
+  for (const term of coreProductTerms) if (normalizedKeyword.includes(term.toLowerCase())) return true;
+  return false;
+}
+function calculateUCB(averageReward, totalTrials, armTrials, explorationFactor = 2) {
+  if (armTrials === 0) return Infinity;
+  return averageReward + explorationFactor * Math.sqrt(Math.log(totalTrials) / armTrials);
+}
+function calculateTimeDecayWeight(dataDate, halfLifeDays = 7, referenceDate = /* @__PURE__ */ new Date()) {
+  const daysDiff = (referenceDate.getTime() - dataDate.getTime()) / (1e3 * 60 * 60 * 24);
+  if (daysDiff < 0) return 1;
+  return Math.pow(0.5, daysDiff / halfLifeDays);
+}
+function calculateTimeDecayWeights(dates, halfLifeDays = 7, referenceDate = /* @__PURE__ */ new Date()) {
+  const weights = dates.map((date7) => calculateTimeDecayWeight(date7, halfLifeDays, referenceDate));
+  const totalWeight = weights.reduce((sum2, w7) => sum2 + w7, 0);
+  if (totalWeight === 0) return weights.map(() => 1 / weights.length);
+  return weights.map((w7) => w7 / totalWeight);
+}
+function calculateTimeWeightedROAS(dailyData, halfLifeDays = 7) {
+  if (dailyData.length === 0) return 0;
+  const dates = dailyData.map((d5) => d5.date);
+  const weights = calculateTimeDecayWeights(dates, halfLifeDays);
+  let weightedSpend = 0;
+  let weightedSales = 0;
+  for (let i4 = 0; i4 < dailyData.length; i4++) {
+    weightedSpend += dailyData[i4].spend * weights[i4];
+    weightedSales += dailyData[i4].sales * weights[i4];
+  }
+  return weightedSpend > 0 ? weightedSales / weightedSpend : 0;
+}
+function calculateUCBTuned(averageReward, totalTrials, armTrials, rewardVariance, explorationFactor = 2) {
+  if (armTrials === 0) return Infinity;
+  const logN = Math.log(totalTrials);
+  const varianceMultiplier = 1 + Math.sqrt(rewardVariance) * 0.5;
+  const explorationBonus = Math.sqrt(logN / armTrials) * varianceMultiplier;
+  return averageReward + explorationFactor * explorationBonus;
+}
+function calculateUCBBidSuggestion(currentBid, averageROAS, clicks, totalClicks, roasVariance = 0, targetROAS = 3, explorationFactor = 1.5) {
+  const ucbScore = roasVariance > 0 ? calculateUCBTuned(averageROAS, totalClicks, clicks, roasVariance, explorationFactor) : calculateUCB(averageROAS, totalClicks, clicks, explorationFactor);
+  const explorationBonus = clicks > 0 ? explorationFactor * Math.sqrt(Math.log(totalClicks) / clicks) : Infinity;
+  let strategy;
+  let confidence;
+  if (clicks < 10) {
+    strategy = "explore";
+    confidence = 0.3;
+  } else if (clicks < 50) {
+    strategy = "balanced";
+    confidence = 0.5 + (clicks - 10) / 80;
+  } else {
+    strategy = "exploit";
+    confidence = Math.min(0.95, 0.7 + clicks / 500);
+  }
+  let suggestedBid;
+  if (strategy === "explore") {
+    suggestedBid = currentBid * (1 + 0.1 * (1 - clicks / 10));
+  } else if (strategy === "exploit") {
+    if (averageROAS >= targetROAS) {
+      suggestedBid = currentBid * Math.min(1.2, 1 + (averageROAS - targetROAS) / targetROAS * 0.1);
+    } else {
+      suggestedBid = currentBid * Math.max(0.8, averageROAS / targetROAS);
+    }
+  } else {
+    const exploitBid = averageROAS >= targetROAS ? currentBid * (1 + (averageROAS - targetROAS) / targetROAS * 0.05) : currentBid * (averageROAS / targetROAS);
+    const exploreBid = currentBid * (1 + 0.05);
+    const exploitWeight = (clicks - 10) / 40;
+    suggestedBid = exploreBid * (1 - exploitWeight) + exploitBid * exploitWeight;
+  }
+  suggestedBid = Math.max(currentBid * 0.7, Math.min(currentBid * 1.3, suggestedBid));
+  return {
+    suggestedBid: Math.round(suggestedBid * 100) / 100,
+    ucbScore: Math.round(ucbScore * 100) / 100,
+    explorationBonus: Math.round(explorationBonus * 100) / 100,
+    strategy,
+    confidence: Math.round(confidence * 100) / 100
+  };
+}
 function getHolidayConfig(date7, marketplace) {
   const holidays = MARKETPLACE_HOLIDAYS[marketplace] || MARKETPLACE_HOLIDAYS["US"];
   const dateStr = date7.toISOString().split("T")[0];
@@ -50456,10 +50572,70 @@ function getHolidayConfig(date7, marketplace) {
   }
   return null;
 }
-var CATEGORY_ELASTICITY, MARKETPLACE_HOLIDAYS;
+function getPreHolidayMultiplier(date7, marketplace, preHolidayDays = 7) {
+  const holidays = MARKETPLACE_HOLIDAYS[marketplace] || MARKETPLACE_HOLIDAYS["US"];
+  const dateMs = date7.getTime();
+  for (const holiday of holidays) {
+    if (holiday.priority !== "high") continue;
+    let holidayStartDate;
+    if (holiday.date.includes("~")) {
+      holidayStartDate = new Date(holiday.date.split("~")[0]);
+    } else {
+      holidayStartDate = new Date(holiday.date);
+    }
+    const daysUntilHoliday = (holidayStartDate.getTime() - dateMs) / (1e3 * 60 * 60 * 24);
+    if (daysUntilHoliday > 0 && daysUntilHoliday <= preHolidayDays) {
+      const progress = 1 - daysUntilHoliday / preHolidayDays;
+      const bidMultiplier = 1 + (holiday.bidMultiplier - 1) * progress * 0.5;
+      const budgetMultiplier = 1 + (holiday.budgetMultiplier - 1) * progress * 0.5;
+      return {
+        bidMultiplier: Math.round(bidMultiplier * 100) / 100,
+        budgetMultiplier: Math.round(budgetMultiplier * 100) / 100,
+        holidayName: holiday.name
+      };
+    }
+  }
+  return { bidMultiplier: 1, budgetMultiplier: 1, holidayName: null };
+}
+function getDateAdjustmentMultipliers(date7, marketplace) {
+  const holidayConfig = getHolidayConfig(date7, marketplace);
+  if (holidayConfig) {
+    return {
+      bidMultiplier: holidayConfig.bidMultiplier,
+      budgetMultiplier: holidayConfig.budgetMultiplier,
+      reason: `${holidayConfig.name} (${holidayConfig.priority} priority)`
+    };
+  }
+  const preHoliday = getPreHolidayMultiplier(date7, marketplace);
+  if (preHoliday.holidayName) {
+    return {
+      bidMultiplier: preHoliday.bidMultiplier,
+      budgetMultiplier: preHoliday.budgetMultiplier,
+      reason: `Pre-${preHoliday.holidayName} warm-up period`
+    };
+  }
+  return { bidMultiplier: 1, budgetMultiplier: 1, reason: "Normal day" };
+}
+var MARKETPLACE_TIMEZONES, CATEGORY_ELASTICITY, MARKETPLACE_HOLIDAYS;
 var init_algorithmUtils = __esm({
   "server/algorithmUtils.ts"() {
     "use strict";
+    MARKETPLACE_TIMEZONES = {
+      "US": "America/Los_Angeles",
+      "CA": "America/Toronto",
+      "MX": "America/Mexico_City",
+      "BR": "America/Sao_Paulo",
+      "UK": "Europe/London",
+      "DE": "Europe/Berlin",
+      "FR": "Europe/Paris",
+      "IT": "Europe/Rome",
+      "ES": "Europe/Madrid",
+      "JP": "Asia/Tokyo",
+      "AU": "Australia/Sydney",
+      "SG": "Asia/Singapore",
+      "IN": "Asia/Kolkata",
+      "AE": "Asia/Dubai"
+    };
     CATEGORY_ELASTICITY = {
       "electronics": 1.2,
       "computers": 1.1,
@@ -50638,8 +50814,10 @@ function findOptimalBid(marketCurve, config2) {
 function calculateBayesianSmoothedCvr(orders, clicks, priorCvr, confidence = BAYESIAN_CONFIDENCE) {
   return (orders + confidence * priorCvr) / (clicks + confidence);
 }
-function isDataSufficient(target) {
-  return target.clicks >= DATA_SUFFICIENCY_THRESHOLDS.minClicks && target.orders >= DATA_SUFFICIENCY_THRESHOLDS.minOrders;
+function isDataSufficient(target, config2) {
+  const strategyKey = config2?.optimizationGoal || "balanced";
+  const thresholds = STRATEGY_DATA_THRESHOLDS[strategyKey] || DATA_SUFFICIENCY_THRESHOLDS;
+  return target.clicks >= thresholds.minClicks && target.orders >= thresholds.minOrders;
 }
 function calculateSparseDataBidAdjustment(target, config2, maxBidLimit = 10, minBidLimit = 0.02) {
   let newBid = target.currentBid;
@@ -50661,13 +50839,22 @@ function calculateSparseDataBidAdjustment(target, config2, maxBidLimit = 10, min
     targetCpa = groupAvgAov * 0.3;
   }
   const theoreticalBid = smoothedCvr * targetCpa;
-  const MAX_SPARSE_CHANGE_PERCENT = 0.2;
+  let MAX_SPARSE_CHANGE_PERCENT = 0.2;
+  const goal = config2.optimizationGoal || "balanced";
+  if (["aggressive-growth", "seasonal-boost", "market-expansion", "inventory-clearance"].includes(goal)) {
+    MAX_SPARSE_CHANGE_PERCENT = 0.3;
+  } else if (["profit-focused", "brand-defense", "decline-management"].includes(goal)) {
+    MAX_SPARSE_CHANGE_PERCENT = 0.12;
+  }
   if (theoreticalBid > target.currentBid) {
     newBid = Math.min(theoreticalBid, target.currentBid * (1 + MAX_SPARSE_CHANGE_PERCENT));
-    reason = `\u6570\u636E\u7A00\u758F\uFF08\u70B9\u51FB${target.clicks}\uFF0C\u8BA2\u5355${target.orders}\uFF09\uFF0C\u57FA\u4E8E\u8D1D\u53F6\u65AF\u5E73\u6ED1CVR(${(smoothedCvr * 100).toFixed(1)}%)\u5C1D\u8BD5\u63D0\u4EF7`;
+    reason = `[\u6570\u636E\u57F9\u80B2] \u70B9\u51FB${target.clicks}/\u8BA2\u5355${target.orders}\uFF0C\u8D1D\u53F6\u65AF\u5E73\u6ED1CVR(${(smoothedCvr * 100).toFixed(1)}%)\uFF0C\u5C0F\u5E45\u63D0\u4EF7\u83B7\u53D6\u66F4\u591A\u6570\u636E`;
+  } else if (target.clicks < 5 && target.orders === 0) {
+    newBid = target.currentBid;
+    reason = `[\u6570\u636E\u57F9\u80B2] \u70B9\u51FB${target.clicks}/\u8BA2\u5355${target.orders}\uFF0C\u6570\u636E\u4E0D\u8DB3\u4EE5\u5224\u65AD\u8D8B\u52BF\uFF0C\u4FDD\u6301\u5F53\u524D\u51FA\u4EF7\u7EE7\u7EED\u89C2\u5BDF`;
   } else {
     newBid = Math.max(theoreticalBid, target.currentBid * (1 - MAX_SPARSE_CHANGE_PERCENT));
-    reason = `\u6570\u636E\u7A00\u758F\uFF08\u70B9\u51FB${target.clicks}\uFF0C\u8BA2\u5355${target.orders}\uFF09\uFF0C\u8868\u73B0\u4E0D\u53CA\u9884\u671F\uFF0C\u4FDD\u5B88\u964D\u4EF7`;
+    reason = `[\u6570\u636E\u57F9\u80B2] \u70B9\u51FB${target.clicks}/\u8BA2\u5355${target.orders}\uFF0C\u8868\u73B0\u4E0D\u53CA\u9884\u671F\uFF0C\u4FDD\u5B88\u5FAE\u8C03\u51FA\u4EF7`;
   }
   newBid = Math.min(newBid, maxBidLimit);
   newBid = Math.max(newBid, minBidLimit);
@@ -50690,7 +50877,7 @@ function calculateSparseDataBidAdjustment(target, config2, maxBidLimit = 10, min
   };
 }
 function calculateBidAdjustment(target, config2, maxBidLimit = 10, minBidLimit = 0.02) {
-  if (!isDataSufficient(target)) {
+  if (!isDataSufficient(target, config2)) {
     return calculateSparseDataBidAdjustment(target, config2, maxBidLimit, minBidLimit);
   }
   const aspSensitivity = calculateASPSensitivity(target.currentASP, target.historicalASP);
@@ -50773,6 +50960,75 @@ function generateOptimizationReason(target, metrics, config2, newBid) {
   }
   return reasons.join("\uFF1B");
 }
+function calculateExplorationBid(target, config2, maxBidLimit = 10, minBidLimit = 0.02) {
+  let newBid = target.currentBid;
+  let reason = "";
+  const groupAvgCvr = config2.groupAvgCvr || 0.05;
+  const groupAvgAov = config2.groupAvgAov || 30;
+  const groupAvgCpc = config2.groupAvgCpc || target.currentBid;
+  if (target.impressions < 50) {
+    const increment = Math.max(
+      target.currentBid * 0.08,
+      // 8%提价
+      0.03
+      // 最少$0.03
+    );
+    newBid = target.currentBid + increment;
+    reason = `[\u63A2\u7D22\u6A21\u5F0F] \u66DD\u5149\u91CF\u4EC5${target.impressions}\uFF0C\u63A2\u6D4B\u6027\u63D0\u4EF7+$${increment.toFixed(2)}\u5BFB\u627E\u5408\u7406\u4EF7\u4F4D`;
+  } else if (target.clicks === 0) {
+    const increment = Math.max(
+      target.currentBid * 0.05,
+      // 5%提价
+      0.02
+    );
+    newBid = target.currentBid + increment;
+    reason = `[\u63A2\u7D22\u6A21\u5F0F] \u66DD\u5149${target.impressions}\u4F46\u96F6\u70B9\u51FB\uFF0C\u5C0F\u5E45\u63D0\u4EF7+$${increment.toFixed(2)}\u6539\u5584\u5E7F\u544A\u4F4D\u7F6E`;
+  } else if (target.orders === 0) {
+    const currentCpc = target.clicks > 0 ? target.spend / target.clicks : target.currentBid;
+    if (currentCpc > groupAvgCpc * 1.5) {
+      newBid = Math.max(target.currentBid * 0.92, groupAvgCpc);
+      reason = `[\u63A2\u7D22\u6A21\u5F0F] \u70B9\u51FB${target.clicks}\u65E0\u8F6C\u5316\uFF0CCPC($${currentCpc.toFixed(2)})\u9AD8\u4E8E\u7EC4\u5E73\u5747($${groupAvgCpc.toFixed(2)})\uFF0C\u5FAE\u8C03\u964D\u4F4E\u6210\u672C`;
+    } else {
+      newBid = target.currentBid;
+      reason = `[\u63A2\u7D22\u6A21\u5F0F] \u70B9\u51FB${target.clicks}\u65E0\u8F6C\u5316\uFF0CCPC\u5728\u5408\u7406\u8303\u56F4\uFF0C\u4FDD\u6301\u5F53\u524D\u51FA\u4EF7\u7EE7\u7EED\u79EF\u7D2F\u6570\u636E`;
+    }
+  } else {
+    const smoothedCvr = calculateBayesianSmoothedCvr(target.orders, target.clicks, groupAvgCvr);
+    let targetCpa;
+    if (config2.targetAcos && target.orders > 0) {
+      const avgOrderValue = target.sales / target.orders;
+      targetCpa = config2.targetAcos / 100 * avgOrderValue;
+    } else if (config2.targetRoas) {
+      targetCpa = groupAvgAov / config2.targetRoas;
+    } else {
+      targetCpa = groupAvgAov * 0.3;
+    }
+    const theoreticalBid = smoothedCvr * targetCpa;
+    if (theoreticalBid > target.currentBid) {
+      newBid = Math.min(theoreticalBid, target.currentBid * 1.15);
+    } else {
+      newBid = Math.max(theoreticalBid, target.currentBid * 0.85);
+    }
+    reason = `[\u63A2\u7D22\u6A21\u5F0F] \u70B9\u51FB${target.clicks}/\u8BA2\u5355${target.orders}\uFF0C\u8D1D\u53F6\u65AF\u5E73\u6ED1CVR(${(smoothedCvr * 100).toFixed(1)}%)\uFF0C\u57FA\u4E8E\u63A2\u7D22\u6027\u51FA\u4EF7\u8C03\u6574`;
+  }
+  const effectiveMaxBid = config2.maxBid || maxBidLimit;
+  newBid = Math.min(newBid, effectiveMaxBid);
+  newBid = Math.max(newBid, minBidLimit);
+  newBid = Math.round(newBid * 100) / 100;
+  let actionType = "set";
+  if (newBid > target.currentBid) actionType = "increase";
+  else if (newBid < target.currentBid) actionType = "decrease";
+  const bidChangePercent = target.currentBid > 0 ? (newBid - target.currentBid) / target.currentBid * 100 : 0;
+  return {
+    targetId: target.id,
+    targetType: target.type,
+    previousBid: target.currentBid,
+    newBid,
+    actionType,
+    bidChangePercent: Math.round(bidChangePercent * 100) / 100,
+    reason
+  };
+}
 function detectSuspectedOOS(target) {
   if (target.historicalAvgImpressions !== void 0 && target.historicalAvgImpressions > ZERO_IMPRESSION_PROBING_CONFIG.oosHistoricalAvgThreshold && target.impressions === 0) {
     return true;
@@ -50824,11 +51080,14 @@ function optimizePerformanceGroup(targets, config2, maxBidLimit = 10) {
       });
       continue;
     }
-    if (target.clicks < 5 && target.impressions < 100) {
-      if (isNewCampaign(target)) {
-        const probingResult = calculateZeroImpressionProbing(target, config2, maxBidLimit);
-        results.push(probingResult);
-      }
+    if (target.impressions === 0 && isNewCampaign(target)) {
+      const probingResult = calculateZeroImpressionProbing(target, config2, maxBidLimit);
+      results.push(probingResult);
+      continue;
+    }
+    if (!isDataSufficient(target, config2)) {
+      const explorationResult = calculateExplorationBid(target, config2, maxBidLimit);
+      results.push(explorationResult);
       continue;
     }
     const result = calculateBidAdjustment(target, config2, maxBidLimit);
@@ -50837,34 +51096,6 @@ function optimizePerformanceGroup(targets, config2, maxBidLimit = 10) {
     }
   }
   return results;
-}
-function getAdjustmentReason(keyword, config2) {
-  const acos = keyword.acos ? parseFloat(keyword.acos) : 0;
-  const roas = keyword.roas ? parseFloat(keyword.roas) : 0;
-  const impressions = keyword.impressions || 0;
-  const clicks = keyword.clicks || 0;
-  const orders = keyword.orders || 0;
-  if (config2.targetAcos && acos > 0) {
-    if (acos > config2.targetAcos * 1.2) {
-      return `ACoS (${acos.toFixed(1)}%) \u9AD8\u4E8E\u76EE\u6807 (${config2.targetAcos}%)\uFF0C\u964D\u4F4E\u51FA\u4EF7`;
-    } else if (acos < config2.targetAcos * 0.8) {
-      return `ACoS (${acos.toFixed(1)}%) \u4F4E\u4E8E\u76EE\u6807 (${config2.targetAcos}%)\uFF0C\u63D0\u9AD8\u51FA\u4EF7\u83B7\u53D6\u66F4\u591A\u6D41\u91CF`;
-    }
-  }
-  if (config2.targetRoas && roas > 0) {
-    if (roas < config2.targetRoas * 0.8) {
-      return `ROAS (${roas.toFixed(2)}) \u4F4E\u4E8E\u76EE\u6807 (${config2.targetRoas})\uFF0C\u964D\u4F4E\u51FA\u4EF7`;
-    } else if (roas > config2.targetRoas * 1.2) {
-      return `ROAS (${roas.toFixed(2)}) \u9AD8\u4E8E\u76EE\u6807 (${config2.targetRoas})\uFF0C\u63D0\u9AD8\u51FA\u4EF7\u83B7\u53D6\u66F4\u591A\u6D41\u91CF`;
-    }
-  }
-  if (impressions > 1e3 && clicks === 0) {
-    return `\u9AD8\u66DD\u5149\u96F6\u70B9\u51FB\uFF0C\u964D\u4F4E\u51FA\u4EF7`;
-  }
-  if (clicks > 50 && orders === 0) {
-    return `\u9AD8\u70B9\u51FB\u96F6\u8F6C\u5316\uFF0C\u964D\u4F4E\u51FA\u4EF7`;
-  }
-  return `\u57FA\u4E8E\u5386\u53F2\u8868\u73B0\u4F18\u5316\u51FA\u4EF7`;
 }
 function calculateASPSensitivity(currentASP, historicalASP) {
   if (!currentASP || !historicalASP || historicalASP === 0) {
@@ -50899,7 +51130,160 @@ function calculateASPSensitivity(currentASP, historicalASP) {
     reason: `ASP\u7A33\u5B9A($${currentASP.toFixed(2)}\uFF0C\u53D8\u52A8${(aspChangePercent * 100).toFixed(1)}%)\uFF0C\u4FDD\u6301\u6807\u51C6ACoS\u76EE\u6807`
   };
 }
-var DATA_SUFFICIENCY_THRESHOLDS, BAYESIAN_CONFIDENCE, ZERO_IMPRESSION_PROBING_CONFIG, ASP_SENSITIVITY_CONFIG;
+function calculateEnhancedBidAdjustment(target, config2, maxBidLimit = 10, minBidLimit = 0.02, currentDate = /* @__PURE__ */ new Date()) {
+  const metrics = calculateMetrics(target);
+  let algorithmUsed = "market_curve";
+  let confidenceScore = 0.5;
+  let timeDecayROAS;
+  let ucbSuggestion;
+  let holidayConfig = null;
+  let holidayMultiplier = 1;
+  if (target.dailyData && target.dailyData.length > 0) {
+    timeDecayROAS = calculateTimeWeightedROAS(target.dailyData);
+    algorithmUsed = "time_decay";
+    confidenceScore = Math.min(0.9, 0.5 + target.dailyData.length / 30);
+  }
+  const targetROAS = config2.targetRoas || 3;
+  ucbSuggestion = calculateUCBBidSuggestion(
+    target.currentBid,
+    target.clicks,
+    timeDecayROAS || metrics.roas,
+    targetROAS
+  );
+  if (ucbSuggestion.strategy === "explore") {
+    algorithmUsed = "ucb";
+    confidenceScore = ucbSuggestion.confidence;
+  }
+  const marketplace = target.marketplace || "US";
+  const dateAdjustment = getDateAdjustmentMultipliers(currentDate, marketplace);
+  holidayConfig = getHolidayConfig(currentDate, marketplace);
+  holidayMultiplier = dateAdjustment.bidMultiplier;
+  if (holidayMultiplier !== 1) {
+    algorithmUsed = "holiday";
+  }
+  let baseBid;
+  if (!isDataSufficient(target, config2)) {
+    const sparseResult = calculateSparseDataBidAdjustment(target, config2, maxBidLimit, minBidLimit);
+    baseBid = sparseResult.newBid;
+    algorithmUsed = "bayesian";
+    confidenceScore = 0.3;
+  } else if (ucbSuggestion.strategy === "explore") {
+    baseBid = ucbSuggestion.suggestedBid;
+  } else if (timeDecayROAS !== void 0) {
+    const targetAcos = config2.targetAcos || 30;
+    const currentAcos = timeDecayROAS > 0 ? 1 / timeDecayROAS * 100 : 100;
+    if (currentAcos < targetAcos) {
+      const adjustmentFactor = Math.min(1.25, 1 + (targetAcos - currentAcos) / targetAcos * 0.5);
+      baseBid = target.currentBid * adjustmentFactor;
+    } else {
+      const adjustmentFactor = Math.max(0.75, targetAcos / currentAcos);
+      baseBid = target.currentBid * adjustmentFactor;
+    }
+  } else {
+    const marketCurve = generateMarketCurve(target);
+    baseBid = findOptimalBid(marketCurve, config2);
+  }
+  let newBid = baseBid * holidayMultiplier;
+  newBid = Math.min(newBid, maxBidLimit);
+  newBid = Math.max(newBid, minBidLimit);
+  const maxChangePercent = 0.3;
+  const maxIncrease = target.currentBid * (1 + maxChangePercent);
+  const maxDecrease = target.currentBid * (1 - maxChangePercent);
+  newBid = Math.min(newBid, maxIncrease);
+  newBid = Math.max(newBid, maxDecrease);
+  newBid = Math.round(newBid * 100) / 100;
+  let actionType = "set";
+  if (newBid > target.currentBid) {
+    actionType = "increase";
+  } else if (newBid < target.currentBid) {
+    actionType = "decrease";
+  }
+  const bidChangePercent = (newBid - target.currentBid) / target.currentBid * 100;
+  const reasons = [];
+  if (timeDecayROAS !== void 0) {
+    reasons.push(`\u65F6\u95F4\u52A0\u6743ROAS: ${timeDecayROAS.toFixed(2)}`);
+  }
+  if (ucbSuggestion.strategy === "explore") {
+    reasons.push(`UCB\u63A2\u7D22\u7B56\u7565 (\u7F6E\u4FE1\u5EA6: ${(ucbSuggestion.confidence * 100).toFixed(0)}%)`);
+  } else if (ucbSuggestion.strategy === "exploit") {
+    reasons.push(`UCB\u5229\u7528\u7B56\u7565 (\u7F6E\u4FE1\u5EA6: ${(ucbSuggestion.confidence * 100).toFixed(0)}%)`);
+  }
+  if (holidayMultiplier !== 1) {
+    reasons.push(`${dateAdjustment.reason} (\u4E58\u6570: ${holidayMultiplier})`);
+  }
+  if (reasons.length === 0) {
+    reasons.push(generateOptimizationReason(target, metrics, config2, newBid));
+  }
+  const algorithmsUsed = [
+    timeDecayROAS !== void 0,
+    ucbSuggestion.strategy !== "exploit",
+    holidayMultiplier !== 1
+  ].filter(Boolean).length;
+  if (algorithmsUsed > 1) {
+    algorithmUsed = "combined";
+  }
+  return {
+    targetId: target.id,
+    targetType: target.type,
+    previousBid: target.currentBid,
+    newBid,
+    actionType,
+    bidChangePercent: Math.round(bidChangePercent * 100) / 100,
+    reason: reasons.join("\uFF1B"),
+    algorithmUsed,
+    timeDecayROAS,
+    ucbSuggestion,
+    holidayConfig,
+    holidayMultiplier,
+    confidenceScore: Math.round(confidenceScore * 100) / 100
+  };
+}
+function optimizePerformanceGroupEnhanced(targets, config2, maxBidLimit = 10, currentDate = /* @__PURE__ */ new Date()) {
+  const results = [];
+  for (const target of targets) {
+    if (detectSuspectedOOS(target)) {
+      results.push({
+        targetId: target.id,
+        targetType: target.type,
+        previousBid: target.currentBid,
+        newBid: target.currentBid,
+        actionType: "set",
+        bidChangePercent: 0,
+        reason: `\u7591\u4F3C\u65AD\u8D27/\u63C9\u8D2D\u7269\u8F66\u4E22\u5931\uFF1A\u5386\u53F2\u65E5\u5747\u66DD\u5149${target.historicalAvgImpressions}\u4F46\u5F53\u524D\u66DD\u5149\u4E3A0\uFF0C\u5F3A\u5236\u6682\u505C\u4F18\u5316`,
+        algorithmUsed: "combined",
+        confidenceScore: 1,
+        holidayMultiplier: 1
+      });
+      continue;
+    }
+    if (target.impressions === 0 && isNewCampaign(target)) {
+      const probingResult = calculateZeroImpressionProbing(target, config2, maxBidLimit);
+      results.push({
+        ...probingResult,
+        algorithmUsed: "bayesian",
+        confidenceScore: 0.2,
+        holidayMultiplier: 1
+      });
+      continue;
+    }
+    if (!isDataSufficient(target, config2)) {
+      const explorationResult = calculateExplorationBid(target, config2, maxBidLimit);
+      results.push({
+        ...explorationResult,
+        algorithmUsed: "bayesian",
+        confidenceScore: 0.25,
+        holidayMultiplier: 1
+      });
+      continue;
+    }
+    const result = calculateEnhancedBidAdjustment(target, config2, maxBidLimit, 0.02, currentDate);
+    if (Math.abs(result.bidChangePercent) > 1) {
+      results.push(result);
+    }
+  }
+  return results;
+}
+var DATA_SUFFICIENCY_THRESHOLDS, STRATEGY_DATA_THRESHOLDS, BAYESIAN_CONFIDENCE, ZERO_IMPRESSION_PROBING_CONFIG, ASP_SENSITIVITY_CONFIG;
 var init_bidOptimizer = __esm({
   "server/bidOptimizer.ts"() {
     "use strict";
@@ -50908,6 +51292,22 @@ var init_bidOptimizer = __esm({
     DATA_SUFFICIENCY_THRESHOLDS = {
       minClicks: 15,
       minOrders: 3
+    };
+    STRATEGY_DATA_THRESHOLDS = {
+      "aggressive-growth": { minClicks: 8, minOrders: 1 },
+      "seasonal-boost": { minClicks: 8, minOrders: 1 },
+      "market-expansion": { minClicks: 8, minOrders: 1 },
+      "balanced": { minClicks: 15, minOrders: 3 },
+      "maximize_sales": { minClicks: 12, minOrders: 2 },
+      "target_acos": { minClicks: 15, minOrders: 3 },
+      "target_roas": { minClicks: 15, minOrders: 3 },
+      "profit-focused": { minClicks: 20, minOrders: 5 },
+      "brand-defense": { minClicks: 20, minOrders: 5 },
+      "decline-management": { minClicks: 20, minOrders: 5 },
+      "inventory-clearance": { minClicks: 10, minOrders: 1 },
+      "competitor-attack": { minClicks: 10, minOrders: 2 },
+      "emergency-response": { minClicks: 10, minOrders: 2 },
+      "seasonal-pattern": { minClicks: 12, minOrders: 2 }
     };
     BAYESIAN_CONFIDENCE = 1;
     ZERO_IMPRESSION_PROBING_CONFIG = {
@@ -50919,8 +51319,13 @@ var init_bidOptimizer = __esm({
       // 每次探测提价固定金额($)
       probingImpressionThreshold: 500,
       // 曝光达到500后退出探测模式
-      oosHistoricalAvgThreshold: 1e3
+      oosHistoricalAvgThreshold: 1e3,
       // 历史日均曝光>1000且昨日曝光=0，判定为疑似断货
+      // v122g: 探索模式配置
+      explorationMaxBidPercent: 0.15,
+      // 探索模式最大提价百分比
+      explorationMinImpressions: 200
+      // 探索模式最低曝光要求
     };
     ASP_SENSITIVITY_CONFIG = {
       significantDropPercent: 0.1,
@@ -57128,7 +57533,7 @@ var init_adAutomation = __esm({
 // server/utils/timezone.ts
 function getMarketplaceTimezone(marketplace) {
   const normalizedMarketplace = marketplace?.toUpperCase() || "";
-  return MARKETPLACE_TIMEZONES[normalizedMarketplace] || DEFAULT_TIMEZONE;
+  return MARKETPLACE_TIMEZONES2[normalizedMarketplace] || DEFAULT_TIMEZONE;
 }
 function getMarketplaceCurrentDate(marketplace) {
   const timezone = getMarketplaceTimezone(marketplace);
@@ -57155,11 +57560,11 @@ function getMarketplaceDateRange(marketplace, daysBack) {
   const startDate = endDateFormatter.format(startDateTime);
   return { startDate, endDate };
 }
-var MARKETPLACE_TIMEZONES, DEFAULT_TIMEZONE;
+var MARKETPLACE_TIMEZONES2, DEFAULT_TIMEZONE;
 var init_timezone = __esm({
   "server/utils/timezone.ts"() {
     "use strict";
-    MARKETPLACE_TIMEZONES = {
+    MARKETPLACE_TIMEZONES2 = {
       // 北美站点 - 美国太平洋时间
       "US": "America/Los_Angeles",
       "CA": "America/Los_Angeles",
@@ -62152,6 +62557,188 @@ var init_intelligentBudgetAllocationService = __esm({
       anomalyThreshold: 2.5,
       // 标准差倍数
       minDataDays: 7
+    };
+  }
+});
+
+// shared/timezone.ts
+var timezone_exports = {};
+__export(timezone_exports, {
+  MARKETPLACE_TIMEZONES: () => MARKETPLACE_TIMEZONES3,
+  calculateDateRangeByMarketplace: () => calculateDateRangeByMarketplace,
+  formatMarketplaceLocalTime: () => formatMarketplaceLocalTime,
+  getMarketplaceCurrentHour: () => getMarketplaceCurrentHour,
+  getMarketplaceLocalDate: () => getMarketplaceLocalDate,
+  getMarketplaceLocalTime: () => getMarketplaceLocalTime,
+  getMarketplaceTimezoneInfo: () => getMarketplaceTimezoneInfo
+});
+function getMarketplaceLocalDate(marketplace) {
+  const config2 = MARKETPLACE_TIMEZONES3[marketplace] || MARKETPLACE_TIMEZONES3["US"];
+  const now = /* @__PURE__ */ new Date();
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: config2.timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  });
+  return formatter.format(now);
+}
+function getMarketplaceLocalTime(marketplace) {
+  const config2 = MARKETPLACE_TIMEZONES3[marketplace] || MARKETPLACE_TIMEZONES3["US"];
+  const now = /* @__PURE__ */ new Date();
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: config2.timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  }).formatToParts(now);
+  const dateObj = {};
+  parts.forEach((part) => {
+    dateObj[part.type] = part.value;
+  });
+  return new Date(
+    parseInt(dateObj.year),
+    parseInt(dateObj.month) - 1,
+    parseInt(dateObj.day),
+    parseInt(dateObj.hour),
+    parseInt(dateObj.minute),
+    parseInt(dateObj.second)
+  );
+}
+function calculateDateRangeByMarketplace(marketplace, timeRange) {
+  const localDate = getMarketplaceLocalDate(marketplace);
+  const [year4, month, day2] = localDate.split("-").map(Number);
+  const today = new Date(year4, month - 1, day2);
+  let startDate;
+  let endDate;
+  switch (timeRange) {
+    case "today":
+      startDate = today;
+      endDate = today;
+      break;
+    case "yesterday":
+      startDate = new Date(today);
+      startDate.setDate(startDate.getDate() - 1);
+      endDate = startDate;
+      break;
+    case "7days":
+      startDate = new Date(today);
+      startDate.setDate(startDate.getDate() - 6);
+      endDate = today;
+      break;
+    case "14days":
+      startDate = new Date(today);
+      startDate.setDate(startDate.getDate() - 13);
+      endDate = today;
+      break;
+    case "30days":
+      startDate = new Date(today);
+      startDate.setDate(startDate.getDate() - 29);
+      endDate = today;
+      break;
+    case "60days":
+      startDate = new Date(today);
+      startDate.setDate(startDate.getDate() - 59);
+      endDate = today;
+      break;
+    case "90days":
+      startDate = new Date(today);
+      startDate.setDate(startDate.getDate() - 89);
+      endDate = today;
+      break;
+    default:
+      startDate = new Date(today);
+      startDate.setDate(startDate.getDate() - 6);
+      endDate = today;
+  }
+  const formatDate2 = (d5) => {
+    const yyyy = d5.getFullYear();
+    const mm = String(d5.getMonth() + 1).padStart(2, "0");
+    const dd = String(d5.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  };
+  return {
+    startDate: formatDate2(startDate),
+    endDate: formatDate2(endDate)
+  };
+}
+function getMarketplaceTimezoneInfo(marketplace) {
+  return MARKETPLACE_TIMEZONES3[marketplace] || MARKETPLACE_TIMEZONES3["US"];
+}
+function formatMarketplaceLocalTime(marketplace, format3 = "datetime") {
+  const config2 = MARKETPLACE_TIMEZONES3[marketplace] || MARKETPLACE_TIMEZONES3["US"];
+  const now = /* @__PURE__ */ new Date();
+  const options = {
+    timeZone: config2.timezone
+  };
+  switch (format3) {
+    case "date":
+      options.year = "numeric";
+      options.month = "2-digit";
+      options.day = "2-digit";
+      break;
+    case "time":
+      options.hour = "2-digit";
+      options.minute = "2-digit";
+      options.hour12 = false;
+      break;
+    case "datetime":
+      options.year = "numeric";
+      options.month = "2-digit";
+      options.day = "2-digit";
+      options.hour = "2-digit";
+      options.minute = "2-digit";
+      options.hour12 = false;
+      break;
+  }
+  return new Intl.DateTimeFormat("zh-CN", options).format(now);
+}
+function getMarketplaceCurrentHour(marketplace) {
+  const config2 = MARKETPLACE_TIMEZONES3[marketplace] || MARKETPLACE_TIMEZONES3["US"];
+  const now = /* @__PURE__ */ new Date();
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: config2.timezone,
+    hour: "2-digit",
+    hour12: false
+  });
+  const hourStr = formatter.format(now);
+  return parseInt(hourStr);
+}
+var MARKETPLACE_TIMEZONES3;
+var init_timezone2 = __esm({
+  "shared/timezone.ts"() {
+    "use strict";
+    MARKETPLACE_TIMEZONES3 = {
+      // 北美
+      "US": { timezone: "America/Los_Angeles", name: "\u7F8E\u56FD", offset: -8 },
+      // PST/PDT
+      "CA": { timezone: "America/Vancouver", name: "\u52A0\u62FF\u5927", offset: -8 },
+      // PST/PDT
+      "MX": { timezone: "America/Mexico_City", name: "\u58A8\u897F\u54E5", offset: -6 },
+      // CST
+      // 欧洲
+      "UK": { timezone: "Europe/London", name: "\u82F1\u56FD", offset: 0 },
+      "DE": { timezone: "Europe/Berlin", name: "\u5FB7\u56FD", offset: 1 },
+      "FR": { timezone: "Europe/Paris", name: "\u6CD5\u56FD", offset: 1 },
+      "IT": { timezone: "Europe/Rome", name: "\u610F\u5927\u5229", offset: 1 },
+      "ES": { timezone: "Europe/Madrid", name: "\u897F\u73ED\u7259", offset: 1 },
+      "NL": { timezone: "Europe/Amsterdam", name: "\u8377\u5170", offset: 1 },
+      "SE": { timezone: "Europe/Stockholm", name: "\u745E\u5178", offset: 1 },
+      "PL": { timezone: "Europe/Warsaw", name: "\u6CE2\u5170", offset: 1 },
+      "BE": { timezone: "Europe/Brussels", name: "\u6BD4\u5229\u65F6", offset: 1 },
+      // 亚太
+      "JP": { timezone: "Asia/Tokyo", name: "\u65E5\u672C", offset: 9 },
+      "AU": { timezone: "Australia/Sydney", name: "\u6FB3\u5927\u5229\u4E9A", offset: 11 },
+      "SG": { timezone: "Asia/Singapore", name: "\u65B0\u52A0\u5761", offset: 8 },
+      "IN": { timezone: "Asia/Kolkata", name: "\u5370\u5EA6", offset: 5.5 },
+      "AE": { timezone: "Asia/Dubai", name: "\u963F\u8054\u914B", offset: 4 },
+      "SA": { timezone: "Asia/Riyadh", name: "\u6C99\u7279\u963F\u62C9\u4F2F", offset: 3 },
+      // 南美
+      "BR": { timezone: "America/Sao_Paulo", name: "\u5DF4\u897F", offset: -3 }
     };
   }
 });
@@ -88568,6 +89155,13 @@ __export(optimizationTargetEngine_exports, {
   getOptimizationTargetConfig: () => getOptimizationTargetConfig,
   getOptimizationTargetSummary: () => getOptimizationTargetSummary
 });
+async function getAccountMarketplace(accountId) {
+  if (marketplaceCache.has(accountId)) return marketplaceCache.get(accountId);
+  const account = await getAdAccountById(accountId);
+  const marketplace = account?.marketplace || "US";
+  marketplaceCache.set(accountId, marketplace);
+  return marketplace;
+}
 async function getOptimizationTargetConfig(targetId) {
   const group = await getPerformanceGroupById(targetId);
   if (!group) return null;
@@ -88575,6 +89169,7 @@ async function getOptimizationTargetConfig(targetId) {
     id: group.id,
     name: group.name,
     accountId: group.accountId,
+    marketplace: await getAccountMarketplace(group.accountId),
     isEnabled: group.status === "active",
     optimizationGoal: group.optimizationGoal || "balanced",
     targetAcos: group.targetAcos ? parseFloat(group.targetAcos) : void 0,
@@ -88713,68 +89308,153 @@ async function executeOptimizationTarget(targetId, options = {}) {
 async function executeBidOptimization(config2, campaigns6, dryRun) {
   const details = [];
   let adjustmentsCount = 0;
+  let totalClicks = 0, totalOrders = 0, totalSpend = 0, totalSales = 0;
+  for (const c5 of campaigns6) {
+    totalClicks += c5.clicks || 0;
+    totalOrders += c5.orders || 0;
+    totalSpend += parseFloat(c5.spend || "0");
+    totalSales += parseFloat(c5.sales || "0");
+  }
+  const groupAvgCvr = totalClicks > 0 ? totalOrders / totalClicks : 0.05;
+  const groupAvgCpc = totalClicks > 0 ? totalSpend / totalClicks : 0.8;
+  const groupAvgAov = totalOrders > 0 ? totalSales / totalOrders : 30;
   const bidConfig = {
     optimizationGoal: config2.optimizationGoal,
     targetAcos: config2.targetAcos,
     targetRoas: config2.targetRoas,
     dailyBudget: config2.dailyBudget,
-    maxBid: config2.maxBid
+    maxBid: config2.maxBid,
+    groupAvgCvr,
+    groupAvgCpc,
+    groupAvgAov
   };
+  const currentDate = /* @__PURE__ */ new Date();
+  const maxBidLimit = config2.maxBid || 10;
   for (const campaign of campaigns6) {
+    let campaignDailyData = [];
+    try {
+      const endDate = /* @__PURE__ */ new Date();
+      const startDate = /* @__PURE__ */ new Date();
+      startDate.setDate(startDate.getDate() - 14);
+      const rawDailyData = await getDailyPerformanceByDateRange(config2.accountId, startDate, endDate, campaign.id);
+      campaignDailyData = rawDailyData.map((d5) => ({
+        date: new Date(d5.date),
+        spend: parseFloat(String(d5.spend || "0")),
+        sales: parseFloat(String(d5.sales || "0")),
+        clicks: d5.clicks || 0,
+        orders: d5.orders || 0
+      }));
+    } catch (e6) {
+      console.log(`[BidOptimization] \u83B7\u53D6campaign ${campaign.id} \u5386\u53F2\u6570\u636E\u5931\u8D25: ${e6.message}`);
+    }
     const keywords5 = await getKeywordsByCampaignId(campaign.id);
+    const keywordTargets = [];
     for (const keyword of keywords5) {
       if (keyword.keywordStatus !== "enabled") continue;
       const currentBid = parseFloat(keyword.bid || "0");
       if (currentBid <= 0) continue;
-      const marketCurve = generateMarketCurve(keyword);
-      const optimalBid = findOptimalBid(marketCurve, bidConfig);
-      if (optimalBid && Math.abs(optimalBid - currentBid) > 0.01) {
-        const adjustment = {
-          keywordId: keyword.id,
-          keywordText: keyword.keywordText,
-          campaignId: campaign.id,
-          campaignName: campaign.name,
-          currentBid,
-          newBid: optimalBid,
-          changePercent: ((optimalBid - currentBid) / currentBid * 100).toFixed(2),
-          reason: getAdjustmentReason(keyword, bidConfig)
-        };
-        details.push(adjustment);
-        if (!dryRun) {
-          await updateKeyword(keyword.id, { bid: optimalBid.toFixed(2) });
-          adjustmentsCount++;
+      keywordTargets.push({
+        id: keyword.id,
+        type: "keyword",
+        currentBid,
+        impressions: keyword.impressions || 0,
+        clicks: keyword.clicks || 0,
+        spend: parseFloat(keyword.spend || "0"),
+        sales: parseFloat(keyword.sales || "0"),
+        orders: keyword.orders || 0,
+        matchType: keyword.matchType,
+        campaignStartDate: campaign.startDate ? new Date(campaign.startDate) : void 0,
+        historicalAvgImpressions: campaign.impressions ? Math.round(campaign.impressions / 14) : void 0,
+        // v122h: 传入campaign级别的每日数据用于时间衰减ROAS和UCB
+        dailyData: campaignDailyData.length > 0 ? campaignDailyData : void 0,
+        marketplace: config2.marketplace,
+        campaignId: campaign.id
+      });
+    }
+    if (keywordTargets.length > 0) {
+      const results = optimizePerformanceGroupEnhanced(
+        keywordTargets,
+        bidConfig,
+        maxBidLimit,
+        currentDate
+      );
+      for (const result of results) {
+        if (Math.abs(result.newBid - result.previousBid) > 0.01) {
+          const keyword = keywords5.find((k5) => k5.id === result.targetId);
+          const adjustment = {
+            keywordId: result.targetId,
+            keywordText: keyword?.keywordText || `\u5173\u952E\u8BCD ${result.targetId}`,
+            campaignId: campaign.id,
+            campaignName: campaign.name || campaign.campaignName,
+            currentBid: result.previousBid,
+            newBid: result.newBid,
+            changePercent: result.bidChangePercent.toFixed(2),
+            reason: `[${result.algorithmUsed}] ${result.reason}`,
+            algorithmUsed: result.algorithmUsed,
+            confidenceScore: result.confidenceScore
+          };
+          details.push(adjustment);
+          if (!dryRun) {
+            await updateKeyword(result.targetId, { bid: result.newBid.toFixed(2) });
+            adjustmentsCount++;
+          }
         }
       }
     }
     const adGroupsList = await getAdGroupsByCampaignId(campaign.id);
+    const productTargets2 = [];
+    const allTargets = [];
     for (const ag of adGroupsList) {
       const targets = await getProductTargetsByAdGroupId(ag.id);
       for (const target of targets) {
         if (target.targetStatus !== "enabled") continue;
         const currentBid = parseFloat(target.bid || "0");
         if (currentBid <= 0) continue;
-        const targetAsKeyword = {
-          ...target,
-          keywordText: target.targetText || target.targetValue || `ASIN ${target.id}`,
-          matchType: target.targetMatchType || "exact"
-        };
-        const marketCurve = generateMarketCurve(targetAsKeyword);
-        const optimalBid = findOptimalBid(marketCurve, bidConfig);
-        if (optimalBid && Math.abs(optimalBid - currentBid) > 0.01) {
+        allTargets.push(target);
+        productTargets2.push({
+          id: target.id,
+          type: "product_target",
+          currentBid,
+          impressions: target.impressions || 0,
+          clicks: target.clicks || 0,
+          spend: parseFloat(target.spend || "0"),
+          sales: parseFloat(target.sales || "0"),
+          orders: target.orders || 0,
+          matchType: target.targetMatchType || "exact",
+          campaignStartDate: campaign.startDate ? new Date(campaign.startDate) : void 0,
+          historicalAvgImpressions: campaign.impressions ? Math.round(campaign.impressions / 14) : void 0,
+          dailyData: campaignDailyData.length > 0 ? campaignDailyData : void 0,
+          marketplace: config2.marketplace,
+          campaignId: campaign.id
+        });
+      }
+    }
+    if (productTargets2.length > 0) {
+      const results = optimizePerformanceGroupEnhanced(
+        productTargets2,
+        bidConfig,
+        maxBidLimit,
+        currentDate
+      );
+      for (const result of results) {
+        if (Math.abs(result.newBid - result.previousBid) > 0.01) {
+          const target = allTargets.find((t7) => t7.id === result.targetId);
           const adjustment = {
-            keywordId: target.id,
-            keywordText: target.targetText || target.targetValue || `\u5546\u54C1\u5B9A\u5411 ${target.id}`,
+            keywordId: result.targetId,
+            keywordText: target?.targetText || target?.targetValue || `\u5546\u54C1\u5B9A\u5411 ${result.targetId}`,
             campaignId: campaign.id,
-            campaignName: campaign.name,
-            currentBid,
-            newBid: optimalBid,
-            changePercent: ((optimalBid - currentBid) / currentBid * 100).toFixed(2),
-            reason: `\u5546\u54C1\u5B9A\u5411(\u5339\u914D:${target.targetMatchType || "auto"}) - ${getAdjustmentReason(targetAsKeyword, bidConfig)}`,
-            isProductTarget: true
+            campaignName: campaign.name || campaign.campaignName,
+            currentBid: result.previousBid,
+            newBid: result.newBid,
+            changePercent: result.bidChangePercent.toFixed(2),
+            reason: `\u5546\u54C1\u5B9A\u5411 - [${result.algorithmUsed}] ${result.reason}`,
+            isProductTarget: true,
+            algorithmUsed: result.algorithmUsed,
+            confidenceScore: result.confidenceScore
           };
           details.push(adjustment);
           if (!dryRun) {
-            await updateProductTarget(target.id, { bid: optimalBid.toFixed(2) });
+            await updateProductTarget(result.targetId, { bid: result.newBid.toFixed(2) });
             adjustmentsCount++;
           }
         }
@@ -88861,8 +89541,10 @@ async function executePlacementOptimization(config2, campaigns6, dryRun) {
 async function executeDaypartingOptimization(config2, campaigns6, dryRun) {
   const details = [];
   let adjustmentsCount = 0;
-  const currentHour = (/* @__PURE__ */ new Date()).getHours();
-  const currentDayOfWeek = (/* @__PURE__ */ new Date()).getDay();
+  const marketplace = config2.marketplace || "US";
+  const now = /* @__PURE__ */ new Date();
+  const currentHour = getLocalHour(now, marketplace);
+  const currentDayOfWeek = getLocalDayOfWeek(now, marketplace);
   for (const campaign of campaigns6) {
     try {
       const strategy = await getDaypartingStrategy(campaign.id);
@@ -88931,8 +89613,37 @@ async function executeSearchTermAnalysis(config2, campaigns6, dryRun) {
         { category: "", brand: "" }
         // 产品属性
       );
+      const account = await getAdAccountById(config2.accountId);
+      const brandTerms = account?.brandName ? [account.brandName] : [];
       for (const term of classification) {
         if (term.suggestedAction === "negative_exact" || term.suggestedAction === "negative_phrase") {
+          if (brandTerms.length > 0 && isProtectedKeyword(term.searchTerm, brandTerms)) {
+            details.push({
+              campaignId: campaign.id,
+              campaignName: campaign.name,
+              searchTerm: term.searchTerm,
+              action: "brand_protect_skip",
+              reason: `[\u54C1\u724C\u8BCD\u4FDD\u62A4] \u641C\u7D22\u8BCD"${term.searchTerm}"\u542B\u6709\u54C1\u724C\u8BCD\uFF0C\u8DF3\u8FC7\u5426\u5B9A`
+            });
+            continue;
+          }
+          const matchingKeywords = await getKeywordsByCampaignId(campaign.id);
+          const matchingKw = matchingKeywords.find(
+            (kw) => kw.keywordText?.toLowerCase() === term.searchTerm.toLowerCase()
+          );
+          if (matchingKw?.createdAt) {
+            const kwCreatedAt = new Date(matchingKw.createdAt);
+            if (isNewKeyword(kwCreatedAt, matchingKw.clicks || 0, matchingKw.impressions || 0, 7)) {
+              details.push({
+                campaignId: campaign.id,
+                campaignName: campaign.name,
+                searchTerm: term.searchTerm,
+                action: "exploration_protect_skip",
+                reason: `[\u63A2\u7D22\u671F\u4FDD\u62A4] \u5BF9\u5E94\u6295\u653E\u8BCD\u5728\u63A2\u7D22\u671F\u5185\uFF0C\u8DF3\u8FC7\u5426\u5B9A\uFF0C\u7ED9\u4E88\u5145\u5206\u7684\u6570\u636E\u79EF\u7D2F\u65F6\u95F4`
+              });
+              continue;
+            }
+          }
           const negativeKeyword = {
             campaignId: campaign.id,
             campaignName: campaign.name,
@@ -89065,6 +89776,30 @@ async function executeKeywordStatusChanges(config2, campaigns6, dryRun) {
   const details = [];
   let pausedCount = 0;
   let enabledCount = 0;
+  const goal = config2.optimizationGoal || "balanced";
+  let pauseSpendThreshold = 50;
+  let pauseClickThreshold = 20;
+  let maxAcosThreshold = (config2.targetAcos || 30) * 2.5;
+  if (["aggressive-growth", "seasonal-boost", "market-expansion"].includes(goal)) {
+    pauseSpendThreshold = 100;
+    pauseClickThreshold = 40;
+    maxAcosThreshold = (config2.targetAcos || 30) * 3.5;
+  } else if (["profit-focused", "brand-defense", "decline-management"].includes(goal)) {
+    pauseSpendThreshold = 35;
+    pauseClickThreshold = 15;
+    maxAcosThreshold = (config2.targetAcos || 30) * 2;
+  } else if (["inventory-clearance", "competitor-attack"].includes(goal)) {
+    pauseSpendThreshold = 70;
+    pauseClickThreshold = 30;
+    maxAcosThreshold = (config2.targetAcos || 30) * 3;
+  }
+  let totalSalesForAov = 0, totalOrdersForAov = 0;
+  for (const c5 of campaigns6) {
+    totalSalesForAov += parseFloat(c5.sales || "0");
+    totalOrdersForAov += c5.orders || 0;
+  }
+  const groupAov = totalOrdersForAov > 0 ? totalSalesForAov / totalOrdersForAov : 30;
+  pauseSpendThreshold = Math.max(pauseSpendThreshold, groupAov * 1.5);
   for (const campaign of campaigns6) {
     try {
       const keywords5 = await getKeywordsByCampaignId(campaign.id);
@@ -89073,11 +89808,81 @@ async function executeKeywordStatusChanges(config2, campaigns6, dryRun) {
         const sales = parseFloat(keyword.sales || "0");
         const clicks = keyword.clicks || 0;
         const conversions = keyword.orders || 0;
+        const impressions = keyword.impressions || 0;
         const acos = sales > 0 ? spend / sales * 100 : 0;
-        const shouldPause = keyword.keywordStatus === "enabled" && spend > 50 && // 花费超过$50
-        conversions === 0 && // 没有转化
-        clicks > 20;
-        const shouldEnable = keyword.keywordStatus === "paused" && acos > 0 && acos < (config2.targetAcos || 30);
+        let shouldPause = false;
+        let pauseReason = "";
+        if (keyword.keywordStatus === "enabled") {
+          if (spend > pauseSpendThreshold && conversions === 0 && clicks > pauseClickThreshold) {
+            shouldPause = true;
+            pauseReason = `\u9AD8\u82B1\u8D39\u96F6\u8F6C\u5316: \u82B1\u8D39$${spend.toFixed(2)}(>\u9608\u503C$${pauseSpendThreshold.toFixed(0)}), \u70B9\u51FB${clicks}(>\u9608\u503C${pauseClickThreshold}), \u8F6C\u5316${conversions}`;
+          } else if (acos > maxAcosThreshold && clicks > pauseClickThreshold && conversions > 0) {
+            shouldPause = true;
+            pauseReason = `ACoS\u8FDC\u8D85\u76EE\u6807: ACoS ${acos.toFixed(1)}%(>\u9608\u503C${maxAcosThreshold.toFixed(0)}%), \u70B9\u51FB${clicks}, \u8F6C\u5316${conversions}`;
+          }
+          if (shouldPause && keyword.createdAt) {
+            const keywordCreatedAt = new Date(keyword.createdAt);
+            const isNew = isNewKeyword(keywordCreatedAt, clicks, impressions, 7);
+            if (isNew) {
+              shouldPause = false;
+              const explorationInfo = getExplorationStrategy(keywordCreatedAt, clicks, impressions, parseFloat(keyword.bid || "0"));
+              details.push({
+                campaignId: campaign.id,
+                campaignName: campaign.name,
+                keywordId: keyword.id,
+                keywordText: keyword.keywordText,
+                action: "exploration_protect",
+                reason: `[\u63A2\u7D22\u671F\u4FDD\u62A4] \u5173\u952E\u8BCD\u5728\u63A2\u7D22\u671F\u5185(\u5269\u4F59${explorationInfo.explorationDaysRemaining}\u5929)\uFF0C\u7B56\u7565:${explorationInfo.strategy}\uFF0C\u4E0D\u6267\u884C\u6682\u505C`,
+                currentStatus: keyword.keywordStatus
+              });
+              continue;
+            }
+          }
+          if (shouldPause) {
+            const account = await getAdAccountById(config2.accountId);
+            const brandTerms = account?.brandName ? [account.brandName] : [];
+            if (brandTerms.length > 0 && isProtectedKeyword(keyword.keywordText, brandTerms)) {
+              shouldPause = false;
+              details.push({
+                campaignId: campaign.id,
+                campaignName: campaign.name,
+                keywordId: keyword.id,
+                keywordText: keyword.keywordText,
+                action: "brand_protect",
+                reason: `[\u54C1\u724C\u8BCD\u4FDD\u62A4] \u54C1\u724C\u5173\u952E\u8BCD"${keyword.keywordText}"\u4E0D\u81EA\u52A8\u6682\u505C\uFF0C\u5EFA\u8BAE\u4EBA\u5DE5\u8BC4\u4F30`,
+                currentStatus: keyword.keywordStatus
+              });
+              continue;
+            }
+          }
+          if (shouldPause && clicks < 10 && spend < groupAov) {
+            shouldPause = false;
+            details.push({
+              campaignId: campaign.id,
+              campaignName: campaign.name,
+              keywordId: keyword.id,
+              keywordText: keyword.keywordText,
+              action: "observe",
+              reason: `[\u89C2\u5BDF\u671F] \u6570\u636E\u91CF\u4E0D\u8DB3(\u70B9\u51FB${clicks},\u82B1\u8D39$${spend.toFixed(2)})\uFF0C\u7EE7\u7EED\u89C2\u5BDF\u800C\u975E\u76F4\u63A5\u6682\u505C`,
+              currentStatus: keyword.keywordStatus
+            });
+            continue;
+          }
+        }
+        let shouldEnable = false;
+        let enableReason = "";
+        if (keyword.keywordStatus === "paused") {
+          if (acos > 0 && acos < (config2.targetAcos || 30)) {
+            shouldEnable = true;
+            enableReason = `\u8868\u73B0\u6539\u5584: ACoS ${acos.toFixed(2)}%(\u76EE\u6807${config2.targetAcos || 30}%)`;
+          } else if (conversions > 0 && clicks > 5) {
+            const cvr = conversions / clicks;
+            if (cvr > 0.02) {
+              shouldEnable = true;
+              enableReason = `[\u63A2\u7D22\u6A21\u5F0F\u91CD\u542F] \u5386\u53F2CVR ${(cvr * 100).toFixed(1)}%\u5C1A\u53EF\uFF0C\u5C1D\u8BD5\u4EE5\u63A2\u7D22\u6027\u51FA\u4EF7\u91CD\u65B0\u542F\u7528`;
+            }
+          }
+        }
         if (shouldPause) {
           const action = {
             campaignId: campaign.id,
@@ -89085,7 +89890,7 @@ async function executeKeywordStatusChanges(config2, campaigns6, dryRun) {
             keywordId: keyword.id,
             keywordText: keyword.keywordText,
             action: "pause",
-            reason: `\u9AD8\u82B1\u8D39\u4F4E\u8F6C\u5316: \u82B1\u8D39$${spend.toFixed(2)}, \u70B9\u51FB${clicks}, \u8F6C\u5316${conversions}`,
+            reason: pauseReason,
             currentStatus: keyword.keywordStatus
           };
           details.push(action);
@@ -89100,7 +89905,7 @@ async function executeKeywordStatusChanges(config2, campaigns6, dryRun) {
             keywordId: keyword.id,
             keywordText: keyword.keywordText,
             action: "enable",
-            reason: `\u8868\u73B0\u6539\u5584: ACoS ${acos.toFixed(2)}%`,
+            reason: enableReason,
             currentStatus: keyword.keywordStatus
           };
           details.push(action);
@@ -89402,6 +90207,7 @@ async function getOptimizationTargetSummary(targetId) {
     }
   };
 }
+var marketplaceCache;
 var init_optimizationTargetEngine = __esm({
   "server/optimizationTargetEngine.ts"() {
     "use strict";
@@ -89413,6 +90219,362 @@ var init_optimizationTargetEngine = __esm({
     init_intelligentBudgetAllocationService();
     init_bidCoordinator();
     init_amazonApiHelper();
+    init_algorithmUtils();
+    marketplaceCache = /* @__PURE__ */ new Map();
+  }
+});
+
+// server/optimizationScheduler.ts
+var optimizationScheduler_exports = {};
+__export(optimizationScheduler_exports, {
+  getSchedulerStatus: () => getSchedulerStatus,
+  onCampaignsAdded: () => onCampaignsAdded,
+  onTargetStatusChanged: () => onTargetStatusChanged,
+  startOptimizationScheduler: () => startOptimizationScheduler,
+  stopOptimizationScheduler: () => stopOptimizationScheduler,
+  triggerInitialOptimization: () => triggerInitialOptimization
+});
+async function triggerInitialOptimization(targetId, options = { triggeredBy: "create" }) {
+  const startTime = Date.now();
+  const errors = [];
+  console.log(`[OptScheduler] \u89E6\u53D1\u9996\u6B21\u4F18\u5316: targetId=${targetId}, triggeredBy=${options.triggeredBy}`);
+  const optimizationTargetEngine = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
+  const config2 = await optimizationTargetEngine.getOptimizationTargetConfig(targetId);
+  if (!config2) {
+    return {
+      targetId,
+      targetName: "\u672A\u77E5",
+      phase: "analysis",
+      success: false,
+      errors: ["\u4F18\u5316\u76EE\u6807\u4E0D\u5B58\u5728"],
+      duration: Date.now() - startTime
+    };
+  }
+  const result = {
+    targetId,
+    targetName: config2.name,
+    phase: "analysis",
+    success: false,
+    errors: [],
+    duration: 0
+  };
+  try {
+    console.log(`[OptScheduler] [${config2.name}] \u9636\u6BB51: \u5FEB\u901F\u6570\u636E\u5206\u6790...`);
+    const db = await getDb();
+    if (!db) throw new Error("\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25");
+    const campaignsData = await Promise.resolve().then(() => (init_db2(), db_exports)).then((m4) => m4.getCampaignsByPerformanceGroupId(targetId));
+    if (campaignsData.length === 0) {
+      result.errors.push("\u4F18\u5316\u76EE\u6807\u4E0B\u6CA1\u6709\u5E7F\u544A\u6D3B\u52A8\uFF0C\u8DF3\u8FC7\u9996\u6B21\u4F18\u5316");
+      result.duration = Date.now() - startTime;
+      await registerScheduledExecution(targetId, config2.name, "daily");
+      return result;
+    }
+    let totalSpend = 0, totalSales = 0, totalClicks = 0, totalOrders = 0, totalImpressions = 0;
+    for (const c5 of campaignsData) {
+      totalSpend += parseFloat(c5.spend || "0");
+      totalSales += parseFloat(c5.sales || "0");
+      totalClicks += c5.clicks || 0;
+      totalOrders += c5.orders || 0;
+      totalImpressions += c5.impressions || 0;
+    }
+    const avgAcos = totalSales > 0 ? totalSpend / totalSales * 100 : 0;
+    const avgRoas = totalSpend > 0 ? totalSales / totalSpend : 0;
+    let dataQuality = "sparse";
+    if (totalClicks >= 100 && totalOrders >= 10) {
+      dataQuality = "sufficient";
+    } else if (totalClicks >= 20 || totalOrders >= 3) {
+      dataQuality = "moderate";
+    }
+    result.analysisResult = {
+      campaignCount: campaignsData.length,
+      totalSpend,
+      totalSales,
+      avgAcos,
+      avgRoas,
+      dataQuality
+    };
+    console.log(`[OptScheduler] [${config2.name}] \u6570\u636E\u5206\u6790\u5B8C\u6210: ${campaignsData.length}\u4E2A\u5E7F\u544A\u6D3B\u52A8, \u82B1\u8D39$${totalSpend.toFixed(2)}, \u9500\u552E$${totalSales.toFixed(2)}, ACoS ${avgAcos.toFixed(1)}%, ROAS ${avgRoas.toFixed(2)}, \u6570\u636E\u8D28\u91CF: ${dataQuality}`);
+    result.phase = "execution";
+    console.log(`[OptScheduler] [${config2.name}] \u9636\u6BB52: \u6267\u884C\u9996\u6B21\u4F18\u5316...`);
+    try {
+      let specificModules;
+      if (dataQuality === "sparse") {
+        specificModules = ["bid", "searchterm", "keyword"];
+        console.log(`[OptScheduler] [${config2.name}] \u6570\u636E\u7A00\u758F\uFF0C\u4EC5\u6267\u884C\u63A2\u7D22\u6027\u4F18\u5316\u6A21\u5757: ${specificModules.join(", ")}`);
+      } else if (dataQuality === "moderate") {
+        specificModules = ["bid", "searchterm", "keyword", "budget"];
+        console.log(`[OptScheduler] [${config2.name}] \u6570\u636E\u4E2D\u7B49\uFF0C\u6267\u884C\u6838\u5FC3\u4F18\u5316\u6A21\u5757: ${specificModules.join(", ")}`);
+      }
+      const executionResult = await optimizationTargetEngine.executeOptimizationTarget(targetId, {
+        dryRun: false,
+        forceExecution: true,
+        // 首次执行强制执行，忽略启用状态检查
+        specificModules
+      });
+      result.executionResult = {
+        status: executionResult.status,
+        bidAdjustments: executionResult.bidOptimization.adjustmentsCount,
+        placementAdjustments: executionResult.placementOptimization.adjustmentsCount,
+        keywordChanges: {
+          paused: executionResult.keywordStatusChanges.pausedCount,
+          enabled: executionResult.keywordStatusChanges.enabledCount
+        },
+        budgetAdjustments: executionResult.budgetAllocation.adjustmentsCount,
+        errors: executionResult.errors,
+        warnings: executionResult.warnings
+      };
+      console.log(`[OptScheduler] [${config2.name}] \u9996\u6B21\u4F18\u5316\u6267\u884C\u5B8C\u6210: \u51FA\u4EF7\u8C03\u6574${executionResult.bidOptimization.adjustmentsCount}\u4E2A, \u5173\u952E\u8BCD\u6682\u505C${executionResult.keywordStatusChanges.pausedCount}\u4E2A/\u542F\u7528${executionResult.keywordStatusChanges.enabledCount}\u4E2A, \u9884\u7B97\u8C03\u6574${executionResult.budgetAllocation.adjustmentsCount}\u4E2A`);
+      if (executionResult.errors.length > 0) {
+        errors.push(...executionResult.errors);
+      }
+    } catch (execError) {
+      errors.push(`\u9996\u6B21\u4F18\u5316\u6267\u884C\u5931\u8D25: ${execError.message}`);
+      console.error(`[OptScheduler] [${config2.name}] \u9996\u6B21\u4F18\u5316\u6267\u884C\u5931\u8D25:`, execError.message);
+    }
+    result.phase = "scheduling";
+    console.log(`[OptScheduler] [${config2.name}] \u9636\u6BB53: \u6CE8\u518C\u540E\u7EED\u5B9A\u65F6\u8C03\u5EA6...`);
+    try {
+      let frequency = "daily";
+      if (dataQuality === "sparse") {
+        frequency = "every_6_hours";
+      } else if (dataQuality === "moderate") {
+        frequency = "every_4_hours";
+      }
+      const schedulingResult = await registerScheduledExecution(targetId, config2.name, frequency);
+      result.schedulingResult = schedulingResult;
+      console.log(`[OptScheduler] [${config2.name}] \u8C03\u5EA6\u6CE8\u518C\u5B8C\u6210: \u9891\u7387=${frequency}, \u4E0B\u6B21\u6267\u884C=${schedulingResult.nextExecutionTime.toISOString()}`);
+    } catch (schedError) {
+      errors.push(`\u8C03\u5EA6\u6CE8\u518C\u5931\u8D25: ${schedError.message}`);
+      console.error(`[OptScheduler] [${config2.name}] \u8C03\u5EA6\u6CE8\u518C\u5931\u8D25:`, schedError.message);
+    }
+    result.success = errors.length === 0;
+    result.errors = errors;
+    try {
+      const dbInstance = await getDb();
+      if (dbInstance) {
+        await dbInstance.update(performanceGroups).set({
+          lastOptimizationAt: (/* @__PURE__ */ new Date()).toISOString(),
+          updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+        }).where(eq(performanceGroups.id, targetId));
+      }
+    } catch (e6) {
+    }
+    try {
+      const statusEmoji = result.success ? "\u2705" : "\u26A0\uFE0F";
+      await notifyOwner({
+        title: `${statusEmoji} \u4F18\u5316\u76EE\u6807"${config2.name}"\u9996\u6B21\u4F18\u5316${result.success ? "\u5B8C\u6210" : "\u90E8\u5206\u5B8C\u6210"}`,
+        content: [
+          `\u89E6\u53D1\u65B9\u5F0F: ${options.triggeredBy === "create" ? "\u521B\u5EFA\u4F18\u5316\u76EE\u6807" : options.triggeredBy === "add_campaigns" ? "\u6DFB\u52A0\u5E7F\u544A\u6D3B\u52A8" : options.triggeredBy === "enable" ? "\u542F\u7528\u4F18\u5316\u76EE\u6807" : "\u624B\u52A8\u89E6\u53D1"}`,
+          `\u5E7F\u544A\u6D3B\u52A8\u6570: ${result.analysisResult?.campaignCount || 0}`,
+          `\u6570\u636E\u8D28\u91CF: ${dataQuality === "sufficient" ? "\u5145\u8DB3" : dataQuality === "moderate" ? "\u4E2D\u7B49" : "\u7A00\u758F"}`,
+          result.executionResult ? `\u51FA\u4EF7\u8C03\u6574: ${result.executionResult.bidAdjustments}\u4E2A` : "",
+          result.executionResult ? `\u5173\u952E\u8BCD\u53D8\u66F4: \u6682\u505C${result.executionResult.keywordChanges?.paused || 0}\u4E2A, \u542F\u7528${result.executionResult.keywordChanges?.enabled || 0}\u4E2A` : "",
+          result.schedulingResult ? `\u540E\u7EED\u8C03\u5EA6: ${result.schedulingResult.frequency}, \u4E0B\u6B21\u6267\u884C${result.schedulingResult.nextExecutionTime.toLocaleString()}` : "",
+          errors.length > 0 ? `
+\u8B66\u544A: ${errors.join("; ")}` : ""
+        ].filter(Boolean).join("\n")
+      });
+    } catch (e6) {
+    }
+  } catch (error51) {
+    result.errors.push(`\u9996\u6B21\u4F18\u5316\u5931\u8D25: ${error51.message}`);
+    console.error(`[OptScheduler] [${result.targetName}] \u9996\u6B21\u4F18\u5316\u5931\u8D25:`, error51);
+  }
+  result.duration = Date.now() - startTime;
+  console.log(`[OptScheduler] \u9996\u6B21\u4F18\u5316\u5B8C\u6210: targetId=${targetId}, \u8017\u65F6${result.duration}ms, \u6210\u529F=${result.success}`);
+  return result;
+}
+async function registerScheduledExecution(targetId, targetName, frequency) {
+  unregisterScheduledExecution(targetId);
+  const intervalMs = FREQUENCY_MS[frequency] || FREQUENCY_MS["daily"];
+  const nextExecutionTime = new Date(Date.now() + intervalMs);
+  const scheduledTarget = {
+    targetId,
+    targetName,
+    intervalMs,
+    timer: null,
+    lastExecutionTime: /* @__PURE__ */ new Date(),
+    nextExecutionTime,
+    executionCount: 1,
+    // 首次执行已完成
+    status: "scheduled",
+    lastError: null
+  };
+  scheduledTarget.timer = setInterval(async () => {
+    await executeScheduledOptimization(targetId);
+  }, intervalMs);
+  scheduledTargets.set(targetId, scheduledTarget);
+  console.log(`[OptScheduler] \u5DF2\u6CE8\u518C\u5B9A\u65F6\u6267\u884C: targetId=${targetId}, name=${targetName}, frequency=${frequency}(${intervalMs / 1e3 / 60}\u5206\u949F), nextExecution=${nextExecutionTime.toISOString()}`);
+  return { frequency, nextExecutionTime };
+}
+function unregisterScheduledExecution(targetId) {
+  const existing = scheduledTargets.get(targetId);
+  if (existing) {
+    if (existing.timer) {
+      clearInterval(existing.timer);
+    }
+    scheduledTargets.delete(targetId);
+    console.log(`[OptScheduler] \u5DF2\u53D6\u6D88\u5B9A\u65F6\u6267\u884C: targetId=${targetId}, name=${existing.targetName}`);
+  }
+}
+async function executeScheduledOptimization(targetId) {
+  const scheduled = scheduledTargets.get(targetId);
+  if (!scheduled) return;
+  if (scheduled.status === "executing") {
+    console.log(`[OptScheduler] \u8DF3\u8FC7\u6267\u884C: targetId=${targetId} \u6B63\u5728\u6267\u884C\u4E2D`);
+    return;
+  }
+  scheduled.status = "executing";
+  console.log(`[OptScheduler] \u5F00\u59CB\u5B9A\u65F6\u6267\u884C: targetId=${targetId}, name=${scheduled.targetName}, \u7B2C${scheduled.executionCount + 1}\u6B21\u6267\u884C`);
+  try {
+    const optimizationTargetEngine = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
+    const config2 = await optimizationTargetEngine.getOptimizationTargetConfig(targetId);
+    if (!config2 || !config2.isEnabled) {
+      console.log(`[OptScheduler] \u4F18\u5316\u76EE\u6807\u5DF2\u7981\u7528\u6216\u4E0D\u5B58\u5728\uFF0C\u53D6\u6D88\u8C03\u5EA6: targetId=${targetId}`);
+      unregisterScheduledExecution(targetId);
+      return;
+    }
+    const result = await optimizationTargetEngine.executeOptimizationTarget(targetId, {
+      dryRun: false
+    });
+    scheduled.lastExecutionTime = /* @__PURE__ */ new Date();
+    scheduled.nextExecutionTime = new Date(Date.now() + scheduled.intervalMs);
+    scheduled.executionCount++;
+    scheduled.status = "scheduled";
+    scheduled.lastError = null;
+    console.log(`[OptScheduler] \u5B9A\u65F6\u6267\u884C\u5B8C\u6210: targetId=${targetId}, status=${result.status}, bid=${result.bidOptimization.adjustmentsCount}, keyword_pause=${result.keywordStatusChanges.pausedCount}`);
+    try {
+      const dbInstance = await getDb();
+      if (dbInstance) {
+        await dbInstance.update(performanceGroups).set({
+          lastOptimizationAt: (/* @__PURE__ */ new Date()).toISOString(),
+          updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+        }).where(eq(performanceGroups.id, targetId));
+      }
+    } catch (e6) {
+    }
+  } catch (error51) {
+    scheduled.status = "error";
+    scheduled.lastError = error51.message;
+    console.error(`[OptScheduler] \u5B9A\u65F6\u6267\u884C\u5931\u8D25: targetId=${targetId}:`, error51.message);
+    if (scheduled.lastError) {
+      console.warn(`[OptScheduler] \u4F18\u5316\u76EE\u6807 ${targetId} \u6267\u884C\u51FA\u9519\uFF0C\u5C06\u5728\u4E0B\u6B21\u8C03\u5EA6\u65F6\u91CD\u8BD5`);
+    }
+  }
+}
+async function startOptimizationScheduler() {
+  if (isSchedulerRunning) {
+    console.log("[OptScheduler] \u8C03\u5EA6\u5668\u5DF2\u5728\u8FD0\u884C\u4E2D");
+    return { total: 0, scheduled: scheduledTargets.size, errors: 0 };
+  }
+  console.log("[OptScheduler] \u542F\u52A8\u4F18\u5316\u8C03\u5EA6\u5668...");
+  isSchedulerRunning = true;
+  try {
+    const dbInstance = await getDb();
+    if (!dbInstance) {
+      console.error("[OptScheduler] \u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25\uFF0C\u8C03\u5EA6\u5668\u542F\u52A8\u5931\u8D25");
+      return { total: 0, scheduled: 0, errors: 1 };
+    }
+    const activeTargets = await dbInstance.select({
+      id: performanceGroups.id,
+      name: performanceGroups.name,
+      status: performanceGroups.status,
+      optimizationGoal: performanceGroups.optimizationGoal
+    }).from(performanceGroups).where(eq(performanceGroups.status, "active"));
+    let scheduled = 0;
+    let errors = 0;
+    for (const target of activeTargets) {
+      try {
+        const campaigns6 = await Promise.resolve().then(() => (init_db2(), db_exports)).then((m4) => m4.getCampaignsByPerformanceGroupId(target.id));
+        if (campaigns6.length === 0) {
+          console.log(`[OptScheduler] \u8DF3\u8FC7\u65E0\u5E7F\u544A\u6D3B\u52A8\u7684\u4F18\u5316\u76EE\u6807: ${target.name} (id=${target.id})`);
+          continue;
+        }
+        await registerScheduledExecution(target.id, target.name, "daily");
+        scheduled++;
+      } catch (error51) {
+        console.error(`[OptScheduler] \u6CE8\u518C\u4F18\u5316\u76EE\u6807 ${target.id} \u5931\u8D25:`, error51.message);
+        errors++;
+      }
+    }
+    console.log(`[OptScheduler] \u8C03\u5EA6\u5668\u542F\u52A8\u5B8C\u6210: \u5171${activeTargets.length}\u4E2A\u6D3B\u8DC3\u76EE\u6807, \u5DF2\u6CE8\u518C${scheduled}\u4E2A, \u5931\u8D25${errors}\u4E2A`);
+    return { total: activeTargets.length, scheduled, errors };
+  } catch (error51) {
+    console.error("[OptScheduler] \u8C03\u5EA6\u5668\u542F\u52A8\u5931\u8D25:", error51.message);
+    isSchedulerRunning = false;
+    return { total: 0, scheduled: 0, errors: 1 };
+  }
+}
+function stopOptimizationScheduler() {
+  console.log("[OptScheduler] \u505C\u6B62\u4F18\u5316\u8C03\u5EA6\u5668...");
+  for (const [targetId, scheduled] of scheduledTargets) {
+    if (scheduled.timer) {
+      clearInterval(scheduled.timer);
+    }
+  }
+  scheduledTargets.clear();
+  isSchedulerRunning = false;
+  console.log("[OptScheduler] \u8C03\u5EA6\u5668\u5DF2\u505C\u6B62");
+}
+function getSchedulerStatus() {
+  return {
+    isRunning: isSchedulerRunning,
+    scheduledCount: scheduledTargets.size,
+    targets: Array.from(scheduledTargets.values()).map((t7) => ({
+      targetId: t7.targetId,
+      targetName: t7.targetName,
+      status: t7.status,
+      lastExecutionTime: t7.lastExecutionTime?.toISOString() || null,
+      nextExecutionTime: t7.nextExecutionTime?.toISOString() || null,
+      executionCount: t7.executionCount,
+      lastError: t7.lastError
+    }))
+  };
+}
+async function onTargetStatusChanged(targetId, newStatus) {
+  if (newStatus === "active") {
+    console.log(`[OptScheduler] \u4F18\u5316\u76EE\u6807 ${targetId} \u5DF2\u542F\u7528\uFF0C\u89E6\u53D1\u9996\u6B21\u4F18\u5316`);
+    triggerInitialOptimization(targetId, { triggeredBy: "enable" }).catch((err2) => {
+      console.error(`[OptScheduler] \u542F\u7528\u89E6\u53D1\u4F18\u5316\u5931\u8D25:`, err2);
+    });
+  } else {
+    unregisterScheduledExecution(targetId);
+    console.log(`[OptScheduler] \u4F18\u5316\u76EE\u6807 ${targetId} \u5DF2${newStatus === "paused" ? "\u6682\u505C" : "\u5F52\u6863"}\uFF0C\u5DF2\u53D6\u6D88\u8C03\u5EA6`);
+  }
+}
+async function onCampaignsAdded(targetId, campaignIds) {
+  console.log(`[OptScheduler] ${campaignIds.length}\u4E2A\u5E7F\u544A\u6D3B\u52A8\u5DF2\u6DFB\u52A0\u5230\u4F18\u5316\u76EE\u6807 ${targetId}\uFF0C\u89E6\u53D1\u4F18\u5316`);
+  triggerInitialOptimization(targetId, {
+    triggeredBy: "add_campaigns",
+    campaignIds
+  }).catch((err2) => {
+    console.error(`[OptScheduler] \u6DFB\u52A0\u5E7F\u544A\u6D3B\u52A8\u89E6\u53D1\u4F18\u5316\u5931\u8D25:`, err2);
+  });
+}
+var scheduledTargets, isSchedulerRunning, FREQUENCY_MS;
+var init_optimizationScheduler = __esm({
+  "server/optimizationScheduler.ts"() {
+    "use strict";
+    init_db2();
+    init_schema2();
+    init_drizzle_orm();
+    init_notification();
+    scheduledTargets = /* @__PURE__ */ new Map();
+    isSchedulerRunning = false;
+    FREQUENCY_MS = {
+      "hourly": 60 * 60 * 1e3,
+      // 1小时
+      "every_2_hours": 2 * 60 * 60 * 1e3,
+      // 2小时
+      "every_4_hours": 4 * 60 * 60 * 1e3,
+      // 4小时
+      "every_6_hours": 6 * 60 * 60 * 1e3,
+      // 6小时
+      "daily": 24 * 60 * 60 * 1e3,
+      // 24小时
+      "weekly": 7 * 24 * 60 * 60 * 1e3
+      // 7天
+    };
   }
 });
 
@@ -92754,7 +93916,7 @@ __export(effectTrackingScheduler_exports, {
   TRACKING_PERIODS: () => TRACKING_PERIODS,
   collectKeywordPerformance: () => collectKeywordPerformance,
   getRecordsToTrack: () => getRecordsToTrack,
-  getSchedulerStatus: () => getSchedulerStatus,
+  getSchedulerStatus: () => getSchedulerStatus2,
   getTrackingStatsSummary: () => getTrackingStatsSummary,
   runAllTrackingTasks: () => runAllTrackingTasks,
   runEffectTrackingTask: () => runEffectTrackingTask,
@@ -92953,7 +94115,7 @@ function stopEffectTrackingScheduler() {
   schedulerStatus.nextRunTime = null;
   console.log("\u6548\u679C\u8FFD\u8E2A\u5B9A\u65F6\u4EFB\u52A1\u5DF2\u505C\u6B62");
 }
-function getSchedulerStatus() {
+function getSchedulerStatus2() {
   return { ...schedulerStatus };
 }
 async function executeScheduledTask() {
@@ -289141,48 +290303,8 @@ var autoOperationService = {
   }
 };
 
-// shared/timezone.ts
-var MARKETPLACE_TIMEZONES2 = {
-  // 北美
-  "US": { timezone: "America/Los_Angeles", name: "\u7F8E\u56FD", offset: -8 },
-  // PST/PDT
-  "CA": { timezone: "America/Vancouver", name: "\u52A0\u62FF\u5927", offset: -8 },
-  // PST/PDT
-  "MX": { timezone: "America/Mexico_City", name: "\u58A8\u897F\u54E5", offset: -6 },
-  // CST
-  // 欧洲
-  "UK": { timezone: "Europe/London", name: "\u82F1\u56FD", offset: 0 },
-  "DE": { timezone: "Europe/Berlin", name: "\u5FB7\u56FD", offset: 1 },
-  "FR": { timezone: "Europe/Paris", name: "\u6CD5\u56FD", offset: 1 },
-  "IT": { timezone: "Europe/Rome", name: "\u610F\u5927\u5229", offset: 1 },
-  "ES": { timezone: "Europe/Madrid", name: "\u897F\u73ED\u7259", offset: 1 },
-  "NL": { timezone: "Europe/Amsterdam", name: "\u8377\u5170", offset: 1 },
-  "SE": { timezone: "Europe/Stockholm", name: "\u745E\u5178", offset: 1 },
-  "PL": { timezone: "Europe/Warsaw", name: "\u6CE2\u5170", offset: 1 },
-  "BE": { timezone: "Europe/Brussels", name: "\u6BD4\u5229\u65F6", offset: 1 },
-  // 亚太
-  "JP": { timezone: "Asia/Tokyo", name: "\u65E5\u672C", offset: 9 },
-  "AU": { timezone: "Australia/Sydney", name: "\u6FB3\u5927\u5229\u4E9A", offset: 11 },
-  "SG": { timezone: "Asia/Singapore", name: "\u65B0\u52A0\u5761", offset: 8 },
-  "IN": { timezone: "Asia/Kolkata", name: "\u5370\u5EA6", offset: 5.5 },
-  "AE": { timezone: "Asia/Dubai", name: "\u963F\u8054\u914B", offset: 4 },
-  "SA": { timezone: "Asia/Riyadh", name: "\u6C99\u7279\u963F\u62C9\u4F2F", offset: 3 },
-  // 南美
-  "BR": { timezone: "America/Sao_Paulo", name: "\u5DF4\u897F", offset: -3 }
-};
-function getMarketplaceLocalDate(marketplace) {
-  const config2 = MARKETPLACE_TIMEZONES2[marketplace] || MARKETPLACE_TIMEZONES2["US"];
-  const now = /* @__PURE__ */ new Date();
-  const formatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: config2.timezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  });
-  return formatter.format(now);
-}
-
 // server/routers.ts
+init_timezone2();
 init_sqsConsumerService();
 init_marginalBenefitAnalysisService();
 
@@ -296156,6 +297278,14 @@ var performanceGroupRouter = router({
     if (campaignIds && campaignIds.length > 0) {
       await batchAssignCampaignsToPerformanceGroup(campaignIds, id);
     }
+    try {
+      const { triggerInitialOptimization: triggerInitialOptimization2 } = await Promise.resolve().then(() => (init_optimizationScheduler(), optimizationScheduler_exports));
+      triggerInitialOptimization2(id, { triggeredBy: "create" }).catch((err2) => {
+        console.error(`[Router] \u521B\u5EFA\u4F18\u5316\u76EE\u6807\u540E\u89E6\u53D1\u9996\u6B21\u4F18\u5316\u5931\u8D25:`, err2);
+      });
+    } catch (e6) {
+      console.error("[Router] \u5BFC\u5165optimizationScheduler\u5931\u8D25:", e6);
+    }
     return { id };
   }),
   update: protectedProcedure.input(external_exports.object({
@@ -296171,6 +297301,16 @@ var performanceGroupRouter = router({
   })).mutation(async ({ input }) => {
     const { id, ...data2 } = input;
     await updatePerformanceGroup(id, data2);
+    if (data2.status) {
+      try {
+        const { onTargetStatusChanged: onTargetStatusChanged2 } = await Promise.resolve().then(() => (init_optimizationScheduler(), optimizationScheduler_exports));
+        onTargetStatusChanged2(id, data2.status).catch((err2) => {
+          console.error(`[Router] \u72B6\u6001\u53D8\u66F4\u89E6\u53D1\u5931\u8D25:`, err2);
+        });
+      } catch (e6) {
+        console.error("[Router] \u5BFC\u5165optimizationScheduler\u5931\u8D25:", e6);
+      }
+    }
     return { success: true };
   }),
   delete: protectedProcedure.input(external_exports.object({ id: external_exports.number() })).mutation(async ({ input }) => {
@@ -296194,6 +297334,14 @@ var performanceGroupRouter = router({
       await assignCampaignToPerformanceGroup(campaignId, input.performanceGroupId);
       await updateCampaign(campaignId, { optimizationStatus: "managed" });
       count2++;
+    }
+    try {
+      const { onCampaignsAdded: onCampaignsAdded2 } = await Promise.resolve().then(() => (init_optimizationScheduler(), optimizationScheduler_exports));
+      onCampaignsAdded2(input.performanceGroupId, input.campaignIds).catch((err2) => {
+        console.error(`[Router] \u6279\u91CF\u5206\u914D\u540E\u89E6\u53D1\u4F18\u5316\u5931\u8D25:`, err2);
+      });
+    } catch (e6) {
+      console.error("[Router] \u5BFC\u5165optimizationScheduler\u5931\u8D25:", e6);
     }
     return { success: true, count: count2 };
   }),
@@ -296259,6 +297407,14 @@ var performanceGroupRouter = router({
       await assignCampaignToPerformanceGroup(campaignId, input.groupId);
       await updateCampaign(campaignId, { optimizationStatus: "managed" });
       count2++;
+    }
+    try {
+      const { onCampaignsAdded: onCampaignsAdded2 } = await Promise.resolve().then(() => (init_optimizationScheduler(), optimizationScheduler_exports));
+      onCampaignsAdded2(input.groupId, input.campaignIds).catch((err2) => {
+        console.error(`[Router] \u6DFB\u52A0\u5E7F\u544A\u6D3B\u52A8\u540E\u89E6\u53D1\u4F18\u5316\u5931\u8D25:`, err2);
+      });
+    } catch (e6) {
+      console.error("[Router] \u5BFC\u5165optimizationScheduler\u5931\u8D25:", e6);
     }
     return { success: true, count: count2 };
   }),
@@ -296465,15 +297621,26 @@ var campaignRouter = router({
   list: publicProcedure.input(external_exports.object({
     accountId: external_exports.number().optional(),
     startDate: external_exports.string().optional(),
-    endDate: external_exports.string().optional()
+    endDate: external_exports.string().optional(),
+    marketplace: external_exports.string().optional(),
+    timeRange: external_exports.enum(["today", "yesterday", "7days", "14days", "30days", "60days", "90days", "custom"]).optional()
   })).query(async ({ input }) => {
-    if (input.accountId && input.startDate && input.endDate) {
-      return getCampaignsWithPerformance(input.accountId, input.startDate, input.endDate);
+    if (!input.accountId) {
+      return getAllCampaigns();
     }
-    if (input.accountId) {
-      return getCampaignsByAccountId(input.accountId);
+    let startDate = input.startDate;
+    let endDate = input.endDate;
+    if (input.marketplace && input.timeRange && input.timeRange !== "custom") {
+      const { calculateDateRangeByMarketplace: calculateDateRangeByMarketplace3 } = await Promise.resolve().then(() => (init_timezone2(), timezone_exports));
+      const dateRange = calculateDateRangeByMarketplace3(input.marketplace, input.timeRange);
+      startDate = dateRange.startDate;
+      endDate = dateRange.endDate;
+      console.log(`[campaign.list] \u7AD9\u70B9\u65F6\u533A\u65E5\u671F\u8BA1\u7B97: marketplace=${input.marketplace}, timeRange=${input.timeRange}, startDate=${startDate}, endDate=${endDate}`);
     }
-    return getAllCampaigns();
+    if (startDate && endDate) {
+      return getCampaignsWithPerformance(input.accountId, startDate, endDate);
+    }
+    return getCampaignsByAccountId(input.accountId);
   }),
   // 获取未分配到绩效组的广告活动
   listUnassigned: publicProcedure.input(external_exports.object({ accountId: external_exports.number().optional() })).query(async ({ input }) => {
@@ -305504,12 +306671,10 @@ var OPTIMIZATION_SCHEDULE = {
   },
   daily_bid_optimization: {
     type: "daily_bid_optimization",
-    description: "\u6BCF\u65E5\u51FA\u4EF7\u4F18\u5316 - \u57FA\u4E8E\u7B56\u7565\u6A21\u677F\u7684\u81EA\u52A8\u51FA\u4EF7\u8C03\u6574",
-    intervalMs: 24 * 60 * 60 * 1e3,
-    cronHours: [2],
-    // 凌晨2:00
+    description: "\u51FA\u4EF7\u667A\u80FD\u4F18\u5316 - \u6BCF2\u5C0F\u65F6\u57FA\u4E8E\u5E02\u573A\u66F2\u7EBF\u6A21\u578B\u81EA\u52A8\u8C03\u6574\u51FA\u4EF7",
+    intervalMs: 2 * 60 * 60 * 1e3,
+    // v122h: 从每日1次提升到每2小时，与宣传一致
     specificModules: ["bid", "keyword", "coordination"]
-    // 仅出价+关键词状态+协调
   },
   daily_placement_optimization: {
     type: "daily_placement_optimization",
@@ -305593,7 +306758,7 @@ function shouldExecuteThisHour(taskType) {
   lastExecutionHour[taskType] = hourKey;
   return true;
 }
-function startOptimizationScheduler() {
+function startOptimizationScheduler2() {
   console.log("[OptimizationScheduler] \u542F\u52A8v122\u5206\u5C42\u4F18\u5316\u8C03\u5EA6\u5668...");
   optimizationIntervals.intraday_pacing = setInterval(async () => {
     await executeOptimizationTask("intraday_pacing");
@@ -305608,12 +306773,9 @@ function startOptimizationScheduler() {
   }, OPTIMIZATION_SCHEDULE.dayparting_adjustment.intervalMs);
   console.log(`[OptimizationScheduler] \u5206\u65F6\u7ADE\u4EF7\u8C03\u6574\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 1\u5C0F\u65F6`);
   optimizationIntervals.daily_bid_optimization = setInterval(async () => {
-    const hour2 = (/* @__PURE__ */ new Date()).getHours();
-    if (hour2 === 2 && shouldExecuteThisHour("daily_bid_optimization")) {
-      await executeOptimizationTask("daily_bid_optimization");
-    }
-  }, 60 * 60 * 1e3);
-  console.log(`[OptimizationScheduler] \u6BCF\u65E5\u51FA\u4EF7\u4F18\u5316\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u51CC\u66682:00`);
+    await executeOptimizationTask("daily_bid_optimization");
+  }, OPTIMIZATION_SCHEDULE.daily_bid_optimization.intervalMs);
+  console.log(`[OptimizationScheduler] \u51FA\u4EF7\u667A\u80FD\u4F18\u5316\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 2\u5C0F\u65F6`);
   optimizationIntervals.daily_placement_optimization = setInterval(async () => {
     const hour2 = (/* @__PURE__ */ new Date()).getHours();
     if (hour2 === 3 && shouldExecuteThisHour("daily_placement_optimization")) {
@@ -305849,6 +307011,7 @@ async function executeOptimizationTask(taskType) {
 }
 
 // server/_core/index.ts
+init_optimizationScheduler();
 init_sqsConsumerService();
 
 // server/routes/sitemap.ts
@@ -305947,8 +307110,13 @@ async function startServer2() {
     console.log(`Server running on http://localhost:${port}/`);
     startDataSyncScheduler(60 * 60 * 1e3);
     console.log("[DataSyncScheduler] \u5B9A\u65F6\u540C\u6B65\u8C03\u5EA6\u5668\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 1\u5C0F\u65F6");
-    startOptimizationScheduler();
+    startOptimizationScheduler2();
     console.log("[OptimizationScheduler] \u5206\u5C42\u4F18\u5316\u8C03\u5EA6\u5668\u5DF2\u542F\u52A8");
+    startOptimizationScheduler().then((result) => {
+      console.log(`[TargetScheduler] \u4F18\u5316\u76EE\u6807\u8C03\u5EA6\u5668\u5DF2\u542F\u52A8: \u5171${result.total}\u4E2A\u6D3B\u8DC3\u76EE\u6807, \u5DF2\u6CE8\u518C${result.scheduled}\u4E2A, \u5931\u8D25${result.errors}\u4E2A`);
+    }).catch((err2) => {
+      console.error("[TargetScheduler] \u542F\u52A8\u5931\u8D25:", err2.message);
+    });
     if (process.env.AWS_SQS_QUEUE_TRAFFIC_URL || process.env.AWS_SQS_QUEUE_CONVERSION_URL || process.env.AWS_SQS_QUEUE_BUDGET_URL) {
       startSQSConsumer().then(() => {
         console.log("[SQS Consumer] AMS\u5B9E\u65F6\u6570\u636E\u6D41\u6D88\u8D39\u8005\u5DF2\u542F\u52A8");

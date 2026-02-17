@@ -693,7 +693,7 @@ export async function withExponentialBackoff<T>(
  * | 日内节奏监控       | 每30分钟    | 全天              | intradayPacing (仅监控+调整分时)  |
  * | 高频风控扫描       | 每2小时     | 全天              | riskScan (仅风控，不含优化)       |
  * | 分时竞价调整       | 每小时      | 全天              | dayparting (仅分时竞价)           |
- * | 每日出价优化       | 每天1次     | 凌晨2:00          | bid + keyword + coordination      |
+ * | 出价智能优化       | 每2小时     | 全天              | bid + keyword + coordination      |
  * | 每日位置优化       | 每天1次     | 凌晨3:00          | placement                         |
  * | 每日搜索词否定     | 每天1次     | 凌晨4:00          | searchterm                        |
  * | 预算智能分配       | 每天2次     | 早8:00 + 晚18:00  | budget                            |
@@ -742,10 +742,9 @@ const OPTIMIZATION_SCHEDULE: Record<OptimizationTaskType, OptimizationScheduleCo
   },
   daily_bid_optimization: {
     type: 'daily_bid_optimization',
-    description: '每日出价优化 - 基于策略模板的自动出价调整',
-    intervalMs: 24 * 60 * 60 * 1000,
-    cronHours: [2], // 凌晨2:00
-    specificModules: ['bid', 'keyword', 'coordination'], // 仅出价+关键词状态+协调
+    description: '出价智能优化 - 每2小时基于市场曲线模型自动调整出价',
+    intervalMs: 2 * 60 * 60 * 1000, // v122h: 从每日1次提升到每2小时，与宣传一致
+    specificModules: ['bid', 'keyword', 'coordination'],
   },
   daily_placement_optimization: {
     type: 'daily_placement_optimization',
@@ -860,14 +859,11 @@ export function startOptimizationScheduler(): void {
   }, OPTIMIZATION_SCHEDULE.dayparting_adjustment.intervalMs);
   console.log(`[OptimizationScheduler] 分时竞价调整已启动，间隔: 1小时`);
   
-  // 3. 每日出价优化 - 凌晨2:00（仅出价+关键词+协调）
+  // 3. v122h: 出价智能优化 - 每2小时执行一次（与宣传一致）
   optimizationIntervals.daily_bid_optimization = setInterval(async () => {
-    const hour = new Date().getHours();
-    if (hour === 2 && shouldExecuteThisHour('daily_bid_optimization')) {
-      await executeOptimizationTask('daily_bid_optimization');
-    }
-  }, 60 * 60 * 1000);
-  console.log(`[OptimizationScheduler] 每日出价优化已启动，执行时间: 凌晨2:00`);
+    await executeOptimizationTask('daily_bid_optimization');
+  }, OPTIMIZATION_SCHEDULE.daily_bid_optimization.intervalMs);
+  console.log(`[OptimizationScheduler] 出价智能优化已启动，间隔: 2小时`);
   
   // 4. 每日位置优化 - 凌晨3:00（仅位置倾斜）
   optimizationIntervals.daily_placement_optimization = setInterval(async () => {

@@ -620,6 +620,17 @@ const performanceGroupRouter = router({
         await db.batchAssignCampaignsToPerformanceGroup(campaignIds, id);
       }
       
+      // v122h: 创建优化目标后立即触发首次优化
+      try {
+        const { triggerInitialOptimization } = await import('./optimizationScheduler');
+        // 异步执行，不阻塞API响应
+        triggerInitialOptimization(id, { triggeredBy: 'create' }).catch(err => {
+          console.error(`[Router] 创建优化目标后触发首次优化失败:`, err);
+        });
+      } catch (e) {
+        console.error('[Router] 导入optimizationScheduler失败:', e);
+      }
+      
       return { id };
     }),
   
@@ -638,6 +649,19 @@ const performanceGroupRouter = router({
     .mutation(async ({ input }) => {
       const { id, ...data } = input;
       await db.updatePerformanceGroup(id, data);
+      
+      // v122h: 状态变更时触发调度器事件
+      if (data.status) {
+        try {
+          const { onTargetStatusChanged } = await import('./optimizationScheduler');
+          onTargetStatusChanged(id, data.status as 'active' | 'paused' | 'archived').catch(err => {
+            console.error(`[Router] 状态变更触发失败:`, err);
+          });
+        } catch (e) {
+          console.error('[Router] 导入optimizationScheduler失败:', e);
+        }
+      }
+      
       return { success: true };
     }),
   
@@ -668,10 +692,20 @@ const performanceGroupRouter = router({
       let count = 0;
       for (const campaignId of input.campaignIds) {
         await db.assignCampaignToPerformanceGroup(campaignId, input.performanceGroupId);
-        // 同时更新优化状态为managed
         await db.updateCampaign(campaignId, { optimizationStatus: 'managed' });
         count++;
       }
+      
+      // v122h: 批量分配后立即触发优化
+      try {
+        const { onCampaignsAdded } = await import('./optimizationScheduler');
+        onCampaignsAdded(input.performanceGroupId, input.campaignIds).catch(err => {
+          console.error(`[Router] 批量分配后触发优化失败:`, err);
+        });
+      } catch (e) {
+        console.error('[Router] 导入optimizationScheduler失败:', e);
+      }
+      
       return { success: true, count };
     }),
 
@@ -757,6 +791,17 @@ const performanceGroupRouter = router({
         await db.updateCampaign(campaignId, { optimizationStatus: 'managed' });
         count++;
       }
+      
+      // v122h: 添加广告活动后立即触发优化
+      try {
+        const { onCampaignsAdded } = await import('./optimizationScheduler');
+        onCampaignsAdded(input.groupId, input.campaignIds).catch(err => {
+          console.error(`[Router] 添加广告活动后触发优化失败:`, err);
+        });
+      } catch (e) {
+        console.error('[Router] 导入optimizationScheduler失败:', e);
+      }
+      
       return { success: true, count };
     }),
 
@@ -1023,17 +1068,32 @@ const campaignRouter = router({
       accountId: z.number().optional(),
       startDate: z.string().optional(),
       endDate: z.string().optional(),
+      marketplace: z.string().optional(),
+      timeRange: z.enum(['today', 'yesterday', '7days', '14days', '30days', '60days', '90days', 'custom']).optional(),
     }))
     .query(async ({ input }) => {
-      // 如果提供了时间范围，使用带绩效数据的查询
-      if (input.accountId && input.startDate && input.endDate) {
-        return db.getCampaignsWithPerformance(input.accountId, input.startDate, input.endDate);
+      if (!input.accountId) {
+        return db.getAllCampaigns();
       }
-      if (input.accountId) {
-        return db.getCampaignsByAccountId(input.accountId);
+      
+      // v122h: 使用站点时区计算正确的日期范围
+      let startDate = input.startDate;
+      let endDate = input.endDate;
+      
+      if (input.marketplace && input.timeRange && input.timeRange !== 'custom') {
+        // 根据站点时区计算正确的“今天”/“昨天”等日期
+        const { calculateDateRangeByMarketplace } = await import('../shared/timezone');
+        const dateRange = calculateDateRangeByMarketplace(input.marketplace, input.timeRange);
+        startDate = dateRange.startDate;
+        endDate = dateRange.endDate;
+        console.log(`[campaign.list] 站点时区日期计算: marketplace=${input.marketplace}, timeRange=${input.timeRange}, startDate=${startDate}, endDate=${endDate}`);
       }
-      // 如果没有指定accountId，返回所有广告活动
-      return db.getAllCampaigns();
+      
+      if (startDate && endDate) {
+        return db.getCampaignsWithPerformance(input.accountId, startDate, endDate);
+      }
+      
+      return db.getCampaignsByAccountId(input.accountId);
     }),
 
   // 获取未分配到绩效组的广告活动

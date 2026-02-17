@@ -20,6 +20,18 @@ import * as adAutomation from "./adAutomation";
 import * as intelligentBudgetAllocationService from "./intelligentBudgetAllocationService";
 import * as bidCoordinator from "./services/bidCoordinator";
 import * as amazonApiHelper from "./services/amazonApiHelper";
+import { getLocalHour, getLocalDayOfWeek, isNewKeyword, getExplorationStrategy, isProtectedKeyword } from "./algorithmUtils";
+
+// 缓存账号站点信息，避免重复查询
+const marketplaceCache = new Map<number, string>();
+
+async function getAccountMarketplace(accountId: number): Promise<string> {
+  if (marketplaceCache.has(accountId)) return marketplaceCache.get(accountId)!;
+  const account = await db.getAdAccountById(accountId);
+  const marketplace = account?.marketplace || 'US';
+  marketplaceCache.set(accountId, marketplace);
+  return marketplace;
+}
 
 // 优化执行结果类型
 export interface OptimizationExecutionResult {
@@ -84,6 +96,7 @@ export interface OptimizationTargetConfig {
   id: number;
   name: string;
   accountId: number;
+  marketplace: string; // 站点代码，用于时区感知分时
   isEnabled: boolean;
   
   // 优化目标
@@ -124,6 +137,7 @@ export async function getOptimizationTargetConfig(targetId: number): Promise<Opt
     id: group.id,
     name: group.name,
     accountId: group.accountId,
+    marketplace: await getAccountMarketplace(group.accountId),
     isEnabled: group.status === 'active',
     
     optimizationGoal: (group.optimizationGoal as any) || 'balanced',
@@ -303,7 +317,8 @@ export async function executeOptimizationTarget(
 }
 
 /**
- * 执行出价优化
+ * v122h: 执行出价优化 - 使用UCB增强版算法
+ * 集成动态弹性系数、UCB探索-利用平衡、时间衰减ROAS、节假日调整
  */
 async function executeBidOptimization(
   config: OptimizationTargetConfig,
@@ -313,51 +328,116 @@ async function executeBidOptimization(
   const details: any[] = [];
   let adjustmentsCount = 0;
   
+  // v122h: 计算广告组平均CVR、CPC、AOV作为贝叶斯先验数据
+  let totalClicks = 0, totalOrders = 0, totalSpend = 0, totalSales = 0;
+  for (const c of campaigns) {
+    totalClicks += (c.clicks || 0);
+    totalOrders += (c.orders || 0);
+    totalSpend += parseFloat(c.spend || '0');
+    totalSales += parseFloat(c.sales || '0');
+  }
+  const groupAvgCvr = totalClicks > 0 ? totalOrders / totalClicks : 0.05;
+  const groupAvgCpc = totalClicks > 0 ? totalSpend / totalClicks : 0.80;
+  const groupAvgAov = totalOrders > 0 ? totalSales / totalOrders : 30;
+  
   const bidConfig: bidOptimizer.PerformanceGroupConfig = {
     optimizationGoal: config.optimizationGoal,
     targetAcos: config.targetAcos,
     targetRoas: config.targetRoas,
     dailyBudget: config.dailyBudget,
     maxBid: config.maxBid,
+    groupAvgCvr,
+    groupAvgCpc,
+    groupAvgAov,
   };
   
+  const currentDate = new Date();
+  const maxBidLimit = config.maxBid || 10;
+  
   for (const campaign of campaigns) {
-    // 获取广告活动下的所有关键词
+    // v122h: 获取campaign级别的14天历史每日数据，用于时间衰减ROAS计算
+    let campaignDailyData: Array<{ date: Date; spend: number; sales: number; clicks: number; orders: number }> = [];
+    try {
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - 14);
+      const rawDailyData = await db.getDailyPerformanceByDateRange(config.accountId, startDate, endDate, campaign.id);
+      campaignDailyData = rawDailyData.map(d => ({
+        date: new Date(d.date),
+        spend: parseFloat(String(d.spend || '0')),
+        sales: parseFloat(String(d.sales || '0')),
+        clicks: d.clicks || 0,
+        orders: d.orders || 0,
+      }));
+    } catch (e: any) {
+      console.log(`[BidOptimization] 获取campaign ${campaign.id} 历史数据失败: ${e.message}`);
+    }
+    
+    // v122h: 收集该campaign下所有关键词，构建EnhancedOptimizationTarget
     const keywords = await db.getKeywordsByCampaignId(campaign.id);
+    const keywordTargets: bidOptimizer.EnhancedOptimizationTarget[] = [];
     
     for (const keyword of keywords) {
       if (keyword.keywordStatus !== 'enabled') continue;
-      
       const currentBid = parseFloat(keyword.bid || '0');
       if (currentBid <= 0) continue;
       
-      // 计算最优出价
-      const marketCurve = bidOptimizer.generateMarketCurve(keyword as any);
-      const optimalBid = bidOptimizer.findOptimalBid(marketCurve, bidConfig);
+      keywordTargets.push({
+        id: keyword.id,
+        type: 'keyword',
+        currentBid,
+        impressions: keyword.impressions || 0,
+        clicks: keyword.clicks || 0,
+        spend: parseFloat(keyword.spend || '0'),
+        sales: parseFloat(keyword.sales || '0'),
+        orders: keyword.orders || 0,
+        matchType: keyword.matchType,
+        campaignStartDate: campaign.startDate ? new Date(campaign.startDate) : undefined,
+        historicalAvgImpressions: campaign.impressions ? Math.round(campaign.impressions / 14) : undefined,
+        // v122h: 传入campaign级别的每日数据用于时间衰减ROAS和UCB
+        dailyData: campaignDailyData.length > 0 ? campaignDailyData : undefined,
+        marketplace: config.marketplace,
+        campaignId: campaign.id,
+      });
+    }
+    
+    // v122h: 使用UCB增强版算法批量优化关键词
+    if (keywordTargets.length > 0) {
+      const results = bidOptimizer.optimizePerformanceGroupEnhanced(
+        keywordTargets, bidConfig, maxBidLimit, currentDate
+      );
       
-      if (optimalBid && Math.abs(optimalBid - currentBid) > 0.01) {
-        const adjustment = {
-          keywordId: keyword.id,
-          keywordText: keyword.keywordText,
-          campaignId: campaign.id,
-          campaignName: campaign.name,
-          currentBid,
-          newBid: optimalBid,
-          changePercent: ((optimalBid - currentBid) / currentBid * 100).toFixed(2),
-          reason: bidOptimizer.getAdjustmentReason(keyword, bidConfig),
-        };
-        
-        details.push(adjustment);
-        
-        if (!dryRun) {
-          await db.updateKeyword(keyword.id, { bid: optimalBid.toFixed(2) });
-          adjustmentsCount++;
+      for (const result of results) {
+        if (Math.abs(result.newBid - result.previousBid) > 0.01) {
+          const keyword = keywords.find(k => k.id === result.targetId);
+          const adjustment = {
+            keywordId: result.targetId,
+            keywordText: keyword?.keywordText || `关键词 ${result.targetId}`,
+            campaignId: campaign.id,
+            campaignName: campaign.name || campaign.campaignName,
+            currentBid: result.previousBid,
+            newBid: result.newBid,
+            changePercent: result.bidChangePercent.toFixed(2),
+            reason: `[${result.algorithmUsed}] ${result.reason}`,
+            algorithmUsed: result.algorithmUsed,
+            confidenceScore: result.confidenceScore,
+          };
+          
+          details.push(adjustment);
+          
+          if (!dryRun) {
+            await db.updateKeyword(result.targetId, { bid: result.newBid.toFixed(2) });
+            adjustmentsCount++;
+          }
         }
       }
     }
     
-    // 获取广告活动下的所有商品定向
+    // v122h: 商品定向也使用UCB增强版算法
     const adGroupsList = await db.getAdGroupsByCampaignId(campaign.id);
+    const productTargets: bidOptimizer.EnhancedOptimizationTarget[] = [];
+    const allTargets: any[] = [];
+    
     for (const ag of adGroupsList) {
       const targets = await db.getProductTargetsByAdGroupId(ag.id);
       for (const target of targets) {
@@ -365,32 +445,52 @@ async function executeBidOptimization(
         const currentBid = parseFloat(target.bid || '0');
         if (currentBid <= 0) continue;
         
-        // 将商品定向转换为与bidOptimizer兼容的格式
-        const targetAsKeyword = {
-          ...target,
-          keywordText: target.targetText || target.targetValue || `ASIN ${target.id}`,
+        allTargets.push(target);
+        productTargets.push({
+          id: target.id,
+          type: 'product_target',
+          currentBid,
+          impressions: target.impressions || 0,
+          clicks: target.clicks || 0,
+          spend: parseFloat(target.spend || '0'),
+          sales: parseFloat(target.sales || '0'),
+          orders: target.orders || 0,
           matchType: target.targetMatchType || 'exact',
-        };
-        const marketCurve = bidOptimizer.generateMarketCurve(targetAsKeyword as any);
-        const optimalBid = bidOptimizer.findOptimalBid(marketCurve, bidConfig);
-        
-        if (optimalBid && Math.abs(optimalBid - currentBid) > 0.01) {
+          campaignStartDate: campaign.startDate ? new Date(campaign.startDate) : undefined,
+          historicalAvgImpressions: campaign.impressions ? Math.round(campaign.impressions / 14) : undefined,
+          dailyData: campaignDailyData.length > 0 ? campaignDailyData : undefined,
+          marketplace: config.marketplace,
+          campaignId: campaign.id,
+        });
+      }
+    }
+    
+    if (productTargets.length > 0) {
+      const results = bidOptimizer.optimizePerformanceGroupEnhanced(
+        productTargets, bidConfig, maxBidLimit, currentDate
+      );
+      
+      for (const result of results) {
+        if (Math.abs(result.newBid - result.previousBid) > 0.01) {
+          const target = allTargets.find(t => t.id === result.targetId);
           const adjustment = {
-            keywordId: target.id,
-            keywordText: target.targetText || target.targetValue || `商品定向 ${target.id}`,
+            keywordId: result.targetId,
+            keywordText: target?.targetText || target?.targetValue || `商品定向 ${result.targetId}`,
             campaignId: campaign.id,
-            campaignName: campaign.name,
-            currentBid,
-            newBid: optimalBid,
-            changePercent: ((optimalBid - currentBid) / currentBid * 100).toFixed(2),
-            reason: `商品定向(匹配:${target.targetMatchType || 'auto'}) - ${bidOptimizer.getAdjustmentReason(targetAsKeyword, bidConfig)}`,
+            campaignName: campaign.name || campaign.campaignName,
+            currentBid: result.previousBid,
+            newBid: result.newBid,
+            changePercent: result.bidChangePercent.toFixed(2),
+            reason: `商品定向 - [${result.algorithmUsed}] ${result.reason}`,
             isProductTarget: true,
+            algorithmUsed: result.algorithmUsed,
+            confidenceScore: result.confidenceScore,
           };
           
           details.push(adjustment);
           
           if (!dryRun) {
-            await db.updateProductTarget(target.id, { bid: optimalBid.toFixed(2) });
+            await db.updateProductTarget(result.targetId, { bid: result.newBid.toFixed(2) });
             adjustmentsCount++;
           }
         }
@@ -509,8 +609,11 @@ async function executeDaypartingOptimization(
   const details: any[] = [];
   let adjustmentsCount = 0;
   
-  const currentHour = new Date().getHours();
-  const currentDayOfWeek = new Date().getDay();
+  // v122h: 使用站点本地时间而非UTC时间
+  const marketplace = config.marketplace || 'US';
+  const now = new Date();
+  const currentHour = getLocalHour(now, marketplace);
+  const currentDayOfWeek = getLocalDayOfWeek(now, marketplace);
   
   for (const campaign of campaigns) {
     try {
@@ -605,9 +708,44 @@ async function executeSearchTermAnalysis(
         { category: '', brand: '' } // 产品属性
       );
       
+      // v122h: 获取品牌词用于保护
+      const account = await db.getAdAccountById(config.accountId);
+      const brandTerms = account?.brandName ? [account.brandName] : [];
+      
       // 处理分类结果
       for (const term of classification) {
         if (term.suggestedAction === 'negative_exact' || term.suggestedAction === 'negative_phrase') {
+          // v122h: 品牌词保护 - 不否定含有品牌词的搜索词
+          if (brandTerms.length > 0 && isProtectedKeyword(term.searchTerm, brandTerms)) {
+            details.push({
+              campaignId: campaign.id,
+              campaignName: campaign.name,
+              searchTerm: term.searchTerm,
+              action: 'brand_protect_skip',
+              reason: `[品牌词保护] 搜索词"${term.searchTerm}"含有品牌词，跳过否定`,
+            });
+            continue;
+          }
+          
+          // v122h: 探索期保护 - 检查对应的投放词是否在探索期内
+          const matchingKeywords = await db.getKeywordsByCampaignId(campaign.id);
+          const matchingKw = matchingKeywords.find((kw: any) => 
+            kw.keywordText?.toLowerCase() === term.searchTerm.toLowerCase()
+          );
+          if (matchingKw?.createdAt) {
+            const kwCreatedAt = new Date(matchingKw.createdAt);
+            if (isNewKeyword(kwCreatedAt, matchingKw.clicks || 0, matchingKw.impressions || 0, 7)) {
+              details.push({
+                campaignId: campaign.id,
+                campaignName: campaign.name,
+                searchTerm: term.searchTerm,
+                action: 'exploration_protect_skip',
+                reason: `[探索期保护] 对应投放词在探索期内，跳过否定，给予充分的数据积累时间`,
+              });
+              continue;
+            }
+          }
+          
           const negativeKeyword = {
             campaignId: campaign.id,
             campaignName: campaign.name,
@@ -776,6 +914,40 @@ async function executeKeywordStatusChanges(
   let pausedCount = 0;
   let enabledCount = 0;
   
+  // v122g: 策略感知的动态暂停阈值
+  // 不同策略对“高花费无转化”的容忍度不同
+  const goal = config.optimizationGoal || 'balanced';
+  let pauseSpendThreshold = 50;  // 默认花费阈值
+  let pauseClickThreshold = 20;  // 默认点击阈值
+  let maxAcosThreshold = (config.targetAcos || 30) * 2.5; // 默认ACoS上限为目标的2.5倍
+  
+  if (['aggressive-growth', 'seasonal-boost', 'market-expansion'].includes(goal)) {
+    // 激进策略：更高的容忍度，允许更多试错成本
+    pauseSpendThreshold = 100;
+    pauseClickThreshold = 40;
+    maxAcosThreshold = (config.targetAcos || 30) * 3.5;
+  } else if (['profit-focused', 'brand-defense', 'decline-management'].includes(goal)) {
+    // 保守策略：更低的容忍度，但也不能太激进
+    pauseSpendThreshold = 35;
+    pauseClickThreshold = 15;
+    maxAcosThreshold = (config.targetAcos || 30) * 2;
+  } else if (['inventory-clearance', 'competitor-attack'].includes(goal)) {
+    // 特殊策略：中等容忍度
+    pauseSpendThreshold = 70;
+    pauseClickThreshold = 30;
+    maxAcosThreshold = (config.targetAcos || 30) * 3;
+  }
+  
+  // v122g: 计算组平均AOV，用于动态调整花费阈值
+  let totalSalesForAov = 0, totalOrdersForAov = 0;
+  for (const c of campaigns) {
+    totalSalesForAov += parseFloat(c.sales || '0');
+    totalOrdersForAov += (c.orders || 0);
+  }
+  const groupAov = totalOrdersForAov > 0 ? totalSalesForAov / totalOrdersForAov : 30;
+  // 花费阈值至少为1.5倍AOV，确保有足够数据判断
+  pauseSpendThreshold = Math.max(pauseSpendThreshold, groupAov * 1.5);
+  
   for (const campaign of campaigns) {
     try {
       // 获取广告活动下的所有关键词
@@ -786,17 +958,99 @@ async function executeKeywordStatusChanges(
         const sales = parseFloat(keyword.sales || '0');
         const clicks = keyword.clicks || 0;
         const conversions = keyword.orders || 0;
+        const impressions = keyword.impressions || 0;
         const acos = sales > 0 ? (spend / sales * 100) : 0;
         
-        // 判断是否需要暂停（高花费低转化）
-        const shouldPause = keyword.keywordStatus === 'enabled' && 
-          spend > 50 && // 花费超过$50
-          conversions === 0 && // 没有转化
-          clicks > 20; // 点击超过20次
+        // v122g: 多维度暂停判断（替代原来的粗暴硬编码阈值）
+        let shouldPause = false;
+        let pauseReason = '';
         
-        // 判断是否需要启用（之前暂停但现在表现改善）
-        const shouldEnable = keyword.keywordStatus === 'paused' &&
-          acos > 0 && acos < (config.targetAcos || 30);
+        if (keyword.keywordStatus === 'enabled') {
+          // 条件1：高花费零转化（使用动态阈值）
+          if (spend > pauseSpendThreshold && conversions === 0 && clicks > pauseClickThreshold) {
+            shouldPause = true;
+            pauseReason = `高花费零转化: 花费$${spend.toFixed(2)}(>阈值$${pauseSpendThreshold.toFixed(0)}), 点击${clicks}(>阈值${pauseClickThreshold}), 转化${conversions}`;
+          }
+          // 条件2：ACoS远超目标且数据充足
+          else if (acos > maxAcosThreshold && clicks > pauseClickThreshold && conversions > 0) {
+            shouldPause = true;
+            pauseReason = `ACoS远超目标: ACoS ${acos.toFixed(1)}%(>阈值${maxAcosThreshold.toFixed(0)}%), 点击${clicks}, 转化${conversions}`;
+          }
+          
+          // v122h: 探索期保护 - 新关键词在7天探索期内不执行暂停
+          if (shouldPause && keyword.createdAt) {
+            const keywordCreatedAt = new Date(keyword.createdAt);
+            const isNew = isNewKeyword(keywordCreatedAt, clicks, impressions, 7);
+            if (isNew) {
+              shouldPause = false;
+              const explorationInfo = getExplorationStrategy(keywordCreatedAt, clicks, impressions, parseFloat(keyword.bid || '0'));
+              details.push({
+                campaignId: campaign.id,
+                campaignName: campaign.name,
+                keywordId: keyword.id,
+                keywordText: keyword.keywordText,
+                action: 'exploration_protect',
+                reason: `[探索期保护] 关键词在探索期内(剩余${explorationInfo.explorationDaysRemaining}天)，策略:${explorationInfo.strategy}，不执行暂停`,
+                currentStatus: keyword.keywordStatus,
+              });
+              continue;
+            }
+          }
+          
+          // v122h: 品牌词保护 - 品牌词不自动暂停，仅记录警告
+          if (shouldPause) {
+            const account = await db.getAdAccountById(config.accountId);
+            const brandTerms = account?.brandName ? [account.brandName] : [];
+            if (brandTerms.length > 0 && isProtectedKeyword(keyword.keywordText, brandTerms)) {
+              shouldPause = false;
+              details.push({
+                campaignId: campaign.id,
+                campaignName: campaign.name,
+                keywordId: keyword.id,
+                keywordText: keyword.keywordText,
+                action: 'brand_protect',
+                reason: `[品牌词保护] 品牌关键词"${keyword.keywordText}"不自动暂停，建议人工评估`,
+                currentStatus: keyword.keywordStatus,
+              });
+              continue;
+            }
+          }
+          
+          // v122g+h: 低数据量保护 - 如果数据量太少，不执行暂停，给予更多观察时间
+          if (shouldPause && clicks < 10 && spend < groupAov) {
+            shouldPause = false;
+            details.push({
+              campaignId: campaign.id,
+              campaignName: campaign.name,
+              keywordId: keyword.id,
+              keywordText: keyword.keywordText,
+              action: 'observe',
+              reason: `[观察期] 数据量不足(点击${clicks},花费$${spend.toFixed(2)})，继续观察而非直接暂停`,
+              currentStatus: keyword.keywordStatus,
+            });
+            continue;
+          }
+        }
+        
+        // v122g: 更智能的启用判断
+        let shouldEnable = false;
+        let enableReason = '';
+        
+        if (keyword.keywordStatus === 'paused') {
+          // 条件1：有转化且ACoS在目标范围内
+          if (acos > 0 && acos < (config.targetAcos || 30)) {
+            shouldEnable = true;
+            enableReason = `表现改善: ACoS ${acos.toFixed(2)}%(目标${config.targetAcos || 30}%)`;
+          }
+          // v122g 条件2：历史CVR尚可，可以尝试重新探索
+          else if (conversions > 0 && clicks > 5) {
+            const cvr = conversions / clicks;
+            if (cvr > 0.02) { // CVR > 2%说明有转化潜力
+              shouldEnable = true;
+              enableReason = `[探索模式重启] 历史CVR ${(cvr * 100).toFixed(1)}%尚可，尝试以探索性出价重新启用`;
+            }
+          }
+        }
         
         if (shouldPause) {
           const action = {
@@ -805,7 +1059,7 @@ async function executeKeywordStatusChanges(
             keywordId: keyword.id,
             keywordText: keyword.keywordText,
             action: 'pause',
-            reason: `高花费低转化: 花费$${spend.toFixed(2)}, 点击${clicks}, 转化${conversions}`,
+            reason: pauseReason,
             currentStatus: keyword.keywordStatus,
           };
           
@@ -822,7 +1076,7 @@ async function executeKeywordStatusChanges(
             keywordId: keyword.id,
             keywordText: keyword.keywordText,
             action: 'enable',
-            reason: `表现改善: ACoS ${acos.toFixed(2)}%`,
+            reason: enableReason,
             currentStatus: keyword.keywordStatus,
           };
           

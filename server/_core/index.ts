@@ -8,6 +8,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { startDataSyncScheduler, startOptimizationScheduler } from "../dataSyncScheduler";
+import { startOptimizationScheduler as startTargetScheduler } from "../optimizationScheduler";
 import { startSQSConsumer } from "../sqsConsumerService";
 import { reportJobScheduler } from "../services/reportJobScheduler";
 import sitemapRouter from "../routes/sitemap";
@@ -78,6 +79,13 @@ async function startServer() {
     // 启动分层优化调度器（专家建议：独立于数据同步的优化调度）
     startOptimizationScheduler();
     console.log('[OptimizationScheduler] 分层优化调度器已启动');
+    
+    // v122h: 启动优化目标调度器（恢复所有活跃优化目标的定时执行）
+    startTargetScheduler().then(result => {
+      console.log(`[TargetScheduler] 优化目标调度器已启动: 共${result.total}个活跃目标, 已注册${result.scheduled}个, 失败${result.errors}个`);
+    }).catch(err => {
+      console.error('[TargetScheduler] 启动失败:', err.message);
+    });
     
     // 启动SQS消费者服务（AMS实时数据流）
     if (process.env.AWS_SQS_QUEUE_TRAFFIC_URL || process.env.AWS_SQS_QUEUE_CONVERSION_URL || process.env.AWS_SQS_QUEUE_BUDGET_URL) {

@@ -824,11 +824,14 @@ export default function Campaigns() {
   }, [timeRangeValue]);
 
   // Fetch campaigns with performance data
+  // v122h: 传递marketplace和timeRange给后端，由后端根据站点时区计算正确的日期范围
   const { data: campaigns, isLoading, refetch } = trpc.campaign.list.useQuery(
     { 
       accountId: accountId, 
-      startDate: dateRange.startDate,
-      endDate: dateRange.endDate,
+      marketplace: currentMarketplace || undefined,
+      timeRange: (timeRangeValue.preset === 'custom' ? 'custom' : timeRangeValue.preset) as any,
+      startDate: timeRangeValue.preset === 'custom' ? dateRange.startDate : undefined,
+      endDate: timeRangeValue.preset === 'custom' ? dateRange.endDate : undefined,
     },
     { enabled: !!accountId }
   );

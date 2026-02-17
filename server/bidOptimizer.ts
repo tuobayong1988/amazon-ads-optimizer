@@ -295,12 +295,37 @@ export function findOptimalBid(
 }
 
 /**
- * 数据充足性检查阈值
- * 专家建议：点击>=15且订单>=3才认为数据充足
+ * 数据充足性检查阈值（默认值）
+ * v122g: 升级为策略感知的动态阈值
  */
 const DATA_SUFFICIENCY_THRESHOLDS = {
   minClicks: 15,
   minOrders: 3,
+};
+
+/**
+ * 策略感知的数据充足性阈值映射
+ * v122g: 不同优化策略对数据充足性有不同的容忍度
+ * - 激进策略（aggressive-growth, seasonal-boost, market-expansion）：更早进入利用阶段
+ * - 保守策略（profit-focused, brand-defense, decline-management）：需要更多数据确认
+ * - 平衡策略（balanced）：使用默认阈值
+ * - 探索策略（inventory-clearance, competitor-attack）：中等阈值
+ */
+const STRATEGY_DATA_THRESHOLDS: Record<string, { minClicks: number; minOrders: number }> = {
+  'aggressive-growth': { minClicks: 8, minOrders: 1 },
+  'seasonal-boost': { minClicks: 8, minOrders: 1 },
+  'market-expansion': { minClicks: 8, minOrders: 1 },
+  'balanced': { minClicks: 15, minOrders: 3 },
+  'maximize_sales': { minClicks: 12, minOrders: 2 },
+  'target_acos': { minClicks: 15, minOrders: 3 },
+  'target_roas': { minClicks: 15, minOrders: 3 },
+  'profit-focused': { minClicks: 20, minOrders: 5 },
+  'brand-defense': { minClicks: 20, minOrders: 5 },
+  'decline-management': { minClicks: 20, minOrders: 5 },
+  'inventory-clearance': { minClicks: 10, minOrders: 1 },
+  'competitor-attack': { minClicks: 10, minOrders: 2 },
+  'emergency-response': { minClicks: 10, minOrders: 2 },
+  'seasonal-pattern': { minClicks: 12, minOrders: 2 },
 };
 
 /**
@@ -329,10 +354,13 @@ export function calculateBayesianSmoothedCvr(
 
 /**
  * 检查数据是否充足，决定使用市场曲线模型还是贝叶斯平滑策略
+ * v122g: 升级为策略感知版本，不同策略有不同的数据充足性阈值
  */
-export function isDataSufficient(target: OptimizationTarget): boolean {
-  return target.clicks >= DATA_SUFFICIENCY_THRESHOLDS.minClicks && 
-         target.orders >= DATA_SUFFICIENCY_THRESHOLDS.minOrders;
+export function isDataSufficient(target: OptimizationTarget, config?: PerformanceGroupConfig): boolean {
+  const strategyKey = config?.optimizationGoal || 'balanced';
+  const thresholds = STRATEGY_DATA_THRESHOLDS[strategyKey] || DATA_SUFFICIENCY_THRESHOLDS;
+  return target.clicks >= thresholds.minClicks && 
+         target.orders >= thresholds.minOrders;
 }
 
 /**
@@ -382,15 +410,26 @@ function calculateSparseDataBidAdjustment(
   // 理论出价 = 平滑CVR * 目标CPA
   const theoreticalBid = smoothedCvr * targetCpa;
 
-  // 专家建议：限制调整幅度，长尾词不宜大起大落（最多±20%）
-  const MAX_SPARSE_CHANGE_PERCENT = 0.20;
+  // v122g: 根据策略类型动态调整稀疏数据场景的最大变化幅度
+  // 激进策略允许更大幅度调整，保守策略限制调整幅度
+  let MAX_SPARSE_CHANGE_PERCENT = 0.20;
+  const goal = config.optimizationGoal || 'balanced';
+  if (['aggressive-growth', 'seasonal-boost', 'market-expansion', 'inventory-clearance'].includes(goal)) {
+    MAX_SPARSE_CHANGE_PERCENT = 0.30; // 激进策略允许±30%
+  } else if (['profit-focused', 'brand-defense', 'decline-management'].includes(goal)) {
+    MAX_SPARSE_CHANGE_PERCENT = 0.12; // 保守策略限制±12%
+  }
   
   if (theoreticalBid > target.currentBid) {
     newBid = Math.min(theoreticalBid, target.currentBid * (1 + MAX_SPARSE_CHANGE_PERCENT));
-    reason = `数据稀疏（点击${target.clicks}，订单${target.orders}），基于贝叶斯平滑CVR(${(smoothedCvr * 100).toFixed(1)}%)尝试提价`;
+    reason = `[数据培育] 点击${target.clicks}/订单${target.orders}，贝叶斯平滑CVR(${(smoothedCvr * 100).toFixed(1)}%)，小幅提价获取更多数据`;
+  } else if (target.clicks < 5 && target.orders === 0) {
+    // v122g: 点击极少且无转化时，不急于降价，保持当前出价继续观察
+    newBid = target.currentBid;
+    reason = `[数据培育] 点击${target.clicks}/订单${target.orders}，数据不足以判断趋势，保持当前出价继续观察`;
   } else {
     newBid = Math.max(theoreticalBid, target.currentBid * (1 - MAX_SPARSE_CHANGE_PERCENT));
-    reason = `数据稀疏（点击${target.clicks}，订单${target.orders}），表现不及预期，保守降价`;
+    reason = `[数据培育] 点击${target.clicks}/订单${target.orders}，表现不及预期，保守微调出价`;
   }
 
   // 应用出价限制
@@ -432,8 +471,8 @@ export function calculateBidAdjustment(
   maxBidLimit: number = 10.00,
   minBidLimit: number = 0.02
 ): OptimizationResult {
-  // 专家建议：数据充足性检查
-  if (!isDataSufficient(target)) {
+  // v122g: 策略感知的数据充足性检查
+  if (!isDataSufficient(target, config)) {
     // 数据稀疏时，使用贝叶斯平滑的保守策略
     return calculateSparseDataBidAdjustment(target, config, maxBidLimit, minBidLimit);
   }
@@ -560,6 +599,7 @@ function generateOptimizationReason(
 
 /**
  * 零曝光探测配置
+ * v122g: 扩展为支持探索模式的全面配置
  */
 const ZERO_IMPRESSION_PROBING_CONFIG = {
   newCampaignDays: 7,           // Campaign创建7天内视为新品
@@ -567,7 +607,111 @@ const ZERO_IMPRESSION_PROBING_CONFIG = {
   probingBidIncrementFixed: 0.05,   // 每次探测提价固定金额($)
   probingImpressionThreshold: 500,  // 曝光达到500后退出探测模式
   oosHistoricalAvgThreshold: 1000,  // 历史日均曝光>1000且昨日曝光=0，判定为疑似断货
+  // v122g: 探索模式配置
+  explorationMaxBidPercent: 0.15,   // 探索模式最大提价百分比
+  explorationMinImpressions: 200,   // 探索模式最低曝光要求
 };
+
+/**
+ * v122g: 探索模式出价计算
+ * 针对低数据量广告活动（非新品）的智能探索策略
+ * 
+ * 核心理念：
+ * - 不是粗暴地降低出价，而是耐心地培育数据
+ * - 对于有少量曝光但无点击的：小幅提价获取更好位置
+ * - 对于有点击但无转化的：使用贝叶斯平滑保守调整
+ * - 对于有少量转化的：基于平滑CVR和目标CPA计算探索性出价
+ */
+function calculateExplorationBid(
+  target: OptimizationTarget,
+  config: PerformanceGroupConfig,
+  maxBidLimit: number = 10.00,
+  minBidLimit: number = 0.02
+): OptimizationResult {
+  let newBid = target.currentBid;
+  let reason = '';
+  
+  const groupAvgCvr = config.groupAvgCvr || 0.05;
+  const groupAvgAov = config.groupAvgAov || 30;
+  const groupAvgCpc = config.groupAvgCpc || target.currentBid;
+  
+  // 场景1：零曝光或极低曝光（<50）—— 探测性提价
+  if (target.impressions < 50) {
+    const increment = Math.max(
+      target.currentBid * 0.08,  // 8%提价
+      0.03                       // 最少$0.03
+    );
+    newBid = target.currentBid + increment;
+    reason = `[探索模式] 曝光量仅${target.impressions}，探测性提价+$${increment.toFixed(2)}寻找合理价位`;
+  }
+  // 场景2：有曝光但无点击（曝光>=50，点击=0）—— 可能是位置不够好，小幅提价
+  else if (target.clicks === 0) {
+    const increment = Math.max(
+      target.currentBid * 0.05,  // 5%提价
+      0.02
+    );
+    newBid = target.currentBid + increment;
+    reason = `[探索模式] 曝光${target.impressions}但零点击，小幅提价+$${increment.toFixed(2)}改善广告位置`;
+  }
+  // 场景3：有点击但无转化（点击>0，订单=0）—— 保持当前出价继续观察
+  else if (target.orders === 0) {
+    // 如果点击费用远高于组平均CPC，微降
+    const currentCpc = target.clicks > 0 ? target.spend / target.clicks : target.currentBid;
+    if (currentCpc > groupAvgCpc * 1.5) {
+      // CPC远高于组平均，微降到组平均水平
+      newBid = Math.max(target.currentBid * 0.92, groupAvgCpc);
+      reason = `[探索模式] 点击${target.clicks}无转化，CPC($${currentCpc.toFixed(2)})高于组平均($${groupAvgCpc.toFixed(2)})，微调降低成本`;
+    } else {
+      // CPC合理，保持当前出价继续积累数据
+      newBid = target.currentBid;
+      reason = `[探索模式] 点击${target.clicks}无转化，CPC在合理范围，保持当前出价继续积累数据`;
+    }
+  }
+  // 场景4：有少量转化（订单>0）—— 使用贝叶斯平滑计算探索性出价
+  else {
+    const smoothedCvr = calculateBayesianSmoothedCvr(target.orders, target.clicks, groupAvgCvr);
+    let targetCpa: number;
+    if (config.targetAcos && target.orders > 0) {
+      const avgOrderValue = target.sales / target.orders;
+      targetCpa = (config.targetAcos / 100) * avgOrderValue;
+    } else if (config.targetRoas) {
+      targetCpa = groupAvgAov / config.targetRoas;
+    } else {
+      targetCpa = groupAvgAov * 0.3;
+    }
+    const theoreticalBid = smoothedCvr * targetCpa;
+    // 探索模式下限制调整幅度为±15%
+    if (theoreticalBid > target.currentBid) {
+      newBid = Math.min(theoreticalBid, target.currentBid * 1.15);
+    } else {
+      newBid = Math.max(theoreticalBid, target.currentBid * 0.85);
+    }
+    reason = `[探索模式] 点击${target.clicks}/订单${target.orders}，贝叶斯平滑CVR(${(smoothedCvr * 100).toFixed(1)}%)，基于探索性出价调整`;
+  }
+  
+  // 应用出价限制
+  const effectiveMaxBid = config.maxBid || maxBidLimit;
+  newBid = Math.min(newBid, effectiveMaxBid);
+  newBid = Math.max(newBid, minBidLimit);
+  newBid = Math.round(newBid * 100) / 100;
+  
+  // 确定操作类型
+  let actionType: 'increase' | 'decrease' | 'set' = 'set';
+  if (newBid > target.currentBid) actionType = 'increase';
+  else if (newBid < target.currentBid) actionType = 'decrease';
+  
+  const bidChangePercent = target.currentBid > 0 ? ((newBid - target.currentBid) / target.currentBid) * 100 : 0;
+  
+  return {
+    targetId: target.id,
+    targetType: target.type,
+    previousBid: target.currentBid,
+    newBid,
+    actionType,
+    bidChangePercent: Math.round(bidChangePercent * 100) / 100,
+    reason,
+  };
+}
 
 /**
  * 检测是否为疑似断货/揉购物车丢失
@@ -663,18 +807,24 @@ export function optimizePerformanceGroup(
       continue;
     }
     
-    // === 第2层：零曝光探测（新品冷启动） ===
-    if (target.clicks < 5 && target.impressions < 100) {
-      if (isNewCampaign(target)) {
-        // 新品冷启动：执行探测性提价，打破死循环
-        const probingResult = calculateZeroImpressionProbing(target, config, maxBidLimit);
-        results.push(probingResult);
-      }
-      // 非新品且数据不足：跳过（保持原有逻辑，避免对老广告活动的无效调整）
+    // === 第2层：零曝光/冷启动探测 ===
+    if (target.impressions === 0 && isNewCampaign(target)) {
+      // 新品零曝光：执行探测性提价，打破死循环
+      const probingResult = calculateZeroImpressionProbing(target, config, maxBidLimit);
+      results.push(probingResult);
       continue;
     }
     
-    // === 第3层：正常优化流程 ===
+    // === 第3层：低数据量探索模式（v122g新增） ===
+    // 不再跳过低数据量活动，而是进入探索模式进行智能培育
+    if (!isDataSufficient(target, config)) {
+      const explorationResult = calculateExplorationBid(target, config, maxBidLimit);
+      // 探索模式下，即使变化很小也要记录（包括“保持不变”的决策）
+      results.push(explorationResult);
+      continue;
+    }
+    
+    // === 第4层：数据充足的正常优化流程 ===
     const result = calculateBidAdjustment(target, config, maxBidLimit);
     
     // Only include if there's a meaningful change (> 1%)
@@ -1221,8 +1371,8 @@ export function calculateEnhancedBidAdjustment(
   // 4. 计算基础竞价
   let baseBid: number;
   
-  if (!isDataSufficient(target)) {
-    // 数据稀疏：使用贝叶斯平滑
+  if (!isDataSufficient(target, config)) {
+    // v122g: 数据稀疏：使用贝叶斯平滑（已升级为策略感知版本）
     const sparseResult = calculateSparseDataBidAdjustment(target, config, maxBidLimit, minBidLimit);
     baseBid = sparseResult.newBid;
     algorithmUsed = 'bayesian';
@@ -1357,21 +1507,32 @@ export function optimizePerformanceGroupEnhanced(
       continue;
     }
     
-    // === 第2层：零曝光探测（新品冷启动） ===
-    if (target.clicks < 5 && target.impressions < 100) {
-      if (isNewCampaign(target)) {
-        const probingResult = calculateZeroImpressionProbing(target, config, maxBidLimit);
-        results.push({
-          ...probingResult,
-          algorithmUsed: 'bayesian',
-          confidenceScore: 0.2,
-          holidayMultiplier: 1,
-        } as EnhancedOptimizationResult);
-      }
+    // === 第2层：零曝光/冷启动探测 ===
+    if (target.impressions === 0 && isNewCampaign(target)) {
+      const probingResult = calculateZeroImpressionProbing(target, config, maxBidLimit);
+      results.push({
+        ...probingResult,
+        algorithmUsed: 'bayesian',
+        confidenceScore: 0.2,
+        holidayMultiplier: 1,
+      } as EnhancedOptimizationResult);
       continue;
     }
     
-    // === 第3层：正常增强版优化流程 ===
+    // === 第3层：低数据量探索模式（v122g新增） ===
+    // 不再跳过低数据量活动，而是进入探索模式进行智能培育
+    if (!isDataSufficient(target, config)) {
+      const explorationResult = calculateExplorationBid(target, config, maxBidLimit);
+      results.push({
+        ...explorationResult,
+        algorithmUsed: 'bayesian',
+        confidenceScore: 0.25,
+        holidayMultiplier: 1,
+      } as EnhancedOptimizationResult);
+      continue;
+    }
+    
+    // === 第4层：数据充足的正常增强版优化流程 ===
     const result = calculateEnhancedBidAdjustment(target, config, maxBidLimit, 0.02, currentDate);
     
     // 只包含有意义的变化（> 1%）
