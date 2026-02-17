@@ -53,6 +53,9 @@ import {
   Filter,
   ChevronDown,
   ChevronUp,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
   X
 } from "lucide-react";
 
@@ -111,6 +114,15 @@ export default function PerformanceGroupDetail() {
   const [filterMaxBudget, setFilterMaxBudget] = useState<string>("");
   const [showAdvancedFilters, setShowAdvancedFilters] = useState<boolean>(false);
 
+  // 添加广告活动对话框排序状态
+  type DialogSortField = 'campaignName' | 'campaignType' | 'impressions' | 'clicks' | 'spend' | 'sales' | 'orders' | 'acos' | 'roas' | 'cpc' | 'ctr' | 'cvr' | 'dailyBudget';
+  const [dialogSortField, setDialogSortField] = useState<DialogSortField | null>(null);
+  const [dialogSortDirection, setDialogSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  // 广告活动管理表格排序状态
+  const [campaignSortField, setCampaignSortField] = useState<DialogSortField | null>(null);
+  const [campaignSortDirection, setCampaignSortDirection] = useState<'asc' | 'desc'>('desc');
+
   // 对话框关闭时清空选择和筛选条件
   useEffect(() => {
     if (!showAddCampaignsDialog) {
@@ -136,6 +148,8 @@ export default function PerformanceGroupDetail() {
       setFilterMinBudget("");
       setFilterMaxBudget("");
       setShowAdvancedFilters(false);
+      setDialogSortField(null);
+      setDialogSortDirection('desc');
     }
   }, [showAddCampaignsDialog]);
   
@@ -388,6 +402,93 @@ export default function PerformanceGroupDetail() {
       return true;
     });
   }, [availableCampaigns, searchQuery, filterCampaignType, filterBiddingStrategy, filterState, filterMinSpend, filterMaxSpend, filterMinAcos, filterMaxAcos, filterMinOrders, filterMaxOrders, filterMinRoas, filterMaxRoas, filterMinClicks, filterMaxClicks, filterMinCpc, filterMaxCpc, filterMinImpressions, filterMaxImpressions, filterMinBudget, filterMaxBudget]);
+
+  // 计算广告活动的排序值
+  const getCampaignSortValue = (campaign: any, field: DialogSortField): number | string => {
+    const spend = Number(campaign.spend || 0);
+    const sales = Number(campaign.sales || 0);
+    const clicks = Number(campaign.clicks || 0);
+    const impressions = Number(campaign.impressions || 0);
+    const orders = Number(campaign.orders || 0);
+    switch (field) {
+      case 'campaignName': return (campaign.campaignName || '').toLowerCase();
+      case 'campaignType': return campaign.campaignType || '';
+      case 'impressions': return impressions;
+      case 'clicks': return clicks;
+      case 'spend': return spend;
+      case 'sales': return sales;
+      case 'orders': return orders;
+      case 'acos': return sales > 0 ? (spend / sales) * 100 : 0;
+      case 'roas': return spend > 0 ? sales / spend : 0;
+      case 'cpc': return clicks > 0 ? spend / clicks : 0;
+      case 'ctr': return impressions > 0 ? (clicks / impressions) * 100 : 0;
+      case 'cvr': return clicks > 0 ? (orders / clicks) * 100 : 0;
+      case 'dailyBudget': return Number(campaign.dailyBudget || 0);
+      default: return 0;
+    }
+  };
+
+  // 对话框排序后的广告活动列表
+  const sortedFilteredAvailableCampaigns = useMemo(() => {
+    if (!dialogSortField) return filteredAvailableCampaigns;
+    return [...filteredAvailableCampaigns].sort((a: any, b: any) => {
+      const aVal = getCampaignSortValue(a, dialogSortField);
+      const bVal = getCampaignSortValue(b, dialogSortField);
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return dialogSortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      }
+      return dialogSortDirection === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
+    });
+  }, [filteredAvailableCampaigns, dialogSortField, dialogSortDirection]);
+
+  // 广告活动管理表格排序后的数据
+  const sortedGroupCampaigns = useMemo(() => {
+    if (!groupCampaigns || !campaignSortField) return groupCampaigns || [];
+    return [...groupCampaigns].sort((a: any, b: any) => {
+      const aVal = getCampaignSortValue(a, campaignSortField);
+      const bVal = getCampaignSortValue(b, campaignSortField);
+      if (typeof aVal === 'string' && typeof bVal === 'string') {
+        return campaignSortDirection === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+      }
+      return campaignSortDirection === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
+    });
+  }, [groupCampaigns, campaignSortField, campaignSortDirection]);
+
+  // 排序处理函数
+  const handleDialogSort = (field: DialogSortField) => {
+    if (dialogSortField === field) {
+      setDialogSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setDialogSortField(field);
+      setDialogSortDirection('desc');
+    }
+  };
+
+  const handleCampaignSort = (field: DialogSortField) => {
+    if (campaignSortField === field) {
+      setCampaignSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
+    } else {
+      setCampaignSortField(field);
+      setCampaignSortDirection('desc');
+    }
+  };
+
+  // 获取排序图标
+  const getDialogSortIcon = (field: DialogSortField) => {
+    if (dialogSortField !== field) return <ArrowUpDown className="w-3 h-3 ml-0.5 opacity-40" />;
+    return dialogSortDirection === 'asc' ? <ArrowUp className="w-3 h-3 ml-0.5 text-primary" /> : <ArrowDown className="w-3 h-3 ml-0.5 text-primary" />;
+  };
+
+  const getCampaignSortIcon = (field: DialogSortField) => {
+    if (campaignSortField !== field) return <ArrowUpDown className="w-3 h-3 ml-0.5 opacity-40" />;
+    return campaignSortDirection === 'asc' ? <ArrowUp className="w-3 h-3 ml-0.5 text-primary" /> : <ArrowDown className="w-3 h-3 ml-0.5 text-primary" />;
+  };
+
+  // 修复选中计数：只统计当前筛选结果中的选中项
+  const visibleSelectedCount = useMemo(() => {
+    const filteredIds = new Set(filteredAvailableCampaigns.map((c: any) => c.id));
+    return selectedCampaigns.filter(id => filteredIds.has(id)).length;
+  }, [selectedCampaigns, filteredAvailableCampaigns]);
 
   // 处理添加广告活动
   const handleAddCampaigns = () => {
@@ -1117,24 +1218,50 @@ export default function PerformanceGroupDetail() {
                       <thead>
                         <tr className="border-b bg-muted/50">
                           <th className="text-left p-3 font-medium">状态</th>
-                          <th className="text-left p-3 font-medium min-w-[200px]">广告活动名称</th>
-                          <th className="text-left p-3 font-medium">类型</th>
-                          <th className="text-right p-3 font-medium">曝光</th>
-                          <th className="text-right p-3 font-medium">点击</th>
-                          <th className="text-right p-3 font-medium">花费</th>
-                          <th className="text-right p-3 font-medium">销售额</th>
-                          <th className="text-right p-3 font-medium">订单</th>
-                          <th className="text-right p-3 font-medium">ACoS</th>
-                          <th className="text-right p-3 font-medium">ROAS</th>
-                          <th className="text-right p-3 font-medium">CTR</th>
-                          <th className="text-right p-3 font-medium">CVR</th>
-                          <th className="text-right p-3 font-medium">CPC</th>
-                          <th className="text-right p-3 font-medium">日预算</th>
+                          <th className="text-left p-3 font-medium min-w-[200px]">
+                            <button className="flex items-center hover:text-primary transition-colors" onClick={() => handleCampaignSort('campaignName')}>广告活动名称{getCampaignSortIcon('campaignName')}</button>
+                          </th>
+                          <th className="text-left p-3 font-medium">
+                            <button className="flex items-center hover:text-primary transition-colors" onClick={() => handleCampaignSort('campaignType')}>类型{getCampaignSortIcon('campaignType')}</button>
+                          </th>
+                          <th className="text-right p-3 font-medium">
+                            <button className="flex items-center justify-end w-full hover:text-primary transition-colors" onClick={() => handleCampaignSort('impressions')}>曝光{getCampaignSortIcon('impressions')}</button>
+                          </th>
+                          <th className="text-right p-3 font-medium">
+                            <button className="flex items-center justify-end w-full hover:text-primary transition-colors" onClick={() => handleCampaignSort('clicks')}>点击{getCampaignSortIcon('clicks')}</button>
+                          </th>
+                          <th className="text-right p-3 font-medium">
+                            <button className="flex items-center justify-end w-full hover:text-primary transition-colors" onClick={() => handleCampaignSort('spend')}>花费{getCampaignSortIcon('spend')}</button>
+                          </th>
+                          <th className="text-right p-3 font-medium">
+                            <button className="flex items-center justify-end w-full hover:text-primary transition-colors" onClick={() => handleCampaignSort('sales')}>销售额{getCampaignSortIcon('sales')}</button>
+                          </th>
+                          <th className="text-right p-3 font-medium">
+                            <button className="flex items-center justify-end w-full hover:text-primary transition-colors" onClick={() => handleCampaignSort('orders')}>订单{getCampaignSortIcon('orders')}</button>
+                          </th>
+                          <th className="text-right p-3 font-medium">
+                            <button className="flex items-center justify-end w-full hover:text-primary transition-colors" onClick={() => handleCampaignSort('acos')}>ACoS{getCampaignSortIcon('acos')}</button>
+                          </th>
+                          <th className="text-right p-3 font-medium">
+                            <button className="flex items-center justify-end w-full hover:text-primary transition-colors" onClick={() => handleCampaignSort('roas')}>ROAS{getCampaignSortIcon('roas')}</button>
+                          </th>
+                          <th className="text-right p-3 font-medium">
+                            <button className="flex items-center justify-end w-full hover:text-primary transition-colors" onClick={() => handleCampaignSort('ctr')}>CTR{getCampaignSortIcon('ctr')}</button>
+                          </th>
+                          <th className="text-right p-3 font-medium">
+                            <button className="flex items-center justify-end w-full hover:text-primary transition-colors" onClick={() => handleCampaignSort('cvr')}>CVR{getCampaignSortIcon('cvr')}</button>
+                          </th>
+                          <th className="text-right p-3 font-medium">
+                            <button className="flex items-center justify-end w-full hover:text-primary transition-colors" onClick={() => handleCampaignSort('cpc')}>CPC{getCampaignSortIcon('cpc')}</button>
+                          </th>
+                          <th className="text-right p-3 font-medium">
+                            <button className="flex items-center justify-end w-full hover:text-primary transition-colors" onClick={() => handleCampaignSort('dailyBudget')}>日预算{getCampaignSortIcon('dailyBudget')}</button>
+                          </th>
                           <th className="text-center p-3 font-medium">操作</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {groupCampaigns.map((campaign: any) => {
+                        {sortedGroupCampaigns.map((campaign: any) => {
                           const spend = Number(campaign.spend || 0);
                           const sales = Number(campaign.sales || 0);
                           const clicks = Number(campaign.clicks || 0);
@@ -1294,7 +1421,7 @@ export default function PerformanceGroupDetail() {
               </div>
               <div className="flex items-center gap-3">
                 <p className="text-sm text-muted-foreground">
-                  可选: <span className="font-medium text-foreground">{filteredAvailableCampaigns.length}</span>个 | 已选: <span className="font-medium text-primary">{selectedCampaigns.length}</span>个
+                  可选: <span className="font-medium text-foreground">{filteredAvailableCampaigns.length}</span>个 | 已选: <span className="font-medium text-primary">{visibleSelectedCount}</span>个
                 </p>
               </div>
             </div>
@@ -1475,36 +1602,60 @@ export default function PerformanceGroupDetail() {
                           checked={filteredAvailableCampaigns.length > 0 && filteredAvailableCampaigns.every((c: any) => selectedCampaigns.includes(c.id))}
                           onCheckedChange={(checked) => {
                             if (checked) {
+                              // 全选：只选择当前筛选可见的广告活动
                               const allFilteredIds = filteredAvailableCampaigns.map((c: any) => c.id);
-                              setSelectedCampaigns(prev => {
-                                const newSet = new Set([...prev, ...allFilteredIds]);
-                                return Array.from(newSet);
-                              });
+                              setSelectedCampaigns(allFilteredIds);
                             } else {
-                              const filteredIds = new Set(filteredAvailableCampaigns.map((c: any) => c.id));
-                              setSelectedCampaigns(prev => prev.filter(id => !filteredIds.has(id)));
+                              // 取消全选：清空所有选中
+                              setSelectedCampaigns([]);
                             }
                           }}
                         />
                       </th>
                       <th className="text-left p-2 font-medium w-10">状态</th>
-                      <th className="text-left p-2 font-medium min-w-[300px]">广告活动名称</th>
-                      <th className="text-left p-2 font-medium min-w-[80px]">类型</th>
-                      <th className="text-right p-2 font-medium min-w-[70px]">曝光</th>
-                      <th className="text-right p-2 font-medium min-w-[60px]">点击</th>
-                      <th className="text-right p-2 font-medium min-w-[75px]">花费</th>
-                      <th className="text-right p-2 font-medium min-w-[75px]">销售额</th>
-                      <th className="text-right p-2 font-medium min-w-[50px]">订单</th>
-                      <th className="text-right p-2 font-medium min-w-[60px]">ACoS</th>
-                      <th className="text-right p-2 font-medium min-w-[60px]">ROAS</th>
-                      <th className="text-right p-2 font-medium min-w-[55px]">CPC</th>
-                      <th className="text-right p-2 font-medium min-w-[50px]">CTR</th>
-                      <th className="text-right p-2 font-medium min-w-[50px]">CVR</th>
-                      <th className="text-right p-2 font-medium min-w-[70px]">日预算</th>
+                      <th className="text-left p-2 font-medium min-w-[300px]">
+                        <button className="flex items-center hover:text-primary transition-colors" onClick={() => handleDialogSort('campaignName')}>广告活动名称{getDialogSortIcon('campaignName')}</button>
+                      </th>
+                      <th className="text-left p-2 font-medium min-w-[80px]">
+                        <button className="flex items-center hover:text-primary transition-colors" onClick={() => handleDialogSort('campaignType')}>类型{getDialogSortIcon('campaignType')}</button>
+                      </th>
+                      <th className="text-right p-2 font-medium min-w-[70px]">
+                        <button className="flex items-center justify-end w-full hover:text-primary transition-colors" onClick={() => handleDialogSort('impressions')}>曝光{getDialogSortIcon('impressions')}</button>
+                      </th>
+                      <th className="text-right p-2 font-medium min-w-[60px]">
+                        <button className="flex items-center justify-end w-full hover:text-primary transition-colors" onClick={() => handleDialogSort('clicks')}>点击{getDialogSortIcon('clicks')}</button>
+                      </th>
+                      <th className="text-right p-2 font-medium min-w-[75px]">
+                        <button className="flex items-center justify-end w-full hover:text-primary transition-colors" onClick={() => handleDialogSort('spend')}>花费{getDialogSortIcon('spend')}</button>
+                      </th>
+                      <th className="text-right p-2 font-medium min-w-[75px]">
+                        <button className="flex items-center justify-end w-full hover:text-primary transition-colors" onClick={() => handleDialogSort('sales')}>销售额{getDialogSortIcon('sales')}</button>
+                      </th>
+                      <th className="text-right p-2 font-medium min-w-[50px]">
+                        <button className="flex items-center justify-end w-full hover:text-primary transition-colors" onClick={() => handleDialogSort('orders')}>订单{getDialogSortIcon('orders')}</button>
+                      </th>
+                      <th className="text-right p-2 font-medium min-w-[60px]">
+                        <button className="flex items-center justify-end w-full hover:text-primary transition-colors" onClick={() => handleDialogSort('acos')}>ACoS{getDialogSortIcon('acos')}</button>
+                      </th>
+                      <th className="text-right p-2 font-medium min-w-[60px]">
+                        <button className="flex items-center justify-end w-full hover:text-primary transition-colors" onClick={() => handleDialogSort('roas')}>ROAS{getDialogSortIcon('roas')}</button>
+                      </th>
+                      <th className="text-right p-2 font-medium min-w-[55px]">
+                        <button className="flex items-center justify-end w-full hover:text-primary transition-colors" onClick={() => handleDialogSort('cpc')}>CPC{getDialogSortIcon('cpc')}</button>
+                      </th>
+                      <th className="text-right p-2 font-medium min-w-[50px]">
+                        <button className="flex items-center justify-end w-full hover:text-primary transition-colors" onClick={() => handleDialogSort('ctr')}>CTR{getDialogSortIcon('ctr')}</button>
+                      </th>
+                      <th className="text-right p-2 font-medium min-w-[50px]">
+                        <button className="flex items-center justify-end w-full hover:text-primary transition-colors" onClick={() => handleDialogSort('cvr')}>CVR{getDialogSortIcon('cvr')}</button>
+                      </th>
+                      <th className="text-right p-2 font-medium min-w-[70px]">
+                        <button className="flex items-center justify-end w-full hover:text-primary transition-colors" onClick={() => handleDialogSort('dailyBudget')}>日预算{getDialogSortIcon('dailyBudget')}</button>
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredAvailableCampaigns.map((campaign: any) => {
+                    {sortedFilteredAvailableCampaigns.map((campaign: any) => {
                         const spend = Number(campaign.spend || 0);
                         const sales = Number(campaign.sales || 0);
                         const clicks = Number(campaign.clicks || 0);
@@ -1528,7 +1679,7 @@ export default function PerformanceGroupDetail() {
                             }
                           }}
                         >
-                          <td className="p-2 sticky left-0 bg-background z-10">
+                          <td className="p-2 sticky left-0 bg-background z-10" onClick={(e) => e.stopPropagation()}>
                             <Checkbox 
                               checked={isSelected}
                               onCheckedChange={(checked) => {
@@ -1579,7 +1730,7 @@ export default function PerformanceGroupDetail() {
             {/* 底部操作栏 */}
             <div className="flex items-center justify-between px-6 py-3 border-t flex-shrink-0 bg-muted/20">
               <p className="text-sm text-muted-foreground">
-                {selectedCampaigns.length > 0 && `已选择 ${selectedCampaigns.length} 个广告活动`}
+                {visibleSelectedCount > 0 && `已选择 ${visibleSelectedCount} 个广告活动`}
               </p>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setShowAddCampaignsDialog(false)}>
@@ -1590,10 +1741,10 @@ export default function PerformanceGroupDetail() {
                     console.log('Button clicked, selected:', selectedCampaigns);
                     handleAddCampaigns();
                   }}
-                  disabled={selectedCampaigns.length === 0 || addCampaignsMutation.isPending}
+                  disabled={visibleSelectedCount === 0 || addCampaignsMutation.isPending}
                 >
                   {addCampaignsMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  {selectedCampaigns.length > 0 ? `添加 ${selectedCampaigns.length} 个广告活动` : '确认添加'}
+                  {visibleSelectedCount > 0 ? `添加 ${visibleSelectedCount} 个广告活动` : '确认添加'}
                 </Button>
               </div>
             </div>
