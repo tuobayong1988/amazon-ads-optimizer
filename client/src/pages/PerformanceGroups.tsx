@@ -545,7 +545,7 @@ export default function PerformanceGroups() {
                       size="sm"
                       variant="outline"
                       className="flex-1"
-                      onClick={() => setLocation(`/performance-groups/${group.id}`)}
+                      onClick={() => setLocation(`/optimization-targets/${group.id}`)}
                     >
                       <Settings className="w-4 h-4 mr-1" />
                       管理

@@ -1116,7 +1116,7 @@ export default function Dashboard() {
                 icon={<Target className="w-5 h-5" />}
                 title="管理绩效组"
                 description="设置优化目标和广告分组"
-                onClick={() => window.location.href = '/performance-groups'}
+                onClick={() => window.location.href = '/strategy-center'}
               />
               <QuickActionCard
                 icon={<Clock className="w-5 h-5" />}
@@ -1136,7 +1136,7 @@ export default function Dashboard() {
                 <CardTitle className="text-lg">绩效组概览</CardTitle>
                 <CardDescription>各绩效组的优化状态和目标达成情况</CardDescription>
               </div>
-              <Button variant="outline" size="sm" onClick={() => window.location.href = '/performance-groups'}>
+              <Button variant="outline" size="sm" onClick={() => window.location.href = '/strategy-center'}>
                 查看全部
               </Button>
             </div>
@@ -1155,7 +1155,7 @@ export default function Dashboard() {
                 </div>
                 <p className="font-medium mb-1">暂无绩效组</p>
                 <p className="text-sm mb-4">创建绩效组以开始优化您的广告活动</p>
-                <Button variant="outline" onClick={() => window.location.href = '/performance-groups'}>
+                <Button variant="outline" onClick={() => window.location.href = '/strategy-center'}>
                   创建绩效组
                 </Button>
               </div>

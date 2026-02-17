@@ -387,8 +387,8 @@ export default function PerformanceGroupDetail() {
         <div className="flex flex-col items-center justify-center h-64 gap-4">
           <AlertCircle className="w-12 h-12 text-muted-foreground" />
           <p className="text-muted-foreground">绩效组不存在</p>
-          <Button onClick={() => setLocation("/performance-groups")}>
-            返回绩效组列表
+          <Button onClick={() => setLocation("/strategy-center")}>
+            返回策略管理
           </Button>
         </div>
       </DashboardLayout>
@@ -402,7 +402,7 @@ export default function PerformanceGroupDetail() {
       <div className="space-y-6">
         {/* 顶部导航和标题 */}
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => setLocation("/performance-groups")}>
+          <Button variant="ghost" size="icon" onClick={() => setLocation("/strategy-center")}>
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <div className="flex-1">
@@ -541,6 +541,29 @@ export default function PerformanceGroupDetail() {
                       <span className="font-medium">${group.maxBid}</span>
                     </div>
                   )}
+                  <Separator className="my-2" />
+                  <div className="flex justify-between items-center py-2 border-b">
+                    <span className="text-muted-foreground">策略模板</span>
+                    <span className="font-medium">
+                      {group.strategyTemplateName || <span className="text-yellow-500">未关联</span>}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b">
+                    <span className="text-muted-foreground">自动优化</span>
+                    <Badge variant={group.status === 'active' ? 'default' : 'secondary'}>
+                      {group.status === 'active' ? '✅ 已开启' : '⛔ 已关闭'}
+                    </Badge>
+                  </div>
+                  <div className="flex justify-between items-center py-2 border-b">
+                    <span className="text-muted-foreground">优化模块</span>
+                    <div className="flex flex-wrap gap-1 justify-end">
+                      <Badge variant="outline" className="text-xs">出价优化</Badge>
+                      <Badge variant="outline" className="text-xs">位置优化</Badge>
+                      <Badge variant="outline" className="text-xs">分时竞价</Badge>
+                      <Badge variant="outline" className="text-xs">搜索词分析</Badge>
+                      <Badge variant="outline" className="text-xs">预算分配</Badge>
+                    </div>
+                  </div>
                   <Button variant="outline" className="w-full" onClick={openEditGoalDialog}>
                     <Settings className="w-4 h-4 mr-2" />
                     编辑目标
@@ -1022,30 +1045,98 @@ export default function PerformanceGroupDetail() {
                     <Loader2 className="w-6 h-6 animate-spin" />
                   </div>
                 ) : groupCampaigns && groupCampaigns.length > 0 ? (
-                  <div className="space-y-2">
-                    {groupCampaigns.map((campaign: any) => (
-                      <div 
-                        key={campaign.id} 
-                        className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`w-2 h-2 rounded-full ${campaign.status === 'enabled' ? 'bg-green-500' : 'bg-gray-400'}`} />
-                          <div>
-                            <p className="font-medium">{campaign.campaignName}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {campaign.campaignType} | 花费: ${Number(campaign.spend || 0).toFixed(2)} | ACoS: {Number(campaign.acos || 0).toFixed(2)}%
-                            </p>
-                          </div>
-                        </div>
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={() => handleRemoveCampaign(campaign.id)}
-                        >
-                          <Minus className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    ))}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b bg-muted/50">
+                          <th className="text-left p-3 font-medium">状态</th>
+                          <th className="text-left p-3 font-medium min-w-[200px]">广告活动名称</th>
+                          <th className="text-left p-3 font-medium">类型</th>
+                          <th className="text-right p-3 font-medium">曝光</th>
+                          <th className="text-right p-3 font-medium">点击</th>
+                          <th className="text-right p-3 font-medium">花费</th>
+                          <th className="text-right p-3 font-medium">销售额</th>
+                          <th className="text-right p-3 font-medium">订单</th>
+                          <th className="text-right p-3 font-medium">ACoS</th>
+                          <th className="text-right p-3 font-medium">ROAS</th>
+                          <th className="text-right p-3 font-medium">CTR</th>
+                          <th className="text-right p-3 font-medium">CVR</th>
+                          <th className="text-right p-3 font-medium">CPC</th>
+                          <th className="text-right p-3 font-medium">日预算</th>
+                          <th className="text-center p-3 font-medium">操作</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {groupCampaigns.map((campaign: any) => {
+                          const spend = Number(campaign.spend || 0);
+                          const sales = Number(campaign.sales || 0);
+                          const clicks = Number(campaign.clicks || 0);
+                          const impressions = Number(campaign.impressions || 0);
+                          const orders = Number(campaign.orders || 0);
+                          const acos = sales > 0 ? (spend / sales) * 100 : 0;
+                          const roas = spend > 0 ? sales / spend : 0;
+                          const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
+                          const cvr = clicks > 0 ? (orders / clicks) * 100 : 0;
+                          const cpc = clicks > 0 ? spend / clicks : 0;
+                          return (
+                            <tr key={campaign.id} className="border-b hover:bg-muted/30 transition-colors">
+                              <td className="p-3">
+                                <div className={`w-2.5 h-2.5 rounded-full ${campaign.campaignStatus === 'enabled' ? 'bg-green-500' : campaign.campaignStatus === 'paused' ? 'bg-yellow-500' : 'bg-gray-400'}`} title={campaign.campaignStatus === 'enabled' ? '已启用' : campaign.campaignStatus === 'paused' ? '已暂停' : '已归档'} />
+                              </td>
+                              <td className="p-3">
+                                <p className="font-medium text-sm truncate max-w-[280px]" title={campaign.campaignName}>{campaign.campaignName}</p>
+                              </td>
+                              <td className="p-3">
+                                <Badge variant="outline" className="text-xs">{campaign.campaignType}</Badge>
+                              </td>
+                              <td className="p-3 text-right tabular-nums">{impressions.toLocaleString()}</td>
+                              <td className="p-3 text-right tabular-nums">{clicks.toLocaleString()}</td>
+                              <td className="p-3 text-right tabular-nums">${spend.toFixed(2)}</td>
+                              <td className="p-3 text-right tabular-nums">${sales.toFixed(2)}</td>
+                              <td className="p-3 text-right tabular-nums">{orders}</td>
+                              <td className="p-3 text-right tabular-nums">
+                                <span className={acos > 50 ? 'text-red-500' : acos > 30 ? 'text-yellow-500' : 'text-green-500'}>
+                                  {acos.toFixed(1)}%
+                                </span>
+                              </td>
+                              <td className="p-3 text-right tabular-nums">{roas.toFixed(2)}x</td>
+                              <td className="p-3 text-right tabular-nums">{ctr.toFixed(2)}%</td>
+                              <td className="p-3 text-right tabular-nums">{cvr.toFixed(1)}%</td>
+                              <td className="p-3 text-right tabular-nums">${cpc.toFixed(2)}</td>
+                              <td className="p-3 text-right tabular-nums">${Number(campaign.dailyBudget || 0).toFixed(2)}</td>
+                              <td className="p-3 text-center">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => handleRemoveCampaign(campaign.id)}
+                                  title="从绩效组移除"
+                                >
+                                  <Minus className="w-4 h-4" />
+                                </Button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t-2 bg-muted/30 font-medium">
+                          <td className="p-3" colSpan={3}>合计 ({groupCampaigns.length} 个广告活动)</td>
+                          <td className="p-3 text-right tabular-nums">{groupCampaigns.reduce((s: number, c: any) => s + Number(c.impressions || 0), 0).toLocaleString()}</td>
+                          <td className="p-3 text-right tabular-nums">{groupCampaigns.reduce((s: number, c: any) => s + Number(c.clicks || 0), 0).toLocaleString()}</td>
+                          <td className="p-3 text-right tabular-nums">${groupCampaigns.reduce((s: number, c: any) => s + Number(c.spend || 0), 0).toFixed(2)}</td>
+                          <td className="p-3 text-right tabular-nums">${groupCampaigns.reduce((s: number, c: any) => s + Number(c.sales || 0), 0).toFixed(2)}</td>
+                          <td className="p-3 text-right tabular-nums">{groupCampaigns.reduce((s: number, c: any) => s + Number(c.orders || 0), 0)}</td>
+                          <td className="p-3 text-right tabular-nums">
+                            {(() => { const ts = groupCampaigns.reduce((s: number, c: any) => s + Number(c.spend || 0), 0); const tr = groupCampaigns.reduce((s: number, c: any) => s + Number(c.sales || 0), 0); return tr > 0 ? ((ts/tr)*100).toFixed(1) + '%' : '-'; })()}
+                          </td>
+                          <td className="p-3 text-right tabular-nums">
+                            {(() => { const ts = groupCampaigns.reduce((s: number, c: any) => s + Number(c.spend || 0), 0); const tr = groupCampaigns.reduce((s: number, c: any) => s + Number(c.sales || 0), 0); return ts > 0 ? (tr/ts).toFixed(2) + 'x' : '-'; })()}
+                          </td>
+                          <td className="p-3" colSpan={4}></td>
+                          <td className="p-3"></td>
+                        </tr>
+                      </tfoot>
+                    </table>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
@@ -1190,107 +1281,119 @@ export default function PerformanceGroupDetail() {
               </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-4 h-96">
-              {/* 左侧：可选广告活动 */}
-              <div className="border rounded-lg p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Search className="w-4 h-4 text-muted-foreground" />
-                  <Input 
-                    placeholder="搜索广告活动名称..." 
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="h-8"
-                  />
-                </div>
-                <p className="text-sm text-muted-foreground mb-2">
-                  可选广告活动: {filteredAvailableCampaigns.length}个
+            <div className="space-y-3">
+              {/* 搜索栏 */}
+              <div className="flex items-center gap-2">
+                <Search className="w-4 h-4 text-muted-foreground" />
+                <Input 
+                  placeholder="搜索广告活动名称..." 
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="h-8"
+                />
+                <p className="text-sm text-muted-foreground whitespace-nowrap">
+                  可选: {filteredAvailableCampaigns.length}个 | 已选: {selectedCampaigns.length}个
                 </p>
-                <ScrollArea className="h-72">
-                  {availableLoading ? (
-                    <div className="flex items-center justify-center h-32">
-                      <Loader2 className="w-6 h-6 animate-spin" />
-                    </div>
-                  ) : filteredAvailableCampaigns.length > 0 ? (
-                    <div className="space-y-2">
-                      {filteredAvailableCampaigns.map((campaign: any) => (
-                        <div 
-                          key={campaign.id}
-                          className="flex items-center gap-2 p-2 border rounded hover:bg-muted/50"
-                        >
-                          <Checkbox 
-                            id={`campaign-${campaign.id}`}
-                            checked={selectedCampaigns.includes(campaign.id)}
-                            onCheckedChange={(checked) => {
-                              console.log('Checkbox changed:', campaign.id, checked, 'current:', selectedCampaigns);
-                              if (checked) {
-                                setSelectedCampaigns(prev => {
-                                  const newState = [...prev, campaign.id];
-                                  console.log('New state after add:', newState);
-                                  return newState;
-                                });
-                              } else {
-                                setSelectedCampaigns(prev => {
-                                  const newState = prev.filter(id => id !== campaign.id);
-                                  console.log('New state after remove:', newState);
-                                  return newState;
-                                });
-                              }
-                            }}
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{campaign.campaignName}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {campaign.campaignType} | ACoS: {Number(campaign.acos)?.toFixed(2) || '0'}%
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center h-32 text-muted-foreground">
-                      <p className="text-sm">没有可添加的广告活动</p>
-                    </div>
-                  )}
-                </ScrollArea>
               </div>
-
-              {/* 右侧：已选择的广告活动 */}
-              <div className="border rounded-lg p-4">
-                <p className="text-sm text-muted-foreground mb-2">
-                  已选择: {selectedCampaigns.length}个
-                </p>
-                <ScrollArea className="h-80">
-                  {selectedCampaigns.length > 0 ? (
-                    <div className="space-y-2">
-                      {selectedCampaigns.map(id => {
-                        const campaign = availableCampaigns?.find((c: any) => c.id === id);
-                        if (!campaign) return null;
-                        return (
-                          <div 
-                            key={id}
-                            className="flex items-center justify-between p-2 border rounded bg-primary/5"
-                          >
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{campaign.campaignName}</p>
-                            </div>
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => setSelectedCampaigns(prev => prev.filter(cid => cid !== id))}
+              
+              {/* 广告活动表格 */}
+              <ScrollArea className="h-[400px]">
+                {availableLoading ? (
+                  <div className="flex items-center justify-center h-32">
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                  </div>
+                ) : filteredAvailableCampaigns.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="sticky top-0 bg-background z-10">
+                        <tr className="border-b bg-muted/50">
+                          <th className="p-2 w-8"></th>
+                          <th className="text-left p-2 font-medium">状态</th>
+                          <th className="text-left p-2 font-medium min-w-[180px]">广告活动名称</th>
+                          <th className="text-left p-2 font-medium">类型</th>
+                          <th className="text-right p-2 font-medium">曝光</th>
+                          <th className="text-right p-2 font-medium">点击</th>
+                          <th className="text-right p-2 font-medium">花费</th>
+                          <th className="text-right p-2 font-medium">销售额</th>
+                          <th className="text-right p-2 font-medium">订单</th>
+                          <th className="text-right p-2 font-medium">ACoS</th>
+                          <th className="text-right p-2 font-medium">ROAS</th>
+                          <th className="text-right p-2 font-medium">CTR</th>
+                          <th className="text-right p-2 font-medium">CVR</th>
+                          <th className="text-right p-2 font-medium">日预算</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredAvailableCampaigns.map((campaign: any) => {
+                          const spend = Number(campaign.spend || 0);
+                          const sales = Number(campaign.sales || 0);
+                          const clicks = Number(campaign.clicks || 0);
+                          const impressions = Number(campaign.impressions || 0);
+                          const orders = Number(campaign.orders || 0);
+                          const acos = sales > 0 ? (spend / sales) * 100 : 0;
+                          const roas = spend > 0 ? sales / spend : 0;
+                          const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
+                          const cvr = clicks > 0 ? (orders / clicks) * 100 : 0;
+                          const isSelected = selectedCampaigns.includes(campaign.id);
+                          return (
+                            <tr 
+                              key={campaign.id} 
+                              className={`border-b hover:bg-muted/30 cursor-pointer transition-colors ${isSelected ? 'bg-primary/5' : ''}`}
+                              onClick={() => {
+                                if (isSelected) {
+                                  setSelectedCampaigns(prev => prev.filter(id => id !== campaign.id));
+                                } else {
+                                  setSelectedCampaigns(prev => [...prev, campaign.id]);
+                                }
+                              }}
                             >
-                              <Minus className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="flex items-center justify-center h-32 text-muted-foreground">
-                      <p className="text-sm">请从左侧选择广告活动</p>
-                    </div>
-                  )}
-                </ScrollArea>
-              </div>
+                              <td className="p-2">
+                                <Checkbox 
+                                  checked={isSelected}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setSelectedCampaigns(prev => [...prev, campaign.id]);
+                                    } else {
+                                      setSelectedCampaigns(prev => prev.filter(id => id !== campaign.id));
+                                    }
+                                  }}
+                                />
+                              </td>
+                              <td className="p-2">
+                                <div className={`w-2 h-2 rounded-full ${campaign.campaignStatus === 'enabled' ? 'bg-green-500' : campaign.campaignStatus === 'paused' ? 'bg-yellow-500' : 'bg-gray-400'}`} />
+                              </td>
+                              <td className="p-2">
+                                <p className="font-medium truncate max-w-[220px]" title={campaign.campaignName}>{campaign.campaignName}</p>
+                              </td>
+                              <td className="p-2">
+                                <Badge variant="outline" className="text-xs">{campaign.campaignType}</Badge>
+                              </td>
+                              <td className="p-2 text-right tabular-nums">{impressions.toLocaleString()}</td>
+                              <td className="p-2 text-right tabular-nums">{clicks.toLocaleString()}</td>
+                              <td className="p-2 text-right tabular-nums">${spend.toFixed(2)}</td>
+                              <td className="p-2 text-right tabular-nums">${sales.toFixed(2)}</td>
+                              <td className="p-2 text-right tabular-nums">{orders}</td>
+                              <td className="p-2 text-right tabular-nums">
+                                <span className={acos > 50 ? 'text-red-500' : acos > 30 ? 'text-yellow-500' : 'text-green-500'}>
+                                  {acos.toFixed(1)}%
+                                </span>
+                              </td>
+                              <td className="p-2 text-right tabular-nums">{roas.toFixed(2)}x</td>
+                              <td className="p-2 text-right tabular-nums">{ctr.toFixed(2)}%</td>
+                              <td className="p-2 text-right tabular-nums">{cvr.toFixed(1)}%</td>
+                              <td className="p-2 text-right tabular-nums">${Number(campaign.dailyBudget || 0).toFixed(2)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-32 text-muted-foreground">
+                    <p className="text-sm">没有可添加的广告活动</p>
+                  </div>
+                )}
+              </ScrollArea>
             </div>
 
             <DialogFooter>

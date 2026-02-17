@@ -1,10 +1,9 @@
 import { getCurrencySymbol } from "@/utils/currency";
 /**
- * StrategyCenter - 策略中心
- * 合并原有的优化目标、广告活动管理、自动化配置功能
- * 布局顺序：策略模板库 → 优化目标 → 统计信息
+ * StrategyCenter - 策略中心（统一入口）
+ * 合并原有的优化目标、策略模板功能
+ * 布局：策略模板库 → 已创建的优化目标列表
  */
-
 import { useState, useMemo, useEffect } from "react";
 import { useLocation } from "wouter";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -12,12 +11,7 @@ import { PageMeta, PAGE_META_CONFIG } from "@/components/PageMeta";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Progress } from "@/components/ui/progress";
 import { trpc } from "@/lib/trpc";
 import { 
   Target,
@@ -28,21 +22,18 @@ import {
   Pause,
   RefreshCw,
   Plus,
-  Edit,
   Trash2,
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
   TrendingUp,
-  TrendingDown,
   DollarSign,
   Percent,
   BarChart3,
   Zap,
   Shield,
+  Eye,
+  AlertTriangle,
+  CheckCircle,
   Clock,
-  Archive,
-  Eye
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -57,46 +48,66 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Link } from "wouter";
 import { StrategyTemplates } from "@/components/StrategyTemplates";
-import { StrategyCustomizer } from "@/components/StrategyCustomizer";
 import { useCurrentStore, useCurrentMarketplace } from "@/components/GlobalAccountSelector";
+
+// 优化目标类型映射
+const OPTIMIZATION_GOAL_LABELS: Record<string, string> = {
+  target_acos: "目标ACoS",
+  target_roas: "目标ROAS",
+  maximize_sales: "最大化销售额",
+  daily_spend_limit: "每日花费上限",
+  daily_cost: "每日花费",
+  balanced: "均衡优化",
+};
+
+// 策略模板名称映射
+const STRATEGY_TEMPLATE_LABELS: Record<string, { name: string; color: string; icon: string }> = {
+  aggressive: { name: "激进增长", color: "text-red-400 bg-red-500/20", icon: "🔥" },
+  balanced: { name: "平衡增长", color: "text-blue-400 bg-blue-500/20", icon: "⚖️" },
+  conservative: { name: "利润优先", color: "text-green-400 bg-green-500/20", icon: "🛡️" },
+  seasonal: { name: "旺季冲刺", color: "text-yellow-400 bg-yellow-500/20", icon: "⚡" },
+  brand_defense: { name: "品牌防御", color: "text-purple-400 bg-purple-500/20", icon: "🏰" },
+};
 
 export default function StrategyCenter() {
   const [, setLocation] = useLocation();
   const currentStore = useCurrentStore();
   const currentMarketplace = useCurrentMarketplace();
   const currencySymbol = getCurrencySymbol(currentMarketplace);
-  const [activeTab, setActiveTab] = useState("targets");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [groupToDelete, setGroupToDelete] = useState<{ id: number; name: string } | null>(null);
 
   // 获取账号列表
-  const { data: accounts } = trpc.adAccount.list.useQuery();
+  const { data: accounts, isLoading: accountsLoading } = trpc.adAccount.list.useQuery();
   
   // 根据店铺+站点查找对应的accountId
   const accountId = useMemo(() => {
-    if (!accounts || !currentStore || !currentMarketplace) return null;
-    const account = accounts.find(a => 
-      (a.storeName || a.accountName) === currentStore && 
-      a.marketplace === currentMarketplace
-    );
-    return account?.id || null;
+    if (!accounts || accounts.length === 0) return null;
+    
+    // 如果有选中的店铺和站点，精确匹配
+    if (currentStore && currentMarketplace) {
+      const account = accounts.find(a => 
+        (a.storeName || a.accountName) === currentStore && 
+        a.marketplace === currentMarketplace
+      );
+      if (account) return account.id;
+    }
+    
+    // 如果只有店铺，匹配第一个站点
+    if (currentStore) {
+      const account = accounts.find(a => 
+        (a.storeName || a.accountName) === currentStore
+      );
+      if (account) return account.id;
+    }
+    
+    // 兜底：使用第一个账号
+    return accounts[0]?.id || null;
   }, [accounts, currentStore, currentMarketplace]);
 
   // 获取优化目标（绩效组）
   const performanceGroupsQuery = trpc.performanceGroup.list.useQuery(
-    { accountId: accountId! },
-    { enabled: !!accountId }
-  );
-
-  // 获取广告活动列表
-  const campaignsQuery = trpc.campaign.list.useQuery(
-    { accountId: accountId! },
-    { enabled: !!accountId }
-  );
-
-  // 获取自动化配置
-  const automationConfigQuery = trpc.automation.getConfig.useQuery(
     { accountId: accountId! },
     { enabled: !!accountId }
   );
@@ -107,7 +118,7 @@ export default function StrategyCenter() {
       performanceGroupsQuery.refetch();
       toast.success("状态更新成功");
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast.error(`更新失败: ${error.message}`);
     }
   });
@@ -118,7 +129,7 @@ export default function StrategyCenter() {
       performanceGroupsQuery.refetch();
       toast.success("删除成功");
     },
-    onError: (error) => {
+    onError: (error: any) => {
       toast.error(`删除失败: ${error.message}`);
     }
   });
@@ -134,14 +145,6 @@ export default function StrategyCenter() {
     updateGroupMutation.mutate({
       id: groupId,
       status: newStatus
-    });
-  };
-
-  // 归档优化目标
-  const handleArchiveGroup = (groupId: number) => {
-    updateGroupMutation.mutate({
-      id: groupId,
-      status: 'archived'
     });
   };
 
@@ -164,11 +167,7 @@ export default function StrategyCenter() {
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
-      await Promise.all([
-        performanceGroupsQuery.refetch(),
-        campaignsQuery.refetch(),
-        automationConfigQuery.refetch(),
-      ]);
+      await performanceGroupsQuery.refetch();
       toast.success("数据刷新成功");
     } catch (err) {
       toast.error("刷新失败");
@@ -177,45 +176,39 @@ export default function StrategyCenter() {
     }
   };
 
-  // 计算策略摘要
-  const strategySummary = useMemo(() => {
-    const groups = performanceGroupsQuery.data || [];
-    const campaigns = campaignsQuery.data || [];
-    const config = automationConfigQuery.data;
-
-    const activeGroups = groups.filter((g: any) => g.status === 'active').length;
-    const enabledCampaigns = campaigns.filter((c: any) => c.state === 'enabled').length;
-    const automationEnabled = config?.enabled || false;
-
-    return {
-      totalGroups: groups.length,
-      activeGroups,
-      totalCampaigns: campaigns.length,
-      enabledCampaigns,
-      automationEnabled,
-      automationMode: (config as any)?.executionMode || 'supervised'
-    };
-  }, [performanceGroupsQuery.data, campaignsQuery.data, automationConfigQuery.data]);
+  const groups = performanceGroupsQuery.data || [];
+  const activeGroups = groups.filter((g: any) => g.status === 'active');
+  const totalCampaigns = groups.reduce((sum: number, g: any) => sum + (g.campaignCount || 0), 0);
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'active':
-      case 'enabled': return 'text-green-400 bg-green-500/20';
+      case 'active': return 'text-green-400 bg-green-500/20';
       case 'paused': return 'text-yellow-400 bg-yellow-500/20';
-      case 'archived':
-      case 'disabled': return 'text-gray-400 bg-gray-500/20';
+      case 'archived': return 'text-gray-400 bg-gray-500/20';
       default: return 'text-blue-400 bg-blue-500/20';
     }
   };
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'active': return '活跃';
-      case 'paused': return '暂停';
-      case 'archived': return '归档';
+      case 'active': return '优化中';
+      case 'paused': return '已暂停';
+      case 'archived': return '已归档';
       default: return status;
     }
   };
+
+  // 加载状态
+  if (accountsLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <span className="ml-2 text-muted-foreground">加载中...</span>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -226,10 +219,10 @@ export default function StrategyCenter() {
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2">
               <Target className="h-7 w-7 text-blue-400" />
-              策略中心
+              策略管理
             </h1>
             <p className="text-muted-foreground mt-1">
-              优化目标、广告活动、自动化配置的统一管理
+              创建优化目标，分配广告活动，系统将自动执行优化策略
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -245,122 +238,7 @@ export default function StrategyCenter() {
           </div>
         </div>
 
-        {/* 1. 策略模板库 - 放在页面上部 */}
-        <StrategyTemplates
-          currentAcos={25}
-          onApplyTemplate={(template) => {
-            setLocation(`/optimization-targets?template=${encodeURIComponent(template.id)}&name=${encodeURIComponent(template.name)}&targetAcos=${template.targetAcos}`);
-          }}
-        />
-
-        {/* 2. 优化目标（绩效组）- 放在页面中间 */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <Target className="h-5 w-5 text-blue-400" />
-              优化目标（绩效组）
-            </h2>
-            <Link href="/optimization-targets">
-              <Button variant="outline" size="sm">
-                <Plus className="h-4 w-4 mr-2" />
-                管理目标
-              </Button>
-            </Link>
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-            {performanceGroupsQuery.data?.map((group: any) => (
-              <Card 
-                key={group.id} 
-                className="hover:border-primary/50 transition-all cursor-pointer hover:shadow-md"
-                onClick={() => handleGoToDetail(group.id)}
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base">{group.name}</CardTitle>
-                    <Badge className={getStatusColor(group.status)}>
-                      {getStatusText(group.status)}
-                    </Badge>
-                  </div>
-                  <CardDescription>
-                    {group.description || '无描述'}
-                    {group.strategyTemplate && (
-                      <span className="ml-2 text-blue-400">策略: {group.strategyTemplate}</span>
-                    )}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-3 gap-4 text-sm mb-4">
-                    <div>
-                      <p className="text-muted-foreground">目标ACoS</p>
-                      <p className="font-medium">{group.targetAcos}%</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">目标ROAS</p>
-                      <p className="font-medium">{typeof group.targetRoas === 'number' ? group.targetRoas.toFixed(1) : (parseFloat(group.targetRoas as any) || 0).toFixed(1) || '-'}</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">广告活动数</p>
-                      <p className="font-medium">{group.campaignCount || 0}</p>
-                    </div>
-                  </div>
-                  {/* 操作按钮 */}
-                  <div className="flex items-center gap-2 pt-3 border-t border-border/50">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleGoToDetail(group.id);
-                      }}
-                    >
-                      <Eye className="h-4 w-4 mr-1" />
-                      查看详情
-                    </Button>
-                    <Button
-                      variant={group.status === 'active' ? 'secondary' : 'default'}
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleToggleStatus(group.id, group.status);
-                      }}
-                      disabled={group.status === 'archived'}
-                    >
-                      {group.status === 'active' ? (
-                        <>
-                          <Pause className="h-4 w-4 mr-1" />
-                          暂停
-                        </>
-                      ) : (
-                        <>
-                          <Play className="h-4 w-4 mr-1" />
-                          启用
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteGroup(group.id, group.name);
-                      }}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-            {(!performanceGroupsQuery.data || performanceGroupsQuery.data.length === 0) && (
-              <p className="col-span-full text-center text-muted-foreground py-8">
-                暂无优化目标，请先从策略模板库中选择一个策略模板创建优化目标
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* 3. 策略摘要卡片 - 放在页面底部 */}
+        {/* 统计概览卡片 */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="pt-6">
@@ -370,7 +248,7 @@ export default function StrategyCenter() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">优化目标</p>
-                  <p className="text-2xl font-bold">{strategySummary.activeGroups}/{strategySummary.totalGroups}</p>
+                  <p className="text-2xl font-bold">{activeGroups.length}<span className="text-sm text-muted-foreground font-normal">/{groups.length}</span></p>
                 </div>
               </div>
             </CardContent>
@@ -383,8 +261,8 @@ export default function StrategyCenter() {
                   <Megaphone className="h-6 w-6 text-purple-400" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">广告活动</p>
-                  <p className="text-2xl font-bold">{strategySummary.enabledCampaigns}/{strategySummary.totalCampaigns}</p>
+                  <p className="text-sm text-muted-foreground">管理的广告活动</p>
+                  <p className="text-2xl font-bold">{totalCampaigns}</p>
                 </div>
               </div>
             </CardContent>
@@ -393,12 +271,12 @@ export default function StrategyCenter() {
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
-                <div className={`p-3 rounded-full ${strategySummary.automationEnabled ? 'bg-green-500/20' : 'bg-gray-500/20'}`}>
-                  <Bot className={`h-6 w-6 ${strategySummary.automationEnabled ? 'text-green-400' : 'text-gray-400'}`} />
+                <div className={`p-3 rounded-full ${activeGroups.length > 0 ? 'bg-green-500/20' : 'bg-gray-500/20'}`}>
+                  <Bot className={`h-6 w-6 ${activeGroups.length > 0 ? 'text-green-400' : 'text-gray-400'}`} />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">自动化</p>
-                  <p className="text-2xl font-bold">{strategySummary.automationEnabled ? '已启用' : '已禁用'}</p>
+                  <p className="text-sm text-muted-foreground">自动优化</p>
+                  <p className="text-2xl font-bold">{activeGroups.length > 0 ? '运行中' : '未启用'}</p>
                 </div>
               </div>
             </CardContent>
@@ -408,300 +286,221 @@ export default function StrategyCenter() {
             <CardContent className="pt-6">
               <div className="flex items-center gap-3">
                 <div className="p-3 rounded-full bg-orange-500/20">
-                  <Shield className="h-6 w-6 text-orange-400" />
+                  <Zap className="h-6 w-6 text-orange-400" />
                 </div>
                 <div>
-                  <p className="text-sm text-muted-foreground">执行模式</p>
-                  <p className="text-2xl font-bold capitalize">{strategySummary.automationMode}</p>
+                  <p className="text-sm text-muted-foreground">优化模块</p>
+                  <p className="text-2xl font-bold">7<span className="text-sm text-muted-foreground font-normal">个</span></p>
                 </div>
               </div>
             </CardContent>
           </Card>
         </div>
 
-        {/* 策略模板库 - 显示在页面上部 */}
+        {/* 优化目标列表 */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Target className="h-5 w-5 text-blue-400" />
+              我的优化目标
+            </h2>
+            <Link href="/optimization-targets">
+              <Button size="sm">
+                <Plus className="h-4 w-4 mr-2" />
+                新建优化目标
+              </Button>
+            </Link>
+          </div>
+
+          {performanceGroupsQuery.isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              <span className="ml-2 text-muted-foreground">加载优化目标...</span>
+            </div>
+          ) : groups.length === 0 ? (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-12">
+                <Target className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-lg font-medium mb-2">暂无优化目标</p>
+                <p className="text-muted-foreground text-center mb-4">
+                  从上方策略模板库选择一个策略，或手动创建优化目标，<br/>
+                  系统将自动对目标下的广告活动执行竞价、位置、预算等优化
+                </p>
+                <Link href="/optimization-targets">
+                  <Button>
+                    <Plus className="h-4 w-4 mr-2" />
+                    创建第一个优化目标
+                  </Button>
+                </Link>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+              {groups.map((group: any) => {
+                const goalLabel = OPTIMIZATION_GOAL_LABELS[group.optimizationGoal] || '未设置';
+                const templateInfo = group.strategyTemplateName 
+                  ? STRATEGY_TEMPLATE_LABELS[group.strategyTemplateName] || { name: group.strategyTemplateName, color: "text-blue-400 bg-blue-500/20", icon: "📋" }
+                  : null;
+                
+                return (
+                  <Card 
+                    key={group.id} 
+                    className="hover:border-primary/50 transition-all cursor-pointer hover:shadow-md group"
+                    onClick={() => handleGoToDetail(group.id)}
+                  >
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-base truncate mr-2">{group.name}</CardTitle>
+                        <Badge className={getStatusColor(group.status)}>
+                          {getStatusText(group.status)}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {templateInfo && (
+                          <Badge variant="outline" className={templateInfo.color}>
+                            {templateInfo.icon} {templateInfo.name}
+                          </Badge>
+                        )}
+                        <Badge variant="outline" className="text-muted-foreground">
+                          {goalLabel}
+                        </Badge>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      {/* 核心指标 */}
+                      <div className="grid grid-cols-3 gap-3 text-sm mb-3">
+                        <div>
+                          <p className="text-muted-foreground text-xs">广告活动</p>
+                          <p className="font-semibold text-lg">{group.campaignCount || 0}</p>
+                        </div>
+                        {group.optimizationGoal === 'target_acos' || group.targetAcos ? (
+                          <div>
+                            <p className="text-muted-foreground text-xs">目标ACoS</p>
+                            <p className="font-semibold text-lg">{group.targetAcos || '-'}%</p>
+                          </div>
+                        ) : group.optimizationGoal === 'target_roas' || group.targetRoas ? (
+                          <div>
+                            <p className="text-muted-foreground text-xs">目标ROAS</p>
+                            <p className="font-semibold text-lg">{typeof group.targetRoas === 'number' ? group.targetRoas.toFixed(1) : (parseFloat(group.targetRoas) || 0).toFixed(1)}</p>
+                          </div>
+                        ) : (
+                          <div>
+                            <p className="text-muted-foreground text-xs">目标ACoS</p>
+                            <p className="font-semibold text-lg">{group.targetAcos || '-'}%</p>
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-muted-foreground text-xs">每日预算</p>
+                          <p className="font-semibold text-lg">{group.dailyBudget ? `${currencySymbol}${parseFloat(group.dailyBudget).toFixed(0)}` : '-'}</p>
+                        </div>
+                      </div>
+
+                      {/* 绩效数据 */}
+                      {(group.totalSpend > 0 || group.totalSales > 0) && (
+                        <div className="grid grid-cols-3 gap-3 text-sm mb-3 p-2 bg-muted/30 rounded-lg">
+                          <div>
+                            <p className="text-muted-foreground text-xs">30天花费</p>
+                            <p className="font-medium">{currencySymbol}{(group.totalSpend || 0).toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground text-xs">30天销售</p>
+                            <p className="font-medium">{currencySymbol}{(group.totalSales || 0).toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground text-xs">实际ACoS</p>
+                            <p className={`font-medium ${group.avgAcos > (parseFloat(group.targetAcos) || 30) ? 'text-red-400' : 'text-green-400'}`}>
+                              {(group.avgAcos || 0).toFixed(1)}%
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 自动优化状态 */}
+                      <div className="flex items-center justify-between py-2 border-t border-border/50">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Bot className="h-4 w-4 text-muted-foreground" />
+                          <span className="text-muted-foreground">自动优化</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {group.status === 'active' ? (
+                            <Badge className="bg-green-500/20 text-green-400 text-xs">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              已启用
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-gray-500/20 text-gray-400 text-xs">
+                              <Pause className="h-3 w-3 mr-1" />
+                              已暂停
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 优化模块指示器 */}
+                      <div className="flex items-center gap-1 py-2 text-xs text-muted-foreground">
+                        <span>优化模块：</span>
+                        <Badge variant="outline" className="text-xs px-1 py-0">竞价</Badge>
+                        <Badge variant="outline" className="text-xs px-1 py-0">位置</Badge>
+                        <Badge variant="outline" className="text-xs px-1 py-0">分时</Badge>
+                        <Badge variant="outline" className="text-xs px-1 py-0">预算</Badge>
+                        <Badge variant="outline" className="text-xs px-1 py-0">搜索词</Badge>
+                      </div>
+
+                      {/* 操作按钮 */}
+                      <div className="flex items-center gap-2 pt-3 border-t border-border/50">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleGoToDetail(group.id);
+                          }}
+                        >
+                          <Eye className="h-4 w-4 mr-1" />
+                          管理
+                        </Button>
+                        <Button
+                          variant={group.status === 'active' ? 'secondary' : 'default'}
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleStatus(group.id, group.status);
+                          }}
+                          disabled={group.status === 'archived'}
+                        >
+                          {group.status === 'active' ? (
+                            <><Pause className="h-4 w-4 mr-1" />暂停</>
+                          ) : (
+                            <><Play className="h-4 w-4 mr-1" />启用</>
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteGroup(group.id, group.name);
+                          }}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        {/* 策略模板库 */}
         <StrategyTemplates
           currentAcos={25}
           onApplyTemplate={(template) => {
             setLocation(`/optimization-targets?template=${encodeURIComponent(template.id)}&name=${encodeURIComponent(template.name)}&targetAcos=${template.targetAcos}`);
           }}
         />
-
-        {/* 自定义策略编辑器 */}
-        <StrategyCustomizer />
-
-        {/* 主要标签页 - 优化目标、广告活动、自动化配置 */}
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="bg-muted/50">
-            <TabsTrigger value="targets" className="gap-2">
-              <Target className="h-4 w-4" />
-              优化目标
-            </TabsTrigger>
-            <TabsTrigger value="campaigns" className="gap-2">
-              <Megaphone className="h-4 w-4" />
-              广告活动
-            </TabsTrigger>
-            <TabsTrigger value="automation" className="gap-2">
-              <Bot className="h-4 w-4" />
-              自动化配置
-            </TabsTrigger>
-          </TabsList>
-
-          {/* 优化目标Tab */}
-          <TabsContent value="targets" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">优化目标（绩效组）</h2>
-              <Link href="/optimization-targets">
-                <Button variant="outline" size="sm">
-                  <Plus className="h-4 w-4 mr-2" />
-                  管理目标
-                </Button>
-              </Link>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {performanceGroupsQuery.data?.map((group: any) => (
-                <Card 
-                  key={group.id} 
-                  className="hover:border-primary/50 transition-all cursor-pointer hover:shadow-md"
-                  onClick={() => handleGoToDetail(group.id)}
-                >
-                  <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-base">{group.name}</CardTitle>
-                      <Badge className={getStatusColor(group.status)}>
-                        {getStatusText(group.status)}
-                      </Badge>
-                    </div>
-                    <CardDescription>{group.description || '无描述'}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid grid-cols-3 gap-4 text-sm mb-4">
-                      <div>
-                        <p className="text-muted-foreground">目标ACoS</p>
-                        <p className="font-medium">{group.targetAcos}%</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">目标ROAS</p>
-                        <p className="font-medium">{typeof group.targetRoas === 'number' ? group.targetRoas.toFixed(1) : (parseFloat(group.targetRoas as any) || 0).toFixed(1) || '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-muted-foreground">广告活动数</p>
-                        <p className="font-medium">{group.campaignCount || 0}</p>
-                      </div>
-                    </div>
-                    {/* 操作按钮 */}
-                    <div className="flex items-center gap-2 pt-3 border-t border-border/50">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleGoToDetail(group.id);
-                        }}
-                      >
-                        <Eye className="h-4 w-4 mr-1" />
-                        查看详情
-                      </Button>
-                      <Button
-                        variant={group.status === 'active' ? 'secondary' : 'default'}
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleToggleStatus(group.id, group.status);
-                        }}
-                        disabled={group.status === 'archived'}
-                      >
-                        {group.status === 'active' ? (
-                          <>
-                            <Pause className="h-4 w-4 mr-1" />
-                            暂停
-                          </>
-                        ) : (
-                          <>
-                            <Play className="h-4 w-4 mr-1" />
-                            启用
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteGroup(group.id, group.name);
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )) || (
-                <p className="col-span-2 text-center text-muted-foreground py-8">暂无优化目标</p>
-              )}
-            </div>
-          </TabsContent>
-
-          {/* 广告活动Tab */}
-          <TabsContent value="campaigns" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">广告活动</h2>
-              <Link href="/campaigns">
-                <Button variant="outline" size="sm">
-                  <Settings className="h-4 w-4 mr-2" />
-                  管理活动
-                </Button>
-              </Link>
-            </div>
-            <div className="space-y-3">
-              {campaignsQuery.data?.slice(0, 10).map((campaign: any) => (
-                <Card key={campaign.id} className="hover:border-primary/50 transition-colors">
-                  <CardContent className="py-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={`p-2 rounded-full ${getStatusColor(campaign.state)}`}>
-                          {campaign.state === 'enabled' ? (
-                            <Play className="h-4 w-4" />
-                          ) : (
-                            <Pause className="h-4 w-4" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="font-medium">{campaign.name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {campaign.campaignType} · {campaign.targetingType}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-6 text-sm">
-                        <div className="text-right">
-                          <p className="text-muted-foreground">日预算</p>
-                          <p className="font-medium">{currencySymbol}{typeof campaign.dailyBudget === 'number' ? campaign.dailyBudget.toFixed(2) : (parseFloat(campaign.dailyBudget) || 0).toFixed(2)}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-muted-foreground">花费</p>
-                          <p className="font-medium">{currencySymbol}{typeof campaign.spend === 'number' ? campaign.spend.toFixed(2) : (parseFloat(campaign.spend as any) || 0).toFixed(2)}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-muted-foreground">ACoS</p>
-                          <p className="font-medium">{typeof campaign.acos === 'number' ? campaign.acos.toFixed(1) : (parseFloat(campaign.acos as any) || 0).toFixed(1)}%</p>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              )) || (
-                <p className="text-center text-muted-foreground py-8">暂无广告活动</p>
-              )}
-            </div>
-          </TabsContent>
-
-          {/* 自动化配置Tab */}
-          <TabsContent value="automation" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">自动化配置</h2>
-              <Link href="/automation-control">
-                <Button variant="outline" size="sm">
-                  <Settings className="h-4 w-4 mr-2" />
-                  高级设置
-                </Button>
-              </Link>
-            </div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* 自动化状态 */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Bot className="h-5 w-5" />
-                    自动化状态
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">自动优化</p>
-                      <p className="text-sm text-muted-foreground">启用后系统将自动执行优化建议</p>
-                    </div>
-                    <Switch checked={automationConfigQuery.data?.enabled || false} disabled />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">执行模式</p>
-                      <p className="text-sm text-muted-foreground">
-                        {(automationConfigQuery.data as any)?.executionMode === 'full_auto' ? '全自动执行' :
-                         (automationConfigQuery.data as any)?.executionMode === 'supervised' ? '监督执行' : '审批执行'}
-                      </p>
-                    </div>
-                    <Badge variant="secondary">{(automationConfigQuery.data as any)?.executionMode || 'supervised'}</Badge>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* 安全边界 */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Shield className="h-5 w-5" />
-                    安全边界
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm">最大竞价调整</p>
-                    <p className="font-medium">{(automationConfigQuery.data as any)?.maxBidAdjustment || 30}%</p>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm">最大预算调整</p>
-                    <p className="font-medium">{(automationConfigQuery.data as any)?.maxBudgetAdjustment || 50}%</p>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm">每日执行上限</p>
-                    <p className="font-medium">{(automationConfigQuery.data as any)?.dailyExecutionLimit || 100}次</p>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm">置信度阈值</p>
-                    <p className="font-medium">{(automationConfigQuery.data as any)?.confidenceThreshold || 70}%</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* 启用的任务类型 */}
-              <Card className="lg:col-span-2">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Zap className="h-5 w-5" />
-                    启用的自动化任务
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {[
-                      { key: 'bid_optimization', label: '竞价优化', icon: DollarSign },
-                      { key: 'budget_adjustment', label: '预算调整', icon: BarChart3 },
-                      { key: 'negative_keywords', label: '否定词管理', icon: XCircle },
-                      { key: 'traffic_isolation', label: '流量隔离', icon: Shield },
-                    ].map(({ key, label, icon: Icon }) => {
-                      const enabled = (automationConfigQuery.data as any)?.enabledTypes?.includes(key);
-                      return (
-                        <div key={key} className={`p-4 rounded-lg border ${enabled ? 'border-green-500/50 bg-green-500/10' : 'border-muted bg-muted/30'}`}>
-                          <div className="flex items-center gap-2">
-                            <Icon className={`h-5 w-5 ${enabled ? 'text-green-400' : 'text-muted-foreground'}`} />
-                            <span className={enabled ? 'text-green-400' : 'text-muted-foreground'}>{label}</span>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {enabled ? '已启用' : '未启用'}
-                          </p>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-        </Tabs>
-
       </div>
 
       {/* 删除确认对话框 */}
