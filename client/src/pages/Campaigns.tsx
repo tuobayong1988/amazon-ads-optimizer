@@ -2302,17 +2302,17 @@ export default function Campaigns() {
                                 left: colIsPinned ? pinnedOffset : undefined,
                               }}
                             >
-                              <div className="flex items-center gap-1">
+                              <div className={`flex items-center gap-1 ${column.align === 'right' ? 'justify-end' : column.align === 'center' ? 'justify-center' : ''}`}>
                                 {column.sortable ? (
                                   <button
-                                    className="flex items-center gap-1 hover:text-primary transition-colors flex-1"
+                                    className={`flex items-center gap-1 hover:text-primary transition-colors ${column.align === 'right' ? 'justify-end' : ''}`}
                                     onClick={() => handleSort(column.key as SortField)}
                                   >
                                     {column.label}
                                     {getSortIcon(column.key as SortField)}
                                   </button>
                                 ) : (
-                                  <span className="flex-1">{column.label}</span>
+                                  <span>{column.label}</span>
                                 )}
                                 {column.key !== 'actions' && (
                                   <PinButton
