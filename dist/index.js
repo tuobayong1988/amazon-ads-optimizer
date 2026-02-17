@@ -88395,6 +88395,170 @@ var init_bidCoordinator = __esm({
   }
 });
 
+// server/services/amazonApiHelper.ts
+async function getAmazonSyncService(accountId) {
+  try {
+    const account = await getAdAccountById(accountId);
+    if (!account) {
+      console.error(`[AmazonApiHelper] \u8D26\u53F7 ${accountId} \u4E0D\u5B58\u5728`);
+      return null;
+    }
+    const credentials = await getAmazonApiCredentials(accountId);
+    if (!credentials) {
+      console.error(`[AmazonApiHelper] \u8D26\u53F7 ${accountId} \u672A\u914D\u7F6EAPI\u51ED\u8BC1`);
+      return null;
+    }
+    const syncService = await AmazonSyncService.createFromCredentials(
+      {
+        clientId: credentials.clientId || "",
+        clientSecret: credentials.clientSecret || "",
+        refreshToken: credentials.refreshToken || "",
+        profileId: account.profileId || "",
+        region: credentials.region || "NA"
+      },
+      accountId,
+      account.userId,
+      account.marketplace || "US"
+    );
+    return syncService;
+  } catch (error51) {
+    console.error(`[AmazonApiHelper] \u521B\u5EFASyncService\u5931\u8D25 (accountId=${accountId}):`, error51.message);
+    return null;
+  }
+}
+async function syncBidAdjustmentsToAmazon(accountId, adjustments) {
+  const result = { success: 0, failed: 0, errors: [] };
+  if (adjustments.length === 0) return result;
+  const syncService = await getAmazonSyncService(accountId);
+  if (!syncService) {
+    result.errors.push(`\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7 ${accountId} \u7684API\u670D\u52A1`);
+    result.failed = adjustments.length;
+    return result;
+  }
+  for (const adj of adjustments) {
+    try {
+      const targetType = adj.isProductTarget ? "product_target" : "keyword";
+      const success2 = await syncService.applyBidAdjustment(
+        targetType,
+        adj.keywordId,
+        adj.newBid,
+        adj.reason,
+        adj.campaignId
+      );
+      if (success2) {
+        result.success++;
+      } else {
+        result.failed++;
+        result.errors.push(`\u51FA\u4EF7\u8C03\u6574\u5931\u8D25: ${targetType} ${adj.keywordId}`);
+      }
+    } catch (error51) {
+      result.failed++;
+      result.errors.push(`\u51FA\u4EF7\u8C03\u6574\u5F02\u5E38: ${adj.keywordId} - ${error51.message}`);
+    }
+  }
+  console.log(`[AmazonApiHelper] \u51FA\u4EF7\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}`);
+  return result;
+}
+async function syncBudgetAdjustmentToAmazon(accountId, campaignId, newBudget, reason) {
+  const syncService = await getAmazonSyncService(accountId);
+  if (!syncService) return false;
+  try {
+    await syncService.client.updateSpCampaign(parseInt(campaignId), {
+      dailyBudget: newBudget
+    });
+    console.log(`[AmazonApiHelper] \u9884\u7B97\u540C\u6B65\u6210\u529F: Campaign ${campaignId}, \u65B0\u9884\u7B97=$${newBudget}`);
+    return true;
+  } catch (error51) {
+    console.error(`[AmazonApiHelper] \u9884\u7B97\u540C\u6B65\u5931\u8D25: Campaign ${campaignId}:`, error51.message);
+    return false;
+  }
+}
+async function syncPlacementAdjustmentToAmazon(accountId, campaignId, topOfSearchPercent, productPagePercent, reason) {
+  const syncService = await getAmazonSyncService(accountId);
+  if (!syncService) return false;
+  try {
+    await syncService.client.updateSpCampaign(parseInt(campaignId), {
+      bidding: {
+        adjustments: [
+          { predicate: "placementTop", percentage: Math.round(topOfSearchPercent) },
+          { predicate: "placementProductPage", percentage: Math.round(productPagePercent) }
+        ]
+      }
+    });
+    console.log(`[AmazonApiHelper] \u4F4D\u7F6E\u503E\u659C\u540C\u6B65\u6210\u529F: Campaign ${campaignId}, Top=${topOfSearchPercent}%, ProductPage=${productPagePercent}%`);
+    return true;
+  } catch (error51) {
+    console.error(`[AmazonApiHelper] \u4F4D\u7F6E\u503E\u659C\u540C\u6B65\u5931\u8D25: Campaign ${campaignId}:`, error51.message);
+    return false;
+  }
+}
+async function syncNegativeKeywordsToAmazon(accountId, negatives) {
+  const result = { success: 0, failed: 0, errors: [] };
+  if (negatives.length === 0) return result;
+  const syncService = await getAmazonSyncService(accountId);
+  if (!syncService) {
+    result.errors.push(`\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7 ${accountId} \u7684API\u670D\u52A1`);
+    result.failed = negatives.length;
+    return result;
+  }
+  const campaignLevel = negatives.filter((n7) => n7.level === "campaign");
+  const adGroupLevel = negatives.filter((n7) => n7.level === "adgroup" && n7.adGroupId);
+  if (campaignLevel.length > 0) {
+    try {
+      const results = await syncService.client.createSpCampaignNegativeKeywords(
+        campaignLevel.map((n7) => ({
+          campaignId: n7.campaignId,
+          keywordText: n7.keywordText,
+          matchType: n7.matchType
+        }))
+      );
+      for (const r5 of results) {
+        if (r5.code === "SUCCESS" || r5.keywordId) {
+          result.success++;
+        } else {
+          result.failed++;
+          result.errors.push(`Campaign\u5426\u5B9A\u8BCD\u5931\u8D25: ${r5.details}`);
+        }
+      }
+    } catch (error51) {
+      result.failed += campaignLevel.length;
+      result.errors.push(`Campaign\u5426\u5B9A\u8BCD\u6279\u91CF\u521B\u5EFA\u5931\u8D25: ${error51.message}`);
+    }
+  }
+  if (adGroupLevel.length > 0) {
+    try {
+      const results = await syncService.client.createSpNegativeKeywords(
+        adGroupLevel.map((n7) => ({
+          adGroupId: n7.adGroupId,
+          campaignId: n7.campaignId,
+          keywordText: n7.keywordText,
+          matchType: n7.matchType
+        }))
+      );
+      for (const r5 of results) {
+        if (r5.code === "SUCCESS" || r5.keywordId) {
+          result.success++;
+        } else {
+          result.failed++;
+          result.errors.push(`AdGroup\u5426\u5B9A\u8BCD\u5931\u8D25: ${r5.details}`);
+        }
+      }
+    } catch (error51) {
+      result.failed += adGroupLevel.length;
+      result.errors.push(`AdGroup\u5426\u5B9A\u8BCD\u6279\u91CF\u521B\u5EFA\u5931\u8D25: ${error51.message}`);
+    }
+  }
+  console.log(`[AmazonApiHelper] \u5426\u5B9A\u8BCD\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}`);
+  return result;
+}
+var init_amazonApiHelper = __esm({
+  "server/services/amazonApiHelper.ts"() {
+    "use strict";
+    init_amazonSyncService();
+    init_db2();
+  }
+});
+
 // server/optimizationTargetEngine.ts
 var optimizationTargetEngine_exports = {};
 __export(optimizationTargetEngine_exports, {
@@ -88617,6 +88781,24 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
       }
     }
   }
+  if (!dryRun && details.length > 0) {
+    try {
+      const accountId = config2.accountId;
+      const apiResult = await syncBidAdjustmentsToAmazon(
+        accountId,
+        details.map((d5) => ({
+          keywordId: d5.keywordId,
+          newBid: d5.newBid,
+          campaignId: d5.campaignId,
+          reason: d5.reason,
+          isProductTarget: d5.isProductTarget || false
+        }))
+      );
+      console.log(`[BidOptimization] Amazon API\u540C\u6B65: \u6210\u529F=${apiResult.success}, \u5931\u8D25=${apiResult.failed}`);
+    } catch (apiError) {
+      console.error(`[BidOptimization] Amazon API\u540C\u6B65\u5931\u8D25:`, apiError.message);
+    }
+  }
   return { executed: true, adjustmentsCount: dryRun ? details.length : adjustmentsCount, details };
 }
 async function executePlacementOptimization(config2, campaigns6, dryRun) {
@@ -88646,6 +88828,24 @@ async function executePlacementOptimization(config2, campaigns6, dryRun) {
             suggestion
           );
           adjustmentsCount++;
+        }
+      }
+      if (!dryRun && suggestions.length > 0) {
+        try {
+          const amazonCampaignId = campaign.campaignId || campaign.id.toString();
+          const topSuggestion = suggestions.find((s4) => s4.placement === "top_of_search");
+          const productSuggestion = suggestions.find((s4) => s4.placement === "product_page");
+          if (topSuggestion || productSuggestion) {
+            await syncPlacementAdjustmentToAmazon(
+              config2.accountId,
+              amazonCampaignId,
+              topSuggestion?.suggestedMultiplier || campaign.placementTopSearchBidAdjustment || 0,
+              productSuggestion?.suggestedMultiplier || campaign.placementProductPageBidAdjustment || 0,
+              `\u4F4D\u7F6E\u4F18\u5316: Top=${topSuggestion?.suggestedMultiplier || 0}%, Product=${productSuggestion?.suggestedMultiplier || 0}%`
+            );
+          }
+        } catch (apiError) {
+          console.error(`[PlacementOptimization] Amazon API\u540C\u6B65\u5931\u8D25 (Campaign ${campaign.campaignName}):`, apiError.message);
         }
       }
     } catch (error51) {
@@ -88689,7 +88889,21 @@ async function executeDaypartingOptimization(config2, campaigns6, dryRun) {
         };
         details.push(adjustment);
         if (!dryRun && bidMultiplier !== 1) {
-          adjustmentsCount++;
+          try {
+            const success2 = await syncBidAdjustmentsToAmazon(
+              config2.accountId,
+              [{
+                keywordId: keyword.id,
+                newBid: Math.round(adjustedBid * 100) / 100,
+                campaignId: campaign.id,
+                reason: `\u5206\u65F6\u7ADE\u4EF7: ${currentHour}:00 \u4E58\u6570${bidMultiplier}`,
+                isProductTarget: false
+              }]
+            );
+            if (success2.success > 0) adjustmentsCount++;
+          } catch (apiError) {
+            console.error(`[DaypartingOptimization] API\u540C\u6B65\u5931\u8D25 (kw ${keyword.keywordText}):`, apiError.message);
+          }
         }
       }
     } catch (error51) {
@@ -88775,6 +88989,26 @@ async function executeSearchTermAnalysis(config2, campaigns6, dryRun) {
           }
         }
       }
+      if (!dryRun) {
+        const negativeDetails = details.filter((d5) => d5.action === "add_negative" && d5.campaignId === campaign.id);
+        if (negativeDetails.length > 0) {
+          try {
+            const amazonCampaignId = parseInt(campaign.campaignId || campaign.id.toString());
+            await syncNegativeKeywordsToAmazon(
+              config2.accountId,
+              negativeDetails.map((d5) => ({
+                campaignId: amazonCampaignId,
+                keywordText: d5.searchTerm,
+                matchType: d5.reason?.includes("exact") ? "negativeExact" : "negativePhrase",
+                level: "campaign"
+              }))
+            );
+            console.log(`[SearchTermAnalysis] Amazon API\u540C\u6B65: ${negativeDetails.length}\u4E2A\u5426\u5B9A\u8BCD (Campaign ${campaign.campaignName})`);
+          } catch (apiError) {
+            console.error(`[SearchTermAnalysis] Amazon API\u540C\u6B65\u5931\u8D25 (Campaign ${campaign.campaignName}):`, apiError.message);
+          }
+        }
+      }
     } catch (error51) {
       details.push({
         campaignId: campaign.id,
@@ -88809,6 +89043,17 @@ async function executeBudgetAllocation2(config2, campaigns6, dryRun) {
           dailyBudget: suggestion.suggestedBudget.toFixed(2)
         });
         adjustmentsCount++;
+        try {
+          const amazonCampaignId = campaign.campaignId || campaign.id.toString();
+          await syncBudgetAdjustmentToAmazon(
+            config2.accountId,
+            amazonCampaignId,
+            suggestion.suggestedBudget,
+            `\u9884\u7B97\u4F18\u5316: $${suggestion.currentBudget.toFixed(2)} -> $${suggestion.suggestedBudget.toFixed(2)}`
+          );
+        } catch (apiError) {
+          console.error(`[BudgetAllocation] Amazon API\u540C\u6B65\u5931\u8D25 (Campaign ${campaign.campaignName}):`, apiError.message);
+        }
       }
     }
   } catch (error51) {
@@ -89097,6 +89342,8 @@ async function getEnabledOptimizationTargets(accountId) {
 async function executeAllEnabledTargets(accountId, options = {}) {
   const targets = await getEnabledOptimizationTargets(accountId);
   const results = [];
+  const modulesDesc = options.specificModules?.length ? options.specificModules.join(",") : "all";
+  console.log(`[OptimizationTargetEngine] \u6279\u91CF\u6267\u884C ${targets.length} \u4E2A\u4F18\u5316\u76EE\u6807, \u6A21\u5757: ${modulesDesc}`);
   for (const target of targets) {
     try {
       const result = await executeOptimizationTarget(target.id, options);
@@ -89165,6 +89412,7 @@ var init_optimizationTargetEngine = __esm({
     init_adAutomation();
     init_intelligentBudgetAllocationService();
     init_bidCoordinator();
+    init_amazonApiHelper();
   }
 });
 
@@ -264624,6 +264872,228 @@ var init_dist9 = __esm({
   }
 });
 
+// server/services/intradayPacingService.ts
+var intradayPacingService_exports = {};
+__export(intradayPacingService_exports, {
+  INTRADAY_CONFIG: () => INTRADAY_CONFIG,
+  adjustIntradayPacing: () => adjustIntradayPacing,
+  applyIntradayAdjustment: () => applyIntradayAdjustment,
+  calculateBudgetRunway: () => calculateBudgetRunway,
+  checkAllCampaignsPacing: () => checkAllCampaignsPacing,
+  default: () => intradayPacingService_default,
+  getCriticalCampaigns: () => getCriticalCampaigns
+});
+async function adjustIntradayPacing(campaignId, accountId) {
+  const realtimeData = await getRealtimeSpendForGuard(accountId, campaignId);
+  const dailyBudget = await getCampaignBudget(accountId, campaignId);
+  const currentHour = (/* @__PURE__ */ new Date()).getHours();
+  const hoursRemaining = Math.max(1, INTRADAY_CONFIG.targetEndHour - currentHour);
+  const hoursPassed = currentHour - INTRADAY_CONFIG.startHour;
+  const totalHours = INTRADAY_CONFIG.targetEndHour - INTRADAY_CONFIG.startHour;
+  const idealSpendPercent = hoursPassed / totalHours;
+  const actualSpendPercent = dailyBudget > 0 ? realtimeData.todaySpend / dailyBudget : 0;
+  const pacingRatio = idealSpendPercent > 0 ? actualSpendPercent / idealSpendPercent : 1;
+  let pacingStatus;
+  let suggestedAction = "none";
+  let suggestedMultiplier = 1;
+  let reason = "";
+  if (pacingRatio >= INTRADAY_CONFIG.criticalThreshold) {
+    pacingStatus = "critical";
+    suggestedAction = "reduce_bid";
+    suggestedMultiplier = INTRADAY_CONFIG.criticalMultiplier;
+    reason = `\u{1F525} \u70E7\u94B1\u592A\u5FEB\uFF01\u6D88\u8017\u901F\u5EA6\u662F\u7406\u60F3\u7684${(pacingRatio * 100).toFixed(0)}%\uFF0C\u89E6\u53D1\u65E5\u5185\u4FDD\u62A4`;
+  } else if (pacingRatio >= INTRADAY_CONFIG.overspendingThreshold) {
+    pacingStatus = "overspending";
+    suggestedAction = "reduce_bid";
+    suggestedMultiplier = INTRADAY_CONFIG.overspendingMultiplier;
+    reason = `\u6D88\u8017\u901F\u5EA6\u504F\u5FEB\uFF08${(pacingRatio * 100).toFixed(0)}%\uFF09\uFF0C\u5EFA\u8BAE\u964D\u4F4E\u51FA\u4EF7`;
+  } else if (pacingRatio <= INTRADAY_CONFIG.underspendingThreshold) {
+    pacingStatus = "underspending";
+    suggestedAction = "increase_bid";
+    suggestedMultiplier = INTRADAY_CONFIG.underspendingMultiplier;
+    reason = `\u6D88\u8017\u901F\u5EA6\u504F\u6162\uFF08${(pacingRatio * 100).toFixed(0)}%\uFF09\uFF0C\u53EF\u4EE5\u9002\u5F53\u63D0\u9AD8\u51FA\u4EF7`;
+  } else {
+    pacingStatus = "on_track";
+    reason = "\u6D88\u8017\u901F\u5EA6\u6B63\u5E38";
+  }
+  const anomalyResult = detectAnomalies2(
+    realtimeData.todayClicks,
+    realtimeData.todayImpressions,
+    realtimeData.todaySpend,
+    currentHour
+  );
+  if (anomalyResult.detected) {
+    suggestedAction = anomalyResult.action;
+    reason = anomalyResult.reason;
+  }
+  return {
+    campaignId,
+    accountId,
+    currentHour,
+    dailyBudget,
+    todaySpend: realtimeData.todaySpend,
+    todayClicks: realtimeData.todayClicks,
+    todayImpressions: realtimeData.todayImpressions,
+    idealSpendPercent: Math.round(idealSpendPercent * 100) / 100,
+    actualSpendPercent: Math.round(actualSpendPercent * 100) / 100,
+    pacingStatus,
+    suggestedAction,
+    suggestedMultiplier,
+    reason,
+    anomalyDetected: anomalyResult.detected,
+    anomalyType: anomalyResult.type
+  };
+}
+async function checkAllCampaignsPacing(accountId) {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const [rows] = await db.execute(sql`
+      SELECT campaignId, dailyBudget
+      FROM campaigns
+      WHERE accountId = ${accountId}
+        AND status = 'enabled'
+        AND dailyBudget > 0
+    `);
+    const campaigns6 = Array.isArray(rows) ? rows : [];
+    const results = [];
+    for (const campaign of campaigns6) {
+      const adjustment = await adjustIntradayPacing(
+        campaign.campaignId,
+        accountId
+      );
+      results.push(adjustment);
+    }
+    return results;
+  } catch (error51) {
+    console.error("[IntradayPacing] \u6279\u91CF\u68C0\u67E5\u5931\u8D25:", error51);
+    return [];
+  }
+}
+async function getCriticalCampaigns(accountId) {
+  const allAdjustments = await checkAllCampaignsPacing(accountId);
+  return allAdjustments.filter(
+    (adj) => adj.pacingStatus === "critical" || adj.anomalyDetected || adj.suggestedAction === "pause"
+  );
+}
+async function applyIntradayAdjustment(adjustment) {
+  console.log("[IntradayPacing] \u5E94\u7528\u8C03\u6574:", {
+    campaignId: adjustment.campaignId,
+    action: adjustment.suggestedAction,
+    multiplier: adjustment.suggestedMultiplier,
+    reason: adjustment.reason
+  });
+  return {
+    success: true,
+    action: adjustment.suggestedAction,
+    previousMultiplier: 1,
+    newMultiplier: adjustment.suggestedMultiplier
+  };
+}
+async function getCampaignBudget(accountId, campaignId) {
+  const db = await getDb();
+  if (!db) return 0;
+  try {
+    const [rows] = await db.execute(sql`
+      SELECT dailyBudget
+      FROM campaigns
+      WHERE accountId = ${accountId}
+        AND campaignId = ${campaignId}
+      LIMIT 1
+    `);
+    const campaign = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+    return campaign?.dailyBudget || 0;
+  } catch (error51) {
+    console.error("[IntradayPacing] \u83B7\u53D6\u9884\u7B97\u5931\u8D25:", error51);
+    return 0;
+  }
+}
+function detectAnomalies2(clicks, impressions, spend, currentHour) {
+  const avgClicksPerHour = currentHour > 0 ? clicks / currentHour : clicks;
+  const ctr = impressions > 0 ? clicks / impressions : 0;
+  if (avgClicksPerHour > INTRADAY_CONFIG.clickFraudThreshold || ctr > INTRADAY_CONFIG.clickFraudCtrThreshold) {
+    return {
+      detected: true,
+      type: "click_fraud",
+      action: "pause",
+      reason: `\u26A0\uFE0F \u68C0\u6D4B\u5230\u5F02\u5E38\u6D41\u91CF\uFF01\u6BCF\u5C0F\u65F6\u70B9\u51FB${avgClicksPerHour.toFixed(0)}\u6B21\uFF0CCTR ${(ctr * 100).toFixed(1)}%\uFF0C\u5EFA\u8BAE\u7D27\u6025\u6682\u505C`
+    };
+  }
+  if (spend > 0 && clicks > INTRADAY_CONFIG.zeroConversionClickThreshold) {
+    const avgSpendPerClick = spend / clicks;
+    if (avgSpendPerClick > 2) {
+      return {
+        detected: true,
+        type: "budget_drain",
+        action: "alert",
+        reason: `\u26A0\uFE0F \u6BCF\u6B21\u70B9\u51FB\u6210\u672C\u5F02\u5E38\u9AD8\uFF08$${avgSpendPerClick.toFixed(2)}\uFF09\uFF0C\u8BF7\u68C0\u67E5\u7ADE\u4EF7\u8BBE\u7F6E`
+      };
+    }
+  }
+  return {
+    detected: false,
+    action: "none",
+    reason: ""
+  };
+}
+function calculateBudgetRunway(dailyBudget, currentSpend, currentHour, avgSpendPerHour) {
+  const remainingBudget = dailyBudget - currentSpend;
+  const hoursRemaining = avgSpendPerHour > 0 ? remainingBudget / avgSpendPerHour : 24 - currentHour;
+  const projectedEndHour = currentHour + hoursRemaining;
+  return {
+    remainingBudget,
+    hoursRemaining: Math.round(hoursRemaining * 10) / 10,
+    projectedEndHour: Math.min(24, Math.round(projectedEndHour)),
+    willLastUntilTarget: projectedEndHour >= INTRADAY_CONFIG.targetEndHour
+  };
+}
+var INTRADAY_CONFIG, intradayPacingService_default;
+var init_intradayPacingService = __esm({
+  "server/services/intradayPacingService.ts"() {
+    "use strict";
+    init_db2();
+    init_drizzle_orm();
+    init_dualTrackSyncService();
+    INTRADAY_CONFIG = {
+      // 目标结束时间（小时，24小时制）- 希望预算能撑到这个时间
+      targetEndHour: 22,
+      // 开始时间（小时）
+      startHour: 0,
+      // 消耗速度阈值
+      overspendingThreshold: 1.5,
+      // 超过理想消耗的150%
+      criticalThreshold: 2,
+      // 超过理想消耗的200%
+      underspendingThreshold: 0.5,
+      // 低于理想消耗的50%
+      // 调整乘数
+      overspendingMultiplier: 0.8,
+      // 花太快时降低20%
+      criticalMultiplier: 0.5,
+      // 危急时降低50%
+      underspendingMultiplier: 1.2,
+      // 花太慢时提高20%
+      // 异常检测阈值
+      clickFraudThreshold: 100,
+      // 单小时点击超过100次
+      clickFraudCtrThreshold: 0.15,
+      // CTR超过15%可能是异常
+      zeroConversionClickThreshold: 50,
+      // 50次点击0转化触发警告
+      // 最小检查间隔（分钟）
+      minCheckInterval: 15
+    };
+    intradayPacingService_default = {
+      adjustIntradayPacing,
+      checkAllCampaignsPacing,
+      getCriticalCampaigns,
+      applyIntradayAdjustment,
+      calculateBudgetRunway,
+      INTRADAY_CONFIG
+    };
+  }
+});
+
 // node_modules/dotenv/config.js
 (function() {
   require_main().config(
@@ -305008,100 +305478,224 @@ function sleep(ms) {
   return new Promise((resolve8) => setTimeout(resolve8, ms));
 }
 var OPTIMIZATION_SCHEDULE = {
+  intraday_pacing: {
+    type: "intraday_pacing",
+    description: "\u65E5\u5185\u8282\u594F\u76D1\u63A7 - \u9884\u7B97\u6D88\u8017\u901F\u5EA6\u76D1\u63A7\u548C\u5F02\u5E38\u6D41\u91CF\u68C0\u6D4B",
+    intervalMs: 30 * 60 * 1e3,
+    // 每30分钟
+    specificModules: []
+    // 独立执行，不走优化目标引擎
+  },
   risk_scan: {
     type: "risk_scan",
     description: "\u9AD8\u9891\u98CE\u63A7\u626B\u63CF - \u96F6\u66DD\u5149\u98CE\u66B4\u3001\u5F02\u5E38\u82B1\u9500\u3001CPC\u98D9\u5347\u68C0\u6D4B",
-    intervalMs: 4 * 60 * 60 * 1e3
-    // 每4小时
+    intervalMs: 2 * 60 * 60 * 1e3,
+    // 每2小时（从4小时缩短到2小时）
+    specificModules: []
+    // 仅风控，不执行优化模块
+  },
+  dayparting_adjustment: {
+    type: "dayparting_adjustment",
+    description: "\u5206\u65F6\u7ADE\u4EF7\u8C03\u6574 - \u6839\u636E\u5F53\u524D\u65F6\u6BB5\u52A8\u6001\u8C03\u6574\u51FA\u4EF7\u4E58\u6570",
+    intervalMs: 60 * 60 * 1e3,
+    // 每小时
+    specificModules: ["dayparting", "coordination"]
+    // 仅分时竞价+协调
   },
   daily_bid_optimization: {
     type: "daily_bid_optimization",
     description: "\u6BCF\u65E5\u51FA\u4EF7\u4F18\u5316 - \u57FA\u4E8E\u7B56\u7565\u6A21\u677F\u7684\u81EA\u52A8\u51FA\u4EF7\u8C03\u6574",
     intervalMs: 24 * 60 * 60 * 1e3,
-    // 每天
-    cronHours: [2]
+    cronHours: [2],
     // 凌晨2:00
+    specificModules: ["bid", "keyword", "coordination"]
+    // 仅出价+关键词状态+协调
+  },
+  daily_placement_optimization: {
+    type: "daily_placement_optimization",
+    description: "\u6BCF\u65E5\u4F4D\u7F6E\u4F18\u5316 - \u5E7F\u544A\u4F4D\u7F6E\u503E\u659C\u6BD4\u4F8B\u8C03\u6574",
+    intervalMs: 24 * 60 * 60 * 1e3,
+    cronHours: [3],
+    // 凌晨3:00
+    specificModules: ["placement"]
+    // 仅位置优化
+  },
+  daily_search_term_negation: {
+    type: "daily_search_term_negation",
+    description: "\u6BCF\u65E5\u641C\u7D22\u8BCD\u5426\u5B9A - \u81EA\u52A8\u5426\u5B9A\u4F4E\u6548\u641C\u7D22\u8BCD",
+    intervalMs: 24 * 60 * 60 * 1e3,
+    cronHours: [4],
+    // 凌晨4:00
+    specificModules: ["searchterm"]
+    // 仅搜索词分析
   },
   budget_allocation: {
     type: "budget_allocation",
     description: "\u9884\u7B97\u667A\u80FD\u5206\u914D - \u65E9\u665A\u4E24\u6B21\u9884\u7B97\u5206\u914D",
     intervalMs: 12 * 60 * 60 * 1e3,
-    // 每12小时
-    cronHours: [8, 18]
+    cronHours: [8, 18],
     // 早8:00 + 晚18:00
+    specificModules: ["budget"]
+    // 仅预算分配
   },
   search_term_harvest: {
     type: "search_term_harvest",
-    description: "\u641C\u7D22\u8BCD\u6536\u5272 - \u6BCF\u5468\u81EA\u52A8\u6536\u5272\u9AD8\u8F6C\u5316\u641C\u7D22\u8BCD",
+    description: "\u641C\u7D22\u8BCD\u6536\u5272 - \u6BCF\u5468\u81EA\u52A8\u6536\u5272\u9AD8\u8F6C\u5316\u641C\u7D22\u8BCD\u5E76\u6DFB\u52A0\u5426\u5B9A\u8BCD",
     intervalMs: 7 * 24 * 60 * 60 * 1e3,
-    // 每周
-    cronHours: [3],
-    // 凌晨3:00
-    cronDayOfWeek: 1
+    cronHours: [5],
+    // 凌晨5:00
+    cronDayOfWeek: 1,
     // 周一
+    specificModules: []
+    // 独立执行，使用searchTermHarvester服务
   },
   weekly_report: {
     type: "weekly_report",
     description: "\u7EE9\u6548\u5468\u62A5 - \u6BCF\u5468\u81EA\u52A8\u751F\u6210\u5E7F\u544A\u4F18\u5316\u62A5\u544A",
     intervalMs: 7 * 24 * 60 * 60 * 1e3,
-    // 每周
     cronHours: [9],
     // 上午9:00
-    cronDayOfWeek: 1
+    cronDayOfWeek: 1,
     // 周一
+    specificModules: []
   }
 };
 var optimizationIntervals = {
+  intraday_pacing: null,
   risk_scan: null,
+  dayparting_adjustment: null,
   daily_bid_optimization: null,
+  daily_placement_optimization: null,
+  daily_search_term_negation: null,
   budget_allocation: null,
   search_term_harvest: null,
   weekly_report: null
 };
+var executionLocks = {};
+var lastExecutionHour = {};
+function acquireLock(taskType) {
+  if (executionLocks[taskType]) {
+    console.log(`[OptimizationScheduler] \u4EFB\u52A1 ${taskType} \u6B63\u5728\u6267\u884C\u4E2D\uFF0C\u8DF3\u8FC7`);
+    return false;
+  }
+  executionLocks[taskType] = true;
+  return true;
+}
+function releaseLock(taskType) {
+  executionLocks[taskType] = false;
+}
+function shouldExecuteThisHour(taskType) {
+  const now = /* @__PURE__ */ new Date();
+  const hourKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}`;
+  if (lastExecutionHour[taskType] === hourKey) {
+    return false;
+  }
+  lastExecutionHour[taskType] = hourKey;
+  return true;
+}
 function startOptimizationScheduler() {
-  console.log("[OptimizationScheduler] \u542F\u52A8\u5206\u5C42\u4F18\u5316\u8C03\u5EA6\u5668...");
+  console.log("[OptimizationScheduler] \u542F\u52A8v122\u5206\u5C42\u4F18\u5316\u8C03\u5EA6\u5668...");
+  optimizationIntervals.intraday_pacing = setInterval(async () => {
+    await executeOptimizationTask("intraday_pacing");
+  }, OPTIMIZATION_SCHEDULE.intraday_pacing.intervalMs);
+  console.log(`[OptimizationScheduler] \u65E5\u5185\u8282\u594F\u76D1\u63A7\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 30\u5206\u949F`);
   optimizationIntervals.risk_scan = setInterval(async () => {
     await executeOptimizationTask("risk_scan");
   }, OPTIMIZATION_SCHEDULE.risk_scan.intervalMs);
-  console.log(`[OptimizationScheduler] \u9AD8\u9891\u98CE\u63A7\u626B\u63CF\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 4\u5C0F\u65F6`);
+  console.log(`[OptimizationScheduler] \u9AD8\u9891\u98CE\u63A7\u626B\u63CF\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 2\u5C0F\u65F6`);
+  optimizationIntervals.dayparting_adjustment = setInterval(async () => {
+    await executeOptimizationTask("dayparting_adjustment");
+  }, OPTIMIZATION_SCHEDULE.dayparting_adjustment.intervalMs);
+  console.log(`[OptimizationScheduler] \u5206\u65F6\u7ADE\u4EF7\u8C03\u6574\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 1\u5C0F\u65F6`);
   optimizationIntervals.daily_bid_optimization = setInterval(async () => {
     const hour2 = (/* @__PURE__ */ new Date()).getHours();
-    if (hour2 === 2) {
+    if (hour2 === 2 && shouldExecuteThisHour("daily_bid_optimization")) {
       await executeOptimizationTask("daily_bid_optimization");
     }
   }, 60 * 60 * 1e3);
   console.log(`[OptimizationScheduler] \u6BCF\u65E5\u51FA\u4EF7\u4F18\u5316\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u51CC\u66682:00`);
+  optimizationIntervals.daily_placement_optimization = setInterval(async () => {
+    const hour2 = (/* @__PURE__ */ new Date()).getHours();
+    if (hour2 === 3 && shouldExecuteThisHour("daily_placement_optimization")) {
+      await executeOptimizationTask("daily_placement_optimization");
+    }
+  }, 60 * 60 * 1e3);
+  console.log(`[OptimizationScheduler] \u6BCF\u65E5\u4F4D\u7F6E\u4F18\u5316\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u51CC\u66683:00`);
+  optimizationIntervals.daily_search_term_negation = setInterval(async () => {
+    const hour2 = (/* @__PURE__ */ new Date()).getHours();
+    if (hour2 === 4 && shouldExecuteThisHour("daily_search_term_negation")) {
+      await executeOptimizationTask("daily_search_term_negation");
+    }
+  }, 60 * 60 * 1e3);
+  console.log(`[OptimizationScheduler] \u6BCF\u65E5\u641C\u7D22\u8BCD\u5426\u5B9A\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u51CC\u66684:00`);
   optimizationIntervals.budget_allocation = setInterval(async () => {
     const hour2 = (/* @__PURE__ */ new Date()).getHours();
-    if (hour2 === 8 || hour2 === 18) {
+    if ((hour2 === 8 || hour2 === 18) && shouldExecuteThisHour("budget_allocation")) {
       await executeOptimizationTask("budget_allocation");
     }
   }, 60 * 60 * 1e3);
   console.log(`[OptimizationScheduler] \u9884\u7B97\u667A\u80FD\u5206\u914D\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u65E98:00 + \u665A18:00`);
   optimizationIntervals.search_term_harvest = setInterval(async () => {
     const now = /* @__PURE__ */ new Date();
-    if (now.getDay() === 1 && now.getHours() === 3) {
+    if (now.getDay() === 1 && now.getHours() === 5 && shouldExecuteThisHour("search_term_harvest")) {
       await executeOptimizationTask("search_term_harvest");
     }
   }, 60 * 60 * 1e3);
-  console.log(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u6536\u5272\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u5468\u4E00\u51CC\u66683:00`);
+  console.log(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u6536\u5272\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u5468\u4E00\u51CC\u66685:00`);
   optimizationIntervals.weekly_report = setInterval(async () => {
     const now = /* @__PURE__ */ new Date();
-    if (now.getDay() === 1 && now.getHours() === 9) {
+    if (now.getDay() === 1 && now.getHours() === 9 && shouldExecuteThisHour("weekly_report")) {
       await executeOptimizationTask("weekly_report");
     }
   }, 60 * 60 * 1e3);
   console.log(`[OptimizationScheduler] \u7EE9\u6548\u5468\u62A5\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u5468\u4E00\u4E0A\u53489:00`);
-  console.log("[OptimizationScheduler] \u5206\u5C42\u4F18\u5316\u8C03\u5EA6\u5668\u542F\u52A8\u5B8C\u6210");
+  console.log("[OptimizationScheduler] v122\u5206\u5C42\u4F18\u5316\u8C03\u5EA6\u5668\u542F\u52A8\u5B8C\u6210");
+  console.log("[OptimizationScheduler] \u8C03\u5EA6\u9891\u7387\u8868:");
+  Object.values(OPTIMIZATION_SCHEDULE).forEach((config2) => {
+    const modules = config2.specificModules?.length ? config2.specificModules.join(", ") : "\u72EC\u7ACB\u6267\u884C";
+    console.log(`  - ${config2.description} | \u6A21\u5757: ${modules}`);
+  });
 }
 async function executeOptimizationTask(taskType) {
+  if (!acquireLock(taskType)) return;
   const config2 = OPTIMIZATION_SCHEDULE[taskType];
   console.log(`[OptimizationScheduler] \u5F00\u59CB\u6267\u884C: ${config2.description} - ${(/* @__PURE__ */ new Date()).toISOString()}`);
   try {
     const { executeAllEnabledTargets: executeAllEnabledTargets2, getEnabledOptimizationTargets: getEnabledOptimizationTargets2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
     switch (taskType) {
+      // ==================== 日内节奏监控（每30分钟）====================
+      case "intraday_pacing": {
+        console.log(`[OptimizationScheduler] \u6267\u884C\u65E5\u5185\u8282\u594F\u76D1\u63A7`);
+        try {
+          const { checkAllCampaignsPacing: checkAllCampaignsPacing2, applyIntradayAdjustment: applyIntradayAdjustment2 } = await Promise.resolve().then(() => (init_intradayPacingService(), intradayPacingService_exports));
+          const targets = await getEnabledOptimizationTargets2();
+          const checkedAccountIds = /* @__PURE__ */ new Set();
+          for (const target of targets) {
+            if (checkedAccountIds.has(target.accountId)) continue;
+            checkedAccountIds.add(target.accountId);
+            try {
+              const adjustments = await checkAllCampaignsPacing2(target.accountId);
+              const criticalCount = adjustments.filter((a4) => a4.pacingStatus === "critical" || a4.anomalyDetected).length;
+              const overspendCount = adjustments.filter((a4) => a4.pacingStatus === "overspending").length;
+              const underspendCount = adjustments.filter((a4) => a4.pacingStatus === "underspending").length;
+              for (const adj of adjustments) {
+                if (adj.suggestedAction !== "none" && (adj.pacingStatus === "critical" || adj.pacingStatus === "overspending")) {
+                  await applyIntradayAdjustment2(adj);
+                }
+              }
+              console.log(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u65E5\u5185\u8282\u594F\u68C0\u67E5\u5B8C\u6210: ${adjustments.length}\u4E2ACampaign, \u5371\u6025=${criticalCount}, \u8D85\u901F=${overspendCount}, \u6B20\u901F=${underspendCount}`);
+            } catch (pacingError) {
+              console.error(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u65E5\u5185\u8282\u594F\u68C0\u67E5\u5F02\u5E38:`, pacingError.message);
+            }
+          }
+        } catch (pacingError) {
+          console.error(`[OptimizationScheduler] \u65E5\u5185\u8282\u594F\u76D1\u63A7\u5F02\u5E38:`, pacingError.message);
+        }
+        break;
+      }
+      // ==================== 高频风控扫描（每2小时，仅风控）====================
       case "risk_scan": {
-        console.log(`[OptimizationScheduler] \u6267\u884C\u98CE\u63A7\u626B\u63CF(\u5F52\u56E0\u9694\u79BB)`);
+        console.log(`[OptimizationScheduler] \u6267\u884C\u98CE\u63A7\u626B\u63CF(\u4EC5\u98CE\u63A7\uFF0C\u4E0D\u542B\u4F18\u5316)`);
         try {
           const targets = await getEnabledOptimizationTargets2();
           const scannedAccountIds = /* @__PURE__ */ new Set();
@@ -305129,21 +305723,33 @@ async function executeOptimizationTask(taskType) {
         } catch (riskError) {
           console.error(`[OptimizationScheduler] \u98CE\u63A7\u626B\u63CF\u5F02\u5E38:`, riskError.message);
         }
+        break;
+      }
+      // ==================== 分时竞价调整（每小时）====================
+      case "dayparting_adjustment": {
+        console.log(`[OptimizationScheduler] \u6267\u884C\u5206\u65F6\u7ADE\u4EF7\u8C03\u6574`);
         try {
-          const targetResults = await executeAllEnabledTargets2();
-          console.log(`[OptimizationScheduler] \u4F18\u5316\u76EE\u6807\u6267\u884C\u5B8C\u6210: ${targetResults.length}\u4E2A\u76EE\u6807`);
-          for (const r5 of targetResults) {
-            console.log(`  - ${r5.targetName}: ${r5.status}, \u51FA\u4EF7\u8C03\u6574=${r5.bidOptimization.adjustmentsCount}, \u4F4D\u7F6E\u8C03\u6574=${r5.placementOptimization.adjustmentsCount}, \u9519\u8BEF=${r5.errors.length}`);
+          const daypartingResults = await executeAllEnabledTargets2(void 0, {
+            dryRun: false,
+            specificModules: ["dayparting", "coordination"]
+          });
+          console.log(`[OptimizationScheduler] \u5206\u65F6\u7ADE\u4EF7\u8C03\u6574\u5B8C\u6210: ${daypartingResults.length}\u4E2A\u76EE\u6807`);
+          for (const r5 of daypartingResults) {
+            console.log(`  - ${r5.targetName}: \u5206\u65F6\u8C03\u6574=${r5.daypartingOptimization.adjustmentsCount}`);
           }
-        } catch (targetError) {
-          console.error(`[OptimizationScheduler] \u4F18\u5316\u76EE\u6807\u6267\u884C\u5931\u8D25:`, targetError.message);
+        } catch (daypartingError) {
+          console.error(`[OptimizationScheduler] \u5206\u65F6\u7ADE\u4EF7\u8C03\u6574\u5931\u8D25:`, daypartingError.message);
         }
         break;
       }
+      // ==================== 每日出价优化（凌晨2:00）====================
       case "daily_bid_optimization": {
         console.log(`[OptimizationScheduler] \u6267\u884C\u6BCF\u65E5\u51FA\u4EF7\u4F18\u5316`);
         try {
-          const bidResults = await executeAllEnabledTargets2();
+          const bidResults = await executeAllEnabledTargets2(void 0, {
+            dryRun: false,
+            specificModules: ["bid", "keyword", "coordination"]
+          });
           console.log(`[OptimizationScheduler] \u51FA\u4EF7\u4F18\u5316\u5B8C\u6210: ${bidResults.length}\u4E2A\u76EE\u6807`);
           for (const r5 of bidResults) {
             console.log(`  - ${r5.targetName}: \u51FA\u4EF7\u8C03\u6574=${r5.bidOptimization.adjustmentsCount}, \u5173\u952E\u8BCD\u6682\u505C=${r5.keywordStatusChanges.pausedCount}, \u5173\u952E\u8BCD\u542F\u7528=${r5.keywordStatusChanges.enabledCount}`);
@@ -305153,10 +305759,48 @@ async function executeOptimizationTask(taskType) {
         }
         break;
       }
+      // ==================== 每日位置优化（凌晨3:00）====================
+      case "daily_placement_optimization": {
+        console.log(`[OptimizationScheduler] \u6267\u884C\u6BCF\u65E5\u4F4D\u7F6E\u4F18\u5316`);
+        try {
+          const placementResults = await executeAllEnabledTargets2(void 0, {
+            dryRun: false,
+            specificModules: ["placement"]
+          });
+          console.log(`[OptimizationScheduler] \u4F4D\u7F6E\u4F18\u5316\u5B8C\u6210: ${placementResults.length}\u4E2A\u76EE\u6807`);
+          for (const r5 of placementResults) {
+            console.log(`  - ${r5.targetName}: \u4F4D\u7F6E\u8C03\u6574=${r5.placementOptimization.adjustmentsCount}`);
+          }
+        } catch (placementError) {
+          console.error(`[OptimizationScheduler] \u4F4D\u7F6E\u4F18\u5316\u5931\u8D25:`, placementError.message);
+        }
+        break;
+      }
+      // ==================== 每日搜索词否定（凌晨4:00）====================
+      case "daily_search_term_negation": {
+        console.log(`[OptimizationScheduler] \u6267\u884C\u6BCF\u65E5\u641C\u7D22\u8BCD\u5426\u5B9A\u5206\u6790`);
+        try {
+          const searchTermResults = await executeAllEnabledTargets2(void 0, {
+            dryRun: false,
+            specificModules: ["searchterm"]
+          });
+          console.log(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u5426\u5B9A\u5B8C\u6210: ${searchTermResults.length}\u4E2A\u76EE\u6807`);
+          for (const r5 of searchTermResults) {
+            console.log(`  - ${r5.targetName}: \u5426\u5B9A\u8BCD\u6DFB\u52A0=${r5.searchTermAnalysis.negativeKeywordsAdded}, \u65B0\u5173\u952E\u8BCD=${r5.searchTermAnalysis.newKeywordsAdded}`);
+          }
+        } catch (searchTermError) {
+          console.error(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u5426\u5B9A\u5931\u8D25:`, searchTermError.message);
+        }
+        break;
+      }
+      // ==================== 预算智能分配（早8:00+晚18:00）====================
       case "budget_allocation": {
         console.log(`[OptimizationScheduler] \u6267\u884C\u9884\u7B97\u667A\u80FD\u5206\u914D`);
         try {
-          const budgetResults = await executeAllEnabledTargets2(void 0, { dryRun: false });
+          const budgetResults = await executeAllEnabledTargets2(void 0, {
+            dryRun: false,
+            specificModules: ["budget"]
+          });
           console.log(`[OptimizationScheduler] \u9884\u7B97\u5206\u914D\u5B8C\u6210: ${budgetResults.length}\u4E2A\u76EE\u6807`);
           for (const r5 of budgetResults) {
             console.log(`  - ${r5.targetName}: \u9884\u7B97\u8C03\u6574=${r5.budgetAllocation.adjustmentsCount}`);
@@ -305166,6 +305810,7 @@ async function executeOptimizationTask(taskType) {
         }
         break;
       }
+      // ==================== 搜索词收割（周一凌晨5:00）====================
       case "search_term_harvest": {
         console.log(`[OptimizationScheduler] \u6267\u884C\u641C\u7D22\u8BCD\u6536\u5272`);
         try {
@@ -305189,6 +305834,7 @@ async function executeOptimizationTask(taskType) {
         }
         break;
       }
+      // ==================== 绩效周报（周一上午9:00）====================
       case "weekly_report": {
         console.log(`[OptimizationScheduler] \u751F\u6210\u7EE9\u6548\u5468\u62A5`);
         break;
@@ -305197,6 +305843,8 @@ async function executeOptimizationTask(taskType) {
     console.log(`[OptimizationScheduler] ${config2.description} \u6267\u884C\u5B8C\u6210`);
   } catch (error51) {
     console.error(`[OptimizationScheduler] ${taskType} \u6267\u884C\u5931\u8D25:`, error51.message);
+  } finally {
+    releaseLock(taskType);
   }
 }
 

@@ -675,21 +675,42 @@ export async function withExponentialBackoff<T>(
   throw lastError || new Error('重试次数已用尽');
 }
 
-// ==================== 专家建议：分层优化调度器 ====================
+// ==================== v122: 重构分层优化调度器 ====================
+// 核心修复：
+// 1. 修复模块隔离 - 每个调度任务只执行对应的优化模块，不再全量执行
+// 2. 集成日内节奏服务 - 高频监控预算消耗速度和异常流量
+// 3. 新增分时竞价调度 - 每小时根据时段动态调整出价
+// 4. 新增位置优化调度 - 每天凌晨3:00独立执行位置倾斜优化
+// 5. 新增搜索词否定调度 - 每天凌晨4:00独立执行搜索词否定分析
+// 6. 使用执行锁防止重复执行
+// 7. 使用marketplace时区感知的调度时间
 
 /**
- * 专家推荐的分层优化调度频率表
+ * v122 优化调度频率表（修复版）
  * 
- * | 任务             | 频率     | 时间           |
- * |------------------|----------|----------------|
- * | 高频风控扫描     | 每4小时  | 全天           |
- * | 每日出价优化     | 每天1次 | 凌晨2:00       |
- * | 预算智能分配     | 每天2次 | 早8:00 + 晚18:00 |
- * | 搜索词收割       | 每周1次 | 周一凌晨3:00   |
- * | 绩效周报         | 每周1次 | 周一上午9:00   |
+ * | 任务               | 频率        | 时间              | 执行模块                          |
+ * |--------------------|-------------|-------------------|-----------------------------------|
+ * | 日内节奏监控       | 每30分钟    | 全天              | intradayPacing (仅监控+调整分时)  |
+ * | 高频风控扫描       | 每2小时     | 全天              | riskScan (仅风控，不含优化)       |
+ * | 分时竞价调整       | 每小时      | 全天              | dayparting (仅分时竞价)           |
+ * | 每日出价优化       | 每天1次     | 凌晨2:00          | bid + keyword + coordination      |
+ * | 每日位置优化       | 每天1次     | 凌晨3:00          | placement                         |
+ * | 每日搜索词否定     | 每天1次     | 凌晨4:00          | searchterm                        |
+ * | 预算智能分配       | 每天2次     | 早8:00 + 晚18:00  | budget                            |
+ * | 搜索词收割         | 每周1次     | 周一凌晨5:00      | searchTermHarvester (独立服务)    |
+ * | 绩效周报           | 每周1次     | 周一上午9:00      | report                            |
  */
 
-type OptimizationTaskType = 'risk_scan' | 'daily_bid_optimization' | 'budget_allocation' | 'search_term_harvest' | 'weekly_report';
+type OptimizationTaskType = 
+  | 'intraday_pacing'
+  | 'risk_scan' 
+  | 'dayparting_adjustment'
+  | 'daily_bid_optimization' 
+  | 'daily_placement_optimization'
+  | 'daily_search_term_negation'
+  | 'budget_allocation' 
+  | 'search_term_harvest' 
+  | 'weekly_report';
 
 interface OptimizationScheduleConfig {
   type: OptimizationTaskType;
@@ -697,100 +718,208 @@ interface OptimizationScheduleConfig {
   intervalMs: number;
   cronHours?: number[];     // 指定小时执行
   cronDayOfWeek?: number;   // 指定星期几执行 (0=Sunday)
+  specificModules?: string[];  // v122: 该任务只执行的优化模块
 }
 
 const OPTIMIZATION_SCHEDULE: Record<OptimizationTaskType, OptimizationScheduleConfig> = {
+  intraday_pacing: {
+    type: 'intraday_pacing',
+    description: '日内节奏监控 - 预算消耗速度监控和异常流量检测',
+    intervalMs: 30 * 60 * 1000, // 每30分钟
+    specificModules: [], // 独立执行，不走优化目标引擎
+  },
   risk_scan: {
     type: 'risk_scan',
     description: '高频风控扫描 - 零曝光风暴、异常花销、CPC飙升检测',
-    intervalMs: 4 * 60 * 60 * 1000, // 每4小时
+    intervalMs: 2 * 60 * 60 * 1000, // 每2小时（从4小时缩短到2小时）
+    specificModules: [], // 仅风控，不执行优化模块
+  },
+  dayparting_adjustment: {
+    type: 'dayparting_adjustment',
+    description: '分时竞价调整 - 根据当前时段动态调整出价乘数',
+    intervalMs: 60 * 60 * 1000, // 每小时
+    specificModules: ['dayparting', 'coordination'], // 仅分时竞价+协调
   },
   daily_bid_optimization: {
     type: 'daily_bid_optimization',
     description: '每日出价优化 - 基于策略模板的自动出价调整',
-    intervalMs: 24 * 60 * 60 * 1000, // 每天
+    intervalMs: 24 * 60 * 60 * 1000,
     cronHours: [2], // 凌晨2:00
+    specificModules: ['bid', 'keyword', 'coordination'], // 仅出价+关键词状态+协调
+  },
+  daily_placement_optimization: {
+    type: 'daily_placement_optimization',
+    description: '每日位置优化 - 广告位置倾斜比例调整',
+    intervalMs: 24 * 60 * 60 * 1000,
+    cronHours: [3], // 凌晨3:00
+    specificModules: ['placement'], // 仅位置优化
+  },
+  daily_search_term_negation: {
+    type: 'daily_search_term_negation',
+    description: '每日搜索词否定 - 自动否定低效搜索词',
+    intervalMs: 24 * 60 * 60 * 1000,
+    cronHours: [4], // 凌晨4:00
+    specificModules: ['searchterm'], // 仅搜索词分析
   },
   budget_allocation: {
     type: 'budget_allocation',
     description: '预算智能分配 - 早晚两次预算分配',
-    intervalMs: 12 * 60 * 60 * 1000, // 每12小时
+    intervalMs: 12 * 60 * 60 * 1000,
     cronHours: [8, 18], // 早8:00 + 晚18:00
+    specificModules: ['budget'], // 仅预算分配
   },
   search_term_harvest: {
     type: 'search_term_harvest',
-    description: '搜索词收割 - 每周自动收割高转化搜索词',
-    intervalMs: 7 * 24 * 60 * 60 * 1000, // 每周
-    cronHours: [3], // 凌晨3:00
+    description: '搜索词收割 - 每周自动收割高转化搜索词并添加否定词',
+    intervalMs: 7 * 24 * 60 * 60 * 1000,
+    cronHours: [5], // 凌晨5:00
     cronDayOfWeek: 1, // 周一
+    specificModules: [], // 独立执行，使用searchTermHarvester服务
   },
   weekly_report: {
     type: 'weekly_report',
     description: '绩效周报 - 每周自动生成广告优化报告',
-    intervalMs: 7 * 24 * 60 * 60 * 1000, // 每周
+    intervalMs: 7 * 24 * 60 * 60 * 1000,
     cronHours: [9], // 上午9:00
     cronDayOfWeek: 1, // 周一
+    specificModules: [],
   },
 };
 
 let optimizationIntervals: Record<OptimizationTaskType, NodeJS.Timeout | null> = {
+  intraday_pacing: null,
   risk_scan: null,
+  dayparting_adjustment: null,
   daily_bid_optimization: null,
+  daily_placement_optimization: null,
+  daily_search_term_negation: null,
   budget_allocation: null,
   search_term_harvest: null,
   weekly_report: null,
 };
 
+// v122: 执行锁 - 防止同一任务重复执行
+const executionLocks: Record<string, boolean> = {};
+// v122: 上次执行时间记录 - 防止同一小时内重复执行
+const lastExecutionHour: Record<string, string> = {};
+
 /**
- * 启动分层优化调度器
- * 专家建议：数据同步和优化执行应该是独立的调度器
+ * 获取执行锁
+ */
+function acquireLock(taskType: string): boolean {
+  if (executionLocks[taskType]) {
+    console.log(`[OptimizationScheduler] 任务 ${taskType} 正在执行中，跳过`);
+    return false;
+  }
+  executionLocks[taskType] = true;
+  return true;
+}
+
+/**
+ * 释放执行锁
+ */
+function releaseLock(taskType: string): void {
+  executionLocks[taskType] = false;
+}
+
+/**
+ * 检查是否应该在当前小时执行（防止同一小时重复执行）
+ */
+function shouldExecuteThisHour(taskType: string): boolean {
+  const now = new Date();
+  const hourKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}-${now.getHours()}`;
+  if (lastExecutionHour[taskType] === hourKey) {
+    return false;
+  }
+  lastExecutionHour[taskType] = hourKey;
+  return true;
+}
+
+/**
+ * 启动分层优化调度器 (v122 重构版)
+ * 核心改进：每个任务只执行对应的优化模块，不再全量执行
  */
 export function startOptimizationScheduler(): void {
-  console.log('[OptimizationScheduler] 启动分层优化调度器...');
+  console.log('[OptimizationScheduler] 启动v122分层优化调度器...');
   
-  // 1. 高频风控扫描 - 每4小时
+  // 0. 日内节奏监控 - 每30分钟
+  optimizationIntervals.intraday_pacing = setInterval(async () => {
+    await executeOptimizationTask('intraday_pacing');
+  }, OPTIMIZATION_SCHEDULE.intraday_pacing.intervalMs);
+  console.log(`[OptimizationScheduler] 日内节奏监控已启动，间隔: 30分钟`);
+  
+  // 1. 高频风控扫描 - 每2小时（仅风控，不含优化）
   optimizationIntervals.risk_scan = setInterval(async () => {
     await executeOptimizationTask('risk_scan');
   }, OPTIMIZATION_SCHEDULE.risk_scan.intervalMs);
-  console.log(`[OptimizationScheduler] 高频风控扫描已启动，间隔: 4小时`);
+  console.log(`[OptimizationScheduler] 高频风控扫描已启动，间隔: 2小时`);
   
-  // 2. 每日出价优化 - 每天检查一次，在凌晨2:00执行
+  // 2. 分时竞价调整 - 每小时
+  optimizationIntervals.dayparting_adjustment = setInterval(async () => {
+    await executeOptimizationTask('dayparting_adjustment');
+  }, OPTIMIZATION_SCHEDULE.dayparting_adjustment.intervalMs);
+  console.log(`[OptimizationScheduler] 分时竞价调整已启动，间隔: 1小时`);
+  
+  // 3. 每日出价优化 - 凌晨2:00（仅出价+关键词+协调）
   optimizationIntervals.daily_bid_optimization = setInterval(async () => {
     const hour = new Date().getHours();
-    if (hour === 2) {
+    if (hour === 2 && shouldExecuteThisHour('daily_bid_optimization')) {
       await executeOptimizationTask('daily_bid_optimization');
     }
-  }, 60 * 60 * 1000); // 每小时检查一次
+  }, 60 * 60 * 1000);
   console.log(`[OptimizationScheduler] 每日出价优化已启动，执行时间: 凌晨2:00`);
   
-  // 3. 预算智能分配 - 每小时检查，在早8:00和晚18:00执行
+  // 4. 每日位置优化 - 凌晨3:00（仅位置倾斜）
+  optimizationIntervals.daily_placement_optimization = setInterval(async () => {
+    const hour = new Date().getHours();
+    if (hour === 3 && shouldExecuteThisHour('daily_placement_optimization')) {
+      await executeOptimizationTask('daily_placement_optimization');
+    }
+  }, 60 * 60 * 1000);
+  console.log(`[OptimizationScheduler] 每日位置优化已启动，执行时间: 凌晨3:00`);
+  
+  // 5. 每日搜索词否定 - 凌晨4:00（仅搜索词否定分析）
+  optimizationIntervals.daily_search_term_negation = setInterval(async () => {
+    const hour = new Date().getHours();
+    if (hour === 4 && shouldExecuteThisHour('daily_search_term_negation')) {
+      await executeOptimizationTask('daily_search_term_negation');
+    }
+  }, 60 * 60 * 1000);
+  console.log(`[OptimizationScheduler] 每日搜索词否定已启动，执行时间: 凌晨4:00`);
+  
+  // 6. 预算智能分配 - 早8:00和晚18:00（仅预算分配）
   optimizationIntervals.budget_allocation = setInterval(async () => {
     const hour = new Date().getHours();
-    if (hour === 8 || hour === 18) {
+    if ((hour === 8 || hour === 18) && shouldExecuteThisHour('budget_allocation')) {
       await executeOptimizationTask('budget_allocation');
     }
   }, 60 * 60 * 1000);
   console.log(`[OptimizationScheduler] 预算智能分配已启动，执行时间: 早8:00 + 晚18:00`);
   
-  // 4. 搜索词收割 - 每小时检查，在周一凌晨3:00执行
+  // 7. 搜索词收割 - 周一凌晨5:00
   optimizationIntervals.search_term_harvest = setInterval(async () => {
     const now = new Date();
-    if (now.getDay() === 1 && now.getHours() === 3) {
+    if (now.getDay() === 1 && now.getHours() === 5 && shouldExecuteThisHour('search_term_harvest')) {
       await executeOptimizationTask('search_term_harvest');
     }
   }, 60 * 60 * 1000);
-  console.log(`[OptimizationScheduler] 搜索词收割已启动，执行时间: 周一凌晨3:00`);
+  console.log(`[OptimizationScheduler] 搜索词收割已启动，执行时间: 周一凌晨5:00`);
   
-  // 5. 绩效周报 - 每小时检查，在周一上午9:00执行
+  // 8. 绩效周报 - 周一上午9:00
   optimizationIntervals.weekly_report = setInterval(async () => {
     const now = new Date();
-    if (now.getDay() === 1 && now.getHours() === 9) {
+    if (now.getDay() === 1 && now.getHours() === 9 && shouldExecuteThisHour('weekly_report')) {
       await executeOptimizationTask('weekly_report');
     }
   }, 60 * 60 * 1000);
   console.log(`[OptimizationScheduler] 绩效周报已启动，执行时间: 周一上午9:00`);
   
-  console.log('[OptimizationScheduler] 分层优化调度器启动完成');
+  console.log('[OptimizationScheduler] v122分层优化调度器启动完成');
+  console.log('[OptimizationScheduler] 调度频率表:');
+  Object.values(OPTIMIZATION_SCHEDULE).forEach(config => {
+    const modules = config.specificModules?.length ? config.specificModules.join(', ') : '独立执行';
+    console.log(`  - ${config.description} | 模块: ${modules}`);
+  });
 }
 
 /**
@@ -808,11 +937,18 @@ export function stopOptimizationScheduler(): void {
 }
 
 /**
- * 执行优化任务
- * 重要修复：不再依赖 data_sync_schedules 表（该表可能为空）
- * 改为直接查询所有活跃的优化目标（performance_groups 表中 status='active' 的记录）
+ * 执行优化任务 (v122 重构版)
+ * 
+ * 核心修复：
+ * 1. 每个任务只执行对应的 specificModules，不再全量执行所有优化模块
+ * 2. 风控扫描不再调用 executeAllEnabledTargets（之前每4小时执行全量优化）
+ * 3. 新增日内节奏监控和分时竞价独立调度
+ * 4. 使用执行锁防止重复执行
  */
 async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<void> {
+  // 获取执行锁
+  if (!acquireLock(taskType)) return;
+  
   const config = OPTIMIZATION_SCHEDULE[taskType];
   console.log(`[OptimizationScheduler] 开始执行: ${config.description} - ${new Date().toISOString()}`);
   
@@ -821,9 +957,47 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
     const { executeAllEnabledTargets, getEnabledOptimizationTargets } = await import('./optimizationTargetEngine');
     
     switch (taskType) {
+      // ==================== 日内节奏监控（每30分钟）====================
+      case 'intraday_pacing': {
+        console.log(`[OptimizationScheduler] 执行日内节奏监控`);
+        try {
+          const { checkAllCampaignsPacing, applyIntradayAdjustment } = await import('./services/intradayPacingService');
+          const targets = await getEnabledOptimizationTargets();
+          const checkedAccountIds = new Set<number>();
+          
+          for (const target of targets) {
+            if (checkedAccountIds.has(target.accountId)) continue;
+            checkedAccountIds.add(target.accountId);
+            
+            try {
+              const adjustments = await checkAllCampaignsPacing(target.accountId);
+              const criticalCount = adjustments.filter(a => a.pacingStatus === 'critical' || a.anomalyDetected).length;
+              const overspendCount = adjustments.filter(a => a.pacingStatus === 'overspending').length;
+              const underspendCount = adjustments.filter(a => a.pacingStatus === 'underspending').length;
+              
+              // 自动应用调整（仅对critical和overspending的Campaign）
+              for (const adj of adjustments) {
+                if (adj.suggestedAction !== 'none' && (adj.pacingStatus === 'critical' || adj.pacingStatus === 'overspending')) {
+                  await applyIntradayAdjustment(adj);
+                }
+              }
+              
+              console.log(`[OptimizationScheduler] 账号 ${target.accountId} 日内节奏检查完成: ` +
+                `${adjustments.length}个Campaign, 危急=${criticalCount}, 超速=${overspendCount}, 欠速=${underspendCount}`);
+            } catch (pacingError: any) {
+              console.error(`[OptimizationScheduler] 账号 ${target.accountId} 日内节奏检查异常:`, pacingError.message);
+            }
+          }
+        } catch (pacingError: any) {
+          console.error(`[OptimizationScheduler] 日内节奏监控异常:`, pacingError.message);
+        }
+        break;
+      }
+      
+      // ==================== 高频风控扫描（每2小时，仅风控）====================
       case 'risk_scan': {
-        // 风控扫描：获取所有活跃优化目标关联的广告活动进行风险检测
-        console.log(`[OptimizationScheduler] 执行风控扫描(归因隔离)`);
+        // v122修复：风控扫描仅执行风险检测，不再调用executeAllEnabledTargets
+        console.log(`[OptimizationScheduler] 执行风控扫描(仅风控，不含优化)`);
         try {
           const targets = await getEnabledOptimizationTargets();
           const scannedAccountIds = new Set<number>();
@@ -854,25 +1028,39 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
         } catch (riskError: any) {
           console.error(`[OptimizationScheduler] 风控扫描异常:`, riskError.message);
         }
-        
-        // 基于优化目标执行自动优化（无参数 = 所有活跃目标）
+        // v122修复：删除了此处的 executeAllEnabledTargets() 调用
+        // 之前风控扫描会执行全量优化（出价+位置+分时+搜索词+预算+关键词），导致所有模块的独立调度频率失效
+        break;
+      }
+      
+      // ==================== 分时竞价调整（每小时）====================
+      case 'dayparting_adjustment': {
+        console.log(`[OptimizationScheduler] 执行分时竞价调整`);
         try {
-          const targetResults = await executeAllEnabledTargets();
-          console.log(`[OptimizationScheduler] 优化目标执行完成: ${targetResults.length}个目标`);
-          for (const r of targetResults) {
-            console.log(`  - ${r.targetName}: ${r.status}, 出价调整=${r.bidOptimization.adjustmentsCount}, 位置调整=${r.placementOptimization.adjustmentsCount}, 错误=${r.errors.length}`);
+          // v122: 仅执行分时竞价模块
+          const daypartingResults = await executeAllEnabledTargets(undefined, { 
+            dryRun: false, 
+            specificModules: ['dayparting', 'coordination'] 
+          });
+          console.log(`[OptimizationScheduler] 分时竞价调整完成: ${daypartingResults.length}个目标`);
+          for (const r of daypartingResults) {
+            console.log(`  - ${r.targetName}: 分时调整=${r.daypartingOptimization.adjustmentsCount}`);
           }
-        } catch (targetError: any) {
-          console.error(`[OptimizationScheduler] 优化目标执行失败:`, targetError.message);
+        } catch (daypartingError: any) {
+          console.error(`[OptimizationScheduler] 分时竞价调整失败:`, daypartingError.message);
         }
         break;
       }
         
+      // ==================== 每日出价优化（凌晨2:00）====================
       case 'daily_bid_optimization': {
-        // 每日出价优化：执行所有活跃优化目标的出价调整
         console.log(`[OptimizationScheduler] 执行每日出价优化`);
         try {
-          const bidResults = await executeAllEnabledTargets();
+          // v122修复：仅执行出价+关键词状态+协调模块
+          const bidResults = await executeAllEnabledTargets(undefined, { 
+            dryRun: false, 
+            specificModules: ['bid', 'keyword', 'coordination'] 
+          });
           console.log(`[OptimizationScheduler] 出价优化完成: ${bidResults.length}个目标`);
           for (const r of bidResults) {
             console.log(`  - ${r.targetName}: 出价调整=${r.bidOptimization.adjustmentsCount}, 关键词暂停=${r.keywordStatusChanges.pausedCount}, 关键词启用=${r.keywordStatusChanges.enabledCount}`);
@@ -882,12 +1070,54 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
         }
         break;
       }
+      
+      // ==================== 每日位置优化（凌晨3:00）====================
+      case 'daily_placement_optimization': {
+        console.log(`[OptimizationScheduler] 执行每日位置优化`);
+        try {
+          // v122: 仅执行位置优化模块
+          const placementResults = await executeAllEnabledTargets(undefined, { 
+            dryRun: false, 
+            specificModules: ['placement'] 
+          });
+          console.log(`[OptimizationScheduler] 位置优化完成: ${placementResults.length}个目标`);
+          for (const r of placementResults) {
+            console.log(`  - ${r.targetName}: 位置调整=${r.placementOptimization.adjustmentsCount}`);
+          }
+        } catch (placementError: any) {
+          console.error(`[OptimizationScheduler] 位置优化失败:`, placementError.message);
+        }
+        break;
+      }
+      
+      // ==================== 每日搜索词否定（凌晨4:00）====================
+      case 'daily_search_term_negation': {
+        console.log(`[OptimizationScheduler] 执行每日搜索词否定分析`);
+        try {
+          // v122: 仅执行搜索词分析模块
+          const searchTermResults = await executeAllEnabledTargets(undefined, { 
+            dryRun: false, 
+            specificModules: ['searchterm'] 
+          });
+          console.log(`[OptimizationScheduler] 搜索词否定完成: ${searchTermResults.length}个目标`);
+          for (const r of searchTermResults) {
+            console.log(`  - ${r.targetName}: 否定词添加=${r.searchTermAnalysis.negativeKeywordsAdded}, 新关键词=${r.searchTermAnalysis.newKeywordsAdded}`);
+          }
+        } catch (searchTermError: any) {
+          console.error(`[OptimizationScheduler] 搜索词否定失败:`, searchTermError.message);
+        }
+        break;
+      }
         
+      // ==================== 预算智能分配（早8:00+晚18:00）====================
       case 'budget_allocation': {
-        // 预算分配：执行所有活跃优化目标的预算智能分配
         console.log(`[OptimizationScheduler] 执行预算智能分配`);
         try {
-          const budgetResults = await executeAllEnabledTargets(undefined, { dryRun: false });
+          // v122修复：仅执行预算分配模块
+          const budgetResults = await executeAllEnabledTargets(undefined, { 
+            dryRun: false, 
+            specificModules: ['budget'] 
+          });
           console.log(`[OptimizationScheduler] 预算分配完成: ${budgetResults.length}个目标`);
           for (const r of budgetResults) {
             console.log(`  - ${r.targetName}: 预算调整=${r.budgetAllocation.adjustmentsCount}`);
@@ -898,8 +1128,8 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
         break;
       }
         
+      // ==================== 搜索词收割（周一凌晨5:00）====================
       case 'search_term_harvest': {
-        // 搜索词收割：获取所有活跃优化目标关联的账号进行搜索词收割
         console.log(`[OptimizationScheduler] 执行搜索词收割`);
         try {
           const targets = await getEnabledOptimizationTargets();
@@ -929,8 +1159,8 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
         break;
       }
         
+      // ==================== 绩效周报（周一上午9:00）====================
       case 'weekly_report': {
-        // 绩效周报：自动生成广告优化报告
         console.log(`[OptimizationScheduler] 生成绩效周报`);
         // TODO: 实现绩效周报生成逻辑
         break;
@@ -941,6 +1171,9 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
     
   } catch (error: any) {
     console.error(`[OptimizationScheduler] ${taskType} 执行失败:`, error.message);
+  } finally {
+    // 确保释放执行锁
+    releaseLock(taskType);
   }
 }
 

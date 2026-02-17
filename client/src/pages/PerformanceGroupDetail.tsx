@@ -22,7 +22,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
+// ScrollArea removed in v122 - dialog now uses overflow-auto div
 import { Separator } from "@/components/ui/separator";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
@@ -49,7 +49,11 @@ import {
   Zap,
   Save,
   RefreshCw,
-  Download
+  Download,
+  Filter,
+  ChevronDown,
+  ChevronUp,
+  X
 } from "lucide-react";
 
 // 优化目标类型
@@ -93,6 +97,19 @@ export default function PerformanceGroupDetail() {
   const [filterMaxSpend, setFilterMaxSpend] = useState<string>("");
   const [filterMinAcos, setFilterMinAcos] = useState<string>("");
   const [filterMaxAcos, setFilterMaxAcos] = useState<string>("");
+  const [filterMinOrders, setFilterMinOrders] = useState<string>("");
+  const [filterMaxOrders, setFilterMaxOrders] = useState<string>("");
+  const [filterMinRoas, setFilterMinRoas] = useState<string>("");
+  const [filterMaxRoas, setFilterMaxRoas] = useState<string>("");
+  const [filterMinClicks, setFilterMinClicks] = useState<string>("");
+  const [filterMaxClicks, setFilterMaxClicks] = useState<string>("");
+  const [filterMinCpc, setFilterMinCpc] = useState<string>("");
+  const [filterMaxCpc, setFilterMaxCpc] = useState<string>("");
+  const [filterMinImpressions, setFilterMinImpressions] = useState<string>("");
+  const [filterMaxImpressions, setFilterMaxImpressions] = useState<string>("");
+  const [filterMinBudget, setFilterMinBudget] = useState<string>("");
+  const [filterMaxBudget, setFilterMaxBudget] = useState<string>("");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState<boolean>(false);
 
   // 对话框关闭时清空选择和筛选条件
   useEffect(() => {
@@ -106,6 +123,19 @@ export default function PerformanceGroupDetail() {
       setFilterMaxSpend("");
       setFilterMinAcos("");
       setFilterMaxAcos("");
+      setFilterMinOrders("");
+      setFilterMaxOrders("");
+      setFilterMinRoas("");
+      setFilterMaxRoas("");
+      setFilterMinClicks("");
+      setFilterMaxClicks("");
+      setFilterMinCpc("");
+      setFilterMaxCpc("");
+      setFilterMinImpressions("");
+      setFilterMaxImpressions("");
+      setFilterMinBudget("");
+      setFilterMaxBudget("");
+      setShowAdvancedFilters(false);
     }
   }, [showAddCampaignsDialog]);
   
@@ -320,13 +350,44 @@ export default function PerformanceGroupDetail() {
       if (filterMaxSpend && spend > Number(filterMaxSpend)) return false;
       
       // ACoS范围筛选
-      const acos = Number(c.acos || 0);
+      const sales = Number(c.sales || 0);
+      const acos = sales > 0 ? (spend / sales) * 100 : 0;
       if (filterMinAcos && acos < Number(filterMinAcos)) return false;
       if (filterMaxAcos && acos > Number(filterMaxAcos)) return false;
       
+      // 订单数量筛选
+      const orders = Number(c.orders || 0);
+      if (filterMinOrders && orders < Number(filterMinOrders)) return false;
+      if (filterMaxOrders && orders > Number(filterMaxOrders)) return false;
+      
+      // ROAS筛选
+      const roas = spend > 0 ? sales / spend : 0;
+      if (filterMinRoas && roas < Number(filterMinRoas)) return false;
+      if (filterMaxRoas && roas > Number(filterMaxRoas)) return false;
+      
+      // 点击数筛选
+      const clicks = Number(c.clicks || 0);
+      if (filterMinClicks && clicks < Number(filterMinClicks)) return false;
+      if (filterMaxClicks && clicks > Number(filterMaxClicks)) return false;
+      
+      // CPC筛选
+      const cpc = clicks > 0 ? spend / clicks : 0;
+      if (filterMinCpc && cpc < Number(filterMinCpc)) return false;
+      if (filterMaxCpc && cpc > Number(filterMaxCpc)) return false;
+      
+      // 曝光数筛选
+      const impressions = Number(c.impressions || 0);
+      if (filterMinImpressions && impressions < Number(filterMinImpressions)) return false;
+      if (filterMaxImpressions && impressions > Number(filterMaxImpressions)) return false;
+      
+      // 日预算筛选
+      const budget = Number(c.dailyBudget || 0);
+      if (filterMinBudget && budget < Number(filterMinBudget)) return false;
+      if (filterMaxBudget && budget > Number(filterMaxBudget)) return false;
+      
       return true;
     });
-  }, [availableCampaigns, searchQuery, filterCampaignType, filterBiddingStrategy, filterState, filterMinSpend, filterMaxSpend, filterMinAcos, filterMaxAcos]);
+  }, [availableCampaigns, searchQuery, filterCampaignType, filterBiddingStrategy, filterState, filterMinSpend, filterMaxSpend, filterMinAcos, filterMaxAcos, filterMinOrders, filterMaxOrders, filterMinRoas, filterMaxRoas, filterMinClicks, filterMaxClicks, filterMinCpc, filterMaxCpc, filterMinImpressions, filterMaxImpressions, filterMinBudget, filterMaxBudget]);
 
   // 处理添加广告活动
   const handleAddCampaigns = () => {
@@ -1224,199 +1285,318 @@ export default function PerformanceGroupDetail() {
 
         {/* 添加广告活动对话框 */}
         <Dialog open={showAddCampaignsDialog} onOpenChange={setShowAddCampaignsDialog}>
-          <DialogContent className="max-w-4xl max-h-[80vh]">
-            <DialogHeader>
-              <DialogTitle>添加广告活动到绩效组</DialogTitle>
-              <DialogDescription>
-                选择要添加到"{group.name}"的广告活动
-              </DialogDescription>
-            </DialogHeader>
-            
-            {/* 筛选条件 */}
-            <div className="grid grid-cols-4 gap-2 mb-3">
-              <Select value={filterCampaignType} onValueChange={setFilterCampaignType}>
-                <SelectTrigger className="h-8">
-                  <SelectValue placeholder="广告类型" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部类型</SelectItem>
-                  <SelectItem value="sp">SP广告</SelectItem>
-                  <SelectItem value="sb">SB广告</SelectItem>
-                  <SelectItem value="sd">SD广告</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              <Select value={filterBiddingStrategy} onValueChange={setFilterBiddingStrategy}>
-                <SelectTrigger className="h-8">
-                  <SelectValue placeholder="计费方式" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部方式</SelectItem>
-                  <SelectItem value="manual">手动竞价</SelectItem>
-                  <SelectItem value="auto">自动竞价</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              <Select value={filterState} onValueChange={setFilterState}>
-                <SelectTrigger className="h-8">
-                  <SelectValue placeholder="运行状态" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部状态</SelectItem>
-                  <SelectItem value="enabled">已启用</SelectItem>
-                  <SelectItem value="paused">已暂停</SelectItem>
-                  <SelectItem value="archived">已归档</SelectItem>
-                </SelectContent>
-              </Select>
-              
-              <div className="flex gap-1">
-                <Input 
-                  placeholder="最小花费" 
-                  value={filterMinSpend}
-                  onChange={(e) => setFilterMinSpend(e.target.value)}
-                  type="number"
-                  className="h-8 w-20"
-                />
-                <Input 
-                  placeholder="最大花费" 
-                  value={filterMaxSpend}
-                  onChange={(e) => setFilterMaxSpend(e.target.value)}
-                  type="number"
-                  className="h-8 w-20"
-                />
+          <DialogContent className="!max-w-[95vw] !w-[95vw] !h-[90vh] !max-h-[90vh] !translate-x-[-50%] !translate-y-[-50%] flex flex-col p-0 gap-0 overflow-hidden">
+            {/* 头部区域 */}
+            <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b flex-shrink-0">
+              <div>
+                <h2 className="text-lg font-semibold">添加广告活动到绩效组</h2>
+                <p className="text-sm text-muted-foreground mt-1">选择要添加到“{group.name}”的广告活动</p>
               </div>
-            </div>
-            
-            <div className="space-y-3">
-              {/* 搜索栏 */}
-              <div className="flex items-center gap-2">
-                <Search className="w-4 h-4 text-muted-foreground" />
-                <Input 
-                  placeholder="搜索广告活动名称..." 
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="h-8"
-                />
-                <p className="text-sm text-muted-foreground whitespace-nowrap">
-                  可选: {filteredAvailableCampaigns.length}个 | 已选: {selectedCampaigns.length}个
+              <div className="flex items-center gap-3">
+                <p className="text-sm text-muted-foreground">
+                  可选: <span className="font-medium text-foreground">{filteredAvailableCampaigns.length}</span>个 | 已选: <span className="font-medium text-primary">{selectedCampaigns.length}</span>个
                 </p>
               </div>
+            </div>
+            
+            {/* 筛选区域 */}
+            <div className="px-6 py-3 border-b flex-shrink-0 space-y-2 bg-muted/20">
+              {/* 第一行：基本筛选 + 搜索 */}
+              <div className="flex items-center gap-2">
+                <Select value={filterCampaignType} onValueChange={setFilterCampaignType}>
+                  <SelectTrigger className="h-8 w-[120px]">
+                    <SelectValue placeholder="广告类型" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部类型</SelectItem>
+                    <SelectItem value="sp">SP广告</SelectItem>
+                    <SelectItem value="sb">SB广告</SelectItem>
+                    <SelectItem value="sd">SD广告</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                <Select value={filterBiddingStrategy} onValueChange={setFilterBiddingStrategy}>
+                  <SelectTrigger className="h-8 w-[120px]">
+                    <SelectValue placeholder="计费方式" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部方式</SelectItem>
+                    <SelectItem value="manual">手动竞价</SelectItem>
+                    <SelectItem value="auto">自动竞价</SelectItem>
+                  </SelectContent>
+                </Select>
+                
+                <Select value={filterState} onValueChange={setFilterState}>
+                  <SelectTrigger className="h-8 w-[120px]">
+                    <SelectValue placeholder="运行状态" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部状态</SelectItem>
+                    <SelectItem value="enabled">已启用</SelectItem>
+                    <SelectItem value="paused">已暂停</SelectItem>
+                    <SelectItem value="archived">已归档</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <div className="flex-1 relative">
+                  <Search className="w-4 h-4 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <Input 
+                    placeholder="搜索广告活动名称..." 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="h-8 pl-8"
+                  />
+                </div>
+
+                <Button 
+                  variant={showAdvancedFilters ? "secondary" : "outline"}
+                  size="sm" 
+                  className="h-8 gap-1"
+                  onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                >
+                  <Filter className="w-3.5 h-3.5" />
+                  高级筛选
+                  {showAdvancedFilters ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </Button>
+              </div>
               
-              {/* 广告活动表格 */}
-              <ScrollArea className="h-[400px]">
-                {availableLoading ? (
-                  <div className="flex items-center justify-center h-32">
-                    <Loader2 className="w-6 h-6 animate-spin" />
+              {/* 高级筛选区域 */}
+              {showAdvancedFilters && (
+                <div className="grid grid-cols-6 gap-x-3 gap-y-2 pt-2 border-t">
+                  {/* 花费范围 */}
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-medium">花费 ($)</label>
+                    <div className="flex gap-1">
+                      <Input placeholder="最小" value={filterMinSpend} onChange={(e) => setFilterMinSpend(e.target.value)} type="number" className="h-7 text-xs" />
+                      <span className="text-muted-foreground self-center text-xs">-</span>
+                      <Input placeholder="最大" value={filterMaxSpend} onChange={(e) => setFilterMaxSpend(e.target.value)} type="number" className="h-7 text-xs" />
+                    </div>
                   </div>
-                ) : filteredAvailableCampaigns.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead className="sticky top-0 bg-background z-10">
-                        <tr className="border-b bg-muted/50">
-                          <th className="p-2 w-8"></th>
-                          <th className="text-left p-2 font-medium">状态</th>
-                          <th className="text-left p-2 font-medium min-w-[180px]">广告活动名称</th>
-                          <th className="text-left p-2 font-medium">类型</th>
-                          <th className="text-right p-2 font-medium">曝光</th>
-                          <th className="text-right p-2 font-medium">点击</th>
-                          <th className="text-right p-2 font-medium">花费</th>
-                          <th className="text-right p-2 font-medium">销售额</th>
-                          <th className="text-right p-2 font-medium">订单</th>
-                          <th className="text-right p-2 font-medium">ACoS</th>
-                          <th className="text-right p-2 font-medium">ROAS</th>
-                          <th className="text-right p-2 font-medium">CTR</th>
-                          <th className="text-right p-2 font-medium">CVR</th>
-                          <th className="text-right p-2 font-medium">日预算</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredAvailableCampaigns.map((campaign: any) => {
-                          const spend = Number(campaign.spend || 0);
-                          const sales = Number(campaign.sales || 0);
-                          const clicks = Number(campaign.clicks || 0);
-                          const impressions = Number(campaign.impressions || 0);
-                          const orders = Number(campaign.orders || 0);
-                          const acos = sales > 0 ? (spend / sales) * 100 : 0;
-                          const roas = spend > 0 ? sales / spend : 0;
-                          const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
-                          const cvr = clicks > 0 ? (orders / clicks) * 100 : 0;
-                          const isSelected = selectedCampaigns.includes(campaign.id);
-                          return (
-                            <tr 
-                              key={campaign.id} 
-                              className={`border-b hover:bg-muted/30 cursor-pointer transition-colors ${isSelected ? 'bg-primary/5' : ''}`}
-                              onClick={() => {
-                                if (isSelected) {
-                                  setSelectedCampaigns(prev => prev.filter(id => id !== campaign.id));
-                                } else {
+                  {/* 订单数量 */}
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-medium">订单数</label>
+                    <div className="flex gap-1">
+                      <Input placeholder="最小" value={filterMinOrders} onChange={(e) => setFilterMinOrders(e.target.value)} type="number" className="h-7 text-xs" />
+                      <span className="text-muted-foreground self-center text-xs">-</span>
+                      <Input placeholder="最大" value={filterMaxOrders} onChange={(e) => setFilterMaxOrders(e.target.value)} type="number" className="h-7 text-xs" />
+                    </div>
+                  </div>
+                  {/* ACoS */}
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-medium">ACoS (%)</label>
+                    <div className="flex gap-1">
+                      <Input placeholder="最小" value={filterMinAcos} onChange={(e) => setFilterMinAcos(e.target.value)} type="number" className="h-7 text-xs" />
+                      <span className="text-muted-foreground self-center text-xs">-</span>
+                      <Input placeholder="最大" value={filterMaxAcos} onChange={(e) => setFilterMaxAcos(e.target.value)} type="number" className="h-7 text-xs" />
+                    </div>
+                  </div>
+                  {/* ROAS */}
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-medium">ROAS</label>
+                    <div className="flex gap-1">
+                      <Input placeholder="最小" value={filterMinRoas} onChange={(e) => setFilterMinRoas(e.target.value)} type="number" className="h-7 text-xs" />
+                      <span className="text-muted-foreground self-center text-xs">-</span>
+                      <Input placeholder="最大" value={filterMaxRoas} onChange={(e) => setFilterMaxRoas(e.target.value)} type="number" className="h-7 text-xs" />
+                    </div>
+                  </div>
+                  {/* 点击数 */}
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-medium">点击数</label>
+                    <div className="flex gap-1">
+                      <Input placeholder="最小" value={filterMinClicks} onChange={(e) => setFilterMinClicks(e.target.value)} type="number" className="h-7 text-xs" />
+                      <span className="text-muted-foreground self-center text-xs">-</span>
+                      <Input placeholder="最大" value={filterMaxClicks} onChange={(e) => setFilterMaxClicks(e.target.value)} type="number" className="h-7 text-xs" />
+                    </div>
+                  </div>
+                  {/* CPC */}
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-medium">CPC ($)</label>
+                    <div className="flex gap-1">
+                      <Input placeholder="最小" value={filterMinCpc} onChange={(e) => setFilterMinCpc(e.target.value)} type="number" className="h-7 text-xs" />
+                      <span className="text-muted-foreground self-center text-xs">-</span>
+                      <Input placeholder="最大" value={filterMaxCpc} onChange={(e) => setFilterMaxCpc(e.target.value)} type="number" className="h-7 text-xs" />
+                    </div>
+                  </div>
+                  {/* 曝光数 */}
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-medium">曝光数</label>
+                    <div className="flex gap-1">
+                      <Input placeholder="最小" value={filterMinImpressions} onChange={(e) => setFilterMinImpressions(e.target.value)} type="number" className="h-7 text-xs" />
+                      <span className="text-muted-foreground self-center text-xs">-</span>
+                      <Input placeholder="最大" value={filterMaxImpressions} onChange={(e) => setFilterMaxImpressions(e.target.value)} type="number" className="h-7 text-xs" />
+                    </div>
+                  </div>
+                  {/* 日预算 */}
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-medium">日预算 ($)</label>
+                    <div className="flex gap-1">
+                      <Input placeholder="最小" value={filterMinBudget} onChange={(e) => setFilterMinBudget(e.target.value)} type="number" className="h-7 text-xs" />
+                      <span className="text-muted-foreground self-center text-xs">-</span>
+                      <Input placeholder="最大" value={filterMaxBudget} onChange={(e) => setFilterMaxBudget(e.target.value)} type="number" className="h-7 text-xs" />
+                    </div>
+                  </div>
+                  {/* 清除筛选按钮 */}
+                  <div className="flex items-end col-span-4">
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-7 text-xs gap-1 text-muted-foreground hover:text-foreground"
+                      onClick={() => {
+                        setFilterMinSpend(""); setFilterMaxSpend("");
+                        setFilterMinAcos(""); setFilterMaxAcos("");
+                        setFilterMinOrders(""); setFilterMaxOrders("");
+                        setFilterMinRoas(""); setFilterMaxRoas("");
+                        setFilterMinClicks(""); setFilterMaxClicks("");
+                        setFilterMinCpc(""); setFilterMaxCpc("");
+                        setFilterMinImpressions(""); setFilterMaxImpressions("");
+                        setFilterMinBudget(""); setFilterMaxBudget("");
+                      }}
+                    >
+                      <X className="w-3 h-3" />
+                      清除所有筛选
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* 表格区域 - 占据剩余空间 */}
+            <div className="flex-1 min-h-0 overflow-auto">
+              {availableLoading ? (
+                <div className="flex items-center justify-center h-32">
+                  <Loader2 className="w-6 h-6 animate-spin" />
+                </div>
+              ) : filteredAvailableCampaigns.length > 0 ? (
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-background z-10">
+                    <tr className="border-b bg-muted/50">
+                      <th className="p-2 w-8 sticky left-0 bg-muted/50 z-20">
+                        <Checkbox
+                          checked={filteredAvailableCampaigns.length > 0 && filteredAvailableCampaigns.every((c: any) => selectedCampaigns.includes(c.id))}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              const allFilteredIds = filteredAvailableCampaigns.map((c: any) => c.id);
+                              setSelectedCampaigns(prev => {
+                                const newSet = new Set([...prev, ...allFilteredIds]);
+                                return Array.from(newSet);
+                              });
+                            } else {
+                              const filteredIds = new Set(filteredAvailableCampaigns.map((c: any) => c.id));
+                              setSelectedCampaigns(prev => prev.filter(id => !filteredIds.has(id)));
+                            }
+                          }}
+                        />
+                      </th>
+                      <th className="text-left p-2 font-medium w-10">状态</th>
+                      <th className="text-left p-2 font-medium min-w-[300px]">广告活动名称</th>
+                      <th className="text-left p-2 font-medium min-w-[80px]">类型</th>
+                      <th className="text-right p-2 font-medium min-w-[70px]">曝光</th>
+                      <th className="text-right p-2 font-medium min-w-[60px]">点击</th>
+                      <th className="text-right p-2 font-medium min-w-[75px]">花费</th>
+                      <th className="text-right p-2 font-medium min-w-[75px]">销售额</th>
+                      <th className="text-right p-2 font-medium min-w-[50px]">订单</th>
+                      <th className="text-right p-2 font-medium min-w-[60px]">ACoS</th>
+                      <th className="text-right p-2 font-medium min-w-[60px]">ROAS</th>
+                      <th className="text-right p-2 font-medium min-w-[55px]">CPC</th>
+                      <th className="text-right p-2 font-medium min-w-[50px]">CTR</th>
+                      <th className="text-right p-2 font-medium min-w-[50px]">CVR</th>
+                      <th className="text-right p-2 font-medium min-w-[70px]">日预算</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredAvailableCampaigns.map((campaign: any) => {
+                        const spend = Number(campaign.spend || 0);
+                        const sales = Number(campaign.sales || 0);
+                        const clicks = Number(campaign.clicks || 0);
+                        const impressions = Number(campaign.impressions || 0);
+                        const orders = Number(campaign.orders || 0);
+                        const acos = sales > 0 ? (spend / sales) * 100 : 0;
+                        const roas = spend > 0 ? sales / spend : 0;
+                        const cpc = clicks > 0 ? spend / clicks : 0;
+                        const ctr = impressions > 0 ? (clicks / impressions) * 100 : 0;
+                        const cvr = clicks > 0 ? (orders / clicks) * 100 : 0;
+                        const isSelected = selectedCampaigns.includes(campaign.id);
+                      return (
+                        <tr 
+                          key={campaign.id} 
+                          className={`border-b hover:bg-muted/30 cursor-pointer transition-colors ${isSelected ? 'bg-primary/10' : ''}`}
+                          onClick={() => {
+                            if (isSelected) {
+                              setSelectedCampaigns(prev => prev.filter(id => id !== campaign.id));
+                            } else {
+                              setSelectedCampaigns(prev => [...prev, campaign.id]);
+                            }
+                          }}
+                        >
+                          <td className="p-2 sticky left-0 bg-background z-10">
+                            <Checkbox 
+                              checked={isSelected}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
                                   setSelectedCampaigns(prev => [...prev, campaign.id]);
+                                } else {
+                                  setSelectedCampaigns(prev => prev.filter(id => id !== campaign.id));
                                 }
                               }}
-                            >
-                              <td className="p-2">
-                                <Checkbox 
-                                  checked={isSelected}
-                                  onCheckedChange={(checked) => {
-                                    if (checked) {
-                                      setSelectedCampaigns(prev => [...prev, campaign.id]);
-                                    } else {
-                                      setSelectedCampaigns(prev => prev.filter(id => id !== campaign.id));
-                                    }
-                                  }}
-                                />
-                              </td>
-                              <td className="p-2">
-                                <div className={`w-2 h-2 rounded-full ${campaign.campaignStatus === 'enabled' ? 'bg-green-500' : campaign.campaignStatus === 'paused' ? 'bg-yellow-500' : 'bg-gray-400'}`} />
-                              </td>
-                              <td className="p-2">
-                                <p className="font-medium truncate max-w-[220px]" title={campaign.campaignName}>{campaign.campaignName}</p>
-                              </td>
-                              <td className="p-2">
-                                <Badge variant="outline" className="text-xs">{campaign.campaignType}</Badge>
-                              </td>
-                              <td className="p-2 text-right tabular-nums">{impressions.toLocaleString()}</td>
-                              <td className="p-2 text-right tabular-nums">{clicks.toLocaleString()}</td>
-                              <td className="p-2 text-right tabular-nums">${spend.toFixed(2)}</td>
-                              <td className="p-2 text-right tabular-nums">${sales.toFixed(2)}</td>
-                              <td className="p-2 text-right tabular-nums">{orders}</td>
-                              <td className="p-2 text-right tabular-nums">
-                                <span className={acos > 50 ? 'text-red-500' : acos > 30 ? 'text-yellow-500' : 'text-green-500'}>
-                                  {acos.toFixed(1)}%
-                                </span>
-                              </td>
-                              <td className="p-2 text-right tabular-nums">{roas.toFixed(2)}x</td>
-                              <td className="p-2 text-right tabular-nums">{ctr.toFixed(2)}%</td>
-                              <td className="p-2 text-right tabular-nums">{cvr.toFixed(1)}%</td>
-                              <td className="p-2 text-right tabular-nums">${Number(campaign.dailyBudget || 0).toFixed(2)}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center h-32 text-muted-foreground">
-                    <p className="text-sm">没有可添加的广告活动</p>
-                  </div>
-                )}
-              </ScrollArea>
+                            />
+                          </td>
+                          <td className="p-2">
+                            <div className={`w-2.5 h-2.5 rounded-full ${campaign.campaignStatus === 'enabled' ? 'bg-green-500' : campaign.campaignStatus === 'paused' ? 'bg-yellow-500' : 'bg-gray-400'}`} />
+                          </td>
+                          <td className="p-2">
+                            <p className="font-medium truncate max-w-[400px]" title={campaign.campaignName}>{campaign.campaignName}</p>
+                          </td>
+                          <td className="p-2">
+                            <Badge variant="outline" className="text-xs">{campaign.campaignType}</Badge>
+                          </td>
+                          <td className="p-2 text-right tabular-nums">{impressions.toLocaleString()}</td>
+                          <td className="p-2 text-right tabular-nums">{clicks.toLocaleString()}</td>
+                          <td className="p-2 text-right tabular-nums">${spend.toFixed(2)}</td>
+                          <td className="p-2 text-right tabular-nums">${sales.toFixed(2)}</td>
+                          <td className="p-2 text-right tabular-nums">{orders}</td>
+                          <td className="p-2 text-right tabular-nums">
+                            <span className={acos > 50 ? 'text-red-500' : acos > 30 ? 'text-yellow-500' : 'text-green-500'}>
+                              {acos.toFixed(1)}%
+                            </span>
+                          </td>
+                          <td className="p-2 text-right tabular-nums">{roas.toFixed(2)}x</td>
+                          <td className="p-2 text-right tabular-nums">${cpc.toFixed(2)}</td>
+                          <td className="p-2 text-right tabular-nums">{ctr.toFixed(2)}%</td>
+                          <td className="p-2 text-right tabular-nums">{cvr.toFixed(1)}%</td>
+                          <td className="p-2 text-right tabular-nums">${Number(campaign.dailyBudget || 0).toFixed(2)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              ) : (
+                <div className="flex items-center justify-center h-32 text-muted-foreground">
+                  <p className="text-sm">没有可添加的广告活动</p>
+                </div>
+              )}
             </div>
 
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowAddCampaignsDialog(false)}>
-                取消
-              </Button>
-              <Button 
-                onClick={() => {
-                  console.log('Button clicked, selected:', selectedCampaigns);
-                  handleAddCampaigns();
-                }}
-                disabled={selectedCampaigns.length === 0 || addCampaignsMutation.isPending}
-              >
-                {addCampaignsMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                {selectedCampaigns.length > 0 ? `添加 ${selectedCampaigns.length} 个广告活动` : '确认添加'}
-              </Button>
-            </DialogFooter>
+            {/* 底部操作栏 */}
+            <div className="flex items-center justify-between px-6 py-3 border-t flex-shrink-0 bg-muted/20">
+              <p className="text-sm text-muted-foreground">
+                {selectedCampaigns.length > 0 && `已选择 ${selectedCampaigns.length} 个广告活动`}
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => setShowAddCampaignsDialog(false)}>
+                  取消
+                </Button>
+                <Button 
+                  onClick={() => {
+                    console.log('Button clicked, selected:', selectedCampaigns);
+                    handleAddCampaigns();
+                  }}
+                  disabled={selectedCampaigns.length === 0 || addCampaignsMutation.isPending}
+                >
+                  {addCampaignsMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                  {selectedCampaigns.length > 0 ? `添加 ${selectedCampaigns.length} 个广告活动` : '确认添加'}
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
 

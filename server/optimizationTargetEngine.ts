@@ -19,6 +19,7 @@ import * as placementOptimizationService from "./placementOptimizationService";
 import * as adAutomation from "./adAutomation";
 import * as intelligentBudgetAllocationService from "./intelligentBudgetAllocationService";
 import * as bidCoordinator from "./services/bidCoordinator";
+import * as amazonApiHelper from "./services/amazonApiHelper";
 
 // 优化执行结果类型
 export interface OptimizationExecutionResult {
@@ -397,6 +398,26 @@ async function executeBidOptimization(
     }
   }
   
+  // v122: 批量同步出价调整到 Amazon API
+  if (!dryRun && details.length > 0) {
+    try {
+      const accountId = config.accountId;
+      const apiResult = await amazonApiHelper.syncBidAdjustmentsToAmazon(
+        accountId,
+        details.map(d => ({
+          keywordId: d.keywordId,
+          newBid: d.newBid,
+          campaignId: d.campaignId,
+          reason: d.reason,
+          isProductTarget: d.isProductTarget || false,
+        }))
+      );
+      console.log(`[BidOptimization] Amazon API同步: 成功=${apiResult.success}, 失败=${apiResult.failed}`);
+    } catch (apiError: any) {
+      console.error(`[BidOptimization] Amazon API同步失败:`, apiError.message);
+    }
+  }
+  
   return { executed: true, adjustmentsCount: dryRun ? details.length : adjustmentsCount, details };
 }
 
@@ -435,13 +456,34 @@ async function executePlacementOptimization(
         details.push(adjustment);
         
         if (!dryRun && suggestion.suggestedMultiplier !== suggestion.currentMultiplier) {
-          // 实际执行位置调整
+          // 实际执行位置调整（本地数据库）
           await placementOptimizationService.applyPlacementAdjustment(
             campaign.amazonCampaignId || campaign.id.toString(),
             config.accountId,
             suggestion
           );
           adjustmentsCount++;
+        }
+      }
+      
+      // v122: 同步位置倾斜到 Amazon API
+      if (!dryRun && suggestions.length > 0) {
+        try {
+          const amazonCampaignId = campaign.campaignId || campaign.id.toString();
+          const topSuggestion = suggestions.find((s: any) => s.placement === 'top_of_search');
+          const productSuggestion = suggestions.find((s: any) => s.placement === 'product_page');
+          
+          if (topSuggestion || productSuggestion) {
+            await amazonApiHelper.syncPlacementAdjustmentToAmazon(
+              config.accountId,
+              amazonCampaignId,
+              topSuggestion?.suggestedMultiplier || campaign.placementTopSearchBidAdjustment || 0,
+              productSuggestion?.suggestedMultiplier || campaign.placementProductPageBidAdjustment || 0,
+              `位置优化: Top=${topSuggestion?.suggestedMultiplier || 0}%, Product=${productSuggestion?.suggestedMultiplier || 0}%`
+            );
+          }
+        } catch (apiError: any) {
+          console.error(`[PlacementOptimization] Amazon API同步失败 (Campaign ${campaign.campaignName}):`, apiError.message);
         }
       }
     } catch (error: any) {
@@ -508,8 +550,22 @@ async function executeDaypartingOptimization(
         details.push(adjustment);
         
         if (!dryRun && bidMultiplier !== 1.0) {
-          // 记录分时竞价调整（实际执行通过Amazon API）
-          adjustmentsCount++;
+          // v122: 实际通过 Amazon API 调整出价
+          try {
+            const success = await amazonApiHelper.syncBidAdjustmentsToAmazon(
+              config.accountId,
+              [{
+                keywordId: keyword.id,
+                newBid: Math.round(adjustedBid * 100) / 100,
+                campaignId: campaign.id,
+                reason: `分时竞价: ${currentHour}:00 乘数${bidMultiplier}`,
+                isProductTarget: false,
+              }]
+            );
+            if (success.success > 0) adjustmentsCount++;
+          } catch (apiError: any) {
+            console.error(`[DaypartingOptimization] API同步失败 (kw ${keyword.keywordText}):`, apiError.message);
+          }
         }
       }
     } catch (error: any) {
@@ -615,6 +671,27 @@ async function executeSearchTermAnalysis(
           }
         }
       }
+      // v122: 同步否定关键词到 Amazon API
+      if (!dryRun) {
+        const negativeDetails = details.filter(d => d.action === 'add_negative' && d.campaignId === campaign.id);
+        if (negativeDetails.length > 0) {
+          try {
+            const amazonCampaignId = parseInt(campaign.campaignId || campaign.id.toString());
+            await amazonApiHelper.syncNegativeKeywordsToAmazon(
+              config.accountId,
+              negativeDetails.map(d => ({
+                campaignId: amazonCampaignId,
+                keywordText: d.searchTerm,
+                matchType: d.reason?.includes('exact') ? 'negativeExact' as const : 'negativePhrase' as const,
+                level: 'campaign' as const,
+              }))
+            );
+            console.log(`[SearchTermAnalysis] Amazon API同步: ${negativeDetails.length}个否定词 (Campaign ${campaign.campaignName})`);
+          } catch (apiError: any) {
+            console.error(`[SearchTermAnalysis] Amazon API同步失败 (Campaign ${campaign.campaignName}):`, apiError.message);
+          }
+        }
+      }
     } catch (error: any) {
       details.push({
         campaignId: campaign.id,
@@ -660,11 +737,24 @@ async function executeBudgetAllocation(
       details.push(adjustment);
       
       if (!dryRun && Math.abs(suggestion.suggestedBudget - suggestion.currentBudget) > 1) {
-        // 实际执行预算调整
+        // 实际执行预算调整（本地数据库）
         await db.updateCampaign(suggestion.campaignId, { 
           dailyBudget: suggestion.suggestedBudget.toFixed(2) 
         });
         adjustmentsCount++;
+        
+        // v122: 同步预算调整到 Amazon API
+        try {
+          const amazonCampaignId = campaign.campaignId || campaign.id.toString();
+          await amazonApiHelper.syncBudgetAdjustmentToAmazon(
+            config.accountId,
+            amazonCampaignId,
+            suggestion.suggestedBudget,
+            `预算优化: $${suggestion.currentBudget.toFixed(2)} -> $${suggestion.suggestedBudget.toFixed(2)}`
+          );
+        } catch (apiError: any) {
+          console.error(`[BudgetAllocation] Amazon API同步失败 (Campaign ${campaign.campaignName}):`, apiError.message);
+        }
       }
     }
   } catch (error: any) {
@@ -1037,13 +1127,17 @@ export async function getEnabledOptimizationTargets(accountId?: number): Promise
 
 /**
  * 批量执行所有启用的优化目标
+ * v122: 支持 specificModules 参数，实现模块隔离执行
  */
 export async function executeAllEnabledTargets(
   accountId?: number,
-  options: { dryRun?: boolean } = {}
+  options: { dryRun?: boolean; specificModules?: string[] } = {}
 ): Promise<OptimizationExecutionResult[]> {
   const targets = await getEnabledOptimizationTargets(accountId);
   const results: OptimizationExecutionResult[] = [];
+  
+  const modulesDesc = options.specificModules?.length ? options.specificModules.join(',') : 'all';
+  console.log(`[OptimizationTargetEngine] 批量执行 ${targets.length} 个优化目标, 模块: ${modulesDesc}`);
   
   for (const target of targets) {
     try {
