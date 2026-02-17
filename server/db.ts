@@ -305,7 +305,8 @@ export async function getCampaignsByAccountId(accountId: number) {
 export async function getCampaignsWithPerformance(
   accountId: number,
   startDate: string,
-  endDate: string
+  endDate: string,
+  todayDate?: string  // v122h: 站点本地时间的"今天"，用于单独查询今日数据
 ) {
   const db = await getDb();
   if (!db) return [];
@@ -332,11 +333,37 @@ export async function getCampaignsWithPerformance(
     ))
     .groupBy(dailyPerformance.campaignId);
   
+  // v122h: 单独查询今日数据（站点本地时间的今天）
+  const effectiveTodayDate = todayDate || endDate;
+  const todayPerfData = await db.select({
+    campaignId: dailyPerformance.campaignId,
+    todayImpressions: sql<number>`COALESCE(SUM(${dailyPerformance.impressions}), 0)`,
+    todayClicks: sql<number>`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
+    todaySpend: sql<string>`COALESCE(SUM(${dailyPerformance.spend}), '0')`,
+    todaySales: sql<string>`COALESCE(SUM(${dailyPerformance.sales}), '0')`,
+    todayOrders: sql<number>`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
+  })
+    .from(dailyPerformance)
+    .where(and(
+      eq(dailyPerformance.accountId, accountId),
+      sql`${dailyPerformance.campaignId} IS NOT NULL`,
+      sql`DATE(${dailyPerformance.date}) = ${effectiveTodayDate}`
+    ))
+    .groupBy(dailyPerformance.campaignId);
+  
   // 创建绩效数据映射
   const perfMap = new Map<number, typeof perfData[0]>();
   for (const p of perfData) {
     if (p.campaignId) {
       perfMap.set(p.campaignId, p);
+    }
+  }
+  
+  // 创建今日数据映射
+  const todayPerfMap = new Map<number, typeof todayPerfData[0]>();
+  for (const p of todayPerfData) {
+    if (p.campaignId) {
+      todayPerfMap.set(p.campaignId, p);
     }
   }
   
@@ -364,6 +391,14 @@ export async function getCampaignsWithPerformance(
     // 获取优化目标组信息
     const group = campaign.performanceGroupId ? groupMap.get(campaign.performanceGroupId) : null;
     
+    // v122h: 获取今日数据
+    const todayPerf = todayPerfMap.get(campaign.id);
+    const dailySpend = parseFloat(todayPerf?.todaySpend || '0');
+    const dailySales = parseFloat(todayPerf?.todaySales || '0');
+    const dailyImpressions = todayPerf?.todayImpressions || 0;
+    const dailyClicks = todayPerf?.todayClicks || 0;
+    const dailyOrders = todayPerf?.todayOrders || 0;
+    
     return {
       ...campaign,
       impressions,
@@ -376,6 +411,12 @@ export async function getCampaignsWithPerformance(
       ctr: impressions > 0 ? ((clicks / impressions) * 100).toFixed(4) : null,
       cvr: clicks > 0 ? ((orders / clicks) * 100).toFixed(4) : null,
       cpc: clicks > 0 ? (spend / clicks).toFixed(2) : null,
+      // v122h: 今日数据（站点本地时间）
+      dailySpend: dailySpend.toFixed(2),
+      dailySales: dailySales.toFixed(2),
+      dailyImpressions,
+      dailyClicks,
+      dailyOrders,
       // 优化目标组信息
       performanceGroupName: group?.name || null,
       performanceGroupStrategyTemplate: group?.strategyTemplateName || null,

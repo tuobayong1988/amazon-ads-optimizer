@@ -36231,7 +36231,7 @@ async function getCampaignsByAccountId(accountId) {
   if (!db) return [];
   return db.select().from(campaigns).where(eq(campaigns.accountId, accountId));
 }
-async function getCampaignsWithPerformance(accountId, startDate, endDate) {
+async function getCampaignsWithPerformance(accountId, startDate, endDate, todayDate) {
   const db = await getDb();
   if (!db) return [];
   const campaignList = await db.select().from(campaigns).where(eq(campaigns.accountId, accountId));
@@ -36248,10 +36248,29 @@ async function getCampaignsWithPerformance(accountId, startDate, endDate) {
     sql`DATE(${dailyPerformance.date}) >= ${startDate}`,
     sql`DATE(${dailyPerformance.date}) <= ${endDate}`
   )).groupBy(dailyPerformance.campaignId);
+  const effectiveTodayDate = todayDate || endDate;
+  const todayPerfData = await db.select({
+    campaignId: dailyPerformance.campaignId,
+    todayImpressions: sql`COALESCE(SUM(${dailyPerformance.impressions}), 0)`,
+    todayClicks: sql`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
+    todaySpend: sql`COALESCE(SUM(${dailyPerformance.spend}), '0')`,
+    todaySales: sql`COALESCE(SUM(${dailyPerformance.sales}), '0')`,
+    todayOrders: sql`COALESCE(SUM(${dailyPerformance.orders}), 0)`
+  }).from(dailyPerformance).where(and(
+    eq(dailyPerformance.accountId, accountId),
+    sql`${dailyPerformance.campaignId} IS NOT NULL`,
+    sql`DATE(${dailyPerformance.date}) = ${effectiveTodayDate}`
+  )).groupBy(dailyPerformance.campaignId);
   const perfMap = /* @__PURE__ */ new Map();
   for (const p4 of perfData) {
     if (p4.campaignId) {
       perfMap.set(p4.campaignId, p4);
+    }
+  }
+  const todayPerfMap = /* @__PURE__ */ new Map();
+  for (const p4 of todayPerfData) {
+    if (p4.campaignId) {
+      todayPerfMap.set(p4.campaignId, p4);
     }
   }
   const allGroups = await db.select({
@@ -36272,6 +36291,12 @@ async function getCampaignsWithPerformance(accountId, startDate, endDate) {
     const sales = parseFloat(perf?.totalSales || "0");
     const orders = perf?.totalOrders || 0;
     const group = campaign.performanceGroupId ? groupMap.get(campaign.performanceGroupId) : null;
+    const todayPerf = todayPerfMap.get(campaign.id);
+    const dailySpend = parseFloat(todayPerf?.todaySpend || "0");
+    const dailySales = parseFloat(todayPerf?.todaySales || "0");
+    const dailyImpressions = todayPerf?.todayImpressions || 0;
+    const dailyClicks = todayPerf?.todayClicks || 0;
+    const dailyOrders = todayPerf?.todayOrders || 0;
     return {
       ...campaign,
       impressions,
@@ -36284,6 +36309,12 @@ async function getCampaignsWithPerformance(accountId, startDate, endDate) {
       ctr: impressions > 0 ? (clicks / impressions * 100).toFixed(4) : null,
       cvr: clicks > 0 ? (orders / clicks * 100).toFixed(4) : null,
       cpc: clicks > 0 ? (spend / clicks).toFixed(2) : null,
+      // v122h: 今日数据（站点本地时间）
+      dailySpend: dailySpend.toFixed(2),
+      dailySales: dailySales.toFixed(2),
+      dailyImpressions,
+      dailyClicks,
+      dailyOrders,
       // 优化目标组信息
       performanceGroupName: group?.name || null,
       performanceGroupStrategyTemplate: group?.strategyTemplateName || null,
@@ -297630,15 +297661,20 @@ var campaignRouter = router({
     }
     let startDate = input.startDate;
     let endDate = input.endDate;
+    let todayDate;
     if (input.marketplace && input.timeRange && input.timeRange !== "custom") {
-      const { calculateDateRangeByMarketplace: calculateDateRangeByMarketplace3 } = await Promise.resolve().then(() => (init_timezone2(), timezone_exports));
+      const { calculateDateRangeByMarketplace: calculateDateRangeByMarketplace3, getMarketplaceLocalDate: getMarketplaceLocalDate2 } = await Promise.resolve().then(() => (init_timezone2(), timezone_exports));
       const dateRange = calculateDateRangeByMarketplace3(input.marketplace, input.timeRange);
       startDate = dateRange.startDate;
       endDate = dateRange.endDate;
-      console.log(`[campaign.list] \u7AD9\u70B9\u65F6\u533A\u65E5\u671F\u8BA1\u7B97: marketplace=${input.marketplace}, timeRange=${input.timeRange}, startDate=${startDate}, endDate=${endDate}`);
+      todayDate = getMarketplaceLocalDate2(input.marketplace);
+      console.log(`[campaign.list] \u7AD9\u70B9\u65F6\u533A\u65E5\u671F\u8BA1\u7B97: marketplace=${input.marketplace}, timeRange=${input.timeRange}, startDate=${startDate}, endDate=${endDate}, todayDate=${todayDate}`);
+    } else if (input.marketplace) {
+      const { getMarketplaceLocalDate: getMarketplaceLocalDate2 } = await Promise.resolve().then(() => (init_timezone2(), timezone_exports));
+      todayDate = getMarketplaceLocalDate2(input.marketplace);
     }
     if (startDate && endDate) {
-      return getCampaignsWithPerformance(input.accountId, startDate, endDate);
+      return getCampaignsWithPerformance(input.accountId, startDate, endDate, todayDate);
     }
     return getCampaignsByAccountId(input.accountId);
   }),

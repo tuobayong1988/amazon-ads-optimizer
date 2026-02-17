@@ -1080,17 +1080,25 @@ const campaignRouter = router({
       let startDate = input.startDate;
       let endDate = input.endDate;
       
+      // v122h: 计算站点本地时间的“今天”
+      let todayDate: string | undefined;
+      
       if (input.marketplace && input.timeRange && input.timeRange !== 'custom') {
         // 根据站点时区计算正确的“今天”/“昨天”等日期
-        const { calculateDateRangeByMarketplace } = await import('../shared/timezone');
+        const { calculateDateRangeByMarketplace, getMarketplaceLocalDate } = await import('../shared/timezone');
         const dateRange = calculateDateRangeByMarketplace(input.marketplace, input.timeRange);
         startDate = dateRange.startDate;
         endDate = dateRange.endDate;
-        console.log(`[campaign.list] 站点时区日期计算: marketplace=${input.marketplace}, timeRange=${input.timeRange}, startDate=${startDate}, endDate=${endDate}`);
+        todayDate = getMarketplaceLocalDate(input.marketplace);
+        console.log(`[campaign.list] 站点时区日期计算: marketplace=${input.marketplace}, timeRange=${input.timeRange}, startDate=${startDate}, endDate=${endDate}, todayDate=${todayDate}`);
+      } else if (input.marketplace) {
+        // custom时间范围也需要站点本地时间的“今天”
+        const { getMarketplaceLocalDate } = await import('../shared/timezone');
+        todayDate = getMarketplaceLocalDate(input.marketplace);
       }
       
       if (startDate && endDate) {
-        return db.getCampaignsWithPerformance(input.accountId, startDate, endDate);
+        return db.getCampaignsWithPerformance(input.accountId, startDate, endDate, todayDate);
       }
       
       return db.getCampaignsByAccountId(input.accountId);
