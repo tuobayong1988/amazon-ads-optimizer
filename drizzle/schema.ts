@@ -2170,6 +2170,7 @@ export const performanceGroups = mysqlTable("performance_groups", {
 	strategyTemplateId: varchar("strategy_template_id", { length: 50 }),
 	strategyTemplateName: varchar("strategy_template_name", { length: 100 }),
 	strategyApplicationId: int("strategy_application_id"),
+	autoOptimize: tinyint("auto_optimize").default(1),
 });
 
 export const placementBidSettings = mysqlTable("placement_bid_settings", {

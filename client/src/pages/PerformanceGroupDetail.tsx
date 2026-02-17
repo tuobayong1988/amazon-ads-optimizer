@@ -116,6 +116,8 @@ export default function PerformanceGroupDetail() {
     targetValue: '',
     dailyBudget: '',
     maxBid: '',
+    strategyTemplateName: '',
+    autoOptimize: true,
   });
 
   // 获取绩效组详情
@@ -354,6 +356,8 @@ export default function PerformanceGroupDetail() {
       targetValue: editingGoal.targetValue ? parseFloat(editingGoal.targetValue) : undefined,
       dailyBudget: editingGoal.dailyBudget ? parseFloat(editingGoal.dailyBudget) : undefined,
       maxBid: editingGoal.maxBid ? parseFloat(editingGoal.maxBid) : undefined,
+      strategyTemplateName: editingGoal.strategyTemplateName || undefined,
+      autoOptimize: editingGoal.autoOptimize,
     });
   };
 
@@ -366,6 +370,8 @@ export default function PerformanceGroupDetail() {
         targetValue: group.targetAcos?.toString() || group.targetRoas?.toString() || '',
         dailyBudget: group.dailyBudget?.toString() || '',
         maxBid: group.maxBid?.toString() || '',
+        strategyTemplateName: (group as any).strategyTemplateName || '',
+        autoOptimize: (group as any).autoOptimize !== 0 && (group as any).autoOptimize !== false,
       });
     }
     setShowEditGoalDialog(true);
@@ -1416,15 +1422,112 @@ export default function PerformanceGroupDetail() {
 
         {/* 编辑目标对话框 */}
         <Dialog open={showEditGoalDialog} onOpenChange={setShowEditGoalDialog}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>编辑优化目标</DialogTitle>
               <DialogDescription>
-                设置绩效组的优化目标和参数
+                设置优化目标的参数、策略模板和自动优化状态
               </DialogDescription>
             </DialogHeader>
             
-            <div className="space-y-4">
+            <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+              {/* 策略模板选择 */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Settings className="w-4 h-4" />
+                  策略模板
+                </Label>
+                <Select 
+                  value={editingGoal.strategyTemplateName || 'none'} 
+                  onValueChange={(value) => {
+                    const templateName = value === 'none' ? '' : value;
+                    setEditingGoal(prev => ({ ...prev, strategyTemplateName: templateName }));
+                    // 根据策略模板自动填充目标值
+                    if (value === 'aggressive-growth') {
+                      setEditingGoal(prev => ({ ...prev, strategyTemplateName: templateName, type: 'target_acos', targetValue: '40' }));
+                    } else if (value === 'balanced') {
+                      setEditingGoal(prev => ({ ...prev, strategyTemplateName: templateName, type: 'target_acos', targetValue: '25' }));
+                    } else if (value === 'profit-focused') {
+                      setEditingGoal(prev => ({ ...prev, strategyTemplateName: templateName, type: 'target_acos', targetValue: '15' }));
+                    } else if (value === 'seasonal-boost') {
+                      setEditingGoal(prev => ({ ...prev, strategyTemplateName: templateName, type: 'target_acos', targetValue: '35' }));
+                    } else if (value === 'brand-defense') {
+                      setEditingGoal(prev => ({ ...prev, strategyTemplateName: templateName, type: 'target_acos', targetValue: '10' }));
+                    }
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="选择策略模板" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">自定义策略</SelectItem>
+                    <SelectItem value="aggressive-growth">
+                      <div className="flex items-center gap-2">
+                        <span>🚀</span>
+                        <span>激进增长</span>
+                        <span className="text-xs text-muted-foreground">ACoS 40%</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="balanced">
+                      <div className="flex items-center gap-2">
+                        <span>🎯</span>
+                        <span>平衡增长</span>
+                        <span className="text-xs text-muted-foreground">ACoS 25% · 推荐</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="profit-focused">
+                      <div className="flex items-center gap-2">
+                        <span>🛡️</span>
+                        <span>利润优先</span>
+                        <span className="text-xs text-muted-foreground">ACoS 15%</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="seasonal-boost">
+                      <div className="flex items-center gap-2">
+                        <span>⚡</span>
+                        <span>旺季冲刺</span>
+                        <span className="text-xs text-muted-foreground">ACoS 35%</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="brand-defense">
+                      <div className="flex items-center gap-2">
+                        <span>⭐</span>
+                        <span>品牌防御</span>
+                        <span className="text-xs text-muted-foreground">ACoS 10%</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                {editingGoal.strategyTemplateName && (
+                  <p className="text-xs text-blue-400">
+                    {`已选择策略模板，目标值已自动填充，您仍可以手动调整`}
+                  </p>
+                )}
+              </div>
+
+              {/* 自动优化开关 */}
+              <div className="flex items-center justify-between p-3 rounded-lg border border-border/50 bg-muted/30">
+                <div className="space-y-0.5">
+                  <Label className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-yellow-500" />
+                    自动优化引擎
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    启用后系统将自动调整竞价、预算和否定关键词
+                  </p>
+                </div>
+                <div 
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full cursor-pointer transition-colors ${editingGoal.autoOptimize ? 'bg-primary' : 'bg-muted-foreground/30'}`}
+                  onClick={() => setEditingGoal(prev => ({ ...prev, autoOptimize: !prev.autoOptimize }))}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${editingGoal.autoOptimize ? 'translate-x-6' : 'translate-x-1'}`} />
+                </div>
+              </div>
+
+              <div className="border-t border-border/50 pt-4">
+                <p className="text-sm font-medium mb-3">优化参数</p>
+              </div>
+
               <div className="space-y-2">
                 <Label>优化目标类型</Label>
                 <Select 

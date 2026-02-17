@@ -1023,7 +1023,8 @@ export async function getEnabledOptimizationTargets(accountId?: number): Promise
   const configs: OptimizationTargetConfig[] = [];
   
   for (const group of groups) {
-    if (group.status === 'active') {
+    // 只执行 status='active' 且 autoOptimize 开启的优化目标
+    if (group.status === 'active' && (group as any).autoOptimize !== 0) {
       const config = await getOptimizationTargetConfig(group.id);
       if (config) {
         configs.push(config);

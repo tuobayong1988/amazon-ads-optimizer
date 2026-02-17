@@ -809,33 +809,35 @@ export function stopOptimizationScheduler(): void {
 
 /**
  * 执行优化任务
+ * 重要修复：不再依赖 data_sync_schedules 表（该表可能为空）
+ * 改为直接查询所有活跃的优化目标（performance_groups 表中 status='active' 的记录）
  */
 async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<void> {
   const config = OPTIMIZATION_SCHEDULE[taskType];
   console.log(`[OptimizationScheduler] 开始执行: ${config.description} - ${new Date().toISOString()}`);
   
   try {
-    // 获取所有启用了自动优化的账号
-    const schedules = await db.getEnabledSyncSchedules();
+    // 直接导入优化目标引擎
+    const { executeAllEnabledTargets, getEnabledOptimizationTargets } = await import('./optimizationTargetEngine');
     
-    for (const schedule of schedules) {
-      try {
-        const autoConfig = automationExecutionEngine.getAccountAutomationConfig(schedule.accountId);
-        if (!autoConfig.enabled) {
-          continue;
-        }
-        
-        switch (taskType) {
-          case 'risk_scan':
-            // ✅ 改进3：风控扫描使用D-0~D-3实时数据（归因延迟隔离）
-            console.log(`[OptimizationScheduler] 账号 ${schedule.accountId} 执行风控扫描(归因隔离)`);
+    switch (taskType) {
+      case 'risk_scan': {
+        // 风控扫描：获取所有活跃优化目标关联的广告活动进行风险检测
+        console.log(`[OptimizationScheduler] 执行风控扫描(归因隔离)`);
+        try {
+          const targets = await getEnabledOptimizationTargets();
+          const scannedAccountIds = new Set<number>();
+          
+          for (const target of targets) {
+            if (scannedAccountIds.has(target.accountId)) continue;
+            scannedAccountIds.add(target.accountId);
+            
             try {
-              // 获取账号下所有启用的Campaign
-              const riskCampaigns = await db.getCampaignsByAccountId(schedule.accountId);
+              const riskCampaigns = await db.getCampaignsByAccountId(target.accountId);
               const enabledCampaigns = riskCampaigns.filter((c: any) => c.campaignStatus === 'enabled');
               let totalRisks = 0;
               for (const campaign of enabledCampaigns) {
-                const riskResult = await detectRiskSignals(schedule.accountId, campaign.id);
+                const riskResult = await detectRiskSignals(target.accountId, campaign.id);
                 if (riskResult.hasRisk) {
                   totalRisks += riskResult.risks.length;
                   for (const risk of riskResult.risks) {
@@ -844,74 +846,94 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
                   }
                 }
               }
-              console.log(`[OptimizationScheduler] 风控扫描完成: ${enabledCampaigns.length}个Campaign, ${totalRisks}个风险信号`);
+              console.log(`[OptimizationScheduler] 账号 ${target.accountId} 风控扫描完成: ${enabledCampaigns.length}个Campaign, ${totalRisks}个风险信号`);
             } catch (riskError: any) {
-              console.error(`[OptimizationScheduler] 风控扫描异常:`, riskError.message);
+              console.error(`[OptimizationScheduler] 账号 ${target.accountId} 风控扫描异常:`, riskError.message);
             }
-            // 基于优化目标执行自动优化
-            try {
-              const { executeAllEnabledTargets } = await import('./optimizationTargetEngine');
-              const targetResults = await executeAllEnabledTargets(schedule.accountId);
-              console.log(`[OptimizationScheduler] 优化目标执行完成: ${targetResults.length}个目标`);
-            } catch (targetError: any) {
-              console.error(`[OptimizationScheduler] 优化目标执行失败:`, targetError.message);
-            }
-            break;
+          }
+        } catch (riskError: any) {
+          console.error(`[OptimizationScheduler] 风控扫描异常:`, riskError.message);
+        }
+        
+        // 基于优化目标执行自动优化（无参数 = 所有活跃目标）
+        try {
+          const targetResults = await executeAllEnabledTargets();
+          console.log(`[OptimizationScheduler] 优化目标执行完成: ${targetResults.length}个目标`);
+          for (const r of targetResults) {
+            console.log(`  - ${r.targetName}: ${r.status}, 出价调整=${r.bidOptimization.adjustmentsCount}, 位置调整=${r.placementOptimization.adjustmentsCount}, 错误=${r.errors.length}`);
+          }
+        } catch (targetError: any) {
+          console.error(`[OptimizationScheduler] 优化目标执行失败:`, targetError.message);
+        }
+        break;
+      }
+        
+      case 'daily_bid_optimization': {
+        // 每日出价优化：执行所有活跃优化目标的出价调整
+        console.log(`[OptimizationScheduler] 执行每日出价优化`);
+        try {
+          const bidResults = await executeAllEnabledTargets();
+          console.log(`[OptimizationScheduler] 出价优化完成: ${bidResults.length}个目标`);
+          for (const r of bidResults) {
+            console.log(`  - ${r.targetName}: 出价调整=${r.bidOptimization.adjustmentsCount}, 关键词暂停=${r.keywordStatusChanges.pausedCount}, 关键词启用=${r.keywordStatusChanges.enabledCount}`);
+          }
+        } catch (bidError: any) {
+          console.error(`[OptimizationScheduler] 出价优化失败:`, bidError.message);
+        }
+        break;
+      }
+        
+      case 'budget_allocation': {
+        // 预算分配：执行所有活跃优化目标的预算智能分配
+        console.log(`[OptimizationScheduler] 执行预算智能分配`);
+        try {
+          const budgetResults = await executeAllEnabledTargets(undefined, { dryRun: false });
+          console.log(`[OptimizationScheduler] 预算分配完成: ${budgetResults.length}个目标`);
+          for (const r of budgetResults) {
+            console.log(`  - ${r.targetName}: 预算调整=${r.budgetAllocation.adjustmentsCount}`);
+          }
+        } catch (budgetError: any) {
+          console.error(`[OptimizationScheduler] 预算分配失败:`, budgetError.message);
+        }
+        break;
+      }
+        
+      case 'search_term_harvest': {
+        // 搜索词收割：获取所有活跃优化目标关联的账号进行搜索词收割
+        console.log(`[OptimizationScheduler] 执行搜索词收割`);
+        try {
+          const targets = await getEnabledOptimizationTargets();
+          const harvestedAccountIds = new Set<number>();
+          
+          for (const target of targets) {
+            if (harvestedAccountIds.has(target.accountId)) continue;
+            harvestedAccountIds.add(target.accountId);
             
-          case 'daily_bid_optimization':
-            // 每日出价优化：基于优化目标的自动出价调整
-            console.log(`[OptimizationScheduler] 账号 ${schedule.accountId} 执行每日出价优化`);
-            try {
-              const { executeAllEnabledTargets: execTargets } = await import('./optimizationTargetEngine');
-              const bidResults = await execTargets(schedule.accountId);
-              console.log(`[OptimizationScheduler] 出价优化完成: ${bidResults.length}个目标`);
-            } catch (bidError: any) {
-              console.error(`[OptimizationScheduler] 出价优化失败:`, bidError.message);
-            }
-            break;
-            
-          case 'budget_allocation':
-            // 预算分配：基于优化目标的预算智能分配
-            console.log(`[OptimizationScheduler] 账号 ${schedule.accountId} 执行预算智能分配`);
-            try {
-              const { executeAllEnabledTargets: execBudget } = await import('./optimizationTargetEngine');
-              const budgetResults = await execBudget(schedule.accountId, { dryRun: false });
-              console.log(`[OptimizationScheduler] 预算分配完成: ${budgetResults.length}个目标`);
-            } catch (budgetError: any) {
-              console.error(`[OptimizationScheduler] 预算分配失败:`, budgetError.message);
-            }
-            break;
-            
-          case 'search_term_harvest':
-            // 搜索词收割：自动收割高转化搜索词（原子操作）
-            console.log(`[OptimizationScheduler] 账号 ${schedule.accountId} 执行搜索词收割`);
             try {
               const harvestResult = await searchTermHarvester.batchHarvestSearchTerms(
-                schedule.accountId,
+                target.accountId,
                 { dryRun: false }
               );
-              console.log(`[OptimizationScheduler] 搜索词收割完成: ` +
+              console.log(`[OptimizationScheduler] 账号 ${target.accountId} 搜索词收割完成: ` +
                 `候选=${harvestResult.summary.total}, ` +
                 `成功=${harvestResult.summary.success}, ` +
                 `失败=${harvestResult.summary.failed}, ` +
                 `回滚=${harvestResult.summary.rolledBack}`);
             } catch (harvestError: any) {
-              console.error(`[OptimizationScheduler] 搜索词收割异常:`, harvestError.message);
+              console.error(`[OptimizationScheduler] 账号 ${target.accountId} 搜索词收割异常:`, harvestError.message);
             }
-            break;
-            
-          case 'weekly_report':
-            // 绩效周报：自动生成广告优化报告
-            console.log(`[OptimizationScheduler] 账号 ${schedule.accountId} 生成绩效周报`);
-            // TODO: 实现绩效周报生成逻辑
-            break;
+          }
+        } catch (harvestError: any) {
+          console.error(`[OptimizationScheduler] 搜索词收割异常:`, harvestError.message);
         }
+        break;
+      }
         
-        // 请求间隔，避免触发速率限制
-        await sleep(REQUEST_INTERVAL_MS);
-        
-      } catch (error: any) {
-        console.error(`[OptimizationScheduler] 账号 ${schedule.accountId} ${taskType} 执行失败:`, error.message);
+      case 'weekly_report': {
+        // 绩效周报：自动生成广告优化报告
+        console.log(`[OptimizationScheduler] 生成绩效周报`);
+        // TODO: 实现绩效周报生成逻辑
+        break;
       }
     }
     

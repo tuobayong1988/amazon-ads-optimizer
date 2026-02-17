@@ -112,7 +112,7 @@ function Router() {
       <Route path="/smart-optimization">{() => <LazyRoute component={SmartOptimizationCenter} />}</Route>
       <Route path="/optimization-targets">{() => <LazyRoute component={OptimizationTargets} />}</Route>
       <Route path="/optimization-targets/:id">{() => <LazyRoute component={PerformanceGroupDetail} />}</Route>
-      <Route path="/performance-groups">{() => <LazyRoute component={PerformanceGroups} />}</Route>
+      <Route path="/performance-groups">{() => { window.location.href = '/strategy-center'; return null; }}</Route>
       <Route path="/performance-groups/:id">{() => <LazyRoute component={PerformanceGroupDetail} />}</Route>
       <Route path="/campaigns">{() => <LazyRoute component={Campaigns} />}</Route>
       <Route path="/campaigns/:id">{() => <LazyRoute component={CampaignDetail} />}</Route>

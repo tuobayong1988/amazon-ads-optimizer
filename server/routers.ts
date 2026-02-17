@@ -780,6 +780,8 @@ const performanceGroupRouter = router({
       targetValue: z.number().optional(),
       dailyBudget: z.number().optional(),
       maxBid: z.number().optional(),
+      strategyTemplateName: z.string().optional(),
+      autoOptimize: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
       const updateData: any = {
@@ -799,6 +801,14 @@ const performanceGroupRouter = router({
       
       if (input.maxBid !== undefined) {
         updateData.maxBid = input.maxBid.toString();
+      }
+      
+      if (input.strategyTemplateName !== undefined) {
+        updateData.strategyTemplateName = input.strategyTemplateName;
+      }
+      
+      if (input.autoOptimize !== undefined) {
+        updateData.autoOptimize = input.autoOptimize ? 1 : 0;
       }
       
       await db.updatePerformanceGroup(input.groupId, updateData);

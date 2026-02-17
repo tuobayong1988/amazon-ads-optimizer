@@ -34993,7 +34993,8 @@ var init_schema2 = __esm({
       maxBid: decimal("max_bid", { precision: 10, scale: 2 }),
       strategyTemplateId: varchar("strategy_template_id", { length: 50 }),
       strategyTemplateName: varchar("strategy_template_name", { length: 100 }),
-      strategyApplicationId: int("strategy_application_id")
+      strategyApplicationId: int("strategy_application_id"),
+      autoOptimize: tinyint("auto_optimize").default(1)
     });
     placementBidSettings = mysqlTable(
       "placement_bid_settings",
@@ -89084,7 +89085,7 @@ async function getEnabledOptimizationTargets(accountId) {
   const groups2 = accountId ? await getPerformanceGroupsByAccountId(accountId) : await getPerformanceGroupsByAccountId(0);
   const configs = [];
   for (const group of groups2) {
-    if (group.status === "active") {
+    if (group.status === "active" && group.autoOptimize !== 0) {
       const config2 = await getOptimizationTargetConfig(group.id);
       if (config2) {
         configs.push(config2);
@@ -295806,7 +295807,9 @@ var performanceGroupRouter = router({
     goalType: external_exports.string(),
     targetValue: external_exports.number().optional(),
     dailyBudget: external_exports.number().optional(),
-    maxBid: external_exports.number().optional()
+    maxBid: external_exports.number().optional(),
+    strategyTemplateName: external_exports.string().optional(),
+    autoOptimize: external_exports.boolean().optional()
   })).mutation(async ({ input }) => {
     const updateData = {
       optimizationGoal: input.goalType
@@ -295822,6 +295825,12 @@ var performanceGroupRouter = router({
     }
     if (input.maxBid !== void 0) {
       updateData.maxBid = input.maxBid.toString();
+    }
+    if (input.strategyTemplateName !== void 0) {
+      updateData.strategyTemplateName = input.strategyTemplateName;
+    }
+    if (input.autoOptimize !== void 0) {
+      updateData.autoOptimize = input.autoOptimize ? 1 : 0;
     }
     await updatePerformanceGroup(input.groupId, updateData);
     return { success: true };
@@ -305089,22 +305098,22 @@ async function executeOptimizationTask(taskType) {
   const config2 = OPTIMIZATION_SCHEDULE[taskType];
   console.log(`[OptimizationScheduler] \u5F00\u59CB\u6267\u884C: ${config2.description} - ${(/* @__PURE__ */ new Date()).toISOString()}`);
   try {
-    const schedules = await getEnabledSyncSchedules();
-    for (const schedule of schedules) {
-      try {
-        const autoConfig = getAccountAutomationConfig(schedule.accountId);
-        if (!autoConfig.enabled) {
-          continue;
-        }
-        switch (taskType) {
-          case "risk_scan":
-            console.log(`[OptimizationScheduler] \u8D26\u53F7 ${schedule.accountId} \u6267\u884C\u98CE\u63A7\u626B\u63CF(\u5F52\u56E0\u9694\u79BB)`);
+    const { executeAllEnabledTargets: executeAllEnabledTargets2, getEnabledOptimizationTargets: getEnabledOptimizationTargets2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
+    switch (taskType) {
+      case "risk_scan": {
+        console.log(`[OptimizationScheduler] \u6267\u884C\u98CE\u63A7\u626B\u63CF(\u5F52\u56E0\u9694\u79BB)`);
+        try {
+          const targets = await getEnabledOptimizationTargets2();
+          const scannedAccountIds = /* @__PURE__ */ new Set();
+          for (const target of targets) {
+            if (scannedAccountIds.has(target.accountId)) continue;
+            scannedAccountIds.add(target.accountId);
             try {
-              const riskCampaigns = await getCampaignsByAccountId(schedule.accountId);
+              const riskCampaigns = await getCampaignsByAccountId(target.accountId);
               const enabledCampaigns = riskCampaigns.filter((c5) => c5.campaignStatus === "enabled");
               let totalRisks = 0;
               for (const campaign of enabledCampaigns) {
-                const riskResult = await detectRiskSignals(schedule.accountId, campaign.id);
+                const riskResult = await detectRiskSignals(target.accountId, campaign.id);
                 if (riskResult.hasRisk) {
                   totalRisks += riskResult.risks.length;
                   for (const risk of riskResult.risks) {
@@ -305112,57 +305121,77 @@ async function executeOptimizationTask(taskType) {
                   }
                 }
               }
-              console.log(`[OptimizationScheduler] \u98CE\u63A7\u626B\u63CF\u5B8C\u6210: ${enabledCampaigns.length}\u4E2ACampaign, ${totalRisks}\u4E2A\u98CE\u9669\u4FE1\u53F7`);
+              console.log(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u98CE\u63A7\u626B\u63CF\u5B8C\u6210: ${enabledCampaigns.length}\u4E2ACampaign, ${totalRisks}\u4E2A\u98CE\u9669\u4FE1\u53F7`);
             } catch (riskError) {
-              console.error(`[OptimizationScheduler] \u98CE\u63A7\u626B\u63CF\u5F02\u5E38:`, riskError.message);
+              console.error(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u98CE\u63A7\u626B\u63CF\u5F02\u5E38:`, riskError.message);
             }
-            try {
-              const { executeAllEnabledTargets: executeAllEnabledTargets2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
-              const targetResults = await executeAllEnabledTargets2(schedule.accountId);
-              console.log(`[OptimizationScheduler] \u4F18\u5316\u76EE\u6807\u6267\u884C\u5B8C\u6210: ${targetResults.length}\u4E2A\u76EE\u6807`);
-            } catch (targetError) {
-              console.error(`[OptimizationScheduler] \u4F18\u5316\u76EE\u6807\u6267\u884C\u5931\u8D25:`, targetError.message);
-            }
-            break;
-          case "daily_bid_optimization":
-            console.log(`[OptimizationScheduler] \u8D26\u53F7 ${schedule.accountId} \u6267\u884C\u6BCF\u65E5\u51FA\u4EF7\u4F18\u5316`);
-            try {
-              const { executeAllEnabledTargets: execTargets } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
-              const bidResults = await execTargets(schedule.accountId);
-              console.log(`[OptimizationScheduler] \u51FA\u4EF7\u4F18\u5316\u5B8C\u6210: ${bidResults.length}\u4E2A\u76EE\u6807`);
-            } catch (bidError) {
-              console.error(`[OptimizationScheduler] \u51FA\u4EF7\u4F18\u5316\u5931\u8D25:`, bidError.message);
-            }
-            break;
-          case "budget_allocation":
-            console.log(`[OptimizationScheduler] \u8D26\u53F7 ${schedule.accountId} \u6267\u884C\u9884\u7B97\u667A\u80FD\u5206\u914D`);
-            try {
-              const { executeAllEnabledTargets: execBudget } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
-              const budgetResults = await execBudget(schedule.accountId, { dryRun: false });
-              console.log(`[OptimizationScheduler] \u9884\u7B97\u5206\u914D\u5B8C\u6210: ${budgetResults.length}\u4E2A\u76EE\u6807`);
-            } catch (budgetError) {
-              console.error(`[OptimizationScheduler] \u9884\u7B97\u5206\u914D\u5931\u8D25:`, budgetError.message);
-            }
-            break;
-          case "search_term_harvest":
-            console.log(`[OptimizationScheduler] \u8D26\u53F7 ${schedule.accountId} \u6267\u884C\u641C\u7D22\u8BCD\u6536\u5272`);
+          }
+        } catch (riskError) {
+          console.error(`[OptimizationScheduler] \u98CE\u63A7\u626B\u63CF\u5F02\u5E38:`, riskError.message);
+        }
+        try {
+          const targetResults = await executeAllEnabledTargets2();
+          console.log(`[OptimizationScheduler] \u4F18\u5316\u76EE\u6807\u6267\u884C\u5B8C\u6210: ${targetResults.length}\u4E2A\u76EE\u6807`);
+          for (const r5 of targetResults) {
+            console.log(`  - ${r5.targetName}: ${r5.status}, \u51FA\u4EF7\u8C03\u6574=${r5.bidOptimization.adjustmentsCount}, \u4F4D\u7F6E\u8C03\u6574=${r5.placementOptimization.adjustmentsCount}, \u9519\u8BEF=${r5.errors.length}`);
+          }
+        } catch (targetError) {
+          console.error(`[OptimizationScheduler] \u4F18\u5316\u76EE\u6807\u6267\u884C\u5931\u8D25:`, targetError.message);
+        }
+        break;
+      }
+      case "daily_bid_optimization": {
+        console.log(`[OptimizationScheduler] \u6267\u884C\u6BCF\u65E5\u51FA\u4EF7\u4F18\u5316`);
+        try {
+          const bidResults = await executeAllEnabledTargets2();
+          console.log(`[OptimizationScheduler] \u51FA\u4EF7\u4F18\u5316\u5B8C\u6210: ${bidResults.length}\u4E2A\u76EE\u6807`);
+          for (const r5 of bidResults) {
+            console.log(`  - ${r5.targetName}: \u51FA\u4EF7\u8C03\u6574=${r5.bidOptimization.adjustmentsCount}, \u5173\u952E\u8BCD\u6682\u505C=${r5.keywordStatusChanges.pausedCount}, \u5173\u952E\u8BCD\u542F\u7528=${r5.keywordStatusChanges.enabledCount}`);
+          }
+        } catch (bidError) {
+          console.error(`[OptimizationScheduler] \u51FA\u4EF7\u4F18\u5316\u5931\u8D25:`, bidError.message);
+        }
+        break;
+      }
+      case "budget_allocation": {
+        console.log(`[OptimizationScheduler] \u6267\u884C\u9884\u7B97\u667A\u80FD\u5206\u914D`);
+        try {
+          const budgetResults = await executeAllEnabledTargets2(void 0, { dryRun: false });
+          console.log(`[OptimizationScheduler] \u9884\u7B97\u5206\u914D\u5B8C\u6210: ${budgetResults.length}\u4E2A\u76EE\u6807`);
+          for (const r5 of budgetResults) {
+            console.log(`  - ${r5.targetName}: \u9884\u7B97\u8C03\u6574=${r5.budgetAllocation.adjustmentsCount}`);
+          }
+        } catch (budgetError) {
+          console.error(`[OptimizationScheduler] \u9884\u7B97\u5206\u914D\u5931\u8D25:`, budgetError.message);
+        }
+        break;
+      }
+      case "search_term_harvest": {
+        console.log(`[OptimizationScheduler] \u6267\u884C\u641C\u7D22\u8BCD\u6536\u5272`);
+        try {
+          const targets = await getEnabledOptimizationTargets2();
+          const harvestedAccountIds = /* @__PURE__ */ new Set();
+          for (const target of targets) {
+            if (harvestedAccountIds.has(target.accountId)) continue;
+            harvestedAccountIds.add(target.accountId);
             try {
               const harvestResult = await batchHarvestSearchTerms(
-                schedule.accountId,
+                target.accountId,
                 { dryRun: false }
               );
-              console.log(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u6536\u5272\u5B8C\u6210: \u5019\u9009=${harvestResult.summary.total}, \u6210\u529F=${harvestResult.summary.success}, \u5931\u8D25=${harvestResult.summary.failed}, \u56DE\u6EDA=${harvestResult.summary.rolledBack}`);
+              console.log(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u641C\u7D22\u8BCD\u6536\u5272\u5B8C\u6210: \u5019\u9009=${harvestResult.summary.total}, \u6210\u529F=${harvestResult.summary.success}, \u5931\u8D25=${harvestResult.summary.failed}, \u56DE\u6EDA=${harvestResult.summary.rolledBack}`);
             } catch (harvestError) {
-              console.error(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u6536\u5272\u5F02\u5E38:`, harvestError.message);
+              console.error(`[OptimizationScheduler] \u8D26\u53F7 ${target.accountId} \u641C\u7D22\u8BCD\u6536\u5272\u5F02\u5E38:`, harvestError.message);
             }
-            break;
-          case "weekly_report":
-            console.log(`[OptimizationScheduler] \u8D26\u53F7 ${schedule.accountId} \u751F\u6210\u7EE9\u6548\u5468\u62A5`);
-            break;
+          }
+        } catch (harvestError) {
+          console.error(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u6536\u5272\u5F02\u5E38:`, harvestError.message);
         }
-        await sleep(REQUEST_INTERVAL_MS);
-      } catch (error51) {
-        console.error(`[OptimizationScheduler] \u8D26\u53F7 ${schedule.accountId} ${taskType} \u6267\u884C\u5931\u8D25:`, error51.message);
+        break;
+      }
+      case "weekly_report": {
+        console.log(`[OptimizationScheduler] \u751F\u6210\u7EE9\u6548\u5468\u62A5`);
+        break;
       }
     }
     console.log(`[OptimizationScheduler] ${config2.description} \u6267\u884C\u5B8C\u6210`);
