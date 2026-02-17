@@ -848,20 +848,38 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
             } catch (riskError: any) {
               console.error(`[OptimizationScheduler] 风控扫描异常:`, riskError.message);
             }
-            // 原有的自动化循环仍然执行
-            await automationExecutionEngine.runFullAutomationCycle(schedule.accountId);
+            // 基于优化目标执行自动优化
+            try {
+              const { executeAllEnabledTargets } = await import('./optimizationTargetEngine');
+              const targetResults = await executeAllEnabledTargets(schedule.accountId);
+              console.log(`[OptimizationScheduler] 优化目标执行完成: ${targetResults.length}个目标`);
+            } catch (targetError: any) {
+              console.error(`[OptimizationScheduler] 优化目标执行失败:`, targetError.message);
+            }
             break;
             
           case 'daily_bid_optimization':
-            // 每日出价优化：基于策略模板的自动出价调整
+            // 每日出价优化：基于优化目标的自动出价调整
             console.log(`[OptimizationScheduler] 账号 ${schedule.accountId} 执行每日出价优化`);
-            await automationExecutionEngine.runFullAutomationCycle(schedule.accountId);
+            try {
+              const { executeAllEnabledTargets: execTargets } = await import('./optimizationTargetEngine');
+              const bidResults = await execTargets(schedule.accountId);
+              console.log(`[OptimizationScheduler] 出价优化完成: ${bidResults.length}个目标`);
+            } catch (bidError: any) {
+              console.error(`[OptimizationScheduler] 出价优化失败:`, bidError.message);
+            }
             break;
             
           case 'budget_allocation':
-            // 预算分配：调用自动化引擎的预算分配功能
+            // 预算分配：基于优化目标的预算智能分配
             console.log(`[OptimizationScheduler] 账号 ${schedule.accountId} 执行预算智能分配`);
-            await automationExecutionEngine.runFullAutomationCycle(schedule.accountId);
+            try {
+              const { executeAllEnabledTargets: execBudget } = await import('./optimizationTargetEngine');
+              const budgetResults = await execBudget(schedule.accountId, { dryRun: false });
+              console.log(`[OptimizationScheduler] 预算分配完成: ${budgetResults.length}个目标`);
+            } catch (budgetError: any) {
+              console.error(`[OptimizationScheduler] 预算分配失败:`, budgetError.message);
+            }
             break;
             
           case 'search_term_harvest':

@@ -54,7 +54,7 @@ import {
 
 // 优化目标类型
 const OPTIMIZATION_TYPES = [
-  { value: 'maximize_revenue', label: '销售最大化', description: '在预算内最大化销售额' },
+  { value: 'maximize_sales', label: '销售最大化', description: '在预算内最大化销售额' },
   { value: 'target_acos', label: '目标ACoS', description: '控制广告成本销售比' },
   { value: 'target_roas', label: '目标ROAS', description: '控制广告投资回报率' },
   { value: 'target_cpa', label: '目标转化成本', description: '控制每次转化的成本' },
@@ -112,7 +112,7 @@ export default function PerformanceGroupDetail() {
   // 目标设置状态
   const [editingGoal, setEditingGoal] = useState({
     category: 'revenue',
-    type: 'maximize_revenue',
+    type: 'maximize_sales',
     targetValue: '',
     dailyBudget: '',
     maxBid: '',
@@ -362,7 +362,7 @@ export default function PerformanceGroupDetail() {
     if (group) {
       setEditingGoal({
         category: 'revenue',
-        type: group.optimizationGoal || 'maximize_revenue',
+        type: group.optimizationGoal || 'maximize_sales',
         targetValue: group.targetAcos?.toString() || group.targetRoas?.toString() || '',
         dailyBudget: group.dailyBudget?.toString() || '',
         maxBid: group.maxBid?.toString() || '',

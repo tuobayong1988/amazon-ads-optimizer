@@ -792,11 +792,14 @@ const performanceGroupRouter = router({
         updateData.targetRoas = input.targetValue.toString();
       }
       
-      if (input.dailyBudget) {
+      if (input.dailyBudget !== undefined) {
+        updateData.dailyBudget = input.dailyBudget.toString();
         updateData.dailySpendLimit = input.dailyBudget.toString();
       }
       
-      // maxBid需要在数据库层面支持
+      if (input.maxBid !== undefined) {
+        updateData.maxBid = input.maxBid.toString();
+      }
       
       await db.updatePerformanceGroup(input.groupId, updateData);
       return { success: true };
