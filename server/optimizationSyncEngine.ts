@@ -378,11 +378,45 @@ async function executeBatchByType(
       const ptTasks = batch.filter((t: any) => t.target_entity_type === 'product_target' && t.amazon_entity_id);
       const noIdTasks = batch.filter((t: any) => !t.amazon_entity_id);
       
-      // 标记无Amazon ID的任务为失败（已尝试查找仍无法获取）
+      // v141: 对无Amazon ID的任务使用即时回填机制
       if (noIdTasks.length > 0) {
-        await markTasksFailed(conn, noIdTasks.map((t: any) => t.id), '缺少Amazon ID（已尝试自动查找）');
-        result.failed += noIdTasks.length;
-        console.warn(`[SyncEngine] v138: ${noIdTasks.length}条任务缺少Amazon ID且无法自动查找`);
+        console.log(`[SyncEngine] v141: ${noIdTasks.length}条任务缺少Amazon ID，尝试即时回填...`);
+        try {
+          const { resolveKeywordIdOnDemand, resolveProductTargetIdOnDemand } = await import('./services/amazonIdResolver');
+          for (const t of noIdTasks) {
+            try {
+              let resolvedId: string | null = null;
+              if (t.target_entity_type === 'keyword') {
+                resolvedId = await resolveKeywordIdOnDemand(t.account_id, t.target_entity_id);
+              } else if (t.target_entity_type === 'product_target') {
+                resolvedId = await resolveProductTargetIdOnDemand(t.account_id, t.target_entity_id);
+              }
+              if (resolvedId) {
+                t.amazon_entity_id = resolvedId;
+                await conn.execute(
+                  'UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?',
+                  [resolvedId, t.id]
+                );
+                // 重新分配到对应的任务队列
+                if (t.target_entity_type === 'keyword') {
+                  kwTasks.push(t);
+                } else {
+                  ptTasks.push(t);
+                }
+                console.log(`[SyncEngine] v141: ✅ 即时回填成功: ${t.target_entity_type} id=${t.target_entity_id} -> ${resolvedId}`);
+              } else {
+                await markTaskFailed(conn, t.id, '缺少Amazon ID（已尝试即时回填）');
+                result.failed++;
+              }
+            } catch (resolveErr: any) {
+              await markTaskFailed(conn, t.id, `即时回填异常: ${resolveErr.message}`);
+              result.failed++;
+            }
+          }
+        } catch (importErr: any) {
+          await markTasksFailed(conn, noIdTasks.map((t: any) => t.id), '缺少Amazon ID（即时回填模块加载失败）');
+          result.failed += noIdTasks.length;
+        }
       }
       
       // 批量更新关键词出价
@@ -495,9 +529,31 @@ async function executeBatchByType(
       const validTasks = batch.filter((t: any) => t.amazon_entity_id);
       const noIdTasks = batch.filter((t: any) => !t.amazon_entity_id);
       
+      // v141: 对无Amazon ID的任务使用即时回填机制
       if (noIdTasks.length > 0) {
-        await markTasksFailed(conn, noIdTasks.map((t: any) => t.id), '缺少Amazon ID（已尝试自动查找）');
-        result.failed += noIdTasks.length;
+        try {
+          const { resolveKeywordIdOnDemand } = await import('./services/amazonIdResolver');
+          for (const t of noIdTasks) {
+            try {
+              const resolvedId = await resolveKeywordIdOnDemand(t.account_id, t.target_entity_id);
+              if (resolvedId) {
+                t.amazon_entity_id = resolvedId;
+                await conn.execute('UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?', [resolvedId, t.id]);
+                validTasks.push(t);
+                console.log(`[SyncEngine] v141: ✅ keyword_status即时回填: id=${t.target_entity_id} -> ${resolvedId}`);
+              } else {
+                await markTaskFailed(conn, t.id, '缺少Amazon ID（已尝试即时回填）');
+                result.failed++;
+              }
+            } catch (resolveErr: any) {
+              await markTaskFailed(conn, t.id, `即时回填异常: ${resolveErr.message}`);
+              result.failed++;
+            }
+          }
+        } catch (importErr: any) {
+          await markTasksFailed(conn, noIdTasks.map((t: any) => t.id), '缺少Amazon ID（即时回填模块加载失败）');
+          result.failed += noIdTasks.length;
+        }
       }
       
       if (validTasks.length > 0) {

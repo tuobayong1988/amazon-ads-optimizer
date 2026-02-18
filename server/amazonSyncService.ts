@@ -2791,10 +2791,32 @@ export class AmazonSyncService {
           return false;
         }
         if (!kw.keywordId) {
-          console.error(`[applyBidAdjustment] keyword id=${targetId} ("${kw.keywordText}") 缺少Amazon keywordId，无法同步到Amazon`);
-          const err = new Error(`MISSING_AMAZON_ID: keyword id=${targetId} 缺少Amazon keywordId`);
-          (err as any).nonRetryable = true;
-          throw err;
+          // v141: 即时回填机制 - 尝试通过Amazon API查找并回填keywordId
+          console.log(`[applyBidAdjustment] keyword id=${targetId} ("${kw.keywordText}") 缺少keywordId，尝试即时回填...`);
+          try {
+            const { resolveKeywordIdOnDemand } = await import('./services/amazonIdResolver');
+            // 获取accountId: 通过adGroup -> campaign -> accountId
+            const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, kw.adGroupId)).limit(1);
+            if (ag) {
+              const [camp] = await db.select().from(campaigns).where(eq(campaigns.id, ag.campaignId)).limit(1);
+              if (camp) {
+                const resolvedId = await resolveKeywordIdOnDemand(camp.accountId, targetId);
+                if (resolvedId) {
+                  kw.keywordId = resolvedId;
+                  console.log(`[applyBidAdjustment] ✅ 即时回填成功: keyword id=${targetId} -> keywordId=${resolvedId}`);
+                }
+              }
+            }
+          } catch (resolveErr: any) {
+            console.error(`[applyBidAdjustment] 即时回填异常: ${resolveErr.message}`);
+          }
+          
+          if (!kw.keywordId) {
+            console.error(`[applyBidAdjustment] keyword id=${targetId} ("${kw.keywordText}") 缺少Amazon keywordId，无法同步到Amazon`);
+            const err = new Error(`MISSING_AMAZON_ID: keyword id=${targetId} 缺少Amazon keywordId`);
+            (err as any).nonRetryable = true;
+            throw err;
+          }
         }
         
         amazonId = kw.keywordId;
@@ -2830,10 +2852,31 @@ export class AmazonSyncService {
           return false;
         }
         if (!pt.targetId) {
-          console.error(`[applyBidAdjustment] product_target id=${targetId} ("${pt.targetValue}") 缺少Amazon targetId，无法同步到Amazon`);
-          const err = new Error(`MISSING_AMAZON_ID: product_target id=${targetId} 缺少Amazon targetId`);
-          (err as any).nonRetryable = true;
-          throw err;
+          // v141: 即时回填机制 - 尝试通过Amazon API查找并回填targetId
+          console.log(`[applyBidAdjustment] product_target id=${targetId} ("${pt.targetValue}") 缺少targetId，尝试即时回填...`);
+          try {
+            const { resolveProductTargetIdOnDemand } = await import('./services/amazonIdResolver');
+            const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, pt.adGroupId)).limit(1);
+            if (ag) {
+              const [camp] = await db.select().from(campaigns).where(eq(campaigns.id, ag.campaignId)).limit(1);
+              if (camp) {
+                const resolvedId = await resolveProductTargetIdOnDemand(camp.accountId, targetId);
+                if (resolvedId) {
+                  pt.targetId = resolvedId;
+                  console.log(`[applyBidAdjustment] ✅ 即时回填成功: product_target id=${targetId} -> targetId=${resolvedId}`);
+                }
+              }
+            }
+          } catch (resolveErr: any) {
+            console.error(`[applyBidAdjustment] 即时回填异常: ${resolveErr.message}`);
+          }
+          
+          if (!pt.targetId) {
+            console.error(`[applyBidAdjustment] product_target id=${targetId} ("${pt.targetValue}") 缺少Amazon targetId，无法同步到Amazon`);
+            const err = new Error(`MISSING_AMAZON_ID: product_target id=${targetId} 缺少Amazon targetId`);
+            (err as any).nonRetryable = true;
+            throw err;
+          }
         }
         
         amazonId = pt.targetId;

@@ -559,17 +559,32 @@ export async function syncKeywordStatusToAmazon(
       
       const { keywords } = await import('../../drizzle/schema');
       const { eq } = await import('drizzle-orm');
-      const [kw] = await dbInstance.select({ keywordId: keywords.keywordId })
+      let [kw] = await dbInstance.select({ keywordId: keywords.keywordId })
         .from(keywords)
         .where(eq(keywords.id, change.keywordId))
         .limit(1);
       
       if (!kw || !kw.keywordId || kw.keywordId === '0' || kw.keywordId === '') {
-        result.failed++;
-        const errorMsg = `关键词 ${change.keywordId} 缺少Amazon keywordId，无法同步状态`;
-        result.errors.push(errorMsg);
-        console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
-        continue;
+        // v141: 即时回填机制
+        console.log(`[AmazonApiHelper] keyword id=${change.keywordId} 缺少keywordId，尝试即时回填...`);
+        try {
+          const { resolveKeywordIdOnDemand } = await import('./amazonIdResolver');
+          const resolvedId = await resolveKeywordIdOnDemand(accountId, change.keywordId);
+          if (resolvedId) {
+            kw = { keywordId: resolvedId };
+            console.log(`[AmazonApiHelper] ✅ 即时回填成功: keyword id=${change.keywordId} -> keywordId=${resolvedId}`);
+          }
+        } catch (resolveErr: any) {
+          console.error(`[AmazonApiHelper] 即时回填异常: ${resolveErr.message}`);
+        }
+        
+        if (!kw || !kw.keywordId || kw.keywordId === '0' || kw.keywordId === '') {
+          result.failed++;
+          const errorMsg = `关键词 ${change.keywordId} 缺少Amazon keywordId，无法同步状态`;
+          result.errors.push(errorMsg);
+          console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
+          continue;
+        }
       }
       
       const amazonKeywordId = String(kw.keywordId);
