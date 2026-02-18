@@ -89874,12 +89874,15 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
                     const key = `${(kw.keywordText || "").toLowerCase().trim()}_${(kw.matchType || "").toLowerCase()}`;
                     const amazonKeywordId = amazonKwMap.get(key);
                     if (amazonKeywordId) {
-                      await dbInstance.update(kwTable).set({
-                        keywordId: amazonKeywordId,
-                        updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
-                      }).where(eq7(kwTable.id, kw.id));
-                      matched++;
-                      totalCompensated++;
+                      try {
+                        await dbInstance.update(kwTable).set({ keywordId: amazonKeywordId }).where(eq7(kwTable.id, kw.id));
+                        matched++;
+                        totalCompensated++;
+                      } catch (updateErr) {
+                        console.error(`[BidOptimization] \u8865\u507F\u540C\u6B65: \u66F4\u65B0keyword id=${kw.id}\u5931\u8D25: ${updateErr.message}`);
+                        unmatched++;
+                        totalCompensateFailed++;
+                      }
                     } else {
                       unmatched++;
                       totalCompensateFailed++;
