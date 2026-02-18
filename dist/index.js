@@ -89879,7 +89879,10 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
                         matched++;
                         totalCompensated++;
                       } catch (updateErr) {
-                        console.error(`[BidOptimization] \u8865\u507F\u540C\u6B65: \u66F4\u65B0keyword id=${kw.id}\u5931\u8D25: ${updateErr.message}`);
+                        console.error(
+                          `[BidOptimization] \u8865\u507F\u540C\u6B65: \u66F4\u65B0keyword id=${kw.id}\u5931\u8D25: ${updateErr.message}`,
+                          JSON.stringify({ code: updateErr.code, errno: updateErr.errno, sqlState: updateErr.sqlState, sqlMessage: updateErr.sqlMessage, sql: updateErr.sql }).slice(0, 500)
+                        );
                         unmatched++;
                         totalCompensateFailed++;
                       }

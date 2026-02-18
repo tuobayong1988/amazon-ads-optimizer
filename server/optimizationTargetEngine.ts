@@ -589,7 +589,8 @@ async function executeBidOptimization(
                         matched++;
                         totalCompensated++;
                       } catch (updateErr: any) {
-                        console.error(`[BidOptimization] 补偿同步: 更新keyword id=${kw.id}失败: ${updateErr.message}`);
+                        console.error(`[BidOptimization] 补偿同步: 更新keyword id=${kw.id}失败: ${updateErr.message}`, 
+                          JSON.stringify({ code: updateErr.code, errno: updateErr.errno, sqlState: updateErr.sqlState, sqlMessage: updateErr.sqlMessage, sql: updateErr.sql }).slice(0, 500));
                         unmatched++;
                         totalCompensateFailed++;
                       }
