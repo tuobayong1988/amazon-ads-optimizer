@@ -2800,15 +2800,14 @@ export class AmazonSyncService {
         targetName = kw.keywordText;
         adGroupId = kw.adGroupId;
 
-        // v124: 使用Number()替代parseInt()，确保数字类型正确
-        const numericKeywordId = Number(amazonId);
-        if (isNaN(numericKeywordId) || numericKeywordId <= 0) {
-          console.error(`[applyBidAdjustment] keyword id=${targetId} 的Amazon keywordId无效: "${amazonId}" -> ${numericKeywordId}`);
+        // v125: Amazon SP API v3 要求keywordId为字符串类型，直接传递字符串
+        if (!amazonId || amazonId.trim() === '' || amazonId === '0') {
+          console.error(`[applyBidAdjustment] keyword id=${targetId} 的Amazon keywordId无效: "${amazonId}"`);
           return false;
         }
-        console.log(`[applyBidAdjustment] 调用Amazon API: keywordId=${numericKeywordId}, bid=${Number(newBid.toFixed(2))}`);
+        console.log(`[applyBidAdjustment] 调用Amazon API: keywordId="${amazonId}", bid=${Number(newBid.toFixed(2))}`);
         await this.client.updateKeywordBids([{
-          keywordId: numericKeywordId,
+          keywordId: amazonId,
           bid: Number(newBid.toFixed(2)),
         }]);
 
@@ -2838,15 +2837,14 @@ export class AmazonSyncService {
         targetName = pt.targetValue || 'Product Target';
         adGroupId = pt.adGroupId;
 
-        // v124: 使用Number()替代parseInt()，确保数字类型正确
-        const numericTargetId = Number(amazonId);
-        if (isNaN(numericTargetId) || numericTargetId <= 0) {
-          console.error(`[applyBidAdjustment] product_target id=${targetId} 的Amazon targetId无效: "${amazonId}" -> ${numericTargetId}`);
+        // v125: Amazon SP API v3 要求targetId为字符串类型，直接传递字符串
+        if (!amazonId || amazonId.trim() === '' || amazonId === '0') {
+          console.error(`[applyBidAdjustment] product_target id=${targetId} 的Amazon targetId无效: "${amazonId}"`);
           return false;
         }
-        console.log(`[applyBidAdjustment] 调用Amazon API: targetId=${numericTargetId}, bid=${Number(newBid.toFixed(2))}`);
+        console.log(`[applyBidAdjustment] 调用Amazon API: targetId="${amazonId}", bid=${Number(newBid.toFixed(2))}`);
         await this.client.updateProductTargetBids([{
-          targetId: numericTargetId,
+          targetId: amazonId,
           bid: Number(newBid.toFixed(2)),
         }]);
 

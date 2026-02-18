@@ -475,8 +475,13 @@ export class AmazonAdsApiClient {
   /**
    * 更新SP广告活动
    */
-  async updateSpCampaign(campaignId: number, updates: Partial<SpCampaign>): Promise<void> {
-    const requestBody = { campaigns: [{ campaignId, ...updates }] };
+  async updateSpCampaign(campaignId: number | string, updates: Partial<SpCampaign>): Promise<void> {
+    // v125: Amazon SP API v3 要求campaignId为字符串类型，dailyBudget四舍五入到两位小数
+    const formattedUpdates: any = { ...updates };
+    if (formattedUpdates.dailyBudget !== undefined) {
+      formattedUpdates.dailyBudget = Number(Number(formattedUpdates.dailyBudget).toFixed(2));
+    }
+    const requestBody = { campaigns: [{ campaignId: String(campaignId), ...formattedUpdates }] };
     console.log(`[SP API] updateSpCampaign 请求体:`, JSON.stringify(requestBody).substring(0, 500));
     await this.axiosInstance.put('/sp/campaigns', requestBody, {
       headers: { 
@@ -630,10 +635,10 @@ export class AmazonAdsApiClient {
     }>
   ): Promise<{ success: boolean; createdKeywords: Array<{ keywordId: number; keywordText: string; code: string }>; errors: any[] }> {
     try {
-      // v124: 确保ID为数字类型，bid为两位小数
+      // v125: Amazon SP API v3 要求ID为字符串类型，bid为两位小数
       const formattedKeywords = keywords.map(k => ({
-        adGroupId: Number(k.adGroupId),
-        campaignId: Number(k.campaignId),
+        adGroupId: String(k.adGroupId),
+        campaignId: String(k.campaignId),
         keywordText: k.keywordText,
         matchType: k.matchType,
         bid: Number(k.bid.toFixed(2)),
@@ -666,10 +671,10 @@ export class AmazonAdsApiClient {
   /**
    * 更新关键词出价
    */
-  async updateKeywordBids(updates: Array<{ keywordId: number; bid: number }>): Promise<{ success: boolean; errors: any[] }> {
-    // v124: 确保bid格式为两位小数，keywordId为整数
+  async updateKeywordBids(updates: Array<{ keywordId: number | string; bid: number }>): Promise<{ success: boolean; errors: any[] }> {
+    // v125: Amazon SP API v3 要求keywordId为字符串类型，bid为两位小数
     const formattedUpdates = updates.map(u => ({
-      keywordId: u.keywordId,
+      keywordId: String(u.keywordId),
       bid: Number(u.bid.toFixed(2)),
     }));
     const requestBody = { keywords: formattedUpdates };
@@ -764,10 +769,10 @@ export class AmazonAdsApiClient {
   /**
    * 更新商品定位出价
    */
-  async updateProductTargetBids(updates: Array<{ targetId: number; bid: number }>): Promise<{ success: boolean; errors: any[] }> {
-    // v124: 确保bid格式为两位小数
+  async updateProductTargetBids(updates: Array<{ targetId: number | string; bid: number }>): Promise<{ success: boolean; errors: any[] }> {
+    // v125: Amazon SP API v3 要求targetId为字符串类型，bid为两位小数
     const formattedUpdates = updates.map(u => ({
-      targetId: u.targetId,
+      targetId: String(u.targetId),
       bid: Number(u.bid.toFixed(2)),
     }));
     const requestBody = { targetingClauses: formattedUpdates };
@@ -3030,9 +3035,9 @@ export class AmazonAdsApiClient {
       state?: 'enabled' | 'paused';
     }>
   ): Promise<Array<{ keywordId: number; code: string; details: string }>> {
-    // v124: 确保campaignId为数字类型
+    // v125: Amazon SP API v3 要求campaignId为字符串类型
     const formattedNegatives = negatives.map(n => ({
-      campaignId: Number(n.campaignId),
+      campaignId: String(n.campaignId),
       keywordText: n.keywordText,
       matchType: n.matchType,
       state: n.state || 'enabled',
@@ -3103,10 +3108,10 @@ export class AmazonAdsApiClient {
       state?: 'enabled' | 'paused';
     }>
   ): Promise<Array<{ keywordId: number; code: string; details: string }>> {
-    // v124: 确保ID为数字类型
+    // v125: Amazon SP API v3 要求ID为字符串类型
     const formattedNegatives = negatives.map(n => ({
-      adGroupId: Number(n.adGroupId),
-      campaignId: Number(n.campaignId),
+      adGroupId: String(n.adGroupId),
+      campaignId: String(n.campaignId),
       keywordText: n.keywordText,
       matchType: n.matchType,
       state: n.state || 'enabled',
@@ -3158,13 +3163,18 @@ export class AmazonAdsApiClient {
       state?: 'enabled' | 'paused';
     }>
   ): Promise<Array<{ targetId: number; code: string; details: string }>> {
+    // v125: Amazon SP API v3 要求ID为字符串类型
     const response = await this.axiosInstance.post('/sp/campaignNegativeTargets', {
       campaignNegativeTargetingClauses: negatives.map(n => ({
         ...n,
+        campaignId: String(n.campaignId),
         state: n.state || 'enabled',
       })),
     }, {
-      headers: { 'Content-Type': 'application/vnd.spCampaignNegativeTargetingClause.v3+json' },
+      headers: { 
+        'Content-Type': 'application/vnd.spCampaignNegativeTargetingClause.v3+json',
+        'Accept': 'application/vnd.spCampaignNegativeTargetingClause.v3+json'
+      },
     });
     return response.data.campaignNegativeTargetingClauses || [];
   }
@@ -3194,13 +3204,19 @@ export class AmazonAdsApiClient {
       state?: 'enabled' | 'paused';
     }>
   ): Promise<Array<{ targetId: number; code: string; details: string }>> {
+    // v125: Amazon SP API v3 要求ID为字符串类型
     const response = await this.axiosInstance.post('/sp/negativeTargets', {
       negativeTargetingClauses: negatives.map(n => ({
         ...n,
+        adGroupId: String(n.adGroupId),
+        campaignId: String(n.campaignId),
         state: n.state || 'enabled',
       })),
     }, {
-      headers: { 'Content-Type': 'application/vnd.spNegativeTargetingClause.v3+json' },
+      headers: { 
+        'Content-Type': 'application/vnd.spNegativeTargetingClause.v3+json',
+        'Accept': 'application/vnd.spNegativeTargetingClause.v3+json'
+      },
     });
     return response.data.negativeTargetingClauses || [];
   }

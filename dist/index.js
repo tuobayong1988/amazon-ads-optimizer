@@ -53487,7 +53487,11 @@ var init_amazonAdsApi = __esm({
        * 更新SP广告活动
        */
       async updateSpCampaign(campaignId, updates) {
-        const requestBody = { campaigns: [{ campaignId, ...updates }] };
+        const formattedUpdates = { ...updates };
+        if (formattedUpdates.dailyBudget !== void 0) {
+          formattedUpdates.dailyBudget = Number(Number(formattedUpdates.dailyBudget).toFixed(2));
+        }
+        const requestBody = { campaigns: [{ campaignId: String(campaignId), ...formattedUpdates }] };
         console.log(`[SP API] updateSpCampaign \u8BF7\u6C42\u4F53:`, JSON.stringify(requestBody).substring(0, 500));
         await this.axiosInstance.put("/sp/campaigns", requestBody, {
           headers: {
@@ -53618,8 +53622,8 @@ var init_amazonAdsApi = __esm({
       async createSpKeywords(keywords5) {
         try {
           const formattedKeywords = keywords5.map((k5) => ({
-            adGroupId: Number(k5.adGroupId),
-            campaignId: Number(k5.campaignId),
+            adGroupId: String(k5.adGroupId),
+            campaignId: String(k5.campaignId),
             keywordText: k5.keywordText,
             matchType: k5.matchType,
             bid: Number(k5.bid.toFixed(2)),
@@ -53651,7 +53655,7 @@ var init_amazonAdsApi = __esm({
        */
       async updateKeywordBids(updates) {
         const formattedUpdates = updates.map((u5) => ({
-          keywordId: u5.keywordId,
+          keywordId: String(u5.keywordId),
           bid: Number(u5.bid.toFixed(2))
         }));
         const requestBody = { keywords: formattedUpdates };
@@ -53737,7 +53741,7 @@ var init_amazonAdsApi = __esm({
        */
       async updateProductTargetBids(updates) {
         const formattedUpdates = updates.map((u5) => ({
-          targetId: u5.targetId,
+          targetId: String(u5.targetId),
           bid: Number(u5.bid.toFixed(2))
         }));
         const requestBody = { targetingClauses: formattedUpdates };
@@ -56031,7 +56035,7 @@ var init_amazonAdsApi = __esm({
        */
       async createSpCampaignNegativeKeywords(negatives) {
         const formattedNegatives = negatives.map((n7) => ({
-          campaignId: Number(n7.campaignId),
+          campaignId: String(n7.campaignId),
           keywordText: n7.keywordText,
           matchType: n7.matchType,
           state: n7.state || "enabled"
@@ -56088,8 +56092,8 @@ var init_amazonAdsApi = __esm({
        */
       async createSpNegativeKeywords(negatives) {
         const formattedNegatives = negatives.map((n7) => ({
-          adGroupId: Number(n7.adGroupId),
-          campaignId: Number(n7.campaignId),
+          adGroupId: String(n7.adGroupId),
+          campaignId: String(n7.campaignId),
           keywordText: n7.keywordText,
           matchType: n7.matchType,
           state: n7.state || "enabled"
@@ -56135,10 +56139,14 @@ var init_amazonAdsApi = __esm({
         const response = await this.axiosInstance.post("/sp/campaignNegativeTargets", {
           campaignNegativeTargetingClauses: negatives.map((n7) => ({
             ...n7,
+            campaignId: String(n7.campaignId),
             state: n7.state || "enabled"
           }))
         }, {
-          headers: { "Content-Type": "application/vnd.spCampaignNegativeTargetingClause.v3+json" }
+          headers: {
+            "Content-Type": "application/vnd.spCampaignNegativeTargetingClause.v3+json",
+            "Accept": "application/vnd.spCampaignNegativeTargetingClause.v3+json"
+          }
         });
         return response.data.campaignNegativeTargetingClauses || [];
       }
@@ -56162,10 +56170,15 @@ var init_amazonAdsApi = __esm({
         const response = await this.axiosInstance.post("/sp/negativeTargets", {
           negativeTargetingClauses: negatives.map((n7) => ({
             ...n7,
+            adGroupId: String(n7.adGroupId),
+            campaignId: String(n7.campaignId),
             state: n7.state || "enabled"
           }))
         }, {
-          headers: { "Content-Type": "application/vnd.spNegativeTargetingClause.v3+json" }
+          headers: {
+            "Content-Type": "application/vnd.spNegativeTargetingClause.v3+json",
+            "Accept": "application/vnd.spNegativeTargetingClause.v3+json"
+          }
         });
         return response.data.negativeTargetingClauses || [];
       }
@@ -59793,14 +59806,13 @@ var init_amazonSyncService = __esm({
             oldBid = parseFloat(kw.bid);
             targetName = kw.keywordText;
             adGroupId = kw.adGroupId;
-            const numericKeywordId = Number(amazonId);
-            if (isNaN(numericKeywordId) || numericKeywordId <= 0) {
-              console.error(`[applyBidAdjustment] keyword id=${targetId} \u7684Amazon keywordId\u65E0\u6548: "${amazonId}" -> ${numericKeywordId}`);
+            if (!amazonId || amazonId.trim() === "" || amazonId === "0") {
+              console.error(`[applyBidAdjustment] keyword id=${targetId} \u7684Amazon keywordId\u65E0\u6548: "${amazonId}"`);
               return false;
             }
-            console.log(`[applyBidAdjustment] \u8C03\u7528Amazon API: keywordId=${numericKeywordId}, bid=${Number(newBid.toFixed(2))}`);
+            console.log(`[applyBidAdjustment] \u8C03\u7528Amazon API: keywordId="${amazonId}", bid=${Number(newBid.toFixed(2))}`);
             await this.client.updateKeywordBids([{
-              keywordId: numericKeywordId,
+              keywordId: amazonId,
               bid: Number(newBid.toFixed(2))
             }]);
             await db.update(keywords).set({ bid: String(newBid), updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ") }).where(eq(keywords.id, targetId));
@@ -59818,14 +59830,13 @@ var init_amazonSyncService = __esm({
             oldBid = parseFloat(pt3.bid);
             targetName = pt3.targetValue || "Product Target";
             adGroupId = pt3.adGroupId;
-            const numericTargetId = Number(amazonId);
-            if (isNaN(numericTargetId) || numericTargetId <= 0) {
-              console.error(`[applyBidAdjustment] product_target id=${targetId} \u7684Amazon targetId\u65E0\u6548: "${amazonId}" -> ${numericTargetId}`);
+            if (!amazonId || amazonId.trim() === "" || amazonId === "0") {
+              console.error(`[applyBidAdjustment] product_target id=${targetId} \u7684Amazon targetId\u65E0\u6548: "${amazonId}"`);
               return false;
             }
-            console.log(`[applyBidAdjustment] \u8C03\u7528Amazon API: targetId=${numericTargetId}, bid=${Number(newBid.toFixed(2))}`);
+            console.log(`[applyBidAdjustment] \u8C03\u7528Amazon API: targetId="${amazonId}", bid=${Number(newBid.toFixed(2))}`);
             await this.client.updateProductTargetBids([{
-              targetId: numericTargetId,
+              targetId: amazonId,
               bid: Number(newBid.toFixed(2))
             }]);
             await db.update(productTargets).set({ bid: String(newBid), updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ") }).where(eq(productTargets.id, targetId));
@@ -89247,7 +89258,7 @@ async function syncBudgetAdjustmentToAmazon(accountId, campaignId, newBudget, re
   const syncService = await getAmazonSyncService(accountId);
   if (!syncService) return false;
   try {
-    await syncService.client.updateSpCampaign(Number(campaignId), {
+    await syncService.client.updateSpCampaign(String(campaignId), {
       dailyBudget: newBudget
     });
     console.log(`[AmazonApiHelper] \u9884\u7B97\u540C\u6B65\u6210\u529F: Campaign ${campaignId}, \u65B0\u9884\u7B97=$${newBudget}`);
@@ -89261,7 +89272,7 @@ async function syncPlacementAdjustmentToAmazon(accountId, campaignId, topOfSearc
   const syncService = await getAmazonSyncService(accountId);
   if (!syncService) return false;
   try {
-    await syncService.client.updateSpCampaign(Number(campaignId), {
+    await syncService.client.updateSpCampaign(String(campaignId), {
       bidding: {
         adjustments: [
           { predicate: "placementTop", percentage: Math.round(topOfSearchPercent) },
@@ -298990,12 +299001,12 @@ var optimizationRouter = router({
           try {
             if (result.targetType === "keyword") {
               await syncService.client.updateKeywordBids([{
-                keywordId: Number(amazonId),
+                keywordId: String(amazonId),
                 bid: Number(result.newBid.toFixed(2))
               }]);
             } else {
               await syncService.client.updateProductTargetBids([{
-                targetId: Number(amazonId),
+                targetId: String(amazonId),
                 bid: Number(result.newBid.toFixed(2))
               }]);
             }

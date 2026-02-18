@@ -2485,14 +2485,15 @@ const optimizationRouter = router({
           let apiSuccess = false;
           if (syncService && amazonId) {
             try {
+              // v125: Amazon SP API v3 要求ID为字符串类型
               if (result.targetType === "keyword") {
                 await syncService.client.updateKeywordBids([{
-                  keywordId: Number(amazonId),
+                  keywordId: String(amazonId),
                   bid: Number(result.newBid.toFixed(2)),
                 }]);
               } else {
                 await syncService.client.updateProductTargetBids([{
-                  targetId: Number(amazonId),
+                  targetId: String(amazonId),
                   bid: Number(result.newBid.toFixed(2)),
                 }]);
               }
