@@ -59738,7 +59738,14 @@ var init_amazonSyncService = __esm({
           let adGroupId = null;
           if (targetType === "keyword") {
             const [kw] = await db.select().from(keywords).where(eq(keywords.id, targetId)).limit(1);
-            if (!kw || !kw.keywordId) return false;
+            if (!kw) {
+              console.error(`[applyBidAdjustment] keyword id=${targetId} \u4E0D\u5B58\u5728`);
+              return false;
+            }
+            if (!kw.keywordId) {
+              console.error(`[applyBidAdjustment] keyword id=${targetId} ("${kw.keywordText}") \u7F3A\u5C11Amazon keywordId\uFF0C\u65E0\u6CD5\u540C\u6B65\u5230Amazon`);
+              return false;
+            }
             amazonId = kw.keywordId;
             oldBid = parseFloat(kw.bid);
             targetName = kw.keywordText;
@@ -59750,7 +59757,14 @@ var init_amazonSyncService = __esm({
             await db.update(keywords).set({ bid: String(newBid), updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ") }).where(eq(keywords.id, targetId));
           } else {
             const [pt3] = await db.select().from(productTargets).where(eq(productTargets.id, targetId)).limit(1);
-            if (!pt3 || !pt3.targetId) return false;
+            if (!pt3) {
+              console.error(`[applyBidAdjustment] product_target id=${targetId} \u4E0D\u5B58\u5728`);
+              return false;
+            }
+            if (!pt3.targetId) {
+              console.error(`[applyBidAdjustment] product_target id=${targetId} ("${pt3.targetValue}") \u7F3A\u5C11Amazon targetId\uFF0C\u65E0\u6CD5\u540C\u6B65\u5230Amazon`);
+              return false;
+            }
             amazonId = pt3.targetId;
             oldBid = parseFloat(pt3.bid);
             targetName = pt3.targetValue || "Product Target";
@@ -59781,7 +59795,9 @@ var init_amazonSyncService = __esm({
           });
           return true;
         } catch (error51) {
-          console.error("Error applying bid adjustment:", error51);
+          const errorDetail = error51.response?.data ? JSON.stringify(error51.response.data) : error51.message;
+          console.error(`[applyBidAdjustment] \u2757 ${targetType} id=${targetId} \u51FA\u4EF7\u8C03\u6574\u5931\u8D25:`, errorDetail);
+          console.error(`[applyBidAdjustment] \u8BE6\u7EC6\u4FE1\u606F: newBid=${newBid}, campaignId=${campaignId}, HTTP\u72B6\u6001=${error51.response?.status || "N/A"}`);
           return false;
         }
       }
@@ -89033,6 +89049,14 @@ async function getAmazonSyncService(accountId) {
       console.error(`[AmazonApiHelper] \u8D26\u53F7 ${accountId} \u672A\u914D\u7F6EAPI\u51ED\u8BC1`);
       return null;
     }
+    if (!credentials.clientId || !credentials.clientSecret || !credentials.refreshToken) {
+      console.error(`[AmazonApiHelper] \u8D26\u53F7 ${accountId} API\u51ED\u8BC1\u4E0D\u5B8C\u6574: clientId=${!!credentials.clientId}, clientSecret=${!!credentials.clientSecret}, refreshToken=${!!credentials.refreshToken}`);
+      return null;
+    }
+    if (!account.profileId) {
+      console.error(`[AmazonApiHelper] \u8D26\u53F7 ${accountId} \u7F3A\u5C11profileId`);
+      return null;
+    }
     const syncService = await AmazonSyncService.createFromCredentials(
       {
         clientId: credentials.clientId || "",
@@ -89054,15 +89078,20 @@ async function getAmazonSyncService(accountId) {
 async function syncBidAdjustmentsToAmazon(accountId, adjustments) {
   const result = { success: 0, failed: 0, errors: [] };
   if (adjustments.length === 0) return result;
+  console.log(`[AmazonApiHelper] \u5F00\u59CB\u540C\u6B65\u51FA\u4EF7\u8C03\u6574: accountId=${accountId}, \u603B\u8BA1=${adjustments.length}\u6761`);
   const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
-    result.errors.push(`\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7 ${accountId} \u7684API\u670D\u52A1`);
+    const errorMsg = `\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7 ${accountId} \u7684API\u670D\u52A1\uFF08\u51ED\u8BC1\u7F3A\u5931\u6216\u65E0\u6548\uFF09`;
+    console.error(`[AmazonApiHelper] ${errorMsg}`);
+    result.errors.push(errorMsg);
     result.failed = adjustments.length;
     return result;
   }
+  console.log(`[AmazonApiHelper] API\u670D\u52A1\u521B\u5EFA\u6210\u529F\uFF0C\u5F00\u59CB\u9010\u6761\u540C\u6B65\u51FA\u4EF7\u8C03\u6574`);
   for (const adj of adjustments) {
     try {
       const targetType = adj.isProductTarget ? "product_target" : "keyword";
+      console.log(`[AmazonApiHelper] \u540C\u6B65\u51FA\u4EF7: ${targetType} id=${adj.keywordId}, newBid=${adj.newBid}, campaignId=${adj.campaignId}`);
       const success2 = await syncService.applyBidAdjustment(
         targetType,
         adj.keywordId,
@@ -89072,16 +89101,91 @@ async function syncBidAdjustmentsToAmazon(accountId, adjustments) {
       );
       if (success2) {
         result.success++;
+        console.log(`[AmazonApiHelper] \u2705 \u51FA\u4EF7\u540C\u6B65\u6210\u529F: ${targetType} ${adj.keywordId}`);
       } else {
         result.failed++;
-        result.errors.push(`\u51FA\u4EF7\u8C03\u6574\u5931\u8D25: ${targetType} ${adj.keywordId}`);
+        const errorMsg = `\u51FA\u4EF7\u8C03\u6574\u5931\u8D25(\u8FD4\u56DEfalse): ${targetType} ${adj.keywordId} - \u53EF\u80FD\u662FAmazon ID\u7F3A\u5931\u6216API\u8C03\u7528\u5931\u8D25`;
+        result.errors.push(errorMsg);
+        console.error(`[AmazonApiHelper] \u274C ${errorMsg}`);
       }
     } catch (error51) {
       result.failed++;
-      result.errors.push(`\u51FA\u4EF7\u8C03\u6574\u5F02\u5E38: ${adj.keywordId} - ${error51.message}`);
+      const errorMsg = `\u51FA\u4EF7\u8C03\u6574\u5F02\u5E38: ${adj.isProductTarget ? "product_target" : "keyword"} ${adj.keywordId} - ${error51.message}`;
+      result.errors.push(errorMsg);
+      console.error(`[AmazonApiHelper] \u274C ${errorMsg}`, error51.response?.data || "");
     }
   }
-  console.log(`[AmazonApiHelper] \u51FA\u4EF7\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}`);
+  console.log(`[AmazonApiHelper] \u51FA\u4EF7\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}, \u9519\u8BEF\u6570=${result.errors.length}`);
+  if (result.errors.length > 0) {
+    console.error(`[AmazonApiHelper] \u9519\u8BEF\u8BE6\u60C5:`, result.errors.slice(0, 5).join("; "));
+  }
+  return result;
+}
+async function syncNewKeywordsToAmazon(accountId, newKeywords) {
+  const result = {
+    success: 0,
+    failed: 0,
+    errors: [],
+    createdKeywords: []
+  };
+  if (newKeywords.length === 0) return result;
+  console.log(`[AmazonApiHelper] \u5F00\u59CB\u540C\u6B65\u65B0\u5173\u952E\u8BCD\u5230Amazon: accountId=${accountId}, \u603B\u8BA1=${newKeywords.length}\u4E2A`);
+  const syncService = await getAmazonSyncService(accountId);
+  if (!syncService) {
+    const errorMsg = `\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7 ${accountId} \u7684API\u670D\u52A1`;
+    result.errors.push(errorMsg);
+    result.failed = newKeywords.length;
+    return result;
+  }
+  try {
+    const apiResult = await syncService.client.createSpKeywords(
+      newKeywords.map((k5) => ({
+        adGroupId: k5.adGroupId,
+        campaignId: k5.campaignId,
+        keywordText: k5.keywordText,
+        matchType: k5.matchType,
+        bid: k5.bid,
+        state: "enabled"
+      }))
+    );
+    for (let i4 = 0; i4 < apiResult.createdKeywords.length; i4++) {
+      const created = apiResult.createdKeywords[i4];
+      const original = newKeywords[i4];
+      if (created.code === "SUCCESS" && created.keywordId) {
+        result.success++;
+        result.createdKeywords.push({
+          localId: original.localKeywordId,
+          amazonKeywordId: created.keywordId,
+          keywordText: created.keywordText || original.keywordText
+        });
+        if (original.localKeywordId) {
+          try {
+            const dbInstance = await getDb();
+            if (dbInstance) {
+              const { keywords: keywords5 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+              const { eq: eq7 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+              await dbInstance.update(keywords5).set({
+                keywordId: String(created.keywordId),
+                updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
+              }).where(eq7(keywords5.id, original.localKeywordId));
+              console.log(`[AmazonApiHelper] \u2705 \u5173\u952E\u8BCD\u5DF2\u540C\u6B65: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
+            }
+          } catch (dbError) {
+            console.error(`[AmazonApiHelper] \u66F4\u65B0\u672C\u5730keywordId\u5931\u8D25:`, dbError.message);
+          }
+        }
+      } else {
+        result.failed++;
+        result.errors.push(`\u5173\u952E\u8BCD\u521B\u5EFA\u5931\u8D25: "${original.keywordText}" - code=${created.code}`);
+        console.error(`[AmazonApiHelper] \u274C \u5173\u952E\u8BCD\u521B\u5EFA\u5931\u8D25: "${original.keywordText}", code=${created.code}`);
+      }
+    }
+  } catch (error51) {
+    result.failed += newKeywords.length;
+    result.errors.push(`\u6279\u91CF\u521B\u5EFA\u5173\u952E\u8BCDAPI\u8C03\u7528\u5931\u8D25: ${error51.message}`);
+    console.error(`[AmazonApiHelper] \u274C \u6279\u91CF\u521B\u5EFA\u5173\u952E\u8BCD\u5931\u8D25:`, error51.response?.data || error51.message);
+  }
+  console.log(`[AmazonApiHelper] \u65B0\u5173\u952E\u8BCD\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}`);
   return result;
 }
 async function syncBudgetAdjustmentToAmazon(accountId, campaignId, newBudget, reason) {
@@ -89746,16 +89850,46 @@ async function executeSearchTermAnalysis(config2, campaigns6, dryRun) {
             if (dbInstance) {
               const adGroups3 = await getAdGroupsByCampaignId(campaign.id);
               if (adGroups3.length > 0) {
+                const adGroup = adGroups3[0];
+                const amazonAdGroupId = parseInt(adGroup.adGroupId?.toString() || "0");
+                const amazonCampaignId = parseInt(campaign.campaignId || campaign.id.toString());
+                const matchType = term.matchTypeSuggestion || "exact";
+                const bid = 0.5;
                 const { keywords: keywords5 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-                await dbInstance.insert(keywords5).values({
-                  adGroupId: adGroups3[0].id,
+                const insertResult = await dbInstance.insert(keywords5).values({
+                  adGroupId: adGroup.id,
                   keywordText: term.searchTerm,
-                  matchType: term.matchTypeSuggestion || "exact",
-                  bid: "0.50",
+                  matchType,
+                  bid: String(bid),
                   keywordStatus: "enabled",
                   createdAt: (/* @__PURE__ */ new Date()).toISOString(),
                   updatedAt: (/* @__PURE__ */ new Date()).toISOString()
                 });
+                const localKeywordId = insertResult[0]?.insertId;
+                if (amazonAdGroupId > 0 && amazonCampaignId > 0) {
+                  try {
+                    const apiResult = await syncNewKeywordsToAmazon(
+                      config2.accountId,
+                      [{
+                        localKeywordId: localKeywordId || void 0,
+                        adGroupId: amazonAdGroupId,
+                        campaignId: amazonCampaignId,
+                        keywordText: term.searchTerm,
+                        matchType,
+                        bid
+                      }]
+                    );
+                    if (apiResult.success > 0) {
+                      console.log(`[SearchTermAnalysis] \u2705 \u65B0\u5173\u952E\u8BCD\u5DF2\u540C\u6B65\u5230Amazon: "${term.searchTerm}"`);
+                    } else {
+                      console.error(`[SearchTermAnalysis] \u274C \u65B0\u5173\u952E\u8BCD\u540C\u6B65\u5931\u8D25: "${term.searchTerm}" - ${apiResult.errors.join("; ")}`);
+                    }
+                  } catch (apiError) {
+                    console.error(`[SearchTermAnalysis] \u274C \u65B0\u5173\u952E\u8BCDAPI\u540C\u6B65\u5F02\u5E38: "${term.searchTerm}" -`, apiError.message);
+                  }
+                } else {
+                  console.warn(`[SearchTermAnalysis] \u26A0\uFE0F \u7F3A\u5C11Amazon ID\uFF0C\u65E0\u6CD5\u540C\u6B65\u5173\u952E\u8BCD: adGroupId=${amazonAdGroupId}, campaignId=${amazonCampaignId}`);
+                }
               }
             }
             newKeywordsAdded++;

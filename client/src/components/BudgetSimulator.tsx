@@ -50,8 +50,8 @@ export function BudgetSimulator({
     const predictedRoas = predictedSpend > 0 ? predictedSales / predictedSpend : 0;
     
     // 计算变化
-    const spendChange = ((predictedSpend - currentSpend) / currentSpend) * 100;
-    const salesChange = ((predictedSales - currentSales) / currentSales) * 100;
+    const spendChange = currentSpend > 0 ? ((predictedSpend - currentSpend) / currentSpend) * 100 : 0;
+    const salesChange = currentSales > 0 ? ((predictedSales - currentSales) / currentSales) * 100 : 0;
     const acosChange = predictedAcos - currentAcos;
     
     // 判断是否推荐

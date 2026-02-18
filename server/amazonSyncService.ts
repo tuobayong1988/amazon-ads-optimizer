@@ -2786,7 +2786,14 @@ export class AmazonSyncService {
           .where(eq(keywords.id, targetId))
           .limit(1);
         
-        if (!kw || !kw.keywordId) return false;
+        if (!kw) {
+          console.error(`[applyBidAdjustment] keyword id=${targetId} 不存在`);
+          return false;
+        }
+        if (!kw.keywordId) {
+          console.error(`[applyBidAdjustment] keyword id=${targetId} ("${kw.keywordText}") 缺少Amazon keywordId，无法同步到Amazon`);
+          return false;
+        }
         
         amazonId = kw.keywordId;
         oldBid = parseFloat(kw.bid);
@@ -2811,7 +2818,14 @@ export class AmazonSyncService {
           .where(eq(productTargets.id, targetId))
           .limit(1);
         
-        if (!pt || !pt.targetId) return false;
+        if (!pt) {
+          console.error(`[applyBidAdjustment] product_target id=${targetId} 不存在`);
+          return false;
+        }
+        if (!pt.targetId) {
+          console.error(`[applyBidAdjustment] product_target id=${targetId} ("${pt.targetValue}") 缺少Amazon targetId，无法同步到Amazon`);
+          return false;
+        }
         
         amazonId = pt.targetId;
         oldBid = parseFloat(pt.bid);
@@ -2854,8 +2868,10 @@ export class AmazonSyncService {
       });
 
       return true;
-    } catch (error) {
-      console.error('Error applying bid adjustment:', error);
+    } catch (error: any) {
+      const errorDetail = error.response?.data ? JSON.stringify(error.response.data) : error.message;
+      console.error(`[applyBidAdjustment] ❗ ${targetType} id=${targetId} 出价调整失败:`, errorDetail);
+      console.error(`[applyBidAdjustment] 详细信息: newBid=${newBid}, campaignId=${campaignId}, HTTP状态=${error.response?.status || 'N/A'}`);
       return false;
     }
   }

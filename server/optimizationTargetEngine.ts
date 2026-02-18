@@ -816,22 +816,56 @@ async function executeSearchTermAnalysis(
           details.push(newKeyword);
           
           if (!dryRun) {
-            // 添加为新关键词
+            // v123: 添加为新关键词 - 先调用Amazon API创建，获取keywordId后存入本地数据库
             const dbInstance = await db.getDb();
             if (dbInstance) {
-              // 获取广告组ID
+              // 获取广告组（需要Amazon adGroupId和campaignId）
               const adGroups = await db.getAdGroupsByCampaignId(campaign.id);
               if (adGroups.length > 0) {
+                const adGroup = adGroups[0];
+                const amazonAdGroupId = parseInt(adGroup.adGroupId?.toString() || '0');
+                const amazonCampaignId = parseInt(campaign.campaignId || campaign.id.toString());
+                const matchType = (term.matchTypeSuggestion || 'exact') as 'exact' | 'phrase' | 'broad';
+                const bid = 0.50;
+                
+                // 先插入本地数据库
                 const { keywords } = await import('../drizzle/schema');
-                await dbInstance.insert(keywords).values({
-                  adGroupId: adGroups[0].id,
+                const insertResult = await dbInstance.insert(keywords).values({
+                  adGroupId: adGroup.id,
                   keywordText: term.searchTerm,
-                  matchType: (term.matchTypeSuggestion || 'exact') as any,
-                  bid: '0.50',
+                  matchType: matchType as any,
+                  bid: String(bid),
                   keywordStatus: 'enabled',
                   createdAt: new Date().toISOString(),
                   updatedAt: new Date().toISOString(),
                 });
+                const localKeywordId = (insertResult as any)[0]?.insertId;
+                
+                // 调用Amazon API创建关键词
+                if (amazonAdGroupId > 0 && amazonCampaignId > 0) {
+                  try {
+                    const apiResult = await amazonApiHelper.syncNewKeywordsToAmazon(
+                      config.accountId,
+                      [{
+                        localKeywordId: localKeywordId || undefined,
+                        adGroupId: amazonAdGroupId,
+                        campaignId: amazonCampaignId,
+                        keywordText: term.searchTerm,
+                        matchType: matchType,
+                        bid: bid,
+                      }]
+                    );
+                    if (apiResult.success > 0) {
+                      console.log(`[SearchTermAnalysis] ✅ 新关键词已同步到Amazon: "${term.searchTerm}"`);
+                    } else {
+                      console.error(`[SearchTermAnalysis] ❌ 新关键词同步失败: "${term.searchTerm}" - ${apiResult.errors.join('; ')}`);
+                    }
+                  } catch (apiError: any) {
+                    console.error(`[SearchTermAnalysis] ❌ 新关键词API同步异常: "${term.searchTerm}" -`, apiError.message);
+                  }
+                } else {
+                  console.warn(`[SearchTermAnalysis] ⚠️ 缺少Amazon ID，无法同步关键词: adGroupId=${amazonAdGroupId}, campaignId=${amazonCampaignId}`);
+                }
               }
             }
             newKeywordsAdded++;

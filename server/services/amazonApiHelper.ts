@@ -1,8 +1,13 @@
 /**
- * Amazon API 辅助模块 (v122)
+ * Amazon API 辅助模块 (v123)
  * 
  * 提供统一的方式获取 AmazonSyncService 实例，
  * 供优化引擎各模块调用 Amazon Ads API
+ * 
+ * v123更新:
+ * - 添加 syncNewKeywordsToAmazon: 创建新关键词并获取Amazon keywordId
+ * - 增强 syncBidAdjustmentsToAmazon: 更详细的错误日志和API同步状态追踪
+ * - 增强 applyBidAdjustment 的错误处理
  */
 import { AmazonSyncService } from '../amazonSyncService';
 import * as db from '../db';
@@ -24,6 +29,17 @@ export async function getAmazonSyncService(accountId: number): Promise<AmazonSyn
     const credentials = await db.getAmazonApiCredentials(accountId);
     if (!credentials) {
       console.error(`[AmazonApiHelper] 账号 ${accountId} 未配置API凭证`);
+      return null;
+    }
+    
+    // 验证凭证完整性
+    if (!credentials.clientId || !credentials.clientSecret || !credentials.refreshToken) {
+      console.error(`[AmazonApiHelper] 账号 ${accountId} API凭证不完整: clientId=${!!credentials.clientId}, clientSecret=${!!credentials.clientSecret}, refreshToken=${!!credentials.refreshToken}`);
+      return null;
+    }
+    
+    if (!account.profileId) {
+      console.error(`[AmazonApiHelper] 账号 ${accountId} 缺少profileId`);
       return null;
     }
     
@@ -51,6 +67,8 @@ export async function getAmazonSyncService(accountId: number): Promise<AmazonSyn
 /**
  * 批量同步出价调整到 Amazon
  * 将本地数据库的出价变更推送到 Amazon Ads API
+ * 
+ * v123增强: 更详细的错误日志，区分不同失败原因
  */
 export async function syncBidAdjustmentsToAmazon(
   accountId: number,
@@ -66,16 +84,24 @@ export async function syncBidAdjustmentsToAmazon(
   
   if (adjustments.length === 0) return result;
   
+  console.log(`[AmazonApiHelper] 开始同步出价调整: accountId=${accountId}, 总计=${adjustments.length}条`);
+  
   const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
-    result.errors.push(`无法获取账号 ${accountId} 的API服务`);
+    const errorMsg = `无法获取账号 ${accountId} 的API服务（凭证缺失或无效）`;
+    console.error(`[AmazonApiHelper] ${errorMsg}`);
+    result.errors.push(errorMsg);
     result.failed = adjustments.length;
     return result;
   }
   
+  console.log(`[AmazonApiHelper] API服务创建成功，开始逐条同步出价调整`);
+  
   for (const adj of adjustments) {
     try {
       const targetType = adj.isProductTarget ? 'product_target' : 'keyword';
+      console.log(`[AmazonApiHelper] 同步出价: ${targetType} id=${adj.keywordId}, newBid=${adj.newBid}, campaignId=${adj.campaignId}`);
+      
       const success = await syncService.applyBidAdjustment(
         targetType,
         adj.keywordId,
@@ -86,17 +112,124 @@ export async function syncBidAdjustmentsToAmazon(
       
       if (success) {
         result.success++;
+        console.log(`[AmazonApiHelper] ✅ 出价同步成功: ${targetType} ${adj.keywordId}`);
       } else {
         result.failed++;
-        result.errors.push(`出价调整失败: ${targetType} ${adj.keywordId}`);
+        const errorMsg = `出价调整失败(返回false): ${targetType} ${adj.keywordId} - 可能是Amazon ID缺失或API调用失败`;
+        result.errors.push(errorMsg);
+        console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
       }
     } catch (error: any) {
       result.failed++;
-      result.errors.push(`出价调整异常: ${adj.keywordId} - ${error.message}`);
+      const errorMsg = `出价调整异常: ${adj.isProductTarget ? 'product_target' : 'keyword'} ${adj.keywordId} - ${error.message}`;
+      result.errors.push(errorMsg);
+      console.error(`[AmazonApiHelper] ❌ ${errorMsg}`, error.response?.data || '');
     }
   }
   
-  console.log(`[AmazonApiHelper] 出价同步完成: 成功=${result.success}, 失败=${result.failed}`);
+  console.log(`[AmazonApiHelper] 出价同步完成: 成功=${result.success}, 失败=${result.failed}, 错误数=${result.errors.length}`);
+  if (result.errors.length > 0) {
+    console.error(`[AmazonApiHelper] 错误详情:`, result.errors.slice(0, 5).join('; '));
+  }
+  return result;
+}
+
+/**
+ * 同步新关键词到 Amazon (v123新增)
+ * 通过 createSpKeywords API 在Amazon中创建关键词，获取keywordId后更新本地数据库
+ * 
+ * @param accountId - 账号ID
+ * @param newKeywords - 新关键词列表
+ * @returns 创建结果，包含成功数、失败数和每个关键词的Amazon keywordId
+ */
+export async function syncNewKeywordsToAmazon(
+  accountId: number,
+  newKeywords: Array<{
+    localKeywordId?: number;  // 本地数据库的keyword ID（如果已插入）
+    adGroupId: number;        // Amazon AdGroup ID (数字)
+    campaignId: number;       // Amazon Campaign ID (数字)
+    keywordText: string;
+    matchType: 'exact' | 'phrase' | 'broad';
+    bid: number;
+  }>
+): Promise<{ success: number; failed: number; errors: string[]; createdKeywords: Array<{ localId?: number; amazonKeywordId: number; keywordText: string }> }> {
+  const result = { 
+    success: 0, 
+    failed: 0, 
+    errors: [] as string[], 
+    createdKeywords: [] as Array<{ localId?: number; amazonKeywordId: number; keywordText: string }>
+  };
+  
+  if (newKeywords.length === 0) return result;
+  
+  console.log(`[AmazonApiHelper] 开始同步新关键词到Amazon: accountId=${accountId}, 总计=${newKeywords.length}个`);
+  
+  const syncService = await getAmazonSyncService(accountId);
+  if (!syncService) {
+    const errorMsg = `无法获取账号 ${accountId} 的API服务`;
+    result.errors.push(errorMsg);
+    result.failed = newKeywords.length;
+    return result;
+  }
+  
+  try {
+    // 批量调用Amazon API创建关键词
+    const apiResult = await syncService.client.createSpKeywords(
+      newKeywords.map(k => ({
+        adGroupId: k.adGroupId,
+        campaignId: k.campaignId,
+        keywordText: k.keywordText,
+        matchType: k.matchType,
+        bid: k.bid,
+        state: 'enabled' as const,
+      }))
+    );
+    
+    // 处理API返回结果
+    for (let i = 0; i < apiResult.createdKeywords.length; i++) {
+      const created = apiResult.createdKeywords[i];
+      const original = newKeywords[i];
+      
+      if (created.code === 'SUCCESS' && created.keywordId) {
+        result.success++;
+        result.createdKeywords.push({
+          localId: original.localKeywordId,
+          amazonKeywordId: created.keywordId,
+          keywordText: created.keywordText || original.keywordText,
+        });
+        
+        // 如果有本地ID，更新本地数据库的keywordId
+        if (original.localKeywordId) {
+          try {
+            const dbInstance = await db.getDb();
+            if (dbInstance) {
+              const { keywords } = await import('../../drizzle/schema');
+              const { eq } = await import('drizzle-orm');
+              await dbInstance.update(keywords)
+                .set({ 
+                  keywordId: String(created.keywordId),
+                  updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+                })
+                .where(eq(keywords.id, original.localKeywordId));
+              console.log(`[AmazonApiHelper] ✅ 关键词已同步: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
+            }
+          } catch (dbError: any) {
+            console.error(`[AmazonApiHelper] 更新本地keywordId失败:`, dbError.message);
+          }
+        }
+      } else {
+        result.failed++;
+        result.errors.push(`关键词创建失败: "${original.keywordText}" - code=${created.code}`);
+        console.error(`[AmazonApiHelper] ❌ 关键词创建失败: "${original.keywordText}", code=${created.code}`);
+      }
+    }
+  } catch (error: any) {
+    result.failed += newKeywords.length;
+    result.errors.push(`批量创建关键词API调用失败: ${error.message}`);
+    console.error(`[AmazonApiHelper] ❌ 批量创建关键词失败:`, error.response?.data || error.message);
+  }
+  
+  console.log(`[AmazonApiHelper] 新关键词同步完成: 成功=${result.success}, 失败=${result.failed}`);
   return result;
 }
 
