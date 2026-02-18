@@ -89875,7 +89875,7 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
                     const amazonKeywordId = amazonKwMap.get(key);
                     if (amazonKeywordId) {
                       try {
-                        await dbInstance.update(kwTable).set({ keywordId: amazonKeywordId }).where(eq7(kwTable.id, kw.id));
+                        await dbInstance.execute(sqlTag`UPDATE keywords SET keywordId = ${amazonKeywordId} WHERE id = ${kw.id}`);
                         matched++;
                         totalCompensated++;
                       } catch (updateErr) {

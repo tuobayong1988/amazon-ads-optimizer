@@ -583,11 +583,9 @@ async function executeBidOptimization(
                     const amazonKeywordId = amazonKwMap.get(key);
                     
                     if (amazonKeywordId) {
-                      // 回填keywordId到本地数据库（updatedAt由数据库自动更新onUpdateNow）
+                      // 回填keywordId到本地数据库（使用原始SQL绕过Drizzle casing映射问题）
                       try {
-                        await dbInstance.update(kwTable)
-                          .set({ keywordId: amazonKeywordId })
-                          .where(eq(kwTable.id, kw.id));
+                        await dbInstance.execute(sqlTag`UPDATE keywords SET keywordId = ${amazonKeywordId} WHERE id = ${kw.id}`);
                         matched++;
                         totalCompensated++;
                       } catch (updateErr: any) {
