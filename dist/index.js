@@ -89830,7 +89830,7 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
             const [missingKws] = await directConn.execute(
               `SELECT k.id, k.adGroupId, k.keywordText, k.matchType, k.bid
                FROM keywords k
-               INNER JOIN adGroups ag ON k.adGroupId = ag.id
+               INNER JOIN ad_groups ag ON k.adGroupId = ag.id
                INNER JOIN campaigns c ON ag.campaignId = c.id
                WHERE c.accountId = ? AND k.keywordId IS NULL`,
               [accountId]
@@ -89853,7 +89853,7 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
                 for (const [adGroupLocalId, kwsInGroup] of groupedByAdGroup) {
                   try {
                     const [agRows] = await directConn.execute(
-                      "SELECT id, adGroupId FROM adGroups WHERE id = ? LIMIT 1",
+                      "SELECT id, adGroupId FROM ad_groups WHERE id = ? LIMIT 1",
                       [adGroupLocalId]
                     );
                     if (!agRows[0] || !agRows[0].adGroupId) {
