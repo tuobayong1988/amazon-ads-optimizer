@@ -182,11 +182,10 @@ export async function executeBatchSync(options?: {
     query += ` ORDER BY priority ASC, created_at ASC`;
     
     if (options?.maxTasks) {
-      query += ` LIMIT ?`;
-      params.push(options.maxTasks);
+      query += ` LIMIT ${Number(options.maxTasks)}`;
     }
     
-    const [rows] = await conn.execute<any[]>(query, params);
+    const [rows] = await conn.execute(query, params) as any[];
     result.totalTasks = rows.length;
     
     if (rows.length === 0) {
@@ -974,13 +973,13 @@ export async function getBatchStatus(batchId: string): Promise<{
   });
   
   try {
-    const [rows] = await conn.execute<any[]>(
+    const [rows] = await conn.execute(
       `SELECT status, COUNT(*) as cnt FROM optimization_tasks WHERE batch_id = ? GROUP BY status`,
       [batchId]
     );
     
     const result = { total: 0, synced: 0, failed: 0, pending: 0, retry: 0, permanentlyFailed: 0 };
-    for (const r of rows) {
+    for (const r of (rows as any[])) {
       result.total += r.cnt;
       if (r.status === 'synced') result.synced = r.cnt;
       else if (r.status === 'failed') result.failed = r.cnt;

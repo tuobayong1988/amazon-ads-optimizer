@@ -80,12 +80,16 @@ async function startServer() {
     startOptimizationScheduler();
     console.log('[OptimizationScheduler] 分层优化调度器已启动');
     
-    // v122h: 启动优化目标调度器（恢复所有活跃优化目标的定时执行）
-    startTargetScheduler().then(result => {
-      console.log(`[TargetScheduler] 优化目标调度器已启动: 共${result.total}个活跃目标, 已注册${result.scheduled}个, 失败${result.errors}个`);
-    }).catch(err => {
-      console.error('[TargetScheduler] 启动失败:', err.message);
-    });
+    // v142: 禁用optimizationScheduler的daily全量执行，避免与dataSyncScheduler重复
+    // dataSyncScheduler已按模块频率调度（出价每2小时、分时每小时等），
+    // optimizationScheduler的daily全量执行会导致重复执行所有模块。
+    // 保留optimizationScheduler的triggerInitialOptimization功能（创建优化目标后首次触发）。
+    // startTargetScheduler().then(result => {
+    //   console.log(`[TargetScheduler] 优化目标调度器已启动: 共${result.total}个活跃目标, 已注册${result.scheduled}个, 失败${result.errors}个`);
+    // }).catch(err => {
+    //   console.error('[TargetScheduler] 启动失败:', err.message);
+    // });
+    console.log('[TargetScheduler] v142: daily全量执行已禁用，优化调度由dataSyncScheduler统一管理');
     
     // 启动SQS消费者服务（AMS实时数据流）
     if (process.env.AWS_SQS_QUEUE_TRAFFIC_URL || process.env.AWS_SQS_QUEUE_CONVERSION_URL || process.env.AWS_SQS_QUEUE_BUDGET_URL) {
