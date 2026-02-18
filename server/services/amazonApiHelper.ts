@@ -489,3 +489,163 @@ export async function syncNegativeKeywordsToAmazon(
   console.log(`[AmazonApiHelper] 否定词同步完成: 成功=${result.success}, 失败=${result.failed}`);
   return result;
 }
+
+
+/**
+ * 同步关键词状态变更到 Amazon (v134新增)
+ * 通过 PUT /sp/keywords API 更新关键词的 state 字段（enabled/paused/archived）
+ * 
+ * 这是修复的关键函数 - 之前系统只更新本地数据库的关键词状态，
+ * 没有同步到Amazon，导致Amazon平台上的关键词状态不一致
+ * 
+ * @param accountId - 账号ID
+ * @param statusChanges - 关键词状态变更列表
+ * @returns 同步结果
+ */
+export async function syncKeywordStatusToAmazon(
+  accountId: number,
+  statusChanges: Array<{
+    keywordId: number;       // 本地数据库的keyword ID
+    newStatus: 'enabled' | 'paused' | 'archived';
+    campaignId: number;
+    reason: string;
+    isProductTarget?: boolean;
+  }>
+): Promise<{ success: number; failed: number; errors: string[] }> {
+  const result = { success: 0, failed: 0, errors: [] as string[] };
+  
+  if (statusChanges.length === 0) return result;
+  
+  console.log(`[AmazonApiHelper] 开始同步关键词状态变更: accountId=${accountId}, 总计=${statusChanges.length}条`);
+  
+  const syncService = await getAmazonSyncService(accountId);
+  if (!syncService) {
+    const errorMsg = `无法获取账号 ${accountId} 的API服务（凭证缺失或无效）`;
+    console.error(`[AmazonApiHelper] ${errorMsg}`);
+    result.errors.push(errorMsg);
+    result.failed = statusChanges.length;
+    return result;
+  }
+  
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  
+  // 分离关键词和商品定向
+  const keywordChanges = statusChanges.filter(s => !s.isProductTarget);
+  const productTargetChanges = statusChanges.filter(s => s.isProductTarget);
+  
+  // 处理关键词状态变更
+  for (let i = 0; i < keywordChanges.length; i++) {
+    const change = keywordChanges[i];
+    try {
+      // 获取Amazon keywordId
+      const dbInstance = await db.getDb();
+      if (!dbInstance) {
+        result.failed++;
+        result.errors.push(`数据库连接失败`);
+        continue;
+      }
+      
+      const { keywords } = await import('../../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+      const [kw] = await dbInstance.select({ keywordId: keywords.keywordId })
+        .from(keywords)
+        .where(eq(keywords.id, change.keywordId))
+        .limit(1);
+      
+      if (!kw || !kw.keywordId || kw.keywordId === '0' || kw.keywordId === '') {
+        result.failed++;
+        const errorMsg = `关键词 ${change.keywordId} 缺少Amazon keywordId，无法同步状态`;
+        result.errors.push(errorMsg);
+        console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
+        continue;
+      }
+      
+      const amazonKeywordId = String(kw.keywordId);
+      console.log(`[AmazonApiHelper] [${i+1}/${keywordChanges.length}] 同步关键词状态: keywordId="${amazonKeywordId}", newState=${change.newStatus}`);
+      
+      // 使用API客户端的updateKeywordStatus方法
+      const apiResult = await syncService.client.updateKeywordStatus([{
+        keywordId: amazonKeywordId,
+        state: change.newStatus,
+      }]);
+      
+      if (apiResult.successCount > 0) {
+        result.success++;
+        console.log(`[AmazonApiHelper] ✅ 关键词状态更新成功: keywordId=${amazonKeywordId}, state=${change.newStatus}`);
+      } else if (apiResult.errors.length > 0) {
+        result.failed++;
+        const errorDetail = apiResult.errors[0]?.details || 'Unknown error';
+        result.errors.push(`关键词 ${amazonKeywordId} 状态更新失败: ${errorDetail}`);
+        console.error(`[AmazonApiHelper] ❌ 关键词状态更新失败: keywordId=${amazonKeywordId}, error=${errorDetail}`);
+      } else {
+        result.success++;
+        console.log(`[AmazonApiHelper] ✅ 关键词状态更新完成（无错误返回）: keywordId=${amazonKeywordId}`);
+      }
+    } catch (error: any) {
+      result.failed++;
+      const errorMsg = `关键词 ${change.keywordId} 状态同步异常: ${error.message}`;
+      result.errors.push(errorMsg);
+      console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
+    }
+    
+    // 每5个调用后添加小延迟
+    if ((i + 1) % 5 === 0 && i < keywordChanges.length - 1) {
+      await delay(500);
+    }
+  }
+  
+  // 处理商品定向状态变更
+  for (let i = 0; i < productTargetChanges.length; i++) {
+    const change = productTargetChanges[i];
+    try {
+      const dbInstance = await db.getDb();
+      if (!dbInstance) {
+        result.failed++;
+        result.errors.push(`数据库连接失败`);
+        continue;
+      }
+      
+      const { productTargets } = await import('../../drizzle/schema');
+      const { eq } = await import('drizzle-orm');
+      const [pt] = await dbInstance.select({ targetId: productTargets.targetId })
+        .from(productTargets)
+        .where(eq(productTargets.id, change.keywordId))
+        .limit(1);
+      
+      if (!pt || !pt.targetId || pt.targetId === '0' || pt.targetId === '') {
+        result.failed++;
+        result.errors.push(`商品定向 ${change.keywordId} 缺少Amazon targetId`);
+        continue;
+      }
+      
+      const amazonTargetId = String(pt.targetId);
+      console.log(`[AmazonApiHelper] [${i+1}/${productTargetChanges.length}] 同步商品定向状态: targetId="${amazonTargetId}", newState=${change.newStatus}`);
+      
+      // 使用API客户端的updateProductTargetStatus方法
+      const apiResult = await syncService.client.updateProductTargetStatus([{
+        targetId: amazonTargetId,
+        state: change.newStatus,
+      }]);
+      
+      if (apiResult.successCount > 0) {
+        result.success++;
+        console.log(`[AmazonApiHelper] ✅ 商品定向状态更新成功: targetId=${amazonTargetId}`);
+      } else if (apiResult.errors.length > 0) {
+        result.failed++;
+        result.errors.push(`商品定向 ${amazonTargetId} 状态更新失败: ${apiResult.errors[0]?.details || 'Unknown error'}`);
+      } else {
+        result.success++;
+      }
+    } catch (error: any) {
+      result.failed++;
+      result.errors.push(`商品定向 ${change.keywordId} 状态同步异常: ${error.message}`);
+    }
+    
+    if ((i + 1) % 5 === 0 && i < productTargetChanges.length - 1) {
+      await delay(500);
+    }
+  }
+  
+  console.log(`[AmazonApiHelper] 关键词状态同步完成: 成功=${result.success}, 失败=${result.failed}`);
+  return result;
+}

@@ -1,7 +1,9 @@
 /**
- * OptimizationLogs - 优化日志组件 v123
+ * OptimizationLogs - 优化日志组件 v134
  * 展示优化目标的完整操作日志，包含：
- * - 具体的优化动作和执行时间
+ * - 具体关键词/商品定向名称（摘要行直接显示）
+ * - 出价变化（旧价 → 新价）
+ * - 调整原因
  * - Amazon API同步状态（是否已传递到亚马逊执行）
  * - 完整执行链路：本地决策 → API调用 → Amazon确认
  */
@@ -38,6 +40,8 @@ import {
   CloudOff,
   Loader2,
   ExternalLink,
+  Tag,
+  Package,
 } from "lucide-react";
 
 // 日志分类配置
@@ -74,6 +78,8 @@ const ACTION_TYPE_LABELS: Record<string, { label: string; color: string; icon?: 
   keyword_create: { label: '创建关键词', color: 'bg-blue-500/20 text-blue-400' },
   target_pause: { label: '暂停投放词', color: 'bg-yellow-500/20 text-yellow-400' },
   target_enable: { label: '启用投放词', color: 'bg-green-500/20 text-green-400' },
+  dayparting_bid: { label: '分时竞价', color: 'bg-cyan-500/20 text-cyan-400', icon: '⏰' },
+  budget_adjustment: { label: '预算调整', color: 'bg-emerald-500/20 text-emerald-400', icon: '💰' },
 };
 
 // API同步状态配置
@@ -126,7 +132,9 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
       log.campaignName?.toLowerCase().includes(query) ||
       log.userName?.toLowerCase().includes(query) ||
       log.actionDetail?.toLowerCase().includes(query) ||
-      log.changeReason?.toLowerCase().includes(query)
+      log.changeReason?.toLowerCase().includes(query) ||
+      log.previousValue?.toLowerCase().includes(query) ||
+      log.newValue?.toLowerCase().includes(query)
     );
   }, [logsData?.logs, searchQuery]);
 
@@ -152,6 +160,39 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
     } catch {
       return { text: detail };
     }
+  };
+
+  // 从actionDetail中提取关键词/目标名称
+  const getTargetName = (log: any): { name: string; isProductTarget: boolean } | null => {
+    const detail = parseActionDetail(log.actionDetail);
+    if (!detail) return null;
+    
+    // 出价调整日志
+    if (detail.keywordText) {
+      return { name: detail.keywordText, isProductTarget: !!detail.isProductTarget };
+    }
+    
+    // 搜索词分析日志
+    if (detail.searchTerm) {
+      return { name: detail.searchTerm, isProductTarget: false };
+    }
+    
+    // 位置调整日志
+    if (detail.placement) {
+      const placementNames: Record<string, string> = {
+        'top_of_search': '搜索顶部',
+        'product_page': '商品页面',
+        'rest_of_search': '搜索其他',
+      };
+      return { name: placementNames[detail.placement] || detail.placement, isProductTarget: false };
+    }
+    
+    // 关键词状态变更
+    if (detail.keywordName || detail.targetName) {
+      return { name: detail.keywordName || detail.targetName, isProductTarget: !!detail.isProductTarget };
+    }
+    
+    return null;
   };
 
   // 渲染API同步状态徽章
@@ -217,6 +258,52 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
     );
   };
 
+  // 渲染出价变化标签
+  const renderBidChange = (log: any, compact: boolean = false) => {
+    if (!log.previousValue && !log.newValue) return null;
+    
+    const actionDetail = parseActionDetail(log.actionDetail);
+    const changePercent = actionDetail?.changePercent;
+    
+    return (
+      <div className={`flex items-center gap-1 ${compact ? 'text-xs' : 'text-sm'}`}>
+        {log.previousValue && (
+          <span className="text-red-400 line-through font-mono">{log.previousValue}</span>
+        )}
+        {log.previousValue && log.newValue && (
+          <ArrowRight className={`${compact ? 'w-3 h-3' : 'w-3.5 h-3.5'} text-muted-foreground`} />
+        )}
+        {log.newValue && (
+          <span className="text-green-400 font-medium font-mono">{log.newValue}</span>
+        )}
+        {changePercent && (
+          <span className={`${compact ? 'text-[10px]' : 'text-xs'} px-1 py-0.5 rounded ${
+            parseFloat(changePercent) > 0 
+              ? 'bg-green-500/10 text-green-400' 
+              : 'bg-red-500/10 text-red-400'
+          }`}>
+            {parseFloat(changePercent) > 0 ? '+' : ''}{changePercent}%
+          </span>
+        )}
+      </div>
+    );
+  };
+
+  // 渲染关键词/目标名称标签
+  const renderTargetTag = (log: any, compact: boolean = false) => {
+    const target = getTargetName(log);
+    if (!target) return null;
+    
+    const TargetIcon = target.isProductTarget ? Package : Tag;
+    
+    return (
+      <div className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-500/10 ${compact ? 'text-[11px]' : 'text-xs'} text-blue-300 max-w-[200px]`}>
+        <TargetIcon className="w-3 h-3 shrink-0" />
+        <span className="truncate font-mono">{target.name}</span>
+      </div>
+    );
+  };
+
   // 渲染单条日志
   const renderLogItem = (log: any) => {
     const isExpanded = expandedLogId === log.id;
@@ -235,14 +322,13 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
           onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
         >
           {/* 移动端布局 */}
-          <div className="md:hidden space-y-2">
-            <div className="flex items-center gap-2">
+          <div className="md:hidden space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
               {isExpanded ? (
                 <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
               ) : (
                 <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
               )}
-              <CategoryIcon className={`w-4 h-4 ${categoryConfig.color} shrink-0`} />
               <Badge className={`${actionConfig.color} text-xs`}>
                 {actionConfig.icon && <span className="mr-1">{actionConfig.icon}</span>}
                 {actionConfig.label}
@@ -250,75 +336,89 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
               <StatusIcon className={`w-4 h-4 ${statusConfig.color} shrink-0`} />
               {renderApiSyncBadge(log)}
             </div>
+            
+            {/* 关键词名称 - 移动端 */}
+            {renderTargetTag(log, true) && (
+              <div className="pl-6">
+                {renderTargetTag(log, true)}
+              </div>
+            )}
+            
+            {/* 出价变更 - 移动端 */}
+            {(log.previousValue || log.newValue) && (
+              <div className="pl-6">
+                {renderBidChange(log, true)}
+              </div>
+            )}
+            
+            {/* 调整原因 - 移动端 */}
+            {log.changeReason && (
+              <div className="text-[11px] text-muted-foreground pl-6 line-clamp-1">
+                {log.changeReason}
+              </div>
+            )}
+            
             <div className="flex items-center gap-1 text-xs text-muted-foreground pl-6">
               <Calendar className="w-3 h-3" />
               <span>{formatDateTime(log.createdAt)}</span>
             </div>
             {log.campaignName && (
-              <div className="text-xs text-muted-foreground pl-6 truncate">
+              <div className="text-[11px] text-muted-foreground pl-6 truncate">
                 {log.campaignName}
-              </div>
-            )}
-            {/* 出价变更摘要 */}
-            {(log.previousValue || log.newValue) && (
-              <div className="flex items-center gap-2 text-xs pl-6">
-                {log.previousValue && <span className="text-red-400">{log.previousValue}</span>}
-                {log.previousValue && log.newValue && <ArrowRight className="w-3 h-3 text-muted-foreground" />}
-                {log.newValue && <span className="text-green-400 font-medium">{log.newValue}</span>}
               </div>
             )}
           </div>
           
           {/* PC端布局 */}
           <div className="hidden md:block">
-            <div className="flex items-center gap-3">
+            {/* 第一行：操作类型、关键词、出价变化、同步状态 */}
+            <div className="flex items-center gap-2.5">
               {isExpanded ? (
-                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
               ) : (
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
               )}
-              <CategoryIcon className={`w-5 h-5 ${categoryConfig.color}`} />
+              <CategoryIcon className={`w-4 h-4 ${categoryConfig.color} shrink-0`} />
               
               {/* 时间 */}
-              <div className="flex items-center gap-1 text-sm text-muted-foreground min-w-[150px]">
+              <div className="flex items-center gap-1 text-sm text-muted-foreground min-w-[140px] shrink-0">
                 <Calendar className="w-3 h-3" />
                 {formatDateTime(log.createdAt)}
               </div>
               
               {/* 操作类型 */}
-              <Badge className={`${actionConfig.color} text-xs`}>
+              <Badge className={`${actionConfig.color} text-xs shrink-0`}>
                 {actionConfig.icon && <span className="mr-1">{actionConfig.icon}</span>}
                 {actionConfig.label}
               </Badge>
               
+              {/* 关键词/目标名称 - 直接在摘要行显示 */}
+              {renderTargetTag(log)}
+              
               {/* 出价变更摘要 */}
-              {(log.previousValue || log.newValue) && (
-                <div className="flex items-center gap-1 text-sm">
-                  {log.previousValue && <span className="text-red-400 line-through">{log.previousValue}</span>}
-                  {log.previousValue && log.newValue && <ArrowRight className="w-3 h-3 text-muted-foreground" />}
-                  {log.newValue && <span className="text-green-400 font-medium">{log.newValue}</span>}
-                </div>
-              )}
+              {renderBidChange(log)}
               
               {/* Amazon同步状态 */}
               {renderApiSyncBadge(log)}
               
               {/* 执行状态 */}
-              <StatusIcon className={`w-4 h-4 ${statusConfig.color}`} />
-              
-              {/* 操作用户 */}
-              <div className="flex items-center gap-1 text-sm">
-                <User className="w-3 h-3 text-muted-foreground" />
-                <span>{log.userName || '系统'}</span>
-              </div>
+              <StatusIcon className={`w-4 h-4 ${statusConfig.color} shrink-0`} />
               
               {/* Campaign名称 */}
               {log.campaignName && (
-                <div className="flex-1 truncate text-sm text-muted-foreground">
+                <div className="flex-1 truncate text-xs text-muted-foreground min-w-0">
                   {log.campaignName}
                 </div>
               )}
             </div>
+            
+            {/* 第二行：调整原因（仅在未展开时显示） */}
+            {!isExpanded && log.changeReason && (
+              <div className="text-xs text-muted-foreground mt-1.5 ml-[30px] line-clamp-1">
+                <span className="text-muted-foreground/60">原因: </span>
+                {log.changeReason}
+              </div>
+            )}
             
             {/* 执行链路（仅在摘要行显示） */}
             {!isExpanded && renderExecutionPipeline(log)}
@@ -421,40 +521,42 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
             {/* 操作详情 */}
             <div>
               <p className="text-sm font-medium mb-2">操作详情</p>
-              <div className="bg-background rounded-lg p-3 space-y-2">
+              <div className="bg-background rounded-lg p-3 space-y-3">
+                {/* 目标关键词/ASIN */}
+                {actionDetail && actionDetail.keywordText && (
+                  <div className="text-sm flex items-center gap-2">
+                    <span className="text-muted-foreground shrink-0">
+                      {actionDetail.isProductTarget ? '商品定向:' : '关键词:'}
+                    </span>
+                    <span className="font-mono font-medium text-blue-300">{actionDetail.keywordText}</span>
+                  </div>
+                )}
+                
                 {/* 出价变更 */}
                 {(log.previousValue || log.newValue) && (
                   <div className="flex items-center gap-2 text-sm">
-                    <span className="text-muted-foreground">变更:</span>
-                    {log.previousValue && (
-                      <span className="text-red-400 line-through">{log.previousValue}</span>
-                    )}
-                    {log.previousValue && log.newValue && (
-                      <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                    )}
-                    {log.newValue && (
-                      <span className="text-green-400 font-medium">{log.newValue}</span>
-                    )}
+                    <span className="text-muted-foreground shrink-0">出价变更:</span>
+                    {renderBidChange(log)}
                   </div>
                 )}
                 
                 {/* 变更原因 */}
                 {log.changeReason && (
                   <div className="text-sm">
-                    <span className="text-muted-foreground">原因: </span>
-                    <span>{log.changeReason}</span>
+                    <span className="text-muted-foreground">调整原因: </span>
+                    <span className="text-foreground">{log.changeReason}</span>
                   </div>
                 )}
                 
                 {/* 算法信息 */}
                 {actionDetail && actionDetail.algorithmUsed && (
-                  <div className="text-sm flex gap-4">
-                    <span>
+                  <div className="text-sm flex gap-4 flex-wrap">
+                    <span className="flex items-center gap-1">
                       <span className="text-muted-foreground">算法: </span>
                       <Badge variant="outline" className="text-xs">{actionDetail.algorithmUsed}</Badge>
                     </span>
                     {actionDetail.confidenceScore !== undefined && (
-                      <span>
+                      <span className="flex items-center gap-1">
                         <span className="text-muted-foreground">置信度: </span>
                         <span className={actionDetail.confidenceScore > 0.7 ? 'text-green-400' : actionDetail.confidenceScore > 0.4 ? 'text-yellow-400' : 'text-red-400'}>
                           {(actionDetail.confidenceScore * 100).toFixed(0)}%
@@ -464,13 +566,93 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
                   </div>
                 )}
                 
-                {/* 目标关键词/ASIN */}
-                {actionDetail && actionDetail.keywordText && (
+                {/* 搜索词信息（用于搜索词收割/否定词日志） */}
+                {actionDetail && actionDetail.searchTerm && (
                   <div className="text-sm">
-                    <span className="text-muted-foreground">
-                      {actionDetail.isProductTarget ? '商品定向: ' : '关键词: '}
-                    </span>
-                    <span className="font-mono">{actionDetail.keywordText}</span>
+                    <span className="text-muted-foreground">搜索词: </span>
+                    <span className="font-mono text-blue-300">{actionDetail.searchTerm}</span>
+                  </div>
+                )}
+                
+                {/* 匹配类型 */}
+                {actionDetail && actionDetail.matchType && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">匹配类型: </span>
+                    <Badge variant="outline" className="text-xs">{actionDetail.matchType}</Badge>
+                  </div>
+                )}
+                
+                {/* 分时竞价信息 */}
+                {actionDetail && actionDetail.bidMultiplier !== undefined && (
+                  <div className="text-sm space-y-1">
+                    <div className="flex gap-4 flex-wrap">
+                      <span>
+                        <span className="text-muted-foreground">时段: </span>
+                        <span className="font-medium">{actionDetail.hour}:00</span>
+                      </span>
+                      <span>
+                        <span className="text-muted-foreground">星期: </span>
+                        <span className="font-medium">{['\u65e5','\u4e00','\u4e8c','\u4e09','\u56db','\u4e94','\u516d'][actionDetail.dayOfWeek] || actionDetail.dayOfWeek}</span>
+                      </span>
+                      <span>
+                        <span className="text-muted-foreground">乘数: </span>
+                        <span className="font-medium">{actionDetail.bidMultiplier}x</span>
+                      </span>
+                    </div>
+                  </div>
+                )}
+                
+                {/* 预算调整信息 */}
+                {actionDetail && actionDetail.currentBudget !== undefined && actionDetail.suggestedBudget !== undefined && (
+                  <div className="text-sm space-y-1">
+                    <div className="flex gap-4 flex-wrap">
+                      <span>
+                        <span className="text-muted-foreground">当前预算: </span>
+                        <span className="font-mono text-red-400 line-through">${actionDetail.currentBudget.toFixed(2)}</span>
+                      </span>
+                      <span>
+                        <span className="text-muted-foreground">新预算: </span>
+                        <span className="font-mono text-green-400 font-medium">${actionDetail.suggestedBudget.toFixed(2)}</span>
+                      </span>
+                      <span>
+                        <span className="text-muted-foreground">变化: </span>
+                        <span className={`font-mono ${actionDetail.changeAmount > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {actionDetail.changeAmount > 0 ? '+' : ''}${actionDetail.changeAmount?.toFixed(2)} ({actionDetail.changePercent}%)
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                )}
+                
+                {/* 位置调整信息 */}
+                {actionDetail && actionDetail.placement && (
+                  <div className="text-sm space-y-1">
+                    <div className="flex gap-4 flex-wrap">
+                      <span>
+                        <span className="text-muted-foreground">广告位: </span>
+                        <span className="font-medium">
+                          {{'top_of_search': '\u641c\u7d22\u9876\u90e8', 'product_page': '\u5546\u54c1\u9875\u9762', 'rest_of_search': '\u641c\u7d22\u5176\u4ed6'}[actionDetail.placement] || actionDetail.placement}
+                        </span>
+                      </span>
+                      <span>
+                        <span className="text-muted-foreground">当前乘数: </span>
+                        <span className="font-mono text-red-400 line-through">{actionDetail.currentMultiplier}%</span>
+                      </span>
+                      <span>
+                        <span className="text-muted-foreground">新乘数: </span>
+                        <span className="font-mono text-green-400 font-medium">{actionDetail.suggestedMultiplier}%</span>
+                      </span>
+                    </div>
+                  </div>
+                )}
+                
+                {/* 关键词状态变更信息 */}
+                {actionDetail && (actionDetail.action === 'pause' || actionDetail.action === 'enable') && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">状态变更: </span>
+                    <span className="text-red-400">{actionDetail.currentStatus}</span>
+                    <ArrowRight className="w-3 h-3 inline mx-1 text-muted-foreground" />
+                    <span className="text-green-400 font-medium">{actionDetail.newStatus || actionDetail.action}</span>
                   </div>
                 )}
                 
@@ -530,7 +712,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="搜索日志（广告活动名称、关键词、原因等）..."
+              placeholder="搜索日志（关键词、广告活动、出价、原因等）..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"

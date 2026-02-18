@@ -784,13 +784,15 @@ async function executePlacementOptimization(
       );
       
       for (const suggestion of suggestions) {
-        const adjustment = {
+        const adjustment: any = {
+          accountId: config.accountId,
           campaignId: campaign.id,
           campaignName: campaign.name,
           placement: suggestion.placement,
           currentMultiplier: suggestion.currentMultiplier,
           suggestedMultiplier: suggestion.suggestedMultiplier,
           reason: suggestion.reason,
+          apiSyncStatus: dryRun ? 'pending' : 'pending',
         };
         
         details.push(adjustment);
@@ -806,24 +808,34 @@ async function executePlacementOptimization(
         }
       }
       
-      // v122: 同步位置倾斜到 Amazon API
+      // v134: 同步位置倾斜到 Amazon API，并记录同步状态
       if (!dryRun && suggestions.length > 0) {
+        let placementSyncSuccess = false;
+        let placementSyncError = '';
         try {
           const amazonCampaignId = campaign.campaignId || campaign.id.toString();
           const topSuggestion = suggestions.find((s: any) => s.placement === 'top_of_search');
           const productSuggestion = suggestions.find((s: any) => s.placement === 'product_page');
           
           if (topSuggestion || productSuggestion) {
-            await amazonApiHelper.syncPlacementAdjustmentToAmazon(
+            const syncResult = await amazonApiHelper.syncPlacementAdjustmentToAmazon(
               config.accountId,
               amazonCampaignId,
               topSuggestion?.suggestedMultiplier || campaign.placementTopSearchBidAdjustment || 0,
               productSuggestion?.suggestedMultiplier || campaign.placementProductPageBidAdjustment || 0,
               `位置优化: Top=${topSuggestion?.suggestedMultiplier || 0}%, Product=${productSuggestion?.suggestedMultiplier || 0}%`
             );
+            placementSyncSuccess = syncResult;
           }
         } catch (apiError: any) {
+          placementSyncError = apiError.message;
           console.error(`[PlacementOptimization] Amazon API同步失败 (Campaign ${campaign.campaignName}):`, apiError.message);
+        }
+        
+        // v134: 将同步状态回写到该campaign的所有detail中
+        for (const d of details.filter(d => d.campaignId === campaign.id)) {
+          d.apiSyncStatus = placementSyncSuccess ? 'synced' : (placementSyncError ? 'failed' : 'pending');
+          d.apiSyncDetail = placementSyncError ? JSON.stringify({ error: placementSyncError }) : null;
         }
       }
     } catch (error: any) {
@@ -878,7 +890,8 @@ async function executeDaypartingOptimization(
         
         const adjustedBid = baseBid * bidMultiplier;
         
-        const adjustment = {
+        const adjustment: any = {
+          accountId: config.accountId,
           campaignId: campaign.id,
           campaignName: campaign.name,
           keywordId: keyword.id,
@@ -888,14 +901,18 @@ async function executeDaypartingOptimization(
           baseBid,
           bidMultiplier,
           adjustedBid,
+          currentBid: baseBid,
+          newBid: adjustedBid,
+          reason: `分时竞价: ${currentHour}:00 乘数${bidMultiplier}x, 基础出价$${baseBid.toFixed(2)} → $${adjustedBid.toFixed(2)}`,
+          apiSyncStatus: dryRun ? 'pending' : 'pending',
         };
         
         details.push(adjustment);
         
         if (!dryRun && bidMultiplier !== 1.0) {
-          // v122: 实际通过 Amazon API 调整出价
+          // v134: 实际通过 Amazon API 调整出价，并记录同步状态
           try {
-            const success = await amazonApiHelper.syncBidAdjustmentsToAmazon(
+            const syncResult = await amazonApiHelper.syncBidAdjustmentsToAmazon(
               config.accountId,
               [{
                 keywordId: keyword.id,
@@ -905,8 +922,16 @@ async function executeDaypartingOptimization(
                 isProductTarget: false,
               }]
             );
-            if (success.success > 0) adjustmentsCount++;
+            if (syncResult.success > 0) {
+              adjustmentsCount++;
+              adjustment.apiSyncStatus = 'synced';
+            } else {
+              adjustment.apiSyncStatus = 'failed';
+              adjustment.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
+            }
           } catch (apiError: any) {
+            adjustment.apiSyncStatus = 'failed';
+            adjustment.apiSyncDetail = JSON.stringify({ error: apiError.message });
             console.error(`[DaypartingOptimization] API同步失败 (kw ${keyword.keywordText}):`, apiError.message);
           }
         }
@@ -986,12 +1011,15 @@ async function executeSearchTermAnalysis(
             }
           }
           
-          const negativeKeyword = {
+          const negativeKeyword: any = {
+            accountId: config.accountId,
             campaignId: campaign.id,
             campaignName: campaign.name,
             searchTerm: term.searchTerm,
+            matchType: term.suggestedAction === 'negative_exact' ? 'negative_exact' : 'negative_phrase',
             action: 'add_negative',
             reason: `负面搜索词: ${term.reason}`,
+            apiSyncStatus: dryRun ? 'pending' : 'pending',
           };
           
           details.push(negativeKeyword);
@@ -1016,12 +1044,15 @@ async function executeSearchTermAnalysis(
             negativeKeywordsAdded++;
           }
         } else if (term.suggestedAction === 'target') {
-          const newKeyword = {
+          const newKeyword: any = {
+            accountId: config.accountId,
             campaignId: campaign.id,
             campaignName: campaign.name,
             searchTerm: term.searchTerm,
+            matchType: (term.matchTypeSuggestion || 'exact'),
             action: 'add_keyword',
             reason: `正面搜索词: ${term.reason}`,
+            apiSyncStatus: dryRun ? 'pending' : 'pending',
           };
           
           details.push(newKeyword);
@@ -1081,11 +1112,16 @@ async function executeSearchTermAnalysis(
                         }]
                       );
                       if (apiResult.success > 0) {
+                        newKeyword.apiSyncStatus = 'synced';
                         console.log(`[SearchTermAnalysis] ✅ 新关键词已同步到Amazon: "${term.searchTerm}"`);
                       } else {
+                        newKeyword.apiSyncStatus = 'failed';
+                        newKeyword.apiSyncDetail = JSON.stringify({ errors: apiResult.errors });
                         console.error(`[SearchTermAnalysis] ❌ 新关键词同步失败: "${term.searchTerm}" - ${apiResult.errors.join('; ')}`);
                       }
                     } catch (apiError: any) {
+                      newKeyword.apiSyncStatus = 'failed';
+                      newKeyword.apiSyncDetail = JSON.stringify({ error: apiError.message });
                       console.error(`[SearchTermAnalysis] ❌ 新关键词API同步异常: "${term.searchTerm}" -`, apiError.message);
                     }
                   } else {
@@ -1098,23 +1134,36 @@ async function executeSearchTermAnalysis(
           }
         }
       }
-      // v122: 同步否定关键词到 Amazon API
+      // v134: 同步否定关键词到 Amazon API，并记录同步状态
       if (!dryRun) {
         const negativeDetails = details.filter(d => d.action === 'add_negative' && d.campaignId === campaign.id);
         if (negativeDetails.length > 0) {
           try {
             const amazonCampaignId = Number(campaign.campaignId || campaign.id);
-            await amazonApiHelper.syncNegativeKeywordsToAmazon(
+            const negSyncResult = await amazonApiHelper.syncNegativeKeywordsToAmazon(
               config.accountId,
               negativeDetails.map(d => ({
                 campaignId: amazonCampaignId,
                 keywordText: d.searchTerm,
-                matchType: d.reason?.includes('exact') ? 'negativeExact' as const : 'negativePhrase' as const,
+                matchType: d.matchType === 'negative_exact' ? 'negativeExact' as const : 'negativePhrase' as const,
                 level: 'campaign' as const,
               }))
             );
-            console.log(`[SearchTermAnalysis] Amazon API同步: ${negativeDetails.length}个否定词 (Campaign ${campaign.campaignName})`);
+            // v134: 将同步状态回写到detail中
+            const negSyncStatus = negSyncResult.failed === 0 && negSyncResult.success > 0 ? 'synced' : 
+                                  negSyncResult.success === 0 ? 'failed' : 'partial';
+            for (const d of negativeDetails) {
+              d.apiSyncStatus = negSyncStatus;
+              if (negSyncResult.errors.length > 0) {
+                d.apiSyncDetail = JSON.stringify({ errors: negSyncResult.errors });
+              }
+            }
+            console.log(`[SearchTermAnalysis] Amazon API同步: ${negativeDetails.length}个否定词, 状态=${negSyncStatus} (Campaign ${campaign.campaignName})`);
           } catch (apiError: any) {
+            for (const d of negativeDetails) {
+              d.apiSyncStatus = 'failed';
+              d.apiSyncDetail = JSON.stringify({ error: apiError.message });
+            }
             console.error(`[SearchTermAnalysis] Amazon API同步失败 (Campaign ${campaign.campaignName}):`, apiError.message);
           }
         }
@@ -1150,7 +1199,8 @@ async function executeBudgetAllocation(
       const campaign = campaigns.find(c => c.id === suggestion.campaignId);
       if (!campaign) continue;
       
-      const adjustment = {
+      const adjustment: any = {
+        accountId: config.accountId,
         campaignId: suggestion.campaignId,
         campaignName: campaign.name,
         currentBudget: suggestion.currentBudget,
@@ -1159,6 +1209,7 @@ async function executeBudgetAllocation(
         changePercent: ((suggestion.suggestedBudget - suggestion.currentBudget) / suggestion.currentBudget * 100).toFixed(2),
         reason: suggestion.reasons?.join(', ') || '',
         expectedImpact: (suggestion as any).expectedRoasChange || 0,
+        apiSyncStatus: dryRun ? 'pending' : 'pending',
       };
       
       details.push(adjustment);
@@ -1170,16 +1221,19 @@ async function executeBudgetAllocation(
         });
         adjustmentsCount++;
         
-        // v122: 同步预算调整到 Amazon API
+        // v134: 同步预算调整到 Amazon API，并记录同步状态
         try {
           const amazonCampaignId = campaign.campaignId || campaign.id.toString();
-          await amazonApiHelper.syncBudgetAdjustmentToAmazon(
+          const budgetSyncResult = await amazonApiHelper.syncBudgetAdjustmentToAmazon(
             config.accountId,
             amazonCampaignId,
             suggestion.suggestedBudget,
             `预算优化: $${suggestion.currentBudget.toFixed(2)} -> $${suggestion.suggestedBudget.toFixed(2)}`
           );
+          adjustment.apiSyncStatus = budgetSyncResult ? 'synced' : 'failed';
         } catch (apiError: any) {
+          adjustment.apiSyncStatus = 'failed';
+          adjustment.apiSyncDetail = JSON.stringify({ error: apiError.message });
           console.error(`[BudgetAllocation] Amazon API同步失败 (Campaign ${campaign.campaignName}):`, apiError.message);
         }
       }
@@ -1342,7 +1396,8 @@ async function executeKeywordStatusChanges(
         }
         
         if (shouldPause) {
-          const action = {
+          const action: any = {
+            accountId: config.accountId,
             campaignId: campaign.id,
             campaignName: campaign.name,
             keywordId: keyword.id,
@@ -1350,16 +1405,42 @@ async function executeKeywordStatusChanges(
             action: 'pause',
             reason: pauseReason,
             currentStatus: keyword.keywordStatus,
+            newStatus: 'paused',
+            apiSyncStatus: dryRun ? 'pending' : 'pending',
           };
           
           details.push(action);
           
           if (!dryRun) {
+            // v134: 先更新本地数据库
             await db.updateKeyword(keyword.id, { keywordStatus: 'paused' });
             pausedCount++;
+            
+            // v134: 同步到Amazon API - 这是之前缺失的关键步骤
+            try {
+              const syncResult = await amazonApiHelper.syncKeywordStatusToAmazon(
+                config.accountId,
+                [{
+                  keywordId: keyword.id,
+                  newStatus: 'paused',
+                  campaignId: campaign.id,
+                  reason: pauseReason,
+                  isProductTarget: false,
+                }]
+              );
+              action.apiSyncStatus = syncResult.success > 0 ? 'synced' : 'failed';
+              if (syncResult.errors.length > 0) {
+                action.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
+              }
+            } catch (apiError: any) {
+              action.apiSyncStatus = 'failed';
+              action.apiSyncDetail = JSON.stringify({ error: apiError.message });
+              console.error(`[KeywordStatusChange] Amazon API同步失败 (暂停 ${keyword.keywordText}):`, apiError.message);
+            }
           }
         } else if (shouldEnable) {
-          const action = {
+          const action: any = {
+            accountId: config.accountId,
             campaignId: campaign.id,
             campaignName: campaign.name,
             keywordId: keyword.id,
@@ -1367,13 +1448,38 @@ async function executeKeywordStatusChanges(
             action: 'enable',
             reason: enableReason,
             currentStatus: keyword.keywordStatus,
+            newStatus: 'enabled',
+            apiSyncStatus: dryRun ? 'pending' : 'pending',
           };
           
           details.push(action);
           
           if (!dryRun) {
+            // v134: 先更新本地数据库
             await db.updateKeyword(keyword.id, { keywordStatus: 'enabled' });
             enabledCount++;
+            
+            // v134: 同步到Amazon API - 这是之前缺失的关键步骤
+            try {
+              const syncResult = await amazonApiHelper.syncKeywordStatusToAmazon(
+                config.accountId,
+                [{
+                  keywordId: keyword.id,
+                  newStatus: 'enabled',
+                  campaignId: campaign.id,
+                  reason: enableReason,
+                  isProductTarget: false,
+                }]
+              );
+              action.apiSyncStatus = syncResult.success > 0 ? 'synced' : 'failed';
+              if (syncResult.errors.length > 0) {
+                action.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
+              }
+            } catch (apiError: any) {
+              action.apiSyncStatus = 'failed';
+              action.apiSyncDetail = JSON.stringify({ error: apiError.message });
+              console.error(`[KeywordStatusChange] Amazon API同步失败 (启用 ${keyword.keywordText}):`, apiError.message);
+            }
           }
         }
       }
@@ -1539,7 +1645,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
       const bidApiSyncStatus = (result.bidOptimization as any).apiSyncStatus || 'pending';
       const bidApiSyncResult = (result.bidOptimization as any).apiSyncResult;
       
-      for (const detail of result.bidOptimization.details.slice(0, 50)) {
+      for (const detail of result.bidOptimization.details) {
         await dbInstance.insert(optimizationLogs).values({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
@@ -1565,7 +1671,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
     
     // 记录位置调整日志（包含Amazon API同步状态）
     if (result.placementOptimization.executed && result.placementOptimization.adjustmentsCount > 0) {
-      for (const detail of result.placementOptimization.details.slice(0, 20)) {
+      for (const detail of result.placementOptimization.details) {
         await dbInstance.insert(optimizationLogs).values({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
@@ -1575,9 +1681,9 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
           campaignId: detail.campaignId,
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
-          previousValue: detail.previousValue || '',
-          newValue: detail.newValue || '',
-          changeReason: detail.reason || '位置优化调整',
+          previousValue: detail.previousValue || `${detail.placement}: ${detail.currentMultiplier}%`,
+          newValue: detail.newValue || `${detail.placement}: ${detail.suggestedMultiplier}%`,
+          changeReason: detail.reason || `位置优化: ${detail.placement} ${detail.currentMultiplier}% → ${detail.suggestedMultiplier}%`,
           status: detail.apiSyncStatus === 'synced' ? 'success' : detail.apiSyncStatus === 'failed' ? 'failed' : 'success',
           apiSyncStatus: detail.apiSyncStatus || 'not_applicable',
           apiSyncDetail: detail.apiSyncDetail || null,
@@ -1590,7 +1696,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
     
     // 记录搜索词分析日志（否定词和新关键词，包含API同步状态）
     if (result.searchTermAnalysis.executed) {
-      for (const detail of result.searchTermAnalysis.details.slice(0, 50)) {
+      for (const detail of result.searchTermAnalysis.details) {
         const actionType = detail.action === 'add_negative' ? 'negative_keyword_add' : 'keyword_create';
         await dbInstance.insert(optimizationLogs).values({
           performanceGroupId: result.targetId,
@@ -1614,9 +1720,59 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
       }
     }
     
+    // v134: 记录分时竞价日志（包含API同步状态）
+    if (result.daypartingOptimization.executed && result.daypartingOptimization.adjustmentsCount > 0) {
+      for (const detail of result.daypartingOptimization.details) {
+        await dbInstance.insert(optimizationLogs).values({
+          performanceGroupId: result.targetId,
+          performanceGroupName: result.targetName,
+          accountId: detail.accountId || 0,
+          logCategory: 'bid_adjustment',
+          actionType: 'dayparting_bid',
+          campaignId: detail.campaignId,
+          campaignName: detail.campaignName,
+          actionDetail: JSON.stringify(detail),
+          previousValue: `$${detail.baseBid?.toFixed(2) || '0.00'}`,
+          newValue: `$${detail.adjustedBid?.toFixed(2) || '0.00'}`,
+          changeReason: detail.reason || `分时竞价: ${detail.hour}:00 乘数${detail.bidMultiplier}x`,
+          status: detail.apiSyncStatus === 'synced' ? 'success' : detail.apiSyncStatus === 'failed' ? 'failed' : 'success',
+          apiSyncStatus: detail.apiSyncStatus || 'not_applicable',
+          apiSyncDetail: detail.apiSyncDetail || null,
+          apiSyncedAt: detail.apiSyncStatus === 'synced' ? now : null,
+          createdAt: now,
+          executedAt: now,
+        });
+      }
+    }
+    
+    // v134: 记录预算分配日志（包含API同步状态）
+    if (result.budgetAllocation.executed && result.budgetAllocation.adjustmentsCount > 0) {
+      for (const detail of result.budgetAllocation.details) {
+        await dbInstance.insert(optimizationLogs).values({
+          performanceGroupId: result.targetId,
+          performanceGroupName: result.targetName,
+          accountId: detail.accountId || 0,
+          logCategory: 'optimization_settings',
+          actionType: 'budget_adjustment',
+          campaignId: detail.campaignId,
+          campaignName: detail.campaignName,
+          actionDetail: JSON.stringify(detail),
+          previousValue: `$${detail.currentBudget?.toFixed(2) || '0.00'}`,
+          newValue: `$${detail.suggestedBudget?.toFixed(2) || '0.00'}`,
+          changeReason: detail.reason || `预算调整 ${detail.changePercent}%`,
+          status: detail.apiSyncStatus === 'synced' ? 'success' : detail.apiSyncStatus === 'failed' ? 'failed' : 'success',
+          apiSyncStatus: detail.apiSyncStatus || 'not_applicable',
+          apiSyncDetail: detail.apiSyncDetail || null,
+          apiSyncedAt: detail.apiSyncStatus === 'synced' ? now : null,
+          createdAt: now,
+          executedAt: now,
+        });
+      }
+    }
+    
     // 记录投放词状态变更日志（包含API同步状态）
     if (result.keywordStatusChanges.executed) {
-      for (const detail of result.keywordStatusChanges.details.slice(0, 50)) {
+      for (const detail of result.keywordStatusChanges.details) {
         await dbInstance.insert(optimizationLogs).values({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,

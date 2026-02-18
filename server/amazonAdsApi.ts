@@ -750,6 +750,84 @@ export class AmazonAdsApiClient {
   }
 
   /**
+   * v134: 更新关键词状态（enabled/paused/archived）
+   * 通过 PUT /sp/keywords API 更新关键词的 state 字段
+   * 这是确保优化系统的暂停/启用决策同步到Amazon的关键方法
+   */
+  async updateKeywordStatus(updates: Array<{ keywordId: number | string; state: 'enabled' | 'paused' | 'archived' }>): Promise<{ success: boolean; successCount: number; errors: any[] }> {
+    const formattedUpdates = updates.map(u => ({
+      keywordId: String(u.keywordId),
+      state: u.state.toUpperCase(),
+    }));
+    const requestBody = { keywords: formattedUpdates };
+    console.log(`[SP API] updateKeywordStatus 请求体:`, JSON.stringify(requestBody).substring(0, 500));
+    const response = await this.axiosInstance.put('/sp/keywords', requestBody, {
+      headers: {
+        'Content-Type': 'application/vnd.spKeyword.v3+json',
+        'Accept': 'application/vnd.spKeyword.v3+json'
+      },
+    });
+    
+    console.log(`[SP API] updateKeywordStatus 响应:`, JSON.stringify(response.data).substring(0, 500));
+    
+    const errors: any[] = [];
+    let successCount = 0;
+    const responseKeywords = response.data?.keywords;
+    if (responseKeywords) {
+      if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
+        for (const err of responseKeywords.error) {
+          errors.push({ keywordId: err.keywordId, code: err.code || 'ERROR', details: err.details || err.description });
+          console.error(`[SP API] 关键词状态更新失败: keywordId=${err.keywordId}, code=${err.code}, details=${err.details || err.description}`);
+        }
+      }
+      if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
+        successCount = responseKeywords.success.length;
+        console.log(`[SP API] 关键词状态更新成功: ${successCount}个`);
+      }
+    }
+    
+    console.log(`[SP API] 关键词状态更新完成: 总计=${updates.length}, 成功=${successCount}, 失败=${errors.length}`);
+    return { success: errors.length === 0, successCount, errors };
+  }
+
+  /**
+   * v134: 更新商品定向状态（enabled/paused/archived）
+   * 通过 PUT /sp/targets API 更新商品定向的 state 字段
+   */
+  async updateProductTargetStatus(updates: Array<{ targetId: number | string; state: 'enabled' | 'paused' | 'archived' }>): Promise<{ success: boolean; successCount: number; errors: any[] }> {
+    const formattedUpdates = updates.map(u => ({
+      targetId: String(u.targetId),
+      state: u.state.toUpperCase(),
+    }));
+    const requestBody = { targetingClauses: formattedUpdates };
+    console.log(`[SP API] updateProductTargetStatus 请求体:`, JSON.stringify(requestBody).substring(0, 500));
+    const response = await this.axiosInstance.put('/sp/targets', requestBody, {
+      headers: {
+        'Content-Type': 'application/vnd.spTargetingClause.v3+json',
+        'Accept': 'application/vnd.spTargetingClause.v3+json'
+      },
+    });
+    
+    console.log(`[SP API] updateProductTargetStatus 响应:`, JSON.stringify(response.data).substring(0, 500));
+    
+    const errors: any[] = [];
+    let successCount = 0;
+    const responseTargets = response.data?.targetingClauses;
+    if (responseTargets) {
+      if (responseTargets.error && Array.isArray(responseTargets.error)) {
+        for (const err of responseTargets.error) {
+          errors.push({ targetId: err.targetId, code: err.code || 'ERROR', details: err.details || err.description });
+        }
+      }
+      if (responseTargets.success && Array.isArray(responseTargets.success)) {
+        successCount = responseTargets.success.length;
+      }
+    }
+    
+    return { success: errors.length === 0, successCount, errors };
+  }
+
+  /**
    * 获取SP商品定位列表
    * 已修复：添加分页逻辑，确保获取所有数据
    */
