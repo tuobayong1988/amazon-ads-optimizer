@@ -53574,7 +53574,7 @@ var init_amazonAdsApi = __esm({
         do {
           const body = { maxResults: 100 };
           if (adGroupId2) {
-            body.adGroupIdFilter = { include: [adGroupId2] };
+            body.adGroupIdFilter = { include: [String(adGroupId2)] };
           }
           if (nextToken) {
             body.nextToken = nextToken;
@@ -53587,7 +53587,7 @@ var init_amazonAdsApi = __esm({
               nextToken = response.data.nextToken;
               console.log(`[SP API] Fetched ${keywords5.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
             } catch (error51) {
-              console.error("[SP API] Error fetching keywords:", error51.message);
+              console.error("[SP API] Error fetching keywords:", error51.message, error51.response?.data ? JSON.stringify(error51.response.data).slice(0, 200) : "");
               throw error51;
             }
           } else {
@@ -53602,7 +53602,8 @@ var init_amazonAdsApi = __esm({
                 break;
               } catch (error51) {
                 lastError = error51;
-                if (error51.response?.status === 415) {
+                console.warn(`[SP API] listSpKeywords header variant failed (status=${error51.response?.status}):`, error51.response?.data ? JSON.stringify(error51.response.data).slice(0, 200) : error51.message);
+                if (error51.response?.status === 415 || error51.response?.status === 400) {
                   continue;
                 }
                 throw error51;

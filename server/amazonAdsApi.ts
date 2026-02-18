@@ -564,6 +564,7 @@ export class AmazonAdsApiClient {
     const allKeywords: SpKeyword[] = [];
     let nextToken: string | undefined;
     
+    // v129: Amazon SP API v3要求使用vnd header，同时保留fallback
     const headerVariants = [
       { 'Content-Type': 'application/vnd.spKeyword.v3+json', 'Accept': 'application/vnd.spKeyword.v3+json' },
       { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -575,7 +576,8 @@ export class AmazonAdsApiClient {
     do {
       const body: any = { maxResults: 100 };
       if (adGroupId) {
-        body.adGroupIdFilter = { include: [adGroupId] };
+        // v129: Amazon SP API v3要求adGroupId为字符串类型
+        body.adGroupIdFilter = { include: [String(adGroupId)] };
       }
       if (nextToken) {
         body.nextToken = nextToken;
@@ -589,7 +591,7 @@ export class AmazonAdsApiClient {
           nextToken = response.data.nextToken;
           console.log(`[SP API] Fetched ${keywords.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
         } catch (error: any) {
-          console.error('[SP API] Error fetching keywords:', error.message);
+          console.error('[SP API] Error fetching keywords:', error.message, error.response?.data ? JSON.stringify(error.response.data).slice(0, 200) : '');
           throw error;
         }
       } else {
@@ -604,7 +606,9 @@ export class AmazonAdsApiClient {
             break;
           } catch (error: any) {
             lastError = error;
-            if (error.response?.status === 415) {
+            console.warn(`[SP API] listSpKeywords header variant failed (status=${error.response?.status}):`, error.response?.data ? JSON.stringify(error.response.data).slice(0, 200) : error.message);
+            // v129: 400和415错误都尝试下一种header格式
+            if (error.response?.status === 415 || error.response?.status === 400) {
               continue;
             }
             throw error;
