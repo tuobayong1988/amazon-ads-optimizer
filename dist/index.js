@@ -89872,6 +89872,7 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
                     }
                     let matched = 0;
                     let unmatched = 0;
+                    const unmatchedKws = [];
                     for (const kw of kwsInGroup) {
                       const key = `${(kw.keywordText || "").toLowerCase().trim()}_${(kw.matchType || "").toLowerCase()}`;
                       const amazonKeywordId = amazonKwMap.get(key);
@@ -89902,15 +89903,75 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
                           }
                         }
                       } else {
+                        unmatchedKws.push(kw);
                         unmatched++;
-                        totalCompensateFailed++;
                       }
                     }
                     if (matched > 0) {
-                      console.log(`[BidOptimization] \u2705 adGroup=${adGroupLocalId} \u8865\u507F\u540C\u6B65\u6210\u529F: ${matched}\u4E2A\u5173\u952E\u8BCD`);
+                      console.log(`[BidOptimization] \u2705 adGroup=${adGroupLocalId} \u8865\u507F\u540C\u6B65(\u56DE\u586B): ${matched}\u4E2A\u5173\u952E\u8BCD`);
                     }
-                    if (unmatched > 0) {
-                      console.warn(`[BidOptimization] \u26A0\uFE0F adGroup=${adGroupLocalId} \u8865\u507F\u540C\u6B65: ${unmatched}\u4E2A\u5173\u952E\u8BCD\u5728Amazon\u7AEF\u672A\u627E\u5230\u5339\u914D`);
+                    if (unmatchedKws.length > 0) {
+                      console.log(`[BidOptimization] adGroup=${adGroupLocalId}: ${unmatchedKws.length}\u4E2A\u5173\u952E\u8BCD\u5728Amazon\u7AEF\u4E0D\u5B58\u5728\uFF0C\u5C1D\u8BD5\u91CD\u65B0\u521B\u5EFA...`);
+                      const [campRows] = await directConn.execute(
+                        "SELECT c.campaignId FROM ad_groups ag INNER JOIN campaigns c ON ag.campaignId = c.id WHERE ag.id = ? LIMIT 1",
+                        [adGroupLocalId]
+                      );
+                      const amazonCampaignId = campRows[0]?.campaignId ? Number(campRows[0].campaignId) : null;
+                      if (amazonCampaignId) {
+                        const cleanText = (text2) => text2.replace(/[\uFFFC\uFFFD\u200B-\u200F\u2028-\u202F]/g, "").trim();
+                        const RECREATE_BATCH = 50;
+                        for (let i4 = 0; i4 < unmatchedKws.length; i4 += RECREATE_BATCH) {
+                          const batch = unmatchedKws.slice(i4, i4 + RECREATE_BATCH);
+                          try {
+                            const createResult = await syncService.client.createSpKeywords(
+                              batch.map((k5) => ({
+                                adGroupId: amazonAdGroupId,
+                                campaignId: amazonCampaignId,
+                                keywordText: cleanText(k5.keywordText),
+                                matchType: k5.matchType,
+                                bid: k5.bid > 0 ? k5.bid : 0.5,
+                                state: "enabled"
+                              }))
+                            );
+                            for (let j6 = 0; j6 < createResult.createdKeywords.length; j6++) {
+                              const created = createResult.createdKeywords[j6];
+                              const original = batch[j6];
+                              if (created.code === "SUCCESS" && created.keywordId) {
+                                try {
+                                  await directConn.execute(
+                                    "UPDATE keywords SET keywordId = ? WHERE id = ? AND keywordId IS NULL",
+                                    [String(created.keywordId), original.id]
+                                  );
+                                  totalCompensated++;
+                                  console.log(`[BidOptimization] \u2705 \u8865\u507F\u540C\u6B65(\u521B\u5EFA): keyword id=${original.id} "${original.keywordText?.substring(0, 30)}" -> keywordId=${created.keywordId}`);
+                                } catch (upErr) {
+                                  if (upErr.code === "ER_DUP_ENTRY" || upErr.errno === 1062) {
+                                    await directConn.execute("DELETE FROM keywords WHERE id = ? AND keywordId IS NULL", [original.id]);
+                                    totalCompensated++;
+                                    console.log(`[BidOptimization] \u8865\u507F\u540C\u6B65(\u521B\u5EFA): \u5220\u9664\u91CD\u590Dkeyword id=${original.id}`);
+                                  } else {
+                                    totalCompensateFailed++;
+                                    console.error(`[BidOptimization] \u8865\u507F\u540C\u6B65(\u521B\u5EFA): \u66F4\u65B0keywordId\u5931\u8D25 id=${original.id}: ${upErr.message}`);
+                                  }
+                                }
+                              } else {
+                                totalCompensateFailed++;
+                                console.warn(`[BidOptimization] \u8865\u507F\u540C\u6B65(\u521B\u5EFA): keyword id=${original.id} \u521B\u5EFA\u5931\u8D25: code=${created.code}`);
+                              }
+                            }
+                          } catch (createErr) {
+                            console.error(`[BidOptimization] \u8865\u507F\u540C\u6B65(\u521B\u5EFA)\u6279\u6B21\u5931\u8D25: ${createErr.message}`);
+                            totalCompensateFailed += batch.length;
+                            if (createErr.response?.status === 429) {
+                              await new Promise((resolve8) => setTimeout(resolve8, 5e3));
+                            }
+                          }
+                          await new Promise((resolve8) => setTimeout(resolve8, 1e3));
+                        }
+                      } else {
+                        console.warn(`[BidOptimization] adGroup=${adGroupLocalId}: \u65E0\u6CD5\u83B7\u53D6campaignId\uFF0C\u8DF3\u8FC7\u91CD\u65B0\u521B\u5EFA`);
+                        totalCompensateFailed += unmatchedKws.length;
+                      }
                     }
                     await new Promise((resolve8) => setTimeout(resolve8, 1e3));
                   } catch (groupErr) {

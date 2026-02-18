@@ -575,6 +575,7 @@ async function executeBidOptimization(
                     // 匹配本地缺失keywordId的关键词
                     let matched = 0;
                     let unmatched = 0;
+                    const unmatchedKws: any[] = [];
                     for (const kw of kwsInGroup) {
                       const key = `${(kw.keywordText || '').toLowerCase().trim()}_${(kw.matchType || '').toLowerCase()}`;
                       const amazonKeywordId = amazonKwMap.get(key);
@@ -607,16 +608,86 @@ async function executeBidOptimization(
                           }
                         }
                       } else {
+                        unmatchedKws.push(kw);
                         unmatched++;
-                        totalCompensateFailed++;
                       }
                     }
                     
                     if (matched > 0) {
-                      console.log(`[BidOptimization] ✅ adGroup=${adGroupLocalId} 补偿同步成功: ${matched}个关键词`);
+                      console.log(`[BidOptimization] ✅ adGroup=${adGroupLocalId} 补偿同步(回填): ${matched}个关键词`);
                     }
-                    if (unmatched > 0) {
-                      console.warn(`[BidOptimization] ⚠️ adGroup=${adGroupLocalId} 补偿同步: ${unmatched}个关键词在Amazon端未找到匹配`);
+                    
+                    // 对于在Amazon端未找到匹配的关键词，尝试重新创建到Amazon
+                    if (unmatchedKws.length > 0) {
+                      console.log(`[BidOptimization] adGroup=${adGroupLocalId}: ${unmatchedKws.length}个关键词在Amazon端不存在，尝试重新创建...`);
+                      
+                      // 获取campaignId
+                      const [campRows] = await directConn.execute<any[]>(
+                        'SELECT c.campaignId FROM ad_groups ag INNER JOIN campaigns c ON ag.campaignId = c.id WHERE ag.id = ? LIMIT 1',
+                        [adGroupLocalId]
+                      );
+                      const amazonCampaignId = campRows[0]?.campaignId ? Number(campRows[0].campaignId) : null;
+                      
+                      if (amazonCampaignId) {
+                        // 清理关键词文本中的特殊字符（Unicode替换字符等）
+                        const cleanText = (text: string) => text.replace(/[\uFFFC\uFFFD\u200B-\u200F\u2028-\u202F]/g, '').trim();
+                        
+                        // 分批创建（每批最多50个）
+                        const RECREATE_BATCH = 50;
+                        for (let i = 0; i < unmatchedKws.length; i += RECREATE_BATCH) {
+                          const batch = unmatchedKws.slice(i, i + RECREATE_BATCH);
+                          try {
+                            const createResult = await syncService.client.createSpKeywords(
+                              batch.map(k => ({
+                                adGroupId: amazonAdGroupId,
+                                campaignId: amazonCampaignId,
+                                keywordText: cleanText(k.keywordText),
+                                matchType: k.matchType as 'exact' | 'phrase' | 'broad',
+                                bid: k.bid > 0 ? k.bid : 0.5,
+                                state: 'enabled' as const,
+                              }))
+                            );
+                            
+                            for (let j = 0; j < createResult.createdKeywords.length; j++) {
+                              const created = createResult.createdKeywords[j];
+                              const original = batch[j];
+                              if (created.code === 'SUCCESS' && created.keywordId) {
+                                try {
+                                  await directConn.execute(
+                                    'UPDATE keywords SET keywordId = ? WHERE id = ? AND keywordId IS NULL',
+                                    [String(created.keywordId), original.id]
+                                  );
+                                  totalCompensated++;
+                                  console.log(`[BidOptimization] ✅ 补偿同步(创建): keyword id=${original.id} "${original.keywordText?.substring(0, 30)}" -> keywordId=${created.keywordId}`);
+                                } catch (upErr: any) {
+                                  if (upErr.code === 'ER_DUP_ENTRY' || upErr.errno === 1062) {
+                                    await directConn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [original.id]);
+                                    totalCompensated++;
+                                    console.log(`[BidOptimization] 补偿同步(创建): 删除重复keyword id=${original.id}`);
+                                  } else {
+                                    totalCompensateFailed++;
+                                    console.error(`[BidOptimization] 补偿同步(创建): 更新keywordId失败 id=${original.id}: ${upErr.message}`);
+                                  }
+                                }
+                              } else {
+                                totalCompensateFailed++;
+                                console.warn(`[BidOptimization] 补偿同步(创建): keyword id=${original.id} 创建失败: code=${created.code}`);
+                              }
+                            }
+                          } catch (createErr: any) {
+                            console.error(`[BidOptimization] 补偿同步(创建)批次失败: ${createErr.message}`);
+                            totalCompensateFailed += batch.length;
+                            if (createErr.response?.status === 429) {
+                              await new Promise(resolve => setTimeout(resolve, 5000));
+                            }
+                          }
+                          // 批间延迟
+                          await new Promise(resolve => setTimeout(resolve, 1000));
+                        }
+                      } else {
+                        console.warn(`[BidOptimization] adGroup=${adGroupLocalId}: 无法获取campaignId，跳过重新创建`);
+                        totalCompensateFailed += unmatchedKws.length;
+                      }
                     }
                     
                     // adGroup间延迟1秒，避免API限流
