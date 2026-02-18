@@ -36423,10 +36423,10 @@ async function createKeyword(keyword) {
   const result = await db.insert(keywords).values(keyword);
   return result[0].insertId;
 }
-async function getKeywordsByAdGroupId(adGroupId) {
+async function getKeywordsByAdGroupId(adGroupId2) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(keywords).where(eq(keywords.adGroupId, adGroupId));
+  return db.select().from(keywords).where(eq(keywords.adGroupId, adGroupId2));
 }
 async function getKeywordById(id) {
   const db = await getDb();
@@ -36453,8 +36453,8 @@ async function getKeywordsByCampaignId(campaignId) {
   if (adGroupsList.length === 0) return [];
   const adGroupIds = adGroupsList.map((ag) => ag.id);
   const allKeywords = [];
-  for (const adGroupId of adGroupIds) {
-    const groupKeywords = await db.select().from(keywords).where(eq(keywords.adGroupId, adGroupId));
+  for (const adGroupId2 of adGroupIds) {
+    const groupKeywords = await db.select().from(keywords).where(eq(keywords.adGroupId, adGroupId2));
     allKeywords.push(...groupKeywords);
   }
   return allKeywords;
@@ -36465,10 +36465,10 @@ async function createProductTarget(target) {
   const result = await db.insert(productTargets).values(target);
   return result[0].insertId;
 }
-async function getProductTargetsByAdGroupId(adGroupId) {
+async function getProductTargetsByAdGroupId(adGroupId2) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(productTargets).where(eq(productTargets.adGroupId, adGroupId));
+  return db.select().from(productTargets).where(eq(productTargets.adGroupId, adGroupId2));
 }
 async function getProductTargetById(id) {
   const db = await getDb();
@@ -36972,9 +36972,9 @@ async function getBidChangeRecords(accountId, days) {
     if (log2.actionType !== "increase" && log2.actionType !== "decrease" && log2.actionType !== "set") {
       continue;
     }
-    const oldBid = parseFloat(log2.previousBid || "0");
+    const oldBid2 = parseFloat(log2.previousBid || "0");
     const newBid = parseFloat(log2.newBid || "0");
-    if (oldBid === 0 || newBid === 0) continue;
+    if (oldBid2 === 0 || newBid === 0) continue;
     const performanceAfter = {
       clicks: Math.floor(Math.random() * 50),
       conversions: Math.floor(Math.random() * 5),
@@ -36992,7 +36992,7 @@ async function getBidChangeRecords(accountId, days) {
       targetType: log2.logTargetType,
       campaignId: log2.campaignId || 0,
       campaignName: "",
-      oldBid,
+      oldBid: oldBid2,
       newBid,
       changeDate: log2.createdAt || (/* @__PURE__ */ new Date()).toISOString(),
       changeReason: log2.reason || "",
@@ -37648,10 +37648,10 @@ async function getSearchTermsByCampaignId(campaignId) {
   if (!db) return [];
   return db.select().from(searchTerms).where(eq(searchTerms.campaignId, campaignId));
 }
-async function getSearchTermsByAdGroupId(adGroupId) {
+async function getSearchTermsByAdGroupId(adGroupId2) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(searchTerms).where(eq(searchTerms.adGroupId, adGroupId));
+  return db.select().from(searchTerms).where(eq(searchTerms.adGroupId, adGroupId2));
 }
 async function createSearchTerm(data2) {
   const db = await getDb();
@@ -53562,7 +53562,7 @@ var init_amazonAdsApi = __esm({
        * 获取SP关键词列表
        * 已修复：添加分页逻辑，确保获取所有数据
        */
-      async listSpKeywords(adGroupId) {
+      async listSpKeywords(adGroupId2) {
         const allKeywords = [];
         let nextToken;
         const headerVariants = [
@@ -53573,8 +53573,8 @@ var init_amazonAdsApi = __esm({
         let lastError = null;
         do {
           const body = { maxResults: 100 };
-          if (adGroupId) {
-            body.adGroupIdFilter = { include: [adGroupId] };
+          if (adGroupId2) {
+            body.adGroupIdFilter = { include: [adGroupId2] };
           }
           if (nextToken) {
             body.nextToken = nextToken;
@@ -53625,9 +53625,9 @@ var init_amazonAdsApi = __esm({
             adGroupId: String(k5.adGroupId),
             campaignId: String(k5.campaignId),
             keywordText: k5.keywordText,
-            matchType: k5.matchType,
+            matchType: (k5.matchType || "EXACT").toUpperCase(),
             bid: Number(k5.bid.toFixed(2)),
-            state: k5.state || "enabled"
+            state: (k5.state || "enabled").toUpperCase()
           }));
           const requestBody = { keywords: formattedKeywords };
           console.log(`[SP API] createSpKeywords \u8BF7\u6C42\u4F53 (\u524D500\u5B57\u7B26):`, JSON.stringify(requestBody).substring(0, 500));
@@ -53637,12 +53637,41 @@ var init_amazonAdsApi = __esm({
               "Accept": "application/vnd.spKeyword.v3+json"
             }
           });
-          const createdKeywords = (response.data.keywords || []).map((k5) => ({
-            keywordId: k5.keywordId,
-            keywordText: k5.keywordText,
-            code: k5.code || "SUCCESS"
-          }));
-          const errors = createdKeywords.filter((k5) => k5.code !== "SUCCESS");
+          console.log(`[SP API] createSpKeywords \u54CD\u5E94:`, JSON.stringify(response.data).substring(0, 500));
+          const responseKeywords = response.data?.keywords;
+          const createdKeywords = [];
+          const errors = [];
+          if (responseKeywords && typeof responseKeywords === "object" && !Array.isArray(responseKeywords)) {
+            if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
+              for (const item of responseKeywords.success) {
+                const idx = item.index || 0;
+                createdKeywords.push({
+                  keywordId: item.keywordId,
+                  keywordText: keywords5[idx]?.keywordText || "",
+                  code: "SUCCESS"
+                });
+              }
+            }
+            if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
+              for (const item of responseKeywords.error) {
+                errors.push(item);
+                createdKeywords.push({
+                  keywordId: null,
+                  keywordText: keywords5[item.index]?.keywordText || "",
+                  code: item.code || "ERROR"
+                });
+              }
+            }
+          } else if (Array.isArray(responseKeywords)) {
+            for (const k5 of responseKeywords) {
+              createdKeywords.push({
+                keywordId: k5.keywordId,
+                keywordText: k5.keywordText || "",
+                code: k5.code || "SUCCESS"
+              });
+              if (k5.code && k5.code !== "SUCCESS") errors.push(k5);
+            }
+          }
           console.log(`[SP API] Created ${createdKeywords.length - errors.length} keywords, ${errors.length} errors`);
           return { success: errors.length === 0, createdKeywords, errors };
         } catch (error51) {
@@ -53687,7 +53716,7 @@ var init_amazonAdsApi = __esm({
        * 获取SP商品定位列表
        * 已修复：添加分页逻辑，确保获取所有数据
        */
-      async listSpProductTargets(adGroupId) {
+      async listSpProductTargets(adGroupId2) {
         const allTargets = [];
         let nextToken;
         const headerVariants = [
@@ -53698,8 +53727,8 @@ var init_amazonAdsApi = __esm({
         let lastError = null;
         do {
           const body = { maxResults: 100 };
-          if (adGroupId) {
-            body.adGroupIdFilter = { include: [adGroupId] };
+          if (adGroupId2) {
+            body.adGroupIdFilter = { include: [adGroupId2] };
           }
           if (nextToken) {
             body.nextToken = nextToken;
@@ -55819,13 +55848,13 @@ var init_amazonAdsApi = __esm({
        * 获取SB关键词列表
        * 已修复：添加分页逻辑，确保获取所有数据
        */
-      async listSbKeywords(adGroupId) {
+      async listSbKeywords(adGroupId2) {
         const allKeywords = [];
         let nextToken;
         do {
           const body = { maxResults: 100 };
-          if (adGroupId) {
-            body.adGroupIdFilter = { include: [adGroupId] };
+          if (adGroupId2) {
+            body.adGroupIdFilter = { include: [adGroupId2] };
           }
           if (nextToken) {
             body.nextToken = nextToken;
@@ -55852,13 +55881,13 @@ var init_amazonAdsApi = __esm({
        * 获取SB商品定位列表
        * 已修复：添加分页逻辑，确保获取所有数据
        */
-      async listSbTargets(adGroupId) {
+      async listSbTargets(adGroupId2) {
         const allTargets = [];
         let nextToken;
         do {
           const body = { maxResults: 100 };
-          if (adGroupId) {
-            body.adGroupIdFilter = { include: [adGroupId] };
+          if (adGroupId2) {
+            body.adGroupIdFilter = { include: [adGroupId2] };
           }
           if (nextToken) {
             body.nextToken = nextToken;
@@ -55980,14 +56009,14 @@ var init_amazonAdsApi = __esm({
        * 获取SD商品定位列表
        * 已修复：添加分页逻辑，确保获取所有数据
        */
-      async listSdTargets(adGroupId) {
+      async listSdTargets(adGroupId2) {
         const allTargets = [];
         let startIndex = 0;
         const count2 = 100;
         while (true) {
           const params = { startIndex, count: count2 };
-          if (adGroupId) {
-            params.adGroupIdFilter = adGroupId;
+          if (adGroupId2) {
+            params.adGroupIdFilter = adGroupId2;
           }
           const response = await this.axiosInstance.get("/sd/targets", { params });
           const targets = response.data || [];
@@ -56047,8 +56076,8 @@ var init_amazonAdsApi = __esm({
         const formattedNegatives = negatives.map((n7) => ({
           campaignId: String(n7.campaignId),
           keywordText: n7.keywordText,
-          matchType: n7.matchType,
-          state: n7.state || "enabled"
+          matchType: (n7.matchType || "NEGATIVE_EXACT").toUpperCase(),
+          state: (n7.state || "enabled").toUpperCase()
         }));
         console.log(`[SP API] createSpCampaignNegativeKeywords: ${formattedNegatives.length}\u4E2A\u5426\u5B9A\u8BCD`);
         const response = await this.axiosInstance.post("/sp/campaignNegativeKeywords", {
@@ -56075,13 +56104,13 @@ var init_amazonAdsApi = __esm({
        * 获取SP广告组级别否定关键词列表
        * 已修复：添加分页逻辑，确保获取所有数据
        */
-      async listSpNegativeKeywords(adGroupId) {
+      async listSpNegativeKeywords(adGroupId2) {
         const allNegatives = [];
         let nextToken;
         do {
           const body = { maxResults: 100 };
-          if (adGroupId) {
-            body.adGroupIdFilter = { include: [adGroupId] };
+          if (adGroupId2) {
+            body.adGroupIdFilter = { include: [adGroupId2] };
           }
           if (nextToken) {
             body.nextToken = nextToken;
@@ -56105,8 +56134,8 @@ var init_amazonAdsApi = __esm({
           adGroupId: String(n7.adGroupId),
           campaignId: String(n7.campaignId),
           keywordText: n7.keywordText,
-          matchType: n7.matchType,
-          state: n7.state || "enabled"
+          matchType: (n7.matchType || "NEGATIVE_EXACT").toUpperCase(),
+          state: (n7.state || "enabled").toUpperCase()
         }));
         console.log(`[SP API] createSpNegativeKeywords: ${formattedNegatives.length}\u4E2A\u5E7F\u544A\u7EC4\u7EA7\u5426\u5B9A\u8BCD`);
         const response = await this.axiosInstance.post("/sp/negativeKeywords", {
@@ -56150,7 +56179,7 @@ var init_amazonAdsApi = __esm({
           campaignNegativeTargetingClauses: negatives.map((n7) => ({
             ...n7,
             campaignId: String(n7.campaignId),
-            state: n7.state || "enabled"
+            state: (n7.state || "enabled").toUpperCase()
           }))
         }, {
           headers: {
@@ -56163,10 +56192,10 @@ var init_amazonAdsApi = __esm({
       /**
        * 获取SP否定商品定位列表（广告组级别）
        */
-      async listSpNegativeTargets(adGroupId) {
+      async listSpNegativeTargets(adGroupId2) {
         const body = {};
-        if (adGroupId) {
-          body.adGroupIdFilter = { include: [adGroupId] };
+        if (adGroupId2) {
+          body.adGroupIdFilter = { include: [adGroupId2] };
         }
         const response = await this.axiosInstance.post("/sp/negativeTargets/list", body, {
           headers: { "Content-Type": "application/vnd.spNegativeTargetingClause.v3+json" }
@@ -56182,7 +56211,7 @@ var init_amazonAdsApi = __esm({
             ...n7,
             adGroupId: String(n7.adGroupId),
             campaignId: String(n7.campaignId),
-            state: n7.state || "enabled"
+            state: (n7.state || "enabled").toUpperCase()
           }))
         }, {
           headers: {
@@ -56196,9 +56225,9 @@ var init_amazonAdsApi = __esm({
       /**
        * 获取关键词出价建议
        */
-      async getKeywordBidRecommendations(adGroupId, keywords5) {
+      async getKeywordBidRecommendations(adGroupId2, keywords5) {
         const response = await this.axiosInstance.post("/sp/keywords/bidRecommendations", {
-          adGroupId,
+          adGroupId: adGroupId2,
           keywords: keywords5
         });
         return response.data.recommendations || [];
@@ -56206,9 +56235,9 @@ var init_amazonAdsApi = __esm({
       /**
        * 获取商品定位出价建议
        */
-      async getTargetBidRecommendations(adGroupId, expressions) {
+      async getTargetBidRecommendations(adGroupId2, expressions) {
         const response = await this.axiosInstance.post("/sp/targets/bidRecommendations", {
-          adGroupId,
+          adGroupId: adGroupId2,
           expressions
         });
         return response.data.recommendations || [];
@@ -59799,9 +59828,9 @@ var init_amazonSyncService = __esm({
         if (!db) return false;
         try {
           let amazonId;
-          let oldBid;
-          let targetName;
-          let adGroupId = null;
+          let oldBid2;
+          let targetName2;
+          let adGroupId2 = null;
           if (targetType === "keyword") {
             const [kw] = await db.select().from(keywords).where(eq(keywords.id, targetId)).limit(1);
             if (!kw) {
@@ -59813,9 +59842,9 @@ var init_amazonSyncService = __esm({
               return false;
             }
             amazonId = kw.keywordId;
-            oldBid = parseFloat(kw.bid);
-            targetName = kw.keywordText;
-            adGroupId = kw.adGroupId;
+            oldBid2 = parseFloat(kw.bid);
+            targetName2 = kw.keywordText;
+            adGroupId2 = kw.adGroupId;
             if (!amazonId || amazonId.trim() === "" || amazonId === "0") {
               console.error(`[applyBidAdjustment] keyword id=${targetId} \u7684Amazon keywordId\u65E0\u6548: "${amazonId}"`);
               return false;
@@ -59837,9 +59866,9 @@ var init_amazonSyncService = __esm({
               return false;
             }
             amazonId = pt3.targetId;
-            oldBid = parseFloat(pt3.bid);
-            targetName = pt3.targetValue || "Product Target";
-            adGroupId = pt3.adGroupId;
+            oldBid2 = parseFloat(pt3.bid);
+            targetName2 = pt3.targetValue || "Product Target";
+            adGroupId2 = pt3.adGroupId;
             if (!amazonId || amazonId.trim() === "" || amazonId === "0") {
               console.error(`[applyBidAdjustment] product_target id=${targetId} \u7684Amazon targetId\u65E0\u6548: "${amazonId}"`);
               return false;
@@ -59851,24 +59880,25 @@ var init_amazonSyncService = __esm({
             }]);
             await db.update(productTargets).set({ bid: String(newBid), updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ") }).where(eq(productTargets.id, targetId));
           }
-          const bidChangePercent = oldBid > 0 ? (newBid - oldBid) / oldBid * 100 : 0;
-          const actionType = newBid > oldBid ? "increase" : newBid < oldBid ? "decrease" : "set";
-          console.log(`[applyBidAdjustment] \u2705 Amazon API\u8C03\u7528\u6210\u529F: ${targetType} id=${targetId}, ${oldBid} -> ${newBid}`);
+          const bidChangePercent = oldBid2 > 0 ? (newBid - oldBid2) / oldBid2 * 100 : 0;
+          const actionType = newBid > oldBid2 ? "increase" : newBid < oldBid2 ? "decrease" : "set";
+          console.log(`[applyBidAdjustment] \u2705 Amazon API\u8C03\u7528\u6210\u529F: ${targetType} id=${targetId}, ${oldBid2} -> ${newBid}`);
           try {
             await db.insert(biddingLogs).values({
               accountId: this.accountId,
               campaignId,
-              adGroupId,
+              adGroupId: adGroupId2,
               logTargetType: targetType === "keyword" ? "keyword" : "product_target",
               targetId,
-              targetName,
+              targetName: targetName2,
               actionType,
-              previousBid: String(oldBid),
+              previousBid: String(oldBid2),
               newBid: String(newBid),
               bidChangePercent: String(bidChangePercent),
               reason,
               algorithmVersion: "v1.0",
               isIntradayAdjustment: 0,
+              executionStatus: "success",
               createdAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
             });
           } catch (logError2) {
@@ -59876,7 +59906,7 @@ var init_amazonSyncService = __esm({
             try {
               const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
               const logTargetType = targetType === "keyword" ? "keyword" : "product_target";
-              await db.execute(sql`INSERT INTO bidding_logs (account_id, campaign_id, ad_group_id, log_target_type, target_id, target_name, action_type, previous_bid, new_bid, bid_change_percent, reason, algorithm_version, is_intraday_adjustment, created_at) VALUES (${this.accountId}, ${campaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${"v1.0"}, ${0}, ${now})`);
+              await db.execute(sql`INSERT INTO bidding_logs (account_id, campaign_id, ad_group_id, log_target_type, target_id, target_name, action_type, previous_bid, new_bid, bid_change_percent, reason, algorithm_version, is_intraday_adjustment, execution_status, created_at) VALUES (${this.accountId}, ${campaignId}, ${adGroupId2}, ${logTargetType}, ${targetId}, ${targetName2}, ${actionType}, ${String(oldBid2)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${"v1.0"}, ${0}, ${"success"}, ${now})`);
               console.log(`[applyBidAdjustment] \u2705 \u65E5\u5FD7\u901A\u8FC7\u539F\u751FSQL\u63D2\u5165\u6210\u529F`);
             } catch (rawSqlError) {
               console.error(`[applyBidAdjustment] \u26A0\uFE0F \u539F\u751FSQL\u65E5\u5FD7\u4E5F\u5931\u8D25: ${rawSqlError.message}`);
@@ -59887,6 +59917,16 @@ var init_amazonSyncService = __esm({
           const errorDetail = error51.response?.data ? JSON.stringify(error51.response.data) : error51.message;
           console.error(`[applyBidAdjustment] \u2757 ${targetType} id=${targetId} \u51FA\u4EF7\u8C03\u6574\u5931\u8D25:`, errorDetail);
           console.error(`[applyBidAdjustment] \u8BE6\u7EC6\u4FE1\u606F: newBid=${newBid}, campaignId=${campaignId}, HTTP\u72B6\u6001=${error51.response?.status || "N/A"}`);
+          try {
+            const bidChangePercent = oldBid > 0 ? (newBid - oldBid) / oldBid * 100 : 0;
+            const actionType = newBid > oldBid ? "increase" : newBid < oldBid ? "decrease" : "set";
+            const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
+            const logTargetType = targetType === "keyword" ? "keyword" : "product_target";
+            const errMsg = errorDetail.substring(0, 500);
+            await db.execute(sql`INSERT INTO bidding_logs (account_id, campaign_id, ad_group_id, log_target_type, target_id, target_name, action_type, previous_bid, new_bid, bid_change_percent, reason, algorithm_version, is_intraday_adjustment, execution_status, error_message, created_at) VALUES (${this.accountId}, ${campaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName || ""}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${"v1.0"}, ${0}, ${"failed"}, ${errMsg}, ${now})`);
+          } catch (logErr) {
+            console.error(`[applyBidAdjustment] \u26A0\uFE0F \u5931\u8D25\u65E5\u5FD7\u8BB0\u5F55\u4E5F\u5931\u8D25: ${logErr.message}`);
+          }
           return false;
         }
       }
@@ -60025,8 +60065,8 @@ var init_amazonSyncService = __esm({
               const spData = await this.client.waitAndDownloadReport(spReportId);
               if (spData && spData.length > 0) {
                 for (const row of spData) {
-                  const adGroupId = String(row.adGroupId);
-                  const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, adGroupId)).limit(1);
+                  const adGroupId2 = String(row.adGroupId);
+                  const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, adGroupId2)).limit(1);
                   if (!adGroup) continue;
                   const cost = row.cost || 0;
                   const sales = row.sales7d || 0;
@@ -60060,8 +60100,8 @@ var init_amazonSyncService = __esm({
               if (sbData && sbData.length > 0) {
                 let sbSynced = 0;
                 for (const row of sbData) {
-                  const adGroupId = String(row.adGroupId);
-                  const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, adGroupId)).limit(1);
+                  const adGroupId2 = String(row.adGroupId);
+                  const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, adGroupId2)).limit(1);
                   if (!adGroup) continue;
                   const cost = row.cost || 0;
                   const sales = row.salesClicks14d || row.sales14d || 0;
@@ -60102,8 +60142,8 @@ var init_amazonSyncService = __esm({
               if (sdData && sdData.length > 0) {
                 let sdSynced = 0;
                 for (const row of sdData) {
-                  const adGroupId = String(row.adGroupId);
-                  const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, adGroupId)).limit(1);
+                  const adGroupId2 = String(row.adGroupId);
+                  const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, adGroupId2)).limit(1);
                   if (!adGroup) continue;
                   const cost = row.cost || 0;
                   const sales = row.sales14d || 0;
@@ -60828,14 +60868,14 @@ var init_amazonSyncService = __esm({
               )
             ).limit(1);
             if (!campaign) continue;
-            let adGroupId = null;
+            let adGroupId2 = null;
             if (neg.adGroupId) {
               const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, String(neg.adGroupId))).limit(1);
-              if (adGroup) adGroupId = adGroup.id;
+              if (adGroup) adGroupId2 = adGroup.id;
             }
             const matchType = (neg.matchType || "").toLowerCase().includes("phrase") ? "negative_phrase" : "negative_exact";
             const amazonKeywordId = String(neg.keywordId || neg.negativeKeywordId || "");
-            const negLevel = adGroupId ? "ad_group" : "campaign";
+            const negLevel = adGroupId2 ? "ad_group" : "campaign";
             const [existing] = await db.select().from(negativeKeywords).where(
               and(
                 eq(negativeKeywords.accountId, this.accountId),
@@ -60851,7 +60891,7 @@ var init_amazonSyncService = __esm({
               await db.insert(negativeKeywords).values({
                 accountId: this.accountId,
                 campaignId: campaign.id,
-                adGroupId,
+                adGroupId: adGroupId2,
                 negativeLevel: negLevel,
                 negativeType: "keyword",
                 negativeText: neg.keywordText || "",
@@ -60891,16 +60931,16 @@ var init_amazonSyncService = __esm({
               )
             ).limit(1);
             if (!campaign) continue;
-            let adGroupId = null;
+            let adGroupId2 = null;
             if (neg.adGroupId) {
               const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, String(neg.adGroupId))).limit(1);
-              if (adGroup) adGroupId = adGroup.id;
+              if (adGroup) adGroupId2 = adGroup.id;
             }
             const expression = neg.expression || [];
             const asinExpr = expression.find((e6) => e6.type?.toLowerCase().includes("asin"));
             const negativeText = asinExpr?.value || JSON.stringify(expression);
             const amazonTargetId = String(neg.targetId || "");
-            const negLevel = adGroupId ? "ad_group" : "campaign";
+            const negLevel = adGroupId2 ? "ad_group" : "campaign";
             const [existing] = await db.select().from(negativeKeywords).where(
               and(
                 eq(negativeKeywords.accountId, this.accountId),
@@ -60917,7 +60957,7 @@ var init_amazonSyncService = __esm({
               await db.insert(negativeKeywords).values({
                 accountId: this.accountId,
                 campaignId: campaign.id,
-                adGroupId,
+                adGroupId: adGroupId2,
                 negativeLevel: negLevel,
                 negativeType: "product",
                 negativeText,
@@ -89238,9 +89278,28 @@ async function syncBidAdjustmentsToAmazon(accountId, adjustments) {
       await delay(500);
     }
   }
-  console.log(`[AmazonApiHelper] \u51FA\u4EF7\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}, \u9519\u8BEF\u6570=${result.errors.length}`);
+  const totalAttempts = result.success + result.failed;
+  const failureRate = totalAttempts > 0 ? result.failed / totalAttempts * 100 : 0;
+  console.log(`[AmazonApiHelper] \u51FA\u4EF7\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}, \u6210\u529F\u7387=${(100 - failureRate).toFixed(1)}%`);
   if (result.errors.length > 0) {
     console.error(`[AmazonApiHelper] \u9519\u8BEF\u8BE6\u60C5:`, result.errors.slice(0, 5).join("; "));
+  }
+  const FAILURE_RATE_THRESHOLD = 20;
+  if (failureRate > FAILURE_RATE_THRESHOLD && totalAttempts >= 5) {
+    console.error(`[ALERT] \u26A0\uFE0F Amazon API\u540C\u6B65\u5931\u8D25\u7387\u8FC7\u9AD8! \u5931\u8D25\u7387=${failureRate.toFixed(1)}% (\u9608\u503C=${FAILURE_RATE_THRESHOLD}%), \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}`);
+    console.error(`[ALERT] \u8BF7\u68C0\u67E5Amazon API\u51ED\u8BC1\u3001\u914D\u989D\u548C\u7F51\u7EDC\u72B6\u6001`);
+    try {
+      const dbInstance = await getDb();
+      if (dbInstance) {
+        const { sql: sql9 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+        const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
+        const alertMsg = `Amazon API\u51FA\u4EF7\u540C\u6B65\u5931\u8D25\u7387${failureRate.toFixed(1)}%\uFF08\u6210\u529F${result.success}/\u5931\u8D25${result.failed}\uFF09\uFF0C\u8D85\u8FC7${FAILURE_RATE_THRESHOLD}%\u9608\u503C`;
+        const errorSummary = result.errors.slice(0, 3).join("; ");
+        await dbInstance.execute(sql9`INSERT INTO system_alerts (alert_type, alert_level, alert_message, alert_details, account_id, created_at) VALUES (${"api_sync_failure"}, ${"warning"}, ${alertMsg}, ${errorSummary}, ${accountId}, ${now}) ON DUPLICATE KEY UPDATE alert_message = VALUES(alert_message), created_at = VALUES(created_at)`);
+      }
+    } catch (alertErr) {
+      console.warn(`[ALERT] \u544A\u8B66\u5199\u5165\u6570\u636E\u5E93\u5931\u8D25\uFF08\u8868\u53EF\u80FD\u4E0D\u5B58\u5728\uFF09: ${alertErr.message}`);
+    }
   }
   return result;
 }
@@ -90718,13 +90777,13 @@ async function triggerInitialOptimization(targetId, options = { triggeredBy: "cr
   console.log(`[OptScheduler] \u9996\u6B21\u4F18\u5316\u5B8C\u6210: targetId=${targetId}, \u8017\u65F6${result.duration}ms, \u6210\u529F=${result.success}`);
   return result;
 }
-async function registerScheduledExecution(targetId, targetName, frequency) {
+async function registerScheduledExecution(targetId, targetName2, frequency) {
   unregisterScheduledExecution(targetId);
   const intervalMs = FREQUENCY_MS[frequency] || FREQUENCY_MS["daily"];
   const nextExecutionTime = new Date(Date.now() + intervalMs);
   const scheduledTarget = {
     targetId,
-    targetName,
+    targetName: targetName2,
     intervalMs,
     timer: null,
     lastExecutionTime: /* @__PURE__ */ new Date(),
@@ -90738,7 +90797,7 @@ async function registerScheduledExecution(targetId, targetName, frequency) {
     await executeScheduledOptimization(targetId);
   }, intervalMs);
   scheduledTargets.set(targetId, scheduledTarget);
-  console.log(`[OptScheduler] \u5DF2\u6CE8\u518C\u5B9A\u65F6\u6267\u884C: targetId=${targetId}, name=${targetName}, frequency=${frequency}(${intervalMs / 1e3 / 60}\u5206\u949F), nextExecution=${nextExecutionTime.toISOString()}`);
+  console.log(`[OptScheduler] \u5DF2\u6CE8\u518C\u5B9A\u65F6\u6267\u884C: targetId=${targetId}, name=${targetName2}, frequency=${frequency}(${intervalMs / 1e3 / 60}\u5206\u949F), nextExecution=${nextExecutionTime.toISOString()}`);
   return { frequency, nextExecutionTime };
 }
 function unregisterScheduledExecution(targetId) {
@@ -93480,7 +93539,7 @@ async function triggerCollaborationNotification(params) {
     actionUserName,
     targetType,
     targetId,
-    targetName,
+    targetName: targetName2,
     accountId,
     accountName,
     metadata,
@@ -93495,7 +93554,7 @@ async function triggerCollaborationNotification(params) {
   };
   const priority = ACTION_PRIORITY[actionType] || ACTION_PRIORITY.default;
   const title = template.title;
-  let content = template.content.replace("{userName}", actionUserName).replace("{targetName}", targetName || "").replace("{count}", metadata?.count?.toString() || "");
+  let content = template.content.replace("{userName}", actionUserName).replace("{targetName}", targetName2 || "").replace("{count}", metadata?.count?.toString() || "");
   if (accountName) {
     content += ` (\u8D26\u53F7: ${accountName})`;
   }
@@ -93535,7 +93594,7 @@ async function triggerCollaborationNotification(params) {
       actionUserName,
       targetType: targetType || null,
       targetId: targetId || null,
-      targetName: targetName || null,
+      targetName: targetName2 || null,
       accountId: accountId || null,
       accountName: accountName || null,
       channel: "app",
@@ -93557,7 +93616,7 @@ async function triggerCollaborationNotification(params) {
         actionUserName,
         targetType: targetType || null,
         targetId: targetId || null,
-        targetName: targetName || null,
+        targetName: targetName2 || null,
         accountId: accountId || null,
         accountName: accountName || null,
         channel: "email",
@@ -95680,7 +95739,7 @@ async function logSync(userId, userName, organizationId, accountId, accountName,
     errorMessage
   });
 }
-async function logBidAdjust(userId, userName, organizationId, resourceType, resourceId, resourceName, oldBid, newBid, reason) {
+async function logBidAdjust(userId, userName, organizationId, resourceType, resourceId, resourceName, oldBid2, newBid, reason) {
   await createAuditLog2({
     organizationId,
     userId,
@@ -95690,8 +95749,8 @@ async function logBidAdjust(userId, userName, organizationId, resourceType, reso
     resourceType,
     resourceId,
     resourceName,
-    description: reason || `\u51FA\u4EF7\u4ECE $${oldBid.toFixed(2)} \u8C03\u6574\u4E3A $${newBid.toFixed(2)}`,
-    oldValue: { bid: oldBid },
+    description: reason || `\u51FA\u4EF7\u4ECE $${oldBid2.toFixed(2)} \u8C03\u6574\u4E3A $${newBid.toFixed(2)}`,
+    oldValue: { bid: oldBid2 },
     newValue: { bid: newBid },
     status: "success"
   });
@@ -157945,12 +158004,12 @@ function getDefineCompiledEsmType(node) {
   if (definedProperty && definedProperty.key === KEY_COMPILED_ESM) return isTruthy(definedProperty.value) ? definedPropertyWithExports ? "exports" : "module" : false;
   return false;
 }
-function getDefinePropertyCallName(node, targetName) {
+function getDefinePropertyCallName(node, targetName2) {
   const { callee: { object: object2, property: property3 } } = node;
   if (!object2 || object2.type !== "Identifier" || object2.name !== "Object") return;
   if (!property3 || property3.type !== "Identifier" || property3.name !== "defineProperty") return;
   if (node.arguments.length !== 3) return;
-  const targetNames = targetName.split(".");
+  const targetNames = targetName2.split(".");
   const [target, key, value$1] = node.arguments;
   if (targetNames.length === 1) {
     if (target.type !== "Identifier" || target.name !== targetNames[0]) return;
@@ -231416,7 +231475,7 @@ var require_introspection = __commonJS({
       } else if (dangerous && this.isMemberExpression()) {
         const targetKey = this.toComputedKey();
         if (!isLiteral(targetKey)) return;
-        const targetName = targetKey.value;
+        const targetName2 = targetKey.value;
         const target = this.get("object").resolve(dangerous, resolved);
         if (target.isObjectExpression()) {
           const props = target.get("properties");
@@ -231424,16 +231483,16 @@ var require_introspection = __commonJS({
             if (!prop.isProperty()) continue;
             const key = prop.get("key");
             let match = prop.isnt("computed") && key.isIdentifier({
-              name: targetName
+              name: targetName2
             });
             match = match || key.isLiteral({
-              value: targetName
+              value: targetName2
             });
             if (match) return prop.get("value").resolve(dangerous, resolved);
           }
-        } else if (target.isArrayExpression() && !isNaN(+targetName)) {
+        } else if (target.isArrayExpression() && !isNaN(+targetName2)) {
           const elems = target.get("elements");
-          const elem = elems[targetName];
+          const elem = elems[targetName2];
           if (elem) return elem.resolve(dangerous, resolved);
         }
       }
@@ -285632,7 +285691,7 @@ function checkConfidenceThreshold(accountId, confidence) {
     return { mode: "manual", reason: `\u7F6E\u4FE1\u5EA6 ${confidence}% < ${config2.safetyBoundary.supervisedConfidence}%\uFF0C\u9700\u4EBA\u5DE5\u786E\u8BA4` };
   }
 }
-async function executeOptimization(accountId, type, targetType, targetId, targetName, currentValue, newValue, confidence, reason) {
+async function executeOptimization(accountId, type, targetType, targetId, targetName2, currentValue, newValue, confidence, reason) {
   const config2 = getAccountAutomationConfig(accountId);
   const resultId = `exec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   if (!config2.enabled) {
@@ -285641,7 +285700,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
       type,
       targetType,
       targetId,
-      targetName,
+      targetName: targetName2,
       previousValue: currentValue,
       newValue,
       confidence,
@@ -285657,7 +285716,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
       type,
       targetType,
       targetId,
-      targetName,
+      targetName: targetName2,
       previousValue: currentValue,
       newValue,
       confidence,
@@ -285673,7 +285732,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
       type,
       targetType,
       targetId,
-      targetName,
+      targetName: targetName2,
       previousValue: currentValue,
       newValue,
       confidence,
@@ -285690,7 +285749,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
       type,
       targetType,
       targetId,
-      targetName,
+      targetName: targetName2,
       previousValue: currentValue,
       newValue,
       confidence,
@@ -285707,7 +285766,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
       type,
       targetType,
       targetId,
-      targetName,
+      targetName: targetName2,
       previousValue: currentValue,
       newValue,
       confidence,
@@ -285767,7 +285826,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
           adGroupId: bidAdGroupId,
           logTargetType: "keyword",
           targetId,
-          targetName,
+          targetName: targetName2,
           actionType: newValue > currentValue ? "increase" : "decrease",
           previousBid: String(currentValue),
           newBid: String(newValue),
@@ -285813,7 +285872,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
           adGroupId: 0,
           logTargetType: "campaign_budget",
           targetId,
-          targetName: targetName || `Campaign ${targetId}`,
+          targetName: targetName2 || `Campaign ${targetId}`,
           actionType: newValue > currentValue ? "increase" : "decrease",
           previousBid: String(currentValue),
           newBid: String(newValue),
@@ -285870,7 +285929,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
           adGroupId: ptAdGroupId,
           logTargetType: "product_target",
           targetId,
-          targetName,
+          targetName: targetName2,
           actionType: newValue > currentValue ? "increase" : "decrease",
           previousBid: String(currentValue),
           newBid: String(newValue),
@@ -285905,7 +285964,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
                   dynamicBidding: {
                     placementBidding: [
                       {
-                        placement: targetName.includes("\u641C\u7D22\u9876\u90E8") || targetName.includes("top") ? "PLACEMENT_TOP" : targetName.includes("\u5546\u54C1\u8BE6\u60C5") || targetName.includes("product") ? "PLACEMENT_PRODUCT_PAGE" : "PLACEMENT_REST_OF_SEARCH",
+                        placement: targetName2.includes("\u641C\u7D22\u9876\u90E8") || targetName2.includes("top") ? "PLACEMENT_TOP" : targetName2.includes("\u5546\u54C1\u8BE6\u60C5") || targetName2.includes("product") ? "PLACEMENT_PRODUCT_PAGE" : "PLACEMENT_REST_OF_SEARCH",
                         percentage: Math.round(newValue)
                       }
                     ]
@@ -285924,7 +285983,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
           adGroupId: 0,
           logTargetType: "placement",
           targetId,
-          targetName: targetName || `Campaign ${targetId} Placement`,
+          targetName: targetName2 || `Campaign ${targetId} Placement`,
           actionType: newValue > currentValue ? "increase" : "decrease",
           previousBid: String(currentValue),
           newBid: String(newValue),
@@ -285935,7 +285994,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
       }
       case "negative_keyword": {
         let negApiSuccess = false;
-        console.log(`[AutoExec] \u5426\u5B9A\u5173\u952E\u8BCD\u6DFB\u52A0: target=${targetName}, \u5DF2\u901A\u8FC7searchTermHarvester\u6A21\u5757\u5904\u7406`);
+        console.log(`[AutoExec] \u5426\u5B9A\u5173\u952E\u8BCD\u6DFB\u52A0: target=${targetName2}, \u5DF2\u901A\u8FC7searchTermHarvester\u6A21\u5757\u5904\u7406`);
         negApiSuccess = true;
         await createBiddingLog({
           accountId,
@@ -285943,7 +286002,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
           adGroupId: 0,
           logTargetType: "negative_keyword",
           targetId,
-          targetName: targetName || "Negative Keyword",
+          targetName: targetName2 || "Negative Keyword",
           actionType: "add",
           previousBid: "0",
           newBid: "0",
@@ -285958,17 +286017,17 @@ async function executeOptimization(accountId, type, targetType, targetId, target
           adGroupId: 0,
           logTargetType: "search_term_harvest",
           targetId,
-          targetName: targetName || "Search Term Harvest",
+          targetName: targetName2 || "Search Term Harvest",
           actionType: "add",
           previousBid: "0",
           newBid: "0",
           reason: `[\u81EA\u52A8\u6267\u884C] \u641C\u7D22\u8BCD\u6536\u5272: ${reason}`
         });
-        console.log(`[AutoExec] \u641C\u7D22\u8BCD\u6536\u5272\u6267\u884C: target=${targetName}`);
+        console.log(`[AutoExec] \u641C\u7D22\u8BCD\u6536\u5272\u6267\u884C: target=${targetName2}`);
         break;
       }
       default:
-        console.log(`[AutoExec] \u672A\u5B9E\u73B0\u7684\u6267\u884C\u7C7B\u578B: ${type}, target=${targetName}`);
+        console.log(`[AutoExec] \u672A\u5B9E\u73B0\u7684\u6267\u884C\u7C7B\u578B: ${type}, target=${targetName2}`);
         break;
     }
     incrementDailyCount(accountId, type);
@@ -285977,7 +286036,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
       type,
       targetType,
       targetId,
-      targetName,
+      targetName: targetName2,
       previousValue: currentValue,
       newValue,
       confidence,
@@ -285992,7 +286051,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
       type,
       targetType,
       targetId,
-      targetName,
+      targetName: targetName2,
       previousValue: currentValue,
       newValue,
       confidence,
@@ -288691,7 +288750,7 @@ async function generateNegativeKeywordSuggestions(accountId, campaignIds, days =
   });
   return suggestions;
 }
-async function executeNegativeKeywords(accountId, campaignId, adGroupId, negatives) {
+async function executeNegativeKeywords(accountId, campaignId, adGroupId2, negatives) {
   const db = await getDb();
   if (!db) return { success: false, addedCount: 0, errors: ["Database not available"] };
   const errors = [];
@@ -288701,8 +288760,8 @@ async function executeNegativeKeywords(accountId, campaignId, adGroupId, negativ
       await db.insert(negativeKeywords).values({
         accountId,
         campaignId,
-        adGroupId,
-        negativeLevel: adGroupId ? "ad_group" : "campaign",
+        adGroupId: adGroupId2,
+        negativeLevel: adGroupId2 ? "ad_group" : "campaign",
         negativeType: "keyword",
         negativeText: negative.keyword,
         negativeMatchType: negative.matchType === "phrase" ? "negative_phrase" : "negative_exact",
@@ -293880,12 +293939,12 @@ async function syncKeywords(userId, accountId, account) {
     const campaign = await db.select().from(campaigns).where(eq(campaigns.accountId, accountId)).limit(1);
     if (campaign.length === 0) return { success: true, count: 0, message: "\u6CA1\u6709\u5E7F\u544A\u6D3B\u52A8\uFF0C\u8DF3\u8FC7\u5173\u952E\u8BCD\u540C\u6B65" };
     const adGroupsList = await db.select().from(adGroups).where(eq(adGroups.campaignId, campaign[0].id)).limit(1);
-    const adGroupId = adGroupsList.length > 0 ? adGroupsList[0].id : 1;
+    const adGroupId2 = adGroupsList.length > 0 ? adGroupsList[0].id : 1;
     for (const kw of mockKeywords) {
-      const existing = await db.select().from(keywords).where(and(eq(keywords.adGroupId, adGroupId), eq(keywords.keywordId, kw.keywordId))).limit(1);
+      const existing = await db.select().from(keywords).where(and(eq(keywords.adGroupId, adGroupId2), eq(keywords.keywordId, kw.keywordId))).limit(1);
       if (existing.length === 0) {
         await db.insert(keywords).values({
-          adGroupId,
+          adGroupId: adGroupId2,
           keywordId: kw.keywordId,
           keywordText: kw.keywordText,
           matchType: kw.matchType,
@@ -299072,8 +299131,8 @@ var optimizationRouter = router({
       let apiFailCount = 0;
       for (const result of results) {
         let campaignId = 0;
-        let adGroupId = 0;
-        let targetName = "";
+        let adGroupId2 = 0;
+        let targetName2 = "";
         let matchType = "";
         let amazonId = "";
         if (result.targetType === "keyword") {
@@ -299081,10 +299140,10 @@ var optimizationRouter = router({
           if (keyword) {
             const adGroup = await getAdGroupById(keyword.adGroupId);
             if (adGroup) {
-              adGroupId = adGroup.id;
+              adGroupId2 = adGroup.id;
               campaignId = adGroup.campaignId;
             }
-            targetName = keyword.keywordText;
+            targetName2 = keyword.keywordText;
             matchType = keyword.matchType;
             amazonId = keyword.keywordId || "";
           }
@@ -299093,10 +299152,10 @@ var optimizationRouter = router({
           if (target) {
             const adGroup = await getAdGroupById(target.adGroupId);
             if (adGroup) {
-              adGroupId = adGroup.id;
+              adGroupId2 = adGroup.id;
               campaignId = adGroup.campaignId;
             }
-            targetName = `ASIN: ${target.targetValue}`;
+            targetName2 = `ASIN: ${target.targetValue}`;
             amazonId = target.targetId || "";
           }
         }
@@ -299129,10 +299188,10 @@ var optimizationRouter = router({
         await createBiddingLog({
           accountId: group.accountId,
           campaignId,
-          adGroupId,
+          adGroupId: adGroupId2,
           logTargetType: result.targetType,
           targetId: result.targetId,
-          targetName,
+          targetName: targetName2,
           logMatchType: matchType || void 0,
           actionType: result.actionType,
           previousBid: result.previousBid.toString(),

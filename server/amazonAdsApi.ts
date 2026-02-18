@@ -635,14 +635,14 @@ export class AmazonAdsApiClient {
     }>
   ): Promise<{ success: boolean; createdKeywords: Array<{ keywordId: number; keywordText: string; code: string }>; errors: any[] }> {
     try {
-      // v125: Amazon SP API v3 要求ID为字符串类型，bid为两位小数
+      // v126: Amazon SP API v3 要求ID为字符串类型，枚举值为大写
       const formattedKeywords = keywords.map(k => ({
         adGroupId: String(k.adGroupId),
         campaignId: String(k.campaignId),
         keywordText: k.keywordText,
-        matchType: k.matchType,
+        matchType: (k.matchType || 'EXACT').toUpperCase(),
         bid: Number(k.bid.toFixed(2)),
-        state: k.state || 'enabled',
+        state: (k.state || 'enabled').toUpperCase(),
       }));
       const requestBody = { keywords: formattedKeywords };
       console.log(`[SP API] createSpKeywords 请求体 (前500字符):`, JSON.stringify(requestBody).substring(0, 500));
@@ -653,12 +653,45 @@ export class AmazonAdsApiClient {
         },
       });
       
-      const createdKeywords = (response.data.keywords || []).map((k: any) => ({
-        keywordId: k.keywordId,
-        keywordText: k.keywordText,
-        code: k.code || 'SUCCESS',
-      }));
-      const errors = createdKeywords.filter((k: any) => k.code !== 'SUCCESS');
+      // v126: Amazon SP API v3 响应格式: {keywords: {error: [], success: [{index, keywordId}]}}
+      console.log(`[SP API] createSpKeywords 响应:`, JSON.stringify(response.data).substring(0, 500));
+      const responseKeywords = response.data?.keywords;
+      const createdKeywords: Array<{ keywordId: any; keywordText: string; code: string }> = [];
+      const errors: any[] = [];
+      
+      if (responseKeywords && typeof responseKeywords === 'object' && !Array.isArray(responseKeywords)) {
+        // v3格式: keywords是对象，包含error和success数组
+        if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
+          for (const item of responseKeywords.success) {
+            const idx = item.index || 0;
+            createdKeywords.push({
+              keywordId: item.keywordId,
+              keywordText: keywords[idx]?.keywordText || '',
+              code: 'SUCCESS',
+            });
+          }
+        }
+        if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
+          for (const item of responseKeywords.error) {
+            errors.push(item);
+            createdKeywords.push({
+              keywordId: null,
+              keywordText: keywords[item.index]?.keywordText || '',
+              code: item.code || 'ERROR',
+            });
+          }
+        }
+      } else if (Array.isArray(responseKeywords)) {
+        // 旧格式兼容: keywords是数组
+        for (const k of responseKeywords) {
+          createdKeywords.push({
+            keywordId: k.keywordId,
+            keywordText: k.keywordText || '',
+            code: k.code || 'SUCCESS',
+          });
+          if (k.code && k.code !== 'SUCCESS') errors.push(k);
+        }
+      }
       
       console.log(`[SP API] Created ${createdKeywords.length - errors.length} keywords, ${errors.length} errors`);
       return { success: errors.length === 0, createdKeywords, errors };
@@ -3052,12 +3085,12 @@ export class AmazonAdsApiClient {
       state?: 'enabled' | 'paused';
     }>
   ): Promise<Array<{ keywordId: number; code: string; details: string }>> {
-    // v125: Amazon SP API v3 要求campaignId为字符串类型
+    // v126: Amazon SP API v3 要求campaignId为字符串类型，枚举值为大写
     const formattedNegatives = negatives.map(n => ({
       campaignId: String(n.campaignId),
       keywordText: n.keywordText,
-      matchType: n.matchType,
-      state: n.state || 'enabled',
+      matchType: (n.matchType || 'NEGATIVE_EXACT').toUpperCase(),
+      state: (n.state || 'enabled').toUpperCase(),
     }));
     console.log(`[SP API] createSpCampaignNegativeKeywords: ${formattedNegatives.length}个否定词`);
     const response = await this.axiosInstance.post('/sp/campaignNegativeKeywords', {
@@ -3125,13 +3158,13 @@ export class AmazonAdsApiClient {
       state?: 'enabled' | 'paused';
     }>
   ): Promise<Array<{ keywordId: number; code: string; details: string }>> {
-    // v125: Amazon SP API v3 要求ID为字符串类型
+    // v126: Amazon SP API v3 要求ID为字符串类型，枚举值为大写
     const formattedNegatives = negatives.map(n => ({
       adGroupId: String(n.adGroupId),
       campaignId: String(n.campaignId),
       keywordText: n.keywordText,
-      matchType: n.matchType,
-      state: n.state || 'enabled',
+      matchType: (n.matchType || 'NEGATIVE_EXACT').toUpperCase(),
+      state: (n.state || 'enabled').toUpperCase(),
     }));
     console.log(`[SP API] createSpNegativeKeywords: ${formattedNegatives.length}个广告组级否定词`);
     const response = await this.axiosInstance.post('/sp/negativeKeywords', {
@@ -3180,12 +3213,12 @@ export class AmazonAdsApiClient {
       state?: 'enabled' | 'paused';
     }>
   ): Promise<Array<{ targetId: number; code: string; details: string }>> {
-    // v125: Amazon SP API v3 要求ID为字符串类型
+    // v126: Amazon SP API v3 要求ID为字符串类型，枚举值为大写
     const response = await this.axiosInstance.post('/sp/campaignNegativeTargets', {
       campaignNegativeTargetingClauses: negatives.map(n => ({
         ...n,
         campaignId: String(n.campaignId),
-        state: n.state || 'enabled',
+        state: (n.state || 'enabled').toUpperCase(),
       })),
     }, {
       headers: { 
@@ -3221,13 +3254,13 @@ export class AmazonAdsApiClient {
       state?: 'enabled' | 'paused';
     }>
   ): Promise<Array<{ targetId: number; code: string; details: string }>> {
-    // v125: Amazon SP API v3 要求ID为字符串类型
+    // v126: Amazon SP API v3 要求ID为字符串类型，枚举值为大写
     const response = await this.axiosInstance.post('/sp/negativeTargets', {
       negativeTargetingClauses: negatives.map(n => ({
         ...n,
         adGroupId: String(n.adGroupId),
         campaignId: String(n.campaignId),
-        state: n.state || 'enabled',
+        state: (n.state || 'enabled').toUpperCase(),
       })),
     }, {
       headers: { 

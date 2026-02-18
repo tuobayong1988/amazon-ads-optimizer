@@ -168,10 +168,35 @@ export async function syncBidAdjustmentsToAmazon(
     }
   }
   
-  console.log(`[AmazonApiHelper] 出价同步完成: 成功=${result.success}, 失败=${result.failed}, 错误数=${result.errors.length}`);
+  const totalAttempts = result.success + result.failed;
+  const failureRate = totalAttempts > 0 ? (result.failed / totalAttempts) * 100 : 0;
+  console.log(`[AmazonApiHelper] 出价同步完成: 成功=${result.success}, 失败=${result.failed}, 成功率=${(100 - failureRate).toFixed(1)}%`);
   if (result.errors.length > 0) {
     console.error(`[AmazonApiHelper] 错误详情:`, result.errors.slice(0, 5).join('; '));
   }
+  
+  // v126: API同步失败率监控告警
+  const FAILURE_RATE_THRESHOLD = 20; // 失败率超过20%触发告警
+  if (failureRate > FAILURE_RATE_THRESHOLD && totalAttempts >= 5) {
+    console.error(`[ALERT] ⚠️ Amazon API同步失败率过高! 失败率=${failureRate.toFixed(1)}% (阈值=${FAILURE_RATE_THRESHOLD}%), 成功=${result.success}, 失败=${result.failed}`);
+    console.error(`[ALERT] 请检查Amazon API凭证、配额和网络状态`);
+    
+    // 将告警信息写入数据库，便于前端展示
+    try {
+      const dbInstance = await db.getDb();
+      if (dbInstance) {
+        const { sql } = await import('drizzle-orm');
+        const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        const alertMsg = `Amazon API出价同步失败率${failureRate.toFixed(1)}%（成功${result.success}/失败${result.failed}），超过${FAILURE_RATE_THRESHOLD}%阈值`;
+        const errorSummary = result.errors.slice(0, 3).join('; ');
+        await dbInstance.execute(sql`INSERT INTO system_alerts (alert_type, alert_level, alert_message, alert_details, account_id, created_at) VALUES (${'api_sync_failure'}, ${'warning'}, ${alertMsg}, ${errorSummary}, ${accountId}, ${now}) ON DUPLICATE KEY UPDATE alert_message = VALUES(alert_message), created_at = VALUES(created_at)`);
+      }
+    } catch (alertErr: any) {
+      // system_alerts表可能不存在，忽略错误
+      console.warn(`[ALERT] 告警写入数据库失败（表可能不存在）: ${alertErr.message}`);
+    }
+  }
+  
   return result;
 }
 
