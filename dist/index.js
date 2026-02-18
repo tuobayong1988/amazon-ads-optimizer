@@ -53476,7 +53476,10 @@ var init_amazonAdsApi = __esm({
         const response = await this.axiosInstance.post("/sp/campaigns", {
           campaigns: [campaign]
         }, {
-          headers: { "Content-Type": "application/vnd.spCampaign.v3+json" }
+          headers: {
+            "Content-Type": "application/vnd.spCampaign.v3+json",
+            "Accept": "application/vnd.spCampaign.v3+json"
+          }
         });
         return response.data.campaigns[0];
       }
@@ -53484,10 +53487,13 @@ var init_amazonAdsApi = __esm({
        * 更新SP广告活动
        */
       async updateSpCampaign(campaignId, updates) {
-        await this.axiosInstance.put("/sp/campaigns", {
-          campaigns: [{ campaignId, ...updates }]
-        }, {
-          headers: { "Content-Type": "application/vnd.spCampaign.v3+json" }
+        const requestBody = { campaigns: [{ campaignId, ...updates }] };
+        console.log(`[SP API] updateSpCampaign \u8BF7\u6C42\u4F53:`, JSON.stringify(requestBody).substring(0, 500));
+        await this.axiosInstance.put("/sp/campaigns", requestBody, {
+          headers: {
+            "Content-Type": "application/vnd.spCampaign.v3+json",
+            "Accept": "application/vnd.spCampaign.v3+json"
+          }
         });
       }
       /**
@@ -53611,13 +53617,21 @@ var init_amazonAdsApi = __esm({
        */
       async createSpKeywords(keywords5) {
         try {
-          const response = await this.axiosInstance.post("/sp/keywords", {
-            keywords: keywords5.map((k5) => ({
-              ...k5,
-              state: k5.state || "enabled"
-            }))
-          }, {
-            headers: { "Content-Type": "application/vnd.spKeyword.v3+json" }
+          const formattedKeywords = keywords5.map((k5) => ({
+            adGroupId: Number(k5.adGroupId),
+            campaignId: Number(k5.campaignId),
+            keywordText: k5.keywordText,
+            matchType: k5.matchType,
+            bid: Number(k5.bid.toFixed(2)),
+            state: k5.state || "enabled"
+          }));
+          const requestBody = { keywords: formattedKeywords };
+          console.log(`[SP API] createSpKeywords \u8BF7\u6C42\u4F53 (\u524D500\u5B57\u7B26):`, JSON.stringify(requestBody).substring(0, 500));
+          const response = await this.axiosInstance.post("/sp/keywords", requestBody, {
+            headers: {
+              "Content-Type": "application/vnd.spKeyword.v3+json",
+              "Accept": "application/vnd.spKeyword.v3+json"
+            }
           });
           const createdKeywords = (response.data.keywords || []).map((k5) => ({
             keywordId: k5.keywordId,
@@ -53636,10 +53650,17 @@ var init_amazonAdsApi = __esm({
        * 更新关键词出价
        */
       async updateKeywordBids(updates) {
-        const response = await this.axiosInstance.put("/sp/keywords", {
-          keywords: updates
-        }, {
-          headers: { "Content-Type": "application/vnd.spKeyword.v3+json" }
+        const formattedUpdates = updates.map((u5) => ({
+          keywordId: u5.keywordId,
+          bid: Number(u5.bid.toFixed(2))
+        }));
+        const requestBody = { keywords: formattedUpdates };
+        console.log(`[SP API] updateKeywordBids \u8BF7\u6C42\u4F53:`, JSON.stringify(requestBody).substring(0, 500));
+        const response = await this.axiosInstance.put("/sp/keywords", requestBody, {
+          headers: {
+            "Content-Type": "application/vnd.spKeyword.v3+json",
+            "Accept": "application/vnd.spKeyword.v3+json"
+          }
         });
         const errors = [];
         if (response.data?.keywords) {
@@ -53715,10 +53736,17 @@ var init_amazonAdsApi = __esm({
        * 更新商品定位出价
        */
       async updateProductTargetBids(updates) {
-        const response = await this.axiosInstance.put("/sp/targets", {
-          targetingClauses: updates
-        }, {
-          headers: { "Content-Type": "application/vnd.spTargetingClause.v3+json" }
+        const formattedUpdates = updates.map((u5) => ({
+          targetId: u5.targetId,
+          bid: Number(u5.bid.toFixed(2))
+        }));
+        const requestBody = { targetingClauses: formattedUpdates };
+        console.log(`[SP API] updateProductTargetBids \u8BF7\u6C42\u4F53:`, JSON.stringify(requestBody).substring(0, 500));
+        const response = await this.axiosInstance.put("/sp/targets", requestBody, {
+          headers: {
+            "Content-Type": "application/vnd.spTargetingClause.v3+json",
+            "Accept": "application/vnd.spTargetingClause.v3+json"
+          }
         });
         const errors = [];
         if (response.data?.targetingClauses) {
@@ -56002,13 +56030,20 @@ var init_amazonAdsApi = __esm({
        * 创建SP活动级别否定关键词
        */
       async createSpCampaignNegativeKeywords(negatives) {
+        const formattedNegatives = negatives.map((n7) => ({
+          campaignId: Number(n7.campaignId),
+          keywordText: n7.keywordText,
+          matchType: n7.matchType,
+          state: n7.state || "enabled"
+        }));
+        console.log(`[SP API] createSpCampaignNegativeKeywords: ${formattedNegatives.length}\u4E2A\u5426\u5B9A\u8BCD`);
         const response = await this.axiosInstance.post("/sp/campaignNegativeKeywords", {
-          campaignNegativeKeywords: negatives.map((n7) => ({
-            ...n7,
-            state: n7.state || "enabled"
-          }))
+          campaignNegativeKeywords: formattedNegatives
         }, {
-          headers: { "Content-Type": "application/vnd.spCampaignNegativeKeyword.v3+json" }
+          headers: {
+            "Content-Type": "application/vnd.spCampaignNegativeKeyword.v3+json",
+            "Accept": "application/vnd.spCampaignNegativeKeyword.v3+json"
+          }
         });
         return response.data.campaignNegativeKeywords || [];
       }
@@ -56052,13 +56087,21 @@ var init_amazonAdsApi = __esm({
        * 创建SP广告组级别否定关键词
        */
       async createSpNegativeKeywords(negatives) {
+        const formattedNegatives = negatives.map((n7) => ({
+          adGroupId: Number(n7.adGroupId),
+          campaignId: Number(n7.campaignId),
+          keywordText: n7.keywordText,
+          matchType: n7.matchType,
+          state: n7.state || "enabled"
+        }));
+        console.log(`[SP API] createSpNegativeKeywords: ${formattedNegatives.length}\u4E2A\u5E7F\u544A\u7EC4\u7EA7\u5426\u5B9A\u8BCD`);
         const response = await this.axiosInstance.post("/sp/negativeKeywords", {
-          negativeKeywords: negatives.map((n7) => ({
-            ...n7,
-            state: n7.state || "enabled"
-          }))
+          negativeKeywords: formattedNegatives
         }, {
-          headers: { "Content-Type": "application/vnd.spNegativeKeyword.v3+json" }
+          headers: {
+            "Content-Type": "application/vnd.spNegativeKeyword.v3+json",
+            "Accept": "application/vnd.spNegativeKeyword.v3+json"
+          }
         });
         return response.data.negativeKeywords || [];
       }
@@ -59750,9 +59793,15 @@ var init_amazonSyncService = __esm({
             oldBid = parseFloat(kw.bid);
             targetName = kw.keywordText;
             adGroupId = kw.adGroupId;
+            const numericKeywordId = Number(amazonId);
+            if (isNaN(numericKeywordId) || numericKeywordId <= 0) {
+              console.error(`[applyBidAdjustment] keyword id=${targetId} \u7684Amazon keywordId\u65E0\u6548: "${amazonId}" -> ${numericKeywordId}`);
+              return false;
+            }
+            console.log(`[applyBidAdjustment] \u8C03\u7528Amazon API: keywordId=${numericKeywordId}, bid=${Number(newBid.toFixed(2))}`);
             await this.client.updateKeywordBids([{
-              keywordId: parseInt(amazonId),
-              bid: newBid
+              keywordId: numericKeywordId,
+              bid: Number(newBid.toFixed(2))
             }]);
             await db.update(keywords).set({ bid: String(newBid), updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ") }).where(eq(keywords.id, targetId));
           } else {
@@ -59769,9 +59818,15 @@ var init_amazonSyncService = __esm({
             oldBid = parseFloat(pt3.bid);
             targetName = pt3.targetValue || "Product Target";
             adGroupId = pt3.adGroupId;
+            const numericTargetId = Number(amazonId);
+            if (isNaN(numericTargetId) || numericTargetId <= 0) {
+              console.error(`[applyBidAdjustment] product_target id=${targetId} \u7684Amazon targetId\u65E0\u6548: "${amazonId}" -> ${numericTargetId}`);
+              return false;
+            }
+            console.log(`[applyBidAdjustment] \u8C03\u7528Amazon API: targetId=${numericTargetId}, bid=${Number(newBid.toFixed(2))}`);
             await this.client.updateProductTargetBids([{
-              targetId: parseInt(amazonId),
-              bid: newBid
+              targetId: numericTargetId,
+              bid: Number(newBid.toFixed(2))
             }]);
             await db.update(productTargets).set({ bid: String(newBid), updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ") }).where(eq(productTargets.id, targetId));
           }
@@ -89192,7 +89247,7 @@ async function syncBudgetAdjustmentToAmazon(accountId, campaignId, newBudget, re
   const syncService = await getAmazonSyncService(accountId);
   if (!syncService) return false;
   try {
-    await syncService.client.updateSpCampaign(parseInt(campaignId), {
+    await syncService.client.updateSpCampaign(Number(campaignId), {
       dailyBudget: newBudget
     });
     console.log(`[AmazonApiHelper] \u9884\u7B97\u540C\u6B65\u6210\u529F: Campaign ${campaignId}, \u65B0\u9884\u7B97=$${newBudget}`);
@@ -89206,7 +89261,7 @@ async function syncPlacementAdjustmentToAmazon(accountId, campaignId, topOfSearc
   const syncService = await getAmazonSyncService(accountId);
   if (!syncService) return false;
   try {
-    await syncService.client.updateSpCampaign(parseInt(campaignId), {
+    await syncService.client.updateSpCampaign(Number(campaignId), {
       bidding: {
         adjustments: [
           { predicate: "placementTop", percentage: Math.round(topOfSearchPercent) },
@@ -89851,8 +89906,8 @@ async function executeSearchTermAnalysis(config2, campaigns6, dryRun) {
               const adGroups3 = await getAdGroupsByCampaignId(campaign.id);
               if (adGroups3.length > 0) {
                 const adGroup = adGroups3[0];
-                const amazonAdGroupId = parseInt(adGroup.adGroupId?.toString() || "0");
-                const amazonCampaignId = parseInt(campaign.campaignId || campaign.id.toString());
+                const amazonAdGroupId = Number(adGroup.adGroupId || 0);
+                const amazonCampaignId = Number(campaign.campaignId || campaign.id);
                 const matchType = term.matchTypeSuggestion || "exact";
                 const bid = 0.5;
                 const { keywords: keywords5 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
@@ -89900,7 +89955,7 @@ async function executeSearchTermAnalysis(config2, campaigns6, dryRun) {
         const negativeDetails = details.filter((d5) => d5.action === "add_negative" && d5.campaignId === campaign.id);
         if (negativeDetails.length > 0) {
           try {
-            const amazonCampaignId = parseInt(campaign.campaignId || campaign.id.toString());
+            const amazonCampaignId = Number(campaign.campaignId || campaign.id);
             await syncNegativeKeywordsToAmazon(
               config2.accountId,
               negativeDetails.map((d5) => ({
@@ -298935,13 +298990,13 @@ var optimizationRouter = router({
           try {
             if (result.targetType === "keyword") {
               await syncService.client.updateKeywordBids([{
-                keywordId: parseInt(amazonId),
-                bid: result.newBid
+                keywordId: Number(amazonId),
+                bid: Number(result.newBid.toFixed(2))
               }]);
             } else {
               await syncService.client.updateProductTargetBids([{
-                targetId: parseInt(amazonId),
-                bid: result.newBid
+                targetId: Number(amazonId),
+                bid: Number(result.newBid.toFixed(2))
               }]);
             }
             apiSuccess = true;
@@ -301878,8 +301933,8 @@ var batchOperationRouter = router({
         if (syncService && keyword.keywordId) {
           try {
             await syncService.client.updateKeywordBids([{
-              keywordId: parseInt(keyword.keywordId),
-              bid: adj.newBid
+              keywordId: Number(keyword.keywordId),
+              bid: Number(adj.newBid.toFixed(2))
             }]);
             apiSuccess = true;
           } catch (apiError) {

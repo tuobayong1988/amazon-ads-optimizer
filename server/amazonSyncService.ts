@@ -2800,10 +2800,16 @@ export class AmazonSyncService {
         targetName = kw.keywordText;
         adGroupId = kw.adGroupId;
 
-        // 调用Amazon API更新出价
+        // v124: 使用Number()替代parseInt()，确保数字类型正确
+        const numericKeywordId = Number(amazonId);
+        if (isNaN(numericKeywordId) || numericKeywordId <= 0) {
+          console.error(`[applyBidAdjustment] keyword id=${targetId} 的Amazon keywordId无效: "${amazonId}" -> ${numericKeywordId}`);
+          return false;
+        }
+        console.log(`[applyBidAdjustment] 调用Amazon API: keywordId=${numericKeywordId}, bid=${Number(newBid.toFixed(2))}`);
         await this.client.updateKeywordBids([{
-          keywordId: parseInt(amazonId),
-          bid: newBid,
+          keywordId: numericKeywordId,
+          bid: Number(newBid.toFixed(2)),
         }]);
 
         // 更新本地数据库
@@ -2832,10 +2838,16 @@ export class AmazonSyncService {
         targetName = pt.targetValue || 'Product Target';
         adGroupId = pt.adGroupId;
 
-        // 调用Amazon API更新出价
+        // v124: 使用Number()替代parseInt()，确保数字类型正确
+        const numericTargetId = Number(amazonId);
+        if (isNaN(numericTargetId) || numericTargetId <= 0) {
+          console.error(`[applyBidAdjustment] product_target id=${targetId} 的Amazon targetId无效: "${amazonId}" -> ${numericTargetId}`);
+          return false;
+        }
+        console.log(`[applyBidAdjustment] 调用Amazon API: targetId=${numericTargetId}, bid=${Number(newBid.toFixed(2))}`);
         await this.client.updateProductTargetBids([{
-          targetId: parseInt(amazonId),
-          bid: newBid,
+          targetId: numericTargetId,
+          bid: Number(newBid.toFixed(2)),
         }]);
 
         // 更新本地数据库

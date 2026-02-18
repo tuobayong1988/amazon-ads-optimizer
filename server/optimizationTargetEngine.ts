@@ -823,8 +823,8 @@ async function executeSearchTermAnalysis(
               const adGroups = await db.getAdGroupsByCampaignId(campaign.id);
               if (adGroups.length > 0) {
                 const adGroup = adGroups[0];
-                const amazonAdGroupId = parseInt(adGroup.adGroupId?.toString() || '0');
-                const amazonCampaignId = parseInt(campaign.campaignId || campaign.id.toString());
+                const amazonAdGroupId = Number(adGroup.adGroupId || 0);
+                const amazonCampaignId = Number(campaign.campaignId || campaign.id);
                 const matchType = (term.matchTypeSuggestion || 'exact') as 'exact' | 'phrase' | 'broad';
                 const bid = 0.50;
                 
@@ -877,7 +877,7 @@ async function executeSearchTermAnalysis(
         const negativeDetails = details.filter(d => d.action === 'add_negative' && d.campaignId === campaign.id);
         if (negativeDetails.length > 0) {
           try {
-            const amazonCampaignId = parseInt(campaign.campaignId || campaign.id.toString());
+            const amazonCampaignId = Number(campaign.campaignId || campaign.id);
             await amazonApiHelper.syncNegativeKeywordsToAmazon(
               config.accountId,
               negativeDetails.map(d => ({

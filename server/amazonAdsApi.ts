@@ -464,7 +464,10 @@ export class AmazonAdsApiClient {
     const response = await this.axiosInstance.post('/sp/campaigns', {
       campaigns: [campaign],
     }, {
-      headers: { 'Content-Type': 'application/vnd.spCampaign.v3+json' },
+      headers: { 
+        'Content-Type': 'application/vnd.spCampaign.v3+json',
+        'Accept': 'application/vnd.spCampaign.v3+json'
+      },
     });
     return response.data.campaigns[0];
   }
@@ -473,10 +476,13 @@ export class AmazonAdsApiClient {
    * 更新SP广告活动
    */
   async updateSpCampaign(campaignId: number, updates: Partial<SpCampaign>): Promise<void> {
-    await this.axiosInstance.put('/sp/campaigns', {
-      campaigns: [{ campaignId, ...updates }],
-    }, {
-      headers: { 'Content-Type': 'application/vnd.spCampaign.v3+json' },
+    const requestBody = { campaigns: [{ campaignId, ...updates }] };
+    console.log(`[SP API] updateSpCampaign 请求体:`, JSON.stringify(requestBody).substring(0, 500));
+    await this.axiosInstance.put('/sp/campaigns', requestBody, {
+      headers: { 
+        'Content-Type': 'application/vnd.spCampaign.v3+json',
+        'Accept': 'application/vnd.spCampaign.v3+json'
+      },
     });
   }
 
@@ -624,13 +630,22 @@ export class AmazonAdsApiClient {
     }>
   ): Promise<{ success: boolean; createdKeywords: Array<{ keywordId: number; keywordText: string; code: string }>; errors: any[] }> {
     try {
-      const response = await this.axiosInstance.post('/sp/keywords', {
-        keywords: keywords.map(k => ({
-          ...k,
-          state: k.state || 'enabled',
-        })),
-      }, {
-        headers: { 'Content-Type': 'application/vnd.spKeyword.v3+json' },
+      // v124: 确保ID为数字类型，bid为两位小数
+      const formattedKeywords = keywords.map(k => ({
+        adGroupId: Number(k.adGroupId),
+        campaignId: Number(k.campaignId),
+        keywordText: k.keywordText,
+        matchType: k.matchType,
+        bid: Number(k.bid.toFixed(2)),
+        state: k.state || 'enabled',
+      }));
+      const requestBody = { keywords: formattedKeywords };
+      console.log(`[SP API] createSpKeywords 请求体 (前500字符):`, JSON.stringify(requestBody).substring(0, 500));
+      const response = await this.axiosInstance.post('/sp/keywords', requestBody, {
+        headers: { 
+          'Content-Type': 'application/vnd.spKeyword.v3+json',
+          'Accept': 'application/vnd.spKeyword.v3+json'
+        },
       });
       
       const createdKeywords = (response.data.keywords || []).map((k: any) => ({
@@ -652,10 +667,18 @@ export class AmazonAdsApiClient {
    * 更新关键词出价
    */
   async updateKeywordBids(updates: Array<{ keywordId: number; bid: number }>): Promise<{ success: boolean; errors: any[] }> {
-    const response = await this.axiosInstance.put('/sp/keywords', {
-      keywords: updates,
-    }, {
-      headers: { 'Content-Type': 'application/vnd.spKeyword.v3+json' },
+    // v124: 确保bid格式为两位小数，keywordId为整数
+    const formattedUpdates = updates.map(u => ({
+      keywordId: u.keywordId,
+      bid: Number(u.bid.toFixed(2)),
+    }));
+    const requestBody = { keywords: formattedUpdates };
+    console.log(`[SP API] updateKeywordBids 请求体:`, JSON.stringify(requestBody).substring(0, 500));
+    const response = await this.axiosInstance.put('/sp/keywords', requestBody, {
+      headers: { 
+        'Content-Type': 'application/vnd.spKeyword.v3+json',
+        'Accept': 'application/vnd.spKeyword.v3+json'
+      },
     });
     
     // ✅ 检查API响应，记录失败的更新
@@ -742,10 +765,18 @@ export class AmazonAdsApiClient {
    * 更新商品定位出价
    */
   async updateProductTargetBids(updates: Array<{ targetId: number; bid: number }>): Promise<{ success: boolean; errors: any[] }> {
-    const response = await this.axiosInstance.put('/sp/targets', {
-      targetingClauses: updates,
-    }, {
-      headers: { 'Content-Type': 'application/vnd.spTargetingClause.v3+json' },
+    // v124: 确保bid格式为两位小数
+    const formattedUpdates = updates.map(u => ({
+      targetId: u.targetId,
+      bid: Number(u.bid.toFixed(2)),
+    }));
+    const requestBody = { targetingClauses: formattedUpdates };
+    console.log(`[SP API] updateProductTargetBids 请求体:`, JSON.stringify(requestBody).substring(0, 500));
+    const response = await this.axiosInstance.put('/sp/targets', requestBody, {
+      headers: { 
+        'Content-Type': 'application/vnd.spTargetingClause.v3+json',
+        'Accept': 'application/vnd.spTargetingClause.v3+json'
+      },
     });
     
     // ✅ 检查API响应，记录失败的更新
@@ -2999,13 +3030,21 @@ export class AmazonAdsApiClient {
       state?: 'enabled' | 'paused';
     }>
   ): Promise<Array<{ keywordId: number; code: string; details: string }>> {
+    // v124: 确保campaignId为数字类型
+    const formattedNegatives = negatives.map(n => ({
+      campaignId: Number(n.campaignId),
+      keywordText: n.keywordText,
+      matchType: n.matchType,
+      state: n.state || 'enabled',
+    }));
+    console.log(`[SP API] createSpCampaignNegativeKeywords: ${formattedNegatives.length}个否定词`);
     const response = await this.axiosInstance.post('/sp/campaignNegativeKeywords', {
-      campaignNegativeKeywords: negatives.map(n => ({
-        ...n,
-        state: n.state || 'enabled',
-      })),
+      campaignNegativeKeywords: formattedNegatives,
     }, {
-      headers: { 'Content-Type': 'application/vnd.spCampaignNegativeKeyword.v3+json' },
+      headers: { 
+        'Content-Type': 'application/vnd.spCampaignNegativeKeyword.v3+json',
+        'Accept': 'application/vnd.spCampaignNegativeKeyword.v3+json'
+      },
     });
     return response.data.campaignNegativeKeywords || [];
   }
@@ -3064,13 +3103,22 @@ export class AmazonAdsApiClient {
       state?: 'enabled' | 'paused';
     }>
   ): Promise<Array<{ keywordId: number; code: string; details: string }>> {
+    // v124: 确保ID为数字类型
+    const formattedNegatives = negatives.map(n => ({
+      adGroupId: Number(n.adGroupId),
+      campaignId: Number(n.campaignId),
+      keywordText: n.keywordText,
+      matchType: n.matchType,
+      state: n.state || 'enabled',
+    }));
+    console.log(`[SP API] createSpNegativeKeywords: ${formattedNegatives.length}个广告组级否定词`);
     const response = await this.axiosInstance.post('/sp/negativeKeywords', {
-      negativeKeywords: negatives.map(n => ({
-        ...n,
-        state: n.state || 'enabled',
-      })),
+      negativeKeywords: formattedNegatives,
     }, {
-      headers: { 'Content-Type': 'application/vnd.spNegativeKeyword.v3+json' },
+      headers: { 
+        'Content-Type': 'application/vnd.spNegativeKeyword.v3+json',
+        'Accept': 'application/vnd.spNegativeKeyword.v3+json'
+      },
     });
     return response.data.negativeKeywords || [];
   }

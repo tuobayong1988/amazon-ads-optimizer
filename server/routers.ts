@@ -2487,13 +2487,13 @@ const optimizationRouter = router({
             try {
               if (result.targetType === "keyword") {
                 await syncService.client.updateKeywordBids([{
-                  keywordId: parseInt(amazonId),
-                  bid: result.newBid,
+                  keywordId: Number(amazonId),
+                  bid: Number(result.newBid.toFixed(2)),
                 }]);
               } else {
                 await syncService.client.updateProductTargetBids([{
-                  targetId: parseInt(amazonId),
-                  bid: result.newBid,
+                  targetId: Number(amazonId),
+                  bid: Number(result.newBid.toFixed(2)),
                 }]);
               }
               apiSuccess = true;
@@ -6108,8 +6108,8 @@ const batchOperationRouter = router({
           if (syncService && keyword.keywordId) {
             try {
               await syncService.client.updateKeywordBids([{
-                keywordId: parseInt(keyword.keywordId),
-                bid: adj.newBid,
+                keywordId: Number(keyword.keywordId),
+                bid: Number(adj.newBid.toFixed(2)),
               }]);
               apiSuccess = true;
             } catch (apiError: any) {

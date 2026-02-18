@@ -247,7 +247,7 @@ export async function syncBudgetAdjustmentToAmazon(
   if (!syncService) return false;
   
   try {
-    await syncService.client.updateSpCampaign(parseInt(campaignId), {
+    await syncService.client.updateSpCampaign(Number(campaignId), {
       dailyBudget: newBudget,
     });
     console.log(`[AmazonApiHelper] 预算同步成功: Campaign ${campaignId}, 新预算=$${newBudget}`);
@@ -273,7 +273,7 @@ export async function syncPlacementAdjustmentToAmazon(
   if (!syncService) return false;
   
   try {
-    await syncService.client.updateSpCampaign(parseInt(campaignId), {
+    await syncService.client.updateSpCampaign(Number(campaignId), {
       bidding: {
         adjustments: [
           { predicate: 'placementTop', percentage: Math.round(topOfSearchPercent) },
