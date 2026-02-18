@@ -503,10 +503,34 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
                   )}
                 </div>
                 
-                {/* API同步详情 */}
+                {/* v140: API同步详情 - 支持单条状态和旧版批量状态 */}
                 {log.apiSyncDetail && (() => {
                   try {
                     const syncDetail = JSON.parse(log.apiSyncDetail);
+                    
+                    // v140新格式: 单条同步状态 {status, error}
+                    if (syncDetail.status && !syncDetail.totalSuccess && syncDetail.totalSuccess !== 0) {
+                      return (
+                        <div className="text-sm space-y-1">
+                          {syncDetail.status === 'synced' && (
+                            <span className="text-green-400">✅ 已成功同步到Amazon</span>
+                          )}
+                          {syncDetail.status === 'failed' && (
+                            <div>
+                              <span className="text-red-400">❌ 同步失败</span>
+                              {syncDetail.error && (
+                                <p className="text-red-400 text-xs mt-1">原因: {syncDetail.error}</p>
+                              )}
+                            </div>
+                          )}
+                          {syncDetail.status === 'pending' && (
+                            <span className="text-yellow-400">⏳ 等待同步</span>
+                          )}
+                        </div>
+                      );
+                    }
+                    
+                    // 旧版格式: 批量同步状态 {totalSuccess, totalFailed, errors}
                     return (
                       <div className="text-sm space-y-1">
                         <div className="flex gap-4">

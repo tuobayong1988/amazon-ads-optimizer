@@ -360,7 +360,7 @@ export async function executeOptimizationTarget(
       // 收集出价调整中失败的任务
       if (result.bidOptimization?.details) {
         for (const detail of result.bidOptimization.details) {
-          if (detail.apiSyncStatus === 'failed' || detail.apiSyncStatus === 'partial') {
+          if (detail.apiSyncStatus === 'failed') {
             failedTasks.push({
               batchId,
               optimizationTargetId: config.id,
@@ -477,7 +477,7 @@ async function executeBidOptimization(
   config: OptimizationTargetConfig,
   campaigns: any[],
   dryRun: boolean
-): Promise<{ executed: boolean; adjustmentsCount: number; details: any[] }> {
+): Promise<{ executed: boolean; adjustmentsCount: number; details: any[]; apiSyncResult?: any; apiSyncStatus?: string }> {
   const details: any[] = [];
   let adjustmentsCount = 0;
   
@@ -652,7 +652,7 @@ async function executeBidOptimization(
   }
   
   // v123: 批量同步出价调整到 Amazon API，并记录同步结果
-  let apiSyncResult: { success: number; failed: number; errors: string[] } = { success: 0, failed: 0, errors: [] };
+  let apiSyncResult: { success: number; failed: number; errors: string[]; itemResults?: Map<number, { status: 'synced' | 'failed'; error?: string }> } = { success: 0, failed: 0, errors: [] };
   let apiSyncStatus: 'pending' | 'synced' | 'failed' | 'partial' = 'pending';
   
   if (!dryRun && details.length > 0) {
@@ -1024,14 +1024,27 @@ async function executeBidOptimization(
     apiSyncStatus = 'pending'; // 模拟模式不同步
   }
   
-  // 将API同步结果附加到每个调整详情中，供日志记录使用
+  // v140: 将每条调整的独立同步状态附加到详情中（而非批量状态）
   for (const detail of details) {
-    detail.apiSyncStatus = apiSyncStatus;
-    detail.apiSyncDetail = JSON.stringify({
-      totalSuccess: apiSyncResult.success,
-      totalFailed: apiSyncResult.failed,
-      errors: apiSyncResult.errors.slice(0, 5),
-    });
+    const itemResult = apiSyncResult.itemResults?.get(detail.keywordId);
+    if (itemResult) {
+      // 使用该条目自身的同步状态
+      detail.apiSyncStatus = itemResult.status; // 'synced' | 'failed'
+      detail.apiSyncDetail = JSON.stringify({
+        status: itemResult.status,
+        error: itemResult.error || null,
+      });
+    } else if (dryRun) {
+      detail.apiSyncStatus = 'pending';
+      detail.apiSyncDetail = JSON.stringify({ status: 'pending', error: null });
+    } else {
+      // 未在itemResults中找到（理论上不应发生），使用批量状态作为降级
+      detail.apiSyncStatus = apiSyncStatus;
+      detail.apiSyncDetail = JSON.stringify({
+        status: apiSyncStatus,
+        error: '未获取到单条同步状态',
+      });
+    }
   }
   
   return { executed: true, adjustmentsCount: dryRun ? details.length : adjustmentsCount, details, apiSyncResult, apiSyncStatus };
@@ -2256,14 +2269,26 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
     const { optimizationLogs } = await import('../drizzle/schema');
     const now = new Date().toISOString();
     
-    // 记录出价调整日志（包含Amazon API同步状态）
+    // v140: 记录出价调整日志（每条日志使用该条目自身的同步状态）
     if (result.bidOptimization.executed && result.bidOptimization.adjustmentsCount > 0) {
-      const bidApiSyncStatus = (result.bidOptimization as any).apiSyncStatus || 'pending';
-      const bidApiSyncResult = (result.bidOptimization as any).apiSyncResult;
-      console.log(`[recordExecutionLog] 出价调整日志: bidApiSyncStatus=${bidApiSyncStatus}, details=${result.bidOptimization.details.length}`);
+      console.log(`[recordExecutionLog] v140: 出价调整日志: details=${result.bidOptimization.details.length}`);
       
       for (const detail of result.bidOptimization.details) {
-        const finalSyncStatus = detail.apiSyncStatus || bidApiSyncStatus || 'pending';
+        // v140: 使用每条调整的独立同步状态（synced/failed/pending）
+        const itemSyncStatus = detail.apiSyncStatus || 'pending';
+        const itemSyncDetail = detail.apiSyncDetail || null;
+        
+        // 解析单条同步详情中的错误信息
+        let itemErrorMessage: string | null = null;
+        if (itemSyncStatus === 'failed' && itemSyncDetail) {
+          try {
+            const parsed = JSON.parse(itemSyncDetail);
+            itemErrorMessage = parsed.error || null;
+          } catch (e) {
+            itemErrorMessage = null;
+          }
+        }
+        
         try {
           await dbInstance.insert(optimizationLogs).values({
             performanceGroupId: result.targetId,
@@ -2277,16 +2302,16 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
             previousValue: `$${detail.currentBid.toFixed(2)}`,
             newValue: `$${detail.newBid.toFixed(2)}`,
             changeReason: detail.reason || `出价调整 ${detail.changePercent}%`,
-            status: finalSyncStatus === 'synced' || finalSyncStatus === 'partial' ? 'success' : finalSyncStatus === 'failed' ? 'failed' : 'success',
-            apiSyncStatus: finalSyncStatus,
-            apiSyncDetail: detail.apiSyncDetail || (bidApiSyncResult ? JSON.stringify(bidApiSyncResult) : null),
-            apiSyncedAt: (finalSyncStatus === 'synced' || finalSyncStatus === 'partial') ? now : null,
-            errorMessage: finalSyncStatus === 'failed' && bidApiSyncResult?.errors?.length > 0 ? bidApiSyncResult.errors.join('; ') : null,
+            status: itemSyncStatus === 'synced' ? 'success' : itemSyncStatus === 'failed' ? 'failed' : 'success',
+            apiSyncStatus: itemSyncStatus,
+            apiSyncDetail: itemSyncDetail,
+            apiSyncedAt: itemSyncStatus === 'synced' ? now : null,
+            errorMessage: itemErrorMessage,
             createdAt: now,
             executedAt: now,
           });
         } catch (insertError: any) {
-          console.error(`[recordExecutionLog] 出价日志写入失败: ${insertError.message}`, { keywordId: detail.keywordId, finalSyncStatus });
+          console.error(`[recordExecutionLog] 出价日志写入失败: ${insertError.message}`, { keywordId: detail.keywordId, itemSyncStatus });
         }
       }
     }

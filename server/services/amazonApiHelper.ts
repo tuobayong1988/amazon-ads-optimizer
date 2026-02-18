@@ -79,8 +79,8 @@ export async function syncBidAdjustmentsToAmazon(
     reason: string;
     isProductTarget?: boolean;
   }>
-): Promise<{ success: number; failed: number; errors: string[] }> {
-  const result = { success: 0, failed: 0, errors: [] as string[] };
+): Promise<{ success: number; failed: number; errors: string[]; itemResults: Map<number, { status: 'synced' | 'failed'; error?: string }> }> {
+  const result = { success: 0, failed: 0, errors: [] as string[], itemResults: new Map<number, { status: 'synced' | 'failed'; error?: string }>() };
   
   if (adjustments.length === 0) return result;
   
@@ -92,6 +92,10 @@ export async function syncBidAdjustmentsToAmazon(
     console.error(`[AmazonApiHelper] ${errorMsg}`);
     result.errors.push(errorMsg);
     result.failed = adjustments.length;
+    // v140: 标记所有条目为失败
+    for (const adj of adjustments) {
+      result.itemResults.set(adj.keywordId, { status: 'failed', error: errorMsg });
+    }
     return result;
   }
   
@@ -128,24 +132,30 @@ export async function syncBidAdjustmentsToAmazon(
           result.success++;
           consecutiveThrottles = 0;
           success = true;
+          // v140: 记录单条成功状态
+          result.itemResults.set(adj.keywordId, { status: 'synced' });
         } else {
-          // applyBidAdjustment返回false可能是数据不存在等不可重试的情况
           result.failed++;
-          const errorMsg = `出价调整失败: ${targetType} ${adj.keywordId}`;
+          const targetType2 = adj.isProductTarget ? 'product_target' : 'keyword';
+          const errorMsg = `出价调整失败: ${targetType2} ${adj.keywordId}`;
           result.errors.push(errorMsg);
           console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
-          break; // 不可重试，直接跳出
+          // v140: 记录单条失败状态
+          result.itemResults.set(adj.keywordId, { status: 'failed', error: '记录不存在或Amazon ID无效' });
+          break;
         }
       } catch (error: any) {
         const isNonRetryable = error.nonRetryable === true || error.message?.includes('MISSING_AMAZON_ID');
         const isThrottle = error.message?.includes('请求过于频繁') || error.status === 429;
         
         if (isNonRetryable) {
-          // 缺少Amazon ID等不可重试的错误，直接跳过
           result.failed++;
           const targetType = adj.isProductTarget ? 'product_target' : 'keyword';
-          result.errors.push(`${targetType} ${adj.keywordId}: 缺少Amazon ID`);
-          break; // 跳出重试循环
+          const errMsg = `${targetType} ${adj.keywordId}: 缺少Amazon ID`;
+          result.errors.push(errMsg);
+          // v140: 记录单条失败状态
+          result.itemResults.set(adj.keywordId, { status: 'failed', error: '缺少Amazon ID' });
+          break;
         }
         
         retryCount++;
@@ -164,7 +174,9 @@ export async function syncBidAdjustmentsToAmazon(
           const errorMsg = `出价调整异常(重试${maxRetries}次后): ${targetType} ${adj.keywordId} - ${error.message}`;
           result.errors.push(errorMsg);
           console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
-          break; // 跳出重试循环
+          // v140: 记录单条失败状态
+          result.itemResults.set(adj.keywordId, { status: 'failed', error: `API异常: ${error.message?.substring(0, 100)}` });
+          break;
         }
       }
     }
