@@ -689,22 +689,23 @@ export class AmazonAdsApiClient {
     // v125: 记录完整响应便于诊断
     console.log(`[SP API] updateKeywordBids 响应:`, JSON.stringify(response.data).substring(0, 500));
     
-    // ✅ 检查API响应，记录失败的更新
+    // ✅ 检查API响应 - Amazon SP API v3返回格式: {keywords: {error: [], success: [{index, keywordId}]}}
     const errors: any[] = [];
     const responseKeywords = response.data?.keywords;
-    if (responseKeywords && Array.isArray(responseKeywords)) {
-      for (const kw of responseKeywords) {
-        if (kw.code && kw.code !== 'SUCCESS') {
-          errors.push({ keywordId: kw.keywordId, code: kw.code, details: kw.details });
-          console.error(`[SP API] 关键词出价更新失败: keywordId=${kw.keywordId}, code=${kw.code}, details=${kw.details}`);
+    if (responseKeywords) {
+      // v3格式: keywords是对象，包含error和success数组
+      if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
+        for (const err of responseKeywords.error) {
+          errors.push({ keywordId: err.keywordId, code: err.code || 'ERROR', details: err.details || err.description });
+          console.error(`[SP API] 关键词出价更新失败: keywordId=${err.keywordId}, code=${err.code}, details=${err.details || err.description}`);
         }
       }
-    } else if (response.data?.code === 'SUCCESS' || response.status === 200 || response.status === 207) {
-      // API可能返回不同格式的成功响应
-      console.log(`[SP API] 关键词出价更新成功 (HTTP ${response.status})`);
+      if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
+        console.log(`[SP API] 关键词出价更新成功: ${responseKeywords.success.length}个`);
+      }
     }
     
-    console.log(`[SP API] 关键词出价更新完成: 总计=${updates.length}, 失败=${errors.length}`);
+    console.log(`[SP API] 关键词出价更新完成: 总计=${updates.length}, 成功=${responseKeywords?.success?.length || 0}, 失败=${errors.length}`);
     
     return { success: errors.length === 0, errors };
   }
@@ -795,21 +796,23 @@ export class AmazonAdsApiClient {
     // v125: 记录完整响应便于诊断
     console.log(`[SP API] updateProductTargetBids 响应:`, JSON.stringify(response.data).substring(0, 500));
     
-    // ✅ 检查API响应，记录失败的更新
+    // ✅ 检查API响应 - Amazon SP API v3返回格式: {targetingClauses: {error: [], success: [{index, targetId}]}}
     const errors: any[] = [];
     const responseTargets = response.data?.targetingClauses;
-    if (responseTargets && Array.isArray(responseTargets)) {
-      for (const tc of responseTargets) {
-        if (tc.code && tc.code !== 'SUCCESS') {
-          errors.push({ targetId: tc.targetId, code: tc.code, details: tc.details });
-          console.error(`[SP API] 商品定位出价更新失败: targetId=${tc.targetId}, code=${tc.code}, details=${tc.details}`);
+    if (responseTargets) {
+      // v3格式: targetingClauses是对象，包含error和success数组
+      if (responseTargets.error && Array.isArray(responseTargets.error)) {
+        for (const err of responseTargets.error) {
+          errors.push({ targetId: err.targetId, code: err.code || 'ERROR', details: err.details || err.description });
+          console.error(`[SP API] 商品定位出价更新失败: targetId=${err.targetId}, code=${err.code}, details=${err.details || err.description}`);
         }
       }
-    } else if (response.data?.code === 'SUCCESS' || response.status === 200 || response.status === 207) {
-      console.log(`[SP API] 商品定位出价更新成功 (HTTP ${response.status})`);
+      if (responseTargets.success && Array.isArray(responseTargets.success)) {
+        console.log(`[SP API] 商品定位出价更新成功: ${responseTargets.success.length}个`);
+      }
     }
     
-    console.log(`[SP API] 商品定位出价更新完成: 总计=${updates.length}, 失败=${errors.length}`);
+    console.log(`[SP API] 商品定位出价更新完成: 总计=${updates.length}, 成功=${responseTargets?.success?.length || 0}, 失败=${errors.length}`);
     return { success: errors.length === 0, errors };
   }
 

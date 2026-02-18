@@ -2856,26 +2856,41 @@ export class AmazonSyncService {
       }
 
       // 计算出价变化
-      const bidChangePercent = ((newBid - oldBid) / oldBid) * 100;
+      const bidChangePercent = oldBid > 0 ? ((newBid - oldBid) / oldBid) * 100 : 0;
       const actionType = newBid > oldBid ? 'increase' : newBid < oldBid ? 'decrease' : 'set';
 
-      // 记录出价日志
-      await db.insert(biddingLogs).values({
-        accountId: this.accountId,
-        campaignId,
-        adGroupId,
-        logTargetType: targetType === 'keyword' ? 'keyword' : 'product_target',
-        targetId,
-        targetName,
-        actionType: actionType as 'increase' | 'decrease' | 'set',
-        previousBid: String(oldBid),
-        newBid: String(newBid),
-        bidChangePercent: String(bidChangePercent),
-        reason,
-        algorithmVersion: 'v1.0',
-        isIntradayAdjustment: 0,
-        createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-      });
+      // v125: 将日志记录和API调用分开，确保API成功后即使日志失败也返回true
+      console.log(`[applyBidAdjustment] ✅ Amazon API调用成功: ${targetType} id=${targetId}, ${oldBid} -> ${newBid}`);
+      
+      try {
+        await db.insert(biddingLogs).values({
+          accountId: this.accountId,
+          campaignId,
+          adGroupId,
+          logTargetType: targetType === 'keyword' ? 'keyword' : 'product_target',
+          targetId,
+          targetName,
+          actionType: actionType as 'increase' | 'decrease' | 'set',
+          previousBid: String(oldBid),
+          newBid: String(newBid),
+          bidChangePercent: String(bidChangePercent),
+          reason,
+          algorithmVersion: 'v1.0',
+          isIntradayAdjustment: 0,
+          createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+        });
+      } catch (logError: any) {
+        console.error(`[applyBidAdjustment] ⚠️ 日志记录失败（API已成功）: ${logError.message}`);
+        // 尝试使用原生SQL插入，跳过不存在的列
+        try {
+          const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+          const logTargetType = targetType === 'keyword' ? 'keyword' : 'product_target';
+          await db.execute(sql`INSERT INTO bidding_logs (account_id, campaign_id, ad_group_id, log_target_type, target_id, target_name, action_type, previous_bid, new_bid, bid_change_percent, reason, algorithm_version, is_intraday_adjustment, created_at) VALUES (${this.accountId}, ${campaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${'v1.0'}, ${0}, ${now})`);
+          console.log(`[applyBidAdjustment] ✅ 日志通过原生SQL插入成功`);
+        } catch (rawSqlError: any) {
+          console.error(`[applyBidAdjustment] ⚠️ 原生SQL日志也失败: ${rawSqlError.message}`);
+        }
+      }
 
       return true;
     } catch (error: any) {

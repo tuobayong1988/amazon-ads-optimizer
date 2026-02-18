@@ -53669,17 +53669,18 @@ var init_amazonAdsApi = __esm({
         console.log(`[SP API] updateKeywordBids \u54CD\u5E94:`, JSON.stringify(response.data).substring(0, 500));
         const errors = [];
         const responseKeywords = response.data?.keywords;
-        if (responseKeywords && Array.isArray(responseKeywords)) {
-          for (const kw of responseKeywords) {
-            if (kw.code && kw.code !== "SUCCESS") {
-              errors.push({ keywordId: kw.keywordId, code: kw.code, details: kw.details });
-              console.error(`[SP API] \u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0\u5931\u8D25: keywordId=${kw.keywordId}, code=${kw.code}, details=${kw.details}`);
+        if (responseKeywords) {
+          if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
+            for (const err2 of responseKeywords.error) {
+              errors.push({ keywordId: err2.keywordId, code: err2.code || "ERROR", details: err2.details || err2.description });
+              console.error(`[SP API] \u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0\u5931\u8D25: keywordId=${err2.keywordId}, code=${err2.code}, details=${err2.details || err2.description}`);
             }
           }
-        } else if (response.data?.code === "SUCCESS" || response.status === 200 || response.status === 207) {
-          console.log(`[SP API] \u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0\u6210\u529F (HTTP ${response.status})`);
+          if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
+            console.log(`[SP API] \u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0\u6210\u529F: ${responseKeywords.success.length}\u4E2A`);
+          }
         }
-        console.log(`[SP API] \u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u5931\u8D25=${errors.length}`);
+        console.log(`[SP API] \u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${responseKeywords?.success?.length || 0}, \u5931\u8D25=${errors.length}`);
         return { success: errors.length === 0, errors };
       }
       /**
@@ -53759,17 +53760,18 @@ var init_amazonAdsApi = __esm({
         console.log(`[SP API] updateProductTargetBids \u54CD\u5E94:`, JSON.stringify(response.data).substring(0, 500));
         const errors = [];
         const responseTargets = response.data?.targetingClauses;
-        if (responseTargets && Array.isArray(responseTargets)) {
-          for (const tc of responseTargets) {
-            if (tc.code && tc.code !== "SUCCESS") {
-              errors.push({ targetId: tc.targetId, code: tc.code, details: tc.details });
-              console.error(`[SP API] \u5546\u54C1\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u5931\u8D25: targetId=${tc.targetId}, code=${tc.code}, details=${tc.details}`);
+        if (responseTargets) {
+          if (responseTargets.error && Array.isArray(responseTargets.error)) {
+            for (const err2 of responseTargets.error) {
+              errors.push({ targetId: err2.targetId, code: err2.code || "ERROR", details: err2.details || err2.description });
+              console.error(`[SP API] \u5546\u54C1\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u5931\u8D25: targetId=${err2.targetId}, code=${err2.code}, details=${err2.details || err2.description}`);
             }
           }
-        } else if (response.data?.code === "SUCCESS" || response.status === 200 || response.status === 207) {
-          console.log(`[SP API] \u5546\u54C1\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u6210\u529F (HTTP ${response.status})`);
+          if (responseTargets.success && Array.isArray(responseTargets.success)) {
+            console.log(`[SP API] \u5546\u54C1\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u6210\u529F: ${responseTargets.success.length}\u4E2A`);
+          }
         }
-        console.log(`[SP API] \u5546\u54C1\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u5931\u8D25=${errors.length}`);
+        console.log(`[SP API] \u5546\u54C1\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${responseTargets?.success?.length || 0}, \u5931\u8D25=${errors.length}`);
         return { success: errors.length === 0, errors };
       }
       // ==================== 报告 API ====================
@@ -59849,24 +59851,37 @@ var init_amazonSyncService = __esm({
             }]);
             await db.update(productTargets).set({ bid: String(newBid), updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ") }).where(eq(productTargets.id, targetId));
           }
-          const bidChangePercent = (newBid - oldBid) / oldBid * 100;
+          const bidChangePercent = oldBid > 0 ? (newBid - oldBid) / oldBid * 100 : 0;
           const actionType = newBid > oldBid ? "increase" : newBid < oldBid ? "decrease" : "set";
-          await db.insert(biddingLogs).values({
-            accountId: this.accountId,
-            campaignId,
-            adGroupId,
-            logTargetType: targetType === "keyword" ? "keyword" : "product_target",
-            targetId,
-            targetName,
-            actionType,
-            previousBid: String(oldBid),
-            newBid: String(newBid),
-            bidChangePercent: String(bidChangePercent),
-            reason,
-            algorithmVersion: "v1.0",
-            isIntradayAdjustment: 0,
-            createdAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
-          });
+          console.log(`[applyBidAdjustment] \u2705 Amazon API\u8C03\u7528\u6210\u529F: ${targetType} id=${targetId}, ${oldBid} -> ${newBid}`);
+          try {
+            await db.insert(biddingLogs).values({
+              accountId: this.accountId,
+              campaignId,
+              adGroupId,
+              logTargetType: targetType === "keyword" ? "keyword" : "product_target",
+              targetId,
+              targetName,
+              actionType,
+              previousBid: String(oldBid),
+              newBid: String(newBid),
+              bidChangePercent: String(bidChangePercent),
+              reason,
+              algorithmVersion: "v1.0",
+              isIntradayAdjustment: 0,
+              createdAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
+            });
+          } catch (logError2) {
+            console.error(`[applyBidAdjustment] \u26A0\uFE0F \u65E5\u5FD7\u8BB0\u5F55\u5931\u8D25\uFF08API\u5DF2\u6210\u529F\uFF09: ${logError2.message}`);
+            try {
+              const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
+              const logTargetType = targetType === "keyword" ? "keyword" : "product_target";
+              await db.execute(sql`INSERT INTO bidding_logs (account_id, campaign_id, ad_group_id, log_target_type, target_id, target_name, action_type, previous_bid, new_bid, bid_change_percent, reason, algorithm_version, is_intraday_adjustment, created_at) VALUES (${this.accountId}, ${campaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${"v1.0"}, ${0}, ${now})`);
+              console.log(`[applyBidAdjustment] \u2705 \u65E5\u5FD7\u901A\u8FC7\u539F\u751FSQL\u63D2\u5165\u6210\u529F`);
+            } catch (rawSqlError) {
+              console.error(`[applyBidAdjustment] \u26A0\uFE0F \u539F\u751FSQL\u65E5\u5FD7\u4E5F\u5931\u8D25: ${rawSqlError.message}`);
+            }
+          }
           return true;
         } catch (error51) {
           const errorDetail = error51.response?.data ? JSON.stringify(error51.response.data) : error51.message;
