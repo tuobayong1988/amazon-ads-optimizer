@@ -505,6 +505,65 @@ async function executeBidOptimization(
   if (!dryRun && details.length > 0) {
     try {
       const accountId = config.accountId;
+      
+      // v126b: 补偿同步机制 - 为缺少Amazon keywordId的关键词重新创建
+      try {
+        const dbInstance = await db.getDb();
+        if (dbInstance) {
+          const { keywords: kwTable, adGroups: agTable, campaigns: campTable } = await import('../drizzle/schema');
+          const { eq, isNull, and, inArray } = await import('drizzle-orm');
+          
+          // 找出本次出价调整中涉及的关键词（非 product_target）的本地ID
+          const keywordIds = details.filter(d => !d.isProductTarget).map(d => d.keywordId);
+          if (keywordIds.length > 0) {
+            // 查询缺少keywordId的关键词
+            const missingKws = await dbInstance.select()
+              .from(kwTable)
+              .where(and(inArray(kwTable.id, keywordIds), isNull(kwTable.keywordId)));
+            
+            if (missingKws.length > 0) {
+              console.log(`[BidOptimization] 发现${missingKws.length}个关键词缺少Amazon keywordId，尝试补偿同步...`);
+              
+              // 按adGroupId分组，获取Amazon adGroupId和campaignId
+              for (const kw of missingKws) {
+                try {
+                  const [ag] = await dbInstance.select().from(agTable).where(eq(agTable.id, kw.adGroupId)).limit(1);
+                  if (!ag || !ag.adGroupId) continue;
+                  
+                  // 获取campaign的Amazon campaignId
+                  const [camp] = await dbInstance.select().from(campTable).where(eq(campTable.id, ag.campaignId!)).limit(1);
+                  if (!camp || !camp.campaignId) continue;
+                  
+                  const amazonAdGroupId = Number(ag.adGroupId);
+                  const amazonCampaignId = Number(camp.campaignId);
+                  
+                  if (amazonAdGroupId > 0 && amazonCampaignId > 0) {
+                    const syncResult = await amazonApiHelper.syncNewKeywordsToAmazon(
+                      accountId,
+                      [{
+                        localKeywordId: kw.id,
+                        adGroupId: amazonAdGroupId,
+                        campaignId: amazonCampaignId,
+                        keywordText: kw.keywordText,
+                        matchType: (kw.matchType || 'exact') as 'exact' | 'phrase' | 'broad',
+                        bid: parseFloat(kw.bid) || 0.50,
+                      }]
+                    );
+                    if (syncResult.success > 0) {
+                      console.log(`[BidOptimization] ✅ 补偿同步成功: "${kw.keywordText}" -> Amazon keywordId已更新`);
+                    }
+                  }
+                } catch (kwErr: any) {
+                  console.error(`[BidOptimization] 补偿同步失败: keyword id=${kw.id} - ${kwErr.message}`);
+                }
+              }
+            }
+          }
+        }
+      } catch (compensateErr: any) {
+        console.error(`[BidOptimization] 补偿同步机制异常: ${compensateErr.message}`);
+      }
+      
       apiSyncResult = await amazonApiHelper.syncBidAdjustmentsToAmazon(
         accountId,
         details.map(d => ({

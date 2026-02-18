@@ -59839,7 +59839,9 @@ var init_amazonSyncService = __esm({
             }
             if (!kw.keywordId) {
               console.error(`[applyBidAdjustment] keyword id=${targetId} ("${kw.keywordText}") \u7F3A\u5C11Amazon keywordId\uFF0C\u65E0\u6CD5\u540C\u6B65\u5230Amazon`);
-              return false;
+              const err2 = new Error(`MISSING_AMAZON_ID: keyword id=${targetId} \u7F3A\u5C11Amazon keywordId`);
+              err2.nonRetryable = true;
+              throw err2;
             }
             amazonId = kw.keywordId;
             oldBid2 = parseFloat(kw.bid);
@@ -59863,7 +59865,9 @@ var init_amazonSyncService = __esm({
             }
             if (!pt3.targetId) {
               console.error(`[applyBidAdjustment] product_target id=${targetId} ("${pt3.targetValue}") \u7F3A\u5C11Amazon targetId\uFF0C\u65E0\u6CD5\u540C\u6B65\u5230Amazon`);
-              return false;
+              const err2 = new Error(`MISSING_AMAZON_ID: product_target id=${targetId} \u7F3A\u5C11Amazon targetId`);
+              err2.nonRetryable = true;
+              throw err2;
             }
             amazonId = pt3.targetId;
             oldBid2 = parseFloat(pt3.bid);
@@ -89244,30 +89248,35 @@ async function syncBidAdjustmentsToAmazon(accountId, adjustments) {
           consecutiveThrottles = 0;
           success2 = true;
         } else {
-          retryCount++;
-          if (retryCount <= maxRetries) {
-            const waitTime = 2e3 * retryCount;
-            console.log(`[AmazonApiHelper] \u2139\uFE0F \u7B49\u5F85${waitTime}ms\u540E\u91CD\u8BD5...`);
-            await delay(waitTime);
-          } else {
-            result.failed++;
-            const errorMsg = `\u51FA\u4EF7\u8C03\u6574\u5931\u8D25(\u91CD\u8BD5${maxRetries}\u6B21\u540E): ${targetType} ${adj.keywordId}`;
-            result.errors.push(errorMsg);
-            console.error(`[AmazonApiHelper] \u274C ${errorMsg}`);
-          }
+          result.failed++;
+          const errorMsg = `\u51FA\u4EF7\u8C03\u6574\u5931\u8D25: ${targetType} ${adj.keywordId}`;
+          result.errors.push(errorMsg);
+          console.error(`[AmazonApiHelper] \u274C ${errorMsg}`);
+          break;
         }
       } catch (error51) {
+        const isNonRetryable = error51.nonRetryable === true || error51.message?.includes("MISSING_AMAZON_ID");
         const isThrottle = error51.message?.includes("\u8BF7\u6C42\u8FC7\u4E8E\u9891\u7E41") || error51.status === 429;
+        if (isNonRetryable) {
+          result.failed++;
+          const targetType = adj.isProductTarget ? "product_target" : "keyword";
+          result.errors.push(`${targetType} ${adj.keywordId}: \u7F3A\u5C11Amazon ID`);
+          break;
+        }
         retryCount++;
         if (isThrottle && retryCount <= maxRetries) {
           consecutiveThrottles++;
           const waitTime = Math.min(3e3 * consecutiveThrottles, 15e3);
           console.log(`[AmazonApiHelper] \u26A0\uFE0F \u9650\u6D41\uFF0C\u7B49\u5F85${waitTime}ms\u540E\u91CD\u8BD5...`);
           await delay(waitTime);
+        } else if (retryCount <= maxRetries) {
+          const waitTime = 2e3 * retryCount;
+          console.log(`[AmazonApiHelper] \u2139\uFE0F API\u9519\u8BEF\uFF0C\u7B49\u5F85${waitTime}ms\u540E\u91CD\u8BD5...`);
+          await delay(waitTime);
         } else {
           result.failed++;
           const targetType = adj.isProductTarget ? "product_target" : "keyword";
-          const errorMsg = `\u51FA\u4EF7\u8C03\u6574\u5F02\u5E38: ${targetType} ${adj.keywordId} - ${error51.message}`;
+          const errorMsg = `\u51FA\u4EF7\u8C03\u6574\u5F02\u5E38(\u91CD\u8BD5${maxRetries}\u6B21\u540E): ${targetType} ${adj.keywordId} - ${error51.message}`;
           result.errors.push(errorMsg);
           console.error(`[AmazonApiHelper] \u274C ${errorMsg}`);
           break;
@@ -89790,6 +89799,50 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
   if (!dryRun && details.length > 0) {
     try {
       const accountId = config2.accountId;
+      try {
+        const dbInstance = await getDb();
+        if (dbInstance) {
+          const { keywords: kwTable, adGroups: agTable, campaigns: campTable } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+          const { eq: eq7, isNull: isNull5, and: and7, inArray: inArray7 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+          const keywordIds = details.filter((d5) => !d5.isProductTarget).map((d5) => d5.keywordId);
+          if (keywordIds.length > 0) {
+            const missingKws = await dbInstance.select().from(kwTable).where(and7(inArray7(kwTable.id, keywordIds), isNull5(kwTable.keywordId)));
+            if (missingKws.length > 0) {
+              console.log(`[BidOptimization] \u53D1\u73B0${missingKws.length}\u4E2A\u5173\u952E\u8BCD\u7F3A\u5C11Amazon keywordId\uFF0C\u5C1D\u8BD5\u8865\u507F\u540C\u6B65...`);
+              for (const kw of missingKws) {
+                try {
+                  const [ag] = await dbInstance.select().from(agTable).where(eq7(agTable.id, kw.adGroupId)).limit(1);
+                  if (!ag || !ag.adGroupId) continue;
+                  const [camp] = await dbInstance.select().from(campTable).where(eq7(campTable.id, ag.campaignId)).limit(1);
+                  if (!camp || !camp.campaignId) continue;
+                  const amazonAdGroupId = Number(ag.adGroupId);
+                  const amazonCampaignId = Number(camp.campaignId);
+                  if (amazonAdGroupId > 0 && amazonCampaignId > 0) {
+                    const syncResult = await syncNewKeywordsToAmazon(
+                      accountId,
+                      [{
+                        localKeywordId: kw.id,
+                        adGroupId: amazonAdGroupId,
+                        campaignId: amazonCampaignId,
+                        keywordText: kw.keywordText,
+                        matchType: kw.matchType || "exact",
+                        bid: parseFloat(kw.bid) || 0.5
+                      }]
+                    );
+                    if (syncResult.success > 0) {
+                      console.log(`[BidOptimization] \u2705 \u8865\u507F\u540C\u6B65\u6210\u529F: "${kw.keywordText}" -> Amazon keywordId\u5DF2\u66F4\u65B0`);
+                    }
+                  }
+                } catch (kwErr) {
+                  console.error(`[BidOptimization] \u8865\u507F\u540C\u6B65\u5931\u8D25: keyword id=${kw.id} - ${kwErr.message}`);
+                }
+              }
+            }
+          }
+        }
+      } catch (compensateErr) {
+        console.error(`[BidOptimization] \u8865\u507F\u540C\u6B65\u673A\u5236\u5F02\u5E38: ${compensateErr.message}`);
+      }
       apiSyncResult = await syncBidAdjustmentsToAmazon(
         accountId,
         details.map((d5) => ({

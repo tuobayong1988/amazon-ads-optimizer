@@ -2792,7 +2792,9 @@ export class AmazonSyncService {
         }
         if (!kw.keywordId) {
           console.error(`[applyBidAdjustment] keyword id=${targetId} ("${kw.keywordText}") 缺少Amazon keywordId，无法同步到Amazon`);
-          return false;
+          const err = new Error(`MISSING_AMAZON_ID: keyword id=${targetId} 缺少Amazon keywordId`);
+          (err as any).nonRetryable = true;
+          throw err;
         }
         
         amazonId = kw.keywordId;
@@ -2829,7 +2831,9 @@ export class AmazonSyncService {
         }
         if (!pt.targetId) {
           console.error(`[applyBidAdjustment] product_target id=${targetId} ("${pt.targetValue}") 缺少Amazon targetId，无法同步到Amazon`);
-          return false;
+          const err = new Error(`MISSING_AMAZON_ID: product_target id=${targetId} 缺少Amazon targetId`);
+          (err as any).nonRetryable = true;
+          throw err;
         }
         
         amazonId = pt.targetId;

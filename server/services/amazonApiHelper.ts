@@ -129,32 +129,39 @@ export async function syncBidAdjustmentsToAmazon(
           consecutiveThrottles = 0;
           success = true;
         } else {
-          // applyBidAdjustment返回false可能是限流或其他原因
-          retryCount++;
-          if (retryCount <= maxRetries) {
-            const waitTime = 2000 * retryCount; // 递增等待时间
-            console.log(`[AmazonApiHelper] ℹ️ 等待${waitTime}ms后重试...`);
-            await delay(waitTime);
-          } else {
-            result.failed++;
-            const errorMsg = `出价调整失败(重试${maxRetries}次后): ${targetType} ${adj.keywordId}`;
-            result.errors.push(errorMsg);
-            console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
-          }
+          // applyBidAdjustment返回false可能是数据不存在等不可重试的情况
+          result.failed++;
+          const errorMsg = `出价调整失败: ${targetType} ${adj.keywordId}`;
+          result.errors.push(errorMsg);
+          console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
+          break; // 不可重试，直接跳出
         }
       } catch (error: any) {
+        const isNonRetryable = error.nonRetryable === true || error.message?.includes('MISSING_AMAZON_ID');
         const isThrottle = error.message?.includes('请求过于频繁') || error.status === 429;
-        retryCount++;
         
+        if (isNonRetryable) {
+          // 缺少Amazon ID等不可重试的错误，直接跳过
+          result.failed++;
+          const targetType = adj.isProductTarget ? 'product_target' : 'keyword';
+          result.errors.push(`${targetType} ${adj.keywordId}: 缺少Amazon ID`);
+          break; // 跳出重试循环
+        }
+        
+        retryCount++;
         if (isThrottle && retryCount <= maxRetries) {
           consecutiveThrottles++;
           const waitTime = Math.min(3000 * consecutiveThrottles, 15000);
           console.log(`[AmazonApiHelper] ⚠️ 限流，等待${waitTime}ms后重试...`);
           await delay(waitTime);
+        } else if (retryCount <= maxRetries) {
+          const waitTime = 2000 * retryCount;
+          console.log(`[AmazonApiHelper] ℹ️ API错误，等待${waitTime}ms后重试...`);
+          await delay(waitTime);
         } else {
           result.failed++;
           const targetType = adj.isProductTarget ? 'product_target' : 'keyword';
-          const errorMsg = `出价调整异常: ${targetType} ${adj.keywordId} - ${error.message}`;
+          const errorMsg = `出价调整异常(重试${maxRetries}次后): ${targetType} ${adj.keywordId} - ${error.message}`;
           result.errors.push(errorMsg);
           console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
           break; // 跳出重试循环
