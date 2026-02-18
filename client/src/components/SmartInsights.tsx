@@ -70,8 +70,8 @@ export function SmartInsights({ campaignId, accountId, compact = false }: SmartI
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
   // 从后端获取智能决策建议
-  const { data: decisions } = trpc.smartCampaign.generateDecisions.useQuery(
-    { accountId },
+  const { data: decisions } = trpc.smartCampaign.getBatchOptimizationRecommendations.useQuery(
+    { performanceGroupId: String(accountId || 0), goal: { type: 'maximize_sales' as const }, daysOfHistory: 7 },
     { enabled: !!accountId }
   );
 
@@ -79,7 +79,7 @@ export function SmartInsights({ campaignId, accountId, compact = false }: SmartI
   useEffect(() => {
     if (!decisions) return;
     
-    const convertedInsights: Insight[] = decisions.decisions.map((decision: any) => ({
+    const convertedInsights: Insight[] = (decisions.recommendations || []).map((decision: any) => ({
       id: decision.campaignId.toString(),
       type: decision.priority === 'high' ? InsightType.CRITICAL : 
             decision.priority === 'medium' ? InsightType.WARNING : InsightType.INFO,

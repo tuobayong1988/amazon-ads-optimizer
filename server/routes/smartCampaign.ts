@@ -1,5 +1,6 @@
 /**
  * 智能投放系统API路由
+ * v143: 修复所有TypeScript编译错误
  */
 
 import { z } from 'zod';
@@ -11,8 +12,6 @@ import {
   type OptimizationGoal,
 } from '../smartCampaign/decisionEngine';
 import * as db from '../db';
-import { eq, and, gte, desc } from 'drizzle-orm';
-import { dailyPerformance, campaigns, performanceGroups } from '@db/schema';
 
 const optimizationGoalSchema = z.object({
   type: z.enum(['maximize_sales', 'target_acos', 'target_roas', 'minimize_cost']),
@@ -20,6 +19,108 @@ const optimizationGoalSchema = z.object({
   maxDailyBudget: z.number().optional(),
   minROAS: z.number().optional(),
 });
+
+/** 安全地将decimal字段(string|null)转为number */
+function toNum(val: string | number | null | undefined): number {
+  if (val === null || val === undefined) return 0;
+  if (typeof val === 'number') return val;
+  const n = parseFloat(val);
+  return isNaN(n) ? 0 : n;
+}
+
+/** 计算趋势方向 */
+function calcTrend(recent: number, older: number): 'up' | 'down' | 'stable' {
+  if (older === 0) return 'stable';
+  return recent > older * 1.1 ? 'up' : recent < older * 0.9 ? 'down' : 'stable';
+}
+
+/** 从历史记录数组中计算CampaignMetrics */
+function buildMetrics(
+  campaignId: number,
+  campaignName: string,
+  status: string,
+  dailyBudget: number,
+  records: Array<{
+    spend?: string | null;
+    sales?: string | null;
+    impressions?: number | null;
+    clicks?: number | null;
+    conversions?: number | null;
+    cpc?: string | null;
+    dailyAcos?: string | null;
+  }>,
+  daysOfHistory: number
+): CampaignMetrics {
+  if (records.length === 0) {
+    return {
+      campaignId: String(campaignId),
+      campaignName,
+      status: (status || 'enabled') as 'enabled' | 'paused' | 'archived',
+      dailyBudget,
+      currentBid: 1,
+      spend: 0,
+      sales: 0,
+      impressions: 0,
+      clicks: 0,
+      conversions: 0,
+      acos: 999,
+      roas: 0,
+      ctr: 0,
+      cvr: 0,
+      spendTrend: 'stable',
+      salesTrend: 'stable',
+      acosTrend: 'stable',
+    };
+  }
+
+  const totalSpend = records.reduce((sum: number, r) => sum + toNum(r.spend), 0);
+  const totalSales = records.reduce((sum: number, r) => sum + toNum(r.sales), 0);
+  const totalImpressions = records.reduce((sum: number, r) => sum + (r.impressions || 0), 0);
+  const totalClicks = records.reduce((sum: number, r) => sum + (r.clicks || 0), 0);
+  const totalConversions = records.reduce((sum: number, r) => sum + (r.conversions || 0), 0);
+
+  const avgACoS = totalSales === 0 ? 999 : (totalSpend / totalSales) * 100;
+  const avgROAS = totalSpend === 0 ? 0 : totalSales / totalSpend;
+  const avgCTR = totalImpressions === 0 ? 0 : (totalClicks / totalImpressions) * 100;
+  const avgCVR = totalClicks === 0 ? 0 : (totalConversions / totalClicks) * 100;
+
+  // 计算趋势
+  const half = Math.floor(daysOfHistory / 2);
+  const recentData = records.slice(0, half);
+  const olderData = records.slice(half);
+
+  const recentLen = recentData.length || 1;
+  const olderLen = olderData.length || 1;
+
+  const recentSpend = recentData.reduce((sum: number, r) => sum + toNum(r.spend), 0) / recentLen;
+  const olderSpend = olderData.reduce((sum: number, r) => sum + toNum(r.spend), 0) / olderLen;
+
+  const recentSales = recentData.reduce((sum: number, r) => sum + toNum(r.sales), 0) / recentLen;
+  const olderSales = olderData.reduce((sum: number, r) => sum + toNum(r.sales), 0) / olderLen;
+
+  const recentACoS = recentData.reduce((sum: number, r) => sum + toNum(r.dailyAcos), 0) / recentLen;
+  const olderACoS = olderData.reduce((sum: number, r) => sum + toNum(r.dailyAcos), 0) / olderLen;
+
+  return {
+    campaignId: String(campaignId),
+    campaignName,
+    status: (status || 'enabled') as 'enabled' | 'paused' | 'archived',
+    dailyBudget,
+    currentBid: toNum(records[0]?.cpc) || 1,
+    spend: totalSpend,
+    sales: totalSales,
+    impressions: totalImpressions,
+    clicks: totalClicks,
+    conversions: totalConversions,
+    acos: avgACoS,
+    roas: avgROAS,
+    ctr: avgCTR,
+    cvr: avgCVR,
+    spendTrend: calcTrend(recentSpend, olderSpend),
+    salesTrend: calcTrend(recentSales, olderSales),
+    acosTrend: calcTrend(recentACoS, olderACoS),
+  };
+}
 
 export const smartCampaignRouter = router({
   /**
@@ -37,10 +138,7 @@ export const smartCampaignRouter = router({
       const { campaignId, goal, daysOfHistory } = input;
 
       // 获取广告活动信息
-      const campaign = await db.query.campaigns.findFirst({
-        where: eq(campaigns.id, campaignId),
-      });
-
+      const campaign = await db.getCampaignById(parseInt(campaignId, 10));
       if (!campaign) {
         throw new Error('Campaign not found');
       }
@@ -48,69 +146,27 @@ export const smartCampaignRouter = router({
       // 获取历史数据
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - daysOfHistory);
+      const endDate = new Date();
 
-      const historicalRecords = await db
-        .select()
-        .from(dailyPerformance)
-        .where(
-          and(
-            eq(dailyPerformance.campaignId, campaignId),
-            gte(dailyPerformance.date, cutoffDate.toISOString().split('T')[0])
-          )
-        )
-        .orderBy(desc(dailyPerformance.date));
+      const historicalRecords = await db.getDailyPerformanceByDateRange(
+        campaign.accountId,
+        cutoffDate,
+        endDate,
+        campaign.id
+      );
 
       if (historicalRecords.length === 0) {
         throw new Error('No historical data available');
       }
 
-      // 计算指标
-      const totalSpend = historicalRecords.reduce((sum, r) => sum + r.spend, 0);
-      const totalSales = historicalRecords.reduce((sum, r) => sum + r.sales, 0);
-      const totalImpressions = historicalRecords.reduce((sum, r) => sum + r.impressions, 0);
-      const totalClicks = historicalRecords.reduce((sum, r) => sum + r.clicks, 0);
-      const totalConversions = historicalRecords.reduce((sum, r) => sum + r.conversions, 0);
-
-      const avgACoS = totalSales === 0 ? 999 : (totalSpend / totalSales) * 100;
-      const avgROAS = totalSpend === 0 ? 0 : totalSales / totalSpend;
-      const avgCTR = totalImpressions === 0 ? 0 : (totalClicks / totalImpressions) * 100;
-      const avgCVR = totalClicks === 0 ? 0 : (totalConversions / totalClicks) * 100;
-
-      // 计算趋势
-      const recentData = historicalRecords.slice(0, Math.floor(daysOfHistory / 2));
-      const olderData = historicalRecords.slice(Math.floor(daysOfHistory / 2));
-
-      const recentSpend = recentData.reduce((sum, r) => sum + r.spend, 0) / recentData.length;
-      const olderSpend = olderData.reduce((sum, r) => sum + r.spend, 0) / olderData.length;
-      const spendTrend = recentSpend > olderSpend * 1.1 ? 'up' : recentSpend < olderSpend * 0.9 ? 'down' : 'stable';
-
-      const recentSales = recentData.reduce((sum, r) => sum + r.sales, 0) / recentData.length;
-      const olderSales = olderData.reduce((sum, r) => sum + r.sales, 0) / olderData.length;
-      const salesTrend = recentSales > olderSales * 1.1 ? 'up' : recentSales < olderSales * 0.9 ? 'down' : 'stable';
-
-      const recentACoS = recentData.reduce((sum, r) => sum + r.acos, 0) / recentData.length;
-      const olderACoS = olderData.reduce((sum, r) => sum + r.acos, 0) / olderData.length;
-      const acosTrend = recentACoS > olderACoS * 1.1 ? 'up' : recentACoS < olderACoS * 0.9 ? 'down' : 'stable';
-
-      const metrics: CampaignMetrics = {
-        campaignId: campaign.id,
-        campaignName: campaign.name,
-        status: campaign.status as 'enabled' | 'paused' | 'archived',
-        dailyBudget: campaign.dailyBudget || 100,
-        currentBid: historicalRecords[0]?.avgCpc || 1,
-        spend: totalSpend,
-        sales: totalSales,
-        impressions: totalImpressions,
-        clicks: totalClicks,
-        conversions: totalConversions,
-        acos: avgACoS,
-        roas: avgROAS,
-        ctr: avgCTR,
-        cvr: avgCVR,
-        spendTrend,
-        salesTrend,
-        acosTrend,
-      };
+      const metrics = buildMetrics(
+        campaign.id,
+        campaign.campaignName,
+        campaign.campaignStatus || 'enabled',
+        toNum(campaign.dailyBudget) || 100,
+        historicalRecords,
+        daysOfHistory
+      );
 
       // 生成决策
       const engine = new SmartDecisionEngine();
@@ -137,10 +193,7 @@ export const smartCampaignRouter = router({
       const { performanceGroupId, goal, daysOfHistory } = input;
 
       // 获取绩效组下的所有广告活动
-      const groupCampaigns = await db
-        .select()
-        .from(campaigns)
-        .where(eq(campaigns.performanceGroupId, performanceGroupId));
+      const groupCampaigns = await db.getCampaignsByPerformanceGroupId(parseInt(performanceGroupId, 10));
 
       if (groupCampaigns.length === 0) {
         throw new Error('No campaigns found in this performance group');
@@ -149,88 +202,25 @@ export const smartCampaignRouter = router({
       // 获取每个活动的指标
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - daysOfHistory);
+      const endDate = new Date();
 
       const campaignMetrics: CampaignMetrics[] = await Promise.all(
-        groupCampaigns.map(async (campaign) => {
-          const historicalRecords = await db
-            .select()
-            .from(dailyPerformance)
-            .where(
-              and(
-                eq(dailyPerformance.campaignId, campaign.id),
-                gte(dailyPerformance.date, cutoffDate.toISOString().split('T')[0])
-              )
-            )
-            .orderBy(desc(dailyPerformance.date));
+        groupCampaigns.map(async (campaign: { id: number; accountId: number; campaignName: string; campaignStatus: string | null; dailyBudget: string | null }) => {
+          const historicalRecords = await db.getDailyPerformanceByDateRange(
+            campaign.accountId,
+            cutoffDate,
+            endDate,
+            campaign.id
+          );
 
-          if (historicalRecords.length === 0) {
-            // 返回默认值
-            return {
-              campaignId: campaign.id,
-              campaignName: campaign.name,
-              status: campaign.status as 'enabled' | 'paused' | 'archived',
-              dailyBudget: campaign.dailyBudget || 100,
-              currentBid: 1,
-              spend: 0,
-              sales: 0,
-              impressions: 0,
-              clicks: 0,
-              conversions: 0,
-              acos: 999,
-              roas: 0,
-              ctr: 0,
-              cvr: 0,
-              spendTrend: 'stable' as const,
-              salesTrend: 'stable' as const,
-              acosTrend: 'stable' as const,
-            };
-          }
-
-          const totalSpend = historicalRecords.reduce((sum, r) => sum + r.spend, 0);
-          const totalSales = historicalRecords.reduce((sum, r) => sum + r.sales, 0);
-          const totalImpressions = historicalRecords.reduce((sum, r) => sum + r.impressions, 0);
-          const totalClicks = historicalRecords.reduce((sum, r) => sum + r.clicks, 0);
-          const totalConversions = historicalRecords.reduce((sum, r) => sum + r.conversions, 0);
-
-          const avgACoS = totalSales === 0 ? 999 : (totalSpend / totalSales) * 100;
-          const avgROAS = totalSpend === 0 ? 0 : totalSales / totalSpend;
-          const avgCTR = totalImpressions === 0 ? 0 : (totalClicks / totalImpressions) * 100;
-          const avgCVR = totalClicks === 0 ? 0 : (totalConversions / totalClicks) * 100;
-
-          const recentData = historicalRecords.slice(0, Math.floor(daysOfHistory / 2));
-          const olderData = historicalRecords.slice(Math.floor(daysOfHistory / 2));
-
-          const recentSpend = recentData.reduce((sum, r) => sum + r.spend, 0) / recentData.length;
-          const olderSpend = olderData.reduce((sum, r) => sum + r.spend, 0) / olderData.length;
-          const spendTrend = recentSpend > olderSpend * 1.1 ? 'up' : recentSpend < olderSpend * 0.9 ? 'down' : 'stable';
-
-          const recentSales = recentData.reduce((sum, r) => sum + r.sales, 0) / recentData.length;
-          const olderSales = olderData.reduce((sum, r) => sum + r.sales, 0) / olderData.length;
-          const salesTrend = recentSales > olderSales * 1.1 ? 'up' : recentSales < olderSales * 0.9 ? 'down' : 'stable';
-
-          const recentACoS = recentData.reduce((sum, r) => sum + r.acos, 0) / recentData.length;
-          const olderACoS = olderData.reduce((sum, r) => sum + r.acos, 0) / olderData.length;
-          const acosTrend = recentACoS > olderACoS * 1.1 ? 'up' : recentACoS < olderACoS * 0.9 ? 'down' : 'stable';
-
-          return {
-            campaignId: campaign.id,
-            campaignName: campaign.name,
-            status: campaign.status as 'enabled' | 'paused' | 'archived',
-            dailyBudget: campaign.dailyBudget || 100,
-            currentBid: historicalRecords[0]?.avgCpc || 1,
-            spend: totalSpend,
-            sales: totalSales,
-            impressions: totalImpressions,
-            clicks: totalClicks,
-            conversions: totalConversions,
-            acos: avgACoS,
-            roas: avgROAS,
-            ctr: avgCTR,
-            cvr: avgCVR,
-            spendTrend,
-            salesTrend,
-            acosTrend,
-          };
+          return buildMetrics(
+            campaign.id,
+            campaign.campaignName,
+            campaign.campaignStatus || 'enabled',
+            toNum(campaign.dailyBudget) || 100,
+            historicalRecords,
+            daysOfHistory
+          );
         })
       );
 
@@ -291,7 +281,7 @@ export const smartCampaignRouter = router({
         maxConcurrent: z.number().default(5),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(async ({ input }): Promise<{ summary: any; results: any }> => {
       const { performanceGroupId, goal, daysOfHistory, dryRun, maxConcurrent } = input;
 
       // 先获取优化建议

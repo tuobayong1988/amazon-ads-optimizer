@@ -26,6 +26,7 @@ interface PerformanceGroup {
     spend: number;
     sales: number;
     acos: number;
+    roas?: number;
     orders?: number;
   }>;
 }
@@ -89,7 +90,7 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
       const group = groups.find(g => g.id === groupId);
       if (!group) return null;
 
-      const values = group.data.map(d => d[metric]);
+      const values = group.data.map(d => Number(d[metric as keyof typeof d]) || 0);
       const total = values.reduce((sum, v) => sum + v, 0);
       const avg = total / values.length;
       const max = Math.max(...values);
@@ -128,8 +129,8 @@ export function ComparisonAnalysis({ groups }: ComparisonAnalysisProps) {
       selectedGroups.forEach(groupId => {
         const group = groups.find(g => g.id === groupId);
         if (group) {
-          const values = group.data.map(d => d[m as keyof typeof d] || 0);
-          const avg = values.reduce((sum, v) => sum + v, 0) / values.length;
+          const values = group.data.map(d => Number(d[m as keyof typeof d]) || 0);
+          const avg = (values as number[]).reduce((sum: number, v: number) => sum + v, 0) / values.length;
           dataPoint[group.name] = avg;
         }
       });

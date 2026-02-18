@@ -674,7 +674,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
                       <span>
                         <span className="text-muted-foreground">广告位: </span>
                         <span className="font-medium">
-                          {{'top_of_search': '\u641c\u7d22\u9876\u90e8', 'product_page': '\u5546\u54c1\u9875\u9762', 'rest_of_search': '\u641c\u7d22\u5176\u4ed6'}[actionDetail.placement] || actionDetail.placement}
+                          {({'top_of_search': '\u641c\u7d22\u9876\u90e8', 'product_page': '\u5546\u54c1\u9875\u9762', 'rest_of_search': '\u641c\u7d22\u5176\u4ed6'} as Record<string, string>)[actionDetail.placement as string] || actionDetail.placement}
                         </span>
                       </span>
                       <span>

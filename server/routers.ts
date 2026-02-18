@@ -1087,6 +1087,137 @@ const performanceGroupRouter = router({
       
       return { id: logId, success: true };
     }),
+
+  // ==================== v144: 统一历史与追踪 API ====================
+  // 获取优化目标下所有广告活动的出价调整历史
+  getBidAdjustmentHistory: protectedProcedure
+    .input(z.object({
+      performanceGroupId: z.number(),
+      campaignId: z.number().optional(),
+      adjustmentType: z.enum(['manual', 'auto_optimal', 'auto_dayparting', 'auto_placement', 'batch_campaign', 'batch_group']).optional(),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+      page: z.number().optional().default(1),
+      pageSize: z.number().optional().default(50),
+    }))
+    .query(async ({ input }) => {
+      // 先获取优化目标关联的账号ID
+      const group = await db.getPerformanceGroupById(input.performanceGroupId);
+      if (!group) throw new Error('Performance group not found');
+      return db.getBidAdjustmentHistory({
+        accountId: group.accountId,
+        performanceGroupId: input.performanceGroupId,
+        campaignId: input.campaignId,
+        adjustmentType: input.adjustmentType,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        page: input.page,
+        pageSize: input.pageSize,
+      });
+    }),
+
+  // 获取出价调整统计
+  getBidAdjustmentStats: protectedProcedure
+    .input(z.object({
+      performanceGroupId: z.number(),
+      days: z.number().optional().default(30),
+    }))
+    .query(async ({ input }) => {
+      const group = await db.getPerformanceGroupById(input.performanceGroupId);
+      if (!group) throw new Error('Performance group not found');
+      return db.getBidAdjustmentStats(group.accountId, input.days);
+    }),
+
+  // 获取效果追踪统计
+  getBidAdjustmentTrackingStats: protectedProcedure
+    .input(z.object({
+      performanceGroupId: z.number(),
+      days: z.number().optional().default(30),
+    }))
+    .query(async ({ input }) => {
+      const group = await db.getPerformanceGroupById(input.performanceGroupId);
+      if (!group) throw new Error('Performance group not found');
+      return db.getBidAdjustmentTrackingStats(group.accountId, input.days);
+    }),
+
+  // 回滚出价调整
+  rollbackBidAdjustment: protectedProcedure
+    .input(z.object({
+      adjustmentId: z.number(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const result = await db.rollbackBidAdjustment(input.adjustmentId, ctx.user.name || ctx.user.openId);
+      return result;
+    }),
+
+  // 批量回滚出价调整
+  batchRollbackBidAdjustments: protectedProcedure
+    .input(z.object({
+      adjustmentIds: z.array(z.number()),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      const results = [];
+      for (const id of input.adjustmentIds) {
+        try {
+          const result = await db.rollbackBidAdjustment(id, ctx.user.name || ctx.user.openId);
+          results.push({ id, success: true, result });
+        } catch (error: any) {
+          results.push({ id, success: false, error: error.message });
+        }
+      }
+      return { results, total: results.length, succeeded: results.filter(r => r.success).length };
+    }),
+
+  // 运行效果追踪任务
+  runEffectTracking: protectedProcedure
+    .input(z.object({
+      period: z.enum(['7d', '14d', '30d']).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      if (input.period) {
+        const { runEffectTrackingTask } = await import('./effectTrackingScheduler');
+        const periodMap: Record<string, number> = { '7d': 7, '14d': 14, '30d': 30 };
+        return runEffectTrackingTask(periodMap[input.period] || 7);
+      } else {
+        const { runAllTrackingTasks } = await import('./effectTrackingScheduler');
+        return runAllTrackingTasks();
+      }
+    }),
+
+  // 生成效果追踪报告
+  generateTrackingReport: protectedProcedure
+    .input(z.object({
+      performanceGroupId: z.number(),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+      page: z.number().optional().default(1),
+      pageSize: z.number().optional().default(50),
+    }))
+    .query(async ({ input }) => {
+      const group = await db.getPerformanceGroupById(input.performanceGroupId);
+      if (!group) throw new Error('Performance group not found');
+      // 获取该优化目标下有效果追踪数据的出价调整记录
+      const result = await db.getBidAdjustmentHistory({
+        accountId: group.accountId,
+        performanceGroupId: input.performanceGroupId,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        page: input.page,
+        pageSize: input.pageSize,
+      });
+      // 过滤出有追踪数据的记录
+      const trackedRecords = result.records.filter((r: any) => 
+        r.actualProfit7D !== null || r.actualProfit14D !== null || r.actualProfit30D !== null
+      );
+      return {
+        records: trackedRecords,
+        total: trackedRecords.length,
+        allRecords: result.records,
+        allTotal: result.total,
+        page: result.page,
+        pageSize: result.pageSize,
+      };
+    }),
 });
 
 // ==================== Campaign Router ====================
@@ -2213,6 +2344,8 @@ const analyticsRouter = router({
         days,
         startDate: startDate.toISOString().split('T')[0],
         endDate: endDate.toISOString().split('T')[0],
+        currency: 'USD' as string,
+        dataMaturity: null as null | { sp: string; sb: string; sd: string; overall: string; message: string },
       };
       
       if (!summary) {
@@ -2250,6 +2383,7 @@ const analyticsRouter = router({
         days,
         startDate: startDate.toISOString().split('T')[0],
         endDate: endDate.toISOString().split('T')[0],
+        currency: 'USD',
         // ✅ 归因期数据成熟度标注
         dataMaturity: {
           sp: spDataMaturity,

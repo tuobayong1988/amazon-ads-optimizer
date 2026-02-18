@@ -14,6 +14,7 @@ import { notifyOwner } from './_core/notification';
 import * as automationExecutionEngine from './automationExecutionEngine';
 import * as searchTermHarvester from './searchTermHarvester';
 import { detectRiskSignals } from './attributionWindowHelper';
+import * as campaignLifecycleService from './services/campaignLifecycleService';
 
 // 同步层级定义
 export type SyncTier = 'high' | 'medium' | 'low' | 'full';
@@ -690,30 +691,32 @@ export async function withExponentialBackoff<T>(
   throw lastError || new Error('重试次数已用尽');
 }
 
-// ==================== v122: 重构分层优化调度器 ====================
-// 核心修复：
-// 1. 修复模块隔离 - 每个调度任务只执行对应的优化模块，不再全量执行
-// 2. 集成日内节奏服务 - 高频监控预算消耗速度和异常流量
-// 3. 新增分时竞价调度 - 每小时根据时段动态调整出价
-// 4. 新增位置优化调度 - 每天凌晨3:00独立执行位置倾斜优化
-// 5. 新增搜索词否定调度 - 每天凌晨4:00独立执行搜索词否定分析
-// 6. 使用执行锁防止重复执行
-// 7. 使用marketplace时区感知的调度时间
+// ==================== v143: 生命周期感知的智能优化调度器 ====================
+// 核心设计：
+// 1. 生命周期感知 - 新广告活动高频探索，成熟广告活动低频稳优
+// 2. 模块隔离 - 每个调度任务只执行对应的优化模块
+// 3. 以优化目标为单位 - 每个目标独立判断是否应该执行
+// 4. 归因窗口匹配 - SP 7天、SB/SD 14天
+// 5. 执行锁防止重复执行
+//
+// 生命周期阶段频率表：
+// | 优化模块     | 启动期(launch) | 成长期(growth) | 成熟期(mature) | 设计依据                           |
+// |--------------|---------------|---------------|---------------|------------------------------------|
+// | 出价优化     | 每4小时        | 每6小时        | 每12小时       | 新广告低竞价需快速迭代探索       |
+// | 分时调整     | 每小时          | 每小时          | 每小时          | 分时策略按小时粒度执行           |
+// | 位置倾斜     | 每24小时       | 每12小时       | 每12小时       | 启动期数据不足，不宜频繁调整位置 |
+// | 否定搜索词   | 每48小时       | 每24小时       | 每24小时       | 启动期给新词更多机会               |
+// | 搜索词迁移   | 每72小时       | 每48小时       | 每24小时       | 启动期不急于固化新搜索词           |
+// | 预算分配     | 每4小时        | 每4小时        | 每4小时        | 及时响应花费速率变化               |
+// | 风控扫描     | 每2小时        | 每2小时        | 每2小时        | 风控不受生命周期影响               |
+// | 日内节奏     | 每30分钟       | 每30分钟       | 每30分钟       | 实时监控不受生命周期影响           |
 
 /**
- * v122 优化调度频率表（修复版）
+ * v143 优化调度频率表（生命周期感知版）
  * 
- * | 任务               | 频率        | 时间              | 执行模块                          |
- * |--------------------|-------------|-------------------|-----------------------------------|
- * | 日内节奏监控       | 每30分钟    | 全天              | intradayPacing (仅监控+调整分时)  |
- * | 高频风控扫描       | 每2小时     | 全天              | riskScan (仅风控，不含优化)       |
- * | 分时竞价调整       | 每小时      | 全天              | dayparting (仅分时竞价)           |
- * | 出价智能优化       | 每2小时     | 全天              | bid + keyword + coordination      |
- * | 每日位置优化       | 每天1次     | 凌晨3:00          | placement                         |
- * | 每日搜索词否定     | 每天1次     | 凌晨4:00          | searchterm                        |
- * | 预算智能分配       | 每天2次     | 早8:00 + 晚18:00  | budget                            |
- * | 搜索词收割         | 每周1次     | 周一凌晨5:00      | searchTermHarvester (独立服务)    |
- * | 绩效周报           | 每周1次     | 周一上午9:00      | report                            |
+ * 调度器以最高频率运行（启动期频率），但在执行时根据每个优化目标的
+ * 生命周期阶段独立判断是否应该执行。这样同一调度器可以服务于
+ * 不同生命周期阶段的优化目标。
  */
 
 type OptimizationTaskType = 
@@ -817,6 +820,33 @@ const executionLocks: Record<string, boolean> = {};
 // v122: 上次执行时间记录 - 防止同一小时内重复执行
 const lastExecutionHour: Record<string, string> = {};
 
+// v143: 每个优化目标的每个模块的上次执行时间
+// key: `${targetId}:${moduleName}`  value: Date
+const moduleLastExecutionMap = new Map<string, Date>();
+
+/**
+ * v143: 检查某个优化目标的某个模块是否应该执行
+ * 基于生命周期阶段的执行间隔判断
+ */
+function shouldExecuteModuleForTarget(
+  targetId: number,
+  moduleName: 'bid' | 'negativeKeyword' | 'searchTermHarvest' | 'placement' | 'budget' | 'dayparting',
+  stage: campaignLifecycleService.LifecycleStage
+): { shouldExecute: boolean; reason: string } {
+  const key = `${targetId}:${moduleName}`;
+  const lastExecuted = moduleLastExecutionMap.get(key) || null;
+  const result = campaignLifecycleService.shouldExecuteModule(moduleName, lastExecuted, stage);
+  return { shouldExecute: result.shouldExecute, reason: result.reason };
+}
+
+/**
+ * v143: 记录某个优化目标的某个模块的执行时间
+ */
+function recordModuleExecution(targetId: number, moduleName: string): void {
+  const key = `${targetId}:${moduleName}`;
+  moduleLastExecutionMap.set(key, new Date());
+}
+
 /**
  * 获取执行锁
  */
@@ -850,71 +880,70 @@ function shouldExecuteThisHour(taskType: string): boolean {
 }
 
 /**
- * 启动分层优化调度器 (v122 重构版)
- * 核心改进：每个任务只执行对应的优化模块，不再全量执行
+ * 启动生命周期感知的智能优化调度器 (v143 重构版)
+ * 
+ * 核心设计：
+ * - 调度器以最高频率运行（启动期频率）
+ * - 每次触发时，遍历所有优化目标，根据各自生命周期阶段独立判断是否应该执行
+ * - 新广告活动（启动期）获得更高频率的检查，快速迭代探索
+ * - 成熟广告活动低频稳优，避免过度干预
  */
 export function startOptimizationScheduler(): void {
-  console.log('[OptimizationScheduler] 启动v122分层优化调度器...');
+  console.log('[OptimizationScheduler] 启动v143生命周期感知智能优化调度器...');
   
-  // 0. 日内节奏监控 - 每30分钟
+  // 0. 日内节奏监控 - 每30分钟（不受生命周期影响）
   optimizationIntervals.intraday_pacing = setInterval(async () => {
     await executeOptimizationTask('intraday_pacing');
   }, OPTIMIZATION_SCHEDULE.intraday_pacing.intervalMs);
   console.log(`[OptimizationScheduler] 日内节奏监控已启动，间隔: 30分钟`);
   
-  // 1. 高频风控扫描 - 每2小时（仅风控，不含优化）
+  // 1. 高频风控扫描 - 每2小时（不受生命周期影响）
   optimizationIntervals.risk_scan = setInterval(async () => {
     await executeOptimizationTask('risk_scan');
   }, OPTIMIZATION_SCHEDULE.risk_scan.intervalMs);
   console.log(`[OptimizationScheduler] 高频风控扫描已启动，间隔: 2小时`);
   
-  // 2. 分时竞价调整 - 每小时
+  // 2. 分时竞价调整 - 每小时（分时策略按小时粒度，不受生命周期影响）
   optimizationIntervals.dayparting_adjustment = setInterval(async () => {
     await executeOptimizationTask('dayparting_adjustment');
   }, OPTIMIZATION_SCHEDULE.dayparting_adjustment.intervalMs);
   console.log(`[OptimizationScheduler] 分时竞价调整已启动，间隔: 1小时`);
   
-  // 3. v122h: 出价智能优化 - 每2小时执行一次（与宣传一致）
+  // 3. v143: 出价智能优化 - 每2小时触发，但每个目标根据生命周期独立判断
+  // 启动期: 每4小时执行 | 成长期: 每6小时 | 成熟期: 每12小时
   optimizationIntervals.daily_bid_optimization = setInterval(async () => {
     await executeOptimizationTask('daily_bid_optimization');
   }, OPTIMIZATION_SCHEDULE.daily_bid_optimization.intervalMs);
-  console.log(`[OptimizationScheduler] 出价智能优化已启动，间隔: 2小时`);
+  console.log(`[OptimizationScheduler] 出价智能优化已启动，触发间隔: 2小时，实际执行由生命周期决定`);
   
-  // 4. 每日位置优化 - 凌晨3:00（仅位置倾斜）
+  // 4. v143: 位置优化 - 每4小时触发，生命周期判断是否执行
+  // 启动期: 每24小时 | 成长期: 每12小时 | 成熟期: 每12小时
   optimizationIntervals.daily_placement_optimization = setInterval(async () => {
-    const hour = new Date().getHours();
-    if (hour === 3 && shouldExecuteThisHour('daily_placement_optimization')) {
-      await executeOptimizationTask('daily_placement_optimization');
-    }
-  }, 60 * 60 * 1000);
-  console.log(`[OptimizationScheduler] 每日位置优化已启动，执行时间: 凌晨3:00`);
+    await executeOptimizationTask('daily_placement_optimization');
+  }, 4 * 60 * 60 * 1000); // 每4小时触发检查
+  console.log(`[OptimizationScheduler] 位置优化已启动，触发间隔: 4小时，实际执行由生命周期决定`);
   
-  // 5. 每日搜索词否定 - 凌晨4:00（仅搜索词否定分析）
+  // 5. v143: 搜索词否定 - 每12小时触发，生命周期判断是否执行
+  // 启动期: 每48小时 | 成长期: 每24小时 | 成熟期: 每24小时
   optimizationIntervals.daily_search_term_negation = setInterval(async () => {
-    const hour = new Date().getHours();
-    if (hour === 4 && shouldExecuteThisHour('daily_search_term_negation')) {
-      await executeOptimizationTask('daily_search_term_negation');
-    }
-  }, 60 * 60 * 1000);
-  console.log(`[OptimizationScheduler] 每日搜索词否定已启动，执行时间: 凌晨4:00`);
+    await executeOptimizationTask('daily_search_term_negation');
+  }, 12 * 60 * 60 * 1000); // 每12小时触发检查
+  console.log(`[OptimizationScheduler] 搜索词否定已启动，触发间隔: 12小时，实际执行由生命周期决定`);
   
-  // 6. 预算智能分配 - 早8:00和晚18:00（仅预算分配）
+  // 6. 预算智能分配 - 每4小时（所有阶段统一频率）
   optimizationIntervals.budget_allocation = setInterval(async () => {
-    const hour = new Date().getHours();
-    if ((hour === 8 || hour === 18) && shouldExecuteThisHour('budget_allocation')) {
-      await executeOptimizationTask('budget_allocation');
-    }
-  }, 60 * 60 * 1000);
-  console.log(`[OptimizationScheduler] 预算智能分配已启动，执行时间: 早8:00 + 晚18:00`);
+    await executeOptimizationTask('budget_allocation');
+  }, 4 * 60 * 60 * 1000);
+  console.log(`[OptimizationScheduler] 预算智能分配已启动，间隔: 4小时`);
   
-  // 7. 搜索词收割 - 周一凌晨5:00
+  // 7. 搜索词收割 - 周一凌暨5:00
   optimizationIntervals.search_term_harvest = setInterval(async () => {
     const now = new Date();
     if (now.getDay() === 1 && now.getHours() === 5 && shouldExecuteThisHour('search_term_harvest')) {
       await executeOptimizationTask('search_term_harvest');
     }
   }, 60 * 60 * 1000);
-  console.log(`[OptimizationScheduler] 搜索词收割已启动，执行时间: 周一凌晨5:00`);
+  console.log(`[OptimizationScheduler] 搜索词收割已启动，执行时间: 周一凌暨5:00`);
   
   // 8. 绩效周报 - 周一上午9:00
   optimizationIntervals.weekly_report = setInterval(async () => {
@@ -925,12 +954,16 @@ export function startOptimizationScheduler(): void {
   }, 60 * 60 * 1000);
   console.log(`[OptimizationScheduler] 绩效周报已启动，执行时间: 周一上午9:00`);
   
-  console.log('[OptimizationScheduler] v122分层优化调度器启动完成');
-  console.log('[OptimizationScheduler] 调度频率表:');
-  Object.values(OPTIMIZATION_SCHEDULE).forEach(config => {
-    const modules = config.specificModules?.length ? config.specificModules.join(', ') : '独立执行';
-    console.log(`  - ${config.description} | 模块: ${modules}`);
-  });
+  console.log('[OptimizationScheduler] v143生命周期感知调度器启动完成');
+  console.log('[OptimizationScheduler] 生命周期频率表:');
+  console.log('  | 模块           | 启动期  | 成长期  | 成熟期  |');
+  console.log('  |----------------|---------|---------|---------|');
+  console.log('  | 出价优化       | 4小时   | 6小时   | 12小时  |');
+  console.log('  | 分时调整       | 1小时   | 1小时   | 1小时   |');
+  console.log('  | 位置倾斜       | 24小时  | 12小时  | 12小时  |');
+  console.log('  | 否定搜索词     | 48小时  | 24小时  | 24小时  |');
+  console.log('  | 搜索词迁移     | 72小时  | 48小时  | 24小时  |');
+  console.log('  | 预算分配       | 4小时   | 4小时   | 4小时   |');
 }
 
 /**
@@ -1063,76 +1096,156 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
         break;
       }
         
-      // ==================== 每日出价优化（凌晨2:00）====================
+      // ==================== v143: 出价智能优化（生命周期感知）====================
       case 'daily_bid_optimization': {
-        console.log(`[OptimizationScheduler] 执行每日出价优化`);
+        console.log(`[OptimizationScheduler] 出价优化触发，开始生命周期感知执行...`);
         try {
-          // v122修复：仅执行出价+关键词状态+协调模块
-          const bidResults = await executeAllEnabledTargets(undefined, { 
-            dryRun: false, 
-            specificModules: ['bid', 'keyword', 'coordination'] 
-          });
-          console.log(`[OptimizationScheduler] 出价优化完成: ${bidResults.length}个目标`);
-          for (const r of bidResults) {
-            console.log(`  - ${r.targetName}: 出价调整=${r.bidOptimization.adjustmentsCount}, 关键词暂停=${r.keywordStatusChanges.pausedCount}, 关键词启用=${r.keywordStatusChanges.enabledCount}`);
+          const targets = await getEnabledOptimizationTargets();
+          let executedCount = 0;
+          let skippedCount = 0;
+          
+          for (const target of targets) {
+            const stage = target.lifecycleStage || 'mature';
+            const check = shouldExecuteModuleForTarget(target.id, 'bid', stage);
+            
+            if (!check.shouldExecute) {
+              skippedCount++;
+              console.log(`[OptimizationScheduler] 跳过出价优化: ${target.name} (${check.reason})`);
+              continue;
+            }
+            
+            try {
+              const { executeOptimizationTarget } = await import('./optimizationTargetEngine');
+              const result = await executeOptimizationTarget(target.id, {
+                dryRun: false,
+                specificModules: ['bid', 'keyword', 'coordination'],
+              });
+              recordModuleExecution(target.id, 'bid');
+              executedCount++;
+              console.log(`  - ${target.name} [${stage}]: 出价调整=${result.bidOptimization.adjustmentsCount}, 关键词暂停=${result.keywordStatusChanges.pausedCount}`);
+            } catch (targetErr: any) {
+              console.error(`  - ${target.name} 出价优化失败: ${targetErr.message}`);
+            }
           }
+          
+          console.log(`[OptimizationScheduler] 出价优化完成: 执行=${executedCount}, 跳过=${skippedCount}`);
         } catch (bidError: any) {
           console.error(`[OptimizationScheduler] 出价优化失败:`, bidError.message);
         }
         break;
       }
       
-      // ==================== 每日位置优化（凌晨3:00）====================
+      // ==================== v143: 位置优化（生命周期感知）====================
       case 'daily_placement_optimization': {
-        console.log(`[OptimizationScheduler] 执行每日位置优化`);
+        console.log(`[OptimizationScheduler] 位置优化触发，开始生命周期感知执行...`);
         try {
-          // v122: 仅执行位置优化模块
-          const placementResults = await executeAllEnabledTargets(undefined, { 
-            dryRun: false, 
-            specificModules: ['placement'] 
-          });
-          console.log(`[OptimizationScheduler] 位置优化完成: ${placementResults.length}个目标`);
-          for (const r of placementResults) {
-            console.log(`  - ${r.targetName}: 位置调整=${r.placementOptimization.adjustmentsCount}`);
+          const targets = await getEnabledOptimizationTargets();
+          let executedCount = 0;
+          let skippedCount = 0;
+          
+          for (const target of targets) {
+            const stage = target.lifecycleStage || 'mature';
+            const check = shouldExecuteModuleForTarget(target.id, 'placement', stage);
+            
+            if (!check.shouldExecute) {
+              skippedCount++;
+              console.log(`[OptimizationScheduler] 跳过位置优化: ${target.name} (${check.reason})`);
+              continue;
+            }
+            
+            try {
+              const { executeOptimizationTarget } = await import('./optimizationTargetEngine');
+              const result = await executeOptimizationTarget(target.id, {
+                dryRun: false,
+                specificModules: ['placement'],
+              });
+              recordModuleExecution(target.id, 'placement');
+              executedCount++;
+              console.log(`  - ${target.name} [${stage}]: 位置调整=${result.placementOptimization.adjustmentsCount}`);
+            } catch (targetErr: any) {
+              console.error(`  - ${target.name} 位置优化失败: ${targetErr.message}`);
+            }
           }
+          
+          console.log(`[OptimizationScheduler] 位置优化完成: 执行=${executedCount}, 跳过=${skippedCount}`);
         } catch (placementError: any) {
           console.error(`[OptimizationScheduler] 位置优化失败:`, placementError.message);
         }
         break;
       }
       
-      // ==================== 每日搜索词否定（凌晨4:00）====================
+      // ==================== v143: 搜索词否定（生命周期感知）====================
       case 'daily_search_term_negation': {
-        console.log(`[OptimizationScheduler] 执行每日搜索词否定分析`);
+        console.log(`[OptimizationScheduler] 搜索词否定触发，开始生命周期感知执行...`);
         try {
-          // v122: 仅执行搜索词分析模块
-          const searchTermResults = await executeAllEnabledTargets(undefined, { 
-            dryRun: false, 
-            specificModules: ['searchterm'] 
-          });
-          console.log(`[OptimizationScheduler] 搜索词否定完成: ${searchTermResults.length}个目标`);
-          for (const r of searchTermResults) {
-            console.log(`  - ${r.targetName}: 否定词添加=${r.searchTermAnalysis.negativeKeywordsAdded}, 新关键词=${r.searchTermAnalysis.newKeywordsAdded}`);
+          const targets = await getEnabledOptimizationTargets();
+          let executedCount = 0;
+          let skippedCount = 0;
+          
+          for (const target of targets) {
+            const stage = target.lifecycleStage || 'mature';
+            const check = shouldExecuteModuleForTarget(target.id, 'negativeKeyword', stage);
+            
+            if (!check.shouldExecute) {
+              skippedCount++;
+              console.log(`[OptimizationScheduler] 跳过搜索词否定: ${target.name} (${check.reason})`);
+              continue;
+            }
+            
+            try {
+              const { executeOptimizationTarget } = await import('./optimizationTargetEngine');
+              const result = await executeOptimizationTarget(target.id, {
+                dryRun: false,
+                specificModules: ['searchterm'],
+              });
+              recordModuleExecution(target.id, 'negativeKeyword');
+              executedCount++;
+              console.log(`  - ${target.name} [${stage}]: 否定词添加=${result.searchTermAnalysis.negativeKeywordsAdded}, 新关键词=${result.searchTermAnalysis.newKeywordsAdded}`);
+            } catch (targetErr: any) {
+              console.error(`  - ${target.name} 搜索词否定失败: ${targetErr.message}`);
+            }
           }
+          
+          console.log(`[OptimizationScheduler] 搜索词否定完成: 执行=${executedCount}, 跳过=${skippedCount}`);
         } catch (searchTermError: any) {
           console.error(`[OptimizationScheduler] 搜索词否定失败:`, searchTermError.message);
         }
         break;
       }
         
-      // ==================== 预算智能分配（早8:00+晚18:00）====================
+      // ==================== v143: 预算智能分配（生命周期感知）====================
       case 'budget_allocation': {
-        console.log(`[OptimizationScheduler] 执行预算智能分配`);
+        console.log(`[OptimizationScheduler] 预算分配触发，开始生命周期感知执行...`);
         try {
-          // v122修复：仅执行预算分配模块
-          const budgetResults = await executeAllEnabledTargets(undefined, { 
-            dryRun: false, 
-            specificModules: ['budget'] 
-          });
-          console.log(`[OptimizationScheduler] 预算分配完成: ${budgetResults.length}个目标`);
-          for (const r of budgetResults) {
-            console.log(`  - ${r.targetName}: 预算调整=${r.budgetAllocation.adjustmentsCount}`);
+          const targets = await getEnabledOptimizationTargets();
+          let executedCount = 0;
+          let skippedCount = 0;
+          
+          for (const target of targets) {
+            const stage = target.lifecycleStage || 'mature';
+            const check = shouldExecuteModuleForTarget(target.id, 'budget', stage);
+            
+            if (!check.shouldExecute) {
+              skippedCount++;
+              console.log(`[OptimizationScheduler] 跳过预算分配: ${target.name} (${check.reason})`);
+              continue;
+            }
+            
+            try {
+              const { executeOptimizationTarget } = await import('./optimizationTargetEngine');
+              const result = await executeOptimizationTarget(target.id, {
+                dryRun: false,
+                specificModules: ['budget'],
+              });
+              recordModuleExecution(target.id, 'budget');
+              executedCount++;
+              console.log(`  - ${target.name} [${stage}]: 预算调整=${result.budgetAllocation.adjustmentsCount}`);
+            } catch (targetErr: any) {
+              console.error(`  - ${target.name} 预算分配失败: ${targetErr.message}`);
+            }
           }
+          
+          console.log(`[OptimizationScheduler] 预算分配完成: 执行=${executedCount}, 跳过=${skippedCount}`);
         } catch (budgetError: any) {
           console.error(`[OptimizationScheduler] 预算分配失败:`, budgetError.message);
         }

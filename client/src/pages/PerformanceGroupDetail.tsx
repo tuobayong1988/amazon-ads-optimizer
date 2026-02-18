@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import DashboardLayout from "@/components/DashboardLayout";
 import { OptimizationLogs } from "@/components/OptimizationLogs";
+import { UnifiedHistoryTracker } from "@/components/UnifiedHistoryTracker";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -664,7 +665,8 @@ export default function PerformanceGroupDetail() {
           <TabsList>
             <TabsTrigger value="overview">概览</TabsTrigger>
             <TabsTrigger value="campaigns">广告活动 ({groupCampaigns?.length || 0})</TabsTrigger>
-            <TabsTrigger value="logs">优化日志</TabsTrigger>
+            <TabsTrigger value="history">历史与追踪</TabsTrigger>
+            <TabsTrigger value="logs">操作日志</TabsTrigger>
             <TabsTrigger value="scenario">场景模拟</TabsTrigger>
           </TabsList>
 
@@ -754,7 +756,7 @@ export default function PerformanceGroupDetail() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                       <div className="bg-muted/30 rounded-lg p-3">
                         <div className="text-xs text-muted-foreground mb-1">花费</div>
-                        <div className="text-lg font-bold">${parseFloat(group.totalSpend || '0').toFixed(2)}</div>
+                        <div className="text-lg font-bold">${parseFloat((group as any).totalSpend || '0').toFixed(2)}</div>
                         <div className="text-xs text-green-500 flex items-center gap-1 mt-1">
                           <TrendingUp className="w-3 h-3" />
                           +12.5%
@@ -762,7 +764,7 @@ export default function PerformanceGroupDetail() {
                       </div>
                       <div className="bg-muted/30 rounded-lg p-3">
                         <div className="text-xs text-muted-foreground mb-1">销售额</div>
-                        <div className="text-lg font-bold">${parseFloat(group.totalSales || '0').toFixed(2)}</div>
+                        <div className="text-lg font-bold">${parseFloat((group as any).totalSales || '0').toFixed(2)}</div>
                         <div className="text-xs text-green-500 flex items-center gap-1 mt-1">
                           <TrendingUp className="w-3 h-3" />
                           +8.3%
@@ -778,7 +780,7 @@ export default function PerformanceGroupDetail() {
                       </div>
                       <div className="bg-muted/30 rounded-lg p-3">
                         <div className="text-xs text-muted-foreground mb-1">转化数</div>
-                        <div className="text-lg font-bold">{group.totalOrders || 0}</div>
+                        <div className="text-lg font-bold">{(group as any).totalOrders || 0}</div>
                         <div className="text-xs text-green-500 flex items-center gap-1 mt-1">
                           <TrendingUp className="w-3 h-3" />
                           +15.7%
@@ -1078,7 +1080,7 @@ export default function PerformanceGroupDetail() {
                               cx="50%"
                               cy="50%"
                               labelLine={false}
-                              label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(1)}%`}
+                              label={({ name, percent }: any) => `${name}: ${((percent || 0) * 100).toFixed(1)}%`}
                               outerRadius={80}
                               dataKey="value"
                             >
@@ -1344,6 +1346,15 @@ export default function PerformanceGroupDetail() {
           </TabsContent>
 
           {/* 优化日志Tab */}
+          {/* 历史与追踪 Tab - v144统一组件 */}
+          <TabsContent value="history" className="space-y-4">
+            <UnifiedHistoryTracker
+              performanceGroupId={groupId!}
+              performanceGroupName={group.name}
+            />
+          </TabsContent>
+
+          {/* 操作日志 Tab - 保留原有组件 */}
           <TabsContent value="logs" className="space-y-4">
             <OptimizationLogs 
               performanceGroupId={groupId!} 

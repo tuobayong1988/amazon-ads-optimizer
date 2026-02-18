@@ -76,9 +76,9 @@ async function startServer() {
     startDataSyncScheduler(60 * 60 * 1000);
     console.log('[DataSyncScheduler] 定时同步调度器已启动，间隔: 1小时');
     
-    // 启动分层优化调度器（专家建议：独立于数据同步的优化调度）
+    // v143: 启动生命周期感知的智能优化调度器
     startOptimizationScheduler();
-    console.log('[OptimizationScheduler] 分层优化调度器已启动');
+    console.log('[OptimizationScheduler] v143生命周期感知智能优化调度器已启动');
     
     // v142: 禁用optimizationScheduler的daily全量执行，避免与dataSyncScheduler重复
     // dataSyncScheduler已按模块频率调度（出价每2小时、分时每小时等），

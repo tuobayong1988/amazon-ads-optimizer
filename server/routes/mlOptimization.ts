@@ -1,31 +1,51 @@
 /**
  * 机器学习优化API路由
+ * v143: 修复所有TypeScript编译错误
  */
 
 import { z } from 'zod';
 import { publicProcedure, router } from '../_core/trpc';
 import { BidOptimizer, BudgetAllocator, type HistoricalData, type OptimizationTarget } from '../ml/bidOptimizer';
 import * as db from '../db';
-import { eq, and, gte, desc } from 'drizzle-orm';
-import { dailyPerformance, campaigns } from '@db/schema';
-
-const historicalDataSchema = z.object({
-  date: z.string(),
-  bid: z.number(),
-  spend: z.number(),
-  sales: z.number(),
-  impressions: z.number(),
-  clicks: z.number(),
-  conversions: z.number(),
-  acos: z.number(),
-  roas: z.number(),
-});
 
 const optimizationTargetSchema = z.object({
   type: z.enum(['maximize_sales', 'target_acos', 'target_roas']),
   targetValue: z.number().optional(),
   maxBudget: z.number().optional(),
 });
+
+/** 安全地将decimal字段(string|null)转为number */
+function toNum(val: string | number | null | undefined): number {
+  if (val === null || val === undefined) return 0;
+  if (typeof val === 'number') return val;
+  const n = parseFloat(val);
+  return isNaN(n) ? 0 : n;
+}
+
+/** 将数据库记录转换为ML格式的HistoricalData */
+function toHistoricalData(record: {
+  date?: string | null;
+  cpc?: string | null;
+  spend?: string | null;
+  sales?: string | null;
+  impressions?: number | null;
+  clicks?: number | null;
+  conversions?: number | null;
+  dailyAcos?: string | null;
+  dailyRoas?: string | null;
+}): HistoricalData {
+  return {
+    date: record.date || '',
+    bid: toNum(record.cpc),
+    spend: toNum(record.spend),
+    sales: toNum(record.sales),
+    impressions: record.impressions || 0,
+    clicks: record.clicks || 0,
+    conversions: record.conversions || 0,
+    acos: toNum(record.dailyAcos),
+    roas: toNum(record.dailyRoas),
+  };
+}
 
 export const mlOptimizationRouter = router({
   /**
@@ -42,20 +62,23 @@ export const mlOptimizationRouter = router({
     .mutation(async ({ input }) => {
       const { campaignId, target, daysOfHistory } = input;
 
+      // 获取广告活动信息以确定accountId
+      const campaign = await db.getCampaignById(parseInt(campaignId, 10));
+      if (!campaign) {
+        throw new Error('Campaign not found');
+      }
+
       // 获取历史数据
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - daysOfHistory);
+      const endDate = new Date();
 
-      const historicalRecords = await db
-        .select()
-        .from(dailyPerformance)
-        .where(
-          and(
-            eq(dailyPerformance.campaignId, campaignId),
-            gte(dailyPerformance.date, cutoffDate.toISOString().split('T')[0])
-          )
-        )
-        .orderBy(desc(dailyPerformance.date));
+      const historicalRecords = await db.getDailyPerformanceByDateRange(
+        campaign.accountId,
+        cutoffDate,
+        endDate,
+        campaign.id
+      );
 
       if (historicalRecords.length < 10) {
         throw new Error(
@@ -64,17 +87,7 @@ export const mlOptimizationRouter = router({
       }
 
       // 转换为ML格式
-      const historicalData: HistoricalData[] = historicalRecords.map((record) => ({
-        date: record.date,
-        bid: record.avgCpc || 0,
-        spend: record.spend,
-        sales: record.sales,
-        impressions: record.impressions,
-        clicks: record.clicks,
-        conversions: record.conversions,
-        acos: record.acos,
-        roas: record.roas,
-      }));
+      const historicalData: HistoricalData[] = historicalRecords.map(toHistoricalData);
 
       // 训练模型并获取推荐
       const optimizer = new BidOptimizer();
@@ -83,11 +96,11 @@ export const mlOptimizationRouter = router({
       // 计算当前平均值
       const recentData = historicalData.slice(0, 7); // 最近7天
       const currentBid =
-        recentData.reduce((sum, d) => sum + d.bid, 0) / recentData.length;
+        recentData.reduce((sum: number, d) => sum + d.bid, 0) / recentData.length;
       const avgImpressions =
-        recentData.reduce((sum, d) => sum + d.impressions, 0) / recentData.length;
+        recentData.reduce((sum: number, d) => sum + d.impressions, 0) / recentData.length;
       const avgClicks =
-        recentData.reduce((sum, d) => sum + d.clicks, 0) / recentData.length;
+        recentData.reduce((sum: number, d) => sum + d.clicks, 0) / recentData.length;
 
       const recommendation = optimizer.recommendBid(
         {
@@ -123,48 +136,39 @@ export const mlOptimizationRouter = router({
       const { campaignIds, target, daysOfHistory } = input;
 
       const results = await Promise.allSettled(
-        campaignIds.map(async (campaignId) => {
-          // 获取历史数据
+        campaignIds.map(async (campaignId: string) => {
+          const campaign = await db.getCampaignById(parseInt(campaignId, 10));
+          if (!campaign) {
+            throw new Error('Campaign not found');
+          }
+
           const cutoffDate = new Date();
           cutoffDate.setDate(cutoffDate.getDate() - daysOfHistory);
+          const endDate = new Date();
 
-          const historicalRecords = await db
-            .select()
-            .from(dailyPerformance)
-            .where(
-              and(
-                eq(dailyPerformance.campaignId, campaignId),
-                gte(dailyPerformance.date, cutoffDate.toISOString().split('T')[0])
-              )
-            )
-            .orderBy(desc(dailyPerformance.date));
+          const historicalRecords = await db.getDailyPerformanceByDateRange(
+            campaign.accountId,
+            cutoffDate,
+            endDate,
+            campaign.id
+          );
 
           if (historicalRecords.length < 10) {
             throw new Error('Insufficient data');
           }
 
-          const historicalData: HistoricalData[] = historicalRecords.map((record) => ({
-            date: record.date,
-            bid: record.avgCpc || 0,
-            spend: record.spend,
-            sales: record.sales,
-            impressions: record.impressions,
-            clicks: record.clicks,
-            conversions: record.conversions,
-            acos: record.acos,
-            roas: record.roas,
-          }));
+          const historicalData: HistoricalData[] = historicalRecords.map(toHistoricalData);
 
           const optimizer = new BidOptimizer();
           optimizer.train(historicalData);
 
           const recentData = historicalData.slice(0, 7);
           const currentBid =
-            recentData.reduce((sum, d) => sum + d.bid, 0) / recentData.length;
+            recentData.reduce((sum: number, d) => sum + d.bid, 0) / recentData.length;
           const avgImpressions =
-            recentData.reduce((sum, d) => sum + d.impressions, 0) / recentData.length;
+            recentData.reduce((sum: number, d) => sum + d.impressions, 0) / recentData.length;
           const avgClicks =
-            recentData.reduce((sum, d) => sum + d.clicks, 0) / recentData.length;
+            recentData.reduce((sum: number, d) => sum + d.clicks, 0) / recentData.length;
 
           const recommendation = optimizer.recommendBid(
             {
@@ -183,7 +187,7 @@ export const mlOptimizationRouter = router({
         })
       );
 
-      return results.map((result, index) => {
+      return results.map((result, index: number) => {
         if (result.status === 'fulfilled') {
           return result.value;
         } else {
@@ -191,7 +195,7 @@ export const mlOptimizationRouter = router({
             campaignId: campaignIds[index],
             recommendation: null,
             success: false,
-            error: result.reason.message,
+            error: (result.reason as Error).message,
           };
         }
       });
@@ -212,10 +216,7 @@ export const mlOptimizationRouter = router({
       const { performanceGroupId, totalBudget, daysOfHistory } = input;
 
       // 获取绩效组下的所有广告活动
-      const groupCampaigns = await db
-        .select()
-        .from(campaigns)
-        .where(eq(campaigns.performanceGroupId, performanceGroupId));
+      const groupCampaigns = await db.getCampaignsByPerformanceGroupId(parseInt(performanceGroupId, 10));
 
       if (groupCampaigns.length === 0) {
         throw new Error('No campaigns found in this performance group');
@@ -224,41 +225,29 @@ export const mlOptimizationRouter = router({
       // 获取每个活动的历史数据
       const cutoffDate = new Date();
       cutoffDate.setDate(cutoffDate.getDate() - daysOfHistory);
+      const endDate = new Date();
 
       const campaignsWithData = await Promise.all(
-        groupCampaigns.map(async (campaign) => {
-          const historicalRecords = await db
-            .select()
-            .from(dailyPerformance)
-            .where(
-              and(
-                eq(dailyPerformance.campaignId, campaign.id),
-                gte(dailyPerformance.date, cutoffDate.toISOString().split('T')[0])
-              )
-            )
-            .orderBy(desc(dailyPerformance.date));
+        groupCampaigns.map(async (campaign: { id: number; accountId: number; campaignName: string; dailyBudget: string | null }) => {
+          const campaignIdStr = String(campaign.id);
+          const historicalRecords = await db.getDailyPerformanceByDateRange(
+            campaign.accountId,
+            cutoffDate,
+            endDate,
+            campaign.id
+          );
 
-          const historicalData: HistoricalData[] = historicalRecords.map((record) => ({
-            date: record.date,
-            bid: record.avgCpc || 0,
-            spend: record.spend,
-            sales: record.sales,
-            impressions: record.impressions,
-            clicks: record.clicks,
-            conversions: record.conversions,
-            acos: record.acos,
-            roas: record.roas,
-          }));
+          const historicalData: HistoricalData[] = historicalRecords.map(toHistoricalData);
 
           const currentROAS =
             historicalData.length > 0
-              ? historicalData.slice(0, 7).reduce((sum, d) => sum + d.roas, 0) / 7
+              ? historicalData.slice(0, 7).reduce((sum: number, d) => sum + d.roas, 0) / 7
               : 1;
 
           return {
-            id: campaign.id,
-            name: campaign.name,
-            currentBudget: campaign.dailyBudget || 100,
+            id: campaignIdStr,
+            name: campaign.campaignName,
+            currentBudget: toNum(campaign.dailyBudget) || 100,
             currentROAS,
             historicalData,
           };
@@ -271,11 +260,11 @@ export const mlOptimizationRouter = router({
 
       // 计算总预期
       const totalExpectedSales = allocations.reduce(
-        (sum, a) => sum + a.expectedSales,
+        (sum: number, a: any) => sum + a.expectedSales,
         0
       );
       const totalAllocated = allocations.reduce(
-        (sum, a) => sum + a.allocatedBudget,
+        (sum: number, a: any) => sum + a.allocatedBudget,
         0
       );
       const overallROAS = totalAllocated === 0 ? 0 : totalExpectedSales / totalAllocated;
@@ -305,63 +294,38 @@ export const mlOptimizationRouter = router({
     .query(async ({ input }) => {
       const { campaignId, trainingDays, testDays } = input;
 
+      const campaign = await db.getCampaignById(parseInt(campaignId, 10));
+      if (!campaign) {
+        throw new Error('Campaign not found');
+      }
+
       // 获取训练数据
       const trainingCutoff = new Date();
       trainingCutoff.setDate(trainingCutoff.getDate() - testDays);
       const historyCutoff = new Date(trainingCutoff);
       historyCutoff.setDate(historyCutoff.getDate() - trainingDays);
 
-      const trainingRecords = await db
-        .select()
-        .from(dailyPerformance)
-        .where(
-          and(
-            eq(dailyPerformance.campaignId, campaignId),
-            gte(dailyPerformance.date, historyCutoff.toISOString().split('T')[0]),
-            gte(trainingCutoff.toISOString().split('T')[0], dailyPerformance.date)
-          )
-        )
-        .orderBy(desc(dailyPerformance.date));
+      const trainingRecords = await db.getDailyPerformanceByDateRange(
+        campaign.accountId,
+        historyCutoff,
+        trainingCutoff,
+        campaign.id
+      );
 
       // 获取测试数据
-      const testRecords = await db
-        .select()
-        .from(dailyPerformance)
-        .where(
-          and(
-            eq(dailyPerformance.campaignId, campaignId),
-            gte(dailyPerformance.date, trainingCutoff.toISOString().split('T')[0])
-          )
-        )
-        .orderBy(desc(dailyPerformance.date));
+      const testRecords = await db.getDailyPerformanceByDateRange(
+        campaign.accountId,
+        trainingCutoff,
+        new Date(),
+        campaign.id
+      );
 
       if (trainingRecords.length < 10 || testRecords.length < 5) {
         throw new Error('Insufficient data for model evaluation');
       }
 
-      const trainingData: HistoricalData[] = trainingRecords.map((record) => ({
-        date: record.date,
-        bid: record.avgCpc || 0,
-        spend: record.spend,
-        sales: record.sales,
-        impressions: record.impressions,
-        clicks: record.clicks,
-        conversions: record.conversions,
-        acos: record.acos,
-        roas: record.roas,
-      }));
-
-      const testData: HistoricalData[] = testRecords.map((record) => ({
-        date: record.date,
-        bid: record.avgCpc || 0,
-        spend: record.spend,
-        sales: record.sales,
-        impressions: record.impressions,
-        clicks: record.clicks,
-        conversions: record.conversions,
-        acos: record.acos,
-        roas: record.roas,
-      }));
+      const trainingData: HistoricalData[] = trainingRecords.map(toHistoricalData);
+      const testData: HistoricalData[] = testRecords.map(toHistoricalData);
 
       // 训练模型
       const optimizer = new BidOptimizer();

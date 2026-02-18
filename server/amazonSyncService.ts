@@ -2773,11 +2773,11 @@ export class AmazonSyncService {
     const db = await getDb();
     if (!db) return false;
 
+    let amazonId: string = '';
+    let oldBid: number = 0;
+    let targetName: string = '';
+    let adGroupId: number | null = null;
     try {
-      let amazonId: string;
-      let oldBid: number;
-      let targetName: string;
-      let adGroupId: number | null = null;
 
       if (targetType === 'keyword') {
         const [kw] = await db

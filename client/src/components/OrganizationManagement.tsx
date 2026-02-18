@@ -47,7 +47,7 @@ export function OrganizationManagement() {
 
   // 获取成员列表
   const { data: members, isLoading: membersLoading, refetch: refetchMembers } = 
-    trpc.multiTenant.listMembers.useQuery();
+    trpc.multiTenant.getMembers.useQuery();
 
   // 邀请成员
   const inviteMutation = trpc.multiTenant.inviteMember.useMutation({
@@ -95,17 +95,17 @@ export function OrganizationManagement() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>组织名称</Label>
-              <Input value={org?.name || "我的组织"} disabled />
+              <Input value={org?.organization?.name || "我的组织"} disabled />
             </div>
             <div>
               <Label>组织标识</Label>
-              <Input value={org?.slug || "my-org"} disabled />
+              <Input value={org?.organization?.slug || "my-org"} disabled />
             </div>
             <div>
               <Label>订阅计划</Label>
               <div className="flex items-center gap-2">
                 <Badge variant="default">
-                  {org?.subscriptionPlan || "免费版"}
+                  {org?.organization?.subscriptionPlan || "免费版"}
                 </Badge>
                 <Button variant="outline" size="sm">
                   <CreditCard className="w-4 h-4 mr-2" />
@@ -115,8 +115,8 @@ export function OrganizationManagement() {
             </div>
             <div>
               <Label>状态</Label>
-              <Badge variant={org?.status === 'active' ? 'default' : 'secondary'}>
-                {org?.status === 'active' ? '正常' : '试用中'}
+              <Badge variant={org?.organization?.status === 'active' ? 'default' : 'secondary'}>
+                {org?.organization?.status === 'active' ? '正常' : '试用中'}
               </Badge>
             </div>
           </div>

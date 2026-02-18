@@ -74,19 +74,11 @@ const menuGroups = [
     ]
   },
   {
-    title: "策略中心",
+    title: "优化中心",
     description: "优化目标、广告活动管理",
     items: [
       { icon: Target, label: "策略管理", path: "/strategy-center" },
       { icon: Megaphone, label: "广告活动", path: "/campaigns" },
-    ]
-  },
-  {
-    title: "优化引擎",
-    description: "AI驱动的全自动广告优化",
-    items: [
-      { icon: Brain, label: "智能优化中心", path: "/optimization-engine" },
-      { icon: Activity, label: "边际效益分析", path: "/marginal-benefit-analysis" },
       { icon: FlaskConical, label: "A/B测试", path: "/ab-test" },
     ]
   },
@@ -95,9 +87,6 @@ const menuGroups = [
     description: "数据分析与报告",
     items: [
       { icon: BarChart3, label: "数据分析", path: "/analytics-insights" },
-      { icon: FileText, label: "竞价日志", path: "/bidding-logs" },
-      { icon: History, label: "出价调整历史", path: "/bid-adjustment-history" },
-      { icon: LineChart, label: "效果追踪报告", path: "/effect-tracking-report" },
       { icon: Activity, label: "算法效果仪表盘", path: "/algorithm-effect-dashboard" },
       { icon: Shield, label: "审计日志", path: "/audit-logs" },
     ]

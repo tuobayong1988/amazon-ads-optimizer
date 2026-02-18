@@ -22,6 +22,7 @@ import * as bidCoordinator from "./services/bidCoordinator";
 import * as amazonApiHelper from "./services/amazonApiHelper";
 import * as amazonIdResolver from "./services/amazonIdResolver";
 import { getLocalHour, getLocalDayOfWeek, isNewKeyword, getExplorationStrategy, isProtectedKeyword } from "./algorithmUtils";
+import * as campaignLifecycleService from "./services/campaignLifecycleService";
 
 // 缓存账号站点信息，避免重复查询
 const marketplaceCache = new Map<number, string>();
@@ -106,6 +107,14 @@ export interface OptimizationExecutionResult {
   
   errors: string[];
   warnings: string[];
+  
+  // v143: 生命周期信息
+  lifecycleStage?: string;
+  lifecycleSummary?: string;
+  
+  // v137: 重试队列信息
+  retryBatchId?: string;
+  retryTaskCount?: number;
 }
 
 // 优化目标配置
@@ -141,6 +150,11 @@ export interface OptimizationTargetConfig {
   maxBidChangePercent: number;
   minDataPoints: number;
   autoRollbackEnabled: boolean;
+  
+  // v143: 生命周期感知调度
+  lifecycleStage?: campaignLifecycleService.LifecycleStage;
+  lifecycleConfig?: campaignLifecycleService.LifecycleOptimizationConfig;
+  lifecycleSummary?: string;
 }
 
 /**
@@ -150,7 +164,7 @@ export async function getOptimizationTargetConfig(targetId: number): Promise<Opt
   const group = await db.getPerformanceGroupById(targetId);
   if (!group) return null;
   
-  return {
+  const config: OptimizationTargetConfig = {
     id: group.id,
     name: group.name,
     accountId: group.accountId,
@@ -180,6 +194,22 @@ export async function getOptimizationTargetConfig(targetId: number): Promise<Opt
     minDataPoints: 7,
     autoRollbackEnabled: true,
   };
+  
+  // v143: 查询生命周期阶段并注入配置
+  try {
+    const lifecycle = await campaignLifecycleService.getTargetLifecycleStage(group.id);
+    config.lifecycleStage = lifecycle.overallStage;
+    config.lifecycleConfig = lifecycle.config;
+    config.lifecycleSummary = lifecycle.summary;
+    
+    // 根据生命周期阶段调整安全参数
+    config.maxBidChangePercent = lifecycle.config.bid.maxAdjustmentPercent;
+    console.log(`[OptimizationTargetConfig] 目标 ${group.name} 生命周期: ${lifecycle.overallStage} (${lifecycle.summary})`);
+  } catch (lcErr: any) {
+    console.error(`[OptimizationTargetConfig] 生命周期查询失败: ${lcErr.message}`);
+  }
+  
+  return config;
 }
 
 /**
@@ -220,7 +250,14 @@ export async function executeOptimizationTarget(
     bidCoordination: { executed: false, campaignsCoordinated: 0, circuitBreakerTriggered: 0, details: [] },
     errors: [],
     warnings: [],
+    lifecycleStage: config.lifecycleStage,
+    lifecycleSummary: config.lifecycleSummary,
   };
+  
+  // v143: 记录生命周期阶段信息
+  if (config.lifecycleStage) {
+    console.log(`[OptimizationTarget] 目标 ${config.name} 当前生命周期: ${config.lifecycleStage} | 出价调整上限: ±${config.maxBidChangePercent}% | ${config.lifecycleSummary}`);
+  }
   
   // 获取优化目标下的所有广告活动
   const campaigns = await db.getCampaignsByPerformanceGroupId(targetId);
@@ -586,7 +623,7 @@ async function executeBidOptimization(
             keywordId: result.targetId,
             keywordText: keyword?.keywordText || `关键词 ${result.targetId}`,
             campaignId: campaign.id,
-            campaignName: campaign.name || campaign.campaignName,
+            campaignName: campaign.campaignName,
             currentBid: result.previousBid,
             newBid: result.newBid,
             changePercent: result.bidChangePercent.toFixed(2),
@@ -649,7 +686,7 @@ async function executeBidOptimization(
             keywordId: result.targetId,
             keywordText: target?.targetText || target?.targetValue || `商品定向 ${result.targetId}`,
             campaignId: campaign.id,
-            campaignName: campaign.name || campaign.campaignName,
+            campaignName: campaign.campaignName,
             currentBid: result.previousBid,
             newBid: result.newBid,
             changePercent: result.bidChangePercent.toFixed(2),
@@ -766,7 +803,7 @@ async function executePlacementOptimization(
         const adjustment: any = {
           accountId: config.accountId,
           campaignId: campaign.id,
-          campaignName: campaign.name,
+          campaignName: campaign.campaignName,
           placement: suggestion.placement,
           currentMultiplier: suggestion.currentMultiplier,
           suggestedMultiplier: suggestion.suggestedMultiplier,
@@ -820,7 +857,7 @@ async function executePlacementOptimization(
     } catch (error: any) {
       details.push({
         campaignId: campaign.id,
-        campaignName: campaign.name,
+        campaignName: campaign.campaignName,
         error: error.message,
       });
     }
@@ -872,7 +909,7 @@ async function executeDaypartingOptimization(
         const adjustment: any = {
           accountId: config.accountId,
           campaignId: campaign.id,
-          campaignName: campaign.name,
+          campaignName: campaign.campaignName,
           keywordId: keyword.id,
           keywordText: keyword.keywordText,
           hour: currentHour,
@@ -918,7 +955,7 @@ async function executeDaypartingOptimization(
     } catch (error: any) {
       details.push({
         campaignId: campaign.id,
-        campaignName: campaign.name,
+        campaignName: campaign.campaignName,
         error: error.message,
       });
     }
@@ -954,7 +991,7 @@ async function executeSearchTermAnalysis(
       
       // v122h: 获取品牌词用于保护
       const account = await db.getAdAccountById(config.accountId);
-      const brandTerms = account?.brandName ? [account.brandName] : [];
+      const brandTerms = account?.storeName ? [account.storeName] : [];
       
       // 处理分类结果
       for (const term of classification) {
@@ -963,7 +1000,7 @@ async function executeSearchTermAnalysis(
           if (brandTerms.length > 0 && isProtectedKeyword(term.searchTerm, brandTerms)) {
             details.push({
               campaignId: campaign.id,
-              campaignName: campaign.name,
+              campaignName: campaign.campaignName,
               searchTerm: term.searchTerm,
               action: 'brand_protect_skip',
               reason: `[品牌词保护] 搜索词"${term.searchTerm}"含有品牌词，跳过否定`,
@@ -981,7 +1018,7 @@ async function executeSearchTermAnalysis(
             if (isNewKeyword(kwCreatedAt, matchingKw.clicks || 0, matchingKw.impressions || 0, 7)) {
               details.push({
                 campaignId: campaign.id,
-                campaignName: campaign.name,
+                campaignName: campaign.campaignName,
                 searchTerm: term.searchTerm,
                 action: 'exploration_protect_skip',
                 reason: `[探索期保护] 对应投放词在探索期内，跳过否定，给予充分的数据积累时间`,
@@ -993,7 +1030,7 @@ async function executeSearchTermAnalysis(
           const negativeKeyword: any = {
             accountId: config.accountId,
             campaignId: campaign.id,
-            campaignName: campaign.name,
+            campaignName: campaign.campaignName,
             searchTerm: term.searchTerm,
             matchType: term.suggestedAction === 'negative_exact' ? 'negative_exact' : 'negative_phrase',
             action: 'add_negative',
@@ -1026,7 +1063,7 @@ async function executeSearchTermAnalysis(
           const newKeyword: any = {
             accountId: config.accountId,
             campaignId: campaign.id,
-            campaignName: campaign.name,
+            campaignName: campaign.campaignName,
             searchTerm: term.searchTerm,
             matchType: (term.matchTypeSuggestion || 'exact'),
             action: 'add_keyword',
@@ -1081,8 +1118,6 @@ async function executeSearchTermAnalysis(
                 } else {
                   // 插入本地数据库 - v138: 修复缺少accountId和campaignId的问题
                   const insertResult = await dbInstance.insert(keywords).values({
-                    accountId: config.accountId || null,
-                    campaignId: campaign.campaignId || null,
                     adGroupId: adGroup.id,
                     keywordText: term.searchTerm,
                     matchType: matchType as any,
@@ -1167,7 +1202,7 @@ async function executeSearchTermAnalysis(
     } catch (error: any) {
       details.push({
         campaignId: campaign.id,
-        campaignName: campaign.name,
+        campaignName: campaign.campaignName,
         error: error.message,
       });
     }
@@ -1198,7 +1233,7 @@ async function executeBudgetAllocation(
       const adjustment: any = {
         accountId: config.accountId,
         campaignId: suggestion.campaignId,
-        campaignName: campaign.name,
+        campaignName: campaign.campaignName,
         currentBudget: suggestion.currentBudget,
         suggestedBudget: suggestion.suggestedBudget,
         changeAmount: suggestion.suggestedBudget - suggestion.currentBudget,
@@ -1325,7 +1360,7 @@ async function executeKeywordStatusChanges(
               const explorationInfo = getExplorationStrategy(keywordCreatedAt, clicks, impressions, parseFloat(keyword.bid || '0'));
               details.push({
                 campaignId: campaign.id,
-                campaignName: campaign.name,
+                campaignName: campaign.campaignName,
                 keywordId: keyword.id,
                 keywordText: keyword.keywordText,
                 action: 'exploration_protect',
@@ -1339,12 +1374,12 @@ async function executeKeywordStatusChanges(
           // v122h: 品牌词保护 - 品牌词不自动暂停，仅记录警告
           if (shouldPause) {
             const account = await db.getAdAccountById(config.accountId);
-            const brandTerms = account?.brandName ? [account.brandName] : [];
+            const brandTerms = account?.storeName ? [account.storeName] : [];
             if (brandTerms.length > 0 && isProtectedKeyword(keyword.keywordText, brandTerms)) {
               shouldPause = false;
               details.push({
                 campaignId: campaign.id,
-                campaignName: campaign.name,
+                campaignName: campaign.campaignName,
                 keywordId: keyword.id,
                 keywordText: keyword.keywordText,
                 action: 'brand_protect',
@@ -1360,7 +1395,7 @@ async function executeKeywordStatusChanges(
             shouldPause = false;
             details.push({
               campaignId: campaign.id,
-              campaignName: campaign.name,
+              campaignName: campaign.campaignName,
               keywordId: keyword.id,
               keywordText: keyword.keywordText,
               action: 'observe',
@@ -1395,7 +1430,7 @@ async function executeKeywordStatusChanges(
           const action: any = {
             accountId: config.accountId,
             campaignId: campaign.id,
-            campaignName: campaign.name,
+            campaignName: campaign.campaignName,
             keywordId: keyword.id,
             keywordText: keyword.keywordText,
             action: 'pause',
@@ -1438,7 +1473,7 @@ async function executeKeywordStatusChanges(
           const action: any = {
             accountId: config.accountId,
             campaignId: campaign.id,
-            campaignName: campaign.name,
+            campaignName: campaign.campaignName,
             keywordId: keyword.id,
             keywordText: keyword.keywordText,
             action: 'enable',
@@ -1482,7 +1517,7 @@ async function executeKeywordStatusChanges(
     } catch (error: any) {
       details.push({
         campaignId: campaign.id,
-        campaignName: campaign.name,
+        campaignName: campaign.campaignName,
         error: error.message,
       });
     }
@@ -1556,7 +1591,7 @@ async function executeCampaignStatusChanges(
           accountId: config.accountId,
           entityType: 'campaign',
           campaignId: campaign.id,
-          campaignName: campaign.name || campaign.campaignName,
+          campaignName: campaign.campaignName,
           amazonCampaignId: campaign.campaignId || campaign.amazonCampaignId,
           action: 'pause',
           reason: pauseReason,
@@ -1582,7 +1617,7 @@ async function executeCampaignStatusChanges(
                 campaignId: campaign.id,
                 amazonCampaignId: String(campaign.campaignId || campaign.amazonCampaignId || ''),
                 newStatus: 'paused',
-                campaignName: campaign.name || campaign.campaignName || '',
+                campaignName: campaign.campaignName || '',
                 reason: pauseReason,
               }]
             );
@@ -1600,7 +1635,7 @@ async function executeCampaignStatusChanges(
           accountId: config.accountId,
           entityType: 'campaign',
           campaignId: campaign.id,
-          campaignName: campaign.name || campaign.campaignName,
+          campaignName: campaign.campaignName,
           amazonCampaignId: campaign.campaignId || campaign.amazonCampaignId,
           action: 'enable',
           reason: enableReason,
@@ -1626,7 +1661,7 @@ async function executeCampaignStatusChanges(
                 campaignId: campaign.id,
                 amazonCampaignId: String(campaign.campaignId || campaign.amazonCampaignId || ''),
                 newStatus: 'enabled',
-                campaignName: campaign.name || campaign.campaignName || '',
+                campaignName: campaign.campaignName || '',
                 reason: enableReason,
               }]
             );
@@ -1643,7 +1678,7 @@ async function executeCampaignStatusChanges(
     } catch (error: any) {
       details.push({
         campaignId: campaign.id,
-        campaignName: campaign.name || campaign.campaignName,
+        campaignName: campaign.campaignName,
         entityType: 'campaign',
         error: error.message,
       });
@@ -1710,10 +1745,10 @@ async function executeAdGroupStatusChanges(
             accountId: config.accountId,
             entityType: 'adGroup',
             campaignId: campaign.id,
-            campaignName: campaign.name || campaign.campaignName,
+            campaignName: campaign.campaignName,
             adGroupId: adGroup.id,
-            adGroupName: adGroup.adGroupName || adGroup.name,
-            amazonAdGroupId: adGroup.adGroupId || adGroup.amazonAdGroupId,
+            adGroupName: adGroup.adGroupName,
+            amazonAdGroupId: adGroup.adGroupId,
             action: 'pause',
             reason: pauseReason,
             currentStatus: adGroupStatus,
@@ -1736,10 +1771,10 @@ async function executeAdGroupStatusChanges(
                 config.accountId,
                 [{
                   adGroupId: adGroup.id,
-                  amazonAdGroupId: String(adGroup.adGroupId || adGroup.amazonAdGroupId || ''),
+                  amazonAdGroupId: String(adGroup.adGroupId || ''),
                   newStatus: 'paused',
-                  adGroupName: adGroup.adGroupName || adGroup.name || '',
-                  campaignName: campaign.name || campaign.campaignName || '',
+                  adGroupName: adGroup.adGroupName || '',
+                  campaignName: campaign.campaignName || '',
                   reason: pauseReason,
                 }]
               );
@@ -1757,10 +1792,10 @@ async function executeAdGroupStatusChanges(
             accountId: config.accountId,
             entityType: 'adGroup',
             campaignId: campaign.id,
-            campaignName: campaign.name || campaign.campaignName,
+            campaignName: campaign.campaignName,
             adGroupId: adGroup.id,
-            adGroupName: adGroup.adGroupName || adGroup.name,
-            amazonAdGroupId: adGroup.adGroupId || adGroup.amazonAdGroupId,
+            adGroupName: adGroup.adGroupName,
+            amazonAdGroupId: adGroup.adGroupId,
             action: 'enable',
             reason: enableReason,
             currentStatus: adGroupStatus,
@@ -1783,10 +1818,10 @@ async function executeAdGroupStatusChanges(
                 config.accountId,
                 [{
                   adGroupId: adGroup.id,
-                  amazonAdGroupId: String(adGroup.adGroupId || adGroup.amazonAdGroupId || ''),
+                  amazonAdGroupId: String(adGroup.adGroupId || ''),
                   newStatus: 'enabled',
-                  adGroupName: adGroup.adGroupName || adGroup.name || '',
-                  campaignName: campaign.name || campaign.campaignName || '',
+                  adGroupName: adGroup.adGroupName || '',
+                  campaignName: campaign.campaignName || '',
                   reason: enableReason,
                 }]
               );
@@ -1804,7 +1839,7 @@ async function executeAdGroupStatusChanges(
     } catch (error: any) {
       details.push({
         campaignId: campaign.id,
-        campaignName: campaign.name || campaign.campaignName,
+        campaignName: campaign.campaignName,
         entityType: 'adGroup',
         error: error.message,
       });
@@ -1909,7 +1944,7 @@ async function executeBidCoordination(
       // 6. 记录协调结果
       const coordinationDetail = {
         campaignId: campaign.id,
-        campaignName: campaign.name,
+        campaignName: campaign.campaignName,
         proposalsCount: proposals.length,
         originalBaseBid: coordinatedResult.originalBaseBid,
         finalBaseBid: coordinatedResult.finalBaseBid,
@@ -1929,7 +1964,7 @@ async function executeBidCoordination(
       
       // 7. 如果不是干运行且有实际调整，记录日志
       if (!dryRun && coordinatedResult.finalBaseBid !== coordinatedResult.originalBaseBid) {
-        console.log(`[BidCoordination] 广告活动 ${campaign.name} 竞价协调完成:`, {
+        console.log(`[BidCoordination] 广告活动 ${campaign.campaign.campaignName} 价协调完成:`, {
           original: coordinatedResult.originalBaseBid,
           final: coordinatedResult.finalBaseBid,
           maxCPC: coordinatedResult.theoreticalMaxCPC,
@@ -1939,7 +1974,7 @@ async function executeBidCoordination(
     } catch (error: any) {
       details.push({
         campaignId: campaign.id,
-        campaignName: campaign.name,
+        campaignName: campaign.campaignName,
         error: error.message,
       });
     }
@@ -2300,6 +2335,18 @@ export async function executeAllEnabledTargets(
   }
   
   return results;
+}
+
+/**
+ * v143: 获取优化目标的生命周期信息（供调度器查询）
+ */
+export async function getTargetLifecycleInfo(targetId: number): Promise<{
+  overallStage: campaignLifecycleService.LifecycleStage;
+  config: campaignLifecycleService.LifecycleOptimizationConfig;
+  summary: string;
+  campaigns: campaignLifecycleService.CampaignLifecycleInfo[];
+}> {
+  return campaignLifecycleService.getTargetLifecycleStage(targetId);
 }
 
 /**

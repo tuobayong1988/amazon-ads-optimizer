@@ -107,9 +107,9 @@ function Router() {
       <Route path="/monitoring-center">{() => { window.location.href = '/'; return null; }}</Route>
       <Route path="/analytics-insights">{() => <LazyRoute component={AnalyticsInsights} />}</Route>
       <Route path="/strategy-center">{() => <LazyRoute component={StrategyCenter} />}</Route>
-      <Route path="/optimization-engine">{() => <LazyRoute component={SmartOptimizationCenter} />}</Route>
-      {/* 旧的优化引擎页面重定向到智能优化中心 */}
-      <Route path="/smart-optimization">{() => <LazyRoute component={SmartOptimizationCenter} />}</Route>
+      {/* v144: 智能优化中心已合并到策略管理 */}
+      <Route path="/optimization-engine">{() => { window.location.href = '/strategy-center'; return null; }}</Route>
+      <Route path="/smart-optimization">{() => { window.location.href = '/strategy-center'; return null; }}</Route>
       <Route path="/optimization-targets">{() => <LazyRoute component={OptimizationTargets} />}</Route>
       <Route path="/optimization-targets/:id">{() => <LazyRoute component={PerformanceGroupDetail} />}</Route>
       <Route path="/performance-groups">{() => { window.location.href = '/strategy-center'; return null; }}</Route>
@@ -118,7 +118,8 @@ function Router() {
       <Route path="/campaigns/:id">{() => <LazyRoute component={CampaignDetail} />}</Route>
       <Route path="/campaigns/:id/ai-history">{() => <LazyRoute component={AIOptimizationHistory} />}</Route>
       <Route path="/ad-groups/:id">{() => <LazyRoute component={AdGroupDetail} />}</Route>
-      <Route path="/bidding-logs">{() => <LazyRoute component={BiddingLogs} />}</Route>
+      {/* v144: 竞价日志已合并到优化目标详情页的"历史与追踪"Tab */}
+      <Route path="/bidding-logs">{() => { window.location.href = '/strategy-center'; return null; }}</Route>
       <Route path="/settings">{() => <LazyRoute component={Settings} />}</Route>
       {/* 功能整合重定向 - 极简化设计 */}
       <Route path="/import">{() => { window.location.href = '/amazon-api'; return null; }}</Route>
@@ -147,10 +148,13 @@ function Router() {
       <Route path="/dayparting">{() => <LazyRoute component={DaypartingStrategy} />}</Route>
       <Route path="/placement-optimization">{() => <LazyRoute component={PlacementOptimization} />}</Route>
       <Route path="/advanced-placement">{() => <LazyRoute component={AdvancedPlacementOptimization} />}</Route>
-      <Route path="/marginal-benefit-analysis">{() => <LazyRoute component={MarginalBenefitAnalysis} />}</Route>
+      {/* v144: 边际效益分析已合并到策略管理 */}
+      <Route path="/marginal-benefit-analysis">{() => { window.location.href = '/strategy-center'; return null; }}</Route>
       <Route path="/optimization-center">{() => <LazyRoute component={OptimizationCenter} />}</Route>
-      <Route path="/bid-adjustment-history">{() => <LazyRoute component={BidAdjustmentHistory} />}</Route>
-      <Route path="/effect-tracking-report">{() => <LazyRoute component={EffectTrackingReport} />}</Route>
+      {/* v144: 出价调整历史已合并到优化目标详情页的"历史与追踪"Tab */}
+      <Route path="/bid-adjustment-history">{() => { window.location.href = '/strategy-center'; return null; }}</Route>
+      {/* v144: 效果追踪报告已合并到优化目标详情页的"历史与追踪"Tab */}
+      <Route path="/effect-tracking-report">{() => { window.location.href = '/strategy-center'; return null; }}</Route>
       <Route path="/algorithm-effect-dashboard">{() => <LazyRoute component={AlgorithmEffectDashboard} />}</Route>
       {/* 智能优化功能已整合到优化设置和优化中心 */}
       <Route path="/auto-rollback">{() => { window.location.href = '/settings'; return null; }}</Route>
@@ -161,8 +165,8 @@ function Router() {
       <Route path="/api-security">{() => <LazyRoute component={ApiSecurityCenter} />}</Route>
       <Route path="/special-scenario">{() => <LazyRoute component={SpecialScenarioAnalysis} />}</Route>
       {/* 自动化控制和自动运营已整合到智能优化中心 */}
-      <Route path="/automation-control">{() => { window.location.href = '/optimization-engine'; return null; }}</Route>
-      <Route path="/auto-operation">{() => { window.location.href = '/optimization-engine'; return null; }}</Route>
+      <Route path="/automation-control">{() => { window.location.href = '/strategy-center'; return null; }}</Route>
+      <Route path="/auto-operation">{() => { window.location.href = '/strategy-center'; return null; }}</Route>
       <Route path="/onboarding">{() => <LazyRoute component={SellerOnboarding} />}</Route>
       <Route path="/seller-onboarding">{() => <LazyRoute component={SellerOnboarding} />}</Route>
       <Route path="/batch-authorization">{() => <LazyRoute component={BatchAuthorization} />}</Route>

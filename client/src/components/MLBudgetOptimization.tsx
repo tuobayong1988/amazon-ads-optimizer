@@ -37,17 +37,18 @@ export function MLBudgetOptimization({ accountId }: MLBudgetOptimizationProps) {
   const [targetValue, setTargetValue] = useState<number>(30);
 
   // 获取预算分配建议
-  const { data: allocation, isLoading, refetch } = trpc.mlOptimization.allocateBudget.useQuery(
-    {
-      accountId: accountId || 0,
-      totalBudget: 1000, // 默认预算
-      objective,
-      targetValue: objective !== 'maximize_sales' ? targetValue : undefined,
-    },
-    {
-      enabled: !!accountId,
+  const allocateMutation = trpc.mlOptimization.optimizeBudgetAllocation.useMutation();
+  const allocation = allocateMutation.data;
+  const isLoading = allocateMutation.isPending;
+  const refetch = () => {
+    if (accountId) {
+      allocateMutation.mutate({
+        performanceGroupId: String(accountId),
+        totalBudget: 1000,
+        daysOfHistory: 30,
+      });
     }
-  );
+  };
 
   if (!accountId) {
     return (
@@ -130,19 +131,19 @@ export function MLBudgetOptimization({ accountId }: MLBudgetOptimizationProps) {
                 <div className="p-4 bg-muted rounded-lg">
                   <div className="text-sm text-muted-foreground">总预算</div>
                   <div className="text-2xl font-bold">
-                    ${allocation.totalBudget.toFixed(0)}
+                    ${(allocation.summary?.totalBudget || 0).toFixed(0)}
                   </div>
                 </div>
                 <div className="p-4 bg-muted rounded-lg">
                   <div className="text-sm text-muted-foreground">预期销售额</div>
                   <div className="text-2xl font-bold text-green-600">
-                    ${allocation.expectedSales.toFixed(0)}
+                    ${(allocation.summary?.totalExpectedSales || 0).toFixed(0)}
                   </div>
                 </div>
                 <div className="p-4 bg-muted rounded-lg">
                   <div className="text-sm text-muted-foreground">预期ACoS</div>
                   <div className="text-2xl font-bold">
-                    {allocation.expectedAcos.toFixed(1)}%
+                    {(allocation.summary?.overallROAS ? (1 / allocation.summary.overallROAS * 100) : 0).toFixed(1)}%
                   </div>
                 </div>
               </div>
@@ -160,7 +161,7 @@ export function MLBudgetOptimization({ accountId }: MLBudgetOptimizationProps) {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {allocation.allocations.map((item: any) => {
+                  {(allocation.allocations || []).map((item: any) => {
                     const change = item.allocatedBudget - item.currentBudget;
                     const changePercent = (change / item.currentBudget) * 100;
 
@@ -201,8 +202,11 @@ export function MLBudgetOptimization({ accountId }: MLBudgetOptimizationProps) {
 
               {/* 优化决策可视化 */}
               <OptimizationVisualizer
-                data={allocation.allocations}
-                type="budget"
+                data={(allocation.allocations || []).map((a: any) => ({ value: a.allocatedBudget, sales: a.expectedSales }))}
+                type="budget-optimization"
+                currentValue={allocation.summary?.totalBudget || 0}
+                suggestedValue={allocation.summary?.totalAllocated || 0}
+                metric="Sales"
               />
             </div>
           </CardContent>

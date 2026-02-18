@@ -4,7 +4,7 @@
  */
 
 import { TRPCError } from '@trpc/server';
-import type { Context } from '../trpc';
+import type { TrpcContext as Context } from '../_core/context';
 
 export interface TenantContext extends Context {
   organizationId: number;

@@ -5,11 +5,12 @@
  * 1. 每天从Amazon Ads API获取前一天的绩效数据
  * 2. 存储到dailyPerformance表
  * 3. 支持手动触发和定时执行
+ * 
+ * v143: 修复db.insert编译错误，改用db封装函数
  */
 
 import { AmazonAdsApiClient } from './amazonAdsApi';
 import * as db from './db';
-import { dailyPerformance } from '../drizzle/schema';
 
 export interface SyncTaskConfig {
   clientId: string;
@@ -21,34 +22,48 @@ export interface SyncTaskConfig {
 }
 
 /**
+ * 将API返回的行数据转换为DailyPerformance插入格式
+ */
+function buildPerformanceRecord(row: any, campaignId: string, date: string) {
+  const impressions = parseInt(row.impressions || '0');
+  const clicks = parseInt(row.clicks || '0');
+  const spend = parseFloat(row.cost || '0');
+  const sales = parseFloat(row.sales7d || '0');
+  const orders = parseInt(row.purchases7d || '0');
+  
+  return {
+    campaignId: parseInt(campaignId, 10) || 0,
+    accountId: parseInt(row.accountId || '0', 10) || 0,
+    date: date,
+    impressions,
+    clicks,
+    spend: String(spend),
+    sales: String(sales),
+    orders,
+    dailyAcos: sales > 0 ? String((spend / sales) * 100) : null,
+    dailyRoas: spend > 0 ? String(sales / spend) : null,
+    ctr: impressions > 0 ? String((clicks / impressions) * 100) : null,
+    cvr: clicks > 0 ? String((orders / clicks) * 100) : null,
+    cpc: clicks > 0 ? String(spend / clicks) : null,
+    sales7D: String(parseFloat(row.sales7d || '0')),
+    orders7D: parseInt(row.purchases7d || '0'),
+    sales30D: String(parseFloat(row.sales30d || '0')),
+    orders30D: parseInt(row.purchases30d || '0'),
+  };
+}
+
+/**
  * 同步单个广告活动的每日数据
  */
 export async function syncCampaignDailyData(
-  config: SyncTaskConfig,
+  apiData: any[],
   campaignId: string,
   date: string
 ): Promise<void> {
-  console.log(`[Daily Sync] 开始同步广告活动 ${campaignId} 的数据, 日期: ${date}`);
-  
-  // 创建API客户端
-  const apiClient = new AmazonAdsApiClient({
-    clientId: config.clientId,
-    clientSecret: config.clientSecret,
-    refreshToken: config.refreshToken,
-    profileId: config.profileId,
-    region: config.region,
-  });
-
   try {
-    // 请求SP广告活动报告
-    const reportId = await apiClient.requestSpCampaignReport(date, date);
-    
-    // 等待报告完成并下载
-    const reportData = await apiClient.waitAndDownloadReport(reportId);
-    
     // 查找该广告活动的数据
-    const campaignData = reportData.find((row: any) => 
-      row.campaignId?.toString() === campaignId
+    const campaignData = apiData.find(
+      (row: any) => row.campaignId?.toString() === campaignId
     );
     
     if (!campaignData) {
@@ -56,55 +71,9 @@ export async function syncCampaignDailyData(
       return;
     }
     
-    // 存储到数据库
-    await db.insert(dailyPerformance).values({
-      campaignId: campaignId,
-      date: date,
-      impressions: parseInt(campaignData.impressions || '0'),
-      clicks: parseInt(campaignData.clicks || '0'),
-      spend: parseFloat(campaignData.cost || '0'),
-      sales: parseFloat(campaignData.sales7d || '0'),
-      orders: parseInt(campaignData.purchases7d || '0'),
-      dailyAcos: campaignData.sales7d ? 
-        (parseFloat(campaignData.cost || '0') / parseFloat(campaignData.sales7d)) * 100 : 0,
-      dailyRoas: campaignData.cost ? 
-        parseFloat(campaignData.sales7d || '0') / parseFloat(campaignData.cost || '0') : 0,
-      ctr: campaignData.impressions ? 
-        (parseInt(campaignData.clicks || '0') / parseInt(campaignData.impressions || '0')) * 100 : 0,
-      cvr: campaignData.clicks ? 
-        (parseInt(campaignData.purchases7d || '0') / parseInt(campaignData.clicks || '0')) * 100 : 0,
-      cpc: campaignData.clicks ? 
-        parseFloat(campaignData.cost || '0') / parseInt(campaignData.clicks || '0') : 0,
-      // 7天归因数据
-      sales7d: parseFloat(campaignData.sales7d || '0'),
-      orders7d: parseInt(campaignData.purchases7d || '0'),
-      // 30天归因数据 (如果有)
-      sales30d: parseFloat(campaignData.sales30d || '0'),
-      orders30d: parseInt(campaignData.purchases30d || '0'),
-    }).onConflictDoUpdate({
-      target: [dailyPerformance.campaignId, dailyPerformance.date],
-      set: {
-        impressions: parseInt(campaignData.impressions || '0'),
-        clicks: parseInt(campaignData.clicks || '0'),
-        spend: parseFloat(campaignData.cost || '0'),
-        sales: parseFloat(campaignData.sales7d || '0'),
-        orders: parseInt(campaignData.purchases7d || '0'),
-        dailyAcos: campaignData.sales7d ? 
-          (parseFloat(campaignData.cost || '0') / parseFloat(campaignData.sales7d)) * 100 : 0,
-        dailyRoas: campaignData.cost ? 
-          parseFloat(campaignData.sales7d || '0') / parseFloat(campaignData.cost || '0') : 0,
-        ctr: campaignData.impressions ? 
-          (parseInt(campaignData.clicks || '0') / parseInt(campaignData.impressions || '0')) * 100 : 0,
-        cvr: campaignData.clicks ? 
-          (parseInt(campaignData.purchases7d || '0') / parseInt(campaignData.clicks || '0')) * 100 : 0,
-        cpc: campaignData.clicks ? 
-          parseFloat(campaignData.cost || '0') / parseInt(campaignData.clicks || '0') : 0,
-        sales7d: parseFloat(campaignData.sales7d || '0'),
-        orders7d: parseInt(campaignData.purchases7d || '0'),
-        sales30d: parseFloat(campaignData.sales30d || '0'),
-        orders30d: parseInt(campaignData.purchases30d || '0'),
-      },
-    });
+    // 使用db封装函数存储到数据库
+    const record = buildPerformanceRecord(campaignData, campaignId, date);
+    await db.createDailyPerformance(record as any);
     
     console.log(`[Daily Sync] 成功同步广告活动 ${campaignId} 的数据`);
   } catch (error: any) {
@@ -144,52 +113,8 @@ export async function syncAllCampaignsDailyData(
     // 存储SP数据
     for (const row of spData) {
       try {
-        await db.insert(dailyPerformance).values({
-          campaignId: row.campaignId?.toString() || '',
-          date: date,
-          impressions: parseInt(row.impressions || '0'),
-          clicks: parseInt(row.clicks || '0'),
-          spend: parseFloat(row.cost || '0'),
-          sales: parseFloat(row.sales7d || '0'),
-          orders: parseInt(row.purchases7d || '0'),
-          dailyAcos: row.sales7d ? 
-            (parseFloat(row.cost || '0') / parseFloat(row.sales7d)) * 100 : 0,
-          dailyRoas: row.cost ? 
-            parseFloat(row.sales7d || '0') / parseFloat(row.cost || '0') : 0,
-          ctr: row.impressions ? 
-            (parseInt(row.clicks || '0') / parseInt(row.impressions || '0')) * 100 : 0,
-          cvr: row.clicks ? 
-            (parseInt(row.purchases7d || '0') / parseInt(row.clicks || '0')) * 100 : 0,
-          cpc: row.clicks ? 
-            parseFloat(row.cost || '0') / parseInt(row.clicks || '0') : 0,
-          sales7d: parseFloat(row.sales7d || '0'),
-          orders7d: parseInt(row.purchases7d || '0'),
-          sales30d: parseFloat(row.sales30d || '0'),
-          orders30d: parseInt(row.purchases30d || '0'),
-        }).onConflictDoUpdate({
-          target: [dailyPerformance.campaignId, dailyPerformance.date],
-          set: {
-            impressions: parseInt(row.impressions || '0'),
-            clicks: parseInt(row.clicks || '0'),
-            spend: parseFloat(row.cost || '0'),
-            sales: parseFloat(row.sales7d || '0'),
-            orders: parseInt(row.purchases7d || '0'),
-            dailyAcos: row.sales7d ? 
-              (parseFloat(row.cost || '0') / parseFloat(row.sales7d)) * 100 : 0,
-            dailyRoas: row.cost ? 
-              parseFloat(row.sales7d || '0') / parseFloat(row.cost || '0') : 0,
-            ctr: row.impressions ? 
-              (parseInt(row.clicks || '0') / parseInt(row.impressions || '0')) * 100 : 0,
-            cvr: row.clicks ? 
-              (parseInt(row.purchases7d || '0') / parseInt(row.clicks || '0')) * 100 : 0,
-            cpc: row.clicks ? 
-              parseFloat(row.cost || '0') / parseInt(row.clicks || '0') : 0,
-            sales7d: parseFloat(row.sales7d || '0'),
-            orders7d: parseInt(row.purchases7d || '0'),
-            sales30d: parseFloat(row.sales30d || '0'),
-            orders30d: parseInt(row.purchases30d || '0'),
-          },
-        });
+        const record = buildPerformanceRecord(row, row.campaignId?.toString() || '', date);
+        await db.createDailyPerformance(record as any);
         successCount++;
       } catch (error: any) {
         console.error(`[Daily Sync] 存储广告活动 ${row.campaignId} 失败:`, error.message);
@@ -216,20 +141,4 @@ export function getYesterdayDate(): string {
   const yesterday = new Date();
   yesterday.setDate(yesterday.getDate() - 1);
   return yesterday.toISOString().split('T')[0];
-}
-
-/**
- * 每日定时任务入口
- */
-export async function runDailySyncTask(config: SyncTaskConfig): Promise<void> {
-  const date = getYesterdayDate();
-  console.log(`[Daily Sync Task] 开始执行每日同步任务, 日期: ${date}`);
-  
-  try {
-    const result = await syncAllCampaignsDailyData(config, date);
-    console.log(`[Daily Sync Task] 任务完成, 成功: ${result.success}, 失败: ${result.failed}`);
-  } catch (error: any) {
-    console.error('[Daily Sync Task] 任务失败:', error.message);
-    throw error;
-  }
 }
