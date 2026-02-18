@@ -67568,11 +67568,11 @@ var require_randomUUID = __commonJS({
 var require_dist_cjs18 = __commonJS({
   "node_modules/@smithy/uuid/dist-cjs/index.js"(exports2) {
     "use strict";
-    var randomUUID = require_randomUUID();
+    var randomUUID2 = require_randomUUID();
     var decimalToHex = Array.from({ length: 256 }, (_3, i4) => i4.toString(16).padStart(2, "0"));
     var v42 = () => {
-      if (randomUUID.randomUUID) {
-        return randomUUID.randomUUID();
+      if (randomUUID2.randomUUID) {
+        return randomUUID2.randomUUID();
       }
       const rnds = new Uint8Array(16);
       crypto.getRandomValues(rnds);
@@ -89811,6 +89811,666 @@ var init_amazonApiHelper = __esm({
   }
 });
 
+// server/optimizationSyncEngine.ts
+var optimizationSyncEngine_exports = {};
+__export(optimizationSyncEngine_exports, {
+  enqueueTasks: () => enqueueTasks,
+  executeBatchSync: () => executeBatchSync,
+  getBatchStatus: () => getBatchStatus,
+  processRetryTasks: () => processRetryTasks
+});
+async function enqueueTasks(tasks) {
+  if (tasks.length === 0) return "";
+  const batchId = tasks[0].batchId || (0, import_crypto2.randomUUID)();
+  const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
+  console.log(`[SyncEngine] \u5165\u961F\u4EFB\u52A1: batchId=${batchId}, \u603B\u8BA1=${tasks.length}\u6761`);
+  const mysql2 = await import("mysql2/promise");
+  const conn = await mysql2.createConnection({
+    host: process.env.DATABASE_HOST || "amazon-ads-optimizer-db.ci7y0uwu0aid.us-east-1.rds.amazonaws.com",
+    user: process.env.DATABASE_USER || "admin",
+    password: process.env.DATABASE_PASSWORD || "Mucers2025",
+    database: process.env.DATABASE_NAME || "amazon_ads_optimizer"
+  });
+  try {
+    const INSERT_BATCH = 500;
+    for (let i4 = 0; i4 < tasks.length; i4 += INSERT_BATCH) {
+      const batch = tasks.slice(i4, i4 + INSERT_BATCH);
+      const placeholders = batch.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
+      const values = [];
+      for (const t7 of batch) {
+        values.push(
+          batchId,
+          t7.optimizationTargetId,
+          t7.accountId,
+          t7.taskType,
+          t7.priority,
+          t7.targetEntityType,
+          t7.targetEntityId,
+          t7.amazonEntityId || null,
+          t7.targetEntityName || null,
+          t7.action,
+          t7.oldValue || null,
+          t7.newValue || null,
+          t7.changeReason || null,
+          t7.algorithmUsed || null,
+          t7.confidenceScore || null,
+          t7.campaignId || null,
+          t7.campaignName || null,
+          t7.adGroupId || null,
+          "pending",
+          now
+        );
+      }
+      await conn.execute(
+        `INSERT INTO optimization_tasks 
+         (batch_id, optimization_target_id, account_id, task_type, priority,
+          target_entity_type, target_entity_id, amazon_entity_id, target_entity_name,
+          action, old_value, new_value, change_reason, algorithm_used, confidence_score,
+          campaign_id, campaign_name, ad_group_id, status, created_at)
+         VALUES ${placeholders}`,
+        values
+      );
+    }
+    console.log(`[SyncEngine] \u2705 \u5165\u961F\u5B8C\u6210: batchId=${batchId}, ${tasks.length}\u6761\u4EFB\u52A1`);
+  } finally {
+    await conn.end();
+  }
+  return batchId;
+}
+async function executeBatchSync(options) {
+  const startTime = Date.now();
+  const result = {
+    batchId: options?.batchId || "all",
+    totalTasks: 0,
+    synced: 0,
+    failed: 0,
+    skipped: 0,
+    errors: [],
+    duration: 0
+  };
+  console.log(`[SyncEngine] ========== \u5F00\u59CB\u6279\u91CF\u540C\u6B65 ==========`);
+  console.log(`[SyncEngine] \u53C2\u6570: batchId=${options?.batchId || "all"}, accountId=${options?.accountId || "all"}, maxTasks=${options?.maxTasks || "unlimited"}`);
+  const mysql2 = await import("mysql2/promise");
+  const conn = await mysql2.createConnection({
+    host: process.env.DATABASE_HOST || "amazon-ads-optimizer-db.ci7y0uwu0aid.us-east-1.rds.amazonaws.com",
+    user: process.env.DATABASE_USER || "admin",
+    password: process.env.DATABASE_PASSWORD || "Mucers2025",
+    database: process.env.DATABASE_NAME || "amazon_ads_optimizer"
+  });
+  try {
+    let query3 = `SELECT * FROM optimization_tasks WHERE status IN ('pending', 'retry')`;
+    const params = [];
+    if (options?.batchId) {
+      query3 += ` AND batch_id = ?`;
+      params.push(options.batchId);
+    }
+    if (options?.accountId) {
+      query3 += ` AND account_id = ?`;
+      params.push(options.accountId);
+    }
+    query3 += ` AND (status = 'pending' OR (status = 'retry' AND (next_retry_at IS NULL OR next_retry_at <= NOW())))`;
+    query3 += ` ORDER BY priority ASC, created_at ASC`;
+    if (options?.maxTasks) {
+      query3 += ` LIMIT ?`;
+      params.push(options.maxTasks);
+    }
+    const [rows] = await conn.execute(query3, params);
+    result.totalTasks = rows.length;
+    if (rows.length === 0) {
+      console.log(`[SyncEngine] \u6CA1\u6709\u5F85\u5904\u7406\u7684\u540C\u6B65\u4EFB\u52A1`);
+      result.duration = Date.now() - startTime;
+      return result;
+    }
+    console.log(`[SyncEngine] \u8BFB\u53D6\u5230 ${rows.length} \u6761\u5F85\u540C\u6B65\u4EFB\u52A1`);
+    const accountGroups = /* @__PURE__ */ new Map();
+    for (const row of rows) {
+      const accId = row.account_id;
+      if (!accountGroups.has(accId)) accountGroups.set(accId, []);
+      accountGroups.get(accId).push(row);
+    }
+    console.log(`[SyncEngine] \u5206\u4E3A ${accountGroups.size} \u4E2A\u8D26\u53F7\u7EC4`);
+    for (const [accountId, accountTasks] of accountGroups) {
+      console.log(`[SyncEngine] --- \u5904\u7406\u8D26\u53F7 ${accountId}: ${accountTasks.length} \u6761\u4EFB\u52A1 ---`);
+      const typeGroups = /* @__PURE__ */ new Map();
+      for (const task of accountTasks) {
+        const type = task.task_type;
+        if (!typeGroups.has(type)) typeGroups.set(type, []);
+        typeGroups.get(type).push(task);
+      }
+      for (const [taskType, typeTasks] of typeGroups) {
+        console.log(`[SyncEngine] \u5904\u7406 ${taskType}: ${typeTasks.length} \u6761`);
+        try {
+          const typeResult = await syncTasksByType(conn, accountId, taskType, typeTasks, options?.dryRun);
+          result.synced += typeResult.synced;
+          result.failed += typeResult.failed;
+          result.skipped += typeResult.skipped;
+          if (typeResult.errors.length > 0) {
+            result.errors.push(...typeResult.errors.slice(0, 5));
+          }
+        } catch (err2) {
+          console.error(`[SyncEngine] ${taskType} \u5904\u7406\u5F02\u5E38: ${err2.message}`);
+          result.errors.push(`${taskType}: ${err2.message}`);
+          const taskIds = typeTasks.map((t7) => t7.id);
+          await markTasksFailed(conn, taskIds, err2.message);
+          result.failed += typeTasks.length;
+        }
+      }
+    }
+    if (options?.batchId) {
+      await updateLogsSyncStatus(conn, options.batchId);
+    }
+  } finally {
+    await conn.end();
+  }
+  result.duration = Date.now() - startTime;
+  console.log(`[SyncEngine] ========== \u6279\u91CF\u540C\u6B65\u5B8C\u6210 ==========`);
+  console.log(`[SyncEngine] \u603B\u8BA1=${result.totalTasks}, \u6210\u529F=${result.synced}, \u5931\u8D25=${result.failed}, \u8DF3\u8FC7=${result.skipped}, \u8017\u65F6=${result.duration}ms`);
+  return result;
+}
+async function syncTasksByType(conn, accountId, taskType, tasks, dryRun) {
+  const result = { synced: 0, failed: 0, skipped: 0, errors: [] };
+  const config2 = BATCH_CONFIG[taskType] || { maxBatchSize: 100, delayMs: 500 };
+  const syncService = await getAmazonSyncService(accountId);
+  if (!syncService) {
+    const msg = `\u8D26\u53F7 ${accountId} \u65E0\u6CD5\u83B7\u53D6API\u670D\u52A1`;
+    result.errors.push(msg);
+    result.failed = tasks.length;
+    await markTasksFailed(conn, tasks.map((t7) => t7.id), msg);
+    return result;
+  }
+  const taskIds = tasks.map((t7) => t7.id);
+  const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
+  if (taskIds.length > 0) {
+    await conn.execute(
+      `UPDATE optimization_tasks SET status = 'processing', processing_started_at = ? WHERE id IN (${taskIds.join(",")})`,
+      [now]
+    );
+  }
+  if (dryRun) {
+    console.log(`[SyncEngine] [DryRun] \u8DF3\u8FC7 ${tasks.length} \u6761 ${taskType} \u4EFB\u52A1`);
+    result.skipped = tasks.length;
+    return result;
+  }
+  for (let i4 = 0; i4 < tasks.length; i4 += config2.maxBatchSize) {
+    const batch = tasks.slice(i4, i4 + config2.maxBatchSize);
+    try {
+      const batchResult = await executeBatchByType(conn, syncService, taskType, batch);
+      result.synced += batchResult.synced;
+      result.failed += batchResult.failed;
+      result.errors.push(...batchResult.errors);
+    } catch (err2) {
+      console.error(`[SyncEngine] \u6279\u6B21 ${i4 / config2.maxBatchSize + 1} \u5F02\u5E38: ${err2.message}`);
+      result.errors.push(err2.message);
+      await markTasksFailed(conn, batch.map((t7) => t7.id), err2.message);
+      result.failed += batch.length;
+    }
+    if (i4 + config2.maxBatchSize < tasks.length) {
+      await new Promise((resolve8) => setTimeout(resolve8, config2.delayMs));
+    }
+  }
+  return result;
+}
+async function executeBatchByType(conn, syncService, taskType, batch) {
+  const result = { synced: 0, failed: 0, errors: [] };
+  const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
+  switch (taskType) {
+    case "bid_adjustment": {
+      const kwTasks = batch.filter((t7) => t7.target_entity_type === "keyword" && t7.amazon_entity_id);
+      const ptTasks = batch.filter((t7) => t7.target_entity_type === "product_target" && t7.amazon_entity_id);
+      const noIdTasks = batch.filter((t7) => !t7.amazon_entity_id);
+      if (noIdTasks.length > 0) {
+        await markTasksFailed(conn, noIdTasks.map((t7) => t7.id), "\u7F3A\u5C11Amazon ID");
+        result.failed += noIdTasks.length;
+      }
+      if (kwTasks.length > 0) {
+        try {
+          const apiResult = await syncService.client.updateKeywordBids(
+            kwTasks.map((t7) => ({
+              keywordId: String(t7.amazon_entity_id),
+              bid: Number(parseFloat(t7.new_value).toFixed(2))
+            }))
+          );
+          const successIds = /* @__PURE__ */ new Set();
+          const failedIds = /* @__PURE__ */ new Map();
+          if (apiResult.errors && apiResult.errors.length > 0) {
+            for (const err2 of apiResult.errors) {
+              failedIds.set(String(err2.keywordId), err2.details || err2.code || "API_ERROR");
+            }
+          }
+          for (const t7 of kwTasks) {
+            if (failedIds.has(String(t7.amazon_entity_id))) {
+              await markTaskFailed(conn, t7.id, failedIds.get(String(t7.amazon_entity_id)));
+              result.failed++;
+            } else {
+              await markTaskSynced(conn, t7.id);
+              await updateLocalBid(conn, "keyword", t7.target_entity_id, t7.new_value);
+              result.synced++;
+            }
+          }
+          console.log(`[SyncEngine] \u5173\u952E\u8BCD\u51FA\u4EF7\u6279\u91CF\u540C\u6B65: \u53D1\u9001=${kwTasks.length}, \u6210\u529F=${kwTasks.length - failedIds.size}, \u5931\u8D25=${failedIds.size}`);
+        } catch (err2) {
+          console.error(`[SyncEngine] \u5173\u952E\u8BCD\u51FA\u4EF7\u6279\u91CFAPI\u8C03\u7528\u5931\u8D25: ${err2.message}`);
+          for (const t7 of kwTasks) {
+            await markTaskForRetry(conn, t7.id, t7.retry_count, err2.message);
+          }
+          result.failed += kwTasks.length;
+          result.errors.push(`\u5173\u952E\u8BCD\u51FA\u4EF7API\u5931\u8D25: ${err2.message}`);
+        }
+      }
+      if (ptTasks.length > 0) {
+        try {
+          const apiResult = await syncService.client.updateProductTargetBids(
+            ptTasks.map((t7) => ({
+              targetId: String(t7.amazon_entity_id),
+              bid: Number(parseFloat(t7.new_value).toFixed(2))
+            }))
+          );
+          const failedIds = /* @__PURE__ */ new Map();
+          if (apiResult.errors && apiResult.errors.length > 0) {
+            for (const err2 of apiResult.errors) {
+              failedIds.set(String(err2.targetId), err2.details || err2.code || "API_ERROR");
+            }
+          }
+          for (const t7 of ptTasks) {
+            if (failedIds.has(String(t7.amazon_entity_id))) {
+              await markTaskFailed(conn, t7.id, failedIds.get(String(t7.amazon_entity_id)));
+              result.failed++;
+            } else {
+              await markTaskSynced(conn, t7.id);
+              await updateLocalBid(conn, "product_target", t7.target_entity_id, t7.new_value);
+              result.synced++;
+            }
+          }
+          console.log(`[SyncEngine] \u5546\u54C1\u5B9A\u5411\u51FA\u4EF7\u6279\u91CF\u540C\u6B65: \u53D1\u9001=${ptTasks.length}, \u6210\u529F=${ptTasks.length - failedIds.size}, \u5931\u8D25=${failedIds.size}`);
+        } catch (err2) {
+          for (const t7 of ptTasks) {
+            await markTaskForRetry(conn, t7.id, t7.retry_count, err2.message);
+          }
+          result.failed += ptTasks.length;
+          result.errors.push(`\u5546\u54C1\u5B9A\u5411\u51FA\u4EF7API\u5931\u8D25: ${err2.message}`);
+        }
+      }
+      break;
+    }
+    case "keyword_status": {
+      const validTasks = batch.filter((t7) => t7.amazon_entity_id);
+      const noIdTasks = batch.filter((t7) => !t7.amazon_entity_id);
+      if (noIdTasks.length > 0) {
+        await markTasksFailed(conn, noIdTasks.map((t7) => t7.id), "\u7F3A\u5C11Amazon ID");
+        result.failed += noIdTasks.length;
+      }
+      if (validTasks.length > 0) {
+        try {
+          const apiResult = await syncService.client.updateKeywordStatus(
+            validTasks.map((t7) => ({
+              keywordId: String(t7.amazon_entity_id),
+              state: t7.new_value
+            }))
+          );
+          const failedIds = /* @__PURE__ */ new Set();
+          if (apiResult.errors && apiResult.errors.length > 0) {
+            for (const err2 of apiResult.errors) {
+              failedIds.add(String(err2.keywordId));
+            }
+          }
+          for (const t7 of validTasks) {
+            if (failedIds.has(String(t7.amazon_entity_id))) {
+              await markTaskFailed(conn, t7.id, "API\u8FD4\u56DE\u9519\u8BEF");
+              result.failed++;
+            } else {
+              await markTaskSynced(conn, t7.id);
+              await updateLocalStatus(conn, "keywords", t7.target_entity_id, t7.new_value);
+              result.synced++;
+            }
+          }
+          console.log(`[SyncEngine] \u5173\u952E\u8BCD\u72B6\u6001\u6279\u91CF\u540C\u6B65: \u53D1\u9001=${validTasks.length}, \u6210\u529F=${validTasks.length - failedIds.size}`);
+        } catch (err2) {
+          for (const t7 of validTasks) {
+            await markTaskForRetry(conn, t7.id, t7.retry_count, err2.message);
+          }
+          result.failed += validTasks.length;
+        }
+      }
+      break;
+    }
+    case "campaign_status": {
+      for (const t7 of batch) {
+        try {
+          if (!t7.amazon_entity_id) {
+            await markTaskFailed(conn, t7.id, "\u7F3A\u5C11Amazon Campaign ID");
+            result.failed++;
+            continue;
+          }
+          await syncService.client.updateSpCampaign(
+            String(t7.amazon_entity_id),
+            { state: t7.new_value === "enabled" ? "ENABLED" : "PAUSED" }
+          );
+          await markTaskSynced(conn, t7.id);
+          await updateLocalStatus(conn, "campaigns", t7.target_entity_id, t7.new_value);
+          result.synced++;
+          console.log(`[SyncEngine] \u2705 \u5E7F\u544A\u6D3B\u52A8\u72B6\u6001\u540C\u6B65: ${t7.target_entity_name} \u2192 ${t7.new_value}`);
+        } catch (err2) {
+          await markTaskForRetry(conn, t7.id, t7.retry_count, err2.message);
+          result.failed++;
+          result.errors.push(`Campaign ${t7.target_entity_name}: ${err2.message}`);
+        }
+        await new Promise((resolve8) => setTimeout(resolve8, 200));
+      }
+      break;
+    }
+    case "adgroup_status": {
+      for (const t7 of batch) {
+        try {
+          if (!t7.amazon_entity_id) {
+            await markTaskFailed(conn, t7.id, "\u7F3A\u5C11Amazon AdGroup ID");
+            result.failed++;
+            continue;
+          }
+          await syncService.client.updateSpAdGroup(
+            String(t7.amazon_entity_id),
+            { state: t7.new_value === "enabled" ? "ENABLED" : "PAUSED" }
+          );
+          await markTaskSynced(conn, t7.id);
+          await updateLocalStatus(conn, "ad_groups", t7.target_entity_id, t7.new_value);
+          result.synced++;
+          console.log(`[SyncEngine] \u2705 \u5E7F\u544A\u7EC4\u72B6\u6001\u540C\u6B65: ${t7.target_entity_name} \u2192 ${t7.new_value}`);
+        } catch (err2) {
+          await markTaskForRetry(conn, t7.id, t7.retry_count, err2.message);
+          result.failed++;
+        }
+        await new Promise((resolve8) => setTimeout(resolve8, 200));
+      }
+      break;
+    }
+    case "negative_keyword": {
+      const validTasks = batch.filter((t7) => t7.campaign_id && t7.ad_group_id);
+      if (validTasks.length > 0) {
+        try {
+          const createResult = await syncService.client.createSpNegativeKeywords(
+            validTasks.map((t7) => ({
+              campaignId: Number(t7.amazon_entity_id || t7.campaign_id),
+              adGroupId: Number(t7.ad_group_id),
+              keywordText: t7.target_entity_name,
+              matchType: t7.action.includes("exact") ? "negativeExact" : "negativePhrase"
+            }))
+          );
+          for (let i4 = 0; i4 < validTasks.length; i4++) {
+            const t7 = validTasks[i4];
+            const created = createResult?.[i4];
+            if (created && (created.code === "SUCCESS" || created.keywordId)) {
+              await markTaskSynced(conn, t7.id);
+              result.synced++;
+            } else {
+              await markTaskFailed(conn, t7.id, created?.code || created?.details || "CREATE_FAILED");
+              result.failed++;
+            }
+          }
+        } catch (err2) {
+          for (const t7 of validTasks) {
+            await markTaskForRetry(conn, t7.id, t7.retry_count, err2.message);
+          }
+          result.failed += validTasks.length;
+        }
+      }
+      break;
+    }
+    case "new_keyword": {
+      const validTasks = batch.filter((t7) => t7.ad_group_id);
+      if (validTasks.length > 0) {
+        try {
+          const createResult = await syncService.client.createSpKeywords(
+            validTasks.map((t7) => ({
+              adGroupId: Number(t7.ad_group_id),
+              campaignId: Number(t7.campaign_id),
+              keywordText: t7.target_entity_name,
+              matchType: t7.action.replace("create_", "") || "broad",
+              bid: parseFloat(t7.new_value) || 0.5,
+              state: "enabled"
+            }))
+          );
+          for (let i4 = 0; i4 < validTasks.length; i4++) {
+            const t7 = validTasks[i4];
+            const created = createResult?.createdKeywords?.[i4];
+            if (created && created.code === "SUCCESS" && created.keywordId) {
+              await markTaskSynced(conn, t7.id);
+              if (t7.target_entity_id) {
+                await conn.execute(
+                  "UPDATE keywords SET keywordId = ? WHERE id = ? AND keywordId IS NULL",
+                  [String(created.keywordId), t7.target_entity_id]
+                );
+              }
+              result.synced++;
+            } else {
+              await markTaskFailed(conn, t7.id, created?.code || "CREATE_FAILED");
+              result.failed++;
+            }
+          }
+        } catch (err2) {
+          for (const t7 of validTasks) {
+            await markTaskForRetry(conn, t7.id, t7.retry_count, err2.message);
+          }
+          result.failed += validTasks.length;
+        }
+      }
+      break;
+    }
+    case "placement_adjustment": {
+      for (const t7 of batch) {
+        try {
+          const placementType = t7.action;
+          const multiplier = parseFloat(t7.new_value) || 0;
+          if (t7.amazon_entity_id) {
+            await syncService.client.updateSpCampaign(
+              String(t7.amazon_entity_id),
+              {
+                bidding: {
+                  strategy: "LEGACY_FOR_SALES",
+                  adjustments: [{
+                    predicate: placementType === "top_of_search" ? "placementTop" : "placementProductPage",
+                    percentage: Math.round(multiplier * 100)
+                  }]
+                }
+              }
+            );
+            await markTaskSynced(conn, t7.id);
+            result.synced++;
+          } else {
+            await markTaskFailed(conn, t7.id, "\u7F3A\u5C11Amazon Campaign ID");
+            result.failed++;
+          }
+        } catch (err2) {
+          await markTaskForRetry(conn, t7.id, t7.retry_count, err2.message);
+          result.failed++;
+        }
+        await new Promise((resolve8) => setTimeout(resolve8, 200));
+      }
+      break;
+    }
+    case "budget_adjustment": {
+      for (const t7 of batch) {
+        try {
+          if (t7.amazon_entity_id) {
+            await syncService.client.updateSpCampaign(
+              String(t7.amazon_entity_id),
+              {
+                budget: {
+                  budgetType: "DAILY",
+                  budget: parseFloat(t7.new_value) || 0
+                }
+              }
+            );
+            await markTaskSynced(conn, t7.id);
+            result.synced++;
+          } else {
+            await markTaskFailed(conn, t7.id, "\u7F3A\u5C11Amazon Campaign ID");
+            result.failed++;
+          }
+        } catch (err2) {
+          await markTaskForRetry(conn, t7.id, t7.retry_count, err2.message);
+          result.failed++;
+        }
+        await new Promise((resolve8) => setTimeout(resolve8, 200));
+      }
+      break;
+    }
+    default: {
+      console.warn(`[SyncEngine] \u672A\u77E5\u4EFB\u52A1\u7C7B\u578B: ${taskType}, \u8DF3\u8FC7 ${batch.length} \u6761`);
+      result.skipped = batch.length;
+    }
+  }
+  return result;
+}
+async function markTaskSynced(conn, taskId) {
+  const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
+  await conn.execute(
+    `UPDATE optimization_tasks SET status = 'synced', completed_at = ? WHERE id = ?`,
+    [now, taskId]
+  );
+}
+async function markTaskFailed(conn, taskId, errorMessage) {
+  const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
+  await conn.execute(
+    `UPDATE optimization_tasks SET status = 'failed', error_message = ?, completed_at = ? WHERE id = ?`,
+    [errorMessage.substring(0, 1e3), now, taskId]
+  );
+}
+async function markTasksFailed(conn, taskIds, errorMessage) {
+  if (taskIds.length === 0) return;
+  const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
+  await conn.execute(
+    `UPDATE optimization_tasks SET status = 'failed', error_message = ?, completed_at = ? WHERE id IN (${taskIds.join(",")})`,
+    [errorMessage.substring(0, 1e3), now]
+  );
+}
+async function markTaskForRetry(conn, taskId, currentRetryCount, errorMessage) {
+  const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
+  const newRetryCount = (currentRetryCount || 0) + 1;
+  if (newRetryCount >= 3) {
+    await conn.execute(
+      `UPDATE optimization_tasks SET status = 'permanently_failed', error_message = ?, retry_count = ?, completed_at = ? WHERE id = ?`,
+      [`\u8D85\u8FC7\u6700\u5927\u91CD\u8BD5\u6B21\u6570(3): ${errorMessage}`.substring(0, 1e3), newRetryCount, now, taskId]
+    );
+  } else {
+    const retryDelayMinutes = [1, 5, 15][newRetryCount - 1] || 15;
+    const nextRetry = new Date(Date.now() + retryDelayMinutes * 60 * 1e3);
+    const nextRetryStr = nextRetry.toISOString().slice(0, 19).replace("T", " ");
+    await conn.execute(
+      `UPDATE optimization_tasks SET status = 'retry', error_message = ?, retry_count = ?, next_retry_at = ? WHERE id = ?`,
+      [errorMessage.substring(0, 1e3), newRetryCount, nextRetryStr, taskId]
+    );
+  }
+}
+async function updateLocalBid(conn, entityType, entityId, newBid) {
+  const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
+  if (entityType === "keyword") {
+    await conn.execute("UPDATE keywords SET bid = ?, updatedAt = ? WHERE id = ?", [newBid, now, entityId]);
+  } else if (entityType === "product_target") {
+    await conn.execute("UPDATE product_targets SET bid = ?, updatedAt = ? WHERE id = ?", [newBid, now, entityId]);
+  }
+}
+async function updateLocalStatus(conn, tableName, entityId, newStatus) {
+  const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
+  const statusValue = newStatus === "enabled" ? "enabled" : "paused";
+  await conn.execute(`UPDATE ${tableName} SET status = ?, updatedAt = ? WHERE id = ?`, [statusValue, now, entityId]);
+}
+async function updateLogsSyncStatus(conn, batchId) {
+  try {
+    const [stats] = await conn.execute(
+      `SELECT status, COUNT(*) as cnt FROM optimization_tasks WHERE batch_id = ? GROUP BY status`,
+      [batchId]
+    );
+    let totalSynced = 0, totalFailed = 0, totalPending = 0, totalRetry = 0;
+    for (const s4 of stats) {
+      if (s4.status === "synced") totalSynced = s4.cnt;
+      else if (s4.status === "failed" || s4.status === "permanently_failed") totalFailed += s4.cnt;
+      else if (s4.status === "pending" || s4.status === "processing") totalPending += s4.cnt;
+      else if (s4.status === "retry") totalRetry += s4.cnt;
+    }
+    let logSyncStatus;
+    if (totalPending + totalRetry > 0) {
+      logSyncStatus = "syncing";
+    } else if (totalFailed === 0 && totalSynced > 0) {
+      logSyncStatus = "synced";
+    } else if (totalSynced === 0 && totalFailed > 0) {
+      logSyncStatus = "failed";
+    } else {
+      logSyncStatus = "partial";
+    }
+    const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
+    await conn.execute(
+      `UPDATE optimization_logs 
+       SET api_sync_status = ?, 
+           action_detail = JSON_SET(COALESCE(action_detail, '{}'), 
+             '$.syncBatchId', ?,
+             '$.syncSummary', JSON_OBJECT('synced', ?, 'failed', ?, 'pending', ?, 'retry', ?))
+       WHERE action_detail LIKE CONCAT('%', ?, '%') 
+         AND created_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)`,
+      [logSyncStatus, batchId, totalSynced, totalFailed, totalPending, totalRetry, batchId]
+    );
+    console.log(`[SyncEngine] \u66F4\u65B0\u65E5\u5FD7\u540C\u6B65\u72B6\u6001: batchId=${batchId}, status=${logSyncStatus}, synced=${totalSynced}, failed=${totalFailed}`);
+  } catch (err2) {
+    console.error(`[SyncEngine] \u66F4\u65B0\u65E5\u5FD7\u540C\u6B65\u72B6\u6001\u5931\u8D25: ${err2.message}`);
+  }
+}
+async function processRetryTasks() {
+  console.log(`[SyncEngine] \u68C0\u67E5\u91CD\u8BD5\u4EFB\u52A1...`);
+  const result = await executeBatchSync({
+    maxTasks: 500
+    // 每次最多处理500条重试任务
+  });
+  return {
+    processed: result.totalTasks,
+    synced: result.synced,
+    failed: result.failed
+  };
+}
+async function getBatchStatus(batchId) {
+  const mysql2 = await import("mysql2/promise");
+  const conn = await mysql2.createConnection({
+    host: process.env.DATABASE_HOST || "amazon-ads-optimizer-db.ci7y0uwu0aid.us-east-1.rds.amazonaws.com",
+    user: process.env.DATABASE_USER || "admin",
+    password: process.env.DATABASE_PASSWORD || "Mucers2025",
+    database: process.env.DATABASE_NAME || "amazon_ads_optimizer"
+  });
+  try {
+    const [rows] = await conn.execute(
+      `SELECT status, COUNT(*) as cnt FROM optimization_tasks WHERE batch_id = ? GROUP BY status`,
+      [batchId]
+    );
+    const result = { total: 0, synced: 0, failed: 0, pending: 0, retry: 0, permanentlyFailed: 0 };
+    for (const r5 of rows) {
+      result.total += r5.cnt;
+      if (r5.status === "synced") result.synced = r5.cnt;
+      else if (r5.status === "failed") result.failed = r5.cnt;
+      else if (r5.status === "pending" || r5.status === "processing") result.pending += r5.cnt;
+      else if (r5.status === "retry") result.retry = r5.cnt;
+      else if (r5.status === "permanently_failed") result.permanentlyFailed = r5.cnt;
+    }
+    return result;
+  } finally {
+    await conn.end();
+  }
+}
+var import_crypto2, BATCH_CONFIG;
+var init_optimizationSyncEngine = __esm({
+  "server/optimizationSyncEngine.ts"() {
+    "use strict";
+    init_amazonApiHelper();
+    import_crypto2 = require("crypto");
+    BATCH_CONFIG = {
+      "bid_adjustment": { maxBatchSize: 1e3, delayMs: 200 },
+      "keyword_status": { maxBatchSize: 1e3, delayMs: 200 },
+      "campaign_status": { maxBatchSize: 100, delayMs: 200 },
+      "adgroup_status": { maxBatchSize: 100, delayMs: 200 },
+      "negative_keyword": { maxBatchSize: 100, delayMs: 500 },
+      "new_keyword": { maxBatchSize: 100, delayMs: 500 },
+      "placement_adjustment": { maxBatchSize: 10, delayMs: 200 },
+      "budget_adjustment": { maxBatchSize: 10, delayMs: 200 },
+      "dayparting_adjustment": { maxBatchSize: 1e3, delayMs: 200 }
+    };
+  }
+});
+
 // server/optimizationTargetEngine.ts
 var optimizationTargetEngine_exports = {};
 __export(optimizationTargetEngine_exports, {
@@ -89985,6 +90645,111 @@ async function executeOptimizationTarget(targetId, options = {}) {
   }
   if (!dryRun) {
     await recordExecutionLog(result);
+    try {
+      const { enqueueTasks: enqueueTasks2 } = await Promise.resolve().then(() => (init_optimizationSyncEngine(), optimizationSyncEngine_exports));
+      const { randomUUID: randomUUID2 } = await import("crypto");
+      const failedTasks = [];
+      const batchId = randomUUID2();
+      if (result.bidOptimization?.details) {
+        for (const detail of result.bidOptimization.details) {
+          if (detail.apiSyncStatus === "failed" || detail.apiSyncStatus === "partial") {
+            failedTasks.push({
+              batchId,
+              optimizationTargetId: config2.id,
+              accountId: config2.accountId,
+              taskType: "bid_adjustment",
+              priority: 1,
+              targetEntityType: detail.isProductTarget ? "product_target" : "keyword",
+              targetEntityId: detail.keywordId,
+              amazonEntityId: null,
+              // 将在同步引擎中查询
+              targetEntityName: detail.keywordText,
+              action: detail.newBid > detail.currentBid ? "bid_increase" : "bid_decrease",
+              oldValue: String(detail.currentBid),
+              newValue: String(detail.newBid),
+              changeReason: detail.reason,
+              algorithmUsed: detail.algorithmUsed,
+              confidenceScore: detail.confidenceScore,
+              campaignId: detail.campaignId,
+              campaignName: detail.campaignName
+            });
+          }
+        }
+      }
+      if (result.keywordStatusChanges?.details) {
+        for (const detail of result.keywordStatusChanges.details) {
+          if (detail.apiSyncStatus === "failed") {
+            failedTasks.push({
+              batchId,
+              optimizationTargetId: config2.id,
+              accountId: config2.accountId,
+              taskType: "keyword_status",
+              priority: 1,
+              targetEntityType: "keyword",
+              targetEntityId: detail.keywordId || detail.targetId,
+              amazonEntityId: null,
+              targetEntityName: detail.keywordText,
+              action: detail.newStatus || detail.action,
+              oldValue: detail.oldStatus || detail.previousValue,
+              newValue: detail.newStatus || detail.newValue,
+              changeReason: detail.reason,
+              campaignId: detail.campaignId,
+              campaignName: detail.campaignName
+            });
+          }
+        }
+      }
+      if (result.campaignStatusChanges?.details) {
+        for (const detail of result.campaignStatusChanges.details) {
+          if (detail.apiSyncStatus === "failed") {
+            failedTasks.push({
+              batchId,
+              optimizationTargetId: config2.id,
+              accountId: config2.accountId,
+              taskType: "campaign_status",
+              priority: 0,
+              targetEntityType: "campaign",
+              targetEntityId: detail.campaignId,
+              amazonEntityId: detail.amazonCampaignId,
+              targetEntityName: detail.campaignName,
+              action: detail.newStatus,
+              oldValue: detail.oldStatus,
+              newValue: detail.newStatus,
+              changeReason: detail.reason
+            });
+          }
+        }
+      }
+      if (result.adGroupStatusChanges?.details) {
+        for (const detail of result.adGroupStatusChanges.details) {
+          if (detail.apiSyncStatus === "failed") {
+            failedTasks.push({
+              batchId,
+              optimizationTargetId: config2.id,
+              accountId: config2.accountId,
+              taskType: "adgroup_status",
+              priority: 0,
+              targetEntityType: "adgroup",
+              targetEntityId: detail.adGroupId,
+              amazonEntityId: detail.amazonAdGroupId,
+              targetEntityName: detail.adGroupName,
+              action: detail.newStatus,
+              oldValue: detail.oldStatus,
+              newValue: detail.newStatus,
+              changeReason: detail.reason
+            });
+          }
+        }
+      }
+      if (failedTasks.length > 0) {
+        await enqueueTasks2(failedTasks);
+        console.log(`[OptimizationTarget] v137: ${failedTasks.length}\u4E2A\u5931\u8D25\u4EFB\u52A1\u5DF2\u5165\u961F\u91CD\u8BD5\u961F\u5217, batchId=${batchId}`);
+        result.retryBatchId = batchId;
+        result.retryTaskCount = failedTasks.length;
+      }
+    } catch (enqueueErr) {
+      console.error(`[OptimizationTarget] v137: \u5165\u961F\u5931\u8D25\u4EFB\u52A1\u5F02\u5E38: ${enqueueErr.message}`);
+    }
   }
   return result;
 }
@@ -96826,7 +97591,7 @@ function randomBytes2(len) {
   } catch {
   }
   try {
-    return import_crypto2.default.randomBytes(len);
+    return import_crypto3.default.randomBytes(len);
   } catch {
   }
   if (!randomFallback) {
@@ -97293,10 +98058,10 @@ function _hash(password, salt, callback2, progressCallback) {
     );
   }
 }
-var import_crypto2, randomFallback, nextTick, BASE64_CODE, BASE64_INDEX, BCRYPT_SALT_LEN, GENSALT_DEFAULT_LOG2_ROUNDS, BLOWFISH_NUM_ROUNDS, MAX_EXECUTION_TIME, P_ORIG, S_ORIG, C_ORIG;
+var import_crypto3, randomFallback, nextTick, BASE64_CODE, BASE64_INDEX, BCRYPT_SALT_LEN, GENSALT_DEFAULT_LOG2_ROUNDS, BLOWFISH_NUM_ROUNDS, MAX_EXECUTION_TIME, P_ORIG, S_ORIG, C_ORIG;
 var init_bcryptjs = __esm({
   "node_modules/bcryptjs/index.js"() {
-    import_crypto2 = __toESM(require("crypto"), 1);
+    import_crypto3 = __toESM(require("crypto"), 1);
     randomFallback = null;
     nextTick = typeof setImmediate === "function" ? setImmediate : typeof scheduler === "object" && typeof scheduler.postTask === "function" ? scheduler.postTask.bind(scheduler) : setTimeout;
     BASE64_CODE = "./ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789".split("");
@@ -299005,6 +299770,28 @@ var performanceGroupRouter = router({
   })).query(async ({ input }) => {
     return getOptimizationLogs(input);
   }),
+  // v137: 获取同步任务队列状态
+  getSyncQueueStatus: protectedProcedure.input(external_exports.object({
+    batchId: external_exports.string().optional(),
+    optimizationTargetId: external_exports.number().optional()
+  })).query(async ({ input }) => {
+    const syncEngine = await Promise.resolve().then(() => (init_optimizationSyncEngine(), optimizationSyncEngine_exports));
+    if (input.batchId) {
+      return syncEngine.getBatchStatus(input.batchId);
+    }
+    return { total: 0, synced: 0, failed: 0, pending: 0, retry: 0, permanentlyFailed: 0 };
+  }),
+  // v137: 手动触发重试同步
+  retrySyncTasks: protectedProcedure.input(external_exports.object({
+    batchId: external_exports.string().optional(),
+    accountId: external_exports.number().optional()
+  })).mutation(async ({ input }) => {
+    const syncEngine = await Promise.resolve().then(() => (init_optimizationSyncEngine(), optimizationSyncEngine_exports));
+    return syncEngine.executeBatchSync({
+      batchId: input.batchId,
+      accountId: input.accountId
+    });
+  }),
   // 获取日志统计信息
   getLogStats: publicProcedure.input(external_exports.object({
     performanceGroupId: external_exports.number(),
@@ -307886,6 +308673,18 @@ function startDataSyncScheduler(defaultIntervalMs = 30 * 60 * 1e3) {
   }, defaultIntervalMs);
   schedulerStatus2.nextRunTime = new Date(Date.now() + defaultIntervalMs);
   console.log(`[DataSyncScheduler] \u5B8C\u6574\u540C\u6B65\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: ${defaultIntervalMs / 1e3 / 60} \u5206\u949F`);
+  setInterval(async () => {
+    try {
+      const { processRetryTasks: processRetryTasks2 } = await Promise.resolve().then(() => (init_optimizationSyncEngine(), optimizationSyncEngine_exports));
+      const retryResult = await processRetryTasks2();
+      if (retryResult.processed > 0) {
+        console.log(`[DataSyncScheduler] \u91CD\u8BD5\u540C\u6B65\u5B8C\u6210: \u5904\u7406=${retryResult.processed}, \u6210\u529F=${retryResult.synced}, \u5931\u8D25=${retryResult.failed}`);
+      }
+    } catch (err2) {
+      console.error(`[DataSyncScheduler] \u91CD\u8BD5\u540C\u6B65\u5F02\u5E38: ${err2.message}`);
+    }
+  }, 5 * 60 * 1e3);
+  console.log(`[DataSyncScheduler] v137: \u4F18\u5316\u4EFB\u52A1\u91CD\u8BD5\u540C\u6B65\u5F15\u64CE\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 5\u5206\u949F`);
   console.log(`[DataSyncScheduler] \u5B9A\u65F6\u540C\u6B65\u8C03\u5EA6\u5668\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u95F4\u9694: ${defaultIntervalMs / 1e3 / 60} \u5206\u949F`);
 }
 async function executeLayeredSync(tier) {

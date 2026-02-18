@@ -151,6 +151,21 @@ export function startDataSyncScheduler(defaultIntervalMs: number = 30 * 60 * 100
   
   schedulerStatus.nextRunTime = new Date(Date.now() + defaultIntervalMs);
   console.log(`[DataSyncScheduler] 完整同步已启动，间隔: ${defaultIntervalMs / 1000 / 60} 分钟`);
+  
+  // v137: 启动优化任务重试同步引擎（每5分钟检查并重试失败的同步任务）
+  setInterval(async () => {
+    try {
+      const { processRetryTasks } = await import('./optimizationSyncEngine');
+      const retryResult = await processRetryTasks();
+      if (retryResult.processed > 0) {
+        console.log(`[DataSyncScheduler] 重试同步完成: 处理=${retryResult.processed}, 成功=${retryResult.synced}, 失败=${retryResult.failed}`);
+      }
+    } catch (err: any) {
+      console.error(`[DataSyncScheduler] 重试同步异常: ${err.message}`);
+    }
+  }, 5 * 60 * 1000);
+  console.log(`[DataSyncScheduler] v137: 优化任务重试同步引擎已启动，间隔: 5分钟`);
+  
   console.log(`[DataSyncScheduler] 定时同步调度器已启动，执行间隔: ${defaultIntervalMs / 1000 / 60} 分钟`);
 }
 

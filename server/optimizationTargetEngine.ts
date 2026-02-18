@@ -349,6 +349,121 @@ export async function executeOptimizationTarget(
   // 记录执行日志
   if (!dryRun) {
     await recordExecutionLog(result);
+    
+    // v137: 将失败的同步任务入队到重试队列
+    try {
+      const { enqueueTasks } = await import('./optimizationSyncEngine');
+      const { randomUUID } = await import('crypto');
+      const failedTasks: any[] = [];
+      const batchId = randomUUID();
+      
+      // 收集出价调整中失败的任务
+      if (result.bidOptimization?.details) {
+        for (const detail of result.bidOptimization.details) {
+          if (detail.apiSyncStatus === 'failed' || detail.apiSyncStatus === 'partial') {
+            failedTasks.push({
+              batchId,
+              optimizationTargetId: config.id,
+              accountId: config.accountId,
+              taskType: 'bid_adjustment',
+              priority: 1,
+              targetEntityType: detail.isProductTarget ? 'product_target' : 'keyword',
+              targetEntityId: detail.keywordId,
+              amazonEntityId: null, // 将在同步引擎中查询
+              targetEntityName: detail.keywordText,
+              action: detail.newBid > detail.currentBid ? 'bid_increase' : 'bid_decrease',
+              oldValue: String(detail.currentBid),
+              newValue: String(detail.newBid),
+              changeReason: detail.reason,
+              algorithmUsed: detail.algorithmUsed,
+              confidenceScore: detail.confidenceScore,
+              campaignId: detail.campaignId,
+              campaignName: detail.campaignName,
+            });
+          }
+        }
+      }
+      
+      // 收集关键词状态变更中失败的任务
+      if (result.keywordStatusChanges?.details) {
+        for (const detail of result.keywordStatusChanges.details) {
+          if (detail.apiSyncStatus === 'failed') {
+            failedTasks.push({
+              batchId,
+              optimizationTargetId: config.id,
+              accountId: config.accountId,
+              taskType: 'keyword_status',
+              priority: 1,
+              targetEntityType: 'keyword',
+              targetEntityId: detail.keywordId || detail.targetId,
+              amazonEntityId: null,
+              targetEntityName: detail.keywordText,
+              action: detail.newStatus || detail.action,
+              oldValue: detail.oldStatus || detail.previousValue,
+              newValue: detail.newStatus || detail.newValue,
+              changeReason: detail.reason,
+              campaignId: detail.campaignId,
+              campaignName: detail.campaignName,
+            });
+          }
+        }
+      }
+      
+      // 收集广告活动状态变更中失败的任务
+      if (result.campaignStatusChanges?.details) {
+        for (const detail of result.campaignStatusChanges.details) {
+          if (detail.apiSyncStatus === 'failed') {
+            failedTasks.push({
+              batchId,
+              optimizationTargetId: config.id,
+              accountId: config.accountId,
+              taskType: 'campaign_status',
+              priority: 0,
+              targetEntityType: 'campaign',
+              targetEntityId: detail.campaignId,
+              amazonEntityId: detail.amazonCampaignId,
+              targetEntityName: detail.campaignName,
+              action: detail.newStatus,
+              oldValue: detail.oldStatus,
+              newValue: detail.newStatus,
+              changeReason: detail.reason,
+            });
+          }
+        }
+      }
+      
+      // 收集广告组状态变更中失败的任务
+      if (result.adGroupStatusChanges?.details) {
+        for (const detail of result.adGroupStatusChanges.details) {
+          if (detail.apiSyncStatus === 'failed') {
+            failedTasks.push({
+              batchId,
+              optimizationTargetId: config.id,
+              accountId: config.accountId,
+              taskType: 'adgroup_status',
+              priority: 0,
+              targetEntityType: 'adgroup',
+              targetEntityId: detail.adGroupId,
+              amazonEntityId: detail.amazonAdGroupId,
+              targetEntityName: detail.adGroupName,
+              action: detail.newStatus,
+              oldValue: detail.oldStatus,
+              newValue: detail.newStatus,
+              changeReason: detail.reason,
+            });
+          }
+        }
+      }
+      
+      if (failedTasks.length > 0) {
+        await enqueueTasks(failedTasks);
+        console.log(`[OptimizationTarget] v137: ${failedTasks.length}个失败任务已入队重试队列, batchId=${batchId}`);
+        result.retryBatchId = batchId;
+        result.retryTaskCount = failedTasks.length;
+      }
+    } catch (enqueueErr: any) {
+      console.error(`[OptimizationTarget] v137: 入队失败任务异常: ${enqueueErr.message}`);
+    }
   }
   
   return result;

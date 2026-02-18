@@ -941,6 +941,34 @@ const performanceGroupRouter = router({
       return db.getOptimizationLogs(input);
     }),
 
+  // v137: 获取同步任务队列状态
+  getSyncQueueStatus: protectedProcedure
+    .input(z.object({
+      batchId: z.string().optional(),
+      optimizationTargetId: z.number().optional(),
+    }))
+    .query(async ({ input }) => {
+      const syncEngine = await import('./optimizationSyncEngine');
+      if (input.batchId) {
+        return syncEngine.getBatchStatus(input.batchId);
+      }
+      return { total: 0, synced: 0, failed: 0, pending: 0, retry: 0, permanentlyFailed: 0 };
+    }),
+  
+  // v137: 手动触发重试同步
+  retrySyncTasks: protectedProcedure
+    .input(z.object({
+      batchId: z.string().optional(),
+      accountId: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const syncEngine = await import('./optimizationSyncEngine');
+      return syncEngine.executeBatchSync({
+        batchId: input.batchId,
+        accountId: input.accountId,
+      });
+    }),
+  
   // 获取日志统计信息
   getLogStats: publicProcedure
     .input(z.object({

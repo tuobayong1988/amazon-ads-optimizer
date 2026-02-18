@@ -92,6 +92,8 @@ const API_SYNC_STATUS_CONFIG: Record<string, { label: string; icon: typeof Check
   failed: { label: 'Amazon同步失败', icon: XCircle, color: 'text-red-400', bgColor: 'bg-red-500/10' },
   pending: { label: '待同步', icon: Clock, color: 'text-yellow-400', bgColor: 'bg-yellow-500/10' },
   partial: { label: '部分同步', icon: AlertCircle, color: 'text-orange-400', bgColor: 'bg-orange-500/10' },
+  syncing: { label: '同步中(重试)', icon: Loader2, color: 'text-blue-400', bgColor: 'bg-blue-500/10' },
+  retry: { label: '等待重试', icon: RefreshCw, color: 'text-amber-400', bgColor: 'bg-amber-500/10' },
   not_applicable: { label: '无需同步', icon: Cloud, color: 'text-gray-400', bgColor: 'bg-gray-500/10' },
 };
 
@@ -226,15 +228,18 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
   // 渲染执行链路
   const renderExecutionPipeline = (log: any) => {
     const syncStatus = log.apiSyncStatus || 'pending';
-    const isApiAction = log.logCategory === 'bid_adjustment' || log.logCategory === 'placement_adjustment' || log.logCategory === 'optimization_settings';
+    const isApiAction = ['bid_adjustment', 'placement_adjustment', 'optimization_settings'].includes(log.logCategory) ||
+      ['bid_increase', 'bid_decrease', 'bid_set', 'bid_auto_adjust', 'placement_adjust', 'target_pause', 'target_enable',
+       'campaign_pause', 'campaign_enable', 'adgroup_pause', 'adgroup_enable', 'negative_keyword_add',
+       'keyword_create', 'search_term_harvest', 'dayparting_bid', 'budget_adjustment'].includes(log.actionType);
     
     if (!isApiAction) return null;
     
     const steps = [
       { label: '优化决策', status: 'done', icon: Target },
       { label: '本地更新', status: log.status === 'success' || log.status === 'failed' ? 'done' : 'pending', icon: Settings },
-      { label: 'Amazon API', status: syncStatus === 'synced' ? 'done' : syncStatus === 'failed' ? 'failed' : 'pending', icon: Cloud },
-      { label: 'Amazon执行', status: syncStatus === 'synced' ? 'done' : syncStatus === 'failed' ? 'failed' : 'pending', icon: ExternalLink },
+      { label: 'Amazon API', status: syncStatus === 'synced' ? 'done' : syncStatus === 'partial' ? 'done' : syncStatus === 'failed' ? 'failed' : syncStatus === 'syncing' || syncStatus === 'retry' ? 'pending' : 'pending', icon: Cloud },
+      { label: 'Amazon执行', status: syncStatus === 'synced' ? 'done' : syncStatus === 'partial' ? 'done' : syncStatus === 'failed' ? 'failed' : 'pending', icon: ExternalLink },
     ];
     
     return (
