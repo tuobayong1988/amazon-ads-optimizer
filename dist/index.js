@@ -89822,95 +89822,113 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
     try {
       const accountId = config2.accountId;
       try {
-        const dbInstance = await getDb();
-        if (dbInstance) {
-          const { keywords: kwTable, adGroups: agTable, campaigns: campTable } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-          const { eq: eq7, isNull: isNull5, and: and7, inArray: inArray7, sql: sqlTag } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-          const missingKws = await dbInstance.select({
-            id: kwTable.id,
-            adGroupId: kwTable.adGroupId,
-            keywordText: kwTable.keywordText,
-            matchType: kwTable.matchType,
-            bid: kwTable.bid
-          }).from(kwTable).innerJoin(agTable, eq7(kwTable.adGroupId, agTable.id)).innerJoin(campTable, eq7(agTable.campaignId, campTable.id)).where(and7(
-            eq7(campTable.accountId, accountId),
-            isNull5(kwTable.keywordId)
-          ));
-          if (missingKws.length > 0) {
-            console.log(`[BidOptimization] \u8865\u507F\u540C\u6B65: \u53D1\u73B0\u8D26\u53F7${accountId}\u4E0B${missingKws.length}\u4E2A\u5173\u952E\u8BCD\u7F3A\u5C11Amazon keywordId`);
-            const groupedByAdGroup = /* @__PURE__ */ new Map();
-            for (const kw of missingKws) {
-              const group = groupedByAdGroup.get(kw.adGroupId) || [];
-              group.push(kw);
-              groupedByAdGroup.set(kw.adGroupId, group);
-            }
-            console.log(`[BidOptimization] \u8865\u507F\u540C\u6B65: \u5206\u5E03\u5728${groupedByAdGroup.size}\u4E2AadGroup\u4E2D`);
-            let totalCompensated = 0;
-            let totalCompensateFailed = 0;
-            const syncService = await getAmazonSyncService(accountId);
-            if (!syncService) {
-              console.error(`[BidOptimization] \u8865\u507F\u540C\u6B65: \u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7${accountId}\u7684API\u670D\u52A1`);
-            } else {
-              for (const [adGroupLocalId, kwsInGroup] of groupedByAdGroup) {
-                try {
-                  const [ag] = await dbInstance.select().from(agTable).where(eq7(agTable.id, adGroupLocalId)).limit(1);
-                  if (!ag || !ag.adGroupId) {
-                    console.warn(`[BidOptimization] \u8865\u507F\u540C\u6B65: adGroup id=${adGroupLocalId} \u7F3A\u5C11Amazon adGroupId, \u8DF3\u8FC7${kwsInGroup.length}\u4E2A\u5173\u952E\u8BCD`);
-                    totalCompensateFailed += kwsInGroup.length;
-                    continue;
-                  }
-                  const amazonAdGroupId = Number(ag.adGroupId);
-                  console.log(`[BidOptimization] \u8865\u507F\u540C\u6B65: adGroup=${adGroupLocalId}(Amazon:${amazonAdGroupId}), \u67E5\u8BE2Amazon\u5DF2\u6709\u5173\u952E\u8BCD...`);
-                  const amazonKeywords = await syncService.client.listSpKeywords(amazonAdGroupId);
-                  console.log(`[BidOptimization] \u8865\u507F\u540C\u6B65: Amazon\u8FD4\u56DE${amazonKeywords.length}\u4E2A\u5173\u952E\u8BCD`);
-                  const amazonKwMap = /* @__PURE__ */ new Map();
-                  for (const ak of amazonKeywords) {
-                    const key = `${(ak.keywordText || "").toLowerCase().trim()}_${(ak.matchType || "").toLowerCase()}`;
-                    amazonKwMap.set(key, String(ak.keywordId));
-                  }
-                  let matched = 0;
-                  let unmatched = 0;
-                  for (const kw of kwsInGroup) {
-                    const key = `${(kw.keywordText || "").toLowerCase().trim()}_${(kw.matchType || "").toLowerCase()}`;
-                    const amazonKeywordId = amazonKwMap.get(key);
-                    if (amazonKeywordId) {
-                      try {
-                        await dbInstance.execute(sqlTag`UPDATE keywords SET keywordId = ${amazonKeywordId} WHERE id = ${kw.id}`);
-                        matched++;
-                        totalCompensated++;
-                      } catch (updateErr) {
-                        console.error(
-                          `[BidOptimization] \u8865\u507F\u540C\u6B65: \u66F4\u65B0keyword id=${kw.id}\u5931\u8D25: ${updateErr.message}`,
-                          JSON.stringify({ code: updateErr.code, errno: updateErr.errno, sqlState: updateErr.sqlState, sqlMessage: updateErr.sqlMessage, sql: updateErr.sql }).slice(0, 500)
-                        );
+        const mysql2 = await import("mysql2/promise");
+        const dbUrl = process.env.DATABASE_URL;
+        if (dbUrl) {
+          const directConn = await mysql2.createConnection(dbUrl);
+          try {
+            const [missingKws] = await directConn.execute(
+              `SELECT k.id, k.adGroupId, k.keywordText, k.matchType, k.bid
+               FROM keywords k
+               INNER JOIN adGroups ag ON k.adGroupId = ag.id
+               INNER JOIN campaigns c ON ag.campaignId = c.id
+               WHERE c.accountId = ? AND k.keywordId IS NULL`,
+              [accountId]
+            );
+            if (missingKws.length > 0) {
+              console.log(`[BidOptimization] \u8865\u507F\u540C\u6B65: \u53D1\u73B0\u8D26\u53F7${accountId}\u4E0B${missingKws.length}\u4E2A\u5173\u952E\u8BCD\u7F3A\u5C11Amazon keywordId`);
+              const groupedByAdGroup = /* @__PURE__ */ new Map();
+              for (const kw of missingKws) {
+                const group = groupedByAdGroup.get(kw.adGroupId) || [];
+                group.push(kw);
+                groupedByAdGroup.set(kw.adGroupId, group);
+              }
+              console.log(`[BidOptimization] \u8865\u507F\u540C\u6B65: \u5206\u5E03\u5728${groupedByAdGroup.size}\u4E2AadGroup\u4E2D`);
+              let totalCompensated = 0;
+              let totalCompensateFailed = 0;
+              const syncService = await getAmazonSyncService(accountId);
+              if (!syncService) {
+                console.error(`[BidOptimization] \u8865\u507F\u540C\u6B65: \u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7${accountId}\u7684API\u670D\u52A1`);
+              } else {
+                for (const [adGroupLocalId, kwsInGroup] of groupedByAdGroup) {
+                  try {
+                    const [agRows] = await directConn.execute(
+                      "SELECT id, adGroupId FROM adGroups WHERE id = ? LIMIT 1",
+                      [adGroupLocalId]
+                    );
+                    if (!agRows[0] || !agRows[0].adGroupId) {
+                      console.warn(`[BidOptimization] \u8865\u507F\u540C\u6B65: adGroup id=${adGroupLocalId} \u7F3A\u5C11Amazon adGroupId, \u8DF3\u8FC7${kwsInGroup.length}\u4E2A\u5173\u952E\u8BCD`);
+                      totalCompensateFailed += kwsInGroup.length;
+                      continue;
+                    }
+                    const amazonAdGroupId = Number(agRows[0].adGroupId);
+                    console.log(`[BidOptimization] \u8865\u507F\u540C\u6B65: adGroup=${adGroupLocalId}(Amazon:${amazonAdGroupId}), \u67E5\u8BE2Amazon\u5DF2\u6709\u5173\u952E\u8BCD...`);
+                    const amazonKeywords = await syncService.client.listSpKeywords(amazonAdGroupId);
+                    console.log(`[BidOptimization] \u8865\u507F\u540C\u6B65: Amazon\u8FD4\u56DE${amazonKeywords.length}\u4E2A\u5173\u952E\u8BCD`);
+                    const amazonKwMap = /* @__PURE__ */ new Map();
+                    for (const ak of amazonKeywords) {
+                      const key = `${(ak.keywordText || "").toLowerCase().trim()}_${(ak.matchType || "").toLowerCase()}`;
+                      amazonKwMap.set(key, String(ak.keywordId));
+                    }
+                    let matched = 0;
+                    let unmatched = 0;
+                    for (const kw of kwsInGroup) {
+                      const key = `${(kw.keywordText || "").toLowerCase().trim()}_${(kw.matchType || "").toLowerCase()}`;
+                      const amazonKeywordId = amazonKwMap.get(key);
+                      if (amazonKeywordId) {
+                        try {
+                          await directConn.execute(
+                            "UPDATE keywords SET keywordId = ? WHERE id = ? AND keywordId IS NULL",
+                            [amazonKeywordId, kw.id]
+                          );
+                          matched++;
+                          totalCompensated++;
+                        } catch (updateErr) {
+                          if (updateErr.code === "ER_DUP_ENTRY" || updateErr.errno === 1062) {
+                            try {
+                              await directConn.execute("DELETE FROM keywords WHERE id = ? AND keywordId IS NULL", [kw.id]);
+                              console.log(`[BidOptimization] \u8865\u507F\u540C\u6B65: \u5220\u9664\u91CD\u590Dkeyword id=${kw.id} (keywordId=${amazonKeywordId}\u5DF2\u5B58\u5728)`);
+                              matched++;
+                              totalCompensated++;
+                            } catch (delErr) {
+                              console.error(`[BidOptimization] \u8865\u507F\u540C\u6B65: \u5220\u9664\u91CD\u590Dkeyword id=${kw.id}\u5931\u8D25: ${delErr.message}`);
+                              unmatched++;
+                              totalCompensateFailed++;
+                            }
+                          } else {
+                            console.error(`[BidOptimization] \u8865\u507F\u540C\u6B65: \u66F4\u65B0keyword id=${kw.id}\u5931\u8D25: ${updateErr.message} (code=${updateErr.code}, errno=${updateErr.errno})`);
+                            unmatched++;
+                            totalCompensateFailed++;
+                          }
+                        }
+                      } else {
                         unmatched++;
                         totalCompensateFailed++;
                       }
-                    } else {
-                      unmatched++;
-                      totalCompensateFailed++;
                     }
-                  }
-                  if (matched > 0) {
-                    console.log(`[BidOptimization] \u2705 adGroup=${adGroupLocalId} \u8865\u507F\u540C\u6B65\u6210\u529F: ${matched}\u4E2A\u5173\u952E\u8BCD\u56DE\u586B\u4E86Amazon keywordId`);
-                  }
-                  if (unmatched > 0) {
-                    console.warn(`[BidOptimization] \u26A0\uFE0F adGroup=${adGroupLocalId} \u8865\u507F\u540C\u6B65: ${unmatched}\u4E2A\u5173\u952E\u8BCD\u5728Amazon\u7AEF\u672A\u627E\u5230\u5339\u914D`);
-                  }
-                  await new Promise((resolve8) => setTimeout(resolve8, 1e3));
-                } catch (groupErr) {
-                  console.error(`[BidOptimization] \u8865\u507F\u540C\u6B65adGroup=${adGroupLocalId}\u5F02\u5E38: ${groupErr.message}`);
-                  totalCompensateFailed += kwsInGroup.length;
-                  if (groupErr.response?.status === 429) {
-                    console.log(`[BidOptimization] \u26A0\uFE0F API\u9650\u6D41\uFF0C\u7B49\u5F8510\u79D2...`);
-                    await new Promise((resolve8) => setTimeout(resolve8, 1e4));
+                    if (matched > 0) {
+                      console.log(`[BidOptimization] \u2705 adGroup=${adGroupLocalId} \u8865\u507F\u540C\u6B65\u6210\u529F: ${matched}\u4E2A\u5173\u952E\u8BCD`);
+                    }
+                    if (unmatched > 0) {
+                      console.warn(`[BidOptimization] \u26A0\uFE0F adGroup=${adGroupLocalId} \u8865\u507F\u540C\u6B65: ${unmatched}\u4E2A\u5173\u952E\u8BCD\u5728Amazon\u7AEF\u672A\u627E\u5230\u5339\u914D`);
+                    }
+                    await new Promise((resolve8) => setTimeout(resolve8, 1e3));
+                  } catch (groupErr) {
+                    console.error(`[BidOptimization] \u8865\u507F\u540C\u6B65adGroup=${adGroupLocalId}\u5F02\u5E38: ${groupErr.message}`);
+                    totalCompensateFailed += kwsInGroup.length;
+                    if (groupErr.response?.status === 429) {
+                      console.log(`[BidOptimization] \u26A0\uFE0F API\u9650\u6D41\uFF0C\u7B49\u5F8510\u79D2...`);
+                      await new Promise((resolve8) => setTimeout(resolve8, 1e4));
+                    }
                   }
                 }
               }
+              console.log(`[BidOptimization] \u8865\u507F\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${totalCompensated}, \u5931\u8D25=${totalCompensateFailed}, \u603B\u8BA1=${missingKws.length}`);
+            } else {
+              console.log(`[BidOptimization] \u8865\u507F\u540C\u6B65: \u8BE5\u8D26\u53F7\u4E0B\u6240\u6709\u5173\u952E\u8BCD\u5747\u5DF2\u6709Amazon keywordId, \u65E0\u9700\u8865\u507F`);
             }
-            console.log(`[BidOptimization] \u8865\u507F\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${totalCompensated}, \u5931\u8D25=${totalCompensateFailed}, \u603B\u8BA1=${missingKws.length}`);
-          } else {
-            console.log(`[BidOptimization] \u8865\u507F\u540C\u6B65: \u8BE5\u8D26\u53F7\u4E0B\u6240\u6709\u5173\u952E\u8BCD\u5747\u5DF2\u6709Amazon keywordId, \u65E0\u9700\u8865\u507F`);
+          } finally {
+            await directConn.end();
           }
         }
       } catch (compensateErr) {
