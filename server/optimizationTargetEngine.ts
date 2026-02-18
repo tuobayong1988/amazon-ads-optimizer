@@ -506,14 +506,14 @@ async function executeBidOptimization(
     try {
       const accountId = config.accountId;
       
-      // v127: 增强补偿同步机制 - 按adGroup分组批量处理，突破数量限制
+      // v129: 补偿同步机制 - 通过Amazon API查询已存在关键词的keywordId并回填到本地数据库
       try {
         const dbInstance = await db.getDb();
         if (dbInstance) {
           const { keywords: kwTable, adGroups: agTable, campaigns: campTable } = await import('../drizzle/schema');
           const { eq, isNull, and, inArray, sql: sqlTag } = await import('drizzle-orm');
           
-          // v128: 修复补偿同步SQL查询 - keywords表没有accountId字段，需要通过JOIN adGroups -> campaigns 关联查询
+          // 查询该账号下所有缺少keywordId的关键词（通过JOIN关联查询）
           const missingKws = await dbInstance.select({
             id: kwTable.id,
             adGroupId: kwTable.adGroupId,
@@ -545,55 +545,78 @@ async function executeBidOptimization(
             let totalCompensated = 0;
             let totalCompensateFailed = 0;
             
-            // 按adGroup分组批量处理
-            for (const [adGroupLocalId, kwsInGroup] of groupedByAdGroup) {
-              try {
-                // 获取Amazon adGroupId和campaignId
-                const [ag] = await dbInstance.select().from(agTable).where(eq(agTable.id, adGroupLocalId)).limit(1);
-                if (!ag || !ag.adGroupId) {
-                  console.warn(`[BidOptimization] 补偿同步: adGroup id=${adGroupLocalId} 缺少Amazon adGroupId, 跳过${kwsInGroup.length}个关键词`);
-                  totalCompensateFailed += kwsInGroup.length;
-                  continue;
-                }
-                
-                const [camp] = await dbInstance.select().from(campTable).where(eq(campTable.id, ag.campaignId!)).limit(1);
-                if (!camp || !camp.campaignId) {
-                  console.warn(`[BidOptimization] 补偿同步: campaign id=${ag.campaignId} 缺少Amazon campaignId, 跳过${kwsInGroup.length}个关键词`);
-                  totalCompensateFailed += kwsInGroup.length;
-                  continue;
-                }
-                
-                const amazonAdGroupId = Number(ag.adGroupId);
-                const amazonCampaignId = Number(camp.campaignId);
-                
-                if (amazonAdGroupId > 0 && amazonCampaignId > 0) {
-                  // 批量提交该adGroup下所有缺失keywordId的关键词
-                  const batchKeywords = kwsInGroup.map(kw => ({
-                    localKeywordId: kw.id,
-                    adGroupId: amazonAdGroupId,
-                    campaignId: amazonCampaignId,
-                    keywordText: kw.keywordText,
-                    matchType: (kw.matchType || 'exact') as 'exact' | 'phrase' | 'broad',
-                    bid: parseFloat(kw.bid) || 0.50,
-                  }));
-                  
-                  console.log(`[BidOptimization] 补偿同步: adGroup=${adGroupLocalId}(Amazon:${amazonAdGroupId}), 批量提交${batchKeywords.length}个关键词`);
-                  
-                  // syncNewKeywordsToAmazon内部已有分批机制（每批最多50个）
-                  const syncResult = await amazonApiHelper.syncNewKeywordsToAmazon(accountId, batchKeywords);
-                  totalCompensated += syncResult.success;
-                  totalCompensateFailed += syncResult.failed;
-                  
-                  if (syncResult.success > 0) {
-                    console.log(`[BidOptimization] ✅ adGroup=${adGroupLocalId} 补偿同步成功: ${syncResult.success}个关键词获得Amazon keywordId`);
+            // 获取SyncService实例（用于调用listSpKeywords）
+            const syncService = await amazonApiHelper.getAmazonSyncService(accountId);
+            if (!syncService) {
+              console.error(`[BidOptimization] 补偿同步: 无法获取账号${accountId}的API服务`);
+            } else {
+              // 按adGroup分组，通过API查询已存在的关键词并匹配回填keywordId
+              for (const [adGroupLocalId, kwsInGroup] of groupedByAdGroup) {
+                try {
+                  // 获取Amazon adGroupId
+                  const [ag] = await dbInstance.select().from(agTable).where(eq(agTable.id, adGroupLocalId)).limit(1);
+                  if (!ag || !ag.adGroupId) {
+                    console.warn(`[BidOptimization] 补偿同步: adGroup id=${adGroupLocalId} 缺少Amazon adGroupId, 跳过${kwsInGroup.length}个关键词`);
+                    totalCompensateFailed += kwsInGroup.length;
+                    continue;
                   }
-                  if (syncResult.failed > 0) {
-                    console.warn(`[BidOptimization] ⚠️ adGroup=${adGroupLocalId} 补偿同步部分失败: ${syncResult.failed}个`);
+                  
+                  const amazonAdGroupId = Number(ag.adGroupId);
+                  console.log(`[BidOptimization] 补偿同步: adGroup=${adGroupLocalId}(Amazon:${amazonAdGroupId}), 查询Amazon已有关键词...`);
+                  
+                  // 通过Amazon API查询该adGroup下的所有关键词
+                  const amazonKeywords = await syncService.client.listSpKeywords(amazonAdGroupId);
+                  console.log(`[BidOptimization] 补偿同步: Amazon返回${amazonKeywords.length}个关键词`);
+                  
+                  // 构建查找索引: keywordText_matchType -> amazonKeywordId
+                  const amazonKwMap = new Map<string, string>();
+                  for (const ak of amazonKeywords) {
+                    const key = `${(ak.keywordText || '').toLowerCase().trim()}_${(ak.matchType || '').toLowerCase()}`;
+                    amazonKwMap.set(key, String(ak.keywordId));
+                  }
+                  
+                  // 匹配本地缺失keywordId的关键词
+                  let matched = 0;
+                  let unmatched = 0;
+                  for (const kw of kwsInGroup) {
+                    const key = `${(kw.keywordText || '').toLowerCase().trim()}_${(kw.matchType || '').toLowerCase()}`;
+                    const amazonKeywordId = amazonKwMap.get(key);
+                    
+                    if (amazonKeywordId) {
+                      // 回填keywordId到本地数据库
+                      await dbInstance.update(kwTable)
+                        .set({ 
+                          keywordId: amazonKeywordId,
+                          updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+                        })
+                        .where(eq(kwTable.id, kw.id));
+                      matched++;
+                      totalCompensated++;
+                    } else {
+                      unmatched++;
+                      totalCompensateFailed++;
+                    }
+                  }
+                  
+                  if (matched > 0) {
+                    console.log(`[BidOptimization] ✅ adGroup=${adGroupLocalId} 补偿同步成功: ${matched}个关键词回填了Amazon keywordId`);
+                  }
+                  if (unmatched > 0) {
+                    console.warn(`[BidOptimization] ⚠️ adGroup=${adGroupLocalId} 补偿同步: ${unmatched}个关键词在Amazon端未找到匹配`);
+                  }
+                  
+                  // adGroup间延迟1秒，避免API限流
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                } catch (groupErr: any) {
+                  console.error(`[BidOptimization] 补偿同步adGroup=${adGroupLocalId}异常: ${groupErr.message}`);
+                  totalCompensateFailed += kwsInGroup.length;
+                  
+                  // 如果是限流错误，等待更长时间
+                  if (groupErr.response?.status === 429) {
+                    console.log(`[BidOptimization] ⚠️ API限流，等待10秒...`);
+                    await new Promise(resolve => setTimeout(resolve, 10000));
                   }
                 }
-              } catch (groupErr: any) {
-                console.error(`[BidOptimization] 补偿同步adGroup=${adGroupLocalId}异常: ${groupErr.message}`);
-                totalCompensateFailed += kwsInGroup.length;
               }
             }
             
