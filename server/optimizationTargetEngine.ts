@@ -513,7 +513,7 @@ async function executeBidOptimization(
           const { keywords: kwTable, adGroups: agTable, campaigns: campTable } = await import('../drizzle/schema');
           const { eq, isNull, and, inArray, sql: sqlTag } = await import('drizzle-orm');
           
-          // 扩大补偿范围: 查询该账号下所有缺少keywordId的关键词（不仅限于本次出价调整涉及的）
+          // v128: 修复补偿同步SQL查询 - keywords表没有accountId字段，需要通过JOIN adGroups -> campaigns 关联查询
           const missingKws = await dbInstance.select({
             id: kwTable.id,
             adGroupId: kwTable.adGroupId,
@@ -522,8 +522,10 @@ async function executeBidOptimization(
             bid: kwTable.bid,
           })
             .from(kwTable)
+            .innerJoin(agTable, eq(kwTable.adGroupId, agTable.id))
+            .innerJoin(campTable, eq(agTable.campaignId, campTable.id))
             .where(and(
-              eq(kwTable.accountId, accountId),
+              eq(campTable.accountId, accountId),
               isNull(kwTable.keywordId)
             ));
           
