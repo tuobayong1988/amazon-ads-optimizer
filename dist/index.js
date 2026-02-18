@@ -34994,7 +34994,8 @@ var init_schema2 = __esm({
       strategyTemplateId: varchar("strategy_template_id", { length: 50 }),
       strategyTemplateName: varchar("strategy_template_name", { length: 100 }),
       strategyApplicationId: int("strategy_application_id"),
-      autoOptimize: tinyint("auto_optimize").default(1)
+      autoOptimize: tinyint("auto_optimize").default(1),
+      lastOptimizationAt: datetime("last_optimization_at", { mode: "string" })
     });
     placementBidSettings = mysqlTable(
       "placement_bid_settings",
@@ -35783,6 +35784,12 @@ var init_schema2 = __esm({
         changeReason: text("change_reason"),
         // 执行状态
         status: mysqlEnum("status", ["pending", "success", "failed", "rolled_back"]).default("success"),
+        // Amazon API 同步状态
+        apiSyncStatus: varchar("api_sync_status", { length: 20 }),
+        // pending/synced/failed/not_applicable
+        apiSyncDetail: text("api_sync_detail"),
+        // JSON格式的API同步详情
+        apiSyncedAt: datetime("api_synced_at", { mode: "string" }),
         errorMessage: text("error_message"),
         // 时间戳
         createdAt: datetime("created_at", { mode: "string" }).default("CURRENT_TIMESTAMP").notNull(),
@@ -89492,10 +89499,12 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
       }
     }
   }
+  let apiSyncResult = { success: 0, failed: 0, errors: [] };
+  let apiSyncStatus = "pending";
   if (!dryRun && details.length > 0) {
     try {
       const accountId = config2.accountId;
-      const apiResult = await syncBidAdjustmentsToAmazon(
+      apiSyncResult = await syncBidAdjustmentsToAmazon(
         accountId,
         details.map((d5) => ({
           keywordId: d5.keywordId,
@@ -89505,12 +89514,34 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
           isProductTarget: d5.isProductTarget || false
         }))
       );
-      console.log(`[BidOptimization] Amazon API\u540C\u6B65: \u6210\u529F=${apiResult.success}, \u5931\u8D25=${apiResult.failed}`);
+      if (apiSyncResult.failed === 0 && apiSyncResult.success > 0) {
+        apiSyncStatus = "synced";
+      } else if (apiSyncResult.success === 0) {
+        apiSyncStatus = "failed";
+      } else {
+        apiSyncStatus = "partial";
+      }
+      console.log(`[BidOptimization] Amazon API\u540C\u6B65: \u6210\u529F=${apiSyncResult.success}, \u5931\u8D25=${apiSyncResult.failed}, \u72B6\u6001=${apiSyncStatus}`);
+      if (apiSyncResult.errors.length > 0) {
+        console.error(`[BidOptimization] Amazon API\u540C\u6B65\u9519\u8BEF:`, apiSyncResult.errors.join("; "));
+      }
     } catch (apiError) {
-      console.error(`[BidOptimization] Amazon API\u540C\u6B65\u5931\u8D25:`, apiError.message);
+      apiSyncStatus = "failed";
+      apiSyncResult.errors.push(apiError.message);
+      console.error(`[BidOptimization] Amazon API\u540C\u6B65\u5F02\u5E38:`, apiError.message);
     }
+  } else if (dryRun) {
+    apiSyncStatus = "pending";
   }
-  return { executed: true, adjustmentsCount: dryRun ? details.length : adjustmentsCount, details };
+  for (const detail of details) {
+    detail.apiSyncStatus = apiSyncStatus;
+    detail.apiSyncDetail = JSON.stringify({
+      totalSuccess: apiSyncResult.success,
+      totalFailed: apiSyncResult.failed,
+      errors: apiSyncResult.errors.slice(0, 5)
+    });
+  }
+  return { executed: true, adjustmentsCount: dryRun ? details.length : adjustmentsCount, details, apiSyncResult, apiSyncStatus };
 }
 async function executePlacementOptimization(config2, campaigns6, dryRun) {
   const details = [];
@@ -90063,6 +90094,8 @@ async function recordExecutionLog(result) {
     const { optimizationLogs: optimizationLogs2 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
     const now = (/* @__PURE__ */ new Date()).toISOString();
     if (result.bidOptimization.executed && result.bidOptimization.adjustmentsCount > 0) {
+      const bidApiSyncStatus = result.bidOptimization.apiSyncStatus || "pending";
+      const bidApiSyncResult = result.bidOptimization.apiSyncResult;
       for (const detail of result.bidOptimization.details.slice(0, 50)) {
         await dbInstance.insert(optimizationLogs2).values({
           performanceGroupId: result.targetId,
@@ -90076,7 +90109,11 @@ async function recordExecutionLog(result) {
           previousValue: `$${detail.currentBid.toFixed(2)}`,
           newValue: `$${detail.newBid.toFixed(2)}`,
           changeReason: detail.reason || `\u51FA\u4EF7\u8C03\u6574 ${detail.changePercent}%`,
-          status: "success",
+          status: bidApiSyncStatus === "synced" ? "success" : bidApiSyncStatus === "failed" ? "failed" : "success",
+          apiSyncStatus: detail.apiSyncStatus || bidApiSyncStatus,
+          apiSyncDetail: detail.apiSyncDetail || (bidApiSyncResult ? JSON.stringify(bidApiSyncResult) : null),
+          apiSyncedAt: bidApiSyncStatus === "synced" ? now : null,
+          errorMessage: bidApiSyncStatus === "failed" && bidApiSyncResult?.errors?.length > 0 ? bidApiSyncResult.errors.join("; ") : null,
           createdAt: now,
           executedAt: now
         });
@@ -90096,7 +90133,10 @@ async function recordExecutionLog(result) {
           previousValue: detail.previousValue || "",
           newValue: detail.newValue || "",
           changeReason: detail.reason || "\u4F4D\u7F6E\u4F18\u5316\u8C03\u6574",
-          status: "success",
+          status: detail.apiSyncStatus === "synced" ? "success" : detail.apiSyncStatus === "failed" ? "failed" : "success",
+          apiSyncStatus: detail.apiSyncStatus || "not_applicable",
+          apiSyncDetail: detail.apiSyncDetail || null,
+          apiSyncedAt: detail.apiSyncStatus === "synced" ? now : null,
           createdAt: now,
           executedAt: now
         });
@@ -90117,7 +90157,10 @@ async function recordExecutionLog(result) {
           previousValue: "",
           newValue: detail.searchTerm || "",
           changeReason: detail.reason || "",
-          status: "success",
+          status: detail.apiSyncStatus === "synced" ? "success" : detail.apiSyncStatus === "failed" ? "failed" : "success",
+          apiSyncStatus: detail.apiSyncStatus || "not_applicable",
+          apiSyncDetail: detail.apiSyncDetail || null,
+          apiSyncedAt: detail.apiSyncStatus === "synced" ? now : null,
           createdAt: now,
           executedAt: now
         });
@@ -90137,7 +90180,10 @@ async function recordExecutionLog(result) {
           previousValue: detail.currentStatus || "",
           newValue: detail.action || "",
           changeReason: detail.reason || "",
-          status: "success",
+          status: detail.apiSyncStatus === "synced" ? "success" : detail.apiSyncStatus === "failed" ? "failed" : "success",
+          apiSyncStatus: detail.apiSyncStatus || "not_applicable",
+          apiSyncDetail: detail.apiSyncDetail || null,
+          apiSyncedAt: detail.apiSyncStatus === "synced" ? now : null,
           createdAt: now,
           executedAt: now
         });
@@ -284355,7 +284401,7 @@ async function analyzeBidAdjustments2(campaign, costType = "cpc") {
           type: "bid_adjustment",
           targetType: "keyword",
           targetId: pt3.id,
-          targetName: pt3.targetText || `\u5546\u54C1\u5B9A\u5411 ${pt3.id}`,
+          targetName: pt3.targetValue || `\u5546\u54C1\u5B9A\u5411 ${pt3.id}`,
           currentValue: currentBid,
           suggestedValue: Math.round(optimalVcpm * 100) / 100,
           expectedImpact: { metric: "CPM", currentValue: corrected.impressions > 0 ? corrected.spend / corrected.impressions * 1e3 : 0, expectedValue: optimalVcpm, changePercent: 0 },
@@ -284385,7 +284431,7 @@ async function analyzeBidAdjustments2(campaign, costType = "cpc") {
           type: "bid_adjustment",
           targetType: "keyword",
           targetId: pt3.id,
-          targetName: pt3.targetText || `\u5546\u54C1\u5B9A\u5411 ${pt3.id}`,
+          targetName: pt3.targetValue || `\u5546\u54C1\u5B9A\u5411 ${pt3.id}`,
           currentValue: currentBid,
           suggestedValue: Math.round(optimalBid * 100) / 100,
           expectedImpact: { metric: "ACoS", currentValue: acos, expectedValue: expectedAcos, changePercent: acos > 0 ? (expectedAcos - acos) / acos * 100 : 0 },
@@ -284552,7 +284598,7 @@ async function analyzeNegativeKeywords(campaign, costType = "cpc") {
         type: "negative_keyword",
         targetType: "keyword",
         targetId: pt3.id,
-        targetName: pt3.targetText || `\u5546\u54C1\u5B9A\u5411 ${pt3.id}`,
+        targetName: pt3.targetValue || `\u5546\u54C1\u5B9A\u5411 ${pt3.id}`,
         currentValue: "\u6B63\u5E38\u6295\u653E",
         suggestedValue: "\u6DFB\u52A0\u4E3A\u5426\u5B9A\u5546\u54C1\u5B9A\u5411",
         expectedImpact: { metric: "\u82B1\u8D39", currentValue: spend, expectedValue: 0, changePercent: -100 },
@@ -284574,7 +284620,7 @@ async function analyzeNegativeKeywords(campaign, costType = "cpc") {
         type: "negative_keyword",
         targetType: "keyword",
         targetId: pt3.id,
-        targetName: pt3.targetText || `\u5546\u54C1\u5B9A\u5411 ${pt3.id}`,
+        targetName: pt3.targetValue || `\u5546\u54C1\u5B9A\u5411 ${pt3.id}`,
         currentValue: "\u6B63\u5E38\u6295\u653E",
         suggestedValue: "\u6DFB\u52A0\u4E3A\u5426\u5B9A\u5546\u54C1\u5B9A\u5411",
         expectedImpact: { metric: "\u82B1\u8D39", currentValue: Number(pt3.spend) || 0, expectedValue: 0, changePercent: -100 },

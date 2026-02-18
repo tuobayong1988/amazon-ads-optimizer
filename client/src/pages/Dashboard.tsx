@@ -356,6 +356,26 @@ export default function Dashboard() {
   // v103: Get current account's marketplace for timezone-aware date calculation
   const currentMarketplace = accounts?.find(a => a.id === accountId)?.marketplace || 'US';
 
+  // ✅ KPI日期范围状态 - 与日期选择器联动 (moved before usage)
+  const [kpiDatePreset, setKpiDatePreset] = useState<DatePreset>('last30days');
+  const [kpiCustomStartDate, setKpiCustomStartDate] = useState<Date | undefined>(subDays(new Date(), 30));
+  const [kpiCustomEndDate, setKpiCustomEndDate] = useState<Date | undefined>(new Date());
+  
+  // 计算KPI日期范围
+  const kpiDateRange = useMemo(() => {
+    if (kpiDatePreset === 'custom') {
+      return {
+        startDate: kpiCustomStartDate ? format(kpiCustomStartDate, 'yyyy-MM-dd') : undefined,
+        endDate: kpiCustomEndDate ? format(kpiCustomEndDate, 'yyyy-MM-dd') : undefined,
+      };
+    }
+    const range = getDateRange(kpiDatePreset, currentMarketplace);
+    return {
+      startDate: format(range.start, 'yyyy-MM-dd'),
+      endDate: format(range.end, 'yyyy-MM-dd'),
+    };
+  }, [kpiDatePreset, kpiCustomStartDate, kpiCustomEndDate, currentMarketplace]);
+
   // ✅ Fetch KPIs - 与日期选择器联动
   const { data: kpis, isLoading: kpisLoading, refetch: refetchKpis } = trpc.analytics.getKPIs.useQuery(
     { 
@@ -409,25 +429,7 @@ export default function Dashboard() {
   // 是否显示归因调整后的数据
   const [showAdjustedData, setShowAdjustedData] = useState(true);
   
-  // ✅ KPI日期范围状态 - 与日期选择器联动
-  const [kpiDatePreset, setKpiDatePreset] = useState<DatePreset>('last30days');
-  const [kpiCustomStartDate, setKpiCustomStartDate] = useState<Date | undefined>(subDays(new Date(), 30));
-  const [kpiCustomEndDate, setKpiCustomEndDate] = useState<Date | undefined>(new Date());
-  
-  // 计算KPI日期范围
-  const kpiDateRange = useMemo(() => {
-    if (kpiDatePreset === 'custom') {
-      return {
-        startDate: kpiCustomStartDate ? format(kpiCustomStartDate, 'yyyy-MM-dd') : undefined,
-        endDate: kpiCustomEndDate ? format(kpiCustomEndDate, 'yyyy-MM-dd') : undefined,
-      };
-    }
-    const range = getDateRange(kpiDatePreset, currentMarketplace);
-    return {
-      startDate: format(range.start, 'yyyy-MM-dd'),
-      endDate: format(range.end, 'yyyy-MM-dd'),
-    };
-  }, [kpiDatePreset, kpiCustomStartDate, kpiCustomEndDate, currentMarketplace]);
+  // (kpiDateRange 已移动到上方使用前)
 
   // 刷新数据的回调函数
   const handleRefreshData = useCallback(async () => {

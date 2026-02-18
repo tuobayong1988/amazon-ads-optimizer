@@ -2171,6 +2171,7 @@ export const performanceGroups = mysqlTable("performance_groups", {
 	strategyTemplateName: varchar("strategy_template_name", { length: 100 }),
 	strategyApplicationId: int("strategy_application_id"),
 	autoOptimize: tinyint("auto_optimize").default(1),
+	lastOptimizationAt: datetime("last_optimization_at", { mode: 'string' }),
 });
 
 export const placementBidSettings = mysqlTable("placement_bid_settings", {
@@ -3325,6 +3326,12 @@ export const optimizationLogs = mysqlTable("optimization_logs", {
   
   // 执行状态
   status: mysqlEnum("status", ['pending', 'success', 'failed', 'rolled_back']).default('success'),
+  
+  // Amazon API 同步状态
+  apiSyncStatus: varchar("api_sync_status", { length: 20 }),  // pending/synced/failed/not_applicable
+  apiSyncDetail: text("api_sync_detail"),  // JSON格式的API同步详情
+  apiSyncedAt: datetime("api_synced_at", { mode: 'string' }),
+  
   errorMessage: text("error_message"),
   
   // 时间戳

@@ -1,10 +1,9 @@
 /**
- * OptimizationLogs - 优化日志组件
+ * OptimizationLogs - 优化日志组件 v123
  * 展示优化目标的完整操作日志，包含：
- * - 绩效组和目标：日期/时间、操作用户、优化目标名称、优化目标策略、帐户、Campaign名称、行动与细节
- * - 出价调整日志
- * - 层面调整日志
- * - 优化设置日志
+ * - 具体的优化动作和执行时间
+ * - Amazon API同步状态（是否已传递到亚马逊执行）
+ * - 完整执行链路：本地决策 → API调用 → Amazon确认
  */
 
 import { useState, useMemo } from "react";
@@ -12,7 +11,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -33,11 +31,13 @@ import {
   CheckCircle,
   XCircle,
   Clock,
-  Filter,
   TrendingUp,
   TrendingDown,
-  Activity,
-  Loader2
+  ArrowRight,
+  Cloud,
+  CloudOff,
+  Loader2,
+  ExternalLink,
 } from "lucide-react";
 
 // 日志分类配置
@@ -50,7 +50,7 @@ const LOG_CATEGORIES = {
 };
 
 // 操作类型标签
-const ACTION_TYPE_LABELS: Record<string, { label: string; color: string }> = {
+const ACTION_TYPE_LABELS: Record<string, { label: string; color: string; icon?: string }> = {
   create_target: { label: '创建目标', color: 'bg-green-500/20 text-green-400' },
   update_target: { label: '更新目标', color: 'bg-blue-500/20 text-blue-400' },
   delete_target: { label: '删除目标', color: 'bg-red-500/20 text-red-400' },
@@ -58,8 +58,8 @@ const ACTION_TYPE_LABELS: Record<string, { label: string; color: string }> = {
   resume_target: { label: '恢复目标', color: 'bg-green-500/20 text-green-400' },
   add_campaign: { label: '添加广告活动', color: 'bg-blue-500/20 text-blue-400' },
   remove_campaign: { label: '移除广告活动', color: 'bg-orange-500/20 text-orange-400' },
-  bid_increase: { label: '提高出价', color: 'bg-green-500/20 text-green-400' },
-  bid_decrease: { label: '降低出价', color: 'bg-red-500/20 text-red-400' },
+  bid_increase: { label: '提高出价', color: 'bg-green-500/20 text-green-400', icon: '↑' },
+  bid_decrease: { label: '降低出价', color: 'bg-red-500/20 text-red-400', icon: '↓' },
   bid_set: { label: '设置出价', color: 'bg-blue-500/20 text-blue-400' },
   bid_auto_adjust: { label: '自动调整出价', color: 'bg-purple-500/20 text-purple-400' },
   placement_adjust: { label: '调整广告位', color: 'bg-purple-500/20 text-purple-400' },
@@ -68,6 +68,21 @@ const ACTION_TYPE_LABELS: Record<string, { label: string; color: string }> = {
   settings_update: { label: '更新设置', color: 'bg-blue-500/20 text-blue-400' },
   strategy_change: { label: '更换策略', color: 'bg-orange-500/20 text-orange-400' },
   schedule_update: { label: '更新计划', color: 'bg-cyan-500/20 text-cyan-400' },
+  search_term_harvest: { label: '搜索词收割', color: 'bg-teal-500/20 text-teal-400' },
+  negative_keyword_add: { label: '添加否定词', color: 'bg-red-500/20 text-red-400' },
+  negative_keyword_remove: { label: '移除否定词', color: 'bg-green-500/20 text-green-400' },
+  keyword_create: { label: '创建关键词', color: 'bg-blue-500/20 text-blue-400' },
+  target_pause: { label: '暂停投放词', color: 'bg-yellow-500/20 text-yellow-400' },
+  target_enable: { label: '启用投放词', color: 'bg-green-500/20 text-green-400' },
+};
+
+// API同步状态配置
+const API_SYNC_STATUS_CONFIG: Record<string, { label: string; icon: typeof CheckCircle; color: string; bgColor: string }> = {
+  synced: { label: '已同步到Amazon', icon: CheckCircle, color: 'text-green-400', bgColor: 'bg-green-500/10' },
+  failed: { label: 'Amazon同步失败', icon: XCircle, color: 'text-red-400', bgColor: 'bg-red-500/10' },
+  pending: { label: '待同步', icon: Clock, color: 'text-yellow-400', bgColor: 'bg-yellow-500/10' },
+  partial: { label: '部分同步', icon: AlertCircle, color: 'text-orange-400', bgColor: 'bg-orange-500/10' },
+  not_applicable: { label: '无需同步', icon: Cloud, color: 'text-gray-400', bgColor: 'bg-gray-500/10' },
 };
 
 // 状态标签
@@ -100,21 +115,18 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
     enabled: !!performanceGroupId,
   });
 
-  // 日志统计暂时禁用
-  const statsData: { totalLogs: number; byCategory: Array<{ category: string; count: number }> } | null = null;
-
   // 过滤日志
   const filteredLogs = useMemo(() => {
     if (!logsData?.logs) return [];
     if (!searchQuery) return logsData.logs;
     
     const query = searchQuery.toLowerCase();
-    return logsData.logs.filter(log => 
+    return logsData.logs.filter((log: any) => 
       log.performanceGroupName?.toLowerCase().includes(query) ||
       log.campaignName?.toLowerCase().includes(query) ||
       log.userName?.toLowerCase().includes(query) ||
-      log.strategyTemplateName?.toLowerCase().includes(query) ||
-      log.actionDetail?.toLowerCase().includes(query)
+      log.actionDetail?.toLowerCase().includes(query) ||
+      log.changeReason?.toLowerCase().includes(query)
     );
   }, [logsData?.logs, searchQuery]);
 
@@ -142,11 +154,74 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
     }
   };
 
+  // 渲染API同步状态徽章
+  const renderApiSyncBadge = (log: any) => {
+    const syncStatus = log.apiSyncStatus || (log.logCategory === 'bid_adjustment' || log.logCategory === 'placement_adjustment' ? 'pending' : 'not_applicable');
+    const config = API_SYNC_STATUS_CONFIG[syncStatus] || API_SYNC_STATUS_CONFIG.pending;
+    const SyncIcon = config.icon;
+    
+    return (
+      <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${config.bgColor} ${config.color}`}>
+        <SyncIcon className="w-3 h-3" />
+        <span>{config.label}</span>
+      </div>
+    );
+  };
+
+  // 渲染执行链路
+  const renderExecutionPipeline = (log: any) => {
+    const syncStatus = log.apiSyncStatus || 'pending';
+    const isApiAction = log.logCategory === 'bid_adjustment' || log.logCategory === 'placement_adjustment' || log.logCategory === 'optimization_settings';
+    
+    if (!isApiAction) return null;
+    
+    const steps = [
+      { label: '优化决策', status: 'done', icon: Target },
+      { label: '本地更新', status: log.status === 'success' || log.status === 'failed' ? 'done' : 'pending', icon: Settings },
+      { label: 'Amazon API', status: syncStatus === 'synced' ? 'done' : syncStatus === 'failed' ? 'failed' : 'pending', icon: Cloud },
+      { label: 'Amazon执行', status: syncStatus === 'synced' ? 'done' : syncStatus === 'failed' ? 'failed' : 'pending', icon: ExternalLink },
+    ];
+    
+    return (
+      <div className="flex items-center gap-1 mt-2">
+        {steps.map((step, idx) => {
+          const StepIcon = step.icon;
+          const isLast = idx === steps.length - 1;
+          let stepColor = 'text-gray-500';
+          let dotColor = 'bg-gray-500';
+          
+          if (step.status === 'done') {
+            stepColor = 'text-green-400';
+            dotColor = 'bg-green-400';
+          } else if (step.status === 'failed') {
+            stepColor = 'text-red-400';
+            dotColor = 'bg-red-400';
+          } else if (step.status === 'pending') {
+            stepColor = 'text-yellow-400';
+            dotColor = 'bg-yellow-400';
+          }
+          
+          return (
+            <div key={idx} className="flex items-center gap-1">
+              <div className={`flex items-center gap-1 ${stepColor}`}>
+                <div className={`w-2 h-2 rounded-full ${dotColor}`} />
+                <span className="text-xs whitespace-nowrap">{step.label}</span>
+              </div>
+              {!isLast && (
+                <ArrowRight className="w-3 h-3 text-gray-600" />
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
   // 渲染单条日志
   const renderLogItem = (log: any) => {
     const isExpanded = expandedLogId === log.id;
     const categoryConfig = LOG_CATEGORIES[log.logCategory as keyof typeof LOG_CATEGORIES] || LOG_CATEGORIES.all;
-    const actionConfig = ACTION_TYPE_LABELS[log.actionType] || { label: log.actionType, color: 'bg-gray-500/20 text-gray-400' };
+    const actionConfig = ACTION_TYPE_LABELS[log.actionType] || { label: log.actionType || '系统操作', color: 'bg-gray-500/20 text-gray-400' };
     const statusConfig = STATUS_LABELS[log.status] || STATUS_LABELS.success;
     const CategoryIcon = categoryConfig.icon;
     const StatusIcon = statusConfig.icon;
@@ -154,14 +229,13 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
 
     return (
       <div key={log.id} className="border rounded-lg mb-2 overflow-hidden">
-        {/* 日志头部 - 响应式布局 */}
+        {/* 日志头部 */}
         <div 
           className="p-3 cursor-pointer hover:bg-muted/50 transition-colors"
           onClick={() => setExpandedLogId(isExpanded ? null : log.id)}
         >
           {/* 移动端布局 */}
           <div className="md:hidden space-y-2">
-            {/* 第一行: 展开图标 + 分类图标 + 操作类型 + 状态 */}
             <div className="flex items-center gap-2">
               {isExpanded ? (
                 <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
@@ -170,110 +244,185 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
               )}
               <CategoryIcon className={`w-4 h-4 ${categoryConfig.color} shrink-0`} />
               <Badge className={`${actionConfig.color} text-xs`}>
+                {actionConfig.icon && <span className="mr-1">{actionConfig.icon}</span>}
                 {actionConfig.label}
               </Badge>
               <StatusIcon className={`w-4 h-4 ${statusConfig.color} shrink-0`} />
+              {renderApiSyncBadge(log)}
             </div>
-            
-            {/* 第二行: 时间 */}
             <div className="flex items-center gap-1 text-xs text-muted-foreground pl-6">
               <Calendar className="w-3 h-3" />
               <span>{formatDateTime(log.createdAt)}</span>
             </div>
-            
-            {/* 第三行: 用户 + Campaign */}
-            <div className="flex items-center gap-3 text-xs pl-6">
-              <div className="flex items-center gap-1">
+            {log.campaignName && (
+              <div className="text-xs text-muted-foreground pl-6 truncate">
+                {log.campaignName}
+              </div>
+            )}
+            {/* 出价变更摘要 */}
+            {(log.previousValue || log.newValue) && (
+              <div className="flex items-center gap-2 text-xs pl-6">
+                {log.previousValue && <span className="text-red-400">{log.previousValue}</span>}
+                {log.previousValue && log.newValue && <ArrowRight className="w-3 h-3 text-muted-foreground" />}
+                {log.newValue && <span className="text-green-400 font-medium">{log.newValue}</span>}
+              </div>
+            )}
+          </div>
+          
+          {/* PC端布局 */}
+          <div className="hidden md:block">
+            <div className="flex items-center gap-3">
+              {isExpanded ? (
+                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              )}
+              <CategoryIcon className={`w-5 h-5 ${categoryConfig.color}`} />
+              
+              {/* 时间 */}
+              <div className="flex items-center gap-1 text-sm text-muted-foreground min-w-[150px]">
+                <Calendar className="w-3 h-3" />
+                {formatDateTime(log.createdAt)}
+              </div>
+              
+              {/* 操作类型 */}
+              <Badge className={`${actionConfig.color} text-xs`}>
+                {actionConfig.icon && <span className="mr-1">{actionConfig.icon}</span>}
+                {actionConfig.label}
+              </Badge>
+              
+              {/* 出价变更摘要 */}
+              {(log.previousValue || log.newValue) && (
+                <div className="flex items-center gap-1 text-sm">
+                  {log.previousValue && <span className="text-red-400 line-through">{log.previousValue}</span>}
+                  {log.previousValue && log.newValue && <ArrowRight className="w-3 h-3 text-muted-foreground" />}
+                  {log.newValue && <span className="text-green-400 font-medium">{log.newValue}</span>}
+                </div>
+              )}
+              
+              {/* Amazon同步状态 */}
+              {renderApiSyncBadge(log)}
+              
+              {/* 执行状态 */}
+              <StatusIcon className={`w-4 h-4 ${statusConfig.color}`} />
+              
+              {/* 操作用户 */}
+              <div className="flex items-center gap-1 text-sm">
                 <User className="w-3 h-3 text-muted-foreground" />
                 <span>{log.userName || '系统'}</span>
               </div>
+              
+              {/* Campaign名称 */}
               {log.campaignName && (
-                <div className="flex-1 truncate text-muted-foreground">
+                <div className="flex-1 truncate text-sm text-muted-foreground">
                   {log.campaignName}
                 </div>
               )}
             </div>
-          </div>
-          
-          {/* PC端布局 */}
-          <div className="hidden md:flex items-center gap-3">
-            {/* 展开/收起图标 */}
-            {isExpanded ? (
-              <ChevronDown className="w-4 h-4 text-muted-foreground" />
-            ) : (
-              <ChevronRight className="w-4 h-4 text-muted-foreground" />
-            )}
             
-            {/* 分类图标 */}
-            <CategoryIcon className={`w-5 h-5 ${categoryConfig.color}`} />
-            
-            {/* 时间 */}
-            <div className="flex items-center gap-1 text-sm text-muted-foreground min-w-[140px]">
-              <Calendar className="w-3 h-3" />
-              {formatDateTime(log.createdAt)}
-            </div>
-            
-            {/* 操作类型 */}
-            <Badge className={`${actionConfig.color} text-xs`}>
-              {actionConfig.label}
-            </Badge>
-            
-            {/* 状态 */}
-            <StatusIcon className={`w-4 h-4 ${statusConfig.color}`} />
-            
-            {/* 操作用户 */}
-            <div className="flex items-center gap-1 text-sm">
-              <User className="w-3 h-3 text-muted-foreground" />
-              <span>{log.userName || '系统'}</span>
-            </div>
-            
-            {/* Campaign名称（如果有） */}
-            {log.campaignName && (
-              <div className="flex-1 truncate text-sm text-muted-foreground">
-                {log.campaignName}
-              </div>
-            )}
+            {/* 执行链路（仅在摘要行显示） */}
+            {!isExpanded && renderExecutionPipeline(log)}
           </div>
         </div>
         
         {/* 展开的详情 */}
         {isExpanded && (
-          <div className="border-t bg-muted/30 p-4 space-y-3">
-            {/* 基本信息表格 */}
+          <div className="border-t bg-muted/30 p-4 space-y-4">
+            {/* 执行链路 */}
+            <div>
+              <p className="text-sm font-medium mb-2">执行链路</p>
+              <div className="bg-background rounded-lg p-3">
+                {renderExecutionPipeline(log)}
+              </div>
+            </div>
+            
+            <Separator />
+            
+            {/* 基本信息 */}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
               <div>
-                <p className="text-muted-foreground">日期/时间</p>
-                <p className="font-medium">{formatDateTime(log.createdAt)}</p>
+                <p className="text-muted-foreground">执行时间</p>
+                <p className="font-medium">{formatDateTime(log.executedAt || log.createdAt)}</p>
               </div>
               <div>
                 <p className="text-muted-foreground">操作用户</p>
                 <p className="font-medium">{log.userName || '系统自动'}</p>
               </div>
               <div>
-                <p className="text-muted-foreground">优化目标名称</p>
+                <p className="text-muted-foreground">优化目标</p>
                 <p className="font-medium">{log.performanceGroupName}</p>
               </div>
               <div>
-                <p className="text-muted-foreground">优化目标策略</p>
+                <p className="text-muted-foreground">策略模板</p>
                 <p className="font-medium">{log.strategyTemplateName || '默认策略'}</p>
               </div>
               <div>
-                <p className="text-muted-foreground">帐户</p>
-                <p className="font-medium">{log.accountName || '-'}</p>
+                <p className="text-muted-foreground">广告活动</p>
+                <p className="font-medium">{log.campaignName || '-'}</p>
               </div>
               <div>
-                <p className="text-muted-foreground">Campaign名称</p>
-                <p className="font-medium">{log.campaignName || '-'}</p>
+                <p className="text-muted-foreground">执行状态</p>
+                <div className="flex items-center gap-1">
+                  <StatusIcon className={`w-4 h-4 ${statusConfig.color}`} />
+                  <span className={`font-medium ${statusConfig.color}`}>{statusConfig.label}</span>
+                </div>
               </div>
             </div>
             
             <Separator />
             
-            {/* 行动与细节 */}
+            {/* Amazon API同步详情 */}
             <div>
-              <p className="text-muted-foreground text-sm mb-2">行动与细节</p>
+              <p className="text-sm font-medium mb-2">Amazon API 同步状态</p>
               <div className="bg-background rounded-lg p-3 space-y-2">
-                {/* 变更值 */}
+                <div className="flex items-center gap-2">
+                  {renderApiSyncBadge(log)}
+                  {log.apiSyncedAt && (
+                    <span className="text-xs text-muted-foreground">
+                      同步时间: {formatDateTime(log.apiSyncedAt)}
+                    </span>
+                  )}
+                </div>
+                
+                {/* API同步详情 */}
+                {log.apiSyncDetail && (() => {
+                  try {
+                    const syncDetail = JSON.parse(log.apiSyncDetail);
+                    return (
+                      <div className="text-sm space-y-1">
+                        <div className="flex gap-4">
+                          <span className="text-green-400">成功: {syncDetail.totalSuccess || 0}</span>
+                          <span className="text-red-400">失败: {syncDetail.totalFailed || 0}</span>
+                        </div>
+                        {syncDetail.errors && syncDetail.errors.length > 0 && (
+                          <div className="text-red-400 text-xs mt-1">
+                            {syncDetail.errors.map((err: string, i: number) => (
+                              <p key={i}>{err}</p>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  } catch {
+                    return <p className="text-xs text-muted-foreground">{log.apiSyncDetail}</p>;
+                  }
+                })()}
+                
+                {!log.apiSyncStatus && (
+                  <p className="text-xs text-muted-foreground">
+                    此日志记录于API同步状态追踪功能上线前，无法确认是否已同步到Amazon
+                  </p>
+                )}
+              </div>
+            </div>
+            
+            <Separator />
+            
+            {/* 操作详情 */}
+            <div>
+              <p className="text-sm font-medium mb-2">操作详情</p>
+              <div className="bg-background rounded-lg p-3 space-y-2">
+                {/* 出价变更 */}
                 {(log.previousValue || log.newValue) && (
                   <div className="flex items-center gap-2 text-sm">
                     <span className="text-muted-foreground">变更:</span>
@@ -281,10 +430,10 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
                       <span className="text-red-400 line-through">{log.previousValue}</span>
                     )}
                     {log.previousValue && log.newValue && (
-                      <span className="text-muted-foreground">→</span>
+                      <ArrowRight className="w-4 h-4 text-muted-foreground" />
                     )}
                     {log.newValue && (
-                      <span className="text-green-400">{log.newValue}</span>
+                      <span className="text-green-400 font-medium">{log.newValue}</span>
                     )}
                   </div>
                 )}
@@ -297,22 +446,37 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
                   </div>
                 )}
                 
-                {/* 详细信息 */}
-                {actionDetail && (
-                  <div className="text-sm">
-                    {actionDetail.text ? (
-                      <p>{actionDetail.text}</p>
-                    ) : (
-                      <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">
-                        {JSON.stringify(actionDetail, null, 2)}
-                      </pre>
+                {/* 算法信息 */}
+                {actionDetail && actionDetail.algorithmUsed && (
+                  <div className="text-sm flex gap-4">
+                    <span>
+                      <span className="text-muted-foreground">算法: </span>
+                      <Badge variant="outline" className="text-xs">{actionDetail.algorithmUsed}</Badge>
+                    </span>
+                    {actionDetail.confidenceScore !== undefined && (
+                      <span>
+                        <span className="text-muted-foreground">置信度: </span>
+                        <span className={actionDetail.confidenceScore > 0.7 ? 'text-green-400' : actionDetail.confidenceScore > 0.4 ? 'text-yellow-400' : 'text-red-400'}>
+                          {(actionDetail.confidenceScore * 100).toFixed(0)}%
+                        </span>
+                      </span>
                     )}
+                  </div>
+                )}
+                
+                {/* 目标关键词/ASIN */}
+                {actionDetail && actionDetail.keywordText && (
+                  <div className="text-sm">
+                    <span className="text-muted-foreground">
+                      {actionDetail.isProductTarget ? '商品定向: ' : '关键词: '}
+                    </span>
+                    <span className="font-mono">{actionDetail.keywordText}</span>
                   </div>
                 )}
                 
                 {/* 错误信息 */}
                 {log.errorMessage && (
-                  <div className="text-sm text-red-400">
+                  <div className="text-sm text-red-400 bg-red-500/10 rounded p-2 mt-2">
                     <span className="font-medium">错误: </span>
                     <span>{log.errorMessage}</span>
                   </div>
@@ -335,7 +499,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
               优化日志
             </CardTitle>
             <CardDescription>
-              {performanceGroupName || '优化目标'}的完整操作记录
+              {performanceGroupName || '优化目标'}的完整操作记录与Amazon同步状态
             </CardDescription>
           </div>
           <Button variant="outline" size="sm" onClick={() => refetchLogs()}>
@@ -346,38 +510,15 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
       </CardHeader>
       
       <CardContent className="space-y-4">
-        {/* 统计卡片 */}
-        {statsData && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-muted/50 rounded-lg p-3 text-center">
-              <p className="text-2xl font-bold">{statsData.totalLogs}</p>
-              <p className="text-xs text-muted-foreground">30天总日志</p>
-            </div>
-            {statsData.byCategory.slice(0, 3).map((cat) => {
-              const config = LOG_CATEGORIES[cat.category as keyof typeof LOG_CATEGORIES];
-              const Icon = config?.icon || History;
-              return (
-                <div key={cat.category} className="bg-muted/50 rounded-lg p-3 text-center">
-                  <div className="flex items-center justify-center gap-1 mb-1">
-                    <Icon className={`w-4 h-4 ${config?.color || 'text-gray-400'}`} />
-                  </div>
-                  <p className="text-xl font-bold">{cat.count}</p>
-                  <p className="text-xs text-muted-foreground">{config?.label || cat.category}</p>
-                </div>
-              );
-            })}
-          </div>
-        )}
-        
         {/* 分类标签页 */}
-        <Tabs value={activeCategory} onValueChange={setActiveCategory}>
+        <Tabs value={activeCategory} onValueChange={(v) => { setActiveCategory(v); setPage(1); }}>
           <TabsList className="grid grid-cols-5 w-full">
             {Object.entries(LOG_CATEGORIES).map(([key, config]) => {
               const Icon = config.icon;
               return (
                 <TabsTrigger key={key} value={key} className="text-xs">
                   <Icon className={`w-4 h-4 mr-1 ${config.color}`} />
-                  {config.label}
+                  <span className="hidden sm:inline">{config.label}</span>
                 </TabsTrigger>
               );
             })}
@@ -389,7 +530,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
           <div className="relative flex-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
-              placeholder="搜索日志..."
+              placeholder="搜索日志（广告活动名称、关键词、原因等）..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9"
@@ -398,7 +539,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
         </div>
         
         {/* 日志列表 */}
-        <ScrollArea className="h-[500px]">
+        <ScrollArea className="h-[600px]">
           {logsLoading ? (
             <div className="flex items-center justify-center h-32">
               <Loader2 className="w-6 h-6 animate-spin text-primary" />
