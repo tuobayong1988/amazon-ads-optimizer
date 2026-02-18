@@ -89831,8 +89831,8 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
             keywordText: kwTable.keywordText,
             matchType: kwTable.matchType,
             bid: kwTable.bid
-          }).from(kwTable).where(and7(
-            eq7(kwTable.accountId, accountId),
+          }).from(kwTable).innerJoin(agTable, eq7(kwTable.adGroupId, agTable.id)).innerJoin(campTable, eq7(agTable.campaignId, campTable.id)).where(and7(
+            eq7(campTable.accountId, accountId),
             isNull5(kwTable.keywordId)
           ));
           if (missingKws.length > 0) {
