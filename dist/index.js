@@ -53576,6 +53576,7 @@ var init_amazonAdsApi = __esm({
           if (adGroupId2) {
             body.adGroupIdFilter = { include: [String(adGroupId2)] };
           }
+          body.stateFilter = { include: ["ENABLED", "PAUSED", "ARCHIVED"] };
           if (nextToken) {
             body.nextToken = nextToken;
           }
@@ -89363,13 +89364,24 @@ async function syncNewKeywordsToAmazon(accountId, newKeywords) {
             try {
               const dbInstance = await getDb();
               if (dbInstance) {
-                const { keywords: keywords5 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-                const { eq: eq7 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-                await dbInstance.update(keywords5).set({
-                  keywordId: String(created.keywordId),
-                  updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
-                }).where(eq7(keywords5.id, original.localKeywordId));
-                console.log(`[AmazonApiHelper] \u2705 \u5173\u952E\u8BCD\u5DF2\u540C\u6B65: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
+                const { sql: sqlTag } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+                try {
+                  await dbInstance.execute(sqlTag`UPDATE keywords SET keywordId = ${String(created.keywordId)} WHERE id = ${original.localKeywordId}`);
+                  console.log(`[AmazonApiHelper] \u2705 \u5173\u952E\u8BCD\u5DF2\u540C\u6B65: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
+                } catch (updateErr) {
+                  console.warn(`[AmazonApiHelper] Drizzle execute\u5931\u8D25\uFF0C\u5C1D\u8BD5\u5E95\u5C42\u8FDE\u63A5:`, updateErr.message);
+                  const mysql = await import("mysql2/promise");
+                  const rawConn = await mysql.createConnection({
+                    host: process.env.DB_HOST || process.env.DATABASE_HOST,
+                    port: Number(process.env.DB_PORT || process.env.DATABASE_PORT || 3306),
+                    user: process.env.DB_USER || process.env.DATABASE_USER || "admin",
+                    password: process.env.DB_PASSWORD || process.env.DATABASE_PASSWORD,
+                    database: process.env.DB_NAME || process.env.DATABASE_NAME || "amazon_ads_optimizer"
+                  });
+                  await rawConn.execute("UPDATE keywords SET keywordId = ? WHERE id = ?", [String(created.keywordId), original.localKeywordId]);
+                  await rawConn.end();
+                  console.log(`[AmazonApiHelper] \u2705 (\u5E95\u5C42\u8FDE\u63A5) \u5173\u952E\u8BCD\u5DF2\u540C\u6B65: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
+                }
               }
             } catch (dbError) {
               console.error(`[AmazonApiHelper] \u66F4\u65B0\u672C\u5730keywordId\u5931\u8D25:`, dbError.message);

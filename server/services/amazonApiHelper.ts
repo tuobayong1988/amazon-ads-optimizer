@@ -286,17 +286,28 @@ export async function syncNewKeywordsToAmazon(
           // 如果有本地ID，更新本地数据库的keywordId
           if (original.localKeywordId) {
             try {
+              // v132: 使用mysql2直接连接更新keywordId，绕过Drizzle ORM的casing问题
               const dbInstance = await db.getDb();
               if (dbInstance) {
-                const { keywords } = await import('../../drizzle/schema');
-                const { eq } = await import('drizzle-orm');
-                await dbInstance.update(keywords)
-                  .set({ 
-                    keywordId: String(created.keywordId),
-                    updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-                  })
-                  .where(eq(keywords.id, original.localKeywordId));
-                console.log(`[AmazonApiHelper] ✅ 关键词已同步: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
+                const { sql: sqlTag } = await import('drizzle-orm');
+                try {
+                  await dbInstance.execute(sqlTag`UPDATE keywords SET keywordId = ${String(created.keywordId)} WHERE id = ${original.localKeywordId}`);
+                  console.log(`[AmazonApiHelper] ✅ 关键词已同步: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
+                } catch (updateErr: any) {
+                  // 如果Drizzle execute也失败，尝试使用底层mysql2连接
+                  console.warn(`[AmazonApiHelper] Drizzle execute失败，尝试底层连接:`, updateErr.message);
+                  const mysql = await import('mysql2/promise');
+                  const rawConn = await mysql.createConnection({
+                    host: process.env.DB_HOST || process.env.DATABASE_HOST,
+                    port: Number(process.env.DB_PORT || process.env.DATABASE_PORT || 3306),
+                    user: process.env.DB_USER || process.env.DATABASE_USER || 'admin',
+                    password: process.env.DB_PASSWORD || process.env.DATABASE_PASSWORD,
+                    database: process.env.DB_NAME || process.env.DATABASE_NAME || 'amazon_ads_optimizer',
+                  });
+                  await rawConn.execute('UPDATE keywords SET keywordId = ? WHERE id = ?', [String(created.keywordId), original.localKeywordId]);
+                  await rawConn.end();
+                  console.log(`[AmazonApiHelper] ✅ (底层连接) 关键词已同步: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
+                }
               }
             } catch (dbError: any) {
               console.error(`[AmazonApiHelper] 更新本地keywordId失败:`, dbError.message);

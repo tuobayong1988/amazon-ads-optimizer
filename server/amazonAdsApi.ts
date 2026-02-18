@@ -579,6 +579,8 @@ export class AmazonAdsApiClient {
         // v129: Amazon SP API v3要求adGroupId为字符串类型
         body.adGroupIdFilter = { include: [String(adGroupId)] };
       }
+      // v132: 包含所有状态的关键词（enabled, paused, archived），确保补偿同步能匹配到所有关键词
+      body.stateFilter = { include: ['ENABLED', 'PAUSED', 'ARCHIVED'] };
       if (nextToken) {
         body.nextToken = nextToken;
       }
