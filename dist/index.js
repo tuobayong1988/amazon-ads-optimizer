@@ -90255,39 +90255,49 @@ async function executeSearchTermAnalysis(config2, campaigns6, dryRun) {
                 const matchType = term.matchTypeSuggestion || "exact";
                 const bid = 0.5;
                 const { keywords: keywords5 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-                const insertResult = await dbInstance.insert(keywords5).values({
-                  adGroupId: adGroup.id,
-                  keywordText: term.searchTerm,
-                  matchType,
-                  bid: String(bid),
-                  keywordStatus: "enabled",
-                  createdAt: (/* @__PURE__ */ new Date()).toISOString(),
-                  updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-                });
-                const localKeywordId = insertResult[0]?.insertId;
-                if (amazonAdGroupId > 0 && amazonCampaignId > 0) {
-                  try {
-                    const apiResult = await syncNewKeywordsToAmazon(
-                      config2.accountId,
-                      [{
-                        localKeywordId: localKeywordId || void 0,
-                        adGroupId: amazonAdGroupId,
-                        campaignId: amazonCampaignId,
-                        keywordText: term.searchTerm,
-                        matchType,
-                        bid
-                      }]
-                    );
-                    if (apiResult.success > 0) {
-                      console.log(`[SearchTermAnalysis] \u2705 \u65B0\u5173\u952E\u8BCD\u5DF2\u540C\u6B65\u5230Amazon: "${term.searchTerm}"`);
-                    } else {
-                      console.error(`[SearchTermAnalysis] \u274C \u65B0\u5173\u952E\u8BCD\u540C\u6B65\u5931\u8D25: "${term.searchTerm}" - ${apiResult.errors.join("; ")}`);
-                    }
-                  } catch (apiError) {
-                    console.error(`[SearchTermAnalysis] \u274C \u65B0\u5173\u952E\u8BCDAPI\u540C\u6B65\u5F02\u5E38: "${term.searchTerm}" -`, apiError.message);
-                  }
+                const { eq: eqOp, and: andOp } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+                const existingKeywords = await dbInstance.select({ id: keywords5.id, keywordId: keywords5.keywordId }).from(keywords5).where(andOp(
+                  eqOp(keywords5.adGroupId, adGroup.id),
+                  eqOp(keywords5.keywordText, term.searchTerm),
+                  eqOp(keywords5.matchType, matchType)
+                )).limit(1);
+                if (existingKeywords.length > 0) {
+                  console.log(`[SearchTermAnalysis] \u23ED\uFE0F \u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7\u521B\u5EFA: "${term.searchTerm}" (${matchType}) id=${existingKeywords[0].id}, keywordId=${existingKeywords[0].keywordId}`);
                 } else {
-                  console.warn(`[SearchTermAnalysis] \u26A0\uFE0F \u7F3A\u5C11Amazon ID\uFF0C\u65E0\u6CD5\u540C\u6B65\u5173\u952E\u8BCD: adGroupId=${amazonAdGroupId}, campaignId=${amazonCampaignId}`);
+                  const insertResult = await dbInstance.insert(keywords5).values({
+                    adGroupId: adGroup.id,
+                    keywordText: term.searchTerm,
+                    matchType,
+                    bid: String(bid),
+                    keywordStatus: "enabled",
+                    createdAt: (/* @__PURE__ */ new Date()).toISOString(),
+                    updatedAt: (/* @__PURE__ */ new Date()).toISOString()
+                  });
+                  const localKeywordId = insertResult[0]?.insertId;
+                  if (amazonAdGroupId > 0 && amazonCampaignId > 0) {
+                    try {
+                      const apiResult = await syncNewKeywordsToAmazon(
+                        config2.accountId,
+                        [{
+                          localKeywordId: localKeywordId || void 0,
+                          adGroupId: amazonAdGroupId,
+                          campaignId: amazonCampaignId,
+                          keywordText: term.searchTerm,
+                          matchType,
+                          bid
+                        }]
+                      );
+                      if (apiResult.success > 0) {
+                        console.log(`[SearchTermAnalysis] \u2705 \u65B0\u5173\u952E\u8BCD\u5DF2\u540C\u6B65\u5230Amazon: "${term.searchTerm}"`);
+                      } else {
+                        console.error(`[SearchTermAnalysis] \u274C \u65B0\u5173\u952E\u8BCD\u540C\u6B65\u5931\u8D25: "${term.searchTerm}" - ${apiResult.errors.join("; ")}`);
+                      }
+                    } catch (apiError) {
+                      console.error(`[SearchTermAnalysis] \u274C \u65B0\u5173\u952E\u8BCDAPI\u540C\u6B65\u5F02\u5E38: "${term.searchTerm}" -`, apiError.message);
+                    }
+                  } else {
+                    console.warn(`[SearchTermAnalysis] \u26A0\uFE0F \u7F3A\u5C11Amazon ID\uFF0C\u65E0\u6CD5\u540C\u6B65\u5173\u952E\u8BCD: adGroupId=${amazonAdGroupId}, campaignId=${amazonCampaignId}`);
+                  }
                 }
               }
             }
