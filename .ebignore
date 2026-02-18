@@ -65,3 +65,22 @@ __tests__/
 *.test.tsx
 *.spec.ts
 *.spec.tsx
+
+# Source files (not needed in production, only dist is needed)
+client/
+server/
+drizzle/
+shared/
+# Source maps (not needed in production)
+dist/index.js.map
+# Blog images (large)
+dist/public/blog/
+# Large images
+dist/public/og-image.png
+# TypeScript config
+tsconfig.json
+vite.config.ts
+vite.build.config.ts
+build-server.js
+# Development dependencies
+package-lock.json
