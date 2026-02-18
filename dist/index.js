@@ -284204,6 +284204,29 @@ var systemRouter = router({
       throw new Error(`Unknown migration: ${input.migrationName}`);
     }
     return { success: true, results };
+  }),
+  // 诊断端点 - 查询缺少Amazon keywordId的关键词
+  diagnoseKeywords: adminProcedure.input(external_exports.object({ accountId: external_exports.number() })).query(async ({ input }) => {
+    const db = await getDb();
+    if (!db) throw new Error("Database not available");
+    const result = await db.execute(sql`
+        SELECT 
+          COUNT(*) as total_keywords,
+          SUM(CASE WHEN keyword_id IS NULL OR keyword_id = '' THEN 1 ELSE 0 END) as missing_keyword_id,
+          SUM(CASE WHEN keyword_id IS NOT NULL AND keyword_id != '' THEN 1 ELSE 0 END) as has_keyword_id
+        FROM keywords 
+        WHERE account_id = ${input.accountId}
+      `);
+    const biddingResult = await db.execute(sql`
+        SELECT 
+          execution_status,
+          COUNT(*) as count
+        FROM bidding_logs 
+        WHERE account_id = ${input.accountId}
+        GROUP BY execution_status
+        ORDER BY count DESC
+      `);
+    return { keywords: result[0], biddingLogs: biddingResult };
   })
 });
 
