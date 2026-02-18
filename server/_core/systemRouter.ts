@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { notifyOwner } from "./notification";
 import { adminProcedure, publicProcedure, router } from "./trpc";
+import { sql } from "drizzle-orm";
+import { getDb } from "../db";
 
 export const systemRouter = router({
   health: publicProcedure
@@ -25,5 +27,59 @@ export const systemRouter = router({
       return {
         success: delivered,
       } as const;
+    }),
+
+  // 数据库迁移端点 - 仅管理员可用
+  runMigration: adminProcedure
+    .input(
+      z.object({
+        migrationName: z.string().min(1),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db) throw new Error("Database not available");
+
+      const results: string[] = [];
+
+      if (input.migrationName === '0020_add_bidding_logs_columns') {
+        // 添加bidding_logs表缺失的列
+        try {
+          await db.execute(sql`ALTER TABLE bidding_logs ADD COLUMN execution_status enum('pending','success','failed','skipped') DEFAULT 'pending'`);
+          results.push('Added execution_status column');
+        } catch (e: any) {
+          if (e.message?.includes('Duplicate column')) {
+            results.push('execution_status column already exists');
+          } else {
+            results.push(`Error adding execution_status: ${e.message}`);
+          }
+        }
+
+        try {
+          await db.execute(sql`ALTER TABLE bidding_logs ADD COLUMN api_response_id varchar(128) DEFAULT NULL`);
+          results.push('Added api_response_id column');
+        } catch (e: any) {
+          if (e.message?.includes('Duplicate column')) {
+            results.push('api_response_id column already exists');
+          } else {
+            results.push(`Error adding api_response_id: ${e.message}`);
+          }
+        }
+
+        try {
+          await db.execute(sql`ALTER TABLE bidding_logs ADD COLUMN error_message text DEFAULT NULL`);
+          results.push('Added error_message column');
+        } catch (e: any) {
+          if (e.message?.includes('Duplicate column')) {
+            results.push('error_message column already exists');
+          } else {
+            results.push(`Error adding error_message: ${e.message}`);
+          }
+        }
+      } else {
+        throw new Error(`Unknown migration: ${input.migrationName}`);
+      }
+
+      return { success: true, results };
     }),
 });

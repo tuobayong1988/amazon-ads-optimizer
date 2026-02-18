@@ -89177,31 +89177,65 @@ async function syncBidAdjustmentsToAmazon(accountId, adjustments) {
     return result;
   }
   console.log(`[AmazonApiHelper] API\u670D\u52A1\u521B\u5EFA\u6210\u529F\uFF0C\u5F00\u59CB\u9010\u6761\u540C\u6B65\u51FA\u4EF7\u8C03\u6574`);
-  for (const adj of adjustments) {
-    try {
-      const targetType = adj.isProductTarget ? "product_target" : "keyword";
-      console.log(`[AmazonApiHelper] \u540C\u6B65\u51FA\u4EF7: ${targetType} id=${adj.keywordId}, newBid=${adj.newBid}, campaignId=${adj.campaignId}`);
-      const success2 = await syncService.applyBidAdjustment(
-        targetType,
-        adj.keywordId,
-        adj.newBid,
-        adj.reason,
-        adj.campaignId
-      );
-      if (success2) {
-        result.success++;
-        console.log(`[AmazonApiHelper] \u2705 \u51FA\u4EF7\u540C\u6B65\u6210\u529F: ${targetType} ${adj.keywordId}`);
-      } else {
-        result.failed++;
-        const errorMsg = `\u51FA\u4EF7\u8C03\u6574\u5931\u8D25(\u8FD4\u56DEfalse): ${targetType} ${adj.keywordId} - \u53EF\u80FD\u662FAmazon ID\u7F3A\u5931\u6216API\u8C03\u7528\u5931\u8D25`;
-        result.errors.push(errorMsg);
-        console.error(`[AmazonApiHelper] \u274C ${errorMsg}`);
+  const delay = (ms) => new Promise((resolve8) => setTimeout(resolve8, ms));
+  let consecutiveThrottles = 0;
+  for (let i4 = 0; i4 < adjustments.length; i4++) {
+    const adj = adjustments[i4];
+    const maxRetries = 2;
+    let retryCount = 0;
+    let success2 = false;
+    while (retryCount <= maxRetries && !success2) {
+      try {
+        const targetType = adj.isProductTarget ? "product_target" : "keyword";
+        if (retryCount === 0) {
+          console.log(`[AmazonApiHelper] [${i4 + 1}/${adjustments.length}] \u540C\u6B65\u51FA\u4EF7: ${targetType} id=${adj.keywordId}, newBid=${adj.newBid}`);
+        } else {
+          console.log(`[AmazonApiHelper] [${i4 + 1}/${adjustments.length}] \u91CD\u8BD5#${retryCount}: ${targetType} id=${adj.keywordId}`);
+        }
+        const apiResult = await syncService.applyBidAdjustment(
+          targetType,
+          adj.keywordId,
+          adj.newBid,
+          adj.reason,
+          adj.campaignId
+        );
+        if (apiResult) {
+          result.success++;
+          consecutiveThrottles = 0;
+          success2 = true;
+        } else {
+          retryCount++;
+          if (retryCount <= maxRetries) {
+            const waitTime = 2e3 * retryCount;
+            console.log(`[AmazonApiHelper] \u2139\uFE0F \u7B49\u5F85${waitTime}ms\u540E\u91CD\u8BD5...`);
+            await delay(waitTime);
+          } else {
+            result.failed++;
+            const errorMsg = `\u51FA\u4EF7\u8C03\u6574\u5931\u8D25(\u91CD\u8BD5${maxRetries}\u6B21\u540E): ${targetType} ${adj.keywordId}`;
+            result.errors.push(errorMsg);
+            console.error(`[AmazonApiHelper] \u274C ${errorMsg}`);
+          }
+        }
+      } catch (error51) {
+        const isThrottle = error51.message?.includes("\u8BF7\u6C42\u8FC7\u4E8E\u9891\u7E41") || error51.status === 429;
+        retryCount++;
+        if (isThrottle && retryCount <= maxRetries) {
+          consecutiveThrottles++;
+          const waitTime = Math.min(3e3 * consecutiveThrottles, 15e3);
+          console.log(`[AmazonApiHelper] \u26A0\uFE0F \u9650\u6D41\uFF0C\u7B49\u5F85${waitTime}ms\u540E\u91CD\u8BD5...`);
+          await delay(waitTime);
+        } else {
+          result.failed++;
+          const targetType = adj.isProductTarget ? "product_target" : "keyword";
+          const errorMsg = `\u51FA\u4EF7\u8C03\u6574\u5F02\u5E38: ${targetType} ${adj.keywordId} - ${error51.message}`;
+          result.errors.push(errorMsg);
+          console.error(`[AmazonApiHelper] \u274C ${errorMsg}`);
+          break;
+        }
       }
-    } catch (error51) {
-      result.failed++;
-      const errorMsg = `\u51FA\u4EF7\u8C03\u6574\u5F02\u5E38: ${adj.isProductTarget ? "product_target" : "keyword"} ${adj.keywordId} - ${error51.message}`;
-      result.errors.push(errorMsg);
-      console.error(`[AmazonApiHelper] \u274C ${errorMsg}`, error51.response?.data || "");
+    }
+    if ((i4 + 1) % 5 === 0 && i4 < adjustments.length - 1) {
+      await delay(500);
     }
   }
   console.log(`[AmazonApiHelper] \u51FA\u4EF7\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}, \u9519\u8BEF\u6570=${result.errors.length}`);
@@ -283993,6 +284027,8 @@ var adminProcedure = t.procedure.use(
 );
 
 // server/_core/systemRouter.ts
+init_drizzle_orm();
+init_db2();
 var systemRouter = router({
   health: publicProcedure.input(
     external_exports.object({
@@ -284011,6 +284047,51 @@ var systemRouter = router({
     return {
       success: delivered
     };
+  }),
+  // 数据库迁移端点 - 仅管理员可用
+  runMigration: adminProcedure.input(
+    external_exports.object({
+      migrationName: external_exports.string().min(1)
+    })
+  ).mutation(async ({ input }) => {
+    const db = await getDb();
+    if (!db) throw new Error("Database not available");
+    const results = [];
+    if (input.migrationName === "0020_add_bidding_logs_columns") {
+      try {
+        await db.execute(sql`ALTER TABLE bidding_logs ADD COLUMN execution_status enum('pending','success','failed','skipped') DEFAULT 'pending'`);
+        results.push("Added execution_status column");
+      } catch (e6) {
+        if (e6.message?.includes("Duplicate column")) {
+          results.push("execution_status column already exists");
+        } else {
+          results.push(`Error adding execution_status: ${e6.message}`);
+        }
+      }
+      try {
+        await db.execute(sql`ALTER TABLE bidding_logs ADD COLUMN api_response_id varchar(128) DEFAULT NULL`);
+        results.push("Added api_response_id column");
+      } catch (e6) {
+        if (e6.message?.includes("Duplicate column")) {
+          results.push("api_response_id column already exists");
+        } else {
+          results.push(`Error adding api_response_id: ${e6.message}`);
+        }
+      }
+      try {
+        await db.execute(sql`ALTER TABLE bidding_logs ADD COLUMN error_message text DEFAULT NULL`);
+        results.push("Added error_message column");
+      } catch (e6) {
+        if (e6.message?.includes("Duplicate column")) {
+          results.push("error_message column already exists");
+        } else {
+          results.push(`Error adding error_message: ${e6.message}`);
+        }
+      }
+    } else {
+      throw new Error(`Unknown migration: ${input.migrationName}`);
+    }
+    return { success: true, results };
   })
 });
 

@@ -97,33 +97,74 @@ export async function syncBidAdjustmentsToAmazon(
   
   console.log(`[AmazonApiHelper] API服务创建成功，开始逐条同步出价调整`);
   
-  for (const adj of adjustments) {
-    try {
-      const targetType = adj.isProductTarget ? 'product_target' : 'keyword';
-      console.log(`[AmazonApiHelper] 同步出价: ${targetType} id=${adj.keywordId}, newBid=${adj.newBid}, campaignId=${adj.campaignId}`);
-      
-      const success = await syncService.applyBidAdjustment(
-        targetType,
-        adj.keywordId,
-        adj.newBid,
-        adj.reason,
-        adj.campaignId
-      );
-      
-      if (success) {
-        result.success++;
-        console.log(`[AmazonApiHelper] ✅ 出价同步成功: ${targetType} ${adj.keywordId}`);
-      } else {
-        result.failed++;
-        const errorMsg = `出价调整失败(返回false): ${targetType} ${adj.keywordId} - 可能是Amazon ID缺失或API调用失败`;
-        result.errors.push(errorMsg);
-        console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
+  // v125c: 添加限流延迟和重试逻辑
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+  let consecutiveThrottles = 0;
+  
+  for (let i = 0; i < adjustments.length; i++) {
+    const adj = adjustments[i];
+    const maxRetries = 2;
+    let retryCount = 0;
+    let success = false;
+    
+    while (retryCount <= maxRetries && !success) {
+      try {
+        const targetType = adj.isProductTarget ? 'product_target' : 'keyword';
+        if (retryCount === 0) {
+          console.log(`[AmazonApiHelper] [${i+1}/${adjustments.length}] 同步出价: ${targetType} id=${adj.keywordId}, newBid=${adj.newBid}`);
+        } else {
+          console.log(`[AmazonApiHelper] [${i+1}/${adjustments.length}] 重试#${retryCount}: ${targetType} id=${adj.keywordId}`);
+        }
+        
+        const apiResult = await syncService.applyBidAdjustment(
+          targetType,
+          adj.keywordId,
+          adj.newBid,
+          adj.reason,
+          adj.campaignId
+        );
+        
+        if (apiResult) {
+          result.success++;
+          consecutiveThrottles = 0;
+          success = true;
+        } else {
+          // applyBidAdjustment返回false可能是限流或其他原因
+          retryCount++;
+          if (retryCount <= maxRetries) {
+            const waitTime = 2000 * retryCount; // 递增等待时间
+            console.log(`[AmazonApiHelper] ℹ️ 等待${waitTime}ms后重试...`);
+            await delay(waitTime);
+          } else {
+            result.failed++;
+            const errorMsg = `出价调整失败(重试${maxRetries}次后): ${targetType} ${adj.keywordId}`;
+            result.errors.push(errorMsg);
+            console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
+          }
+        }
+      } catch (error: any) {
+        const isThrottle = error.message?.includes('请求过于频繁') || error.status === 429;
+        retryCount++;
+        
+        if (isThrottle && retryCount <= maxRetries) {
+          consecutiveThrottles++;
+          const waitTime = Math.min(3000 * consecutiveThrottles, 15000);
+          console.log(`[AmazonApiHelper] ⚠️ 限流，等待${waitTime}ms后重试...`);
+          await delay(waitTime);
+        } else {
+          result.failed++;
+          const targetType = adj.isProductTarget ? 'product_target' : 'keyword';
+          const errorMsg = `出价调整异常: ${targetType} ${adj.keywordId} - ${error.message}`;
+          result.errors.push(errorMsg);
+          console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
+          break; // 跳出重试循环
+        }
       }
-    } catch (error: any) {
-      result.failed++;
-      const errorMsg = `出价调整异常: ${adj.isProductTarget ? 'product_target' : 'keyword'} ${adj.keywordId} - ${error.message}`;
-      result.errors.push(errorMsg);
-      console.error(`[AmazonApiHelper] ❌ ${errorMsg}`, error.response?.data || '');
+    }
+    
+    // 每5个调用后添加小延迟，避免触发限流
+    if ((i + 1) % 5 === 0 && i < adjustments.length - 1) {
+      await delay(500);
     }
   }
   
