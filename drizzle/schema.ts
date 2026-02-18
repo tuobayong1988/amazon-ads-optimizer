@@ -3293,6 +3293,10 @@ export const optimizationLogs = mysqlTable("optimization_logs", {
     'bid_decrease',
     'bid_set',
     'bid_auto_adjust',
+    // 分时竞价
+    'dayparting_bid',
+    // 预算调整
+    'budget_adjustment',
     // 层面调整
     'placement_adjust',
     'placement_enable',
@@ -3307,7 +3311,13 @@ export const optimizationLogs = mysqlTable("optimization_logs", {
     'negative_keyword_remove',
     'keyword_create',
     'target_pause',
-    'target_enable'
+    'target_enable',
+    // 广告活动状态变更
+    'campaign_pause',
+    'campaign_enable',
+    // 广告组状态变更
+    'adgroup_pause',
+    'adgroup_enable'
   ]).notNull(),
   
   // 策略模板信息

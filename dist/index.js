@@ -35754,6 +35754,10 @@ var init_schema2 = __esm({
           "bid_decrease",
           "bid_set",
           "bid_auto_adjust",
+          // 分时竞价
+          "dayparting_bid",
+          // 预算调整
+          "budget_adjustment",
           // 层面调整
           "placement_adjust",
           "placement_enable",
@@ -35768,7 +35772,13 @@ var init_schema2 = __esm({
           "negative_keyword_remove",
           "keyword_create",
           "target_pause",
-          "target_enable"
+          "target_enable",
+          // 广告活动状态变更
+          "campaign_pause",
+          "campaign_enable",
+          // 广告组状态变更
+          "adgroup_pause",
+          "adgroup_enable"
         ]).notNull(),
         // 策略模板信息
         strategyTemplateId: int("strategy_template_id"),
@@ -91316,27 +91326,33 @@ async function recordExecutionLog(result) {
     if (result.bidOptimization.executed && result.bidOptimization.adjustmentsCount > 0) {
       const bidApiSyncStatus = result.bidOptimization.apiSyncStatus || "pending";
       const bidApiSyncResult = result.bidOptimization.apiSyncResult;
+      console.log(`[recordExecutionLog] \u51FA\u4EF7\u8C03\u6574\u65E5\u5FD7: bidApiSyncStatus=${bidApiSyncStatus}, details=${result.bidOptimization.details.length}`);
       for (const detail of result.bidOptimization.details) {
-        await dbInstance.insert(optimizationLogs2).values({
-          performanceGroupId: result.targetId,
-          performanceGroupName: result.targetName,
-          accountId: detail.accountId || 0,
-          logCategory: "bid_adjustment",
-          actionType: detail.newBid > detail.currentBid ? "bid_increase" : "bid_decrease",
-          campaignId: detail.campaignId,
-          campaignName: detail.campaignName,
-          actionDetail: JSON.stringify(detail),
-          previousValue: `$${detail.currentBid.toFixed(2)}`,
-          newValue: `$${detail.newBid.toFixed(2)}`,
-          changeReason: detail.reason || `\u51FA\u4EF7\u8C03\u6574 ${detail.changePercent}%`,
-          status: bidApiSyncStatus === "synced" ? "success" : bidApiSyncStatus === "failed" ? "failed" : "success",
-          apiSyncStatus: detail.apiSyncStatus || bidApiSyncStatus,
-          apiSyncDetail: detail.apiSyncDetail || (bidApiSyncResult ? JSON.stringify(bidApiSyncResult) : null),
-          apiSyncedAt: bidApiSyncStatus === "synced" ? now : null,
-          errorMessage: bidApiSyncStatus === "failed" && bidApiSyncResult?.errors?.length > 0 ? bidApiSyncResult.errors.join("; ") : null,
-          createdAt: now,
-          executedAt: now
-        });
+        const finalSyncStatus = detail.apiSyncStatus || bidApiSyncStatus || "pending";
+        try {
+          await dbInstance.insert(optimizationLogs2).values({
+            performanceGroupId: result.targetId,
+            performanceGroupName: result.targetName,
+            accountId: detail.accountId || 0,
+            logCategory: "bid_adjustment",
+            actionType: detail.newBid > detail.currentBid ? "bid_increase" : "bid_decrease",
+            campaignId: detail.campaignId,
+            campaignName: detail.campaignName,
+            actionDetail: JSON.stringify(detail),
+            previousValue: `$${detail.currentBid.toFixed(2)}`,
+            newValue: `$${detail.newBid.toFixed(2)}`,
+            changeReason: detail.reason || `\u51FA\u4EF7\u8C03\u6574 ${detail.changePercent}%`,
+            status: finalSyncStatus === "synced" || finalSyncStatus === "partial" ? "success" : finalSyncStatus === "failed" ? "failed" : "success",
+            apiSyncStatus: finalSyncStatus,
+            apiSyncDetail: detail.apiSyncDetail || (bidApiSyncResult ? JSON.stringify(bidApiSyncResult) : null),
+            apiSyncedAt: finalSyncStatus === "synced" || finalSyncStatus === "partial" ? now : null,
+            errorMessage: finalSyncStatus === "failed" && bidApiSyncResult?.errors?.length > 0 ? bidApiSyncResult.errors.join("; ") : null,
+            createdAt: now,
+            executedAt: now
+          });
+        } catch (insertError) {
+          console.error(`[recordExecutionLog] \u51FA\u4EF7\u65E5\u5FD7\u5199\u5165\u5931\u8D25: ${insertError.message}`, { keywordId: detail.keywordId, finalSyncStatus });
+        }
       }
     }
     if (result.placementOptimization.executed && result.placementOptimization.adjustmentsCount > 0) {

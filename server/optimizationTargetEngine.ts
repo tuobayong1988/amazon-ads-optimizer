@@ -2005,28 +2005,34 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
     if (result.bidOptimization.executed && result.bidOptimization.adjustmentsCount > 0) {
       const bidApiSyncStatus = (result.bidOptimization as any).apiSyncStatus || 'pending';
       const bidApiSyncResult = (result.bidOptimization as any).apiSyncResult;
+      console.log(`[recordExecutionLog] 出价调整日志: bidApiSyncStatus=${bidApiSyncStatus}, details=${result.bidOptimization.details.length}`);
       
       for (const detail of result.bidOptimization.details) {
-        await dbInstance.insert(optimizationLogs).values({
-          performanceGroupId: result.targetId,
-          performanceGroupName: result.targetName,
-          accountId: detail.accountId || 0,
-          logCategory: 'bid_adjustment',
-          actionType: detail.newBid > detail.currentBid ? 'bid_increase' : 'bid_decrease',
-          campaignId: detail.campaignId,
-          campaignName: detail.campaignName,
-          actionDetail: JSON.stringify(detail),
-          previousValue: `$${detail.currentBid.toFixed(2)}`,
-          newValue: `$${detail.newBid.toFixed(2)}`,
-          changeReason: detail.reason || `出价调整 ${detail.changePercent}%`,
-          status: bidApiSyncStatus === 'synced' ? 'success' : bidApiSyncStatus === 'failed' ? 'failed' : 'success',
-          apiSyncStatus: detail.apiSyncStatus || bidApiSyncStatus,
-          apiSyncDetail: detail.apiSyncDetail || (bidApiSyncResult ? JSON.stringify(bidApiSyncResult) : null),
-          apiSyncedAt: bidApiSyncStatus === 'synced' ? now : null,
-          errorMessage: bidApiSyncStatus === 'failed' && bidApiSyncResult?.errors?.length > 0 ? bidApiSyncResult.errors.join('; ') : null,
-          createdAt: now,
-          executedAt: now,
-        });
+        const finalSyncStatus = detail.apiSyncStatus || bidApiSyncStatus || 'pending';
+        try {
+          await dbInstance.insert(optimizationLogs).values({
+            performanceGroupId: result.targetId,
+            performanceGroupName: result.targetName,
+            accountId: detail.accountId || 0,
+            logCategory: 'bid_adjustment',
+            actionType: detail.newBid > detail.currentBid ? 'bid_increase' : 'bid_decrease',
+            campaignId: detail.campaignId,
+            campaignName: detail.campaignName,
+            actionDetail: JSON.stringify(detail),
+            previousValue: `$${detail.currentBid.toFixed(2)}`,
+            newValue: `$${detail.newBid.toFixed(2)}`,
+            changeReason: detail.reason || `出价调整 ${detail.changePercent}%`,
+            status: finalSyncStatus === 'synced' || finalSyncStatus === 'partial' ? 'success' : finalSyncStatus === 'failed' ? 'failed' : 'success',
+            apiSyncStatus: finalSyncStatus,
+            apiSyncDetail: detail.apiSyncDetail || (bidApiSyncResult ? JSON.stringify(bidApiSyncResult) : null),
+            apiSyncedAt: (finalSyncStatus === 'synced' || finalSyncStatus === 'partial') ? now : null,
+            errorMessage: finalSyncStatus === 'failed' && bidApiSyncResult?.errors?.length > 0 ? bidApiSyncResult.errors.join('; ') : null,
+            createdAt: now,
+            executedAt: now,
+          });
+        } catch (insertError: any) {
+          console.error(`[recordExecutionLog] 出价日志写入失败: ${insertError.message}`, { keywordId: detail.keywordId, finalSyncStatus });
+        }
       }
     }
     
