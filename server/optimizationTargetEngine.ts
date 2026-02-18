@@ -1346,7 +1346,7 @@ async function executeSearchTermAnalysis(
                 const matchType = (term.matchTypeSuggestion || 'exact') as 'exact' | 'phrase' | 'broad';
                 const bid = 0.50;
                 
-                // v133: 去重检查 - 检查本地数据库是否已存在相同关键词
+                // v139: 增强去重检查 - 检查本地数据库是否已存在相同关键词（包括keywordId为NULL的重复记录）
                 const { keywords } = await import('../drizzle/schema');
                 const { eq: eqOp, and: andOp } = await import('drizzle-orm');
                 const existingKeywords = await dbInstance.select({ id: keywords.id, keywordId: keywords.keywordId })
@@ -1356,9 +1356,24 @@ async function executeSearchTermAnalysis(
                     eqOp(keywords.keywordText, term.searchTerm),
                     eqOp(keywords.matchType, matchType as any)
                   ))
-                  .limit(1);
+                  .limit(5);
                 
                 if (existingKeywords.length > 0) {
+                  // v139: 如果存在多条重复记录（keywordId为NULL），清理多余的
+                  if (existingKeywords.length > 1) {
+                    const withId = existingKeywords.filter(k => k.keywordId !== null);
+                    const withoutId = existingKeywords.filter(k => k.keywordId === null);
+                    // 保留有keywordId的记录，删除多余的无ID记录
+                    const toDelete = withId.length > 0 ? withoutId : withoutId.slice(1);
+                    for (const dup of toDelete) {
+                      try {
+                        await dbInstance.delete(keywords).where(eqOp(keywords.id, dup.id));
+                        console.log(`[SearchTermAnalysis] 🧹 清理重复关键词: id=${dup.id} "${term.searchTerm}" (keywordId=${dup.keywordId})`);
+                      } catch (delErr: any) {
+                        console.warn(`[SearchTermAnalysis] 清理重复关键词失败: id=${dup.id}: ${delErr.message}`);
+                      }
+                    }
+                  }
                   console.log(`[SearchTermAnalysis] ⏭️ 关键词已存在，跳过创建: "${term.searchTerm}" (${matchType}) id=${existingKeywords[0].id}, keywordId=${existingKeywords[0].keywordId}`);
                 } else {
                   // 插入本地数据库 - v138: 修复缺少accountId和campaignId的问题
@@ -2451,6 +2466,33 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
           createdAt: now,
           executedAt: now,
         });
+      }
+    }
+    
+    // v139: 更新优化目标的 last_optimization_at 时间戳
+    try {
+      const { performanceGroups } = await import('../drizzle/schema');
+      const { eq: eqOp } = await import('drizzle-orm');
+      await dbInstance.update(performanceGroups)
+        .set({ lastOptimizationAt: new Date() } as any)
+        .where(eqOp(performanceGroups.id, result.targetId));
+      console.log(`[OptimizationTargetEngine] 已更新 last_optimization_at: targetId=${result.targetId}`);
+    } catch (updateErr: any) {
+      // 如果Drizzle ORM的casing映射有问题，使用mysql2直接更新
+      try {
+        const mysql2 = await import('mysql2/promise');
+        const dbUrl = process.env.DATABASE_URL;
+        if (dbUrl) {
+          const directConn = await mysql2.createConnection(dbUrl);
+          await directConn.execute(
+            'UPDATE performance_groups SET last_optimization_at = NOW() WHERE id = ?',
+            [result.targetId]
+          );
+          await directConn.end();
+          console.log(`[OptimizationTargetEngine] 已通过mysql2更新 last_optimization_at: targetId=${result.targetId}`);
+        }
+      } catch (directErr: any) {
+        console.error(`[OptimizationTargetEngine] 更新last_optimization_at失败: ${directErr.message}`);
       }
     }
     
