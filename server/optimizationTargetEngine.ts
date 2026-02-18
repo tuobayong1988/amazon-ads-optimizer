@@ -643,7 +643,7 @@ async function executeBidOptimization(
                                 campaignId: amazonCampaignId,
                                 keywordText: cleanText(k.keywordText),
                                 matchType: k.matchType as 'exact' | 'phrase' | 'broad',
-                                bid: k.bid > 0 ? k.bid : 0.5,
+                                bid: Number(k.bid) > 0 ? Number(k.bid) : 0.5,
                                 state: 'enabled' as const,
                               }))
                             );

@@ -89929,7 +89929,7 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
                                 campaignId: amazonCampaignId,
                                 keywordText: cleanText(k5.keywordText),
                                 matchType: k5.matchType,
-                                bid: k5.bid > 0 ? k5.bid : 0.5,
+                                bid: Number(k5.bid) > 0 ? Number(k5.bid) : 0.5,
                                 state: "enabled"
                               }))
                             );
