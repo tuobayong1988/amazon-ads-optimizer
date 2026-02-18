@@ -1520,8 +1520,8 @@ export default function Campaigns() {
     const dailySales = parseFloat((campaign as any).dailySales || "0");
     const totalSales = parseFloat(campaign.sales || "0");
     const dailyBudget = parseFloat((campaign as any).dailyBudget || "0");
-    const impressions = campaign.impressions || 0;
-    const clicks = campaign.clicks || 0;
+    const impressions = Number(campaign.impressions) || 0;
+    const clicks = Number(campaign.clicks) || 0;
 
     switch (columnKey) {
       case 'campaignName':
