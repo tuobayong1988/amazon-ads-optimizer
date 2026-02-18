@@ -79,6 +79,22 @@ export interface OptimizationExecutionResult {
     details: any[];
   };
   
+  // v135: 广告活动状态变更
+  campaignStatusChanges: {
+    executed: boolean;
+    pausedCount: number;
+    enabledCount: number;
+    details: any[];
+  };
+  
+  // v135: 广告组状态变更
+  adGroupStatusChanges: {
+    executed: boolean;
+    pausedCount: number;
+    enabledCount: number;
+    details: any[];
+  };
+  
   // 中央竞价协调器执行结果
   bidCoordination: {
     executed: boolean;
@@ -198,6 +214,8 @@ export async function executeOptimizationTarget(
     searchTermAnalysis: { executed: false, negativeKeywordsAdded: 0, newKeywordsAdded: 0, details: [] },
     budgetAllocation: { executed: false, adjustmentsCount: 0, details: [] },
     keywordStatusChanges: { executed: false, pausedCount: 0, enabledCount: 0, details: [] },
+    campaignStatusChanges: { executed: false, pausedCount: 0, enabledCount: 0, details: [] },
+    adGroupStatusChanges: { executed: false, pausedCount: 0, enabledCount: 0, details: [] },
     bidCoordination: { executed: false, campaignsCoordinated: 0, circuitBreakerTriggered: 0, details: [] },
     errors: [],
     warnings: [],
@@ -277,7 +295,27 @@ export async function executeOptimizationTarget(
     }
   }
   
-  // 7. 执行中央竞价协调（收集各服务建议并统一处理）
+  // 7. v135: 执行广告活动状态变更
+  if (config.enableKeywordAutoExecution && shouldExecute('campaign_status')) {
+    try {
+      const campaignResults = await executeCampaignStatusChanges(config, campaigns, dryRun);
+      result.campaignStatusChanges = campaignResults;
+    } catch (error: any) {
+      result.errors.push(`广告活动状态变更失败: ${error.message}`);
+    }
+  }
+  
+  // 8. v135: 执行广告组状态变更
+  if (config.enableKeywordAutoExecution && shouldExecute('adgroup_status')) {
+    try {
+      const adGroupResults = await executeAdGroupStatusChanges(config, campaigns, dryRun);
+      result.adGroupStatusChanges = adGroupResults;
+    } catch (error: any) {
+      result.errors.push(`广告组状态变更失败: ${error.message}`);
+    }
+  }
+  
+  // 9. 执行中央竞价协调（收集各服务建议并统一处理）
   if (shouldExecute('coordination')) {
     try {
       const coordinationResults = await executeBidCoordination(
@@ -1496,6 +1534,329 @@ async function executeKeywordStatusChanges(
 }
 
 /**
+ * v135: 执行广告活动状态变更
+ * 自动判断广告活动是否应该暂停或启用，并同步到Amazon
+ */
+async function executeCampaignStatusChanges(
+  config: OptimizationTargetConfig,
+  campaigns: any[],
+  dryRun: boolean
+): Promise<{ executed: boolean; pausedCount: number; enabledCount: number; details: any[] }> {
+  const details: any[] = [];
+  let pausedCount = 0;
+  let enabledCount = 0;
+  
+  const goal = config.optimizationGoal || 'balanced';
+  const targetAcos = config.targetAcos || 30;
+  
+  // 广告活动暂停阈值（比关键词更保守，因为影响范围更大）
+  let campaignPauseSpendThreshold = 200;
+  let campaignPauseClickThreshold = 100;
+  let campaignMaxAcosThreshold = targetAcos * 3;
+  
+  if (['profit-focused', 'brand-defense', 'decline-management'].includes(goal)) {
+    campaignPauseSpendThreshold = 150;
+    campaignPauseClickThreshold = 80;
+    campaignMaxAcosThreshold = targetAcos * 2.5;
+  }
+  
+  for (const campaign of campaigns) {
+    try {
+      const spend = parseFloat(campaign.spend || '0');
+      const sales = parseFloat(campaign.sales || '0');
+      const clicks = campaign.clicks || 0;
+      const conversions = campaign.orders || 0;
+      const acos = sales > 0 ? (spend / sales * 100) : 0;
+      const campaignStatus = campaign.campaignStatus || 'enabled';
+      
+      let shouldPause = false;
+      let pauseReason = '';
+      let shouldEnable = false;
+      let enableReason = '';
+      
+      if (campaignStatus === 'enabled') {
+        // 条件1：高花费零转化
+        if (spend > campaignPauseSpendThreshold && conversions === 0 && clicks > campaignPauseClickThreshold) {
+          shouldPause = true;
+          pauseReason = `广告活动高花费零转化: 花费$${spend.toFixed(2)}(>阈值$${campaignPauseSpendThreshold}), 点击${clicks}(>阈值${campaignPauseClickThreshold}), 转化${conversions}`;
+        }
+        // 条件2：ACoS远超目标
+        else if (acos > campaignMaxAcosThreshold && clicks > campaignPauseClickThreshold && conversions > 0) {
+          shouldPause = true;
+          pauseReason = `广告活动ACoS远超目标: ACoS ${acos.toFixed(1)}%(>阈值${campaignMaxAcosThreshold.toFixed(0)}%), 点击${clicks}, 转化${conversions}`;
+        }
+      } else if (campaignStatus === 'paused') {
+        // 广告活动启用判断：仅在有明确改善时启用
+        if (acos > 0 && acos < targetAcos * 0.8) {
+          shouldEnable = true;
+          enableReason = `广告活动表现改善: ACoS ${acos.toFixed(1)}%(目标${targetAcos}%), 建议重新启用`;
+        }
+      }
+      
+      if (shouldPause) {
+        const action: any = {
+          accountId: config.accountId,
+          entityType: 'campaign',
+          campaignId: campaign.id,
+          campaignName: campaign.name || campaign.campaignName,
+          amazonCampaignId: campaign.campaignId || campaign.amazonCampaignId,
+          action: 'pause',
+          reason: pauseReason,
+          currentStatus: campaignStatus,
+          newStatus: 'paused',
+          spend: spend,
+          sales: sales,
+          clicks: clicks,
+          conversions: conversions,
+          acos: acos,
+          apiSyncStatus: dryRun ? 'pending' : 'pending',
+        };
+        details.push(action);
+        
+        if (!dryRun) {
+          await db.updateCampaign(campaign.id, { campaignStatus: 'paused' });
+          pausedCount++;
+          
+          try {
+            const syncResult = await amazonApiHelper.syncCampaignStatusToAmazon(
+              config.accountId,
+              [{
+                campaignId: campaign.id,
+                amazonCampaignId: String(campaign.campaignId || campaign.amazonCampaignId || ''),
+                newStatus: 'paused',
+                campaignName: campaign.name || campaign.campaignName || '',
+                reason: pauseReason,
+              }]
+            );
+            action.apiSyncStatus = syncResult.success > 0 ? 'synced' : 'failed';
+            if (syncResult.errors.length > 0) {
+              action.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
+            }
+          } catch (apiError: any) {
+            action.apiSyncStatus = 'failed';
+            action.apiSyncDetail = JSON.stringify({ error: apiError.message });
+          }
+        }
+      } else if (shouldEnable) {
+        const action: any = {
+          accountId: config.accountId,
+          entityType: 'campaign',
+          campaignId: campaign.id,
+          campaignName: campaign.name || campaign.campaignName,
+          amazonCampaignId: campaign.campaignId || campaign.amazonCampaignId,
+          action: 'enable',
+          reason: enableReason,
+          currentStatus: campaignStatus,
+          newStatus: 'enabled',
+          spend: spend,
+          sales: sales,
+          clicks: clicks,
+          conversions: conversions,
+          acos: acos,
+          apiSyncStatus: dryRun ? 'pending' : 'pending',
+        };
+        details.push(action);
+        
+        if (!dryRun) {
+          await db.updateCampaign(campaign.id, { campaignStatus: 'enabled' });
+          enabledCount++;
+          
+          try {
+            const syncResult = await amazonApiHelper.syncCampaignStatusToAmazon(
+              config.accountId,
+              [{
+                campaignId: campaign.id,
+                amazonCampaignId: String(campaign.campaignId || campaign.amazonCampaignId || ''),
+                newStatus: 'enabled',
+                campaignName: campaign.name || campaign.campaignName || '',
+                reason: enableReason,
+              }]
+            );
+            action.apiSyncStatus = syncResult.success > 0 ? 'synced' : 'failed';
+            if (syncResult.errors.length > 0) {
+              action.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
+            }
+          } catch (apiError: any) {
+            action.apiSyncStatus = 'failed';
+            action.apiSyncDetail = JSON.stringify({ error: apiError.message });
+          }
+        }
+      }
+    } catch (error: any) {
+      details.push({
+        campaignId: campaign.id,
+        campaignName: campaign.name || campaign.campaignName,
+        entityType: 'campaign',
+        error: error.message,
+      });
+    }
+  }
+  
+  return { executed: true, pausedCount, enabledCount, details };
+}
+
+/**
+ * v135: 执行广告组状态变更
+ * 自动判断广告组是否应该暂停或启用，并同步到Amazon
+ */
+async function executeAdGroupStatusChanges(
+  config: OptimizationTargetConfig,
+  campaigns: any[],
+  dryRun: boolean
+): Promise<{ executed: boolean; pausedCount: number; enabledCount: number; details: any[] }> {
+  const details: any[] = [];
+  let pausedCount = 0;
+  let enabledCount = 0;
+  
+  const targetAcos = config.targetAcos || 30;
+  
+  // 广告组暂停阈值（介于广告活动和关键词之间）
+  let adGroupPauseSpendThreshold = 100;
+  let adGroupPauseClickThreshold = 50;
+  let adGroupMaxAcosThreshold = targetAcos * 2.8;
+  
+  for (const campaign of campaigns) {
+    try {
+      const adGroups = await db.getAdGroupsByCampaignId(campaign.id);
+      
+      for (const adGroup of adGroups) {
+        const spend = parseFloat(adGroup.spend || '0');
+        const sales = parseFloat(adGroup.sales || '0');
+        const clicks = adGroup.clicks || 0;
+        const conversions = adGroup.orders || 0;
+        const acos = sales > 0 ? (spend / sales * 100) : 0;
+        const adGroupStatus = adGroup.adGroupStatus || 'enabled';
+        
+        let shouldPause = false;
+        let pauseReason = '';
+        let shouldEnable = false;
+        let enableReason = '';
+        
+        if (adGroupStatus === 'enabled') {
+          if (spend > adGroupPauseSpendThreshold && conversions === 0 && clicks > adGroupPauseClickThreshold) {
+            shouldPause = true;
+            pauseReason = `广告组高花费零转化: 花费$${spend.toFixed(2)}(>阈值$${adGroupPauseSpendThreshold}), 点击${clicks}(>阈值${adGroupPauseClickThreshold}), 转化${conversions}`;
+          } else if (acos > adGroupMaxAcosThreshold && clicks > adGroupPauseClickThreshold && conversions > 0) {
+            shouldPause = true;
+            pauseReason = `广告组ACoS远超目标: ACoS ${acos.toFixed(1)}%(>阈值${adGroupMaxAcosThreshold.toFixed(0)}%), 点击${clicks}, 转化${conversions}`;
+          }
+        } else if (adGroupStatus === 'paused') {
+          if (acos > 0 && acos < targetAcos * 0.8) {
+            shouldEnable = true;
+            enableReason = `广告组表现改善: ACoS ${acos.toFixed(1)}%(目标${targetAcos}%), 建议重新启用`;
+          }
+        }
+        
+        if (shouldPause) {
+          const action: any = {
+            accountId: config.accountId,
+            entityType: 'adGroup',
+            campaignId: campaign.id,
+            campaignName: campaign.name || campaign.campaignName,
+            adGroupId: adGroup.id,
+            adGroupName: adGroup.adGroupName || adGroup.name,
+            amazonAdGroupId: adGroup.adGroupId || adGroup.amazonAdGroupId,
+            action: 'pause',
+            reason: pauseReason,
+            currentStatus: adGroupStatus,
+            newStatus: 'paused',
+            spend: spend,
+            sales: sales,
+            clicks: clicks,
+            conversions: conversions,
+            acos: acos,
+            apiSyncStatus: dryRun ? 'pending' : 'pending',
+          };
+          details.push(action);
+          
+          if (!dryRun) {
+            await db.updateAdGroupStatus(adGroup.id, 'paused');
+            pausedCount++;
+            
+            try {
+              const syncResult = await amazonApiHelper.syncAdGroupStatusToAmazon(
+                config.accountId,
+                [{
+                  adGroupId: adGroup.id,
+                  amazonAdGroupId: String(adGroup.adGroupId || adGroup.amazonAdGroupId || ''),
+                  newStatus: 'paused',
+                  adGroupName: adGroup.adGroupName || adGroup.name || '',
+                  campaignName: campaign.name || campaign.campaignName || '',
+                  reason: pauseReason,
+                }]
+              );
+              action.apiSyncStatus = syncResult.success > 0 ? 'synced' : 'failed';
+              if (syncResult.errors.length > 0) {
+                action.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
+              }
+            } catch (apiError: any) {
+              action.apiSyncStatus = 'failed';
+              action.apiSyncDetail = JSON.stringify({ error: apiError.message });
+            }
+          }
+        } else if (shouldEnable) {
+          const action: any = {
+            accountId: config.accountId,
+            entityType: 'adGroup',
+            campaignId: campaign.id,
+            campaignName: campaign.name || campaign.campaignName,
+            adGroupId: adGroup.id,
+            adGroupName: adGroup.adGroupName || adGroup.name,
+            amazonAdGroupId: adGroup.adGroupId || adGroup.amazonAdGroupId,
+            action: 'enable',
+            reason: enableReason,
+            currentStatus: adGroupStatus,
+            newStatus: 'enabled',
+            spend: spend,
+            sales: sales,
+            clicks: clicks,
+            conversions: conversions,
+            acos: acos,
+            apiSyncStatus: dryRun ? 'pending' : 'pending',
+          };
+          details.push(action);
+          
+          if (!dryRun) {
+            await db.updateAdGroupStatus(adGroup.id, 'enabled');
+            enabledCount++;
+            
+            try {
+              const syncResult = await amazonApiHelper.syncAdGroupStatusToAmazon(
+                config.accountId,
+                [{
+                  adGroupId: adGroup.id,
+                  amazonAdGroupId: String(adGroup.adGroupId || adGroup.amazonAdGroupId || ''),
+                  newStatus: 'enabled',
+                  adGroupName: adGroup.adGroupName || adGroup.name || '',
+                  campaignName: campaign.name || campaign.campaignName || '',
+                  reason: enableReason,
+                }]
+              );
+              action.apiSyncStatus = syncResult.success > 0 ? 'synced' : 'failed';
+              if (syncResult.errors.length > 0) {
+                action.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
+              }
+            } catch (apiError: any) {
+              action.apiSyncStatus = 'failed';
+              action.apiSyncDetail = JSON.stringify({ error: apiError.message });
+            }
+          }
+        }
+      }
+    } catch (error: any) {
+      details.push({
+        campaignId: campaign.id,
+        campaignName: campaign.name || campaign.campaignName,
+        entityType: 'adGroup',
+        error: error.message,
+      });
+    }
+  }
+  
+  return { executed: true, pausedCount, enabledCount, details };
+}
+
+/**
  * 执行中央竞价协调
  * 收集bidOptimizer、daypartingService、placementService的建议
  * 计算理论最高CPC并实施熔断机制
@@ -1795,6 +2156,58 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
       }
     }
     
+    // v135: 记录广告活动状态变更日志
+    if (result.campaignStatusChanges.executed) {
+      for (const detail of result.campaignStatusChanges.details) {
+        if (detail.error) continue; // 跳过错误记录
+        await dbInstance.insert(optimizationLogs).values({
+          performanceGroupId: result.targetId,
+          performanceGroupName: result.targetName,
+          accountId: detail.accountId || 0,
+          logCategory: 'optimization_settings',
+          actionType: detail.action === 'pause' ? 'campaign_pause' : 'campaign_enable',
+          campaignId: detail.campaignId,
+          campaignName: detail.campaignName,
+          actionDetail: JSON.stringify(detail),
+          previousValue: detail.currentStatus || '',
+          newValue: detail.newStatus || '',
+          changeReason: detail.reason || '',
+          status: detail.apiSyncStatus === 'synced' ? 'success' : detail.apiSyncStatus === 'failed' ? 'failed' : 'success',
+          apiSyncStatus: detail.apiSyncStatus || 'not_applicable',
+          apiSyncDetail: detail.apiSyncDetail || null,
+          apiSyncedAt: detail.apiSyncStatus === 'synced' ? now : null,
+          createdAt: now,
+          executedAt: now,
+        });
+      }
+    }
+    
+    // v135: 记录广告组状态变更日志
+    if (result.adGroupStatusChanges.executed) {
+      for (const detail of result.adGroupStatusChanges.details) {
+        if (detail.error) continue; // 跳过错误记录
+        await dbInstance.insert(optimizationLogs).values({
+          performanceGroupId: result.targetId,
+          performanceGroupName: result.targetName,
+          accountId: detail.accountId || 0,
+          logCategory: 'optimization_settings',
+          actionType: detail.action === 'pause' ? 'adgroup_pause' : 'adgroup_enable',
+          campaignId: detail.campaignId,
+          campaignName: detail.campaignName,
+          actionDetail: JSON.stringify(detail),
+          previousValue: detail.currentStatus || '',
+          newValue: detail.newStatus || '',
+          changeReason: detail.reason || `广告组 "${detail.adGroupName}" ${detail.action === 'pause' ? '暂停' : '启用'}`,
+          status: detail.apiSyncStatus === 'synced' ? 'success' : detail.apiSyncStatus === 'failed' ? 'failed' : 'success',
+          apiSyncStatus: detail.apiSyncStatus || 'not_applicable',
+          apiSyncDetail: detail.apiSyncDetail || null,
+          apiSyncedAt: detail.apiSyncStatus === 'synced' ? now : null,
+          createdAt: now,
+          executedAt: now,
+        });
+      }
+    }
+    
     console.log(`[OptimizationTargetEngine] 执行日志已写入数据库: ${result.targetName}`, {
       status: result.status,
       bidAdjustments: result.bidOptimization.adjustmentsCount,
@@ -1803,6 +2216,10 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
       newKeywords: result.searchTermAnalysis.newKeywordsAdded,
       keywordsPaused: result.keywordStatusChanges.pausedCount,
       keywordsEnabled: result.keywordStatusChanges.enabledCount,
+      campaignsPaused: result.campaignStatusChanges.pausedCount,
+      campaignsEnabled: result.campaignStatusChanges.enabledCount,
+      adGroupsPaused: result.adGroupStatusChanges.pausedCount,
+      adGroupsEnabled: result.adGroupStatusChanges.enabledCount,
     });
   } catch (error: any) {
     console.error(`[OptimizationTargetEngine] 日志写入失败:`, error.message);
@@ -1870,6 +2287,8 @@ export async function executeAllEnabledTargets(
         searchTermAnalysis: { executed: false, negativeKeywordsAdded: 0, newKeywordsAdded: 0, details: [] },
         budgetAllocation: { executed: false, adjustmentsCount: 0, details: [] },
         keywordStatusChanges: { executed: false, pausedCount: 0, enabledCount: 0, details: [] },
+        campaignStatusChanges: { executed: false, pausedCount: 0, enabledCount: 0, details: [] },
+        adGroupStatusChanges: { executed: false, pausedCount: 0, enabledCount: 0, details: [] },
         bidCoordination: { executed: false, campaignsCoordinated: 0, circuitBreakerTriggered: 0, details: [] },
         errors: [error.message],
         warnings: [],

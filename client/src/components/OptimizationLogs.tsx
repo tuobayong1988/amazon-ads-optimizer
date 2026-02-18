@@ -76,8 +76,12 @@ const ACTION_TYPE_LABELS: Record<string, { label: string; color: string; icon?: 
   negative_keyword_add: { label: '添加否定词', color: 'bg-red-500/20 text-red-400' },
   negative_keyword_remove: { label: '移除否定词', color: 'bg-green-500/20 text-green-400' },
   keyword_create: { label: '创建关键词', color: 'bg-blue-500/20 text-blue-400' },
-  target_pause: { label: '暂停投放词', color: 'bg-yellow-500/20 text-yellow-400' },
-  target_enable: { label: '启用投放词', color: 'bg-green-500/20 text-green-400' },
+  target_pause: { label: '暂停投放词', color: 'bg-yellow-500/20 text-yellow-400', icon: '⏸' },
+  target_enable: { label: '启用投放词', color: 'bg-green-500/20 text-green-400', icon: '▶' },
+  campaign_pause: { label: '暂停广告活动', color: 'bg-red-500/20 text-red-400', icon: '⏸' },
+  campaign_enable: { label: '启用广告活动', color: 'bg-green-500/20 text-green-400', icon: '▶' },
+  adgroup_pause: { label: '暂停广告组', color: 'bg-orange-500/20 text-orange-400', icon: '⏸' },
+  adgroup_enable: { label: '启用广告组', color: 'bg-green-500/20 text-green-400', icon: '▶' },
   dayparting_bid: { label: '分时竞价', color: 'bg-cyan-500/20 text-cyan-400', icon: '⏰' },
   budget_adjustment: { label: '预算调整', color: 'bg-emerald-500/20 text-emerald-400', icon: '💰' },
 };
@@ -190,6 +194,16 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
     // 关键词状态变更
     if (detail.keywordName || detail.targetName) {
       return { name: detail.keywordName || detail.targetName, isProductTarget: !!detail.isProductTarget };
+    }
+    
+    // v135: 广告活动状态变更 - 显示广告活动名称
+    if (detail.entityType === 'campaign' && detail.campaignName) {
+      return { name: `广告活动: ${detail.campaignName}`, isProductTarget: false };
+    }
+    
+    // v135: 广告组状态变更 - 显示广告组名称
+    if (detail.entityType === 'adGroup' && detail.adGroupName) {
+      return { name: `广告组: ${detail.adGroupName}`, isProductTarget: false };
     }
     
     return null;
@@ -646,13 +660,73 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
                   </div>
                 )}
                 
-                {/* 关键词状态变更信息 */}
+                {/* 关键词/广告活动/广告组状态变更信息 */}
                 {actionDetail && (actionDetail.action === 'pause' || actionDetail.action === 'enable') && (
-                  <div className="text-sm">
-                    <span className="text-muted-foreground">状态变更: </span>
-                    <span className="text-red-400">{actionDetail.currentStatus}</span>
-                    <ArrowRight className="w-3 h-3 inline mx-1 text-muted-foreground" />
-                    <span className="text-green-400 font-medium">{actionDetail.newStatus || actionDetail.action}</span>
+                  <div className="text-sm space-y-2">
+                    {/* 实体类型和名称 */}
+                    <div>
+                      <span className="text-muted-foreground">
+                        {actionDetail.entityType === 'campaign' ? '广告活动: ' : 
+                         actionDetail.entityType === 'adGroup' ? '广告组: ' : '投放词: '}
+                      </span>
+                      <span className="font-mono font-medium text-blue-300">
+                        {actionDetail.entityType === 'campaign' ? actionDetail.campaignName :
+                         actionDetail.entityType === 'adGroup' ? actionDetail.adGroupName :
+                         actionDetail.keywordText || '-'}
+                      </span>
+                    </div>
+                    
+                    {/* 广告组所属广告活动 */}
+                    {actionDetail.entityType === 'adGroup' && actionDetail.campaignName && (
+                      <div>
+                        <span className="text-muted-foreground">所属广告活动: </span>
+                        <span className="font-medium">{actionDetail.campaignName}</span>
+                      </div>
+                    )}
+                    
+                    {/* 状态变更 */}
+                    <div>
+                      <span className="text-muted-foreground">状态变更: </span>
+                      <span className="text-red-400">{actionDetail.currentStatus}</span>
+                      <ArrowRight className="w-3 h-3 inline mx-1 text-muted-foreground" />
+                      <span className="text-green-400 font-medium">{actionDetail.newStatus || actionDetail.action}</span>
+                    </div>
+                    
+                    {/* 绩效数据（广告活动/广告组状态变更时显示） */}
+                    {(actionDetail.entityType === 'campaign' || actionDetail.entityType === 'adGroup') && (
+                      <div className="flex gap-4 flex-wrap text-xs">
+                        {actionDetail.spend !== undefined && (
+                          <span>
+                            <span className="text-muted-foreground">花费: </span>
+                            <span className="font-mono">${Number(actionDetail.spend).toFixed(2)}</span>
+                          </span>
+                        )}
+                        {actionDetail.sales !== undefined && (
+                          <span>
+                            <span className="text-muted-foreground">销售: </span>
+                            <span className="font-mono">${Number(actionDetail.sales).toFixed(2)}</span>
+                          </span>
+                        )}
+                        {actionDetail.clicks !== undefined && (
+                          <span>
+                            <span className="text-muted-foreground">点击: </span>
+                            <span className="font-mono">{actionDetail.clicks}</span>
+                          </span>
+                        )}
+                        {actionDetail.conversions !== undefined && (
+                          <span>
+                            <span className="text-muted-foreground">转化: </span>
+                            <span className="font-mono">{actionDetail.conversions}</span>
+                          </span>
+                        )}
+                        {actionDetail.acos !== undefined && actionDetail.acos > 0 && (
+                          <span>
+                            <span className="text-muted-foreground">ACoS: </span>
+                            <span className="font-mono">{Number(actionDetail.acos).toFixed(1)}%</span>
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
                 

@@ -649,3 +649,132 @@ export async function syncKeywordStatusToAmazon(
   console.log(`[AmazonApiHelper] 关键词状态同步完成: 成功=${result.success}, 失败=${result.failed}`);
   return result;
 }
+
+/**
+ * v135: 同步广告活动状态变更到 Amazon
+ * 通过 updateSpCampaign API 更新 Campaign 的 state 字段
+ */
+export async function syncCampaignStatusToAmazon(
+  accountId: number,
+  statusChanges: Array<{
+    campaignId: number;       // 本地数据库的campaign ID
+    amazonCampaignId: string; // Amazon Campaign ID
+    newStatus: 'enabled' | 'paused' | 'archived';
+    campaignName: string;
+    reason: string;
+  }>
+): Promise<{ success: number; failed: number; errors: string[] }> {
+  const result = { success: 0, failed: 0, errors: [] as string[] };
+  
+  if (statusChanges.length === 0) return result;
+  
+  console.log(`[AmazonApiHelper] 开始同步广告活动状态变更: accountId=${accountId}, 总计=${statusChanges.length}条`);
+  
+  const syncService = await getAmazonSyncService(accountId);
+  if (!syncService) {
+    const errorMsg = `无法获取账号 ${accountId} 的API服务（凭证缺失或无效）`;
+    console.error(`[AmazonApiHelper] ${errorMsg}`);
+    result.errors.push(errorMsg);
+    result.failed = statusChanges.length;
+    return result;
+  }
+  
+  for (const change of statusChanges) {
+    try {
+      if (!change.amazonCampaignId || change.amazonCampaignId === '0' || change.amazonCampaignId === '') {
+        result.failed++;
+        result.errors.push(`广告活动 "${change.campaignName}" 缺少Amazon Campaign ID，无法同步状态`);
+        continue;
+      }
+      
+      console.log(`[AmazonApiHelper] 同步广告活动状态: "${change.campaignName}" (${change.amazonCampaignId}) -> ${change.newStatus}`);
+      
+      // 使用updateSpCampaign方法更新状态
+      await syncService.client.updateSpCampaign(change.amazonCampaignId, {
+        state: change.newStatus.toUpperCase(),
+      } as any);
+      
+      result.success++;
+      console.log(`[AmazonApiHelper] ✅ 广告活动状态更新成功: "${change.campaignName}" -> ${change.newStatus}`);
+    } catch (error: any) {
+      result.failed++;
+      const errorMsg = `广告活动 "${change.campaignName}" (${change.amazonCampaignId}) 状态同步失败: ${error.message}`;
+      result.errors.push(errorMsg);
+      console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
+    }
+  }
+  
+  console.log(`[AmazonApiHelper] 广告活动状态同步完成: 成功=${result.success}, 失败=${result.failed}`);
+  return result;
+}
+
+/**
+ * v135: 同步广告组状态变更到 Amazon
+ * 通过 updateSpAdGroupStatus API 更新 AdGroup 的 state 字段
+ */
+export async function syncAdGroupStatusToAmazon(
+  accountId: number,
+  statusChanges: Array<{
+    adGroupId: number;        // 本地数据库的adGroup ID
+    amazonAdGroupId: string;  // Amazon AdGroup ID
+    newStatus: 'enabled' | 'paused' | 'archived';
+    adGroupName: string;
+    campaignName: string;
+    reason: string;
+  }>
+): Promise<{ success: number; failed: number; errors: string[] }> {
+  const result = { success: 0, failed: 0, errors: [] as string[] };
+  
+  if (statusChanges.length === 0) return result;
+  
+  console.log(`[AmazonApiHelper] 开始同步广告组状态变更: accountId=${accountId}, 总计=${statusChanges.length}条`);
+  
+  const syncService = await getAmazonSyncService(accountId);
+  if (!syncService) {
+    const errorMsg = `无法获取账号 ${accountId} 的API服务（凭证缺失或无效）`;
+    console.error(`[AmazonApiHelper] ${errorMsg}`);
+    result.errors.push(errorMsg);
+    result.failed = statusChanges.length;
+    return result;
+  }
+  
+  // 批量处理广告组状态变更
+  const validChanges = statusChanges.filter(c => c.amazonAdGroupId && c.amazonAdGroupId !== '0' && c.amazonAdGroupId !== '');
+  const invalidChanges = statusChanges.filter(c => !c.amazonAdGroupId || c.amazonAdGroupId === '0' || c.amazonAdGroupId === '');
+  
+  for (const invalid of invalidChanges) {
+    result.failed++;
+    result.errors.push(`广告组 "${invalid.adGroupName}" 缺少Amazon AdGroup ID，无法同步状态`);
+  }
+  
+  // 逐个同步（避免批量失败影响全部）
+  for (const change of validChanges) {
+    try {
+      console.log(`[AmazonApiHelper] 同步广告组状态: "${change.adGroupName}" (${change.amazonAdGroupId}) -> ${change.newStatus}`);
+      
+      const apiResult = await syncService.client.updateSpAdGroupStatus([{
+        adGroupId: change.amazonAdGroupId,
+        state: change.newStatus,
+      }]);
+      
+      if (apiResult.successCount > 0) {
+        result.success++;
+        console.log(`[AmazonApiHelper] ✅ 广告组状态更新成功: "${change.adGroupName}" -> ${change.newStatus}`);
+      } else if (apiResult.errors.length > 0) {
+        result.failed++;
+        const errorDetail = apiResult.errors[0]?.details || 'Unknown error';
+        result.errors.push(`广告组 "${change.adGroupName}" (${change.amazonAdGroupId}) 状态更新失败: ${errorDetail}`);
+      } else {
+        result.success++;
+      }
+    } catch (error: any) {
+      result.failed++;
+      const errorMsg = `广告组 "${change.adGroupName}" (${change.amazonAdGroupId}) 状态同步异常: ${error.message}`;
+      result.errors.push(errorMsg);
+      console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
+    }
+  }
+  
+  console.log(`[AmazonApiHelper] 广告组状态同步完成: 成功=${result.success}, 失败=${result.failed}`);
+  return result;
+}

@@ -828,6 +828,43 @@ export class AmazonAdsApiClient {
   }
 
   /**
+   * v135: 更新SP广告组状态
+   * 通过 PUT /sp/adGroups 更新广告组的state字段
+   */
+  async updateSpAdGroupStatus(updates: Array<{ adGroupId: number | string; state: 'enabled' | 'paused' | 'archived' }>): Promise<{ success: boolean; successCount: number; errors: any[] }> {
+    const formattedUpdates = updates.map(u => ({
+      adGroupId: String(u.adGroupId),
+      state: u.state.toUpperCase(),
+    }));
+    const requestBody = { adGroups: formattedUpdates };
+    console.log(`[SP API] updateSpAdGroupStatus 请求体:`, JSON.stringify(requestBody).substring(0, 500));
+    const response = await this.axiosInstance.put('/sp/adGroups', requestBody, {
+      headers: {
+        'Content-Type': 'application/vnd.spAdGroup.v3+json',
+        'Accept': 'application/vnd.spAdGroup.v3+json'
+      },
+    });
+    
+    console.log(`[SP API] updateSpAdGroupStatus 响应:`, JSON.stringify(response.data).substring(0, 500));
+    
+    const errors: any[] = [];
+    let successCount = 0;
+    const responseAdGroups = response.data?.adGroups;
+    if (responseAdGroups) {
+      if (responseAdGroups.error && Array.isArray(responseAdGroups.error)) {
+        for (const err of responseAdGroups.error) {
+          errors.push({ adGroupId: err.adGroupId, code: err.code || 'ERROR', details: err.details || err.description });
+        }
+      }
+      if (responseAdGroups.success && Array.isArray(responseAdGroups.success)) {
+        successCount = responseAdGroups.success.length;
+      }
+    }
+    
+    return { success: errors.length === 0, successCount, errors };
+  }
+
+  /**
    * 获取SP商品定位列表
    * 已修复：添加分页逻辑，确保获取所有数据
    */
