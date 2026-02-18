@@ -89328,55 +89328,76 @@ async function syncNewKeywordsToAmazon(accountId, newKeywords) {
     result.failed = newKeywords.length;
     return result;
   }
-  try {
-    const apiResult = await syncService.client.createSpKeywords(
-      newKeywords.map((k5) => ({
-        adGroupId: k5.adGroupId,
-        campaignId: k5.campaignId,
-        keywordText: k5.keywordText,
-        matchType: k5.matchType,
-        bid: k5.bid,
-        state: "enabled"
-      }))
-    );
-    for (let i4 = 0; i4 < apiResult.createdKeywords.length; i4++) {
-      const created = apiResult.createdKeywords[i4];
-      const original = newKeywords[i4];
-      if (created.code === "SUCCESS" && created.keywordId) {
-        result.success++;
-        result.createdKeywords.push({
-          localId: original.localKeywordId,
-          amazonKeywordId: created.keywordId,
-          keywordText: created.keywordText || original.keywordText
-        });
-        if (original.localKeywordId) {
-          try {
-            const dbInstance = await getDb();
-            if (dbInstance) {
-              const { keywords: keywords5 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-              const { eq: eq7 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-              await dbInstance.update(keywords5).set({
-                keywordId: String(created.keywordId),
-                updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
-              }).where(eq7(keywords5.id, original.localKeywordId));
-              console.log(`[AmazonApiHelper] \u2705 \u5173\u952E\u8BCD\u5DF2\u540C\u6B65: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
+  const BATCH_SIZE = 50;
+  const BATCH_DELAY_MS = 1e3;
+  const totalBatches = Math.ceil(newKeywords.length / BATCH_SIZE);
+  console.log(`[AmazonApiHelper] \u5206\u6279\u5904\u7406: \u603B\u8BA1${newKeywords.length}\u4E2A\u5173\u952E\u8BCD, \u5206${totalBatches}\u6279, \u6BCF\u6279\u6700\u591A${BATCH_SIZE}\u4E2A`);
+  for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+    const batchStart = batchIdx * BATCH_SIZE;
+    const batchEnd = Math.min(batchStart + BATCH_SIZE, newKeywords.length);
+    const batch = newKeywords.slice(batchStart, batchEnd);
+    console.log(`[AmazonApiHelper] \u5904\u7406\u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batch.length}\u4E2A\u5173\u952E\u8BCD (\u7D22\u5F15 ${batchStart}-${batchEnd - 1})`);
+    try {
+      const apiResult = await syncService.client.createSpKeywords(
+        batch.map((k5) => ({
+          adGroupId: k5.adGroupId,
+          campaignId: k5.campaignId,
+          keywordText: k5.keywordText,
+          matchType: k5.matchType,
+          bid: k5.bid,
+          state: "enabled"
+        }))
+      );
+      for (let i4 = 0; i4 < apiResult.createdKeywords.length; i4++) {
+        const created = apiResult.createdKeywords[i4];
+        const original = batch[i4];
+        if (created.code === "SUCCESS" && created.keywordId) {
+          result.success++;
+          result.createdKeywords.push({
+            localId: original.localKeywordId,
+            amazonKeywordId: created.keywordId,
+            keywordText: created.keywordText || original.keywordText
+          });
+          if (original.localKeywordId) {
+            try {
+              const dbInstance = await getDb();
+              if (dbInstance) {
+                const { keywords: keywords5 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+                const { eq: eq7 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+                await dbInstance.update(keywords5).set({
+                  keywordId: String(created.keywordId),
+                  updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
+                }).where(eq7(keywords5.id, original.localKeywordId));
+                console.log(`[AmazonApiHelper] \u2705 \u5173\u952E\u8BCD\u5DF2\u540C\u6B65: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
+              }
+            } catch (dbError) {
+              console.error(`[AmazonApiHelper] \u66F4\u65B0\u672C\u5730keywordId\u5931\u8D25:`, dbError.message);
             }
-          } catch (dbError) {
-            console.error(`[AmazonApiHelper] \u66F4\u65B0\u672C\u5730keywordId\u5931\u8D25:`, dbError.message);
           }
+        } else {
+          result.failed++;
+          result.errors.push(`\u5173\u952E\u8BCD\u521B\u5EFA\u5931\u8D25: "${original.keywordText}" - code=${created.code}`);
+          console.error(`[AmazonApiHelper] \u274C \u5173\u952E\u8BCD\u521B\u5EFA\u5931\u8D25: "${original.keywordText}", code=${created.code}`);
         }
-      } else {
-        result.failed++;
-        result.errors.push(`\u5173\u952E\u8BCD\u521B\u5EFA\u5931\u8D25: "${original.keywordText}" - code=${created.code}`);
-        console.error(`[AmazonApiHelper] \u274C \u5173\u952E\u8BCD\u521B\u5EFA\u5931\u8D25: "${original.keywordText}", code=${created.code}`);
+      }
+      console.log(`[AmazonApiHelper] \u7B2C${batchIdx + 1}\u6279\u5B8C\u6210: \u672C\u6279\u6210\u529F=${apiResult.createdKeywords.filter((k5) => k5.code === "SUCCESS").length}, \u7D2F\u8BA1\u6210\u529F=${result.success}`);
+    } catch (error51) {
+      const batchFailCount = batch.length;
+      result.failed += batchFailCount;
+      const errorMsg = `\u7B2C${batchIdx + 1}\u6279\u521B\u5EFA\u5173\u952E\u8BCDAPI\u8C03\u7528\u5931\u8D25: ${error51.message}`;
+      result.errors.push(errorMsg);
+      console.error(`[AmazonApiHelper] \u274C ${errorMsg}`, error51.response?.data || "");
+      if (error51.response?.status === 429) {
+        const throttleWait = BATCH_DELAY_MS * 5;
+        console.log(`[AmazonApiHelper] \u26A0\uFE0F \u9650\u6D41\uFF0C\u7B49\u5F85${throttleWait}ms\u540E\u7EE7\u7EED\u4E0B\u4E00\u6279...`);
+        await new Promise((resolve8) => setTimeout(resolve8, throttleWait));
       }
     }
-  } catch (error51) {
-    result.failed += newKeywords.length;
-    result.errors.push(`\u6279\u91CF\u521B\u5EFA\u5173\u952E\u8BCDAPI\u8C03\u7528\u5931\u8D25: ${error51.message}`);
-    console.error(`[AmazonApiHelper] \u274C \u6279\u91CF\u521B\u5EFA\u5173\u952E\u8BCD\u5931\u8D25:`, error51.response?.data || error51.message);
+    if (batchIdx < totalBatches - 1) {
+      await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
+    }
   }
-  console.log(`[AmazonApiHelper] \u65B0\u5173\u952E\u8BCD\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}`);
+  console.log(`[AmazonApiHelper] \u65B0\u5173\u952E\u8BCD\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}, \u603B\u8BA1=${newKeywords.length}`);
   return result;
 }
 async function syncBudgetAdjustmentToAmazon(accountId, campaignId, newBudget, reason) {
@@ -89803,41 +89824,72 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
         const dbInstance = await getDb();
         if (dbInstance) {
           const { keywords: kwTable, adGroups: agTable, campaigns: campTable } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-          const { eq: eq7, isNull: isNull5, and: and7, inArray: inArray7 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-          const keywordIds = details.filter((d5) => !d5.isProductTarget).map((d5) => d5.keywordId);
-          if (keywordIds.length > 0) {
-            const missingKws = await dbInstance.select().from(kwTable).where(and7(inArray7(kwTable.id, keywordIds), isNull5(kwTable.keywordId)));
-            if (missingKws.length > 0) {
-              console.log(`[BidOptimization] \u53D1\u73B0${missingKws.length}\u4E2A\u5173\u952E\u8BCD\u7F3A\u5C11Amazon keywordId\uFF0C\u5C1D\u8BD5\u8865\u507F\u540C\u6B65...`);
-              for (const kw of missingKws) {
-                try {
-                  const [ag] = await dbInstance.select().from(agTable).where(eq7(agTable.id, kw.adGroupId)).limit(1);
-                  if (!ag || !ag.adGroupId) continue;
-                  const [camp] = await dbInstance.select().from(campTable).where(eq7(campTable.id, ag.campaignId)).limit(1);
-                  if (!camp || !camp.campaignId) continue;
-                  const amazonAdGroupId = Number(ag.adGroupId);
-                  const amazonCampaignId = Number(camp.campaignId);
-                  if (amazonAdGroupId > 0 && amazonCampaignId > 0) {
-                    const syncResult = await syncNewKeywordsToAmazon(
-                      accountId,
-                      [{
-                        localKeywordId: kw.id,
-                        adGroupId: amazonAdGroupId,
-                        campaignId: amazonCampaignId,
-                        keywordText: kw.keywordText,
-                        matchType: kw.matchType || "exact",
-                        bid: parseFloat(kw.bid) || 0.5
-                      }]
-                    );
-                    if (syncResult.success > 0) {
-                      console.log(`[BidOptimization] \u2705 \u8865\u507F\u540C\u6B65\u6210\u529F: "${kw.keywordText}" -> Amazon keywordId\u5DF2\u66F4\u65B0`);
-                    }
-                  }
-                } catch (kwErr) {
-                  console.error(`[BidOptimization] \u8865\u507F\u540C\u6B65\u5931\u8D25: keyword id=${kw.id} - ${kwErr.message}`);
+          const { eq: eq7, isNull: isNull5, and: and7, inArray: inArray7, sql: sqlTag } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+          const missingKws = await dbInstance.select({
+            id: kwTable.id,
+            adGroupId: kwTable.adGroupId,
+            keywordText: kwTable.keywordText,
+            matchType: kwTable.matchType,
+            bid: kwTable.bid
+          }).from(kwTable).where(and7(
+            eq7(kwTable.accountId, accountId),
+            isNull5(kwTable.keywordId)
+          ));
+          if (missingKws.length > 0) {
+            console.log(`[BidOptimization] \u8865\u507F\u540C\u6B65: \u53D1\u73B0\u8D26\u53F7${accountId}\u4E0B${missingKws.length}\u4E2A\u5173\u952E\u8BCD\u7F3A\u5C11Amazon keywordId`);
+            const groupedByAdGroup = /* @__PURE__ */ new Map();
+            for (const kw of missingKws) {
+              const group = groupedByAdGroup.get(kw.adGroupId) || [];
+              group.push(kw);
+              groupedByAdGroup.set(kw.adGroupId, group);
+            }
+            console.log(`[BidOptimization] \u8865\u507F\u540C\u6B65: \u5206\u5E03\u5728${groupedByAdGroup.size}\u4E2AadGroup\u4E2D`);
+            let totalCompensated = 0;
+            let totalCompensateFailed = 0;
+            for (const [adGroupLocalId, kwsInGroup] of groupedByAdGroup) {
+              try {
+                const [ag] = await dbInstance.select().from(agTable).where(eq7(agTable.id, adGroupLocalId)).limit(1);
+                if (!ag || !ag.adGroupId) {
+                  console.warn(`[BidOptimization] \u8865\u507F\u540C\u6B65: adGroup id=${adGroupLocalId} \u7F3A\u5C11Amazon adGroupId, \u8DF3\u8FC7${kwsInGroup.length}\u4E2A\u5173\u952E\u8BCD`);
+                  totalCompensateFailed += kwsInGroup.length;
+                  continue;
                 }
+                const [camp] = await dbInstance.select().from(campTable).where(eq7(campTable.id, ag.campaignId)).limit(1);
+                if (!camp || !camp.campaignId) {
+                  console.warn(`[BidOptimization] \u8865\u507F\u540C\u6B65: campaign id=${ag.campaignId} \u7F3A\u5C11Amazon campaignId, \u8DF3\u8FC7${kwsInGroup.length}\u4E2A\u5173\u952E\u8BCD`);
+                  totalCompensateFailed += kwsInGroup.length;
+                  continue;
+                }
+                const amazonAdGroupId = Number(ag.adGroupId);
+                const amazonCampaignId = Number(camp.campaignId);
+                if (amazonAdGroupId > 0 && amazonCampaignId > 0) {
+                  const batchKeywords = kwsInGroup.map((kw) => ({
+                    localKeywordId: kw.id,
+                    adGroupId: amazonAdGroupId,
+                    campaignId: amazonCampaignId,
+                    keywordText: kw.keywordText,
+                    matchType: kw.matchType || "exact",
+                    bid: parseFloat(kw.bid) || 0.5
+                  }));
+                  console.log(`[BidOptimization] \u8865\u507F\u540C\u6B65: adGroup=${adGroupLocalId}(Amazon:${amazonAdGroupId}), \u6279\u91CF\u63D0\u4EA4${batchKeywords.length}\u4E2A\u5173\u952E\u8BCD`);
+                  const syncResult = await syncNewKeywordsToAmazon(accountId, batchKeywords);
+                  totalCompensated += syncResult.success;
+                  totalCompensateFailed += syncResult.failed;
+                  if (syncResult.success > 0) {
+                    console.log(`[BidOptimization] \u2705 adGroup=${adGroupLocalId} \u8865\u507F\u540C\u6B65\u6210\u529F: ${syncResult.success}\u4E2A\u5173\u952E\u8BCD\u83B7\u5F97Amazon keywordId`);
+                  }
+                  if (syncResult.failed > 0) {
+                    console.warn(`[BidOptimization] \u26A0\uFE0F adGroup=${adGroupLocalId} \u8865\u507F\u540C\u6B65\u90E8\u5206\u5931\u8D25: ${syncResult.failed}\u4E2A`);
+                  }
+                }
+              } catch (groupErr) {
+                console.error(`[BidOptimization] \u8865\u507F\u540C\u6B65adGroup=${adGroupLocalId}\u5F02\u5E38: ${groupErr.message}`);
+                totalCompensateFailed += kwsInGroup.length;
               }
             }
+            console.log(`[BidOptimization] \u8865\u507F\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${totalCompensated}, \u5931\u8D25=${totalCompensateFailed}, \u603B\u8BA1=${missingKws.length}`);
+          } else {
+            console.log(`[BidOptimization] \u8865\u507F\u540C\u6B65: \u8BE5\u8D26\u53F7\u4E0B\u6240\u6709\u5173\u952E\u8BCD\u5747\u5DF2\u6709Amazon keywordId, \u65E0\u9700\u8865\u507F`);
           }
         }
       } catch (compensateErr) {

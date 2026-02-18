@@ -245,64 +245,94 @@ export async function syncNewKeywordsToAmazon(
     return result;
   }
   
-  try {
-    // 批量调用Amazon API创建关键词
-    const apiResult = await syncService.client.createSpKeywords(
-      newKeywords.map(k => ({
-        adGroupId: k.adGroupId,
-        campaignId: k.campaignId,
-        keywordText: k.keywordText,
-        matchType: k.matchType,
-        bid: k.bid,
-        state: 'enabled' as const,
-      }))
-    );
+  // v127: 分批处理机制 - 每批最多50个关键词，批间延迟1秒避免限流
+  const BATCH_SIZE = 50;
+  const BATCH_DELAY_MS = 1000;
+  const totalBatches = Math.ceil(newKeywords.length / BATCH_SIZE);
+  console.log(`[AmazonApiHelper] 分批处理: 总计${newKeywords.length}个关键词, 分${totalBatches}批, 每批最多${BATCH_SIZE}个`);
+  
+  for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+    const batchStart = batchIdx * BATCH_SIZE;
+    const batchEnd = Math.min(batchStart + BATCH_SIZE, newKeywords.length);
+    const batch = newKeywords.slice(batchStart, batchEnd);
     
-    // 处理API返回结果
-    for (let i = 0; i < apiResult.createdKeywords.length; i++) {
-      const created = apiResult.createdKeywords[i];
-      const original = newKeywords[i];
+    console.log(`[AmazonApiHelper] 处理第${batchIdx + 1}/${totalBatches}批: ${batch.length}个关键词 (索引 ${batchStart}-${batchEnd - 1})`);
+    
+    try {
+      const apiResult = await syncService.client.createSpKeywords(
+        batch.map(k => ({
+          adGroupId: k.adGroupId,
+          campaignId: k.campaignId,
+          keywordText: k.keywordText,
+          matchType: k.matchType,
+          bid: k.bid,
+          state: 'enabled' as const,
+        }))
+      );
       
-      if (created.code === 'SUCCESS' && created.keywordId) {
-        result.success++;
-        result.createdKeywords.push({
-          localId: original.localKeywordId,
-          amazonKeywordId: created.keywordId,
-          keywordText: created.keywordText || original.keywordText,
-        });
+      // 处理API返回结果
+      for (let i = 0; i < apiResult.createdKeywords.length; i++) {
+        const created = apiResult.createdKeywords[i];
+        const original = batch[i];
         
-        // 如果有本地ID，更新本地数据库的keywordId
-        if (original.localKeywordId) {
-          try {
-            const dbInstance = await db.getDb();
-            if (dbInstance) {
-              const { keywords } = await import('../../drizzle/schema');
-              const { eq } = await import('drizzle-orm');
-              await dbInstance.update(keywords)
-                .set({ 
-                  keywordId: String(created.keywordId),
-                  updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-                })
-                .where(eq(keywords.id, original.localKeywordId));
-              console.log(`[AmazonApiHelper] ✅ 关键词已同步: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
+        if (created.code === 'SUCCESS' && created.keywordId) {
+          result.success++;
+          result.createdKeywords.push({
+            localId: original.localKeywordId,
+            amazonKeywordId: created.keywordId,
+            keywordText: created.keywordText || original.keywordText,
+          });
+          
+          // 如果有本地ID，更新本地数据库的keywordId
+          if (original.localKeywordId) {
+            try {
+              const dbInstance = await db.getDb();
+              if (dbInstance) {
+                const { keywords } = await import('../../drizzle/schema');
+                const { eq } = await import('drizzle-orm');
+                await dbInstance.update(keywords)
+                  .set({ 
+                    keywordId: String(created.keywordId),
+                    updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+                  })
+                  .where(eq(keywords.id, original.localKeywordId));
+                console.log(`[AmazonApiHelper] ✅ 关键词已同步: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
+              }
+            } catch (dbError: any) {
+              console.error(`[AmazonApiHelper] 更新本地keywordId失败:`, dbError.message);
             }
-          } catch (dbError: any) {
-            console.error(`[AmazonApiHelper] 更新本地keywordId失败:`, dbError.message);
           }
+        } else {
+          result.failed++;
+          result.errors.push(`关键词创建失败: "${original.keywordText}" - code=${created.code}`);
+          console.error(`[AmazonApiHelper] ❌ 关键词创建失败: "${original.keywordText}", code=${created.code}`);
         }
-      } else {
-        result.failed++;
-        result.errors.push(`关键词创建失败: "${original.keywordText}" - code=${created.code}`);
-        console.error(`[AmazonApiHelper] ❌ 关键词创建失败: "${original.keywordText}", code=${created.code}`);
+      }
+      
+      console.log(`[AmazonApiHelper] 第${batchIdx + 1}批完成: 本批成功=${apiResult.createdKeywords.filter(k => k.code === 'SUCCESS').length}, 累计成功=${result.success}`);
+    } catch (error: any) {
+      // 单批失败不影响其他批次
+      const batchFailCount = batch.length;
+      result.failed += batchFailCount;
+      const errorMsg = `第${batchIdx + 1}批创建关键词API调用失败: ${error.message}`;
+      result.errors.push(errorMsg);
+      console.error(`[AmazonApiHelper] ❌ ${errorMsg}`, error.response?.data || '');
+      
+      // 如果是限流错误，增加等待时间
+      if (error.response?.status === 429) {
+        const throttleWait = BATCH_DELAY_MS * 5;
+        console.log(`[AmazonApiHelper] ⚠️ 限流，等待${throttleWait}ms后继续下一批...`);
+        await new Promise(resolve => setTimeout(resolve, throttleWait));
       }
     }
-  } catch (error: any) {
-    result.failed += newKeywords.length;
-    result.errors.push(`批量创建关键词API调用失败: ${error.message}`);
-    console.error(`[AmazonApiHelper] ❌ 批量创建关键词失败:`, error.response?.data || error.message);
+    
+    // 批间延迟，避免触发限流
+    if (batchIdx < totalBatches - 1) {
+      await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+    }
   }
   
-  console.log(`[AmazonApiHelper] 新关键词同步完成: 成功=${result.success}, 失败=${result.failed}`);
+  console.log(`[AmazonApiHelper] 新关键词同步完成: 成功=${result.success}, 失败=${result.failed}, 总计=${newKeywords.length}`);
   return result;
 }
 
