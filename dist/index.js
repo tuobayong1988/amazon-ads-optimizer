@@ -53666,14 +53666,18 @@ var init_amazonAdsApi = __esm({
             "Accept": "application/vnd.spKeyword.v3+json"
           }
         });
+        console.log(`[SP API] updateKeywordBids \u54CD\u5E94:`, JSON.stringify(response.data).substring(0, 500));
         const errors = [];
-        if (response.data?.keywords) {
-          for (const kw of response.data.keywords) {
+        const responseKeywords = response.data?.keywords;
+        if (responseKeywords && Array.isArray(responseKeywords)) {
+          for (const kw of responseKeywords) {
             if (kw.code && kw.code !== "SUCCESS") {
               errors.push({ keywordId: kw.keywordId, code: kw.code, details: kw.details });
               console.error(`[SP API] \u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0\u5931\u8D25: keywordId=${kw.keywordId}, code=${kw.code}, details=${kw.details}`);
             }
           }
+        } else if (response.data?.code === "SUCCESS" || response.status === 200 || response.status === 207) {
+          console.log(`[SP API] \u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0\u6210\u529F (HTTP ${response.status})`);
         }
         console.log(`[SP API] \u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u5931\u8D25=${errors.length}`);
         return { success: errors.length === 0, errors };
@@ -53752,14 +53756,18 @@ var init_amazonAdsApi = __esm({
             "Accept": "application/vnd.spTargetingClause.v3+json"
           }
         });
+        console.log(`[SP API] updateProductTargetBids \u54CD\u5E94:`, JSON.stringify(response.data).substring(0, 500));
         const errors = [];
-        if (response.data?.targetingClauses) {
-          for (const tc of response.data.targetingClauses) {
+        const responseTargets = response.data?.targetingClauses;
+        if (responseTargets && Array.isArray(responseTargets)) {
+          for (const tc of responseTargets) {
             if (tc.code && tc.code !== "SUCCESS") {
               errors.push({ targetId: tc.targetId, code: tc.code, details: tc.details });
               console.error(`[SP API] \u5546\u54C1\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u5931\u8D25: targetId=${tc.targetId}, code=${tc.code}, details=${tc.details}`);
             }
           }
+        } else if (response.data?.code === "SUCCESS" || response.status === 200 || response.status === 207) {
+          console.log(`[SP API] \u5546\u54C1\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u6210\u529F (HTTP ${response.status})`);
         }
         console.log(`[SP API] \u5546\u54C1\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u5931\u8D25=${errors.length}`);
         return { success: errors.length === 0, errors };

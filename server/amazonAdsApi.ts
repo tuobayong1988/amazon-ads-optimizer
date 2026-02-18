@@ -686,18 +686,26 @@ export class AmazonAdsApiClient {
       },
     });
     
+    // v125: 记录完整响应便于诊断
+    console.log(`[SP API] updateKeywordBids 响应:`, JSON.stringify(response.data).substring(0, 500));
+    
     // ✅ 检查API响应，记录失败的更新
     const errors: any[] = [];
-    if (response.data?.keywords) {
-      for (const kw of response.data.keywords) {
+    const responseKeywords = response.data?.keywords;
+    if (responseKeywords && Array.isArray(responseKeywords)) {
+      for (const kw of responseKeywords) {
         if (kw.code && kw.code !== 'SUCCESS') {
           errors.push({ keywordId: kw.keywordId, code: kw.code, details: kw.details });
           console.error(`[SP API] 关键词出价更新失败: keywordId=${kw.keywordId}, code=${kw.code}, details=${kw.details}`);
         }
       }
+    } else if (response.data?.code === 'SUCCESS' || response.status === 200 || response.status === 207) {
+      // API可能返回不同格式的成功响应
+      console.log(`[SP API] 关键词出价更新成功 (HTTP ${response.status})`);
     }
     
     console.log(`[SP API] 关键词出价更新完成: 总计=${updates.length}, 失败=${errors.length}`);
+    
     return { success: errors.length === 0, errors };
   }
 
@@ -784,15 +792,21 @@ export class AmazonAdsApiClient {
       },
     });
     
+    // v125: 记录完整响应便于诊断
+    console.log(`[SP API] updateProductTargetBids 响应:`, JSON.stringify(response.data).substring(0, 500));
+    
     // ✅ 检查API响应，记录失败的更新
     const errors: any[] = [];
-    if (response.data?.targetingClauses) {
-      for (const tc of response.data.targetingClauses) {
+    const responseTargets = response.data?.targetingClauses;
+    if (responseTargets && Array.isArray(responseTargets)) {
+      for (const tc of responseTargets) {
         if (tc.code && tc.code !== 'SUCCESS') {
           errors.push({ targetId: tc.targetId, code: tc.code, details: tc.details });
           console.error(`[SP API] 商品定位出价更新失败: targetId=${tc.targetId}, code=${tc.code}, details=${tc.details}`);
         }
       }
+    } else if (response.data?.code === 'SUCCESS' || response.status === 200 || response.status === 207) {
+      console.log(`[SP API] 商品定位出价更新成功 (HTTP ${response.status})`);
     }
     
     console.log(`[SP API] 商品定位出价更新完成: 总计=${updates.length}, 失败=${errors.length}`);
