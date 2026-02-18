@@ -330,21 +330,59 @@ async function executeBatchByType(
   syncService: any,
   taskType: string,
   batch: any[]
-): Promise<{ synced: number; failed: number; errors: string[] }> {
-  const result = { synced: 0, failed: 0, errors: [] as string[] };
+): Promise<{ synced: number; failed: number; skipped: number; errors: string[] }> {
+  const result = { synced: 0, failed: 0, skipped: 0, errors: [] as string[] };
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   
   switch (taskType) {
     case 'bid_adjustment': {
+      // v138: 先尝试从数据库查找缺失的Amazon ID
+      for (const t of batch) {
+        if (!t.amazon_entity_id && t.target_entity_id) {
+          try {
+            if (t.target_entity_type === 'keyword') {
+              const [kwRows] = await conn.execute(
+                'SELECT keywordId FROM keywords WHERE id = ? AND keywordId IS NOT NULL LIMIT 1',
+                [t.target_entity_id]
+              ) as any[];
+              if (kwRows[0]?.keywordId) {
+                t.amazon_entity_id = kwRows[0].keywordId;
+                await conn.execute(
+                  'UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?',
+                  [t.amazon_entity_id, t.id]
+                );
+                console.log(`[SyncEngine] v138: 自动查找到keyword Amazon ID: local=${t.target_entity_id} -> amazon=${t.amazon_entity_id}`);
+              }
+            } else if (t.target_entity_type === 'product_target') {
+              const [ptRows] = await conn.execute(
+                'SELECT targetId FROM product_targets WHERE id = ? AND targetId IS NOT NULL LIMIT 1',
+                [t.target_entity_id]
+              ) as any[];
+              if (ptRows[0]?.targetId) {
+                t.amazon_entity_id = ptRows[0].targetId;
+                await conn.execute(
+                  'UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?',
+                  [t.amazon_entity_id, t.id]
+                );
+                console.log(`[SyncEngine] v138: 自动查找到product_target Amazon ID: local=${t.target_entity_id} -> amazon=${t.amazon_entity_id}`);
+              }
+            }
+          } catch (lookupErr: any) {
+            console.warn(`[SyncEngine] v138: 查找Amazon ID失败: ${lookupErr.message}`);
+          }
+        }
+      }
+      
       // 分离keyword和product_target
       const kwTasks = batch.filter((t: any) => t.target_entity_type === 'keyword' && t.amazon_entity_id);
       const ptTasks = batch.filter((t: any) => t.target_entity_type === 'product_target' && t.amazon_entity_id);
       const noIdTasks = batch.filter((t: any) => !t.amazon_entity_id);
       
-      // 标记无Amazon ID的任务为失败
+      // 标记无Amazon ID的任务为失败（已尝试查找仍无法获取）
       if (noIdTasks.length > 0) {
-        await markTasksFailed(conn, noIdTasks.map((t: any) => t.id), '缺少Amazon ID');
+        await markTasksFailed(conn, noIdTasks.map((t: any) => t.id), '缺少Amazon ID（已尝试自动查找）');
         result.failed += noIdTasks.length;
+        console.warn(`[SyncEngine] v138: ${noIdTasks.length}条任务缺少Amazon ID且无法自动查找`);
       }
       
       // 批量更新关键词出价
@@ -432,11 +470,33 @@ async function executeBatchByType(
     }
     
     case 'keyword_status': {
+      // v138: 先尝试从数据库查找缺失的Amazon ID
+      for (const t of batch) {
+        if (!t.amazon_entity_id && t.target_entity_id) {
+          try {
+            const [kwRows] = await conn.execute(
+              'SELECT keywordId FROM keywords WHERE id = ? AND keywordId IS NOT NULL LIMIT 1',
+              [t.target_entity_id]
+            ) as any[];
+            if (kwRows[0]?.keywordId) {
+              t.amazon_entity_id = kwRows[0].keywordId;
+              await conn.execute(
+                'UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?',
+                [t.amazon_entity_id, t.id]
+              );
+              console.log(`[SyncEngine] v138: keyword_status自动查找到Amazon ID: local=${t.target_entity_id} -> amazon=${t.amazon_entity_id}`);
+            }
+          } catch (lookupErr: any) {
+            console.warn(`[SyncEngine] v138: keyword_status查找Amazon ID失败: ${lookupErr.message}`);
+          }
+        }
+      }
+      
       const validTasks = batch.filter((t: any) => t.amazon_entity_id);
       const noIdTasks = batch.filter((t: any) => !t.amazon_entity_id);
       
       if (noIdTasks.length > 0) {
-        await markTasksFailed(conn, noIdTasks.map((t: any) => t.id), '缺少Amazon ID');
+        await markTasksFailed(conn, noIdTasks.map((t: any) => t.id), '缺少Amazon ID（已尝试自动查找）');
         result.failed += noIdTasks.length;
       }
       
@@ -773,10 +833,10 @@ async function updateLocalStatus(conn: any, tableName: string, entityId: number,
 async function updateLogsSyncStatus(conn: any, batchId: string) {
   try {
     // 统计该批次的同步结果
-    const [stats] = await conn.execute<any[]>(
+    const [stats] = await conn.execute(
       `SELECT status, COUNT(*) as cnt FROM optimization_tasks WHERE batch_id = ? GROUP BY status`,
       [batchId]
-    );
+    ) as any[];
     
     let totalSynced = 0, totalFailed = 0, totalPending = 0, totalRetry = 0;
     for (const s of stats) {

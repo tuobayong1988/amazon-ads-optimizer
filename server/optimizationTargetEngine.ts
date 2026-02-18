@@ -866,7 +866,130 @@ async function executeBidOptimization(
           }
         }
       } catch (compensateErr: any) {
-        console.error(`[BidOptimization] 补偿同步机制异常: ${compensateErr.message}`);
+        console.error(`[BidOptimization] 关键词补偿同步机制异常: ${compensateErr.message}`);
+      }
+      
+      // v138: 补偿同步机制 - product_targets的targetId回填
+      try {
+        const mysql2pt = await import('mysql2/promise');
+        const dbUrlPt = process.env.DATABASE_URL;
+        if (dbUrlPt) {
+          const ptConn = await mysql2pt.createConnection(dbUrlPt);
+          try {
+            // 查询该账号下所有缺少targetId的product_targets
+            const [missingPts] = await ptConn.execute<any[]>(
+              `SELECT pt.id, pt.adGroupId, pt.targetExpression, pt.targetValue, pt.targetMatchType
+               FROM product_targets pt
+               INNER JOIN ad_groups ag ON pt.adGroupId = ag.id
+               INNER JOIN campaigns c ON ag.campaignId = c.id
+               WHERE c.accountId = ? AND pt.targetId IS NULL`,
+              [accountId]
+            );
+            
+            if (missingPts.length > 0) {
+              console.log(`[BidOptimization] PT补偿同步: 发现账号${accountId}下${missingPts.length}个product_targets缺少Amazon targetId`);
+              
+              // 按adGroupId分组
+              const ptGroupedByAdGroup = new Map<number, any[]>();
+              for (const pt of missingPts) {
+                const group = ptGroupedByAdGroup.get(pt.adGroupId) || [];
+                group.push(pt);
+                ptGroupedByAdGroup.set(pt.adGroupId, group);
+              }
+              
+              const syncService = await amazonApiHelper.getAmazonSyncService(accountId);
+              if (syncService) {
+                let ptCompensated = 0;
+                let ptFailed = 0;
+                
+                for (const [adGroupLocalId, ptsInGroup] of ptGroupedByAdGroup) {
+                  try {
+                    // 获取Amazon adGroupId
+                    const [agRows] = await ptConn.execute<any[]>(
+                      'SELECT id, adGroupId FROM ad_groups WHERE id = ? LIMIT 1',
+                      [adGroupLocalId]
+                    );
+                    if (!agRows[0] || !agRows[0].adGroupId) {
+                      ptFailed += ptsInGroup.length;
+                      continue;
+                    }
+                    
+                    const amazonAdGroupId = Number(agRows[0].adGroupId);
+                    
+                    // 通过Amazon API查询该adGroup下的所有product targets
+                    const amazonTargets = await syncService.client.listSpProductTargets(amazonAdGroupId);
+                    console.log(`[BidOptimization] PT补偿同步: adGroup=${adGroupLocalId}(Amazon:${amazonAdGroupId}), Amazon返回${amazonTargets.length}个targets`);
+                    
+                    // 构建查找索引: targetExpression -> targetId
+                    const amazonPtMap = new Map<string, string>();
+                    for (const at of amazonTargets) {
+                      // 使用expression value作为匹配键
+                      const atAny = at as any;
+                      const expr = JSON.stringify(atAny.expression || atAny.targetingClause?.expression || []);
+                      amazonPtMap.set(expr, String(at.targetId));
+                      // 也用resolvedExpression匹配
+                      if (atAny.resolvedExpression) {
+                        amazonPtMap.set(JSON.stringify(atAny.resolvedExpression), String(at.targetId));
+                      }
+                    }
+                    
+                    for (const pt of ptsInGroup) {
+                      // 尝试多种匹配方式
+                      let amazonTargetId: string | undefined;
+                      
+                      // 方式1: 通过targetExpression匹配
+                      if (pt.targetExpression) {
+                        amazonTargetId = amazonPtMap.get(pt.targetExpression);
+                      }
+                      
+                      // 方式2: 遍历Amazon targets，按ASIN或类目匹配
+                      if (!amazonTargetId && pt.targetValue) {
+                        for (const at of amazonTargets) {
+                          const atAny2 = at as any;
+                          const exprStr = JSON.stringify(atAny2.expression || atAny2.targetingClause?.expression || []);
+                          if (exprStr.includes(pt.targetValue)) {
+                            amazonTargetId = String(at.targetId);
+                            break;
+                          }
+                        }
+                      }
+                      
+                      if (amazonTargetId) {
+                        try {
+                          await ptConn.execute(
+                            'UPDATE product_targets SET targetId = ? WHERE id = ? AND targetId IS NULL',
+                            [amazonTargetId, pt.id]
+                          );
+                          ptCompensated++;
+                        } catch (updateErr: any) {
+                          if (updateErr.code === 'ER_DUP_ENTRY' || updateErr.errno === 1062) {
+                            await ptConn.execute('DELETE FROM product_targets WHERE id = ? AND targetId IS NULL', [pt.id]);
+                            ptCompensated++;
+                          } else {
+                            ptFailed++;
+                          }
+                        }
+                      } else {
+                        ptFailed++;
+                      }
+                    }
+                  } catch (agErr: any) {
+                    console.error(`[BidOptimization] PT补偿同步: adGroup=${adGroupLocalId}异常: ${agErr.message}`);
+                    ptFailed += ptsInGroup.length;
+                  }
+                }
+                
+                console.log(`[BidOptimization] PT补偿同步完成: 成功=${ptCompensated}, 失败=${ptFailed}, 总计=${missingPts.length}`);
+              }
+            } else {
+              console.log(`[BidOptimization] PT补偿同步: 该账号下所有product_targets均已有Amazon targetId`);
+            }
+          } finally {
+            await ptConn.end();
+          }
+        }
+      } catch (ptCompensateErr: any) {
+        console.error(`[BidOptimization] PT补偿同步机制异常: ${ptCompensateErr.message}`);
       }
       
       apiSyncResult = await amazonApiHelper.syncBidAdjustmentsToAmazon(
@@ -1238,8 +1361,10 @@ async function executeSearchTermAnalysis(
                 if (existingKeywords.length > 0) {
                   console.log(`[SearchTermAnalysis] ⏭️ 关键词已存在，跳过创建: "${term.searchTerm}" (${matchType}) id=${existingKeywords[0].id}, keywordId=${existingKeywords[0].keywordId}`);
                 } else {
-                  // 插入本地数据库
+                  // 插入本地数据库 - v138: 修复缺少accountId和campaignId的问题
                   const insertResult = await dbInstance.insert(keywords).values({
+                    accountId: config.accountId || null,
+                    campaignId: campaign.campaignId || null,
                     adGroupId: adGroup.id,
                     keywordText: term.searchTerm,
                     matchType: matchType as any,
