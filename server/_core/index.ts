@@ -8,6 +8,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { startDataSyncScheduler, startOptimizationScheduler } from "../dataSyncScheduler";
+import { runAutoMigration } from "../db";
 import { startOptimizationScheduler as startTargetScheduler } from "../optimizationScheduler";
 import { startSQSConsumer } from "../sqsConsumerService";
 import { reportJobScheduler } from "../services/reportJobScheduler";
@@ -72,6 +73,22 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
     
+    // v146: 启动时自动执行数据迁移（旧表 → optimization_events）
+    runAutoMigration().then(result => {
+      if (result.success) {
+        const total = Object.values(result.migrated).reduce((a, b) => a + b, 0);
+        if (total > 0) {
+          console.log(`[AutoMigration] v146数据迁移完成: 共迁移 ${total} 条记录`, result.migrated);
+        } else {
+          console.log('[AutoMigration] v146数据迁移: 无新数据需要迁移', result.skipped);
+        }
+      } else {
+        console.error('[AutoMigration] v146数据迁移失败:', result.skipped);
+      }
+    }).catch(err => {
+      console.error('[AutoMigration] v146迁移异常:', err.message);
+    });
+
     // 启动定时同步调度器（每1小时执行一次）
     startDataSyncScheduler(60 * 60 * 1000);
     console.log('[DataSyncScheduler] 定时同步调度器已启动，间隔: 1小时');

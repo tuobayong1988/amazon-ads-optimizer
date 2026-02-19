@@ -5422,3 +5422,90 @@ export async function migrateFromOptimizationLogs(performanceGroupId: number): P
   
   return migrated;
 }
+
+/**
+ * v146: 全局自动数据迁移 - 将所有旧表数据迁移到 optimization_events
+ * 启动时自动执行，通过检查 optimization_events 中是否已有 source_table 记录来防止重复迁移
+ */
+export async function runAutoMigration(): Promise<{ success: boolean; migrated: Record<string, number>; skipped: string[] }> {
+  const db = await getDb();
+  if (!db) return { success: false, migrated: {}, skipped: ['Database not available'] };
+  
+  const migrated: Record<string, number> = {};
+  const skipped: string[] = [];
+  
+  try {
+    // 检查是否已迁移过（通过 source_table 字段判断）
+    const existingMigrations = await db.select({
+      sourceTable: optimizationEvents.sourceTable,
+      count: sql<number>`count(*)`
+    })
+      .from(optimizationEvents)
+      .where(sql`${optimizationEvents.sourceTable} IS NOT NULL`)
+      .groupBy(optimizationEvents.sourceTable);
+    
+    const migratedSources = new Set(existingMigrations.map(m => m.sourceTable));
+    
+    // 1. 迁移 bidding_logs
+    if (migratedSources.has('bidding_logs')) {
+      skipped.push('bidding_logs (already migrated)');
+    } else {
+      try {
+        const accounts = await getAdAccounts();
+        let totalBiddingLogs = 0;
+        for (const account of accounts) {
+          totalBiddingLogs += await migrateFromBiddingLogs(account.id);
+        }
+        migrated.biddingLogs = totalBiddingLogs;
+      } catch (err: any) {
+        console.error('[AutoMigration] bidding_logs migration error:', err.message);
+        skipped.push(`bidding_logs (error: ${err.message})`);
+      }
+    }
+    
+    // 2. 迁移 bid_adjustment_history
+    if (migratedSources.has('bid_adjustment_history')) {
+      skipped.push('bid_adjustment_history (already migrated)');
+    } else {
+      try {
+        const accounts = await getAdAccounts();
+        let totalBidHistory = 0;
+        for (const account of accounts) {
+          totalBidHistory += await migrateFromBidAdjustmentHistory(account.id);
+        }
+        migrated.bidAdjustmentHistory = totalBidHistory;
+      } catch (err: any) {
+        console.error('[AutoMigration] bid_adjustment_history migration error:', err.message);
+        skipped.push(`bid_adjustment_history (error: ${err.message})`);
+      }
+    }
+    
+    // 3. 迁移 optimization_logs（按 performance group）
+    if (migratedSources.has('optimization_logs')) {
+      skipped.push('optimization_logs (already migrated)');
+    } else {
+      try {
+        const accounts = await getAdAccounts();
+        let totalOptLogs = 0;
+        for (const account of accounts) {
+          const groups = await getPerformanceGroupsByAccountId(account.id);
+          for (const group of groups) {
+            totalOptLogs += await migrateFromOptimizationLogs(group.id);
+          }
+        }
+        migrated.optimizationLogs = totalOptLogs;
+      } catch (err: any) {
+        console.error('[AutoMigration] optimization_logs migration error:', err.message);
+        skipped.push(`optimization_logs (error: ${err.message})`);
+      }
+    }
+    
+    const totalMigrated = Object.values(migrated).reduce((a, b) => a + b, 0);
+    console.log(`[AutoMigration] 完成: 共迁移 ${totalMigrated} 条记录`, migrated, '跳过:', skipped);
+    
+    return { success: true, migrated, skipped };
+  } catch (err: any) {
+    console.error('[AutoMigration] 全局迁移失败:', err.message);
+    return { success: false, migrated, skipped: [...skipped, err.message] };
+  }
+}

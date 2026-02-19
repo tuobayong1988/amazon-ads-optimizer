@@ -1101,22 +1101,35 @@ const performanceGroupRouter = router({
       pageSize: z.number().optional().default(50),
     }))
     .query(async ({ input }) => {
-      // 先获取优化目标关联的账号ID
+      // v146: 重定向到统一事件表查询
       const group = await db.getPerformanceGroupById(input.performanceGroupId);
       if (!group) throw new Error('Performance group not found');
-      return db.getBidAdjustmentHistory({
-        accountId: group.accountId,
+      const result = await db.getOptimizationEvents({
         performanceGroupId: input.performanceGroupId,
+        accountId: group.accountId,
+        eventCategory: 'bid_adjustment',
         campaignId: input.campaignId,
-        adjustmentType: input.adjustmentType,
         startDate: input.startDate,
         endDate: input.endDate,
+        limit: input.pageSize,
+        offset: (input.page - 1) * input.pageSize,
+      });
+      return {
+        records: result.events.map((e: any) => ({
+          ...e,
+          appliedAt: e.createdAt,
+          adjustmentType: e.adjustmentType || e.actionType,
+          adjustmentReason: e.changeReason,
+          status: e.status === 'success' ? 'applied' : e.status,
+        })),
+        total: result.total,
         page: input.page,
         pageSize: input.pageSize,
-      });
+        totalPages: Math.ceil(result.total / input.pageSize),
+      };
     }),
 
-  // 获取出价调整统计
+  // v146: 出价调整统计 - 重定向到统一事件表
   getBidAdjustmentStats: protectedProcedure
     .input(z.object({
       performanceGroupId: z.number(),
@@ -1125,10 +1138,14 @@ const performanceGroupRouter = router({
     .query(async ({ input }) => {
       const group = await db.getPerformanceGroupById(input.performanceGroupId);
       if (!group) throw new Error('Performance group not found');
-      return db.getBidAdjustmentStats(group.accountId, input.days);
+      return db.getOptimizationEventStats({
+        performanceGroupId: input.performanceGroupId,
+        accountId: group.accountId,
+        days: input.days,
+      });
     }),
 
-  // 获取效果追踪统计
+  // v146: 效果追踪统计 - 重定向到统一事件表
   getBidAdjustmentTrackingStats: protectedProcedure
     .input(z.object({
       performanceGroupId: z.number(),
@@ -1137,20 +1154,23 @@ const performanceGroupRouter = router({
     .query(async ({ input }) => {
       const group = await db.getPerformanceGroupById(input.performanceGroupId);
       if (!group) throw new Error('Performance group not found');
-      return db.getBidAdjustmentTrackingStats(group.accountId, input.days);
+      return db.getOptimizationEventStats({
+        performanceGroupId: input.performanceGroupId,
+        accountId: group.accountId,
+        days: input.days,
+      });
     }),
 
-  // 回滚出价调整
+  // v146: 回滚出价调整 - 重定向到统一事件表
   rollbackBidAdjustment: protectedProcedure
     .input(z.object({
       adjustmentId: z.number(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await db.rollbackBidAdjustment(input.adjustmentId, ctx.user.name || ctx.user.openId);
-      return result;
+      return db.rollbackOptimizationEvent(input.adjustmentId, ctx.user.name || ctx.user.openId);
     }),
 
-  // 批量回滚出价调整
+  // v146: 批量回滚 - 重定向到统一事件表
   batchRollbackBidAdjustments: protectedProcedure
     .input(z.object({
       adjustmentIds: z.array(z.number()),
@@ -1159,7 +1179,7 @@ const performanceGroupRouter = router({
       const results = [];
       for (const id of input.adjustmentIds) {
         try {
-          const result = await db.rollbackBidAdjustment(id, ctx.user.name || ctx.user.openId);
+          const result = await db.rollbackOptimizationEvent(id, ctx.user.name || ctx.user.openId);
           results.push({ id, success: true, result });
         } catch (error: any) {
           results.push({ id, success: false, error: error.message });
@@ -1194,28 +1214,33 @@ const performanceGroupRouter = router({
       pageSize: z.number().optional().default(50),
     }))
     .query(async ({ input }) => {
+      // v146: 重定向到统一事件表查询
       const group = await db.getPerformanceGroupById(input.performanceGroupId);
       if (!group) throw new Error('Performance group not found');
-      // 获取该优化目标下有效果追踪数据的出价调整记录
-      const result = await db.getBidAdjustmentHistory({
-        accountId: group.accountId,
+      const result = await db.getOptimizationEvents({
         performanceGroupId: input.performanceGroupId,
+        accountId: group.accountId,
+        eventCategory: 'bid_adjustment',
         startDate: input.startDate,
         endDate: input.endDate,
-        page: input.page,
-        pageSize: input.pageSize,
+        limit: input.pageSize,
+        offset: (input.page - 1) * input.pageSize,
       });
-      // 过滤出有追踪数据的记录
-      const trackedRecords = result.records.filter((r: any) => 
+      const allRecords = result.events.map((e: any) => ({
+        ...e,
+        appliedAt: e.createdAt,
+        adjustmentType: e.adjustmentType || e.actionType,
+      }));
+      const trackedRecords = allRecords.filter((r: any) => 
         r.actualProfit7D !== null || r.actualProfit14D !== null || r.actualProfit30D !== null
       );
       return {
         records: trackedRecords,
         total: trackedRecords.length,
-        allRecords: result.records,
+        allRecords,
         allTotal: result.total,
-        page: result.page,
-        pageSize: result.pageSize,
+        page: input.page,
+        pageSize: input.pageSize,
       };
     }),
 
@@ -2233,8 +2258,7 @@ const productTargetRouter = router({
 });
 
 // ==================== Bidding Log Router ====================
-// v145: biddingLogRouter已废弃，数据已迁移到optimization_events统一表
-// 保留路由定义以兼容可能的旧API调用，但不再在前端使用
+// v146: biddingLogRouter已完全重定向到统一事件表
 const biddingLogRouter = router({
   list: protectedProcedure
     .input(z.object({
@@ -2243,11 +2267,13 @@ const biddingLogRouter = router({
       offset: z.number().optional().default(0),
     }))
     .query(async ({ input }) => {
-      const [logs, total] = await Promise.all([
-        db.getBiddingLogsByAccountId(input.accountId, input.limit, input.offset),
-        db.getBiddingLogsCount(input.accountId),
-      ]);
-      return { logs, total };
+      const result = await db.getOptimizationEvents({
+        accountId: input.accountId,
+        eventCategory: 'bid_adjustment',
+        limit: input.limit,
+        offset: input.offset,
+      });
+      return { logs: result.events, total: result.total };
     }),
   
   listByCampaign: protectedProcedure
@@ -2256,7 +2282,12 @@ const biddingLogRouter = router({
       limit: z.number().optional().default(100),
     }))
     .query(async ({ input }) => {
-      return db.getBiddingLogsByCampaignId(input.campaignId, input.limit);
+      const result = await db.getOptimizationEvents({
+        campaignId: input.campaignId,
+        eventCategory: 'bid_adjustment',
+        limit: input.limit,
+      });
+      return result.events;
     }),
 });
 
@@ -9386,17 +9417,44 @@ const placementRouter = router({
       pageSize: z.number().default(50),
     }))
     .query(async ({ input }) => {
-      return db.getBidAdjustmentHistory(input);
+      // v146: 重定向到统一事件表查询
+      const result = await db.getOptimizationEvents({
+        accountId: input.accountId,
+        performanceGroupId: input.performanceGroupId,
+        eventCategory: 'bid_adjustment',
+        campaignId: input.campaignId,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        limit: input.pageSize,
+        offset: (input.page - 1) * input.pageSize,
+      });
+      // 兼容旧的返回格式
+      return {
+        records: result.events.map((e: any) => ({
+          ...e,
+          appliedAt: e.createdAt,
+          adjustmentType: e.adjustmentType || e.actionType,
+          adjustmentReason: e.changeReason,
+          status: e.status === 'success' ? 'applied' : e.status,
+        })),
+        total: result.total,
+        page: input.page,
+        pageSize: input.pageSize,
+        totalPages: Math.ceil(result.total / input.pageSize),
+      };
     }),
   
-  // 获取出价调整历史统计
+  // 获取出价调整历史统计 - v146: 重定向到统一事件表
   getBidAdjustmentStats: protectedProcedure
     .input(z.object({
       accountId: z.number(),
       days: z.number().default(30),
     }))
     .query(async ({ input }) => {
-      return db.getBidAdjustmentStats(input.accountId, input.days);
+      return db.getOptimizationEventStats({
+        accountId: input.accountId,
+        days: input.days,
+      });
     }),
 
   // 快速计算单个关键词的最优出价点
@@ -9455,30 +9513,31 @@ const placementRouter = router({
       adjustmentId: z.number(),
     }))
     .mutation(async ({ input, ctx }) => {
-      const result = await db.rollbackBidAdjustment(input.adjustmentId, ctx.user.name || ctx.user.openId);
-      if (!result) {
-        throw new TRPCError({ code: 'NOT_FOUND', message: '找不到该调整记录' });
-      }
-      return result;
+      // v146: 重定向到统一事件表回滚
+      return db.rollbackOptimizationEvent(input.adjustmentId, ctx.user.name || ctx.user.openId);
     }),
 
-  // 获取单条调整记录详情
+  // 获取单条调整记录详情 - v146: 从统一事件表查询
   getBidAdjustmentById: protectedProcedure
     .input(z.object({
       adjustmentId: z.number(),
     }))
     .query(async ({ input }) => {
-      return db.getBidAdjustmentById(input.adjustmentId);
+      const result = await db.getOptimizationEvents({ limit: 1, offset: 0 });
+      return result.events.find((e: any) => e.id === input.adjustmentId) || null;
     }),
 
-  // 获取效果追踪统计
+  // 获取效果追踪统计 - v146: 重定向到统一事件表
   getBidAdjustmentTrackingStats: protectedProcedure
     .input(z.object({
       accountId: z.number(),
       days: z.number().default(30),
     }))
     .query(async ({ input }) => {
-      return db.getBidAdjustmentTrackingStats(input.accountId, input.days);
+      return db.getOptimizationEventStats({
+        accountId: input.accountId,
+        days: input.days,
+      });
     }),
 
   // 批量导入出价调整历史
@@ -9724,8 +9783,8 @@ const placementRouter = router({
       
       for (const id of input.adjustmentIds) {
         try {
-          // 使用db模块的rollbackBidAdjustment函数
-          const result = await db.rollbackBidAdjustment(id, ctx.user.name || ctx.user.openId);
+          // v146: 重定向到统一事件表回滚
+          const result = await db.rollbackOptimizationEvent(id, ctx.user.name || ctx.user.openId);
           
           if (!result) {
             results.push({ id, success: false, error: '记录不存在或回滚失败' });
