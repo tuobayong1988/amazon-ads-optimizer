@@ -375,20 +375,35 @@ export async function syncBudgetAdjustmentToAmazon(
   accountId: number,
   campaignId: string,  // Amazon Campaign ID
   newBudget: number,
-  reason: string
+  reason: string,
+  campaignType?: string  // v159: campaign类型，用于选择正确的API
 ): Promise<boolean> {
   const syncService = await getAmazonSyncService(accountId);
   if (!syncService) return false;
   
   try {
-    // v125: Amazon SP API v3 要求campaignId为字符串类型
-    await syncService.client.updateSpCampaign(String(campaignId), {
-      dailyBudget: newBudget,
-    });
-    console.log(`[AmazonApiHelper] 预算同步成功: Campaign ${campaignId}, 新预算=$${newBudget}`);
+    const type = (campaignType || 'sp_manual').toLowerCase();
+    
+    // v159: 根据campaign类型选择正确的API
+    if (type === 'sb') {
+      await syncService.client.updateSbCampaign(String(campaignId), {
+        budget: { budget: newBudget, budgetType: 'DAILY' },
+      });
+    } else if (type === 'sd') {
+      await syncService.client.updateSdCampaign(Number(campaignId), {
+        budget: newBudget,
+      });
+    } else {
+      // SP (sp_manual, sp_auto)
+      await syncService.client.updateSpCampaign(String(campaignId), {
+        dailyBudget: newBudget,
+      });
+    }
+    
+    console.log(`[AmazonApiHelper] 预算同步成功: Campaign ${campaignId} (${type}), 新预算=$${newBudget}`);
     return true;
   } catch (error: any) {
-    console.error(`[AmazonApiHelper] 预算同步失败: Campaign ${campaignId}:`, error.message);
+    console.error(`[AmazonApiHelper] 预算同步失败: Campaign ${campaignId} (${campaignType}):`, error.message);
     return false;
   }
 }
@@ -755,6 +770,7 @@ export async function syncCampaignStatusToAmazon(
     amazonCampaignId: string; // Amazon Campaign ID
     newStatus: 'enabled' | 'paused' | 'archived';
     campaignName: string;
+    campaignType?: string;    // v159: campaign类型，用于选择正确的API
     reason: string;
   }>
 ): Promise<{ success: number; failed: number; errors: string[] }> {
@@ -781,20 +797,83 @@ export async function syncCampaignStatusToAmazon(
         continue;
       }
       
-      console.log(`[AmazonApiHelper] 同步广告活动状态: "${change.campaignName}" (${change.amazonCampaignId}) -> ${change.newStatus}`);
+      const campaignType = (change.campaignType || 'sp_manual').toLowerCase();
+      console.log(`[AmazonApiHelper] 同步广告活动状态: "${change.campaignName}" (${change.amazonCampaignId}, type=${campaignType}) -> ${change.newStatus}`);
       
-      // 使用updateSpCampaign方法更新状态
-      await syncService.client.updateSpCampaign(change.amazonCampaignId, {
-        state: change.newStatus.toUpperCase(),
-      } as any);
+      // v159: 带重试的API调用 - 最多重试2次
+      const maxRetries = 2;
+      let lastError: any = null;
+      let success = false;
       
-      result.success++;
-      console.log(`[AmazonApiHelper] ✅ 广告活动状态更新成功: "${change.campaignName}" -> ${change.newStatus}`);
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          if (attempt > 0) {
+            const waitTime = 2000 * attempt;
+            console.log(`[AmazonApiHelper] 重试#${attempt}: "${change.campaignName}", 等待${waitTime}ms`);
+            await delay(waitTime);
+          }
+          
+          // v159: 根据campaign类型选择正确的API
+          if (campaignType === 'sb') {
+            await syncService.client.updateSbCampaign(change.amazonCampaignId, {
+              state: change.newStatus.toUpperCase(),
+            });
+          } else if (campaignType === 'sd') {
+            await syncService.client.updateSdCampaign(Number(change.amazonCampaignId), {
+              state: change.newStatus.toUpperCase(),
+            });
+          } else {
+            await syncService.client.updateSpCampaign(change.amazonCampaignId, {
+              state: change.newStatus.toUpperCase(),
+            } as any);
+          }
+          
+          success = true;
+          break;
+        } catch (e: any) {
+          lastError = e;
+          // 不可重试的错误立即跳出
+          if (e.response?.status === 400 || e.response?.status === 404 || e.response?.status === 422) {
+            break;
+          }
+        }
+      }
+      
+      if (success) {
+        result.success++;
+        console.log(`[AmazonApiHelper] ✅ 广告活动状态更新成功: "${change.campaignName}" (${campaignType}) -> ${change.newStatus}`);
+      } else {
+        result.failed++;
+        const errorMsg = `广告活动 "${change.campaignName}" (${change.amazonCampaignId}, type=${campaignType}) 状态同步失败(已重试${maxRetries}次): ${lastError?.message}`;
+        result.errors.push(errorMsg);
+        console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
+        
+        // v159: 记录同步失败到数据库，便于后续排查和重试
+        try {
+          const { getDb } = await import('../db');
+          const dbInstance = await getDb();
+          if (dbInstance) {
+            const { sql } = await import('drizzle-orm');
+            await dbInstance.execute(sql`
+              INSERT INTO sync_failures (entity_type, entity_id, amazon_id, operation, error_message, account_id, created_at) 
+              VALUES ('campaign', ${change.campaignId}, ${change.amazonCampaignId}, ${'status_change_' + change.newStatus}, ${(lastError?.message || '').substring(0, 1000)}, ${accountId}, NOW())
+            `);
+          }
+        } catch (logError) {
+          // 记录失败不影响主流程
+          console.warn(`[AmazonApiHelper] 无法记录同步失败日志:`, (logError as any).message);
+        }
+      }
     } catch (error: any) {
       result.failed++;
-      const errorMsg = `广告活动 "${change.campaignName}" (${change.amazonCampaignId}) 状态同步失败: ${error.message}`;
+      const errorMsg = `广告活动 "${change.campaignName}" (${change.amazonCampaignId}, type=${change.campaignType}) 状态同步异常: ${error.message}`;
       result.errors.push(errorMsg);
       console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
+    }
+    
+    // 每5个campaign后省略等待，避免触发限流
+    if (statusChanges.indexOf(change) % 5 === 4) {
+      await delay(500);
     }
   }
   

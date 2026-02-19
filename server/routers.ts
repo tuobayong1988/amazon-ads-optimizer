@@ -756,7 +756,8 @@ const performanceGroupRouter = router({
       }
       
       // 2. 同步状态到Amazon API
-      // v158修复: campaigns表中Amazon Campaign ID存储在campaignId字段，不是amazonCampaignId
+      // v158修复: campaigns表中Amazon Campaign ID存储在campaignId字段
+      // v159修复: 添加campaignType以支持SP/SB/SD三种类型的API同步
       const statusChanges = targetCampaigns
         .filter((c: any) => c.campaignId && c.campaignId !== '0' && c.campaignId !== '')
         .map((c: any) => ({
@@ -764,6 +765,7 @@ const performanceGroupRouter = router({
           amazonCampaignId: String(c.campaignId),
           newStatus: input.newStatus as 'enabled' | 'paused',
           campaignName: c.campaignName || `Campaign ${c.id}`,
+          campaignType: c.campaignType || 'sp_manual',
           reason: `批量${input.newStatus === 'paused' ? '暂停' : '启用'}操作`,
         }));
       
@@ -1539,6 +1541,73 @@ const campaignRouter = router({
       };
       await db.updateCampaign(id, data);
       
+      // v159: 同步变更到Amazon API
+      const apiSyncResults: { field: string; success: boolean; error?: string }[] = [];
+      
+      if (previousCampaign && previousCampaign.accountId && previousCampaign.campaignId) {
+        const amazonCampaignId = String(previousCampaign.campaignId);
+        const campaignType = ((previousCampaign as any).campaignType || 'sp_manual').toLowerCase();
+        
+        // 同步状态变更到Amazon
+        if (input.campaignStatus && input.campaignStatus !== previousCampaign.campaignStatus) {
+          try {
+            const { syncCampaignStatusToAmazon } = await import('./services/amazonApiHelper');
+            const result = await syncCampaignStatusToAmazon(previousCampaign.accountId, [{
+              campaignId: id,
+              amazonCampaignId,
+              newStatus: input.campaignStatus as 'enabled' | 'paused' | 'archived',
+              campaignName: previousCampaign.campaignName || `Campaign ${id}`,
+              campaignType,
+              reason: '用户手动更新campaign状态',
+            }]);
+            apiSyncResults.push({ field: 'campaignStatus', success: result.success > 0, error: result.errors[0] });
+          } catch (e: any) {
+            apiSyncResults.push({ field: 'campaignStatus', success: false, error: e.message });
+            console.error(`[campaign.update] 状态同步失败:`, e.message);
+          }
+        }
+        
+        // 同步日预算变更到Amazon (SP类型)
+        if (input.dailyBudget && input.dailyBudget !== (previousCampaign as any).dailyBudget) {
+          try {
+            const { syncBudgetAdjustmentToAmazon } = await import('./services/amazonApiHelper');
+            const success = await syncBudgetAdjustmentToAmazon(
+              previousCampaign.accountId,
+              amazonCampaignId,
+              parseFloat(input.dailyBudget),
+              '用户手动更新日预算'
+            );
+            apiSyncResults.push({ field: 'dailyBudget', success });
+          } catch (e: any) {
+            apiSyncResults.push({ field: 'dailyBudget', success: false, error: e.message });
+            console.error(`[campaign.update] 预算同步失败:`, e.message);
+          }
+        }
+        
+        // 同步位置出价调整到Amazon (SP类型)
+        if ((input.placementTopSearchBidAdjustment !== undefined || input.placementProductPageBidAdjustment !== undefined) 
+            && (campaignType === 'sp_manual' || campaignType === 'sp_auto')) {
+          try {
+            const { syncPlacementAdjustmentToAmazon } = await import('./services/amazonApiHelper');
+            const topPercent = input.placementTopSearchBidAdjustment ?? (previousCampaign as any).placementTopSearchBidAdjustment ?? 0;
+            const productPercent = input.placementProductPageBidAdjustment ?? (previousCampaign as any).placementProductPageBidAdjustment ?? 0;
+            const success = await syncPlacementAdjustmentToAmazon(
+              previousCampaign.accountId,
+              amazonCampaignId,
+              topPercent,
+              productPercent,
+              '用户手动更新位置出价调整'
+            );
+            apiSyncResults.push({ field: 'placementAdjustment', success });
+          } catch (e: any) {
+            apiSyncResults.push({ field: 'placementAdjustment', success: false, error: e.message });
+            console.error(`[campaign.update] 位置调整同步失败:`, e.message);
+          }
+        }
+        
+        console.log(`[campaign.update] Amazon API同步结果:`, JSON.stringify(apiSyncResults));
+      }
+      
       // 记录审计日志
       const { logAudit } = await import("./auditService");
       const changes: string[] = [];
@@ -1548,6 +1617,7 @@ const campaignRouter = router({
       if (input.campaignStatus) changes.push(`状态: ${input.campaignStatus}`);
       if (input.intradayBiddingEnabled !== undefined) changes.push(`分时竞价: ${input.intradayBiddingEnabled ? '开启' : '关闭'}`);
       
+      const apiFailures = apiSyncResults.filter(r => !r.success);
       await logAudit({
         userId: ctx.user.id,
         userName: ctx.user.name || undefined,
@@ -1556,14 +1626,22 @@ const campaignRouter = router({
         targetType: 'campaign',
         targetId: String(input.id),
         targetName: previousCampaign?.campaignName || undefined,
-        description: `更新广告活动（${changes.join(', ')}）`,
+        description: `更新广告活动（${changes.join(', ')}）` + (apiFailures.length > 0 ? ` [API同步失败: ${apiFailures.map(f => f.field).join(', ')}]` : ''),
         previousValue: previousCampaign ? { maxBid: previousCampaign.maxBid, dailyBudget: previousCampaign.dailyBudget, status: previousCampaign.campaignStatus } : undefined,
         newValue: { maxBid: input.maxBid, dailyBudget: input.dailyBudget, status: input.campaignStatus },
         accountId: previousCampaign?.accountId,
-        status: 'success',
+        status: apiFailures.length > 0 ? 'partial' : 'success',
       });
       
-      return { success: true };
+      return { 
+        success: true, 
+        apiSync: apiSyncResults.length > 0 ? {
+          total: apiSyncResults.length,
+          success: apiSyncResults.filter(r => r.success).length,
+          failed: apiFailures.length,
+          errors: apiFailures.map(f => `${f.field}: ${f.error}`).slice(0, 5),
+        } : undefined,
+      };
     }),
   
   getAdGroups: protectedProcedure
@@ -2086,6 +2164,50 @@ const keywordRouter = router({
         });
       }
       
+      // v159: 同步出价调整到Amazon
+      if (results.length > 0) {
+        try {
+          const dbInstance = await db.getDb();
+          if (dbInstance) {
+            const { keywords: keywordsTable, adGroups, campaigns } = await import('../drizzle/schema');
+            const { eq, inArray } = await import('drizzle-orm');
+            
+            const kwDetails = await dbInstance.select({
+              kwId: keywordsTable.id,
+              adGroupId: keywordsTable.adGroupId,
+              campaignId: adGroups.campaignId,
+              accountId: campaigns.accountId,
+            })
+            .from(keywordsTable)
+            .innerJoin(adGroups, eq(keywordsTable.adGroupId, adGroups.id))
+            .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+            .where(inArray(keywordsTable.id, results.map(r => r.id)));
+            
+            const byAccount = new Map<number, Array<{ keywordId: number; newBid: number; campaignId: number }>>();
+            for (const kw of kwDetails) {
+              const r = results.find(r => r.id === kw.kwId);
+              if (!r) continue;
+              if (!byAccount.has(kw.accountId)) byAccount.set(kw.accountId, []);
+              byAccount.get(kw.accountId)!.push({ keywordId: kw.kwId, newBid: r.newBid, campaignId: kw.campaignId });
+            }
+            
+            const { syncBidAdjustmentsToAmazon } = await import('./services/amazonApiHelper');
+            for (const [accountId, kws] of byAccount) {
+              const adjustments = kws.map(kw => ({
+                keywordId: kw.keywordId,
+                newBid: kw.newBid,
+                campaignId: kw.campaignId,
+                reason: `用户手动批量调整关键词出价`,
+              }));
+              const syncResult = await syncBidAdjustmentsToAmazon(accountId, adjustments);
+              console.log(`[Keyword.batchUpdateBid] v159: accountId=${accountId}, 同步结果: 成功=${syncResult.success}, 失败=${syncResult.failed}`);
+            }
+          }
+        } catch (syncError: any) {
+          console.error(`[Keyword.batchUpdateBid] v159: Amazon同步失败(本地已更新):`, syncError.message);
+        }
+      }
+      
       return { success: true, updated: results.length, results };
     }),
   
@@ -2096,11 +2218,57 @@ const keywordRouter = router({
       status: z.enum(["enabled", "paused"]),
     }))
     .mutation(async ({ input }) => {
+      // v159: 先更新本地数据库
       let updated = 0;
       for (const id of input.ids) {
         await db.updateKeyword(id, { keywordStatus: input.status });
         updated++;
       }
+      
+      // v159: 同步关键词状态变更到Amazon
+      try {
+        // 获取关键词的accountId（通过adGroup -> campaign关联）
+        const dbInstance = await db.getDb();
+        if (dbInstance) {
+          const { keywords: keywordsTable, adGroups, campaigns } = await import('../drizzle/schema');
+          const { eq, inArray } = await import('drizzle-orm');
+          
+          // 查询关键词关联的accountId
+          const kwDetails = await dbInstance.select({
+            kwId: keywordsTable.id,
+            adGroupId: keywordsTable.adGroupId,
+            campaignId: adGroups.campaignId,
+            accountId: campaigns.accountId,
+          })
+          .from(keywordsTable)
+          .innerJoin(adGroups, eq(keywordsTable.adGroupId, adGroups.id))
+          .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+          .where(inArray(keywordsTable.id, input.ids));
+          
+          // 按accountId分组
+          const byAccount = new Map<number, Array<{ keywordId: number; campaignId: number }>>();
+          for (const kw of kwDetails) {
+            if (!byAccount.has(kw.accountId)) byAccount.set(kw.accountId, []);
+            byAccount.get(kw.accountId)!.push({ keywordId: kw.kwId, campaignId: kw.campaignId });
+          }
+          
+          // 按账号同步到Amazon
+          const { syncKeywordStatusToAmazon } = await import('./services/amazonApiHelper');
+          for (const [accountId, kws] of byAccount) {
+            const statusChanges = kws.map(kw => ({
+              keywordId: kw.keywordId,
+              newStatus: input.status as 'enabled' | 'paused',
+              campaignId: kw.campaignId,
+              reason: `用户手动批量${input.status === 'enabled' ? '启用' : '暂停'}关键词`,
+            }));
+            const syncResult = await syncKeywordStatusToAmazon(accountId, statusChanges);
+            console.log(`[Keyword.batchUpdateStatus] v159: accountId=${accountId}, 同步结果: 成功=${syncResult.success}, 失败=${syncResult.failed}`);
+          }
+        }
+      } catch (syncError: any) {
+        console.error(`[Keyword.batchUpdateStatus] v159: Amazon同步失败(本地已更新):`, syncError.message);
+      }
+      
       return { success: true, updated };
     }),
   
@@ -2288,7 +2456,7 @@ const productTargetRouter = router({
         const currentBid = parseFloat(target.bid);
         const spend = parseFloat(target.spend || "0");
         const clicks = target.clicks || 0;
-        const cpc = clicks > 0 ? spend / clicks : currentBid; // 如果没有点击，使用当前出价作为CPC
+        const cpc = clicks > 0 ? spend / clicks : currentBid;
         
         if (input.bidType === "fixed") {
           newBid = input.bidValue;
@@ -2297,13 +2465,10 @@ const productTargetRouter = router({
         } else if (input.bidType === "decrease_percent") {
           newBid = currentBid * (1 - input.bidValue / 100);
         } else if (input.bidType === "cpc_multiplier") {
-          // 按CPC倍数设置出价
           newBid = cpc * input.bidValue;
         } else if (input.bidType === "cpc_increase_percent") {
-          // 按CPC百分比提高
           newBid = cpc * (1 + input.bidValue / 100);
         } else {
-          // cpc_decrease_percent - 按CPC百分比降低
           newBid = cpc * (1 - input.bidValue / 100);
         }
         
@@ -2312,6 +2477,52 @@ const productTargetRouter = router({
         await db.updateProductTargetBid(id, newBid.toFixed(2));
         results.push({ id, oldBid: currentBid, newBid, cpc });
       }
+      
+      // v159: 同步商品定向出价调整到Amazon
+      if (results.length > 0) {
+        try {
+          const dbInstance = await db.getDb();
+          if (dbInstance) {
+            const { productTargets, adGroups, campaigns } = await import('../drizzle/schema');
+            const { eq, inArray } = await import('drizzle-orm');
+            
+            const ptDetails = await dbInstance.select({
+              ptId: productTargets.id,
+              adGroupId: productTargets.adGroupId,
+              campaignId: adGroups.campaignId,
+              accountId: campaigns.accountId,
+            })
+            .from(productTargets)
+            .innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id))
+            .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+            .where(inArray(productTargets.id, results.map(r => r.id)));
+            
+            const byAccount = new Map<number, Array<{ keywordId: number; newBid: number; campaignId: number }>>();
+            for (const pt of ptDetails) {
+              const r = results.find(r => r.id === pt.ptId);
+              if (!r) continue;
+              if (!byAccount.has(pt.accountId)) byAccount.set(pt.accountId, []);
+              byAccount.get(pt.accountId)!.push({ keywordId: pt.ptId, newBid: r.newBid, campaignId: pt.campaignId });
+            }
+            
+            const { syncBidAdjustmentsToAmazon } = await import('./services/amazonApiHelper');
+            for (const [accountId, pts] of byAccount) {
+              const adjustments = pts.map(pt => ({
+                keywordId: pt.keywordId,
+                newBid: pt.newBid,
+                campaignId: pt.campaignId,
+                reason: `用户手动批量调整商品定向出价`,
+                isProductTarget: true,
+              }));
+              const syncResult = await syncBidAdjustmentsToAmazon(accountId, adjustments);
+              console.log(`[ProductTarget.batchUpdateBid] v159: accountId=${accountId}, 同步结果: 成功=${syncResult.success}, 失败=${syncResult.failed}`);
+            }
+          }
+        } catch (syncError: any) {
+          console.error(`[ProductTarget.batchUpdateBid] v159: Amazon同步失败(本地已更新):`, syncError.message);
+        }
+      }
+      
       return { success: true, updated: results.length, results };
     }),
   
@@ -2322,11 +2533,54 @@ const productTargetRouter = router({
       status: z.enum(["enabled", "paused"]),
     }))
     .mutation(async ({ input }) => {
+      // v159: 先更新本地数据库
       let updated = 0;
       for (const id of input.ids) {
         await db.updateProductTarget(id, { targetStatus: input.status });
         updated++;
       }
+      
+      // v159: 同步商品定向状态变更到Amazon
+      try {
+        const dbInstance = await db.getDb();
+        if (dbInstance) {
+          const { productTargets, adGroups, campaigns } = await import('../drizzle/schema');
+          const { eq, inArray } = await import('drizzle-orm');
+          
+          const ptDetails = await dbInstance.select({
+            ptId: productTargets.id,
+            adGroupId: productTargets.adGroupId,
+            campaignId: adGroups.campaignId,
+            accountId: campaigns.accountId,
+          })
+          .from(productTargets)
+          .innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id))
+          .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+          .where(inArray(productTargets.id, input.ids));
+          
+          const byAccount = new Map<number, Array<{ keywordId: number; campaignId: number }>>();
+          for (const pt of ptDetails) {
+            if (!byAccount.has(pt.accountId)) byAccount.set(pt.accountId, []);
+            byAccount.get(pt.accountId)!.push({ keywordId: pt.ptId, campaignId: pt.campaignId });
+          }
+          
+          const { syncKeywordStatusToAmazon } = await import('./services/amazonApiHelper');
+          for (const [accountId, pts] of byAccount) {
+            const statusChanges = pts.map(pt => ({
+              keywordId: pt.keywordId,
+              newStatus: input.status as 'enabled' | 'paused',
+              campaignId: pt.campaignId,
+              reason: `用户手动批量${input.status === 'enabled' ? '启用' : '暂停'}商品定向`,
+              isProductTarget: true,
+            }));
+            const syncResult = await syncKeywordStatusToAmazon(accountId, statusChanges);
+            console.log(`[ProductTarget.batchUpdateStatus] v159: accountId=${accountId}, 同步结果: 成功=${syncResult.success}, 失败=${syncResult.failed}`);
+          }
+        }
+      } catch (syncError: any) {
+        console.error(`[ProductTarget.batchUpdateStatus] v159: Amazon同步失败(本地已更新):`, syncError.message);
+      }
+      
       return { success: true, updated };
     }),
   

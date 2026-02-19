@@ -53459,9 +53459,9 @@ var init_amazonAdsApi = __esm({
                   baseDelay = Math.max(baseDelay, retryAfterMs);
                 }
               }
-              const delay = baseDelay * Math.pow(2, config2._retryCount - 1) + Math.random() * 1e3;
-              console.warn(`[Amazon API] v148: \u72B6\u6001\u7801${status}, \u7B2C${config2._retryCount}/${MAX_RETRIES}\u6B21\u91CD\u8BD5, \u7B49\u5F85${Math.round(delay)}ms, URL: ${config2.url}`);
-              await new Promise((resolve8) => setTimeout(resolve8, delay));
+              const delay2 = baseDelay * Math.pow(2, config2._retryCount - 1) + Math.random() * 1e3;
+              console.warn(`[Amazon API] v148: \u72B6\u6001\u7801${status}, \u7B2C${config2._retryCount}/${MAX_RETRIES}\u6B21\u91CD\u8BD5, \u7B49\u5F85${Math.round(delay2)}ms, URL: ${config2.url}`);
+              await new Promise((resolve8) => setTimeout(resolve8, delay2));
               return this.axiosInstance(config2);
             }
             if (error54.response) {
@@ -58222,6 +58222,18 @@ var init_exchangeRateService = __esm({
 });
 
 // server/services/amazonApiHelper.ts
+var amazonApiHelper_exports = {};
+__export(amazonApiHelper_exports, {
+  getAmazonSyncService: () => getAmazonSyncService,
+  syncAdGroupStatusToAmazon: () => syncAdGroupStatusToAmazon,
+  syncBidAdjustmentsToAmazon: () => syncBidAdjustmentsToAmazon,
+  syncBudgetAdjustmentToAmazon: () => syncBudgetAdjustmentToAmazon,
+  syncCampaignStatusToAmazon: () => syncCampaignStatusToAmazon,
+  syncKeywordStatusToAmazon: () => syncKeywordStatusToAmazon,
+  syncNegativeKeywordsToAmazon: () => syncNegativeKeywordsToAmazon,
+  syncNewKeywordsToAmazon: () => syncNewKeywordsToAmazon,
+  syncPlacementAdjustmentToAmazon: () => syncPlacementAdjustmentToAmazon
+});
 async function getAmazonSyncService(accountId) {
   try {
     const account = await getAdAccountById(accountId);
@@ -58284,7 +58296,7 @@ async function syncBidAdjustmentsToAmazon(accountId, adjustments) {
   if (uniqueAdjustments.length < adjustments.length) {
     console.log(`[AmazonApiHelper] \u5E42\u7B49\u6027\u53BB\u91CD: ${adjustments.length}\u6761 -> ${uniqueAdjustments.length}\u6761\uFF08\u53BB\u9664${adjustments.length - uniqueAdjustments.length}\u4E2A\u91CD\u590D\u5173\u952E\u8BCD\uFF09`);
   }
-  const delay = (ms) => new Promise((resolve8) => setTimeout(resolve8, ms));
+  const delay2 = (ms) => new Promise((resolve8) => setTimeout(resolve8, ms));
   let consecutiveThrottles = 0;
   for (let i4 = 0; i4 < uniqueAdjustments.length; i4++) {
     const adj = uniqueAdjustments[i4];
@@ -58336,11 +58348,11 @@ async function syncBidAdjustmentsToAmazon(accountId, adjustments) {
           consecutiveThrottles++;
           const waitTime = Math.min(3e3 * consecutiveThrottles, 15e3);
           console.log(`[AmazonApiHelper] \u26A0\uFE0F \u9650\u6D41\uFF0C\u7B49\u5F85${waitTime}ms\u540E\u91CD\u8BD5...`);
-          await delay(waitTime);
+          await delay2(waitTime);
         } else if (retryCount <= maxRetries) {
           const waitTime = 2e3 * retryCount;
           console.log(`[AmazonApiHelper] \u2139\uFE0F API\u9519\u8BEF\uFF0C\u7B49\u5F85${waitTime}ms\u540E\u91CD\u8BD5...`);
-          await delay(waitTime);
+          await delay2(waitTime);
         } else {
           result.failed++;
           const targetType = adj.isProductTarget ? "product_target" : "keyword";
@@ -58353,7 +58365,7 @@ async function syncBidAdjustmentsToAmazon(accountId, adjustments) {
       }
     }
     if ((i4 + 1) % 5 === 0 && i4 < uniqueAdjustments.length - 1) {
-      await delay(500);
+      await delay2(500);
     }
   }
   const totalAttempts = result.success + result.failed;
@@ -58480,17 +58492,28 @@ async function syncNewKeywordsToAmazon(accountId, newKeywords) {
   console.log(`[AmazonApiHelper] \u65B0\u5173\u952E\u8BCD\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}, \u603B\u8BA1=${newKeywords.length}`);
   return result;
 }
-async function syncBudgetAdjustmentToAmazon(accountId, campaignId, newBudget, reason) {
+async function syncBudgetAdjustmentToAmazon(accountId, campaignId, newBudget, reason, campaignType) {
   const syncService = await getAmazonSyncService(accountId);
   if (!syncService) return false;
   try {
-    await syncService.client.updateSpCampaign(String(campaignId), {
-      dailyBudget: newBudget
-    });
-    console.log(`[AmazonApiHelper] \u9884\u7B97\u540C\u6B65\u6210\u529F: Campaign ${campaignId}, \u65B0\u9884\u7B97=$${newBudget}`);
+    const type = (campaignType || "sp_manual").toLowerCase();
+    if (type === "sb") {
+      await syncService.client.updateSbCampaign(String(campaignId), {
+        budget: { budget: newBudget, budgetType: "DAILY" }
+      });
+    } else if (type === "sd") {
+      await syncService.client.updateSdCampaign(Number(campaignId), {
+        budget: newBudget
+      });
+    } else {
+      await syncService.client.updateSpCampaign(String(campaignId), {
+        dailyBudget: newBudget
+      });
+    }
+    console.log(`[AmazonApiHelper] \u9884\u7B97\u540C\u6B65\u6210\u529F: Campaign ${campaignId} (${type}), \u65B0\u9884\u7B97=$${newBudget}`);
     return true;
   } catch (error54) {
-    console.error(`[AmazonApiHelper] \u9884\u7B97\u540C\u6B65\u5931\u8D25: Campaign ${campaignId}:`, error54.message);
+    console.error(`[AmazonApiHelper] \u9884\u7B97\u540C\u6B65\u5931\u8D25: Campaign ${campaignId} (${campaignType}):`, error54.message);
     return false;
   }
 }
@@ -58632,7 +58655,7 @@ async function syncKeywordStatusToAmazon(accountId, statusChanges) {
     result.failed = statusChanges.length;
     return result;
   }
-  const delay = (ms) => new Promise((resolve8) => setTimeout(resolve8, ms));
+  const delay2 = (ms) => new Promise((resolve8) => setTimeout(resolve8, ms));
   const keywordChanges = statusChanges.filter((s4) => !s4.isProductTarget);
   const productTargetChanges = statusChanges.filter((s4) => s4.isProductTarget);
   for (let i4 = 0; i4 < keywordChanges.length; i4++) {
@@ -58692,7 +58715,7 @@ async function syncKeywordStatusToAmazon(accountId, statusChanges) {
       console.error(`[AmazonApiHelper] \u274C ${errorMsg}`);
     }
     if ((i4 + 1) % 5 === 0 && i4 < keywordChanges.length - 1) {
-      await delay(500);
+      await delay2(500);
     }
   }
   for (let i4 = 0; i4 < productTargetChanges.length; i4++) {
@@ -58732,7 +58755,7 @@ async function syncKeywordStatusToAmazon(accountId, statusChanges) {
       result.errors.push(`\u5546\u54C1\u5B9A\u5411 ${change.keywordId} \u72B6\u6001\u540C\u6B65\u5F02\u5E38: ${error54.message}`);
     }
     if ((i4 + 1) % 5 === 0 && i4 < productTargetChanges.length - 1) {
-      await delay(500);
+      await delay2(500);
     }
   }
   console.log(`[AmazonApiHelper] \u5173\u952E\u8BCD\u72B6\u6001\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}`);
@@ -58757,17 +58780,70 @@ async function syncCampaignStatusToAmazon(accountId, statusChanges) {
         result.errors.push(`\u5E7F\u544A\u6D3B\u52A8 "${change.campaignName}" \u7F3A\u5C11Amazon Campaign ID\uFF0C\u65E0\u6CD5\u540C\u6B65\u72B6\u6001`);
         continue;
       }
-      console.log(`[AmazonApiHelper] \u540C\u6B65\u5E7F\u544A\u6D3B\u52A8\u72B6\u6001: "${change.campaignName}" (${change.amazonCampaignId}) -> ${change.newStatus}`);
-      await syncService.client.updateSpCampaign(change.amazonCampaignId, {
-        state: change.newStatus.toUpperCase()
-      });
-      result.success++;
-      console.log(`[AmazonApiHelper] \u2705 \u5E7F\u544A\u6D3B\u52A8\u72B6\u6001\u66F4\u65B0\u6210\u529F: "${change.campaignName}" -> ${change.newStatus}`);
+      const campaignType = (change.campaignType || "sp_manual").toLowerCase();
+      console.log(`[AmazonApiHelper] \u540C\u6B65\u5E7F\u544A\u6D3B\u52A8\u72B6\u6001: "${change.campaignName}" (${change.amazonCampaignId}, type=${campaignType}) -> ${change.newStatus}`);
+      const maxRetries = 2;
+      let lastError = null;
+      let success2 = false;
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+          if (attempt > 0) {
+            const waitTime = 2e3 * attempt;
+            console.log(`[AmazonApiHelper] \u91CD\u8BD5#${attempt}: "${change.campaignName}", \u7B49\u5F85${waitTime}ms`);
+            await delay(waitTime);
+          }
+          if (campaignType === "sb") {
+            await syncService.client.updateSbCampaign(change.amazonCampaignId, {
+              state: change.newStatus.toUpperCase()
+            });
+          } else if (campaignType === "sd") {
+            await syncService.client.updateSdCampaign(Number(change.amazonCampaignId), {
+              state: change.newStatus.toUpperCase()
+            });
+          } else {
+            await syncService.client.updateSpCampaign(change.amazonCampaignId, {
+              state: change.newStatus.toUpperCase()
+            });
+          }
+          success2 = true;
+          break;
+        } catch (e6) {
+          lastError = e6;
+          if (e6.response?.status === 400 || e6.response?.status === 404 || e6.response?.status === 422) {
+            break;
+          }
+        }
+      }
+      if (success2) {
+        result.success++;
+        console.log(`[AmazonApiHelper] \u2705 \u5E7F\u544A\u6D3B\u52A8\u72B6\u6001\u66F4\u65B0\u6210\u529F: "${change.campaignName}" (${campaignType}) -> ${change.newStatus}`);
+      } else {
+        result.failed++;
+        const errorMsg = `\u5E7F\u544A\u6D3B\u52A8 "${change.campaignName}" (${change.amazonCampaignId}, type=${campaignType}) \u72B6\u6001\u540C\u6B65\u5931\u8D25(\u5DF2\u91CD\u8BD5${maxRetries}\u6B21): ${lastError?.message}`;
+        result.errors.push(errorMsg);
+        console.error(`[AmazonApiHelper] \u274C ${errorMsg}`);
+        try {
+          const { getDb: getDb2 } = await Promise.resolve().then(() => (init_db2(), db_exports));
+          const dbInstance = await getDb2();
+          if (dbInstance) {
+            const { sql: sql9 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+            await dbInstance.execute(sql9`
+              INSERT INTO sync_failures (entity_type, entity_id, amazon_id, operation, error_message, account_id, created_at) 
+              VALUES ('campaign', ${change.campaignId}, ${change.amazonCampaignId}, ${"status_change_" + change.newStatus}, ${(lastError?.message || "").substring(0, 1e3)}, ${accountId}, NOW())
+            `);
+          }
+        } catch (logError2) {
+          console.warn(`[AmazonApiHelper] \u65E0\u6CD5\u8BB0\u5F55\u540C\u6B65\u5931\u8D25\u65E5\u5FD7:`, logError2.message);
+        }
+      }
     } catch (error54) {
       result.failed++;
-      const errorMsg = `\u5E7F\u544A\u6D3B\u52A8 "${change.campaignName}" (${change.amazonCampaignId}) \u72B6\u6001\u540C\u6B65\u5931\u8D25: ${error54.message}`;
+      const errorMsg = `\u5E7F\u544A\u6D3B\u52A8 "${change.campaignName}" (${change.amazonCampaignId}, type=${change.campaignType}) \u72B6\u6001\u540C\u6B65\u5F02\u5E38: ${error54.message}`;
       result.errors.push(errorMsg);
       console.error(`[AmazonApiHelper] \u274C ${errorMsg}`);
+    }
+    if (statusChanges.indexOf(change) % 5 === 4) {
+      await delay(500);
     }
   }
   console.log(`[AmazonApiHelper] \u5E7F\u544A\u6D3B\u52A8\u72B6\u6001\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}`);
@@ -89963,8 +90039,8 @@ var require_dist_cjs63 = __commonJS({
         }
         this.refillTokenBucket();
         if (amount > this.currentCapacity) {
-          const delay = (amount - this.currentCapacity) / this.fillRate * 1e3;
-          await new Promise((resolve8) => _DefaultRateLimiter.setTimeoutFn(resolve8, delay));
+          const delay2 = (amount - this.currentCapacity) / this.fillRate * 1e3;
+          await new Promise((resolve8) => _DefaultRateLimiter.setTimeoutFn(resolve8, delay2));
         }
         this.currentCapacity = this.currentCapacity - amount;
       }
@@ -90042,8 +90118,8 @@ var require_dist_cjs63 = __commonJS({
       const computeNextBackoffDelay = (attempts) => {
         return Math.floor(Math.min(MAXIMUM_RETRY_DELAY, Math.random() * 2 ** attempts * delayBase));
       };
-      const setDelayBase = (delay) => {
-        delayBase = delay;
+      const setDelayBase = (delay2) => {
+        delayBase = delay2;
       };
       return {
         computeNextBackoffDelay,
@@ -94744,9 +94820,9 @@ var require_dist_cjs70 = __commonJS({
               retryTokenAmount = this.retryQuota.retrieveRetryTokens(err2);
               const delayFromDecider = this.delayDecider(serviceErrorClassification.isThrottlingError(err2) ? utilRetry.THROTTLING_RETRY_DELAY_BASE : utilRetry.DEFAULT_RETRY_DELAY_BASE, attempts);
               const delayFromResponse = getDelayFromRetryAfterHeader(err2.$response);
-              const delay = Math.max(delayFromResponse || 0, delayFromDecider);
-              totalDelay += delay;
-              await new Promise((resolve8) => setTimeout(resolve8, delay));
+              const delay2 = Math.max(delayFromResponse || 0, delayFromDecider);
+              totalDelay += delay2;
+              await new Promise((resolve8) => setTimeout(resolve8, delay2));
               continue;
             }
             if (!err2.$metadata) {
@@ -94902,9 +94978,9 @@ var require_dist_cjs70 = __commonJS({
               throw lastError;
             }
             attempts = retryToken.getRetryCount();
-            const delay = retryToken.getRetryDelay();
-            totalRetryDelay += delay;
-            await new Promise((resolve8) => setTimeout(resolve8, delay));
+            const delay2 = retryToken.getRetryDelay();
+            totalRetryDelay += delay2;
+            await new Promise((resolve8) => setTimeout(resolve8, delay2));
           }
         }
       } else {
@@ -148552,13 +148628,13 @@ is not a problem with esbuild. You need to fix your environment instead.
             watch: (options2 = {}) => new Promise((resolve8, reject) => {
               if (!streamIn.hasFS) throw new Error(`Cannot use the "watch" API in this environment`);
               const keys = {};
-              const delay = getFlag(options2, keys, "delay", mustBeInteger);
+              const delay2 = getFlag(options2, keys, "delay", mustBeInteger);
               checkForInvalidFlags(options2, keys, `in watch() call`);
               const request2 = {
                 command: "watch",
                 key: buildKey
               };
-              if (delay) request2.delay = delay;
+              if (delay2) request2.delay = delay2;
               sendRequest(refs, request2, (error210) => {
                 if (error210) reject(new Error(error210));
                 else resolve8(void 0);
@@ -341194,9 +341270,9 @@ async function executeScheduledSyncWithRetry(scheduleId) {
       lastError = error54;
       retryCount++;
       if (retryCount <= RETRY_CONFIG.maxRetries) {
-        const delay = RETRY_CONFIG.retryDelayMs * Math.pow(RETRY_CONFIG.backoffMultiplier, retryCount - 1);
-        console.log(`\u8C03\u5EA6 ${scheduleId} \u6267\u884C\u5931\u8D25\uFF0C${delay / 1e3}\u79D2\u540E\u8FDB\u884C\u7B2C ${retryCount} \u6B21\u91CD\u8BD5...`);
-        await new Promise((resolve8) => setTimeout(resolve8, delay));
+        const delay2 = RETRY_CONFIG.retryDelayMs * Math.pow(RETRY_CONFIG.backoffMultiplier, retryCount - 1);
+        console.log(`\u8C03\u5EA6 ${scheduleId} \u6267\u884C\u5931\u8D25\uFF0C${delay2 / 1e3}\u79D2\u540E\u8FDB\u884C\u7B2C ${retryCount} \u6B21\u91CD\u8BD5...`);
+        await new Promise((resolve8) => setTimeout(resolve8, delay2));
       }
     }
   }
@@ -344757,6 +344833,7 @@ var performanceGroupRouter = router({
       amazonCampaignId: String(c5.campaignId),
       newStatus: input.newStatus,
       campaignName: c5.campaignName || `Campaign ${c5.id}`,
+      campaignType: c5.campaignType || "sp_manual",
       reason: `\u6279\u91CF${input.newStatus === "paused" ? "\u6682\u505C" : "\u542F\u7528"}\u64CD\u4F5C`
     }));
     console.log(`[batchUpdateCampaignStatus] \u51C6\u5907\u540C\u6B65${statusChanges.length}\u4E2Acampaign\u72B6\u6001\u5230Amazon (\u603B\u8BA1${targetCampaigns.length}\u4E2A)`);
@@ -345368,6 +345445,62 @@ var campaignRouter = router({
       ...intradayBiddingEnabled !== void 0 && { intradayBiddingEnabled: intradayBiddingEnabled ? 1 : 0 }
     };
     await updateCampaign(id, data4);
+    const apiSyncResults = [];
+    if (previousCampaign && previousCampaign.accountId && previousCampaign.campaignId) {
+      const amazonCampaignId = String(previousCampaign.campaignId);
+      const campaignType = (previousCampaign.campaignType || "sp_manual").toLowerCase();
+      if (input.campaignStatus && input.campaignStatus !== previousCampaign.campaignStatus) {
+        try {
+          const { syncCampaignStatusToAmazon: syncCampaignStatusToAmazon2 } = await Promise.resolve().then(() => (init_amazonApiHelper(), amazonApiHelper_exports));
+          const result = await syncCampaignStatusToAmazon2(previousCampaign.accountId, [{
+            campaignId: id,
+            amazonCampaignId,
+            newStatus: input.campaignStatus,
+            campaignName: previousCampaign.campaignName || `Campaign ${id}`,
+            campaignType,
+            reason: "\u7528\u6237\u624B\u52A8\u66F4\u65B0campaign\u72B6\u6001"
+          }]);
+          apiSyncResults.push({ field: "campaignStatus", success: result.success > 0, error: result.errors[0] });
+        } catch (e6) {
+          apiSyncResults.push({ field: "campaignStatus", success: false, error: e6.message });
+          console.error(`[campaign.update] \u72B6\u6001\u540C\u6B65\u5931\u8D25:`, e6.message);
+        }
+      }
+      if (input.dailyBudget && input.dailyBudget !== previousCampaign.dailyBudget) {
+        try {
+          const { syncBudgetAdjustmentToAmazon: syncBudgetAdjustmentToAmazon2 } = await Promise.resolve().then(() => (init_amazonApiHelper(), amazonApiHelper_exports));
+          const success2 = await syncBudgetAdjustmentToAmazon2(
+            previousCampaign.accountId,
+            amazonCampaignId,
+            parseFloat(input.dailyBudget),
+            "\u7528\u6237\u624B\u52A8\u66F4\u65B0\u65E5\u9884\u7B97"
+          );
+          apiSyncResults.push({ field: "dailyBudget", success: success2 });
+        } catch (e6) {
+          apiSyncResults.push({ field: "dailyBudget", success: false, error: e6.message });
+          console.error(`[campaign.update] \u9884\u7B97\u540C\u6B65\u5931\u8D25:`, e6.message);
+        }
+      }
+      if ((input.placementTopSearchBidAdjustment !== void 0 || input.placementProductPageBidAdjustment !== void 0) && (campaignType === "sp_manual" || campaignType === "sp_auto")) {
+        try {
+          const { syncPlacementAdjustmentToAmazon: syncPlacementAdjustmentToAmazon2 } = await Promise.resolve().then(() => (init_amazonApiHelper(), amazonApiHelper_exports));
+          const topPercent = input.placementTopSearchBidAdjustment ?? previousCampaign.placementTopSearchBidAdjustment ?? 0;
+          const productPercent = input.placementProductPageBidAdjustment ?? previousCampaign.placementProductPageBidAdjustment ?? 0;
+          const success2 = await syncPlacementAdjustmentToAmazon2(
+            previousCampaign.accountId,
+            amazonCampaignId,
+            topPercent,
+            productPercent,
+            "\u7528\u6237\u624B\u52A8\u66F4\u65B0\u4F4D\u7F6E\u51FA\u4EF7\u8C03\u6574"
+          );
+          apiSyncResults.push({ field: "placementAdjustment", success: success2 });
+        } catch (e6) {
+          apiSyncResults.push({ field: "placementAdjustment", success: false, error: e6.message });
+          console.error(`[campaign.update] \u4F4D\u7F6E\u8C03\u6574\u540C\u6B65\u5931\u8D25:`, e6.message);
+        }
+      }
+      console.log(`[campaign.update] Amazon API\u540C\u6B65\u7ED3\u679C:`, JSON.stringify(apiSyncResults));
+    }
     const { logAudit: logAudit2 } = await Promise.resolve().then(() => (init_auditService(), auditService_exports));
     const changes = [];
     if (input.campaignName) changes.push(`\u540D\u79F0: ${input.campaignName}`);
@@ -345375,6 +345508,7 @@ var campaignRouter = router({
     if (input.dailyBudget) changes.push(`\u65E5\u9884\u7B97: $${input.dailyBudget}`);
     if (input.campaignStatus) changes.push(`\u72B6\u6001: ${input.campaignStatus}`);
     if (input.intradayBiddingEnabled !== void 0) changes.push(`\u5206\u65F6\u7ADE\u4EF7: ${input.intradayBiddingEnabled ? "\u5F00\u542F" : "\u5173\u95ED"}`);
+    const apiFailures = apiSyncResults.filter((r5) => !r5.success);
     await logAudit2({
       userId: ctx.user.id,
       userName: ctx.user.name || void 0,
@@ -345383,13 +345517,21 @@ var campaignRouter = router({
       targetType: "campaign",
       targetId: String(input.id),
       targetName: previousCampaign?.campaignName || void 0,
-      description: `\u66F4\u65B0\u5E7F\u544A\u6D3B\u52A8\uFF08${changes.join(", ")}\uFF09`,
+      description: `\u66F4\u65B0\u5E7F\u544A\u6D3B\u52A8\uFF08${changes.join(", ")}\uFF09` + (apiFailures.length > 0 ? ` [API\u540C\u6B65\u5931\u8D25: ${apiFailures.map((f6) => f6.field).join(", ")}]` : ""),
       previousValue: previousCampaign ? { maxBid: previousCampaign.maxBid, dailyBudget: previousCampaign.dailyBudget, status: previousCampaign.campaignStatus } : void 0,
       newValue: { maxBid: input.maxBid, dailyBudget: input.dailyBudget, status: input.campaignStatus },
       accountId: previousCampaign?.accountId,
-      status: "success"
+      status: apiFailures.length > 0 ? "partial" : "success"
     });
-    return { success: true };
+    return {
+      success: true,
+      apiSync: apiSyncResults.length > 0 ? {
+        total: apiSyncResults.length,
+        success: apiSyncResults.filter((r5) => r5.success).length,
+        failed: apiFailures.length,
+        errors: apiFailures.map((f6) => `${f6.field}: ${f6.error}`).slice(0, 5)
+      } : void 0
+    };
   }),
   getAdGroups: protectedProcedure.input(external_exports.object({ campaignId: external_exports.number() })).query(async ({ input }) => {
     return getAdGroupsByCampaignId(input.campaignId);
@@ -345798,6 +345940,41 @@ var keywordRouter = router({
         status: "success"
       });
     }
+    if (results.length > 0) {
+      try {
+        const dbInstance = await getDb();
+        if (dbInstance) {
+          const { keywords: keywordsTable, adGroups: adGroups3, campaigns: campaigns6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+          const { eq: eq7, inArray: inArray7 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+          const kwDetails = await dbInstance.select({
+            kwId: keywordsTable.id,
+            adGroupId: keywordsTable.adGroupId,
+            campaignId: adGroups3.campaignId,
+            accountId: campaigns6.accountId
+          }).from(keywordsTable).innerJoin(adGroups3, eq7(keywordsTable.adGroupId, adGroups3.id)).innerJoin(campaigns6, eq7(adGroups3.campaignId, campaigns6.id)).where(inArray7(keywordsTable.id, results.map((r5) => r5.id)));
+          const byAccount = /* @__PURE__ */ new Map();
+          for (const kw of kwDetails) {
+            const r5 = results.find((r6) => r6.id === kw.kwId);
+            if (!r5) continue;
+            if (!byAccount.has(kw.accountId)) byAccount.set(kw.accountId, []);
+            byAccount.get(kw.accountId).push({ keywordId: kw.kwId, newBid: r5.newBid, campaignId: kw.campaignId });
+          }
+          const { syncBidAdjustmentsToAmazon: syncBidAdjustmentsToAmazon2 } = await Promise.resolve().then(() => (init_amazonApiHelper(), amazonApiHelper_exports));
+          for (const [accountId, kws] of byAccount) {
+            const adjustments = kws.map((kw) => ({
+              keywordId: kw.keywordId,
+              newBid: kw.newBid,
+              campaignId: kw.campaignId,
+              reason: `\u7528\u6237\u624B\u52A8\u6279\u91CF\u8C03\u6574\u5173\u952E\u8BCD\u51FA\u4EF7`
+            }));
+            const syncResult = await syncBidAdjustmentsToAmazon2(accountId, adjustments);
+            console.log(`[Keyword.batchUpdateBid] v159: accountId=${accountId}, \u540C\u6B65\u7ED3\u679C: \u6210\u529F=${syncResult.success}, \u5931\u8D25=${syncResult.failed}`);
+          }
+        }
+      } catch (syncError) {
+        console.error(`[Keyword.batchUpdateBid] v159: Amazon\u540C\u6B65\u5931\u8D25(\u672C\u5730\u5DF2\u66F4\u65B0):`, syncError.message);
+      }
+    }
     return { success: true, updated: results.length, results };
   }),
   // 批量更新状态
@@ -345809,6 +345986,37 @@ var keywordRouter = router({
     for (const id of input.ids) {
       await updateKeyword(id, { keywordStatus: input.status });
       updated++;
+    }
+    try {
+      const dbInstance = await getDb();
+      if (dbInstance) {
+        const { keywords: keywordsTable, adGroups: adGroups3, campaigns: campaigns6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+        const { eq: eq7, inArray: inArray7 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+        const kwDetails = await dbInstance.select({
+          kwId: keywordsTable.id,
+          adGroupId: keywordsTable.adGroupId,
+          campaignId: adGroups3.campaignId,
+          accountId: campaigns6.accountId
+        }).from(keywordsTable).innerJoin(adGroups3, eq7(keywordsTable.adGroupId, adGroups3.id)).innerJoin(campaigns6, eq7(adGroups3.campaignId, campaigns6.id)).where(inArray7(keywordsTable.id, input.ids));
+        const byAccount = /* @__PURE__ */ new Map();
+        for (const kw of kwDetails) {
+          if (!byAccount.has(kw.accountId)) byAccount.set(kw.accountId, []);
+          byAccount.get(kw.accountId).push({ keywordId: kw.kwId, campaignId: kw.campaignId });
+        }
+        const { syncKeywordStatusToAmazon: syncKeywordStatusToAmazon2 } = await Promise.resolve().then(() => (init_amazonApiHelper(), amazonApiHelper_exports));
+        for (const [accountId, kws] of byAccount) {
+          const statusChanges = kws.map((kw) => ({
+            keywordId: kw.keywordId,
+            newStatus: input.status,
+            campaignId: kw.campaignId,
+            reason: `\u7528\u6237\u624B\u52A8\u6279\u91CF${input.status === "enabled" ? "\u542F\u7528" : "\u6682\u505C"}\u5173\u952E\u8BCD`
+          }));
+          const syncResult = await syncKeywordStatusToAmazon2(accountId, statusChanges);
+          console.log(`[Keyword.batchUpdateStatus] v159: accountId=${accountId}, \u540C\u6B65\u7ED3\u679C: \u6210\u529F=${syncResult.success}, \u5931\u8D25=${syncResult.failed}`);
+        }
+      }
+    } catch (syncError) {
+      console.error(`[Keyword.batchUpdateStatus] v159: Amazon\u540C\u6B65\u5931\u8D25(\u672C\u5730\u5DF2\u66F4\u65B0):`, syncError.message);
     }
     return { success: true, updated };
   }),
@@ -345974,6 +346182,42 @@ var productTargetRouter = router({
       await updateProductTargetBid(id, newBid.toFixed(2));
       results.push({ id, oldBid: currentBid, newBid, cpc });
     }
+    if (results.length > 0) {
+      try {
+        const dbInstance = await getDb();
+        if (dbInstance) {
+          const { productTargets: productTargets2, adGroups: adGroups3, campaigns: campaigns6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+          const { eq: eq7, inArray: inArray7 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+          const ptDetails = await dbInstance.select({
+            ptId: productTargets2.id,
+            adGroupId: productTargets2.adGroupId,
+            campaignId: adGroups3.campaignId,
+            accountId: campaigns6.accountId
+          }).from(productTargets2).innerJoin(adGroups3, eq7(productTargets2.adGroupId, adGroups3.id)).innerJoin(campaigns6, eq7(adGroups3.campaignId, campaigns6.id)).where(inArray7(productTargets2.id, results.map((r5) => r5.id)));
+          const byAccount = /* @__PURE__ */ new Map();
+          for (const pt3 of ptDetails) {
+            const r5 = results.find((r6) => r6.id === pt3.ptId);
+            if (!r5) continue;
+            if (!byAccount.has(pt3.accountId)) byAccount.set(pt3.accountId, []);
+            byAccount.get(pt3.accountId).push({ keywordId: pt3.ptId, newBid: r5.newBid, campaignId: pt3.campaignId });
+          }
+          const { syncBidAdjustmentsToAmazon: syncBidAdjustmentsToAmazon2 } = await Promise.resolve().then(() => (init_amazonApiHelper(), amazonApiHelper_exports));
+          for (const [accountId, pts] of byAccount) {
+            const adjustments = pts.map((pt3) => ({
+              keywordId: pt3.keywordId,
+              newBid: pt3.newBid,
+              campaignId: pt3.campaignId,
+              reason: `\u7528\u6237\u624B\u52A8\u6279\u91CF\u8C03\u6574\u5546\u54C1\u5B9A\u5411\u51FA\u4EF7`,
+              isProductTarget: true
+            }));
+            const syncResult = await syncBidAdjustmentsToAmazon2(accountId, adjustments);
+            console.log(`[ProductTarget.batchUpdateBid] v159: accountId=${accountId}, \u540C\u6B65\u7ED3\u679C: \u6210\u529F=${syncResult.success}, \u5931\u8D25=${syncResult.failed}`);
+          }
+        }
+      } catch (syncError) {
+        console.error(`[ProductTarget.batchUpdateBid] v159: Amazon\u540C\u6B65\u5931\u8D25(\u672C\u5730\u5DF2\u66F4\u65B0):`, syncError.message);
+      }
+    }
     return { success: true, updated: results.length, results };
   }),
   // 批量更新状态
@@ -345985,6 +346229,38 @@ var productTargetRouter = router({
     for (const id of input.ids) {
       await updateProductTarget(id, { targetStatus: input.status });
       updated++;
+    }
+    try {
+      const dbInstance = await getDb();
+      if (dbInstance) {
+        const { productTargets: productTargets2, adGroups: adGroups3, campaigns: campaigns6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+        const { eq: eq7, inArray: inArray7 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+        const ptDetails = await dbInstance.select({
+          ptId: productTargets2.id,
+          adGroupId: productTargets2.adGroupId,
+          campaignId: adGroups3.campaignId,
+          accountId: campaigns6.accountId
+        }).from(productTargets2).innerJoin(adGroups3, eq7(productTargets2.adGroupId, adGroups3.id)).innerJoin(campaigns6, eq7(adGroups3.campaignId, campaigns6.id)).where(inArray7(productTargets2.id, input.ids));
+        const byAccount = /* @__PURE__ */ new Map();
+        for (const pt3 of ptDetails) {
+          if (!byAccount.has(pt3.accountId)) byAccount.set(pt3.accountId, []);
+          byAccount.get(pt3.accountId).push({ keywordId: pt3.ptId, campaignId: pt3.campaignId });
+        }
+        const { syncKeywordStatusToAmazon: syncKeywordStatusToAmazon2 } = await Promise.resolve().then(() => (init_amazonApiHelper(), amazonApiHelper_exports));
+        for (const [accountId, pts] of byAccount) {
+          const statusChanges = pts.map((pt3) => ({
+            keywordId: pt3.keywordId,
+            newStatus: input.status,
+            campaignId: pt3.campaignId,
+            reason: `\u7528\u6237\u624B\u52A8\u6279\u91CF${input.status === "enabled" ? "\u542F\u7528" : "\u6682\u505C"}\u5546\u54C1\u5B9A\u5411`,
+            isProductTarget: true
+          }));
+          const syncResult = await syncKeywordStatusToAmazon2(accountId, statusChanges);
+          console.log(`[ProductTarget.batchUpdateStatus] v159: accountId=${accountId}, \u540C\u6B65\u7ED3\u679C: \u6210\u529F=${syncResult.success}, \u5931\u8D25=${syncResult.failed}`);
+        }
+      }
+    } catch (syncError) {
+      console.error(`[ProductTarget.batchUpdateStatus] v159: Amazon\u540C\u6B65\u5931\u8D25(\u672C\u5730\u5DF2\u66F4\u65B0):`, syncError.message);
     }
     return { success: true, updated };
   }),
@@ -347530,8 +347806,8 @@ var amazonApiRouter = router({
             lastError = error54;
             console.error(`${stepName} \u5931\u8D25 (\u5C1D\u8BD5 ${attempt + 1}/${maxRetries + 1}):`, error54.message);
             if (attempt < maxRetries) {
-              const delay = Math.min(1e3 * Math.pow(2, attempt), 1e4);
-              await new Promise((resolve8) => setTimeout(resolve8, delay));
+              const delay2 = Math.min(1e3 * Math.pow(2, attempt), 1e4);
+              await new Promise((resolve8) => setTimeout(resolve8, delay2));
             }
           }
         }
