@@ -44,8 +44,51 @@ interface StoredApiCredentials {
 /**
  * v149: 货币转换已迁移到 exchangeRateService.ts
  * 使用实时汇率API（ExchangeRate-API），每日自动更新
- * 静态兜底汇率保留在 exchangeRateService 中
+ * 静态兗底汇率保留在 exchangeRateService 中
  */
+
+/**
+ * v150.1: 数据同步保护配置常量
+ * 可根据生产环境观察调整时间窗口大小：
+ * - 如果Amazon API数据延迟通常在1-2小时内收敛，可缩短到6-12小时
+ * - 如果延迟较长，可扩展到48小时
+ * - BID_THRESHOLD: 出价差异阈值，低于此值视为相同（避免浮点精度问题）
+ */
+const SYNC_PROTECTION_CONFIG = {
+  /** 出价保护时间窗口（小时） */
+  BID_PROTECTION_HOURS: 24,
+  /** 预算保护时间窗口（小时） */
+  BUDGET_PROTECTION_HOURS: 24,
+  /** 出价/预算差异阈值（美元） */
+  BID_THRESHOLD: 0.01,
+} as const;
+
+/**
+ * v150.1: 同步保护统计计数器
+ * 用于在每次同步完成后输出结构化摘要日志
+ */
+interface SyncProtectionStats {
+  bidProtected: number;       // 出价被保护的次数
+  bidOverwritten: number;     // 出价被API覆盙的次数
+  budgetProtected: number;    // 预算被保护的次数
+  budgetOverwritten: number;  // 预算被API覆盙的次数
+  protectedEntities: string[]; // 被保护的实体名称列表（用于调试）
+}
+
+function createSyncProtectionStats(): SyncProtectionStats {
+  return { bidProtected: 0, bidOverwritten: 0, budgetProtected: 0, budgetOverwritten: 0, protectedEntities: [] };
+}
+
+function logSyncProtectionSummary(functionName: string, stats: SyncProtectionStats): void {
+  const total = stats.bidProtected + stats.bidOverwritten + stats.budgetProtected + stats.budgetOverwritten;
+  if (total === 0) return;
+  console.log(`[SyncProtection] ${functionName} 同步保护摘要: ` +
+    `出价保护=${stats.bidProtected}, 出价覆盙=${stats.bidOverwritten}, ` +
+    `预算保护=${stats.budgetProtected}, 预算覆盙=${stats.budgetOverwritten}`);
+  if (stats.protectedEntities.length > 0) {
+    console.log(`[SyncProtection] ${functionName} 被保护实体: ${stats.protectedEntities.slice(0, 20).join(', ')}${stats.protectedEntities.length > 20 ? ` ...等${stats.protectedEntities.length}个` : ''}`);
+  }
+}
 
 /**
  * v150: 数据同步出价/预算保护辅助函数
@@ -811,6 +854,18 @@ export class AmazonSyncService {
         console.log('[SP Sync Debug] endDate字段:', apiCampaigns[0].endDate);
       }
 
+      // v150.1: 批量预查询所有需要保护的广告活动ID（减少循环内DB查询）
+      const allExistingCampaignIds: number[] = [];
+      for (const ac of apiCampaigns) {
+        const [ex] = await db.select({ id: campaigns.id }).from(campaigns)
+          .where(and(eq(campaigns.accountId, this.accountId), eq(campaigns.campaignId, String(ac.campaignId))))
+          .limit(1);
+        if (ex) allExistingCampaignIds.push(ex.id);
+      }
+      const protectedCampaignIds = await getRecentlyOptimizedCampaignIds(allExistingCampaignIds, SYNC_PROTECTION_CONFIG.BUDGET_PROTECTION_HOURS);
+      const protectionStats = createSyncProtectionStats();
+      console.log(`[SyncProtection] syncSpCampaigns: 批量查询完成, ${protectedCampaignIds.size}个广告活动有近期预算优化事件`);
+
       for (const apiCampaign of apiCampaigns) {
         // 检查是否已存在
         const [existing] = await db
@@ -912,15 +967,18 @@ export class AmazonSyncService {
           const localBudget = parseFloat(existing.dailyBudget || '0');
           const apiBudget = parseFloat(String(dailyBudgetValue || '0'));
           
-          if (Math.abs(localBudget - apiBudget) > 0.01 && localBudget > 0) {
-            // 预算不一致，检查是否有近期预算优化事件
-            const hasRecentOpt = await hasRecentSyncedOptimization(undefined, existing.id, 'budget_adjustment', 24);
+          if (Math.abs(localBudget - apiBudget) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBudget > 0) {
+            // 预算不一致，检查是否有近期预算优化事件（使用批量查询结果）
+            const hasRecentOpt = protectedCampaignIds.has(existing.id);
             if (hasRecentOpt) {
               // 有近期优化事件，保留本地预算
               console.log(`[SyncService] v150: 预算保护生效 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, 保留本地优化预算`);
               delete (campaignData as any).dailyBudget;
+              protectionStats.budgetProtected++;
+              protectionStats.protectedEntities.push(`camp:${existing.campaignName}`);
             } else {
               console.log(`[SyncService] v150: 预算差异 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, 以API为准`);
+              protectionStats.budgetOverwritten++;
             }
           }
           
@@ -942,6 +1000,7 @@ export class AmazonSyncService {
 
       console.log(`[同步] ========== SP广告活动同步完成 ==========`);
       console.log(`[同步] 结果: 同步 ${synced} 个, 跳过 ${skipped} 个`);
+      logSyncProtectionSummary('syncSpCampaigns', protectionStats);
       return { synced, skipped };
     } catch (error: any) {
       console.error('[同步] ❌ SP广告活动同步失败');
@@ -2000,6 +2059,20 @@ export class AmazonSyncService {
       let synced = 0;
       let skipped = 0;
 
+      // v150.1: 批量预查询所有需要保护的关键词ID（减少循环内DB查询）
+      const allExistingKeywordIds: number[] = [];
+      for (const ak of apiKeywords) {
+        const [ag] = await db.select({ id: adGroups.id }).from(adGroups)
+          .where(eq(adGroups.adGroupId, String(ak.adGroupId))).limit(1);
+        if (!ag) continue;
+        const [ex] = await db.select({ id: keywords.id }).from(keywords)
+          .where(and(eq(keywords.adGroupId, ag.id), eq(keywords.keywordId, String(ak.keywordId)))).limit(1);
+        if (ex) allExistingKeywordIds.push(ex.id);
+      }
+      const protectedKeywordIds = await getRecentlyOptimizedKeywordIds(allExistingKeywordIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
+      const protectionStats = createSyncProtectionStats();
+      console.log(`[SyncProtection] syncSpKeywords: 批量查询完成, ${protectedKeywordIds.size}个关键词有近期出价优化事件`);
+
       for (const apiKeyword of apiKeywords) {
         // 查找对应的ad group
         const [adGroup] = await db
@@ -2049,20 +2122,21 @@ export class AmazonSyncService {
           const localBid = parseFloat(existing.bid || '0');
           const apiBid = parseFloat(String(apiKeyword.bid || '0'));
           
-          if (Math.abs(localBid - apiBid) > 0.01 && localBid > 0) {
-            // 出价不一致，检查是否有近期优化事件
-            const hasRecentOpt = await hasRecentSyncedOptimization(existing.id, undefined, 'bid_adjustment', 24);
+          if (Math.abs(localBid - apiBid) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBid > 0) {
+            // 出价不一致，检查是否有近期优化事件（使用批量查询结果）
+            const hasRecentOpt = protectedKeywordIds.has(existing.id);
             if (hasRecentOpt) {
               // 有近期优化事件，保留本地出价，只更新其他字段
               console.log(`[SyncService] v150: 出价保护生效 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, 保留本地优化出价`);
-              delete keywordData.bid; // 从更新数据中移除bid字段
+              delete keywordData.bid;
+              protectionStats.bidProtected++;
+              protectionStats.protectedEntities.push(`kw:${existing.keywordText}`);
             } else {
-              // 无近期优化事件，以Amazon API为准（可能是用户手动修改）
               console.log(`[SyncService] v150: 出价差异 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, 以API为准`);
+              protectionStats.bidOverwritten++;
             }
           }
           
-          // v150: 同步时保留keywordStatus字段（本地优化的状态），只更新其他字段
           await db
             .update(keywords)
             .set(keywordData)
@@ -2076,6 +2150,7 @@ export class AmazonSyncService {
         synced++;
       }
 
+      logSyncProtectionSummary('syncSpKeywords', protectionStats);
       return { synced, skipped };
     } catch (error) {
       console.error('Error syncing SP keywords:', error);
@@ -2095,6 +2170,20 @@ export class AmazonSyncService {
       const apiTargets = await this.client.listSpProductTargets();
       let synced = 0;
       let skipped = 0;
+
+      // v150.1: 批量预查询所有需要保护的产品定向ID（减少循环内DB查询）
+      const allExistingTargetIds: number[] = [];
+      for (const at of apiTargets) {
+        const [ag] = await db.select({ id: adGroups.id }).from(adGroups)
+          .where(eq(adGroups.adGroupId, String(at.adGroupId))).limit(1);
+        if (!ag) continue;
+        const [ex] = await db.select({ id: productTargets.id }).from(productTargets)
+          .where(and(eq(productTargets.adGroupId, ag.id), eq(productTargets.targetId, String(at.targetId)))).limit(1);
+        if (ex) allExistingTargetIds.push(ex.id);
+      }
+      const protectedTargetIds = await getRecentlyOptimizedKeywordIds(allExistingTargetIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
+      const protectionStats = createSyncProtectionStats();
+      console.log(`[SyncProtection] syncSpProductTargets: 批量查询完成, ${protectedTargetIds.size}个产品定向有近期出价优化事件`);
 
       for (const apiTarget of apiTargets) {
         // 查找对应的ad group
@@ -2251,15 +2340,17 @@ export class AmazonSyncService {
           const localBid = parseFloat(existing.bid || '0');
           const apiBid = parseFloat(String(apiTarget.bid || '0'));
           
-          if (Math.abs(localBid - apiBid) > 0.01 && localBid > 0) {
-            // 出价不一致，检查是否有近期优化事件
-            const hasRecentOpt = await hasRecentSyncedOptimization(existing.id, undefined, 'bid_adjustment', 24);
+          if (Math.abs(localBid - apiBid) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBid > 0) {
+            // 出价不一致，检查是否有近期优化事件（使用批量查询结果）
+            const hasRecentOpt = protectedTargetIds.has(existing.id);
             if (hasRecentOpt) {
-              // 有近期优化事件，保留本地出价
               console.log(`[SyncService] v150: 出价保护生效 - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}, 保留本地优化出价`);
               delete (targetData as any).bid;
+              protectionStats.bidProtected++;
+              protectionStats.protectedEntities.push(`tgt:${existing.targetValue}`);
             } else {
               console.log(`[SyncService] v150: 出价差异 - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}, 以API为准`);
+              protectionStats.bidOverwritten++;
             }
           }
           
@@ -2277,6 +2368,7 @@ export class AmazonSyncService {
       }
 
       console.log(`[SyncService] SP产品定向同步完成: synced=${synced}, skipped=${skipped}`);
+      logSyncProtectionSummary('syncSpProductTargets', protectionStats);
       return { synced, skipped };
     } catch (error) {
       console.error('Error syncing SP product targets:', error);
@@ -4941,6 +5033,18 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
       return result;
     }
 
+    // v150.1: 批量预查询所有需要保护的广告活动ID
+    const allExCampaignIds: number[] = [];
+    for (const ac of apiCampaigns) {
+      const [ex] = await db.select({ id: campaigns.id }).from(campaigns)
+        .where(and(eq(campaigns.accountId, this.accountId), eq(campaigns.campaignId, String(ac.campaignId))))
+        .limit(1);
+      if (ex) allExCampaignIds.push(ex.id);
+    }
+    const protectedCampaignIds = await getRecentlyOptimizedCampaignIds(allExCampaignIds, SYNC_PROTECTION_CONFIG.BUDGET_PROTECTION_HOURS);
+    const protectionStats = createSyncProtectionStats();
+    console.log(`[SyncProtection] syncSpCampaignsWithTracking: 批量查询完成, ${protectedCampaignIds.size}个广告活动有近期预算优化事件`);
+
     for (const apiCampaign of apiCampaigns) {
       const [existing] = await db
         .select()
@@ -5023,6 +5127,21 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
           });
         }
 
+        // v150.1: 预算保护逻辑
+        const localBudget = parseFloat(existing.dailyBudget || '0');
+        const apiBudget = parseFloat(String(campaignData.dailyBudget || '0'));
+        if (Math.abs(localBudget - apiBudget) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBudget > 0) {
+          const hasRecentOpt = protectedCampaignIds.has(existing.id);
+          if (hasRecentOpt) {
+            console.log(`[SyncService] v150.1: 预算保护生效(WT) - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}`);
+            delete (campaignData as any).dailyBudget;
+            protectionStats.budgetProtected++;
+            protectionStats.protectedEntities.push(`camp:${existing.campaignName}`);
+          } else {
+            protectionStats.budgetOverwritten++;
+          }
+        }
+
         await db
           .update(campaigns)
           .set(campaignData)
@@ -5062,6 +5181,7 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
 
     console.log('[同步WithTracking] ========== SP广告活动同步完成 ==========');
     console.log('[同步WithTracking] 结果:', result);
+    logSyncProtectionSummary('syncSpCampaignsWithTracking', protectionStats);
     return result;
   } catch (error: any) {
     console.error('[同步WithTracking] ❌ SP广告活动同步失败');
@@ -5565,6 +5685,20 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
   try {
     const apiKeywords = await this.client.listSpKeywords();
 
+    // v150.1: 批量预查询所有需要保护的关键词ID
+    const allExKwIds: number[] = [];
+    for (const ak of apiKeywords) {
+      const [ag] = await db.select({ id: adGroups.id }).from(adGroups)
+        .where(eq(adGroups.adGroupId, String(ak.adGroupId))).limit(1);
+      if (!ag) continue;
+      const [ex] = await db.select({ id: keywords.id }).from(keywords)
+        .where(and(eq(keywords.adGroupId, ag.id), eq(keywords.keywordId, String(ak.keywordId)))).limit(1);
+      if (ex) allExKwIds.push(ex.id);
+    }
+    const protectedKeywordIds = await getRecentlyOptimizedKeywordIds(allExKwIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
+    const protectionStats = createSyncProtectionStats();
+    console.log(`[SyncProtection] syncSpKeywordsWithTracking: 批量查询完成, ${protectedKeywordIds.size}个关键词有近期出价优化事件`);
+
     for (const apiKeyword of apiKeywords) {
       const [adGroup] = await db
         .select()
@@ -5646,6 +5780,21 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
           });
         }
 
+        // v150.1: 出价保护逻辑
+        const localBid = parseFloat(existing.bid || '0');
+        const apiBid = parseFloat(String(apiKeyword.bid || '0'));
+        if (Math.abs(localBid - apiBid) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBid > 0) {
+          const hasRecentOpt = protectedKeywordIds.has(existing.id);
+          if (hasRecentOpt) {
+            console.log(`[SyncService] v150.1: 出价保护生效(WT) - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}`);
+            delete (keywordData as any).bid;
+            protectionStats.bidProtected++;
+            protectionStats.protectedEntities.push(`kw:${existing.keywordText}`);
+          } else {
+            protectionStats.bidOverwritten++;
+          }
+        }
+
         await db
           .update(keywords)
           .set(keywordData)
@@ -5681,6 +5830,7 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
       await createSyncConflictsBatch(conflictRecords);
     }
 
+    logSyncProtectionSummary('syncSpKeywordsWithTracking', protectionStats);
     return result;
   } catch (error) {
     console.error('Error syncing SP keywords with tracking:', error);
@@ -5712,6 +5862,20 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
 
   try {
     const apiTargets = await this.client.listSpProductTargets();
+
+    // v150.1: 批量预查询所有需要保护的产品定向ID
+    const allExTgtIds: number[] = [];
+    for (const at of apiTargets) {
+      const [ag] = await db.select({ id: adGroups.id }).from(adGroups)
+        .where(eq(adGroups.adGroupId, String(at.adGroupId))).limit(1);
+      if (!ag) continue;
+      const [ex] = await db.select({ id: productTargets.id }).from(productTargets)
+        .where(and(eq(productTargets.adGroupId, ag.id), eq(productTargets.targetId, String(at.targetId)))).limit(1);
+      if (ex) allExTgtIds.push(ex.id);
+    }
+    const protectedTargetIds = await getRecentlyOptimizedKeywordIds(allExTgtIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
+    const protectionStats = createSyncProtectionStats();
+    console.log(`[SyncProtection] syncSpProductTargetsWithTracking: 批量查询完成, ${protectedTargetIds.size}个产品定向有近期出价优化事件`);
 
     for (const apiTarget of apiTargets) {
       const [adGroup] = await db
@@ -5805,6 +5969,21 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
           });
         }
 
+        // v150.1: 出价保护逻辑
+        const localBid = parseFloat(existing.bid || '0');
+        const apiBid = parseFloat(String(apiTarget.bid || '0'));
+        if (Math.abs(localBid - apiBid) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBid > 0) {
+          const hasRecentOpt = protectedTargetIds.has(existing.id);
+          if (hasRecentOpt) {
+            console.log(`[SyncService] v150.1: 出价保护生效(WT) - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}`);
+            delete (targetData as any).bid;
+            protectionStats.bidProtected++;
+            protectionStats.protectedEntities.push(`tgt:${existing.targetValue}`);
+          } else {
+            protectionStats.bidOverwritten++;
+          }
+        }
+
         await db
           .update(productTargets)
           .set(targetData)
@@ -5840,6 +6019,7 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
       await createSyncConflictsBatch(conflictRecords);
     }
 
+    logSyncProtectionSummary('syncSpProductTargetsWithTracking', protectionStats);
     return result;
   } catch (error) {
     console.error('Error syncing SP product targets with tracking:', error);

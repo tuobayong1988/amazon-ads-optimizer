@@ -59170,27 +59170,51 @@ __export(amazonSyncService_exports, {
   runAutoBidOptimization: () => runAutoBidOptimization,
   syncInitialHistoricalData: () => syncInitialHistoricalData
 });
-async function hasRecentSyncedOptimization(keywordId, campaignId, category = "bid_adjustment", hoursWindow = 24) {
+function createSyncProtectionStats() {
+  return { bidProtected: 0, bidOverwritten: 0, budgetProtected: 0, budgetOverwritten: 0, protectedEntities: [] };
+}
+function logSyncProtectionSummary(functionName, stats) {
+  const total = stats.bidProtected + stats.bidOverwritten + stats.budgetProtected + stats.budgetOverwritten;
+  if (total === 0) return;
+  console.log(`[SyncProtection] ${functionName} \u540C\u6B65\u4FDD\u62A4\u6458\u8981: \u51FA\u4EF7\u4FDD\u62A4=${stats.bidProtected}, \u51FA\u4EF7\u8986\u76D9=${stats.bidOverwritten}, \u9884\u7B97\u4FDD\u62A4=${stats.budgetProtected}, \u9884\u7B97\u8986\u76D9=${stats.budgetOverwritten}`);
+  if (stats.protectedEntities.length > 0) {
+    console.log(`[SyncProtection] ${functionName} \u88AB\u4FDD\u62A4\u5B9E\u4F53: ${stats.protectedEntities.slice(0, 20).join(", ")}${stats.protectedEntities.length > 20 ? ` ...\u7B49${stats.protectedEntities.length}\u4E2A` : ""}`);
+  }
+}
+async function getRecentlyOptimizedKeywordIds(keywordIds, hoursWindow = 24) {
   try {
+    if (keywordIds.length === 0) return /* @__PURE__ */ new Set();
     const db = await getDb();
-    if (!db) return false;
+    if (!db) return /* @__PURE__ */ new Set();
     const cutoff = new Date(Date.now() - hoursWindow * 60 * 60 * 1e3).toISOString().slice(0, 19).replace("T", " ");
-    const conditions = [
-      eq(optimizationEvents.eventCategory, category),
+    const results = await db.select({ keywordId: optimizationEvents.keywordId }).from(optimizationEvents).where(and(
+      eq(optimizationEvents.eventCategory, "bid_adjustment"),
       eq(optimizationEvents.apiSyncStatus, "synced"),
-      gte(optimizationEvents.createdAt, cutoff)
-    ];
-    if (keywordId) {
-      conditions.push(eq(optimizationEvents.keywordId, keywordId));
-    }
-    if (campaignId) {
-      conditions.push(eq(optimizationEvents.campaignId, campaignId));
-    }
-    const result = await db.select({ count: sql`count(*)` }).from(optimizationEvents).where(and(...conditions)).limit(1);
-    return (result[0]?.count || 0) > 0;
+      gte(optimizationEvents.createdAt, cutoff),
+      inArray(optimizationEvents.keywordId, keywordIds)
+    )).groupBy(optimizationEvents.keywordId);
+    return new Set(results.map((r5) => r5.keywordId).filter(Boolean));
   } catch (error54) {
-    console.warn("[SyncService] v150: \u67E5\u8BE2\u4F18\u5316\u4E8B\u4EF6\u5931\u8D25\uFF0C\u9ED8\u8BA4\u4EE5API\u4E3A\u51C6:", error54.message);
-    return false;
+    console.warn("[SyncService] v150: \u6279\u91CF\u67E5\u8BE2\u4F18\u5316\u5173\u952E\u8BCD\u5931\u8D25:", error54.message);
+    return /* @__PURE__ */ new Set();
+  }
+}
+async function getRecentlyOptimizedCampaignIds(campaignIds, hoursWindow = 24) {
+  try {
+    if (campaignIds.length === 0) return /* @__PURE__ */ new Set();
+    const db = await getDb();
+    if (!db) return /* @__PURE__ */ new Set();
+    const cutoff = new Date(Date.now() - hoursWindow * 60 * 60 * 1e3).toISOString().slice(0, 19).replace("T", " ");
+    const results = await db.select({ campaignId: optimizationEvents.campaignId }).from(optimizationEvents).where(and(
+      eq(optimizationEvents.eventCategory, "budget_adjustment"),
+      eq(optimizationEvents.apiSyncStatus, "synced"),
+      gte(optimizationEvents.createdAt, cutoff),
+      inArray(optimizationEvents.campaignId, campaignIds)
+    )).groupBy(optimizationEvents.campaignId);
+    return new Set(results.map((r5) => r5.campaignId).filter(Boolean));
+  } catch (error54) {
+    console.warn("[SyncService] v150: \u6279\u91CF\u67E5\u8BE2\u4F18\u5316\u5E7F\u544A\u6D3B\u52A8\u5931\u8D25:", error54.message);
+    return /* @__PURE__ */ new Set();
   }
 }
 async function runAutoBidOptimization(syncService, accountId, performanceGroupConfig) {
@@ -59278,7 +59302,7 @@ async function syncInitialHistoricalData(syncService, accountId, userId) {
   }
   return results;
 }
-var AmazonSyncService;
+var SYNC_PROTECTION_CONFIG, AmazonSyncService;
 var init_amazonSyncService = __esm({
   "server/amazonSyncService.ts"() {
     "use strict";
@@ -59290,6 +59314,14 @@ var init_amazonSyncService = __esm({
     init_timezone();
     init_exchangeRateService();
     init_db2();
+    SYNC_PROTECTION_CONFIG = {
+      /** 出价保护时间窗口（小时） */
+      BID_PROTECTION_HOURS: 24,
+      /** 预算保护时间窗口（小时） */
+      BUDGET_PROTECTION_HOURS: 24,
+      /** 出价/预算差异阈值（美元） */
+      BID_THRESHOLD: 0.01
+    };
     AmazonSyncService = class _AmazonSyncService {
       client;
       accountId;
@@ -59764,6 +59796,14 @@ var init_amazonSyncService = __esm({
             console.log("[SP Sync Debug] startDate\u5B57\u6BB5:", apiCampaigns[0].startDate);
             console.log("[SP Sync Debug] endDate\u5B57\u6BB5:", apiCampaigns[0].endDate);
           }
+          const allExistingCampaignIds = [];
+          for (const ac of apiCampaigns) {
+            const [ex] = await db.select({ id: campaigns.id }).from(campaigns).where(and(eq(campaigns.accountId, this.accountId), eq(campaigns.campaignId, String(ac.campaignId)))).limit(1);
+            if (ex) allExistingCampaignIds.push(ex.id);
+          }
+          const protectedCampaignIds = await getRecentlyOptimizedCampaignIds(allExistingCampaignIds, SYNC_PROTECTION_CONFIG.BUDGET_PROTECTION_HOURS);
+          const protectionStats = createSyncProtectionStats();
+          console.log(`[SyncProtection] syncSpCampaigns: \u6279\u91CF\u67E5\u8BE2\u5B8C\u6210, ${protectedCampaignIds.size}\u4E2A\u5E7F\u544A\u6D3B\u52A8\u6709\u8FD1\u671F\u9884\u7B97\u4F18\u5316\u4E8B\u4EF6`);
           for (const apiCampaign of apiCampaigns) {
             const [existing] = await db.select().from(campaigns).where(
               and(
@@ -59832,13 +59872,16 @@ var init_amazonSyncService = __esm({
             if (existing) {
               const localBudget = parseFloat(existing.dailyBudget || "0");
               const apiBudget = parseFloat(String(dailyBudgetValue || "0"));
-              if (Math.abs(localBudget - apiBudget) > 0.01 && localBudget > 0) {
-                const hasRecentOpt = await hasRecentSyncedOptimization(void 0, existing.id, "budget_adjustment", 24);
+              if (Math.abs(localBudget - apiBudget) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBudget > 0) {
+                const hasRecentOpt = protectedCampaignIds.has(existing.id);
                 if (hasRecentOpt) {
                   console.log(`[SyncService] v150: \u9884\u7B97\u4FDD\u62A4\u751F\u6548 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, \u4FDD\u7559\u672C\u5730\u4F18\u5316\u9884\u7B97`);
                   delete campaignData.dailyBudget;
+                  protectionStats.budgetProtected++;
+                  protectionStats.protectedEntities.push(`camp:${existing.campaignName}`);
                 } else {
                   console.log(`[SyncService] v150: \u9884\u7B97\u5DEE\u5F02 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, \u4EE5API\u4E3A\u51C6`);
+                  protectionStats.budgetOverwritten++;
                 }
               }
               await db.update(campaigns).set(campaignData).where(eq(campaigns.id, existing.id));
@@ -59855,6 +59898,7 @@ var init_amazonSyncService = __esm({
           }
           console.log(`[\u540C\u6B65] ========== SP\u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u5B8C\u6210 ==========`);
           console.log(`[\u540C\u6B65] \u7ED3\u679C: \u540C\u6B65 ${synced} \u4E2A, \u8DF3\u8FC7 ${skipped} \u4E2A`);
+          logSyncProtectionSummary("syncSpCampaigns", protectionStats);
           return { synced, skipped };
         } catch (error54) {
           console.error("[\u540C\u6B65] \u274C SP\u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u5931\u8D25");
@@ -60640,6 +60684,16 @@ var init_amazonSyncService = __esm({
           const apiKeywords = await this.client.listSpKeywords();
           let synced = 0;
           let skipped = 0;
+          const allExistingKeywordIds = [];
+          for (const ak of apiKeywords) {
+            const [ag] = await db.select({ id: adGroups.id }).from(adGroups).where(eq(adGroups.adGroupId, String(ak.adGroupId))).limit(1);
+            if (!ag) continue;
+            const [ex] = await db.select({ id: keywords.id }).from(keywords).where(and(eq(keywords.adGroupId, ag.id), eq(keywords.keywordId, String(ak.keywordId)))).limit(1);
+            if (ex) allExistingKeywordIds.push(ex.id);
+          }
+          const protectedKeywordIds = await getRecentlyOptimizedKeywordIds(allExistingKeywordIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
+          const protectionStats = createSyncProtectionStats();
+          console.log(`[SyncProtection] syncSpKeywords: \u6279\u91CF\u67E5\u8BE2\u5B8C\u6210, ${protectedKeywordIds.size}\u4E2A\u5173\u952E\u8BCD\u6709\u8FD1\u671F\u51FA\u4EF7\u4F18\u5316\u4E8B\u4EF6`);
           for (const apiKeyword of apiKeywords) {
             const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, String(apiKeyword.adGroupId))).limit(1);
             if (!adGroup) continue;
@@ -60669,13 +60723,16 @@ var init_amazonSyncService = __esm({
             if (existing) {
               const localBid = parseFloat(existing.bid || "0");
               const apiBid = parseFloat(String(apiKeyword.bid || "0"));
-              if (Math.abs(localBid - apiBid) > 0.01 && localBid > 0) {
-                const hasRecentOpt = await hasRecentSyncedOptimization(existing.id, void 0, "bid_adjustment", 24);
+              if (Math.abs(localBid - apiBid) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBid > 0) {
+                const hasRecentOpt = protectedKeywordIds.has(existing.id);
                 if (hasRecentOpt) {
                   console.log(`[SyncService] v150: \u51FA\u4EF7\u4FDD\u62A4\u751F\u6548 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, \u4FDD\u7559\u672C\u5730\u4F18\u5316\u51FA\u4EF7`);
                   delete keywordData.bid;
+                  protectionStats.bidProtected++;
+                  protectionStats.protectedEntities.push(`kw:${existing.keywordText}`);
                 } else {
                   console.log(`[SyncService] v150: \u51FA\u4EF7\u5DEE\u5F02 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, \u4EE5API\u4E3A\u51C6`);
+                  protectionStats.bidOverwritten++;
                 }
               }
               await db.update(keywords).set(keywordData).where(eq(keywords.id, existing.id));
@@ -60687,6 +60744,7 @@ var init_amazonSyncService = __esm({
             }
             synced++;
           }
+          logSyncProtectionSummary("syncSpKeywords", protectionStats);
           return { synced, skipped };
         } catch (error54) {
           console.error("Error syncing SP keywords:", error54);
@@ -60704,6 +60762,16 @@ var init_amazonSyncService = __esm({
           const apiTargets = await this.client.listSpProductTargets();
           let synced = 0;
           let skipped = 0;
+          const allExistingTargetIds = [];
+          for (const at2 of apiTargets) {
+            const [ag] = await db.select({ id: adGroups.id }).from(adGroups).where(eq(adGroups.adGroupId, String(at2.adGroupId))).limit(1);
+            if (!ag) continue;
+            const [ex] = await db.select({ id: productTargets.id }).from(productTargets).where(and(eq(productTargets.adGroupId, ag.id), eq(productTargets.targetId, String(at2.targetId)))).limit(1);
+            if (ex) allExistingTargetIds.push(ex.id);
+          }
+          const protectedTargetIds = await getRecentlyOptimizedKeywordIds(allExistingTargetIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
+          const protectionStats = createSyncProtectionStats();
+          console.log(`[SyncProtection] syncSpProductTargets: \u6279\u91CF\u67E5\u8BE2\u5B8C\u6210, ${protectedTargetIds.size}\u4E2A\u4EA7\u54C1\u5B9A\u5411\u6709\u8FD1\u671F\u51FA\u4EF7\u4F18\u5316\u4E8B\u4EF6`);
           for (const apiTarget of apiTargets) {
             const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, String(apiTarget.adGroupId))).limit(1);
             if (!adGroup) continue;
@@ -60808,13 +60876,16 @@ var init_amazonSyncService = __esm({
             if (existing) {
               const localBid = parseFloat(existing.bid || "0");
               const apiBid = parseFloat(String(apiTarget.bid || "0"));
-              if (Math.abs(localBid - apiBid) > 0.01 && localBid > 0) {
-                const hasRecentOpt = await hasRecentSyncedOptimization(existing.id, void 0, "bid_adjustment", 24);
+              if (Math.abs(localBid - apiBid) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBid > 0) {
+                const hasRecentOpt = protectedTargetIds.has(existing.id);
                 if (hasRecentOpt) {
                   console.log(`[SyncService] v150: \u51FA\u4EF7\u4FDD\u62A4\u751F\u6548 - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}, \u4FDD\u7559\u672C\u5730\u4F18\u5316\u51FA\u4EF7`);
                   delete targetData.bid;
+                  protectionStats.bidProtected++;
+                  protectionStats.protectedEntities.push(`tgt:${existing.targetValue}`);
                 } else {
                   console.log(`[SyncService] v150: \u51FA\u4EF7\u5DEE\u5F02 - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}, \u4EE5API\u4E3A\u51C6`);
+                  protectionStats.bidOverwritten++;
                 }
               }
               await db.update(productTargets).set(targetData).where(eq(productTargets.id, existing.id));
@@ -60827,6 +60898,7 @@ var init_amazonSyncService = __esm({
             synced++;
           }
           console.log(`[SyncService] SP\u4EA7\u54C1\u5B9A\u5411\u540C\u6B65\u5B8C\u6210: synced=${synced}, skipped=${skipped}`);
+          logSyncProtectionSummary("syncSpProductTargets", protectionStats);
           return { synced, skipped };
         } catch (error54) {
           console.error("Error syncing SP product targets:", error54);
@@ -62651,6 +62723,14 @@ var init_amazonSyncService = __esm({
           console.warn("[\u540C\u6B65WithTracking] \u26A0\uFE0F API\u8FD4\u56DE\u7A7A\u6570\u7EC4 - \u6CA1\u6709SP\u5E7F\u544A\u6D3B\u52A8");
           return result;
         }
+        const allExCampaignIds = [];
+        for (const ac of apiCampaigns) {
+          const [ex] = await db.select({ id: campaigns.id }).from(campaigns).where(and(eq(campaigns.accountId, this.accountId), eq(campaigns.campaignId, String(ac.campaignId)))).limit(1);
+          if (ex) allExCampaignIds.push(ex.id);
+        }
+        const protectedCampaignIds = await getRecentlyOptimizedCampaignIds(allExCampaignIds, SYNC_PROTECTION_CONFIG.BUDGET_PROTECTION_HOURS);
+        const protectionStats = createSyncProtectionStats();
+        console.log(`[SyncProtection] syncSpCampaignsWithTracking: \u6279\u91CF\u67E5\u8BE2\u5B8C\u6210, ${protectedCampaignIds.size}\u4E2A\u5E7F\u544A\u6D3B\u52A8\u6709\u8FD1\u671F\u9884\u7B97\u4F18\u5316\u4E8B\u4EF6`);
         for (const apiCampaign of apiCampaigns) {
           const [existing] = await db.select().from(campaigns).where(
             and(
@@ -62714,6 +62794,19 @@ var init_amazonSyncService = __esm({
                 )
               });
             }
+            const localBudget = parseFloat(existing.dailyBudget || "0");
+            const apiBudget = parseFloat(String(campaignData.dailyBudget || "0"));
+            if (Math.abs(localBudget - apiBudget) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBudget > 0) {
+              const hasRecentOpt = protectedCampaignIds.has(existing.id);
+              if (hasRecentOpt) {
+                console.log(`[SyncService] v150.1: \u9884\u7B97\u4FDD\u62A4\u751F\u6548(WT) - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}`);
+                delete campaignData.dailyBudget;
+                protectionStats.budgetProtected++;
+                protectionStats.protectedEntities.push(`camp:${existing.campaignName}`);
+              } else {
+                protectionStats.budgetOverwritten++;
+              }
+            }
             await db.update(campaigns).set(campaignData).where(eq(campaigns.id, existing.id));
             result.updated++;
           } else {
@@ -62745,6 +62838,7 @@ var init_amazonSyncService = __esm({
         }
         console.log("[\u540C\u6B65WithTracking] ========== SP\u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u5B8C\u6210 ==========");
         console.log("[\u540C\u6B65WithTracking] \u7ED3\u679C:", result);
+        logSyncProtectionSummary("syncSpCampaignsWithTracking", protectionStats);
         return result;
       } catch (error54) {
         console.error("[\u540C\u6B65WithTracking] \u274C SP\u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u5931\u8D25");
@@ -63144,6 +63238,16 @@ var init_amazonSyncService = __esm({
       const conflictRecords = [];
       try {
         const apiKeywords = await this.client.listSpKeywords();
+        const allExKwIds = [];
+        for (const ak of apiKeywords) {
+          const [ag] = await db.select({ id: adGroups.id }).from(adGroups).where(eq(adGroups.adGroupId, String(ak.adGroupId))).limit(1);
+          if (!ag) continue;
+          const [ex] = await db.select({ id: keywords.id }).from(keywords).where(and(eq(keywords.adGroupId, ag.id), eq(keywords.keywordId, String(ak.keywordId)))).limit(1);
+          if (ex) allExKwIds.push(ex.id);
+        }
+        const protectedKeywordIds = await getRecentlyOptimizedKeywordIds(allExKwIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
+        const protectionStats = createSyncProtectionStats();
+        console.log(`[SyncProtection] syncSpKeywordsWithTracking: \u6279\u91CF\u67E5\u8BE2\u5B8C\u6210, ${protectedKeywordIds.size}\u4E2A\u5173\u952E\u8BCD\u6709\u8FD1\u671F\u51FA\u4EF7\u4F18\u5316\u4E8B\u4EF6`);
         for (const apiKeyword of apiKeywords) {
           const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, String(apiKeyword.adGroupId))).limit(1);
           if (!adGroup) {
@@ -63208,6 +63312,19 @@ var init_amazonSyncService = __esm({
                 )
               });
             }
+            const localBid = parseFloat(existing.bid || "0");
+            const apiBid = parseFloat(String(apiKeyword.bid || "0"));
+            if (Math.abs(localBid - apiBid) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBid > 0) {
+              const hasRecentOpt = protectedKeywordIds.has(existing.id);
+              if (hasRecentOpt) {
+                console.log(`[SyncService] v150.1: \u51FA\u4EF7\u4FDD\u62A4\u751F\u6548(WT) - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}`);
+                delete keywordData.bid;
+                protectionStats.bidProtected++;
+                protectionStats.protectedEntities.push(`kw:${existing.keywordText}`);
+              } else {
+                protectionStats.bidOverwritten++;
+              }
+            }
             await db.update(keywords).set(keywordData).where(eq(keywords.id, existing.id));
             result.updated++;
           } else {
@@ -63237,6 +63354,7 @@ var init_amazonSyncService = __esm({
         if (conflictRecords.length > 0) {
           await createSyncConflictsBatch(conflictRecords);
         }
+        logSyncProtectionSummary("syncSpKeywordsWithTracking", protectionStats);
         return result;
       } catch (error54) {
         console.error("Error syncing SP keywords with tracking:", error54);
@@ -63258,6 +63376,16 @@ var init_amazonSyncService = __esm({
       const conflictRecords = [];
       try {
         const apiTargets = await this.client.listSpProductTargets();
+        const allExTgtIds = [];
+        for (const at2 of apiTargets) {
+          const [ag] = await db.select({ id: adGroups.id }).from(adGroups).where(eq(adGroups.adGroupId, String(at2.adGroupId))).limit(1);
+          if (!ag) continue;
+          const [ex] = await db.select({ id: productTargets.id }).from(productTargets).where(and(eq(productTargets.adGroupId, ag.id), eq(productTargets.targetId, String(at2.targetId)))).limit(1);
+          if (ex) allExTgtIds.push(ex.id);
+        }
+        const protectedTargetIds = await getRecentlyOptimizedKeywordIds(allExTgtIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
+        const protectionStats = createSyncProtectionStats();
+        console.log(`[SyncProtection] syncSpProductTargetsWithTracking: \u6279\u91CF\u67E5\u8BE2\u5B8C\u6210, ${protectedTargetIds.size}\u4E2A\u4EA7\u54C1\u5B9A\u5411\u6709\u8FD1\u671F\u51FA\u4EF7\u4F18\u5316\u4E8B\u4EF6`);
         for (const apiTarget of apiTargets) {
           const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, String(apiTarget.adGroupId))).limit(1);
           if (!adGroup) {
@@ -63329,6 +63457,19 @@ var init_amazonSyncService = __esm({
                 )
               });
             }
+            const localBid = parseFloat(existing.bid || "0");
+            const apiBid = parseFloat(String(apiTarget.bid || "0"));
+            if (Math.abs(localBid - apiBid) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBid > 0) {
+              const hasRecentOpt = protectedTargetIds.has(existing.id);
+              if (hasRecentOpt) {
+                console.log(`[SyncService] v150.1: \u51FA\u4EF7\u4FDD\u62A4\u751F\u6548(WT) - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}`);
+                delete targetData.bid;
+                protectionStats.bidProtected++;
+                protectionStats.protectedEntities.push(`tgt:${existing.targetValue}`);
+              } else {
+                protectionStats.bidOverwritten++;
+              }
+            }
             await db.update(productTargets).set(targetData).where(eq(productTargets.id, existing.id));
             result.updated++;
           } else {
@@ -63358,6 +63499,7 @@ var init_amazonSyncService = __esm({
         if (conflictRecords.length > 0) {
           await createSyncConflictsBatch(conflictRecords);
         }
+        logSyncProtectionSummary("syncSpProductTargetsWithTracking", protectionStats);
         return result;
       } catch (error54) {
         console.error("Error syncing SP product targets with tracking:", error54);
