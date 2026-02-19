@@ -60,13 +60,25 @@ const OPTIMIZATION_GOAL_LABELS: Record<string, string> = {
   balanced: "均衡优化",
 };
 
-// 策略模板名称映射
+// 策略模板名称映射（包含所有可能的模板ID变体）
 const STRATEGY_TEMPLATE_LABELS: Record<string, { name: string; color: string; icon: string }> = {
-  aggressive: { name: "激进增长", color: "text-red-400 bg-red-500/20", icon: "🔥" },
-  balanced: { name: "平衡增长", color: "text-blue-400 bg-blue-500/20", icon: "⚖️" },
-  conservative: { name: "利润优先", color: "text-green-400 bg-green-500/20", icon: "🛡️" },
-  seasonal: { name: "旺季冲刺", color: "text-yellow-400 bg-yellow-500/20", icon: "⚡" },
-  brand_defense: { name: "品牌防御", color: "text-purple-400 bg-purple-500/20", icon: "🏰" },
+  // 完整ID格式（数据库中实际存储的值）
+  "aggressive-growth": { name: "激进增长", color: "text-red-400 bg-red-500/20", icon: "🔥" },
+  "balanced": { name: "平衡增长", color: "text-blue-400 bg-blue-500/20", icon: "⚖️" },
+  "profit-focused": { name: "利润优先", color: "text-green-400 bg-green-500/20", icon: "🛡️" },
+  "seasonal-boost": { name: "旺季冲刺", color: "text-yellow-400 bg-yellow-500/20", icon: "⚡" },
+  "brand-defense": { name: "品牌防御", color: "text-purple-400 bg-purple-500/20", icon: "🏰" },
+  // 简短ID格式（兼容旧数据）
+  "aggressive": { name: "激进增长", color: "text-red-400 bg-red-500/20", icon: "🔥" },
+  "conservative": { name: "利润优先", color: "text-green-400 bg-green-500/20", icon: "🛡️" },
+  "seasonal": { name: "旺季冲刺", color: "text-yellow-400 bg-yellow-500/20", icon: "⚡" },
+  "brand_defense": { name: "品牌防御", color: "text-purple-400 bg-purple-500/20", icon: "🏰" },
+  // 中文名称格式（兼容直接存储中文名的情况）
+  "激进增长": { name: "激进增长", color: "text-red-400 bg-red-500/20", icon: "🔥" },
+  "平衡增长": { name: "平衡增长", color: "text-blue-400 bg-blue-500/20", icon: "⚖️" },
+  "利润优先": { name: "利润优先", color: "text-green-400 bg-green-500/20", icon: "🛡️" },
+  "旺季冲刺": { name: "旺季冲刺", color: "text-yellow-400 bg-yellow-500/20", icon: "⚡" },
+  "品牌防御": { name: "品牌防御", color: "text-purple-400 bg-purple-500/20", icon: "🏰" },
 };
 
 export default function StrategyCenter() {

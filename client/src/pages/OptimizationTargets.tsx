@@ -50,7 +50,8 @@ function CreateOptimizationTargetDialog({
   open, 
   onOpenChange, 
   onSuccess,
-  templateData
+  templateData,
+  onCreated
 }: { 
   open: boolean; 
   onOpenChange: (open: boolean) => void;
@@ -60,6 +61,7 @@ function CreateOptimizationTargetDialog({
     name: string;
     targetAcos: string;
   };
+  onCreated?: (id: number) => void;
 }) {
   const [step, setStep] = useState(1);
   const [name, setName] = useState(templateData?.name || "");
@@ -93,11 +95,15 @@ function CreateOptimizationTargetDialog({
 
   // 创建优化目标
   const createMutation = trpc.performanceGroup.create.useMutation({
-    onSuccess: () => {
-      toast.success("优化目标创建成功");
+    onSuccess: (data) => {
+      toast.success("优化目标创建成功，正在跳转...");
       resetForm();
       onOpenChange(false);
       onSuccess();
+      // 创建成功后跳转到新创建的优化目标详情页
+      if (data?.id && onCreated) {
+        onCreated(data.id);
+      }
     },
     onError: (error) => {
       toast.error(`创建失败: ${error.message}`);
@@ -250,8 +256,12 @@ function CreateOptimizationTargetDialog({
     setSelectedCampaignIds([]);
   };
 
+  // 使用Set优化选择状态查找性能（2000+广告活动时避免O(n)查找）
+  const selectedCampaignIdSet = useMemo(() => new Set(selectedCampaignIds), [selectedCampaignIds]);
+
   const handleSelectAll = () => {
-    if (selectedCampaignIds.length === filteredCampaigns.length) {
+    if (selectedCampaignIds.length === filteredCampaigns.length && 
+        filteredCampaigns.every(c => selectedCampaignIdSet.has(c.id))) {
       setSelectedCampaignIds([]);
     } else {
       setSelectedCampaignIds(filteredCampaigns.map(c => c.id));
@@ -259,11 +269,14 @@ function CreateOptimizationTargetDialog({
   };
 
   const handleToggleCampaign = (campaignId: number) => {
-    setSelectedCampaignIds(prev => 
-      prev.includes(campaignId) 
-        ? prev.filter(id => id !== campaignId)
-        : [...prev, campaignId]
-    );
+    setSelectedCampaignIds(prev => {
+      const prevSet = new Set(prev);
+      if (prevSet.has(campaignId)) {
+        return prev.filter(id => id !== campaignId);
+      } else {
+        return [...prev, campaignId];
+      }
+    });
   };
 
   // 虚拟滚动配置 - 用于广告活动列表优化
@@ -300,6 +313,11 @@ function CreateOptimizationTargetDialog({
       dailyBudget: dailyBudget ? parseFloat(dailyBudget) : undefined,
       maxBid: maxBid ? parseFloat(maxBid) : undefined,
       campaignIds: selectedCampaignIds,
+      // 传递策略模板信息，确保创建时自动关联策略模板
+      ...(templateData?.template ? {
+        strategyTemplateId: templateData.template,
+        strategyTemplateName: templateData.name,
+      } : {}),
     });
   };
 
@@ -637,31 +655,38 @@ function CreateOptimizationTargetDialog({
                       {campaignVirtualizer.getVirtualItems().map((virtualRow) => {
                         const campaign = filteredCampaigns[virtualRow.index];
                         if (!campaign) return null;
+                        const isSelected = selectedCampaignIdSet.has(campaign.id);
                         return (
                           <div
                             key={campaign.id}
+                            data-index={virtualRow.index}
+                            ref={campaignVirtualizer.measureElement}
                             style={{
                               position: 'absolute',
                               top: 0,
                               left: 0,
                               width: '100%',
-                              height: `${virtualRow.size}px`,
                               transform: `translateY(${virtualRow.start}px)`,
                               padding: '4px 0',
                             }}
                           >
                             <div 
                               className={`flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-colors ${
-                                selectedCampaignIds.includes(campaign.id) 
+                                isSelected 
                                   ? "border-primary bg-primary/5" 
                                   : "border-border hover:bg-muted/50"
                               }`}
-                              onClick={() => handleToggleCampaign(campaign.id)}
+                              onClick={(e) => {
+                                // 确保点击事件不是来自Checkbox内部（已通过stopPropagation处理）
+                                e.preventDefault();
+                                handleToggleCampaign(campaign.id);
+                              }}
                             >
                               <div className="flex items-center gap-3">
                                 <Checkbox 
-                                  checked={selectedCampaignIds.includes(campaign.id)}
+                                  checked={isSelected}
                                   onCheckedChange={() => handleToggleCampaign(campaign.id)}
+                                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
                                 />
                                 <div>
                                   <div className="font-medium text-sm truncate max-w-[400px]" title={campaign.campaignName}>
@@ -735,7 +760,7 @@ function CreateOptimizationTargetDialog({
                           共 {selectedCampaignIds.length} 个广告活动
                         </Badge>
                         {filteredCampaigns
-                          .filter(c => selectedCampaignIds.includes(c.id))
+                          .filter(c => selectedCampaignIdSet.has(c.id))
                           .slice(0, 5)
                           .map(c => (
                             <Badge key={c.id} variant="outline">{c.campaignName}</Badge>
@@ -1193,6 +1218,12 @@ export default function OptimizationTargets() {
         onOpenChange={setCreateDialogOpen}
         onSuccess={refetch}
         templateData={templateData}
+        onCreated={(id) => {
+          // 创建成功后跳转到新创建的优化目标详情页
+          setTimeout(() => {
+            setLocation(`/optimization-targets/${id}`);
+          }, 300);
+        }}
       />
     </DashboardLayout>
   );

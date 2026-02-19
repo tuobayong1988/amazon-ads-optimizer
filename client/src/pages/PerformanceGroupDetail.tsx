@@ -719,7 +719,7 @@ export default function PerformanceGroupDetail() {
         targetValue: group.targetAcos?.toString() || group.targetRoas?.toString() || '',
         dailyBudget: group.dailyBudget?.toString() || '',
         maxBid: group.maxBid?.toString() || '',
-        strategyTemplateName: (group as any).strategyTemplateName || '',
+        strategyTemplateName: (group as any).strategyTemplateId || (group as any).strategyTemplateName || '',
         autoOptimize: (group as any).autoOptimize !== 0 && (group as any).autoOptimize !== false,
       });
     }
@@ -904,7 +904,19 @@ export default function PerformanceGroupDetail() {
                   <div className="flex justify-between items-center py-2 border-b">
                     <span className="text-muted-foreground">策略模板</span>
                     <span className="font-medium">
-                      {group.strategyTemplateName || <span className="text-yellow-500">未关联</span>}
+                      {group.strategyTemplateId || group.strategyTemplateName ? (
+                        <span>
+                          {{
+                            'aggressive-growth': '🔥 激进增长',
+                            'balanced': '⚖️ 平衡增长',
+                            'profit-focused': '🛡️ 利润优先',
+                            'seasonal-boost': '⚡ 旺季冲刺',
+                            'brand-defense': '🏰 品牌防御',
+                          }[group.strategyTemplateId || group.strategyTemplateName || ''] || (group.strategyTemplateName || group.strategyTemplateId)}
+                        </span>
+                      ) : (
+                        <span className="text-yellow-500">未关联</span>
+                      )}
                     </span>
                   </div>
                   <div className="flex justify-between items-center py-2 border-b">

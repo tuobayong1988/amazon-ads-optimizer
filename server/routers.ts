@@ -586,9 +586,11 @@ const performanceGroupRouter = router({
       maxBid: z.number().optional(),
       dailyCostTarget: z.string().optional(),
       campaignIds: z.array(z.number()).optional(),
+      strategyTemplateId: z.string().optional(),
+      strategyTemplateName: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { campaignIds, targetType, targetValue, dailyBudget, maxBid, ...rest } = input;
+      const { campaignIds, targetType, targetValue, dailyBudget, maxBid, strategyTemplateId, strategyTemplateName, ...rest } = input;
       
       // 转换targetType到optimizationGoal
       const optimizationGoal = targetType || rest.optimizationGoal || "target_acos";
@@ -617,6 +619,10 @@ const performanceGroupRouter = router({
         targetRoas,
         dailySpendLimit,
         dailyCostTarget: rest.dailyCostTarget,
+        ...(dailyBudget ? { dailyBudget: dailyBudget.toString() } : {}),
+        ...(maxBid ? { maxBid: maxBid.toString() } : {}),
+        ...(strategyTemplateId ? { strategyTemplateId } : {}),
+        ...(strategyTemplateName ? { strategyTemplateName } : {}),
       });
       
       // 如果有campaignIds，批量分配广告活动到绩效组
@@ -648,7 +654,11 @@ const performanceGroupRouter = router({
       targetRoas: z.string().optional(),
       dailySpendLimit: z.string().optional(),
       dailyCostTarget: z.string().optional(),
+      dailyBudget: z.string().optional(),
+      maxBid: z.string().optional(),
       status: z.enum(["active", "paused", "archived"]).optional(),
+      strategyTemplateId: z.string().optional(),
+      strategyTemplateName: z.string().optional(),
     }))
     .mutation(async ({ input }) => {
       const { id, ...data } = input;
@@ -902,6 +912,7 @@ const performanceGroupRouter = router({
       dailyBudget: z.number().optional(),
       maxBid: z.number().optional(),
       strategyTemplateName: z.string().optional(),
+      strategyTemplateId: z.string().optional(),
       autoOptimize: z.boolean().optional(),
     }))
     .mutation(async ({ input }) => {
@@ -926,6 +937,12 @@ const performanceGroupRouter = router({
       
       if (input.strategyTemplateName !== undefined) {
         updateData.strategyTemplateName = input.strategyTemplateName;
+        // 同时保存strategyTemplateId，确保两个字段一致
+        updateData.strategyTemplateId = input.strategyTemplateName || null;
+      }
+      
+      if (input.strategyTemplateId !== undefined) {
+        updateData.strategyTemplateId = input.strategyTemplateId;
       }
       
       if (input.autoOptimize !== undefined) {

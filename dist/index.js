@@ -344702,9 +344702,11 @@ var performanceGroupRouter = router({
     dailyBudget: external_exports.number().optional(),
     maxBid: external_exports.number().optional(),
     dailyCostTarget: external_exports.string().optional(),
-    campaignIds: external_exports.array(external_exports.number()).optional()
+    campaignIds: external_exports.array(external_exports.number()).optional(),
+    strategyTemplateId: external_exports.string().optional(),
+    strategyTemplateName: external_exports.string().optional()
   })).mutation(async ({ ctx, input }) => {
-    const { campaignIds, targetType, targetValue, dailyBudget, maxBid, ...rest } = input;
+    const { campaignIds, targetType, targetValue, dailyBudget, maxBid, strategyTemplateId, strategyTemplateName, ...rest } = input;
     const optimizationGoal = targetType || rest.optimizationGoal || "target_acos";
     let targetAcos = rest.targetAcos;
     let targetRoas = rest.targetRoas;
@@ -344726,7 +344728,11 @@ var performanceGroupRouter = router({
       targetAcos,
       targetRoas,
       dailySpendLimit,
-      dailyCostTarget: rest.dailyCostTarget
+      dailyCostTarget: rest.dailyCostTarget,
+      ...dailyBudget ? { dailyBudget: dailyBudget.toString() } : {},
+      ...maxBid ? { maxBid: maxBid.toString() } : {},
+      ...strategyTemplateId ? { strategyTemplateId } : {},
+      ...strategyTemplateName ? { strategyTemplateName } : {}
     });
     if (campaignIds && campaignIds.length > 0) {
       await batchAssignCampaignsToPerformanceGroup(campaignIds, id);
@@ -344750,7 +344756,11 @@ var performanceGroupRouter = router({
     targetRoas: external_exports.string().optional(),
     dailySpendLimit: external_exports.string().optional(),
     dailyCostTarget: external_exports.string().optional(),
-    status: external_exports.enum(["active", "paused", "archived"]).optional()
+    dailyBudget: external_exports.string().optional(),
+    maxBid: external_exports.string().optional(),
+    status: external_exports.enum(["active", "paused", "archived"]).optional(),
+    strategyTemplateId: external_exports.string().optional(),
+    strategyTemplateName: external_exports.string().optional()
   })).mutation(async ({ input }) => {
     const { id, ...data4 } = input;
     await updatePerformanceGroup(id, data4);
@@ -344940,6 +344950,7 @@ var performanceGroupRouter = router({
     dailyBudget: external_exports.number().optional(),
     maxBid: external_exports.number().optional(),
     strategyTemplateName: external_exports.string().optional(),
+    strategyTemplateId: external_exports.string().optional(),
     autoOptimize: external_exports.boolean().optional()
   })).mutation(async ({ input }) => {
     const updateData = {
@@ -344959,6 +344970,10 @@ var performanceGroupRouter = router({
     }
     if (input.strategyTemplateName !== void 0) {
       updateData.strategyTemplateName = input.strategyTemplateName;
+      updateData.strategyTemplateId = input.strategyTemplateName || null;
+    }
+    if (input.strategyTemplateId !== void 0) {
+      updateData.strategyTemplateId = input.strategyTemplateId;
     }
     if (input.autoOptimize !== void 0) {
       updateData.autoOptimize = input.autoOptimize ? 1 : 0;
