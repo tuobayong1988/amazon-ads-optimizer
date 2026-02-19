@@ -142,7 +142,6 @@ export async function syncBidAdjustmentsToAmazon(
           result.success++;
           consecutiveThrottles = 0;
           success = true;
-          // v140: 记录单条成功状态
           result.itemResults.set(adj.keywordId, { status: 'synced' });
         } else {
           result.failed++;
@@ -150,9 +149,9 @@ export async function syncBidAdjustmentsToAmazon(
           const errorMsg = `出价调整失败: ${targetType2} ${adj.keywordId}`;
           result.errors.push(errorMsg);
           console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
-          // v140: 记录单条失败状态
           result.itemResults.set(adj.keywordId, { status: 'failed', error: '记录不存在或Amazon ID无效' });
-          break;
+          // v155: 不再 break，继续处理下一个关键词，避免一个失败导致整个批次中断
+          break; // break inner while loop only
         }
       } catch (error: any) {
         const isNonRetryable = error.nonRetryable === true || error.message?.includes('MISSING_AMAZON_ID');
@@ -163,8 +162,8 @@ export async function syncBidAdjustmentsToAmazon(
           const targetType = adj.isProductTarget ? 'product_target' : 'keyword';
           const errMsg = `${targetType} ${adj.keywordId}: 缺少Amazon ID`;
           result.errors.push(errMsg);
-          // v140: 记录单条失败状态
           result.itemResults.set(adj.keywordId, { status: 'failed', error: '缺少Amazon ID' });
+          // v155: 缺少ID是非重试错误，break while但继续 for循环
           break;
         }
         
@@ -184,7 +183,6 @@ export async function syncBidAdjustmentsToAmazon(
           const errorMsg = `出价调整异常(重试${maxRetries}次后): ${targetType} ${adj.keywordId} - ${error.message}`;
           result.errors.push(errorMsg);
           console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
-          // v140: 记录单条失败状态
           result.itemResults.set(adj.keywordId, { status: 'failed', error: `API异常: ${error.message?.substring(0, 100)}` });
           break;
         }

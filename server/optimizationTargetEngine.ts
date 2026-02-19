@@ -586,7 +586,11 @@ async function executeBidOptimization(
   }
   
   const currentDate = new Date();
-  const maxBidLimit = config.maxBid || 10;
+  // v155: maxBidLimit严格使用用户配置的max_bid，不再默认10（过高）
+  // 如果用户未设置max_bid，默认使用$5.00作为安全上限
+  const maxBidLimit = config.maxBid || 5.00;
+  console.log(`[BidOptimization] v155: 最高出价限制=${maxBidLimit} (用户设置=${config.maxBid || '未设置，使用默认$5.00'})`);
+  console.log(`[BidOptimization] v155: 日预算=${config.dailyBudget || '未设置'}, 目标ACoS=${config.targetAcos || '未设置'}`);
   
   for (const campaign of campaigns) {
     // v122h: 获取campaign级别的14天历史每日数据，用于时间衰减ROAS计算

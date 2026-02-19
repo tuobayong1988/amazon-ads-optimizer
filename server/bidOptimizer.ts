@@ -381,59 +381,71 @@ function calculateSparseDataBidAdjustment(
   let newBid = target.currentBid;
   let reason = "";
 
-  // 获取广告组或Campaign的平均CVR作为先验数据 (Bayesian Prior)
-  const groupAvgCvr = config.groupAvgCvr || 0.05; // 默认5%转化率
-  const groupAvgAov = config.groupAvgAov || 30; // 默认平均订单价值$30
+  const groupAvgCvr = config.groupAvgCvr || 0.05;
+  const groupAvgAov = config.groupAvgAov || 30;
+  const groupAvgCpc = config.groupAvgCpc || 0.75;
+  const effectiveMaxBid = config.maxBid || maxBidLimit;
   
-  // 贝叶斯平均转化率 = (当前转化 + 信心参数*平均转化) / (当前点击 + 信心参数)
-  const smoothedCvr = calculateBayesianSmoothedCvr(
-    target.orders,
-    target.clicks,
-    groupAvgCvr
-  );
+  // v155: 探索出价上限
+  const explorationCeiling = Math.min(groupAvgCpc * 3, effectiveMaxBid * 0.5, 3.00);
   
-  // 计算目标CPA
-  let targetCpa: number;
-  if (config.targetAcos && target.orders > 0) {
-    // 基于目标ACoS计算目标CPA
-    const avgOrderValue = target.sales / target.orders;
-    targetCpa = config.targetAcos / 100 * avgOrderValue;
-  } else if (config.targetRoas) {
-    // 基于目标ROAS计算目标CPA
-    targetCpa = groupAvgAov / config.targetRoas;
+  // v155: 出价过高回退检查（最高优先级）
+  if (target.currentBid >= effectiveMaxBid * 0.9 && target.impressions === 0) {
+    newBid = Math.max(groupAvgCpc, minBidLimit);
+    reason = `[数据培育-回退] 出价$${target.currentBid.toFixed(2)}已接近上限但零曝光，强制回退至组平均CPC$${groupAvgCpc.toFixed(2)}`;
+  } else if (target.currentBid > explorationCeiling && target.clicks === 0) {
+    newBid = explorationCeiling;
+    reason = `[数据培育-回退] 出价$${target.currentBid.toFixed(2)}超过探索上限且零点击，降价至$${explorationCeiling.toFixed(2)}`;
   } else {
-    // 默认目标CPA：平均订单价值的30%
-    targetCpa = groupAvgAov * 0.3;
-  }
-  
-  // 基于平滑后的CVR计算理论出价
-  // 理论出价 = 平滑CVR * 目标CPA
-  const theoreticalBid = smoothedCvr * targetCpa;
+    // 贝叶斯平均转化率
+    const smoothedCvr = calculateBayesianSmoothedCvr(
+      target.orders,
+      target.clicks,
+      groupAvgCvr
+    );
+    
+    // 计算目标CPA
+    let targetCpa: number;
+    if (config.targetAcos && target.orders > 0) {
+      const avgOrderValue = target.sales / target.orders;
+      targetCpa = config.targetAcos / 100 * avgOrderValue;
+    } else if (config.targetRoas) {
+      targetCpa = groupAvgAov / config.targetRoas;
+    } else {
+      targetCpa = groupAvgAov * 0.3;
+    }
+    
+    const theoreticalBid = smoothedCvr * targetCpa;
 
-  // v122g: 根据策略类型动态调整稀疏数据场景的最大变化幅度
-  // 激进策略允许更大幅度调整，保守策略限制调整幅度
-  let MAX_SPARSE_CHANGE_PERCENT = 0.20;
-  const goal = config.optimizationGoal || 'balanced';
-  if (['aggressive-growth', 'seasonal-boost', 'market-expansion', 'inventory-clearance'].includes(goal)) {
-    MAX_SPARSE_CHANGE_PERCENT = 0.30; // 激进策略允许±30%
-  } else if (['profit-focused', 'brand-defense', 'decline-management'].includes(goal)) {
-    MAX_SPARSE_CHANGE_PERCENT = 0.12; // 保守策略限制±12%
-  }
-  
-  if (theoreticalBid > target.currentBid) {
-    newBid = Math.min(theoreticalBid, target.currentBid * (1 + MAX_SPARSE_CHANGE_PERCENT));
-    reason = `[数据培育] 点击${target.clicks}/订单${target.orders}，贝叶斯平滑CVR(${(smoothedCvr * 100).toFixed(1)}%)，小幅提价获取更多数据`;
-  } else if (target.clicks < 5 && target.orders === 0) {
-    // v122g: 点击极少且无转化时，不急于降价，保持当前出价继续观察
-    newBid = target.currentBid;
-    reason = `[数据培育] 点击${target.clicks}/订单${target.orders}，数据不足以判断趋势，保持当前出价继续观察`;
-  } else {
-    newBid = Math.max(theoreticalBid, target.currentBid * (1 - MAX_SPARSE_CHANGE_PERCENT));
-    reason = `[数据培育] 点击${target.clicks}/订单${target.orders}，表现不及预期，保守微调出价`;
+    let MAX_SPARSE_CHANGE_PERCENT = 0.20;
+    const goal = config.optimizationGoal || 'balanced';
+    if (['aggressive-growth', 'seasonal-boost', 'market-expansion', 'inventory-clearance'].includes(goal)) {
+      MAX_SPARSE_CHANGE_PERCENT = 0.30;
+    } else if (['profit-focused', 'brand-defense', 'decline-management'].includes(goal)) {
+      MAX_SPARSE_CHANGE_PERCENT = 0.12;
+    }
+    
+    if (theoreticalBid > target.currentBid) {
+      // v155: 提价时也要受探索上限约束
+      newBid = Math.min(theoreticalBid, target.currentBid * (1 + MAX_SPARSE_CHANGE_PERCENT), explorationCeiling);
+      reason = `[数据培育] 点击${target.clicks}/订单${target.orders}，贝叶斯平滑CVR(${(smoothedCvr * 100).toFixed(1)}%)，小幅提价获取更多数据`;
+    } else if (target.clicks < 5 && target.orders === 0) {
+      // v155: 点击极少时，如果出价已超过组平均CPC的2倍，应该降价而不是保持
+      if (target.currentBid > groupAvgCpc * 2) {
+        newBid = Math.max(target.currentBid * 0.90, groupAvgCpc);
+        reason = `[数据培育] 点击${target.clicks}无转化，出价$${target.currentBid.toFixed(2)}远超组平均CPC$${groupAvgCpc.toFixed(2)}，降价10%控制成本`;
+      } else {
+        newBid = target.currentBid;
+        reason = `[数据培育] 点击${target.clicks}/订单${target.orders}，数据不足以判断趋势，保持当前出价继续观察`;
+      }
+    } else {
+      newBid = Math.max(theoreticalBid, target.currentBid * (1 - MAX_SPARSE_CHANGE_PERCENT));
+      reason = `[数据培育] 点击${target.clicks}/订单${target.orders}，表现不及预期，保守微调出价`;
+    }
   }
 
-  // 应用出价限制
-  newBid = Math.min(newBid, maxBidLimit);
+  // 应用出价限制 - v155: 使用effectiveMaxBid而非maxBidLimit
+  newBid = Math.min(newBid, effectiveMaxBid);
   newBid = Math.max(newBid, minBidLimit);
   newBid = Math.round(newBid * 100) / 100;
 
@@ -493,11 +505,14 @@ export function calculateBidAdjustment(
   const marketCurve = generateMarketCurve(target);
   const optimalBid = findOptimalBid(marketCurve, adjustedConfig);
   
+  // v155: 严格使用用户配置的max_bid作为上限
+  const effectiveMaxBid = config.maxBid || maxBidLimit;
+  
   // Calculate new bid with constraints
   let newBid = optimalBid;
   
-  // Apply bid limits
-  newBid = Math.min(newBid, maxBidLimit);
+  // Apply bid limits - v155: 使用effectiveMaxBid
+  newBid = Math.min(newBid, effectiveMaxBid);
   newBid = Math.max(newBid, minBidLimit);
   
   // Limit bid change to 25% per adjustment to avoid drastic changes
@@ -633,36 +648,71 @@ function calculateExplorationBid(
   
   const groupAvgCvr = config.groupAvgCvr || 0.05;
   const groupAvgAov = config.groupAvgAov || 30;
-  const groupAvgCpc = config.groupAvgCpc || target.currentBid;
+  const groupAvgCpc = config.groupAvgCpc || 0.75; // 默认$0.75，不再用currentBid作为fallback
+  const effectiveMaxBid = config.maxBid || maxBidLimit;
   
-  // 场景1：零曝光或极低曝光（<50）—— 探测性提价
-  if (target.impressions < 50) {
-    const increment = Math.max(
-      target.currentBid * 0.08,  // 8%提价
-      0.03                       // 最少$0.03
-    );
-    newBid = target.currentBid + increment;
-    reason = `[探索模式] 曝光量仅${target.impressions}，探测性提价+$${increment.toFixed(2)}寻找合理价位`;
+  // ====== v155: 出价过高回退机制（最高优先级） ======
+  // 探索出价上限 = min(组平均CPC * 3, 最高出价的50%, $3.00)
+  const explorationCeiling = Math.min(groupAvgCpc * 3, effectiveMaxBid * 0.5, 3.00);
+  
+  // 场景0A：出价已达上限区间（>=90%最高出价）且仍无曝光 → 强制大幅降价回退
+  if (target.currentBid >= effectiveMaxBid * 0.9 && target.impressions === 0) {
+    newBid = Math.max(groupAvgCpc, minBidLimit);
+    reason = `[回退模式] 出价$${target.currentBid.toFixed(2)}已接近上限$${effectiveMaxBid.toFixed(2)}但零曝光，该关键词可能无效，强制回退至组平均CPC$${groupAvgCpc.toFixed(2)}`;
   }
-  // 场景2：有曝光但无点击（曝光>=50，点击=0）—— 可能是位置不够好，小幅提价
+  // 场景0B：出价已超过探索上限且无点击 → 降价回退到探索上限
+  else if (target.currentBid > explorationCeiling && target.clicks === 0) {
+    newBid = explorationCeiling;
+    reason = `[回退模式] 出价$${target.currentBid.toFixed(2)}超过探索上限$${explorationCeiling.toFixed(2)}但零点击，降价至探索上限`;
+  }
+  // 场景0C：出价超过组平均CPC的2倍且无转化 → 逐步降价
+  else if (target.currentBid > groupAvgCpc * 2 && target.orders === 0 && target.spend > groupAvgCpc * 10) {
+    newBid = Math.max(target.currentBid * 0.80, groupAvgCpc);
+    reason = `[回退模式] 出价$${target.currentBid.toFixed(2)}远超组平均CPC$${groupAvgCpc.toFixed(2)}且花费$${target.spend.toFixed(2)}无转化，降价20%控制成本`;
+  }
+  // ====== 正常探索逻辑（出价在合理范围内） ======
+  // 场景1：零曝光或极低曝光（<50）—— 有条件的探测性提价
+  else if (target.impressions < 50) {
+    // 仅在出价低于探索上限时才提价
+    if (target.currentBid < explorationCeiling) {
+      const increment = Math.max(
+        target.currentBid * 0.08,  // 8%提价
+        0.03                       // 最少$0.03
+      );
+      newBid = Math.min(target.currentBid + increment, explorationCeiling);
+      reason = `[探索模式] 曝光量仅${target.impressions}，探测性提价+$${increment.toFixed(2)}寻找合理价位(上限$${explorationCeiling.toFixed(2)})`;
+    } else {
+      // 已达探索上限仍无曝光，保持不变等待更多数据周期
+      newBid = target.currentBid;
+      reason = `[探索模式] 曝光量仅${target.impressions}，出价已达探索上限$${explorationCeiling.toFixed(2)}，保持观察`;
+    }
+  }
+  // 场景2：有曝光但无点击（曝光>=50，点击=0）
   else if (target.clicks === 0) {
-    const increment = Math.max(
-      target.currentBid * 0.05,  // 5%提价
-      0.02
-    );
-    newBid = target.currentBid + increment;
-    reason = `[探索模式] 曝光${target.impressions}但零点击，小幅提价+$${increment.toFixed(2)}改善广告位置`;
+    if (target.currentBid < explorationCeiling) {
+      const increment = Math.max(
+        target.currentBid * 0.05,  // 5%提价
+        0.02
+      );
+      newBid = Math.min(target.currentBid + increment, explorationCeiling);
+      reason = `[探索模式] 曝光${target.impressions}但零点击，小幅提价+$${increment.toFixed(2)}改善广告位置`;
+    } else {
+      // 已达探索上限仍无点击，微降出价（可能是关键词相关性差）
+      newBid = target.currentBid * 0.95;
+      reason = `[探索模式] 曝光${target.impressions}但零点击且出价已达探索上限，微降5%测试价格敏感性`;
+    }
   }
-  // 场景3：有点击但无转化（点击>0，订单=0）—— 保持当前出价继续观察
+  // 场景3：有点击但无转化（点击>0，订单=0）
   else if (target.orders === 0) {
-    // 如果点击费用远高于组平均CPC，微降
     const currentCpc = target.clicks > 0 ? target.spend / target.clicks : target.currentBid;
     if (currentCpc > groupAvgCpc * 1.5) {
-      // CPC远高于组平均，微降到组平均水平
-      newBid = Math.max(target.currentBid * 0.92, groupAvgCpc);
-      reason = `[探索模式] 点击${target.clicks}无转化，CPC($${currentCpc.toFixed(2)})高于组平均($${groupAvgCpc.toFixed(2)})，微调降低成本`;
+      newBid = Math.max(target.currentBid * 0.90, groupAvgCpc * 0.8);
+      reason = `[探索模式] 点击${target.clicks}无转化，CPC($${currentCpc.toFixed(2)})高于组平均($${groupAvgCpc.toFixed(2)})，降价10%控制成本`;
+    } else if (target.spend > groupAvgAov * 0.5 && target.clicks >= 3) {
+      // 花费已达半个订单价值但仍无转化，微降
+      newBid = target.currentBid * 0.95;
+      reason = `[探索模式] 点击${target.clicks}无转化，花费$${target.spend.toFixed(2)}已达半个订单价值，微降5%`;
     } else {
-      // CPC合理，保持当前出价继续积累数据
       newBid = target.currentBid;
       reason = `[探索模式] 点击${target.clicks}无转化，CPC在合理范围，保持当前出价继续积累数据`;
     }
@@ -690,7 +740,6 @@ function calculateExplorationBid(
   }
   
   // 应用出价限制
-  const effectiveMaxBid = config.maxBid || maxBidLimit;
   newBid = Math.min(newBid, effectiveMaxBid);
   newBid = Math.max(newBid, minBidLimit);
   newBid = Math.round(newBid * 100) / 100;
@@ -744,33 +793,63 @@ function calculateZeroImpressionProbing(
   config: PerformanceGroupConfig,
   maxBidLimit: number
 ): OptimizationResult {
-  const { probingBidIncrementPercent, probingBidIncrementFixed, probingImpressionThreshold } = ZERO_IMPRESSION_PROBING_CONFIG;
-  
-  // 使用百分比和固定金额中的较大值作为提价幅度
-  const percentIncrease = target.currentBid * probingBidIncrementPercent;
-  const bidIncrement = Math.max(percentIncrease, probingBidIncrementFixed);
-  let newBid = target.currentBid + bidIncrement;
-  
-  // 应用最高出价限制
+  const { probingBidIncrementPercent, probingBidIncrementFixed } = ZERO_IMPRESSION_PROBING_CONFIG;
   const effectiveMaxBid = config.maxBid || maxBidLimit;
+  const groupAvgCpc = config.groupAvgCpc || 0.75;
+  
+  // v155: 探索出价上限 = min(组平均CPC * 3, 最高出价的50%, $3.00)
+  const explorationCeiling = Math.min(groupAvgCpc * 3, effectiveMaxBid * 0.5, 3.00);
+  
+  let newBid: number;
+  let reason = '';
+  let actionType: 'increase' | 'decrease' | 'set' = 'increase';
+  
+  // v155: 如果出价已达上限区间且仍零曝光，强制回退
+  if (target.currentBid >= effectiveMaxBid * 0.9 && target.impressions === 0) {
+    newBid = Math.max(groupAvgCpc, 0.02);
+    actionType = 'decrease';
+    reason = `[冷启动回退] 出价$${target.currentBid.toFixed(2)}已接近上限但零曝光，强制回退至组平均CPC$${groupAvgCpc.toFixed(2)}`;
+  }
+  // v155: 如果出价已超过探索上限且仍零曝光，降价回退
+  else if (target.currentBid > explorationCeiling && target.impressions === 0) {
+    newBid = explorationCeiling;
+    actionType = 'decrease';
+    reason = `[冷启动回退] 出价$${target.currentBid.toFixed(2)}超过探索上限$${explorationCeiling.toFixed(2)}但零曝光，降价至探索上限`;
+  }
+  // 正常探测提价（仅在出价低于探索上限时）
+  else if (target.currentBid < explorationCeiling) {
+    const percentIncrease = target.currentBid * probingBidIncrementPercent;
+    const bidIncrement = Math.max(percentIncrease, probingBidIncrementFixed);
+    newBid = Math.min(target.currentBid + bidIncrement, explorationCeiling);
+    actionType = 'increase';
+    if (target.impressions === 0) {
+      reason = `冷启动探测：零曝光，探测性提价+$${bidIncrement.toFixed(2)}寻找入场价位(上限$${explorationCeiling.toFixed(2)})`;
+    } else {
+      reason = `冷启动探测：低曝光(${target.impressions})，探测性提价+$${bidIncrement.toFixed(2)}获取更多流量`;
+    }
+  }
+  // 已达探索上限但有少量曝光，保持观察
+  else {
+    newBid = target.currentBid;
+    actionType = 'set';
+    reason = `冷启动探测：出价已达探索上限$${explorationCeiling.toFixed(2)}，曝光${target.impressions}，保持观察`;
+  }
+  
   newBid = Math.min(newBid, effectiveMaxBid);
+  newBid = Math.max(newBid, 0.02);
   newBid = Math.round(newBid * 100) / 100;
   
-  const bidChangePercent = ((newBid - target.currentBid) / target.currentBid) * 100;
-  
-  let reason = '';
-  if (target.impressions === 0) {
-    reason = `冷启动探测：零曝光，探测性提价+$${bidIncrement.toFixed(2)}寻找入场价位`;
-  } else {
-    reason = `冷启动探测：低曝光(${target.impressions})，探测性提价+$${bidIncrement.toFixed(2)}获取更多流量`;
-  }
+  const bidChangePercent = target.currentBid > 0 ? ((newBid - target.currentBid) / target.currentBid) * 100 : 0;
+  if (newBid > target.currentBid) actionType = 'increase';
+  else if (newBid < target.currentBid) actionType = 'decrease';
+  else actionType = 'set';
   
   return {
     targetId: target.id,
     targetType: target.type,
     previousBid: target.currentBid,
     newBid,
-    actionType: 'increase',
+    actionType,
     bidChangePercent: Math.round(bidChangePercent * 100) / 100,
     reason,
   };
@@ -791,10 +870,27 @@ export function optimizePerformanceGroup(
 ): OptimizationResult[] {
   const results: OptimizationResult[] = [];
   
+  // v155: 严格使用用户配置的max_bid作为上限
+  const effectiveMaxBid = config.maxBid || maxBidLimit;
+  
   for (const target of targets) {
+    // === v155: 第0层：出价超限强制回退 ===
+    if (target.currentBid > effectiveMaxBid) {
+      const newBid = Math.round(effectiveMaxBid * 100) / 100;
+      results.push({
+        targetId: target.id,
+        targetType: target.type,
+        previousBid: target.currentBid,
+        newBid,
+        actionType: 'decrease',
+        bidChangePercent: Math.round(((newBid - target.currentBid) / target.currentBid) * 10000) / 100,
+        reason: `[强制回退] 当前出价$${target.currentBid.toFixed(2)}超过最高出价限制$${effectiveMaxBid.toFixed(2)}，强制降价`,
+      });
+      continue;
+    }
+    
     // === 第1层：疑似断货检测（优先级最高） ===
     if (detectSuspectedOOS(target)) {
-      // 强制保持当前出价，不做任何调整，防止浪费预算
       results.push({
         targetId: target.id,
         targetType: target.type,
@@ -807,25 +903,39 @@ export function optimizePerformanceGroup(
       continue;
     }
     
+    // === v155: 第1.5层：零曝光高出价回退 ===
+    if (target.impressions === 0 && target.currentBid >= effectiveMaxBid * 0.7) {
+      const groupAvgCpc = config.groupAvgCpc || 0.75;
+      const rollbackBid = Math.max(Math.min(groupAvgCpc, effectiveMaxBid * 0.3), 0.02);
+      const newBid = Math.round(rollbackBid * 100) / 100;
+      results.push({
+        targetId: target.id,
+        targetType: target.type,
+        previousBid: target.currentBid,
+        newBid,
+        actionType: 'decrease',
+        bidChangePercent: Math.round(((newBid - target.currentBid) / target.currentBid) * 10000) / 100,
+        reason: `[零曝光回退] 出价$${target.currentBid.toFixed(2)}已达上限的70%+但零曝光，强制回退至组平均CPC$${groupAvgCpc.toFixed(2)}`,
+      });
+      continue;
+    }
+    
     // === 第2层：零曝光/冷启动探测 ===
     if (target.impressions === 0 && isNewCampaign(target)) {
-      // 新品零曝光：执行探测性提价，打破死循环
-      const probingResult = calculateZeroImpressionProbing(target, config, maxBidLimit);
+      const probingResult = calculateZeroImpressionProbing(target, config, effectiveMaxBid);
       results.push(probingResult);
       continue;
     }
     
     // === 第3层：低数据量探索模式（v122g新增） ===
-    // 不再跳过低数据量活动，而是进入探索模式进行智能培育
     if (!isDataSufficient(target, config)) {
-      const explorationResult = calculateExplorationBid(target, config, maxBidLimit);
-      // 探索模式下，即使变化很小也要记录（包括“保持不变”的决策）
+      const explorationResult = calculateExplorationBid(target, config, effectiveMaxBid);
       results.push(explorationResult);
       continue;
     }
     
     // === 第4层：数据充足的正常优化流程 ===
-    const result = calculateBidAdjustment(target, config, maxBidLimit);
+    const result = calculateBidAdjustment(target, config, effectiveMaxBid);
     
     // Only include if there's a meaningful change (> 1%)
     if (Math.abs(result.bidChangePercent) > 1) {
@@ -1368,12 +1478,15 @@ export function calculateEnhancedBidAdjustment(
     algorithmUsed = 'holiday';
   }
   
+  // v155: 严格使用用户配置的max_bid作为上限，而非系统默认值
+  const effectiveMaxBid = config.maxBid || maxBidLimit;
+  
   // 4. 计算基础竞价
   let baseBid: number;
   
   if (!isDataSufficient(target, config)) {
     // v122g: 数据稀疏：使用贝叶斯平滑（已升级为策略感知版本）
-    const sparseResult = calculateSparseDataBidAdjustment(target, config, maxBidLimit, minBidLimit);
+    const sparseResult = calculateSparseDataBidAdjustment(target, config, effectiveMaxBid, minBidLimit);
     baseBid = sparseResult.newBid;
     algorithmUsed = 'bayesian';
     confidenceScore = 0.3;
@@ -1403,8 +1516,8 @@ export function calculateEnhancedBidAdjustment(
   // 5. 应用节假日乘数
   let newBid = baseBid * holidayMultiplier;
   
-  // 6. 应用出价限制
-  newBid = Math.min(newBid, maxBidLimit);
+  // 6. 应用出价限制 - v155: 使用effectiveMaxBid而非maxBidLimit
+  newBid = Math.min(newBid, effectiveMaxBid);
   newBid = Math.max(newBid, minBidLimit);
   
   // 7. 限制单次调整幅度（v152: 从进化引擎获取自适应参数，默认30%）
@@ -1490,7 +1603,29 @@ export function optimizePerformanceGroupEnhanced(
 ): EnhancedOptimizationResult[] {
   const results: EnhancedOptimizationResult[] = [];
   
+  // v155: 严格使用用户配置的max_bid作为上限，而非系统默认值
+  const effectiveMaxBid = config.maxBid || maxBidLimit;
+  
   for (const target of targets) {
+    // === v155: 第0层：出价超限强制回退（最高优先级） ===
+    // 如果当前出价已超过用户设置的最高出价限制，强制降价到限制内
+    if (target.currentBid > effectiveMaxBid) {
+      const newBid = Math.round(effectiveMaxBid * 100) / 100;
+      results.push({
+        targetId: target.id,
+        targetType: target.type,
+        previousBid: target.currentBid,
+        newBid,
+        actionType: 'decrease',
+        bidChangePercent: Math.round(((newBid - target.currentBid) / target.currentBid) * 10000) / 100,
+        reason: `[强制回退] 当前出价$${target.currentBid.toFixed(2)}超过用户设置的最高出价限制$${effectiveMaxBid.toFixed(2)}，强制降价到上限`,
+        algorithmUsed: 'combined',
+        confidenceScore: 1.0,
+        holidayMultiplier: 1,
+      } as EnhancedOptimizationResult);
+      continue;
+    }
+    
     // === 第1层：疑似断货检测（优先级最高） ===
     if (detectSuspectedOOS(target)) {
       results.push({
@@ -1508,9 +1643,30 @@ export function optimizePerformanceGroupEnhanced(
       continue;
     }
     
+    // === v155: 第1.5层：零曝光高出价关键词回退机制（适用于所有campaign，不仅是新campaign） ===
+    // 当出价已达到最高限制的70%以上且仍然零曝光，强制回退
+    if (target.impressions === 0 && target.currentBid >= effectiveMaxBid * 0.7) {
+      const groupAvgCpc = config.groupAvgCpc || 0.75;
+      const rollbackBid = Math.max(Math.min(groupAvgCpc, effectiveMaxBid * 0.3), 0.02);
+      const newBid = Math.round(rollbackBid * 100) / 100;
+      results.push({
+        targetId: target.id,
+        targetType: target.type,
+        previousBid: target.currentBid,
+        newBid,
+        actionType: 'decrease',
+        bidChangePercent: Math.round(((newBid - target.currentBid) / target.currentBid) * 10000) / 100,
+        reason: `[零曝光回退] 出价$${target.currentBid.toFixed(2)}已达上限${effectiveMaxBid.toFixed(2)}的70%+但零曝光，该关键词可能无效，强制回退至组平均CPC$${groupAvgCpc.toFixed(2)}`,
+        algorithmUsed: 'bayesian',
+        confidenceScore: 0.9,
+        holidayMultiplier: 1,
+      } as EnhancedOptimizationResult);
+      continue;
+    }
+    
     // === 第2层：零曝光/冷启动探测 ===
     if (target.impressions === 0 && isNewCampaign(target)) {
-      const probingResult = calculateZeroImpressionProbing(target, config, maxBidLimit);
+      const probingResult = calculateZeroImpressionProbing(target, config, effectiveMaxBid);
       results.push({
         ...probingResult,
         algorithmUsed: 'bayesian',
@@ -1523,7 +1679,7 @@ export function optimizePerformanceGroupEnhanced(
     // === 第3层：低数据量探索模式（v122g新增） ===
     // 不再跳过低数据量活动，而是进入探索模式进行智能培育
     if (!isDataSufficient(target, config)) {
-      const explorationResult = calculateExplorationBid(target, config, maxBidLimit);
+      const explorationResult = calculateExplorationBid(target, config, effectiveMaxBid);
       results.push({
         ...explorationResult,
         algorithmUsed: 'bayesian',
@@ -1534,7 +1690,7 @@ export function optimizePerformanceGroupEnhanced(
     }
     
     // === 第4层：数据充足的正常增强版优化流程 ===
-    const result = calculateEnhancedBidAdjustment(target, config, maxBidLimit, 0.02, currentDate);
+    const result = calculateEnhancedBidAdjustment(target, config, effectiveMaxBid, 0.02, currentDate);
     
     // 只包含有意义的变化（> 1%）
     if (Math.abs(result.bidChangePercent) > 1) {
