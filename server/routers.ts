@@ -783,7 +783,14 @@ const performanceGroupRouter = router({
       
       let apiResult = { success: 0, failed: 0, errors: [] as string[] };
       if (statusChanges.length > 0 && group.accountId) {
-        apiResult = await syncCampaignStatusToAmazon(group.accountId, statusChanges);
+        try {
+          apiResult = await syncCampaignStatusToAmazon(group.accountId, statusChanges);
+        } catch (syncError: any) {
+          // v161: 捕获API同步过程中的未预期异常，防止500错误
+          console.error(`[batchUpdateCampaignStatus] API同步异常:`, syncError.message);
+          apiResult.failed = statusChanges.length;
+          apiResult.errors.push(`API同步过程发生异常: ${syncError.message}`);
+        }
       }
       
       return {

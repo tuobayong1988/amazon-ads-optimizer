@@ -131,6 +131,8 @@ export default function PerformanceGroupDetail() {
   // v153: 批量选择状态
   const [selectedManageCampaigns, setSelectedManageCampaigns] = useState<number[]>([]);
   const [batchActionLoading, setBatchActionLoading] = useState(false);
+  // v161: 区分当前正在执行的批量操作类型，防止UI混乱
+  const [pendingBatchAction, setPendingBatchAction] = useState<'enable' | 'pause' | null>(null);
 
   // v154: 广告活动管理表格筛选状态
   const [mgShowFilters, setMgShowFilters] = useState(false);
@@ -246,21 +248,26 @@ export default function PerformanceGroupDetail() {
   });
 
   // v153: 批量更新广告活动状态
+  // v161: 改进错误处理，添加操作类型追踪
   const batchUpdateStatusMutation = trpc.performanceGroup.batchUpdateCampaignStatus.useMutation({
     onSuccess: (data) => {
+      const actionLabel = pendingBatchAction === 'enable' ? '启用' : '暂停';
       const statusText = data.localUpdated > 0 ? `本地更新${data.localUpdated}个` : '';
       const apiText = data.apiSynced > 0 ? `，API同步${data.apiSynced}个` : '';
       const failText = data.apiFailed > 0 ? `，${data.apiFailed}个API同步失败` : '';
-      toast.success(`批量操作完成: ${statusText}${apiText}${failText}`);
+      toast.success(`批量${actionLabel}完成: ${statusText}${apiText}${failText}`);
       if (data.apiFailed > 0 && data.apiErrors && data.apiErrors.length > 0) {
         toast.error(`API同步错误: ${data.apiErrors[0]}`);
       }
       setSelectedManageCampaigns([]);
+      setPendingBatchAction(null);
       refetchCampaigns();
       refetchGroup();
     },
     onError: (error) => {
-      toast.error(`批量操作失败: ${error.message}`);
+      const actionLabel = pendingBatchAction === 'enable' ? '启用' : '暂停';
+      toast.error(`批量${actionLabel}失败: ${error.message}`);
+      setPendingBatchAction(null);
     },
   });
 
@@ -668,8 +675,11 @@ export default function PerformanceGroupDetail() {
   };
 
   // v153: 批量暂停
+  // v161: 添加防重复点击和操作类型追踪
   const handleBatchPause = () => {
     if (selectedManageCampaigns.length === 0) return;
+    if (batchUpdateStatusMutation.isPending || pendingBatchAction) return;
+    setPendingBatchAction('pause');
     batchUpdateStatusMutation.mutate({
       groupId: groupId!,
       campaignIds: selectedManageCampaigns,
@@ -678,8 +688,11 @@ export default function PerformanceGroupDetail() {
   };
 
   // v153: 批量启用
+  // v161: 添加防重复点击和操作类型追踪
   const handleBatchEnable = () => {
     if (selectedManageCampaigns.length === 0) return;
+    if (batchUpdateStatusMutation.isPending || pendingBatchAction) return;
+    setPendingBatchAction('enable');
     batchUpdateStatusMutation.mutate({
       groupId: groupId!,
       campaignIds: selectedManageCampaigns,
@@ -1414,19 +1427,19 @@ export default function PerformanceGroupDetail() {
                           variant="outline" 
                           size="sm"
                           onClick={handleBatchEnable}
-                          disabled={batchUpdateStatusMutation.isPending}
+                          disabled={!!pendingBatchAction || batchUpdateStatusMutation.isPending}
                         >
-                          {batchUpdateStatusMutation.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Play className="w-4 h-4 mr-1" />}
-                          批量启用
+                          {pendingBatchAction === 'enable' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Play className="w-4 h-4 mr-1" />}
+                          {pendingBatchAction === 'enable' ? '启用中...' : '批量启用'}
                         </Button>
                         <Button 
                           variant="outline" 
                           size="sm"
                           onClick={handleBatchPause}
-                          disabled={batchUpdateStatusMutation.isPending}
+                          disabled={!!pendingBatchAction || batchUpdateStatusMutation.isPending}
                         >
-                          {batchUpdateStatusMutation.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Pause className="w-4 h-4 mr-1" />}
-                          批量暂停
+                          {pendingBatchAction === 'pause' ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Pause className="w-4 h-4 mr-1" />}
+                          {pendingBatchAction === 'pause' ? '暂停中...' : '批量暂停'}
                         </Button>
                         <Button 
                           variant="destructive" 

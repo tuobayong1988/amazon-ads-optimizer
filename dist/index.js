@@ -344849,7 +344849,13 @@ var performanceGroupRouter = router({
     console.log(`[batchUpdateCampaignStatus] \u51C6\u5907\u540C\u6B65${statusChanges.length}\u4E2Acampaign\u72B6\u6001\u5230Amazon (\u603B\u8BA1${targetCampaigns.length}\u4E2A)`);
     let apiResult = { success: 0, failed: 0, errors: [] };
     if (statusChanges.length > 0 && group.accountId) {
-      apiResult = await syncCampaignStatusToAmazon(group.accountId, statusChanges);
+      try {
+        apiResult = await syncCampaignStatusToAmazon(group.accountId, statusChanges);
+      } catch (syncError) {
+        console.error(`[batchUpdateCampaignStatus] API\u540C\u6B65\u5F02\u5E38:`, syncError.message);
+        apiResult.failed = statusChanges.length;
+        apiResult.errors.push(`API\u540C\u6B65\u8FC7\u7A0B\u53D1\u751F\u5F02\u5E38: ${syncError.message}`);
+      }
     }
     return {
       success: true,
