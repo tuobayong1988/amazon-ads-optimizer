@@ -39,6 +39,7 @@ import { debugSyncRouter } from './debug-sync';
 import { devRouter } from './routes/dev';
 import * as advancedAnalyticsService from './advancedAnalyticsService';
 import * as algorithmEvolutionEngine from './algorithmEvolutionEngine';
+import { syncCampaignStatusToAmazon } from './services/amazonApiHelper';
 import { getExchangeRateStatus, refreshExchangeRates, getExchangeRates } from './services/exchangeRateService';
 
 // ==================== Ad Account Router ====================
@@ -722,6 +723,73 @@ const performanceGroupRouter = router({
       for (const campaignId of input.campaignIds) {
         await db.assignCampaignToPerformanceGroup(campaignId, null);
         // 同时更新优化状态为unmanaged
+        await db.updateCampaign(campaignId, { optimizationStatus: 'unmanaged' });
+        count++;
+      }
+      return { success: true, count };
+    }),
+
+  // v153: 批量更新广告活动状态（暂停/启用），同时同步到Amazon API
+  batchUpdateCampaignStatus: protectedProcedure
+    .input(z.object({
+      groupId: z.number(),
+      campaignIds: z.array(z.number()),
+      newStatus: z.enum(['enabled', 'paused']),
+    }))
+    .mutation(async ({ input }) => {
+      const group = await db.getPerformanceGroupById(input.groupId);
+      if (!group) throw new TRPCError({ code: 'NOT_FOUND', message: '绩效组不存在' });
+      
+      // 获取所有需要更新的campaign详情
+      const campaigns = await db.getCampaignsByPerformanceGroupId(input.groupId);
+      const targetCampaigns = campaigns.filter((c: any) => input.campaignIds.includes(c.id));
+      
+      if (targetCampaigns.length === 0) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: '未找到指定的广告活动' });
+      }
+      
+      // 1. 更新本地数据库状态
+      let localUpdated = 0;
+      for (const campaign of targetCampaigns) {
+        await db.updateCampaign(campaign.id, { campaignStatus: input.newStatus } as any);
+        localUpdated++;
+      }
+      
+      // 2. 同步状态到Amazon API
+      const statusChanges = targetCampaigns
+        .filter((c: any) => c.amazonCampaignId)
+        .map((c: any) => ({
+          campaignId: c.id,
+          amazonCampaignId: c.amazonCampaignId,
+          newStatus: input.newStatus as 'enabled' | 'paused',
+          campaignName: c.campaignName || `Campaign ${c.id}`,
+          reason: `批量${input.newStatus === 'paused' ? '暂停' : '启用'}操作`,
+        }));
+      
+      let apiResult = { success: 0, failed: 0, errors: [] as string[] };
+      if (statusChanges.length > 0 && group.accountId) {
+        apiResult = await syncCampaignStatusToAmazon(group.accountId, statusChanges);
+      }
+      
+      return {
+        success: true,
+        localUpdated,
+        apiSynced: apiResult.success,
+        apiFailed: apiResult.failed,
+        apiErrors: apiResult.errors.slice(0, 5),
+      };
+    }),
+
+  // v153: 批量从绩效组移除广告活动（带groupId验证）
+  batchRemoveCampaignsFromGroup: protectedProcedure
+    .input(z.object({
+      groupId: z.number(),
+      campaignIds: z.array(z.number()),
+    }))
+    .mutation(async ({ input }) => {
+      let count = 0;
+      for (const campaignId of input.campaignIds) {
+        await db.assignCampaignToPerformanceGroup(campaignId, null);
         await db.updateCampaign(campaignId, { optimizationStatus: 'unmanaged' });
         count++;
       }

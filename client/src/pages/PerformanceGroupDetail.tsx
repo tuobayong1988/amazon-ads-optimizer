@@ -60,7 +60,8 @@ import {
   ArrowUpDown,
   ArrowUp,
   ArrowDown,
-  X
+  X,
+  Trash2
 } from "lucide-react";
 
 // 优化目标类型
@@ -126,6 +127,10 @@ export default function PerformanceGroupDetail() {
   // 广告活动管理表格排序状态
   const [campaignSortField, setCampaignSortField] = useState<DialogSortField | null>(null);
   const [campaignSortDirection, setCampaignSortDirection] = useState<'asc' | 'desc'>('desc');
+
+  // v153: 批量选择状态
+  const [selectedManageCampaigns, setSelectedManageCampaigns] = useState<number[]>([]);
+  const [batchActionLoading, setBatchActionLoading] = useState(false);
 
   // 对话框关闭时清空选择和筛选条件
   useEffect(() => {
@@ -215,6 +220,38 @@ export default function PerformanceGroupDetail() {
     },
     onError: (error) => {
       toast.error(`移除失败: ${error.message}`);
+    },
+  });
+
+  // v153: 批量更新广告活动状态
+  const batchUpdateStatusMutation = trpc.performanceGroup.batchUpdateCampaignStatus.useMutation({
+    onSuccess: (data) => {
+      const statusText = data.localUpdated > 0 ? `本地更新${data.localUpdated}个` : '';
+      const apiText = data.apiSynced > 0 ? `，API同步${data.apiSynced}个` : '';
+      const failText = data.apiFailed > 0 ? `，${data.apiFailed}个API同步失败` : '';
+      toast.success(`批量操作完成: ${statusText}${apiText}${failText}`);
+      if (data.apiFailed > 0 && data.apiErrors && data.apiErrors.length > 0) {
+        toast.error(`API同步错误: ${data.apiErrors[0]}`);
+      }
+      setSelectedManageCampaigns([]);
+      refetchCampaigns();
+      refetchGroup();
+    },
+    onError: (error) => {
+      toast.error(`批量操作失败: ${error.message}`);
+    },
+  });
+
+  // v153: 批量从绩效组移除广告活动
+  const batchRemoveMutation = trpc.performanceGroup.batchRemoveCampaignsFromGroup.useMutation({
+    onSuccess: (data) => {
+      toast.success(`已成功移除 ${data.count} 个广告活动`);
+      setSelectedManageCampaigns([]);
+      refetchCampaigns();
+      refetchGroup();
+    },
+    onError: (error) => {
+      toast.error(`批量移除失败: ${error.message}`);
     },
   });
 
@@ -511,6 +548,56 @@ export default function PerformanceGroupDetail() {
     removeCampaignMutation.mutate({
       groupId: groupId!,
       campaignId,
+    });
+  };
+
+  // v153: 批量选择切换
+  const toggleManageCampaignSelection = (campaignId: number) => {
+    setSelectedManageCampaigns(prev => 
+      prev.includes(campaignId) 
+        ? prev.filter(id => id !== campaignId)
+        : [...prev, campaignId]
+    );
+  };
+
+  // v153: 全选/取消全选
+  const toggleSelectAllManageCampaigns = () => {
+    if (!groupCampaigns) return;
+    const allIds = sortedGroupCampaigns.map((c: any) => c.id);
+    if (selectedManageCampaigns.length === allIds.length) {
+      setSelectedManageCampaigns([]);
+    } else {
+      setSelectedManageCampaigns(allIds);
+    }
+  };
+
+  // v153: 批量暂停
+  const handleBatchPause = () => {
+    if (selectedManageCampaigns.length === 0) return;
+    batchUpdateStatusMutation.mutate({
+      groupId: groupId!,
+      campaignIds: selectedManageCampaigns,
+      newStatus: 'paused',
+    });
+  };
+
+  // v153: 批量启用
+  const handleBatchEnable = () => {
+    if (selectedManageCampaigns.length === 0) return;
+    batchUpdateStatusMutation.mutate({
+      groupId: groupId!,
+      campaignIds: selectedManageCampaigns,
+      newStatus: 'enabled',
+    });
+  };
+
+  // v153: 批量移除
+  const handleBatchRemove = () => {
+    if (selectedManageCampaigns.length === 0) return;
+    if (!confirm(`确定要从绩效组中移除 ${selectedManageCampaigns.length} 个广告活动吗？\n移除后这些广告活动将不再被算法自动优化。`)) return;
+    batchRemoveMutation.mutate({
+      groupId: groupId!,
+      campaignIds: selectedManageCampaigns,
     });
   };
 
@@ -1209,10 +1296,54 @@ export default function PerformanceGroupDetail() {
                       管理绩效组内的广告活动，加入的广告活动将被算法自动优化
                     </CardDescription>
                   </div>
-                  <Button onClick={() => setShowAddCampaignsDialog(true)}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    添加广告活动
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {selectedManageCampaigns.length > 0 && (
+                      <>
+                        <span className="text-sm text-muted-foreground mr-1">
+                          已选择 {selectedManageCampaigns.length} 个
+                        </span>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={handleBatchEnable}
+                          disabled={batchUpdateStatusMutation.isPending}
+                        >
+                          {batchUpdateStatusMutation.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Play className="w-4 h-4 mr-1" />}
+                          批量启用
+                        </Button>
+                        <Button 
+                          variant="outline" 
+                          size="sm"
+                          onClick={handleBatchPause}
+                          disabled={batchUpdateStatusMutation.isPending}
+                        >
+                          {batchUpdateStatusMutation.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Pause className="w-4 h-4 mr-1" />}
+                          批量暂停
+                        </Button>
+                        <Button 
+                          variant="destructive" 
+                          size="sm"
+                          onClick={handleBatchRemove}
+                          disabled={batchRemoveMutation.isPending}
+                        >
+                          {batchRemoveMutation.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1" />}
+                          批量移除
+                        </Button>
+                        <Button 
+                          variant="ghost" 
+                          size="sm"
+                          onClick={() => setSelectedManageCampaigns([])}
+                        >
+                          <X className="w-4 h-4 mr-1" />
+                          取消选择
+                        </Button>
+                      </>
+                    )}
+                    <Button onClick={() => setShowAddCampaignsDialog(true)}>
+                      <Plus className="w-4 h-4 mr-2" />
+                      添加广告活动
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -1225,6 +1356,12 @@ export default function PerformanceGroupDetail() {
                     <table className="w-full text-sm">
                       <thead>
                         <tr className="border-b bg-muted/50">
+                          <th className="p-3 w-10">
+                            <Checkbox
+                              checked={groupCampaigns && sortedGroupCampaigns.length > 0 && selectedManageCampaigns.length === sortedGroupCampaigns.length}
+                              onCheckedChange={toggleSelectAllManageCampaigns}
+                            />
+                          </th>
                           <th className="text-left p-3 font-medium">状态</th>
                           <th className="text-left p-3 font-medium min-w-[200px]">
                             <button className="flex items-center hover:text-primary transition-colors" onClick={() => handleCampaignSort('campaignName')}>广告活动名称{getCampaignSortIcon('campaignName')}</button>
@@ -1281,7 +1418,13 @@ export default function PerformanceGroupDetail() {
                           const cvr = clicks > 0 ? (orders / clicks) * 100 : 0;
                           const cpc = clicks > 0 ? spend / clicks : 0;
                           return (
-                            <tr key={campaign.id} className="border-b hover:bg-muted/30 transition-colors">
+                            <tr key={campaign.id} className={`border-b hover:bg-muted/30 transition-colors ${selectedManageCampaigns.includes(campaign.id) ? 'bg-primary/5' : ''}`}>
+                              <td className="p-3">
+                                <Checkbox
+                                  checked={selectedManageCampaigns.includes(campaign.id)}
+                                  onCheckedChange={() => toggleManageCampaignSelection(campaign.id)}
+                                />
+                              </td>
                               <td className="p-3">
                                 <div className={`w-2.5 h-2.5 rounded-full ${campaign.campaignStatus === 'enabled' ? 'bg-green-500' : campaign.campaignStatus === 'paused' ? 'bg-yellow-500' : 'bg-gray-400'}`} title={campaign.campaignStatus === 'enabled' ? '已启用' : campaign.campaignStatus === 'paused' ? '已暂停' : '已归档'} />
                               </td>
@@ -1322,7 +1465,7 @@ export default function PerformanceGroupDetail() {
                       </tbody>
                       <tfoot>
                         <tr className="border-t-2 bg-muted/30 font-medium">
-                          <td className="p-3" colSpan={3}>合计 ({groupCampaigns.length} 个广告活动)</td>
+                          <td className="p-3" colSpan={4}>合计 ({groupCampaigns.length} 个广告活动)</td>
                           <td className="p-3 text-right tabular-nums">{groupCampaigns.reduce((s: number, c: any) => s + Number(c.impressions || 0), 0).toLocaleString()}</td>
                           <td className="p-3 text-right tabular-nums">{groupCampaigns.reduce((s: number, c: any) => s + Number(c.clicks || 0), 0).toLocaleString()}</td>
                           <td className="p-3 text-right tabular-nums">${groupCampaigns.reduce((s: number, c: any) => s + Number(c.spend || 0), 0).toFixed(2)}</td>

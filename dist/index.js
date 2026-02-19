@@ -339862,6 +339862,7 @@ function getEventCategoryLabel(category) {
 
 // server/routers.ts
 init_algorithmEvolutionEngine();
+init_amazonApiHelper();
 init_exchangeRateService();
 
 // server/budgetAlertService.ts
@@ -344496,6 +344497,56 @@ var performanceGroupRouter = router({
   }),
   // 批量移除广告活动从绩效组
   batchRemoveCampaigns: protectedProcedure.input(external_exports.object({
+    campaignIds: external_exports.array(external_exports.number())
+  })).mutation(async ({ input }) => {
+    let count2 = 0;
+    for (const campaignId of input.campaignIds) {
+      await assignCampaignToPerformanceGroup(campaignId, null);
+      await updateCampaign(campaignId, { optimizationStatus: "unmanaged" });
+      count2++;
+    }
+    return { success: true, count: count2 };
+  }),
+  // v153: 批量更新广告活动状态（暂停/启用），同时同步到Amazon API
+  batchUpdateCampaignStatus: protectedProcedure.input(external_exports.object({
+    groupId: external_exports.number(),
+    campaignIds: external_exports.array(external_exports.number()),
+    newStatus: external_exports.enum(["enabled", "paused"])
+  })).mutation(async ({ input }) => {
+    const group = await getPerformanceGroupById(input.groupId);
+    if (!group) throw new TRPCError({ code: "NOT_FOUND", message: "\u7EE9\u6548\u7EC4\u4E0D\u5B58\u5728" });
+    const campaigns6 = await getCampaignsByPerformanceGroupId(input.groupId);
+    const targetCampaigns = campaigns6.filter((c5) => input.campaignIds.includes(c5.id));
+    if (targetCampaigns.length === 0) {
+      throw new TRPCError({ code: "BAD_REQUEST", message: "\u672A\u627E\u5230\u6307\u5B9A\u7684\u5E7F\u544A\u6D3B\u52A8" });
+    }
+    let localUpdated = 0;
+    for (const campaign of targetCampaigns) {
+      await updateCampaign(campaign.id, { campaignStatus: input.newStatus });
+      localUpdated++;
+    }
+    const statusChanges = targetCampaigns.filter((c5) => c5.amazonCampaignId).map((c5) => ({
+      campaignId: c5.id,
+      amazonCampaignId: c5.amazonCampaignId,
+      newStatus: input.newStatus,
+      campaignName: c5.campaignName || `Campaign ${c5.id}`,
+      reason: `\u6279\u91CF${input.newStatus === "paused" ? "\u6682\u505C" : "\u542F\u7528"}\u64CD\u4F5C`
+    }));
+    let apiResult = { success: 0, failed: 0, errors: [] };
+    if (statusChanges.length > 0 && group.accountId) {
+      apiResult = await syncCampaignStatusToAmazon(group.accountId, statusChanges);
+    }
+    return {
+      success: true,
+      localUpdated,
+      apiSynced: apiResult.success,
+      apiFailed: apiResult.failed,
+      apiErrors: apiResult.errors.slice(0, 5)
+    };
+  }),
+  // v153: 批量从绩效组移除广告活动（带groupId验证）
+  batchRemoveCampaignsFromGroup: protectedProcedure.input(external_exports.object({
+    groupId: external_exports.number(),
     campaignIds: external_exports.array(external_exports.number())
   })).mutation(async ({ input }) => {
     let count2 = 0;
