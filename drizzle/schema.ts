@@ -3361,3 +3361,129 @@ export const optimizationLogs = mysqlTable("optimization_logs", {
 // 优化日志类型导出
 export type OptimizationLog = InferSelectModel<typeof optimizationLogs>;
 export type InsertOptimizationLog = InferInsertModel<typeof optimizationLogs>;
+
+
+// ============================================================
+// 统一优化事件表 - 合并 biddingLogs + bidAdjustmentHistory + optimizationLogs
+// ============================================================
+export const optimizationEvents = mysqlTable("optimization_events", {
+  id: int().autoincrement().notNull(),
+  
+  // === 基础信息 ===
+  performanceGroupId: int("performance_group_id"),
+  performanceGroupName: varchar("performance_group_name", { length: 255 }),
+  accountId: int("account_id").notNull(),
+  accountName: varchar("account_name", { length: 255 }),
+  userId: int("user_id"),
+  userName: varchar("user_name", { length: 255 }),
+  
+  // === 事件分类 ===
+  eventCategory: mysqlEnum("event_category", [
+    'bid_adjustment',
+    'placement_adjustment',
+    'budget_adjustment',
+    'search_term_action',
+    'keyword_action',
+    'campaign_action',
+    'adgroup_action',
+    'target_management',
+    'settings_change',
+  ]).notNull(),
+  
+  // === 操作类型 ===
+  actionType: mysqlEnum("action_type", [
+    'bid_increase', 'bid_decrease', 'bid_set', 'bid_auto_adjust', 'dayparting_bid',
+    'budget_increase', 'budget_decrease', 'budget_set', 'budget_adjustment',
+    'placement_adjust', 'placement_enable', 'placement_disable',
+    'search_term_harvest', 'negative_keyword_add', 'negative_keyword_remove', 'keyword_create',
+    'target_pause', 'target_enable',
+    'campaign_pause', 'campaign_enable',
+    'adgroup_pause', 'adgroup_enable',
+    'create_target', 'update_target', 'delete_target', 'pause_target', 'resume_target',
+    'add_campaign', 'remove_campaign',
+    'settings_update', 'strategy_change', 'schedule_update',
+  ]).notNull(),
+  
+  // === 策略模板信息 ===
+  strategyTemplateId: int("strategy_template_id"),
+  strategyTemplateName: varchar("strategy_template_name", { length: 255 }),
+  
+  // === 广告活动/广告组信息 ===
+  campaignId: int("campaign_id"),
+  campaignName: varchar("campaign_name", { length: 500 }),
+  adGroupId: int("ad_group_id"),
+  adGroupName: varchar("ad_group_name", { length: 500 }),
+  
+  // === 关键词/投放目标信息 ===
+  keywordId: int("keyword_id"),
+  keywordText: varchar("keyword_text", { length: 500 }),
+  matchType: varchar("match_type", { length: 32 }),
+  targetId: int("target_id"),
+  targetName: varchar("target_name", { length: 500 }),
+  
+  // === 出价调整详情 ===
+  previousBid: decimal("previous_bid", { precision: 10, scale: 2 }),
+  newBid: decimal("new_bid", { precision: 10, scale: 2 }),
+  bidChangePercent: decimal("bid_change_percent", { precision: 10, scale: 2 }),
+  
+  // === 通用变更详情 ===
+  previousValue: varchar("previous_value", { length: 500 }),
+  newValue: varchar("new_value", { length: 500 }),
+  changeReason: text("change_reason"),
+  actionDetail: text("action_detail"),
+  
+  // === 算法信息 ===
+  algorithmVersion: varchar("algorithm_version", { length: 32 }),
+  optimizationScore: int("optimization_score"),
+  expectedProfitIncrease: decimal("expected_profit_increase", { precision: 10, scale: 2 }),
+  performanceData: json("performance_data"),
+  adjustmentType: varchar("adjustment_type", { length: 64 }),
+  
+  // === 执行状态 ===
+  status: mysqlEnum("status", ['pending', 'success', 'failed', 'rolled_back', 'skipped']).default('pending'),
+  errorMessage: text("error_message"),
+  
+  // === Amazon API 同步状态 ===
+  apiSyncStatus: mysqlEnum("api_sync_status", ['pending', 'synced', 'failed', 'not_applicable']).default('pending'),
+  apiSyncDetail: text("api_sync_detail"),
+  apiResponseId: varchar("api_response_id", { length: 128 }),
+  apiSyncedAt: datetime("api_synced_at", { mode: 'string' }),
+  
+  // === 效果追踪字段 ===
+  actualProfit7D: decimal("actual_profit_7d", { precision: 10, scale: 2 }),
+  actualProfit14D: decimal("actual_profit_14d", { precision: 10, scale: 2 }),
+  actualProfit30D: decimal("actual_profit_30d", { precision: 10, scale: 2 }),
+  actualImpressions7D: int("actual_impressions_7d"),
+  actualClicks7D: int("actual_clicks_7d"),
+  actualConversions7D: int("actual_conversions_7d"),
+  actualSpend7D: decimal("actual_spend_7d", { precision: 10, scale: 2 }),
+  actualRevenue7D: decimal("actual_revenue_7d", { precision: 10, scale: 2 }),
+  trackingUpdatedAt: datetime("tracking_updated_at", { mode: 'string' }),
+  
+  // === 回滚信息 ===
+  rolledBackAt: datetime("rolled_back_at", { mode: 'string' }),
+  rolledBackBy: varchar("rolled_back_by", { length: 255 }),
+  
+  // === 来源追溯 ===
+  sourceTable: varchar("source_table", { length: 64 }),
+  sourceId: int("source_id"),
+  
+  // === 时间戳 ===
+  createdAt: datetime("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+  executedAt: datetime("executed_at", { mode: 'string' }),
+},
+(table) => [
+  index("idx_oe_performance_group").on(table.performanceGroupId),
+  index("idx_oe_account").on(table.accountId),
+  index("idx_oe_user").on(table.userId),
+  index("idx_oe_event_category").on(table.eventCategory),
+  index("idx_oe_action_type").on(table.actionType),
+  index("idx_oe_campaign").on(table.campaignId),
+  index("idx_oe_keyword").on(table.keywordId),
+  index("idx_oe_status").on(table.status),
+  index("idx_oe_api_sync_status").on(table.apiSyncStatus),
+  index("idx_oe_created_at").on(table.createdAt),
+  index("idx_oe_pg_category_created").on(table.performanceGroupId, table.eventCategory, table.createdAt),
+]);
+export type OptimizationEvent = InferSelectModel<typeof optimizationEvents>;
+export type InsertOptimizationEvent = InferInsertModel<typeof optimizationEvents>;

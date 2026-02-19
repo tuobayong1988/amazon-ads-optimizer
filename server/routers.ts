@@ -1218,6 +1218,90 @@ const performanceGroupRouter = router({
         pageSize: result.pageSize,
       };
     }),
+
+  // ==================== v145: 统一优化事件 API ====================
+  
+  // 查询统一优化事件
+  getOptimizationEvents: protectedProcedure
+    .input(z.object({
+      performanceGroupId: z.number(),
+      eventCategory: z.string().optional(),
+      actionType: z.string().optional(),
+      status: z.string().optional(),
+      campaignId: z.number().optional(),
+      startDate: z.string().optional(),
+      endDate: z.string().optional(),
+      page: z.number().optional().default(1),
+      pageSize: z.number().optional().default(50),
+    }))
+    .query(async ({ input }) => {
+      const group = await db.getPerformanceGroupById(input.performanceGroupId);
+      if (!group) throw new Error('Performance group not found');
+      const result = await db.getOptimizationEvents({
+        performanceGroupId: input.performanceGroupId,
+        accountId: group.accountId,
+        eventCategory: input.eventCategory,
+        actionType: input.actionType,
+        status: input.status,
+        campaignId: input.campaignId,
+        startDate: input.startDate,
+        endDate: input.endDate,
+        limit: input.pageSize,
+        offset: (input.page - 1) * input.pageSize,
+      });
+      return { ...result, page: input.page, pageSize: input.pageSize };
+    }),
+
+  // 获取统一优化事件统计
+  getOptimizationEventStats: protectedProcedure
+    .input(z.object({
+      performanceGroupId: z.number(),
+      days: z.number().optional().default(30),
+    }))
+    .query(async ({ input }) => {
+      const group = await db.getPerformanceGroupById(input.performanceGroupId);
+      if (!group) throw new Error('Performance group not found');
+      return db.getOptimizationEventStats({
+        performanceGroupId: input.performanceGroupId,
+        accountId: group.accountId,
+        days: input.days,
+      });
+    }),
+
+  // 回滚统一优化事件
+  rollbackOptimizationEvent: protectedProcedure
+    .input(z.object({
+      eventId: z.number(),
+    }))
+    .mutation(async ({ input, ctx }) => {
+      return db.rollbackOptimizationEvent(input.eventId, ctx.user.name || ctx.user.openId);
+    }),
+
+  // 数据迁移API - 将旧表数据迁移到optimization_events
+  migrateToUnifiedEvents: protectedProcedure
+    .input(z.object({
+      performanceGroupId: z.number(),
+      sourceTables: z.array(z.enum(['bidding_logs', 'bid_adjustment_history', 'optimization_logs'])).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const group = await db.getPerformanceGroupById(input.performanceGroupId);
+      if (!group) throw new Error('Performance group not found');
+      
+      const results: Record<string, number> = {};
+      const tables = input.sourceTables || ['bidding_logs', 'bid_adjustment_history', 'optimization_logs'];
+      
+      if (tables.includes('bidding_logs')) {
+        results.biddingLogs = await db.migrateFromBiddingLogs(group.accountId);
+      }
+      if (tables.includes('bid_adjustment_history')) {
+        results.bidAdjustmentHistory = await db.migrateFromBidAdjustmentHistory(group.accountId);
+      }
+      if (tables.includes('optimization_logs')) {
+        results.optimizationLogs = await db.migrateFromOptimizationLogs(input.performanceGroupId);
+      }
+      
+      return { success: true, migrated: results, total: Object.values(results).reduce((a, b) => a + b, 0) };
+    }),
 });
 
 // ==================== Campaign Router ====================
@@ -2149,6 +2233,8 @@ const productTargetRouter = router({
 });
 
 // ==================== Bidding Log Router ====================
+// v145: biddingLogRouter已废弃，数据已迁移到optimization_events统一表
+// 保留路由定义以兼容可能的旧API调用，但不再在前端使用
 const biddingLogRouter = router({
   list: protectedProcedure
     .input(z.object({

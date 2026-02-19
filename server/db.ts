@@ -36,7 +36,8 @@ import {
   syncConflicts, SyncConflict, InsertSyncConflict,
   syncTaskQueue, SyncTaskQueue, InsertSyncTaskQueue,
   syncChangeSummary, SyncChangeSummary, InsertSyncChangeSummary,
-  optimizationLogs, OptimizationLog, InsertOptimizationLog
+  optimizationLogs, OptimizationLog, InsertOptimizationLog,
+  optimizationEvents, OptimizationEvent, InsertOptimizationEvent
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
@@ -660,7 +661,35 @@ export async function createBiddingLog(log: InsertBiddingLog) {
   if (!db) throw new Error("Database not available");
   
   const result = await db.insert(biddingLogs).values(log);
-  return result[0].insertId;
+  const logId = result[0].insertId;
+  
+  // v145: 双写到统一优化事件表
+  try {
+    const bidChange = Number(log.newBid || 0) - Number(log.previousBid || 0);
+    await db.insert(optimizationEvents).values({
+      accountId: log.accountId || 0,
+      eventCategory: 'bid_adjustment',
+      actionType: bidChange > 0 ? 'bid_increase' : bidChange < 0 ? 'bid_decrease' : 'bid_set',
+      campaignId: log.campaignId,
+      campaignName: (log as any).campaignName as string || undefined,
+      keywordId: log.targetId,
+      keywordText: (log as any).keywordText as string || undefined,
+      matchType: log.logMatchType as string || undefined,
+      previousBid: String(log.previousBid || 0),
+      newBid: String(log.newBid || 0),
+      bidChangePercent: Number(log.previousBid) > 0 ? String(Math.round(bidChange / Number(log.previousBid) * 10000) / 100) : '0',
+      changeReason: log.reason as string || undefined,
+      adjustmentType: log.actionType as string || undefined,
+      status: 'success',
+      apiSyncStatus: 'not_applicable',
+      sourceTable: 'bidding_logs',
+      sourceId: Number(logId),
+    });
+  } catch (e) {
+    console.error('[v145] 双写optimization_events失败(biddingLog):', e);
+  }
+  
+  return logId;
 }
 
 export async function getBiddingLogsByAccountId(accountId: number, limit = 100, offset = 0) {
@@ -3057,6 +3086,41 @@ export async function recordBidAdjustment(data: {
     errorMessage: data.errorMessage,
   });
   
+  // v145: 双写到统一优化事件表
+  try {
+    const bidChange = data.newBid - data.previousBid;
+    const statusMap: Record<string, string> = {
+      'applied': 'success', 'pending': 'pending', 'failed': 'failed', 'rolled_back': 'rolled_back'
+    };
+    await db.insert(optimizationEvents).values({
+      performanceGroupId: data.performanceGroupId,
+      performanceGroupName: data.performanceGroupName,
+      accountId: data.accountId,
+      eventCategory: 'bid_adjustment',
+      actionType: bidChange > 0 ? 'bid_increase' : bidChange < 0 ? 'bid_decrease' : 'bid_set',
+      campaignId: data.campaignId,
+      campaignName: data.campaignName,
+      keywordId: data.keywordId,
+      keywordText: data.keywordText,
+      matchType: data.matchType,
+      previousBid: String(data.previousBid),
+      newBid: String(data.newBid),
+      bidChangePercent: String(Math.round(bidChangePercent * 100) / 100),
+      changeReason: data.adjustmentReason,
+      adjustmentType: data.adjustmentType,
+      algorithmVersion: undefined,
+      optimizationScore: data.optimizationScore,
+      expectedProfitIncrease: data.expectedProfitIncrease ? String(data.expectedProfitIncrease) : undefined,
+      status: (statusMap[data.status || 'applied'] || 'success') as any,
+      apiSyncStatus: 'synced',
+      errorMessage: data.errorMessage,
+      sourceTable: 'bid_adjustment_history',
+      sourceId: Number(result[0]?.insertId || 0),
+    });
+  } catch (e) {
+    console.error('[v145] 双写optimization_events失败(bidAdjustment):', e);
+  }
+  
   return result;
 }
 
@@ -4784,7 +4848,65 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
   if (!db) throw new Error("Database not available");
   
   const result = await db.insert(optimizationLogs).values(data);
-  return Number(result[0].insertId);
+  const logId = Number(result[0].insertId);
+  
+  // v145: 双写到统一优化事件表
+  try {
+    const categoryMap: Record<string, string> = {
+      'bid_optimization': 'bid_adjustment',
+      'placement_optimization': 'placement_adjustment',
+      'budget_optimization': 'budget_adjustment',
+      'search_term_optimization': 'search_term_action',
+      'keyword_management': 'keyword_action',
+      'campaign_management': 'campaign_action',
+      'target_management': 'target_management',
+      'settings': 'settings_change',
+    };
+    const actionTypeMap: Record<string, string> = {
+      'bid_increase': 'bid_increase', 'bid_decrease': 'bid_decrease', 'bid_set': 'bid_set',
+      'bid_auto_adjust': 'bid_auto_adjust', 'dayparting_bid': 'dayparting_bid',
+      'budget_increase': 'budget_increase', 'budget_decrease': 'budget_decrease',
+      'budget_set': 'budget_set', 'budget_adjustment': 'budget_adjustment',
+      'placement_adjust': 'placement_adjust',
+      'search_term_harvest': 'search_term_harvest', 'negative_keyword_add': 'negative_keyword_add',
+      'negative_keyword_remove': 'negative_keyword_remove', 'keyword_create': 'keyword_create',
+      'target_pause': 'target_pause', 'target_enable': 'target_enable',
+      'campaign_pause': 'campaign_pause', 'campaign_enable': 'campaign_enable',
+      'create_target': 'create_target', 'update_target': 'update_target',
+      'delete_target': 'delete_target', 'pause_target': 'pause_target', 'resume_target': 'resume_target',
+      'add_campaign': 'add_campaign', 'remove_campaign': 'remove_campaign',
+      'settings_update': 'settings_update', 'strategy_change': 'strategy_change',
+    };
+    await db.insert(optimizationEvents).values({
+      performanceGroupId: data.performanceGroupId,
+      performanceGroupName: data.performanceGroupName,
+      accountId: data.accountId || 0,
+      accountName: data.accountName,
+      userId: data.userId,
+      userName: data.userName,
+      eventCategory: (categoryMap[data.logCategory || ''] || 'settings_change') as any,
+      actionType: (actionTypeMap[data.actionType || ''] || 'settings_update') as any,
+      strategyTemplateId: data.strategyTemplateId,
+      strategyTemplateName: data.strategyTemplateName,
+      campaignId: data.campaignId,
+      campaignName: data.campaignName,
+      previousValue: data.previousValue,
+      newValue: data.newValue,
+      changeReason: data.changeReason,
+      actionDetail: data.actionDetail,
+      status: (data.status as any) || 'success',
+      apiSyncStatus: data.apiSyncStatus as any,
+      apiSyncDetail: data.apiSyncDetail,
+      errorMessage: data.errorMessage,
+      sourceTable: 'optimization_logs',
+      sourceId: logId,
+      executedAt: data.executedAt,
+    });
+  } catch (e) {
+    console.error('[v145] 双写optimization_events失败:', e);
+  }
+  
+  return logId;
 }
 
 /**
@@ -4917,4 +5039,386 @@ export async function batchCreateOptimizationLogs(logs: InsertOptimizationLog[])
   
   await db.insert(optimizationLogs).values(logs);
   return logs.length;
+}
+
+
+// ============================================================
+// 统一优化事件表 (optimization_events) CRUD 函数
+// ============================================================
+
+/**
+ * 插入单条优化事件
+ */
+export async function insertOptimizationEvent(event: InsertOptimizationEvent): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(optimizationEvents).values(event);
+  return result[0].insertId;
+}
+
+/**
+ * 批量插入优化事件
+ */
+export async function batchInsertOptimizationEvents(events: InsertOptimizationEvent[]): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  if (events.length === 0) return 0;
+  
+  await db.insert(optimizationEvents).values(events);
+  return events.length;
+}
+
+/**
+ * 查询优化事件 - 统一查询接口，支持多维度过滤
+ */
+export async function getOptimizationEvents(params: {
+  performanceGroupId?: number;
+  accountId?: number;
+  eventCategory?: string;
+  actionType?: string;
+  status?: string;
+  campaignId?: number;
+  keywordId?: number;
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{ events: OptimizationEvent[]; total: number }> {
+  const db = await getDb();
+  if (!db) return { events: [], total: 0 };
+  
+  const conditions = [];
+  if (params.performanceGroupId) conditions.push(eq(optimizationEvents.performanceGroupId, params.performanceGroupId));
+  if (params.accountId) conditions.push(eq(optimizationEvents.accountId, params.accountId));
+  if (params.eventCategory) conditions.push(sql`${optimizationEvents.eventCategory} = ${params.eventCategory}`);
+  if (params.actionType) conditions.push(sql`${optimizationEvents.actionType} = ${params.actionType}`);
+  if (params.status) conditions.push(sql`${optimizationEvents.status} = ${params.status}`);
+  if (params.campaignId) conditions.push(eq(optimizationEvents.campaignId, params.campaignId));
+  if (params.keywordId) conditions.push(eq(optimizationEvents.keywordId, params.keywordId));
+  if (params.startDate) conditions.push(gte(optimizationEvents.createdAt, params.startDate));
+  if (params.endDate) conditions.push(lte(optimizationEvents.createdAt, params.endDate));
+  
+  const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+  
+  const [events, countResult] = await Promise.all([
+    db.select()
+      .from(optimizationEvents)
+      .where(whereClause)
+      .orderBy(desc(optimizationEvents.createdAt))
+      .limit(params.limit || 50)
+      .offset(params.offset || 0),
+    db.select({ count: sql<number>`count(*)` })
+      .from(optimizationEvents)
+      .where(whereClause)
+  ]);
+  
+  return { events, total: countResult[0]?.count || 0 };
+}
+
+/**
+ * 获取优化事件统计 - 按事件类别和状态汇总
+ */
+export async function getOptimizationEventStats(params: {
+  performanceGroupId?: number;
+  accountId?: number;
+  days?: number;
+}): Promise<{
+  totalEvents: number;
+  byCategory: { category: string; count: number }[];
+  byStatus: { status: string; count: number }[];
+  successRate: number;
+  recentTrend: { date: string; count: number }[];
+}> {
+  const db = await getDb();
+  if (!db) return { totalEvents: 0, byCategory: [], byStatus: [], successRate: 0, recentTrend: [] };
+  
+  const days = params.days || 30;
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - days);
+  const startDateStr = startDate.toISOString().slice(0, 19).replace('T', ' ');
+  
+  const conditions = [gte(optimizationEvents.createdAt, startDateStr)];
+  if (params.performanceGroupId) conditions.push(eq(optimizationEvents.performanceGroupId, params.performanceGroupId));
+  if (params.accountId) conditions.push(eq(optimizationEvents.accountId, params.accountId));
+  
+  const whereClause = and(...conditions);
+  
+  const [totalResult, byCategoryResult, byStatusResult, trendResult] = await Promise.all([
+    db.select({ count: sql<number>`count(*)` })
+      .from(optimizationEvents).where(whereClause),
+    db.select({
+      category: optimizationEvents.eventCategory,
+      count: sql<number>`count(*)`
+    }).from(optimizationEvents).where(whereClause)
+      .groupBy(optimizationEvents.eventCategory),
+    db.select({
+      status: optimizationEvents.status,
+      count: sql<number>`count(*)`
+    }).from(optimizationEvents).where(whereClause)
+      .groupBy(optimizationEvents.status),
+    db.select({
+      date: sql<string>`DATE(created_at)`,
+      count: sql<number>`count(*)`
+    }).from(optimizationEvents).where(whereClause)
+      .groupBy(sql`DATE(created_at)`)
+      .orderBy(sql`DATE(created_at)`)
+  ]);
+  
+  const totalEvents = totalResult[0]?.count || 0;
+  const successCount = byStatusResult.find(r => r.status === 'success')?.count || 0;
+  const failedCount = byStatusResult.find(r => r.status === 'failed')?.count || 0;
+  const executedCount = successCount + failedCount;
+  
+  return {
+    totalEvents,
+    byCategory: byCategoryResult.map(r => ({ category: r.category || '', count: r.count })),
+    byStatus: byStatusResult.map(r => ({ status: r.status || '', count: r.count })),
+    successRate: executedCount > 0 ? Math.round((successCount / executedCount) * 100) : 0,
+    recentTrend: trendResult.map(r => ({ date: r.date, count: r.count }))
+  };
+}
+
+/**
+ * 获取出价调整事件（含效果追踪数据）
+ */
+export async function getBidAdjustmentEvents(params: {
+  performanceGroupId?: number;
+  accountId?: number;
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{ events: OptimizationEvent[]; total: number }> {
+  return getOptimizationEvents({
+    ...params,
+    eventCategory: 'bid_adjustment',
+  });
+}
+
+/**
+ * 回滚优化事件
+ */
+export async function rollbackOptimizationEvent(eventId: number, rolledBackBy: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.update(optimizationEvents)
+    .set({
+      status: 'rolled_back',
+      rolledBackAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      rolledBackBy,
+    })
+    .where(eq(optimizationEvents.id, eventId));
+  
+  return true;
+}
+
+/**
+ * 更新优化事件的效果追踪数据
+ */
+export async function updateOptimizationEventTracking(eventId: number, trackingData: {
+  actualProfit7D?: string;
+  actualProfit14D?: string;
+  actualProfit30D?: string;
+  actualImpressions7D?: number;
+  actualClicks7D?: number;
+  actualConversions7D?: number;
+  actualSpend7D?: string;
+  actualRevenue7D?: string;
+}): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  await db.update(optimizationEvents)
+    .set({
+      ...trackingData,
+      trackingUpdatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+    })
+    .where(eq(optimizationEvents.id, eventId));
+}
+
+/**
+ * 数据迁移辅助函数 - 从旧表迁移到optimization_events
+ * 用于一次性数据迁移，迁移完成后可删除
+ */
+export async function migrateFromBiddingLogs(accountId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const oldLogs = await db.select().from(biddingLogs)
+    .where(eq(biddingLogs.accountId, accountId))
+    .orderBy(desc(biddingLogs.createdAt));
+  
+  if (oldLogs.length === 0) return 0;
+  
+  const events: InsertOptimizationEvent[] = oldLogs.map(log => ({
+    accountId: log.accountId,
+    eventCategory: 'bid_adjustment' as const,
+    actionType: log.actionType === 'increase' ? 'bid_increase' as const : 
+                log.actionType === 'decrease' ? 'bid_decrease' as const : 'bid_set' as const,
+    campaignId: log.campaignId,
+    adGroupId: log.adGroupId,
+    keywordId: log.targetId,
+    targetName: log.targetName,
+    previousBid: log.previousBid,
+    newBid: log.newBid,
+    bidChangePercent: log.bidChangePercent,
+    changeReason: log.reason,
+    status: log.executionStatus === 'success' ? 'success' as const : 
+            log.executionStatus === 'failed' ? 'failed' as const : 'pending' as const,
+    apiResponseId: log.apiResponseId,
+    errorMessage: log.errorMessage,
+    sourceTable: 'bidding_logs',
+    sourceId: log.id,
+    createdAt: log.createdAt,
+  }));
+  
+  await db.insert(optimizationEvents).values(events);
+  return events.length;
+}
+
+export async function migrateFromBidAdjustmentHistory(accountId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const oldRecords = await db.select().from(bidAdjustmentHistory)
+    .where(eq(bidAdjustmentHistory.accountId, accountId))
+    .orderBy(desc(bidAdjustmentHistory.appliedAt));
+  
+  if (oldRecords.length === 0) return 0;
+  
+  const events = oldRecords.map(record => ({
+    performanceGroupId: record.performanceGroupId,
+    accountId: record.accountId,
+    eventCategory: 'bid_adjustment' as const,
+    actionType: record.adjustmentType?.includes('increase') ? 'bid_increase' as const :
+                record.adjustmentType?.includes('decrease') ? 'bid_decrease' as const : 'bid_auto_adjust' as const,
+    campaignId: record.campaignId,
+    keywordId: record.keywordId,
+    keywordText: record.keywordText,
+    matchType: record.matchType,
+    previousBid: record.previousBid,
+    newBid: record.newBid,
+    changeReason: record.adjustmentReason,
+    adjustmentType: record.adjustmentType,
+    status: record.status === 'applied' ? 'success' as const :
+            record.status === 'rolled_back' ? 'rolled_back' as const :
+            record.status === 'failed' ? 'failed' as const : 'pending' as const,
+    expectedProfitIncrease: record.expectedProfitIncrease,
+    actualProfit7D: record.actualProfit7D,
+    actualProfit14D: record.actualProfit14D,
+    actualProfit30D: record.actualProfit30D,
+    actualImpressions7D: record.actualImpressions7D,
+    actualClicks7D: record.actualClicks7D,
+    actualConversions7D: record.actualConversions7D,
+    actualSpend7D: record.actualSpend7D,
+    actualRevenue7D: record.actualRevenue7D,
+    trackingUpdatedAt: record.trackingUpdatedAt,
+    rolledBackAt: record.rolledBackAt,
+    rolledBackBy: record.rolledBackBy,
+    sourceTable: 'bid_adjustment_history',
+    sourceId: record.id,
+    createdAt: record.appliedAt,
+  }));
+  
+  await db.insert(optimizationEvents).values(events as any);
+  return events.length;
+}
+
+export async function migrateFromOptimizationLogs(performanceGroupId: number): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const oldLogs = await db.select().from(optimizationLogs)
+    .where(eq(optimizationLogs.performanceGroupId, performanceGroupId))
+    .orderBy(desc(optimizationLogs.createdAt));
+  
+  if (oldLogs.length === 0) return 0;
+  
+  // 映射logCategory到eventCategory
+  const categoryMap: Record<string, string> = {
+    'bid_optimization': 'bid_adjustment',
+    'placement_optimization': 'placement_adjustment',
+    'budget_optimization': 'budget_adjustment',
+    'search_term_optimization': 'search_term_action',
+    'keyword_management': 'keyword_action',
+    'campaign_management': 'campaign_action',
+    'target_management': 'target_management',
+    'settings': 'settings_change',
+  };
+  
+  // 映射actionType
+  const actionTypeMap: Record<string, string> = {
+    'bid_increase': 'bid_increase',
+    'bid_decrease': 'bid_decrease',
+    'bid_set': 'bid_set',
+    'bid_auto_adjust': 'bid_auto_adjust',
+    'dayparting_bid': 'dayparting_bid',
+    'budget_increase': 'budget_increase',
+    'budget_decrease': 'budget_decrease',
+    'budget_set': 'budget_set',
+    'budget_adjustment': 'budget_adjustment',
+    'placement_adjust': 'placement_adjust',
+    'search_term_harvest': 'search_term_harvest',
+    'negative_keyword_add': 'negative_keyword_add',
+    'negative_keyword_remove': 'negative_keyword_remove',
+    'keyword_create': 'keyword_create',
+    'target_pause': 'target_pause',
+    'target_enable': 'target_enable',
+    'campaign_pause': 'campaign_pause',
+    'campaign_enable': 'campaign_enable',
+    'create_target': 'create_target',
+    'update_target': 'update_target',
+    'delete_target': 'delete_target',
+    'pause_target': 'pause_target',
+    'resume_target': 'resume_target',
+    'add_campaign': 'add_campaign',
+    'remove_campaign': 'remove_campaign',
+    'settings_update': 'settings_update',
+    'strategy_change': 'strategy_change',
+  };
+  
+  const events: InsertOptimizationEvent[] = oldLogs.map(log => {
+    const mappedCategory = categoryMap[log.logCategory || ''] || 'settings_change';
+    const mappedAction = actionTypeMap[log.actionType || ''] || 'settings_update';
+    
+    return {
+      performanceGroupId: log.performanceGroupId,
+      performanceGroupName: log.performanceGroupName,
+      accountId: log.accountId,
+      accountName: log.accountName,
+      userId: log.userId,
+      userName: log.userName,
+      eventCategory: mappedCategory as any,
+      actionType: mappedAction as any,
+      strategyTemplateId: log.strategyTemplateId,
+      strategyTemplateName: log.strategyTemplateName,
+      campaignId: log.campaignId,
+      campaignName: log.campaignName,
+      previousValue: log.previousValue,
+      newValue: log.newValue,
+      changeReason: log.changeReason,
+      actionDetail: log.actionDetail,
+      status: log.status as any || 'success',
+      apiSyncStatus: log.apiSyncStatus as any,
+      apiSyncDetail: log.apiSyncDetail,
+      errorMessage: log.errorMessage,
+      sourceTable: 'optimization_logs',
+      sourceId: log.id,
+      createdAt: log.createdAt,
+      executedAt: log.executedAt,
+    };
+  });
+  
+  // 分批插入（避免一次性插入太多）
+  const batchSize = 500;
+  let migrated = 0;
+  for (let i = 0; i < events.length; i += batchSize) {
+    const batch = events.slice(i, i + batchSize);
+    await db.insert(optimizationEvents).values(batch);
+    migrated += batch.length;
+  }
+  
+  return migrated;
 }
