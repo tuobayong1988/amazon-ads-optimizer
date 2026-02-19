@@ -37,6 +37,7 @@ import { smartCampaignRouter } from './routes/smartCampaign';
 import { multiTenantRouter } from './routes/multiTenant';
 import { debugSyncRouter } from './debug-sync';
 import { devRouter } from './routes/dev';
+import * as advancedAnalyticsService from './advancedAnalyticsService';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
@@ -2622,6 +2623,77 @@ const analyticsRouter = router({
       
       // 返回有数据的区域
       return Object.values(regionData).filter(r => r.accountCount > 0);
+    }),
+});
+
+// ==================== Advanced Analytics Router ====================
+const advancedAnalyticsRouter = router({
+  // 获取高级分析仪表盘汇总
+  getSummary: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      performanceGroupId: z.number().optional(),
+      days: z.number().optional().default(30),
+    }))
+    .query(async ({ input }) => {
+      return advancedAnalyticsService.getAdvancedAnalyticsSummary(input);
+    }),
+  
+  // 获取归因分析结果
+  getAttribution: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      performanceGroupId: z.number().optional(),
+      days: z.number().optional().default(30),
+      limit: z.number().optional().default(20),
+      offset: z.number().optional().default(0),
+      eventCategory: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      return advancedAnalyticsService.getAttributionAnalysis(input);
+    }),
+  
+  // 获取趋势分析
+  getTrendAnalysis: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      performanceGroupId: z.number().optional(),
+      days: z.number().optional().default(30),
+      metrics: z.array(z.string()).optional(),
+    }))
+    .query(async ({ input }) => {
+      return advancedAnalyticsService.getTrendAnalysis(input);
+    }),
+  
+  // 获取异常检测结果
+  getAnomalies: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      performanceGroupId: z.number().optional(),
+      days: z.number().optional().default(30),
+      sensitivity: z.number().optional().default(2),
+    }))
+    .query(async ({ input }) => {
+      return advancedAnalyticsService.detectAnomalies(input);
+    }),
+  
+  // 获取策略ROI对比
+  getStrategyROI: protectedProcedure
+    .input(z.object({
+      accountId: z.number().optional(),
+      performanceGroupId: z.number().optional(),
+      days: z.number().optional().default(30),
+      groupBy: z.enum(['strategy', 'actionType', 'eventCategory']).optional().default('strategy'),
+    }))
+    .query(async ({ input }) => {
+      return advancedAnalyticsService.getStrategyROIComparison(input);
+    }),
+  
+  // 手动触发效果追踪任务
+  triggerEffectTracking: protectedProcedure
+    .mutation(async () => {
+      const results = await advancedAnalyticsService.runAllUnifiedTrackingTasks();
+      return { success: true, message: '效果追踪任务执行完成', results };
     }),
 });
 
@@ -11742,6 +11814,7 @@ export const appRouter = router({
   mlOptimization: mlOptimizationRouter,
   smartCampaign: smartCampaignRouter,
   multiTenant: multiTenantRouter,
+  advancedAnalytics: advancedAnalyticsRouter,
 });
 
 export type AppRouter = typeof appRouter;

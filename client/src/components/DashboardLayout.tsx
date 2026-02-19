@@ -88,6 +88,7 @@ const menuGroups = [
     items: [
       { icon: BarChart3, label: "数据分析", path: "/analytics-insights" },
       { icon: Activity, label: "算法效果仪表盘", path: "/algorithm-effect-dashboard" },
+      { icon: Brain, label: "高级分析", path: "/advanced-analytics" },
       { icon: Shield, label: "审计日志", path: "/audit-logs" },
     ]
   },
