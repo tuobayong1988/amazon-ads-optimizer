@@ -134554,8 +134554,27 @@ function shouldExecuteThisHour(taskType) {
   lastExecutionHour[taskType] = hourKey;
   return true;
 }
-function startOptimizationScheduler() {
-  console.log("[OptimizationScheduler] \u542F\u52A8v143\u751F\u547D\u5468\u671F\u611F\u77E5\u667A\u80FD\u4F18\u5316\u8C03\u5EA6\u5668...");
+async function startOptimizationScheduler() {
+  console.log("[OptimizationScheduler] \u542F\u52A8v156\u751F\u547D\u5468\u671F\u611F\u77E5\u667A\u80FD\u4F18\u5316\u8C03\u5EA6\u5668...");
+  try {
+    const { getEnabledOptimizationTargets: getEnabledOptimizationTargets2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
+    const targets = await getEnabledOptimizationTargets2();
+    for (const target of targets) {
+      if (target.lastExecutionTime) {
+        const modules = ["bid", "negativeKeyword", "searchTermHarvest", "placement", "budget", "dayparting"];
+        for (const mod of modules) {
+          const key = `${target.id}:${mod}`;
+          if (!moduleLastExecutionMap.has(key)) {
+            moduleLastExecutionMap.set(key, target.lastExecutionTime);
+          }
+        }
+        console.log(`[OptimizationScheduler] v156: \u6062\u590D\u4F18\u5316\u76EE\u6807 ${target.name} \u7684\u6A21\u5757\u6267\u884C\u65F6\u95F4: ${target.lastExecutionTime.toISOString()}`);
+      }
+    }
+    console.log(`[OptimizationScheduler] v156: \u5DF2\u4ECE\u6570\u636E\u5E93\u6062\u590D ${moduleLastExecutionMap.size} \u4E2A\u6A21\u5757\u6267\u884C\u65F6\u95F4\u8BB0\u5F55`);
+  } catch (restoreErr) {
+    console.error(`[OptimizationScheduler] v156: \u6062\u590D\u6A21\u5757\u6267\u884C\u65F6\u95F4\u5931\u8D25: ${restoreErr.message}`);
+  }
   optimizationIntervals.intraday_pacing = setInterval(async () => {
     await executeOptimizationTask("intraday_pacing");
   }, OPTIMIZATION_SCHEDULE.intraday_pacing.intervalMs);
@@ -135078,7 +135097,8 @@ async function getOptimizationTargetConfig(targetId) {
     enableBudgetAllocation: true,
     enableKeywordAutoExecution: true,
     executionFrequency: "daily",
-    lastExecutionTime: void 0,
+    // v156: 从数据库恢复上次执行时间
+    lastExecutionTime: group.lastOptimizationAt ? new Date(group.lastOptimizationAt) : void 0,
     nextExecutionTime: void 0,
     maxDailyBidChanges: 100,
     maxBidChangePercent: 30,
@@ -135132,9 +135152,20 @@ async function executeOptimizationTarget(targetId, options = {}) {
   if (config2.lifecycleStage) {
     console.log(`[OptimizationTarget] \u76EE\u6807 ${config2.name} \u5F53\u524D\u751F\u547D\u5468\u671F: ${config2.lifecycleStage} | \u51FA\u4EF7\u8C03\u6574\u4E0A\u9650: \xB1${config2.maxBidChangePercent}% | ${config2.lifecycleSummary}`);
   }
-  const campaigns6 = await getCampaignsByPerformanceGroupId(targetId);
-  if (campaigns6.length === 0) {
+  const allCampaigns = await getCampaignsByPerformanceGroupId(targetId);
+  if (allCampaigns.length === 0) {
     result.warnings.push("\u4F18\u5316\u76EE\u6807\u4E0B\u6CA1\u6709\u5E7F\u544A\u6D3B\u52A8");
+    if (shouldReleaseLock) releaseAccountOptimizationLock(config2.accountId);
+    return result;
+  }
+  const campaigns6 = allCampaigns.filter((c5) => c5.campaignStatus === "enabled");
+  const skippedCampaigns = allCampaigns.length - campaigns6.length;
+  if (skippedCampaigns > 0) {
+    console.log(`[OptimizationTarget] v156: \u8DF3\u8FC7${skippedCampaigns}\u4E2A\u975Eenabled\u72B6\u6001\u7684campaign (\u603B${allCampaigns.length}\u4E2A, enabled=${campaigns6.length}\u4E2A)`);
+    result.warnings.push(`\u8DF3\u8FC7${skippedCampaigns}\u4E2A\u975Eenabled\u72B6\u6001\u7684campaign`);
+  }
+  if (campaigns6.length === 0) {
+    result.warnings.push("\u4F18\u5316\u76EE\u6807\u4E0B\u6CA1\u6709enabled\u72B6\u6001\u7684\u5E7F\u544A\u6D3B\u52A8");
     if (shouldReleaseLock) releaseAccountOptimizationLock(config2.accountId);
     return result;
   }

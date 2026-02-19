@@ -190,7 +190,8 @@ export async function getOptimizationTargetConfig(targetId: number): Promise<Opt
     enableKeywordAutoExecution: true,
     
     executionFrequency: 'daily',
-    lastExecutionTime: undefined,
+    // v156: 从数据库恢复上次执行时间
+    lastExecutionTime: (group as any).lastOptimizationAt ? new Date((group as any).lastOptimizationAt) : undefined,
     nextExecutionTime: undefined,
     
     maxDailyBidChanges: 100,
@@ -270,9 +271,23 @@ export async function executeOptimizationTarget(
   }
   
   // 获取优化目标下的所有广告活动
-  const campaigns = await db.getCampaignsByPerformanceGroupId(targetId);
-  if (campaigns.length === 0) {
+  const allCampaigns = await db.getCampaignsByPerformanceGroupId(targetId);
+  if (allCampaigns.length === 0) {
     result.warnings.push('优化目标下没有广告活动');
+    if (shouldReleaseLock) releaseAccountOptimizationLock(config.accountId);
+    return result;
+  }
+  
+  // v156: 只对enabled状态的campaign执行优化
+  // paused/archived的campaign在Amazon端不会投放广告，对其做出价调整是无效的
+  const campaigns = allCampaigns.filter(c => (c as any).campaignStatus === 'enabled');
+  const skippedCampaigns = allCampaigns.length - campaigns.length;
+  if (skippedCampaigns > 0) {
+    console.log(`[OptimizationTarget] v156: 跳过${skippedCampaigns}个非enabled状态的campaign (总${allCampaigns.length}个, enabled=${campaigns.length}个)`);
+    result.warnings.push(`跳过${skippedCampaigns}个非enabled状态的campaign`);
+  }
+  if (campaigns.length === 0) {
+    result.warnings.push('优化目标下没有enabled状态的广告活动');
     if (shouldReleaseLock) releaseAccountOptimizationLock(config.accountId);
     return result;
   }

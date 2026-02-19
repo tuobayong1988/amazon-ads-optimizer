@@ -951,8 +951,30 @@ function shouldExecuteThisHour(taskType: string): boolean {
  * - 新广告活动（启动期）获得更高频率的检查，快速迭代探索
  * - 成熟广告活动低频稳优，避免过度干预
  */
-export function startOptimizationScheduler(): void {
-  console.log('[OptimizationScheduler] 启动v143生命周期感知智能优化调度器...');
+export async function startOptimizationScheduler(): Promise<void> {
+  console.log('[OptimizationScheduler] 启动v156生命周期感知智能优化调度器...');
+  
+  // v156: 从数据库恢复各模块的上次执行时间，避免服务器重启后所有模块立即执行
+  try {
+    const { getEnabledOptimizationTargets } = await import('./optimizationTargetEngine');
+    const targets = await getEnabledOptimizationTargets();
+    for (const target of targets) {
+      // 使用 last_optimization_at 作为所有模块的基准时间
+      if (target.lastExecutionTime) {
+        const modules = ['bid', 'negativeKeyword', 'searchTermHarvest', 'placement', 'budget', 'dayparting'];
+        for (const mod of modules) {
+          const key = `${target.id}:${mod}`;
+          if (!moduleLastExecutionMap.has(key)) {
+            moduleLastExecutionMap.set(key, target.lastExecutionTime);
+          }
+        }
+        console.log(`[OptimizationScheduler] v156: 恢复优化目标 ${target.name} 的模块执行时间: ${target.lastExecutionTime.toISOString()}`);
+      }
+    }
+    console.log(`[OptimizationScheduler] v156: 已从数据库恢复 ${moduleLastExecutionMap.size} 个模块执行时间记录`);
+  } catch (restoreErr: any) {
+    console.error(`[OptimizationScheduler] v156: 恢复模块执行时间失败: ${restoreErr.message}`);
+  }
   
   // 0. 日内节奏监控 - 每30分钟（不受生命周期影响）
   optimizationIntervals.intraday_pacing = setInterval(async () => {
