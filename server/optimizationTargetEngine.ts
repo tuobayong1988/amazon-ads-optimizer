@@ -13,6 +13,9 @@
  */
 
 import * as db from "./db";
+import { getDb } from "./db";
+import { keywords as keywordsTable, productTargets as productTargetsTable, campaigns as campaignsTable } from "../drizzle/schema";
+import { eq } from "drizzle-orm";
 import * as bidOptimizer from "./bidOptimizer";
 import * as daypartingService from "./daypartingService";
 import * as placementOptimizationService from "./placementOptimizationService";
@@ -20,6 +23,7 @@ import * as adAutomation from "./adAutomation";
 import * as intelligentBudgetAllocationService from "./intelligentBudgetAllocationService";
 import * as bidCoordinator from "./services/bidCoordinator";
 import * as amazonApiHelper from "./services/amazonApiHelper";
+import { acquireAccountOptimizationLock, releaseAccountOptimizationLock } from "./dataSyncScheduler";
 import * as amazonIdResolver from "./services/amazonIdResolver";
 import { getLocalHour, getLocalDayOfWeek, isNewKeyword, getExplorationStrategy, isProtectedKeyword } from "./algorithmUtils";
 import * as campaignLifecycleService from "./services/campaignLifecycleService";
@@ -234,6 +238,12 @@ export async function executeOptimizationTarget(
     throw new Error(`优化目标 ${config.name} 未启用`);
   }
   
+  // v148: 获取账户级优化锁，防止与automationExecutionEngine并行冲突
+  if (!dryRun && !acquireAccountOptimizationLock(config.accountId, `optimizationTarget:${targetId}`)) {
+    throw new Error(`账户 ${config.accountId} 优化锁已被占用，跳过本次执行`);
+  }
+  const shouldReleaseLock = !dryRun;
+  
   const result: OptimizationExecutionResult = {
     targetId: config.id,
     targetName: config.name,
@@ -263,6 +273,7 @@ export async function executeOptimizationTarget(
   const campaigns = await db.getCampaignsByPerformanceGroupId(targetId);
   if (campaigns.length === 0) {
     result.warnings.push('优化目标下没有广告活动');
+    if (shouldReleaseLock) releaseAccountOptimizationLock(config.accountId);
     return result;
   }
 
@@ -522,6 +533,9 @@ export async function executeOptimizationTarget(
     }
   }
   
+  // v148: 释放账户优化锁
+  if (shouldReleaseLock) releaseAccountOptimizationLock(config.accountId);
+  
   return result;
 }
 
@@ -634,8 +648,8 @@ async function executeBidOptimization(
           
           details.push(adjustment);
           
+          // v148: 不再在此处更新DB，改为先调API确认成功后再更新
           if (!dryRun) {
-            await db.updateKeyword(result.targetId, { bid: result.newBid.toFixed(2) });
             adjustmentsCount++;
           }
         }
@@ -698,8 +712,8 @@ async function executeBidOptimization(
           
           details.push(adjustment);
           
+          // v148: 不再在此处更新DB，改为先调API确认成功后再更新
           if (!dryRun) {
-            await db.updateProductTarget(result.targetId, { bid: result.newBid.toFixed(2) });
             adjustmentsCount++;
           }
         }
@@ -707,7 +721,7 @@ async function executeBidOptimization(
     }
   }
   
-  // v123: 批量同步出价调整到 Amazon API，并记录同步结果
+  // v148+v123: 先批量同步出价调整到 Amazon API，确认成功后再更新本地DB
   let apiSyncResult: { success: number; failed: number; errors: string[]; itemResults?: Map<number, { status: 'synced' | 'failed'; error?: string }> } = { success: 0, failed: 0, errors: [] };
   let apiSyncStatus: 'pending' | 'synced' | 'failed' | 'partial' = 'pending';
   
@@ -742,10 +756,52 @@ async function executeBidOptimization(
       if (apiSyncResult.errors.length > 0) {
         console.error(`[BidOptimization] Amazon API同步错误:`, apiSyncResult.errors.join('; '));
       }
+      
+      // v148: API调用成功后，才更新本地数据库（先API后DB原则）
+      // v148: 使用事务保护批量DB更新，确保原子性
+      const syncedDetails = details.filter(d => {
+        const itemResult = apiSyncResult.itemResults?.get(d.keywordId);
+        return itemResult?.status === 'synced';
+      });
+      const skippedDetails = details.filter(d => {
+        const itemResult = apiSyncResult.itemResults?.get(d.keywordId);
+        return itemResult?.status !== 'synced';
+      });
+      
+      if (syncedDetails.length > 0) {
+        const dbConn = await getDb();
+        if (dbConn) {
+          try {
+            await dbConn.transaction(async (tx) => {
+              for (const detail of syncedDetails) {
+                if (detail.isProductTarget) {
+                  await tx.update(productTargetsTable)
+                    .set({ bid: detail.newBid.toFixed(2) })
+                    .where(eq(productTargetsTable.id, detail.keywordId));
+                } else {
+                  await tx.update(keywordsTable)
+                    .set({ bid: detail.newBid.toFixed(2) })
+                    .where(eq(keywordsTable.id, detail.keywordId));
+                }
+              }
+            });
+            console.log(`[BidOptimization] v148: 事务批量DB更新成功: ${syncedDetails.length}条`);
+          } catch (txErr: any) {
+            console.error(`[BidOptimization] v148: 事务DB更新失败(已回滚): ${txErr.message}`);
+            // 事务失败时，所有DB更新自动回滚，保持数据一致性
+          }
+        }
+      }
+      
+      for (const detail of skippedDetails) {
+        console.warn(`[BidOptimization] v148: API同步失败，跳过DB更新: targetId=${detail.keywordId}`);
+      }
     } catch (apiError: any) {
       apiSyncStatus = 'failed';
       apiSyncResult.errors.push(apiError.message);
       console.error(`[BidOptimization] Amazon API同步异常:`, apiError.message);
+      // v148: API整体异常，不更新任何本地DB记录
+      console.error(`[BidOptimization] v148: API整体异常，所有本地DB更新已跳过`);
     }
   } else if (dryRun) {
     apiSyncStatus = 'pending'; // 模拟模式不同步
@@ -1246,13 +1302,7 @@ async function executeBudgetAllocation(
       details.push(adjustment);
       
       if (!dryRun && Math.abs(suggestion.suggestedBudget - suggestion.currentBudget) > 1) {
-        // 实际执行预算调整（本地数据库）
-        await db.updateCampaign(suggestion.campaignId, { 
-          dailyBudget: suggestion.suggestedBudget.toFixed(2) 
-        });
-        adjustmentsCount++;
-        
-        // v134: 同步预算调整到 Amazon API，并记录同步状态
+        // v148: 先调Amazon API确认成功，再更新本地数据库（先API后DB原则）
         try {
           const amazonCampaignId = campaign.campaignId || campaign.id.toString();
           const budgetSyncResult = await amazonApiHelper.syncBudgetAdjustmentToAmazon(
@@ -1261,11 +1311,24 @@ async function executeBudgetAllocation(
             suggestion.suggestedBudget,
             `预算优化: $${suggestion.currentBudget.toFixed(2)} -> $${suggestion.suggestedBudget.toFixed(2)}`
           );
-          adjustment.apiSyncStatus = budgetSyncResult ? 'synced' : 'failed';
+          
+          if (budgetSyncResult) {
+            // API成功后才更新本地DB
+            await db.updateCampaign(suggestion.campaignId, { 
+              dailyBudget: suggestion.suggestedBudget.toFixed(2) 
+            });
+            adjustmentsCount++;
+            adjustment.apiSyncStatus = 'synced';
+          } else {
+            // API返回false，不更新本地DB
+            adjustment.apiSyncStatus = 'failed';
+            console.warn(`[BudgetAllocation] v148: API同步失败，跳过DB更新 (Campaign ${campaign.campaignName})`);
+          }
         } catch (apiError: any) {
+          // API异常，不更新本地DB，保持数据一致性
           adjustment.apiSyncStatus = 'failed';
           adjustment.apiSyncDetail = JSON.stringify({ error: apiError.message });
-          console.error(`[BudgetAllocation] Amazon API同步失败 (Campaign ${campaign.campaignName}):`, apiError.message);
+          console.error(`[BudgetAllocation] v148: API同步失败，跳过DB更新 (Campaign ${campaign.campaignName}):`, apiError.message);
         }
       }
     }
@@ -1443,11 +1506,7 @@ async function executeKeywordStatusChanges(
           details.push(action);
           
           if (!dryRun) {
-            // v134: 先更新本地数据库
-            await db.updateKeyword(keyword.id, { keywordStatus: 'paused' });
-            pausedCount++;
-            
-            // v134: 同步到Amazon API - 这是之前缺失的关键步骤
+            // v148: 先调Amazon API确认成功，再更新本地数据库（先API后DB原则）
             try {
               const syncResult = await amazonApiHelper.syncKeywordStatusToAmazon(
                 config.accountId,
@@ -1459,14 +1518,23 @@ async function executeKeywordStatusChanges(
                   isProductTarget: false,
                 }]
               );
-              action.apiSyncStatus = syncResult.success > 0 ? 'synced' : 'failed';
-              if (syncResult.errors.length > 0) {
-                action.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
+              if (syncResult.success > 0) {
+                // API成功后才更新本地DB
+                await db.updateKeyword(keyword.id, { keywordStatus: 'paused' });
+                pausedCount++;
+                action.apiSyncStatus = 'synced';
+              } else {
+                // API失败，不更新本地DB
+                action.apiSyncStatus = 'failed';
+                if (syncResult.errors.length > 0) {
+                  action.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
+                }
+                console.warn(`[KeywordStatusChange] v148: API同步失败，跳过DB更新 (暂停 ${keyword.keywordText})`);
               }
             } catch (apiError: any) {
               action.apiSyncStatus = 'failed';
               action.apiSyncDetail = JSON.stringify({ error: apiError.message });
-              console.error(`[KeywordStatusChange] Amazon API同步失败 (暂停 ${keyword.keywordText}):`, apiError.message);
+              console.error(`[KeywordStatusChange] v148: API同步失败，跳过DB更新 (暂停 ${keyword.keywordText}):`, apiError.message);
             }
           }
         } else if (shouldEnable) {
@@ -1486,11 +1554,7 @@ async function executeKeywordStatusChanges(
           details.push(action);
           
           if (!dryRun) {
-            // v134: 先更新本地数据库
-            await db.updateKeyword(keyword.id, { keywordStatus: 'enabled' });
-            enabledCount++;
-            
-            // v134: 同步到Amazon API - 这是之前缺失的关键步骤
+            // v148: 先调Amazon API确认成功，再更新本地数据库（先API后DB原则）
             try {
               const syncResult = await amazonApiHelper.syncKeywordStatusToAmazon(
                 config.accountId,
@@ -1502,14 +1566,23 @@ async function executeKeywordStatusChanges(
                   isProductTarget: false,
                 }]
               );
-              action.apiSyncStatus = syncResult.success > 0 ? 'synced' : 'failed';
-              if (syncResult.errors.length > 0) {
-                action.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
+              if (syncResult.success > 0) {
+                // API成功后才更新本地DB
+                await db.updateKeyword(keyword.id, { keywordStatus: 'enabled' });
+                enabledCount++;
+                action.apiSyncStatus = 'synced';
+              } else {
+                // API失败，不更新本地DB
+                action.apiSyncStatus = 'failed';
+                if (syncResult.errors.length > 0) {
+                  action.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
+                }
+                console.warn(`[KeywordStatusChange] v148: API同步失败，跳过DB更新 (启用 ${keyword.keywordText})`);
               }
             } catch (apiError: any) {
               action.apiSyncStatus = 'failed';
               action.apiSyncDetail = JSON.stringify({ error: apiError.message });
-              console.error(`[KeywordStatusChange] Amazon API同步失败 (启用 ${keyword.keywordText}):`, apiError.message);
+              console.error(`[KeywordStatusChange] v148: API同步失败，跳过DB更新 (启用 ${keyword.keywordText}):`, apiError.message);
             }
           }
         }
@@ -1607,9 +1680,7 @@ async function executeCampaignStatusChanges(
         details.push(action);
         
         if (!dryRun) {
-          await db.updateCampaign(campaign.id, { campaignStatus: 'paused' });
-          pausedCount++;
-          
+          // v148: 先调Amazon API确认成功，再更新本地数据库（先API后DB原则）
           try {
             const syncResult = await amazonApiHelper.syncCampaignStatusToAmazon(
               config.accountId,
@@ -1621,13 +1692,21 @@ async function executeCampaignStatusChanges(
                 reason: pauseReason,
               }]
             );
-            action.apiSyncStatus = syncResult.success > 0 ? 'synced' : 'failed';
-            if (syncResult.errors.length > 0) {
-              action.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
+            if (syncResult.success > 0) {
+              await db.updateCampaign(campaign.id, { campaignStatus: 'paused' });
+              pausedCount++;
+              action.apiSyncStatus = 'synced';
+            } else {
+              action.apiSyncStatus = 'failed';
+              if (syncResult.errors.length > 0) {
+                action.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
+              }
+              console.warn(`[CampaignStatusChange] v148: API同步失败，跳过DB更新 (暂停 ${campaign.campaignName})`);
             }
           } catch (apiError: any) {
             action.apiSyncStatus = 'failed';
             action.apiSyncDetail = JSON.stringify({ error: apiError.message });
+            console.error(`[CampaignStatusChange] v148: API同步失败，跳过DB更新 (暂停 ${campaign.campaignName}):`, apiError.message);
           }
         }
       } else if (shouldEnable) {
@@ -1651,9 +1730,7 @@ async function executeCampaignStatusChanges(
         details.push(action);
         
         if (!dryRun) {
-          await db.updateCampaign(campaign.id, { campaignStatus: 'enabled' });
-          enabledCount++;
-          
+          // v148: 先调Amazon API确认成功，再更新本地数据库（先API后DB原则）
           try {
             const syncResult = await amazonApiHelper.syncCampaignStatusToAmazon(
               config.accountId,
@@ -1665,13 +1742,21 @@ async function executeCampaignStatusChanges(
                 reason: enableReason,
               }]
             );
-            action.apiSyncStatus = syncResult.success > 0 ? 'synced' : 'failed';
-            if (syncResult.errors.length > 0) {
-              action.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
+            if (syncResult.success > 0) {
+              await db.updateCampaign(campaign.id, { campaignStatus: 'enabled' });
+              enabledCount++;
+              action.apiSyncStatus = 'synced';
+            } else {
+              action.apiSyncStatus = 'failed';
+              if (syncResult.errors.length > 0) {
+                action.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
+              }
+              console.warn(`[CampaignStatusChange] v148: API同步失败，跳过DB更新 (启用 ${campaign.campaignName})`);
             }
           } catch (apiError: any) {
             action.apiSyncStatus = 'failed';
             action.apiSyncDetail = JSON.stringify({ error: apiError.message });
+            console.error(`[CampaignStatusChange] v148: API同步失败，跳过DB更新 (启用 ${campaign.campaignName}):`, apiError.message);
           }
         }
       }

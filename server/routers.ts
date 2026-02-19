@@ -4997,8 +4997,9 @@ const amazonApiRouter = router({
         marketplace
       );
 
-      const count = await syncService.generateMockPerformanceData(input.days);
-      return { generated: count };
+      // v148: 已废弃模拟数据生成功能，生产环境不应使用假数据
+      console.warn('[API] v148: generateMockPerformance已废弃，生产环境禁止生成模拟数据');
+      return { generated: 0, warning: 'v148: 模拟数据生成已废弃，请使用真实数据同步' };
     }),
   
   // ==================== 双轨制同步相关API ====================

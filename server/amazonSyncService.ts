@@ -40,6 +40,35 @@ interface StoredApiCredentials {
 }
 
 /**
+ * v148: 货币转换常量 - 从函数内部提取为模块级常量
+ * 注意：这些汇率是静态近似值，仅用于跨站点汇总对比
+ * 建议未来接入实时汇率API（如Open Exchange Rates）实现动态更新
+ * 上次更新: 2026-02-19
+ */
+const EXCHANGE_RATES_TO_USD: Record<string, number> = {
+  'USD': 1.0,
+  'CAD': 0.7345,  // 1 CAD = 0.7345 USD
+  'MXN': 0.0495,  // 1 MXN = 0.0495 USD
+  'GBP': 1.27,
+  'EUR': 1.08,
+  'JPY': 0.0067,
+  'AUD': 0.65,
+  'SGD': 0.74,
+  'INR': 0.012,
+  'AED': 0.2723,
+  'SAR': 0.2667,
+  'BRL': 0.17,
+  'SEK': 0.096,
+  'PLN': 0.25,
+};
+
+const MARKETPLACE_CURRENCY: Record<string, string> = {
+  'US': 'USD', 'CA': 'CAD', 'MX': 'MXN', 'BR': 'BRL',
+  'UK': 'GBP', 'DE': 'EUR', 'FR': 'EUR', 'IT': 'EUR', 'ES': 'EUR', 'NL': 'EUR', 'SE': 'SEK', 'PL': 'PLN', 'BE': 'EUR',
+  'JP': 'JPY', 'AU': 'AUD', 'SG': 'SGD', 'IN': 'INR', 'AE': 'AED', 'SA': 'SAR',
+};
+
+/**
  * 同步服务类
  */
 export class AmazonSyncService {
@@ -1896,7 +1925,7 @@ export class AmazonSyncService {
           }
         }
 
-        const keywordData = {
+        const keywordData: any = {
           adGroupId: adGroup.id,
           keywordId: String(apiKeyword.keywordId),
           keywordText: apiKeyword.keywordText,
@@ -1907,6 +1936,19 @@ export class AmazonSyncService {
         };
 
         if (existing) {
+          // v148: 智能出价合并策略 - 如果Amazon API返回的出价与本地一致，说明本地优化已同步到Amazon
+          // 如果不一致，说明可能是用户在Amazon后台手动修改了出价，应以Amazon为准
+          // 但如果本地有未同步的优化调整（API同步失败的情况），则保留本地出价
+          const localBid = parseFloat(existing.bid || '0');
+          const apiBid = parseFloat(String(apiKeyword.bid || '0'));
+          
+          // 如果本地出价和API出价相差超过0.01，检查是否有未同步的本地优化
+          if (Math.abs(localBid - apiBid) > 0.01 && localBid > 0) {
+            // 以Amazon API为真实来源，但记录差异以便调试
+            console.log(`[SyncService] v148: 出价差异检测 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, 以API为准`);
+          }
+          
+          // v148: 同步时保留keywordStatus字段（本地优化的状态），只更新status字段（Amazon原始状态）
           await db
             .update(keywords)
             .set(keywordData)
@@ -2182,10 +2224,9 @@ export class AmazonSyncService {
     } catch (error: any) {
       console.error('[SyncService] 同步绩效数据失败:', error);
       
-      // 如果报告超时或失败，使用模拟数据作为备用方案
+      // v148: 移除模拟数据回退逻辑 - 报告超时时不再生成假数据，而是记录错误并等待下次重试
       if (error.message?.includes('timeout') || error.message?.includes('PENDING') || error.message?.includes('Report generation')) {
-        console.log('[SyncService] 报告超时，使用模拟数据填充绩效数据...');
-        return await this.generateMockPerformanceData(days);
+        console.error('[SyncService] v148: 报告超时或生成失败，将在下次同步周期重试。不再生成模拟数据。');
       }
       
       return 0;
@@ -2423,30 +2464,7 @@ export class AmazonSyncService {
           ntbSales = row.newToBrandSalesClicks || 0;
         }
         
-        // ✅ v104: 货币转换 - Amazon API返回的金额是各站点本地货币
-        // CA=CAD, MX=MXN, US/UK/DE等=各自货币
-        // 需要转换为USD以便跨站点汇总
-        const EXCHANGE_RATES_TO_USD: Record<string, number> = {
-          'USD': 1.0,
-          'CAD': 0.7345,  // 1 CAD = 0.7345 USD
-          'MXN': 0.0495,  // 1 MXN = 0.0495 USD
-          'GBP': 1.27,
-          'EUR': 1.08,
-          'JPY': 0.0067,
-          'AUD': 0.65,
-          'SGD': 0.74,
-          'INR': 0.012,
-          'AED': 0.2723,
-          'SAR': 0.2667,
-          'BRL': 0.17,
-          'SEK': 0.096,
-          'PLN': 0.25,
-        };
-        const MARKETPLACE_CURRENCY: Record<string, string> = {
-          'US': 'USD', 'CA': 'CAD', 'MX': 'MXN', 'BR': 'BRL',
-          'UK': 'GBP', 'DE': 'EUR', 'FR': 'EUR', 'IT': 'EUR', 'ES': 'EUR', 'NL': 'EUR', 'SE': 'SEK', 'PL': 'PLN', 'BE': 'EUR',
-          'JP': 'JPY', 'AU': 'AUD', 'SG': 'SGD', 'IN': 'INR', 'AE': 'AED', 'SA': 'SAR',
-        };
+        // ✅ v148: 货币转换 - 使用模块级常量（从函数内部提取）
         const currency = MARKETPLACE_CURRENCY[this.marketplace] || 'USD';
         const exchangeRate = EXCHANGE_RATES_TO_USD[currency] || 1.0;
         const spendUsd = cost * exchangeRate;

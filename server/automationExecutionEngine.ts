@@ -483,7 +483,12 @@ export async function executeOptimization(
             }
           }
         }
-        await db.updateKeyword(targetId, { bid: String(newValue) });
+        // v148: 先API后DB原则 - 只有API成功才更新本地DB
+        if (bidApiSuccess) {
+          await db.updateKeyword(targetId, { bid: String(newValue) });
+        } else {
+          console.warn(`[AutoExec] v148: API同步失败，跳过本地DB更新 (keyword ${targetId})`);
+        }
         await db.createBiddingLog({
           accountId,
           campaignId: bidCampaignId,
@@ -494,8 +499,11 @@ export async function executeOptimization(
           actionType: newValue > currentValue ? 'increase' : 'decrease',
           previousBid: String(currentValue),
           newBid: String(newValue),
-          reason: `${bidApiSuccess ? '[API✅]' : '[API❌]'} [自动执行] ${reason}`,
+          reason: `${bidApiSuccess ? '[API✅]' : '[API❌未同步]'} [自动执行] ${reason}`,
         });
+        if (!bidApiSuccess) {
+          throw new Error('Amazon API出价同步失败，本地DB未更新');
+        }
         break;
       }
         
@@ -531,7 +539,12 @@ export async function executeOptimization(
             console.error(`[AutoExec] Amazon API预算调整失败 (campaign ${targetId}):`, budgetApiErr.message);
           }
         }
-        await db.updateCampaign(targetId, { dailyBudget: String(newValue) });
+        // v148: 先API后DB原则 - 只有API成功才更新本地DB
+        if (budgetApiSuccess) {
+          await db.updateCampaign(targetId, { dailyBudget: String(newValue) });
+        } else {
+          console.warn(`[AutoExec] v148: 预算API同步失败，跳过本地DB更新 (campaign ${targetId})`);
+        }
         await db.createBiddingLog({
           accountId,
           campaignId: targetId,
@@ -542,9 +555,12 @@ export async function executeOptimization(
           actionType: newValue > currentValue ? 'increase' : 'decrease',
           previousBid: String(currentValue),
           newBid: String(newValue),
-          reason: `${budgetApiSuccess ? '[API✅]' : '[API❌]'} [自动执行] 预算调整: ${reason}`,
+          reason: `${budgetApiSuccess ? '[API✅]' : '[API❌未同步]'} [自动执行] 预算调整: ${reason}`,
         });
-        console.log(`[AutoExec] 预算调整: campaign=${targetId}, ${currentValue} -> ${newValue}, API=${budgetApiSuccess ? '✅' : '❌'}`);
+        console.log(`[AutoExec] v148: 预算调整: campaign=${targetId}, ${currentValue} -> ${newValue}, API=${budgetApiSuccess ? '✅' : '❌'}`);
+        if (!budgetApiSuccess) {
+          throw new Error('Amazon API预算同步失败，本地DB未更新');
+        }
         break;
       }
         
@@ -590,7 +606,12 @@ export async function executeOptimization(
             }
           }
         }
-        await db.updateProductTargetBid(targetId, String(newValue));
+        // v148: 先API后DB原则 - 只有API成功才更新本地DB
+        if (ptApiSuccess) {
+          await db.updateProductTargetBid(targetId, String(newValue));
+        } else {
+          console.warn(`[AutoExec] v148: 商品定向API同步失败，跳过本地DB更新 (productTarget ${targetId})`);
+        }
         await db.createBiddingLog({
           accountId,
           campaignId: ptCampaignId,
@@ -601,8 +622,11 @@ export async function executeOptimization(
           actionType: newValue > currentValue ? 'increase' : 'decrease',
           previousBid: String(currentValue),
           newBid: String(newValue),
-          reason: `${ptApiSuccess ? '[API✅]' : '[API❌]'} [自动执行] ${reason}`,
+          reason: `${ptApiSuccess ? '[API✅]' : '[API❌未同步]'} [自动执行] ${reason}`,
         });
+        if (!ptApiSuccess) {
+          throw new Error('Amazon API商品定向出价同步失败，本地DB未更新');
+        }
         break;
       }
 
@@ -664,7 +688,10 @@ export async function executeOptimization(
           newBid: String(newValue),
           reason: `${placementApiSuccess ? '[API✅]' : '[API❌]'} [自动执行] 广告位置倾斜调整: ${reason}`,
         });
-        console.log(`[AutoExec] 广告位置倾斜: campaign=${targetId}, ${currentValue}% -> ${newValue}%, API=${placementApiSuccess ? '✅' : '❌'}`);
+        console.log(`[AutoExec] v148: 广告位置倾斜: campaign=${targetId}, ${currentValue}% -> ${newValue}%, API=${placementApiSuccess ? '✅' : '❌'}`);
+        if (!placementApiSuccess) {
+          throw new Error('Amazon API广告位置倾斜同步失败');
+        }
         break;
       }
 

@@ -506,22 +506,32 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
     console.error(`[DataSyncScheduler] 账号 ${schedule.accountId} 策略模板推荐更新失败:`, recError.message);
   }
 
-  // ✅ 数据同步完成后，自动触发优化执行（闭环调度）
+  // ✅ v148: 数据同步完成后，自动触发优化执行（闭环调度）- 添加账户级优化锁
   try {
     const autoConfig = automationExecutionEngine.getAccountAutomationConfig(schedule.accountId);
     if (autoConfig.enabled) {
-      console.log(`[DataSyncScheduler] 账号 ${schedule.accountId} 自动优化已启用，触发优化执行...`);
-      const optimizationResult = await automationExecutionEngine.runFullAutomationCycle(schedule.accountId);
-      console.log(`[DataSyncScheduler] 账号 ${schedule.accountId} 自动优化完成:`, {
-        analyzed: optimizationResult.summary.totalAnalyzed,
-        executed: optimizationResult.summary.totalExecuted,
-        skipped: optimizationResult.summary.totalSkipped,
-        blocked: optimizationResult.summary.totalBlocked,
-      });
+      // v148: 尝试获取账户优化锁，防止与optimizationTargetEngine并行冲突
+      if (!acquireAccountOptimizationLock(schedule.accountId, 'automationExecutionEngine')) {
+        console.log(`[DataSyncScheduler] v148: 账号 ${schedule.accountId} 优化锁已被占用，跳过自动优化`);
+      } else {
+        try {
+          console.log(`[DataSyncScheduler] 账号 ${schedule.accountId} 自动优化已启用，触发优化执行...`);
+          const optimizationResult = await automationExecutionEngine.runFullAutomationCycle(schedule.accountId);
+          console.log(`[DataSyncScheduler] 账号 ${schedule.accountId} 自动优化完成:`, {
+            analyzed: optimizationResult.summary.totalAnalyzed,
+            executed: optimizationResult.summary.totalExecuted,
+            skipped: optimizationResult.summary.totalSkipped,
+            blocked: optimizationResult.summary.totalBlocked,
+          });
+        } finally {
+          releaseAccountOptimizationLock(schedule.accountId);
+        }
+      }
     } else {
       console.log(`[DataSyncScheduler] 账号 ${schedule.accountId} 自动优化未启用，跳过优化执行`);
     }
   } catch (autoOptError: any) {
+    releaseAccountOptimizationLock(schedule.accountId);
     console.error(`[DataSyncScheduler] 账号 ${schedule.accountId} 自动优化执行失败:`, autoOptError.message);
   }
 
@@ -819,6 +829,47 @@ let optimizationIntervals: Record<OptimizationTaskType, NodeJS.Timeout | null> =
 const executionLocks: Record<string, boolean> = {};
 // v122: 上次执行时间记录 - 防止同一小时内重复执行
 const lastExecutionHour: Record<string, string> = {};
+
+// v148: 全局账户级优化锁 - 防止automationExecutionEngine和optimizationTargetEngine同时操作同一账户
+const accountOptimizationLocks: Record<number, { locked: boolean; lockedBy: string; lockedAt: Date | null }> = {};
+
+/**
+ * v148: 获取账户级别的优化锁
+ * 防止两个引擎同时对同一账户执行优化操作
+ */
+export function acquireAccountOptimizationLock(accountId: number, lockedBy: string): boolean {
+  if (!accountOptimizationLocks[accountId]) {
+    accountOptimizationLocks[accountId] = { locked: false, lockedBy: '', lockedAt: null };
+  }
+  const lock = accountOptimizationLocks[accountId];
+  
+  // 检查是否已锁定
+  if (lock.locked) {
+    // v148: 防止死锁 - 如果锁定超过30分钟，强制释放
+    if (lock.lockedAt && (Date.now() - lock.lockedAt.getTime()) > 30 * 60 * 1000) {
+      console.warn(`[v148-Lock] 账户${accountId}优化锁超时30分钟，强制释放 (lockedBy: ${lock.lockedBy})`);
+    } else {
+      console.log(`[v148-Lock] 账户${accountId}优化锁已被 ${lock.lockedBy} 持有，${lockedBy} 跳过`);
+      return false;
+    }
+  }
+  
+  lock.locked = true;
+  lock.lockedBy = lockedBy;
+  lock.lockedAt = new Date();
+  return true;
+}
+
+/**
+ * v148: 释放账户级别的优化锁
+ */
+export function releaseAccountOptimizationLock(accountId: number): void {
+  if (accountOptimizationLocks[accountId]) {
+    accountOptimizationLocks[accountId].locked = false;
+    accountOptimizationLocks[accountId].lockedBy = '';
+    accountOptimizationLocks[accountId].lockedAt = null;
+  }
+}
 
 // v143: 每个优化目标的每个模块的上次执行时间
 // key: `${targetId}:${moduleName}`  value: Date

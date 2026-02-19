@@ -148,6 +148,8 @@ export class AmazonAdsApiClient {
   private accessToken: string | null = null;
   private tokenExpiry: Date | null = null;
   private axiosInstance: AxiosInstance;
+  // v148: Token刷新锁 - 防止并发请求同时触发多次刷新
+  private tokenRefreshPromise: Promise<string> | null = null;
 
   constructor(credentials: AmazonApiCredentials) {
     this.credentials = credentials;
@@ -182,41 +184,79 @@ export class AmazonAdsApiClient {
       return config;
     });
 
-    // 添加响应拦截器处理错误
+    // v148: 增强版响应拦截器 - 包含指数退避重试、429/503处理、HTML响应检测
     this.axiosInstance.interceptors.response.use(
       (response) => response,
-      (error) => {
-        // 检查是否返回HTML而不是JSON
+      async (error) => {
+        const config = error.config;
+        const status = error.response?.status;
+        
+        // v148: 初始化重试计数器
+        if (!config._retryCount) {
+          config._retryCount = 0;
+        }
+        
+        // v148: 可重试的状态码: 429(限流), 500, 502, 503, 504(服务器错误)
+        const isRetryable = status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+        const MAX_RETRIES = 3;
+        
+        if (isRetryable && config._retryCount < MAX_RETRIES) {
+          config._retryCount++;
+          
+          // v148: 指数退避 + 随机抖动
+          // 429: 基础等待更长(5s), 并尊重Retry-After头
+          // 5xx: 基础等待2s
+          let baseDelay = status === 429 ? 5000 : 2000;
+          
+          // 尊重Retry-After头
+          const retryAfter = error.response?.headers?.['retry-after'];
+          if (retryAfter) {
+            const retryAfterMs = parseInt(retryAfter) * 1000;
+            if (!isNaN(retryAfterMs) && retryAfterMs > 0) {
+              baseDelay = Math.max(baseDelay, retryAfterMs);
+            }
+          }
+          
+          const delay = baseDelay * Math.pow(2, config._retryCount - 1) + Math.random() * 1000;
+          console.warn(`[Amazon API] v148: 状态码${status}, 第${config._retryCount}/${MAX_RETRIES}次重试, 等待${Math.round(delay)}ms, URL: ${config.url}`);
+          
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return this.axiosInstance(config);
+        }
+        
+        // v148: 检查是否返回HTML而不是JSON
         if (error.response) {
-          const contentType = error.response.headers['content-type'] || '';
+          const contentType = error.response.headers?.['content-type'] || '';
           const data = error.response.data;
           
-          // 如果返回的是HTML，提取有用的错误信息
           if (contentType.includes('text/html') || (typeof data === 'string' && data.startsWith('<'))) {
-            console.error('[Amazon API] Received HTML response instead of JSON');
-            console.error('[Amazon API] Status:', error.response.status);
-            console.error('[Amazon API] URL:', error.config?.url);
+            console.error(`[Amazon API] v148: HTML响应 status=${status}, URL=${config?.url}`);
             
-            // 根据状态码提供更有用的错误信息
             let errorMessage = 'Amazon API returned an error page';
-            if (error.response.status === 401) {
+            if (status === 401) {
               errorMessage = 'Token已过期或无效，请重新授权';
-            } else if (error.response.status === 403) {
+            } else if (status === 403) {
               errorMessage = '没有访问权限，请检查API凭证和权限设置';
-            } else if (error.response.status === 404) {
+            } else if (status === 404) {
               errorMessage = 'API端点不存在，请检查请求URL';
-            } else if (error.response.status === 429) {
-              errorMessage = 'API请求过于频繁，请稍后重试';
-            } else if (error.response.status >= 500) {
-              errorMessage = 'Amazon API服务器错误，请稍后重试';
+            } else if (status === 429) {
+              errorMessage = `API限流，已重试${MAX_RETRIES}次仍失败`;
+            } else if (status >= 500) {
+              errorMessage = `Amazon API服务器错误(${status})，已重试${config._retryCount}次`;
             }
             
             const enhancedError = new Error(errorMessage);
             (enhancedError as any).originalError = error;
-            (enhancedError as any).status = error.response.status;
+            (enhancedError as any).status = status;
             (enhancedError as any).isHtmlResponse = true;
+            (enhancedError as any).retryCount = config._retryCount;
             throw enhancedError;
           }
+        }
+        
+        // v148: 非HTML错误也添加重试信息
+        if (config._retryCount > 0) {
+          (error as any).retryCount = config._retryCount;
         }
         throw error;
       }
@@ -303,10 +343,32 @@ export class AmazonAdsApiClient {
    * 获取Access Token（自动刷新）
    */
   private async getAccessToken(): Promise<string> {
+    // v148: 快速路径 - Token未过期时直接返回
     if (this.accessToken && this.tokenExpiry && new Date() < this.tokenExpiry) {
       return this.accessToken;
     }
 
+    // v148: 并发锁 - 如果已有刷新在进行，复用同一个Promise而不是发起新的刷新请求
+    if (this.tokenRefreshPromise) {
+      return this.tokenRefreshPromise;
+    }
+
+    // v148: 创建刷新Promise并缓存，确保并发请求共享同一次刷新
+    this.tokenRefreshPromise = this.doRefreshToken();
+    
+    try {
+      const token = await this.tokenRefreshPromise;
+      return token;
+    } finally {
+      // 刷新完成后清除锁，允许下次过期时重新刷新
+      this.tokenRefreshPromise = null;
+    }
+  }
+
+  /**
+   * v148: 实际执行Token刷新的内部方法
+   */
+  private async doRefreshToken(): Promise<string> {
     try {
       console.log('[Amazon API] Refreshing access token...');
       const response = await axios.post(OAUTH_TOKEN_URL, new URLSearchParams({
@@ -316,6 +378,7 @@ export class AmazonAdsApiClient {
         client_secret: this.credentials.clientSecret,
       }), {
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        timeout: 15000, // v148: 添加15秒超时防止无限等待
       });
 
       this.accessToken = response.data.access_token;
@@ -323,6 +386,10 @@ export class AmazonAdsApiClient {
       console.log('[Amazon API] Access token refreshed successfully');
       return this.accessToken!;
     } catch (error: any) {
+      // v148: 刷新失败时清除缓存的token，确保下次请求会重新尝试刷新
+      this.accessToken = null;
+      this.tokenExpiry = null;
+      
       console.error('[Amazon API] Failed to refresh access token:', error.message);
       
       // 检查是否返回HTML响应

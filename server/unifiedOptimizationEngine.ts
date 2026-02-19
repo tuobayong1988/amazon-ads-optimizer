@@ -317,6 +317,20 @@ async function analyzeBidAdjustments(campaign: any, costType: 'cpc' | 'vcpm' = '
   const decisions: OptimizationDecision[] = [];
   const isVcpm = costType === 'vcpm';
   
+  // v148: 从优化目标获取targetAcos，不再硬编码
+  let groupTargetAcos = 30; // 默认值仅在无优化目标时使用
+  if (campaign.performanceGroupId) {
+    try {
+      const groups = await db.select().from(performanceGroups).where(eq(performanceGroups.id, campaign.performanceGroupId)).limit(1);
+      if (groups.length > 0 && groups[0].targetAcos) {
+        groupTargetAcos = Number(groups[0].targetAcos);
+        console.log(`[UnifiedOptEngine] v148: Campaign ${campaign.id} 使用优化目标targetAcos=${groupTargetAcos}%`);
+      }
+    } catch (pgErr: any) {
+      console.warn(`[UnifiedOptEngine] v148: 获取优化目标targetAcos失败, 使用默认值30%:`, pgErr.message);
+    }
+  }
+  
   // ✅ 改进3：归因延迟隔离 - 计算Campaign级别的归因校正系数
   let correctionFactor = 1.0;
   let correctionApplied = false;
@@ -382,7 +396,7 @@ async function analyzeBidAdjustments(campaign: any, costType: 'cpc' | 'vcpm' = '
       // 最优vCPM = 展示转化率 × 平均订单价值 × 目标ACoS率 × 1000
       // 即：每1000次展示能带来多少销售额 × 目标利润率
       const aov = orders > 0 ? sales / orders : 30;
-      const targetAcos = 30; // 目标ACoS
+      const targetAcos = groupTargetAcos; // v148: 从优化目标动态获取
       const optimalVcpm = viewCvr * aov * (targetAcos / 100) * 1000;
       
       const bidDiff = currentBid > 0 ? Math.abs(optimalVcpm - currentBid) / currentBid : 1;
@@ -430,7 +444,7 @@ async function analyzeBidAdjustments(campaign: any, costType: 'cpc' | 'vcpm' = '
     
     // CPC最优出价公式：最优Bid = CVR × AOV × 目标ACoS率
     const aov = orders > 0 ? sales / orders : 30; // 默认AOV
-    const targetAcos = 30; // 目标ACoS
+    const targetAcos = groupTargetAcos; // v148: 从优化目标动态获取
     const optimalBid = cvr * aov * (targetAcos / 100);
     
     // 如果建议出价与当前出价差异超过10%，生成决策
@@ -482,7 +496,7 @@ async function analyzeBidAdjustments(campaign: any, costType: 'cpc' | 'vcpm' = '
       );
       const viewCvr = corrected.impressions > 0 ? corrected.orders / corrected.impressions : 0;
       const aov = corrected.orders > 0 ? corrected.sales / corrected.orders : 30;
-      const targetAcos = 30;
+      const targetAcos = groupTargetAcos; // v148: 从优化目标动态获取
       const optimalVcpm = viewCvr * aov * (targetAcos / 100) * 1000;
       const bidDiff = currentBid > 0 ? Math.abs(optimalVcpm - currentBid) / currentBid : 1;
       if (bidDiff > 0.15 && optimalVcpm > 0.5) {
@@ -510,7 +524,7 @@ async function analyzeBidAdjustments(campaign: any, costType: 'cpc' | 'vcpm' = '
       const cvr = corrected.clicks > 0 ? corrected.orders / corrected.clicks : 0;
       const acos = corrected.sales > 0 ? (corrected.spend / corrected.sales) * 100 : 999;
       const aov = corrected.orders > 0 ? corrected.sales / corrected.orders : 30;
-      const targetAcos = 30;
+      const targetAcos = groupTargetAcos; // v148: 从优化目标动态获取
       const optimalBid = cvr * aov * (targetAcos / 100);
       const bidDiff = currentBid > 0 ? Math.abs(optimalBid - currentBid) / currentBid : 1;
       if (bidDiff > 0.1 && optimalBid > 0.1) {
