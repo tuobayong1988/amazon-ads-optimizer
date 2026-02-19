@@ -756,15 +756,18 @@ const performanceGroupRouter = router({
       }
       
       // 2. 同步状态到Amazon API
+      // v158修复: campaigns表中Amazon Campaign ID存储在campaignId字段，不是amazonCampaignId
       const statusChanges = targetCampaigns
-        .filter((c: any) => c.amazonCampaignId)
+        .filter((c: any) => c.campaignId && c.campaignId !== '0' && c.campaignId !== '')
         .map((c: any) => ({
           campaignId: c.id,
-          amazonCampaignId: c.amazonCampaignId,
+          amazonCampaignId: String(c.campaignId),
           newStatus: input.newStatus as 'enabled' | 'paused',
           campaignName: c.campaignName || `Campaign ${c.id}`,
           reason: `批量${input.newStatus === 'paused' ? '暂停' : '启用'}操作`,
         }));
+      
+      console.log(`[batchUpdateCampaignStatus] 准备同步${statusChanges.length}个campaign状态到Amazon (总计${targetCampaigns.length}个)`);
       
       let apiResult = { success: 0, failed: 0, errors: [] as string[] };
       if (statusChanges.length > 0 && group.accountId) {

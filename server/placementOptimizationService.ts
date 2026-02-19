@@ -944,8 +944,8 @@ export async function batchExecutePlacementOptimization(
         )
       ) as any[];
     campaignsToOptimize = allCampaigns
-      .filter((c: any) => c.amazonCampaignId)
-      .map((c: any) => ({ amazonCampaignId: c.amazonCampaignId }));
+      .filter((c: any) => c.campaignId && c.campaignId !== '0' && c.campaignId !== '')
+      .map((c: any) => ({ amazonCampaignId: String(c.campaignId) }));
   }
 
   const results: Array<{

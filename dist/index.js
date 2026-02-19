@@ -131527,7 +131527,7 @@ async function batchExecutePlacementOptimization(accountId, campaignIds) {
         eq(campaigns.campaignStatus, "enabled")
       )
     );
-    campaignsToOptimize = allCampaigns.filter((c5) => c5.amazonCampaignId).map((c5) => ({ amazonCampaignId: c5.amazonCampaignId }));
+    campaignsToOptimize = allCampaigns.filter((c5) => c5.campaignId && c5.campaignId !== "0" && c5.campaignId !== "").map((c5) => ({ amazonCampaignId: String(c5.campaignId) }));
   }
   const results = [];
   let successCount = 0;
@@ -135700,9 +135700,9 @@ async function executePlacementOptimization(config2, campaigns6, dryRun) {
   let adjustmentsCount = 0;
   for (const campaign of campaigns6) {
     try {
-      const analysis = await analyzePlacementPerformance(campaign.amazonCampaignId || campaign.id.toString(), config2.accountId);
+      const analysis = await analyzePlacementPerformance(campaign.campaignId || campaign.id.toString(), config2.accountId);
       const suggestions = await generatePlacementSuggestions(
-        campaign.amazonCampaignId || campaign.id.toString(),
+        campaign.campaignId || campaign.id.toString(),
         config2.accountId
       );
       for (const suggestion of suggestions) {
@@ -135719,7 +135719,7 @@ async function executePlacementOptimization(config2, campaigns6, dryRun) {
         details.push(adjustment);
         if (!dryRun && suggestion.suggestedMultiplier !== suggestion.currentMultiplier) {
           await applyPlacementAdjustment(
-            campaign.amazonCampaignId || campaign.id.toString(),
+            campaign.campaignId || campaign.id.toString(),
             config2.accountId,
             suggestion
           );
@@ -136660,7 +136660,7 @@ async function executeBidCoordination(config2, campaigns6, bidDetails, placement
       const currentPlacementMultiplier = parseFloat(campaign.topOfSearchMultiplier || "0");
       const currentDaypartingMultiplier = 1;
       const coordinatedResult = await applyCoordinatedBids(
-        campaign.amazonCampaignId || campaign.id.toString(),
+        campaign.campaignId || campaign.id.toString(),
         config2.accountId,
         proposals,
         currentBaseBid,
@@ -344752,13 +344752,14 @@ var performanceGroupRouter = router({
       await updateCampaign(campaign.id, { campaignStatus: input.newStatus });
       localUpdated++;
     }
-    const statusChanges = targetCampaigns.filter((c5) => c5.amazonCampaignId).map((c5) => ({
+    const statusChanges = targetCampaigns.filter((c5) => c5.campaignId && c5.campaignId !== "0" && c5.campaignId !== "").map((c5) => ({
       campaignId: c5.id,
-      amazonCampaignId: c5.amazonCampaignId,
+      amazonCampaignId: String(c5.campaignId),
       newStatus: input.newStatus,
       campaignName: c5.campaignName || `Campaign ${c5.id}`,
       reason: `\u6279\u91CF${input.newStatus === "paused" ? "\u6682\u505C" : "\u542F\u7528"}\u64CD\u4F5C`
     }));
+    console.log(`[batchUpdateCampaignStatus] \u51C6\u5907\u540C\u6B65${statusChanges.length}\u4E2Acampaign\u72B6\u6001\u5230Amazon (\u603B\u8BA1${targetCampaigns.length}\u4E2A)`);
     let apiResult = { success: 0, failed: 0, errors: [] };
     if (statusChanges.length > 0 && group.accountId) {
       apiResult = await syncCampaignStatusToAmazon(group.accountId, statusChanges);

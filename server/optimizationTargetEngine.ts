@@ -877,11 +877,12 @@ async function executePlacementOptimization(
   for (const campaign of campaigns) {
     try {
       // 分析位置表现
-      const analysis = await placementOptimizationService.analyzePlacementPerformance(campaign.amazonCampaignId || campaign.id.toString(), config.accountId);
+      // v158修复: 使用campaign.campaignId而不是amazonCampaignId
+      const analysis = await placementOptimizationService.analyzePlacementPerformance(campaign.campaignId || campaign.id.toString(), config.accountId);
       
       // 生成位置调整建议
       const suggestions = await placementOptimizationService.generatePlacementSuggestions(
-        campaign.amazonCampaignId || campaign.id.toString(),
+        campaign.campaignId || campaign.id.toString(),
         config.accountId
       );
       
@@ -902,7 +903,7 @@ async function executePlacementOptimization(
         if (!dryRun && suggestion.suggestedMultiplier !== suggestion.currentMultiplier) {
           // 实际执行位置调整（本地数据库）
           await placementOptimizationService.applyPlacementAdjustment(
-            campaign.amazonCampaignId || campaign.id.toString(),
+            campaign.campaignId || campaign.id.toString(),
             config.accountId,
             suggestion
           );
@@ -2062,7 +2063,7 @@ async function executeBidCoordination(
       
       // 5. 调用中央协调器
       const coordinatedResult = await bidCoordinator.applyCoordinatedBids(
-        campaign.amazonCampaignId || campaign.id.toString(),
+        campaign.campaignId || campaign.id.toString(),
         config.accountId,
         proposals,
         currentBaseBid,
