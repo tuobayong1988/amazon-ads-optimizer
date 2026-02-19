@@ -21,6 +21,8 @@ import {
   campaignPerformanceSnapshots
 } from "../drizzle/schema";
 import { eq, and, gte, lte, desc, sql, inArray } from "drizzle-orm";
+import * as timeDecayService from "./timeDecayWeightedDataService";
+import * as gradualEngine from "./gradualOptimizationEngine";
 
 // ==================== 类型定义 ====================
 
@@ -63,6 +65,15 @@ interface CampaignPerformanceData {
   dailyAvgSpend: number;
   dailyAvgSales: number;
   dailyAvgConversions: number;
+  // v163: 时间衰减加权指标
+  timeWeightedMetrics?: timeDecayService.TimeWeightedMetrics;
+  weightedAcos: number;
+  weightedRoas: number;
+  weightedDailySpend: number;
+  weightedDailySales: number;
+  weightedDailyOrders: number;
+  dataConfidence: string;
+  trendDirection: string;
 }
 
 /** 多维度评分结果 */
@@ -168,13 +179,15 @@ export async function collectCampaignPerformanceData(
   const dbInstance = await getDb();
   if (!dbInstance) return [] as any;
   
-  // 计算时间窗口
+  // v163: 计算时间窗口 - 保留原有7/14/30天窗口，同时扩展到90天用于时间衰减加权
   const date7dAgo = new Date(endDate);
   date7dAgo.setDate(date7dAgo.getDate() - 7);
   const date14dAgo = new Date(endDate);
   date14dAgo.setDate(date14dAgo.getDate() - 14);
   const date30dAgo = new Date(endDate);
   date30dAgo.setDate(date30dAgo.getDate() - 30);
+  const date90dAgo = new Date(endDate);
+  date90dAgo.setDate(date90dAgo.getDate() - 90);
   
   // 获取绩效组内的广告活动
   const campaignList = await dbInstance.select()
@@ -184,15 +197,51 @@ export async function collectCampaignPerformanceData(
   const results: CampaignPerformanceData[] = [];
   
   for (const campaign of campaignList) {
-    // 获取各时间窗口的数据
+    // v163: 获取各时间窗口的数据 + 90天完整数据用于时间衰减加权
     const [data7d, data14d, data30d] = await Promise.all([
       aggregatePerformanceData(campaign.id, date7dAgo, endDate),
       aggregatePerformanceData(campaign.id, date14dAgo, endDate),
       aggregatePerformanceData(campaign.id, date30dAgo, endDate)
     ]);
     
+    // v163: 获取90天每日数据用于时间衰减加权计算
+    let timeWeightedMetrics: timeDecayService.TimeWeightedMetrics | undefined;
+    try {
+      const rawDailyData = await dbInstance.select({
+        date: dailyPerformance.date,
+        impressions: dailyPerformance.impressions,
+        clicks: dailyPerformance.clicks,
+        spend: dailyPerformance.spend,
+        sales: dailyPerformance.sales,
+        orders: dailyPerformance.orders,
+      })
+      .from(dailyPerformance)
+      .where(and(
+        eq(dailyPerformance.campaignId, campaign.id),
+        sql`DATE(${dailyPerformance.date}) >= ${date90dAgo.toISOString().split('T')[0]}`,
+        sql`DATE(${dailyPerformance.date}) <= ${endDate.toISOString().split('T')[0]}`
+      ));
+      
+      const dailyDataForWeighting: timeDecayService.DailyRawData[] = rawDailyData.map(d => ({
+        date: typeof d.date === 'string' ? d.date : new Date(d.date as any).toISOString(),
+        impressions: d.impressions || 0,
+        clicks: d.clicks || 0,
+        spend: parseFloat(String(d.spend || '0')),
+        sales: parseFloat(String(d.sales || '0')),
+        orders: d.orders || 0,
+      }));
+      
+      if (dailyDataForWeighting.length > 0) {
+        timeWeightedMetrics = timeDecayService.calculateTimeWeightedMetrics(dailyDataForWeighting);
+        console.log(`[BudgetAllocation] v163: Campaign ${campaign.id} 时间衰减加权 - 加权日均花费=$${timeWeightedMetrics.weightedDailySpend.toFixed(2)}, 加权ROAS=${timeWeightedMetrics.weightedRoas.toFixed(2)}, 置信度=${timeWeightedMetrics.dataQuality.confidenceLevel}`);
+      }
+    } catch (e: any) {
+      console.log(`[BudgetAllocation] v163: Campaign ${campaign.id} 时间衰减数据获取失败: ${e.message}`);
+    }
+    
     const currentBudget = Number(campaign.dailyBudget) || 0;
-    const dailyAvgSpend = data30d.spend / 30;
+    // v163: 优先使用时间衰减加权的日均花费，而非简单30天平均
+    const dailyAvgSpend = timeWeightedMetrics ? timeWeightedMetrics.weightedDailySpend : data30d.spend / 30;
     const budgetUtilization = currentBudget > 0 ? (dailyAvgSpend / currentBudget) * 100 : 0;
     
     results.push({
@@ -229,8 +278,17 @@ export async function collectCampaignPerformanceData(
       cpc7d: data7d.clicks > 0 ? data7d.spend / data7d.clicks : 0,
       budgetUtilization,
       dailyAvgSpend,
-      dailyAvgSales: data30d.sales / 30,
-      dailyAvgConversions: data30d.conversions / 30
+      dailyAvgSales: timeWeightedMetrics ? timeWeightedMetrics.weightedDailySales : data30d.sales / 30,
+      dailyAvgConversions: timeWeightedMetrics ? timeWeightedMetrics.weightedDailyOrders : data30d.conversions / 30,
+      // v163: 时间衰减加权指标
+      timeWeightedMetrics,
+      weightedAcos: timeWeightedMetrics ? timeWeightedMetrics.weightedAcos : (data30d.sales > 0 ? (data30d.spend / data30d.sales) * 100 : 0),
+      weightedRoas: timeWeightedMetrics ? timeWeightedMetrics.weightedRoas : (data30d.spend > 0 ? data30d.sales / data30d.spend : 0),
+      weightedDailySpend: timeWeightedMetrics ? timeWeightedMetrics.weightedDailySpend : data30d.spend / 30,
+      weightedDailySales: timeWeightedMetrics ? timeWeightedMetrics.weightedDailySales : data30d.sales / 30,
+      weightedDailyOrders: timeWeightedMetrics ? timeWeightedMetrics.weightedDailyOrders : data30d.conversions / 30,
+      dataConfidence: timeWeightedMetrics ? timeWeightedMetrics.dataQuality.confidenceLevel : 'medium',
+      trendDirection: timeWeightedMetrics ? timeWeightedMetrics.trendSignal.direction : 'stable',
     });
   }
   

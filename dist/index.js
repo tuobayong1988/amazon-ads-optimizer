@@ -64350,6 +64350,229 @@ var init_daypartingService = __esm({
   }
 });
 
+// server/timeDecayWeightedDataService.ts
+function aggregateByTimeWindows(dailyData, windows = TIME_WINDOWS) {
+  const today = /* @__PURE__ */ new Date();
+  today.setHours(0, 0, 0, 0);
+  return windows.map((window2) => {
+    const windowData = dailyData.filter((d5) => {
+      const dataDate = new Date(d5.date);
+      dataDate.setHours(0, 0, 0, 0);
+      const daysAgo = Math.floor((today.getTime() - dataDate.getTime()) / (1e3 * 60 * 60 * 24));
+      return daysAgo >= window2.startDaysAgo && daysAgo <= window2.endDaysAgo;
+    });
+    const totalDays = window2.endDaysAgo - window2.startDaysAgo + 1;
+    const daysCount = windowData.length;
+    const rawImpressions = windowData.reduce((sum2, d5) => sum2 + d5.impressions, 0);
+    const rawClicks = windowData.reduce((sum2, d5) => sum2 + d5.clicks, 0);
+    const rawSpend = windowData.reduce((sum2, d5) => sum2 + d5.spend, 0);
+    const rawSales = windowData.reduce((sum2, d5) => sum2 + d5.sales, 0);
+    const rawOrders = windowData.reduce((sum2, d5) => sum2 + d5.orders, 0);
+    const attributionMultiplier = window2.attributionCompleteness > 0 ? 1 / window2.attributionCompleteness : 1;
+    const correctedSales = rawSales * attributionMultiplier;
+    const correctedOrders = rawOrders * attributionMultiplier;
+    const effectiveDays = Math.max(daysCount, 1);
+    const dailyAvgSpend = rawSpend / effectiveDays;
+    const dailyAvgSales = correctedSales / effectiveDays;
+    const dailyAvgOrders = correctedOrders / effectiveDays;
+    const acos = correctedSales > 0 ? rawSpend / correctedSales * 100 : 0;
+    const roas = rawSpend > 0 ? correctedSales / rawSpend : 0;
+    const ctr = rawImpressions > 0 ? rawClicks / rawImpressions * 100 : 0;
+    const cvr = rawClicks > 0 ? correctedOrders / rawClicks * 100 : 0;
+    const cpc = rawClicks > 0 ? rawSpend / rawClicks : 0;
+    return {
+      windowName: window2.name,
+      daysCount,
+      totalDays,
+      rawImpressions,
+      rawClicks,
+      rawSpend,
+      rawSales,
+      rawOrders,
+      correctedSales,
+      correctedOrders,
+      dailyAvgSpend,
+      dailyAvgSales,
+      dailyAvgOrders,
+      acos,
+      roas,
+      ctr,
+      cvr,
+      cpc
+    };
+  });
+}
+function calculateTimeWeightedMetrics(dailyData, windows = TIME_WINDOWS) {
+  const windowDetails = aggregateByTimeWindows(dailyData, windows);
+  const activeWindows = [];
+  let totalActiveWeight = 0;
+  for (let i4 = 0; i4 < windowDetails.length; i4++) {
+    const detail = windowDetails[i4];
+    const window2 = windows[i4];
+    if (detail.daysCount > 0 && detail.rawSpend > 0) {
+      activeWindows.push({ detail, window: window2, effectiveWeight: window2.baseWeight });
+      totalActiveWeight += window2.baseWeight;
+    }
+  }
+  if (totalActiveWeight > 0) {
+    for (const aw of activeWindows) {
+      aw.effectiveWeight = aw.effectiveWeight / totalActiveWeight;
+    }
+  }
+  let weightedAcos = 0, weightedRoas = 0, weightedCtr = 0, weightedCvr = 0, weightedCpc = 0;
+  let weightedDailySpend = 0, weightedDailySales = 0, weightedDailyOrders = 0;
+  for (const aw of activeWindows) {
+    const w7 = aw.effectiveWeight;
+    const d5 = aw.detail;
+    weightedAcos += d5.acos * w7;
+    weightedRoas += d5.roas * w7;
+    weightedCtr += d5.ctr * w7;
+    weightedCvr += d5.cvr * w7;
+    weightedCpc += d5.cpc * w7;
+    weightedDailySpend += d5.dailyAvgSpend * w7;
+    weightedDailySales += d5.dailyAvgSales * w7;
+    weightedDailyOrders += d5.dailyAvgOrders * w7;
+  }
+  const totalDaysWithData = windowDetails.reduce((sum2, d5) => sum2 + d5.daysCount, 0);
+  const totalPossibleDays = 90;
+  const coveragePercent = totalDaysWithData / totalPossibleDays * 100;
+  const recentDataAvailable = windowDetails[0].daysCount > 0 || windowDetails[1].daysCount > 0;
+  let confidenceLevel;
+  if (totalDaysWithData >= 21 && recentDataAvailable) {
+    confidenceLevel = "high";
+  } else if (totalDaysWithData >= 10) {
+    confidenceLevel = "medium";
+  } else if (totalDaysWithData >= 3) {
+    confidenceLevel = "low";
+  } else {
+    confidenceLevel = "insufficient";
+  }
+  const recentWindows = activeWindows.filter(
+    (aw) => aw.window.name === "recent_high_value" || aw.window.name === "mid_term_stable"
+  );
+  const olderWindows = activeWindows.filter(
+    (aw) => aw.window.name === "baseline_reference" || aw.window.name === "historical_reference"
+  );
+  let trendSignal = {
+    direction: "stable",
+    strength: 0,
+    description: "\u6570\u636E\u4E0D\u8DB3\uFF0C\u65E0\u6CD5\u5224\u65AD\u8D8B\u52BF"
+  };
+  if (recentWindows.length > 0 && olderWindows.length > 0) {
+    const recentAvgRoas = recentWindows.reduce((sum2, aw) => sum2 + aw.detail.roas, 0) / recentWindows.length;
+    const olderAvgRoas = olderWindows.reduce((sum2, aw) => sum2 + aw.detail.roas, 0) / olderWindows.length;
+    if (olderAvgRoas > 0) {
+      const roasChange = (recentAvgRoas - olderAvgRoas) / olderAvgRoas;
+      if (roasChange > 0.1) {
+        trendSignal = {
+          direction: "improving",
+          strength: Math.min(1, roasChange),
+          description: `ROAS\u8FD1\u671F\u63D0\u5347${(roasChange * 100).toFixed(0)}%\uFF0C\u8868\u73B0\u6539\u5584\u4E2D`
+        };
+      } else if (roasChange < -0.1) {
+        trendSignal = {
+          direction: "declining",
+          strength: Math.min(1, Math.abs(roasChange)),
+          description: `ROAS\u8FD1\u671F\u4E0B\u964D${(Math.abs(roasChange) * 100).toFixed(0)}%\uFF0C\u9700\u8981\u5173\u6CE8`
+        };
+      } else {
+        trendSignal = {
+          direction: "stable",
+          strength: Math.abs(roasChange),
+          description: `ROAS\u8FD1\u671F\u53D8\u5316${(roasChange * 100).toFixed(0)}%\uFF0C\u8868\u73B0\u7A33\u5B9A`
+        };
+      }
+    }
+  }
+  return {
+    weightedAcos,
+    weightedRoas,
+    weightedCtr,
+    weightedCvr,
+    weightedCpc,
+    weightedDailySpend,
+    weightedDailySales,
+    weightedDailyOrders,
+    windowDetails,
+    dataQuality: {
+      totalDaysWithData,
+      coveragePercent,
+      recentDataAvailable,
+      confidenceLevel
+    },
+    trendSignal
+  };
+}
+var TIME_WINDOWS;
+var init_timeDecayWeightedDataService = __esm({
+  "server/timeDecayWeightedDataService.ts"() {
+    "use strict";
+    init_db2();
+    TIME_WINDOWS = [
+      {
+        name: "attribution_incomplete",
+        // 归因不完整期
+        startDaysAgo: 0,
+        endDaysAgo: 3,
+        baseWeight: 0.05,
+        // 极低权重
+        attributionCompleteness: 0.35
+        // 仅35%的订单已归因
+      },
+      {
+        name: "recent_high_value",
+        // 近期高价值期
+        startDaysAgo: 4,
+        endDaysAgo: 7,
+        baseWeight: 0.3,
+        // 最高权重
+        attributionCompleteness: 0.75
+        // 75%的订单已归因
+      },
+      {
+        name: "mid_term_stable",
+        // 中期稳定期
+        startDaysAgo: 8,
+        endDaysAgo: 14,
+        baseWeight: 0.28,
+        // 较高权重
+        attributionCompleteness: 0.92
+        // 92%的订单已归因
+      },
+      {
+        name: "baseline_reference",
+        // 基准参考期
+        startDaysAgo: 15,
+        endDaysAgo: 30,
+        baseWeight: 0.22,
+        // 中等权重
+        attributionCompleteness: 1
+        // 完全归因
+      },
+      {
+        name: "historical_reference",
+        // 历史参考期
+        startDaysAgo: 31,
+        endDaysAgo: 60,
+        baseWeight: 0.1,
+        // 较低权重
+        attributionCompleteness: 1
+        // 完全归因
+      },
+      {
+        name: "long_term_reference",
+        // 远期参考期
+        startDaysAgo: 61,
+        endDaysAgo: 90,
+        baseWeight: 0.05,
+        // 很低权重
+        attributionCompleteness: 1
+        // 完全归因
+      }
+    ];
+  }
+});
+
 // server/intelligentBudgetAllocationService.ts
 async function collectCampaignPerformanceData(performanceGroupId, endDate = /* @__PURE__ */ new Date()) {
   const dbInstance = await getDb();
@@ -64360,6 +64583,8 @@ async function collectCampaignPerformanceData(performanceGroupId, endDate = /* @
   date14dAgo.setDate(date14dAgo.getDate() - 14);
   const date30dAgo = new Date(endDate);
   date30dAgo.setDate(date30dAgo.getDate() - 30);
+  const date90dAgo = new Date(endDate);
+  date90dAgo.setDate(date90dAgo.getDate() - 90);
   const campaignList = await dbInstance.select().from(campaigns).where(eq(campaigns.performanceGroupId, performanceGroupId));
   const results = [];
   for (const campaign of campaignList) {
@@ -64368,8 +64593,37 @@ async function collectCampaignPerformanceData(performanceGroupId, endDate = /* @
       aggregatePerformanceData(campaign.id, date14dAgo, endDate),
       aggregatePerformanceData(campaign.id, date30dAgo, endDate)
     ]);
+    let timeWeightedMetrics;
+    try {
+      const rawDailyData = await dbInstance.select({
+        date: dailyPerformance.date,
+        impressions: dailyPerformance.impressions,
+        clicks: dailyPerformance.clicks,
+        spend: dailyPerformance.spend,
+        sales: dailyPerformance.sales,
+        orders: dailyPerformance.orders
+      }).from(dailyPerformance).where(and(
+        eq(dailyPerformance.campaignId, campaign.id),
+        sql`DATE(${dailyPerformance.date}) >= ${date90dAgo.toISOString().split("T")[0]}`,
+        sql`DATE(${dailyPerformance.date}) <= ${endDate.toISOString().split("T")[0]}`
+      ));
+      const dailyDataForWeighting = rawDailyData.map((d5) => ({
+        date: typeof d5.date === "string" ? d5.date : new Date(d5.date).toISOString(),
+        impressions: d5.impressions || 0,
+        clicks: d5.clicks || 0,
+        spend: parseFloat(String(d5.spend || "0")),
+        sales: parseFloat(String(d5.sales || "0")),
+        orders: d5.orders || 0
+      }));
+      if (dailyDataForWeighting.length > 0) {
+        timeWeightedMetrics = calculateTimeWeightedMetrics(dailyDataForWeighting);
+        console.log(`[BudgetAllocation] v163: Campaign ${campaign.id} \u65F6\u95F4\u8870\u51CF\u52A0\u6743 - \u52A0\u6743\u65E5\u5747\u82B1\u8D39=$${timeWeightedMetrics.weightedDailySpend.toFixed(2)}, \u52A0\u6743ROAS=${timeWeightedMetrics.weightedRoas.toFixed(2)}, \u7F6E\u4FE1\u5EA6=${timeWeightedMetrics.dataQuality.confidenceLevel}`);
+      }
+    } catch (e6) {
+      console.log(`[BudgetAllocation] v163: Campaign ${campaign.id} \u65F6\u95F4\u8870\u51CF\u6570\u636E\u83B7\u53D6\u5931\u8D25: ${e6.message}`);
+    }
     const currentBudget = Number(campaign.dailyBudget) || 0;
-    const dailyAvgSpend = data30d.spend / 30;
+    const dailyAvgSpend = timeWeightedMetrics ? timeWeightedMetrics.weightedDailySpend : data30d.spend / 30;
     const budgetUtilization = currentBudget > 0 ? dailyAvgSpend / currentBudget * 100 : 0;
     results.push({
       campaignId: campaign.id,
@@ -64405,8 +64659,17 @@ async function collectCampaignPerformanceData(performanceGroupId, endDate = /* @
       cpc7d: data7d.clicks > 0 ? data7d.spend / data7d.clicks : 0,
       budgetUtilization,
       dailyAvgSpend,
-      dailyAvgSales: data30d.sales / 30,
-      dailyAvgConversions: data30d.conversions / 30
+      dailyAvgSales: timeWeightedMetrics ? timeWeightedMetrics.weightedDailySales : data30d.sales / 30,
+      dailyAvgConversions: timeWeightedMetrics ? timeWeightedMetrics.weightedDailyOrders : data30d.conversions / 30,
+      // v163: 时间衰减加权指标
+      timeWeightedMetrics,
+      weightedAcos: timeWeightedMetrics ? timeWeightedMetrics.weightedAcos : data30d.sales > 0 ? data30d.spend / data30d.sales * 100 : 0,
+      weightedRoas: timeWeightedMetrics ? timeWeightedMetrics.weightedRoas : data30d.spend > 0 ? data30d.sales / data30d.spend : 0,
+      weightedDailySpend: timeWeightedMetrics ? timeWeightedMetrics.weightedDailySpend : data30d.spend / 30,
+      weightedDailySales: timeWeightedMetrics ? timeWeightedMetrics.weightedDailySales : data30d.sales / 30,
+      weightedDailyOrders: timeWeightedMetrics ? timeWeightedMetrics.weightedDailyOrders : data30d.conversions / 30,
+      dataConfidence: timeWeightedMetrics ? timeWeightedMetrics.dataQuality.confidenceLevel : "medium",
+      trendDirection: timeWeightedMetrics ? timeWeightedMetrics.trendSignal.direction : "stable"
     });
   }
   return results;
@@ -64861,6 +65124,7 @@ var init_intelligentBudgetAllocationService = __esm({
     init_db2();
     init_schema2();
     init_drizzle_orm();
+    init_timeDecayWeightedDataService();
     DEFAULT_CONFIG = {
       conversionEfficiencyWeight: 0.25,
       roasWeight: 0.25,
@@ -131439,7 +131703,7 @@ async function calculateOptimalAdjustment(scores, currentAdjustments, campaignId
   }
   return suggestions;
 }
-async function getCampaignPlacementPerformance(campaignId, accountId, days = 14, excludeRecentDays = true) {
+async function getCampaignPlacementPerformance(campaignId, accountId, days = 90, excludeRecentDays = true) {
   const db = await getDb();
   if (!db) throw new Error("Database connection failed");
   const endDate = /* @__PURE__ */ new Date();
@@ -131456,6 +131720,7 @@ async function getCampaignPlacementPerformance(campaignId, accountId, days = 14,
       lte(placementPerformance.date, endDate.toISOString())
     )
   );
+  const placementDailyData = {};
   const aggregatedData = {};
   for (const row of performanceData) {
     const placement = row.placement;
@@ -131473,12 +131738,41 @@ async function getCampaignPlacementPerformance(campaignId, accountId, days = 14,
     aggregatedData[placement].spend += Number(row.spend) || 0;
     aggregatedData[placement].sales += Number(row.sales) || 0;
     aggregatedData[placement].orders += row.orders || 0;
+    if (!placementDailyData[placement]) {
+      placementDailyData[placement] = [];
+    }
+    placementDailyData[placement].push({
+      date: typeof row.date === "string" ? row.date : new Date(row.date).toISOString(),
+      impressions: row.impressions || 0,
+      clicks: row.clicks || 0,
+      spend: Number(row.spend) || 0,
+      sales: Number(row.sales) || 0,
+      orders: row.orders || 0
+    });
   }
   const benchmarks = await calculateDynamicBenchmarks(accountId);
   const scores = [];
   for (const [placement, metrics] of Object.entries(aggregatedData)) {
+    let weightedMetrics = metrics;
+    const dailyData = placementDailyData[placement];
+    if (dailyData && dailyData.length > 7) {
+      try {
+        const twMetrics = calculateTimeWeightedMetrics(dailyData);
+        const totalDays = dailyData.length;
+        weightedMetrics = {
+          impressions: Math.round(twMetrics.weightedDailyImpressions * totalDays),
+          clicks: Math.round(twMetrics.weightedDailyClicks * totalDays),
+          spend: twMetrics.weightedDailySpend * totalDays,
+          sales: twMetrics.weightedDailySales * totalDays,
+          orders: Math.round(twMetrics.weightedDailyOrders * totalDays)
+        };
+        console.log(`[PlacementOptimization] v163: ${placement} \u65F6\u95F4\u8870\u51CF\u52A0\u6743 - \u52A0\u6743ROAS=${twMetrics.weightedRoas.toFixed(2)}, \u52A0\u6743ACoS=${twMetrics.weightedAcos.toFixed(1)}%, \u7F6E\u4FE1\u5EA6=${twMetrics.dataQuality.confidenceLevel}`);
+      } catch (e6) {
+        console.log(`[PlacementOptimization] v163: ${placement} \u65F6\u95F4\u8870\u51CF\u8BA1\u7B97\u5931\u8D25\uFF0C\u4F7F\u7528\u539F\u59CB\u6C47\u603B: ${e6.message}`);
+      }
+    }
     const { score, confidence, normalizedMetrics } = calculateEfficiencyScore2(
-      metrics,
+      weightedMetrics,
       DEFAULT_WEIGHTS2,
       benchmarks
     );
@@ -131490,7 +131784,7 @@ async function getCampaignPlacementPerformance(campaignId, accountId, days = 14,
       isReliable: confidence.isReliable,
       confidenceReason: confidence.reason,
       metrics: {
-        ...metrics,
+        ...weightedMetrics,
         roas: normalizedMetrics.roas,
         acos: normalizedMetrics.acos,
         cvr: normalizedMetrics.cvr,
@@ -131746,6 +132040,7 @@ var init_placementOptimizationService = __esm({
     init_db2();
     init_schema2();
     init_drizzle_orm();
+    init_timeDecayWeightedDataService();
     DEFAULT_WEIGHTS2 = {
       roasWeight: 0.35,
       acosWeight: 0.25,
@@ -135364,6 +135659,253 @@ var init_dataSyncScheduler = __esm({
   }
 });
 
+// server/gradualOptimizationEngine.ts
+function applyGradualBidAdjustment(currentBid, algorithmTargetBid, campaignMetrics, consecutiveSameDirectionCount = 0, maxBidLimit = 5, minBidLimit = 0.02) {
+  const confidence = campaignMetrics.dataQuality.confidenceLevel;
+  const trend = campaignMetrics.trendSignal.direction;
+  let maxChange = GRADUAL_BID_CONFIG.maxChangeByConfidence[confidence] || 0.1;
+  if (trend === "improving" && algorithmTargetBid > currentBid) {
+    maxChange *= 1.15;
+  } else if (trend === "declining" && algorithmTargetBid < currentBid) {
+    maxChange *= 1.1;
+  } else if (trend === "declining" && algorithmTargetBid > currentBid) {
+    maxChange *= 0.5;
+  } else if (trend === "improving" && algorithmTargetBid < currentBid) {
+    maxChange *= 0.6;
+  }
+  if (algorithmTargetBid < currentBid) {
+    maxChange *= GRADUAL_BID_CONFIG.decreaseCaution;
+  }
+  if (consecutiveSameDirectionCount > 0) {
+    const dampening = Math.pow(
+      GRADUAL_BID_CONFIG.consecutiveSameDirectionDampening,
+      Math.min(consecutiveSameDirectionCount, GRADUAL_BID_CONFIG.maxConsecutiveSameDirection)
+    );
+    maxChange *= dampening;
+  }
+  if (consecutiveSameDirectionCount >= GRADUAL_BID_CONFIG.maxConsecutiveSameDirection) {
+    return {
+      keywordId: 0,
+      currentBid,
+      targetBid: algorithmTargetBid,
+      gradualBid: currentBid,
+      changePercent: 0,
+      reason: `\u8FDE\u7EED${consecutiveSameDirectionCount}\u6B21\u540C\u5411\u8C03\u6574\uFF0C\u6682\u505C\u4EE5\u89C2\u5BDF\u6548\u679C`,
+      dataConfidence: confidence,
+      trendDirection: trend,
+      stepsToTarget: 999
+    };
+  }
+  const bidDiff = algorithmTargetBid - currentBid;
+  const maxAbsChange = currentBid * maxChange;
+  let gradualBid;
+  if (Math.abs(bidDiff) <= maxAbsChange) {
+    gradualBid = algorithmTargetBid;
+  } else {
+    gradualBid = currentBid + (bidDiff > 0 ? maxAbsChange : -maxAbsChange);
+  }
+  gradualBid = Math.min(gradualBid, maxBidLimit);
+  gradualBid = Math.max(gradualBid, minBidLimit);
+  gradualBid = Math.round(gradualBid * 100) / 100;
+  const actualChange = Math.abs(gradualBid - currentBid);
+  const remainingGap = Math.abs(algorithmTargetBid - gradualBid);
+  const stepsToTarget = actualChange > 1e-3 ? Math.ceil(remainingGap / actualChange) : 0;
+  const changePercent = currentBid > 0 ? (gradualBid - currentBid) / currentBid * 100 : 0;
+  return {
+    keywordId: 0,
+    currentBid,
+    targetBid: algorithmTargetBid,
+    gradualBid,
+    changePercent: Math.round(changePercent * 100) / 100,
+    reason: buildBidReason(currentBid, gradualBid, algorithmTargetBid, confidence, trend, stepsToTarget),
+    dataConfidence: confidence,
+    trendDirection: trend,
+    stepsToTarget
+  };
+}
+function buildBidReason(current, gradual, target, confidence, trend, steps) {
+  const direction = gradual > current ? "\u63D0\u4EF7" : gradual < current ? "\u964D\u4EF7" : "\u7EF4\u6301";
+  const changeAbs = Math.abs(gradual - current);
+  const changePct = current > 0 ? (changeAbs / current * 100).toFixed(1) : "0";
+  if (direction === "\u7EF4\u6301") {
+    return `\u6E10\u8FDB\u5F0F\u4F18\u5316: \u7EF4\u6301\u5F53\u524D\u51FA\u4EF7$${current.toFixed(2)} (\u7F6E\u4FE1\u5EA6=${confidence})`;
+  }
+  const parts = [
+    `\u6E10\u8FDB${direction}: $${current.toFixed(2)}\u2192$${gradual.toFixed(2)} (${changePct}%)`,
+    `\u76EE\u6807$${target.toFixed(2)}`
+  ];
+  if (steps > 0) {
+    parts.push(`\u9884\u8BA1${steps}\u6B65\u8FBE\u6210`);
+  }
+  parts.push(`\u7F6E\u4FE1\u5EA6=${confidence}`);
+  if (trend !== "stable") {
+    parts.push(`\u8D8B\u52BF=${trend === "improving" ? "\u6539\u5584" : "\u4E0B\u964D"}`);
+  }
+  return parts.join("\uFF0C");
+}
+function applyGradualBudgetAdjustment(currentBudget, currentDailySpend, targetBudget, campaignMetrics) {
+  const confidence = campaignMetrics.dataQuality.confidenceLevel;
+  const trend = campaignMetrics.trendSignal.direction;
+  const effectiveSpend = campaignMetrics.weightedDailySpend > 0 ? campaignMetrics.weightedDailySpend : currentDailySpend;
+  const gap = effectiveSpend - targetBudget;
+  const gapPercent = effectiveSpend > 0 ? Math.abs(gap) / effectiveSpend : 0;
+  if (gapPercent <= 0.1) {
+    return {
+      campaignId: 0,
+      currentBudget,
+      currentDailySpend: effectiveSpend,
+      targetBudget,
+      gradualBudget: targetBudget,
+      changePercent: currentBudget > 0 ? (targetBudget - currentBudget) / currentBudget * 100 : 0,
+      reason: "\u5F53\u524D\u82B1\u8D39\u5DF2\u63A5\u8FD1\u76EE\u6807\uFF0C\u5FAE\u8C03\u5230\u4F4D",
+      stepsToTarget: 0,
+      orderProtectionActive: false
+    };
+  }
+  let stepRatio = GRADUAL_BUDGET_CONFIG.stepRatio;
+  let maxChangePercent = GRADUAL_BUDGET_CONFIG.maxSingleChangePercent;
+  if (confidence === "low" || confidence === "insufficient") {
+    stepRatio *= 0.6;
+    maxChangePercent *= 0.6;
+  } else if (confidence === "medium") {
+    stepRatio *= 0.8;
+    maxChangePercent *= 0.8;
+  }
+  if (gap > 0) {
+    stepRatio *= GRADUAL_BUDGET_CONFIG.decreaseCaution;
+    maxChangePercent *= GRADUAL_BUDGET_CONFIG.decreaseCaution;
+  }
+  if (trend === "improving" && gap > 0) {
+    stepRatio *= 0.7;
+  } else if (trend === "declining" && gap < 0) {
+    stepRatio *= 0.7;
+  }
+  let stepAdjustment = gap * stepRatio;
+  const maxAdjustment = currentBudget * maxChangePercent;
+  if (Math.abs(stepAdjustment) > maxAdjustment) {
+    stepAdjustment = stepAdjustment > 0 ? maxAdjustment : -maxAdjustment;
+  }
+  let gradualBudget = currentBudget - stepAdjustment;
+  let orderProtectionActive = false;
+  if (gap > 0 && campaignMetrics.weightedDailyOrders > 0) {
+    const spendReduction = stepAdjustment / effectiveSpend;
+    const estimatedOrderDrop = spendReduction * 0.8;
+    if (estimatedOrderDrop > GRADUAL_BUDGET_CONFIG.orderProtectionThreshold) {
+      const safeReduction = GRADUAL_BUDGET_CONFIG.orderProtectionThreshold / 0.8 * effectiveSpend;
+      stepAdjustment = Math.min(stepAdjustment, safeReduction);
+      gradualBudget = currentBudget - stepAdjustment;
+      orderProtectionActive = true;
+    }
+  }
+  gradualBudget = Math.max(GRADUAL_BUDGET_CONFIG.minBudget, gradualBudget);
+  gradualBudget = Math.min(GRADUAL_BUDGET_CONFIG.maxBudget, gradualBudget);
+  gradualBudget = Math.round(gradualBudget * 100) / 100;
+  const changePercent = currentBudget > 0 ? (gradualBudget - currentBudget) / currentBudget * 100 : 0;
+  const remainingGap = Math.abs(gradualBudget - targetBudget);
+  const avgStep = Math.abs(stepAdjustment);
+  const stepsToTarget = avgStep > 0.01 ? Math.ceil(remainingGap / avgStep) : 0;
+  const direction = gradualBudget < currentBudget ? "\u964D\u4F4E" : "\u63D0\u5347";
+  let reason = `\u6E10\u8FDB${direction}\u9884\u7B97: $${currentBudget.toFixed(0)}\u2192$${gradualBudget.toFixed(0)} (${Math.abs(changePercent).toFixed(1)}%)`;
+  reason += `\uFF0C\u76EE\u6807$${targetBudget.toFixed(0)}`;
+  if (stepsToTarget > 0) reason += `\uFF0C\u9884\u8BA1${stepsToTarget}\u6B65\u8FBE\u6210`;
+  if (orderProtectionActive) reason += " [\u8BA2\u5355\u4FDD\u62A4\u5DF2\u6FC0\u6D3B]";
+  return {
+    campaignId: 0,
+    currentBudget,
+    currentDailySpend: effectiveSpend,
+    targetBudget,
+    gradualBudget,
+    changePercent: Math.round(changePercent * 100) / 100,
+    reason,
+    stepsToTarget,
+    orderProtectionActive
+  };
+}
+function performSafetyCheck(metrics) {
+  const warnings = [];
+  let shouldPause = false;
+  if (metrics.dataQuality.confidenceLevel === "insufficient") {
+    return {
+      safe: true,
+      warnings: ["\u6570\u636E\u4E0D\u8DB3\uFF0C\u5C06\u4F7F\u7528\u6781\u4FDD\u5B88\u7B56\u7565"],
+      shouldPause: false
+    };
+  }
+  const windows = metrics.windowDetails;
+  const recentWindow = windows.find((w7) => w7.windowName === "recent_high_value");
+  const baselineWindow = windows.find((w7) => w7.windowName === "baseline_reference");
+  if (recentWindow && baselineWindow && baselineWindow.dailyAvgSales > 0) {
+    const salesDropRatio = recentWindow.dailyAvgSales / baselineWindow.dailyAvgSales;
+    if (salesDropRatio < 0.4) {
+      warnings.push(`\u8FD1\u671F\u65E5\u5747\u9500\u552E\u989D\u4E0B\u964D${((1 - salesDropRatio) * 100).toFixed(0)}%\uFF0C\u53EF\u80FD\u5B58\u5728\u7F3A\u8D27\u6216listing\u95EE\u9898`);
+      shouldPause = true;
+    } else if (salesDropRatio < 0.65) {
+      warnings.push(`\u8FD1\u671F\u65E5\u5747\u9500\u552E\u989D\u4E0B\u964D${((1 - salesDropRatio) * 100).toFixed(0)}%\uFF0C\u9700\u8981\u5173\u6CE8`);
+    }
+    if (baselineWindow.dailyAvgSpend > 0) {
+      const spendSurgeRatio = recentWindow.dailyAvgSpend / baselineWindow.dailyAvgSpend;
+      if (spendSurgeRatio > 2.5) {
+        warnings.push(`\u8FD1\u671F\u65E5\u5747\u82B1\u8D39\u6FC0\u589E${((spendSurgeRatio - 1) * 100).toFixed(0)}%\uFF0C\u53EF\u80FD\u5B58\u5728\u5F02\u5E38`);
+        shouldPause = true;
+      } else if (spendSurgeRatio > 1.8) {
+        warnings.push(`\u8FD1\u671F\u65E5\u5747\u82B1\u8D39\u589E\u957F${((spendSurgeRatio - 1) * 100).toFixed(0)}%`);
+      }
+    }
+    if (baselineWindow.cvr > 0) {
+      const cvrChangeRatio = recentWindow.cvr / baselineWindow.cvr;
+      if (cvrChangeRatio < 0.4) {
+        warnings.push(`\u8FD1\u671F\u8F6C\u5316\u7387\u4E0B\u964D${((1 - cvrChangeRatio) * 100).toFixed(0)}%\uFF0C\u5EFA\u8BAE\u68C0\u67E5listing\u548C\u5E93\u5B58`);
+      }
+    }
+  }
+  return {
+    safe: !shouldPause,
+    warnings,
+    shouldPause,
+    reason: shouldPause ? warnings.join("\uFF1B") : void 0
+  };
+}
+var GRADUAL_BID_CONFIG, GRADUAL_BUDGET_CONFIG;
+var init_gradualOptimizationEngine = __esm({
+  "server/gradualOptimizationEngine.ts"() {
+    "use strict";
+    GRADUAL_BID_CONFIG = {
+      // 单次最大调整幅度（按数据置信度分级）
+      maxChangeByConfidence: {
+        high: 0.18,
+        // 高置信度：最多18%
+        medium: 0.1,
+        // 中置信度：最多10%
+        low: 0.06,
+        // 低置信度：最多6%
+        insufficient: 0.03
+        // 数据不足：最多3%
+      },
+      // 连续同向调整降速因子
+      consecutiveSameDirectionDampening: 0.8,
+      // 每次连续同向调整，幅度降低20%
+      // 最大连续同向调整次数（超过后暂停该方向调整）
+      maxConsecutiveSameDirection: 5,
+      // 降价保守系数（降价幅度 = 提价幅度 × 此系数）
+      decreaseCaution: 0.7
+    };
+    GRADUAL_BUDGET_CONFIG = {
+      // 每次缩小差距的比例
+      stepRatio: 0.25,
+      // 单次最大调整百分比
+      maxSingleChangePercent: 0.15,
+      // 降预算保守系数
+      decreaseCaution: 0.65,
+      // 最低预算保护（美元）
+      minBudget: 1,
+      // 最高预算上限（美元）
+      maxBudget: 5e4,
+      // 订单保护阈值：如果预计调整后订单下降超过此比例，限制调整
+      orderProtectionThreshold: 0.2
+    };
+  }
+});
+
 // server/optimizationTargetEngine.ts
 var optimizationTargetEngine_exports = {};
 __export(optimizationTargetEngine_exports, {
@@ -135743,10 +136285,11 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
   console.log(`[BidOptimization] v155: \u65E5\u9884\u7B97=${config2.dailyBudget || "\u672A\u8BBE\u7F6E"}, \u76EE\u6807ACoS=${config2.targetAcos || "\u672A\u8BBE\u7F6E"}`);
   for (const campaign of campaigns6) {
     let campaignDailyData = [];
+    let campaignTimeWeightedMetrics = null;
     try {
       const endDate = /* @__PURE__ */ new Date();
       const startDate = /* @__PURE__ */ new Date();
-      startDate.setDate(startDate.getDate() - 14);
+      startDate.setDate(startDate.getDate() - 90);
       const rawDailyData = await getDailyPerformanceByDateRange(config2.accountId, startDate, endDate, campaign.id);
       campaignDailyData = rawDailyData.map((d5) => ({
         date: new Date(d5.date),
@@ -135755,8 +136298,34 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
         clicks: d5.clicks || 0,
         orders: d5.orders || 0
       }));
+      const dailyDataForWeighting = rawDailyData.map((d5) => ({
+        date: typeof d5.date === "string" ? d5.date : new Date(d5.date).toISOString(),
+        impressions: d5.impressions || 0,
+        clicks: d5.clicks || 0,
+        spend: parseFloat(String(d5.spend || "0")),
+        sales: parseFloat(String(d5.sales || "0")),
+        orders: d5.orders || 0
+      }));
+      campaignTimeWeightedMetrics = calculateTimeWeightedMetrics(dailyDataForWeighting);
+      console.log(`[BidOptimization] v163: Campaign ${campaign.id} \u65F6\u95F4\u8870\u51CF\u52A0\u6743 - \u52A0\u6743ACoS=${campaignTimeWeightedMetrics.weightedAcos.toFixed(1)}%, \u52A0\u6743ROAS=${campaignTimeWeightedMetrics.weightedRoas.toFixed(2)}, \u7F6E\u4FE1\u5EA6=${campaignTimeWeightedMetrics.dataQuality.confidenceLevel}, \u8D8B\u52BF=${campaignTimeWeightedMetrics.trendSignal.direction}`);
     } catch (e6) {
       console.log(`[BidOptimization] \u83B7\u53D6campaign ${campaign.id} \u5386\u53F2\u6570\u636E\u5931\u8D25: ${e6.message}`);
+    }
+    if (campaignTimeWeightedMetrics) {
+      const safetyCheck = performSafetyCheck(campaignTimeWeightedMetrics);
+      if (safetyCheck.shouldPause) {
+        console.warn(`[BidOptimization] v163: Campaign ${campaign.id} \u5B89\u5168\u68C0\u67E5\u89E6\u53D1\u6682\u505C: ${safetyCheck.reason}`);
+        details.push({
+          campaignId: campaign.id,
+          campaignName: campaign.campaignName,
+          action: "safety_pause",
+          reason: `[\u5B89\u5168\u68C0\u67E5] ${safetyCheck.warnings.join("\uFF1B")}`
+        });
+        continue;
+      }
+      if (safetyCheck.warnings.length > 0) {
+        console.log(`[BidOptimization] v163: Campaign ${campaign.id} \u5B89\u5168\u8B66\u544A: ${safetyCheck.warnings.join("\uFF1B")}`);
+      }
     }
     const keywords5 = await getKeywordsByCampaignId(campaign.id);
     const keywordTargets = [];
@@ -135775,8 +136344,9 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
         orders: keyword.orders || 0,
         matchType: keyword.matchType,
         campaignStartDate: campaign.startDate ? new Date(campaign.startDate) : void 0,
-        historicalAvgImpressions: campaign.impressions ? Math.round(campaign.impressions / 14) : void 0,
-        // v122h: 传入campaign级别的每日数据用于时间衰减ROAS和UCB
+        historicalAvgImpressions: campaign.impressions ? Math.round(campaign.impressions / 30) : void 0,
+        // v163: 基于30天估算
+        // v163: 传入campaign级别的90天每日数据用于时间衰减加权分析
         dailyData: campaignDailyData.length > 0 ? campaignDailyData : void 0,
         marketplace: config2.marketplace,
         campaignId: campaign.id
@@ -135790,7 +136360,21 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
         currentDate
       );
       for (const result of results) {
-        if (Math.abs(result.newBid - result.previousBid) > 0.01) {
+        let finalBid = result.newBid;
+        if (campaignTimeWeightedMetrics && Math.abs(result.newBid - result.previousBid) > 0.01) {
+          const gradualResult = applyGradualBidAdjustment(
+            result.previousBid,
+            result.newBid,
+            campaignTimeWeightedMetrics,
+            0,
+            // TODO: 追踪连续同向调整次数
+            maxBidLimit,
+            0.02
+          );
+          finalBid = gradualResult.gradualBid;
+          console.log(`[BidOptimization] v163: \u6E10\u8FDB\u5F0F\u7ADE\u4EF7 - \u5173\u952E\u8BCD${result.targetId}: \u7B97\u6CD5\u76EE\u6807$${result.newBid.toFixed(2)} \u2192 \u6E10\u8FDB$${finalBid.toFixed(2)} (\u7F6E\u4FE1\u5EA6=${gradualResult.dataConfidence}, \u8D8B\u52BF=${gradualResult.trendDirection})`);
+        }
+        if (Math.abs(finalBid - result.previousBid) > 0.01) {
           const keyword = keywords5.find((k5) => k5.id === result.targetId);
           const adjustment = {
             keywordId: result.targetId,
@@ -135798,9 +136382,10 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
             campaignId: campaign.id,
             campaignName: campaign.campaignName,
             currentBid: result.previousBid,
-            newBid: result.newBid,
-            changePercent: result.bidChangePercent.toFixed(2),
-            reason: `[${result.algorithmUsed}] ${result.reason}`,
+            newBid: finalBid,
+            // v163: 使用渐进式调整后的出价
+            changePercent: ((finalBid - result.previousBid) / result.previousBid * 100).toFixed(2),
+            reason: `[v163\u6E10\u8FDB+${result.algorithmUsed}] ${result.reason}`,
             algorithmUsed: result.algorithmUsed,
             confidenceScore: result.confidenceScore
           };
@@ -135832,7 +136417,8 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
           orders: target.orders || 0,
           matchType: target.targetMatchType || "exact",
           campaignStartDate: campaign.startDate ? new Date(campaign.startDate) : void 0,
-          historicalAvgImpressions: campaign.impressions ? Math.round(campaign.impressions / 14) : void 0,
+          historicalAvgImpressions: campaign.impressions ? Math.round(campaign.impressions / 30) : void 0,
+          // v163
           dailyData: campaignDailyData.length > 0 ? campaignDailyData : void 0,
           marketplace: config2.marketplace,
           campaignId: campaign.id
@@ -135847,7 +136433,20 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
         currentDate
       );
       for (const result of results) {
-        if (Math.abs(result.newBid - result.previousBid) > 0.01) {
+        let finalBid = result.newBid;
+        if (campaignTimeWeightedMetrics && Math.abs(result.newBid - result.previousBid) > 0.01) {
+          const gradualResult = applyGradualBidAdjustment(
+            result.previousBid,
+            result.newBid,
+            campaignTimeWeightedMetrics,
+            0,
+            maxBidLimit,
+            0.02
+          );
+          finalBid = gradualResult.gradualBid;
+          console.log(`[BidOptimization] v163: \u6E10\u8FDB\u5F0F\u5546\u54C1\u5B9A\u5411 - ${result.targetId}: $${result.newBid.toFixed(2)} \u2192 $${finalBid.toFixed(2)}`);
+        }
+        if (Math.abs(finalBid - result.previousBid) > 0.01) {
           const target = allTargets.find((t7) => t7.id === result.targetId);
           const adjustment = {
             keywordId: result.targetId,
@@ -135855,9 +136454,10 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
             campaignId: campaign.id,
             campaignName: campaign.campaignName,
             currentBid: result.previousBid,
-            newBid: result.newBid,
-            changePercent: result.bidChangePercent.toFixed(2),
-            reason: `\u5546\u54C1\u5B9A\u5411 - [${result.algorithmUsed}] ${result.reason}`,
+            newBid: finalBid,
+            // v163: 渐进式调整
+            changePercent: ((finalBid - result.previousBid) / result.previousBid * 100).toFixed(2),
+            reason: `\u5546\u54C1\u5B9A\u5411 - [v163\u6E10\u8FDB+${result.algorithmUsed}] ${result.reason}`,
             isProductTarget: true,
             algorithmUsed: result.algorithmUsed,
             confidenceScore: result.confidenceScore
@@ -136323,31 +136923,47 @@ async function executeBudgetAllocation2(config2, campaigns6, dryRun) {
     for (const suggestion of budgetResult.suggestions) {
       const campaign = campaigns6.find((c5) => c5.id === suggestion.campaignId);
       if (!campaign) continue;
+      let finalBudget = suggestion.suggestedBudget;
+      const campaignPerf = budgetResult.suggestions.find((s4) => s4.campaignId === suggestion.campaignId);
+      const twMetrics = campaignPerf?.timeWeightedMetrics;
+      if (twMetrics && Math.abs(suggestion.suggestedBudget - suggestion.currentBudget) > 1) {
+        const gradualResult = applyGradualBudgetAdjustment(
+          suggestion.currentBudget,
+          twMetrics.weightedDailySpend || suggestion.currentBudget,
+          suggestion.suggestedBudget,
+          twMetrics
+        );
+        finalBudget = gradualResult.gradualBudget;
+        console.log(`[BudgetAllocation] v163: \u6E10\u8FDB\u5F0F\u9884\u7B97 - Campaign ${campaign.campaignName}: $${suggestion.currentBudget.toFixed(0)}\u2192$${finalBudget.toFixed(0)} (\u7B97\u6CD5\u76EE\u6807$${suggestion.suggestedBudget.toFixed(0)}, \u8BA2\u5355\u4FDD\u62A4=${gradualResult.orderProtectionActive})`);
+      }
       const adjustment = {
         accountId: config2.accountId,
         campaignId: suggestion.campaignId,
         campaignName: campaign.campaignName,
         currentBudget: suggestion.currentBudget,
-        suggestedBudget: suggestion.suggestedBudget,
-        changeAmount: suggestion.suggestedBudget - suggestion.currentBudget,
-        changePercent: ((suggestion.suggestedBudget - suggestion.currentBudget) / suggestion.currentBudget * 100).toFixed(2),
-        reason: suggestion.reasons?.join(", ") || "",
+        suggestedBudget: finalBudget,
+        // v163: 使用渐进式调整后的预算
+        changeAmount: finalBudget - suggestion.currentBudget,
+        changePercent: ((finalBudget - suggestion.currentBudget) / suggestion.currentBudget * 100).toFixed(2),
+        reason: `[v163\u6E10\u8FDB] ${suggestion.reasons?.join(", ") || ""}`,
         expectedImpact: suggestion.expectedRoasChange || 0,
         apiSyncStatus: dryRun ? "pending" : "pending"
       };
       details.push(adjustment);
-      if (!dryRun && Math.abs(suggestion.suggestedBudget - suggestion.currentBudget) > 1) {
+      if (!dryRun && Math.abs(finalBudget - suggestion.currentBudget) > 1) {
         try {
           const amazonCampaignId = campaign.campaignId || campaign.id.toString();
           const budgetSyncResult = await syncBudgetAdjustmentToAmazon(
             config2.accountId,
             amazonCampaignId,
-            suggestion.suggestedBudget,
-            `\u9884\u7B97\u4F18\u5316: $${suggestion.currentBudget.toFixed(2)} -> $${suggestion.suggestedBudget.toFixed(2)}`
+            finalBudget,
+            // v163: 使用渐进式调整后的预算
+            `v163\u6E10\u8FDB\u5F0F\u9884\u7B97\u4F18\u5316: $${suggestion.currentBudget.toFixed(2)} -> $${finalBudget.toFixed(2)}`
           );
           if (budgetSyncResult) {
             await updateCampaign(suggestion.campaignId, {
-              dailyBudget: suggestion.suggestedBudget.toFixed(2)
+              dailyBudget: finalBudget.toFixed(2)
+              // v163: 渐进式预算
             });
             adjustmentsCount++;
             adjustment.apiSyncStatus = "synced";
@@ -136397,6 +137013,26 @@ async function executeKeywordStatusChanges(config2, campaigns6, dryRun) {
   pauseSpendThreshold = Math.max(pauseSpendThreshold, groupAov * 1.5);
   for (const campaign of campaigns6) {
     try {
+      let campaignTWMetrics = null;
+      try {
+        const endDate = /* @__PURE__ */ new Date();
+        const startDate = /* @__PURE__ */ new Date();
+        startDate.setDate(startDate.getDate() - 90);
+        const rawDailyData = await getDailyPerformanceByDateRange(config2.accountId, startDate, endDate, campaign.id);
+        const dailyDataForWeighting = rawDailyData.map((d5) => ({
+          date: typeof d5.date === "string" ? d5.date : new Date(d5.date).toISOString(),
+          impressions: d5.impressions || 0,
+          clicks: d5.clicks || 0,
+          spend: parseFloat(String(d5.spend || "0")),
+          sales: parseFloat(String(d5.sales || "0")),
+          orders: d5.orders || 0
+        }));
+        if (dailyDataForWeighting.length > 0) {
+          campaignTWMetrics = calculateTimeWeightedMetrics(dailyDataForWeighting);
+        }
+      } catch (e6) {
+        console.log(`[KeywordStatus] v163: Campaign ${campaign.id} \u65F6\u95F4\u8870\u51CF\u6570\u636E\u83B7\u53D6\u5931\u8D25: ${e6.message}`);
+      }
       const keywords5 = await getKeywordsByCampaignId(campaign.id);
       for (const keyword of keywords5) {
         const spend = parseFloat(keyword.spend || "0");
@@ -136405,15 +137041,26 @@ async function executeKeywordStatusChanges(config2, campaigns6, dryRun) {
         const conversions = keyword.orders || 0;
         const impressions = keyword.impressions || 0;
         const acos = sales > 0 ? spend / sales * 100 : 0;
+        let trendAdjustedPauseSpendThreshold = pauseSpendThreshold;
+        let trendAdjustedMaxAcosThreshold = maxAcosThreshold;
+        if (campaignTWMetrics) {
+          if (campaignTWMetrics.trendSignal.direction === "improving") {
+            trendAdjustedPauseSpendThreshold *= 1.3;
+            trendAdjustedMaxAcosThreshold *= 1.2;
+          } else if (campaignTWMetrics.trendSignal.direction === "declining") {
+            trendAdjustedPauseSpendThreshold *= 0.8;
+            trendAdjustedMaxAcosThreshold *= 0.85;
+          }
+        }
         let shouldPause = false;
         let pauseReason = "";
         if (keyword.keywordStatus === "enabled") {
-          if (spend > pauseSpendThreshold && conversions === 0 && clicks > pauseClickThreshold) {
+          if (spend > trendAdjustedPauseSpendThreshold && conversions === 0 && clicks > pauseClickThreshold) {
             shouldPause = true;
-            pauseReason = `\u9AD8\u82B1\u8D39\u96F6\u8F6C\u5316: \u82B1\u8D39$${spend.toFixed(2)}(>\u9608\u503C$${pauseSpendThreshold.toFixed(0)}), \u70B9\u51FB${clicks}(>\u9608\u503C${pauseClickThreshold}), \u8F6C\u5316${conversions}`;
-          } else if (acos > maxAcosThreshold && clicks > pauseClickThreshold && conversions > 0) {
+            pauseReason = `\u9AD8\u82B1\u8D39\u96F6\u8F6C\u5316: \u82B1\u8D39$${spend.toFixed(2)}(>\u9608\u503C$${trendAdjustedPauseSpendThreshold.toFixed(0)}), \u70B9\u51FB${clicks}(>\u9608\u503C${pauseClickThreshold}), \u8F6C\u5316${conversions}`;
+          } else if (acos > trendAdjustedMaxAcosThreshold && clicks > pauseClickThreshold && conversions > 0) {
             shouldPause = true;
-            pauseReason = `ACoS\u8FDC\u8D85\u76EE\u6807: ACoS ${acos.toFixed(1)}%(>\u9608\u503C${maxAcosThreshold.toFixed(0)}%), \u70B9\u51FB${clicks}, \u8F6C\u5316${conversions}`;
+            pauseReason = `ACoS\u8FDC\u8D85\u76EE\u6807: ACoS ${acos.toFixed(1)}%(>\u9608\u503C${trendAdjustedMaxAcosThreshold.toFixed(0)}%), \u70B9\u51FB${clicks}, \u8F6C\u5316${conversions}`;
           }
           if (shouldPause && keyword.createdAt) {
             const keywordCreatedAt = new Date(keyword.createdAt);
@@ -136592,28 +137239,59 @@ async function executeCampaignStatusChanges(config2, campaigns6, dryRun) {
   }
   for (const campaign of campaigns6) {
     try {
-      const spend = parseFloat(campaign.spend || "0");
-      const sales = parseFloat(campaign.sales || "0");
-      const clicks = campaign.clicks || 0;
-      const conversions = campaign.orders || 0;
-      const acos = sales > 0 ? spend / sales * 100 : 0;
+      let campaignTWMetrics = null;
+      try {
+        const endDate = /* @__PURE__ */ new Date();
+        const startDate = /* @__PURE__ */ new Date();
+        startDate.setDate(startDate.getDate() - 90);
+        const rawDailyData = await getDailyPerformanceByDateRange(config2.accountId, startDate, endDate, campaign.id);
+        const dailyDataForWeighting = rawDailyData.map((d5) => ({
+          date: typeof d5.date === "string" ? d5.date : new Date(d5.date).toISOString(),
+          impressions: d5.impressions || 0,
+          clicks: d5.clicks || 0,
+          spend: parseFloat(String(d5.spend || "0")),
+          sales: parseFloat(String(d5.sales || "0")),
+          orders: d5.orders || 0
+        }));
+        if (dailyDataForWeighting.length > 0) {
+          campaignTWMetrics = calculateTimeWeightedMetrics(dailyDataForWeighting);
+        }
+      } catch (e6) {
+        console.log(`[CampaignStatus] v163: Campaign ${campaign.id} \u65F6\u95F4\u8870\u51CF\u6570\u636E\u83B7\u53D6\u5931\u8D25: ${e6.message}`);
+      }
+      const spend = campaignTWMetrics ? campaignTWMetrics.weightedDailySpend * 30 : parseFloat(campaign.spend || "0");
+      const sales = campaignTWMetrics ? campaignTWMetrics.weightedDailySales * 30 : parseFloat(campaign.sales || "0");
+      const clicks = campaignTWMetrics ? Math.round(campaignTWMetrics.weightedDailyClicks * 30) : campaign.clicks || 0;
+      const conversions = campaignTWMetrics ? Math.round(campaignTWMetrics.weightedDailyOrders * 30) : campaign.orders || 0;
+      const acos = campaignTWMetrics ? campaignTWMetrics.weightedAcos : sales > 0 ? spend / sales * 100 : 0;
       const campaignStatus = campaign.campaignStatus || "enabled";
+      let adjustedPauseSpendThreshold = campaignPauseSpendThreshold;
+      let adjustedMaxAcosThreshold = campaignMaxAcosThreshold;
+      if (campaignTWMetrics) {
+        if (campaignTWMetrics.trendSignal.direction === "improving") {
+          adjustedPauseSpendThreshold *= 1.3;
+          adjustedMaxAcosThreshold *= 1.2;
+        } else if (campaignTWMetrics.trendSignal.direction === "declining") {
+          adjustedPauseSpendThreshold *= 0.8;
+          adjustedMaxAcosThreshold *= 0.85;
+        }
+      }
       let shouldPause = false;
       let pauseReason = "";
       let shouldEnable = false;
       let enableReason = "";
       if (campaignStatus === "enabled") {
-        if (spend > campaignPauseSpendThreshold && conversions === 0 && clicks > campaignPauseClickThreshold) {
+        if (spend > adjustedPauseSpendThreshold && conversions === 0 && clicks > campaignPauseClickThreshold) {
           shouldPause = true;
-          pauseReason = `\u5E7F\u544A\u6D3B\u52A8\u9AD8\u82B1\u8D39\u96F6\u8F6C\u5316: \u82B1\u8D39$${spend.toFixed(2)}(>\u9608\u503C$${campaignPauseSpendThreshold}), \u70B9\u51FB${clicks}(>\u9608\u503C${campaignPauseClickThreshold}), \u8F6C\u5316${conversions}`;
-        } else if (acos > campaignMaxAcosThreshold && clicks > campaignPauseClickThreshold && conversions > 0) {
+          pauseReason = `\u5E7F\u544A\u6D3B\u52A8\u9AD8\u82B1\u8D39\u96F6\u8F6C\u5316: \u52A0\u6743\u82B1\u8D39$${spend.toFixed(2)}(>\u9608\u503C$${adjustedPauseSpendThreshold.toFixed(0)}), \u52A0\u6743\u70B9\u51FB${clicks}(>\u9608\u503C${campaignPauseClickThreshold}), \u52A0\u6743\u8F6C\u5316${conversions}`;
+        } else if (acos > adjustedMaxAcosThreshold && clicks > campaignPauseClickThreshold && conversions > 0) {
           shouldPause = true;
-          pauseReason = `\u5E7F\u544A\u6D3B\u52A8ACoS\u8FDC\u8D85\u76EE\u6807: ACoS ${acos.toFixed(1)}%(>\u9608\u503C${campaignMaxAcosThreshold.toFixed(0)}%), \u70B9\u51FB${clicks}, \u8F6C\u5316${conversions}`;
+          pauseReason = `\u5E7F\u544A\u6D3B\u52A8ACoS\u8FDC\u8D85\u76EE\u6807: \u52A0\u6743ACoS ${acos.toFixed(1)}%(>\u9608\u503C${adjustedMaxAcosThreshold.toFixed(0)}%), \u52A0\u6743\u70B9\u51FB${clicks}, \u52A0\u6743\u8F6C\u5316${conversions}`;
         }
       } else if (campaignStatus === "paused") {
         if (acos > 0 && acos < targetAcos * 0.8) {
           shouldEnable = true;
-          enableReason = `\u5E7F\u544A\u6D3B\u52A8\u8868\u73B0\u6539\u5584: ACoS ${acos.toFixed(1)}%(\u76EE\u6807${targetAcos}%), \u5EFA\u8BAE\u91CD\u65B0\u542F\u7528`;
+          enableReason = `\u5E7F\u544A\u6D3B\u52A8\u8868\u73B0\u6539\u5584: \u52A0\u6743ACoS ${acos.toFixed(1)}%(\u76EE\u6807${targetAcos}%), \u5EFA\u8BAE\u91CD\u65B0\u542F\u7528`;
         }
       }
       if (shouldPause) {
@@ -137319,6 +137997,8 @@ var init_optimizationTargetEngine = __esm({
     init_amazonIdResolver();
     init_algorithmUtils();
     init_campaignLifecycleService();
+    init_timeDecayWeightedDataService();
+    init_gradualOptimizationEngine();
     marketplaceCache = /* @__PURE__ */ new Map();
   }
 });

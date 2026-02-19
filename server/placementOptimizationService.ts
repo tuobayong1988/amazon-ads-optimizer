@@ -24,6 +24,9 @@ import {
   bidAdjustmentHistory
 } from "../drizzle/schema";
 import { eq, and, desc, gte, lte, sql } from "drizzle-orm";
+import { dailyPerformance } from "../drizzle/schema";
+import * as timeDecayService from "./timeDecayWeightedDataService";
+import * as gradualEngine from "./gradualOptimizationEngine";
 
 // ==================== 类型定义 ====================
 
@@ -604,13 +607,13 @@ export async function calculateOptimalAdjustment(
 export async function getCampaignPlacementPerformance(
   campaignId: string,
   accountId: number,
-  days: number = 14,  // 增加到14天
+  days: number = 90,  // v163: 从14天扩展到90天
   excludeRecentDays: boolean = true
 ): Promise<PlacementEfficiencyScore[]> {
   const db = await getDb();
   if (!db) throw new Error('Database connection failed');
   
-  // 计算日期范围
+  // v163: 计算日期范围 - 扩展到90天
   const endDate = new Date();
   if (excludeRecentDays) {
     // 排除最近3天的数据（归因延迟）
@@ -620,7 +623,7 @@ export async function getCampaignPlacementPerformance(
   const startDate = new Date(endDate);
   startDate.setDate(startDate.getDate() - days);
 
-  // 从数据库获取位置表现数据
+  // v163: 从数据库获取90天位置表现数据
   const performanceData = await db.select()
     .from(placementPerformance)
     .where(
@@ -632,7 +635,8 @@ export async function getCampaignPlacementPerformance(
       )
     );
 
-  // 按位置类型聚合数据
+  // v163: 按位置类型和日期分组，用于时间衰减加权
+  const placementDailyData: { [key: string]: timeDecayService.DailyRawData[] } = {};
   const aggregatedData: { [key in PlacementType]?: {
     impressions: number;
     clicks: number;
@@ -657,17 +661,51 @@ export async function getCampaignPlacementPerformance(
     aggregatedData[placement]!.spend += Number(row.spend) || 0;
     aggregatedData[placement]!.sales += Number(row.sales) || 0;
     aggregatedData[placement]!.orders += row.orders || 0;
+    
+    // v163: 收集每日数据用于时间衰减加权
+    if (!placementDailyData[placement]) {
+      placementDailyData[placement] = [];
+    }
+    placementDailyData[placement].push({
+      date: typeof row.date === 'string' ? row.date : new Date(row.date as any).toISOString(),
+      impressions: row.impressions || 0,
+      clicks: row.clicks || 0,
+      spend: Number(row.spend) || 0,
+      sales: Number(row.sales) || 0,
+      orders: row.orders || 0,
+    });
   }
 
   // 获取动态基准
   const benchmarks = await calculateDynamicBenchmarks(accountId);
 
-  // 计算各位置的效率评分
+  // v163: 计算各位置的效率评分 - 使用时间衰减加权指标
   const scores: PlacementEfficiencyScore[] = [];
   
   for (const [placement, metrics] of Object.entries(aggregatedData)) {
+    // v163: 计算该位置的时间衰减加权指标
+    let weightedMetrics = metrics;
+    const dailyData = placementDailyData[placement];
+    if (dailyData && dailyData.length > 7) {
+      try {
+        const twMetrics = timeDecayService.calculateTimeWeightedMetrics(dailyData);
+        // v163: 使用时间衰减加权后的指标计算效率得分
+        const totalDays = dailyData.length;
+        weightedMetrics = {
+          impressions: Math.round(twMetrics.weightedDailyImpressions * totalDays),
+          clicks: Math.round(twMetrics.weightedDailyClicks * totalDays),
+          spend: twMetrics.weightedDailySpend * totalDays,
+          sales: twMetrics.weightedDailySales * totalDays,
+          orders: Math.round(twMetrics.weightedDailyOrders * totalDays),
+        };
+        console.log(`[PlacementOptimization] v163: ${placement} 时间衰减加权 - 加权ROAS=${twMetrics.weightedRoas.toFixed(2)}, 加权ACoS=${twMetrics.weightedAcos.toFixed(1)}%, 置信度=${twMetrics.dataQuality.confidenceLevel}`);
+      } catch (e: any) {
+        console.log(`[PlacementOptimization] v163: ${placement} 时间衰减计算失败，使用原始汇总: ${e.message}`);
+      }
+    }
+    
     const { score, confidence, normalizedMetrics } = calculateEfficiencyScore(
-      metrics,
+      weightedMetrics,
       DEFAULT_WEIGHTS,
       benchmarks
     );
@@ -680,7 +718,7 @@ export async function getCampaignPlacementPerformance(
       isReliable: confidence.isReliable,
       confidenceReason: confidence.reason,
       metrics: {
-        ...metrics,
+        ...weightedMetrics,
         roas: normalizedMetrics.roas,
         acos: normalizedMetrics.acos,
         cvr: normalizedMetrics.cvr,

@@ -28,6 +28,8 @@ import { acquireAccountOptimizationLock, releaseAccountOptimizationLock } from "
 import * as amazonIdResolver from "./services/amazonIdResolver";
 import { getLocalHour, getLocalDayOfWeek, isNewKeyword, getExplorationStrategy, isProtectedKeyword } from "./algorithmUtils";
 import * as campaignLifecycleService from "./services/campaignLifecycleService";
+import * as timeDecayService from "./timeDecayWeightedDataService";
+import * as gradualEngine from "./gradualOptimizationEngine";
 
 // 缓存账号站点信息，避免重复查询
 const marketplaceCache = new Map<number, string>();
@@ -621,12 +623,13 @@ async function executeBidOptimization(
   console.log(`[BidOptimization] v155: 日预算=${config.dailyBudget || '未设置'}, 目标ACoS=${config.targetAcos || '未设置'}`);
   
   for (const campaign of campaigns) {
-    // v122h: 获取campaign级别的14天历史每日数据，用于时间衰减ROAS计算
+    // v163: 获取campaign级别的90天历史每日数据，用于时间衰减加权分析
     let campaignDailyData: Array<{ date: Date; spend: number; sales: number; clicks: number; orders: number }> = [];
+    let campaignTimeWeightedMetrics: timeDecayService.TimeWeightedMetrics | null = null;
     try {
       const endDate = new Date();
       const startDate = new Date();
-      startDate.setDate(startDate.getDate() - 14);
+      startDate.setDate(startDate.getDate() - 90); // v163: 从14天扩展到90天
       const rawDailyData = await db.getDailyPerformanceByDateRange(config.accountId, startDate, endDate, campaign.id);
       campaignDailyData = rawDailyData.map(d => ({
         date: new Date(d.date),
@@ -635,8 +638,37 @@ async function executeBidOptimization(
         clicks: d.clicks || 0,
         orders: d.orders || 0,
       }));
+      // v163: 计算时间衰减加权指标
+      const dailyDataForWeighting: timeDecayService.DailyRawData[] = rawDailyData.map(d => ({
+        date: typeof d.date === 'string' ? d.date : new Date(d.date).toISOString(),
+        impressions: d.impressions || 0,
+        clicks: d.clicks || 0,
+        spend: parseFloat(String(d.spend || '0')),
+        sales: parseFloat(String(d.sales || '0')),
+        orders: d.orders || 0,
+      }));
+      campaignTimeWeightedMetrics = timeDecayService.calculateTimeWeightedMetrics(dailyDataForWeighting);
+      console.log(`[BidOptimization] v163: Campaign ${campaign.id} 时间衰减加权 - 加权ACoS=${campaignTimeWeightedMetrics.weightedAcos.toFixed(1)}%, 加权ROAS=${campaignTimeWeightedMetrics.weightedRoas.toFixed(2)}, 置信度=${campaignTimeWeightedMetrics.dataQuality.confidenceLevel}, 趋势=${campaignTimeWeightedMetrics.trendSignal.direction}`);
     } catch (e: any) {
       console.log(`[BidOptimization] 获取campaign ${campaign.id} 历史数据失败: ${e.message}`);
+    }
+    
+    // v163: 安全检查 - 检测异常信号
+    if (campaignTimeWeightedMetrics) {
+      const safetyCheck = gradualEngine.performSafetyCheck(campaignTimeWeightedMetrics);
+      if (safetyCheck.shouldPause) {
+        console.warn(`[BidOptimization] v163: Campaign ${campaign.id} 安全检查触发暂停: ${safetyCheck.reason}`);
+        details.push({
+          campaignId: campaign.id,
+          campaignName: campaign.campaignName,
+          action: 'safety_pause',
+          reason: `[安全检查] ${safetyCheck.warnings.join('；')}`,
+        });
+        continue; // 跳过该campaign的竞价优化
+      }
+      if (safetyCheck.warnings.length > 0) {
+        console.log(`[BidOptimization] v163: Campaign ${campaign.id} 安全警告: ${safetyCheck.warnings.join('；')}`);
+      }
     }
     
     // v122h: 收集该campaign下所有关键词，构建EnhancedOptimizationTarget
@@ -659,22 +691,37 @@ async function executeBidOptimization(
         orders: keyword.orders || 0,
         matchType: keyword.matchType,
         campaignStartDate: campaign.startDate ? new Date(campaign.startDate) : undefined,
-        historicalAvgImpressions: campaign.impressions ? Math.round(campaign.impressions / 14) : undefined,
-        // v122h: 传入campaign级别的每日数据用于时间衰减ROAS和UCB
+        historicalAvgImpressions: campaign.impressions ? Math.round(campaign.impressions / 30) : undefined, // v163: 基于30天估算
+        // v163: 传入campaign级别的90天每日数据用于时间衰减加权分析
         dailyData: campaignDailyData.length > 0 ? campaignDailyData : undefined,
         marketplace: config.marketplace,
         campaignId: campaign.id,
       });
     }
     
-    // v122h: 使用UCB增强版算法批量优化关键词
+    // v163: 使用UCB增强版算法批量优化关键词 + 渐进式调整
     if (keywordTargets.length > 0) {
       const results = bidOptimizer.optimizePerformanceGroupEnhanced(
         keywordTargets, bidConfig, maxBidLimit, currentDate
       );
       
       for (const result of results) {
-        if (Math.abs(result.newBid - result.previousBid) > 0.01) {
+        // v163: 应用渐进式竞价调整，限制单次调整幅度
+        let finalBid = result.newBid;
+        if (campaignTimeWeightedMetrics && Math.abs(result.newBid - result.previousBid) > 0.01) {
+          const gradualResult = gradualEngine.applyGradualBidAdjustment(
+            result.previousBid,
+            result.newBid,
+            campaignTimeWeightedMetrics,
+            0, // TODO: 追踪连续同向调整次数
+            maxBidLimit,
+            0.02
+          );
+          finalBid = gradualResult.gradualBid;
+          console.log(`[BidOptimization] v163: 渐进式竞价 - 关键词${result.targetId}: 算法目标$${result.newBid.toFixed(2)} → 渐进$${finalBid.toFixed(2)} (置信度=${gradualResult.dataConfidence}, 趋势=${gradualResult.trendDirection})`);
+        }
+        
+        if (Math.abs(finalBid - result.previousBid) > 0.01) {
           const keyword = keywords.find(k => k.id === result.targetId);
           const adjustment = {
             keywordId: result.targetId,
@@ -682,16 +729,15 @@ async function executeBidOptimization(
             campaignId: campaign.id,
             campaignName: campaign.campaignName,
             currentBid: result.previousBid,
-            newBid: result.newBid,
-            changePercent: result.bidChangePercent.toFixed(2),
-            reason: `[${result.algorithmUsed}] ${result.reason}`,
+            newBid: finalBid, // v163: 使用渐进式调整后的出价
+            changePercent: ((finalBid - result.previousBid) / result.previousBid * 100).toFixed(2),
+            reason: `[v163渐进+${result.algorithmUsed}] ${result.reason}`,
             algorithmUsed: result.algorithmUsed,
             confidenceScore: result.confidenceScore,
           };
           
           details.push(adjustment);
           
-          // v148: 不再在此处更新DB，改为先调API确认成功后再更新
           if (!dryRun) {
             adjustmentsCount++;
           }
@@ -723,7 +769,7 @@ async function executeBidOptimization(
           orders: target.orders || 0,
           matchType: target.targetMatchType || 'exact',
           campaignStartDate: campaign.startDate ? new Date(campaign.startDate) : undefined,
-          historicalAvgImpressions: campaign.impressions ? Math.round(campaign.impressions / 14) : undefined,
+          historicalAvgImpressions: campaign.impressions ? Math.round(campaign.impressions / 30) : undefined, // v163
           dailyData: campaignDailyData.length > 0 ? campaignDailyData : undefined,
           marketplace: config.marketplace,
           campaignId: campaign.id,
@@ -731,13 +777,28 @@ async function executeBidOptimization(
       }
     }
     
+    // v163: 商品定向也使用渐进式竞价调整
     if (productTargets.length > 0) {
       const results = bidOptimizer.optimizePerformanceGroupEnhanced(
         productTargets, bidConfig, maxBidLimit, currentDate
       );
       
       for (const result of results) {
-        if (Math.abs(result.newBid - result.previousBid) > 0.01) {
+        let finalBid = result.newBid;
+        if (campaignTimeWeightedMetrics && Math.abs(result.newBid - result.previousBid) > 0.01) {
+          const gradualResult = gradualEngine.applyGradualBidAdjustment(
+            result.previousBid,
+            result.newBid,
+            campaignTimeWeightedMetrics,
+            0,
+            maxBidLimit,
+            0.02
+          );
+          finalBid = gradualResult.gradualBid;
+          console.log(`[BidOptimization] v163: 渐进式商品定向 - ${result.targetId}: $${result.newBid.toFixed(2)} → $${finalBid.toFixed(2)}`);
+        }
+        
+        if (Math.abs(finalBid - result.previousBid) > 0.01) {
           const target = allTargets.find(t => t.id === result.targetId);
           const adjustment = {
             keywordId: result.targetId,
@@ -745,9 +806,9 @@ async function executeBidOptimization(
             campaignId: campaign.id,
             campaignName: campaign.campaignName,
             currentBid: result.previousBid,
-            newBid: result.newBid,
-            changePercent: result.bidChangePercent.toFixed(2),
-            reason: `商品定向 - [${result.algorithmUsed}] ${result.reason}`,
+            newBid: finalBid, // v163: 渐进式调整
+            changePercent: ((finalBid - result.previousBid) / result.previousBid * 100).toFixed(2),
+            reason: `商品定向 - [v163渐进+${result.algorithmUsed}] ${result.reason}`,
             isProductTarget: true,
             algorithmUsed: result.algorithmUsed,
             confidenceScore: result.confidenceScore,
@@ -755,7 +816,6 @@ async function executeBidOptimization(
           
           details.push(adjustment);
           
-          // v148: 不再在此处更新DB，改为先调API确认成功后再更新
           if (!dryRun) {
             adjustmentsCount++;
           }
@@ -1344,36 +1404,52 @@ async function executeBudgetAllocation(
       const campaign = campaigns.find(c => c.id === suggestion.campaignId);
       if (!campaign) continue;
       
+      // v163: 应用渐进式预算调整
+      let finalBudget = suggestion.suggestedBudget;
+      const campaignPerf = budgetResult.suggestions.find(s => s.campaignId === suggestion.campaignId);
+      const twMetrics = (campaignPerf as any)?.timeWeightedMetrics;
+      
+      if (twMetrics && Math.abs(suggestion.suggestedBudget - suggestion.currentBudget) > 1) {
+        const gradualResult = gradualEngine.applyGradualBudgetAdjustment(
+          suggestion.currentBudget,
+          twMetrics.weightedDailySpend || suggestion.currentBudget,
+          suggestion.suggestedBudget,
+          twMetrics
+        );
+        finalBudget = gradualResult.gradualBudget;
+        console.log(`[BudgetAllocation] v163: 渐进式预算 - Campaign ${campaign.campaignName}: $${suggestion.currentBudget.toFixed(0)}→$${finalBudget.toFixed(0)} (算法目标$${suggestion.suggestedBudget.toFixed(0)}, 订单保护=${gradualResult.orderProtectionActive})`);
+      }
+      
       const adjustment: any = {
         accountId: config.accountId,
         campaignId: suggestion.campaignId,
         campaignName: campaign.campaignName,
         currentBudget: suggestion.currentBudget,
-        suggestedBudget: suggestion.suggestedBudget,
-        changeAmount: suggestion.suggestedBudget - suggestion.currentBudget,
-        changePercent: ((suggestion.suggestedBudget - suggestion.currentBudget) / suggestion.currentBudget * 100).toFixed(2),
-        reason: suggestion.reasons?.join(', ') || '',
+        suggestedBudget: finalBudget, // v163: 使用渐进式调整后的预算
+        changeAmount: finalBudget - suggestion.currentBudget,
+        changePercent: ((finalBudget - suggestion.currentBudget) / suggestion.currentBudget * 100).toFixed(2),
+        reason: `[v163渐进] ${suggestion.reasons?.join(', ') || ''}`,
         expectedImpact: (suggestion as any).expectedRoasChange || 0,
         apiSyncStatus: dryRun ? 'pending' : 'pending',
       };
       
       details.push(adjustment);
       
-      if (!dryRun && Math.abs(suggestion.suggestedBudget - suggestion.currentBudget) > 1) {
+      if (!dryRun && Math.abs(finalBudget - suggestion.currentBudget) > 1) {
         // v148: 先调Amazon API确认成功，再更新本地数据库（先API后DB原则）
         try {
           const amazonCampaignId = campaign.campaignId || campaign.id.toString();
           const budgetSyncResult = await amazonApiHelper.syncBudgetAdjustmentToAmazon(
             config.accountId,
             amazonCampaignId,
-            suggestion.suggestedBudget,
-            `预算优化: $${suggestion.currentBudget.toFixed(2)} -> $${suggestion.suggestedBudget.toFixed(2)}`
+            finalBudget, // v163: 使用渐进式调整后的预算
+            `v163渐进式预算优化: $${suggestion.currentBudget.toFixed(2)} -> $${finalBudget.toFixed(2)}`
           );
           
           if (budgetSyncResult) {
             // API成功后才更新本地DB
             await db.updateCampaign(suggestion.campaignId, { 
-              dailyBudget: suggestion.suggestedBudget.toFixed(2) 
+              dailyBudget: finalBudget.toFixed(2) // v163: 渐进式预算
             });
             adjustmentsCount++;
             adjustment.apiSyncStatus = 'synced';
@@ -1445,6 +1521,28 @@ async function executeKeywordStatusChanges(
   
   for (const campaign of campaigns) {
     try {
+      // v163: 获取campaign级别的90天时间衰减加权数据，用于修正投放词状态决策
+      let campaignTWMetrics: timeDecayService.TimeWeightedMetrics | null = null;
+      try {
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 90);
+        const rawDailyData = await db.getDailyPerformanceByDateRange(config.accountId, startDate, endDate, campaign.id);
+        const dailyDataForWeighting: timeDecayService.DailyRawData[] = rawDailyData.map(d => ({
+          date: typeof d.date === 'string' ? d.date : new Date(d.date).toISOString(),
+          impressions: d.impressions || 0,
+          clicks: d.clicks || 0,
+          spend: parseFloat(String(d.spend || '0')),
+          sales: parseFloat(String(d.sales || '0')),
+          orders: d.orders || 0,
+        }));
+        if (dailyDataForWeighting.length > 0) {
+          campaignTWMetrics = timeDecayService.calculateTimeWeightedMetrics(dailyDataForWeighting);
+        }
+      } catch (e: any) {
+        console.log(`[KeywordStatus] v163: Campaign ${campaign.id} 时间衰减数据获取失败: ${e.message}`);
+      }
+      
       // 获取广告活动下的所有关键词
       const keywords = await db.getKeywordsByCampaignId(campaign.id);
       
@@ -1456,20 +1554,36 @@ async function executeKeywordStatusChanges(
         const impressions = keyword.impressions || 0;
         const acos = sales > 0 ? (spend / sales * 100) : 0;
         
+        // v163: 使用时间衰减加权修正投放词数据
+        // 如果campaign整体趋势向好，提高暂停阈值（更保守）
+        // 如果campaign整体趋势向差，降低暂停阈值（更积极清理）
+        let trendAdjustedPauseSpendThreshold = pauseSpendThreshold;
+        let trendAdjustedMaxAcosThreshold = maxAcosThreshold;
+        if (campaignTWMetrics) {
+          if (campaignTWMetrics.trendSignal.direction === 'improving') {
+            trendAdjustedPauseSpendThreshold *= 1.3; // 趋势向好，更宽容
+            trendAdjustedMaxAcosThreshold *= 1.2;
+          } else if (campaignTWMetrics.trendSignal.direction === 'declining') {
+            trendAdjustedPauseSpendThreshold *= 0.8; // 趋势向差，更严格
+            trendAdjustedMaxAcosThreshold *= 0.85;
+          }
+        }
+        
         // v122g: 多维度暂停判断（替代原来的粗暴硬编码阈值）
         let shouldPause = false;
         let pauseReason = '';
         
         if (keyword.keywordStatus === 'enabled') {
-          // 条件1：高花费零转化（使用动态阈值）
-          if (spend > pauseSpendThreshold && conversions === 0 && clicks > pauseClickThreshold) {
+          // v163: 使用趋势修正后的阈值进行判断
+          // 条件1：高花费零转化（使用趋势修正动态阈值）
+          if (spend > trendAdjustedPauseSpendThreshold && conversions === 0 && clicks > pauseClickThreshold) {
             shouldPause = true;
-            pauseReason = `高花费零转化: 花费$${spend.toFixed(2)}(>阈值$${pauseSpendThreshold.toFixed(0)}), 点击${clicks}(>阈值${pauseClickThreshold}), 转化${conversions}`;
+            pauseReason = `高花费零转化: 花费$${spend.toFixed(2)}(>阈值$${trendAdjustedPauseSpendThreshold.toFixed(0)}), 点击${clicks}(>阈值${pauseClickThreshold}), 转化${conversions}`;
           }
           // 条件2：ACoS远超目标且数据充足
-          else if (acos > maxAcosThreshold && clicks > pauseClickThreshold && conversions > 0) {
+          else if (acos > trendAdjustedMaxAcosThreshold && clicks > pauseClickThreshold && conversions > 0) {
             shouldPause = true;
-            pauseReason = `ACoS远超目标: ACoS ${acos.toFixed(1)}%(>阈值${maxAcosThreshold.toFixed(0)}%), 点击${clicks}, 转化${conversions}`;
+            pauseReason = `ACoS远超目标: ACoS ${acos.toFixed(1)}%(>阈值${trendAdjustedMaxAcosThreshold.toFixed(0)}%), 点击${clicks}, 转化${conversions}`;
           }
           
           // v122h: 探索期保护 - 新关键词在7天探索期内不执行暂停
@@ -1686,12 +1800,48 @@ async function executeCampaignStatusChanges(
   
   for (const campaign of campaigns) {
     try {
-      const spend = parseFloat(campaign.spend || '0');
-      const sales = parseFloat(campaign.sales || '0');
-      const clicks = campaign.clicks || 0;
-      const conversions = campaign.orders || 0;
-      const acos = sales > 0 ? (spend / sales * 100) : 0;
+      // v163: 获取campaign级别时间衰减加权数据
+      let campaignTWMetrics: timeDecayService.TimeWeightedMetrics | null = null;
+      try {
+        const endDate = new Date();
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 90);
+        const rawDailyData = await db.getDailyPerformanceByDateRange(config.accountId, startDate, endDate, campaign.id);
+        const dailyDataForWeighting: timeDecayService.DailyRawData[] = rawDailyData.map(d => ({
+          date: typeof d.date === 'string' ? d.date : new Date(d.date).toISOString(),
+          impressions: d.impressions || 0,
+          clicks: d.clicks || 0,
+          spend: parseFloat(String(d.spend || '0')),
+          sales: parseFloat(String(d.sales || '0')),
+          orders: d.orders || 0,
+        }));
+        if (dailyDataForWeighting.length > 0) {
+          campaignTWMetrics = timeDecayService.calculateTimeWeightedMetrics(dailyDataForWeighting);
+        }
+      } catch (e: any) {
+        console.log(`[CampaignStatus] v163: Campaign ${campaign.id} 时间衰减数据获取失败: ${e.message}`);
+      }
+      
+      // v163: 优先使用时间衰减加权数据，而非简单汇总
+      const spend = campaignTWMetrics ? campaignTWMetrics.weightedDailySpend * 30 : parseFloat(campaign.spend || '0');
+      const sales = campaignTWMetrics ? campaignTWMetrics.weightedDailySales * 30 : parseFloat(campaign.sales || '0');
+      const clicks = campaignTWMetrics ? Math.round(campaignTWMetrics.weightedDailyClicks * 30) : (campaign.clicks || 0);
+      const conversions = campaignTWMetrics ? Math.round(campaignTWMetrics.weightedDailyOrders * 30) : (campaign.orders || 0);
+      const acos = campaignTWMetrics ? campaignTWMetrics.weightedAcos : (sales > 0 ? (spend / sales * 100) : 0);
       const campaignStatus = campaign.campaignStatus || 'enabled';
+      
+      // v163: 根据趋势修正广告活动暂停阈值
+      let adjustedPauseSpendThreshold = campaignPauseSpendThreshold;
+      let adjustedMaxAcosThreshold = campaignMaxAcosThreshold;
+      if (campaignTWMetrics) {
+        if (campaignTWMetrics.trendSignal.direction === 'improving') {
+          adjustedPauseSpendThreshold *= 1.3;
+          adjustedMaxAcosThreshold *= 1.2;
+        } else if (campaignTWMetrics.trendSignal.direction === 'declining') {
+          adjustedPauseSpendThreshold *= 0.8;
+          adjustedMaxAcosThreshold *= 0.85;
+        }
+      }
       
       let shouldPause = false;
       let pauseReason = '';
@@ -1699,21 +1849,22 @@ async function executeCampaignStatusChanges(
       let enableReason = '';
       
       if (campaignStatus === 'enabled') {
+        // v163: 使用趋势修正后的阈值
         // 条件1：高花费零转化
-        if (spend > campaignPauseSpendThreshold && conversions === 0 && clicks > campaignPauseClickThreshold) {
+        if (spend > adjustedPauseSpendThreshold && conversions === 0 && clicks > campaignPauseClickThreshold) {
           shouldPause = true;
-          pauseReason = `广告活动高花费零转化: 花费$${spend.toFixed(2)}(>阈值$${campaignPauseSpendThreshold}), 点击${clicks}(>阈值${campaignPauseClickThreshold}), 转化${conversions}`;
+          pauseReason = `广告活动高花费零转化: 加权花费$${spend.toFixed(2)}(>阈值$${adjustedPauseSpendThreshold.toFixed(0)}), 加权点击${clicks}(>阈值${campaignPauseClickThreshold}), 加权转化${conversions}`;
         }
         // 条件2：ACoS远超目标
-        else if (acos > campaignMaxAcosThreshold && clicks > campaignPauseClickThreshold && conversions > 0) {
+        else if (acos > adjustedMaxAcosThreshold && clicks > campaignPauseClickThreshold && conversions > 0) {
           shouldPause = true;
-          pauseReason = `广告活动ACoS远超目标: ACoS ${acos.toFixed(1)}%(>阈值${campaignMaxAcosThreshold.toFixed(0)}%), 点击${clicks}, 转化${conversions}`;
+          pauseReason = `广告活动ACoS远超目标: 加权ACoS ${acos.toFixed(1)}%(>阈值${adjustedMaxAcosThreshold.toFixed(0)}%), 加权点击${clicks}, 加权转化${conversions}`;
         }
       } else if (campaignStatus === 'paused') {
-        // 广告活动启用判断：仅在有明确改善时启用
+        // v163: 使用时间衰减加权ACoS判断是否应启用
         if (acos > 0 && acos < targetAcos * 0.8) {
           shouldEnable = true;
-          enableReason = `广告活动表现改善: ACoS ${acos.toFixed(1)}%(目标${targetAcos}%), 建议重新启用`;
+          enableReason = `广告活动表现改善: 加权ACoS ${acos.toFixed(1)}%(目标${targetAcos}%), 建议重新启用`;
         }
       }
       
