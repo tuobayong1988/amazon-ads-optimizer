@@ -132,6 +132,28 @@ export default function PerformanceGroupDetail() {
   const [selectedManageCampaigns, setSelectedManageCampaigns] = useState<number[]>([]);
   const [batchActionLoading, setBatchActionLoading] = useState(false);
 
+  // v154: 广告活动管理表格筛选状态
+  const [mgShowFilters, setMgShowFilters] = useState(false);
+  const [mgSearchQuery, setMgSearchQuery] = useState('');
+  const [mgFilterStatus, setMgFilterStatus] = useState<string>('all');
+  const [mgFilterType, setMgFilterType] = useState<string>('all');
+  const [mgFilterMinImpressions, setMgFilterMinImpressions] = useState('');
+  const [mgFilterMaxImpressions, setMgFilterMaxImpressions] = useState('');
+  const [mgFilterMinClicks, setMgFilterMinClicks] = useState('');
+  const [mgFilterMaxClicks, setMgFilterMaxClicks] = useState('');
+  const [mgFilterMinSpend, setMgFilterMinSpend] = useState('');
+  const [mgFilterMaxSpend, setMgFilterMaxSpend] = useState('');
+  const [mgFilterMinSales, setMgFilterMinSales] = useState('');
+  const [mgFilterMaxSales, setMgFilterMaxSales] = useState('');
+  const [mgFilterMinOrders, setMgFilterMinOrders] = useState('');
+  const [mgFilterMaxOrders, setMgFilterMaxOrders] = useState('');
+  const [mgFilterMinAcos, setMgFilterMinAcos] = useState('');
+  const [mgFilterMaxAcos, setMgFilterMaxAcos] = useState('');
+  const [mgFilterMinRoas, setMgFilterMinRoas] = useState('');
+  const [mgFilterMaxRoas, setMgFilterMaxRoas] = useState('');
+  const [mgFilterMinBudget, setMgFilterMinBudget] = useState('');
+  const [mgFilterMaxBudget, setMgFilterMaxBudget] = useState('');
+
   // 对话框关闭时清空选择和筛选条件
   useEffect(() => {
     if (!showAddCampaignsDialog) {
@@ -495,6 +517,80 @@ export default function PerformanceGroupDetail() {
     });
   }, [groupCampaigns, campaignSortField, campaignSortDirection]);
 
+  // v154: 广告活动管理表格筛选逻辑
+  const filteredGroupCampaigns = useMemo(() => {
+    if (!sortedGroupCampaigns) return [];
+    return sortedGroupCampaigns.filter((c: any) => {
+      // 名称搜索
+      if (mgSearchQuery && !c.campaignName?.toLowerCase().includes(mgSearchQuery.toLowerCase())) return false;
+      // 状态筛选
+      if (mgFilterStatus !== 'all' && c.campaignStatus !== mgFilterStatus) return false;
+      // 类型筛选
+      if (mgFilterType !== 'all' && c.campaignType !== mgFilterType) return false;
+      // 数值范围筛选
+      const spend = Number(c.spend || 0);
+      const sales = Number(c.sales || 0);
+      const clicks = Number(c.clicks || 0);
+      const impressions = Number(c.impressions || 0);
+      const orders = Number(c.orders || 0);
+      const acos = sales > 0 ? (spend / sales) * 100 : 0;
+      const roas = spend > 0 ? sales / spend : 0;
+      const budget = Number(c.dailyBudget || 0);
+      if (mgFilterMinImpressions && impressions < Number(mgFilterMinImpressions)) return false;
+      if (mgFilterMaxImpressions && impressions > Number(mgFilterMaxImpressions)) return false;
+      if (mgFilterMinClicks && clicks < Number(mgFilterMinClicks)) return false;
+      if (mgFilterMaxClicks && clicks > Number(mgFilterMaxClicks)) return false;
+      if (mgFilterMinSpend && spend < Number(mgFilterMinSpend)) return false;
+      if (mgFilterMaxSpend && spend > Number(mgFilterMaxSpend)) return false;
+      if (mgFilterMinSales && sales < Number(mgFilterMinSales)) return false;
+      if (mgFilterMaxSales && sales > Number(mgFilterMaxSales)) return false;
+      if (mgFilterMinOrders && orders < Number(mgFilterMinOrders)) return false;
+      if (mgFilterMaxOrders && orders > Number(mgFilterMaxOrders)) return false;
+      if (mgFilterMinAcos && acos < Number(mgFilterMinAcos)) return false;
+      if (mgFilterMaxAcos && acos > Number(mgFilterMaxAcos)) return false;
+      if (mgFilterMinRoas && roas < Number(mgFilterMinRoas)) return false;
+      if (mgFilterMaxRoas && roas > Number(mgFilterMaxRoas)) return false;
+      if (mgFilterMinBudget && budget < Number(mgFilterMinBudget)) return false;
+      if (mgFilterMaxBudget && budget > Number(mgFilterMaxBudget)) return false;
+      return true;
+    });
+  }, [sortedGroupCampaigns, mgSearchQuery, mgFilterStatus, mgFilterType,
+    mgFilterMinImpressions, mgFilterMaxImpressions, mgFilterMinClicks, mgFilterMaxClicks,
+    mgFilterMinSpend, mgFilterMaxSpend, mgFilterMinSales, mgFilterMaxSales,
+    mgFilterMinOrders, mgFilterMaxOrders, mgFilterMinAcos, mgFilterMaxAcos,
+    mgFilterMinRoas, mgFilterMaxRoas, mgFilterMinBudget, mgFilterMaxBudget]);
+
+  const mgActiveFilterCount = useMemo(() => {
+    let count = 0;
+    if (mgSearchQuery) count++;
+    if (mgFilterStatus !== 'all') count++;
+    if (mgFilterType !== 'all') count++;
+    if (mgFilterMinImpressions || mgFilterMaxImpressions) count++;
+    if (mgFilterMinClicks || mgFilterMaxClicks) count++;
+    if (mgFilterMinSpend || mgFilterMaxSpend) count++;
+    if (mgFilterMinSales || mgFilterMaxSales) count++;
+    if (mgFilterMinOrders || mgFilterMaxOrders) count++;
+    if (mgFilterMinAcos || mgFilterMaxAcos) count++;
+    if (mgFilterMinRoas || mgFilterMaxRoas) count++;
+    if (mgFilterMinBudget || mgFilterMaxBudget) count++;
+    return count;
+  }, [mgSearchQuery, mgFilterStatus, mgFilterType, mgFilterMinImpressions, mgFilterMaxImpressions,
+    mgFilterMinClicks, mgFilterMaxClicks, mgFilterMinSpend, mgFilterMaxSpend, mgFilterMinSales, mgFilterMaxSales,
+    mgFilterMinOrders, mgFilterMaxOrders, mgFilterMinAcos, mgFilterMaxAcos, mgFilterMinRoas, mgFilterMaxRoas,
+    mgFilterMinBudget, mgFilterMaxBudget]);
+
+  const resetMgFilters = () => {
+    setMgSearchQuery(''); setMgFilterStatus('all'); setMgFilterType('all');
+    setMgFilterMinImpressions(''); setMgFilterMaxImpressions('');
+    setMgFilterMinClicks(''); setMgFilterMaxClicks('');
+    setMgFilterMinSpend(''); setMgFilterMaxSpend('');
+    setMgFilterMinSales(''); setMgFilterMaxSales('');
+    setMgFilterMinOrders(''); setMgFilterMaxOrders('');
+    setMgFilterMinAcos(''); setMgFilterMaxAcos('');
+    setMgFilterMinRoas(''); setMgFilterMaxRoas('');
+    setMgFilterMinBudget(''); setMgFilterMaxBudget('');
+  };
+
   // 排序处理函数
   const handleDialogSort = (field: DialogSortField) => {
     if (dialogSortField === field) {
@@ -560,10 +656,10 @@ export default function PerformanceGroupDetail() {
     );
   };
 
-  // v153: 全选/取消全选
+  // v153: 全选/取消全选（v154: 基于筛选结果）
   const toggleSelectAllManageCampaigns = () => {
     if (!groupCampaigns) return;
-    const allIds = sortedGroupCampaigns.map((c: any) => c.id);
+    const allIds = filteredGroupCampaigns.map((c: any) => c.id);
     if (selectedManageCampaigns.length === allIds.length) {
       setSelectedManageCampaigns([]);
     } else {
@@ -1347,6 +1443,136 @@ export default function PerformanceGroupDetail() {
                 </div>
               </CardHeader>
               <CardContent>
+                {/* v154: 筛选工具栏 */}
+                {groupCampaigns && groupCampaigns.length > 0 && (
+                  <div className="mb-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1 max-w-sm">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          placeholder="搜索广告活动名称..."
+                          value={mgSearchQuery}
+                          onChange={(e) => setMgSearchQuery(e.target.value)}
+                          className="pl-8 h-9"
+                        />
+                      </div>
+                      <Select value={mgFilterStatus} onValueChange={setMgFilterStatus}>
+                        <SelectTrigger className="w-[120px] h-9">
+                          <SelectValue placeholder="状态" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">全部状态</SelectItem>
+                          <SelectItem value="enabled">已启用</SelectItem>
+                          <SelectItem value="paused">已暂停</SelectItem>
+                          <SelectItem value="archived">已归档</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select value={mgFilterType} onValueChange={setMgFilterType}>
+                        <SelectTrigger className="w-[140px] h-9">
+                          <SelectValue placeholder="类型" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">全部类型</SelectItem>
+                          <SelectItem value="sp_manual">SP 手动</SelectItem>
+                          <SelectItem value="sp_auto">SP 自动</SelectItem>
+                          <SelectItem value="sb">SB 品牌</SelectItem>
+                          <SelectItem value="sd">SD 展示</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        variant={mgShowFilters ? 'secondary' : 'outline'}
+                        size="sm"
+                        onClick={() => setMgShowFilters(!mgShowFilters)}
+                        className="h-9"
+                      >
+                        <Filter className="w-4 h-4 mr-1" />
+                        高级筛选
+                        {mgActiveFilterCount > 0 && (
+                          <Badge variant="destructive" className="ml-1 h-5 w-5 p-0 flex items-center justify-center text-[10px]">
+                            {mgActiveFilterCount}
+                          </Badge>
+                        )}
+                      </Button>
+                      {mgActiveFilterCount > 0 && (
+                        <Button variant="ghost" size="sm" onClick={resetMgFilters} className="h-9 text-muted-foreground">
+                          <X className="w-4 h-4 mr-1" />
+                          清除筛选
+                        </Button>
+                      )}
+                      <span className="text-sm text-muted-foreground ml-auto">
+                        显示 {filteredGroupCampaigns.length} / {groupCampaigns.length} 个广告活动
+                      </span>
+                    </div>
+                    {mgShowFilters && (
+                      <div className="grid grid-cols-4 gap-3 p-4 bg-muted/30 rounded-lg border">
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium text-muted-foreground">曝光范围</Label>
+                          <div className="flex items-center gap-1">
+                            <Input type="number" placeholder="最小" value={mgFilterMinImpressions} onChange={e => setMgFilterMinImpressions(e.target.value)} className="h-8 text-xs" />
+                            <span className="text-muted-foreground text-xs">-</span>
+                            <Input type="number" placeholder="最大" value={mgFilterMaxImpressions} onChange={e => setMgFilterMaxImpressions(e.target.value)} className="h-8 text-xs" />
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium text-muted-foreground">点击范围</Label>
+                          <div className="flex items-center gap-1">
+                            <Input type="number" placeholder="最小" value={mgFilterMinClicks} onChange={e => setMgFilterMinClicks(e.target.value)} className="h-8 text-xs" />
+                            <span className="text-muted-foreground text-xs">-</span>
+                            <Input type="number" placeholder="最大" value={mgFilterMaxClicks} onChange={e => setMgFilterMaxClicks(e.target.value)} className="h-8 text-xs" />
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium text-muted-foreground">花费范围 ($)</Label>
+                          <div className="flex items-center gap-1">
+                            <Input type="number" placeholder="最小" value={mgFilterMinSpend} onChange={e => setMgFilterMinSpend(e.target.value)} className="h-8 text-xs" />
+                            <span className="text-muted-foreground text-xs">-</span>
+                            <Input type="number" placeholder="最大" value={mgFilterMaxSpend} onChange={e => setMgFilterMaxSpend(e.target.value)} className="h-8 text-xs" />
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium text-muted-foreground">销售额范围 ($)</Label>
+                          <div className="flex items-center gap-1">
+                            <Input type="number" placeholder="最小" value={mgFilterMinSales} onChange={e => setMgFilterMinSales(e.target.value)} className="h-8 text-xs" />
+                            <span className="text-muted-foreground text-xs">-</span>
+                            <Input type="number" placeholder="最大" value={mgFilterMaxSales} onChange={e => setMgFilterMaxSales(e.target.value)} className="h-8 text-xs" />
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium text-muted-foreground">订单范围</Label>
+                          <div className="flex items-center gap-1">
+                            <Input type="number" placeholder="最小" value={mgFilterMinOrders} onChange={e => setMgFilterMinOrders(e.target.value)} className="h-8 text-xs" />
+                            <span className="text-muted-foreground text-xs">-</span>
+                            <Input type="number" placeholder="最大" value={mgFilterMaxOrders} onChange={e => setMgFilterMaxOrders(e.target.value)} className="h-8 text-xs" />
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium text-muted-foreground">ACoS 范围 (%)</Label>
+                          <div className="flex items-center gap-1">
+                            <Input type="number" placeholder="最小" value={mgFilterMinAcos} onChange={e => setMgFilterMinAcos(e.target.value)} className="h-8 text-xs" />
+                            <span className="text-muted-foreground text-xs">-</span>
+                            <Input type="number" placeholder="最大" value={mgFilterMaxAcos} onChange={e => setMgFilterMaxAcos(e.target.value)} className="h-8 text-xs" />
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium text-muted-foreground">ROAS 范围</Label>
+                          <div className="flex items-center gap-1">
+                            <Input type="number" placeholder="最小" value={mgFilterMinRoas} onChange={e => setMgFilterMinRoas(e.target.value)} className="h-8 text-xs" />
+                            <span className="text-muted-foreground text-xs">-</span>
+                            <Input type="number" placeholder="最大" value={mgFilterMaxRoas} onChange={e => setMgFilterMaxRoas(e.target.value)} className="h-8 text-xs" />
+                          </div>
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium text-muted-foreground">日预算范围 ($)</Label>
+                          <div className="flex items-center gap-1">
+                            <Input type="number" placeholder="最小" value={mgFilterMinBudget} onChange={e => setMgFilterMinBudget(e.target.value)} className="h-8 text-xs" />
+                            <span className="text-muted-foreground text-xs">-</span>
+                            <Input type="number" placeholder="最大" value={mgFilterMaxBudget} onChange={e => setMgFilterMaxBudget(e.target.value)} className="h-8 text-xs" />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {campaignsLoading ? (
                   <div className="flex items-center justify-center h-32">
                     <Loader2 className="w-6 h-6 animate-spin" />
@@ -1358,7 +1584,7 @@ export default function PerformanceGroupDetail() {
                         <tr className="border-b bg-muted/50">
                           <th className="p-3 w-10">
                             <Checkbox
-                              checked={groupCampaigns && sortedGroupCampaigns.length > 0 && selectedManageCampaigns.length === sortedGroupCampaigns.length}
+                              checked={groupCampaigns && filteredGroupCampaigns.length > 0 && selectedManageCampaigns.length === filteredGroupCampaigns.length}
                               onCheckedChange={toggleSelectAllManageCampaigns}
                             />
                           </th>
@@ -1406,7 +1632,7 @@ export default function PerformanceGroupDetail() {
                         </tr>
                       </thead>
                       <tbody>
-                        {sortedGroupCampaigns.map((campaign: any) => {
+                        {filteredGroupCampaigns.map((campaign: any) => {
                           const spend = Number(campaign.spend || 0);
                           const sales = Number(campaign.sales || 0);
                           const clicks = Number(campaign.clicks || 0);
@@ -1465,17 +1691,17 @@ export default function PerformanceGroupDetail() {
                       </tbody>
                       <tfoot>
                         <tr className="border-t-2 bg-muted/30 font-medium">
-                          <td className="p-3" colSpan={4}>合计 ({groupCampaigns.length} 个广告活动)</td>
-                          <td className="p-3 text-right tabular-nums">{groupCampaigns.reduce((s: number, c: any) => s + Number(c.impressions || 0), 0).toLocaleString()}</td>
-                          <td className="p-3 text-right tabular-nums">{groupCampaigns.reduce((s: number, c: any) => s + Number(c.clicks || 0), 0).toLocaleString()}</td>
-                          <td className="p-3 text-right tabular-nums">${groupCampaigns.reduce((s: number, c: any) => s + Number(c.spend || 0), 0).toFixed(2)}</td>
-                          <td className="p-3 text-right tabular-nums">${groupCampaigns.reduce((s: number, c: any) => s + Number(c.sales || 0), 0).toFixed(2)}</td>
-                          <td className="p-3 text-right tabular-nums">{groupCampaigns.reduce((s: number, c: any) => s + Number(c.orders || 0), 0)}</td>
+                          <td className="p-3" colSpan={4}>筛选结果合计 ({filteredGroupCampaigns.length} 个广告活动)</td>
+                          <td className="p-3 text-right tabular-nums">{filteredGroupCampaigns.reduce((s: number, c: any) => s + Number(c.impressions || 0), 0).toLocaleString()}</td>
+                          <td className="p-3 text-right tabular-nums">{filteredGroupCampaigns.reduce((s: number, c: any) => s + Number(c.clicks || 0), 0).toLocaleString()}</td>
+                          <td className="p-3 text-right tabular-nums">${filteredGroupCampaigns.reduce((s: number, c: any) => s + Number(c.spend || 0), 0).toFixed(2)}</td>
+                          <td className="p-3 text-right tabular-nums">${filteredGroupCampaigns.reduce((s: number, c: any) => s + Number(c.sales || 0), 0).toFixed(2)}</td>
+                          <td className="p-3 text-right tabular-nums">{filteredGroupCampaigns.reduce((s: number, c: any) => s + Number(c.orders || 0), 0)}</td>
                           <td className="p-3 text-right tabular-nums">
-                            {(() => { const ts = groupCampaigns.reduce((s: number, c: any) => s + Number(c.spend || 0), 0); const tr = groupCampaigns.reduce((s: number, c: any) => s + Number(c.sales || 0), 0); return tr > 0 ? ((ts/tr)*100).toFixed(1) + '%' : '-'; })()}
+                            {(() => { const ts = filteredGroupCampaigns.reduce((s: number, c: any) => s + Number(c.spend || 0), 0); const tr = filteredGroupCampaigns.reduce((s: number, c: any) => s + Number(c.sales || 0), 0); return tr > 0 ? ((ts/tr)*100).toFixed(1) + '%' : '-'; })()}
                           </td>
                           <td className="p-3 text-right tabular-nums">
-                            {(() => { const ts = groupCampaigns.reduce((s: number, c: any) => s + Number(c.spend || 0), 0); const tr = groupCampaigns.reduce((s: number, c: any) => s + Number(c.sales || 0), 0); return ts > 0 ? (tr/ts).toFixed(2) + 'x' : '-'; })()}
+                            {(() => { const ts = filteredGroupCampaigns.reduce((s: number, c: any) => s + Number(c.spend || 0), 0); const tr = filteredGroupCampaigns.reduce((s: number, c: any) => s + Number(c.sales || 0), 0); return ts > 0 ? (tr/ts).toFixed(2) + 'x' : '-'; })()}
                           </td>
                           <td className="p-3" colSpan={4}></td>
                           <td className="p-3"></td>
