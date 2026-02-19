@@ -38,6 +38,7 @@ import { multiTenantRouter } from './routes/multiTenant';
 import { debugSyncRouter } from './debug-sync';
 import { devRouter } from './routes/dev';
 import * as advancedAnalyticsService from './advancedAnalyticsService';
+import { getExchangeRateStatus, refreshExchangeRates, getExchangeRates } from './services/exchangeRateService';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
@@ -2694,6 +2695,29 @@ const advancedAnalyticsRouter = router({
     .mutation(async () => {
       const results = await advancedAnalyticsService.runAllUnifiedTrackingTasks();
       return { success: true, message: '效果追踪任务执行完成', results };
+    }),
+});
+
+// ==================== Exchange Rate Router ====================
+const exchangeRateRouter = router({
+  // 获取当前汇率状态
+  getStatus: protectedProcedure
+    .query(async () => {
+      return getExchangeRateStatus();
+    }),
+  
+  // 获取所有汇率
+  getRates: protectedProcedure
+    .query(async () => {
+      const rates = await getExchangeRates();
+      const status = getExchangeRateStatus();
+      return { rates, ...status };
+    }),
+  
+  // 手动刷新汇率
+  refresh: protectedProcedure
+    .mutation(async () => {
+      return refreshExchangeRates();
     }),
 });
 
@@ -11816,6 +11840,7 @@ export const appRouter = router({
   smartCampaign: smartCampaignRouter,
   multiTenant: multiTenantRouter,
   advancedAnalytics: advancedAnalyticsRouter,
+  exchangeRate: exchangeRateRouter,
 });
 
 export type AppRouter = typeof appRouter;

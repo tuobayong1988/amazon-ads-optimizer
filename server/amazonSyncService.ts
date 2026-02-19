@@ -29,6 +29,7 @@ import {
 } from './amazonAdsApi';
 import { calculateBidAdjustment, OptimizationTarget, PerformanceGroupConfig } from './bidOptimizer';
 import { getMarketplaceDateRange, getMarketplaceCurrentDate, getMarketplaceYesterday, getMarketplaceHistoricalDateRange } from './utils/timezone';
+import { getExchangeRateByMarketplace } from './services/exchangeRateService';
 
 // API凭证存储接口
 interface StoredApiCredentials {
@@ -40,33 +41,10 @@ interface StoredApiCredentials {
 }
 
 /**
- * v148: 货币转换常量 - 从函数内部提取为模块级常量
- * 注意：这些汇率是静态近似值，仅用于跨站点汇总对比
- * 建议未来接入实时汇率API（如Open Exchange Rates）实现动态更新
- * 上次更新: 2026-02-19
+ * v149: 货币转换已迁移到 exchangeRateService.ts
+ * 使用实时汇率API（ExchangeRate-API），每日自动更新
+ * 静态兜底汇率保留在 exchangeRateService 中
  */
-const EXCHANGE_RATES_TO_USD: Record<string, number> = {
-  'USD': 1.0,
-  'CAD': 0.7345,  // 1 CAD = 0.7345 USD
-  'MXN': 0.0495,  // 1 MXN = 0.0495 USD
-  'GBP': 1.27,
-  'EUR': 1.08,
-  'JPY': 0.0067,
-  'AUD': 0.65,
-  'SGD': 0.74,
-  'INR': 0.012,
-  'AED': 0.2723,
-  'SAR': 0.2667,
-  'BRL': 0.17,
-  'SEK': 0.096,
-  'PLN': 0.25,
-};
-
-const MARKETPLACE_CURRENCY: Record<string, string> = {
-  'US': 'USD', 'CA': 'CAD', 'MX': 'MXN', 'BR': 'BRL',
-  'UK': 'GBP', 'DE': 'EUR', 'FR': 'EUR', 'IT': 'EUR', 'ES': 'EUR', 'NL': 'EUR', 'SE': 'SEK', 'PL': 'PLN', 'BE': 'EUR',
-  'JP': 'JPY', 'AU': 'AUD', 'SG': 'SGD', 'IN': 'INR', 'AE': 'AED', 'SA': 'SAR',
-};
 
 /**
  * 同步服务类
@@ -2464,9 +2442,8 @@ export class AmazonSyncService {
           ntbSales = row.newToBrandSalesClicks || 0;
         }
         
-        // ✅ v148: 货币转换 - 使用模块级常量（从函数内部提取）
-        const currency = MARKETPLACE_CURRENCY[this.marketplace] || 'USD';
-        const exchangeRate = EXCHANGE_RATES_TO_USD[currency] || 1.0;
+        // ✅ v149: 货币转换 - 使用实时汇率服务（每日自动从API刷新）
+        const { currency, rate: exchangeRate } = await getExchangeRateByMarketplace(this.marketplace);
         const spendUsd = cost * exchangeRate;
         const salesUsd = sales * exchangeRate;
 

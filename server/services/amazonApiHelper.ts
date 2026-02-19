@@ -99,14 +99,24 @@ export async function syncBidAdjustmentsToAmazon(
     return result;
   }
   
-  console.log(`[AmazonApiHelper] API服务创建成功，开始逐条同步出价调整`);
+  console.log(`[AmazonApiHelper] API服务创建成功，开始同步出价调整`);
+  
+  // v149: 幂等性保障 - 同一批次内去重（同一关键词只保留最后一次调整）
+  const deduped = new Map<number, typeof adjustments[0]>();
+  for (const adj of adjustments) {
+    deduped.set(adj.keywordId, adj); // 后出现的覆盖先出现的
+  }
+  const uniqueAdjustments = Array.from(deduped.values());
+  if (uniqueAdjustments.length < adjustments.length) {
+    console.log(`[AmazonApiHelper] 幂等性去重: ${adjustments.length}条 -> ${uniqueAdjustments.length}条（去除${adjustments.length - uniqueAdjustments.length}个重复关键词）`);
+  }
   
   // v125c: 添加限流延迟和重试逻辑
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
   let consecutiveThrottles = 0;
   
-  for (let i = 0; i < adjustments.length; i++) {
-    const adj = adjustments[i];
+  for (let i = 0; i < uniqueAdjustments.length; i++) {
+    const adj = uniqueAdjustments[i];
     const maxRetries = 2;
     let retryCount = 0;
     let success = false;
@@ -115,9 +125,9 @@ export async function syncBidAdjustmentsToAmazon(
       try {
         const targetType = adj.isProductTarget ? 'product_target' : 'keyword';
         if (retryCount === 0) {
-          console.log(`[AmazonApiHelper] [${i+1}/${adjustments.length}] 同步出价: ${targetType} id=${adj.keywordId}, newBid=${adj.newBid}`);
+          console.log(`[AmazonApiHelper] [${i+1}/${uniqueAdjustments.length}] 同步出价: ${targetType} id=${adj.keywordId}, newBid=${adj.newBid}`);
         } else {
-          console.log(`[AmazonApiHelper] [${i+1}/${adjustments.length}] 重试#${retryCount}: ${targetType} id=${adj.keywordId}`);
+          console.log(`[AmazonApiHelper] [${i+1}/${uniqueAdjustments.length}] 重试#${retryCount}: ${targetType} id=${adj.keywordId}`);
         }
         
         const apiResult = await syncService.applyBidAdjustment(
@@ -182,7 +192,7 @@ export async function syncBidAdjustmentsToAmazon(
     }
     
     // 每5个调用后添加小延迟，避免触发限流
-    if ((i + 1) % 5 === 0 && i < adjustments.length - 1) {
+    if ((i + 1) % 5 === 0 && i < uniqueAdjustments.length - 1) {
       await delay(500);
     }
   }
@@ -443,27 +453,57 @@ export async function syncNegativeKeywordsToAmazon(
     return result;
   }
   
+  // v149: 幂等性保障 - 创建前先查询已有否定词，去除重复
   // 分组: campaign级别 vs adgroup级别
   const campaignLevel = negatives.filter(n => n.level === 'campaign');
   const adGroupLevel = negatives.filter(n => n.level === 'adgroup' && n.adGroupId);
   
-  // 批量创建campaign级别否定关键词
+  // 批量创建campaign级别否定关键词（带去重）
   if (campaignLevel.length > 0) {
     try {
-      const results = await syncService.client.createSpCampaignNegativeKeywords(
-        campaignLevel.map(n => ({
-          campaignId: n.campaignId,
-          keywordText: n.keywordText,
-          matchType: n.matchType,
-        }))
-      );
+      // v149: 幂等性 - 获取已有的campaign级否定词进行去重
+      const uniqueCampaignIds = [...new Set(campaignLevel.map(n => n.campaignId))];
+      const existingNegatives = new Set<string>();
+      for (const cid of uniqueCampaignIds) {
+        try {
+          const existing = await syncService.client.listSpCampaignNegativeKeywords(cid);
+          for (const e of existing) {
+            const key = `${e.campaignId}:${(e.keywordText || '').toLowerCase()}:${(e.matchType || '').toLowerCase()}`;
+            existingNegatives.add(key);
+          }
+        } catch (listErr: any) {
+          console.warn(`[AmazonApiHelper] 查询campaign ${cid} 已有否定词失败: ${listErr.message}`);
+        }
+      }
       
-      for (const r of results) {
-        if (r.code === 'SUCCESS' || r.keywordId) {
-          result.success++;
-        } else {
-          result.failed++;
-          result.errors.push(`Campaign否定词失败: ${r.details}`);
+      // 过滤掉已存在的否定词
+      const newCampaignNegatives = campaignLevel.filter(n => {
+        const key = `${n.campaignId}:${n.keywordText.toLowerCase()}:${n.matchType.toLowerCase()}`;
+        return !existingNegatives.has(key);
+      });
+      
+      const skippedCount = campaignLevel.length - newCampaignNegatives.length;
+      if (skippedCount > 0) {
+        console.log(`[AmazonApiHelper] 幂等性去重: 跳过${skippedCount}个已存在的campaign级否定词`);
+        result.success += skippedCount; // 已存在视为成功
+      }
+      
+      if (newCampaignNegatives.length > 0) {
+        const results = await syncService.client.createSpCampaignNegativeKeywords(
+          newCampaignNegatives.map(n => ({
+            campaignId: n.campaignId,
+            keywordText: n.keywordText,
+            matchType: n.matchType,
+          }))
+        );
+        
+        for (const r of results) {
+          if (r.code === 'SUCCESS' || r.keywordId) {
+            result.success++;
+          } else {
+            result.failed++;
+            result.errors.push(`Campaign否定词失败: ${r.details}`);
+          }
         }
       }
     } catch (error: any) {
@@ -472,24 +512,53 @@ export async function syncNegativeKeywordsToAmazon(
     }
   }
   
-  // 批量创建adgroup级别否定关键词
+  // 批量创建adgroup级别否定关键词（带去重）
   if (adGroupLevel.length > 0) {
     try {
-      const results = await syncService.client.createSpNegativeKeywords(
-        adGroupLevel.map(n => ({
-          adGroupId: n.adGroupId!,
-          campaignId: n.campaignId,
-          keywordText: n.keywordText,
-          matchType: n.matchType,
-        }))
-      );
+      // v149: 幂等性 - 获取已有的adgroup级否定词进行去重
+      const uniqueAdGroupIds = [...new Set(adGroupLevel.map(n => n.adGroupId!))];
+      const existingNegatives = new Set<string>();
+      for (const agId of uniqueAdGroupIds) {
+        try {
+          const existing = await syncService.client.listSpNegativeKeywords(agId);
+          for (const e of existing) {
+            const key = `${e.adGroupId}:${(e.keywordText || '').toLowerCase()}:${(e.matchType || '').toLowerCase()}`;
+            existingNegatives.add(key);
+          }
+        } catch (listErr: any) {
+          console.warn(`[AmazonApiHelper] 查询adGroup ${agId} 已有否定词失败: ${listErr.message}`);
+        }
+      }
       
-      for (const r of results) {
-        if (r.code === 'SUCCESS' || r.keywordId) {
-          result.success++;
-        } else {
-          result.failed++;
-          result.errors.push(`AdGroup否定词失败: ${r.details}`);
+      // 过滤掉已存在的否定词
+      const newAdGroupNegatives = adGroupLevel.filter(n => {
+        const key = `${n.adGroupId}:${n.keywordText.toLowerCase()}:${n.matchType.toLowerCase()}`;
+        return !existingNegatives.has(key);
+      });
+      
+      const skippedCount = adGroupLevel.length - newAdGroupNegatives.length;
+      if (skippedCount > 0) {
+        console.log(`[AmazonApiHelper] 幂等性去重: 跳过${skippedCount}个已存在的adGroup级否定词`);
+        result.success += skippedCount; // 已存在视为成功
+      }
+      
+      if (newAdGroupNegatives.length > 0) {
+        const results = await syncService.client.createSpNegativeKeywords(
+          newAdGroupNegatives.map(n => ({
+            adGroupId: n.adGroupId!,
+            campaignId: n.campaignId,
+            keywordText: n.keywordText,
+            matchType: n.matchType,
+          }))
+        );
+        
+        for (const r of results) {
+          if (r.code === 'SUCCESS' || r.keywordId) {
+            result.success++;
+          } else {
+            result.failed++;
+            result.errors.push(`AdGroup否定词失败: ${r.details}`);
+          }
         }
       }
     } catch (error: any) {
