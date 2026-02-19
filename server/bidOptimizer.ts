@@ -1407,10 +1407,11 @@ export function calculateEnhancedBidAdjustment(
   newBid = Math.min(newBid, maxBidLimit);
   newBid = Math.max(newBid, minBidLimit);
   
-  // 7. 限制单次调整幅度（最大30%）
-  const maxChangePercent = 0.30;
+  // 7. 限制单次调整幅度（v152: 从进化引擎获取自适应参数，默认30%）
+  // 进化引擎会根据历史效果自动调整这些参数
+  const maxChangePercent = (config as any)._evolvedMaxChangePercent || 0.30;
   const maxIncrease = target.currentBid * (1 + maxChangePercent);
-  const maxDecrease = target.currentBid * (1 - maxChangePercent);
+  const maxDecrease = target.currentBid * (1 - ((config as any)._evolvedMaxDecreasePercent || 0.20));
   
   newBid = Math.min(newBid, maxIncrease);
   newBid = Math.max(newBid, maxDecrease);

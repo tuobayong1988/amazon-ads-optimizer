@@ -15,11 +15,11 @@ var __export = (target, all3) => {
   for (var name2 in all3)
     __defProp(target, name2, { get: all3[name2], enumerable: true });
 };
-var __copyProps = (to, from, except2, desc12) => {
+var __copyProps = (to, from, except2, desc13) => {
   if (from && typeof from === "object" || typeof from === "function") {
     for (let key of __getOwnPropNames(from))
       if (!__hasOwnProp.call(to, key) && key !== except2)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc12 = __getOwnPropDesc(from, key)) || desc12.enumerable });
+        __defProp(to, key, { get: () => from[key], enumerable: !(desc13 = __getOwnPropDesc(from, key)) || desc13.enumerable });
   }
   return to;
 };
@@ -1330,10 +1330,10 @@ var require_http_errors = __commonJS({
       return ServerError;
     }
     function nameFunc(func, name2) {
-      var desc12 = Object.getOwnPropertyDescriptor(func, "name");
-      if (desc12 && desc12.configurable) {
-        desc12.value = name2;
-        Object.defineProperty(func, "name", desc12);
+      var desc13 = Object.getOwnPropertyDescriptor(func, "name");
+      if (desc13 && desc13.configurable) {
+        desc13.value = name2;
+        Object.defineProperty(func, "name", desc13);
       }
     }
     function populateConstructorExports(exports3, codes, HttpError2) {
@@ -15977,14 +15977,14 @@ var require_get = __commonJS({
         throw e6;
       }
     }
-    var desc12 = !!hasProtoAccessor && gOPD && gOPD(
+    var desc13 = !!hasProtoAccessor && gOPD && gOPD(
       Object.prototype,
       /** @type {keyof typeof Object.prototype} */
       "__proto__"
     );
     var $Object = Object;
     var $getPrototypeOf = $Object.getPrototypeOf;
-    module2.exports = desc12 && typeof desc12.get === "function" ? callBind([desc12.get]) : typeof $getPrototypeOf === "function" ? (
+    module2.exports = desc13 && typeof desc13.get === "function" ? callBind([desc13.get]) : typeof $getPrototypeOf === "function" ? (
       /** @type {import('./get')} */
       function getDunder(value2) {
         return $getPrototypeOf(value2 == null ? value2 : $Object(value2));
@@ -16334,10 +16334,10 @@ var require_get_intrinsic = __commonJS({
             return void undefined2;
           }
           if ($gOPD && i4 + 1 >= parts.length) {
-            var desc12 = $gOPD(value2, part);
-            isOwn = !!desc12;
-            if (isOwn && "get" in desc12 && !("originalValue" in desc12.get)) {
-              value2 = desc12.get;
+            var desc13 = $gOPD(value2, part);
+            isOwn = !!desc13;
+            if (isOwn && "get" in desc13 && !("originalValue" in desc13.get)) {
+              value2 = desc13.get;
             } else {
               value2 = value2[part];
             }
@@ -24344,12 +24344,12 @@ var init_getErrorShape_BH60iMC2 = __esm({
     __commonJS2 = (cb, mod) => function() {
       return mod || (0, cb[__getOwnPropNames2(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
     };
-    __copyProps2 = (to, from, except2, desc12) => {
+    __copyProps2 = (to, from, except2, desc13) => {
       if (from && typeof from === "object" || typeof from === "function") for (var keys = __getOwnPropNames2(from), i4 = 0, n7 = keys.length, key; i4 < n7; i4++) {
         key = keys[i4];
         if (!__hasOwnProp2.call(to, key) && key !== except2) __defProp2(to, key, {
           get: ((k5) => from[k5]).bind(null, key),
-          enumerable: !(desc12 = __getOwnPropDesc2(from, key)) || desc12.enumerable
+          enumerable: !(desc13 = __getOwnPropDesc2(from, key)) || desc13.enumerable
         });
       }
       return to;
@@ -44656,8 +44656,8 @@ var init_validator = __esm({
     });
     deprecatedWarnings = {};
     validators.transitional = function transitional(validator, version5, message2) {
-      function formatMessage(opt, desc12) {
-        return "[Axios v" + VERSION + "] Transitional option '" + opt + "'" + desc12 + (message2 ? ". " + message2 : "");
+      function formatMessage(opt, desc13) {
+        return "[Axios v" + VERSION + "] Transitional option '" + opt + "'" + desc13 + (message2 ? ". " + message2 : "");
       }
       return (value2, opt, opts) => {
         if (validator === false) {
@@ -49362,10 +49362,10 @@ var require_is = __commonJS({
       return typeof payload4 === "undefined";
     };
     exports2.isUndefined = isUndefined2;
-    var isNull5 = function(payload4) {
+    var isNull6 = function(payload4) {
       return payload4 === null;
     };
-    exports2.isNull = isNull5;
+    exports2.isNull = isNull6;
     var isPlainObject4 = function(payload4) {
       if (typeof payload4 !== "object" || payload4 === null)
         return false;
@@ -50193,7 +50193,7 @@ var require_cjs = __commonJS({
     function isNegativeNumber(payload4) {
       return isNumber4(payload4) && payload4 < 0;
     }
-    function isNull5(payload4) {
+    function isNull6(payload4) {
       return getType(payload4) === "Null";
     }
     function isOneOf(a4, b6, c5, d5, e6) {
@@ -50202,7 +50202,7 @@ var require_cjs = __commonJS({
     function isUndefined2(payload4) {
       return getType(payload4) === "Undefined";
     }
-    var isNullOrUndefined = isOneOf(isNull5, isUndefined2);
+    var isNullOrUndefined = isOneOf(isNull6, isUndefined2);
     function isObject7(payload4) {
       return isPlainObject4(payload4);
     }
@@ -50216,7 +50216,7 @@ var require_cjs = __commonJS({
       return getType(payload4) === "Symbol";
     }
     function isPrimitive2(payload4) {
-      return isBoolean2(payload4) || isNull5(payload4) || isUndefined2(payload4) || isNumber4(payload4) || isString2(payload4) || isSymbol(payload4);
+      return isBoolean2(payload4) || isNull6(payload4) || isUndefined2(payload4) || isNumber4(payload4) || isString2(payload4) || isSymbol(payload4);
     }
     function isPromise2(payload4) {
       return getType(payload4) === "Promise";
@@ -50252,7 +50252,7 @@ var require_cjs = __commonJS({
     exports2.isMap = isMap;
     exports2.isNaNValue = isNaNValue;
     exports2.isNegativeNumber = isNegativeNumber;
-    exports2.isNull = isNull5;
+    exports2.isNull = isNull6;
     exports2.isNullOrUndefined = isNullOrUndefined;
     exports2.isNumber = isNumber4;
     exports2.isObject = isObject7;
@@ -51287,9 +51287,9 @@ function calculateEnhancedBidAdjustment(target, config2, maxBidLimit = 10, minBi
   let newBid = baseBid * holidayMultiplier;
   newBid = Math.min(newBid, maxBidLimit);
   newBid = Math.max(newBid, minBidLimit);
-  const maxChangePercent = 0.3;
+  const maxChangePercent = config2._evolvedMaxChangePercent || 0.3;
   const maxIncrease = target.currentBid * (1 + maxChangePercent);
-  const maxDecrease = target.currentBid * (1 - maxChangePercent);
+  const maxDecrease = target.currentBid * (1 - (config2._evolvedMaxDecreasePercent || 0.2));
   newBid = Math.min(newBid, maxIncrease);
   newBid = Math.max(newBid, maxDecrease);
   newBid = Math.round(newBid * 100) / 100;
@@ -69810,9 +69810,9 @@ function __rest(s4, e6) {
     }
   return t7;
 }
-function __decorate(decorators, target, key, desc12) {
-  var c5 = arguments.length, r5 = c5 < 3 ? target : desc12 === null ? desc12 = Object.getOwnPropertyDescriptor(target, key) : desc12, d5;
-  if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r5 = Reflect.decorate(decorators, target, key, desc12);
+function __decorate(decorators, target, key, desc13) {
+  var c5 = arguments.length, r5 = c5 < 3 ? target : desc13 === null ? desc13 = Object.getOwnPropertyDescriptor(target, key) : desc13, d5;
+  if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r5 = Reflect.decorate(decorators, target, key, desc13);
   else for (var i4 = decorators.length - 1; i4 >= 0; i4--) if (d5 = decorators[i4]) r5 = (c5 < 3 ? d5(r5) : c5 > 3 ? d5(target, key, r5) : d5(target, key)) || r5;
   return c5 > 3 && r5 && Object.defineProperty(target, key, r5), r5;
 }
@@ -70213,13 +70213,13 @@ var init_tslib_es6 = __esm({
     };
     __createBinding = Object.create ? (function(o6, m4, k5, k22) {
       if (k22 === void 0) k22 = k5;
-      var desc12 = Object.getOwnPropertyDescriptor(m4, k5);
-      if (!desc12 || ("get" in desc12 ? !m4.__esModule : desc12.writable || desc12.configurable)) {
-        desc12 = { enumerable: true, get: function() {
+      var desc13 = Object.getOwnPropertyDescriptor(m4, k5);
+      if (!desc13 || ("get" in desc13 ? !m4.__esModule : desc13.writable || desc13.configurable)) {
+        desc13 = { enumerable: true, get: function() {
           return m4[k5];
         } };
       }
-      Object.defineProperty(o6, k22, desc12);
+      Object.defineProperty(o6, k22, desc13);
     }) : (function(o6, m4, k5, k22) {
       if (k22 === void 0) k22 = k5;
       o6[k22] = m4[k5];
@@ -125930,13 +125930,13 @@ var require_fromWebToken = __commonJS({
     "use strict";
     var __createBinding2 = exports2 && exports2.__createBinding || (Object.create ? (function(o6, m4, k5, k22) {
       if (k22 === void 0) k22 = k5;
-      var desc12 = Object.getOwnPropertyDescriptor(m4, k5);
-      if (!desc12 || ("get" in desc12 ? !m4.__esModule : desc12.writable || desc12.configurable)) {
-        desc12 = { enumerable: true, get: function() {
+      var desc13 = Object.getOwnPropertyDescriptor(m4, k5);
+      if (!desc13 || ("get" in desc13 ? !m4.__esModule : desc13.writable || desc13.configurable)) {
+        desc13 = { enumerable: true, get: function() {
           return m4[k5];
         } };
       }
-      Object.defineProperty(o6, k22, desc12);
+      Object.defineProperty(o6, k22, desc13);
     }) : (function(o6, m4, k5, k22) {
       if (k22 === void 0) k22 = k5;
       o6[k22] = m4[k5];
@@ -130221,6 +130221,636 @@ var init_marginalBenefitAnalysisService = __esm({
   }
 });
 
+// server/algorithmEvolutionEngine.ts
+var algorithmEvolutionEngine_exports = {};
+__export(algorithmEvolutionEngine_exports, {
+  DEFAULT_TARGET_ALGORITHM_CONFIG: () => DEFAULT_TARGET_ALGORITHM_CONFIG,
+  applyAdjustments: () => applyAdjustments,
+  calculateParameterAdjustments: () => calculateParameterAdjustments,
+  evaluateTargetPerformance: () => evaluateTargetPerformance,
+  getEffectiveBidConfig: () => getEffectiveBidConfig,
+  getTargetAlgorithmConfig: () => getTargetAlgorithmConfig,
+  recordAlgorithmUsage: () => recordAlgorithmUsage,
+  runEffectTracking: () => runEffectTracking,
+  runEvolutionCycle: () => runEvolutionCycle,
+  runGlobalEvolution: () => runGlobalEvolution
+});
+async function runEffectTracking() {
+  console.log("[EvolutionEngine] \u5F00\u59CB\u6548\u679C\u8FFD\u8E2A...");
+  const tracked7d = await trackEffectsForPeriod(7);
+  const tracked14d = await trackEffectsForPeriod(14);
+  const tracked30d = await trackEffectsForPeriod(30);
+  console.log(`[EvolutionEngine] \u6548\u679C\u8FFD\u8E2A\u5B8C\u6210: 7d=${tracked7d}, 14d=${tracked14d}, 30d=${tracked30d}`);
+  return { tracked7d, tracked14d, tracked30d };
+}
+async function trackEffectsForPeriod(period) {
+  const db = await getDb();
+  if (!db) return 0;
+  const now = /* @__PURE__ */ new Date();
+  const targetDate = new Date(now.getTime() - period * 24 * 60 * 60 * 1e3);
+  const bufferStart = new Date(targetDate.getTime() - 24 * 60 * 60 * 1e3);
+  const bufferEnd = new Date(targetDate.getTime() + 24 * 60 * 60 * 1e3);
+  const startStr = bufferStart.toISOString().slice(0, 19).replace("T", " ");
+  const endStr = bufferEnd.toISOString().slice(0, 19).replace("T", " ");
+  let trackingField;
+  if (period === 7) trackingField = "actual_profit_7d";
+  else if (period === 14) trackingField = "actual_profit_14d";
+  else trackingField = "actual_profit_30d";
+  try {
+    const events = await db.select().from(optimizationEvents).where(and(
+      eq(optimizationEvents.eventCategory, "bid_adjustment"),
+      ne(optimizationEvents.status, "rolled_back"),
+      eq(optimizationEvents.apiSyncStatus, "synced"),
+      gte(optimizationEvents.createdAt, startStr),
+      lte(optimizationEvents.createdAt, endStr),
+      sql`${sql.raw(trackingField)} IS NULL`
+    )).limit(200);
+    let processed = 0;
+    for (const event of events) {
+      try {
+        const eventDate = new Date(event.createdAt);
+        const endDate = new Date(eventDate.getTime() + period * 24 * 60 * 60 * 1e3);
+        const perfData = await getEventPerformanceData(db, event, eventDate, endDate);
+        if (!perfData) continue;
+        const effectScore = calculateEffectScore2(event, perfData, period);
+        const updateData = {
+          trackingUpdatedAt: now.toISOString().slice(0, 19).replace("T", " ")
+        };
+        if (period === 7) {
+          updateData.actualProfit7D = (perfData.sales - perfData.spend).toFixed(2);
+          updateData.actualSpend7D = perfData.spend.toFixed(2);
+          updateData.actualRevenue7D = perfData.sales.toFixed(2);
+          updateData.actualImpressions7D = perfData.impressions;
+          updateData.actualClicks7D = perfData.clicks;
+          updateData.actualConversions7D = perfData.orders;
+        } else if (period === 14) {
+          updateData.actualProfit14D = (perfData.sales - perfData.spend).toFixed(2);
+        } else {
+          updateData.actualProfit30D = (perfData.sales - perfData.spend).toFixed(2);
+        }
+        await db.update(optimizationEvents).set(updateData).where(eq(optimizationEvents.id, event.id));
+        processed++;
+      } catch (error54) {
+        console.error(`[EvolutionEngine] \u8FFD\u8E2A\u4E8B\u4EF6 ${event.id} \u5931\u8D25:`, error54.message);
+      }
+    }
+    return processed;
+  } catch (error54) {
+    console.error(`[EvolutionEngine] ${period}\u5929\u6548\u679C\u8FFD\u8E2A\u5931\u8D25:`, error54.message);
+    return 0;
+  }
+}
+async function getEventPerformanceData(db, event, startDate, endDate) {
+  try {
+    const startStr = startDate.toISOString().slice(0, 10);
+    const endStr = endDate.toISOString().slice(0, 10);
+    let result;
+    if (event.keywordId) {
+      const { keywords: keywords5 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+      const kwData = await db.select().from(keywords5).where(eq(keywords5.id, event.keywordId)).limit(1);
+      if (kwData.length > 0) {
+        const kw = kwData[0];
+        result = {
+          spend: parseFloat(kw.spend || "0"),
+          sales: parseFloat(kw.sales || "0"),
+          impressions: kw.impressions || 0,
+          clicks: kw.clicks || 0,
+          orders: kw.orders || 0
+        };
+      }
+    } else if (event.campaignId) {
+      const { campaigns: campaigns6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+      const campData = await db.select().from(campaigns6).where(eq(campaigns6.id, event.campaignId)).limit(1);
+      if (campData.length > 0) {
+        const camp = campData[0];
+        result = {
+          spend: parseFloat(camp.spend || "0"),
+          sales: parseFloat(camp.sales || "0"),
+          impressions: camp.impressions || 0,
+          clicks: camp.clicks || 0,
+          orders: camp.orders || 0
+        };
+      }
+    }
+    return result || null;
+  } catch (error54) {
+    console.error(`[EvolutionEngine] \u83B7\u53D6\u4E8B\u4EF6 ${event.id} \u6548\u679C\u6570\u636E\u5931\u8D25:`, error54.message);
+    return null;
+  }
+}
+function calculateEffectScore2(event, perfData, period) {
+  const previousBid = parseFloat(event.previousBid || "0");
+  const newBid = parseFloat(event.newBid || "0");
+  if (previousBid <= 0 || newBid <= 0) return 0;
+  const bidDirection = newBid > previousBid ? "increase" : "decrease";
+  const roas = perfData.spend > 0 ? perfData.sales / perfData.spend : 0;
+  const acos = perfData.sales > 0 ? perfData.spend / perfData.sales * 100 : 100;
+  let score = 0;
+  if (bidDirection === "increase") {
+    if (roas >= 3) score += 30;
+    else if (roas >= 2) score += 15;
+    else if (roas >= 1) score += 0;
+    else score -= 20;
+    if (perfData.impressions > 100) score += 10;
+    if (perfData.clicks > 5) score += 10;
+    if (perfData.orders > 0) score += 20;
+  } else {
+    if (acos < 30) score += 30;
+    else if (acos < 50) score += 15;
+    else if (acos < 80) score += 0;
+    else score -= 15;
+    if (perfData.orders > 0) score += 20;
+    if (perfData.sales > perfData.spend) score += 20;
+  }
+  const profit = perfData.sales - perfData.spend;
+  if (profit > 0) score += 10;
+  else score -= 10;
+  return Math.max(-100, Math.min(100, score));
+}
+async function evaluateTargetPerformance(targetId, period = 14) {
+  const db = await getDb();
+  if (!db) return null;
+  const now = /* @__PURE__ */ new Date();
+  const startDate = new Date(now.getTime() - period * 24 * 60 * 60 * 1e3);
+  const startStr = startDate.toISOString().slice(0, 19).replace("T", " ");
+  try {
+    const events = await db.select().from(optimizationEvents).where(and(
+      eq(optimizationEvents.performanceGroupId, targetId),
+      eq(optimizationEvents.eventCategory, "bid_adjustment"),
+      eq(optimizationEvents.apiSyncStatus, "synced"),
+      ne(optimizationEvents.status, "rolled_back"),
+      gte(optimizationEvents.createdAt, startStr)
+    ));
+    if (events.length === 0) {
+      return null;
+    }
+    let successfulEvents = 0;
+    let failedEvents = 0;
+    let neutralEvents = 0;
+    let totalROASChange = 0;
+    let totalACoSChange = 0;
+    let totalProfitChange = 0;
+    let totalEffectScore = 0;
+    const algorithmMap = /* @__PURE__ */ new Map();
+    const rangeMap = /* @__PURE__ */ new Map();
+    for (const event of events) {
+      const previousBid = parseFloat(event.previousBid || "0");
+      const newBid = parseFloat(event.newBid || "0");
+      const profit7d = event.actualProfit7D ? parseFloat(event.actualProfit7D) : null;
+      const expectedProfit = event.expectedProfitIncrease ? parseFloat(event.expectedProfitIncrease) : 0;
+      let effectScore = 0;
+      if (profit7d !== null) {
+        if (profit7d > 0) {
+          effectScore = Math.min(100, profit7d * 10);
+          successfulEvents++;
+        } else if (profit7d < -5) {
+          effectScore = Math.max(-100, profit7d * 5);
+          failedEvents++;
+        } else {
+          effectScore = 0;
+          neutralEvents++;
+        }
+        totalProfitChange += profit7d;
+      } else {
+        if (event.status === "success") {
+          effectScore = 10;
+          neutralEvents++;
+        } else {
+          effectScore = -10;
+          failedEvents++;
+        }
+      }
+      totalEffectScore += effectScore;
+      const algo = event.performanceData?.algorithmUsed || "unknown";
+      const algoStats = algorithmMap.get(algo) || { count: 0, totalScore: 0, successCount: 0 };
+      algoStats.count++;
+      algoStats.totalScore += effectScore;
+      if (effectScore > 0) algoStats.successCount++;
+      algorithmMap.set(algo, algoStats);
+      if (previousBid > 0) {
+        const changePercent = Math.abs((newBid - previousBid) / previousBid * 100);
+        let range8;
+        if (changePercent < 5) range8 = "0-5%";
+        else if (changePercent < 10) range8 = "5-10%";
+        else if (changePercent < 20) range8 = "10-20%";
+        else if (changePercent < 30) range8 = "20-30%";
+        else range8 = "30%+";
+        const rangeStats = rangeMap.get(range8) || { count: 0, totalScore: 0, successCount: 0 };
+        rangeStats.count++;
+        rangeStats.totalScore += effectScore;
+        if (effectScore > 0) rangeStats.successCount++;
+        rangeMap.set(range8, rangeStats);
+      }
+    }
+    const evaluation = {
+      targetId,
+      period,
+      evaluatedAt: now.toISOString(),
+      totalEvents: events.length,
+      successfulEvents,
+      failedEvents,
+      neutralEvents,
+      avgROASChange: totalROASChange / events.length,
+      avgACoSChange: totalACoSChange / events.length,
+      avgProfitChange: totalProfitChange / events.length,
+      overallEffectScore: totalEffectScore / events.length,
+      algorithmPerformance: Array.from(algorithmMap.entries()).map(([algo, stats]) => ({
+        algorithm: algo,
+        count: stats.count,
+        avgEffectScore: stats.count > 0 ? stats.totalScore / stats.count : 0,
+        successRate: stats.count > 0 ? stats.successCount / stats.count * 100 : 0
+      })),
+      rangePerformance: Array.from(rangeMap.entries()).map(([range8, stats]) => ({
+        range: range8,
+        count: stats.count,
+        avgEffectScore: stats.count > 0 ? stats.totalScore / stats.count : 0,
+        successRate: stats.count > 0 ? stats.successCount / stats.count * 100 : 0
+      }))
+    };
+    return evaluation;
+  } catch (error54) {
+    console.error(`[EvolutionEngine] \u8BC4\u4F30\u4F18\u5316\u76EE\u6807 ${targetId} \u6548\u679C\u5931\u8D25:`, error54.message);
+    return null;
+  }
+}
+async function getTargetAlgorithmConfig(targetId) {
+  const db = await getDb();
+  if (!db) return { ...DEFAULT_TARGET_ALGORITHM_CONFIG };
+  try {
+    const groups2 = await db.select().from(performanceGroups).where(eq(performanceGroups.id, targetId)).limit(1);
+    if (groups2.length > 0) {
+      const group = groups2[0];
+      const storedConfig = group.algorithmConfig;
+      if (storedConfig && typeof storedConfig === "object") {
+        return { ...DEFAULT_TARGET_ALGORITHM_CONFIG, ...storedConfig };
+      }
+    }
+  } catch (error54) {
+    console.error(`[EvolutionEngine] \u83B7\u53D6\u76EE\u6807 ${targetId} \u7B97\u6CD5\u914D\u7F6E\u5931\u8D25:`, error54.message);
+  }
+  return { ...DEFAULT_TARGET_ALGORITHM_CONFIG };
+}
+function calculateParameterAdjustments(currentConfig, evaluation) {
+  const adjustments = [];
+  if (evaluation.totalEvents < MIN_EVENTS_FOR_EVOLUTION) {
+    console.log(`[EvolutionEngine] \u4E8B\u4EF6\u6570\u4E0D\u8DB3(${evaluation.totalEvents}/${MIN_EVENTS_FOR_EVOLUTION})\uFF0C\u8DF3\u8FC7\u53C2\u6570\u8C03\u6574`);
+    return adjustments;
+  }
+  const successRate = evaluation.totalEvents > 0 ? evaluation.successfulEvents / evaluation.totalEvents * 100 : 0;
+  const largeRange = evaluation.rangePerformance.find((r5) => r5.range === "20-30%" || r5.range === "30%+");
+  const smallRange = evaluation.rangePerformance.find((r5) => r5.range === "0-5%" || r5.range === "5-10%");
+  if (largeRange && largeRange.count >= 3 && largeRange.successRate < 40) {
+    const reduction = LEARNING_RATE * (50 - largeRange.successRate) / 50;
+    const newMaxIncrease = clamp(
+      currentConfig.maxBidIncreasePercent * (1 - reduction),
+      PARAM_BOUNDS.maxBidIncreasePercent.min,
+      PARAM_BOUNDS.maxBidIncreasePercent.max
+    );
+    const newMaxDecrease = clamp(
+      currentConfig.maxBidDecreasePercent * (1 - reduction * 0.7),
+      PARAM_BOUNDS.maxBidDecreasePercent.min,
+      PARAM_BOUNDS.maxBidDecreasePercent.max
+    );
+    if (Math.abs(newMaxIncrease - currentConfig.maxBidIncreasePercent) > 1) {
+      adjustments.push({
+        parameter: "maxBidIncreasePercent",
+        previousValue: currentConfig.maxBidIncreasePercent,
+        newValue: Math.round(newMaxIncrease),
+        reason: `\u5927\u5E45\u8C03\u6574(${largeRange.range})\u6210\u529F\u7387\u4EC5${largeRange.successRate.toFixed(0)}%\uFF0C\u7F29\u5C0F\u63D0\u4EF7\u5E45\u5EA6`,
+        confidence: Math.min(90, largeRange.count * 10),
+        basedOnEvents: largeRange.count
+      });
+    }
+    if (Math.abs(newMaxDecrease - currentConfig.maxBidDecreasePercent) > 1) {
+      adjustments.push({
+        parameter: "maxBidDecreasePercent",
+        previousValue: currentConfig.maxBidDecreasePercent,
+        newValue: Math.round(newMaxDecrease),
+        reason: `\u5927\u5E45\u8C03\u6574\u6548\u679C\u4E0D\u4F73\uFF0C\u540C\u6B65\u7F29\u5C0F\u964D\u4EF7\u5E45\u5EA6`,
+        confidence: Math.min(85, largeRange.count * 8),
+        basedOnEvents: largeRange.count
+      });
+    }
+  } else if (smallRange && smallRange.count >= 5 && smallRange.successRate > 70 && successRate > 60) {
+    const expansion = LEARNING_RATE * (smallRange.successRate - 70) / 100;
+    const newMaxIncrease = clamp(
+      currentConfig.maxBidIncreasePercent * (1 + expansion),
+      PARAM_BOUNDS.maxBidIncreasePercent.min,
+      PARAM_BOUNDS.maxBidIncreasePercent.max
+    );
+    if (newMaxIncrease - currentConfig.maxBidIncreasePercent > 1) {
+      adjustments.push({
+        parameter: "maxBidIncreasePercent",
+        previousValue: currentConfig.maxBidIncreasePercent,
+        newValue: Math.round(newMaxIncrease),
+        reason: `\u5C0F\u5E45\u8C03\u6574\u6210\u529F\u7387${smallRange.successRate.toFixed(0)}%\uFF0C\u6574\u4F53\u6210\u529F\u7387${successRate.toFixed(0)}%\uFF0C\u9002\u5EA6\u6269\u5927\u5E45\u5EA6`,
+        confidence: Math.min(80, smallRange.count * 5),
+        basedOnEvents: smallRange.count
+      });
+    }
+  }
+  if (evaluation.algorithmPerformance.length >= 2) {
+    const totalAlgoEvents = evaluation.algorithmPerformance.reduce((sum2, a4) => sum2 + a4.count, 0);
+    if (totalAlgoEvents >= MIN_EVENTS_FOR_EVOLUTION) {
+      const newWeights = { ...currentConfig.algorithmWeights };
+      let weightsChanged = false;
+      for (const algoPerf of evaluation.algorithmPerformance) {
+        const algoKey = algoPerf.algorithm;
+        if (!(algoKey in newWeights)) continue;
+        const currentWeight = newWeights[algoKey];
+        if (algoPerf.avgEffectScore > 20 && algoPerf.count >= 3) {
+          const increase = LEARNING_RATE * (algoPerf.avgEffectScore / 100) * 0.5;
+          newWeights[algoKey] = Math.min(0.6, currentWeight + increase);
+          weightsChanged = true;
+        } else if (algoPerf.avgEffectScore < -10 && algoPerf.count >= 3) {
+          const decrease = LEARNING_RATE * Math.abs(algoPerf.avgEffectScore / 100) * 0.5;
+          newWeights[algoKey] = Math.max(0.05, currentWeight - decrease);
+          weightsChanged = true;
+        }
+      }
+      if (weightsChanged) {
+        const totalWeight = Object.values(newWeights).reduce((sum2, w7) => sum2 + w7, 0);
+        for (const key of Object.keys(newWeights)) {
+          newWeights[key] = newWeights[key] / totalWeight;
+        }
+        adjustments.push({
+          parameter: "algorithmWeights",
+          previousValue: 0,
+          // 用JSON表示
+          newValue: 0,
+          reason: `\u57FA\u4E8E${totalAlgoEvents}\u6B21\u4F18\u5316\u6548\u679C\uFF0C\u8C03\u6574\u7B97\u6CD5\u6743\u91CD: ` + Object.entries(newWeights).map(([k5, v6]) => `${k5}=${(v6 * 100).toFixed(0)}%`).join(", "),
+          confidence: Math.min(85, totalAlgoEvents * 3),
+          basedOnEvents: totalAlgoEvents
+        });
+        adjustments[adjustments.length - 1]._newWeights = newWeights;
+      }
+    }
+  }
+  if (evaluation.totalEvents >= 20) {
+    if (successRate > 65 && evaluation.overallEffectScore > 15) {
+      const newExplorationRate = clamp(
+        currentConfig.explorationRate * (1 - LEARNING_RATE),
+        PARAM_BOUNDS.explorationRate.min,
+        PARAM_BOUNDS.explorationRate.max
+      );
+      if (Math.abs(newExplorationRate - currentConfig.explorationRate) > 0.01) {
+        adjustments.push({
+          parameter: "explorationRate",
+          previousValue: currentConfig.explorationRate,
+          newValue: parseFloat(newExplorationRate.toFixed(3)),
+          reason: `\u6210\u529F\u7387${successRate.toFixed(0)}%\uFF0C\u6548\u679C\u5206${evaluation.overallEffectScore.toFixed(0)}\uFF0C\u964D\u4F4E\u63A2\u7D22\u7387\u4EE5\u5229\u7528\u5DF2\u9A8C\u8BC1\u7B56\u7565`,
+          confidence: 75,
+          basedOnEvents: evaluation.totalEvents
+        });
+      }
+    } else if (successRate < 45) {
+      const newExplorationRate = clamp(
+        currentConfig.explorationRate * (1 + LEARNING_RATE),
+        PARAM_BOUNDS.explorationRate.min,
+        PARAM_BOUNDS.explorationRate.max
+      );
+      if (Math.abs(newExplorationRate - currentConfig.explorationRate) > 0.01) {
+        adjustments.push({
+          parameter: "explorationRate",
+          previousValue: currentConfig.explorationRate,
+          newValue: parseFloat(newExplorationRate.toFixed(3)),
+          reason: `\u6210\u529F\u7387\u4EC5${successRate.toFixed(0)}%\uFF0C\u63D0\u9AD8\u63A2\u7D22\u7387\u4EE5\u53D1\u73B0\u66F4\u4F18\u7B56\u7565`,
+          confidence: 70,
+          basedOnEvents: evaluation.totalEvents
+        });
+      }
+    }
+  }
+  if (evaluation.totalEvents >= 15) {
+    if (successRate < 40 && evaluation.overallEffectScore < -5) {
+      const newThreshold = clamp(
+        currentConfig.confidenceThreshold + LEARNING_RATE * 0.5,
+        PARAM_BOUNDS.confidenceThreshold.min,
+        PARAM_BOUNDS.confidenceThreshold.max
+      );
+      if (newThreshold - currentConfig.confidenceThreshold > 0.02) {
+        adjustments.push({
+          parameter: "confidenceThreshold",
+          previousValue: currentConfig.confidenceThreshold,
+          newValue: parseFloat(newThreshold.toFixed(2)),
+          reason: `\u6210\u529F\u7387${successRate.toFixed(0)}%\uFF0C\u6548\u679C\u5206${evaluation.overallEffectScore.toFixed(0)}\uFF0C\u63D0\u9AD8\u7F6E\u4FE1\u5EA6\u9608\u503C\u51CF\u5C11\u4F4E\u8D28\u91CF\u8C03\u6574`,
+          confidence: 80,
+          basedOnEvents: evaluation.totalEvents
+        });
+      }
+    } else if (successRate > 70 && currentConfig.confidenceThreshold > 0.4) {
+      const newThreshold = clamp(
+        currentConfig.confidenceThreshold - LEARNING_RATE * 0.3,
+        PARAM_BOUNDS.confidenceThreshold.min,
+        PARAM_BOUNDS.confidenceThreshold.max
+      );
+      if (currentConfig.confidenceThreshold - newThreshold > 0.02) {
+        adjustments.push({
+          parameter: "confidenceThreshold",
+          previousValue: currentConfig.confidenceThreshold,
+          newValue: parseFloat(newThreshold.toFixed(2)),
+          reason: `\u6210\u529F\u7387${successRate.toFixed(0)}%\u8868\u73B0\u4F18\u79C0\uFF0C\u9002\u5EA6\u964D\u4F4E\u9608\u503C\u5141\u8BB8\u66F4\u591A\u4F18\u5316`,
+          confidence: 70,
+          basedOnEvents: evaluation.totalEvents
+        });
+      }
+    }
+  }
+  return adjustments;
+}
+function applyAdjustments(config2, adjustments) {
+  const newConfig = { ...config2 };
+  for (const adj of adjustments) {
+    switch (adj.parameter) {
+      case "maxBidIncreasePercent":
+        newConfig.maxBidIncreasePercent = adj.newValue;
+        break;
+      case "maxBidDecreasePercent":
+        newConfig.maxBidDecreasePercent = adj.newValue;
+        break;
+      case "explorationRate":
+        newConfig.explorationRate = adj.newValue;
+        break;
+      case "confidenceThreshold":
+        newConfig.confidenceThreshold = adj.newValue;
+        break;
+      case "algorithmWeights":
+        if (adj._newWeights) {
+          newConfig.algorithmWeights = adj._newWeights;
+        }
+        break;
+    }
+  }
+  newConfig.evolutionGeneration++;
+  newConfig.lastEvolutionAt = (/* @__PURE__ */ new Date()).toISOString();
+  newConfig.totalEvolutionCycles++;
+  return newConfig;
+}
+async function runEvolutionCycle(targetId) {
+  console.log(`[EvolutionEngine] \u5F00\u59CB\u8FDB\u5316\u5468\u671F: targetId=${targetId}`);
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const groups2 = await db.select().from(performanceGroups).where(eq(performanceGroups.id, targetId)).limit(1);
+    if (groups2.length === 0) {
+      console.log(`[EvolutionEngine] \u4F18\u5316\u76EE\u6807 ${targetId} \u4E0D\u5B58\u5728`);
+      return null;
+    }
+    const group = groups2[0];
+    const currentConfig = await getTargetAlgorithmConfig(targetId);
+    const evaluation = await evaluateTargetPerformance(targetId, 14);
+    if (!evaluation) {
+      console.log(`[EvolutionEngine] \u4F18\u5316\u76EE\u6807 ${targetId} \u65E0\u8DB3\u591F\u6570\u636E\u8FDB\u884C\u8BC4\u4F30`);
+      return null;
+    }
+    const adjustments = calculateParameterAdjustments(currentConfig, evaluation);
+    let newConfig = currentConfig;
+    if (adjustments.length > 0) {
+      newConfig = applyAdjustments(currentConfig, adjustments);
+      await db.insert(optimizationEvents).values({
+        performanceGroupId: targetId,
+        performanceGroupName: group.name,
+        accountId: group.accountId,
+        eventCategory: "settings_change",
+        actionType: "settings_update",
+        changeReason: `\u7B97\u6CD5\u8FDB\u5316\u7B2C${newConfig.evolutionGeneration}\u4EE3: ${adjustments.map((a4) => a4.reason).join("; ")}`,
+        previousValue: JSON.stringify(currentConfig),
+        newValue: JSON.stringify(newConfig),
+        status: "success",
+        apiSyncStatus: "not_applicable",
+        performanceData: JSON.stringify({
+          type: "algorithm_evolution",
+          generation: newConfig.evolutionGeneration,
+          evaluation: {
+            totalEvents: evaluation.totalEvents,
+            successRate: evaluation.totalEvents > 0 ? evaluation.successfulEvents / evaluation.totalEvents * 100 : 0,
+            overallEffectScore: evaluation.overallEffectScore
+          },
+          adjustments: adjustments.map((a4) => ({
+            parameter: a4.parameter,
+            previousValue: a4.previousValue,
+            newValue: a4.newValue,
+            reason: a4.reason
+          }))
+        }),
+        createdAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
+      });
+      console.log(`[EvolutionEngine] \u4F18\u5316\u76EE\u6807 ${group.name} \u5B8C\u6210\u7B2C${newConfig.evolutionGeneration}\u4EE3\u8FDB\u5316\uFF0C${adjustments.length}\u9879\u53C2\u6570\u8C03\u6574`);
+    } else {
+      console.log(`[EvolutionEngine] \u4F18\u5316\u76EE\u6807 ${group.name} \u5F53\u524D\u53C2\u6570\u8868\u73B0\u826F\u597D\uFF0C\u65E0\u9700\u8C03\u6574`);
+    }
+    const report2 = {
+      targetId,
+      targetName: group.name,
+      generation: newConfig.evolutionGeneration,
+      executedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      evaluation,
+      adjustments,
+      expectedImprovement: adjustments.length > 0 ? adjustments.reduce((sum2, a4) => sum2 + a4.confidence, 0) / adjustments.length * 0.1 : 0
+    };
+    return report2;
+  } catch (error54) {
+    console.error(`[EvolutionEngine] \u8FDB\u5316\u5468\u671F\u6267\u884C\u5931\u8D25 (targetId=${targetId}):`, error54.message);
+    return null;
+  }
+}
+async function runGlobalEvolution() {
+  console.log("[EvolutionEngine] ========== \u5F00\u59CB\u5168\u5C40\u8FDB\u5316\u5468\u671F ==========");
+  const db = await getDb();
+  if (!db) return { totalTargets: 0, evolvedTargets: 0, skippedTargets: 0, reports: [] };
+  const result = {
+    totalTargets: 0,
+    evolvedTargets: 0,
+    skippedTargets: 0,
+    reports: []
+  };
+  try {
+    const activeTargets = await db.select({
+      id: performanceGroups.id,
+      name: performanceGroups.name
+    }).from(performanceGroups).where(eq(performanceGroups.status, "active"));
+    result.totalTargets = activeTargets.length;
+    for (const target of activeTargets) {
+      try {
+        const report2 = await runEvolutionCycle(target.id);
+        if (report2) {
+          result.evolvedTargets++;
+          result.reports.push(report2);
+        } else {
+          result.skippedTargets++;
+        }
+      } catch (error54) {
+        console.error(`[EvolutionEngine] \u76EE\u6807 ${target.name} \u8FDB\u5316\u5931\u8D25:`, error54.message);
+        result.skippedTargets++;
+      }
+    }
+    console.log(`[EvolutionEngine] \u5168\u5C40\u8FDB\u5316\u5B8C\u6210: \u603B\u76EE\u6807=${result.totalTargets}, \u5DF2\u8FDB\u5316=${result.evolvedTargets}, \u8DF3\u8FC7=${result.skippedTargets}`);
+  } catch (error54) {
+    console.error("[EvolutionEngine] \u5168\u5C40\u8FDB\u5316\u5931\u8D25:", error54.message);
+  }
+  return result;
+}
+async function getEffectiveBidConfig(targetId) {
+  const config2 = await getTargetAlgorithmConfig(targetId);
+  return {
+    maxChangePercent: config2.maxBidIncreasePercent / 100,
+    explorationRate: config2.explorationRate,
+    confidenceThreshold: config2.confidenceThreshold,
+    algorithmWeights: config2.algorithmWeights
+  };
+}
+async function recordAlgorithmUsage(eventId, algorithmUsed, confidenceScore) {
+  const db = await getDb();
+  if (!db) return;
+  try {
+    await db.update(optimizationEvents).set({
+      algorithmVersion: `v152_${algorithmUsed}`,
+      optimizationScore: Math.round(confidenceScore * 100)
+    }).where(eq(optimizationEvents.id, eventId));
+  } catch (error54) {
+    console.error(`[EvolutionEngine] \u8BB0\u5F55\u7B97\u6CD5\u4F7F\u7528\u4FE1\u606F\u5931\u8D25:`, error54.message);
+  }
+}
+function clamp(value2, min2, max2) {
+  return Math.min(max2, Math.max(min2, value2));
+}
+var DEFAULT_TARGET_ALGORITHM_CONFIG, PARAM_BOUNDS, LEARNING_RATE, MIN_EVENTS_FOR_EVOLUTION;
+var init_algorithmEvolutionEngine = __esm({
+  "server/algorithmEvolutionEngine.ts"() {
+    "use strict";
+    init_db2();
+    init_schema2();
+    init_drizzle_orm();
+    DEFAULT_TARGET_ALGORITHM_CONFIG = {
+      maxBidIncreasePercent: 30,
+      maxBidDecreasePercent: 20,
+      minBidChangeThreshold: 0.01,
+      algorithmWeights: {
+        time_decay: 0.35,
+        ucb: 0.25,
+        bayesian: 0.2,
+        market_curve: 0.2
+      },
+      explorationRate: 0.2,
+      confidenceThreshold: 0.3,
+      cooldownHours: 24,
+      evolutionGeneration: 0,
+      lastEvolutionAt: null,
+      totalEvolutionCycles: 0,
+      cumulativeImprovement: 0
+    };
+    PARAM_BOUNDS = {
+      maxBidIncreasePercent: { min: 10, max: 50 },
+      maxBidDecreasePercent: { min: 5, max: 40 },
+      explorationRate: { min: 0.05, max: 0.5 },
+      confidenceThreshold: { min: 0.1, max: 0.8 },
+      cooldownHours: { min: 6, max: 72 }
+    };
+    LEARNING_RATE = 0.15;
+    MIN_EVENTS_FOR_EVOLUTION = 10;
+  }
+});
+
 // server/placementOptimizationService.ts
 function calculateDataConfidence(metrics) {
   const { clicks, orders, spend } = metrics;
@@ -133704,6 +134334,29 @@ async function executeSyncForAccount(schedule) {
   } catch (autoOptError) {
     console.error(`[DataSyncScheduler] \u8D26\u53F7 ${schedule.accountId} \u4F18\u5316\u76EE\u6807\u89E6\u53D1\u5931\u8D25:`, autoOptError.message);
   }
+  try {
+    const { runEffectTracking: runEffectTracking2 } = await Promise.resolve().then(() => (init_algorithmEvolutionEngine(), algorithmEvolutionEngine_exports));
+    const trackingResult = await runEffectTracking2();
+    console.log(`[DataSyncScheduler] v152: \u6548\u679C\u8FFD\u8E2A\u5B8C\u6210: 7d=${trackingResult.tracked7d}, 14d=${trackingResult.tracked14d}, 30d=${trackingResult.tracked30d}`);
+  } catch (trackError) {
+    console.error(`[DataSyncScheduler] v152: \u6548\u679C\u8FFD\u8E2A\u5931\u8D25:`, trackError.message);
+  }
+  try {
+    const now = /* @__PURE__ */ new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+    const lastEvolutionKey = `evolution_${schedule.accountId}_${todayStr}`;
+    if (!globalThis.__evolutionExecuted) {
+      globalThis.__evolutionExecuted = /* @__PURE__ */ new Set();
+    }
+    if (!globalThis.__evolutionExecuted.has(lastEvolutionKey)) {
+      const { runGlobalEvolution: runGlobalEvolution2 } = await Promise.resolve().then(() => (init_algorithmEvolutionEngine(), algorithmEvolutionEngine_exports));
+      const evolutionResult = await runGlobalEvolution2();
+      globalThis.__evolutionExecuted.add(lastEvolutionKey);
+      console.log(`[DataSyncScheduler] v152: \u7B97\u6CD5\u8FDB\u5316\u5B8C\u6210: \u603B\u76EE\u6807=${evolutionResult.totalTargets}, \u5DF2\u8FDB\u5316=${evolutionResult.evolvedTargets}, \u8DF3\u8FC7=${evolutionResult.skippedTargets}`);
+    }
+  } catch (evoError) {
+    console.error(`[DataSyncScheduler] v152: \u7B97\u6CD5\u8FDB\u5316\u5931\u8D25:`, evoError.message);
+  }
   if (result.campaigns > 0 || result.adGroups > 0) {
     try {
       await notifyOwner({
@@ -134601,6 +135254,15 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
     groupAvgCpc,
     groupAvgAov
   };
+  try {
+    const { getEffectiveBidConfig: getEffectiveBidConfig2 } = await Promise.resolve().then(() => (init_algorithmEvolutionEngine(), algorithmEvolutionEngine_exports));
+    const evolvedConfig = await getEffectiveBidConfig2(config2.id);
+    bidConfig._evolvedMaxChangePercent = evolvedConfig.maxChangePercent;
+    bidConfig._evolvedMaxDecreasePercent = evolvedConfig.maxChangePercent * 0.67;
+    console.log(`[BidOptimization] v152: \u8FDB\u5316\u53C2\u6570\u5DF2\u6CE8\u5165 - maxChange=${(evolvedConfig.maxChangePercent * 100).toFixed(0)}%, exploration=${(evolvedConfig.explorationRate * 100).toFixed(0)}%`);
+  } catch (e6) {
+    console.log(`[BidOptimization] v152: \u8FDB\u5316\u53C2\u6570\u83B7\u53D6\u5931\u8D25\uFF0C\u4F7F\u7528\u9ED8\u8BA4\u503C: ${e6.message}`);
+  }
   const currentDate = /* @__PURE__ */ new Date();
   const maxBidLimit = config2.maxBid || 10;
   for (const campaign of campaigns6) {
@@ -142608,14 +143270,14 @@ var init_chunk = __esm({
       }
       return target;
     };
-    __copyProps3 = (to, from, except2, desc12) => {
+    __copyProps3 = (to, from, except2, desc13) => {
       if (from && typeof from === "object" || typeof from === "function") {
         for (var keys = __getOwnPropNames3(from), i4 = 0, n7 = keys.length, key; i4 < n7; i4++) {
           key = keys[i4];
           if (!__hasOwnProp3.call(to, key) && key !== except2) {
             __defProp3(to, key, {
               get: ((k5) => from[k5]).bind(null, key),
-              enumerable: !(desc12 = __getOwnPropDesc3(from, key)) || desc12.enumerable
+              enumerable: !(desc13 = __getOwnPropDesc3(from, key)) || desc13.enumerable
             });
           }
         }
@@ -146700,11 +147362,11 @@ var require_main2 = __commonJS({
       for (var name2 in all3)
         __defProp4(target, name2, { get: all3[name2], enumerable: true });
     };
-    var __copyProps4 = (to, from, except2, desc12) => {
+    var __copyProps4 = (to, from, except2, desc13) => {
       if (from && typeof from === "object" || typeof from === "function") {
         for (let key of __getOwnPropNames4(from))
           if (!__hasOwnProp4.call(to, key) && key !== except2)
-            __defProp4(to, key, { get: () => from[key], enumerable: !(desc12 = __getOwnPropDesc4(from, key)) || desc12.enumerable });
+            __defProp4(to, key, { get: () => from[key], enumerable: !(desc13 = __getOwnPropDesc4(from, key)) || desc13.enumerable });
       }
       return to;
     };
@@ -191005,8 +191667,8 @@ var init_build2 = __esm({
         var newObj = {};
         var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor;
         for (var key in obj) if (key !== "default" && Object.prototype.hasOwnProperty.call(obj, key)) {
-          var desc12 = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null;
-          if (desc12 && (desc12.get || desc12.set)) Object.defineProperty(newObj, key, desc12);
+          var desc13 = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null;
+          if (desc13 && (desc13.get || desc13.set)) Object.defineProperty(newObj, key, desc13);
           else newObj[key] = obj[key];
         }
         newObj["default"] = obj;
@@ -192320,8 +192982,8 @@ var init_build2 = __esm({
         var newObj = {};
         var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor;
         for (var key in obj) if (key !== "default" && Object.prototype.hasOwnProperty.call(obj, key)) {
-          var desc12 = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null;
-          if (desc12 && (desc12.get || desc12.set)) Object.defineProperty(newObj, key, desc12);
+          var desc13 = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null;
+          if (desc13 && (desc13.get || desc13.set)) Object.defineProperty(newObj, key, desc13);
           else newObj[key] = obj[key];
         }
         newObj["default"] = obj;
@@ -192550,8 +193212,8 @@ var init_build2 = __esm({
         var newObj = {};
         var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor;
         for (var key in obj) if (key !== "default" && Object.prototype.hasOwnProperty.call(obj, key)) {
-          var desc12 = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null;
-          if (desc12 && (desc12.get || desc12.set)) Object.defineProperty(newObj, key, desc12);
+          var desc13 = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null;
+          if (desc13 && (desc13.get || desc13.set)) Object.defineProperty(newObj, key, desc13);
           else newObj[key] = obj[key];
         }
         newObj["default"] = obj;
@@ -193643,8 +194305,8 @@ var init_build2 = __esm({
         var newObj = {};
         var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor;
         for (var key in obj) if (key !== "default" && Object.prototype.hasOwnProperty.call(obj, key)) {
-          var desc12 = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null;
-          if (desc12 && (desc12.get || desc12.set)) Object.defineProperty(newObj, key, desc12);
+          var desc13 = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null;
+          if (desc13 && (desc13.get || desc13.set)) Object.defineProperty(newObj, key, desc13);
           else newObj[key] = obj[key];
         }
         newObj["default"] = obj;
@@ -204514,9 +205176,9 @@ function isErrorStackTraceLimitWritable() {
     if (import_node_v8.default.startupSnapshot.isBuildingSnapshot()) return false;
   } catch {
   }
-  const desc12 = Object.getOwnPropertyDescriptor(Error, "stackTraceLimit");
-  if (desc12 === void 0) return Object.isExtensible(Error);
-  return own$1.call(desc12, "writable") && desc12.writable !== void 0 ? desc12.writable : desc12.set !== void 0;
+  const desc13 = Object.getOwnPropertyDescriptor(Error, "stackTraceLimit");
+  if (desc13 === void 0) return Object.isExtensible(Error);
+  return own$1.call(desc13, "writable") && desc13.writable !== void 0 ? desc13.writable : desc13.set !== void 0;
 }
 function hideStackFrames(wrappedFunction) {
   const hidden = nodeInternalPrefix + wrappedFunction.name;
@@ -228922,14 +229584,14 @@ Error: ${e$1.message}`);
     require_web_outgoing = /* @__PURE__ */ __commonJSMin(((exports2) => {
       var __createBinding$3 = exports2 && exports2.__createBinding || (Object.create ? (function(o$1, m4, k5, k22) {
         if (k22 === void 0) k22 = k5;
-        var desc12 = Object.getOwnPropertyDescriptor(m4, k5);
-        if (!desc12 || ("get" in desc12 ? !m4.__esModule : desc12.writable || desc12.configurable)) desc12 = {
+        var desc13 = Object.getOwnPropertyDescriptor(m4, k5);
+        if (!desc13 || ("get" in desc13 ? !m4.__esModule : desc13.writable || desc13.configurable)) desc13 = {
           enumerable: true,
           get: function() {
             return m4[k5];
           }
         };
-        Object.defineProperty(o$1, k22, desc12);
+        Object.defineProperty(o$1, k22, desc13);
       }) : (function(o$1, m4, k5, k22) {
         if (k22 === void 0) k22 = k5;
         o$1[k22] = m4[k5];
@@ -229466,14 +230128,14 @@ Error: ${e$1.message}`);
     require_web_incoming = /* @__PURE__ */ __commonJSMin(((exports2) => {
       var __createBinding$2 = exports2 && exports2.__createBinding || (Object.create ? (function(o$1, m4, k5, k22) {
         if (k22 === void 0) k22 = k5;
-        var desc12 = Object.getOwnPropertyDescriptor(m4, k5);
-        if (!desc12 || ("get" in desc12 ? !m4.__esModule : desc12.writable || desc12.configurable)) desc12 = {
+        var desc13 = Object.getOwnPropertyDescriptor(m4, k5);
+        if (!desc13 || ("get" in desc13 ? !m4.__esModule : desc13.writable || desc13.configurable)) desc13 = {
           enumerable: true,
           get: function() {
             return m4[k5];
           }
         };
-        Object.defineProperty(o$1, k22, desc12);
+        Object.defineProperty(o$1, k22, desc13);
       }) : (function(o$1, m4, k5, k22) {
         if (k22 === void 0) k22 = k5;
         o$1[k22] = m4[k5];
@@ -229608,14 +230270,14 @@ Error: ${e$1.message}`);
     require_ws_incoming = /* @__PURE__ */ __commonJSMin(((exports2) => {
       var __createBinding$1 = exports2 && exports2.__createBinding || (Object.create ? (function(o$1, m4, k5, k22) {
         if (k22 === void 0) k22 = k5;
-        var desc12 = Object.getOwnPropertyDescriptor(m4, k5);
-        if (!desc12 || ("get" in desc12 ? !m4.__esModule : desc12.writable || desc12.configurable)) desc12 = {
+        var desc13 = Object.getOwnPropertyDescriptor(m4, k5);
+        if (!desc13 || ("get" in desc13 ? !m4.__esModule : desc13.writable || desc13.configurable)) desc13 = {
           enumerable: true,
           get: function() {
             return m4[k5];
           }
         };
-        Object.defineProperty(o$1, k22, desc12);
+        Object.defineProperty(o$1, k22, desc13);
       }) : (function(o$1, m4, k5, k22) {
         if (k22 === void 0) k22 = k5;
         o$1[k22] = m4[k5];
@@ -229815,14 +230477,14 @@ Error: ${e$1.message}`);
     require_http_proxy = /* @__PURE__ */ __commonJSMin(((exports2) => {
       var __createBinding2 = exports2 && exports2.__createBinding || (Object.create ? (function(o$1, m4, k5, k22) {
         if (k22 === void 0) k22 = k5;
-        var desc12 = Object.getOwnPropertyDescriptor(m4, k5);
-        if (!desc12 || ("get" in desc12 ? !m4.__esModule : desc12.writable || desc12.configurable)) desc12 = {
+        var desc13 = Object.getOwnPropertyDescriptor(m4, k5);
+        if (!desc13 || ("get" in desc13 ? !m4.__esModule : desc13.writable || desc13.configurable)) desc13 = {
           enumerable: true,
           get: function() {
             return m4[k5];
           }
         };
-        Object.defineProperty(o$1, k22, desc12);
+        Object.defineProperty(o$1, k22, desc13);
       }) : (function(o$1, m4, k5, k22) {
         if (k22 === void 0) k22 = k5;
         o$1[k22] = m4[k5];
@@ -252239,8 +252901,8 @@ var require_lib8 = __commonJS({
             ++this.state.pos;
           }
           if (semi) {
-            const desc12 = this.input.slice(startPos, this.state.pos);
-            const entity = entities[desc12];
+            const desc13 = this.input.slice(startPos, this.state.pos);
+            const entity = entities[desc13];
             ++this.state.pos;
             if (entity) {
               return entity;
@@ -267015,11 +267677,11 @@ var require_sourcemap_codec_umd = __commonJS({
         for (var name2 in all3)
           __defProp4(target, name2, { get: all3[name2], enumerable: true });
       };
-      var __copyProps4 = (to, from, except2, desc12) => {
+      var __copyProps4 = (to, from, except2, desc13) => {
         if (from && typeof from === "object" || typeof from === "function") {
           for (let key of __getOwnPropNames4(from))
             if (!__hasOwnProp4.call(to, key) && key !== except2)
-              __defProp4(to, key, { get: () => from[key], enumerable: !(desc12 = __getOwnPropDesc4(from, key)) || desc12.enumerable });
+              __defProp4(to, key, { get: () => from[key], enumerable: !(desc13 = __getOwnPropDesc4(from, key)) || desc13.enumerable });
         }
         return to;
       };
@@ -267660,11 +268322,11 @@ var require_trace_mapping_umd = __commonJS({
         for (var name2 in all3)
           __defProp4(target, name2, { get: all3[name2], enumerable: true });
       };
-      var __copyProps4 = (to, from, except2, desc12) => {
+      var __copyProps4 = (to, from, except2, desc13) => {
         if (from && typeof from === "object" || typeof from === "function") {
           for (let key of __getOwnPropNames4(from))
             if (!__hasOwnProp4.call(to, key) && key !== except2)
-              __defProp4(to, key, { get: () => from[key], enumerable: !(desc12 = __getOwnPropDesc4(from, key)) || desc12.enumerable });
+              __defProp4(to, key, { get: () => from[key], enumerable: !(desc13 = __getOwnPropDesc4(from, key)) || desc13.enumerable });
         }
         return to;
       };
@@ -268200,11 +268862,11 @@ var require_gen_mapping_umd = __commonJS({
         for (var name2 in all3)
           __defProp4(target, name2, { get: all3[name2], enumerable: true });
       };
-      var __copyProps4 = (to, from, except2, desc12) => {
+      var __copyProps4 = (to, from, except2, desc13) => {
         if (from && typeof from === "object" || typeof from === "function") {
           for (let key of __getOwnPropNames4(from))
             if (!__hasOwnProp4.call(to, key) && key !== except2)
-              __defProp4(to, key, { get: () => from[key], enumerable: !(desc12 = __getOwnPropDesc4(from, key)) || desc12.enumerable });
+              __defProp4(to, key, { get: () => from[key], enumerable: !(desc13 = __getOwnPropDesc4(from, key)) || desc13.enumerable });
         }
         return to;
       };
@@ -290003,7 +290665,7 @@ var require_config_descriptors = __commonJS({
       const dirname7 = cache6.using((dir) => dir);
       return (0, _caching.makeStrongCacheSync)((alias2) => (0, _caching.makeStrongCache)(function* (passPerPreset) {
         const descriptors2 = yield* createPresetDescriptors(items, dirname7, alias2, passPerPreset);
-        return descriptors2.map((desc12) => loadCachedDescriptor(PRESET_DESCRIPTOR_CACHE, desc12));
+        return descriptors2.map((desc13) => loadCachedDescriptor(PRESET_DESCRIPTOR_CACHE, desc13));
       }));
     });
     var PLUGIN_DESCRIPTOR_CACHE = /* @__PURE__ */ new WeakMap();
@@ -290011,16 +290673,16 @@ var require_config_descriptors = __commonJS({
       const dirname7 = cache6.using((dir) => dir);
       return (0, _caching.makeStrongCache)(function* (alias2) {
         const descriptors2 = yield* createPluginDescriptors(items, dirname7, alias2);
-        return descriptors2.map((desc12) => loadCachedDescriptor(PLUGIN_DESCRIPTOR_CACHE, desc12));
+        return descriptors2.map((desc13) => loadCachedDescriptor(PLUGIN_DESCRIPTOR_CACHE, desc13));
       });
     });
     var DEFAULT_OPTIONS = {};
-    function loadCachedDescriptor(cache6, desc12) {
+    function loadCachedDescriptor(cache6, desc13) {
       const {
         value: value2,
         options = DEFAULT_OPTIONS
-      } = desc12;
-      if (options === false) return desc12;
+      } = desc13;
+      if (options === false) return desc13;
       let cacheByOptions = cache6.get(value2);
       if (!cacheByOptions) {
         cacheByOptions = /* @__PURE__ */ new WeakMap();
@@ -290031,14 +290693,14 @@ var require_config_descriptors = __commonJS({
         possibilities = [];
         cacheByOptions.set(options, possibilities);
       }
-      if (!possibilities.includes(desc12)) {
-        const matches2 = possibilities.filter((possibility) => isEqualDescriptor(possibility, desc12));
+      if (!possibilities.includes(desc13)) {
+        const matches2 = possibilities.filter((possibility) => isEqualDescriptor(possibility, desc13));
         if (matches2.length > 0) {
           return matches2[0];
         }
-        possibilities.push(desc12);
+        possibilities.push(desc13);
       }
-      return desc12;
+      return desc13;
     }
     function* createPresetDescriptors(items, dirname7, alias2, passPerPreset) {
       return yield* createDescriptors("preset", items, dirname7, alias2, passPerPreset);
@@ -290060,9 +290722,9 @@ var require_config_descriptors = __commonJS({
       alias: alias2,
       ownPass
     }) {
-      const desc12 = (0, _item.getItemDescriptor)(pair);
-      if (desc12) {
-        return desc12;
+      const desc13 = (0, _item.getItemDescriptor)(pair);
+      if (desc13) {
+        return desc13;
       }
       let name2;
       let options;
@@ -290154,8 +290816,8 @@ var require_item = __commonJS({
       return data4;
     }
     var _configDescriptors = require_config_descriptors();
-    function createItemFromDescriptor(desc12) {
-      return new ConfigItem(desc12);
+    function createItemFromDescriptor(desc13) {
+      return new ConfigItem(desc13);
     }
     function* createConfigItem(value2, {
       dirname: dirname7 = ".",
@@ -291305,15 +291967,15 @@ File already loaded following the config chain:
             nameMap = /* @__PURE__ */ new Map();
             map9.set(fnKey, nameMap);
           }
-          let desc12 = nameMap.get(item.name);
-          if (!desc12) {
-            desc12 = {
+          let desc13 = nameMap.get(item.name);
+          if (!desc13) {
+            desc13 = {
               value: item
             };
-            descriptors2.push(desc12);
-            if (!item.ownPass) nameMap.set(item.name, desc12);
+            descriptors2.push(desc13);
+            if (!item.ownPass) nameMap.set(item.name, desc13);
           } else {
-            desc12.value = item;
+            desc13.value = item;
           }
         } else {
           descriptors2.push({
@@ -291321,8 +291983,8 @@ File already loaded following the config chain:
           });
         }
       }
-      return descriptors2.reduce((acc, desc12) => {
-        acc.push(desc12.value);
+      return descriptors2.reduce((acc, desc13) => {
+        acc.push(desc13.value);
         return acc;
       }, []);
     }
@@ -291695,11 +292357,11 @@ var require_full = __commonJS({
         targets: options.targets
       });
       const toDescriptor = (item) => {
-        const desc12 = (0, _item.getItemDescriptor)(item);
-        if (!desc12) {
+        const desc13 = (0, _item.getItemDescriptor)(item);
+        if (!desc13) {
           throw new Error("Assertion failure - must be config item");
         }
-        return desc12;
+        return desc13;
       };
       const presetsDescriptors = presets.map(toDescriptor);
       const initialPluginsDescriptors = plugins.map(toDescriptor);
@@ -293077,11 +293739,11 @@ var require_remapping_umd = __commonJS({
         for (var name2 in all3)
           __defProp4(target, name2, { get: all3[name2], enumerable: true });
       };
-      var __copyProps4 = (to, from, except2, desc12) => {
+      var __copyProps4 = (to, from, except2, desc13) => {
         if (from && typeof from === "object" || typeof from === "function") {
           for (let key of __getOwnPropNames4(from))
             if (!__hasOwnProp4.call(to, key) && key !== except2)
-              __defProp4(to, key, { get: () => from[key], enumerable: !(desc12 = __getOwnPropDesc4(from, key)) || desc12.enumerable });
+              __defProp4(to, key, { get: () => from[key], enumerable: !(desc13 = __getOwnPropDesc4(from, key)) || desc13.enumerable });
         }
         return to;
       };
@@ -294253,11 +294915,11 @@ var require_import_meta_resolve = __commonJS({
         }
       } catch (_unused) {
       }
-      const desc12 = Object.getOwnPropertyDescriptor(Error, "stackTraceLimit");
-      if (desc12 === void 0) {
+      const desc13 = Object.getOwnPropertyDescriptor(Error, "stackTraceLimit");
+      if (desc13 === void 0) {
         return Object.isExtensible(Error);
       }
-      return own$12.call(desc12, "writable") && desc12.writable !== void 0 ? desc12.writable : desc12.set !== void 0;
+      return own$12.call(desc13, "writable") && desc13.writable !== void 0 ? desc13.writable : desc13.set !== void 0;
     }
     function hideStackFrames2(wrappedFunction) {
       const hidden = nodeInternalPrefix2 + wrappedFunction.name;
@@ -313158,11 +313820,11 @@ var require_dist5 = __commonJS({
       for (var name2 in all3)
         __defProp4(target, name2, { get: all3[name2], enumerable: true });
     };
-    var __copyProps4 = (to, from, except2, desc12) => {
+    var __copyProps4 = (to, from, except2, desc13) => {
       if (from && typeof from === "object" || typeof from === "function") {
         for (let key of __getOwnPropNames4(from))
           if (!__hasOwnProp4.call(to, key) && key !== except2)
-            __defProp4(to, key, { get: () => from[key], enumerable: !(desc12 = __getOwnPropDesc4(from, key)) || desc12.enumerable });
+            __defProp4(to, key, { get: () => from[key], enumerable: !(desc13 = __getOwnPropDesc4(from, key)) || desc13.enumerable });
       }
       return to;
     };
@@ -313340,11 +314002,11 @@ var require_dist6 = __commonJS({
       for (var name2 in all3)
         __defProp4(target, name2, { get: all3[name2], enumerable: true });
     };
-    var __copyProps4 = (to, from, except2, desc12) => {
+    var __copyProps4 = (to, from, except2, desc13) => {
       if (from && typeof from === "object" || typeof from === "function") {
         for (let key of __getOwnPropNames4(from))
           if (!__hasOwnProp4.call(to, key) && key !== except2)
-            __defProp4(to, key, { get: () => from[key], enumerable: !(desc12 = __getOwnPropDesc4(from, key)) || desc12.enumerable });
+            __defProp4(to, key, { get: () => from[key], enumerable: !(desc13 = __getOwnPropDesc4(from, key)) || desc13.enumerable });
       }
       return to;
     };
@@ -319904,8 +320566,8 @@ function handleCatchall(proms, input, payload4, ctx, def, inst) {
 }
 var $ZodObject = /* @__PURE__ */ $constructor("$ZodObject", (inst, def) => {
   $ZodType.init(inst, def);
-  const desc12 = Object.getOwnPropertyDescriptor(def, "shape");
-  if (!desc12?.get) {
+  const desc13 = Object.getOwnPropertyDescriptor(def, "shape");
+  if (!desc13?.get) {
     const sh = def.shape;
     Object.defineProperty(def, "shape", {
       get: () => {
@@ -339199,6 +339861,7 @@ function getEventCategoryLabel(category) {
 }
 
 // server/routers.ts
+init_algorithmEvolutionEngine();
 init_exchangeRateService();
 
 // server/budgetAlertService.ts
@@ -351783,6 +352446,36 @@ var algorithmEffectRouter = router({
     return getPendingEffectRecords(ctx.user.id);
   })
 });
+var algorithmEvolutionRouter = router({
+  // 获取优化目标的算法配置
+  getTargetConfig: protectedProcedure.input(external_exports.object({ targetId: external_exports.number() })).query(async ({ input }) => {
+    return getTargetAlgorithmConfig(input.targetId);
+  }),
+  // 获取优化目标的效果评估
+  evaluateTarget: protectedProcedure.input(external_exports.object({
+    targetId: external_exports.number(),
+    period: external_exports.enum(["7", "14", "30"]).optional().default("14")
+  })).query(async ({ input }) => {
+    const period = parseInt(input.period);
+    return evaluateTargetPerformance(input.targetId, period);
+  }),
+  // 手动触发单个目标的进化周期
+  runEvolutionCycle: protectedProcedure.input(external_exports.object({ targetId: external_exports.number() })).mutation(async ({ input }) => {
+    return runEvolutionCycle(input.targetId);
+  }),
+  // 手动触发全局进化
+  runGlobalEvolution: protectedProcedure.mutation(async () => {
+    return runGlobalEvolution();
+  }),
+  // 手动触发效果追踪
+  runEffectTracking: protectedProcedure.mutation(async () => {
+    return runEffectTracking();
+  }),
+  // 获取有效出价配置（供前端展示进化后的参数）
+  getEffectiveBidConfig: protectedProcedure.input(external_exports.object({ targetId: external_exports.number() })).query(async ({ input }) => {
+    return getEffectiveBidConfig(input.targetId);
+  })
+});
 var holidayConfigRouter = router({
   // 获取节假日配置列表
   list: protectedProcedure.input(external_exports.object({
@@ -352662,6 +353355,7 @@ var appRouter = router({
   inviteCode: inviteCodeRouter,
   reportJobs: reportJobsRouter,
   algorithmEffect: algorithmEffectRouter,
+  algorithmEvolution: algorithmEvolutionRouter,
   holidayConfig: holidayConfigRouter,
   dailySync: dailySyncRouter,
   mlOptimization: mlOptimizationRouter,

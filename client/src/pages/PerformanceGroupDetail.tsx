@@ -16,6 +16,7 @@ import { OptimizationLogs } from "@/components/OptimizationLogs";
 import { UnifiedHistoryTracker } from "@/components/UnifiedHistoryTracker";
 import { TargetInsightsPanel } from "@/components/TargetInsightsPanel";
 import { TargetAlgorithmEffectPanel } from "@/components/TargetAlgorithmEffectPanel";
+import TargetEvolutionPanel from "@/components/TargetEvolutionPanel";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -671,6 +672,7 @@ export default function PerformanceGroupDetail() {
             <TabsTrigger value="algorithm-effect">算法效果</TabsTrigger>
             <TabsTrigger value="history">历史与追踪</TabsTrigger>
             <TabsTrigger value="logs">操作日志</TabsTrigger>
+            <TabsTrigger value="evolution">算法进化</TabsTrigger>
             <TabsTrigger value="scenario">场景模拟</TabsTrigger>
           </TabsList>
 
@@ -1384,6 +1386,13 @@ export default function PerformanceGroupDetail() {
               performanceGroupId={groupId!} 
               performanceGroupName={group.name}
             />
+          </TabsContent>
+
+          {/* 算法进化Tab (v152) */}
+          <TabsContent value="evolution" className="space-y-4">
+            {groupId && (
+              <TargetEvolutionPanel performanceGroupId={groupId} />
+            )}
           </TabsContent>
 
           {/* 场景模拟Tab */}

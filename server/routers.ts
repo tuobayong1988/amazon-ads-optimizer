@@ -38,6 +38,7 @@ import { multiTenantRouter } from './routes/multiTenant';
 import { debugSyncRouter } from './debug-sync';
 import { devRouter } from './routes/dev';
 import * as advancedAnalyticsService from './advancedAnalyticsService';
+import * as algorithmEvolutionEngine from './algorithmEvolutionEngine';
 import { getExchangeRateStatus, refreshExchangeRates, getExchangeRates } from './services/exchangeRateService';
 
 // ==================== Ad Account Router ====================
@@ -10759,6 +10760,53 @@ const algorithmEffectRouter = router({
   }),
 });
 
+// ==================== Algorithm Evolution Engine Router (v152) ====================
+const algorithmEvolutionRouter = router({
+  // 获取优化目标的算法配置
+  getTargetConfig: protectedProcedure
+    .input(z.object({ targetId: z.number() }))
+    .query(async ({ input }) => {
+      return algorithmEvolutionEngine.getTargetAlgorithmConfig(input.targetId);
+    }),
+
+  // 获取优化目标的效果评估
+  evaluateTarget: protectedProcedure
+    .input(z.object({
+      targetId: z.number(),
+      period: z.enum(['7', '14', '30']).optional().default('14'),
+    }))
+    .query(async ({ input }) => {
+      const period = parseInt(input.period) as 7 | 14 | 30;
+      return algorithmEvolutionEngine.evaluateTargetPerformance(input.targetId, period);
+    }),
+
+  // 手动触发单个目标的进化周期
+  runEvolutionCycle: protectedProcedure
+    .input(z.object({ targetId: z.number() }))
+    .mutation(async ({ input }) => {
+      return algorithmEvolutionEngine.runEvolutionCycle(input.targetId);
+    }),
+
+  // 手动触发全局进化
+  runGlobalEvolution: protectedProcedure
+    .mutation(async () => {
+      return algorithmEvolutionEngine.runGlobalEvolution();
+    }),
+
+  // 手动触发效果追踪
+  runEffectTracking: protectedProcedure
+    .mutation(async () => {
+      return algorithmEvolutionEngine.runEffectTracking();
+    }),
+
+  // 获取有效出价配置（供前端展示进化后的参数）
+  getEffectiveBidConfig: protectedProcedure
+    .input(z.object({ targetId: z.number() }))
+    .query(async ({ input }) => {
+      return algorithmEvolutionEngine.getEffectiveBidConfig(input.targetId);
+    }),
+});
+
 // ==================== Holiday Configuration Router ====================
 const holidayConfigRouter = router({
   // 获取节假日配置列表
@@ -11876,6 +11924,7 @@ export const appRouter = router({
   inviteCode: inviteCodeRouter,
   reportJobs: reportJobsRouter,
   algorithmEffect: algorithmEffectRouter,
+  algorithmEvolution: algorithmEvolutionRouter,
   holidayConfig: holidayConfigRouter,
   dailySync: dailySyncRouter,
   mlOptimization: mlOptimizationRouter,

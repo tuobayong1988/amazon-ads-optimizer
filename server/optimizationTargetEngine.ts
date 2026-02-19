@@ -574,6 +574,17 @@ async function executeBidOptimization(
     groupAvgAov,
   };
   
+  // v152: 从进化引擎获取自适应参数，注入到bidConfig中
+  try {
+    const { getEffectiveBidConfig } = await import('./algorithmEvolutionEngine');
+    const evolvedConfig = await getEffectiveBidConfig(config.id);
+    (bidConfig as any)._evolvedMaxChangePercent = evolvedConfig.maxChangePercent;
+    (bidConfig as any)._evolvedMaxDecreasePercent = evolvedConfig.maxChangePercent * 0.67; // 降价幅度为提价的67%
+    console.log(`[BidOptimization] v152: 进化参数已注入 - maxChange=${(evolvedConfig.maxChangePercent * 100).toFixed(0)}%, exploration=${(evolvedConfig.explorationRate * 100).toFixed(0)}%`);
+  } catch (e: any) {
+    console.log(`[BidOptimization] v152: 进化参数获取失败，使用默认值: ${e.message}`);
+  }
+  
   const currentDate = new Date();
   const maxBidLimit = config.maxBid || 10;
   

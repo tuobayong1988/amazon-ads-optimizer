@@ -520,6 +520,33 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
     console.error(`[DataSyncScheduler] 账号 ${schedule.accountId} 优化目标触发失败:`, autoOptError.message);
   }
 
+  // ✅ v152: 数据同步完成后，自动执行效果追踪（追踪之前优化的7/14/30天效果）
+  try {
+    const { runEffectTracking } = await import('./algorithmEvolutionEngine');
+    const trackingResult = await runEffectTracking();
+    console.log(`[DataSyncScheduler] v152: 效果追踪完成: 7d=${trackingResult.tracked7d}, 14d=${trackingResult.tracked14d}, 30d=${trackingResult.tracked30d}`);
+  } catch (trackError: any) {
+    console.error(`[DataSyncScheduler] v152: 效果追踪失败:`, trackError.message);
+  }
+
+  // ✅ v152: 每天执行一次全局算法进化（检查当天是否已执行过）
+  try {
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10);
+    const lastEvolutionKey = `evolution_${schedule.accountId}_${todayStr}`;
+    if (!(globalThis as any).__evolutionExecuted) {
+      (globalThis as any).__evolutionExecuted = new Set();
+    }
+    if (!(globalThis as any).__evolutionExecuted.has(lastEvolutionKey)) {
+      const { runGlobalEvolution } = await import('./algorithmEvolutionEngine');
+      const evolutionResult = await runGlobalEvolution();
+      (globalThis as any).__evolutionExecuted.add(lastEvolutionKey);
+      console.log(`[DataSyncScheduler] v152: 算法进化完成: 总目标=${evolutionResult.totalTargets}, 已进化=${evolutionResult.evolvedTargets}, 跳过=${evolutionResult.skippedTargets}`);
+    }
+  } catch (evoError: any) {
+    console.error(`[DataSyncScheduler] v152: 算法进化失败:`, evoError.message);
+  }
+
   // 发送通知（如果配置了）
   if (result.campaigns > 0 || result.adGroups > 0) {
     try {
