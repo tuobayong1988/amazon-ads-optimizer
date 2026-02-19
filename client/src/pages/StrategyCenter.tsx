@@ -466,9 +466,9 @@ export default function StrategyCenter() {
                             />
                           </div>
 
-                          {/* 四维度得分明细 */}
+                          {/* v164: 五维度得分明细 */}
                           {group.goalProgressDetail?.dimensions && group.goalProgressDetail.dimensions.length > 0 && (
-                            <div className="grid grid-cols-4 gap-1 mt-2">
+                            <div className={`grid gap-1 mt-2 ${group.goalProgressDetail.dimensions.length >= 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
                               {group.goalProgressDetail.dimensions.map((dim: any) => (
                                 <div key={dim.name} className="text-center" title={dim.detail}>
                                   <div className="text-[10px] text-muted-foreground truncate">{dim.nameZh}</div>

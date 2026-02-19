@@ -994,9 +994,9 @@ function OptimizationTargetCard({
                 style={{ width: `${Math.min(100, target.goalProgress)}%` }}
               />
             </div>
-            {/* 四维度得分小条 */}
+            {/* v164: 五维度得分小条 */}
             {target.goalProgressDetail?.dimensions && target.goalProgressDetail.dimensions.length > 0 && (
-              <div className="grid grid-cols-4 gap-1">
+              <div className={`grid gap-1 ${target.goalProgressDetail.dimensions.length >= 5 ? 'grid-cols-5' : 'grid-cols-4'}`}>
                 {target.goalProgressDetail.dimensions.map((dim: any) => (
                   <div key={dim.name} className="text-center" title={dim.detail}>
                     <div className="text-[9px] text-muted-foreground">{dim.nameZh}</div>

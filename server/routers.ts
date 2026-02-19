@@ -18,7 +18,7 @@ import * as unifiedOptimizationEngine from './unifiedOptimizationEngine';
 import * as autoRollbackService from './autoRollbackService';
 import * as algorithmOptimizationService from './algorithmOptimizationService';
 import * as intelligentBudgetAllocationService from './intelligentBudgetAllocationService';
-import { calculateGoalProgress, type GoalProgressResult, type PerformanceMetrics, type GroupConfig, type TrendData } from './goalProgressAlgorithm';
+import { calculateGoalProgress, type GoalProgressResult, type PerformanceMetrics, type GroupConfig, type TrendData, type TimeWeightedMetrics, type MultiWindowTrendData } from './goalProgressAlgorithm';
 import * as abTestService from './abTestService';
 import * as budgetAutoExecutionService from './budgetAutoExecutionService';
 import { reviewRouter } from './reviewRouter';
@@ -523,7 +523,7 @@ const performanceGroupRouter = router({
           const cvr = totalClicks > 0 ? (totalOrders / totalClicks) * 100 : 0;
           const cpc = totalClicks > 0 ? totalSpend / totalClicks : 0;
           
-          // v162: 多维度目标达成度算法
+          // v164: 多维度目标达成度算法（时间衰减加权 + 多窗口趋势 + 渐进优化进度）
           let goalProgressResult: GoalProgressResult | null = null;
           try {
             const metrics: PerformanceMetrics = {
@@ -545,15 +545,25 @@ const performanceGroupRouter = router({
               campaignCount: campaigns.length,
             };
             
-            // 获取趋势对比数据
+            // v164: 并行获取趋势对比数据、时间衰减加权指标、多窗口趋势数据
             let trendData: TrendData | undefined;
+            let timeWeighted: TimeWeightedMetrics | undefined;
+            let multiWindow: MultiWindowTrendData | undefined;
+            
             try {
-              trendData = await db.getGoalProgressTrendData(group.id, group.createdAt || new Date().toISOString());
-            } catch (trendErr) {
-              console.log(`[performanceGroup.list] Trend data fetch failed for group ${group.id}:`, trendErr);
+              const [trendResult, twResult, mwResult] = await Promise.all([
+                db.getGoalProgressTrendData(group.id, group.createdAt || new Date().toISOString()).catch(() => null),
+                db.getTimeWeightedMetricsForGoalProgress(group.id).catch(() => null),
+                db.getMultiWindowTrendData(group.id, group.createdAt || new Date().toISOString()).catch(() => null),
+              ]);
+              if (trendResult) trendData = trendResult;
+              if (twResult) timeWeighted = twResult as TimeWeightedMetrics;
+              if (mwResult) multiWindow = mwResult as MultiWindowTrendData;
+            } catch (dataErr) {
+              console.log(`[performanceGroup.list] Data fetch failed for group ${group.id}:`, dataErr);
             }
             
-            goalProgressResult = calculateGoalProgress(groupConfig, metrics, trendData);
+            goalProgressResult = calculateGoalProgress(groupConfig, metrics, trendData, timeWeighted, multiWindow);
           } catch (progressErr) {
             console.error(`[performanceGroup.list] Goal progress calc failed for group ${group.id}:`, progressErr);
           }

@@ -35964,6 +35964,7 @@ __export(db_exports, {
   getLastSyncData: () => getLastSyncData,
   getLocalDataStats: () => getLocalDataStats,
   getMarketCurveData: () => getMarketCurveData,
+  getMultiWindowTrendData: () => getMultiWindowTrendData,
   getNegativeKeywordsByAccountId: () => getNegativeKeywordsByAccountId,
   getNegativeKeywordsByCampaignId: () => getNegativeKeywordsByCampaignId,
   getNextQueuedTask: () => getNextQueuedTask,
@@ -36008,6 +36009,7 @@ __export(db_exports, {
   getTeamMemberByToken: () => getTeamMemberByToken,
   getTeamMembersByOwner: () => getTeamMembersByOwner,
   getTeamMembershipsForUser: () => getTeamMembershipsForUser,
+  getTimeWeightedMetricsForGoalProgress: () => getTimeWeightedMetricsForGoalProgress,
   getUnassignedCampaigns: () => getUnassignedCampaigns,
   getUniqueSearchTerms: () => getUniqueSearchTerms,
   getUserByOpenId: () => getUserByOpenId,
@@ -39449,6 +39451,193 @@ async function getGoalProgressTrendData(performanceGroupId, groupCreatedAt) {
   } catch (error54) {
     console.error(`[getGoalProgressTrendData] Error for group ${performanceGroupId}:`, error54);
     return { before: null, after: null };
+  }
+}
+async function getMultiWindowTrendData(performanceGroupId, groupCreatedAt) {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const groupCampaigns = await db.select({ id: campaigns.id }).from(campaigns).where(eq(campaigns.performanceGroupId, performanceGroupId));
+    if (groupCampaigns.length === 0) return null;
+    const campaignIds = groupCampaigns.map((c5) => c5.id);
+    const createdDate = new Date(groupCreatedAt).toISOString().split("T")[0];
+    const now = /* @__PURE__ */ new Date();
+    const getWindowData = async (daysBack) => {
+      const startDate = new Date(now);
+      startDate.setDate(startDate.getDate() - daysBack);
+      const startStr = startDate.toISOString().split("T")[0];
+      const result = await db.select({
+        days: sql`COUNT(DISTINCT ${dailyPerformance.date})`,
+        totalSpend: sql`COALESCE(SUM(${dailyPerformance.spend}), 0)`,
+        totalSales: sql`COALESCE(SUM(${dailyPerformance.sales}), 0)`,
+        totalOrders: sql`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
+        totalClicks: sql`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
+        totalImpressions: sql`COALESCE(SUM(${dailyPerformance.impressions}), 0)`
+      }).from(dailyPerformance).where(and(
+        inArray(dailyPerformance.campaignId, campaignIds),
+        sql`${dailyPerformance.date} >= ${startStr}`
+      ));
+      return result[0] || null;
+    };
+    const preOptData = await db.select({
+      days: sql`COUNT(DISTINCT ${dailyPerformance.date})`,
+      totalSpend: sql`COALESCE(SUM(${dailyPerformance.spend}), 0)`,
+      totalSales: sql`COALESCE(SUM(${dailyPerformance.sales}), 0)`,
+      totalOrders: sql`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
+      totalClicks: sql`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
+      totalImpressions: sql`COALESCE(SUM(${dailyPerformance.impressions}), 0)`
+    }).from(dailyPerformance).where(and(
+      inArray(dailyPerformance.campaignId, campaignIds),
+      sql`${dailyPerformance.date} < ${createdDate}`
+    ));
+    const [recent7d, recent14d, recent30d, recent60d, recent90d] = await Promise.all([
+      getWindowData(7),
+      getWindowData(14),
+      getWindowData(30),
+      getWindowData(60),
+      getWindowData(90)
+    ]);
+    return {
+      recent7d,
+      recent14d,
+      recent30d,
+      recent60d,
+      recent90d,
+      preOptimization: preOptData[0] || null
+    };
+  } catch (error54) {
+    console.error(`[getMultiWindowTrendData] Error for group ${performanceGroupId}:`, error54);
+    return null;
+  }
+}
+async function getTimeWeightedMetricsForGoalProgress(performanceGroupId) {
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const groupCampaigns = await db.select({ id: campaigns.id }).from(campaigns).where(eq(campaigns.performanceGroupId, performanceGroupId));
+    if (groupCampaigns.length === 0) return null;
+    const campaignIds = groupCampaigns.map((c5) => c5.id);
+    const now = /* @__PURE__ */ new Date();
+    const startDate = new Date(now);
+    startDate.setDate(startDate.getDate() - 90);
+    const startStr = startDate.toISOString().split("T")[0];
+    const dailyData = await db.select({
+      date: dailyPerformance.date,
+      spend: sql`COALESCE(SUM(${dailyPerformance.spend}), 0)`,
+      sales: sql`COALESCE(SUM(${dailyPerformance.sales}), 0)`,
+      orders: sql`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
+      clicks: sql`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
+      impressions: sql`COALESCE(SUM(${dailyPerformance.impressions}), 0)`
+    }).from(dailyPerformance).where(and(
+      inArray(dailyPerformance.campaignId, campaignIds),
+      sql`${dailyPerformance.date} >= ${startStr}`
+    )).groupBy(dailyPerformance.date).orderBy(dailyPerformance.date);
+    if (dailyData.length === 0) return null;
+    const TIME_DECAY_WEIGHTS = [
+      { maxDaysAgo: 3, weight: 1 },
+      { maxDaysAgo: 7, weight: 0.85 },
+      { maxDaysAgo: 14, weight: 0.65 },
+      { maxDaysAgo: 30, weight: 0.4 },
+      { maxDaysAgo: 60, weight: 0.2 },
+      { maxDaysAgo: 90, weight: 0.08 }
+    ];
+    const ATTRIBUTION_CORRECTION = [
+      { daysAgo: 1, factor: 1.8 },
+      { daysAgo: 2, factor: 1.5 },
+      { daysAgo: 3, factor: 1.3 },
+      { daysAgo: 4, factor: 1.2 },
+      { daysAgo: 5, factor: 1.15 },
+      { daysAgo: 6, factor: 1.1 },
+      { daysAgo: 7, factor: 1.05 }
+    ];
+    let weightedSpend = 0;
+    let weightedSales = 0;
+    let weightedOrders = 0;
+    let weightedClicks = 0;
+    let weightedImpressions = 0;
+    let totalWeight = 0;
+    let effectiveDataDays = 0;
+    let totalClicksRaw = 0;
+    let recent7dSpend = 0, recent7dSales = 0;
+    let recent30dSpend = 0, recent30dSales = 0;
+    for (const day2 of dailyData) {
+      const dayDate = new Date(day2.date);
+      const daysAgo = Math.floor((now.getTime() - dayDate.getTime()) / (1e3 * 60 * 60 * 24));
+      let weight = 0.08;
+      for (const tw of TIME_DECAY_WEIGHTS) {
+        if (daysAgo <= tw.maxDaysAgo) {
+          weight = tw.weight;
+          break;
+        }
+      }
+      let attributionFactor = 1;
+      for (const ac of ATTRIBUTION_CORRECTION) {
+        if (daysAgo <= ac.daysAgo) {
+          attributionFactor = ac.factor;
+          break;
+        }
+      }
+      const spend = Number(day2.spend) || 0;
+      const sales = (Number(day2.sales) || 0) * attributionFactor;
+      const orders = (Number(day2.orders) || 0) * attributionFactor;
+      const clicks = Number(day2.clicks) || 0;
+      const impressions = Number(day2.impressions) || 0;
+      weightedSpend += spend * weight;
+      weightedSales += sales * weight;
+      weightedOrders += orders * weight;
+      weightedClicks += clicks * weight;
+      weightedImpressions += impressions * weight;
+      totalWeight += weight;
+      totalClicksRaw += clicks;
+      if (spend > 0 || clicks > 0) effectiveDataDays++;
+      if (daysAgo <= 7) {
+        recent7dSpend += spend;
+        recent7dSales += sales;
+      }
+      if (daysAgo <= 30) {
+        recent30dSpend += spend;
+        recent30dSales += sales;
+      }
+    }
+    if (totalWeight === 0) return null;
+    const weightedDailySpend = weightedSpend / totalWeight;
+    const weightedDailySales = weightedSales / totalWeight;
+    const weightedDailyOrders = weightedOrders / totalWeight;
+    const weightedAcos = weightedSales > 0 ? weightedSpend / weightedSales * 100 : 0;
+    const weightedRoas = weightedSpend > 0 ? weightedSales / weightedSpend : 0;
+    const weightedCvr = weightedClicks > 0 ? weightedOrders / weightedClicks * 100 : 0;
+    const weightedCpc = weightedClicks > 0 ? weightedSpend / weightedClicks : 0;
+    let dataConfidence;
+    if (effectiveDataDays >= 30 && totalClicksRaw >= 200) dataConfidence = "high";
+    else if (effectiveDataDays >= 14 && totalClicksRaw >= 50) dataConfidence = "medium";
+    else if (effectiveDataDays >= 7 && totalClicksRaw >= 10) dataConfidence = "low";
+    else dataConfidence = "very_low";
+    let trendDirection;
+    const recent7dRoas = recent7dSpend > 0 ? recent7dSales / recent7dSpend : 0;
+    const recent30dRoas = recent30dSpend > 0 ? recent30dSales / recent30dSpend : 0;
+    if (recent30dRoas > 0) {
+      const roasChange = (recent7dRoas - recent30dRoas) / recent30dRoas;
+      if (roasChange > 0.05) trendDirection = "improving";
+      else if (roasChange < -0.05) trendDirection = "declining";
+      else trendDirection = "stable";
+    } else {
+      trendDirection = recent7dRoas > 0 ? "improving" : "stable";
+    }
+    return {
+      weightedAcos,
+      weightedRoas,
+      weightedDailySpend,
+      weightedDailySales,
+      weightedDailyOrders,
+      weightedCvr,
+      weightedCpc,
+      dataConfidence,
+      trendDirection,
+      effectiveDataDays
+    };
+  } catch (error54) {
+    console.error(`[getTimeWeightedMetricsForGoalProgress] Error for group ${performanceGroupId}:`, error54);
+    return null;
   }
 }
 var _db;
@@ -49401,10 +49590,10 @@ var require_is = __commonJS({
       return typeof payload4 === "undefined";
     };
     exports2.isUndefined = isUndefined2;
-    var isNull6 = function(payload4) {
+    var isNull7 = function(payload4) {
       return payload4 === null;
     };
-    exports2.isNull = isNull6;
+    exports2.isNull = isNull7;
     var isPlainObject4 = function(payload4) {
       if (typeof payload4 !== "object" || payload4 === null)
         return false;
@@ -50232,7 +50421,7 @@ var require_cjs = __commonJS({
     function isNegativeNumber(payload4) {
       return isNumber4(payload4) && payload4 < 0;
     }
-    function isNull6(payload4) {
+    function isNull7(payload4) {
       return getType(payload4) === "Null";
     }
     function isOneOf(a4, b6, c5, d5, e6) {
@@ -50241,7 +50430,7 @@ var require_cjs = __commonJS({
     function isUndefined2(payload4) {
       return getType(payload4) === "Undefined";
     }
-    var isNullOrUndefined = isOneOf(isNull6, isUndefined2);
+    var isNullOrUndefined = isOneOf(isNull7, isUndefined2);
     function isObject7(payload4) {
       return isPlainObject4(payload4);
     }
@@ -50255,7 +50444,7 @@ var require_cjs = __commonJS({
       return getType(payload4) === "Symbol";
     }
     function isPrimitive2(payload4) {
-      return isBoolean2(payload4) || isNull6(payload4) || isUndefined2(payload4) || isNumber4(payload4) || isString2(payload4) || isSymbol(payload4);
+      return isBoolean2(payload4) || isNull7(payload4) || isUndefined2(payload4) || isNumber4(payload4) || isString2(payload4) || isSymbol(payload4);
     }
     function isPromise2(payload4) {
       return getType(payload4) === "Promise";
@@ -50291,7 +50480,7 @@ var require_cjs = __commonJS({
     exports2.isMap = isMap;
     exports2.isNaNValue = isNaNValue;
     exports2.isNegativeNumber = isNegativeNumber;
-    exports2.isNull = isNull6;
+    exports2.isNull = isNull7;
     exports2.isNullOrUndefined = isNullOrUndefined;
     exports2.isNumber = isNumber4;
     exports2.isObject = isObject7;
@@ -53858,10 +54047,10 @@ var init_amazonAdsApi = __esm({
           if (workingHeaders) {
             try {
               const response = await this.axiosInstance.post("/sp/keywords/list", body, { headers: workingHeaders });
-              const keywords5 = response.data.keywords || [];
-              allKeywords.push(...keywords5);
+              const keywords6 = response.data.keywords || [];
+              allKeywords.push(...keywords6);
               nextToken = response.data.nextToken;
-              console.log(`[SP API] Fetched ${keywords5.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
+              console.log(`[SP API] Fetched ${keywords6.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
             } catch (error54) {
               console.error("[SP API] Error fetching keywords:", error54.message, error54.response?.data ? JSON.stringify(error54.response.data).slice(0, 200) : "");
               throw error54;
@@ -53871,10 +54060,10 @@ var init_amazonAdsApi = __esm({
               try {
                 const response = await this.axiosInstance.post("/sp/keywords/list", body, { headers });
                 workingHeaders = headers;
-                const keywords5 = response.data.keywords || [];
-                allKeywords.push(...keywords5);
+                const keywords6 = response.data.keywords || [];
+                allKeywords.push(...keywords6);
                 nextToken = response.data.nextToken;
-                console.log(`[SP API] Fetched ${keywords5.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
+                console.log(`[SP API] Fetched ${keywords6.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
                 break;
               } catch (error54) {
                 lastError = error54;
@@ -53896,9 +54085,9 @@ var init_amazonAdsApi = __esm({
       /**
        * 创建SP关键词（用于搜索词收割：将高转化搜索词添加为精确匹配关键词）
        */
-      async createSpKeywords(keywords5) {
+      async createSpKeywords(keywords6) {
         try {
-          const formattedKeywords = keywords5.map((k5) => ({
+          const formattedKeywords = keywords6.map((k5) => ({
             adGroupId: String(k5.adGroupId),
             campaignId: String(k5.campaignId),
             keywordText: k5.keywordText,
@@ -53924,7 +54113,7 @@ var init_amazonAdsApi = __esm({
                 const idx = item.index || 0;
                 createdKeywords.push({
                   keywordId: item.keywordId,
-                  keywordText: keywords5[idx]?.keywordText || "",
+                  keywordText: keywords6[idx]?.keywordText || "",
                   code: "SUCCESS"
                 });
               }
@@ -53934,7 +54123,7 @@ var init_amazonAdsApi = __esm({
                 errors.push(item);
                 createdKeywords.push({
                   keywordId: null,
-                  keywordText: keywords5[item.index]?.keywordText || "",
+                  keywordText: keywords6[item.index]?.keywordText || "",
                   code: item.code || "ERROR"
                 });
               }
@@ -56249,10 +56438,10 @@ var init_amazonAdsApi = __esm({
               }
             }
           );
-          const keywords5 = response.data.keywords || [];
-          allKeywords.push(...keywords5);
+          const keywords6 = response.data.keywords || [];
+          allKeywords.push(...keywords6);
           nextToken = response.data.nextToken;
-          console.log(`[SB API] Fetched ${keywords5.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
+          console.log(`[SB API] Fetched ${keywords6.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
         } while (nextToken);
         console.log(`[SB API] Total keywords fetched: ${allKeywords.length}`);
         return allKeywords;
@@ -56605,10 +56794,10 @@ var init_amazonAdsApi = __esm({
       /**
        * 获取关键词出价建议
        */
-      async getKeywordBidRecommendations(adGroupId, keywords5) {
+      async getKeywordBidRecommendations(adGroupId, keywords6) {
         const response = await this.axiosInstance.post("/sp/keywords/bidRecommendations", {
           adGroupId,
-          keywords: keywords5
+          keywords: keywords6
         });
         return response.data.recommendations || [];
       }
@@ -58706,9 +58895,9 @@ async function syncKeywordStatusToAmazon(accountId, statusChanges) {
         result.errors.push(`\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25`);
         continue;
       }
-      const { keywords: keywords5 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+      const { keywords: keywords6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
       const { eq: eq7 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-      let [kw] = await dbInstance.select({ keywordId: keywords5.keywordId }).from(keywords5).where(eq7(keywords5.id, change.keywordId)).limit(1);
+      let [kw] = await dbInstance.select({ keywordId: keywords6.keywordId }).from(keywords6).where(eq7(keywords6.id, change.keywordId)).limit(1);
       if (!kw || !kw.keywordId || kw.keywordId === "0" || kw.keywordId === "") {
         console.log(`[AmazonApiHelper] keyword id=${change.keywordId} \u7F3A\u5C11keywordId\uFF0C\u5C1D\u8BD5\u5373\u65F6\u56DE\u586B...`);
         try {
@@ -130867,8 +131056,8 @@ async function getEventPerformanceData(db, event, startDate, endDate) {
     const endStr = endDate.toISOString().slice(0, 10);
     let result;
     if (event.keywordId) {
-      const { keywords: keywords5 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-      const kwData = await db.select().from(keywords5).where(eq(keywords5.id, event.keywordId)).limit(1);
+      const { keywords: keywords6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+      const kwData = await db.select().from(keywords6).where(eq(keywords6.id, event.keywordId)).limit(1);
       if (kwData.length > 0) {
         const kw = kwData[0];
         result = {
@@ -135906,6 +136095,488 @@ var init_gradualOptimizationEngine = __esm({
   }
 });
 
+// server/selfEvolutionEngine.ts
+async function evaluateRecentOptimizations(performanceGroupId, lookbackDays = 14) {
+  const db = await getDb();
+  if (!db) return [];
+  try {
+    const cutoffDate = /* @__PURE__ */ new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - lookbackDays);
+    const cutoffStr = cutoffDate.toISOString().slice(0, 19).replace("T", " ");
+    const minEvalDate = /* @__PURE__ */ new Date();
+    minEvalDate.setDate(minEvalDate.getDate() - 7);
+    const minEvalStr = minEvalDate.toISOString().slice(0, 19).replace("T", " ");
+    const logs = await db.select().from(optimizationLogs).where(and(
+      eq(optimizationLogs.performanceGroupId, performanceGroupId),
+      eq(optimizationLogs.actionType, "bid_adjustment"),
+      gte(optimizationLogs.createdAt, cutoffStr),
+      lte(optimizationLogs.createdAt, minEvalStr),
+      // 只评估未被回滚的记录
+      sql`${optimizationLogs.apiSyncStatus} != 'rolled_back' OR ${optimizationLogs.apiSyncStatus} IS NULL`
+    )).orderBy(desc(optimizationLogs.createdAt)).limit(100);
+    if (logs.length === 0) return [];
+    const groupCampaigns = await db.select({ id: campaigns.id }).from(campaigns).where(eq(campaigns.performanceGroupId, performanceGroupId));
+    if (groupCampaigns.length === 0) return [];
+    const campaignIds = groupCampaigns.map((c5) => c5.id);
+    const assessments = [];
+    for (const log2 of logs) {
+      try {
+        const logDate = new Date(log2.createdAt);
+        const preStartDate = new Date(logDate);
+        preStartDate.setDate(preStartDate.getDate() - 7);
+        const preData = await getTimeWeightedCampaignMetrics(
+          db,
+          campaignIds,
+          preStartDate.toISOString().split("T")[0],
+          logDate.toISOString().split("T")[0]
+        );
+        const postEndDate = new Date(logDate);
+        postEndDate.setDate(postEndDate.getDate() + 7);
+        const now = /* @__PURE__ */ new Date();
+        const actualEndDate = postEndDate > now ? now : postEndDate;
+        const postData = await getTimeWeightedCampaignMetrics(
+          db,
+          campaignIds,
+          logDate.toISOString().split("T")[0],
+          actualEndDate.toISOString().split("T")[0]
+        );
+        if (!preData || !postData) continue;
+        const effectScore = calculateEffectScore3(preData, postData, log2);
+        const effectCategory = categorizeEffect(effectScore);
+        const needsCorrection = effectScore < -20;
+        let correctionType;
+        let correctionReason;
+        if (effectScore < -50) {
+          correctionType = "rollback";
+          correctionReason = `\u4F18\u5316\u6548\u679C\u4E25\u91CD\u8D1F\u9762\uFF08\u6548\u679C\u5206${effectScore}\uFF09\uFF0C\u5EFA\u8BAE\u5B8C\u5168\u56DE\u6EDA`;
+        } else if (effectScore < -20) {
+          correctionType = "partial_rollback";
+          correctionReason = `\u4F18\u5316\u6548\u679C\u8D1F\u9762\uFF08\u6548\u679C\u5206${effectScore}\uFF09\uFF0C\u5EFA\u8BAE\u90E8\u5206\u56DE\u6EDA`;
+        }
+        let entityId = "";
+        let entityType = "keyword";
+        try {
+          const detail = JSON.parse(log2.actionDetail || "{}");
+          entityId = detail.keywordId?.toString() || detail.targetId?.toString() || "";
+          entityType = detail.targetType || "keyword";
+        } catch {
+        }
+        assessments.push({
+          logId: log2.id,
+          actionType: log2.actionType || "bid_adjustment",
+          performanceGroupId,
+          entityId,
+          entityType,
+          preWeightedAcos: preData.acos,
+          preWeightedRoas: preData.roas,
+          preWeightedDailySpend: preData.dailySpend,
+          preWeightedDailyOrders: preData.dailyOrders,
+          postWeightedAcos: postData.acos,
+          postWeightedRoas: postData.roas,
+          postWeightedDailySpend: postData.dailySpend,
+          postWeightedDailyOrders: postData.dailyOrders,
+          effectScore,
+          effectCategory,
+          needsCorrection,
+          correctionType,
+          correctionReason
+        });
+      } catch (logErr) {
+        console.error(`[selfEvolution] Error evaluating log ${log2.id}:`, logErr);
+      }
+    }
+    return assessments;
+  } catch (error54) {
+    console.error(`[selfEvolution] evaluateRecentOptimizations error:`, error54);
+    return [];
+  }
+}
+async function getTimeWeightedCampaignMetrics(db, campaignIds, startDate, endDate) {
+  if (campaignIds.length === 0) return null;
+  const dailyData = await db.select({
+    date: dailyPerformance.date,
+    spend: sql`COALESCE(SUM(${dailyPerformance.spend}), 0)`,
+    sales: sql`COALESCE(SUM(${dailyPerformance.sales}), 0)`,
+    orders: sql`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
+    clicks: sql`COALESCE(SUM(${dailyPerformance.clicks}), 0)`
+  }).from(dailyPerformance).where(and(
+    inArray(dailyPerformance.campaignId, campaignIds),
+    sql`${dailyPerformance.date} >= ${startDate}`,
+    sql`${dailyPerformance.date} < ${endDate}`
+  )).groupBy(dailyPerformance.date);
+  if (dailyData.length === 0) return null;
+  const now = /* @__PURE__ */ new Date();
+  let weightedSpend = 0, weightedSales = 0, weightedOrders = 0;
+  let totalWeight = 0;
+  const WEIGHTS = [
+    { maxDaysAgo: 3, weight: 1 },
+    { maxDaysAgo: 7, weight: 0.85 },
+    { maxDaysAgo: 14, weight: 0.65 },
+    { maxDaysAgo: 30, weight: 0.4 }
+  ];
+  for (const day2 of dailyData) {
+    const dayDate = new Date(day2.date);
+    const daysAgo = Math.floor((now.getTime() - dayDate.getTime()) / (1e3 * 60 * 60 * 24));
+    let weight = 0.4;
+    for (const tw of WEIGHTS) {
+      if (daysAgo <= tw.maxDaysAgo) {
+        weight = tw.weight;
+        break;
+      }
+    }
+    weightedSpend += (Number(day2.spend) || 0) * weight;
+    weightedSales += (Number(day2.sales) || 0) * weight;
+    weightedOrders += (Number(day2.orders) || 0) * weight;
+    totalWeight += weight;
+  }
+  if (totalWeight === 0) return null;
+  const avgSpend = weightedSpend / totalWeight;
+  const avgSales = weightedSales / totalWeight;
+  const avgOrders = weightedOrders / totalWeight;
+  return {
+    acos: avgSales > 0 ? avgSpend / avgSales * 100 : 0,
+    roas: avgSpend > 0 ? avgSales / avgSpend : 0,
+    dailySpend: avgSpend,
+    dailyOrders: avgOrders,
+    days: dailyData.length
+  };
+}
+function calculateEffectScore3(pre, post, log2) {
+  let score = 0;
+  if (pre.roas > 0) {
+    const roasChange = (post.roas - pre.roas) / pre.roas;
+    score += Math.max(-40, Math.min(40, roasChange * 100));
+  }
+  if (pre.acos > 0) {
+    const acosChange = (pre.acos - post.acos) / pre.acos;
+    score += Math.max(-25, Math.min(25, acosChange * 100));
+  }
+  if (pre.dailyOrders > 0) {
+    const ordersChange = (post.dailyOrders - pre.dailyOrders) / pre.dailyOrders;
+    if (ordersChange < 0) {
+      score += Math.max(-25, ordersChange * 150);
+    } else {
+      score += Math.min(25, ordersChange * 80);
+    }
+  }
+  if (pre.dailySpend > 0 && post.dailyOrders > 0) {
+    const preCostPerOrder = pre.dailySpend / Math.max(0.1, pre.dailyOrders);
+    const postCostPerOrder = post.dailySpend / Math.max(0.1, post.dailyOrders);
+    const efficiencyChange = (preCostPerOrder - postCostPerOrder) / preCostPerOrder;
+    score += Math.max(-10, Math.min(10, efficiencyChange * 50));
+  }
+  return Math.round(Math.max(-100, Math.min(100, score)));
+}
+function categorizeEffect(score) {
+  if (score >= 30) return "excellent";
+  if (score >= 10) return "positive";
+  if (score >= -10) return "neutral";
+  if (score >= -30) return "negative";
+  return "harmful";
+}
+async function updateLearningFromAssessments(performanceGroupId, assessments, strategyTemplateId) {
+  if (assessments.length === 0) {
+    return { keywordsUpdated: 0, strategyUpdated: false, adaptiveParams: null };
+  }
+  const keywordMemories = /* @__PURE__ */ new Map();
+  for (const assessment of assessments) {
+    if (!assessment.entityId) continue;
+    const key = `${assessment.entityType}:${assessment.entityId}`;
+    let memory = keywordMemories.get(key);
+    if (!memory) {
+      memory = {
+        keywordId: parseInt(assessment.entityId) || 0,
+        campaignId: 0,
+        optimalBidLow: 0,
+        optimalBidHigh: 0,
+        totalOptimizations: 0,
+        positiveOptimizations: 0,
+        negativeOptimizations: 0,
+        avgEffectScore: 0,
+        bidSensitivity: "medium",
+        optimalAcosRange: { low: 0, high: 100 },
+        lastOptimizationDate: "",
+        lastBid: 0,
+        lastEffectScore: 0,
+        confidence: "low"
+      };
+    }
+    memory.totalOptimizations++;
+    if (assessment.effectScore > 10) memory.positiveOptimizations++;
+    if (assessment.effectScore < -10) memory.negativeOptimizations++;
+    memory.avgEffectScore = (memory.avgEffectScore * (memory.totalOptimizations - 1) + assessment.effectScore) / memory.totalOptimizations;
+    memory.lastEffectScore = assessment.effectScore;
+    if (memory.totalOptimizations >= 10) memory.confidence = "high";
+    else if (memory.totalOptimizations >= 5) memory.confidence = "medium";
+    else memory.confidence = "low";
+    keywordMemories.set(key, memory);
+  }
+  let adaptiveParams = null;
+  if (strategyTemplateId) {
+    const positiveCount = assessments.filter((a4) => a4.effectScore > 10).length;
+    const negativeCount = assessments.filter((a4) => a4.effectScore < -10).length;
+    const totalCount = assessments.length;
+    const successRate = totalCount > 0 ? positiveCount / totalCount : 0.5;
+    const avgScore = assessments.reduce((sum2, a4) => sum2 + a4.effectScore, 0) / totalCount;
+    const baseMaxIncrease = 0.2;
+    const baseMaxDecrease = 0.15;
+    let adaptiveMaxBidIncrease;
+    let adaptiveMaxBidDecrease;
+    if (successRate >= 0.7) {
+      adaptiveMaxBidIncrease = baseMaxIncrease * 1.2;
+      adaptiveMaxBidDecrease = baseMaxDecrease * 1.2;
+    } else if (successRate >= 0.5) {
+      adaptiveMaxBidIncrease = baseMaxIncrease;
+      adaptiveMaxBidDecrease = baseMaxDecrease;
+    } else if (successRate >= 0.3) {
+      adaptiveMaxBidIncrease = baseMaxIncrease * 0.7;
+      adaptiveMaxBidDecrease = baseMaxDecrease * 0.7;
+    } else {
+      adaptiveMaxBidIncrease = baseMaxIncrease * 0.5;
+      adaptiveMaxBidDecrease = baseMaxDecrease * 0.5;
+    }
+    adaptiveParams = {
+      strategyTemplateId,
+      adaptiveMaxBidIncrease: Math.round(adaptiveMaxBidIncrease * 1e3) / 1e3,
+      adaptiveMaxBidDecrease: Math.round(adaptiveMaxBidDecrease * 1e3) / 1e3,
+      adaptiveMaxBudgetChange: successRate >= 0.5 ? 0.25 : 0.15,
+      lastUpdated: (/* @__PURE__ */ new Date()).toISOString()
+    };
+  }
+  return {
+    keywordsUpdated: keywordMemories.size,
+    strategyUpdated: adaptiveParams !== null,
+    adaptiveParams
+  };
+}
+async function generateAutoCorrections(performanceGroupId, assessments) {
+  const corrections = [];
+  const db = await getDb();
+  if (!db) return corrections;
+  for (const assessment of assessments) {
+    if (!assessment.needsCorrection) continue;
+    try {
+      const [log2] = await db.select().from(optimizationLogs).where(eq(optimizationLogs.id, assessment.logId)).limit(1);
+      if (!log2) continue;
+      let originalValue = 0;
+      let currentValue = 0;
+      let correctedValue = 0;
+      let correctionType = "rollback_bid";
+      try {
+        const detail = JSON.parse(log2.actionDetail || "{}");
+        if (log2.actionType === "bid_adjustment") {
+          originalValue = parseFloat(detail.previousBid || detail.oldBid || "0");
+          currentValue = parseFloat(detail.newBid || "0");
+          correctionType = "rollback_bid";
+          if (assessment.correctionType === "rollback") {
+            correctedValue = originalValue;
+          } else {
+            correctedValue = Math.round((originalValue + currentValue) / 2 * 100) / 100;
+          }
+        } else if (log2.actionType === "budget_adjustment") {
+          originalValue = parseFloat(detail.previousBudget || detail.oldBudget || "0");
+          currentValue = parseFloat(detail.newBudget || "0");
+          correctionType = "rollback_budget";
+          correctedValue = assessment.correctionType === "rollback" ? originalValue : Math.round((originalValue + currentValue) / 2 * 100) / 100;
+        } else if (log2.actionType === "placement_adjustment") {
+          originalValue = parseFloat(detail.previousMultiplier || "0");
+          currentValue = parseFloat(detail.newMultiplier || "0");
+          correctionType = "rollback_placement";
+          correctedValue = assessment.correctionType === "rollback" ? originalValue : Math.round((originalValue + currentValue) / 2);
+        }
+      } catch {
+      }
+      if (originalValue === 0 && currentValue === 0) continue;
+      corrections.push({
+        id: `correction_${assessment.logId}_${Date.now()}`,
+        logId: assessment.logId,
+        performanceGroupId,
+        entityType: assessment.entityType,
+        entityId: assessment.entityId,
+        correctionType,
+        originalValue,
+        currentValue,
+        correctedValue,
+        reason: assessment.correctionReason || `\u6548\u679C\u8BC4\u5206${assessment.effectScore}\uFF0C\u9700\u8981\u7EA0\u6B63`,
+        effectScore: assessment.effectScore,
+        status: "pending",
+        createdAt: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    } catch (err2) {
+      console.error(`[selfEvolution] Error generating correction for log ${assessment.logId}:`, err2);
+    }
+  }
+  return corrections;
+}
+async function executeAutoCorrections(corrections, userId, accountId) {
+  const result = { executed: 0, skipped: 0, errors: 0, details: [] };
+  const db = await getDb();
+  if (!db) return result;
+  for (const correction of corrections) {
+    try {
+      if (correction.correctedValue <= 0) {
+        correction.status = "skipped";
+        result.skipped++;
+        result.details.push(`\u8DF3\u8FC7\u7EA0\u6B63 ${correction.id}\uFF1A\u7EA0\u6B63\u503C\u4E0D\u5408\u7406 (${correction.correctedValue})`);
+        continue;
+      }
+      const [originalLog] = await db.select().from(optimizationLogs).where(eq(optimizationLogs.id, correction.logId)).limit(1);
+      if (!originalLog || originalLog.apiSyncStatus === "rolled_back") {
+        correction.status = "skipped";
+        result.skipped++;
+        result.details.push(`\u8DF3\u8FC7\u7EA0\u6B63 ${correction.id}\uFF1A\u539F\u59CB\u8BB0\u5F55\u5DF2\u88AB\u56DE\u6EDA`);
+        continue;
+      }
+      await db.insert(optimizationLogs).values({
+        userId,
+        accountId,
+        performanceGroupId: correction.performanceGroupId,
+        actionType: correction.correctionType.replace("rollback_", "") + "_adjustment",
+        actionDetail: JSON.stringify({
+          correctionOf: correction.logId,
+          previousValue: correction.currentValue,
+          correctedValue: correction.correctedValue,
+          originalValue: correction.originalValue,
+          effectScore: correction.effectScore,
+          reason: correction.reason,
+          autoCorrection: true
+        }),
+        reason: `[\u81EA\u52A8\u7EA0\u9519] ${correction.reason}`,
+        apiSyncStatus: "pending",
+        createdAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
+      });
+      await db.update(optimizationLogs).set({ apiSyncStatus: "corrected" }).where(eq(optimizationLogs.id, correction.logId));
+      correction.status = "executed";
+      correction.executedAt = (/* @__PURE__ */ new Date()).toISOString();
+      result.executed++;
+      result.details.push(
+        `\u6267\u884C\u7EA0\u6B63 ${correction.id}\uFF1A${correction.correctionType} ${correction.currentValue} \u2192 ${correction.correctedValue} (\u539F\u59CB: ${correction.originalValue})`
+      );
+    } catch (err2) {
+      correction.status = "skipped";
+      result.errors++;
+      result.details.push(`\u7EA0\u6B63\u5931\u8D25 ${correction.id}: ${err2}`);
+    }
+  }
+  return result;
+}
+async function runEvolutionCycle2(performanceGroupId, userId, accountId, strategyTemplateId) {
+  const cycleId = `evo_${performanceGroupId}_${Date.now()}`;
+  const startDate = (/* @__PURE__ */ new Date()).toISOString();
+  console.log(`[selfEvolution] Starting evolution cycle ${cycleId} for group ${performanceGroupId}`);
+  const assessments = await evaluateRecentOptimizations(performanceGroupId);
+  const positiveActions = assessments.filter((a4) => a4.effectScore > 10).length;
+  const neutralActions = assessments.filter((a4) => a4.effectScore >= -10 && a4.effectScore <= 10).length;
+  const negativeActions = assessments.filter((a4) => a4.effectScore < -10).length;
+  console.log(`[selfEvolution] Evaluated ${assessments.length} actions: ${positiveActions} positive, ${neutralActions} neutral, ${negativeActions} negative`);
+  const learningResult = await updateLearningFromAssessments(
+    performanceGroupId,
+    assessments,
+    strategyTemplateId
+  );
+  console.log(`[selfEvolution] Learning updated: ${learningResult.keywordsUpdated} keywords, strategy: ${learningResult.strategyUpdated}`);
+  const corrections = await generateAutoCorrections(performanceGroupId, assessments);
+  let correctionsExecuted = 0;
+  if (corrections.length > 0) {
+    console.log(`[selfEvolution] ${corrections.length} corrections identified`);
+    const severeCorrections = corrections.filter((c5) => c5.effectScore < -30);
+    if (severeCorrections.length > 0) {
+      const execResult = await executeAutoCorrections(severeCorrections, userId, accountId);
+      correctionsExecuted = execResult.executed;
+      console.log(`[selfEvolution] Auto-corrections: ${execResult.executed} executed, ${execResult.skipped} skipped`);
+    }
+  }
+  const avgEffectScore = assessments.length > 0 ? assessments.reduce((sum2, a4) => sum2 + a4.effectScore, 0) / assessments.length : 0;
+  let improvementTrend;
+  if (avgEffectScore > 10) improvementTrend = "improving";
+  else if (avgEffectScore > -10) improvementTrend = "stable";
+  else improvementTrend = "declining";
+  const report2 = {
+    cycleId,
+    startDate,
+    endDate: (/* @__PURE__ */ new Date()).toISOString(),
+    totalActionsEvaluated: assessments.length,
+    positiveActions,
+    neutralActions,
+    negativeActions,
+    correctionsIdentified: corrections.length,
+    correctionsExecuted,
+    keywordsLearningUpdated: learningResult.keywordsUpdated,
+    strategyParamsUpdated: learningResult.strategyUpdated ? 1 : 0,
+    avgEffectScore: Math.round(avgEffectScore),
+    improvementTrend
+  };
+  console.log(`[selfEvolution] Evolution cycle ${cycleId} completed: avg score ${report2.avgEffectScore}, trend: ${report2.improvementTrend}`);
+  return report2;
+}
+async function getAdaptiveOptimizationParams(performanceGroupId, strategyTemplateId) {
+  const db = await getDb();
+  const defaultParams = {
+    maxBidIncrease: 0.2,
+    maxBidDecrease: 0.15,
+    maxBudgetChange: 0.25,
+    confidenceMultiplier: 1,
+    recentSuccessRate: 0.5
+  };
+  if (!db) return defaultParams;
+  try {
+    const thirtyDaysAgo = /* @__PURE__ */ new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const cutoffStr = thirtyDaysAgo.toISOString().slice(0, 19).replace("T", " ");
+    const recentLogs = await db.select({
+      count: sql`COUNT(*)`,
+      avgEffect: sql`AVG(CASE WHEN ${optimizationLogs.apiSyncStatus} = 'corrected' THEN -30 WHEN ${optimizationLogs.apiSyncStatus} = 'rolled_back' THEN -50 ELSE 10 END)`,
+      rolledBackCount: sql`SUM(CASE WHEN ${optimizationLogs.apiSyncStatus} IN ('corrected', 'rolled_back') THEN 1 ELSE 0 END)`
+    }).from(optimizationLogs).where(and(
+      eq(optimizationLogs.performanceGroupId, performanceGroupId),
+      eq(optimizationLogs.actionType, "bid_adjustment"),
+      gte(optimizationLogs.createdAt, cutoffStr)
+    ));
+    const totalCount = Number(recentLogs[0]?.count) || 0;
+    const rolledBackCount = Number(recentLogs[0]?.rolledBackCount) || 0;
+    if (totalCount < 5) return defaultParams;
+    const successRate = 1 - rolledBackCount / totalCount;
+    let maxBidIncrease;
+    let maxBidDecrease;
+    let confidenceMultiplier;
+    if (successRate >= 0.8) {
+      maxBidIncrease = 0.25;
+      maxBidDecrease = 0.2;
+      confidenceMultiplier = 1.2;
+    } else if (successRate >= 0.6) {
+      maxBidIncrease = 0.2;
+      maxBidDecrease = 0.15;
+      confidenceMultiplier = 1;
+    } else if (successRate >= 0.4) {
+      maxBidIncrease = 0.15;
+      maxBidDecrease = 0.1;
+      confidenceMultiplier = 0.8;
+    } else {
+      maxBidIncrease = 0.1;
+      maxBidDecrease = 0.08;
+      confidenceMultiplier = 0.6;
+    }
+    return {
+      maxBidIncrease,
+      maxBidDecrease,
+      maxBudgetChange: successRate >= 0.5 ? 0.25 : 0.15,
+      confidenceMultiplier,
+      recentSuccessRate: Math.round(successRate * 100) / 100
+    };
+  } catch (error54) {
+    console.error(`[selfEvolution] getAdaptiveOptimizationParams error:`, error54);
+    return defaultParams;
+  }
+}
+var init_selfEvolutionEngine = __esm({
+  "server/selfEvolutionEngine.ts"() {
+    "use strict";
+    init_db2();
+    init_schema2();
+    init_drizzle_orm();
+  }
+});
+
 // server/optimizationTargetEngine.ts
 var optimizationTargetEngine_exports = {};
 __export(optimizationTargetEngine_exports, {
@@ -135951,7 +136622,10 @@ async function getOptimizationTargetConfig(targetId) {
     maxDailyBidChanges: 100,
     maxBidChangePercent: 30,
     minDataPoints: 7,
-    autoRollbackEnabled: true
+    autoRollbackEnabled: true,
+    // v164: 自我进化所需字段
+    userId: group.userId || 0,
+    strategyTemplateId: group.strategyTemplateId || void 0
   };
   try {
     const lifecycle = await getTargetLifecycleStage(group.id);
@@ -136008,6 +136682,28 @@ async function executeOptimizationTarget(targetId, options = {}) {
     }
   } catch (safetyErr) {
     console.log(`[OptimizationTarget] v162 \u5B89\u5168\u68C0\u67E5\u5F02\u5E38\uFF0C\u7EE7\u7EED\u6267\u884C: ${safetyErr.message}`);
+  }
+  let evolutionReport = null;
+  let adaptiveParams = null;
+  try {
+    evolutionReport = await runEvolutionCycle2(
+      targetId,
+      config2.userId,
+      config2.accountId,
+      config2.strategyTemplateId
+    );
+    if (evolutionReport) {
+      console.log(`[OptimizationTarget] v164 \u8FDB\u5316\u5468\u671F\u5B8C\u6210: \u8BC4\u4F30${evolutionReport.totalActionsEvaluated}\u4E2A\u52A8\u4F5C, \u6B63\u9762${evolutionReport.positiveActions}, \u8D1F\u9762${evolutionReport.negativeActions}, \u7EA0\u9519${evolutionReport.correctionsExecuted}\u4E2A, \u8D8B\u52BF: ${evolutionReport.improvementTrend}`);
+      if (evolutionReport.correctionsExecuted > 0) {
+        result.warnings.push(`\u81EA\u6211\u8FDB\u5316: \u81EA\u52A8\u7EA0\u6B63\u4E86${evolutionReport.correctionsExecuted}\u4E2A\u4E0D\u5408\u7406\u4F18\u5316`);
+      }
+    }
+    adaptiveParams = await getAdaptiveOptimizationParams(targetId, config2.strategyTemplateId);
+    if (adaptiveParams) {
+      console.log(`[OptimizationTarget] v164 \u81EA\u9002\u5E94\u53C2\u6570: \u6700\u5927\u51FA\u4EF7\u63D0\u5347${Math.round(adaptiveParams.maxBidIncrease * 100)}%, \u6700\u5927\u51FA\u4EF7\u964D\u4F4E${Math.round(adaptiveParams.maxBidDecrease * 100)}%, \u6210\u529F\u7387${Math.round(adaptiveParams.recentSuccessRate * 100)}%`);
+    }
+  } catch (evoErr) {
+    console.log(`[OptimizationTarget] v164 \u81EA\u6211\u8FDB\u5316\u5F02\u5E38\uFF0C\u7EE7\u7EED\u6267\u884C: ${evoErr.message}`);
   }
   const allCampaigns = await getCampaignsByPerformanceGroupId(targetId);
   if (allCampaigns.length === 0) {
@@ -136271,13 +136967,13 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
     groupAvgAov
   };
   try {
-    const { getEffectiveBidConfig: getEffectiveBidConfig2 } = await Promise.resolve().then(() => (init_algorithmEvolutionEngine(), algorithmEvolutionEngine_exports));
-    const evolvedConfig = await getEffectiveBidConfig2(config2.id);
-    bidConfig._evolvedMaxChangePercent = evolvedConfig.maxChangePercent;
-    bidConfig._evolvedMaxDecreasePercent = evolvedConfig.maxChangePercent * 0.67;
-    console.log(`[BidOptimization] v152: \u8FDB\u5316\u53C2\u6570\u5DF2\u6CE8\u5165 - maxChange=${(evolvedConfig.maxChangePercent * 100).toFixed(0)}%, exploration=${(evolvedConfig.explorationRate * 100).toFixed(0)}%`);
+    const evoParams = await getAdaptiveOptimizationParams(config2.id, config2.strategyTemplateId);
+    bidConfig._evolvedMaxChangePercent = evoParams.maxBidIncrease;
+    bidConfig._evolvedMaxDecreasePercent = evoParams.maxBidDecrease;
+    bidConfig._confidenceMultiplier = evoParams.confidenceMultiplier;
+    console.log(`[BidOptimization] v164: \u81EA\u9002\u5E94\u53C2\u6570\u5DF2\u6CE8\u5165 - \u6700\u5927\u63D0\u5347${Math.round(evoParams.maxBidIncrease * 100)}%, \u6700\u5927\u964D\u4F4E${Math.round(evoParams.maxBidDecrease * 100)}%, \u6210\u529F\u7387${Math.round(evoParams.recentSuccessRate * 100)}%`);
   } catch (e6) {
-    console.log(`[BidOptimization] v152: \u8FDB\u5316\u53C2\u6570\u83B7\u53D6\u5931\u8D25\uFF0C\u4F7F\u7528\u9ED8\u8BA4\u503C: ${e6.message}`);
+    console.log(`[BidOptimization] v164: \u81EA\u9002\u5E94\u53C2\u6570\u83B7\u53D6\u5931\u8D25\uFF0C\u4F7F\u7528\u9ED8\u8BA4\u503C: ${e6.message}`);
   }
   const currentDate = /* @__PURE__ */ new Date();
   const maxBidLimit = config2.maxBid || 5;
@@ -136327,9 +137023,9 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
         console.log(`[BidOptimization] v163: Campaign ${campaign.id} \u5B89\u5168\u8B66\u544A: ${safetyCheck.warnings.join("\uFF1B")}`);
       }
     }
-    const keywords5 = await getKeywordsByCampaignId(campaign.id);
+    const keywords6 = await getKeywordsByCampaignId(campaign.id);
     const keywordTargets = [];
-    for (const keyword of keywords5) {
+    for (const keyword of keywords6) {
       if (keyword.keywordStatus !== "enabled") continue;
       const currentBid = parseFloat(keyword.bid || "0");
       if (currentBid <= 0) continue;
@@ -136375,7 +137071,7 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
           console.log(`[BidOptimization] v163: \u6E10\u8FDB\u5F0F\u7ADE\u4EF7 - \u5173\u952E\u8BCD${result.targetId}: \u7B97\u6CD5\u76EE\u6807$${result.newBid.toFixed(2)} \u2192 \u6E10\u8FDB$${finalBid.toFixed(2)} (\u7F6E\u4FE1\u5EA6=${gradualResult.dataConfidence}, \u8D8B\u52BF=${gradualResult.trendDirection})`);
         }
         if (Math.abs(finalBid - result.previousBid) > 0.01) {
-          const keyword = keywords5.find((k5) => k5.id === result.targetId);
+          const keyword = keywords6.find((k5) => k5.id === result.targetId);
           const adjustment = {
             keywordId: result.targetId,
             keywordText: keyword?.keywordText || `\u5173\u952E\u8BCD ${result.targetId}`,
@@ -136649,8 +137345,8 @@ async function executeDaypartingOptimization(config2, campaigns6, dryRun) {
       const hourlyRule = await getHourlyRule(strategy.id, currentDayOfWeek, currentHour);
       if (!hourlyRule) continue;
       const bidMultiplier = parseFloat(hourlyRule.bidMultiplier || "1.00");
-      const keywords5 = await getKeywordsByCampaignId(campaign.id);
-      for (const keyword of keywords5) {
+      const keywords6 = await getKeywordsByCampaignId(campaign.id);
+      for (const keyword of keywords6) {
         if (keyword.keywordStatus !== "enabled") continue;
         const baseBid = parseFloat(keyword.bid || "0");
         if (baseBid <= 0) continue;
@@ -136805,12 +137501,12 @@ async function executeSearchTermAnalysis(config2, campaigns6, dryRun) {
                 const amazonCampaignId = Number(campaign.campaignId || campaign.id);
                 const matchType = term.matchTypeSuggestion || "exact";
                 const bid = 0.5;
-                const { keywords: keywords5 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+                const { keywords: keywords6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
                 const { eq: eqOp, and: andOp } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-                const existingKeywords = await dbInstance.select({ id: keywords5.id, keywordId: keywords5.keywordId }).from(keywords5).where(andOp(
-                  eqOp(keywords5.adGroupId, adGroup.id),
-                  eqOp(keywords5.keywordText, term.searchTerm),
-                  eqOp(keywords5.matchType, matchType)
+                const existingKeywords = await dbInstance.select({ id: keywords6.id, keywordId: keywords6.keywordId }).from(keywords6).where(andOp(
+                  eqOp(keywords6.adGroupId, adGroup.id),
+                  eqOp(keywords6.keywordText, term.searchTerm),
+                  eqOp(keywords6.matchType, matchType)
                 )).limit(5);
                 if (existingKeywords.length > 0) {
                   if (existingKeywords.length > 1) {
@@ -136819,7 +137515,7 @@ async function executeSearchTermAnalysis(config2, campaigns6, dryRun) {
                     const toDelete = withId.length > 0 ? withoutId : withoutId.slice(1);
                     for (const dup of toDelete) {
                       try {
-                        await dbInstance.delete(keywords5).where(eqOp(keywords5.id, dup.id));
+                        await dbInstance.delete(keywords6).where(eqOp(keywords6.id, dup.id));
                         console.log(`[SearchTermAnalysis] \u{1F9F9} \u6E05\u7406\u91CD\u590D\u5173\u952E\u8BCD: id=${dup.id} "${term.searchTerm}" (keywordId=${dup.keywordId})`);
                       } catch (delErr) {
                         console.warn(`[SearchTermAnalysis] \u6E05\u7406\u91CD\u590D\u5173\u952E\u8BCD\u5931\u8D25: id=${dup.id}: ${delErr.message}`);
@@ -136828,7 +137524,7 @@ async function executeSearchTermAnalysis(config2, campaigns6, dryRun) {
                   }
                   console.log(`[SearchTermAnalysis] \u23ED\uFE0F \u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7\u521B\u5EFA: "${term.searchTerm}" (${matchType}) id=${existingKeywords[0].id}, keywordId=${existingKeywords[0].keywordId}`);
                 } else {
-                  const insertResult = await dbInstance.insert(keywords5).values({
+                  const insertResult = await dbInstance.insert(keywords6).values({
                     adGroupId: adGroup.id,
                     keywordText: term.searchTerm,
                     matchType,
@@ -137033,8 +137729,8 @@ async function executeKeywordStatusChanges(config2, campaigns6, dryRun) {
       } catch (e6) {
         console.log(`[KeywordStatus] v163: Campaign ${campaign.id} \u65F6\u95F4\u8870\u51CF\u6570\u636E\u83B7\u53D6\u5931\u8D25: ${e6.message}`);
       }
-      const keywords5 = await getKeywordsByCampaignId(campaign.id);
-      for (const keyword of keywords5) {
+      const keywords6 = await getKeywordsByCampaignId(campaign.id);
+      for (const keyword of keywords6) {
         const spend = parseFloat(keyword.spend || "0");
         const sales = parseFloat(keyword.sales || "0");
         const clicks = keyword.clicks || 0;
@@ -137961,8 +138657,8 @@ async function getOptimizationTargetSummary(targetId) {
   const campaigns6 = await getCampaignsByPerformanceGroupId(targetId);
   let keywordsCount = 0;
   for (const campaign of campaigns6) {
-    const keywords5 = await getKeywordsByCampaignId(campaign.id);
-    keywordsCount += keywords5.length;
+    const keywords6 = await getKeywordsByCampaignId(campaign.id);
+    keywordsCount += keywords6.length;
   }
   const dryRunResult = await executeOptimizationTarget(targetId, { dryRun: true, forceExecution: true });
   return {
@@ -137999,6 +138695,7 @@ var init_optimizationTargetEngine = __esm({
     init_campaignLifecycleService();
     init_timeDecayWeightedDataService();
     init_gradualOptimizationEngine();
+    init_selfEvolutionEngine();
     marketplaceCache = /* @__PURE__ */ new Map();
   }
 });
@@ -139225,9 +139922,9 @@ async function generateAIAnalysisWithSuggestions(campaignId) {
   let allKeywords = [];
   let allProductTargets = [];
   for (const adGroup of adGroups3) {
-    const keywords5 = await getKeywordsByAdGroupId(adGroup.id);
+    const keywords6 = await getKeywordsByAdGroupId(adGroup.id);
     const productTargets2 = await getProductTargetsByAdGroupId(adGroup.id);
-    allKeywords.push(...keywords5.map((k5) => ({ ...k5, adGroupName: adGroup.adGroupName })));
+    allKeywords.push(...keywords6.map((k5) => ({ ...k5, adGroupName: adGroup.adGroupName })));
     allProductTargets.push(...productTargets2.map((pt3) => ({ ...pt3, adGroupName: adGroup.adGroupName })));
   }
   const searchTerms4 = await getSearchTermsByCampaignId(campaignId);
@@ -238435,7 +239132,7 @@ var require_keyword = __commonJS({
       strict: ["implements", "interface", "let", "package", "private", "protected", "public", "static", "yield"],
       strictBind: ["eval", "arguments"]
     };
-    var keywords5 = new Set(reservedWords3.keyword);
+    var keywords6 = new Set(reservedWords3.keyword);
     var reservedWordsStrictSet = new Set(reservedWords3.strict);
     var reservedWordsStrictBindSet = new Set(reservedWords3.strictBind);
     function isReservedWord(word, inModule) {
@@ -238451,7 +239148,7 @@ var require_keyword = __commonJS({
       return isStrictReservedWord(word, inModule) || isStrictBindOnlyReservedWord(word);
     }
     function isKeyword(word) {
-      return keywords5.has(word);
+      return keywords6.has(word);
     }
   }
 });
@@ -251020,7 +251717,7 @@ var require_lib8 = __commonJS({
       strict: ["implements", "interface", "let", "package", "private", "protected", "public", "static", "yield"],
       strictBind: ["eval", "arguments"]
     };
-    var keywords5 = new Set(reservedWords3.keyword);
+    var keywords6 = new Set(reservedWords3.keyword);
     var reservedWordsStrictSet = new Set(reservedWords3.strict);
     var reservedWordsStrictBindSet = new Set(reservedWords3.strictBind);
     function isReservedWord(word, inModule) {
@@ -251036,7 +251733,7 @@ var require_lib8 = __commonJS({
       return isStrictReservedWord(word, inModule) || isStrictBindOnlyReservedWord(word);
     }
     function isKeyword(word) {
-      return keywords5.has(word);
+      return keywords6.has(word);
     }
     function isIteratorStart(current, next, next2) {
       return current === 64 && next === 64 && isIdentifierStart(next2);
@@ -335072,36 +335769,47 @@ init_intelligentBudgetAllocationService();
 
 // server/goalProgressAlgorithm.ts
 var STRATEGY_WEIGHTS = {
-  // 激进增长：侧重销售增长趋势和曝光
-  "aggressive-growth": { coreMetric: 25, trend: 35, budgetEfficiency: 15, conversionEfficiency: 25 },
-  // 平衡增长：四维度均衡
-  "balanced": { coreMetric: 30, trend: 25, budgetEfficiency: 20, conversionEfficiency: 25 },
-  // 利润优先：侧重ACoS达成和转化效率
-  "profit-focused": { coreMetric: 40, trend: 15, budgetEfficiency: 20, conversionEfficiency: 25 },
-  // 旺季冲刺：侧重销售额增长
-  "seasonal-boost": { coreMetric: 20, trend: 40, budgetEfficiency: 15, conversionEfficiency: 25 },
-  // 品牌防御：侧重核心指标稳定和预算控制
-  "brand-defense": { coreMetric: 35, trend: 15, budgetEfficiency: 25, conversionEfficiency: 25 }
+  "aggressive-growth": { coreMetric: 20, trend: 30, budgetEfficiency: 10, conversionEfficiency: 20, gradualProgress: 20 },
+  "balanced": { coreMetric: 25, trend: 20, budgetEfficiency: 15, conversionEfficiency: 20, gradualProgress: 20 },
+  "profit-focused": { coreMetric: 35, trend: 10, budgetEfficiency: 15, conversionEfficiency: 20, gradualProgress: 20 },
+  "seasonal-boost": { coreMetric: 15, trend: 35, budgetEfficiency: 10, conversionEfficiency: 20, gradualProgress: 20 },
+  "brand-defense": { coreMetric: 30, trend: 10, budgetEfficiency: 20, conversionEfficiency: 20, gradualProgress: 20 }
 };
-var DEFAULT_WEIGHTS = { coreMetric: 30, trend: 25, budgetEfficiency: 20, conversionEfficiency: 25 };
+var DEFAULT_WEIGHTS = { coreMetric: 25, trend: 20, budgetEfficiency: 15, conversionEfficiency: 20, gradualProgress: 20 };
 function getWeights(strategyTemplateId) {
   if (!strategyTemplateId) return DEFAULT_WEIGHTS;
   return STRATEGY_WEIGHTS[strategyTemplateId] || DEFAULT_WEIGHTS;
 }
-function calculateCoreMetricScore(config2, metrics) {
+function getConfidenceMultiplier(confidence) {
+  switch (confidence) {
+    case "high":
+      return 1;
+    case "medium":
+      return 0.9;
+    case "low":
+      return 0.75;
+    case "very_low":
+      return 0.6;
+    default:
+      return 0.8;
+  }
+}
+function calculateCoreMetricScore(config2, metrics, timeWeighted) {
   const { optimizationGoal, targetAcos, targetRoas } = config2;
   if (metrics.totalSpend < 0.5 && metrics.totalSales < 0.5) {
     return { score: 0, detail: "\u6570\u636E\u4E0D\u8DB3\uFF0C\u6682\u65E0\u6CD5\u8BC4\u4F30" };
   }
+  const effectiveAcos = timeWeighted ? timeWeighted.weightedAcos : metrics.avgAcos;
+  const effectiveRoas = timeWeighted ? timeWeighted.weightedRoas : metrics.avgRoas;
+  const dataSource = timeWeighted ? "\u65F6\u95F4\u8870\u51CF\u52A0\u6743" : "\u7B80\u5355\u5E73\u5747";
   if ((optimizationGoal === "target_acos" || targetAcos) && targetAcos && targetAcos > 0) {
-    const actualAcos = metrics.avgAcos;
-    if (actualAcos <= 0 && metrics.totalSales > 0) {
-      return { score: 100, detail: `\u5B8C\u7F8E\uFF1A\u6709\u9500\u552E\u65E0\u82B1\u8D39\uFF0CACoS=0%\uFF08\u76EE\u6807\u2264${targetAcos}%\uFF09` };
+    if (effectiveAcos <= 0 && metrics.totalSales > 0) {
+      return { score: 100, detail: `\u5B8C\u7F8E\uFF1A\u6709\u9500\u552E\u65E0\u82B1\u8D39\uFF0CACoS=0%\uFF08\u76EE\u6807\u2264${targetAcos}%\uFF09[${dataSource}]` };
     }
-    if (actualAcos <= 0) {
+    if (effectiveAcos <= 0) {
       return { score: 0, detail: `\u65E0\u6709\u6548\u6570\u636E\uFF08\u76EE\u6807ACoS\u2264${targetAcos}%\uFF09` };
     }
-    const ratio = targetAcos / actualAcos;
+    const ratio = targetAcos / effectiveAcos;
     let score2;
     if (ratio >= 1) {
       score2 = 100;
@@ -335114,15 +335822,14 @@ function calculateCoreMetricScore(config2, metrics) {
     }
     return {
       score: Math.round(score2),
-      detail: `\u5B9E\u9645ACoS ${actualAcos.toFixed(1)}% / \u76EE\u6807\u2264${targetAcos}%\uFF08\u8FBE\u6210\u7387${(ratio * 100).toFixed(0)}%\uFF09`
+      detail: `${dataSource}ACoS ${effectiveAcos.toFixed(1)}% / \u76EE\u6807\u2264${targetAcos}%\uFF08\u8FBE\u6210\u7387${(ratio * 100).toFixed(0)}%\uFF09`
     };
   }
   if ((optimizationGoal === "target_roas" || targetRoas) && targetRoas && targetRoas > 0) {
-    const actualRoas = metrics.avgRoas;
-    if (actualRoas <= 0) {
+    if (effectiveRoas <= 0) {
       return { score: 5, detail: `ROAS=0\uFF08\u76EE\u6807\u2265${targetRoas}\uFF09` };
     }
-    const ratio = actualRoas / targetRoas;
+    const ratio = effectiveRoas / targetRoas;
     let score2;
     if (ratio >= 1) {
       score2 = 100;
@@ -335135,11 +335842,11 @@ function calculateCoreMetricScore(config2, metrics) {
     }
     return {
       score: Math.round(score2),
-      detail: `\u5B9E\u9645ROAS ${actualRoas.toFixed(2)} / \u76EE\u6807\u2265${targetRoas}\uFF08\u8FBE\u6210\u7387${(ratio * 100).toFixed(0)}%\uFF09`
+      detail: `${dataSource}ROAS ${effectiveRoas.toFixed(2)} / \u76EE\u6807\u2265${targetRoas}\uFF08\u8FBE\u6210\u7387${(ratio * 100).toFixed(0)}%\uFF09`
     };
   }
   if (optimizationGoal === "maximize_sales") {
-    const roas2 = metrics.avgRoas;
+    const roas2 = effectiveRoas;
     let score2;
     if (roas2 >= 3) score2 = 100;
     else if (roas2 >= 2) score2 = 80 + (roas2 - 2) * 20;
@@ -335148,7 +335855,7 @@ function calculateCoreMetricScore(config2, metrics) {
     else score2 = 5;
     return {
       score: Math.round(score2),
-      detail: `ROAS ${roas2.toFixed(2)}\uFF08\u9500\u552E\u6700\u5927\u5316\u6A21\u5F0F\uFF0CROAS\u22652\u4E3A\u826F\u597D\uFF09`
+      detail: `${dataSource}ROAS ${roas2.toFixed(2)}\uFF08\u9500\u552E\u6700\u5927\u5316\u6A21\u5F0F\uFF09`
     };
   }
   if (optimizationGoal === "daily_spend_limit" || optimizationGoal === "daily_cost") {
@@ -335156,8 +335863,7 @@ function calculateCoreMetricScore(config2, metrics) {
     if (dailyLimit <= 0) {
       return { score: 50, detail: "\u672A\u8BBE\u7F6E\u82B1\u8D39\u4E0A\u9650\u76EE\u6807" };
     }
-    const daysActive = Math.max(1, 30);
-    const avgDailySpend = metrics.totalSpend / daysActive;
+    const avgDailySpend = timeWeighted ? timeWeighted.weightedDailySpend : metrics.totalSpend / Math.max(1, 30);
     const ratio = avgDailySpend / dailyLimit;
     let score2;
     if (ratio <= 1 && ratio >= 0.7) {
@@ -335173,41 +335879,38 @@ function calculateCoreMetricScore(config2, metrics) {
     }
     return {
       score: Math.round(Math.min(100, Math.max(5, score2))),
-      detail: `\u65E5\u5747\u82B1\u8D39$${avgDailySpend.toFixed(2)} / \u4E0A\u9650$${dailyLimit.toFixed(2)}`
+      detail: `${dataSource}\u65E5\u5747\u82B1\u8D39$${avgDailySpend.toFixed(2)} / \u4E0A\u9650$${dailyLimit.toFixed(2)}`
     };
   }
-  const roas = metrics.avgRoas;
+  const roas = effectiveRoas;
   let score = roas >= 2 ? 80 : roas >= 1 ? 60 : Math.max(20, roas * 60);
   return {
     score: Math.round(score),
-    detail: `ROAS ${roas.toFixed(2)}\uFF08\u901A\u7528\u8BC4\u4F30\uFF09`
+    detail: `${dataSource}ROAS ${roas.toFixed(2)}\uFF08\u901A\u7528\u8BC4\u4F30\uFF09`
   };
 }
-function calculateTrendScore(trendData, config2) {
+function calculateTrendScore(trendData, config2, timeWeighted, multiWindow) {
+  if (multiWindow) {
+    return calculateMultiWindowTrendScore(multiWindow, config2, timeWeighted);
+  }
   const { before, after } = trendData;
   if (!before || !after) {
     if (after && after.days > 0 && after.totalSpend > 0) {
-      const afterRoas2 = after.totalSpend > 0 ? after.totalSales / after.totalSpend : 0;
-      const score2 = afterRoas2 >= 2 ? 70 : afterRoas2 >= 1 ? 55 : 40;
-      return { score: score2, detail: `\u65B0\u4F18\u5316\u76EE\u6807\uFF0CROAS=${afterRoas2.toFixed(2)}\uFF08\u65E0\u5386\u53F2\u5BF9\u6BD4\uFF09` };
+      const afterRoas = after.totalSpend > 0 ? after.totalSales / after.totalSpend : 0;
+      const score2 = afterRoas >= 2 ? 70 : afterRoas >= 1 ? 55 : 40;
+      return { score: score2, detail: `\u65B0\u4F18\u5316\u76EE\u6807\uFF0CROAS=${afterRoas.toFixed(2)}\uFF08\u65E0\u5386\u53F2\u5BF9\u6BD4\uFF09` };
     }
     return { score: 50, detail: "\u6570\u636E\u4E0D\u8DB3\uFF0C\u65E0\u6CD5\u8FDB\u884C\u8D8B\u52BF\u5BF9\u6BD4" };
   }
   if (before.days < 3 || after.days < 3) {
-    return { score: 50, detail: `\u6570\u636E\u5929\u6570\u4E0D\u8DB3\uFF08\u524D${before.days}\u5929/\u540E${after.days}\u5929\uFF09\uFF0C\u9700\u66F4\u591A\u6570\u636E` };
+    return { score: 50, detail: `\u6570\u636E\u5929\u6570\u4E0D\u8DB3\uFF08\u524D${before.days}\u5929/\u540E${after.days}\u5929\uFF09` };
   }
-  const beforeDailySpend = before.totalSpend / before.days;
-  const beforeDailySales = before.totalSales / before.days;
-  const beforeDailyOrders = before.totalOrders / before.days;
   const beforeAcos = before.totalSales > 0 ? before.totalSpend / before.totalSales * 100 : 999;
-  const beforeRoas = before.totalSpend > 0 ? before.totalSales / before.totalSpend : 0;
-  const beforeCvr = before.totalClicks > 0 ? before.totalOrders / before.totalClicks * 100 : 0;
-  const afterDailySpend = after.totalSpend / after.days;
-  const afterDailySales = after.totalSales / after.days;
-  const afterDailyOrders = after.totalOrders / after.days;
   const afterAcos = after.totalSales > 0 ? after.totalSpend / after.totalSales * 100 : 999;
-  const afterRoas = after.totalSpend > 0 ? after.totalSales / after.totalSpend : 0;
-  const afterCvr = after.totalClicks > 0 ? after.totalOrders / after.totalClicks * 100 : 0;
+  const beforeDailySales = before.totalSales / before.days;
+  const afterDailySales = after.totalSales / after.days;
+  const beforeDailyOrders = before.totalOrders / before.days;
+  const afterDailyOrders = after.totalOrders / after.days;
   let trendPoints = 0;
   let maxPoints = 0;
   const improvements = [];
@@ -335259,39 +335962,34 @@ function calculateTrendScore(trendData, config2) {
     trendPoints += 10;
   }
   maxPoints += 20;
-  if (beforeRoas > 0) {
-    const roasGrowth = (afterRoas - beforeRoas) / beforeRoas;
-    if (roasGrowth > 0.15) {
+  if (beforeDailyOrders > 0) {
+    const ordersGrowth = (afterDailyOrders - beforeDailyOrders) / beforeDailyOrders;
+    if (ordersGrowth > 0.15) {
       trendPoints += 20;
-      improvements.push(`ROAS\u2191${(roasGrowth * 100).toFixed(0)}%`);
-    } else if (roasGrowth > 0) {
+      improvements.push(`\u65E5\u5355\u2191${(ordersGrowth * 100).toFixed(0)}%`);
+    } else if (ordersGrowth > 0) {
       trendPoints += 15;
-      improvements.push(`ROAS\u2191${(roasGrowth * 100).toFixed(0)}%`);
-    } else if (roasGrowth > -0.1) {
+    } else if (ordersGrowth > -0.1) {
       trendPoints += 10;
-      improvements.push("ROAS\u6301\u5E73");
     } else {
       trendPoints += 3;
-      improvements.push(`ROAS\u2193${(-roasGrowth * 100).toFixed(0)}%`);
     }
-  } else if (afterRoas > 0) {
+  } else if (afterDailyOrders > 0) {
     trendPoints += 18;
-    improvements.push("ROAS\u4ECE0\u6539\u5584");
   } else {
     trendPoints += 5;
   }
   maxPoints += 20;
-  if (beforeCvr > 0) {
-    const cvrGrowth = (afterCvr - beforeCvr) / beforeCvr;
-    if (cvrGrowth > 0.1) {
+  if (timeWeighted) {
+    if (timeWeighted.trendDirection === "improving") {
       trendPoints += 20;
-      improvements.push(`CVR\u2191${(cvrGrowth * 100).toFixed(0)}%`);
-    } else if (cvrGrowth > 0) {
-      trendPoints += 15;
-    } else if (cvrGrowth > -0.1) {
-      trendPoints += 10;
+      improvements.push("\u8FD1\u671F\u8D8B\u52BF\u5411\u597D");
+    } else if (timeWeighted.trendDirection === "stable") {
+      trendPoints += 12;
+      improvements.push("\u8FD1\u671F\u8D8B\u52BF\u7A33\u5B9A");
     } else {
-      trendPoints += 3;
+      trendPoints += 4;
+      improvements.push("\u8FD1\u671F\u8D8B\u52BF\u4E0B\u884C");
     }
   } else {
     trendPoints += 10;
@@ -335300,55 +335998,148 @@ function calculateTrendScore(trendData, config2) {
   const detail = improvements.length > 0 ? improvements.join("\uFF0C") : "\u8D8B\u52BF\u6570\u636E\u8BA1\u7B97\u4E2D";
   return { score: Math.min(100, Math.max(5, score)), detail };
 }
-function calculateBudgetEfficiencyScore(config2, metrics) {
+function calculateMultiWindowTrendScore(multiWindow, config2, timeWeighted) {
+  let totalPoints = 0;
+  let maxPoints = 0;
+  const improvements = [];
+  const windows = [
+    { label: "7\u5929", data: multiWindow.recent7d },
+    { label: "14\u5929", data: multiWindow.recent14d },
+    { label: "30\u5929", data: multiWindow.recent30d },
+    { label: "60\u5929", data: multiWindow.recent60d },
+    { label: "90\u5929", data: multiWindow.recent90d }
+  ].filter((w7) => w7.data && w7.data.totalSpend > 0);
+  if (windows.length < 2) {
+    return { score: 50, detail: "\u591A\u65F6\u95F4\u7A97\u53E3\u6570\u636E\u4E0D\u8DB3" };
+  }
+  maxPoints += 40;
+  const shortWindow = windows[0];
+  const longWindow = windows[windows.length - 1];
+  if (shortWindow.data && longWindow.data && shortWindow.data.totalSales > 0 && longWindow.data.totalSales > 0) {
+    const shortAcos = shortWindow.data.totalSpend / shortWindow.data.totalSales * 100;
+    const longAcos = longWindow.data.totalSpend / longWindow.data.totalSales * 100;
+    const acosImprovement = (longAcos - shortAcos) / Math.max(longAcos, 1);
+    if (acosImprovement > 0.15) {
+      totalPoints += 40;
+      improvements.push(`\u8FD1\u671FACoS\u6BD4\u957F\u671F\u2193${(acosImprovement * 100).toFixed(0)}%`);
+    } else if (acosImprovement > 0.05) {
+      totalPoints += 30;
+      improvements.push(`\u8FD1\u671FACoS\u6539\u5584\u4E2D`);
+    } else if (acosImprovement > -0.05) {
+      totalPoints += 20;
+      improvements.push("ACoS\u8D8B\u52BF\u7A33\u5B9A");
+    } else if (acosImprovement > -0.15) {
+      totalPoints += 10;
+      improvements.push("ACoS\u8FD1\u671F\u4E0A\u5347");
+    } else {
+      totalPoints += 2;
+      improvements.push("ACoS\u8FD1\u671F\u6076\u5316");
+    }
+  } else {
+    totalPoints += 20;
+  }
+  maxPoints += 30;
+  if (shortWindow.data && longWindow.data) {
+    const shortDailySales = shortWindow.data.totalSales / Math.max(shortWindow.data.days, 1);
+    const longDailySales = longWindow.data.totalSales / Math.max(longWindow.data.days, 1);
+    if (longDailySales > 0) {
+      const salesGrowth = (shortDailySales - longDailySales) / longDailySales;
+      if (salesGrowth > 0.2) {
+        totalPoints += 30;
+        improvements.push(`\u8FD1\u671F\u65E5\u9500\u2191${(salesGrowth * 100).toFixed(0)}%`);
+      } else if (salesGrowth > 0.05) {
+        totalPoints += 22;
+      } else if (salesGrowth > -0.05) {
+        totalPoints += 15;
+      } else if (salesGrowth > -0.2) {
+        totalPoints += 8;
+      } else {
+        totalPoints += 2;
+      }
+    } else {
+      totalPoints += shortDailySales > 0 ? 25 : 10;
+    }
+  } else {
+    totalPoints += 15;
+  }
+  maxPoints += 30;
+  if (multiWindow.preOptimization && shortWindow.data) {
+    const preAcos = multiWindow.preOptimization.totalSales > 0 ? multiWindow.preOptimization.totalSpend / multiWindow.preOptimization.totalSales * 100 : 999;
+    const postAcos = shortWindow.data.totalSales > 0 ? shortWindow.data.totalSpend / shortWindow.data.totalSales * 100 : 999;
+    if (preAcos < 900 && postAcos < 900) {
+      const improvement = (preAcos - postAcos) / Math.max(preAcos, 1);
+      if (improvement > 0.2) {
+        totalPoints += 30;
+        improvements.push(`\u4F18\u5316\u540EACoS\u2193${(improvement * 100).toFixed(0)}%`);
+      } else if (improvement > 0.05) {
+        totalPoints += 22;
+        improvements.push(`\u4F18\u5316\u540E\u6709\u6539\u5584`);
+      } else if (improvement > -0.05) {
+        totalPoints += 15;
+      } else {
+        totalPoints += 5;
+        improvements.push("\u4F18\u5316\u540EACoS\u4E0A\u5347");
+      }
+    } else {
+      totalPoints += 15;
+    }
+  } else {
+    totalPoints += 15;
+  }
+  const score = maxPoints > 0 ? Math.round(totalPoints / maxPoints * 100) : 50;
+  const detail = improvements.length > 0 ? improvements.join("\uFF0C") : "\u591A\u7A97\u53E3\u8D8B\u52BF\u8BA1\u7B97\u4E2D";
+  return { score: Math.min(100, Math.max(5, score)), detail };
+}
+function calculateBudgetEfficiencyScore(config2, metrics, timeWeighted) {
   const dailyBudget = config2.dailyBudget || config2.dailySpendLimit || 0;
   if (dailyBudget <= 0) {
     if (metrics.totalSpend > 0 && metrics.totalSales > 0) {
-      const roas = metrics.avgRoas;
-      const score2 = roas >= 2 ? 80 : roas >= 1 ? 65 : 45;
-      return { score: score2, detail: `\u672A\u8BBE\u7F6E\u9884\u7B97\u4E0A\u9650\uFF0CROAS=${roas.toFixed(2)}` };
+      const roas2 = timeWeighted ? timeWeighted.weightedRoas : metrics.avgRoas;
+      const score2 = roas2 >= 2 ? 80 : roas2 >= 1 ? 65 : 45;
+      return { score: score2, detail: `\u672A\u8BBE\u7F6E\u9884\u7B97\u4E0A\u9650\uFF0CROAS=${roas2.toFixed(2)}` };
     }
     return { score: 50, detail: "\u672A\u8BBE\u7F6E\u9884\u7B97\uFF0C\u6682\u65E0\u6CD5\u8BC4\u4F30\u6548\u7387" };
   }
-  const totalBudget = dailyBudget * 30;
-  const utilizationRate = totalBudget > 0 ? metrics.totalSpend / totalBudget : 0;
+  const avgDailySpend = timeWeighted ? timeWeighted.weightedDailySpend : metrics.totalSpend / Math.max(1, timeWeighted?.effectiveDataDays || 30);
+  const dataSource = timeWeighted ? "\u52A0\u6743" : "\u5E73\u5747";
+  const utilizationRate = avgDailySpend / dailyBudget;
   let score;
   let detail;
   if (utilizationRate >= 0.75 && utilizationRate <= 1.05) {
     score = 95;
-    detail = `\u9884\u7B97\u5229\u7528\u7387${(utilizationRate * 100).toFixed(0)}%\uFF08\u6700\u4F73\u533A\u95F4\uFF09`;
+    detail = `${dataSource}\u65E5\u5747\u82B1\u8D39$${avgDailySpend.toFixed(2)}\uFF0C\u5229\u7528\u7387${(utilizationRate * 100).toFixed(0)}%\uFF08\u6700\u4F73\uFF09`;
   } else if (utilizationRate >= 0.5 && utilizationRate < 0.75) {
     score = 65 + (utilizationRate - 0.5) / 0.25 * 30;
-    detail = `\u9884\u7B97\u5229\u7528\u7387${(utilizationRate * 100).toFixed(0)}%\uFF08\u504F\u4F4E\uFF0C\u53EF\u63D0\u9AD8\u66DD\u5149\uFF09`;
+    detail = `${dataSource}\u65E5\u5747\u82B1\u8D39$${avgDailySpend.toFixed(2)}\uFF0C\u5229\u7528\u7387${(utilizationRate * 100).toFixed(0)}%\uFF08\u504F\u4F4E\uFF09`;
   } else if (utilizationRate >= 0.2 && utilizationRate < 0.5) {
     score = 35 + (utilizationRate - 0.2) / 0.3 * 30;
-    detail = `\u9884\u7B97\u5229\u7528\u7387${(utilizationRate * 100).toFixed(0)}%\uFF08\u504F\u4F4E\uFF0C\u5EFA\u8BAE\u68C0\u67E5\u7ADE\u4EF7\u6216\u5173\u952E\u8BCD\uFF09`;
+    detail = `${dataSource}\u65E5\u5747\u82B1\u8D39$${avgDailySpend.toFixed(2)}\uFF0C\u5229\u7528\u7387${(utilizationRate * 100).toFixed(0)}%\uFF08\u504F\u4F4E\uFF09`;
   } else if (utilizationRate < 0.2) {
     score = Math.max(10, utilizationRate / 0.2 * 35);
-    detail = `\u9884\u7B97\u5229\u7528\u7387${(utilizationRate * 100).toFixed(0)}%\uFF08\u6781\u4F4E\uFF0C\u5E7F\u544A\u53EF\u80FD\u672A\u6709\u6548\u6295\u653E\uFF09`;
+    detail = `${dataSource}\u65E5\u5747\u82B1\u8D39$${avgDailySpend.toFixed(2)}\uFF0C\u5229\u7528\u7387${(utilizationRate * 100).toFixed(0)}%\uFF08\u6781\u4F4E\uFF09`;
   } else if (utilizationRate <= 1.2) {
     score = 80;
-    detail = `\u9884\u7B97\u5229\u7528\u7387${(utilizationRate * 100).toFixed(0)}%\uFF08\u7565\u8D85\u9884\u7B97\uFF09`;
+    detail = `${dataSource}\u65E5\u5747\u82B1\u8D39$${avgDailySpend.toFixed(2)}\uFF0C\u5229\u7528\u7387${(utilizationRate * 100).toFixed(0)}%\uFF08\u7565\u8D85\uFF09`;
   } else {
     score = Math.max(15, 80 - (utilizationRate - 1.2) * 80);
-    detail = `\u9884\u7B97\u5229\u7528\u7387${(utilizationRate * 100).toFixed(0)}%\uFF08\u8D85\u652F\uFF0C\u9700\u8981\u63A7\u5236\u82B1\u8D39\uFF09`;
+    detail = `${dataSource}\u65E5\u5747\u82B1\u8D39$${avgDailySpend.toFixed(2)}\uFF0C\u5229\u7528\u7387${(utilizationRate * 100).toFixed(0)}%\uFF08\u8D85\u652F\uFF09`;
   }
-  if (metrics.totalSpend > 0) {
-    const spendEfficiency = metrics.totalSales / metrics.totalSpend;
-    if (spendEfficiency >= 2) score = Math.min(100, score + 5);
-    else if (spendEfficiency < 0.5) score = Math.max(10, score - 10);
-  }
+  const roas = timeWeighted ? timeWeighted.weightedRoas : metrics.avgRoas;
+  if (roas >= 2) score = Math.min(100, score + 5);
+  else if (roas < 0.5 && metrics.totalSpend > 0) score = Math.max(10, score - 10);
   return { score: Math.round(Math.min(100, Math.max(5, score))), detail };
 }
-function calculateConversionEfficiencyScore(metrics, config2) {
+function calculateConversionEfficiencyScore(metrics, config2, timeWeighted) {
   if (metrics.totalClicks < 5 || metrics.totalSpend < 1) {
-    return { score: 0, detail: "\u70B9\u51FB/\u82B1\u8D39\u6570\u636E\u4E0D\u8DB3\uFF0C\u6682\u65E0\u6CD5\u8BC4\u4F30\u8F6C\u5316\u6548\u7387" };
+    return { score: 0, detail: "\u70B9\u51FB/\u82B1\u8D39\u6570\u636E\u4E0D\u8DB3" };
   }
   let totalPoints = 0;
   let maxPoints = 0;
   const details = [];
+  const roas = timeWeighted ? timeWeighted.weightedRoas : metrics.avgRoas;
+  const cvr = timeWeighted ? timeWeighted.weightedCvr : metrics.cvr;
+  const cpc = timeWeighted ? timeWeighted.weightedCpc : metrics.cpc;
   maxPoints += 40;
-  const roas = metrics.avgRoas;
   if (roas >= 4) {
     totalPoints += 40;
     details.push(`ROAS ${roas.toFixed(2)}(\u4F18\u79C0)`);
@@ -335369,7 +336160,6 @@ function calculateConversionEfficiencyScore(metrics, config2) {
     details.push("ROAS=0");
   }
   maxPoints += 30;
-  const cvr = metrics.cvr;
   if (cvr >= 15) {
     totalPoints += 30;
     details.push(`CVR ${cvr.toFixed(1)}%`);
@@ -335385,14 +336175,13 @@ function calculateConversionEfficiencyScore(metrics, config2) {
     totalPoints += 0;
   }
   maxPoints += 30;
-  const cpc = metrics.cpc;
   if (cpc > 0 && metrics.totalOrders > 0) {
     const costPerOrder = metrics.totalSpend / metrics.totalOrders;
     const avgOrderValue = metrics.totalSales / metrics.totalOrders;
     const costRatio = avgOrderValue > 0 ? costPerOrder / avgOrderValue : 1;
     if (costRatio <= 0.15) {
       totalPoints += 30;
-      details.push(`\u5355\u5747\u5E7F\u544A\u6210\u672C\u5360\u6BD4${(costRatio * 100).toFixed(0)}%`);
+      details.push(`\u5355\u5747\u6210\u672C\u5360\u6BD4${(costRatio * 100).toFixed(0)}%`);
     } else if (costRatio <= 0.25) {
       totalPoints += 24;
     } else if (costRatio <= 0.4) {
@@ -335410,7 +336199,93 @@ function calculateConversionEfficiencyScore(metrics, config2) {
   const detail = details.join("\uFF0C") || "\u8F6C\u5316\u6570\u636E\u8BA1\u7B97\u4E2D";
   return { score: Math.min(100, Math.max(0, score)), detail };
 }
-function calculateGoalProgress(config2, metrics, trendData) {
+function calculateGradualProgressScore(config2, metrics, timeWeighted, multiWindow) {
+  const targetAcos = config2.targetAcos || 0;
+  const targetRoas = config2.targetRoas || 0;
+  if (!timeWeighted) {
+    return { score: 50, detail: "\u9700\u8981\u66F4\u591A\u6570\u636E\u8BC4\u4F30\u6E10\u8FDB\u4F18\u5316\u8FDB\u5EA6" };
+  }
+  let score = 50;
+  const details = [];
+  const confidence = timeWeighted.dataConfidence;
+  if (confidence === "high") {
+    score += 10;
+    details.push("\u6570\u636E\u5145\u8DB3");
+  } else if (confidence === "medium") {
+    score += 5;
+    details.push("\u6570\u636E\u4E2D\u7B49");
+  } else if (confidence === "low") {
+    score += 0;
+    details.push("\u6570\u636E\u504F\u5C11");
+  } else {
+    score -= 5;
+    details.push("\u6570\u636E\u6781\u5C11");
+  }
+  if (timeWeighted.trendDirection === "improving") {
+    score += 20;
+    details.push("\u6307\u6807\u6301\u7EED\u6539\u5584");
+  } else if (timeWeighted.trendDirection === "stable") {
+    score += 10;
+    details.push("\u6307\u6807\u4FDD\u6301\u7A33\u5B9A");
+  } else {
+    score -= 5;
+    details.push("\u6307\u6807\u6709\u4E0B\u884C\u8D8B\u52BF");
+  }
+  if (multiWindow) {
+    const windows = [
+      multiWindow.recent90d,
+      multiWindow.recent60d,
+      multiWindow.recent30d,
+      multiWindow.recent14d,
+      multiWindow.recent7d
+    ].filter((w7) => w7 && w7.totalSpend > 0);
+    if (windows.length >= 3) {
+      const windowAcos = windows.map((w7) => {
+        if (!w7 || w7.totalSales <= 0) return null;
+        return w7.totalSpend / w7.totalSales * 100;
+      }).filter((a4) => a4 !== null);
+      if (windowAcos.length >= 3) {
+        let improvingCount = 0;
+        for (let i4 = 1; i4 < windowAcos.length; i4++) {
+          if (windowAcos[i4] < windowAcos[i4 - 1]) improvingCount++;
+        }
+        const improvingRatio = improvingCount / (windowAcos.length - 1);
+        if (improvingRatio >= 0.7) {
+          score += 15;
+          details.push("ACoS\u5448\u6301\u7EED\u6539\u5584\u8D8B\u52BF");
+        } else if (improvingRatio >= 0.5) {
+          score += 8;
+          details.push("ACoS\u6709\u6539\u5584\u8FF9\u8C61");
+        } else {
+          score -= 5;
+          details.push("ACoS\u6539\u5584\u4E0D\u660E\u663E");
+        }
+      }
+    }
+  }
+  if (targetAcos > 0) {
+    const currentAcos = timeWeighted.weightedAcos;
+    const gap = Math.abs(currentAcos - targetAcos) / targetAcos;
+    if (currentAcos <= targetAcos) {
+      score += 10;
+      details.push("\u5DF2\u8FBE\u6210ACoS\u76EE\u6807");
+    } else if (gap < 0.2) {
+      score += 5;
+      details.push(`\u8DDD\u76EE\u6807\u5DEE\u8DDD${(gap * 100).toFixed(0)}%`);
+    } else if (gap < 0.5) {
+      score += 0;
+      details.push(`\u8DDD\u76EE\u6807\u5DEE\u8DDD${(gap * 100).toFixed(0)}%`);
+    } else {
+      score -= 5;
+      details.push(`\u8DDD\u76EE\u6807\u5DEE\u8DDD\u8F83\u5927(${(gap * 100).toFixed(0)}%)`);
+    }
+  }
+  return {
+    score: Math.min(100, Math.max(5, score)),
+    detail: details.join("\uFF0C") || "\u6E10\u8FDB\u4F18\u5316\u8BC4\u4F30\u4E2D"
+  };
+}
+function calculateGoalProgress(config2, metrics, trendData, timeWeighted, multiWindow) {
   if (config2.campaignCount === 0 && metrics.totalSpend < 0.01 && metrics.totalSales < 0.01) {
     return {
       totalScore: 0,
@@ -335420,10 +336295,12 @@ function calculateGoalProgress(config2, metrics, trendData) {
     };
   }
   const weights = getWeights(config2.strategyTemplateId);
-  const coreMetric = calculateCoreMetricScore(config2, metrics);
-  const trend = trendData ? calculateTrendScore(trendData, config2) : { score: 50, detail: "\u8D8B\u52BF\u6570\u636E\u52A0\u8F7D\u4E2D" };
-  const budgetEff = calculateBudgetEfficiencyScore(config2, metrics);
-  const convEff = calculateConversionEfficiencyScore(metrics, config2);
+  const confidenceMultiplier = timeWeighted ? getConfidenceMultiplier(timeWeighted.dataConfidence) : 0.8;
+  const coreMetric = calculateCoreMetricScore(config2, metrics, timeWeighted);
+  const trend = trendData || multiWindow ? calculateTrendScore(trendData || { before: null, after: null }, config2, timeWeighted, multiWindow) : { score: 50, detail: "\u8D8B\u52BF\u6570\u636E\u52A0\u8F7D\u4E2D" };
+  const budgetEff = calculateBudgetEfficiencyScore(config2, metrics, timeWeighted);
+  const convEff = calculateConversionEfficiencyScore(metrics, config2, timeWeighted);
+  const gradualProgress = calculateGradualProgressScore(config2, metrics, timeWeighted, multiWindow);
   const dimensions = [
     {
       name: "coreMetric",
@@ -335456,9 +336333,20 @@ function calculateGoalProgress(config2, metrics, trendData) {
       weight: weights.conversionEfficiency,
       weighted: Math.round(convEff.score * weights.conversionEfficiency / 100),
       detail: convEff.detail
+    },
+    {
+      name: "gradualProgress",
+      nameZh: "\u6E10\u8FDB\u4F18\u5316",
+      score: gradualProgress.score,
+      weight: weights.gradualProgress,
+      weighted: Math.round(gradualProgress.score * weights.gradualProgress / 100),
+      detail: gradualProgress.detail
     }
   ];
-  const totalScore = dimensions.reduce((sum2, d5) => sum2 + d5.weighted, 0);
+  let totalScore = dimensions.reduce((sum2, d5) => sum2 + d5.weighted, 0);
+  if (confidenceMultiplier < 1) {
+    totalScore = Math.round(50 + (totalScore - 50) * confidenceMultiplier);
+  }
   let level;
   if (totalScore >= 85) level = "excellent";
   else if (totalScore >= 65) level = "good";
@@ -335473,6 +336361,10 @@ function calculateGoalProgress(config2, metrics, trendData) {
   }
   if (weakDimension.score < 50 && weakDimension.score < topDimension.score - 20) {
     summary += `\uFF0C${weakDimension.nameZh}\u9700\u5173\u6CE8`;
+  }
+  if (timeWeighted) {
+    const trendLabels = { improving: "\u6301\u7EED\u6539\u5584\u4E2D", stable: "\u4FDD\u6301\u7A33\u5B9A", declining: "\u9700\u8981\u5173\u6CE8" };
+    summary += `\uFF0C\u6574\u4F53\u8D8B\u52BF${trendLabels[timeWeighted.trendDirection]}`;
   }
   return {
     totalScore: Math.min(100, Math.max(0, totalScore)),
@@ -345956,12 +346848,21 @@ var performanceGroupRouter = router({
             campaignCount: campaigns6.length
           };
           let trendData;
+          let timeWeighted;
+          let multiWindow;
           try {
-            trendData = await getGoalProgressTrendData(group.id, group.createdAt || (/* @__PURE__ */ new Date()).toISOString());
-          } catch (trendErr) {
-            console.log(`[performanceGroup.list] Trend data fetch failed for group ${group.id}:`, trendErr);
+            const [trendResult, twResult, mwResult] = await Promise.all([
+              getGoalProgressTrendData(group.id, group.createdAt || (/* @__PURE__ */ new Date()).toISOString()).catch(() => null),
+              getTimeWeightedMetricsForGoalProgress(group.id).catch(() => null),
+              getMultiWindowTrendData(group.id, group.createdAt || (/* @__PURE__ */ new Date()).toISOString()).catch(() => null)
+            ]);
+            if (trendResult) trendData = trendResult;
+            if (twResult) timeWeighted = twResult;
+            if (mwResult) multiWindow = mwResult;
+          } catch (dataErr) {
+            console.log(`[performanceGroup.list] Data fetch failed for group ${group.id}:`, dataErr);
           }
-          goalProgressResult = calculateGoalProgress(groupConfig, metrics, trendData);
+          goalProgressResult = calculateGoalProgress(groupConfig, metrics, trendData, timeWeighted, multiWindow);
         } catch (progressErr) {
           console.error(`[performanceGroup.list] Goal progress calc failed for group ${group.id}:`, progressErr);
         }
@@ -346942,9 +347843,9 @@ var campaignRouter = router({
     let totalKeywords = 0;
     let topKeywords = [];
     for (const adGroup of adGroups3) {
-      const keywords5 = await getKeywordsByAdGroupId(adGroup.id);
-      totalKeywords += keywords5.length;
-      topKeywords.push(...keywords5.filter((k5) => parseFloat(k5.sales || "0") > 0));
+      const keywords6 = await getKeywordsByAdGroupId(adGroup.id);
+      totalKeywords += keywords6.length;
+      topKeywords.push(...keywords6.filter((k5) => parseFloat(k5.sales || "0") > 0));
     }
     topKeywords.sort((a4, b6) => parseFloat(b6.sales || "0") - parseFloat(a4.sales || "0"));
     topKeywords = topKeywords.slice(0, 5);
@@ -347128,13 +348029,13 @@ var adGroupRouter = router({
   getWithKeywordStats: protectedProcedure.input(external_exports.object({ id: external_exports.number() })).query(async ({ input }) => {
     const adGroup = await getAdGroupById(input.id);
     if (!adGroup) return null;
-    const keywords5 = await getKeywordsByAdGroupId(input.id);
+    const keywords6 = await getKeywordsByAdGroupId(input.id);
     const productTargets2 = await getProductTargetsByAdGroupId(input.id);
     return {
       ...adGroup,
-      keywordCount: keywords5.length,
+      keywordCount: keywords6.length,
       productTargetCount: productTargets2.length,
-      keywords: keywords5.slice(0, 10),
+      keywords: keywords6.slice(0, 10),
       // 返回前10个关键词
       productTargets: productTargets2.slice(0, 10)
       // 返回前10个商品定位
@@ -348006,8 +348907,8 @@ var optimizationRouter = router({
     for (const campaign of campaigns6) {
       const adGroups3 = await getAdGroupsByCampaignId(campaign.id);
       for (const adGroup of adGroups3) {
-        const keywords5 = await getKeywordsByAdGroupId(adGroup.id);
-        const keywordTargets = keywords5.map((k5) => ({
+        const keywords6 = await getKeywordsByAdGroupId(adGroup.id);
+        const keywordTargets = keywords6.map((k5) => ({
           id: k5.id,
           type: "keyword",
           currentBid: parseFloat(k5.bid),

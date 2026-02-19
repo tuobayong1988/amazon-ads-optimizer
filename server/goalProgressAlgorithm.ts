@@ -1,15 +1,20 @@
 /**
  * goalProgressAlgorithm.ts - 多维度目标达成度科学评分算法
  * 
- * v162: 全新的多维度加权评分系统，替代原有的简单ACoS比率计算
+ * v162: 全新的多维度加权评分系统
+ * v164: 与v163渐进式+时间衰减逻辑完全对齐
+ *   - 核心指标使用时间衰减加权ACoS/ROAS（近期数据权重更高）
+ *   - 趋势改善使用多时间窗口对比（7天 vs 30天 vs 60天）
+ *   - 预算效率使用时间衰减加权日均花费
+ *   - 新增"渐进式优化进度"子维度
+ *   - 引入数据置信度修正
  * 
- * 四大维度：
- * 1. 核心指标达成度 (Core Metric Achievement) - ACoS/ROAS与目标值的对比
- * 2. 趋势改善度 (Trend Improvement) - 加入优化目标后的表现改善
- * 3. 预算效率 (Budget Efficiency) - 预算利用率和花费合理性
- * 4. 转化效率 (Conversion Efficiency) - ROAS、CVR、CPC综合评估
- * 
- * 不同策略模板使用不同权重分配
+ * 五大维度：
+ * 1. 核心指标达成度 - 时间衰减加权ACoS/ROAS与目标值的对比
+ * 2. 趋势改善度 - 多时间窗口渐进式改善评估
+ * 3. 预算效率 - 时间衰减加权预算利用率
+ * 4. 转化效率 - ROAS、CVR、CPC综合评估
+ * 5. 渐进优化进度 - 优化是否在稳步接近目标（新增）
  */
 
 // ==================== 类型定义 ====================
@@ -20,17 +25,50 @@ export interface PerformanceMetrics {
   totalOrders: number;
   totalClicks: number;
   totalImpressions: number;
-  avgAcos: number;  // 百分比，如 25.5 表示 25.5%
+  avgAcos: number;
   avgRoas: number;
-  ctr: number;      // 百分比
-  cvr: number;      // 百分比
+  ctr: number;
+  cvr: number;
   cpc: number;
+}
+
+/** v164: 时间衰减加权指标（从timeDecayWeightedDataService获取） */
+export interface TimeWeightedMetrics {
+  weightedAcos: number;
+  weightedRoas: number;
+  weightedDailySpend: number;
+  weightedDailySales: number;
+  weightedDailyOrders: number;
+  weightedCvr: number;
+  weightedCpc: number;
+  dataConfidence: 'high' | 'medium' | 'low' | 'very_low';
+  trendDirection: 'improving' | 'stable' | 'declining';
+  effectiveDataDays: number;
+}
+
+/** v164: 多时间窗口趋势数据 */
+export interface MultiWindowTrendData {
+  recent7d: WindowMetrics | null;   // 最近7天
+  recent14d: WindowMetrics | null;  // 最近14天
+  recent30d: WindowMetrics | null;  // 最近30天
+  recent60d: WindowMetrics | null;  // 最近60天
+  recent90d: WindowMetrics | null;  // 最近90天
+  preOptimization: WindowMetrics | null; // 加入优化目标前的数据
+}
+
+export interface WindowMetrics {
+  days: number;
+  totalSpend: number;
+  totalSales: number;
+  totalOrders: number;
+  totalClicks: number;
+  totalImpressions: number;
 }
 
 export interface GroupConfig {
   id: number;
   optimizationGoal: string;
-  targetAcos: number | null;    // 百分比
+  targetAcos: number | null;
   targetRoas: number | null;
   dailyBudget: number | null;
   dailySpendLimit: number | null;
@@ -64,105 +102,108 @@ export interface TrendData {
 export interface DimensionScore {
   name: string;
   nameZh: string;
-  score: number;       // 0-100
-  weight: number;      // 权重百分比
-  weighted: number;    // 加权后得分
-  detail: string;      // 详细说明
+  score: number;
+  weight: number;
+  weighted: number;
+  detail: string;
 }
 
 export interface GoalProgressResult {
-  totalScore: number;           // 总分 0-100
-  dimensions: DimensionScore[]; // 各维度得分明细
-  summary: string;              // 总结说明
-  level: 'excellent' | 'good' | 'fair' | 'poor'; // 等级
+  totalScore: number;
+  dimensions: DimensionScore[];
+  summary: string;
+  level: 'excellent' | 'good' | 'fair' | 'poor';
 }
 
 // ==================== 策略模板权重配置 ====================
 
 interface WeightConfig {
-  coreMetric: number;      // 核心指标达成度权重
-  trend: number;           // 趋势改善度权重
-  budgetEfficiency: number; // 预算效率权重
-  conversionEfficiency: number; // 转化效率权重
+  coreMetric: number;
+  trend: number;
+  budgetEfficiency: number;
+  conversionEfficiency: number;
+  gradualProgress: number;  // v164新增
 }
 
-/**
- * 不同策略模板的权重分配
- * 所有权重之和 = 100
- */
 const STRATEGY_WEIGHTS: Record<string, WeightConfig> = {
-  // 激进增长：侧重销售增长趋势和曝光
-  'aggressive-growth': { coreMetric: 25, trend: 35, budgetEfficiency: 15, conversionEfficiency: 25 },
-  // 平衡增长：四维度均衡
-  'balanced': { coreMetric: 30, trend: 25, budgetEfficiency: 20, conversionEfficiency: 25 },
-  // 利润优先：侧重ACoS达成和转化效率
-  'profit-focused': { coreMetric: 40, trend: 15, budgetEfficiency: 20, conversionEfficiency: 25 },
-  // 旺季冲刺：侧重销售额增长
-  'seasonal-boost': { coreMetric: 20, trend: 40, budgetEfficiency: 15, conversionEfficiency: 25 },
-  // 品牌防御：侧重核心指标稳定和预算控制
-  'brand-defense': { coreMetric: 35, trend: 15, budgetEfficiency: 25, conversionEfficiency: 25 },
+  'aggressive-growth': { coreMetric: 20, trend: 30, budgetEfficiency: 10, conversionEfficiency: 20, gradualProgress: 20 },
+  'balanced':          { coreMetric: 25, trend: 20, budgetEfficiency: 15, conversionEfficiency: 20, gradualProgress: 20 },
+  'profit-focused':    { coreMetric: 35, trend: 10, budgetEfficiency: 15, conversionEfficiency: 20, gradualProgress: 20 },
+  'seasonal-boost':    { coreMetric: 15, trend: 35, budgetEfficiency: 10, conversionEfficiency: 20, gradualProgress: 20 },
+  'brand-defense':     { coreMetric: 30, trend: 10, budgetEfficiency: 20, conversionEfficiency: 20, gradualProgress: 20 },
 };
 
-// 默认权重（无策略模板时使用）
-const DEFAULT_WEIGHTS: WeightConfig = { coreMetric: 30, trend: 25, budgetEfficiency: 20, conversionEfficiency: 25 };
+const DEFAULT_WEIGHTS: WeightConfig = { coreMetric: 25, trend: 20, budgetEfficiency: 15, conversionEfficiency: 20, gradualProgress: 20 };
 
 function getWeights(strategyTemplateId: string | null): WeightConfig {
   if (!strategyTemplateId) return DEFAULT_WEIGHTS;
   return STRATEGY_WEIGHTS[strategyTemplateId] || DEFAULT_WEIGHTS;
 }
 
-// ==================== 维度1: 核心指标达成度 ====================
+// ==================== 数据置信度修正系数 ====================
 
-function calculateCoreMetricScore(config: GroupConfig, metrics: PerformanceMetrics): { score: number; detail: string } {
+function getConfidenceMultiplier(confidence: string): number {
+  switch (confidence) {
+    case 'high': return 1.0;
+    case 'medium': return 0.9;
+    case 'low': return 0.75;
+    case 'very_low': return 0.6;
+    default: return 0.8;
+  }
+}
+
+// ==================== 维度1: 核心指标达成度（v164: 使用时间衰减加权指标） ====================
+
+function calculateCoreMetricScore(
+  config: GroupConfig,
+  metrics: PerformanceMetrics,
+  timeWeighted?: TimeWeightedMetrics
+): { score: number; detail: string } {
   const { optimizationGoal, targetAcos, targetRoas } = config;
   
-  // 数据不足
   if (metrics.totalSpend < 0.5 && metrics.totalSales < 0.5) {
     return { score: 0, detail: '数据不足，暂无法评估' };
   }
   
+  // v164: 优先使用时间衰减加权指标（近期数据权重更高）
+  const effectiveAcos = timeWeighted ? timeWeighted.weightedAcos : metrics.avgAcos;
+  const effectiveRoas = timeWeighted ? timeWeighted.weightedRoas : metrics.avgRoas;
+  const dataSource = timeWeighted ? '时间衰减加权' : '简单平均';
+  
   // 目标ACoS
   if ((optimizationGoal === 'target_acos' || targetAcos) && targetAcos && targetAcos > 0) {
-    const actualAcos = metrics.avgAcos;
-    if (actualAcos <= 0 && metrics.totalSales > 0) {
-      return { score: 100, detail: `完美：有销售无花费，ACoS=0%（目标≤${targetAcos}%）` };
+    if (effectiveAcos <= 0 && metrics.totalSales > 0) {
+      return { score: 100, detail: `完美：有销售无花费，ACoS=0%（目标≤${targetAcos}%）[${dataSource}]` };
     }
-    if (actualAcos <= 0) {
+    if (effectiveAcos <= 0) {
       return { score: 0, detail: `无有效数据（目标ACoS≤${targetAcos}%）` };
     }
     
-    // ACoS达成率计算：目标/实际，达到目标=100分
-    // 使用平滑曲线：达标100分，超标按比例递减但不会过于陡峭
-    const ratio = targetAcos / actualAcos;
+    const ratio = targetAcos / effectiveAcos;
     let score: number;
     if (ratio >= 1) {
-      // 达标或优于目标：100分，最高不超过100
       score = 100;
     } else if (ratio >= 0.8) {
-      // 接近目标（80%-100%）：线性映射到 70-100
       score = 70 + (ratio - 0.8) / 0.2 * 30;
     } else if (ratio >= 0.5) {
-      // 中等偏差（50%-80%）：线性映射到 30-70
       score = 30 + (ratio - 0.5) / 0.3 * 40;
     } else {
-      // 严重偏差（<50%）：线性映射到 5-30
       score = Math.max(5, ratio / 0.5 * 30);
     }
     
     return {
       score: Math.round(score),
-      detail: `实际ACoS ${actualAcos.toFixed(1)}% / 目标≤${targetAcos}%（达成率${(ratio * 100).toFixed(0)}%）`
+      detail: `${dataSource}ACoS ${effectiveAcos.toFixed(1)}% / 目标≤${targetAcos}%（达成率${(ratio * 100).toFixed(0)}%）`
     };
   }
   
   // 目标ROAS
   if ((optimizationGoal === 'target_roas' || targetRoas) && targetRoas && targetRoas > 0) {
-    const actualRoas = metrics.avgRoas;
-    if (actualRoas <= 0) {
+    if (effectiveRoas <= 0) {
       return { score: 5, detail: `ROAS=0（目标≥${targetRoas}）` };
     }
     
-    const ratio = actualRoas / targetRoas;
+    const ratio = effectiveRoas / targetRoas;
     let score: number;
     if (ratio >= 1) {
       score = 100;
@@ -176,13 +217,13 @@ function calculateCoreMetricScore(config: GroupConfig, metrics: PerformanceMetri
     
     return {
       score: Math.round(score),
-      detail: `实际ROAS ${actualRoas.toFixed(2)} / 目标≥${targetRoas}（达成率${(ratio * 100).toFixed(0)}%）`
+      detail: `${dataSource}ROAS ${effectiveRoas.toFixed(2)} / 目标≥${targetRoas}（达成率${(ratio * 100).toFixed(0)}%）`
     };
   }
   
   // 最大化销售额
   if (optimizationGoal === 'maximize_sales') {
-    const roas = metrics.avgRoas;
+    const roas = effectiveRoas;
     let score: number;
     if (roas >= 3) score = 100;
     else if (roas >= 2) score = 80 + (roas - 2) * 20;
@@ -192,7 +233,7 @@ function calculateCoreMetricScore(config: GroupConfig, metrics: PerformanceMetri
     
     return {
       score: Math.round(score),
-      detail: `ROAS ${roas.toFixed(2)}（销售最大化模式，ROAS≥2为良好）`
+      detail: `${dataSource}ROAS ${roas.toFixed(2)}（销售最大化模式）`
     };
   }
   
@@ -202,51 +243,55 @@ function calculateCoreMetricScore(config: GroupConfig, metrics: PerformanceMetri
     if (dailyLimit <= 0) {
       return { score: 50, detail: '未设置花费上限目标' };
     }
-    // 假设campaignCount天数据，计算日均花费
-    const daysActive = Math.max(1, 30); // 假设30天窗口
-    const avgDailySpend = metrics.totalSpend / daysActive;
+    // v164: 使用时间衰减加权日均花费
+    const avgDailySpend = timeWeighted ? timeWeighted.weightedDailySpend : (metrics.totalSpend / Math.max(1, 30));
     const ratio = avgDailySpend / dailyLimit;
     
     let score: number;
     if (ratio <= 1 && ratio >= 0.7) {
-      // 花费在70%-100%之间：最佳利用
       score = 100;
     } else if (ratio < 0.7 && ratio >= 0.3) {
-      // 花费偏低：预算未充分利用
       score = 60 + (ratio - 0.3) / 0.4 * 40;
     } else if (ratio < 0.3) {
       score = Math.max(20, ratio / 0.3 * 60);
     } else if (ratio <= 1.2) {
-      // 略微超支
       score = 80;
     } else {
-      // 严重超支
       score = Math.max(10, 80 - (ratio - 1.2) * 100);
     }
     
     return {
       score: Math.round(Math.min(100, Math.max(5, score))),
-      detail: `日均花费$${avgDailySpend.toFixed(2)} / 上限$${dailyLimit.toFixed(2)}`
+      detail: `${dataSource}日均花费$${avgDailySpend.toFixed(2)} / 上限$${dailyLimit.toFixed(2)}`
     };
   }
   
-  // 兜底：基于ROAS的通用评估
-  const roas = metrics.avgRoas;
+  // 兜底
+  const roas = effectiveRoas;
   let score = roas >= 2 ? 80 : roas >= 1 ? 60 : Math.max(20, roas * 60);
   return {
     score: Math.round(score),
-    detail: `ROAS ${roas.toFixed(2)}（通用评估）`
+    detail: `${dataSource}ROAS ${roas.toFixed(2)}（通用评估）`
   };
 }
 
-// ==================== 维度2: 趋势改善度 ====================
+// ==================== 维度2: 趋势改善度（v164: 多时间窗口对比） ====================
 
-function calculateTrendScore(trendData: TrendData, config: GroupConfig): { score: number; detail: string } {
+function calculateTrendScore(
+  trendData: TrendData,
+  config: GroupConfig,
+  timeWeighted?: TimeWeightedMetrics,
+  multiWindow?: MultiWindowTrendData
+): { score: number; detail: string } {
+  // v164: 如果有多时间窗口数据，使用更科学的评估
+  if (multiWindow) {
+    return calculateMultiWindowTrendScore(multiWindow, config, timeWeighted);
+  }
+  
+  // 兼容旧的前后对比逻辑
   const { before, after } = trendData;
   
-  // 没有前后对比数据
   if (!before || !after) {
-    // 如果只有after数据（新创建的优化目标），给予基础分
     if (after && after.days > 0 && after.totalSpend > 0) {
       const afterRoas = after.totalSpend > 0 ? after.totalSales / after.totalSpend : 0;
       const score = afterRoas >= 2 ? 70 : afterRoas >= 1 ? 55 : 40;
@@ -255,32 +300,22 @@ function calculateTrendScore(trendData: TrendData, config: GroupConfig): { score
     return { score: 50, detail: '数据不足，无法进行趋势对比' };
   }
   
-  // 前后数据都不足
   if (before.days < 3 || after.days < 3) {
-    return { score: 50, detail: `数据天数不足（前${before.days}天/后${after.days}天），需更多数据` };
+    return { score: 50, detail: `数据天数不足（前${before.days}天/后${after.days}天）` };
   }
   
-  // 计算日均指标进行对比
-  const beforeDailySpend = before.totalSpend / before.days;
-  const beforeDailySales = before.totalSales / before.days;
-  const beforeDailyOrders = before.totalOrders / before.days;
   const beforeAcos = before.totalSales > 0 ? (before.totalSpend / before.totalSales) * 100 : 999;
-  const beforeRoas = before.totalSpend > 0 ? before.totalSales / before.totalSpend : 0;
-  const beforeCvr = before.totalClicks > 0 ? (before.totalOrders / before.totalClicks) * 100 : 0;
-  
-  const afterDailySpend = after.totalSpend / after.days;
-  const afterDailySales = after.totalSales / after.days;
-  const afterDailyOrders = after.totalOrders / after.days;
   const afterAcos = after.totalSales > 0 ? (after.totalSpend / after.totalSales) * 100 : 999;
-  const afterRoas = after.totalSpend > 0 ? after.totalSales / after.totalSpend : 0;
-  const afterCvr = after.totalClicks > 0 ? (after.totalOrders / after.totalClicks) * 100 : 0;
+  const beforeDailySales = before.totalSales / before.days;
+  const afterDailySales = after.totalSales / after.days;
+  const beforeDailyOrders = before.totalOrders / before.days;
+  const afterDailyOrders = after.totalOrders / after.days;
   
-  // 多指标综合趋势评分
   let trendPoints = 0;
   let maxPoints = 0;
   const improvements: string[] = [];
   
-  // ACoS改善（权重30%）- ACoS降低是好事
+  // ACoS改善（权重30%）
   maxPoints += 30;
   if (beforeAcos < 900 && afterAcos < 900) {
     const acosImprovement = (beforeAcos - afterAcos) / Math.max(beforeAcos, 1);
@@ -290,7 +325,7 @@ function calculateTrendScore(trendData: TrendData, config: GroupConfig): { score
     else if (acosImprovement > -0.15) { trendPoints += 8; improvements.push(`ACoS↑${(-acosImprovement * 100).toFixed(0)}%`); }
     else { trendPoints += 0; improvements.push(`ACoS↑${(-acosImprovement * 100).toFixed(0)}%`); }
   } else {
-    trendPoints += 15; // 数据不足给中间分
+    trendPoints += 15;
   }
   
   // 日均销售额改善（权重30%）
@@ -303,35 +338,39 @@ function calculateTrendScore(trendData: TrendData, config: GroupConfig): { score
     else if (salesGrowth > -0.2) { trendPoints += 8; improvements.push(`日销↓${(-salesGrowth * 100).toFixed(0)}%`); }
     else { trendPoints += 0; improvements.push(`日销↓${(-salesGrowth * 100).toFixed(0)}%`); }
   } else if (afterDailySales > 0) {
-    trendPoints += 25; // 从0到有销售
+    trendPoints += 25;
     improvements.push('开始产生销售');
   } else {
     trendPoints += 10;
   }
   
-  // ROAS改善（权重20%）
+  // 日均订单改善（权重20%）
   maxPoints += 20;
-  if (beforeRoas > 0) {
-    const roasGrowth = (afterRoas - beforeRoas) / beforeRoas;
-    if (roasGrowth > 0.15) { trendPoints += 20; improvements.push(`ROAS↑${(roasGrowth * 100).toFixed(0)}%`); }
-    else if (roasGrowth > 0) { trendPoints += 15; improvements.push(`ROAS↑${(roasGrowth * 100).toFixed(0)}%`); }
-    else if (roasGrowth > -0.1) { trendPoints += 10; improvements.push('ROAS持平'); }
-    else { trendPoints += 3; improvements.push(`ROAS↓${(-roasGrowth * 100).toFixed(0)}%`); }
-  } else if (afterRoas > 0) {
+  if (beforeDailyOrders > 0) {
+    const ordersGrowth = (afterDailyOrders - beforeDailyOrders) / beforeDailyOrders;
+    if (ordersGrowth > 0.15) { trendPoints += 20; improvements.push(`日单↑${(ordersGrowth * 100).toFixed(0)}%`); }
+    else if (ordersGrowth > 0) { trendPoints += 15; }
+    else if (ordersGrowth > -0.1) { trendPoints += 10; }
+    else { trendPoints += 3; }
+  } else if (afterDailyOrders > 0) {
     trendPoints += 18;
-    improvements.push('ROAS从0改善');
   } else {
     trendPoints += 5;
   }
   
-  // CVR改善（权重20%）
+  // v164: 趋势方向加分（使用时间衰减趋势信号）
   maxPoints += 20;
-  if (beforeCvr > 0) {
-    const cvrGrowth = (afterCvr - beforeCvr) / beforeCvr;
-    if (cvrGrowth > 0.1) { trendPoints += 20; improvements.push(`CVR↑${(cvrGrowth * 100).toFixed(0)}%`); }
-    else if (cvrGrowth > 0) { trendPoints += 15; }
-    else if (cvrGrowth > -0.1) { trendPoints += 10; }
-    else { trendPoints += 3; }
+  if (timeWeighted) {
+    if (timeWeighted.trendDirection === 'improving') {
+      trendPoints += 20;
+      improvements.push('近期趋势向好');
+    } else if (timeWeighted.trendDirection === 'stable') {
+      trendPoints += 12;
+      improvements.push('近期趋势稳定');
+    } else {
+      trendPoints += 4;
+      improvements.push('近期趋势下行');
+    }
   } else {
     trendPoints += 10;
   }
@@ -342,80 +381,174 @@ function calculateTrendScore(trendData: TrendData, config: GroupConfig): { score
   return { score: Math.min(100, Math.max(5, score)), detail };
 }
 
-// ==================== 维度3: 预算效率 ====================
+/** v164: 多时间窗口趋势评分 */
+function calculateMultiWindowTrendScore(
+  multiWindow: MultiWindowTrendData,
+  config: GroupConfig,
+  timeWeighted?: TimeWeightedMetrics
+): { score: number; detail: string } {
+  let totalPoints = 0;
+  let maxPoints = 0;
+  const improvements: string[] = [];
+  
+  // 对比不同时间窗口的ACoS趋势：7d vs 30d, 30d vs 60d, 60d vs 90d
+  const windows = [
+    { label: '7天', data: multiWindow.recent7d },
+    { label: '14天', data: multiWindow.recent14d },
+    { label: '30天', data: multiWindow.recent30d },
+    { label: '60天', data: multiWindow.recent60d },
+    { label: '90天', data: multiWindow.recent90d },
+  ].filter(w => w.data && w.data.totalSpend > 0);
+  
+  if (windows.length < 2) {
+    return { score: 50, detail: '多时间窗口数据不足' };
+  }
+  
+  // 短期 vs 长期ACoS对比（权重40%）
+  maxPoints += 40;
+  const shortWindow = windows[0]; // 最短时间窗口
+  const longWindow = windows[windows.length - 1]; // 最长时间窗口
+  
+  if (shortWindow.data && longWindow.data && shortWindow.data.totalSales > 0 && longWindow.data.totalSales > 0) {
+    const shortAcos = (shortWindow.data.totalSpend / shortWindow.data.totalSales) * 100;
+    const longAcos = (longWindow.data.totalSpend / longWindow.data.totalSales) * 100;
+    const acosImprovement = (longAcos - shortAcos) / Math.max(longAcos, 1);
+    
+    if (acosImprovement > 0.15) { totalPoints += 40; improvements.push(`近期ACoS比长期↓${(acosImprovement * 100).toFixed(0)}%`); }
+    else if (acosImprovement > 0.05) { totalPoints += 30; improvements.push(`近期ACoS改善中`); }
+    else if (acosImprovement > -0.05) { totalPoints += 20; improvements.push('ACoS趋势稳定'); }
+    else if (acosImprovement > -0.15) { totalPoints += 10; improvements.push('ACoS近期上升'); }
+    else { totalPoints += 2; improvements.push('ACoS近期恶化'); }
+  } else {
+    totalPoints += 20;
+  }
+  
+  // 短期 vs 长期日均销售对比（权重30%）
+  maxPoints += 30;
+  if (shortWindow.data && longWindow.data) {
+    const shortDailySales = shortWindow.data.totalSales / Math.max(shortWindow.data.days, 1);
+    const longDailySales = longWindow.data.totalSales / Math.max(longWindow.data.days, 1);
+    
+    if (longDailySales > 0) {
+      const salesGrowth = (shortDailySales - longDailySales) / longDailySales;
+      if (salesGrowth > 0.2) { totalPoints += 30; improvements.push(`近期日销↑${(salesGrowth * 100).toFixed(0)}%`); }
+      else if (salesGrowth > 0.05) { totalPoints += 22; }
+      else if (salesGrowth > -0.05) { totalPoints += 15; }
+      else if (salesGrowth > -0.2) { totalPoints += 8; }
+      else { totalPoints += 2; }
+    } else {
+      totalPoints += shortDailySales > 0 ? 25 : 10;
+    }
+  } else {
+    totalPoints += 15;
+  }
+  
+  // 与优化前对比（权重30%）
+  maxPoints += 30;
+  if (multiWindow.preOptimization && shortWindow.data) {
+    const preAcos = multiWindow.preOptimization.totalSales > 0 
+      ? (multiWindow.preOptimization.totalSpend / multiWindow.preOptimization.totalSales) * 100 : 999;
+    const postAcos = shortWindow.data.totalSales > 0 
+      ? (shortWindow.data.totalSpend / shortWindow.data.totalSales) * 100 : 999;
+    
+    if (preAcos < 900 && postAcos < 900) {
+      const improvement = (preAcos - postAcos) / Math.max(preAcos, 1);
+      if (improvement > 0.2) { totalPoints += 30; improvements.push(`优化后ACoS↓${(improvement * 100).toFixed(0)}%`); }
+      else if (improvement > 0.05) { totalPoints += 22; improvements.push(`优化后有改善`); }
+      else if (improvement > -0.05) { totalPoints += 15; }
+      else { totalPoints += 5; improvements.push('优化后ACoS上升'); }
+    } else {
+      totalPoints += 15;
+    }
+  } else {
+    totalPoints += 15;
+  }
+  
+  const score = maxPoints > 0 ? Math.round((totalPoints / maxPoints) * 100) : 50;
+  const detail = improvements.length > 0 ? improvements.join('，') : '多窗口趋势计算中';
+  
+  return { score: Math.min(100, Math.max(5, score)), detail };
+}
 
-function calculateBudgetEfficiencyScore(config: GroupConfig, metrics: PerformanceMetrics): { score: number; detail: string } {
+// ==================== 维度3: 预算效率（v164: 使用时间衰减加权日均花费） ====================
+
+function calculateBudgetEfficiencyScore(
+  config: GroupConfig,
+  metrics: PerformanceMetrics,
+  timeWeighted?: TimeWeightedMetrics
+): { score: number; detail: string } {
   const dailyBudget = config.dailyBudget || config.dailySpendLimit || 0;
   
-  // 没有设置预算
   if (dailyBudget <= 0) {
-    // 没有预算限制时，根据花费产出比评估
     if (metrics.totalSpend > 0 && metrics.totalSales > 0) {
-      const roas = metrics.avgRoas;
+      const roas = timeWeighted ? timeWeighted.weightedRoas : metrics.avgRoas;
       const score = roas >= 2 ? 80 : roas >= 1 ? 65 : 45;
       return { score, detail: `未设置预算上限，ROAS=${roas.toFixed(2)}` };
     }
     return { score: 50, detail: '未设置预算，暂无法评估效率' };
   }
   
-  // 计算预算利用率（假设30天窗口）
-  const totalBudget = dailyBudget * 30;
-  const utilizationRate = totalBudget > 0 ? metrics.totalSpend / totalBudget : 0;
+  // v164: 使用时间衰减加权日均花费（近期数据权重更高）
+  const avgDailySpend = timeWeighted 
+    ? timeWeighted.weightedDailySpend 
+    : (metrics.totalSpend / Math.max(1, timeWeighted?.effectiveDataDays || 30));
+  const dataSource = timeWeighted ? '加权' : '平均';
+  
+  const utilizationRate = avgDailySpend / dailyBudget;
   
   let score: number;
   let detail: string;
   
   if (utilizationRate >= 0.75 && utilizationRate <= 1.05) {
-    // 最佳区间：75%-105%利用率
     score = 95;
-    detail = `预算利用率${(utilizationRate * 100).toFixed(0)}%（最佳区间）`;
+    detail = `${dataSource}日均花费$${avgDailySpend.toFixed(2)}，利用率${(utilizationRate * 100).toFixed(0)}%（最佳）`;
   } else if (utilizationRate >= 0.5 && utilizationRate < 0.75) {
-    // 偏低但可接受
     score = 65 + (utilizationRate - 0.5) / 0.25 * 30;
-    detail = `预算利用率${(utilizationRate * 100).toFixed(0)}%（偏低，可提高曝光）`;
+    detail = `${dataSource}日均花费$${avgDailySpend.toFixed(2)}，利用率${(utilizationRate * 100).toFixed(0)}%（偏低）`;
   } else if (utilizationRate >= 0.2 && utilizationRate < 0.5) {
-    // 明显偏低
     score = 35 + (utilizationRate - 0.2) / 0.3 * 30;
-    detail = `预算利用率${(utilizationRate * 100).toFixed(0)}%（偏低，建议检查竞价或关键词）`;
+    detail = `${dataSource}日均花费$${avgDailySpend.toFixed(2)}，利用率${(utilizationRate * 100).toFixed(0)}%（偏低）`;
   } else if (utilizationRate < 0.2) {
-    // 极低
     score = Math.max(10, utilizationRate / 0.2 * 35);
-    detail = `预算利用率${(utilizationRate * 100).toFixed(0)}%（极低，广告可能未有效投放）`;
+    detail = `${dataSource}日均花费$${avgDailySpend.toFixed(2)}，利用率${(utilizationRate * 100).toFixed(0)}%（极低）`;
   } else if (utilizationRate <= 1.2) {
-    // 略微超支
     score = 80;
-    detail = `预算利用率${(utilizationRate * 100).toFixed(0)}%（略超预算）`;
+    detail = `${dataSource}日均花费$${avgDailySpend.toFixed(2)}，利用率${(utilizationRate * 100).toFixed(0)}%（略超）`;
   } else {
-    // 严重超支
     score = Math.max(15, 80 - (utilizationRate - 1.2) * 80);
-    detail = `预算利用率${(utilizationRate * 100).toFixed(0)}%（超支，需要控制花费）`;
+    detail = `${dataSource}日均花费$${avgDailySpend.toFixed(2)}，利用率${(utilizationRate * 100).toFixed(0)}%（超支）`;
   }
   
-  // 额外考虑：花费的产出效率
-  if (metrics.totalSpend > 0) {
-    const spendEfficiency = metrics.totalSales / metrics.totalSpend;
-    if (spendEfficiency >= 2) score = Math.min(100, score + 5);
-    else if (spendEfficiency < 0.5) score = Math.max(10, score - 10);
-  }
+  // 花费产出效率加减分
+  const roas = timeWeighted ? timeWeighted.weightedRoas : metrics.avgRoas;
+  if (roas >= 2) score = Math.min(100, score + 5);
+  else if (roas < 0.5 && metrics.totalSpend > 0) score = Math.max(10, score - 10);
   
   return { score: Math.round(Math.min(100, Math.max(5, score))), detail };
 }
 
 // ==================== 维度4: 转化效率 ====================
 
-function calculateConversionEfficiencyScore(metrics: PerformanceMetrics, config: GroupConfig): { score: number; detail: string } {
-  // 数据不足
+function calculateConversionEfficiencyScore(
+  metrics: PerformanceMetrics,
+  config: GroupConfig,
+  timeWeighted?: TimeWeightedMetrics
+): { score: number; detail: string } {
   if (metrics.totalClicks < 5 || metrics.totalSpend < 1) {
-    return { score: 0, detail: '点击/花费数据不足，暂无法评估转化效率' };
+    return { score: 0, detail: '点击/花费数据不足' };
   }
   
   let totalPoints = 0;
   let maxPoints = 0;
   const details: string[] = [];
   
+  // v164: 优先使用时间衰减加权指标
+  const roas = timeWeighted ? timeWeighted.weightedRoas : metrics.avgRoas;
+  const cvr = timeWeighted ? timeWeighted.weightedCvr : metrics.cvr;
+  const cpc = timeWeighted ? timeWeighted.weightedCpc : metrics.cpc;
+  
   // ROAS评分（权重40%）
   maxPoints += 40;
-  const roas = metrics.avgRoas;
   if (roas >= 4) { totalPoints += 40; details.push(`ROAS ${roas.toFixed(2)}(优秀)`); }
   else if (roas >= 2.5) { totalPoints += 32; details.push(`ROAS ${roas.toFixed(2)}(良好)`); }
   else if (roas >= 1.5) { totalPoints += 24; details.push(`ROAS ${roas.toFixed(2)}(一般)`); }
@@ -425,7 +558,6 @@ function calculateConversionEfficiencyScore(metrics: PerformanceMetrics, config:
   
   // CVR评分（权重30%）
   maxPoints += 30;
-  const cvr = metrics.cvr;
   if (cvr >= 15) { totalPoints += 30; details.push(`CVR ${cvr.toFixed(1)}%`); }
   else if (cvr >= 10) { totalPoints += 25; }
   else if (cvr >= 5) { totalPoints += 18; }
@@ -433,23 +565,19 @@ function calculateConversionEfficiencyScore(metrics: PerformanceMetrics, config:
   else if (cvr > 0) { totalPoints += 5; }
   else { totalPoints += 0; }
   
-  // CPC效率评分（权重30%）- 基于CPC与产出的关系
+  // CPC效率评分（权重30%）
   maxPoints += 30;
-  const cpc = metrics.cpc;
   if (cpc > 0 && metrics.totalOrders > 0) {
-    // 每单广告成本 = 总花费 / 总订单数
     const costPerOrder = metrics.totalSpend / metrics.totalOrders;
-    // 每单广告成本占销售额的比例
     const avgOrderValue = metrics.totalSales / metrics.totalOrders;
     const costRatio = avgOrderValue > 0 ? costPerOrder / avgOrderValue : 1;
     
-    if (costRatio <= 0.15) { totalPoints += 30; details.push(`单均广告成本占比${(costRatio * 100).toFixed(0)}%`); }
+    if (costRatio <= 0.15) { totalPoints += 30; details.push(`单均成本占比${(costRatio * 100).toFixed(0)}%`); }
     else if (costRatio <= 0.25) { totalPoints += 24; }
     else if (costRatio <= 0.4) { totalPoints += 16; }
     else if (costRatio <= 0.6) { totalPoints += 10; }
     else { totalPoints += 4; }
   } else if (cpc > 0) {
-    // 有点击无转化
     totalPoints += 5;
     details.push(`CPC $${cpc.toFixed(2)}，暂无转化`);
   }
@@ -460,22 +588,124 @@ function calculateConversionEfficiencyScore(metrics: PerformanceMetrics, config:
   return { score: Math.min(100, Math.max(0, score)), detail };
 }
 
+// ==================== 维度5: 渐进优化进度（v164新增） ====================
+
+function calculateGradualProgressScore(
+  config: GroupConfig,
+  metrics: PerformanceMetrics,
+  timeWeighted?: TimeWeightedMetrics,
+  multiWindow?: MultiWindowTrendData
+): { score: number; detail: string } {
+  // 评估优化是否在渐进式地接近目标
+  const targetAcos = config.targetAcos || 0;
+  const targetRoas = config.targetRoas || 0;
+  
+  if (!timeWeighted) {
+    return { score: 50, detail: '需要更多数据评估渐进优化进度' };
+  }
+  
+  let score = 50; // 基础分
+  const details: string[] = [];
+  
+  // 1. 数据置信度评估（20分）
+  const confidence = timeWeighted.dataConfidence;
+  if (confidence === 'high') { score += 10; details.push('数据充足'); }
+  else if (confidence === 'medium') { score += 5; details.push('数据中等'); }
+  else if (confidence === 'low') { score += 0; details.push('数据偏少'); }
+  else { score -= 5; details.push('数据极少'); }
+  
+  // 2. 趋势方向评估（30分）
+  if (timeWeighted.trendDirection === 'improving') {
+    score += 20;
+    details.push('指标持续改善');
+  } else if (timeWeighted.trendDirection === 'stable') {
+    score += 10;
+    details.push('指标保持稳定');
+  } else {
+    score -= 5;
+    details.push('指标有下行趋势');
+  }
+  
+  // 3. 多窗口渐进性评估（如果有多窗口数据）
+  if (multiWindow) {
+    const windows = [
+      multiWindow.recent90d,
+      multiWindow.recent60d,
+      multiWindow.recent30d,
+      multiWindow.recent14d,
+      multiWindow.recent7d,
+    ].filter(w => w && w.totalSpend > 0);
+    
+    if (windows.length >= 3) {
+      // 计算每个窗口的ACoS，检查是否呈渐进改善趋势
+      const windowAcos = windows.map(w => {
+        if (!w || w.totalSales <= 0) return null;
+        return (w.totalSpend / w.totalSales) * 100;
+      }).filter(a => a !== null) as number[];
+      
+      if (windowAcos.length >= 3) {
+        // 检查ACoS是否呈递减趋势（从长期到短期）
+        let improvingCount = 0;
+        for (let i = 1; i < windowAcos.length; i++) {
+          if (windowAcos[i] < windowAcos[i - 1]) improvingCount++;
+        }
+        const improvingRatio = improvingCount / (windowAcos.length - 1);
+        
+        if (improvingRatio >= 0.7) {
+          score += 15;
+          details.push('ACoS呈持续改善趋势');
+        } else if (improvingRatio >= 0.5) {
+          score += 8;
+          details.push('ACoS有改善迹象');
+        } else {
+          score -= 5;
+          details.push('ACoS改善不明显');
+        }
+      }
+    }
+  }
+  
+  // 4. 目标接近度评估
+  if (targetAcos > 0) {
+    const currentAcos = timeWeighted.weightedAcos;
+    const gap = Math.abs(currentAcos - targetAcos) / targetAcos;
+    
+    if (currentAcos <= targetAcos) {
+      score += 10;
+      details.push('已达成ACoS目标');
+    } else if (gap < 0.2) {
+      score += 5;
+      details.push(`距目标差距${(gap * 100).toFixed(0)}%`);
+    } else if (gap < 0.5) {
+      score += 0;
+      details.push(`距目标差距${(gap * 100).toFixed(0)}%`);
+    } else {
+      score -= 5;
+      details.push(`距目标差距较大(${(gap * 100).toFixed(0)}%)`);
+    }
+  }
+  
+  return {
+    score: Math.min(100, Math.max(5, score)),
+    detail: details.join('，') || '渐进优化评估中'
+  };
+}
+
 // ==================== 主计算函数 ====================
 
 /**
  * 计算多维度目标达成度
  * 
- * @param config - 优化目标配置
- * @param metrics - 当前绩效指标
- * @param trendData - 趋势对比数据（可选）
- * @returns GoalProgressResult - 包含总分、各维度明细、等级
+ * v164: 新增timeWeighted和multiWindow参数，与渐进式+时间衰减逻辑对齐
  */
 export function calculateGoalProgress(
   config: GroupConfig,
   metrics: PerformanceMetrics,
-  trendData?: TrendData
+  trendData?: TrendData,
+  timeWeighted?: TimeWeightedMetrics,
+  multiWindow?: MultiWindowTrendData
 ): GoalProgressResult {
-  // 完全没有数据时返回null等效结果
+  // 完全没有数据
   if (config.campaignCount === 0 && metrics.totalSpend < 0.01 && metrics.totalSales < 0.01) {
     return {
       totalScore: 0,
@@ -487,13 +717,17 @@ export function calculateGoalProgress(
   
   const weights = getWeights(config.strategyTemplateId);
   
+  // v164: 数据置信度修正系数
+  const confidenceMultiplier = timeWeighted ? getConfidenceMultiplier(timeWeighted.dataConfidence) : 0.8;
+  
   // 计算各维度得分
-  const coreMetric = calculateCoreMetricScore(config, metrics);
-  const trend = trendData 
-    ? calculateTrendScore(trendData, config)
+  const coreMetric = calculateCoreMetricScore(config, metrics, timeWeighted);
+  const trend = trendData || multiWindow
+    ? calculateTrendScore(trendData || { before: null, after: null }, config, timeWeighted, multiWindow)
     : { score: 50, detail: '趋势数据加载中' };
-  const budgetEff = calculateBudgetEfficiencyScore(config, metrics);
-  const convEff = calculateConversionEfficiencyScore(metrics, config);
+  const budgetEff = calculateBudgetEfficiencyScore(config, metrics, timeWeighted);
+  const convEff = calculateConversionEfficiencyScore(metrics, config, timeWeighted);
+  const gradualProgress = calculateGradualProgressScore(config, metrics, timeWeighted, multiWindow);
   
   // 构建维度得分数组
   const dimensions: DimensionScore[] = [
@@ -529,10 +763,23 @@ export function calculateGoalProgress(
       weighted: Math.round(convEff.score * weights.conversionEfficiency / 100),
       detail: convEff.detail,
     },
+    {
+      name: 'gradualProgress',
+      nameZh: '渐进优化',
+      score: gradualProgress.score,
+      weight: weights.gradualProgress,
+      weighted: Math.round(gradualProgress.score * weights.gradualProgress / 100),
+      detail: gradualProgress.detail,
+    },
   ];
   
   // 计算加权总分
-  const totalScore = dimensions.reduce((sum, d) => sum + d.weighted, 0);
+  let totalScore = dimensions.reduce((sum, d) => sum + d.weighted, 0);
+  
+  // v164: 应用数据置信度修正（低置信度时总分向50分靠拢）
+  if (confidenceMultiplier < 1.0) {
+    totalScore = Math.round(50 + (totalScore - 50) * confidenceMultiplier);
+  }
   
   // 确定等级
   let level: GoalProgressResult['level'];
@@ -552,6 +799,12 @@ export function calculateGoalProgress(
   }
   if (weakDimension.score < 50 && weakDimension.score < topDimension.score - 20) {
     summary += `，${weakDimension.nameZh}需关注`;
+  }
+  
+  // v164: 添加趋势方向说明
+  if (timeWeighted) {
+    const trendLabels = { improving: '持续改善中', stable: '保持稳定', declining: '需要关注' };
+    summary += `，整体趋势${trendLabels[timeWeighted.trendDirection]}`;
   }
   
   return {

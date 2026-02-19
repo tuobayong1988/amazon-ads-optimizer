@@ -30,6 +30,7 @@ import { getLocalHour, getLocalDayOfWeek, isNewKeyword, getExplorationStrategy, 
 import * as campaignLifecycleService from "./services/campaignLifecycleService";
 import * as timeDecayService from "./timeDecayWeightedDataService";
 import * as gradualEngine from "./gradualOptimizationEngine";
+import * as selfEvolution from "./selfEvolutionEngine";
 
 // 缓存账号站点信息，避免重复查询
 const marketplaceCache = new Map<number, string>();
@@ -162,6 +163,10 @@ export interface OptimizationTargetConfig {
   lifecycleStage?: campaignLifecycleService.LifecycleStage;
   lifecycleConfig?: campaignLifecycleService.LifecycleOptimizationConfig;
   lifecycleSummary?: string;
+  
+  // v164: 自我进化所需字段
+  userId: number;
+  strategyTemplateId?: string;
 }
 
 /**
@@ -201,6 +206,10 @@ export async function getOptimizationTargetConfig(targetId: number): Promise<Opt
     maxBidChangePercent: 30,
     minDataPoints: 7,
     autoRollbackEnabled: true,
+    
+    // v164: 自我进化所需字段
+    userId: (group as any).userId || 0,
+    strategyTemplateId: (group as any).strategyTemplateId || undefined,
   };
   
   // v143: 查询生命周期阶段并注入配置
@@ -283,6 +292,34 @@ export async function executeOptimizationTarget(
     }
   } catch (safetyErr: any) {
     console.log(`[OptimizationTarget] v162 安全检查异常，继续执行: ${safetyErr.message}`);
+  }
+  
+  // v164: 自我进化周期 - 在每次优化执行前自动评估上一轮优化效果并学习
+  let evolutionReport: any = null;
+  let adaptiveParams: any = null;
+  try {
+    // 运行进化周期：评估效果→学习→自动纠错
+    evolutionReport = await selfEvolution.runEvolutionCycle(
+      targetId, config.userId, config.accountId, config.strategyTemplateId
+    );
+    if (evolutionReport) {
+      console.log(`[OptimizationTarget] v164 进化周期完成: 评估${evolutionReport.totalActionsEvaluated}个动作, ` +
+        `正面${evolutionReport.positiveActions}, 负面${evolutionReport.negativeActions}, ` +
+        `纠错${evolutionReport.correctionsExecuted}个, 趋势: ${evolutionReport.improvementTrend}`);
+      if (evolutionReport.correctionsExecuted > 0) {
+        result.warnings.push(`自我进化: 自动纠正了${evolutionReport.correctionsExecuted}个不合理优化`);
+      }
+    }
+    
+    // 获取自适应优化参数（根据历史成功率动态调整）
+    adaptiveParams = await selfEvolution.getAdaptiveOptimizationParams(targetId, config.strategyTemplateId);
+    if (adaptiveParams) {
+      console.log(`[OptimizationTarget] v164 自适应参数: 最大出价提升${Math.round(adaptiveParams.maxBidIncrease * 100)}%, ` +
+        `最大出价降低${Math.round(adaptiveParams.maxBidDecrease * 100)}%, ` +
+        `成功率${Math.round(adaptiveParams.recentSuccessRate * 100)}%`);
+    }
+  } catch (evoErr: any) {
+    console.log(`[OptimizationTarget] v164 自我进化异常，继续执行: ${evoErr.message}`);
   }
   
   // 获取优化目标下的所有广告活动
@@ -604,15 +641,16 @@ async function executeBidOptimization(
     groupAvgAov,
   };
   
-  // v152: 从进化引擎获取自适应参数，注入到bidConfig中
+  // v164: 从自我进化引擎获取自适应参数，注入到bidConfig中
   try {
-    const { getEffectiveBidConfig } = await import('./algorithmEvolutionEngine');
-    const evolvedConfig = await getEffectiveBidConfig(config.id);
-    (bidConfig as any)._evolvedMaxChangePercent = evolvedConfig.maxChangePercent;
-    (bidConfig as any)._evolvedMaxDecreasePercent = evolvedConfig.maxChangePercent * 0.67; // 降价幅度为提价的67%
-    console.log(`[BidOptimization] v152: 进化参数已注入 - maxChange=${(evolvedConfig.maxChangePercent * 100).toFixed(0)}%, exploration=${(evolvedConfig.explorationRate * 100).toFixed(0)}%`);
+    // 优先使用v164自我进化的自适应参数
+    const evoParams = await selfEvolution.getAdaptiveOptimizationParams(config.id, config.strategyTemplateId);
+    (bidConfig as any)._evolvedMaxChangePercent = evoParams.maxBidIncrease;
+    (bidConfig as any)._evolvedMaxDecreasePercent = evoParams.maxBidDecrease;
+    (bidConfig as any)._confidenceMultiplier = evoParams.confidenceMultiplier;
+    console.log(`[BidOptimization] v164: 自适应参数已注入 - 最大提升${Math.round(evoParams.maxBidIncrease * 100)}%, 最大降低${Math.round(evoParams.maxBidDecrease * 100)}%, 成功率${Math.round(evoParams.recentSuccessRate * 100)}%`);
   } catch (e: any) {
-    console.log(`[BidOptimization] v152: 进化参数获取失败，使用默认值: ${e.message}`);
+    console.log(`[BidOptimization] v164: 自适应参数获取失败，使用默认值: ${e.message}`);
   }
   
   const currentDate = new Date();
