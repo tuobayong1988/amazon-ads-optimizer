@@ -8,7 +8,7 @@
  * - 绩效数据同步
  */
 
-import { eq, and, sql } from 'drizzle-orm';
+import { eq, and, sql, gte, inArray } from 'drizzle-orm';
 import { getDb } from './db';
 import {
   campaigns,
@@ -20,6 +20,7 @@ import {
   placementPerformance,
   searchTerms,
   negativeKeywords,
+  optimizationEvents,
 } from '../drizzle/schema';
 import {
   AmazonAdsApiClient,
@@ -45,6 +46,116 @@ interface StoredApiCredentials {
  * 使用实时汇率API（ExchangeRate-API），每日自动更新
  * 静态兜底汇率保留在 exchangeRateService 中
  */
+
+/**
+ * v150: 数据同步出价/预算保护辅助函数
+ * 查询optimization_events表，检查指定关键词/广告活动是否有近期（24小时内）
+ * 成功同步到Amazon的优化事件。如果有，说明本地出价/预算是优化后的值，
+ * 数据同步时应保留本地值而非用API返回值覆盖。
+ */
+async function hasRecentSyncedOptimization(
+  keywordId?: number,
+  campaignId?: number,
+  category: 'bid_adjustment' | 'budget_adjustment' = 'bid_adjustment',
+  hoursWindow: number = 24
+): Promise<boolean> {
+  try {
+    const db = await getDb();
+    if (!db) return false;
+    const cutoff = new Date(Date.now() - hoursWindow * 60 * 60 * 1000)
+      .toISOString().slice(0, 19).replace('T', ' ');
+    
+    const conditions: any[] = [
+      eq(optimizationEvents.eventCategory, category),
+      eq(optimizationEvents.apiSyncStatus, 'synced'),
+      gte(optimizationEvents.createdAt, cutoff),
+    ];
+    
+    if (keywordId) {
+      conditions.push(eq(optimizationEvents.keywordId, keywordId));
+    }
+    if (campaignId) {
+      conditions.push(eq(optimizationEvents.campaignId, campaignId));
+    }
+    
+    const result = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(optimizationEvents)
+      .where(and(...conditions))
+      .limit(1);
+    
+    return (result[0]?.count || 0) > 0;
+  } catch (error) {
+    // 查询失败时不阻塞同步，默认不保护（以API为准）
+    console.warn('[SyncService] v150: 查询优化事件失败，默认以API为准:', (error as any).message);
+    return false;
+  }
+}
+
+/**
+ * v150: 批量查询有近期优化事件的关键词ID集合
+ * 用于批量同步时高效判断哪些关键词需要保护
+ */
+async function getRecentlyOptimizedKeywordIds(
+  keywordIds: number[],
+  hoursWindow: number = 24
+): Promise<Set<number>> {
+  try {
+    if (keywordIds.length === 0) return new Set();
+    const db = await getDb();
+    if (!db) return new Set();
+    const cutoff = new Date(Date.now() - hoursWindow * 60 * 60 * 1000)
+      .toISOString().slice(0, 19).replace('T', ' ');
+    
+    const results = await db
+      .select({ keywordId: optimizationEvents.keywordId })
+      .from(optimizationEvents)
+      .where(and(
+        eq(optimizationEvents.eventCategory, 'bid_adjustment'),
+        eq(optimizationEvents.apiSyncStatus, 'synced'),
+        gte(optimizationEvents.createdAt, cutoff),
+        inArray(optimizationEvents.keywordId, keywordIds)
+      ))
+      .groupBy(optimizationEvents.keywordId);
+    
+    return new Set(results.map(r => r.keywordId!).filter(Boolean));
+  } catch (error) {
+    console.warn('[SyncService] v150: 批量查询优化关键词失败:', (error as any).message);
+    return new Set();
+  }
+}
+
+/**
+ * v150: 批量查询有近期预算优化事件的广告活动ID集合
+ */
+async function getRecentlyOptimizedCampaignIds(
+  campaignIds: number[],
+  hoursWindow: number = 24
+): Promise<Set<number>> {
+  try {
+    if (campaignIds.length === 0) return new Set();
+    const db = await getDb();
+    if (!db) return new Set();
+    const cutoff = new Date(Date.now() - hoursWindow * 60 * 60 * 1000)
+      .toISOString().slice(0, 19).replace('T', ' ');
+    
+    const results = await db
+      .select({ campaignId: optimizationEvents.campaignId })
+      .from(optimizationEvents)
+      .where(and(
+        eq(optimizationEvents.eventCategory, 'budget_adjustment'),
+        eq(optimizationEvents.apiSyncStatus, 'synced'),
+        gte(optimizationEvents.createdAt, cutoff),
+        inArray(optimizationEvents.campaignId, campaignIds)
+      ))
+      .groupBy(optimizationEvents.campaignId);
+    
+    return new Set(results.map(r => r.campaignId!).filter(Boolean));
+  } catch (error) {
+    console.warn('[SyncService] v150: 批量查询优化广告活动失败:', (error as any).message);
+    return new Set();
+  }
+}
 
 /**
  * 同步服务类
@@ -795,6 +906,24 @@ export class AmazonSyncService {
         };
 
         if (existing) {
+          // v150: 智能预算保护策略
+          // 检查optimization_events表，如果该广告活动有24小时内成功同步的预算优化事件，
+          // 则保留本地dailyBudget不被覆盖
+          const localBudget = parseFloat(existing.dailyBudget || '0');
+          const apiBudget = parseFloat(String(dailyBudgetValue || '0'));
+          
+          if (Math.abs(localBudget - apiBudget) > 0.01 && localBudget > 0) {
+            // 预算不一致，检查是否有近期预算优化事件
+            const hasRecentOpt = await hasRecentSyncedOptimization(undefined, existing.id, 'budget_adjustment', 24);
+            if (hasRecentOpt) {
+              // 有近期优化事件，保留本地预算
+              console.log(`[SyncService] v150: 预算保护生效 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, 保留本地优化预算`);
+              delete (campaignData as any).dailyBudget;
+            } else {
+              console.log(`[SyncService] v150: 预算差异 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, 以API为准`);
+            }
+          }
+          
           await db
             .update(campaigns)
             .set(campaignData)
@@ -1914,19 +2043,26 @@ export class AmazonSyncService {
         };
 
         if (existing) {
-          // v148: 智能出价合并策略 - 如果Amazon API返回的出价与本地一致，说明本地优化已同步到Amazon
-          // 如果不一致，说明可能是用户在Amazon后台手动修改了出价，应以Amazon为准
-          // 但如果本地有未同步的优化调整（API同步失败的情况），则保留本地出价
+          // v150: 智能出价保护策略
+          // 检查optimization_events表，如果该关键词有24小时内成功同步到Amazon的出价优化事件，
+          // 则保留本地出价不被覆盖（因为Amazon API数据可能有延迟）
           const localBid = parseFloat(existing.bid || '0');
           const apiBid = parseFloat(String(apiKeyword.bid || '0'));
           
-          // 如果本地出价和API出价相差超过0.01，检查是否有未同步的本地优化
           if (Math.abs(localBid - apiBid) > 0.01 && localBid > 0) {
-            // 以Amazon API为真实来源，但记录差异以便调试
-            console.log(`[SyncService] v148: 出价差异检测 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, 以API为准`);
+            // 出价不一致，检查是否有近期优化事件
+            const hasRecentOpt = await hasRecentSyncedOptimization(existing.id, undefined, 'bid_adjustment', 24);
+            if (hasRecentOpt) {
+              // 有近期优化事件，保留本地出价，只更新其他字段
+              console.log(`[SyncService] v150: 出价保护生效 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, 保留本地优化出价`);
+              delete keywordData.bid; // 从更新数据中移除bid字段
+            } else {
+              // 无近期优化事件，以Amazon API为准（可能是用户手动修改）
+              console.log(`[SyncService] v150: 出价差异 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, 以API为准`);
+            }
           }
           
-          // v148: 同步时保留keywordStatus字段（本地优化的状态），只更新status字段（Amazon原始状态）
+          // v150: 同步时保留keywordStatus字段（本地优化的状态），只更新其他字段
           await db
             .update(keywords)
             .set(keywordData)
@@ -2109,6 +2245,24 @@ export class AmazonSyncService {
         }
 
         if (existing) {
+          // v150: 智能出价保护策略
+          // 检查optimization_events表，如果该产品定向有24小时内成功同步的出价优化事件，
+          // 则保留本地bid不被覆盖
+          const localBid = parseFloat(existing.bid || '0');
+          const apiBid = parseFloat(String(apiTarget.bid || '0'));
+          
+          if (Math.abs(localBid - apiBid) > 0.01 && localBid > 0) {
+            // 出价不一致，检查是否有近期优化事件
+            const hasRecentOpt = await hasRecentSyncedOptimization(existing.id, undefined, 'bid_adjustment', 24);
+            if (hasRecentOpt) {
+              // 有近期优化事件，保留本地出价
+              console.log(`[SyncService] v150: 出价保护生效 - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}, 保留本地优化出价`);
+              delete (targetData as any).bid;
+            } else {
+              console.log(`[SyncService] v150: 出价差异 - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}, 以API为准`);
+            }
+          }
+          
           await db
             .update(productTargets)
             .set(targetData)
@@ -2830,11 +2984,8 @@ export class AmazonSyncService {
           bid: Number(newBid.toFixed(2)),
         }]);
 
-        // 更新本地数据库
-        await db
-          .update(keywords)
-          .set({ bid: String(newBid), updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' ') })
-          .where(eq(keywords.id, targetId));
+        // v150: 移除冗余DB更新 - 本地DB更新由executeBidOptimization的事务批量处理统一执行
+        // 避免双重DB更新导致的性能浪费和潜在不一致性
       } else {
         const [pt] = await db
           .select()
@@ -2890,11 +3041,8 @@ export class AmazonSyncService {
           bid: Number(newBid.toFixed(2)),
         }]);
 
-        // 更新本地数据库
-        await db
-          .update(productTargets)
-          .set({ bid: String(newBid), updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' ') })
-          .where(eq(productTargets.id, targetId));
+        // v150: 移除冗余DB更新 - 本地DB更新由executeBidOptimization的事务批量处理统一执行
+        // 避免双重DB更新导致的性能浪费和潜在不一致性
       }
 
       // 计算出价变化
