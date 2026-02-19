@@ -14,6 +14,8 @@ import {
 import DashboardLayout from "@/components/DashboardLayout";
 import { OptimizationLogs } from "@/components/OptimizationLogs";
 import { UnifiedHistoryTracker } from "@/components/UnifiedHistoryTracker";
+import { TargetInsightsPanel } from "@/components/TargetInsightsPanel";
+import { TargetAlgorithmEffectPanel } from "@/components/TargetAlgorithmEffectPanel";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -665,6 +667,8 @@ export default function PerformanceGroupDetail() {
           <TabsList>
             <TabsTrigger value="overview">概览</TabsTrigger>
             <TabsTrigger value="campaigns">广告活动 ({groupCampaigns?.length || 0})</TabsTrigger>
+            <TabsTrigger value="insights">分析洞察</TabsTrigger>
+            <TabsTrigger value="algorithm-effect">算法效果</TabsTrigger>
             <TabsTrigger value="history">历史与追踪</TabsTrigger>
             <TabsTrigger value="logs">操作日志</TabsTrigger>
             <TabsTrigger value="scenario">场景模拟</TabsTrigger>
@@ -1343,6 +1347,26 @@ export default function PerformanceGroupDetail() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* 分析洞察 Tab - v151融合新增 */}
+          <TabsContent value="insights" className="space-y-4">
+            {group?.accountId && (
+              <TargetInsightsPanel
+                groupId={groupId!}
+                accountId={group.accountId}
+              />
+            )}
+          </TabsContent>
+
+          {/* 算法效果 Tab - v151融合新增 */}
+          <TabsContent value="algorithm-effect" className="space-y-4">
+            {group?.accountId && (
+              <TargetAlgorithmEffectPanel
+                accountId={group.accountId}
+                groupId={groupId!}
+              />
+            )}
           </TabsContent>
 
           {/* 优化日志Tab */}

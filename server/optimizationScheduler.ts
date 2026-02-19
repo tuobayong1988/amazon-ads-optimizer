@@ -562,3 +562,154 @@ export async function onCampaignsAdded(
     console.error(`[OptScheduler] 添加广告活动触发优化失败:`, err);
   });
 }
+
+
+// ==================== v151: 统一优化入口 ====================
+
+/**
+ * 触发指定账户下所有活跃优化目标的优化执行
+ * 
+ * 替代原有的 automationExecutionEngine.runFullAutomationCycle()
+ * 核心改进：
+ * 1. 基于优化目标而非账户进行优化，粒度更细
+ * 2. 每个优化目标独立执行，互不影响
+ * 3. 复用 optimizationTargetEngine 的完整9模块优化流程
+ * 4. 自动跳过冷却期内的优化目标
+ * 
+ * @param accountId 账户ID
+ * @param triggeredBy 触发来源
+ * @returns 触发结果统计
+ */
+export async function triggerAccountOptimizations(
+  accountId: number,
+  triggeredBy: string = 'data_sync_complete'
+): Promise<{
+  triggeredCount: number;
+  skippedCount: number;
+  errorCount: number;
+  details: Array<{
+    targetId: number;
+    targetName: string;
+    status: 'triggered' | 'skipped' | 'error';
+    reason?: string;
+  }>;
+}> {
+  console.log(`[OptScheduler] v151: 触发账户 ${accountId} 下所有优化目标, 来源: ${triggeredBy}`);
+  
+  const result = {
+    triggeredCount: 0,
+    skippedCount: 0,
+    errorCount: 0,
+    details: [] as Array<{
+      targetId: number;
+      targetName: string;
+      status: 'triggered' | 'skipped' | 'error';
+      reason?: string;
+    }>,
+  };
+  
+  try {
+    const dbInstance = await getDb();
+    if (!dbInstance) {
+      console.error(`[OptScheduler] v151: 数据库连接失败`);
+      result.errorCount = 1;
+      return result;
+    }
+    
+    // 获取该账户下所有活跃的优化目标
+    const activeTargets = await dbInstance
+      .select({
+        id: performanceGroups.id,
+        name: performanceGroups.name,
+        status: performanceGroups.status,
+      })
+      .from(performanceGroups)
+      .where(
+        and(
+          eq(performanceGroups.accountId, accountId),
+          eq(performanceGroups.status, 'active')
+        )
+      );
+    
+    if (activeTargets.length === 0) {
+      console.log(`[OptScheduler] v151: 账户 ${accountId} 下没有活跃的优化目标`);
+      return result;
+    }
+    
+    console.log(`[OptScheduler] v151: 账户 ${accountId} 下发现 ${activeTargets.length} 个活跃优化目标`);
+    
+    // 动态导入优化引擎
+    const optimizationTargetEngine = await import('./optimizationTargetEngine');
+    
+    // 逐个触发优化目标执行（串行执行，避免资源争用）
+    for (const target of activeTargets) {
+      try {
+        // 检查是否在冷却期内（最近执行过的跳过）
+        const lastExecution = scheduledTargets.get(target.id);
+        if (lastExecution?.lastExecutionTime) {
+          const timeSinceLastExec = Date.now() - lastExecution.lastExecutionTime.getTime();
+          const MIN_INTERVAL_MS = 30 * 60 * 1000; // 最小间隔30分钟
+          if (timeSinceLastExec < MIN_INTERVAL_MS) {
+            result.skippedCount++;
+            result.details.push({
+              targetId: target.id,
+              targetName: target.name,
+              status: 'skipped',
+              reason: `冷却期内（距上次执行 ${Math.round(timeSinceLastExec / 60000)} 分钟）`,
+            });
+            continue;
+          }
+        }
+        
+        // 检查是否有广告活动
+        const campaigns = await import('./db').then(m => m.getCampaignsByPerformanceGroupId(target.id));
+        if (campaigns.length === 0) {
+          result.skippedCount++;
+          result.details.push({
+            targetId: target.id,
+            targetName: target.name,
+            status: 'skipped',
+            reason: '无广告活动',
+          });
+          continue;
+        }
+        
+        // 执行优化
+        console.log(`[OptScheduler] v151: 执行优化目标 ${target.name} (id=${target.id})`);
+        const execResult = await optimizationTargetEngine.executeOptimizationTarget(target.id);
+        
+        // 更新最后执行时间
+        if (scheduledTargets.has(target.id)) {
+          scheduledTargets.get(target.id)!.lastExecutionTime = new Date();
+        }
+        
+        result.triggeredCount++;
+        result.details.push({
+          targetId: target.id,
+          targetName: target.name,
+          status: 'triggered',
+        });
+        
+        console.log(`[OptScheduler] v151: 优化目标 ${target.name} 执行完成`);
+      } catch (error: any) {
+        result.errorCount++;
+        result.details.push({
+          targetId: target.id,
+          targetName: target.name,
+          status: 'error',
+          reason: error.message,
+        });
+        console.error(`[OptScheduler] v151: 优化目标 ${target.name} 执行失败:`, error.message);
+      }
+    }
+    
+    console.log(`[OptScheduler] v151: 账户 ${accountId} 优化触发完成: ` +
+      `触发=${result.triggeredCount}, 跳过=${result.skippedCount}, 错误=${result.errorCount}`);
+    
+  } catch (error: any) {
+    console.error(`[OptScheduler] v151: 账户 ${accountId} 优化触发异常:`, error.message);
+    result.errorCount++;
+  }
+  
+  return result;
+}

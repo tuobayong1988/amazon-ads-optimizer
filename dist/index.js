@@ -63509,154 +63509,6 @@ var init_amazonSyncService = __esm({
   }
 });
 
-// server/notificationService.ts
-async function sendNotification(notification) {
-  try {
-    const severityEmoji = {
-      info: "\u2139\uFE0F",
-      warning: "\u26A0\uFE0F",
-      critical: "\u{1F6A8}"
-    };
-    const formattedTitle = `${severityEmoji[notification.severity]} [${notification.severity.toUpperCase()}] ${notification.title}`;
-    let content = notification.message;
-    if (notification.relatedEntityType && notification.relatedEntityId) {
-      content += `
-
-\u76F8\u5173\u5B9E\u4F53: ${notification.relatedEntityType} #${notification.relatedEntityId}`;
-    }
-    content += `
-
-\u65F6\u95F4: ${(/* @__PURE__ */ new Date()).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}`;
-    const result = await notifyOwner({
-      title: formattedTitle,
-      content
-    });
-    return result;
-  } catch (error54) {
-    console.error("[NotificationService] Failed to send notification:", error54);
-    return false;
-  }
-}
-function analyzeHealthMetrics(metrics, config2) {
-  const alerts = [];
-  if (metrics.currentAcos > config2.acosThreshold) {
-    const changePercent = metrics.previousAcos > 0 ? (metrics.currentAcos - metrics.previousAcos) / metrics.previousAcos * 100 : 100;
-    alerts.push({
-      type: "acos_spike",
-      severity: metrics.currentAcos > config2.acosThreshold * 1.5 ? "critical" : "warning",
-      campaignId: metrics.campaignId,
-      campaignName: metrics.campaignName,
-      currentValue: metrics.currentAcos,
-      previousValue: metrics.previousAcos,
-      changePercent,
-      threshold: config2.acosThreshold,
-      message: `\u5E7F\u544A\u6D3B\u52A8 "${metrics.campaignName}" \u7684ACoS\u5DF2\u8FBE\u5230 ${metrics.currentAcos.toFixed(1)}%\uFF0C\u8D85\u8FC7\u9608\u503C ${config2.acosThreshold}%`
-    });
-  }
-  if (metrics.previousCtr > 0) {
-    const ctrDropPercent = (metrics.previousCtr - metrics.currentCtr) / metrics.previousCtr * 100;
-    if (ctrDropPercent >= config2.ctrDropThreshold) {
-      alerts.push({
-        type: "ctr_drop",
-        severity: ctrDropPercent > config2.ctrDropThreshold * 1.5 ? "critical" : "warning",
-        campaignId: metrics.campaignId,
-        campaignName: metrics.campaignName,
-        currentValue: metrics.currentCtr,
-        previousValue: metrics.previousCtr,
-        changePercent: -ctrDropPercent,
-        threshold: config2.ctrDropThreshold,
-        message: `\u5E7F\u544A\u6D3B\u52A8 "${metrics.campaignName}" \u7684\u70B9\u51FB\u7387\u4E0B\u964D\u4E86 ${ctrDropPercent.toFixed(1)}%\uFF0C\u4ECE ${metrics.previousCtr.toFixed(2)}% \u964D\u81F3 ${metrics.currentCtr.toFixed(2)}%`
-      });
-    }
-  }
-  if (metrics.previousConversionRate > 0) {
-    const convDropPercent = (metrics.previousConversionRate - metrics.currentConversionRate) / metrics.previousConversionRate * 100;
-    if (convDropPercent >= config2.conversionDropThreshold) {
-      alerts.push({
-        type: "conversion_drop",
-        severity: convDropPercent > config2.conversionDropThreshold * 1.5 ? "critical" : "warning",
-        campaignId: metrics.campaignId,
-        campaignName: metrics.campaignName,
-        currentValue: metrics.currentConversionRate,
-        previousValue: metrics.previousConversionRate,
-        changePercent: -convDropPercent,
-        threshold: config2.conversionDropThreshold,
-        message: `\u5E7F\u544A\u6D3B\u52A8 "${metrics.campaignName}" \u7684\u8F6C\u5316\u7387\u4E0B\u964D\u4E86 ${convDropPercent.toFixed(1)}%\uFF0C\u4ECE ${metrics.previousConversionRate.toFixed(2)}% \u964D\u81F3 ${metrics.currentConversionRate.toFixed(2)}%`
-      });
-    }
-  }
-  if (metrics.previousSpend > 0) {
-    const spendSpikePercent = (metrics.currentSpend - metrics.previousSpend) / metrics.previousSpend * 100;
-    if (spendSpikePercent >= config2.spendSpikeThreshold) {
-      alerts.push({
-        type: "spend_spike",
-        severity: spendSpikePercent > config2.spendSpikeThreshold * 1.5 ? "critical" : "warning",
-        campaignId: metrics.campaignId,
-        campaignName: metrics.campaignName,
-        currentValue: metrics.currentSpend,
-        previousValue: metrics.previousSpend,
-        changePercent: spendSpikePercent,
-        threshold: config2.spendSpikeThreshold,
-        message: `\u5E7F\u544A\u6D3B\u52A8 "${metrics.campaignName}" \u7684\u82B1\u8D39\u6FC0\u589E ${spendSpikePercent.toFixed(1)}%\uFF0C\u4ECE $${metrics.previousSpend.toFixed(2)} \u589E\u81F3 $${metrics.currentSpend.toFixed(2)}`
-      });
-    }
-  }
-  return alerts;
-}
-async function sendBatchAlerts(alerts) {
-  let sent = 0;
-  let failed = 0;
-  const criticalAlerts = alerts.filter((a4) => a4.severity === "critical");
-  const warningAlerts = alerts.filter((a4) => a4.severity === "warning");
-  for (const alert of criticalAlerts) {
-    const success2 = await sendNotification({
-      userId: 0,
-      // Will be set by the caller
-      type: "alert",
-      severity: "critical",
-      title: `\u4E25\u91CD\u8B66\u544A: ${alert.type === "acos_spike" ? "ACoS\u98D9\u5347" : alert.type === "ctr_drop" ? "\u70B9\u51FB\u7387\u9AA4\u964D" : alert.type === "conversion_drop" ? "\u8F6C\u5316\u7387\u4E0B\u6ED1" : "\u82B1\u8D39\u6FC0\u589E"}`,
-      message: alert.message,
-      relatedEntityType: "campaign",
-      relatedEntityId: alert.campaignId
-    });
-    if (success2) sent++;
-    else failed++;
-  }
-  if (warningAlerts.length > 0) {
-    const summaryMessage = warningAlerts.map((a4) => `\u2022 ${a4.message}`).join("\n");
-    const success2 = await sendNotification({
-      userId: 0,
-      type: "alert",
-      severity: "warning",
-      title: `\u5E7F\u544A\u5065\u5EB7\u5EA6\u8B66\u544A (${warningAlerts.length}\u9879)`,
-      message: `\u68C0\u6D4B\u5230\u4EE5\u4E0B\u5065\u5EB7\u5EA6\u95EE\u9898:
-
-${summaryMessage}`
-    });
-    if (success2) sent++;
-    else failed++;
-  }
-  return { sent, failed };
-}
-var defaultNotificationConfig;
-var init_notificationService = __esm({
-  "server/notificationService.ts"() {
-    "use strict";
-    init_notification();
-    defaultNotificationConfig = {
-      emailEnabled: true,
-      inAppEnabled: true,
-      acosThreshold: 50,
-      ctrDropThreshold: 30,
-      conversionDropThreshold: 30,
-      spendSpikeThreshold: 50,
-      frequency: "daily",
-      quietHoursStart: 22,
-      quietHoursEnd: 8
-    };
-  }
-});
-
 // server/attributionWindowHelper.ts
 function getWindowDateRange(windowType, marketplace = "US") {
   const config2 = windowType === "bid_optimization" ? ATTRIBUTION_WINDOW.BID_OPTIMIZATION : windowType === "risk_control" ? ATTRIBUTION_WINDOW.RISK_CONTROL : ATTRIBUTION_WINDOW.TREND_ANALYSIS;
@@ -63857,2197 +63709,6 @@ var init_attributionWindowHelper = __esm({
         description: "\u8D8B\u52BF\u5206\u6790\u7A97\u53E3(D-0~D-60): \u957F\u671F\u8D8B\u52BF\u5224\u65AD"
       }
     };
-  }
-});
-
-// server/unifiedOptimizationEngine.ts
-async function getDbInstance() {
-  const db = await getDb();
-  if (!db) throw new Error("Database connection failed");
-  return db;
-}
-async function getCampaignOptimizationState(campaignId) {
-  const db = await getDbInstance();
-  const campaign = await db.select().from(campaigns).where(eq(campaigns.id, campaignId)).limit(1);
-  if (campaign.length === 0) return null;
-  const c5 = campaign[0];
-  const executedToday = 0;
-  const acos = c5.spend && c5.sales ? Number(c5.spend) / Number(c5.sales) * 100 : 0;
-  const roas = c5.spend && c5.sales ? Number(c5.sales) / Number(c5.spend) : 0;
-  const performanceScore = Math.min(100, Math.max(
-    0,
-    roas * 20 + (100 - acos)
-  ));
-  return {
-    campaignId: c5.id,
-    campaignName: c5.campaignName,
-    autoOptimizationEnabled: true,
-    // 默认启用
-    executionMode: "semi_auto",
-    // 默认半自动
-    lastOptimizationAt: void 0,
-    // TODO: 从日志获取
-    pendingDecisions: 0,
-    // TODO: 从决策表获取
-    executedToday,
-    performanceScore,
-    optimizationTypes: {
-      bidAdjustment: true,
-      placementTilt: true,
-      dayparting: true,
-      negativeKeyword: true
-    }
-  };
-}
-async function getPerformanceGroupOptimizationState(groupId) {
-  const db = await getDbInstance();
-  const group = await db.select().from(performanceGroups).where(eq(performanceGroups.id, groupId)).limit(1);
-  if (group.length === 0) return null;
-  const g6 = group[0];
-  const groupCampaigns = await db.select().from(campaigns).where(eq(campaigns.performanceGroupId, groupId));
-  let totalSpend = 0;
-  let totalSales = 0;
-  for (const c5 of groupCampaigns) {
-    totalSpend += Number(c5.spend) || 0;
-    totalSales += Number(c5.sales) || 0;
-  }
-  const overallRoas = totalSpend > 0 ? totalSales / totalSpend : 0;
-  const overallAcos = totalSales > 0 ? totalSpend / totalSales * 100 : 0;
-  const overallPerformanceScore = Math.min(100, Math.max(
-    0,
-    overallRoas * 20 + (100 - overallAcos)
-  ));
-  return {
-    groupId: g6.id,
-    groupName: g6.name,
-    autoOptimizationEnabled: true,
-    executionMode: "semi_auto",
-    targetAcos: g6.targetAcos ? Number(g6.targetAcos) : void 0,
-    targetRoas: g6.targetRoas ? Number(g6.targetRoas) : void 0,
-    campaignCount: groupCampaigns.length,
-    optimizedCampaigns: groupCampaigns.length,
-    // TODO: 统计实际优化的数量
-    totalPendingDecisions: 0,
-    totalExecutedToday: 0,
-    overallPerformanceScore
-  };
-}
-async function runUnifiedOptimizationAnalysis(accountId, options = {}) {
-  const db = await getDbInstance();
-  const decisions = [];
-  let targetCampaigns;
-  if (options.campaignIds && options.campaignIds.length > 0) {
-    targetCampaigns = await db.select().from(campaigns).where(sql`${campaigns.id} IN (${options.campaignIds.join(",")})`);
-  } else if (options.performanceGroupIds && options.performanceGroupIds.length > 0) {
-    targetCampaigns = await db.select().from(campaigns).where(sql`${campaigns.performanceGroupId} IN (${options.performanceGroupIds.join(",")})`);
-  } else {
-    targetCampaigns = await db.select().from(campaigns).where(eq(campaigns.campaignStatus, "enabled")).limit(100);
-  }
-  const types = options.optimizationTypes || [
-    "bid_adjustment",
-    "placement_tilt",
-    "dayparting",
-    "negative_keyword"
-  ];
-  for (const campaign of targetCampaigns) {
-    const costType = campaign.costType === "vcpm" ? "vcpm" : "cpc";
-    const isVcpm = costType === "vcpm";
-    if (types.includes("bid_adjustment")) {
-      const bidDecisions = await analyzeBidAdjustments2(campaign, costType);
-      decisions.push(...bidDecisions);
-    }
-    if (types.includes("placement_tilt") && !isVcpm) {
-      const placementDecisions = await analyzePlacementTilt(campaign);
-      decisions.push(...placementDecisions);
-    }
-    if (types.includes("dayparting")) {
-      const daypartingDecisions = await analyzeDayparting(campaign);
-      decisions.push(...daypartingDecisions);
-    }
-    if (types.includes("negative_keyword")) {
-      const negativeDecisions = await analyzeNegativeKeywords(campaign, costType);
-      decisions.push(...negativeDecisions);
-    }
-  }
-  return decisions;
-}
-async function analyzeBidAdjustments2(campaign, costType = "cpc") {
-  const db = await getDbInstance();
-  const decisions = [];
-  const isVcpm = costType === "vcpm";
-  let groupTargetAcos = 30;
-  if (campaign.performanceGroupId) {
-    try {
-      const groups2 = await db.select().from(performanceGroups).where(eq(performanceGroups.id, campaign.performanceGroupId)).limit(1);
-      if (groups2.length > 0 && groups2[0].targetAcos) {
-        groupTargetAcos = Number(groups2[0].targetAcos);
-        console.log(`[UnifiedOptEngine] v148: Campaign ${campaign.id} \u4F7F\u7528\u4F18\u5316\u76EE\u6807targetAcos=${groupTargetAcos}%`);
-      }
-    } catch (pgErr) {
-      console.warn(`[UnifiedOptEngine] v148: \u83B7\u53D6\u4F18\u5316\u76EE\u6807targetAcos\u5931\u8D25, \u4F7F\u7528\u9ED8\u8BA4\u503C30%:`, pgErr.message);
-    }
-  }
-  let correctionFactor = 1;
-  let correctionApplied = false;
-  try {
-    const correctionResult = await calculateAttributionCorrectionFactor(
-      campaign.accountId,
-      campaign.id
-    );
-    const campaignAge = campaign.createdAt ? Math.floor((Date.now() - new Date(campaign.createdAt).getTime()) / (24 * 60 * 60 * 1e3)) : 30;
-    if (shouldApplyCorrection(
-      correctionResult.correctionFactor,
-      correctionResult.maturePerformance.clicks,
-      campaignAge
-    )) {
-      correctionFactor = correctionResult.correctionFactor;
-      correctionApplied = true;
-      console.log(`[UnifiedOptEngine] Campaign ${campaign.id} \u5F52\u56E0\u6821\u6B63\u7CFB\u6570: ${correctionFactor.toFixed(3)}`);
-    }
-  } catch (corrErr) {
-    console.warn(`[UnifiedOptEngine] \u5F52\u56E0\u6821\u6B63\u8BA1\u7B97\u5931\u8D25, \u4F7F\u7528\u539F\u59CB\u6570\u636E:`, corrErr.message);
-  }
-  const campaignKeywords = await db.select().from(keywords).where(sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`);
-  for (const kw of campaignKeywords) {
-    const rawImpressions = Number(kw.impressions) || 0;
-    const rawClicks = Number(kw.clicks) || 0;
-    const rawOrders = Number(kw.orders) || 0;
-    const rawSpend = Number(kw.spend) || 0;
-    const rawSales = Number(kw.sales) || 0;
-    const currentBid = Number(kw.bid) || 0;
-    if (isVcpm) {
-      if (rawImpressions < 1e3) continue;
-      const corrected2 = applyAttributionCorrection(
-        { impressions: rawImpressions, clicks: rawClicks, spend: rawSpend, sales: rawSales, orders: rawOrders },
-        correctionFactor,
-        "bid_optimization"
-      );
-      const impressions = corrected2.impressions;
-      const spend2 = corrected2.spend;
-      const sales2 = corrected2.sales;
-      const orders2 = corrected2.orders;
-      const clicks2 = corrected2.clicks;
-      const currentCpm = impressions > 0 ? spend2 / impressions * 1e3 : 0;
-      const ctr = impressions > 0 ? clicks2 / impressions : 0;
-      const viewCvr = impressions > 0 ? orders2 / impressions : 0;
-      const acos2 = sales2 > 0 ? spend2 / sales2 * 100 : 999;
-      const aov2 = orders2 > 0 ? sales2 / orders2 : 30;
-      const targetAcos2 = groupTargetAcos;
-      const optimalVcpm = viewCvr * aov2 * (targetAcos2 / 100) * 1e3;
-      const bidDiff2 = currentBid > 0 ? Math.abs(optimalVcpm - currentBid) / currentBid : 1;
-      if (bidDiff2 > 0.15 && optimalVcpm > 0.5) {
-        decisions.push({
-          id: `vcpm_bid_${campaign.id}_${kw.id}_${Date.now()}`,
-          type: "bid_adjustment",
-          targetType: "keyword",
-          targetId: kw.id,
-          targetName: kw.keywordText || `\u5173\u952E\u8BCD ${kw.id}`,
-          currentValue: currentBid,
-          suggestedValue: Math.round(optimalVcpm * 100) / 100,
-          expectedImpact: {
-            metric: "CPM",
-            currentValue: currentCpm,
-            expectedValue: optimalVcpm,
-            changePercent: currentCpm > 0 ? (optimalVcpm - currentCpm) / currentCpm * 100 : 0
-          },
-          confidence: Math.min(0.9, 0.4 + impressions / 1e4 * 0.5),
-          reasoning: `[vCPM\u4F18\u5316] \u57FA\u4E8E\u5C55\u793A\u8F6C\u5316\u7387\u8BA1\u7B97\uFF1A\u5C55\u793ACVR=${(viewCvr * 1e5).toFixed(2)}\u2030, CTR=${(ctr * 100).toFixed(3)}%, AOV=$${aov2.toFixed(2)}, ACoS=${acos2.toFixed(1)}%, \u76EE\u6807ACoS=${targetAcos2}%${correctionApplied ? ` [\u5F52\u56E0\u6821\u6B63\xD7${correctionFactor.toFixed(2)}]` : ""}`,
-          status: "pending",
-          createdAt: /* @__PURE__ */ new Date()
-        });
-      }
-      continue;
-    }
-    if (rawClicks < 10) continue;
-    const corrected = applyAttributionCorrection(
-      { impressions: rawImpressions, clicks: rawClicks, spend: rawSpend, sales: rawSales, orders: rawOrders },
-      correctionFactor,
-      "bid_optimization"
-    );
-    const clicks = corrected.clicks;
-    const orders = corrected.orders;
-    const spend = corrected.spend;
-    const sales = corrected.sales;
-    const cvr = clicks > 0 ? orders / clicks : 0;
-    const acos = sales > 0 ? spend / sales * 100 : 999;
-    const cpc = clicks > 0 ? spend / clicks : 0;
-    const aov = orders > 0 ? sales / orders : 30;
-    const targetAcos = groupTargetAcos;
-    const optimalBid = cvr * aov * (targetAcos / 100);
-    const bidDiff = Math.abs(optimalBid - currentBid) / currentBid;
-    if (bidDiff > 0.1 && optimalBid > 0.1) {
-      const expectedAcos = optimalBid > 0 ? optimalBid / (cvr * aov) * 100 : acos;
-      decisions.push({
-        id: `bid_${campaign.id}_${kw.id}_${Date.now()}`,
-        type: "bid_adjustment",
-        targetType: "keyword",
-        targetId: kw.id,
-        targetName: kw.keywordText || `\u5173\u952E\u8BCD ${kw.id}`,
-        currentValue: currentBid,
-        suggestedValue: Math.round(optimalBid * 100) / 100,
-        expectedImpact: {
-          metric: "ACoS",
-          currentValue: acos,
-          expectedValue: expectedAcos,
-          changePercent: (expectedAcos - acos) / acos * 100
-        },
-        confidence: Math.min(0.95, 0.5 + clicks / 100 * 0.45),
-        reasoning: `[CPC\u4F18\u5316] \u57FA\u4E8E\u5229\u6DA6\u6700\u5927\u5316\u516C\u5F0F\u8BA1\u7B97\uFF1ACVR=${(cvr * 100).toFixed(2)}%, AOV=$${aov.toFixed(2)}, \u76EE\u6807ACoS=${targetAcos}%${correctionApplied ? ` [\u5F52\u56E0\u6821\u6B63\xD7${correctionFactor.toFixed(2)}]` : ""}`,
-        status: "pending",
-        createdAt: /* @__PURE__ */ new Date()
-      });
-    }
-  }
-  const campaignTargets = await db.select().from(productTargets).where(sql`${productTargets.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`);
-  for (const pt3 of campaignTargets) {
-    const rawImpressions = Number(pt3.impressions) || 0;
-    const rawClicks = Number(pt3.clicks) || 0;
-    const rawOrders = Number(pt3.orders) || 0;
-    const rawSpend = Number(pt3.spend) || 0;
-    const rawSales = Number(pt3.sales) || 0;
-    const currentBid = Number(pt3.bid) || 0;
-    if (isVcpm) {
-      if (rawImpressions < 1e3) continue;
-      const corrected = applyAttributionCorrection(
-        { impressions: rawImpressions, clicks: rawClicks, spend: rawSpend, sales: rawSales, orders: rawOrders },
-        correctionFactor,
-        "bid_optimization"
-      );
-      const viewCvr = corrected.impressions > 0 ? corrected.orders / corrected.impressions : 0;
-      const aov = corrected.orders > 0 ? corrected.sales / corrected.orders : 30;
-      const targetAcos = groupTargetAcos;
-      const optimalVcpm = viewCvr * aov * (targetAcos / 100) * 1e3;
-      const bidDiff = currentBid > 0 ? Math.abs(optimalVcpm - currentBid) / currentBid : 1;
-      if (bidDiff > 0.15 && optimalVcpm > 0.5) {
-        decisions.push({
-          id: `vcpm_pt_bid_${campaign.id}_${pt3.id}_${Date.now()}`,
-          type: "bid_adjustment",
-          targetType: "keyword",
-          targetId: pt3.id,
-          targetName: pt3.targetValue || `\u5546\u54C1\u5B9A\u5411 ${pt3.id}`,
-          currentValue: currentBid,
-          suggestedValue: Math.round(optimalVcpm * 100) / 100,
-          expectedImpact: { metric: "CPM", currentValue: corrected.impressions > 0 ? corrected.spend / corrected.impressions * 1e3 : 0, expectedValue: optimalVcpm, changePercent: 0 },
-          confidence: Math.min(0.9, 0.4 + corrected.impressions / 1e4 * 0.5),
-          reasoning: `[vCPM\u5546\u54C1\u5B9A\u5411\u4F18\u5316] \u5339\u914D\u65B9\u5F0F:${pt3.targetMatchType || "auto"}, \u5C55\u793ACVR=${(viewCvr * 1e5).toFixed(2)}\u2030${correctionApplied ? ` [\u5F52\u56E0\u6821\u6B63\xD7${correctionFactor.toFixed(2)}]` : ""}`,
-          status: "pending",
-          createdAt: /* @__PURE__ */ new Date()
-        });
-      }
-    } else {
-      if (rawClicks < 10) continue;
-      const corrected = applyAttributionCorrection(
-        { impressions: rawImpressions, clicks: rawClicks, spend: rawSpend, sales: rawSales, orders: rawOrders },
-        correctionFactor,
-        "bid_optimization"
-      );
-      const cvr = corrected.clicks > 0 ? corrected.orders / corrected.clicks : 0;
-      const acos = corrected.sales > 0 ? corrected.spend / corrected.sales * 100 : 999;
-      const aov = corrected.orders > 0 ? corrected.sales / corrected.orders : 30;
-      const targetAcos = groupTargetAcos;
-      const optimalBid = cvr * aov * (targetAcos / 100);
-      const bidDiff = currentBid > 0 ? Math.abs(optimalBid - currentBid) / currentBid : 1;
-      if (bidDiff > 0.1 && optimalBid > 0.1) {
-        const expectedAcos = optimalBid > 0 ? optimalBid / (cvr * aov) * 100 : acos;
-        decisions.push({
-          id: `pt_bid_${campaign.id}_${pt3.id}_${Date.now()}`,
-          type: "bid_adjustment",
-          targetType: "keyword",
-          targetId: pt3.id,
-          targetName: pt3.targetValue || `\u5546\u54C1\u5B9A\u5411 ${pt3.id}`,
-          currentValue: currentBid,
-          suggestedValue: Math.round(optimalBid * 100) / 100,
-          expectedImpact: { metric: "ACoS", currentValue: acos, expectedValue: expectedAcos, changePercent: acos > 0 ? (expectedAcos - acos) / acos * 100 : 0 },
-          confidence: Math.min(0.95, 0.5 + corrected.clicks / 100 * 0.45),
-          reasoning: `[CPC\u5546\u54C1\u5B9A\u5411\u4F18\u5316] \u5339\u914D\u65B9\u5F0F:${pt3.targetMatchType || "auto"}, CVR=${(cvr * 100).toFixed(2)}%, AOV=$${aov.toFixed(2)}${correctionApplied ? ` [\u5F52\u56E0\u6821\u6B63\xD7${correctionFactor.toFixed(2)}]` : ""}`,
-          status: "pending",
-          createdAt: /* @__PURE__ */ new Date()
-        });
-      }
-    }
-  }
-  return decisions;
-}
-async function analyzePlacementTilt(campaign) {
-  const decisions = [];
-  const currentTopSearch = Number(campaign.topOfSearchBidAdjustment) || 0;
-  const currentProductPage = Number(campaign.productPageBidAdjustment) || 0;
-  const suggestedTopSearch = Math.min(50, Math.max(0, currentTopSearch));
-  const suggestedProductPage = Math.min(50, Math.max(0, currentProductPage));
-  if (currentTopSearch > 50) {
-    decisions.push({
-      id: `placement_top_${campaign.id}_${Date.now()}`,
-      type: "placement_tilt",
-      targetType: "campaign",
-      targetId: campaign.id,
-      targetName: campaign.campaignName,
-      currentValue: currentTopSearch,
-      suggestedValue: suggestedTopSearch,
-      expectedImpact: {
-        metric: "\u4F4D\u7F6E\u8C03\u6574",
-        currentValue: currentTopSearch,
-        expectedValue: suggestedTopSearch,
-        changePercent: (suggestedTopSearch - currentTopSearch) / currentTopSearch * 100
-      },
-      confidence: 0.85,
-      reasoning: "\u667A\u80FD\u4F18\u5316\u7B56\u7565\uFF1A\u8BBE\u7F6E\u8F83\u4F4E\u7684\u4F4D\u7F6E\u8C03\u6574\uFF080-50%\uFF09\uFF0C\u8BA9\u57FA\u7840\u51FA\u4EF7\u66F4\u7CBE\u786E\u63A7\u5236\u7ADE\u4EF7\u5BF9\u8C61",
-      status: "pending",
-      createdAt: /* @__PURE__ */ new Date()
-    });
-  }
-  if (currentProductPage > 50) {
-    decisions.push({
-      id: `placement_product_${campaign.id}_${Date.now()}`,
-      type: "placement_tilt",
-      targetType: "campaign",
-      targetId: campaign.id,
-      targetName: campaign.campaignName,
-      currentValue: currentProductPage,
-      suggestedValue: suggestedProductPage,
-      expectedImpact: {
-        metric: "\u4F4D\u7F6E\u8C03\u6574",
-        currentValue: currentProductPage,
-        expectedValue: suggestedProductPage,
-        changePercent: (suggestedProductPage - currentProductPage) / currentProductPage * 100
-      },
-      confidence: 0.85,
-      reasoning: "\u667A\u80FD\u4F18\u5316\u7B56\u7565\uFF1A\u8BBE\u7F6E\u8F83\u4F4E\u7684\u4F4D\u7F6E\u8C03\u6574\uFF080-50%\uFF09\uFF0C\u8BA9\u57FA\u7840\u51FA\u4EF7\u66F4\u7CBE\u786E\u63A7\u5236\u7ADE\u4EF7\u5BF9\u8C61",
-      status: "pending",
-      createdAt: /* @__PURE__ */ new Date()
-    });
-  }
-  return decisions;
-}
-async function analyzeDayparting(campaign) {
-  const decisions = [];
-  const poorPerformingHours = [2, 3, 4, 5];
-  decisions.push({
-    id: `daypart_${campaign.id}_${Date.now()}`,
-    type: "dayparting",
-    targetType: "campaign",
-    targetId: campaign.id,
-    targetName: campaign.campaignName,
-    currentValue: "\u65E0\u5206\u65F6\u7B56\u7565",
-    suggestedValue: "\u51CC\u66682-6\u70B9\u964D\u4F4E50%\u51FA\u4EF7",
-    expectedImpact: {
-      metric: "ACoS",
-      currentValue: 0,
-      expectedValue: -10,
-      changePercent: -10
-    },
-    confidence: 0.75,
-    reasoning: `\u51CC\u6668${poorPerformingHours.join(",")}\u70B9\u901A\u5E38\u8F6C\u5316\u7387\u8F83\u4F4E\uFF0C\u5EFA\u8BAE\u964D\u4F4E\u51FA\u4EF7\u4EE5\u51CF\u5C11\u6D6A\u8D39`,
-    status: "pending",
-    createdAt: /* @__PURE__ */ new Date()
-  });
-  return decisions;
-}
-async function analyzeNegativeKeywords(campaign, costType = "cpc") {
-  const db = await getDbInstance();
-  const decisions = [];
-  const isVcpm = costType === "vcpm";
-  if (isVcpm) {
-    const poorKeywords = await db.select().from(keywords).where(and(
-      sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`,
-      sql`${keywords.impressions} > 5000`,
-      // vCPM需要更多展示数据
-      sql`${keywords.clicks} = 0`,
-      // 零点击表示展示完全无效
-      sql`${keywords.orders} = 0`
-    )).limit(10);
-    for (const kw of poorKeywords) {
-      const impressions = Number(kw.impressions) || 0;
-      const spend = Number(kw.spend) || 0;
-      decisions.push({
-        id: `negative_vcpm_${campaign.id}_${kw.id}_${Date.now()}`,
-        type: "negative_keyword",
-        targetType: "keyword",
-        targetId: kw.id,
-        targetName: kw.keywordText || `\u5173\u952E\u8BCD ${kw.id}`,
-        currentValue: "\u6B63\u5E38\u6295\u653E",
-        suggestedValue: "\u6DFB\u52A0\u4E3A\u5426\u5B9A\u8BCD",
-        expectedImpact: {
-          metric: "\u82B1\u8D39",
-          currentValue: spend,
-          expectedValue: 0,
-          changePercent: -100
-        },
-        confidence: 0.85,
-        reasoning: `[vCPM] \u8BE5\u5173\u952E\u8BCD\u5DF2\u83B7\u5F97${impressions}\u6B21\u5C55\u793A\u4F460\u70B9\u51FB0\u8F6C\u5316\uFF0C\u82B1\u8D39$${spend.toFixed(2)}\uFF0C\u5C55\u793A\u5B8C\u5168\u65E0\u6548\uFF0C\u5EFA\u8BAE\u6DFB\u52A0\u4E3A\u5426\u5B9A\u8BCD`,
-        status: "pending",
-        createdAt: /* @__PURE__ */ new Date()
-      });
-    }
-  } else {
-    const poorKeywords = await db.select().from(keywords).where(and(
-      sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`,
-      sql`${keywords.clicks} > 20`,
-      sql`${keywords.orders} = 0`
-    )).limit(10);
-    for (const kw of poorKeywords) {
-      decisions.push({
-        id: `negative_${campaign.id}_${kw.id}_${Date.now()}`,
-        type: "negative_keyword",
-        targetType: "keyword",
-        targetId: kw.id,
-        targetName: kw.keywordText || `\u5173\u952E\u8BCD ${kw.id}`,
-        currentValue: "\u6B63\u5E38\u6295\u653E",
-        suggestedValue: "\u6DFB\u52A0\u4E3A\u5426\u5B9A\u8BCD",
-        expectedImpact: {
-          metric: "\u82B1\u8D39",
-          currentValue: Number(kw.spend) || 0,
-          expectedValue: 0,
-          changePercent: -100
-        },
-        confidence: 0.9,
-        reasoning: `[CPC] \u8BE5\u5173\u952E\u8BCD\u5DF2\u83B7\u5F97${kw.clicks}\u6B21\u70B9\u51FB\u4F460\u8F6C\u5316\uFF0C\u82B1\u8D39$${kw.spend}\uFF0C\u5EFA\u8BAE\u6DFB\u52A0\u4E3A\u5426\u5B9A\u8BCD`,
-        status: "pending",
-        createdAt: /* @__PURE__ */ new Date()
-      });
-    }
-  }
-  if (isVcpm) {
-    const poorTargets = await db.select().from(productTargets).where(and(
-      sql`${productTargets.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`,
-      sql`${productTargets.impressions} > 5000`,
-      sql`${productTargets.clicks} = 0`,
-      sql`${productTargets.orders} = 0`
-    )).limit(10);
-    for (const pt3 of poorTargets) {
-      const impressions = Number(pt3.impressions) || 0;
-      const spend = Number(pt3.spend) || 0;
-      decisions.push({
-        id: `negative_vcpm_pt_${campaign.id}_${pt3.id}_${Date.now()}`,
-        type: "negative_keyword",
-        targetType: "keyword",
-        targetId: pt3.id,
-        targetName: pt3.targetValue || `\u5546\u54C1\u5B9A\u5411 ${pt3.id}`,
-        currentValue: "\u6B63\u5E38\u6295\u653E",
-        suggestedValue: "\u6DFB\u52A0\u4E3A\u5426\u5B9A\u5546\u54C1\u5B9A\u5411",
-        expectedImpact: { metric: "\u82B1\u8D39", currentValue: spend, expectedValue: 0, changePercent: -100 },
-        confidence: 0.85,
-        reasoning: `[vCPM\u5546\u54C1\u5B9A\u5411] \u5339\u914D\u65B9\u5F0F:${pt3.targetMatchType || "auto"}, \u5DF2\u83B7\u5F97${impressions}\u6B21\u5C55\u793A\u4F460\u70B9\u51FB0\u8F6C\u5316\uFF0C\u82B1\u8D39$${spend.toFixed(2)}\uFF0C\u5EFA\u8BAE\u5426\u5B9A`,
-        status: "pending",
-        createdAt: /* @__PURE__ */ new Date()
-      });
-    }
-  } else {
-    const poorTargets = await db.select().from(productTargets).where(and(
-      sql`${productTargets.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`,
-      sql`${productTargets.clicks} > 20`,
-      sql`${productTargets.orders} = 0`
-    )).limit(10);
-    for (const pt3 of poorTargets) {
-      decisions.push({
-        id: `negative_pt_${campaign.id}_${pt3.id}_${Date.now()}`,
-        type: "negative_keyword",
-        targetType: "keyword",
-        targetId: pt3.id,
-        targetName: pt3.targetValue || `\u5546\u54C1\u5B9A\u5411 ${pt3.id}`,
-        currentValue: "\u6B63\u5E38\u6295\u653E",
-        suggestedValue: "\u6DFB\u52A0\u4E3A\u5426\u5B9A\u5546\u54C1\u5B9A\u5411",
-        expectedImpact: { metric: "\u82B1\u8D39", currentValue: Number(pt3.spend) || 0, expectedValue: 0, changePercent: -100 },
-        confidence: 0.9,
-        reasoning: `[CPC\u5546\u54C1\u5B9A\u5411] \u5339\u914D\u65B9\u5F0F:${pt3.targetMatchType || "auto"}, \u5DF2\u83B7\u5F97${pt3.clicks}\u6B21\u70B9\u51FB\u4F460\u8F6C\u5316\uFF0C\u82B1\u8D39$${pt3.spend}\uFF0C\u5EFA\u8BAE\u5426\u5B9A`,
-        status: "pending",
-        createdAt: /* @__PURE__ */ new Date()
-      });
-    }
-  }
-  return decisions;
-}
-async function executeOptimizationDecision(decisionId, executedBy = "manual") {
-  return {
-    success: true,
-    message: `\u51B3\u7B56 ${decisionId} \u5DF2${executedBy === "auto" ? "\u81EA\u52A8" : "\u624B\u52A8"}\u6267\u884C`
-  };
-}
-async function batchExecuteOptimizationDecisions(decisionIds, executedBy = "manual") {
-  const results = [];
-  let success2 = 0;
-  let failed = 0;
-  for (const id of decisionIds) {
-    const result = await executeOptimizationDecision(id, executedBy);
-    results.push({ id, ...result });
-    if (result.success) {
-      success2++;
-    } else {
-      failed++;
-    }
-  }
-  return { success: success2, failed, results };
-}
-async function getOptimizationSummary(accountId, options = {}) {
-  return {
-    totalDecisions: 0,
-    pendingDecisions: 0,
-    executedToday: 0,
-    successRate: 0,
-    byType: {
-      bid_adjustment: { total: 0, pending: 0, executed: 0, avgConfidence: 0 },
-      placement_tilt: { total: 0, pending: 0, executed: 0, avgConfidence: 0 },
-      dayparting: { total: 0, pending: 0, executed: 0, avgConfidence: 0 },
-      negative_keyword: { total: 0, pending: 0, executed: 0, avgConfidence: 0 },
-      funnel_migration: { total: 0, pending: 0, executed: 0, avgConfidence: 0 },
-      budget_reallocation: { total: 0, pending: 0, executed: 0, avgConfidence: 0 },
-      correction: { total: 0, pending: 0, executed: 0, avgConfidence: 0 },
-      traffic_isolation: { total: 0, pending: 0, executed: 0, avgConfidence: 0 }
-    },
-    recentDecisions: []
-  };
-}
-async function updateCampaignOptimizationSettings(campaignId, settings) {
-  return { success: true };
-}
-async function updatePerformanceGroupOptimizationSettings(groupId, settings) {
-  return { success: true };
-}
-var init_unifiedOptimizationEngine = __esm({
-  "server/unifiedOptimizationEngine.ts"() {
-    "use strict";
-    init_db2();
-    init_schema2();
-    init_drizzle_orm();
-    init_attributionWindowHelper();
-  }
-});
-
-// server/trafficIsolationService.ts
-function tokenize2(text2) {
-  const cleaned = text2.toLowerCase().replace(/[^a-z0-9\s]/g, " ").trim();
-  const words = cleaned.split(/\s+/).filter((w7) => w7.length > 1);
-  return words.filter((w7) => !TRAFFIC_ISOLATION_CONFIG.ngram.stopWords.includes(w7));
-}
-function generateNGrams(tokens, n7) {
-  const ngrams = [];
-  for (let i4 = 0; i4 <= tokens.length - n7; i4++) {
-    ngrams.push(tokens.slice(i4, i4 + n7).join(" "));
-  }
-  return ngrams;
-}
-async function runNGramAnalysis(accountId, startDate, endDate, options) {
-  const db = await getDb();
-  if (!db) {
-    return { accountId, analysisDate: /* @__PURE__ */ new Date(), totalSearchTermsAnalyzed: 0, totalTokensExtracted: 0, highRiskTokens: [], mediumRiskTokens: [], suggestedNegatives: [] };
-  }
-  const minFrequency = options?.minFrequency || TRAFFIC_ISOLATION_CONFIG.ngram.minFrequency;
-  const searchTermData = await db.select({
-    searchTerm: searchTerms.searchTerm,
-    clicks: searchTerms.searchTermClicks,
-    conversions: searchTerms.searchTermOrders,
-    spend: searchTerms.searchTermSpend,
-    sales: searchTerms.searchTermSales
-  }).from(searchTerms).where(and(
-    eq(searchTerms.accountId, accountId),
-    gte(searchTerms.reportStartDate, startDate.toISOString()),
-    lte(searchTerms.reportEndDate, endDate.toISOString()),
-    // 默认只分析有点击但无转化的搜索词
-    options?.includeConvertingTerms ? sql`1=1` : sql`${searchTerms.searchTermClicks} > 0 AND ${searchTerms.searchTermOrders} = 0`
-  ));
-  const tokenStats = /* @__PURE__ */ new Map();
-  for (const term of searchTermData) {
-    const tokens = tokenize2(term.searchTerm);
-    for (const token of tokens) {
-      const stats = tokenStats.get(token) || {
-        frequency: 0,
-        totalClicks: 0,
-        totalSpend: 0,
-        totalConversions: 0,
-        searchTerms: /* @__PURE__ */ new Set()
-      };
-      stats.frequency++;
-      stats.totalClicks += term.clicks || 0;
-      stats.totalSpend += Number(term.spend) || 0;
-      stats.totalConversions += term.conversions || 0;
-      stats.searchTerms.add(term.searchTerm);
-      tokenStats.set(token, stats);
-    }
-    const bigrams = generateNGrams(tokens, 2);
-    for (const bigram of bigrams) {
-      const stats = tokenStats.get(bigram) || {
-        frequency: 0,
-        totalClicks: 0,
-        totalSpend: 0,
-        totalConversions: 0,
-        searchTerms: /* @__PURE__ */ new Set()
-      };
-      stats.frequency++;
-      stats.totalClicks += term.clicks || 0;
-      stats.totalSpend += Number(term.spend) || 0;
-      stats.totalConversions += term.conversions || 0;
-      stats.searchTerms.add(term.searchTerm);
-      tokenStats.set(bigram, stats);
-    }
-  }
-  const allTokens = [];
-  tokenStats.forEach((stats, token) => {
-    if (stats.frequency < minFrequency) return;
-    const cvr = stats.totalClicks > 0 ? stats.totalConversions / stats.totalClicks : 0;
-    const isMultiWord = token.includes(" ");
-    const frequencyScore = Math.min(stats.frequency / TRAFFIC_ISOLATION_CONFIG.ngram.highRiskFrequency, 1);
-    const clickScore = Math.min(stats.totalClicks / 100, 1);
-    const cvrPenalty = cvr > 0 ? 0.5 : 1;
-    const confidence = (frequencyScore * 0.4 + clickScore * 0.4 + 0.2) * cvrPenalty;
-    let suggestedAction = "monitor";
-    if (confidence >= TRAFFIC_ISOLATION_CONFIG.ngram.confidenceThreshold && cvr === 0) {
-      suggestedAction = isMultiWord ? "negative_phrase" : "negative_phrase";
-    } else if (confidence >= 0.5 && cvr < 0.01) {
-      suggestedAction = "monitor";
-    }
-    allTokens.push({
-      token,
-      tokenType: isMultiWord ? "bigram" : "unigram",
-      frequency: stats.frequency,
-      totalClicks: stats.totalClicks,
-      totalSpend: stats.totalSpend,
-      totalConversions: stats.totalConversions,
-      conversionRate: cvr,
-      confidence,
-      searchTerms: Array.from(stats.searchTerms).slice(0, 10),
-      // 最多保甹10个示例
-      suggestedAction
-    });
-  });
-  allTokens.sort((a4, b6) => b6.confidence - a4.confidence);
-  const highRiskTokens = allTokens.filter((t7) => t7.confidence >= TRAFFIC_ISOLATION_CONFIG.ngram.confidenceThreshold);
-  const mediumRiskTokens = allTokens.filter((t7) => t7.confidence >= 0.5 && t7.confidence < TRAFFIC_ISOLATION_CONFIG.ngram.confidenceThreshold);
-  const suggestedNegatives = highRiskTokens.filter((t7) => t7.suggestedAction !== "ignore").map((t7) => ({
-    token: t7.token,
-    matchType: "negative_phrase",
-    reason: `\u51FA\u73B0${t7.frequency}\u6B21\uFF0C${t7.totalClicks}\u6B21\u70B9\u51FB\uFF0C0\u8F6C\u5316\uFF0C\u9884\u8BA1\u53EF\u8282\u7701$${t7.totalSpend.toFixed(2)}`,
-    estimatedSavings: t7.totalSpend
-  }));
-  return {
-    accountId,
-    analysisDate: /* @__PURE__ */ new Date(),
-    totalSearchTermsAnalyzed: searchTermData.length,
-    totalTokensExtracted: allTokens.length,
-    highRiskTokens,
-    mediumRiskTokens,
-    suggestedNegatives
-  };
-}
-async function detectTrafficConflicts2(accountId, startDate, endDate) {
-  const db = await getDb();
-  if (!db) {
-    return { accountId, analysisDate: /* @__PURE__ */ new Date(), totalConflicts: 0, totalWastedSpend: 0, conflicts: [], resolutionSuggestions: [] };
-  }
-  const searchTermData = await db.select({
-    searchTerm: searchTerms.searchTerm,
-    campaignId: searchTerms.campaignId,
-    clicks: searchTerms.searchTermClicks,
-    conversions: searchTerms.searchTermOrders,
-    spend: searchTerms.searchTermSpend,
-    sales: searchTerms.searchTermSales,
-    matchType: searchTerms.searchTermMatchType
-  }).from(searchTerms).where(and(
-    eq(searchTerms.accountId, accountId),
-    gte(searchTerms.reportStartDate, startDate.toISOString()),
-    lte(searchTerms.reportEndDate, endDate.toISOString()),
-    gte(searchTerms.searchTermClicks, TRAFFIC_ISOLATION_CONFIG.conflict.minClicks)
-  ));
-  const campaignData = await db.select({
-    id: campaigns.id,
-    campaignName: campaigns.campaignName,
-    targetingType: campaigns.targetingType
-  }).from(campaigns).where(eq(campaigns.accountId, accountId));
-  const campaignMap = new Map(campaignData.map((c5) => [c5.id, c5]));
-  const searchTermGroups = /* @__PURE__ */ new Map();
-  for (const term of searchTermData) {
-    const group = searchTermGroups.get(term.searchTerm) || [];
-    group.push(term);
-    searchTermGroups.set(term.searchTerm, group);
-  }
-  const conflicts = [];
-  let totalWastedSpend = 0;
-  searchTermGroups.forEach((terms, searchTerm) => {
-    const campaignIds = new Set(terms.map((t7) => t7.campaignId));
-    if (campaignIds.size < 2) return;
-    const campaignStats = /* @__PURE__ */ new Map();
-    for (const term of terms) {
-      const stats = campaignStats.get(term.campaignId) || {
-        clicks: 0,
-        conversions: 0,
-        spend: 0,
-        sales: 0,
-        matchType: term.matchType || "unknown"
-      };
-      stats.clicks += term.clicks || 0;
-      stats.conversions += term.conversions || 0;
-      stats.spend += Number(term.spend) || 0;
-      stats.sales += Number(term.sales) || 0;
-      campaignStats.set(term.campaignId, stats);
-    }
-    const conflictingCampaigns = [];
-    campaignStats.forEach((stats, campaignId) => {
-      const campaign = campaignMap.get(campaignId);
-      if (!campaign) return;
-      const cvr = stats.clicks > 0 ? stats.conversions / stats.clicks : 0;
-      const aov = stats.conversions > 0 ? stats.sales / stats.conversions : 0;
-      const roas = stats.spend > 0 ? stats.sales / stats.spend : 0;
-      const { cvrWeight, aovWeight, roasWeight, dataVolumeWeight } = TRAFFIC_ISOLATION_CONFIG.conflict;
-      const normalizedCVR = Math.min(cvr / 0.2, 1);
-      const normalizedAOV = Math.min(aov / 100, 1);
-      const normalizedROAS = Math.min(roas / 5, 1);
-      const normalizedVolume = Math.min(stats.clicks / 50, 1);
-      const score = normalizedCVR * cvrWeight + normalizedAOV * aovWeight + normalizedROAS * roasWeight + normalizedVolume * dataVolumeWeight;
-      conflictingCampaigns.push({
-        campaignId,
-        campaignName: campaign.campaignName,
-        matchType: stats.matchType,
-        clicks: stats.clicks,
-        conversions: stats.conversions,
-        spend: stats.spend,
-        sales: stats.sales,
-        cvr,
-        aov,
-        roas,
-        score
-      });
-    });
-    conflictingCampaigns.sort((a4, b6) => b6.score - a4.score);
-    const winner = conflictingCampaigns[0];
-    const wastedSpend = conflictingCampaigns.slice(1).reduce((sum2, c5) => sum2 + c5.spend, 0);
-    totalWastedSpend += wastedSpend;
-    let winnerReason = "";
-    if (winner.cvr > 0 && conflictingCampaigns.slice(1).every((c5) => c5.cvr === 0)) {
-      winnerReason = `\u552F\u4E00\u6709\u8F6C\u5316\u7684\u5E7F\u544A\u6D3B\u52A8\uFF08CVR: ${(winner.cvr * 100).toFixed(1)}%\uFF09`;
-    } else if (winner.roas > conflictingCampaigns[1]?.roas * 1.5) {
-      winnerReason = `ROAS\u663E\u8457\u66F4\u9AD8\uFF08${winner.roas.toFixed(2)} vs ${conflictingCampaigns[1]?.roas.toFixed(2)}\uFF09`;
-    } else if (winner.cvr > conflictingCampaigns[1]?.cvr * 1.2) {
-      winnerReason = `\u8F6C\u5316\u7387\u66F4\u9AD8\uFF08${(winner.cvr * 100).toFixed(1)}% vs ${(conflictingCampaigns[1]?.cvr * 100).toFixed(1)}%\uFF09`;
-    } else {
-      winnerReason = `\u7EFC\u5408\u5F97\u5206\u6700\u9AD8\uFF08${winner.score.toFixed(3)}\uFF09`;
-    }
-    conflicts.push({
-      searchTerm,
-      conflictingCampaigns,
-      suggestedWinner: {
-        campaignId: winner.campaignId,
-        campaignName: winner.campaignName,
-        reason: winnerReason
-      },
-      totalWastedSpend: wastedSpend
-    });
-  });
-  conflicts.sort((a4, b6) => b6.totalWastedSpend - a4.totalWastedSpend);
-  const resolutionSuggestions = conflicts.map((conflict, index2) => ({
-    conflictId: index2,
-    searchTerm: conflict.searchTerm,
-    winnerCampaignId: conflict.suggestedWinner.campaignId,
-    negativesToAdd: conflict.conflictingCampaigns.filter((c5) => c5.campaignId !== conflict.suggestedWinner.campaignId).map((c5) => ({
-      campaignId: c5.campaignId,
-      negativeText: conflict.searchTerm,
-      matchType: "negative_exact"
-    }))
-  }));
-  return {
-    accountId,
-    analysisDate: /* @__PURE__ */ new Date(),
-    totalConflicts: conflicts.length,
-    totalWastedSpend,
-    conflicts,
-    resolutionSuggestions
-  };
-}
-async function identifyFunnelTiers(accountId) {
-  const db = await getDb();
-  if (!db) return [];
-  const campaignData = await db.select({
-    id: campaigns.id,
-    campaignName: campaigns.campaignName,
-    targetingType: campaigns.targetingType
-  }).from(campaigns).where(and(
-    eq(campaigns.accountId, accountId),
-    eq(campaigns.campaignStatus, "enabled")
-  ));
-  const keywordData = await db.select({
-    campaignId: adGroups.campaignId,
-    matchType: keywords.matchType,
-    count: sql`COUNT(*)`
-  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id)).where(eq(campaigns.accountId, accountId)).groupBy(adGroups.campaignId, keywords.matchType);
-  const campaignMatchTypes = /* @__PURE__ */ new Map();
-  for (const kw of keywordData) {
-    const matchTypes = campaignMatchTypes.get(kw.campaignId) || /* @__PURE__ */ new Map();
-    matchTypes.set(kw.matchType || "unknown", kw.count);
-    campaignMatchTypes.set(kw.campaignId, matchTypes);
-  }
-  const tierConfigs = [];
-  for (const campaign of campaignData) {
-    const matchTypes = campaignMatchTypes.get(campaign.id);
-    if (!matchTypes) continue;
-    let dominantMatchType = "unknown";
-    let maxCount = 0;
-    matchTypes.forEach((count2, matchType) => {
-      if (count2 > maxCount) {
-        maxCount = count2;
-        dominantMatchType = matchType;
-      }
-    });
-    let tierLevel;
-    if (dominantMatchType === "exact") {
-      if (campaign.campaignName.toLowerCase().includes("exact") || campaign.campaignName.includes("\u7CBE\u51C6") || campaign.campaignName.includes("core") || campaign.campaignName.includes("\u6838\u5FC3")) {
-        tierLevel = "tier1_exact";
-      } else {
-        tierLevel = "tier2_longtail";
-      }
-    } else if (dominantMatchType === "phrase") {
-      tierLevel = "tier2_longtail";
-    } else {
-      tierLevel = "tier3_explore";
-    }
-    tierConfigs.push({
-      campaignId: campaign.id,
-      campaignName: campaign.campaignName,
-      tierLevel,
-      matchType: dominantMatchType,
-      autoNegativeSync: true
-    });
-  }
-  return tierConfigs;
-}
-async function syncFunnelNegatives(accountId, tierConfigs) {
-  const db = await getDb();
-  if (!db) {
-    return {
-      accountId,
-      syncDate: /* @__PURE__ */ new Date(),
-      tier1Keywords: [],
-      tier2Keywords: [],
-      negativesToSync: [],
-      totalNegativesToAdd: 0
-    };
-  }
-  const tier1Campaigns = tierConfigs.filter((t7) => t7.tierLevel === "tier1_exact").map((t7) => t7.campaignId);
-  const tier2Campaigns = tierConfigs.filter((t7) => t7.tierLevel === "tier2_longtail").map((t7) => t7.campaignId);
-  const tier3Campaigns = tierConfigs.filter((t7) => t7.tierLevel === "tier3_explore").map((t7) => t7.campaignId);
-  const tier1Keywords = tier1Campaigns.length > 0 ? await db.select({
-    keywordText: keywords.keywordText
-  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).where(and(
-    inArray(adGroups.campaignId, tier1Campaigns),
-    eq(keywords.keywordStatus, "enabled")
-  )) : [];
-  const tier2Keywords = tier2Campaigns.length > 0 ? await db.select({
-    keywordText: keywords.keywordText
-  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).where(and(
-    inArray(adGroups.campaignId, tier2Campaigns),
-    eq(keywords.keywordStatus, "enabled")
-  )) : [];
-  const existingNegatives = await db.select({
-    campaignId: negativeKeywords.campaignId,
-    negativeText: negativeKeywords.negativeText
-  }).from(negativeKeywords).where(and(
-    eq(negativeKeywords.accountId, accountId),
-    eq(negativeKeywords.negativeStatus, "active")
-  ));
-  const existingNegativeMap = /* @__PURE__ */ new Map();
-  for (const neg of existingNegatives) {
-    const negSet = existingNegativeMap.get(neg.campaignId) || /* @__PURE__ */ new Set();
-    negSet.add(neg.negativeText.toLowerCase());
-    existingNegativeMap.set(neg.campaignId, negSet);
-  }
-  const negativesToSync = [];
-  const tier1KeywordTexts = tier1Keywords.map((k5) => k5.keywordText.toLowerCase());
-  const tier2KeywordTexts = tier2Keywords.map((k5) => k5.keywordText.toLowerCase());
-  for (const campaignId of tier2Campaigns) {
-    const existingNegs = existingNegativeMap.get(campaignId) || /* @__PURE__ */ new Set();
-    const negatives = tier1KeywordTexts.filter((kw) => !existingNegs.has(kw)).map((kw) => ({
-      keyword: kw,
-      matchType: "negative_exact",
-      sourceTier: "tier1"
-    }));
-    if (negatives.length > 0) {
-      const config2 = tierConfigs.find((t7) => t7.campaignId === campaignId);
-      negativesToSync.push({
-        targetCampaignId: campaignId,
-        targetTier: config2?.tierLevel || "tier2_longtail",
-        negatives
-      });
-    }
-  }
-  const allUpperTierKeywords = Array.from(/* @__PURE__ */ new Set([...tier1KeywordTexts, ...tier2KeywordTexts]));
-  for (const campaignId of tier3Campaigns) {
-    const existingNegs = existingNegativeMap.get(campaignId) || /* @__PURE__ */ new Set();
-    const negatives = allUpperTierKeywords.filter((kw) => !existingNegs.has(kw)).map((kw) => ({
-      keyword: kw,
-      matchType: "negative_phrase",
-      sourceTier: tier1KeywordTexts.includes(kw) ? "tier1" : "tier2"
-    }));
-    if (negatives.length > 0) {
-      const config2 = tierConfigs.find((t7) => t7.campaignId === campaignId);
-      negativesToSync.push({
-        targetCampaignId: campaignId,
-        targetTier: config2?.tierLevel || "tier3_explore",
-        negatives
-      });
-    }
-  }
-  return {
-    accountId,
-    syncDate: /* @__PURE__ */ new Date(),
-    tier1Keywords: tier1KeywordTexts,
-    tier2Keywords: tier2KeywordTexts,
-    negativesToSync,
-    totalNegativesToAdd: negativesToSync.reduce((sum2, n7) => sum2 + n7.negatives.length, 0)
-  };
-}
-async function getKeywordMigrationSuggestions(accountId, tierConfigs, startDate, endDate) {
-  const db = await getDb();
-  if (!db) return [];
-  const { minConversions, minCVR, minClicks } = TRAFFIC_ISOLATION_CONFIG.migration;
-  const tier3Campaigns = tierConfigs.filter((t7) => t7.tierLevel === "tier3_explore");
-  if (tier3Campaigns.length === 0) return [];
-  const tier3CampaignIds = tier3Campaigns.map((t7) => t7.campaignId);
-  const searchTermData = await db.select({
-    searchTerm: searchTerms.searchTerm,
-    campaignId: searchTerms.campaignId,
-    clicks: searchTerms.searchTermClicks,
-    conversions: searchTerms.searchTermOrders,
-    spend: searchTerms.searchTermSpend,
-    sales: searchTerms.searchTermSales
-  }).from(searchTerms).where(and(
-    eq(searchTerms.accountId, accountId),
-    inArray(searchTerms.campaignId, tier3CampaignIds),
-    gte(searchTerms.reportStartDate, startDate.toISOString()),
-    lte(searchTerms.reportEndDate, endDate.toISOString()),
-    gte(searchTerms.searchTermClicks, minClicks),
-    gte(searchTerms.searchTermOrders, minConversions)
-  ));
-  const tier1Campaigns = tierConfigs.filter((t7) => t7.tierLevel === "tier1_exact");
-  const tier1CampaignIds = tier1Campaigns.map((t7) => t7.campaignId);
-  const existingExactKeywords = tier1CampaignIds.length > 0 ? await db.select({
-    keywordText: keywords.keywordText
-  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).where(inArray(adGroups.campaignId, tier1CampaignIds)) : [];
-  const existingKeywordSet = new Set(existingExactKeywords.map((k5) => k5.keywordText.toLowerCase()));
-  const suggestions = [];
-  const campaignMap = new Map(tierConfigs.map((t7) => [t7.campaignId, t7]));
-  for (const term of searchTermData) {
-    const clicks = term.clicks || 0;
-    const cvr = clicks > 0 ? (term.conversions || 0) / clicks : 0;
-    if (cvr < minCVR) continue;
-    if (existingKeywordSet.has(term.searchTerm.toLowerCase())) continue;
-    const sourceCampaign = campaignMap.get(term.campaignId);
-    suggestions.push({
-      searchTerm: term.searchTerm,
-      sourceCampaignId: term.campaignId,
-      sourceCampaignName: sourceCampaign?.campaignName || "Unknown",
-      sourceTier: "tier3_explore",
-      targetTier: "tier1_exact",
-      clicks: term.clicks || 0,
-      conversions: term.conversions || 0,
-      cvr,
-      sales: Number(term.sales) || 0,
-      reason: `\u5728\u63A2\u7D22\u5C42\u8868\u73B0\u4F18\u5F02\uFF1A${term.conversions}\u6B21\u8F6C\u5316\uFF0CCVR ${(cvr * 100).toFixed(1)}%\uFF0C\u5EFA\u8BAE\u8FC1\u79FB\u5230\u7CBE\u51C6\u5C42`
-    });
-  }
-  suggestions.sort((a4, b6) => b6.conversions - a4.conversions);
-  return suggestions;
-}
-var TRAFFIC_ISOLATION_CONFIG;
-var init_trafficIsolationService = __esm({
-  "server/trafficIsolationService.ts"() {
-    "use strict";
-    init_db2();
-    init_schema2();
-    init_drizzle_orm();
-    TRAFFIC_ISOLATION_CONFIG = {
-      // N-Gram分析参数
-      ngram: {
-        minFrequency: 10,
-        // 词根最小出现频率
-        highRiskFrequency: 50,
-        // 高风险词根频率阈值
-        confidenceThreshold: 0.7,
-        // 建议否定的置信度阈值
-        maxTokenLength: 3,
-        // 最大N-Gram长度
-        stopWords: ["a", "an", "the", "for", "and", "or", "with", "to", "of", "in", "on", "at", "by"]
-      },
-      // 流量冲突检测参数
-      conflict: {
-        minOverlapDays: 3,
-        // 判定冲突的最小重叠天数
-        minClicks: 5,
-        // 最小点击数
-        cvrWeight: 0.4,
-        // CVR权重
-        aovWeight: 0.3,
-        // AOV权重
-        roasWeight: 0.2,
-        // ROAS权重
-        dataVolumeWeight: 0.1
-        // 数据量权重
-      },
-      // 专家建议新增：软隔离策略参数
-      softIsolation: {
-        // 默认不添加否定词，通过出价差异实现流量分配
-        suggestAddNegative: false,
-        // Exact组出价相对于Broad组的倍数
-        exactToBroadBidMultiplier: 1.5,
-        // Exact组流量稳定阈值（达到此点击数后才建议添加否定词）
-        exactGroupStabilityThreshold: 50,
-        // Exact组流量稳定所需的最小转化数
-        exactGroupMinConversions: 5,
-        // 软隔离策略说明
-        strategyDescription: "\u901A\u8FC7\u51FA\u4EF7\u5DEE\u5F02\u800C\u975E\u5426\u5B9A\u8BCD\u5B9E\u73B0\u6D41\u91CF\u5206\u914D\uFF0C\u907F\u514D\u6D41\u91CF\u65AD\u5C42"
-      },
-      // 漏斗模型参数
-      funnel: {
-        tier1MatchTypes: ["exact"],
-        tier2MatchTypes: ["phrase", "exact"],
-        tier3MatchTypes: ["broad", "phrase"]
-      },
-      // 关键词迁移参数
-      migration: {
-        minConversions: 3,
-        // 最小转化数
-        minCVR: 0.05,
-        // 最小转化率 (5%)
-        minClicks: 20
-        // 最小点击数
-      },
-      // 安全边界
-      safety: {
-        maxNegativesPerBatch: 100,
-        // 单次最大否定词数
-        maxNegativesPerDay: 500,
-        // 每日最大否定词数
-        protectedKeywordTypes: ["brand", "high_conversion"]
-        // 保护的关键词类型
-      }
-    };
-  }
-});
-
-// server/automationExecutionEngine.ts
-function getAccountAutomationConfig(accountId) {
-  if (!accountConfigs.has(accountId)) {
-    accountConfigs.set(accountId, {
-      accountId,
-      ...DEFAULT_AUTOMATION_CONFIG
-    });
-  }
-  return accountConfigs.get(accountId);
-}
-function updateAccountAutomationConfig(accountId, config2) {
-  const current = getAccountAutomationConfig(accountId);
-  const updated = {
-    ...current,
-    ...config2,
-    accountId,
-    safetyBoundary: {
-      ...current.safetyBoundary,
-      ...config2.safetyBoundary || {}
-    },
-    scheduleConfig: {
-      ...current.scheduleConfig,
-      ...config2.scheduleConfig || {}
-    },
-    notificationConfig: {
-      ...current.notificationConfig,
-      ...config2.notificationConfig || {}
-    }
-  };
-  accountConfigs.set(accountId, updated);
-  return updated;
-}
-function checkDailyLimit(accountId, type) {
-  const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-  const key = `${accountId}_${today}_${type}`;
-  const count2 = dailyExecutionCount.get(key) || 0;
-  const config2 = getAccountAutomationConfig(accountId);
-  switch (type) {
-    case "bid_adjustment":
-      return count2 < config2.safetyBoundary.maxDailyBidAdjustments;
-    case "budget_adjustment":
-      return count2 < config2.safetyBoundary.maxDailyBudgetAdjustments;
-    default:
-      return count2 < config2.safetyBoundary.maxDailyTotalAdjustments;
-  }
-}
-function incrementDailyCount(accountId, type) {
-  const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-  const key = `${accountId}_${today}_${type}`;
-  const count2 = dailyExecutionCount.get(key) || 0;
-  dailyExecutionCount.set(key, count2 + 1);
-}
-function checkAdjustmentBoundary(accountId, type, currentValue, newValue) {
-  const config2 = getAccountAutomationConfig(accountId);
-  const changePercent = Math.abs((newValue - currentValue) / currentValue * 100);
-  switch (type) {
-    case "bid_adjustment":
-      if (changePercent > config2.safetyBoundary.maxBidChangePercent) {
-        return {
-          allowed: false,
-          reason: `\u7ADE\u4EF7\u8C03\u6574\u5E45\u5EA6 ${changePercent.toFixed(1)}% \u8D85\u8FC7\u5B89\u5168\u8FB9\u754C ${config2.safetyBoundary.maxBidChangePercent}%`
-        };
-      }
-      break;
-    case "budget_adjustment":
-      if (changePercent > config2.safetyBoundary.maxBudgetChangePercent) {
-        return {
-          allowed: false,
-          reason: `\u9884\u7B97\u8C03\u6574\u5E45\u5EA6 ${changePercent.toFixed(1)}% \u8D85\u8FC7\u5B89\u5168\u8FB9\u754C ${config2.safetyBoundary.maxBudgetChangePercent}%`
-        };
-      }
-      break;
-    case "placement_tilt":
-      if (changePercent > config2.safetyBoundary.maxPlacementChangePercent) {
-        return {
-          allowed: false,
-          reason: `\u4F4D\u7F6E\u503E\u659C\u8C03\u6574\u5E45\u5EA6 ${changePercent.toFixed(1)}% \u8D85\u8FC7\u5B89\u5168\u8FB9\u754C ${config2.safetyBoundary.maxPlacementChangePercent}%`
-        };
-      }
-      break;
-  }
-  return { allowed: true };
-}
-function checkConfidenceThreshold(accountId, confidence) {
-  const config2 = getAccountAutomationConfig(accountId);
-  if (confidence >= config2.safetyBoundary.autoExecuteConfidence) {
-    return { mode: "auto", reason: `\u7F6E\u4FE1\u5EA6 ${confidence}% >= ${config2.safetyBoundary.autoExecuteConfidence}%\uFF0C\u81EA\u52A8\u6267\u884C` };
-  } else if (confidence >= config2.safetyBoundary.supervisedConfidence) {
-    return { mode: "supervised", reason: `\u7F6E\u4FE1\u5EA6 ${confidence}% >= ${config2.safetyBoundary.supervisedConfidence}%\uFF0C\u76D1\u7763\u6267\u884C` };
-  } else {
-    return { mode: "manual", reason: `\u7F6E\u4FE1\u5EA6 ${confidence}% < ${config2.safetyBoundary.supervisedConfidence}%\uFF0C\u9700\u4EBA\u5DE5\u786E\u8BA4` };
-  }
-}
-async function executeOptimization(accountId, type, targetType, targetId, targetName, currentValue, newValue, confidence, reason) {
-  const config2 = getAccountAutomationConfig(accountId);
-  const resultId = `exec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  if (!config2.enabled) {
-    return {
-      id: resultId,
-      type,
-      targetType,
-      targetId,
-      targetName,
-      previousValue: currentValue,
-      newValue,
-      confidence,
-      status: "blocked",
-      reason: "\u81EA\u52A8\u5316\u6267\u884C\u5DF2\u7981\u7528",
-      executedAt: /* @__PURE__ */ new Date(),
-      executedBy: "auto"
-    };
-  }
-  if (!config2.enabledTypes.includes(type)) {
-    return {
-      id: resultId,
-      type,
-      targetType,
-      targetId,
-      targetName,
-      previousValue: currentValue,
-      newValue,
-      confidence,
-      status: "blocked",
-      reason: `\u6267\u884C\u7C7B\u578B ${type} \u672A\u542F\u7528`,
-      executedAt: /* @__PURE__ */ new Date(),
-      executedBy: "auto"
-    };
-  }
-  if (!checkDailyLimit(accountId, type)) {
-    return {
-      id: resultId,
-      type,
-      targetType,
-      targetId,
-      targetName,
-      previousValue: currentValue,
-      newValue,
-      confidence,
-      status: "blocked",
-      reason: "\u5DF2\u8FBE\u5230\u6BCF\u65E5\u6267\u884C\u9650\u5236",
-      executedAt: /* @__PURE__ */ new Date(),
-      executedBy: "auto"
-    };
-  }
-  const boundaryCheck = checkAdjustmentBoundary(accountId, type, currentValue, newValue);
-  if (!boundaryCheck.allowed) {
-    return {
-      id: resultId,
-      type,
-      targetType,
-      targetId,
-      targetName,
-      previousValue: currentValue,
-      newValue,
-      confidence,
-      status: "blocked",
-      reason: boundaryCheck.reason,
-      executedAt: /* @__PURE__ */ new Date(),
-      executedBy: "auto"
-    };
-  }
-  const confidenceCheck = checkConfidenceThreshold(accountId, confidence);
-  if (confidenceCheck.mode === "manual" && config2.mode !== "approval") {
-    return {
-      id: resultId,
-      type,
-      targetType,
-      targetId,
-      targetName,
-      previousValue: currentValue,
-      newValue,
-      confidence,
-      status: "skipped",
-      reason: confidenceCheck.reason,
-      executedAt: /* @__PURE__ */ new Date(),
-      executedBy: "auto"
-    };
-  }
-  try {
-    switch (type) {
-      case "bid_adjustment": {
-        let bidApiSuccess = false;
-        let bidCampaignId = 0;
-        let bidAdGroupId = 0;
-        const keyword = await getKeywordById(targetId);
-        if (keyword) {
-          const adGroup = await getAdGroupById(keyword.adGroupId);
-          if (adGroup) {
-            bidAdGroupId = adGroup.id;
-            bidCampaignId = adGroup.campaignId;
-            const campaign = await getCampaignById(adGroup.campaignId);
-            if (campaign?.accountId) {
-              try {
-                const credentials = await getAmazonApiCredentials(campaign.accountId);
-                if (credentials && keyword.keywordId) {
-                  const { AmazonSyncService: SyncSvc } = await Promise.resolve().then(() => (init_amazonSyncService(), amazonSyncService_exports));
-                  const accountInfo = await getAdAccountById(campaign.accountId);
-                  const svc = await SyncSvc.createFromCredentials(
-                    {
-                      clientId: credentials.clientId,
-                      clientSecret: credentials.clientSecret,
-                      refreshToken: credentials.refreshToken,
-                      profileId: credentials.profileId,
-                      region: credentials.region
-                    },
-                    campaign.accountId,
-                    0,
-                    accountInfo?.marketplace || "US"
-                  );
-                  await svc.client.updateKeywordBids([{
-                    keywordId: parseInt(keyword.keywordId),
-                    bid: newValue
-                  }]);
-                  bidApiSuccess = true;
-                }
-              } catch (apiErr) {
-                console.error(`[AutoExec] Amazon API\u8C03\u7528\u5931\u8D25 (keyword ${targetId}):`, apiErr.message);
-              }
-            }
-          }
-        }
-        if (bidApiSuccess) {
-          await updateKeyword(targetId, { bid: String(newValue) });
-        } else {
-          console.warn(`[AutoExec] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7\u672C\u5730DB\u66F4\u65B0 (keyword ${targetId})`);
-        }
-        await createBiddingLog({
-          accountId,
-          campaignId: bidCampaignId,
-          adGroupId: bidAdGroupId,
-          logTargetType: "keyword",
-          targetId,
-          targetName,
-          actionType: newValue > currentValue ? "increase" : "decrease",
-          previousBid: String(currentValue),
-          newBid: String(newValue),
-          reason: `${bidApiSuccess ? "[API\u2705]" : "[API\u274C\u672A\u540C\u6B65]"} [\u81EA\u52A8\u6267\u884C] ${reason}`
-        });
-        if (!bidApiSuccess) {
-          throw new Error("Amazon API\u51FA\u4EF7\u540C\u6B65\u5931\u8D25\uFF0C\u672C\u5730DB\u672A\u66F4\u65B0");
-        }
-        break;
-      }
-      case "budget_adjustment": {
-        let budgetApiSuccess = false;
-        const budgetCampaign = await getCampaignById(targetId);
-        if (budgetCampaign?.accountId && budgetCampaign.campaignId) {
-          try {
-            const budgetCredentials = await getAmazonApiCredentials(budgetCampaign.accountId);
-            if (budgetCredentials) {
-              const { AmazonSyncService: BudgetSyncSvc } = await Promise.resolve().then(() => (init_amazonSyncService(), amazonSyncService_exports));
-              const budgetAccountInfo = await getAdAccountById(budgetCampaign.accountId);
-              const budgetSvc = await BudgetSyncSvc.createFromCredentials(
-                {
-                  clientId: budgetCredentials.clientId,
-                  clientSecret: budgetCredentials.clientSecret,
-                  refreshToken: budgetCredentials.refreshToken,
-                  profileId: budgetCredentials.profileId,
-                  region: budgetCredentials.region
-                },
-                budgetCampaign.accountId,
-                0,
-                budgetAccountInfo?.marketplace || "US"
-              );
-              await budgetSvc.client.updateSpCampaign(
-                parseInt(budgetCampaign.campaignId),
-                { dailyBudget: newValue }
-              );
-              budgetApiSuccess = true;
-            }
-          } catch (budgetApiErr) {
-            console.error(`[AutoExec] Amazon API\u9884\u7B97\u8C03\u6574\u5931\u8D25 (campaign ${targetId}):`, budgetApiErr.message);
-          }
-        }
-        if (budgetApiSuccess) {
-          await updateCampaign(targetId, { dailyBudget: String(newValue) });
-        } else {
-          console.warn(`[AutoExec] v148: \u9884\u7B97API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7\u672C\u5730DB\u66F4\u65B0 (campaign ${targetId})`);
-        }
-        await createBiddingLog({
-          accountId,
-          campaignId: targetId,
-          adGroupId: 0,
-          logTargetType: "campaign_budget",
-          targetId,
-          targetName: targetName || `Campaign ${targetId}`,
-          actionType: newValue > currentValue ? "increase" : "decrease",
-          previousBid: String(currentValue),
-          newBid: String(newValue),
-          reason: `${budgetApiSuccess ? "[API\u2705]" : "[API\u274C\u672A\u540C\u6B65]"} [\u81EA\u52A8\u6267\u884C] \u9884\u7B97\u8C03\u6574: ${reason}`
-        });
-        console.log(`[AutoExec] v148: \u9884\u7B97\u8C03\u6574: campaign=${targetId}, ${currentValue} -> ${newValue}, API=${budgetApiSuccess ? "\u2705" : "\u274C"}`);
-        if (!budgetApiSuccess) {
-          throw new Error("Amazon API\u9884\u7B97\u540C\u6B65\u5931\u8D25\uFF0C\u672C\u5730DB\u672A\u66F4\u65B0");
-        }
-        break;
-      }
-      case "product_target_bid": {
-        let ptApiSuccess = false;
-        let ptCampaignId = 0;
-        let ptAdGroupId = 0;
-        const productTarget = await getProductTargetById(targetId);
-        if (productTarget) {
-          const ptAdGroup = await getAdGroupById(productTarget.adGroupId);
-          if (ptAdGroup) {
-            ptAdGroupId = ptAdGroup.id;
-            ptCampaignId = ptAdGroup.campaignId;
-            const ptCampaign = await getCampaignById(ptAdGroup.campaignId);
-            if (ptCampaign?.accountId && productTarget.targetId) {
-              try {
-                const ptCredentials = await getAmazonApiCredentials(ptCampaign.accountId);
-                if (ptCredentials) {
-                  const { AmazonSyncService: PtSyncSvc } = await Promise.resolve().then(() => (init_amazonSyncService(), amazonSyncService_exports));
-                  const ptAccountInfo = await getAdAccountById(ptCampaign.accountId);
-                  const ptSvc = await PtSyncSvc.createFromCredentials(
-                    {
-                      clientId: ptCredentials.clientId,
-                      clientSecret: ptCredentials.clientSecret,
-                      refreshToken: ptCredentials.refreshToken,
-                      profileId: ptCredentials.profileId,
-                      region: ptCredentials.region
-                    },
-                    ptCampaign.accountId,
-                    0,
-                    ptAccountInfo?.marketplace || "US"
-                  );
-                  await ptSvc.client.updateProductTargetBids([{
-                    targetId: parseInt(productTarget.targetId),
-                    bid: newValue
-                  }]);
-                  ptApiSuccess = true;
-                }
-              } catch (ptApiErr) {
-                console.error(`[AutoExec] Amazon API\u8C03\u7528\u5931\u8D25 (productTarget ${targetId}):`, ptApiErr.message);
-              }
-            }
-          }
-        }
-        if (ptApiSuccess) {
-          await updateProductTargetBid(targetId, String(newValue));
-        } else {
-          console.warn(`[AutoExec] v148: \u5546\u54C1\u5B9A\u5411API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7\u672C\u5730DB\u66F4\u65B0 (productTarget ${targetId})`);
-        }
-        await createBiddingLog({
-          accountId,
-          campaignId: ptCampaignId,
-          adGroupId: ptAdGroupId,
-          logTargetType: "product_target",
-          targetId,
-          targetName,
-          actionType: newValue > currentValue ? "increase" : "decrease",
-          previousBid: String(currentValue),
-          newBid: String(newValue),
-          reason: `${ptApiSuccess ? "[API\u2705]" : "[API\u274C\u672A\u540C\u6B65]"} [\u81EA\u52A8\u6267\u884C] ${reason}`
-        });
-        if (!ptApiSuccess) {
-          throw new Error("Amazon API\u5546\u54C1\u5B9A\u5411\u51FA\u4EF7\u540C\u6B65\u5931\u8D25\uFF0C\u672C\u5730DB\u672A\u66F4\u65B0");
-        }
-        break;
-      }
-      case "placement_tilt": {
-        let placementApiSuccess = false;
-        const placementCampaign = await getCampaignById(targetId);
-        if (placementCampaign?.accountId && placementCampaign.campaignId) {
-          try {
-            const placementCredentials = await getAmazonApiCredentials(placementCampaign.accountId);
-            if (placementCredentials) {
-              const { AmazonSyncService: PlSyncSvc } = await Promise.resolve().then(() => (init_amazonSyncService(), amazonSyncService_exports));
-              const plAccountInfo = await getAdAccountById(placementCampaign.accountId);
-              const plSvc = await PlSyncSvc.createFromCredentials(
-                {
-                  clientId: placementCredentials.clientId,
-                  clientSecret: placementCredentials.clientSecret,
-                  refreshToken: placementCredentials.refreshToken,
-                  profileId: placementCredentials.profileId,
-                  region: placementCredentials.region
-                },
-                placementCampaign.accountId,
-                0,
-                plAccountInfo?.marketplace || "US"
-              );
-              await plSvc.client.updateSpCampaign(
-                parseInt(placementCampaign.campaignId),
-                {
-                  dynamicBidding: {
-                    placementBidding: [
-                      {
-                        placement: targetName.includes("\u641C\u7D22\u9876\u90E8") || targetName.includes("top") ? "PLACEMENT_TOP" : targetName.includes("\u5546\u54C1\u8BE6\u60C5") || targetName.includes("product") ? "PLACEMENT_PRODUCT_PAGE" : "PLACEMENT_REST_OF_SEARCH",
-                        percentage: Math.round(newValue)
-                      }
-                    ]
-                  }
-                }
-              );
-              placementApiSuccess = true;
-            }
-          } catch (plApiErr) {
-            console.error(`[AutoExec] Amazon API\u5E7F\u544A\u4F4D\u7F6E\u8C03\u6574\u5931\u8D25 (campaign ${targetId}):`, plApiErr.message);
-          }
-        }
-        await createBiddingLog({
-          accountId,
-          campaignId: targetId,
-          adGroupId: 0,
-          logTargetType: "placement",
-          targetId,
-          targetName: targetName || `Campaign ${targetId} Placement`,
-          actionType: newValue > currentValue ? "increase" : "decrease",
-          previousBid: String(currentValue),
-          newBid: String(newValue),
-          reason: `${placementApiSuccess ? "[API\u2705]" : "[API\u274C]"} [\u81EA\u52A8\u6267\u884C] \u5E7F\u544A\u4F4D\u7F6E\u503E\u659C\u8C03\u6574: ${reason}`
-        });
-        console.log(`[AutoExec] v148: \u5E7F\u544A\u4F4D\u7F6E\u503E\u659C: campaign=${targetId}, ${currentValue}% -> ${newValue}%, API=${placementApiSuccess ? "\u2705" : "\u274C"}`);
-        if (!placementApiSuccess) {
-          throw new Error("Amazon API\u5E7F\u544A\u4F4D\u7F6E\u503E\u659C\u540C\u6B65\u5931\u8D25");
-        }
-        break;
-      }
-      case "negative_keyword": {
-        let negApiSuccess = false;
-        console.log(`[AutoExec] \u5426\u5B9A\u5173\u952E\u8BCD\u6DFB\u52A0: target=${targetName}, \u5DF2\u901A\u8FC7searchTermHarvester\u6A21\u5757\u5904\u7406`);
-        negApiSuccess = true;
-        await createBiddingLog({
-          accountId,
-          campaignId: 0,
-          adGroupId: 0,
-          logTargetType: "negative_keyword",
-          targetId,
-          targetName: targetName || "Negative Keyword",
-          actionType: "add",
-          previousBid: "0",
-          newBid: "0",
-          reason: `${negApiSuccess ? "[API\u2705]" : "[API\u274C]"} [\u81EA\u52A8\u6267\u884C] \u5426\u5B9A\u5173\u952E\u8BCD\u6DFB\u52A0: ${reason}`
-        });
-        break;
-      }
-      case "search_term_harvest": {
-        await createBiddingLog({
-          accountId,
-          campaignId: 0,
-          adGroupId: 0,
-          logTargetType: "search_term_harvest",
-          targetId,
-          targetName: targetName || "Search Term Harvest",
-          actionType: "add",
-          previousBid: "0",
-          newBid: "0",
-          reason: `[\u81EA\u52A8\u6267\u884C] \u641C\u7D22\u8BCD\u6536\u5272: ${reason}`
-        });
-        console.log(`[AutoExec] \u641C\u7D22\u8BCD\u6536\u5272\u6267\u884C: target=${targetName}`);
-        break;
-      }
-      default:
-        console.log(`[AutoExec] \u672A\u5B9E\u73B0\u7684\u6267\u884C\u7C7B\u578B: ${type}, target=${targetName}`);
-        break;
-    }
-    incrementDailyCount(accountId, type);
-    return {
-      id: resultId,
-      type,
-      targetType,
-      targetId,
-      targetName,
-      previousValue: currentValue,
-      newValue,
-      confidence,
-      status: "success",
-      reason: `${confidenceCheck.reason}\u3002${reason}`,
-      executedAt: /* @__PURE__ */ new Date(),
-      executedBy: "auto"
-    };
-  } catch (error54) {
-    return {
-      id: resultId,
-      type,
-      targetType,
-      targetId,
-      targetName,
-      previousValue: currentValue,
-      newValue,
-      confidence,
-      status: "failed",
-      reason: `\u6267\u884C\u5931\u8D25: ${error54 instanceof Error ? error54.message : "Unknown error"}`,
-      executedAt: /* @__PURE__ */ new Date(),
-      executedBy: "auto"
-    };
-  }
-}
-async function batchExecuteOptimizations(accountId, optimizations) {
-  const batchId = `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  const startedAt = /* @__PURE__ */ new Date();
-  const results = [];
-  let successItems = 0;
-  let failedItems = 0;
-  let skippedItems = 0;
-  let blockedItems = 0;
-  for (const opt of optimizations) {
-    const result = await executeOptimization(
-      accountId,
-      opt.type,
-      opt.targetType,
-      opt.targetId,
-      opt.targetName,
-      opt.currentValue,
-      opt.newValue,
-      opt.confidence,
-      opt.reason
-    );
-    results.push(result);
-    switch (result.status) {
-      case "success":
-        successItems++;
-        break;
-      case "failed":
-        failedItems++;
-        break;
-      case "skipped":
-        skippedItems++;
-        break;
-      case "blocked":
-        blockedItems++;
-        break;
-    }
-  }
-  const batch = {
-    id: batchId,
-    accountId,
-    startedAt,
-    completedAt: /* @__PURE__ */ new Date(),
-    totalItems: optimizations.length,
-    successItems,
-    failedItems,
-    skippedItems,
-    blockedItems,
-    results
-  };
-  executionHistory.push(batch);
-  const config2 = getAccountAutomationConfig(accountId);
-  if (config2.notificationConfig.notifyOnFailure && failedItems > 0) {
-    await sendNotification({
-      userId: 0,
-      // 系统通知
-      accountId,
-      type: "alert",
-      severity: "warning",
-      title: "\u81EA\u52A8\u6267\u884C\u90E8\u5206\u5931\u8D25",
-      message: `\u6279\u6B21 ${batchId}\uFF1A\u6210\u529F ${successItems}\uFF0C\u5931\u8D25 ${failedItems}\uFF0C\u8DF3\u8FC7 ${skippedItems}\uFF0C\u963B\u6B62 ${blockedItems}`
-    });
-  }
-  return batch;
-}
-async function runFullAutomationCycle(accountId) {
-  const config2 = getAccountAutomationConfig(accountId);
-  if (!config2.enabled) {
-    return {
-      analysisResults: [],
-      executionBatch: null,
-      summary: {
-        totalAnalyzed: 0,
-        totalExecuted: 0,
-        totalSkipped: 0,
-        totalBlocked: 0
-      }
-    };
-  }
-  const analysisResults = await runUnifiedOptimizationAnalysis(
-    accountId,
-    {
-      optimizationTypes: config2.enabledTypes.filter(
-        (t7) => ["bid_adjustment", "placement_tilt", "dayparting", "negative_keyword"].includes(t7)
-      )
-    }
-  );
-  const optimizations = analysisResults.filter((r5) => r5.confidence >= config2.safetyBoundary.supervisedConfidence).map((r5) => ({
-    type: r5.type,
-    targetType: r5.targetType,
-    targetId: r5.targetId,
-    targetName: r5.targetName,
-    currentValue: typeof r5.currentValue === "number" ? r5.currentValue : parseFloat(r5.currentValue) || 0,
-    newValue: typeof r5.suggestedValue === "number" ? r5.suggestedValue : parseFloat(r5.suggestedValue) || 0,
-    confidence: r5.confidence,
-    reason: r5.reasoning
-  }));
-  const executionBatch = optimizations.length > 0 ? await batchExecuteOptimizations(accountId, optimizations) : null;
-  return {
-    analysisResults,
-    executionBatch,
-    summary: {
-      totalAnalyzed: analysisResults.length,
-      totalExecuted: executionBatch?.successItems || 0,
-      totalSkipped: executionBatch?.skippedItems || 0,
-      totalBlocked: executionBatch?.blockedItems || 0
-    }
-  };
-}
-function getExecutionHistory(accountId, options = {}) {
-  let filtered = executionHistory.filter((b6) => b6.accountId === accountId);
-  if (options.startDate) {
-    filtered = filtered.filter((b6) => b6.startedAt >= options.startDate);
-  }
-  if (options.endDate) {
-    filtered = filtered.filter((b6) => b6.startedAt <= options.endDate);
-  }
-  filtered.sort((a4, b6) => b6.startedAt.getTime() - a4.startedAt.getTime());
-  if (options.limit) {
-    filtered = filtered.slice(0, options.limit);
-  }
-  return filtered;
-}
-function getDailyExecutionStats(accountId, date12) {
-  const targetDate = date12 || /* @__PURE__ */ new Date();
-  const dateStr = targetDate.toISOString().split("T")[0];
-  const config2 = getAccountAutomationConfig(accountId);
-  const bidCount = dailyExecutionCount.get(`${accountId}_${dateStr}_bid_adjustment`) || 0;
-  const budgetCount = dailyExecutionCount.get(`${accountId}_${dateStr}_budget_adjustment`) || 0;
-  let totalCount = 0;
-  dailyExecutionCount.forEach((value2, key) => {
-    if (key.startsWith(`${accountId}_${dateStr}_`)) {
-      totalCount += value2;
-    }
-  });
-  return {
-    date: dateStr,
-    bidAdjustments: bidCount,
-    budgetAdjustments: budgetCount,
-    totalAdjustments: totalCount,
-    remaining: {
-      bidAdjustments: Math.max(0, config2.safetyBoundary.maxDailyBidAdjustments - bidCount),
-      budgetAdjustments: Math.max(0, config2.safetyBoundary.maxDailyBudgetAdjustments - budgetCount),
-      totalAdjustments: Math.max(0, config2.safetyBoundary.maxDailyTotalAdjustments - totalCount)
-    }
-  };
-}
-function emergencyStop(accountId, reason) {
-  const config2 = getAccountAutomationConfig(accountId);
-  config2.enabled = false;
-  accountConfigs.set(accountId, config2);
-  sendNotification({
-    userId: 0,
-    // 系统通知
-    accountId,
-    type: "alert",
-    severity: "critical",
-    title: "\u81EA\u52A8\u5316\u7D27\u6025\u505C\u6B62",
-    message: `\u8D26\u53F7 ${accountId} \u7684\u81EA\u52A8\u5316\u6267\u884C\u5DF2\u7D27\u6025\u505C\u6B62\u3002\u539F\u56E0\uFF1A${reason}`
-  });
-}
-function resumeAutomation(accountId) {
-  const config2 = getAccountAutomationConfig(accountId);
-  config2.enabled = true;
-  accountConfigs.set(accountId, config2);
-}
-async function runNGramAnalysisTask(accountId) {
-  const config2 = getAccountAutomationConfig(accountId);
-  if (!config2.enabled || !config2.enabledTypes.includes("ngram_analysis")) {
-    return {
-      success: false,
-      analysisResult: null,
-      suggestedNegatives: 0,
-      appliedNegatives: 0,
-      message: "N-Gram\u5206\u6790\u4EFB\u52A1\u672A\u542F\u7528"
-    };
-  }
-  try {
-    const endDate = /* @__PURE__ */ new Date();
-    const startDate = /* @__PURE__ */ new Date();
-    startDate.setDate(startDate.getDate() - 30);
-    const analysisResult = await runNGramAnalysis(
-      accountId,
-      startDate,
-      endDate,
-      { minFrequency: 5 }
-    );
-    const suggestedNegatives = analysisResult.suggestedNegatives.length;
-    if (suggestedNegatives === 0) {
-      return {
-        success: true,
-        analysisResult,
-        suggestedNegatives: 0,
-        appliedNegatives: 0,
-        message: "\u672A\u53D1\u73B0\u9700\u8981\u5426\u5B9A\u7684\u9AD8\u9891\u65E0\u6548\u8BCD\u6839"
-      };
-    }
-    let appliedNegatives = 0;
-    if (config2.mode === "full_auto") {
-      const campaigns6 = await getCampaignsByAccountId(accountId);
-      for (const suggestion of analysisResult.suggestedNegatives) {
-        for (const campaign of campaigns6) {
-          try {
-            await addNegativeKeyword({
-              campaignId: campaign.id,
-              keyword: suggestion.token,
-              matchType: suggestion.matchType === "negative_phrase" ? "phrase" : "exact",
-              level: "campaign"
-            });
-            appliedNegatives++;
-          } catch (error54) {
-          }
-        }
-      }
-      if (config2.notificationConfig.notifyOnSuccess) {
-        await sendNotification({
-          userId: 0,
-          accountId,
-          type: "system",
-          severity: "info",
-          title: "N-Gram\u5206\u6790\u5B8C\u6210",
-          message: `\u8BC6\u522B\u5230 ${suggestedNegatives} \u4E2A\u9AD8\u9891\u65E0\u6548\u8BCD\u6839\uFF0C\u5DF2\u81EA\u52A8\u5E94\u7528 ${appliedNegatives} \u4E2A\u5426\u5B9A\u8BCD`
-        });
-      }
-    } else {
-      await sendNotification({
-        userId: 0,
-        accountId,
-        type: "system",
-        severity: "info",
-        title: "N-Gram\u5206\u6790\u5B8C\u6210",
-        message: `\u8BC6\u522B\u5230 ${suggestedNegatives} \u4E2A\u9AD8\u9891\u65E0\u6548\u8BCD\u6839\uFF0C\u8BF7\u5728\u4F18\u5316\u4E2D\u5FC3\u67E5\u770B\u5E76\u786E\u8BA4`
-      });
-    }
-    return {
-      success: true,
-      analysisResult,
-      suggestedNegatives,
-      appliedNegatives,
-      message: config2.mode === "full_auto" ? `\u5DF2\u81EA\u52A8\u5E94\u7528 ${appliedNegatives} \u4E2A\u5426\u5B9A\u8BCD` : `\u8BC6\u522B\u5230 ${suggestedNegatives} \u4E2A\u5EFA\u8BAE\uFF0C\u7B49\u5F85\u786E\u8BA4`
-    };
-  } catch (error54) {
-    const errorMessage = error54 instanceof Error ? error54.message : "Unknown error";
-    if (config2.notificationConfig.notifyOnFailure) {
-      await sendNotification({
-        userId: 0,
-        accountId,
-        type: "alert",
-        severity: "warning",
-        title: "N-Gram\u5206\u6790\u5931\u8D25",
-        message: errorMessage
-      });
-    }
-    return {
-      success: false,
-      analysisResult: null,
-      suggestedNegatives: 0,
-      appliedNegatives: 0,
-      message: `N-Gram\u5206\u6790\u5931\u8D25: ${errorMessage}`
-    };
-  }
-}
-async function runFunnelSyncTask(accountId) {
-  const config2 = getAccountAutomationConfig(accountId);
-  if (!config2.enabled || !config2.enabledTypes.includes("funnel_sync")) {
-    return {
-      success: false,
-      tierConfigs: [],
-      syncResult: null,
-      message: "\u6F0F\u6597\u540C\u6B65\u4EFB\u52A1\u672A\u542F\u7528"
-    };
-  }
-  try {
-    const tierConfigs = await identifyFunnelTiers(accountId);
-    if (tierConfigs.length === 0) {
-      return {
-        success: true,
-        tierConfigs: [],
-        syncResult: null,
-        message: "\u672A\u68C0\u6D4B\u5230\u6F0F\u6597\u5C42\u7EA7\u914D\u7F6E\uFF0C\u8BF7\u5148\u914D\u7F6E\u5E7F\u544A\u6D3B\u52A8\u5C42\u7EA7"
-      };
-    }
-    const syncResult = await syncFunnelNegatives(accountId, tierConfigs);
-    const totalNegatives = syncResult.totalNegativesToAdd;
-    if (totalNegatives > 0) {
-      if (config2.mode === "full_auto") {
-        if (config2.notificationConfig.notifyOnSuccess) {
-          await sendNotification({
-            userId: 0,
-            accountId,
-            type: "system",
-            severity: "info",
-            title: "\u6F0F\u6597\u5426\u5B9A\u8BCD\u540C\u6B65\u5B8C\u6210",
-            message: `\u5DF2\u540C\u6B65 ${totalNegatives} \u4E2A\u5426\u5B9A\u8BCD\u5230\u5404\u5C42\u7EA7\u5E7F\u544A\u6D3B\u52A8`
-          });
-        }
-      } else {
-        await sendNotification({
-          userId: 0,
-          accountId,
-          type: "system",
-          severity: "info",
-          title: "\u6F0F\u6597\u5426\u5B9A\u8BCD\u540C\u6B65\u5EFA\u8BAE",
-          message: `\u68C0\u6D4B\u5230 ${totalNegatives} \u4E2A\u9700\u8981\u540C\u6B65\u7684\u5426\u5B9A\u8BCD\uFF0C\u8BF7\u5728\u4F18\u5316\u4E2D\u5FC3\u67E5\u770B`
-        });
-      }
-    }
-    return {
-      success: true,
-      tierConfigs,
-      syncResult,
-      message: `\u8BC6\u522B ${tierConfigs.length} \u4E2A\u6F0F\u6597\u5C42\u7EA7\uFF0C\u540C\u6B65 ${totalNegatives} \u4E2A\u5426\u5B9A\u8BCD`
-    };
-  } catch (error54) {
-    const errorMessage = error54 instanceof Error ? error54.message : "Unknown error";
-    if (config2.notificationConfig.notifyOnFailure) {
-      await sendNotification({
-        userId: 0,
-        accountId,
-        type: "alert",
-        severity: "warning",
-        title: "\u6F0F\u6597\u540C\u6B65\u5931\u8D25",
-        message: errorMessage
-      });
-    }
-    return {
-      success: false,
-      tierConfigs: [],
-      syncResult: null,
-      message: `\u6F0F\u6597\u540C\u6B65\u5931\u8D25: ${errorMessage}`
-    };
-  }
-}
-async function runKeywordMigrationTask(accountId) {
-  const config2 = getAccountAutomationConfig(accountId);
-  if (!config2.enabled || !config2.enabledTypes.includes("keyword_migration")) {
-    return {
-      success: false,
-      suggestions: [],
-      appliedMigrations: 0,
-      message: "\u5173\u952E\u8BCD\u8FC1\u79FB\u4EFB\u52A1\u672A\u542F\u7528"
-    };
-  }
-  try {
-    const tierConfigs = await identifyFunnelTiers(accountId);
-    if (tierConfigs.length === 0) {
-      return {
-        success: true,
-        suggestions: [],
-        appliedMigrations: 0,
-        message: "\u672A\u68C0\u6D4B\u5230\u6F0F\u6597\u5C42\u7EA7\u914D\u7F6E"
-      };
-    }
-    const endDate = /* @__PURE__ */ new Date();
-    const startDate = /* @__PURE__ */ new Date();
-    startDate.setDate(startDate.getDate() - 30);
-    const suggestions = await getKeywordMigrationSuggestions(
-      accountId,
-      tierConfigs,
-      startDate,
-      endDate
-    );
-    if (suggestions.length === 0) {
-      return {
-        success: true,
-        suggestions: [],
-        appliedMigrations: 0,
-        message: "\u672A\u53D1\u73B0\u9700\u8981\u8FC1\u79FB\u7684\u5173\u952E\u8BCD"
-      };
-    }
-    let appliedMigrations = 0;
-    if (config2.mode === "full_auto") {
-      const tier1Configs = tierConfigs.filter((t7) => t7.tierLevel === "tier1_exact");
-      if (tier1Configs.length > 0) {
-        const tier1CampaignId = tier1Configs[0].campaignId;
-        const tier1AdGroups = await getAdGroupsByCampaignId(tier1CampaignId);
-        if (tier1AdGroups.length > 0) {
-          const targetAdGroupId = tier1AdGroups[0].id;
-          for (const suggestion of suggestions) {
-            try {
-              const newKeyword = {
-                adGroupId: targetAdGroupId,
-                keywordText: suggestion.searchTerm,
-                matchType: "exact",
-                keywordStatus: "enabled",
-                bid: "1.00"
-              };
-              console.log("[AutomationEngine] Would create keyword:", newKeyword);
-              await addNegativeKeyword({
-                campaignId: suggestion.sourceCampaignId,
-                keyword: suggestion.searchTerm,
-                matchType: "exact",
-                level: "campaign"
-              });
-              appliedMigrations++;
-            } catch (error54) {
-            }
-          }
-        }
-      }
-      if (config2.notificationConfig.notifyOnSuccess && appliedMigrations > 0) {
-        await sendNotification({
-          userId: 0,
-          accountId,
-          type: "system",
-          severity: "info",
-          title: "\u5173\u952E\u8BCD\u8FC1\u79FB\u5B8C\u6210",
-          message: `\u5DF2\u81EA\u52A8\u8FC1\u79FB ${appliedMigrations} \u4E2A\u9AD8\u8F6C\u5316\u5173\u952E\u8BCD\u5230\u7CBE\u51C6\u5C42`
-        });
-      }
-    } else {
-      await sendNotification({
-        userId: 0,
-        accountId,
-        type: "system",
-        severity: "info",
-        title: "\u5173\u952E\u8BCD\u8FC1\u79FB\u5EFA\u8BAE",
-        message: `\u68C0\u6D4B\u5230 ${suggestions.length} \u4E2A\u9AD8\u8F6C\u5316\u5173\u952E\u8BCD\u53EF\u8FC1\u79FB\u5230\u7CBE\u51C6\u5C42\uFF0C\u8BF7\u5728\u4F18\u5316\u4E2D\u5FC3\u67E5\u770B`
-      });
-    }
-    return {
-      success: true,
-      suggestions,
-      appliedMigrations,
-      message: config2.mode === "full_auto" ? `\u5DF2\u81EA\u52A8\u8FC1\u79FB ${appliedMigrations} \u4E2A\u5173\u952E\u8BCD` : `\u8BC6\u522B\u5230 ${suggestions.length} \u4E2A\u8FC1\u79FB\u5EFA\u8BAE\uFF0C\u7B49\u5F85\u786E\u8BA4`
-    };
-  } catch (error54) {
-    const errorMessage = error54 instanceof Error ? error54.message : "Unknown error";
-    if (config2.notificationConfig.notifyOnFailure) {
-      await sendNotification({
-        userId: 0,
-        accountId,
-        type: "alert",
-        severity: "warning",
-        title: "\u5173\u952E\u8BCD\u8FC1\u79FB\u5931\u8D25",
-        message: errorMessage
-      });
-    }
-    return {
-      success: false,
-      suggestions: [],
-      appliedMigrations: 0,
-      message: `\u5173\u952E\u8BCD\u8FC1\u79FB\u5931\u8D25: ${errorMessage}`
-    };
-  }
-}
-async function runTrafficConflictDetectionTask(accountId) {
-  const config2 = getAccountAutomationConfig(accountId);
-  if (!config2.enabled || !config2.enabledTypes.includes("traffic_isolation")) {
-    return {
-      success: false,
-      conflictResult: null,
-      resolvedConflicts: 0,
-      message: "\u6D41\u91CF\u9694\u79BB\u4EFB\u52A1\u672A\u542F\u7528"
-    };
-  }
-  try {
-    const endDate = /* @__PURE__ */ new Date();
-    const startDate = /* @__PURE__ */ new Date();
-    startDate.setDate(startDate.getDate() - 14);
-    const conflictResult = await detectTrafficConflicts2(
-      accountId,
-      startDate,
-      endDate
-    );
-    if (conflictResult.totalConflicts === 0) {
-      return {
-        success: true,
-        conflictResult,
-        resolvedConflicts: 0,
-        message: "\u672A\u68C0\u6D4B\u5230\u6D41\u91CF\u51B2\u7A81"
-      };
-    }
-    let resolvedConflicts = 0;
-    if (config2.mode === "full_auto") {
-      for (const suggestion of conflictResult.resolutionSuggestions) {
-        for (const negative of suggestion.negativesToAdd) {
-          try {
-            await addNegativeKeyword({
-              campaignId: negative.campaignId,
-              keyword: negative.negativeText,
-              matchType: negative.matchType === "negative_exact" ? "exact" : "phrase",
-              level: "campaign"
-            });
-            resolvedConflicts++;
-          } catch (error54) {
-          }
-        }
-      }
-      if (config2.notificationConfig.notifyOnSuccess && resolvedConflicts > 0) {
-        await sendNotification({
-          userId: 0,
-          accountId,
-          type: "system",
-          severity: "info",
-          title: "\u6D41\u91CF\u51B2\u7A81\u89E3\u51B3\u5B8C\u6210",
-          message: `\u68C0\u6D4B\u5230 ${conflictResult.totalConflicts} \u4E2A\u51B2\u7A81\uFF0C\u5DF2\u81EA\u52A8\u89E3\u51B3 ${resolvedConflicts} \u4E2A\uFF0C\u6F5C\u5728\u8282\u7701 $${conflictResult.totalWastedSpend.toFixed(2)}`
-        });
-      }
-    } else {
-      await sendNotification({
-        userId: 0,
-        accountId,
-        type: "alert",
-        severity: "warning",
-        title: "\u68C0\u6D4B\u5230\u6D41\u91CF\u51B2\u7A81",
-        message: `\u68C0\u6D4B\u5230 ${conflictResult.totalConflicts} \u4E2A\u6D41\u91CF\u51B2\u7A81\uFF0C\u6F5C\u5728\u6D6A\u8D39 $${conflictResult.totalWastedSpend.toFixed(2)}\uFF0C\u8BF7\u5728\u4F18\u5316\u4E2D\u5FC3\u67E5\u770B`
-      });
-    }
-    return {
-      success: true,
-      conflictResult,
-      resolvedConflicts,
-      message: config2.mode === "full_auto" ? `\u5DF2\u81EA\u52A8\u89E3\u51B3 ${resolvedConflicts} \u4E2A\u51B2\u7A81` : `\u68C0\u6D4B\u5230 ${conflictResult.totalConflicts} \u4E2A\u51B2\u7A81\uFF0C\u7B49\u5F85\u786E\u8BA4`
-    };
-  } catch (error54) {
-    const errorMessage = error54 instanceof Error ? error54.message : "Unknown error";
-    if (config2.notificationConfig.notifyOnFailure) {
-      await sendNotification({
-        userId: 0,
-        accountId,
-        type: "alert",
-        severity: "warning",
-        title: "\u6D41\u91CF\u51B2\u7A81\u68C0\u6D4B\u5931\u8D25",
-        message: errorMessage
-      });
-    }
-    return {
-      success: false,
-      conflictResult: null,
-      resolvedConflicts: 0,
-      message: `\u6D41\u91CF\u51B2\u7A81\u68C0\u6D4B\u5931\u8D25: ${errorMessage}`
-    };
-  }
-}
-async function runFullTrafficIsolationCycle(accountId, overrideConfig) {
-  const config2 = getAccountAutomationConfig(accountId);
-  if (!config2.enabled) {
-    return {
-      success: false,
-      ngramResult: { success: false, analysisResult: null, suggestedNegatives: 0, appliedNegatives: 0, message: "\u81EA\u52A8\u5316\u672A\u542F\u7528" },
-      funnelResult: { success: false, tierConfigs: [], syncResult: null, message: "\u81EA\u52A8\u5316\u672A\u542F\u7528" },
-      migrationResult: { success: false, suggestions: [], appliedMigrations: 0, message: "\u81EA\u52A8\u5316\u672A\u542F\u7528" },
-      conflictResult: { success: false, conflictResult: null, resolvedConflicts: 0, message: "\u81EA\u52A8\u5316\u672A\u542F\u7528" },
-      summary: {
-        totalNegativesAdded: 0,
-        totalKeywordsMigrated: 0,
-        totalConflictsResolved: 0,
-        estimatedSavings: 0
-      }
-    };
-  }
-  const ngramResult = await runNGramAnalysisTask(accountId);
-  const funnelResult = await runFunnelSyncTask(accountId);
-  const migrationResult = await runKeywordMigrationTask(accountId);
-  const conflictResult = await runTrafficConflictDetectionTask(accountId);
-  const summary = {
-    totalNegativesAdded: ngramResult.appliedNegatives + (funnelResult.syncResult?.totalNegativesToAdd || 0),
-    totalKeywordsMigrated: migrationResult.appliedMigrations,
-    totalConflictsResolved: conflictResult.resolvedConflicts,
-    estimatedSavings: (ngramResult.analysisResult?.suggestedNegatives.reduce((sum2, n7) => sum2 + n7.estimatedSavings, 0) || 0) + (conflictResult.conflictResult?.totalWastedSpend || 0)
-  };
-  if (config2.notificationConfig.dailySummary) {
-    await sendNotification({
-      userId: 0,
-      accountId,
-      type: "report",
-      severity: "info",
-      title: "\u6D41\u91CF\u9694\u79BB\u81EA\u52A8\u5316\u5468\u671F\u5B8C\u6210",
-      message: `\u6DFB\u52A0\u5426\u5B9A\u8BCD: ${summary.totalNegativesAdded}, \u8FC1\u79FB\u5173\u952E\u8BCD: ${summary.totalKeywordsMigrated}, \u89E3\u51B3\u51B2\u7A81: ${summary.totalConflictsResolved}, \u9884\u4F30\u8282\u7701: $${summary.estimatedSavings.toFixed(2)}`
-    });
-  }
-  return {
-    success: ngramResult.success || funnelResult.success || migrationResult.success || conflictResult.success,
-    ngramResult,
-    funnelResult,
-    migrationResult,
-    conflictResult,
-    summary
-  };
-}
-var DEFAULT_SAFETY_BOUNDARY, DEFAULT_AUTOMATION_CONFIG, accountConfigs, executionHistory, dailyExecutionCount;
-var init_automationExecutionEngine = __esm({
-  "server/automationExecutionEngine.ts"() {
-    "use strict";
-    init_db2();
-    init_unifiedOptimizationEngine();
-    init_notificationService();
-    init_trafficIsolationService();
-    DEFAULT_SAFETY_BOUNDARY = {
-      // 单次调整限制
-      maxBidChangePercent: 30,
-      maxBudgetChangePercent: 50,
-      maxPlacementChangePercent: 20,
-      // 每日调整限制
-      maxDailyBidAdjustments: 100,
-      maxDailyBudgetAdjustments: 10,
-      maxDailyTotalAdjustments: 150,
-      // 置信度阈值
-      autoExecuteConfidence: 80,
-      supervisedConfidence: 60,
-      // 紧急停止条件
-      acosIncreaseThreshold: 50,
-      spendOverrunThreshold: 200,
-      conversionDropThreshold: 70,
-      apiFailureThreshold: 3
-    };
-    DEFAULT_AUTOMATION_CONFIG = {
-      enabled: true,
-      mode: "full_auto",
-      safetyBoundary: DEFAULT_SAFETY_BOUNDARY,
-      enabledTypes: [
-        "bid_adjustment",
-        "product_target_bid",
-        "budget_adjustment",
-        "placement_tilt",
-        "negative_keyword",
-        "dayparting",
-        "auto_rollback",
-        "ngram_analysis",
-        "funnel_sync",
-        "keyword_migration",
-        "traffic_isolation",
-        "funnel_migration",
-        "search_term_harvest"
-      ],
-      scheduleConfig: {
-        bidAdjustmentTime: "07:00",
-        budgetAdjustmentTime: "06:00",
-        analysisTime: "05:30",
-        syncTime: "05:00"
-      },
-      notificationConfig: {
-        notifyOnSuccess: false,
-        notifyOnFailure: true,
-        notifyOnBlocked: true,
-        dailySummary: true,
-        weeklySummary: true
-      }
-    };
-    accountConfigs = /* @__PURE__ */ new Map();
-    executionHistory = [];
-    dailyExecutionCount = /* @__PURE__ */ new Map();
   }
 });
 
@@ -136033,30 +133694,15 @@ async function executeSyncForAccount(schedule) {
     console.error(`[DataSyncScheduler] \u8D26\u53F7 ${schedule.accountId} \u7B56\u7565\u6A21\u677F\u63A8\u8350\u66F4\u65B0\u5931\u8D25:`, recError.message);
   }
   try {
-    const autoConfig = getAccountAutomationConfig(schedule.accountId);
-    if (autoConfig.enabled) {
-      if (!acquireAccountOptimizationLock(schedule.accountId, "automationExecutionEngine")) {
-        console.log(`[DataSyncScheduler] v148: \u8D26\u53F7 ${schedule.accountId} \u4F18\u5316\u9501\u5DF2\u88AB\u5360\u7528\uFF0C\u8DF3\u8FC7\u81EA\u52A8\u4F18\u5316`);
-      } else {
-        try {
-          console.log(`[DataSyncScheduler] \u8D26\u53F7 ${schedule.accountId} \u81EA\u52A8\u4F18\u5316\u5DF2\u542F\u7528\uFF0C\u89E6\u53D1\u4F18\u5316\u6267\u884C...`);
-          const optimizationResult = await runFullAutomationCycle(schedule.accountId);
-          console.log(`[DataSyncScheduler] \u8D26\u53F7 ${schedule.accountId} \u81EA\u52A8\u4F18\u5316\u5B8C\u6210:`, {
-            analyzed: optimizationResult.summary.totalAnalyzed,
-            executed: optimizationResult.summary.totalExecuted,
-            skipped: optimizationResult.summary.totalSkipped,
-            blocked: optimizationResult.summary.totalBlocked
-          });
-        } finally {
-          releaseAccountOptimizationLock(schedule.accountId);
-        }
-      }
-    } else {
-      console.log(`[DataSyncScheduler] \u8D26\u53F7 ${schedule.accountId} \u81EA\u52A8\u4F18\u5316\u672A\u542F\u7528\uFF0C\u8DF3\u8FC7\u4F18\u5316\u6267\u884C`);
-    }
+    const { triggerAccountOptimizations: triggerAccountOptimizations2 } = await Promise.resolve().then(() => (init_optimizationScheduler(), optimizationScheduler_exports));
+    const triggerResult = await triggerAccountOptimizations2(schedule.accountId, "data_sync_complete");
+    console.log(`[DataSyncScheduler] v151: \u8D26\u53F7 ${schedule.accountId} \u4F18\u5316\u76EE\u6807\u89E6\u53D1\u5B8C\u6210:`, {
+      triggeredTargets: triggerResult.triggeredCount,
+      skippedTargets: triggerResult.skippedCount,
+      errors: triggerResult.errorCount
+    });
   } catch (autoOptError) {
-    releaseAccountOptimizationLock(schedule.accountId);
-    console.error(`[DataSyncScheduler] \u8D26\u53F7 ${schedule.accountId} \u81EA\u52A8\u4F18\u5316\u6267\u884C\u5931\u8D25:`, autoOptError.message);
+    console.error(`[DataSyncScheduler] \u8D26\u53F7 ${schedule.accountId} \u4F18\u5316\u76EE\u6807\u89E6\u53D1\u5931\u8D25:`, autoOptError.message);
   }
   if (result.campaigns > 0 || result.adGroups > 0) {
     try {
@@ -136448,7 +134094,6 @@ var init_dataSyncScheduler = __esm({
     init_db2();
     init_amazonSyncService();
     init_notification();
-    init_automationExecutionEngine();
     init_searchTermHarvester();
     init_attributionWindowHelper();
     init_campaignLifecycleService();
@@ -138535,6 +136180,7 @@ __export(optimizationScheduler_exports, {
   onTargetStatusChanged: () => onTargetStatusChanged,
   startOptimizationScheduler: () => startOptimizationScheduler2,
   stopOptimizationScheduler: () => stopOptimizationScheduler,
+  triggerAccountOptimizations: () => triggerAccountOptimizations,
   triggerInitialOptimization: () => triggerInitialOptimization
 });
 async function triggerInitialOptimization(targetId, options = { triggeredBy: "create" }) {
@@ -138853,6 +136499,95 @@ async function onCampaignsAdded(targetId, campaignIds) {
   }).catch((err2) => {
     console.error(`[OptScheduler] \u6DFB\u52A0\u5E7F\u544A\u6D3B\u52A8\u89E6\u53D1\u4F18\u5316\u5931\u8D25:`, err2);
   });
+}
+async function triggerAccountOptimizations(accountId, triggeredBy = "data_sync_complete") {
+  console.log(`[OptScheduler] v151: \u89E6\u53D1\u8D26\u6237 ${accountId} \u4E0B\u6240\u6709\u4F18\u5316\u76EE\u6807, \u6765\u6E90: ${triggeredBy}`);
+  const result = {
+    triggeredCount: 0,
+    skippedCount: 0,
+    errorCount: 0,
+    details: []
+  };
+  try {
+    const dbInstance = await getDb();
+    if (!dbInstance) {
+      console.error(`[OptScheduler] v151: \u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25`);
+      result.errorCount = 1;
+      return result;
+    }
+    const activeTargets = await dbInstance.select({
+      id: performanceGroups.id,
+      name: performanceGroups.name,
+      status: performanceGroups.status
+    }).from(performanceGroups).where(
+      and(
+        eq(performanceGroups.accountId, accountId),
+        eq(performanceGroups.status, "active")
+      )
+    );
+    if (activeTargets.length === 0) {
+      console.log(`[OptScheduler] v151: \u8D26\u6237 ${accountId} \u4E0B\u6CA1\u6709\u6D3B\u8DC3\u7684\u4F18\u5316\u76EE\u6807`);
+      return result;
+    }
+    console.log(`[OptScheduler] v151: \u8D26\u6237 ${accountId} \u4E0B\u53D1\u73B0 ${activeTargets.length} \u4E2A\u6D3B\u8DC3\u4F18\u5316\u76EE\u6807`);
+    const optimizationTargetEngine = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
+    for (const target of activeTargets) {
+      try {
+        const lastExecution = scheduledTargets.get(target.id);
+        if (lastExecution?.lastExecutionTime) {
+          const timeSinceLastExec = Date.now() - lastExecution.lastExecutionTime.getTime();
+          const MIN_INTERVAL_MS = 30 * 60 * 1e3;
+          if (timeSinceLastExec < MIN_INTERVAL_MS) {
+            result.skippedCount++;
+            result.details.push({
+              targetId: target.id,
+              targetName: target.name,
+              status: "skipped",
+              reason: `\u51B7\u5374\u671F\u5185\uFF08\u8DDD\u4E0A\u6B21\u6267\u884C ${Math.round(timeSinceLastExec / 6e4)} \u5206\u949F\uFF09`
+            });
+            continue;
+          }
+        }
+        const campaigns6 = await Promise.resolve().then(() => (init_db2(), db_exports)).then((m4) => m4.getCampaignsByPerformanceGroupId(target.id));
+        if (campaigns6.length === 0) {
+          result.skippedCount++;
+          result.details.push({
+            targetId: target.id,
+            targetName: target.name,
+            status: "skipped",
+            reason: "\u65E0\u5E7F\u544A\u6D3B\u52A8"
+          });
+          continue;
+        }
+        console.log(`[OptScheduler] v151: \u6267\u884C\u4F18\u5316\u76EE\u6807 ${target.name} (id=${target.id})`);
+        const execResult = await optimizationTargetEngine.executeOptimizationTarget(target.id);
+        if (scheduledTargets.has(target.id)) {
+          scheduledTargets.get(target.id).lastExecutionTime = /* @__PURE__ */ new Date();
+        }
+        result.triggeredCount++;
+        result.details.push({
+          targetId: target.id,
+          targetName: target.name,
+          status: "triggered"
+        });
+        console.log(`[OptScheduler] v151: \u4F18\u5316\u76EE\u6807 ${target.name} \u6267\u884C\u5B8C\u6210`);
+      } catch (error54) {
+        result.errorCount++;
+        result.details.push({
+          targetId: target.id,
+          targetName: target.name,
+          status: "error",
+          reason: error54.message
+        });
+        console.error(`[OptScheduler] v151: \u4F18\u5316\u76EE\u6807 ${target.name} \u6267\u884C\u5931\u8D25:`, error54.message);
+      }
+    }
+    console.log(`[OptScheduler] v151: \u8D26\u6237 ${accountId} \u4F18\u5316\u89E6\u53D1\u5B8C\u6210: \u89E6\u53D1=${result.triggeredCount}, \u8DF3\u8FC7=${result.skippedCount}, \u9519\u8BEF=${result.errorCount}`);
+  } catch (error54) {
+    console.error(`[OptScheduler] v151: \u8D26\u6237 ${accountId} \u4F18\u5316\u89E6\u53D1\u5F02\u5E38:`, error54.message);
+    result.errorCount++;
+  }
+  return result;
 }
 var scheduledTargets, isSchedulerRunning, FREQUENCY_MS;
 var init_optimizationScheduler = __esm({
@@ -331984,12 +329719,2326 @@ init_bidOptimizer();
 init_amazonAdsApi();
 init_adAutomation();
 init_amazonSyncService();
-init_notificationService();
+
+// server/notificationService.ts
+init_notification();
+var defaultNotificationConfig = {
+  emailEnabled: true,
+  inAppEnabled: true,
+  acosThreshold: 50,
+  ctrDropThreshold: 30,
+  conversionDropThreshold: 30,
+  spendSpikeThreshold: 50,
+  frequency: "daily",
+  quietHoursStart: 22,
+  quietHoursEnd: 8
+};
+async function sendNotification(notification) {
+  try {
+    const severityEmoji = {
+      info: "\u2139\uFE0F",
+      warning: "\u26A0\uFE0F",
+      critical: "\u{1F6A8}"
+    };
+    const formattedTitle = `${severityEmoji[notification.severity]} [${notification.severity.toUpperCase()}] ${notification.title}`;
+    let content = notification.message;
+    if (notification.relatedEntityType && notification.relatedEntityId) {
+      content += `
+
+\u76F8\u5173\u5B9E\u4F53: ${notification.relatedEntityType} #${notification.relatedEntityId}`;
+    }
+    content += `
+
+\u65F6\u95F4: ${(/* @__PURE__ */ new Date()).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai" })}`;
+    const result = await notifyOwner({
+      title: formattedTitle,
+      content
+    });
+    return result;
+  } catch (error54) {
+    console.error("[NotificationService] Failed to send notification:", error54);
+    return false;
+  }
+}
+function analyzeHealthMetrics(metrics, config2) {
+  const alerts = [];
+  if (metrics.currentAcos > config2.acosThreshold) {
+    const changePercent = metrics.previousAcos > 0 ? (metrics.currentAcos - metrics.previousAcos) / metrics.previousAcos * 100 : 100;
+    alerts.push({
+      type: "acos_spike",
+      severity: metrics.currentAcos > config2.acosThreshold * 1.5 ? "critical" : "warning",
+      campaignId: metrics.campaignId,
+      campaignName: metrics.campaignName,
+      currentValue: metrics.currentAcos,
+      previousValue: metrics.previousAcos,
+      changePercent,
+      threshold: config2.acosThreshold,
+      message: `\u5E7F\u544A\u6D3B\u52A8 "${metrics.campaignName}" \u7684ACoS\u5DF2\u8FBE\u5230 ${metrics.currentAcos.toFixed(1)}%\uFF0C\u8D85\u8FC7\u9608\u503C ${config2.acosThreshold}%`
+    });
+  }
+  if (metrics.previousCtr > 0) {
+    const ctrDropPercent = (metrics.previousCtr - metrics.currentCtr) / metrics.previousCtr * 100;
+    if (ctrDropPercent >= config2.ctrDropThreshold) {
+      alerts.push({
+        type: "ctr_drop",
+        severity: ctrDropPercent > config2.ctrDropThreshold * 1.5 ? "critical" : "warning",
+        campaignId: metrics.campaignId,
+        campaignName: metrics.campaignName,
+        currentValue: metrics.currentCtr,
+        previousValue: metrics.previousCtr,
+        changePercent: -ctrDropPercent,
+        threshold: config2.ctrDropThreshold,
+        message: `\u5E7F\u544A\u6D3B\u52A8 "${metrics.campaignName}" \u7684\u70B9\u51FB\u7387\u4E0B\u964D\u4E86 ${ctrDropPercent.toFixed(1)}%\uFF0C\u4ECE ${metrics.previousCtr.toFixed(2)}% \u964D\u81F3 ${metrics.currentCtr.toFixed(2)}%`
+      });
+    }
+  }
+  if (metrics.previousConversionRate > 0) {
+    const convDropPercent = (metrics.previousConversionRate - metrics.currentConversionRate) / metrics.previousConversionRate * 100;
+    if (convDropPercent >= config2.conversionDropThreshold) {
+      alerts.push({
+        type: "conversion_drop",
+        severity: convDropPercent > config2.conversionDropThreshold * 1.5 ? "critical" : "warning",
+        campaignId: metrics.campaignId,
+        campaignName: metrics.campaignName,
+        currentValue: metrics.currentConversionRate,
+        previousValue: metrics.previousConversionRate,
+        changePercent: -convDropPercent,
+        threshold: config2.conversionDropThreshold,
+        message: `\u5E7F\u544A\u6D3B\u52A8 "${metrics.campaignName}" \u7684\u8F6C\u5316\u7387\u4E0B\u964D\u4E86 ${convDropPercent.toFixed(1)}%\uFF0C\u4ECE ${metrics.previousConversionRate.toFixed(2)}% \u964D\u81F3 ${metrics.currentConversionRate.toFixed(2)}%`
+      });
+    }
+  }
+  if (metrics.previousSpend > 0) {
+    const spendSpikePercent = (metrics.currentSpend - metrics.previousSpend) / metrics.previousSpend * 100;
+    if (spendSpikePercent >= config2.spendSpikeThreshold) {
+      alerts.push({
+        type: "spend_spike",
+        severity: spendSpikePercent > config2.spendSpikeThreshold * 1.5 ? "critical" : "warning",
+        campaignId: metrics.campaignId,
+        campaignName: metrics.campaignName,
+        currentValue: metrics.currentSpend,
+        previousValue: metrics.previousSpend,
+        changePercent: spendSpikePercent,
+        threshold: config2.spendSpikeThreshold,
+        message: `\u5E7F\u544A\u6D3B\u52A8 "${metrics.campaignName}" \u7684\u82B1\u8D39\u6FC0\u589E ${spendSpikePercent.toFixed(1)}%\uFF0C\u4ECE $${metrics.previousSpend.toFixed(2)} \u589E\u81F3 $${metrics.currentSpend.toFixed(2)}`
+      });
+    }
+  }
+  return alerts;
+}
+async function sendBatchAlerts(alerts) {
+  let sent = 0;
+  let failed = 0;
+  const criticalAlerts = alerts.filter((a4) => a4.severity === "critical");
+  const warningAlerts = alerts.filter((a4) => a4.severity === "warning");
+  for (const alert of criticalAlerts) {
+    const success2 = await sendNotification({
+      userId: 0,
+      // Will be set by the caller
+      type: "alert",
+      severity: "critical",
+      title: `\u4E25\u91CD\u8B66\u544A: ${alert.type === "acos_spike" ? "ACoS\u98D9\u5347" : alert.type === "ctr_drop" ? "\u70B9\u51FB\u7387\u9AA4\u964D" : alert.type === "conversion_drop" ? "\u8F6C\u5316\u7387\u4E0B\u6ED1" : "\u82B1\u8D39\u6FC0\u589E"}`,
+      message: alert.message,
+      relatedEntityType: "campaign",
+      relatedEntityId: alert.campaignId
+    });
+    if (success2) sent++;
+    else failed++;
+  }
+  if (warningAlerts.length > 0) {
+    const summaryMessage = warningAlerts.map((a4) => `\u2022 ${a4.message}`).join("\n");
+    const success2 = await sendNotification({
+      userId: 0,
+      type: "alert",
+      severity: "warning",
+      title: `\u5E7F\u544A\u5065\u5EB7\u5EA6\u8B66\u544A (${warningAlerts.length}\u9879)`,
+      message: `\u68C0\u6D4B\u5230\u4EE5\u4E0B\u5065\u5EB7\u5EA6\u95EE\u9898:
+
+${summaryMessage}`
+    });
+    if (success2) sent++;
+    else failed++;
+  }
+  return { sent, failed };
+}
 
 // server/schedulerService.ts
 init_adAutomation();
-init_notificationService();
-init_automationExecutionEngine();
+
+// server/automationExecutionEngine.ts
+init_db2();
+
+// server/unifiedOptimizationEngine.ts
+init_db2();
+init_schema2();
+init_drizzle_orm();
+init_attributionWindowHelper();
+async function getDbInstance() {
+  const db = await getDb();
+  if (!db) throw new Error("Database connection failed");
+  return db;
+}
+async function getCampaignOptimizationState(campaignId) {
+  const db = await getDbInstance();
+  const campaign = await db.select().from(campaigns).where(eq(campaigns.id, campaignId)).limit(1);
+  if (campaign.length === 0) return null;
+  const c5 = campaign[0];
+  const executedToday = 0;
+  const acos = c5.spend && c5.sales ? Number(c5.spend) / Number(c5.sales) * 100 : 0;
+  const roas = c5.spend && c5.sales ? Number(c5.sales) / Number(c5.spend) : 0;
+  const performanceScore = Math.min(100, Math.max(
+    0,
+    roas * 20 + (100 - acos)
+  ));
+  return {
+    campaignId: c5.id,
+    campaignName: c5.campaignName,
+    autoOptimizationEnabled: true,
+    // 默认启用
+    executionMode: "semi_auto",
+    // 默认半自动
+    lastOptimizationAt: void 0,
+    // TODO: 从日志获取
+    pendingDecisions: 0,
+    // TODO: 从决策表获取
+    executedToday,
+    performanceScore,
+    optimizationTypes: {
+      bidAdjustment: true,
+      placementTilt: true,
+      dayparting: true,
+      negativeKeyword: true
+    }
+  };
+}
+async function getPerformanceGroupOptimizationState(groupId) {
+  const db = await getDbInstance();
+  const group = await db.select().from(performanceGroups).where(eq(performanceGroups.id, groupId)).limit(1);
+  if (group.length === 0) return null;
+  const g6 = group[0];
+  const groupCampaigns = await db.select().from(campaigns).where(eq(campaigns.performanceGroupId, groupId));
+  let totalSpend = 0;
+  let totalSales = 0;
+  for (const c5 of groupCampaigns) {
+    totalSpend += Number(c5.spend) || 0;
+    totalSales += Number(c5.sales) || 0;
+  }
+  const overallRoas = totalSpend > 0 ? totalSales / totalSpend : 0;
+  const overallAcos = totalSales > 0 ? totalSpend / totalSales * 100 : 0;
+  const overallPerformanceScore = Math.min(100, Math.max(
+    0,
+    overallRoas * 20 + (100 - overallAcos)
+  ));
+  return {
+    groupId: g6.id,
+    groupName: g6.name,
+    autoOptimizationEnabled: true,
+    executionMode: "semi_auto",
+    targetAcos: g6.targetAcos ? Number(g6.targetAcos) : void 0,
+    targetRoas: g6.targetRoas ? Number(g6.targetRoas) : void 0,
+    campaignCount: groupCampaigns.length,
+    optimizedCampaigns: groupCampaigns.length,
+    // TODO: 统计实际优化的数量
+    totalPendingDecisions: 0,
+    totalExecutedToday: 0,
+    overallPerformanceScore
+  };
+}
+async function runUnifiedOptimizationAnalysis(accountId, options = {}) {
+  const db = await getDbInstance();
+  const decisions = [];
+  let targetCampaigns;
+  if (options.campaignIds && options.campaignIds.length > 0) {
+    targetCampaigns = await db.select().from(campaigns).where(sql`${campaigns.id} IN (${options.campaignIds.join(",")})`);
+  } else if (options.performanceGroupIds && options.performanceGroupIds.length > 0) {
+    targetCampaigns = await db.select().from(campaigns).where(sql`${campaigns.performanceGroupId} IN (${options.performanceGroupIds.join(",")})`);
+  } else {
+    targetCampaigns = await db.select().from(campaigns).where(eq(campaigns.campaignStatus, "enabled")).limit(100);
+  }
+  const types = options.optimizationTypes || [
+    "bid_adjustment",
+    "placement_tilt",
+    "dayparting",
+    "negative_keyword"
+  ];
+  for (const campaign of targetCampaigns) {
+    const costType = campaign.costType === "vcpm" ? "vcpm" : "cpc";
+    const isVcpm = costType === "vcpm";
+    if (types.includes("bid_adjustment")) {
+      const bidDecisions = await analyzeBidAdjustments2(campaign, costType);
+      decisions.push(...bidDecisions);
+    }
+    if (types.includes("placement_tilt") && !isVcpm) {
+      const placementDecisions = await analyzePlacementTilt(campaign);
+      decisions.push(...placementDecisions);
+    }
+    if (types.includes("dayparting")) {
+      const daypartingDecisions = await analyzeDayparting(campaign);
+      decisions.push(...daypartingDecisions);
+    }
+    if (types.includes("negative_keyword")) {
+      const negativeDecisions = await analyzeNegativeKeywords(campaign, costType);
+      decisions.push(...negativeDecisions);
+    }
+  }
+  return decisions;
+}
+async function analyzeBidAdjustments2(campaign, costType = "cpc") {
+  const db = await getDbInstance();
+  const decisions = [];
+  const isVcpm = costType === "vcpm";
+  let groupTargetAcos = 30;
+  if (campaign.performanceGroupId) {
+    try {
+      const groups2 = await db.select().from(performanceGroups).where(eq(performanceGroups.id, campaign.performanceGroupId)).limit(1);
+      if (groups2.length > 0 && groups2[0].targetAcos) {
+        groupTargetAcos = Number(groups2[0].targetAcos);
+        console.log(`[UnifiedOptEngine] v148: Campaign ${campaign.id} \u4F7F\u7528\u4F18\u5316\u76EE\u6807targetAcos=${groupTargetAcos}%`);
+      }
+    } catch (pgErr) {
+      console.warn(`[UnifiedOptEngine] v148: \u83B7\u53D6\u4F18\u5316\u76EE\u6807targetAcos\u5931\u8D25, \u4F7F\u7528\u9ED8\u8BA4\u503C30%:`, pgErr.message);
+    }
+  }
+  let correctionFactor = 1;
+  let correctionApplied = false;
+  try {
+    const correctionResult = await calculateAttributionCorrectionFactor(
+      campaign.accountId,
+      campaign.id
+    );
+    const campaignAge = campaign.createdAt ? Math.floor((Date.now() - new Date(campaign.createdAt).getTime()) / (24 * 60 * 60 * 1e3)) : 30;
+    if (shouldApplyCorrection(
+      correctionResult.correctionFactor,
+      correctionResult.maturePerformance.clicks,
+      campaignAge
+    )) {
+      correctionFactor = correctionResult.correctionFactor;
+      correctionApplied = true;
+      console.log(`[UnifiedOptEngine] Campaign ${campaign.id} \u5F52\u56E0\u6821\u6B63\u7CFB\u6570: ${correctionFactor.toFixed(3)}`);
+    }
+  } catch (corrErr) {
+    console.warn(`[UnifiedOptEngine] \u5F52\u56E0\u6821\u6B63\u8BA1\u7B97\u5931\u8D25, \u4F7F\u7528\u539F\u59CB\u6570\u636E:`, corrErr.message);
+  }
+  const campaignKeywords = await db.select().from(keywords).where(sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`);
+  for (const kw of campaignKeywords) {
+    const rawImpressions = Number(kw.impressions) || 0;
+    const rawClicks = Number(kw.clicks) || 0;
+    const rawOrders = Number(kw.orders) || 0;
+    const rawSpend = Number(kw.spend) || 0;
+    const rawSales = Number(kw.sales) || 0;
+    const currentBid = Number(kw.bid) || 0;
+    if (isVcpm) {
+      if (rawImpressions < 1e3) continue;
+      const corrected2 = applyAttributionCorrection(
+        { impressions: rawImpressions, clicks: rawClicks, spend: rawSpend, sales: rawSales, orders: rawOrders },
+        correctionFactor,
+        "bid_optimization"
+      );
+      const impressions = corrected2.impressions;
+      const spend2 = corrected2.spend;
+      const sales2 = corrected2.sales;
+      const orders2 = corrected2.orders;
+      const clicks2 = corrected2.clicks;
+      const currentCpm = impressions > 0 ? spend2 / impressions * 1e3 : 0;
+      const ctr = impressions > 0 ? clicks2 / impressions : 0;
+      const viewCvr = impressions > 0 ? orders2 / impressions : 0;
+      const acos2 = sales2 > 0 ? spend2 / sales2 * 100 : 999;
+      const aov2 = orders2 > 0 ? sales2 / orders2 : 30;
+      const targetAcos2 = groupTargetAcos;
+      const optimalVcpm = viewCvr * aov2 * (targetAcos2 / 100) * 1e3;
+      const bidDiff2 = currentBid > 0 ? Math.abs(optimalVcpm - currentBid) / currentBid : 1;
+      if (bidDiff2 > 0.15 && optimalVcpm > 0.5) {
+        decisions.push({
+          id: `vcpm_bid_${campaign.id}_${kw.id}_${Date.now()}`,
+          type: "bid_adjustment",
+          targetType: "keyword",
+          targetId: kw.id,
+          targetName: kw.keywordText || `\u5173\u952E\u8BCD ${kw.id}`,
+          currentValue: currentBid,
+          suggestedValue: Math.round(optimalVcpm * 100) / 100,
+          expectedImpact: {
+            metric: "CPM",
+            currentValue: currentCpm,
+            expectedValue: optimalVcpm,
+            changePercent: currentCpm > 0 ? (optimalVcpm - currentCpm) / currentCpm * 100 : 0
+          },
+          confidence: Math.min(0.9, 0.4 + impressions / 1e4 * 0.5),
+          reasoning: `[vCPM\u4F18\u5316] \u57FA\u4E8E\u5C55\u793A\u8F6C\u5316\u7387\u8BA1\u7B97\uFF1A\u5C55\u793ACVR=${(viewCvr * 1e5).toFixed(2)}\u2030, CTR=${(ctr * 100).toFixed(3)}%, AOV=$${aov2.toFixed(2)}, ACoS=${acos2.toFixed(1)}%, \u76EE\u6807ACoS=${targetAcos2}%${correctionApplied ? ` [\u5F52\u56E0\u6821\u6B63\xD7${correctionFactor.toFixed(2)}]` : ""}`,
+          status: "pending",
+          createdAt: /* @__PURE__ */ new Date()
+        });
+      }
+      continue;
+    }
+    if (rawClicks < 10) continue;
+    const corrected = applyAttributionCorrection(
+      { impressions: rawImpressions, clicks: rawClicks, spend: rawSpend, sales: rawSales, orders: rawOrders },
+      correctionFactor,
+      "bid_optimization"
+    );
+    const clicks = corrected.clicks;
+    const orders = corrected.orders;
+    const spend = corrected.spend;
+    const sales = corrected.sales;
+    const cvr = clicks > 0 ? orders / clicks : 0;
+    const acos = sales > 0 ? spend / sales * 100 : 999;
+    const cpc = clicks > 0 ? spend / clicks : 0;
+    const aov = orders > 0 ? sales / orders : 30;
+    const targetAcos = groupTargetAcos;
+    const optimalBid = cvr * aov * (targetAcos / 100);
+    const bidDiff = Math.abs(optimalBid - currentBid) / currentBid;
+    if (bidDiff > 0.1 && optimalBid > 0.1) {
+      const expectedAcos = optimalBid > 0 ? optimalBid / (cvr * aov) * 100 : acos;
+      decisions.push({
+        id: `bid_${campaign.id}_${kw.id}_${Date.now()}`,
+        type: "bid_adjustment",
+        targetType: "keyword",
+        targetId: kw.id,
+        targetName: kw.keywordText || `\u5173\u952E\u8BCD ${kw.id}`,
+        currentValue: currentBid,
+        suggestedValue: Math.round(optimalBid * 100) / 100,
+        expectedImpact: {
+          metric: "ACoS",
+          currentValue: acos,
+          expectedValue: expectedAcos,
+          changePercent: (expectedAcos - acos) / acos * 100
+        },
+        confidence: Math.min(0.95, 0.5 + clicks / 100 * 0.45),
+        reasoning: `[CPC\u4F18\u5316] \u57FA\u4E8E\u5229\u6DA6\u6700\u5927\u5316\u516C\u5F0F\u8BA1\u7B97\uFF1ACVR=${(cvr * 100).toFixed(2)}%, AOV=$${aov.toFixed(2)}, \u76EE\u6807ACoS=${targetAcos}%${correctionApplied ? ` [\u5F52\u56E0\u6821\u6B63\xD7${correctionFactor.toFixed(2)}]` : ""}`,
+        status: "pending",
+        createdAt: /* @__PURE__ */ new Date()
+      });
+    }
+  }
+  const campaignTargets = await db.select().from(productTargets).where(sql`${productTargets.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`);
+  for (const pt3 of campaignTargets) {
+    const rawImpressions = Number(pt3.impressions) || 0;
+    const rawClicks = Number(pt3.clicks) || 0;
+    const rawOrders = Number(pt3.orders) || 0;
+    const rawSpend = Number(pt3.spend) || 0;
+    const rawSales = Number(pt3.sales) || 0;
+    const currentBid = Number(pt3.bid) || 0;
+    if (isVcpm) {
+      if (rawImpressions < 1e3) continue;
+      const corrected = applyAttributionCorrection(
+        { impressions: rawImpressions, clicks: rawClicks, spend: rawSpend, sales: rawSales, orders: rawOrders },
+        correctionFactor,
+        "bid_optimization"
+      );
+      const viewCvr = corrected.impressions > 0 ? corrected.orders / corrected.impressions : 0;
+      const aov = corrected.orders > 0 ? corrected.sales / corrected.orders : 30;
+      const targetAcos = groupTargetAcos;
+      const optimalVcpm = viewCvr * aov * (targetAcos / 100) * 1e3;
+      const bidDiff = currentBid > 0 ? Math.abs(optimalVcpm - currentBid) / currentBid : 1;
+      if (bidDiff > 0.15 && optimalVcpm > 0.5) {
+        decisions.push({
+          id: `vcpm_pt_bid_${campaign.id}_${pt3.id}_${Date.now()}`,
+          type: "bid_adjustment",
+          targetType: "keyword",
+          targetId: pt3.id,
+          targetName: pt3.targetValue || `\u5546\u54C1\u5B9A\u5411 ${pt3.id}`,
+          currentValue: currentBid,
+          suggestedValue: Math.round(optimalVcpm * 100) / 100,
+          expectedImpact: { metric: "CPM", currentValue: corrected.impressions > 0 ? corrected.spend / corrected.impressions * 1e3 : 0, expectedValue: optimalVcpm, changePercent: 0 },
+          confidence: Math.min(0.9, 0.4 + corrected.impressions / 1e4 * 0.5),
+          reasoning: `[vCPM\u5546\u54C1\u5B9A\u5411\u4F18\u5316] \u5339\u914D\u65B9\u5F0F:${pt3.targetMatchType || "auto"}, \u5C55\u793ACVR=${(viewCvr * 1e5).toFixed(2)}\u2030${correctionApplied ? ` [\u5F52\u56E0\u6821\u6B63\xD7${correctionFactor.toFixed(2)}]` : ""}`,
+          status: "pending",
+          createdAt: /* @__PURE__ */ new Date()
+        });
+      }
+    } else {
+      if (rawClicks < 10) continue;
+      const corrected = applyAttributionCorrection(
+        { impressions: rawImpressions, clicks: rawClicks, spend: rawSpend, sales: rawSales, orders: rawOrders },
+        correctionFactor,
+        "bid_optimization"
+      );
+      const cvr = corrected.clicks > 0 ? corrected.orders / corrected.clicks : 0;
+      const acos = corrected.sales > 0 ? corrected.spend / corrected.sales * 100 : 999;
+      const aov = corrected.orders > 0 ? corrected.sales / corrected.orders : 30;
+      const targetAcos = groupTargetAcos;
+      const optimalBid = cvr * aov * (targetAcos / 100);
+      const bidDiff = currentBid > 0 ? Math.abs(optimalBid - currentBid) / currentBid : 1;
+      if (bidDiff > 0.1 && optimalBid > 0.1) {
+        const expectedAcos = optimalBid > 0 ? optimalBid / (cvr * aov) * 100 : acos;
+        decisions.push({
+          id: `pt_bid_${campaign.id}_${pt3.id}_${Date.now()}`,
+          type: "bid_adjustment",
+          targetType: "keyword",
+          targetId: pt3.id,
+          targetName: pt3.targetValue || `\u5546\u54C1\u5B9A\u5411 ${pt3.id}`,
+          currentValue: currentBid,
+          suggestedValue: Math.round(optimalBid * 100) / 100,
+          expectedImpact: { metric: "ACoS", currentValue: acos, expectedValue: expectedAcos, changePercent: acos > 0 ? (expectedAcos - acos) / acos * 100 : 0 },
+          confidence: Math.min(0.95, 0.5 + corrected.clicks / 100 * 0.45),
+          reasoning: `[CPC\u5546\u54C1\u5B9A\u5411\u4F18\u5316] \u5339\u914D\u65B9\u5F0F:${pt3.targetMatchType || "auto"}, CVR=${(cvr * 100).toFixed(2)}%, AOV=$${aov.toFixed(2)}${correctionApplied ? ` [\u5F52\u56E0\u6821\u6B63\xD7${correctionFactor.toFixed(2)}]` : ""}`,
+          status: "pending",
+          createdAt: /* @__PURE__ */ new Date()
+        });
+      }
+    }
+  }
+  return decisions;
+}
+async function analyzePlacementTilt(campaign) {
+  const decisions = [];
+  const currentTopSearch = Number(campaign.topOfSearchBidAdjustment) || 0;
+  const currentProductPage = Number(campaign.productPageBidAdjustment) || 0;
+  const suggestedTopSearch = Math.min(50, Math.max(0, currentTopSearch));
+  const suggestedProductPage = Math.min(50, Math.max(0, currentProductPage));
+  if (currentTopSearch > 50) {
+    decisions.push({
+      id: `placement_top_${campaign.id}_${Date.now()}`,
+      type: "placement_tilt",
+      targetType: "campaign",
+      targetId: campaign.id,
+      targetName: campaign.campaignName,
+      currentValue: currentTopSearch,
+      suggestedValue: suggestedTopSearch,
+      expectedImpact: {
+        metric: "\u4F4D\u7F6E\u8C03\u6574",
+        currentValue: currentTopSearch,
+        expectedValue: suggestedTopSearch,
+        changePercent: (suggestedTopSearch - currentTopSearch) / currentTopSearch * 100
+      },
+      confidence: 0.85,
+      reasoning: "\u667A\u80FD\u4F18\u5316\u7B56\u7565\uFF1A\u8BBE\u7F6E\u8F83\u4F4E\u7684\u4F4D\u7F6E\u8C03\u6574\uFF080-50%\uFF09\uFF0C\u8BA9\u57FA\u7840\u51FA\u4EF7\u66F4\u7CBE\u786E\u63A7\u5236\u7ADE\u4EF7\u5BF9\u8C61",
+      status: "pending",
+      createdAt: /* @__PURE__ */ new Date()
+    });
+  }
+  if (currentProductPage > 50) {
+    decisions.push({
+      id: `placement_product_${campaign.id}_${Date.now()}`,
+      type: "placement_tilt",
+      targetType: "campaign",
+      targetId: campaign.id,
+      targetName: campaign.campaignName,
+      currentValue: currentProductPage,
+      suggestedValue: suggestedProductPage,
+      expectedImpact: {
+        metric: "\u4F4D\u7F6E\u8C03\u6574",
+        currentValue: currentProductPage,
+        expectedValue: suggestedProductPage,
+        changePercent: (suggestedProductPage - currentProductPage) / currentProductPage * 100
+      },
+      confidence: 0.85,
+      reasoning: "\u667A\u80FD\u4F18\u5316\u7B56\u7565\uFF1A\u8BBE\u7F6E\u8F83\u4F4E\u7684\u4F4D\u7F6E\u8C03\u6574\uFF080-50%\uFF09\uFF0C\u8BA9\u57FA\u7840\u51FA\u4EF7\u66F4\u7CBE\u786E\u63A7\u5236\u7ADE\u4EF7\u5BF9\u8C61",
+      status: "pending",
+      createdAt: /* @__PURE__ */ new Date()
+    });
+  }
+  return decisions;
+}
+async function analyzeDayparting(campaign) {
+  const decisions = [];
+  const poorPerformingHours = [2, 3, 4, 5];
+  decisions.push({
+    id: `daypart_${campaign.id}_${Date.now()}`,
+    type: "dayparting",
+    targetType: "campaign",
+    targetId: campaign.id,
+    targetName: campaign.campaignName,
+    currentValue: "\u65E0\u5206\u65F6\u7B56\u7565",
+    suggestedValue: "\u51CC\u66682-6\u70B9\u964D\u4F4E50%\u51FA\u4EF7",
+    expectedImpact: {
+      metric: "ACoS",
+      currentValue: 0,
+      expectedValue: -10,
+      changePercent: -10
+    },
+    confidence: 0.75,
+    reasoning: `\u51CC\u6668${poorPerformingHours.join(",")}\u70B9\u901A\u5E38\u8F6C\u5316\u7387\u8F83\u4F4E\uFF0C\u5EFA\u8BAE\u964D\u4F4E\u51FA\u4EF7\u4EE5\u51CF\u5C11\u6D6A\u8D39`,
+    status: "pending",
+    createdAt: /* @__PURE__ */ new Date()
+  });
+  return decisions;
+}
+async function analyzeNegativeKeywords(campaign, costType = "cpc") {
+  const db = await getDbInstance();
+  const decisions = [];
+  const isVcpm = costType === "vcpm";
+  if (isVcpm) {
+    const poorKeywords = await db.select().from(keywords).where(and(
+      sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`,
+      sql`${keywords.impressions} > 5000`,
+      // vCPM需要更多展示数据
+      sql`${keywords.clicks} = 0`,
+      // 零点击表示展示完全无效
+      sql`${keywords.orders} = 0`
+    )).limit(10);
+    for (const kw of poorKeywords) {
+      const impressions = Number(kw.impressions) || 0;
+      const spend = Number(kw.spend) || 0;
+      decisions.push({
+        id: `negative_vcpm_${campaign.id}_${kw.id}_${Date.now()}`,
+        type: "negative_keyword",
+        targetType: "keyword",
+        targetId: kw.id,
+        targetName: kw.keywordText || `\u5173\u952E\u8BCD ${kw.id}`,
+        currentValue: "\u6B63\u5E38\u6295\u653E",
+        suggestedValue: "\u6DFB\u52A0\u4E3A\u5426\u5B9A\u8BCD",
+        expectedImpact: {
+          metric: "\u82B1\u8D39",
+          currentValue: spend,
+          expectedValue: 0,
+          changePercent: -100
+        },
+        confidence: 0.85,
+        reasoning: `[vCPM] \u8BE5\u5173\u952E\u8BCD\u5DF2\u83B7\u5F97${impressions}\u6B21\u5C55\u793A\u4F460\u70B9\u51FB0\u8F6C\u5316\uFF0C\u82B1\u8D39$${spend.toFixed(2)}\uFF0C\u5C55\u793A\u5B8C\u5168\u65E0\u6548\uFF0C\u5EFA\u8BAE\u6DFB\u52A0\u4E3A\u5426\u5B9A\u8BCD`,
+        status: "pending",
+        createdAt: /* @__PURE__ */ new Date()
+      });
+    }
+  } else {
+    const poorKeywords = await db.select().from(keywords).where(and(
+      sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`,
+      sql`${keywords.clicks} > 20`,
+      sql`${keywords.orders} = 0`
+    )).limit(10);
+    for (const kw of poorKeywords) {
+      decisions.push({
+        id: `negative_${campaign.id}_${kw.id}_${Date.now()}`,
+        type: "negative_keyword",
+        targetType: "keyword",
+        targetId: kw.id,
+        targetName: kw.keywordText || `\u5173\u952E\u8BCD ${kw.id}`,
+        currentValue: "\u6B63\u5E38\u6295\u653E",
+        suggestedValue: "\u6DFB\u52A0\u4E3A\u5426\u5B9A\u8BCD",
+        expectedImpact: {
+          metric: "\u82B1\u8D39",
+          currentValue: Number(kw.spend) || 0,
+          expectedValue: 0,
+          changePercent: -100
+        },
+        confidence: 0.9,
+        reasoning: `[CPC] \u8BE5\u5173\u952E\u8BCD\u5DF2\u83B7\u5F97${kw.clicks}\u6B21\u70B9\u51FB\u4F460\u8F6C\u5316\uFF0C\u82B1\u8D39$${kw.spend}\uFF0C\u5EFA\u8BAE\u6DFB\u52A0\u4E3A\u5426\u5B9A\u8BCD`,
+        status: "pending",
+        createdAt: /* @__PURE__ */ new Date()
+      });
+    }
+  }
+  if (isVcpm) {
+    const poorTargets = await db.select().from(productTargets).where(and(
+      sql`${productTargets.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`,
+      sql`${productTargets.impressions} > 5000`,
+      sql`${productTargets.clicks} = 0`,
+      sql`${productTargets.orders} = 0`
+    )).limit(10);
+    for (const pt3 of poorTargets) {
+      const impressions = Number(pt3.impressions) || 0;
+      const spend = Number(pt3.spend) || 0;
+      decisions.push({
+        id: `negative_vcpm_pt_${campaign.id}_${pt3.id}_${Date.now()}`,
+        type: "negative_keyword",
+        targetType: "keyword",
+        targetId: pt3.id,
+        targetName: pt3.targetValue || `\u5546\u54C1\u5B9A\u5411 ${pt3.id}`,
+        currentValue: "\u6B63\u5E38\u6295\u653E",
+        suggestedValue: "\u6DFB\u52A0\u4E3A\u5426\u5B9A\u5546\u54C1\u5B9A\u5411",
+        expectedImpact: { metric: "\u82B1\u8D39", currentValue: spend, expectedValue: 0, changePercent: -100 },
+        confidence: 0.85,
+        reasoning: `[vCPM\u5546\u54C1\u5B9A\u5411] \u5339\u914D\u65B9\u5F0F:${pt3.targetMatchType || "auto"}, \u5DF2\u83B7\u5F97${impressions}\u6B21\u5C55\u793A\u4F460\u70B9\u51FB0\u8F6C\u5316\uFF0C\u82B1\u8D39$${spend.toFixed(2)}\uFF0C\u5EFA\u8BAE\u5426\u5B9A`,
+        status: "pending",
+        createdAt: /* @__PURE__ */ new Date()
+      });
+    }
+  } else {
+    const poorTargets = await db.select().from(productTargets).where(and(
+      sql`${productTargets.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`,
+      sql`${productTargets.clicks} > 20`,
+      sql`${productTargets.orders} = 0`
+    )).limit(10);
+    for (const pt3 of poorTargets) {
+      decisions.push({
+        id: `negative_pt_${campaign.id}_${pt3.id}_${Date.now()}`,
+        type: "negative_keyword",
+        targetType: "keyword",
+        targetId: pt3.id,
+        targetName: pt3.targetValue || `\u5546\u54C1\u5B9A\u5411 ${pt3.id}`,
+        currentValue: "\u6B63\u5E38\u6295\u653E",
+        suggestedValue: "\u6DFB\u52A0\u4E3A\u5426\u5B9A\u5546\u54C1\u5B9A\u5411",
+        expectedImpact: { metric: "\u82B1\u8D39", currentValue: Number(pt3.spend) || 0, expectedValue: 0, changePercent: -100 },
+        confidence: 0.9,
+        reasoning: `[CPC\u5546\u54C1\u5B9A\u5411] \u5339\u914D\u65B9\u5F0F:${pt3.targetMatchType || "auto"}, \u5DF2\u83B7\u5F97${pt3.clicks}\u6B21\u70B9\u51FB\u4F460\u8F6C\u5316\uFF0C\u82B1\u8D39$${pt3.spend}\uFF0C\u5EFA\u8BAE\u5426\u5B9A`,
+        status: "pending",
+        createdAt: /* @__PURE__ */ new Date()
+      });
+    }
+  }
+  return decisions;
+}
+async function executeOptimizationDecision(decisionId, executedBy = "manual") {
+  return {
+    success: true,
+    message: `\u51B3\u7B56 ${decisionId} \u5DF2${executedBy === "auto" ? "\u81EA\u52A8" : "\u624B\u52A8"}\u6267\u884C`
+  };
+}
+async function batchExecuteOptimizationDecisions(decisionIds, executedBy = "manual") {
+  const results = [];
+  let success2 = 0;
+  let failed = 0;
+  for (const id of decisionIds) {
+    const result = await executeOptimizationDecision(id, executedBy);
+    results.push({ id, ...result });
+    if (result.success) {
+      success2++;
+    } else {
+      failed++;
+    }
+  }
+  return { success: success2, failed, results };
+}
+async function getOptimizationSummary(accountId, options = {}) {
+  return {
+    totalDecisions: 0,
+    pendingDecisions: 0,
+    executedToday: 0,
+    successRate: 0,
+    byType: {
+      bid_adjustment: { total: 0, pending: 0, executed: 0, avgConfidence: 0 },
+      placement_tilt: { total: 0, pending: 0, executed: 0, avgConfidence: 0 },
+      dayparting: { total: 0, pending: 0, executed: 0, avgConfidence: 0 },
+      negative_keyword: { total: 0, pending: 0, executed: 0, avgConfidence: 0 },
+      funnel_migration: { total: 0, pending: 0, executed: 0, avgConfidence: 0 },
+      budget_reallocation: { total: 0, pending: 0, executed: 0, avgConfidence: 0 },
+      correction: { total: 0, pending: 0, executed: 0, avgConfidence: 0 },
+      traffic_isolation: { total: 0, pending: 0, executed: 0, avgConfidence: 0 }
+    },
+    recentDecisions: []
+  };
+}
+async function updateCampaignOptimizationSettings(campaignId, settings) {
+  return { success: true };
+}
+async function updatePerformanceGroupOptimizationSettings(groupId, settings) {
+  return { success: true };
+}
+
+// server/trafficIsolationService.ts
+init_db2();
+init_schema2();
+init_drizzle_orm();
+var TRAFFIC_ISOLATION_CONFIG = {
+  // N-Gram分析参数
+  ngram: {
+    minFrequency: 10,
+    // 词根最小出现频率
+    highRiskFrequency: 50,
+    // 高风险词根频率阈值
+    confidenceThreshold: 0.7,
+    // 建议否定的置信度阈值
+    maxTokenLength: 3,
+    // 最大N-Gram长度
+    stopWords: ["a", "an", "the", "for", "and", "or", "with", "to", "of", "in", "on", "at", "by"]
+  },
+  // 流量冲突检测参数
+  conflict: {
+    minOverlapDays: 3,
+    // 判定冲突的最小重叠天数
+    minClicks: 5,
+    // 最小点击数
+    cvrWeight: 0.4,
+    // CVR权重
+    aovWeight: 0.3,
+    // AOV权重
+    roasWeight: 0.2,
+    // ROAS权重
+    dataVolumeWeight: 0.1
+    // 数据量权重
+  },
+  // 专家建议新增：软隔离策略参数
+  softIsolation: {
+    // 默认不添加否定词，通过出价差异实现流量分配
+    suggestAddNegative: false,
+    // Exact组出价相对于Broad组的倍数
+    exactToBroadBidMultiplier: 1.5,
+    // Exact组流量稳定阈值（达到此点击数后才建议添加否定词）
+    exactGroupStabilityThreshold: 50,
+    // Exact组流量稳定所需的最小转化数
+    exactGroupMinConversions: 5,
+    // 软隔离策略说明
+    strategyDescription: "\u901A\u8FC7\u51FA\u4EF7\u5DEE\u5F02\u800C\u975E\u5426\u5B9A\u8BCD\u5B9E\u73B0\u6D41\u91CF\u5206\u914D\uFF0C\u907F\u514D\u6D41\u91CF\u65AD\u5C42"
+  },
+  // 漏斗模型参数
+  funnel: {
+    tier1MatchTypes: ["exact"],
+    tier2MatchTypes: ["phrase", "exact"],
+    tier3MatchTypes: ["broad", "phrase"]
+  },
+  // 关键词迁移参数
+  migration: {
+    minConversions: 3,
+    // 最小转化数
+    minCVR: 0.05,
+    // 最小转化率 (5%)
+    minClicks: 20
+    // 最小点击数
+  },
+  // 安全边界
+  safety: {
+    maxNegativesPerBatch: 100,
+    // 单次最大否定词数
+    maxNegativesPerDay: 500,
+    // 每日最大否定词数
+    protectedKeywordTypes: ["brand", "high_conversion"]
+    // 保护的关键词类型
+  }
+};
+function tokenize2(text2) {
+  const cleaned = text2.toLowerCase().replace(/[^a-z0-9\s]/g, " ").trim();
+  const words = cleaned.split(/\s+/).filter((w7) => w7.length > 1);
+  return words.filter((w7) => !TRAFFIC_ISOLATION_CONFIG.ngram.stopWords.includes(w7));
+}
+function generateNGrams(tokens, n7) {
+  const ngrams = [];
+  for (let i4 = 0; i4 <= tokens.length - n7; i4++) {
+    ngrams.push(tokens.slice(i4, i4 + n7).join(" "));
+  }
+  return ngrams;
+}
+async function runNGramAnalysis(accountId, startDate, endDate, options) {
+  const db = await getDb();
+  if (!db) {
+    return { accountId, analysisDate: /* @__PURE__ */ new Date(), totalSearchTermsAnalyzed: 0, totalTokensExtracted: 0, highRiskTokens: [], mediumRiskTokens: [], suggestedNegatives: [] };
+  }
+  const minFrequency = options?.minFrequency || TRAFFIC_ISOLATION_CONFIG.ngram.minFrequency;
+  const searchTermData = await db.select({
+    searchTerm: searchTerms.searchTerm,
+    clicks: searchTerms.searchTermClicks,
+    conversions: searchTerms.searchTermOrders,
+    spend: searchTerms.searchTermSpend,
+    sales: searchTerms.searchTermSales
+  }).from(searchTerms).where(and(
+    eq(searchTerms.accountId, accountId),
+    gte(searchTerms.reportStartDate, startDate.toISOString()),
+    lte(searchTerms.reportEndDate, endDate.toISOString()),
+    // 默认只分析有点击但无转化的搜索词
+    options?.includeConvertingTerms ? sql`1=1` : sql`${searchTerms.searchTermClicks} > 0 AND ${searchTerms.searchTermOrders} = 0`
+  ));
+  const tokenStats = /* @__PURE__ */ new Map();
+  for (const term of searchTermData) {
+    const tokens = tokenize2(term.searchTerm);
+    for (const token of tokens) {
+      const stats = tokenStats.get(token) || {
+        frequency: 0,
+        totalClicks: 0,
+        totalSpend: 0,
+        totalConversions: 0,
+        searchTerms: /* @__PURE__ */ new Set()
+      };
+      stats.frequency++;
+      stats.totalClicks += term.clicks || 0;
+      stats.totalSpend += Number(term.spend) || 0;
+      stats.totalConversions += term.conversions || 0;
+      stats.searchTerms.add(term.searchTerm);
+      tokenStats.set(token, stats);
+    }
+    const bigrams = generateNGrams(tokens, 2);
+    for (const bigram of bigrams) {
+      const stats = tokenStats.get(bigram) || {
+        frequency: 0,
+        totalClicks: 0,
+        totalSpend: 0,
+        totalConversions: 0,
+        searchTerms: /* @__PURE__ */ new Set()
+      };
+      stats.frequency++;
+      stats.totalClicks += term.clicks || 0;
+      stats.totalSpend += Number(term.spend) || 0;
+      stats.totalConversions += term.conversions || 0;
+      stats.searchTerms.add(term.searchTerm);
+      tokenStats.set(bigram, stats);
+    }
+  }
+  const allTokens = [];
+  tokenStats.forEach((stats, token) => {
+    if (stats.frequency < minFrequency) return;
+    const cvr = stats.totalClicks > 0 ? stats.totalConversions / stats.totalClicks : 0;
+    const isMultiWord = token.includes(" ");
+    const frequencyScore = Math.min(stats.frequency / TRAFFIC_ISOLATION_CONFIG.ngram.highRiskFrequency, 1);
+    const clickScore = Math.min(stats.totalClicks / 100, 1);
+    const cvrPenalty = cvr > 0 ? 0.5 : 1;
+    const confidence = (frequencyScore * 0.4 + clickScore * 0.4 + 0.2) * cvrPenalty;
+    let suggestedAction = "monitor";
+    if (confidence >= TRAFFIC_ISOLATION_CONFIG.ngram.confidenceThreshold && cvr === 0) {
+      suggestedAction = isMultiWord ? "negative_phrase" : "negative_phrase";
+    } else if (confidence >= 0.5 && cvr < 0.01) {
+      suggestedAction = "monitor";
+    }
+    allTokens.push({
+      token,
+      tokenType: isMultiWord ? "bigram" : "unigram",
+      frequency: stats.frequency,
+      totalClicks: stats.totalClicks,
+      totalSpend: stats.totalSpend,
+      totalConversions: stats.totalConversions,
+      conversionRate: cvr,
+      confidence,
+      searchTerms: Array.from(stats.searchTerms).slice(0, 10),
+      // 最多保甹10个示例
+      suggestedAction
+    });
+  });
+  allTokens.sort((a4, b6) => b6.confidence - a4.confidence);
+  const highRiskTokens = allTokens.filter((t7) => t7.confidence >= TRAFFIC_ISOLATION_CONFIG.ngram.confidenceThreshold);
+  const mediumRiskTokens = allTokens.filter((t7) => t7.confidence >= 0.5 && t7.confidence < TRAFFIC_ISOLATION_CONFIG.ngram.confidenceThreshold);
+  const suggestedNegatives = highRiskTokens.filter((t7) => t7.suggestedAction !== "ignore").map((t7) => ({
+    token: t7.token,
+    matchType: "negative_phrase",
+    reason: `\u51FA\u73B0${t7.frequency}\u6B21\uFF0C${t7.totalClicks}\u6B21\u70B9\u51FB\uFF0C0\u8F6C\u5316\uFF0C\u9884\u8BA1\u53EF\u8282\u7701$${t7.totalSpend.toFixed(2)}`,
+    estimatedSavings: t7.totalSpend
+  }));
+  return {
+    accountId,
+    analysisDate: /* @__PURE__ */ new Date(),
+    totalSearchTermsAnalyzed: searchTermData.length,
+    totalTokensExtracted: allTokens.length,
+    highRiskTokens,
+    mediumRiskTokens,
+    suggestedNegatives
+  };
+}
+async function detectTrafficConflicts2(accountId, startDate, endDate) {
+  const db = await getDb();
+  if (!db) {
+    return { accountId, analysisDate: /* @__PURE__ */ new Date(), totalConflicts: 0, totalWastedSpend: 0, conflicts: [], resolutionSuggestions: [] };
+  }
+  const searchTermData = await db.select({
+    searchTerm: searchTerms.searchTerm,
+    campaignId: searchTerms.campaignId,
+    clicks: searchTerms.searchTermClicks,
+    conversions: searchTerms.searchTermOrders,
+    spend: searchTerms.searchTermSpend,
+    sales: searchTerms.searchTermSales,
+    matchType: searchTerms.searchTermMatchType
+  }).from(searchTerms).where(and(
+    eq(searchTerms.accountId, accountId),
+    gte(searchTerms.reportStartDate, startDate.toISOString()),
+    lte(searchTerms.reportEndDate, endDate.toISOString()),
+    gte(searchTerms.searchTermClicks, TRAFFIC_ISOLATION_CONFIG.conflict.minClicks)
+  ));
+  const campaignData = await db.select({
+    id: campaigns.id,
+    campaignName: campaigns.campaignName,
+    targetingType: campaigns.targetingType
+  }).from(campaigns).where(eq(campaigns.accountId, accountId));
+  const campaignMap = new Map(campaignData.map((c5) => [c5.id, c5]));
+  const searchTermGroups = /* @__PURE__ */ new Map();
+  for (const term of searchTermData) {
+    const group = searchTermGroups.get(term.searchTerm) || [];
+    group.push(term);
+    searchTermGroups.set(term.searchTerm, group);
+  }
+  const conflicts = [];
+  let totalWastedSpend = 0;
+  searchTermGroups.forEach((terms, searchTerm) => {
+    const campaignIds = new Set(terms.map((t7) => t7.campaignId));
+    if (campaignIds.size < 2) return;
+    const campaignStats = /* @__PURE__ */ new Map();
+    for (const term of terms) {
+      const stats = campaignStats.get(term.campaignId) || {
+        clicks: 0,
+        conversions: 0,
+        spend: 0,
+        sales: 0,
+        matchType: term.matchType || "unknown"
+      };
+      stats.clicks += term.clicks || 0;
+      stats.conversions += term.conversions || 0;
+      stats.spend += Number(term.spend) || 0;
+      stats.sales += Number(term.sales) || 0;
+      campaignStats.set(term.campaignId, stats);
+    }
+    const conflictingCampaigns = [];
+    campaignStats.forEach((stats, campaignId) => {
+      const campaign = campaignMap.get(campaignId);
+      if (!campaign) return;
+      const cvr = stats.clicks > 0 ? stats.conversions / stats.clicks : 0;
+      const aov = stats.conversions > 0 ? stats.sales / stats.conversions : 0;
+      const roas = stats.spend > 0 ? stats.sales / stats.spend : 0;
+      const { cvrWeight, aovWeight, roasWeight, dataVolumeWeight } = TRAFFIC_ISOLATION_CONFIG.conflict;
+      const normalizedCVR = Math.min(cvr / 0.2, 1);
+      const normalizedAOV = Math.min(aov / 100, 1);
+      const normalizedROAS = Math.min(roas / 5, 1);
+      const normalizedVolume = Math.min(stats.clicks / 50, 1);
+      const score = normalizedCVR * cvrWeight + normalizedAOV * aovWeight + normalizedROAS * roasWeight + normalizedVolume * dataVolumeWeight;
+      conflictingCampaigns.push({
+        campaignId,
+        campaignName: campaign.campaignName,
+        matchType: stats.matchType,
+        clicks: stats.clicks,
+        conversions: stats.conversions,
+        spend: stats.spend,
+        sales: stats.sales,
+        cvr,
+        aov,
+        roas,
+        score
+      });
+    });
+    conflictingCampaigns.sort((a4, b6) => b6.score - a4.score);
+    const winner = conflictingCampaigns[0];
+    const wastedSpend = conflictingCampaigns.slice(1).reduce((sum2, c5) => sum2 + c5.spend, 0);
+    totalWastedSpend += wastedSpend;
+    let winnerReason = "";
+    if (winner.cvr > 0 && conflictingCampaigns.slice(1).every((c5) => c5.cvr === 0)) {
+      winnerReason = `\u552F\u4E00\u6709\u8F6C\u5316\u7684\u5E7F\u544A\u6D3B\u52A8\uFF08CVR: ${(winner.cvr * 100).toFixed(1)}%\uFF09`;
+    } else if (winner.roas > conflictingCampaigns[1]?.roas * 1.5) {
+      winnerReason = `ROAS\u663E\u8457\u66F4\u9AD8\uFF08${winner.roas.toFixed(2)} vs ${conflictingCampaigns[1]?.roas.toFixed(2)}\uFF09`;
+    } else if (winner.cvr > conflictingCampaigns[1]?.cvr * 1.2) {
+      winnerReason = `\u8F6C\u5316\u7387\u66F4\u9AD8\uFF08${(winner.cvr * 100).toFixed(1)}% vs ${(conflictingCampaigns[1]?.cvr * 100).toFixed(1)}%\uFF09`;
+    } else {
+      winnerReason = `\u7EFC\u5408\u5F97\u5206\u6700\u9AD8\uFF08${winner.score.toFixed(3)}\uFF09`;
+    }
+    conflicts.push({
+      searchTerm,
+      conflictingCampaigns,
+      suggestedWinner: {
+        campaignId: winner.campaignId,
+        campaignName: winner.campaignName,
+        reason: winnerReason
+      },
+      totalWastedSpend: wastedSpend
+    });
+  });
+  conflicts.sort((a4, b6) => b6.totalWastedSpend - a4.totalWastedSpend);
+  const resolutionSuggestions = conflicts.map((conflict, index2) => ({
+    conflictId: index2,
+    searchTerm: conflict.searchTerm,
+    winnerCampaignId: conflict.suggestedWinner.campaignId,
+    negativesToAdd: conflict.conflictingCampaigns.filter((c5) => c5.campaignId !== conflict.suggestedWinner.campaignId).map((c5) => ({
+      campaignId: c5.campaignId,
+      negativeText: conflict.searchTerm,
+      matchType: "negative_exact"
+    }))
+  }));
+  return {
+    accountId,
+    analysisDate: /* @__PURE__ */ new Date(),
+    totalConflicts: conflicts.length,
+    totalWastedSpend,
+    conflicts,
+    resolutionSuggestions
+  };
+}
+async function identifyFunnelTiers(accountId) {
+  const db = await getDb();
+  if (!db) return [];
+  const campaignData = await db.select({
+    id: campaigns.id,
+    campaignName: campaigns.campaignName,
+    targetingType: campaigns.targetingType
+  }).from(campaigns).where(and(
+    eq(campaigns.accountId, accountId),
+    eq(campaigns.campaignStatus, "enabled")
+  ));
+  const keywordData = await db.select({
+    campaignId: adGroups.campaignId,
+    matchType: keywords.matchType,
+    count: sql`COUNT(*)`
+  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id)).where(eq(campaigns.accountId, accountId)).groupBy(adGroups.campaignId, keywords.matchType);
+  const campaignMatchTypes = /* @__PURE__ */ new Map();
+  for (const kw of keywordData) {
+    const matchTypes = campaignMatchTypes.get(kw.campaignId) || /* @__PURE__ */ new Map();
+    matchTypes.set(kw.matchType || "unknown", kw.count);
+    campaignMatchTypes.set(kw.campaignId, matchTypes);
+  }
+  const tierConfigs = [];
+  for (const campaign of campaignData) {
+    const matchTypes = campaignMatchTypes.get(campaign.id);
+    if (!matchTypes) continue;
+    let dominantMatchType = "unknown";
+    let maxCount = 0;
+    matchTypes.forEach((count2, matchType) => {
+      if (count2 > maxCount) {
+        maxCount = count2;
+        dominantMatchType = matchType;
+      }
+    });
+    let tierLevel;
+    if (dominantMatchType === "exact") {
+      if (campaign.campaignName.toLowerCase().includes("exact") || campaign.campaignName.includes("\u7CBE\u51C6") || campaign.campaignName.includes("core") || campaign.campaignName.includes("\u6838\u5FC3")) {
+        tierLevel = "tier1_exact";
+      } else {
+        tierLevel = "tier2_longtail";
+      }
+    } else if (dominantMatchType === "phrase") {
+      tierLevel = "tier2_longtail";
+    } else {
+      tierLevel = "tier3_explore";
+    }
+    tierConfigs.push({
+      campaignId: campaign.id,
+      campaignName: campaign.campaignName,
+      tierLevel,
+      matchType: dominantMatchType,
+      autoNegativeSync: true
+    });
+  }
+  return tierConfigs;
+}
+async function syncFunnelNegatives(accountId, tierConfigs) {
+  const db = await getDb();
+  if (!db) {
+    return {
+      accountId,
+      syncDate: /* @__PURE__ */ new Date(),
+      tier1Keywords: [],
+      tier2Keywords: [],
+      negativesToSync: [],
+      totalNegativesToAdd: 0
+    };
+  }
+  const tier1Campaigns = tierConfigs.filter((t7) => t7.tierLevel === "tier1_exact").map((t7) => t7.campaignId);
+  const tier2Campaigns = tierConfigs.filter((t7) => t7.tierLevel === "tier2_longtail").map((t7) => t7.campaignId);
+  const tier3Campaigns = tierConfigs.filter((t7) => t7.tierLevel === "tier3_explore").map((t7) => t7.campaignId);
+  const tier1Keywords = tier1Campaigns.length > 0 ? await db.select({
+    keywordText: keywords.keywordText
+  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).where(and(
+    inArray(adGroups.campaignId, tier1Campaigns),
+    eq(keywords.keywordStatus, "enabled")
+  )) : [];
+  const tier2Keywords = tier2Campaigns.length > 0 ? await db.select({
+    keywordText: keywords.keywordText
+  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).where(and(
+    inArray(adGroups.campaignId, tier2Campaigns),
+    eq(keywords.keywordStatus, "enabled")
+  )) : [];
+  const existingNegatives = await db.select({
+    campaignId: negativeKeywords.campaignId,
+    negativeText: negativeKeywords.negativeText
+  }).from(negativeKeywords).where(and(
+    eq(negativeKeywords.accountId, accountId),
+    eq(negativeKeywords.negativeStatus, "active")
+  ));
+  const existingNegativeMap = /* @__PURE__ */ new Map();
+  for (const neg of existingNegatives) {
+    const negSet = existingNegativeMap.get(neg.campaignId) || /* @__PURE__ */ new Set();
+    negSet.add(neg.negativeText.toLowerCase());
+    existingNegativeMap.set(neg.campaignId, negSet);
+  }
+  const negativesToSync = [];
+  const tier1KeywordTexts = tier1Keywords.map((k5) => k5.keywordText.toLowerCase());
+  const tier2KeywordTexts = tier2Keywords.map((k5) => k5.keywordText.toLowerCase());
+  for (const campaignId of tier2Campaigns) {
+    const existingNegs = existingNegativeMap.get(campaignId) || /* @__PURE__ */ new Set();
+    const negatives = tier1KeywordTexts.filter((kw) => !existingNegs.has(kw)).map((kw) => ({
+      keyword: kw,
+      matchType: "negative_exact",
+      sourceTier: "tier1"
+    }));
+    if (negatives.length > 0) {
+      const config2 = tierConfigs.find((t7) => t7.campaignId === campaignId);
+      negativesToSync.push({
+        targetCampaignId: campaignId,
+        targetTier: config2?.tierLevel || "tier2_longtail",
+        negatives
+      });
+    }
+  }
+  const allUpperTierKeywords = Array.from(/* @__PURE__ */ new Set([...tier1KeywordTexts, ...tier2KeywordTexts]));
+  for (const campaignId of tier3Campaigns) {
+    const existingNegs = existingNegativeMap.get(campaignId) || /* @__PURE__ */ new Set();
+    const negatives = allUpperTierKeywords.filter((kw) => !existingNegs.has(kw)).map((kw) => ({
+      keyword: kw,
+      matchType: "negative_phrase",
+      sourceTier: tier1KeywordTexts.includes(kw) ? "tier1" : "tier2"
+    }));
+    if (negatives.length > 0) {
+      const config2 = tierConfigs.find((t7) => t7.campaignId === campaignId);
+      negativesToSync.push({
+        targetCampaignId: campaignId,
+        targetTier: config2?.tierLevel || "tier3_explore",
+        negatives
+      });
+    }
+  }
+  return {
+    accountId,
+    syncDate: /* @__PURE__ */ new Date(),
+    tier1Keywords: tier1KeywordTexts,
+    tier2Keywords: tier2KeywordTexts,
+    negativesToSync,
+    totalNegativesToAdd: negativesToSync.reduce((sum2, n7) => sum2 + n7.negatives.length, 0)
+  };
+}
+async function getKeywordMigrationSuggestions(accountId, tierConfigs, startDate, endDate) {
+  const db = await getDb();
+  if (!db) return [];
+  const { minConversions, minCVR, minClicks } = TRAFFIC_ISOLATION_CONFIG.migration;
+  const tier3Campaigns = tierConfigs.filter((t7) => t7.tierLevel === "tier3_explore");
+  if (tier3Campaigns.length === 0) return [];
+  const tier3CampaignIds = tier3Campaigns.map((t7) => t7.campaignId);
+  const searchTermData = await db.select({
+    searchTerm: searchTerms.searchTerm,
+    campaignId: searchTerms.campaignId,
+    clicks: searchTerms.searchTermClicks,
+    conversions: searchTerms.searchTermOrders,
+    spend: searchTerms.searchTermSpend,
+    sales: searchTerms.searchTermSales
+  }).from(searchTerms).where(and(
+    eq(searchTerms.accountId, accountId),
+    inArray(searchTerms.campaignId, tier3CampaignIds),
+    gte(searchTerms.reportStartDate, startDate.toISOString()),
+    lte(searchTerms.reportEndDate, endDate.toISOString()),
+    gte(searchTerms.searchTermClicks, minClicks),
+    gte(searchTerms.searchTermOrders, minConversions)
+  ));
+  const tier1Campaigns = tierConfigs.filter((t7) => t7.tierLevel === "tier1_exact");
+  const tier1CampaignIds = tier1Campaigns.map((t7) => t7.campaignId);
+  const existingExactKeywords = tier1CampaignIds.length > 0 ? await db.select({
+    keywordText: keywords.keywordText
+  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).where(inArray(adGroups.campaignId, tier1CampaignIds)) : [];
+  const existingKeywordSet = new Set(existingExactKeywords.map((k5) => k5.keywordText.toLowerCase()));
+  const suggestions = [];
+  const campaignMap = new Map(tierConfigs.map((t7) => [t7.campaignId, t7]));
+  for (const term of searchTermData) {
+    const clicks = term.clicks || 0;
+    const cvr = clicks > 0 ? (term.conversions || 0) / clicks : 0;
+    if (cvr < minCVR) continue;
+    if (existingKeywordSet.has(term.searchTerm.toLowerCase())) continue;
+    const sourceCampaign = campaignMap.get(term.campaignId);
+    suggestions.push({
+      searchTerm: term.searchTerm,
+      sourceCampaignId: term.campaignId,
+      sourceCampaignName: sourceCampaign?.campaignName || "Unknown",
+      sourceTier: "tier3_explore",
+      targetTier: "tier1_exact",
+      clicks: term.clicks || 0,
+      conversions: term.conversions || 0,
+      cvr,
+      sales: Number(term.sales) || 0,
+      reason: `\u5728\u63A2\u7D22\u5C42\u8868\u73B0\u4F18\u5F02\uFF1A${term.conversions}\u6B21\u8F6C\u5316\uFF0CCVR ${(cvr * 100).toFixed(1)}%\uFF0C\u5EFA\u8BAE\u8FC1\u79FB\u5230\u7CBE\u51C6\u5C42`
+    });
+  }
+  suggestions.sort((a4, b6) => b6.conversions - a4.conversions);
+  return suggestions;
+}
+
+// server/automationExecutionEngine.ts
+var DEFAULT_SAFETY_BOUNDARY = {
+  // 单次调整限制
+  maxBidChangePercent: 30,
+  maxBudgetChangePercent: 50,
+  maxPlacementChangePercent: 20,
+  // 每日调整限制
+  maxDailyBidAdjustments: 100,
+  maxDailyBudgetAdjustments: 10,
+  maxDailyTotalAdjustments: 150,
+  // 置信度阈值
+  autoExecuteConfidence: 80,
+  supervisedConfidence: 60,
+  // 紧急停止条件
+  acosIncreaseThreshold: 50,
+  spendOverrunThreshold: 200,
+  conversionDropThreshold: 70,
+  apiFailureThreshold: 3
+};
+var DEFAULT_AUTOMATION_CONFIG = {
+  enabled: true,
+  mode: "full_auto",
+  safetyBoundary: DEFAULT_SAFETY_BOUNDARY,
+  enabledTypes: [
+    "bid_adjustment",
+    "product_target_bid",
+    "budget_adjustment",
+    "placement_tilt",
+    "negative_keyword",
+    "dayparting",
+    "auto_rollback",
+    "ngram_analysis",
+    "funnel_sync",
+    "keyword_migration",
+    "traffic_isolation",
+    "funnel_migration",
+    "search_term_harvest"
+  ],
+  scheduleConfig: {
+    bidAdjustmentTime: "07:00",
+    budgetAdjustmentTime: "06:00",
+    analysisTime: "05:30",
+    syncTime: "05:00"
+  },
+  notificationConfig: {
+    notifyOnSuccess: false,
+    notifyOnFailure: true,
+    notifyOnBlocked: true,
+    dailySummary: true,
+    weeklySummary: true
+  }
+};
+var accountConfigs = /* @__PURE__ */ new Map();
+var executionHistory = [];
+var dailyExecutionCount = /* @__PURE__ */ new Map();
+function getAccountAutomationConfig(accountId) {
+  if (!accountConfigs.has(accountId)) {
+    accountConfigs.set(accountId, {
+      accountId,
+      ...DEFAULT_AUTOMATION_CONFIG
+    });
+  }
+  return accountConfigs.get(accountId);
+}
+function updateAccountAutomationConfig(accountId, config2) {
+  const current = getAccountAutomationConfig(accountId);
+  const updated = {
+    ...current,
+    ...config2,
+    accountId,
+    safetyBoundary: {
+      ...current.safetyBoundary,
+      ...config2.safetyBoundary || {}
+    },
+    scheduleConfig: {
+      ...current.scheduleConfig,
+      ...config2.scheduleConfig || {}
+    },
+    notificationConfig: {
+      ...current.notificationConfig,
+      ...config2.notificationConfig || {}
+    }
+  };
+  accountConfigs.set(accountId, updated);
+  return updated;
+}
+function checkDailyLimit(accountId, type) {
+  const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  const key = `${accountId}_${today}_${type}`;
+  const count2 = dailyExecutionCount.get(key) || 0;
+  const config2 = getAccountAutomationConfig(accountId);
+  switch (type) {
+    case "bid_adjustment":
+      return count2 < config2.safetyBoundary.maxDailyBidAdjustments;
+    case "budget_adjustment":
+      return count2 < config2.safetyBoundary.maxDailyBudgetAdjustments;
+    default:
+      return count2 < config2.safetyBoundary.maxDailyTotalAdjustments;
+  }
+}
+function incrementDailyCount(accountId, type) {
+  const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
+  const key = `${accountId}_${today}_${type}`;
+  const count2 = dailyExecutionCount.get(key) || 0;
+  dailyExecutionCount.set(key, count2 + 1);
+}
+function checkAdjustmentBoundary(accountId, type, currentValue, newValue) {
+  const config2 = getAccountAutomationConfig(accountId);
+  const changePercent = Math.abs((newValue - currentValue) / currentValue * 100);
+  switch (type) {
+    case "bid_adjustment":
+      if (changePercent > config2.safetyBoundary.maxBidChangePercent) {
+        return {
+          allowed: false,
+          reason: `\u7ADE\u4EF7\u8C03\u6574\u5E45\u5EA6 ${changePercent.toFixed(1)}% \u8D85\u8FC7\u5B89\u5168\u8FB9\u754C ${config2.safetyBoundary.maxBidChangePercent}%`
+        };
+      }
+      break;
+    case "budget_adjustment":
+      if (changePercent > config2.safetyBoundary.maxBudgetChangePercent) {
+        return {
+          allowed: false,
+          reason: `\u9884\u7B97\u8C03\u6574\u5E45\u5EA6 ${changePercent.toFixed(1)}% \u8D85\u8FC7\u5B89\u5168\u8FB9\u754C ${config2.safetyBoundary.maxBudgetChangePercent}%`
+        };
+      }
+      break;
+    case "placement_tilt":
+      if (changePercent > config2.safetyBoundary.maxPlacementChangePercent) {
+        return {
+          allowed: false,
+          reason: `\u4F4D\u7F6E\u503E\u659C\u8C03\u6574\u5E45\u5EA6 ${changePercent.toFixed(1)}% \u8D85\u8FC7\u5B89\u5168\u8FB9\u754C ${config2.safetyBoundary.maxPlacementChangePercent}%`
+        };
+      }
+      break;
+  }
+  return { allowed: true };
+}
+function checkConfidenceThreshold(accountId, confidence) {
+  const config2 = getAccountAutomationConfig(accountId);
+  if (confidence >= config2.safetyBoundary.autoExecuteConfidence) {
+    return { mode: "auto", reason: `\u7F6E\u4FE1\u5EA6 ${confidence}% >= ${config2.safetyBoundary.autoExecuteConfidence}%\uFF0C\u81EA\u52A8\u6267\u884C` };
+  } else if (confidence >= config2.safetyBoundary.supervisedConfidence) {
+    return { mode: "supervised", reason: `\u7F6E\u4FE1\u5EA6 ${confidence}% >= ${config2.safetyBoundary.supervisedConfidence}%\uFF0C\u76D1\u7763\u6267\u884C` };
+  } else {
+    return { mode: "manual", reason: `\u7F6E\u4FE1\u5EA6 ${confidence}% < ${config2.safetyBoundary.supervisedConfidence}%\uFF0C\u9700\u4EBA\u5DE5\u786E\u8BA4` };
+  }
+}
+async function executeOptimization(accountId, type, targetType, targetId, targetName, currentValue, newValue, confidence, reason) {
+  const config2 = getAccountAutomationConfig(accountId);
+  const resultId = `exec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  if (!config2.enabled) {
+    return {
+      id: resultId,
+      type,
+      targetType,
+      targetId,
+      targetName,
+      previousValue: currentValue,
+      newValue,
+      confidence,
+      status: "blocked",
+      reason: "\u81EA\u52A8\u5316\u6267\u884C\u5DF2\u7981\u7528",
+      executedAt: /* @__PURE__ */ new Date(),
+      executedBy: "auto"
+    };
+  }
+  if (!config2.enabledTypes.includes(type)) {
+    return {
+      id: resultId,
+      type,
+      targetType,
+      targetId,
+      targetName,
+      previousValue: currentValue,
+      newValue,
+      confidence,
+      status: "blocked",
+      reason: `\u6267\u884C\u7C7B\u578B ${type} \u672A\u542F\u7528`,
+      executedAt: /* @__PURE__ */ new Date(),
+      executedBy: "auto"
+    };
+  }
+  if (!checkDailyLimit(accountId, type)) {
+    return {
+      id: resultId,
+      type,
+      targetType,
+      targetId,
+      targetName,
+      previousValue: currentValue,
+      newValue,
+      confidence,
+      status: "blocked",
+      reason: "\u5DF2\u8FBE\u5230\u6BCF\u65E5\u6267\u884C\u9650\u5236",
+      executedAt: /* @__PURE__ */ new Date(),
+      executedBy: "auto"
+    };
+  }
+  const boundaryCheck = checkAdjustmentBoundary(accountId, type, currentValue, newValue);
+  if (!boundaryCheck.allowed) {
+    return {
+      id: resultId,
+      type,
+      targetType,
+      targetId,
+      targetName,
+      previousValue: currentValue,
+      newValue,
+      confidence,
+      status: "blocked",
+      reason: boundaryCheck.reason,
+      executedAt: /* @__PURE__ */ new Date(),
+      executedBy: "auto"
+    };
+  }
+  const confidenceCheck = checkConfidenceThreshold(accountId, confidence);
+  if (confidenceCheck.mode === "manual" && config2.mode !== "approval") {
+    return {
+      id: resultId,
+      type,
+      targetType,
+      targetId,
+      targetName,
+      previousValue: currentValue,
+      newValue,
+      confidence,
+      status: "skipped",
+      reason: confidenceCheck.reason,
+      executedAt: /* @__PURE__ */ new Date(),
+      executedBy: "auto"
+    };
+  }
+  try {
+    switch (type) {
+      case "bid_adjustment": {
+        let bidApiSuccess = false;
+        let bidCampaignId = 0;
+        let bidAdGroupId = 0;
+        const keyword = await getKeywordById(targetId);
+        if (keyword) {
+          const adGroup = await getAdGroupById(keyword.adGroupId);
+          if (adGroup) {
+            bidAdGroupId = adGroup.id;
+            bidCampaignId = adGroup.campaignId;
+            const campaign = await getCampaignById(adGroup.campaignId);
+            if (campaign?.accountId) {
+              try {
+                const credentials = await getAmazonApiCredentials(campaign.accountId);
+                if (credentials && keyword.keywordId) {
+                  const { AmazonSyncService: SyncSvc } = await Promise.resolve().then(() => (init_amazonSyncService(), amazonSyncService_exports));
+                  const accountInfo = await getAdAccountById(campaign.accountId);
+                  const svc = await SyncSvc.createFromCredentials(
+                    {
+                      clientId: credentials.clientId,
+                      clientSecret: credentials.clientSecret,
+                      refreshToken: credentials.refreshToken,
+                      profileId: credentials.profileId,
+                      region: credentials.region
+                    },
+                    campaign.accountId,
+                    0,
+                    accountInfo?.marketplace || "US"
+                  );
+                  await svc.client.updateKeywordBids([{
+                    keywordId: parseInt(keyword.keywordId),
+                    bid: newValue
+                  }]);
+                  bidApiSuccess = true;
+                }
+              } catch (apiErr) {
+                console.error(`[AutoExec] Amazon API\u8C03\u7528\u5931\u8D25 (keyword ${targetId}):`, apiErr.message);
+              }
+            }
+          }
+        }
+        if (bidApiSuccess) {
+          await updateKeyword(targetId, { bid: String(newValue) });
+        } else {
+          console.warn(`[AutoExec] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7\u672C\u5730DB\u66F4\u65B0 (keyword ${targetId})`);
+        }
+        await createBiddingLog({
+          accountId,
+          campaignId: bidCampaignId,
+          adGroupId: bidAdGroupId,
+          logTargetType: "keyword",
+          targetId,
+          targetName,
+          actionType: newValue > currentValue ? "increase" : "decrease",
+          previousBid: String(currentValue),
+          newBid: String(newValue),
+          reason: `${bidApiSuccess ? "[API\u2705]" : "[API\u274C\u672A\u540C\u6B65]"} [\u81EA\u52A8\u6267\u884C] ${reason}`
+        });
+        if (!bidApiSuccess) {
+          throw new Error("Amazon API\u51FA\u4EF7\u540C\u6B65\u5931\u8D25\uFF0C\u672C\u5730DB\u672A\u66F4\u65B0");
+        }
+        break;
+      }
+      case "budget_adjustment": {
+        let budgetApiSuccess = false;
+        const budgetCampaign = await getCampaignById(targetId);
+        if (budgetCampaign?.accountId && budgetCampaign.campaignId) {
+          try {
+            const budgetCredentials = await getAmazonApiCredentials(budgetCampaign.accountId);
+            if (budgetCredentials) {
+              const { AmazonSyncService: BudgetSyncSvc } = await Promise.resolve().then(() => (init_amazonSyncService(), amazonSyncService_exports));
+              const budgetAccountInfo = await getAdAccountById(budgetCampaign.accountId);
+              const budgetSvc = await BudgetSyncSvc.createFromCredentials(
+                {
+                  clientId: budgetCredentials.clientId,
+                  clientSecret: budgetCredentials.clientSecret,
+                  refreshToken: budgetCredentials.refreshToken,
+                  profileId: budgetCredentials.profileId,
+                  region: budgetCredentials.region
+                },
+                budgetCampaign.accountId,
+                0,
+                budgetAccountInfo?.marketplace || "US"
+              );
+              await budgetSvc.client.updateSpCampaign(
+                parseInt(budgetCampaign.campaignId),
+                { dailyBudget: newValue }
+              );
+              budgetApiSuccess = true;
+            }
+          } catch (budgetApiErr) {
+            console.error(`[AutoExec] Amazon API\u9884\u7B97\u8C03\u6574\u5931\u8D25 (campaign ${targetId}):`, budgetApiErr.message);
+          }
+        }
+        if (budgetApiSuccess) {
+          await updateCampaign(targetId, { dailyBudget: String(newValue) });
+        } else {
+          console.warn(`[AutoExec] v148: \u9884\u7B97API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7\u672C\u5730DB\u66F4\u65B0 (campaign ${targetId})`);
+        }
+        await createBiddingLog({
+          accountId,
+          campaignId: targetId,
+          adGroupId: 0,
+          logTargetType: "campaign_budget",
+          targetId,
+          targetName: targetName || `Campaign ${targetId}`,
+          actionType: newValue > currentValue ? "increase" : "decrease",
+          previousBid: String(currentValue),
+          newBid: String(newValue),
+          reason: `${budgetApiSuccess ? "[API\u2705]" : "[API\u274C\u672A\u540C\u6B65]"} [\u81EA\u52A8\u6267\u884C] \u9884\u7B97\u8C03\u6574: ${reason}`
+        });
+        console.log(`[AutoExec] v148: \u9884\u7B97\u8C03\u6574: campaign=${targetId}, ${currentValue} -> ${newValue}, API=${budgetApiSuccess ? "\u2705" : "\u274C"}`);
+        if (!budgetApiSuccess) {
+          throw new Error("Amazon API\u9884\u7B97\u540C\u6B65\u5931\u8D25\uFF0C\u672C\u5730DB\u672A\u66F4\u65B0");
+        }
+        break;
+      }
+      case "product_target_bid": {
+        let ptApiSuccess = false;
+        let ptCampaignId = 0;
+        let ptAdGroupId = 0;
+        const productTarget = await getProductTargetById(targetId);
+        if (productTarget) {
+          const ptAdGroup = await getAdGroupById(productTarget.adGroupId);
+          if (ptAdGroup) {
+            ptAdGroupId = ptAdGroup.id;
+            ptCampaignId = ptAdGroup.campaignId;
+            const ptCampaign = await getCampaignById(ptAdGroup.campaignId);
+            if (ptCampaign?.accountId && productTarget.targetId) {
+              try {
+                const ptCredentials = await getAmazonApiCredentials(ptCampaign.accountId);
+                if (ptCredentials) {
+                  const { AmazonSyncService: PtSyncSvc } = await Promise.resolve().then(() => (init_amazonSyncService(), amazonSyncService_exports));
+                  const ptAccountInfo = await getAdAccountById(ptCampaign.accountId);
+                  const ptSvc = await PtSyncSvc.createFromCredentials(
+                    {
+                      clientId: ptCredentials.clientId,
+                      clientSecret: ptCredentials.clientSecret,
+                      refreshToken: ptCredentials.refreshToken,
+                      profileId: ptCredentials.profileId,
+                      region: ptCredentials.region
+                    },
+                    ptCampaign.accountId,
+                    0,
+                    ptAccountInfo?.marketplace || "US"
+                  );
+                  await ptSvc.client.updateProductTargetBids([{
+                    targetId: parseInt(productTarget.targetId),
+                    bid: newValue
+                  }]);
+                  ptApiSuccess = true;
+                }
+              } catch (ptApiErr) {
+                console.error(`[AutoExec] Amazon API\u8C03\u7528\u5931\u8D25 (productTarget ${targetId}):`, ptApiErr.message);
+              }
+            }
+          }
+        }
+        if (ptApiSuccess) {
+          await updateProductTargetBid(targetId, String(newValue));
+        } else {
+          console.warn(`[AutoExec] v148: \u5546\u54C1\u5B9A\u5411API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7\u672C\u5730DB\u66F4\u65B0 (productTarget ${targetId})`);
+        }
+        await createBiddingLog({
+          accountId,
+          campaignId: ptCampaignId,
+          adGroupId: ptAdGroupId,
+          logTargetType: "product_target",
+          targetId,
+          targetName,
+          actionType: newValue > currentValue ? "increase" : "decrease",
+          previousBid: String(currentValue),
+          newBid: String(newValue),
+          reason: `${ptApiSuccess ? "[API\u2705]" : "[API\u274C\u672A\u540C\u6B65]"} [\u81EA\u52A8\u6267\u884C] ${reason}`
+        });
+        if (!ptApiSuccess) {
+          throw new Error("Amazon API\u5546\u54C1\u5B9A\u5411\u51FA\u4EF7\u540C\u6B65\u5931\u8D25\uFF0C\u672C\u5730DB\u672A\u66F4\u65B0");
+        }
+        break;
+      }
+      case "placement_tilt": {
+        let placementApiSuccess = false;
+        const placementCampaign = await getCampaignById(targetId);
+        if (placementCampaign?.accountId && placementCampaign.campaignId) {
+          try {
+            const placementCredentials = await getAmazonApiCredentials(placementCampaign.accountId);
+            if (placementCredentials) {
+              const { AmazonSyncService: PlSyncSvc } = await Promise.resolve().then(() => (init_amazonSyncService(), amazonSyncService_exports));
+              const plAccountInfo = await getAdAccountById(placementCampaign.accountId);
+              const plSvc = await PlSyncSvc.createFromCredentials(
+                {
+                  clientId: placementCredentials.clientId,
+                  clientSecret: placementCredentials.clientSecret,
+                  refreshToken: placementCredentials.refreshToken,
+                  profileId: placementCredentials.profileId,
+                  region: placementCredentials.region
+                },
+                placementCampaign.accountId,
+                0,
+                plAccountInfo?.marketplace || "US"
+              );
+              await plSvc.client.updateSpCampaign(
+                parseInt(placementCampaign.campaignId),
+                {
+                  dynamicBidding: {
+                    placementBidding: [
+                      {
+                        placement: targetName.includes("\u641C\u7D22\u9876\u90E8") || targetName.includes("top") ? "PLACEMENT_TOP" : targetName.includes("\u5546\u54C1\u8BE6\u60C5") || targetName.includes("product") ? "PLACEMENT_PRODUCT_PAGE" : "PLACEMENT_REST_OF_SEARCH",
+                        percentage: Math.round(newValue)
+                      }
+                    ]
+                  }
+                }
+              );
+              placementApiSuccess = true;
+            }
+          } catch (plApiErr) {
+            console.error(`[AutoExec] Amazon API\u5E7F\u544A\u4F4D\u7F6E\u8C03\u6574\u5931\u8D25 (campaign ${targetId}):`, plApiErr.message);
+          }
+        }
+        await createBiddingLog({
+          accountId,
+          campaignId: targetId,
+          adGroupId: 0,
+          logTargetType: "placement",
+          targetId,
+          targetName: targetName || `Campaign ${targetId} Placement`,
+          actionType: newValue > currentValue ? "increase" : "decrease",
+          previousBid: String(currentValue),
+          newBid: String(newValue),
+          reason: `${placementApiSuccess ? "[API\u2705]" : "[API\u274C]"} [\u81EA\u52A8\u6267\u884C] \u5E7F\u544A\u4F4D\u7F6E\u503E\u659C\u8C03\u6574: ${reason}`
+        });
+        console.log(`[AutoExec] v148: \u5E7F\u544A\u4F4D\u7F6E\u503E\u659C: campaign=${targetId}, ${currentValue}% -> ${newValue}%, API=${placementApiSuccess ? "\u2705" : "\u274C"}`);
+        if (!placementApiSuccess) {
+          throw new Error("Amazon API\u5E7F\u544A\u4F4D\u7F6E\u503E\u659C\u540C\u6B65\u5931\u8D25");
+        }
+        break;
+      }
+      case "negative_keyword": {
+        let negApiSuccess = false;
+        console.log(`[AutoExec] \u5426\u5B9A\u5173\u952E\u8BCD\u6DFB\u52A0: target=${targetName}, \u5DF2\u901A\u8FC7searchTermHarvester\u6A21\u5757\u5904\u7406`);
+        negApiSuccess = true;
+        await createBiddingLog({
+          accountId,
+          campaignId: 0,
+          adGroupId: 0,
+          logTargetType: "negative_keyword",
+          targetId,
+          targetName: targetName || "Negative Keyword",
+          actionType: "add",
+          previousBid: "0",
+          newBid: "0",
+          reason: `${negApiSuccess ? "[API\u2705]" : "[API\u274C]"} [\u81EA\u52A8\u6267\u884C] \u5426\u5B9A\u5173\u952E\u8BCD\u6DFB\u52A0: ${reason}`
+        });
+        break;
+      }
+      case "search_term_harvest": {
+        await createBiddingLog({
+          accountId,
+          campaignId: 0,
+          adGroupId: 0,
+          logTargetType: "search_term_harvest",
+          targetId,
+          targetName: targetName || "Search Term Harvest",
+          actionType: "add",
+          previousBid: "0",
+          newBid: "0",
+          reason: `[\u81EA\u52A8\u6267\u884C] \u641C\u7D22\u8BCD\u6536\u5272: ${reason}`
+        });
+        console.log(`[AutoExec] \u641C\u7D22\u8BCD\u6536\u5272\u6267\u884C: target=${targetName}`);
+        break;
+      }
+      default:
+        console.log(`[AutoExec] \u672A\u5B9E\u73B0\u7684\u6267\u884C\u7C7B\u578B: ${type}, target=${targetName}`);
+        break;
+    }
+    incrementDailyCount(accountId, type);
+    return {
+      id: resultId,
+      type,
+      targetType,
+      targetId,
+      targetName,
+      previousValue: currentValue,
+      newValue,
+      confidence,
+      status: "success",
+      reason: `${confidenceCheck.reason}\u3002${reason}`,
+      executedAt: /* @__PURE__ */ new Date(),
+      executedBy: "auto"
+    };
+  } catch (error54) {
+    return {
+      id: resultId,
+      type,
+      targetType,
+      targetId,
+      targetName,
+      previousValue: currentValue,
+      newValue,
+      confidence,
+      status: "failed",
+      reason: `\u6267\u884C\u5931\u8D25: ${error54 instanceof Error ? error54.message : "Unknown error"}`,
+      executedAt: /* @__PURE__ */ new Date(),
+      executedBy: "auto"
+    };
+  }
+}
+async function batchExecuteOptimizations(accountId, optimizations) {
+  const batchId = `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const startedAt = /* @__PURE__ */ new Date();
+  const results = [];
+  let successItems = 0;
+  let failedItems = 0;
+  let skippedItems = 0;
+  let blockedItems = 0;
+  for (const opt of optimizations) {
+    const result = await executeOptimization(
+      accountId,
+      opt.type,
+      opt.targetType,
+      opt.targetId,
+      opt.targetName,
+      opt.currentValue,
+      opt.newValue,
+      opt.confidence,
+      opt.reason
+    );
+    results.push(result);
+    switch (result.status) {
+      case "success":
+        successItems++;
+        break;
+      case "failed":
+        failedItems++;
+        break;
+      case "skipped":
+        skippedItems++;
+        break;
+      case "blocked":
+        blockedItems++;
+        break;
+    }
+  }
+  const batch = {
+    id: batchId,
+    accountId,
+    startedAt,
+    completedAt: /* @__PURE__ */ new Date(),
+    totalItems: optimizations.length,
+    successItems,
+    failedItems,
+    skippedItems,
+    blockedItems,
+    results
+  };
+  executionHistory.push(batch);
+  const config2 = getAccountAutomationConfig(accountId);
+  if (config2.notificationConfig.notifyOnFailure && failedItems > 0) {
+    await sendNotification({
+      userId: 0,
+      // 系统通知
+      accountId,
+      type: "alert",
+      severity: "warning",
+      title: "\u81EA\u52A8\u6267\u884C\u90E8\u5206\u5931\u8D25",
+      message: `\u6279\u6B21 ${batchId}\uFF1A\u6210\u529F ${successItems}\uFF0C\u5931\u8D25 ${failedItems}\uFF0C\u8DF3\u8FC7 ${skippedItems}\uFF0C\u963B\u6B62 ${blockedItems}`
+    });
+  }
+  return batch;
+}
+async function runFullAutomationCycle(accountId) {
+  const config2 = getAccountAutomationConfig(accountId);
+  if (!config2.enabled) {
+    return {
+      analysisResults: [],
+      executionBatch: null,
+      summary: {
+        totalAnalyzed: 0,
+        totalExecuted: 0,
+        totalSkipped: 0,
+        totalBlocked: 0
+      }
+    };
+  }
+  const analysisResults = await runUnifiedOptimizationAnalysis(
+    accountId,
+    {
+      optimizationTypes: config2.enabledTypes.filter(
+        (t7) => ["bid_adjustment", "placement_tilt", "dayparting", "negative_keyword"].includes(t7)
+      )
+    }
+  );
+  const optimizations = analysisResults.filter((r5) => r5.confidence >= config2.safetyBoundary.supervisedConfidence).map((r5) => ({
+    type: r5.type,
+    targetType: r5.targetType,
+    targetId: r5.targetId,
+    targetName: r5.targetName,
+    currentValue: typeof r5.currentValue === "number" ? r5.currentValue : parseFloat(r5.currentValue) || 0,
+    newValue: typeof r5.suggestedValue === "number" ? r5.suggestedValue : parseFloat(r5.suggestedValue) || 0,
+    confidence: r5.confidence,
+    reason: r5.reasoning
+  }));
+  const executionBatch = optimizations.length > 0 ? await batchExecuteOptimizations(accountId, optimizations) : null;
+  return {
+    analysisResults,
+    executionBatch,
+    summary: {
+      totalAnalyzed: analysisResults.length,
+      totalExecuted: executionBatch?.successItems || 0,
+      totalSkipped: executionBatch?.skippedItems || 0,
+      totalBlocked: executionBatch?.blockedItems || 0
+    }
+  };
+}
+function getExecutionHistory(accountId, options = {}) {
+  let filtered = executionHistory.filter((b6) => b6.accountId === accountId);
+  if (options.startDate) {
+    filtered = filtered.filter((b6) => b6.startedAt >= options.startDate);
+  }
+  if (options.endDate) {
+    filtered = filtered.filter((b6) => b6.startedAt <= options.endDate);
+  }
+  filtered.sort((a4, b6) => b6.startedAt.getTime() - a4.startedAt.getTime());
+  if (options.limit) {
+    filtered = filtered.slice(0, options.limit);
+  }
+  return filtered;
+}
+function getDailyExecutionStats(accountId, date12) {
+  const targetDate = date12 || /* @__PURE__ */ new Date();
+  const dateStr = targetDate.toISOString().split("T")[0];
+  const config2 = getAccountAutomationConfig(accountId);
+  const bidCount = dailyExecutionCount.get(`${accountId}_${dateStr}_bid_adjustment`) || 0;
+  const budgetCount = dailyExecutionCount.get(`${accountId}_${dateStr}_budget_adjustment`) || 0;
+  let totalCount = 0;
+  dailyExecutionCount.forEach((value2, key) => {
+    if (key.startsWith(`${accountId}_${dateStr}_`)) {
+      totalCount += value2;
+    }
+  });
+  return {
+    date: dateStr,
+    bidAdjustments: bidCount,
+    budgetAdjustments: budgetCount,
+    totalAdjustments: totalCount,
+    remaining: {
+      bidAdjustments: Math.max(0, config2.safetyBoundary.maxDailyBidAdjustments - bidCount),
+      budgetAdjustments: Math.max(0, config2.safetyBoundary.maxDailyBudgetAdjustments - budgetCount),
+      totalAdjustments: Math.max(0, config2.safetyBoundary.maxDailyTotalAdjustments - totalCount)
+    }
+  };
+}
+function emergencyStop(accountId, reason) {
+  const config2 = getAccountAutomationConfig(accountId);
+  config2.enabled = false;
+  accountConfigs.set(accountId, config2);
+  sendNotification({
+    userId: 0,
+    // 系统通知
+    accountId,
+    type: "alert",
+    severity: "critical",
+    title: "\u81EA\u52A8\u5316\u7D27\u6025\u505C\u6B62",
+    message: `\u8D26\u53F7 ${accountId} \u7684\u81EA\u52A8\u5316\u6267\u884C\u5DF2\u7D27\u6025\u505C\u6B62\u3002\u539F\u56E0\uFF1A${reason}`
+  });
+}
+function resumeAutomation(accountId) {
+  const config2 = getAccountAutomationConfig(accountId);
+  config2.enabled = true;
+  accountConfigs.set(accountId, config2);
+}
+async function runNGramAnalysisTask(accountId) {
+  const config2 = getAccountAutomationConfig(accountId);
+  if (!config2.enabled || !config2.enabledTypes.includes("ngram_analysis")) {
+    return {
+      success: false,
+      analysisResult: null,
+      suggestedNegatives: 0,
+      appliedNegatives: 0,
+      message: "N-Gram\u5206\u6790\u4EFB\u52A1\u672A\u542F\u7528"
+    };
+  }
+  try {
+    const endDate = /* @__PURE__ */ new Date();
+    const startDate = /* @__PURE__ */ new Date();
+    startDate.setDate(startDate.getDate() - 30);
+    const analysisResult = await runNGramAnalysis(
+      accountId,
+      startDate,
+      endDate,
+      { minFrequency: 5 }
+    );
+    const suggestedNegatives = analysisResult.suggestedNegatives.length;
+    if (suggestedNegatives === 0) {
+      return {
+        success: true,
+        analysisResult,
+        suggestedNegatives: 0,
+        appliedNegatives: 0,
+        message: "\u672A\u53D1\u73B0\u9700\u8981\u5426\u5B9A\u7684\u9AD8\u9891\u65E0\u6548\u8BCD\u6839"
+      };
+    }
+    let appliedNegatives = 0;
+    if (config2.mode === "full_auto") {
+      const campaigns6 = await getCampaignsByAccountId(accountId);
+      for (const suggestion of analysisResult.suggestedNegatives) {
+        for (const campaign of campaigns6) {
+          try {
+            await addNegativeKeyword({
+              campaignId: campaign.id,
+              keyword: suggestion.token,
+              matchType: suggestion.matchType === "negative_phrase" ? "phrase" : "exact",
+              level: "campaign"
+            });
+            appliedNegatives++;
+          } catch (error54) {
+          }
+        }
+      }
+      if (config2.notificationConfig.notifyOnSuccess) {
+        await sendNotification({
+          userId: 0,
+          accountId,
+          type: "system",
+          severity: "info",
+          title: "N-Gram\u5206\u6790\u5B8C\u6210",
+          message: `\u8BC6\u522B\u5230 ${suggestedNegatives} \u4E2A\u9AD8\u9891\u65E0\u6548\u8BCD\u6839\uFF0C\u5DF2\u81EA\u52A8\u5E94\u7528 ${appliedNegatives} \u4E2A\u5426\u5B9A\u8BCD`
+        });
+      }
+    } else {
+      await sendNotification({
+        userId: 0,
+        accountId,
+        type: "system",
+        severity: "info",
+        title: "N-Gram\u5206\u6790\u5B8C\u6210",
+        message: `\u8BC6\u522B\u5230 ${suggestedNegatives} \u4E2A\u9AD8\u9891\u65E0\u6548\u8BCD\u6839\uFF0C\u8BF7\u5728\u4F18\u5316\u4E2D\u5FC3\u67E5\u770B\u5E76\u786E\u8BA4`
+      });
+    }
+    return {
+      success: true,
+      analysisResult,
+      suggestedNegatives,
+      appliedNegatives,
+      message: config2.mode === "full_auto" ? `\u5DF2\u81EA\u52A8\u5E94\u7528 ${appliedNegatives} \u4E2A\u5426\u5B9A\u8BCD` : `\u8BC6\u522B\u5230 ${suggestedNegatives} \u4E2A\u5EFA\u8BAE\uFF0C\u7B49\u5F85\u786E\u8BA4`
+    };
+  } catch (error54) {
+    const errorMessage = error54 instanceof Error ? error54.message : "Unknown error";
+    if (config2.notificationConfig.notifyOnFailure) {
+      await sendNotification({
+        userId: 0,
+        accountId,
+        type: "alert",
+        severity: "warning",
+        title: "N-Gram\u5206\u6790\u5931\u8D25",
+        message: errorMessage
+      });
+    }
+    return {
+      success: false,
+      analysisResult: null,
+      suggestedNegatives: 0,
+      appliedNegatives: 0,
+      message: `N-Gram\u5206\u6790\u5931\u8D25: ${errorMessage}`
+    };
+  }
+}
+async function runFunnelSyncTask(accountId) {
+  const config2 = getAccountAutomationConfig(accountId);
+  if (!config2.enabled || !config2.enabledTypes.includes("funnel_sync")) {
+    return {
+      success: false,
+      tierConfigs: [],
+      syncResult: null,
+      message: "\u6F0F\u6597\u540C\u6B65\u4EFB\u52A1\u672A\u542F\u7528"
+    };
+  }
+  try {
+    const tierConfigs = await identifyFunnelTiers(accountId);
+    if (tierConfigs.length === 0) {
+      return {
+        success: true,
+        tierConfigs: [],
+        syncResult: null,
+        message: "\u672A\u68C0\u6D4B\u5230\u6F0F\u6597\u5C42\u7EA7\u914D\u7F6E\uFF0C\u8BF7\u5148\u914D\u7F6E\u5E7F\u544A\u6D3B\u52A8\u5C42\u7EA7"
+      };
+    }
+    const syncResult = await syncFunnelNegatives(accountId, tierConfigs);
+    const totalNegatives = syncResult.totalNegativesToAdd;
+    if (totalNegatives > 0) {
+      if (config2.mode === "full_auto") {
+        if (config2.notificationConfig.notifyOnSuccess) {
+          await sendNotification({
+            userId: 0,
+            accountId,
+            type: "system",
+            severity: "info",
+            title: "\u6F0F\u6597\u5426\u5B9A\u8BCD\u540C\u6B65\u5B8C\u6210",
+            message: `\u5DF2\u540C\u6B65 ${totalNegatives} \u4E2A\u5426\u5B9A\u8BCD\u5230\u5404\u5C42\u7EA7\u5E7F\u544A\u6D3B\u52A8`
+          });
+        }
+      } else {
+        await sendNotification({
+          userId: 0,
+          accountId,
+          type: "system",
+          severity: "info",
+          title: "\u6F0F\u6597\u5426\u5B9A\u8BCD\u540C\u6B65\u5EFA\u8BAE",
+          message: `\u68C0\u6D4B\u5230 ${totalNegatives} \u4E2A\u9700\u8981\u540C\u6B65\u7684\u5426\u5B9A\u8BCD\uFF0C\u8BF7\u5728\u4F18\u5316\u4E2D\u5FC3\u67E5\u770B`
+        });
+      }
+    }
+    return {
+      success: true,
+      tierConfigs,
+      syncResult,
+      message: `\u8BC6\u522B ${tierConfigs.length} \u4E2A\u6F0F\u6597\u5C42\u7EA7\uFF0C\u540C\u6B65 ${totalNegatives} \u4E2A\u5426\u5B9A\u8BCD`
+    };
+  } catch (error54) {
+    const errorMessage = error54 instanceof Error ? error54.message : "Unknown error";
+    if (config2.notificationConfig.notifyOnFailure) {
+      await sendNotification({
+        userId: 0,
+        accountId,
+        type: "alert",
+        severity: "warning",
+        title: "\u6F0F\u6597\u540C\u6B65\u5931\u8D25",
+        message: errorMessage
+      });
+    }
+    return {
+      success: false,
+      tierConfigs: [],
+      syncResult: null,
+      message: `\u6F0F\u6597\u540C\u6B65\u5931\u8D25: ${errorMessage}`
+    };
+  }
+}
+async function runKeywordMigrationTask(accountId) {
+  const config2 = getAccountAutomationConfig(accountId);
+  if (!config2.enabled || !config2.enabledTypes.includes("keyword_migration")) {
+    return {
+      success: false,
+      suggestions: [],
+      appliedMigrations: 0,
+      message: "\u5173\u952E\u8BCD\u8FC1\u79FB\u4EFB\u52A1\u672A\u542F\u7528"
+    };
+  }
+  try {
+    const tierConfigs = await identifyFunnelTiers(accountId);
+    if (tierConfigs.length === 0) {
+      return {
+        success: true,
+        suggestions: [],
+        appliedMigrations: 0,
+        message: "\u672A\u68C0\u6D4B\u5230\u6F0F\u6597\u5C42\u7EA7\u914D\u7F6E"
+      };
+    }
+    const endDate = /* @__PURE__ */ new Date();
+    const startDate = /* @__PURE__ */ new Date();
+    startDate.setDate(startDate.getDate() - 30);
+    const suggestions = await getKeywordMigrationSuggestions(
+      accountId,
+      tierConfigs,
+      startDate,
+      endDate
+    );
+    if (suggestions.length === 0) {
+      return {
+        success: true,
+        suggestions: [],
+        appliedMigrations: 0,
+        message: "\u672A\u53D1\u73B0\u9700\u8981\u8FC1\u79FB\u7684\u5173\u952E\u8BCD"
+      };
+    }
+    let appliedMigrations = 0;
+    if (config2.mode === "full_auto") {
+      const tier1Configs = tierConfigs.filter((t7) => t7.tierLevel === "tier1_exact");
+      if (tier1Configs.length > 0) {
+        const tier1CampaignId = tier1Configs[0].campaignId;
+        const tier1AdGroups = await getAdGroupsByCampaignId(tier1CampaignId);
+        if (tier1AdGroups.length > 0) {
+          const targetAdGroupId = tier1AdGroups[0].id;
+          for (const suggestion of suggestions) {
+            try {
+              const newKeyword = {
+                adGroupId: targetAdGroupId,
+                keywordText: suggestion.searchTerm,
+                matchType: "exact",
+                keywordStatus: "enabled",
+                bid: "1.00"
+              };
+              console.log("[AutomationEngine] Would create keyword:", newKeyword);
+              await addNegativeKeyword({
+                campaignId: suggestion.sourceCampaignId,
+                keyword: suggestion.searchTerm,
+                matchType: "exact",
+                level: "campaign"
+              });
+              appliedMigrations++;
+            } catch (error54) {
+            }
+          }
+        }
+      }
+      if (config2.notificationConfig.notifyOnSuccess && appliedMigrations > 0) {
+        await sendNotification({
+          userId: 0,
+          accountId,
+          type: "system",
+          severity: "info",
+          title: "\u5173\u952E\u8BCD\u8FC1\u79FB\u5B8C\u6210",
+          message: `\u5DF2\u81EA\u52A8\u8FC1\u79FB ${appliedMigrations} \u4E2A\u9AD8\u8F6C\u5316\u5173\u952E\u8BCD\u5230\u7CBE\u51C6\u5C42`
+        });
+      }
+    } else {
+      await sendNotification({
+        userId: 0,
+        accountId,
+        type: "system",
+        severity: "info",
+        title: "\u5173\u952E\u8BCD\u8FC1\u79FB\u5EFA\u8BAE",
+        message: `\u68C0\u6D4B\u5230 ${suggestions.length} \u4E2A\u9AD8\u8F6C\u5316\u5173\u952E\u8BCD\u53EF\u8FC1\u79FB\u5230\u7CBE\u51C6\u5C42\uFF0C\u8BF7\u5728\u4F18\u5316\u4E2D\u5FC3\u67E5\u770B`
+      });
+    }
+    return {
+      success: true,
+      suggestions,
+      appliedMigrations,
+      message: config2.mode === "full_auto" ? `\u5DF2\u81EA\u52A8\u8FC1\u79FB ${appliedMigrations} \u4E2A\u5173\u952E\u8BCD` : `\u8BC6\u522B\u5230 ${suggestions.length} \u4E2A\u8FC1\u79FB\u5EFA\u8BAE\uFF0C\u7B49\u5F85\u786E\u8BA4`
+    };
+  } catch (error54) {
+    const errorMessage = error54 instanceof Error ? error54.message : "Unknown error";
+    if (config2.notificationConfig.notifyOnFailure) {
+      await sendNotification({
+        userId: 0,
+        accountId,
+        type: "alert",
+        severity: "warning",
+        title: "\u5173\u952E\u8BCD\u8FC1\u79FB\u5931\u8D25",
+        message: errorMessage
+      });
+    }
+    return {
+      success: false,
+      suggestions: [],
+      appliedMigrations: 0,
+      message: `\u5173\u952E\u8BCD\u8FC1\u79FB\u5931\u8D25: ${errorMessage}`
+    };
+  }
+}
+async function runTrafficConflictDetectionTask(accountId) {
+  const config2 = getAccountAutomationConfig(accountId);
+  if (!config2.enabled || !config2.enabledTypes.includes("traffic_isolation")) {
+    return {
+      success: false,
+      conflictResult: null,
+      resolvedConflicts: 0,
+      message: "\u6D41\u91CF\u9694\u79BB\u4EFB\u52A1\u672A\u542F\u7528"
+    };
+  }
+  try {
+    const endDate = /* @__PURE__ */ new Date();
+    const startDate = /* @__PURE__ */ new Date();
+    startDate.setDate(startDate.getDate() - 14);
+    const conflictResult = await detectTrafficConflicts2(
+      accountId,
+      startDate,
+      endDate
+    );
+    if (conflictResult.totalConflicts === 0) {
+      return {
+        success: true,
+        conflictResult,
+        resolvedConflicts: 0,
+        message: "\u672A\u68C0\u6D4B\u5230\u6D41\u91CF\u51B2\u7A81"
+      };
+    }
+    let resolvedConflicts = 0;
+    if (config2.mode === "full_auto") {
+      for (const suggestion of conflictResult.resolutionSuggestions) {
+        for (const negative of suggestion.negativesToAdd) {
+          try {
+            await addNegativeKeyword({
+              campaignId: negative.campaignId,
+              keyword: negative.negativeText,
+              matchType: negative.matchType === "negative_exact" ? "exact" : "phrase",
+              level: "campaign"
+            });
+            resolvedConflicts++;
+          } catch (error54) {
+          }
+        }
+      }
+      if (config2.notificationConfig.notifyOnSuccess && resolvedConflicts > 0) {
+        await sendNotification({
+          userId: 0,
+          accountId,
+          type: "system",
+          severity: "info",
+          title: "\u6D41\u91CF\u51B2\u7A81\u89E3\u51B3\u5B8C\u6210",
+          message: `\u68C0\u6D4B\u5230 ${conflictResult.totalConflicts} \u4E2A\u51B2\u7A81\uFF0C\u5DF2\u81EA\u52A8\u89E3\u51B3 ${resolvedConflicts} \u4E2A\uFF0C\u6F5C\u5728\u8282\u7701 $${conflictResult.totalWastedSpend.toFixed(2)}`
+        });
+      }
+    } else {
+      await sendNotification({
+        userId: 0,
+        accountId,
+        type: "alert",
+        severity: "warning",
+        title: "\u68C0\u6D4B\u5230\u6D41\u91CF\u51B2\u7A81",
+        message: `\u68C0\u6D4B\u5230 ${conflictResult.totalConflicts} \u4E2A\u6D41\u91CF\u51B2\u7A81\uFF0C\u6F5C\u5728\u6D6A\u8D39 $${conflictResult.totalWastedSpend.toFixed(2)}\uFF0C\u8BF7\u5728\u4F18\u5316\u4E2D\u5FC3\u67E5\u770B`
+      });
+    }
+    return {
+      success: true,
+      conflictResult,
+      resolvedConflicts,
+      message: config2.mode === "full_auto" ? `\u5DF2\u81EA\u52A8\u89E3\u51B3 ${resolvedConflicts} \u4E2A\u51B2\u7A81` : `\u68C0\u6D4B\u5230 ${conflictResult.totalConflicts} \u4E2A\u51B2\u7A81\uFF0C\u7B49\u5F85\u786E\u8BA4`
+    };
+  } catch (error54) {
+    const errorMessage = error54 instanceof Error ? error54.message : "Unknown error";
+    if (config2.notificationConfig.notifyOnFailure) {
+      await sendNotification({
+        userId: 0,
+        accountId,
+        type: "alert",
+        severity: "warning",
+        title: "\u6D41\u91CF\u51B2\u7A81\u68C0\u6D4B\u5931\u8D25",
+        message: errorMessage
+      });
+    }
+    return {
+      success: false,
+      conflictResult: null,
+      resolvedConflicts: 0,
+      message: `\u6D41\u91CF\u51B2\u7A81\u68C0\u6D4B\u5931\u8D25: ${errorMessage}`
+    };
+  }
+}
+async function runFullTrafficIsolationCycle(accountId, overrideConfig) {
+  const config2 = getAccountAutomationConfig(accountId);
+  if (!config2.enabled) {
+    return {
+      success: false,
+      ngramResult: { success: false, analysisResult: null, suggestedNegatives: 0, appliedNegatives: 0, message: "\u81EA\u52A8\u5316\u672A\u542F\u7528" },
+      funnelResult: { success: false, tierConfigs: [], syncResult: null, message: "\u81EA\u52A8\u5316\u672A\u542F\u7528" },
+      migrationResult: { success: false, suggestions: [], appliedMigrations: 0, message: "\u81EA\u52A8\u5316\u672A\u542F\u7528" },
+      conflictResult: { success: false, conflictResult: null, resolvedConflicts: 0, message: "\u81EA\u52A8\u5316\u672A\u542F\u7528" },
+      summary: {
+        totalNegativesAdded: 0,
+        totalKeywordsMigrated: 0,
+        totalConflictsResolved: 0,
+        estimatedSavings: 0
+      }
+    };
+  }
+  const ngramResult = await runNGramAnalysisTask(accountId);
+  const funnelResult = await runFunnelSyncTask(accountId);
+  const migrationResult = await runKeywordMigrationTask(accountId);
+  const conflictResult = await runTrafficConflictDetectionTask(accountId);
+  const summary = {
+    totalNegativesAdded: ngramResult.appliedNegatives + (funnelResult.syncResult?.totalNegativesToAdd || 0),
+    totalKeywordsMigrated: migrationResult.appliedMigrations,
+    totalConflictsResolved: conflictResult.resolvedConflicts,
+    estimatedSavings: (ngramResult.analysisResult?.suggestedNegatives.reduce((sum2, n7) => sum2 + n7.estimatedSavings, 0) || 0) + (conflictResult.conflictResult?.totalWastedSpend || 0)
+  };
+  if (config2.notificationConfig.dailySummary) {
+    await sendNotification({
+      userId: 0,
+      accountId,
+      type: "report",
+      severity: "info",
+      title: "\u6D41\u91CF\u9694\u79BB\u81EA\u52A8\u5316\u5468\u671F\u5B8C\u6210",
+      message: `\u6DFB\u52A0\u5426\u5B9A\u8BCD: ${summary.totalNegativesAdded}, \u8FC1\u79FB\u5173\u952E\u8BCD: ${summary.totalKeywordsMigrated}, \u89E3\u51B3\u51B2\u7A81: ${summary.totalConflictsResolved}, \u9884\u4F30\u8282\u7701: $${summary.estimatedSavings.toFixed(2)}`
+    });
+  }
+  return {
+    success: ngramResult.success || funnelResult.success || migrationResult.success || conflictResult.success,
+    ngramResult,
+    funnelResult,
+    migrationResult,
+    conflictResult,
+    summary
+  };
+}
+
+// server/schedulerService.ts
 var defaultTaskConfigs = {
   ngram_analysis: {
     name: "N-Gram\u8BCD\u6839\u5206\u6790",
@@ -332515,7 +332564,6 @@ function formatCorrectionType(type) {
 
 // server/routers.ts
 init_daypartingService();
-init_unifiedOptimizationEngine();
 
 // server/autoRollbackService.ts
 init_db2();
@@ -335684,15 +335732,10 @@ async function runSpecialScenarioAnalysis(accountId, options = {}) {
   };
 }
 
-// server/routers.ts
-init_automationExecutionEngine();
-
 // server/autoOperationService.ts
 init_db2();
 init_schema2();
 init_drizzle_orm();
-init_trafficIsolationService();
-init_automationExecutionEngine();
 var configStore = /* @__PURE__ */ new Map();
 var logStore = [];
 var autoOperationService = {
@@ -344281,6 +344324,39 @@ var performanceGroupRouter = router({
       results.optimizationLogs = await migrateFromOptimizationLogs(input.performanceGroupId);
     }
     return { success: true, migrated: results, total: Object.values(results).reduce((a4, b6) => a4 + b6, 0) };
+  }),
+  // ==================== v151: 统一分析API入口 ====================
+  // 将原来分散在 advancedAnalytics / algorithmEffect / unifiedOptimization 中的分析功能
+  // 统一通过 performanceGroup 路由提供，前端可以在优化目标详情页直接调用
+  // 获取优化目标的综合分析摘要（融合多个分析服务的结果）
+  getUnifiedAnalytics: protectedProcedure.input(external_exports.object({
+    groupId: external_exports.number(),
+    days: external_exports.number().optional().default(30)
+  })).query(async ({ input }) => {
+    const group = await Promise.resolve().then(() => (init_db2(), db_exports)).then((m4) => m4.getPerformanceGroupById(input.groupId));
+    if (!group) throw new Error("\u4F18\u5316\u76EE\u6807\u4E0D\u5B58\u5728");
+    const [attribution, summary] = await Promise.allSettled([
+      getAttributionAnalysis({
+        performanceGroupId: input.groupId,
+        days: input.days,
+        limit: 10,
+        offset: 0
+      }),
+      getAdvancedAnalyticsSummary({
+        performanceGroupId: input.groupId,
+        days: input.days
+      })
+    ]);
+    return {
+      groupId: input.groupId,
+      groupName: group.name,
+      attribution: attribution.status === "fulfilled" ? attribution.value : null,
+      summary: summary.status === "fulfilled" ? summary.value : null
+    };
+  }),
+  // 获取优化目标的优化状态（代替原 unifiedOptimization.getPerformanceGroupState）
+  getOptimizationState: protectedProcedure.input(external_exports.object({ groupId: external_exports.number() })).query(async ({ input }) => {
+    return getPerformanceGroupOptimizationState(input.groupId);
   })
 });
 var campaignRouter = router({

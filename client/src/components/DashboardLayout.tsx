@@ -83,16 +83,6 @@ const menuGroups = [
     ]
   },
   {
-    title: "数据报告",
-    description: "数据分析与报告",
-    items: [
-      { icon: BarChart3, label: "数据分析", path: "/analytics-insights" },
-      { icon: Activity, label: "算法效果仪表盘", path: "/algorithm-effect-dashboard" },
-      { icon: Brain, label: "高级分析", path: "/advanced-analytics" },
-      { icon: Shield, label: "审计日志", path: "/audit-logs" },
-    ]
-  },
-  {
     title: "设置",
     description: "系统配置与团队管理",
     items: [
@@ -101,6 +91,7 @@ const menuGroups = [
       { icon: Bell, label: "通知设置", path: "/notifications" },
       { icon: Users, label: "团队管理", path: "/team" },
       { icon: UserPlus, label: "邀请码管理", path: "/invite-codes" },
+      { icon: Shield, label: "审计日志", path: "/audit-logs" },
     ]
   },
 ];

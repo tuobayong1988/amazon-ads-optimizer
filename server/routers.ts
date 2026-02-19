@@ -1327,10 +1327,52 @@ const performanceGroupRouter = router({
         results.optimizationLogs = await db.migrateFromOptimizationLogs(input.performanceGroupId);
       }
       
-      return { success: true, migrated: results, total: Object.values(results).reduce((a, b) => a + b, 0) };
+       return { success: true, migrated: results, total: Object.values(results).reduce((a, b) => a + b, 0) };
+    }),
+
+  // ==================== v151: 统一分析API入口 ====================
+  // 将原来分散在 advancedAnalytics / algorithmEffect / unifiedOptimization 中的分析功能
+  // 统一通过 performanceGroup 路由提供，前端可以在优化目标详情页直接调用
+
+  // 获取优化目标的综合分析摘要（融合多个分析服务的结果）
+  getUnifiedAnalytics: protectedProcedure
+    .input(z.object({
+      groupId: z.number(),
+      days: z.number().optional().default(30),
+    }))
+    .query(async ({ input }) => {
+      const group = await import('./db').then(m => m.getPerformanceGroupById(input.groupId));
+      if (!group) throw new Error('优化目标不存在');
+
+      // 并行获取多个分析维度的数据
+      const [attribution, summary] = await Promise.allSettled([
+        advancedAnalyticsService.getAttributionAnalysis({
+          performanceGroupId: input.groupId,
+          days: input.days,
+          limit: 10,
+          offset: 0,
+        }),
+        advancedAnalyticsService.getAdvancedAnalyticsSummary({
+          performanceGroupId: input.groupId,
+          days: input.days,
+        }),
+      ]);
+
+      return {
+        groupId: input.groupId,
+        groupName: group.name,
+        attribution: attribution.status === 'fulfilled' ? attribution.value : null,
+        summary: summary.status === 'fulfilled' ? summary.value : null,
+      };
+    }),
+
+  // 获取优化目标的优化状态（代替原 unifiedOptimization.getPerformanceGroupState）
+  getOptimizationState: protectedProcedure
+    .input(z.object({ groupId: z.number() }))
+    .query(async ({ input }) => {
+      return unifiedOptimizationEngine.getPerformanceGroupOptimizationState(input.groupId);
     }),
 });
-
 // ==================== Campaign Router ====================
 const campaignRouter = router({
   list: publicProcedure

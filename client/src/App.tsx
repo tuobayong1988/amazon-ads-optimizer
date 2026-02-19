@@ -101,7 +101,8 @@ function Router() {
       {/* 登录后的主界面统一为根路径 */}
       <Route path="/dashboard">{() => { window.location.href = '/'; return null; }}</Route>
       <Route path="/monitoring-center">{() => { window.location.href = '/'; return null; }}</Route>
-      <Route path="/analytics-insights">{() => <LazyRoute component={AnalyticsInsights} />}</Route>
+      {/* v151: 数据分析已融合到优化目标详情页的"分析洞察"Tab */}
+      <Route path="/analytics-insights">{() => { window.location.href = '/strategy-center'; return null; }}</Route>
       <Route path="/strategy-center">{() => <LazyRoute component={StrategyCenter} />}</Route>
       {/* v144: 智能优化中心已合并到策略管理 */}
       <Route path="/optimization-engine">{() => { window.location.href = '/strategy-center'; return null; }}</Route>
@@ -146,12 +147,14 @@ function Router() {
       <Route path="/advanced-placement">{() => <LazyRoute component={AdvancedPlacementOptimization} />}</Route>
       {/* v144: 边际效益分析已合并到策略管理 */}
       <Route path="/marginal-benefit-analysis">{() => { window.location.href = '/strategy-center'; return null; }}</Route>
-      <Route path="/optimization-center">{() => <LazyRoute component={OptimizationCenter} />}</Route>
+      {/* v151: 优化中心已融合到策略管理 */}
+      <Route path="/optimization-center">{() => { window.location.href = '/strategy-center'; return null; }}</Route>
       {/* v144: 出价调整历史已合并到优化目标详情页的"历史与追踪"Tab */}
       <Route path="/bid-adjustment-history">{() => { window.location.href = '/strategy-center'; return null; }}</Route>
       {/* v144: 效果追踪报告已合并到优化目标详情页的"历史与追踪"Tab */}
       <Route path="/effect-tracking-report">{() => { window.location.href = '/strategy-center'; return null; }}</Route>
-      <Route path="/algorithm-effect-dashboard">{() => <LazyRoute component={AlgorithmEffectDashboard} />}</Route>
+      {/* v151: 算法效果已融合到优化目标详情页的"算法效果"Tab */}
+      <Route path="/algorithm-effect-dashboard">{() => { window.location.href = '/strategy-center'; return null; }}</Route>
       {/* 智能优化功能已整合到优化设置和优化中心 */}
       <Route path="/auto-rollback">{() => { window.location.href = '/settings'; return null; }}</Route>
       <Route path="/algorithm-optimization">{() => { window.location.href = '/settings'; return null; }}</Route>
@@ -169,7 +172,8 @@ function Router() {
       <Route path="/holiday-calendar">{() => <LazyRoute component={HolidayCalendarManagement} />}</Route>
       <Route path="/amazon-api-auth-status">{() => <LazyRoute component={AmazonApiAuthStatus} />}</Route>
       <Route path="/auto-optimization-dashboard">{() => <LazyRoute component={AutoOptimizationDashboard} />}</Route>
-      <Route path="/advanced-analytics">{() => <LazyRoute component={AdvancedAnalyticsDashboard} />}</Route>
+      {/* v151: 高级分析已融合到优化目标详情页的"分析洞察"Tab */}
+      <Route path="/advanced-analytics">{() => { window.location.href = '/strategy-center'; return null; }}</Route>
       <Route path="/register">{() => <LazyRoute component={InviteRegister} />}</Route>
       <Route path="/login">{() => <LazyRoute component={LocalLogin} />}</Route>
       <Route path="/local-login">{() => <LazyRoute component={LocalLogin} />}</Route>

@@ -506,33 +506,18 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
     console.error(`[DataSyncScheduler] 账号 ${schedule.accountId} 策略模板推荐更新失败:`, recError.message);
   }
 
-  // ✅ v148: 数据同步完成后，自动触发优化执行（闭环调度）- 添加账户级优化锁
+  // ✅ v151: 统一优化入口 - 数据同步完成后，通过optimizationScheduler触发该账户下所有活跃优化目标的执行
+  // 废弃原有的automationExecutionEngine账户级优化，改为基于优化目标的精准触发
   try {
-    const autoConfig = automationExecutionEngine.getAccountAutomationConfig(schedule.accountId);
-    if (autoConfig.enabled) {
-      // v148: 尝试获取账户优化锁，防止与optimizationTargetEngine并行冲突
-      if (!acquireAccountOptimizationLock(schedule.accountId, 'automationExecutionEngine')) {
-        console.log(`[DataSyncScheduler] v148: 账号 ${schedule.accountId} 优化锁已被占用，跳过自动优化`);
-      } else {
-        try {
-          console.log(`[DataSyncScheduler] 账号 ${schedule.accountId} 自动优化已启用，触发优化执行...`);
-          const optimizationResult = await automationExecutionEngine.runFullAutomationCycle(schedule.accountId);
-          console.log(`[DataSyncScheduler] 账号 ${schedule.accountId} 自动优化完成:`, {
-            analyzed: optimizationResult.summary.totalAnalyzed,
-            executed: optimizationResult.summary.totalExecuted,
-            skipped: optimizationResult.summary.totalSkipped,
-            blocked: optimizationResult.summary.totalBlocked,
-          });
-        } finally {
-          releaseAccountOptimizationLock(schedule.accountId);
-        }
-      }
-    } else {
-      console.log(`[DataSyncScheduler] 账号 ${schedule.accountId} 自动优化未启用，跳过优化执行`);
-    }
+    const { triggerAccountOptimizations } = await import('./optimizationScheduler');
+    const triggerResult = await triggerAccountOptimizations(schedule.accountId, 'data_sync_complete');
+    console.log(`[DataSyncScheduler] v151: 账号 ${schedule.accountId} 优化目标触发完成:`, {
+      triggeredTargets: triggerResult.triggeredCount,
+      skippedTargets: triggerResult.skippedCount,
+      errors: triggerResult.errorCount,
+    });
   } catch (autoOptError: any) {
-    releaseAccountOptimizationLock(schedule.accountId);
-    console.error(`[DataSyncScheduler] 账号 ${schedule.accountId} 自动优化执行失败:`, autoOptError.message);
+    console.error(`[DataSyncScheduler] 账号 ${schedule.accountId} 优化目标触发失败:`, autoOptError.message);
   }
 
   // 发送通知（如果配置了）
