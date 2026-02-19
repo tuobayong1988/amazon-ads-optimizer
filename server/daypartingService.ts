@@ -509,6 +509,84 @@ export async function getDaypartingStrategy(strategyId: number) {
 }
 
 /**
+ * v157: 按campaignId获取分时策略
+ */
+export async function getDaypartingStrategyByCampaignId(campaignId: number | string) {
+  const db = await getDb();
+  if (!db) return null;
+
+  // v157: campaignId在schema中是int类型
+  const result = await db
+    .select()
+    .from(daypartingStrategies)
+    .where(eq(daypartingStrategies.campaignId, Number(campaignId) || 0))
+    .limit(1);
+  return result[0] || null;
+}
+
+/**
+ * v157: 确保广告活动有分时策略，如果没有则自动创建默认策略
+ * 默认策略使用均匀分配，等待数据积累后自动优化
+ */
+export async function ensureDaypartingStrategy(
+  accountId: number,
+  campaignId: number | string,
+  campaignName: string,
+  options: {
+    optimizationGoal?: string;
+    targetAcos?: number;
+    targetRoas?: number;
+  } = {}
+): Promise<any | null> {
+  // 先检查是否已存在
+  const existing = await getDaypartingStrategyByCampaignId(campaignId);
+  if (existing) return existing;
+  
+  const db = await getDb();
+  if (!db) return null;
+  
+  try {
+    // 创建默认分时策略
+    // v157: campaignId在schema中是int类型，但数据库中是varchar(64)
+    const strategyId = await createDaypartingStrategy({
+      accountId,
+      campaignId: Number(campaignId) || 0,
+      name: `自动分时策略 - ${campaignName}`,
+      strategyType: 'both',
+      daypartingOptGoal: (options.optimizationGoal as any) || 'maximize_sales',
+      daypartingTargetAcos: options.targetAcos?.toString(),
+      daypartingTargetRoas: options.targetRoas?.toString(),
+      analysisLookbackDays: 30,
+      daypartingStatus: 'active',
+      lastAnalyzedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+    });
+    
+    // 创建默认的均匀分配规则（所有时段乘数1.0）
+    const defaultBidRules: InsertHourpartingBidRule[] = [];
+    for (let dayOfWeek = 0; dayOfWeek <= 6; dayOfWeek++) {
+      for (let hour = 0; hour < 24; hour++) {
+        defaultBidRules.push({
+          strategyId,
+          dayOfWeek,
+          hour,
+          bidMultiplier: '1.00',
+          hourDataPoints: 0,
+          hourIsEnabled: 1,
+        });
+      }
+    }
+    await saveBidRules(strategyId, defaultBidRules);
+    
+    console.log(`[DaypartingService] v157: 自动创建分时策略 strategyId=${strategyId} for campaign ${campaignName} (${campaignId})`);
+    
+    return await getDaypartingStrategy(strategyId);
+  } catch (err: any) {
+    console.error(`[DaypartingService] v157: 自动创建分时策略失败: ${err.message}`);
+    return null;
+  }
+}
+
+/**
  * 更新分时策略
  */
 export async function updateDaypartingStrategy(

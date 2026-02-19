@@ -971,12 +971,26 @@ async function executeDaypartingOptimization(
   
   for (const campaign of campaigns) {
     try {
-      // 获取分时策略
-      const strategy = await daypartingService.getDaypartingStrategy(campaign.id);
+      // v157: 修复分时策略查找 - 按campaignId查找，并自动创建缺失的策略
+      let strategy = await daypartingService.getDaypartingStrategyByCampaignId(campaign.id);
+      if (!strategy) {
+        // 自动创建分时策略
+        strategy = await daypartingService.ensureDaypartingStrategy(
+          config.accountId,
+          campaign.id,
+          campaign.campaignName,
+          {
+            optimizationGoal: config.optimizationGoal,
+            targetAcos: config.targetAcos,
+            targetRoas: config.targetRoas,
+          }
+        );
+      }
       if (!strategy || strategy.daypartingStatus !== 'active') continue;
       
       // 获取当前时段的调整规则
-      const hourlyRule = await daypartingService.getHourlyRule(strategy.id, currentHour, currentDayOfWeek);
+      // v157: 修复参数顺序 - getHourlyRule(strategyId, dayOfWeek, hour)
+      const hourlyRule = await daypartingService.getHourlyRule(strategy.id, currentDayOfWeek, currentHour);
       if (!hourlyRule) continue;
       
       const bidMultiplier = parseFloat(hourlyRule.bidMultiplier || '1.00');

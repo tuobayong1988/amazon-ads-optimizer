@@ -3582,13 +3582,27 @@ export class AmazonSyncService {
 
         if (!campaign) continue;
 
-        // 转换位置类型
+        // v157: 转换位置类型 - 修复字段映射
+        // Amazon v3 API groupBy campaignPlacement 返回的字段名可能是:
+        // - placementClassification (旧版)
+        // - campaignPlacement (v3 groupBy名)
+        // - placement (通用fallback)
         const placementMap: Record<string, 'top_of_search' | 'product_page' | 'rest_of_search'> = {
           'TOP_OF_SEARCH': 'top_of_search',
           'DETAIL_PAGE': 'product_page',
           'OTHER': 'rest_of_search',
+          // v157: 添加更多可能的值映射
+          'Top of Search on-Amazon': 'top_of_search',
+          'Detail Page on-Amazon': 'product_page',
+          'Other on-Amazon': 'rest_of_search',
+          'top_of_search': 'top_of_search',
+          'product_page': 'product_page',
+          'rest_of_search': 'rest_of_search',
         };
-        const placement = placementMap[row.placementClassification] || 'rest_of_search';
+        const rawPlacement = row.placementClassification || row.campaignPlacement || row.placement || 'OTHER';
+        const placement = placementMap[rawPlacement] || 'rest_of_search';
+        console.log(`[SyncService] v157: 位置映射: raw="${rawPlacement}" -> "${placement}" (row keys: ${Object.keys(row).filter(k => k.toLowerCase().includes('place')).join(',')})`);
+
         const reportDate = row.date || new Date().toISOString().split('T')[0];
 
         // 检查是否已存在

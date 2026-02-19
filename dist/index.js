@@ -61909,9 +61909,18 @@ var init_amazonSyncService = __esm({
             const placementMap = {
               "TOP_OF_SEARCH": "top_of_search",
               "DETAIL_PAGE": "product_page",
-              "OTHER": "rest_of_search"
+              "OTHER": "rest_of_search",
+              // v157: 添加更多可能的值映射
+              "Top of Search on-Amazon": "top_of_search",
+              "Detail Page on-Amazon": "product_page",
+              "Other on-Amazon": "rest_of_search",
+              "top_of_search": "top_of_search",
+              "product_page": "product_page",
+              "rest_of_search": "rest_of_search"
             };
-            const placement = placementMap[row.placementClassification] || "rest_of_search";
+            const rawPlacement = row.placementClassification || row.campaignPlacement || row.placement || "OTHER";
+            const placement = placementMap[rawPlacement] || "rest_of_search";
+            console.log(`[SyncService] v157: \u4F4D\u7F6E\u6620\u5C04: raw="${rawPlacement}" -> "${placement}" (row keys: ${Object.keys(row).filter((k5) => k5.toLowerCase().includes("place")).join(",")})`);
             const reportDate = row.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
             const [existing] = await db.select().from(placementPerformance).where(
               and(
@@ -64053,6 +64062,51 @@ async function getDaypartingStrategy(strategyId) {
   if (!db) return null;
   const result = await db.select().from(daypartingStrategies).where(eq(daypartingStrategies.id, strategyId)).limit(1);
   return result[0] || null;
+}
+async function getDaypartingStrategyByCampaignId(campaignId) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db.select().from(daypartingStrategies).where(eq(daypartingStrategies.campaignId, Number(campaignId) || 0)).limit(1);
+  return result[0] || null;
+}
+async function ensureDaypartingStrategy(accountId, campaignId, campaignName, options = {}) {
+  const existing = await getDaypartingStrategyByCampaignId(campaignId);
+  if (existing) return existing;
+  const db = await getDb();
+  if (!db) return null;
+  try {
+    const strategyId = await createDaypartingStrategy({
+      accountId,
+      campaignId: Number(campaignId) || 0,
+      name: `\u81EA\u52A8\u5206\u65F6\u7B56\u7565 - ${campaignName}`,
+      strategyType: "both",
+      daypartingOptGoal: options.optimizationGoal || "maximize_sales",
+      daypartingTargetAcos: options.targetAcos?.toString(),
+      daypartingTargetRoas: options.targetRoas?.toString(),
+      analysisLookbackDays: 30,
+      daypartingStatus: "active",
+      lastAnalyzedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
+    });
+    const defaultBidRules = [];
+    for (let dayOfWeek = 0; dayOfWeek <= 6; dayOfWeek++) {
+      for (let hour2 = 0; hour2 < 24; hour2++) {
+        defaultBidRules.push({
+          strategyId,
+          dayOfWeek,
+          hour: hour2,
+          bidMultiplier: "1.00",
+          hourDataPoints: 0,
+          hourIsEnabled: 1
+        });
+      }
+    }
+    await saveBidRules(strategyId, defaultBidRules);
+    console.log(`[DaypartingService] v157: \u81EA\u52A8\u521B\u5EFA\u5206\u65F6\u7B56\u7565 strategyId=${strategyId} for campaign ${campaignName} (${campaignId})`);
+    return await getDaypartingStrategy(strategyId);
+  } catch (err2) {
+    console.error(`[DaypartingService] v157: \u81EA\u52A8\u521B\u5EFA\u5206\u65F6\u7B56\u7565\u5931\u8D25: ${err2.message}`);
+    return null;
+  }
 }
 async function updateDaypartingStrategy(strategyId, data4) {
   const db = await getDb();
@@ -135717,9 +135771,21 @@ async function executeDaypartingOptimization(config2, campaigns6, dryRun) {
   const currentDayOfWeek = getLocalDayOfWeek(now, marketplace);
   for (const campaign of campaigns6) {
     try {
-      const strategy = await getDaypartingStrategy(campaign.id);
+      let strategy = await getDaypartingStrategyByCampaignId(campaign.id);
+      if (!strategy) {
+        strategy = await ensureDaypartingStrategy(
+          config2.accountId,
+          campaign.id,
+          campaign.campaignName,
+          {
+            optimizationGoal: config2.optimizationGoal,
+            targetAcos: config2.targetAcos,
+            targetRoas: config2.targetRoas
+          }
+        );
+      }
       if (!strategy || strategy.daypartingStatus !== "active") continue;
-      const hourlyRule = await getHourlyRule(strategy.id, currentHour, currentDayOfWeek);
+      const hourlyRule = await getHourlyRule(strategy.id, currentDayOfWeek, currentHour);
       if (!hourlyRule) continue;
       const bidMultiplier = parseFloat(hourlyRule.bidMultiplier || "1.00");
       const keywords5 = await getKeywordsByCampaignId(campaign.id);
