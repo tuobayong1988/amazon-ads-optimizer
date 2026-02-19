@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import { useCurrentStore, useCurrentMarketplace } from "@/components/GlobalAccountSelector";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useDebounce } from "@/hooks/useDebounce";
 import { useLocation } from "wouter";
@@ -954,21 +955,72 @@ function OptimizationTargetCard({
           </div>
         </div>
 
-        {/* 目标达成度 */}
-        {target.goalProgress !== null && target.goalProgress !== undefined && (
-          <div className="pt-2 border-t">
+        {/* v162: 多维度目标达成度 */}
+        {target.goalProgress !== null && target.goalProgress !== undefined && target.goalProgress > 0 && (
+          <div className="pt-2 border-t space-y-1.5">
             <div className="flex items-center justify-between mb-1">
               <p className="text-xs text-muted-foreground">目标达成度</p>
-              <p className={`text-xs font-medium ${target.goalProgress >= 90 ? 'text-green-600' : target.goalProgress >= 60 ? 'text-yellow-600' : 'text-red-600'}`}>
-                {target.goalProgress.toFixed(0)}%
-              </p>
+              <div className="flex items-center gap-1">
+                {target.goalProgressDetail?.level && (
+                  <span className={`text-[10px] px-1 py-0.5 rounded font-medium ${
+                    target.goalProgressDetail.level === 'excellent' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400' :
+                    target.goalProgressDetail.level === 'good' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400' :
+                    target.goalProgressDetail.level === 'fair' ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400' :
+                    'bg-red-100 text-red-700 dark:bg-red-500/20 dark:text-red-400'
+                  }`}>
+                    {target.goalProgressDetail.level === 'excellent' ? '优秀' :
+                     target.goalProgressDetail.level === 'good' ? '良好' :
+                     target.goalProgressDetail.level === 'fair' ? '一般' : '待改善'}
+                  </span>
+                )}
+                <p className={`text-xs font-bold ${
+                  target.goalProgress >= 85 ? 'text-green-600 dark:text-green-400' :
+                  target.goalProgress >= 65 ? 'text-blue-600 dark:text-blue-400' :
+                  target.goalProgress >= 40 ? 'text-yellow-600 dark:text-yellow-400' :
+                  'text-red-600 dark:text-red-400'
+                }`}>
+                  {target.goalProgress.toFixed(0)}分
+                </p>
+              </div>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-1.5">
+            <div className="w-full bg-gray-200 dark:bg-muted/50 rounded-full h-2">
               <div 
-                className={`h-1.5 rounded-full transition-all ${target.goalProgress >= 90 ? 'bg-green-500' : target.goalProgress >= 60 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                className={`h-2 rounded-full transition-all duration-500 ${
+                  target.goalProgress >= 85 ? 'bg-gradient-to-r from-green-500 to-emerald-400' :
+                  target.goalProgress >= 65 ? 'bg-gradient-to-r from-blue-500 to-cyan-400' :
+                  target.goalProgress >= 40 ? 'bg-gradient-to-r from-yellow-500 to-amber-400' :
+                  'bg-gradient-to-r from-red-500 to-orange-400'
+                }`}
                 style={{ width: `${Math.min(100, target.goalProgress)}%` }}
               />
             </div>
+            {/* 四维度得分小条 */}
+            {target.goalProgressDetail?.dimensions && target.goalProgressDetail.dimensions.length > 0 && (
+              <div className="grid grid-cols-4 gap-1">
+                {target.goalProgressDetail.dimensions.map((dim: any) => (
+                  <div key={dim.name} className="text-center" title={dim.detail}>
+                    <div className="text-[9px] text-muted-foreground">{dim.nameZh}</div>
+                    <div className={`text-[10px] font-semibold ${
+                      dim.score >= 80 ? 'text-green-600 dark:text-green-400' :
+                      dim.score >= 60 ? 'text-blue-600 dark:text-blue-400' :
+                      dim.score >= 40 ? 'text-yellow-600 dark:text-yellow-400' :
+                      'text-red-600 dark:text-red-400'
+                    }`}>{dim.score}</div>
+                    <div className="w-full h-0.5 bg-gray-200 dark:bg-muted/40 rounded-full overflow-hidden">
+                      <div 
+                        className={`h-full rounded-full ${
+                          dim.score >= 80 ? 'bg-green-500' :
+                          dim.score >= 60 ? 'bg-blue-500' :
+                          dim.score >= 40 ? 'bg-yellow-500' :
+                          'bg-red-500'
+                        }`}
+                        style={{ width: `${Math.min(100, Math.max(0, dim.score))}%` }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -1083,11 +1135,38 @@ export default function OptimizationTargets() {
 
   // 获取账号列表
   const { data: accounts } = trpc.adAccount.list.useQuery();
-  const currentAccountId = accounts?.[0]?.id;
+  const currentStore = useCurrentStore();
+  const currentMarketplace = useCurrentMarketplace();
+  
+  // 根据店铺+站点查找对应的accountId
+  const currentAccountId = useMemo(() => {
+    if (!accounts || accounts.length === 0) return null;
+    
+    // 如果有选中的店铺和站点，精确匹配
+    if (currentStore && currentMarketplace) {
+      const account = accounts.find((a: any) => 
+        (a.storeName || a.accountName) === currentStore && 
+        a.marketplace === currentMarketplace
+      );
+      if (account) return account.id;
+    }
+    
+    // 如果只有店铺，匹配第一个站点
+    if (currentStore) {
+      const account = accounts.find((a: any) => 
+        (a.storeName || a.accountName) === currentStore
+      );
+      if (account) return account.id;
+    }
+    
+    // 兜底：使用第一个账号
+    return accounts[0]?.id || null;
+  }, [accounts, currentStore, currentMarketplace]);
 
   // 获取优化目标列表（使用performanceGroup API）
   const { data: targets, isLoading, refetch } = trpc.performanceGroup.list.useQuery(
-    { accountId: currentAccountId || 0 }
+    { accountId: currentAccountId || 0 },
+    { enabled: !!currentAccountId }
   );
 
   // 获取广告活动统计

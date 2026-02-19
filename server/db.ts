@@ -5509,3 +5509,64 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
     return { success: false, migrated, skipped: [...skipped, err.message] };
   }
 }
+
+
+/**
+ * 获取优化目标的趋势对比数据（加入前 vs 加入后）
+ * 用于科学计算目标达成度
+ */
+export async function getGoalProgressTrendData(performanceGroupId: number, groupCreatedAt: string) {
+  const db = await getDb();
+  if (!db) return { before: null, after: null };
+  
+  const createdDate = new Date(groupCreatedAt).toISOString().split('T')[0];
+  
+  try {
+    // 获取该优化目标关联的所有广告活动的内部ID
+    const groupCampaigns = await db.select({ id: campaigns.id })
+      .from(campaigns)
+      .where(eq(campaigns.performanceGroupId, performanceGroupId));
+    
+    if (groupCampaigns.length === 0) return { before: null, after: null };
+    
+    const campaignIds = groupCampaigns.map(c => c.id);
+    
+    // 加入前的数据（优化目标创建日期之前）
+    const beforeData = await db.select({
+      days: sql<number>`COUNT(DISTINCT ${dailyPerformance.date})`,
+      totalSpend: sql<number>`COALESCE(SUM(${dailyPerformance.spend}), 0)`,
+      totalSales: sql<number>`COALESCE(SUM(${dailyPerformance.sales}), 0)`,
+      totalOrders: sql<number>`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
+      totalClicks: sql<number>`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
+      totalImpressions: sql<number>`COALESCE(SUM(${dailyPerformance.impressions}), 0)`,
+    })
+    .from(dailyPerformance)
+    .where(and(
+      inArray(dailyPerformance.campaignId, campaignIds),
+      sql`${dailyPerformance.date} < ${createdDate}`
+    ));
+    
+    // 加入后的数据（优化目标创建日期及之后）
+    const afterData = await db.select({
+      days: sql<number>`COUNT(DISTINCT ${dailyPerformance.date})`,
+      totalSpend: sql<number>`COALESCE(SUM(${dailyPerformance.spend}), 0)`,
+      totalSales: sql<number>`COALESCE(SUM(${dailyPerformance.sales}), 0)`,
+      totalOrders: sql<number>`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
+      totalClicks: sql<number>`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
+      totalImpressions: sql<number>`COALESCE(SUM(${dailyPerformance.impressions}), 0)`,
+    })
+    .from(dailyPerformance)
+    .where(and(
+      inArray(dailyPerformance.campaignId, campaignIds),
+      sql`${dailyPerformance.date} >= ${createdDate}`
+    ));
+    
+    const before = beforeData[0] || null;
+    const after = afterData[0] || null;
+    
+    return { before, after };
+  } catch (error) {
+    console.error(`[getGoalProgressTrendData] Error for group ${performanceGroupId}:`, error);
+    return { before: null, after: null };
+  }
+}

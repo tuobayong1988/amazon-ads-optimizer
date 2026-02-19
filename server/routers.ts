@@ -18,6 +18,7 @@ import * as unifiedOptimizationEngine from './unifiedOptimizationEngine';
 import * as autoRollbackService from './autoRollbackService';
 import * as algorithmOptimizationService from './algorithmOptimizationService';
 import * as intelligentBudgetAllocationService from './intelligentBudgetAllocationService';
+import { calculateGoalProgress, type GoalProgressResult, type PerformanceMetrics, type GroupConfig, type TrendData } from './goalProgressAlgorithm';
 import * as abTestService from './abTestService';
 import * as budgetAutoExecutionService from './budgetAutoExecutionService';
 import { reviewRouter } from './reviewRouter';
@@ -522,6 +523,41 @@ const performanceGroupRouter = router({
           const cvr = totalClicks > 0 ? (totalOrders / totalClicks) * 100 : 0;
           const cpc = totalClicks > 0 ? totalSpend / totalClicks : 0;
           
+          // v162: 多维度目标达成度算法
+          let goalProgressResult: GoalProgressResult | null = null;
+          try {
+            const metrics: PerformanceMetrics = {
+              totalSpend, totalSales, totalOrders, totalClicks, totalImpressions,
+              avgAcos, avgRoas, ctr, cvr, cpc
+            };
+            const groupConfig: GroupConfig = {
+              id: group.id,
+              optimizationGoal: group.optimizationGoal || 'maximize_sales',
+              targetAcos: Number(group.targetAcos) || null,
+              targetRoas: Number(group.targetRoas) || null,
+              dailyBudget: Number(group.dailyBudget) || null,
+              dailySpendLimit: Number(group.dailySpendLimit) || null,
+              maxBid: Number(group.maxBid) || null,
+              strategyTemplateId: group.strategyTemplateId || null,
+              strategyTemplateName: group.strategyTemplateName || null,
+              status: group.status || 'active',
+              createdAt: group.createdAt || new Date().toISOString(),
+              campaignCount: campaigns.length,
+            };
+            
+            // 获取趋势对比数据
+            let trendData: TrendData | undefined;
+            try {
+              trendData = await db.getGoalProgressTrendData(group.id, group.createdAt || new Date().toISOString());
+            } catch (trendErr) {
+              console.log(`[performanceGroup.list] Trend data fetch failed for group ${group.id}:`, trendErr);
+            }
+            
+            goalProgressResult = calculateGoalProgress(groupConfig, metrics, trendData);
+          } catch (progressErr) {
+            console.error(`[performanceGroup.list] Goal progress calc failed for group ${group.id}:`, progressErr);
+          }
+          
           return {
             ...group,
             campaignCount: campaigns.length,
@@ -535,12 +571,13 @@ const performanceGroupRouter = router({
             ctr,
             cvr,
             cpc,
-            // 目标达成度
-            goalProgress: group.optimizationGoal === 'target_acos' && group.targetAcos
-              ? Math.min(100, (Number(group.targetAcos) / Math.max(avgAcos, 0.01)) * 100)
-              : group.optimizationGoal === 'target_roas' && group.targetRoas
-              ? Math.min(100, (avgRoas / Math.max(Number(group.targetRoas), 0.01)) * 100)
-              : null,
+            // v162: 多维度目标达成度
+            goalProgress: goalProgressResult ? goalProgressResult.totalScore : null,
+            goalProgressDetail: goalProgressResult ? {
+              dimensions: goalProgressResult.dimensions,
+              summary: goalProgressResult.summary,
+              level: goalProgressResult.level,
+            } : null,
           };
         } catch (error) {
           console.error(`[performanceGroup.list] Error enriching group ${group.id}:`, error);
@@ -558,6 +595,7 @@ const performanceGroupRouter = router({
             cvr: 0,
             cpc: 0,
             goalProgress: null,
+            goalProgressDetail: null,
           };
         }
       }));

@@ -427,6 +427,83 @@ export default function StrategyCenter() {
                         </div>
                       )}
 
+                      {/* v162: 多维度目标达成度展示 */}
+                      {group.goalProgress !== null && group.goalProgress !== undefined && group.goalProgress > 0 && (
+                        <div className="mb-3 p-3 rounded-lg bg-muted/20 space-y-2">
+                          {/* 总分进度条 */}
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-xs font-medium text-muted-foreground">目标达成度</span>
+                            <div className="flex items-center gap-1.5">
+                              {group.goalProgressDetail?.level && (
+                                <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                                  group.goalProgressDetail.level === 'excellent' ? 'bg-green-500/20 text-green-400' :
+                                  group.goalProgressDetail.level === 'good' ? 'bg-blue-500/20 text-blue-400' :
+                                  group.goalProgressDetail.level === 'fair' ? 'bg-yellow-500/20 text-yellow-400' :
+                                  'bg-red-500/20 text-red-400'
+                                }`}>
+                                  {group.goalProgressDetail.level === 'excellent' ? '优秀' :
+                                   group.goalProgressDetail.level === 'good' ? '良好' :
+                                   group.goalProgressDetail.level === 'fair' ? '一般' : '待改善'}
+                                </span>
+                              )}
+                              <span className={`text-sm font-bold ${
+                                group.goalProgress >= 85 ? 'text-green-400' :
+                                group.goalProgress >= 65 ? 'text-blue-400' :
+                                group.goalProgress >= 40 ? 'text-yellow-400' :
+                                'text-red-400'
+                              }`}>{Math.round(group.goalProgress)}分</span>
+                            </div>
+                          </div>
+                          <div className="w-full h-2.5 bg-muted/50 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-700 ${
+                                group.goalProgress >= 85 ? 'bg-gradient-to-r from-green-500 to-emerald-400' :
+                                group.goalProgress >= 65 ? 'bg-gradient-to-r from-blue-500 to-cyan-400' :
+                                group.goalProgress >= 40 ? 'bg-gradient-to-r from-yellow-500 to-amber-400' :
+                                'bg-gradient-to-r from-red-500 to-orange-400'
+                              }`}
+                              style={{ width: `${Math.min(100, Math.max(0, group.goalProgress))}%` }}
+                            />
+                          </div>
+
+                          {/* 四维度得分明细 */}
+                          {group.goalProgressDetail?.dimensions && group.goalProgressDetail.dimensions.length > 0 && (
+                            <div className="grid grid-cols-4 gap-1 mt-2">
+                              {group.goalProgressDetail.dimensions.map((dim: any) => (
+                                <div key={dim.name} className="text-center" title={dim.detail}>
+                                  <div className="text-[10px] text-muted-foreground truncate">{dim.nameZh}</div>
+                                  <div className={`text-xs font-semibold ${
+                                    dim.score >= 80 ? 'text-green-400' :
+                                    dim.score >= 60 ? 'text-blue-400' :
+                                    dim.score >= 40 ? 'text-yellow-400' :
+                                    'text-red-400'
+                                  }`}>{dim.score}</div>
+                                  <div className="w-full h-1 bg-muted/40 rounded-full overflow-hidden mt-0.5">
+                                    <div 
+                                      className={`h-full rounded-full transition-all duration-500 ${
+                                        dim.score >= 80 ? 'bg-green-500' :
+                                        dim.score >= 60 ? 'bg-blue-500' :
+                                        dim.score >= 40 ? 'bg-yellow-500' :
+                                        'bg-red-500'
+                                      }`}
+                                      style={{ width: `${Math.min(100, Math.max(0, dim.score))}%` }}
+                                    />
+                                  </div>
+                                  <div className="text-[9px] text-muted-foreground/70 mt-0.5">权重{dim.weight}%</div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* 总结说明 */}
+                          {group.goalProgressDetail?.summary && (
+                            <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
+                              {group.goalProgressDetail.summary}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
                       {/* 自动优化状态 */}
                       <div className="flex items-center justify-between py-2 border-t border-border/50">
                         <div className="flex items-center gap-2 text-sm">

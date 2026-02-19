@@ -35954,6 +35954,7 @@ __export(db_exports, {
   getEmailSubscriptionById: () => getEmailSubscriptionById,
   getEmailSubscriptionsByUser: () => getEmailSubscriptionsByUser,
   getEnabledSyncSchedules: () => getEnabledSyncSchedules,
+  getGoalProgressTrendData: () => getGoalProgressTrendData,
   getImportJobsByUserId: () => getImportJobsByUserId,
   getKeywordById: () => getKeywordById,
   getKeywordHistoryData: () => getKeywordHistoryData,
@@ -39410,6 +39411,44 @@ async function runAutoMigration() {
   } catch (err2) {
     console.error("[AutoMigration] \u5168\u5C40\u8FC1\u79FB\u5931\u8D25:", err2.message);
     return { success: false, migrated, skipped: [...skipped, err2.message] };
+  }
+}
+async function getGoalProgressTrendData(performanceGroupId, groupCreatedAt) {
+  const db = await getDb();
+  if (!db) return { before: null, after: null };
+  const createdDate = new Date(groupCreatedAt).toISOString().split("T")[0];
+  try {
+    const groupCampaigns = await db.select({ id: campaigns.id }).from(campaigns).where(eq(campaigns.performanceGroupId, performanceGroupId));
+    if (groupCampaigns.length === 0) return { before: null, after: null };
+    const campaignIds = groupCampaigns.map((c5) => c5.id);
+    const beforeData = await db.select({
+      days: sql`COUNT(DISTINCT ${dailyPerformance.date})`,
+      totalSpend: sql`COALESCE(SUM(${dailyPerformance.spend}), 0)`,
+      totalSales: sql`COALESCE(SUM(${dailyPerformance.sales}), 0)`,
+      totalOrders: sql`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
+      totalClicks: sql`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
+      totalImpressions: sql`COALESCE(SUM(${dailyPerformance.impressions}), 0)`
+    }).from(dailyPerformance).where(and(
+      inArray(dailyPerformance.campaignId, campaignIds),
+      sql`${dailyPerformance.date} < ${createdDate}`
+    ));
+    const afterData = await db.select({
+      days: sql`COUNT(DISTINCT ${dailyPerformance.date})`,
+      totalSpend: sql`COALESCE(SUM(${dailyPerformance.spend}), 0)`,
+      totalSales: sql`COALESCE(SUM(${dailyPerformance.sales}), 0)`,
+      totalOrders: sql`COALESCE(SUM(${dailyPerformance.orders}), 0)`,
+      totalClicks: sql`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
+      totalImpressions: sql`COALESCE(SUM(${dailyPerformance.impressions}), 0)`
+    }).from(dailyPerformance).where(and(
+      inArray(dailyPerformance.campaignId, campaignIds),
+      sql`${dailyPerformance.date} >= ${createdDate}`
+    ));
+    const before = beforeData[0] || null;
+    const after = afterData[0] || null;
+    return { before, after };
+  } catch (error54) {
+    console.error(`[getGoalProgressTrendData] Error for group ${performanceGroupId}:`, error54);
+    return { before: null, after: null };
   }
 }
 var _db;
@@ -131262,7 +131301,7 @@ function getMaxAdjustmentByBiddingStrategy(biddingStrategy) {
       return 200;
   }
 }
-function calculateEfficiencyScore2(metrics, weights = DEFAULT_WEIGHTS, benchmarks = DEFAULT_BENCHMARKS) {
+function calculateEfficiencyScore2(metrics, weights = DEFAULT_WEIGHTS2, benchmarks = DEFAULT_BENCHMARKS) {
   const ctr = metrics.clicks > 0 ? metrics.clicks / metrics.impressions * 100 : 0;
   const cpc = metrics.clicks > 0 ? metrics.spend / metrics.clicks : 0;
   const cvr = metrics.clicks > 0 ? metrics.orders / metrics.clicks * 100 : 0;
@@ -131440,7 +131479,7 @@ async function getCampaignPlacementPerformance(campaignId, accountId, days = 14,
   for (const [placement, metrics] of Object.entries(aggregatedData)) {
     const { score, confidence, normalizedMetrics } = calculateEfficiencyScore2(
       metrics,
-      DEFAULT_WEIGHTS,
+      DEFAULT_WEIGHTS2,
       benchmarks
     );
     scores.push({
@@ -131700,14 +131739,14 @@ async function applyPlacementAdjustment(campaignId, accountId, adjustment) {
     return false;
   }
 }
-var DEFAULT_WEIGHTS, DEFAULT_BENCHMARKS, ADJUSTMENT_COOLDOWN_DAYS, ATTRIBUTION_DELAY_DAYS2;
+var DEFAULT_WEIGHTS2, DEFAULT_BENCHMARKS, ADJUSTMENT_COOLDOWN_DAYS, ATTRIBUTION_DELAY_DAYS2;
 var init_placementOptimizationService = __esm({
   "server/placementOptimizationService.ts"() {
     "use strict";
     init_db2();
     init_schema2();
     init_drizzle_orm();
-    DEFAULT_WEIGHTS = {
+    DEFAULT_WEIGHTS2 = {
       roasWeight: 0.35,
       acosWeight: 0.25,
       cvrWeight: 0.25,
@@ -131722,6 +131761,143 @@ var init_placementOptimizationService = __esm({
     };
     ADJUSTMENT_COOLDOWN_DAYS = 7;
     ATTRIBUTION_DELAY_DAYS2 = 3;
+  }
+});
+
+// server/optimizationSafetyGuardrails.ts
+async function checkEmergencyBrake(accountId, performanceGroupId) {
+  try {
+    const lookback = SAFETY_LIMITS.emergency.lookbackDays;
+    const now = /* @__PURE__ */ new Date();
+    const recentEnd = new Date(now);
+    const recentStart = new Date(now);
+    recentStart.setDate(recentStart.getDate() - lookback);
+    const previousEnd = new Date(recentStart);
+    const previousStart = new Date(previousEnd);
+    previousStart.setDate(previousStart.getDate() - lookback);
+    const campaigns6 = await getCampaignsByPerformanceGroupId(performanceGroupId);
+    if (campaigns6.length === 0) {
+      return { triggered: false, reason: null, recommendation: "none" };
+    }
+    let recentSpend = 0, recentSales = 0, recentOrders = 0;
+    let previousSpend = 0, previousSales = 0, previousOrders = 0;
+    for (const campaign of campaigns6) {
+      try {
+        const recentData = await getDailyPerformanceByDateRange(accountId, recentStart, recentEnd, campaign.id);
+        const previousData = await getDailyPerformanceByDateRange(accountId, previousStart, previousEnd, campaign.id);
+        for (const d5 of recentData) {
+          recentSpend += Number(d5.spend) || 0;
+          recentSales += Number(d5.sales) || 0;
+          recentOrders += d5.orders || 0;
+        }
+        for (const d5 of previousData) {
+          previousSpend += Number(d5.spend) || 0;
+          previousSales += Number(d5.sales) || 0;
+          previousOrders += d5.orders || 0;
+        }
+      } catch (e6) {
+      }
+    }
+    if (previousSpend < 1 && previousSales < 1) {
+      return { triggered: false, reason: null, recommendation: "none" };
+    }
+    if (previousSales > 10) {
+      const salesDropRate = (previousSales - recentSales) / previousSales;
+      if (salesDropRate >= SAFETY_LIMITS.emergency.salesDropThreshold) {
+        return {
+          triggered: true,
+          reason: `\u9500\u552E\u989D${lookback}\u5929\u5185\u4E0B\u964D${(salesDropRate * 100).toFixed(0)}%\uFF08$${previousSales.toFixed(0)}\u2192$${recentSales.toFixed(0)}\uFF09`,
+          recommendation: "reduce_bids"
+        };
+      }
+    }
+    if (previousSpend > 5) {
+      const spendSurgeRate = recentSpend / previousSpend;
+      if (spendSurgeRate >= SAFETY_LIMITS.emergency.spendSurgeThreshold && recentSales < previousSales * 1.2) {
+        return {
+          triggered: true,
+          reason: `\u82B1\u8D39${lookback}\u5929\u5185\u6FC0\u589E${((spendSurgeRate - 1) * 100).toFixed(0)}%\u4F46\u9500\u552E\u672A\u540C\u6B65\u589E\u957F`,
+          recommendation: "reduce_budgets"
+        };
+      }
+    }
+    if (previousOrders > 5) {
+      const ordersDropRate = (previousOrders - recentOrders) / previousOrders;
+      if (ordersDropRate >= SAFETY_LIMITS.emergency.ordersDropThreshold) {
+        return {
+          triggered: true,
+          reason: `\u8BA2\u5355${lookback}\u5929\u5185\u4E0B\u964D${(ordersDropRate * 100).toFixed(0)}%\uFF08${previousOrders}\u2192${recentOrders}\uFF09`,
+          recommendation: "pause_optimization"
+        };
+      }
+    }
+    return { triggered: false, reason: null, recommendation: "none" };
+  } catch (error54) {
+    console.error(`[EmergencyBrake] Error checking group ${performanceGroupId}:`, error54);
+    return { triggered: false, reason: null, recommendation: "none" };
+  }
+}
+async function preOptimizationSafetyCheck(accountId, performanceGroupId) {
+  const warnings = [];
+  const brakeResult = await checkEmergencyBrake(accountId, performanceGroupId);
+  if (brakeResult.triggered) {
+    warnings.push(`\u26A0\uFE0F \u7D27\u6025\u5236\u52A8: ${brakeResult.reason}`);
+    warnings.push(`\u5EFA\u8BAE\u64CD\u4F5C: ${brakeResult.recommendation === "pause_optimization" ? "\u6682\u505C\u81EA\u52A8\u4F18\u5316" : brakeResult.recommendation === "reduce_bids" ? "\u964D\u4F4E\u7ADE\u4EF710%" : brakeResult.recommendation === "reduce_budgets" ? "\u964D\u4F4E\u9884\u7B9715%" : "\u7EE7\u7EED\u76D1\u63A7"}`);
+  }
+  return {
+    safe: !brakeResult.triggered,
+    warnings
+  };
+}
+var SAFETY_LIMITS;
+var init_optimizationSafetyGuardrails = __esm({
+  "server/optimizationSafetyGuardrails.ts"() {
+    "use strict";
+    init_db2();
+    SAFETY_LIMITS = {
+      bid: {
+        maxSingleChangePercent: 0.2,
+        // 单次最大调整幅度 20%
+        maxDailyChangePercent: 0.3,
+        // 每日累计最大调整幅度 30%
+        minBid: 0.02,
+        // 最低出价 $0.02
+        maxBid: 100,
+        // 最高出价 $100（绝对上限）
+        consecutiveSameDirectionSlowdown: 3,
+        // 连续同方向调整N次后降速
+        slowdownFactor: 0.5
+        // 降速因子（调整幅度减半）
+      },
+      budget: {
+        maxSingleChangePercent: 0.25,
+        // 单次最大调整幅度 25%
+        maxDailyChangePercent: 0.35,
+        // 每日累计最大调整幅度 35%
+        minDailyBudget: 1,
+        // 最低日预算 $1
+        maxDailyBudget: 5e4
+        // 最高日预算 $50,000
+      },
+      placement: {
+        maxSingleChangePct: 25,
+        // 单次最大调整幅度 25个百分点
+        maxTotalAdjustment: 200,
+        // 最高位置倾斜 200%
+        minTotalAdjustment: -50
+        // 最低位置倾斜 -50%
+      },
+      emergency: {
+        salesDropThreshold: 0.4,
+        // 销售额下降40%触发紧急制动
+        spendSurgeThreshold: 2,
+        // 花费激增200%触发紧急制动
+        ordersDropThreshold: 0.5,
+        // 订单下降50%触发紧急制动
+        lookbackDays: 3
+        // 紧急制动回看天数
+      }
+    };
   }
 });
 
@@ -135282,6 +135458,15 @@ async function executeOptimizationTarget(targetId, options = {}) {
   if (config2.lifecycleStage) {
     console.log(`[OptimizationTarget] \u76EE\u6807 ${config2.name} \u5F53\u524D\u751F\u547D\u5468\u671F: ${config2.lifecycleStage} | \u51FA\u4EF7\u8C03\u6574\u4E0A\u9650: \xB1${config2.maxBidChangePercent}% | ${config2.lifecycleSummary}`);
   }
+  try {
+    const safetyCheck = await preOptimizationSafetyCheck(config2.accountId, targetId);
+    if (!safetyCheck.safe) {
+      result.warnings.push(...safetyCheck.warnings);
+      console.warn(`[OptimizationTarget] v162 \u5B89\u5168\u62A4\u680F\u89E6\u53D1: ${safetyCheck.warnings.join("; ")}`);
+    }
+  } catch (safetyErr) {
+    console.log(`[OptimizationTarget] v162 \u5B89\u5168\u68C0\u67E5\u5F02\u5E38\uFF0C\u7EE7\u7EED\u6267\u884C: ${safetyErr.message}`);
+  }
   const allCampaigns = await getCampaignsByPerformanceGroupId(targetId);
   if (allCampaigns.length === 0) {
     result.warnings.push("\u4F18\u5316\u76EE\u6807\u4E0B\u6CA1\u6709\u5E7F\u544A\u6D3B\u52A8");
@@ -137125,6 +137310,7 @@ var init_optimizationTargetEngine = __esm({
     init_bidOptimizer();
     init_daypartingService();
     init_placementOptimizationService();
+    init_optimizationSafetyGuardrails();
     init_adAutomation();
     init_intelligentBudgetAllocationService();
     init_bidCoordinator();
@@ -334204,6 +334390,418 @@ function getParameterTuningSuggestions(metrics, byRange) {
 // server/routers.ts
 init_intelligentBudgetAllocationService();
 
+// server/goalProgressAlgorithm.ts
+var STRATEGY_WEIGHTS = {
+  // 激进增长：侧重销售增长趋势和曝光
+  "aggressive-growth": { coreMetric: 25, trend: 35, budgetEfficiency: 15, conversionEfficiency: 25 },
+  // 平衡增长：四维度均衡
+  "balanced": { coreMetric: 30, trend: 25, budgetEfficiency: 20, conversionEfficiency: 25 },
+  // 利润优先：侧重ACoS达成和转化效率
+  "profit-focused": { coreMetric: 40, trend: 15, budgetEfficiency: 20, conversionEfficiency: 25 },
+  // 旺季冲刺：侧重销售额增长
+  "seasonal-boost": { coreMetric: 20, trend: 40, budgetEfficiency: 15, conversionEfficiency: 25 },
+  // 品牌防御：侧重核心指标稳定和预算控制
+  "brand-defense": { coreMetric: 35, trend: 15, budgetEfficiency: 25, conversionEfficiency: 25 }
+};
+var DEFAULT_WEIGHTS = { coreMetric: 30, trend: 25, budgetEfficiency: 20, conversionEfficiency: 25 };
+function getWeights(strategyTemplateId) {
+  if (!strategyTemplateId) return DEFAULT_WEIGHTS;
+  return STRATEGY_WEIGHTS[strategyTemplateId] || DEFAULT_WEIGHTS;
+}
+function calculateCoreMetricScore(config2, metrics) {
+  const { optimizationGoal, targetAcos, targetRoas } = config2;
+  if (metrics.totalSpend < 0.5 && metrics.totalSales < 0.5) {
+    return { score: 0, detail: "\u6570\u636E\u4E0D\u8DB3\uFF0C\u6682\u65E0\u6CD5\u8BC4\u4F30" };
+  }
+  if ((optimizationGoal === "target_acos" || targetAcos) && targetAcos && targetAcos > 0) {
+    const actualAcos = metrics.avgAcos;
+    if (actualAcos <= 0 && metrics.totalSales > 0) {
+      return { score: 100, detail: `\u5B8C\u7F8E\uFF1A\u6709\u9500\u552E\u65E0\u82B1\u8D39\uFF0CACoS=0%\uFF08\u76EE\u6807\u2264${targetAcos}%\uFF09` };
+    }
+    if (actualAcos <= 0) {
+      return { score: 0, detail: `\u65E0\u6709\u6548\u6570\u636E\uFF08\u76EE\u6807ACoS\u2264${targetAcos}%\uFF09` };
+    }
+    const ratio = targetAcos / actualAcos;
+    let score2;
+    if (ratio >= 1) {
+      score2 = 100;
+    } else if (ratio >= 0.8) {
+      score2 = 70 + (ratio - 0.8) / 0.2 * 30;
+    } else if (ratio >= 0.5) {
+      score2 = 30 + (ratio - 0.5) / 0.3 * 40;
+    } else {
+      score2 = Math.max(5, ratio / 0.5 * 30);
+    }
+    return {
+      score: Math.round(score2),
+      detail: `\u5B9E\u9645ACoS ${actualAcos.toFixed(1)}% / \u76EE\u6807\u2264${targetAcos}%\uFF08\u8FBE\u6210\u7387${(ratio * 100).toFixed(0)}%\uFF09`
+    };
+  }
+  if ((optimizationGoal === "target_roas" || targetRoas) && targetRoas && targetRoas > 0) {
+    const actualRoas = metrics.avgRoas;
+    if (actualRoas <= 0) {
+      return { score: 5, detail: `ROAS=0\uFF08\u76EE\u6807\u2265${targetRoas}\uFF09` };
+    }
+    const ratio = actualRoas / targetRoas;
+    let score2;
+    if (ratio >= 1) {
+      score2 = 100;
+    } else if (ratio >= 0.8) {
+      score2 = 70 + (ratio - 0.8) / 0.2 * 30;
+    } else if (ratio >= 0.5) {
+      score2 = 30 + (ratio - 0.5) / 0.3 * 40;
+    } else {
+      score2 = Math.max(5, ratio / 0.5 * 30);
+    }
+    return {
+      score: Math.round(score2),
+      detail: `\u5B9E\u9645ROAS ${actualRoas.toFixed(2)} / \u76EE\u6807\u2265${targetRoas}\uFF08\u8FBE\u6210\u7387${(ratio * 100).toFixed(0)}%\uFF09`
+    };
+  }
+  if (optimizationGoal === "maximize_sales") {
+    const roas2 = metrics.avgRoas;
+    let score2;
+    if (roas2 >= 3) score2 = 100;
+    else if (roas2 >= 2) score2 = 80 + (roas2 - 2) * 20;
+    else if (roas2 >= 1) score2 = 50 + (roas2 - 1) * 30;
+    else if (roas2 > 0) score2 = Math.max(10, roas2 * 50);
+    else score2 = 5;
+    return {
+      score: Math.round(score2),
+      detail: `ROAS ${roas2.toFixed(2)}\uFF08\u9500\u552E\u6700\u5927\u5316\u6A21\u5F0F\uFF0CROAS\u22652\u4E3A\u826F\u597D\uFF09`
+    };
+  }
+  if (optimizationGoal === "daily_spend_limit" || optimizationGoal === "daily_cost") {
+    const dailyLimit = config2.dailySpendLimit || config2.dailyBudget || 0;
+    if (dailyLimit <= 0) {
+      return { score: 50, detail: "\u672A\u8BBE\u7F6E\u82B1\u8D39\u4E0A\u9650\u76EE\u6807" };
+    }
+    const daysActive = Math.max(1, 30);
+    const avgDailySpend = metrics.totalSpend / daysActive;
+    const ratio = avgDailySpend / dailyLimit;
+    let score2;
+    if (ratio <= 1 && ratio >= 0.7) {
+      score2 = 100;
+    } else if (ratio < 0.7 && ratio >= 0.3) {
+      score2 = 60 + (ratio - 0.3) / 0.4 * 40;
+    } else if (ratio < 0.3) {
+      score2 = Math.max(20, ratio / 0.3 * 60);
+    } else if (ratio <= 1.2) {
+      score2 = 80;
+    } else {
+      score2 = Math.max(10, 80 - (ratio - 1.2) * 100);
+    }
+    return {
+      score: Math.round(Math.min(100, Math.max(5, score2))),
+      detail: `\u65E5\u5747\u82B1\u8D39$${avgDailySpend.toFixed(2)} / \u4E0A\u9650$${dailyLimit.toFixed(2)}`
+    };
+  }
+  const roas = metrics.avgRoas;
+  let score = roas >= 2 ? 80 : roas >= 1 ? 60 : Math.max(20, roas * 60);
+  return {
+    score: Math.round(score),
+    detail: `ROAS ${roas.toFixed(2)}\uFF08\u901A\u7528\u8BC4\u4F30\uFF09`
+  };
+}
+function calculateTrendScore(trendData, config2) {
+  const { before, after } = trendData;
+  if (!before || !after) {
+    if (after && after.days > 0 && after.totalSpend > 0) {
+      const afterRoas2 = after.totalSpend > 0 ? after.totalSales / after.totalSpend : 0;
+      const score2 = afterRoas2 >= 2 ? 70 : afterRoas2 >= 1 ? 55 : 40;
+      return { score: score2, detail: `\u65B0\u4F18\u5316\u76EE\u6807\uFF0CROAS=${afterRoas2.toFixed(2)}\uFF08\u65E0\u5386\u53F2\u5BF9\u6BD4\uFF09` };
+    }
+    return { score: 50, detail: "\u6570\u636E\u4E0D\u8DB3\uFF0C\u65E0\u6CD5\u8FDB\u884C\u8D8B\u52BF\u5BF9\u6BD4" };
+  }
+  if (before.days < 3 || after.days < 3) {
+    return { score: 50, detail: `\u6570\u636E\u5929\u6570\u4E0D\u8DB3\uFF08\u524D${before.days}\u5929/\u540E${after.days}\u5929\uFF09\uFF0C\u9700\u66F4\u591A\u6570\u636E` };
+  }
+  const beforeDailySpend = before.totalSpend / before.days;
+  const beforeDailySales = before.totalSales / before.days;
+  const beforeDailyOrders = before.totalOrders / before.days;
+  const beforeAcos = before.totalSales > 0 ? before.totalSpend / before.totalSales * 100 : 999;
+  const beforeRoas = before.totalSpend > 0 ? before.totalSales / before.totalSpend : 0;
+  const beforeCvr = before.totalClicks > 0 ? before.totalOrders / before.totalClicks * 100 : 0;
+  const afterDailySpend = after.totalSpend / after.days;
+  const afterDailySales = after.totalSales / after.days;
+  const afterDailyOrders = after.totalOrders / after.days;
+  const afterAcos = after.totalSales > 0 ? after.totalSpend / after.totalSales * 100 : 999;
+  const afterRoas = after.totalSpend > 0 ? after.totalSales / after.totalSpend : 0;
+  const afterCvr = after.totalClicks > 0 ? after.totalOrders / after.totalClicks * 100 : 0;
+  let trendPoints = 0;
+  let maxPoints = 0;
+  const improvements = [];
+  maxPoints += 30;
+  if (beforeAcos < 900 && afterAcos < 900) {
+    const acosImprovement = (beforeAcos - afterAcos) / Math.max(beforeAcos, 1);
+    if (acosImprovement > 0.15) {
+      trendPoints += 30;
+      improvements.push(`ACoS\u2193${(acosImprovement * 100).toFixed(0)}%`);
+    } else if (acosImprovement > 0.05) {
+      trendPoints += 22;
+      improvements.push(`ACoS\u2193${(acosImprovement * 100).toFixed(0)}%`);
+    } else if (acosImprovement > -0.05) {
+      trendPoints += 15;
+      improvements.push("ACoS\u6301\u5E73");
+    } else if (acosImprovement > -0.15) {
+      trendPoints += 8;
+      improvements.push(`ACoS\u2191${(-acosImprovement * 100).toFixed(0)}%`);
+    } else {
+      trendPoints += 0;
+      improvements.push(`ACoS\u2191${(-acosImprovement * 100).toFixed(0)}%`);
+    }
+  } else {
+    trendPoints += 15;
+  }
+  maxPoints += 30;
+  if (beforeDailySales > 0) {
+    const salesGrowth = (afterDailySales - beforeDailySales) / beforeDailySales;
+    if (salesGrowth > 0.2) {
+      trendPoints += 30;
+      improvements.push(`\u65E5\u9500\u2191${(salesGrowth * 100).toFixed(0)}%`);
+    } else if (salesGrowth > 0.05) {
+      trendPoints += 22;
+      improvements.push(`\u65E5\u9500\u2191${(salesGrowth * 100).toFixed(0)}%`);
+    } else if (salesGrowth > -0.05) {
+      trendPoints += 15;
+      improvements.push("\u65E5\u9500\u6301\u5E73");
+    } else if (salesGrowth > -0.2) {
+      trendPoints += 8;
+      improvements.push(`\u65E5\u9500\u2193${(-salesGrowth * 100).toFixed(0)}%`);
+    } else {
+      trendPoints += 0;
+      improvements.push(`\u65E5\u9500\u2193${(-salesGrowth * 100).toFixed(0)}%`);
+    }
+  } else if (afterDailySales > 0) {
+    trendPoints += 25;
+    improvements.push("\u5F00\u59CB\u4EA7\u751F\u9500\u552E");
+  } else {
+    trendPoints += 10;
+  }
+  maxPoints += 20;
+  if (beforeRoas > 0) {
+    const roasGrowth = (afterRoas - beforeRoas) / beforeRoas;
+    if (roasGrowth > 0.15) {
+      trendPoints += 20;
+      improvements.push(`ROAS\u2191${(roasGrowth * 100).toFixed(0)}%`);
+    } else if (roasGrowth > 0) {
+      trendPoints += 15;
+      improvements.push(`ROAS\u2191${(roasGrowth * 100).toFixed(0)}%`);
+    } else if (roasGrowth > -0.1) {
+      trendPoints += 10;
+      improvements.push("ROAS\u6301\u5E73");
+    } else {
+      trendPoints += 3;
+      improvements.push(`ROAS\u2193${(-roasGrowth * 100).toFixed(0)}%`);
+    }
+  } else if (afterRoas > 0) {
+    trendPoints += 18;
+    improvements.push("ROAS\u4ECE0\u6539\u5584");
+  } else {
+    trendPoints += 5;
+  }
+  maxPoints += 20;
+  if (beforeCvr > 0) {
+    const cvrGrowth = (afterCvr - beforeCvr) / beforeCvr;
+    if (cvrGrowth > 0.1) {
+      trendPoints += 20;
+      improvements.push(`CVR\u2191${(cvrGrowth * 100).toFixed(0)}%`);
+    } else if (cvrGrowth > 0) {
+      trendPoints += 15;
+    } else if (cvrGrowth > -0.1) {
+      trendPoints += 10;
+    } else {
+      trendPoints += 3;
+    }
+  } else {
+    trendPoints += 10;
+  }
+  const score = maxPoints > 0 ? Math.round(trendPoints / maxPoints * 100) : 50;
+  const detail = improvements.length > 0 ? improvements.join("\uFF0C") : "\u8D8B\u52BF\u6570\u636E\u8BA1\u7B97\u4E2D";
+  return { score: Math.min(100, Math.max(5, score)), detail };
+}
+function calculateBudgetEfficiencyScore(config2, metrics) {
+  const dailyBudget = config2.dailyBudget || config2.dailySpendLimit || 0;
+  if (dailyBudget <= 0) {
+    if (metrics.totalSpend > 0 && metrics.totalSales > 0) {
+      const roas = metrics.avgRoas;
+      const score2 = roas >= 2 ? 80 : roas >= 1 ? 65 : 45;
+      return { score: score2, detail: `\u672A\u8BBE\u7F6E\u9884\u7B97\u4E0A\u9650\uFF0CROAS=${roas.toFixed(2)}` };
+    }
+    return { score: 50, detail: "\u672A\u8BBE\u7F6E\u9884\u7B97\uFF0C\u6682\u65E0\u6CD5\u8BC4\u4F30\u6548\u7387" };
+  }
+  const totalBudget = dailyBudget * 30;
+  const utilizationRate = totalBudget > 0 ? metrics.totalSpend / totalBudget : 0;
+  let score;
+  let detail;
+  if (utilizationRate >= 0.75 && utilizationRate <= 1.05) {
+    score = 95;
+    detail = `\u9884\u7B97\u5229\u7528\u7387${(utilizationRate * 100).toFixed(0)}%\uFF08\u6700\u4F73\u533A\u95F4\uFF09`;
+  } else if (utilizationRate >= 0.5 && utilizationRate < 0.75) {
+    score = 65 + (utilizationRate - 0.5) / 0.25 * 30;
+    detail = `\u9884\u7B97\u5229\u7528\u7387${(utilizationRate * 100).toFixed(0)}%\uFF08\u504F\u4F4E\uFF0C\u53EF\u63D0\u9AD8\u66DD\u5149\uFF09`;
+  } else if (utilizationRate >= 0.2 && utilizationRate < 0.5) {
+    score = 35 + (utilizationRate - 0.2) / 0.3 * 30;
+    detail = `\u9884\u7B97\u5229\u7528\u7387${(utilizationRate * 100).toFixed(0)}%\uFF08\u504F\u4F4E\uFF0C\u5EFA\u8BAE\u68C0\u67E5\u7ADE\u4EF7\u6216\u5173\u952E\u8BCD\uFF09`;
+  } else if (utilizationRate < 0.2) {
+    score = Math.max(10, utilizationRate / 0.2 * 35);
+    detail = `\u9884\u7B97\u5229\u7528\u7387${(utilizationRate * 100).toFixed(0)}%\uFF08\u6781\u4F4E\uFF0C\u5E7F\u544A\u53EF\u80FD\u672A\u6709\u6548\u6295\u653E\uFF09`;
+  } else if (utilizationRate <= 1.2) {
+    score = 80;
+    detail = `\u9884\u7B97\u5229\u7528\u7387${(utilizationRate * 100).toFixed(0)}%\uFF08\u7565\u8D85\u9884\u7B97\uFF09`;
+  } else {
+    score = Math.max(15, 80 - (utilizationRate - 1.2) * 80);
+    detail = `\u9884\u7B97\u5229\u7528\u7387${(utilizationRate * 100).toFixed(0)}%\uFF08\u8D85\u652F\uFF0C\u9700\u8981\u63A7\u5236\u82B1\u8D39\uFF09`;
+  }
+  if (metrics.totalSpend > 0) {
+    const spendEfficiency = metrics.totalSales / metrics.totalSpend;
+    if (spendEfficiency >= 2) score = Math.min(100, score + 5);
+    else if (spendEfficiency < 0.5) score = Math.max(10, score - 10);
+  }
+  return { score: Math.round(Math.min(100, Math.max(5, score))), detail };
+}
+function calculateConversionEfficiencyScore(metrics, config2) {
+  if (metrics.totalClicks < 5 || metrics.totalSpend < 1) {
+    return { score: 0, detail: "\u70B9\u51FB/\u82B1\u8D39\u6570\u636E\u4E0D\u8DB3\uFF0C\u6682\u65E0\u6CD5\u8BC4\u4F30\u8F6C\u5316\u6548\u7387" };
+  }
+  let totalPoints = 0;
+  let maxPoints = 0;
+  const details = [];
+  maxPoints += 40;
+  const roas = metrics.avgRoas;
+  if (roas >= 4) {
+    totalPoints += 40;
+    details.push(`ROAS ${roas.toFixed(2)}(\u4F18\u79C0)`);
+  } else if (roas >= 2.5) {
+    totalPoints += 32;
+    details.push(`ROAS ${roas.toFixed(2)}(\u826F\u597D)`);
+  } else if (roas >= 1.5) {
+    totalPoints += 24;
+    details.push(`ROAS ${roas.toFixed(2)}(\u4E00\u822C)`);
+  } else if (roas >= 1) {
+    totalPoints += 16;
+    details.push(`ROAS ${roas.toFixed(2)}(\u504F\u4F4E)`);
+  } else if (roas > 0) {
+    totalPoints += 8;
+    details.push(`ROAS ${roas.toFixed(2)}(\u4E8F\u635F)`);
+  } else {
+    totalPoints += 0;
+    details.push("ROAS=0");
+  }
+  maxPoints += 30;
+  const cvr = metrics.cvr;
+  if (cvr >= 15) {
+    totalPoints += 30;
+    details.push(`CVR ${cvr.toFixed(1)}%`);
+  } else if (cvr >= 10) {
+    totalPoints += 25;
+  } else if (cvr >= 5) {
+    totalPoints += 18;
+  } else if (cvr >= 2) {
+    totalPoints += 12;
+  } else if (cvr > 0) {
+    totalPoints += 5;
+  } else {
+    totalPoints += 0;
+  }
+  maxPoints += 30;
+  const cpc = metrics.cpc;
+  if (cpc > 0 && metrics.totalOrders > 0) {
+    const costPerOrder = metrics.totalSpend / metrics.totalOrders;
+    const avgOrderValue = metrics.totalSales / metrics.totalOrders;
+    const costRatio = avgOrderValue > 0 ? costPerOrder / avgOrderValue : 1;
+    if (costRatio <= 0.15) {
+      totalPoints += 30;
+      details.push(`\u5355\u5747\u5E7F\u544A\u6210\u672C\u5360\u6BD4${(costRatio * 100).toFixed(0)}%`);
+    } else if (costRatio <= 0.25) {
+      totalPoints += 24;
+    } else if (costRatio <= 0.4) {
+      totalPoints += 16;
+    } else if (costRatio <= 0.6) {
+      totalPoints += 10;
+    } else {
+      totalPoints += 4;
+    }
+  } else if (cpc > 0) {
+    totalPoints += 5;
+    details.push(`CPC $${cpc.toFixed(2)}\uFF0C\u6682\u65E0\u8F6C\u5316`);
+  }
+  const score = maxPoints > 0 ? Math.round(totalPoints / maxPoints * 100) : 0;
+  const detail = details.join("\uFF0C") || "\u8F6C\u5316\u6570\u636E\u8BA1\u7B97\u4E2D";
+  return { score: Math.min(100, Math.max(0, score)), detail };
+}
+function calculateGoalProgress(config2, metrics, trendData) {
+  if (config2.campaignCount === 0 && metrics.totalSpend < 0.01 && metrics.totalSales < 0.01) {
+    return {
+      totalScore: 0,
+      dimensions: [],
+      summary: "\u6682\u65E0\u5E7F\u544A\u6D3B\u52A8\u6570\u636E",
+      level: "poor"
+    };
+  }
+  const weights = getWeights(config2.strategyTemplateId);
+  const coreMetric = calculateCoreMetricScore(config2, metrics);
+  const trend = trendData ? calculateTrendScore(trendData, config2) : { score: 50, detail: "\u8D8B\u52BF\u6570\u636E\u52A0\u8F7D\u4E2D" };
+  const budgetEff = calculateBudgetEfficiencyScore(config2, metrics);
+  const convEff = calculateConversionEfficiencyScore(metrics, config2);
+  const dimensions = [
+    {
+      name: "coreMetric",
+      nameZh: "\u6307\u6807\u8FBE\u6210",
+      score: coreMetric.score,
+      weight: weights.coreMetric,
+      weighted: Math.round(coreMetric.score * weights.coreMetric / 100),
+      detail: coreMetric.detail
+    },
+    {
+      name: "trend",
+      nameZh: "\u8D8B\u52BF\u6539\u5584",
+      score: trend.score,
+      weight: weights.trend,
+      weighted: Math.round(trend.score * weights.trend / 100),
+      detail: trend.detail
+    },
+    {
+      name: "budgetEfficiency",
+      nameZh: "\u9884\u7B97\u6548\u7387",
+      score: budgetEff.score,
+      weight: weights.budgetEfficiency,
+      weighted: Math.round(budgetEff.score * weights.budgetEfficiency / 100),
+      detail: budgetEff.detail
+    },
+    {
+      name: "conversionEfficiency",
+      nameZh: "\u8F6C\u5316\u6548\u7387",
+      score: convEff.score,
+      weight: weights.conversionEfficiency,
+      weighted: Math.round(convEff.score * weights.conversionEfficiency / 100),
+      detail: convEff.detail
+    }
+  ];
+  const totalScore = dimensions.reduce((sum2, d5) => sum2 + d5.weighted, 0);
+  let level;
+  if (totalScore >= 85) level = "excellent";
+  else if (totalScore >= 65) level = "good";
+  else if (totalScore >= 40) level = "fair";
+  else level = "poor";
+  const levelLabels = { excellent: "\u4F18\u79C0", good: "\u826F\u597D", fair: "\u4E00\u822C", poor: "\u5F85\u6539\u5584" };
+  const topDimension = dimensions.reduce((a4, b6) => a4.score > b6.score ? a4 : b6);
+  const weakDimension = dimensions.reduce((a4, b6) => a4.score < b6.score ? a4 : b6);
+  let summary = `\u7EFC\u5408\u8BC4\u5206${totalScore}\u5206\uFF08${levelLabels[level]}\uFF09`;
+  if (topDimension.score > 70) {
+    summary += `\uFF0C${topDimension.nameZh}\u8868\u73B0\u7A81\u51FA`;
+  }
+  if (weakDimension.score < 50 && weakDimension.score < topDimension.score - 20) {
+    summary += `\uFF0C${weakDimension.nameZh}\u9700\u5173\u6CE8`;
+  }
+  return {
+    totalScore: Math.min(100, Math.max(0, totalScore)),
+    dimensions,
+    summary,
+    level
+  };
+}
+
 // server/abTestService.ts
 init_db2();
 init_schema2();
@@ -344649,6 +345247,44 @@ var performanceGroupRouter = router({
         const ctr = totalImpressions > 0 ? totalClicks / totalImpressions * 100 : 0;
         const cvr = totalClicks > 0 ? totalOrders / totalClicks * 100 : 0;
         const cpc = totalClicks > 0 ? totalSpend / totalClicks : 0;
+        let goalProgressResult = null;
+        try {
+          const metrics = {
+            totalSpend,
+            totalSales,
+            totalOrders,
+            totalClicks,
+            totalImpressions,
+            avgAcos,
+            avgRoas,
+            ctr,
+            cvr,
+            cpc
+          };
+          const groupConfig = {
+            id: group.id,
+            optimizationGoal: group.optimizationGoal || "maximize_sales",
+            targetAcos: Number(group.targetAcos) || null,
+            targetRoas: Number(group.targetRoas) || null,
+            dailyBudget: Number(group.dailyBudget) || null,
+            dailySpendLimit: Number(group.dailySpendLimit) || null,
+            maxBid: Number(group.maxBid) || null,
+            strategyTemplateId: group.strategyTemplateId || null,
+            strategyTemplateName: group.strategyTemplateName || null,
+            status: group.status || "active",
+            createdAt: group.createdAt || (/* @__PURE__ */ new Date()).toISOString(),
+            campaignCount: campaigns6.length
+          };
+          let trendData;
+          try {
+            trendData = await getGoalProgressTrendData(group.id, group.createdAt || (/* @__PURE__ */ new Date()).toISOString());
+          } catch (trendErr) {
+            console.log(`[performanceGroup.list] Trend data fetch failed for group ${group.id}:`, trendErr);
+          }
+          goalProgressResult = calculateGoalProgress(groupConfig, metrics, trendData);
+        } catch (progressErr) {
+          console.error(`[performanceGroup.list] Goal progress calc failed for group ${group.id}:`, progressErr);
+        }
         return {
           ...group,
           campaignCount: campaigns6.length,
@@ -344662,8 +345298,13 @@ var performanceGroupRouter = router({
           ctr,
           cvr,
           cpc,
-          // 目标达成度
-          goalProgress: group.optimizationGoal === "target_acos" && group.targetAcos ? Math.min(100, Number(group.targetAcos) / Math.max(avgAcos, 0.01) * 100) : group.optimizationGoal === "target_roas" && group.targetRoas ? Math.min(100, avgRoas / Math.max(Number(group.targetRoas), 0.01) * 100) : null
+          // v162: 多维度目标达成度
+          goalProgress: goalProgressResult ? goalProgressResult.totalScore : null,
+          goalProgressDetail: goalProgressResult ? {
+            dimensions: goalProgressResult.dimensions,
+            summary: goalProgressResult.summary,
+            level: goalProgressResult.level
+          } : null
         };
       } catch (error54) {
         console.error(`[performanceGroup.list] Error enriching group ${group.id}:`, error54);
@@ -344680,7 +345321,8 @@ var performanceGroupRouter = router({
           ctr: 0,
           cvr: 0,
           cpc: 0,
-          goalProgress: null
+          goalProgress: null,
+          goalProgressDetail: null
         };
       }
     }));

@@ -19,6 +19,7 @@ import { eq } from "drizzle-orm";
 import * as bidOptimizer from "./bidOptimizer";
 import * as daypartingService from "./daypartingService";
 import * as placementOptimizationService from "./placementOptimizationService";
+import { preOptimizationSafetyCheck, applyBidGuardrail, applyBudgetGuardrail, applyPlacementGuardrail, SAFETY_LIMITS } from './optimizationSafetyGuardrails';
 import * as adAutomation from "./adAutomation";
 import * as intelligentBudgetAllocationService from "./intelligentBudgetAllocationService";
 import * as bidCoordinator from "./services/bidCoordinator";
@@ -268,6 +269,18 @@ export async function executeOptimizationTarget(
   // v143: 记录生命周期阶段信息
   if (config.lifecycleStage) {
     console.log(`[OptimizationTarget] 目标 ${config.name} 当前生命周期: ${config.lifecycleStage} | 出价调整上限: ±${config.maxBidChangePercent}% | ${config.lifecycleSummary}`);
+  }
+  
+  // v162: 执行前安全护栏检查
+  try {
+    const safetyCheck = await preOptimizationSafetyCheck(config.accountId, targetId);
+    if (!safetyCheck.safe) {
+      result.warnings.push(...safetyCheck.warnings);
+      console.warn(`[OptimizationTarget] v162 安全护栏触发: ${safetyCheck.warnings.join('; ')}`);
+      // 紧急制动时不完全阻止执行，但记录警告并降低调整幅度
+    }
+  } catch (safetyErr: any) {
+    console.log(`[OptimizationTarget] v162 安全检查异常，继续执行: ${safetyErr.message}`);
   }
   
   // 获取优化目标下的所有广告活动
