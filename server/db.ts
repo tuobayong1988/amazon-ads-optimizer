@@ -4781,27 +4781,29 @@ export async function getPlacementPerformanceByCampaignId(campaignId: number) {
   if (!db) return [];
   
   try {
-    // 使用原生SQL查询placement_performance表
+    // v165: 修复SQL列名错误 - 实际列名是campaignId/placement/date（非campaign_id/placement_type/report_date）
+    // 聚合所有日期的数据，按位置类型汇总，展示累计绩效
     const result = await db.execute(sql`
       SELECT 
-        id,
-        campaign_id as campaignId,
-        placement_type as placementType,
-        impressions,
-        clicks,
-        spend,
-        sales,
-        orders,
-        acos,
-        roas,
-        ctr,
-        cvr,
-        cpc,
-        report_date as reportDate,
-        created_at as createdAt
+        MIN(id) as id,
+        campaignId,
+        placement as placementType,
+        SUM(impressions) as impressions,
+        SUM(clicks) as clicks,
+        SUM(spend) as spend,
+        SUM(sales) as sales,
+        SUM(orders) as orders,
+        CASE WHEN SUM(sales) > 0 THEN ROUND(SUM(spend) / SUM(sales) * 100, 2) ELSE NULL END as acos,
+        CASE WHEN SUM(spend) > 0 THEN ROUND(SUM(sales) / SUM(spend), 2) ELSE 0 END as roas,
+        CASE WHEN SUM(impressions) > 0 THEN ROUND(SUM(clicks) / SUM(impressions), 6) ELSE 0 END as ctr,
+        CASE WHEN SUM(clicks) > 0 THEN ROUND(SUM(orders) / SUM(clicks), 6) ELSE 0 END as cvr,
+        CASE WHEN SUM(clicks) > 0 THEN ROUND(SUM(spend) / SUM(clicks), 2) ELSE NULL END as cpc,
+        MAX(date) as reportDate,
+        MIN(createdAt) as createdAt
       FROM placement_performance
-      WHERE campaign_id = ${campaignId}
-      ORDER BY placement_type
+      WHERE campaignId = ${campaignId}
+      GROUP BY campaignId, placement
+      ORDER BY placement
     `);
     
     return (result as any) || [];
@@ -4850,9 +4852,18 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
   const result = await db.insert(optimizationLogs).values(data);
   const logId = Number(result[0].insertId);
   
-  // v145: 双写到统一优化事件表
+  // v145+v212: 双写到统一优化事件表
+  // v212修复: 1) categoryMap键名与实际log_category值对齐
+  //          2) 从action_detail JSON中提取keywordId/previousBid/newBid
+  //          3) 增强错误日志
   try {
     const categoryMap: Record<string, string> = {
+      // v212: 修正映射 - 键名必须与optimization_logs.log_category实际值一致
+      'bid_adjustment': 'bid_adjustment',
+      'placement_adjustment': 'placement_adjustment',
+      'budget_adjustment': 'budget_adjustment',
+      'optimization_settings': 'settings_change',
+      // 保留旧映射以兼容可能的历史数据
       'bid_optimization': 'bid_adjustment',
       'placement_optimization': 'placement_adjustment',
       'budget_optimization': 'budget_adjustment',
@@ -4877,6 +4888,38 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
       'add_campaign': 'add_campaign', 'remove_campaign': 'remove_campaign',
       'settings_update': 'settings_update', 'strategy_change': 'strategy_change',
     };
+    
+    // v212: 从action_detail JSON中提取关键字段（optimization_logs表没有这些列）
+    let extractedKeywordId: number | undefined;
+    let extractedKeywordText: string | undefined;
+    let extractedPreviousBid: string | undefined;
+    let extractedNewBid: string | undefined;
+    let extractedBidChangePercent: string | undefined;
+    let extractedApiSyncStatus: string | undefined;
+    let extractedApiSyncDetail: string | undefined;
+    
+    if (data.actionDetail) {
+      try {
+        const detail = typeof data.actionDetail === 'string' ? JSON.parse(data.actionDetail) : data.actionDetail;
+        extractedKeywordId = detail.keywordId ? Number(detail.keywordId) : undefined;
+        extractedKeywordText = detail.keywordText || undefined;
+        extractedPreviousBid = detail.currentBid != null ? String(detail.currentBid) : undefined;
+        extractedNewBid = detail.newBid != null ? String(detail.newBid) : undefined;
+        extractedBidChangePercent = detail.changePercent != null ? String(detail.changePercent) : undefined;
+        extractedApiSyncStatus = detail.apiSyncStatus || undefined;
+        extractedApiSyncDetail = detail.apiSyncDetail || undefined;
+      } catch (parseErr) {
+        // action_detail可能不是有效JSON，忽略解析错误
+      }
+    }
+    
+    const resolvedCategory = categoryMap[data.logCategory || ''] || 'settings_change';
+    const resolvedActionType = actionTypeMap[data.actionType || ''] || 'settings_update';
+    
+    // v212: 使用提取的apiSyncStatus（优先级：action_detail > data字段）
+    const finalApiSyncStatus = extractedApiSyncStatus || data.apiSyncStatus || 'pending';
+    const finalApiSyncDetail = extractedApiSyncDetail || data.apiSyncDetail;
+    
     await db.insert(optimizationEvents).values({
       performanceGroupId: data.performanceGroupId,
       performanceGroupName: data.performanceGroupName,
@@ -4884,26 +4927,34 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
       accountName: data.accountName,
       userId: data.userId,
       userName: data.userName,
-      eventCategory: (categoryMap[data.logCategory || ''] || 'settings_change') as any,
-      actionType: (actionTypeMap[data.actionType || ''] || 'settings_update') as any,
+      eventCategory: resolvedCategory as any,
+      actionType: resolvedActionType as any,
       strategyTemplateId: data.strategyTemplateId,
       strategyTemplateName: data.strategyTemplateName,
       campaignId: data.campaignId,
       campaignName: data.campaignName,
+      // v212: 从action_detail中提取的关键字段
+      keywordId: extractedKeywordId,
+      keywordText: extractedKeywordText,
+      previousBid: extractedPreviousBid,
+      newBid: extractedNewBid,
+      bidChangePercent: extractedBidChangePercent,
       previousValue: data.previousValue,
       newValue: data.newValue,
       changeReason: data.changeReason,
       actionDetail: data.actionDetail,
       status: (data.status as any) || 'success',
-      apiSyncStatus: data.apiSyncStatus as any,
-      apiSyncDetail: data.apiSyncDetail,
+      apiSyncStatus: (finalApiSyncStatus === 'partial' ? 'synced' : finalApiSyncStatus) as any,
+      apiSyncDetail: finalApiSyncDetail,
       errorMessage: data.errorMessage,
       sourceTable: 'optimization_logs',
       sourceId: logId,
       executedAt: data.executedAt,
     });
+    console.log(`[v212] 双写optimization_events成功: logId=${logId}, category=${resolvedCategory}, keywordId=${extractedKeywordId || 'N/A'}, apiSyncStatus=${finalApiSyncStatus}`);
   } catch (e) {
-    console.error('[v145] 双写optimization_events失败:', e);
+    console.error('[v212] 双写optimization_events失败:', (e as any).message || e);
+    console.error('[v212] 双写失败详情: logCategory=', data.logCategory, 'actionType=', data.actionType);
   }
   
   return logId;

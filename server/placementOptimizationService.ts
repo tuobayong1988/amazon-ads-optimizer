@@ -848,6 +848,32 @@ export async function updatePlacementSettings(
       ...updateData
     });
   }
+  
+  // v165: 同步更新campaigns表的位置倾斜字段，确保前端展示与实际优化值一致
+  try {
+    const campaignUpdateData: any = {};
+    for (const adj of validAdjustments) {
+      if (adj.placementType === 'top_of_search') {
+        campaignUpdateData.placementTopSearchBidAdjustment = adj.suggestedAdjustment;
+      } else if (adj.placementType === 'product_page') {
+        campaignUpdateData.placementProductPageBidAdjustment = adj.suggestedAdjustment;
+      }
+    }
+    if (Object.keys(campaignUpdateData).length > 0) {
+      // 尝试通过Amazon campaignId查找并更新campaigns表
+      await db.update(campaigns)
+        .set(campaignUpdateData)
+        .where(
+          and(
+            eq(campaigns.campaignId, campaignId),
+            eq(campaigns.accountId, accountId)
+          )
+        );
+      console.log(`[PlacementOptimization] v165: campaigns表位置倾斜已同步更新 - campaignId=${campaignId}`, campaignUpdateData);
+    }
+  } catch (campaignUpdateError: any) {
+    console.error(`[PlacementOptimization] v165: campaigns表位置倾斜更新失败: ${campaignUpdateError.message}`);
+  }
 }
 
 /**

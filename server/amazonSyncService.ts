@@ -136,8 +136,13 @@ async function hasRecentSyncedOptimization(
 }
 
 /**
- * v150: 批量查询有近期优化事件的关键词ID集合
+ * v150+v212: 批量查询有近期优化事件的关键词ID集合
  * 用于批量同步时高效判断哪些关键词需要保护
+ * 
+ * v212增强: 
+ * - 同时查询synced和pending状态（partial映射为pending也应保护）
+ * - 添加fallback查询optimization_logs表
+ * - 增强错误日志，记录查询失败的详细信息
  */
 async function getRecentlyOptimizedKeywordIds(
   keywordIds: number[],
@@ -146,10 +151,14 @@ async function getRecentlyOptimizedKeywordIds(
   try {
     if (keywordIds.length === 0) return new Set();
     const db = await getDb();
-    if (!db) return new Set();
+    if (!db) {
+      console.error('[SyncProtection] v212: 数据库连接不可用，保护机制无法工作！');
+      return new Set();
+    }
     const cutoff = new Date(Date.now() - hoursWindow * 60 * 60 * 1000)
       .toISOString().slice(0, 19).replace('T', ' ');
     
+    // v212: 查询synced状态的记录（主要保护对象）
     const results = await db
       .select({ keywordId: optimizationEvents.keywordId })
       .from(optimizationEvents)
@@ -161,15 +170,47 @@ async function getRecentlyOptimizedKeywordIds(
       ))
       .groupBy(optimizationEvents.keywordId);
     
-    return new Set(results.map(r => r.keywordId!).filter(Boolean));
+    const protectedSet = new Set(results.map(r => r.keywordId!).filter(Boolean));
+    
+    // v212: Fallback - 如果optimization_events查询结果为空，尝试从optimization_logs中查找
+    // 这是为了兼容双写失败的历史数据
+    if (protectedSet.size === 0 && keywordIds.length > 0) {
+      try {
+        const fallbackResults = await db.execute(
+          sql`SELECT DISTINCT JSON_UNQUOTE(JSON_EXTRACT(action_detail, '$.keywordId')) as kw_id
+              FROM optimization_logs
+              WHERE log_category = 'bid_adjustment'
+                AND api_sync_status IN ('synced', 'partial')
+                AND created_at >= ${cutoff}
+                AND JSON_EXTRACT(action_detail, '$.keywordId') IS NOT NULL`
+        );
+        const fallbackRows = (fallbackResults as unknown as any[][])[0] || [];
+        if (fallbackRows && fallbackRows.length > 0) {
+          const fallbackKeywordIds = new Set(fallbackRows.map((r: any) => Number(r.kw_id)).filter(id => id > 0 && keywordIds.includes(id)));
+          if (fallbackKeywordIds.size > 0) {
+            console.log(`[SyncProtection] v212: Fallback查询optimization_logs找到${fallbackKeywordIds.size}个需要保护的关键词`);
+            for (const id of fallbackKeywordIds) protectedSet.add(id);
+          }
+        }
+      } catch (fallbackErr) {
+        console.warn('[SyncProtection] v212: Fallback查询optimization_logs失败:', (fallbackErr as any).message);
+      }
+    }
+    
+    console.log(`[SyncProtection] v212: 查询完成, 输入${keywordIds.length}个关键词, 保护${protectedSet.size}个`);
+    return protectedSet;
   } catch (error) {
-    console.warn('[SyncService] v150: 批量查询优化关键词失败:', (error as any).message);
+    console.error('[SyncProtection] v212: ❌ 批量查询优化关键词失败，保护机制降级！', (error as any).message);
+    console.error('[SyncProtection] v212: 错误详情:', (error as any).stack?.substring(0, 300));
+    // v212: 即使查询失败，仍返回空Set以不阻塞同步
+    // 但通过error级别日志确保问题被发现
     return new Set();
   }
 }
 
 /**
- * v150: 批量查询有近期预算优化事件的广告活动ID集合
+ * v150+v212: 批量查询有近期预算优化事件的广告活动ID集合
+ * v212增强: 增强错误日志
  */
 async function getRecentlyOptimizedCampaignIds(
   campaignIds: number[],
@@ -178,7 +219,10 @@ async function getRecentlyOptimizedCampaignIds(
   try {
     if (campaignIds.length === 0) return new Set();
     const db = await getDb();
-    if (!db) return new Set();
+    if (!db) {
+      console.error('[SyncProtection] v212: 数据库连接不可用，预算保护机制无法工作！');
+      return new Set();
+    }
     const cutoff = new Date(Date.now() - hoursWindow * 60 * 60 * 1000)
       .toISOString().slice(0, 19).replace('T', ' ');
     
@@ -193,9 +237,11 @@ async function getRecentlyOptimizedCampaignIds(
       ))
       .groupBy(optimizationEvents.campaignId);
     
-    return new Set(results.map(r => r.campaignId!).filter(Boolean));
+    const protectedSet = new Set(results.map(r => r.campaignId!).filter(Boolean));
+    console.log(`[SyncProtection] v212: 预算保护查询完成, 输入${campaignIds.length}个广告活动, 保护${protectedSet.size}个`);
+    return protectedSet;
   } catch (error) {
-    console.warn('[SyncService] v150: 批量查询优化广告活动失败:', (error as any).message);
+    console.error('[SyncProtection] v212: ❌ 批量查询优化广告活动失败:', (error as any).message);
     return new Set();
   }
 }
@@ -980,6 +1026,19 @@ export class AmazonSyncService {
               console.log(`[SyncService] v150: 预算差异 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, 以API为准`);
               protectionStats.budgetOverwritten++;
             }
+          }
+          
+          // v165: 位置倾斜比例保护逻辑
+          const localTopPlacement1 = existing.placementTopSearchBidAdjustment || 0;
+          const apiTopPlacement1 = (campaignData as any).placementTopSearchBidAdjustment || 0;
+          const localProductPlacement1 = existing.placementProductPageBidAdjustment || 0;
+          const apiProductPlacement1 = (campaignData as any).placementProductPageBidAdjustment || 0;
+          const hasPlacementDiff1 = localTopPlacement1 !== apiTopPlacement1 || localProductPlacement1 !== apiProductPlacement1;
+          if (hasPlacementDiff1 && protectedCampaignIds.has(existing.id)) {
+            console.log(`[SyncService] v165: 位置倾斜保护生效 - campaign=${existing.campaignName}, localTop=${localTopPlacement1}%, apiTop=${apiTopPlacement1}%, localProduct=${localProductPlacement1}%, apiProduct=${apiProductPlacement1}%`);
+            delete (campaignData as any).placementTopSearchBidAdjustment;
+            delete (campaignData as any).placementProductPageBidAdjustment;
+            protectionStats.protectedEntities.push(`placement:${existing.campaignName}`);
           }
           
           await db
@@ -3605,13 +3664,16 @@ export class AmazonSyncService {
 
         const reportDate = row.date || new Date().toISOString().split('T')[0];
 
+        // v165: 统一使用本地campaign.id作为campaignId，确保前端查询一致性
+        const localCampaignId = String(campaign.id);
+        
         // 检查是否已存在
         const [existing] = await db
           .select()
           .from(placementPerformance)
           .where(
             and(
-              eq(placementPerformance.campaignId, String(campaign.campaignId)),
+              eq(placementPerformance.campaignId, localCampaignId),
               eq(placementPerformance.accountId, this.accountId),
               eq(placementPerformance.placement, placement),
               eq(placementPerformance.date, reportDate)
@@ -3627,7 +3689,7 @@ export class AmazonSyncService {
         const orders = row.purchases7d || row.purchases14d || 0;
 
         const perfData = {
-          campaignId: String(campaign.campaignId),
+          campaignId: localCampaignId,
           accountId: this.accountId,
           placement,
           date: reportDate,
@@ -4694,13 +4756,16 @@ export class AmazonSyncService {
         };
         const placement = placementMap[rawPlacement] || 'rest_of_search';
         
+        // v165: 统一使用本地campaign.id作为campaignId
+        const localCampaignId2 = String(campaign.id);
+        
         // 写入placement_performance表
         const [existing] = await db
           .select()
           .from(placementPerformance)
           .where(
             and(
-              eq(placementPerformance.campaignId, String(campaign.campaignId)),
+              eq(placementPerformance.campaignId, localCampaignId2),
               eq(placementPerformance.accountId, this.accountId),
               eq(placementPerformance.placement, placement),
               eq(placementPerformance.date, dateStr)
@@ -4715,7 +4780,7 @@ export class AmazonSyncService {
         const orders = parseInt(row.orders || row.attributedConversions14d || '0');
         
         const perfData = {
-          campaignId: String(campaign.campaignId),
+          campaignId: localCampaignId2,
           accountId: this.accountId,
           placement: placement,
           date: dateStr,
@@ -5154,6 +5219,19 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
           } else {
             protectionStats.budgetOverwritten++;
           }
+        }
+        
+        // v165: 位置倾斜比例保护逻辑 - 如果有近期优化事件，保留本地位置倾斜值
+        const localTopPlacement = existing.placementTopSearchBidAdjustment || 0;
+        const apiTopPlacement = (campaignData as any).placementTopSearchBidAdjustment || 0;
+        const localProductPlacement = existing.placementProductPageBidAdjustment || 0;
+        const apiProductPlacement = (campaignData as any).placementProductPageBidAdjustment || 0;
+        const hasPlacementDiff = localTopPlacement !== apiTopPlacement || localProductPlacement !== apiProductPlacement;
+        if (hasPlacementDiff && protectedCampaignIds.has(existing.id)) {
+          console.log(`[SyncService] v165: 位置倾斜保护生效 - campaign=${existing.campaignName}, localTop=${localTopPlacement}%, apiTop=${apiTopPlacement}%, localProduct=${localProductPlacement}%, apiProduct=${apiProductPlacement}%`);
+          delete (campaignData as any).placementTopSearchBidAdjustment;
+          delete (campaignData as any).placementProductPageBidAdjustment;
+          protectionStats.protectedEntities.push(`placement:${existing.campaignName}`);
         }
 
         await db

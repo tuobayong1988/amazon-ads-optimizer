@@ -1316,21 +1316,18 @@ async function executeSearchTermAnalysis(
           
           if (!dryRun) {
             const matchType = term.suggestedAction === 'negative_exact' ? 'exact' : 'phrase';
-            // 添加否定关键词
-            const dbInstance = await db.getDb();
-            if (dbInstance) {
-              const { negativeKeywords } = await import('../drizzle/schema');
-              await dbInstance.insert(negativeKeywords).values({
-                accountId: campaign.accountId || 0,
-                campaignId: campaign.id,
-                negativeLevel: 'campaign',
-                negativeType: 'keyword',
-                negativeText: term.searchTerm,
-                negativeMatchType: matchType === 'exact' ? 'negative_exact' : 'negative_phrase',
-                negativeSource: 'ngram_analysis',
-                createdAt: new Date().toISOString(),
-              });
-            }
+            // v165: 否词操作改为先记录到details，等待后续统一调用Amazon API
+            // API成功后再写入本地DB（见下方v134否定词同步代码块）
+            negativeKeyword._pendingDbInsert = {
+              accountId: campaign.accountId || 0,
+              campaignId: campaign.id,
+              negativeLevel: 'campaign',
+              negativeType: 'keyword',
+              negativeText: term.searchTerm,
+              negativeMatchType: matchType === 'exact' ? 'negative_exact' : 'negative_phrase',
+              negativeSource: 'ngram_analysis',
+              createdAt: new Date().toISOString(),
+            };
             negativeKeywordsAdded++;
           }
         } else if (term.suggestedAction === 'target') {
@@ -1464,12 +1461,32 @@ async function executeSearchTermAnalysis(
               }
             }
             console.log(`[SearchTermAnalysis] Amazon API同步: ${negativeDetails.length}个否定词, 状态=${negSyncStatus} (Campaign ${campaign.campaignName})`);
+            
+            // v165: API成功后才写入本地DB（先API后DB原则）
+            if (negSyncStatus === 'synced' || negSyncStatus === 'partial') {
+              const dbInstance = await db.getDb();
+              if (dbInstance) {
+                const { negativeKeywords } = await import('../drizzle/schema');
+                for (const d of negativeDetails) {
+                  if (d._pendingDbInsert && d.apiSyncStatus !== 'failed') {
+                    try {
+                      await dbInstance.insert(negativeKeywords).values(d._pendingDbInsert);
+                      console.log(`[SearchTermAnalysis] v165: 否词DB写入成功: "${d.searchTerm}"`);
+                    } catch (dbErr: any) {
+                      console.error(`[SearchTermAnalysis] v165: 否词DB写入失败: "${d.searchTerm}" - ${dbErr.message}`);
+                    }
+                  }
+                }
+              }
+            } else {
+              console.warn(`[SearchTermAnalysis] v165: API同步失败，跳过本地DB写入 (Campaign ${campaign.campaignName})`);
+            }
           } catch (apiError: any) {
             for (const d of negativeDetails) {
               d.apiSyncStatus = 'failed';
               d.apiSyncDetail = JSON.stringify({ error: apiError.message });
             }
-            console.error(`[SearchTermAnalysis] Amazon API同步失败 (Campaign ${campaign.campaignName}):`, apiError.message);
+            console.error(`[SearchTermAnalysis] Amazon API同步失败，未写入本地DB (Campaign ${campaign.campaignName}):`, apiError.message);
           }
         }
       }
