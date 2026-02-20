@@ -654,11 +654,12 @@ async function executeBidOptimization(
   }
   
   const currentDate = new Date();
-  // v155: maxBidLimit严格使用用户配置的max_bid，不再默认10（过高）
-  // 如果用户未设置max_bid，默认使用$5.00作为安全上限
-  const maxBidLimit = config.maxBid || 5.00;
-  console.log(`[BidOptimization] v155: 最高出价限制=${maxBidLimit} (用户设置=${config.maxBid || '未设置，使用默认$5.00'})`);
-  console.log(`[BidOptimization] v155: 日预算=${config.dailyBudget || '未设置'}, 目标ACoS=${config.targetAcos || '未设置'}`);
+  // v165: maxBidLimit严格使用用户配置的max_bid为绝对红线
+  // CPC广告默认上限$2.00，VCPM广告默认上限$15.00
+  const cpcMaxBidLimit = config.maxBid || 2.00;
+  const vcpmMaxBidLimit = config.maxBid ? config.maxBid * 5 : 15.00; // VCPM出价单位是每千次展示，通常是CPC的3-10倍
+  console.log(`[BidOptimization] v165: CPC最高出价=$${cpcMaxBidLimit} | VCPM最高出价=$${vcpmMaxBidLimit} (用户设置max_bid=${config.maxBid || '未设置'})`);
+  console.log(`[BidOptimization] v165: 日预算=${config.dailyBudget || '未设置'}, 目标ACoS=${config.targetAcos || '未设置'}`);
   
   for (const campaign of campaigns) {
     // v163: 获取campaign级别的90天历史每日数据，用于时间衰减加权分析
@@ -707,6 +708,13 @@ async function executeBidOptimization(
       if (safetyCheck.warnings.length > 0) {
         console.log(`[BidOptimization] v163: Campaign ${campaign.id} 安全警告: ${safetyCheck.warnings.join('；')}`);
       }
+    }
+    
+    // v165: 根据campaign的costType动态设置maxBidLimit（CPC vs VCPM）
+    const isVcpmCampaign = (campaign as any).costType === 'vcpm';
+    const maxBidLimit = isVcpmCampaign ? vcpmMaxBidLimit : cpcMaxBidLimit;
+    if (isVcpmCampaign) {
+      console.log(`[BidOptimization] v165: Campaign ${campaign.id} 识别为VCPM广告，使用VCPM最高出价$${maxBidLimit}`);
     }
     
     // v122h: 收集该campaign下所有关键词，构建EnhancedOptimizationTarget
@@ -759,6 +767,15 @@ async function executeBidOptimization(
           console.log(`[BidOptimization] v163: 渐进式竞价 - 关键词${result.targetId}: 算法目标$${result.newBid.toFixed(2)} → 渐进$${finalBid.toFixed(2)} (置信度=${gradualResult.dataConfidence}, 趋势=${gradualResult.trendDirection})`);
         }
         
+        // v165: 绝对红线校验（最后一道防线）——无论任何算法计算结果，finalBid不得超过maxBidLimit
+        finalBid = Math.min(finalBid, maxBidLimit);
+        finalBid = Math.max(finalBid, 0.02);
+        finalBid = Math.round(finalBid * 100) / 100;
+        if (finalBid > maxBidLimit) {
+          console.error(`[BidOptimization] v165: 红线拦截! keyword ${result.targetId} finalBid=$${finalBid} > maxBidLimit=$${maxBidLimit}`);
+          finalBid = maxBidLimit;
+        }
+        
         if (Math.abs(finalBid - result.previousBid) > 0.01) {
           const keyword = keywords.find(k => k.id === result.targetId);
           const adjustment = {
@@ -767,9 +784,9 @@ async function executeBidOptimization(
             campaignId: campaign.id,
             campaignName: campaign.campaignName,
             currentBid: result.previousBid,
-            newBid: finalBid, // v163: 使用渐进式调整后的出价
+            newBid: finalBid, // v165: 经过绝对红线校验的最终出价
             changePercent: ((finalBid - result.previousBid) / result.previousBid * 100).toFixed(2),
-            reason: `[v163渐进+${result.algorithmUsed}] ${result.reason}`,
+            reason: `[v165渐进+${result.algorithmUsed}] ${result.reason}`,
             algorithmUsed: result.algorithmUsed,
             confidenceScore: result.confidenceScore,
           };
@@ -836,6 +853,15 @@ async function executeBidOptimization(
           console.log(`[BidOptimization] v163: 渐进式商品定向 - ${result.targetId}: $${result.newBid.toFixed(2)} → $${finalBid.toFixed(2)}`);
         }
         
+        // v165: 商品定向绝对红线校验（最后一道防线）
+        finalBid = Math.min(finalBid, maxBidLimit);
+        finalBid = Math.max(finalBid, 0.02);
+        finalBid = Math.round(finalBid * 100) / 100;
+        if (finalBid > maxBidLimit) {
+          console.error(`[BidOptimization] v165: 红线拦截! product_target ${result.targetId} finalBid=$${finalBid} > maxBidLimit=$${maxBidLimit}`);
+          finalBid = maxBidLimit;
+        }
+        
         if (Math.abs(finalBid - result.previousBid) > 0.01) {
           const target = allTargets.find(t => t.id === result.targetId);
           const adjustment = {
@@ -844,9 +870,9 @@ async function executeBidOptimization(
             campaignId: campaign.id,
             campaignName: campaign.campaignName,
             currentBid: result.previousBid,
-            newBid: finalBid, // v163: 渐进式调整
+            newBid: finalBid, // v165: 经过绝对红线校验的最终出价
             changePercent: ((finalBid - result.previousBid) / result.previousBid * 100).toFixed(2),
-            reason: `商品定向 - [v163渐进+${result.algorithmUsed}] ${result.reason}`,
+            reason: `商品定向 - [v165渐进+${result.algorithmUsed}] ${result.reason}`,
             isProductTarget: true,
             algorithmUsed: result.algorithmUsed,
             confidenceScore: result.confidenceScore,
@@ -1447,7 +1473,7 @@ async function executeBudgetAllocation(
       const campaignPerf = budgetResult.suggestions.find(s => s.campaignId === suggestion.campaignId);
       const twMetrics = (campaignPerf as any)?.timeWeightedMetrics;
       
-      if (twMetrics && Math.abs(suggestion.suggestedBudget - suggestion.currentBudget) > 1) {
+      if (twMetrics && Math.abs(suggestion.suggestedBudget - suggestion.currentBudget) > 0.50) {
         const gradualResult = gradualEngine.applyGradualBudgetAdjustment(
           suggestion.currentBudget,
           twMetrics.weightedDailySpend || suggestion.currentBudget,
@@ -1473,7 +1499,7 @@ async function executeBudgetAllocation(
       
       details.push(adjustment);
       
-      if (!dryRun && Math.abs(finalBudget - suggestion.currentBudget) > 1) {
+      if (!dryRun && Math.abs(finalBudget - suggestion.currentBudget) > 0.50) { // v165: 降低API调用阈值从$1到$0.50
         // v148: 先调Amazon API确认成功，再更新本地数据库（先API后DB原则）
         try {
           const amazonCampaignId = campaign.campaignId || campaign.id.toString();

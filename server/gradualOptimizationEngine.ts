@@ -111,7 +111,7 @@ export function applyGradualBidAdjustment(
   algorithmTargetBid: number,
   campaignMetrics: TimeWeightedMetrics,
   consecutiveSameDirectionCount: number = 0,
-  maxBidLimit: number = 5.00,
+  maxBidLimit: number = 2.00, // v165: 默认安全上限从$5降为$2，优化目标的max_bid为绝对红线
   minBidLimit: number = 0.02
 ): GradualBidResult {
   const confidence = campaignMetrics.dataQuality.confidenceLevel;
@@ -257,13 +257,15 @@ export function applyGradualBudgetAdjustment(
   const confidence = campaignMetrics.dataQuality.confidenceLevel;
   const trend = campaignMetrics.trendSignal.direction;
   
-  // 使用时间衰减加权的日均花费作为基准（而非简单30天平均）
+  // v165: 使用时间衰减加权的日均花费作为参考
   const effectiveSpend = campaignMetrics.weightedDailySpend > 0 
     ? campaignMetrics.weightedDailySpend 
     : currentDailySpend;
   
-  const gap = effectiveSpend - targetBudget;
-  const gapPercent = effectiveSpend > 0 ? Math.abs(gap) / effectiveSpend : 0;
+  // v165修复: gap基于currentBudget vs targetBudget（当前预算与目标预算的差距）
+  // 而不是effectiveSpend vs targetBudget，因为我们要调整的是预算而不是花费
+  const gap = currentBudget - targetBudget;
+  const gapPercent = currentBudget > 0 ? Math.abs(gap) / currentBudget : 0;
   
   // 如果已经在目标范围内（±10%），微调到目标
   if (gapPercent <= 0.10) {
@@ -338,6 +340,17 @@ export function applyGradualBudgetAdjustment(
   // 应用绝对限制
   gradualBudget = Math.max(GRADUAL_BUDGET_CONFIG.minBudget, gradualBudget);
   gradualBudget = Math.min(GRADUAL_BUDGET_CONFIG.maxBudget, gradualBudget);
+  
+  // v165修复: 最小有效调整量保证
+  // 如果差距>$2但调整量<$1，强制至少调整$1（确保API能被触发）
+  const actualChange = Math.abs(gradualBudget - currentBudget);
+  if (actualChange < 1.00 && Math.abs(gap) > 2.00) {
+    const direction = gap > 0 ? -1 : 1; // gap>0表示需要降预算
+    gradualBudget = currentBudget + direction * 1.00;
+    gradualBudget = Math.max(GRADUAL_BUDGET_CONFIG.minBudget, gradualBudget);
+    gradualBudget = Math.min(GRADUAL_BUDGET_CONFIG.maxBudget, gradualBudget);
+  }
+  
   gradualBudget = Math.round(gradualBudget * 100) / 100;
   
   const changePercent = currentBudget > 0 ? ((gradualBudget - currentBudget) / currentBudget) * 100 : 0;

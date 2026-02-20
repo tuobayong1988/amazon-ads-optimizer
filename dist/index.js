@@ -51148,7 +51148,7 @@ function isDataSufficient(target, config2) {
   const thresholds = STRATEGY_DATA_THRESHOLDS[strategyKey] || DATA_SUFFICIENCY_THRESHOLDS;
   return target.clicks >= thresholds.minClicks && target.orders >= thresholds.minOrders;
 }
-function calculateSparseDataBidAdjustment(target, config2, maxBidLimit = 10, minBidLimit = 0.02) {
+function calculateSparseDataBidAdjustment(target, config2, maxBidLimit = 2, minBidLimit = 0.02) {
   let newBid = target.currentBid;
   let reason = "";
   const groupAvgCvr = config2.groupAvgCvr || 0.05;
@@ -51221,7 +51221,7 @@ function calculateSparseDataBidAdjustment(target, config2, maxBidLimit = 10, min
     reason
   };
 }
-function calculateBidAdjustment(target, config2, maxBidLimit = 10, minBidLimit = 0.02) {
+function calculateBidAdjustment(target, config2, maxBidLimit = 2, minBidLimit = 0.02) {
   if (!isDataSufficient(target, config2)) {
     return calculateSparseDataBidAdjustment(target, config2, maxBidLimit, minBidLimit);
   }
@@ -51306,7 +51306,7 @@ function generateOptimizationReason(target, metrics, config2, newBid) {
   }
   return reasons.join("\uFF1B");
 }
-function calculateExplorationBid(target, config2, maxBidLimit = 10, minBidLimit = 0.02) {
+function calculateExplorationBid(target, config2, maxBidLimit = 2, minBidLimit = 0.02) {
   let newBid = target.currentBid;
   let reason = "";
   const groupAvgCvr = config2.groupAvgCvr || 0.05;
@@ -51457,7 +51457,7 @@ function calculateZeroImpressionProbing(target, config2, maxBidLimit) {
     reason
   };
 }
-function optimizePerformanceGroup(targets, config2, maxBidLimit = 10) {
+function optimizePerformanceGroup(targets, config2, maxBidLimit = 2) {
   const results = [];
   const effectiveMaxBid = config2.maxBid || maxBidLimit;
   for (const target of targets) {
@@ -51551,7 +51551,7 @@ function calculateASPSensitivity(currentASP, historicalASP) {
     reason: `ASP\u7A33\u5B9A($${currentASP.toFixed(2)}\uFF0C\u53D8\u52A8${(aspChangePercent * 100).toFixed(1)}%)\uFF0C\u4FDD\u6301\u6807\u51C6ACoS\u76EE\u6807`
   };
 }
-function calculateEnhancedBidAdjustment(target, config2, maxBidLimit = 10, minBidLimit = 0.02, currentDate = /* @__PURE__ */ new Date()) {
+function calculateEnhancedBidAdjustment(target, config2, maxBidLimit = 2, minBidLimit = 0.02, currentDate = /* @__PURE__ */ new Date()) {
   const metrics = calculateMetrics(target);
   let algorithmUsed = "market_curve";
   let confidenceScore = 0.5;
@@ -51660,7 +51660,7 @@ function calculateEnhancedBidAdjustment(target, config2, maxBidLimit = 10, minBi
     confidenceScore: Math.round(confidenceScore * 100) / 100
   };
 }
-function optimizePerformanceGroupEnhanced(targets, config2, maxBidLimit = 10, currentDate = /* @__PURE__ */ new Date()) {
+function optimizePerformanceGroupEnhanced(targets, config2, maxBidLimit = 2, currentDate = /* @__PURE__ */ new Date()) {
   const results = [];
   const effectiveMaxBid = config2.maxBid || maxBidLimit;
   for (const target of targets) {
@@ -135849,7 +135849,7 @@ var init_dataSyncScheduler = __esm({
 });
 
 // server/gradualOptimizationEngine.ts
-function applyGradualBidAdjustment(currentBid, algorithmTargetBid, campaignMetrics, consecutiveSameDirectionCount = 0, maxBidLimit = 5, minBidLimit = 0.02) {
+function applyGradualBidAdjustment(currentBid, algorithmTargetBid, campaignMetrics, consecutiveSameDirectionCount = 0, maxBidLimit = 2, minBidLimit = 0.02) {
   const confidence = campaignMetrics.dataQuality.confidenceLevel;
   const trend = campaignMetrics.trendSignal.direction;
   let maxChange = GRADUAL_BID_CONFIG.maxChangeByConfidence[confidence] || 0.1;
@@ -135936,8 +135936,8 @@ function applyGradualBudgetAdjustment(currentBudget, currentDailySpend, targetBu
   const confidence = campaignMetrics.dataQuality.confidenceLevel;
   const trend = campaignMetrics.trendSignal.direction;
   const effectiveSpend = campaignMetrics.weightedDailySpend > 0 ? campaignMetrics.weightedDailySpend : currentDailySpend;
-  const gap = effectiveSpend - targetBudget;
-  const gapPercent = effectiveSpend > 0 ? Math.abs(gap) / effectiveSpend : 0;
+  const gap = currentBudget - targetBudget;
+  const gapPercent = currentBudget > 0 ? Math.abs(gap) / currentBudget : 0;
   if (gapPercent <= 0.1) {
     return {
       campaignId: 0,
@@ -135988,6 +135988,13 @@ function applyGradualBudgetAdjustment(currentBudget, currentDailySpend, targetBu
   }
   gradualBudget = Math.max(GRADUAL_BUDGET_CONFIG.minBudget, gradualBudget);
   gradualBudget = Math.min(GRADUAL_BUDGET_CONFIG.maxBudget, gradualBudget);
+  const actualChange = Math.abs(gradualBudget - currentBudget);
+  if (actualChange < 1 && Math.abs(gap) > 2) {
+    const direction2 = gap > 0 ? -1 : 1;
+    gradualBudget = currentBudget + direction2 * 1;
+    gradualBudget = Math.max(GRADUAL_BUDGET_CONFIG.minBudget, gradualBudget);
+    gradualBudget = Math.min(GRADUAL_BUDGET_CONFIG.maxBudget, gradualBudget);
+  }
   gradualBudget = Math.round(gradualBudget * 100) / 100;
   const changePercent = currentBudget > 0 ? (gradualBudget - currentBudget) / currentBudget * 100 : 0;
   const remainingGap = Math.abs(gradualBudget - targetBudget);
@@ -136976,9 +136983,10 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
     console.log(`[BidOptimization] v164: \u81EA\u9002\u5E94\u53C2\u6570\u83B7\u53D6\u5931\u8D25\uFF0C\u4F7F\u7528\u9ED8\u8BA4\u503C: ${e6.message}`);
   }
   const currentDate = /* @__PURE__ */ new Date();
-  const maxBidLimit = config2.maxBid || 5;
-  console.log(`[BidOptimization] v155: \u6700\u9AD8\u51FA\u4EF7\u9650\u5236=${maxBidLimit} (\u7528\u6237\u8BBE\u7F6E=${config2.maxBid || "\u672A\u8BBE\u7F6E\uFF0C\u4F7F\u7528\u9ED8\u8BA4$5.00"})`);
-  console.log(`[BidOptimization] v155: \u65E5\u9884\u7B97=${config2.dailyBudget || "\u672A\u8BBE\u7F6E"}, \u76EE\u6807ACoS=${config2.targetAcos || "\u672A\u8BBE\u7F6E"}`);
+  const cpcMaxBidLimit = config2.maxBid || 2;
+  const vcpmMaxBidLimit = config2.maxBid ? config2.maxBid * 5 : 15;
+  console.log(`[BidOptimization] v165: CPC\u6700\u9AD8\u51FA\u4EF7=$${cpcMaxBidLimit} | VCPM\u6700\u9AD8\u51FA\u4EF7=$${vcpmMaxBidLimit} (\u7528\u6237\u8BBE\u7F6Emax_bid=${config2.maxBid || "\u672A\u8BBE\u7F6E"})`);
+  console.log(`[BidOptimization] v165: \u65E5\u9884\u7B97=${config2.dailyBudget || "\u672A\u8BBE\u7F6E"}, \u76EE\u6807ACoS=${config2.targetAcos || "\u672A\u8BBE\u7F6E"}`);
   for (const campaign of campaigns6) {
     let campaignDailyData = [];
     let campaignTimeWeightedMetrics = null;
@@ -137022,6 +137030,11 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
       if (safetyCheck.warnings.length > 0) {
         console.log(`[BidOptimization] v163: Campaign ${campaign.id} \u5B89\u5168\u8B66\u544A: ${safetyCheck.warnings.join("\uFF1B")}`);
       }
+    }
+    const isVcpmCampaign = campaign.costType === "vcpm";
+    const maxBidLimit = isVcpmCampaign ? vcpmMaxBidLimit : cpcMaxBidLimit;
+    if (isVcpmCampaign) {
+      console.log(`[BidOptimization] v165: Campaign ${campaign.id} \u8BC6\u522B\u4E3AVCPM\u5E7F\u544A\uFF0C\u4F7F\u7528VCPM\u6700\u9AD8\u51FA\u4EF7$${maxBidLimit}`);
     }
     const keywords6 = await getKeywordsByCampaignId(campaign.id);
     const keywordTargets = [];
@@ -137070,6 +137083,13 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
           finalBid = gradualResult.gradualBid;
           console.log(`[BidOptimization] v163: \u6E10\u8FDB\u5F0F\u7ADE\u4EF7 - \u5173\u952E\u8BCD${result.targetId}: \u7B97\u6CD5\u76EE\u6807$${result.newBid.toFixed(2)} \u2192 \u6E10\u8FDB$${finalBid.toFixed(2)} (\u7F6E\u4FE1\u5EA6=${gradualResult.dataConfidence}, \u8D8B\u52BF=${gradualResult.trendDirection})`);
         }
+        finalBid = Math.min(finalBid, maxBidLimit);
+        finalBid = Math.max(finalBid, 0.02);
+        finalBid = Math.round(finalBid * 100) / 100;
+        if (finalBid > maxBidLimit) {
+          console.error(`[BidOptimization] v165: \u7EA2\u7EBF\u62E6\u622A! keyword ${result.targetId} finalBid=$${finalBid} > maxBidLimit=$${maxBidLimit}`);
+          finalBid = maxBidLimit;
+        }
         if (Math.abs(finalBid - result.previousBid) > 0.01) {
           const keyword = keywords6.find((k5) => k5.id === result.targetId);
           const adjustment = {
@@ -137079,9 +137099,9 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
             campaignName: campaign.campaignName,
             currentBid: result.previousBid,
             newBid: finalBid,
-            // v163: 使用渐进式调整后的出价
+            // v165: 经过绝对红线校验的最终出价
             changePercent: ((finalBid - result.previousBid) / result.previousBid * 100).toFixed(2),
-            reason: `[v163\u6E10\u8FDB+${result.algorithmUsed}] ${result.reason}`,
+            reason: `[v165\u6E10\u8FDB+${result.algorithmUsed}] ${result.reason}`,
             algorithmUsed: result.algorithmUsed,
             confidenceScore: result.confidenceScore
           };
@@ -137142,6 +137162,13 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
           finalBid = gradualResult.gradualBid;
           console.log(`[BidOptimization] v163: \u6E10\u8FDB\u5F0F\u5546\u54C1\u5B9A\u5411 - ${result.targetId}: $${result.newBid.toFixed(2)} \u2192 $${finalBid.toFixed(2)}`);
         }
+        finalBid = Math.min(finalBid, maxBidLimit);
+        finalBid = Math.max(finalBid, 0.02);
+        finalBid = Math.round(finalBid * 100) / 100;
+        if (finalBid > maxBidLimit) {
+          console.error(`[BidOptimization] v165: \u7EA2\u7EBF\u62E6\u622A! product_target ${result.targetId} finalBid=$${finalBid} > maxBidLimit=$${maxBidLimit}`);
+          finalBid = maxBidLimit;
+        }
         if (Math.abs(finalBid - result.previousBid) > 0.01) {
           const target = allTargets.find((t7) => t7.id === result.targetId);
           const adjustment = {
@@ -137151,9 +137178,9 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
             campaignName: campaign.campaignName,
             currentBid: result.previousBid,
             newBid: finalBid,
-            // v163: 渐进式调整
+            // v165: 经过绝对红线校验的最终出价
             changePercent: ((finalBid - result.previousBid) / result.previousBid * 100).toFixed(2),
-            reason: `\u5546\u54C1\u5B9A\u5411 - [v163\u6E10\u8FDB+${result.algorithmUsed}] ${result.reason}`,
+            reason: `\u5546\u54C1\u5B9A\u5411 - [v165\u6E10\u8FDB+${result.algorithmUsed}] ${result.reason}`,
             isProductTarget: true,
             algorithmUsed: result.algorithmUsed,
             confidenceScore: result.confidenceScore
@@ -137622,7 +137649,7 @@ async function executeBudgetAllocation2(config2, campaigns6, dryRun) {
       let finalBudget = suggestion.suggestedBudget;
       const campaignPerf = budgetResult.suggestions.find((s4) => s4.campaignId === suggestion.campaignId);
       const twMetrics = campaignPerf?.timeWeightedMetrics;
-      if (twMetrics && Math.abs(suggestion.suggestedBudget - suggestion.currentBudget) > 1) {
+      if (twMetrics && Math.abs(suggestion.suggestedBudget - suggestion.currentBudget) > 0.5) {
         const gradualResult = applyGradualBudgetAdjustment(
           suggestion.currentBudget,
           twMetrics.weightedDailySpend || suggestion.currentBudget,
@@ -137646,7 +137673,7 @@ async function executeBudgetAllocation2(config2, campaigns6, dryRun) {
         apiSyncStatus: dryRun ? "pending" : "pending"
       };
       details.push(adjustment);
-      if (!dryRun && Math.abs(finalBudget - suggestion.currentBudget) > 1) {
+      if (!dryRun && Math.abs(finalBudget - suggestion.currentBudget) > 0.5) {
         try {
           const amazonCampaignId = campaign.campaignId || campaign.id.toString();
           const budgetSyncResult = await syncBudgetAdjustmentToAmazon(

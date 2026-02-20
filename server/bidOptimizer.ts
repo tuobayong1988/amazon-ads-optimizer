@@ -375,7 +375,7 @@ export function isDataSufficient(target: OptimizationTarget, config?: Performanc
 function calculateSparseDataBidAdjustment(
   target: OptimizationTarget,
   config: PerformanceGroupConfig,
-  maxBidLimit: number = 10.00,
+  maxBidLimit: number = 2.00, // v165: 默认安全上限从$10降为$2，优化目标的max_bid为绝对红线
   minBidLimit: number = 0.02
 ): OptimizationResult {
   let newBid = target.currentBid;
@@ -480,7 +480,7 @@ function calculateSparseDataBidAdjustment(
 export function calculateBidAdjustment(
   target: OptimizationTarget,
   config: PerformanceGroupConfig,
-  maxBidLimit: number = 10.00,
+  maxBidLimit: number = 2.00, // v165: 默认安全上限从$10降为$2，优化目标的max_bid为绝对红线
   minBidLimit: number = 0.02
 ): OptimizationResult {
   // v122g: 策略感知的数据充足性检查
@@ -640,7 +640,7 @@ const ZERO_IMPRESSION_PROBING_CONFIG = {
 function calculateExplorationBid(
   target: OptimizationTarget,
   config: PerformanceGroupConfig,
-  maxBidLimit: number = 10.00,
+  maxBidLimit: number = 2.00, // v165: 默认安全上限从$10降为$2，优化目标的max_bid为绝对红线
   minBidLimit: number = 0.02
 ): OptimizationResult {
   let newBid = target.currentBid;
@@ -866,7 +866,7 @@ function calculateZeroImpressionProbing(
 export function optimizePerformanceGroup(
   targets: OptimizationTarget[],
   config: PerformanceGroupConfig,
-  maxBidLimit: number = 10.00
+  maxBidLimit: number = 2.00 // v165: 默认安全上限从$10降为$2
 ): OptimizationResult[] {
   const results: OptimizationResult[] = [];
   
@@ -1434,7 +1434,7 @@ export interface AlgorithmEffectRecord {
 export function calculateEnhancedBidAdjustment(
   target: EnhancedOptimizationTarget,
   config: PerformanceGroupConfig,
-  maxBidLimit: number = 10.00,
+  maxBidLimit: number = 2.00, // v165: 默认安全上限从$10降为$2，优化目标的max_bid为绝对红线
   minBidLimit: number = 0.02,
   currentDate: Date = new Date()
 ): EnhancedOptimizationResult {
@@ -1598,7 +1598,7 @@ export function calculateEnhancedBidAdjustment(
 export function optimizePerformanceGroupEnhanced(
   targets: EnhancedOptimizationTarget[],
   config: PerformanceGroupConfig,
-  maxBidLimit: number = 10.00,
+  maxBidLimit: number = 2.00, // v165: 默认安全上限从$10降为$2，优化目标的max_bid为绝对红线
   currentDate: Date = new Date()
 ): EnhancedOptimizationResult[] {
   const results: EnhancedOptimizationResult[] = [];
