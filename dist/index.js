@@ -37997,6 +37997,7 @@ async function migrateFromBiddingLogs(accountId) {
     bidChangePercent: log2.bidChangePercent,
     changeReason: log2.reason,
     status: log2.executionStatus === "success" ? "success" : log2.executionStatus === "failed" ? "failed" : "pending",
+    apiSyncStatus: log2.executionStatus === "success" ? "synced" : log2.executionStatus === "failed" ? "failed" : "pending",
     apiResponseId: log2.apiResponseId,
     errorMessage: log2.errorMessage,
     sourceTable: "bidding_logs",
@@ -38025,6 +38026,7 @@ async function migrateFromBidAdjustmentHistory(accountId) {
     changeReason: record2.adjustmentReason,
     adjustmentType: record2.adjustmentType,
     status: record2.status === "applied" ? "success" : record2.status === "rolled_back" ? "rolled_back" : record2.status === "failed" ? "failed" : "pending",
+    apiSyncStatus: record2.status === "applied" ? "synced" : record2.status === "rolled_back" ? "rolled_back" : record2.status === "failed" ? "failed" : "pending",
     expectedProfitIncrease: record2.expectedProfitIncrease,
     actualProfit7D: record2.actualProfit7D,
     actualProfit14D: record2.actualProfit14D,
@@ -52476,11 +52478,13 @@ var init_amazonAdsApi = __esm({
             if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
               for (const item of responseKeywords.error) {
                 errors.push(item);
+                const errorDetail = item.description || item.details || item.message || "";
                 createdKeywords.push({
                   keywordId: null,
                   keywordText: keywords6[item.index]?.keywordText || "",
                   code: item.code || "ERROR"
                 });
+                console.error(`[SP API] v168: \u5173\u952E\u8BCD\u521B\u5EFA\u5931\u8D25\u8BE6\u60C5: keyword="${keywords6[item.index]?.keywordText}", code=${item.code}, description="${errorDetail}", fullError=${JSON.stringify(item)}`);
               }
             }
           } else if (Array.isArray(responseKeywords)) {
@@ -58457,6 +58461,11 @@ var init_amazonSyncService = __esm({
               updatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
             };
             if (existing) {
+              const localBudgetSb = parseFloat(existing.dailyBudget || "0");
+              if (dailyBudget === 0 && localBudgetSb > 0) {
+                console.warn(`[SyncService] v168: SB\u96F6\u503C\u9884\u7B97\u9632\u62A4\u751F\u6548 - campaign=${existing.campaignName}, local=$${localBudgetSb}, api=$${dailyBudget}, \u4FDD\u7559\u672C\u5730\u9884\u7B97`);
+                delete campaignData.dailyBudget;
+              }
               await db.update(campaigns).set(campaignData).where(eq(campaigns.id, existing.id));
             } else {
               await db.insert(campaigns).values({
@@ -58641,7 +58650,21 @@ var init_amazonSyncService = __esm({
             }
             const normalizedTargetingType = (apiCampaign.targetingType || "manual").toLowerCase();
             const campaignType = normalizedTargetingType === "auto" ? "sp_auto" : "sp_manual";
-            const dailyBudgetValue = apiCampaign.budget?.budget || apiCampaign.budget?.dailyBudget || apiCampaign.dailyBudget || 0;
+            let dailyBudgetValue = 0;
+            const budgetField = apiCampaign.budget;
+            if (budgetField !== void 0 && budgetField !== null) {
+              if (typeof budgetField === "number") {
+                dailyBudgetValue = budgetField;
+              } else if (typeof budgetField === "object") {
+                dailyBudgetValue = budgetField.budget || budgetField.dailyBudget || budgetField.amount || 0;
+              }
+            }
+            if (dailyBudgetValue === 0 && apiCampaign.dailyBudget) {
+              dailyBudgetValue = Number(apiCampaign.dailyBudget) || 0;
+            }
+            if (dailyBudgetValue === 0) {
+              console.warn(`[SyncService] v168: SP\u5E7F\u544A ${apiCampaign.name} budget\u89E3\u6790\u4E3A0, \u539F\u59CBbudget\u5B57\u6BB5:`, JSON.stringify(budgetField), "dailyBudget:", apiCampaign.dailyBudget);
+            }
             if (synced === 0 && skipped === 0) {
               console.log("[SP Sync Debug] \u7B2C\u4E00\u4E2A\u5E7F\u544A\u6D3B\u52A8\u7684\u5B8C\u6574\u7ED3\u6784:");
               console.log(JSON.stringify(apiCampaign, null, 2));
@@ -58692,6 +58715,10 @@ var init_amazonSyncService = __esm({
             if (existing) {
               const localBudget = parseFloat(existing.dailyBudget || "0");
               const apiBudget = parseFloat(String(dailyBudgetValue || "0"));
+              if (apiBudget === 0 && localBudget > 0) {
+                console.warn(`[SyncService] v168: \u96F6\u503C\u9884\u7B97\u9632\u62A4\u751F\u6548 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, \u4FDD\u7559\u672C\u5730\u9884\u7B97`);
+                delete campaignData.dailyBudget;
+              }
               if (Math.abs(localBudget - apiBudget) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBudget > 0) {
                 const hasRecentOpt = protectedCampaignIds.has(existing.id);
                 if (hasRecentOpt) {
@@ -61590,7 +61617,21 @@ var init_amazonSyncService = __esm({
           }
           const normalizedTargetingType = (apiCampaign.targetingType || "manual").toLowerCase();
           const campaignType = normalizedTargetingType === "auto" ? "sp_auto" : "sp_manual";
-          const dailyBudgetValue = apiCampaign.budget?.budget || apiCampaign.budget?.dailyBudget || apiCampaign.dailyBudget || 0;
+          let dailyBudgetValue = 0;
+          const budgetFieldT = apiCampaign.budget;
+          if (budgetFieldT !== void 0 && budgetFieldT !== null) {
+            if (typeof budgetFieldT === "number") {
+              dailyBudgetValue = budgetFieldT;
+            } else if (typeof budgetFieldT === "object") {
+              dailyBudgetValue = budgetFieldT.budget || budgetFieldT.dailyBudget || budgetFieldT.amount || 0;
+            }
+          }
+          if (dailyBudgetValue === 0 && apiCampaign.dailyBudget) {
+            dailyBudgetValue = Number(apiCampaign.dailyBudget) || 0;
+          }
+          if (dailyBudgetValue === 0) {
+            console.warn(`[SyncService] v168: SP\u5E7F\u544A(Tracking) ${apiCampaign.name} budget\u89E3\u6790\u4E3A0, \u539F\u59CBbudget\u5B57\u6BB5:`, JSON.stringify(budgetFieldT));
+          }
           const campaignData = {
             accountId: this.accountId,
             campaignId: String(apiCampaign.campaignId),
@@ -61638,6 +61679,10 @@ var init_amazonSyncService = __esm({
             }
             const localBudget = parseFloat(existing.dailyBudget || "0");
             const apiBudget = parseFloat(String(campaignData.dailyBudget || "0"));
+            if (apiBudget === 0 && localBudget > 0) {
+              console.warn(`[SyncService] v168: \u96F6\u503C\u9884\u7B97\u9632\u62A4(Tracking)\u751F\u6548 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}`);
+              delete campaignData.dailyBudget;
+            }
             if (Math.abs(localBudget - apiBudget) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBudget > 0) {
               const hasRecentOpt = protectedCampaignIds.has(existing.id);
               if (hasRecentOpt) {
@@ -65341,6 +65386,10 @@ async function runAutoCorrection(accountId) {
         corrections.push(...rollbacks);
         const settingsRetries = await retryFailedSettingsChanges(database, accId);
         corrections.push(...settingsRetries);
+        const keywordCreateRetries = await retryFailedKeywordCreations(database, accId);
+        corrections.push(...keywordCreateRetries);
+        const negKeywordRetries = await retryFailedNegativeKeywordAdds(database, accId);
+        corrections.push(...negKeywordRetries);
       } catch (accError) {
         console.error(`[AutoCorrector] v167: \u8D26\u6237 ${accId} \u7EA0\u9519\u5931\u8D25: ${accError.message}`);
       }
@@ -65977,6 +66026,213 @@ async function retryFailedSettingsChanges(database, accountId) {
     }
   } catch (error54) {
     console.error(`[AutoCorrector] v167: \u8D26\u6237${accountId} retryFailedSettingsChanges\u5931\u8D25: ${error54.message}`);
+  }
+  return results;
+}
+async function retryFailedKeywordCreations(database, accountId) {
+  const results = [];
+  try {
+    const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1e3).toISOString().slice(0, 19).replace("T", " ");
+    const failedEvents = await database.select({
+      id: optimizationEvents.id,
+      keywordId: optimizationEvents.keywordId,
+      keywordText: optimizationEvents.keywordText,
+      campaignId: optimizationEvents.campaignId,
+      campaignName: optimizationEvents.campaignName,
+      actionDetail: optimizationEvents.actionDetail,
+      createdAt: optimizationEvents.createdAt
+    }).from(optimizationEvents).where(
+      and(
+        eq(optimizationEvents.accountId, accountId),
+        eq(optimizationEvents.actionType, "keyword_create"),
+        or(
+          eq(optimizationEvents.apiSyncStatus, "failed"),
+          eq(optimizationEvents.apiSyncStatus, "pending")
+        ),
+        gte(optimizationEvents.createdAt, expiryDateStr)
+      )
+    ).orderBy(desc(optimizationEvents.createdAt)).limit(AUTO_CORRECTION_CONFIG.maxRetryPerRun);
+    if (failedEvents.length === 0) return results;
+    console.log(`[AutoCorrector] v168: \u8D26\u6237${accountId} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25/pending\u7684\u5173\u952E\u8BCD\u521B\u5EFA\u9700\u8981\u91CD\u8BD5`);
+    for (const event of failedEvents) {
+      try {
+        let detail = {};
+        if (event.actionDetail) {
+          try {
+            detail = typeof event.actionDetail === "string" ? JSON.parse(event.actionDetail) : event.actionDetail;
+          } catch {
+          }
+        }
+        const localKeywordId = event.keywordId || detail.localKeywordId;
+        if (!localKeywordId) {
+          console.warn(`[AutoCorrector] v168: \u5173\u952E\u8BCD\u521B\u5EFA\u91CD\u8BD5\u8DF3\u8FC7 - \u65E0\u672C\u5730keywordId, eventId=${event.id}`);
+          continue;
+        }
+        const kwRows = await database.select({ id: keywords.id, keywordId: keywords.keywordId, adGroupId: keywords.adGroupId, keywordText: keywords.keywordText, matchType: keywords.matchType, bid: keywords.bid }).from(keywords).where(eq(keywords.id, localKeywordId)).limit(1);
+        if (kwRows.length === 0) {
+          await database.update(optimizationEvents).set({ apiSyncStatus: "not_applicable", apiSyncDetail: JSON.stringify({ reason: "keyword_deleted" }) }).where(eq(optimizationEvents.id, event.id));
+          continue;
+        }
+        const kw = kwRows[0];
+        if (kw.keywordId) {
+          await database.update(optimizationEvents).set({ apiSyncStatus: "synced", apiSyncDetail: JSON.stringify({ amazonKeywordId: kw.keywordId, correctedBy: "AutoCorrector" }) }).where(eq(optimizationEvents.id, event.id));
+          results.push({ type: "keyword_create_retry", accountId, targetId: localKeywordId, targetType: "keyword", previousValue: "", correctedValue: kw.keywordId, reason: "\u5173\u952E\u8BCD\u5DF2\u5B58\u5728Amazon ID\uFF0C\u76F4\u63A5\u6807\u8BB0\u4E3Asynced", success: true });
+          continue;
+        }
+        const agRows = await database.select({ adGroupId: adGroups.adGroupId, campaignId: adGroups.campaignId }).from(adGroups).where(eq(adGroups.id, kw.adGroupId)).limit(1);
+        if (agRows.length === 0) {
+          console.warn(`[AutoCorrector] v168: \u5173\u952E\u8BCD\u521B\u5EFA\u91CD\u8BD5\u8DF3\u8FC7 - \u65E0adGroup, keywordId=${localKeywordId}`);
+          continue;
+        }
+        const ag = agRows[0];
+        const campRows = await database.select({ campaignId: campaigns.campaignId }).from(campaigns).where(eq(campaigns.id, ag.campaignId)).limit(1);
+        if (campRows.length === 0) continue;
+        const syncResult = await syncNewKeywordsToAmazon(accountId, [{
+          localKeywordId,
+          adGroupId: Number(ag.adGroupId),
+          campaignId: Number(campRows[0].campaignId),
+          keywordText: kw.keywordText,
+          matchType: kw.matchType,
+          bid: parseFloat(String(kw.bid)) || 0.75
+        }]);
+        const success2 = syncResult.success > 0;
+        if (success2) {
+          await database.update(optimizationEvents).set({
+            apiSyncStatus: "synced",
+            apiSyncDetail: JSON.stringify({ correctedBy: "AutoCorrector", amazonKeywordId: syncResult.createdKeywords[0]?.amazonKeywordId }),
+            apiSyncedAt: /* @__PURE__ */ new Date()
+          }).where(eq(optimizationEvents.id, event.id));
+          if (event.id) {
+            await database.execute(sql`
+              UPDATE optimization_logs SET api_sync_status = 'synced' 
+              WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${event.id} AND source_table = 'optimization_logs')
+            `).catch(() => {
+            });
+          }
+        } else {
+          await database.update(optimizationEvents).set({
+            apiSyncStatus: "failed",
+            apiSyncDetail: JSON.stringify({ error: syncResult.errors.join("; "), retryBy: "AutoCorrector" })
+          }).where(eq(optimizationEvents.id, event.id));
+        }
+        results.push({
+          type: "keyword_create_retry",
+          accountId,
+          targetId: localKeywordId,
+          targetType: "keyword",
+          previousValue: "",
+          correctedValue: kw.keywordText,
+          reason: `\u91CD\u8BD5\u521B\u5EFA\u5173\u952E\u8BCD: ${kw.keywordText}`,
+          success: success2,
+          errorMessage: success2 ? void 0 : syncResult.errors.join("; ")
+        });
+      } catch (retryError) {
+        results.push({ type: "keyword_create_retry", accountId, targetId: event.keywordId || 0, targetType: "keyword", previousValue: "", correctedValue: "", reason: "\u5173\u952E\u8BCD\u521B\u5EFA\u91CD\u8BD5\u5931\u8D25", success: false, errorMessage: retryError.message });
+      }
+    }
+  } catch (error54) {
+    console.error(`[AutoCorrector] v168: \u8D26\u6237${accountId} retryFailedKeywordCreations\u5931\u8D25: ${error54.message}`);
+  }
+  return results;
+}
+async function retryFailedNegativeKeywordAdds(database, accountId) {
+  const results = [];
+  try {
+    const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1e3).toISOString().slice(0, 19).replace("T", " ");
+    const failedEvents = await database.select({
+      id: optimizationEvents.id,
+      campaignId: optimizationEvents.campaignId,
+      campaignName: optimizationEvents.campaignName,
+      keywordText: optimizationEvents.keywordText,
+      actionDetail: optimizationEvents.actionDetail,
+      createdAt: optimizationEvents.createdAt
+    }).from(optimizationEvents).where(
+      and(
+        eq(optimizationEvents.accountId, accountId),
+        eq(optimizationEvents.actionType, "negative_keyword_add"),
+        or(
+          eq(optimizationEvents.apiSyncStatus, "failed"),
+          eq(optimizationEvents.apiSyncStatus, "pending")
+        ),
+        gte(optimizationEvents.createdAt, expiryDateStr)
+      )
+    ).orderBy(desc(optimizationEvents.createdAt)).limit(AUTO_CORRECTION_CONFIG.maxRetryPerRun);
+    if (failedEvents.length === 0) return results;
+    console.log(`[AutoCorrector] v168: \u8D26\u6237${accountId} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25/pending\u7684\u5426\u5B9A\u5173\u952E\u8BCD\u6DFB\u52A0\u9700\u8981\u91CD\u8BD5`);
+    const negKeywordsToSync = [];
+    for (const event of failedEvents) {
+      try {
+        let detail = {};
+        if (event.actionDetail) {
+          try {
+            detail = typeof event.actionDetail === "string" ? JSON.parse(event.actionDetail) : event.actionDetail;
+          } catch {
+          }
+        }
+        const searchTerm = detail.searchTerm || event.keywordText;
+        const matchType = detail.matchType || "negative_phrase";
+        const amazonCampaignId = detail.amazonCampaignId;
+        const amazonAdGroupId = detail.amazonAdGroupId;
+        if (!searchTerm) continue;
+        let resolvedCampaignId = amazonCampaignId;
+        if (!resolvedCampaignId && event.campaignId) {
+          const campRows = await database.select({ campaignId: campaigns.campaignId }).from(campaigns).where(eq(campaigns.id, event.campaignId)).limit(1);
+          if (campRows.length > 0) resolvedCampaignId = Number(campRows[0].campaignId);
+        }
+        if (!resolvedCampaignId) continue;
+        const normalizedMatchType = matchType.includes("exact") ? "negativeExact" : "negativePhrase";
+        negKeywordsToSync.push({
+          eventId: event.id,
+          campaignId: resolvedCampaignId,
+          adGroupId: amazonAdGroupId ? Number(amazonAdGroupId) : void 0,
+          keywordText: searchTerm,
+          matchType: normalizedMatchType,
+          level: amazonAdGroupId ? "adgroup" : "campaign"
+        });
+      } catch (parseErr) {
+        console.warn(`[AutoCorrector] v168: \u89E3\u6790\u5426\u5B9A\u5173\u952E\u8BCD\u4E8B\u4EF6\u5931\u8D25: eventId=${event.id}, ${parseErr.message}`);
+      }
+    }
+    if (negKeywordsToSync.length === 0) return results;
+    const syncResult = await syncNegativeKeywordsToAmazon(
+      accountId,
+      negKeywordsToSync.map((nk) => ({
+        campaignId: nk.campaignId,
+        adGroupId: nk.adGroupId,
+        keywordText: nk.keywordText,
+        matchType: nk.matchType,
+        level: nk.level
+      }))
+    );
+    const allSuccess = syncResult.success === negKeywordsToSync.length;
+    for (const nk of negKeywordsToSync) {
+      const success2 = allSuccess || syncResult.success > 0;
+      if (success2) {
+        await database.update(optimizationEvents).set({
+          apiSyncStatus: "synced",
+          apiSyncDetail: JSON.stringify({ correctedBy: "AutoCorrector", correctedAt: (/* @__PURE__ */ new Date()).toISOString() }),
+          apiSyncedAt: /* @__PURE__ */ new Date()
+        }).where(eq(optimizationEvents.id, nk.eventId));
+        await database.execute(sql`
+          UPDATE optimization_logs SET api_sync_status = 'synced' 
+          WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${nk.eventId} AND source_table = 'optimization_logs')
+        `).catch(() => {
+        });
+      }
+      results.push({
+        type: "settings_retry",
+        accountId,
+        targetId: nk.campaignId,
+        targetType: "campaign",
+        previousValue: "",
+        correctedValue: nk.keywordText,
+        reason: `\u91CD\u8BD5\u6DFB\u52A0\u5426\u5B9A\u5173\u952E\u8BCD: ${nk.keywordText}`,
+        success: success2,
+        errorMessage: success2 ? void 0 : syncResult.errors.join("; ")
+      });
+    }
+  } catch (error54) {
+    console.error(`[AutoCorrector] v168: \u8D26\u6237${accountId} retryFailedNegativeKeywordAdds\u5931\u8D25: ${error54.message}`);
   }
   return results;
 }
@@ -134144,6 +134400,21 @@ async function executeSyncForAccount(schedule) {
     console.error(`[DataSyncScheduler] \u8D26\u53F7 ${schedule.accountId} \u7B56\u7565\u6A21\u677F\u63A8\u8350\u66F4\u65B0\u5931\u8D25:`, recError.message);
   }
   try {
+    const accountPGs = await getPerformanceGroupsByAccountId(schedule.accountId);
+    for (const pg of accountPGs) {
+      if (pg.autoOptimize === 0 || pg.autoOptimize === false) {
+        const pgCampaigns = await getCampaignsByPerformanceGroupId(pg.id);
+        const enabledCount = pgCampaigns.filter((c5) => c5.campaignStatus === "enabled").length;
+        if (enabledCount > 0) {
+          await updatePerformanceGroup(pg.id, { autoOptimize: true });
+          console.log(`[DataSyncScheduler] v168: \u4F18\u5316\u76EE\u6807"${pg.name}"\u5DF2\u81EA\u52A8\u6062\u590D - \u68C0\u6D4B\u5230${enabledCount}\u4E2A\u5E7F\u544A\u6D3B\u52A8\u6062\u590Denabled\u72B6\u6001`);
+        }
+      }
+    }
+  } catch (autoResumeErr) {
+    console.error(`[DataSyncScheduler] v168: \u4F18\u5316\u76EE\u6807\u81EA\u52A8\u6062\u590D\u68C0\u67E5\u5931\u8D25:`, autoResumeErr.message);
+  }
+  try {
     const { triggerAccountOptimizations: triggerAccountOptimizations2 } = await Promise.resolve().then(() => (init_optimizationScheduler(), optimizationScheduler_exports));
     const triggerResult = await triggerAccountOptimizations2(schedule.accountId, "data_sync_complete");
     console.log(`[DataSyncScheduler] v151: \u8D26\u53F7 ${schedule.accountId} \u4F18\u5316\u76EE\u6807\u89E6\u53D1\u5B8C\u6210:`, {
@@ -136191,9 +136462,9 @@ function schedulePlacementVerification(accountId, adjustments) {
   }));
   return scheduleVerificationTask(accountId, items);
 }
-function scheduleNegativeKeywordVerification(accountId, negativeKeywords3) {
-  if (negativeKeywords3.length === 0) return "";
-  const items = negativeKeywords3.map((nk) => ({
+function scheduleNegativeKeywordVerification(accountId, negativeKeywords4) {
+  if (negativeKeywords4.length === 0) return "";
+  const items = negativeKeywords4.map((nk) => ({
     type: "negative_keyword",
     localId: nk.localId,
     amazonId: nk.amazonKeywordId || "",
@@ -136865,6 +137136,22 @@ async function executeOptimizationTarget(targetId, options = {}) {
   }
   if (campaigns6.length === 0) {
     result.warnings.push("\u4F18\u5316\u76EE\u6807\u4E0B\u6CA1\u6709enabled\u72B6\u6001\u7684\u5E7F\u544A\u6D3B\u52A8");
+    if (allCampaigns.length > 0 && campaigns6.length === 0) {
+      const allPausedOrArchived = allCampaigns.every(
+        (c5) => ["paused", "archived"].includes(c5.campaignStatus || "")
+      );
+      if (allPausedOrArchived) {
+        try {
+          await updatePerformanceGroup(targetId, { autoOptimize: false });
+          const pauseMsg = `v168: \u4F18\u5316\u76EE\u6807"${config2.name}"\u5DF2\u81EA\u52A8\u6682\u505C - \u6240\u6709${allCampaigns.length}\u4E2A\u5E7F\u544A\u6D3B\u52A8\u5747\u4E3A\u6682\u505C/\u5F52\u6863\u72B6\u6001\uFF0C\u4E0D\u518D\u6267\u884C\u81EA\u52A8\u4F18\u5316`;
+          console.log(`[OptimizationTarget] ${pauseMsg}`);
+          result.warnings.push(pauseMsg);
+          result.status = "skipped";
+        } catch (autoPauseErr) {
+          console.error(`[OptimizationTarget] v168: \u81EA\u52A8\u6682\u505C\u4F18\u5316\u76EE\u6807\u5931\u8D25:`, autoPauseErr.message);
+        }
+      }
+    }
     if (shouldReleaseLock) releaseAccountOptimizationLock(config2.accountId);
     return result;
   }
@@ -137738,11 +138025,10 @@ async function executeSearchTermAnalysis(config2, campaigns6, dryRun) {
                 const bid = 0.5;
                 const { keywords: keywords6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
                 const { eq: eqOp, and: andOp } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-                const existingKeywords = await dbInstance.select({ id: keywords6.id, keywordId: keywords6.keywordId }).from(keywords6).where(andOp(
+                const existingKeywords = await dbInstance.select({ id: keywords6.id, keywordId: keywords6.keywordId, matchType: keywords6.matchType }).from(keywords6).where(andOp(
                   eqOp(keywords6.adGroupId, adGroup.id),
-                  eqOp(keywords6.keywordText, term.searchTerm),
-                  eqOp(keywords6.matchType, matchType)
-                )).limit(5);
+                  eqOp(keywords6.keywordText, term.searchTerm)
+                )).limit(10);
                 if (existingKeywords.length > 0) {
                   if (existingKeywords.length > 1) {
                     const withId = existingKeywords.filter((k5) => k5.keywordId !== null);
@@ -137757,7 +138043,8 @@ async function executeSearchTermAnalysis(config2, campaigns6, dryRun) {
                       }
                     }
                   }
-                  console.log(`[SearchTermAnalysis] \u23ED\uFE0F \u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7\u521B\u5EFA: "${term.searchTerm}" (${matchType}) id=${existingKeywords[0].id}, keywordId=${existingKeywords[0].keywordId}`);
+                  const existingMatchTypes = existingKeywords.map((k5) => k5.matchType || "unknown").join(",");
+                  console.log(`[SearchTermAnalysis] \u23ED\uFE0F v168: \u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7\u521B\u5EFA: "${term.searchTerm}" (\u8BF7\u6C42=${matchType}, \u5DF2\u5B58\u5728=${existingMatchTypes}) id=${existingKeywords[0].id}, keywordId=${existingKeywords[0].keywordId}`);
                 } else {
                   const insertResult = await dbInstance.insert(keywords6).values({
                     adGroupId: adGroup.id,
@@ -137830,11 +138117,11 @@ async function executeSearchTermAnalysis(config2, campaigns6, dryRun) {
             if (negSyncStatus === "synced" || negSyncStatus === "partial") {
               const dbInstance = await getDb();
               if (dbInstance) {
-                const { negativeKeywords: negativeKeywords3 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+                const { negativeKeywords: negativeKeywords4 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
                 for (const d5 of negativeDetails) {
                   if (d5._pendingDbInsert && d5.apiSyncStatus !== "failed") {
                     try {
-                      await dbInstance.insert(negativeKeywords3).values(d5._pendingDbInsert);
+                      await dbInstance.insert(negativeKeywords4).values(d5._pendingDbInsert);
                       console.log(`[SearchTermAnalysis] v165: \u5426\u8BCDDB\u5199\u5165\u6210\u529F: "${d5.searchTerm}"`);
                     } catch (dbErr) {
                       console.error(`[SearchTermAnalysis] v165: \u5426\u8BCDDB\u5199\u5165\u5931\u8D25: "${d5.searchTerm}" - ${dbErr.message}`);
@@ -137912,9 +138199,13 @@ async function executeBudgetAllocation2(config2, campaigns6, dryRun) {
         changePercent: ((finalBudget - suggestion.currentBudget) / suggestion.currentBudget * 100).toFixed(2),
         reason: `[v163\u6E10\u8FDB] ${suggestion.reasons?.join(", ") || ""}`,
         expectedImpact: suggestion.expectedRoasChange || 0,
-        apiSyncStatus: dryRun ? "pending" : "pending"
+        apiSyncStatus: "pending"
       };
       details.push(adjustment);
+      if (!dryRun && Math.abs(finalBudget - suggestion.currentBudget) <= 0.5) {
+        adjustment.apiSyncStatus = "not_applicable";
+        adjustment.apiSyncDetail = JSON.stringify({ reason: `\u8C03\u6574\u91D1\u989D$${Math.abs(finalBudget - suggestion.currentBudget).toFixed(2)}\u4F4E\u4E8E$0.50\u9608\u503C\uFF0C\u65E0\u9700\u540C\u6B65` });
+      }
       if (!dryRun && Math.abs(finalBudget - suggestion.currentBudget) > 0.5) {
         try {
           const amazonCampaignId = campaign.campaignId || campaign.id.toString();

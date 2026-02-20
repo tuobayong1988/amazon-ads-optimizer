@@ -507,6 +507,26 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
     console.error(`[DataSyncScheduler] 账号 ${schedule.accountId} 策略模板推荐更新失败:`, recError.message);
   }
 
+  // ✅ v168: 数据同步完成后，检查是否有优化目标需要自动恢复
+  // 业务规则：当广告活动从暂停状态恢复为enabled时，自动恢复对应的优化目标
+  try {
+    const accountPGs = await db.getPerformanceGroupsByAccountId(schedule.accountId);
+    for (const pg of accountPGs) {
+      // 只检查当前已暂停的优化目标
+      if ((pg as any).autoOptimize === 0 || (pg as any).autoOptimize === false) {
+        const pgCampaigns = await db.getCampaignsByPerformanceGroupId(pg.id);
+        const enabledCount = pgCampaigns.filter((c: any) => c.campaignStatus === 'enabled').length;
+        if (enabledCount > 0) {
+          // 有广告活动恢复了enabled状态，自动恢复优化目标
+          await db.updatePerformanceGroup(pg.id, { autoOptimize: true });
+          console.log(`[DataSyncScheduler] v168: 优化目标"${(pg as any).name}"已自动恢复 - 检测到${enabledCount}个广告活动恢复enabled状态`);
+        }
+      }
+    }
+  } catch (autoResumeErr: any) {
+    console.error(`[DataSyncScheduler] v168: 优化目标自动恢复检查失败:`, autoResumeErr.message);
+  }
+
   // ✅ v151: 统一优化入口 - 数据同步完成后，通过optimizationScheduler触发该账户下所有活跃优化目标的执行
   // 废弃原有的automationExecutionEngine账户级优化，改为基于优化目标的精准触发
   try {

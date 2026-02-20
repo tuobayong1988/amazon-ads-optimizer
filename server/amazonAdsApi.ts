@@ -747,11 +747,14 @@ export class AmazonAdsApiClient {
         if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
           for (const item of responseKeywords.error) {
             errors.push(item);
+            // v168: 记录完整的错误信息，包括description和details
+            const errorDetail = item.description || item.details || item.message || '';
             createdKeywords.push({
               keywordId: null,
               keywordText: keywords[item.index]?.keywordText || '',
               code: item.code || 'ERROR',
             });
+            console.error(`[SP API] v168: 关键词创建失败详情: keyword="${keywords[item.index]?.keywordText}", code=${item.code}, description="${errorDetail}", fullError=${JSON.stringify(item)}`);
           }
         }
       } else if (Array.isArray(responseKeywords)) {

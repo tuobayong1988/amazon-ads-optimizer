@@ -25,7 +25,7 @@
 
 import { getDb } from './db';
 import * as db from './db';
-import { optimizationEvents, keywords, campaigns } from '../drizzle/schema';
+import { optimizationEvents, keywords, campaigns, adGroups, negativeKeywords } from '../drizzle/schema';
 import { eq, and, or, sql, inArray, isNull, desc, lt, gt, gte, lte } from 'drizzle-orm';
 import * as amazonApiHelper from './services/amazonApiHelper';
 
@@ -173,6 +173,14 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
         // 7. 重试失败的设置变更
         const settingsRetries = await retryFailedSettingsChanges(database, accId);
         corrections.push(...settingsRetries);
+        
+        // 8. 重试失败/pending的关键词创建
+        const keywordCreateRetries = await retryFailedKeywordCreations(database, accId);
+        corrections.push(...keywordCreateRetries);
+        
+        // 9. 重试失败/pending的否定关键词添加
+        const negKeywordRetries = await retryFailedNegativeKeywordAdds(database, accId);
+        corrections.push(...negKeywordRetries);
         
       } catch (accError: any) {
         console.error(`[AutoCorrector] v167: 账户 ${accId} 纠错失败: ${accError.message}`);
@@ -1024,6 +1032,299 @@ async function retryFailedSettingsChanges(database: any, accountId: number): Pro
     }
   } catch (error: any) {
     console.error(`[AutoCorrector] v167: 账户${accountId} retryFailedSettingsChanges失败: ${error.message}`);
+  }
+  
+  return results;
+}
+
+// ==================== 8. 重试失败/pending的关键词创建 ====================
+
+async function retryFailedKeywordCreations(database: any, accountId: number): Promise<CorrectionResult[]> {
+  const results: CorrectionResult[] = [];
+  
+  try {
+    const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+    
+    // 查找失败/pending的keyword_create事件
+    const failedEvents = await database
+      .select({
+        id: optimizationEvents.id,
+        keywordId: optimizationEvents.keywordId,
+        keywordText: optimizationEvents.keywordText,
+        campaignId: optimizationEvents.campaignId,
+        campaignName: optimizationEvents.campaignName,
+        actionDetail: optimizationEvents.actionDetail,
+        createdAt: optimizationEvents.createdAt,
+      })
+      .from(optimizationEvents)
+      .where(
+        and(
+          eq(optimizationEvents.accountId, accountId),
+          eq(optimizationEvents.actionType, 'keyword_create'),
+          or(
+            eq(optimizationEvents.apiSyncStatus, 'failed'),
+            eq(optimizationEvents.apiSyncStatus, 'pending')
+          ),
+          gte(optimizationEvents.createdAt, expiryDateStr)
+        )
+      )
+      .orderBy(desc(optimizationEvents.createdAt))
+      .limit(AUTO_CORRECTION_CONFIG.maxRetryPerRun);
+    
+    if (failedEvents.length === 0) return results;
+    
+    console.log(`[AutoCorrector] v168: 账户${accountId} 发现${failedEvents.length}条失败/pending的关键词创建需要重试`);
+    
+    for (const event of failedEvents) {
+      try {
+        // 从 action_detail 中提取关键信息
+        let detail: any = {};
+        if (event.actionDetail) {
+          try { detail = typeof event.actionDetail === 'string' ? JSON.parse(event.actionDetail) : event.actionDetail; } catch {}
+        }
+        
+        const localKeywordId = event.keywordId || detail.localKeywordId;
+        if (!localKeywordId) {
+          console.warn(`[AutoCorrector] v168: 关键词创建重试跳过 - 无本地keywordId, eventId=${event.id}`);
+          continue;
+        }
+        
+        // 检查本地关键词是否已有Amazon keywordId（可能已通过其他方式创建成功）
+        const kwRows = await database
+          .select({ id: keywords.id, keywordId: keywords.keywordId, adGroupId: keywords.adGroupId, keywordText: keywords.keywordText, matchType: keywords.matchType, bid: keywords.bid })
+          .from(keywords)
+          .where(eq(keywords.id, localKeywordId))
+          .limit(1);
+        
+        if (kwRows.length === 0) {
+          // 关键词已被删除，标记为not_applicable
+          await database.update(optimizationEvents).set({ apiSyncStatus: 'not_applicable', apiSyncDetail: JSON.stringify({ reason: 'keyword_deleted' }) }).where(eq(optimizationEvents.id, event.id));
+          continue;
+        }
+        
+        const kw = kwRows[0];
+        
+        if (kw.keywordId) {
+          // 已有Amazon ID，直接标记为synced
+          await database.update(optimizationEvents).set({ apiSyncStatus: 'synced', apiSyncDetail: JSON.stringify({ amazonKeywordId: kw.keywordId, correctedBy: 'AutoCorrector' }) }).where(eq(optimizationEvents.id, event.id));
+          results.push({ type: 'keyword_create_retry' as any, accountId, targetId: localKeywordId, targetType: 'keyword', previousValue: '', correctedValue: kw.keywordId, reason: '关键词已存在Amazon ID，直接标记为synced', success: true });
+          continue;
+        }
+        
+        // 获取adGroup的Amazon adGroupId和campaignId
+        const agRows = await database
+          .select({ adGroupId: adGroups.adGroupId, campaignId: adGroups.campaignId })
+          .from(adGroups)
+          .where(eq(adGroups.id, kw.adGroupId))
+          .limit(1);
+        
+        if (agRows.length === 0) {
+          console.warn(`[AutoCorrector] v168: 关键词创建重试跳过 - 无adGroup, keywordId=${localKeywordId}`);
+          continue;
+        }
+        
+        const ag = agRows[0];
+        
+        // 获取campaign的Amazon campaignId
+        const campRows = await database
+          .select({ campaignId: campaigns.campaignId })
+          .from(campaigns)
+          .where(eq(campaigns.id, ag.campaignId))
+          .limit(1);
+        
+        if (campRows.length === 0) continue;
+        
+        // 调用Amazon API创建关键词
+        const syncResult = await amazonApiHelper.syncNewKeywordsToAmazon(accountId, [{
+          localKeywordId: localKeywordId,
+          adGroupId: Number(ag.adGroupId),
+          campaignId: Number(campRows[0].campaignId),
+          keywordText: kw.keywordText,
+          matchType: kw.matchType as 'exact' | 'phrase' | 'broad',
+          bid: parseFloat(String(kw.bid)) || 0.75,
+        }]);
+        
+        const success = syncResult.success > 0;
+        
+        if (success) {
+          await database.update(optimizationEvents).set({
+            apiSyncStatus: 'synced',
+            apiSyncDetail: JSON.stringify({ correctedBy: 'AutoCorrector', amazonKeywordId: syncResult.createdKeywords[0]?.amazonKeywordId }),
+            apiSyncedAt: new Date(),
+          }).where(eq(optimizationEvents.id, event.id));
+          
+          // 同步更新optimization_logs
+          if (event.id) {
+            await database.execute(sql`
+              UPDATE optimization_logs SET api_sync_status = 'synced' 
+              WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${event.id} AND source_table = 'optimization_logs')
+            `).catch(() => {});
+          }
+        } else {
+          await database.update(optimizationEvents).set({
+            apiSyncStatus: 'failed',
+            apiSyncDetail: JSON.stringify({ error: syncResult.errors.join('; '), retryBy: 'AutoCorrector' }),
+          }).where(eq(optimizationEvents.id, event.id));
+        }
+        
+        results.push({
+          type: 'keyword_create_retry' as any,
+          accountId,
+          targetId: localKeywordId,
+          targetType: 'keyword',
+          previousValue: '',
+          correctedValue: kw.keywordText,
+          reason: `重试创建关键词: ${kw.keywordText}`,
+          success,
+          errorMessage: success ? undefined : syncResult.errors.join('; '),
+        });
+      } catch (retryError: any) {
+        results.push({ type: 'keyword_create_retry' as any, accountId, targetId: event.keywordId || 0, targetType: 'keyword', previousValue: '', correctedValue: '', reason: '关键词创建重试失败', success: false, errorMessage: retryError.message });
+      }
+    }
+  } catch (error: any) {
+    console.error(`[AutoCorrector] v168: 账户${accountId} retryFailedKeywordCreations失败: ${error.message}`);
+  }
+  
+  return results;
+}
+
+// ==================== 9. 重试失败/pending的否定关键词添加 ====================
+
+async function retryFailedNegativeKeywordAdds(database: any, accountId: number): Promise<CorrectionResult[]> {
+  const results: CorrectionResult[] = [];
+  
+  try {
+    const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+    
+    const failedEvents = await database
+      .select({
+        id: optimizationEvents.id,
+        campaignId: optimizationEvents.campaignId,
+        campaignName: optimizationEvents.campaignName,
+        keywordText: optimizationEvents.keywordText,
+        actionDetail: optimizationEvents.actionDetail,
+        createdAt: optimizationEvents.createdAt,
+      })
+      .from(optimizationEvents)
+      .where(
+        and(
+          eq(optimizationEvents.accountId, accountId),
+          eq(optimizationEvents.actionType, 'negative_keyword_add'),
+          or(
+            eq(optimizationEvents.apiSyncStatus, 'failed'),
+            eq(optimizationEvents.apiSyncStatus, 'pending')
+          ),
+          gte(optimizationEvents.createdAt, expiryDateStr)
+        )
+      )
+      .orderBy(desc(optimizationEvents.createdAt))
+      .limit(AUTO_CORRECTION_CONFIG.maxRetryPerRun);
+    
+    if (failedEvents.length === 0) return results;
+    
+    console.log(`[AutoCorrector] v168: 账户${accountId} 发现${failedEvents.length}条失败/pending的否定关键词添加需要重试`);
+    
+    // 批量收集否定关键词信息
+    const negKeywordsToSync: Array<{
+      eventId: number;
+      campaignId: number;
+      adGroupId?: number;
+      keywordText: string;
+      matchType: 'negativeExact' | 'negativePhrase';
+      level: 'campaign' | 'adgroup';
+    }> = [];
+    
+    for (const event of failedEvents) {
+      try {
+        let detail: any = {};
+        if (event.actionDetail) {
+          try { detail = typeof event.actionDetail === 'string' ? JSON.parse(event.actionDetail) : event.actionDetail; } catch {}
+        }
+        
+        const searchTerm = detail.searchTerm || event.keywordText;
+        const matchType = detail.matchType || 'negative_phrase';
+        const amazonCampaignId = detail.amazonCampaignId;
+        const amazonAdGroupId = detail.amazonAdGroupId;
+        
+        if (!searchTerm) continue;
+        
+        // 获取Amazon Campaign ID
+        let resolvedCampaignId = amazonCampaignId;
+        if (!resolvedCampaignId && event.campaignId) {
+          const campRows = await database
+            .select({ campaignId: campaigns.campaignId })
+            .from(campaigns)
+            .where(eq(campaigns.id, event.campaignId))
+            .limit(1);
+          if (campRows.length > 0) resolvedCampaignId = Number(campRows[0].campaignId);
+        }
+        
+        if (!resolvedCampaignId) continue;
+        
+        const normalizedMatchType = matchType.includes('exact') ? 'negativeExact' as const : 'negativePhrase' as const;
+        
+        negKeywordsToSync.push({
+          eventId: event.id,
+          campaignId: resolvedCampaignId,
+          adGroupId: amazonAdGroupId ? Number(amazonAdGroupId) : undefined,
+          keywordText: searchTerm,
+          matchType: normalizedMatchType,
+          level: amazonAdGroupId ? 'adgroup' : 'campaign',
+        });
+      } catch (parseErr: any) {
+        console.warn(`[AutoCorrector] v168: 解析否定关键词事件失败: eventId=${event.id}, ${parseErr.message}`);
+      }
+    }
+    
+    if (negKeywordsToSync.length === 0) return results;
+    
+    // 批量调用Amazon API
+    const syncResult = await amazonApiHelper.syncNegativeKeywordsToAmazon(
+      accountId,
+      negKeywordsToSync.map(nk => ({
+        campaignId: nk.campaignId,
+        adGroupId: nk.adGroupId,
+        keywordText: nk.keywordText,
+        matchType: nk.matchType,
+        level: nk.level,
+      }))
+    );
+    
+    // 如果批量成功，更新所有事件状态
+    const allSuccess = syncResult.success === negKeywordsToSync.length;
+    
+    for (const nk of negKeywordsToSync) {
+      const success = allSuccess || syncResult.success > 0;
+      
+      if (success) {
+        await database.update(optimizationEvents).set({
+          apiSyncStatus: 'synced',
+          apiSyncDetail: JSON.stringify({ correctedBy: 'AutoCorrector', correctedAt: new Date().toISOString() }),
+          apiSyncedAt: new Date(),
+        }).where(eq(optimizationEvents.id, nk.eventId));
+        
+        // 同步更新optimization_logs
+        await database.execute(sql`
+          UPDATE optimization_logs SET api_sync_status = 'synced' 
+          WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${nk.eventId} AND source_table = 'optimization_logs')
+        `).catch(() => {});
+      }
+      
+      results.push({
+        type: 'settings_retry',
+        accountId,
+        targetId: nk.campaignId,
+        targetType: 'campaign',
+        previousValue: '',
+        correctedValue: nk.keywordText,
+        reason: `重试添加否定关键词: ${nk.keywordText}`,
+        success,
+        errorMessage: success ? undefined : syncResult.errors.join('; '),
+      });
+    }
+  } catch (error: any) {
+    console.error(`[AutoCorrector] v168: 账户${accountId} retryFailedNegativeKeywordAdds失败: ${error.message}`);
   }
   
   return results;

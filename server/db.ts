@@ -5318,6 +5318,8 @@ export async function migrateFromBiddingLogs(accountId: number): Promise<number>
     changeReason: log.reason,
     status: log.executionStatus === 'success' ? 'success' as const : 
             log.executionStatus === 'failed' ? 'failed' as const : 'pending' as const,
+    apiSyncStatus: log.executionStatus === 'success' ? 'synced' as const :
+                   log.executionStatus === 'failed' ? 'failed' as const : 'pending' as const,
     apiResponseId: log.apiResponseId,
     errorMessage: log.errorMessage,
     sourceTable: 'bidding_logs',
@@ -5356,6 +5358,9 @@ export async function migrateFromBidAdjustmentHistory(accountId: number): Promis
     status: record.status === 'applied' ? 'success' as const :
             record.status === 'rolled_back' ? 'rolled_back' as const :
             record.status === 'failed' ? 'failed' as const : 'pending' as const,
+    apiSyncStatus: record.status === 'applied' ? 'synced' as const :
+                   record.status === 'rolled_back' ? 'rolled_back' as const :
+                   record.status === 'failed' ? 'failed' as const : 'pending' as const,
     expectedProfitIncrease: record.expectedProfitIncrease,
     actualProfit7D: record.actualProfit7D,
     actualProfit14D: record.actualProfit14D,

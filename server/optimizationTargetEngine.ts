@@ -51,7 +51,7 @@ export interface OptimizationExecutionResult {
   targetName: string;
   accountId: number; // v167: 添加accountId确保日志记录正确
   executionTime: Date;
-  status: 'success' | 'partial' | 'failed';
+  status: 'success' | 'partial' | 'failed' | 'skipped';
   
   // 各优化模块的执行结果
   bidOptimization: {
@@ -353,6 +353,26 @@ export async function executeOptimizationTarget(
   }
   if (campaigns.length === 0) {
     result.warnings.push('优化目标下没有enabled状态的广告活动');
+    
+    // v168: 当优化目标下所有广告活动都被暂停/归档时，自动暂停该优化目标
+    // 业务规则：用户在亚马逊后台暂停广告活动 = 不参与自动优化
+    if (allCampaigns.length > 0 && campaigns.length === 0) {
+      const allPausedOrArchived = allCampaigns.every(c => 
+        ['paused', 'archived'].includes((c as any).campaignStatus || '')
+      );
+      if (allPausedOrArchived) {
+        try {
+          await db.updatePerformanceGroup(targetId, { autoOptimize: false });
+          const pauseMsg = `v168: 优化目标"${config.name}"已自动暂停 - 所有${allCampaigns.length}个广告活动均为暂停/归档状态，不再执行自动优化`;
+          console.log(`[OptimizationTarget] ${pauseMsg}`);
+          result.warnings.push(pauseMsg);
+          result.status = 'skipped';
+        } catch (autoPauseErr: any) {
+          console.error(`[OptimizationTarget] v168: 自动暂停优化目标失败:`, autoPauseErr.message);
+        }
+      }
+    }
+    
     if (shouldReleaseLock) releaseAccountOptimizationLock(config.accountId);
     return result;
   }
@@ -1418,17 +1438,19 @@ async function executeSearchTermAnalysis(
                 const matchType = (term.matchTypeSuggestion || 'exact') as 'exact' | 'phrase' | 'broad';
                 const bid = 0.50;
                 
-                // v139: 增强去重检查 - 检查本地数据库是否已存在相同关键词（包括keywordId为NULL的重复记录）
+                // v168: 增强去重检查 - 检查本地数据库是否已存在相同关键词
+                // 业务规则：Amazon不允许在同一广告组中创建同名关键词（即使匹配类型不同）
+                // 因此去重时不仅检查完全匹配，还要检查同名不同匹配类型的关键词
                 const { keywords } = await import('../drizzle/schema');
                 const { eq: eqOp, and: andOp } = await import('drizzle-orm');
-                const existingKeywords = await dbInstance.select({ id: keywords.id, keywordId: keywords.keywordId })
+                // 检查同一adGroup中是否已存在同名关键词（任意匹配类型）
+                const existingKeywords = await dbInstance.select({ id: keywords.id, keywordId: keywords.keywordId, matchType: keywords.matchType })
                   .from(keywords)
                   .where(andOp(
                     eqOp(keywords.adGroupId, adGroup.id),
-                    eqOp(keywords.keywordText, term.searchTerm),
-                    eqOp(keywords.matchType, matchType as any)
+                    eqOp(keywords.keywordText, term.searchTerm)
                   ))
-                  .limit(5);
+                  .limit(10);
                 
                 if (existingKeywords.length > 0) {
                   // v139: 如果存在多条重复记录（keywordId为NULL），清理多余的
@@ -1446,7 +1468,8 @@ async function executeSearchTermAnalysis(
                       }
                     }
                   }
-                  console.log(`[SearchTermAnalysis] ⏭️ 关键词已存在，跳过创建: "${term.searchTerm}" (${matchType}) id=${existingKeywords[0].id}, keywordId=${existingKeywords[0].keywordId}`);
+                  const existingMatchTypes = existingKeywords.map(k => k.matchType || 'unknown').join(',');
+                  console.log(`[SearchTermAnalysis] ⏭️ v168: 关键词已存在，跳过创建: "${term.searchTerm}" (请求=${matchType}, 已存在=${existingMatchTypes}) id=${existingKeywords[0].id}, keywordId=${existingKeywords[0].keywordId}`);
                 } else {
                   // 插入本地数据库 - v138: 修复缺少accountId和campaignId的问题
                   const insertResult = await dbInstance.insert(keywords).values({
@@ -1626,10 +1649,17 @@ async function executeBudgetAllocation(
         changePercent: ((finalBudget - suggestion.currentBudget) / suggestion.currentBudget * 100).toFixed(2),
         reason: `[v163渐进] ${suggestion.reasons?.join(', ') || ''}`,
         expectedImpact: (suggestion as any).expectedRoasChange || 0,
-        apiSyncStatus: dryRun ? 'pending' : 'pending',
+        apiSyncStatus: 'pending',
       };
       
       details.push(adjustment);
+      
+      // v168: 当调整金额低于阈值时，标记为not_applicable而非pending
+      // 避免产生大量永远不会被同步的pending记录
+      if (!dryRun && Math.abs(finalBudget - suggestion.currentBudget) <= 0.50) {
+        adjustment.apiSyncStatus = 'not_applicable';
+        adjustment.apiSyncDetail = JSON.stringify({ reason: `调整金额$${Math.abs(finalBudget - suggestion.currentBudget).toFixed(2)}低于$0.50阈值，无需同步` });
+      }
       
       if (!dryRun && Math.abs(finalBudget - suggestion.currentBudget) > 0.50) { // v165: 降低API调用阈值从$1到$0.50
         // v148: 先调Amazon API确认成功，再更新本地数据库（先API后DB原则）

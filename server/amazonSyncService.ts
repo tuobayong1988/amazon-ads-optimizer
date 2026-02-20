@@ -678,6 +678,12 @@ export class AmazonSyncService {
         };
 
         if (existing) {
+          // v168: 零值预算防护 - 如果API返回budget=0但本地有非零值，保留本地值
+          const localBudgetSb = parseFloat(existing.dailyBudget || '0');
+          if (dailyBudget === 0 && localBudgetSb > 0) {
+            console.warn(`[SyncService] v168: SB零值预算防护生效 - campaign=${existing.campaignName}, local=$${localBudgetSb}, api=$${dailyBudget}, 保留本地预算`);
+            delete (campaignData as any).dailyBudget;
+          }
           await db
             .update(campaigns)
             .set(campaignData)
@@ -940,11 +946,24 @@ export class AmazonSyncService {
         const normalizedTargetingType = (apiCampaign.targetingType || 'manual').toLowerCase() as 'auto' | 'manual';
         const campaignType = normalizedTargetingType === 'auto' ? 'sp_auto' : 'sp_manual';
         
-        // SP API v3的dailyBudget可能嵌套在budget对象中，也可能直接在根级别
-        const dailyBudgetValue = (apiCampaign as any).budget?.budget || 
-                                 (apiCampaign as any).budget?.dailyBudget || 
-                                 apiCampaign.dailyBudget || 
-                                 0;
+        // v168: SP API v3的dailyBudget可能嵌套在多种结构中
+        // 常见结构: { budget: { budget: 30 } }, { budget: { dailyBudget: 30 } }, { dailyBudget: 30 }, { budget: 30 }
+        let dailyBudgetValue = 0;
+        const budgetField = (apiCampaign as any).budget;
+        if (budgetField !== undefined && budgetField !== null) {
+          if (typeof budgetField === 'number') {
+            dailyBudgetValue = budgetField;
+          } else if (typeof budgetField === 'object') {
+            dailyBudgetValue = budgetField.budget || budgetField.dailyBudget || budgetField.amount || 0;
+          }
+        }
+        if (dailyBudgetValue === 0 && apiCampaign.dailyBudget) {
+          dailyBudgetValue = Number(apiCampaign.dailyBudget) || 0;
+        }
+        // v168: 零值防护 - 如果解析出的budget为0但广告活动状态为enabled，记录警告
+        if (dailyBudgetValue === 0) {
+          console.warn(`[SyncService] v168: SP广告 ${apiCampaign.name} budget解析为0, 原始budget字段:`, JSON.stringify(budgetField), 'dailyBudget:', apiCampaign.dailyBudget);
+        }
 
         // 调试日志：打印第一个广告活动的完整结构
         if (synced === 0 && skipped === 0) {
@@ -1007,11 +1026,17 @@ export class AmazonSyncService {
         };
 
         if (existing) {
+          // v168: 零值预算防护 - 如果API返回budget=0但本地有非零值，保留本地值
+          const localBudget = parseFloat(existing.dailyBudget || '0');
+          const apiBudget = parseFloat(String(dailyBudgetValue || '0'));
+          if (apiBudget === 0 && localBudget > 0) {
+            console.warn(`[SyncService] v168: 零值预算防护生效 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, 保留本地预算`);
+            delete (campaignData as any).dailyBudget;
+          }
+          
           // v150: 智能预算保护策略
           // 检查optimization_events表，如果该广告活动有24小时内成功同步的预算优化事件，
           // 则保留本地dailyBudget不被覆盖
-          const localBudget = parseFloat(existing.dailyBudget || '0');
-          const apiBudget = parseFloat(String(dailyBudgetValue || '0'));
           
           if (Math.abs(localBudget - apiBudget) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBudget > 0) {
             // 预算不一致，检查是否有近期预算优化事件（使用批量查询结果）
@@ -5150,11 +5175,22 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
       const normalizedTargetingType = (apiCampaign.targetingType || 'manual').toLowerCase() as 'auto' | 'manual';
       const campaignType = normalizedTargetingType === 'auto' ? 'sp_auto' : 'sp_manual';
       
-      // SP API v3的dailyBudget可能嵌套在budget对象中，也可能直接在根级别
-      const dailyBudgetValue = (apiCampaign as any).budget?.budget || 
-                               (apiCampaign as any).budget?.dailyBudget || 
-                               apiCampaign.dailyBudget || 
-                               0;
+      // v168: SP API v3的dailyBudget可能嵌套在多种结构中
+      let dailyBudgetValue = 0;
+      const budgetFieldT = (apiCampaign as any).budget;
+      if (budgetFieldT !== undefined && budgetFieldT !== null) {
+        if (typeof budgetFieldT === 'number') {
+          dailyBudgetValue = budgetFieldT;
+        } else if (typeof budgetFieldT === 'object') {
+          dailyBudgetValue = budgetFieldT.budget || budgetFieldT.dailyBudget || budgetFieldT.amount || 0;
+        }
+      }
+      if (dailyBudgetValue === 0 && apiCampaign.dailyBudget) {
+        dailyBudgetValue = Number(apiCampaign.dailyBudget) || 0;
+      }
+      if (dailyBudgetValue === 0) {
+        console.warn(`[SyncService] v168: SP广告(Tracking) ${apiCampaign.name} budget解析为0, 原始budget字段:`, JSON.stringify(budgetFieldT));
+      }
       
       const campaignData = {
         accountId: this.accountId,
@@ -5206,9 +5242,14 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
           });
         }
 
-        // v150.1: 预算保护逻辑
+        // v168: 零值预算防护
         const localBudget = parseFloat(existing.dailyBudget || '0');
         const apiBudget = parseFloat(String(campaignData.dailyBudget || '0'));
+        if (apiBudget === 0 && localBudget > 0) {
+          console.warn(`[SyncService] v168: 零值预算防护(Tracking)生效 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}`);
+          delete (campaignData as any).dailyBudget;
+        }
+        // v150.1: 预算保护逻辑
         if (Math.abs(localBudget - apiBudget) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBudget > 0) {
           const hasRecentOpt = protectedCampaignIds.has(existing.id);
           if (hasRecentOpt) {
