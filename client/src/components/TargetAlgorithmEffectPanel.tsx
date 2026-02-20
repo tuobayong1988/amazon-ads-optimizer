@@ -182,10 +182,10 @@ export function TargetAlgorithmEffectPanel({ accountId, groupId }: TargetAlgorit
                   </div>
                   <div className="text-center px-3">
                     <p className="text-xs">
-                      ${record.previousBid?.toFixed(2)} → ${record.newBid?.toFixed(2)}
+                      ${parseFloat(record.previousBid || 0).toFixed(2)} → ${parseFloat(record.newBid || 0).toFixed(2)}
                     </p>
-                    <p className={`text-xs font-medium ${record.bidChangePercent > 0 ? 'text-red-500' : 'text-green-500'}`}>
-                      {record.bidChangePercent > 0 ? '+' : ''}{record.bidChangePercent?.toFixed(1)}%
+                    <p className={`text-xs font-medium ${parseFloat(record.bidChangePercent || 0) > 0 ? 'text-red-500' : 'text-green-500'}`}>
+                      {parseFloat(record.bidChangePercent || 0) > 0 ? '+' : ''}{parseFloat(record.bidChangePercent || 0).toFixed(1)}%
                     </p>
                   </div>
                   <div className="text-right">

@@ -453,7 +453,7 @@ export default function AutoRollbackSettings() {
                               {suggestion.campaignName || '-'}
                             </TableCell>
                             <TableCell className="text-right font-mono">
-                              ${suggestion.previousBid?.toFixed(2)} → ${suggestion.newBid?.toFixed(2)}
+                              ${parseFloat(suggestion.previousBid || 0).toFixed(2)} → ${parseFloat(suggestion.newBid || 0).toFixed(2)}
                             </TableCell>
                             <TableCell className="text-right font-mono">
                               ${suggestion.estimatedProfit?.toFixed(2)}
@@ -674,7 +674,7 @@ export default function AutoRollbackSettings() {
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">出价变化</span>
                   <span className="font-mono">
-                    ${selectedSuggestion.previousBid?.toFixed(2)} → ${selectedSuggestion.newBid?.toFixed(2)}
+                    ${parseFloat(selectedSuggestion.previousBid || 0).toFixed(2)} → ${parseFloat(selectedSuggestion.newBid || 0).toFixed(2)}
                   </span>
                 </div>
                 <div className="flex justify-between">
