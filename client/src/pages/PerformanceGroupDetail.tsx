@@ -966,40 +966,61 @@ export default function PerformanceGroupDetail() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {/* 关键指标卡片 */}
+                    {/* 关键指标卡片 - 基于真实趋势数据计算 */}
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <div className="bg-muted/30 rounded-lg p-3">
-                        <div className="text-xs text-muted-foreground mb-1">花费</div>
-                        <div className="text-lg font-bold">${parseFloat((group as any).totalSpend || '0').toFixed(2)}</div>
-                        <div className="text-xs text-green-500 flex items-center gap-1 mt-1">
-                          <TrendingUp className="w-3 h-3" />
-                          +12.5%
-                        </div>
-                      </div>
-                      <div className="bg-muted/30 rounded-lg p-3">
-                        <div className="text-xs text-muted-foreground mb-1">销售额</div>
-                        <div className="text-lg font-bold">${parseFloat((group as any).totalSales || '0').toFixed(2)}</div>
-                        <div className="text-xs text-green-500 flex items-center gap-1 mt-1">
-                          <TrendingUp className="w-3 h-3" />
-                          +8.3%
-                        </div>
-                      </div>
-                      <div className="bg-muted/30 rounded-lg p-3">
-                        <div className="text-xs text-muted-foreground mb-1">ACoS</div>
-                        <div className="text-lg font-bold">{group.currentAcos ? `${parseFloat(group.currentAcos).toFixed(1)}%` : '-'}</div>
-                        <div className="text-xs text-green-500 flex items-center gap-1 mt-1">
-                          <TrendingUp className="w-3 h-3" />
-                          -2.1%
-                        </div>
-                      </div>
-                      <div className="bg-muted/30 rounded-lg p-3">
-                        <div className="text-xs text-muted-foreground mb-1">转化数</div>
-                        <div className="text-lg font-bold">{(group as any).totalOrders || 0}</div>
-                        <div className="text-xs text-green-500 flex items-center gap-1 mt-1">
-                          <TrendingUp className="w-3 h-3" />
-                          +15.7%
-                        </div>
-                      </div>
+                      {(() => {
+                        // 计算真实趋势变化：对比前半段和后半段的平均值
+                        const data = performanceTrendData;
+                        const mid = Math.floor(data.length / 2);
+                        const firstHalf = data.slice(0, mid);
+                        const secondHalf = data.slice(mid);
+                        const calcChange = (arr1: typeof data, arr2: typeof data, key: string) => {
+                          const avg1 = arr1.length > 0 ? arr1.reduce((s, d) => s + ((d as any)[key] || 0), 0) / arr1.length : 0;
+                          const avg2 = arr2.length > 0 ? arr2.reduce((s, d) => s + ((d as any)[key] || 0), 0) / arr2.length : 0;
+                          return avg1 > 0 ? ((avg2 - avg1) / avg1) * 100 : 0;
+                        };
+                        const spendChange = data.length >= 4 ? calcChange(firstHalf, secondHalf, 'spend') : null;
+                        const salesChange = data.length >= 4 ? calcChange(firstHalf, secondHalf, 'sales') : null;
+                        const acosChange = data.length >= 4 ? calcChange(firstHalf, secondHalf, 'acos') : null;
+                        const ordersChange = data.length >= 4 ? calcChange(firstHalf, secondHalf, 'orders') : null;
+                        const renderTrend = (change: number | null, invertColor?: boolean) => {
+                          if (change === null) return <span className="text-xs text-muted-foreground">数据不足</span>;
+                          const isPositive = change > 0;
+                          // 对ACoS，下降是好的（invertColor=true）
+                          const isGood = invertColor ? !isPositive : isPositive;
+                          const colorClass = isGood ? 'text-green-500' : 'text-red-500';
+                          return (
+                            <div className={`text-xs ${colorClass} flex items-center gap-1 mt-1`}>
+                              {isPositive ? <TrendingUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />}
+                              {isPositive ? '+' : ''}{change.toFixed(1)}%
+                            </div>
+                          );
+                        };
+                        return (
+                          <>
+                            <div className="bg-muted/30 rounded-lg p-3">
+                              <div className="text-xs text-muted-foreground mb-1">花费</div>
+                              <div className="text-lg font-bold">${parseFloat((group as any).totalSpend || '0').toFixed(2)}</div>
+                              {renderTrend(spendChange)}
+                            </div>
+                            <div className="bg-muted/30 rounded-lg p-3">
+                              <div className="text-xs text-muted-foreground mb-1">销售额</div>
+                              <div className="text-lg font-bold">${parseFloat((group as any).totalSales || '0').toFixed(2)}</div>
+                              {renderTrend(salesChange)}
+                            </div>
+                            <div className="bg-muted/30 rounded-lg p-3">
+                              <div className="text-xs text-muted-foreground mb-1">ACoS</div>
+                              <div className="text-lg font-bold">{group.currentAcos ? `${parseFloat(group.currentAcos).toFixed(1)}%` : '-'}</div>
+                              {renderTrend(acosChange, true)}
+                            </div>
+                            <div className="bg-muted/30 rounded-lg p-3">
+                              <div className="text-xs text-muted-foreground mb-1">转化数</div>
+                              <div className="text-lg font-bold">{(group as any).totalOrders || 0}</div>
+                              {renderTrend(ordersChange)}
+                            </div>
+                          </>
+                        );
+                      })()}
                     </div>
                     
                     {/* 图表类型和时间范围选择器 */}
@@ -1789,62 +1810,229 @@ export default function PerformanceGroupDetail() {
             )}
           </TabsContent>
 
-          {/* 场景模拟Tab */}
+          {/* 场景模拟Tab - 基于真实历史数据的预测 */}
           <TabsContent value="scenario" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Zap className="w-5 h-5" />
-                  场景模拟预测
-                </CardTitle>
-                <CardDescription>
-                  基于历史数据预测不同花费水平下的预期效果
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* 预测曲线图 */}
-                  <div className="h-64 border rounded-lg flex items-center justify-center text-muted-foreground">
-                    <BarChart3 className="w-8 h-8 mr-2" />
-                    花费-销售额预测曲线开发中...
-                  </div>
+            {(() => {
+              // 基于历史数据计算场景模拟
+              const data = performanceTrendData;
+              if (data.length < 7) {
+                return (
+                  <Card>
+                    <CardContent className="py-12 text-center text-muted-foreground">
+                      需要至少7天的历史数据才能进行场景模拟预测
+                    </CardContent>
+                  </Card>
+                );
+              }
+              
+              // 计算历史平均指标
+              const totalDays = data.length;
+              const totalSpend = data.reduce((s, d) => s + (d.spend || 0), 0);
+              const totalSales = data.reduce((s, d) => s + (d.sales || 0), 0);
+              const totalClicks = data.reduce((s, d) => s + (d.clicks || 0), 0);
+              const totalImpressions = data.reduce((s, d) => s + (d.impressions || 0), 0);
+              const totalOrders = data.reduce((s, d) => s + (d.orders || 0), 0);
+              
+              const avgDailySpend = totalSpend / totalDays;
+              const avgCPC = totalClicks > 0 ? totalSpend / totalClicks : 0;
+              const avgCTR = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+              const avgCVR = totalClicks > 0 ? (totalOrders / totalClicks) * 100 : 0;
+              const avgACoS = totalSales > 0 ? (totalSpend / totalSales) * 100 : 0;
+              const avgROAS = totalSpend > 0 ? totalSales / totalSpend : 0;
+              
+              // 近期数据权重更高（时间衰减）
+              const recentDays = Math.min(14, data.length);
+              const recentData = data.slice(-recentDays);
+              const recentSpend = recentData.reduce((s, d) => s + (d.spend || 0), 0);
+              const recentSales = recentData.reduce((s, d) => s + (d.sales || 0), 0);
+              const recentClicks = recentData.reduce((s, d) => s + (d.clicks || 0), 0);
+              const recentOrders = recentData.reduce((s, d) => s + (d.orders || 0), 0);
+              const recentImpressions = recentData.reduce((s, d) => s + (d.impressions || 0), 0);
+              
+              const recentAvgDailySpend = recentSpend / recentDays;
+              const recentCPC = recentClicks > 0 ? recentSpend / recentClicks : avgCPC;
+              const recentCVR = recentClicks > 0 ? (recentOrders / recentClicks) * 100 : avgCVR;
+              const recentCTR = recentImpressions > 0 ? (recentClicks / recentImpressions) * 100 : avgCTR;
+              
+              // 加权平均（70%近期 + 30%全期）
+              const wCPC = recentCPC * 0.7 + avgCPC * 0.3;
+              const wCVR = recentCVR * 0.7 + avgCVR * 0.3;
+              const wCTR = recentCTR * 0.7 + avgCTR * 0.3;
+              
+              // 生成多个场景：当前花费的50%, 75%, 100%, 125%, 150%, 200%
+              const scenarios = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map(multiplier => {
+                const dailyBudget = recentAvgDailySpend * multiplier;
+                const monthlySpend = dailyBudget * 30;
+                // 边际效益递减：花费增加时CPC会略微上升，CVR略微下降
+                const diminishingFactor = multiplier > 1 ? 1 + (multiplier - 1) * 0.15 : 1 - (1 - multiplier) * 0.05;
+                const adjCPC = wCPC * diminishingFactor;
+                const adjCVR = wCVR / (multiplier > 1 ? (1 + (multiplier - 1) * 0.08) : 1);
+                
+                const estClicks = adjCPC > 0 ? monthlySpend / adjCPC : 0;
+                const estOrders = estClicks * (adjCVR / 100);
+                const estSales = estOrders > 0 ? (monthlySpend / (avgACoS / 100)) * (1 / diminishingFactor) : 0;
+                const estACoS = estSales > 0 ? (monthlySpend / estSales) * 100 : 0;
+                const estROAS = monthlySpend > 0 ? estSales / monthlySpend : 0;
+                const estImpressions = wCTR > 0 ? estClicks / (wCTR / 100) : 0;
+                
+                return {
+                  label: `${(multiplier * 100).toFixed(0)}%`,
+                  multiplier,
+                  dailyBudget,
+                  monthlySpend,
+                  clicks: Math.round(estClicks),
+                  orders: Math.round(estOrders),
+                  sales: estSales,
+                  acos: estACoS,
+                  roas: estROAS,
+                  cpc: adjCPC,
+                  impressions: Math.round(estImpressions),
+                };
+              });
+              
+              const currentScenario = scenarios.find(s => s.multiplier === 1.0)!;
+              
+              return (
+                <>
+                  {/* 当前基线指标 */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Activity className="w-5 h-5" />
+                        当前基线指标（近{recentDays}天加权平均）
+                      </CardTitle>
+                      <CardDescription>场景模拟基于近期加权平均数据，近期数据权重70%，全期数据权重30%</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+                        <div className="bg-muted/30 rounded-lg p-3">
+                          <div className="text-xs text-muted-foreground">日均花费</div>
+                          <div className="text-lg font-bold">${recentAvgDailySpend.toFixed(2)}</div>
+                        </div>
+                        <div className="bg-muted/30 rounded-lg p-3">
+                          <div className="text-xs text-muted-foreground">平均CPC</div>
+                          <div className="text-lg font-bold">${wCPC.toFixed(2)}</div>
+                        </div>
+                        <div className="bg-muted/30 rounded-lg p-3">
+                          <div className="text-xs text-muted-foreground">点击率CTR</div>
+                          <div className="text-lg font-bold">{wCTR.toFixed(2)}%</div>
+                        </div>
+                        <div className="bg-muted/30 rounded-lg p-3">
+                          <div className="text-xs text-muted-foreground">转化率CVR</div>
+                          <div className="text-lg font-bold">{wCVR.toFixed(2)}%</div>
+                        </div>
+                        <div className="bg-muted/30 rounded-lg p-3">
+                          <div className="text-xs text-muted-foreground">ACoS</div>
+                          <div className="text-lg font-bold">{avgACoS.toFixed(1)}%</div>
+                        </div>
+                        <div className="bg-muted/30 rounded-lg p-3">
+                          <div className="text-xs text-muted-foreground">ROAS</div>
+                          <div className="text-lg font-bold">{avgROAS.toFixed(2)}x</div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
                   
-                  {/* 预测指标卡片 */}
-                  <div className="space-y-4">
-                    <h4 className="font-medium">预测指标</h4>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="p-3 border rounded-lg">
-                        <p className="text-sm text-muted-foreground">预测点击数</p>
-                        <p className="text-lg font-medium">--</p>
+                  {/* 场景对比图表 */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Zap className="w-5 h-5" />
+                        花费场景模拟预测（月30天）
+                      </CardTitle>
+                      <CardDescription>
+                        基于历史数据和边际效益递减模型，预测不同花费水平下的预期效果
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-6">
+                        {/* 场景对比图 */}
+                        <div className="h-72">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <ComposedChart data={scenarios}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                              <XAxis dataKey="label" tick={{ fill: '#999', fontSize: 12 }} />
+                              <YAxis yAxisId="left" tick={{ fill: '#999', fontSize: 12 }} />
+                              <YAxis yAxisId="right" orientation="right" tick={{ fill: '#999', fontSize: 12 }} />
+                              <Tooltip 
+                                contentStyle={{ backgroundColor: '#1a1a2e', border: '1px solid #333', borderRadius: 8 }}
+                                formatter={((value: number, name: string) => {
+                                  if (name === '预测销售额' || name === '月花费') return [`$${value.toFixed(0)}`, name];
+                                  if (name === '预测ACoS') return [`${value.toFixed(1)}%`, name];
+                                  if (name === '预测ROAS') return [`${value.toFixed(2)}x`, name];
+                                  return [value, name];
+                                }) as any}
+                              />
+                              <Legend />
+                              <Bar yAxisId="left" dataKey="sales" name="预测销售额" fill="#10b981" opacity={0.8} />
+                              <Bar yAxisId="left" dataKey="monthlySpend" name="月花费" fill="#6366f1" opacity={0.6} />
+                              <Line yAxisId="right" type="monotone" dataKey="acos" name="预测ACoS" stroke="#f59e0b" strokeWidth={2} dot={{ r: 4 }} />
+                              <Line yAxisId="right" type="monotone" dataKey="roas" name="预测ROAS" stroke="#06b6d4" strokeWidth={2} dot={{ r: 4 }} />
+                            </ComposedChart>
+                          </ResponsiveContainer>
+                        </div>
+                        
+                        {/* 场景详细对比表 */}
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-muted">
+                                <th className="text-left py-2 px-3 text-muted-foreground">场景</th>
+                                <th className="text-right py-2 px-3 text-muted-foreground">日均花费</th>
+                                <th className="text-right py-2 px-3 text-muted-foreground">月花费</th>
+                                <th className="text-right py-2 px-3 text-muted-foreground">预测点击</th>
+                                <th className="text-right py-2 px-3 text-muted-foreground">预测转化</th>
+                                <th className="text-right py-2 px-3 text-muted-foreground">预测销售额</th>
+                                <th className="text-right py-2 px-3 text-muted-foreground">CPC</th>
+                                <th className="text-right py-2 px-3 text-muted-foreground">ACoS</th>
+                                <th className="text-right py-2 px-3 text-muted-foreground">ROAS</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {scenarios.map((s, i) => (
+                                <tr key={i} className={`border-b border-muted/50 ${s.multiplier === 1.0 ? 'bg-primary/10 font-medium' : 'hover:bg-muted/20'}`}>
+                                  <td className="py-2 px-3">
+                                    {s.label}
+                                    {s.multiplier === 1.0 && <Badge variant="outline" className="ml-2 text-xs">当前</Badge>}
+                                  </td>
+                                  <td className="text-right py-2 px-3">${s.dailyBudget.toFixed(2)}</td>
+                                  <td className="text-right py-2 px-3">${s.monthlySpend.toFixed(0)}</td>
+                                  <td className="text-right py-2 px-3">{s.clicks.toLocaleString()}</td>
+                                  <td className="text-right py-2 px-3">{s.orders.toLocaleString()}</td>
+                                  <td className="text-right py-2 px-3">${s.sales.toFixed(0)}</td>
+                                  <td className="text-right py-2 px-3">${s.cpc.toFixed(2)}</td>
+                                  <td className="text-right py-2 px-3">
+                                    <span className={s.acos <= avgACoS ? 'text-green-500' : 'text-red-500'}>
+                                      {s.acos.toFixed(1)}%
+                                    </span>
+                                  </td>
+                                  <td className="text-right py-2 px-3">
+                                    <span className={s.roas >= avgROAS ? 'text-green-500' : 'text-red-500'}>
+                                      {s.roas.toFixed(2)}x
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        
+                        {/* 模型说明 */}
+                        <div className="bg-muted/20 rounded-lg p-4 space-y-2">
+                          <h4 className="font-medium text-sm">模型说明</h4>
+                          <ul className="text-xs text-muted-foreground space-y-1">
+                            <li>• 预测基于近{totalDays}天历史数据，采用时间衰减加权（近期数据权重更高）</li>
+                            <li>• 花费增加时应用边际效益递减模型：CPC随竞争加剧略微上升，CVR随流量扩大略微下降</li>
+                            <li>• 实际结果可能因市场竞争、季节性、产品变化等因素而有所不同</li>
+                            <li>• 建议将模拟结果作为参考，结合实际业务目标谨慎调整预算</li>
+                          </ul>
+                        </div>
                       </div>
-                      <div className="p-3 border rounded-lg">
-                        <p className="text-sm text-muted-foreground">预测转化数</p>
-                        <p className="text-lg font-medium">--</p>
-                      </div>
-                      <div className="p-3 border rounded-lg">
-                        <p className="text-sm text-muted-foreground">预测CPC</p>
-                        <p className="text-lg font-medium">--</p>
-                      </div>
-                      <div className="p-3 border rounded-lg">
-                        <p className="text-sm text-muted-foreground">预测ACoS</p>
-                        <p className="text-lg font-medium">--</p>
-                      </div>
-                      <div className="p-3 border rounded-lg">
-                        <p className="text-sm text-muted-foreground">预测ROAS</p>
-                        <p className="text-lg font-medium">--</p>
-                      </div>
-                      <div className="p-3 border rounded-lg">
-                        <p className="text-sm text-muted-foreground">预测销售额</p>
-                        <p className="text-lg font-medium">--</p>
-                      </div>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      * 预测基于历史数据计算，实际结果可能因市场竞争等因素而有所不同
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                    </CardContent>
+                  </Card>
+                </>
+              );
+            })()}
           </TabsContent>
         </Tabs>
 

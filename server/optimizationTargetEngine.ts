@@ -31,6 +31,7 @@ import * as campaignLifecycleService from "./services/campaignLifecycleService";
 import * as timeDecayService from "./timeDecayWeightedDataService";
 import * as gradualEngine from "./gradualOptimizationEngine";
 import * as selfEvolution from "./selfEvolutionEngine";
+import * as multiDimOptimizer from "./multiDimensionOptimizer";
 
 // 缓存账号站点信息，避免重复查询
 const marketplaceCache = new Map<number, string>();
@@ -102,6 +103,14 @@ export interface OptimizationExecutionResult {
     executed: boolean;
     pausedCount: number;
     enabledCount: number;
+    details: any[];
+  };
+  
+  // 多维度智能优化结果
+  multiDimensionOptimization: {
+    executed: boolean;
+    campaignsAnalyzed: number;
+    rulesGenerated: number;
     details: any[];
   };
   
@@ -270,6 +279,7 @@ export async function executeOptimizationTarget(
     keywordStatusChanges: { executed: false, pausedCount: 0, enabledCount: 0, details: [] },
     campaignStatusChanges: { executed: false, pausedCount: 0, enabledCount: 0, details: [] },
     adGroupStatusChanges: { executed: false, pausedCount: 0, enabledCount: 0, details: [] },
+    multiDimensionOptimization: { executed: false, campaignsAnalyzed: 0, rulesGenerated: 0, details: [] },
     bidCoordination: { executed: false, campaignsCoordinated: 0, circuitBreakerTriggered: 0, details: [] },
     errors: [],
     warnings: [],
@@ -389,7 +399,33 @@ export async function executeOptimizationTarget(
     }
   }
   
-  // 3. 执行分时竞价优化
+  // 2.5 执行多维度智能优化（分时+分位置+分投放词三维联动）
+  // 在分时竞价执行前运行，以便基于真实数据自动生成/更新分时竞价规则
+  if (config.enableDaypartingOptimization && shouldExecute('multidim')) {
+    try {
+      const multiDimResults = await multiDimOptimizer.executeMultiDimensionOptimization(
+        targetId,
+        config.accountId,
+        campaigns,
+        {
+          targetAcos: config.targetAcos,
+          targetRoas: config.targetRoas,
+          maxBid: config.maxBid,
+          dailyBudget: config.dailyBudget,
+          optimizationGoal: config.optimizationGoal,
+          lookbackDays: 30,
+        },
+        dryRun
+      );
+      result.multiDimensionOptimization = multiDimResults;
+      console.log(`[OptimizationTarget] 多维度优化完成: 分析${multiDimResults.campaignsAnalyzed}个campaign, 生成${multiDimResults.rulesGenerated}条规则`);
+    } catch (error: any) {
+      result.errors.push(`多维度智能优化失败: ${error.message}`);
+      console.error(`[OptimizationTarget] 多维度优化异常:`, error.message);
+    }
+  }
+  
+  // 3. 执行分时竞价优化（基于多维度优化生成的规则执行）
   if (config.enableDaypartingOptimization && shouldExecute('dayparting')) {
     try {
       const daypartingResults = await executeDaypartingOptimization(config, campaigns, dryRun);
@@ -1889,7 +1925,7 @@ async function executeCampaignStatusChanges(
       // v163: 优先使用时间衰减加权数据，而非简单汇总
       const spend = campaignTWMetrics ? campaignTWMetrics.weightedDailySpend * 30 : parseFloat(campaign.spend || '0');
       const sales = campaignTWMetrics ? campaignTWMetrics.weightedDailySales * 30 : parseFloat(campaign.sales || '0');
-      const clicks = campaignTWMetrics ? Math.round(campaignTWMetrics.weightedDailyClicks * 30) : (campaign.clicks || 0);
+      const clicks = campaign.clicks || 0;
       const conversions = campaignTWMetrics ? Math.round(campaignTWMetrics.weightedDailyOrders * 30) : (campaign.orders || 0);
       const acos = campaignTWMetrics ? campaignTWMetrics.weightedAcos : (sales > 0 ? (spend / sales * 100) : 0);
       const campaignStatus = campaign.campaignStatus || 'enabled';
@@ -2685,6 +2721,7 @@ export async function executeAllEnabledTargets(
         keywordStatusChanges: { executed: false, pausedCount: 0, enabledCount: 0, details: [] },
         campaignStatusChanges: { executed: false, pausedCount: 0, enabledCount: 0, details: [] },
         adGroupStatusChanges: { executed: false, pausedCount: 0, enabledCount: 0, details: [] },
+        multiDimensionOptimization: { executed: false, campaignsAnalyzed: 0, rulesGenerated: 0, details: [] },
         bidCoordination: { executed: false, campaignsCoordinated: 0, circuitBreakerTriggered: 0, details: [] },
         errors: [error.message],
         warnings: [],
