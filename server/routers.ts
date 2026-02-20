@@ -11003,6 +11003,41 @@ const autoRollbackRouter = router({
   }),
 });
 
+// ==================== Auto Correction Router (v167) ====================
+const autoCorrectionRouter = router({
+  // 运行自动纠错扫描
+  runScan: protectedProcedure
+    .input(z.object({ accountId: z.number().optional() }))
+    .mutation(async ({ input }) => {
+      const { runAutoCorrection } = await import('./optimizationAutoCorrector');
+      return runAutoCorrection(input.accountId);
+    }),
+  
+  // 获取扫描历史
+  getScanHistory: protectedProcedure.query(async () => {
+    const { getScanHistory } = await import('./optimizationAutoCorrector');
+    return getScanHistory();
+  }),
+  
+  // 获取最近一次扫描结果
+  getLastScan: protectedProcedure.query(async () => {
+    const { getLastScanResult } = await import('./optimizationAutoCorrector');
+    return getLastScanResult();
+  }),
+  
+  // 获取扫描状态
+  getStatus: protectedProcedure.query(async () => {
+    const { getScanStatus } = await import('./optimizationAutoCorrector');
+    return getScanStatus();
+  }),
+  
+  // 获取纠错配置
+  getConfig: protectedProcedure.query(async () => {
+    const { getConfig } = await import('./optimizationAutoCorrector');
+    return getConfig();
+  }),
+});
+
 // ==================== Algorithm Optimization Router ====================
 const algorithmOptimizationRouter = router({
   // 获取算法参数
@@ -12309,6 +12344,7 @@ export const appRouter = router({
   placement: placementRouter,
   unifiedOptimization: unifiedOptimizationRouter,
   autoRollback: autoRollbackRouter,
+  autoCorrection: autoCorrectionRouter,
   algorithmOptimization: algorithmOptimizationRouter,
   intelligentBudgetAllocation: intelligentBudgetAllocationRouter,
   abTest: abTestRouter,

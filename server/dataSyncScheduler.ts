@@ -547,6 +547,15 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
     console.error(`[DataSyncScheduler] v152: 算法进化失败:`, evoError.message);
   }
 
+  // ✅ v167: 数据同步完成后，自动运行纠错扫描（检测并修复过往错误优化）
+  try {
+    const { runAutoCorrection } = await import('./optimizationAutoCorrector');
+    const correctionResult = await runAutoCorrection(schedule.accountId);
+    console.log(`[DataSyncScheduler] v167: 自动纠错扫描完成: 发现${correctionResult.totalIssuesFound}个问题, 纠正${correctionResult.totalCorrected}个, 失败${correctionResult.totalFailed}个`);
+  } catch (correctionError: any) {
+    console.error(`[DataSyncScheduler] v167: 自动纠错扫描失败:`, correctionError.message);
+  }
+
   // 发送通知（如果配置了）
   if (result.campaigns > 0 || result.adGroups > 0) {
     try {
