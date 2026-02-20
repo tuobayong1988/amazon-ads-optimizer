@@ -131,6 +131,16 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
       return createEmptyScanResult('db_error');
     }
     
+    // 0. 修复历史NULL api_sync_status记录（全局操作，只需执行一次）
+    try {
+      const nullFixResult = await fixNullApiSyncStatusRecords(database);
+      if (nullFixResult > 0) {
+        console.log(`[AutoCorrector] v167: 已修复${nullFixResult}条历史NULL api_sync_status记录`);
+      }
+    } catch (nullFixError: any) {
+      console.error(`[AutoCorrector] v167: 修复NULL记录失败: ${nullFixError.message}`);
+    }
+    
     // 获取需要扫描的账户列表
     const accountIds = accountId ? [accountId] : await getActiveAccountIds(database);
     
@@ -183,6 +193,50 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
     return result;
   } finally {
     isScanning = false;
+  }
+}
+
+// ==================== 0. 修复历史NULL api_sync_status记录 ====================
+
+/**
+ * 修复 optimization_logs 表中 api_sync_status 为 NULL 的历史记录
+ * 这些记录是 v165 之前的旧版本代码产生的，当时没有 API 同步机制
+ * 将它们标记为 'legacy_unsynced' 以区分新版本的正常记录
+ */
+async function fixNullApiSyncStatusRecords(database: any): Promise<number> {
+  try {
+    // 更新 optimization_logs 表中 api_sync_status 为 NULL 的记录
+    const updateResult = await database.execute(sql`
+      UPDATE optimization_logs 
+      SET api_sync_status = 'legacy_unsynced'
+      WHERE api_sync_status IS NULL
+      LIMIT 500
+    `);
+    
+    const affectedRows = (updateResult as any)?.[0]?.affectedRows || (updateResult as any)?.affectedRows || 0;
+    
+    if (affectedRows > 0) {
+      console.log(`[AutoCorrector] v167: 已将 ${affectedRows} 条 optimization_logs NULL 记录标记为 legacy_unsynced`);
+    }
+    
+    // 同样处理 optimization_events 表
+    const updateResult2 = await database.execute(sql`
+      UPDATE optimization_events 
+      SET api_sync_status = 'legacy_unsynced'
+      WHERE api_sync_status IS NULL
+      LIMIT 500
+    `);
+    
+    const affectedRows2 = (updateResult2 as any)?.[0]?.affectedRows || (updateResult2 as any)?.affectedRows || 0;
+    
+    if (affectedRows2 > 0) {
+      console.log(`[AutoCorrector] v167: 已将 ${affectedRows2} 条 optimization_events NULL 记录标记为 legacy_unsynced`);
+    }
+    
+    return affectedRows + affectedRows2;
+  } catch (error: any) {
+    console.error(`[AutoCorrector] v167: fixNullApiSyncStatusRecords 失败: ${error.message}`);
+    return 0;
   }
 }
 
@@ -1124,4 +1178,42 @@ export function getScanStatus(): { isScanning: boolean; lastScanTime: Date | nul
  */
 export function getConfig(): typeof AUTO_CORRECTION_CONFIG {
   return { ...AUTO_CORRECTION_CONFIG };
+}
+
+
+// ==================== 定时纠错调度 ====================
+let correctionInterval: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * 启动自动纠错定时服务（每4小时运行一次）
+ */
+export function startAutoCorrector(): void {
+  if (correctionInterval) {
+    console.log('[AutoCorrector] 定时纠错服务已在运行中');
+    return;
+  }
+  const intervalMs = (AUTO_CORRECTION_CONFIG as any).scanIntervalHours 
+    ? (AUTO_CORRECTION_CONFIG as any).scanIntervalHours * 60 * 60 * 1000 
+    : 4 * 60 * 60 * 1000;
+  correctionInterval = setInterval(async () => {
+    try {
+      console.log('[AutoCorrector] 定时纠错扫描开始...');
+      const result = await runAutoCorrection();
+      console.log(`[AutoCorrector] 定时纠错扫描完成: 发现${result.totalIssuesFound}个问题, 纠正${result.totalCorrected}个, 失败${result.totalFailed}个`);
+    } catch (err: any) {
+      console.error('[AutoCorrector] 定时纠错扫描失败:', err.message);
+    }
+  }, intervalMs);
+  console.log(`[AutoCorrector] 定时纠错服务已启动，每4小时运行一次`);
+}
+
+/**
+ * 停止自动纠错定时服务
+ */
+export function stopAutoCorrector(): void {
+  if (correctionInterval) {
+    clearInterval(correctionInterval);
+    correctionInterval = null;
+    console.log('[AutoCorrector] 定时纠错服务已停止');
+  }
 }

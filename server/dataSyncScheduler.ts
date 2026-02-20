@@ -15,6 +15,7 @@ import * as automationExecutionEngine from './automationExecutionEngine';
 import * as searchTermHarvester from './searchTermHarvester';
 import { detectRiskSignals } from './attributionWindowHelper';
 import * as campaignLifecycleService from './services/campaignLifecycleService';
+import { runAutoCorrection, startAutoCorrector, stopAutoCorrector } from './optimizationAutoCorrector';
 
 // 同步层级定义
 export type SyncTier = 'high' | 'medium' | 'low' | 'full';
@@ -549,7 +550,6 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
 
   // ✅ v167: 数据同步完成后，自动运行纠错扫描（检测并修复过往错误优化）
   try {
-    const { runAutoCorrection } = await import('./optimizationAutoCorrector');
     const correctionResult = await runAutoCorrection(schedule.accountId);
     console.log(`[DataSyncScheduler] v167: 自动纠错扫描完成: 发现${correctionResult.totalIssuesFound}个问题, 纠正${correctionResult.totalCorrected}个, 失败${correctionResult.totalFailed}个`);
   } catch (correctionError: any) {
@@ -1061,7 +1061,6 @@ export async function startOptimizationScheduler(): Promise<void> {
   
   // v167: 启动自动纠错服务
   try {
-    const { startAutoCorrector } = await import('./optimizationAutoCorrector');
     startAutoCorrector();
     console.log('[OptimizationScheduler] v167: 自动纠错服务已启动');
   } catch (correctorErr: any) {
@@ -1084,7 +1083,6 @@ export function stopOptimizationScheduler(): void {
   
   // v167: 停止自动纠错服务
   try {
-    const { stopAutoCorrector } = require('./optimizationAutoCorrector');
     stopAutoCorrector();
   } catch (e) { /* ignore */ }
 }

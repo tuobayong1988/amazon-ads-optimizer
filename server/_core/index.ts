@@ -13,6 +13,7 @@ import { startOptimizationScheduler as startTargetScheduler } from "../optimizat
 import { startSQSConsumer } from "../sqsConsumerService";
 import { reportJobScheduler } from "../services/reportJobScheduler";
 import sitemapRouter from "../routes/sitemap";
+import { runAutoCorrection } from "../optimizationAutoCorrector";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -111,7 +112,6 @@ async function startServer() {
     // v167: 系统启动后延迟30秒运行全量纠错扫描（检测并修复过往错误优化）
     setTimeout(async () => {
       try {
-        const { runAutoCorrection } = await import('../optimizationAutoCorrector');
         const result = await runAutoCorrection();
         console.log(`[AutoCorrector] v167: 启动纠错扫描完成: 发现${result.totalIssuesFound}个问题, 纠正${result.totalCorrected}个, 失败${result.totalFailed}个`);
       } catch (err: any) {

@@ -45394,8 +45394,8 @@ var require_gt = __commonJS({
   "node_modules/semver/functions/gt.js"(exports2, module2) {
     "use strict";
     var compare2 = require_compare();
-    var gt4 = (a4, b6, loose) => compare2(a4, b6, loose) > 0;
-    module2.exports = gt4;
+    var gt5 = (a4, b6, loose) => compare2(a4, b6, loose) > 0;
+    module2.exports = gt5;
   }
 });
 
@@ -45404,8 +45404,8 @@ var require_lt = __commonJS({
   "node_modules/semver/functions/lt.js"(exports2, module2) {
     "use strict";
     var compare2 = require_compare();
-    var lt4 = (a4, b6, loose) => compare2(a4, b6, loose) < 0;
-    module2.exports = lt4;
+    var lt5 = (a4, b6, loose) => compare2(a4, b6, loose) < 0;
+    module2.exports = lt5;
   }
 });
 
@@ -45444,8 +45444,8 @@ var require_lte = __commonJS({
   "node_modules/semver/functions/lte.js"(exports2, module2) {
     "use strict";
     var compare2 = require_compare();
-    var lte15 = (a4, b6, loose) => compare2(a4, b6, loose) <= 0;
-    module2.exports = lte15;
+    var lte16 = (a4, b6, loose) => compare2(a4, b6, loose) <= 0;
+    module2.exports = lte16;
   }
 });
 
@@ -45455,10 +45455,10 @@ var require_cmp = __commonJS({
     "use strict";
     var eq7 = require_eq();
     var neq = require_neq();
-    var gt4 = require_gt();
+    var gt5 = require_gt();
     var gte15 = require_gte();
-    var lt4 = require_lt();
-    var lte15 = require_lte();
+    var lt5 = require_lt();
+    var lte16 = require_lte();
     var cmp = (a4, op7, b6, loose) => {
       switch (op7) {
         case "===":
@@ -45484,13 +45484,13 @@ var require_cmp = __commonJS({
         case "!=":
           return neq(a4, b6, loose);
         case ">":
-          return gt4(a4, b6, loose);
+          return gt5(a4, b6, loose);
         case ">=":
           return gte15(a4, b6, loose);
         case "<":
-          return lt4(a4, b6, loose);
+          return lt5(a4, b6, loose);
         case "<=":
-          return lte15(a4, b6, loose);
+          return lte16(a4, b6, loose);
         default:
           throw new TypeError(`Invalid operator: ${op7}`);
       }
@@ -46164,7 +46164,7 @@ var require_min_version = __commonJS({
     "use strict";
     var SemVer = require_semver();
     var Range = require_range2();
-    var gt4 = require_gt();
+    var gt5 = require_gt();
     var minVersion = (range8, loose) => {
       range8 = new Range(range8, loose);
       let minver = new SemVer("0.0.0");
@@ -46192,7 +46192,7 @@ var require_min_version = __commonJS({
             /* fallthrough */
             case "":
             case ">=":
-              if (!setMin || gt4(compver, setMin)) {
+              if (!setMin || gt5(compver, setMin)) {
                 setMin = compver;
               }
               break;
@@ -46204,7 +46204,7 @@ var require_min_version = __commonJS({
               throw new Error(`Unexpected operation: ${comparator.operator}`);
           }
         });
-        if (setMin && (!minver || gt4(minver, setMin))) {
+        if (setMin && (!minver || gt5(minver, setMin))) {
           minver = setMin;
         }
       }
@@ -46242,9 +46242,9 @@ var require_outside = __commonJS({
     var { ANY } = Comparator;
     var Range = require_range2();
     var satisfies = require_satisfies();
-    var gt4 = require_gt();
-    var lt4 = require_lt();
-    var lte15 = require_lte();
+    var gt5 = require_gt();
+    var lt5 = require_lt();
+    var lte16 = require_lte();
     var gte15 = require_gte();
     var outside = (version5, range8, hilo, options) => {
       version5 = new SemVer(version5, options);
@@ -46252,16 +46252,16 @@ var require_outside = __commonJS({
       let gtfn, ltefn, ltfn, comp, ecomp;
       switch (hilo) {
         case ">":
-          gtfn = gt4;
-          ltefn = lte15;
-          ltfn = lt4;
+          gtfn = gt5;
+          ltefn = lte16;
+          ltfn = lt5;
           comp = ">";
           ecomp = ">=";
           break;
         case "<":
-          gtfn = lt4;
+          gtfn = lt5;
           ltefn = gte15;
-          ltfn = gt4;
+          ltfn = gt5;
           comp = "<";
           ecomp = "<=";
           break;
@@ -46439,12 +46439,12 @@ var require_subset = __commonJS({
         }
       }
       const eqSet = /* @__PURE__ */ new Set();
-      let gt4, lt4;
+      let gt5, lt5;
       for (const c5 of sub) {
         if (c5.operator === ">" || c5.operator === ">=") {
-          gt4 = higherGT(gt4, c5, options);
+          gt5 = higherGT(gt5, c5, options);
         } else if (c5.operator === "<" || c5.operator === "<=") {
-          lt4 = lowerLT(lt4, c5, options);
+          lt5 = lowerLT(lt5, c5, options);
         } else {
           eqSet.add(c5.semver);
         }
@@ -46453,19 +46453,19 @@ var require_subset = __commonJS({
         return null;
       }
       let gtltComp;
-      if (gt4 && lt4) {
-        gtltComp = compare2(gt4.semver, lt4.semver, options);
+      if (gt5 && lt5) {
+        gtltComp = compare2(gt5.semver, lt5.semver, options);
         if (gtltComp > 0) {
           return null;
-        } else if (gtltComp === 0 && (gt4.operator !== ">=" || lt4.operator !== "<=")) {
+        } else if (gtltComp === 0 && (gt5.operator !== ">=" || lt5.operator !== "<=")) {
           return null;
         }
       }
       for (const eq7 of eqSet) {
-        if (gt4 && !satisfies(eq7, String(gt4), options)) {
+        if (gt5 && !satisfies(eq7, String(gt5), options)) {
           return null;
         }
-        if (lt4 && !satisfies(eq7, String(lt4), options)) {
+        if (lt5 && !satisfies(eq7, String(lt5), options)) {
           return null;
         }
         for (const c5 of dom) {
@@ -46477,52 +46477,52 @@ var require_subset = __commonJS({
       }
       let higher, lower;
       let hasDomLT, hasDomGT;
-      let needDomLTPre = lt4 && !options.includePrerelease && lt4.semver.prerelease.length ? lt4.semver : false;
-      let needDomGTPre = gt4 && !options.includePrerelease && gt4.semver.prerelease.length ? gt4.semver : false;
-      if (needDomLTPre && needDomLTPre.prerelease.length === 1 && lt4.operator === "<" && needDomLTPre.prerelease[0] === 0) {
+      let needDomLTPre = lt5 && !options.includePrerelease && lt5.semver.prerelease.length ? lt5.semver : false;
+      let needDomGTPre = gt5 && !options.includePrerelease && gt5.semver.prerelease.length ? gt5.semver : false;
+      if (needDomLTPre && needDomLTPre.prerelease.length === 1 && lt5.operator === "<" && needDomLTPre.prerelease[0] === 0) {
         needDomLTPre = false;
       }
       for (const c5 of dom) {
         hasDomGT = hasDomGT || c5.operator === ">" || c5.operator === ">=";
         hasDomLT = hasDomLT || c5.operator === "<" || c5.operator === "<=";
-        if (gt4) {
+        if (gt5) {
           if (needDomGTPre) {
             if (c5.semver.prerelease && c5.semver.prerelease.length && c5.semver.major === needDomGTPre.major && c5.semver.minor === needDomGTPre.minor && c5.semver.patch === needDomGTPre.patch) {
               needDomGTPre = false;
             }
           }
           if (c5.operator === ">" || c5.operator === ">=") {
-            higher = higherGT(gt4, c5, options);
-            if (higher === c5 && higher !== gt4) {
+            higher = higherGT(gt5, c5, options);
+            if (higher === c5 && higher !== gt5) {
               return false;
             }
-          } else if (gt4.operator === ">=" && !satisfies(gt4.semver, String(c5), options)) {
+          } else if (gt5.operator === ">=" && !satisfies(gt5.semver, String(c5), options)) {
             return false;
           }
         }
-        if (lt4) {
+        if (lt5) {
           if (needDomLTPre) {
             if (c5.semver.prerelease && c5.semver.prerelease.length && c5.semver.major === needDomLTPre.major && c5.semver.minor === needDomLTPre.minor && c5.semver.patch === needDomLTPre.patch) {
               needDomLTPre = false;
             }
           }
           if (c5.operator === "<" || c5.operator === "<=") {
-            lower = lowerLT(lt4, c5, options);
-            if (lower === c5 && lower !== lt4) {
+            lower = lowerLT(lt5, c5, options);
+            if (lower === c5 && lower !== lt5) {
               return false;
             }
-          } else if (lt4.operator === "<=" && !satisfies(lt4.semver, String(c5), options)) {
+          } else if (lt5.operator === "<=" && !satisfies(lt5.semver, String(c5), options)) {
             return false;
           }
         }
-        if (!c5.operator && (lt4 || gt4) && gtltComp !== 0) {
+        if (!c5.operator && (lt5 || gt5) && gtltComp !== 0) {
           return false;
         }
       }
-      if (gt4 && hasDomLT && !lt4 && gtltComp !== 0) {
+      if (gt5 && hasDomLT && !lt5 && gtltComp !== 0) {
         return false;
       }
-      if (lt4 && hasDomGT && !gt4 && gtltComp !== 0) {
+      if (lt5 && hasDomGT && !gt5 && gtltComp !== 0) {
         return false;
       }
       if (needDomGTPre || needDomLTPre) {
@@ -46571,12 +46571,12 @@ var require_semver2 = __commonJS({
     var compareBuild = require_compare_build();
     var sort5 = require_sort();
     var rsort = require_rsort();
-    var gt4 = require_gt();
-    var lt4 = require_lt();
+    var gt5 = require_gt();
+    var lt5 = require_lt();
     var eq7 = require_eq();
     var neq = require_neq();
     var gte15 = require_gte();
-    var lte15 = require_lte();
+    var lte16 = require_lte();
     var cmp = require_cmp();
     var coerce2 = require_coerce();
     var Comparator = require_comparator();
@@ -46609,12 +46609,12 @@ var require_semver2 = __commonJS({
       compareBuild,
       sort: sort5,
       rsort,
-      gt: gt4,
-      lt: lt4,
+      gt: gt5,
+      lt: lt5,
       eq: eq7,
       neq,
       gte: gte15,
-      lte: lte15,
+      lte: lte16,
       cmp,
       coerce: coerce2,
       Comparator,
@@ -47945,10 +47945,10 @@ var require_is = __commonJS({
       return typeof payload4 === "undefined";
     };
     exports2.isUndefined = isUndefined2;
-    var isNull8 = function(payload4) {
+    var isNull7 = function(payload4) {
       return payload4 === null;
     };
-    exports2.isNull = isNull8;
+    exports2.isNull = isNull7;
     var isPlainObject4 = function(payload4) {
       if (typeof payload4 !== "object" || payload4 === null)
         return false;
@@ -48776,7 +48776,7 @@ var require_cjs = __commonJS({
     function isNegativeNumber(payload4) {
       return isNumber4(payload4) && payload4 < 0;
     }
-    function isNull8(payload4) {
+    function isNull7(payload4) {
       return getType(payload4) === "Null";
     }
     function isOneOf(a4, b6, c5, d5, e6) {
@@ -48785,7 +48785,7 @@ var require_cjs = __commonJS({
     function isUndefined2(payload4) {
       return getType(payload4) === "Undefined";
     }
-    var isNullOrUndefined = isOneOf(isNull8, isUndefined2);
+    var isNullOrUndefined = isOneOf(isNull7, isUndefined2);
     function isObject7(payload4) {
       return isPlainObject4(payload4);
     }
@@ -48799,7 +48799,7 @@ var require_cjs = __commonJS({
       return getType(payload4) === "Symbol";
     }
     function isPrimitive2(payload4) {
-      return isBoolean2(payload4) || isNull8(payload4) || isUndefined2(payload4) || isNumber4(payload4) || isString2(payload4) || isSymbol(payload4);
+      return isBoolean2(payload4) || isNull7(payload4) || isUndefined2(payload4) || isNumber4(payload4) || isString2(payload4) || isSymbol(payload4);
     }
     function isPromise2(payload4) {
       return getType(payload4) === "Promise";
@@ -48835,7 +48835,7 @@ var require_cjs = __commonJS({
     exports2.isMap = isMap;
     exports2.isNaNValue = isNaNValue;
     exports2.isNegativeNumber = isNegativeNumber;
-    exports2.isNull = isNull8;
+    exports2.isNull = isNull7;
     exports2.isNullOrUndefined = isNullOrUndefined;
     exports2.isNumber = isNumber4;
     exports2.isObject = isObject7;
@@ -52248,10 +52248,10 @@ var init_amazonAdsApi = __esm({
           if (workingHeaders) {
             try {
               const response = await this.axiosInstance.post("/sp/campaigns/list", body, { headers: workingHeaders });
-              const campaigns7 = response.data.campaigns || [];
-              allCampaigns.push(...campaigns7);
+              const campaigns6 = response.data.campaigns || [];
+              allCampaigns.push(...campaigns6);
               nextToken = response.data.nextToken;
-              console.log(`[SP API] Fetched ${campaigns7.length} campaigns, total: ${allCampaigns.length}, hasMore: ${!!nextToken}`);
+              console.log(`[SP API] Fetched ${campaigns6.length} campaigns, total: ${allCampaigns.length}, hasMore: ${!!nextToken}`);
             } catch (error54) {
               console.error("[SP API] Error fetching campaigns:", error54.message);
               throw error54;
@@ -52261,10 +52261,10 @@ var init_amazonAdsApi = __esm({
               try {
                 const response = await this.axiosInstance.post("/sp/campaigns/list", body, { headers });
                 workingHeaders = headers;
-                const campaigns7 = response.data.campaigns || [];
-                allCampaigns.push(...campaigns7);
+                const campaigns6 = response.data.campaigns || [];
+                allCampaigns.push(...campaigns6);
                 nextToken = response.data.nextToken;
-                console.log(`[SP API] Fetched ${campaigns7.length} campaigns, total: ${allCampaigns.length}, hasMore: ${!!nextToken}`);
+                console.log(`[SP API] Fetched ${campaigns6.length} campaigns, total: ${allCampaigns.length}, hasMore: ${!!nextToken}`);
                 break;
               } catch (error54) {
                 lastError = error54;
@@ -52402,10 +52402,10 @@ var init_amazonAdsApi = __esm({
           if (workingHeaders) {
             try {
               const response = await this.axiosInstance.post("/sp/keywords/list", body, { headers: workingHeaders });
-              const keywords7 = response.data.keywords || [];
-              allKeywords.push(...keywords7);
+              const keywords6 = response.data.keywords || [];
+              allKeywords.push(...keywords6);
               nextToken = response.data.nextToken;
-              console.log(`[SP API] Fetched ${keywords7.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
+              console.log(`[SP API] Fetched ${keywords6.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
             } catch (error54) {
               console.error("[SP API] Error fetching keywords:", error54.message, error54.response?.data ? JSON.stringify(error54.response.data).slice(0, 200) : "");
               throw error54;
@@ -52415,10 +52415,10 @@ var init_amazonAdsApi = __esm({
               try {
                 const response = await this.axiosInstance.post("/sp/keywords/list", body, { headers });
                 workingHeaders = headers;
-                const keywords7 = response.data.keywords || [];
-                allKeywords.push(...keywords7);
+                const keywords6 = response.data.keywords || [];
+                allKeywords.push(...keywords6);
                 nextToken = response.data.nextToken;
-                console.log(`[SP API] Fetched ${keywords7.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
+                console.log(`[SP API] Fetched ${keywords6.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
                 break;
               } catch (error54) {
                 lastError = error54;
@@ -52440,9 +52440,9 @@ var init_amazonAdsApi = __esm({
       /**
        * 创建SP关键词（用于搜索词收割：将高转化搜索词添加为精确匹配关键词）
        */
-      async createSpKeywords(keywords7) {
+      async createSpKeywords(keywords6) {
         try {
-          const formattedKeywords = keywords7.map((k5) => ({
+          const formattedKeywords = keywords6.map((k5) => ({
             adGroupId: String(k5.adGroupId),
             campaignId: String(k5.campaignId),
             keywordText: k5.keywordText,
@@ -52468,7 +52468,7 @@ var init_amazonAdsApi = __esm({
                 const idx = item.index || 0;
                 createdKeywords.push({
                   keywordId: item.keywordId,
-                  keywordText: keywords7[idx]?.keywordText || "",
+                  keywordText: keywords6[idx]?.keywordText || "",
                   code: "SUCCESS"
                 });
               }
@@ -52478,7 +52478,7 @@ var init_amazonAdsApi = __esm({
                 errors.push(item);
                 createdKeywords.push({
                   keywordId: null,
-                  keywordText: keywords7[item.index]?.keywordText || "",
+                  keywordText: keywords6[item.index]?.keywordText || "",
                   code: item.code || "ERROR"
                 });
               }
@@ -54715,22 +54715,22 @@ var init_amazonAdsApi = __esm({
               }
             }
           );
-          const campaigns7 = response.data.campaigns || [];
-          if (pageCount === 0 && campaigns7.length > 0) {
+          const campaigns6 = response.data.campaigns || [];
+          if (pageCount === 0 && campaigns6.length > 0) {
             console.log("[SB API DEBUG] First campaign full structure:");
-            console.log(JSON.stringify(campaigns7[0], null, 2));
-            console.log("[SB API DEBUG] First campaign startDate:", campaigns7[0].startDate);
-            console.log("[SB API DEBUG] First campaign keys:", Object.keys(campaigns7[0]));
+            console.log(JSON.stringify(campaigns6[0], null, 2));
+            console.log("[SB API DEBUG] First campaign startDate:", campaigns6[0].startDate);
+            console.log("[SB API DEBUG] First campaign keys:", Object.keys(campaigns6[0]));
             console.log("[SB API] \u9884\u7B97\u5B57\u6BB5\u68C0\u67E5:");
-            console.log("  - budget:", campaigns7[0].budget);
-            console.log("  - dailyBudget:", campaigns7[0].dailyBudget);
-            console.log("  - state:", campaigns7[0].state);
-            console.log("  - status:", campaigns7[0].status);
+            console.log("  - budget:", campaigns6[0].budget);
+            console.log("  - dailyBudget:", campaigns6[0].dailyBudget);
+            console.log("  - state:", campaigns6[0].state);
+            console.log("  - status:", campaigns6[0].status);
           }
-          allCampaigns.push(...campaigns7);
+          allCampaigns.push(...campaigns6);
           nextToken = response.data.nextToken;
           pageCount++;
-          console.log(`[SB API] \u7B2C${pageCount}\u9875\u83B7\u53D6\u5230 ${campaigns7.length} \u4E2ASB\u5E7F\u544A\u6D3B\u52A8, \u603B\u8BA1: ${allCampaigns.length}`);
+          console.log(`[SB API] \u7B2C${pageCount}\u9875\u83B7\u53D6\u5230 ${campaigns6.length} \u4E2ASB\u5E7F\u544A\u6D3B\u52A8, \u603B\u8BA1: ${allCampaigns.length}`);
         } while (nextToken);
         console.log(`[SB API] \u5171\u83B7\u53D6\u5230 ${allCampaigns.length} \u4E2ASB\u5E7F\u544A\u6D3B\u52A8`);
         return allCampaigns;
@@ -54793,10 +54793,10 @@ var init_amazonAdsApi = __esm({
               }
             }
           );
-          const keywords7 = response.data.keywords || [];
-          allKeywords.push(...keywords7);
+          const keywords6 = response.data.keywords || [];
+          allKeywords.push(...keywords6);
           nextToken = response.data.nextToken;
-          console.log(`[SB API] Fetched ${keywords7.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
+          console.log(`[SB API] Fetched ${keywords6.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
         } while (nextToken);
         console.log(`[SB API] Total keywords fetched: ${allKeywords.length}`);
         return allKeywords;
@@ -54888,15 +54888,15 @@ var init_amazonAdsApi = __esm({
               params: { startIndex, count: count2 }
             });
           }
-          const campaigns7 = response.data || [];
-          allCampaigns.push(...campaigns7);
-          console.log(`[SD API] Fetched ${campaigns7.length} campaigns, total: ${allCampaigns.length}`);
+          const campaigns6 = response.data || [];
+          allCampaigns.push(...campaigns6);
+          console.log(`[SD API] Fetched ${campaigns6.length} campaigns, total: ${allCampaigns.length}`);
           if (allCampaigns.length > 0 && startIndex === 0) {
             console.log("[SD API DEBUG] First campaign full structure:", JSON.stringify(allCampaigns[0], null, 2));
             console.log("[SD API DEBUG] First campaign startDate:", allCampaigns[0].startDate);
             console.log("[SD API DEBUG] First campaign keys:", Object.keys(allCampaigns[0]));
           }
-          if (campaigns7.length < count2) {
+          if (campaigns6.length < count2) {
             break;
           }
           startIndex += count2;
@@ -55149,10 +55149,10 @@ var init_amazonAdsApi = __esm({
       /**
        * 获取关键词出价建议
        */
-      async getKeywordBidRecommendations(adGroupId, keywords7) {
+      async getKeywordBidRecommendations(adGroupId, keywords6) {
         const response = await this.axiosInstance.post("/sp/keywords/bidRecommendations", {
           adGroupId,
-          keywords: keywords7
+          keywords: keywords6
         });
         return response.data.recommendations || [];
       }
@@ -56256,7 +56256,7 @@ function analyzeBidCorrections(bidChanges, attributionWindowDays = 14) {
   });
   return suggestions;
 }
-function analyzeCampaignHealth(campaigns7, thresholds = {
+function analyzeCampaignHealth(campaigns6, thresholds = {
   acosWarning: 35,
   acosCritical: 50,
   ctrDropWarning: -20,
@@ -56266,7 +56266,7 @@ function analyzeCampaignHealth(campaigns7, thresholds = {
   roasMinimum: 2
 }) {
   const results = [];
-  for (const campaign of campaigns7) {
+  for (const campaign of campaigns6) {
     const alerts = [];
     const recommendations = [];
     const now = /* @__PURE__ */ new Date();
@@ -57250,9 +57250,9 @@ async function syncKeywordStatusToAmazon(accountId, statusChanges) {
         result.errors.push(`\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25`);
         continue;
       }
-      const { keywords: keywords7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+      const { keywords: keywords6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
       const { eq: eq7 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-      let [kw] = await dbInstance.select({ keywordId: keywords7.keywordId }).from(keywords7).where(eq7(keywords7.id, change.keywordId)).limit(1);
+      let [kw] = await dbInstance.select({ keywordId: keywords6.keywordId }).from(keywords6).where(eq7(keywords6.id, change.keywordId)).limit(1);
       if (!kw || !kw.keywordId || kw.keywordId === "0" || kw.keywordId === "") {
         console.log(`[AmazonApiHelper] keyword id=${change.keywordId} \u7F3A\u5C11keywordId\uFF0C\u5C1D\u8BD5\u5373\u65F6\u56DE\u586B...`);
         try {
@@ -64432,13 +64432,13 @@ async function checkEmergencyBrake(accountId, performanceGroupId) {
     const previousEnd = new Date(recentStart);
     const previousStart = new Date(previousEnd);
     previousStart.setDate(previousStart.getDate() - lookback);
-    const campaigns7 = await getCampaignsByPerformanceGroupId(performanceGroupId);
-    if (campaigns7.length === 0) {
+    const campaigns6 = await getCampaignsByPerformanceGroupId(performanceGroupId);
+    if (campaigns6.length === 0) {
       return { triggered: false, reason: null, recommendation: "none" };
     }
     let recentSpend = 0, recentSales = 0, recentOrders = 0;
     let previousSpend = 0, previousSales = 0, previousOrders = 0;
-    for (const campaign of campaigns7) {
+    for (const campaign of campaigns6) {
       try {
         const recentData = await getDailyPerformanceByDateRange(accountId, recentStart, recentEnd, campaign.id);
         const previousData = await getDailyPerformanceByDateRange(accountId, previousStart, previousEnd, campaign.id);
@@ -65074,8 +65074,8 @@ function determineCampaignLifecycle(campaign) {
   };
 }
 async function getTargetLifecycleStage(targetId) {
-  const campaigns7 = await getCampaignsByPerformanceGroupId(targetId);
-  if (campaigns7.length === 0) {
+  const campaigns6 = await getCampaignsByPerformanceGroupId(targetId);
+  if (campaigns6.length === 0) {
     return {
       overallStage: "launch",
       campaigns: [],
@@ -65083,7 +65083,7 @@ async function getTargetLifecycleStage(targetId) {
       summary: "\u65E0\u5E7F\u544A\u6D3B\u52A8"
     };
   }
-  const lifecycleInfos = campaigns7.map((c5) => determineCampaignLifecycle(c5));
+  const lifecycleInfos = campaigns6.map((c5) => determineCampaignLifecycle(c5));
   let overallStage = "mature";
   const launchCount = lifecycleInfos.filter((l6) => l6.stage === "launch").length;
   const growthCount = lifecycleInfos.filter((l6) => l6.stage === "growth").length;
@@ -65093,7 +65093,7 @@ async function getTargetLifecycleStage(targetId) {
   } else if (growthCount > 0) {
     overallStage = "growth";
   }
-  const summary = `${campaigns7.length}\u4E2A\u5E7F\u544A\u6D3B\u52A8: \u542F\u52A8\u671F=${launchCount}, \u6210\u957F\u671F=${growthCount}, \u6210\u719F\u671F=${matureCount} \u2192 \u7EFC\u5408\u9636\u6BB5: ${overallStage}`;
+  const summary = `${campaigns6.length}\u4E2A\u5E7F\u544A\u6D3B\u52A8: \u542F\u52A8\u671F=${launchCount}, \u6210\u957F\u671F=${growthCount}, \u6210\u719F\u671F=${matureCount} \u2192 \u7EFC\u5408\u9636\u6BB5: ${overallStage}`;
   return {
     overallStage,
     campaigns: lifecycleInfos,
@@ -65292,6 +65292,843 @@ var init_campaignLifecycleService = __esm({
         }
       }
     };
+  }
+});
+
+// server/optimizationAutoCorrector.ts
+async function runAutoCorrection(accountId) {
+  if (isScanning) {
+    console.log("[AutoCorrector] v167: \u7EA0\u9519\u626B\u63CF\u6B63\u5728\u8FDB\u884C\u4E2D\uFF0C\u8DF3\u8FC7\u672C\u6B21\u8BF7\u6C42");
+    return createEmptyScanResult("skipped_in_progress");
+  }
+  if (lastScanTime && Date.now() - lastScanTime.getTime() < AUTO_CORRECTION_CONFIG.minScanIntervalMs) {
+    console.log("[AutoCorrector] v167: \u8DDD\u79BB\u4E0A\u6B21\u626B\u63CF\u4E0D\u8DB310\u5206\u949F\uFF0C\u8DF3\u8FC7");
+    return createEmptyScanResult("skipped_too_frequent");
+  }
+  isScanning = true;
+  const scanId = `scan_${Date.now()}`;
+  const startedAt = /* @__PURE__ */ new Date();
+  const corrections = [];
+  console.log(`[AutoCorrector] v167: \u5F00\u59CB\u81EA\u52A8\u7EA0\u9519\u626B\u63CF (scanId: ${scanId}, accountId: ${accountId || "all"})`);
+  try {
+    const database = await getDb();
+    if (!database) {
+      console.error("[AutoCorrector] v167: \u65E0\u6CD5\u83B7\u53D6\u6570\u636E\u5E93\u8FDE\u63A5");
+      return createEmptyScanResult("db_error");
+    }
+    try {
+      const nullFixResult = await fixNullApiSyncStatusRecords(database);
+      if (nullFixResult > 0) {
+        console.log(`[AutoCorrector] v167: \u5DF2\u4FEE\u590D${nullFixResult}\u6761\u5386\u53F2NULL api_sync_status\u8BB0\u5F55`);
+      }
+    } catch (nullFixError) {
+      console.error(`[AutoCorrector] v167: \u4FEE\u590DNULL\u8BB0\u5F55\u5931\u8D25: ${nullFixError.message}`);
+    }
+    const accountIds = accountId ? [accountId] : await getActiveAccountIds(database);
+    for (const accId of accountIds) {
+      try {
+        const bidRetries = await retryFailedBidAdjustments(database, accId);
+        corrections.push(...bidRetries);
+        const bidMismatches = await correctBidMismatches(database, accId);
+        corrections.push(...bidMismatches);
+        const budgetRetries = await retryFailedBudgetAdjustments(database, accId);
+        corrections.push(...budgetRetries);
+        const budgetMismatches = await correctBudgetMismatches(database, accId);
+        corrections.push(...budgetMismatches);
+        const placementMismatches = await correctPlacementMismatches(database, accId);
+        corrections.push(...placementMismatches);
+        const rollbacks = await executeUnfinishedRollbacks(database, accId);
+        corrections.push(...rollbacks);
+        const settingsRetries = await retryFailedSettingsChanges(database, accId);
+        corrections.push(...settingsRetries);
+      } catch (accError) {
+        console.error(`[AutoCorrector] v167: \u8D26\u6237 ${accId} \u7EA0\u9519\u5931\u8D25: ${accError.message}`);
+      }
+    }
+    const completedAt = /* @__PURE__ */ new Date();
+    const result = buildScanResult(scanId, startedAt, completedAt, accountIds.length, corrections);
+    scanHistory.unshift(result);
+    if (scanHistory.length > 20) scanHistory.pop();
+    lastScanTime = completedAt;
+    console.log(`[AutoCorrector] v167: \u7EA0\u9519\u626B\u63CF\u5B8C\u6210 - \u53D1\u73B0${result.totalIssuesFound}\u4E2A\u95EE\u9898, \u7EA0\u6B63${result.totalCorrected}\u4E2A, \u5931\u8D25${result.totalFailed}\u4E2A`);
+    return result;
+  } finally {
+    isScanning = false;
+  }
+}
+async function fixNullApiSyncStatusRecords(database) {
+  try {
+    const updateResult = await database.execute(sql`
+      UPDATE optimization_logs 
+      SET api_sync_status = 'legacy_unsynced'
+      WHERE api_sync_status IS NULL
+      LIMIT 500
+    `);
+    const affectedRows = updateResult?.[0]?.affectedRows || updateResult?.affectedRows || 0;
+    if (affectedRows > 0) {
+      console.log(`[AutoCorrector] v167: \u5DF2\u5C06 ${affectedRows} \u6761 optimization_logs NULL \u8BB0\u5F55\u6807\u8BB0\u4E3A legacy_unsynced`);
+    }
+    const updateResult2 = await database.execute(sql`
+      UPDATE optimization_events 
+      SET api_sync_status = 'legacy_unsynced'
+      WHERE api_sync_status IS NULL
+      LIMIT 500
+    `);
+    const affectedRows2 = updateResult2?.[0]?.affectedRows || updateResult2?.affectedRows || 0;
+    if (affectedRows2 > 0) {
+      console.log(`[AutoCorrector] v167: \u5DF2\u5C06 ${affectedRows2} \u6761 optimization_events NULL \u8BB0\u5F55\u6807\u8BB0\u4E3A legacy_unsynced`);
+    }
+    return affectedRows + affectedRows2;
+  } catch (error54) {
+    console.error(`[AutoCorrector] v167: fixNullApiSyncStatusRecords \u5931\u8D25: ${error54.message}`);
+    return 0;
+  }
+}
+async function retryFailedBidAdjustments(database, accountId) {
+  const results = [];
+  try {
+    const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1e3).toISOString().slice(0, 19).replace("T", " ");
+    const failedEvents = await database.select({
+      id: optimizationEvents.id,
+      keywordId: optimizationEvents.keywordId,
+      keywordText: optimizationEvents.keywordText,
+      campaignId: optimizationEvents.campaignId,
+      campaignName: optimizationEvents.campaignName,
+      previousBid: optimizationEvents.previousBid,
+      newBid: optimizationEvents.newBid,
+      actionDetail: optimizationEvents.actionDetail,
+      errorMessage: optimizationEvents.errorMessage,
+      createdAt: optimizationEvents.createdAt
+    }).from(optimizationEvents).where(
+      and(
+        eq(optimizationEvents.accountId, accountId),
+        eq(optimizationEvents.eventCategory, "bid_adjustment"),
+        eq(optimizationEvents.status, "success"),
+        or(
+          eq(optimizationEvents.apiSyncStatus, "failed"),
+          eq(optimizationEvents.apiSyncStatus, "pending")
+        ),
+        gte(optimizationEvents.createdAt, expiryDateStr)
+      )
+    ).orderBy(desc(optimizationEvents.createdAt)).limit(AUTO_CORRECTION_CONFIG.maxRetryPerRun);
+    if (failedEvents.length === 0) return results;
+    console.log(`[AutoCorrector] v167: \u8D26\u6237${accountId} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25\u7684\u51FA\u4EF7\u8C03\u6574\u9700\u8981\u91CD\u8BD5`);
+    const latestByKeyword = /* @__PURE__ */ new Map();
+    for (const event of failedEvents) {
+      if (event.keywordId && !latestByKeyword.has(event.keywordId)) {
+        latestByKeyword.set(event.keywordId, event);
+      }
+    }
+    const retryItems = Array.from(latestByKeyword.values()).filter((e6) => e6.keywordId && e6.newBid).map((e6) => ({
+      keywordId: e6.keywordId,
+      newBid: parseFloat(String(e6.newBid)),
+      campaignId: e6.campaignId || 0,
+      reason: `[\u81EA\u52A8\u7EA0\u9519] \u91CD\u8BD5\u4E4B\u524D\u5931\u8D25\u7684\u51FA\u4EF7\u8C03\u6574 (\u539F\u4E8B\u4EF6ID: ${e6.id})`
+    }));
+    if (retryItems.length === 0) return results;
+    try {
+      const syncResult = await syncBidAdjustmentsToAmazon(
+        accountId,
+        retryItems
+      );
+      for (const item of retryItems) {
+        const event = Array.from(latestByKeyword.values()).find((e6) => e6.keywordId === item.keywordId);
+        if (!event) continue;
+        const success2 = syncResult.success > 0;
+        results.push({
+          type: "bid_retry",
+          accountId,
+          targetId: item.keywordId,
+          targetType: "keyword",
+          previousValue: String(event.previousBid || ""),
+          correctedValue: String(item.newBid),
+          reason: `\u91CD\u8BD5\u5931\u8D25\u7684\u51FA\u4EF7\u8C03\u6574 (\u539F\u4E8B\u4EF6: ${event.id})`,
+          success: success2,
+          errorMessage: success2 ? void 0 : "\u91CD\u8BD5\u4ECD\u7136\u5931\u8D25"
+        });
+        if (success2) {
+          await database.update(optimizationEvents).set({
+            apiSyncStatus: "synced",
+            apiSyncDetail: JSON.stringify({ correctedBy: "AutoCorrector", correctedAt: (/* @__PURE__ */ new Date()).toISOString() }),
+            apiSyncedAt: /* @__PURE__ */ new Date()
+          }).where(eq(optimizationEvents.id, event.id));
+          await database.update(keywords).set({ bid: String(item.newBid) }).where(eq(keywords.id, item.keywordId));
+        }
+      }
+    } catch (apiError) {
+      console.error(`[AutoCorrector] v167: \u8D26\u6237${accountId} \u51FA\u4EF7\u91CD\u8BD5API\u8C03\u7528\u5931\u8D25: ${apiError.message}`);
+      for (const item of retryItems) {
+        results.push({
+          type: "bid_retry",
+          accountId,
+          targetId: item.keywordId,
+          targetType: "keyword",
+          previousValue: "",
+          correctedValue: String(item.newBid),
+          reason: `\u91CD\u8BD5\u5931\u8D25\u7684\u51FA\u4EF7\u8C03\u6574`,
+          success: false,
+          errorMessage: apiError.message
+        });
+      }
+    }
+  } catch (error54) {
+    console.error(`[AutoCorrector] v167: \u8D26\u6237${accountId} retryFailedBidAdjustments\u5931\u8D25: ${error54.message}`);
+  }
+  return results;
+}
+async function correctBidMismatches(database, accountId) {
+  const results = [];
+  try {
+    const mismatchQuery = sql`
+      SELECT 
+        oe.id as event_id,
+        oe.keyword_id,
+        oe.keyword_text,
+        oe.campaign_id,
+        oe.campaign_name,
+        oe.new_bid as expected_bid,
+        oe.previous_bid,
+        k.bid as current_bid,
+        oe.created_at as optimized_at
+      FROM optimization_events oe
+      JOIN keywords k ON oe.keyword_id = k.id
+      WHERE oe.account_id = ${accountId}
+        AND oe.event_category = 'bid_adjustment'
+        AND oe.status = 'success'
+        AND oe.api_sync_status = 'synced'
+        AND oe.created_at > DATE_SUB(NOW(), INTERVAL 3 DAY)
+        AND ABS(CAST(k.bid AS DECIMAL(10,2)) - CAST(oe.new_bid AS DECIMAL(10,2))) > ${AUTO_CORRECTION_CONFIG.bidToleranceDollar}
+        AND oe.id = (
+          SELECT MAX(oe2.id) FROM optimization_events oe2 
+          WHERE oe2.keyword_id = oe.keyword_id 
+            AND oe2.event_category = 'bid_adjustment'
+            AND oe2.status = 'success'
+            AND oe2.api_sync_status = 'synced'
+        )
+      ORDER BY oe.created_at DESC
+      LIMIT ${AUTO_CORRECTION_CONFIG.maxBidCorrectionsPerRun}
+    `;
+    const mismatches = await database.execute(mismatchQuery);
+    const rows = mismatches[0] || mismatches;
+    if (!Array.isArray(rows) || rows.length === 0) return results;
+    console.log(`[AutoCorrector] v167: \u8D26\u6237${accountId} \u53D1\u73B0${rows.length}\u6761\u51FA\u4EF7\u4E0D\u4E00\u81F4\u9700\u8981\u7EA0\u6B63`);
+    const correctionItems = rows.map((row) => ({
+      keywordId: row.keyword_id,
+      newBid: parseFloat(String(row.expected_bid)),
+      campaignId: row.campaign_id || 0,
+      reason: `[\u81EA\u52A8\u7EA0\u9519] \u51FA\u4EF7\u4E0D\u4E00\u81F4\u7EA0\u6B63: \u671F\u671B$${row.expected_bid}, \u5F53\u524D$${row.current_bid}`
+    }));
+    try {
+      const syncResult = await syncBidAdjustmentsToAmazon(
+        accountId,
+        correctionItems
+      );
+      for (const row of rows) {
+        const success2 = syncResult.success > 0;
+        results.push({
+          type: "bid_mismatch",
+          accountId,
+          targetId: row.keyword_id,
+          targetType: "keyword",
+          previousValue: String(row.current_bid),
+          correctedValue: String(row.expected_bid),
+          reason: `\u51FA\u4EF7\u4E0D\u4E00\u81F4: \u671F\u671B$${row.expected_bid}(\u4F18\u5316\u503C), \u5B9E\u9645$${row.current_bid}(\u5F53\u524D\u503C)`,
+          success: success2
+        });
+        if (success2) {
+          await database.update(keywords).set({ bid: String(row.expected_bid) }).where(eq(keywords.id, row.keyword_id));
+          await logCorrectionEvent(database, {
+            accountId,
+            eventCategory: "bid_adjustment",
+            actionType: "auto_correction",
+            keywordId: row.keyword_id,
+            keywordText: row.keyword_text,
+            campaignId: row.campaign_id,
+            campaignName: row.campaign_name,
+            previousBid: String(row.current_bid),
+            newBid: String(row.expected_bid),
+            changeReason: `[AutoCorrector] \u51FA\u4EF7\u4E0D\u4E00\u81F4\u7EA0\u6B63: \u671F\u671B$${row.expected_bid}, \u5F53\u524D$${row.current_bid}`
+          });
+        }
+      }
+    } catch (apiError) {
+      console.error(`[AutoCorrector] v167: \u8D26\u6237${accountId} \u51FA\u4EF7\u7EA0\u6B63API\u8C03\u7528\u5931\u8D25: ${apiError.message}`);
+      for (const row of rows) {
+        results.push({
+          type: "bid_mismatch",
+          accountId,
+          targetId: row.keyword_id,
+          targetType: "keyword",
+          previousValue: String(row.current_bid),
+          correctedValue: String(row.expected_bid),
+          reason: `\u51FA\u4EF7\u4E0D\u4E00\u81F4\u7EA0\u6B63\u5931\u8D25`,
+          success: false,
+          errorMessage: apiError.message
+        });
+      }
+    }
+  } catch (error54) {
+    console.error(`[AutoCorrector] v167: \u8D26\u6237${accountId} correctBidMismatches\u5931\u8D25: ${error54.message}`);
+  }
+  return results;
+}
+async function retryFailedBudgetAdjustments(database, accountId) {
+  const results = [];
+  try {
+    const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1e3).toISOString().slice(0, 19).replace("T", " ");
+    const failedEvents = await database.select({
+      id: optimizationEvents.id,
+      campaignId: optimizationEvents.campaignId,
+      campaignName: optimizationEvents.campaignName,
+      previousValue: optimizationEvents.previousValue,
+      newValue: optimizationEvents.newValue,
+      actionDetail: optimizationEvents.actionDetail,
+      createdAt: optimizationEvents.createdAt
+    }).from(optimizationEvents).where(
+      and(
+        eq(optimizationEvents.accountId, accountId),
+        eq(optimizationEvents.eventCategory, "budget_adjustment"),
+        eq(optimizationEvents.status, "success"),
+        or(
+          eq(optimizationEvents.apiSyncStatus, "failed"),
+          eq(optimizationEvents.apiSyncStatus, "pending")
+        ),
+        gte(optimizationEvents.createdAt, expiryDateStr)
+      )
+    ).orderBy(desc(optimizationEvents.createdAt)).limit(AUTO_CORRECTION_CONFIG.maxRetryPerRun);
+    if (failedEvents.length === 0) return results;
+    console.log(`[AutoCorrector] v167: \u8D26\u6237${accountId} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25\u7684\u9884\u7B97\u8C03\u6574\u9700\u8981\u91CD\u8BD5`);
+    const latestByCampaign = /* @__PURE__ */ new Map();
+    for (const event of failedEvents) {
+      if (event.campaignId && !latestByCampaign.has(event.campaignId)) {
+        latestByCampaign.set(event.campaignId, event);
+      }
+    }
+    for (const [campId, event] of latestByCampaign) {
+      try {
+        const newBudget = parseFloat(String(event.newValue || "0"));
+        if (newBudget <= 0) continue;
+        const campRows = await database.select({ campaignId: campaigns.campaignId }).from(campaigns).where(eq(campaigns.id, campId)).limit(1);
+        if (campRows.length === 0) continue;
+        const amazonCampaignId = campRows[0].campaignId;
+        const syncResult = await syncBudgetAdjustmentToAmazon(
+          accountId,
+          String(amazonCampaignId),
+          newBudget,
+          `[\u81EA\u52A8\u7EA0\u9519] \u91CD\u8BD5\u5931\u8D25\u7684\u9884\u7B97\u8C03\u6574 (\u539F\u4E8B\u4EF6ID: ${event.id})`
+        );
+        const success2 = !!syncResult;
+        results.push({
+          type: "budget_retry",
+          accountId,
+          targetId: campId,
+          targetType: "campaign",
+          previousValue: String(event.previousValue || ""),
+          correctedValue: String(newBudget),
+          reason: `\u91CD\u8BD5\u5931\u8D25\u7684\u9884\u7B97\u8C03\u6574 (\u539F\u4E8B\u4EF6: ${event.id})`,
+          success: success2
+        });
+        if (success2) {
+          await database.update(optimizationEvents).set({
+            apiSyncStatus: "synced",
+            apiSyncDetail: JSON.stringify({ correctedBy: "AutoCorrector", correctedAt: (/* @__PURE__ */ new Date()).toISOString() }),
+            apiSyncedAt: /* @__PURE__ */ new Date()
+          }).where(eq(optimizationEvents.id, event.id));
+          await database.update(campaigns).set({ dailyBudget: String(newBudget) }).where(eq(campaigns.id, campId));
+        }
+      } catch (apiError) {
+        results.push({
+          type: "budget_retry",
+          accountId,
+          targetId: campId,
+          targetType: "campaign",
+          previousValue: String(event.previousValue || ""),
+          correctedValue: String(event.newValue || ""),
+          reason: `\u91CD\u8BD5\u5931\u8D25\u7684\u9884\u7B97\u8C03\u6574`,
+          success: false,
+          errorMessage: apiError.message
+        });
+      }
+    }
+  } catch (error54) {
+    console.error(`[AutoCorrector] v167: \u8D26\u6237${accountId} retryFailedBudgetAdjustments\u5931\u8D25: ${error54.message}`);
+  }
+  return results;
+}
+async function correctBudgetMismatches(database, accountId) {
+  const results = [];
+  try {
+    const mismatchQuery = sql`
+      SELECT 
+        oe.id as event_id,
+        oe.campaign_id,
+        oe.campaign_name,
+        oe.new_value as expected_budget,
+        oe.previous_value as previous_budget,
+        c.daily_budget as current_budget,
+        c.campaign_id as amazon_campaign_id,
+        oe.created_at as optimized_at
+      FROM optimization_events oe
+      JOIN campaigns c ON oe.campaign_id = c.id
+      WHERE oe.account_id = ${accountId}
+        AND oe.event_category = 'budget_adjustment'
+        AND oe.status = 'success'
+        AND oe.api_sync_status = 'synced'
+        AND oe.created_at > DATE_SUB(NOW(), INTERVAL 3 DAY)
+        AND ABS(CAST(c.daily_budget AS DECIMAL(10,2)) - CAST(oe.new_value AS DECIMAL(10,2))) > ${AUTO_CORRECTION_CONFIG.budgetToleranceDollar}
+        AND oe.id = (
+          SELECT MAX(oe2.id) FROM optimization_events oe2 
+          WHERE oe2.campaign_id = oe.campaign_id 
+            AND oe2.event_category = 'budget_adjustment'
+            AND oe2.status = 'success'
+            AND oe2.api_sync_status = 'synced'
+        )
+      ORDER BY oe.created_at DESC
+      LIMIT ${AUTO_CORRECTION_CONFIG.maxBudgetCorrectionsPerRun}
+    `;
+    const mismatches = await database.execute(mismatchQuery);
+    const rows = mismatches[0] || mismatches;
+    if (!Array.isArray(rows) || rows.length === 0) return results;
+    console.log(`[AutoCorrector] v167: \u8D26\u6237${accountId} \u53D1\u73B0${rows.length}\u6761\u9884\u7B97\u4E0D\u4E00\u81F4\u9700\u8981\u7EA0\u6B63`);
+    for (const row of rows) {
+      try {
+        const expectedBudget = parseFloat(String(row.expected_budget));
+        const syncResult = await syncBudgetAdjustmentToAmazon(
+          accountId,
+          String(row.amazon_campaign_id),
+          expectedBudget,
+          `[\u81EA\u52A8\u7EA0\u9519] \u9884\u7B97\u4E0D\u4E00\u81F4\u7EA0\u6B63: \u671F\u671B$${row.expected_budget}, \u5F53\u524D$${row.current_budget}`
+        );
+        const success2 = !!syncResult;
+        results.push({
+          type: "budget_mismatch",
+          accountId,
+          targetId: row.campaign_id,
+          targetType: "campaign",
+          previousValue: String(row.current_budget),
+          correctedValue: String(row.expected_budget),
+          reason: `\u9884\u7B97\u4E0D\u4E00\u81F4: \u671F\u671B$${row.expected_budget}, \u5F53\u524D$${row.current_budget}`,
+          success: success2
+        });
+        if (success2) {
+          await database.update(campaigns).set({ dailyBudget: String(expectedBudget) }).where(eq(campaigns.id, row.campaign_id));
+          await logCorrectionEvent(database, {
+            accountId,
+            eventCategory: "budget_adjustment",
+            actionType: "auto_correction",
+            campaignId: row.campaign_id,
+            campaignName: row.campaign_name,
+            previousValue: String(row.current_budget),
+            newValue: String(row.expected_budget),
+            changeReason: `[AutoCorrector] \u9884\u7B97\u4E0D\u4E00\u81F4\u7EA0\u6B63`
+          });
+        }
+      } catch (apiError) {
+        results.push({
+          type: "budget_mismatch",
+          accountId,
+          targetId: row.campaign_id,
+          targetType: "campaign",
+          previousValue: String(row.current_budget),
+          correctedValue: String(row.expected_budget),
+          reason: `\u9884\u7B97\u4E0D\u4E00\u81F4\u7EA0\u6B63\u5931\u8D25`,
+          success: false,
+          errorMessage: apiError.message
+        });
+      }
+    }
+  } catch (error54) {
+    console.error(`[AutoCorrector] v167: \u8D26\u6237${accountId} correctBudgetMismatches\u5931\u8D25: ${error54.message}`);
+  }
+  return results;
+}
+async function correctPlacementMismatches(database, accountId) {
+  const results = [];
+  try {
+    const mismatchQuery = sql`
+      SELECT 
+        oe.id as event_id,
+        oe.campaign_id,
+        oe.campaign_name,
+        oe.action_detail,
+        c.placement_top_search_bid_adjustment as current_top,
+        c.placement_product_page_bid_adjustment as current_product,
+        c.campaign_id as amazon_campaign_id,
+        oe.created_at as optimized_at
+      FROM optimization_events oe
+      JOIN campaigns c ON oe.campaign_id = c.id
+      WHERE oe.account_id = ${accountId}
+        AND oe.event_category = 'placement_adjustment'
+        AND oe.status = 'success'
+        AND oe.api_sync_status IN ('synced', 'pending')
+        AND oe.created_at > DATE_SUB(NOW(), INTERVAL 3 DAY)
+        AND oe.id = (
+          SELECT MAX(oe2.id) FROM optimization_events oe2 
+          WHERE oe2.campaign_id = oe.campaign_id 
+            AND oe2.event_category = 'placement_adjustment'
+            AND oe2.status = 'success'
+        )
+      ORDER BY oe.created_at DESC
+      LIMIT ${AUTO_CORRECTION_CONFIG.maxPlacementCorrectionsPerRun}
+    `;
+    const mismatches = await database.execute(mismatchQuery);
+    const rows = mismatches[0] || mismatches;
+    if (!Array.isArray(rows) || rows.length === 0) return results;
+    for (const row of rows) {
+      try {
+        let expectedTop = null;
+        let expectedProduct = null;
+        if (row.action_detail) {
+          try {
+            const detail = typeof row.action_detail === "string" ? JSON.parse(row.action_detail) : row.action_detail;
+            expectedTop = detail.newTopOfSearch ?? detail.suggestedTopMultiplier ?? null;
+            expectedProduct = detail.newProductPage ?? detail.suggestedProductMultiplier ?? null;
+          } catch {
+          }
+        }
+        if (expectedTop === null && expectedProduct === null) continue;
+        const currentTop = parseFloat(String(row.current_top || "0"));
+        const currentProduct = parseFloat(String(row.current_product || "0"));
+        const topMismatch = expectedTop !== null && Math.abs(currentTop - expectedTop) > AUTO_CORRECTION_CONFIG.placementTolerancePercent;
+        const productMismatch = expectedProduct !== null && Math.abs(currentProduct - expectedProduct) > AUTO_CORRECTION_CONFIG.placementTolerancePercent;
+        if (!topMismatch && !productMismatch) continue;
+        const syncResult = await syncPlacementAdjustmentToAmazon(
+          accountId,
+          String(row.amazon_campaign_id),
+          expectedTop ?? currentTop,
+          expectedProduct ?? currentProduct,
+          `[\u81EA\u52A8\u7EA0\u9519] \u4F4D\u7F6E\u503E\u659C\u4E0D\u4E00\u81F4\u7EA0\u6B63`
+        );
+        const success2 = !!syncResult;
+        results.push({
+          type: "placement_mismatch",
+          accountId,
+          targetId: row.campaign_id,
+          targetType: "campaign",
+          previousValue: `Top:${currentTop}%, Product:${currentProduct}%`,
+          correctedValue: `Top:${expectedTop ?? currentTop}%, Product:${expectedProduct ?? currentProduct}%`,
+          reason: `\u4F4D\u7F6E\u503E\u659C\u4E0D\u4E00\u81F4\u7EA0\u6B63`,
+          success: success2
+        });
+        if (success2) {
+          const updateData = {};
+          if (expectedTop !== null) updateData.placementTopSearchBidAdjustment = String(expectedTop);
+          if (expectedProduct !== null) updateData.placementProductPageBidAdjustment = String(expectedProduct);
+          await database.update(campaigns).set(updateData).where(eq(campaigns.id, row.campaign_id));
+        }
+      } catch (apiError) {
+        results.push({
+          type: "placement_mismatch",
+          accountId,
+          targetId: row.campaign_id,
+          targetType: "campaign",
+          previousValue: "",
+          correctedValue: "",
+          reason: `\u4F4D\u7F6E\u503E\u659C\u7EA0\u6B63\u5931\u8D25`,
+          success: false,
+          errorMessage: apiError.message
+        });
+      }
+    }
+  } catch (error54) {
+    console.error(`[AutoCorrector] v167: \u8D26\u6237${accountId} correctPlacementMismatches\u5931\u8D25: ${error54.message}`);
+  }
+  return results;
+}
+async function executeUnfinishedRollbacks(database, accountId) {
+  const results = [];
+  try {
+    const unfinishedRollbacks = await database.select({
+      id: optimizationEvents.id,
+      keywordId: optimizationEvents.keywordId,
+      keywordText: optimizationEvents.keywordText,
+      campaignId: optimizationEvents.campaignId,
+      campaignName: optimizationEvents.campaignName,
+      previousBid: optimizationEvents.previousBid,
+      newBid: optimizationEvents.newBid,
+      createdAt: optimizationEvents.createdAt
+    }).from(optimizationEvents).where(
+      and(
+        eq(optimizationEvents.accountId, accountId),
+        eq(optimizationEvents.eventCategory, "bid_adjustment"),
+        eq(optimizationEvents.status, "rolled_back"),
+        isNull(optimizationEvents.rolledBackAt)
+      )
+    ).orderBy(desc(optimizationEvents.createdAt)).limit(AUTO_CORRECTION_CONFIG.maxRollbackPerRun);
+    if (unfinishedRollbacks.length === 0) return results;
+    console.log(`[AutoCorrector] v167: \u8D26\u6237${accountId} \u53D1\u73B0${unfinishedRollbacks.length}\u6761\u672A\u6267\u884C\u7684\u56DE\u6EDA`);
+    const latestByKeyword = /* @__PURE__ */ new Map();
+    for (const event of unfinishedRollbacks) {
+      if (event.keywordId && !latestByKeyword.has(event.keywordId)) {
+        latestByKeyword.set(event.keywordId, event);
+      }
+    }
+    const rollbackItems = Array.from(latestByKeyword.values()).filter((e6) => e6.keywordId && e6.previousBid).map((e6) => ({
+      keywordId: e6.keywordId,
+      newBid: parseFloat(String(e6.previousBid)),
+      campaignId: e6.campaignId || 0,
+      reason: `[\u81EA\u52A8\u7EA0\u9519] \u6267\u884C\u56DE\u6EDA: \u6062\u590D\u51FA\u4EF7\u4ECE$${e6.newBid}\u5230$${e6.previousBid}`
+    }));
+    if (rollbackItems.length === 0) return results;
+    try {
+      const syncResult = await syncBidAdjustmentsToAmazon(
+        accountId,
+        rollbackItems
+      );
+      const success2 = syncResult.success > 0;
+      for (const [kwId, event] of latestByKeyword) {
+        results.push({
+          type: "rollback_execution",
+          accountId,
+          targetId: kwId,
+          targetType: "keyword",
+          previousValue: String(event.newBid || ""),
+          correctedValue: String(event.previousBid || ""),
+          reason: `\u6267\u884C\u56DE\u6EDA: $${event.newBid} \u2192 $${event.previousBid}`,
+          success: success2
+        });
+        if (success2) {
+          await database.update(optimizationEvents).set({
+            rolledBackAt: /* @__PURE__ */ new Date(),
+            rolledBackBy: "AutoCorrector",
+            apiSyncStatus: "synced",
+            apiSyncDetail: JSON.stringify({ rolledBackBy: "AutoCorrector", rolledBackAt: (/* @__PURE__ */ new Date()).toISOString() })
+          }).where(eq(optimizationEvents.id, event.id));
+          await database.update(keywords).set({ bid: String(event.previousBid) }).where(eq(keywords.id, kwId));
+        }
+      }
+    } catch (apiError) {
+      console.error(`[AutoCorrector] v167: \u8D26\u6237${accountId} \u56DE\u6EDA\u6267\u884CAPI\u8C03\u7528\u5931\u8D25: ${apiError.message}`);
+    }
+  } catch (error54) {
+    console.error(`[AutoCorrector] v167: \u8D26\u6237${accountId} executeUnfinishedRollbacks\u5931\u8D25: ${error54.message}`);
+  }
+  return results;
+}
+async function retryFailedSettingsChanges(database, accountId) {
+  const results = [];
+  try {
+    const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1e3).toISOString().slice(0, 19).replace("T", " ");
+    const failedEvents = await database.select({
+      id: optimizationEvents.id,
+      campaignId: optimizationEvents.campaignId,
+      campaignName: optimizationEvents.campaignName,
+      actionType: optimizationEvents.actionType,
+      actionDetail: optimizationEvents.actionDetail,
+      previousValue: optimizationEvents.previousValue,
+      newValue: optimizationEvents.newValue,
+      createdAt: optimizationEvents.createdAt
+    }).from(optimizationEvents).where(
+      and(
+        eq(optimizationEvents.accountId, accountId),
+        eq(optimizationEvents.eventCategory, "settings_change"),
+        eq(optimizationEvents.apiSyncStatus, "failed"),
+        gte(optimizationEvents.createdAt, expiryDateStr)
+      )
+    ).orderBy(desc(optimizationEvents.createdAt)).limit(AUTO_CORRECTION_CONFIG.maxRetryPerRun);
+    if (failedEvents.length === 0) return results;
+    console.log(`[AutoCorrector] v167: \u8D26\u6237${accountId} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25\u7684\u8BBE\u7F6E\u53D8\u66F4\u9700\u8981\u91CD\u8BD5`);
+    for (const event of failedEvents) {
+      try {
+        let success2 = false;
+        const actionType = event.actionType || "";
+        if (actionType.includes("budget") && event.campaignId && event.newValue) {
+          const campRows = await database.select({ campaignId: campaigns.campaignId }).from(campaigns).where(eq(campaigns.id, event.campaignId)).limit(1);
+          if (campRows.length > 0) {
+            const syncResult = await syncBudgetAdjustmentToAmazon(
+              accountId,
+              String(campRows[0].campaignId),
+              parseFloat(String(event.newValue)),
+              `[\u81EA\u52A8\u7EA0\u9519] \u91CD\u8BD5\u8BBE\u7F6E\u53D8\u66F4`
+            );
+            success2 = !!syncResult;
+          }
+        }
+        results.push({
+          type: "settings_retry",
+          accountId,
+          targetId: event.campaignId || 0,
+          targetType: "campaign",
+          previousValue: String(event.previousValue || ""),
+          correctedValue: String(event.newValue || ""),
+          reason: `\u91CD\u8BD5\u5931\u8D25\u7684\u8BBE\u7F6E\u53D8\u66F4 (${actionType})`,
+          success: success2
+        });
+        if (success2) {
+          await database.update(optimizationEvents).set({
+            apiSyncStatus: "synced",
+            apiSyncDetail: JSON.stringify({ correctedBy: "AutoCorrector", correctedAt: (/* @__PURE__ */ new Date()).toISOString() }),
+            apiSyncedAt: /* @__PURE__ */ new Date()
+          }).where(eq(optimizationEvents.id, event.id));
+        }
+      } catch (retryError) {
+        results.push({
+          type: "settings_retry",
+          accountId,
+          targetId: event.campaignId || 0,
+          targetType: "campaign",
+          previousValue: "",
+          correctedValue: "",
+          reason: `\u8BBE\u7F6E\u53D8\u66F4\u91CD\u8BD5\u5931\u8D25`,
+          success: false,
+          errorMessage: retryError.message
+        });
+      }
+    }
+  } catch (error54) {
+    console.error(`[AutoCorrector] v167: \u8D26\u6237${accountId} retryFailedSettingsChanges\u5931\u8D25: ${error54.message}`);
+  }
+  return results;
+}
+async function getActiveAccountIds(database) {
+  try {
+    const result = await database.execute(sql`
+      SELECT DISTINCT account_id FROM optimization_events 
+      WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY) 
+        AND account_id IS NOT NULL
+    `);
+    const rows = result[0] || result;
+    return Array.isArray(rows) ? rows.map((r5) => r5.account_id).filter(Boolean) : [];
+  } catch {
+    return [];
+  }
+}
+async function logCorrectionEvent(database, data4) {
+  try {
+    await database.insert(optimizationEvents).values({
+      accountId: data4.accountId,
+      eventCategory: data4.eventCategory,
+      actionType: data4.actionType,
+      keywordId: data4.keywordId,
+      keywordText: data4.keywordText,
+      campaignId: data4.campaignId,
+      campaignName: data4.campaignName,
+      previousBid: data4.previousBid,
+      newBid: data4.newBid,
+      previousValue: data4.previousValue,
+      newValue: data4.newValue,
+      changeReason: data4.changeReason,
+      status: "success",
+      apiSyncStatus: "synced",
+      apiSyncedAt: /* @__PURE__ */ new Date(),
+      algorithmVersion: "AutoCorrector_v167",
+      createdAt: /* @__PURE__ */ new Date()
+    });
+  } catch (error54) {
+    console.warn(`[AutoCorrector] v167: \u8BB0\u5F55\u7EA0\u9519\u4E8B\u4EF6\u5931\u8D25: ${error54.message}`);
+  }
+}
+function createEmptyScanResult(reason) {
+  return {
+    scanId: `scan_${reason}_${Date.now()}`,
+    startedAt: /* @__PURE__ */ new Date(),
+    completedAt: /* @__PURE__ */ new Date(),
+    accountsScanned: 0,
+    totalIssuesFound: 0,
+    totalCorrected: 0,
+    totalFailed: 0,
+    details: {
+      bidRetries: { found: 0, corrected: 0, failed: 0 },
+      bidMismatches: { found: 0, corrected: 0, failed: 0 },
+      budgetRetries: { found: 0, corrected: 0, failed: 0 },
+      budgetMismatches: { found: 0, corrected: 0, failed: 0 },
+      placementMismatches: { found: 0, corrected: 0, failed: 0 },
+      rollbackExecutions: { found: 0, corrected: 0, failed: 0 },
+      settingsRetries: { found: 0, corrected: 0, failed: 0 }
+    },
+    corrections: []
+  };
+}
+function buildScanResult(scanId, startedAt, completedAt, accountsScanned, corrections) {
+  const details = {
+    bidRetries: { found: 0, corrected: 0, failed: 0 },
+    bidMismatches: { found: 0, corrected: 0, failed: 0 },
+    budgetRetries: { found: 0, corrected: 0, failed: 0 },
+    budgetMismatches: { found: 0, corrected: 0, failed: 0 },
+    placementMismatches: { found: 0, corrected: 0, failed: 0 },
+    rollbackExecutions: { found: 0, corrected: 0, failed: 0 },
+    settingsRetries: { found: 0, corrected: 0, failed: 0 }
+  };
+  for (const c5 of corrections) {
+    const key = c5.type === "bid_retry" ? "bidRetries" : c5.type === "bid_mismatch" ? "bidMismatches" : c5.type === "budget_retry" ? "budgetRetries" : c5.type === "budget_mismatch" ? "budgetMismatches" : c5.type === "placement_mismatch" ? "placementMismatches" : c5.type === "rollback_execution" ? "rollbackExecutions" : "settingsRetries";
+    details[key].found++;
+    if (c5.success) details[key].corrected++;
+    else details[key].failed++;
+  }
+  return {
+    scanId,
+    startedAt,
+    completedAt,
+    accountsScanned,
+    totalIssuesFound: corrections.length,
+    totalCorrected: corrections.filter((c5) => c5.success).length,
+    totalFailed: corrections.filter((c5) => !c5.success).length,
+    details,
+    corrections
+  };
+}
+function getScanHistory() {
+  return [...scanHistory];
+}
+function getLastScanResult() {
+  return scanHistory[0] || null;
+}
+function getScanStatus() {
+  return { isScanning, lastScanTime, historyCount: scanHistory.length };
+}
+function getConfig() {
+  return { ...AUTO_CORRECTION_CONFIG };
+}
+function startAutoCorrector() {
+  if (correctionInterval) {
+    console.log("[AutoCorrector] \u5B9A\u65F6\u7EA0\u9519\u670D\u52A1\u5DF2\u5728\u8FD0\u884C\u4E2D");
+    return;
+  }
+  const intervalMs = AUTO_CORRECTION_CONFIG.scanIntervalHours ? AUTO_CORRECTION_CONFIG.scanIntervalHours * 60 * 60 * 1e3 : 4 * 60 * 60 * 1e3;
+  correctionInterval = setInterval(async () => {
+    try {
+      console.log("[AutoCorrector] \u5B9A\u65F6\u7EA0\u9519\u626B\u63CF\u5F00\u59CB...");
+      const result = await runAutoCorrection();
+      console.log(`[AutoCorrector] \u5B9A\u65F6\u7EA0\u9519\u626B\u63CF\u5B8C\u6210: \u53D1\u73B0${result.totalIssuesFound}\u4E2A\u95EE\u9898, \u7EA0\u6B63${result.totalCorrected}\u4E2A, \u5931\u8D25${result.totalFailed}\u4E2A`);
+    } catch (err2) {
+      console.error("[AutoCorrector] \u5B9A\u65F6\u7EA0\u9519\u626B\u63CF\u5931\u8D25:", err2.message);
+    }
+  }, intervalMs);
+  console.log(`[AutoCorrector] \u5B9A\u65F6\u7EA0\u9519\u670D\u52A1\u5DF2\u542F\u52A8\uFF0C\u6BCF4\u5C0F\u65F6\u8FD0\u884C\u4E00\u6B21`);
+}
+var AUTO_CORRECTION_CONFIG, lastScanTime, isScanning, scanHistory, correctionInterval;
+var init_optimizationAutoCorrector = __esm({
+  "server/optimizationAutoCorrector.ts"() {
+    "use strict";
+    init_db2();
+    init_schema2();
+    init_drizzle_orm();
+    init_amazonApiHelper();
+    AUTO_CORRECTION_CONFIG = {
+      // 每次纠错扫描最大处理数量（避免API限流）
+      maxBidCorrectionsPerRun: 50,
+      maxBudgetCorrectionsPerRun: 20,
+      maxPlacementCorrectionsPerRun: 20,
+      maxRetryPerRun: 30,
+      maxRollbackPerRun: 20,
+      // API同步失败重试的最大次数
+      maxRetryAttempts: 3,
+      // 认为优化事件"过期"的天数（超过此天数不再重试）
+      retryExpiryDays: 7,
+      // 出价不一致的容差范围（美元）
+      bidToleranceDollar: 0.01,
+      // 预算不一致的容差范围（美元）
+      budgetToleranceDollar: 0.5,
+      // 位置倾斜不一致的容差范围（百分比）
+      placementTolerancePercent: 1,
+      // 两次纠错扫描之间的最小间隔（毫秒）
+      minScanIntervalMs: 10 * 60 * 1e3
+      // 10分钟
+    };
+    lastScanTime = null;
+    isScanning = false;
+    scanHistory = [];
+    correctionInterval = null;
   }
 });
 
@@ -66660,8 +67497,8 @@ async function startOptimizationScheduler() {
     let errors = 0;
     for (const target of activeTargets) {
       try {
-        const campaigns7 = await Promise.resolve().then(() => (init_db2(), db_exports)).then((m4) => m4.getCampaignsByPerformanceGroupId(target.id));
-        if (campaigns7.length === 0) {
+        const campaigns6 = await Promise.resolve().then(() => (init_db2(), db_exports)).then((m4) => m4.getCampaignsByPerformanceGroupId(target.id));
+        if (campaigns6.length === 0) {
           console.log(`[OptScheduler] \u8DF3\u8FC7\u65E0\u5E7F\u544A\u6D3B\u52A8\u7684\u4F18\u5316\u76EE\u6807: ${target.name} (id=${target.id})`);
           continue;
         }
@@ -66774,8 +67611,8 @@ async function triggerAccountOptimizations(accountId, triggeredBy = "data_sync_c
             continue;
           }
         }
-        const campaigns7 = await Promise.resolve().then(() => (init_db2(), db_exports)).then((m4) => m4.getCampaignsByPerformanceGroupId(target.id));
-        if (campaigns7.length === 0) {
+        const campaigns6 = await Promise.resolve().then(() => (init_db2(), db_exports)).then((m4) => m4.getCampaignsByPerformanceGroupId(target.id));
+        if (campaigns6.length === 0) {
           result.skippedCount++;
           result.details.push({
             targetId: target.id,
@@ -66927,8 +67764,8 @@ async function getEventPerformanceData(db, event, startDate, endDate) {
     const endStr = endDate.toISOString().slice(0, 10);
     let result;
     if (event.keywordId) {
-      const { keywords: keywords7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-      const kwData = await db.select().from(keywords7).where(eq(keywords7.id, event.keywordId)).limit(1);
+      const { keywords: keywords6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+      const kwData = await db.select().from(keywords6).where(eq(keywords6.id, event.keywordId)).limit(1);
       if (kwData.length > 0) {
         const kw = kwData[0];
         result = {
@@ -66940,8 +67777,8 @@ async function getEventPerformanceData(db, event, startDate, endDate) {
         };
       }
     } else if (event.campaignId) {
-      const { campaigns: campaigns7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-      const campData = await db.select().from(campaigns7).where(eq(campaigns7.id, event.campaignId)).limit(1);
+      const { campaigns: campaigns6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+      const campData = await db.select().from(campaigns6).where(eq(campaigns6.id, event.campaignId)).limit(1);
       if (campData.length > 0) {
         const camp = campData[0];
         result = {
@@ -67469,314 +68306,6 @@ var init_algorithmEvolutionEngine = __esm({
     };
     LEARNING_RATE = 0.15;
     MIN_EVENTS_FOR_EVOLUTION = 10;
-  }
-});
-
-// server/optimizationAutoCorrector.ts
-var optimizationAutoCorrector_exports = {};
-__export(optimizationAutoCorrector_exports, {
-  runAutoCorrection: () => runAutoCorrection,
-  startAutoCorrector: () => startAutoCorrector,
-  stopAutoCorrector: () => stopAutoCorrector
-});
-async function runAutoCorrection(accountId) {
-  const startTime = Date.now();
-  console.log(`[AutoCorrector] v167: \u5F00\u59CB\u81EA\u52A8\u7EA0\u9519${accountId ? ` (\u8D26\u6237 ${accountId})` : " (\u5168\u90E8\u8D26\u6237)"}...`);
-  const result = {
-    totalChecked: 0,
-    totalCorrected: 0,
-    totalFailed: 0,
-    categories: {
-      apiSyncRetry: { checked: 0, corrected: 0, failed: 0 },
-      bidInconsistency: { checked: 0, corrected: 0, failed: 0 },
-      budgetInconsistency: { checked: 0, corrected: 0, failed: 0 },
-      placementInconsistency: { checked: 0, corrected: 0, failed: 0 },
-      keywordStatusInconsistency: { checked: 0, corrected: 0, failed: 0 }
-    },
-    details: [],
-    executedAt: /* @__PURE__ */ new Date()
-  };
-  try {
-    await retryFailedApiSync(result, accountId);
-    await fixNullApiSyncStatus(result, accountId);
-    await checkBidConsistency(result, accountId);
-    await checkBudgetConsistency(result, accountId);
-  } catch (error54) {
-    console.error(`[AutoCorrector] v167: \u81EA\u52A8\u7EA0\u9519\u5F02\u5E38:`, error54.message);
-    result.details.push(`\u7EA0\u9519\u5F02\u5E38: ${error54.message}`);
-  }
-  const duration3 = Date.now() - startTime;
-  console.log(`[AutoCorrector] v167: \u81EA\u52A8\u7EA0\u9519\u5B8C\u6210 (${duration3}ms): \u68C0\u67E5=${result.totalChecked}, \u7EA0\u6B63=${result.totalCorrected}, \u5931\u8D25=${result.totalFailed}`);
-  try {
-    const dbInstance = await getDb();
-    if (dbInstance) {
-      await dbInstance.insert(optimizationEvents).values({
-        accountId: accountId || 0,
-        eventCategory: "settings_change",
-        actionType: "settings_update",
-        changeReason: `[v167\u81EA\u52A8\u7EA0\u9519] \u68C0\u67E5=${result.totalChecked}, \u7EA0\u6B63=${result.totalCorrected}, \u5931\u8D25=${result.totalFailed}`,
-        previousValue: JSON.stringify(result.categories),
-        newValue: JSON.stringify({ duration: duration3, details: result.details.slice(0, 20) }),
-        status: result.totalFailed > 0 ? "failed" : "success",
-        apiSyncStatus: "not_applicable",
-        createdAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
-      });
-    }
-  } catch (logErr) {
-    console.error(`[AutoCorrector] \u7EA0\u9519\u65E5\u5FD7\u5199\u5165\u5931\u8D25:`, logErr.message);
-  }
-  return result;
-}
-async function retryFailedApiSync(result, accountId) {
-  const dbInstance = await getDb();
-  if (!dbInstance) return;
-  try {
-    const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1e3).toISOString().slice(0, 19).replace("T", " ");
-    let conditions = [
-      eq(optimizationLogs.apiSyncStatus, "failed"),
-      gte(optimizationLogs.createdAt, cutoff),
-      eq(optimizationLogs.logCategory, "bid_adjustment")
-    ];
-    if (accountId) {
-      conditions.push(eq(optimizationLogs.accountId, accountId));
-    }
-    const failedLogs = await dbInstance.select().from(optimizationLogs).where(and(...conditions)).orderBy(desc(optimizationLogs.createdAt)).limit(100);
-    result.categories.apiSyncRetry.checked = failedLogs.length;
-    result.totalChecked += failedLogs.length;
-    if (failedLogs.length === 0) {
-      result.details.push("API\u540C\u6B65\u91CD\u8BD5: \u65E0\u5931\u8D25\u8BB0\u5F55\u9700\u8981\u91CD\u8BD5");
-      return;
-    }
-    console.log(`[AutoCorrector] \u53D1\u73B0 ${failedLogs.length} \u6761API\u540C\u6B65\u5931\u8D25\u8BB0\u5F55\uFF0C\u51C6\u5907\u91CD\u8BD5...`);
-    const byAccount = /* @__PURE__ */ new Map();
-    for (const log2 of failedLogs) {
-      const acctId = log2.accountId;
-      if (!byAccount.has(acctId)) byAccount.set(acctId, []);
-      byAccount.get(acctId).push(log2);
-    }
-    for (const [acctId, logs] of byAccount) {
-      try {
-        const credentials = await getAmazonApiCredentials(acctId);
-        if (!credentials) {
-          result.details.push(`\u8D26\u6237 ${acctId}: \u65E0API\u51ED\u8BC1\uFF0C\u8DF3\u8FC7${logs.length}\u6761\u91CD\u8BD5`);
-          result.categories.apiSyncRetry.failed += logs.length;
-          result.totalFailed += logs.length;
-          continue;
-        }
-        const accountInfo = await getAdAccountById(acctId);
-        const { AmazonSyncService: AmazonSyncService2 } = await Promise.resolve().then(() => (init_amazonSyncService(), amazonSyncService_exports));
-        const svc = await AmazonSyncService2.createFromCredentials(
-          {
-            clientId: credentials.clientId,
-            clientSecret: credentials.clientSecret,
-            refreshToken: credentials.refreshToken,
-            profileId: credentials.profileId,
-            region: credentials.region
-          },
-          acctId,
-          0,
-          accountInfo?.marketplace || "US"
-        );
-        for (const log2 of logs) {
-          try {
-            const detail = log2.actionDetail ? JSON.parse(log2.actionDetail) : null;
-            if (!detail || !detail.keywordId) {
-              result.details.push(`\u65E5\u5FD7 ${log2.id}: \u65E0\u6CD5\u89E3\u6790keywordId\uFF0C\u8DF3\u8FC7`);
-              result.categories.apiSyncRetry.failed++;
-              result.totalFailed++;
-              continue;
-            }
-            const keyword = await getKeywordById(detail.keywordId);
-            if (!keyword || !keyword.keywordId) {
-              result.details.push(`\u65E5\u5FD7 ${log2.id}: \u5173\u952E\u8BCD ${detail.keywordId} \u65E0amazonKeywordId\uFF0C\u8DF3\u8FC7`);
-              result.categories.apiSyncRetry.failed++;
-              result.totalFailed++;
-              continue;
-            }
-            const newBid = parseFloat(detail.newBid || log2.newValue?.replace("$", "") || "0");
-            if (newBid <= 0) {
-              result.categories.apiSyncRetry.failed++;
-              result.totalFailed++;
-              continue;
-            }
-            await svc.client.updateKeywordBids([{
-              keywordId: parseInt(keyword.keywordId),
-              bid: newBid
-            }]);
-            await dbInstance.update(optimizationLogs).set({
-              apiSyncStatus: "synced",
-              apiSyncedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " "),
-              apiSyncDetail: JSON.stringify({ retried: true, retriedAt: (/* @__PURE__ */ new Date()).toISOString() })
-            }).where(eq(optimizationLogs.id, log2.id));
-            result.categories.apiSyncRetry.corrected++;
-            result.totalCorrected++;
-            result.details.push(`\u65E5\u5FD7 ${log2.id}: API\u540C\u6B65\u91CD\u8BD5\u6210\u529F (keyword=${detail.keywordId}, bid=$${newBid})`);
-          } catch (retryErr) {
-            result.categories.apiSyncRetry.failed++;
-            result.totalFailed++;
-            result.details.push(`\u65E5\u5FD7 ${log2.id}: API\u540C\u6B65\u91CD\u8BD5\u5931\u8D25 - ${retryErr.message}`);
-          }
-        }
-      } catch (acctErr) {
-        result.categories.apiSyncRetry.failed += logs.length;
-        result.totalFailed += logs.length;
-        result.details.push(`\u8D26\u6237 ${acctId}: API\u670D\u52A1\u521D\u59CB\u5316\u5931\u8D25 - ${acctErr.message}`);
-      }
-    }
-  } catch (error54) {
-    console.error(`[AutoCorrector] API\u540C\u6B65\u91CD\u8BD5\u5F02\u5E38:`, error54.message);
-    result.details.push(`API\u540C\u6B65\u91CD\u8BD5\u5F02\u5E38: ${error54.message}`);
-  }
-}
-async function fixNullApiSyncStatus(result, accountId) {
-  const dbInstance = await getDb();
-  if (!dbInstance) return;
-  try {
-    let updateQuery = `
-      UPDATE optimization_logs 
-      SET api_sync_status = 'legacy_unsynced',
-          api_sync_detail = JSON_OBJECT('markedBy', 'v167_auto_corrector', 'markedAt', NOW())
-      WHERE api_sync_status IS NULL
-    `;
-    if (accountId) {
-      updateQuery += ` AND account_id = ${accountId}`;
-    }
-    const updateResult = await dbInstance.execute(sql.raw(updateQuery));
-    const affectedRows = updateResult?.[0]?.affectedRows || updateResult?.affectedRows || 0;
-    if (affectedRows > 0) {
-      result.totalChecked += affectedRows;
-      result.totalCorrected += affectedRows;
-      result.details.push(`\u4FEE\u590D ${affectedRows} \u6761\u5386\u53F2NULL api_sync_status\u8BB0\u5F55 \u2192 'legacy_unsynced'`);
-      console.log(`[AutoCorrector] \u4FEE\u590D ${affectedRows} \u6761NULL api_sync_status\u8BB0\u5F55`);
-    } else {
-      result.details.push("\u65E0NULL api_sync_status\u8BB0\u5F55\u9700\u8981\u4FEE\u590D");
-    }
-  } catch (error54) {
-    console.error(`[AutoCorrector] \u4FEE\u590DNULL api_sync_status\u5F02\u5E38:`, error54.message);
-    result.details.push(`\u4FEE\u590DNULL api_sync_status\u5F02\u5E38: ${error54.message}`);
-  }
-}
-async function checkBidConsistency(result, accountId) {
-  const dbInstance = await getDb();
-  if (!dbInstance) return;
-  try {
-    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1e3).toISOString().slice(0, 19).replace("T", " ");
-    let conditions = [
-      eq(optimizationLogs.apiSyncStatus, "synced"),
-      gte(optimizationLogs.createdAt, cutoff),
-      eq(optimizationLogs.logCategory, "bid_adjustment")
-    ];
-    if (accountId) {
-      conditions.push(eq(optimizationLogs.accountId, accountId));
-    }
-    const syncedLogs = await dbInstance.select().from(optimizationLogs).where(and(...conditions)).orderBy(desc(optimizationLogs.createdAt)).limit(500);
-    result.categories.bidInconsistency.checked = syncedLogs.length;
-    result.totalChecked += syncedLogs.length;
-    for (const log2 of syncedLogs) {
-      try {
-        const detail = log2.actionDetail ? JSON.parse(log2.actionDetail) : null;
-        if (!detail || !detail.keywordId) continue;
-        const keyword = await getKeywordById(detail.keywordId);
-        if (!keyword) continue;
-        const expectedBid = parseFloat(detail.newBid || log2.newValue?.replace("$", "") || "0");
-        const actualBid = parseFloat(keyword.bid || "0");
-        if (Math.abs(expectedBid - actualBid) > 0.01 && expectedBid > 0) {
-          console.log(`[AutoCorrector] \u51FA\u4EF7\u4E0D\u4E00\u81F4: keyword=${detail.keywordId}, expected=$${expectedBid.toFixed(2)}, actual=$${actualBid.toFixed(2)}`);
-          await updateKeyword(detail.keywordId, { bid: expectedBid.toFixed(2) });
-          result.categories.bidInconsistency.corrected++;
-          result.totalCorrected++;
-          result.details.push(
-            `\u5173\u952E\u8BCD ${detail.keywordId} \u51FA\u4EF7\u4E0D\u4E00\u81F4: \u672C\u5730=$${actualBid.toFixed(2)}, Amazon=$${expectedBid.toFixed(2)} \u2192 \u5DF2\u7EA0\u6B63`
-          );
-        }
-      } catch (checkErr) {
-        result.categories.bidInconsistency.failed++;
-        result.totalFailed++;
-      }
-    }
-  } catch (error54) {
-    console.error(`[AutoCorrector] \u51FA\u4EF7\u4E00\u81F4\u6027\u68C0\u67E5\u5F02\u5E38:`, error54.message);
-    result.details.push(`\u51FA\u4EF7\u4E00\u81F4\u6027\u68C0\u67E5\u5F02\u5E38: ${error54.message}`);
-  }
-}
-async function checkBudgetConsistency(result, accountId) {
-  const dbInstance = await getDb();
-  if (!dbInstance) return;
-  try {
-    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1e3).toISOString().slice(0, 19).replace("T", " ");
-    let query2 = `
-      SELECT ol.*, c.daily_budget as current_budget
-      FROM optimization_logs ol
-      LEFT JOIN campaigns c ON ol.campaign_id = c.id
-      WHERE ol.api_sync_status = 'synced'
-        AND ol.created_at >= '${cutoff}'
-        AND ol.action_type = 'budget_adjustment'
-    `;
-    if (accountId) {
-      query2 += ` AND ol.account_id = ${accountId}`;
-    }
-    query2 += ` ORDER BY ol.created_at DESC LIMIT 100`;
-    const budgetLogs = await dbInstance.execute(sql.raw(query2));
-    const logs = budgetLogs?.[0] || [];
-    result.categories.budgetInconsistency.checked = logs.length;
-    result.totalChecked += logs.length;
-    for (const log2 of logs) {
-      try {
-        const expectedBudget = parseFloat(log2.new_value?.replace("$", "") || "0");
-        const actualBudget = parseFloat(log2.current_budget || "0");
-        if (Math.abs(expectedBudget - actualBudget) > 0.01 && expectedBudget > 0 && log2.campaign_id) {
-          await updateCampaign(log2.campaign_id, { dailyBudget: expectedBudget.toFixed(2) });
-          result.categories.budgetInconsistency.corrected++;
-          result.totalCorrected++;
-          result.details.push(
-            `Campaign ${log2.campaign_id} \u9884\u7B97\u4E0D\u4E00\u81F4: \u672C\u5730=$${actualBudget.toFixed(2)}, Amazon=$${expectedBudget.toFixed(2)} \u2192 \u5DF2\u7EA0\u6B63`
-          );
-        }
-      } catch (checkErr) {
-        result.categories.budgetInconsistency.failed++;
-        result.totalFailed++;
-      }
-    }
-  } catch (error54) {
-    console.error(`[AutoCorrector] \u9884\u7B97\u4E00\u81F4\u6027\u68C0\u67E5\u5F02\u5E38:`, error54.message);
-    result.details.push(`\u9884\u7B97\u4E00\u81F4\u6027\u68C0\u67E5\u5F02\u5E38: ${error54.message}`);
-  }
-}
-function startAutoCorrector() {
-  if (autoCorrectorInterval) {
-    clearInterval(autoCorrectorInterval);
-  }
-  console.log("[AutoCorrector] v167: \u542F\u52A8\u81EA\u52A8\u7EA0\u9519\u5B9A\u65F6\u4EFB\u52A1\uFF08\u6BCF4\u5C0F\u65F6\uFF09");
-  setTimeout(async () => {
-    try {
-      await runAutoCorrection();
-    } catch (err2) {
-      console.error("[AutoCorrector] \u9996\u6B21\u6267\u884C\u5F02\u5E38:", err2.message);
-    }
-  }, 5 * 60 * 1e3);
-  autoCorrectorInterval = setInterval(async () => {
-    try {
-      await runAutoCorrection();
-    } catch (err2) {
-      console.error("[AutoCorrector] \u5B9A\u65F6\u6267\u884C\u5F02\u5E38:", err2.message);
-    }
-  }, 4 * 60 * 60 * 1e3);
-}
-function stopAutoCorrector() {
-  if (autoCorrectorInterval) {
-    clearInterval(autoCorrectorInterval);
-    autoCorrectorInterval = null;
-    console.log("[AutoCorrector] v167: \u81EA\u52A8\u7EA0\u9519\u5B9A\u65F6\u4EFB\u52A1\u5DF2\u505C\u6B62");
-  }
-}
-var autoCorrectorInterval;
-var init_optimizationAutoCorrector = __esm({
-  "server/optimizationAutoCorrector.ts"() {
-    "use strict";
-    init_db2();
-    init_drizzle_orm();
-    init_schema2();
-    autoCorrectorInterval = null;
   }
 });
 
@@ -85681,13 +86210,13 @@ var require_fxp = __commonJS({
         }
         return t8;
       }
-      const lt4 = { attributeNamePrefix: "@_", attributesGroupName: false, textNodeName: "#text", ignoreAttributes: true, cdataPropName: false, format: false, indentBy: "  ", suppressEmptyNode: false, suppressUnpairedNode: true, suppressBooleanAttributes: true, tagValueProcessor: function(t8, e7) {
+      const lt5 = { attributeNamePrefix: "@_", attributesGroupName: false, textNodeName: "#text", ignoreAttributes: true, cdataPropName: false, format: false, indentBy: "  ", suppressEmptyNode: false, suppressUnpairedNode: true, suppressBooleanAttributes: true, tagValueProcessor: function(t8, e7) {
         return e7;
       }, attributeValueProcessor: function(t8, e7) {
         return e7;
       }, preserveOrder: false, commentPropName: false, unpairedTags: [], entities: [{ regex: new RegExp("&", "g"), val: "&amp;" }, { regex: new RegExp(">", "g"), val: "&gt;" }, { regex: new RegExp("<", "g"), val: "&lt;" }, { regex: new RegExp("'", "g"), val: "&apos;" }, { regex: new RegExp('"', "g"), val: "&quot;" }], processEntities: true, stopNodes: [], oneListGroup: false };
       function ut3(t8) {
-        this.options = Object.assign({}, lt4, t8), true === this.options.ignoreAttributes || this.options.attributesGroupName ? this.isAttribute = function() {
+        this.options = Object.assign({}, lt5, t8), true === this.options.ignoreAttributes || this.options.attributesGroupName ? this.isAttribute = function() {
           return false;
         } : (this.ignoreAttributesFn = $4(this.options.ignoreAttributes), this.attrPrefixLen = this.options.attributeNamePrefix.length, this.isAttribute = pt3), this.processTextOrObjNode = ht3, this.options.format ? (this.indentate = dt3, this.tagEndChar = ">\n", this.newLine = "\n") : (this.indentate = function() {
           return "";
@@ -102211,13 +102740,13 @@ var require_fxp2 = __commonJS({
         }
         return t8;
       }
-      const lt4 = { attributeNamePrefix: "@_", attributesGroupName: false, textNodeName: "#text", ignoreAttributes: true, cdataPropName: false, format: false, indentBy: "  ", suppressEmptyNode: false, suppressUnpairedNode: true, suppressBooleanAttributes: true, tagValueProcessor: function(t8, e7) {
+      const lt5 = { attributeNamePrefix: "@_", attributesGroupName: false, textNodeName: "#text", ignoreAttributes: true, cdataPropName: false, format: false, indentBy: "  ", suppressEmptyNode: false, suppressUnpairedNode: true, suppressBooleanAttributes: true, tagValueProcessor: function(t8, e7) {
         return e7;
       }, attributeValueProcessor: function(t8, e7) {
         return e7;
       }, preserveOrder: false, commentPropName: false, unpairedTags: [], entities: [{ regex: new RegExp("&", "g"), val: "&amp;" }, { regex: new RegExp(">", "g"), val: "&gt;" }, { regex: new RegExp("<", "g"), val: "&lt;" }, { regex: new RegExp("'", "g"), val: "&apos;" }, { regex: new RegExp('"', "g"), val: "&quot;" }], processEntities: true, stopNodes: [], oneListGroup: false };
       function ut3(t8) {
-        this.options = Object.assign({}, lt4, t8), true === this.options.ignoreAttributes || this.options.attributesGroupName ? this.isAttribute = function() {
+        this.options = Object.assign({}, lt5, t8), true === this.options.ignoreAttributes || this.options.attributesGroupName ? this.isAttribute = function() {
           return false;
         } : (this.ignoreAttributesFn = $4(this.options.ignoreAttributes), this.attrPrefixLen = this.options.attributeNamePrefix.length, this.isAttribute = pt3), this.processTextOrObjNode = ht3, this.options.format ? (this.indentate = dt3, this.tagEndChar = ">\n", this.newLine = "\n") : (this.indentate = function() {
           return "";
@@ -117841,13 +118370,13 @@ var require_fxp3 = __commonJS({
         }
         return t8;
       }
-      const lt4 = { attributeNamePrefix: "@_", attributesGroupName: false, textNodeName: "#text", ignoreAttributes: true, cdataPropName: false, format: false, indentBy: "  ", suppressEmptyNode: false, suppressUnpairedNode: true, suppressBooleanAttributes: true, tagValueProcessor: function(t8, e7) {
+      const lt5 = { attributeNamePrefix: "@_", attributesGroupName: false, textNodeName: "#text", ignoreAttributes: true, cdataPropName: false, format: false, indentBy: "  ", suppressEmptyNode: false, suppressUnpairedNode: true, suppressBooleanAttributes: true, tagValueProcessor: function(t8, e7) {
         return e7;
       }, attributeValueProcessor: function(t8, e7) {
         return e7;
       }, preserveOrder: false, commentPropName: false, unpairedTags: [], entities: [{ regex: new RegExp("&", "g"), val: "&amp;" }, { regex: new RegExp(">", "g"), val: "&gt;" }, { regex: new RegExp("<", "g"), val: "&lt;" }, { regex: new RegExp("'", "g"), val: "&apos;" }, { regex: new RegExp('"', "g"), val: "&quot;" }], processEntities: true, stopNodes: [], oneListGroup: false };
       function ut3(t8) {
-        this.options = Object.assign({}, lt4, t8), true === this.options.ignoreAttributes || this.options.attributesGroupName ? this.isAttribute = function() {
+        this.options = Object.assign({}, lt5, t8), true === this.options.ignoreAttributes || this.options.attributesGroupName ? this.isAttribute = function() {
           return false;
         } : (this.ignoreAttributesFn = $4(this.options.ignoreAttributes), this.attrPrefixLen = this.options.attributeNamePrefix.length, this.isAttribute = pt3), this.processTextOrObjNode = ht3, this.options.format ? (this.indentate = dt3, this.tagEndChar = ">\n", this.newLine = "\n") : (this.indentate = function() {
           return "";
@@ -123960,13 +124489,13 @@ var require_fxp4 = __commonJS({
         }
         return t8;
       }
-      const lt4 = { attributeNamePrefix: "@_", attributesGroupName: false, textNodeName: "#text", ignoreAttributes: true, cdataPropName: false, format: false, indentBy: "  ", suppressEmptyNode: false, suppressUnpairedNode: true, suppressBooleanAttributes: true, tagValueProcessor: function(t8, e7) {
+      const lt5 = { attributeNamePrefix: "@_", attributesGroupName: false, textNodeName: "#text", ignoreAttributes: true, cdataPropName: false, format: false, indentBy: "  ", suppressEmptyNode: false, suppressUnpairedNode: true, suppressBooleanAttributes: true, tagValueProcessor: function(t8, e7) {
         return e7;
       }, attributeValueProcessor: function(t8, e7) {
         return e7;
       }, preserveOrder: false, commentPropName: false, unpairedTags: [], entities: [{ regex: new RegExp("&", "g"), val: "&amp;" }, { regex: new RegExp(">", "g"), val: "&gt;" }, { regex: new RegExp("<", "g"), val: "&lt;" }, { regex: new RegExp("'", "g"), val: "&apos;" }, { regex: new RegExp('"', "g"), val: "&quot;" }], processEntities: true, stopNodes: [], oneListGroup: false };
       function ut3(t8) {
-        this.options = Object.assign({}, lt4, t8), true === this.options.ignoreAttributes || this.options.attributesGroupName ? this.isAttribute = function() {
+        this.options = Object.assign({}, lt5, t8), true === this.options.ignoreAttributes || this.options.attributesGroupName ? this.isAttribute = function() {
           return false;
         } : (this.ignoreAttributesFn = $4(this.options.ignoreAttributes), this.attrPrefixLen = this.options.attributeNamePrefix.length, this.isAttribute = pt3), this.processTextOrObjNode = ht3, this.options.format ? (this.indentate = dt3, this.tagEndChar = ">\n", this.newLine = "\n") : (this.indentate = function() {
           return "";
@@ -133227,9 +133756,9 @@ async function checkAllCampaignsPacing(accountId) {
         AND status = 'enabled'
         AND dailyBudget > 0
     `);
-    const campaigns7 = Array.isArray(rows) ? rows : [];
+    const campaigns6 = Array.isArray(rows) ? rows : [];
     const results = [];
-    for (const campaign of campaigns7) {
+    for (const campaign of campaigns6) {
       const adjustment = await adjustIntradayPacing(
         campaign.campaignId,
         accountId
@@ -133648,6 +134177,12 @@ async function executeSyncForAccount(schedule) {
   } catch (evoError) {
     console.error(`[DataSyncScheduler] v152: \u7B97\u6CD5\u8FDB\u5316\u5931\u8D25:`, evoError.message);
   }
+  try {
+    const correctionResult = await runAutoCorrection(schedule.accountId);
+    console.log(`[DataSyncScheduler] v167: \u81EA\u52A8\u7EA0\u9519\u626B\u63CF\u5B8C\u6210: \u53D1\u73B0${correctionResult.totalIssuesFound}\u4E2A\u95EE\u9898, \u7EA0\u6B63${correctionResult.totalCorrected}\u4E2A, \u5931\u8D25${correctionResult.totalFailed}\u4E2A`);
+  } catch (correctionError) {
+    console.error(`[DataSyncScheduler] v167: \u81EA\u52A8\u7EA0\u9519\u626B\u63CF\u5931\u8D25:`, correctionError.message);
+  }
   if (result.campaigns > 0 || result.adGroups > 0) {
     try {
       await notifyOwner({
@@ -133791,8 +134326,7 @@ async function startOptimizationScheduler2() {
   console.log("  | \u641C\u7D22\u8BCD\u8FC1\u79FB     | 72\u5C0F\u65F6  | 48\u5C0F\u65F6  | 24\u5C0F\u65F6  |");
   console.log("  | \u9884\u7B97\u5206\u914D       | 4\u5C0F\u65F6   | 4\u5C0F\u65F6   | 4\u5C0F\u65F6   |");
   try {
-    const { startAutoCorrector: startAutoCorrector2 } = await Promise.resolve().then(() => (init_optimizationAutoCorrector(), optimizationAutoCorrector_exports));
-    startAutoCorrector2();
+    startAutoCorrector();
     console.log("[OptimizationScheduler] v167: \u81EA\u52A8\u7EA0\u9519\u670D\u52A1\u5DF2\u542F\u52A8");
   } catch (correctorErr) {
     console.error("[OptimizationScheduler] v167: \u81EA\u52A8\u7EA0\u9519\u670D\u52A1\u542F\u52A8\u5931\u8D25:", correctorErr.message);
@@ -134067,6 +134601,7 @@ var init_dataSyncScheduler = __esm({
     init_searchTermHarvester();
     init_attributionWindowHelper();
     init_campaignLifecycleService();
+    init_optimizationAutoCorrector();
     SYNC_TIER_CONFIG = {
       high: {
         intervalMs: 15 * 60 * 1e3,
@@ -135337,12 +135872,12 @@ async function applyHourlyBidRulesToStrategy(campaignId, accountId, rules) {
   }
   return { success: true, strategyId: strategy.id, rulesApplied: updatedRules.length };
 }
-async function executeMultiDimensionOptimization(targetId, accountId, campaigns7, config2, dryRun = false) {
+async function executeMultiDimensionOptimization(targetId, accountId, campaigns6, config2, dryRun = false) {
   const details = [];
   let totalRulesGenerated = 0;
   let campaignsAnalyzed = 0;
   const lookbackDays = config2.lookbackDays || 30;
-  for (const campaign of campaigns7) {
+  for (const campaign of campaigns6) {
     try {
       const campaignId = campaign.campaignId || campaign.id.toString();
       const analysis = await analyzeMultiDimensionPerformance(
@@ -136322,13 +136857,13 @@ async function executeOptimizationTarget(targetId, options = {}) {
     if (shouldReleaseLock) releaseAccountOptimizationLock(config2.accountId);
     return result;
   }
-  const campaigns7 = allCampaigns.filter((c5) => c5.campaignStatus === "enabled");
-  const skippedCampaigns = allCampaigns.length - campaigns7.length;
+  const campaigns6 = allCampaigns.filter((c5) => c5.campaignStatus === "enabled");
+  const skippedCampaigns = allCampaigns.length - campaigns6.length;
   if (skippedCampaigns > 0) {
-    console.log(`[OptimizationTarget] v156: \u8DF3\u8FC7${skippedCampaigns}\u4E2A\u975Eenabled\u72B6\u6001\u7684campaign (\u603B${allCampaigns.length}\u4E2A, enabled=${campaigns7.length}\u4E2A)`);
+    console.log(`[OptimizationTarget] v156: \u8DF3\u8FC7${skippedCampaigns}\u4E2A\u975Eenabled\u72B6\u6001\u7684campaign (\u603B${allCampaigns.length}\u4E2A, enabled=${campaigns6.length}\u4E2A)`);
     result.warnings.push(`\u8DF3\u8FC7${skippedCampaigns}\u4E2A\u975Eenabled\u72B6\u6001\u7684campaign`);
   }
-  if (campaigns7.length === 0) {
+  if (campaigns6.length === 0) {
     result.warnings.push("\u4F18\u5316\u76EE\u6807\u4E0B\u6CA1\u6709enabled\u72B6\u6001\u7684\u5E7F\u544A\u6D3B\u52A8");
     if (shouldReleaseLock) releaseAccountOptimizationLock(config2.accountId);
     return result;
@@ -136356,7 +136891,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
   };
   if (config2.enableBidOptimization && shouldExecute("bid")) {
     try {
-      const bidResults = await executeBidOptimization(config2, campaigns7, dryRun);
+      const bidResults = await executeBidOptimization(config2, campaigns6, dryRun);
       result.bidOptimization = bidResults;
     } catch (error54) {
       result.errors.push(`\u51FA\u4EF7\u4F18\u5316\u5931\u8D25: ${error54.message}`);
@@ -136364,7 +136899,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
   }
   if (config2.enablePlacementOptimization && shouldExecute("placement")) {
     try {
-      const placementResults = await executePlacementOptimization(config2, campaigns7, dryRun);
+      const placementResults = await executePlacementOptimization(config2, campaigns6, dryRun);
       result.placementOptimization = placementResults;
     } catch (error54) {
       result.errors.push(`\u4F4D\u7F6E\u4F18\u5316\u5931\u8D25: ${error54.message}`);
@@ -136375,7 +136910,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
       const multiDimResults = await executeMultiDimensionOptimization(
         targetId,
         config2.accountId,
-        campaigns7,
+        campaigns6,
         {
           targetAcos: config2.targetAcos,
           targetRoas: config2.targetRoas,
@@ -136395,7 +136930,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
   }
   if (config2.enableDaypartingOptimization && shouldExecute("dayparting")) {
     try {
-      const daypartingResults = await executeDaypartingOptimization(config2, campaigns7, dryRun);
+      const daypartingResults = await executeDaypartingOptimization(config2, campaigns6, dryRun);
       result.daypartingOptimization = daypartingResults;
     } catch (error54) {
       result.errors.push(`\u5206\u65F6\u7ADE\u4EF7\u4F18\u5316\u5931\u8D25: ${error54.message}`);
@@ -136403,7 +136938,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
   }
   if (config2.enableSearchTermAnalysis && shouldExecute("searchterm")) {
     try {
-      const searchTermResults = await executeSearchTermAnalysis(config2, campaigns7, dryRun);
+      const searchTermResults = await executeSearchTermAnalysis(config2, campaigns6, dryRun);
       result.searchTermAnalysis = searchTermResults;
     } catch (error54) {
       result.errors.push(`\u641C\u7D22\u8BCD\u5206\u6790\u5931\u8D25: ${error54.message}`);
@@ -136411,7 +136946,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
   }
   if (config2.enableBudgetAllocation && shouldExecute("budget")) {
     try {
-      const budgetResults = await executeBudgetAllocation2(config2, campaigns7, dryRun);
+      const budgetResults = await executeBudgetAllocation2(config2, campaigns6, dryRun);
       result.budgetAllocation = budgetResults;
     } catch (error54) {
       result.errors.push(`\u9884\u7B97\u5206\u914D\u4F18\u5316\u5931\u8D25: ${error54.message}`);
@@ -136419,7 +136954,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
   }
   if (config2.enableKeywordAutoExecution && shouldExecute("keyword")) {
     try {
-      const keywordResults = await executeKeywordStatusChanges(config2, campaigns7, dryRun);
+      const keywordResults = await executeKeywordStatusChanges(config2, campaigns6, dryRun);
       result.keywordStatusChanges = keywordResults;
     } catch (error54) {
       result.errors.push(`\u6295\u653E\u8BCD\u72B6\u6001\u53D8\u66F4\u5931\u8D25: ${error54.message}`);
@@ -136427,7 +136962,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
   }
   if (config2.enableKeywordAutoExecution && shouldExecute("campaign_status")) {
     try {
-      const campaignResults = await executeCampaignStatusChanges(config2, campaigns7, dryRun);
+      const campaignResults = await executeCampaignStatusChanges(config2, campaigns6, dryRun);
       result.campaignStatusChanges = campaignResults;
     } catch (error54) {
       result.errors.push(`\u5E7F\u544A\u6D3B\u52A8\u72B6\u6001\u53D8\u66F4\u5931\u8D25: ${error54.message}`);
@@ -136435,7 +136970,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
   }
   if (config2.enableKeywordAutoExecution && shouldExecute("adgroup_status")) {
     try {
-      const adGroupResults = await executeAdGroupStatusChanges(config2, campaigns7, dryRun);
+      const adGroupResults = await executeAdGroupStatusChanges(config2, campaigns6, dryRun);
       result.adGroupStatusChanges = adGroupResults;
     } catch (error54) {
       result.errors.push(`\u5E7F\u544A\u7EC4\u72B6\u6001\u53D8\u66F4\u5931\u8D25: ${error54.message}`);
@@ -136445,7 +136980,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
     try {
       const coordinationResults = await executeBidCoordination(
         config2,
-        campaigns7,
+        campaigns6,
         result.bidOptimization.details,
         result.placementOptimization.details,
         result.daypartingOptimization.details,
@@ -136577,11 +137112,11 @@ async function executeOptimizationTarget(targetId, options = {}) {
   if (shouldReleaseLock) releaseAccountOptimizationLock(config2.accountId);
   return result;
 }
-async function executeBidOptimization(config2, campaigns7, dryRun) {
+async function executeBidOptimization(config2, campaigns6, dryRun) {
   const details = [];
   let adjustmentsCount = 0;
   let totalClicks = 0, totalOrders = 0, totalSpend = 0, totalSales = 0;
-  for (const c5 of campaigns7) {
+  for (const c5 of campaigns6) {
     totalClicks += c5.clicks || 0;
     totalOrders += c5.orders || 0;
     totalSpend += parseFloat(c5.spend || "0");
@@ -136614,7 +137149,7 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
   const vcpmMaxBidLimit = config2.maxBid ? config2.maxBid * 5 : 15;
   console.log(`[BidOptimization] v165: CPC\u6700\u9AD8\u51FA\u4EF7=$${cpcMaxBidLimit} | VCPM\u6700\u9AD8\u51FA\u4EF7=$${vcpmMaxBidLimit} (\u7528\u6237\u8BBE\u7F6Emax_bid=${config2.maxBid || "\u672A\u8BBE\u7F6E"})`);
   console.log(`[BidOptimization] v165: \u65E5\u9884\u7B97=${config2.dailyBudget || "\u672A\u8BBE\u7F6E"}, \u76EE\u6807ACoS=${config2.targetAcos || "\u672A\u8BBE\u7F6E"}`);
-  for (const campaign of campaigns7) {
+  for (const campaign of campaigns6) {
     let campaignDailyData = [];
     let campaignTimeWeightedMetrics = null;
     try {
@@ -136663,9 +137198,9 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
     if (isVcpmCampaign) {
       console.log(`[BidOptimization] v165: Campaign ${campaign.id} \u8BC6\u522B\u4E3AVCPM\u5E7F\u544A\uFF0C\u4F7F\u7528VCPM\u6700\u9AD8\u51FA\u4EF7$${maxBidLimit}`);
     }
-    const keywords7 = await getKeywordsByCampaignId(campaign.id);
+    const keywords6 = await getKeywordsByCampaignId(campaign.id);
     const keywordTargets = [];
-    for (const keyword of keywords7) {
+    for (const keyword of keywords6) {
       if (keyword.keywordStatus !== "enabled") continue;
       const currentBid = parseFloat(keyword.bid || "0");
       if (currentBid <= 0) continue;
@@ -136727,7 +137262,7 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
           finalBid = maxBidLimit;
         }
         if (Math.abs(finalBid - result.previousBid) > 0.01) {
-          const keyword = keywords7.find((k5) => k5.id === result.targetId);
+          const keyword = keywords6.find((k5) => k5.id === result.targetId);
           const adjustment = {
             keywordId: result.targetId,
             keywordText: keyword?.keywordText || `\u5173\u952E\u8BCD ${result.targetId}`,
@@ -136938,10 +137473,10 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
   }
   return { executed: true, adjustmentsCount: dryRun ? details.length : adjustmentsCount, details, apiSyncResult, apiSyncStatus };
 }
-async function executePlacementOptimization(config2, campaigns7, dryRun) {
+async function executePlacementOptimization(config2, campaigns6, dryRun) {
   const details = [];
   let adjustmentsCount = 0;
-  for (const campaign of campaigns7) {
+  for (const campaign of campaigns6) {
     try {
       const analysis = await analyzePlacementPerformance(campaign.campaignId || campaign.id.toString(), config2.accountId);
       const suggestions = await generatePlacementSuggestions(
@@ -137023,14 +137558,14 @@ async function executePlacementOptimization(config2, campaigns7, dryRun) {
   }
   return { executed: true, adjustmentsCount: dryRun ? details.length : adjustmentsCount, details };
 }
-async function executeDaypartingOptimization(config2, campaigns7, dryRun) {
+async function executeDaypartingOptimization(config2, campaigns6, dryRun) {
   const details = [];
   let adjustmentsCount = 0;
   const marketplace = config2.marketplace || "US";
   const now = /* @__PURE__ */ new Date();
   const currentHour = getLocalHour(now, marketplace);
   const currentDayOfWeek = getLocalDayOfWeek(now, marketplace);
-  for (const campaign of campaigns7) {
+  for (const campaign of campaigns6) {
     try {
       let strategy = await getDaypartingStrategyByCampaignId(campaign.id);
       if (!strategy) {
@@ -137049,8 +137584,8 @@ async function executeDaypartingOptimization(config2, campaigns7, dryRun) {
       const hourlyRule = await getHourlyRule(strategy.id, currentDayOfWeek, currentHour);
       if (!hourlyRule) continue;
       const bidMultiplier = parseFloat(hourlyRule.bidMultiplier || "1.00");
-      const keywords7 = await getKeywordsByCampaignId(campaign.id);
-      for (const keyword of keywords7) {
+      const keywords6 = await getKeywordsByCampaignId(campaign.id);
+      for (const keyword of keywords6) {
         if (keyword.keywordStatus !== "enabled") continue;
         const baseBid = parseFloat(keyword.bid || "0");
         if (baseBid <= 0) continue;
@@ -137108,11 +137643,11 @@ async function executeDaypartingOptimization(config2, campaigns7, dryRun) {
   }
   return { executed: true, adjustmentsCount, details };
 }
-async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
+async function executeSearchTermAnalysis(config2, campaigns6, dryRun) {
   const details = [];
   let negativeKeywordsAdded = 0;
   let newKeywordsAdded = 0;
-  for (const campaign of campaigns7) {
+  for (const campaign of campaigns6) {
     try {
       const searchTerms4 = await getSearchTermsByCampaignId(campaign.id);
       const searchTermTexts = searchTerms4.map((st3) => st3.searchTerm);
@@ -137201,12 +137736,12 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                 const amazonCampaignId = Number(campaign.campaignId || campaign.id);
                 const matchType = term.matchTypeSuggestion || "exact";
                 const bid = 0.5;
-                const { keywords: keywords7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+                const { keywords: keywords6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
                 const { eq: eqOp, and: andOp } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-                const existingKeywords = await dbInstance.select({ id: keywords7.id, keywordId: keywords7.keywordId }).from(keywords7).where(andOp(
-                  eqOp(keywords7.adGroupId, adGroup.id),
-                  eqOp(keywords7.keywordText, term.searchTerm),
-                  eqOp(keywords7.matchType, matchType)
+                const existingKeywords = await dbInstance.select({ id: keywords6.id, keywordId: keywords6.keywordId }).from(keywords6).where(andOp(
+                  eqOp(keywords6.adGroupId, adGroup.id),
+                  eqOp(keywords6.keywordText, term.searchTerm),
+                  eqOp(keywords6.matchType, matchType)
                 )).limit(5);
                 if (existingKeywords.length > 0) {
                   if (existingKeywords.length > 1) {
@@ -137215,7 +137750,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                     const toDelete = withId.length > 0 ? withoutId : withoutId.slice(1);
                     for (const dup of toDelete) {
                       try {
-                        await dbInstance.delete(keywords7).where(eqOp(keywords7.id, dup.id));
+                        await dbInstance.delete(keywords6).where(eqOp(keywords6.id, dup.id));
                         console.log(`[SearchTermAnalysis] \u{1F9F9} \u6E05\u7406\u91CD\u590D\u5173\u952E\u8BCD: id=${dup.id} "${term.searchTerm}" (keywordId=${dup.keywordId})`);
                       } catch (delErr) {
                         console.warn(`[SearchTermAnalysis] \u6E05\u7406\u91CD\u590D\u5173\u952E\u8BCD\u5931\u8D25: id=${dup.id}: ${delErr.message}`);
@@ -137224,7 +137759,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                   }
                   console.log(`[SearchTermAnalysis] \u23ED\uFE0F \u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7\u521B\u5EFA: "${term.searchTerm}" (${matchType}) id=${existingKeywords[0].id}, keywordId=${existingKeywords[0].keywordId}`);
                 } else {
-                  const insertResult = await dbInstance.insert(keywords7).values({
+                  const insertResult = await dbInstance.insert(keywords6).values({
                     adGroupId: adGroup.id,
                     keywordText: term.searchTerm,
                     matchType,
@@ -137345,13 +137880,13 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
   }
   return { executed: true, negativeKeywordsAdded, newKeywordsAdded, details };
 }
-async function executeBudgetAllocation2(config2, campaigns7, dryRun) {
+async function executeBudgetAllocation2(config2, campaigns6, dryRun) {
   const details = [];
   let adjustmentsCount = 0;
   try {
     const budgetResult = await generateBudgetAllocationSuggestions(config2.id);
     for (const suggestion of budgetResult.suggestions) {
-      const campaign = campaigns7.find((c5) => c5.id === suggestion.campaignId);
+      const campaign = campaigns6.find((c5) => c5.id === suggestion.campaignId);
       if (!campaign) continue;
       let finalBudget = suggestion.suggestedBudget;
       const campaignPerf = budgetResult.suggestions.find((s4) => s4.campaignId === suggestion.campaignId);
@@ -137427,7 +137962,7 @@ async function executeBudgetAllocation2(config2, campaigns7, dryRun) {
   }
   return { executed: true, adjustmentsCount: dryRun ? details.length : adjustmentsCount, details };
 }
-async function executeKeywordStatusChanges(config2, campaigns7, dryRun) {
+async function executeKeywordStatusChanges(config2, campaigns6, dryRun) {
   const details = [];
   let pausedCount = 0;
   let enabledCount = 0;
@@ -137449,13 +137984,13 @@ async function executeKeywordStatusChanges(config2, campaigns7, dryRun) {
     maxAcosThreshold = (config2.targetAcos || 30) * 3;
   }
   let totalSalesForAov = 0, totalOrdersForAov = 0;
-  for (const c5 of campaigns7) {
+  for (const c5 of campaigns6) {
     totalSalesForAov += parseFloat(c5.sales || "0");
     totalOrdersForAov += c5.orders || 0;
   }
   const groupAov = totalOrdersForAov > 0 ? totalSalesForAov / totalOrdersForAov : 30;
   pauseSpendThreshold = Math.max(pauseSpendThreshold, groupAov * 1.5);
-  for (const campaign of campaigns7) {
+  for (const campaign of campaigns6) {
     try {
       let campaignTWMetrics = null;
       try {
@@ -137477,8 +138012,8 @@ async function executeKeywordStatusChanges(config2, campaigns7, dryRun) {
       } catch (e6) {
         console.log(`[KeywordStatus] v163: Campaign ${campaign.id} \u65F6\u95F4\u8870\u51CF\u6570\u636E\u83B7\u53D6\u5931\u8D25: ${e6.message}`);
       }
-      const keywords7 = await getKeywordsByCampaignId(campaign.id);
-      for (const keyword of keywords7) {
+      const keywords6 = await getKeywordsByCampaignId(campaign.id);
+      for (const keyword of keywords6) {
         const spend = parseFloat(keyword.spend || "0");
         const sales = parseFloat(keyword.sales || "0");
         const clicks = keyword.clicks || 0;
@@ -137683,7 +138218,7 @@ async function executeKeywordStatusChanges(config2, campaigns7, dryRun) {
   }
   return { executed: true, pausedCount, enabledCount, details };
 }
-async function executeCampaignStatusChanges(config2, campaigns7, dryRun) {
+async function executeCampaignStatusChanges(config2, campaigns6, dryRun) {
   const details = [];
   let pausedCount = 0;
   let enabledCount = 0;
@@ -137697,7 +138232,7 @@ async function executeCampaignStatusChanges(config2, campaigns7, dryRun) {
     campaignPauseClickThreshold = 80;
     campaignMaxAcosThreshold = targetAcos * 2.5;
   }
-  for (const campaign of campaigns7) {
+  for (const campaign of campaigns6) {
     try {
       let campaignTWMetrics = null;
       try {
@@ -137862,7 +138397,7 @@ async function executeCampaignStatusChanges(config2, campaigns7, dryRun) {
   }
   return { executed: true, pausedCount, enabledCount, details };
 }
-async function executeAdGroupStatusChanges(config2, campaigns7, dryRun) {
+async function executeAdGroupStatusChanges(config2, campaigns6, dryRun) {
   const details = [];
   let pausedCount = 0;
   let enabledCount = 0;
@@ -137870,7 +138405,7 @@ async function executeAdGroupStatusChanges(config2, campaigns7, dryRun) {
   let adGroupPauseSpendThreshold = 100;
   let adGroupPauseClickThreshold = 50;
   let adGroupMaxAcosThreshold = targetAcos * 2.8;
-  for (const campaign of campaigns7) {
+  for (const campaign of campaigns6) {
     try {
       const adGroups3 = await getAdGroupsByCampaignId(campaign.id);
       for (const adGroup of adGroups3) {
@@ -138001,11 +138536,11 @@ async function executeAdGroupStatusChanges(config2, campaigns7, dryRun) {
   }
   return { executed: true, pausedCount, enabledCount, details };
 }
-async function executeBidCoordination(config2, campaigns7, bidDetails, placementDetails, daypartingDetails, dryRun) {
+async function executeBidCoordination(config2, campaigns6, bidDetails, placementDetails, daypartingDetails, dryRun) {
   const details = [];
   let campaignsCoordinated = 0;
   let circuitBreakerTriggered = 0;
-  for (const campaign of campaigns7) {
+  for (const campaign of campaigns6) {
     try {
       const proposals = [];
       const bidSuggestions = bidDetails.filter((d5) => d5.campaignId === campaign.id);
@@ -138429,16 +138964,16 @@ async function getOptimizationTargetSummary(targetId) {
       }
     };
   }
-  const campaigns7 = await getCampaignsByPerformanceGroupId(targetId);
+  const campaigns6 = await getCampaignsByPerformanceGroupId(targetId);
   let keywordsCount = 0;
-  for (const campaign of campaigns7) {
-    const keywords7 = await getKeywordsByCampaignId(campaign.id);
-    keywordsCount += keywords7.length;
+  for (const campaign of campaigns6) {
+    const keywords6 = await getKeywordsByCampaignId(campaign.id);
+    keywordsCount += keywords6.length;
   }
   const dryRunResult = await executeOptimizationTarget(targetId, { dryRun: true, forceExecution: true });
   return {
     config: config2,
-    campaignsCount: campaigns7.length,
+    campaignsCount: campaigns6.length,
     keywordsCount,
     pendingActions: {
       bidAdjustments: dryRunResult.bidOptimization.details.length,
@@ -140077,9 +140612,9 @@ async function generateAIAnalysisWithSuggestions(campaignId) {
   let allKeywords = [];
   let allProductTargets = [];
   for (const adGroup of adGroups3) {
-    const keywords7 = await getKeywordsByAdGroupId(adGroup.id);
+    const keywords6 = await getKeywordsByAdGroupId(adGroup.id);
     const productTargets2 = await getProductTargetsByAdGroupId(adGroup.id);
-    allKeywords.push(...keywords7.map((k5) => ({ ...k5, adGroupName: adGroup.adGroupName })));
+    allKeywords.push(...keywords6.map((k5) => ({ ...k5, adGroupName: adGroup.adGroupName })));
     allProductTargets.push(...productTargets2.map((pt3) => ({ ...pt3, adGroupName: adGroup.adGroupName })));
   }
   const searchTerms4 = await getSearchTermsByCampaignId(campaignId);
@@ -142354,14 +142889,14 @@ async function executeBatchAnalysis(analysisId, request) {
   let totalExpectedSales = 0;
   let totalConfidence = 0;
   let successCount = 0;
-  const campaigns7 = await db.execute(sql`
+  const campaigns6 = await db.execute(sql`
     SELECT id, campaign_id, campaign_name, spend, sales
     FROM campaigns
     WHERE account_id = ${request.accountId}
     AND campaign_id IN (${sql.raw(request.campaignIds.map((id) => `'${id}'`).join(","))})
   `);
   const campaignMap = new Map(
-    campaigns7[0].map((c5) => [c5.campaign_id, c5])
+    campaigns6[0].map((c5) => [c5.campaign_id, c5])
   );
   for (const campaignId of request.campaignIds) {
     const campaign = campaignMap.get(campaignId);
@@ -156256,7 +156791,7 @@ Default "index" lookups for the main are deprecated for ES modules.`, "Deprecati
           if ("string" != typeof e8) throw new TypeError("Expected a string");
           return e8.replace(/[|\\{}()[\]^$+*?.]/g, "\\$&").replace(/-/g, "\\x2d");
         }
-        const ct3 = /* @__PURE__ */ new Set(["/", "\\", void 0]), pt3 = /* @__PURE__ */ Symbol.for("pathe:normalizedAlias"), lt4 = /[/\\]/;
+        const ct3 = /* @__PURE__ */ new Set(["/", "\\", void 0]), pt3 = /* @__PURE__ */ Symbol.for("pathe:normalizedAlias"), lt5 = /[/\\]/;
         function normalizeAliases(e8) {
           if (e8[pt3]) return e8;
           const t9 = Object.fromEntries(Object.entries(e8).sort(([e9], [t10]) => (function(e10, t11) {
@@ -156272,7 +156807,7 @@ Default "index" lookups for the main are deprecated for ES modules.`, "Deprecati
         var ut3 = { rE: "2.6.1" };
         const dt3 = require("node:crypto");
         var ft3 = __webpack_require__2.n(dt3);
-        const mt3 = /* @__PURE__ */ Object.create(null), dist_i = (e8) => globalThis.process?.env || globalThis.Deno?.env.toObject() || globalThis.__env__ || (e8 ? mt3 : globalThis), gt4 = new Proxy(mt3, { get: (e8, t9) => dist_i()[t9] ?? mt3[t9], has: (e8, t9) => t9 in dist_i() || t9 in mt3, set: (e8, t9, i5) => (dist_i(true)[t9] = i5, true), deleteProperty(e8, t9) {
+        const mt3 = /* @__PURE__ */ Object.create(null), dist_i = (e8) => globalThis.process?.env || globalThis.Deno?.env.toObject() || globalThis.__env__ || (e8 ? mt3 : globalThis), gt5 = new Proxy(mt3, { get: (e8, t9) => dist_i()[t9] ?? mt3[t9], has: (e8, t9) => t9 in dist_i() || t9 in mt3, set: (e8, t9, i5) => (dist_i(true)[t9] = i5, true), deleteProperty(e8, t9) {
           if (!t9) return false;
           return delete dist_i(true)[t9], true;
         }, ownKeys() {
@@ -156290,7 +156825,7 @@ Default "index" lookups for the main are deprecated for ES modules.`, "Deprecati
         function std_env_dist_n(e8) {
           return !!e8 && "false" !== e8;
         }
-        const _t3 = globalThis.process?.platform || "", Et3 = std_env_dist_n(gt4.CI) || false !== yt3.ci, bt3 = std_env_dist_n(globalThis.process?.stdout && globalThis.process?.stdout.isTTY), St3 = (std_env_dist_n(gt4.DEBUG), "test" === xt3 || std_env_dist_n(gt4.TEST)), kt3 = (std_env_dist_n(gt4.MINIMAL), /^win/i.test(_t3)), wt3 = (/^linux/i.test(_t3), /^darwin/i.test(_t3), !std_env_dist_n(gt4.NO_COLOR) && (std_env_dist_n(gt4.FORCE_COLOR) || (bt3 || kt3) && gt4.TERM), (globalThis.process?.versions?.node || "").replace(/^v/, "") || null), It3 = (Number(wt3?.split(".")[0]), globalThis.process || /* @__PURE__ */ Object.create(null)), Ct2 = { versions: {} }, Rt3 = (new Proxy(It3, { get: (e8, t9) => "env" === t9 ? gt4 : t9 in e8 ? e8[t9] : t9 in Ct2 ? Ct2[t9] : void 0 }), "node" === globalThis.process?.release?.name), Pt3 = !!globalThis.Bun || !!globalThis.process?.versions?.bun, Tt3 = !!globalThis.Deno, At2 = !!globalThis.fastly, Nt2 = [[!!globalThis.Netlify, "netlify"], [!!globalThis.EdgeRuntime, "edge-light"], ["Cloudflare-Workers" === globalThis.navigator?.userAgent, "workerd"], [At2, "fastly"], [Tt3, "deno"], [Pt3, "bun"], [Rt3, "node"]];
+        const _t3 = globalThis.process?.platform || "", Et3 = std_env_dist_n(gt5.CI) || false !== yt3.ci, bt3 = std_env_dist_n(globalThis.process?.stdout && globalThis.process?.stdout.isTTY), St3 = (std_env_dist_n(gt5.DEBUG), "test" === xt3 || std_env_dist_n(gt5.TEST)), kt3 = (std_env_dist_n(gt5.MINIMAL), /^win/i.test(_t3)), wt3 = (/^linux/i.test(_t3), /^darwin/i.test(_t3), !std_env_dist_n(gt5.NO_COLOR) && (std_env_dist_n(gt5.FORCE_COLOR) || (bt3 || kt3) && gt5.TERM), (globalThis.process?.versions?.node || "").replace(/^v/, "") || null), It3 = (Number(wt3?.split(".")[0]), globalThis.process || /* @__PURE__ */ Object.create(null)), Ct2 = { versions: {} }, Rt3 = (new Proxy(It3, { get: (e8, t9) => "env" === t9 ? gt5 : t9 in e8 ? e8[t9] : t9 in Ct2 ? Ct2[t9] : void 0 }), "node" === globalThis.process?.release?.name), Pt3 = !!globalThis.Bun || !!globalThis.process?.versions?.bun, Tt3 = !!globalThis.Deno, At2 = !!globalThis.fastly, Nt2 = [[!!globalThis.Netlify, "netlify"], [!!globalThis.EdgeRuntime, "edge-light"], ["Cloudflare-Workers" === globalThis.navigator?.userAgent, "workerd"], [At2, "fastly"], [Tt3, "deno"], [Pt3, "bun"], [Rt3, "node"]];
         !(function() {
           const e8 = Nt2.find((e9) => e9[0]);
           if (e8) e8[1];
@@ -156456,7 +156991,7 @@ Default "index" lookups for the main are deprecated for ES modules.`, "Deprecati
           const s5 = ` /* v${zt3}-${utils_hash(t9.source, 16)} */
 `;
           let r6 = `${basename5(pathe_M_eThtNZ_dirname(t9.filename))}-${(function(e9) {
-            const t10 = e9.split(lt4).pop();
+            const t10 = e9.split(lt5).pop();
             if (!t10) return;
             const i6 = t10.lastIndexOf(".");
             return i6 <= 0 ? t10 : t10.slice(0, i6);
@@ -239287,7 +239822,7 @@ var require_keyword = __commonJS({
       strict: ["implements", "interface", "let", "package", "private", "protected", "public", "static", "yield"],
       strictBind: ["eval", "arguments"]
     };
-    var keywords7 = new Set(reservedWords3.keyword);
+    var keywords6 = new Set(reservedWords3.keyword);
     var reservedWordsStrictSet = new Set(reservedWords3.strict);
     var reservedWordsStrictBindSet = new Set(reservedWords3.strictBind);
     function isReservedWord(word, inModule) {
@@ -239303,7 +239838,7 @@ var require_keyword = __commonJS({
       return isStrictReservedWord(word, inModule) || isStrictBindOnlyReservedWord(word);
     }
     function isKeyword(word) {
-      return keywords7.has(word);
+      return keywords6.has(word);
     }
   }
 });
@@ -251872,7 +252407,7 @@ var require_lib8 = __commonJS({
       strict: ["implements", "interface", "let", "package", "private", "protected", "public", "static", "yield"],
       strictBind: ["eval", "arguments"]
     };
-    var keywords7 = new Set(reservedWords3.keyword);
+    var keywords6 = new Set(reservedWords3.keyword);
     var reservedWordsStrictSet = new Set(reservedWords3.strict);
     var reservedWordsStrictBindSet = new Set(reservedWords3.strictBind);
     function isReservedWord(word, inModule) {
@@ -251888,7 +252423,7 @@ var require_lib8 = __commonJS({
       return isStrictReservedWord(word, inModule) || isStrictBindOnlyReservedWord(word);
     }
     function isKeyword(word) {
-      return keywords7.has(word);
+      return keywords6.has(word);
     }
     function isIteratorStart(current, next, next2) {
       return current === 64 && next === 64 && isIdentifierStart(next2);
@@ -281260,12 +281795,12 @@ var require_semver3 = __commonJS({
         return exports2.compareBuild(b6, a4, loose);
       });
     }
-    exports2.gt = gt4;
-    function gt4(a4, b6, loose) {
+    exports2.gt = gt5;
+    function gt5(a4, b6, loose) {
       return compare2(a4, b6, loose) > 0;
     }
-    exports2.lt = lt4;
-    function lt4(a4, b6, loose) {
+    exports2.lt = lt5;
+    function lt5(a4, b6, loose) {
       return compare2(a4, b6, loose) < 0;
     }
     exports2.eq = eq7;
@@ -281280,8 +281815,8 @@ var require_semver3 = __commonJS({
     function gte15(a4, b6, loose) {
       return compare2(a4, b6, loose) >= 0;
     }
-    exports2.lte = lte15;
-    function lte15(a4, b6, loose) {
+    exports2.lte = lte16;
+    function lte16(a4, b6, loose) {
       return compare2(a4, b6, loose) <= 0;
     }
     exports2.cmp = cmp;
@@ -281306,13 +281841,13 @@ var require_semver3 = __commonJS({
         case "!=":
           return neq(a4, b6, loose);
         case ">":
-          return gt4(a4, b6, loose);
+          return gt5(a4, b6, loose);
         case ">=":
           return gte15(a4, b6, loose);
         case "<":
-          return lt4(a4, b6, loose);
+          return lt5(a4, b6, loose);
         case "<=":
-          return lte15(a4, b6, loose);
+          return lte16(a4, b6, loose);
         default:
           throw new TypeError("Invalid operator: " + op7);
       }
@@ -281804,7 +282339,7 @@ var require_semver3 = __commonJS({
             /* fallthrough */
             case "":
             case ">=":
-              if (!minver || gt4(minver, compver)) {
+              if (!minver || gt5(minver, compver)) {
                 minver = compver;
               }
               break;
@@ -281845,16 +282380,16 @@ var require_semver3 = __commonJS({
       var gtfn, ltefn, ltfn, comp, ecomp;
       switch (hilo) {
         case ">":
-          gtfn = gt4;
-          ltefn = lte15;
-          ltfn = lt4;
+          gtfn = gt5;
+          ltefn = lte16;
+          ltfn = lt5;
           comp = ">";
           ecomp = ">=";
           break;
         case "<":
-          gtfn = lt4;
+          gtfn = lt5;
           ltefn = gte15;
-          ltfn = gt4;
+          ltfn = gt5;
           comp = "<";
           ecomp = "<=";
           break;
@@ -290512,12 +291047,12 @@ var require_semver4 = __commonJS({
         return exports2.compareBuild(b6, a4, loose);
       });
     }
-    exports2.gt = gt4;
-    function gt4(a4, b6, loose) {
+    exports2.gt = gt5;
+    function gt5(a4, b6, loose) {
       return compare2(a4, b6, loose) > 0;
     }
-    exports2.lt = lt4;
-    function lt4(a4, b6, loose) {
+    exports2.lt = lt5;
+    function lt5(a4, b6, loose) {
       return compare2(a4, b6, loose) < 0;
     }
     exports2.eq = eq7;
@@ -290532,8 +291067,8 @@ var require_semver4 = __commonJS({
     function gte15(a4, b6, loose) {
       return compare2(a4, b6, loose) >= 0;
     }
-    exports2.lte = lte15;
-    function lte15(a4, b6, loose) {
+    exports2.lte = lte16;
+    function lte16(a4, b6, loose) {
       return compare2(a4, b6, loose) <= 0;
     }
     exports2.cmp = cmp;
@@ -290558,13 +291093,13 @@ var require_semver4 = __commonJS({
         case "!=":
           return neq(a4, b6, loose);
         case ">":
-          return gt4(a4, b6, loose);
+          return gt5(a4, b6, loose);
         case ">=":
           return gte15(a4, b6, loose);
         case "<":
-          return lt4(a4, b6, loose);
+          return lt5(a4, b6, loose);
         case "<=":
-          return lte15(a4, b6, loose);
+          return lte16(a4, b6, loose);
         default:
           throw new TypeError("Invalid operator: " + op7);
       }
@@ -291056,7 +291591,7 @@ var require_semver4 = __commonJS({
             /* fallthrough */
             case "":
             case ">=":
-              if (!minver || gt4(minver, compver)) {
+              if (!minver || gt5(minver, compver)) {
                 minver = compver;
               }
               break;
@@ -291097,16 +291632,16 @@ var require_semver4 = __commonJS({
       var gtfn, ltefn, ltfn, comp, ecomp;
       switch (hilo) {
         case ">":
-          gtfn = gt4;
-          ltefn = lte15;
-          ltfn = lt4;
+          gtfn = gt5;
+          ltefn = lte16;
+          ltfn = lt5;
           comp = ">";
           ecomp = ">=";
           break;
         case "<":
-          gtfn = lt4;
+          gtfn = lt5;
           ltefn = gte15;
-          ltfn = gt4;
+          ltfn = gt5;
           comp = "<";
           ecomp = "<=";
           break;
@@ -309127,7 +309662,7 @@ function* mi(t7, r5 = t7.value?.value ?? "", i4 = /* @__PURE__ */ new Set()) {
 function li(t7) {
   return !t7.some((r5) => r5.kind === "separator" && r5.value.trim() === ",");
 }
-function gt2(t7) {
+function gt3(t7) {
   let r5 = t7.value.trim();
   return t7.kind === "selector" && r5[0] === "[" && r5[r5.length - 1] === "]";
 }
@@ -309166,12 +309701,12 @@ function va(t7, r5) {
       }
     }
     let f6 = null;
-    p4 === null && u5.length === 3 && u5[0].kind === "selector" && u5[0].value.trim() === "&" && u5[1].kind === "combinator" && u5[1].value.trim() === ">" && u5[2].kind === "selector" && (gt2(u5[2]) || u5[2].value[0] === ":") && (u5 = [u5[2]], f6 = e6.parseVariant("*")), p4 === null && u5.length === 3 && u5[0].kind === "selector" && u5[0].value.trim() === "&" && u5[1].kind === "combinator" && u5[1].value.trim() === "" && u5[2].kind === "selector" && (gt2(u5[2]) || u5[2].value[0] === ":") && (u5 = [u5[2]], f6 = e6.parseVariant("**"));
+    p4 === null && u5.length === 3 && u5[0].kind === "selector" && u5[0].value.trim() === "&" && u5[1].kind === "combinator" && u5[1].value.trim() === ">" && u5[2].kind === "selector" && (gt3(u5[2]) || u5[2].value[0] === ":") && (u5 = [u5[2]], f6 = e6.parseVariant("*")), p4 === null && u5.length === 3 && u5[0].kind === "selector" && u5[0].value.trim() === "&" && u5[1].kind === "combinator" && u5[1].value.trim() === "" && u5[2].kind === "selector" && (gt3(u5[2]) || u5[2].value[0] === ":") && (u5 = [u5[2]], f6 = e6.parseVariant("**"));
     let m4 = u5.filter((c5) => !(c5.kind === "selector" && c5.value.trim() === "&"));
     if (m4.length !== 1) continue;
     let d5 = m4[0];
     if (d5.kind === "function" && d5.value === ":is") {
-      if (!li(d5.nodes) || d5.nodes.length !== 1 || !gt2(d5.nodes[0])) continue;
+      if (!li(d5.nodes) || d5.nodes.length !== 1 || !gt3(d5.nodes[0])) continue;
       d5 = d5.nodes[0];
     }
     if (d5.kind === "function" && d5.value[0] === ":" || d5.kind === "selector" && d5.value[0] === ":") {
@@ -309198,7 +309733,7 @@ function va(t7, r5) {
       let y4 = e6.parseVariant(h6);
       if (y4 === null) continue;
       ue2(a4, y4);
-    } else if (gt2(d5)) {
+    } else if (gt3(d5)) {
       let c5 = jr(d5.value);
       if (c5 === null) continue;
       if (c5.attribute.startsWith("data-")) {
@@ -310687,7 +311222,7 @@ function qa(t7) {
 async function Wi(t7, { base: r5 = "", from: i4, loadModule: e6 = Ya, loadStylesheet: n7 = Ga } = {}) {
   let s4 = 0;
   t7 = [ce({ base: r5 }, t7)], s4 |= await Zt(t7, r5, n7, 0, i4 !== void 0);
-  let a4 = null, p4 = new lt2(), u5 = /* @__PURE__ */ new Map(), f6 = /* @__PURE__ */ new Map(), m4 = [], d5 = null, c5 = null, w7 = [], h6 = [], y4 = [], x6 = [], $4 = null;
+  let a4 = null, p4 = new lt3(), u5 = /* @__PURE__ */ new Map(), f6 = /* @__PURE__ */ new Map(), m4 = [], d5 = null, c5 = null, w7 = [], h6 = [], y4 = [], x6 = [], $4 = null;
   I3(t7, (k5, U3) => {
     if (k5.kind !== "at-rule") return;
     let N3 = qe(U3);
@@ -310877,7 +311412,7 @@ async function rf(t7, r5 = {}) {
     return zi({ ast: n7 });
   } };
 }
-var ir, Fe, rt, it, nr, ar, Yi, nt, le, at, We, Be, or4, $t, Vt, lr, Gi, qi, sr, St, Zi, se, cr, lt2, K2, pr, Qi, dr, mr, Xi, gr, hr, vr, wr, en, tn, rn, yr, kr, Et, E4, nn, Pt, ln, Cr, $r, Sr, Dt, sn, un, cn, dn, Or, gn, hn, ct, Ut, _r2, Lt, jt, Ur, $n, Sn, Tn, En, Ne, Wr, Br, Yr, Zr, Dn, Hr, Kn, Jr, Un, Ln, Qr, Xr, jn, ei, ti, ri, zn, ii, ni, ai, Mn, Fn, ui, fi, ci, Hn, pi, Qn, di, ea, Ft, ht, ca, de, Wt, vt, Bt, yt, hi, Na, kt, Yt, qt, Ni, Ka, Ma, Mi, Ba, Rt, Ke;
+var ir, Fe, rt, it, nr, ar, Yi, nt, le, at, We, Be, or4, $t, Vt, lr, Gi, qi, sr, St, Zi, se, cr, lt3, K2, pr, Qi, dr, mr, Xi, gr, hr, vr, wr, en, tn, rn, yr, kr, Et, E4, nn, Pt, ln, Cr, $r, Sr, Dt, sn, un, cn, dn, Or, gn, hn, ct, Ut, _r2, Lt, jt, Ur, $n, Sn, Tn, En, Ne, Wr, Br, Yr, Zr, Dn, Hr, Kn, Jr, Un, Ln, Qr, Xr, jn, ei, ti, ri, zn, ii, ni, ai, Mn, Fn, ui, fi, ci, Hn, pi, Qn, di, ea, Ft, ht, ca, de, Wt, vt, Bt, yt, hi, Na, kt, Yt, qt, Ni, Ka, Ma, Mi, Ba, Rt, Ke;
 var init_chunk_CT46QCH7 = __esm({
   "node_modules/tailwindcss/dist/chunk-CT46QCH7.mjs"() {
     init_chunk_GFBUASX3();
@@ -310914,7 +311449,7 @@ var init_chunk_CT46QCH7 = __esm({
       }
     };
     cr = /* @__PURE__ */ new Map([["--font", ["--font-weight", "--font-size"]], ["--inset", ["--inset-shadow", "--inset-ring"]], ["--text", ["--text-color", "--text-decoration-color", "--text-decoration-thickness", "--text-indent", "--text-shadow", "--text-underline-offset"]], ["--grid-column", ["--grid-column-start", "--grid-column-end"]], ["--grid-row", ["--grid-row-start", "--grid-row-end"]]]);
-    lt2 = class {
+    lt3 = class {
       constructor(r5 = /* @__PURE__ */ new Map(), i4 = /* @__PURE__ */ new Set([])) {
         this.values = r5;
         this.keyframes = i4;
@@ -313816,7 +314351,7 @@ async function ht2(e6) {
   try {
     return await import(e6);
   } catch {
-    return gt3 ??= createJiti(import_meta8.url, { moduleCache: false, fsCache: false }), await gt3.import(e6);
+    return gt4 ??= createJiti(import_meta8.url, { moduleCache: false, fsCache: false }), await gt4.import(e6);
   }
 }
 async function Wr2(e6, r5, t7) {
@@ -313899,7 +314434,7 @@ function yu(e6) {
 `, t7;
   } };
 }
-var ce2, import_url3, import_enhanced_resolve, import_fs4, import_promises2, import_path6, import_url4, import_promises3, import_path7, Te2, import_lightningcss, import_source_map_js, import_meta8, St2, $t2, pe3, fe, Et2, Nt, Vt2, Rt2, _e5, It2, Ie2, De2, Dt2, Ue2, Le2, Ke2, ze2, Ut2, Lt2, Kt2, Me2, Fe2, g5, ui2, te3, me3, w5, ki2, bi2, xi2, Mt2, O3, Oi2, Pi2, _i2, Ft2, Ii2, jt2, Di2, Ui2, Yt2, on2, er, Ge, Cn2, Sn2, H3, ie, ne4, et, tt2, pr2, oe2, T2, ae, q5, Z3, rt2, ye2, xe2, it2, dr2, mr2, nt2, ke2, gr2, E5, Se2, N2, b5, _2, lt3, le2, kr2, st2, br2, Ar2, Ee2, ut2, Sr2, $r2, Tr2, Er2, Nr2, Vr2, Rr2, Or2, Pr2, gt3, Re2, jr2, Br2, Yr2, At;
+var ce2, import_url3, import_enhanced_resolve, import_fs4, import_promises2, import_path6, import_url4, import_promises3, import_path7, Te2, import_lightningcss, import_source_map_js, import_meta8, St2, $t2, pe3, fe, Et2, Nt, Vt2, Rt2, _e5, It2, Ie2, De2, Dt2, Ue2, Le2, Ke2, ze2, Ut2, Lt2, Kt2, Me2, Fe2, g5, ui2, te3, me3, w5, ki2, bi2, xi2, Mt2, O3, Oi2, Pi2, _i2, Ft2, Ii2, jt2, Di2, Ui2, Yt2, on2, er, Ge, Cn2, Sn2, H3, ie, ne4, et, tt2, pr2, oe2, T2, ae, q5, Z3, rt2, ye2, xe2, it2, dr2, mr2, nt2, ke2, gr2, E5, Se2, N2, b5, _2, lt4, le2, kr2, st2, br2, Ar2, Ee2, ut2, Sr2, $r2, Tr2, Er2, Nr2, Vr2, Rr2, Or2, Pr2, gt4, Re2, jr2, Br2, Yr2, At;
 var init_dist7 = __esm({
   "node_modules/@tailwindcss/node/dist/index.mjs"() {
     ce2 = __toESM(require("module"), 1);
@@ -314048,7 +314583,7 @@ var init_dist7 = __esm({
     _2 = K3((e6) => {
       if (C5(e6.value)) return `${e6.value}px`;
     });
-    lt3 = K3((e6) => {
+    lt4 = K3((e6) => {
       if (C5(e6.value)) return `${e6.value}ms`;
     });
     le2 = K3((e6) => {
@@ -314062,7 +314597,7 @@ var init_dist7 = __esm({
     st2 = K3((e6) => {
       if (C5(Number(e6.value))) return `repeat(${e6.value}, minmax(0, 1fr))`;
     });
-    br2 = { accentColor: ({ theme: e6 }) => e6("colors"), animation: { none: "none", spin: "spin 1s linear infinite", ping: "ping 1s cubic-bezier(0, 0, 0.2, 1) infinite", pulse: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite", bounce: "bounce 1s infinite" }, aria: { busy: 'busy="true"', checked: 'checked="true"', disabled: 'disabled="true"', expanded: 'expanded="true"', hidden: 'hidden="true"', pressed: 'pressed="true"', readonly: 'readonly="true"', required: 'required="true"', selected: 'selected="true"' }, aspectRatio: { auto: "auto", square: "1 / 1", video: "16 / 9", ...kr2 }, backdropBlur: ({ theme: e6 }) => e6("blur"), backdropBrightness: ({ theme: e6 }) => ({ ...e6("brightness"), ...b5 }), backdropContrast: ({ theme: e6 }) => ({ ...e6("contrast"), ...b5 }), backdropGrayscale: ({ theme: e6 }) => ({ ...e6("grayscale"), ...b5 }), backdropHueRotate: ({ theme: e6 }) => ({ ...e6("hueRotate"), ...le2 }), backdropInvert: ({ theme: e6 }) => ({ ...e6("invert"), ...b5 }), backdropOpacity: ({ theme: e6 }) => ({ ...e6("opacity"), ...b5 }), backdropSaturate: ({ theme: e6 }) => ({ ...e6("saturate"), ...b5 }), backdropSepia: ({ theme: e6 }) => ({ ...e6("sepia"), ...b5 }), backgroundColor: ({ theme: e6 }) => e6("colors"), backgroundImage: { none: "none", "gradient-to-t": "linear-gradient(to top, var(--tw-gradient-stops))", "gradient-to-tr": "linear-gradient(to top right, var(--tw-gradient-stops))", "gradient-to-r": "linear-gradient(to right, var(--tw-gradient-stops))", "gradient-to-br": "linear-gradient(to bottom right, var(--tw-gradient-stops))", "gradient-to-b": "linear-gradient(to bottom, var(--tw-gradient-stops))", "gradient-to-bl": "linear-gradient(to bottom left, var(--tw-gradient-stops))", "gradient-to-l": "linear-gradient(to left, var(--tw-gradient-stops))", "gradient-to-tl": "linear-gradient(to top left, var(--tw-gradient-stops))" }, backgroundOpacity: ({ theme: e6 }) => e6("opacity"), backgroundPosition: { bottom: "bottom", center: "center", left: "left", "left-bottom": "left bottom", "left-top": "left top", right: "right", "right-bottom": "right bottom", "right-top": "right top", top: "top" }, backgroundSize: { auto: "auto", cover: "cover", contain: "contain" }, blur: { 0: "0", none: "", sm: "4px", DEFAULT: "8px", md: "12px", lg: "16px", xl: "24px", "2xl": "40px", "3xl": "64px" }, borderColor: ({ theme: e6 }) => ({ DEFAULT: "currentcolor", ...e6("colors") }), borderOpacity: ({ theme: e6 }) => e6("opacity"), borderRadius: { none: "0px", sm: "0.125rem", DEFAULT: "0.25rem", md: "0.375rem", lg: "0.5rem", xl: "0.75rem", "2xl": "1rem", "3xl": "1.5rem", full: "9999px" }, borderSpacing: ({ theme: e6 }) => e6("spacing"), borderWidth: { DEFAULT: "1px", 0: "0px", 2: "2px", 4: "4px", 8: "8px", ..._2 }, boxShadow: { sm: "0 1px 2px 0 rgb(0 0 0 / 0.05)", DEFAULT: "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)", md: "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)", lg: "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)", xl: "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)", "2xl": "0 25px 50px -12px rgb(0 0 0 / 0.25)", inner: "inset 0 2px 4px 0 rgb(0 0 0 / 0.05)", none: "none" }, boxShadowColor: ({ theme: e6 }) => e6("colors"), brightness: { 0: "0", 50: ".5", 75: ".75", 90: ".9", 95: ".95", 100: "1", 105: "1.05", 110: "1.1", 125: "1.25", 150: "1.5", 200: "2", ...b5 }, caretColor: ({ theme: e6 }) => e6("colors"), colors: () => ({ ...Se2 }), columns: { auto: "auto", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "6", 7: "7", 8: "8", 9: "9", 10: "10", 11: "11", 12: "12", "3xs": "16rem", "2xs": "18rem", xs: "20rem", sm: "24rem", md: "28rem", lg: "32rem", xl: "36rem", "2xl": "42rem", "3xl": "48rem", "4xl": "56rem", "5xl": "64rem", "6xl": "72rem", "7xl": "80rem", ...N2 }, container: {}, content: { none: "none" }, contrast: { 0: "0", 50: ".5", 75: ".75", 100: "1", 125: "1.25", 150: "1.5", 200: "2", ...b5 }, cursor: { auto: "auto", default: "default", pointer: "pointer", wait: "wait", text: "text", move: "move", help: "help", "not-allowed": "not-allowed", none: "none", "context-menu": "context-menu", progress: "progress", cell: "cell", crosshair: "crosshair", "vertical-text": "vertical-text", alias: "alias", copy: "copy", "no-drop": "no-drop", grab: "grab", grabbing: "grabbing", "all-scroll": "all-scroll", "col-resize": "col-resize", "row-resize": "row-resize", "n-resize": "n-resize", "e-resize": "e-resize", "s-resize": "s-resize", "w-resize": "w-resize", "ne-resize": "ne-resize", "nw-resize": "nw-resize", "se-resize": "se-resize", "sw-resize": "sw-resize", "ew-resize": "ew-resize", "ns-resize": "ns-resize", "nesw-resize": "nesw-resize", "nwse-resize": "nwse-resize", "zoom-in": "zoom-in", "zoom-out": "zoom-out" }, divideColor: ({ theme: e6 }) => e6("borderColor"), divideOpacity: ({ theme: e6 }) => e6("borderOpacity"), divideWidth: ({ theme: e6 }) => ({ ...e6("borderWidth"), ..._2 }), dropShadow: { sm: "0 1px 1px rgb(0 0 0 / 0.05)", DEFAULT: ["0 1px 2px rgb(0 0 0 / 0.1)", "0 1px 1px rgb(0 0 0 / 0.06)"], md: ["0 4px 3px rgb(0 0 0 / 0.07)", "0 2px 2px rgb(0 0 0 / 0.06)"], lg: ["0 10px 8px rgb(0 0 0 / 0.04)", "0 4px 3px rgb(0 0 0 / 0.1)"], xl: ["0 20px 13px rgb(0 0 0 / 0.03)", "0 8px 5px rgb(0 0 0 / 0.08)"], "2xl": "0 25px 25px rgb(0 0 0 / 0.15)", none: "0 0 #0000" }, fill: ({ theme: e6 }) => e6("colors"), flex: { 1: "1 1 0%", auto: "1 1 auto", initial: "0 1 auto", none: "none" }, flexBasis: ({ theme: e6 }) => ({ auto: "auto", "1/2": "50%", "1/3": "33.333333%", "2/3": "66.666667%", "1/4": "25%", "2/4": "50%", "3/4": "75%", "1/5": "20%", "2/5": "40%", "3/5": "60%", "4/5": "80%", "1/6": "16.666667%", "2/6": "33.333333%", "3/6": "50%", "4/6": "66.666667%", "5/6": "83.333333%", "1/12": "8.333333%", "2/12": "16.666667%", "3/12": "25%", "4/12": "33.333333%", "5/12": "41.666667%", "6/12": "50%", "7/12": "58.333333%", "8/12": "66.666667%", "9/12": "75%", "10/12": "83.333333%", "11/12": "91.666667%", full: "100%", ...e6("spacing") }), flexGrow: { 0: "0", DEFAULT: "1", ...N2 }, flexShrink: { 0: "0", DEFAULT: "1", ...N2 }, fontFamily: { sans: ["ui-sans-serif", "system-ui", "sans-serif", '"Apple Color Emoji"', '"Segoe UI Emoji"', '"Segoe UI Symbol"', '"Noto Color Emoji"'], serif: ["ui-serif", "Georgia", "Cambria", '"Times New Roman"', "Times", "serif"], mono: ["ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "Consolas", '"Liberation Mono"', '"Courier New"', "monospace"] }, fontSize: { xs: ["0.75rem", { lineHeight: "1rem" }], sm: ["0.875rem", { lineHeight: "1.25rem" }], base: ["1rem", { lineHeight: "1.5rem" }], lg: ["1.125rem", { lineHeight: "1.75rem" }], xl: ["1.25rem", { lineHeight: "1.75rem" }], "2xl": ["1.5rem", { lineHeight: "2rem" }], "3xl": ["1.875rem", { lineHeight: "2.25rem" }], "4xl": ["2.25rem", { lineHeight: "2.5rem" }], "5xl": ["3rem", { lineHeight: "1" }], "6xl": ["3.75rem", { lineHeight: "1" }], "7xl": ["4.5rem", { lineHeight: "1" }], "8xl": ["6rem", { lineHeight: "1" }], "9xl": ["8rem", { lineHeight: "1" }] }, fontWeight: { thin: "100", extralight: "200", light: "300", normal: "400", medium: "500", semibold: "600", bold: "700", extrabold: "800", black: "900" }, gap: ({ theme: e6 }) => e6("spacing"), gradientColorStops: ({ theme: e6 }) => e6("colors"), gradientColorStopPositions: { "0%": "0%", "5%": "5%", "10%": "10%", "15%": "15%", "20%": "20%", "25%": "25%", "30%": "30%", "35%": "35%", "40%": "40%", "45%": "45%", "50%": "50%", "55%": "55%", "60%": "60%", "65%": "65%", "70%": "70%", "75%": "75%", "80%": "80%", "85%": "85%", "90%": "90%", "95%": "95%", "100%": "100%", ...b5 }, grayscale: { 0: "0", DEFAULT: "100%", ...b5 }, gridAutoColumns: { auto: "auto", min: "min-content", max: "max-content", fr: "minmax(0, 1fr)" }, gridAutoRows: { auto: "auto", min: "min-content", max: "max-content", fr: "minmax(0, 1fr)" }, gridColumn: { auto: "auto", "span-1": "span 1 / span 1", "span-2": "span 2 / span 2", "span-3": "span 3 / span 3", "span-4": "span 4 / span 4", "span-5": "span 5 / span 5", "span-6": "span 6 / span 6", "span-7": "span 7 / span 7", "span-8": "span 8 / span 8", "span-9": "span 9 / span 9", "span-10": "span 10 / span 10", "span-11": "span 11 / span 11", "span-12": "span 12 / span 12", "span-full": "1 / -1" }, gridColumnEnd: { auto: "auto", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "6", 7: "7", 8: "8", 9: "9", 10: "10", 11: "11", 12: "12", 13: "13", ...N2 }, gridColumnStart: { auto: "auto", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "6", 7: "7", 8: "8", 9: "9", 10: "10", 11: "11", 12: "12", 13: "13", ...N2 }, gridRow: { auto: "auto", "span-1": "span 1 / span 1", "span-2": "span 2 / span 2", "span-3": "span 3 / span 3", "span-4": "span 4 / span 4", "span-5": "span 5 / span 5", "span-6": "span 6 / span 6", "span-7": "span 7 / span 7", "span-8": "span 8 / span 8", "span-9": "span 9 / span 9", "span-10": "span 10 / span 10", "span-11": "span 11 / span 11", "span-12": "span 12 / span 12", "span-full": "1 / -1" }, gridRowEnd: { auto: "auto", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "6", 7: "7", 8: "8", 9: "9", 10: "10", 11: "11", 12: "12", 13: "13", ...N2 }, gridRowStart: { auto: "auto", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "6", 7: "7", 8: "8", 9: "9", 10: "10", 11: "11", 12: "12", 13: "13", ...N2 }, gridTemplateColumns: { none: "none", subgrid: "subgrid", 1: "repeat(1, minmax(0, 1fr))", 2: "repeat(2, minmax(0, 1fr))", 3: "repeat(3, minmax(0, 1fr))", 4: "repeat(4, minmax(0, 1fr))", 5: "repeat(5, minmax(0, 1fr))", 6: "repeat(6, minmax(0, 1fr))", 7: "repeat(7, minmax(0, 1fr))", 8: "repeat(8, minmax(0, 1fr))", 9: "repeat(9, minmax(0, 1fr))", 10: "repeat(10, minmax(0, 1fr))", 11: "repeat(11, minmax(0, 1fr))", 12: "repeat(12, minmax(0, 1fr))", ...st2 }, gridTemplateRows: { none: "none", subgrid: "subgrid", 1: "repeat(1, minmax(0, 1fr))", 2: "repeat(2, minmax(0, 1fr))", 3: "repeat(3, minmax(0, 1fr))", 4: "repeat(4, minmax(0, 1fr))", 5: "repeat(5, minmax(0, 1fr))", 6: "repeat(6, minmax(0, 1fr))", 7: "repeat(7, minmax(0, 1fr))", 8: "repeat(8, minmax(0, 1fr))", 9: "repeat(9, minmax(0, 1fr))", 10: "repeat(10, minmax(0, 1fr))", 11: "repeat(11, minmax(0, 1fr))", 12: "repeat(12, minmax(0, 1fr))", ...st2 }, height: ({ theme: e6 }) => ({ auto: "auto", "1/2": "50%", "1/3": "33.333333%", "2/3": "66.666667%", "1/4": "25%", "2/4": "50%", "3/4": "75%", "1/5": "20%", "2/5": "40%", "3/5": "60%", "4/5": "80%", "1/6": "16.666667%", "2/6": "33.333333%", "3/6": "50%", "4/6": "66.666667%", "5/6": "83.333333%", full: "100%", screen: "100vh", svh: "100svh", lvh: "100lvh", dvh: "100dvh", min: "min-content", max: "max-content", fit: "fit-content", ...e6("spacing") }), hueRotate: { 0: "0deg", 15: "15deg", 30: "30deg", 60: "60deg", 90: "90deg", 180: "180deg", ...le2 }, inset: ({ theme: e6 }) => ({ auto: "auto", "1/2": "50%", "1/3": "33.333333%", "2/3": "66.666667%", "1/4": "25%", "2/4": "50%", "3/4": "75%", full: "100%", ...e6("spacing") }), invert: { 0: "0", DEFAULT: "100%", ...b5 }, keyframes: { spin: { to: { transform: "rotate(360deg)" } }, ping: { "75%, 100%": { transform: "scale(2)", opacity: "0" } }, pulse: { "50%": { opacity: ".5" } }, bounce: { "0%, 100%": { transform: "translateY(-25%)", animationTimingFunction: "cubic-bezier(0.8,0,1,1)" }, "50%": { transform: "none", animationTimingFunction: "cubic-bezier(0,0,0.2,1)" } } }, letterSpacing: { tighter: "-0.05em", tight: "-0.025em", normal: "0em", wide: "0.025em", wider: "0.05em", widest: "0.1em" }, lineHeight: { none: "1", tight: "1.25", snug: "1.375", normal: "1.5", relaxed: "1.625", loose: "2", 3: ".75rem", 4: "1rem", 5: "1.25rem", 6: "1.5rem", 7: "1.75rem", 8: "2rem", 9: "2.25rem", 10: "2.5rem" }, listStyleType: { none: "none", disc: "disc", decimal: "decimal" }, listStyleImage: { none: "none" }, margin: ({ theme: e6 }) => ({ auto: "auto", ...e6("spacing") }), lineClamp: { 1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "6", ...N2 }, maxHeight: ({ theme: e6 }) => ({ none: "none", full: "100%", screen: "100vh", svh: "100svh", lvh: "100lvh", dvh: "100dvh", min: "min-content", max: "max-content", fit: "fit-content", ...e6("spacing") }), maxWidth: ({ theme: e6 }) => ({ none: "none", xs: "20rem", sm: "24rem", md: "28rem", lg: "32rem", xl: "36rem", "2xl": "42rem", "3xl": "48rem", "4xl": "56rem", "5xl": "64rem", "6xl": "72rem", "7xl": "80rem", full: "100%", min: "min-content", max: "max-content", fit: "fit-content", prose: "65ch", ...e6("spacing") }), minHeight: ({ theme: e6 }) => ({ full: "100%", screen: "100vh", svh: "100svh", lvh: "100lvh", dvh: "100dvh", min: "min-content", max: "max-content", fit: "fit-content", ...e6("spacing") }), minWidth: ({ theme: e6 }) => ({ full: "100%", min: "min-content", max: "max-content", fit: "fit-content", ...e6("spacing") }), objectPosition: { bottom: "bottom", center: "center", left: "left", "left-bottom": "left bottom", "left-top": "left top", right: "right", "right-bottom": "right bottom", "right-top": "right top", top: "top" }, opacity: { 0: "0", 5: "0.05", 10: "0.1", 15: "0.15", 20: "0.2", 25: "0.25", 30: "0.3", 35: "0.35", 40: "0.4", 45: "0.45", 50: "0.5", 55: "0.55", 60: "0.6", 65: "0.65", 70: "0.7", 75: "0.75", 80: "0.8", 85: "0.85", 90: "0.9", 95: "0.95", 100: "1", ...b5 }, order: { first: "-9999", last: "9999", none: "0", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "6", 7: "7", 8: "8", 9: "9", 10: "10", 11: "11", 12: "12", ...N2 }, outlineColor: ({ theme: e6 }) => e6("colors"), outlineOffset: { 0: "0px", 1: "1px", 2: "2px", 4: "4px", 8: "8px", ..._2 }, outlineWidth: { 0: "0px", 1: "1px", 2: "2px", 4: "4px", 8: "8px", ..._2 }, padding: ({ theme: e6 }) => e6("spacing"), placeholderColor: ({ theme: e6 }) => e6("colors"), placeholderOpacity: ({ theme: e6 }) => e6("opacity"), ringColor: ({ theme: e6 }) => ({ DEFAULT: "currentcolor", ...e6("colors") }), ringOffsetColor: ({ theme: e6 }) => e6("colors"), ringOffsetWidth: { 0: "0px", 1: "1px", 2: "2px", 4: "4px", 8: "8px", ..._2 }, ringOpacity: ({ theme: e6 }) => ({ DEFAULT: "0.5", ...e6("opacity") }), ringWidth: { DEFAULT: "3px", 0: "0px", 1: "1px", 2: "2px", 4: "4px", 8: "8px", ..._2 }, rotate: { 0: "0deg", 1: "1deg", 2: "2deg", 3: "3deg", 6: "6deg", 12: "12deg", 45: "45deg", 90: "90deg", 180: "180deg", ...le2 }, saturate: { 0: "0", 50: ".5", 100: "1", 150: "1.5", 200: "2", ...b5 }, scale: { 0: "0", 50: ".5", 75: ".75", 90: ".9", 95: ".95", 100: "1", 105: "1.05", 110: "1.1", 125: "1.25", 150: "1.5", ...b5 }, screens: { sm: "40rem", md: "48rem", lg: "64rem", xl: "80rem", "2xl": "96rem" }, scrollMargin: ({ theme: e6 }) => e6("spacing"), scrollPadding: ({ theme: e6 }) => e6("spacing"), sepia: { 0: "0", DEFAULT: "100%", ...b5 }, skew: { 0: "0deg", 1: "1deg", 2: "2deg", 3: "3deg", 6: "6deg", 12: "12deg", ...le2 }, space: ({ theme: e6 }) => e6("spacing"), spacing: { px: "1px", 0: "0px", 0.5: "0.125rem", 1: "0.25rem", 1.5: "0.375rem", 2: "0.5rem", 2.5: "0.625rem", 3: "0.75rem", 3.5: "0.875rem", 4: "1rem", 5: "1.25rem", 6: "1.5rem", 7: "1.75rem", 8: "2rem", 9: "2.25rem", 10: "2.5rem", 11: "2.75rem", 12: "3rem", 14: "3.5rem", 16: "4rem", 20: "5rem", 24: "6rem", 28: "7rem", 32: "8rem", 36: "9rem", 40: "10rem", 44: "11rem", 48: "12rem", 52: "13rem", 56: "14rem", 60: "15rem", 64: "16rem", 72: "18rem", 80: "20rem", 96: "24rem" }, stroke: ({ theme: e6 }) => ({ none: "none", ...e6("colors") }), strokeWidth: { 0: "0", 1: "1", 2: "2", ...N2 }, supports: {}, data: {}, textColor: ({ theme: e6 }) => e6("colors"), textDecorationColor: ({ theme: e6 }) => e6("colors"), textDecorationThickness: { auto: "auto", "from-font": "from-font", 0: "0px", 1: "1px", 2: "2px", 4: "4px", 8: "8px", ..._2 }, textIndent: ({ theme: e6 }) => e6("spacing"), textOpacity: ({ theme: e6 }) => e6("opacity"), textUnderlineOffset: { auto: "auto", 0: "0px", 1: "1px", 2: "2px", 4: "4px", 8: "8px", ..._2 }, transformOrigin: { center: "center", top: "top", "top-right": "top right", right: "right", "bottom-right": "bottom right", bottom: "bottom", "bottom-left": "bottom left", left: "left", "top-left": "top left" }, transitionDelay: { 0: "0s", 75: "75ms", 100: "100ms", 150: "150ms", 200: "200ms", 300: "300ms", 500: "500ms", 700: "700ms", 1e3: "1000ms", ...lt3 }, transitionDuration: { DEFAULT: "150ms", 0: "0s", 75: "75ms", 100: "100ms", 150: "150ms", 200: "200ms", 300: "300ms", 500: "500ms", 700: "700ms", 1e3: "1000ms", ...lt3 }, transitionProperty: { none: "none", all: "all", DEFAULT: "color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter", colors: "color, background-color, border-color, outline-color, text-decoration-color, fill, stroke", opacity: "opacity", shadow: "box-shadow", transform: "transform" }, transitionTimingFunction: { DEFAULT: "cubic-bezier(0.4, 0, 0.2, 1)", linear: "linear", in: "cubic-bezier(0.4, 0, 1, 1)", out: "cubic-bezier(0, 0, 0.2, 1)", "in-out": "cubic-bezier(0.4, 0, 0.2, 1)" }, translate: ({ theme: e6 }) => ({ "1/2": "50%", "1/3": "33.333333%", "2/3": "66.666667%", "1/4": "25%", "2/4": "50%", "3/4": "75%", full: "100%", ...e6("spacing") }), size: ({ theme: e6 }) => ({ auto: "auto", "1/2": "50%", "1/3": "33.333333%", "2/3": "66.666667%", "1/4": "25%", "2/4": "50%", "3/4": "75%", "1/5": "20%", "2/5": "40%", "3/5": "60%", "4/5": "80%", "1/6": "16.666667%", "2/6": "33.333333%", "3/6": "50%", "4/6": "66.666667%", "5/6": "83.333333%", "1/12": "8.333333%", "2/12": "16.666667%", "3/12": "25%", "4/12": "33.333333%", "5/12": "41.666667%", "6/12": "50%", "7/12": "58.333333%", "8/12": "66.666667%", "9/12": "75%", "10/12": "83.333333%", "11/12": "91.666667%", full: "100%", min: "min-content", max: "max-content", fit: "fit-content", ...e6("spacing") }), width: ({ theme: e6 }) => ({ auto: "auto", "1/2": "50%", "1/3": "33.333333%", "2/3": "66.666667%", "1/4": "25%", "2/4": "50%", "3/4": "75%", "1/5": "20%", "2/5": "40%", "3/5": "60%", "4/5": "80%", "1/6": "16.666667%", "2/6": "33.333333%", "3/6": "50%", "4/6": "66.666667%", "5/6": "83.333333%", "1/12": "8.333333%", "2/12": "16.666667%", "3/12": "25%", "4/12": "33.333333%", "5/12": "41.666667%", "6/12": "50%", "7/12": "58.333333%", "8/12": "66.666667%", "9/12": "75%", "10/12": "83.333333%", "11/12": "91.666667%", full: "100%", screen: "100vw", svw: "100svw", lvw: "100lvw", dvw: "100dvw", min: "min-content", max: "max-content", fit: "fit-content", ...e6("spacing") }), willChange: { auto: "auto", scroll: "scroll-position", contents: "contents", transform: "transform" }, zIndex: { auto: "auto", 0: "0", 10: "10", 20: "20", 30: "30", 40: "40", 50: "50", ...N2 } };
+    br2 = { accentColor: ({ theme: e6 }) => e6("colors"), animation: { none: "none", spin: "spin 1s linear infinite", ping: "ping 1s cubic-bezier(0, 0, 0.2, 1) infinite", pulse: "pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite", bounce: "bounce 1s infinite" }, aria: { busy: 'busy="true"', checked: 'checked="true"', disabled: 'disabled="true"', expanded: 'expanded="true"', hidden: 'hidden="true"', pressed: 'pressed="true"', readonly: 'readonly="true"', required: 'required="true"', selected: 'selected="true"' }, aspectRatio: { auto: "auto", square: "1 / 1", video: "16 / 9", ...kr2 }, backdropBlur: ({ theme: e6 }) => e6("blur"), backdropBrightness: ({ theme: e6 }) => ({ ...e6("brightness"), ...b5 }), backdropContrast: ({ theme: e6 }) => ({ ...e6("contrast"), ...b5 }), backdropGrayscale: ({ theme: e6 }) => ({ ...e6("grayscale"), ...b5 }), backdropHueRotate: ({ theme: e6 }) => ({ ...e6("hueRotate"), ...le2 }), backdropInvert: ({ theme: e6 }) => ({ ...e6("invert"), ...b5 }), backdropOpacity: ({ theme: e6 }) => ({ ...e6("opacity"), ...b5 }), backdropSaturate: ({ theme: e6 }) => ({ ...e6("saturate"), ...b5 }), backdropSepia: ({ theme: e6 }) => ({ ...e6("sepia"), ...b5 }), backgroundColor: ({ theme: e6 }) => e6("colors"), backgroundImage: { none: "none", "gradient-to-t": "linear-gradient(to top, var(--tw-gradient-stops))", "gradient-to-tr": "linear-gradient(to top right, var(--tw-gradient-stops))", "gradient-to-r": "linear-gradient(to right, var(--tw-gradient-stops))", "gradient-to-br": "linear-gradient(to bottom right, var(--tw-gradient-stops))", "gradient-to-b": "linear-gradient(to bottom, var(--tw-gradient-stops))", "gradient-to-bl": "linear-gradient(to bottom left, var(--tw-gradient-stops))", "gradient-to-l": "linear-gradient(to left, var(--tw-gradient-stops))", "gradient-to-tl": "linear-gradient(to top left, var(--tw-gradient-stops))" }, backgroundOpacity: ({ theme: e6 }) => e6("opacity"), backgroundPosition: { bottom: "bottom", center: "center", left: "left", "left-bottom": "left bottom", "left-top": "left top", right: "right", "right-bottom": "right bottom", "right-top": "right top", top: "top" }, backgroundSize: { auto: "auto", cover: "cover", contain: "contain" }, blur: { 0: "0", none: "", sm: "4px", DEFAULT: "8px", md: "12px", lg: "16px", xl: "24px", "2xl": "40px", "3xl": "64px" }, borderColor: ({ theme: e6 }) => ({ DEFAULT: "currentcolor", ...e6("colors") }), borderOpacity: ({ theme: e6 }) => e6("opacity"), borderRadius: { none: "0px", sm: "0.125rem", DEFAULT: "0.25rem", md: "0.375rem", lg: "0.5rem", xl: "0.75rem", "2xl": "1rem", "3xl": "1.5rem", full: "9999px" }, borderSpacing: ({ theme: e6 }) => e6("spacing"), borderWidth: { DEFAULT: "1px", 0: "0px", 2: "2px", 4: "4px", 8: "8px", ..._2 }, boxShadow: { sm: "0 1px 2px 0 rgb(0 0 0 / 0.05)", DEFAULT: "0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)", md: "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)", lg: "0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)", xl: "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)", "2xl": "0 25px 50px -12px rgb(0 0 0 / 0.25)", inner: "inset 0 2px 4px 0 rgb(0 0 0 / 0.05)", none: "none" }, boxShadowColor: ({ theme: e6 }) => e6("colors"), brightness: { 0: "0", 50: ".5", 75: ".75", 90: ".9", 95: ".95", 100: "1", 105: "1.05", 110: "1.1", 125: "1.25", 150: "1.5", 200: "2", ...b5 }, caretColor: ({ theme: e6 }) => e6("colors"), colors: () => ({ ...Se2 }), columns: { auto: "auto", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "6", 7: "7", 8: "8", 9: "9", 10: "10", 11: "11", 12: "12", "3xs": "16rem", "2xs": "18rem", xs: "20rem", sm: "24rem", md: "28rem", lg: "32rem", xl: "36rem", "2xl": "42rem", "3xl": "48rem", "4xl": "56rem", "5xl": "64rem", "6xl": "72rem", "7xl": "80rem", ...N2 }, container: {}, content: { none: "none" }, contrast: { 0: "0", 50: ".5", 75: ".75", 100: "1", 125: "1.25", 150: "1.5", 200: "2", ...b5 }, cursor: { auto: "auto", default: "default", pointer: "pointer", wait: "wait", text: "text", move: "move", help: "help", "not-allowed": "not-allowed", none: "none", "context-menu": "context-menu", progress: "progress", cell: "cell", crosshair: "crosshair", "vertical-text": "vertical-text", alias: "alias", copy: "copy", "no-drop": "no-drop", grab: "grab", grabbing: "grabbing", "all-scroll": "all-scroll", "col-resize": "col-resize", "row-resize": "row-resize", "n-resize": "n-resize", "e-resize": "e-resize", "s-resize": "s-resize", "w-resize": "w-resize", "ne-resize": "ne-resize", "nw-resize": "nw-resize", "se-resize": "se-resize", "sw-resize": "sw-resize", "ew-resize": "ew-resize", "ns-resize": "ns-resize", "nesw-resize": "nesw-resize", "nwse-resize": "nwse-resize", "zoom-in": "zoom-in", "zoom-out": "zoom-out" }, divideColor: ({ theme: e6 }) => e6("borderColor"), divideOpacity: ({ theme: e6 }) => e6("borderOpacity"), divideWidth: ({ theme: e6 }) => ({ ...e6("borderWidth"), ..._2 }), dropShadow: { sm: "0 1px 1px rgb(0 0 0 / 0.05)", DEFAULT: ["0 1px 2px rgb(0 0 0 / 0.1)", "0 1px 1px rgb(0 0 0 / 0.06)"], md: ["0 4px 3px rgb(0 0 0 / 0.07)", "0 2px 2px rgb(0 0 0 / 0.06)"], lg: ["0 10px 8px rgb(0 0 0 / 0.04)", "0 4px 3px rgb(0 0 0 / 0.1)"], xl: ["0 20px 13px rgb(0 0 0 / 0.03)", "0 8px 5px rgb(0 0 0 / 0.08)"], "2xl": "0 25px 25px rgb(0 0 0 / 0.15)", none: "0 0 #0000" }, fill: ({ theme: e6 }) => e6("colors"), flex: { 1: "1 1 0%", auto: "1 1 auto", initial: "0 1 auto", none: "none" }, flexBasis: ({ theme: e6 }) => ({ auto: "auto", "1/2": "50%", "1/3": "33.333333%", "2/3": "66.666667%", "1/4": "25%", "2/4": "50%", "3/4": "75%", "1/5": "20%", "2/5": "40%", "3/5": "60%", "4/5": "80%", "1/6": "16.666667%", "2/6": "33.333333%", "3/6": "50%", "4/6": "66.666667%", "5/6": "83.333333%", "1/12": "8.333333%", "2/12": "16.666667%", "3/12": "25%", "4/12": "33.333333%", "5/12": "41.666667%", "6/12": "50%", "7/12": "58.333333%", "8/12": "66.666667%", "9/12": "75%", "10/12": "83.333333%", "11/12": "91.666667%", full: "100%", ...e6("spacing") }), flexGrow: { 0: "0", DEFAULT: "1", ...N2 }, flexShrink: { 0: "0", DEFAULT: "1", ...N2 }, fontFamily: { sans: ["ui-sans-serif", "system-ui", "sans-serif", '"Apple Color Emoji"', '"Segoe UI Emoji"', '"Segoe UI Symbol"', '"Noto Color Emoji"'], serif: ["ui-serif", "Georgia", "Cambria", '"Times New Roman"', "Times", "serif"], mono: ["ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "Consolas", '"Liberation Mono"', '"Courier New"', "monospace"] }, fontSize: { xs: ["0.75rem", { lineHeight: "1rem" }], sm: ["0.875rem", { lineHeight: "1.25rem" }], base: ["1rem", { lineHeight: "1.5rem" }], lg: ["1.125rem", { lineHeight: "1.75rem" }], xl: ["1.25rem", { lineHeight: "1.75rem" }], "2xl": ["1.5rem", { lineHeight: "2rem" }], "3xl": ["1.875rem", { lineHeight: "2.25rem" }], "4xl": ["2.25rem", { lineHeight: "2.5rem" }], "5xl": ["3rem", { lineHeight: "1" }], "6xl": ["3.75rem", { lineHeight: "1" }], "7xl": ["4.5rem", { lineHeight: "1" }], "8xl": ["6rem", { lineHeight: "1" }], "9xl": ["8rem", { lineHeight: "1" }] }, fontWeight: { thin: "100", extralight: "200", light: "300", normal: "400", medium: "500", semibold: "600", bold: "700", extrabold: "800", black: "900" }, gap: ({ theme: e6 }) => e6("spacing"), gradientColorStops: ({ theme: e6 }) => e6("colors"), gradientColorStopPositions: { "0%": "0%", "5%": "5%", "10%": "10%", "15%": "15%", "20%": "20%", "25%": "25%", "30%": "30%", "35%": "35%", "40%": "40%", "45%": "45%", "50%": "50%", "55%": "55%", "60%": "60%", "65%": "65%", "70%": "70%", "75%": "75%", "80%": "80%", "85%": "85%", "90%": "90%", "95%": "95%", "100%": "100%", ...b5 }, grayscale: { 0: "0", DEFAULT: "100%", ...b5 }, gridAutoColumns: { auto: "auto", min: "min-content", max: "max-content", fr: "minmax(0, 1fr)" }, gridAutoRows: { auto: "auto", min: "min-content", max: "max-content", fr: "minmax(0, 1fr)" }, gridColumn: { auto: "auto", "span-1": "span 1 / span 1", "span-2": "span 2 / span 2", "span-3": "span 3 / span 3", "span-4": "span 4 / span 4", "span-5": "span 5 / span 5", "span-6": "span 6 / span 6", "span-7": "span 7 / span 7", "span-8": "span 8 / span 8", "span-9": "span 9 / span 9", "span-10": "span 10 / span 10", "span-11": "span 11 / span 11", "span-12": "span 12 / span 12", "span-full": "1 / -1" }, gridColumnEnd: { auto: "auto", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "6", 7: "7", 8: "8", 9: "9", 10: "10", 11: "11", 12: "12", 13: "13", ...N2 }, gridColumnStart: { auto: "auto", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "6", 7: "7", 8: "8", 9: "9", 10: "10", 11: "11", 12: "12", 13: "13", ...N2 }, gridRow: { auto: "auto", "span-1": "span 1 / span 1", "span-2": "span 2 / span 2", "span-3": "span 3 / span 3", "span-4": "span 4 / span 4", "span-5": "span 5 / span 5", "span-6": "span 6 / span 6", "span-7": "span 7 / span 7", "span-8": "span 8 / span 8", "span-9": "span 9 / span 9", "span-10": "span 10 / span 10", "span-11": "span 11 / span 11", "span-12": "span 12 / span 12", "span-full": "1 / -1" }, gridRowEnd: { auto: "auto", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "6", 7: "7", 8: "8", 9: "9", 10: "10", 11: "11", 12: "12", 13: "13", ...N2 }, gridRowStart: { auto: "auto", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "6", 7: "7", 8: "8", 9: "9", 10: "10", 11: "11", 12: "12", 13: "13", ...N2 }, gridTemplateColumns: { none: "none", subgrid: "subgrid", 1: "repeat(1, minmax(0, 1fr))", 2: "repeat(2, minmax(0, 1fr))", 3: "repeat(3, minmax(0, 1fr))", 4: "repeat(4, minmax(0, 1fr))", 5: "repeat(5, minmax(0, 1fr))", 6: "repeat(6, minmax(0, 1fr))", 7: "repeat(7, minmax(0, 1fr))", 8: "repeat(8, minmax(0, 1fr))", 9: "repeat(9, minmax(0, 1fr))", 10: "repeat(10, minmax(0, 1fr))", 11: "repeat(11, minmax(0, 1fr))", 12: "repeat(12, minmax(0, 1fr))", ...st2 }, gridTemplateRows: { none: "none", subgrid: "subgrid", 1: "repeat(1, minmax(0, 1fr))", 2: "repeat(2, minmax(0, 1fr))", 3: "repeat(3, minmax(0, 1fr))", 4: "repeat(4, minmax(0, 1fr))", 5: "repeat(5, minmax(0, 1fr))", 6: "repeat(6, minmax(0, 1fr))", 7: "repeat(7, minmax(0, 1fr))", 8: "repeat(8, minmax(0, 1fr))", 9: "repeat(9, minmax(0, 1fr))", 10: "repeat(10, minmax(0, 1fr))", 11: "repeat(11, minmax(0, 1fr))", 12: "repeat(12, minmax(0, 1fr))", ...st2 }, height: ({ theme: e6 }) => ({ auto: "auto", "1/2": "50%", "1/3": "33.333333%", "2/3": "66.666667%", "1/4": "25%", "2/4": "50%", "3/4": "75%", "1/5": "20%", "2/5": "40%", "3/5": "60%", "4/5": "80%", "1/6": "16.666667%", "2/6": "33.333333%", "3/6": "50%", "4/6": "66.666667%", "5/6": "83.333333%", full: "100%", screen: "100vh", svh: "100svh", lvh: "100lvh", dvh: "100dvh", min: "min-content", max: "max-content", fit: "fit-content", ...e6("spacing") }), hueRotate: { 0: "0deg", 15: "15deg", 30: "30deg", 60: "60deg", 90: "90deg", 180: "180deg", ...le2 }, inset: ({ theme: e6 }) => ({ auto: "auto", "1/2": "50%", "1/3": "33.333333%", "2/3": "66.666667%", "1/4": "25%", "2/4": "50%", "3/4": "75%", full: "100%", ...e6("spacing") }), invert: { 0: "0", DEFAULT: "100%", ...b5 }, keyframes: { spin: { to: { transform: "rotate(360deg)" } }, ping: { "75%, 100%": { transform: "scale(2)", opacity: "0" } }, pulse: { "50%": { opacity: ".5" } }, bounce: { "0%, 100%": { transform: "translateY(-25%)", animationTimingFunction: "cubic-bezier(0.8,0,1,1)" }, "50%": { transform: "none", animationTimingFunction: "cubic-bezier(0,0,0.2,1)" } } }, letterSpacing: { tighter: "-0.05em", tight: "-0.025em", normal: "0em", wide: "0.025em", wider: "0.05em", widest: "0.1em" }, lineHeight: { none: "1", tight: "1.25", snug: "1.375", normal: "1.5", relaxed: "1.625", loose: "2", 3: ".75rem", 4: "1rem", 5: "1.25rem", 6: "1.5rem", 7: "1.75rem", 8: "2rem", 9: "2.25rem", 10: "2.5rem" }, listStyleType: { none: "none", disc: "disc", decimal: "decimal" }, listStyleImage: { none: "none" }, margin: ({ theme: e6 }) => ({ auto: "auto", ...e6("spacing") }), lineClamp: { 1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "6", ...N2 }, maxHeight: ({ theme: e6 }) => ({ none: "none", full: "100%", screen: "100vh", svh: "100svh", lvh: "100lvh", dvh: "100dvh", min: "min-content", max: "max-content", fit: "fit-content", ...e6("spacing") }), maxWidth: ({ theme: e6 }) => ({ none: "none", xs: "20rem", sm: "24rem", md: "28rem", lg: "32rem", xl: "36rem", "2xl": "42rem", "3xl": "48rem", "4xl": "56rem", "5xl": "64rem", "6xl": "72rem", "7xl": "80rem", full: "100%", min: "min-content", max: "max-content", fit: "fit-content", prose: "65ch", ...e6("spacing") }), minHeight: ({ theme: e6 }) => ({ full: "100%", screen: "100vh", svh: "100svh", lvh: "100lvh", dvh: "100dvh", min: "min-content", max: "max-content", fit: "fit-content", ...e6("spacing") }), minWidth: ({ theme: e6 }) => ({ full: "100%", min: "min-content", max: "max-content", fit: "fit-content", ...e6("spacing") }), objectPosition: { bottom: "bottom", center: "center", left: "left", "left-bottom": "left bottom", "left-top": "left top", right: "right", "right-bottom": "right bottom", "right-top": "right top", top: "top" }, opacity: { 0: "0", 5: "0.05", 10: "0.1", 15: "0.15", 20: "0.2", 25: "0.25", 30: "0.3", 35: "0.35", 40: "0.4", 45: "0.45", 50: "0.5", 55: "0.55", 60: "0.6", 65: "0.65", 70: "0.7", 75: "0.75", 80: "0.8", 85: "0.85", 90: "0.9", 95: "0.95", 100: "1", ...b5 }, order: { first: "-9999", last: "9999", none: "0", 1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "6", 7: "7", 8: "8", 9: "9", 10: "10", 11: "11", 12: "12", ...N2 }, outlineColor: ({ theme: e6 }) => e6("colors"), outlineOffset: { 0: "0px", 1: "1px", 2: "2px", 4: "4px", 8: "8px", ..._2 }, outlineWidth: { 0: "0px", 1: "1px", 2: "2px", 4: "4px", 8: "8px", ..._2 }, padding: ({ theme: e6 }) => e6("spacing"), placeholderColor: ({ theme: e6 }) => e6("colors"), placeholderOpacity: ({ theme: e6 }) => e6("opacity"), ringColor: ({ theme: e6 }) => ({ DEFAULT: "currentcolor", ...e6("colors") }), ringOffsetColor: ({ theme: e6 }) => e6("colors"), ringOffsetWidth: { 0: "0px", 1: "1px", 2: "2px", 4: "4px", 8: "8px", ..._2 }, ringOpacity: ({ theme: e6 }) => ({ DEFAULT: "0.5", ...e6("opacity") }), ringWidth: { DEFAULT: "3px", 0: "0px", 1: "1px", 2: "2px", 4: "4px", 8: "8px", ..._2 }, rotate: { 0: "0deg", 1: "1deg", 2: "2deg", 3: "3deg", 6: "6deg", 12: "12deg", 45: "45deg", 90: "90deg", 180: "180deg", ...le2 }, saturate: { 0: "0", 50: ".5", 100: "1", 150: "1.5", 200: "2", ...b5 }, scale: { 0: "0", 50: ".5", 75: ".75", 90: ".9", 95: ".95", 100: "1", 105: "1.05", 110: "1.1", 125: "1.25", 150: "1.5", ...b5 }, screens: { sm: "40rem", md: "48rem", lg: "64rem", xl: "80rem", "2xl": "96rem" }, scrollMargin: ({ theme: e6 }) => e6("spacing"), scrollPadding: ({ theme: e6 }) => e6("spacing"), sepia: { 0: "0", DEFAULT: "100%", ...b5 }, skew: { 0: "0deg", 1: "1deg", 2: "2deg", 3: "3deg", 6: "6deg", 12: "12deg", ...le2 }, space: ({ theme: e6 }) => e6("spacing"), spacing: { px: "1px", 0: "0px", 0.5: "0.125rem", 1: "0.25rem", 1.5: "0.375rem", 2: "0.5rem", 2.5: "0.625rem", 3: "0.75rem", 3.5: "0.875rem", 4: "1rem", 5: "1.25rem", 6: "1.5rem", 7: "1.75rem", 8: "2rem", 9: "2.25rem", 10: "2.5rem", 11: "2.75rem", 12: "3rem", 14: "3.5rem", 16: "4rem", 20: "5rem", 24: "6rem", 28: "7rem", 32: "8rem", 36: "9rem", 40: "10rem", 44: "11rem", 48: "12rem", 52: "13rem", 56: "14rem", 60: "15rem", 64: "16rem", 72: "18rem", 80: "20rem", 96: "24rem" }, stroke: ({ theme: e6 }) => ({ none: "none", ...e6("colors") }), strokeWidth: { 0: "0", 1: "1", 2: "2", ...N2 }, supports: {}, data: {}, textColor: ({ theme: e6 }) => e6("colors"), textDecorationColor: ({ theme: e6 }) => e6("colors"), textDecorationThickness: { auto: "auto", "from-font": "from-font", 0: "0px", 1: "1px", 2: "2px", 4: "4px", 8: "8px", ..._2 }, textIndent: ({ theme: e6 }) => e6("spacing"), textOpacity: ({ theme: e6 }) => e6("opacity"), textUnderlineOffset: { auto: "auto", 0: "0px", 1: "1px", 2: "2px", 4: "4px", 8: "8px", ..._2 }, transformOrigin: { center: "center", top: "top", "top-right": "top right", right: "right", "bottom-right": "bottom right", bottom: "bottom", "bottom-left": "bottom left", left: "left", "top-left": "top left" }, transitionDelay: { 0: "0s", 75: "75ms", 100: "100ms", 150: "150ms", 200: "200ms", 300: "300ms", 500: "500ms", 700: "700ms", 1e3: "1000ms", ...lt4 }, transitionDuration: { DEFAULT: "150ms", 0: "0s", 75: "75ms", 100: "100ms", 150: "150ms", 200: "200ms", 300: "300ms", 500: "500ms", 700: "700ms", 1e3: "1000ms", ...lt4 }, transitionProperty: { none: "none", all: "all", DEFAULT: "color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform, filter, backdrop-filter", colors: "color, background-color, border-color, outline-color, text-decoration-color, fill, stroke", opacity: "opacity", shadow: "box-shadow", transform: "transform" }, transitionTimingFunction: { DEFAULT: "cubic-bezier(0.4, 0, 0.2, 1)", linear: "linear", in: "cubic-bezier(0.4, 0, 1, 1)", out: "cubic-bezier(0, 0, 0.2, 1)", "in-out": "cubic-bezier(0.4, 0, 0.2, 1)" }, translate: ({ theme: e6 }) => ({ "1/2": "50%", "1/3": "33.333333%", "2/3": "66.666667%", "1/4": "25%", "2/4": "50%", "3/4": "75%", full: "100%", ...e6("spacing") }), size: ({ theme: e6 }) => ({ auto: "auto", "1/2": "50%", "1/3": "33.333333%", "2/3": "66.666667%", "1/4": "25%", "2/4": "50%", "3/4": "75%", "1/5": "20%", "2/5": "40%", "3/5": "60%", "4/5": "80%", "1/6": "16.666667%", "2/6": "33.333333%", "3/6": "50%", "4/6": "66.666667%", "5/6": "83.333333%", "1/12": "8.333333%", "2/12": "16.666667%", "3/12": "25%", "4/12": "33.333333%", "5/12": "41.666667%", "6/12": "50%", "7/12": "58.333333%", "8/12": "66.666667%", "9/12": "75%", "10/12": "83.333333%", "11/12": "91.666667%", full: "100%", min: "min-content", max: "max-content", fit: "fit-content", ...e6("spacing") }), width: ({ theme: e6 }) => ({ auto: "auto", "1/2": "50%", "1/3": "33.333333%", "2/3": "66.666667%", "1/4": "25%", "2/4": "50%", "3/4": "75%", "1/5": "20%", "2/5": "40%", "3/5": "60%", "4/5": "80%", "1/6": "16.666667%", "2/6": "33.333333%", "3/6": "50%", "4/6": "66.666667%", "5/6": "83.333333%", "1/12": "8.333333%", "2/12": "16.666667%", "3/12": "25%", "4/12": "33.333333%", "5/12": "41.666667%", "6/12": "50%", "7/12": "58.333333%", "8/12": "66.666667%", "9/12": "75%", "10/12": "83.333333%", "11/12": "91.666667%", full: "100%", screen: "100vw", svw: "100svw", lvw: "100lvw", dvw: "100dvw", min: "min-content", max: "max-content", fit: "fit-content", ...e6("spacing") }), willChange: { auto: "auto", scroll: "scroll-position", contents: "contents", transform: "transform" }, zIndex: { auto: "auto", 0: "0", 10: "10", 20: "20", 30: "30", 40: "40", 50: "50", ...N2 } };
     Ar2 = 64;
     Ee2 = /(?<!@import\s+)(?<=^|[^\w\-\u0080-\uffff])url\((\s*('[^']+'|"[^"]+")\s*|[^'")]+)\)/;
     ut2 = /(?<=image-set\()((?:[\w-]{1,256}\([^)]*\)|[^)])*)(?=\))/;
@@ -314075,7 +314610,7 @@ var init_dist7 = __esm({
     Rr2 = /(?: |\\t|\\n|\\f|\\r)+/g;
     Or2 = (e6) => $r2.test(e6);
     Pr2 = (e6) => Tr2.test(e6);
-    gt3 = null;
+    gt4 = null;
     Re2 = ["node_modules", ...process.env.NODE_PATH ? [process.env.NODE_PATH] : []];
     jr2 = import_enhanced_resolve.default.ResolverFactory.createResolver({ fileSystem: new import_enhanced_resolve.default.CachedInputFileSystem(import_fs4.default, 4e3), useSyncFileSystemCalls: true, extensions: [".css"], mainFields: ["style"], conditionNames: ["style"], modules: Re2 });
     Br2 = import_enhanced_resolve.default.ResolverFactory.createResolver({ fileSystem: new import_enhanced_resolve.default.CachedInputFileSystem(import_fs4.default, 4e3), useSyncFileSystemCalls: true, extensions: [".js", ".json", ".node", ".ts"], conditionNames: ["node", "import"], modules: Re2 });
@@ -334338,9 +334873,9 @@ async function runNGramAnalysisTask(accountId) {
     }
     let appliedNegatives = 0;
     if (config2.mode === "full_auto") {
-      const campaigns7 = await getCampaignsByAccountId(accountId);
+      const campaigns6 = await getCampaignsByAccountId(accountId);
       for (const suggestion of analysisResult.suggestedNegatives) {
-        for (const campaign of campaigns7) {
+        for (const campaign of campaigns6) {
           try {
             await addNegativeKeyword({
               campaignId: campaign.id,
@@ -334818,10 +335353,10 @@ async function executeNgramAnalysis(searchTerms4, autoApply = false) {
     };
   }
 }
-async function executeHealthCheck(campaigns7, notificationConfig = defaultNotificationConfig) {
+async function executeHealthCheck(campaigns6, notificationConfig = defaultNotificationConfig) {
   const startedAt = /* @__PURE__ */ new Date();
   try {
-    const allAlerts = campaigns7.flatMap(
+    const allAlerts = campaigns6.flatMap(
       (campaign) => analyzeHealthMetrics(campaign, notificationConfig)
     );
     if (allAlerts.length > 0) {
@@ -334835,11 +335370,11 @@ async function executeHealthCheck(campaigns7, notificationConfig = defaultNotifi
       startedAt,
       completedAt,
       duration: Math.round((completedAt.getTime() - startedAt.getTime()) / 1e3),
-      itemsProcessed: campaigns7.length,
+      itemsProcessed: campaigns6.length,
       suggestionsGenerated: allAlerts.length,
       suggestionsApplied: 0,
       resultSummary: {
-        campaignsChecked: campaigns7.length,
+        campaignsChecked: campaigns6.length,
         alertsGenerated: allAlerts.length,
         criticalAlerts: allAlerts.filter((a4) => a4.severity === "critical").length,
         warningAlerts: allAlerts.filter((a4) => a4.severity === "warning").length
@@ -340138,8 +340673,8 @@ var BudgetAllocator = class {
    * @param campaigns 广告活动列表
    * @param totalBudget 总预算
    */
-  allocateBudget(campaigns7, totalBudget) {
-    const marginalReturns = campaigns7.map((campaign) => {
+  allocateBudget(campaigns6, totalBudget) {
+    const marginalReturns = campaigns6.map((campaign) => {
       const optimizer = new BidOptimizer();
       try {
         optimizer.train(campaign.historicalData);
@@ -340678,8 +341213,8 @@ var SmartDecisionEngine = class {
   /**
    * 为多个广告活动批量生成决策
    */
-  makeBatchDecisions(campaigns7, goal) {
-    const decisions = campaigns7.map((campaign) => this.makeDecision(campaign, goal));
+  makeBatchDecisions(campaigns6, goal) {
+    const decisions = campaigns6.map((campaign) => this.makeDecision(campaign, goal));
     decisions.sort((a4, b6) => {
       const priorityScore = { high: 3, medium: 2, low: 1 };
       const scoreA = priorityScore[a4.priority] * a4.confidence;
@@ -341538,13 +342073,13 @@ var debugSyncRouter = router({
     accountId: external_exports.number()
   })).query(async ({ input }) => {
     try {
-      const campaigns7 = await getCampaignsByAccountId(input.accountId);
+      const campaigns6 = await getCampaignsByAccountId(input.accountId);
       return {
         success: true,
         data: {
           accountId: input.accountId,
-          campaignCount: campaigns7.length,
-          campaigns: campaigns7.slice(0, 10),
+          campaignCount: campaigns6.length,
+          campaigns: campaigns6.slice(0, 10),
           // 只返回前10个
           timestamp: (/* @__PURE__ */ new Date()).toISOString()
         }
@@ -342486,6 +343021,7 @@ function getEventCategoryLabel(category) {
 init_algorithmEvolutionEngine();
 init_amazonApiHelper();
 init_exchangeRateService();
+init_optimizationAutoCorrector();
 
 // server/budgetAlertService.ts
 init_drizzle_orm();
@@ -346950,13 +347486,13 @@ var performanceGroupRouter = router({
     console.log("[performanceGroup.list] result count:", result.length);
     const enrichedResult = await Promise.all(result.map(async (group) => {
       try {
-        const campaigns7 = await getCampaignsByPerformanceGroupId(group.id);
+        const campaigns6 = await getCampaignsByPerformanceGroupId(group.id);
         let totalSpend = 0;
         let totalSales = 0;
         let totalOrders = 0;
         let totalClicks = 0;
         let totalImpressions = 0;
-        for (const campaign of campaigns7) {
+        for (const campaign of campaigns6) {
           totalSpend += Number(campaign.spend) || 0;
           totalSales += Number(campaign.sales) || 0;
           totalOrders += campaign.orders || 0;
@@ -346994,7 +347530,7 @@ var performanceGroupRouter = router({
             strategyTemplateName: group.strategyTemplateName || null,
             status: group.status || "active",
             createdAt: group.createdAt || (/* @__PURE__ */ new Date()).toISOString(),
-            campaignCount: campaigns7.length
+            campaignCount: campaigns6.length
           };
           let trendData;
           let timeWeighted;
@@ -347017,7 +347553,7 @@ var performanceGroupRouter = router({
         }
         return {
           ...group,
-          campaignCount: campaigns7.length,
+          campaignCount: campaigns6.length,
           totalSpend,
           totalSales,
           totalOrders,
@@ -347200,8 +347736,8 @@ var performanceGroupRouter = router({
   })).mutation(async ({ input }) => {
     const group = await getPerformanceGroupById(input.groupId);
     if (!group) throw new TRPCError({ code: "NOT_FOUND", message: "\u7EE9\u6548\u7EC4\u4E0D\u5B58\u5728" });
-    const campaigns7 = await getCampaignsByPerformanceGroupId(input.groupId);
-    const targetCampaigns = campaigns7.filter((c5) => input.campaignIds.includes(c5.id));
+    const campaigns6 = await getCampaignsByPerformanceGroupId(input.groupId);
+    const targetCampaigns = campaigns6.filter((c5) => input.campaignIds.includes(c5.id));
     if (targetCampaigns.length === 0) {
       throw new TRPCError({ code: "BAD_REQUEST", message: "\u672A\u627E\u5230\u6307\u5B9A\u7684\u5E7F\u544A\u6D3B\u52A8" });
     }
@@ -347260,13 +347796,13 @@ var performanceGroupRouter = router({
   }),
   // 获取绩效组KPI汇总
   getKpiSummary: protectedProcedure.input(external_exports.object({ groupId: external_exports.number() })).query(async ({ input }) => {
-    const campaigns7 = await getCampaignsByPerformanceGroupId(input.groupId);
+    const campaigns6 = await getCampaignsByPerformanceGroupId(input.groupId);
     let totalSpend = 0;
     let totalRevenue = 0;
     let totalConversions = 0;
     let totalClicks = 0;
     let totalImpressions = 0;
-    for (const campaign of campaigns7) {
+    for (const campaign of campaigns6) {
       totalSpend += Number(campaign.spend) || 0;
       totalRevenue += Number(campaign.sales) || 0;
       totalConversions += campaign.orders || 0;
@@ -347287,7 +347823,7 @@ var performanceGroupRouter = router({
       roas,
       ctr,
       cvr,
-      campaignCount: campaigns7.length
+      campaignCount: campaigns6.length
     };
   }),
   // 添加广告活动到绩效组
@@ -347992,9 +348528,9 @@ var campaignRouter = router({
     let totalKeywords = 0;
     let topKeywords = [];
     for (const adGroup of adGroups3) {
-      const keywords7 = await getKeywordsByAdGroupId(adGroup.id);
-      totalKeywords += keywords7.length;
-      topKeywords.push(...keywords7.filter((k5) => parseFloat(k5.sales || "0") > 0));
+      const keywords6 = await getKeywordsByAdGroupId(adGroup.id);
+      totalKeywords += keywords6.length;
+      topKeywords.push(...keywords6.filter((k5) => parseFloat(k5.sales || "0") > 0));
     }
     topKeywords.sort((a4, b6) => parseFloat(b6.sales || "0") - parseFloat(a4.sales || "0"));
     topKeywords = topKeywords.slice(0, 5);
@@ -348178,13 +348714,13 @@ var adGroupRouter = router({
   getWithKeywordStats: protectedProcedure.input(external_exports.object({ id: external_exports.number() })).query(async ({ input }) => {
     const adGroup = await getAdGroupById(input.id);
     if (!adGroup) return null;
-    const keywords7 = await getKeywordsByAdGroupId(input.id);
+    const keywords6 = await getKeywordsByAdGroupId(input.id);
     const productTargets2 = await getProductTargetsByAdGroupId(input.id);
     return {
       ...adGroup,
-      keywordCount: keywords7.length,
+      keywordCount: keywords6.length,
       productTargetCount: productTargets2.length,
-      keywords: keywords7.slice(0, 10),
+      keywords: keywords6.slice(0, 10),
       // 返回前10个关键词
       productTargets: productTargets2.slice(0, 10)
       // 返回前10个商品定位
@@ -348337,14 +348873,14 @@ var keywordRouter = router({
       try {
         const dbInstance = await getDb();
         if (dbInstance) {
-          const { keywords: keywordsTable, adGroups: adGroups3, campaigns: campaigns7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+          const { keywords: keywordsTable, adGroups: adGroups3, campaigns: campaigns6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
           const { eq: eq7, inArray: inArray9 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
           const kwDetails = await dbInstance.select({
             kwId: keywordsTable.id,
             adGroupId: keywordsTable.adGroupId,
             campaignId: adGroups3.campaignId,
-            accountId: campaigns7.accountId
-          }).from(keywordsTable).innerJoin(adGroups3, eq7(keywordsTable.adGroupId, adGroups3.id)).innerJoin(campaigns7, eq7(adGroups3.campaignId, campaigns7.id)).where(inArray9(keywordsTable.id, results.map((r5) => r5.id)));
+            accountId: campaigns6.accountId
+          }).from(keywordsTable).innerJoin(adGroups3, eq7(keywordsTable.adGroupId, adGroups3.id)).innerJoin(campaigns6, eq7(adGroups3.campaignId, campaigns6.id)).where(inArray9(keywordsTable.id, results.map((r5) => r5.id)));
           const byAccount = /* @__PURE__ */ new Map();
           for (const kw of kwDetails) {
             const r5 = results.find((r6) => r6.id === kw.kwId);
@@ -348383,14 +348919,14 @@ var keywordRouter = router({
     try {
       const dbInstance = await getDb();
       if (dbInstance) {
-        const { keywords: keywordsTable, adGroups: adGroups3, campaigns: campaigns7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+        const { keywords: keywordsTable, adGroups: adGroups3, campaigns: campaigns6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
         const { eq: eq7, inArray: inArray9 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
         const kwDetails = await dbInstance.select({
           kwId: keywordsTable.id,
           adGroupId: keywordsTable.adGroupId,
           campaignId: adGroups3.campaignId,
-          accountId: campaigns7.accountId
-        }).from(keywordsTable).innerJoin(adGroups3, eq7(keywordsTable.adGroupId, adGroups3.id)).innerJoin(campaigns7, eq7(adGroups3.campaignId, campaigns7.id)).where(inArray9(keywordsTable.id, input.ids));
+          accountId: campaigns6.accountId
+        }).from(keywordsTable).innerJoin(adGroups3, eq7(keywordsTable.adGroupId, adGroups3.id)).innerJoin(campaigns6, eq7(adGroups3.campaignId, campaigns6.id)).where(inArray9(keywordsTable.id, input.ids));
         const byAccount = /* @__PURE__ */ new Map();
         for (const kw of kwDetails) {
           if (!byAccount.has(kw.accountId)) byAccount.set(kw.accountId, []);
@@ -348579,14 +349115,14 @@ var productTargetRouter = router({
       try {
         const dbInstance = await getDb();
         if (dbInstance) {
-          const { productTargets: productTargets2, adGroups: adGroups3, campaigns: campaigns7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+          const { productTargets: productTargets2, adGroups: adGroups3, campaigns: campaigns6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
           const { eq: eq7, inArray: inArray9 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
           const ptDetails = await dbInstance.select({
             ptId: productTargets2.id,
             adGroupId: productTargets2.adGroupId,
             campaignId: adGroups3.campaignId,
-            accountId: campaigns7.accountId
-          }).from(productTargets2).innerJoin(adGroups3, eq7(productTargets2.adGroupId, adGroups3.id)).innerJoin(campaigns7, eq7(adGroups3.campaignId, campaigns7.id)).where(inArray9(productTargets2.id, results.map((r5) => r5.id)));
+            accountId: campaigns6.accountId
+          }).from(productTargets2).innerJoin(adGroups3, eq7(productTargets2.adGroupId, adGroups3.id)).innerJoin(campaigns6, eq7(adGroups3.campaignId, campaigns6.id)).where(inArray9(productTargets2.id, results.map((r5) => r5.id)));
           const byAccount = /* @__PURE__ */ new Map();
           for (const pt3 of ptDetails) {
             const r5 = results.find((r6) => r6.id === pt3.ptId);
@@ -348626,14 +349162,14 @@ var productTargetRouter = router({
     try {
       const dbInstance = await getDb();
       if (dbInstance) {
-        const { productTargets: productTargets2, adGroups: adGroups3, campaigns: campaigns7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+        const { productTargets: productTargets2, adGroups: adGroups3, campaigns: campaigns6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
         const { eq: eq7, inArray: inArray9 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
         const ptDetails = await dbInstance.select({
           ptId: productTargets2.id,
           adGroupId: productTargets2.adGroupId,
           campaignId: adGroups3.campaignId,
-          accountId: campaigns7.accountId
-        }).from(productTargets2).innerJoin(adGroups3, eq7(productTargets2.adGroupId, adGroups3.id)).innerJoin(campaigns7, eq7(adGroups3.campaignId, campaigns7.id)).where(inArray9(productTargets2.id, input.ids));
+          accountId: campaigns6.accountId
+        }).from(productTargets2).innerJoin(adGroups3, eq7(productTargets2.adGroupId, adGroups3.id)).innerJoin(campaigns6, eq7(adGroups3.campaignId, campaigns6.id)).where(inArray9(productTargets2.id, input.ids));
         const byAccount = /* @__PURE__ */ new Map();
         for (const pt3 of ptDetails) {
           if (!byAccount.has(pt3.accountId)) byAccount.set(pt3.accountId, []);
@@ -349044,7 +349580,7 @@ var optimizationRouter = router({
     if (!group) {
       throw new TRPCError({ code: "NOT_FOUND", message: "Performance group not found" });
     }
-    const campaigns7 = await getCampaignsByPerformanceGroupId(input.performanceGroupId);
+    const campaigns6 = await getCampaignsByPerformanceGroupId(input.performanceGroupId);
     const results = [];
     const config2 = {
       optimizationGoal: group.optimizationGoal || "maximize_sales",
@@ -349053,11 +349589,11 @@ var optimizationRouter = router({
       dailySpendLimit: group.dailySpendLimit ? parseFloat(group.dailySpendLimit) : void 0,
       dailyCostTarget: group.dailyCostTarget ? parseFloat(group.dailyCostTarget) : void 0
     };
-    for (const campaign of campaigns7) {
+    for (const campaign of campaigns6) {
       const adGroups3 = await getAdGroupsByCampaignId(campaign.id);
       for (const adGroup of adGroups3) {
-        const keywords7 = await getKeywordsByAdGroupId(adGroup.id);
-        const keywordTargets = keywords7.map((k5) => ({
+        const keywords6 = await getKeywordsByAdGroupId(adGroup.id);
+        const keywordTargets = keywords6.map((k5) => ({
           id: k5.id,
           type: "keyword",
           currentBid: parseFloat(k5.bid),
@@ -349451,8 +349987,8 @@ var adAutomationRouter = router({
     cvrDropCritical: external_exports.number().default(-50),
     roasMinimum: external_exports.number().default(2)
   })).query(async ({ input }) => {
-    const campaigns7 = await getCampaignHealthMetrics(input.accountId);
-    const healthScores = analyzeCampaignHealth(campaigns7, {
+    const campaigns6 = await getCampaignHealthMetrics(input.accountId);
+    const healthScores = analyzeCampaignHealth(campaigns6, {
       acosWarning: input.acosWarning,
       acosCritical: input.acosCritical,
       ctrDropWarning: input.ctrDropWarning,
@@ -349480,8 +350016,8 @@ var adAutomationRouter = router({
     accountId: external_exports.number(),
     severity: external_exports.enum(["all", "critical", "warning", "info"]).default("all")
   })).query(async ({ input }) => {
-    const campaigns7 = await getCampaignHealthMetrics(input.accountId);
-    const healthScores = analyzeCampaignHealth(campaigns7);
+    const campaigns6 = await getCampaignHealthMetrics(input.accountId);
+    const healthScores = analyzeCampaignHealth(campaigns6);
     let allAlerts = healthScores.flatMap((h6) => h6.alerts);
     if (input.severity !== "all") {
       allAlerts = allAlerts.filter((a4) => a4.severity === input.severity);
@@ -352419,8 +352955,8 @@ var crossAccountRouter = router({
         let totalClicks2 = 0;
         let totalOrders2 = 0;
         for (const pg of performanceGroups6) {
-          const campaigns7 = await getCampaignsByPerformanceGroupId(pg.id);
-          for (const campaign of campaigns7) {
+          const campaigns6 = await getCampaignsByPerformanceGroupId(pg.id);
+          for (const campaign of campaigns6) {
             totalSpend2 += parseFloat(campaign.spend || "0");
             totalSales2 += parseFloat(campaign.sales || "0");
             totalImpressions2 += campaign.impressions || 0;
@@ -352503,8 +353039,8 @@ var crossAccountRouter = router({
         let totalClicks = 0;
         let totalOrders = 0;
         for (const pg of performanceGroups6) {
-          const campaigns7 = await getCampaignsByPerformanceGroupId(pg.id);
-          for (const campaign of campaigns7) {
+          const campaigns6 = await getCampaignsByPerformanceGroupId(pg.id);
+          for (const campaign of campaigns6) {
             totalSpend += parseFloat(campaign.spend || "0");
             totalSales += parseFloat(campaign.sales || "0");
             totalImpressions += campaign.impressions || 0;
@@ -355272,6 +355808,28 @@ var autoRollbackRouter = router({
     return cleanupOldSuggestions();
   })
 });
+var autoCorrectionRouter = router({
+  // 运行自动纠错扫描
+  runScan: protectedProcedure.input(external_exports.object({ accountId: external_exports.number().optional() })).mutation(async ({ input }) => {
+    return runAutoCorrection(input.accountId);
+  }),
+  // 获取扫描历史
+  getScanHistory: protectedProcedure.query(async () => {
+    return getScanHistory();
+  }),
+  // 获取最近一次扫描结果
+  getLastScan: protectedProcedure.query(async () => {
+    return getLastScanResult();
+  }),
+  // 获取扫描状态
+  getStatus: protectedProcedure.query(async () => {
+    return getScanStatus();
+  }),
+  // 获取纠错配置
+  getConfig: protectedProcedure.query(async () => {
+    return getConfig();
+  })
+});
 var algorithmOptimizationRouter = router({
   // 获取算法参数
   getParameters: protectedProcedure.query(async () => {
@@ -355425,8 +355983,7 @@ var algorithmEvolutionRouter = router({
   }),
   // v167: 手动触发自动纠错
   runAutoCorrection: protectedProcedure.input(external_exports.object({ accountId: external_exports.number().optional() })).mutation(async ({ input }) => {
-    const { runAutoCorrection: runAutoCorrection2 } = await Promise.resolve().then(() => (init_optimizationAutoCorrector(), optimizationAutoCorrector_exports));
-    return runAutoCorrection2(input.accountId);
+    return runAutoCorrection(input.accountId);
   })
 });
 var holidayConfigRouter = router({
@@ -355563,10 +356120,10 @@ var intelligentBudgetAllocationRouter = router({
     campaignId: external_exports.number(),
     newBudget: external_exports.number()
   })).query(async ({ input }) => {
-    const campaigns7 = await collectCampaignPerformanceData(
+    const campaigns6 = await collectCampaignPerformanceData(
       input.performanceGroupId
     );
-    const campaign = campaigns7.find((c5) => c5.campaignId === input.campaignId);
+    const campaign = campaigns6.find((c5) => c5.campaignId === input.campaignId);
     if (!campaign) {
       throw new TRPCError({ code: "NOT_FOUND", message: "\u5E7F\u544A\u6D3B\u52A8\u4E0D\u5B58\u5728" });
     }
@@ -356296,6 +356853,7 @@ var appRouter = router({
   placement: placementRouter,
   unifiedOptimization: unifiedOptimizationRouter,
   autoRollback: autoRollbackRouter,
+  autoCorrection: autoCorrectionRouter,
   algorithmOptimization: algorithmOptimizationRouter,
   intelligentBudgetAllocation: intelligentBudgetAllocationRouter,
   abTest: abTestRouter,
@@ -356530,6 +357088,7 @@ router2.get("/sitemap.json", (req, res) => {
 var sitemap_default = router2;
 
 // server/_core/index.ts
+init_optimizationAutoCorrector();
 function isPortAvailable(port) {
   return new Promise((resolve8) => {
     const server = import_net.default.createServer();
@@ -356595,6 +357154,15 @@ async function startServer2() {
     startOptimizationScheduler2();
     console.log("[OptimizationScheduler] v143\u751F\u547D\u5468\u671F\u611F\u77E5\u667A\u80FD\u4F18\u5316\u8C03\u5EA6\u5668\u5DF2\u542F\u52A8");
     console.log("[TargetScheduler] v142: daily\u5168\u91CF\u6267\u884C\u5DF2\u7981\u7528\uFF0C\u4F18\u5316\u8C03\u5EA6\u7531dataSyncScheduler\u7EDF\u4E00\u7BA1\u7406");
+    setTimeout(async () => {
+      try {
+        const result = await runAutoCorrection();
+        console.log(`[AutoCorrector] v167: \u542F\u52A8\u7EA0\u9519\u626B\u63CF\u5B8C\u6210: \u53D1\u73B0${result.totalIssuesFound}\u4E2A\u95EE\u9898, \u7EA0\u6B63${result.totalCorrected}\u4E2A, \u5931\u8D25${result.totalFailed}\u4E2A`);
+      } catch (err2) {
+        console.error("[AutoCorrector] v167: \u542F\u52A8\u7EA0\u9519\u626B\u63CF\u5931\u8D25:", err2.message);
+      }
+    }, 30 * 1e3);
+    console.log("[AutoCorrector] v167: \u81EA\u52A8\u7EA0\u9519\u670D\u52A1\u5DF2\u6CE8\u518C\uFF0C\u5C0630\u79D2\u540E\u8FD0\u884C\u9996\u6B21\u5168\u91CF\u626B\u63CF");
     if (process.env.AWS_SQS_QUEUE_TRAFFIC_URL || process.env.AWS_SQS_QUEUE_CONVERSION_URL || process.env.AWS_SQS_QUEUE_BUDGET_URL) {
       startSQSConsumer().then(() => {
         console.log("[SQS Consumer] AMS\u5B9E\u65F6\u6570\u636E\u6D41\u6D88\u8D39\u8005\u5DF2\u542F\u52A8");
