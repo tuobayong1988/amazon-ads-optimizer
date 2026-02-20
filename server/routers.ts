@@ -1164,9 +1164,9 @@ const performanceGroupRouter = router({
       return dailyData.map(day => {
         const sales = parseFloat(day.totalSales || '0');
         const spend = parseFloat(day.totalSpend || '0');
-        const impressions = day.totalImpressions || 0;
-        const clicks = day.totalClicks || 0;
-        const orders = day.totalOrders || 0;
+        const impressions = Number(day.totalImpressions) || 0;
+        const clicks = Number(day.totalClicks) || 0;
+        const orders = Number(day.totalOrders) || 0;
         
         return {
           date: new Date(day.date).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }),
@@ -2796,9 +2796,9 @@ const analyticsRouter = router({
       return dailyAggregated.map(day => {
         const sales = parseFloat(day.totalSales || '0');
         const spend = parseFloat(day.totalSpend || '0');
-        const impressions = day.totalImpressions || 0;
-        const clicks = day.totalClicks || 0;
-        const orders = day.totalOrders || 0;
+        const impressions = Number(day.totalImpressions) || 0;
+        const clicks = Number(day.totalClicks) || 0;
+        const orders = Number(day.totalOrders) || 0;
         
         return {
           date: new Date(day.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }),

@@ -346329,9 +346329,9 @@ var performanceGroupRouter = router({
     return dailyData.map((day2) => {
       const sales = parseFloat(day2.totalSales || "0");
       const spend = parseFloat(day2.totalSpend || "0");
-      const impressions = day2.totalImpressions || 0;
-      const clicks = day2.totalClicks || 0;
-      const orders = day2.totalOrders || 0;
+      const impressions = Number(day2.totalImpressions) || 0;
+      const clicks = Number(day2.totalClicks) || 0;
+      const orders = Number(day2.totalOrders) || 0;
       return {
         date: new Date(day2.date).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" }),
         fullDate: day2.date,
@@ -347624,9 +347624,9 @@ var analyticsRouter = router({
     return dailyAggregated.map((day2) => {
       const sales = parseFloat(day2.totalSales || "0");
       const spend = parseFloat(day2.totalSpend || "0");
-      const impressions = day2.totalImpressions || 0;
-      const clicks = day2.totalClicks || 0;
-      const orders = day2.totalOrders || 0;
+      const impressions = Number(day2.totalImpressions) || 0;
+      const clicks = Number(day2.totalClicks) || 0;
+      const orders = Number(day2.totalOrders) || 0;
       return {
         date: new Date(day2.date).toLocaleDateString("zh-CN", { month: "short", day: "numeric" }),
         fullDate: day2.date,

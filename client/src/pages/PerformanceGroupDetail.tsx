@@ -1000,22 +1000,22 @@ export default function PerformanceGroupDetail() {
                           <>
                             <div className="bg-muted/30 rounded-lg p-3">
                               <div className="text-xs text-muted-foreground mb-1">花费</div>
-                              <div className="text-lg font-bold">${parseFloat((group as any).totalSpend || '0').toFixed(2)}</div>
+                              <div className="text-lg font-bold">${(kpiSummary?.totalSpend || 0).toFixed(2)}</div>
                               {renderTrend(spendChange)}
                             </div>
                             <div className="bg-muted/30 rounded-lg p-3">
                               <div className="text-xs text-muted-foreground mb-1">销售额</div>
-                              <div className="text-lg font-bold">${parseFloat((group as any).totalSales || '0').toFixed(2)}</div>
+                              <div className="text-lg font-bold">${(kpiSummary?.totalRevenue || 0).toFixed(2)}</div>
                               {renderTrend(salesChange)}
                             </div>
                             <div className="bg-muted/30 rounded-lg p-3">
                               <div className="text-xs text-muted-foreground mb-1">ACoS</div>
-                              <div className="text-lg font-bold">{group.currentAcos ? `${parseFloat(group.currentAcos).toFixed(1)}%` : '-'}</div>
+                              <div className="text-lg font-bold">{kpiSummary?.acos ? `${Number(kpiSummary.acos).toFixed(1)}%` : (group.currentAcos ? `${parseFloat(group.currentAcos).toFixed(1)}%` : '-')}</div>
                               {renderTrend(acosChange, true)}
                             </div>
                             <div className="bg-muted/30 rounded-lg p-3">
                               <div className="text-xs text-muted-foreground mb-1">转化数</div>
-                              <div className="text-lg font-bold">{(group as any).totalOrders || 0}</div>
+                              <div className="text-lg font-bold">{kpiSummary?.totalConversions || 0}</div>
                               {renderTrend(ordersChange)}
                             </div>
                           </>
@@ -1827,11 +1827,11 @@ export default function PerformanceGroupDetail() {
               
               // 计算历史平均指标
               const totalDays = data.length;
-              const totalSpend = data.reduce((s, d) => s + (d.spend || 0), 0);
-              const totalSales = data.reduce((s, d) => s + (d.sales || 0), 0);
-              const totalClicks = data.reduce((s, d) => s + (d.clicks || 0), 0);
-              const totalImpressions = data.reduce((s, d) => s + (d.impressions || 0), 0);
-              const totalOrders = data.reduce((s, d) => s + (d.orders || 0), 0);
+              const totalSpend = data.reduce((s, d) => s + (Number(d.spend) || 0), 0);
+              const totalSales = data.reduce((s, d) => s + (Number(d.sales) || 0), 0);
+              const totalClicks = data.reduce((s, d) => s + (Number(d.clicks) || 0), 0);
+              const totalImpressions = data.reduce((s, d) => s + (Number(d.impressions) || 0), 0);
+              const totalOrders = data.reduce((s, d) => s + (Number(d.orders) || 0), 0);
               
               const avgDailySpend = totalSpend / totalDays;
               const avgCPC = totalClicks > 0 ? totalSpend / totalClicks : 0;
@@ -1839,25 +1839,28 @@ export default function PerformanceGroupDetail() {
               const avgCVR = totalClicks > 0 ? (totalOrders / totalClicks) * 100 : 0;
               const avgACoS = totalSales > 0 ? (totalSpend / totalSales) * 100 : 0;
               const avgROAS = totalSpend > 0 ? totalSales / totalSpend : 0;
+              const avgOrderValue = totalOrders > 0 ? totalSales / totalOrders : 0;
               
               // 近期数据权重更高（时间衰减）
               const recentDays = Math.min(14, data.length);
               const recentData = data.slice(-recentDays);
-              const recentSpend = recentData.reduce((s, d) => s + (d.spend || 0), 0);
-              const recentSales = recentData.reduce((s, d) => s + (d.sales || 0), 0);
-              const recentClicks = recentData.reduce((s, d) => s + (d.clicks || 0), 0);
-              const recentOrders = recentData.reduce((s, d) => s + (d.orders || 0), 0);
-              const recentImpressions = recentData.reduce((s, d) => s + (d.impressions || 0), 0);
+              const recentSpend = recentData.reduce((s, d) => s + (Number(d.spend) || 0), 0);
+              const recentSales = recentData.reduce((s, d) => s + (Number(d.sales) || 0), 0);
+              const recentClicks = recentData.reduce((s, d) => s + (Number(d.clicks) || 0), 0);
+              const recentOrders = recentData.reduce((s, d) => s + (Number(d.orders) || 0), 0);
+              const recentImpressions = recentData.reduce((s, d) => s + (Number(d.impressions) || 0), 0);
               
               const recentAvgDailySpend = recentSpend / recentDays;
               const recentCPC = recentClicks > 0 ? recentSpend / recentClicks : avgCPC;
               const recentCVR = recentClicks > 0 ? (recentOrders / recentClicks) * 100 : avgCVR;
               const recentCTR = recentImpressions > 0 ? (recentClicks / recentImpressions) * 100 : avgCTR;
+              const recentOrderValue = recentOrders > 0 ? recentSales / recentOrders : avgOrderValue;
               
               // 加权平均（70%近期 + 30%全期）
               const wCPC = recentCPC * 0.7 + avgCPC * 0.3;
               const wCVR = recentCVR * 0.7 + avgCVR * 0.3;
               const wCTR = recentCTR * 0.7 + avgCTR * 0.3;
+              const wOrderValue = recentOrderValue * 0.7 + avgOrderValue * 0.3;
               
               // 生成多个场景：当前花费的50%, 75%, 100%, 125%, 150%, 200%
               const scenarios = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map(multiplier => {
@@ -1870,7 +1873,8 @@ export default function PerformanceGroupDetail() {
                 
                 const estClicks = adjCPC > 0 ? monthlySpend / adjCPC : 0;
                 const estOrders = estClicks * (adjCVR / 100);
-                const estSales = estOrders > 0 ? (monthlySpend / (avgACoS / 100)) * (1 / diminishingFactor) : 0;
+                // 使用平均客单价 × 预估订单数来计算销售额（避免ACoS反推导致的数值溢出）
+                const estSales = estOrders * wOrderValue;
                 const estACoS = estSales > 0 ? (monthlySpend / estSales) * 100 : 0;
                 const estROAS = monthlySpend > 0 ? estSales / monthlySpend : 0;
                 const estImpressions = wCTR > 0 ? estClicks / (wCTR / 100) : 0;
