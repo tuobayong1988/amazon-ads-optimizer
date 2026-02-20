@@ -1154,6 +1154,7 @@ export class AmazonSyncService {
         
         const adGroupData = {
           campaignId: campaign.id,
+          accountId: this.accountId,
           adGroupId: String(apiAdGroup.adGroupId),
           adGroupName: apiAdGroup.name,
           adGroupStatus: normalizedState,
@@ -1228,6 +1229,7 @@ export class AmazonSyncService {
 
         const adGroupData = {
           campaignId: campaign.id,
+          accountId: this.accountId,
           adGroupId: String(apiAdGroup.adGroupId),
           adGroupName: apiAdGroup.name || apiAdGroup.adGroupName || 'SB Ad Group',
           adGroupStatus: normalizedState,
@@ -1307,6 +1309,7 @@ export class AmazonSyncService {
 
         const adGroupData = {
           campaignId: campaign.id,
+          accountId: this.accountId,
           adGroupId: String(apiAdGroup.adGroupId),
           adGroupName: apiAdGroup.name || apiAdGroup.adGroupName || 'SD Ad Group',
           adGroupStatus: normalizedState,
@@ -1379,6 +1382,8 @@ export class AmazonSyncService {
 
         const keywordData = {
           adGroupId: adGroup.id,
+          accountId: this.accountId,
+          campaignId: adGroup.campaignId,
           keywordId: String(apiKeyword.keywordId),
           keywordText: apiKeyword.keywordText || apiKeyword.keyword || '',
           matchType: normalizedMatchType,
@@ -2191,6 +2196,8 @@ export class AmazonSyncService {
 
         const keywordData: any = {
           adGroupId: adGroup.id,
+          accountId: this.accountId,
+          campaignId: adGroup.campaignId,
           keywordId: String(apiKeyword.keywordId),
           keywordText: apiKeyword.keywordText,
           matchType: apiKeyword.matchType as 'broad' | 'phrase' | 'exact',
@@ -4212,6 +4219,8 @@ export class AmazonSyncService {
 
           const keywordData = {
             adGroupId: adGroup.id,
+            accountId: this.accountId,
+            campaignId: adGroup.campaignId,
             keywordId: String(row.keywordId),
             keywordText: row.keyword || '',
             matchType: (row.matchType || 'broad').toLowerCase() as 'broad' | 'phrase' | 'exact',
@@ -5709,6 +5718,7 @@ AmazonSyncService.prototype.syncSpAdGroupsWithTracking = async function(
       
       const adGroupData = {
         campaignId: campaign.id,
+        accountId: this.accountId,
         adGroupId: String(apiAdGroup.adGroupId),
         adGroupName: apiAdGroup.name,
         defaultBid: String(apiAdGroup.defaultBid || 0),
@@ -5870,6 +5880,8 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
       
       const keywordData = {
         adGroupId: adGroup.id,
+        accountId: this.accountId,
+        campaignId: adGroup.campaignId,
         keywordId: String(apiKeyword.keywordId),
         keywordText: apiKeyword.keywordText,
         matchType: normalizedMatchType,
