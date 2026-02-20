@@ -448,46 +448,35 @@ export const autoOperationService = {
   },
 
   /**
-   * 执行出价优化
+   * v167: 重写出价优化 - 使用optimizationTargetEngine而不是automationExecutionEngine
+   * 之前的实现有严重问题：
+   * 1. 传递dailyBudget作为出价值（currentValue和newValue相同，都是dailyBudget）
+   * 2. 没有使用算法引擎计算最优出价
+   * 3. 结果是无意义的优化（新旧值相同）或错误的出价
    */
   async executeBidOptimization(accountId: number): Promise<StepResult> {
     const startTime = Date.now();
     
     try {
-      const db = await getDb();
-      if (!db) {
-        throw new Error('Database connection failed');
-      }
-      
-      const campaignList = await db
-        .select()
-        .from(campaigns)
-        .where(eq(campaigns.accountId, accountId));
+      // v167: 正确的做法是查找该账户下的所有优化目标，然后通过optimizationTargetEngine执行
+      const { getEnabledOptimizationTargets, executeOptimizationTarget } = await import('./optimizationTargetEngine');
+      const allTargets = await getEnabledOptimizationTargets();
+      const accountTargets = allTargets.filter(t => t.accountId === accountId);
       
       let totalOptimized = 0;
       let totalAdjustments = 0;
       
-      for (const campaign of campaignList) {
+      for (const target of accountTargets) {
         try {
-          // 调用自动化执行引擎进行出价优化
-          const result = await automationExecutionEngineModule.executeOptimization(
-            accountId,
-            'bid_adjustment',
-            'campaign',
-            campaign.id,
-            campaign.campaignName || `Campaign ${campaign.id}`,
-            Number(campaign.dailyBudget) || 0,
-            Number(campaign.dailyBudget) || 0,
-            0.8,
-            '自动运营定时优化'
-          );
-          
-          if (result.status === 'success') {
-            totalOptimized++;
-            totalAdjustments++;
-          }
-        } catch (e) {
-          console.error(`Bid optimization failed for campaign ${campaign.id}:`, e);
+          const result = await executeOptimizationTarget(target.id, {
+            dryRun: false,
+            specificModules: ['bid', 'keyword', 'coordination'],
+          });
+          totalOptimized++;
+          totalAdjustments += result.bidOptimization.adjustmentsCount;
+          console.log(`[AutoOperation] v167: 出价优化目标 ${target.name}: 调整=${result.bidOptimization.adjustmentsCount}`);
+        } catch (e: any) {
+          console.error(`[AutoOperation] v167: 出价优化目标 ${target.name} 失败:`, e.message);
         }
       }
       
@@ -498,8 +487,8 @@ export const autoOperationService = {
         status: 'success',
         duration,
         details: {
-          campaignsOptimized: totalOptimized,
-          totalCampaigns: campaignList.length,
+          targetsOptimized: totalOptimized,
+          totalTargets: accountTargets.length,
           adjustmentsApplied: totalAdjustments,
         },
       };

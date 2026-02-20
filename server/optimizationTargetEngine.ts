@@ -49,6 +49,7 @@ async function getAccountMarketplace(accountId: number): Promise<string> {
 export interface OptimizationExecutionResult {
   targetId: number;
   targetName: string;
+  accountId: number; // v167: 添加accountId确保日志记录正确
   executionTime: Date;
   status: 'success' | 'partial' | 'failed';
   
@@ -270,6 +271,7 @@ export async function executeOptimizationTarget(
   const result: OptimizationExecutionResult = {
     targetId: config.id,
     targetName: config.name,
+    accountId: config.accountId, // v167: 传递accountId到日志记录
     executionTime: new Date(),
     status: 'success',
     bidOptimization: { executed: false, adjustmentsCount: 0, details: [] },
@@ -2538,7 +2540,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
           await dbInstance.insert(optimizationLogs).values({
             performanceGroupId: result.targetId,
             performanceGroupName: result.targetName,
-            accountId: detail.accountId || 0,
+            accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
             logCategory: 'bid_adjustment',
             actionType: detail.newBid > detail.currentBid ? 'bid_increase' : 'bid_decrease',
             campaignId: detail.campaignId,
@@ -2567,7 +2569,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
         await dbInstance.insert(optimizationLogs).values({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
-          accountId: detail.accountId || 0,
+          accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
           logCategory: 'placement_adjustment',
           actionType: 'placement_adjust',
           campaignId: detail.campaignId,
@@ -2593,7 +2595,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
         await dbInstance.insert(optimizationLogs).values({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
-          accountId: detail.accountId || 0,
+          accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
           logCategory: 'optimization_settings',
           actionType: actionType,
           campaignId: detail.campaignId,
@@ -2618,7 +2620,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
         await dbInstance.insert(optimizationLogs).values({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
-          accountId: detail.accountId || 0,
+          accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
           logCategory: 'bid_adjustment',
           actionType: 'dayparting_bid',
           campaignId: detail.campaignId,
@@ -2643,8 +2645,8 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
         await dbInstance.insert(optimizationLogs).values({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
-          accountId: detail.accountId || 0,
-          logCategory: 'optimization_settings',
+          accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
+          logCategory: 'bid_adjustment',
           actionType: 'budget_adjustment',
           campaignId: detail.campaignId,
           campaignName: detail.campaignName,
@@ -2668,9 +2670,9 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
         await dbInstance.insert(optimizationLogs).values({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
-          accountId: detail.accountId || 0,
+          accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
           logCategory: 'bid_adjustment',
-          actionType: detail.action === 'pause' ? 'target_pause' : 'target_enable',
+          actionType: detail.action === 'add_negative' ? 'negative_keyword_add' : detail.newStatus === 'paused' ? 'target_pause' : 'target_enable',
           campaignId: detail.campaignId,
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
@@ -2694,13 +2696,13 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
         await dbInstance.insert(optimizationLogs).values({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
-          accountId: detail.accountId || 0,
-          logCategory: 'optimization_settings',
-          actionType: detail.action === 'pause' ? 'campaign_pause' : 'campaign_enable',
+          accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
+          logCategory: 'bid_adjustment',
+          actionType: detail.newStatus === 'paused' ? 'bid_decrease' : 'bid_increase',
           campaignId: detail.campaignId,
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
-          previousValue: detail.currentStatus || '',
+          previousValue: detail.previousStatus || '',
           newValue: detail.newStatus || '',
           changeReason: detail.reason || '',
           status: detail.apiSyncStatus === 'synced' ? 'success' : detail.apiSyncStatus === 'failed' ? 'failed' : 'success',
@@ -2720,7 +2722,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
         await dbInstance.insert(optimizationLogs).values({
           performanceGroupId: result.targetId,
           performanceGroupName: result.targetName,
-          accountId: detail.accountId || 0,
+          accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
           logCategory: 'optimization_settings',
           actionType: detail.action === 'pause' ? 'adgroup_pause' : 'adgroup_enable',
           campaignId: detail.campaignId,
@@ -2837,6 +2839,7 @@ export async function executeAllEnabledTargets(
       results.push({
         targetId: target.id,
         targetName: target.name,
+        accountId: target.accountId, // v167
         executionTime: new Date(),
         status: 'failed',
         bidOptimization: { executed: false, adjustmentsCount: 0, details: [] },

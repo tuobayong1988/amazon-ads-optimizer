@@ -1058,6 +1058,15 @@ export async function startOptimizationScheduler(): Promise<void> {
   console.log('  | 否定搜索词     | 48小时  | 24小时  | 24小时  |');
   console.log('  | 搜索词迁移     | 72小时  | 48小时  | 24小时  |');
   console.log('  | 预算分配       | 4小时   | 4小时   | 4小时   |');
+  
+  // v167: 启动自动纠错服务
+  try {
+    const { startAutoCorrector } = await import('./optimizationAutoCorrector');
+    startAutoCorrector();
+    console.log('[OptimizationScheduler] v167: 自动纠错服务已启动');
+  } catch (correctorErr: any) {
+    console.error('[OptimizationScheduler] v167: 自动纠错服务启动失败:', correctorErr.message);
+  }
 }
 
 /**
@@ -1072,6 +1081,12 @@ export function stopOptimizationScheduler(): void {
     }
   });
   console.log('[OptimizationScheduler] 分层优化调度器已停止');
+  
+  // v167: 停止自动纠错服务
+  try {
+    const { stopAutoCorrector } = require('./optimizationAutoCorrector');
+    stopAutoCorrector();
+  } catch (e) { /* ignore */ }
 }
 
 /**

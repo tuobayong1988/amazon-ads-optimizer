@@ -11237,6 +11237,14 @@ const algorithmEvolutionRouter = router({
     .query(async ({ input }) => {
       return algorithmEvolutionEngine.getEffectiveBidConfig(input.targetId);
     }),
+
+  // v167: 手动触发自动纠错
+  runAutoCorrection: protectedProcedure
+    .input(z.object({ accountId: z.number().optional() }))
+    .mutation(async ({ input }) => {
+      const { runAutoCorrection } = await import('./optimizationAutoCorrector');
+      return runAutoCorrection(input.accountId);
+    }),
 });
 
 // ==================== Holiday Configuration Router ====================

@@ -1,0 +1,57 @@
+graph TD
+    subgraph Legend
+        direction LR
+        A[Start] --> B{Process};
+        B --> C(Database);
+        B --> D{{API Call}};
+        B --> E((End));
+        F[Old Buggy Path]:::buggy;
+        G[New Fixed Path]:::fixed;
+        H[Service/Scheduler];
+        classDef buggy fill:#f9f,stroke:#333,stroke-width:2px;
+        classDef fixed fill:#9cf,stroke:#333,stroke-width:2px;
+    end
+
+    subgraph "定时任务触发 (dataSyncScheduler)"
+        scheduler["dataSyncScheduler <br> (每4小时)"]
+    end
+
+    subgraph "旧版本错误路径 (pre-v165)"
+        direction LR
+        scheduler --> aos[autoOperationService];
+        aos --> aee[automationExecutionEngine];
+        aee -- "错误逻辑: <br> currentValue = dailyBudget <br> newValue = dailyBudget" --> aee_db(optimization_logs);
+        aee_db -- "api_sync_status = NULL <br> newBid = $5.00 (错误值)" --> aee_db_out((NULL记录));
+        class aos,aee,aee_db,aee_db_out buggy;
+    end
+
+    subgraph "新版本正确路径 (v167+)"
+        direction LR
+        scheduler --> ote_trigger["调用 executeOptimizationTarget"];
+        ote_trigger --> ote[optimizationTargetEngine];
+        ote -- "1. 计算最优出价" --> ote_algo[算法模块];
+        ote_algo -- "2. 生成出价调整详情 (detail)" --> ote_log;
+        ote_log{recordExecutionLog}; 
+        ote_log -- "3. 写入 optimization_logs <br> (包含 apiSyncStatus, accountId)" --> ote_db(optimization_logs);
+        ote_log -- "4. 双写 optimization_events" --> ote_events_db(optimization_events);
+        ote -- "5. 调用 Amazon API 同步" --> pov[postOptimizationVerifier];
+        pov -- "6. 异步验证API同步状态" --> amazon_api{{Amazon API}};
+        amazon_api --> pov_update[更新 optimization_logs 状态];
+        pov_update --> ote_db;
+        class ote_trigger,ote,ote_algo,ote_log,ote_db,ote_events_db,pov,pov_update,amazon_api fixed;
+    end
+
+    subgraph "v167 新增: 自动纠错服务"
+        direction LR
+        scheduler_corrector["dataSyncScheduler <br> (每4小时)"] --> corrector[optimizationAutoCorrector];
+        corrector -- "1. 修复历史NULL记录" --> corrector_fix_null(optimization_logs);
+        corrector -- "2. 重试API同步失败记录" --> corrector_retry(optimization_logs);
+        corrector_retry --> amazon_api_2{{Amazon API}};
+        amazon_api_2 --> corrector_retry_update[更新 optimization_logs 状态];
+        corrector_retry_update --> corrector_retry;
+        corrector -- "3. 检查并修复数据不一致" --> corrector_check_db(DB: keywords, campaigns);
+        corrector_check_db --> corrector_check_api{{Amazon API}};
+        corrector_check_api --> corrector_update_db[更新本地DB];
+        corrector_update_db --> corrector_check_db;
+        class scheduler_corrector,corrector,corrector_fix_null,corrector_retry,amazon_api_2,corrector_retry_update,corrector_check_db,corrector_check_api,corrector_update_db fixed;
+    end
