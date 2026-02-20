@@ -32,6 +32,7 @@ import * as timeDecayService from "./timeDecayWeightedDataService";
 import * as gradualEngine from "./gradualOptimizationEngine";
 import * as selfEvolution from "./selfEvolutionEngine";
 import * as multiDimOptimizer from "./multiDimensionOptimizer";
+import * as postOptVerifier from "./postOptimizationVerifier";
 
 // 缓存账号站点信息，避免重复查询
 const marketplaceCache = new Map<number, string>();
@@ -762,6 +763,18 @@ async function executeBidOptimization(
       const currentBid = parseFloat(keyword.bid || '0');
       if (currentBid <= 0) continue;
       
+      // v166: 关键词级别冷却期检查 - 避免重复优化
+      // 如果该keyword在过去24小时内已被优化，且出价同步状态仍为pending_confirmation，则跳过
+      const kwLastOptimized = (keyword as any).lastOptimizedAt ? new Date((keyword as any).lastOptimizedAt) : null;
+      const kwBidSyncStatus = (keyword as any).bidSyncStatus || 'synced';
+      if (kwLastOptimized && kwBidSyncStatus === 'pending_confirmation') {
+        const hoursSinceOptimized = (Date.now() - kwLastOptimized.getTime()) / (1000 * 60 * 60);
+        if (hoursSinceOptimized < 24) {
+          console.log(`[BidOptimization] v166: 跳过关键词 ${keyword.id} "${keyword.keywordText}" - 冷却期内(${hoursSinceOptimized.toFixed(1)}h), 出价待确认 pending=$${(keyword as any).pendingBid}`);
+          continue;
+        }
+      }
+      
       keywordTargets.push({
         id: keyword.id,
         type: 'keyword',
@@ -982,8 +995,14 @@ async function executeBidOptimization(
                     .set({ bid: detail.newBid.toFixed(2) })
                     .where(eq(productTargetsTable.id, detail.keywordId));
                 } else {
+                  // v166: 更新bid的同时，标记pending状态和优化时间
                   await tx.update(keywordsTable)
-                    .set({ bid: detail.newBid.toFixed(2) })
+                    .set({
+                      bid: detail.newBid.toFixed(2),
+                      lastOptimizedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+                      pendingBid: detail.newBid.toFixed(2),
+                      bidSyncStatus: 'pending_confirmation',
+                    } as any)
                     .where(eq(keywordsTable.id, detail.keywordId));
                 }
               }
@@ -998,6 +1017,26 @@ async function executeBidOptimization(
       
       for (const detail of skippedDetails) {
         console.warn(`[BidOptimization] v148: API同步失败，跳过DB更新: targetId=${detail.keywordId}`);
+      }
+      
+      // v166: 注册优化后验证任务 - 延迟45秒后从 Amazon 回查确认
+      if (syncedDetails.length > 0) {
+        try {
+          postOptVerifier.scheduleBidVerification(
+            config.accountId,
+            syncedDetails.map(d => ({
+              localKeywordId: d.keywordId,
+              amazonKeywordId: d.amazonKeywordId || String(d.keywordId),
+              expectedBid: d.newBid,
+              campaignId: d.campaignId,
+              adGroupId: d.adGroupId,
+              isProductTarget: d.isProductTarget || false,
+            }))
+          );
+          console.log(`[BidOptimization] v166: 已注册${syncedDetails.length}个出价验证任务`);
+        } catch (verifyErr: any) {
+          console.warn(`[BidOptimization] v166: 注册验证任务失败(不影响主流程): ${verifyErr.message}`);
+        }
       }
     } catch (apiError: any) {
       apiSyncStatus = 'failed';
@@ -1112,6 +1151,26 @@ async function executePlacementOptimization(
         for (const d of details.filter(d => d.campaignId === campaign.id)) {
           d.apiSyncStatus = placementSyncSuccess ? 'synced' : (placementSyncError ? 'failed' : 'pending');
           d.apiSyncDetail = placementSyncError ? JSON.stringify({ error: placementSyncError }) : null;
+        }
+        
+        // v166: 注册位置倾斜验证任务
+        if (placementSyncSuccess) {
+          try {
+            const amazonCampaignId = campaign.campaignId || campaign.id.toString();
+            const topSuggestion = suggestions?.find((s: any) => s.placement === 'top_of_search');
+            const productSuggestion = suggestions?.find((s: any) => s.placement === 'product_page');
+            postOptVerifier.schedulePlacementVerification(
+              config.accountId,
+              [{
+                localCampaignId: campaign.id,
+                amazonCampaignId: amazonCampaignId,
+                expectedTopOfSearch: topSuggestion?.suggestedMultiplier,
+                expectedProductPage: productSuggestion?.suggestedMultiplier,
+              }]
+            );
+          } catch (verifyErr: any) {
+            console.warn(`[PlacementOptimization] v166: 注册验证任务失败(不影响主流程): ${verifyErr.message}`);
+          }
         }
       }
     } catch (error: any) {
@@ -1478,6 +1537,24 @@ async function executeSearchTermAnalysis(
                   }
                 }
               }
+              
+              // v166: 注册否词验证任务
+              try {
+                const successNegDetails = negativeDetails.filter(d => d.apiSyncStatus !== 'failed');
+                if (successNegDetails.length > 0) {
+                  postOptVerifier.scheduleNegativeKeywordVerification(
+                    config.accountId,
+                    successNegDetails.map(d => ({
+                      localId: d._pendingDbInsert?.id || 0,
+                      keywordText: d.searchTerm,
+                      matchType: d.matchType === 'negative_exact' ? 'negativeExact' : 'negativePhrase',
+                      campaignId: campaign.id,
+                    }))
+                  );
+                }
+              } catch (verifyErr: any) {
+                console.warn(`[SearchTermAnalysis] v166: 注册验证任务失败(不影响主流程): ${verifyErr.message}`);
+              }
             } else {
               console.warn(`[SearchTermAnalysis] v165: API同步失败，跳过本地DB写入 (Campaign ${campaign.campaignName})`);
             }
@@ -1565,11 +1642,29 @@ async function executeBudgetAllocation(
           
           if (budgetSyncResult) {
             // API成功后才更新本地DB
+            // v166: 同时标记pending状态，等待下次同步确认
             await db.updateCampaign(suggestion.campaignId, { 
-              dailyBudget: finalBudget.toFixed(2) // v163: 渐进式预算
-            });
+              dailyBudget: finalBudget.toFixed(2),
+              lastOptimizedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+              pendingBudget: finalBudget.toFixed(2),
+              budgetSyncStatus: 'pending_confirmation',
+            } as any);
             adjustmentsCount++;
             adjustment.apiSyncStatus = 'synced';
+            
+            // v166: 注册预算验证任务
+            try {
+              postOptVerifier.scheduleBudgetVerification(
+                config.accountId,
+                [{
+                  localCampaignId: suggestion.campaignId,
+                  amazonCampaignId: amazonCampaignId,
+                  expectedBudget: finalBudget,
+                }]
+              );
+            } catch (verifyErr: any) {
+              console.warn(`[BudgetAllocation] v166: 注册验证任务失败(不影响主流程): ${verifyErr.message}`);
+            }
           } else {
             // API返回false，不更新本地DB
             adjustment.apiSyncStatus = 'failed';
@@ -1812,6 +1907,13 @@ async function executeKeywordStatusChanges(
                 await db.updateKeyword(keyword.id, { keywordStatus: 'paused' });
                 pausedCount++;
                 action.apiSyncStatus = 'synced';
+                // v166: 注册状态变更验证任务
+                try {
+                  postOptVerifier.scheduleKeywordStatusVerification(
+                    config.accountId,
+                    [{ localKeywordId: keyword.id, amazonKeywordId: keyword.keywordId || String(keyword.id), expectedState: 'paused', adGroupId: keyword.adGroupId }]
+                  );
+                } catch (ve: any) { console.warn(`[KeywordStatusChange] v166: 验证任务注册失败: ${ve.message}`); }
               } else {
                 // API失败，不更新本地DB
                 action.apiSyncStatus = 'failed';
@@ -1860,6 +1962,13 @@ async function executeKeywordStatusChanges(
                 await db.updateKeyword(keyword.id, { keywordStatus: 'enabled' });
                 enabledCount++;
                 action.apiSyncStatus = 'synced';
+                // v166: 注册状态变更验证任务
+                try {
+                  postOptVerifier.scheduleKeywordStatusVerification(
+                    config.accountId,
+                    [{ localKeywordId: keyword.id, amazonKeywordId: keyword.keywordId || String(keyword.id), expectedState: 'enabled', adGroupId: keyword.adGroupId }]
+                  );
+                } catch (ve: any) { console.warn(`[KeywordStatusChange] v166: 验证任务注册失败: ${ve.message}`); }
               } else {
                 // API失败，不更新本地DB
                 action.apiSyncStatus = 'failed';

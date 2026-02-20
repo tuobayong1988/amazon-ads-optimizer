@@ -1407,6 +1407,14 @@ export const campaigns = mysqlTable("campaigns", {
 	recommendationReason: text("recommendation_reason"),
 	recommendationUpdatedAt: timestamp("recommendation_updated_at", { mode: 'string' }),
 	amazonCreatedDate: varchar("amazon_created_date", { length: 10 }),
+	// v166: 优化状态追踪字段 - 解决时间差问题
+	lastOptimizedAt: datetime("last_optimized_at", { mode: 'string' }),
+	pendingBudget: decimal("pending_budget", { precision: 10, scale: 2 }),
+	budgetSyncStatus: mysqlEnum("budget_sync_status", ['synced','pending_confirmation','conflict']).default('synced'),
+	pendingPlacementTop: decimal("pending_placement_top", { precision: 10, scale: 2 }),
+	pendingPlacementProduct: decimal("pending_placement_product", { precision: 10, scale: 2 }),
+	placementSyncStatus: mysqlEnum("placement_sync_status", ['synced','pending_confirmation','conflict']).default('synced'),
+	lastSyncedAt: datetime("last_synced_at", { mode: 'string' }),
 });
 
 export const collaborationNotificationRules = mysqlTable("collaboration_notification_rules", {
@@ -1902,6 +1910,10 @@ export const keywords = mysqlTable("keywords", {
 	unitsOrdered: int("units_ordered").default(0),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+	// v166: 优化状态追踪字段 - 解决时间差问题
+	lastOptimizedAt: datetime("last_optimized_at", { mode: 'string' }),
+	pendingBid: decimal("pending_bid", { precision: 10, scale: 2 }),
+	bidSyncStatus: mysqlEnum("bid_sync_status", ['synced','pending_confirmation','conflict']).default('synced'),
 });
 
 export const localUsers = mysqlTable("local_users", {
