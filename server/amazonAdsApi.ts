@@ -3252,7 +3252,10 @@ export class AmazonAdsApiClient {
       }
       
       const response = await this.axiosInstance.post('/sp/campaignNegativeKeywords/list', body, {
-        headers: { 'Content-Type': 'application/vnd.spCampaignNegativeKeyword.v3+json' },
+        headers: { 
+          'Content-Type': 'application/vnd.spCampaignNegativeKeyword.v3+json',
+          'Accept': 'application/vnd.spCampaignNegativeKeyword.v3+json'
+        },
       });
       
       const negatives = response.data.campaignNegativeKeywords || [];
@@ -3291,7 +3294,8 @@ export class AmazonAdsApiClient {
       campaignId: String(n.campaignId),
       keywordText: n.keywordText,
       matchType: formatMatchType(n.matchType || 'NEGATIVE_EXACT'),
-      // v174: 移除state字段 - Amazon SP API v3 campaign级否定关键词不接受state字段，默认为ENABLED
+      // v175: 恢复state字段 - Amazon API要求state不能为null，必须显式设置为ENABLED
+      state: 'ENABLED',
     }));
     console.log(`[SP API] createSpCampaignNegativeKeywords: ${formattedNegatives.length}个否定词, 请求体:`, JSON.stringify({ campaignNegativeKeywords: formattedNegatives }).substring(0, 500));
     try {

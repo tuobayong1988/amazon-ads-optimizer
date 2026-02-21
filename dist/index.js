@@ -54990,7 +54990,10 @@ var init_amazonAdsApi = __esm({
             body.nextToken = nextToken;
           }
           const response = await this.axiosInstance.post("/sp/campaignNegativeKeywords/list", body, {
-            headers: { "Content-Type": "application/vnd.spCampaignNegativeKeyword.v3+json" }
+            headers: {
+              "Content-Type": "application/vnd.spCampaignNegativeKeyword.v3+json",
+              "Accept": "application/vnd.spCampaignNegativeKeyword.v3+json"
+            }
           });
           const negatives = response.data.campaignNegativeKeywords || [];
           allNegatives.push(...negatives);
@@ -55014,8 +55017,9 @@ var init_amazonAdsApi = __esm({
         const formattedNegatives = negatives.map((n7) => ({
           campaignId: String(n7.campaignId),
           keywordText: n7.keywordText,
-          matchType: formatMatchType(n7.matchType || "NEGATIVE_EXACT")
-          // v174: 移除state字段 - Amazon SP API v3 campaign级否定关键词不接受state字段，默认为ENABLED
+          matchType: formatMatchType(n7.matchType || "NEGATIVE_EXACT"),
+          // v175: 恢复state字段 - Amazon API要求state不能为null，必须显式设置为ENABLED
+          state: "ENABLED"
         }));
         console.log(`[SP API] createSpCampaignNegativeKeywords: ${formattedNegatives.length}\u4E2A\u5426\u5B9A\u8BCD, \u8BF7\u6C42\u4F53:`, JSON.stringify({ campaignNegativeKeywords: formattedNegatives }).substring(0, 500));
         try {
