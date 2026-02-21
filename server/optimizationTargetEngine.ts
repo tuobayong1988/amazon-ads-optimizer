@@ -691,6 +691,8 @@ async function executeBidOptimization(
   
   const bidConfig: bidOptimizer.PerformanceGroupConfig = {
     optimizationGoal: config.optimizationGoal,
+    // v170: 传入策略模板名称，用于策略感知的参数差异化
+    strategyTemplate: config.strategyTemplateId,
     targetAcos: config.targetAcos,
     targetRoas: config.targetRoas,
     dailyBudget: config.dailyBudget,
@@ -1382,6 +1384,28 @@ async function executeSearchTermAnalysis(
             }
           }
           
+          // v170: 否定关键词去重检查 - 检查是否已存在于negative_keywords表中
+          let negativeAlreadyExists = false;
+          if (!dryRun) {
+            const dbInstance = await db.getDb();
+            if (dbInstance) {
+              const { negativeKeywords: negKwTable } = await import('../drizzle/schema');
+              const { eq: eqOp, and: andOp } = await import('drizzle-orm');
+              // v170: campaignId在数据库中是varchar类型，需要转换为string进行比较
+              const existingNeg = await dbInstance.select({ id: negKwTable.id, amazonNegativeKeywordId: negKwTable.amazonNegativeKeywordId })
+                .from(negKwTable)
+                .where(andOp(
+                  eqOp(negKwTable.campaignId, campaign.id as any),
+                  eqOp(negKwTable.negativeText, term.searchTerm)
+                ))
+                .limit(1);
+              if (existingNeg.length > 0) {
+                negativeAlreadyExists = true;
+                console.log(`[SearchTermAnalysis] ⏭️ v170: 否定关键词已存在，跳过添加: "${term.searchTerm}" campaignId=${campaign.id}, existingId=${existingNeg[0].id}, amazonId=${existingNeg[0].amazonNegativeKeywordId}`);
+              }
+            }
+          }
+
           const negativeKeyword: any = {
             accountId: config.accountId,
             campaignId: campaign.id,
@@ -1390,12 +1414,12 @@ async function executeSearchTermAnalysis(
             matchType: term.suggestedAction === 'negative_exact' ? 'negative_exact' : 'negative_phrase',
             action: 'add_negative',
             reason: `负面搜索词: ${term.reason}`,
-            apiSyncStatus: dryRun ? 'pending' : 'pending',
+            apiSyncStatus: negativeAlreadyExists ? 'already_exists' : (dryRun ? 'pending' : 'pending'),
           };
           
           details.push(negativeKeyword);
           
-          if (!dryRun) {
+          if (!dryRun && !negativeAlreadyExists) {
             const matchType = term.suggestedAction === 'negative_exact' ? 'exact' : 'phrase';
             // v165: 否词操作改为先记录到details，等待后续统一调用Amazon API
             // API成功后再写入本地DB（见下方v134否定词同步代码块）
@@ -1469,6 +1493,9 @@ async function executeSearchTermAnalysis(
                     }
                   }
                   const existingMatchTypes = existingKeywords.map(k => k.matchType || 'unknown').join(',');
+                  // v170: 修复关键词去重后apiSyncStatus未更新的bug
+                  newKeyword.apiSyncStatus = 'already_exists';
+                  newKeyword.apiSyncDetail = JSON.stringify({ existingId: existingKeywords[0].id, existingKeywordId: existingKeywords[0].keywordId, existingMatchTypes });
                   console.log(`[SearchTermAnalysis] ⏭️ v168: 关键词已存在，跳过创建: "${term.searchTerm}" (请求=${matchType}, 已存在=${existingMatchTypes}) id=${existingKeywords[0].id}, keywordId=${existingKeywords[0].keywordId}`);
                 } else {
                   // 插入本地数据库 - v138: 修复缺少accountId和campaignId的问题
@@ -1516,7 +1543,10 @@ async function executeSearchTermAnalysis(
                 }
               }
             }
-            newKeywordsAdded++;
+            // v170: 只有真正创建了新关键词才计数（排除already_exists的情况）
+            if (newKeyword.apiSyncStatus !== 'already_exists') {
+              newKeywordsAdded++;
+            }
           }
         }
       }
@@ -1731,7 +1761,8 @@ async function executeKeywordStatusChanges(
   
   // v122g: 策略感知的动态暂停阈值
   // 不同策略对“高花费无转化”的容忍度不同
-  const goal = config.optimizationGoal || 'balanced';
+  // v170: 优先使用策略模板名称来决定暂停阈值
+  const goal = config.strategyTemplateId || config.optimizationGoal || 'balanced';
   let pauseSpendThreshold = 50;  // 默认花费阈值
   let pauseClickThreshold = 20;  // 默认点击阈值
   let maxAcosThreshold = (config.targetAcos || 30) * 2.5; // 默认ACoS上限为目标的2.5倍
@@ -2042,7 +2073,8 @@ async function executeCampaignStatusChanges(
   let pausedCount = 0;
   let enabledCount = 0;
   
-  const goal = config.optimizationGoal || 'balanced';
+  // v170: 优先使用策略模板名称来决定广告活动暂停阈值
+  const goal = config.strategyTemplateId || config.optimizationGoal || 'balanced';
   const targetAcos = config.targetAcos || 30;
   
   // 广告活动暂停阈值（比关键词更保守，因为影响范围更大）

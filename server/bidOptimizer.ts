@@ -56,6 +56,8 @@ export interface MarketCurvePoint {
 
 export interface PerformanceGroupConfig {
   optimizationGoal: string;
+  // v170: 策略模板名称，用于策略感知的参数差异化（如aggressive-growth, balanced等）
+  strategyTemplate?: string;
   targetAcos?: number;
   targetRoas?: number;
   dailySpendLimit?: number;
@@ -357,7 +359,8 @@ export function calculateBayesianSmoothedCvr(
  * v122g: 升级为策略感知版本，不同策略有不同的数据充足性阈值
  */
 export function isDataSufficient(target: OptimizationTarget, config?: PerformanceGroupConfig): boolean {
-  const strategyKey = config?.optimizationGoal || 'balanced';
+  // v170: 优先使用策略模板名称来决定数据充足性阈值
+  const strategyKey = config?.strategyTemplate || config?.optimizationGoal || 'balanced';
   const thresholds = STRATEGY_DATA_THRESHOLDS[strategyKey] || DATA_SUFFICIENCY_THRESHOLDS;
   return target.clicks >= thresholds.minClicks && 
          target.orders >= thresholds.minOrders;
@@ -418,7 +421,8 @@ function calculateSparseDataBidAdjustment(
     const theoreticalBid = smoothedCvr * targetCpa;
 
     let MAX_SPARSE_CHANGE_PERCENT = 0.20;
-    const goal = config.optimizationGoal || 'balanced';
+    // v170: 优先使用策略模板名称来决定调整幅度
+    const goal = config.strategyTemplate || config.optimizationGoal || 'balanced';
     if (['aggressive-growth', 'seasonal-boost', 'market-expansion', 'inventory-clearance'].includes(goal)) {
       MAX_SPARSE_CHANGE_PERCENT = 0.30;
     } else if (['profit-focused', 'brand-defense', 'decline-management'].includes(goal)) {

@@ -3277,10 +3277,20 @@ export class AmazonAdsApiClient {
     }>
   ): Promise<Array<{ keywordId: number; code: string; details: string }>> {
     // v126: Amazon SP API v3 要求campaignId为字符串类型，枚举值为大写
+    // v170: 修复matchType格式 - negativePhrase/negativeExact需要转换为NEGATIVE_PHRASE/NEGATIVE_EXACT
+    const formatMatchType = (mt: string): string => {
+      const upper = mt.toUpperCase();
+      // 如果已经是正确格式（包含下划线），直接返回
+      if (upper.includes('_')) return upper;
+      // negativePhrase -> NEGATIVE_PHRASE, negativeExact -> NEGATIVE_EXACT
+      if (upper === 'NEGATIVEPHRASE') return 'NEGATIVE_PHRASE';
+      if (upper === 'NEGATIVEEXACT') return 'NEGATIVE_EXACT';
+      return upper;
+    };
     const formattedNegatives = negatives.map(n => ({
       campaignId: String(n.campaignId),
       keywordText: n.keywordText,
-      matchType: (n.matchType || 'NEGATIVE_EXACT').toUpperCase(),
+      matchType: formatMatchType(n.matchType || 'NEGATIVE_EXACT'),
       state: (n.state || 'enabled').toUpperCase(),
     }));
     console.log(`[SP API] createSpCampaignNegativeKeywords: ${formattedNegatives.length}个否定词`);
@@ -3350,11 +3360,19 @@ export class AmazonAdsApiClient {
     }>
   ): Promise<Array<{ keywordId: number; code: string; details: string }>> {
     // v126: Amazon SP API v3 要求ID为字符串类型，枚举值为大写
+    // v170: 修复matchType格式 - negativePhrase/negativeExact需要转换为NEGATIVE_PHRASE/NEGATIVE_EXACT
+    const formatNegMatchType = (mt: string): string => {
+      const upper = mt.toUpperCase();
+      if (upper.includes('_')) return upper;
+      if (upper === 'NEGATIVEPHRASE') return 'NEGATIVE_PHRASE';
+      if (upper === 'NEGATIVEEXACT') return 'NEGATIVE_EXACT';
+      return upper;
+    };
     const formattedNegatives = negatives.map(n => ({
       adGroupId: String(n.adGroupId),
       campaignId: String(n.campaignId),
       keywordText: n.keywordText,
-      matchType: (n.matchType || 'NEGATIVE_EXACT').toUpperCase(),
+      matchType: formatNegMatchType(n.matchType || 'NEGATIVE_EXACT'),
       state: (n.state || 'enabled').toUpperCase(),
     }));
     console.log(`[SP API] createSpNegativeKeywords: ${formattedNegatives.length}个广告组级否定词`);
