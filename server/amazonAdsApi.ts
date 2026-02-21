@@ -577,7 +577,7 @@ export class AmazonAdsApiClient {
     do {
       const body: any = { maxResults: 100 };
       if (campaignId) {
-        body.campaignIdFilter = { include: [campaignId] };
+        body.campaignIdFilter = { include: [String(campaignId)] };
       }
       if (nextToken) {
         body.nextToken = nextToken;
@@ -953,7 +953,7 @@ export class AmazonAdsApiClient {
     do {
       const body: any = { maxResults: 100 };
       if (adGroupId) {
-        body.adGroupIdFilter = { include: [adGroupId] };
+        body.adGroupIdFilter = { include: [String(adGroupId)] };
       }
       if (nextToken) {
         body.nextToken = nextToken;
@@ -2977,7 +2977,7 @@ export class AmazonAdsApiClient {
     do {
       const body: any = { maxResults: 100 };
       if (campaignId) {
-        body.campaignIdFilter = { include: [campaignId] };
+        body.campaignIdFilter = { include: [String(campaignId)] };
       }
       if (nextToken) {
         body.nextToken = nextToken;
@@ -3014,7 +3014,7 @@ export class AmazonAdsApiClient {
     do {
       const body: any = { maxResults: 100 };
       if (adGroupId) {
-        body.adGroupIdFilter = { include: [adGroupId] };
+        body.adGroupIdFilter = { include: [String(adGroupId)] };
       }
       if (nextToken) {
         body.nextToken = nextToken;
@@ -3051,7 +3051,7 @@ export class AmazonAdsApiClient {
     do {
       const body: any = { maxResults: 100 };
       if (adGroupId) {
-        body.adGroupIdFilter = { include: [adGroupId] };
+        body.adGroupIdFilter = { include: [String(adGroupId)] };
       }
       if (nextToken) {
         body.nextToken = nextToken;
@@ -3245,7 +3245,7 @@ export class AmazonAdsApiClient {
     do {
       const body: any = { maxResults: 100 };
       if (campaignId) {
-        body.campaignIdFilter = { include: [campaignId] };
+        body.campaignIdFilter = { include: [String(campaignId)] };
       }
       if (nextToken) {
         body.nextToken = nextToken;
@@ -3291,18 +3291,26 @@ export class AmazonAdsApiClient {
       campaignId: String(n.campaignId),
       keywordText: n.keywordText,
       matchType: formatMatchType(n.matchType || 'NEGATIVE_EXACT'),
-      state: (n.state || 'enabled').toUpperCase(),
+      // v174: 移除state字段 - Amazon SP API v3 campaign级否定关键词不接受state字段，默认为ENABLED
     }));
-    console.log(`[SP API] createSpCampaignNegativeKeywords: ${formattedNegatives.length}个否定词`);
-    const response = await this.axiosInstance.post('/sp/campaignNegativeKeywords', {
-      campaignNegativeKeywords: formattedNegatives,
-    }, {
-      headers: { 
-        'Content-Type': 'application/vnd.spCampaignNegativeKeyword.v3+json',
-        'Accept': 'application/vnd.spCampaignNegativeKeyword.v3+json'
-      },
-    });
-    return response.data.campaignNegativeKeywords || [];
+    console.log(`[SP API] createSpCampaignNegativeKeywords: ${formattedNegatives.length}个否定词, 请求体:`, JSON.stringify({ campaignNegativeKeywords: formattedNegatives }).substring(0, 500));
+    try {
+      const response = await this.axiosInstance.post('/sp/campaignNegativeKeywords', {
+        campaignNegativeKeywords: formattedNegatives,
+      }, {
+        headers: { 
+          'Content-Type': 'application/vnd.spCampaignNegativeKeyword.v3+json',
+          'Accept': 'application/vnd.spCampaignNegativeKeyword.v3+json'
+        },
+      });
+      console.log(`[SP API] createSpCampaignNegativeKeywords 响应:`, JSON.stringify(response.data).substring(0, 500));
+      return response.data.campaignNegativeKeywords || [];
+    } catch (err: any) {
+      // v174: 增强错误日志 - 记录详细的API错误响应
+      const errData = err.response?.data;
+      console.error(`[SP API] createSpCampaignNegativeKeywords 失败: status=${err.response?.status}, data=`, JSON.stringify(errData).substring(0, 500));
+      throw err;
+    }
   }
 
   /**
@@ -3327,7 +3335,7 @@ export class AmazonAdsApiClient {
     do {
       const body: any = { maxResults: 100 };
       if (adGroupId) {
-        body.adGroupIdFilter = { include: [adGroupId] };
+        body.adGroupIdFilter = { include: [String(adGroupId)] };
       }
       if (nextToken) {
         body.nextToken = nextToken;
@@ -3404,7 +3412,7 @@ export class AmazonAdsApiClient {
   async listSpCampaignNegativeTargets(campaignId?: number): Promise<any[]> {
     const body: any = {};
     if (campaignId) {
-      body.campaignIdFilter = { include: [campaignId] };
+      body.campaignIdFilter = { include: [String(campaignId)] };
     }
     const response = await this.axiosInstance.post('/sp/campaignNegativeTargets/list', body, {
       headers: { 'Content-Type': 'application/vnd.spCampaignNegativeTargetingClause.v3+json' },
@@ -3444,7 +3452,7 @@ export class AmazonAdsApiClient {
   async listSpNegativeTargets(adGroupId?: number): Promise<any[]> {
     const body: any = {};
     if (adGroupId) {
-      body.adGroupIdFilter = { include: [adGroupId] };
+      body.adGroupIdFilter = { include: [String(adGroupId)] };
     }
     const response = await this.axiosInstance.post('/sp/negativeTargets/list', body, {
       headers: { 'Content-Type': 'application/vnd.spNegativeTargetingClause.v3+json' },
@@ -3875,7 +3883,7 @@ export class AmazonAdsApiClient {
     do {
       const body: any = { maxResults: 100 };
       if (campaignId) {
-        body.campaignIdFilter = { include: [campaignId] };
+        body.campaignIdFilter = { include: [String(campaignId)] };
       }
       if (nextToken) {
         body.nextToken = nextToken;
@@ -3916,7 +3924,7 @@ export class AmazonAdsApiClient {
     do {
       const body: any = { maxResults: 100 };
       if (campaignId) {
-        body.campaignIdFilter = { include: [campaignId] };
+        body.campaignIdFilter = { include: [String(campaignId)] };
       }
       if (nextToken) {
         body.nextToken = nextToken;
@@ -3957,7 +3965,7 @@ export class AmazonAdsApiClient {
     do {
       const body: any = { maxResults: 100 };
       if (campaignId) {
-        body.campaignIdFilter = { include: [campaignId] };
+        body.campaignIdFilter = { include: [String(campaignId)] };
       }
       if (nextToken) {
         body.nextToken = nextToken;

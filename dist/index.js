@@ -52340,7 +52340,7 @@ var init_amazonAdsApi = __esm({
         do {
           const body = { maxResults: 100 };
           if (campaignId) {
-            body.campaignIdFilter = { include: [campaignId] };
+            body.campaignIdFilter = { include: [String(campaignId)] };
           }
           if (nextToken) {
             body.nextToken = nextToken;
@@ -52659,7 +52659,7 @@ var init_amazonAdsApi = __esm({
         do {
           const body = { maxResults: 100 };
           if (adGroupId) {
-            body.adGroupIdFilter = { include: [adGroupId] };
+            body.adGroupIdFilter = { include: [String(adGroupId)] };
           }
           if (nextToken) {
             body.nextToken = nextToken;
@@ -54752,7 +54752,7 @@ var init_amazonAdsApi = __esm({
         do {
           const body = { maxResults: 100 };
           if (campaignId) {
-            body.campaignIdFilter = { include: [campaignId] };
+            body.campaignIdFilter = { include: [String(campaignId)] };
           }
           if (nextToken) {
             body.nextToken = nextToken;
@@ -54785,7 +54785,7 @@ var init_amazonAdsApi = __esm({
         do {
           const body = { maxResults: 100 };
           if (adGroupId) {
-            body.adGroupIdFilter = { include: [adGroupId] };
+            body.adGroupIdFilter = { include: [String(adGroupId)] };
           }
           if (nextToken) {
             body.nextToken = nextToken;
@@ -54818,7 +54818,7 @@ var init_amazonAdsApi = __esm({
         do {
           const body = { maxResults: 100 };
           if (adGroupId) {
-            body.adGroupIdFilter = { include: [adGroupId] };
+            body.adGroupIdFilter = { include: [String(adGroupId)] };
           }
           if (nextToken) {
             body.nextToken = nextToken;
@@ -54984,7 +54984,7 @@ var init_amazonAdsApi = __esm({
         do {
           const body = { maxResults: 100 };
           if (campaignId) {
-            body.campaignIdFilter = { include: [campaignId] };
+            body.campaignIdFilter = { include: [String(campaignId)] };
           }
           if (nextToken) {
             body.nextToken = nextToken;
@@ -55014,19 +55014,26 @@ var init_amazonAdsApi = __esm({
         const formattedNegatives = negatives.map((n7) => ({
           campaignId: String(n7.campaignId),
           keywordText: n7.keywordText,
-          matchType: formatMatchType(n7.matchType || "NEGATIVE_EXACT"),
-          state: (n7.state || "enabled").toUpperCase()
+          matchType: formatMatchType(n7.matchType || "NEGATIVE_EXACT")
+          // v174: 移除state字段 - Amazon SP API v3 campaign级否定关键词不接受state字段，默认为ENABLED
         }));
-        console.log(`[SP API] createSpCampaignNegativeKeywords: ${formattedNegatives.length}\u4E2A\u5426\u5B9A\u8BCD`);
-        const response = await this.axiosInstance.post("/sp/campaignNegativeKeywords", {
-          campaignNegativeKeywords: formattedNegatives
-        }, {
-          headers: {
-            "Content-Type": "application/vnd.spCampaignNegativeKeyword.v3+json",
-            "Accept": "application/vnd.spCampaignNegativeKeyword.v3+json"
-          }
-        });
-        return response.data.campaignNegativeKeywords || [];
+        console.log(`[SP API] createSpCampaignNegativeKeywords: ${formattedNegatives.length}\u4E2A\u5426\u5B9A\u8BCD, \u8BF7\u6C42\u4F53:`, JSON.stringify({ campaignNegativeKeywords: formattedNegatives }).substring(0, 500));
+        try {
+          const response = await this.axiosInstance.post("/sp/campaignNegativeKeywords", {
+            campaignNegativeKeywords: formattedNegatives
+          }, {
+            headers: {
+              "Content-Type": "application/vnd.spCampaignNegativeKeyword.v3+json",
+              "Accept": "application/vnd.spCampaignNegativeKeyword.v3+json"
+            }
+          });
+          console.log(`[SP API] createSpCampaignNegativeKeywords \u54CD\u5E94:`, JSON.stringify(response.data).substring(0, 500));
+          return response.data.campaignNegativeKeywords || [];
+        } catch (err2) {
+          const errData = err2.response?.data;
+          console.error(`[SP API] createSpCampaignNegativeKeywords \u5931\u8D25: status=${err2.response?.status}, data=`, JSON.stringify(errData).substring(0, 500));
+          throw err2;
+        }
       }
       /**
        * 删除SP活动级别否定关键词
@@ -55048,7 +55055,7 @@ var init_amazonAdsApi = __esm({
         do {
           const body = { maxResults: 100 };
           if (adGroupId) {
-            body.adGroupIdFilter = { include: [adGroupId] };
+            body.adGroupIdFilter = { include: [String(adGroupId)] };
           }
           if (nextToken) {
             body.nextToken = nextToken;
@@ -55109,7 +55116,7 @@ var init_amazonAdsApi = __esm({
       async listSpCampaignNegativeTargets(campaignId) {
         const body = {};
         if (campaignId) {
-          body.campaignIdFilter = { include: [campaignId] };
+          body.campaignIdFilter = { include: [String(campaignId)] };
         }
         const response = await this.axiosInstance.post("/sp/campaignNegativeTargets/list", body, {
           headers: { "Content-Type": "application/vnd.spCampaignNegativeTargetingClause.v3+json" }
@@ -55140,7 +55147,7 @@ var init_amazonAdsApi = __esm({
       async listSpNegativeTargets(adGroupId) {
         const body = {};
         if (adGroupId) {
-          body.adGroupIdFilter = { include: [adGroupId] };
+          body.adGroupIdFilter = { include: [String(adGroupId)] };
         }
         const response = await this.axiosInstance.post("/sp/negativeTargets/list", body, {
           headers: { "Content-Type": "application/vnd.spNegativeTargetingClause.v3+json" }
@@ -55494,7 +55501,7 @@ var init_amazonAdsApi = __esm({
         do {
           const body = { maxResults: 100 };
           if (campaignId) {
-            body.campaignIdFilter = { include: [campaignId] };
+            body.campaignIdFilter = { include: [String(campaignId)] };
           }
           if (nextToken) {
             body.nextToken = nextToken;
@@ -55531,7 +55538,7 @@ var init_amazonAdsApi = __esm({
         do {
           const body = { maxResults: 100 };
           if (campaignId) {
-            body.campaignIdFilter = { include: [campaignId] };
+            body.campaignIdFilter = { include: [String(campaignId)] };
           }
           if (nextToken) {
             body.nextToken = nextToken;
@@ -55568,7 +55575,7 @@ var init_amazonAdsApi = __esm({
         do {
           const body = { maxResults: 100 };
           if (campaignId) {
-            body.campaignIdFilter = { include: [campaignId] };
+            body.campaignIdFilter = { include: [String(campaignId)] };
           }
           if (nextToken) {
             body.nextToken = nextToken;
@@ -66202,6 +66209,7 @@ async function retryFailedNegativeKeywordAdds(database, accountId) {
       campaignName: optimizationEvents.campaignName,
       keywordText: optimizationEvents.keywordText,
       actionDetail: optimizationEvents.actionDetail,
+      apiSyncDetail: optimizationEvents.apiSyncDetail,
       createdAt: optimizationEvents.createdAt
     }).from(optimizationEvents).where(
       and(
@@ -66238,22 +66246,69 @@ async function retryFailedNegativeKeywordAdds(database, accountId) {
         }
         if (!resolvedCampaignId) continue;
         const normalizedMatchType = matchType.includes("exact") ? "negativeExact" : "negativePhrase";
-        negKeywordsToSync.push({
+        let retryCount = 0;
+        if (event.apiSyncDetail) {
+          try {
+            const syncDetail = typeof event.apiSyncDetail === "string" ? JSON.parse(event.apiSyncDetail) : event.apiSyncDetail;
+            retryCount = syncDetail.retryCount || 0;
+          } catch {
+          }
+        }
+        const nkEntry = {
           eventId: event.id,
           campaignId: resolvedCampaignId,
           adGroupId: amazonAdGroupId ? Number(amazonAdGroupId) : void 0,
           keywordText: searchTerm,
           matchType: normalizedMatchType,
-          level: amazonAdGroupId ? "adgroup" : "campaign"
-        });
+          level: amazonAdGroupId ? "adgroup" : "campaign",
+          retryCount
+        };
+        negKeywordsToSync.push(nkEntry);
       } catch (parseErr) {
         console.warn(`[AutoCorrector] v168: \u89E3\u6790\u5426\u5B9A\u5173\u952E\u8BCD\u4E8B\u4EF6\u5931\u8D25: eventId=${event.id}, ${parseErr.message}`);
       }
     }
     if (negKeywordsToSync.length === 0) return results;
+    const maxRetries = AUTO_CORRECTION_CONFIG.maxRetryAttempts;
+    const toRetry = [];
+    const toPermanentlyFail = [];
+    for (const nk of negKeywordsToSync) {
+      if (nk.retryCount >= maxRetries) {
+        toPermanentlyFail.push(nk);
+      } else {
+        toRetry.push(nk);
+      }
+    }
+    for (const nk of toPermanentlyFail) {
+      await database.update(optimizationEvents).set({
+        apiSyncStatus: "not_applicable",
+        apiSyncDetail: JSON.stringify({
+          reason: `\u8D85\u8FC7\u6700\u5927\u91CD\u8BD5\u6B21\u6570(${maxRetries})\uFF0C\u653E\u5F03\u91CD\u8BD5`,
+          retryCount: nk.retryCount,
+          lastRetryAt: (/* @__PURE__ */ new Date()).toISOString()
+        })
+      }).where(eq(optimizationEvents.id, nk.eventId));
+      await database.execute(sql`
+        UPDATE optimization_logs SET api_sync_status = 'not_applicable'
+        WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${nk.eventId} AND source_table = 'optimization_logs')
+      `).catch(() => {
+      });
+      results.push({
+        type: "settings_retry",
+        accountId,
+        targetId: nk.campaignId,
+        targetType: "campaign",
+        previousValue: "",
+        correctedValue: nk.keywordText,
+        reason: `\u5426\u5B9A\u5173\u952E\u8BCD\u8D85\u8FC7\u6700\u5927\u91CD\u8BD5\u6B21\u6570\uFF0C\u653E\u5F03: ${nk.keywordText}`,
+        success: false,
+        errorMessage: `\u8D85\u8FC7\u6700\u5927\u91CD\u8BD5\u6B21\u6570(${maxRetries})`
+      });
+    }
+    if (toRetry.length === 0) return results;
     const syncResult = await syncNegativeKeywordsToAmazon(
       accountId,
-      negKeywordsToSync.map((nk) => ({
+      toRetry.map((nk) => ({
         campaignId: nk.campaignId,
         adGroupId: nk.adGroupId,
         keywordText: nk.keywordText,
@@ -66261,13 +66316,14 @@ async function retryFailedNegativeKeywordAdds(database, accountId) {
         level: nk.level
       }))
     );
-    const allSuccess = syncResult.success === negKeywordsToSync.length;
-    for (const nk of negKeywordsToSync) {
+    const allSuccess = syncResult.success === toRetry.length;
+    for (const nk of toRetry) {
       const success2 = allSuccess || syncResult.success > 0;
+      const newRetryCount = (nk.retryCount || 0) + 1;
       if (success2) {
         await database.update(optimizationEvents).set({
           apiSyncStatus: "synced",
-          apiSyncDetail: JSON.stringify({ correctedBy: "AutoCorrector", correctedAt: (/* @__PURE__ */ new Date()).toISOString() }),
+          apiSyncDetail: JSON.stringify({ correctedBy: "AutoCorrector", correctedAt: (/* @__PURE__ */ new Date()).toISOString(), retryCount: newRetryCount }),
           apiSyncedAt: /* @__PURE__ */ new Date()
         }).where(eq(optimizationEvents.id, nk.eventId));
         await database.execute(sql`
@@ -66275,6 +66331,14 @@ async function retryFailedNegativeKeywordAdds(database, accountId) {
           WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${nk.eventId} AND source_table = 'optimization_logs')
         `).catch(() => {
         });
+      } else {
+        await database.update(optimizationEvents).set({
+          apiSyncDetail: JSON.stringify({
+            retryCount: newRetryCount,
+            lastRetryAt: (/* @__PURE__ */ new Date()).toISOString(),
+            lastError: syncResult.errors.join("; ").substring(0, 200)
+          })
+        }).where(eq(optimizationEvents.id, nk.eventId));
       }
       results.push({
         type: "settings_retry",
@@ -66283,7 +66347,7 @@ async function retryFailedNegativeKeywordAdds(database, accountId) {
         targetType: "campaign",
         previousValue: "",
         correctedValue: nk.keywordText,
-        reason: `\u91CD\u8BD5\u6DFB\u52A0\u5426\u5B9A\u5173\u952E\u8BCD: ${nk.keywordText}`,
+        reason: `\u91CD\u8BD5\u6DFB\u52A0\u5426\u5B9A\u5173\u952E\u8BCD(${newRetryCount}/${maxRetries}): ${nk.keywordText}`,
         success: success2,
         errorMessage: success2 ? void 0 : syncResult.errors.join("; ")
       });

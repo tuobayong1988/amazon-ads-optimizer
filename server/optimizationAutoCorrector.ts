@@ -1250,6 +1250,7 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
         campaignName: optimizationEvents.campaignName,
         keywordText: optimizationEvents.keywordText,
         actionDetail: optimizationEvents.actionDetail,
+        apiSyncDetail: optimizationEvents.apiSyncDetail,
         createdAt: optimizationEvents.createdAt,
       })
       .from(optimizationEvents)
@@ -1310,14 +1311,25 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
         
         const normalizedMatchType = matchType.includes('exact') ? 'negativeExact' as const : 'negativePhrase' as const;
         
-        negKeywordsToSync.push({
+        // v174: 读取apiSyncDetail中的重试次数
+        let retryCount = 0;
+        if (event.apiSyncDetail) {
+          try {
+            const syncDetail = typeof event.apiSyncDetail === 'string' ? JSON.parse(event.apiSyncDetail) : event.apiSyncDetail;
+            retryCount = syncDetail.retryCount || 0;
+          } catch {}
+        }
+        
+        const nkEntry: any = {
           eventId: event.id,
           campaignId: resolvedCampaignId,
           adGroupId: amazonAdGroupId ? Number(amazonAdGroupId) : undefined,
           keywordText: searchTerm,
           matchType: normalizedMatchType,
           level: amazonAdGroupId ? 'adgroup' : 'campaign',
-        });
+          retryCount,
+        };
+        negKeywordsToSync.push(nkEntry);
       } catch (parseErr: any) {
         console.warn(`[AutoCorrector] v168: 解析否定关键词事件失败: eventId=${event.id}, ${parseErr.message}`);
       }
@@ -1325,10 +1337,54 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
     
     if (negKeywordsToSync.length === 0) return results;
     
+    // v174: 检查重试次数，超过3次的标记为permanently_failed
+    const maxRetries = AUTO_CORRECTION_CONFIG.maxRetryAttempts;
+    const toRetry: typeof negKeywordsToSync = [];
+    const toPermanentlyFail: typeof negKeywordsToSync = [];
+    
+    for (const nk of negKeywordsToSync) {
+      if ((nk as any).retryCount >= maxRetries) {
+        toPermanentlyFail.push(nk);
+      } else {
+        toRetry.push(nk);
+      }
+    }
+    
+    // 标记超过重试次数的事件为not_applicable
+    for (const nk of toPermanentlyFail) {
+      await database.update(optimizationEvents).set({
+        apiSyncStatus: 'not_applicable',
+        apiSyncDetail: JSON.stringify({ 
+          reason: `超过最大重试次数(${maxRetries})，放弃重试`,
+          retryCount: (nk as any).retryCount,
+          lastRetryAt: new Date().toISOString()
+        }),
+      }).where(eq(optimizationEvents.id, nk.eventId));
+      
+      await database.execute(sql`
+        UPDATE optimization_logs SET api_sync_status = 'not_applicable'
+        WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${nk.eventId} AND source_table = 'optimization_logs')
+      `).catch(() => {});
+      
+      results.push({
+        type: 'settings_retry',
+        accountId,
+        targetId: nk.campaignId,
+        targetType: 'campaign',
+        previousValue: '',
+        correctedValue: nk.keywordText,
+        reason: `否定关键词超过最大重试次数，放弃: ${nk.keywordText}`,
+        success: false,
+        errorMessage: `超过最大重试次数(${maxRetries})`,
+      });
+    }
+    
+    if (toRetry.length === 0) return results;
+    
     // 批量调用Amazon API
     const syncResult = await amazonApiHelper.syncNegativeKeywordsToAmazon(
       accountId,
-      negKeywordsToSync.map(nk => ({
+      toRetry.map(nk => ({
         campaignId: nk.campaignId,
         adGroupId: nk.adGroupId,
         keywordText: nk.keywordText,
@@ -1338,15 +1394,16 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
     );
     
     // 如果批量成功，更新所有事件状态
-    const allSuccess = syncResult.success === negKeywordsToSync.length;
+    const allSuccess = syncResult.success === toRetry.length;
     
-    for (const nk of negKeywordsToSync) {
+    for (const nk of toRetry) {
       const success = allSuccess || syncResult.success > 0;
+      const newRetryCount = ((nk as any).retryCount || 0) + 1;
       
       if (success) {
         await database.update(optimizationEvents).set({
           apiSyncStatus: 'synced',
-          apiSyncDetail: JSON.stringify({ correctedBy: 'AutoCorrector', correctedAt: new Date().toISOString() }),
+          apiSyncDetail: JSON.stringify({ correctedBy: 'AutoCorrector', correctedAt: new Date().toISOString(), retryCount: newRetryCount }),
           apiSyncedAt: new Date(),
         }).where(eq(optimizationEvents.id, nk.eventId));
         
@@ -1355,6 +1412,15 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
           UPDATE optimization_logs SET api_sync_status = 'synced' 
           WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${nk.eventId} AND source_table = 'optimization_logs')
         `).catch(() => {});
+      } else {
+        // v174: 记录重试次数到apiSyncDetail
+        await database.update(optimizationEvents).set({
+          apiSyncDetail: JSON.stringify({ 
+            retryCount: newRetryCount,
+            lastRetryAt: new Date().toISOString(),
+            lastError: syncResult.errors.join('; ').substring(0, 200)
+          }),
+        }).where(eq(optimizationEvents.id, nk.eventId));
       }
       
       results.push({
@@ -1364,7 +1430,7 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
         targetType: 'campaign',
         previousValue: '',
         correctedValue: nk.keywordText,
-        reason: `重试添加否定关键词: ${nk.keywordText}`,
+        reason: `重试添加否定关键词(${newRetryCount}/${maxRetries}): ${nk.keywordText}`,
         success,
         errorMessage: success ? undefined : syncResult.errors.join('; '),
       });
