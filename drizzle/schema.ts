@@ -3329,7 +3329,9 @@ export const optimizationLogs = mysqlTable("optimization_logs", {
     'campaign_enable',
     // 广告组状态变更
     'adgroup_pause',
-    'adgroup_enable'
+    'adgroup_enable',
+    // 自动纠错
+    'auto_correction'
   ]).notNull(),
   
   // 策略模板信息
@@ -3414,6 +3416,7 @@ export const optimizationEvents = mysqlTable("optimization_events", {
     'create_target', 'update_target', 'delete_target', 'pause_target', 'resume_target',
     'add_campaign', 'remove_campaign',
     'settings_update', 'strategy_change', 'schedule_update',
+    'auto_correction',
   ]).notNull(),
   
   // === 策略模板信息 ===

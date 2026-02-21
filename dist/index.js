@@ -34389,7 +34389,9 @@ var init_schema2 = __esm({
           "campaign_enable",
           // 广告组状态变更
           "adgroup_pause",
-          "adgroup_enable"
+          "adgroup_enable",
+          // 自动纠错
+          "auto_correction"
         ]).notNull(),
         // 策略模板信息
         strategyTemplateId: int("strategy_template_id"),
@@ -34482,7 +34484,8 @@ var init_schema2 = __esm({
           "remove_campaign",
           "settings_update",
           "strategy_change",
-          "schedule_update"
+          "schedule_update",
+          "auto_correction"
         ]).notNull(),
         // === 策略模板信息 ===
         strategyTemplateId: int("strategy_template_id"),
@@ -65416,6 +65419,10 @@ async function runAutoCorrection(accountId) {
         corrections.push(...keywordCreateRetries);
         const negKeywordRetries = await retryFailedNegativeKeywordAdds(database, accId);
         corrections.push(...negKeywordRetries);
+        const maxBidViolations = await correctMaxBidViolations(database, accId);
+        corrections.push(...maxBidViolations);
+        const orphanCleanups = await cleanupOrphanKeywords(database, accId);
+        corrections.push(...orphanCleanups);
       } catch (accError) {
         console.error(`[AutoCorrector] v167: \u8D26\u6237 ${accId} \u7EA0\u9519\u5931\u8D25: ${accError.message}`);
       }
@@ -65564,9 +65571,13 @@ async function correctBidMismatches(database, accountId) {
         oe.new_bid as expected_bid,
         oe.previous_bid,
         k.bid as current_bid,
-        oe.created_at as optimized_at
+        oe.created_at as optimized_at,
+        pg.max_bid as max_bid
       FROM optimization_events oe
       JOIN keywords k ON oe.keyword_id = k.id
+      JOIN ad_groups ag ON k.adGroupId = ag.id
+      JOIN campaigns c ON ag.campaignId = c.id
+      LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
       WHERE oe.account_id = ${accountId}
         AND oe.event_category = 'bid_adjustment'
         AND oe.status = 'success'
@@ -65587,18 +65598,38 @@ async function correctBidMismatches(database, accountId) {
     const rows = mismatches[0] || mismatches;
     if (!Array.isArray(rows) || rows.length === 0) return results;
     console.log(`[AutoCorrector] v167: \u8D26\u6237${accountId} \u53D1\u73B0${rows.length}\u6761\u51FA\u4EF7\u4E0D\u4E00\u81F4\u9700\u8981\u7EA0\u6B63`);
-    const correctionItems = rows.map((row) => ({
-      keywordId: row.keyword_id,
-      newBid: parseFloat(String(row.expected_bid)),
-      campaignId: row.campaign_id || 0,
-      reason: `[\u81EA\u52A8\u7EA0\u9519] \u51FA\u4EF7\u4E0D\u4E00\u81F4\u7EA0\u6B63: \u671F\u671B$${row.expected_bid}, \u5F53\u524D$${row.current_bid}`
-    }));
+    const correctionItems = rows.map((row) => {
+      let targetBid = parseFloat(String(row.expected_bid));
+      const maxBid = row.max_bid ? parseFloat(String(row.max_bid)) : 0;
+      if (maxBid > 0 && targetBid > maxBid) {
+        console.log(`[AutoCorrector] v172: \u51FA\u4EF7\u7EA0\u6B63\u53D7max_bid\u9650\u5236: keyword=${row.keyword_id} expected=$${targetBid} -> max_bid=$${maxBid}`);
+        targetBid = maxBid;
+      }
+      const currentBid = parseFloat(String(row.current_bid));
+      if (Math.abs(targetBid - currentBid) <= AUTO_CORRECTION_CONFIG.bidToleranceDollar) {
+        console.log(`[AutoCorrector] v172: \u8DF3\u8FC7\u7EA0\u6B63(\u5DEE\u5F02\u5728\u5BB9\u5FCD\u8303\u56F4\u5185): keyword=${row.keyword_id} target=$${targetBid} current=$${currentBid}`);
+        return null;
+      }
+      return {
+        keywordId: row.keyword_id,
+        newBid: targetBid,
+        campaignId: row.campaign_id || 0,
+        reason: `[\u81EA\u52A8\u7EA0\u9519] \u51FA\u4EF7\u4E0D\u4E00\u81F4\u7EA0\u6B63: \u671F\u671B$${targetBid.toFixed(2)}, \u5F53\u524D$${row.current_bid}${maxBid > 0 ? ` (max_bid=$${maxBid})` : ""}`
+      };
+    }).filter((item) => item !== null);
+    if (correctionItems.length === 0) {
+      console.log(`[AutoCorrector] v172: \u6240\u6709\u51FA\u4EF7\u7EA0\u6B63\u9879\u5728max_bid\u9650\u5236\u540E\u5DF2\u65E0\u9700\u7EA0\u6B63`);
+      return results;
+    }
     try {
       const syncResult = await syncBidAdjustmentsToAmazon(
         accountId,
         correctionItems
       );
+      const correctionMap = new Map(correctionItems.map((item) => [item.keywordId, item.newBid]));
       for (const row of rows) {
+        const actualTargetBid = correctionMap.get(row.keyword_id);
+        if (actualTargetBid === void 0) continue;
         const success2 = syncResult.success > 0;
         results.push({
           type: "bid_mismatch",
@@ -65606,12 +65637,12 @@ async function correctBidMismatches(database, accountId) {
           targetId: row.keyword_id,
           targetType: "keyword",
           previousValue: String(row.current_bid),
-          correctedValue: String(row.expected_bid),
-          reason: `\u51FA\u4EF7\u4E0D\u4E00\u81F4: \u671F\u671B$${row.expected_bid}(\u4F18\u5316\u503C), \u5B9E\u9645$${row.current_bid}(\u5F53\u524D\u503C)`,
+          correctedValue: String(actualTargetBid),
+          reason: `\u51FA\u4EF7\u4E0D\u4E00\u81F4: \u7EA0\u6B63\u5230$${actualTargetBid.toFixed(2)}, \u5F53\u524D$${row.current_bid}`,
           success: success2
         });
         if (success2) {
-          await database.update(keywords).set({ bid: String(row.expected_bid) }).where(eq(keywords.id, row.keyword_id));
+          await database.update(keywords).set({ bid: String(actualTargetBid) }).where(eq(keywords.id, row.keyword_id));
           await logCorrectionEvent(database, {
             accountId,
             eventCategory: "bid_adjustment",
@@ -65621,8 +65652,8 @@ async function correctBidMismatches(database, accountId) {
             campaignId: row.campaign_id,
             campaignName: row.campaign_name,
             previousBid: String(row.current_bid),
-            newBid: String(row.expected_bid),
-            changeReason: `[AutoCorrector] \u51FA\u4EF7\u4E0D\u4E00\u81F4\u7EA0\u6B63: \u671F\u671B$${row.expected_bid}, \u5F53\u524D$${row.current_bid}`
+            newBid: String(actualTargetBid),
+            changeReason: `[AutoCorrector] \u51FA\u4EF7\u4E0D\u4E00\u81F4\u7EA0\u6B63: \u7EA0\u6B63\u5230$${actualTargetBid.toFixed(2)}, \u5F53\u524D$${row.current_bid}${row.max_bid ? ` (max_bid=$${row.max_bid})` : ""}`
           });
         }
       }
@@ -65740,8 +65771,8 @@ async function correctBudgetMismatches(database, accountId) {
         oe.campaign_name,
         oe.new_value as expected_budget,
         oe.previous_value as previous_budget,
-        c.daily_budget as current_budget,
-        c.campaign_id as amazon_campaign_id,
+        c.dailyBudget as current_budget,
+        c.campaignId as amazon_campaign_id,
         oe.created_at as optimized_at
       FROM optimization_events oe
       JOIN campaigns c ON oe.campaign_id = c.id
@@ -65750,7 +65781,7 @@ async function correctBudgetMismatches(database, accountId) {
         AND oe.status = 'success'
         AND oe.api_sync_status = 'synced'
         AND oe.created_at > DATE_SUB(NOW(), INTERVAL 3 DAY)
-        AND ABS(CAST(c.daily_budget AS DECIMAL(10,2)) - CAST(oe.new_value AS DECIMAL(10,2))) > ${AUTO_CORRECTION_CONFIG.budgetToleranceDollar}
+        AND ABS(CAST(c.dailyBudget AS DECIMAL(10,2)) - CAST(oe.new_value AS DECIMAL(10,2))) > ${AUTO_CORRECTION_CONFIG.budgetToleranceDollar}
         AND oe.id = (
           SELECT MAX(oe2.id) FROM optimization_events oe2 
           WHERE oe2.campaign_id = oe.campaign_id 
@@ -65826,9 +65857,9 @@ async function correctPlacementMismatches(database, accountId) {
         oe.campaign_id,
         oe.campaign_name,
         oe.action_detail,
-        c.placement_top_search_bid_adjustment as current_top,
-        c.placement_product_page_bid_adjustment as current_product,
-        c.campaign_id as amazon_campaign_id,
+        c.placementTopSearchBidAdjustment as current_top,
+        c.placementProductPageBidAdjustment as current_product,
+        c.campaignId as amazon_campaign_id,
         oe.created_at as optimized_at
       FROM optimization_events oe
       JOIN campaigns c ON oe.campaign_id = c.id
@@ -66316,7 +66347,9 @@ function createEmptyScanResult(reason) {
       budgetMismatches: { found: 0, corrected: 0, failed: 0 },
       placementMismatches: { found: 0, corrected: 0, failed: 0 },
       rollbackExecutions: { found: 0, corrected: 0, failed: 0 },
-      settingsRetries: { found: 0, corrected: 0, failed: 0 }
+      settingsRetries: { found: 0, corrected: 0, failed: 0 },
+      maxBidViolations: { found: 0, corrected: 0, failed: 0 },
+      orphanKeywordCleanups: { found: 0, corrected: 0, failed: 0 }
     },
     corrections: []
   };
@@ -66329,10 +66362,12 @@ function buildScanResult(scanId, startedAt, completedAt, accountsScanned, correc
     budgetMismatches: { found: 0, corrected: 0, failed: 0 },
     placementMismatches: { found: 0, corrected: 0, failed: 0 },
     rollbackExecutions: { found: 0, corrected: 0, failed: 0 },
-    settingsRetries: { found: 0, corrected: 0, failed: 0 }
+    settingsRetries: { found: 0, corrected: 0, failed: 0 },
+    maxBidViolations: { found: 0, corrected: 0, failed: 0 },
+    orphanKeywordCleanups: { found: 0, corrected: 0, failed: 0 }
   };
   for (const c5 of corrections) {
-    const key = c5.type === "bid_retry" ? "bidRetries" : c5.type === "bid_mismatch" ? "bidMismatches" : c5.type === "budget_retry" ? "budgetRetries" : c5.type === "budget_mismatch" ? "budgetMismatches" : c5.type === "placement_mismatch" ? "placementMismatches" : c5.type === "rollback_execution" ? "rollbackExecutions" : "settingsRetries";
+    const key = c5.type === "bid_retry" ? "bidRetries" : c5.type === "bid_mismatch" ? "bidMismatches" : c5.type === "budget_retry" ? "budgetRetries" : c5.type === "budget_mismatch" ? "budgetMismatches" : c5.type === "placement_mismatch" ? "placementMismatches" : c5.type === "rollback_execution" ? "rollbackExecutions" : c5.type === "max_bid_violation" ? "maxBidViolations" : c5.type === "orphan_keyword_cleanup" ? "orphanKeywordCleanups" : "settingsRetries";
     details[key].found++;
     if (c5.success) details[key].corrected++;
     else details[key].failed++;
@@ -66360,6 +66395,174 @@ function getScanStatus() {
 }
 function getConfig() {
   return { ...AUTO_CORRECTION_CONFIG };
+}
+async function correctMaxBidViolations(database, accountId) {
+  const results = [];
+  try {
+    const violationQuery = sql`
+      SELECT 
+        k.id as keyword_id,
+        k.keywordText as keyword_text,
+        k.keywordId as amazon_keyword_id,
+        CAST(k.bid AS DECIMAL(10,2)) as current_bid,
+        pg.max_bid,
+        pg.id as pg_id,
+        pg.name as pg_name,
+        c.id as campaign_id,
+        c.campaignName as campaign_name
+      FROM keywords k
+      JOIN ad_groups ag ON k.adGroupId = ag.id
+      JOIN campaigns c ON ag.campaignId = c.id
+      JOIN performance_groups pg ON c.performanceGroupId = pg.id
+      WHERE c.accountId = ${accountId}
+        AND k.keywordStatus = 'enabled'
+        AND pg.max_bid IS NOT NULL AND pg.max_bid > 0
+        AND CAST(k.bid AS DECIMAL(10,2)) > pg.max_bid
+      ORDER BY CAST(k.bid AS DECIMAL(10,2)) - pg.max_bid DESC
+      LIMIT 100
+    `;
+    const violations = await database.execute(violationQuery);
+    const rows = violations[0] || violations;
+    if (!Array.isArray(rows) || rows.length === 0) return results;
+    console.log(`[AutoCorrector] v172: \u8D26\u6237${accountId} \u53D1\u73B0${rows.length}\u4E2A\u5173\u952E\u8BCD\u51FA\u4EF7\u8D85\u51FAmax_bid`);
+    const correctionItems = [];
+    for (const row of rows) {
+      const maxBid = parseFloat(String(row.max_bid));
+      if (row.amazon_keyword_id) {
+        correctionItems.push({
+          keywordId: row.keyword_id,
+          newBid: maxBid,
+          campaignId: row.campaign_id,
+          reason: `[AutoCorrector v172] \u51FA\u4EF7$${row.current_bid}\u8D85\u51FAmax_bid$${maxBid}\uFF0C\u56DE\u9000\u5230max_bid`
+        });
+      }
+      await database.update(keywords).set({ bid: String(maxBid) }).where(eq(keywords.id, row.keyword_id));
+      results.push({
+        type: "max_bid_violation",
+        accountId,
+        targetId: row.keyword_id,
+        targetType: "keyword",
+        previousValue: String(row.current_bid),
+        correctedValue: String(maxBid),
+        reason: `\u51FA\u4EF7$${row.current_bid}\u8D85\u51FAmax_bid$${maxBid} (\u4F18\u5316\u76EE\u6807: ${row.pg_name})`,
+        success: true
+      });
+    }
+    if (correctionItems.length > 0) {
+      try {
+        const syncResult = await syncBidAdjustmentsToAmazon(accountId, correctionItems);
+        console.log(`[AutoCorrector] v172: \u8D26\u6237${accountId} max_bid\u7EA0\u6B63\u540C\u6B65\u5230Amazon: \u6210\u529F${syncResult.success}, \u5931\u8D25${syncResult.failed}`);
+      } catch (syncError) {
+        console.error(`[AutoCorrector] v172: \u8D26\u6237${accountId} max_bid\u7EA0\u6B63\u540C\u6B65\u5931\u8D25: ${syncError.message}`);
+      }
+    }
+    const ptViolationQuery = sql`
+      SELECT 
+        pt.id as target_id,
+        pt.targetText as target_text,
+        pt.targetId as amazon_target_id,
+        CAST(pt.bid AS DECIMAL(10,2)) as current_bid,
+        pg.max_bid,
+        pg.id as pg_id,
+        pg.name as pg_name,
+        c.id as campaign_id
+      FROM product_targets pt
+      JOIN ad_groups ag ON pt.adGroupId = ag.id
+      JOIN campaigns c ON ag.campaignId = c.id
+      JOIN performance_groups pg ON c.performanceGroupId = pg.id
+      WHERE c.accountId = ${accountId}
+        AND pt.targetStatus = 'enabled'
+        AND pg.max_bid IS NOT NULL AND pg.max_bid > 0
+        AND CAST(pt.bid AS DECIMAL(10,2)) > pg.max_bid
+      ORDER BY CAST(pt.bid AS DECIMAL(10,2)) - pg.max_bid DESC
+      LIMIT 50
+    `;
+    const ptViolations = await database.execute(ptViolationQuery);
+    const ptRows = ptViolations[0] || ptViolations;
+    if (Array.isArray(ptRows) && ptRows.length > 0) {
+      console.log(`[AutoCorrector] v172: \u8D26\u6237${accountId} \u53D1\u73B0${ptRows.length}\u4E2A\u5546\u54C1\u5B9A\u5411\u51FA\u4EF7\u8D85\u51FAmax_bid`);
+      for (const row of ptRows) {
+        const maxBid = parseFloat(String(row.max_bid));
+        await database.update(productTargets).set({ bid: String(maxBid) }).where(eq(productTargets.id, row.target_id));
+        results.push({
+          type: "max_bid_violation",
+          accountId,
+          targetId: row.target_id,
+          targetType: "product_target",
+          previousValue: String(row.current_bid),
+          correctedValue: String(maxBid),
+          reason: `\u5546\u54C1\u5B9A\u5411\u51FA\u4EF7$${row.current_bid}\u8D85\u51FAmax_bid$${maxBid} (\u4F18\u5316\u76EE\u6807: ${row.pg_name})`,
+          success: true
+        });
+      }
+    }
+    if (results.length > 0) {
+      await logCorrectionEvent(database, {
+        accountId,
+        eventCategory: "auto_correction",
+        actionType: "auto_correction",
+        changeReason: `[AutoCorrector v172] \u7EA0\u6B63${results.length}\u4E2A\u8D85\u51FAmax_bid\u7684\u51FA\u4EF7`
+      });
+    }
+  } catch (error54) {
+    console.error(`[AutoCorrector] v172: \u8D26\u6237${accountId} correctMaxBidViolations\u5931\u8D25: ${error54.message}`);
+  }
+  return results;
+}
+async function cleanupOrphanKeywords(database, accountId) {
+  const results = [];
+  try {
+    const orphanQuery = sql`
+      SELECT 
+        k.id as keyword_id,
+        k.keywordText as keyword_text,
+        k.bid,
+        k.createdAt,
+        c.id as campaign_id,
+        c.campaignName as campaign_name,
+        pg.name as pg_name
+      FROM keywords k
+      JOIN ad_groups ag ON k.adGroupId = ag.id
+      JOIN campaigns c ON ag.campaignId = c.id
+      LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
+      WHERE c.accountId = ${accountId}
+        AND k.keywordStatus = 'enabled'
+        AND k.keywordId IS NULL
+        AND k.createdAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+      ORDER BY k.createdAt ASC
+      LIMIT 200
+    `;
+    const orphans = await database.execute(orphanQuery);
+    const rows = orphans[0] || orphans;
+    if (!Array.isArray(rows) || rows.length === 0) return results;
+    console.log(`[AutoCorrector] v172: \u8D26\u6237${accountId} \u53D1\u73B0${rows.length}\u4E2A\u7F3A\u5C11Amazon ID\u7684\u5B64\u513F\u5173\u952E\u8BCD\uFF0C\u6807\u8BB0\u4E3Apaused`);
+    for (const row of rows) {
+      const keywordText = String(row.keyword_text || "");
+      const hasSpecialChars = /[\uFFFC\uFFFD\u0000-\u001F]/.test(keywordText) || keywordText.length > 200;
+      await database.update(keywords).set({ keywordStatus: "paused" }).where(eq(keywords.id, row.keyword_id));
+      results.push({
+        type: "orphan_keyword_cleanup",
+        accountId,
+        targetId: row.keyword_id,
+        targetType: "keyword",
+        previousValue: `enabled (no Amazon ID${hasSpecialChars ? ", has special chars" : ""})`,
+        correctedValue: "paused",
+        reason: `\u5B64\u513F\u5173\u952E\u8BCD\u6E05\u7406: "${keywordText.substring(0, 50)}..." \u7F3A\u5C11Amazon ID${hasSpecialChars ? "\uFF0C\u5305\u542B\u7279\u6B8A\u5B57\u7B26" : ""} (\u4F18\u5316\u76EE\u6807: ${row.pg_name || "N/A"})`,
+        success: true
+      });
+    }
+    if (results.length > 0) {
+      await logCorrectionEvent(database, {
+        accountId,
+        eventCategory: "auto_correction",
+        actionType: "auto_correction",
+        changeReason: `[AutoCorrector v172] \u6E05\u7406${results.length}\u4E2A\u7F3A\u5C11Amazon ID\u7684\u5B64\u513F\u5173\u952E\u8BCD`
+      });
+    }
+  } catch (error54) {
+    console.error(`[AutoCorrector] v172: \u8D26\u6237${accountId} cleanupOrphanKeywords\u5931\u8D25: ${error54.message}`);
+  }
+  return results;
 }
 function startAutoCorrector() {
   if (correctionInterval) {
@@ -139196,9 +139399,9 @@ async function recordExecutionLog(result) {
       }
     }
     try {
-      const { performanceGroups: performanceGroups6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+      const { performanceGroups: performanceGroups7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
       const { eq: eqOp } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-      await dbInstance.update(performanceGroups6).set({ lastOptimizationAt: /* @__PURE__ */ new Date() }).where(eqOp(performanceGroups6.id, result.targetId));
+      await dbInstance.update(performanceGroups7).set({ lastOptimizationAt: /* @__PURE__ */ new Date() }).where(eqOp(performanceGroups7.id, result.targetId));
       console.log(`[OptimizationTargetEngine] \u5DF2\u66F4\u65B0 last_optimization_at: targetId=${result.targetId}`);
     } catch (updateErr) {
       try {
@@ -353289,13 +353492,13 @@ var crossAccountRouter = router({
     }
     const accountsData = await Promise.all(
       accounts.map(async (account) => {
-        const performanceGroups6 = await getPerformanceGroupsByAccountId(account.id);
+        const performanceGroups7 = await getPerformanceGroupsByAccountId(account.id);
         let totalSpend2 = 0;
         let totalSales2 = 0;
         let totalImpressions2 = 0;
         let totalClicks2 = 0;
         let totalOrders2 = 0;
-        for (const pg of performanceGroups6) {
+        for (const pg of performanceGroups7) {
           const campaigns6 = await getCampaignsByPerformanceGroupId(pg.id);
           for (const campaign of campaigns6) {
             totalSpend2 += parseFloat(campaign.spend || "0");
@@ -353373,13 +353576,13 @@ var crossAccountRouter = router({
     const selectedAccounts = accounts.filter((a4) => input.accountIds.includes(a4.id));
     const comparisonData = await Promise.all(
       selectedAccounts.map(async (account) => {
-        const performanceGroups6 = await getPerformanceGroupsByAccountId(account.id);
+        const performanceGroups7 = await getPerformanceGroupsByAccountId(account.id);
         let totalSpend = 0;
         let totalSales = 0;
         let totalImpressions = 0;
         let totalClicks = 0;
         let totalOrders = 0;
-        for (const pg of performanceGroups6) {
+        for (const pg of performanceGroups7) {
           const campaigns6 = await getCampaignsByPerformanceGroupId(pg.id);
           for (const campaign of campaigns6) {
             totalSpend += parseFloat(campaign.spend || "0");

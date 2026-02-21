@@ -25,7 +25,7 @@
 
 import { getDb } from './db';
 import * as db from './db';
-import { optimizationEvents, keywords, campaigns, adGroups, negativeKeywords } from '../drizzle/schema';
+import { optimizationEvents, keywords, campaigns, adGroups, negativeKeywords, performanceGroups, productTargets } from '../drizzle/schema';
 import { eq, and, or, sql, inArray, isNull, desc, lt, gt, gte, lte } from 'drizzle-orm';
 import * as amazonApiHelper from './services/amazonApiHelper';
 
@@ -65,7 +65,7 @@ const AUTO_CORRECTION_CONFIG = {
 
 export interface CorrectionResult {
   type: 'bid_retry' | 'bid_mismatch' | 'budget_retry' | 'budget_mismatch' | 
-        'placement_mismatch' | 'rollback_execution' | 'settings_retry';
+        'placement_mismatch' | 'rollback_execution' | 'settings_retry' | 'max_bid_violation' | 'orphan_keyword_cleanup';
   accountId: number;
   targetId: number;
   targetType: string;
@@ -92,6 +92,8 @@ export interface CorrectionScanResult {
     placementMismatches: { found: number; corrected: number; failed: number };
     rollbackExecutions: { found: number; corrected: number; failed: number };
     settingsRetries: { found: number; corrected: number; failed: number };
+    maxBidViolations: { found: number; corrected: number; failed: number };
+    orphanKeywordCleanups: { found: number; corrected: number; failed: number };
   };
   corrections: CorrectionResult[];
 }
@@ -184,6 +186,14 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
         // 9. 重试失败/pending的否定关键词添加
         const negKeywordRetries = await retryFailedNegativeKeywordAdds(database, accId);
         corrections.push(...negKeywordRetries);
+        
+        // 10. v172: 检测并纠正超出max_bid的关键词出价
+        const maxBidViolations = await correctMaxBidViolations(database, accId);
+        corrections.push(...maxBidViolations);
+        
+        // 11. v172: 清理缺少Amazon ID的孤儿关键词（标记为invalid_legacy）
+        const orphanCleanups = await cleanupOrphanKeywords(database, accId);
+        corrections.push(...orphanCleanups);
         
       } catch (accError: any) {
         console.error(`[AutoCorrector] v167: 账户 ${accId} 纠错失败: ${accError.message}`);
@@ -385,8 +395,8 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
   const results: CorrectionResult[] = [];
   
   try {
-    // 查找最近成功同步的出价调整，但keyword当前bid与调整后的bid不一致
-    // 这说明数据同步覆盖了优化出价，或者优化出价未正确写入
+    // v172: 查找最近成功同步的出价调整，但keyword当前bid与调整后的bid不一致
+    // 同时JOIN performance_groups获取max_bid，确保纠正值不超过max_bid红线
     const mismatchQuery = sql`
       SELECT 
         oe.id as event_id,
@@ -397,9 +407,13 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
         oe.new_bid as expected_bid,
         oe.previous_bid,
         k.bid as current_bid,
-        oe.created_at as optimized_at
+        oe.created_at as optimized_at,
+        pg.max_bid as max_bid
       FROM optimization_events oe
       JOIN keywords k ON oe.keyword_id = k.id
+      JOIN ad_groups ag ON k.adGroupId = ag.id
+      JOIN campaigns c ON ag.campaignId = c.id
+      LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
       WHERE oe.account_id = ${accountId}
         AND oe.event_category = 'bid_adjustment'
         AND oe.status = 'success'
@@ -424,13 +438,36 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
     
     console.log(`[AutoCorrector] v167: 账户${accountId} 发现${rows.length}条出价不一致需要纠正`);
     
-    // 批量重新发送到Amazon
-    const correctionItems = rows.map((row: any) => ({
-      keywordId: row.keyword_id,
-      newBid: parseFloat(String(row.expected_bid)),
-      campaignId: row.campaign_id || 0,
-      reason: `[自动纠错] 出价不一致纠正: 期望$${row.expected_bid}, 当前$${row.current_bid}`,
-    }));
+    // v172: 批量重新发送到Amazon - 但确保纠正值不超过max_bid红线
+    const correctionItems = rows.map((row: any) => {
+      let targetBid = parseFloat(String(row.expected_bid));
+      const maxBid = row.max_bid ? parseFloat(String(row.max_bid)) : 0;
+      
+      // v172 关键修复: 如果期望出价超过max_bid，使用max_bid作为纠正值
+      if (maxBid > 0 && targetBid > maxBid) {
+        console.log(`[AutoCorrector] v172: 出价纠正受max_bid限制: keyword=${row.keyword_id} expected=$${targetBid} -> max_bid=$${maxBid}`);
+        targetBid = maxBid;
+      }
+      
+      // v172: 如果纠正后的出价与当前出价差异在容忍范围内，跳过
+      const currentBid = parseFloat(String(row.current_bid));
+      if (Math.abs(targetBid - currentBid) <= AUTO_CORRECTION_CONFIG.bidToleranceDollar) {
+        console.log(`[AutoCorrector] v172: 跳过纠正(差异在容忍范围内): keyword=${row.keyword_id} target=$${targetBid} current=$${currentBid}`);
+        return null;
+      }
+      
+      return {
+        keywordId: row.keyword_id,
+        newBid: targetBid,
+        campaignId: row.campaign_id || 0,
+        reason: `[自动纠错] 出价不一致纠正: 期望$${targetBid.toFixed(2)}, 当前$${row.current_bid}${maxBid > 0 ? ` (max_bid=$${maxBid})` : ''}`,
+      };
+    }).filter((item: any) => item !== null);
+    
+    if (correctionItems.length === 0) {
+      console.log(`[AutoCorrector] v172: 所有出价纠正项在max_bid限制后已无需纠正`);
+      return results;
+    }
     
     try {
       const syncResult = await amazonApiHelper.syncBidAdjustmentsToAmazon(
@@ -438,7 +475,13 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
         correctionItems
       );
       
+      // v172: 使用correctionItems中的实际纠正值（已受max_bid限制）
+      const correctionMap = new Map(correctionItems.map((item: any) => [item.keywordId, item.newBid]));
+      
       for (const row of rows) {
+        const actualTargetBid = correctionMap.get(row.keyword_id);
+        if (actualTargetBid === undefined) continue; // 该关键词已被过滤（max_bid限制后无需纠正）
+        
         const success = syncResult.success > 0;
         
         results.push({
@@ -447,16 +490,16 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
           targetId: row.keyword_id,
           targetType: 'keyword',
           previousValue: String(row.current_bid),
-          correctedValue: String(row.expected_bid),
-          reason: `出价不一致: 期望$${row.expected_bid}(优化值), 实际$${row.current_bid}(当前值)`,
+          correctedValue: String(actualTargetBid),
+          reason: `出价不一致: 纠正到$${actualTargetBid.toFixed(2)}, 当前$${row.current_bid}`,
           success,
         });
         
         if (success) {
-          // 更新keywords表的bid为优化值
+          // v172: 更新keywords表的bid为受max_bid限制后的纠正值
           await database
             .update(keywords)
-            .set({ bid: String(row.expected_bid) })
+            .set({ bid: String(actualTargetBid) })
             .where(eq(keywords.id, row.keyword_id));
           
           // 记录纠错事件
@@ -469,8 +512,8 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
             campaignId: row.campaign_id,
             campaignName: row.campaign_name,
             previousBid: String(row.current_bid),
-            newBid: String(row.expected_bid),
-            changeReason: `[AutoCorrector] 出价不一致纠正: 期望$${row.expected_bid}, 当前$${row.current_bid}`,
+            newBid: String(actualTargetBid),
+            changeReason: `[AutoCorrector] 出价不一致纠正: 纠正到$${actualTargetBid.toFixed(2)}, 当前$${row.current_bid}${row.max_bid ? ` (max_bid=$${row.max_bid})` : ''}`,
           });
         }
       }
@@ -628,8 +671,8 @@ async function correctBudgetMismatches(database: any, accountId: number): Promis
         oe.campaign_name,
         oe.new_value as expected_budget,
         oe.previous_value as previous_budget,
-        c.daily_budget as current_budget,
-        c.campaign_id as amazon_campaign_id,
+        c.dailyBudget as current_budget,
+        c.campaignId as amazon_campaign_id,
         oe.created_at as optimized_at
       FROM optimization_events oe
       JOIN campaigns c ON oe.campaign_id = c.id
@@ -638,7 +681,7 @@ async function correctBudgetMismatches(database: any, accountId: number): Promis
         AND oe.status = 'success'
         AND oe.api_sync_status = 'synced'
         AND oe.created_at > DATE_SUB(NOW(), INTERVAL 3 DAY)
-        AND ABS(CAST(c.daily_budget AS DECIMAL(10,2)) - CAST(oe.new_value AS DECIMAL(10,2))) > ${AUTO_CORRECTION_CONFIG.budgetToleranceDollar}
+        AND ABS(CAST(c.dailyBudget AS DECIMAL(10,2)) - CAST(oe.new_value AS DECIMAL(10,2))) > ${AUTO_CORRECTION_CONFIG.budgetToleranceDollar}
         AND oe.id = (
           SELECT MAX(oe2.id) FROM optimization_events oe2 
           WHERE oe2.campaign_id = oe.campaign_id 
@@ -731,9 +774,9 @@ async function correctPlacementMismatches(database: any, accountId: number): Pro
         oe.campaign_id,
         oe.campaign_name,
         oe.action_detail,
-        c.placement_top_search_bid_adjustment as current_top,
-        c.placement_product_page_bid_adjustment as current_product,
-        c.campaign_id as amazon_campaign_id,
+        c.placementTopSearchBidAdjustment as current_top,
+        c.placementProductPageBidAdjustment as current_product,
+        c.campaignId as amazon_campaign_id,
         oe.created_at as optimized_at
       FROM optimization_events oe
       JOIN campaigns c ON oe.campaign_id = c.id
@@ -1405,6 +1448,8 @@ function createEmptyScanResult(reason: string): CorrectionScanResult {
       placementMismatches: { found: 0, corrected: 0, failed: 0 },
       rollbackExecutions: { found: 0, corrected: 0, failed: 0 },
       settingsRetries: { found: 0, corrected: 0, failed: 0 },
+      maxBidViolations: { found: 0, corrected: 0, failed: 0 },
+      orphanKeywordCleanups: { found: 0, corrected: 0, failed: 0 },
     },
     corrections: [],
   };
@@ -1425,6 +1470,8 @@ function buildScanResult(
     placementMismatches: { found: 0, corrected: 0, failed: 0 },
     rollbackExecutions: { found: 0, corrected: 0, failed: 0 },
     settingsRetries: { found: 0, corrected: 0, failed: 0 },
+    maxBidViolations: { found: 0, corrected: 0, failed: 0 },
+    orphanKeywordCleanups: { found: 0, corrected: 0, failed: 0 },
   };
   
   for (const c of corrections) {
@@ -1434,6 +1481,8 @@ function buildScanResult(
       : c.type === 'budget_mismatch' ? 'budgetMismatches'
       : c.type === 'placement_mismatch' ? 'placementMismatches'
       : c.type === 'rollback_execution' ? 'rollbackExecutions'
+      : c.type === 'max_bid_violation' ? 'maxBidViolations'
+      : c.type === 'orphan_keyword_cleanup' ? 'orphanKeywordCleanups'
       : 'settingsRetries';
     
     details[key].found++;
@@ -1484,6 +1533,223 @@ export function getConfig(): typeof AUTO_CORRECTION_CONFIG {
   return { ...AUTO_CORRECTION_CONFIG };
 }
 
+
+// ==================== 10. v172: 纠正超出max_bid的关键词出价 ====================
+
+async function correctMaxBidViolations(database: any, accountId: number): Promise<CorrectionResult[]> {
+  const results: CorrectionResult[] = [];
+  
+  try {
+    // 查找当前出价超过优化目标max_bid的enabled关键词
+    const violationQuery = sql`
+      SELECT 
+        k.id as keyword_id,
+        k.keywordText as keyword_text,
+        k.keywordId as amazon_keyword_id,
+        CAST(k.bid AS DECIMAL(10,2)) as current_bid,
+        pg.max_bid,
+        pg.id as pg_id,
+        pg.name as pg_name,
+        c.id as campaign_id,
+        c.campaignName as campaign_name
+      FROM keywords k
+      JOIN ad_groups ag ON k.adGroupId = ag.id
+      JOIN campaigns c ON ag.campaignId = c.id
+      JOIN performance_groups pg ON c.performanceGroupId = pg.id
+      WHERE c.accountId = ${accountId}
+        AND k.keywordStatus = 'enabled'
+        AND pg.max_bid IS NOT NULL AND pg.max_bid > 0
+        AND CAST(k.bid AS DECIMAL(10,2)) > pg.max_bid
+      ORDER BY CAST(k.bid AS DECIMAL(10,2)) - pg.max_bid DESC
+      LIMIT 100
+    `;
+    
+    const violations = await database.execute(violationQuery);
+    const rows = (violations as any)[0] || violations;
+    
+    if (!Array.isArray(rows) || rows.length === 0) return results;
+    
+    console.log(`[AutoCorrector] v172: 账户${accountId} 发现${rows.length}个关键词出价超出max_bid`);
+    
+    // 批量修正：将出价回退到max_bid
+    const correctionItems: any[] = [];
+    for (const row of rows) {
+      const maxBid = parseFloat(String(row.max_bid));
+      if (row.amazon_keyword_id) {
+        correctionItems.push({
+          keywordId: row.keyword_id,
+          newBid: maxBid,
+          campaignId: row.campaign_id,
+          reason: `[AutoCorrector v172] 出价$${row.current_bid}超出max_bid$${maxBid}，回退到max_bid`,
+        });
+      }
+      
+      // 无论是否有Amazon ID，都先更新本地数据库
+      await database
+        .update(keywords)
+        .set({ bid: String(maxBid) })
+        .where(eq(keywords.id, row.keyword_id));
+      
+      results.push({
+        type: 'max_bid_violation',
+        accountId,
+        targetId: row.keyword_id,
+        targetType: 'keyword',
+        previousValue: String(row.current_bid),
+        correctedValue: String(maxBid),
+        reason: `出价$${row.current_bid}超出max_bid$${maxBid} (优化目标: ${row.pg_name})`,
+        success: true,
+      });
+    }
+    
+    // 批量同步到Amazon
+    if (correctionItems.length > 0) {
+      try {
+        const syncResult = await amazonApiHelper.syncBidAdjustmentsToAmazon(accountId, correctionItems);
+        console.log(`[AutoCorrector] v172: 账户${accountId} max_bid纠正同步到Amazon: 成功${syncResult.success}, 失败${syncResult.failed}`);
+      } catch (syncError: any) {
+        console.error(`[AutoCorrector] v172: 账户${accountId} max_bid纠正同步失败: ${syncError.message}`);
+      }
+    }
+    
+    // 同样检查product_targets
+    const ptViolationQuery = sql`
+      SELECT 
+        pt.id as target_id,
+        pt.targetText as target_text,
+        pt.targetId as amazon_target_id,
+        CAST(pt.bid AS DECIMAL(10,2)) as current_bid,
+        pg.max_bid,
+        pg.id as pg_id,
+        pg.name as pg_name,
+        c.id as campaign_id
+      FROM product_targets pt
+      JOIN ad_groups ag ON pt.adGroupId = ag.id
+      JOIN campaigns c ON ag.campaignId = c.id
+      JOIN performance_groups pg ON c.performanceGroupId = pg.id
+      WHERE c.accountId = ${accountId}
+        AND pt.targetStatus = 'enabled'
+        AND pg.max_bid IS NOT NULL AND pg.max_bid > 0
+        AND CAST(pt.bid AS DECIMAL(10,2)) > pg.max_bid
+      ORDER BY CAST(pt.bid AS DECIMAL(10,2)) - pg.max_bid DESC
+      LIMIT 50
+    `;
+    
+    const ptViolations = await database.execute(ptViolationQuery);
+    const ptRows = (ptViolations as any)[0] || ptViolations;
+    
+    if (Array.isArray(ptRows) && ptRows.length > 0) {
+      console.log(`[AutoCorrector] v172: 账户${accountId} 发现${ptRows.length}个商品定向出价超出max_bid`);
+      for (const row of ptRows) {
+        const maxBid = parseFloat(String(row.max_bid));
+        await database
+          .update(productTargets)
+          .set({ bid: String(maxBid) })
+          .where(eq(productTargets.id, row.target_id));
+        
+        results.push({
+          type: 'max_bid_violation',
+          accountId,
+          targetId: row.target_id,
+          targetType: 'product_target',
+          previousValue: String(row.current_bid),
+          correctedValue: String(maxBid),
+          reason: `商品定向出价$${row.current_bid}超出max_bid$${maxBid} (优化目标: ${row.pg_name})`,
+          success: true,
+        });
+      }
+    }
+    
+    // 记录纠错事件
+    if (results.length > 0) {
+      await logCorrectionEvent(database, {
+        accountId,
+        eventCategory: 'auto_correction',
+        actionType: 'auto_correction',
+        changeReason: `[AutoCorrector v172] 纠正${results.length}个超出max_bid的出价`,
+      });
+    }
+  } catch (error: any) {
+    console.error(`[AutoCorrector] v172: 账户${accountId} correctMaxBidViolations失败: ${error.message}`);
+  }
+  
+  return results;
+}
+
+// ==================== 11. v172: 清理缺少Amazon ID的孤儿关键词 ====================
+
+async function cleanupOrphanKeywords(database: any, accountId: number): Promise<CorrectionResult[]> {
+  const results: CorrectionResult[] = [];
+  
+  try {
+    // 查找缺少Amazon ID且创建超过24小时的enabled关键词
+    // 这些关键词无法同步到Amazon，应该标记为paused以避免干扰优化算法
+    const orphanQuery = sql`
+      SELECT 
+        k.id as keyword_id,
+        k.keywordText as keyword_text,
+        k.bid,
+        k.createdAt,
+        c.id as campaign_id,
+        c.campaignName as campaign_name,
+        pg.name as pg_name
+      FROM keywords k
+      JOIN ad_groups ag ON k.adGroupId = ag.id
+      JOIN campaigns c ON ag.campaignId = c.id
+      LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
+      WHERE c.accountId = ${accountId}
+        AND k.keywordStatus = 'enabled'
+        AND k.keywordId IS NULL
+        AND k.createdAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+      ORDER BY k.createdAt ASC
+      LIMIT 200
+    `;
+    
+    const orphans = await database.execute(orphanQuery);
+    const rows = (orphans as any)[0] || orphans;
+    
+    if (!Array.isArray(rows) || rows.length === 0) return results;
+    
+    console.log(`[AutoCorrector] v172: 账户${accountId} 发现${rows.length}个缺少Amazon ID的孤儿关键词，标记为paused`);
+    
+    // 检查关键词文本是否包含特殊字符（导致Amazon API创建失败的根因）
+    for (const row of rows) {
+      const keywordText = String(row.keyword_text || '');
+      const hasSpecialChars = /[\uFFFC\uFFFD\u0000-\u001F]/.test(keywordText) || keywordText.length > 200;
+      
+      // 标记为paused，避免干扰优化算法
+      await database
+        .update(keywords)
+        .set({ keywordStatus: 'paused' })
+        .where(eq(keywords.id, row.keyword_id));
+      
+      results.push({
+        type: 'orphan_keyword_cleanup',
+        accountId,
+        targetId: row.keyword_id,
+        targetType: 'keyword',
+        previousValue: `enabled (no Amazon ID${hasSpecialChars ? ', has special chars' : ''})`,
+        correctedValue: 'paused',
+        reason: `孤儿关键词清理: "${keywordText.substring(0, 50)}..." 缺少Amazon ID${hasSpecialChars ? '，包含特殊字符' : ''} (优化目标: ${row.pg_name || 'N/A'})`,
+        success: true,
+      });
+    }
+    
+    // 记录纠错事件
+    if (results.length > 0) {
+      await logCorrectionEvent(database, {
+        accountId,
+        eventCategory: 'auto_correction',
+        actionType: 'auto_correction',
+        changeReason: `[AutoCorrector v172] 清理${results.length}个缺少Amazon ID的孤儿关键词`,
+      });
+    }
+  } catch (error: any) {
+    console.error(`[AutoCorrector] v172: 账户${accountId} cleanupOrphanKeywords失败: ${error.message}`);
+  }
+  
+  return results;
+}
 
 // ==================== 定时纠错调度 ====================
 let correctionInterval: ReturnType<typeof setInterval> | null = null;
