@@ -1,5 +1,5 @@
 /**
- * OptimizationAutoCorrector v167
+ * OptimizationAutoCorrector v176
  * 
  * 自动纠错服务 — 检测并修复过往所有错误优化
  * 
@@ -112,13 +112,13 @@ const scanHistory: CorrectionScanResult[] = [];
  */
 export async function runAutoCorrection(accountId?: number): Promise<CorrectionScanResult> {
   if (isScanning) {
-    console.log('[AutoCorrector] v167: 纠错扫描正在进行中，跳过本次请求');
+    console.log('[AutoCorrector] v176: 纠错扫描正在进行中，跳过本次请求');
     return createEmptyScanResult('skipped_in_progress');
   }
   
   // 检查最小扫描间隔
   if (lastScanTime && (Date.now() - lastScanTime.getTime()) < AUTO_CORRECTION_CONFIG.minScanIntervalMs) {
-    console.log('[AutoCorrector] v167: 距离上次扫描不足10分钟，跳过');
+    console.log('[AutoCorrector] v176: 距离上次扫描不足10分钟，跳过');
     return createEmptyScanResult('skipped_too_frequent');
   }
   
@@ -127,12 +127,12 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
   const startedAt = new Date();
   const corrections: CorrectionResult[] = [];
   
-  console.log(`[AutoCorrector] v167: 开始自动纠错扫描 (scanId: ${scanId}, accountId: ${accountId || 'all'})`);
+  console.log(`[AutoCorrector] v176: 开始自动纠错扫描 (scanId: ${scanId}, accountId: ${accountId || 'all'})`);
   
   try {
     const database = await getDb();
     if (!database) {
-      console.error('[AutoCorrector] v167: 无法获取数据库连接');
+      console.error('[AutoCorrector] v176: 无法获取数据库连接');
       return createEmptyScanResult('db_error');
     }
     
@@ -140,10 +140,10 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
     try {
       const nullFixResult = await fixNullApiSyncStatusRecords(database);
       if (nullFixResult > 0) {
-        console.log(`[AutoCorrector] v167: 已修复${nullFixResult}条历史NULL api_sync_status记录`);
+        console.log(`[AutoCorrector] v176: 已修复${nullFixResult}条历史NULL api_sync_status记录`);
       }
     } catch (nullFixError: any) {
-      console.error(`[AutoCorrector] v167: 修复NULL记录失败: ${nullFixError.message}`);
+      console.error(`[AutoCorrector] v176: 修复NULL记录失败: ${nullFixError.message}`);
     }
     
     // 获取需要扫描的账户列表
@@ -196,7 +196,7 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
         corrections.push(...orphanCleanups);
         
       } catch (accError: any) {
-        console.error(`[AutoCorrector] v167: 账户 ${accId} 纠错失败: ${accError.message}`);
+        console.error(`[AutoCorrector] v176: 账户 ${accId} 纠错失败: ${accError.message}`);
       }
     }
     
@@ -209,7 +209,7 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
     
     lastScanTime = completedAt;
     
-    console.log(`[AutoCorrector] v167: 纠错扫描完成 - 发现${result.totalIssuesFound}个问题, 纠正${result.totalCorrected}个, 失败${result.totalFailed}个`);
+    console.log(`[AutoCorrector] v176: 纠错扫描完成 - 发现${result.totalIssuesFound}个问题, 纠正${result.totalCorrected}个, 失败${result.totalFailed}个`);
     
     return result;
   } finally {
@@ -237,7 +237,7 @@ async function fixNullApiSyncStatusRecords(database: any): Promise<number> {
     const affectedRows = (updateResult as any)?.[0]?.affectedRows || (updateResult as any)?.affectedRows || 0;
     
     if (affectedRows > 0) {
-      console.log(`[AutoCorrector] v167: 已将 ${affectedRows} 条 optimization_logs NULL 记录标记为 legacy_unsynced`);
+      console.log(`[AutoCorrector] v176: 已将 ${affectedRows} 条 optimization_logs NULL 记录标记为 legacy_unsynced`);
     }
     
     // 同样处理 optimization_events 表
@@ -251,12 +251,12 @@ async function fixNullApiSyncStatusRecords(database: any): Promise<number> {
     const affectedRows2 = (updateResult2 as any)?.[0]?.affectedRows || (updateResult2 as any)?.affectedRows || 0;
     
     if (affectedRows2 > 0) {
-      console.log(`[AutoCorrector] v167: 已将 ${affectedRows2} 条 optimization_events NULL 记录标记为 legacy_unsynced`);
+      console.log(`[AutoCorrector] v176: 已将 ${affectedRows2} 条 optimization_events NULL 记录标记为 legacy_unsynced`);
     }
     
     return affectedRows + affectedRows2;
   } catch (error: any) {
-    console.error(`[AutoCorrector] v167: fixNullApiSyncStatusRecords 失败: ${error.message}`);
+    console.error(`[AutoCorrector] v176: fixNullApiSyncStatusRecords 失败: ${error.message}`);
     return 0;
   }
 }
@@ -301,7 +301,7 @@ async function retryFailedBidAdjustments(database: any, accountId: number): Prom
     
     if (failedEvents.length === 0) return results;
     
-    console.log(`[AutoCorrector] v167: 账户${accountId} 发现${failedEvents.length}条失败的出价调整需要重试`);
+    console.log(`[AutoCorrector] v176: 账户${accountId} 发现${failedEvents.length}条失败的出价调整需要重试`);
     
     // 按keyword分组，只保留每个keyword最新的一条
     const latestByKeyword = new Map<number, typeof failedEvents[0]>();
@@ -367,7 +367,7 @@ async function retryFailedBidAdjustments(database: any, accountId: number): Prom
         }
       }
     } catch (apiError: any) {
-      console.error(`[AutoCorrector] v167: 账户${accountId} 出价重试API调用失败: ${apiError.message}`);
+      console.error(`[AutoCorrector] v176: 账户${accountId} 出价重试API调用失败: ${apiError.message}`);
       for (const item of retryItems) {
         results.push({
           type: 'bid_retry',
@@ -383,7 +383,7 @@ async function retryFailedBidAdjustments(database: any, accountId: number): Prom
       }
     }
   } catch (error: any) {
-    console.error(`[AutoCorrector] v167: 账户${accountId} retryFailedBidAdjustments失败: ${error.message}`);
+    console.error(`[AutoCorrector] v176: 账户${accountId} retryFailedBidAdjustments失败: ${error.message}`);
   }
   
   return results;
@@ -436,7 +436,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
     
     if (!Array.isArray(rows) || rows.length === 0) return results;
     
-    console.log(`[AutoCorrector] v167: 账户${accountId} 发现${rows.length}条出价不一致需要纠正`);
+    console.log(`[AutoCorrector] v176: 账户${accountId} 发现${rows.length}条出价不一致需要纠正`);
     
     // v172: 批量重新发送到Amazon - 但确保纠正值不超过max_bid红线
     const correctionItems = rows.map((row: any) => {
@@ -445,14 +445,14 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
       
       // v172 关键修复: 如果期望出价超过max_bid，使用max_bid作为纠正值
       if (maxBid > 0 && targetBid > maxBid) {
-        console.log(`[AutoCorrector] v172: 出价纠正受max_bid限制: keyword=${row.keyword_id} expected=$${targetBid} -> max_bid=$${maxBid}`);
+        console.log(`[AutoCorrector] v176: 出价纠正受max_bid限制: keyword=${row.keyword_id} expected=$${targetBid} -> max_bid=$${maxBid}`);
         targetBid = maxBid;
       }
       
       // v172: 如果纠正后的出价与当前出价差异在容忍范围内，跳过
       const currentBid = parseFloat(String(row.current_bid));
       if (Math.abs(targetBid - currentBid) <= AUTO_CORRECTION_CONFIG.bidToleranceDollar) {
-        console.log(`[AutoCorrector] v172: 跳过纠正(差异在容忍范围内): keyword=${row.keyword_id} target=$${targetBid} current=$${currentBid}`);
+        console.log(`[AutoCorrector] v176: 跳过纠正(差异在容忍范围内): keyword=${row.keyword_id} target=$${targetBid} current=$${currentBid}`);
         return null;
       }
       
@@ -465,7 +465,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
     }).filter((item: any) => item !== null);
     
     if (correctionItems.length === 0) {
-      console.log(`[AutoCorrector] v172: 所有出价纠正项在max_bid限制后已无需纠正`);
+      console.log(`[AutoCorrector] v176: 所有出价纠正项在max_bid限制后已无需纠正`);
       return results;
     }
     
@@ -518,7 +518,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
         }
       }
     } catch (apiError: any) {
-      console.error(`[AutoCorrector] v167: 账户${accountId} 出价纠正API调用失败: ${apiError.message}`);
+      console.error(`[AutoCorrector] v176: 账户${accountId} 出价纠正API调用失败: ${apiError.message}`);
       for (const row of rows) {
         results.push({
           type: 'bid_mismatch',
@@ -534,7 +534,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
       }
     }
   } catch (error: any) {
-    console.error(`[AutoCorrector] v167: 账户${accountId} correctBidMismatches失败: ${error.message}`);
+    console.error(`[AutoCorrector] v176: 账户${accountId} correctBidMismatches失败: ${error.message}`);
   }
   
   return results;
@@ -576,7 +576,7 @@ async function retryFailedBudgetAdjustments(database: any, accountId: number): P
     
     if (failedEvents.length === 0) return results;
     
-    console.log(`[AutoCorrector] v167: 账户${accountId} 发现${failedEvents.length}条失败的预算调整需要重试`);
+    console.log(`[AutoCorrector] v176: 账户${accountId} 发现${failedEvents.length}条失败的预算调整需要重试`);
     
     // 按campaign分组，只保留最新的一条
     const latestByCampaign = new Map<number, typeof failedEvents[0]>();
@@ -654,7 +654,7 @@ async function retryFailedBudgetAdjustments(database: any, accountId: number): P
       }
     }
   } catch (error: any) {
-    console.error(`[AutoCorrector] v167: 账户${accountId} retryFailedBudgetAdjustments失败: ${error.message}`);
+    console.error(`[AutoCorrector] v176: 账户${accountId} retryFailedBudgetAdjustments失败: ${error.message}`);
   }
   
   return results;
@@ -700,7 +700,7 @@ async function correctBudgetMismatches(database: any, accountId: number): Promis
     
     if (!Array.isArray(rows) || rows.length === 0) return results;
     
-    console.log(`[AutoCorrector] v167: 账户${accountId} 发现${rows.length}条预算不一致需要纠正`);
+    console.log(`[AutoCorrector] v176: 账户${accountId} 发现${rows.length}条预算不一致需要纠正`);
     
     for (const row of rows) {
       try {
@@ -771,7 +771,7 @@ async function correctBudgetMismatches(database: any, accountId: number): Promis
       }
     }
   } catch (error: any) {
-    console.error(`[AutoCorrector] v167: 账户${accountId} correctBudgetMismatches失败: ${error.message}`);
+    console.error(`[AutoCorrector] v176: 账户${accountId} correctBudgetMismatches失败: ${error.message}`);
   }
   
   return results;
@@ -886,7 +886,7 @@ async function correctPlacementMismatches(database: any, accountId: number): Pro
       }
     }
   } catch (error: any) {
-    console.error(`[AutoCorrector] v167: 账户${accountId} correctPlacementMismatches失败: ${error.message}`);
+    console.error(`[AutoCorrector] v176: 账户${accountId} correctPlacementMismatches失败: ${error.message}`);
   }
   
   return results;
@@ -924,7 +924,7 @@ async function executeUnfinishedRollbacks(database: any, accountId: number): Pro
     
     if (unfinishedRollbacks.length === 0) return results;
     
-    console.log(`[AutoCorrector] v167: 账户${accountId} 发现${unfinishedRollbacks.length}条未执行的回滚`);
+    console.log(`[AutoCorrector] v176: 账户${accountId} 发现${unfinishedRollbacks.length}条未执行的回滚`);
     
     // 按keyword分组，只保留最新的一条
     const latestByKeyword = new Map<number, typeof unfinishedRollbacks[0]>();
@@ -986,10 +986,10 @@ async function executeUnfinishedRollbacks(database: any, accountId: number): Pro
         }
       }
     } catch (apiError: any) {
-      console.error(`[AutoCorrector] v167: 账户${accountId} 回滚执行API调用失败: ${apiError.message}`);
+      console.error(`[AutoCorrector] v176: 账户${accountId} 回滚执行API调用失败: ${apiError.message}`);
     }
   } catch (error: any) {
-    console.error(`[AutoCorrector] v167: 账户${accountId} executeUnfinishedRollbacks失败: ${error.message}`);
+    console.error(`[AutoCorrector] v176: 账户${accountId} executeUnfinishedRollbacks失败: ${error.message}`);
   }
   
   return results;
@@ -1028,7 +1028,7 @@ async function retryFailedSettingsChanges(database: any, accountId: number): Pro
     
     if (failedEvents.length === 0) return results;
     
-    console.log(`[AutoCorrector] v167: 账户${accountId} 发现${failedEvents.length}条失败的设置变更需要重试`);
+    console.log(`[AutoCorrector] v176: 账户${accountId} 发现${failedEvents.length}条失败的设置变更需要重试`);
     
     // 设置变更类型多样，需要根据actionType分别处理
     for (const event of failedEvents) {
@@ -1093,7 +1093,7 @@ async function retryFailedSettingsChanges(database: any, accountId: number): Pro
       }
     }
   } catch (error: any) {
-    console.error(`[AutoCorrector] v167: 账户${accountId} retryFailedSettingsChanges失败: ${error.message}`);
+    console.error(`[AutoCorrector] v176: 账户${accountId} retryFailedSettingsChanges失败: ${error.message}`);
   }
   
   return results;
@@ -1135,7 +1135,7 @@ async function retryFailedKeywordCreations(database: any, accountId: number): Pr
     
     if (failedEvents.length === 0) return results;
     
-    console.log(`[AutoCorrector] v168: 账户${accountId} 发现${failedEvents.length}条失败/pending的关键词创建需要重试`);
+    console.log(`[AutoCorrector] v176: 账户${accountId} 发现${failedEvents.length}条失败/pending的关键词创建需要重试`);
     
     for (const event of failedEvents) {
       try {
@@ -1147,7 +1147,7 @@ async function retryFailedKeywordCreations(database: any, accountId: number): Pr
         
         const localKeywordId = event.keywordId || detail.localKeywordId;
         if (!localKeywordId) {
-          console.warn(`[AutoCorrector] v168: 关键词创建重试跳过 - 无本地keywordId, eventId=${event.id}`);
+          console.warn(`[AutoCorrector] v176: 关键词创建重试跳过 - 无本地keywordId, eventId=${event.id}`);
           continue;
         }
         
@@ -1181,7 +1181,7 @@ async function retryFailedKeywordCreations(database: any, accountId: number): Pr
           .limit(1);
         
         if (agRows.length === 0) {
-          console.warn(`[AutoCorrector] v168: 关键词创建重试跳过 - 无adGroup, keywordId=${localKeywordId}`);
+          console.warn(`[AutoCorrector] v176: 关键词创建重试跳过 - 无adGroup, keywordId=${localKeywordId}`);
           continue;
         }
         
@@ -1245,7 +1245,7 @@ async function retryFailedKeywordCreations(database: any, accountId: number): Pr
       }
     }
   } catch (error: any) {
-    console.error(`[AutoCorrector] v168: 账户${accountId} retryFailedKeywordCreations失败: ${error.message}`);
+    console.error(`[AutoCorrector] v176: 账户${accountId} retryFailedKeywordCreations失败: ${error.message}`);
   }
   
   return results;
@@ -1286,7 +1286,7 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
     
     if (failedEvents.length === 0) return results;
     
-    console.log(`[AutoCorrector] v168: 账户${accountId} 发现${failedEvents.length}条失败/pending的否定关键词添加需要重试`);
+    console.log(`[AutoCorrector] v176: 账户${accountId} 发现${failedEvents.length}条失败/pending的否定关键词添加需要重试`);
     
     // 批量收集否定关键词信息
     const negKeywordsToSync: Array<{
@@ -1347,7 +1347,7 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
         };
         negKeywordsToSync.push(nkEntry);
       } catch (parseErr: any) {
-        console.warn(`[AutoCorrector] v168: 解析否定关键词事件失败: eventId=${event.id}, ${parseErr.message}`);
+        console.warn(`[AutoCorrector] v176: 解析否定关键词事件失败: eventId=${event.id}, ${parseErr.message}`);
       }
     }
     
@@ -1440,6 +1440,10 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
           UPDATE optimization_logs SET api_sync_status = 'synced' 
           WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${nk.eventId} AND source_table = 'optimization_logs')
         `).catch(() => {});
+        
+        // v176: 同步成功后，更新negative_keywords表的amazon_negative_keyword_id
+        // 注意：syncResult本身不返回keywordId，但幂等性检查已确认Amazon上存在
+        console.log(`[AutoCorrector] v176: 否定词同步成功: "${nk.keywordText}" (campaign=${nk.campaignId})`);
       } else if (isPermanentError) {
         // v175b: Amazon拒绝的无效关键词，直接标记为not_applicable，不再重试
         await database.update(optimizationEvents).set({
@@ -1457,7 +1461,16 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
           WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${nk.eventId} AND source_table = 'optimization_logs')
         `).catch(() => {});
         
-        console.log(`[AutoCorrector] v175b: 否定词Amazon永久拒绝，停止重试: "${nk.keywordText}"`);
+        console.log(`[AutoCorrector] v176: 否定词Amazon永久拒绝，停止重试: "${nk.keywordText}"`);
+        
+        // v176: 标记negative_keywords表中的记录为removed
+        await database.execute(sql`
+          UPDATE negative_keywords SET negativeStatus = 'removed'
+          WHERE negativeText = ${nk.keywordText}
+            AND amazon_negative_keyword_id IS NULL
+        `).catch((err: any) => {
+          console.warn(`[AutoCorrector] v176: 更新negative_keywords失败: ${err.message}`);
+        });
       } else {
         // 临时失败，记录重试次数
         await database.update(optimizationEvents).set({
@@ -1484,7 +1497,7 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
       });
     }
   } catch (error: any) {
-    console.error(`[AutoCorrector] v168: 账户${accountId} retryFailedNegativeKeywordAdds失败: ${error.message}`);
+    console.error(`[AutoCorrector] v176: 账户${accountId} retryFailedNegativeKeywordAdds失败: ${error.message}`);
   }
   
   return results;
@@ -1541,7 +1554,7 @@ async function logCorrectionEvent(database: any, data: {
       createdAt: new Date(),
     });
   } catch (error: any) {
-    console.warn(`[AutoCorrector] v167: 记录纠错事件失败: ${error.message}`);
+    console.warn(`[AutoCorrector] v176: 记录纠错事件失败: ${error.message}`);
   }
 }
 
@@ -1683,7 +1696,7 @@ async function correctMaxBidViolations(database: any, accountId: number): Promis
     
     if (!Array.isArray(rows) || rows.length === 0) return results;
     
-    console.log(`[AutoCorrector] v172: 账户${accountId} 发现${rows.length}个关键词出价超出max_bid`);
+    console.log(`[AutoCorrector] v176: 账户${accountId} 发现${rows.length}个关键词出价超出max_bid`);
     
     // 批量修正：将出价回退到max_bid
     const correctionItems: any[] = [];
@@ -1720,9 +1733,9 @@ async function correctMaxBidViolations(database: any, accountId: number): Promis
     if (correctionItems.length > 0) {
       try {
         const syncResult = await amazonApiHelper.syncBidAdjustmentsToAmazon(accountId, correctionItems);
-        console.log(`[AutoCorrector] v172: 账户${accountId} max_bid纠正同步到Amazon: 成功${syncResult.success}, 失败${syncResult.failed}`);
+        console.log(`[AutoCorrector] v176: 账户${accountId} max_bid纠正同步到Amazon: 成功${syncResult.success}, 失败${syncResult.failed}`);
       } catch (syncError: any) {
-        console.error(`[AutoCorrector] v172: 账户${accountId} max_bid纠正同步失败: ${syncError.message}`);
+        console.error(`[AutoCorrector] v176: 账户${accountId} max_bid纠正同步失败: ${syncError.message}`);
       }
     }
     
@@ -1753,7 +1766,7 @@ async function correctMaxBidViolations(database: any, accountId: number): Promis
     const ptRows = (ptViolations as any)[0] || ptViolations;
     
     if (Array.isArray(ptRows) && ptRows.length > 0) {
-      console.log(`[AutoCorrector] v172: 账户${accountId} 发现${ptRows.length}个商品定向出价超出max_bid`);
+      console.log(`[AutoCorrector] v176: 账户${accountId} 发现${ptRows.length}个商品定向出价超出max_bid`);
       for (const row of ptRows) {
         const maxBid = parseFloat(String(row.max_bid));
         await database
@@ -1784,7 +1797,7 @@ async function correctMaxBidViolations(database: any, accountId: number): Promis
       });
     }
   } catch (error: any) {
-    console.error(`[AutoCorrector] v172: 账户${accountId} correctMaxBidViolations失败: ${error.message}`);
+    console.error(`[AutoCorrector] v176: 账户${accountId} correctMaxBidViolations失败: ${error.message}`);
   }
   
   return results;
@@ -1824,7 +1837,7 @@ async function cleanupOrphanKeywords(database: any, accountId: number): Promise<
     
     if (!Array.isArray(rows) || rows.length === 0) return results;
     
-    console.log(`[AutoCorrector] v172: 账户${accountId} 发现${rows.length}个缺少Amazon ID的孤儿关键词，标记为paused`);
+    console.log(`[AutoCorrector] v176: 账户${accountId} 发现${rows.length}个缺少Amazon ID的孤儿关键词，标记为paused`);
     
     // 检查关键词文本是否包含特殊字符（导致Amazon API创建失败的根因）
     for (const row of rows) {
@@ -1859,7 +1872,7 @@ async function cleanupOrphanKeywords(database: any, accountId: number): Promise<
       });
     }
   } catch (error: any) {
-    console.error(`[AutoCorrector] v172: 账户${accountId} cleanupOrphanKeywords失败: ${error.message}`);
+    console.error(`[AutoCorrector] v176: 账户${accountId} cleanupOrphanKeywords失败: ${error.message}`);
   }
   
   return results;

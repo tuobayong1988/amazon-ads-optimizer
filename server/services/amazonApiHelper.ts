@@ -442,6 +442,22 @@ export async function syncPlacementAdjustmentToAmazon(
 }
 
 /**
+ * v176: 标准化matchType格式用于比较
+ * Amazon API返回 NEGATIVE_PHRASE/NEGATIVE_EXACT
+ * 本地使用 negativePhrase/negativeExact
+ * 统一转换为 negative_phrase/negative_exact 进行比较
+ */
+function normalizeMatchTypeForComparison(matchType: string): string {
+  const lower = (matchType || '').toLowerCase();
+  // NEGATIVE_PHRASE -> negative_phrase (已经是)
+  // negativePhrase -> negativephrase -> 需要转换
+  // negative_phrase -> negative_phrase (已经是)
+  if (lower === 'negativephrase' || lower === 'negative_phrase') return 'negative_phrase';
+  if (lower === 'negativeexact' || lower === 'negative_exact') return 'negative_exact';
+  return lower;
+}
+
+/**
  * 同步否定关键词到 Amazon
  * 通过 createSpCampaignNegativeKeywords 或 createSpNegativeKeywords API
  */
@@ -475,13 +491,14 @@ export async function syncNegativeKeywordsToAmazon(
   if (campaignLevel.length > 0) {
     try {
       // v149: 幂等性 - 获取已有的campaign级否定词进行去重
+      // v176: 修复matchType格式标准化 - Amazon返回NEGATIVE_PHRASE，本地用negativePhrase
       const uniqueCampaignIds = [...new Set(campaignLevel.map(n => n.campaignId))];
       const existingNegatives = new Set<string>();
       for (const cid of uniqueCampaignIds) {
         try {
           const existing = await syncService.client.listSpCampaignNegativeKeywords(cid);
           for (const e of existing) {
-            const key = `${e.campaignId}:${(e.keywordText || '').toLowerCase()}:${(e.matchType || '').toLowerCase()}`;
+            const key = `${e.campaignId}:${(e.keywordText || '').toLowerCase()}:${normalizeMatchTypeForComparison(e.matchType)}`;
             existingNegatives.add(key);
           }
         } catch (listErr: any) {
@@ -489,9 +506,9 @@ export async function syncNegativeKeywordsToAmazon(
         }
       }
       
-      // 过滤掉已存在的否定词
+      // 过滤掉已存在的否定词 (v176: 使用标准化matchType比较)
       const newCampaignNegatives = campaignLevel.filter(n => {
-        const key = `${n.campaignId}:${n.keywordText.toLowerCase()}:${n.matchType.toLowerCase()}`;
+        const key = `${n.campaignId}:${n.keywordText.toLowerCase()}:${normalizeMatchTypeForComparison(n.matchType)}`;
         return !existingNegatives.has(key);
       });
       
@@ -537,13 +554,14 @@ export async function syncNegativeKeywordsToAmazon(
   if (adGroupLevel.length > 0) {
     try {
       // v149: 幂等性 - 获取已有的adgroup级否定词进行去重
+      // v176: 修复matchType格式标准化
       const uniqueAdGroupIds = [...new Set(adGroupLevel.map(n => n.adGroupId!))];
       const existingNegatives = new Set<string>();
       for (const agId of uniqueAdGroupIds) {
         try {
           const existing = await syncService.client.listSpNegativeKeywords(agId);
           for (const e of existing) {
-            const key = `${e.adGroupId}:${(e.keywordText || '').toLowerCase()}:${(e.matchType || '').toLowerCase()}`;
+            const key = `${e.adGroupId}:${(e.keywordText || '').toLowerCase()}:${normalizeMatchTypeForComparison(e.matchType)}`;
             existingNegatives.add(key);
           }
         } catch (listErr: any) {
@@ -551,9 +569,9 @@ export async function syncNegativeKeywordsToAmazon(
         }
       }
       
-      // 过滤掉已存在的否定词
+      // 过滤掉已存在的否定词 (v176: 使用标准化matchType比较)
       const newAdGroupNegatives = adGroupLevel.filter(n => {
-        const key = `${n.adGroupId}:${n.keywordText.toLowerCase()}:${n.matchType.toLowerCase()}`;
+        const key = `${n.adGroupId}:${n.keywordText.toLowerCase()}:${normalizeMatchTypeForComparison(n.matchType)}`;
         return !existingNegatives.has(key);
       });
       
