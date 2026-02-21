@@ -72,6 +72,13 @@ export interface OptimizationExecutionResult {
     details: any[];
   };
   
+  // v179: 分时预算优化
+  daypartingBudgetOptimization: {
+    executed: boolean;
+    adjustmentsCount: number;
+    details: any[];
+  };
+  
   searchTermAnalysis: {
     executed: boolean;
     negativeKeywordsAdded: number;
@@ -277,6 +284,7 @@ export async function executeOptimizationTarget(
     bidOptimization: { executed: false, adjustmentsCount: 0, details: [] },
     placementOptimization: { executed: false, adjustmentsCount: 0, details: [] },
     daypartingOptimization: { executed: false, adjustmentsCount: 0, details: [] },
+    daypartingBudgetOptimization: { executed: false, adjustmentsCount: 0, details: [] }, // v179
     searchTermAnalysis: { executed: false, negativeKeywordsAdded: 0, newKeywordsAdded: 0, details: [] },
     budgetAllocation: { executed: false, adjustmentsCount: 0, details: [] },
     keywordStatusChanges: { executed: false, pausedCount: 0, enabledCount: 0, details: [] },
@@ -455,6 +463,16 @@ export async function executeOptimizationTarget(
       result.daypartingOptimization = daypartingResults;
     } catch (error: any) {
       result.errors.push(`分时竞价优化失败: ${error.message}`);
+    }
+  }
+  
+  // 3.5 v179: 执行分时预算优化（根据星期几调整预算）
+  if (config.enableDaypartingOptimization && shouldExecute('dayparting_budget')) {
+    try {
+      const daypartingBudgetResults = await executeDaypartingBudgetOptimization(config, campaigns, dryRun);
+      result.daypartingBudgetOptimization = daypartingBudgetResults;
+    } catch (error: any) {
+      result.errors.push(`分时预算优化失败: ${error.message}`);
     }
   }
   
@@ -1323,6 +1341,143 @@ async function executeDaypartingOptimization(
         campaignName: campaign.campaignName,
         error: error.message,
       });
+    }
+  }
+  
+  return { executed: true, adjustmentsCount, details };
+}
+
+/**
+ * v179: 执行分时预算优化
+ * 根据星期几的表现数据，动态调整广告活动的每日预算
+ * 高投产的星期几增加预算，低投产的星期几减少预算
+ */
+async function executeDaypartingBudgetOptimization(
+  config: OptimizationTargetConfig,
+  campaigns: any[],
+  dryRun: boolean
+): Promise<{ executed: boolean; adjustmentsCount: number; details: any[] }> {
+  const details: any[] = [];
+  let adjustmentsCount = 0;
+  
+  // 获取当前星期几（站点本地时间）
+  const marketplace = config.marketplace || 'US';
+  const now = new Date();
+  const currentDayOfWeek = getLocalDayOfWeek(now, marketplace);
+  
+  for (const campaign of campaigns) {
+    try {
+      // 获取分时策略
+      let strategy = await daypartingService.getDaypartingStrategyByCampaignId(campaign.id);
+      if (!strategy || strategy.daypartingStatus !== 'active') continue;
+      
+      // 获取今天的预算规则
+      const budgetRules = await daypartingService.getBudgetRules(strategy.id);
+      const todayRule = budgetRules.find((r: any) => r.dayOfWeek === currentDayOfWeek);
+      
+      if (!todayRule) continue;
+      
+      const budgetMultiplier = parseFloat(todayRule.budgetMultiplier || '1.00');
+      
+      // 如果倍数接近1.0，跳过调整
+      if (Math.abs(budgetMultiplier - 1.0) < 0.05) continue;
+      
+      const currentBudget = parseFloat(campaign.dailyBudget || '0');
+      if (currentBudget <= 0) continue;
+      
+      // 计算基础预算（如果之前已经调整过，需要还原到基础值）
+      // 策略：使用campaign的原始预算作为基础，乘以今天的倍数
+      const baseBudget = parseFloat((campaign as any).originalDailyBudget || campaign.dailyBudget || '0');
+      const adjustedBudget = Math.round(baseBudget * budgetMultiplier * 100) / 100;
+      
+      const adjustment: any = {
+        accountId: config.accountId,
+        campaignId: campaign.id,
+        campaignName: campaign.campaignName,
+        dayOfWeek: currentDayOfWeek,
+        budgetMultiplier,
+        baseBudget,
+        currentBudget,
+        adjustedBudget,
+        changeAmount: adjustedBudget - currentBudget,
+        changePercent: currentBudget > 0 ? ((adjustedBudget - currentBudget) / currentBudget * 100).toFixed(2) : '0',
+        reason: `分时预算: 星期${['\u65e5','\u4e00','\u4e8c','\u4e09','\u56db','\u4e94','\u516d'][currentDayOfWeek]} 倍数${budgetMultiplier}x, $${currentBudget.toFixed(2)} \u2192 $${adjustedBudget.toFixed(2)}`,
+        apiSyncStatus: 'pending',
+      };
+      
+      details.push(adjustment);
+      
+      // 实际执行预算调整
+      if (!dryRun && Math.abs(adjustedBudget - currentBudget) > 0.50) {
+        try {
+          const amazonCampaignId = campaign.campaignId || campaign.id.toString();
+          const budgetSyncResult = await amazonApiHelper.syncBudgetAdjustmentToAmazon(
+            config.accountId,
+            amazonCampaignId,
+            adjustedBudget,
+            `v179分时预算: 星期${currentDayOfWeek} 倍数${budgetMultiplier}x`
+          );
+          
+          if (budgetSyncResult) {
+            await db.updateCampaign(campaign.id, {
+              dailyBudget: adjustedBudget.toFixed(2),
+              lastOptimizedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+            } as any);
+            adjustmentsCount++;
+            adjustment.apiSyncStatus = 'synced';
+            
+            // 记录执行日志
+            try {
+              await daypartingService.logStrategyExecution({
+                strategyId: strategy.id,
+                executionType: 'budget_adjustment',
+                dpTargetType: 'campaign',
+                dpTargetId: campaign.id,
+                dpTargetName: campaign.campaignName,
+                previousValue: currentBudget.toFixed(2),
+                newValue: adjustedBudget.toFixed(2),
+                multiplierApplied: budgetMultiplier.toFixed(2),
+                triggerDayOfWeek: currentDayOfWeek,
+                triggerHour: getLocalHour(now, marketplace),
+                dpExecStatus: 'success',
+              });
+            } catch (logErr: any) {
+              console.warn(`[DaypartingBudget] 日志记录失败: ${logErr.message}`);
+            }
+            
+            console.log(`[DaypartingBudget] v179: ${campaign.campaignName} 预算调整 $${currentBudget.toFixed(2)} \u2192 $${adjustedBudget.toFixed(2)} (星期${currentDayOfWeek}, 倍数${budgetMultiplier}x)`);
+          } else {
+            adjustment.apiSyncStatus = 'failed';
+            console.warn(`[DaypartingBudget] v179: API同步失败 (Campaign ${campaign.campaignName})`);
+          }
+        } catch (apiError: any) {
+          adjustment.apiSyncStatus = 'failed';
+          adjustment.apiSyncDetail = JSON.stringify({ error: apiError.message });
+          console.error(`[DaypartingBudget] v179: API同步异常 (Campaign ${campaign.campaignName}):`, apiError.message);
+        }
+      }
+    } catch (error: any) {
+      details.push({
+        campaignId: campaign.id,
+        campaignName: campaign.campaignName,
+        error: error.message,
+      });
+    }
+  }
+  
+  // 更新策略的lastAppliedAt
+  if (adjustmentsCount > 0) {
+    try {
+      const strategies = await daypartingService.getDaypartingStrategies(config.accountId);
+      for (const s of strategies) {
+        if (s.daypartingStatus === 'active') {
+          await daypartingService.updateDaypartingStrategy(s.id, {
+            lastAppliedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+          });
+        }
+      }
+    } catch (updateErr: any) {
+      console.warn(`[DaypartingBudget] 更新lastAppliedAt失败: ${updateErr.message}`);
     }
   }
   
@@ -2737,6 +2892,32 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
       }
     }
     
+    // v179: 记录分时预算日志
+    if (result.daypartingBudgetOptimization?.executed && result.daypartingBudgetOptimization.adjustmentsCount > 0) {
+      for (const detail of result.daypartingBudgetOptimization.details) {
+        if (detail.error) continue;
+        await dbInstance.insert(optimizationLogs).values({
+          performanceGroupId: result.targetId,
+          performanceGroupName: result.targetName,
+          accountId: result.accountId || detail.accountId || 0,
+          logCategory: 'bid_adjustment',
+          actionType: 'budget_adjustment',
+          campaignId: detail.campaignId,
+          campaignName: detail.campaignName,
+          actionDetail: JSON.stringify(detail),
+          previousValue: `${detail.currentBudget?.toFixed(2) || '0.00'}`,
+          newValue: `${detail.adjustedBudget?.toFixed(2) || '0.00'}`,
+          changeReason: detail.reason || `分时预算: 星期${detail.dayOfWeek} 倍数${detail.budgetMultiplier}x`,
+          status: detail.apiSyncStatus === 'synced' ? 'success' : detail.apiSyncStatus === 'failed' ? 'failed' : 'success',
+          apiSyncStatus: detail.apiSyncStatus || 'not_applicable',
+          apiSyncDetail: detail.apiSyncDetail || null,
+          apiSyncedAt: detail.apiSyncStatus === 'synced' ? now : null,
+          createdAt: now,
+          executedAt: now,
+        });
+      }
+    }
+    
     // 记录投放词状态变更日志（包含API同步状态）
     if (result.keywordStatusChanges.executed) {
       for (const detail of result.keywordStatusChanges.details) {
@@ -2918,6 +3099,7 @@ export async function executeAllEnabledTargets(
         bidOptimization: { executed: false, adjustmentsCount: 0, details: [] },
         placementOptimization: { executed: false, adjustmentsCount: 0, details: [] },
         daypartingOptimization: { executed: false, adjustmentsCount: 0, details: [] },
+        daypartingBudgetOptimization: { executed: false, adjustmentsCount: 0, details: [] }, // v179
         searchTermAnalysis: { executed: false, negativeKeywordsAdded: 0, newKeywordsAdded: 0, details: [] },
         budgetAllocation: { executed: false, adjustmentsCount: 0, details: [] },
         keywordStatusChanges: { executed: false, pausedCount: 0, enabledCount: 0, details: [] },

@@ -734,6 +734,92 @@ export async function applyHourlyBidRulesToStrategy(
 }
 
 /**
+ * v179: 将分时预算规则应用到策略
+ * 基于每周每天的表现数据，生成预算倍数规则并保存
+ */
+export async function applyDailyBudgetRulesToStrategy(
+  campaignId: string | number,
+  accountId: number,
+  dayPerformances: DayPerformance[],
+  config: {
+    targetAcos?: number;
+    targetRoas?: number;
+    optimizationGoal?: string;
+  }
+): Promise<{ success: boolean; strategyId: number; rulesApplied: number }> {
+  // 获取或创建分时策略
+  let strategy = await daypartingService.getDaypartingStrategyByCampaignId(campaignId);
+  if (!strategy) {
+    strategy = await daypartingService.ensureDaypartingStrategy(
+      accountId,
+      campaignId,
+      `Campaign ${campaignId}`,
+      {}
+    );
+  }
+  
+  if (!strategy) {
+    return { success: false, strategyId: 0, rulesApplied: 0 };
+  }
+  
+  // 获取现有预算规则
+  const existingRules = await daypartingService.getBudgetRules(strategy.id);
+  
+  // 计算每天的预算倍数
+  const targetRoas = config.targetRoas || (config.targetAcos ? 100 / config.targetAcos : 3.33);
+  const allScores = dayPerformances.map(d => d.score);
+  const avgScore = allScores.reduce((s, v) => s + v, 0) / Math.max(allScores.length, 1) || 1;
+  
+  const budgetRules = [];
+  for (let dayOfWeek = 0; dayOfWeek <= 6; dayOfWeek++) {
+    const dayPerf = dayPerformances.find(d => d.dayOfWeek === dayOfWeek);
+    
+    let multiplier = 1.0;
+    if (dayPerf && avgScore > 0) {
+      multiplier = dayPerf.score / avgScore;
+      // 限制调整幅度
+      multiplier = Math.max(0.50, Math.min(1.80, multiplier));
+    }
+    
+    // 渐进式更新：与现有规则混合
+    const existing = existingRules.find((e: any) => e.dayOfWeek === dayOfWeek);
+    if (existing) {
+      const existingMultiplier = parseFloat(existing.budgetMultiplier || '1.00');
+      // 新值 = 旧值 * 0.3 + 新值 * 0.7
+      multiplier = existingMultiplier * 0.3 + multiplier * 0.7;
+    }
+    
+    multiplier = Math.round(multiplier * 100) / 100;
+    const budgetPercentage = Math.round((multiplier / 7) * 100 * 100) / 100;
+    
+    budgetRules.push({
+      dayOfWeek,
+      budgetMultiplier: multiplier.toFixed(2),
+      budgetPercentage: budgetPercentage.toFixed(2),
+      avgSpend: dayPerf?.spend?.toFixed(2),
+      avgSales: dayPerf?.sales?.toFixed(2),
+      avgAcos: dayPerf?.acos?.toFixed(2),
+      avgRoas: dayPerf?.roas?.toFixed(2),
+      dataPoints: dayPerf ? Math.round(dayPerf.clicks / 10) : 0, // 估算数据点
+      isEnabled: 1,
+    });
+  }
+  
+  // 保存规则
+  await daypartingService.saveBudgetRules(strategy.id, budgetRules);
+  
+  // 确保策略为active状态
+  if (strategy.daypartingStatus !== 'active') {
+    await daypartingService.updateDaypartingStrategy(strategy.id, {
+      daypartingStatus: 'active',
+      lastAnalyzedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
+    });
+  }
+  
+  return { success: true, strategyId: strategy.id, rulesApplied: budgetRules.length };
+}
+
+/**
  * 为优化目标下的所有campaign执行多维度分析和优化
  * 这是被optimizationTargetEngine调用的主入口
  */
@@ -793,6 +879,28 @@ export async function executeMultiDimensionOptimization(
           campaign.id, accountId, plan.hourlyBidRules
         );
         totalRulesGenerated += applyResult.rulesApplied;
+      }
+      
+      // 3.5 v179: 应用分时预算规则（基于每周每天的表现数据）
+      const allDayPerfs = [
+        ...analysis.timeAnalysis.bestDays,
+        ...analysis.timeAnalysis.worstDays,
+      ];
+      // 去重（bestDays和worstDays可能重叠）
+      const uniqueDayPerfs = allDayPerfs.filter(
+        (d, i, arr) => arr.findIndex(x => x.dayOfWeek === d.dayOfWeek) === i
+      );
+      if (!dryRun && uniqueDayPerfs.length > 0) {
+        try {
+          const budgetApplyResult = await applyDailyBudgetRulesToStrategy(
+            campaign.id, accountId, uniqueDayPerfs, config
+          );
+          if (budgetApplyResult.success) {
+            console.log(`[MultiDimOptimizer] v179: Campaign ${campaign.campaignName} 分时预算规则已保存: ${budgetApplyResult.rulesApplied}条`);
+          }
+        } catch (budgetErr: any) {
+          console.warn(`[MultiDimOptimizer] v179: 分时预算规则保存失败: ${budgetErr.message}`);
+        }
       }
       
       details.push({

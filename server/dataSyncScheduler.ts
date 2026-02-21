@@ -774,6 +774,7 @@ type OptimizationTaskType =
   | 'intraday_pacing'
   | 'risk_scan' 
   | 'dayparting_adjustment'
+  | 'dayparting_budget'  // v179: 分时预算调整
   | 'daily_bid_optimization' 
   | 'daily_placement_optimization'
   | 'daily_search_term_negation'
@@ -807,7 +808,14 @@ const OPTIMIZATION_SCHEDULE: Record<OptimizationTaskType, OptimizationScheduleCo
     type: 'dayparting_adjustment',
     description: '分时竞价调整 - 根据当前时段动态调整出价乘数',
     intervalMs: 60 * 60 * 1000, // 每小时
-    specificModules: ['dayparting', 'coordination'], // 仅分时竞价+协调
+    specificModules: ['multidim', 'dayparting', 'coordination'], // v179: 添加multidim模块以生成分时竞价规则
+  },
+  dayparting_budget: {
+    type: 'dayparting_budget',
+    description: 'v179: 分时预算调整 - 根据星期几的表现动态调整预算',
+    intervalMs: 24 * 60 * 60 * 1000, // 每天执行一次
+    cronHours: [6], // 凌昨6:00执行（在分时竞价规则生成后）
+    specificModules: ['multidim', 'dayparting_budget'], // 先生成规则，再应用预算
   },
   daily_bid_optimization: {
     type: 'daily_bid_optimization',
@@ -858,6 +866,7 @@ let optimizationIntervals: Record<OptimizationTaskType, NodeJS.Timeout | null> =
   intraday_pacing: null,
   risk_scan: null,
   dayparting_adjustment: null,
+  dayparting_budget: null, // v179
   daily_bid_optimization: null,
   daily_placement_optimization: null,
   daily_search_term_negation: null,
@@ -1022,6 +1031,12 @@ export async function startOptimizationScheduler(): Promise<void> {
     await executeOptimizationTask('dayparting_adjustment');
   }, OPTIMIZATION_SCHEDULE.dayparting_adjustment.intervalMs);
   console.log(`[OptimizationScheduler] 分时竞价调整已启动，间隔: 1小时`);
+  
+  // 2.5 v179: 分时预算调整 - 每天执行一次
+  optimizationIntervals.dayparting_budget = setInterval(async () => {
+    await executeOptimizationTask('dayparting_budget');
+  }, OPTIMIZATION_SCHEDULE.dayparting_budget.intervalMs);
+  console.log(`[OptimizationScheduler] v179: 分时预算调整已启动，间隔: 24小时，凌昨6:00执行`);
   
   // 3. v143: 出价智能优化 - 每2小时触发，但每个目标根据生命周期独立判断
   // 启动期: 每4小时执行 | 成长期: 每6小时 | 成熟期: 每12小时
@@ -1208,10 +1223,10 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
       case 'dayparting_adjustment': {
         console.log(`[OptimizationScheduler] 执行分时竞价调整`);
         try {
-          // v122: 仅执行分时竞价模块
+          // v179: 添加multidim模块以生成分时竞价规则，然后由dayparting模块应用
           const daypartingResults = await executeAllEnabledTargets(undefined, { 
             dryRun: false, 
-            specificModules: ['dayparting', 'coordination'] 
+            specificModules: ['multidim', 'dayparting', 'coordination'] 
           });
           console.log(`[OptimizationScheduler] 分时竞价调整完成: ${daypartingResults.length}个目标`);
           for (const r of daypartingResults) {
@@ -1219,6 +1234,25 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
           }
         } catch (daypartingError: any) {
           console.error(`[OptimizationScheduler] 分时竞价调整失败:`, daypartingError.message);
+        }
+        break;
+      }
+      
+      // ==================== v179: 分时预算调整（每天凌昨6:00）====================
+      case 'dayparting_budget': {
+        console.log(`[OptimizationScheduler] v179: 执行分时预算调整`);
+        try {
+          // 先生成规则（multidim），再应用预算（dayparting_budget）
+          const daypartingBudgetResults = await executeAllEnabledTargets(undefined, { 
+            dryRun: false, 
+            specificModules: ['multidim', 'dayparting_budget'] 
+          });
+          console.log(`[OptimizationScheduler] v179: 分时预算调整完成: ${daypartingBudgetResults.length}个目标`);
+          for (const r of daypartingBudgetResults) {
+            console.log(`  - ${r.targetName}: 分时预算调整=${r.daypartingBudgetOptimization?.adjustmentsCount || 0}`);
+          }
+        } catch (daypartingBudgetError: any) {
+          console.error(`[OptimizationScheduler] v179: 分时预算调整失败:`, daypartingBudgetError.message);
         }
         break;
       }
