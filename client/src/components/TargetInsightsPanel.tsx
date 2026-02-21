@@ -1,8 +1,8 @@
 /**
-import { safeToLocaleDateString } from "@/lib/safeDate";
  * TargetInsightsPanel - 优化目标分析洞察面板
  * v151: 融合原有的 AdvancedAnalyticsDashboard 和 AnalyticsInsights 的核心功能
  */
+import { safeToLocaleDateString } from "@/lib/safeDate";
 import { useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";

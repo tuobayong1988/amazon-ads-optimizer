@@ -1,7 +1,7 @@
 /**
-import { safeToISODateString } from "@/lib/safeDate";
  * 双轨制数据同步状态监控面板
  */
+import { safeToISODateString } from "@/lib/safeDate";
 
 import { useState } from 'react';
 import { trpc } from '@/lib/trpc';

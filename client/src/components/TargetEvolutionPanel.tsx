@@ -1,8 +1,8 @@
 /**
-import { safeToLocaleDateString } from "@/lib/safeDate";
  * 算法进化面板 - 展示优化目标的算法自我进化状态
  * v152: 集成到优化目标详情页
  */
+import { safeToLocaleDateString } from "@/lib/safeDate";
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { trpc } from "@/lib/trpc";

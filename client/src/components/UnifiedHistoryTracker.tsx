@@ -1,5 +1,4 @@
 /**
-import { safeToLocaleDateString, safeToLocaleString } from "@/lib/safeDate";
  * UnifiedHistoryTracker - 统一历史与追踪组件 v146
  * 数据源：optimization_events 统一事件表
  * 
@@ -10,6 +9,7 @@ import { safeToLocaleDateString, safeToLocaleString } from "@/lib/safeDate";
  * 4. 全部操作日志（所有事件类别）
  * 5. 统计摘要（30天趋势）
  */
+import { safeToLocaleDateString, safeToLocaleString } from "@/lib/safeDate";
 import { useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

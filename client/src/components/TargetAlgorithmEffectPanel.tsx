@@ -1,8 +1,8 @@
 /**
-import { safeToLocaleDateString } from "@/lib/safeDate";
  * TargetAlgorithmEffectPanel - 优化目标算法效果面板
  * v151: 融合原有的 AlgorithmEffectDashboard 的核心功能
  */
+import { safeToLocaleDateString } from "@/lib/safeDate";
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
