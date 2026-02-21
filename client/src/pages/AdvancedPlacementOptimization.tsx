@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { safeToLocaleDateString } from "@/lib/safeDate";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

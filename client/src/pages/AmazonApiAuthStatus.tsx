@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { safeToLocaleString } from "@/lib/safeDate";
 import { useQuery } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';

@@ -1,4 +1,5 @@
 /**
+import { safeToLocaleDateString, safeToLocaleString } from "@/lib/safeDate";
  * UnifiedHistoryTracker - 统一历史与追踪组件 v146
  * 数据源：optimization_events 统一事件表
  * 

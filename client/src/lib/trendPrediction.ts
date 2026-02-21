@@ -1,4 +1,5 @@
 /**
+import { safeParseDate, safeToISODateString } from "@/lib/safeDate";
  * 趋势预测工具函数
  * 使用线性回归和移动平均进行简单的趋势预测
  */

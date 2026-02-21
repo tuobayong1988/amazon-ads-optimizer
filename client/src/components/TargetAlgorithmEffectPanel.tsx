@@ -1,4 +1,5 @@
 /**
+import { safeToLocaleDateString } from "@/lib/safeDate";
  * TargetAlgorithmEffectPanel - 优化目标算法效果面板
  * v151: 融合原有的 AlgorithmEffectDashboard 的核心功能
  */

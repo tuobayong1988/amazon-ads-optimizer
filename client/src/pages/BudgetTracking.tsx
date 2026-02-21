@@ -1,4 +1,5 @@
 /**
+import { safeGetTime, safeToLocaleDateString } from "@/lib/safeDate";
  * Budget Tracking Page - 预算分配效果追踪页面
  * 追踪预算调整后的效果变化
  */

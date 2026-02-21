@@ -1,4 +1,5 @@
 /**
+import { safeToLocaleDateString } from "@/lib/safeDate";
  * TargetInsightsPanel - 优化目标分析洞察面板
  * v151: 融合原有的 AdvancedAnalyticsDashboard 和 AnalyticsInsights 的核心功能
  */

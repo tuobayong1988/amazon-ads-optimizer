@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import { safeToLocaleString } from '../lib/safeDate';
+import { safeGetTime, safeToLocaleString } from '../lib/safeDate';
 
 type SyncType = "campaigns" | "keywords" | "performance" | "all";
 type SyncStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
