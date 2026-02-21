@@ -65419,31 +65419,31 @@ var init_campaignLifecycleService = __esm({
 // server/optimizationAutoCorrector.ts
 async function runAutoCorrection(accountId) {
   if (isScanning) {
-    console.log("[AutoCorrector] v176: \u7EA0\u9519\u626B\u63CF\u6B63\u5728\u8FDB\u884C\u4E2D\uFF0C\u8DF3\u8FC7\u672C\u6B21\u8BF7\u6C42");
+    console.log("[AutoCorrector] v177: \u7EA0\u9519\u626B\u63CF\u6B63\u5728\u8FDB\u884C\u4E2D\uFF0C\u8DF3\u8FC7\u672C\u6B21\u8BF7\u6C42");
     return createEmptyScanResult("skipped_in_progress");
   }
   if (lastScanTime && Date.now() - lastScanTime.getTime() < AUTO_CORRECTION_CONFIG.minScanIntervalMs) {
-    console.log("[AutoCorrector] v176: \u8DDD\u79BB\u4E0A\u6B21\u626B\u63CF\u4E0D\u8DB310\u5206\u949F\uFF0C\u8DF3\u8FC7");
+    console.log("[AutoCorrector] v177: \u8DDD\u79BB\u4E0A\u6B21\u626B\u63CF\u4E0D\u8DB310\u5206\u949F\uFF0C\u8DF3\u8FC7");
     return createEmptyScanResult("skipped_too_frequent");
   }
   isScanning = true;
   const scanId = `scan_${Date.now()}`;
   const startedAt = /* @__PURE__ */ new Date();
   const corrections = [];
-  console.log(`[AutoCorrector] v176: \u5F00\u59CB\u81EA\u52A8\u7EA0\u9519\u626B\u63CF (scanId: ${scanId}, accountId: ${accountId || "all"})`);
+  console.log(`[AutoCorrector] v177: \u5F00\u59CB\u81EA\u52A8\u7EA0\u9519\u626B\u63CF (scanId: ${scanId}, accountId: ${accountId || "all"})`);
   try {
     const database = await getDb();
     if (!database) {
-      console.error("[AutoCorrector] v176: \u65E0\u6CD5\u83B7\u53D6\u6570\u636E\u5E93\u8FDE\u63A5");
+      console.error("[AutoCorrector] v177: \u65E0\u6CD5\u83B7\u53D6\u6570\u636E\u5E93\u8FDE\u63A5");
       return createEmptyScanResult("db_error");
     }
     try {
       const nullFixResult = await fixNullApiSyncStatusRecords(database);
       if (nullFixResult > 0) {
-        console.log(`[AutoCorrector] v176: \u5DF2\u4FEE\u590D${nullFixResult}\u6761\u5386\u53F2NULL api_sync_status\u8BB0\u5F55`);
+        console.log(`[AutoCorrector] v177: \u5DF2\u4FEE\u590D${nullFixResult}\u6761\u5386\u53F2NULL api_sync_status\u8BB0\u5F55`);
       }
     } catch (nullFixError) {
-      console.error(`[AutoCorrector] v176: \u4FEE\u590DNULL\u8BB0\u5F55\u5931\u8D25: ${nullFixError.message}`);
+      console.error(`[AutoCorrector] v177: \u4FEE\u590DNULL\u8BB0\u5F55\u5931\u8D25: ${nullFixError.message}`);
     }
     const accountIds = accountId ? [accountId] : await getActiveAccountIds(database);
     for (const accId of accountIds) {
@@ -65470,8 +65470,10 @@ async function runAutoCorrection(accountId) {
         corrections.push(...maxBidViolations);
         const orphanCleanups = await cleanupOrphanKeywords(database, accId);
         corrections.push(...orphanCleanups);
+        const harvestRetries = await retryHistoricalFailedKeywordHarvests(database, accId);
+        corrections.push(...harvestRetries);
       } catch (accError) {
-        console.error(`[AutoCorrector] v176: \u8D26\u6237 ${accId} \u7EA0\u9519\u5931\u8D25: ${accError.message}`);
+        console.error(`[AutoCorrector] v177: \u8D26\u6237 ${accId} \u7EA0\u9519\u5931\u8D25: ${accError.message}`);
       }
     }
     const completedAt = /* @__PURE__ */ new Date();
@@ -65479,7 +65481,7 @@ async function runAutoCorrection(accountId) {
     scanHistory.unshift(result);
     if (scanHistory.length > 20) scanHistory.pop();
     lastScanTime = completedAt;
-    console.log(`[AutoCorrector] v176: \u7EA0\u9519\u626B\u63CF\u5B8C\u6210 - \u53D1\u73B0${result.totalIssuesFound}\u4E2A\u95EE\u9898, \u7EA0\u6B63${result.totalCorrected}\u4E2A, \u5931\u8D25${result.totalFailed}\u4E2A`);
+    console.log(`[AutoCorrector] v177: \u7EA0\u9519\u626B\u63CF\u5B8C\u6210 - \u53D1\u73B0${result.totalIssuesFound}\u4E2A\u95EE\u9898, \u7EA0\u6B63${result.totalCorrected}\u4E2A, \u5931\u8D25${result.totalFailed}\u4E2A`);
     return result;
   } finally {
     isScanning = false;
@@ -65495,7 +65497,7 @@ async function fixNullApiSyncStatusRecords(database) {
     `);
     const affectedRows = updateResult?.[0]?.affectedRows || updateResult?.affectedRows || 0;
     if (affectedRows > 0) {
-      console.log(`[AutoCorrector] v176: \u5DF2\u5C06 ${affectedRows} \u6761 optimization_logs NULL \u8BB0\u5F55\u6807\u8BB0\u4E3A legacy_unsynced`);
+      console.log(`[AutoCorrector] v177: \u5DF2\u5C06 ${affectedRows} \u6761 optimization_logs NULL \u8BB0\u5F55\u6807\u8BB0\u4E3A legacy_unsynced`);
     }
     const updateResult2 = await database.execute(sql`
       UPDATE optimization_events 
@@ -65505,11 +65507,11 @@ async function fixNullApiSyncStatusRecords(database) {
     `);
     const affectedRows2 = updateResult2?.[0]?.affectedRows || updateResult2?.affectedRows || 0;
     if (affectedRows2 > 0) {
-      console.log(`[AutoCorrector] v176: \u5DF2\u5C06 ${affectedRows2} \u6761 optimization_events NULL \u8BB0\u5F55\u6807\u8BB0\u4E3A legacy_unsynced`);
+      console.log(`[AutoCorrector] v177: \u5DF2\u5C06 ${affectedRows2} \u6761 optimization_events NULL \u8BB0\u5F55\u6807\u8BB0\u4E3A legacy_unsynced`);
     }
     return affectedRows + affectedRows2;
   } catch (error54) {
-    console.error(`[AutoCorrector] v176: fixNullApiSyncStatusRecords \u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v177: fixNullApiSyncStatusRecords \u5931\u8D25: ${error54.message}`);
     return 0;
   }
 }
@@ -65541,7 +65543,7 @@ async function retryFailedBidAdjustments(database, accountId) {
       )
     ).orderBy(desc(optimizationEvents.createdAt)).limit(AUTO_CORRECTION_CONFIG.maxRetryPerRun);
     if (failedEvents.length === 0) return results;
-    console.log(`[AutoCorrector] v176: \u8D26\u6237${accountId} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25\u7684\u51FA\u4EF7\u8C03\u6574\u9700\u8981\u91CD\u8BD5`);
+    console.log(`[AutoCorrector] v177: \u8D26\u6237${accountId} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25\u7684\u51FA\u4EF7\u8C03\u6574\u9700\u8981\u91CD\u8BD5`);
     const latestByKeyword = /* @__PURE__ */ new Map();
     for (const event of failedEvents) {
       if (event.keywordId && !latestByKeyword.has(event.keywordId)) {
@@ -65585,7 +65587,7 @@ async function retryFailedBidAdjustments(database, accountId) {
         }
       }
     } catch (apiError) {
-      console.error(`[AutoCorrector] v176: \u8D26\u6237${accountId} \u51FA\u4EF7\u91CD\u8BD5API\u8C03\u7528\u5931\u8D25: ${apiError.message}`);
+      console.error(`[AutoCorrector] v177: \u8D26\u6237${accountId} \u51FA\u4EF7\u91CD\u8BD5API\u8C03\u7528\u5931\u8D25: ${apiError.message}`);
       for (const item of retryItems) {
         results.push({
           type: "bid_retry",
@@ -65601,7 +65603,7 @@ async function retryFailedBidAdjustments(database, accountId) {
       }
     }
   } catch (error54) {
-    console.error(`[AutoCorrector] v176: \u8D26\u6237${accountId} retryFailedBidAdjustments\u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v177: \u8D26\u6237${accountId} retryFailedBidAdjustments\u5931\u8D25: ${error54.message}`);
   }
   return results;
 }
@@ -65644,17 +65646,17 @@ async function correctBidMismatches(database, accountId) {
     const mismatches = await database.execute(mismatchQuery);
     const rows = mismatches[0] || mismatches;
     if (!Array.isArray(rows) || rows.length === 0) return results;
-    console.log(`[AutoCorrector] v176: \u8D26\u6237${accountId} \u53D1\u73B0${rows.length}\u6761\u51FA\u4EF7\u4E0D\u4E00\u81F4\u9700\u8981\u7EA0\u6B63`);
+    console.log(`[AutoCorrector] v177: \u8D26\u6237${accountId} \u53D1\u73B0${rows.length}\u6761\u51FA\u4EF7\u4E0D\u4E00\u81F4\u9700\u8981\u7EA0\u6B63`);
     const correctionItems = rows.map((row) => {
       let targetBid = parseFloat(String(row.expected_bid));
       const maxBid = row.max_bid ? parseFloat(String(row.max_bid)) : 0;
       if (maxBid > 0 && targetBid > maxBid) {
-        console.log(`[AutoCorrector] v176: \u51FA\u4EF7\u7EA0\u6B63\u53D7max_bid\u9650\u5236: keyword=${row.keyword_id} expected=$${targetBid} -> max_bid=$${maxBid}`);
+        console.log(`[AutoCorrector] v177: \u51FA\u4EF7\u7EA0\u6B63\u53D7max_bid\u9650\u5236: keyword=${row.keyword_id} expected=$${targetBid} -> max_bid=$${maxBid}`);
         targetBid = maxBid;
       }
       const currentBid = parseFloat(String(row.current_bid));
       if (Math.abs(targetBid - currentBid) <= AUTO_CORRECTION_CONFIG.bidToleranceDollar) {
-        console.log(`[AutoCorrector] v176: \u8DF3\u8FC7\u7EA0\u6B63(\u5DEE\u5F02\u5728\u5BB9\u5FCD\u8303\u56F4\u5185): keyword=${row.keyword_id} target=$${targetBid} current=$${currentBid}`);
+        console.log(`[AutoCorrector] v177: \u8DF3\u8FC7\u7EA0\u6B63(\u5DEE\u5F02\u5728\u5BB9\u5FCD\u8303\u56F4\u5185): keyword=${row.keyword_id} target=$${targetBid} current=$${currentBid}`);
         return null;
       }
       return {
@@ -65665,7 +65667,7 @@ async function correctBidMismatches(database, accountId) {
       };
     }).filter((item) => item !== null);
     if (correctionItems.length === 0) {
-      console.log(`[AutoCorrector] v176: \u6240\u6709\u51FA\u4EF7\u7EA0\u6B63\u9879\u5728max_bid\u9650\u5236\u540E\u5DF2\u65E0\u9700\u7EA0\u6B63`);
+      console.log(`[AutoCorrector] v177: \u6240\u6709\u51FA\u4EF7\u7EA0\u6B63\u9879\u5728max_bid\u9650\u5236\u540E\u5DF2\u65E0\u9700\u7EA0\u6B63`);
       return results;
     }
     try {
@@ -65705,7 +65707,7 @@ async function correctBidMismatches(database, accountId) {
         }
       }
     } catch (apiError) {
-      console.error(`[AutoCorrector] v176: \u8D26\u6237${accountId} \u51FA\u4EF7\u7EA0\u6B63API\u8C03\u7528\u5931\u8D25: ${apiError.message}`);
+      console.error(`[AutoCorrector] v177: \u8D26\u6237${accountId} \u51FA\u4EF7\u7EA0\u6B63API\u8C03\u7528\u5931\u8D25: ${apiError.message}`);
       for (const row of rows) {
         results.push({
           type: "bid_mismatch",
@@ -65721,7 +65723,7 @@ async function correctBidMismatches(database, accountId) {
       }
     }
   } catch (error54) {
-    console.error(`[AutoCorrector] v176: \u8D26\u6237${accountId} correctBidMismatches\u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v177: \u8D26\u6237${accountId} correctBidMismatches\u5931\u8D25: ${error54.message}`);
   }
   return results;
 }
@@ -65750,7 +65752,7 @@ async function retryFailedBudgetAdjustments(database, accountId) {
       )
     ).orderBy(desc(optimizationEvents.createdAt)).limit(AUTO_CORRECTION_CONFIG.maxRetryPerRun);
     if (failedEvents.length === 0) return results;
-    console.log(`[AutoCorrector] v176: \u8D26\u6237${accountId} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25\u7684\u9884\u7B97\u8C03\u6574\u9700\u8981\u91CD\u8BD5`);
+    console.log(`[AutoCorrector] v177: \u8D26\u6237${accountId} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25\u7684\u9884\u7B97\u8C03\u6574\u9700\u8981\u91CD\u8BD5`);
     const latestByCampaign = /* @__PURE__ */ new Map();
     for (const event of failedEvents) {
       if (event.campaignId && !latestByCampaign.has(event.campaignId)) {
@@ -65805,7 +65807,7 @@ async function retryFailedBudgetAdjustments(database, accountId) {
       }
     }
   } catch (error54) {
-    console.error(`[AutoCorrector] v176: \u8D26\u6237${accountId} retryFailedBudgetAdjustments\u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v177: \u8D26\u6237${accountId} retryFailedBudgetAdjustments\u5931\u8D25: ${error54.message}`);
   }
   return results;
 }
@@ -65843,7 +65845,7 @@ async function correctBudgetMismatches(database, accountId) {
     const mismatches = await database.execute(mismatchQuery);
     const rows = mismatches[0] || mismatches;
     if (!Array.isArray(rows) || rows.length === 0) return results;
-    console.log(`[AutoCorrector] v176: \u8D26\u6237${accountId} \u53D1\u73B0${rows.length}\u6761\u9884\u7B97\u4E0D\u4E00\u81F4\u9700\u8981\u7EA0\u6B63`);
+    console.log(`[AutoCorrector] v177: \u8D26\u6237${accountId} \u53D1\u73B0${rows.length}\u6761\u9884\u7B97\u4E0D\u4E00\u81F4\u9700\u8981\u7EA0\u6B63`);
     for (const row of rows) {
       try {
         const rawExpected = String(row.expected_budget || "0").replace(/[^0-9.\-]/g, "");
@@ -65902,7 +65904,7 @@ async function correctBudgetMismatches(database, accountId) {
       }
     }
   } catch (error54) {
-    console.error(`[AutoCorrector] v176: \u8D26\u6237${accountId} correctBudgetMismatches\u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v177: \u8D26\u6237${accountId} correctBudgetMismatches\u5931\u8D25: ${error54.message}`);
   }
   return results;
 }
@@ -65995,7 +65997,7 @@ async function correctPlacementMismatches(database, accountId) {
       }
     }
   } catch (error54) {
-    console.error(`[AutoCorrector] v176: \u8D26\u6237${accountId} correctPlacementMismatches\u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v177: \u8D26\u6237${accountId} correctPlacementMismatches\u5931\u8D25: ${error54.message}`);
   }
   return results;
 }
@@ -66020,7 +66022,7 @@ async function executeUnfinishedRollbacks(database, accountId) {
       )
     ).orderBy(desc(optimizationEvents.createdAt)).limit(AUTO_CORRECTION_CONFIG.maxRollbackPerRun);
     if (unfinishedRollbacks.length === 0) return results;
-    console.log(`[AutoCorrector] v176: \u8D26\u6237${accountId} \u53D1\u73B0${unfinishedRollbacks.length}\u6761\u672A\u6267\u884C\u7684\u56DE\u6EDA`);
+    console.log(`[AutoCorrector] v177: \u8D26\u6237${accountId} \u53D1\u73B0${unfinishedRollbacks.length}\u6761\u672A\u6267\u884C\u7684\u56DE\u6EDA`);
     const latestByKeyword = /* @__PURE__ */ new Map();
     for (const event of unfinishedRollbacks) {
       if (event.keywordId && !latestByKeyword.has(event.keywordId)) {
@@ -66062,10 +66064,10 @@ async function executeUnfinishedRollbacks(database, accountId) {
         }
       }
     } catch (apiError) {
-      console.error(`[AutoCorrector] v176: \u8D26\u6237${accountId} \u56DE\u6EDA\u6267\u884CAPI\u8C03\u7528\u5931\u8D25: ${apiError.message}`);
+      console.error(`[AutoCorrector] v177: \u8D26\u6237${accountId} \u56DE\u6EDA\u6267\u884CAPI\u8C03\u7528\u5931\u8D25: ${apiError.message}`);
     }
   } catch (error54) {
-    console.error(`[AutoCorrector] v176: \u8D26\u6237${accountId} executeUnfinishedRollbacks\u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v177: \u8D26\u6237${accountId} executeUnfinishedRollbacks\u5931\u8D25: ${error54.message}`);
   }
   return results;
 }
@@ -66091,7 +66093,7 @@ async function retryFailedSettingsChanges(database, accountId) {
       )
     ).orderBy(desc(optimizationEvents.createdAt)).limit(AUTO_CORRECTION_CONFIG.maxRetryPerRun);
     if (failedEvents.length === 0) return results;
-    console.log(`[AutoCorrector] v176: \u8D26\u6237${accountId} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25\u7684\u8BBE\u7F6E\u53D8\u66F4\u9700\u8981\u91CD\u8BD5`);
+    console.log(`[AutoCorrector] v177: \u8D26\u6237${accountId} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25\u7684\u8BBE\u7F6E\u53D8\u66F4\u9700\u8981\u91CD\u8BD5`);
     for (const event of failedEvents) {
       try {
         let success2 = false;
@@ -66141,7 +66143,7 @@ async function retryFailedSettingsChanges(database, accountId) {
       }
     }
   } catch (error54) {
-    console.error(`[AutoCorrector] v176: \u8D26\u6237${accountId} retryFailedSettingsChanges\u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v177: \u8D26\u6237${accountId} retryFailedSettingsChanges\u5931\u8D25: ${error54.message}`);
   }
   return results;
 }
@@ -66169,7 +66171,7 @@ async function retryFailedKeywordCreations(database, accountId) {
       )
     ).orderBy(desc(optimizationEvents.createdAt)).limit(AUTO_CORRECTION_CONFIG.maxRetryPerRun);
     if (failedEvents.length === 0) return results;
-    console.log(`[AutoCorrector] v176: \u8D26\u6237${accountId} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25/pending\u7684\u5173\u952E\u8BCD\u521B\u5EFA\u9700\u8981\u91CD\u8BD5`);
+    console.log(`[AutoCorrector] v177: \u8D26\u6237${accountId} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25/pending\u7684\u5173\u952E\u8BCD\u521B\u5EFA\u9700\u8981\u91CD\u8BD5`);
     for (const event of failedEvents) {
       try {
         let detail = {};
@@ -66181,7 +66183,7 @@ async function retryFailedKeywordCreations(database, accountId) {
         }
         const localKeywordId = event.keywordId || detail.localKeywordId;
         if (!localKeywordId) {
-          console.warn(`[AutoCorrector] v176: \u5173\u952E\u8BCD\u521B\u5EFA\u91CD\u8BD5\u8DF3\u8FC7 - \u65E0\u672C\u5730keywordId, eventId=${event.id}`);
+          console.warn(`[AutoCorrector] v177: \u5173\u952E\u8BCD\u521B\u5EFA\u91CD\u8BD5\u8DF3\u8FC7 - \u65E0\u672C\u5730keywordId, eventId=${event.id}`);
           continue;
         }
         const kwRows = await database.select({ id: keywords.id, keywordId: keywords.keywordId, adGroupId: keywords.adGroupId, keywordText: keywords.keywordText, matchType: keywords.matchType, bid: keywords.bid }).from(keywords).where(eq(keywords.id, localKeywordId)).limit(1);
@@ -66197,7 +66199,7 @@ async function retryFailedKeywordCreations(database, accountId) {
         }
         const agRows = await database.select({ adGroupId: adGroups.adGroupId, campaignId: adGroups.campaignId }).from(adGroups).where(eq(adGroups.id, kw.adGroupId)).limit(1);
         if (agRows.length === 0) {
-          console.warn(`[AutoCorrector] v176: \u5173\u952E\u8BCD\u521B\u5EFA\u91CD\u8BD5\u8DF3\u8FC7 - \u65E0adGroup, keywordId=${localKeywordId}`);
+          console.warn(`[AutoCorrector] v177: \u5173\u952E\u8BCD\u521B\u5EFA\u91CD\u8BD5\u8DF3\u8FC7 - \u65E0adGroup, keywordId=${localKeywordId}`);
           continue;
         }
         const ag = agRows[0];
@@ -66247,7 +66249,7 @@ async function retryFailedKeywordCreations(database, accountId) {
       }
     }
   } catch (error54) {
-    console.error(`[AutoCorrector] v176: \u8D26\u6237${accountId} retryFailedKeywordCreations\u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v177: \u8D26\u6237${accountId} retryFailedKeywordCreations\u5931\u8D25: ${error54.message}`);
   }
   return results;
 }
@@ -66275,7 +66277,7 @@ async function retryFailedNegativeKeywordAdds(database, accountId) {
       )
     ).orderBy(desc(optimizationEvents.createdAt)).limit(AUTO_CORRECTION_CONFIG.maxRetryPerRun);
     if (failedEvents.length === 0) return results;
-    console.log(`[AutoCorrector] v176: \u8D26\u6237${accountId} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25/pending\u7684\u5426\u5B9A\u5173\u952E\u8BCD\u6DFB\u52A0\u9700\u8981\u91CD\u8BD5`);
+    console.log(`[AutoCorrector] v177: \u8D26\u6237${accountId} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25/pending\u7684\u5426\u5B9A\u5173\u952E\u8BCD\u6DFB\u52A0\u9700\u8981\u91CD\u8BD5`);
     const negKeywordsToSync = [];
     for (const event of failedEvents) {
       try {
@@ -66317,7 +66319,7 @@ async function retryFailedNegativeKeywordAdds(database, accountId) {
         };
         negKeywordsToSync.push(nkEntry);
       } catch (parseErr) {
-        console.warn(`[AutoCorrector] v176: \u89E3\u6790\u5426\u5B9A\u5173\u952E\u8BCD\u4E8B\u4EF6\u5931\u8D25: eventId=${event.id}, ${parseErr.message}`);
+        console.warn(`[AutoCorrector] v177: \u89E3\u6790\u5426\u5B9A\u5173\u952E\u8BCD\u4E8B\u4EF6\u5931\u8D25: eventId=${event.id}, ${parseErr.message}`);
       }
     }
     if (negKeywordsToSync.length === 0) return results;
@@ -66391,7 +66393,7 @@ async function retryFailedNegativeKeywordAdds(database, accountId) {
           WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${nk.eventId} AND source_table = 'optimization_logs')
         `).catch(() => {
         });
-        console.log(`[AutoCorrector] v176: \u5426\u5B9A\u8BCD\u540C\u6B65\u6210\u529F: "${nk.keywordText}" (campaign=${nk.campaignId})`);
+        console.log(`[AutoCorrector] v177: \u5426\u5B9A\u8BCD\u540C\u6B65\u6210\u529F: "${nk.keywordText}" (campaign=${nk.campaignId})`);
       } else if (isPermanentError) {
         await database.update(optimizationEvents).set({
           apiSyncStatus: "not_applicable",
@@ -66407,13 +66409,13 @@ async function retryFailedNegativeKeywordAdds(database, accountId) {
           WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${nk.eventId} AND source_table = 'optimization_logs')
         `).catch(() => {
         });
-        console.log(`[AutoCorrector] v176: \u5426\u5B9A\u8BCDAmazon\u6C38\u4E45\u62D2\u7EDD\uFF0C\u505C\u6B62\u91CD\u8BD5: "${nk.keywordText}"`);
+        console.log(`[AutoCorrector] v177: \u5426\u5B9A\u8BCDAmazon\u6C38\u4E45\u62D2\u7EDD\uFF0C\u505C\u6B62\u91CD\u8BD5: "${nk.keywordText}"`);
         await database.execute(sql`
           UPDATE negative_keywords SET negativeStatus = 'removed'
           WHERE negativeText = ${nk.keywordText}
             AND amazon_negative_keyword_id IS NULL
         `).catch((err2) => {
-          console.warn(`[AutoCorrector] v176: \u66F4\u65B0negative_keywords\u5931\u8D25: ${err2.message}`);
+          console.warn(`[AutoCorrector] v177: \u66F4\u65B0negative_keywords\u5931\u8D25: ${err2.message}`);
         });
       } else {
         await database.update(optimizationEvents).set({
@@ -66437,7 +66439,7 @@ async function retryFailedNegativeKeywordAdds(database, accountId) {
       });
     }
   } catch (error54) {
-    console.error(`[AutoCorrector] v176: \u8D26\u6237${accountId} retryFailedNegativeKeywordAdds\u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v177: \u8D26\u6237${accountId} retryFailedNegativeKeywordAdds\u5931\u8D25: ${error54.message}`);
   }
   return results;
 }
@@ -66476,7 +66478,7 @@ async function logCorrectionEvent(database, data4) {
       createdAt: /* @__PURE__ */ new Date()
     });
   } catch (error54) {
-    console.warn(`[AutoCorrector] v176: \u8BB0\u5F55\u7EA0\u9519\u4E8B\u4EF6\u5931\u8D25: ${error54.message}`);
+    console.warn(`[AutoCorrector] v177: \u8BB0\u5F55\u7EA0\u9519\u4E8B\u4EF6\u5931\u8D25: ${error54.message}`);
   }
 }
 function createEmptyScanResult(reason) {
@@ -66511,11 +66513,12 @@ function buildScanResult(scanId, startedAt, completedAt, accountsScanned, correc
     placementMismatches: { found: 0, corrected: 0, failed: 0 },
     rollbackExecutions: { found: 0, corrected: 0, failed: 0 },
     settingsRetries: { found: 0, corrected: 0, failed: 0 },
+    keywordCreateRetries: { found: 0, corrected: 0, failed: 0 },
     maxBidViolations: { found: 0, corrected: 0, failed: 0 },
     orphanKeywordCleanups: { found: 0, corrected: 0, failed: 0 }
   };
   for (const c5 of corrections) {
-    const key = c5.type === "bid_retry" ? "bidRetries" : c5.type === "bid_mismatch" ? "bidMismatches" : c5.type === "budget_retry" ? "budgetRetries" : c5.type === "budget_mismatch" ? "budgetMismatches" : c5.type === "placement_mismatch" ? "placementMismatches" : c5.type === "rollback_execution" ? "rollbackExecutions" : c5.type === "max_bid_violation" ? "maxBidViolations" : c5.type === "orphan_keyword_cleanup" ? "orphanKeywordCleanups" : "settingsRetries";
+    const key = c5.type === "bid_retry" ? "bidRetries" : c5.type === "bid_mismatch" ? "bidMismatches" : c5.type === "budget_retry" ? "budgetRetries" : c5.type === "budget_mismatch" ? "budgetMismatches" : c5.type === "placement_mismatch" ? "placementMismatches" : c5.type === "rollback_execution" ? "rollbackExecutions" : c5.type === "keyword_create_retry" ? "keywordCreateRetries" : c5.type === "max_bid_violation" ? "maxBidViolations" : c5.type === "orphan_keyword_cleanup" ? "orphanKeywordCleanups" : "settingsRetries";
     details[key].found++;
     if (c5.success) details[key].corrected++;
     else details[key].failed++;
@@ -66572,7 +66575,7 @@ async function correctMaxBidViolations(database, accountId) {
     const violations = await database.execute(violationQuery);
     const rows = violations[0] || violations;
     if (!Array.isArray(rows) || rows.length === 0) return results;
-    console.log(`[AutoCorrector] v176: \u8D26\u6237${accountId} \u53D1\u73B0${rows.length}\u4E2A\u5173\u952E\u8BCD\u51FA\u4EF7\u8D85\u51FAmax_bid`);
+    console.log(`[AutoCorrector] v177: \u8D26\u6237${accountId} \u53D1\u73B0${rows.length}\u4E2A\u5173\u952E\u8BCD\u51FA\u4EF7\u8D85\u51FAmax_bid`);
     const correctionItems = [];
     for (const row of rows) {
       const maxBid = parseFloat(String(row.max_bid));
@@ -66599,9 +66602,9 @@ async function correctMaxBidViolations(database, accountId) {
     if (correctionItems.length > 0) {
       try {
         const syncResult = await syncBidAdjustmentsToAmazon(accountId, correctionItems);
-        console.log(`[AutoCorrector] v176: \u8D26\u6237${accountId} max_bid\u7EA0\u6B63\u540C\u6B65\u5230Amazon: \u6210\u529F${syncResult.success}, \u5931\u8D25${syncResult.failed}`);
+        console.log(`[AutoCorrector] v177: \u8D26\u6237${accountId} max_bid\u7EA0\u6B63\u540C\u6B65\u5230Amazon: \u6210\u529F${syncResult.success}, \u5931\u8D25${syncResult.failed}`);
       } catch (syncError) {
-        console.error(`[AutoCorrector] v176: \u8D26\u6237${accountId} max_bid\u7EA0\u6B63\u540C\u6B65\u5931\u8D25: ${syncError.message}`);
+        console.error(`[AutoCorrector] v177: \u8D26\u6237${accountId} max_bid\u7EA0\u6B63\u540C\u6B65\u5931\u8D25: ${syncError.message}`);
       }
     }
     const ptViolationQuery = sql`
@@ -66628,7 +66631,7 @@ async function correctMaxBidViolations(database, accountId) {
     const ptViolations = await database.execute(ptViolationQuery);
     const ptRows = ptViolations[0] || ptViolations;
     if (Array.isArray(ptRows) && ptRows.length > 0) {
-      console.log(`[AutoCorrector] v176: \u8D26\u6237${accountId} \u53D1\u73B0${ptRows.length}\u4E2A\u5546\u54C1\u5B9A\u5411\u51FA\u4EF7\u8D85\u51FAmax_bid`);
+      console.log(`[AutoCorrector] v177: \u8D26\u6237${accountId} \u53D1\u73B0${ptRows.length}\u4E2A\u5546\u54C1\u5B9A\u5411\u51FA\u4EF7\u8D85\u51FAmax_bid`);
       for (const row of ptRows) {
         const maxBid = parseFloat(String(row.max_bid));
         await database.update(productTargets).set({ bid: String(maxBid) }).where(eq(productTargets.id, row.target_id));
@@ -66653,7 +66656,7 @@ async function correctMaxBidViolations(database, accountId) {
       });
     }
   } catch (error54) {
-    console.error(`[AutoCorrector] v176: \u8D26\u6237${accountId} correctMaxBidViolations\u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v177: \u8D26\u6237${accountId} correctMaxBidViolations\u5931\u8D25: ${error54.message}`);
   }
   return results;
 }
@@ -66683,7 +66686,7 @@ async function cleanupOrphanKeywords(database, accountId) {
     const orphans = await database.execute(orphanQuery);
     const rows = orphans[0] || orphans;
     if (!Array.isArray(rows) || rows.length === 0) return results;
-    console.log(`[AutoCorrector] v176: \u8D26\u6237${accountId} \u53D1\u73B0${rows.length}\u4E2A\u7F3A\u5C11Amazon ID\u7684\u5B64\u513F\u5173\u952E\u8BCD\uFF0C\u6807\u8BB0\u4E3Apaused`);
+    console.log(`[AutoCorrector] v177: \u8D26\u6237${accountId} \u53D1\u73B0${rows.length}\u4E2A\u7F3A\u5C11Amazon ID\u7684\u5B64\u513F\u5173\u952E\u8BCD\uFF0C\u6807\u8BB0\u4E3Apaused`);
     for (const row of rows) {
       const keywordText = String(row.keyword_text || "");
       const hasSpecialChars = /[\uFFFC\uFFFD\u0000-\u001F]/.test(keywordText) || keywordText.length > 200;
@@ -66708,7 +66711,209 @@ async function cleanupOrphanKeywords(database, accountId) {
       });
     }
   } catch (error54) {
-    console.error(`[AutoCorrector] v176: \u8D26\u6237${accountId} cleanupOrphanKeywords\u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v177: \u8D26\u6237${accountId} cleanupOrphanKeywords\u5931\u8D25: ${error54.message}`);
+  }
+  return results;
+}
+async function retryHistoricalFailedKeywordHarvests(database, accountId) {
+  const results = [];
+  const MAX_PER_RUN = 20;
+  try {
+    const failedEvents = await database.execute(sql`
+      SELECT id, account_id, campaign_id, campaign_name, keyword_id, keyword_text,
+             action_detail, api_sync_status, api_sync_detail, created_at
+      FROM optimization_events
+      WHERE account_id = ${accountId}
+        AND action_type = 'keyword_create'
+        AND api_sync_status = 'not_applicable'
+        AND action_detail LIKE '%code=ERROR%'
+        AND keyword_id IS NULL
+      ORDER BY created_at DESC
+      LIMIT ${MAX_PER_RUN}
+    `);
+    const events = failedEvents[0] || failedEvents;
+    if (!events || events.length === 0) return results;
+    console.log(`[AutoCorrector] v177: \u8D26\u6237${accountId} \u53D1\u73B0${events.length}\u6761\u5386\u53F2\u5931\u8D25\u7684\u641C\u7D22\u8BCD\u6536\u5272\u9700\u8981\u91CD\u8BD5`);
+    const byCampaign = /* @__PURE__ */ new Map();
+    for (const event of events) {
+      let detail = {};
+      try {
+        const raw = event.action_detail || event.actionDetail;
+        if (raw) detail = typeof raw === "string" ? JSON.parse(raw) : raw;
+      } catch {
+      }
+      const searchTerm = detail.searchTerm || event.keyword_text || event.keywordText;
+      const matchType = detail.matchType || "phrase";
+      const campaignId = event.campaign_id || event.campaignId;
+      const campaignName = detail.campaignName || event.campaign_name || event.campaignName || "";
+      const eventId = event.id;
+      if (!searchTerm || !campaignId) {
+        await database.execute(sql`
+          UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
+            api_sync_detail = ${JSON.stringify({ reason: "v177: \u65E0\u6CD5\u63D0\u53D6searchTerm\u6216campaignId", fixedAt: (/* @__PURE__ */ new Date()).toISOString() })}
+          WHERE id = ${eventId}
+        `).catch(() => {
+        });
+        continue;
+      }
+      if (!byCampaign.has(campaignId)) byCampaign.set(campaignId, []);
+      byCampaign.get(campaignId).push({ eventId, searchTerm, matchType, campaignName });
+    }
+    for (const [localCampaignId, kwEvents] of byCampaign) {
+      try {
+        const campRows = await database.select({ campaignId: campaigns.campaignId, accountId: campaigns.accountId }).from(campaigns).where(eq(campaigns.id, localCampaignId)).limit(1);
+        if (campRows.length === 0) {
+          for (const kw of kwEvents) {
+            await database.execute(sql`
+              UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
+                api_sync_detail = ${JSON.stringify({ reason: "v177: campaign\u4E0D\u5B58\u5728", fixedAt: (/* @__PURE__ */ new Date()).toISOString() })}
+              WHERE id = ${kw.eventId}
+            `).catch(() => {
+            });
+            results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `Campaign\u4E0D\u5B58\u5728\uFF0C\u653E\u5F03\u91CD\u8BD5: ${kw.searchTerm}`, success: false, errorMessage: "campaign_not_found" });
+          }
+          continue;
+        }
+        const amazonCampaignId = Number(campRows[0].campaignId);
+        const agRows = await database.select({ id: adGroups.id, adGroupId: adGroups.adGroupId }).from(adGroups).where(and(
+          eq(adGroups.campaignId, localCampaignId),
+          eq(adGroups.adGroupStatus, "enabled")
+        )).limit(1);
+        if (agRows.length === 0) {
+          for (const kw of kwEvents) {
+            await database.execute(sql`
+              UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
+                api_sync_detail = ${JSON.stringify({ reason: "v177: \u65E0\u6D3B\u8DC3adGroup", fixedAt: (/* @__PURE__ */ new Date()).toISOString() })}
+              WHERE id = ${kw.eventId}
+            `).catch(() => {
+            });
+            results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `\u65E0\u6D3B\u8DC3adGroup\uFF0C\u653E\u5F03\u91CD\u8BD5: ${kw.searchTerm}`, success: false, errorMessage: "no_active_adgroup" });
+          }
+          continue;
+        }
+        const localAdGroupId = agRows[0].id;
+        const amazonAdGroupId = Number(agRows[0].adGroupId);
+        const existingKws = await database.select({ keywordText: keywords.keywordText, keywordId: keywords.keywordId, matchType: keywords.matchType }).from(keywords).where(eq(keywords.adGroupId, localAdGroupId));
+        const existingSet = new Set(existingKws.map((k5) => k5.keywordText?.toLowerCase()));
+        const toCreate = [];
+        for (const kw of kwEvents) {
+          if (existingSet.has(kw.searchTerm.toLowerCase())) {
+            await database.execute(sql`
+              UPDATE optimization_events SET api_sync_status = 'synced',
+                api_sync_detail = ${JSON.stringify({ reason: "v177: \u5173\u952E\u8BCD\u5DF2\u5B58\u5728\u4E8E\u76EE\u6807\u5E7F\u544A\u7EC4", fixedAt: (/* @__PURE__ */ new Date()).toISOString() })}
+              WHERE id = ${kw.eventId}
+            `).catch(() => {
+            });
+            results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u6807\u8BB0\u4E3Asynced: ${kw.searchTerm}`, success: true });
+          } else {
+            toCreate.push(kw);
+          }
+        }
+        if (toCreate.length === 0) continue;
+        console.log(`[AutoCorrector] v177: Campaign ${localCampaignId} \u9700\u8981\u521B\u5EFA ${toCreate.length} \u4E2A\u5173\u952E\u8BCD`);
+        const keywordsToSync = [];
+        for (const kw of toCreate) {
+          try {
+            const normalizedMatchType = kw.matchType === "exact" || kw.matchType === "phrase" || kw.matchType === "broad" ? kw.matchType : "phrase";
+            const insertResult = await database.execute(sql`
+              INSERT INTO keywords (adGroupId, keywordText, matchType, bid, keywordStatus, createdAt, updatedAt)
+              VALUES (${localAdGroupId}, ${kw.searchTerm}, ${normalizedMatchType}, '0.50', 'enabled', NOW(), NOW())
+            `);
+            const localKeywordId = insertResult[0]?.insertId || insertResult?.insertId;
+            keywordsToSync.push({
+              eventId: kw.eventId,
+              localKeywordId,
+              adGroupId: amazonAdGroupId,
+              campaignId: amazonCampaignId,
+              keywordText: kw.searchTerm,
+              matchType: normalizedMatchType,
+              bid: 0.5
+            });
+          } catch (insertErr) {
+            console.warn(`[AutoCorrector] v177: \u672C\u5730\u521B\u5EFA\u5173\u952E\u8BCD\u5931\u8D25: "${kw.searchTerm}" - ${insertErr.message}`);
+            await database.execute(sql`
+              UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
+                api_sync_detail = ${JSON.stringify({ reason: `v177: \u672C\u5730\u521B\u5EFA\u5931\u8D25: ${insertErr.message}`, fixedAt: (/* @__PURE__ */ new Date()).toISOString() })}
+              WHERE id = ${kw.eventId}
+            `).catch(() => {
+            });
+            results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `\u672C\u5730\u521B\u5EFA\u5931\u8D25: ${kw.searchTerm}`, success: false, errorMessage: insertErr.message });
+          }
+        }
+        if (keywordsToSync.length === 0) continue;
+        const syncResult = await syncNewKeywordsToAmazon(
+          accountId,
+          keywordsToSync.map((k5) => ({
+            localKeywordId: k5.localKeywordId,
+            adGroupId: k5.adGroupId,
+            campaignId: k5.campaignId,
+            keywordText: k5.keywordText,
+            matchType: k5.matchType,
+            bid: k5.bid
+          }))
+        );
+        const successKeywords = new Set(
+          syncResult.createdKeywords.map((k5) => k5.keywordText?.toLowerCase())
+        );
+        const failedKeywordErrors = /* @__PURE__ */ new Map();
+        for (const err2 of syncResult.errors) {
+          const match = err2.match(/关键词创建失败: "(.+?)"\s*-\s*code=(\S+)/);
+          if (match) {
+            failedKeywordErrors.set(match[1].toLowerCase(), match[2]);
+          }
+        }
+        for (const kw of keywordsToSync) {
+          const isSuccess = successKeywords.has(kw.keywordText.toLowerCase());
+          const errorCode = failedKeywordErrors.get(kw.keywordText.toLowerCase());
+          const isDuplicate = errorCode === "DUPLICATE_VALUE" || errorCode === "DUPLICATE";
+          if (isSuccess || isDuplicate) {
+            await database.execute(sql`
+              UPDATE optimization_events SET api_sync_status = 'synced',
+                api_sync_detail = ${JSON.stringify({
+              correctedBy: "AutoCorrector-v177-harvest-retry",
+              fixedAt: (/* @__PURE__ */ new Date()).toISOString(),
+              localKeywordId: kw.localKeywordId,
+              isDuplicate
+            })},
+                api_synced_at = NOW()
+              WHERE id = ${kw.eventId}
+            `).catch(() => {
+            });
+            results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId, targetType: "keyword", previousValue: "", correctedValue: kw.keywordText, reason: isDuplicate ? `\u5173\u952E\u8BCDAmazon\u5DF2\u5B58\u5728: ${kw.keywordText}` : `\u91CD\u8BD5\u521B\u5EFA\u5173\u952E\u8BCD\u6210\u529F: ${kw.keywordText}`, success: true });
+            console.log(`[AutoCorrector] v177: \u2705 \u5173\u952E\u8BCD\u521B\u5EFA\u6210\u529F: "${kw.keywordText}" (campaign=${localCampaignId}${isDuplicate ? ", \u5DF2\u5B58\u5728" : ""})`);
+          } else {
+            await database.execute(sql`
+              UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
+                api_sync_detail = ${JSON.stringify({
+              reason: `v177: Amazon\u62D2\u7EDD\u521B\u5EFA\u5173\u952E\u8BCD`,
+              errorCode: errorCode || "UNKNOWN",
+              fixedAt: (/* @__PURE__ */ new Date()).toISOString(),
+              localKeywordId: kw.localKeywordId
+            })}
+              WHERE id = ${kw.eventId}
+            `).catch(() => {
+            });
+            if (kw.localKeywordId) {
+              await database.execute(sql`
+                DELETE FROM keywords WHERE id = ${kw.localKeywordId} AND keywordId IS NULL
+              `).catch(() => {
+              });
+            }
+            results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId, targetType: "keyword", previousValue: "", correctedValue: kw.keywordText, reason: `\u5173\u952E\u8BCDAmazon\u62D2\u7EDD\u521B\u5EFA: ${kw.keywordText} (code=${errorCode || "UNKNOWN"})`, success: false, errorMessage: errorCode || syncResult.errors.join("; ") });
+            console.log(`[AutoCorrector] v177: \u274C \u5173\u952E\u8BCD\u521B\u5EFA\u5931\u8D25: "${kw.keywordText}" (code=${errorCode || "UNKNOWN"})`);
+          }
+        }
+        await new Promise((resolve8) => setTimeout(resolve8, 1e3));
+      } catch (campError) {
+        console.error(`[AutoCorrector] v177: Campaign ${localCampaignId} \u5173\u952E\u8BCD\u6536\u5272\u91CD\u8BD5\u5931\u8D25: ${campError.message}`);
+        for (const kw of kwEvents) {
+          results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `Campaign\u5904\u7406\u5F02\u5E38: ${kw.searchTerm}`, success: false, errorMessage: campError.message });
+        }
+      }
+    }
+    console.log(`[AutoCorrector] v177: \u8D26\u6237${accountId} \u641C\u7D22\u8BCD\u6536\u5272\u91CD\u8BD5\u5B8C\u6210: \u6210\u529F=${results.filter((r5) => r5.success).length}, \u5931\u8D25=${results.filter((r5) => !r5.success).length}`);
+  } catch (error54) {
+    console.error(`[AutoCorrector] v177: \u8D26\u6237${accountId} retryHistoricalFailedKeywordHarvests\u5931\u8D25: ${error54.message}`);
   }
   return results;
 }
@@ -333627,6 +333832,7 @@ var systemRouter = router({
 
 // server/routers.ts
 init_dist();
+init_drizzle_orm();
 init_db2();
 init_bidOptimizer();
 init_amazonAdsApi();
@@ -356523,6 +356729,75 @@ var autoCorrectionRouter = router({
   // 获取纠错配置
   getConfig: protectedProcedure.query(async () => {
     return getConfig();
+  }),
+  // v177: 监控仪表盘 - 获取全面的纠错状态概览
+  getDashboard: protectedProcedure.query(async () => {
+    const dbInstance = await getDb();
+    if (!dbInstance) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" });
+    const scanStatus = getScanStatus();
+    const lastScan = getLastScanResult();
+    const config2 = getConfig();
+    const [statusStats] = await dbInstance.execute(
+      sql`SELECT api_sync_status, COUNT(*) as count FROM optimization_events GROUP BY api_sync_status`
+    );
+    const [actionStats] = await dbInstance.execute(
+      sql`SELECT action_type, api_sync_status, COUNT(*) as count 
+          FROM optimization_events 
+          GROUP BY action_type, api_sync_status 
+          ORDER BY action_type, api_sync_status`
+    );
+    const [trendData] = await dbInstance.execute(
+      sql`SELECT DATE(api_synced_at) as date, COUNT(*) as corrections,
+             SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as synced,
+             SUM(CASE WHEN api_sync_status IN ('failed', 'not_applicable', 'invalid_legacy') THEN 1 ELSE 0 END) as failed
+          FROM optimization_events 
+          WHERE api_synced_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+          GROUP BY DATE(api_synced_at)
+          ORDER BY date DESC`
+    );
+    const [harvestRetryStats] = await dbInstance.execute(
+      sql`SELECT COUNT(*) as total,
+             SUM(CASE WHEN action_detail LIKE '%code=ERROR%' THEN 1 ELSE 0 END) as retryable
+          FROM optimization_events 
+          WHERE action_type = 'keyword_create' 
+            AND api_sync_status = 'not_applicable'
+            AND keyword_id IS NULL`
+    );
+    const [negKeywordStats] = await dbInstance.execute(
+      sql`SELECT api_sync_status, COUNT(*) as count 
+          FROM optimization_events 
+          WHERE action_type = 'negative_keyword_add'
+          GROUP BY api_sync_status`
+    );
+    const [recentCorrections] = await dbInstance.execute(
+      sql`SELECT id, action_type, campaign_name, keyword_text, api_sync_status, 
+             api_sync_detail, api_synced_at, created_at
+          FROM optimization_events 
+          WHERE api_synced_at IS NOT NULL 
+            AND api_sync_detail LIKE '%AutoCorrector%'
+          ORDER BY api_synced_at DESC
+          LIMIT 20`
+    );
+    return {
+      scanStatus,
+      lastScan: lastScan ? {
+        scanId: lastScan.scanId,
+        startedAt: lastScan.startedAt,
+        completedAt: lastScan.completedAt,
+        accountsScanned: lastScan.accountsScanned,
+        totalIssuesFound: lastScan.totalIssuesFound,
+        totalCorrected: lastScan.totalCorrected,
+        totalFailed: lastScan.totalFailed,
+        details: lastScan.details
+      } : null,
+      config: config2,
+      statusDistribution: statusStats || [],
+      actionTypeBreakdown: actionStats || [],
+      trendData: trendData || [],
+      harvestRetryStats: harvestRetryStats?.[0] || { total: 0, retryable: 0 },
+      negKeywordStats: negKeywordStats || [],
+      recentCorrections: recentCorrections || []
+    };
   })
 });
 var algorithmOptimizationRouter = router({

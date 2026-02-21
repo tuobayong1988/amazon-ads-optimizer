@@ -4,6 +4,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
+import { sql } from "drizzle-orm";
 import * as db from "./db";
 import * as bidOptimizer from "./bidOptimizer";
 import { AmazonAdsApiClient, validateCredentials, API_ENDPOINTS, MARKETPLACE_TO_REGION } from './amazonAdsApi';
@@ -11031,6 +11032,91 @@ const autoCorrectionRouter = router({
   // 获取纠错配置
   getConfig: protectedProcedure.query(async () => {
     return getAutoCorrectorConfig();
+  }),
+  
+  // v177: 监控仪表盘 - 获取全面的纠错状态概览
+  getDashboard: protectedProcedure.query(async () => {
+    const dbInstance = await db.getDb();
+    if (!dbInstance) throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: '数据库连接失败' });
+    
+    // 1. 获取最近扫描状态
+    const scanStatus = getScanStatus();
+    const lastScan = getLastScanResult();
+    const config = getAutoCorrectorConfig();
+    
+    // 2. 获取事件状态统计
+    const [statusStats] = await dbInstance.execute(
+      sql`SELECT api_sync_status, COUNT(*) as count FROM optimization_events GROUP BY api_sync_status`
+    ) as any;
+    
+    // 3. 获取按操作类型的统计
+    const [actionStats] = await dbInstance.execute(
+      sql`SELECT action_type, api_sync_status, COUNT(*) as count 
+          FROM optimization_events 
+          GROUP BY action_type, api_sync_status 
+          ORDER BY action_type, api_sync_status`
+    ) as any;
+    
+    // 4. 获取最近7天的纠错活动趋势
+    const [trendData] = await dbInstance.execute(
+      sql`SELECT DATE(api_synced_at) as date, COUNT(*) as corrections,
+             SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as synced,
+             SUM(CASE WHEN api_sync_status IN ('failed', 'not_applicable', 'invalid_legacy') THEN 1 ELSE 0 END) as failed
+          FROM optimization_events 
+          WHERE api_synced_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+          GROUP BY DATE(api_synced_at)
+          ORDER BY date DESC`
+    ) as any;
+    
+    // 5. 获取待处理的关键词创建重试统计
+    const [harvestRetryStats] = await dbInstance.execute(
+      sql`SELECT COUNT(*) as total,
+             SUM(CASE WHEN action_detail LIKE '%code=ERROR%' THEN 1 ELSE 0 END) as retryable
+          FROM optimization_events 
+          WHERE action_type = 'keyword_create' 
+            AND api_sync_status = 'not_applicable'
+            AND keyword_id IS NULL`
+    ) as any;
+    
+    // 6. 获取否定关键词状态统计
+    const [negKeywordStats] = await dbInstance.execute(
+      sql`SELECT api_sync_status, COUNT(*) as count 
+          FROM optimization_events 
+          WHERE action_type = 'negative_keyword_add'
+          GROUP BY api_sync_status`
+    ) as any;
+    
+    // 7. 获取最近的纠错活动日志（最近20条）
+    const [recentCorrections] = await dbInstance.execute(
+      sql`SELECT id, action_type, campaign_name, keyword_text, api_sync_status, 
+             api_sync_detail, api_synced_at, created_at
+          FROM optimization_events 
+          WHERE api_synced_at IS NOT NULL 
+            AND api_sync_detail LIKE '%AutoCorrector%'
+          ORDER BY api_synced_at DESC
+          LIMIT 20`
+    ) as any;
+    
+    return {
+      scanStatus,
+      lastScan: lastScan ? {
+        scanId: lastScan.scanId,
+        startedAt: lastScan.startedAt,
+        completedAt: lastScan.completedAt,
+        accountsScanned: lastScan.accountsScanned,
+        totalIssuesFound: lastScan.totalIssuesFound,
+        totalCorrected: lastScan.totalCorrected,
+        totalFailed: lastScan.totalFailed,
+        details: lastScan.details,
+      } : null,
+      config,
+      statusDistribution: statusStats || [],
+      actionTypeBreakdown: actionStats || [],
+      trendData: trendData || [],
+      harvestRetryStats: harvestRetryStats?.[0] || { total: 0, retryable: 0 },
+      negKeywordStats: negKeywordStats || [],
+      recentCorrections: recentCorrections || [],
+    };
   }),
 });
 

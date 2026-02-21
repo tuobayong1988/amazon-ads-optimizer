@@ -72,6 +72,7 @@ const HolidayCalendarManagement = lazy(() => import("./pages/HolidayCalendarMana
 const AmazonApiAuthStatus = lazy(() => import("./pages/AmazonApiAuthStatus"));
 const AutoOptimizationDashboard = lazy(() => import("./pages/AutoOptimizationDashboard"));
 const AdvancedAnalyticsDashboard = lazy(() => import("./pages/AdvancedAnalyticsDashboard"));
+const AutoCorrectionDashboard = lazy(() => import("./pages/AutoCorrectionDashboard"));
 
 // 加载中组件
 function PageLoading() {
@@ -172,6 +173,7 @@ function Router() {
       <Route path="/holiday-calendar">{() => <LazyRoute component={HolidayCalendarManagement} />}</Route>
       <Route path="/amazon-api-auth-status">{() => <LazyRoute component={AmazonApiAuthStatus} />}</Route>
       <Route path="/auto-optimization-dashboard">{() => <LazyRoute component={AutoOptimizationDashboard} />}</Route>
+      <Route path="/auto-correction">{() => <LazyRoute component={AutoCorrectionDashboard} />}</Route>
       {/* v151: 高级分析已融合到优化目标详情页的"分析洞察"Tab */}
       <Route path="/advanced-analytics">{() => { window.location.href = '/strategy-center'; return null; }}</Route>
       <Route path="/register">{() => <LazyRoute component={InviteRegister} />}</Route>

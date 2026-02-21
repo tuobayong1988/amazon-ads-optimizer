@@ -92,6 +92,7 @@ const menuGroups = [
       { icon: Users, label: "团队管理", path: "/team" },
       { icon: UserPlus, label: "邀请码管理", path: "/invite-codes" },
       { icon: Shield, label: "审计日志", path: "/audit-logs" },
+      { icon: Activity, label: "纠错监控", path: "/auto-correction" },
     ]
   },
 ];
