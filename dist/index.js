@@ -62980,6 +62980,11 @@ async function getBidRules(strategyId) {
   if (!db) return [];
   return db.select().from(hourpartingBidRules).where(eq(hourpartingBidRules.strategyId, strategyId)).orderBy(hourpartingBidRules.dayOfWeek, hourpartingBidRules.hour);
 }
+async function logStrategyExecution(data4) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.insert(daypartingExecutionLogs).values(data4);
+}
 async function getExecutionLogs(strategyId, limit = 50) {
   const db = await getDb();
   if (!db) return [];
@@ -135148,6 +135153,10 @@ async function startOptimizationScheduler2() {
     await executeOptimizationTask("dayparting_adjustment");
   }, OPTIMIZATION_SCHEDULE.dayparting_adjustment.intervalMs);
   console.log(`[OptimizationScheduler] \u5206\u65F6\u7ADE\u4EF7\u8C03\u6574\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 1\u5C0F\u65F6`);
+  optimizationIntervals.dayparting_budget = setInterval(async () => {
+    await executeOptimizationTask("dayparting_budget");
+  }, OPTIMIZATION_SCHEDULE.dayparting_budget.intervalMs);
+  console.log(`[OptimizationScheduler] v179: \u5206\u65F6\u9884\u7B97\u8C03\u6574\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 24\u5C0F\u65F6\uFF0C\u51CC\u66286:00\u6267\u884C`);
   optimizationIntervals.daily_bid_optimization = setInterval(async () => {
     await executeOptimizationTask("daily_bid_optimization");
   }, OPTIMIZATION_SCHEDULE.daily_bid_optimization.intervalMs);
@@ -135270,7 +135279,7 @@ async function executeOptimizationTask(taskType) {
         try {
           const daypartingResults = await executeAllEnabledTargets2(void 0, {
             dryRun: false,
-            specificModules: ["dayparting", "coordination"]
+            specificModules: ["multidim", "dayparting", "coordination"]
           });
           console.log(`[OptimizationScheduler] \u5206\u65F6\u7ADE\u4EF7\u8C03\u6574\u5B8C\u6210: ${daypartingResults.length}\u4E2A\u76EE\u6807`);
           for (const r5 of daypartingResults) {
@@ -135278,6 +135287,23 @@ async function executeOptimizationTask(taskType) {
           }
         } catch (daypartingError) {
           console.error(`[OptimizationScheduler] \u5206\u65F6\u7ADE\u4EF7\u8C03\u6574\u5931\u8D25:`, daypartingError.message);
+        }
+        break;
+      }
+      // ==================== v179: 分时预算调整（每天凌昨6:00）====================
+      case "dayparting_budget": {
+        console.log(`[OptimizationScheduler] v179: \u6267\u884C\u5206\u65F6\u9884\u7B97\u8C03\u6574`);
+        try {
+          const daypartingBudgetResults = await executeAllEnabledTargets2(void 0, {
+            dryRun: false,
+            specificModules: ["multidim", "dayparting_budget"]
+          });
+          console.log(`[OptimizationScheduler] v179: \u5206\u65F6\u9884\u7B97\u8C03\u6574\u5B8C\u6210: ${daypartingBudgetResults.length}\u4E2A\u76EE\u6807`);
+          for (const r5 of daypartingBudgetResults) {
+            console.log(`  - ${r5.targetName}: \u5206\u65F6\u9884\u7B97\u8C03\u6574=${r5.daypartingBudgetOptimization?.adjustmentsCount || 0}`);
+          }
+        } catch (daypartingBudgetError) {
+          console.error(`[OptimizationScheduler] v179: \u5206\u65F6\u9884\u7B97\u8C03\u6574\u5931\u8D25:`, daypartingBudgetError.message);
         }
         break;
       }
@@ -135549,8 +135575,18 @@ var init_dataSyncScheduler = __esm({
         description: "\u5206\u65F6\u7ADE\u4EF7\u8C03\u6574 - \u6839\u636E\u5F53\u524D\u65F6\u6BB5\u52A8\u6001\u8C03\u6574\u51FA\u4EF7\u4E58\u6570",
         intervalMs: 60 * 60 * 1e3,
         // 每小时
-        specificModules: ["dayparting", "coordination"]
-        // 仅分时竞价+协调
+        specificModules: ["multidim", "dayparting", "coordination"]
+        // v179: 添加multidim模块以生成分时竞价规则
+      },
+      dayparting_budget: {
+        type: "dayparting_budget",
+        description: "v179: \u5206\u65F6\u9884\u7B97\u8C03\u6574 - \u6839\u636E\u661F\u671F\u51E0\u7684\u8868\u73B0\u52A8\u6001\u8C03\u6574\u9884\u7B97",
+        intervalMs: 24 * 60 * 60 * 1e3,
+        // 每天执行一次
+        cronHours: [6],
+        // 凌昨6:00执行（在分时竞价规则生成后）
+        specificModules: ["multidim", "dayparting_budget"]
+        // 先生成规则，再应用预算
       },
       daily_bid_optimization: {
         type: "daily_bid_optimization",
@@ -135612,6 +135648,8 @@ var init_dataSyncScheduler = __esm({
       intraday_pacing: null,
       risk_scan: null,
       dayparting_adjustment: null,
+      dayparting_budget: null,
+      // v179
       daily_bid_optimization: null,
       daily_placement_optimization: null,
       daily_search_term_negation: null,
@@ -136735,6 +136773,60 @@ async function applyHourlyBidRulesToStrategy(campaignId, accountId, rules) {
   }
   return { success: true, strategyId: strategy.id, rulesApplied: updatedRules.length };
 }
+async function applyDailyBudgetRulesToStrategy(campaignId, accountId, dayPerformances, config2) {
+  let strategy = await getDaypartingStrategyByCampaignId(campaignId);
+  if (!strategy) {
+    strategy = await ensureDaypartingStrategy(
+      accountId,
+      campaignId,
+      `Campaign ${campaignId}`,
+      {}
+    );
+  }
+  if (!strategy) {
+    return { success: false, strategyId: 0, rulesApplied: 0 };
+  }
+  const existingRules = await getBudgetRules(strategy.id);
+  const targetRoas = config2.targetRoas || (config2.targetAcos ? 100 / config2.targetAcos : 3.33);
+  const allScores = dayPerformances.map((d5) => d5.score);
+  const avgScore = allScores.reduce((s4, v6) => s4 + v6, 0) / Math.max(allScores.length, 1) || 1;
+  const budgetRules = [];
+  for (let dayOfWeek = 0; dayOfWeek <= 6; dayOfWeek++) {
+    const dayPerf = dayPerformances.find((d5) => d5.dayOfWeek === dayOfWeek);
+    let multiplier = 1;
+    if (dayPerf && avgScore > 0) {
+      multiplier = dayPerf.score / avgScore;
+      multiplier = Math.max(0.5, Math.min(1.8, multiplier));
+    }
+    const existing = existingRules.find((e6) => e6.dayOfWeek === dayOfWeek);
+    if (existing) {
+      const existingMultiplier = parseFloat(existing.budgetMultiplier || "1.00");
+      multiplier = existingMultiplier * 0.3 + multiplier * 0.7;
+    }
+    multiplier = Math.round(multiplier * 100) / 100;
+    const budgetPercentage = Math.round(multiplier / 7 * 100 * 100) / 100;
+    budgetRules.push({
+      dayOfWeek,
+      budgetMultiplier: multiplier.toFixed(2),
+      budgetPercentage: budgetPercentage.toFixed(2),
+      avgSpend: dayPerf?.spend?.toFixed(2),
+      avgSales: dayPerf?.sales?.toFixed(2),
+      avgAcos: dayPerf?.acos?.toFixed(2),
+      avgRoas: dayPerf?.roas?.toFixed(2),
+      dataPoints: dayPerf ? Math.round(dayPerf.clicks / 10) : 0,
+      // 估算数据点
+      isEnabled: 1
+    });
+  }
+  await saveBudgetRules(strategy.id, budgetRules);
+  if (strategy.daypartingStatus !== "active") {
+    await updateDaypartingStrategy(strategy.id, {
+      daypartingStatus: "active",
+      lastAnalyzedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
+    });
+  }
+  return { success: true, strategyId: strategy.id, rulesApplied: budgetRules.length };
+}
 async function executeMultiDimensionOptimization(targetId, accountId, campaigns6, config2, dryRun = false) {
   const details = [];
   let totalRulesGenerated = 0;
@@ -136768,6 +136860,28 @@ async function executeMultiDimensionOptimization(targetId, accountId, campaigns6
           plan.hourlyBidRules
         );
         totalRulesGenerated += applyResult.rulesApplied;
+      }
+      const allDayPerfs = [
+        ...analysis.timeAnalysis.bestDays,
+        ...analysis.timeAnalysis.worstDays
+      ];
+      const uniqueDayPerfs = allDayPerfs.filter(
+        (d5, i4, arr) => arr.findIndex((x6) => x6.dayOfWeek === d5.dayOfWeek) === i4
+      );
+      if (!dryRun && uniqueDayPerfs.length > 0) {
+        try {
+          const budgetApplyResult = await applyDailyBudgetRulesToStrategy(
+            campaign.id,
+            accountId,
+            uniqueDayPerfs,
+            config2
+          );
+          if (budgetApplyResult.success) {
+            console.log(`[MultiDimOptimizer] v179: Campaign ${campaign.campaignName} \u5206\u65F6\u9884\u7B97\u89C4\u5219\u5DF2\u4FDD\u5B58: ${budgetApplyResult.rulesApplied}\u6761`);
+          }
+        } catch (budgetErr) {
+          console.warn(`[MultiDimOptimizer] v179: \u5206\u65F6\u9884\u7B97\u89C4\u5219\u4FDD\u5B58\u5931\u8D25: ${budgetErr.message}`);
+        }
       }
       details.push({
         campaignId: campaign.id,
@@ -137668,6 +137782,8 @@ async function executeOptimizationTarget(targetId, options = {}) {
     bidOptimization: { executed: false, adjustmentsCount: 0, details: [] },
     placementOptimization: { executed: false, adjustmentsCount: 0, details: [] },
     daypartingOptimization: { executed: false, adjustmentsCount: 0, details: [] },
+    daypartingBudgetOptimization: { executed: false, adjustmentsCount: 0, details: [] },
+    // v179
     searchTermAnalysis: { executed: false, negativeKeywordsAdded: 0, newKeywordsAdded: 0, details: [] },
     budgetAllocation: { executed: false, adjustmentsCount: 0, details: [] },
     keywordStatusChanges: { executed: false, pausedCount: 0, enabledCount: 0, details: [] },
@@ -137813,6 +137929,14 @@ async function executeOptimizationTarget(targetId, options = {}) {
       result.daypartingOptimization = daypartingResults;
     } catch (error54) {
       result.errors.push(`\u5206\u65F6\u7ADE\u4EF7\u4F18\u5316\u5931\u8D25: ${error54.message}`);
+    }
+  }
+  if (config2.enableDaypartingOptimization && shouldExecute("dayparting_budget")) {
+    try {
+      const daypartingBudgetResults = await executeDaypartingBudgetOptimization(config2, campaigns6, dryRun);
+      result.daypartingBudgetOptimization = daypartingBudgetResults;
+    } catch (error54) {
+      result.errors.push(`\u5206\u65F6\u9884\u7B97\u4F18\u5316\u5931\u8D25: ${error54.message}`);
     }
   }
   if (config2.enableSearchTermAnalysis && shouldExecute("searchterm")) {
@@ -138525,6 +138649,108 @@ async function executeDaypartingOptimization(config2, campaigns6, dryRun) {
         campaignName: campaign.campaignName,
         error: error54.message
       });
+    }
+  }
+  return { executed: true, adjustmentsCount, details };
+}
+async function executeDaypartingBudgetOptimization(config2, campaigns6, dryRun) {
+  const details = [];
+  let adjustmentsCount = 0;
+  const marketplace = config2.marketplace || "US";
+  const now = /* @__PURE__ */ new Date();
+  const currentDayOfWeek = getLocalDayOfWeek(now, marketplace);
+  for (const campaign of campaigns6) {
+    try {
+      let strategy = await getDaypartingStrategyByCampaignId(campaign.id);
+      if (!strategy || strategy.daypartingStatus !== "active") continue;
+      const budgetRules = await getBudgetRules(strategy.id);
+      const todayRule = budgetRules.find((r5) => r5.dayOfWeek === currentDayOfWeek);
+      if (!todayRule) continue;
+      const budgetMultiplier = parseFloat(todayRule.budgetMultiplier || "1.00");
+      if (Math.abs(budgetMultiplier - 1) < 0.05) continue;
+      const currentBudget = parseFloat(campaign.dailyBudget || "0");
+      if (currentBudget <= 0) continue;
+      const baseBudget = parseFloat(campaign.originalDailyBudget || campaign.dailyBudget || "0");
+      const adjustedBudget = Math.round(baseBudget * budgetMultiplier * 100) / 100;
+      const adjustment = {
+        accountId: config2.accountId,
+        campaignId: campaign.id,
+        campaignName: campaign.campaignName,
+        dayOfWeek: currentDayOfWeek,
+        budgetMultiplier,
+        baseBudget,
+        currentBudget,
+        adjustedBudget,
+        changeAmount: adjustedBudget - currentBudget,
+        changePercent: currentBudget > 0 ? ((adjustedBudget - currentBudget) / currentBudget * 100).toFixed(2) : "0",
+        reason: `\u5206\u65F6\u9884\u7B97: \u661F\u671F${["\u65E5", "\u4E00", "\u4E8C", "\u4E09", "\u56DB", "\u4E94", "\u516D"][currentDayOfWeek]} \u500D\u6570${budgetMultiplier}x, $${currentBudget.toFixed(2)} \u2192 $${adjustedBudget.toFixed(2)}`,
+        apiSyncStatus: "pending"
+      };
+      details.push(adjustment);
+      if (!dryRun && Math.abs(adjustedBudget - currentBudget) > 0.5) {
+        try {
+          const amazonCampaignId = campaign.campaignId || campaign.id.toString();
+          const budgetSyncResult = await syncBudgetAdjustmentToAmazon(
+            config2.accountId,
+            amazonCampaignId,
+            adjustedBudget,
+            `v179\u5206\u65F6\u9884\u7B97: \u661F\u671F${currentDayOfWeek} \u500D\u6570${budgetMultiplier}x`
+          );
+          if (budgetSyncResult) {
+            await updateCampaign(campaign.id, {
+              dailyBudget: adjustedBudget.toFixed(2),
+              lastOptimizedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
+            });
+            adjustmentsCount++;
+            adjustment.apiSyncStatus = "synced";
+            try {
+              await logStrategyExecution({
+                strategyId: strategy.id,
+                executionType: "budget_adjustment",
+                dpTargetType: "campaign",
+                dpTargetId: campaign.id,
+                dpTargetName: campaign.campaignName,
+                previousValue: currentBudget.toFixed(2),
+                newValue: adjustedBudget.toFixed(2),
+                multiplierApplied: budgetMultiplier.toFixed(2),
+                triggerDayOfWeek: currentDayOfWeek,
+                triggerHour: getLocalHour(now, marketplace),
+                dpExecStatus: "success"
+              });
+            } catch (logErr) {
+              console.warn(`[DaypartingBudget] \u65E5\u5FD7\u8BB0\u5F55\u5931\u8D25: ${logErr.message}`);
+            }
+            console.log(`[DaypartingBudget] v179: ${campaign.campaignName} \u9884\u7B97\u8C03\u6574 $${currentBudget.toFixed(2)} \u2192 $${adjustedBudget.toFixed(2)} (\u661F\u671F${currentDayOfWeek}, \u500D\u6570${budgetMultiplier}x)`);
+          } else {
+            adjustment.apiSyncStatus = "failed";
+            console.warn(`[DaypartingBudget] v179: API\u540C\u6B65\u5931\u8D25 (Campaign ${campaign.campaignName})`);
+          }
+        } catch (apiError) {
+          adjustment.apiSyncStatus = "failed";
+          adjustment.apiSyncDetail = JSON.stringify({ error: apiError.message });
+          console.error(`[DaypartingBudget] v179: API\u540C\u6B65\u5F02\u5E38 (Campaign ${campaign.campaignName}):`, apiError.message);
+        }
+      }
+    } catch (error54) {
+      details.push({
+        campaignId: campaign.id,
+        campaignName: campaign.campaignName,
+        error: error54.message
+      });
+    }
+  }
+  if (adjustmentsCount > 0) {
+    try {
+      const strategies = await getDaypartingStrategies(config2.accountId);
+      for (const s4 of strategies) {
+        if (s4.daypartingStatus === "active") {
+          await updateDaypartingStrategy(s4.id, {
+            lastAppliedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
+          });
+        }
+      }
+    } catch (updateErr) {
+      console.warn(`[DaypartingBudget] \u66F4\u65B0lastAppliedAt\u5931\u8D25: ${updateErr.message}`);
     }
   }
   return { executed: true, adjustmentsCount, details };
@@ -139693,6 +139919,30 @@ async function recordExecutionLog(result) {
         });
       }
     }
+    if (result.daypartingBudgetOptimization?.executed && result.daypartingBudgetOptimization.adjustmentsCount > 0) {
+      for (const detail of result.daypartingBudgetOptimization.details) {
+        if (detail.error) continue;
+        await dbInstance.insert(optimizationLogs2).values({
+          performanceGroupId: result.targetId,
+          performanceGroupName: result.targetName,
+          accountId: result.accountId || detail.accountId || 0,
+          logCategory: "bid_adjustment",
+          actionType: "budget_adjustment",
+          campaignId: detail.campaignId,
+          campaignName: detail.campaignName,
+          actionDetail: JSON.stringify(detail),
+          previousValue: `${detail.currentBudget?.toFixed(2) || "0.00"}`,
+          newValue: `${detail.adjustedBudget?.toFixed(2) || "0.00"}`,
+          changeReason: detail.reason || `\u5206\u65F6\u9884\u7B97: \u661F\u671F${detail.dayOfWeek} \u500D\u6570${detail.budgetMultiplier}x`,
+          status: detail.apiSyncStatus === "synced" ? "success" : detail.apiSyncStatus === "failed" ? "failed" : "success",
+          apiSyncStatus: detail.apiSyncStatus || "not_applicable",
+          apiSyncDetail: detail.apiSyncDetail || null,
+          apiSyncedAt: detail.apiSyncStatus === "synced" ? now : null,
+          createdAt: now,
+          executedAt: now
+        });
+      }
+    }
     if (result.keywordStatusChanges.executed) {
       for (const detail of result.keywordStatusChanges.details) {
         await dbInstance.insert(optimizationLogs2).values({
@@ -139845,6 +140095,8 @@ async function executeAllEnabledTargets(accountId, options = {}) {
         bidOptimization: { executed: false, adjustmentsCount: 0, details: [] },
         placementOptimization: { executed: false, adjustmentsCount: 0, details: [] },
         daypartingOptimization: { executed: false, adjustmentsCount: 0, details: [] },
+        daypartingBudgetOptimization: { executed: false, adjustmentsCount: 0, details: [] },
+        // v179
         searchTermAnalysis: { executed: false, negativeKeywordsAdded: 0, newKeywordsAdded: 0, details: [] },
         budgetAllocation: { executed: false, adjustmentsCount: 0, details: [] },
         keywordStatusChanges: { executed: false, pausedCount: 0, enabledCount: 0, details: [] },
