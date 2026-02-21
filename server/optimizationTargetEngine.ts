@@ -1030,10 +1030,18 @@ async function executeBidOptimization(
                     .where(eq(keywordsTable.id, detail.keywordId));
                 }
               }
+              // v178: 更新所有受影响的campaigns的last_optimized_at
+              const affectedCampaignIds = [...new Set(syncedDetails.map(d => d.campaignId))];
+              const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
+              for (const cid of affectedCampaignIds) {
+                await tx.update(campaignsTable)
+                  .set({ lastOptimizedAt: nowStr } as any)
+                  .where(eq(campaignsTable.id, cid));
+              }
             });
-            console.log(`[BidOptimization] v148: 事务批量DB更新成功: ${syncedDetails.length}条`);
+            console.log(`[BidOptimization] v178: 事务批量DB更新成功: ${syncedDetails.length}条出价 + campaigns.last_optimized_at已更新`);
           } catch (txErr: any) {
-            console.error(`[BidOptimization] v148: 事务DB更新失败(已回滚): ${txErr.message}`);
+            console.error(`[BidOptimization] v178: 事务DB更新失败(已回滚): ${txErr.message}`);
             // 事务失败时，所有DB更新自动回滚，保持数据一致性
           }
         }

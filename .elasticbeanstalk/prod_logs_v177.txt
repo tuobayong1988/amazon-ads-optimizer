@@ -1,0 +1,4 @@
+Retrieving logs...
+Logs were saved to /home/ubuntu/amazon-ads-optimizer/.elasticbeanstalk/logs/260221_081921
+Logs were saved to /home/ubuntu/amazon-ads-optimizer/.elasticbeanstalk/logs/260221_081921
+Updated symlink at /home/ubuntu/amazon-ads-optimizer/.elasticbeanstalk/logs/latest
