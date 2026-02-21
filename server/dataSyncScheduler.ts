@@ -880,26 +880,47 @@ const executionLocks: Record<string, boolean> = {};
 // v122: 上次执行时间记录 - 防止同一小时内重复执行
 const lastExecutionHour: Record<string, string> = {};
 
-// v148: 全局账户级优化锁 - 防止automationExecutionEngine和optimizationTargetEngine同时操作同一账户
-const accountOptimizationLocks: Record<number, { locked: boolean; lockedBy: string; lockedAt: Date | null }> = {};
+// v181: 账户+模块级优化锁 - 不同模块的优化可以并行执行，只阻塞相同模块的并发
+// 锁key格式: `${accountId}:${moduleGroup}` 例如 "90023:bid" "90023:dayparting"
+const accountModuleLocks: Record<string, { locked: boolean; lockedBy: string; lockedAt: Date | null }> = {};
+
+// v181: 模块分组映射 - 将specificModules映射到锁分组
+// 同一分组内的模块共享锁，不同分组之间不互相阻塞
+export function getModuleLockGroup(specificModules?: string[]): string {
+  if (!specificModules || specificModules.length === 0) return 'all';
+  // 按模块类型分组
+  if (specificModules.includes('bid') || specificModules.includes('keyword')) return 'bid';
+  if (specificModules.includes('dayparting') || specificModules.includes('multidim')) return 'dayparting';
+  if (specificModules.includes('dayparting_budget')) return 'dayparting_budget';
+  if (specificModules.includes('placement')) return 'placement';
+  if (specificModules.includes('searchterm')) return 'searchterm';
+  if (specificModules.includes('budget')) return 'budget';
+  return 'all';
+}
 
 /**
- * v148: 获取账户级别的优化锁
- * 防止两个引擎同时对同一账户执行优化操作
+ * v181: 获取账户+模块级别的优化锁
+ * 不同模块类型的优化可以并行执行，只阻塞相同模块的并发操作
+ * @param accountId 账户ID
+ * @param lockedBy 锁持有者标识
+ * @param moduleGroup 模块分组（可选，默认为'all'）
  */
-export function acquireAccountOptimizationLock(accountId: number, lockedBy: string): boolean {
-  if (!accountOptimizationLocks[accountId]) {
-    accountOptimizationLocks[accountId] = { locked: false, lockedBy: '', lockedAt: null };
+export function acquireAccountOptimizationLock(accountId: number, lockedBy: string, moduleGroup?: string): boolean {
+  const group = moduleGroup || 'all';
+  const lockKey = `${accountId}:${group}`;
+  
+  if (!accountModuleLocks[lockKey]) {
+    accountModuleLocks[lockKey] = { locked: false, lockedBy: '', lockedAt: null };
   }
-  const lock = accountOptimizationLocks[accountId];
+  const lock = accountModuleLocks[lockKey];
   
   // 检查是否已锁定
   if (lock.locked) {
-    // v148: 防止死锁 - 如果锁定超过30分钟，强制释放
-    if (lock.lockedAt && (Date.now() - lock.lockedAt.getTime()) > 30 * 60 * 1000) {
-      console.warn(`[v148-Lock] 账户${accountId}优化锁超时30分钟，强制释放 (lockedBy: ${lock.lockedBy})`);
+    // v181: 防止死锁 - 如果锁定超过5分钟，强制释放（从30分钟缩短到5分钟）
+    if (lock.lockedAt && (Date.now() - lock.lockedAt.getTime()) > 5 * 60 * 1000) {
+      console.warn(`[v181-Lock] ${lockKey} 优化锁超时5分钟，强制释放 (lockedBy: ${lock.lockedBy})`);
     } else {
-      console.log(`[v148-Lock] 账户${accountId}优化锁已被 ${lock.lockedBy} 持有，${lockedBy} 跳过`);
+      console.log(`[v181-Lock] ${lockKey} 优化锁已被 ${lock.lockedBy} 持有，${lockedBy} 跳过`);
       return false;
     }
   }
@@ -911,14 +932,37 @@ export function acquireAccountOptimizationLock(accountId: number, lockedBy: stri
 }
 
 /**
- * v148: 释放账户级别的优化锁
+ * v181: 释放账户+模块级别的优化锁
  */
-export function releaseAccountOptimizationLock(accountId: number): void {
-  if (accountOptimizationLocks[accountId]) {
-    accountOptimizationLocks[accountId].locked = false;
-    accountOptimizationLocks[accountId].lockedBy = '';
-    accountOptimizationLocks[accountId].lockedAt = null;
+export function releaseAccountOptimizationLock(accountId: number, moduleGroup?: string): void {
+  const group = moduleGroup || 'all';
+  const lockKey = `${accountId}:${group}`;
+  if (accountModuleLocks[lockKey]) {
+    accountModuleLocks[lockKey].locked = false;
+    accountModuleLocks[lockKey].lockedBy = '';
+    accountModuleLocks[lockKey].lockedAt = null;
   }
+}
+
+/**
+ * v181: 带重试的锁获取 - 获取失败时等待后重试
+ */
+export async function acquireAccountOptimizationLockWithRetry(
+  accountId: number, lockedBy: string, moduleGroup?: string, maxRetries: number = 3, retryDelayMs: number = 10000
+): Promise<boolean> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    if (acquireAccountOptimizationLock(accountId, lockedBy, moduleGroup)) {
+      if (attempt > 0) {
+        console.log(`[v181-Lock] ${accountId}:${moduleGroup || 'all'} 第${attempt + 1}次尝试获取锁成功 (${lockedBy})`);
+      }
+      return true;
+    }
+    if (attempt < maxRetries) {
+      console.log(`[v181-Lock] ${accountId}:${moduleGroup || 'all'} 锁被占用，${retryDelayMs / 1000}秒后重试 (${attempt + 1}/${maxRetries})`);
+      await new Promise(resolve => setTimeout(resolve, retryDelayMs));
+    }
+  }
+  return false;
 }
 
 // v143: 每个优化目标的每个模块的上次执行时间
@@ -1014,56 +1058,82 @@ export async function startOptimizationScheduler(): Promise<void> {
     console.error(`[OptimizationScheduler] v156: 恢复模块执行时间失败: ${restoreErr.message}`);
   }
   
-  // 0. 日内节奏监控 - 每30分钟（不受生命周期影响）
-  optimizationIntervals.intraday_pacing = setInterval(async () => {
-    await executeOptimizationTask('intraday_pacing');
-  }, OPTIMIZATION_SCHEDULE.intraday_pacing.intervalMs);
-  console.log(`[OptimizationScheduler] 日内节奏监控已启动，间隔: 30分钟`);
+  // v181: 所有任务添加启动偏移量，避免多个任务同时触发导致锁竞争
+  // 偏移量从1分钟开始，每个任务错开5分钟
   
-  // 1. 高频风控扫描 - 每2小时（不受生命周期影响）
-  optimizationIntervals.risk_scan = setInterval(async () => {
-    await executeOptimizationTask('risk_scan');
-  }, OPTIMIZATION_SCHEDULE.risk_scan.intervalMs);
-  console.log(`[OptimizationScheduler] 高频风控扫描已启动，间隔: 2小时`);
+  // 0. 日内节奏监控 - 每30分钟（偏移1分钟）
+  setTimeout(() => {
+    optimizationIntervals.intraday_pacing = setInterval(async () => {
+      await executeOptimizationTask('intraday_pacing');
+    }, OPTIMIZATION_SCHEDULE.intraday_pacing.intervalMs);
+    executeOptimizationTask('intraday_pacing'); // 立即执行一次
+  }, 1 * 60 * 1000);
+  console.log(`[OptimizationScheduler] 日内节奏监控已启动，间隔: 30分钟，偏移: 1分钟`);
   
-  // 2. 分时竞价调整 - 每小时（分时策略按小时粒度，不受生命周期影响）
-  optimizationIntervals.dayparting_adjustment = setInterval(async () => {
-    await executeOptimizationTask('dayparting_adjustment');
-  }, OPTIMIZATION_SCHEDULE.dayparting_adjustment.intervalMs);
-  console.log(`[OptimizationScheduler] 分时竞价调整已启动，间隔: 1小时`);
+  // 1. 高频风控扫描 - 每2小时（偏移6分钟）
+  setTimeout(() => {
+    optimizationIntervals.risk_scan = setInterval(async () => {
+      await executeOptimizationTask('risk_scan');
+    }, OPTIMIZATION_SCHEDULE.risk_scan.intervalMs);
+    executeOptimizationTask('risk_scan'); // 立即执行一次
+  }, 6 * 60 * 1000);
+  console.log(`[OptimizationScheduler] 高频风控扫描已启动，间隔: 2小时，偏移: 6分钟`);
   
-  // 2.5 v179: 分时预算调整 - 每天执行一次
-  optimizationIntervals.dayparting_budget = setInterval(async () => {
-    await executeOptimizationTask('dayparting_budget');
-  }, OPTIMIZATION_SCHEDULE.dayparting_budget.intervalMs);
-  console.log(`[OptimizationScheduler] v179: 分时预算调整已启动，间隔: 24小时，凌昨6:00执行`);
+  // 2. 分时竞价调整 - 每小时（偏移11分钟）
+  setTimeout(() => {
+    optimizationIntervals.dayparting_adjustment = setInterval(async () => {
+      await executeOptimizationTask('dayparting_adjustment');
+    }, OPTIMIZATION_SCHEDULE.dayparting_adjustment.intervalMs);
+    executeOptimizationTask('dayparting_adjustment'); // 立即执行一次
+  }, 11 * 60 * 1000);
+  console.log(`[OptimizationScheduler] 分时竞价调整已启动，间隔: 1小时，偏移: 11分钟`);
   
-  // 3. v143: 出价智能优化 - 每2小时触发，但每个目标根据生命周期独立判断
+  // 2.5 v179: 分时预算调整 - 每天执行一次（偏移16分钟）
+  setTimeout(() => {
+    optimizationIntervals.dayparting_budget = setInterval(async () => {
+      await executeOptimizationTask('dayparting_budget');
+    }, OPTIMIZATION_SCHEDULE.dayparting_budget.intervalMs);
+  }, 16 * 60 * 1000);
+  console.log(`[OptimizationScheduler] v179: 分时预算调整已启动，间隔: 24小时，偏移: 16分钟`);
+  
+  // 3. v143: 出价智能优化 - 每2小时触发（偏移21分钟）
   // 启动期: 每4小时执行 | 成长期: 每6小时 | 成熟期: 每12小时
-  optimizationIntervals.daily_bid_optimization = setInterval(async () => {
-    await executeOptimizationTask('daily_bid_optimization');
-  }, OPTIMIZATION_SCHEDULE.daily_bid_optimization.intervalMs);
-  console.log(`[OptimizationScheduler] 出价智能优化已启动，触发间隔: 2小时，实际执行由生命周期决定`);
+  setTimeout(() => {
+    optimizationIntervals.daily_bid_optimization = setInterval(async () => {
+      await executeOptimizationTask('daily_bid_optimization');
+    }, OPTIMIZATION_SCHEDULE.daily_bid_optimization.intervalMs);
+    executeOptimizationTask('daily_bid_optimization'); // 立即执行一次
+  }, 21 * 60 * 1000);
+  console.log(`[OptimizationScheduler] 出价智能优化已启动，触发间隔: 2小时，偏移: 21分钟`);
   
-  // 4. v143: 位置优化 - 每4小时触发，生命周期判断是否执行
+  // 4. v143: 位置优化 - 每4小时触发（偏移26分钟）
   // 启动期: 每24小时 | 成长期: 每12小时 | 成熟期: 每12小时
-  optimizationIntervals.daily_placement_optimization = setInterval(async () => {
-    await executeOptimizationTask('daily_placement_optimization');
-  }, 4 * 60 * 60 * 1000); // 每4小时触发检查
-  console.log(`[OptimizationScheduler] 位置优化已启动，触发间隔: 4小时，实际执行由生命周期决定`);
+  setTimeout(() => {
+    optimizationIntervals.daily_placement_optimization = setInterval(async () => {
+      await executeOptimizationTask('daily_placement_optimization');
+    }, 4 * 60 * 60 * 1000);
+    executeOptimizationTask('daily_placement_optimization'); // 立即执行一次
+  }, 26 * 60 * 1000);
+  console.log(`[OptimizationScheduler] 位置优化已启动，触发间隔: 4小时，偏移: 26分钟`);
   
-  // 5. v143: 搜索词否定 - 每12小时触发，生命周期判断是否执行
+  // 5. v143: 搜索词否定 - 每12小时触发（偏移31分钟）
   // 启动期: 每48小时 | 成长期: 每24小时 | 成熟期: 每24小时
-  optimizationIntervals.daily_search_term_negation = setInterval(async () => {
-    await executeOptimizationTask('daily_search_term_negation');
-  }, 12 * 60 * 60 * 1000); // 每12小时触发检查
-  console.log(`[OptimizationScheduler] 搜索词否定已启动，触发间隔: 12小时，实际执行由生命周期决定`);
+  setTimeout(() => {
+    optimizationIntervals.daily_search_term_negation = setInterval(async () => {
+      await executeOptimizationTask('daily_search_term_negation');
+    }, 12 * 60 * 60 * 1000);
+    executeOptimizationTask('daily_search_term_negation'); // 立即执行一次
+  }, 31 * 60 * 1000);
+  console.log(`[OptimizationScheduler] 搜索词否定已启动，触发间隔: 12小时，偏移: 31分钟`);
   
-  // 6. 预算智能分配 - 每4小时（所有阶段统一频率）
-  optimizationIntervals.budget_allocation = setInterval(async () => {
-    await executeOptimizationTask('budget_allocation');
-  }, 4 * 60 * 60 * 1000);
-  console.log(`[OptimizationScheduler] 预算智能分配已启动，间隔: 4小时`);
+  // 6. 预算智能分配 - 每4小时（偏移36分钟）
+  setTimeout(() => {
+    optimizationIntervals.budget_allocation = setInterval(async () => {
+      await executeOptimizationTask('budget_allocation');
+    }, 4 * 60 * 60 * 1000);
+    executeOptimizationTask('budget_allocation'); // 立即执行一次
+  }, 36 * 60 * 1000);
+  console.log(`[OptimizationScheduler] 预算智能分配已启动，间隔: 4小时，偏移: 36分钟`);
   
   // 7. 搜索词收割 - 周一凌暨5:00
   optimizationIntervals.search_term_harvest = setInterval(async () => {

@@ -135065,16 +135065,28 @@ async function executeSyncForAccount(schedule) {
 function sleep(ms) {
   return new Promise((resolve8) => setTimeout(resolve8, ms));
 }
-function acquireAccountOptimizationLock(accountId, lockedBy) {
-  if (!accountOptimizationLocks[accountId]) {
-    accountOptimizationLocks[accountId] = { locked: false, lockedBy: "", lockedAt: null };
+function getModuleLockGroup(specificModules) {
+  if (!specificModules || specificModules.length === 0) return "all";
+  if (specificModules.includes("bid") || specificModules.includes("keyword")) return "bid";
+  if (specificModules.includes("dayparting") || specificModules.includes("multidim")) return "dayparting";
+  if (specificModules.includes("dayparting_budget")) return "dayparting_budget";
+  if (specificModules.includes("placement")) return "placement";
+  if (specificModules.includes("searchterm")) return "searchterm";
+  if (specificModules.includes("budget")) return "budget";
+  return "all";
+}
+function acquireAccountOptimizationLock(accountId, lockedBy, moduleGroup) {
+  const group = moduleGroup || "all";
+  const lockKey = `${accountId}:${group}`;
+  if (!accountModuleLocks[lockKey]) {
+    accountModuleLocks[lockKey] = { locked: false, lockedBy: "", lockedAt: null };
   }
-  const lock = accountOptimizationLocks[accountId];
+  const lock = accountModuleLocks[lockKey];
   if (lock.locked) {
-    if (lock.lockedAt && Date.now() - lock.lockedAt.getTime() > 30 * 60 * 1e3) {
-      console.warn(`[v148-Lock] \u8D26\u6237${accountId}\u4F18\u5316\u9501\u8D85\u65F630\u5206\u949F\uFF0C\u5F3A\u5236\u91CA\u653E (lockedBy: ${lock.lockedBy})`);
+    if (lock.lockedAt && Date.now() - lock.lockedAt.getTime() > 5 * 60 * 1e3) {
+      console.warn(`[v181-Lock] ${lockKey} \u4F18\u5316\u9501\u8D85\u65F65\u5206\u949F\uFF0C\u5F3A\u5236\u91CA\u653E (lockedBy: ${lock.lockedBy})`);
     } else {
-      console.log(`[v148-Lock] \u8D26\u6237${accountId}\u4F18\u5316\u9501\u5DF2\u88AB ${lock.lockedBy} \u6301\u6709\uFF0C${lockedBy} \u8DF3\u8FC7`);
+      console.log(`[v181-Lock] ${lockKey} \u4F18\u5316\u9501\u5DF2\u88AB ${lock.lockedBy} \u6301\u6709\uFF0C${lockedBy} \u8DF3\u8FC7`);
       return false;
     }
   }
@@ -135083,11 +135095,13 @@ function acquireAccountOptimizationLock(accountId, lockedBy) {
   lock.lockedAt = /* @__PURE__ */ new Date();
   return true;
 }
-function releaseAccountOptimizationLock(accountId) {
-  if (accountOptimizationLocks[accountId]) {
-    accountOptimizationLocks[accountId].locked = false;
-    accountOptimizationLocks[accountId].lockedBy = "";
-    accountOptimizationLocks[accountId].lockedAt = null;
+function releaseAccountOptimizationLock(accountId, moduleGroup) {
+  const group = moduleGroup || "all";
+  const lockKey = `${accountId}:${group}`;
+  if (accountModuleLocks[lockKey]) {
+    accountModuleLocks[lockKey].locked = false;
+    accountModuleLocks[lockKey].lockedBy = "";
+    accountModuleLocks[lockKey].lockedAt = null;
   }
 }
 function shouldExecuteModuleForTarget(targetId, moduleName, stage) {
@@ -135141,38 +135155,61 @@ async function startOptimizationScheduler2() {
   } catch (restoreErr) {
     console.error(`[OptimizationScheduler] v156: \u6062\u590D\u6A21\u5757\u6267\u884C\u65F6\u95F4\u5931\u8D25: ${restoreErr.message}`);
   }
-  optimizationIntervals.intraday_pacing = setInterval(async () => {
-    await executeOptimizationTask("intraday_pacing");
-  }, OPTIMIZATION_SCHEDULE.intraday_pacing.intervalMs);
-  console.log(`[OptimizationScheduler] \u65E5\u5185\u8282\u594F\u76D1\u63A7\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 30\u5206\u949F`);
-  optimizationIntervals.risk_scan = setInterval(async () => {
-    await executeOptimizationTask("risk_scan");
-  }, OPTIMIZATION_SCHEDULE.risk_scan.intervalMs);
-  console.log(`[OptimizationScheduler] \u9AD8\u9891\u98CE\u63A7\u626B\u63CF\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 2\u5C0F\u65F6`);
-  optimizationIntervals.dayparting_adjustment = setInterval(async () => {
-    await executeOptimizationTask("dayparting_adjustment");
-  }, OPTIMIZATION_SCHEDULE.dayparting_adjustment.intervalMs);
-  console.log(`[OptimizationScheduler] \u5206\u65F6\u7ADE\u4EF7\u8C03\u6574\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 1\u5C0F\u65F6`);
-  optimizationIntervals.dayparting_budget = setInterval(async () => {
-    await executeOptimizationTask("dayparting_budget");
-  }, OPTIMIZATION_SCHEDULE.dayparting_budget.intervalMs);
-  console.log(`[OptimizationScheduler] v179: \u5206\u65F6\u9884\u7B97\u8C03\u6574\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 24\u5C0F\u65F6\uFF0C\u51CC\u66286:00\u6267\u884C`);
-  optimizationIntervals.daily_bid_optimization = setInterval(async () => {
-    await executeOptimizationTask("daily_bid_optimization");
-  }, OPTIMIZATION_SCHEDULE.daily_bid_optimization.intervalMs);
-  console.log(`[OptimizationScheduler] \u51FA\u4EF7\u667A\u80FD\u4F18\u5316\u5DF2\u542F\u52A8\uFF0C\u89E6\u53D1\u95F4\u9694: 2\u5C0F\u65F6\uFF0C\u5B9E\u9645\u6267\u884C\u7531\u751F\u547D\u5468\u671F\u51B3\u5B9A`);
-  optimizationIntervals.daily_placement_optimization = setInterval(async () => {
-    await executeOptimizationTask("daily_placement_optimization");
-  }, 4 * 60 * 60 * 1e3);
-  console.log(`[OptimizationScheduler] \u4F4D\u7F6E\u4F18\u5316\u5DF2\u542F\u52A8\uFF0C\u89E6\u53D1\u95F4\u9694: 4\u5C0F\u65F6\uFF0C\u5B9E\u9645\u6267\u884C\u7531\u751F\u547D\u5468\u671F\u51B3\u5B9A`);
-  optimizationIntervals.daily_search_term_negation = setInterval(async () => {
-    await executeOptimizationTask("daily_search_term_negation");
-  }, 12 * 60 * 60 * 1e3);
-  console.log(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u5426\u5B9A\u5DF2\u542F\u52A8\uFF0C\u89E6\u53D1\u95F4\u9694: 12\u5C0F\u65F6\uFF0C\u5B9E\u9645\u6267\u884C\u7531\u751F\u547D\u5468\u671F\u51B3\u5B9A`);
-  optimizationIntervals.budget_allocation = setInterval(async () => {
-    await executeOptimizationTask("budget_allocation");
-  }, 4 * 60 * 60 * 1e3);
-  console.log(`[OptimizationScheduler] \u9884\u7B97\u667A\u80FD\u5206\u914D\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 4\u5C0F\u65F6`);
+  setTimeout(() => {
+    optimizationIntervals.intraday_pacing = setInterval(async () => {
+      await executeOptimizationTask("intraday_pacing");
+    }, OPTIMIZATION_SCHEDULE.intraday_pacing.intervalMs);
+    executeOptimizationTask("intraday_pacing");
+  }, 1 * 60 * 1e3);
+  console.log(`[OptimizationScheduler] \u65E5\u5185\u8282\u594F\u76D1\u63A7\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 30\u5206\u949F\uFF0C\u504F\u79FB: 1\u5206\u949F`);
+  setTimeout(() => {
+    optimizationIntervals.risk_scan = setInterval(async () => {
+      await executeOptimizationTask("risk_scan");
+    }, OPTIMIZATION_SCHEDULE.risk_scan.intervalMs);
+    executeOptimizationTask("risk_scan");
+  }, 6 * 60 * 1e3);
+  console.log(`[OptimizationScheduler] \u9AD8\u9891\u98CE\u63A7\u626B\u63CF\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 2\u5C0F\u65F6\uFF0C\u504F\u79FB: 6\u5206\u949F`);
+  setTimeout(() => {
+    optimizationIntervals.dayparting_adjustment = setInterval(async () => {
+      await executeOptimizationTask("dayparting_adjustment");
+    }, OPTIMIZATION_SCHEDULE.dayparting_adjustment.intervalMs);
+    executeOptimizationTask("dayparting_adjustment");
+  }, 11 * 60 * 1e3);
+  console.log(`[OptimizationScheduler] \u5206\u65F6\u7ADE\u4EF7\u8C03\u6574\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 1\u5C0F\u65F6\uFF0C\u504F\u79FB: 11\u5206\u949F`);
+  setTimeout(() => {
+    optimizationIntervals.dayparting_budget = setInterval(async () => {
+      await executeOptimizationTask("dayparting_budget");
+    }, OPTIMIZATION_SCHEDULE.dayparting_budget.intervalMs);
+  }, 16 * 60 * 1e3);
+  console.log(`[OptimizationScheduler] v179: \u5206\u65F6\u9884\u7B97\u8C03\u6574\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 24\u5C0F\u65F6\uFF0C\u504F\u79FB: 16\u5206\u949F`);
+  setTimeout(() => {
+    optimizationIntervals.daily_bid_optimization = setInterval(async () => {
+      await executeOptimizationTask("daily_bid_optimization");
+    }, OPTIMIZATION_SCHEDULE.daily_bid_optimization.intervalMs);
+    executeOptimizationTask("daily_bid_optimization");
+  }, 21 * 60 * 1e3);
+  console.log(`[OptimizationScheduler] \u51FA\u4EF7\u667A\u80FD\u4F18\u5316\u5DF2\u542F\u52A8\uFF0C\u89E6\u53D1\u95F4\u9694: 2\u5C0F\u65F6\uFF0C\u504F\u79FB: 21\u5206\u949F`);
+  setTimeout(() => {
+    optimizationIntervals.daily_placement_optimization = setInterval(async () => {
+      await executeOptimizationTask("daily_placement_optimization");
+    }, 4 * 60 * 60 * 1e3);
+    executeOptimizationTask("daily_placement_optimization");
+  }, 26 * 60 * 1e3);
+  console.log(`[OptimizationScheduler] \u4F4D\u7F6E\u4F18\u5316\u5DF2\u542F\u52A8\uFF0C\u89E6\u53D1\u95F4\u9694: 4\u5C0F\u65F6\uFF0C\u504F\u79FB: 26\u5206\u949F`);
+  setTimeout(() => {
+    optimizationIntervals.daily_search_term_negation = setInterval(async () => {
+      await executeOptimizationTask("daily_search_term_negation");
+    }, 12 * 60 * 60 * 1e3);
+    executeOptimizationTask("daily_search_term_negation");
+  }, 31 * 60 * 1e3);
+  console.log(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u5426\u5B9A\u5DF2\u542F\u52A8\uFF0C\u89E6\u53D1\u95F4\u9694: 12\u5C0F\u65F6\uFF0C\u504F\u79FB: 31\u5206\u949F`);
+  setTimeout(() => {
+    optimizationIntervals.budget_allocation = setInterval(async () => {
+      await executeOptimizationTask("budget_allocation");
+    }, 4 * 60 * 60 * 1e3);
+    executeOptimizationTask("budget_allocation");
+  }, 36 * 60 * 1e3);
+  console.log(`[OptimizationScheduler] \u9884\u7B97\u667A\u80FD\u5206\u914D\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 4\u5C0F\u65F6\uFF0C\u504F\u79FB: 36\u5206\u949F`);
   optimizationIntervals.search_term_harvest = setInterval(async () => {
     const now = /* @__PURE__ */ new Date();
     if (now.getDay() === 1 && now.getHours() === 5 && shouldExecuteThisHour("search_term_harvest")) {
@@ -135480,7 +135517,7 @@ async function executeOptimizationTask(taskType) {
     releaseLock(taskType);
   }
 }
-var SYNC_TIER_CONFIG, schedulerStatus, schedulerIntervals, requestQueue, isProcessingQueue, REQUEST_INTERVAL_MS, frequencyToMs, OPTIMIZATION_SCHEDULE, optimizationIntervals, executionLocks, lastExecutionHour, accountOptimizationLocks, moduleLastExecutionMap;
+var SYNC_TIER_CONFIG, schedulerStatus, schedulerIntervals, requestQueue, isProcessingQueue, REQUEST_INTERVAL_MS, frequencyToMs, OPTIMIZATION_SCHEDULE, optimizationIntervals, executionLocks, lastExecutionHour, accountModuleLocks, moduleLastExecutionMap;
 var init_dataSyncScheduler = __esm({
   "server/dataSyncScheduler.ts"() {
     "use strict";
@@ -135659,7 +135696,7 @@ var init_dataSyncScheduler = __esm({
     };
     executionLocks = {};
     lastExecutionHour = {};
-    accountOptimizationLocks = {};
+    accountModuleLocks = {};
     moduleLastExecutionMap = /* @__PURE__ */ new Map();
   }
 });
@@ -137768,8 +137805,9 @@ async function executeOptimizationTarget(targetId, options = {}) {
   if (!config2.isEnabled && !forceExecution) {
     throw new Error(`\u4F18\u5316\u76EE\u6807 ${config2.name} \u672A\u542F\u7528`);
   }
-  if (!dryRun && !acquireAccountOptimizationLock(config2.accountId, `optimizationTarget:${targetId}`)) {
-    throw new Error(`\u8D26\u6237 ${config2.accountId} \u4F18\u5316\u9501\u5DF2\u88AB\u5360\u7528\uFF0C\u8DF3\u8FC7\u672C\u6B21\u6267\u884C`);
+  const moduleLockGroup = getModuleLockGroup(specificModules);
+  if (!dryRun && !acquireAccountOptimizationLock(config2.accountId, `optimizationTarget:${targetId}`, moduleLockGroup)) {
+    throw new Error(`\u8D26\u6237 ${config2.accountId} \u6A21\u5757\u7EC4 ${moduleLockGroup} \u4F18\u5316\u9501\u5DF2\u88AB\u5360\u7528\uFF0C\u8DF3\u8FC7\u672C\u6B21\u6267\u884C`);
   }
   const shouldReleaseLock = !dryRun;
   const result = {
@@ -137833,7 +137871,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
   const allCampaigns = await getCampaignsByPerformanceGroupId(targetId);
   if (allCampaigns.length === 0) {
     result.warnings.push("\u4F18\u5316\u76EE\u6807\u4E0B\u6CA1\u6709\u5E7F\u544A\u6D3B\u52A8");
-    if (shouldReleaseLock) releaseAccountOptimizationLock(config2.accountId);
+    if (shouldReleaseLock) releaseAccountOptimizationLock(config2.accountId, moduleLockGroup);
     return result;
   }
   const campaigns6 = allCampaigns.filter((c5) => c5.campaignStatus === "enabled");
@@ -137860,7 +137898,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
         }
       }
     }
-    if (shouldReleaseLock) releaseAccountOptimizationLock(config2.accountId);
+    if (shouldReleaseLock) releaseAccountOptimizationLock(config2.accountId, moduleLockGroup);
     return result;
   }
   if (!dryRun) {
@@ -138112,7 +138150,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
       console.error(`[OptimizationTarget] v137: \u5165\u961F\u5931\u8D25\u4EFB\u52A1\u5F02\u5E38: ${enqueueErr.message}`);
     }
   }
-  if (shouldReleaseLock) releaseAccountOptimizationLock(config2.accountId);
+  if (shouldReleaseLock) releaseAccountOptimizationLock(config2.accountId, moduleLockGroup);
   return result;
 }
 async function executeBidOptimization(config2, campaigns6, dryRun) {

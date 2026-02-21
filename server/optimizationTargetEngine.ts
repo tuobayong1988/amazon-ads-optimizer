@@ -24,7 +24,7 @@ import * as adAutomation from "./adAutomation";
 import * as intelligentBudgetAllocationService from "./intelligentBudgetAllocationService";
 import * as bidCoordinator from "./services/bidCoordinator";
 import * as amazonApiHelper from "./services/amazonApiHelper";
-import { acquireAccountOptimizationLock, releaseAccountOptimizationLock } from "./dataSyncScheduler";
+import { acquireAccountOptimizationLock, releaseAccountOptimizationLock, getModuleLockGroup } from "./dataSyncScheduler";
 import * as amazonIdResolver from "./services/amazonIdResolver";
 import { getLocalHour, getLocalDayOfWeek, isNewKeyword, getExplorationStrategy, isProtectedKeyword } from "./algorithmUtils";
 import * as campaignLifecycleService from "./services/campaignLifecycleService";
@@ -269,9 +269,10 @@ export async function executeOptimizationTarget(
     throw new Error(`优化目标 ${config.name} 未启用`);
   }
   
-  // v148: 获取账户级优化锁，防止与automationExecutionEngine并行冲突
-  if (!dryRun && !acquireAccountOptimizationLock(config.accountId, `optimizationTarget:${targetId}`)) {
-    throw new Error(`账户 ${config.accountId} 优化锁已被占用，跳过本次执行`);
+  // v181: 获取账户+模块级优化锁，不同模块类型可以并行执行
+  const moduleLockGroup = getModuleLockGroup(specificModules);
+  if (!dryRun && !acquireAccountOptimizationLock(config.accountId, `optimizationTarget:${targetId}`, moduleLockGroup)) {
+    throw new Error(`账户 ${config.accountId} 模块组 ${moduleLockGroup} 优化锁已被占用，跳过本次执行`);
   }
   const shouldReleaseLock = !dryRun;
   
@@ -347,7 +348,7 @@ export async function executeOptimizationTarget(
   const allCampaigns = await db.getCampaignsByPerformanceGroupId(targetId);
   if (allCampaigns.length === 0) {
     result.warnings.push('优化目标下没有广告活动');
-    if (shouldReleaseLock) releaseAccountOptimizationLock(config.accountId);
+    if (shouldReleaseLock) releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
     return result;
   }
   
@@ -381,7 +382,7 @@ export async function executeOptimizationTarget(
       }
     }
     
-    if (shouldReleaseLock) releaseAccountOptimizationLock(config.accountId);
+    if (shouldReleaseLock) releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
     return result;
   }
 
@@ -677,8 +678,8 @@ export async function executeOptimizationTarget(
     }
   }
   
-  // v148: 释放账户优化锁
-  if (shouldReleaseLock) releaseAccountOptimizationLock(config.accountId);
+  // v181: 释放账户+模块级优化锁
+  if (shouldReleaseLock) releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
   
   return result;
 }
