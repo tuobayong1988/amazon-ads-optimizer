@@ -3,6 +3,7 @@
  * 支持导出图表为PNG/SVG格式
  */
 import html2canvas from 'html2canvas';
+import { safeToISODateString } from './safeDate';
 
 export interface ExportOptions {
   filename?: string;
@@ -22,7 +23,7 @@ export async function exportChartAsPNG(
   options: ExportOptions = {}
 ): Promise<void> {
   const {
-    filename = `chart_${new Date().toISOString().split('T')[0]}.png`,
+    filename = `chart_${safeToISODateString(new Date())}.png`,
     quality = 1,
     scale = 2,
     backgroundColor = '#ffffff',
@@ -69,7 +70,7 @@ export async function exportChartAsSVG(
   options: ExportOptions = {}
 ): Promise<void> {
   const {
-    filename = `chart_${new Date().toISOString().split('T')[0]}.svg`,
+    filename = `chart_${safeToISODateString(new Date())}.svg`,
     width,
     height
   } = options;
@@ -190,7 +191,7 @@ export async function exportChartWithWatermark(
   options: ExportOptions = {}
 ): Promise<void> {
   const {
-    filename = `chart_${new Date().toISOString().split('T')[0]}.png`,
+    filename = `chart_${safeToISODateString(new Date())}.png`,
     quality = 1,
     scale = 2,
     backgroundColor = '#ffffff'

@@ -331,7 +331,7 @@ export default function NotificationSettings() {
                           </div>
                           <p className="text-sm text-muted-foreground">{notification.message}</p>
                           <p className="text-xs text-muted-foreground">
-                            {new Date(notification.createdAt).toLocaleString('zh-CN')}
+                            {safeToLocaleString(notification.createdAt, 'zh-CN')}
                           </p>
                         </div>
                         {notification.status !== 'read' && (

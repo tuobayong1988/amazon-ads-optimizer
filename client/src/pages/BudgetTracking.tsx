@@ -71,8 +71,8 @@ export default function BudgetTracking() {
 
   const calculateProgress = (startDate: Date | string | null, endDate: Date | string | null) => {
     if (!startDate || !endDate) return 0;
-    const start = new Date(startDate).getTime();
-    const end = new Date(endDate).getTime();
+    const start = safeGetTime(startDate);
+    const end = safeGetTime(endDate);
     const now = Date.now();
     if (now >= end) return 100;
     if (now <= start) return 0;
@@ -291,13 +291,13 @@ export default function BudgetTracking() {
                     <div className="flex items-center gap-1">
                       <Calendar className="h-4 w-4" />
                       <span>
-                        开始: {tracking.startDate ? new Date(tracking.startDate).toLocaleDateString() : "N/A"}
+                        开始: {tracking.startDate ? safeToLocaleDateString(tracking.startDate) : "N/A"}
                       </span>
                     </div>
                     <div className="flex items-center gap-1">
                       <Clock className="h-4 w-4" />
                       <span>
-                        结束: {tracking.endDate ? new Date(tracking.endDate).toLocaleDateString() : "N/A"}
+                        结束: {tracking.endDate ? safeToLocaleDateString(tracking.endDate) : "N/A"}
                       </span>
                     </div>
                   </div>

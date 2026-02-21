@@ -41,6 +41,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Filter, Ban, ArrowUpRight, ArrowRight, Clock, Plus } from "lucide-react";
 import { TargetTrendChart } from "@/components/TargetTrendChart";
 import { BidResponseCurve } from "@/components/BidResponseCurve";
+import { safeToLocaleString } from '../lib/safeDate';
 
 // 广告活动类型图标映射
 const campaignTypeIcons: Record<string, any> = {
@@ -3433,7 +3434,7 @@ function NegativeKeywordsList({ campaignId }: { campaignId: number }) {
                      neg.negativeSource === 'auto_optimization' ? '自动优化' : neg.negativeSource}
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs">
-                    {neg.createdAt ? new Date(neg.createdAt).toLocaleDateString() : '-'}
+                    {neg.createdAt ? safeToLocaleDateString(neg.createdAt) : '-'}
                   </TableCell>
                 </TableRow>
               ))}
@@ -3472,7 +3473,7 @@ function NegativeKeywordsList({ campaignId }: { campaignId: number }) {
                      neg.negativeSource === 'auto_optimization' ? '自动优化' : neg.negativeSource}
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs">
-                    {neg.createdAt ? new Date(neg.createdAt).toLocaleDateString() : '-'}
+                    {neg.createdAt ? safeToLocaleDateString(neg.createdAt) : '-'}
                   </TableCell>
                 </TableRow>
               ))}

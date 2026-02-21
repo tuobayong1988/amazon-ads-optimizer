@@ -67,7 +67,7 @@ export default function TargetEvolutionPanel({ performanceGroupId }: TargetEvolu
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {config?.lastEvolutionAt
-                ? `上次进化: ${new Date(config.lastEvolutionAt).toLocaleDateString()}`
+                ? `上次进化: ${safeToLocaleDateString(config.lastEvolutionAt)}`
                 : '尚未开始进化'}
             </p>
           </CardContent>

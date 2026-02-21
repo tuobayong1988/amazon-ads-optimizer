@@ -20,6 +20,7 @@ import {
   ReferenceLine
 } from 'recharts';
 import { TrendingUp, TrendingDown, Minus, AlertCircle, CheckCircle2, Info } from 'lucide-react';
+import { safeParseDate } from '../lib/safeDate';
 
 // 类型定义
 interface MetricAnalysis {
@@ -361,7 +362,7 @@ function TrendComparisonChart({
           dataKey="date" 
           tick={{ fill: COLORS.text, fontSize: 12 }}
           tickFormatter={(value) => {
-            const date = new Date(value);
+            const date = safeParseDate(value);
             return `${date.getMonth() + 1}/${date.getDate()}`;
           }}
         />
@@ -438,7 +439,7 @@ function CumulativeEffectChart({ dailyMetrics }: { dailyMetrics: DailyMetric[] }
           dataKey="date" 
           tick={{ fill: COLORS.text, fontSize: 12 }}
           tickFormatter={(value) => {
-            const date = new Date(value);
+            const date = safeParseDate(value);
             return `${date.getMonth() + 1}/${date.getDate()}`;
           }}
         />
@@ -521,7 +522,7 @@ export default function ABTestCharts({ analysisResults, testName }: ABTestCharts
     baseDate.setDate(baseDate.getDate() - days);
     
     for (let i = 0; i < days; i++) {
-      const date = new Date(baseDate);
+      const date = safeParseDate(baseDate);
       date.setDate(date.getDate() + i);
       
       // 基于实际分析结果生成模拟趋势
@@ -534,7 +535,7 @@ export default function ABTestCharts({ analysisResults, testName }: ABTestCharts
       const treatmentVariation = (Math.random() - 0.5) * 0.2;
       
       data.push({
-        date: date.toISOString().split('T')[0],
+        date: safeToISODateString(date),
         controlValue: baseControl * (1 + controlVariation),
         treatmentValue: baseTreatment * (1 + treatmentVariation),
       });

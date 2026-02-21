@@ -3,6 +3,7 @@
  * 支持批量导出多个优化目标的数据
  */
 import { useState } from 'react';
+import { safeToISODateString } from '@/lib/safeDate';
 import * as XLSX from 'xlsx';
 import JSZip from 'jszip';
 import { Button } from '@/components/ui/button';
@@ -89,7 +90,7 @@ export function BatchExport({ groups, onExport }: BatchExportProps) {
         }
         
         // 下载文件
-        XLSX.writeFile(wb, `批量导出_${timeRange}_${new Date().toISOString().split('T')[0]}.xlsx`);
+        XLSX.writeFile(wb, `批量导出_${timeRange}_${safeToISODateString(new Date())}.xlsx`);
         toast.success(`成功导出 ${selectedGroups.length} 个优化目标`);
         
       } else {
@@ -128,7 +129,7 @@ export function BatchExport({ groups, onExport }: BatchExportProps) {
         const blob = await zip.generateAsync({ type: 'blob' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
-        link.download = `批量导出_${timeRange}_${new Date().toISOString().split('T')[0]}.zip`;
+        link.download = `批量导出_${timeRange}_${safeToISODateString(new Date())}.zip`;
         link.click();
         toast.success(`成功导出 ${selectedGroups.length} 个优化目标`);
       }

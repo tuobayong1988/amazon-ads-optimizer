@@ -155,7 +155,7 @@ export default function CorrectionReview() {
 
   const formatDate = (date: Date | string | null) => {
     if (!date) return '-';
-    return new Date(date).toLocaleDateString('zh-CN');
+    return safeToLocaleDateString(date, 'zh-CN');
   };
 
   const formatCurrency = (value: number | string | null) => {

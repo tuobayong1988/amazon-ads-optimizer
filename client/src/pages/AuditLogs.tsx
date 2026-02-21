@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { trpc } from "@/lib/trpc";
+import { safeParseDate, safeToISODateString } from '@/lib/safeDate';
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { safeGetTime, safeParseDate, safeToISODateString, safeToISOString, safeToLocaleString } from '../lib/safeDate';
 import {
   Search,
   Download,
@@ -71,8 +73,8 @@ export default function AuditLogs() {
         start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         break;
       case "custom":
-        if (startDate) start = new Date(startDate);
-        if (endDate) end = new Date(endDate + "T23:59:59");
+        if (startDate) start = safeParseDate(startDate);
+        if (endDate) end = safeParseDate(endDate + "T23:59:59");
         break;
     }
     return { start, end };
@@ -103,7 +105,7 @@ export default function AuditLogs() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `audit_logs_${new Date().toISOString().split("T")[0]}.csv`;
+      link.download = `audit_logs_${safeToISODateString(new Date())}.csv`;
       link.click();
       URL.revokeObjectURL(url);
       toast.success("导出成功", {
@@ -165,7 +167,7 @@ export default function AuditLogs() {
 
   // 格式化时间
   function formatTime(date: Date | string): string {
-    const d = new Date(date);
+    const d = safeParseDate(date);
     return d.toLocaleString("zh-CN", {
       year: "numeric",
       month: "2-digit",

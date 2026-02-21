@@ -56,6 +56,9 @@ const AUTO_CORRECTION_CONFIG = {
   
   // 两次纠错扫描之间的最小间隔（毫秒）
   minScanIntervalMs: 10 * 60 * 1000, // 10分钟
+  
+  // 定时扫描间隔（小时）
+  scanIntervalHours: 1,
 };
 
 // ==================== 纠错结果类型 ====================
@@ -1505,7 +1508,7 @@ export function startAutoCorrector(): void {
       console.error('[AutoCorrector] 定时纠错扫描失败:', err.message);
     }
   }, intervalMs);
-  console.log(`[AutoCorrector] 定时纠错服务已启动，每4小时运行一次`);
+  console.log(`[AutoCorrector] 定时纠错服务已启动，每${(AUTO_CORRECTION_CONFIG as any).scanIntervalHours || 4}小时运行一次`);
 }
 
 /**

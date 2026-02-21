@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { safeToLocaleString } from '../lib/safeDate';
 import {
   DollarSign,
   TrendingUp,
@@ -706,7 +707,7 @@ export default function BudgetAllocation() {
                           <span>预测ROAS: {Number(allocation.predictedRoas || 0).toFixed(2)}</span>
                         </div>
                         <p className="text-xs text-muted-foreground mt-2">
-                          创建于 {new Date(allocation.createdAt).toLocaleString()}
+                          创建于 {safeToLocaleString(allocation.createdAt)}
                         </p>
                       </div>
                       <div className="flex gap-2">
@@ -763,7 +764,7 @@ export default function BudgetAllocation() {
                             {record.reason || "无备注"}
                           </p>
                           <p className="text-xs text-muted-foreground mt-1">
-                            {new Date(record.createdAt).toLocaleString()}
+                            {safeToLocaleString(record.createdAt)}
                           </p>
                         </div>
                         <div className="text-right">

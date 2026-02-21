@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
+import { safeToLocaleString } from '../lib/safeDate';
 
 type SyncType = "campaigns" | "keywords" | "performance" | "all";
 type SyncStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
@@ -236,8 +237,8 @@ export default function DataSync() {
 
   const formatDuration = (startedAt: Date | string | null, completedAt: Date | string | null) => {
     if (!startedAt) return "N/A";
-    const start = new Date(startedAt).getTime();
-    const end = completedAt ? new Date(completedAt).getTime() : Date.now();
+    const start = safeGetTime(startedAt);
+    const end = completedAt ? safeGetTime(completedAt) : Date.now();
     const duration = Math.round((end - start) / 1000);
     if (duration < 60) return `${duration}秒`;
     if (duration < 3600) return `${Math.round(duration / 60)}分钟`;
@@ -540,13 +541,13 @@ export default function DataSync() {
                         <div className="text-center p-2 bg-muted/50 rounded">
                           <p className="text-xs text-muted-foreground">创建时间</p>
                           <p className="font-medium text-xs">
-                            {job.createdAt ? new Date(job.createdAt).toLocaleString() : "N/A"}
+                            {job.createdAt ? safeToLocaleString(job.createdAt) : "N/A"}
                           </p>
                         </div>
                         <div className="text-center p-2 bg-muted/50 rounded">
                           <p className="text-xs text-muted-foreground">完成时间</p>
                           <p className="font-medium text-xs">
-                            {job.completedAt ? new Date(job.completedAt).toLocaleString() : "进行中"}
+                            {job.completedAt ? safeToLocaleString(job.completedAt) : "进行中"}
                           </p>
                         </div>
                       </div>
@@ -861,19 +862,19 @@ export default function DataSync() {
                         <div>
                           <p className="text-muted-foreground">上次执行</p>
                           <p className="font-medium">
-                            {schedule.lastRunAt ? new Date(schedule.lastRunAt).toLocaleString() : '从未执行'}
+                            {schedule.lastRunAt ? safeToLocaleString(schedule.lastRunAt) : '从未执行'}
                           </p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">下次执行</p>
                           <p className="font-medium">
-                            {schedule.nextRunAt ? new Date(schedule.nextRunAt).toLocaleString() : 'N/A'}
+                            {schedule.nextRunAt ? safeToLocaleString(schedule.nextRunAt) : 'N/A'}
                           </p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">创建时间</p>
                           <p className="font-medium">
-                            {schedule.createdAt ? new Date(schedule.createdAt).toLocaleDateString() : 'N/A'}
+                            {schedule.createdAt ? safeToLocaleDateString(schedule.createdAt) : 'N/A'}
                           </p>
                         </div>
                       </div>
@@ -931,11 +932,11 @@ export default function DataSync() {
               </div>
               <div className="text-center p-3 bg-muted/50 rounded-lg">
                 <p className="text-xs text-muted-foreground mb-1">上次成功</p>
-                <p className="text-sm font-medium">{executionStats.lastSuccessAt ? new Date(executionStats.lastSuccessAt).toLocaleDateString() : 'N/A'}</p>
+                <p className="text-sm font-medium">{executionStats.lastSuccessAt ? safeToLocaleDateString(executionStats.lastSuccessAt) : 'N/A'}</p>
               </div>
               <div className="text-center p-3 bg-muted/50 rounded-lg">
                 <p className="text-xs text-muted-foreground mb-1">上次失败</p>
-                <p className="text-sm font-medium">{executionStats.lastFailureAt ? new Date(executionStats.lastFailureAt).toLocaleDateString() : 'N/A'}</p>
+                <p className="text-sm font-medium">{executionStats.lastFailureAt ? safeToLocaleDateString(executionStats.lastFailureAt) : 'N/A'}</p>
               </div>
             </div>
           )}
@@ -971,10 +972,10 @@ export default function DataSync() {
                           </Badge>
                         </td>
                         <td className="p-2 text-sm">
-                          {record.startedAt ? new Date(record.startedAt).toLocaleString() : 'N/A'}
+                          {record.startedAt ? safeToLocaleString(record.startedAt) : 'N/A'}
                         </td>
                         <td className="p-2 text-sm">
-                          {record.completedAt ? new Date(record.completedAt).toLocaleString() : '-'}
+                          {record.completedAt ? safeToLocaleString(record.completedAt) : '-'}
                         </td>
                         <td className="p-2 text-right text-sm">
                           {record.duration ? `${record.duration}s` : '-'}

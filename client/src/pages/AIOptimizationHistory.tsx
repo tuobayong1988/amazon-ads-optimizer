@@ -182,7 +182,7 @@ export default function AIOptimizationHistory() {
                           )}
                           <span className="flex items-center gap-1">
                             <Calendar className="h-4 w-4" />
-                            {new Date(execution.executedAt).toLocaleDateString("zh-CN")}
+                            {safeToLocaleDateString(execution.executedAt, "zh-CN")}
                           </span>
                         </div>
                       </div>
@@ -243,7 +243,7 @@ export default function AIOptimizationHistory() {
                 {selectedExecution?.executionName || `执行 #${selectedExecution?.id}`}
               </DialogTitle>
               <DialogDescription>
-                执行时间: {selectedExecution && new Date(selectedExecution.executedAt).toLocaleString("zh-CN")}
+                执行时间: {selectedExecution && safeToLocaleString(selectedExecution.executedAt, "zh-CN")}
               </DialogDescription>
             </DialogHeader>
             
@@ -384,7 +384,7 @@ export default function AIOptimizationHistory() {
                                 </span>
                               </CardTitle>
                               <span className="text-sm text-muted-foreground">
-                                计划时间: {new Date(review.scheduledAt).toLocaleDateString("zh-CN")}
+                                计划时间: {safeToLocaleDateString(review.scheduledAt, "zh-CN")}
                               </span>
                             </div>
                           </CardHeader>

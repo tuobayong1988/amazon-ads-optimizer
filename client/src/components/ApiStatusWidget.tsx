@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { formatDistanceToNow } from "date-fns";
+import { safeParseDate } from '@/lib/safeDate';
 import { zhCN } from "date-fns/locale";
 
 interface ApiStatusWidgetProps {
@@ -209,7 +210,7 @@ export default function ApiStatusWidget({ className = "", compact = false }: Api
           <div className="flex items-center gap-2 mt-3 pt-3 border-t text-sm text-muted-foreground">
             <Clock className="w-3.5 h-3.5" />
             <span>
-              最近同步: {formatDistanceToNow(new Date(lastSyncTime), { addSuffix: true, locale: zhCN })}
+              最近同步: {formatDistanceToNow(safeParseDate(lastSyncTime), { addSuffix: true, locale: zhCN })}
             </span>
           </div>
         )}

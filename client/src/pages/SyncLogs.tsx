@@ -28,6 +28,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { format } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { safeParseDate } from '../lib/safeDate';
 
 type LogLevel = 'all' | 'info' | 'warning' | 'error' | 'success';
 type LogType = 'all' | 'campaign' | 'adGroup' | 'keyword' | 'productTarget' | 'performance' | 'negativeKeyword';
@@ -114,12 +115,12 @@ export default function SyncLogs() {
       
       // 日期过滤
       if (startDate) {
-        const logDate = new Date(log.createdAt);
+        const logDate = safeParseDate(log.createdAt);
         if (logDate < startDate) return false;
       }
       if (endDate) {
-        const logDate = new Date(log.createdAt);
-        const endOfDay = new Date(endDate);
+        const logDate = safeParseDate(log.createdAt);
+        const endOfDay = safeParseDate(endDate);
         endOfDay.setHours(23, 59, 59, 999);
         if (logDate > endOfDay) return false;
       }
@@ -163,7 +164,7 @@ export default function SyncLogs() {
     const csvContent = [
       ['时间', '级别', '类型', '消息', '详情'].join(','),
       ...filteredLogs.map((log: any) => [
-        format(new Date(log.createdAt), 'yyyy-MM-dd HH:mm:ss'),
+        format(safeParseDate(log.createdAt), 'yyyy-MM-dd HH:mm:ss'),
         log.level,
         getTypeLabel(log.logType || ''),
         `"${(log.message || '').replace(/"/g, '""')}"`,
@@ -438,7 +439,7 @@ export default function SyncLogs() {
                             </Badge>
                           )}
                           <span className="text-xs text-muted-foreground">
-                            {format(new Date(log.createdAt), 'yyyy-MM-dd HH:mm:ss')}
+                            {format(safeParseDate(log.createdAt), 'yyyy-MM-dd HH:mm:ss')}
                           </span>
                         </div>
                         <p className="text-sm">{log.message}</p>

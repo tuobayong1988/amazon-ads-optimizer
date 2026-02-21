@@ -2,6 +2,7 @@
  * 表格数据导出工具
  * 支持CSV和Excel格式导出
  */
+import { safeToISODateString } from '../lib/safeDate';
 
 export interface ExportColumn {
   key: string;
@@ -29,7 +30,7 @@ function formatCellValue(value: any): string {
     return value ? '是' : '否';
   }
   if (value instanceof Date) {
-    return value.toISOString().split('T')[0];
+    return safeToISODateString(value);
   }
   // 处理包含逗号、换行或引号的字符串
   const str = String(value);

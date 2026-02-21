@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
+import { safeToISODateString, safeToISOString, safeToLocaleDateString } from '../lib/safeDate';
 
 export default function InviteCodeManagement() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
@@ -132,7 +133,7 @@ export default function InviteCodeManagement() {
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = `invite_codes_${new Date().toISOString().split("T")[0]}.csv`;
+    link.download = `invite_codes_${safeToISODateString(new Date())}.csv`;
     link.click();
     toast.success("邀请码列表已导出");
   };
@@ -388,7 +389,7 @@ export default function InviteCodeManagement() {
                       </div>
                       <div className="text-sm text-gray-400 mt-1">
                         已使用 {code.usedCount}/{code.maxUses || "∞"} 次
-                        {code.expiresAt && ` · 过期时间: ${new Date(code.expiresAt).toLocaleDateString()}`}
+                        {code.expiresAt && ` · 过期时间: ${safeToLocaleDateString(code.expiresAt)}`}
                         {code.note && ` · ${code.note}`}
                       </div>
                     </div>

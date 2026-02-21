@@ -197,7 +197,7 @@ export function TargetAlgorithmEffectPanel({ accountId, groupId }: TargetAlgorit
                       )}
                     </Badge>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {new Date(record.createdAt).toLocaleDateString('zh-CN')}
+                      {safeToLocaleDateString(record.createdAt, 'zh-CN')}
                     </p>
                   </div>
                 </div>

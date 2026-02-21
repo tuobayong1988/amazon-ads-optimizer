@@ -211,7 +211,7 @@ export function OrganizationManagement() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {new Date(member.joinedAt).toLocaleDateString()}
+                      {safeToLocaleDateString(member.joinedAt)}
                     </TableCell>
                     <TableCell className="text-right">
                       {member.role !== 'owner' && (

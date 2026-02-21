@@ -211,7 +211,7 @@ export function ApiHealthMonitor({ accountId, showCard = false, onReauthNeeded }
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">上次同步</span>
               <span className="text-sm">
-                {new Date(healthStatus.lastSyncAt).toLocaleString('zh-CN')}
+                {safeToLocaleString(healthStatus.lastSyncAt, 'zh-CN')}
               </span>
             </div>
           )}

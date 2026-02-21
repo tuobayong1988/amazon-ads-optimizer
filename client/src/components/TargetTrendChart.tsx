@@ -33,6 +33,7 @@ import {
   BarChart3,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { safeParseDate, safeToLocaleString } from '../lib/safeDate';
 
 interface TargetTrendChartProps {
   open: boolean;
@@ -90,7 +91,7 @@ export function TargetTrendChart({
   };
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
+    const date = safeParseDate(dateStr);
     return `${date.getMonth() + 1}/${date.getDate()}`;
   };
 

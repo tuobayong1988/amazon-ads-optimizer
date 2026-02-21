@@ -1831,7 +1831,7 @@ export default function AmazonApiSettings() {
                         )}
                         {credentialsStatus.lastSyncAt && (
                           <span className="text-sm text-muted-foreground">
-                            上次同步: {new Date(credentialsStatus.lastSyncAt).toLocaleString()}
+                            上次同步: {safeToLocaleString(credentialsStatus.lastSyncAt)}
                           </span>
                         )}
                       </div>
@@ -3475,7 +3475,7 @@ export default function AmazonApiSettings() {
                                   {job.syncType === 'full' ? '全量同步' : '增量同步'}
                                 </div>
                                 <div className="text-xs text-muted-foreground">
-                                  {new Date(job.startedAt).toLocaleString('zh-CN')}
+                                  {safeToLocaleString(job.startedAt, 'zh-CN')}
                                 </div>
                               </div>
                             </div>
@@ -3792,11 +3792,11 @@ export default function AmazonApiSettings() {
                       <div className="p-4 bg-muted/30 rounded-lg space-y-2">
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-muted-foreground">上次同步</span>
-                          <span>{scheduleConfig[0]?.lastRunAt ? new Date(scheduleConfig[0].lastRunAt).toLocaleString('zh-CN') : '未执行'}</span>
+                          <span>{scheduleConfig[0]?.lastRunAt ? safeToLocaleString(scheduleConfig[0].lastRunAt, 'zh-CN') : '未执行'}</span>
                         </div>
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-muted-foreground">下次同步</span>
-                          <span>{scheduleConfig[0]?.nextRunAt ? new Date(scheduleConfig[0].nextRunAt).toLocaleString('zh-CN') : '-'}</span>
+                          <span>{scheduleConfig[0]?.nextRunAt ? safeToLocaleString(scheduleConfig[0].nextRunAt, 'zh-CN') : '-'}</span>
                         </div>
                       </div>
                     )}

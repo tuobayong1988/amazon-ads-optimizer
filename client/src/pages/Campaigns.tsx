@@ -71,6 +71,7 @@ import {
   ChevronUp,
   X
 } from "lucide-react";
+import { safeGetTime, safeParseDate, safeToISODateString, safeToISOString, safeToLocaleDateString, safeToLocaleString } from '../lib/safeDate';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -536,31 +537,31 @@ function getDateRange(rangeType: string, customStart?: string, customEnd?: strin
   const option = timeRangeOptions.find(o => o.value === rangeType);
   if (!option) {
     // 默认返回近 7 天
-    const startDate = new Date(today);
+    const startDate = safeParseDate(today);
     startDate.setDate(startDate.getDate() - 7);
     return {
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: today.toISOString().split('T')[0],
+      startDate: safeToISODateString(startDate),
+      endDate: safeToISODateString(today),
     };
   }
   
   if (rangeType === 'today') {
-    const dateStr = today.toISOString().split('T')[0];
+    const dateStr = safeToISODateString(today);
     return { startDate: dateStr, endDate: dateStr };
   }
   
   if (rangeType === 'yesterday') {
-    const yesterday = new Date(today);
+    const yesterday = safeParseDate(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    const dateStr = yesterday.toISOString().split('T')[0];
+    const dateStr = safeToISODateString(yesterday);
     return { startDate: dateStr, endDate: dateStr };
   }
   
-  const startDate = new Date(today);
+  const startDate = safeParseDate(today);
   startDate.setDate(startDate.getDate() - option.days);
   return {
-    startDate: startDate.toISOString().split('T')[0],
-    endDate: today.toISOString().split('T')[0],
+    startDate: safeToISODateString(startDate),
+    endDate: safeToISODateString(today),
   };
 }
 
@@ -1144,8 +1145,8 @@ export default function Campaigns() {
           bValue = (b as any).adFormat || '';
           break;
         case 'startDate':
-          aValue = new Date((a as any).startDate || 0).getTime();
-          bValue = new Date((b as any).startDate || 0).getTime();
+          aValue = safeGetTime((a as any).startDate || 0);
+          bValue = safeGetTime((b as any).startDate || 0);
           break;
         case 'status':
           aValue = a.campaignStatus || '';
@@ -1278,8 +1279,8 @@ export default function Campaigns() {
   // 格式化日期
   const formatDate = (dateStr: string | Date | null | undefined) => {
     if (!dateStr) return "-";
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+    const date = safeParseDate(dateStr);
+    return safeToLocaleDateString(date, 'zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
   };
 
   // 切换列显示
@@ -1338,7 +1339,7 @@ export default function Campaigns() {
               row[col.key] = adFormatLabels[(campaign as any).adFormat] || (campaign as any).adFormat || '-';
               break;
             case 'startDate':
-              row[col.key] = (campaign as any).startDate ? new Date((campaign as any).startDate).toLocaleDateString('zh-CN') : '';
+              row[col.key] = (campaign as any).startDate ? safeToLocaleDateString((campaign as any).startDate, 'zh-CN') : '';
               break;
             case 'status':
               row[col.key] = campaign.campaignStatus === 'enabled' ? '投放中' : '已暂停';
@@ -1386,7 +1387,7 @@ export default function Campaigns() {
         return row;
       });
       
-      const filename = `广告活动_${new Date().toISOString().split('T')[0]}`;
+      const filename = `广告活动_${safeToISODateString(new Date())}`;
       
       if (format === 'csv') {
         exportToCSV({ filename, columns: exportColumns, data: exportData });

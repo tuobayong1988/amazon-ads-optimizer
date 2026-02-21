@@ -571,7 +571,7 @@ export default function AutomationControl() {
                       {executionHistory.map((batch) => (
                         <TableRow key={batch.id}>
                           <TableCell className="font-mono text-xs">{batch.id.slice(0, 12)}...</TableCell>
-                          <TableCell>{new Date(batch.startedAt).toLocaleString()}</TableCell>
+                          <TableCell>{safeToLocaleString(batch.startedAt)}</TableCell>
                           <TableCell>{batch.totalItems}</TableCell>
                           <TableCell className="text-green-500">{batch.successItems}</TableCell>
                           <TableCell className="text-red-500">{batch.failedItems}</TableCell>

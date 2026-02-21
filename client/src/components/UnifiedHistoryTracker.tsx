@@ -413,7 +413,7 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
                             )}
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                            {record.createdAt ? new Date(record.createdAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}
+                            {record.createdAt ? safeToLocaleString(record.createdAt, 'zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}
                           </TableCell>
                           <TableCell className="max-w-[160px] truncate font-medium text-sm">
                             {record.keywordText || record.targetName || '-'}
@@ -543,7 +543,7 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
                         return (
                           <TableRow key={record.id}>
                             <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                              {record.createdAt ? new Date(record.createdAt).toLocaleDateString('zh-CN') : '-'}
+                              {record.createdAt ? safeToLocaleDateString(record.createdAt, 'zh-CN') : '-'}
                             </TableCell>
                             <TableCell className="max-w-[140px] truncate font-medium text-sm">
                               {record.keywordText || record.targetName || '-'}
@@ -657,7 +657,7 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
                       return (
                         <TableRow key={event.id}>
                           <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                            {event.createdAt ? new Date(event.createdAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}
+                            {event.createdAt ? safeToLocaleString(event.createdAt, 'zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }) : '-'}
                           </TableCell>
                           <TableCell>
                             <Badge className={`text-[10px] ${catInfo.color}`}>{catInfo.label}</Badge>

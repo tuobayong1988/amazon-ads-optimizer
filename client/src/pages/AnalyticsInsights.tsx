@@ -40,6 +40,7 @@ import { format, subDays } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { toast } from "sonner";
 import { WastedSpendTop10 } from "@/components/WastedSpendTop10";
+import { safeParseDate } from '../lib/safeDate';
 
 export default function AnalyticsInsights() {
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
@@ -362,7 +363,7 @@ export default function AnalyticsInsights() {
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
                           <Calendar className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium">{format(new Date(day.date), 'MM-dd EEEE', { locale: zhCN })}</span>
+                          <span className="font-medium">{format(safeParseDate(day.date), 'MM-dd EEEE', { locale: zhCN })}</span>
                         </div>
                         <Badge variant={day.adjusted?.confidence === 'high' ? 'default' : day.adjusted?.confidence === 'medium' ? 'secondary' : 'outline'}>
                           {day.adjusted?.confidence === 'high' ? '高置信度' : day.adjusted?.confidence === 'medium' ? '中置信度' : '低置信度'}
@@ -517,11 +518,11 @@ export default function AnalyticsInsights() {
                       <div className="grid grid-cols-3 gap-4 text-sm">
                         <div>
                           <p className="text-muted-foreground">开始日期</p>
-                          <p className="font-medium">{format(new Date(item.startDate), 'yyyy-MM-dd')}</p>
+                          <p className="font-medium">{format(safeParseDate(item.startDate), 'yyyy-MM-dd')}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">结束日期</p>
-                          <p className="font-medium">{format(new Date(item.endDate), 'yyyy-MM-dd')}</p>
+                          <p className="font-medium">{format(safeParseDate(item.endDate), 'yyyy-MM-dd')}</p>
                         </div>
                         <div>
                           <p className="text-muted-foreground">建议调整</p>

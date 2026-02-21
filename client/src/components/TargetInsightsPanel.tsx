@@ -170,7 +170,7 @@ export function TargetInsightsPanel({ groupId, accountId }: TargetInsightsPanelP
                             {ratingLabels[item.effectRating] || item.effectRating}
                           </Badge>
                           <span className="text-xs text-muted-foreground">
-                            {new Date(item.createdAt).toLocaleDateString('zh-CN')}
+                            {safeToLocaleDateString(item.createdAt, 'zh-CN')}
                           </span>
                         </div>
                         <p className="text-sm font-medium">

@@ -503,7 +503,7 @@ function RecommendationCard({
                 </span>
               </div>
               <div className="text-muted-foreground">
-                {new Date(recommendation.createdAt).toLocaleDateString()}
+                {safeToLocaleDateString(recommendation.createdAt)}
               </div>
             </div>
           </div>

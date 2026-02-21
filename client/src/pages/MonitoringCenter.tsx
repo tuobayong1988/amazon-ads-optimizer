@@ -43,6 +43,7 @@ import {
   Legend
 } from "recharts";
 import { Link } from "wouter";
+import { safeParseDate } from '../lib/safeDate';
 
 // 生成最近7天的模拟数据
 const generateLast7DaysData = () => {
@@ -50,7 +51,7 @@ const generateLast7DaysData = () => {
   const now = new Date();
   
   for (let i = 6; i >= 0; i--) {
-    const date = new Date(now);
+    const date = safeParseDate(now);
     date.setDate(date.getDate() - i);
     const dateStr = `${date.getMonth() + 1}/${date.getDate()}`;
     

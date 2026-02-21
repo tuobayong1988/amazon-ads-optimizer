@@ -586,10 +586,10 @@ export default function EmailReports() {
                       <TableCell>
                         {subscription.nextSendAt ? (
                           <div className="text-sm">
-                            {new Date(subscription.nextSendAt).toLocaleDateString("zh-CN")}
+                            {safeToLocaleDateString(subscription.nextSendAt, "zh-CN")}
                             <br />
                             <span className="text-muted-foreground">
-                              {new Date(subscription.nextSendAt).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" })}
+                              {safeToLocaleTimeString(subscription.nextSendAt, "zh-CN", { hour: "2-digit", minute: "2-digit" })}
                             </span>
                           </div>
                         ) : (

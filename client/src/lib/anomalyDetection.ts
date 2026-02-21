@@ -208,9 +208,13 @@ export function detectAnomaliesCombined(data: DataPoint[]): Anomaly[] {
   maAnomalies.forEach(addAnomaly);
   suddenChanges.forEach(addAnomaly);
 
-  return Array.from(anomalyMap.values()).sort((a, b) => 
-    new Date(a.date).getTime() - new Date(b.date).getTime()
-  );
+  return Array.from(anomalyMap.values()).sort((a, b) => {
+    const dateA = new Date(a.date);
+    const dateB = new Date(b.date);
+    const timeA = isNaN(dateA.getTime()) ? 0 : dateA.getTime();
+    const timeB = isNaN(dateB.getTime()) ? 0 : dateB.getTime();
+    return timeA - timeB;
+  });
 }
 
 /**

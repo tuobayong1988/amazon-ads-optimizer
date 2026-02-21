@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
+import { safeToLocaleString } from '@/lib/safeDate';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -52,8 +53,7 @@ function formatDuration(ms: number): string {
 
 function formatDateTime(date: Date | string | null): string {
   if (!date) return '-';
-  const d = typeof date === 'string' ? new Date(date) : date;
-  return d.toLocaleString('zh-CN', {
+  return safeToLocaleString(date, 'zh-CN', {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',

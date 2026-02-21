@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { trpc } from "@/lib/trpc";
+import { safeParseDate, safeToLocaleString } from '../lib/safeDate';
 import {
   History,
   Target,
@@ -147,7 +148,7 @@ export function OptimizationLogs({ performanceGroupId, performanceGroupName }: O
   // 格式化日期时间
   const formatDateTime = (dateStr: string | null) => {
     if (!dateStr) return '-';
-    const date = new Date(dateStr);
+    const date = safeParseDate(dateStr);
     return date.toLocaleString('zh-CN', {
       year: 'numeric',
       month: '2-digit',

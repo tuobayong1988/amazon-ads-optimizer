@@ -290,7 +290,7 @@ export default function ApiSecurityCenter() {
                               {log.status}
                             </Badge>
                             <span className="text-sm text-muted-foreground">
-                              {new Date(log.executedAt).toLocaleString('zh-CN')}
+                              {safeToLocaleString(log.executedAt, 'zh-CN')}
                             </span>
                           </div>
                         </div>
@@ -357,7 +357,7 @@ export default function ApiSecurityCenter() {
                             </div>
                           </div>
                           <span className="text-sm text-muted-foreground">
-                            {new Date(alert.createdAt).toLocaleString('zh-CN')}
+                            {safeToLocaleString(alert.createdAt, 'zh-CN')}
                           </span>
                         </div>
                       ))
@@ -471,7 +471,7 @@ export default function ApiSecurityCenter() {
                         </div>
                         <div className="flex items-center gap-4">
                           <span className="text-sm text-muted-foreground">
-                            {new Date(record.createdAt).toLocaleString('zh-CN')}
+                            {safeToLocaleString(record.createdAt, 'zh-CN')}
                           </span>
                           {!record.isResumed && (
                             <ResumeDialog 

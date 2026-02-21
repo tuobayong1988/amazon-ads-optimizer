@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { safeGetTime, safeParseDate, safeToLocaleString } from '../lib/safeDate';
 import {
   Bell,
   BellOff,
@@ -106,7 +107,7 @@ export default function CollaborationNotifications() {
 
   // 格式化时间
   function formatTime(date: Date | string): string {
-    const d = new Date(date);
+    const d = safeParseDate(date);
     const now = new Date();
     const diff = now.getTime() - d.getTime();
     

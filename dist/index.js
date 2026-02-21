@@ -49501,7 +49501,7 @@ function calculateBayesianSmoothedCvr(orders, clicks, priorCvr, confidence = BAY
   return (orders + confidence * priorCvr) / (clicks + confidence);
 }
 function isDataSufficient(target, config2) {
-  const strategyKey = config2?.optimizationGoal || "balanced";
+  const strategyKey = config2?.strategyTemplate || config2?.optimizationGoal || "balanced";
   const thresholds = STRATEGY_DATA_THRESHOLDS[strategyKey] || DATA_SUFFICIENCY_THRESHOLDS;
   return target.clicks >= thresholds.minClicks && target.orders >= thresholds.minOrders;
 }
@@ -49536,7 +49536,7 @@ function calculateSparseDataBidAdjustment(target, config2, maxBidLimit = 2, minB
     }
     const theoreticalBid = smoothedCvr * targetCpa;
     let MAX_SPARSE_CHANGE_PERCENT = 0.2;
-    const goal = config2.optimizationGoal || "balanced";
+    const goal = config2.strategyTemplate || config2.optimizationGoal || "balanced";
     if (["aggressive-growth", "seasonal-boost", "market-expansion", "inventory-clearance"].includes(goal)) {
       MAX_SPARSE_CHANGE_PERCENT = 0.3;
     } else if (["profit-focused", "brand-defense", "decline-management"].includes(goal)) {
@@ -55001,10 +55001,17 @@ var init_amazonAdsApi = __esm({
        * 创建SP活动级别否定关键词
        */
       async createSpCampaignNegativeKeywords(negatives) {
+        const formatMatchType = (mt3) => {
+          const upper = mt3.toUpperCase();
+          if (upper.includes("_")) return upper;
+          if (upper === "NEGATIVEPHRASE") return "NEGATIVE_PHRASE";
+          if (upper === "NEGATIVEEXACT") return "NEGATIVE_EXACT";
+          return upper;
+        };
         const formattedNegatives = negatives.map((n7) => ({
           campaignId: String(n7.campaignId),
           keywordText: n7.keywordText,
-          matchType: (n7.matchType || "NEGATIVE_EXACT").toUpperCase(),
+          matchType: formatMatchType(n7.matchType || "NEGATIVE_EXACT"),
           state: (n7.state || "enabled").toUpperCase()
         }));
         console.log(`[SP API] createSpCampaignNegativeKeywords: ${formattedNegatives.length}\u4E2A\u5426\u5B9A\u8BCD`);
@@ -55058,11 +55065,18 @@ var init_amazonAdsApi = __esm({
        * 创建SP广告组级别否定关键词
        */
       async createSpNegativeKeywords(negatives) {
+        const formatNegMatchType = (mt3) => {
+          const upper = mt3.toUpperCase();
+          if (upper.includes("_")) return upper;
+          if (upper === "NEGATIVEPHRASE") return "NEGATIVE_PHRASE";
+          if (upper === "NEGATIVEEXACT") return "NEGATIVE_EXACT";
+          return upper;
+        };
         const formattedNegatives = negatives.map((n7) => ({
           adGroupId: String(n7.adGroupId),
           campaignId: String(n7.campaignId),
           keywordText: n7.keywordText,
-          matchType: (n7.matchType || "NEGATIVE_EXACT").toUpperCase(),
+          matchType: formatNegMatchType(n7.matchType || "NEGATIVE_EXACT"),
           state: (n7.state || "enabled").toUpperCase()
         }));
         console.log(`[SP API] createSpNegativeKeywords: ${formattedNegatives.length}\u4E2A\u5E7F\u544A\u7EC4\u7EA7\u5426\u5B9A\u8BCD`);
@@ -58806,6 +58820,7 @@ var init_amazonSyncService = __esm({
             const normalizedState = (apiAdGroup.state || "enabled").toLowerCase();
             const adGroupData = {
               campaignId: campaign.id,
+              accountId: this.accountId,
               adGroupId: String(apiAdGroup.adGroupId),
               adGroupName: apiAdGroup.name,
               adGroupStatus: normalizedState,
@@ -58857,6 +58872,7 @@ var init_amazonSyncService = __esm({
             const normalizedState = (apiAdGroup.state || "enabled").toLowerCase();
             const adGroupData = {
               campaignId: campaign.id,
+              accountId: this.accountId,
               adGroupId: String(apiAdGroup.adGroupId),
               adGroupName: apiAdGroup.name || apiAdGroup.adGroupName || "SB Ad Group",
               adGroupStatus: normalizedState,
@@ -58911,6 +58927,7 @@ var init_amazonSyncService = __esm({
             const tactic = apiAdGroup.tactic || null;
             const adGroupData = {
               campaignId: campaign.id,
+              accountId: this.accountId,
               adGroupId: String(apiAdGroup.adGroupId),
               adGroupName: apiAdGroup.name || apiAdGroup.adGroupName || "SD Ad Group",
               adGroupStatus: normalizedState,
@@ -58960,6 +58977,8 @@ var init_amazonSyncService = __esm({
             const normalizedState = (apiKeyword.state || "enabled").toLowerCase();
             const keywordData = {
               adGroupId: adGroup.id,
+              accountId: this.accountId,
+              campaignId: adGroup.campaignId,
               keywordId: String(apiKeyword.keywordId),
               keywordText: apiKeyword.keywordText || apiKeyword.keyword || "",
               matchType: normalizedMatchType,
@@ -59571,6 +59590,8 @@ var init_amazonSyncService = __esm({
             }
             const keywordData = {
               adGroupId: adGroup.id,
+              accountId: this.accountId,
+              campaignId: adGroup.campaignId,
               keywordId: String(apiKeyword.keywordId),
               keywordText: apiKeyword.keywordText,
               matchType: apiKeyword.matchType,
@@ -61018,6 +61039,8 @@ var init_amazonSyncService = __esm({
               const orders = row.purchasesClicks || 0;
               const keywordData = {
                 adGroupId: adGroup.id,
+                accountId: this.accountId,
+                campaignId: adGroup.campaignId,
                 keywordId: String(row.keywordId),
                 keywordText: row.keyword || "",
                 matchType: (row.matchType || "broad").toLowerCase(),
@@ -62047,6 +62070,7 @@ var init_amazonSyncService = __esm({
           const normalizedState = (apiAdGroup.state || "enabled").toLowerCase();
           const adGroupData = {
             campaignId: campaign.id,
+            accountId: this.accountId,
             adGroupId: String(apiAdGroup.adGroupId),
             adGroupName: apiAdGroup.name,
             defaultBid: String(apiAdGroup.defaultBid || 0),
@@ -62170,6 +62194,8 @@ var init_amazonSyncService = __esm({
           const normalizedState = (apiKeyword.state || "enabled").toLowerCase();
           const keywordData = {
             adGroupId: adGroup.id,
+            accountId: this.accountId,
+            campaignId: adGroup.campaignId,
             keywordId: String(apiKeyword.keywordId),
             keywordText: apiKeyword.keywordText,
             matchType: normalizedMatchType,
@@ -66350,7 +66376,7 @@ function startAutoCorrector() {
       console.error("[AutoCorrector] \u5B9A\u65F6\u7EA0\u9519\u626B\u63CF\u5931\u8D25:", err2.message);
     }
   }, intervalMs);
-  console.log(`[AutoCorrector] \u5B9A\u65F6\u7EA0\u9519\u670D\u52A1\u5DF2\u542F\u52A8\uFF0C\u6BCF4\u5C0F\u65F6\u8FD0\u884C\u4E00\u6B21`);
+  console.log(`[AutoCorrector] \u5B9A\u65F6\u7EA0\u9519\u670D\u52A1\u5DF2\u542F\u52A8\uFF0C\u6BCF${AUTO_CORRECTION_CONFIG.scanIntervalHours || 4}\u5C0F\u65F6\u8FD0\u884C\u4E00\u6B21`);
 }
 var AUTO_CORRECTION_CONFIG, lastScanTime, isScanning, scanHistory, correctionInterval;
 var init_optimizationAutoCorrector = __esm({
@@ -66378,8 +66404,10 @@ var init_optimizationAutoCorrector = __esm({
       // 位置倾斜不一致的容差范围（百分比）
       placementTolerancePercent: 1,
       // 两次纠错扫描之间的最小间隔（毫秒）
-      minScanIntervalMs: 10 * 60 * 1e3
+      minScanIntervalMs: 10 * 60 * 1e3,
       // 10分钟
+      // 定时扫描间隔（小时）
+      scanIntervalHours: 1
     };
     lastScanTime = null;
     isScanning = false;
@@ -137414,6 +137442,8 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
   const groupAvgAov = totalOrders > 0 ? totalSales / totalOrders : 30;
   const bidConfig = {
     optimizationGoal: config2.optimizationGoal,
+    // v170: 传入策略模板名称，用于策略感知的参数差异化
+    strategyTemplate: config2.strategyTemplateId,
     targetAcos: config2.targetAcos,
     targetRoas: config2.targetRoas,
     dailyBudget: config2.dailyBudget,
@@ -137976,6 +138006,22 @@ async function executeSearchTermAnalysis(config2, campaigns6, dryRun) {
               continue;
             }
           }
+          let negativeAlreadyExists = false;
+          if (!dryRun) {
+            const dbInstance = await getDb();
+            if (dbInstance) {
+              const { negativeKeywords: negKwTable } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+              const { eq: eqOp, and: andOp } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+              const existingNeg = await dbInstance.select({ id: negKwTable.id, amazonNegativeKeywordId: negKwTable.amazonNegativeKeywordId }).from(negKwTable).where(andOp(
+                eqOp(negKwTable.campaignId, campaign.id),
+                eqOp(negKwTable.negativeText, term.searchTerm)
+              )).limit(1);
+              if (existingNeg.length > 0) {
+                negativeAlreadyExists = true;
+                console.log(`[SearchTermAnalysis] \u23ED\uFE0F v170: \u5426\u5B9A\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7\u6DFB\u52A0: "${term.searchTerm}" campaignId=${campaign.id}, existingId=${existingNeg[0].id}, amazonId=${existingNeg[0].amazonNegativeKeywordId}`);
+              }
+            }
+          }
           const negativeKeyword = {
             accountId: config2.accountId,
             campaignId: campaign.id,
@@ -137984,10 +138030,10 @@ async function executeSearchTermAnalysis(config2, campaigns6, dryRun) {
             matchType: term.suggestedAction === "negative_exact" ? "negative_exact" : "negative_phrase",
             action: "add_negative",
             reason: `\u8D1F\u9762\u641C\u7D22\u8BCD: ${term.reason}`,
-            apiSyncStatus: dryRun ? "pending" : "pending"
+            apiSyncStatus: negativeAlreadyExists ? "already_exists" : dryRun ? "pending" : "pending"
           };
           details.push(negativeKeyword);
-          if (!dryRun) {
+          if (!dryRun && !negativeAlreadyExists) {
             const matchType = term.suggestedAction === "negative_exact" ? "exact" : "phrase";
             negativeKeyword._pendingDbInsert = {
               accountId: campaign.accountId || 0,
@@ -138044,6 +138090,8 @@ async function executeSearchTermAnalysis(config2, campaigns6, dryRun) {
                     }
                   }
                   const existingMatchTypes = existingKeywords.map((k5) => k5.matchType || "unknown").join(",");
+                  newKeyword.apiSyncStatus = "already_exists";
+                  newKeyword.apiSyncDetail = JSON.stringify({ existingId: existingKeywords[0].id, existingKeywordId: existingKeywords[0].keywordId, existingMatchTypes });
                   console.log(`[SearchTermAnalysis] \u23ED\uFE0F v168: \u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7\u521B\u5EFA: "${term.searchTerm}" (\u8BF7\u6C42=${matchType}, \u5DF2\u5B58\u5728=${existingMatchTypes}) id=${existingKeywords[0].id}, keywordId=${existingKeywords[0].keywordId}`);
                 } else {
                   const insertResult = await dbInstance.insert(keywords6).values({
@@ -138088,7 +138136,9 @@ async function executeSearchTermAnalysis(config2, campaigns6, dryRun) {
                 }
               }
             }
-            newKeywordsAdded++;
+            if (newKeyword.apiSyncStatus !== "already_exists") {
+              newKeywordsAdded++;
+            }
           }
         }
       }
@@ -138257,7 +138307,7 @@ async function executeKeywordStatusChanges(config2, campaigns6, dryRun) {
   const details = [];
   let pausedCount = 0;
   let enabledCount = 0;
-  const goal = config2.optimizationGoal || "balanced";
+  const goal = config2.strategyTemplateId || config2.optimizationGoal || "balanced";
   let pauseSpendThreshold = 50;
   let pauseClickThreshold = 20;
   let maxAcosThreshold = (config2.targetAcos || 30) * 2.5;
@@ -138513,7 +138563,7 @@ async function executeCampaignStatusChanges(config2, campaigns6, dryRun) {
   const details = [];
   let pausedCount = 0;
   let enabledCount = 0;
-  const goal = config2.optimizationGoal || "balanced";
+  const goal = config2.strategyTemplateId || config2.optimizationGoal || "balanced";
   const targetAcos = config2.targetAcos || 30;
   let campaignPauseSpendThreshold = 200;
   let campaignPauseClickThreshold = 100;
@@ -348305,8 +348355,8 @@ var performanceGroupRouter = router({
       const clicks = Number(day2.totalClicks) || 0;
       const orders = Number(day2.totalOrders) || 0;
       return {
-        date: new Date(day2.date).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" }),
-        fullDate: day2.date,
+        date: day2.date ? new Date(day2.date).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" }) : "N/A",
+        fullDate: day2.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
         spend,
         sales,
         impressions,
@@ -349600,8 +349650,8 @@ var analyticsRouter = router({
       const clicks = Number(day2.totalClicks) || 0;
       const orders = Number(day2.totalOrders) || 0;
       return {
-        date: new Date(day2.date).toLocaleDateString("zh-CN", { month: "short", day: "numeric" }),
-        fullDate: day2.date,
+        date: day2.date ? new Date(day2.date).toLocaleDateString("zh-CN", { month: "short", day: "numeric" }) : "N/A",
+        fullDate: day2.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
         sales,
         spend,
         impressions,

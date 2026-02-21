@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { safeGetTime, safeParseDate, safeToISODateString, safeToISOString } from '../lib/safeDate';
 
 /**
  * 筛选条件URL持久化Hook
@@ -167,7 +168,12 @@ export const serializers = {
     deserialize: (v: string) => v ? v.split(',') : [],
   },
   date: {
-    serialize: (v: Date) => v.toISOString().split('T')[0],
-    deserialize: (v: string) => new Date(v),
+    serialize: (v: Date) => {
+      return safeToISODateString(v);
+    },
+    deserialize: (v: string) => {
+      const d = safeParseDate(v);
+      return isNaN(d.getTime()) ? new Date() : d;
+    },
   },
 };

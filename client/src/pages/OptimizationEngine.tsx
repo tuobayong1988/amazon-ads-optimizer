@@ -421,7 +421,7 @@ export default function OptimizationEngine() {
                       <div>
                         <p className="font-medium">{history.targetName || history.description}</p>
                         <p className="text-sm text-muted-foreground">
-                          {history.type} · {new Date(history.executedAt).toLocaleString()}
+                          {history.type} · {safeToLocaleString(history.executedAt)}
                         </p>
                       </div>
                     </div>

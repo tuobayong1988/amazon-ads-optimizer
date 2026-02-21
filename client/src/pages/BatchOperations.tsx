@@ -241,7 +241,7 @@ export default function BatchOperations() {
 
   const formatDate = (date: Date | string | null) => {
     if (!date) return '-';
-    return new Date(date).toLocaleString('zh-CN');
+    return safeToLocaleString(date, 'zh-CN');
   };
 
   const getStatusBadge = (status: string) => {
@@ -900,7 +900,7 @@ export default function BatchOperations() {
                                 <span className="text-red-600">{op.failedItems || 0}</span>
                               </TableCell>
                               <TableCell className="text-muted-foreground">
-                                {new Date(op.createdAt).toLocaleString('zh-CN')}
+                                {safeToLocaleString(op.createdAt, 'zh-CN')}
                               </TableCell>
                               <TableCell>
                                 <Button 
@@ -1017,18 +1017,18 @@ export default function BatchOperations() {
                 <div className="grid grid-cols-3 gap-4 text-sm">
                   <div>
                     <span className="text-muted-foreground">创建时间：</span>
-                    <span className="ml-2">{new Date(historyDetail.createdAt).toLocaleString('zh-CN')}</span>
+                    <span className="ml-2">{safeToLocaleString(historyDetail.createdAt, 'zh-CN')}</span>
                   </div>
                   {historyDetail.executedAt && (
                     <div>
                       <span className="text-muted-foreground">执行时间：</span>
-                      <span className="ml-2">{new Date(historyDetail.executedAt).toLocaleString('zh-CN')}</span>
+                      <span className="ml-2">{safeToLocaleString(historyDetail.executedAt, 'zh-CN')}</span>
                     </div>
                   )}
                   {historyDetail.completedAt && (
                     <div>
                       <span className="text-muted-foreground">完成时间：</span>
-                      <span className="ml-2">{new Date(historyDetail.completedAt).toLocaleString('zh-CN')}</span>
+                      <span className="ml-2">{safeToLocaleString(historyDetail.completedAt, 'zh-CN')}</span>
                     </div>
                   )}
                 </div>

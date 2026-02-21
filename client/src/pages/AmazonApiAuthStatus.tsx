@@ -196,7 +196,7 @@ export default function AmazonApiAuthStatus() {
                       </div>
                       {account.tokenExpiresAt && (
                         <div className="text-xs text-gray-500 mt-1">
-                          过期时间: {new Date(account.tokenExpiresAt).toLocaleString('zh-CN')}
+                          过期时间: {safeToLocaleString(account.tokenExpiresAt, 'zh-CN')}
                         </div>
                       )}
                     </div>

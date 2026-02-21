@@ -18,6 +18,47 @@ export interface PredictionResult {
 }
 
 /**
+ * 安全的日期解析函数
+ * 支持ISO格式、本地化格式（如"2/20"）和其他常见格式
+ * 在移动端浏览器上确保兼容性
+ */
+function safeParseDate(dateStr: string): Date {
+  // 先尝试直接解析
+  let d = new Date(dateStr);
+  if (!isNaN(d.getTime())) return d;
+  
+  // 尝试解析 "M/D" 格式（如 "2/20"）- 添加当前年份
+  const mdMatch = dateStr.match(/^(\d{1,2})\/(\d{1,2})$/);
+  if (mdMatch) {
+    const year = new Date().getFullYear();
+    d = new Date(year, parseInt(mdMatch[1]) - 1, parseInt(mdMatch[2]));
+    if (!isNaN(d.getTime())) return d;
+  }
+  
+  // 尝试解析 "M月D日" 格式
+  const cnMatch = dateStr.match(/(\d{1,2})月(\d{1,2})日/);
+  if (cnMatch) {
+    const year = new Date().getFullYear();
+    d = new Date(year, parseInt(cnMatch[1]) - 1, parseInt(cnMatch[2]));
+    if (!isNaN(d.getTime())) return d;
+  }
+  
+  // 最后回退：返回当前日期避免崩溃
+  console.warn(`[trendPrediction] 无法解析日期: "${dateStr}", 使用当前日期作为回退`);
+  return new Date();
+}
+
+/**
+ * 安全的toISOString调用
+ */
+function safeToISODateString(date: Date): string {
+  if (isNaN(date.getTime())) {
+    return new Date().toISOString().split('T')[0];
+  }
+  return date.toISOString().split('T')[0];
+}
+
+/**
  * 线性回归预测
  * 使用最小二乘法拟合直线
  */
@@ -31,10 +72,10 @@ export function linearRegression(data: DataPoint[]): {
     return { slope: 0, intercept: 0, r2: 0 };
   }
 
-  // 将日期转换为数值(天数)
-  const firstDate = new Date(data[0].date);
+  // 将日期转换为数值(天数) - 使用安全解析确保移动端兼容性
+  const firstDate = safeParseDate(data[0].date);
   const points = data.map(d => ({
-    x: Math.floor((new Date(d.date).getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)),
+    x: Math.floor((safeParseDate(d.date).getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)),
     y: d.value
   }));
 
@@ -73,10 +114,10 @@ export function predictFutureDays(
 
   const { slope, intercept, r2 } = linearRegression(data);
   
-  // 计算标准误差用于置信区间
-  const firstDate = new Date(data[0].date);
+  // 计算标准误差用于置信区间 - 使用安全解析确保移动端兼容性
+  const firstDate = safeParseDate(data[0].date);
   const points = data.map(d => ({
-    x: Math.floor((new Date(d.date).getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)),
+    x: Math.floor((safeParseDate(d.date).getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24)),
     y: d.value
   }));
   
@@ -87,7 +128,7 @@ export function predictFutureDays(
   );
 
   // 生成预测结果
-  const lastDate = new Date(data[data.length - 1].date);
+  const lastDate = safeParseDate(data[data.length - 1].date);
   const lastX = Math.floor((lastDate.getTime() - firstDate.getTime()) / (1000 * 60 * 60 * 24));
   
   const results: PredictionResult[] = [];
@@ -103,7 +144,7 @@ export function predictFutureDays(
     const margin = 1.96 * standardError * Math.sqrt(1 + 1/data.length + Math.pow(x - points.reduce((sum, p) => sum + p.x, 0) / data.length, 2) / points.reduce((sum, p) => sum + Math.pow(p.x, 2), 0));
     
     results.push({
-      date: futureDate.toISOString().split('T')[0],
+      date: safeToISODateString(futureDate),
       predicted: Math.max(0, predicted), // 确保预测值非负
       confidence: {
         lower: Math.max(0, predicted - margin),
@@ -278,13 +319,13 @@ export function predictTrendDetailed(
   if (historicalData.length < 2) {
     const lastValue = historicalData.length > 0 ? historicalData[0].value : 0;
     const predictions = [];
-    const lastDate = historicalData.length > 0 ? new Date(historicalData[0].date) : new Date();
+    const lastDate = historicalData.length > 0 ? safeParseDate(historicalData[0].date) : new Date();
     
     for (let i = 1; i <= futureDays; i++) {
       const futureDate = new Date(lastDate);
       futureDate.setDate(futureDate.getDate() + i);
       predictions.push({
-        date: futureDate.toISOString().split('T')[0],
+        date: safeToISODateString(futureDate),
         value: lastValue,
         lower: lastValue * 0.9,
         upper: lastValue * 1.1,

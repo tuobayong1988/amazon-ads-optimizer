@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
+import { safeParseDate, safeToLocaleString } from '../lib/safeDate';
 
 interface DualTrackSyncPanelProps {
   accountId: number;
@@ -92,8 +93,8 @@ export function DualTrackSyncPanel({ accountId, isPlatformAdmin = false }: DualT
     try {
       await consistencyCheckMutation.mutateAsync({
         accountId,
-        startDate: startDate.toISOString().split('T')[0],
-        endDate: endDate.toISOString().split('T')[0],
+        startDate: safeToISODateString(startDate),
+        endDate: safeToISODateString(endDate),
       });
     } finally {
       setIsCheckingConsistency(false);
@@ -166,7 +167,7 @@ export function DualTrackSyncPanel({ accountId, isPlatformAdmin = false }: DualT
   
   const formatDateTime = (date: Date | string | null) => {
     if (!date) return '从未';
-    return format(new Date(date), 'MM/dd HH:mm', { locale: zhCN });
+    return format(safeParseDate(date), 'MM/dd HH:mm', { locale: zhCN });
   };
 
   if (isLoadingStatus || isLoadingStats) {

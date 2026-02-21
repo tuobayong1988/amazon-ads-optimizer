@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { BarChart3, Calendar, CalendarDays, Check, ChevronRight, Clock, Gift, LineChart, RefreshCw, Sparkles, TrendingUp, X } from "lucide-react";
 import { toast } from "sonner";
+import { safeGetTime, safeParseDate } from '../lib/safeDate';
 
 type RecommendationStatus = "pending" | "applied" | "skipped" | "expired";
 
@@ -131,7 +132,7 @@ export default function SeasonalBudget() {
 
   const getDaysUntil = (date: Date | string | null) => {
     if (!date) return 0;
-    const target = new Date(date);
+    const target = safeParseDate(date);
     const now = new Date();
     return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
   };
@@ -349,13 +350,13 @@ export default function SeasonalBudget() {
                         <div className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
                           <span>
-                            生效: {rec.effectiveStartDate ? new Date(rec.effectiveStartDate).toLocaleDateString() : "N/A"}
+                            生效: {rec.effectiveStartDate ? safeToLocaleDateString(rec.effectiveStartDate) : "N/A"}
                           </span>
                         </div>
                         <div className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
                           <span>
-                            结束: {rec.effectiveEndDate ? new Date(rec.effectiveEndDate).toLocaleDateString() : "N/A"}
+                            结束: {rec.effectiveEndDate ? safeToLocaleDateString(rec.effectiveEndDate) : "N/A"}
                           </span>
                         </div>
                       </div>
@@ -405,13 +406,13 @@ export default function SeasonalBudget() {
                         <div className="text-center p-3 bg-muted/50 rounded-lg">
                           <p className="text-xs text-muted-foreground mb-1">开始日期</p>
                           <p className="font-medium">
-                            {event.startDate ? new Date(event.startDate).toLocaleDateString() : "N/A"}
+                            {event.startDate ? safeToLocaleDateString(event.startDate) : "N/A"}
                           </p>
                         </div>
                         <div className="text-center p-3 bg-muted/50 rounded-lg">
                           <p className="text-xs text-muted-foreground mb-1">结束日期</p>
                           <p className="font-medium">
-                            {event.endDate ? new Date(event.endDate).toLocaleDateString() : "N/A"}
+                            {event.endDate ? safeToLocaleDateString(event.endDate) : "N/A"}
                           </p>
                         </div>
                         <div className="text-center p-3 bg-muted/50 rounded-lg">
@@ -424,7 +425,7 @@ export default function SeasonalBudget() {
 
                       {event.warmupStartDate && (
                         <div className="text-sm text-muted-foreground">
-                          预热期: {new Date(event.warmupStartDate).toLocaleDateString()} - {new Date(event.warmupEndDate || event.startDate).toLocaleDateString()}
+                          预热期: {safeToLocaleDateString(event.warmupStartDate)} - {safeToLocaleDateString(event.warmupEndDate || event.startDate)}
                           （建议预算倍数: {Number(event.warmupBudgetMultiplier || 1).toFixed(1)}x）
                         </div>
                       )}

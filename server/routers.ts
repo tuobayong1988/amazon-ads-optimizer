@@ -1170,8 +1170,8 @@ const performanceGroupRouter = router({
         const orders = Number(day.totalOrders) || 0;
         
         return {
-          date: new Date(day.date).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }),
-          fullDate: day.date,
+          date: day.date ? new Date(day.date).toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }) : 'N/A',
+          fullDate: day.date || new Date().toISOString().split('T')[0],
           spend,
           sales,
           impressions,
@@ -2802,8 +2802,8 @@ const analyticsRouter = router({
         const orders = Number(day.totalOrders) || 0;
         
         return {
-          date: new Date(day.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }),
-          fullDate: day.date,
+          date: day.date ? new Date(day.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) : 'N/A',
+          fullDate: day.date || new Date().toISOString().split('T')[0],
           sales,
           spend,
           impressions,

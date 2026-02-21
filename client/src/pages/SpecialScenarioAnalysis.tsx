@@ -420,7 +420,7 @@ export default function SpecialScenarioAnalysis() {
                           </Badge>
                         </div>
                         <p className="text-sm text-muted-foreground">
-                          {new Date(event.event.date).toLocaleDateString('zh-CN')}
+                          {safeToLocaleDateString(event.event.date, 'zh-CN')}
                         </p>
                         <p className="text-sm text-muted-foreground">
                           持续 {event.event.duration} 天
@@ -819,7 +819,7 @@ export default function SpecialScenarioAnalysis() {
                             <div>
                               <h4 className="font-semibold">{event.event.name}</h4>
                               <p className="text-sm text-muted-foreground">
-                                {new Date(event.event.date).toLocaleDateString('zh-CN', {
+                                {safeToLocaleDateString(event.event.date, 'zh-CN', {
                                   year: 'numeric',
                                   month: 'long',
                                   day: 'numeric'

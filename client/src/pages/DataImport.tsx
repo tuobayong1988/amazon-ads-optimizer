@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale";
+import { safeParseDate } from '../lib/safeDate';
 
 export default function DataImport() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -355,7 +356,7 @@ export default function DataImport() {
                           <div>
                             <p className="font-medium">{job.fileName}</p>
                             <p className="text-sm text-muted-foreground">
-                              {format(new Date(job.createdAt), "yyyy-MM-dd HH:mm", { locale: zhCN })}
+                              {format(safeParseDate(job.createdAt), "yyyy-MM-dd HH:mm", { locale: zhCN })}
                               {job.reportType && ` · ${job.reportType}`}
                             </p>
                           </div>

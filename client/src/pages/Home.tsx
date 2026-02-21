@@ -10,6 +10,7 @@ import { PullToRefresh } from "@/components/PullToRefresh";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { trpc } from "@/lib/trpc";
+import { safeParseDate } from '@/lib/safeDate';
 import { 
   BarChart3, 
   Target, 
@@ -61,6 +62,7 @@ import { getAllPosts } from "@/data/blogPosts";
 import { TimeRangeSelector, TimeRangeValue, getDefaultTimeRangeValue, TIME_RANGE_PRESETS, PresetTimeRange } from "@/components/TimeRangeSelector";
 import { format } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
+import { safeParseDate } from '../lib/safeDate';
 
 // 生成最近7天的模拟数据
 const generateLast7DaysData = () => {
@@ -68,7 +70,7 @@ const generateLast7DaysData = () => {
   const now = new Date();
   
   for (let i = 6; i >= 0; i--) {
-    const date = new Date(now);
+    const date = safeParseDate(now);
     date.setDate(date.getDate() - i);
     const dateStr = `${date.getMonth() + 1}/${date.getDate()}`;
     
@@ -827,8 +829,8 @@ function DashboardContent() {
             <TimeRangeSelector
               value={timeRangeValue}
               onChange={setTimeRangeValue}
-              minDataDate={dataDateRange?.minDate ? new Date(dataDateRange.minDate) : undefined}
-              maxDataDate={dataDateRange?.maxDate ? new Date(dataDateRange.maxDate) : undefined}
+              minDataDate={dataDateRange?.minDate ? safeParseDate(dataDateRange.minDate) : undefined}
+              maxDataDate={dataDateRange?.maxDate ? safeParseDate(dataDateRange.maxDate) : undefined}
             />
             <Button 
               variant="outline" 

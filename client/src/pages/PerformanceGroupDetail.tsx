@@ -309,13 +309,13 @@ export default function PerformanceGroupDetail() {
   const trendPrediction = useMemo(() => {
     if (performanceTrendData.length < 3) return null;
     
-    // 预测花费趋势
-    const spendData = performanceTrendData.map(d => ({ date: d.date, value: d.spend || 0 }));
+    // 预测花费趋势 - 使用fullDate（ISO格式）确保跨浏览器兼容性
+    const spendData = performanceTrendData.map(d => ({ date: d.fullDate || d.date, value: d.spend || 0 }));
     const spendPrediction = predictFutureDays(spendData, 7);
     const spendTrend = predictTrend(spendData);
     
     // 预测销售额趋势
-    const salesData = performanceTrendData.map(d => ({ date: d.date, value: d.sales || 0 }));
+    const salesData = performanceTrendData.map(d => ({ date: d.fullDate || d.date, value: d.sales || 0 }));
     const salesPrediction = predictFutureDays(salesData, 7);
     const salesTrend = predictTrend(salesData);
     
@@ -351,16 +351,16 @@ export default function PerformanceGroupDetail() {
   const anomalyDetection = useMemo(() => {
     if (performanceTrendData.length < 4) return null;
     
-    // 检测花费异常
-    const spendData = performanceTrendData.map(d => ({ date: d.date, value: d.spend || 0 }));
+    // 检测花费异常 - 使用fullDate（ISO格式）确保跨浏览器兼容性
+    const spendData = performanceTrendData.map(d => ({ date: d.fullDate || d.date, value: d.spend || 0 }));
     const spendAnomalies = detectAnomaliesCombined(spendData);
     
     // 检测销售额异常
-    const salesData = performanceTrendData.map(d => ({ date: d.date, value: d.sales || 0 }));
+    const salesData = performanceTrendData.map(d => ({ date: d.fullDate || d.date, value: d.sales || 0 }));
     const salesAnomalies = detectAnomaliesCombined(salesData);
     
     // 检测ACoS异常
-    const acosData = performanceTrendData.map(d => ({ date: d.date, value: d.acos || 0 }));
+    const acosData = performanceTrendData.map(d => ({ date: d.fullDate || d.date, value: d.acos || 0 }));
     const acosAnomalies = detectAnomaliesCombined(acosData);
     
     // 生成报告

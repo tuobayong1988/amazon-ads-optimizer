@@ -498,7 +498,7 @@ function MemberTable({
             <TableCell>{getRoleBadge(member.role)}</TableCell>
             <TableCell>{getStatusBadge(member.status)}</TableCell>
             <TableCell>
-              {new Date(member.createdAt).toLocaleDateString("zh-CN")}
+              {safeToLocaleDateString(member.createdAt, "zh-CN")}
             </TableCell>
             <TableCell className="text-right">
               <DropdownMenu>

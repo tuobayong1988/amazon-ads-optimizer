@@ -365,7 +365,7 @@ export default function BudgetAutoExecution() {
                     <div>
                       <p className="text-muted-foreground">下次执行</p>
                       <p className="font-medium">
-                        {config.nextExecutionAt ? new Date(config.nextExecutionAt).toLocaleString() : '-'}
+                        {config.nextExecutionAt ? safeToLocaleString(config.nextExecutionAt) : '-'}
                       </p>
                     </div>
                   </div>
@@ -421,7 +421,7 @@ export default function BudgetAutoExecution() {
                     {history?.map((execution) => (
                       <TableRow key={execution.id}>
                         <TableCell>
-                          {execution.executionStartAt ? new Date(execution.executionStartAt).toLocaleString() : '-'}
+                          {execution.executionStartAt ? safeToLocaleString(execution.executionStartAt) : '-'}
                         </TableCell>
                         <TableCell>{getStatusBadge(execution.status || 'pending')}</TableCell>
                         <TableCell>{execution.totalCampaigns}</TableCell>

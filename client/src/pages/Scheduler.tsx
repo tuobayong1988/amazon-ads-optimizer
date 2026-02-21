@@ -424,7 +424,7 @@ export default function Scheduler() {
                                 </span>
                                 {task.lastRunAt && (
                                   <span>
-                                    上次执行: {new Date(task.lastRunAt).toLocaleString('zh-CN')}
+                                    上次执行: {safeToLocaleString(task.lastRunAt, 'zh-CN')}
                                   </span>
                                 )}
                                 {task.autoApply && (
@@ -586,7 +586,7 @@ export default function Scheduler() {
                         {executionHistory.map((execution) => (
                           <TableRow key={execution.id}>
                             <TableCell>
-                              {new Date(execution.startedAt).toLocaleString('zh-CN')}
+                              {safeToLocaleString(execution.startedAt, 'zh-CN')}
                             </TableCell>
                             <TableCell>
                               {execution.status === 'success' ? (
