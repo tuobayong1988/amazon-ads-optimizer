@@ -55032,7 +55032,33 @@ var init_amazonAdsApi = __esm({
             }
           });
           console.log(`[SP API] createSpCampaignNegativeKeywords \u54CD\u5E94:`, JSON.stringify(response.data).substring(0, 500));
-          return response.data.campaignNegativeKeywords || [];
+          const responseData = response.data.campaignNegativeKeywords || {};
+          const successItems = responseData.success || [];
+          const errorItems = responseData.error || [];
+          const results = [];
+          for (const s4 of successItems) {
+            results.push({
+              keywordId: s4.campaignNegativeKeywordId || s4.keywordId,
+              code: "SUCCESS",
+              details: "",
+              index: s4.index
+            });
+          }
+          for (const e6 of errorItems) {
+            const errorMsg = e6.errors?.map((err2) => {
+              const val = err2.errorValue || {};
+              const detail = val.malformedValueError || val.duplicateValueError || val;
+              return detail.message || err2.errorType || "Unknown error";
+            }).join("; ") || "Unknown error";
+            results.push({
+              keywordId: 0,
+              code: "ERROR",
+              details: errorMsg,
+              index: e6.index
+            });
+          }
+          console.log(`[SP API] createSpCampaignNegativeKeywords \u89E3\u6790: \u6210\u529F=${successItems.length}, \u5931\u8D25=${errorItems.length}`);
+          return results;
         } catch (err2) {
           const errData = err2.response?.data;
           console.error(`[SP API] createSpCampaignNegativeKeywords \u5931\u8D25: status=${err2.response?.status}, data=`, JSON.stringify(errData).substring(0, 500));
@@ -57197,9 +57223,13 @@ async function syncNegativeKeywordsToAmazon(accountId, negatives) {
         for (const r5 of results) {
           if (r5.code === "SUCCESS" || r5.keywordId) {
             result.success++;
+            if (r5.index !== void 0 && r5.index < newCampaignNegatives.length) {
+              console.log(`[AmazonApiHelper] \u5426\u5B9A\u8BCD\u521B\u5EFA\u6210\u529F: "${newCampaignNegatives[r5.index].keywordText}" -> keywordId=${r5.keywordId}`);
+            }
           } else {
             result.failed++;
-            result.errors.push(`Campaign\u5426\u5B9A\u8BCD\u5931\u8D25: ${r5.details}`);
+            const failedKeyword = r5.index !== void 0 && r5.index < newCampaignNegatives.length ? newCampaignNegatives[r5.index].keywordText : "unknown";
+            result.errors.push(`Campaign\u5426\u5B9A\u8BCD\u5931\u8D25[${failedKeyword}]: ${r5.details}`);
           }
         }
       }
@@ -66332,10 +66362,18 @@ async function retryFailedNegativeKeywordAdds(database, accountId) {
         level: nk.level
       }))
     );
-    const allSuccess = syncResult.success === toRetry.length;
+    const failedKeywords = /* @__PURE__ */ new Set();
+    for (const err2 of syncResult.errors) {
+      const match = err2.match(/\[(.+?)\]/);
+      if (match) failedKeywords.add(match[1].toLowerCase());
+    }
     for (const nk of toRetry) {
-      const success2 = allSuccess || syncResult.success > 0;
+      const keywordFailed = failedKeywords.has(nk.keywordText.toLowerCase());
+      const success2 = !keywordFailed && syncResult.success > 0;
       const newRetryCount = (nk.retryCount || 0) + 1;
+      const isPermanentError = keywordFailed && syncResult.errors.some(
+        (e6) => e6.toLowerCase().includes(nk.keywordText.toLowerCase()) && (e6.includes("PATTERN_NOT_MATCHED") || e6.includes("Keyword is invalid") || e6.includes("malformedValueError"))
+      );
       if (success2) {
         await database.update(optimizationEvents).set({
           apiSyncStatus: "synced",
@@ -66347,6 +66385,22 @@ async function retryFailedNegativeKeywordAdds(database, accountId) {
           WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${nk.eventId} AND source_table = 'optimization_logs')
         `).catch(() => {
         });
+      } else if (isPermanentError) {
+        await database.update(optimizationEvents).set({
+          apiSyncStatus: "not_applicable",
+          apiSyncDetail: JSON.stringify({
+            reason: `Amazon\u62D2\u7EDD\u5173\u952E\u8BCD: ${nk.keywordText}`,
+            retryCount: newRetryCount,
+            lastRetryAt: (/* @__PURE__ */ new Date()).toISOString(),
+            permanentError: true
+          })
+        }).where(eq(optimizationEvents.id, nk.eventId));
+        await database.execute(sql`
+          UPDATE optimization_logs SET api_sync_status = 'not_applicable'
+          WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${nk.eventId} AND source_table = 'optimization_logs')
+        `).catch(() => {
+        });
+        console.log(`[AutoCorrector] v175b: \u5426\u5B9A\u8BCDAmazon\u6C38\u4E45\u62D2\u7EDD\uFF0C\u505C\u6B62\u91CD\u8BD5: "${nk.keywordText}"`);
       } else {
         await database.update(optimizationEvents).set({
           apiSyncDetail: JSON.stringify({
@@ -66363,7 +66417,7 @@ async function retryFailedNegativeKeywordAdds(database, accountId) {
         targetType: "campaign",
         previousValue: "",
         correctedValue: nk.keywordText,
-        reason: `\u91CD\u8BD5\u6DFB\u52A0\u5426\u5B9A\u5173\u952E\u8BCD(${newRetryCount}/${maxRetries}): ${nk.keywordText}`,
+        reason: isPermanentError ? `\u5426\u5B9A\u5173\u952E\u8BCDAmazon\u6C38\u4E45\u62D2\u7EDD: ${nk.keywordText}` : `\u91CD\u8BD5\u6DFB\u52A0\u5426\u5B9A\u5173\u952E\u8BCD(${newRetryCount}/${maxRetries}): ${nk.keywordText}`,
         success: success2,
         errorMessage: success2 ? void 0 : syncResult.errors.join("; ")
       });

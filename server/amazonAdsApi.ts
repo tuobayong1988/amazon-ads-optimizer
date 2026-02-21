@@ -3308,7 +3308,38 @@ export class AmazonAdsApiClient {
         },
       });
       console.log(`[SP API] createSpCampaignNegativeKeywords 响应:`, JSON.stringify(response.data).substring(0, 500));
-      return response.data.campaignNegativeKeywords || [];
+      // v175b: 正确解析Amazon SP API v3的部分成功响应
+      // 响应格式: { campaignNegativeKeywords: { success: [...], error: [...] } }
+      const responseData = response.data.campaignNegativeKeywords || {};
+      const successItems = responseData.success || [];
+      const errorItems = responseData.error || [];
+      
+      // 将成功和失败项转换为统一格式
+      const results: Array<{ keywordId: number; code: string; details: string; index?: number }> = [];
+      for (const s of successItems) {
+        results.push({
+          keywordId: s.campaignNegativeKeywordId || s.keywordId,
+          code: 'SUCCESS',
+          details: '',
+          index: s.index,
+        });
+      }
+      for (const e of errorItems) {
+        const errorMsg = e.errors?.map((err: any) => {
+          const val = err.errorValue || {};
+          const detail = val.malformedValueError || val.duplicateValueError || val;
+          return detail.message || err.errorType || 'Unknown error';
+        }).join('; ') || 'Unknown error';
+        results.push({
+          keywordId: 0,
+          code: 'ERROR',
+          details: errorMsg,
+          index: e.index,
+        });
+      }
+      
+      console.log(`[SP API] createSpCampaignNegativeKeywords 解析: 成功=${successItems.length}, 失败=${errorItems.length}`);
+      return results;
     } catch (err: any) {
       // v174: 增强错误日志 - 记录详细的API错误响应
       const errData = err.response?.data;

@@ -1409,12 +1409,25 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
       }))
     );
     
-    // 如果批量成功，更新所有事件状态
-    const allSuccess = syncResult.success === toRetry.length;
+    // v175b: 正确处理部分成功 - 根据每个关键词的实际结果更新状态
+    // syncResult.errors 现在包含具体的关键词信息，格式: "Campaign否定词失败[keyword]: error"
+    const failedKeywords = new Set<string>();
+    for (const err of syncResult.errors) {
+      // 从错误信息中提取失败的关键词文本
+      const match = err.match(/\[(.+?)\]/);
+      if (match) failedKeywords.add(match[1].toLowerCase());
+    }
     
     for (const nk of toRetry) {
-      const success = allSuccess || syncResult.success > 0;
+      const keywordFailed = failedKeywords.has(nk.keywordText.toLowerCase());
+      const success = !keywordFailed && syncResult.success > 0;
       const newRetryCount = ((nk as any).retryCount || 0) + 1;
+      
+      // v175b: 如果Amazon拒绝了关键词(PATTERN_NOT_MATCHED等)，直接标记为永久失败
+      const isPermanentError = keywordFailed && syncResult.errors.some(e => 
+        e.toLowerCase().includes(nk.keywordText.toLowerCase()) && 
+        (e.includes('PATTERN_NOT_MATCHED') || e.includes('Keyword is invalid') || e.includes('malformedValueError'))
+      );
       
       if (success) {
         await database.update(optimizationEvents).set({
@@ -1423,13 +1436,30 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
           apiSyncedAt: new Date(),
         }).where(eq(optimizationEvents.id, nk.eventId));
         
-        // 同步更新optimization_logs
         await database.execute(sql`
           UPDATE optimization_logs SET api_sync_status = 'synced' 
           WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${nk.eventId} AND source_table = 'optimization_logs')
         `).catch(() => {});
+      } else if (isPermanentError) {
+        // v175b: Amazon拒绝的无效关键词，直接标记为not_applicable，不再重试
+        await database.update(optimizationEvents).set({
+          apiSyncStatus: 'not_applicable',
+          apiSyncDetail: JSON.stringify({ 
+            reason: `Amazon拒绝关键词: ${nk.keywordText}`,
+            retryCount: newRetryCount,
+            lastRetryAt: new Date().toISOString(),
+            permanentError: true,
+          }),
+        }).where(eq(optimizationEvents.id, nk.eventId));
+        
+        await database.execute(sql`
+          UPDATE optimization_logs SET api_sync_status = 'not_applicable'
+          WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${nk.eventId} AND source_table = 'optimization_logs')
+        `).catch(() => {});
+        
+        console.log(`[AutoCorrector] v175b: 否定词Amazon永久拒绝，停止重试: "${nk.keywordText}"`);
       } else {
-        // v174: 记录重试次数到apiSyncDetail
+        // 临时失败，记录重试次数
         await database.update(optimizationEvents).set({
           apiSyncDetail: JSON.stringify({ 
             retryCount: newRetryCount,
@@ -1446,7 +1476,9 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
         targetType: 'campaign',
         previousValue: '',
         correctedValue: nk.keywordText,
-        reason: `重试添加否定关键词(${newRetryCount}/${maxRetries}): ${nk.keywordText}`,
+        reason: isPermanentError 
+          ? `否定关键词Amazon永久拒绝: ${nk.keywordText}`
+          : `重试添加否定关键词(${newRetryCount}/${maxRetries}): ${nk.keywordText}`,
         success,
         errorMessage: success ? undefined : syncResult.errors.join('; '),
       });

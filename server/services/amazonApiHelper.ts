@@ -510,12 +510,20 @@ export async function syncNegativeKeywordsToAmazon(
           }))
         );
         
+        // v175b: 正确处理部分成功的响应 - 通过index关联回原始请求
         for (const r of results) {
           if (r.code === 'SUCCESS' || r.keywordId) {
             result.success++;
+            // 记录成功创建的否定词ID
+            if (r.index !== undefined && r.index < newCampaignNegatives.length) {
+              console.log(`[AmazonApiHelper] 否定词创建成功: "${newCampaignNegatives[r.index].keywordText}" -> keywordId=${r.keywordId}`);
+            }
           } else {
             result.failed++;
-            result.errors.push(`Campaign否定词失败: ${r.details}`);
+            // v175b: 记录失败的具体关键词信息
+            const failedKeyword = r.index !== undefined && r.index < newCampaignNegatives.length 
+              ? newCampaignNegatives[r.index].keywordText : 'unknown';
+            result.errors.push(`Campaign否定词失败[${failedKeyword}]: ${r.details}`);
           }
         }
       }
