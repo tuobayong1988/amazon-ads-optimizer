@@ -48,8 +48,8 @@ const AUTO_CORRECTION_CONFIG = {
   // 出价不一致的容差范围（美元）
   bidToleranceDollar: 0.01,
   
-  // 预算不一致的容差范围（美元）
-  budgetToleranceDollar: 0.50,
+  // 预算不一致的容差范围（美元） - v175: 提高到$2避免纠正舍入差异
+  budgetToleranceDollar: 2.00,
   
   // 位置倾斜不一致的容差范围（百分比）
   placementTolerancePercent: 1,
@@ -588,8 +588,10 @@ async function retryFailedBudgetAdjustments(database: any, accountId: number): P
     
     for (const [campId, event] of latestByCampaign) {
       try {
-        const newBudget = parseFloat(String(event.newValue || '0'));
-        if (newBudget <= 0) continue;
+        // v175: 移除$符号后解析预算值，并取整
+        const rawBudget = String(event.newValue || '0').replace(/[^0-9.\-]/g, '');
+        const newBudget = Math.round(parseFloat(rawBudget));
+        if (isNaN(newBudget) || newBudget <= 0) continue;
         
         // 获取campaign的Amazon ID
         const campRows = await database
@@ -681,7 +683,7 @@ async function correctBudgetMismatches(database: any, accountId: number): Promis
         AND oe.status = 'success'
         AND oe.api_sync_status = 'synced'
         AND oe.created_at > DATE_SUB(NOW(), INTERVAL 3 DAY)
-        AND ABS(CAST(c.dailyBudget AS DECIMAL(10,2)) - CAST(oe.new_value AS DECIMAL(10,2))) > ${AUTO_CORRECTION_CONFIG.budgetToleranceDollar}
+        AND ABS(CAST(c.dailyBudget AS DECIMAL(10,2)) - CAST(REPLACE(REPLACE(oe.new_value, '$', ''), ',', '') AS DECIMAL(10,2))) > ${AUTO_CORRECTION_CONFIG.budgetToleranceDollar}
         AND oe.id = (
           SELECT MAX(oe2.id) FROM optimization_events oe2 
           WHERE oe2.campaign_id = oe.campaign_id 
@@ -702,7 +704,20 @@ async function correctBudgetMismatches(database: any, accountId: number): Promis
     
     for (const row of rows) {
       try {
-        const expectedBudget = parseFloat(String(row.expected_budget));
+        // v175: 移除$符号后解析预算值，并取整（Amazon API只接受整数预算）
+        const rawExpected = String(row.expected_budget || '0').replace(/[^0-9.\-]/g, '');
+        const expectedBudget = Math.round(parseFloat(rawExpected));
+        if (isNaN(expectedBudget) || expectedBudget <= 0) {
+          console.warn(`[AutoCorrector] v175: 跳过无效预算值: campaign=${row.campaign_id}, raw=${row.expected_budget}`);
+          continue;
+        }
+        
+        // v175: 取整后重新检查是否仍然超过容忍度
+        const currentBudgetNum = parseFloat(String(row.current_budget || '0').replace(/[^0-9.\-]/g, ''));
+        if (!isNaN(currentBudgetNum) && Math.abs(expectedBudget - currentBudgetNum) <= AUTO_CORRECTION_CONFIG.budgetToleranceDollar) {
+          console.log(`[AutoCorrector] v175: 取整后预算差异在容忍范围内: campaign=${row.campaign_id}, expected=$${expectedBudget}, current=$${currentBudgetNum}`);
+          continue;
+        }
         
         const syncResult = await amazonApiHelper.syncBudgetAdjustmentToAmazon(
           accountId,
@@ -1033,7 +1048,8 @@ async function retryFailedSettingsChanges(database: any, accountId: number): Pro
             const syncResult = await amazonApiHelper.syncBudgetAdjustmentToAmazon(
               accountId,
               String(campRows[0].campaignId),
-              parseFloat(String(event.newValue)),
+              // v175: 移除$符号后解析预算值
+              Math.round(parseFloat(String(event.newValue || '0').replace(/[^0-9.\-]/g, ''))),
               `[自动纠错] 重试设置变更`
             );
             success = !!syncResult;

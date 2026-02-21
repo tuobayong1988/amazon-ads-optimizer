@@ -648,7 +648,11 @@ export function UnifiedHistoryTracker({ performanceGroupId, performanceGroupName
                       if (event.previousBid && event.newBid) {
                         changeDetail = `${currencySymbol}${parseFloat(event.previousBid).toFixed(2)} → ${currencySymbol}${parseFloat(event.newBid).toFixed(2)}`;
                       } else if (event.previousValue && event.newValue) {
-                        changeDetail = `${event.previousValue} → ${event.newValue}`;
+                        // v175: 根据事件类型添加货币符号（后端不再存储$符号）
+                        const isCurrencyEvent = ['bid_adjustment', 'budget_adjustment', 'dayparting_bid'].includes(event.eventCategory);
+                        const prevDisplay = isCurrencyEvent && !isNaN(parseFloat(event.previousValue)) ? `${currencySymbol}${parseFloat(event.previousValue).toFixed(2)}` : event.previousValue;
+                        const newDisplay = isCurrencyEvent && !isNaN(parseFloat(event.newValue)) ? `${currencySymbol}${parseFloat(event.newValue).toFixed(2)}` : event.newValue;
+                        changeDetail = `${prevDisplay} → ${newDisplay}`;
                       } else if (event.actionDetail) {
                         const detail = typeof event.actionDetail === 'string' ? event.actionDetail : JSON.stringify(event.actionDetail);
                         changeDetail = detail.slice(0, 80);

@@ -428,12 +428,12 @@ export default function OptimizationEngine() {
                     <div className="flex items-center gap-4">
                       <div className="text-right">
                         <p className="text-sm text-muted-foreground">原值</p>
-                        <p className="font-medium">${history.previousValue?.toFixed(2)}</p>
+                        <p className="font-medium">${typeof history.previousValue === 'number' ? history.previousValue.toFixed(2) : parseFloat(String(history.previousValue || '0').replace(/[^0-9.\-]/g, '')).toFixed(2)}</p>
                       </div>
                       <ArrowUpRight className="h-4 w-4 text-muted-foreground" />
                       <div className="text-right">
                         <p className="text-sm text-muted-foreground">新值</p>
-                        <p className="font-medium">${history.newValue?.toFixed(2)}</p>
+                        <p className="font-medium">${typeof history.newValue === 'number' ? history.newValue.toFixed(2) : parseFloat(String(history.newValue || '0').replace(/[^0-9.\-]/g, '')).toFixed(2)}</p>
                       </div>
                       {getStatusBadge(history.status)}
                     </div>

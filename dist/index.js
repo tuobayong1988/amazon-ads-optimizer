@@ -65719,8 +65719,9 @@ async function retryFailedBudgetAdjustments(database, accountId) {
     }
     for (const [campId, event] of latestByCampaign) {
       try {
-        const newBudget = parseFloat(String(event.newValue || "0"));
-        if (newBudget <= 0) continue;
+        const rawBudget = String(event.newValue || "0").replace(/[^0-9.\-]/g, "");
+        const newBudget = Math.round(parseFloat(rawBudget));
+        if (isNaN(newBudget) || newBudget <= 0) continue;
         const campRows = await database.select({ campaignId: campaigns.campaignId }).from(campaigns).where(eq(campaigns.id, campId)).limit(1);
         if (campRows.length === 0) continue;
         const amazonCampaignId = campRows[0].campaignId;
@@ -65788,7 +65789,7 @@ async function correctBudgetMismatches(database, accountId) {
         AND oe.status = 'success'
         AND oe.api_sync_status = 'synced'
         AND oe.created_at > DATE_SUB(NOW(), INTERVAL 3 DAY)
-        AND ABS(CAST(c.dailyBudget AS DECIMAL(10,2)) - CAST(oe.new_value AS DECIMAL(10,2))) > ${AUTO_CORRECTION_CONFIG.budgetToleranceDollar}
+        AND ABS(CAST(c.dailyBudget AS DECIMAL(10,2)) - CAST(REPLACE(REPLACE(oe.new_value, '$', ''), ',', '') AS DECIMAL(10,2))) > ${AUTO_CORRECTION_CONFIG.budgetToleranceDollar}
         AND oe.id = (
           SELECT MAX(oe2.id) FROM optimization_events oe2 
           WHERE oe2.campaign_id = oe.campaign_id 
@@ -65805,7 +65806,17 @@ async function correctBudgetMismatches(database, accountId) {
     console.log(`[AutoCorrector] v167: \u8D26\u6237${accountId} \u53D1\u73B0${rows.length}\u6761\u9884\u7B97\u4E0D\u4E00\u81F4\u9700\u8981\u7EA0\u6B63`);
     for (const row of rows) {
       try {
-        const expectedBudget = parseFloat(String(row.expected_budget));
+        const rawExpected = String(row.expected_budget || "0").replace(/[^0-9.\-]/g, "");
+        const expectedBudget = Math.round(parseFloat(rawExpected));
+        if (isNaN(expectedBudget) || expectedBudget <= 0) {
+          console.warn(`[AutoCorrector] v175: \u8DF3\u8FC7\u65E0\u6548\u9884\u7B97\u503C: campaign=${row.campaign_id}, raw=${row.expected_budget}`);
+          continue;
+        }
+        const currentBudgetNum = parseFloat(String(row.current_budget || "0").replace(/[^0-9.\-]/g, ""));
+        if (!isNaN(currentBudgetNum) && Math.abs(expectedBudget - currentBudgetNum) <= AUTO_CORRECTION_CONFIG.budgetToleranceDollar) {
+          console.log(`[AutoCorrector] v175: \u53D6\u6574\u540E\u9884\u7B97\u5DEE\u5F02\u5728\u5BB9\u5FCD\u8303\u56F4\u5185: campaign=${row.campaign_id}, expected=$${expectedBudget}, current=$${currentBudgetNum}`);
+          continue;
+        }
         const syncResult = await syncBudgetAdjustmentToAmazon(
           accountId,
           String(row.amazon_campaign_id),
@@ -66051,7 +66062,8 @@ async function retryFailedSettingsChanges(database, accountId) {
             const syncResult = await syncBudgetAdjustmentToAmazon(
               accountId,
               String(campRows[0].campaignId),
-              parseFloat(String(event.newValue)),
+              // v175: 移除$符号后解析预算值
+              Math.round(parseFloat(String(event.newValue || "0").replace(/[^0-9.\-]/g, ""))),
               `[\u81EA\u52A8\u7EA0\u9519] \u91CD\u8BD5\u8BBE\u7F6E\u53D8\u66F4`
             );
             success2 = !!syncResult;
@@ -66666,8 +66678,8 @@ var init_optimizationAutoCorrector = __esm({
       retryExpiryDays: 7,
       // 出价不一致的容差范围（美元）
       bidToleranceDollar: 0.01,
-      // 预算不一致的容差范围（美元）
-      budgetToleranceDollar: 0.5,
+      // 预算不一致的容差范围（美元） - v175: 提高到$2避免纠正舍入差异
+      budgetToleranceDollar: 2,
       // 位置倾斜不一致的容差范围（百分比）
       placementTolerancePercent: 1,
       // 两次纠错扫描之间的最小间隔（毫秒）
@@ -139275,8 +139287,9 @@ async function recordExecutionLog(result) {
             campaignId: detail.campaignId,
             campaignName: detail.campaignName,
             actionDetail: JSON.stringify(detail),
-            previousValue: `$${detail.currentBid.toFixed(2)}`,
-            newValue: `$${detail.newBid.toFixed(2)}`,
+            // v175: 不再带$符号存储，避免AutoCorrector解析NaN
+            previousValue: `${detail.currentBid.toFixed(2)}`,
+            newValue: `${detail.newBid.toFixed(2)}`,
             changeReason: detail.reason || `\u51FA\u4EF7\u8C03\u6574 ${detail.changePercent}%`,
             status: itemSyncStatus === "synced" ? "success" : itemSyncStatus === "failed" ? "failed" : "success",
             apiSyncStatus: itemSyncStatus,
@@ -139352,8 +139365,9 @@ async function recordExecutionLog(result) {
           campaignId: detail.campaignId,
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
-          previousValue: `$${detail.baseBid?.toFixed(2) || "0.00"}`,
-          newValue: `$${detail.adjustedBid?.toFixed(2) || "0.00"}`,
+          // v175: 不再带$符号存储
+          previousValue: `${detail.baseBid?.toFixed(2) || "0.00"}`,
+          newValue: `${detail.adjustedBid?.toFixed(2) || "0.00"}`,
           changeReason: detail.reason || `\u5206\u65F6\u7ADE\u4EF7: ${detail.hour}:00 \u4E58\u6570${detail.bidMultiplier}x`,
           status: detail.apiSyncStatus === "synced" ? "success" : detail.apiSyncStatus === "failed" ? "failed" : "success",
           apiSyncStatus: detail.apiSyncStatus || "not_applicable",
@@ -139376,8 +139390,9 @@ async function recordExecutionLog(result) {
           campaignId: detail.campaignId,
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
-          previousValue: `$${detail.currentBudget?.toFixed(2) || "0.00"}`,
-          newValue: `$${detail.suggestedBudget?.toFixed(2) || "0.00"}`,
+          // v175: 不再带$符号存储，避免AutoCorrector解析NaN
+          previousValue: `${detail.currentBudget?.toFixed(2) || "0.00"}`,
+          newValue: `${detail.suggestedBudget?.toFixed(2) || "0.00"}`,
           changeReason: detail.reason || `\u9884\u7B97\u8C03\u6574 ${detail.changePercent}%`,
           status: detail.apiSyncStatus === "synced" ? "success" : detail.apiSyncStatus === "failed" ? "failed" : "success",
           apiSyncStatus: detail.apiSyncStatus || "not_applicable",

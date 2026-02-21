@@ -1,0 +1,1 @@
+import{a}from"./ui-vendor-DNHRHG-N.js";import{af as o,ag as t}from"./index-D_ovDLFs.js";var p=["axis"],l=a.forwardRef((r,e)=>a.createElement(o,{chartName:"ComposedChart",defaultTooltipEventType:"axis",validateTooltipEventTypes:p,tooltipPayloadSearcher:t,categoricalChartProps:r,ref:e}));export{l as C};
