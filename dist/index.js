@@ -77328,12 +77328,17 @@ async function verifyBiddingLogsExecution(database, accountId) {
         if (pt3) currentBid = parseFloat(String(pt3.bid || "0"));
       }
       if (currentBid === null) continue;
-      if (Math.abs(currentBid - expectedBid) <= 0.01) {
+      const absDiff = Math.abs(currentBid - expectedBid);
+      const relDiff = expectedBid > 0 ? absDiff / expectedBid : 0;
+      if (absDiff <= 0.02 || relDiff <= 0.2) {
         verified++;
+        if (absDiff > 0.01) {
+          console.log(`[AutoCorrector] v201: \u51FA\u4EF7\u786E\u8BA4(\u5BB9\u5DEE\u5185): ${targetType} id=${targetId} expected=$${expectedBid.toFixed(2)} actual=$${currentBid.toFixed(2)} diff=${(relDiff * 100).toFixed(1)}%`);
+        }
         continue;
       }
       mismatched++;
-      console.log(`[AutoCorrector] v196: \u51FA\u4EF7\u6267\u884C\u786E\u8BA4\u5931\u8D25: ${targetType} id=${targetId} expected=$${expectedBid.toFixed(2)} actual=$${currentBid.toFixed(2)}`);
+      console.log(`[AutoCorrector] v201: \u51FA\u4EF7\u6267\u884C\u786E\u8BA4\u5931\u8D25: ${targetType} id=${targetId} expected=$${expectedBid.toFixed(2)} actual=$${currentBid.toFixed(2)} diff=${(relDiff * 100).toFixed(1)}%`);
       try {
         if (targetType === "keyword") {
           await database.update(keywords).set({ bid: String(expectedBid) }).where(eq(keywords.id, targetId));

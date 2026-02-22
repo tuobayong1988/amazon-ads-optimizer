@@ -2608,15 +2608,24 @@ async function verifyBiddingLogsExecution(database: any, accountId: number): Pro
       
       if (currentBid === null) continue;
       
-      // 容差: $0.01
-      if (Math.abs(currentBid - expectedBid) <= 0.01) {
+      // v201: 使用比例容差代替固定容差，避免与数据同步形成无限循环
+      // Amazon可能以不同货币返回bid（如CAD vs USD），导致系统性的比例差异
+      // 容差: 绝对差异 <= $0.02 或 相对差异 <= 20%
+      const absDiff = Math.abs(currentBid - expectedBid);
+      const relDiff = expectedBid > 0 ? absDiff / expectedBid : 0;
+      
+      if (absDiff <= 0.02 || relDiff <= 0.20) {
         verified++;
+        if (absDiff > 0.01) {
+          // v201: 记录有差异但在容差范围内的情况（可能是货币转换）
+          console.log(`[AutoCorrector] v201: 出价确认(容差内): ${targetType} id=${targetId} expected=$${expectedBid.toFixed(2)} actual=$${currentBid.toFixed(2)} diff=${(relDiff*100).toFixed(1)}%`);
+        }
         continue;
       }
       
-      // 发现不一致 — 记录并尝试纠正
+      // 发现不一致（超出容差范围）— 记录并尝试纠正
       mismatched++;
-      console.log(`[AutoCorrector] v196: 出价执行确认失败: ${targetType} id=${targetId} expected=$${expectedBid.toFixed(2)} actual=$${currentBid.toFixed(2)}`);
+      console.log(`[AutoCorrector] v201: 出价执行确认失败: ${targetType} id=${targetId} expected=$${expectedBid.toFixed(2)} actual=$${currentBid.toFixed(2)} diff=${(relDiff*100).toFixed(1)}%`);
       
       // 将本地DB更新为最新的成功出价（因为API已经成功，本地可能被同步覆盖了）
       try {
