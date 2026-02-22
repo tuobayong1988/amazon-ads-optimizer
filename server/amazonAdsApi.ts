@@ -732,116 +732,147 @@ export class AmazonAdsApiClient {
       state?: 'enabled' | 'paused';
     }>
   ): Promise<{ success: boolean; createdKeywords: Array<{ keywordId: number; keywordText: string; code: string }>; errors: any[] }> {
-    try {
-      // v126: Amazon SP API v3 要求ID为字符串类型，枚举值为大写
-      const formattedKeywords = keywords.map(k => ({
-        adGroupId: String(k.adGroupId),
-        campaignId: String(k.campaignId),
-        keywordText: k.keywordText,
-        matchType: (k.matchType || 'EXACT').toUpperCase(),
-        bid: Number(k.bid.toFixed(2)),
-        state: (k.state || 'enabled').toUpperCase(),
-      }));
-      const requestBody = { keywords: formattedKeywords };
-      console.log(`[SP API] createSpKeywords 请求体 (前500字符):`, JSON.stringify(requestBody).substring(0, 500));
-      const response = await this.axiosInstance.post('/sp/keywords', requestBody, {
-        headers: { 
-          'Content-Type': 'application/vnd.spKeyword.v3+json',
-          'Accept': 'application/vnd.spKeyword.v3+json'
-        },
-      });
+    // v199: 添加分批处理，Amazon SP API v3单次最多接受1000个关键词
+    const BATCH_SIZE = 1000;
+    const BATCH_DELAY_MS = 300;
+    const allCreatedKeywords: Array<{ keywordId: any; keywordText: string; code: string }> = [];
+    const allErrors: any[] = [];
+    
+    const totalBatches = Math.ceil(keywords.length / BATCH_SIZE);
+    console.log(`[SP API] v199: createSpKeywords 分批处理: 总计${keywords.length}个, 分${totalBatches}批`);
+    
+    for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      const batchKeywords = keywords.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+      console.log(`[SP API] v199: 第${batchIdx + 1}/${totalBatches}批: ${batchKeywords.length}个关键词创建`);
       
-      // v126: Amazon SP API v3 响应格式: {keywords: {error: [], success: [{index, keywordId}]}}
-      console.log(`[SP API] createSpKeywords 响应:`, JSON.stringify(response.data).substring(0, 500));
-      const responseKeywords = response.data?.keywords;
-      const createdKeywords: Array<{ keywordId: any; keywordText: string; code: string }> = [];
-      const errors: any[] = [];
-      
-      if (responseKeywords && typeof responseKeywords === 'object' && !Array.isArray(responseKeywords)) {
-        // v3格式: keywords是对象，包含error和success数组
-        if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
-          for (const item of responseKeywords.success) {
-            const idx = item.index || 0;
-            createdKeywords.push({
-              keywordId: item.keywordId,
-              keywordText: keywords[idx]?.keywordText || '',
-              code: 'SUCCESS',
+      try {
+        const formattedKeywords = batchKeywords.map(k => ({
+          adGroupId: String(k.adGroupId),
+          campaignId: String(k.campaignId),
+          keywordText: k.keywordText,
+          matchType: (k.matchType || 'EXACT').toUpperCase(),
+          bid: Number(k.bid.toFixed(2)),
+          state: (k.state || 'enabled').toUpperCase(),
+        }));
+        const requestBody = { keywords: formattedKeywords };
+        const response = await this.axiosInstance.post('/sp/keywords', requestBody, {
+          headers: { 
+            'Content-Type': 'application/vnd.spKeyword.v3+json',
+            'Accept': 'application/vnd.spKeyword.v3+json'
+          },
+        });
+        
+        const responseKeywords = response.data?.keywords;
+        
+        if (responseKeywords && typeof responseKeywords === 'object' && !Array.isArray(responseKeywords)) {
+          if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
+            for (const item of responseKeywords.success) {
+              const idx = item.index || 0;
+              allCreatedKeywords.push({
+                keywordId: item.keywordId,
+                keywordText: batchKeywords[idx]?.keywordText || '',
+                code: 'SUCCESS',
+              });
+            }
+          }
+          if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
+            for (const item of responseKeywords.error) {
+              allErrors.push(item);
+              const errorDetail = item.description || item.details || item.message || '';
+              allCreatedKeywords.push({
+                keywordId: null,
+                keywordText: batchKeywords[item.index]?.keywordText || '',
+                code: item.code || 'ERROR',
+              });
+              console.error(`[SP API] v168: 关键词创建失败详情: keyword="${batchKeywords[item.index]?.keywordText}", code=${item.code}, description="${errorDetail}"`);
+            }
+          }
+        } else if (Array.isArray(responseKeywords)) {
+          for (const k of responseKeywords) {
+            allCreatedKeywords.push({
+              keywordId: k.keywordId,
+              keywordText: k.keywordText || '',
+              code: k.code || 'SUCCESS',
             });
+            if (k.code && k.code !== 'SUCCESS') allErrors.push(k);
           }
         }
-        if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
-          for (const item of responseKeywords.error) {
-            errors.push(item);
-            // v168: 记录完整的错误信息，包括description和details
-            const errorDetail = item.description || item.details || item.message || '';
-            createdKeywords.push({
-              keywordId: null,
-              keywordText: keywords[item.index]?.keywordText || '',
-              code: item.code || 'ERROR',
-            });
-            console.error(`[SP API] v168: 关键词创建失败详情: keyword="${keywords[item.index]?.keywordText}", code=${item.code}, description="${errorDetail}", fullError=${JSON.stringify(item)}`);
-          }
-        }
-      } else if (Array.isArray(responseKeywords)) {
-        // 旧格式兼容: keywords是数组
-        for (const k of responseKeywords) {
-          createdKeywords.push({
-            keywordId: k.keywordId,
-            keywordText: k.keywordText || '',
-            code: k.code || 'SUCCESS',
-          });
-          if (k.code && k.code !== 'SUCCESS') errors.push(k);
+      } catch (error: any) {
+        console.error(`[SP API] v199: 第${batchIdx + 1}批关键词创建API调用失败: ${error.response?.data || error.message}`);
+        for (const kw of batchKeywords) {
+          allCreatedKeywords.push({ keywordId: null, keywordText: kw.keywordText, code: 'BATCH_ERROR' });
+          allErrors.push({ keywordText: kw.keywordText, code: 'BATCH_ERROR', details: error.message });
         }
       }
       
-      console.log(`[SP API] Created ${createdKeywords.length - errors.length} keywords, ${errors.length} errors`);
-      return { success: errors.length === 0, createdKeywords, errors };
-    } catch (error: any) {
-      console.error('[SP API] createSpKeywords error:', error.response?.data || error.message);
-      return { success: false, createdKeywords: [], errors: [error.message] };
+      if (batchIdx < totalBatches - 1) {
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+      }
     }
+    
+    console.log(`[SP API] v199: 关键词创建完成: 总计=${keywords.length}, 成功=${allCreatedKeywords.length - allErrors.length}, 失败=${allErrors.length}`);
+    return { success: allErrors.length === 0, createdKeywords: allCreatedKeywords, errors: allErrors };
   }
 
   /**
    * 更新关键词出价
    */
   async updateKeywordBids(updates: Array<{ keywordId: number | string; bid: number }>): Promise<{ success: boolean; errors: any[] }> {
-    // v125: Amazon SP API v3 要求keywordId为字符串类型，bid为两位小数
-    const formattedUpdates = updates.map(u => ({
+    // v199: 添加分批处理，Amazon SP API v3单次最多接受1000条
+    const BATCH_SIZE = 1000;
+    const BATCH_DELAY_MS = 300;
+    const allErrors: any[] = [];
+    let totalSuccess = 0;
+    
+    const formattedAll = updates.map(u => ({
       keywordId: String(u.keywordId),
       bid: Number(u.bid.toFixed(2)),
     }));
-    const requestBody = { keywords: formattedUpdates };
-    console.log(`[SP API] updateKeywordBids 请求体:`, JSON.stringify(requestBody).substring(0, 500));
-    const response = await this.axiosInstance.put('/sp/keywords', requestBody, {
-      headers: { 
-        'Content-Type': 'application/vnd.spKeyword.v3+json',
-        'Accept': 'application/vnd.spKeyword.v3+json'
-      },
-    });
     
-    // v125: 记录完整响应便于诊断
-    console.log(`[SP API] updateKeywordBids 响应:`, JSON.stringify(response.data).substring(0, 500));
+    const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
+    console.log(`[SP API] v199: updateKeywordBids 分批处理: 总计${formattedAll.length}个, 分${totalBatches}批`);
     
-    // ✅ 检查API响应 - Amazon SP API v3返回格式: {keywords: {error: [], success: [{index, keywordId}]}}
-    const errors: any[] = [];
-    const responseKeywords = response.data?.keywords;
-    if (responseKeywords) {
-      // v3格式: keywords是对象，包含error和success数组
-      if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
-        for (const err of responseKeywords.error) {
-          errors.push({ keywordId: err.keywordId, code: err.code || 'ERROR', details: err.details || err.description });
-          console.error(`[SP API] 关键词出价更新失败: keywordId=${err.keywordId}, code=${err.code}, details=${err.details || err.description}`);
+    for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+      const requestBody = { keywords: batch };
+      console.log(`[SP API] v199: 第${batchIdx + 1}/${totalBatches}批: ${batch.length}个关键词出价更新`);
+      
+      try {
+        const response = await this.axiosInstance.put('/sp/keywords', requestBody, {
+          headers: { 
+            'Content-Type': 'application/vnd.spKeyword.v3+json',
+            'Accept': 'application/vnd.spKeyword.v3+json'
+          },
+        });
+        
+        const responseKeywords = response.data?.keywords;
+        if (responseKeywords) {
+          if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
+            for (const err of responseKeywords.error) {
+              allErrors.push({ keywordId: err.keywordId, code: err.code || 'ERROR', details: err.details || err.description });
+              console.error(`[SP API] 关键词出价更新失败: keywordId=${err.keywordId}, code=${err.code}, details=${err.details || err.description}`);
+            }
+          }
+          if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
+            totalSuccess += responseKeywords.success.length;
+          }
+        }
+      } catch (batchErr: any) {
+        console.error(`[SP API] v199: 第${batchIdx + 1}批出价更新API调用失败: ${batchErr.message}`);
+        // 将该批次所有关键词记录为失败
+        for (const item of batch) {
+          allErrors.push({ keywordId: item.keywordId, code: 'BATCH_ERROR', details: batchErr.message });
         }
       }
-      if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
-        console.log(`[SP API] 关键词出价更新成功: ${responseKeywords.success.length}个`);
+      
+      // 批间延迟
+      if (batchIdx < totalBatches - 1) {
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
       }
     }
     
-    console.log(`[SP API] 关键词出价更新完成: 总计=${updates.length}, 成功=${responseKeywords?.success?.length || 0}, 失败=${errors.length}`);
-    
-    return { success: errors.length === 0, errors };
+    console.log(`[SP API] v199: 关键词出价更新完成: 总计=${updates.length}, 成功=${totalSuccess}, 失败=${allErrors.length}`);
+    return { success: allErrors.length === 0, errors: allErrors };
   }
 
   /**
@@ -850,39 +881,58 @@ export class AmazonAdsApiClient {
    * 这是确保优化系统的暂停/启用决策同步到Amazon的关键方法
    */
   async updateKeywordStatus(updates: Array<{ keywordId: number | string; state: 'enabled' | 'paused' | 'archived' }>): Promise<{ success: boolean; successCount: number; errors: any[] }> {
-    const formattedUpdates = updates.map(u => ({
+    // v199: 添加分批处理，确保大批量状态更新不会被截断
+    const BATCH_SIZE = 1000;
+    const BATCH_DELAY_MS = 300;
+    const allErrors: any[] = [];
+    let totalSuccess = 0;
+    
+    const formattedAll = updates.map(u => ({
       keywordId: String(u.keywordId),
       state: u.state.toUpperCase(),
     }));
-    const requestBody = { keywords: formattedUpdates };
-    console.log(`[SP API] updateKeywordStatus 请求体:`, JSON.stringify(requestBody).substring(0, 500));
-    const response = await this.axiosInstance.put('/sp/keywords', requestBody, {
-      headers: {
-        'Content-Type': 'application/vnd.spKeyword.v3+json',
-        'Accept': 'application/vnd.spKeyword.v3+json'
-      },
-    });
     
-    console.log(`[SP API] updateKeywordStatus 响应:`, JSON.stringify(response.data).substring(0, 500));
+    const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
+    console.log(`[SP API] v199: updateKeywordStatus 分批处理: 总计${formattedAll.length}个, 分${totalBatches}批`);
     
-    const errors: any[] = [];
-    let successCount = 0;
-    const responseKeywords = response.data?.keywords;
-    if (responseKeywords) {
-      if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
-        for (const err of responseKeywords.error) {
-          errors.push({ keywordId: err.keywordId, code: err.code || 'ERROR', details: err.details || err.description });
-          console.error(`[SP API] 关键词状态更新失败: keywordId=${err.keywordId}, code=${err.code}, details=${err.details || err.description}`);
+    for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+      const requestBody = { keywords: batch };
+      
+      try {
+        const response = await this.axiosInstance.put('/sp/keywords', requestBody, {
+          headers: {
+            'Content-Type': 'application/vnd.spKeyword.v3+json',
+            'Accept': 'application/vnd.spKeyword.v3+json'
+          },
+        });
+        
+        const responseKeywords = response.data?.keywords;
+        if (responseKeywords) {
+          if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
+            for (const err of responseKeywords.error) {
+              allErrors.push({ keywordId: err.keywordId, code: err.code || 'ERROR', details: err.details || err.description });
+              console.error(`[SP API] 关键词状态更新失败: keywordId=${err.keywordId}, code=${err.code}, details=${err.details || err.description}`);
+            }
+          }
+          if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
+            totalSuccess += responseKeywords.success.length;
+          }
+        }
+      } catch (batchErr: any) {
+        console.error(`[SP API] v199: 第${batchIdx + 1}批状态更新API调用失败: ${batchErr.message}`);
+        for (const item of batch) {
+          allErrors.push({ keywordId: item.keywordId, code: 'BATCH_ERROR', details: batchErr.message });
         }
       }
-      if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
-        successCount = responseKeywords.success.length;
-        console.log(`[SP API] 关键词状态更新成功: ${successCount}个`);
+      
+      if (batchIdx < totalBatches - 1) {
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
       }
     }
     
-    console.log(`[SP API] 关键词状态更新完成: 总计=${updates.length}, 成功=${successCount}, 失败=${errors.length}`);
-    return { success: errors.length === 0, successCount, errors };
+    console.log(`[SP API] v199: 关键词状态更新完成: 总计=${updates.length}, 成功=${totalSuccess}, 失败=${allErrors.length}`);
+    return { success: allErrors.length === 0, successCount: totalSuccess, errors: allErrors };
   }
 
   /**
@@ -890,36 +940,57 @@ export class AmazonAdsApiClient {
    * 通过 PUT /sp/targets API 更新商品定向的 state 字段
    */
   async updateProductTargetStatus(updates: Array<{ targetId: number | string; state: 'enabled' | 'paused' | 'archived' }>): Promise<{ success: boolean; successCount: number; errors: any[] }> {
-    const formattedUpdates = updates.map(u => ({
+    // v199: 添加分批处理
+    const BATCH_SIZE = 1000;
+    const BATCH_DELAY_MS = 300;
+    const allErrors: any[] = [];
+    let totalSuccess = 0;
+    
+    const formattedAll = updates.map(u => ({
       targetId: String(u.targetId),
       state: u.state.toUpperCase(),
     }));
-    const requestBody = { targetingClauses: formattedUpdates };
-    console.log(`[SP API] updateProductTargetStatus 请求体:`, JSON.stringify(requestBody).substring(0, 500));
-    const response = await this.axiosInstance.put('/sp/targets', requestBody, {
-      headers: {
-        'Content-Type': 'application/vnd.spTargetingClause.v3+json',
-        'Accept': 'application/vnd.spTargetingClause.v3+json'
-      },
-    });
     
-    console.log(`[SP API] updateProductTargetStatus 响应:`, JSON.stringify(response.data).substring(0, 500));
+    const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
+    console.log(`[SP API] v199: updateProductTargetStatus 分批处理: 总计${formattedAll.length}个, 分${totalBatches}批`);
     
-    const errors: any[] = [];
-    let successCount = 0;
-    const responseTargets = response.data?.targetingClauses;
-    if (responseTargets) {
-      if (responseTargets.error && Array.isArray(responseTargets.error)) {
-        for (const err of responseTargets.error) {
-          errors.push({ targetId: err.targetId, code: err.code || 'ERROR', details: err.details || err.description });
+    for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+      const requestBody = { targetingClauses: batch };
+      
+      try {
+        const response = await this.axiosInstance.put('/sp/targets', requestBody, {
+          headers: {
+            'Content-Type': 'application/vnd.spTargetingClause.v3+json',
+            'Accept': 'application/vnd.spTargetingClause.v3+json'
+          },
+        });
+        
+        const responseTargets = response.data?.targetingClauses;
+        if (responseTargets) {
+          if (responseTargets.error && Array.isArray(responseTargets.error)) {
+            for (const err of responseTargets.error) {
+              allErrors.push({ targetId: err.targetId, code: err.code || 'ERROR', details: err.details || err.description });
+            }
+          }
+          if (responseTargets.success && Array.isArray(responseTargets.success)) {
+            totalSuccess += responseTargets.success.length;
+          }
+        }
+      } catch (batchErr: any) {
+        console.error(`[SP API] v199: 第${batchIdx + 1}批商品定向状态更新失败: ${batchErr.message}`);
+        for (const item of batch) {
+          allErrors.push({ targetId: item.targetId, code: 'BATCH_ERROR', details: batchErr.message });
         }
       }
-      if (responseTargets.success && Array.isArray(responseTargets.success)) {
-        successCount = responseTargets.success.length;
+      
+      if (batchIdx < totalBatches - 1) {
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
       }
     }
     
-    return { success: errors.length === 0, successCount, errors };
+    console.log(`[SP API] v199: 商品定向状态更新完成: 总计=${updates.length}, 成功=${totalSuccess}, 失败=${allErrors.length}`);
+    return { success: allErrors.length === 0, successCount: totalSuccess, errors: allErrors };
   }
 
   /**
@@ -927,36 +998,57 @@ export class AmazonAdsApiClient {
    * 通过 PUT /sp/adGroups 更新广告组的state字段
    */
   async updateSpAdGroupStatus(updates: Array<{ adGroupId: number | string; state: 'enabled' | 'paused' | 'archived' }>): Promise<{ success: boolean; successCount: number; errors: any[] }> {
-    const formattedUpdates = updates.map(u => ({
+    // v199: 添加分批处理
+    const BATCH_SIZE = 1000;
+    const BATCH_DELAY_MS = 300;
+    const allErrors: any[] = [];
+    let totalSuccess = 0;
+    
+    const formattedAll = updates.map(u => ({
       adGroupId: String(u.adGroupId),
       state: u.state.toUpperCase(),
     }));
-    const requestBody = { adGroups: formattedUpdates };
-    console.log(`[SP API] updateSpAdGroupStatus 请求体:`, JSON.stringify(requestBody).substring(0, 500));
-    const response = await this.axiosInstance.put('/sp/adGroups', requestBody, {
-      headers: {
-        'Content-Type': 'application/vnd.spAdGroup.v3+json',
-        'Accept': 'application/vnd.spAdGroup.v3+json'
-      },
-    });
     
-    console.log(`[SP API] updateSpAdGroupStatus 响应:`, JSON.stringify(response.data).substring(0, 500));
+    const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
+    console.log(`[SP API] v199: updateSpAdGroupStatus 分批处理: 总计${formattedAll.length}个, 分${totalBatches}批`);
     
-    const errors: any[] = [];
-    let successCount = 0;
-    const responseAdGroups = response.data?.adGroups;
-    if (responseAdGroups) {
-      if (responseAdGroups.error && Array.isArray(responseAdGroups.error)) {
-        for (const err of responseAdGroups.error) {
-          errors.push({ adGroupId: err.adGroupId, code: err.code || 'ERROR', details: err.details || err.description });
+    for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+      const requestBody = { adGroups: batch };
+      
+      try {
+        const response = await this.axiosInstance.put('/sp/adGroups', requestBody, {
+          headers: {
+            'Content-Type': 'application/vnd.spAdGroup.v3+json',
+            'Accept': 'application/vnd.spAdGroup.v3+json'
+          },
+        });
+        
+        const responseAdGroups = response.data?.adGroups;
+        if (responseAdGroups) {
+          if (responseAdGroups.error && Array.isArray(responseAdGroups.error)) {
+            for (const err of responseAdGroups.error) {
+              allErrors.push({ adGroupId: err.adGroupId, code: err.code || 'ERROR', details: err.details || err.description });
+            }
+          }
+          if (responseAdGroups.success && Array.isArray(responseAdGroups.success)) {
+            totalSuccess += responseAdGroups.success.length;
+          }
+        }
+      } catch (batchErr: any) {
+        console.error(`[SP API] v199: 第${batchIdx + 1}批广告组状态更新失败: ${batchErr.message}`);
+        for (const item of batch) {
+          allErrors.push({ adGroupId: item.adGroupId, code: 'BATCH_ERROR', details: batchErr.message });
         }
       }
-      if (responseAdGroups.success && Array.isArray(responseAdGroups.success)) {
-        successCount = responseAdGroups.success.length;
+      
+      if (batchIdx < totalBatches - 1) {
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
       }
     }
     
-    return { success: errors.length === 0, successCount, errors };
+    console.log(`[SP API] v199: 广告组状态更新完成: 总计=${updates.length}, 成功=${totalSuccess}, 失败=${allErrors.length}`);
+    return { success: allErrors.length === 0, successCount: totalSuccess, errors: allErrors };
   }
 
   /**
@@ -1028,41 +1120,58 @@ export class AmazonAdsApiClient {
    * 更新商品定位出价
    */
   async updateProductTargetBids(updates: Array<{ targetId: number | string; bid: number }>): Promise<{ success: boolean; errors: any[] }> {
-    // v125: Amazon SP API v3 要求targetId为字符串类型，bid为两位小数
-    const formattedUpdates = updates.map(u => ({
+    // v199: 添加分批处理
+    const BATCH_SIZE = 1000;
+    const BATCH_DELAY_MS = 300;
+    const allErrors: any[] = [];
+    let totalSuccess = 0;
+    
+    const formattedAll = updates.map(u => ({
       targetId: String(u.targetId),
       bid: Number(u.bid.toFixed(2)),
     }));
-    const requestBody = { targetingClauses: formattedUpdates };
-    console.log(`[SP API] updateProductTargetBids 请求体:`, JSON.stringify(requestBody).substring(0, 500));
-    const response = await this.axiosInstance.put('/sp/targets', requestBody, {
-      headers: { 
-        'Content-Type': 'application/vnd.spTargetingClause.v3+json',
-        'Accept': 'application/vnd.spTargetingClause.v3+json'
-      },
-    });
     
-    // v125: 记录完整响应便于诊断
-    console.log(`[SP API] updateProductTargetBids 响应:`, JSON.stringify(response.data).substring(0, 500));
+    const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
+    console.log(`[SP API] v199: updateProductTargetBids 分批处理: 总计${formattedAll.length}个, 分${totalBatches}批`);
     
-    // ✅ 检查API响应 - Amazon SP API v3返回格式: {targetingClauses: {error: [], success: [{index, targetId}]}}
-    const errors: any[] = [];
-    const responseTargets = response.data?.targetingClauses;
-    if (responseTargets) {
-      // v3格式: targetingClauses是对象，包含error和success数组
-      if (responseTargets.error && Array.isArray(responseTargets.error)) {
-        for (const err of responseTargets.error) {
-          errors.push({ targetId: err.targetId, code: err.code || 'ERROR', details: err.details || err.description });
-          console.error(`[SP API] 商品定位出价更新失败: targetId=${err.targetId}, code=${err.code}, details=${err.details || err.description}`);
+    for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+      const requestBody = { targetingClauses: batch };
+      
+      try {
+        const response = await this.axiosInstance.put('/sp/targets', requestBody, {
+          headers: { 
+            'Content-Type': 'application/vnd.spTargetingClause.v3+json',
+            'Accept': 'application/vnd.spTargetingClause.v3+json'
+          },
+        });
+        
+        const responseTargets = response.data?.targetingClauses;
+        if (responseTargets) {
+          if (responseTargets.error && Array.isArray(responseTargets.error)) {
+            for (const err of responseTargets.error) {
+              allErrors.push({ targetId: err.targetId, code: err.code || 'ERROR', details: err.details || err.description });
+              console.error(`[SP API] 商品定位出价更新失败: targetId=${err.targetId}, code=${err.code}, details=${err.details || err.description}`);
+            }
+          }
+          if (responseTargets.success && Array.isArray(responseTargets.success)) {
+            totalSuccess += responseTargets.success.length;
+          }
+        }
+      } catch (batchErr: any) {
+        console.error(`[SP API] v199: 第${batchIdx + 1}批商品定位出价更新失败: ${batchErr.message}`);
+        for (const item of batch) {
+          allErrors.push({ targetId: item.targetId, code: 'BATCH_ERROR', details: batchErr.message });
         }
       }
-      if (responseTargets.success && Array.isArray(responseTargets.success)) {
-        console.log(`[SP API] 商品定位出价更新成功: ${responseTargets.success.length}个`);
+      
+      if (batchIdx < totalBatches - 1) {
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
       }
     }
     
-    console.log(`[SP API] 商品定位出价更新完成: 总计=${updates.length}, 成功=${responseTargets?.success?.length || 0}, 失败=${errors.length}`);
-    return { success: errors.length === 0, errors };
+    console.log(`[SP API] v199: 商品定位出价更新完成: 总计=${updates.length}, 成功=${totalSuccess}, 失败=${allErrors.length}`);
+    return { success: allErrors.length === 0, errors: allErrors };
   }
 
   // ==================== 报告 API ====================
@@ -3121,15 +3230,31 @@ export class AmazonAdsApiClient {
    * 更新SB关键词出价
    */
   async updateSbKeywordBids(updates: Array<{ keywordId: string; bid: number }>): Promise<void> {
-    await this.axiosInstance.put('/sb/v4/keywords', 
-      { keywords: updates },
-      {
-        headers: {
-          'Content-Type': 'application/vnd.sbkeywordresource.v4+json',
-          'Accept': 'application/vnd.sbkeywordresource.v4+json',
-        },
+    // v199: 添加分批处理，确保大批量SB关键词出价更新不会被截断
+    const BATCH_SIZE = 1000;
+    const BATCH_DELAY_MS = 300;
+    const totalBatches = Math.ceil(updates.length / BATCH_SIZE);
+    console.log(`[SB API] v199: updateSbKeywordBids 分批处理: 总计${updates.length}个, 分${totalBatches}批`);
+    
+    for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      const batch = updates.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+      console.log(`[SB API] v199: 第${batchIdx + 1}/${totalBatches}批: ${batch.length}个SB关键词出价更新`);
+      
+      await this.axiosInstance.put('/sb/v4/keywords', 
+        { keywords: batch },
+        {
+          headers: {
+            'Content-Type': 'application/vnd.sbkeywordresource.v4+json',
+            'Accept': 'application/vnd.sbkeywordresource.v4+json',
+          },
+        }
+      );
+      
+      if (batchIdx < totalBatches - 1) {
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
       }
-    );
+    }
+    console.log(`[SB API] v199: SB关键词出价更新完成: 总计${updates.length}个`);
   }
 
   // ==================== Sponsored Display API ====================
@@ -3254,7 +3379,23 @@ export class AmazonAdsApiClient {
    * 更新SD商品定位出价
    */
   async updateSdTargetBids(updates: Array<{ targetId: number; bid: number }>): Promise<void> {
-    await this.axiosInstance.put('/sd/targets', updates);
+    // v199: 添加分批处理，确保SD商品定位出价更新完整执行
+    const BATCH_SIZE = 100; // SD API使用旧版接口，批次较小
+    const BATCH_DELAY_MS = 300;
+    const totalBatches = Math.ceil(updates.length / BATCH_SIZE);
+    console.log(`[SD API] v199: updateSdTargetBids 分批处理: 总计${updates.length}个, 分${totalBatches}批`);
+    
+    for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      const batch = updates.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+      console.log(`[SD API] v199: 第${batchIdx + 1}/${totalBatches}批: ${batch.length}个SD定位出价更新`);
+      
+      await this.axiosInstance.put('/sd/targets', batch);
+      
+      if (batchIdx < totalBatches - 1) {
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+      }
+    }
+    console.log(`[SD API] v199: SD定位出价更新完成: 总计${updates.length}个`);
   }
 
   // ==================== 否定关键词 API ====================
@@ -3319,69 +3460,103 @@ export class AmazonAdsApiClient {
       campaignId: String(n.campaignId),
       keywordText: n.keywordText,
       matchType: formatMatchType(n.matchType || 'NEGATIVE_EXACT'),
-      // v175: 恢复state字段 - Amazon API要求state不能为null，必须显式设置为ENABLED
       state: 'ENABLED',
     }));
-    console.log(`[SP API] createSpCampaignNegativeKeywords: ${formattedNegatives.length}个否定词, 请求体:`, JSON.stringify({ campaignNegativeKeywords: formattedNegatives }).substring(0, 500));
-    try {
-      const response = await this.axiosInstance.post('/sp/campaignNegativeKeywords', {
-        campaignNegativeKeywords: formattedNegatives,
-      }, {
-        headers: { 
-          'Content-Type': 'application/vnd.spCampaignNegativeKeyword.v3+json',
-          'Accept': 'application/vnd.spCampaignNegativeKeyword.v3+json'
-        },
-      });
-      console.log(`[SP API] createSpCampaignNegativeKeywords 响应:`, JSON.stringify(response.data).substring(0, 500));
-      // v175b: 正确解析Amazon SP API v3的部分成功响应
-      // 响应格式: { campaignNegativeKeywords: { success: [...], error: [...] } }
-      const responseData = response.data.campaignNegativeKeywords || {};
-      const successItems = responseData.success || [];
-      const errorItems = responseData.error || [];
+    
+    // v199: 添加分批处理，Amazon API单次最多接受1000个否定词
+    const BATCH_SIZE = 1000;
+    const BATCH_DELAY_MS = 300;
+    const allResults: Array<{ keywordId: number; code: string; details: string; index?: number }> = [];
+    const totalBatches = Math.ceil(formattedNegatives.length / BATCH_SIZE);
+    console.log(`[SP API] v199: createSpCampaignNegativeKeywords 分批处理: 总计${formattedNegatives.length}个, 分${totalBatches}批`);
+    
+    for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      const batch = formattedNegatives.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+      console.log(`[SP API] v199: 第${batchIdx + 1}/${totalBatches}批: ${batch.length}个campaign级否定词`);
       
-      // 将成功和失败项转换为统一格式
-      const results: Array<{ keywordId: number; code: string; details: string; index?: number }> = [];
-      for (const s of successItems) {
-        results.push({
-          keywordId: s.campaignNegativeKeywordId || s.keywordId,
-          code: 'SUCCESS',
-          details: '',
-          index: s.index,
+      try {
+        const response = await this.axiosInstance.post('/sp/campaignNegativeKeywords', {
+          campaignNegativeKeywords: batch,
+        }, {
+          headers: { 
+            'Content-Type': 'application/vnd.spCampaignNegativeKeyword.v3+json',
+            'Accept': 'application/vnd.spCampaignNegativeKeyword.v3+json'
+          },
         });
-      }
-      for (const e of errorItems) {
-        const errorMsg = e.errors?.map((err: any) => {
-          const val = err.errorValue || {};
-          const detail = val.malformedValueError || val.duplicateValueError || val;
-          return detail.message || err.errorType || 'Unknown error';
-        }).join('; ') || 'Unknown error';
-        results.push({
-          keywordId: 0,
-          code: 'ERROR',
-          details: errorMsg,
-          index: e.index,
-        });
+        
+        const responseData = response.data.campaignNegativeKeywords || {};
+        const successItems = responseData.success || [];
+        const errorItems = responseData.error || [];
+        
+        for (const s of successItems) {
+          allResults.push({
+            keywordId: s.campaignNegativeKeywordId || s.keywordId,
+            code: 'SUCCESS',
+            details: '',
+            index: s.index !== undefined ? s.index + batchIdx * BATCH_SIZE : undefined,
+          });
+        }
+        for (const e of errorItems) {
+          const errorMsg = e.errors?.map((err: any) => {
+            const val = err.errorValue || {};
+            const detail = val.malformedValueError || val.duplicateValueError || val;
+            return detail.message || err.errorType || 'Unknown error';
+          }).join('; ') || 'Unknown error';
+          allResults.push({
+            keywordId: 0,
+            code: 'ERROR',
+            details: errorMsg,
+            index: e.index !== undefined ? e.index + batchIdx * BATCH_SIZE : undefined,
+          });
+        }
+        
+        console.log(`[SP API] v199: 第${batchIdx + 1}批完成: 成功=${successItems.length}, 失败=${errorItems.length}`);
+      } catch (err: any) {
+        const errData = err.response?.data;
+        console.error(`[SP API] v199: 第${batchIdx + 1}批失败: status=${err.response?.status}, data=`, JSON.stringify(errData).substring(0, 500));
+        // 记录本批所有否定词为失败
+        for (let i = 0; i < batch.length; i++) {
+          allResults.push({
+            keywordId: 0,
+            code: 'BATCH_ERROR',
+            details: err.message,
+            index: i + batchIdx * BATCH_SIZE,
+          });
+        }
       }
       
-      console.log(`[SP API] createSpCampaignNegativeKeywords 解析: 成功=${successItems.length}, 失败=${errorItems.length}`);
-      return results;
-    } catch (err: any) {
-      // v174: 增强错误日志 - 记录详细的API错误响应
-      const errData = err.response?.data;
-      console.error(`[SP API] createSpCampaignNegativeKeywords 失败: status=${err.response?.status}, data=`, JSON.stringify(errData).substring(0, 500));
-      throw err;
+      if (batchIdx < totalBatches - 1) {
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+      }
     }
+    
+    const successCount = allResults.filter(r => r.code === 'SUCCESS').length;
+    const failCount = allResults.length - successCount;
+    console.log(`[SP API] v199: campaign否定词创建完成: 总计=${negatives.length}, 成功=${successCount}, 失败=${failCount}`);
+    return allResults;
   }
 
   /**
    * 删除SP活动级别否定关键词
    */
   async deleteSpCampaignNegativeKeywords(keywordIds: number[]): Promise<void> {
-    await this.axiosInstance.post('/sp/campaignNegativeKeywords/delete', {
-      keywordIdFilter: { include: keywordIds },
-    }, {
-      headers: { 'Content-Type': 'application/vnd.spCampaignNegativeKeyword.v3+json' },
-    });
+    // v199: 添加分批处理，确保大批量删除不会被截断
+    const BATCH_SIZE = 1000;
+    const totalBatches = Math.ceil(keywordIds.length / BATCH_SIZE);
+    console.log(`[SP API] v199: deleteSpCampaignNegativeKeywords 分批处理: 总计${keywordIds.length}个, 分${totalBatches}批`);
+    
+    for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      const batch = keywordIds.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+      await this.axiosInstance.post('/sp/campaignNegativeKeywords/delete', {
+        keywordIdFilter: { include: batch },
+      }, {
+        headers: { 'Content-Type': 'application/vnd.spCampaignNegativeKeyword.v3+json' },
+      });
+      
+      if (batchIdx < totalBatches - 1) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+    }
   }
 
   /**
@@ -3443,41 +3618,98 @@ export class AmazonAdsApiClient {
       matchType: formatNegMatchType(n.matchType || 'NEGATIVE_EXACT'),
       state: (n.state || 'enabled').toUpperCase(),
     }));
-    console.log(`[SP API] createSpNegativeKeywords: ${formattedNegatives.length}个广告组级否定词`);
-    const response = await this.axiosInstance.post('/sp/negativeKeywords', {
-      negativeKeywords: formattedNegatives,
-    }, {
-      headers: { 
-        'Content-Type': 'application/vnd.spNegativeKeyword.v3+json',
-        'Accept': 'application/vnd.spNegativeKeyword.v3+json'
-      },
-    });
-    return response.data.negativeKeywords || [];
+    // v199: 添加分批处理，确保大批量广告组级否定词创建不会被截断
+    const BATCH_SIZE = 1000;
+    const BATCH_DELAY_MS = 300;
+    const allResults: any[] = [];
+    const totalBatches = Math.ceil(formattedNegatives.length / BATCH_SIZE);
+    console.log(`[SP API] v199: createSpNegativeKeywords 分批处理: 总计${formattedNegatives.length}个, 分${totalBatches}批`);
+    
+    for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      const batch = formattedNegatives.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+      console.log(`[SP API] v199: 第${batchIdx + 1}/${totalBatches}批: ${batch.length}个广告组级否定词`);
+      
+      try {
+        const response = await this.axiosInstance.post('/sp/negativeKeywords', {
+          negativeKeywords: batch,
+        }, {
+          headers: { 
+            'Content-Type': 'application/vnd.spNegativeKeyword.v3+json',
+            'Accept': 'application/vnd.spNegativeKeyword.v3+json'
+          },
+        });
+        const batchResults = response.data.negativeKeywords || [];
+        allResults.push(...batchResults);
+        console.log(`[SP API] v199: 第${batchIdx + 1}批完成: ${batchResults.length}个结果`);
+      } catch (err: any) {
+        console.error(`[SP API] v199: 第${batchIdx + 1}批失败: ${err.response?.status} ${err.message}`);
+        // 记录本批失败
+        for (let i = 0; i < batch.length; i++) {
+          allResults.push({ keywordId: 0, code: 'BATCH_ERROR', details: err.message });
+        }
+      }
+      
+      if (batchIdx < totalBatches - 1) {
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY_MS));
+      }
+    }
+    
+    console.log(`[SP API] v199: 广告组否定词创建完成: 总计=${negatives.length}, 结果=${allResults.length}`);
+    return allResults;
   }
 
   /**
    * 删除SP广告组级别否定关键词
    */
   async deleteSpNegativeKeywords(keywordIds: number[]): Promise<void> {
-    await this.axiosInstance.post('/sp/negativeKeywords/delete', {
-      keywordIdFilter: { include: keywordIds },
-    }, {
-      headers: { 'Content-Type': 'application/vnd.spNegativeKeyword.v3+json' },
-    });
+    // v199: 添加分批处理
+    const BATCH_SIZE = 1000;
+    const totalBatches = Math.ceil(keywordIds.length / BATCH_SIZE);
+    console.log(`[SP API] v199: deleteSpNegativeKeywords 分批处理: 总计${keywordIds.length}个, 分${totalBatches}批`);
+    
+    for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+      const batch = keywordIds.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+      await this.axiosInstance.post('/sp/negativeKeywords/delete', {
+        keywordIdFilter: { include: batch },
+      }, {
+        headers: { 'Content-Type': 'application/vnd.spNegativeKeyword.v3+json' },
+      });
+      
+      if (batchIdx < totalBatches - 1) {
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+    }
   }
 
   /**
    * 获取SP否定商品定位列表（活动级别）
    */
   async listSpCampaignNegativeTargets(campaignId?: number): Promise<any[]> {
-    const body: any = {};
-    if (campaignId) {
-      body.campaignIdFilter = { include: [String(campaignId)] };
-    }
-    const response = await this.axiosInstance.post('/sp/campaignNegativeTargets/list', body, {
-      headers: { 'Content-Type': 'application/vnd.spCampaignNegativeTargetingClause.v3+json' },
-    });
-    return response.data.campaignNegativeTargetingClauses || [];
+    // v199: 添加分页循环，确保获取所有否定商品定位
+    const allTargets: any[] = [];
+    let nextToken: string | undefined;
+    
+    do {
+      const body: any = { maxResults: 100 };
+      if (campaignId) {
+        body.campaignIdFilter = { include: [String(campaignId)] };
+      }
+      if (nextToken) {
+        body.nextToken = nextToken;
+      }
+      
+      const response = await this.axiosInstance.post('/sp/campaignNegativeTargets/list', body, {
+        headers: { 'Content-Type': 'application/vnd.spCampaignNegativeTargetingClause.v3+json' },
+      });
+      
+      const targets = response.data.campaignNegativeTargetingClauses || [];
+      allTargets.push(...targets);
+      nextToken = response.data.nextToken;
+      console.log(`[SP API] Fetched ${targets.length} campaign negative targets, total: ${allTargets.length}, hasMore: ${!!nextToken}`);
+    } while (nextToken);
+    
+    console.log(`[SP API] Total campaign negative targets fetched: ${allTargets.length}`);
+    return allTargets;
   }
 
   /**
@@ -3510,14 +3742,31 @@ export class AmazonAdsApiClient {
    * 获取SP否定商品定位列表（广告组级别）
    */
   async listSpNegativeTargets(adGroupId?: number): Promise<any[]> {
-    const body: any = {};
-    if (adGroupId) {
-      body.adGroupIdFilter = { include: [String(adGroupId)] };
-    }
-    const response = await this.axiosInstance.post('/sp/negativeTargets/list', body, {
-      headers: { 'Content-Type': 'application/vnd.spNegativeTargetingClause.v3+json' },
-    });
-    return response.data.negativeTargetingClauses || [];
+    // v199: 添加分页循环，确保获取所有广告组级否定商品定位
+    const allTargets: any[] = [];
+    let nextToken: string | undefined;
+    
+    do {
+      const body: any = { maxResults: 100 };
+      if (adGroupId) {
+        body.adGroupIdFilter = { include: [String(adGroupId)] };
+      }
+      if (nextToken) {
+        body.nextToken = nextToken;
+      }
+      
+      const response = await this.axiosInstance.post('/sp/negativeTargets/list', body, {
+        headers: { 'Content-Type': 'application/vnd.spNegativeTargetingClause.v3+json' },
+      });
+      
+      const targets = response.data.negativeTargetingClauses || [];
+      allTargets.push(...targets);
+      nextToken = response.data.nextToken;
+      console.log(`[SP API] Fetched ${targets.length} negative targets, total: ${allTargets.length}, hasMore: ${!!nextToken}`);
+    } while (nextToken);
+    
+    console.log(`[SP API] Total negative targets fetched: ${allTargets.length}`);
+    return allTargets;
   }
 
   /**

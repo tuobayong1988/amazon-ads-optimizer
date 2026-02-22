@@ -729,165 +729,142 @@ export async function syncKeywordStatusToAmazon(
   const keywordChanges = statusChanges.filter(s => !s.isProductTarget);
   const productTargetChanges = statusChanges.filter(s => s.isProductTarget);
   
-  // 处理关键词状态变更
-  for (let i = 0; i < keywordChanges.length; i++) {
-    const change = keywordChanges[i];
-    try {
-      // 获取Amazon keywordId
-      const dbInstance = await db.getDb();
-      if (!dbInstance) {
-        result.failed++;
-        result.errors.push(`数据库连接失败`);
-        continue;
-      }
-      
+  // v199: 批量处理关键词状态变更（而非逐条发送）
+  if (keywordChanges.length > 0) {
+    console.log(`[AmazonApiHelper] v199: 批量处理 ${keywordChanges.length} 个关键词状态变更`);
+    
+    // 第一步：批量解析Amazon keywordId
+    const dbInstance = await db.getDb();
+    const resolvedKeywordUpdates: Array<{ keywordId: string; state: 'enabled' | 'paused' | 'archived' }> = [];
+    
+    if (dbInstance) {
       const { keywords } = await import('../../drizzle/schema');
       const { eq } = await import('drizzle-orm');
-      let [kw] = await dbInstance.select({ keywordId: keywords.keywordId })
-        .from(keywords)
-        .where(eq(keywords.id, change.keywordId))
-        .limit(1);
       
-      if (!kw || !kw.keywordId || kw.keywordId === '0' || kw.keywordId === '') {
-        // v141: 即时回填机制
-        console.log(`[AmazonApiHelper] keyword id=${change.keywordId} 缺少keywordId，尝试即时回填...`);
-        try {
-          const { resolveKeywordIdOnDemand } = await import('./amazonIdResolver');
-          const resolvedId = await resolveKeywordIdOnDemand(accountId, change.keywordId);
-          if (resolvedId) {
-            kw = { keywordId: resolvedId };
-            console.log(`[AmazonApiHelper] ✅ 即时回填成功: keyword id=${change.keywordId} -> keywordId=${resolvedId}`);
-          }
-        } catch (resolveErr: any) {
-          console.error(`[AmazonApiHelper] 即时回填异常: ${resolveErr.message}`);
-        }
+      for (const change of keywordChanges) {
+        let [kw] = await dbInstance.select({ keywordId: keywords.keywordId })
+          .from(keywords)
+          .where(eq(keywords.id, change.keywordId))
+          .limit(1);
         
         if (!kw || !kw.keywordId || kw.keywordId === '0' || kw.keywordId === '') {
-          result.failed++;
-          const errorMsg = `关键词 ${change.keywordId} 缺少Amazon keywordId，无法同步状态`;
-          result.errors.push(errorMsg);
-          console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
-          continue;
+          try {
+            const { resolveKeywordIdOnDemand } = await import('./amazonIdResolver');
+            const resolvedId = await resolveKeywordIdOnDemand(accountId, change.keywordId);
+            if (resolvedId) {
+              kw = { keywordId: resolvedId };
+            }
+          } catch (resolveErr: any) {
+            console.error(`[AmazonApiHelper] 即时回填异常: ${resolveErr.message}`);
+          }
+          
+          if (!kw || !kw.keywordId || kw.keywordId === '0' || kw.keywordId === '') {
+            result.failed++;
+            result.errors.push(`关键词 ${change.keywordId} 缺少Amazon keywordId`);
+            continue;
+          }
         }
-      }
-      
-      const amazonKeywordId = String(kw.keywordId);
-      console.log(`[AmazonApiHelper] [${i+1}/${keywordChanges.length}] 同步关键词状态: keywordId="${amazonKeywordId}", newState=${change.newStatus}`);
-      
-      // v190: 使用withRetry包装API调用，自动重试限流和服务器错误
-      const apiResult = await withRetry(
-        () => syncService.client.updateKeywordStatus([{
-          keywordId: amazonKeywordId,
+        
+        resolvedKeywordUpdates.push({
+          keywordId: String(kw.keywordId),
           state: change.newStatus,
-        }]),
-        { maxRetries: 2, baseDelayMs: 2000, label: `updateKeywordStatus-${amazonKeywordId}` }
-      );
-      
-      if (apiResult.successCount > 0) {
-        result.success++;
-        console.log(`[AmazonApiHelper] ✅ 关键词状态更新成功: keywordId=${amazonKeywordId}, state=${change.newStatus}`);
-      } else if (apiResult.errors.length > 0) {
-        result.failed++;
-        const errorDetail = apiResult.errors[0]?.details || 'Unknown error';
-        result.errors.push(`关键词 ${amazonKeywordId} 状态更新失败: ${errorDetail}`);
-        console.error(`[AmazonApiHelper] ❌ 关键词状态更新失败: keywordId=${amazonKeywordId}, error=${errorDetail}`);
-      } else {
-        result.success++;
-        console.log(`[AmazonApiHelper] ✅ 关键词状态更新完成（无错误返回）: keywordId=${amazonKeywordId}`);
+        });
       }
-    } catch (error: any) {
-      result.failed++;
-      const errorMsg = `关键词 ${change.keywordId} 状态同步异常: ${error.message}`;
-      result.errors.push(errorMsg);
-      console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
+    } else {
+      result.failed += keywordChanges.length;
+      result.errors.push('数据库连接失败');
     }
     
-    // 每5个调用后添加小延迟
-    if ((i + 1) % 5 === 0 && i < keywordChanges.length - 1) {
-      await delay(500);
+    // 第二步：批量发送到Amazon（updateKeywordStatus已有分批逻辑）
+    if (resolvedKeywordUpdates.length > 0) {
+      try {
+        console.log(`[AmazonApiHelper] v199: 批量发送 ${resolvedKeywordUpdates.length} 个关键词状态更新到Amazon`);
+        const apiResult = await withRetry(
+          () => syncService.client.updateKeywordStatus(resolvedKeywordUpdates),
+          { maxRetries: 2, baseDelayMs: 2000, label: `batchUpdateKeywordStatus-${resolvedKeywordUpdates.length}` }
+        );
+        
+        result.success += apiResult.successCount;
+        if (apiResult.errors.length > 0) {
+          result.failed += apiResult.errors.length;
+          for (const err of apiResult.errors) {
+            result.errors.push(`关键词 ${err.keywordId} 状态更新失败: ${err.details || err.code}`);
+          }
+        }
+        console.log(`[AmazonApiHelper] v199: 关键词状态批量更新完成: 成功=${apiResult.successCount}, 失败=${apiResult.errors.length}`);
+      } catch (batchErr: any) {
+        console.error(`[AmazonApiHelper] v199: 关键词状态批量更新异常: ${batchErr.message}`);
+        result.failed += resolvedKeywordUpdates.length;
+        result.errors.push(`关键词状态批量更新异常: ${batchErr.message}`);
+      }
     }
   }
   
-  // 处理商品定向状态变更
-  for (let i = 0; i < productTargetChanges.length; i++) {
-    const change = productTargetChanges[i];
-    try {
-      const dbInstance = await db.getDb();
-      if (!dbInstance) {
-        result.failed++;
-        result.errors.push(`数据库连接失败`);
-        continue;
-      }
-      
+  // v199: 批量处理商品定向状态变更
+  if (productTargetChanges.length > 0) {
+    console.log(`[AmazonApiHelper] v199: 批量处理 ${productTargetChanges.length} 个商品定向状态变更`);
+    
+    const ptDbInstance = await db.getDb();
+    const resolvedTargetUpdates: Array<{ targetId: string; state: 'enabled' | 'paused' | 'archived' }> = [];
+    
+    if (ptDbInstance) {
       const { productTargets } = await import('../../drizzle/schema');
       const { eq } = await import('drizzle-orm');
-      const [pt] = await dbInstance.select({ targetId: productTargets.targetId })
-        .from(productTargets)
-        .where(eq(productTargets.id, change.keywordId))
-        .limit(1);
       
-      if (!pt || !pt.targetId || pt.targetId === '0' || pt.targetId === '') {
-        // v190: 添加商品定向的即时ID回填机制
-        console.log(`[AmazonApiHelper] product_target id=${change.keywordId} 缺少targetId，尝试即时回填...`);
-        try {
-          const { resolveProductTargetIdOnDemand } = await import('./amazonIdResolver');
-          const resolvedId = await resolveProductTargetIdOnDemand(accountId, change.keywordId);
-          if (resolvedId) {
-            console.log(`[AmazonApiHelper] ✅ 商品定向即时回填成功: product_target id=${change.keywordId} -> targetId=${resolvedId}`);
-            // 继续执行同步
-            const amazonTargetId = resolvedId;
-            const apiResult = await withRetry(
-              () => syncService.client.updateProductTargetStatus([{
-                targetId: amazonTargetId,
-                state: change.newStatus,
-              }]),
-              { maxRetries: 2, baseDelayMs: 2000, label: `updateProductTargetStatus-${amazonTargetId}` }
-            );
-            if (apiResult.successCount > 0) {
-              result.success++;
-              console.log(`[AmazonApiHelper] ✅ 商品定向状态更新成功: targetId=${amazonTargetId}`);
-            } else {
-              result.failed++;
-              result.errors.push(`商品定向 ${amazonTargetId} 状态更新失败: ${apiResult.errors[0]?.details || 'Unknown error'}`);
-            }
-            continue;
+      for (const change of productTargetChanges) {
+        const [pt] = await ptDbInstance.select({ targetId: productTargets.targetId })
+          .from(productTargets)
+          .where(eq(productTargets.id, change.keywordId))
+          .limit(1);
+        
+        let resolvedTargetId: string | null = pt?.targetId && pt.targetId !== '0' && pt.targetId !== '' ? String(pt.targetId) : null;
+        
+        if (!resolvedTargetId) {
+          try {
+            const { resolveProductTargetIdOnDemand } = await import('./amazonIdResolver');
+            resolvedTargetId = await resolveProductTargetIdOnDemand(accountId, change.keywordId);
+          } catch (resolveErr: any) {
+            console.error(`[AmazonApiHelper] 商品定向即时回填异常: ${resolveErr.message}`);
           }
-        } catch (resolveErr: any) {
-          console.error(`[AmazonApiHelper] 商品定向即时回填异常: ${resolveErr.message}`);
         }
-        result.failed++;
-        result.errors.push(`商品定向 ${change.keywordId} 缺少Amazon targetId且回填失败`);
-        continue;
+        
+        if (resolvedTargetId) {
+          resolvedTargetUpdates.push({
+            targetId: resolvedTargetId,
+            state: change.newStatus,
+          });
+        } else {
+          result.failed++;
+          result.errors.push(`商品定向 ${change.keywordId} 缺少Amazon targetId且回填失败`);
+        }
       }
-      
-      const amazonTargetId = String(pt.targetId);
-      console.log(`[AmazonApiHelper] [${i+1}/${productTargetChanges.length}] 同步商品定向状态: targetId="${amazonTargetId}", newState=${change.newStatus}`);
-      
-      // v190: 使用withRetry包装API调用
-      const apiResult = await withRetry(
-        () => syncService.client.updateProductTargetStatus([{
-          targetId: amazonTargetId,
-          state: change.newStatus,
-        }]),
-        { maxRetries: 2, baseDelayMs: 2000, label: `updateProductTargetStatus-${amazonTargetId}` }
-      );
-      
-      if (apiResult.successCount > 0) {
-        result.success++;
-        console.log(`[AmazonApiHelper] ✅ 商品定向状态更新成功: targetId=${amazonTargetId}`);
-      } else if (apiResult.errors.length > 0) {
-        result.failed++;
-        result.errors.push(`商品定向 ${amazonTargetId} 状态更新失败: ${apiResult.errors[0]?.details || 'Unknown error'}`);
-      } else {
-        result.success++;
-      }
-    } catch (error: any) {
-      result.failed++;
-      result.errors.push(`商品定向 ${change.keywordId} 状态同步异常: ${error.message}`);
+    } else {
+      result.failed += productTargetChanges.length;
+      result.errors.push('数据库连接失败');
     }
     
-    if ((i + 1) % 5 === 0 && i < productTargetChanges.length - 1) {
-      await delay(500);
+    // 批量发送到Amazon（updateProductTargetStatus已有分批逻辑）
+    if (resolvedTargetUpdates.length > 0) {
+      try {
+        console.log(`[AmazonApiHelper] v199: 批量发送 ${resolvedTargetUpdates.length} 个商品定向状态更新到Amazon`);
+        const apiResult = await withRetry(
+          () => syncService.client.updateProductTargetStatus(resolvedTargetUpdates),
+          { maxRetries: 2, baseDelayMs: 2000, label: `batchUpdateProductTargetStatus-${resolvedTargetUpdates.length}` }
+        );
+        
+        result.success += apiResult.successCount;
+        if (apiResult.errors.length > 0) {
+          result.failed += apiResult.errors.length;
+          for (const err of apiResult.errors) {
+            result.errors.push(`商品定向 ${err.targetId} 状态更新失败: ${err.details || err.code}`);
+          }
+        }
+        console.log(`[AmazonApiHelper] v199: 商品定向状态批量更新完成: 成功=${apiResult.successCount}, 失败=${apiResult.errors.length}`);
+      } catch (batchErr: any) {
+        console.error(`[AmazonApiHelper] v199: 商品定向状态批量更新异常: ${batchErr.message}`);
+        result.failed += resolvedTargetUpdates.length;
+        result.errors.push(`商品定向状态批量更新异常: ${batchErr.message}`);
+      }
     }
   }
   

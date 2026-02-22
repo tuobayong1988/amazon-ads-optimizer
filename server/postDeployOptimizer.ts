@@ -28,7 +28,7 @@ import { eq, and, sql, inArray, desc } from 'drizzle-orm';
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 198;
+export const SYSTEM_VERSION = 199;
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -103,6 +103,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     description: 'v198: NextGen统一出价引擎 — 100%替换旧出价算法，三层降级链(高级算法→规则引擎→保守策略)，全自动化定时任务，历史决策复盘与纠错',
     affectedModules: ['all'],
     correctionActions: ['full_reoptimize', 'rebuild_combo_analysis', 'recalculate_budgets'],
+  },
+  {
+    version: 199,
+    description: 'v199: 商用级数据完整性修复 — 修复所有API分页/分批处理缺陷，确保关键词创建/出价更新/否定词同步/状态变更等所有操作完整执行，移除纠错器和任务队列的处理量上限',
+    affectedModules: [],
+    correctionActions: [],
   },
 ];
 

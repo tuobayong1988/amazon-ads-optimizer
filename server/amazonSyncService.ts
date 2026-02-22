@@ -5238,7 +5238,7 @@ export async function runAutoBidOptimization(
   const db = await getDb();
   if (!db) return { optimized: 0, skipped: 0 };
 
-  // ✅ 修复: 添加accountId过滤，避免跨账号优化
+  // v199: 移除.limit(100)限制，确保处理账号下所有启用的关键词
   // 通过campaigns和adGroups关联获取当前账号的关键词
   const keywordsToOptimize = await db
     .select({ keyword: keywords })
@@ -5249,9 +5249,9 @@ export async function runAutoBidOptimization(
       eq(campaigns.accountId, accountId),
       eq(keywords.keywordStatus, 'enabled')
     ))
-    .limit(100)
     .then(rows => rows.map(r => r.keyword));
 
+  console.log(`[AutoBidOpt] v199: 账号${accountId} 共${keywordsToOptimize.length}个启用关键词需要优化`);
   const results = { optimized: 0, skipped: 0 };
 
   for (const kw of keywordsToOptimize) {

@@ -1052,14 +1052,16 @@ async function updateLogsSyncStatus(conn: any, batchId: string) {
  * 由调度器每5分钟调用一次
  */
 export async function processRetryTasks(): Promise<{ processed: number; synced: number; failed: number }> {
-  console.log(`[SyncEngine] v196: 检查重试任务...`);
+  console.log(`[SyncEngine] v199: 检查重试任务...`);
   
   // v196: 先尝试重置permanently_failed任务（如果Amazon ID已经可用）
   await resetRecoverableFailedTasks();
   
-  const result = await executeBatchSync({
-    maxTasks: 500,
-  });
+  // v199: 移除maxTasks限制，确保处理所有待重试任务
+  // 原先的maxTasks: 500导致大量任务积压无法及时处理
+  const result = await executeBatchSync();
+  
+  console.log(`[SyncEngine] v199: 重试任务处理完成: 总计=${result.totalTasks}, 成功=${result.synced}, 失败=${result.failed}`);
   
   return {
     processed: result.totalTasks,

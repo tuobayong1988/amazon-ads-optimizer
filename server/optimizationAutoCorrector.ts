@@ -34,12 +34,13 @@ import * as amazonApiHelper from './services/amazonApiHelper';
 // ==================== 配置 ====================
 
 const AUTO_CORRECTION_CONFIG = {
-  // 每次纠错扫描最大处理数量（避免API限流）
-  maxBidCorrectionsPerRun: 50,
-  maxBudgetCorrectionsPerRun: 20,
-  maxPlacementCorrectionsPerRun: 20,
-  maxRetryPerRun: 30,
-  maxRollbackPerRun: 20,
+  // v199: 大幅提高每次纠错扫描的处理量，确保商用级数据完整性
+  // 原先的小批量LIMIT导致大量任务积压，现在提升至商用级处理能力
+  maxBidCorrectionsPerRun: 500,
+  maxBudgetCorrectionsPerRun: 200,
+  maxPlacementCorrectionsPerRun: 200,
+  maxRetryPerRun: 300,
+  maxRollbackPerRun: 200,
   
   // API同步失败重试的最大次数
   maxRetryAttempts: 3,
@@ -251,37 +252,49 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
  */
 async function fixNullApiSyncStatusRecords(database: any): Promise<number> {
   try {
-    // 更新 optimization_logs 表中 api_sync_status 为 NULL 的记录
-    const updateResult = await database.execute(sql`
-      UPDATE optimization_logs 
-      SET api_sync_status = 'legacy_unsynced'
-      WHERE api_sync_status IS NULL
-      LIMIT 500
-    `);
+    // v199: 循环处理，确保所有NULL记录都被修复，而不是只处理前500条
+    let totalAffected = 0;
+    const BATCH_SIZE = 2000;
     
-    const affectedRows = (updateResult as any)?.[0]?.affectedRows || (updateResult as any)?.affectedRows || 0;
+    // 处理 optimization_logs 表
+    let batchAffected = 0;
+    do {
+      const updateResult = await database.execute(sql`
+        UPDATE optimization_logs 
+        SET api_sync_status = 'legacy_unsynced'
+        WHERE api_sync_status IS NULL
+        LIMIT ${BATCH_SIZE}
+      `);
+      batchAffected = (updateResult as any)?.[0]?.affectedRows || (updateResult as any)?.affectedRows || 0;
+      totalAffected += batchAffected;
+      if (batchAffected > 0) {
+        console.log(`[AutoCorrector] v199: 本批修复 ${batchAffected} 条 optimization_logs NULL 记录, 累计: ${totalAffected}`);
+      }
+    } while (batchAffected >= BATCH_SIZE);
     
-    if (affectedRows > 0) {
-      console.log(`[AutoCorrector] v178: 已将 ${affectedRows} 条 optimization_logs NULL 记录标记为 legacy_unsynced`);
+    // 处理 optimization_events 表
+    let batchAffected2 = 0;
+    do {
+      const updateResult2 = await database.execute(sql`
+        UPDATE optimization_events 
+        SET api_sync_status = 'legacy_unsynced'
+        WHERE api_sync_status IS NULL
+        LIMIT ${BATCH_SIZE}
+      `);
+      batchAffected2 = (updateResult2 as any)?.[0]?.affectedRows || (updateResult2 as any)?.affectedRows || 0;
+      totalAffected += batchAffected2;
+      if (batchAffected2 > 0) {
+        console.log(`[AutoCorrector] v199: 本批修复 ${batchAffected2} 条 optimization_events NULL 记录, 累计: ${totalAffected}`);
+      }
+    } while (batchAffected2 >= BATCH_SIZE);
+    
+    if (totalAffected > 0) {
+      console.log(`[AutoCorrector] v199: fixNullApiSyncStatusRecords 完成, 总计修复 ${totalAffected} 条记录`);
     }
     
-    // 同样处理 optimization_events 表
-    const updateResult2 = await database.execute(sql`
-      UPDATE optimization_events 
-      SET api_sync_status = 'legacy_unsynced'
-      WHERE api_sync_status IS NULL
-      LIMIT 500
-    `);
-    
-    const affectedRows2 = (updateResult2 as any)?.[0]?.affectedRows || (updateResult2 as any)?.affectedRows || 0;
-    
-    if (affectedRows2 > 0) {
-      console.log(`[AutoCorrector] v178: 已将 ${affectedRows2} 条 optimization_events NULL 记录标记为 legacy_unsynced`);
-    }
-    
-    return affectedRows + affectedRows2;
+    return totalAffected;
   } catch (error: any) {
-    console.error(`[AutoCorrector] v178: fixNullApiSyncStatusRecords 失败: ${error.message}`);
+    console.error(`[AutoCorrector] v199: fixNullApiSyncStatusRecords 失败: ${error.message}`);
     return 0;
   }
 }
