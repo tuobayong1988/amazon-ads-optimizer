@@ -14,6 +14,7 @@
 import { getDb } from '../db';
 import { sql } from 'drizzle-orm';
 import { getRealtimeSpendForGuard } from './dualTrackSyncService';
+import { getLocalHour, getAccountMarketplace } from '../algorithmUtils';
 
 // ==================== 类型定义 ====================
 
@@ -93,7 +94,9 @@ export async function adjustIntradayPacing(
   // 2. 获取Campaign预算
   const dailyBudget = await getCampaignBudget(accountId, campaignId);
   
-  const currentHour = new Date().getHours();
+  // v182: 使用站点本地时间而非UTC
+  const marketplace = await getAccountMarketplace(accountId);
+  const currentHour = getLocalHour(new Date(), marketplace);
   
   // 3. 计算理想消耗曲线
   // 假设我们希望预算能撑到晚上22点

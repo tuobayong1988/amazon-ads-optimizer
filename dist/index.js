@@ -49305,7 +49305,15 @@ function getDateAdjustmentMultipliers(date12, marketplace) {
   }
   return { bidMultiplier: 1, budgetMultiplier: 1, reason: "Normal day" };
 }
-var MARKETPLACE_TIMEZONES, CATEGORY_ELASTICITY, MARKETPLACE_HOLIDAYS;
+async function getAccountMarketplace(accountId) {
+  if (marketplaceCache.has(accountId)) return marketplaceCache.get(accountId);
+  const db = await Promise.resolve().then(() => (init_db2(), db_exports));
+  const account = await db.getAdAccountById(accountId);
+  const marketplace = account?.marketplace || "US";
+  marketplaceCache.set(accountId, marketplace);
+  return marketplace;
+}
+var MARKETPLACE_TIMEZONES, CATEGORY_ELASTICITY, MARKETPLACE_HOLIDAYS, marketplaceCache;
 var init_algorithmUtils = __esm({
   "server/algorithmUtils.ts"() {
     "use strict";
@@ -49394,6 +49402,7 @@ var init_algorithmUtils = __esm({
         { name: "Click Frenzy", date: "2026-11-10~2026-11-12", bidMultiplier: 1.5, budgetMultiplier: 1.8, priority: "high" }
       ]
     };
+    marketplaceCache = /* @__PURE__ */ new Map();
   }
 });
 
@@ -134540,7 +134549,8 @@ __export(intradayPacingService_exports, {
 async function adjustIntradayPacing(campaignId, accountId) {
   const realtimeData = await getRealtimeSpendForGuard(accountId, campaignId);
   const dailyBudget = await getCampaignBudget(accountId, campaignId);
-  const currentHour = (/* @__PURE__ */ new Date()).getHours();
+  const marketplace = await getAccountMarketplace(accountId);
+  const currentHour = getLocalHour(/* @__PURE__ */ new Date(), marketplace);
   const hoursRemaining = Math.max(1, INTRADAY_CONFIG.targetEndHour - currentHour);
   const hoursPassed = currentHour - INTRADAY_CONFIG.startHour;
   const totalHours = INTRADAY_CONFIG.targetEndHour - INTRADAY_CONFIG.startHour;
@@ -134708,6 +134718,7 @@ var init_intradayPacingService = __esm({
     init_db2();
     init_drizzle_orm();
     init_dualTrackSyncService();
+    init_algorithmUtils();
     INTRADAY_CONFIG = {
       // 目标结束时间（小时，24小时制）- 希望预算能撑到这个时间
       targetEndHour: 22,
@@ -134894,7 +134905,7 @@ async function executeScheduledSync() {
       return;
     }
     for (const schedule of schedules) {
-      if (!shouldExecuteSync(schedule)) {
+      if (!await shouldExecuteSync(schedule)) {
         continue;
       }
       try {
@@ -134915,7 +134926,7 @@ async function executeScheduledSync() {
     schedulerStatus.errors.push(`\u4EFB\u52A1\u6267\u884C\u5931\u8D25: ${error54.message}`);
   }
 }
-function shouldExecuteSync(schedule) {
+async function shouldExecuteSync(schedule) {
   if (!schedule.isEnabled) {
     return false;
   }
@@ -134931,8 +134942,11 @@ function shouldExecuteSync(schedule) {
   }
   if (schedule.preferredTime) {
     const [hours, minutes] = schedule.preferredTime.split(":").map(Number);
-    const currentHours = now.getHours();
-    const currentMinutes = now.getMinutes();
+    const account = await getAdAccountById(schedule.accountId);
+    const marketplace = account?.marketplace || "US";
+    const tz = MARKETPLACE_TIMEZONES[marketplace] || "America/Los_Angeles";
+    const currentHours = getLocalHour(now, marketplace);
+    const currentMinutes = parseInt(now.toLocaleString("en-US", { timeZone: tz, minute: "numeric" }));
     const preferredMinutes = hours * 60 + minutes;
     const currentTotalMinutes = currentHours * 60 + currentMinutes;
     const diff = Math.abs(currentTotalMinutes - preferredMinutes);
@@ -134941,7 +134955,9 @@ function shouldExecuteSync(schedule) {
     }
   }
   if (frequency === "weekly" && schedule.preferredDayOfWeek !== null && schedule.preferredDayOfWeek !== void 0) {
-    const currentDay = now.getDay();
+    const account = await getAdAccountById(schedule.accountId);
+    const marketplace = account?.marketplace || "US";
+    const currentDay = getLocalDayOfWeek(now, marketplace);
     if (currentDay !== schedule.preferredDayOfWeek) {
       return false;
     }
@@ -135212,18 +135228,22 @@ async function startOptimizationScheduler2() {
   console.log(`[OptimizationScheduler] \u9884\u7B97\u667A\u80FD\u5206\u914D\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 4\u5C0F\u65F6\uFF0C\u504F\u79FB: 36\u5206\u949F`);
   optimizationIntervals.search_term_harvest = setInterval(async () => {
     const now = /* @__PURE__ */ new Date();
-    if (now.getDay() === 1 && now.getHours() === 5 && shouldExecuteThisHour("search_term_harvest")) {
+    const localHour = getLocalHour(now, "US");
+    const localDow = getLocalDayOfWeek(now, "US");
+    if (localDow === 1 && localHour === 5 && shouldExecuteThisHour("search_term_harvest")) {
       await executeOptimizationTask("search_term_harvest");
     }
   }, 60 * 60 * 1e3);
-  console.log(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u6536\u5272\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u5468\u4E00\u51CC\u66A85:00`);
+  console.log(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u6536\u5272\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u5468\u4E00\u51CC\u66685:00 (\u7AD9\u70B9\u672C\u5730\u65F6\u95F4)`);
   optimizationIntervals.weekly_report = setInterval(async () => {
     const now = /* @__PURE__ */ new Date();
-    if (now.getDay() === 1 && now.getHours() === 9 && shouldExecuteThisHour("weekly_report")) {
+    const localHour = getLocalHour(now, "US");
+    const localDow = getLocalDayOfWeek(now, "US");
+    if (localDow === 1 && localHour === 9 && shouldExecuteThisHour("weekly_report")) {
       await executeOptimizationTask("weekly_report");
     }
   }, 60 * 60 * 1e3);
-  console.log(`[OptimizationScheduler] \u7EE9\u6548\u5468\u62A5\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u5468\u4E00\u4E0A\u53489:00`);
+  console.log(`[OptimizationScheduler] \u7EE9\u6548\u5468\u62A5\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u5468\u4E00\u4E0A\u53489:00 (\u7AD9\u70B9\u672C\u5730\u65F6\u95F4)`);
   console.log("[OptimizationScheduler] v143\u751F\u547D\u5468\u671F\u611F\u77E5\u8C03\u5EA6\u5668\u542F\u52A8\u5B8C\u6210");
   console.log("[OptimizationScheduler] \u751F\u547D\u5468\u671F\u9891\u7387\u8868:");
   console.log("  | \u6A21\u5757           | \u542F\u52A8\u671F  | \u6210\u957F\u671F  | \u6210\u719F\u671F  |");
@@ -135524,6 +135544,7 @@ var init_dataSyncScheduler = __esm({
     init_db2();
     init_amazonSyncService();
     init_notification();
+    init_algorithmUtils();
     init_searchTermHarvester();
     init_attributionWindowHelper();
     init_campaignLifecycleService();
@@ -137744,11 +137765,11 @@ __export(optimizationTargetEngine_exports, {
   getOptimizationTargetSummary: () => getOptimizationTargetSummary,
   getTargetLifecycleInfo: () => getTargetLifecycleInfo
 });
-async function getAccountMarketplace(accountId) {
-  if (marketplaceCache.has(accountId)) return marketplaceCache.get(accountId);
+async function getAccountMarketplace4(accountId) {
+  if (marketplaceCache2.has(accountId)) return marketplaceCache2.get(accountId);
   const account = await getAdAccountById(accountId);
   const marketplace = account?.marketplace || "US";
-  marketplaceCache.set(accountId, marketplace);
+  marketplaceCache2.set(accountId, marketplace);
   return marketplace;
 }
 async function getOptimizationTargetConfig(targetId) {
@@ -137758,7 +137779,7 @@ async function getOptimizationTargetConfig(targetId) {
     id: group.id,
     name: group.name,
     accountId: group.accountId,
-    marketplace: await getAccountMarketplace(group.accountId),
+    marketplace: await getAccountMarketplace4(group.accountId),
     isEnabled: group.status === "active",
     optimizationGoal: group.optimizationGoal || "balanced",
     targetAcos: group.targetAcos ? parseFloat(group.targetAcos) : void 0,
@@ -140186,7 +140207,7 @@ async function getOptimizationTargetSummary(targetId) {
     }
   };
 }
-var marketplaceCache;
+var marketplaceCache2;
 var init_optimizationTargetEngine = __esm({
   "server/optimizationTargetEngine.ts"() {
     "use strict";
@@ -140211,7 +140232,7 @@ var init_optimizationTargetEngine = __esm({
     init_selfEvolutionEngine();
     init_multiDimensionOptimizer();
     init_postOptimizationVerifier();
-    marketplaceCache = /* @__PURE__ */ new Map();
+    marketplaceCache2 = /* @__PURE__ */ new Map();
   }
 });
 
@@ -338554,6 +338575,7 @@ async function deleteABTest(testId) {
 
 // server/budgetAutoExecutionService.ts
 init_db2();
+init_algorithmUtils();
 init_schema2();
 init_drizzle_orm();
 init_intelligentBudgetAllocationService();
@@ -344230,6 +344252,7 @@ init_optimizationAutoCorrector();
 // server/budgetAlertService.ts
 init_drizzle_orm();
 init_db2();
+init_algorithmUtils();
 init_schema2();
 init_notification();
 var DEFAULT_SETTINGS = {
@@ -344271,7 +344294,8 @@ async function analyzeBudgetConsumption(userId, accountId) {
   const activeCampaigns = await db.select().from(campaigns).where(and(...conditions));
   const today = /* @__PURE__ */ new Date();
   today.setHours(0, 0, 0, 0);
-  const hoursElapsed = Math.max((/* @__PURE__ */ new Date()).getHours(), 1);
+  const marketplace = accountId ? await getAccountMarketplace(accountId) : "US";
+  const hoursElapsed = Math.max(getLocalHour(/* @__PURE__ */ new Date(), marketplace), 1);
   const results = [];
   for (const campaign of activeCampaigns) {
     const todayStr = today.toISOString().split("T")[0];

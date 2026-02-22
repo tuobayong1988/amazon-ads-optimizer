@@ -11,6 +11,7 @@
 import * as db from './db';
 import { AmazonSyncService } from './amazonSyncService';
 import { notifyOwner } from './_core/notification';
+import { getLocalHour, getLocalDayOfWeek, getAccountMarketplace, MARKETPLACE_TIMEZONES } from './algorithmUtils';
 import * as automationExecutionEngine from './automationExecutionEngine';
 import * as searchTermHarvester from './searchTermHarvester';
 import { detectRiskSignals } from './attributionWindowHelper';
@@ -363,7 +364,7 @@ async function executeScheduledSync(): Promise<void> {
 
     for (const schedule of schedules) {
       // 检查是否应该执行同步
-      if (!shouldExecuteSync(schedule)) {
+      if (!(await shouldExecuteSync(schedule))) {
         continue;
       }
 
@@ -395,7 +396,7 @@ async function executeScheduledSync(): Promise<void> {
 /**
  * 检查是否应该执行同步
  */
-function shouldExecuteSync(schedule: db.DataSyncSchedule): boolean {
+async function shouldExecuteSync(schedule: db.DataSyncSchedule): Promise<boolean> {
   if (!schedule.isEnabled) {
     return false;
   }
@@ -414,11 +415,15 @@ function shouldExecuteSync(schedule: db.DataSyncSchedule): boolean {
     }
   }
 
-  // 检查首选时间（如果设置了）
+  // v182: 检查首选时间（使用站点本地时间）
   if (schedule.preferredTime) {
     const [hours, minutes] = schedule.preferredTime.split(':').map(Number);
-    const currentHours = now.getHours();
-    const currentMinutes = now.getMinutes();
+    // v182: 获取账号对应的站点本地时间
+    const account = await db.getAdAccountById(schedule.accountId);
+    const marketplace = account?.marketplace || 'US';
+    const tz = MARKETPLACE_TIMEZONES[marketplace] || 'America/Los_Angeles';
+    const currentHours = getLocalHour(now, marketplace);
+    const currentMinutes = parseInt(now.toLocaleString('en-US', { timeZone: tz, minute: 'numeric' }));
 
     // 允许5分钟的时间窗口
     const preferredMinutes = hours * 60 + minutes;
@@ -430,9 +435,11 @@ function shouldExecuteSync(schedule: db.DataSyncSchedule): boolean {
     }
   }
 
-  // 检查首选星期几（如果是每周同步）
+  // v182: 检查首选星期几（使用站点本地时间）
   if (frequency === 'weekly' && schedule.preferredDayOfWeek !== null && schedule.preferredDayOfWeek !== undefined) {
-    const currentDay = now.getDay();
+    const account = await db.getAdAccountById(schedule.accountId);
+    const marketplace = account?.marketplace || 'US';
+    const currentDay = getLocalDayOfWeek(now, marketplace);
     if (currentDay !== schedule.preferredDayOfWeek) {
       return false;
     }
@@ -1134,24 +1141,29 @@ export async function startOptimizationScheduler(): Promise<void> {
     executeOptimizationTask('budget_allocation'); // 立即执行一次
   }, 36 * 60 * 1000);
   console.log(`[OptimizationScheduler] 预算智能分配已启动，间隔: 4小时，偏移: 36分钟`);
-  
-  // 7. 搜索词收割 - 周一凌暨5:00
+   // 7. 搜索词收割 - 周一凌晨5:00（站点本地时间）
   optimizationIntervals.search_term_harvest = setInterval(async () => {
     const now = new Date();
-    if (now.getDay() === 1 && now.getHours() === 5 && shouldExecuteThisHour('search_term_harvest')) {
+    // v182: 使用默认US站点本地时间（实际执行时会遍历所有账号）
+    const localHour = getLocalHour(now, 'US');
+    const localDow = getLocalDayOfWeek(now, 'US');
+    if (localDow === 1 && localHour === 5 && shouldExecuteThisHour('search_term_harvest')) {
       await executeOptimizationTask('search_term_harvest');
     }
   }, 60 * 60 * 1000);
-  console.log(`[OptimizationScheduler] 搜索词收割已启动，执行时间: 周一凌暨5:00`);
+  console.log(`[OptimizationScheduler] 搜索词收割已启动，执行时间: 周一凌晨5:00 (站点本地时间)`);
   
-  // 8. 绩效周报 - 周一上午9:00
+  // 8. 绩效周报 - 周一上午9:00（站点本地时间）
   optimizationIntervals.weekly_report = setInterval(async () => {
     const now = new Date();
-    if (now.getDay() === 1 && now.getHours() === 9 && shouldExecuteThisHour('weekly_report')) {
+    // v182: 使用默认US站点本地时间
+    const localHour = getLocalHour(now, 'US');
+    const localDow = getLocalDayOfWeek(now, 'US');
+    if (localDow === 1 && localHour === 9 && shouldExecuteThisHour('weekly_report')) {
       await executeOptimizationTask('weekly_report');
     }
   }, 60 * 60 * 1000);
-  console.log(`[OptimizationScheduler] 绩效周报已启动，执行时间: 周一上午9:00`);
+  console.log(`[OptimizationScheduler] 绩效周报已启动，执行时间: 周一上午9:00 (站点本地时间)`);
   
   console.log('[OptimizationScheduler] v143生命周期感知调度器启动完成');
   console.log('[OptimizationScheduler] 生命周期频率表:');

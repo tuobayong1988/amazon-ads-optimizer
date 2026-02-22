@@ -701,3 +701,19 @@ export function getDateAdjustmentMultipliers(
   
   return { bidMultiplier: 1, budgetMultiplier: 1, reason: 'Normal day' };
 }
+
+
+// ==================== 账号站点查询 ====================
+
+// v182: 将getAccountMarketplace提取为共享工具函数，供所有服务使用
+const marketplaceCache = new Map<number, string>();
+
+export async function getAccountMarketplace(accountId: number): Promise<string> {
+  if (marketplaceCache.has(accountId)) return marketplaceCache.get(accountId)!;
+  // 动态导入避免循环依赖
+  const db = await import('./db');
+  const account = await db.getAdAccountById(accountId);
+  const marketplace = account?.marketplace || 'US';
+  marketplaceCache.set(accountId, marketplace);
+  return marketplace;
+}

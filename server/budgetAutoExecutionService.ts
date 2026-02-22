@@ -4,6 +4,7 @@
  */
 
 import { getDb } from './db';
+import { getLocalHour, getLocalDayOfWeek, getAccountMarketplace, MARKETPLACE_TIMEZONES } from './algorithmUtils';
 import {
   budgetAutoExecutionConfigs,
   budgetAutoExecutionHistory,
@@ -141,7 +142,7 @@ export async function getAutoExecutionConfigById(configId: number): Promise<Budg
   return results[0] || null;
 }
 
-// 计算下次执行时间
+// v182: 使用站点本地时间计算下次执行时间
 function calculateNextExecutionTime(config: AutoExecutionConfigInput): Date {
   const now = new Date();
   const [hours, minutes] = (config.executionTime || '06:00').split(':').map(Number);
@@ -610,6 +611,7 @@ export async function checkAndExecutePendingTasks(): Promise<{
 /**
  * 检查是否应该现在执行
  */
+// v182: 支持站点本地时间的执行时间判断
 export function shouldExecuteNowExported(
   config: {
     executionFrequency: 'daily' | 'weekly' | 'biweekly' | 'monthly';
@@ -617,11 +619,17 @@ export function shouldExecuteNowExported(
     executionDayOfWeek: number | null;
     executionDayOfMonth: number | null;
   },
-  now: Date = new Date()
+  now: Date = new Date(),
+  marketplace: string = 'US'
 ): boolean {
   const [targetHour, targetMinute] = config.executionTime.split(':').map(Number);
-  const currentHour = now.getHours();
-  const currentMinute = now.getMinutes();
+  // v182: 使用站点本地时间而非UTC
+  const currentHour = getLocalHour(now, marketplace);
+  const currentDayOfWeek = getLocalDayOfWeek(now, marketplace);
+  const tz = MARKETPLACE_TIMEZONES[marketplace] || 'America/Los_Angeles';
+  const localDateStr = now.toLocaleDateString('en-US', { timeZone: tz });
+  const localDate = new Date(localDateStr);
+  const currentMinute = parseInt(now.toLocaleString('en-US', { timeZone: tz, minute: 'numeric' }));
   
   // 检查时间是否匹配（允许5分钟误差）
   const timeMatch = currentHour === targetHour && Math.abs(currentMinute - targetMinute) <= 5;
@@ -632,13 +640,13 @@ export function shouldExecuteNowExported(
     case 'daily':
       return true;
     case 'weekly':
-      return now.getDay() === config.executionDayOfWeek;
+      return currentDayOfWeek === config.executionDayOfWeek;
     case 'biweekly':
       // 简化实现：检查是否是指定的星期几，且是偶数周
       const weekNumber = Math.floor(now.getTime() / (7 * 24 * 60 * 60 * 1000));
-      return now.getDay() === config.executionDayOfWeek && weekNumber % 2 === 0;
+      return currentDayOfWeek === config.executionDayOfWeek && weekNumber % 2 === 0;
     case 'monthly':
-      return now.getDate() === config.executionDayOfMonth;
+      return localDate.getDate() === config.executionDayOfMonth;
     default:
       return false;
   }

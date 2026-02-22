@@ -5,6 +5,7 @@
 
 import { eq, and, desc, gte, sql } from "drizzle-orm";
 import { getDb } from "./db";
+import { getLocalHour, getAccountMarketplace } from './algorithmUtils';
 import {
   budgetConsumptionAlerts,
   budgetAlertSettings,
@@ -77,7 +78,9 @@ export async function analyzeBudgetConsumption(userId: number, accountId?: numbe
   const activeCampaigns = await db.select().from(campaigns).where(and(...conditions));
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const hoursElapsed = Math.max(new Date().getHours(), 1);
+  // v182: 使用站点本地时间而非UTC
+  const marketplace = accountId ? await getAccountMarketplace(accountId) : 'US';
+  const hoursElapsed = Math.max(getLocalHour(new Date(), marketplace), 1);
   const results: ConsumptionAnalysis[] = [];
   for (const campaign of activeCampaigns) {
     const todayStr = today.toISOString().split('T')[0];
