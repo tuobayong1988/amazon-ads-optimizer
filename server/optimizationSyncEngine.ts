@@ -15,6 +15,7 @@
 import * as db from './db';
 import * as amazonApiHelper from './services/amazonApiHelper';
 import { randomUUID } from 'crypto';
+import { isShuttingDown, registerActiveTask, unregisterActiveTask } from './deployLifecycleManager';
 
 // ============================================================
 // 类型定义
@@ -152,6 +153,13 @@ export async function executeBatchSync(options?: {
     errors: [],
     duration: 0,
   };
+  
+  // v185: 检查系统是否正在关闭
+  if (isShuttingDown()) {
+    console.log('[SyncEngine] 系统正在关闭，跳过批量同步');
+    result.duration = Date.now() - startTime;
+    return result;
+  }
   
   console.log(`[SyncEngine] ========== 开始批量同步 ==========`);
   console.log(`[SyncEngine] 参数: batchId=${options?.batchId || 'all'}, accountId=${options?.accountId || 'all'}, maxTasks=${options?.maxTasks || 'unlimited'}`);

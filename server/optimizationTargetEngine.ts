@@ -34,6 +34,7 @@ import * as selfEvolution from "./selfEvolutionEngine";
 import * as multiDimOptimizer from "./multiDimensionOptimizer";
 import * as multiDimComboAnalyzer from "./multiDimComboAnalyzer";
 import * as postOptVerifier from "./postOptimizationVerifier";
+import { registerActiveTask, unregisterActiveTask, isShuttingDown } from "./deployLifecycleManager";
 
 // 缓存账号站点信息，避免重复查询
 const marketplaceCache = new Map<number, string>();
@@ -277,6 +278,19 @@ export async function executeOptimizationTarget(
   }
   const shouldReleaseLock = !dryRun;
   
+  // v185: 检查系统是否正在关闭，避免在关闭过程中启动新的优化任务
+  if (isShuttingDown() && !forceExecution) {
+    if (shouldReleaseLock) releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
+    throw new Error(`系统正在关闭，跳过优化目标 ${config.name} 的执行`);
+  }
+  
+  // v185: 注册活跃任务，确保优雅关闭时能等待完成
+  const activeTaskId = registerActiveTask(`优化目标执行: ${config.name}`, {
+    targetId: config.id,
+    accountId: config.accountId,
+    module: specificModules?.join(',') || 'all',
+  });
+  
   const result: OptimizationExecutionResult = {
     targetId: config.id,
     targetName: config.name,
@@ -350,6 +364,7 @@ export async function executeOptimizationTarget(
   if (allCampaigns.length === 0) {
     result.warnings.push('优化目标下没有广告活动');
     if (shouldReleaseLock) releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
+    unregisterActiveTask(activeTaskId); // v185
     return result;
   }
   
@@ -384,6 +399,7 @@ export async function executeOptimizationTarget(
     }
     
     if (shouldReleaseLock) releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
+    unregisterActiveTask(activeTaskId); // v185
     return result;
   }
 
@@ -717,6 +733,9 @@ export async function executeOptimizationTarget(
   
   // v181: 释放账户+模块级优化锁
   if (shouldReleaseLock) releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
+  
+  // v185: 注销活跃任务
+  unregisterActiveTask(activeTaskId);
   
   return result;
 }

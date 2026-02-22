@@ -13,8 +13,8 @@ import { startOptimizationScheduler as startTargetScheduler } from "../optimizat
 import { startSQSConsumer } from "../sqsConsumerService";
 import { reportJobScheduler } from "../services/reportJobScheduler";
 import sitemapRouter from "../routes/sitemap";
-import { runAutoCorrection } from '../optimizationAutoCorrector';
-import { runPostDeployOptimization, SYSTEM_VERSION } from '../postDeployOptimizer';
+import { SYSTEM_VERSION } from '../postDeployOptimizer';
+import { orchestrateStartup, getSystemInfo, isShuttingDown } from '../deployLifecycleManager';
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -41,6 +41,50 @@ async function startServer() {
   // Configure body parser with larger size limit for file uploads
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  
+  // v185: 健康检查端点（供EB负载均衡器使用）
+  app.get('/health', (req, res) => {
+    const info = getSystemInfo();
+    if (info.isShuttingDown) {
+      // 关闭中返回503，让LB停止发送新请求
+      res.status(503).json({ 
+        status: 'shutting_down', 
+        version: `v${info.version}`,
+        activeTasks: info.activeTasks,
+      });
+    } else {
+      res.status(200).json({ 
+        status: 'healthy', 
+        version: `v${info.version}`,
+        uptime: Math.round(info.uptime),
+        activeTasks: info.activeTasks,
+      });
+    }
+  });
+  
+  // v185: 详细系统状态端点（供运维监控）
+  app.get('/api/system/status', (req, res) => {
+    const info = getSystemInfo();
+    res.json({
+      ...info,
+      nodeVersion: process.version,
+      memoryUsage: process.memoryUsage(),
+      pid: process.pid,
+    });
+  });
+  
+  // v185: 关闭中间件 — 在关闭过程中拒绝新的API请求
+  app.use('/api/trpc', (req, res, next) => {
+    if (isShuttingDown()) {
+      res.status(503).json({ 
+        error: 'Service is shutting down for deployment. Please retry in 30 seconds.',
+        retryAfter: 30,
+      });
+      return;
+    }
+    next();
+  });
+  
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
   // Sitemap routes
@@ -73,7 +117,7 @@ async function startServer() {
   }
 
   server.listen(port, () => {
-    console.log(`Server running on http://localhost:${port}/`);
+    console.log(`Server running on http://localhost:${port}/ (v${SYSTEM_VERSION})`);
     
     // v146: 启动时自动执行数据迁移（旧表 → optimization_events）
     runAutoMigration().then(result => {
@@ -100,40 +144,7 @@ async function startServer() {
     console.log('[OptimizationScheduler] v143生命周期感知智能优化调度器已启动');
     
     // v142: 禁用optimizationScheduler的daily全量执行，避免与dataSyncScheduler重复
-    // dataSyncScheduler已按模块频率调度（出价每2小时、分时每小时等），
-    // optimizationScheduler的daily全量执行会导致重复执行所有模块。
-    // 保留optimizationScheduler的triggerInitialOptimization功能（创建优化目标后首次触发）。
-    // startTargetScheduler().then(result => {
-    //   console.log(`[TargetScheduler] 优化目标调度器已启动: 共${result.total}个活跃目标, 已注册${result.scheduled}个, 失败${result.errors}个`);
-    // }).catch(err => {
-    //   console.error('[TargetScheduler] 启动失败:', err.message);
-    // });
     console.log('[TargetScheduler] v142: daily全量执行已禁用，优化调度由dataSyncScheduler统一管理');
-    
-    // v167: 系统启动后延迟30秒运行全量纠错扫描（检测并修复过往错误优化）
-    // v184: 纠错完成后自动触发部署后重优化
-    setTimeout(async () => {
-      try {
-        // 步骤1: 先运行API执行级纠错
-        const corrResult = await runAutoCorrection();
-        console.log(`[AutoCorrector] v167: 启动纠错扫描完成: 发现${corrResult.totalIssuesFound}个问题, 纠正${corrResult.totalCorrected}个, 失败${corrResult.totalFailed}个`);
-        
-        // 步骤2: 运行部署后重优化（检测版本变化，触发全量重优化）
-        console.log(`[PostDeployOptimizer] v184: 开始部署后版本检查 (当前版本: v${SYSTEM_VERSION})...`);
-        const deployResult = await runPostDeployOptimization();
-        if (deployResult.triggered) {
-          console.log(`[PostDeployOptimizer] v184: 部署后重优化完成: ${deployResult.reason}`);
-          console.log(`[PostDeployOptimizer] v184: 处理${deployResult.targetsProcessed}个目标, 成功${deployResult.targetsSucceeded}个, 失败${deployResult.targetsFailed}个, 优化动作${deployResult.totalOptimizationActions}个`);
-        } else {
-          console.log(`[PostDeployOptimizer] v184: ${deployResult.reason}`);
-        }
-      } catch (err: any) {
-        console.error('[AutoCorrector/PostDeployOptimizer] 启动任务失败:', err.message);
-      }
-    }, 30 * 1000);
-    console.log(`[AutoCorrector] v167: 自动纠错服务已注册，将30秒后运行首次全量扫描`);
-    console.log(`[PostDeployOptimizer] v184: 部署后重优化已注册，将在纠错完成后自动触发 (当前版本: v${SYSTEM_VERSION})`);
-
 
     // 启动SQS消费者服务（AMS实时数据流）
     if (process.env.AWS_SQS_QUEUE_TRAFFIC_URL || process.env.AWS_SQS_QUEUE_CONVERSION_URL || process.env.AWS_SQS_QUEUE_BUDGET_URL) {
@@ -149,6 +160,12 @@ async function startServer() {
     // 启动异步报告任务调度器
     reportJobScheduler.start();
     console.log('[ReportJobScheduler] 异步报告任务调度器已启动');
+    
+    // v185: 启动部署生命周期管理器（优雅关闭 + 心跳 + 启动诊断 + 任务恢复 + 纠错 + 重优化）
+    // 替代原来的 setTimeout 30秒后运行纠错和重优化的逻辑
+    orchestrateStartup(server).catch(err => {
+      console.error('[LifecycleManager] 启动协调失败:', err.message);
+    });
   });
 }
 

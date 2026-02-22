@@ -28,7 +28,7 @@ import { eq, and, sql, inArray, desc } from 'drizzle-orm';
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 184;
+export const SYSTEM_VERSION = 185;
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -79,6 +79,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     description: 'v184: 部署后自动重优化机制 + 历史数据合成 + 自我迭代 + Campaign预算乘数',
     affectedModules: ['all'],
     correctionActions: ['rebuild_combo_analysis', 'full_reoptimize'],
+  },
+  {
+    version: 185,
+    description: 'v185: 优雅关闭 + 部署生命周期管理 + 任务断点恢复 + 心跳监控',
+    affectedModules: [],
+    correctionActions: [],
   },
 ];
 
