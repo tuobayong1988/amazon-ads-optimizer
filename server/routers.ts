@@ -11009,9 +11009,40 @@ const autoRollbackRouter = router({
 // ==================== v184: 部署后自动重优化路由 ====================
 const postDeployRouter = router({
   // 获取系统版本信息
-  getVersionInfo: protectedProcedure.query(async () => {
+  getVersionInfo: publicProcedure.query(async () => {
     const { getSystemVersionInfo } = await import('./postDeployOptimizer');
     return getSystemVersionInfo();
+  }),
+  
+  // 查询部署历史记录（从optimization_events中查询system_deploy事件）
+  getDeployHistory: publicProcedure.query(async () => {
+    const { getDb } = await import('./db');
+    const { optimizationEvents } = await import('../drizzle/schema');
+    const { desc, and, eq } = await import('drizzle-orm');
+    const database = await getDb();
+    if (!database) return [];
+    const events = await database
+      .select()
+      .from(optimizationEvents)
+      .where(
+        and(
+          eq(optimizationEvents.eventCategory, 'settings_change'),
+          eq(optimizationEvents.actionType, 'settings_update'),
+          sql`JSON_EXTRACT(${optimizationEvents.actionDetail}, '$.type') IN ('system_deploy', 'target_reoptimized')`
+        )
+      )
+      .orderBy(desc(optimizationEvents.createdAt))
+      .limit(50);
+    return events.map(e => ({
+      id: e.id,
+      type: e.actionDetail ? JSON.parse(e.actionDetail).type : 'unknown',
+      detail: e.actionDetail ? JSON.parse(e.actionDetail) : {},
+      reason: e.changeReason,
+      previousValue: e.previousValue,
+      newValue: e.newValue,
+      status: e.status,
+      createdAt: e.createdAt,
+    }));
   }),
   
   // 手动触发重优化

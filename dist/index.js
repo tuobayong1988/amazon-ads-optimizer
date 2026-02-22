@@ -358679,9 +358679,34 @@ var autoRollbackRouter = router({
 });
 var postDeployRouter = router({
   // 获取系统版本信息
-  getVersionInfo: protectedProcedure.query(async () => {
+  getVersionInfo: publicProcedure.query(async () => {
     const { getSystemVersionInfo: getSystemVersionInfo2 } = await Promise.resolve().then(() => (init_postDeployOptimizer(), postDeployOptimizer_exports));
     return getSystemVersionInfo2();
+  }),
+  // 查询部署历史记录（从optimization_events中查询system_deploy事件）
+  getDeployHistory: publicProcedure.query(async () => {
+    const { getDb: getDb2 } = await Promise.resolve().then(() => (init_db2(), db_exports));
+    const { optimizationEvents: optimizationEvents2 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+    const { desc: desc14, and: and7, eq: eq7 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const database = await getDb2();
+    if (!database) return [];
+    const events = await database.select().from(optimizationEvents2).where(
+      and7(
+        eq7(optimizationEvents2.eventCategory, "settings_change"),
+        eq7(optimizationEvents2.actionType, "settings_update"),
+        sql`JSON_EXTRACT(${optimizationEvents2.actionDetail}, '$.type') IN ('system_deploy', 'target_reoptimized')`
+      )
+    ).orderBy(desc14(optimizationEvents2.createdAt)).limit(50);
+    return events.map((e6) => ({
+      id: e6.id,
+      type: e6.actionDetail ? JSON.parse(e6.actionDetail).type : "unknown",
+      detail: e6.actionDetail ? JSON.parse(e6.actionDetail) : {},
+      reason: e6.changeReason,
+      previousValue: e6.previousValue,
+      newValue: e6.newValue,
+      status: e6.status,
+      createdAt: e6.createdAt
+    }));
   }),
   // 手动触发重优化
   forceReoptimize: protectedProcedure.input(external_exports.object({
