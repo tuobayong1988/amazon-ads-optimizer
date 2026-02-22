@@ -93,14 +93,14 @@ export default function StrategyCenter() {
   // 获取账号列表
   const { data: accounts, isLoading: accountsLoading } = trpc.adAccount.list.useQuery();
   
-  // 根据店铺+站点查找对应的accountId
+  // 根据店铺+站点查找对应的accountId（trim空格避免匹配问题）
   const accountId = useMemo(() => {
     if (!accounts || accounts.length === 0) return null;
     
     // 如果有选中的店铺和站点，精确匹配
     if (currentStore && currentMarketplace) {
       const account = accounts.find(a => 
-        (a.storeName || a.accountName) === currentStore && 
+        (a.storeName || a.accountName).trim() === currentStore && 
         a.marketplace === currentMarketplace
       );
       if (account) return account.id;
@@ -109,7 +109,7 @@ export default function StrategyCenter() {
     // 如果只有店铺，匹配第一个站点
     if (currentStore) {
       const account = accounts.find(a => 
-        (a.storeName || a.accountName) === currentStore
+        (a.storeName || a.accountName).trim() === currentStore
       );
       if (account) return account.id;
     }

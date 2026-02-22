@@ -142,23 +142,23 @@ export default function GlobalAccountSelector({ compact = false }: GlobalAccount
   // 获取账号列表
   const { data: accounts, isLoading } = trpc.adAccount.list.useQuery();
 
-  // 获取唯一的店铺列表
+  // 获取唯一的店铺列表（trim空格避免匹配问题）
   const stores = useMemo(() => {
     if (!accounts) return [];
     const uniqueStores = new Set<string>();
     accounts.forEach(account => {
-      const storeName = account.storeName || account.accountName;
+      const storeName = (account.storeName || account.accountName).trim();
       uniqueStores.add(storeName);
     });
     return Array.from(uniqueStores).sort();
   }, [accounts]);
 
-  // 获取当前店铺的站点列表
+  // 获取当前店铺的站点列表（trim空格避免匹配问题）
   const marketplaces = useMemo(() => {
     if (!accounts || !currentStore) return [];
     const uniqueMarketplaces = new Set<string>();
     accounts.forEach(account => {
-      const storeName = account.storeName || account.accountName;
+      const storeName = (account.storeName || account.accountName).trim();
       if (storeName === currentStore) {
         uniqueMarketplaces.add(account.marketplace);
       }
@@ -169,10 +169,10 @@ export default function GlobalAccountSelector({ compact = false }: GlobalAccount
   // 自动选择默认店铺和站点
   useEffect(() => {
     if (accounts && accounts.length > 0) {
-      // 如果没有选中店铺，选择第一个
+      // 如果没有选中店铺，选择第一个（trim空格）
       if (!currentStore || !stores.includes(currentStore)) {
         const firstAccount = accounts[0];
-        const firstStore = firstAccount.storeName || firstAccount.accountName;
+        const firstStore = (firstAccount.storeName || firstAccount.accountName).trim();
         const firstMarketplace = firstAccount.marketplace;
         setCurrentSelection(firstStore, firstMarketplace);
         console.log('[GlobalAccountSelector] Auto-selected:', firstStore, firstMarketplace);
@@ -187,18 +187,30 @@ export default function GlobalAccountSelector({ compact = false }: GlobalAccount
     }
   }, [accounts, currentStore, currentMarketplace, stores, marketplaces]);
 
-  // 切换店铺
+  // 切换店铺 - 优先保持当前站点不变
   const handleStoreChange = useCallback((store: string) => {
-    // 获取该店铺的第一个站点
+    // 获取该店铺的所有站点
     const storeAccounts = accounts?.filter(a => 
-      (a.storeName || a.accountName) === store
+      (a.storeName || a.accountName).trim() === store
     );
-    const firstMarketplace = storeAccounts?.[0]?.marketplace || null;
+    const storeMarketplaces = storeAccounts?.map(a => a.marketplace) || [];
     
-    setCurrentSelection(store, firstMarketplace);
+    // 如果新店铺也有当前选中的站点，则保持不变
+    let targetMarketplace: string | null;
+    if (currentMarketplace && storeMarketplaces.includes(currentMarketplace)) {
+      targetMarketplace = currentMarketplace;
+    } else {
+      // 否则按优先级选择：US > 第一个可用站点
+      targetMarketplace = storeMarketplaces.includes('US') 
+        ? 'US' 
+        : (storeMarketplaces[0] || null);
+    }
+    
+    setCurrentSelection(store, targetMarketplace);
     setIsStoreOpen(false);
-    toast.success(`已切换到店铺: ${store}`);
-  }, [accounts]);
+    const marketplaceName = targetMarketplace ? (MARKETPLACE_NAMES[targetMarketplace] || targetMarketplace) : '';
+    toast.success(`已切换到店铺: ${store}${marketplaceName ? ` (${marketplaceName})` : ''}`);
+  }, [accounts, currentMarketplace]);
 
   // 切换站点
   const handleMarketplaceChange = useCallback((marketplace: string) => {
