@@ -39,7 +39,7 @@ const AUTO_CORRECTION_CONFIG = {
   maxBidCorrectionsPerRun: 500,
   maxBudgetCorrectionsPerRun: 200,
   maxPlacementCorrectionsPerRun: 200,
-  maxRetryPerRun: 300,
+  maxRetryPerRun: 2000,
   maxRollbackPerRun: 200,
   
   // API同步失败重试的最大次数
@@ -1248,7 +1248,7 @@ async function retryFailedKeywordCreations(database: any, accountId: number): Pr
         const syncResult = await amazonApiHelper.syncNewKeywordsToAmazon(accountId, [{
           localKeywordId: localKeywordId,
           adGroupId: Number(ag.adGroupId),
-          campaignId: Number(campRows[0].campaignId),
+          campaignId: campRows[0].campaignId,  // v201: 保持字符串避免精度丢失
           keywordText: kw.keywordText,
           matchType: kw.matchType as 'exact' | 'phrase' | 'broad',
           bid: parseFloat(String(kw.bid)) || 0.75,
@@ -1360,18 +1360,27 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
         
         if (!searchTerm) continue;
         
-        // 获取Amazon Campaign ID
+        // v201: 获取Amazon Campaign ID（增强诊断日志）
         let resolvedCampaignId = amazonCampaignId;
         if (!resolvedCampaignId && event.campaignId) {
           const campRows = await database
-            .select({ campaignId: campaigns.campaignId })
+            .select({ campaignId: campaigns.campaignId, campaignName: campaigns.campaignName, campaignStatus: campaigns.campaignStatus })
             .from(campaigns)
             .where(eq(campaigns.id, event.campaignId))
             .limit(1);
-          if (campRows.length > 0) resolvedCampaignId = Number(campRows[0].campaignId);
+          if (campRows.length > 0) {
+            // v201: 直接使用字符串避免大数字精度丢失
+            resolvedCampaignId = campRows[0].campaignId;
+            console.log(`[AutoCorrector] v201: 否定词campaignId解析: localId=${event.campaignId} -> amazonId=${resolvedCampaignId} (${campRows[0].campaignName}, status=${campRows[0].campaignStatus})`);
+          } else {
+            console.warn(`[AutoCorrector] v201: 否定词campaignId解析失败: localId=${event.campaignId} 在campaigns表中不存在`);
+          }
         }
         
-        if (!resolvedCampaignId) continue;
+        if (!resolvedCampaignId) {
+          console.warn(`[AutoCorrector] v201: 跳过否定词事件 eventId=${event.id}: 无法解析campaignId (event.campaignId=${event.campaignId}, amazonCampaignId=${amazonCampaignId})`);
+          continue;
+        }
         
         const normalizedMatchType = matchType.includes('exact') ? 'negativeExact' as const : 'negativePhrase' as const;
         
@@ -1387,7 +1396,7 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
         const nkEntry: any = {
           eventId: event.id,
           campaignId: resolvedCampaignId,
-          adGroupId: amazonAdGroupId ? Number(amazonAdGroupId) : undefined,
+          adGroupId: amazonAdGroupId || undefined,  // v201: 保持字符串避免精度丢失
           keywordText: searchTerm,
           matchType: normalizedMatchType,
           level: amazonAdGroupId ? 'adgroup' : 'campaign',
@@ -1445,6 +1454,12 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
     
     if (toRetry.length === 0) return results;
     
+    // v201: 详细日志 - 记录即将同步的否定关键词信息
+    console.log(`[AutoCorrector] v201: 准备同步${toRetry.length}个否定关键词到Amazon:`);
+    for (const nk of toRetry) {
+      console.log(`  - eventId=${nk.eventId}, campaignId=${nk.campaignId}, keyword="${nk.keywordText}", matchType=${nk.matchType}, level=${nk.level}`);
+    }
+    
     // 批量调用Amazon API
     const syncResult = await amazonApiHelper.syncNegativeKeywordsToAmazon(
       accountId,
@@ -1456,6 +1471,15 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
         level: nk.level,
       }))
     );
+    
+    // v201: 详细记录同步结果
+    console.log(`[AutoCorrector] v201: 否定关键词同步结果: 成功=${syncResult.success}, 失败=${syncResult.failed}, 错误数=${syncResult.errors.length}`);
+    if (syncResult.errors.length > 0) {
+      console.log(`[AutoCorrector] v201: 否定关键词同步错误详情:`);
+      for (const err of syncResult.errors) {
+        console.log(`  - ${err}`);
+      }
+    }
     
     // v175b: 正确处理部分成功 - 根据每个关键词的实际结果更新状态
     // syncResult.errors 现在包含具体的关键词信息，格式: "Campaign否定词失败[keyword]: error"
@@ -2050,7 +2074,7 @@ async function retryHistoricalFailedKeywordHarvests(database: any, accountId: nu
           continue;
         }
         
-        const amazonCampaignId = Number(campRows[0].campaignId);
+        const amazonCampaignId = campRows[0].campaignId;  // v201: 保持字符串避免精度丢失
         
         // 获取第一个活跃的 adGroup
         const agRows = await database
@@ -2460,7 +2484,7 @@ async function backfillNegativeKeywordIds(database: any, accountId: number): Pro
         // Amazon上不存在，重新创建
         try {
           const syncResult = await amazonApiHelper.syncNegativeKeywordsToAmazon(accountId, [{
-            campaignId: Number(row.campaignId),
+            campaignId: row.campaignId,  // v201: 保持字符串避免精度丢失
             keywordText: row.negativeText,
             matchType: matchType.includes('exact') ? 'negativeExact' as const : 'negativePhrase' as const,
             level: (row.negativeLevel || 'campaign') as 'campaign' | 'adgroup',

@@ -352,18 +352,30 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
   const syncEndTime = new Date();
   console.log(`[DataSyncScheduler] v196: 账号 ${accountId} ${tier}层同步完成:`, result);
   
-  // 记录同步完成时间到data_sync_jobs表
+  // 记录同步完成时间到data_sync_jobs表 (v200: 使用Drizzle ORM替代原始SQL，避免列名不一致)
   try {
     const database = await db.getDb();
     if (database) {
-      await database.execute(sql`
-        INSERT INTO data_sync_jobs (account_id, sync_type, status, started_at, completed_at, result_summary)
-        VALUES (${accountId}, ${tier}, 'completed', ${syncEndTime.toISOString().slice(0, 19).replace('T', ' ')}, ${syncEndTime.toISOString().slice(0, 19).replace('T', ' ')}, ${JSON.stringify(result || {}).substring(0, 500)})
-      `);
+      const { dataSyncJobs } = await import('../drizzle/schema');
+      await database.insert(dataSyncJobs).values({
+        userId: 1, // 系统自动同步
+        accountId: accountId,
+        syncType: tier === 'high' || tier === 'medium' || tier === 'full' ? 'all' : 'all',
+        status: 'completed',
+        startedAt: syncEndTime.toISOString().slice(0, 19).replace('T', ' '),
+        completedAt: syncEndTime.toISOString().slice(0, 19).replace('T', ' '),
+        spCampaigns: result?.spCampaigns || result?.campaigns || 0,
+        sbCampaigns: result?.sbCampaigns || 0,
+        sdCampaigns: result?.sdCampaigns || 0,
+        adGroupsSynced: result?.adGroups || 0,
+        keywordsSynced: result?.keywords || 0,
+        targetsSynced: result?.targets || 0,
+        performanceSynced: result?.performance || 0,
+      });
     }
   } catch (logErr: any) {
-    // 日志记录失败不影响主流程
-    console.warn(`[DataSyncScheduler] v196: 同步日志记录失败: ${logErr.message}`);
+    // 日志记录失败不影响主流程，但输出完整错误信息便于排查
+    console.warn(`[DataSyncScheduler] v200: 同步日志记录失败: ${logErr.message}`, logErr.cause || '');
   }
 
   // v196: 每次同步完成后触发优化目标执行（确保优化频率与同步频率同步）

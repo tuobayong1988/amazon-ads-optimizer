@@ -730,7 +730,10 @@ export async function executeOptimizationTarget(
         for (const detail of result.searchTermAnalysis.details) {
           if (detail.apiSyncStatus === 'failed') {
             if (detail.action === 'add_negative') {
-              // 否定关键词创建失败 → 入队 negative_keyword 类型
+              // v201: 否定关键词创建失败 → 入队 negative_keyword 类型
+              // 修复: detail.campaignId是本地ID，需要查找Amazon campaignId
+              const negCampaign = campaigns.find((c: any) => c.id === detail.campaignId);
+              const negAmazonCampaignId = negCampaign?.campaignId || null;
               failedTasks.push({
                 batchId,
                 optimizationTargetId: config.id,
@@ -739,7 +742,7 @@ export async function executeOptimizationTarget(
                 priority: 1,
                 targetEntityType: 'campaign',
                 targetEntityId: detail.campaignId,
-                amazonEntityId: detail.campaignId ? String(detail.campaignId) : null,
+                amazonEntityId: negAmazonCampaignId ? String(negAmazonCampaignId) : null,
                 targetEntityName: detail.searchTerm,
                 action: detail.matchType === 'negative_exact' ? 'negativeExact' : 'negativePhrase',
                 oldValue: '',
@@ -2007,7 +2010,8 @@ async function executeSearchTermAnalysis(
               if (adGroups.length > 0) {
                 const adGroup = adGroups[0];
                 const amazonAdGroupId = Number(adGroup.adGroupId || 0);
-                const amazonCampaignId = Number(campaign.campaignId || campaign.id);
+                // v201: 直接使用字符串避免大数字精度丢失
+                const amazonCampaignId = campaign.campaignId || String(campaign.id);
                 
                 // v194: 检查广告组是否已有product targets
                 try {
@@ -2134,7 +2138,8 @@ async function executeSearchTermAnalysis(
         const negativeDetails = details.filter(d => d.action === 'add_negative' && d.campaignId === campaign.id);
         if (negativeDetails.length > 0) {
           try {
-            const amazonCampaignId = Number(campaign.campaignId || campaign.id);
+            // v201: 直接使用字符串避免大数字精度丢失
+            const amazonCampaignId = campaign.campaignId || String(campaign.id);
             const negSyncResult = await amazonApiHelper.syncNegativeKeywordsToAmazon(
               config.accountId,
               negativeDetails.map(d => ({

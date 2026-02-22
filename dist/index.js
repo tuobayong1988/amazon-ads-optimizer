@@ -76323,7 +76323,8 @@ async function retryFailedKeywordCreations(database, accountId) {
         const syncResult = await syncNewKeywordsToAmazon(accountId, [{
           localKeywordId,
           adGroupId: Number(ag.adGroupId),
-          campaignId: Number(campRows[0].campaignId),
+          campaignId: campRows[0].campaignId,
+          // v201: 保持字符串避免精度丢失
           keywordText: kw.keywordText,
           matchType: kw.matchType,
           bid: parseFloat(String(kw.bid)) || 0.75
@@ -76410,10 +76411,18 @@ async function retryFailedNegativeKeywordAdds(database, accountId) {
         if (!searchTerm) continue;
         let resolvedCampaignId = amazonCampaignId;
         if (!resolvedCampaignId && event.campaignId) {
-          const campRows = await database.select({ campaignId: campaigns.campaignId }).from(campaigns).where(eq(campaigns.id, event.campaignId)).limit(1);
-          if (campRows.length > 0) resolvedCampaignId = Number(campRows[0].campaignId);
+          const campRows = await database.select({ campaignId: campaigns.campaignId, campaignName: campaigns.campaignName, campaignStatus: campaigns.campaignStatus }).from(campaigns).where(eq(campaigns.id, event.campaignId)).limit(1);
+          if (campRows.length > 0) {
+            resolvedCampaignId = campRows[0].campaignId;
+            console.log(`[AutoCorrector] v201: \u5426\u5B9A\u8BCDcampaignId\u89E3\u6790: localId=${event.campaignId} -> amazonId=${resolvedCampaignId} (${campRows[0].campaignName}, status=${campRows[0].campaignStatus})`);
+          } else {
+            console.warn(`[AutoCorrector] v201: \u5426\u5B9A\u8BCDcampaignId\u89E3\u6790\u5931\u8D25: localId=${event.campaignId} \u5728campaigns\u8868\u4E2D\u4E0D\u5B58\u5728`);
+          }
         }
-        if (!resolvedCampaignId) continue;
+        if (!resolvedCampaignId) {
+          console.warn(`[AutoCorrector] v201: \u8DF3\u8FC7\u5426\u5B9A\u8BCD\u4E8B\u4EF6 eventId=${event.id}: \u65E0\u6CD5\u89E3\u6790campaignId (event.campaignId=${event.campaignId}, amazonCampaignId=${amazonCampaignId})`);
+          continue;
+        }
         const normalizedMatchType = matchType.includes("exact") ? "negativeExact" : "negativePhrase";
         let retryCount = 0;
         if (event.apiSyncDetail) {
@@ -76426,7 +76435,8 @@ async function retryFailedNegativeKeywordAdds(database, accountId) {
         const nkEntry = {
           eventId: event.id,
           campaignId: resolvedCampaignId,
-          adGroupId: amazonAdGroupId ? Number(amazonAdGroupId) : void 0,
+          adGroupId: amazonAdGroupId || void 0,
+          // v201: 保持字符串避免精度丢失
           keywordText: searchTerm,
           matchType: normalizedMatchType,
           level: amazonAdGroupId ? "adgroup" : "campaign",
@@ -76475,6 +76485,10 @@ async function retryFailedNegativeKeywordAdds(database, accountId) {
       });
     }
     if (toRetry.length === 0) return results;
+    console.log(`[AutoCorrector] v201: \u51C6\u5907\u540C\u6B65${toRetry.length}\u4E2A\u5426\u5B9A\u5173\u952E\u8BCD\u5230Amazon:`);
+    for (const nk of toRetry) {
+      console.log(`  - eventId=${nk.eventId}, campaignId=${nk.campaignId}, keyword="${nk.keywordText}", matchType=${nk.matchType}, level=${nk.level}`);
+    }
     const syncResult = await syncNegativeKeywordsToAmazon(
       accountId,
       toRetry.map((nk) => ({
@@ -76485,6 +76499,13 @@ async function retryFailedNegativeKeywordAdds(database, accountId) {
         level: nk.level
       }))
     );
+    console.log(`[AutoCorrector] v201: \u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65\u7ED3\u679C: \u6210\u529F=${syncResult.success}, \u5931\u8D25=${syncResult.failed}, \u9519\u8BEF\u6570=${syncResult.errors.length}`);
+    if (syncResult.errors.length > 0) {
+      console.log(`[AutoCorrector] v201: \u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65\u9519\u8BEF\u8BE6\u60C5:`);
+      for (const err2 of syncResult.errors) {
+        console.log(`  - ${err2}`);
+      }
+    }
     const failedKeywords = /* @__PURE__ */ new Set();
     for (const err2 of syncResult.errors) {
       const match = err2.match(/\[(.+?)\]/);
@@ -76909,7 +76930,7 @@ async function retryHistoricalFailedKeywordHarvests(database, accountId) {
           }
           continue;
         }
-        const amazonCampaignId = Number(campRows[0].campaignId);
+        const amazonCampaignId = campRows[0].campaignId;
         const agRows = await database.select({ id: adGroups.id, adGroupId: adGroups.adGroupId }).from(adGroups).where(and(
           eq(adGroups.campaignId, String(localCampaignId)),
           eq(adGroups.adGroupStatus, "enabled")
@@ -77214,7 +77235,8 @@ async function backfillNegativeKeywordIds(database, accountId) {
       } else {
         try {
           const syncResult = await syncNegativeKeywordsToAmazon(accountId, [{
-            campaignId: Number(row.campaignId),
+            campaignId: row.campaignId,
+            // v201: 保持字符串避免精度丢失
             keywordText: row.negativeText,
             matchType: matchType.includes("exact") ? "negativeExact" : "negativePhrase",
             level: row.negativeLevel || "campaign"
@@ -77572,7 +77594,7 @@ var init_optimizationAutoCorrector = __esm({
       maxBidCorrectionsPerRun: 500,
       maxBudgetCorrectionsPerRun: 200,
       maxPlacementCorrectionsPerRun: 200,
-      maxRetryPerRun: 300,
+      maxRetryPerRun: 2e3,
       maxRollbackPerRun: 200,
       // API同步失败重试的最大次数
       maxRetryAttempts: 3,
@@ -143788,7 +143810,7 @@ var init_postDeployOptimizer = __esm({
     init_db2();
     init_schema2();
     init_drizzle_orm();
-    SYSTEM_VERSION = 200;
+    SYSTEM_VERSION = 201;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -143841,6 +143863,12 @@ var init_postDeployOptimizer = __esm({
       {
         version: 200,
         description: "v200: SQL\u5217\u540D\u4E00\u81F4\u6027\u4FEE\u590D \u2014 \u4FEE\u590DNextGen\u8D28\u91CF\u5BA1\u8BA1SQL\u67E5\u8BE2\u5217\u540D\u9519\u8BEF(keywords\u8868\u4F7F\u7528camelCase\u3001optimization_events\u8868\u4F7F\u7528snake_case)\uFF0C\u4FEE\u590D\u51FA\u4EF7\u6267\u884C\u786E\u8BA4\u53CC\u91CD\u5C1D\u8BD5\u987A\u5E8F\uFF0C\u589E\u5F3A\u5426\u5B9A\u8BCDAPI\u9519\u8BEF\u65E5\u5FD7",
+        affectedModules: [],
+        correctionActions: []
+      },
+      {
+        version: 201,
+        description: "v201: \u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65\u4FEE\u590D\u4E0E\u7CFB\u7EDF\u7A33\u5B9A\u6027\u63D0\u5347 \u2014 \u4FEE\u590DcampaignId\u7C7B\u578B\u4E3Astring\u907F\u514D\u5927\u6570\u5B57\u7CBE\u5EA6\u4E22\u5931\uFF0C\u4FEE\u590D\u5426\u5B9A\u8BCD\u5165\u961F\u65F6amazonEntityId\u9519\u8BEF\u4F7F\u7528\u672C\u5730ID\uFF0C\u589E\u52A0AutoCorrector\u8BE6\u7EC6\u8BCA\u65AD\u65E5\u5FD7\uFF0C\u63D0\u5347maxRetryPerRun\u5230\x002000\u52A0\u901F\u79EF\u538B\u4EFB\u52A1\u5904\u7406",
         affectedModules: [],
         correctionActions: []
       }
@@ -148165,13 +148193,26 @@ async function executeTieredSyncForAccount(request) {
   try {
     const database = await getDb();
     if (database) {
-      await database.execute(sql`
-        INSERT INTO data_sync_jobs (account_id, sync_type, status, started_at, completed_at, result_summary)
-        VALUES (${accountId}, ${tier}, 'completed', ${syncEndTime.toISOString().slice(0, 19).replace("T", " ")}, ${syncEndTime.toISOString().slice(0, 19).replace("T", " ")}, ${JSON.stringify(result || {}).substring(0, 500)})
-      `);
+      const { dataSyncJobs: dataSyncJobs2 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+      await database.insert(dataSyncJobs2).values({
+        userId: 1,
+        // 系统自动同步
+        accountId,
+        syncType: tier === "high" || tier === "medium" || tier === "full" ? "all" : "all",
+        status: "completed",
+        startedAt: syncEndTime.toISOString().slice(0, 19).replace("T", " "),
+        completedAt: syncEndTime.toISOString().slice(0, 19).replace("T", " "),
+        spCampaigns: result?.spCampaigns || result?.campaigns || 0,
+        sbCampaigns: result?.sbCampaigns || 0,
+        sdCampaigns: result?.sdCampaigns || 0,
+        adGroupsSynced: result?.adGroups || 0,
+        keywordsSynced: result?.keywords || 0,
+        targetsSynced: result?.targets || 0,
+        performanceSynced: result?.performance || 0
+      });
     }
   } catch (logErr) {
-    console.warn(`[DataSyncScheduler] v196: \u540C\u6B65\u65E5\u5FD7\u8BB0\u5F55\u5931\u8D25: ${logErr.message}`);
+    console.warn(`[DataSyncScheduler] v200: \u540C\u6B65\u65E5\u5FD7\u8BB0\u5F55\u5931\u8D25: ${logErr.message}`, logErr.cause || "");
   }
   if (tier === "medium" || tier === "full" || tier === "low") {
     try {
@@ -148926,7 +148967,6 @@ var init_dataSyncScheduler = __esm({
   "server/dataSyncScheduler.ts"() {
     "use strict";
     init_db2();
-    init_drizzle_orm();
     init_amazonSyncService();
     init_notification();
     init_algorithmUtils();
@@ -151764,6 +151804,8 @@ async function executeOptimizationTarget(targetId, options = {}) {
         for (const detail of result.searchTermAnalysis.details) {
           if (detail.apiSyncStatus === "failed") {
             if (detail.action === "add_negative") {
+              const negCampaign = campaigns7.find((c5) => c5.id === detail.campaignId);
+              const negAmazonCampaignId = negCampaign?.campaignId || null;
               failedTasks.push({
                 batchId,
                 optimizationTargetId: config2.id,
@@ -151772,7 +151814,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
                 priority: 1,
                 targetEntityType: "campaign",
                 targetEntityId: detail.campaignId,
-                amazonEntityId: detail.campaignId ? String(detail.campaignId) : null,
+                amazonEntityId: negAmazonCampaignId ? String(negAmazonCampaignId) : null,
                 targetEntityName: detail.searchTerm,
                 action: detail.matchType === "negative_exact" ? "negativeExact" : "negativePhrase",
                 oldValue: "",
@@ -152780,7 +152822,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
               if (adGroups4.length > 0) {
                 const adGroup = adGroups4[0];
                 const amazonAdGroupId = Number(adGroup.adGroupId || 0);
-                const amazonCampaignId = Number(campaign.campaignId || campaign.id);
+                const amazonCampaignId = campaign.campaignId || String(campaign.id);
                 try {
                   const hasProductTargets = await adGroupHasProductTargets(adGroup.id);
                   if (hasProductTargets) {
@@ -152887,7 +152929,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
         const negativeDetails = details.filter((d5) => d5.action === "add_negative" && d5.campaignId === campaign.id);
         if (negativeDetails.length > 0) {
           try {
-            const amazonCampaignId = Number(campaign.campaignId || campaign.id);
+            const amazonCampaignId = campaign.campaignId || String(campaign.id);
             const negSyncResult = await syncNegativeKeywordsToAmazon(
               config2.accountId,
               negativeDetails.map((d5) => ({

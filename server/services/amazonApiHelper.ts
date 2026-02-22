@@ -288,8 +288,8 @@ export async function syncNewKeywordsToAmazon(
   accountId: number,
   newKeywords: Array<{
     localKeywordId?: number;  // 本地数据库的keyword ID（如果已插入）
-    adGroupId: number;        // Amazon AdGroup ID (数字)
-    campaignId: number;       // Amazon Campaign ID (数字)
+    adGroupId: number | string;  // v201: Amazon AdGroup ID (支持string避免精度丢失)
+    campaignId: number | string;  // v201: Amazon Campaign ID (支持string避免精度丢失)
     keywordText: string;
     matchType: 'exact' | 'phrase' | 'broad';
     bid: number;
@@ -520,8 +520,8 @@ function normalizeMatchTypeForComparison(matchType: string): string {
 export async function syncNegativeKeywordsToAmazon(
   accountId: number,
   negatives: Array<{
-    campaignId: number;  // Amazon Campaign ID (numeric)
-    adGroupId?: number;  // Amazon AdGroup ID (numeric, optional for campaign-level)
+    campaignId: number | string;  // v201: Amazon Campaign ID (支持string避免大数字精度丢失)
+    adGroupId?: number | string;  // Amazon AdGroup ID (optional for campaign-level)
     keywordText: string;
     matchType: 'negativeExact' | 'negativePhrase';
     level: 'campaign' | 'adgroup';

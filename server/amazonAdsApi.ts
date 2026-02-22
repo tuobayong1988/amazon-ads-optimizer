@@ -3404,7 +3404,7 @@ export class AmazonAdsApiClient {
    * 获取SP活动级别否定关键词列表
    * 已修复：添加分页逻辑，确保获取所有数据
    */
-  async listSpCampaignNegativeKeywords(campaignId?: number): Promise<any[]> {
+  async listSpCampaignNegativeKeywords(campaignId?: number | string): Promise<any[]> {
     const allNegatives: any[] = [];
     let nextToken: string | undefined;
     
@@ -3439,7 +3439,7 @@ export class AmazonAdsApiClient {
    */
   async createSpCampaignNegativeKeywords(
     negatives: Array<{
-      campaignId: number;
+      campaignId: number | string;  // v201: 支持string避免大数字精度丢失
       keywordText: string;
       matchType: 'negativeExact' | 'negativePhrase';
       state?: 'enabled' | 'paused';
