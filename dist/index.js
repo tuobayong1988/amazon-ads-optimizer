@@ -52321,99 +52321,128 @@ var init_amazonAdsApi = __esm({
        * 创建SP关键词（用于搜索词收割：将高转化搜索词添加为精确匹配关键词）
        */
       async createSpKeywords(keywords8) {
-        try {
-          const formattedKeywords = keywords8.map((k5) => ({
-            adGroupId: String(k5.adGroupId),
-            campaignId: String(k5.campaignId),
-            keywordText: k5.keywordText,
-            matchType: (k5.matchType || "EXACT").toUpperCase(),
-            bid: Number(k5.bid.toFixed(2)),
-            state: (k5.state || "enabled").toUpperCase()
-          }));
-          const requestBody = { keywords: formattedKeywords };
-          console.log(`[SP API] createSpKeywords \u8BF7\u6C42\u4F53 (\u524D500\u5B57\u7B26):`, JSON.stringify(requestBody).substring(0, 500));
-          const response = await this.axiosInstance.post("/sp/keywords", requestBody, {
-            headers: {
-              "Content-Type": "application/vnd.spKeyword.v3+json",
-              "Accept": "application/vnd.spKeyword.v3+json"
-            }
-          });
-          console.log(`[SP API] createSpKeywords \u54CD\u5E94:`, JSON.stringify(response.data).substring(0, 500));
-          const responseKeywords = response.data?.keywords;
-          const createdKeywords = [];
-          const errors = [];
-          if (responseKeywords && typeof responseKeywords === "object" && !Array.isArray(responseKeywords)) {
-            if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
-              for (const item of responseKeywords.success) {
-                const idx = item.index || 0;
-                createdKeywords.push({
-                  keywordId: item.keywordId,
-                  keywordText: keywords8[idx]?.keywordText || "",
-                  code: "SUCCESS"
+        const BATCH_SIZE = 1e3;
+        const BATCH_DELAY_MS = 300;
+        const allCreatedKeywords = [];
+        const allErrors = [];
+        const totalBatches = Math.ceil(keywords8.length / BATCH_SIZE);
+        console.log(`[SP API] v199: createSpKeywords \u5206\u6279\u5904\u7406: \u603B\u8BA1${keywords8.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batchKeywords = keywords8.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          console.log(`[SP API] v199: \u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batchKeywords.length}\u4E2A\u5173\u952E\u8BCD\u521B\u5EFA`);
+          try {
+            const formattedKeywords = batchKeywords.map((k5) => ({
+              adGroupId: String(k5.adGroupId),
+              campaignId: String(k5.campaignId),
+              keywordText: k5.keywordText,
+              matchType: (k5.matchType || "EXACT").toUpperCase(),
+              bid: Number(k5.bid.toFixed(2)),
+              state: (k5.state || "enabled").toUpperCase()
+            }));
+            const requestBody = { keywords: formattedKeywords };
+            const response = await this.axiosInstance.post("/sp/keywords", requestBody, {
+              headers: {
+                "Content-Type": "application/vnd.spKeyword.v3+json",
+                "Accept": "application/vnd.spKeyword.v3+json"
+              }
+            });
+            const responseKeywords = response.data?.keywords;
+            if (responseKeywords && typeof responseKeywords === "object" && !Array.isArray(responseKeywords)) {
+              if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
+                for (const item of responseKeywords.success) {
+                  const idx = item.index || 0;
+                  allCreatedKeywords.push({
+                    keywordId: item.keywordId,
+                    keywordText: batchKeywords[idx]?.keywordText || "",
+                    code: "SUCCESS"
+                  });
+                }
+              }
+              if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
+                for (const item of responseKeywords.error) {
+                  allErrors.push(item);
+                  const errorDetail = item.description || item.details || item.message || "";
+                  allCreatedKeywords.push({
+                    keywordId: null,
+                    keywordText: batchKeywords[item.index]?.keywordText || "",
+                    code: item.code || "ERROR"
+                  });
+                  console.error(`[SP API] v168: \u5173\u952E\u8BCD\u521B\u5EFA\u5931\u8D25\u8BE6\u60C5: keyword="${batchKeywords[item.index]?.keywordText}", code=${item.code}, description="${errorDetail}"`);
+                }
+              }
+            } else if (Array.isArray(responseKeywords)) {
+              for (const k5 of responseKeywords) {
+                allCreatedKeywords.push({
+                  keywordId: k5.keywordId,
+                  keywordText: k5.keywordText || "",
+                  code: k5.code || "SUCCESS"
                 });
+                if (k5.code && k5.code !== "SUCCESS") allErrors.push(k5);
               }
             }
-            if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
-              for (const item of responseKeywords.error) {
-                errors.push(item);
-                const errorDetail = item.description || item.details || item.message || "";
-                createdKeywords.push({
-                  keywordId: null,
-                  keywordText: keywords8[item.index]?.keywordText || "",
-                  code: item.code || "ERROR"
-                });
-                console.error(`[SP API] v168: \u5173\u952E\u8BCD\u521B\u5EFA\u5931\u8D25\u8BE6\u60C5: keyword="${keywords8[item.index]?.keywordText}", code=${item.code}, description="${errorDetail}", fullError=${JSON.stringify(item)}`);
-              }
-            }
-          } else if (Array.isArray(responseKeywords)) {
-            for (const k5 of responseKeywords) {
-              createdKeywords.push({
-                keywordId: k5.keywordId,
-                keywordText: k5.keywordText || "",
-                code: k5.code || "SUCCESS"
-              });
-              if (k5.code && k5.code !== "SUCCESS") errors.push(k5);
+          } catch (error54) {
+            console.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5173\u952E\u8BCD\u521B\u5EFAAPI\u8C03\u7528\u5931\u8D25: ${error54.response?.data || error54.message}`);
+            for (const kw of batchKeywords) {
+              allCreatedKeywords.push({ keywordId: null, keywordText: kw.keywordText, code: "BATCH_ERROR" });
+              allErrors.push({ keywordText: kw.keywordText, code: "BATCH_ERROR", details: error54.message });
             }
           }
-          console.log(`[SP API] Created ${createdKeywords.length - errors.length} keywords, ${errors.length} errors`);
-          return { success: errors.length === 0, createdKeywords, errors };
-        } catch (error54) {
-          console.error("[SP API] createSpKeywords error:", error54.response?.data || error54.message);
-          return { success: false, createdKeywords: [], errors: [error54.message] };
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
+          }
         }
+        console.log(`[SP API] v199: \u5173\u952E\u8BCD\u521B\u5EFA\u5B8C\u6210: \u603B\u8BA1=${keywords8.length}, \u6210\u529F=${allCreatedKeywords.length - allErrors.length}, \u5931\u8D25=${allErrors.length}`);
+        return { success: allErrors.length === 0, createdKeywords: allCreatedKeywords, errors: allErrors };
       }
       /**
        * 更新关键词出价
        */
       async updateKeywordBids(updates) {
-        const formattedUpdates = updates.map((u5) => ({
+        const BATCH_SIZE = 1e3;
+        const BATCH_DELAY_MS = 300;
+        const allErrors = [];
+        let totalSuccess = 0;
+        const formattedAll = updates.map((u5) => ({
           keywordId: String(u5.keywordId),
           bid: Number(u5.bid.toFixed(2))
         }));
-        const requestBody = { keywords: formattedUpdates };
-        console.log(`[SP API] updateKeywordBids \u8BF7\u6C42\u4F53:`, JSON.stringify(requestBody).substring(0, 500));
-        const response = await this.axiosInstance.put("/sp/keywords", requestBody, {
-          headers: {
-            "Content-Type": "application/vnd.spKeyword.v3+json",
-            "Accept": "application/vnd.spKeyword.v3+json"
-          }
-        });
-        console.log(`[SP API] updateKeywordBids \u54CD\u5E94:`, JSON.stringify(response.data).substring(0, 500));
-        const errors = [];
-        const responseKeywords = response.data?.keywords;
-        if (responseKeywords) {
-          if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
-            for (const err2 of responseKeywords.error) {
-              errors.push({ keywordId: err2.keywordId, code: err2.code || "ERROR", details: err2.details || err2.description });
-              console.error(`[SP API] \u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0\u5931\u8D25: keywordId=${err2.keywordId}, code=${err2.code}, details=${err2.details || err2.description}`);
+        const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
+        console.log(`[SP API] v199: updateKeywordBids \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          const requestBody = { keywords: batch };
+          console.log(`[SP API] v199: \u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batch.length}\u4E2A\u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0`);
+          try {
+            const response = await this.axiosInstance.put("/sp/keywords", requestBody, {
+              headers: {
+                "Content-Type": "application/vnd.spKeyword.v3+json",
+                "Accept": "application/vnd.spKeyword.v3+json"
+              }
+            });
+            const responseKeywords = response.data?.keywords;
+            if (responseKeywords) {
+              if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
+                for (const err2 of responseKeywords.error) {
+                  allErrors.push({ keywordId: err2.keywordId, code: err2.code || "ERROR", details: err2.details || err2.description });
+                  console.error(`[SP API] \u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0\u5931\u8D25: keywordId=${err2.keywordId}, code=${err2.code}, details=${err2.details || err2.description}`);
+                }
+              }
+              if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
+                totalSuccess += responseKeywords.success.length;
+              }
+            }
+          } catch (batchErr) {
+            console.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u51FA\u4EF7\u66F4\u65B0API\u8C03\u7528\u5931\u8D25: ${batchErr.message}`);
+            for (const item of batch) {
+              allErrors.push({ keywordId: item.keywordId, code: "BATCH_ERROR", details: batchErr.message });
             }
           }
-          if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
-            console.log(`[SP API] \u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0\u6210\u529F: ${responseKeywords.success.length}\u4E2A`);
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
           }
         }
-        console.log(`[SP API] \u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${responseKeywords?.success?.length || 0}, \u5931\u8D25=${errors.length}`);
-        return { success: errors.length === 0, errors };
+        console.log(`[SP API] v199: \u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${totalSuccess}, \u5931\u8D25=${allErrors.length}`);
+        return { success: allErrors.length === 0, errors: allErrors };
       }
       /**
        * v134: 更新关键词状态（enabled/paused/archived）
@@ -52421,102 +52450,148 @@ var init_amazonAdsApi = __esm({
        * 这是确保优化系统的暂停/启用决策同步到Amazon的关键方法
        */
       async updateKeywordStatus(updates) {
-        const formattedUpdates = updates.map((u5) => ({
+        const BATCH_SIZE = 1e3;
+        const BATCH_DELAY_MS = 300;
+        const allErrors = [];
+        let totalSuccess = 0;
+        const formattedAll = updates.map((u5) => ({
           keywordId: String(u5.keywordId),
           state: u5.state.toUpperCase()
         }));
-        const requestBody = { keywords: formattedUpdates };
-        console.log(`[SP API] updateKeywordStatus \u8BF7\u6C42\u4F53:`, JSON.stringify(requestBody).substring(0, 500));
-        const response = await this.axiosInstance.put("/sp/keywords", requestBody, {
-          headers: {
-            "Content-Type": "application/vnd.spKeyword.v3+json",
-            "Accept": "application/vnd.spKeyword.v3+json"
-          }
-        });
-        console.log(`[SP API] updateKeywordStatus \u54CD\u5E94:`, JSON.stringify(response.data).substring(0, 500));
-        const errors = [];
-        let successCount = 0;
-        const responseKeywords = response.data?.keywords;
-        if (responseKeywords) {
-          if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
-            for (const err2 of responseKeywords.error) {
-              errors.push({ keywordId: err2.keywordId, code: err2.code || "ERROR", details: err2.details || err2.description });
-              console.error(`[SP API] \u5173\u952E\u8BCD\u72B6\u6001\u66F4\u65B0\u5931\u8D25: keywordId=${err2.keywordId}, code=${err2.code}, details=${err2.details || err2.description}`);
+        const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
+        console.log(`[SP API] v199: updateKeywordStatus \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          const requestBody = { keywords: batch };
+          try {
+            const response = await this.axiosInstance.put("/sp/keywords", requestBody, {
+              headers: {
+                "Content-Type": "application/vnd.spKeyword.v3+json",
+                "Accept": "application/vnd.spKeyword.v3+json"
+              }
+            });
+            const responseKeywords = response.data?.keywords;
+            if (responseKeywords) {
+              if (responseKeywords.error && Array.isArray(responseKeywords.error)) {
+                for (const err2 of responseKeywords.error) {
+                  allErrors.push({ keywordId: err2.keywordId, code: err2.code || "ERROR", details: err2.details || err2.description });
+                  console.error(`[SP API] \u5173\u952E\u8BCD\u72B6\u6001\u66F4\u65B0\u5931\u8D25: keywordId=${err2.keywordId}, code=${err2.code}, details=${err2.details || err2.description}`);
+                }
+              }
+              if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
+                totalSuccess += responseKeywords.success.length;
+              }
+            }
+          } catch (batchErr) {
+            console.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u72B6\u6001\u66F4\u65B0API\u8C03\u7528\u5931\u8D25: ${batchErr.message}`);
+            for (const item of batch) {
+              allErrors.push({ keywordId: item.keywordId, code: "BATCH_ERROR", details: batchErr.message });
             }
           }
-          if (responseKeywords.success && Array.isArray(responseKeywords.success)) {
-            successCount = responseKeywords.success.length;
-            console.log(`[SP API] \u5173\u952E\u8BCD\u72B6\u6001\u66F4\u65B0\u6210\u529F: ${successCount}\u4E2A`);
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
           }
         }
-        console.log(`[SP API] \u5173\u952E\u8BCD\u72B6\u6001\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${successCount}, \u5931\u8D25=${errors.length}`);
-        return { success: errors.length === 0, successCount, errors };
+        console.log(`[SP API] v199: \u5173\u952E\u8BCD\u72B6\u6001\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${totalSuccess}, \u5931\u8D25=${allErrors.length}`);
+        return { success: allErrors.length === 0, successCount: totalSuccess, errors: allErrors };
       }
       /**
        * v134: 更新商品定向状态（enabled/paused/archived）
        * 通过 PUT /sp/targets API 更新商品定向的 state 字段
        */
       async updateProductTargetStatus(updates) {
-        const formattedUpdates = updates.map((u5) => ({
+        const BATCH_SIZE = 1e3;
+        const BATCH_DELAY_MS = 300;
+        const allErrors = [];
+        let totalSuccess = 0;
+        const formattedAll = updates.map((u5) => ({
           targetId: String(u5.targetId),
           state: u5.state.toUpperCase()
         }));
-        const requestBody = { targetingClauses: formattedUpdates };
-        console.log(`[SP API] updateProductTargetStatus \u8BF7\u6C42\u4F53:`, JSON.stringify(requestBody).substring(0, 500));
-        const response = await this.axiosInstance.put("/sp/targets", requestBody, {
-          headers: {
-            "Content-Type": "application/vnd.spTargetingClause.v3+json",
-            "Accept": "application/vnd.spTargetingClause.v3+json"
-          }
-        });
-        console.log(`[SP API] updateProductTargetStatus \u54CD\u5E94:`, JSON.stringify(response.data).substring(0, 500));
-        const errors = [];
-        let successCount = 0;
-        const responseTargets = response.data?.targetingClauses;
-        if (responseTargets) {
-          if (responseTargets.error && Array.isArray(responseTargets.error)) {
-            for (const err2 of responseTargets.error) {
-              errors.push({ targetId: err2.targetId, code: err2.code || "ERROR", details: err2.details || err2.description });
+        const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
+        console.log(`[SP API] v199: updateProductTargetStatus \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          const requestBody = { targetingClauses: batch };
+          try {
+            const response = await this.axiosInstance.put("/sp/targets", requestBody, {
+              headers: {
+                "Content-Type": "application/vnd.spTargetingClause.v3+json",
+                "Accept": "application/vnd.spTargetingClause.v3+json"
+              }
+            });
+            const responseTargets = response.data?.targetingClauses;
+            if (responseTargets) {
+              if (responseTargets.error && Array.isArray(responseTargets.error)) {
+                for (const err2 of responseTargets.error) {
+                  allErrors.push({ targetId: err2.targetId, code: err2.code || "ERROR", details: err2.details || err2.description });
+                }
+              }
+              if (responseTargets.success && Array.isArray(responseTargets.success)) {
+                totalSuccess += responseTargets.success.length;
+              }
+            }
+          } catch (batchErr) {
+            console.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5546\u54C1\u5B9A\u5411\u72B6\u6001\u66F4\u65B0\u5931\u8D25: ${batchErr.message}`);
+            for (const item of batch) {
+              allErrors.push({ targetId: item.targetId, code: "BATCH_ERROR", details: batchErr.message });
             }
           }
-          if (responseTargets.success && Array.isArray(responseTargets.success)) {
-            successCount = responseTargets.success.length;
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
           }
         }
-        return { success: errors.length === 0, successCount, errors };
+        console.log(`[SP API] v199: \u5546\u54C1\u5B9A\u5411\u72B6\u6001\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${totalSuccess}, \u5931\u8D25=${allErrors.length}`);
+        return { success: allErrors.length === 0, successCount: totalSuccess, errors: allErrors };
       }
       /**
        * v135: 更新SP广告组状态
        * 通过 PUT /sp/adGroups 更新广告组的state字段
        */
       async updateSpAdGroupStatus(updates) {
-        const formattedUpdates = updates.map((u5) => ({
+        const BATCH_SIZE = 1e3;
+        const BATCH_DELAY_MS = 300;
+        const allErrors = [];
+        let totalSuccess = 0;
+        const formattedAll = updates.map((u5) => ({
           adGroupId: String(u5.adGroupId),
           state: u5.state.toUpperCase()
         }));
-        const requestBody = { adGroups: formattedUpdates };
-        console.log(`[SP API] updateSpAdGroupStatus \u8BF7\u6C42\u4F53:`, JSON.stringify(requestBody).substring(0, 500));
-        const response = await this.axiosInstance.put("/sp/adGroups", requestBody, {
-          headers: {
-            "Content-Type": "application/vnd.spAdGroup.v3+json",
-            "Accept": "application/vnd.spAdGroup.v3+json"
-          }
-        });
-        console.log(`[SP API] updateSpAdGroupStatus \u54CD\u5E94:`, JSON.stringify(response.data).substring(0, 500));
-        const errors = [];
-        let successCount = 0;
-        const responseAdGroups = response.data?.adGroups;
-        if (responseAdGroups) {
-          if (responseAdGroups.error && Array.isArray(responseAdGroups.error)) {
-            for (const err2 of responseAdGroups.error) {
-              errors.push({ adGroupId: err2.adGroupId, code: err2.code || "ERROR", details: err2.details || err2.description });
+        const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
+        console.log(`[SP API] v199: updateSpAdGroupStatus \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          const requestBody = { adGroups: batch };
+          try {
+            const response = await this.axiosInstance.put("/sp/adGroups", requestBody, {
+              headers: {
+                "Content-Type": "application/vnd.spAdGroup.v3+json",
+                "Accept": "application/vnd.spAdGroup.v3+json"
+              }
+            });
+            const responseAdGroups = response.data?.adGroups;
+            if (responseAdGroups) {
+              if (responseAdGroups.error && Array.isArray(responseAdGroups.error)) {
+                for (const err2 of responseAdGroups.error) {
+                  allErrors.push({ adGroupId: err2.adGroupId, code: err2.code || "ERROR", details: err2.details || err2.description });
+                }
+              }
+              if (responseAdGroups.success && Array.isArray(responseAdGroups.success)) {
+                totalSuccess += responseAdGroups.success.length;
+              }
+            }
+          } catch (batchErr) {
+            console.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5E7F\u544A\u7EC4\u72B6\u6001\u66F4\u65B0\u5931\u8D25: ${batchErr.message}`);
+            for (const item of batch) {
+              allErrors.push({ adGroupId: item.adGroupId, code: "BATCH_ERROR", details: batchErr.message });
             }
           }
-          if (responseAdGroups.success && Array.isArray(responseAdGroups.success)) {
-            successCount = responseAdGroups.success.length;
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
           }
         }
-        return { success: errors.length === 0, successCount, errors };
+        console.log(`[SP API] v199: \u5E7F\u544A\u7EC4\u72B6\u6001\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${totalSuccess}, \u5931\u8D25=${allErrors.length}`);
+        return { success: allErrors.length === 0, successCount: totalSuccess, errors: allErrors };
       }
       /**
        * 获取SP商品定位列表
@@ -52580,34 +52655,50 @@ var init_amazonAdsApi = __esm({
        * 更新商品定位出价
        */
       async updateProductTargetBids(updates) {
-        const formattedUpdates = updates.map((u5) => ({
+        const BATCH_SIZE = 1e3;
+        const BATCH_DELAY_MS = 300;
+        const allErrors = [];
+        let totalSuccess = 0;
+        const formattedAll = updates.map((u5) => ({
           targetId: String(u5.targetId),
           bid: Number(u5.bid.toFixed(2))
         }));
-        const requestBody = { targetingClauses: formattedUpdates };
-        console.log(`[SP API] updateProductTargetBids \u8BF7\u6C42\u4F53:`, JSON.stringify(requestBody).substring(0, 500));
-        const response = await this.axiosInstance.put("/sp/targets", requestBody, {
-          headers: {
-            "Content-Type": "application/vnd.spTargetingClause.v3+json",
-            "Accept": "application/vnd.spTargetingClause.v3+json"
-          }
-        });
-        console.log(`[SP API] updateProductTargetBids \u54CD\u5E94:`, JSON.stringify(response.data).substring(0, 500));
-        const errors = [];
-        const responseTargets = response.data?.targetingClauses;
-        if (responseTargets) {
-          if (responseTargets.error && Array.isArray(responseTargets.error)) {
-            for (const err2 of responseTargets.error) {
-              errors.push({ targetId: err2.targetId, code: err2.code || "ERROR", details: err2.details || err2.description });
-              console.error(`[SP API] \u5546\u54C1\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u5931\u8D25: targetId=${err2.targetId}, code=${err2.code}, details=${err2.details || err2.description}`);
+        const totalBatches = Math.ceil(formattedAll.length / BATCH_SIZE);
+        console.log(`[SP API] v199: updateProductTargetBids \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedAll.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = formattedAll.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          const requestBody = { targetingClauses: batch };
+          try {
+            const response = await this.axiosInstance.put("/sp/targets", requestBody, {
+              headers: {
+                "Content-Type": "application/vnd.spTargetingClause.v3+json",
+                "Accept": "application/vnd.spTargetingClause.v3+json"
+              }
+            });
+            const responseTargets = response.data?.targetingClauses;
+            if (responseTargets) {
+              if (responseTargets.error && Array.isArray(responseTargets.error)) {
+                for (const err2 of responseTargets.error) {
+                  allErrors.push({ targetId: err2.targetId, code: err2.code || "ERROR", details: err2.details || err2.description });
+                  console.error(`[SP API] \u5546\u54C1\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u5931\u8D25: targetId=${err2.targetId}, code=${err2.code}, details=${err2.details || err2.description}`);
+                }
+              }
+              if (responseTargets.success && Array.isArray(responseTargets.success)) {
+                totalSuccess += responseTargets.success.length;
+              }
+            }
+          } catch (batchErr) {
+            console.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5546\u54C1\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u5931\u8D25: ${batchErr.message}`);
+            for (const item of batch) {
+              allErrors.push({ targetId: item.targetId, code: "BATCH_ERROR", details: batchErr.message });
             }
           }
-          if (responseTargets.success && Array.isArray(responseTargets.success)) {
-            console.log(`[SP API] \u5546\u54C1\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u6210\u529F: ${responseTargets.success.length}\u4E2A`);
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
           }
         }
-        console.log(`[SP API] \u5546\u54C1\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${responseTargets?.success?.length || 0}, \u5931\u8D25=${errors.length}`);
-        return { success: errors.length === 0, errors };
+        console.log(`[SP API] v199: \u5546\u54C1\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1=${updates.length}, \u6210\u529F=${totalSuccess}, \u5931\u8D25=${allErrors.length}`);
+        return { success: allErrors.length === 0, errors: allErrors };
       }
       // ==================== 报告 API ====================
       /**
@@ -54735,16 +54826,28 @@ var init_amazonAdsApi = __esm({
        * 更新SB关键词出价
        */
       async updateSbKeywordBids(updates) {
-        await this.axiosInstance.put(
-          "/sb/v4/keywords",
-          { keywords: updates },
-          {
-            headers: {
-              "Content-Type": "application/vnd.sbkeywordresource.v4+json",
-              "Accept": "application/vnd.sbkeywordresource.v4+json"
+        const BATCH_SIZE = 1e3;
+        const BATCH_DELAY_MS = 300;
+        const totalBatches = Math.ceil(updates.length / BATCH_SIZE);
+        console.log(`[SB API] v199: updateSbKeywordBids \u5206\u6279\u5904\u7406: \u603B\u8BA1${updates.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = updates.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          console.log(`[SB API] v199: \u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batch.length}\u4E2ASB\u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0`);
+          await this.axiosInstance.put(
+            "/sb/v4/keywords",
+            { keywords: batch },
+            {
+              headers: {
+                "Content-Type": "application/vnd.sbkeywordresource.v4+json",
+                "Accept": "application/vnd.sbkeywordresource.v4+json"
+              }
             }
+          );
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
           }
-        );
+        }
+        console.log(`[SB API] v199: SB\u5173\u952E\u8BCD\u51FA\u4EF7\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1${updates.length}\u4E2A`);
       }
       // ==================== Sponsored Display API ====================
       /**
@@ -54846,7 +54949,19 @@ var init_amazonAdsApi = __esm({
        * 更新SD商品定位出价
        */
       async updateSdTargetBids(updates) {
-        await this.axiosInstance.put("/sd/targets", updates);
+        const BATCH_SIZE = 100;
+        const BATCH_DELAY_MS = 300;
+        const totalBatches = Math.ceil(updates.length / BATCH_SIZE);
+        console.log(`[SD API] v199: updateSdTargetBids \u5206\u6279\u5904\u7406: \u603B\u8BA1${updates.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = updates.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          console.log(`[SD API] v199: \u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batch.length}\u4E2ASD\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0`);
+          await this.axiosInstance.put("/sd/targets", batch);
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
+          }
+        }
+        console.log(`[SD API] v199: SD\u5B9A\u4F4D\u51FA\u4EF7\u66F4\u65B0\u5B8C\u6210: \u603B\u8BA1${updates.length}\u4E2A`);
       }
       // ==================== 否定关键词 API ====================
       /**
@@ -54893,62 +55008,89 @@ var init_amazonAdsApi = __esm({
           campaignId: String(n7.campaignId),
           keywordText: n7.keywordText,
           matchType: formatMatchType(n7.matchType || "NEGATIVE_EXACT"),
-          // v175: 恢复state字段 - Amazon API要求state不能为null，必须显式设置为ENABLED
           state: "ENABLED"
         }));
-        console.log(`[SP API] createSpCampaignNegativeKeywords: ${formattedNegatives.length}\u4E2A\u5426\u5B9A\u8BCD, \u8BF7\u6C42\u4F53:`, JSON.stringify({ campaignNegativeKeywords: formattedNegatives }).substring(0, 500));
-        try {
-          const response = await this.axiosInstance.post("/sp/campaignNegativeKeywords", {
-            campaignNegativeKeywords: formattedNegatives
-          }, {
-            headers: {
-              "Content-Type": "application/vnd.spCampaignNegativeKeyword.v3+json",
-              "Accept": "application/vnd.spCampaignNegativeKeyword.v3+json"
+        const BATCH_SIZE = 1e3;
+        const BATCH_DELAY_MS = 300;
+        const allResults = [];
+        const totalBatches = Math.ceil(formattedNegatives.length / BATCH_SIZE);
+        console.log(`[SP API] v199: createSpCampaignNegativeKeywords \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedNegatives.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = formattedNegatives.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          console.log(`[SP API] v199: \u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batch.length}\u4E2Acampaign\u7EA7\u5426\u5B9A\u8BCD`);
+          try {
+            const response = await this.axiosInstance.post("/sp/campaignNegativeKeywords", {
+              campaignNegativeKeywords: batch
+            }, {
+              headers: {
+                "Content-Type": "application/vnd.spCampaignNegativeKeyword.v3+json",
+                "Accept": "application/vnd.spCampaignNegativeKeyword.v3+json"
+              }
+            });
+            const responseData = response.data.campaignNegativeKeywords || {};
+            const successItems = responseData.success || [];
+            const errorItems = responseData.error || [];
+            for (const s4 of successItems) {
+              allResults.push({
+                keywordId: s4.campaignNegativeKeywordId || s4.keywordId,
+                code: "SUCCESS",
+                details: "",
+                index: s4.index !== void 0 ? s4.index + batchIdx * BATCH_SIZE : void 0
+              });
             }
-          });
-          console.log(`[SP API] createSpCampaignNegativeKeywords \u54CD\u5E94:`, JSON.stringify(response.data).substring(0, 500));
-          const responseData = response.data.campaignNegativeKeywords || {};
-          const successItems = responseData.success || [];
-          const errorItems = responseData.error || [];
-          const results = [];
-          for (const s4 of successItems) {
-            results.push({
-              keywordId: s4.campaignNegativeKeywordId || s4.keywordId,
-              code: "SUCCESS",
-              details: "",
-              index: s4.index
-            });
+            for (const e6 of errorItems) {
+              const errorMsg = e6.errors?.map((err2) => {
+                const val = err2.errorValue || {};
+                const detail = val.malformedValueError || val.duplicateValueError || val;
+                return detail.message || err2.errorType || "Unknown error";
+              }).join("; ") || "Unknown error";
+              allResults.push({
+                keywordId: 0,
+                code: "ERROR",
+                details: errorMsg,
+                index: e6.index !== void 0 ? e6.index + batchIdx * BATCH_SIZE : void 0
+              });
+            }
+            console.log(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5B8C\u6210: \u6210\u529F=${successItems.length}, \u5931\u8D25=${errorItems.length}`);
+          } catch (err2) {
+            const errData = err2.response?.data;
+            console.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5931\u8D25: status=${err2.response?.status}, data=`, JSON.stringify(errData).substring(0, 500));
+            for (let i4 = 0; i4 < batch.length; i4++) {
+              allResults.push({
+                keywordId: 0,
+                code: "BATCH_ERROR",
+                details: err2.message,
+                index: i4 + batchIdx * BATCH_SIZE
+              });
+            }
           }
-          for (const e6 of errorItems) {
-            const errorMsg = e6.errors?.map((err2) => {
-              const val = err2.errorValue || {};
-              const detail = val.malformedValueError || val.duplicateValueError || val;
-              return detail.message || err2.errorType || "Unknown error";
-            }).join("; ") || "Unknown error";
-            results.push({
-              keywordId: 0,
-              code: "ERROR",
-              details: errorMsg,
-              index: e6.index
-            });
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
           }
-          console.log(`[SP API] createSpCampaignNegativeKeywords \u89E3\u6790: \u6210\u529F=${successItems.length}, \u5931\u8D25=${errorItems.length}`);
-          return results;
-        } catch (err2) {
-          const errData = err2.response?.data;
-          console.error(`[SP API] createSpCampaignNegativeKeywords \u5931\u8D25: status=${err2.response?.status}, data=`, JSON.stringify(errData).substring(0, 500));
-          throw err2;
         }
+        const successCount = allResults.filter((r5) => r5.code === "SUCCESS").length;
+        const failCount = allResults.length - successCount;
+        console.log(`[SP API] v199: campaign\u5426\u5B9A\u8BCD\u521B\u5EFA\u5B8C\u6210: \u603B\u8BA1=${negatives.length}, \u6210\u529F=${successCount}, \u5931\u8D25=${failCount}`);
+        return allResults;
       }
       /**
        * 删除SP活动级别否定关键词
        */
       async deleteSpCampaignNegativeKeywords(keywordIds) {
-        await this.axiosInstance.post("/sp/campaignNegativeKeywords/delete", {
-          keywordIdFilter: { include: keywordIds }
-        }, {
-          headers: { "Content-Type": "application/vnd.spCampaignNegativeKeyword.v3+json" }
-        });
+        const BATCH_SIZE = 1e3;
+        const totalBatches = Math.ceil(keywordIds.length / BATCH_SIZE);
+        console.log(`[SP API] v199: deleteSpCampaignNegativeKeywords \u5206\u6279\u5904\u7406: \u603B\u8BA1${keywordIds.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = keywordIds.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          await this.axiosInstance.post("/sp/campaignNegativeKeywords/delete", {
+            keywordIdFilter: { include: batch }
+          }, {
+            headers: { "Content-Type": "application/vnd.spCampaignNegativeKeyword.v3+json" }
+          });
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, 300));
+          }
+        }
       }
       /**
        * 获取SP广告组级别否定关键词列表
@@ -54994,39 +55136,82 @@ var init_amazonAdsApi = __esm({
           matchType: formatNegMatchType(n7.matchType || "NEGATIVE_EXACT"),
           state: (n7.state || "enabled").toUpperCase()
         }));
-        console.log(`[SP API] createSpNegativeKeywords: ${formattedNegatives.length}\u4E2A\u5E7F\u544A\u7EC4\u7EA7\u5426\u5B9A\u8BCD`);
-        const response = await this.axiosInstance.post("/sp/negativeKeywords", {
-          negativeKeywords: formattedNegatives
-        }, {
-          headers: {
-            "Content-Type": "application/vnd.spNegativeKeyword.v3+json",
-            "Accept": "application/vnd.spNegativeKeyword.v3+json"
+        const BATCH_SIZE = 1e3;
+        const BATCH_DELAY_MS = 300;
+        const allResults = [];
+        const totalBatches = Math.ceil(formattedNegatives.length / BATCH_SIZE);
+        console.log(`[SP API] v199: createSpNegativeKeywords \u5206\u6279\u5904\u7406: \u603B\u8BA1${formattedNegatives.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = formattedNegatives.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          console.log(`[SP API] v199: \u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batch.length}\u4E2A\u5E7F\u544A\u7EC4\u7EA7\u5426\u5B9A\u8BCD`);
+          try {
+            const response = await this.axiosInstance.post("/sp/negativeKeywords", {
+              negativeKeywords: batch
+            }, {
+              headers: {
+                "Content-Type": "application/vnd.spNegativeKeyword.v3+json",
+                "Accept": "application/vnd.spNegativeKeyword.v3+json"
+              }
+            });
+            const batchResults = response.data.negativeKeywords || [];
+            allResults.push(...batchResults);
+            console.log(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5B8C\u6210: ${batchResults.length}\u4E2A\u7ED3\u679C`);
+          } catch (err2) {
+            console.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5931\u8D25: ${err2.response?.status} ${err2.message}`);
+            for (let i4 = 0; i4 < batch.length; i4++) {
+              allResults.push({ keywordId: 0, code: "BATCH_ERROR", details: err2.message });
+            }
           }
-        });
-        return response.data.negativeKeywords || [];
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, BATCH_DELAY_MS));
+          }
+        }
+        console.log(`[SP API] v199: \u5E7F\u544A\u7EC4\u5426\u5B9A\u8BCD\u521B\u5EFA\u5B8C\u6210: \u603B\u8BA1=${negatives.length}, \u7ED3\u679C=${allResults.length}`);
+        return allResults;
       }
       /**
        * 删除SP广告组级别否定关键词
        */
       async deleteSpNegativeKeywords(keywordIds) {
-        await this.axiosInstance.post("/sp/negativeKeywords/delete", {
-          keywordIdFilter: { include: keywordIds }
-        }, {
-          headers: { "Content-Type": "application/vnd.spNegativeKeyword.v3+json" }
-        });
+        const BATCH_SIZE = 1e3;
+        const totalBatches = Math.ceil(keywordIds.length / BATCH_SIZE);
+        console.log(`[SP API] v199: deleteSpNegativeKeywords \u5206\u6279\u5904\u7406: \u603B\u8BA1${keywordIds.length}\u4E2A, \u5206${totalBatches}\u6279`);
+        for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
+          const batch = keywordIds.slice(batchIdx * BATCH_SIZE, (batchIdx + 1) * BATCH_SIZE);
+          await this.axiosInstance.post("/sp/negativeKeywords/delete", {
+            keywordIdFilter: { include: batch }
+          }, {
+            headers: { "Content-Type": "application/vnd.spNegativeKeyword.v3+json" }
+          });
+          if (batchIdx < totalBatches - 1) {
+            await new Promise((resolve8) => setTimeout(resolve8, 300));
+          }
+        }
       }
       /**
        * 获取SP否定商品定位列表（活动级别）
        */
       async listSpCampaignNegativeTargets(campaignId) {
-        const body = {};
-        if (campaignId) {
-          body.campaignIdFilter = { include: [String(campaignId)] };
-        }
-        const response = await this.axiosInstance.post("/sp/campaignNegativeTargets/list", body, {
-          headers: { "Content-Type": "application/vnd.spCampaignNegativeTargetingClause.v3+json" }
-        });
-        return response.data.campaignNegativeTargetingClauses || [];
+        const allTargets = [];
+        let nextToken;
+        do {
+          const body = { maxResults: 100 };
+          if (campaignId) {
+            body.campaignIdFilter = { include: [String(campaignId)] };
+          }
+          if (nextToken) {
+            body.nextToken = nextToken;
+          }
+          const response = await this.axiosInstance.post("/sp/campaignNegativeTargets/list", body, {
+            headers: { "Content-Type": "application/vnd.spCampaignNegativeTargetingClause.v3+json" }
+          });
+          const targets = response.data.campaignNegativeTargetingClauses || [];
+          allTargets.push(...targets);
+          nextToken = response.data.nextToken;
+          console.log(`[SP API] Fetched ${targets.length} campaign negative targets, total: ${allTargets.length}, hasMore: ${!!nextToken}`);
+        } while (nextToken);
+        console.log(`[SP API] Total campaign negative targets fetched: ${allTargets.length}`);
+        return allTargets;
       }
       /**
        * 创建SP否定商品定位（活动级别）
@@ -55050,14 +55235,26 @@ var init_amazonAdsApi = __esm({
        * 获取SP否定商品定位列表（广告组级别）
        */
       async listSpNegativeTargets(adGroupId) {
-        const body = {};
-        if (adGroupId) {
-          body.adGroupIdFilter = { include: [String(adGroupId)] };
-        }
-        const response = await this.axiosInstance.post("/sp/negativeTargets/list", body, {
-          headers: { "Content-Type": "application/vnd.spNegativeTargetingClause.v3+json" }
-        });
-        return response.data.negativeTargetingClauses || [];
+        const allTargets = [];
+        let nextToken;
+        do {
+          const body = { maxResults: 100 };
+          if (adGroupId) {
+            body.adGroupIdFilter = { include: [String(adGroupId)] };
+          }
+          if (nextToken) {
+            body.nextToken = nextToken;
+          }
+          const response = await this.axiosInstance.post("/sp/negativeTargets/list", body, {
+            headers: { "Content-Type": "application/vnd.spNegativeTargetingClause.v3+json" }
+          });
+          const targets = response.data.negativeTargetingClauses || [];
+          allTargets.push(...targets);
+          nextToken = response.data.nextToken;
+          console.log(`[SP API] Fetched ${targets.length} negative targets, total: ${allTargets.length}, hasMore: ${!!nextToken}`);
+        } while (nextToken);
+        console.log(`[SP API] Total negative targets fetched: ${allTargets.length}`);
+        return allTargets;
       }
       /**
        * 创建SP否定商品定位（广告组级别）
@@ -56321,136 +56518,114 @@ async function syncKeywordStatusToAmazon(accountId, statusChanges) {
   const delay = (ms) => new Promise((resolve8) => setTimeout(resolve8, ms));
   const keywordChanges = statusChanges.filter((s4) => !s4.isProductTarget);
   const productTargetChanges = statusChanges.filter((s4) => s4.isProductTarget);
-  for (let i4 = 0; i4 < keywordChanges.length; i4++) {
-    const change = keywordChanges[i4];
-    try {
-      const dbInstance = await getDb();
-      if (!dbInstance) {
-        result.failed++;
-        result.errors.push(`\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25`);
-        continue;
-      }
+  if (keywordChanges.length > 0) {
+    console.log(`[AmazonApiHelper] v199: \u6279\u91CF\u5904\u7406 ${keywordChanges.length} \u4E2A\u5173\u952E\u8BCD\u72B6\u6001\u53D8\u66F4`);
+    const dbInstance = await getDb();
+    const resolvedKeywordUpdates = [];
+    if (dbInstance) {
       const { keywords: keywords8 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
       const { eq: eq7 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-      let [kw] = await dbInstance.select({ keywordId: keywords8.keywordId }).from(keywords8).where(eq7(keywords8.id, change.keywordId)).limit(1);
-      if (!kw || !kw.keywordId || kw.keywordId === "0" || kw.keywordId === "") {
-        console.log(`[AmazonApiHelper] keyword id=${change.keywordId} \u7F3A\u5C11keywordId\uFF0C\u5C1D\u8BD5\u5373\u65F6\u56DE\u586B...`);
-        try {
-          const { resolveKeywordIdOnDemand: resolveKeywordIdOnDemand2 } = await Promise.resolve().then(() => (init_amazonIdResolver(), amazonIdResolver_exports));
-          const resolvedId = await resolveKeywordIdOnDemand2(accountId, change.keywordId);
-          if (resolvedId) {
-            kw = { keywordId: resolvedId };
-            console.log(`[AmazonApiHelper] \u2705 \u5373\u65F6\u56DE\u586B\u6210\u529F: keyword id=${change.keywordId} -> keywordId=${resolvedId}`);
-          }
-        } catch (resolveErr) {
-          console.error(`[AmazonApiHelper] \u5373\u65F6\u56DE\u586B\u5F02\u5E38: ${resolveErr.message}`);
-        }
+      for (const change of keywordChanges) {
+        let [kw] = await dbInstance.select({ keywordId: keywords8.keywordId }).from(keywords8).where(eq7(keywords8.id, change.keywordId)).limit(1);
         if (!kw || !kw.keywordId || kw.keywordId === "0" || kw.keywordId === "") {
-          result.failed++;
-          const errorMsg = `\u5173\u952E\u8BCD ${change.keywordId} \u7F3A\u5C11Amazon keywordId\uFF0C\u65E0\u6CD5\u540C\u6B65\u72B6\u6001`;
-          result.errors.push(errorMsg);
-          console.error(`[AmazonApiHelper] \u274C ${errorMsg}`);
-          continue;
-        }
-      }
-      const amazonKeywordId = String(kw.keywordId);
-      console.log(`[AmazonApiHelper] [${i4 + 1}/${keywordChanges.length}] \u540C\u6B65\u5173\u952E\u8BCD\u72B6\u6001: keywordId="${amazonKeywordId}", newState=${change.newStatus}`);
-      const apiResult = await withRetry(
-        () => syncService.client.updateKeywordStatus([{
-          keywordId: amazonKeywordId,
-          state: change.newStatus
-        }]),
-        { maxRetries: 2, baseDelayMs: 2e3, label: `updateKeywordStatus-${amazonKeywordId}` }
-      );
-      if (apiResult.successCount > 0) {
-        result.success++;
-        console.log(`[AmazonApiHelper] \u2705 \u5173\u952E\u8BCD\u72B6\u6001\u66F4\u65B0\u6210\u529F: keywordId=${amazonKeywordId}, state=${change.newStatus}`);
-      } else if (apiResult.errors.length > 0) {
-        result.failed++;
-        const errorDetail = apiResult.errors[0]?.details || "Unknown error";
-        result.errors.push(`\u5173\u952E\u8BCD ${amazonKeywordId} \u72B6\u6001\u66F4\u65B0\u5931\u8D25: ${errorDetail}`);
-        console.error(`[AmazonApiHelper] \u274C \u5173\u952E\u8BCD\u72B6\u6001\u66F4\u65B0\u5931\u8D25: keywordId=${amazonKeywordId}, error=${errorDetail}`);
-      } else {
-        result.success++;
-        console.log(`[AmazonApiHelper] \u2705 \u5173\u952E\u8BCD\u72B6\u6001\u66F4\u65B0\u5B8C\u6210\uFF08\u65E0\u9519\u8BEF\u8FD4\u56DE\uFF09: keywordId=${amazonKeywordId}`);
-      }
-    } catch (error54) {
-      result.failed++;
-      const errorMsg = `\u5173\u952E\u8BCD ${change.keywordId} \u72B6\u6001\u540C\u6B65\u5F02\u5E38: ${error54.message}`;
-      result.errors.push(errorMsg);
-      console.error(`[AmazonApiHelper] \u274C ${errorMsg}`);
-    }
-    if ((i4 + 1) % 5 === 0 && i4 < keywordChanges.length - 1) {
-      await delay(500);
-    }
-  }
-  for (let i4 = 0; i4 < productTargetChanges.length; i4++) {
-    const change = productTargetChanges[i4];
-    try {
-      const dbInstance = await getDb();
-      if (!dbInstance) {
-        result.failed++;
-        result.errors.push(`\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25`);
-        continue;
-      }
-      const { productTargets: productTargets4 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-      const { eq: eq7 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-      const [pt3] = await dbInstance.select({ targetId: productTargets4.targetId }).from(productTargets4).where(eq7(productTargets4.id, change.keywordId)).limit(1);
-      if (!pt3 || !pt3.targetId || pt3.targetId === "0" || pt3.targetId === "") {
-        console.log(`[AmazonApiHelper] product_target id=${change.keywordId} \u7F3A\u5C11targetId\uFF0C\u5C1D\u8BD5\u5373\u65F6\u56DE\u586B...`);
-        try {
-          const { resolveProductTargetIdOnDemand: resolveProductTargetIdOnDemand2 } = await Promise.resolve().then(() => (init_amazonIdResolver(), amazonIdResolver_exports));
-          const resolvedId = await resolveProductTargetIdOnDemand2(accountId, change.keywordId);
-          if (resolvedId) {
-            console.log(`[AmazonApiHelper] \u2705 \u5546\u54C1\u5B9A\u5411\u5373\u65F6\u56DE\u586B\u6210\u529F: product_target id=${change.keywordId} -> targetId=${resolvedId}`);
-            const amazonTargetId2 = resolvedId;
-            const apiResult2 = await withRetry(
-              () => syncService.client.updateProductTargetStatus([{
-                targetId: amazonTargetId2,
-                state: change.newStatus
-              }]),
-              { maxRetries: 2, baseDelayMs: 2e3, label: `updateProductTargetStatus-${amazonTargetId2}` }
-            );
-            if (apiResult2.successCount > 0) {
-              result.success++;
-              console.log(`[AmazonApiHelper] \u2705 \u5546\u54C1\u5B9A\u5411\u72B6\u6001\u66F4\u65B0\u6210\u529F: targetId=${amazonTargetId2}`);
-            } else {
-              result.failed++;
-              result.errors.push(`\u5546\u54C1\u5B9A\u5411 ${amazonTargetId2} \u72B6\u6001\u66F4\u65B0\u5931\u8D25: ${apiResult2.errors[0]?.details || "Unknown error"}`);
+          try {
+            const { resolveKeywordIdOnDemand: resolveKeywordIdOnDemand2 } = await Promise.resolve().then(() => (init_amazonIdResolver(), amazonIdResolver_exports));
+            const resolvedId = await resolveKeywordIdOnDemand2(accountId, change.keywordId);
+            if (resolvedId) {
+              kw = { keywordId: resolvedId };
             }
+          } catch (resolveErr) {
+            console.error(`[AmazonApiHelper] \u5373\u65F6\u56DE\u586B\u5F02\u5E38: ${resolveErr.message}`);
+          }
+          if (!kw || !kw.keywordId || kw.keywordId === "0" || kw.keywordId === "") {
+            result.failed++;
+            result.errors.push(`\u5173\u952E\u8BCD ${change.keywordId} \u7F3A\u5C11Amazon keywordId`);
             continue;
           }
-        } catch (resolveErr) {
-          console.error(`[AmazonApiHelper] \u5546\u54C1\u5B9A\u5411\u5373\u65F6\u56DE\u586B\u5F02\u5E38: ${resolveErr.message}`);
         }
-        result.failed++;
-        result.errors.push(`\u5546\u54C1\u5B9A\u5411 ${change.keywordId} \u7F3A\u5C11Amazon targetId\u4E14\u56DE\u586B\u5931\u8D25`);
-        continue;
-      }
-      const amazonTargetId = String(pt3.targetId);
-      console.log(`[AmazonApiHelper] [${i4 + 1}/${productTargetChanges.length}] \u540C\u6B65\u5546\u54C1\u5B9A\u5411\u72B6\u6001: targetId="${amazonTargetId}", newState=${change.newStatus}`);
-      const apiResult = await withRetry(
-        () => syncService.client.updateProductTargetStatus([{
-          targetId: amazonTargetId,
+        resolvedKeywordUpdates.push({
+          keywordId: String(kw.keywordId),
           state: change.newStatus
-        }]),
-        { maxRetries: 2, baseDelayMs: 2e3, label: `updateProductTargetStatus-${amazonTargetId}` }
-      );
-      if (apiResult.successCount > 0) {
-        result.success++;
-        console.log(`[AmazonApiHelper] \u2705 \u5546\u54C1\u5B9A\u5411\u72B6\u6001\u66F4\u65B0\u6210\u529F: targetId=${amazonTargetId}`);
-      } else if (apiResult.errors.length > 0) {
-        result.failed++;
-        result.errors.push(`\u5546\u54C1\u5B9A\u5411 ${amazonTargetId} \u72B6\u6001\u66F4\u65B0\u5931\u8D25: ${apiResult.errors[0]?.details || "Unknown error"}`);
-      } else {
-        result.success++;
+        });
       }
-    } catch (error54) {
-      result.failed++;
-      result.errors.push(`\u5546\u54C1\u5B9A\u5411 ${change.keywordId} \u72B6\u6001\u540C\u6B65\u5F02\u5E38: ${error54.message}`);
+    } else {
+      result.failed += keywordChanges.length;
+      result.errors.push("\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25");
     }
-    if ((i4 + 1) % 5 === 0 && i4 < productTargetChanges.length - 1) {
-      await delay(500);
+    if (resolvedKeywordUpdates.length > 0) {
+      try {
+        console.log(`[AmazonApiHelper] v199: \u6279\u91CF\u53D1\u9001 ${resolvedKeywordUpdates.length} \u4E2A\u5173\u952E\u8BCD\u72B6\u6001\u66F4\u65B0\u5230Amazon`);
+        const apiResult = await withRetry(
+          () => syncService.client.updateKeywordStatus(resolvedKeywordUpdates),
+          { maxRetries: 2, baseDelayMs: 2e3, label: `batchUpdateKeywordStatus-${resolvedKeywordUpdates.length}` }
+        );
+        result.success += apiResult.successCount;
+        if (apiResult.errors.length > 0) {
+          result.failed += apiResult.errors.length;
+          for (const err2 of apiResult.errors) {
+            result.errors.push(`\u5173\u952E\u8BCD ${err2.keywordId} \u72B6\u6001\u66F4\u65B0\u5931\u8D25: ${err2.details || err2.code}`);
+          }
+        }
+        console.log(`[AmazonApiHelper] v199: \u5173\u952E\u8BCD\u72B6\u6001\u6279\u91CF\u66F4\u65B0\u5B8C\u6210: \u6210\u529F=${apiResult.successCount}, \u5931\u8D25=${apiResult.errors.length}`);
+      } catch (batchErr) {
+        console.error(`[AmazonApiHelper] v199: \u5173\u952E\u8BCD\u72B6\u6001\u6279\u91CF\u66F4\u65B0\u5F02\u5E38: ${batchErr.message}`);
+        result.failed += resolvedKeywordUpdates.length;
+        result.errors.push(`\u5173\u952E\u8BCD\u72B6\u6001\u6279\u91CF\u66F4\u65B0\u5F02\u5E38: ${batchErr.message}`);
+      }
+    }
+  }
+  if (productTargetChanges.length > 0) {
+    console.log(`[AmazonApiHelper] v199: \u6279\u91CF\u5904\u7406 ${productTargetChanges.length} \u4E2A\u5546\u54C1\u5B9A\u5411\u72B6\u6001\u53D8\u66F4`);
+    const ptDbInstance = await getDb();
+    const resolvedTargetUpdates = [];
+    if (ptDbInstance) {
+      const { productTargets: productTargets4 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+      const { eq: eq7 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+      for (const change of productTargetChanges) {
+        const [pt3] = await ptDbInstance.select({ targetId: productTargets4.targetId }).from(productTargets4).where(eq7(productTargets4.id, change.keywordId)).limit(1);
+        let resolvedTargetId = pt3?.targetId && pt3.targetId !== "0" && pt3.targetId !== "" ? String(pt3.targetId) : null;
+        if (!resolvedTargetId) {
+          try {
+            const { resolveProductTargetIdOnDemand: resolveProductTargetIdOnDemand2 } = await Promise.resolve().then(() => (init_amazonIdResolver(), amazonIdResolver_exports));
+            resolvedTargetId = await resolveProductTargetIdOnDemand2(accountId, change.keywordId);
+          } catch (resolveErr) {
+            console.error(`[AmazonApiHelper] \u5546\u54C1\u5B9A\u5411\u5373\u65F6\u56DE\u586B\u5F02\u5E38: ${resolveErr.message}`);
+          }
+        }
+        if (resolvedTargetId) {
+          resolvedTargetUpdates.push({
+            targetId: resolvedTargetId,
+            state: change.newStatus
+          });
+        } else {
+          result.failed++;
+          result.errors.push(`\u5546\u54C1\u5B9A\u5411 ${change.keywordId} \u7F3A\u5C11Amazon targetId\u4E14\u56DE\u586B\u5931\u8D25`);
+        }
+      }
+    } else {
+      result.failed += productTargetChanges.length;
+      result.errors.push("\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25");
+    }
+    if (resolvedTargetUpdates.length > 0) {
+      try {
+        console.log(`[AmazonApiHelper] v199: \u6279\u91CF\u53D1\u9001 ${resolvedTargetUpdates.length} \u4E2A\u5546\u54C1\u5B9A\u5411\u72B6\u6001\u66F4\u65B0\u5230Amazon`);
+        const apiResult = await withRetry(
+          () => syncService.client.updateProductTargetStatus(resolvedTargetUpdates),
+          { maxRetries: 2, baseDelayMs: 2e3, label: `batchUpdateProductTargetStatus-${resolvedTargetUpdates.length}` }
+        );
+        result.success += apiResult.successCount;
+        if (apiResult.errors.length > 0) {
+          result.failed += apiResult.errors.length;
+          for (const err2 of apiResult.errors) {
+            result.errors.push(`\u5546\u54C1\u5B9A\u5411 ${err2.targetId} \u72B6\u6001\u66F4\u65B0\u5931\u8D25: ${err2.details || err2.code}`);
+          }
+        }
+        console.log(`[AmazonApiHelper] v199: \u5546\u54C1\u5B9A\u5411\u72B6\u6001\u6279\u91CF\u66F4\u65B0\u5B8C\u6210: \u6210\u529F=${apiResult.successCount}, \u5931\u8D25=${apiResult.errors.length}`);
+      } catch (batchErr) {
+        console.error(`[AmazonApiHelper] v199: \u5546\u54C1\u5B9A\u5411\u72B6\u6001\u6279\u91CF\u66F4\u65B0\u5F02\u5E38: ${batchErr.message}`);
+        result.failed += resolvedTargetUpdates.length;
+        result.errors.push(`\u5546\u54C1\u5B9A\u5411\u72B6\u6001\u6279\u91CF\u66F4\u65B0\u5F02\u5E38: ${batchErr.message}`);
+      }
     }
   }
   console.log(`[AmazonApiHelper] \u5173\u952E\u8BCD\u72B6\u6001\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}`);
@@ -57348,7 +57523,8 @@ async function runAutoBidOptimization(syncService, accountId, performanceGroupCo
   const keywordsToOptimize = await db.select({ keyword: keywords }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(and(
     eq(campaigns.accountId, accountId),
     eq(keywords.keywordStatus, "enabled")
-  )).limit(100).then((rows) => rows.map((r5) => r5.keyword));
+  )).then((rows) => rows.map((r5) => r5.keyword));
+  console.log(`[AutoBidOpt] v199: \u8D26\u53F7${accountId} \u5171${keywordsToOptimize.length}\u4E2A\u542F\u7528\u5173\u952E\u8BCD\u9700\u8981\u4F18\u5316`);
   const results = { optimized: 0, skipped: 0 };
   for (const kw of keywordsToOptimize) {
     const target = {
@@ -65246,6 +65422,18 @@ function matVecMul(A5, x6) {
 function dotProduct(a4, b6) {
   return a4.reduce((sum2, val, i4) => sum2 + val * b6[i4], 0);
 }
+function outerProduct(x6) {
+  return x6.map((xi3) => x6.map((xj) => xi3 * xj));
+}
+function matAdd(A5, B7) {
+  return A5.map((row, i4) => row.map((val, j6) => val + B7[i4][j6]));
+}
+function vecAdd(a4, b6) {
+  return a4.map((val, i4) => val + b6[i4]);
+}
+function vecScale(a4, s4) {
+  return a4.map((val) => val * s4);
+}
 async function loadOrInitLinUCBModel(accountId) {
   const db = await getDbInstance5();
   const d5 = FEATURE_DIM;
@@ -65334,6 +65522,33 @@ async function selectArm(accountId, context, currentBid, alpha = 1.5) {
     explorationBonus: bestExplorationBonus,
     confidence
   };
+}
+async function updateArm(accountId, armType, context, reward) {
+  const db = await getDbInstance5();
+  const x6 = featureVectorToArray(context);
+  const models = await db.select().from(linucbModels).where(and(
+    eq(linucbModels.accountId, accountId),
+    eq(linucbModels.armType, armType),
+    eq(linucbModels.isActive, 1)
+  )).limit(1);
+  if (models.length === 0) return;
+  const model = models[0];
+  const A5 = model.matrixA;
+  const b6 = model.vectorB;
+  const xxT = outerProduct(x6);
+  const newA = matAdd(A5, xxT);
+  const newB = vecAdd(b6, vecScale(x6, reward));
+  const newTotalPulls = (model.totalPulls || 0) + 1;
+  const newTotalReward = Number(model.totalReward || 0) + reward;
+  const newAvgReward = newTotalReward / newTotalPulls;
+  await db.update(linucbModels).set({
+    matrixA: newA,
+    vectorB: newB,
+    totalPulls: newTotalPulls,
+    totalReward: String(newTotalReward),
+    avgReward: String(newAvgReward),
+    lastPulledAt: (/* @__PURE__ */ new Date()).toISOString()
+  }).where(eq(linucbModels.id, model.id));
 }
 function calculateAdaptiveAlpha(totalPulls) {
   return 2 / Math.sqrt(1 + totalPulls / 50);
@@ -74294,6 +74509,16 @@ var init_keywordGraphService = __esm({
 });
 
 // server/nextGenBidOrchestrator.ts
+var nextGenBidOrchestrator_exports = {};
+__export(nextGenBidOrchestrator_exports, {
+  batchCalculateNextGenBids: () => batchCalculateNextGenBids,
+  calculateNextGenBid: () => calculateNextGenBid,
+  executeBudgetOptimization: () => executeBudgetOptimization,
+  executeKeywordGraphAnalysis: () => executeKeywordGraphAnalysis,
+  executeModelTraining: () => executeModelTraining,
+  executeNextGenMaintenanceTasks: () => executeNextGenMaintenanceTasks,
+  updateLinUCBFromReward: () => updateLinUCBFromReward
+});
 function safetyValidate(currentBid, proposedBid, config2, maxBidLimit) {
   let safeBid = proposedBid;
   const effectiveMaxBid = maxBidLimit ? Math.min(config2.maxBid, maxBidLimit) : config2.maxBid;
@@ -74577,6 +74802,13 @@ async function executeKeywordGraphAnalysis(accountId) {
     console.log(`[NextGenKeyword] \u56FE\u8C31\u5206\u6790\u5B8C\u6210: ${opportunities.length}\u4E2A\u6269\u5C55\u673A\u4F1A, ${negatives.length}\u4E2A\u5426\u5B9A\u8BCD\u5019\u9009`);
   } catch (error54) {
     console.error(`[NextGenKeyword] \u56FE\u8C31\u5206\u6790\u5931\u8D25(\u8D26\u6237${accountId}): ${error54.message}`);
+  }
+}
+async function updateLinUCBFromReward(accountId, armType, context, reward) {
+  try {
+    await updateArm(accountId, armType, context, reward);
+  } catch (error54) {
+    console.error(`[NextGenOrchestrator] LinUCB\u66F4\u65B0\u5931\u8D25: ${error54.message}`);
   }
 }
 var DEFAULT_SAFETY;
@@ -75324,6 +75556,8 @@ async function runAutoCorrection(accountId) {
         corrections.push(...negIdBackfills);
         const bidConfirmations = await verifyBiddingLogsExecution(database, accId);
         corrections.push(...bidConfirmations);
+        const qualityAudits = await auditAlgorithmDecisionQuality(database, accId);
+        corrections.push(...qualityAudits);
       } catch (accError) {
         console.error(`[AutoCorrector] v178: \u8D26\u6237 ${accId} \u7EA0\u9519\u5931\u8D25: ${accError.message}`);
       }
@@ -75341,29 +75575,42 @@ async function runAutoCorrection(accountId) {
 }
 async function fixNullApiSyncStatusRecords(database) {
   try {
-    const updateResult = await database.execute(sql`
-      UPDATE optimization_logs 
-      SET api_sync_status = 'legacy_unsynced'
-      WHERE api_sync_status IS NULL
-      LIMIT 500
-    `);
-    const affectedRows = updateResult?.[0]?.affectedRows || updateResult?.affectedRows || 0;
-    if (affectedRows > 0) {
-      console.log(`[AutoCorrector] v178: \u5DF2\u5C06 ${affectedRows} \u6761 optimization_logs NULL \u8BB0\u5F55\u6807\u8BB0\u4E3A legacy_unsynced`);
+    let totalAffected = 0;
+    const BATCH_SIZE = 2e3;
+    let batchAffected = 0;
+    do {
+      const updateResult = await database.execute(sql`
+        UPDATE optimization_logs 
+        SET api_sync_status = 'legacy_unsynced'
+        WHERE api_sync_status IS NULL
+        LIMIT ${BATCH_SIZE}
+      `);
+      batchAffected = updateResult?.[0]?.affectedRows || updateResult?.affectedRows || 0;
+      totalAffected += batchAffected;
+      if (batchAffected > 0) {
+        console.log(`[AutoCorrector] v199: \u672C\u6279\u4FEE\u590D ${batchAffected} \u6761 optimization_logs NULL \u8BB0\u5F55, \u7D2F\u8BA1: ${totalAffected}`);
+      }
+    } while (batchAffected >= BATCH_SIZE);
+    let batchAffected2 = 0;
+    do {
+      const updateResult2 = await database.execute(sql`
+        UPDATE optimization_events 
+        SET api_sync_status = 'legacy_unsynced'
+        WHERE api_sync_status IS NULL
+        LIMIT ${BATCH_SIZE}
+      `);
+      batchAffected2 = updateResult2?.[0]?.affectedRows || updateResult2?.affectedRows || 0;
+      totalAffected += batchAffected2;
+      if (batchAffected2 > 0) {
+        console.log(`[AutoCorrector] v199: \u672C\u6279\u4FEE\u590D ${batchAffected2} \u6761 optimization_events NULL \u8BB0\u5F55, \u7D2F\u8BA1: ${totalAffected}`);
+      }
+    } while (batchAffected2 >= BATCH_SIZE);
+    if (totalAffected > 0) {
+      console.log(`[AutoCorrector] v199: fixNullApiSyncStatusRecords \u5B8C\u6210, \u603B\u8BA1\u4FEE\u590D ${totalAffected} \u6761\u8BB0\u5F55`);
     }
-    const updateResult2 = await database.execute(sql`
-      UPDATE optimization_events 
-      SET api_sync_status = 'legacy_unsynced'
-      WHERE api_sync_status IS NULL
-      LIMIT 500
-    `);
-    const affectedRows2 = updateResult2?.[0]?.affectedRows || updateResult2?.affectedRows || 0;
-    if (affectedRows2 > 0) {
-      console.log(`[AutoCorrector] v178: \u5DF2\u5C06 ${affectedRows2} \u6761 optimization_events NULL \u8BB0\u5F55\u6807\u8BB0\u4E3A legacy_unsynced`);
-    }
-    return affectedRows + affectedRows2;
+    return totalAffected;
   } catch (error54) {
-    console.error(`[AutoCorrector] v178: fixNullApiSyncStatusRecords \u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v199: fixNullApiSyncStatusRecords \u5931\u8D25: ${error54.message}`);
     return 0;
   }
 }
@@ -76392,10 +76639,11 @@ function buildScanResult(scanId, startedAt, completedAt, accountsScanned, correc
     settingsRetries: { found: 0, corrected: 0, failed: 0 },
     keywordCreateRetries: { found: 0, corrected: 0, failed: 0 },
     maxBidViolations: { found: 0, corrected: 0, failed: 0 },
-    orphanKeywordCleanups: { found: 0, corrected: 0, failed: 0 }
+    orphanKeywordCleanups: { found: 0, corrected: 0, failed: 0 },
+    nextgenQualityAudits: { found: 0, corrected: 0, failed: 0 }
   };
   for (const c5 of corrections) {
-    const key = c5.type === "bid_retry" ? "bidRetries" : c5.type === "bid_mismatch" ? "bidMismatches" : c5.type === "budget_retry" ? "budgetRetries" : c5.type === "budget_mismatch" ? "budgetMismatches" : c5.type === "placement_mismatch" ? "placementMismatches" : c5.type === "rollback_execution" ? "rollbackExecutions" : c5.type === "keyword_create_retry" ? "keywordCreateRetries" : c5.type === "max_bid_violation" ? "maxBidViolations" : c5.type === "orphan_keyword_cleanup" ? "orphanKeywordCleanups" : "settingsRetries";
+    const key = c5.type === "bid_retry" ? "bidRetries" : c5.type === "bid_mismatch" ? "bidMismatches" : c5.type === "budget_retry" ? "budgetRetries" : c5.type === "budget_mismatch" ? "budgetMismatches" : c5.type === "placement_mismatch" ? "placementMismatches" : c5.type === "rollback_execution" ? "rollbackExecutions" : c5.type === "keyword_create_retry" ? "keywordCreateRetries" : c5.type === "max_bid_violation" ? "maxBidViolations" : c5.type === "orphan_keyword_cleanup" ? "orphanKeywordCleanups" : c5.type === "nextgen_quality_audit" ? "nextgenQualityAudits" : "settingsRetries";
     details[key].found++;
     if (c5.success) details[key].corrected++;
     else details[key].failed++;
@@ -77072,6 +77320,184 @@ async function verifyBiddingLogsExecution(database, accountId) {
   }
   return results;
 }
+async function auditAlgorithmDecisionQuality(database, accountId) {
+  const results = [];
+  try {
+    const auditCandidates = await database.execute(sql`
+      SELECT 
+        k.id as keyword_id,
+        k.keyword_text,
+        k.bid as current_bid,
+        k.match_type,
+        k.impressions,
+        k.clicks,
+        k.spend,
+        k.sales,
+        k.orders,
+        k.keyword_status,
+        k.campaign_id,
+        c.campaign_name,
+        c.campaign_status,
+        pg.id as perf_group_id,
+        pg.target_acos,
+        pg.max_bid,
+        pg.optimization_goal,
+        pg.daily_budget,
+        oe.algorithm_version as last_algo_version,
+        oe.created_at as last_optimized_at
+      FROM keywords k
+      INNER JOIN campaigns c ON k.campaign_id = c.id
+      INNER JOIN performance_groups pg ON c.performance_group_id = pg.id
+      LEFT JOIN (
+        SELECT keyword_id, algorithm_version, created_at,
+               ROW_NUMBER() OVER (PARTITION BY keyword_id ORDER BY created_at DESC) as rn
+        FROM optimization_events
+        WHERE account_id = ${accountId}
+          AND event_category = 'bid_adjustment'
+          AND status = 'success'
+          AND created_at > DATE_SUB(NOW(), INTERVAL ${QUALITY_AUDIT_CONFIG.lookbackDays} DAY)
+      ) oe ON oe.keyword_id = k.id AND oe.rn = 1
+      WHERE k.account_id = ${accountId}
+        AND k.keyword_status = 'enabled'
+        AND c.campaign_status = 'enabled'
+        AND pg.status = 'active'
+        AND CAST(k.bid AS DECIMAL(10,2)) > 0
+        AND (k.impressions > 0 OR CAST(k.spend AS DECIMAL(10,2)) > 0)
+        AND (
+          oe.algorithm_version IS NULL
+          OR (
+            oe.algorithm_version NOT LIKE '%v197%'
+            AND oe.algorithm_version NOT LIKE '%v198%'
+            AND oe.algorithm_version NOT LIKE '%NextGen%'
+            AND oe.algorithm_version NOT LIKE '%nextgen%'
+          )
+        )
+      ORDER BY CAST(k.spend AS DECIMAL(10,2)) DESC
+      LIMIT ${QUALITY_AUDIT_CONFIG.maxAuditsPerRun}
+    `);
+    const rows = auditCandidates?.[0] || auditCandidates;
+    if (!Array.isArray(rows) || rows.length === 0) {
+      console.log(`[AutoCorrector] v198: \u8D26\u6237${accountId} \u65E0\u9700NextGen\u8D28\u91CF\u5BA1\u8BA1\uFF08\u6240\u6709\u6D3B\u8DC3\u5173\u952E\u8BCD\u5DF2\u7531NextGen\u4F18\u5316\uFF09`);
+      return results;
+    }
+    console.log(`[AutoCorrector] v198: \u8D26\u6237${accountId} \u53D1\u73B0${rows.length}\u4E2A\u5173\u952E\u8BCD\u9700\u8981NextGen\u8D28\u91CF\u5BA1\u8BA1`);
+    const { calculateNextGenBid: calculateNextGenBid2 } = await Promise.resolve().then(() => (init_nextGenBidOrchestrator(), nextGenBidOrchestrator_exports));
+    const groupConfigs = /* @__PURE__ */ new Map();
+    for (const row of rows) {
+      if (!groupConfigs.has(row.perf_group_id)) {
+        groupConfigs.set(row.perf_group_id, {
+          optimizationGoal: row.optimization_goal || "balanced",
+          targetAcos: row.target_acos ? parseFloat(String(row.target_acos)) : void 0,
+          dailyBudget: row.daily_budget ? parseFloat(String(row.daily_budget)) : void 0,
+          maxBid: row.max_bid ? parseFloat(String(row.max_bid)) : void 0
+        });
+      }
+    }
+    let audited = 0;
+    let deviationsFound = 0;
+    let corrected = 0;
+    const bidAdjustments = [];
+    for (const row of rows) {
+      try {
+        const currentBid = parseFloat(String(row.current_bid || "0"));
+        if (currentBid <= 0) continue;
+        const bidConfig = groupConfigs.get(row.perf_group_id);
+        if (!bidConfig) continue;
+        const maxBidLimit = row.max_bid ? parseFloat(String(row.max_bid)) : 2;
+        const target = {
+          id: row.keyword_id,
+          type: "keyword",
+          currentBid,
+          impressions: row.impressions || 0,
+          clicks: row.clicks || 0,
+          spend: parseFloat(String(row.spend || "0")),
+          sales: parseFloat(String(row.sales || "0")),
+          orders: row.orders || 0,
+          matchType: row.match_type
+        };
+        const nextGenResult = await calculateNextGenBid2(accountId, target, bidConfig, maxBidLimit);
+        audited++;
+        const deviation = Math.abs(nextGenResult.newBid - currentBid) / currentBid;
+        if (deviation >= QUALITY_AUDIT_CONFIG.bidDeviationThreshold && nextGenResult.actionType !== "hold") {
+          deviationsFound++;
+          let adjustedBid = nextGenResult.newBid;
+          const maxChange = currentBid * QUALITY_AUDIT_CONFIG.maxSingleAdjustmentPercent;
+          if (adjustedBid > currentBid + maxChange) {
+            adjustedBid = Math.round((currentBid + maxChange) * 100) / 100;
+          } else if (adjustedBid < currentBid - maxChange) {
+            adjustedBid = Math.round((currentBid - maxChange) * 100) / 100;
+          }
+          adjustedBid = Math.max(adjustedBid, 0.02);
+          adjustedBid = Math.min(adjustedBid, maxBidLimit);
+          adjustedBid = Math.round(adjustedBid * 100) / 100;
+          if (Math.abs(adjustedBid - currentBid) > 0.01) {
+            bidAdjustments.push({
+              keywordId: row.keyword_id,
+              newBid: adjustedBid,
+              campaignId: row.campaign_id,
+              reason: `[v198\u8D28\u91CF\u5BA1\u8BA1] NextGen\u5EFA\u8BAE$${nextGenResult.newBid.toFixed(2)}(${nextGenResult.algorithmUsed}), \u65E7\u51FA\u4EF7$${currentBid.toFixed(2)}, \u504F\u5DEE${(deviation * 100).toFixed(1)}%, \u5B89\u5168\u8C03\u6574\u5230$${adjustedBid.toFixed(2)}`,
+              isProductTarget: false
+            });
+            results.push({
+              type: "nextgen_quality_audit",
+              accountId,
+              targetId: row.keyword_id,
+              targetType: "keyword",
+              previousValue: String(currentBid),
+              correctedValue: String(adjustedBid),
+              reason: `[v198\u8D28\u91CF\u5BA1\u8BA1] "${row.keyword_text}" \u65E7\u7B97\u6CD5\u51FA\u4EF7$${currentBid.toFixed(2)} \u2192 NextGen\u5EFA\u8BAE$${adjustedBid.toFixed(2)} (${nextGenResult.algorithmUsed}, \u504F\u5DEE${(deviation * 100).toFixed(1)}%)`,
+              success: true
+              // 暂标记为true，API同步后更新
+            });
+          }
+        }
+      } catch (kwErr) {
+        console.warn(`[AutoCorrector] v198: \u5173\u952E\u8BCD${row.keyword_id}\u8D28\u91CF\u5BA1\u8BA1\u5931\u8D25: ${kwErr.message}`);
+      }
+    }
+    if (bidAdjustments.length > 0) {
+      try {
+        const syncResult = await syncBidAdjustmentsToAmazon(accountId, bidAdjustments);
+        corrected = syncResult.success;
+        for (const adj of bidAdjustments) {
+          const itemResult = syncResult.itemResults?.get(adj.keywordId);
+          const synced = itemResult?.status === "synced";
+          if (synced) {
+            await database.update(keywords).set({ bid: String(adj.newBid) }).where(eq(keywords.id, adj.keywordId));
+          }
+          await logCorrectionEvent(database, {
+            accountId,
+            eventCategory: "bid_adjustment",
+            actionType: "nextgen_quality_audit",
+            keywordId: adj.keywordId,
+            campaignId: adj.campaignId,
+            previousBid: results.find((r5) => r5.targetId === adj.keywordId)?.previousValue,
+            newBid: String(adj.newBid),
+            changeReason: adj.reason
+          });
+          const resultItem = results.find((r5) => r5.targetId === adj.keywordId);
+          if (resultItem && !synced) {
+            resultItem.success = false;
+            resultItem.errorMessage = itemResult?.error || "API sync failed";
+          }
+        }
+        console.log(`[AutoCorrector] v198: \u8D26\u6237${accountId} NextGen\u8D28\u91CF\u5BA1\u8BA1API\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${syncResult.success}, \u5931\u8D25=${syncResult.failed}`);
+      } catch (apiErr) {
+        console.error(`[AutoCorrector] v198: \u8D26\u6237${accountId} NextGen\u8D28\u91CF\u5BA1\u8BA1API\u540C\u6B65\u5931\u8D25: ${apiErr.message}`);
+        for (const r5 of results) {
+          if (r5.type === "nextgen_quality_audit") {
+            r5.success = false;
+            r5.errorMessage = apiErr.message;
+          }
+        }
+      }
+    }
+    console.log(`[AutoCorrector] v198: \u8D26\u6237${accountId} NextGen\u8D28\u91CF\u5BA1\u8BA1\u5B8C\u6210: \u5BA1\u8BA1=${audited}, \u504F\u5DEE=${deviationsFound}, \u7EA0\u6B63=${corrected}`);
+  } catch (err2) {
+    console.error(`[AutoCorrector] v198: \u8D26\u6237${accountId} NextGen\u8D28\u91CF\u5BA1\u8BA1\u5F02\u5E38: ${err2.message}`);
+  }
+  return results;
+}
 function startAutoCorrector() {
   if (correctionInterval) {
     console.log("[AutoCorrector] \u5B9A\u65F6\u7EA0\u9519\u670D\u52A1\u5DF2\u5728\u8FD0\u884C\u4E2D");
@@ -77096,7 +77522,7 @@ function stopAutoCorrector() {
     console.log("[AutoCorrector] \u5B9A\u65F6\u7EA0\u9519\u670D\u52A1\u5DF2\u505C\u6B62");
   }
 }
-var AUTO_CORRECTION_CONFIG, lastScanTime, isScanning, scanHistory, correctionInterval;
+var AUTO_CORRECTION_CONFIG, lastScanTime, isScanning, scanHistory, correctionInterval, QUALITY_AUDIT_CONFIG;
 var init_optimizationAutoCorrector = __esm({
   "server/optimizationAutoCorrector.ts"() {
     "use strict";
@@ -77105,12 +77531,13 @@ var init_optimizationAutoCorrector = __esm({
     init_drizzle_orm();
     init_amazonApiHelper();
     AUTO_CORRECTION_CONFIG = {
-      // 每次纠错扫描最大处理数量（避免API限流）
-      maxBidCorrectionsPerRun: 50,
-      maxBudgetCorrectionsPerRun: 20,
-      maxPlacementCorrectionsPerRun: 20,
-      maxRetryPerRun: 30,
-      maxRollbackPerRun: 20,
+      // v199: 大幅提高每次纠错扫描的处理量，确保商用级数据完整性
+      // 原先的小批量LIMIT导致大量任务积压，现在提升至商用级处理能力
+      maxBidCorrectionsPerRun: 500,
+      maxBudgetCorrectionsPerRun: 200,
+      maxPlacementCorrectionsPerRun: 200,
+      maxRetryPerRun: 300,
+      maxRollbackPerRun: 200,
       // API同步失败重试的最大次数
       maxRetryAttempts: 3,
       // 认为优化事件"过期"的天数（超过此天数不再重试）
@@ -77131,6 +77558,17 @@ var init_optimizationAutoCorrector = __esm({
     isScanning = false;
     scanHistory = [];
     correctionInterval = null;
+    QUALITY_AUDIT_CONFIG = {
+      maxAuditsPerRun: 100,
+      bidDeviationThreshold: 0.15,
+      // 15%偏差阈值
+      maxSingleAdjustmentPercent: 0.25,
+      // 单次最大调整25%
+      lookbackDays: 7,
+      // 审计最近7天的决策
+      minDataForAudit: true
+      // 要求有最低数据量
+    };
   }
 });
 
@@ -143314,7 +143752,7 @@ var init_postDeployOptimizer = __esm({
     init_db2();
     init_schema2();
     init_drizzle_orm();
-    SYSTEM_VERSION = 186;
+    SYSTEM_VERSION = 199;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -143345,6 +143783,24 @@ var init_postDeployOptimizer = __esm({
         description: "v186: \u4FEE\u590DcampaignId\u7C7B\u578B\u4E0D\u5339\u914D(varchar vs int) + multiDimOptimizer\u4F7F\u7528\u6B63\u786E\u7684\u672C\u5730ID\u67E5\u8BE2hourly_performance + \u4F4D\u7F6E\u4F18\u5316\u4F7F\u7528\u6B63\u786E\u7684\u672C\u5730ID\u67E5\u8BE2placement_performance",
         affectedModules: ["dayparting", "dayparting_budget", "placement", "multidim", "bid"],
         correctionActions: ["rebuild_combo_analysis", "reset_dayparting_rules", "reset_placement_rules", "rerun_optimization"]
+      },
+      {
+        version: 197,
+        description: "v197: NextGen\u7B97\u6CD5\u4F53\u7CFB \u2014 Sigmoid\u66F2\u7EBF\u62DF\u5408\u3001LinUCB\u4E0A\u4E0B\u6587\u8D4C\u535A\u673A\u3001\u56E0\u679C\u63A8\u65ADUplift\u6A21\u578B\u3001\u79BB\u7EBFRL(CQL)\u3001\u9884\u7B97\u7EC4\u5408\u4F18\u5316\u3001\u5173\u952E\u8BCD\u8BED\u4E49\u56FE\u8C31\u3001\u5143\u5B66\u4E60\u7B56\u7565\u9009\u62E9\u5668",
+        affectedModules: ["bid", "budget", "keyword"],
+        correctionActions: ["rerun_optimization", "recalculate_budgets"]
+      },
+      {
+        version: 198,
+        description: "v198: NextGen\u7EDF\u4E00\u51FA\u4EF7\u5F15\u64CE \u2014 100%\u66FF\u6362\u65E7\u51FA\u4EF7\u7B97\u6CD5\uFF0C\u4E09\u5C42\u964D\u7EA7\u94FE(\u9AD8\u7EA7\u7B97\u6CD5\u2192\u89C4\u5219\u5F15\u64CE\u2192\u4FDD\u5B88\u7B56\u7565)\uFF0C\u5168\u81EA\u52A8\u5316\u5B9A\u65F6\u4EFB\u52A1\uFF0C\u5386\u53F2\u51B3\u7B56\u590D\u76D8\u4E0E\u7EA0\u9519",
+        affectedModules: ["all"],
+        correctionActions: ["full_reoptimize", "rebuild_combo_analysis", "recalculate_budgets"]
+      },
+      {
+        version: 199,
+        description: "v199: \u5546\u7528\u7EA7\u6570\u636E\u5B8C\u6574\u6027\u4FEE\u590D \u2014 \u4FEE\u590D\u6240\u6709API\u5206\u9875/\u5206\u6279\u5904\u7406\u7F3A\u9677\uFF0C\u786E\u4FDD\u5173\u952E\u8BCD\u521B\u5EFA/\u51FA\u4EF7\u66F4\u65B0/\u5426\u5B9A\u8BCD\u540C\u6B65/\u72B6\u6001\u53D8\u66F4\u7B49\u6240\u6709\u64CD\u4F5C\u5B8C\u6574\u6267\u884C\uFF0C\u79FB\u9664\u7EA0\u9519\u5668\u548C\u4EFB\u52A1\u961F\u5217\u7684\u5904\u7406\u91CF\u4E0A\u9650",
+        affectedModules: [],
+        correctionActions: []
       }
     ];
     POST_DEPLOY_CONFIG = {
@@ -145260,11 +145716,10 @@ async function updateLogsSyncStatus(conn, batchId) {
   }
 }
 async function processRetryTasks() {
-  console.log(`[SyncEngine] v196: \u68C0\u67E5\u91CD\u8BD5\u4EFB\u52A1...`);
+  console.log(`[SyncEngine] v199: \u68C0\u67E5\u91CD\u8BD5\u4EFB\u52A1...`);
   await resetRecoverableFailedTasks();
-  const result = await executeBatchSync({
-    maxTasks: 500
-  });
+  const result = await executeBatchSync();
+  console.log(`[SyncEngine] v199: \u91CD\u8BD5\u4EFB\u52A1\u5904\u7406\u5B8C\u6210: \u603B\u8BA1=${result.totalTasks}, \u6210\u529F=${result.synced}, \u5931\u8D25=${result.failed}`);
   return {
     processed: result.totalTasks,
     synced: result.synced,
