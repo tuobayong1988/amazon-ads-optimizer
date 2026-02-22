@@ -31365,6 +31365,7 @@ __export(schema_exports, {
   keywordAutoExecutionConfigs: () => keywordAutoExecutionConfigs,
   keywordAutoExecutionDetails: () => keywordAutoExecutionDetails,
   keywordAutoExecutionHistory: () => keywordAutoExecutionHistory,
+  keywordPlacementHourlyPerformance: () => keywordPlacementHourlyPerformance,
   keywordPredictions: () => keywordPredictions,
   keywords: () => keywords,
   localUsers: () => localUsers,
@@ -31372,6 +31373,7 @@ __export(schema_exports, {
   marginalBenefitHistory: () => marginalBenefitHistory,
   marketCurveData: () => marketCurveData,
   marketCurveModels: () => marketCurveModels,
+  multiDimComboAnalysis: () => multiDimComboAnalysis,
   negativeKeywords: () => negativeKeywords,
   notificationHistory: () => notificationHistory,
   notificationSettings: () => notificationSettings,
@@ -31407,7 +31409,7 @@ __export(schema_exports, {
   userNotificationPreferences: () => userNotificationPreferences,
   users: () => users
 });
-var abTestCampaignAssignments, abTestDailyMetrics, abTestResults, abTestVariants, abTests, accountPermissions, adAccounts, adGroups, aiOptimizationActions, aiOptimizationExecutions, aiOptimizationPredictions, aiOptimizationReviews, amazonApiCredentials, amsConsumerStatus, amsMessages, amsPerformanceBuffer, amsPerformanceData, amsSubscriptions, anomalyAlertLogs, anomalyDetectionRules, apiCallLogs, apiOperationLogs, apiRateLimits, apiRequestQueue, attributionCorrectionRecords, auditLogs, autoPauseRecords, autoTargetingPerformance, autoTargetingSettings, batchMarginalBenefitAnalysis, batchOperationItems, batchOperations, bidAdjustmentHistory, bidObjectProfitEstimates, bidPerformanceHistory, biddingLogs, budgetAlertSettings, budgetAllocationConfigs, budgetAllocationHistory, budgetAllocationItems, budgetAllocationSuggestions, budgetAllocationTracking, budgetAllocations, budgetAutoExecutionConfigs, budgetAutoExecutionDetails, budgetAutoExecutionHistory, budgetAutoExecutionLogs, keywordAutoExecutionConfigs, keywordAutoExecutionHistory, keywordAutoExecutionDetails, budgetConsumptionAlerts, budgetGoals, budgetHistory, campaignPerformanceSnapshots, campaigns, collaborationNotificationRules, collaborationNotifications, correctionReviewSessions, dailyPerformance, dataConsistencyChecks, dataSyncJobs, dataSyncLogs, dataSyncSchedules, dataSyncTasks, daypartingBidRules, daypartingBudgetRules, daypartingExecutionLogs, daypartingStrategies, decisionTreeModels, emailReportSubscriptions, emailSendLogs, hourlyPerformance, hourpartingBidRules, importJobs, inviteCodeUsages, inviteCodes, keywordPredictions, keywords, localUsers, marginalBenefitApplications, marginalBenefitHistory, marketCurveData, marketCurveModels, negativeKeywords, notificationHistory, notificationSettings, optimizationRecommendations, organizations, performanceGroups, placementBidSettings, placementPerformance, placementSettings, productTargets, promotionalEvents, sbCampaignSettings, scheduledTasks, sdAudienceTargeting, sdAudiences, sdCampaignSettings, searchTermAnalysis, searchTerms, seasonalBudgetRecommendations, seasonalTrends, spendAlertLogs, spendLimitConfigs, syncChangeRecords, syncChangeSummary, syncConflicts, syncSchedules, syncTaskQueue, taskExecutionLog, teamMembers, userNotificationPreferences, users, reportJobs, accountInitializationProgress, algorithmEffectRecords, holidayConfigurations, optimizationLogs, optimizationEvents;
+var abTestCampaignAssignments, abTestDailyMetrics, abTestResults, abTestVariants, abTests, accountPermissions, adAccounts, adGroups, aiOptimizationActions, aiOptimizationExecutions, aiOptimizationPredictions, aiOptimizationReviews, amazonApiCredentials, amsConsumerStatus, amsMessages, amsPerformanceBuffer, amsPerformanceData, amsSubscriptions, anomalyAlertLogs, anomalyDetectionRules, apiCallLogs, apiOperationLogs, apiRateLimits, apiRequestQueue, attributionCorrectionRecords, auditLogs, autoPauseRecords, autoTargetingPerformance, autoTargetingSettings, batchMarginalBenefitAnalysis, batchOperationItems, batchOperations, bidAdjustmentHistory, bidObjectProfitEstimates, bidPerformanceHistory, biddingLogs, budgetAlertSettings, budgetAllocationConfigs, budgetAllocationHistory, budgetAllocationItems, budgetAllocationSuggestions, budgetAllocationTracking, budgetAllocations, budgetAutoExecutionConfigs, budgetAutoExecutionDetails, budgetAutoExecutionHistory, budgetAutoExecutionLogs, keywordAutoExecutionConfigs, keywordAutoExecutionHistory, keywordAutoExecutionDetails, budgetConsumptionAlerts, budgetGoals, budgetHistory, campaignPerformanceSnapshots, campaigns, collaborationNotificationRules, collaborationNotifications, correctionReviewSessions, dailyPerformance, dataConsistencyChecks, dataSyncJobs, dataSyncLogs, dataSyncSchedules, dataSyncTasks, daypartingBidRules, daypartingBudgetRules, daypartingExecutionLogs, daypartingStrategies, decisionTreeModels, emailReportSubscriptions, emailSendLogs, hourlyPerformance, hourpartingBidRules, importJobs, inviteCodeUsages, inviteCodes, keywordPredictions, keywords, localUsers, marginalBenefitApplications, marginalBenefitHistory, marketCurveData, marketCurveModels, negativeKeywords, notificationHistory, notificationSettings, optimizationRecommendations, organizations, performanceGroups, placementBidSettings, placementPerformance, placementSettings, productTargets, promotionalEvents, sbCampaignSettings, scheduledTasks, sdAudienceTargeting, sdAudiences, sdCampaignSettings, searchTermAnalysis, searchTerms, seasonalBudgetRecommendations, seasonalTrends, spendAlertLogs, spendLimitConfigs, syncChangeRecords, syncChangeSummary, syncConflicts, syncSchedules, syncTaskQueue, taskExecutionLog, teamMembers, userNotificationPreferences, users, reportJobs, accountInitializationProgress, algorithmEffectRecords, holidayConfigurations, optimizationLogs, optimizationEvents, keywordPlacementHourlyPerformance, multiDimComboAnalysis;
 var init_schema2 = __esm({
   "drizzle/schema.ts"() {
     "use strict";
@@ -34556,6 +34558,90 @@ var init_schema2 = __esm({
         index("idx_oe_api_sync_status").on(table.apiSyncStatus),
         index("idx_oe_created_at").on(table.createdAt),
         index("idx_oe_pg_category_created").on(table.performanceGroupId, table.eventCategory, table.createdAt)
+      ]
+    );
+    keywordPlacementHourlyPerformance = mysqlTable(
+      "keyword_placement_hourly_performance",
+      {
+        id: int().autoincrement().notNull(),
+        accountId: int("account_id").notNull(),
+        campaignId: int("campaign_id").notNull(),
+        adGroupId: int("ad_group_id"),
+        keywordId: int("keyword_id"),
+        targetId: int("target_id"),
+        placement: mysqlEnum(["top_of_search", "product_page", "rest_of_search"]).notNull(),
+        date: date({ mode: "string" }).notNull(),
+        hour: int().notNull(),
+        dayOfWeek: int("day_of_week").notNull(),
+        impressions: int().default(0),
+        clicks: int().default(0),
+        spend: decimal({ precision: 12, scale: 4 }).default("0.0000"),
+        sales: decimal({ precision: 12, scale: 2 }).default("0.00"),
+        orders: int().default(0),
+        unitsSold: int("units_sold").default(0),
+        acos: decimal({ precision: 8, scale: 4 }),
+        roas: decimal({ precision: 10, scale: 2 }),
+        ctr: decimal({ precision: 8, scale: 6 }),
+        cvr: decimal({ precision: 8, scale: 6 }),
+        cpc: decimal({ precision: 10, scale: 4 }),
+        dataSource: mysqlEnum("data_source", ["ams", "report_api", "simulated"]).default("ams"),
+        createdAt: timestamp("created_at", { mode: "string" }).default("CURRENT_TIMESTAMP").notNull(),
+        updatedAt: timestamp("updated_at", { mode: "string" }).defaultNow().onUpdateNow().notNull()
+      },
+      (table) => [
+        index("idx_kph_account_campaign_date").on(table.accountId, table.campaignId, table.date),
+        index("idx_kph_keyword_placement").on(table.keywordId, table.placement, table.date),
+        index("idx_kph_target_placement").on(table.targetId, table.placement, table.date),
+        index("idx_kph_day_hour").on(table.dayOfWeek, table.hour),
+        index("idx_kph_placement_date").on(table.placement, table.date),
+        index("idx_kph_unique_combo").on(table.accountId, table.campaignId, table.keywordId, table.targetId, table.placement, table.date, table.hour)
+      ]
+    );
+    multiDimComboAnalysis = mysqlTable(
+      "multi_dim_combo_analysis",
+      {
+        id: int().autoincrement().notNull(),
+        accountId: int("account_id").notNull(),
+        campaignId: int("campaign_id").notNull(),
+        keywordId: int("keyword_id"),
+        targetId: int("target_id"),
+        keywordText: varchar("keyword_text", { length: 500 }),
+        comboCategory: mysqlEnum("combo_category", ["golden", "leaden", "potential", "standard"]).notNull(),
+        bestPlacement: mysqlEnum("best_placement", ["top_of_search", "product_page", "rest_of_search"]),
+        worstPlacement: mysqlEnum("worst_placement", ["top_of_search", "product_page", "rest_of_search"]),
+        bestTimeWindows: json("best_time_windows"),
+        worstTimeWindows: json("worst_time_windows"),
+        topOfSearchRoas: decimal("top_of_search_roas", { precision: 10, scale: 2 }),
+        topOfSearchAcos: decimal("top_of_search_acos", { precision: 8, scale: 4 }),
+        topOfSearchSpend: decimal("top_of_search_spend", { precision: 12, scale: 2 }),
+        topOfSearchSales: decimal("top_of_search_sales", { precision: 12, scale: 2 }),
+        productPageRoas: decimal("product_page_roas", { precision: 10, scale: 2 }),
+        productPageAcos: decimal("product_page_acos", { precision: 8, scale: 4 }),
+        productPageSpend: decimal("product_page_spend", { precision: 12, scale: 2 }),
+        productPageSales: decimal("product_page_sales", { precision: 12, scale: 2 }),
+        restOfSearchRoas: decimal("rest_of_search_roas", { precision: 10, scale: 2 }),
+        restOfSearchAcos: decimal("rest_of_search_acos", { precision: 8, scale: 4 }),
+        restOfSearchSpend: decimal("rest_of_search_spend", { precision: 12, scale: 2 }),
+        restOfSearchSales: decimal("rest_of_search_sales", { precision: 12, scale: 2 }),
+        suggestedBidMultiplier: decimal("suggested_bid_multiplier", { precision: 5, scale: 3 }).default("1.000"),
+        suggestedPlacementMultiplier: decimal("suggested_placement_multiplier", { precision: 5, scale: 3 }).default("1.000"),
+        suggestedTimeMultiplier: decimal("suggested_time_multiplier", { precision: 5, scale: 3 }).default("1.000"),
+        totalClicks: int("total_clicks").default(0),
+        totalOrders: int("total_orders").default(0),
+        dataPoints: int("data_points").default(0),
+        confidenceLevel: mysqlEnum("confidence_level", ["high", "medium", "low", "insufficient"]).default("insufficient"),
+        analysisStartDate: date("analysis_start_date", { mode: "string" }),
+        analysisEndDate: date("analysis_end_date", { mode: "string" }),
+        analyzedAt: timestamp("analyzed_at", { mode: "string" }).default("CURRENT_TIMESTAMP"),
+        createdAt: timestamp("created_at", { mode: "string" }).default("CURRENT_TIMESTAMP").notNull(),
+        updatedAt: timestamp("updated_at", { mode: "string" }).defaultNow().onUpdateNow().notNull()
+      },
+      (table) => [
+        index("idx_mdca_account_campaign").on(table.accountId, table.campaignId),
+        index("idx_mdca_keyword").on(table.keywordId),
+        index("idx_mdca_target").on(table.targetId),
+        index("idx_mdca_category").on(table.comboCategory),
+        index("idx_mdca_confidence").on(table.confidenceLevel)
       ]
     );
   }
@@ -133834,6 +133920,28 @@ var init_sqsConsumerService = __esm({
         } catch (error54) {
           console.error(`[SQS Consumer] \u4FDD\u5B58${adType}\u6D41\u91CF\u6570\u636E\u5931\u8D25:`, error54.message);
         }
+        if (localCampaignId && adType === "SP" && (data4.keyword_id || data4.target_id)) {
+          try {
+            await this.upsertKeywordPlacementHourlyData({
+              accountId: account.id,
+              campaignId: localCampaignId,
+              amazonAdGroupId: data4.ad_group_id || null,
+              amazonKeywordId: data4.keyword_id || null,
+              amazonTargetId: data4.target_id || null,
+              placement: this.mapPlacementType(data4.campaign_placement_type),
+              date: date12,
+              eventHour: eventHour || "",
+              impressions,
+              clicks,
+              spend: cost,
+              sales: 0,
+              orders: 0,
+              dataType: "traffic"
+            });
+          } catch (err2) {
+            console.warn(`[SQS Consumer] v183: \u5199\u5165\u4EA4\u53C9\u7EF4\u5EA6\u6D41\u91CF\u6570\u636E\u5931\u8D25: ${err2.message}`);
+          }
+        }
       }
       /**
        * 处理转化消息（销售、订单）
@@ -133878,6 +133986,28 @@ var init_sqsConsumerService = __esm({
           console.log(`[SQS Consumer] ${adType}\u8F6C\u5316\u6570\u636E\u5DF2\u4FDD\u5B58: accountId=${account.id}, campaignId=${localCampaignId || "N/A"}, date=${date12}`);
         } catch (error54) {
           console.error(`[SQS Consumer] \u4FDD\u5B58${adType}\u8F6C\u5316\u6570\u636E\u5931\u8D25:`, error54.message);
+        }
+        if (localCampaignId && adType === "SP" && (data4.keyword_id || data4.target_id)) {
+          try {
+            await this.upsertKeywordPlacementHourlyData({
+              accountId: account.id,
+              campaignId: localCampaignId,
+              amazonAdGroupId: data4.ad_group_id || null,
+              amazonKeywordId: data4.keyword_id || null,
+              amazonTargetId: data4.target_id || null,
+              placement: this.mapPlacementType(data4.campaign_placement_type),
+              date: date12,
+              eventHour: eventHour || "",
+              impressions: 0,
+              clicks: 0,
+              spend: 0,
+              sales,
+              orders,
+              dataType: "conversion"
+            });
+          } catch (err2) {
+            console.warn(`[SQS Consumer] v183: \u5199\u5165\u4EA4\u53C9\u7EF4\u5EA6\u8F6C\u5316\u6570\u636E\u5931\u8D25: ${err2.message}`);
+          }
         }
       }
       /**
@@ -133983,6 +134113,111 @@ var init_sqsConsumerService = __esm({
        */
       isConsumerRunning() {
         return this.isRunning;
+      }
+      // ==================== v183: 交叉维度数据写入 ====================
+      /**
+       * 将AMS的placement类型映射到我们的枚举值
+       * AMS使用: TOP_OF_SEARCH, DETAIL_PAGE, OTHER
+       * 我们使用: top_of_search, product_page, rest_of_search
+       */
+      mapPlacementType(amsPlacement) {
+        if (!amsPlacement) return "rest_of_search";
+        const upper = amsPlacement.toUpperCase();
+        if (upper === "TOP_OF_SEARCH" || upper.includes("TOP")) return "top_of_search";
+        if (upper === "DETAIL_PAGE" || upper.includes("DETAIL") || upper.includes("PRODUCT")) return "product_page";
+        return "rest_of_search";
+      }
+      /**
+       * 写入或更新交叉维度绩效数据
+       * 使用覆盖写入逻辑（与AMS的快照模式一致）
+       */
+      async upsertKeywordPlacementHourlyData(params) {
+        const { keywordPlacementHourlyPerformance: keywordPlacementHourlyPerformance2 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+        const { getDb: getDb2 } = await Promise.resolve().then(() => (init_db2(), db_exports));
+        const { eq: eq7, and: and7, sql: sql9 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+        const dbConn = await getDb2();
+        if (!dbConn) return;
+        let hour2 = 0;
+        if (params.eventHour) {
+          const match = params.eventHour.match(/T(\d{2})/);
+          if (match) hour2 = parseInt(match[1]);
+        }
+        const dateObj = /* @__PURE__ */ new Date(params.date + "T00:00:00");
+        const dayOfWeek = dateObj.getDay();
+        let localKeywordId = null;
+        let localTargetId = null;
+        let localAdGroupId = null;
+        const dbModule = await Promise.resolve().then(() => (init_db2(), db_exports));
+        if (params.amazonKeywordId) {
+          try {
+            const result = await dbConn.select({ id: (await Promise.resolve().then(() => (init_schema2(), schema_exports))).keywords.id }).from((await Promise.resolve().then(() => (init_schema2(), schema_exports))).keywords).where(eq7((await Promise.resolve().then(() => (init_schema2(), schema_exports))).keywords.keywordId, params.amazonKeywordId)).limit(1);
+            if (result[0]) localKeywordId = result[0].id;
+          } catch (e6) {
+          }
+        }
+        if (params.amazonTargetId) {
+          try {
+            const result = await dbConn.select({ id: (await Promise.resolve().then(() => (init_schema2(), schema_exports))).productTargets.id }).from((await Promise.resolve().then(() => (init_schema2(), schema_exports))).productTargets).where(eq7((await Promise.resolve().then(() => (init_schema2(), schema_exports))).productTargets.targetId, params.amazonTargetId)).limit(1);
+            if (result[0]) localTargetId = result[0].id;
+          } catch (e6) {
+          }
+        }
+        if (!localKeywordId && !localTargetId) {
+          return;
+        }
+        const existing = await dbConn.select().from(keywordPlacementHourlyPerformance2).where(and7(
+          eq7(keywordPlacementHourlyPerformance2.accountId, params.accountId),
+          eq7(keywordPlacementHourlyPerformance2.campaignId, params.campaignId),
+          localKeywordId ? eq7(keywordPlacementHourlyPerformance2.keywordId, localKeywordId) : sql9`${keywordPlacementHourlyPerformance2.keywordId} IS NULL`,
+          localTargetId ? eq7(keywordPlacementHourlyPerformance2.targetId, localTargetId) : sql9`${keywordPlacementHourlyPerformance2.targetId} IS NULL`,
+          eq7(keywordPlacementHourlyPerformance2.placement, params.placement),
+          eq7(keywordPlacementHourlyPerformance2.date, params.date),
+          eq7(keywordPlacementHourlyPerformance2.hour, hour2)
+        )).limit(1);
+        if (existing.length > 0) {
+          const updateData = {};
+          if (params.dataType === "traffic") {
+            updateData.impressions = params.impressions;
+            updateData.clicks = params.clicks;
+            updateData.spend = String(params.spend);
+          } else {
+            updateData.sales = String(params.sales);
+            updateData.orders = params.orders;
+          }
+          const row = existing[0];
+          const totalSpend = params.dataType === "traffic" ? params.spend : parseFloat(String(row.spend || "0"));
+          const totalSales = params.dataType === "conversion" ? params.sales : parseFloat(String(row.sales || "0"));
+          const totalClicks = params.dataType === "traffic" ? params.clicks : row.clicks || 0;
+          const totalOrders = params.dataType === "conversion" ? params.orders : row.orders || 0;
+          if (totalSpend > 0 && totalSales > 0) {
+            updateData.acos = String((totalSpend / totalSales * 100).toFixed(4));
+            updateData.roas = String((totalSales / totalSpend).toFixed(2));
+          }
+          if (totalClicks > 0) {
+            updateData.ctr = String(((row.impressions || 0) > 0 ? totalClicks / (row.impressions || 1) : 0).toFixed(6));
+            updateData.cvr = String((totalOrders / totalClicks).toFixed(6));
+            updateData.cpc = String((totalSpend / totalClicks).toFixed(4));
+          }
+          await dbConn.update(keywordPlacementHourlyPerformance2).set(updateData).where(eq7(keywordPlacementHourlyPerformance2.id, existing[0].id));
+        } else {
+          await dbConn.insert(keywordPlacementHourlyPerformance2).values({
+            accountId: params.accountId,
+            campaignId: params.campaignId,
+            adGroupId: localAdGroupId,
+            keywordId: localKeywordId,
+            targetId: localTargetId,
+            placement: params.placement,
+            date: params.date,
+            hour: hour2,
+            dayOfWeek,
+            impressions: params.impressions,
+            clicks: params.clicks,
+            spend: String(params.spend),
+            sales: String(params.sales),
+            orders: params.orders,
+            dataSource: "ams"
+          });
+        }
       }
     };
     sqsConsumerInstance = null;
@@ -137181,6 +137416,404 @@ var init_multiDimensionOptimizer = __esm({
   }
 });
 
+// server/multiDimComboAnalyzer.ts
+function getTimeDecayWeight(daysAgo) {
+  if (daysAgo <= 7) return 1;
+  if (daysAgo <= 14) return 0.7;
+  if (daysAgo <= 21) return 0.4;
+  if (daysAgo <= 30) return 0.2;
+  return 0.1;
+}
+async function analyzeCampaignCombos(db, campaignId, accountId, targetAcos = 30, lookbackDays = 30) {
+  const endDate = /* @__PURE__ */ new Date();
+  const startDate = /* @__PURE__ */ new Date();
+  startDate.setDate(startDate.getDate() - lookbackDays);
+  const startStr = startDate.toISOString().split("T")[0];
+  const endStr = endDate.toISOString().split("T")[0];
+  const campaignInfo = await db.select({ campaignName: campaigns.campaignName }).from(campaigns).where(eq(campaigns.id, campaignId)).limit(1);
+  const campaignName = campaignInfo[0]?.campaignName || `Campaign ${campaignId}`;
+  const rawData = await db.select({
+    keywordId: keywordPlacementHourlyPerformance.keywordId,
+    targetId: keywordPlacementHourlyPerformance.targetId,
+    placement: keywordPlacementHourlyPerformance.placement,
+    dayOfWeek: keywordPlacementHourlyPerformance.dayOfWeek,
+    hour: keywordPlacementHourlyPerformance.hour,
+    date: keywordPlacementHourlyPerformance.date,
+    impressions: keywordPlacementHourlyPerformance.impressions,
+    clicks: keywordPlacementHourlyPerformance.clicks,
+    spend: keywordPlacementHourlyPerformance.spend,
+    sales: keywordPlacementHourlyPerformance.sales,
+    orders: keywordPlacementHourlyPerformance.orders
+  }).from(keywordPlacementHourlyPerformance).where(and(
+    eq(keywordPlacementHourlyPerformance.campaignId, campaignId),
+    eq(keywordPlacementHourlyPerformance.accountId, accountId),
+    gte(keywordPlacementHourlyPerformance.date, startStr),
+    lte(keywordPlacementHourlyPerformance.date, endStr)
+  ));
+  if (rawData.length === 0) {
+    console.log(`[ComboAnalyzer] Campaign ${campaignId} \u65E0\u4EA4\u53C9\u7EF4\u5EA6\u6570\u636E\uFF0C\u8DF3\u8FC7`);
+    return null;
+  }
+  const keywordGroups = /* @__PURE__ */ new Map();
+  for (const row of rawData) {
+    const key = row.keywordId ? `kw_${row.keywordId}` : `tgt_${row.targetId}`;
+    if (!keywordGroups.has(key)) {
+      keywordGroups.set(key, []);
+    }
+    keywordGroups.get(key).push(row);
+  }
+  const keywordTexts = /* @__PURE__ */ new Map();
+  const keywordIds = [...keywordGroups.keys()].filter((k5) => k5.startsWith("kw_")).map((k5) => parseInt(k5.replace("kw_", "")));
+  if (keywordIds.length > 0) {
+    const kwInfos = await db.select({ id: keywords.id, keywordText: keywords.keywordText }).from(keywords).where(sql`${keywords.id} IN (${sql.join(keywordIds.map((id) => sql`${id}`), sql`, `)})`);
+    for (const kw of kwInfos) {
+      keywordTexts.set(`kw_${kw.id}`, kw.keywordText);
+    }
+  }
+  const targetIds = [...keywordGroups.keys()].filter((k5) => k5.startsWith("tgt_")).map((k5) => parseInt(k5.replace("tgt_", "")));
+  if (targetIds.length > 0) {
+    const tgtInfos = await db.select({ id: productTargets.id, targetExpression: productTargets.targetExpression }).from(productTargets).where(sql`${productTargets.id} IN (${sql.join(targetIds.map((id) => sql`${id}`), sql`, `)})`);
+    for (const tgt of tgtInfos) {
+      keywordTexts.set(`tgt_${tgt.id}`, tgt.targetExpression || `Target ${tgt.id}`);
+    }
+  }
+  const allResults = [];
+  for (const [key, rows] of keywordGroups) {
+    const result = analyzeKeywordCombo(
+      key,
+      rows,
+      keywordTexts.get(key) || key,
+      campaignId,
+      targetAcos,
+      endDate
+    );
+    allResults.push(result);
+  }
+  const goldenCombos = allResults.filter((r5) => r5.comboCategory === "golden");
+  const leadenCombos = allResults.filter((r5) => r5.comboCategory === "leaden");
+  const potentialCombos = allResults.filter((r5) => r5.comboCategory === "potential");
+  const standardCombos = allResults.filter((r5) => r5.comboCategory === "standard");
+  const suggestedBudgetMultiplier = calculateCampaignBudgetMultiplier(
+    goldenCombos,
+    leadenCombos,
+    potentialCombos,
+    standardCombos,
+    targetAcos
+  );
+  const totalClicks = allResults.reduce((s4, r5) => s4 + r5.totalClicks, 0);
+  const totalOrders = allResults.reduce((s4, r5) => s4 + r5.totalOrders, 0);
+  const overallConfidence = totalClicks >= 200 && totalOrders >= 20 ? "high" : totalClicks >= 50 && totalOrders >= 5 ? "medium" : totalClicks >= 10 ? "low" : "insufficient";
+  console.log(`[ComboAnalyzer] Campaign ${campaignName}: ${goldenCombos.length}\u4E2A\u9EC4\u91D1, ${leadenCombos.length}\u4E2A\u94C5\u77F3, ${potentialCombos.length}\u4E2A\u6F5C\u529B, ${standardCombos.length}\u4E2A\u6807\u51C6 (\u7F6E\u4FE1\u5EA6: ${overallConfidence})`);
+  return {
+    campaignId,
+    campaignName,
+    goldenCombos,
+    leadenCombos,
+    potentialCombos,
+    standardCombos,
+    overallConfidence,
+    totalKeywordsAnalyzed: allResults.length,
+    suggestedBudgetMultiplier
+  };
+}
+function analyzeKeywordCombo(key, rows, keywordText, campaignId, targetAcos, referenceDate) {
+  const keywordId = key.startsWith("kw_") ? parseInt(key.replace("kw_", "")) : null;
+  const targetId = key.startsWith("tgt_") ? parseInt(key.replace("tgt_", "")) : null;
+  const weightedRows = rows.map((row) => {
+    const rowDate = new Date(row.date);
+    const daysAgo = Math.floor((referenceDate.getTime() - rowDate.getTime()) / (1e3 * 60 * 60 * 24));
+    const weight = getTimeDecayWeight(daysAgo);
+    return {
+      ...row,
+      weight,
+      wSpend: parseFloat(row.spend || "0") * weight,
+      wSales: parseFloat(row.sales || "0") * weight,
+      wClicks: (row.clicks || 0) * weight,
+      wOrders: (row.orders || 0) * weight,
+      wImpressions: (row.impressions || 0) * weight
+    };
+  });
+  const placementMap = /* @__PURE__ */ new Map();
+  for (const placement of ["top_of_search", "product_page", "rest_of_search"]) {
+    const placementRows = weightedRows.filter((r5) => r5.placement === placement);
+    const totalSpend2 = placementRows.reduce((s4, r5) => s4 + r5.wSpend, 0);
+    const totalSales2 = placementRows.reduce((s4, r5) => s4 + r5.wSales, 0);
+    const totalClicks2 = placementRows.reduce((s4, r5) => s4 + r5.wClicks, 0);
+    const totalOrders2 = placementRows.reduce((s4, r5) => s4 + r5.wOrders, 0);
+    placementMap.set(placement, {
+      placement,
+      weightedRoas: totalSpend2 > 0 ? totalSales2 / totalSpend2 : 0,
+      weightedAcos: totalSales2 > 0 ? totalSpend2 / totalSales2 * 100 : totalSpend2 > 0 ? 999 : 0,
+      totalSpend: totalSpend2,
+      totalSales: totalSales2,
+      totalClicks: totalClicks2,
+      totalOrders: totalOrders2,
+      dataPoints: placementRows.length
+    });
+  }
+  const placementSummaries = [...placementMap.values()];
+  const validPlacements = placementSummaries.filter((p4) => p4.totalClicks >= 3);
+  const sortedPlacements = [...validPlacements].sort((a4, b6) => b6.weightedRoas - a4.weightedRoas);
+  const bestPlacement = sortedPlacements.length > 0 ? sortedPlacements[0].placement : null;
+  const worstPlacement = sortedPlacements.length > 1 ? sortedPlacements[sortedPlacements.length - 1].placement : null;
+  const timeSlotMap = /* @__PURE__ */ new Map();
+  for (const row of weightedRows) {
+    const slotKey = `${row.dayOfWeek}_${row.hour}`;
+    if (!timeSlotMap.has(slotKey)) {
+      timeSlotMap.set(slotKey, { dayOfWeek: row.dayOfWeek, hour: row.hour, wSpend: 0, wSales: 0, wClicks: 0, wOrders: 0, count: 0 });
+    }
+    const slot = timeSlotMap.get(slotKey);
+    slot.wSpend += row.wSpend;
+    slot.wSales += row.wSales;
+    slot.wClicks += row.wClicks;
+    slot.wOrders += row.wOrders;
+    slot.count++;
+  }
+  const timeSlots = [...timeSlotMap.values()];
+  const validTimeSlots = timeSlots.filter((t7) => t7.wClicks >= 2);
+  const sortedByRoas = [...validTimeSlots].sort((a4, b6) => {
+    const roasA = a4.wSpend > 0 ? a4.wSales / a4.wSpend : 0;
+    const roasB = b6.wSpend > 0 ? b6.wSales / b6.wSpend : 0;
+    return roasB - roasA;
+  });
+  const bestTimeWindows = sortedByRoas.slice(0, 5).map((t7) => ({
+    dayOfWeek: t7.dayOfWeek,
+    startHour: t7.hour,
+    endHour: t7.hour,
+    avgRoas: t7.wSpend > 0 ? t7.wSales / t7.wSpend : 0,
+    avgAcos: t7.wSales > 0 ? t7.wSpend / t7.wSales * 100 : 999,
+    totalSpend: t7.wSpend,
+    totalSales: t7.wSales
+  }));
+  const worstTimeWindows = sortedByRoas.slice(-5).reverse().map((t7) => ({
+    dayOfWeek: t7.dayOfWeek,
+    startHour: t7.hour,
+    endHour: t7.hour,
+    avgRoas: t7.wSpend > 0 ? t7.wSales / t7.wSpend : 0,
+    avgAcos: t7.wSales > 0 ? t7.wSpend / t7.wSales * 100 : 999,
+    totalSpend: t7.wSpend,
+    totalSales: t7.wSales
+  }));
+  const totalSpend = weightedRows.reduce((s4, r5) => s4 + r5.wSpend, 0);
+  const totalSales = weightedRows.reduce((s4, r5) => s4 + r5.wSales, 0);
+  const totalClicks = weightedRows.reduce((s4, r5) => s4 + r5.wClicks, 0);
+  const totalOrders = weightedRows.reduce((s4, r5) => s4 + r5.wOrders, 0);
+  const overallRoas = totalSpend > 0 ? totalSales / totalSpend : 0;
+  const overallAcos = totalSales > 0 ? totalSpend / totalSales * 100 : totalSpend > 0 ? 999 : 0;
+  const { category, bidMultiplier, placementMultiplier, timeMultiplier, confidence } = classifyCombo(
+    totalClicks,
+    totalOrders,
+    totalSpend,
+    totalSales,
+    overallRoas,
+    overallAcos,
+    bestPlacement,
+    bestTimeWindows,
+    targetAcos,
+    rows.length
+  );
+  return {
+    keywordId,
+    targetId,
+    keywordText,
+    campaignId,
+    comboCategory: category,
+    bestPlacement,
+    worstPlacement,
+    bestTimeWindows,
+    worstTimeWindows,
+    placementSummaries,
+    suggestedBidMultiplier: bidMultiplier,
+    suggestedPlacementMultiplier: placementMultiplier,
+    suggestedTimeMultiplier: timeMultiplier,
+    totalClicks: Math.round(totalClicks),
+    totalOrders: Math.round(totalOrders),
+    dataPoints: rows.length,
+    confidenceLevel: confidence
+  };
+}
+function classifyCombo(totalClicks, totalOrders, totalSpend, totalSales, roas, acos, bestPlacement, bestTimeWindows, targetAcos, dataPoints) {
+  const confidence = totalClicks >= 50 && totalOrders >= 8 ? "high" : totalClicks >= 20 && totalOrders >= 3 ? "medium" : totalClicks >= 10 ? "low" : "insufficient";
+  const targetRoas = targetAcos > 0 ? 100 / targetAcos : 3.33;
+  if (confidence === "insufficient") {
+    return {
+      category: "potential",
+      bidMultiplier: 1,
+      placementMultiplier: 1,
+      timeMultiplier: 1,
+      confidence
+    };
+  }
+  if (roas >= targetRoas * 1.2 && totalOrders >= 3 && confidence !== "low") {
+    const roasRatio = Math.min(roas / targetRoas, 3);
+    const bidMultiplier2 = Math.min(1.2, 1 + (roasRatio - 1.2) * 0.1);
+    const placementMultiplier = bestPlacement ? Math.min(1.15, 1 + (roasRatio - 1) * 0.05) : 1;
+    const timeMultiplier = bestTimeWindows.length > 0 ? Math.min(1.15, 1 + (roasRatio - 1) * 0.05) : 1;
+    return { category: "golden", bidMultiplier: bidMultiplier2, placementMultiplier, timeMultiplier, confidence };
+  }
+  const isHighSpendNoConversion = totalSpend >= 5 && totalOrders === 0 && totalClicks >= 15;
+  const isHighAcos = acos >= targetAcos * 1.5 && totalClicks >= 15;
+  if (isHighSpendNoConversion || isHighAcos) {
+    const acosRatio = acos > 0 ? Math.min(acos / targetAcos, 5) : 3;
+    const bidMultiplier2 = Math.max(0.8, 1 - (acosRatio - 1.5) * 0.05);
+    const placementMultiplier = Math.max(0.85, 1 - (acosRatio - 1.5) * 0.03);
+    const timeMultiplier = Math.max(0.85, 1 - (acosRatio - 1.5) * 0.03);
+    return { category: "leaden", bidMultiplier: bidMultiplier2, placementMultiplier, timeMultiplier, confidence };
+  }
+  if (confidence === "low") {
+    return {
+      category: "potential",
+      bidMultiplier: 1,
+      placementMultiplier: 1,
+      timeMultiplier: 1,
+      confidence
+    };
+  }
+  const deviation = (targetAcos - acos) / targetAcos;
+  const bidMultiplier = Math.max(0.95, Math.min(1.05, 1 + deviation * 0.05));
+  return {
+    category: "standard",
+    bidMultiplier,
+    placementMultiplier: 1,
+    timeMultiplier: 1,
+    confidence
+  };
+}
+function calculateCampaignBudgetMultiplier(golden, leaden, potential, standard, targetAcos) {
+  const allCombos = [...golden, ...leaden, ...potential, ...standard];
+  if (allCombos.length === 0) return 1;
+  const totalSpend = allCombos.reduce((s4, c5) => {
+    return s4 + c5.placementSummaries.reduce((ps, p4) => ps + p4.totalSpend, 0);
+  }, 0);
+  if (totalSpend <= 0) return 1;
+  const goldenSpend = golden.reduce((s4, c5) => {
+    return s4 + c5.placementSummaries.reduce((ps, p4) => ps + p4.totalSpend, 0);
+  }, 0);
+  const leadenSpend = leaden.reduce((s4, c5) => {
+    return s4 + c5.placementSummaries.reduce((ps, p4) => ps + p4.totalSpend, 0);
+  }, 0);
+  const goldenRatio = goldenSpend / totalSpend;
+  const leadenRatio = leadenSpend / totalSpend;
+  if (goldenRatio > 0.4 && leadenRatio < 0.2) {
+    return Math.min(1.15, 1 + (goldenRatio - 0.4) * 0.3);
+  }
+  if (leadenRatio > 0.4) {
+    return Math.max(0.9, 1 - (leadenRatio - 0.4) * 0.2);
+  }
+  return 1;
+}
+async function persistAnalysisResults(db, accountId, analysis) {
+  const allCombos = [
+    ...analysis.goldenCombos,
+    ...analysis.leadenCombos,
+    ...analysis.potentialCombos,
+    ...analysis.standardCombos
+  ];
+  if (allCombos.length === 0) return 0;
+  const now = (/* @__PURE__ */ new Date()).toISOString().replace("T", " ").substring(0, 19);
+  const startDate = /* @__PURE__ */ new Date();
+  startDate.setDate(startDate.getDate() - 30);
+  await db.delete(multiDimComboAnalysis).where(and(
+    eq(multiDimComboAnalysis.accountId, accountId),
+    eq(multiDimComboAnalysis.campaignId, analysis.campaignId)
+  ));
+  let inserted = 0;
+  for (const combo of allCombos) {
+    const topOfSearch = combo.placementSummaries.find((p4) => p4.placement === "top_of_search");
+    const productPage = combo.placementSummaries.find((p4) => p4.placement === "product_page");
+    const restOfSearch = combo.placementSummaries.find((p4) => p4.placement === "rest_of_search");
+    try {
+      await db.insert(multiDimComboAnalysis).values({
+        accountId,
+        campaignId: combo.campaignId,
+        keywordId: combo.keywordId,
+        targetId: combo.targetId,
+        keywordText: combo.keywordText.substring(0, 500),
+        comboCategory: combo.comboCategory,
+        bestPlacement: combo.bestPlacement,
+        worstPlacement: combo.worstPlacement,
+        bestTimeWindows: combo.bestTimeWindows,
+        worstTimeWindows: combo.worstTimeWindows,
+        topOfSearchRoas: topOfSearch ? String(topOfSearch.weightedRoas.toFixed(2)) : null,
+        topOfSearchAcos: topOfSearch ? String(topOfSearch.weightedAcos.toFixed(4)) : null,
+        topOfSearchSpend: topOfSearch ? String(topOfSearch.totalSpend.toFixed(2)) : null,
+        topOfSearchSales: topOfSearch ? String(topOfSearch.totalSales.toFixed(2)) : null,
+        productPageRoas: productPage ? String(productPage.weightedRoas.toFixed(2)) : null,
+        productPageAcos: productPage ? String(productPage.weightedAcos.toFixed(4)) : null,
+        productPageSpend: productPage ? String(productPage.totalSpend.toFixed(2)) : null,
+        productPageSales: productPage ? String(productPage.totalSales.toFixed(2)) : null,
+        restOfSearchRoas: restOfSearch ? String(restOfSearch.weightedRoas.toFixed(2)) : null,
+        restOfSearchAcos: restOfSearch ? String(restOfSearch.weightedAcos.toFixed(4)) : null,
+        restOfSearchSpend: restOfSearch ? String(restOfSearch.totalSpend.toFixed(2)) : null,
+        restOfSearchSales: restOfSearch ? String(restOfSearch.totalSales.toFixed(2)) : null,
+        suggestedBidMultiplier: String(combo.suggestedBidMultiplier.toFixed(3)),
+        suggestedPlacementMultiplier: String(combo.suggestedPlacementMultiplier.toFixed(3)),
+        suggestedTimeMultiplier: String(combo.suggestedTimeMultiplier.toFixed(3)),
+        totalClicks: combo.totalClicks,
+        totalOrders: combo.totalOrders,
+        dataPoints: combo.dataPoints,
+        confidenceLevel: combo.confidenceLevel,
+        analysisStartDate: startDate.toISOString().split("T")[0],
+        analysisEndDate: (/* @__PURE__ */ new Date()).toISOString().split("T")[0],
+        analyzedAt: now
+      });
+      inserted++;
+    } catch (err2) {
+      console.error(`[ComboAnalyzer] \u5199\u5165\u5206\u6790\u7ED3\u679C\u5931\u8D25: ${err2.message}`);
+    }
+  }
+  console.log(`[ComboAnalyzer] Campaign ${analysis.campaignName}: \u5199\u5165${inserted}\u6761\u5206\u6790\u7ED3\u679C`);
+  return inserted;
+}
+async function executeMultiDimComboAnalysis(db, accountId, campaignIds, config2) {
+  const targetAcos = config2.targetAcos || 30;
+  const lookbackDays = config2.lookbackDays || 30;
+  let campaignsAnalyzed = 0;
+  let totalCombosFound = 0;
+  let goldenCount = 0;
+  let leadenCount = 0;
+  let potentialCount = 0;
+  let standardCount = 0;
+  const details = [];
+  for (const campaignId of campaignIds) {
+    try {
+      const analysis = await analyzeCampaignCombos(db, campaignId, accountId, targetAcos, lookbackDays);
+      if (!analysis) continue;
+      await persistAnalysisResults(db, accountId, analysis);
+      campaignsAnalyzed++;
+      totalCombosFound += analysis.totalKeywordsAnalyzed;
+      goldenCount += analysis.goldenCombos.length;
+      leadenCount += analysis.leadenCombos.length;
+      potentialCount += analysis.potentialCombos.length;
+      standardCount += analysis.standardCombos.length;
+      details.push(analysis);
+    } catch (err2) {
+      console.error(`[ComboAnalyzer] Campaign ${campaignId} \u5206\u6790\u5931\u8D25: ${err2.message}`);
+    }
+  }
+  console.log(`[ComboAnalyzer] \u5206\u6790\u5B8C\u6210: ${campaignsAnalyzed}\u4E2Acampaign, ${totalCombosFound}\u4E2A\u7EC4\u5408 (\u9EC4\u91D1:${goldenCount}, \u94C5\u77F3:${leadenCount}, \u6F5C\u529B:${potentialCount}, \u6807\u51C6:${standardCount})`);
+  return {
+    campaignsAnalyzed,
+    totalCombosFound,
+    goldenCount,
+    leadenCount,
+    potentialCount,
+    standardCount,
+    details
+  };
+}
+async function getComboAnalysisForAccount(db, accountId) {
+  const results = await db.select().from(multiDimComboAnalysis).where(eq(multiDimComboAnalysis.accountId, accountId));
+  return results;
+}
+var init_multiDimComboAnalyzer = __esm({
+  "server/multiDimComboAnalyzer.ts"() {
+    "use strict";
+    init_drizzle_orm();
+    init_schema2();
+  }
+});
+
 // server/postOptimizationVerifier.ts
 function generateTaskId(accountId, type) {
   return `verify_${accountId}_${type}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
@@ -137982,6 +138615,35 @@ async function executeOptimizationTarget(targetId, options = {}) {
       console.error(`[OptimizationTarget] \u591A\u7EF4\u5EA6\u4F18\u5316\u5F02\u5E38:`, error54.message);
     }
   }
+  if (config2.enableDaypartingOptimization && shouldExecute("combo_analysis")) {
+    try {
+      const dbConn = await getDb();
+      if (dbConn) {
+        const campaignIds = campaigns6.map((c5) => c5.id);
+        const comboResults = await executeMultiDimComboAnalysis(
+          dbConn,
+          config2.accountId,
+          campaignIds,
+          {
+            targetAcos: config2.targetAcos,
+            lookbackDays: 30
+          }
+        );
+        console.log(`[OptimizationTarget] v183 \u591A\u7EF4\u5EA6\u7EC4\u5408\u5206\u6790\u5B8C\u6210: ${comboResults.campaignsAnalyzed}\u4E2Acampaign, ${comboResults.totalCombosFound}\u4E2A\u7EC4\u5408 (\u9EC4\u91D1:${comboResults.goldenCount}, \u94C5\u77F3:${comboResults.leadenCount}, \u6F5C\u529B:${comboResults.potentialCount}, \u6807\u51C6:${comboResults.standardCount})`);
+        if (result.multiDimensionOptimization) {
+          result.multiDimensionOptimization.comboAnalysis = {
+            goldenCount: comboResults.goldenCount,
+            leadenCount: comboResults.leadenCount,
+            potentialCount: comboResults.potentialCount,
+            standardCount: comboResults.standardCount
+          };
+        }
+      }
+    } catch (error54) {
+      console.error(`[OptimizationTarget] v183 \u591A\u7EF4\u5EA6\u7EC4\u5408\u5206\u6790\u5F02\u5E38:`, error54.message);
+      result.warnings.push(`\u591A\u7EF4\u5EA6\u7EC4\u5408\u5206\u6790\u5931\u8D25: ${error54.message}`);
+    }
+  }
   if (config2.enableDaypartingOptimization && shouldExecute("dayparting")) {
     try {
       const daypartingResults = await executeDaypartingOptimization(config2, campaigns6, dryRun);
@@ -138545,6 +139207,22 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
 async function executePlacementOptimization(config2, campaigns6, dryRun) {
   const details = [];
   let adjustmentsCount = 0;
+  let accountComboMap = /* @__PURE__ */ new Map();
+  try {
+    const dbConn = await getDb();
+    if (dbConn) {
+      const allCombos = await getComboAnalysisForAccount(dbConn, config2.accountId);
+      for (const combo of allCombos) {
+        if (!accountComboMap.has(combo.campaignId)) {
+          accountComboMap.set(combo.campaignId, []);
+        }
+        accountComboMap.get(combo.campaignId).push(combo);
+      }
+      console.log(`[PlacementOptimization] v183: \u52A0\u8F7D${allCombos.length}\u4E2A\u6295\u653E\u8BCD\u7684\u7EC4\u5408\u5206\u6790\u7ED3\u679C`);
+    }
+  } catch (comboErr) {
+    console.log(`[PlacementOptimization] v183: \u52A0\u8F7D\u7EC4\u5408\u5206\u6790\u7ED3\u679C\u5931\u8D25: ${comboErr.message}`);
+  }
   for (const campaign of campaigns6) {
     try {
       const analysis = await analyzePlacementPerformance(campaign.campaignId || campaign.id.toString(), config2.accountId);
@@ -138552,23 +139230,46 @@ async function executePlacementOptimization(config2, campaigns6, dryRun) {
         campaign.campaignId || campaign.id.toString(),
         config2.accountId
       );
+      const campaignCombos = accountComboMap.get(campaign.id) || [];
+      const goldenCombos = campaignCombos.filter((c5) => c5.comboCategory === "golden" && c5.confidenceLevel !== "insufficient");
+      let topOfSearchGoldenCount = 0;
+      let productPageGoldenCount = 0;
+      for (const combo of goldenCombos) {
+        if (combo.bestPlacement === "top_of_search") topOfSearchGoldenCount++;
+        if (combo.bestPlacement === "product_page") productPageGoldenCount++;
+      }
       for (const suggestion of suggestions) {
+        let comboAdjustedMultiplier = suggestion.suggestedMultiplier;
+        let comboReason = "";
+        if (goldenCombos.length > 0) {
+          if (suggestion.placement === "top_of_search" && topOfSearchGoldenCount > goldenCombos.length * 0.5) {
+            const boost = Math.min(suggestion.suggestedMultiplier * 0.1, 20);
+            comboAdjustedMultiplier = Math.min(suggestion.suggestedMultiplier + boost, 900);
+            comboReason = ` [v183: ${topOfSearchGoldenCount}\u4E2A\u9EC4\u91D1\u7EC4\u5408\u504F\u597D\u641C\u7D22\u9876\u90E8, +${boost.toFixed(0)}%]`;
+          } else if (suggestion.placement === "product_page" && productPageGoldenCount > goldenCombos.length * 0.5) {
+            const boost = Math.min(suggestion.suggestedMultiplier * 0.1, 20);
+            comboAdjustedMultiplier = Math.min(suggestion.suggestedMultiplier + boost, 900);
+            comboReason = ` [v183: ${productPageGoldenCount}\u4E2A\u9EC4\u91D1\u7EC4\u5408\u504F\u597D\u5546\u54C1\u9875, +${boost.toFixed(0)}%]`;
+          }
+        }
         const adjustment = {
           accountId: config2.accountId,
           campaignId: campaign.id,
           campaignName: campaign.campaignName,
           placement: suggestion.placement,
           currentMultiplier: suggestion.currentMultiplier,
-          suggestedMultiplier: suggestion.suggestedMultiplier,
-          reason: suggestion.reason,
-          apiSyncStatus: dryRun ? "pending" : "pending"
+          suggestedMultiplier: comboAdjustedMultiplier,
+          originalSuggestedMultiplier: suggestion.suggestedMultiplier,
+          reason: suggestion.reason + comboReason,
+          apiSyncStatus: dryRun ? "pending" : "pending",
+          comboGoldenCount: goldenCombos.length
         };
         details.push(adjustment);
-        if (!dryRun && suggestion.suggestedMultiplier !== suggestion.currentMultiplier) {
+        if (!dryRun && comboAdjustedMultiplier !== suggestion.currentMultiplier) {
           await applyPlacementAdjustment(
             campaign.campaignId || campaign.id.toString(),
             config2.accountId,
-            suggestion
+            { ...suggestion, suggestedMultiplier: comboAdjustedMultiplier }
           );
           adjustmentsCount++;
         }
@@ -138634,6 +139335,22 @@ async function executeDaypartingOptimization(config2, campaigns6, dryRun) {
   const now = /* @__PURE__ */ new Date();
   const currentHour = getLocalHour(now, marketplace);
   const currentDayOfWeek = getLocalDayOfWeek(now, marketplace);
+  let comboAnalysisMap = /* @__PURE__ */ new Map();
+  try {
+    const dbConn = await getDb();
+    if (dbConn) {
+      const comboResults = await getComboAnalysisForAccount(dbConn, config2.accountId);
+      for (const combo of comboResults) {
+        if (combo.keywordId) {
+          comboAnalysisMap.set(combo.keywordId, combo);
+        }
+      }
+      console.log(`[DaypartingOptimization] v183: \u52A0\u8F7D${comboAnalysisMap.size}\u4E2A\u6295\u653E\u8BCD\u7684\u591A\u7EF4\u5EA6\u7EC4\u5408\u5206\u6790\u7ED3\u679C`);
+    }
+  } catch (comboErr) {
+    console.log(`[DaypartingOptimization] v183: \u52A0\u8F7D\u7EC4\u5408\u5206\u6790\u7ED3\u679C\u5931\u8D25\uFF0C\u4F7F\u7528\u7EDF\u4E00\u4E58\u6570: ${comboErr.message}`);
+  }
+  const maxBidLimit = config2.maxBid || 2;
   for (const campaign of campaigns6) {
     try {
       let strategy = await getDaypartingStrategyByCampaignId(campaign.id);
@@ -138652,13 +139369,52 @@ async function executeDaypartingOptimization(config2, campaigns6, dryRun) {
       if (!strategy || strategy.daypartingStatus !== "active") continue;
       const hourlyRule = await getHourlyRule(strategy.id, currentDayOfWeek, currentHour);
       if (!hourlyRule) continue;
-      const bidMultiplier = parseFloat(hourlyRule.bidMultiplier || "1.00");
+      const baseDaypartingMultiplier = parseFloat(hourlyRule.bidMultiplier || "1.00");
       const keywords6 = await getKeywordsByCampaignId(campaign.id);
       for (const keyword of keywords6) {
         if (keyword.keywordStatus !== "enabled") continue;
         const baseBid = parseFloat(keyword.bid || "0");
         if (baseBid <= 0) continue;
-        const adjustedBid = baseBid * bidMultiplier;
+        let comboTimeMultiplier = 1;
+        let comboBidMultiplier = 1;
+        let comboCategory = "standard";
+        let comboConfidence = "insufficient";
+        const comboAnalysis = comboAnalysisMap.get(keyword.id);
+        if (comboAnalysis) {
+          comboCategory = comboAnalysis.comboCategory || "standard";
+          comboConfidence = comboAnalysis.confidenceLevel || "insufficient";
+          if (comboConfidence !== "insufficient") {
+            comboBidMultiplier = parseFloat(comboAnalysis.suggestedBidMultiplier || "1.000");
+            comboTimeMultiplier = parseFloat(comboAnalysis.suggestedTimeMultiplier || "1.000");
+            const bestWindows = comboAnalysis.bestTimeWindows || [];
+            const worstWindows = comboAnalysis.worstTimeWindows || [];
+            const isInBestWindow = bestWindows.some(
+              (w7) => w7.dayOfWeek === currentDayOfWeek && currentHour >= w7.startHour && currentHour <= w7.endHour
+            );
+            const isInWorstWindow = worstWindows.some(
+              (w7) => w7.dayOfWeek === currentDayOfWeek && currentHour >= w7.startHour && currentHour <= w7.endHour
+            );
+            if (isInBestWindow) {
+              comboTimeMultiplier = Math.min(comboTimeMultiplier * 1.15, 1.3);
+            } else if (isInWorstWindow) {
+              comboTimeMultiplier = Math.max(comboTimeMultiplier * 0.85, 0.7);
+            }
+          }
+        }
+        const finalMultiplier = baseDaypartingMultiplier * comboBidMultiplier * comboTimeMultiplier;
+        let adjustedBid = baseBid * finalMultiplier;
+        const maxAdjustedBid = baseBid * 1.4;
+        const minAdjustedBid = baseBid * 0.6;
+        adjustedBid = Math.min(adjustedBid, maxAdjustedBid);
+        adjustedBid = Math.max(adjustedBid, minAdjustedBid);
+        adjustedBid = Math.min(adjustedBid, maxBidLimit);
+        adjustedBid = Math.max(adjustedBid, 0.02);
+        adjustedBid = Math.round(adjustedBid * 100) / 100;
+        const reasonParts = [];
+        reasonParts.push(`\u5206\u65F6${baseDaypartingMultiplier.toFixed(2)}x`);
+        if (comboBidMultiplier !== 1) reasonParts.push(`\u6295\u653E\u8BCD${comboBidMultiplier.toFixed(3)}x`);
+        if (comboTimeMultiplier !== 1) reasonParts.push(`\u65F6\u6BB5${comboTimeMultiplier.toFixed(3)}x`);
+        if (comboCategory !== "standard") reasonParts.push(`[${comboCategory}]`);
         const adjustment = {
           accountId: config2.accountId,
           campaignId: campaign.id,
@@ -138668,23 +139424,28 @@ async function executeDaypartingOptimization(config2, campaigns6, dryRun) {
           hour: currentHour,
           dayOfWeek: currentDayOfWeek,
           baseBid,
-          bidMultiplier,
+          bidMultiplier: finalMultiplier,
+          baseDaypartingMultiplier,
+          comboBidMultiplier,
+          comboTimeMultiplier,
+          comboCategory,
+          comboConfidence,
           adjustedBid,
           currentBid: baseBid,
           newBid: adjustedBid,
-          reason: `\u5206\u65F6\u7ADE\u4EF7: ${currentHour}:00 \u4E58\u6570${bidMultiplier}x, \u57FA\u7840\u51FA\u4EF7$${baseBid.toFixed(2)} \u2192 $${adjustedBid.toFixed(2)}`,
+          reason: `v183\u5206\u65F6\u7ADE\u4EF7: ${currentHour}:00 ${reasonParts.join(" \xD7 ")} = ${finalMultiplier.toFixed(3)}x, $${baseBid.toFixed(2)} \u2192 $${adjustedBid.toFixed(2)}`,
           apiSyncStatus: dryRun ? "pending" : "pending"
         };
         details.push(adjustment);
-        if (!dryRun && bidMultiplier !== 1) {
+        if (!dryRun && Math.abs(adjustedBid - baseBid) > 0.01) {
           try {
             const syncResult = await syncBidAdjustmentsToAmazon(
               config2.accountId,
               [{
                 keywordId: keyword.id,
-                newBid: Math.round(adjustedBid * 100) / 100,
+                newBid: adjustedBid,
                 campaignId: campaign.id,
-                reason: `\u5206\u65F6\u7ADE\u4EF7: ${currentHour}:00 \u4E58\u6570${bidMultiplier}`,
+                reason: `v183\u5206\u65F6\u7ADE\u4EF7: ${reasonParts.join(" \xD7 ")}`,
                 isProductTarget: false
               }]
             );
@@ -140231,6 +140992,7 @@ var init_optimizationTargetEngine = __esm({
     init_gradualOptimizationEngine();
     init_selfEvolutionEngine();
     init_multiDimensionOptimizer();
+    init_multiDimComboAnalyzer();
     init_postOptimizationVerifier();
     marketplaceCache2 = /* @__PURE__ */ new Map();
   }

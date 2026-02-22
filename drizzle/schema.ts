@@ -3502,3 +3502,94 @@ export const optimizationEvents = mysqlTable("optimization_events", {
 ]);
 export type OptimizationEvent = InferSelectModel<typeof optimizationEvents>;
 export type InsertOptimizationEvent = InferInsertModel<typeof optimizationEvents>;
+
+// ==================== v183: 多维度资源倾斜 - 交叉维度绩效表 ====================
+/**
+ * 投放词 × 广告位 × 小时 交叉维度绩效表
+ * 
+ * 数据来源: Amazon Marketing Stream (AMS) sp-traffic + sp-conversion
+ * 用途: 支持多维度组合分析引擎识别"黄金组合"和"铅石组合"
+ */
+export const keywordPlacementHourlyPerformance = mysqlTable("keyword_placement_hourly_performance", {
+  id: int().autoincrement().notNull(),
+  accountId: int("account_id").notNull(),
+  campaignId: int("campaign_id").notNull(),
+  adGroupId: int("ad_group_id"),
+  keywordId: int("keyword_id"),
+  targetId: int("target_id"),
+  placement: mysqlEnum(['top_of_search', 'product_page', 'rest_of_search']).notNull(),
+  date: date({ mode: 'string' }).notNull(),
+  hour: int().notNull(),
+  dayOfWeek: int("day_of_week").notNull(),
+  impressions: int().default(0),
+  clicks: int().default(0),
+  spend: decimal({ precision: 12, scale: 4 }).default('0.0000'),
+  sales: decimal({ precision: 12, scale: 2 }).default('0.00'),
+  orders: int().default(0),
+  unitsSold: int("units_sold").default(0),
+  acos: decimal({ precision: 8, scale: 4 }),
+  roas: decimal({ precision: 10, scale: 2 }),
+  ctr: decimal({ precision: 8, scale: 6 }),
+  cvr: decimal({ precision: 8, scale: 6 }),
+  cpc: decimal({ precision: 10, scale: 4 }),
+  dataSource: mysqlEnum("data_source", ['ams', 'report_api', 'simulated']).default('ams'),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+  updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+  index("idx_kph_account_campaign_date").on(table.accountId, table.campaignId, table.date),
+  index("idx_kph_keyword_placement").on(table.keywordId, table.placement, table.date),
+  index("idx_kph_target_placement").on(table.targetId, table.placement, table.date),
+  index("idx_kph_day_hour").on(table.dayOfWeek, table.hour),
+  index("idx_kph_placement_date").on(table.placement, table.date),
+  index("idx_kph_unique_combo").on(table.accountId, table.campaignId, table.keywordId, table.targetId, table.placement, table.date, table.hour),
+]);
+
+/**
+ * 多维度组合分析结果表
+ * 存储 multiDimComboAnalyzer 的分析结果
+ */
+export const multiDimComboAnalysis = mysqlTable("multi_dim_combo_analysis", {
+  id: int().autoincrement().notNull(),
+  accountId: int("account_id").notNull(),
+  campaignId: int("campaign_id").notNull(),
+  keywordId: int("keyword_id"),
+  targetId: int("target_id"),
+  keywordText: varchar("keyword_text", { length: 500 }),
+  comboCategory: mysqlEnum("combo_category", ['golden', 'leaden', 'potential', 'standard']).notNull(),
+  bestPlacement: mysqlEnum("best_placement", ['top_of_search', 'product_page', 'rest_of_search']),
+  worstPlacement: mysqlEnum("worst_placement", ['top_of_search', 'product_page', 'rest_of_search']),
+  bestTimeWindows: json("best_time_windows"),
+  worstTimeWindows: json("worst_time_windows"),
+  topOfSearchRoas: decimal("top_of_search_roas", { precision: 10, scale: 2 }),
+  topOfSearchAcos: decimal("top_of_search_acos", { precision: 8, scale: 4 }),
+  topOfSearchSpend: decimal("top_of_search_spend", { precision: 12, scale: 2 }),
+  topOfSearchSales: decimal("top_of_search_sales", { precision: 12, scale: 2 }),
+  productPageRoas: decimal("product_page_roas", { precision: 10, scale: 2 }),
+  productPageAcos: decimal("product_page_acos", { precision: 8, scale: 4 }),
+  productPageSpend: decimal("product_page_spend", { precision: 12, scale: 2 }),
+  productPageSales: decimal("product_page_sales", { precision: 12, scale: 2 }),
+  restOfSearchRoas: decimal("rest_of_search_roas", { precision: 10, scale: 2 }),
+  restOfSearchAcos: decimal("rest_of_search_acos", { precision: 8, scale: 4 }),
+  restOfSearchSpend: decimal("rest_of_search_spend", { precision: 12, scale: 2 }),
+  restOfSearchSales: decimal("rest_of_search_sales", { precision: 12, scale: 2 }),
+  suggestedBidMultiplier: decimal("suggested_bid_multiplier", { precision: 5, scale: 3 }).default('1.000'),
+  suggestedPlacementMultiplier: decimal("suggested_placement_multiplier", { precision: 5, scale: 3 }).default('1.000'),
+  suggestedTimeMultiplier: decimal("suggested_time_multiplier", { precision: 5, scale: 3 }).default('1.000'),
+  totalClicks: int("total_clicks").default(0),
+  totalOrders: int("total_orders").default(0),
+  dataPoints: int("data_points").default(0),
+  confidenceLevel: mysqlEnum("confidence_level", ['high', 'medium', 'low', 'insufficient']).default('insufficient'),
+  analysisStartDate: date("analysis_start_date", { mode: 'string' }),
+  analysisEndDate: date("analysis_end_date", { mode: 'string' }),
+  analyzedAt: timestamp("analyzed_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+  updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+  index("idx_mdca_account_campaign").on(table.accountId, table.campaignId),
+  index("idx_mdca_keyword").on(table.keywordId),
+  index("idx_mdca_target").on(table.targetId),
+  index("idx_mdca_category").on(table.comboCategory),
+  index("idx_mdca_confidence").on(table.confidenceLevel),
+]);

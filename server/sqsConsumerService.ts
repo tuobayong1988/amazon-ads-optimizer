@@ -42,6 +42,9 @@ export interface AmsTrafficMessage {
   keyword_id?: string;
   target_id?: string;
   
+  // v183: 广告位维度
+  campaign_placement_type?: string;  // TOP_OF_SEARCH, DETAIL_PAGE, OTHER
+  
   // 流量指标
   impressions?: number;
   clicks?: number;
@@ -66,6 +69,9 @@ export interface AmsConversionMessage {
   ad_id?: string;
   keyword_id?: string;
   target_id?: string;
+  
+  // v183: 广告位维度
+  campaign_placement_type?: string;  // TOP_OF_SEARCH, DETAIL_PAGE, OTHER
   
   // 转化指标 - 1天归因
   attributed_conversions_1d?: number;
@@ -606,6 +612,30 @@ export class SQSConsumerService {
     } catch (error: any) {
       console.error(`[SQS Consumer] 保存${adType}流量数据失败:`, error.message);
     }
+    
+    // v183: 写入交叉维度绩效表 (keyword × placement × hour)
+    if (localCampaignId && adType === 'SP' && (data.keyword_id || data.target_id)) {
+      try {
+        await this.upsertKeywordPlacementHourlyData({
+          accountId: account.id,
+          campaignId: localCampaignId,
+          amazonAdGroupId: data.ad_group_id || null,
+          amazonKeywordId: data.keyword_id || null,
+          amazonTargetId: data.target_id || null,
+          placement: this.mapPlacementType(data.campaign_placement_type),
+          date,
+          eventHour: eventHour || '',
+          impressions,
+          clicks,
+          spend: cost,
+          sales: 0,
+          orders: 0,
+          dataType: 'traffic',
+        });
+      } catch (err: any) {
+        console.warn(`[SQS Consumer] v183: 写入交叉维度流量数据失败: ${err.message}`);
+      }
+    }
   }
 
   /**
@@ -666,6 +696,30 @@ export class SQSConsumerService {
       console.log(`[SQS Consumer] ${adType}转化数据已保存: accountId=${account.id}, campaignId=${localCampaignId || 'N/A'}, date=${date}`);
     } catch (error: any) {
       console.error(`[SQS Consumer] 保存${adType}转化数据失败:`, error.message);
+    }
+    
+    // v183: 写入交叉维度绩效表 (转化数据)
+    if (localCampaignId && adType === 'SP' && (data.keyword_id || data.target_id)) {
+      try {
+        await this.upsertKeywordPlacementHourlyData({
+          accountId: account.id,
+          campaignId: localCampaignId,
+          amazonAdGroupId: data.ad_group_id || null,
+          amazonKeywordId: data.keyword_id || null,
+          amazonTargetId: data.target_id || null,
+          placement: this.mapPlacementType(data.campaign_placement_type),
+          date,
+          eventHour: eventHour || '',
+          impressions: 0,
+          clicks: 0,
+          spend: 0,
+          sales,
+          orders,
+          dataType: 'conversion',
+        });
+      } catch (err: any) {
+        console.warn(`[SQS Consumer] v183: 写入交叉维度转化数据失败: ${err.message}`);
+      }
     }
   }
 
@@ -805,6 +859,159 @@ export class SQSConsumerService {
    */
   isConsumerRunning(): boolean {
     return this.isRunning;
+  }
+
+  // ==================== v183: 交叉维度数据写入 ====================
+
+  /**
+   * 将AMS的placement类型映射到我们的枚举值
+   * AMS使用: TOP_OF_SEARCH, DETAIL_PAGE, OTHER
+   * 我们使用: top_of_search, product_page, rest_of_search
+   */
+  private mapPlacementType(amsPlacement?: string): 'top_of_search' | 'product_page' | 'rest_of_search' {
+    if (!amsPlacement) return 'rest_of_search';
+    const upper = amsPlacement.toUpperCase();
+    if (upper === 'TOP_OF_SEARCH' || upper.includes('TOP')) return 'top_of_search';
+    if (upper === 'DETAIL_PAGE' || upper.includes('DETAIL') || upper.includes('PRODUCT')) return 'product_page';
+    return 'rest_of_search';
+  }
+
+  /**
+   * 写入或更新交叉维度绩效数据
+   * 使用覆盖写入逻辑（与AMS的快照模式一致）
+   */
+  private async upsertKeywordPlacementHourlyData(params: {
+    accountId: number;
+    campaignId: number;
+    amazonAdGroupId: string | null;
+    amazonKeywordId: string | null;
+    amazonTargetId: string | null;
+    placement: 'top_of_search' | 'product_page' | 'rest_of_search';
+    date: string;
+    eventHour: string;
+    impressions: number;
+    clicks: number;
+    spend: number;
+    sales: number;
+    orders: number;
+    dataType: 'traffic' | 'conversion';
+  }): Promise<void> {
+    const { keywordPlacementHourlyPerformance } = await import('../drizzle/schema');
+    const { getDb } = await import('./db');
+    const { eq, and, sql } = await import('drizzle-orm');
+    
+    const dbConn = await getDb();
+    if (!dbConn) return;
+
+    // 从 event_hour 提取小时数
+    let hour = 0;
+    if (params.eventHour) {
+      const match = params.eventHour.match(/T(\d{2})/);
+      if (match) hour = parseInt(match[1]);
+    }
+
+    // 计算星期几
+    const dateObj = new Date(params.date + 'T00:00:00');
+    const dayOfWeek = dateObj.getDay();
+
+    // 尝试将Amazon ID映射到本地数据库ID
+    let localKeywordId: number | null = null;
+    let localTargetId: number | null = null;
+    let localAdGroupId: number | null = null;
+
+    const dbModule = await import('./db');
+    
+    if (params.amazonKeywordId) {
+      try {
+        // 通过Amazon keyword_id查找本地keyword
+        const result = await dbConn.select({ id: (await import('../drizzle/schema')).keywords.id })
+          .from((await import('../drizzle/schema')).keywords)
+          .where(eq((await import('../drizzle/schema')).keywords.keywordId, params.amazonKeywordId))
+          .limit(1);
+        if (result[0]) localKeywordId = result[0].id;
+      } catch (e) { /* 映射失败不影响写入 */ }
+    }
+
+    if (params.amazonTargetId) {
+      try {
+        const result = await dbConn.select({ id: (await import('../drizzle/schema')).productTargets.id })
+          .from((await import('../drizzle/schema')).productTargets)
+          .where(eq((await import('../drizzle/schema')).productTargets.targetId, params.amazonTargetId))
+          .limit(1);
+        if (result[0]) localTargetId = result[0].id;
+      } catch (e) { /* 映射失败不影响写入 */ }
+    }
+
+    // 如果无法映射到本地ID，跳过写入
+    if (!localKeywordId && !localTargetId) {
+      return;
+    }
+
+    // 查找已有记录
+    const existing = await dbConn.select()
+      .from(keywordPlacementHourlyPerformance)
+      .where(and(
+        eq(keywordPlacementHourlyPerformance.accountId, params.accountId),
+        eq(keywordPlacementHourlyPerformance.campaignId, params.campaignId),
+        localKeywordId ? eq(keywordPlacementHourlyPerformance.keywordId, localKeywordId) : sql`${keywordPlacementHourlyPerformance.keywordId} IS NULL`,
+        localTargetId ? eq(keywordPlacementHourlyPerformance.targetId, localTargetId) : sql`${keywordPlacementHourlyPerformance.targetId} IS NULL`,
+        eq(keywordPlacementHourlyPerformance.placement, params.placement),
+        eq(keywordPlacementHourlyPerformance.date, params.date),
+        eq(keywordPlacementHourlyPerformance.hour, hour),
+      ))
+      .limit(1);
+
+    if (existing.length > 0) {
+      // 更新已有记录（覆盖写入）
+      const updateData: any = {};
+      if (params.dataType === 'traffic') {
+        updateData.impressions = params.impressions;
+        updateData.clicks = params.clicks;
+        updateData.spend = String(params.spend);
+      } else {
+        updateData.sales = String(params.sales);
+        updateData.orders = params.orders;
+      }
+      // 重新计算派生指标
+      const row = existing[0];
+      const totalSpend = params.dataType === 'traffic' ? params.spend : parseFloat(String(row.spend || '0'));
+      const totalSales = params.dataType === 'conversion' ? params.sales : parseFloat(String(row.sales || '0'));
+      const totalClicks = params.dataType === 'traffic' ? params.clicks : (row.clicks || 0);
+      const totalOrders = params.dataType === 'conversion' ? params.orders : (row.orders || 0);
+      
+      if (totalSpend > 0 && totalSales > 0) {
+        updateData.acos = String((totalSpend / totalSales * 100).toFixed(4));
+        updateData.roas = String((totalSales / totalSpend).toFixed(2));
+      }
+      if (totalClicks > 0) {
+        updateData.ctr = String(((row.impressions || 0) > 0 ? totalClicks / (row.impressions || 1) : 0).toFixed(6));
+        updateData.cvr = String((totalOrders / totalClicks).toFixed(6));
+        updateData.cpc = String((totalSpend / totalClicks).toFixed(4));
+      }
+
+      await dbConn.update(keywordPlacementHourlyPerformance)
+        .set(updateData)
+        .where(eq(keywordPlacementHourlyPerformance.id, existing[0].id));
+    } else {
+      // 插入新记录
+      await dbConn.insert(keywordPlacementHourlyPerformance).values({
+        accountId: params.accountId,
+        campaignId: params.campaignId,
+        adGroupId: localAdGroupId,
+        keywordId: localKeywordId,
+        targetId: localTargetId,
+        placement: params.placement,
+        date: params.date,
+        hour,
+        dayOfWeek,
+        impressions: params.impressions,
+        clicks: params.clicks,
+        spend: String(params.spend),
+        sales: String(params.sales),
+        orders: params.orders,
+        dataSource: 'ams',
+      });
+    }
   }
 }
 

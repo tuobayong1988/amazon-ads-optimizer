@@ -32,6 +32,7 @@ import * as timeDecayService from "./timeDecayWeightedDataService";
 import * as gradualEngine from "./gradualOptimizationEngine";
 import * as selfEvolution from "./selfEvolutionEngine";
 import * as multiDimOptimizer from "./multiDimensionOptimizer";
+import * as multiDimComboAnalyzer from "./multiDimComboAnalyzer";
 import * as postOptVerifier from "./postOptimizationVerifier";
 
 // 缓存账号站点信息，避免重复查询
@@ -454,6 +455,42 @@ export async function executeOptimizationTarget(
     } catch (error: any) {
       result.errors.push(`多维度智能优化失败: ${error.message}`);
       console.error(`[OptimizationTarget] 多维度优化异常:`, error.message);
+    }
+  }
+  
+  // 2.7 v183: 执行多维度组合分析（投放词 × 位置 × 时间段）
+  // 基于keywordPlacementHourlyPerformance交叉维度数据，识别黄金/铅石/潜力组合
+  if (config.enableDaypartingOptimization && shouldExecute('combo_analysis')) {
+    try {
+      const dbConn = await getDb();
+      if (dbConn) {
+        const campaignIds = campaigns.map(c => c.id);
+        const comboResults = await multiDimComboAnalyzer.executeMultiDimComboAnalysis(
+          dbConn,
+          config.accountId,
+          campaignIds,
+          {
+            targetAcos: config.targetAcos,
+            lookbackDays: 30,
+          }
+        );
+        console.log(`[OptimizationTarget] v183 多维度组合分析完成: ${comboResults.campaignsAnalyzed}个campaign, ` +
+          `${comboResults.totalCombosFound}个组合 (黄金:${comboResults.goldenCount}, 铅石:${comboResults.leadenCount}, ` +
+          `潜力:${comboResults.potentialCount}, 标准:${comboResults.standardCount})`);
+        
+        // 将组合分析结果注入到多维度优化结果中
+        if (result.multiDimensionOptimization) {
+          (result.multiDimensionOptimization as any).comboAnalysis = {
+            goldenCount: comboResults.goldenCount,
+            leadenCount: comboResults.leadenCount,
+            potentialCount: comboResults.potentialCount,
+            standardCount: comboResults.standardCount,
+          };
+        }
+      }
+    } catch (error: any) {
+      console.error(`[OptimizationTarget] v183 多维度组合分析异常:`, error.message);
+      result.warnings.push(`多维度组合分析失败: ${error.message}`);
     }
   }
   
@@ -1137,10 +1174,27 @@ async function executePlacementOptimization(
   const details: any[] = [];
   let adjustmentsCount = 0;
   
+  // v183: 预加载多维度组合分析结果，用于智能位置倾斜
+  let accountComboMap = new Map<number, any[]>(); // campaignId -> comboAnalysis[]
+  try {
+    const dbConn = await getDb();
+    if (dbConn) {
+      const allCombos = await multiDimComboAnalyzer.getComboAnalysisForAccount(dbConn, config.accountId);
+      for (const combo of allCombos) {
+        if (!accountComboMap.has(combo.campaignId)) {
+          accountComboMap.set(combo.campaignId, []);
+        }
+        accountComboMap.get(combo.campaignId)!.push(combo);
+      }
+      console.log(`[PlacementOptimization] v183: 加载${allCombos.length}个投放词的组合分析结果`);
+    }
+  } catch (comboErr: any) {
+    console.log(`[PlacementOptimization] v183: 加载组合分析结果失败: ${comboErr.message}`);
+  }
+
   for (const campaign of campaigns) {
     try {
       // 分析位置表现
-      // v158修复: 使用campaign.campaignId而不是amazonCampaignId
       const analysis = await placementOptimizationService.analyzePlacementPerformance(campaign.campaignId || campaign.id.toString(), config.accountId);
       
       // 生成位置调整建议
@@ -1149,26 +1203,56 @@ async function executePlacementOptimization(
         config.accountId
       );
       
+      // v183: 基于多维度组合分析智能调整位置倾斜
+      const campaignCombos = accountComboMap.get(campaign.id) || [];
+      const goldenCombos = campaignCombos.filter((c: any) => c.comboCategory === 'golden' && c.confidenceLevel !== 'insufficient');
+      
+      // 统计黄金组合中各位置的表现
+      let topOfSearchGoldenCount = 0;
+      let productPageGoldenCount = 0;
+      for (const combo of goldenCombos) {
+        if (combo.bestPlacement === 'top_of_search') topOfSearchGoldenCount++;
+        if (combo.bestPlacement === 'product_page') productPageGoldenCount++;
+      }
+      
       for (const suggestion of suggestions) {
+        // v183: 如果多维度分析显示某个位置有大量黄金组合，则增强该位置的倾斜
+        let comboAdjustedMultiplier = suggestion.suggestedMultiplier;
+        let comboReason = '';
+        
+        if (goldenCombos.length > 0) {
+          if (suggestion.placement === 'top_of_search' && topOfSearchGoldenCount > goldenCombos.length * 0.5) {
+            // 超过50%黄金组合的最佳位置是搜索顶部，增强搜索顶部倾斜
+            const boost = Math.min(suggestion.suggestedMultiplier * 0.10, 20); // 最多额外+20%
+            comboAdjustedMultiplier = Math.min(suggestion.suggestedMultiplier + boost, 900); // Amazon上限900%
+            comboReason = ` [v183: ${topOfSearchGoldenCount}个黄金组合偏好搜索顶部, +${boost.toFixed(0)}%]`;
+          } else if (suggestion.placement === 'product_page' && productPageGoldenCount > goldenCombos.length * 0.5) {
+            const boost = Math.min(suggestion.suggestedMultiplier * 0.10, 20);
+            comboAdjustedMultiplier = Math.min(suggestion.suggestedMultiplier + boost, 900);
+            comboReason = ` [v183: ${productPageGoldenCount}个黄金组合偏好商品页, +${boost.toFixed(0)}%]`;
+          }
+        }
+        
         const adjustment: any = {
           accountId: config.accountId,
           campaignId: campaign.id,
           campaignName: campaign.campaignName,
           placement: suggestion.placement,
           currentMultiplier: suggestion.currentMultiplier,
-          suggestedMultiplier: suggestion.suggestedMultiplier,
-          reason: suggestion.reason,
+          suggestedMultiplier: comboAdjustedMultiplier,
+          originalSuggestedMultiplier: suggestion.suggestedMultiplier,
+          reason: suggestion.reason + comboReason,
           apiSyncStatus: dryRun ? 'pending' : 'pending',
+          comboGoldenCount: goldenCombos.length,
         };
         
         details.push(adjustment);
         
-        if (!dryRun && suggestion.suggestedMultiplier !== suggestion.currentMultiplier) {
-          // 实际执行位置调整（本地数据库）
+        if (!dryRun && comboAdjustedMultiplier !== suggestion.currentMultiplier) {
           await placementOptimizationService.applyPlacementAdjustment(
             campaign.campaignId || campaign.id.toString(),
             config.accountId,
-            suggestion
+            { ...suggestion, suggestedMultiplier: comboAdjustedMultiplier }
           );
           adjustmentsCount++;
         }
@@ -1253,12 +1337,31 @@ async function executeDaypartingOptimization(
   const currentHour = getLocalHour(now, marketplace);
   const currentDayOfWeek = getLocalDayOfWeek(now, marketplace);
   
+  // v183: 预加载多维度组合分析结果，用于分投放词分时竞价
+  let comboAnalysisMap = new Map<number, any>(); // keywordId -> comboAnalysis
+  try {
+    const dbConn = await getDb();
+    if (dbConn) {
+      const comboResults = await multiDimComboAnalyzer.getComboAnalysisForAccount(dbConn, config.accountId);
+      for (const combo of comboResults) {
+        if (combo.keywordId) {
+          comboAnalysisMap.set(combo.keywordId, combo);
+        }
+      }
+      console.log(`[DaypartingOptimization] v183: 加载${comboAnalysisMap.size}个投放词的多维度组合分析结果`);
+    }
+  } catch (comboErr: any) {
+    console.log(`[DaypartingOptimization] v183: 加载组合分析结果失败，使用统一乘数: ${comboErr.message}`);
+  }
+  
+  // v183: 最高出价红线
+  const maxBidLimit = config.maxBid || 2.00;
+  
   for (const campaign of campaigns) {
     try {
       // v157: 修复分时策略查找 - 按campaignId查找，并自动创建缺失的策略
       let strategy = await daypartingService.getDaypartingStrategyByCampaignId(campaign.id);
       if (!strategy) {
-        // 自动创建分时策略
         strategy = await daypartingService.ensureDaypartingStrategy(
           config.accountId,
           campaign.id,
@@ -1273,11 +1376,11 @@ async function executeDaypartingOptimization(
       if (!strategy || strategy.daypartingStatus !== 'active') continue;
       
       // 获取当前时段的调整规则
-      // v157: 修复参数顺序 - getHourlyRule(strategyId, dayOfWeek, hour)
       const hourlyRule = await daypartingService.getHourlyRule(strategy.id, currentDayOfWeek, currentHour);
       if (!hourlyRule) continue;
       
-      const bidMultiplier = parseFloat(hourlyRule.bidMultiplier || '1.00');
+      // 基础分时乘数（广告活动级别）
+      const baseDaypartingMultiplier = parseFloat(hourlyRule.bidMultiplier || '1.00');
       
       // 获取广告活动下的所有关键词
       const keywords = await db.getKeywordsByCampaignId(campaign.id);
@@ -1288,7 +1391,65 @@ async function executeDaypartingOptimization(
         const baseBid = parseFloat(keyword.bid || '0');
         if (baseBid <= 0) continue;
         
-        const adjustedBid = baseBid * bidMultiplier;
+        // v183: 多维度资源倾斜算法
+        // 最终竞价 = 基础出价 × 分时乘数 × 投放词个性化时间乘数
+        let comboTimeMultiplier = 1.0;
+        let comboBidMultiplier = 1.0;
+        let comboCategory = 'standard';
+        let comboConfidence = 'insufficient';
+        
+        const comboAnalysis = comboAnalysisMap.get(keyword.id);
+        if (comboAnalysis) {
+          comboCategory = comboAnalysis.comboCategory || 'standard';
+          comboConfidence = comboAnalysis.confidenceLevel || 'insufficient';
+          
+          // 只有置信度达到medium以上才应用个性化乘数
+          if (comboConfidence !== 'insufficient') {
+            comboBidMultiplier = parseFloat(comboAnalysis.suggestedBidMultiplier || '1.000');
+            comboTimeMultiplier = parseFloat(comboAnalysis.suggestedTimeMultiplier || '1.000');
+            
+            // v183: 检查当前时段是否在该投放词的最佳/最差时间窗口内
+            const bestWindows: any[] = comboAnalysis.bestTimeWindows || [];
+            const worstWindows: any[] = comboAnalysis.worstTimeWindows || [];
+            
+            const isInBestWindow = bestWindows.some((w: any) => 
+              w.dayOfWeek === currentDayOfWeek && currentHour >= w.startHour && currentHour <= w.endHour
+            );
+            const isInWorstWindow = worstWindows.some((w: any) => 
+              w.dayOfWeek === currentDayOfWeek && currentHour >= w.startHour && currentHour <= w.endHour
+            );
+            
+            if (isInBestWindow) {
+              // 黄金时段: 额外提升时间乘数 (1.1x ~ 1.3x)
+              comboTimeMultiplier = Math.min(comboTimeMultiplier * 1.15, 1.30);
+            } else if (isInWorstWindow) {
+              // 铅石时段: 降低时间乘数 (0.7x ~ 0.9x)
+              comboTimeMultiplier = Math.max(comboTimeMultiplier * 0.85, 0.70);
+            }
+          }
+        }
+        
+        // v183: 统一资源分配公式
+        // 最终乘数 = 广告活动分时乘数 × 投放词个性化竞价乘数 × 投放词个性化时间乘数
+        const finalMultiplier = baseDaypartingMultiplier * comboBidMultiplier * comboTimeMultiplier;
+        let adjustedBid = baseBid * finalMultiplier;
+        
+        // 安全护栏: 单次调整不超过基础出价的40%
+        const maxAdjustedBid = baseBid * 1.40;
+        const minAdjustedBid = baseBid * 0.60;
+        adjustedBid = Math.min(adjustedBid, maxAdjustedBid);
+        adjustedBid = Math.max(adjustedBid, minAdjustedBid);
+        
+        // 绝对红线: 不超过最高出价限制
+        adjustedBid = Math.min(adjustedBid, maxBidLimit);
+        adjustedBid = Math.max(adjustedBid, 0.02);
+        adjustedBid = Math.round(adjustedBid * 100) / 100;
+        
+        const reasonParts: string[] = [];
+        reasonParts.push(`分时${baseDaypartingMultiplier.toFixed(2)}x`);
+        if (comboBidMultiplier !== 1.0) reasonParts.push(`投放词${comboBidMultiplier.toFixed(3)}x`);
+        if (comboTimeMultiplier !== 1.0) reasonParts.push(`时段${comboTimeMultiplier.toFixed(3)}x`);
+        if (comboCategory !== 'standard') reasonParts.push(`[${comboCategory}]`);
         
         const adjustment: any = {
           accountId: config.accountId,
@@ -1299,26 +1460,30 @@ async function executeDaypartingOptimization(
           hour: currentHour,
           dayOfWeek: currentDayOfWeek,
           baseBid,
-          bidMultiplier,
+          bidMultiplier: finalMultiplier,
+          baseDaypartingMultiplier,
+          comboBidMultiplier,
+          comboTimeMultiplier,
+          comboCategory,
+          comboConfidence,
           adjustedBid,
           currentBid: baseBid,
           newBid: adjustedBid,
-          reason: `分时竞价: ${currentHour}:00 乘数${bidMultiplier}x, 基础出价$${baseBid.toFixed(2)} → $${adjustedBid.toFixed(2)}`,
+          reason: `v183分时竞价: ${currentHour}:00 ${reasonParts.join(' × ')} = ${finalMultiplier.toFixed(3)}x, $${baseBid.toFixed(2)} → $${adjustedBid.toFixed(2)}`,
           apiSyncStatus: dryRun ? 'pending' : 'pending',
         };
         
         details.push(adjustment);
         
-        if (!dryRun && bidMultiplier !== 1.0) {
-          // v134: 实际通过 Amazon API 调整出价，并记录同步状态
+        if (!dryRun && Math.abs(adjustedBid - baseBid) > 0.01) {
           try {
             const syncResult = await amazonApiHelper.syncBidAdjustmentsToAmazon(
               config.accountId,
               [{
                 keywordId: keyword.id,
-                newBid: Math.round(adjustedBid * 100) / 100,
+                newBid: adjustedBid,
                 campaignId: campaign.id,
-                reason: `分时竞价: ${currentHour}:00 乘数${bidMultiplier}`,
+                reason: `v183分时竞价: ${reasonParts.join(' × ')}`,
                 isProductTarget: false,
               }]
             );
