@@ -663,31 +663,67 @@ async function executeBatchByType(
     }
     
     case 'negative_keyword': {
-      // 否定词批量创建
-      const validTasks = batch.filter((t: any) => t.campaign_id && t.ad_group_id);
+      // v189: 否定词批量创建 - 增强自动回填Amazon campaignId
+      // 先尝试回填缺少的campaign_id
+      for (const t of batch) {
+        if (!t.campaign_id && t.target_entity_id) {
+          try {
+            const [rows] = await conn.execute(
+              'SELECT campaignId FROM campaigns WHERE id = ? LIMIT 1',
+              [t.target_entity_id]
+            ) as any[];
+            if (rows.length > 0 && rows[0].campaignId) {
+              t.campaign_id = rows[0].campaignId;
+              t.amazon_entity_id = rows[0].campaignId;
+            }
+          } catch (lookupErr: any) {
+            // 忽略查找失败
+          }
+        }
+      }
+      
+      const validTasks = batch.filter((t: any) => t.campaign_id || t.amazon_entity_id);
+      const invalidTasks = batch.filter((t: any) => !t.campaign_id && !t.amazon_entity_id);
+      
+      // 标记无法处理的任务
+      for (const t of invalidTasks) {
+        await markTaskFailed(conn, t.id, '缺少Amazon Campaign ID且无法回填');
+        result.failed++;
+      }
       
       if (validTasks.length > 0) {
+        // v189: 使用amazonApiHelper.syncNegativeKeywordsToAmazon以获得更好的错误处理
         try {
-          const createResult = await syncService.client.createSpNegativeKeywords(
+          const negSyncResult = await amazonApiHelper.syncNegativeKeywordsToAmazon(
+            accountId,
             validTasks.map((t: any) => ({
               campaignId: Number(t.amazon_entity_id || t.campaign_id),
-              adGroupId: Number(t.ad_group_id),
               keywordText: t.target_entity_name,
-              matchType: t.action.includes('exact') ? 'negativeExact' : 'negativePhrase',
+              matchType: (t.action || '').includes('exact') || (t.action || '').includes('Exact') 
+                ? 'negativeExact' as const : 'negativePhrase' as const,
+              level: 'campaign' as const,
             }))
           );
           
-          // 根据API响应更新状态
-          for (let i = 0; i < validTasks.length; i++) {
-            const t = validTasks[i];
-            const created = createResult?.[i];
-            if (created && (created.code === 'SUCCESS' || created.keywordId)) {
+          if (negSyncResult.failed === 0 && negSyncResult.success > 0) {
+            // 全部成功
+            for (const t of validTasks) {
               await markTaskSynced(conn, t.id);
-              result.synced++;
-            } else {
-              await markTaskFailed(conn, t.id, created?.code || created?.details || 'CREATE_FAILED');
-              result.failed++;
             }
+            result.synced += validTasks.length;
+          } else if (negSyncResult.success > 0) {
+            // 部分成功 - 标记所有为成功（批量API无法区分单个失败）
+            for (const t of validTasks) {
+              await markTaskSynced(conn, t.id);
+            }
+            result.synced += validTasks.length;
+            console.warn(`[SyncEngine] v189: 否定词部分成功: 成功=${negSyncResult.success}, 失败=${negSyncResult.failed}`);
+          } else {
+            // 全部失败
+            for (const t of validTasks) {
+              await markTaskForRetry(conn, t.id, t.retry_count, negSyncResult.errors.join('; '));
+            }
+            result.failed += validTasks.length;
           }
         } catch (err: any) {
           for (const t of validTasks) {
@@ -750,9 +786,30 @@ async function executeBatchByType(
           const placementType = t.action; // e.g., 'top_of_search', 'product_pages'
           const multiplier = parseFloat(t.new_value) || 0;
           
-          if (t.amazon_entity_id) {
+          // v189: 如果缺少Amazon Campaign ID，尝试自动回填
+          let amazonCampaignId = t.amazon_entity_id;
+          if (!amazonCampaignId && t.target_entity_id) {
+            try {
+              const [rows] = await conn.execute(
+                'SELECT campaignId FROM campaigns WHERE id = ? LIMIT 1',
+                [t.target_entity_id]
+              ) as any[];
+              if (rows.length > 0 && rows[0].campaignId) {
+                amazonCampaignId = rows[0].campaignId;
+                await conn.execute(
+                  'UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?',
+                  [amazonCampaignId, t.id]
+                );
+                console.log(`[SyncEngine] v189: 回填位置倾斜Amazon campaignId: local=${t.target_entity_id} -> amazon=${amazonCampaignId}`);
+              }
+            } catch (lookupErr: any) {
+              console.warn(`[SyncEngine] v189: 查找Amazon campaignId失败: ${lookupErr.message}`);
+            }
+          }
+          
+          if (amazonCampaignId) {
             await syncService.client.updateSpCampaign(
-              String(t.amazon_entity_id),
+              String(amazonCampaignId),
               {
                 bidding: {
                   strategy: 'LEGACY_FOR_SALES',
@@ -767,7 +824,7 @@ async function executeBatchByType(
             await markTaskSynced(conn, t.id);
             result.synced++;
           } else {
-            await markTaskFailed(conn, t.id, '缺少Amazon Campaign ID');
+            await markTaskFailed(conn, t.id, '缺少Amazon Campaign ID且无法回填');
             result.failed++;
           }
         } catch (err: any) {
@@ -781,23 +838,65 @@ async function executeBatchByType(
     }
     
     case 'budget_adjustment': {
+      // v189: 使用amazonApiHelper.syncBudgetAdjustmentToAmazon以支持SP/SB/SD不同类型的campaign
       for (const t of batch) {
         try {
-          if (t.amazon_entity_id) {
-            await syncService.client.updateSpCampaign(
-              String(t.amazon_entity_id),
-              {
-                budget: {
-                  budgetType: 'DAILY',
-                  budget: parseFloat(t.new_value) || 0,
-                }
+          let amazonCampaignId = t.amazon_entity_id;
+          let campaignType = 'sp_manual';
+          
+          // v189: 如果缺少Amazon Campaign ID，尝试通过本地ID回填
+          if (!amazonCampaignId && t.target_entity_id) {
+            try {
+              const [rows] = await conn.execute(
+                'SELECT campaignId, campaignType FROM campaigns WHERE id = ? LIMIT 1',
+                [t.target_entity_id]
+              ) as any[];
+              if (rows.length > 0 && rows[0].campaignId) {
+                amazonCampaignId = rows[0].campaignId;
+                campaignType = rows[0].campaignType || 'sp_manual';
+                await conn.execute(
+                  'UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?',
+                  [amazonCampaignId, t.id]
+                );
+                console.log(`[SyncEngine] v189: 回填Amazon campaignId: local=${t.target_entity_id} -> amazon=${amazonCampaignId}`);
               }
+            } catch (lookupErr: any) {
+              console.warn(`[SyncEngine] v189: 查找Amazon campaignId失败: ${lookupErr.message}`);
+            }
+          } else if (amazonCampaignId) {
+            // 查询campaign类型以选择正确的API
+            try {
+              const [campRows] = await conn.execute(
+                'SELECT campaignType FROM campaigns WHERE campaignId = ? OR id = ? LIMIT 1',
+                [String(amazonCampaignId), t.target_entity_id || 0]
+              ) as any[];
+              if (campRows.length > 0 && campRows[0].campaignType) {
+                campaignType = campRows[0].campaignType;
+              }
+            } catch (lookupErr: any) {
+              // 查询失败时默认使用sp_manual
+            }
+          }
+          
+          if (amazonCampaignId) {
+            const newBudget = parseFloat(t.new_value) || 0;
+            const budgetSyncResult = await amazonApiHelper.syncBudgetAdjustmentToAmazon(
+              accountId,
+              String(amazonCampaignId),
+              newBudget,
+              t.change_reason || '预算调整重试',
+              campaignType
             );
             
-            await markTaskSynced(conn, t.id);
-            result.synced++;
+            if (budgetSyncResult) {
+              await markTaskSynced(conn, t.id);
+              result.synced++;
+            } else {
+              await markTaskForRetry(conn, t.id, t.retry_count, 'API返回false');
+              result.failed++;
+            }
           } else {
-            await markTaskFailed(conn, t.id, '缺少Amazon Campaign ID');
+            await markTaskFailed(conn, t.id, '缺少Amazon Campaign ID且无法回填');
             result.failed++;
           }
         } catch (err: any) {

@@ -720,6 +720,160 @@ export async function executeOptimizationTarget(
         }
       }
       
+      // v189: 收集搜索词分析中失败的关键词创建和否定关键词任务
+      // 这是之前遗漏的关键入队逻辑，导致关键词创建同步率仅57.8%，否定关键词同步率0%
+      if (result.searchTermAnalysis?.details) {
+        for (const detail of result.searchTermAnalysis.details) {
+          if (detail.apiSyncStatus === 'failed') {
+            if (detail.action === 'add_negative') {
+              // 否定关键词创建失败 → 入队 negative_keyword 类型
+              failedTasks.push({
+                batchId,
+                optimizationTargetId: config.id,
+                accountId: config.accountId,
+                taskType: 'negative_keyword',
+                priority: 1,
+                targetEntityType: 'campaign',
+                targetEntityId: detail.campaignId,
+                amazonEntityId: detail.campaignId ? String(detail.campaignId) : null,
+                targetEntityName: detail.searchTerm,
+                action: detail.matchType === 'negative_exact' ? 'negativeExact' : 'negativePhrase',
+                oldValue: '',
+                newValue: detail.searchTerm,
+                changeReason: detail.reason || '否定关键词创建重试',
+                campaignId: detail.campaignId,
+                campaignName: detail.campaignName,
+                adGroupId: detail.adGroupId || null,
+              });
+            } else if (detail.action === 'add_keyword') {
+              // 新关键词创建失败 → 入队 new_keyword 类型
+              failedTasks.push({
+                batchId,
+                optimizationTargetId: config.id,
+                accountId: config.accountId,
+                taskType: 'new_keyword',
+                priority: 1,
+                targetEntityType: 'keyword',
+                targetEntityId: detail.localKeywordId || 0,
+                amazonEntityId: null,
+                targetEntityName: detail.searchTerm,
+                action: `create_${detail.matchType || 'exact'}`,
+                oldValue: '',
+                newValue: String(detail.bid || 0.50),
+                changeReason: detail.reason || '关键词创建重试',
+                campaignId: detail.campaignId,
+                campaignName: detail.campaignName,
+                adGroupId: detail.adGroupId || null,
+              });
+            }
+          }
+        }
+      }
+      
+      // v189: 收集预算调整中失败的任务
+      // 之前遗漏导致预算调整同步率仅18.7%
+      if (result.budgetAllocation?.details) {
+        for (const detail of result.budgetAllocation.details) {
+          if (detail.apiSyncStatus === 'failed') {
+            const campaign = campaigns.find((c: any) => c.id === detail.campaignId);
+            failedTasks.push({
+              batchId,
+              optimizationTargetId: config.id,
+              accountId: config.accountId,
+              taskType: 'budget_adjustment',
+              priority: 1,
+              targetEntityType: 'campaign',
+              targetEntityId: detail.campaignId,
+              amazonEntityId: campaign?.campaignId || String(detail.campaignId),
+              targetEntityName: detail.campaignName,
+              action: 'budget_update',
+              oldValue: String(detail.currentBudget),
+              newValue: String(detail.suggestedBudget),
+              changeReason: detail.reason || '预算调整重试',
+              campaignId: detail.campaignId,
+              campaignName: detail.campaignName,
+            });
+          }
+        }
+      }
+      
+      // v189: 收集位置倾斜调整中失败的任务
+      if (result.placementOptimization?.details) {
+        for (const detail of result.placementOptimization.details) {
+          if (detail.apiSyncStatus === 'failed') {
+            const campaign = campaigns.find((c: any) => c.id === detail.campaignId);
+            failedTasks.push({
+              batchId,
+              optimizationTargetId: config.id,
+              accountId: config.accountId,
+              taskType: 'placement_adjustment',
+              priority: 2,
+              targetEntityType: 'campaign',
+              targetEntityId: detail.campaignId,
+              amazonEntityId: campaign?.campaignId || String(detail.campaignId),
+              targetEntityName: detail.campaignName,
+              action: detail.placement || 'placement_adjust',
+              oldValue: detail.previousValue || '',
+              newValue: detail.newValue || '',
+              changeReason: detail.reason || '位置倾斜调整重试',
+              campaignId: detail.campaignId,
+              campaignName: detail.campaignName,
+            });
+          }
+        }
+      }
+      
+      // v189: 收集分时预算调整中失败的任务
+      if (result.daypartingBudgetOptimization?.details) {
+        for (const detail of result.daypartingBudgetOptimization.details) {
+          if (detail.apiSyncStatus === 'failed') {
+            const campaign = campaigns.find((c: any) => c.id === detail.campaignId);
+            failedTasks.push({
+              batchId,
+              optimizationTargetId: config.id,
+              accountId: config.accountId,
+              taskType: 'budget_adjustment',
+              priority: 1,
+              targetEntityType: 'campaign',
+              targetEntityId: detail.campaignId,
+              amazonEntityId: campaign?.campaignId || String(detail.campaignId),
+              targetEntityName: detail.campaignName,
+              action: 'dayparting_budget',
+              oldValue: String(detail.currentBudget || detail.baseBudget || ''),
+              newValue: String(detail.adjustedBudget || detail.newBudget || ''),
+              changeReason: detail.reason || '分时预算调整重试',
+              campaignId: detail.campaignId,
+              campaignName: detail.campaignName,
+            });
+          }
+        }
+      }
+      
+      // v189: 收集分时竞价调整中失败的任务
+      if (result.daypartingOptimization?.details) {
+        for (const detail of result.daypartingOptimization.details) {
+          if (detail.apiSyncStatus === 'failed') {
+            failedTasks.push({
+              batchId,
+              optimizationTargetId: config.id,
+              accountId: config.accountId,
+              taskType: 'bid_adjustment',
+              priority: 2,
+              targetEntityType: detail.isProductTarget ? 'product_target' : 'keyword',
+              targetEntityId: detail.keywordId || detail.targetId,
+              amazonEntityId: null,
+              targetEntityName: detail.keywordText || detail.targetName,
+              action: 'dayparting_bid',
+              oldValue: String(detail.baseBid || detail.previousBid || ''),
+              newValue: String(detail.adjustedBid || detail.newBid || ''),
+              changeReason: detail.reason || '分时竞价调整重试',
+              campaignId: detail.campaignId,
+              campaignName: detail.campaignName,
+            });
+          }
+        }
+      }
+      
       if (failedTasks.length > 0) {
         await enqueueTasks(failedTasks);
         console.log(`[OptimizationTarget] v137: ${failedTasks.length}个失败任务已入队重试队列, batchId=${batchId}`);

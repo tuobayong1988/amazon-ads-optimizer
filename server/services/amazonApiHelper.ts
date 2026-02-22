@@ -12,6 +12,36 @@
 import { AmazonSyncService } from '../amazonSyncService';
 import * as db from '../db';
 
+// v189: 统一的API调用重试工具函数
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  options: { maxRetries?: number; baseDelayMs?: number; label?: string } = {}
+): Promise<T> {
+  const { maxRetries = 2, baseDelayMs = 2000, label = 'API' } = options;
+  let lastError: any;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      lastError = error;
+      const isThrottle = error.response?.status === 429 || error.message?.includes('请求过于频繁') || error.message?.includes('Too Many Requests');
+      const isServerError = error.response?.status >= 500;
+      const isRetryable = isThrottle || isServerError || error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT';
+      
+      if (!isRetryable || attempt >= maxRetries) {
+        throw error;
+      }
+      
+      const delay = isThrottle 
+        ? Math.min(baseDelayMs * Math.pow(2, attempt), 15000) 
+        : baseDelayMs * (attempt + 1);
+      console.log(`[AmazonApiHelper] ${label} 第${attempt + 1}次重试，等待${delay}ms... (${error.message?.substring(0, 80)})`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  throw lastError;
+}
+
 /**
  * 根据 accountId 创建 AmazonSyncService 实例
  * 自动从数据库加载 API 凭证和账号信息
@@ -384,26 +414,27 @@ export async function syncBudgetAdjustmentToAmazon(
   try {
     const type = (campaignType || 'sp_manual').toLowerCase();
     
-    // v159: 根据campaign类型选择正确的API
-    if (type === 'sb') {
-      await syncService.client.updateSbCampaign(String(campaignId), {
-        budget: { budget: newBudget, budgetType: 'DAILY' },
-      });
-    } else if (type === 'sd') {
-      await syncService.client.updateSdCampaign(Number(campaignId), {
-        budget: newBudget,
-      });
-    } else {
-      // SP (sp_manual, sp_auto)
-      await syncService.client.updateSpCampaign(String(campaignId), {
-        dailyBudget: newBudget,
-      });
-    }
+    // v189: 使用withRetry包装API调用，自动重试限流和服务器错误
+    await withRetry(async () => {
+      if (type === 'sb') {
+        await syncService.client.updateSbCampaign(String(campaignId), {
+          budget: { budget: newBudget, budgetType: 'DAILY' },
+        });
+      } else if (type === 'sd') {
+        await syncService.client.updateSdCampaign(Number(campaignId), {
+          budget: newBudget,
+        });
+      } else {
+        await syncService.client.updateSpCampaign(String(campaignId), {
+          dailyBudget: newBudget,
+        });
+      }
+    }, { label: `预算同步 Campaign ${campaignId}` });
     
     console.log(`[AmazonApiHelper] 预算同步成功: Campaign ${campaignId} (${type}), 新预算=$${newBudget}`);
     return true;
   } catch (error: any) {
-    console.error(`[AmazonApiHelper] 预算同步失败: Campaign ${campaignId} (${campaignType}):`, error.message);
+    console.error(`[AmazonApiHelper] 预算同步失败(含重试): Campaign ${campaignId} (${campaignType}):`, error.message);
     return false;
   }
 }
@@ -423,20 +454,22 @@ export async function syncPlacementAdjustmentToAmazon(
   if (!syncService) return false;
   
   try {
-    // v125: Amazon SP API v3 要求campaignId为字符串类型
-    await syncService.client.updateSpCampaign(String(campaignId), {
-      bidding: {
-        adjustments: [
-          { predicate: 'placementTop', percentage: Math.round(topOfSearchPercent) },
-          { predicate: 'placementProductPage', percentage: Math.round(productPagePercent) },
-        ],
-      },
-    } as any);
+    // v189: 使用withRetry包装API调用
+    await withRetry(async () => {
+      await syncService.client.updateSpCampaign(String(campaignId), {
+        bidding: {
+          adjustments: [
+            { predicate: 'placementTop', percentage: Math.round(topOfSearchPercent) },
+            { predicate: 'placementProductPage', percentage: Math.round(productPagePercent) },
+          ],
+        },
+      } as any);
+    }, { label: `位置倾斜同步 Campaign ${campaignId}` });
     console.log(`[AmazonApiHelper] 位置倾斜同步成功: Campaign ${campaignId}, ` +
       `Top=${topOfSearchPercent}%, ProductPage=${productPagePercent}%`);
     return true;
   } catch (error: any) {
-    console.error(`[AmazonApiHelper] 位置倾斜同步失败: Campaign ${campaignId}:`, error.message);
+    console.error(`[AmazonApiHelper] 位置倾斜同步失败(含重试): Campaign ${campaignId}:`, error.message);
     return false;
   }
 }
@@ -519,13 +552,14 @@ export async function syncNegativeKeywordsToAmazon(
       }
       
       if (newCampaignNegatives.length > 0) {
-        const results = await syncService.client.createSpCampaignNegativeKeywords(
+        // v189: 使用withRetry包装API调用
+        const results = await withRetry(() => syncService.client.createSpCampaignNegativeKeywords(
           newCampaignNegatives.map(n => ({
             campaignId: n.campaignId,
             keywordText: n.keywordText,
             matchType: n.matchType,
           }))
-        );
+        ), { label: 'Campaign否定词创建' });
         
         // v175b: 正确处理部分成功的响应 - 通过index关联回原始请求
         for (const r of results) {
@@ -582,14 +616,15 @@ export async function syncNegativeKeywordsToAmazon(
       }
       
       if (newAdGroupNegatives.length > 0) {
-        const results = await syncService.client.createSpNegativeKeywords(
+        // v189: 使用withRetry包装API调用
+        const results = await withRetry(() => syncService.client.createSpNegativeKeywords(
           newAdGroupNegatives.map(n => ({
             adGroupId: n.adGroupId!,
             campaignId: n.campaignId,
             keywordText: n.keywordText,
             matchType: n.matchType,
           }))
-        );
+        ), { label: 'AdGroup否定词创建' });
         
         for (const r of results) {
           if (r.code === 'SUCCESS' || r.keywordId) {

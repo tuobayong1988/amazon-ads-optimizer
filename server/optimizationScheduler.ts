@@ -311,15 +311,15 @@ async function registerScheduledExecution(
     lastError: null,
   };
   
-  // 设置定时器
-  scheduledTarget.timer = setInterval(async () => {
-    await executeScheduledOptimization(targetId);
-  }, intervalMs);
-  
+  // v189: 禁用独立定时器，避免与dataSyncScheduler的模块化调度重复执行
+  // dataSyncScheduler已经按模块类型分别调度（出价每2小时、分时每小时、搜索词每天凌晨4点等），
+  // 不再需要optimizationScheduler的独立定时器。
+  // 保留scheduledTargets记录用于状态查询，但不再设置setInterval。
+  scheduledTarget.timer = null;
   scheduledTargets.set(targetId, scheduledTarget);
   
-  console.log(`[OptScheduler] 已注册定时执行: targetId=${targetId}, name=${targetName}, ` +
-    `frequency=${frequency}(${intervalMs / 1000 / 60}分钟), nextExecution=${nextExecutionTime.toISOString()}`);
+  console.log(`[OptScheduler] v189: 已注册优化目标: targetId=${targetId}, name=${targetName} ` +
+    `(定时执行由dataSyncScheduler统一管理)`);
   
   return { frequency, nextExecutionTime };
 }
@@ -366,7 +366,7 @@ async function executeScheduledOptimization(targetId: number): Promise<void> {
       return;
     }
     
-    // 执行完整优化（所有模块）
+    // v189: 此函数不再被调用（定时器已禁用），保留代码以备手动触发场景
     const result = await optimizationTargetEngine.executeOptimizationTarget(targetId, {
       dryRun: false,
     });

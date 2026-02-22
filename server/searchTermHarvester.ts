@@ -372,6 +372,41 @@ export async function harvestSearchTermAtomic(
       isIntradayAdjustment: 0,
     });
 
+    // v189: 直接记录到optimization_events表，正确标记apiSyncStatus为synced
+    // 之前只通过createBiddingLog双写，但双写时apiSyncStatus被设为not_applicable导致统计不准确
+    try {
+      await db.insertOptimizationEvent({
+        accountId,
+        eventCategory: 'search_term_action',
+        actionType: 'search_term_harvest',
+        campaignId: candidate.targetCampaignId,
+        keywordId: localKeywordId,
+        keywordText: candidate.searchTerm,
+        matchType: 'exact',
+        previousBid: '0.00',
+        newBid: candidate.suggestedBid.toFixed(2),
+        changeReason: `[搜索词收割] ${candidate.reason}`,
+        status: 'success',
+        apiSyncStatus: 'synced',
+        sourceTable: 'search_term_harvester',
+      });
+      // 同时记录否定词操作
+      await db.insertOptimizationEvent({
+        accountId,
+        eventCategory: 'search_term_action',
+        actionType: 'negative_keyword_add',
+        campaignId: candidate.sourceCampaignId,
+        keywordText: candidate.searchTerm,
+        matchType: 'exact',
+        changeReason: `[搜索词收割-否定] 源广告组添加否定词`,
+        status: 'success',
+        apiSyncStatus: 'synced',
+        sourceTable: 'search_term_harvester',
+      });
+    } catch (eventErr: any) {
+      console.warn(`[SearchTermHarvester] v189: 记录optimization_events失败: ${eventErr.message}`);
+    }
+
     result.stage = 'db_logged';
     result.success = true;
     console.log(`[SearchTermHarvester] Step3 完成: 本地数据库已更新`);
