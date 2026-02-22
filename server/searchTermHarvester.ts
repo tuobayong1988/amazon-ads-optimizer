@@ -12,6 +12,7 @@
 import * as db from './db';
 import { AmazonSyncService } from './amazonSyncService';
 import { createAmazonAdsClient, AmazonAdsApiClient } from './amazonAdsApi';
+import { isAsinSearchTerm, adGroupHasProductTargets, sanitizeAndValidateKeyword } from './utils/keywordValidator';
 
 // ==================== 类型定义 ====================
 
@@ -162,6 +163,19 @@ export async function identifyHarvestCandidates(
         
         // 绩效过滤：ACoS <= 阈值 或 ROAS >= 阈值
         if (acos > cfg.maxAcos && roas < cfg.minRoas) continue;
+        
+        // v194: ASIN格式的搜索词不应该作为关键词收割
+        if (isAsinSearchTerm(st.searchTerm)) {
+          console.log(`[SearchTermHarvester] v194: 跳过ASIN搜索词 "${st.searchTerm}"，应作为product target处理`);
+          continue;
+        }
+        
+        // v194: 清洗搜索词，过滤无效字符
+        const validation = sanitizeAndValidateKeyword(st.searchTerm);
+        if (!validation.isValid) {
+          console.log(`[SearchTermHarvester] v194: 搜索词校验失败 "${st.searchTerm}": ${validation.reasonMessage || validation.reasonCode || 'invalid'}`);
+          continue;
+        }
         
         // 4. 查找目标精确匹配广告组
         // 策略：在同账号的手动Campaign中查找是否已有该关键词的精确匹配
@@ -553,7 +567,7 @@ async function findTargetAdGroup(
   amazonCampaignId: string;
 } | null> {
   
-  // 策略1: 查找名称包含"Exact"的Campaign
+  // 策由1: 查找名称包含"Exact"的Campaign
   const exactCampaigns = manualCampaigns.filter(c => 
     c.campaignName?.toLowerCase().includes('exact') ||
     c.campaignName?.includes('精确')
@@ -563,26 +577,35 @@ async function findTargetAdGroup(
     const adGroupsList = await db.getAdGroupsByCampaignId(campaign.id);
     const enabledAdGroups = adGroupsList.filter((ag: any) => ag.adGroupStatus === 'enabled');
     
-    if (enabledAdGroups.length > 0) {
+    for (const ag of enabledAdGroups) {
+      // v194: 跳过已有product targets的广告组
+      const hasPT = await adGroupHasProductTargets(ag.id);
+      if (hasPT) {
+        console.log(`[SearchTermHarvester] v194: 跳过product target广告组 id=${ag.id}`);
+        continue;
+      }
       return {
-        adGroupId: enabledAdGroups[0].id,
+        adGroupId: ag.id,
         campaignId: campaign.id,
-        amazonAdGroupId: enabledAdGroups[0].adGroupId,
+        amazonAdGroupId: ag.adGroupId,
         amazonCampaignId: campaign.campaignId,
       };
     }
   }
   
-  // 策略2: 查找任意手动Campaign的广告组
+  // 策由2: 查找任意手动Campaign的广告组
   for (const campaign of manualCampaigns) {
     const adGroupsList = await db.getAdGroupsByCampaignId(campaign.id);
     const enabledAdGroups = adGroupsList.filter((ag: any) => ag.adGroupStatus === 'enabled');
     
-    if (enabledAdGroups.length > 0) {
+    for (const ag of enabledAdGroups) {
+      // v194: 跳过已有product targets的广告组
+      const hasPT = await adGroupHasProductTargets(ag.id);
+      if (hasPT) continue;
       return {
-        adGroupId: enabledAdGroups[0].id,
+        adGroupId: ag.id,
         campaignId: campaign.id,
-        amazonAdGroupId: enabledAdGroups[0].adGroupId,
+        amazonAdGroupId: ag.adGroupId,
         amazonCampaignId: campaign.campaignId,
       };
     }

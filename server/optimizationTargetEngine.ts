@@ -37,7 +37,7 @@ import * as postOptVerifier from "./postOptimizationVerifier";
 import { registerActiveTask, unregisterActiveTask, isShuttingDown } from "./deployLifecycleManager";
 import { decideTargeting } from "./services/targetingAlgorithm";
 import type { SearchTermPerformance, TargetingDecision } from "./services/targetingAlgorithm";
-import { sanitizeAndValidateKeyword, canAddPositiveKeyword } from "./utils/keywordValidator";
+import { sanitizeAndValidateKeyword, canAddPositiveKeyword, isAsinSearchTerm, adGroupHasProductTargets } from "./utils/keywordValidator";
 
 // 缓存账号站点信息，避免重复查询
 const marketplaceCache = new Map<number, string>();
@@ -1997,6 +1997,27 @@ async function executeSearchTermAnalysis(
             continue;
           }
           
+          // v194: ASIN格式的搜索词不应该作为keyword创建，重定向到product target
+          if (isAsinSearchTerm(decision.targetValue)) {
+            console.log(`[SearchTermAnalysis] v194: ASIN搜索词"${decision.targetValue}"重定向为product target`);
+            const ptBid = decision.suggestedBid || 0.50;
+            details.push({
+              accountId: config.accountId,
+              campaignId: campaign.id,
+              campaignName: campaign.campaignName,
+              searchTerm: decision.targetValue,
+              matchType: 'product_target_exact',
+              action: 'add_product_target',
+              reason: `v194: ASIN搜索词自动重定向为product target: ${decision.reason}`,
+              suggestedBid: ptBid,
+              apiSyncStatus: 'pending',
+              confidence: decision.confidence,
+              dataMaturityLevel: decision.dataMaturityLevel,
+              valueLevel: decision.valueLevel,
+            });
+            continue;
+          }
+          
           // v191: 使用算法决定的匹配方式和出价
           const matchType = decision.matchType || 'phrase';
           const bid = decision.suggestedBid || 0.50;
@@ -2026,6 +2047,18 @@ async function executeSearchTermAnalysis(
                 const adGroup = adGroups[0];
                 const amazonAdGroupId = Number(adGroup.adGroupId || 0);
                 const amazonCampaignId = Number(campaign.campaignId || campaign.id);
+                
+                // v194: 检查广告组是否已有product targets
+                try {
+                  const hasProductTargets = await adGroupHasProductTargets(adGroup.id);
+                  if (hasProductTargets) {
+                    console.log(`[SearchTermAnalysis] v194: 广告组已有product targets，不能添加keyword，跳过: "${decision.targetValue}"`);
+                    newKeyword.apiSyncStatus = 'skipped_pt_adgroup';
+                    continue;
+                  }
+                } catch (ptCheckErr: any) {
+                  console.warn(`[SearchTermAnalysis] v194: 检查product targets失败: ${ptCheckErr.message}`);
+                }
                 
                 // v168: 增强去重检查
                 const { keywords } = await import('../drizzle/schema');

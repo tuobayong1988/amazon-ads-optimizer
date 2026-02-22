@@ -287,16 +287,18 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
   const { accountId, userId, tier } = request;
   console.log(`[DataSyncScheduler] 开始${tier}层同步账号 ${accountId}`);
 
-  // 获取账号信息
+  // v194: 获取账号信息，不存在时优雅跳过而非抛出异常
   const account = await db.getAdAccountById(accountId);
   if (!account) {
-    throw new Error(`账号 ${accountId} 不存在`);
+    console.warn(`[DataSyncScheduler] v194: 账号 ${accountId} 不存在，跳过${tier}层同步`);
+    return;
   }
 
-  // 获取API凭证 - 从amazonApiCredentials表获取
+  // v194: 获取API凭证，缺失时优雅跳过
   const credentials = await db.getAmazonApiCredentials(accountId);
   if (!credentials) {
-    throw new Error(`账号 ${accountId} 未配置API凭证，请先完成Amazon API授权`);
+    console.warn(`[DataSyncScheduler] v194: 账号 ${accountId} 未配置API凭证，跳过${tier}层同步`);
+    return;
   }
 
   const syncService = await AmazonSyncService.createFromCredentials(
@@ -454,16 +456,18 @@ async function shouldExecuteSync(schedule: db.DataSyncSchedule): Promise<boolean
 async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<void> {
   console.log(`[DataSyncScheduler] 开始同步账号 ${schedule.accountId}`);
 
-  // 获取账号信息
+  // v194: 获取账号信息，不存在时优雅跳过
   const account = await db.getAdAccountById(schedule.accountId);
   if (!account) {
-    throw new Error(`账号 ${schedule.accountId} 不存在`);
+    console.warn(`[DataSyncScheduler] v194: 账号 ${schedule.accountId} 不存在，跳过同步`);
+    return;
   }
 
-  // 创建同步服务实例 - 从amazonApiCredentials表获取完整凭证
+  // v194: 获取API凭证，缺失时优雅跳过
   const credentials = await db.getAmazonApiCredentials(schedule.accountId);
   if (!credentials) {
-    throw new Error(`账号 ${schedule.accountId} 未配置API凭证，请先完成Amazon API授权`);
+    console.warn(`[DataSyncScheduler] v194: 账号 ${schedule.accountId} 未配置API凭证，跳过同步`);
+    return;
   }
   
   const syncService = await AmazonSyncService.createFromCredentials(
@@ -525,7 +529,7 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
         const enabledCount = pgCampaigns.filter((c: any) => c.campaignStatus === 'enabled').length;
         if (enabledCount > 0) {
           // 有广告活动恢复了enabled状态，自动恢复优化目标
-          await db.updatePerformanceGroup(pg.id, { autoOptimize: true });
+          await db.updatePerformanceGroup(pg.id, { autoOptimize: 1 });
           console.log(`[DataSyncScheduler] v168: 优化目标"${(pg as any).name}"已自动恢复 - 检测到${enabledCount}个广告活动恢复enabled状态`);
         }
       }

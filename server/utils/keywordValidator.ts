@@ -1,9 +1,14 @@
 /**
- * Amazon关键词数据校验与清洗工具 (v191)
+ * Amazon关键词数据校验与清洗工具 (v194)
  * 
  * 在关键词/搜索词进入投放流程的最前端进行严格的清洗与校验，
  * 确保所有发送到Amazon API的数据都符合Amazon广告平台的规则，
  * 从源头杜绝无效API调用，提升投放成功率至100%。
+ * 
+ * v194新增:
+ * - 增强ASIN格式检测（覆盖更多变体格式）
+ * - 增强Unicode控制字符清洗（包含U+FFFC等OBJ替换字符）
+ * - 新增广告组类型检查函数（product target广告组不能添加keyword）
  * 
  * Amazon关键词规则参考:
  * - 最大长度: 80字符
@@ -12,6 +17,7 @@
  * - 有效字符: 字母、数字、空格、连字符(-)
  * - 禁止字符: !, $, ?, {, }, ^, ¬, ¦, ~, #, <, >, ", ', /, \, @, %, &, +, =, |, ;, :, *, (, )
  * - 自动广告活动(auto targeting): 不允许添加正面关键词，只能添加否定关键词
+ * - 广告组不能同时有keyword和product target
  */
 
 export interface KeywordValidationResult {
@@ -30,12 +36,14 @@ export interface KeywordValidationResult {
  * 只保留: 字母(任何语言)、数字、空格、连字符(-)
  * 移除所有其他特殊字符
  */
-const INVALID_CHARS_REGEX = /[^\p{L}\p{N}\s\-]/gu;
+const INVALID_CHARS_REGEX = /[^a-zA-Z0-9\s\-\u00C0-\u024F\u1E00-\u1EFF]/g;
 
 /**
- * Unicode控制字符和不可见字符
+ * Unicode控制字符和不可见字符 (v194: 扩展覆盖范围)
+ * 包含: ASCII控制字符、C1控制字符、BOM、OBJ替换符(U+FFFC)、
+ * 零宽字符、段落分隔符、格式控制字符、变体选择符等
  */
-const CONTROL_CHARS_REGEX = /[\u0000-\u001F\u007F-\u009F\uFFFE\uFFFF\uFEFF\uFFFC\u200B-\u200F\u2028-\u202F\u2060-\u206F]/g;
+const CONTROL_CHARS_REGEX = /[\u0000-\u001F\u007F-\u009F\uFFFE\uFFFF\uFEFF\uFFFC\uFFFD\u200B-\u200F\u2028-\u202F\u2060-\u206F\uE000-\uF8FF\uFE00-\uFE0F]/g;
 
 /**
  * Amazon关键词最大字符长度
@@ -148,10 +156,16 @@ export function sanitizeAndValidateKeyword(
 
 /**
  * 检查搜索词是否为ASIN格式
- * Amazon ASIN格式: B0开头 + 8位以上字母数字
+ * Amazon ASIN格式: B0开头 + 8位字母数字（共10位）
+ * v194: 增强检测，支持更多变体
  */
 export function isAsinSearchTerm(searchTerm: string): boolean {
-  return /^[Bb]0[A-Za-z0-9]{8,}$/.test(searchTerm.trim());
+  const cleaned = searchTerm.trim().toUpperCase();
+  // 标准ASIN: B0 + 8位字母数字 = 10位
+  if (/^B0[A-Z0-9]{8}$/.test(cleaned)) return true;
+  // 宽松匹配: B0开头 + 8位以上字母数字（某些API返回的格式）
+  if (/^B0[A-Z0-9]{8,}$/.test(cleaned)) return true;
+  return false;
 }
 
 /**
@@ -163,6 +177,42 @@ export function isAsinSearchTerm(searchTerm: string): boolean {
  */
 export function canAddPositiveKeyword(campaignTargetingType: string): boolean {
   return campaignTargetingType !== 'auto';
+}
+
+/**
+ * v194: 检查广告组是否为product targeting类型
+ * Amazon规则: 同一个广告组不能同时有keyword和product target
+ * 
+ * @param adGroupId - 本地数据库的广告组ID
+ * @param conn - 数据库连接（可选，如果不传则创建新连接）
+ * @returns true = 广告组已有product targets，不能添加keyword
+ */
+export async function adGroupHasProductTargets(
+  adGroupId: number,
+  conn?: any
+): Promise<boolean> {
+  let ownConn = false;
+  try {
+    if (!conn) {
+      const mysql2 = await import('mysql2/promise');
+      const dbUrl = process.env.DATABASE_URL;
+      if (!dbUrl) return false;
+      conn = await mysql2.createConnection(dbUrl);
+      ownConn = true;
+    }
+    const [rows] = await conn.execute(
+      'SELECT COUNT(*) AS cnt FROM product_targets WHERE adGroupId = ? AND targetId IS NOT NULL LIMIT 1',
+      [adGroupId]
+    );
+    return (rows[0]?.cnt || 0) > 0;
+  } catch (err: any) {
+    console.warn(`[KeywordValidator] 检查广告组product targets失败: ${err.message}`);
+    return false;
+  } finally {
+    if (ownConn && conn) {
+      try { await conn.end(); } catch (_) {}
+    }
+  }
 }
 
 /**

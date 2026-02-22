@@ -1,5 +1,5 @@
 /**
- * Amazon ID Resolver Service (v141)
+ * Amazon ID Resolver Service (v194)
  * 
  * 统一的Pre-Sync ID保障层，确保所有优化操作前Amazon ID就绪。
  * 
@@ -9,12 +9,17 @@
  * 3. 如果回填失败（Amazon上也不存在），尝试通过 API 创建新关键词
  * 4. 清理无法回填的重复/无效记录
  * 
+ * v194新增:
+ * - 检查广告组是否已有product targets，如果有则不创建keyword
+ * - ASIN格式的关键词自动清理（应该是product target而非keyword）
+ * - 增强Unicode控制字符清洗
+ * 
  * 这样所有下游优化模块（出价调整、暂停/重启、分时策略、位置倾斜等）
  * 都能获得完整的Amazon ID，确保100%同步成功率。
  */
 
 import * as amazonApiHelper from './amazonApiHelper';
-import { sanitizeAndValidateKeyword, canAddPositiveKeyword } from '../utils/keywordValidator';
+import { sanitizeAndValidateKeyword, canAddPositiveKeyword, isAsinSearchTerm, adGroupHasProductTargets } from '../utils/keywordValidator';
 
 export interface IdResolutionResult {
   keywordsResolved: number;
@@ -174,10 +179,29 @@ async function resolveKeywordIds(
         amazonKwMap.set(key, String((ak as any).keywordId));
       }
 
+      // v194: 检查广告组是否已有product targets
+      const hasProductTargets = await adGroupHasProductTargets(adGroupLocalId, conn);
+      if (hasProductTargets) {
+        console.log(`[IdResolver] ⚠️ adGroup=${adGroupLocalId}: 广告组已有product targets，清理${kwsInGroup.length}个无效keyword记录`);
+        for (const kw of kwsInGroup) {
+          await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [kw.id]);
+          result.keywordsCleanedUp++;
+        }
+        continue;
+      }
+
       // 需要创建的关键词列表
       const toCreate: any[] = [];
 
       for (const kw of kwsInGroup) {
+        // v194: ASIN格式的搜索词不应该作为keyword，清理
+        if (isAsinSearchTerm(kw.keywordText || '')) {
+          console.log(`[IdResolver] ⚠️ 清理ASIN格式关键词 id=${kw.id} "${kw.keywordText}"`);
+          await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [kw.id]);
+          result.keywordsCleanedUp++;
+          continue;
+        }
+
         const key = `${kw.keywordText?.toLowerCase()}|${kw.matchType?.toLowerCase()}`;
         const amazonKeywordId = amazonKwMap.get(key);
 
@@ -516,6 +540,21 @@ export async function resolveKeywordIdOnDemand(
     if (kwRows.length === 0) return null;
     const kw = kwRows[0];
     if (!kw.amazonAdGroupId) return null;
+
+    // v194: ASIN格式的关键词不应该存在于keywords表
+    if (isAsinSearchTerm(kw.keywordText || '')) {
+      console.log(`[IdResolver] ⚠️ 即时清理ASIN格式关键词 id=${keywordLocalId} "${kw.keywordText}"`);
+      await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [keywordLocalId]);
+      return null;
+    }
+
+    // v194: 检查广告组是否已有product targets
+    const hasProductTargets = await adGroupHasProductTargets(kw.adGroupId, conn);
+    if (hasProductTargets) {
+      console.log(`[IdResolver] ⚠️ 即时清理: keyword id=${keywordLocalId} 广告组已有product targets`);
+      await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [keywordLocalId]);
+      return null;
+    }
 
     const syncService = await amazonApiHelper.getAmazonSyncService(accountId);
     if (!syncService) return null;
