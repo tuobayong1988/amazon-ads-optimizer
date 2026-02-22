@@ -1512,17 +1512,46 @@ export async function getBidChangeRecords(accountId: number, days: number): Prom
     
     if (oldBid === 0 || newBid === 0) continue;
     
-    // 获取变更后的绩效数据（模拟）
-    const performanceAfter = {
-      clicks: Math.floor(Math.random() * 50),
-      conversions: Math.floor(Math.random() * 5),
-      spend: Math.random() * 100,
-      sales: Math.random() * 500,
+    // v187: 使用真实数据库数据代替模拟数据
+    // 从日绩效表获取出价变更后7天的平均绩效
+    let performanceAfter = {
+      clicks: 0,
+      conversions: 0,
+      spend: 0,
+      sales: 0,
       roas: 0,
       acos: 0,
     };
-    performanceAfter.roas = performanceAfter.spend > 0 ? performanceAfter.sales / performanceAfter.spend : 0;
-    performanceAfter.acos = performanceAfter.sales > 0 ? (performanceAfter.spend / performanceAfter.sales) * 100 : 0;
+    try {
+      if (log.campaignId) {
+        const changeDate = new Date(log.createdAt || Date.now());
+        const endDate = new Date(changeDate);
+        endDate.setDate(endDate.getDate() + 7);
+        const perfRows = await db.select()
+          .from(dailyPerformance)
+          .where(and(
+            eq(dailyPerformance.campaignId, String(log.campaignId)),
+            sql`DATE(${dailyPerformance.date}) >= ${changeDate.toISOString().split('T')[0]}`,
+            sql`DATE(${dailyPerformance.date}) <= ${endDate.toISOString().split('T')[0]}`
+          ));
+        if (perfRows.length > 0) {
+          const totalClicks = perfRows.reduce((s, r) => s + (r.clicks || 0), 0);
+          const totalSpend = perfRows.reduce((s, r) => s + parseFloat(String(r.spend || '0')), 0);
+          const totalSales = perfRows.reduce((s, r) => s + parseFloat(String(r.sales || '0')), 0);
+          const totalOrders = perfRows.reduce((s, r) => s + (r.orders || 0), 0);
+          performanceAfter = {
+            clicks: totalClicks,
+            conversions: totalOrders,
+            spend: totalSpend,
+            sales: totalSales,
+            roas: totalSpend > 0 ? totalSales / totalSpend : 0,
+            acos: totalSales > 0 ? (totalSpend / totalSales) * 100 : 0,
+          };
+        }
+      }
+    } catch (e) {
+      // 查询失败时使用零值，不使用模拟数据
+    }
     
     records.push({
       id: log.id,

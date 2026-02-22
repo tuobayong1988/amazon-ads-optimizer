@@ -268,7 +268,7 @@ export default function SellerOnboarding() {
         </div>
 
         <div className="text-center text-sm text-muted-foreground">
-          <p>遇到问题？请联系客服或查看 <a href="/help" className="text-purple-400 hover:underline">帮助文档</a></p>
+          <p>遇到问题？请联系客服或查看 <a href="/settings" className="text-purple-400 hover:underline">系统设置</a></p>
         </div>
       </div>
     </DashboardLayout>

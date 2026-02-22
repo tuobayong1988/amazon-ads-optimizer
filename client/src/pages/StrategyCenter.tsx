@@ -226,14 +226,14 @@ export default function StrategyCenter() {
     <DashboardLayout>
       <PageMeta {...PAGE_META_CONFIG.strategyCenter} />
       <div className="space-y-6">
-        {/* 页面标题 */}
-        <div className="flex items-center justify-between">
+        {/* 页面标题 - 移动端堆叠布局 */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Target className="h-7 w-7 text-blue-400" />
+            <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+              <Target className="h-6 w-6 sm:h-7 sm:w-7 text-blue-400" />
               策略管理
             </h1>
-            <p className="text-muted-foreground mt-1">
+            <p className="text-muted-foreground text-sm mt-1">
               创建优化目标，分配广告活动，系统将自动执行优化策略
             </p>
           </div>

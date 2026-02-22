@@ -131,12 +131,12 @@ export default function ABTest() {
     <DashboardLayout>
       <PageMeta {...PAGE_META_CONFIG.abTesting} />
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">A/B测试</h1>
-            <p className="text-muted-foreground">对比不同预算分配策略的实际效果</p>
+            <h1 className="text-xl sm:text-2xl font-bold">A/B测试</h1>
+            <p className="text-muted-foreground text-sm">对比不同预算分配策略的实际效果</p>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
             <Select
               value={selectedAccountId?.toString() || ''}
               onValueChange={(value) => setSelectedAccountId(Number(value))}

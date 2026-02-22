@@ -324,7 +324,7 @@ function CreateOptimizationTargetDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-[90vw] xl:max-w-7xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Target className="w-5 h-5 text-primary" />
@@ -377,9 +377,9 @@ function CreateOptimizationTargetDialog({
 
         {/* 第一步：基本信息 */}
         {step === 1 && (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
+          <div className="space-y-5">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="md:col-span-2 space-y-2">
                 <Label>优化目标名称 *</Label>
                 <Input 
                   placeholder="例如：高转化关键词优化" 
@@ -404,7 +404,6 @@ function CreateOptimizationTargetDialog({
                 </Select>
               </div>
             </div>
-
             <div className="space-y-2">
               <Label>描述（可选）</Label>
               <Input 
@@ -413,8 +412,7 @@ function CreateOptimizationTargetDialog({
                 onChange={(e) => setDescription(e.target.value)}
               />
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>优化目标类型</Label>
                 <Select value={targetType} onValueChange={setTargetType}>
@@ -449,7 +447,7 @@ function CreateOptimizationTargetDialog({
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>每日费用上限 ($)</Label>
                 <Input 
@@ -484,9 +482,9 @@ function CreateOptimizationTargetDialog({
                   筛选条件
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+                  <div className="col-span-2 md:col-span-1 lg:col-span-2 space-y-1.5">
                     <Label className="text-xs">广告活动名称</Label>
                     <div className="relative">
                       <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -498,7 +496,7 @@ function CreateOptimizationTargetDialog({
                       />
                     </div>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <Label className="text-xs">广告类型</Label>
                     <Select value={filterCampaignType} onValueChange={setFilterCampaignType}>
                       <SelectTrigger>
@@ -512,7 +510,7 @@ function CreateOptimizationTargetDialog({
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <Label className="text-xs">运行状态</Label>
                     <Select value={filterStatus} onValueChange={setFilterStatus}>
                       <SelectTrigger>
@@ -525,9 +523,7 @@ function CreateOptimizationTargetDialog({
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <Label className="text-xs">最小转化数</Label>
                     <Input 
                       type="number"
@@ -536,7 +532,7 @@ function CreateOptimizationTargetDialog({
                       onChange={(e) => setFilterMinConversions(e.target.value)}
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <Label className="text-xs">最小花费 ($)</Label>
                     <Input 
                       type="number"
@@ -545,7 +541,7 @@ function CreateOptimizationTargetDialog({
                       onChange={(e) => setFilterMinSpend(e.target.value)}
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-1.5">
                     <Label className="text-xs">最大ACoS (%)</Label>
                     <Input 
                       type="number"
@@ -559,7 +555,7 @@ function CreateOptimizationTargetDialog({
             </Card>
 
             {/* 筛选结果统计 */}
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               <Card className="bg-muted/30">
                 <CardContent className="p-3">
                   <div className="text-xs text-muted-foreground mb-1">筛选结果</div>
@@ -644,7 +640,7 @@ function CreateOptimizationTargetDialog({
                 ) : (
                   <div 
                     ref={campaignListRef}
-                    className="max-h-[300px] overflow-y-auto"
+                    className="max-h-[55vh] overflow-y-auto"
                   >
                     <div
                       style={{
@@ -690,7 +686,7 @@ function CreateOptimizationTargetDialog({
                                   onClick={(e: React.MouseEvent) => e.stopPropagation()}
                                 />
                                 <div>
-                                  <div className="font-medium text-sm truncate max-w-[400px]" title={campaign.campaignName}>
+                                  <div className="font-medium text-sm truncate max-w-[800px]" title={campaign.campaignName}>
                                     {campaign.campaignName}
                                   </div>
                                   <div className="text-xs text-muted-foreground flex items-center gap-2">
@@ -726,7 +722,7 @@ function CreateOptimizationTargetDialog({
                 <CardTitle className="text-sm">优化目标概览</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   <div>
                     <Label className="text-xs text-muted-foreground">名称</Label>
                     <p className="font-medium">{name || "-"}</p>
@@ -1145,7 +1141,7 @@ export default function OptimizationTargets() {
     // 如果有选中的店铺和站点，精确匹配
     if (currentStore && currentMarketplace) {
       const account = accounts.find((a: any) => 
-        (a.storeName || a.accountName) === currentStore && 
+        (a.storeName || a.accountName).trim() === currentStore && 
         a.marketplace === currentMarketplace
       );
       if (account) return account.id;
@@ -1154,7 +1150,7 @@ export default function OptimizationTargets() {
     // 如果只有店铺，匹配第一个站点
     if (currentStore) {
       const account = accounts.find((a: any) => 
-        (a.storeName || a.accountName) === currentStore
+        (a.storeName || a.accountName).trim() === currentStore
       );
       if (account) return account.id;
     }

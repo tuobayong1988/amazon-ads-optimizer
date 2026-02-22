@@ -100,6 +100,50 @@ const menuGroups = [
 // 扁平化菜单项用于路由匹配
 const menuItems = menuGroups.flatMap(group => group.items);
 
+/**
+ * 完整的路由路径到页面标题映射表
+ * 用于顶部导航栏显示当前页面标题（仅移动端显示）
+ * 包含所有有效路由，避免fallback到"菜单"等无意义文本
+ */
+const routeTitleMap: Record<string, string> = {
+  '/': '数据概览',
+  '/strategy-center': '策略管理',
+  '/campaigns': '广告活动',
+  '/ab-test': 'A/B测试',
+  '/amazon-api': 'Amazon API',
+  '/settings': '优化设置',
+  '/notifications': '通知设置',
+  '/team': '团队管理',
+  '/invite-codes': '邀请码管理',
+  '/audit-logs': '审计日志',
+  '/auto-correction': '纠错监控',
+  '/optimization-targets': '优化目标',
+  '/health': '系统健康',
+  '/automation': '自动化',
+  '/batch-operations': '批量操作',
+  '/correction-review': '纠错审查',
+  '/accounts-summary': '账户汇总',
+  '/email-reports': '邮件报告',
+  '/collaboration': '协作通知',
+  '/budget-alerts': '预算警报',
+  '/budget-tracking': '预算追踪',
+  '/seasonal-budget': '季节预算',
+  '/dayparting': '分时策略',
+  '/placement-optimization': '位置优化',
+  '/advanced-placement': '高级位置优化',
+  '/api-security': 'API安全',
+  '/special-scenario': '特殊场景分析',
+  '/sync-logs': '同步日志',
+  '/data-validation': '数据验证',
+  '/auto-optimization-dashboard': '自动优化面板',
+  '/batch-authorization': '批量授权',
+  '/holiday-calendar': '节日日历',
+  '/amazon-api-auth-status': 'API授权状态',
+  '/onboarding': '卖家引导',
+  '/seller-onboarding': '卖家引导',
+  '/blog': '博客',
+};
+
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 260;
 const MIN_WIDTH = 200;
@@ -183,7 +227,9 @@ function DashboardLayoutContent({
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
+  // 优先从菜单项匹配，其次从完整路由标题映射中查找
   const activeMenuItem = menuItems.find(item => item.path === location);
+  const pageTitle = activeMenuItem?.label || routeTitleMap[location] || '';
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -322,11 +368,14 @@ function DashboardLayoutContent({
         <div className="flex border-b h-14 items-center justify-between bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:backdrop-blur sticky top-0 z-40">
           <div className="flex items-center gap-2">
             {isMobile && <SidebarTrigger className="h-9 w-9 rounded-lg bg-background" />}
-            <div className="flex items-center gap-3">
-              <span className="tracking-tight text-foreground font-medium">
-                {activeMenuItem?.label ?? "菜单"}
-              </span>
-            </div>
+            {/* 仅在移动端显示页面标题，PC端侧边栏已高亮当前页面无需重复显示 */}
+            {isMobile && pageTitle && (
+              <div className="flex items-center gap-3">
+                <span className="tracking-tight text-foreground font-medium">
+                  {pageTitle}
+                </span>
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-3">
             <GlobalAccountSelector compact />

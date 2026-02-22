@@ -104,71 +104,8 @@ export function SmartInsights({ campaignId, accountId, compact = false }: SmartI
     setInsights(convertedInsights);
   }, [decisions]);
 
-  // 备用模拟数据(如果没有API数据)
-  useEffect(() => {
-    if (decisions) return;
-    const mockInsights: Insight[] = [
-      {
-        id: '1',
-        type: InsightType.CRITICAL,
-        priority: InsightPriority.CRITICAL,
-        title: 'ACoS持续上升',
-        description: '过去7天ACoS从25%上升至38%,建议立即优化出价或暂停低转化关键词',
-        impact: {
-          metric: 'ACoS',
-          value: 13,
-          unit: '%',
-        },
-        action: {
-          label: '查看优化建议',
-          onClick: () => {
-            toast.info('正在生成优化建议...');
-          },
-        },
-        dismissible: true,
-      },
-      {
-        id: '2',
-        type: InsightType.OPPORTUNITY,
-        priority: InsightPriority.HIGH,
-        title: '预算利用率低',
-        description: '当前预算利用率仅45%,可以提高出价或扩展关键词以获取更多曝光',
-        impact: {
-          metric: 'Sales',
-          value: 500,
-          unit: '$',
-        },
-        action: {
-          label: '提升预算',
-          onClick: () => {
-            toast.success('已应用预算优化建议');
-          },
-        },
-        dismissible: true,
-      },
-      {
-        id: '3',
-        type: InsightType.WARNING,
-        priority: InsightPriority.MEDIUM,
-        title: '转化率下降',
-        description: '转化率从12%降至8%,可能是竞品降价或产品页面问题',
-        impact: {
-          metric: 'Orders',
-          value: -15,
-          unit: '%',
-        },
-        action: {
-          label: '查看详情',
-          onClick: () => {
-            toast.info('正在分析转化率下降原因...');
-          },
-        },
-        dismissible: true,
-      },
-    ];
-
-    setInsights(mockInsights);
-  }, [campaignId, accountId]);
+  // v187: 已删除模拟数据回退逻辑
+  // 无API数据时不再显示虚假洞察，避免误导用户决策
 
   const visibleInsights = insights
     .filter(insight => !dismissedIds.has(insight.id))

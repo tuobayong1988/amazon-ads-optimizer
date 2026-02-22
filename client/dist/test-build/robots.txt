@@ -1,0 +1,21 @@
+# Amazon Ads Optimizer Robots.txt
+
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://amazon-ads-optimizer.manus.space/sitemap.xml
+
+# Disallow admin and API routes
+Disallow: /api/
+Disallow: /trpc/
+
+# Allow search engines to crawl main pages
+Allow: /
+Allow: /dashboard
+Allow: /campaigns
+Allow: /strategy-center
+Allow: /optimization-targets
+Allow: /smart-optimization
+Allow: /ab-testing
+Allow: /reports

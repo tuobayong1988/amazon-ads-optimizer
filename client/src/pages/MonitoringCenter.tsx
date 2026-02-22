@@ -43,77 +43,8 @@ import {
   Legend
 } from "recharts";
 import { Link } from "wouter";
-import { safeParseDate } from '../lib/safeDate';
-
-// 生成最近7天的模拟数据
-const generateLast7DaysData = () => {
-  const data = [];
-  const now = new Date();
-  
-  for (let i = 6; i >= 0; i--) {
-    const date = safeParseDate(now);
-    date.setDate(date.getDate() - i);
-    const dateStr = `${date.getMonth() + 1}/${date.getDate()}`;
-    
-    const spend = 80 + Math.random() * 60;
-    const acos = 18 + Math.random() * 12;
-    const sales = spend / (acos / 100);
-    
-    data.push({
-      date: dateStr,
-      spend: parseFloat(spend.toFixed(0)),
-      sales: parseFloat(sales.toFixed(0)),
-      acos: parseFloat(acos.toFixed(1)),
-      orders: Math.floor(sales / 35),
-    });
-  }
-  return data;
-};
-
-// 生成多账户数据
-const generateAccountsData = () => {
-  return [
-    {
-      id: 1,
-      name: 'ElaraFit',
-      marketplace: 'US',
-      spend: 640.13,
-      sales: 1920.45,
-      acos: 20.2,
-      roas: 3.0,
-      orders: 55,
-      status: 'warning',
-      alerts: 1,
-      change: { spend: 5.2, sales: 8.3, acos: -2.1 }
-    },
-    {
-      id: 2,
-      name: 'ElaraFit EU',
-      marketplace: 'DE',
-      spend: 320.50,
-      sales: 890.20,
-      acos: 25.8,
-      roas: 2.78,
-      orders: 28,
-      status: 'healthy',
-      alerts: 0,
-      change: { spend: -3.1, sales: 2.5, acos: -4.2 }
-    },
-    {
-      id: 3,
-      name: 'ElaraFit UK',
-      marketplace: 'UK',
-      spend: 180.25,
-      sales: 520.80,
-      acos: 22.5,
-      roas: 2.89,
-      orders: 18,
-      status: 'healthy',
-      alerts: 0,
-      change: { spend: 1.8, sales: 5.6, acos: -1.5 }
-    }
-  ];
-};
+// v187: 已删除generateLast7DaysData和generateAccountsData模拟数据生成器
+// 所有数据均通过真实API获取
 
 export default function MonitoringCenter() {
   const { user } = useAuth();
@@ -129,17 +60,31 @@ export default function MonitoringCenter() {
     { enabled: !!user }
   );
   
-  // 生成数据
-  const chartData = useMemo(() => generateLast7DaysData(), []);
-  const accountsData = useMemo(() => generateAccountsData(), []);
+  // v187: 使用真实API数据替代模拟数据
+  const { data: accountsWithPerformance } = trpc.adAccount.listWithPerformance.useQuery(
+    { timeRange: timeRange === 'today' ? 'today' : timeRange === '7days' ? 'last7days' : 'last30days', days: timeRange === 'today' ? 1 : timeRange === '7days' ? 7 : 30 },
+    { enabled: !!user }
+  );
+  
+  const { data: trendData } = trpc.adAccount.getDailyTrend.useQuery(
+    { days: timeRange === 'today' ? 1 : timeRange === '7days' ? 7 : 30, timeRange: timeRange === 'today' ? 'today' : timeRange === '7days' ? 'last7days' : 'last30days' },
+    { enabled: !!user }
+  );
+  
+  const chartData = useMemo(() => trendData && trendData.length > 0 ? trendData : [], [trendData]);
+  
+  const accountsData = useMemo(() => {
+    if (!accountsWithPerformance || accountsWithPerformance.length === 0) return [];
+    return accountsWithPerformance;
+  }, [accountsWithPerformance]);
   
   // 计算汇总数据
   const summary = useMemo(() => {
-    const totalSpend = accountsData.reduce((sum, a) => sum + a.spend, 0);
-    const totalSales = accountsData.reduce((sum, a) => sum + a.sales, 0);
-    const totalOrders = accountsData.reduce((sum, a) => sum + a.orders, 0);
-    const avgAcos = totalSpend / totalSales * 100;
-    const avgRoas = totalSales / totalSpend;
+    const totalSpend = accountsData.reduce((sum: number, a: any) => sum + (a.spend || 0), 0);
+    const totalSales = accountsData.reduce((sum: number, a: any) => sum + (a.sales || 0), 0);
+    const totalOrders = accountsData.reduce((sum: number, a: any) => sum + (a.orders || 0), 0);
+    const avgAcos = totalSpend > 0 && totalSales > 0 ? (totalSpend / totalSales) * 100 : 0;
+    const avgRoas = totalSpend > 0 ? totalSales / totalSpend : 0;
     
     return {
       totalSpend,
@@ -147,9 +92,9 @@ export default function MonitoringCenter() {
       totalOrders,
       avgAcos,
       avgRoas,
-      healthyCount: accountsData.filter(a => a.status === 'healthy').length,
-      warningCount: accountsData.filter(a => a.status === 'warning').length,
-      criticalCount: accountsData.filter(a => a.status === 'critical').length,
+      healthyCount: accountsData.filter((a: any) => a.status === 'healthy').length,
+      warningCount: accountsData.filter((a: any) => a.status === 'warning').length,
+      criticalCount: accountsData.filter((a: any) => a.status === 'critical').length,
     };
   }, [accountsData]);
   
@@ -598,7 +543,7 @@ export default function MonitoringCenter() {
             </Card>
           </Link>
           
-          <Link href="/analytics">
+          <Link href="/strategy-center">
             <Card className="cursor-pointer hover:bg-gray-800/50 transition-colors">
               <CardContent className="p-4 flex items-center gap-3">
                 <div className="p-2 rounded-lg bg-amber-500/20">

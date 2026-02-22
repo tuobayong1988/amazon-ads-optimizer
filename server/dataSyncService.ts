@@ -11,16 +11,12 @@ import {
   dataSyncLogs,
   apiRateLimits,
   adAccounts,
-  campaigns,
-  keywords,
-  dailyPerformance,
-  adGroups as adGroupsTable,
 } from "../drizzle/schema";
 
 // 定义类型
 type InsertDataSyncJob = typeof dataSyncJobs.$inferInsert;
 type InsertDataSyncLog = typeof dataSyncLogs.$inferInsert;
-import { AmazonAdsApiClient } from "./amazonAdsApi";
+// v187: AmazonAdsApiClient不再直接使用，同步逻辑已委托给AmazonSyncService
 
 export type SyncType = "campaigns" | "keywords" | "performance" | "all";
 export type SyncStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
@@ -202,123 +198,97 @@ export async function executeSyncJob(jobId: number): Promise<{ success: boolean;
 
 /**
  * 同步广告活动
+ * v187: 已移除mock数据，委托给AmazonSyncService执行真实API同步
+ * 此函数作为轻量级封装，实际同步逻辑在amazonSyncService.ts中
  */
 async function syncCampaigns(userId: number, accountId: number, account: any): Promise<{ success: boolean; count: number; message: string }> {
   try {
-    // 通过限流器发送请求
-    await rateLimiter.enqueue({ accountId, endpoint: "/v2/sp/campaigns", method: "GET", priority: 1 });
-    
-    // 模拟同步数据（实际实现需要解析API响应并存储）
-    const mockCampaigns = [
-      { campaignId: `camp_${Date.now()}_1`, campaignName: "测试活动1", status: "enabled" },
-      { campaignId: `camp_${Date.now()}_2`, campaignName: "测试活动2", status: "enabled" },
-    ];
-
-    const db = await getDb();
-    if (!db) return { success: false, count: 0, message: "数据库连接失败" };
-
-    for (const camp of mockCampaigns) {
-      const existing = await db.select().from(campaigns).where(and(eq(campaigns.accountId, accountId), eq(campaigns.campaignId, camp.campaignId))).limit(1);
-      if (existing.length === 0) {
-        await db.insert(campaigns).values({
-          accountId,
-          campaignId: camp.campaignId,
-          campaignName: camp.campaignName,
-          campaignType: "sp_auto",
-          maxBid: "1.00",
-        });
-      }
-    }
-
-    return { success: true, count: mockCampaigns.length, message: `同步了${mockCampaigns.length}个广告活动` };
+    const { AmazonSyncService } = await import('./amazonSyncService');
+    // 从账号信息创建SyncService实例
+    const syncService = await AmazonSyncService.createFromCredentials(
+      {
+        clientId: account.clientId,
+        clientSecret: account.clientSecret,
+        refreshToken: account.refreshToken,
+        profileId: account.profileId,
+        region: account.region || 'NA',
+      },
+      accountId,
+      userId,
+      account.marketplace || 'US'
+    );
+    const result = await syncService.syncCampaignsOnly();
+    return { 
+      success: true, 
+      count: result?.campaigns || 0, 
+      message: `通过Amazon API同步了${result?.campaigns || 0}个广告活动` 
+    };
   } catch (error: any) {
+    console.error(`[dataSyncService] syncCampaigns失败 accountId=${accountId}:`, error.message);
     return { success: false, count: 0, message: error.message };
   }
 }
 
 /**
  * 同步关键词
+ * v187: 已移除mock数据，委托给AmazonSyncService执行真实API同步
+ * 关键词同步包含在syncAll流程中，这里执行完整同步并返回关键词数量
  */
 async function syncKeywords(userId: number, accountId: number, account: any): Promise<{ success: boolean; count: number; message: string }> {
   try {
-    await rateLimiter.enqueue({ accountId, endpoint: "/v2/sp/keywords", method: "GET", priority: 1 });
-    
-    // 模拟同步数据
-    const mockKeywords = [
-      { keywordId: `kw_${Date.now()}_1`, keywordText: "测试关键词1", matchType: "broad" },
-      { keywordId: `kw_${Date.now()}_2`, keywordText: "测试关键词2", matchType: "exact" },
-    ];
-
-    const db = await getDb();
-    if (!db) return { success: false, count: 0, message: "数据库连接失败" };
-
-    // 获取账号下的第一个活动
-    const campaign = await db.select().from(campaigns).where(eq(campaigns.accountId, accountId)).limit(1);
-    if (campaign.length === 0) return { success: true, count: 0, message: "没有广告活动，跳过关键词同步" };
-
-    // 获取账号下的第一个广告组
-    const adGroupsList = await db.select().from(adGroupsTable).where(eq(adGroupsTable.campaignId, String(campaign[0].id))).limit(1);
-    const adGroupId = adGroupsList.length > 0 ? adGroupsList[0].id : 1; // 使用默认值如果没有广告组
-
-    for (const kw of mockKeywords) {
-      const existing = await db.select().from(keywords).where(and(eq(keywords.adGroupId, adGroupId), eq(keywords.keywordId, kw.keywordId))).limit(1);
-      if (existing.length === 0) {
-        await db.insert(keywords).values({
-          adGroupId,
-          keywordId: kw.keywordId,
-          keywordText: kw.keywordText,
-          matchType: kw.matchType as any,
-          bid: "1.00",
-        });
-      }
-    }
-
-    return { success: true, count: mockKeywords.length, message: `同步了${mockKeywords.length}个关键词` };
+    const { AmazonSyncService } = await import('./amazonSyncService');
+    const syncService = await AmazonSyncService.createFromCredentials(
+      {
+        clientId: account.clientId,
+        clientSecret: account.clientSecret,
+        refreshToken: account.refreshToken,
+        profileId: account.profileId,
+        region: account.region || 'NA',
+      },
+      accountId,
+      userId,
+      account.marketplace || 'US'
+    );
+    // syncAll包含关键词同步，返回关键词数量
+    const result = await syncService.syncAll();
+    return { 
+      success: true, 
+      count: result?.keywords || 0, 
+      message: `通过Amazon API同步了${result?.keywords || 0}个关键词` 
+    };
   } catch (error: any) {
+    console.error(`[dataSyncService] syncKeywords失败 accountId=${accountId}:`, error.message);
     return { success: false, count: 0, message: error.message };
   }
 }
 
 /**
  * 同步绩效数据
+ * v187: 已移除mock数据，委托给AmazonSyncService执行真实API同步
  */
 async function syncPerformance(userId: number, accountId: number, account: any): Promise<{ success: boolean; count: number; message: string }> {
   try {
-    await rateLimiter.enqueue({ accountId, endpoint: "/v2/sp/reports", method: "POST", priority: 2 });
-    
-    // 模拟同步数据
-    const db = await getDb();
-    if (!db) return { success: false, count: 0, message: "数据库连接失败" };
-
-    const campaignList = await db.select().from(campaigns).where(eq(campaigns.accountId, accountId));
-    let count = 0;
-
-    for (const campaign of campaignList) {
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-
-      const todayStr = today.toISOString().split('T')[0];
-      const existing = await db.select().from(dailyPerformance).where(and(eq(dailyPerformance.campaignId, String(campaign.id)), sql`DATE(date) = ${todayStr}`)).limit(1);
-      
-      if (existing.length === 0) {
-        await db.insert(dailyPerformance).values({
-          accountId,
-          campaignId: campaign.id,
-          date: today.toISOString(),
-          impressions: Math.floor(Math.random() * 10000),
-          clicks: Math.floor(Math.random() * 500),
-          spend: (Math.random() * 100).toFixed(2),
-          sales: (Math.random() * 500).toFixed(2),
-          orders: Math.floor(Math.random() * 20),
-          dailyAcos: (Math.random() * 50).toFixed(2),
-          dailyRoas: (Math.random() * 5).toFixed(2),
-        });
-        count++;
-      }
-    }
-
-    return { success: true, count, message: `同步了${count}条绩效数据` };
+    const { AmazonSyncService } = await import('./amazonSyncService');
+    const syncService = await AmazonSyncService.createFromCredentials(
+      {
+        clientId: account.clientId,
+        clientSecret: account.clientSecret,
+        refreshToken: account.refreshToken,
+        profileId: account.profileId,
+        region: account.region || 'NA',
+      },
+      accountId,
+      userId,
+      account.marketplace || 'US'
+    );
+    const result = await syncService.syncPerformanceOnly();
+    return { 
+      success: true, 
+      count: result?.performance || 0, 
+      message: `通过Amazon API同步了${result?.performance || 0}条绩效数据` 
+    };
   } catch (error: any) {
+    console.error(`[dataSyncService] syncPerformance失败 accountId=${accountId}:`, error.message);
     return { success: false, count: 0, message: error.message };
   }
 }

@@ -2855,9 +2855,12 @@ export class AmazonSyncService {
   }
 
   /**
-   * 生成模拟绩效数据（当Amazon Reporting API超时时使用）
+   * @deprecated v187: 此方法生成模拟数据，严重误导优化算法
+   * 已无任何调用方，保留仅作为参考，禁止在生产环境中使用
+   * 应使用syncPerformanceData()获取真实Amazon API数据
    */
   async generateMockPerformanceData(days: number = 7): Promise<number> {
+    console.warn('[SyncService] ⚠️ generateMockPerformanceData已废弃，不应被调用！请使用syncPerformanceData()代替');
     const db = await getDb();
     if (!db) return 0;
 

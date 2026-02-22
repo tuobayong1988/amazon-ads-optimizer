@@ -510,40 +510,13 @@ function StatisticsSummary({ metrics }: { metrics: MetricAnalysis[] }) {
 export default function ABTestCharts({ analysisResults, testName }: ABTestChartsProps) {
   const [selectedMetric, setSelectedMetric] = useState<string>('roas');
   
-  // 生成模拟的每日数据（如果没有提供）
+  // v187: 仅使用真实的每日指标数据，不再生成模拟数据
   const dailyMetrics = useMemo(() => {
     if (analysisResults.dailyMetrics && analysisResults.dailyMetrics.length > 0) {
       return analysisResults.dailyMetrics;
     }
-    
-    // 生成14天的模拟数据
-    const days = 14;
-    const data: DailyMetric[] = [];
-    const baseDate = new Date();
-    baseDate.setDate(baseDate.getDate() - days);
-    
-    for (let i = 0; i < days; i++) {
-      const date = safeParseDate(baseDate);
-      date.setDate(date.getDate() + i);
-      
-      // 基于实际分析结果生成模拟趋势
-      const metric = analysisResults.metrics.find(m => m.metricName === selectedMetric);
-      const baseControl = metric?.controlValue || 1;
-      const baseTreatment = metric?.treatmentValue || 1;
-      
-      // 添加一些随机波动
-      const controlVariation = (Math.random() - 0.5) * 0.2;
-      const treatmentVariation = (Math.random() - 0.5) * 0.2;
-      
-      data.push({
-        date: safeToISODateString(date),
-        controlValue: baseControl * (1 + controlVariation),
-        treatmentValue: baseTreatment * (1 + treatmentVariation),
-      });
-    }
-    
-    return data;
-  }, [analysisResults, selectedMetric]);
+    return []; // 无数据时返回空数组，图表将显示“暂无数据”
+  }, [analysisResults]);
 
   return (
     <div className="space-y-6">

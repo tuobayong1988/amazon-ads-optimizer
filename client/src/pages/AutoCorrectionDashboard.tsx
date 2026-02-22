@@ -107,15 +107,15 @@ export default function AutoCorrectionDashboard() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* 页面标题 */}
-        <div className="flex items-center justify-between">
+        {/* 页面标题 - 移动端堆叠布局 */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-white flex items-center gap-2">
-              <Activity className="h-7 w-7 text-blue-400" />
-              AutoCorrector 纠错监控
+            <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+              <Activity className="h-6 w-6 sm:h-7 sm:w-7 text-blue-400" />
+              纠错监控
             </h1>
-            <p className="text-gray-400 mt-1">
-              v177 - 实时监控自动纠错系统运行状态、同步成功率和历史趋势
+            <p className="text-gray-400 text-sm mt-1">
+              实时监控自动纠错系统运行状态、同步成功率和历史趋势
             </p>
           </div>
           <div className="flex gap-2">

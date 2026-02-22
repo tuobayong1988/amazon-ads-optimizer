@@ -165,8 +165,32 @@ function PerformanceGroupCard({ group }: { group: any }) {
     'maximize_conversions': '转化最大化'
   };
 
-  // 模拟目标达成进度
-  const progress = Math.round(60 + Math.random() * 35);
+  // v187: 基于真实数据计算目标达成度
+  // 如果group包含实际ACoS/ROAS和目标值，计算真实达成度
+  const progress = useMemo(() => {
+    if (!group.targetValue || group.targetValue <= 0) return 0;
+    
+    if (group.optimizationGoal === 'target_acos') {
+      // ACoS目标：实际ACoS越接近目标越好，低于目标=100%
+      const actualAcos = group.actualAcos || group.acos;
+      if (!actualAcos || actualAcos <= 0) return 0;
+      if (actualAcos <= group.targetValue) return 100;
+      // 进度 = 目标值 / 实际值 * 100
+      return Math.min(100, Math.round((group.targetValue / actualAcos) * 100));
+    } else if (group.optimizationGoal === 'target_roas') {
+      // ROAS目标：实际ROAS越接近目标越好
+      const actualRoas = group.actualRoas || group.roas;
+      if (!actualRoas || actualRoas <= 0) return 0;
+      if (actualRoas >= group.targetValue) return 100;
+      return Math.min(100, Math.round((actualRoas / group.targetValue) * 100));
+    } else if (group.optimizationGoal === 'daily_budget') {
+      // 预算目标：实际花费接近目标预算
+      const actualSpend = group.actualSpend || group.spend;
+      if (!actualSpend) return 0;
+      return Math.min(100, Math.round((actualSpend / group.targetValue) * 100));
+    }
+    return 0;
+  }, [group]);
 
   return (
     <Card className="group hover:border-primary/50 transition-all duration-200 bg-card/50 backdrop-blur">

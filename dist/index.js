@@ -35854,16 +35854,41 @@ async function getBidChangeRecords(accountId, days) {
     const oldBid = parseFloat(log2.previousBid || "0");
     const newBid = parseFloat(log2.newBid || "0");
     if (oldBid === 0 || newBid === 0) continue;
-    const performanceAfter = {
-      clicks: Math.floor(Math.random() * 50),
-      conversions: Math.floor(Math.random() * 5),
-      spend: Math.random() * 100,
-      sales: Math.random() * 500,
+    let performanceAfter = {
+      clicks: 0,
+      conversions: 0,
+      spend: 0,
+      sales: 0,
       roas: 0,
       acos: 0
     };
-    performanceAfter.roas = performanceAfter.spend > 0 ? performanceAfter.sales / performanceAfter.spend : 0;
-    performanceAfter.acos = performanceAfter.sales > 0 ? performanceAfter.spend / performanceAfter.sales * 100 : 0;
+    try {
+      if (log2.campaignId) {
+        const changeDate = new Date(log2.createdAt || Date.now());
+        const endDate = new Date(changeDate);
+        endDate.setDate(endDate.getDate() + 7);
+        const perfRows = await db.select().from(dailyPerformance).where(and(
+          eq(dailyPerformance.campaignId, String(log2.campaignId)),
+          sql`DATE(${dailyPerformance.date}) >= ${changeDate.toISOString().split("T")[0]}`,
+          sql`DATE(${dailyPerformance.date}) <= ${endDate.toISOString().split("T")[0]}`
+        ));
+        if (perfRows.length > 0) {
+          const totalClicks = perfRows.reduce((s4, r5) => s4 + (r5.clicks || 0), 0);
+          const totalSpend = perfRows.reduce((s4, r5) => s4 + parseFloat(String(r5.spend || "0")), 0);
+          const totalSales = perfRows.reduce((s4, r5) => s4 + parseFloat(String(r5.sales || "0")), 0);
+          const totalOrders = perfRows.reduce((s4, r5) => s4 + (r5.orders || 0), 0);
+          performanceAfter = {
+            clicks: totalClicks,
+            conversions: totalOrders,
+            spend: totalSpend,
+            sales: totalSales,
+            roas: totalSpend > 0 ? totalSales / totalSpend : 0,
+            acos: totalSales > 0 ? totalSpend / totalSales * 100 : 0
+          };
+        }
+      }
+    } catch (e6) {
+    }
     records.push({
       id: log2.id,
       targetId: log2.targetId || 0,
@@ -60207,9 +60232,12 @@ var init_amazonSyncService = __esm({
         }
       }
       /**
-       * 生成模拟绩效数据（当Amazon Reporting API超时时使用）
+       * @deprecated v187: 此方法生成模拟数据，严重误导优化算法
+       * 已无任何调用方，保留仅作为参考，禁止在生产环境中使用
+       * 应使用syncPerformanceData()获取真实Amazon API数据
        */
       async generateMockPerformanceData(days = 7) {
+        console.warn("[SyncService] \u26A0\uFE0F generateMockPerformanceData\u5DF2\u5E9F\u5F03\uFF0C\u4E0D\u5E94\u88AB\u8C03\u7528\uFF01\u8BF7\u4F7F\u7528syncPerformanceData()\u4EE3\u66FF");
         const db = await getDb();
         if (!db) return 0;
         try {
@@ -347809,90 +347837,79 @@ async function executeSyncJob(jobId) {
 }
 async function syncCampaigns(userId, accountId, account) {
   try {
-    await rateLimiter.enqueue({ accountId, endpoint: "/v2/sp/campaigns", method: "GET", priority: 1 });
-    const mockCampaigns = [
-      { campaignId: `camp_${Date.now()}_1`, campaignName: "\u6D4B\u8BD5\u6D3B\u52A81", status: "enabled" },
-      { campaignId: `camp_${Date.now()}_2`, campaignName: "\u6D4B\u8BD5\u6D3B\u52A82", status: "enabled" }
-    ];
-    const db = await getDb();
-    if (!db) return { success: false, count: 0, message: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" };
-    for (const camp of mockCampaigns) {
-      const existing = await db.select().from(campaigns).where(and(eq(campaigns.accountId, accountId), eq(campaigns.campaignId, camp.campaignId))).limit(1);
-      if (existing.length === 0) {
-        await db.insert(campaigns).values({
-          accountId,
-          campaignId: camp.campaignId,
-          campaignName: camp.campaignName,
-          campaignType: "sp_auto",
-          maxBid: "1.00"
-        });
-      }
-    }
-    return { success: true, count: mockCampaigns.length, message: `\u540C\u6B65\u4E86${mockCampaigns.length}\u4E2A\u5E7F\u544A\u6D3B\u52A8` };
+    const { AmazonSyncService: AmazonSyncService2 } = await Promise.resolve().then(() => (init_amazonSyncService(), amazonSyncService_exports));
+    const syncService = await AmazonSyncService2.createFromCredentials(
+      {
+        clientId: account.clientId,
+        clientSecret: account.clientSecret,
+        refreshToken: account.refreshToken,
+        profileId: account.profileId,
+        region: account.region || "NA"
+      },
+      accountId,
+      userId,
+      account.marketplace || "US"
+    );
+    const result = await syncService.syncCampaignsOnly();
+    return {
+      success: true,
+      count: result?.campaigns || 0,
+      message: `\u901A\u8FC7Amazon API\u540C\u6B65\u4E86${result?.campaigns || 0}\u4E2A\u5E7F\u544A\u6D3B\u52A8`
+    };
   } catch (error54) {
+    console.error(`[dataSyncService] syncCampaigns\u5931\u8D25 accountId=${accountId}:`, error54.message);
     return { success: false, count: 0, message: error54.message };
   }
 }
 async function syncKeywords(userId, accountId, account) {
   try {
-    await rateLimiter.enqueue({ accountId, endpoint: "/v2/sp/keywords", method: "GET", priority: 1 });
-    const mockKeywords = [
-      { keywordId: `kw_${Date.now()}_1`, keywordText: "\u6D4B\u8BD5\u5173\u952E\u8BCD1", matchType: "broad" },
-      { keywordId: `kw_${Date.now()}_2`, keywordText: "\u6D4B\u8BD5\u5173\u952E\u8BCD2", matchType: "exact" }
-    ];
-    const db = await getDb();
-    if (!db) return { success: false, count: 0, message: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" };
-    const campaign = await db.select().from(campaigns).where(eq(campaigns.accountId, accountId)).limit(1);
-    if (campaign.length === 0) return { success: true, count: 0, message: "\u6CA1\u6709\u5E7F\u544A\u6D3B\u52A8\uFF0C\u8DF3\u8FC7\u5173\u952E\u8BCD\u540C\u6B65" };
-    const adGroupsList = await db.select().from(adGroups).where(eq(adGroups.campaignId, String(campaign[0].id))).limit(1);
-    const adGroupId = adGroupsList.length > 0 ? adGroupsList[0].id : 1;
-    for (const kw of mockKeywords) {
-      const existing = await db.select().from(keywords).where(and(eq(keywords.adGroupId, adGroupId), eq(keywords.keywordId, kw.keywordId))).limit(1);
-      if (existing.length === 0) {
-        await db.insert(keywords).values({
-          adGroupId,
-          keywordId: kw.keywordId,
-          keywordText: kw.keywordText,
-          matchType: kw.matchType,
-          bid: "1.00"
-        });
-      }
-    }
-    return { success: true, count: mockKeywords.length, message: `\u540C\u6B65\u4E86${mockKeywords.length}\u4E2A\u5173\u952E\u8BCD` };
+    const { AmazonSyncService: AmazonSyncService2 } = await Promise.resolve().then(() => (init_amazonSyncService(), amazonSyncService_exports));
+    const syncService = await AmazonSyncService2.createFromCredentials(
+      {
+        clientId: account.clientId,
+        clientSecret: account.clientSecret,
+        refreshToken: account.refreshToken,
+        profileId: account.profileId,
+        region: account.region || "NA"
+      },
+      accountId,
+      userId,
+      account.marketplace || "US"
+    );
+    const result = await syncService.syncAll();
+    return {
+      success: true,
+      count: result?.keywords || 0,
+      message: `\u901A\u8FC7Amazon API\u540C\u6B65\u4E86${result?.keywords || 0}\u4E2A\u5173\u952E\u8BCD`
+    };
   } catch (error54) {
+    console.error(`[dataSyncService] syncKeywords\u5931\u8D25 accountId=${accountId}:`, error54.message);
     return { success: false, count: 0, message: error54.message };
   }
 }
 async function syncPerformance(userId, accountId, account) {
   try {
-    await rateLimiter.enqueue({ accountId, endpoint: "/v2/sp/reports", method: "POST", priority: 2 });
-    const db = await getDb();
-    if (!db) return { success: false, count: 0, message: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" };
-    const campaignList = await db.select().from(campaigns).where(eq(campaigns.accountId, accountId));
-    let count2 = 0;
-    for (const campaign of campaignList) {
-      const today = /* @__PURE__ */ new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayStr = today.toISOString().split("T")[0];
-      const existing = await db.select().from(dailyPerformance).where(and(eq(dailyPerformance.campaignId, String(campaign.id)), sql`DATE(date) = ${todayStr}`)).limit(1);
-      if (existing.length === 0) {
-        await db.insert(dailyPerformance).values({
-          accountId,
-          campaignId: campaign.id,
-          date: today.toISOString(),
-          impressions: Math.floor(Math.random() * 1e4),
-          clicks: Math.floor(Math.random() * 500),
-          spend: (Math.random() * 100).toFixed(2),
-          sales: (Math.random() * 500).toFixed(2),
-          orders: Math.floor(Math.random() * 20),
-          dailyAcos: (Math.random() * 50).toFixed(2),
-          dailyRoas: (Math.random() * 5).toFixed(2)
-        });
-        count2++;
-      }
-    }
-    return { success: true, count: count2, message: `\u540C\u6B65\u4E86${count2}\u6761\u7EE9\u6548\u6570\u636E` };
+    const { AmazonSyncService: AmazonSyncService2 } = await Promise.resolve().then(() => (init_amazonSyncService(), amazonSyncService_exports));
+    const syncService = await AmazonSyncService2.createFromCredentials(
+      {
+        clientId: account.clientId,
+        clientSecret: account.clientSecret,
+        refreshToken: account.refreshToken,
+        profileId: account.profileId,
+        region: account.region || "NA"
+      },
+      accountId,
+      userId,
+      account.marketplace || "US"
+    );
+    const result = await syncService.syncPerformanceOnly();
+    return {
+      success: true,
+      count: result?.performance || 0,
+      message: `\u901A\u8FC7Amazon API\u540C\u6B65\u4E86${result?.performance || 0}\u6761\u7EE9\u6548\u6570\u636E`
+    };
   } catch (error54) {
+    console.error(`[dataSyncService] syncPerformance\u5931\u8D25 accountId=${accountId}:`, error54.message);
     return { success: false, count: 0, message: error54.message };
   }
 }

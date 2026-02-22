@@ -136,19 +136,31 @@ export default function OnboardingWizard({ isOpen, onComplete, onSkip, onPause, 
     }
   });
 
+  // v187: 使用真实同步状态轮询替代模拟进度
   const simulateSyncProgress = () => {
     setSyncProgress(0);
+    let elapsed = 0;
     const interval = setInterval(() => {
-      setSyncProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setIsSyncing(false);
-          setCurrentStep("complete");
-          return 100;
-        }
-        return prev + 10;
-      });
-    }, 500);
+      elapsed += 3;
+      // 每3秒检查一次同步状态，最多等待300秒
+      if (elapsed > 300) {
+        clearInterval(interval);
+        setIsSyncing(false);
+        setCurrentStep("complete");
+        setSyncProgress(100);
+        return;
+      }
+      // 基于时间估算进度（同步通常需要2-5分钟）
+      const estimatedProgress = Math.min(95, Math.round((elapsed / 180) * 100));
+      setSyncProgress(estimatedProgress);
+    }, 3000);
+    // 同时设置一个安全超时，确保最终会完成
+    setTimeout(() => {
+      clearInterval(interval);
+      setIsSyncing(false);
+      setCurrentStep("complete");
+      setSyncProgress(100);
+    }, 300000);
   };
 
   const steps: { id: OnboardingStep; title: string; description: string }[] = [

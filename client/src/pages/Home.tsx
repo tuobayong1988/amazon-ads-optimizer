@@ -62,77 +62,8 @@ import { getAllPosts } from "@/data/blogPosts";
 import { TimeRangeSelector, TimeRangeValue, getDefaultTimeRangeValue, TIME_RANGE_PRESETS, PresetTimeRange } from "@/components/TimeRangeSelector";
 import { format } from "date-fns";
 import { formatInTimeZone } from "date-fns-tz";
-import { safeParseDate } from '../lib/safeDate';
-
-// 生成最近7天的模拟数据
-const generateLast7DaysData = () => {
-  const data = [];
-  const now = new Date();
-  
-  for (let i = 6; i >= 0; i--) {
-    const date = safeParseDate(now);
-    date.setDate(date.getDate() - i);
-    const dateStr = `${date.getMonth() + 1}/${date.getDate()}`;
-    
-    const spend = 80 + Math.random() * 60;
-    const acos = 18 + Math.random() * 12;
-    const sales = spend / (acos / 100);
-    
-    data.push({
-      date: dateStr,
-      spend: parseFloat(spend.toFixed(0)),
-      sales: parseFloat(sales.toFixed(0)),
-      acos: parseFloat(acos.toFixed(1)),
-      orders: Math.floor(sales / 35),
-    });
-  }
-  return data;
-};
-
-// 生成多账户数据
-const generateAccountsData = () => {
-  return [
-    {
-      id: 1,
-      name: 'ElaraFit',
-      marketplace: 'US',
-      spend: 640.13,
-      sales: 1920.45,
-      acos: 20.2,
-      roas: 3.0,
-      orders: 55,
-      status: 'warning',
-      alerts: 1,
-      change: { spend: 5.2, sales: 8.3, acos: -2.1 }
-    },
-    {
-      id: 2,
-      name: 'ElaraFit EU',
-      marketplace: 'DE',
-      spend: 320.50,
-      sales: 890.20,
-      acos: 25.8,
-      roas: 2.78,
-      orders: 28,
-      status: 'healthy',
-      alerts: 0,
-      change: { spend: -3.1, sales: 2.5, acos: -4.2 }
-    },
-    {
-      id: 3,
-      name: 'ElaraFit UK',
-      marketplace: 'UK',
-      spend: 180.25,
-      sales: 520.80,
-      acos: 22.5,
-      roas: 2.89,
-      orders: 18,
-      status: 'healthy',
-      alerts: 0,
-      change: { spend: 1.8, sales: 5.6, acos: -1.5 }
-    }
-  ];
-};
+// v187: 已删除generateLast7DaysData和generateAccountsData模拟数据生成器
+// 所有数据均通过真实API获取（trpc.adAccount.getDailyTrend / trpc.adAccount.listWithPerformance）
 
 // 营销页面组件（未登录时显示）
 function MarketingPage() {
@@ -681,12 +612,12 @@ function DashboardContent() {
     { enabled: !!user }
   );
   
-  // 图表数据：优先使用真实数据，否则使用模拟数据
+  // 图表数据：仅使用真实API数据，无数据时返回空数组
   const chartData = useMemo(() => {
     if (trendData && trendData.length > 0) {
       return trendData;
     }
-    return generateLast7DaysData();
+    return [];
   }, [trendData]);
   
   // 使用真实账户数据，按市场优先级排序
@@ -817,8 +748,8 @@ function DashboardContent() {
         {/* 页面标题和时间范围选择器 */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <TrendingUp className="w-6 h-6 text-primary" />
+            <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+              <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
               数据概览
             </h1>
             <p className="text-muted-foreground text-sm mt-1">
@@ -1111,30 +1042,30 @@ function DashboardContent() {
         
         {/* 快捷操作 */}
         <div className="grid md:grid-cols-4 gap-4">
-          <Link href="/optimization-center">
+          <Link href="/strategy-center">
             <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
               <CardContent className="p-4 flex items-center gap-4">
                 <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
                   <Brain className="w-5 h-5 text-primary" />
                 </div>
                 <div>
-                  <div className="font-semibold">智能优化中心</div>
-                  <div className="text-sm text-muted-foreground">自动优化广告</div>
+                  <div className="font-semibold">策略管理</div>
+                  <div className="text-sm text-muted-foreground">管理优化目标</div>
                 </div>
                 <ArrowRight className="w-4 h-4 ml-auto text-muted-foreground" />
               </CardContent>
             </Card>
           </Link>
           
-          <Link href="/strategy">
+          <Link href="/auto-correction">
             <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
               <CardContent className="p-4 flex items-center gap-4">
                 <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
                   <Target className="w-5 h-5 text-green-500" />
                 </div>
                 <div>
-                  <div className="font-semibold">策略管理</div>
-                  <div className="text-sm text-muted-foreground">配置优化策略</div>
+                  <div className="font-semibold">纠错监控</div>
+                  <div className="text-sm text-muted-foreground">查看优化状态</div>
                 </div>
                 <ArrowRight className="w-4 h-4 ml-auto text-muted-foreground" />
               </CardContent>
@@ -1156,15 +1087,15 @@ function DashboardContent() {
             </Card>
           </Link>
           
-          <Link href="/reports">
+          <Link href="/amazon-api">
             <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
               <CardContent className="p-4 flex items-center gap-4">
                 <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
                   <FileText className="w-5 h-5 text-purple-500" />
                 </div>
                 <div>
-                  <div className="font-semibold">数据分析</div>
-                  <div className="text-sm text-muted-foreground">查看详细报告</div>
+                  <div className="font-semibold">Amazon API</div>
+                  <div className="text-sm text-muted-foreground">管理API连接</div>
                 </div>
                 <ArrowRight className="w-4 h-4 ml-auto text-muted-foreground" />
               </CardContent>

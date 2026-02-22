@@ -788,7 +788,8 @@ export default function AdvancedPlacementOptimization() {
     };
   }, [performanceData]);
 
-  // 模拟市场曲线数据
+  // TODO v187: 此市场曲线数据为数学模型生成，应替换为基于真实历史数据的弹性系数曲线
+  // 当前保留作为参考实现，未来应从后端API获取真实的出价响应曲线数据
   const mockMarketCurveData: MarketCurvePoint[] = useMemo(() => {
     const points: MarketCurvePoint[] = [];
     for (let bid = 0.1; bid <= 3.0; bid += 0.1) {

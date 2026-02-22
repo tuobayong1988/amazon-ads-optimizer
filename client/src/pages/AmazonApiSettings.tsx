@@ -1351,15 +1351,15 @@ export default function AmazonApiSettings() {
         {/* API连接状态监控 */}
         <ApiHealthMonitor showCard={false} />
         
-        {/* Header */}
-        <div className="flex items-center justify-between">
+        {/* Header - 移动端堆叠布局 */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Amazon API 多账号管理</h1>
-            <p className="text-muted-foreground mt-1">
+            <h1 className="text-xl sm:text-2xl font-bold">Amazon API 多账号管理</h1>
+            <p className="text-muted-foreground text-sm mt-1">
               管理多个亚马逊卖家店铺账号，配置API凭证实现数据自动同步
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {/* 导出按钮 */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

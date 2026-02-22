@@ -74,10 +74,10 @@ export default function Settings() {
     <DashboardLayout>
       <PageMeta {...PAGE_META_CONFIG.settings} />
       <div className="space-y-6">
-        {/* Header */}
+        {/* Header - 移动端自适应 */}
         <div>
-          <h1 className="text-2xl font-bold">优化设置</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl sm:text-2xl font-bold">优化设置</h1>
+          <p className="text-muted-foreground text-sm">
             配置账号级和广告活动级的优化参数
           </p>
         </div>

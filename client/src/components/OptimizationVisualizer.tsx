@@ -209,7 +209,9 @@ export function OptimizationVisualizer({ type, currentValue, suggestedValue, dat
 }
 
 /**
- * 生成模拟数据的辅助函数
+ * @deprecated v187: 此函数生成模拟数据，不应在生产环境中使用
+ * 未来应基于真实历史数据和弹性系数模型生成预测曲线
+ * 当前无外部调用，保留作为参考
  */
 export function generateOptimizationData(
   type: 'bid' | 'budget',

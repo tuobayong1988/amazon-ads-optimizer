@@ -792,7 +792,7 @@ export default function Campaigns() {
   const accountId = useMemo(() => {
     if (!accounts || !currentStore || !currentMarketplace) return undefined;
     const account = accounts.find(a => 
-      (a.storeName || a.accountName) === currentStore && 
+      (a.storeName || a.accountName).trim() === currentStore.trim() && 
       a.marketplace === currentMarketplace
     );
     return account?.id;
@@ -925,7 +925,7 @@ export default function Campaigns() {
   // 获取店铺和站点信息（从账号列表中获取）
   const storeOptions = useMemo(() => {
     if (!accounts) return [{ value: "all", label: "全部店铺" }];
-    const storeSet = new Set(accounts.map(a => a.storeName || a.accountName).filter(Boolean));
+    const storeSet = new Set(accounts.map(a => (a.storeName || a.accountName).trim()).filter(Boolean));
     const stores = Array.from(storeSet) as string[];
     return [
       { value: "all", label: "全部店铺" },
@@ -948,7 +948,7 @@ export default function Campaigns() {
     if (!accounts) return [];
     return accounts
       .filter(a => {
-        const matchesStore = storeFilter === "all" || (a.storeName || a.accountName) === storeFilter;
+        const matchesStore = storeFilter === "all" || (a.storeName || a.accountName).trim() === storeFilter;
         const matchesMarketplace = marketplaceFilter === "all" || a.marketplace === marketplaceFilter;
         return matchesStore && matchesMarketplace;
       })

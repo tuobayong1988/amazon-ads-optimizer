@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -77,8 +77,20 @@ export default function AlgorithmEffectDashboard() {
     avgProfitIncrease: algorithmPerformance?.totalEstimatedProfit || 0
   };
 
-  // 生成ACoS趋势数据
-  const acosTrendData = generateAcosTrendData(parseInt(timeRange));
+  // v187: 使用真实API数据替代模拟的ACoS趋势数据
+  const { data: trendData } = trpc.adAccount.getDailyTrend.useQuery(
+    { days: parseInt(timeRange), timeRange: 'custom' },
+    { enabled: true }
+  );
+  const acosTrendData = useMemo(() => {
+    if (!trendData || trendData.length === 0) return [];
+    return trendData.map((d: any) => ({
+      date: d.date,
+      actualAcos: d.acos ? d.acos.toFixed(1) : '0',
+      targetAcos: 30, // 将来可从绩效组目标中获取
+      beforeOptimization: null // 无对比数据时不显示
+    }));
+  }, [trendData]);
 
   // 使用真实API数据生成调整分布
   const adjustmentDistribution = {
@@ -95,8 +107,15 @@ export default function AlgorithmEffectDashboard() {
     }))
   };
 
-  // 生成效果对比数据
-  const effectComparisonData = generateEffectComparisonData();
+  // v187: 使用真实算法效果数据替代模拟数据
+  const effectComparisonData = useMemo(() => {
+    if (!algorithmPerformance) return [];
+    return [
+      { metric: 'ACoS (%)', before: algorithmPerformance.avgAcosBefore || 0, after: algorithmPerformance.avgAcosAfter || 0 },
+      { metric: 'ROAS', before: algorithmPerformance.avgRoasBefore || 0, after: algorithmPerformance.avgRoasAfter || 0 },
+      { metric: '每次点击成本 ($)', before: algorithmPerformance.avgCpcBefore || 0, after: algorithmPerformance.avgCpcAfter || 0 },
+    ].filter(item => item.before > 0 || item.after > 0);
+  }, [algorithmPerformance]);
 
   return (
     <DashboardLayout>
@@ -534,57 +553,5 @@ export default function AlgorithmEffectDashboard() {
   );
 }
 
-// 生成ACoS趋势数据
-function generateAcosTrendData(days: number) {
-  const data = [];
-  const baseAcos = 45;
-  const targetAcos = 30;
-  
-  for (let i = days; i >= 0; i--) {
-    const date = subDays(new Date(), i);
-    const progress = (days - i) / days;
-    const actualAcos = baseAcos - (baseAcos - targetAcos) * progress * 0.8 + (Math.random() - 0.5) * 5;
-    const beforeOptimization = baseAcos + (Math.random() - 0.5) * 3;
-    
-    data.push({
-      date: format(date, "MM/dd"),
-      actualAcos: Math.max(15, actualAcos).toFixed(1),
-      targetAcos: targetAcos,
-      beforeOptimization: beforeOptimization.toFixed(1)
-    });
-  }
-  
-  return data;
-}
-
-// 生成调整分布数据
-function generateAdjustmentDistribution(records: any[]) {
-  const byType = [
-    { type: '最优出价', count: records.filter(r => r.adjustmentType === 'auto_optimal').length || 45 },
-    { type: '分时调整', count: records.filter(r => r.adjustmentType === 'auto_dayparting').length || 32 },
-    { type: '位置优化', count: records.filter(r => r.adjustmentType === 'auto_placement').length || 28 },
-    { type: '手动调整', count: records.filter(r => r.adjustmentType === 'manual').length || 15 },
-  ];
-
-  const byRange = [
-    { range: '<-20%', count: 12 },
-    { range: '-20%~-10%', count: 25 },
-    { range: '-10%~0%', count: 38 },
-    { range: '0%~10%', count: 42 },
-    { range: '10%~20%', count: 28 },
-    { range: '>20%', count: 15 },
-  ];
-
-  return { byType, byRange };
-}
-
-// 生成效果对比数据
-function generateEffectComparisonData() {
-  return [
-    { metric: 'ACoS (%)', before: 45, after: 35 },
-    { metric: 'ROAS', before: 2.2, after: 2.9 },
-    { metric: '点击率 (%)', before: 0.8, after: 1.1 },
-    { metric: '转化率 (%)', before: 8.5, after: 10.2 },
-    { metric: '每次点击成本 ($)', before: 1.2, after: 0.95 },
-  ];
-}
+// v187: 已删除generateAcosTrendData、generateAdjustmentDistribution、generateEffectComparisonData模拟数据生成器
+// 所有数据均通过真实API获取（trpc.adAccount.getDailyTrend / trpc.algorithmOptimization.*）

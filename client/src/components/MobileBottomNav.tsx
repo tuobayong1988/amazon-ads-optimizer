@@ -4,16 +4,21 @@ import {
   LayoutDashboard,
   Target,
   Megaphone,
-  Brain,
   Settings,
 } from "lucide-react";
 
-// 底部导航项配置
+/**
+ * v187: 移动端底部导航配置
+ * 每个按钮指向不同的有效页面路径
+ * - 概览: 数据概览首页
+ * - 策略: 策略管理（优化目标列表）
+ * - 广告: 广告活动列表
+ * - 设置: 系统设置
+ */
 const navItems = [
   { icon: LayoutDashboard, label: "概览", path: "/" },
   { icon: Target, label: "策略", path: "/strategy-center" },
   { icon: Megaphone, label: "广告", path: "/campaigns" },
-  { icon: Brain, label: "优化", path: "/optimization-engine" },
   { icon: Settings, label: "设置", path: "/settings" },
 ];
 
