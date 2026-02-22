@@ -1543,7 +1543,25 @@ async function executeDaypartingBudgetOptimization(
       
       if (!todayRule) continue;
       
-      const budgetMultiplier = parseFloat(todayRule.budgetMultiplier || '1.00');
+      let budgetMultiplier = parseFloat(todayRule.budgetMultiplier || '1.00');
+      
+      // v183.1: 叠加多维度组合分析的Campaign级别预算乘数
+      let comboBudgetMultiplier = 1.0;
+      try {
+        const dbConn = getDb();
+        comboBudgetMultiplier = await multiDimComboAnalyzer.getCampaignBudgetMultiplier(
+          dbConn, config.accountId, campaign.id
+        );
+        if (Math.abs(comboBudgetMultiplier - 1.0) > 0.001) {
+          console.log(`[DaypartingBudget] v183.1: Campaign ${campaign.campaignName} 组合分析预算乘数: ${comboBudgetMultiplier.toFixed(3)}`);
+          // 叠加乘数: 分时预算乘数 × 组合分析预算乘数
+          budgetMultiplier = budgetMultiplier * comboBudgetMultiplier;
+          // 安全护栏: 最终乘数限制在 0.80 ~ 1.30 之间
+          budgetMultiplier = Math.max(0.80, Math.min(1.30, budgetMultiplier));
+        }
+      } catch (comboErr: any) {
+        console.warn(`[DaypartingBudget] v183.1: 获取组合分析预算乘数失败: ${comboErr.message}`);
+      }
       
       // 如果倍数接近1.0，跳过调整
       if (Math.abs(budgetMultiplier - 1.0) < 0.05) continue;
@@ -1567,7 +1585,8 @@ async function executeDaypartingBudgetOptimization(
         adjustedBudget,
         changeAmount: adjustedBudget - currentBudget,
         changePercent: currentBudget > 0 ? ((adjustedBudget - currentBudget) / currentBudget * 100).toFixed(2) : '0',
-        reason: `分时预算: 星期${['\u65e5','\u4e00','\u4e8c','\u4e09','\u56db','\u4e94','\u516d'][currentDayOfWeek]} 倍数${budgetMultiplier}x, $${currentBudget.toFixed(2)} \u2192 $${adjustedBudget.toFixed(2)}`,
+        comboBudgetMultiplier,
+        reason: `分时预算: 星期${['\u65e5','\u4e00','\u4e8c','\u4e09','\u56db','\u4e94','\u516d'][currentDayOfWeek]} 倍数${budgetMultiplier.toFixed(2)}x${comboBudgetMultiplier !== 1.0 ? ` (含组合分析${comboBudgetMultiplier.toFixed(3)}x)` : ''}, $${currentBudget.toFixed(2)} \u2192 $${adjustedBudget.toFixed(2)}`,
         apiSyncStatus: 'pending',
       };
       

@@ -52443,10 +52443,10 @@ var init_amazonAdsApi = __esm({
           if (workingHeaders) {
             try {
               const response = await this.axiosInstance.post("/sp/adGroups/list", body, { headers: workingHeaders });
-              const adGroups3 = response.data.adGroups || [];
-              allAdGroups.push(...adGroups3);
+              const adGroups4 = response.data.adGroups || [];
+              allAdGroups.push(...adGroups4);
               nextToken = response.data.nextToken;
-              console.log(`[SP API] Fetched ${adGroups3.length} ad groups, total: ${allAdGroups.length}, hasMore: ${!!nextToken}`);
+              console.log(`[SP API] Fetched ${adGroups4.length} ad groups, total: ${allAdGroups.length}, hasMore: ${!!nextToken}`);
             } catch (error54) {
               console.error("[SP API] Error fetching ad groups:", error54.message);
               throw error54;
@@ -52456,10 +52456,10 @@ var init_amazonAdsApi = __esm({
               try {
                 const response = await this.axiosInstance.post("/sp/adGroups/list", body, { headers });
                 workingHeaders = headers;
-                const adGroups3 = response.data.adGroups || [];
-                allAdGroups.push(...adGroups3);
+                const adGroups4 = response.data.adGroups || [];
+                allAdGroups.push(...adGroups4);
                 nextToken = response.data.nextToken;
-                console.log(`[SP API] Fetched ${adGroups3.length} ad groups, total: ${allAdGroups.length}, hasMore: ${!!nextToken}`);
+                console.log(`[SP API] Fetched ${adGroups4.length} ad groups, total: ${allAdGroups.length}, hasMore: ${!!nextToken}`);
                 break;
               } catch (error54) {
                 lastError = error54;
@@ -54862,10 +54862,10 @@ var init_amazonAdsApi = __esm({
               }
             }
           );
-          const adGroups3 = response.data.adGroups || [];
-          allAdGroups.push(...adGroups3);
+          const adGroups4 = response.data.adGroups || [];
+          allAdGroups.push(...adGroups4);
           nextToken = response.data.nextToken;
-          console.log(`[SB API] Fetched ${adGroups3.length} ad groups, total: ${allAdGroups.length}, hasMore: ${!!nextToken}`);
+          console.log(`[SB API] Fetched ${adGroups4.length} ad groups, total: ${allAdGroups.length}, hasMore: ${!!nextToken}`);
         } while (nextToken);
         console.log(`[SB API] Total ad groups fetched: ${allAdGroups.length}`);
         return allAdGroups;
@@ -55020,10 +55020,10 @@ var init_amazonAdsApi = __esm({
             params.campaignIdFilter = campaignId;
           }
           const response = await this.axiosInstance.get("/sd/adGroups", { params });
-          const adGroups3 = response.data || [];
-          allAdGroups.push(...adGroups3);
-          console.log(`[SD API] Fetched ${adGroups3.length} ad groups, total: ${allAdGroups.length}`);
-          if (adGroups3.length < count2) {
+          const adGroups4 = response.data || [];
+          allAdGroups.push(...adGroups4);
+          console.log(`[SD API] Fetched ${adGroups4.length} ad groups, total: ${allAdGroups.length}`);
+          if (adGroups4.length < count2) {
             break;
           }
           startIndex += count2;
@@ -137424,6 +137424,156 @@ function getTimeDecayWeight(daysAgo) {
   if (daysAgo <= 30) return 0.2;
   return 0.1;
 }
+async function synthesizeFromExistingData(db, campaignId, accountId, startStr, endStr) {
+  const campaignInfo = await db.select({
+    id: campaigns.id,
+    campaignId: campaigns.campaignId
+  }).from(campaigns).where(eq(campaigns.id, campaignId)).limit(1);
+  if (campaignInfo.length === 0) return [];
+  const amazonCampaignId = campaignInfo[0].campaignId;
+  const hourlyData = await db.select({
+    keywordId: hourlyPerformance.keywordId,
+    hour: hourlyPerformance.hour,
+    dayOfWeek: hourlyPerformance.dayOfWeek,
+    date: hourlyPerformance.date,
+    impressions: hourlyPerformance.impressions,
+    clicks: hourlyPerformance.clicks,
+    spend: hourlyPerformance.spend,
+    sales: hourlyPerformance.sales,
+    orders: hourlyPerformance.orders
+  }).from(hourlyPerformance).where(and(
+    eq(hourlyPerformance.campaignId, campaignId),
+    eq(hourlyPerformance.accountId, accountId),
+    gte(hourlyPerformance.date, startStr),
+    lte(hourlyPerformance.date, endStr)
+  ));
+  if (hourlyData.length === 0) {
+    console.log(`[ComboAnalyzer] Campaign ${campaignId} hourlyPerformance \u4E5F\u65E0\u6570\u636E`);
+    return [];
+  }
+  const placementData = await db.select({
+    placement: placementPerformance.placement,
+    impressions: placementPerformance.impressions,
+    clicks: placementPerformance.clicks,
+    spend: placementPerformance.spend,
+    sales: placementPerformance.sales,
+    orders: placementPerformance.orders
+  }).from(placementPerformance).where(and(
+    eq(placementPerformance.campaignId, amazonCampaignId),
+    eq(placementPerformance.accountId, accountId),
+    gte(placementPerformance.date, startStr),
+    lte(placementPerformance.date, endStr)
+  ));
+  const placementRatios = calculatePlacementRatios(placementData);
+  console.log(`[ComboAnalyzer] Campaign ${campaignId} \u5408\u6210\u6570\u636E: ${hourlyData.length}\u6761hourly\u8BB0\u5F55, \u4F4D\u7F6E\u6BD4\u4F8B: TOS=${(placementRatios.top_of_search * 100).toFixed(1)}%, PP=${(placementRatios.product_page * 100).toFixed(1)}%, ROS=${(placementRatios.rest_of_search * 100).toFixed(1)}%`);
+  const synthesized = [];
+  for (const row of hourlyData) {
+    if (!row.keywordId) continue;
+    const spend = parseFloat(row.spend || "0");
+    const sales = parseFloat(row.sales || "0");
+    const clicks = row.clicks || 0;
+    const impressions = row.impressions || 0;
+    const orders = row.orders || 0;
+    const dateStr = typeof row.date === "string" ? row.date.split("T")[0] : new Date(row.date).toISOString().split("T")[0];
+    for (const placement of ["top_of_search", "product_page", "rest_of_search"]) {
+      const ratio = placementRatios[placement];
+      if (ratio <= 0) continue;
+      synthesized.push({
+        keywordId: row.keywordId,
+        targetId: null,
+        placement,
+        dayOfWeek: row.dayOfWeek,
+        hour: row.hour,
+        date: dateStr,
+        impressions: Math.round(impressions * ratio),
+        clicks: Math.round(clicks * ratio),
+        spend: (spend * ratio).toFixed(2),
+        sales: (sales * ratio).toFixed(2),
+        orders: Math.round(orders * ratio)
+      });
+    }
+  }
+  console.log(`[ComboAnalyzer] Campaign ${campaignId} \u5408\u6210\u4E86 ${synthesized.length} \u6761\u4EA4\u53C9\u7EF4\u5EA6\u8BB0\u5F55`);
+  return synthesized;
+}
+function calculatePlacementRatios(placementData) {
+  if (placementData.length === 0) {
+    return {
+      top_of_search: 0.35,
+      product_page: 0.3,
+      rest_of_search: 0.35
+    };
+  }
+  const spendByPlacement = {
+    top_of_search: 0,
+    product_page: 0,
+    rest_of_search: 0
+  };
+  for (const row of placementData) {
+    const placement = row.placement;
+    const spend = parseFloat(row.spend || "0");
+    if (spendByPlacement[placement] !== void 0) {
+      spendByPlacement[placement] += spend;
+    }
+  }
+  const totalSpend = Object.values(spendByPlacement).reduce((a4, b6) => a4 + b6, 0);
+  if (totalSpend <= 0) {
+    const clicksByPlacement = {
+      top_of_search: 0,
+      product_page: 0,
+      rest_of_search: 0
+    };
+    for (const row of placementData) {
+      const placement = row.placement;
+      if (clicksByPlacement[placement] !== void 0) {
+        clicksByPlacement[placement] += row.clicks || 0;
+      }
+    }
+    const totalClicks = Object.values(clicksByPlacement).reduce((a4, b6) => a4 + b6, 0);
+    if (totalClicks <= 0) {
+      return { top_of_search: 0.35, product_page: 0.3, rest_of_search: 0.35 };
+    }
+    return {
+      top_of_search: clicksByPlacement.top_of_search / totalClicks,
+      product_page: clicksByPlacement.product_page / totalClicks,
+      rest_of_search: clicksByPlacement.rest_of_search / totalClicks
+    };
+  }
+  return {
+    top_of_search: spendByPlacement.top_of_search / totalSpend,
+    product_page: spendByPlacement.product_page / totalSpend,
+    rest_of_search: spendByPlacement.rest_of_search / totalSpend
+  };
+}
+async function loadPreviousAnalysis(db, accountId, campaignId) {
+  const prevResults = await db.select({
+    keywordId: multiDimComboAnalysis.keywordId,
+    targetId: multiDimComboAnalysis.targetId,
+    comboCategory: multiDimComboAnalysis.comboCategory,
+    suggestedBidMultiplier: multiDimComboAnalysis.suggestedBidMultiplier,
+    suggestedPlacementMultiplier: multiDimComboAnalysis.suggestedPlacementMultiplier,
+    suggestedTimeMultiplier: multiDimComboAnalysis.suggestedTimeMultiplier
+  }).from(multiDimComboAnalysis).where(and(
+    eq(multiDimComboAnalysis.accountId, accountId),
+    eq(multiDimComboAnalysis.campaignId, campaignId)
+  ));
+  const map9 = /* @__PURE__ */ new Map();
+  for (const row of prevResults) {
+    const key = row.keywordId ? `kw_${row.keywordId}` : `tgt_${row.targetId}`;
+    map9.set(key, {
+      category: row.comboCategory,
+      bidMultiplier: parseFloat(String(row.suggestedBidMultiplier || "1.000")),
+      placementMultiplier: parseFloat(String(row.suggestedPlacementMultiplier || "1.000")),
+      timeMultiplier: parseFloat(String(row.suggestedTimeMultiplier || "1.000"))
+    });
+  }
+  return map9;
+}
+function smoothMultiplier(newValue, oldValue, smoothFactor = 0.6) {
+  if (oldValue === 1 && newValue === 1) return 1;
+  if (Math.abs(oldValue - 1) < 1e-3) return newValue;
+  return oldValue * (1 - smoothFactor) + newValue * smoothFactor;
+}
 async function analyzeCampaignCombos(db, campaignId, accountId, targetAcos = 30, lookbackDays = 30) {
   const endDate = /* @__PURE__ */ new Date();
   const startDate = /* @__PURE__ */ new Date();
@@ -137432,7 +137582,10 @@ async function analyzeCampaignCombos(db, campaignId, accountId, targetAcos = 30,
   const endStr = endDate.toISOString().split("T")[0];
   const campaignInfo = await db.select({ campaignName: campaigns.campaignName }).from(campaigns).where(eq(campaigns.id, campaignId)).limit(1);
   const campaignName = campaignInfo[0]?.campaignName || `Campaign ${campaignId}`;
-  const rawData = await db.select({
+  const previousAnalysis = await loadPreviousAnalysis(db, accountId, campaignId);
+  let rawData = [];
+  let dataSource = "cross_dimension";
+  const crossDimData = await db.select({
     keywordId: keywordPlacementHourlyPerformance.keywordId,
     targetId: keywordPlacementHourlyPerformance.targetId,
     placement: keywordPlacementHourlyPerformance.placement,
@@ -137450,13 +137603,52 @@ async function analyzeCampaignCombos(db, campaignId, accountId, targetAcos = 30,
     gte(keywordPlacementHourlyPerformance.date, startStr),
     lte(keywordPlacementHourlyPerformance.date, endStr)
   ));
+  if (crossDimData.length > 0) {
+    rawData = crossDimData.map((row) => ({
+      keywordId: row.keywordId,
+      targetId: row.targetId,
+      placement: row.placement,
+      dayOfWeek: row.dayOfWeek,
+      hour: row.hour,
+      date: typeof row.date === "string" ? row.date : String(row.date),
+      impressions: row.impressions || 0,
+      clicks: row.clicks || 0,
+      spend: String(row.spend || "0"),
+      sales: String(row.sales || "0"),
+      orders: row.orders || 0
+    }));
+    dataSource = "cross_dimension";
+    console.log(`[ComboAnalyzer] Campaign ${campaignName}: \u4F7F\u7528\u4EA4\u53C9\u7EF4\u5EA6\u8868\u6570\u636E (${rawData.length}\u6761)`);
+  }
   if (rawData.length === 0) {
-    console.log(`[ComboAnalyzer] Campaign ${campaignId} \u65E0\u4EA4\u53C9\u7EF4\u5EA6\u6570\u636E\uFF0C\u8DF3\u8FC7`);
-    return null;
+    rawData = await synthesizeFromExistingData(db, campaignId, accountId, startStr, endStr);
+    dataSource = "synthesized";
+    if (rawData.length === 0) {
+      console.log(`[ComboAnalyzer] Campaign ${campaignName}: \u65E0\u4EFB\u4F55\u53EF\u7528\u6570\u636E\uFF0C\u8DF3\u8FC7`);
+      return null;
+    }
+    console.log(`[ComboAnalyzer] Campaign ${campaignName}: \u4F7F\u7528\u5408\u6210\u6570\u636E (${rawData.length}\u6761)`);
+  }
+  if (crossDimData.length > 0 && crossDimData.length < 50) {
+    const synthesized = await synthesizeFromExistingData(db, campaignId, accountId, startStr, endStr);
+    if (synthesized.length > crossDimData.length) {
+      const existingKeys = new Set(rawData.map(
+        (r5) => `${r5.keywordId || ""}_${r5.targetId || ""}_${r5.placement}_${r5.dayOfWeek}_${r5.hour}_${r5.date}`
+      ));
+      for (const row of synthesized) {
+        const key = `${row.keywordId || ""}_${row.targetId || ""}_${row.placement}_${row.dayOfWeek}_${row.hour}_${row.date}`;
+        if (!existingKeys.has(key)) {
+          rawData.push(row);
+        }
+      }
+      dataSource = "mixed";
+      console.log(`[ComboAnalyzer] Campaign ${campaignName}: \u6DF7\u5408\u6570\u636E (\u4EA4\u53C9:${crossDimData.length} + \u5408\u6210\u8865\u5145, \u603B\u8BA1:${rawData.length}\u6761)`);
+    }
   }
   const keywordGroups = /* @__PURE__ */ new Map();
   for (const row of rawData) {
-    const key = row.keywordId ? `kw_${row.keywordId}` : `tgt_${row.targetId}`;
+    const key = row.keywordId ? `kw_${row.keywordId}` : row.targetId ? `tgt_${row.targetId}` : null;
+    if (!key) continue;
     if (!keywordGroups.has(key)) {
       keywordGroups.set(key, []);
     }
@@ -137478,15 +137670,30 @@ async function analyzeCampaignCombos(db, campaignId, accountId, targetAcos = 30,
     }
   }
   const allResults = [];
+  const categoryChanges = [];
   for (const [key, rows] of keywordGroups) {
+    const prevResult = previousAnalysis.get(key);
     const result = analyzeKeywordCombo(
       key,
       rows,
       keywordTexts.get(key) || key,
       campaignId,
       targetAcos,
-      endDate
+      endDate,
+      prevResult || null
     );
+    result.dataSource = dataSource;
+    if (prevResult) {
+      result.previousCategory = prevResult.category;
+      result.categoryChanged = result.comboCategory !== prevResult.category;
+      if (result.categoryChanged) {
+        categoryChanges.push({
+          keywordText: result.keywordText,
+          from: prevResult.category,
+          to: result.comboCategory
+        });
+      }
+    }
     allResults.push(result);
   }
   const goldenCombos = allResults.filter((r5) => r5.comboCategory === "golden");
@@ -137503,7 +137710,15 @@ async function analyzeCampaignCombos(db, campaignId, accountId, targetAcos = 30,
   const totalClicks = allResults.reduce((s4, r5) => s4 + r5.totalClicks, 0);
   const totalOrders = allResults.reduce((s4, r5) => s4 + r5.totalOrders, 0);
   const overallConfidence = totalClicks >= 200 && totalOrders >= 20 ? "high" : totalClicks >= 50 && totalOrders >= 5 ? "medium" : totalClicks >= 10 ? "low" : "insufficient";
-  console.log(`[ComboAnalyzer] Campaign ${campaignName}: ${goldenCombos.length}\u4E2A\u9EC4\u91D1, ${leadenCombos.length}\u4E2A\u94C5\u77F3, ${potentialCombos.length}\u4E2A\u6F5C\u529B, ${standardCombos.length}\u4E2A\u6807\u51C6 (\u7F6E\u4FE1\u5EA6: ${overallConfidence})`);
+  console.log(`[ComboAnalyzer] Campaign ${campaignName} [${dataSource}]: ${goldenCombos.length}\u4E2A\u9EC4\u91D1, ${leadenCombos.length}\u4E2A\u94C5\u77F3, ${potentialCombos.length}\u4E2A\u6F5C\u529B, ${standardCombos.length}\u4E2A\u6807\u51C6 (\u7F6E\u4FE1\u5EA6: ${overallConfidence}, \u9884\u7B97\u4E58\u6570: ${suggestedBudgetMultiplier.toFixed(3)}, \u5206\u7C7B\u53D8\u5316: ${categoryChanges.length}\u4E2A)`);
+  if (categoryChanges.length > 0) {
+    for (const change of categoryChanges.slice(0, 5)) {
+      console.log(`  [\u8FED\u4EE3] "${change.keywordText}": ${change.from} \u2192 ${change.to}`);
+    }
+    if (categoryChanges.length > 5) {
+      console.log(`  [\u8FED\u4EE3] ...\u8FD8\u6709${categoryChanges.length - 5}\u4E2A\u5206\u7C7B\u53D8\u5316`);
+    }
+  }
   return {
     campaignId,
     campaignName,
@@ -137513,10 +137728,12 @@ async function analyzeCampaignCombos(db, campaignId, accountId, targetAcos = 30,
     standardCombos,
     overallConfidence,
     totalKeywordsAnalyzed: allResults.length,
-    suggestedBudgetMultiplier
+    suggestedBudgetMultiplier,
+    dataSource,
+    categoryChanges
   };
 }
-function analyzeKeywordCombo(key, rows, keywordText, campaignId, targetAcos, referenceDate) {
+function analyzeKeywordCombo(key, rows, keywordText, campaignId, targetAcos, referenceDate, prevResult) {
   const keywordId = key.startsWith("kw_") ? parseInt(key.replace("kw_", "")) : null;
   const targetId = key.startsWith("tgt_") ? parseInt(key.replace("tgt_", "")) : null;
   const weightedRows = rows.map((row) => {
@@ -137600,7 +137817,7 @@ function analyzeKeywordCombo(key, rows, keywordText, campaignId, targetAcos, ref
   const totalOrders = weightedRows.reduce((s4, r5) => s4 + r5.wOrders, 0);
   const overallRoas = totalSpend > 0 ? totalSales / totalSpend : 0;
   const overallAcos = totalSales > 0 ? totalSpend / totalSales * 100 : totalSpend > 0 ? 999 : 0;
-  const { category, bidMultiplier, placementMultiplier, timeMultiplier, confidence } = classifyCombo(
+  const { category, bidMultiplier: rawBidMult, placementMultiplier: rawPlaceMult, timeMultiplier: rawTimeMult, confidence } = classifyCombo(
     totalClicks,
     totalOrders,
     totalSpend,
@@ -137612,6 +137829,17 @@ function analyzeKeywordCombo(key, rows, keywordText, campaignId, targetAcos, ref
     targetAcos,
     rows.length
   );
+  let bidMultiplier = rawBidMult;
+  let placementMultiplier = rawPlaceMult;
+  let timeMultiplier = rawTimeMult;
+  if (prevResult) {
+    bidMultiplier = smoothMultiplier(rawBidMult, prevResult.bidMultiplier, 0.6);
+    placementMultiplier = smoothMultiplier(rawPlaceMult, prevResult.placementMultiplier, 0.6);
+    timeMultiplier = smoothMultiplier(rawTimeMult, prevResult.timeMultiplier, 0.6);
+    bidMultiplier = Math.max(0.8, Math.min(1.2, bidMultiplier));
+    placementMultiplier = Math.max(0.85, Math.min(1.15, placementMultiplier));
+    timeMultiplier = Math.max(0.85, Math.min(1.15, timeMultiplier));
+  }
   return {
     keywordId,
     targetId,
@@ -137762,7 +137990,7 @@ async function persistAnalysisResults(db, accountId, analysis) {
       console.error(`[ComboAnalyzer] \u5199\u5165\u5206\u6790\u7ED3\u679C\u5931\u8D25: ${err2.message}`);
     }
   }
-  console.log(`[ComboAnalyzer] Campaign ${analysis.campaignName}: \u5199\u5165${inserted}\u6761\u5206\u6790\u7ED3\u679C`);
+  console.log(`[ComboAnalyzer] Campaign ${analysis.campaignName}: \u5199\u5165${inserted}\u6761\u5206\u6790\u7ED3\u679C (\u6570\u636E\u6E90: ${analysis.dataSource})`);
   return inserted;
 }
 async function executeMultiDimComboAnalysis(db, accountId, campaignIds, config2) {
@@ -137774,7 +138002,9 @@ async function executeMultiDimComboAnalysis(db, accountId, campaignIds, config2)
   let leadenCount = 0;
   let potentialCount = 0;
   let standardCount = 0;
+  let totalCategoryChanges = 0;
   const details = [];
+  const campaignBudgetMultipliers = /* @__PURE__ */ new Map();
   for (const campaignId of campaignIds) {
     try {
       const analysis = await analyzeCampaignCombos(db, campaignId, accountId, targetAcos, lookbackDays);
@@ -137786,12 +138016,14 @@ async function executeMultiDimComboAnalysis(db, accountId, campaignIds, config2)
       leadenCount += analysis.leadenCombos.length;
       potentialCount += analysis.potentialCombos.length;
       standardCount += analysis.standardCombos.length;
+      totalCategoryChanges += analysis.categoryChanges.length;
       details.push(analysis);
+      campaignBudgetMultipliers.set(campaignId, analysis.suggestedBudgetMultiplier);
     } catch (err2) {
       console.error(`[ComboAnalyzer] Campaign ${campaignId} \u5206\u6790\u5931\u8D25: ${err2.message}`);
     }
   }
-  console.log(`[ComboAnalyzer] \u5206\u6790\u5B8C\u6210: ${campaignsAnalyzed}\u4E2Acampaign, ${totalCombosFound}\u4E2A\u7EC4\u5408 (\u9EC4\u91D1:${goldenCount}, \u94C5\u77F3:${leadenCount}, \u6F5C\u529B:${potentialCount}, \u6807\u51C6:${standardCount})`);
+  console.log(`[ComboAnalyzer] \u5206\u6790\u5B8C\u6210: ${campaignsAnalyzed}\u4E2Acampaign, ${totalCombosFound}\u4E2A\u7EC4\u5408 (\u9EC4\u91D1:${goldenCount}, \u94C5\u77F3:${leadenCount}, \u6F5C\u529B:${potentialCount}, \u6807\u51C6:${standardCount}) \u5206\u7C7B\u53D8\u5316:${totalCategoryChanges}\u4E2A`);
   return {
     campaignsAnalyzed,
     totalCombosFound,
@@ -137799,12 +138031,45 @@ async function executeMultiDimComboAnalysis(db, accountId, campaignIds, config2)
     leadenCount,
     potentialCount,
     standardCount,
-    details
+    details,
+    campaignBudgetMultipliers,
+    totalCategoryChanges
   };
 }
 async function getComboAnalysisForAccount(db, accountId) {
   const results = await db.select().from(multiDimComboAnalysis).where(eq(multiDimComboAnalysis.accountId, accountId));
   return results;
+}
+async function getCampaignBudgetMultiplier(db, accountId, campaignId) {
+  const results = await db.select({
+    comboCategory: multiDimComboAnalysis.comboCategory,
+    topOfSearchSpend: multiDimComboAnalysis.topOfSearchSpend,
+    productPageSpend: multiDimComboAnalysis.productPageSpend,
+    restOfSearchSpend: multiDimComboAnalysis.restOfSearchSpend
+  }).from(multiDimComboAnalysis).where(and(
+    eq(multiDimComboAnalysis.accountId, accountId),
+    eq(multiDimComboAnalysis.campaignId, campaignId)
+  ));
+  if (results.length === 0) return 1;
+  let totalSpend = 0;
+  let goldenSpend = 0;
+  let leadenSpend = 0;
+  for (const row of results) {
+    const spend = parseFloat(String(row.topOfSearchSpend || "0")) + parseFloat(String(row.productPageSpend || "0")) + parseFloat(String(row.restOfSearchSpend || "0"));
+    totalSpend += spend;
+    if (row.comboCategory === "golden") goldenSpend += spend;
+    if (row.comboCategory === "leaden") leadenSpend += spend;
+  }
+  if (totalSpend <= 0) return 1;
+  const goldenRatio = goldenSpend / totalSpend;
+  const leadenRatio = leadenSpend / totalSpend;
+  if (goldenRatio > 0.4 && leadenRatio < 0.2) {
+    return Math.min(1.15, 1 + (goldenRatio - 0.4) * 0.3);
+  }
+  if (leadenRatio > 0.4) {
+    return Math.max(0.9, 1 - (leadenRatio - 0.4) * 0.2);
+  }
+  return 1;
 }
 var init_multiDimComboAnalyzer = __esm({
   "server/multiDimComboAnalyzer.ts"() {
@@ -139486,7 +139751,23 @@ async function executeDaypartingBudgetOptimization(config2, campaigns6, dryRun) 
       const budgetRules = await getBudgetRules(strategy.id);
       const todayRule = budgetRules.find((r5) => r5.dayOfWeek === currentDayOfWeek);
       if (!todayRule) continue;
-      const budgetMultiplier = parseFloat(todayRule.budgetMultiplier || "1.00");
+      let budgetMultiplier = parseFloat(todayRule.budgetMultiplier || "1.00");
+      let comboBudgetMultiplier = 1;
+      try {
+        const dbConn = getDb();
+        comboBudgetMultiplier = await getCampaignBudgetMultiplier(
+          dbConn,
+          config2.accountId,
+          campaign.id
+        );
+        if (Math.abs(comboBudgetMultiplier - 1) > 1e-3) {
+          console.log(`[DaypartingBudget] v183.1: Campaign ${campaign.campaignName} \u7EC4\u5408\u5206\u6790\u9884\u7B97\u4E58\u6570: ${comboBudgetMultiplier.toFixed(3)}`);
+          budgetMultiplier = budgetMultiplier * comboBudgetMultiplier;
+          budgetMultiplier = Math.max(0.8, Math.min(1.3, budgetMultiplier));
+        }
+      } catch (comboErr) {
+        console.warn(`[DaypartingBudget] v183.1: \u83B7\u53D6\u7EC4\u5408\u5206\u6790\u9884\u7B97\u4E58\u6570\u5931\u8D25: ${comboErr.message}`);
+      }
       if (Math.abs(budgetMultiplier - 1) < 0.05) continue;
       const currentBudget = parseFloat(campaign.dailyBudget || "0");
       if (currentBudget <= 0) continue;
@@ -139503,7 +139784,8 @@ async function executeDaypartingBudgetOptimization(config2, campaigns6, dryRun) 
         adjustedBudget,
         changeAmount: adjustedBudget - currentBudget,
         changePercent: currentBudget > 0 ? ((adjustedBudget - currentBudget) / currentBudget * 100).toFixed(2) : "0",
-        reason: `\u5206\u65F6\u9884\u7B97: \u661F\u671F${["\u65E5", "\u4E00", "\u4E8C", "\u4E09", "\u56DB", "\u4E94", "\u516D"][currentDayOfWeek]} \u500D\u6570${budgetMultiplier}x, $${currentBudget.toFixed(2)} \u2192 $${adjustedBudget.toFixed(2)}`,
+        comboBudgetMultiplier,
+        reason: `\u5206\u65F6\u9884\u7B97: \u661F\u671F${["\u65E5", "\u4E00", "\u4E8C", "\u4E09", "\u56DB", "\u4E94", "\u516D"][currentDayOfWeek]} \u500D\u6570${budgetMultiplier.toFixed(2)}x${comboBudgetMultiplier !== 1 ? ` (\u542B\u7EC4\u5408\u5206\u6790${comboBudgetMultiplier.toFixed(3)}x)` : ""}, $${currentBudget.toFixed(2)} \u2192 $${adjustedBudget.toFixed(2)}`,
         apiSyncStatus: "pending"
       };
       details.push(adjustment);
@@ -139677,9 +139959,9 @@ async function executeSearchTermAnalysis(config2, campaigns6, dryRun) {
           if (!dryRun) {
             const dbInstance = await getDb();
             if (dbInstance) {
-              const adGroups3 = await getAdGroupsByCampaignId(campaign.id);
-              if (adGroups3.length > 0) {
-                const adGroup = adGroups3[0];
+              const adGroups4 = await getAdGroupsByCampaignId(campaign.id);
+              if (adGroups4.length > 0) {
+                const adGroup = adGroups4[0];
                 const amazonAdGroupId = Number(adGroup.adGroupId || 0);
                 const amazonCampaignId = Number(campaign.campaignId || campaign.id);
                 const matchType = term.matchTypeSuggestion || "exact";
@@ -140363,8 +140645,8 @@ async function executeAdGroupStatusChanges(config2, campaigns6, dryRun) {
   let adGroupMaxAcosThreshold = targetAcos * 2.8;
   for (const campaign of campaigns6) {
     try {
-      const adGroups3 = await getAdGroupsByCampaignId(campaign.id);
-      for (const adGroup of adGroups3) {
+      const adGroups4 = await getAdGroupsByCampaignId(campaign.id);
+      for (const adGroup of adGroups4) {
         const spend = parseFloat(adGroup.spend || "0");
         const sales = parseFloat(adGroup.sales || "0");
         const clicks = adGroup.clicks || 0;
@@ -142594,10 +142876,10 @@ async function generateAIAnalysisWithSuggestions(campaignId) {
   if (!campaign) {
     throw new Error("\u5E7F\u544A\u6D3B\u52A8\u4E0D\u5B58\u5728");
   }
-  const adGroups3 = await getAdGroupsByCampaignId(campaignId);
+  const adGroups4 = await getAdGroupsByCampaignId(campaignId);
   let allKeywords = [];
   let allProductTargets = [];
-  for (const adGroup of adGroups3) {
+  for (const adGroup of adGroups4) {
     const keywords6 = await getKeywordsByAdGroupId(adGroup.id);
     const productTargets2 = await getProductTargetsByAdGroupId(adGroup.id);
     allKeywords.push(...keywords6.map((k5) => ({ ...k5, adGroupName: adGroup.adGroupName })));
@@ -350514,10 +350796,10 @@ var campaignRouter = router({
     if (!campaign) {
       throw new TRPCError({ code: "NOT_FOUND", message: "\u5E7F\u544A\u6D3B\u52A8\u4E0D\u5B58\u5728" });
     }
-    const adGroups3 = await getAdGroupsByCampaignId(input.campaignId);
+    const adGroups4 = await getAdGroupsByCampaignId(input.campaignId);
     let totalKeywords = 0;
     let topKeywords = [];
-    for (const adGroup of adGroups3) {
+    for (const adGroup of adGroups4) {
       const keywords6 = await getKeywordsByAdGroupId(adGroup.id);
       totalKeywords += keywords6.length;
       topKeywords.push(...keywords6.filter((k5) => parseFloat(k5.sales || "0") > 0));
@@ -350552,7 +350834,7 @@ var campaignRouter = router({
 - \u70B9\u51FB\u6B21\u6570\uFF1A${clicks.toLocaleString()}
 - \u8BA2\u5355\u6570\uFF1A${orders}
 
-\u5E7F\u544A\u7EC4\u6570\u91CF\uFF1A${adGroups3.length}
+\u5E7F\u544A\u7EC4\u6570\u91CF\uFF1A${adGroups4.length}
 \u5173\u952E\u8BCD\u6570\u91CF\uFF1A${totalKeywords}
 
 \u8868\u73B0\u6700\u4F73\u5173\u952E\u8BCD\uFF08\u6309\u9500\u552E\u989D\u6392\u5E8F\uFF09\uFF1A
@@ -350585,7 +350867,7 @@ ${topKeywords.map((k5, i4) => `${i4 + 1}. "${k5.keywordText}" - \u9500\u552E\u98
           impressions,
           clicks,
           orders,
-          adGroupCount: adGroups3.length,
+          adGroupCount: adGroups4.length,
           keywordCount: totalKeywords
         },
         topKeywords: topKeywords.map((k5) => ({
@@ -350863,14 +351145,14 @@ var keywordRouter = router({
       try {
         const dbInstance = await getDb();
         if (dbInstance) {
-          const { keywords: keywordsTable, adGroups: adGroups3, campaigns: campaigns6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-          const { eq: eq7, inArray: inArray9 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+          const { keywords: keywordsTable, adGroups: adGroups4, campaigns: campaigns6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+          const { eq: eq7, inArray: inArray10 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
           const kwDetails = await dbInstance.select({
             kwId: keywordsTable.id,
             adGroupId: keywordsTable.adGroupId,
-            campaignId: adGroups3.campaignId,
+            campaignId: adGroups4.campaignId,
             accountId: campaigns6.accountId
-          }).from(keywordsTable).innerJoin(adGroups3, eq7(keywordsTable.adGroupId, adGroups3.id)).innerJoin(campaigns6, eq7(adGroups3.campaignId, campaigns6.id)).where(inArray9(keywordsTable.id, results.map((r5) => r5.id)));
+          }).from(keywordsTable).innerJoin(adGroups4, eq7(keywordsTable.adGroupId, adGroups4.id)).innerJoin(campaigns6, eq7(adGroups4.campaignId, campaigns6.id)).where(inArray10(keywordsTable.id, results.map((r5) => r5.id)));
           const byAccount = /* @__PURE__ */ new Map();
           for (const kw of kwDetails) {
             const r5 = results.find((r6) => r6.id === kw.kwId);
@@ -350909,14 +351191,14 @@ var keywordRouter = router({
     try {
       const dbInstance = await getDb();
       if (dbInstance) {
-        const { keywords: keywordsTable, adGroups: adGroups3, campaigns: campaigns6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-        const { eq: eq7, inArray: inArray9 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+        const { keywords: keywordsTable, adGroups: adGroups4, campaigns: campaigns6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+        const { eq: eq7, inArray: inArray10 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
         const kwDetails = await dbInstance.select({
           kwId: keywordsTable.id,
           adGroupId: keywordsTable.adGroupId,
-          campaignId: adGroups3.campaignId,
+          campaignId: adGroups4.campaignId,
           accountId: campaigns6.accountId
-        }).from(keywordsTable).innerJoin(adGroups3, eq7(keywordsTable.adGroupId, adGroups3.id)).innerJoin(campaigns6, eq7(adGroups3.campaignId, campaigns6.id)).where(inArray9(keywordsTable.id, input.ids));
+        }).from(keywordsTable).innerJoin(adGroups4, eq7(keywordsTable.adGroupId, adGroups4.id)).innerJoin(campaigns6, eq7(adGroups4.campaignId, campaigns6.id)).where(inArray10(keywordsTable.id, input.ids));
         const byAccount = /* @__PURE__ */ new Map();
         for (const kw of kwDetails) {
           if (!byAccount.has(kw.accountId)) byAccount.set(kw.accountId, []);
@@ -351105,14 +351387,14 @@ var productTargetRouter = router({
       try {
         const dbInstance = await getDb();
         if (dbInstance) {
-          const { productTargets: productTargets2, adGroups: adGroups3, campaigns: campaigns6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-          const { eq: eq7, inArray: inArray9 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+          const { productTargets: productTargets2, adGroups: adGroups4, campaigns: campaigns6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+          const { eq: eq7, inArray: inArray10 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
           const ptDetails = await dbInstance.select({
             ptId: productTargets2.id,
             adGroupId: productTargets2.adGroupId,
-            campaignId: adGroups3.campaignId,
+            campaignId: adGroups4.campaignId,
             accountId: campaigns6.accountId
-          }).from(productTargets2).innerJoin(adGroups3, eq7(productTargets2.adGroupId, adGroups3.id)).innerJoin(campaigns6, eq7(adGroups3.campaignId, campaigns6.id)).where(inArray9(productTargets2.id, results.map((r5) => r5.id)));
+          }).from(productTargets2).innerJoin(adGroups4, eq7(productTargets2.adGroupId, adGroups4.id)).innerJoin(campaigns6, eq7(adGroups4.campaignId, campaigns6.id)).where(inArray10(productTargets2.id, results.map((r5) => r5.id)));
           const byAccount = /* @__PURE__ */ new Map();
           for (const pt3 of ptDetails) {
             const r5 = results.find((r6) => r6.id === pt3.ptId);
@@ -351152,14 +351434,14 @@ var productTargetRouter = router({
     try {
       const dbInstance = await getDb();
       if (dbInstance) {
-        const { productTargets: productTargets2, adGroups: adGroups3, campaigns: campaigns6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-        const { eq: eq7, inArray: inArray9 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+        const { productTargets: productTargets2, adGroups: adGroups4, campaigns: campaigns6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+        const { eq: eq7, inArray: inArray10 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
         const ptDetails = await dbInstance.select({
           ptId: productTargets2.id,
           adGroupId: productTargets2.adGroupId,
-          campaignId: adGroups3.campaignId,
+          campaignId: adGroups4.campaignId,
           accountId: campaigns6.accountId
-        }).from(productTargets2).innerJoin(adGroups3, eq7(productTargets2.adGroupId, adGroups3.id)).innerJoin(campaigns6, eq7(adGroups3.campaignId, campaigns6.id)).where(inArray9(productTargets2.id, input.ids));
+        }).from(productTargets2).innerJoin(adGroups4, eq7(productTargets2.adGroupId, adGroups4.id)).innerJoin(campaigns6, eq7(adGroups4.campaignId, campaigns6.id)).where(inArray10(productTargets2.id, input.ids));
         const byAccount = /* @__PURE__ */ new Map();
         for (const pt3 of ptDetails) {
           if (!byAccount.has(pt3.accountId)) byAccount.set(pt3.accountId, []);
@@ -351580,8 +351862,8 @@ var optimizationRouter = router({
       dailyCostTarget: group.dailyCostTarget ? parseFloat(group.dailyCostTarget) : void 0
     };
     for (const campaign of campaigns6) {
-      const adGroups3 = await getAdGroupsByCampaignId(campaign.id);
-      for (const adGroup of adGroups3) {
+      const adGroups4 = await getAdGroupsByCampaignId(campaign.id);
+      for (const adGroup of adGroups4) {
         const keywords6 = await getKeywordsByAdGroupId(adGroup.id);
         const keywordTargets = keywords6.map((k5) => ({
           id: k5.id,
