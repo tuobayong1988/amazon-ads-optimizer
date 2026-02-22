@@ -183,7 +183,7 @@ export async function checkAllCampaignsPacing(
       SELECT campaignId, dailyBudget
       FROM campaigns
       WHERE accountId = ${accountId}
-        AND status = 'enabled'
+        AND state = 'enabled'
         AND dailyBudget > 0
     `) as any;
     

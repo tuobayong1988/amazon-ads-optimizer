@@ -35,6 +35,9 @@ import * as multiDimOptimizer from "./multiDimensionOptimizer";
 import * as multiDimComboAnalyzer from "./multiDimComboAnalyzer";
 import * as postOptVerifier from "./postOptimizationVerifier";
 import { registerActiveTask, unregisterActiveTask, isShuttingDown } from "./deployLifecycleManager";
+import { decideTargeting } from "./services/targetingAlgorithm";
+import type { SearchTermPerformance, TargetingDecision } from "./services/targetingAlgorithm";
+import { sanitizeAndValidateKeyword, canAddPositiveKeyword } from "./utils/keywordValidator";
 
 // 缓存账号站点信息，避免重复查询
 const marketplaceCache = new Map<number, string>();
@@ -1867,29 +1870,49 @@ async function executeSearchTermAnalysis(
       // 获取搜索词数据
       const searchTerms = await db.getSearchTermsByCampaignId(campaign.id);
       
-      // 分类搜索词 - 使用简化的分类逻辑
-      const searchTermTexts = searchTerms.map(st => st.searchTerm);
-      const classification = adAutomation.classifySearchTerms(
-        searchTermTexts,
-        [], // 产品关键词
-        { category: '', brand: '' } // 产品属性
-      );
+      // v191: 使用智能投放决策引擎替代旧的classifySearchTerms
+      // 获取campaign的定向类型（auto/manual）
+      const campaignTargetingType = (campaign as any).targetingType || 
+        ((campaign as any).campaignType === 'sp_auto' ? 'auto' : 'manual');
+      const targetAcos = config.targetAcos || 30; // 默认30%
+      
+      // v191: 将搜索词数据转换为智能决策引擎所需的格式
+      const searchTermPerformanceList: SearchTermPerformance[] = searchTerms.map((st: any) => ({
+        searchTerm: st.searchTerm,
+        clicks: Number(st.searchTermClicks || 0),
+        impressions: Number(st.searchTermImpressions || 0),
+        orders: Number(st.searchTermOrders || 0),
+        spend: Number(st.searchTermSpend || 0),
+        sales: Number(st.searchTermSales || 0),
+        campaignTargetingType: campaignTargetingType as 'auto' | 'manual',
+        targetAcos: targetAcos,
+      }));
+      
+      console.log(`[SearchTermAnalysis] v191: Campaign "${campaign.campaignName}" (${campaignTargetingType}): ${searchTermPerformanceList.length}个搜索词待分析`);
       
       // v122h: 获取品牌词用于保护
       const account = await db.getAdAccountById(config.accountId);
       const brandTerms = account?.storeName ? [account.storeName] : [];
       
-      // 处理分类结果
-      for (const term of classification) {
-        if (term.suggestedAction === 'negative_exact' || term.suggestedAction === 'negative_phrase') {
+      // v191: 对每个搜索词调用智能决策引擎
+      for (const stPerf of searchTermPerformanceList) {
+        const decision = decideTargeting(stPerf);
+        
+        // SKIP和MONITOR不需要操作
+        if (decision.action === 'SKIP' || decision.action === 'MONITOR') {
+          continue;
+        }
+        
+        // ===== 否定关键词处理 =====
+        if (decision.action === 'CREATE_NEGATIVE_KEYWORD') {
           // v122h: 品牌词保护 - 不否定含有品牌词的搜索词
-          if (brandTerms.length > 0 && isProtectedKeyword(term.searchTerm, brandTerms)) {
+          if (brandTerms.length > 0 && isProtectedKeyword(stPerf.searchTerm, brandTerms)) {
             details.push({
               campaignId: campaign.id,
               campaignName: campaign.campaignName,
-              searchTerm: term.searchTerm,
+              searchTerm: stPerf.searchTerm,
               action: 'brand_protect_skip',
-              reason: `[品牌词保护] 搜索词"${term.searchTerm}"含有品牌词，跳过否定`,
+              reason: `[品牌词保护] 搜索词"${stPerf.searchTerm}"含有品牌词，跳过否定`,
             });
             continue;
           }
@@ -1897,7 +1920,7 @@ async function executeSearchTermAnalysis(
           // v122h: 探索期保护 - 检查对应的投放词是否在探索期内
           const matchingKeywords = await db.getKeywordsByCampaignId(campaign.id);
           const matchingKw = matchingKeywords.find((kw: any) => 
-            kw.keywordText?.toLowerCase() === term.searchTerm.toLowerCase()
+            kw.keywordText?.toLowerCase() === stPerf.searchTerm.toLowerCase()
           );
           if (matchingKw?.createdAt) {
             const kwCreatedAt = new Date(matchingKw.createdAt);
@@ -1905,7 +1928,7 @@ async function executeSearchTermAnalysis(
               details.push({
                 campaignId: campaign.id,
                 campaignName: campaign.campaignName,
-                searchTerm: term.searchTerm,
+                searchTerm: stPerf.searchTerm,
                 action: 'exploration_protect_skip',
                 reason: `[探索期保护] 对应投放词在探索期内，跳过否定，给予充分的数据积累时间`,
               });
@@ -1913,124 +1936,132 @@ async function executeSearchTermAnalysis(
             }
           }
           
-          // v170: 否定关键词去重检查 - 检查是否已存在于negative_keywords表中
+          // v170: 否定关键词去重检查
           let negativeAlreadyExists = false;
           if (!dryRun) {
             const dbInstance = await db.getDb();
             if (dbInstance) {
               const { negativeKeywords: negKwTable } = await import('../drizzle/schema');
               const { eq: eqOp, and: andOp } = await import('drizzle-orm');
-              // v170: campaignId在数据库中是varchar类型，需要转换为string进行比较
               const existingNeg = await dbInstance.select({ id: negKwTable.id, amazonNegativeKeywordId: negKwTable.amazonNegativeKeywordId })
                 .from(negKwTable)
                 .where(andOp(
                   eqOp(negKwTable.campaignId, campaign.id as any),
-                  eqOp(negKwTable.negativeText, term.searchTerm)
+                  eqOp(negKwTable.negativeText, decision.targetValue)
                 ))
                 .limit(1);
               if (existingNeg.length > 0) {
                 negativeAlreadyExists = true;
-                console.log(`[SearchTermAnalysis] ⏭️ v170: 否定关键词已存在，跳过添加: "${term.searchTerm}" campaignId=${campaign.id}, existingId=${existingNeg[0].id}, amazonId=${existingNeg[0].amazonNegativeKeywordId}`);
+                console.log(`[SearchTermAnalysis] v170: 否定关键词已存在，跳过: "${decision.targetValue}" campaignId=${campaign.id}`);
               }
             }
           }
 
+          const negMatchType = decision.negativeMatchType === 'negative_exact' ? 'negative_exact' : 'negative_phrase';
           const negativeKeyword: any = {
             accountId: config.accountId,
             campaignId: campaign.id,
             campaignName: campaign.campaignName,
-            searchTerm: term.searchTerm,
-            matchType: term.suggestedAction === 'negative_exact' ? 'negative_exact' : 'negative_phrase',
+            searchTerm: decision.targetValue,
+            matchType: negMatchType,
             action: 'add_negative',
-            reason: `负面搜索词: ${term.reason}`,
-            apiSyncStatus: negativeAlreadyExists ? 'already_exists' : (dryRun ? 'pending' : 'pending'),
+            reason: `v191智能否定: ${decision.reason}`,
+            apiSyncStatus: negativeAlreadyExists ? 'already_exists' : 'pending',
+            confidence: decision.confidence,
+            dataMaturityLevel: decision.dataMaturityLevel,
           };
           
           details.push(negativeKeyword);
           
           if (!dryRun && !negativeAlreadyExists) {
-            const matchType = term.suggestedAction === 'negative_exact' ? 'exact' : 'phrase';
-            // v165: 否词操作改为先记录到details，等待后续统一调用Amazon API
-            // API成功后再写入本地DB（见下方v134否定词同步代码块）
+            const matchType = negMatchType === 'negative_exact' ? 'exact' : 'phrase';
             negativeKeyword._pendingDbInsert = {
               accountId: campaign.accountId || 0,
               campaignId: campaign.id,
               negativeLevel: 'campaign',
               negativeType: 'keyword',
-              negativeText: term.searchTerm,
-              negativeMatchType: matchType === 'exact' ? 'negative_exact' : 'negative_phrase',
-              negativeSource: 'ngram_analysis',
+              negativeText: decision.targetValue,
+              negativeMatchType: negMatchType,
+              negativeSource: 'smart_targeting_v191',
               createdAt: new Date().toISOString(),
             };
             negativeKeywordsAdded++;
           }
-        } else if (term.suggestedAction === 'target') {
+        }
+        
+        // ===== 正面关键词处理 =====
+        else if (decision.action === 'CREATE_KEYWORD') {
+          // v191: 自动广告活动不能添加正面关键词（已在算法层拦截，这里双重保险）
+          if (!canAddPositiveKeyword(campaignTargetingType)) {
+            console.log(`[SearchTermAnalysis] v191: 自动广告活动不能添加正面关键词，跳过: "${decision.targetValue}"`);
+            continue;
+          }
+          
+          // v191: 使用算法决定的匹配方式和出价
+          const matchType = decision.matchType || 'phrase';
+          const bid = decision.suggestedBid || 0.50;
+          
           const newKeyword: any = {
             accountId: config.accountId,
             campaignId: campaign.id,
             campaignName: campaign.campaignName,
-            searchTerm: term.searchTerm,
-            matchType: (term.matchTypeSuggestion || 'exact'),
+            searchTerm: decision.targetValue,
+            matchType: matchType,
             action: 'add_keyword',
-            reason: `正面搜索词: ${term.reason}`,
+            reason: `v191智能投放: ${decision.reason}`,
+            suggestedBid: bid,
             apiSyncStatus: dryRun ? 'pending' : 'pending',
+            confidence: decision.confidence,
+            dataMaturityLevel: decision.dataMaturityLevel,
+            valueLevel: decision.valueLevel,
           };
           
           details.push(newKeyword);
           
           if (!dryRun) {
-            // v133: 添加为新关键词 - 先检查去重，再调用Amazon API创建
             const dbInstance = await db.getDb();
             if (dbInstance) {
-              // 获取广告组（需要Amazon adGroupId和campaignId）
               const adGroups = await db.getAdGroupsByCampaignId(campaign.id);
               if (adGroups.length > 0) {
                 const adGroup = adGroups[0];
                 const amazonAdGroupId = Number(adGroup.adGroupId || 0);
                 const amazonCampaignId = Number(campaign.campaignId || campaign.id);
-                const matchType = (term.matchTypeSuggestion || 'exact') as 'exact' | 'phrase' | 'broad';
-                const bid = 0.50;
                 
-                // v168: 增强去重检查 - 检查本地数据库是否已存在相同关键词
-                // 业务规则：Amazon不允许在同一广告组中创建同名关键词（即使匹配类型不同）
-                // 因此去重时不仅检查完全匹配，还要检查同名不同匹配类型的关键词
+                // v168: 增强去重检查
                 const { keywords } = await import('../drizzle/schema');
                 const { eq: eqOp, and: andOp } = await import('drizzle-orm');
-                // 检查同一adGroup中是否已存在同名关键词（任意匹配类型）
                 const existingKeywords = await dbInstance.select({ id: keywords.id, keywordId: keywords.keywordId, matchType: keywords.matchType })
                   .from(keywords)
                   .where(andOp(
                     eqOp(keywords.adGroupId, adGroup.id),
-                    eqOp(keywords.keywordText, term.searchTerm)
+                    eqOp(keywords.keywordText, decision.targetValue)
                   ))
                   .limit(10);
                 
                 if (existingKeywords.length > 0) {
-                  // v139: 如果存在多条重复记录（keywordId为NULL），清理多余的
+                  // v139: 清理重复记录
                   if (existingKeywords.length > 1) {
                     const withId = existingKeywords.filter(k => k.keywordId !== null);
                     const withoutId = existingKeywords.filter(k => k.keywordId === null);
-                    // 保留有keywordId的记录，删除多余的无ID记录
                     const toDelete = withId.length > 0 ? withoutId : withoutId.slice(1);
                     for (const dup of toDelete) {
                       try {
                         await dbInstance.delete(keywords).where(eqOp(keywords.id, dup.id));
-                        console.log(`[SearchTermAnalysis] 🧹 清理重复关键词: id=${dup.id} "${term.searchTerm}" (keywordId=${dup.keywordId})`);
+                        console.log(`[SearchTermAnalysis] 清理重复关键词: id=${dup.id} "${decision.targetValue}"`);
                       } catch (delErr: any) {
                         console.warn(`[SearchTermAnalysis] 清理重复关键词失败: id=${dup.id}: ${delErr.message}`);
                       }
                     }
                   }
                   const existingMatchTypes = existingKeywords.map(k => k.matchType || 'unknown').join(',');
-                  // v170: 修复关键词去重后apiSyncStatus未更新的bug
                   newKeyword.apiSyncStatus = 'already_exists';
                   newKeyword.apiSyncDetail = JSON.stringify({ existingId: existingKeywords[0].id, existingKeywordId: existingKeywords[0].keywordId, existingMatchTypes });
-                  console.log(`[SearchTermAnalysis] ⏭️ v168: 关键词已存在，跳过创建: "${term.searchTerm}" (请求=${matchType}, 已存在=${existingMatchTypes}) id=${existingKeywords[0].id}, keywordId=${existingKeywords[0].keywordId}`);
+                  console.log(`[SearchTermAnalysis] v168: 关键词已存在，跳过: "${decision.targetValue}" (请求=${matchType}, 已存在=${existingMatchTypes})`);
                 } else {
-                  // 插入本地数据库 - v138: 修复缺少accountId和campaignId的问题
+                  // v191: 使用算法建议的出价而非固定$0.50
                   const insertResult = await dbInstance.insert(keywords).values({
                     adGroupId: adGroup.id,
-                    keywordText: term.searchTerm,
+                    keywordText: decision.targetValue,
                     matchType: matchType as any,
                     bid: String(bid),
                     keywordStatus: 'enabled',
@@ -2039,7 +2070,6 @@ async function executeSearchTermAnalysis(
                   });
                   const localKeywordId = (insertResult as any)[0]?.insertId;
                   
-                  // 调用Amazon API创建关键词
                   if (amazonAdGroupId > 0 && amazonCampaignId > 0) {
                     try {
                       const apiResult = await amazonApiHelper.syncNewKeywordsToAmazon(
@@ -2048,35 +2078,61 @@ async function executeSearchTermAnalysis(
                           localKeywordId: localKeywordId || undefined,
                           adGroupId: amazonAdGroupId,
                           campaignId: amazonCampaignId,
-                          keywordText: term.searchTerm,
+                          keywordText: decision.targetValue,
                           matchType: matchType,
                           bid: bid,
                         }]
                       );
                       if (apiResult.success > 0) {
                         newKeyword.apiSyncStatus = 'synced';
-                        console.log(`[SearchTermAnalysis] ✅ 新关键词已同步到Amazon: "${term.searchTerm}"`);
+                        console.log(`[SearchTermAnalysis] v191: 新关键词[${matchType}]已同步: "${decision.targetValue}" bid=$${bid}`);
                       } else {
                         newKeyword.apiSyncStatus = 'failed';
                         newKeyword.apiSyncDetail = JSON.stringify({ errors: apiResult.errors });
-                        console.error(`[SearchTermAnalysis] ❌ 新关键词同步失败: "${term.searchTerm}" - ${apiResult.errors.join('; ')}`);
+                        console.error(`[SearchTermAnalysis] 新关键词同步失败: "${decision.targetValue}" - ${apiResult.errors.join('; ')}`);
                       }
                     } catch (apiError: any) {
                       newKeyword.apiSyncStatus = 'failed';
                       newKeyword.apiSyncDetail = JSON.stringify({ error: apiError.message });
-                      console.error(`[SearchTermAnalysis] ❌ 新关键词API同步异常: "${term.searchTerm}" -`, apiError.message);
+                      console.error(`[SearchTermAnalysis] 新关键词API异常: "${decision.targetValue}" -`, apiError.message);
                     }
                   } else {
-                    console.warn(`[SearchTermAnalysis] ⚠️ 缺少Amazon ID，无法同步关键词: adGroupId=${amazonAdGroupId}, campaignId=${amazonCampaignId}`);
+                    console.warn(`[SearchTermAnalysis] 缺少Amazon ID，无法同步: adGroupId=${amazonAdGroupId}, campaignId=${amazonCampaignId}`);
                   }
                 }
               }
             }
-            // v170: 只有真正创建了新关键词才计数（排除already_exists的情况）
             if (newKeyword.apiSyncStatus !== 'already_exists') {
               newKeywordsAdded++;
             }
           }
+        }
+        
+        // ===== ASIN商品定向处理 =====
+        else if (decision.action === 'CREATE_PRODUCT_TARGET') {
+          // v191: ASIN商品定向投放 - 精确定向或扩展定向
+          const ptType = decision.productTargetingType || 'exact';
+          const bid = decision.suggestedBid || 0.50;
+          
+          const newTarget: any = {
+            accountId: config.accountId,
+            campaignId: campaign.id,
+            campaignName: campaign.campaignName,
+            searchTerm: decision.targetValue,
+            matchType: `product_target_${ptType}`,
+            action: 'add_product_target',
+            reason: `v191智能ASIN定向: ${decision.reason}`,
+            suggestedBid: bid,
+            apiSyncStatus: dryRun ? 'pending' : 'pending',
+            confidence: decision.confidence,
+            dataMaturityLevel: decision.dataMaturityLevel,
+            valueLevel: decision.valueLevel,
+          };
+          
+          details.push(newTarget);
+          // v191: ASIN商品定向的Amazon API同步将在后续版本实现
+          // 当前先记录决策，不执行API调用
+          console.log(`[SearchTermAnalysis] v191: ASIN定向决策[${ptType}]: "${decision.targetValue}" bid=$${bid} (${decision.reason})`);
         }
       }
       // v134: 同步否定关键词到 Amazon API，并记录同步状态

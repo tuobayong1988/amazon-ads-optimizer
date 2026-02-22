@@ -312,7 +312,7 @@ async function resolveProductTargetIds(
 ): Promise<void> {
   // 查询该账号下所有缺少targetId的product_targets
   const [missingPts] = await conn.execute(
-    `SELECT pt.id, pt.adGroupId, pt.targetExpression, pt.targetValue, pt.targetMatchType
+    `SELECT pt.id, pt.adGroupId, pt.targetExpression, pt.targetValue, pt.target_match_type as targetMatchType
      FROM product_targets pt
      INNER JOIN ad_groups ag ON pt.adGroupId = ag.id
      INNER JOIN campaigns c ON ag.campaignId = c.id

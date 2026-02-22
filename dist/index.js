@@ -55864,926 +55864,6 @@ var init_amazonAdsApi = __esm({
   }
 });
 
-// server/adAutomation.ts
-function tokenize(searchTerm) {
-  return searchTerm.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter((word) => word.length > 1);
-}
-function generateNgrams(tokens, maxN = 2) {
-  const ngrams = [...tokens];
-  if (maxN >= 2) {
-    for (let i4 = 0; i4 < tokens.length - 1; i4++) {
-      ngrams.push(`${tokens[i4]} ${tokens[i4 + 1]}`);
-    }
-  }
-  return ngrams;
-}
-function analyzeNgrams(searchTerms4) {
-  const minClicksThreshold = 5;
-  const ineffectiveTerms = searchTerms4.filter(
-    (term) => term.clicks >= minClicksThreshold && term.conversions === 0
-  );
-  const ngramStats = /* @__PURE__ */ new Map();
-  for (const term of ineffectiveTerms) {
-    const tokens = tokenize(term.searchTerm);
-    const ngrams = generateNgrams(tokens);
-    const isProductTargeting = term.targetingType === "product";
-    for (const ngram of ngrams) {
-      const existing = ngramStats.get(ngram) || {
-        frequency: 0,
-        totalClicks: 0,
-        totalConversions: 0,
-        totalSpend: 0,
-        terms: [],
-        hasProductTargeting: false
-      };
-      existing.frequency++;
-      existing.totalClicks += term.clicks;
-      existing.totalConversions += term.conversions;
-      existing.totalSpend += term.spend;
-      existing.terms.push(term.searchTerm);
-      if (isProductTargeting) {
-        existing.hasProductTargeting = true;
-      }
-      ngramStats.set(ngram, existing);
-    }
-  }
-  const results = [];
-  const knownNegativePatterns = [
-    "cheap",
-    "free",
-    "used",
-    "broken",
-    "repair",
-    "fix",
-    "diy",
-    "homemade",
-    "alternative",
-    "substitute",
-    "wholesale",
-    "bulk",
-    "clearance",
-    "discount",
-    "how to",
-    "what is",
-    "review",
-    "vs",
-    "versus"
-  ];
-  for (const [ngram, stats] of Array.from(ngramStats.entries())) {
-    if (stats.frequency >= 3) {
-      const conversionRate = stats.totalConversions / stats.totalClicks;
-      const isKnownNegative = knownNegativePatterns.some(
-        (pattern) => ngram.includes(pattern)
-      );
-      let reason = "";
-      let isNegativeCandidate = false;
-      if (conversionRate === 0 && stats.frequency >= 5) {
-        isNegativeCandidate = true;
-        reason = `\u51FA\u73B0${stats.frequency}\u6B21\uFF0C${stats.totalClicks}\u6B21\u70B9\u51FB\uFF0C0\u8F6C\u5316\uFF0C\u6D6A\u8D39$${stats.totalSpend.toFixed(2)}`;
-      } else if (isKnownNegative) {
-        isNegativeCandidate = true;
-        reason = `\u5339\u914D\u5DF2\u77E5\u8D1F\u9762\u8BCD\u6839\u6A21\u5F0F`;
-      } else if (conversionRate < 0.01 && stats.totalClicks >= 10) {
-        isNegativeCandidate = true;
-        reason = `\u8F6C\u5316\u7387\u4EC5${(conversionRate * 100).toFixed(2)}%\uFF0C\u4F4E\u4E8E1%\u9608\u503C`;
-      }
-      const suggestedNegativeLevel = stats.hasProductTargeting ? "campaign" : "ad_group";
-      results.push({
-        ngram,
-        frequency: stats.frequency,
-        totalClicks: stats.totalClicks,
-        totalConversions: stats.totalConversions,
-        totalSpend: stats.totalSpend,
-        conversionRate,
-        isNegativeCandidate,
-        reason,
-        affectedTerms: stats.terms,
-        suggestedNegativeLevel,
-        hasProductTargeting: stats.hasProductTargeting
-      });
-    }
-  }
-  return results.sort((a4, b6) => b6.frequency - a4.frequency);
-}
-function analyzeFunnelMigration(searchTerms4, config2 = {
-  broadToPhrase: { minConversions: 3, minRoas: 1 },
-  phraseToExact: { minConversions: 10, minRoas: 5 },
-  bidIncreasePercent: 20
-}) {
-  const suggestions = [];
-  for (const term of searchTerms4) {
-    const negativeLevel = term.targetingType === "product" ? "campaign" : "ad_group";
-    if (term.matchType === "broad" || term.matchType === "auto") {
-      if (term.conversions >= config2.broadToPhrase.minConversions && term.roas >= config2.broadToPhrase.minRoas) {
-        const suggestedBid = term.cpc * (1 + config2.bidIncreasePercent / 100);
-        suggestions.push({
-          searchTerm: term.searchTerm,
-          fromCampaign: term.campaignName,
-          fromMatchType: term.matchType,
-          toMatchType: "phrase",
-          reason: `${term.conversions}\u6B21\u6210\u4EA4\uFF0CROAS ${term.roas.toFixed(2)}\uFF0C\u7B26\u5408\u8FC1\u79FB\u6761\u4EF6`,
-          suggestedBid: Math.round(suggestedBid * 100) / 100,
-          currentCpc: term.cpc,
-          conversions: term.conversions,
-          roas: term.roas,
-          priority: term.conversions >= 5 ? "high" : "medium",
-          negativeInOriginal: true,
-          negativeLevel
-        });
-      }
-    }
-    if (term.matchType === "phrase") {
-      if (term.conversions >= config2.phraseToExact.minConversions && term.roas >= config2.phraseToExact.minRoas) {
-        const suggestedBid = term.cpc * (1 + config2.bidIncreasePercent / 100);
-        suggestions.push({
-          searchTerm: term.searchTerm,
-          fromCampaign: term.campaignName,
-          fromMatchType: "phrase",
-          toMatchType: "exact",
-          reason: `${term.conversions}\u6B21\u6210\u4EA4\uFF0CROAS ${term.roas.toFixed(2)}\uFF0C\u9AD8\u4EF7\u503C\u6D41\u91CF`,
-          suggestedBid: Math.round(suggestedBid * 100) / 100,
-          currentCpc: term.cpc,
-          conversions: term.conversions,
-          roas: term.roas,
-          priority: term.roas >= 8 ? "high" : "medium",
-          negativeInOriginal: true,
-          negativeLevel
-        });
-      }
-    }
-    if (term.targetingType === "product" && term.conversions >= 5 && term.roas >= 3) {
-      suggestions.push({
-        searchTerm: term.searchTerm,
-        fromCampaign: term.campaignName,
-        fromMatchType: "product",
-        toMatchType: "phrase",
-        // 建议先用短语匹配测试
-        reason: `\u4EA7\u54C1\u5B9A\u4F4D\u5E7F\u544A\u4E2D\u53D1\u73B0\u9AD8\u8F6C\u5316\u641C\u7D22\u8BCD\uFF08${term.conversions}\u6B21\u6210\u4EA4\uFF09\uFF0C\u5EFA\u8BAE\u521B\u5EFA\u5173\u952E\u8BCD\u5E7F\u544A`,
-        suggestedBid: Math.round(term.cpc * 1.1 * 100) / 100,
-        currentCpc: term.cpc,
-        conversions: term.conversions,
-        roas: term.roas,
-        priority: "high",
-        negativeInOriginal: false,
-        // 产品定位广告不需要否定这个搜索词
-        negativeLevel: "campaign"
-        // 如果需要否定，只能在活动层级
-      });
-    }
-  }
-  return suggestions.sort((a4, b6) => {
-    if (a4.priority !== b6.priority) {
-      return a4.priority === "high" ? -1 : 1;
-    }
-    return b6.conversions - a4.conversions;
-  });
-}
-function detectTrafficConflicts(searchTerms4) {
-  const termGroups = /* @__PURE__ */ new Map();
-  for (const term of searchTerms4) {
-    const key = term.searchTerm.toLowerCase();
-    const existing = termGroups.get(key) || [];
-    existing.push(term);
-    termGroups.set(key, existing);
-  }
-  const conflicts = [];
-  for (const [searchTerm, terms] of Array.from(termGroups.entries())) {
-    if (terms.length > 1) {
-      const campaignScores = terms.map((t7) => {
-        const cvr = t7.clicks > 0 ? t7.conversions / t7.clicks : 0;
-        const ctr = t7.clicks > 0 ? t7.clicks / (t7.clicks + 100) : 0;
-        const score = t7.roas * 0.4 + cvr * 100 * 0.3 + t7.conversions * 0.3;
-        return {
-          campaignId: t7.campaignId,
-          campaignName: t7.campaignName,
-          campaignType: t7.campaignType,
-          targetingType: t7.targetingType,
-          matchType: t7.matchType,
-          clicks: t7.clicks,
-          conversions: t7.conversions,
-          spend: t7.spend,
-          sales: t7.sales,
-          roas: t7.roas,
-          ctr,
-          cvr,
-          score
-        };
-      });
-      campaignScores.sort((a4, b6) => b6.score - a4.score);
-      const winner = campaignScores[0];
-      const losers = campaignScores.slice(1);
-      const wastedSpend = losers.reduce((sum2, l6) => sum2 + l6.spend, 0);
-      const loserCampaigns = losers.map((l6) => ({
-        name: l6.campaignName,
-        campaignType: l6.campaignType,
-        targetingType: l6.targetingType,
-        negativeLevel: l6.targetingType === "product" ? "campaign" : "ad_group"
-      }));
-      conflicts.push({
-        searchTerm,
-        campaigns: campaignScores.map((c5) => ({
-          campaignId: c5.campaignId,
-          campaignName: c5.campaignName,
-          campaignType: c5.campaignType,
-          targetingType: c5.targetingType,
-          matchType: c5.matchType,
-          clicks: c5.clicks,
-          conversions: c5.conversions,
-          spend: c5.spend,
-          sales: c5.sales,
-          roas: c5.roas,
-          ctr: c5.ctr,
-          cvr: c5.cvr
-        })),
-        recommendation: {
-          winnerCampaign: winner.campaignName,
-          winnerCampaignType: winner.campaignType,
-          winnerTargetingType: winner.targetingType,
-          loserCampaigns,
-          action: "negative_exact",
-          reason: `${winner.campaignName}\u8868\u73B0\u6700\u4F73\uFF08ROAS: ${winner.roas.toFixed(2)}, CVR: ${(winner.cvr * 100).toFixed(1)}%\uFF09\uFF0C\u5EFA\u8BAE\u5728\u5176\u4ED6\u6D3B\u52A8\u4E2D\u5426\u5B9A\u6B64\u8BCD`
-        },
-        totalWastedSpend: Math.round(wastedSpend * 100) / 100
-      });
-    }
-  }
-  return conflicts.sort((a4, b6) => b6.totalWastedSpend - a4.totalWastedSpend);
-}
-function analyzeBidAdjustments(targets, config2 = {
-  rampUpPercent: 5,
-  maxBidMultiplier: 3,
-  minImpressions: 100,
-  correctionWindow: 14,
-  targetAcos: 30,
-  targetRoas: 3.33
-}) {
-  const suggestions = [];
-  for (const target of targets) {
-    const ctr = target.impressions > 0 ? target.clicks / target.impressions : 0;
-    const cvr = target.clicks > 0 ? target.conversions / target.clicks : 0;
-    const acos = target.sales > 0 ? target.spend / target.sales * 100 : 0;
-    const roas = target.spend > 0 ? target.sales / target.spend : 0;
-    const effectiveTargetAcos = target.targetAcos || config2.targetAcos;
-    const effectiveTargetRoas = target.targetRoas || config2.targetRoas;
-    let suggestedBid = target.currentBid;
-    let adjustmentType = "maintain";
-    let reason = "";
-    let priority = "low";
-    if (target.impressions < config2.minImpressions) {
-      suggestedBid = target.currentBid * (1 + config2.rampUpPercent / 100);
-      adjustmentType = "increase";
-      reason = `\u66DD\u5149\u4E0D\u8DB3\uFF08${target.impressions}\u6B21\uFF09\uFF0C\u5EFA\u8BAE\u63D0\u5347${config2.rampUpPercent}%\u7ADE\u4EF7\u4EE5\u83B7\u53D6\u66F4\u591A\u66DD\u5149`;
-      priority = "high";
-    } else if (acos > 0 && acos < effectiveTargetAcos * 0.7 && target.conversions >= 3) {
-      const increasePercent = Math.min(20, (effectiveTargetAcos - acos) / effectiveTargetAcos * 30);
-      suggestedBid = target.currentBid * (1 + increasePercent / 100);
-      adjustmentType = "increase";
-      reason = `ACoS ${acos.toFixed(1)}%\u8FDC\u4F4E\u4E8E\u76EE\u6807${effectiveTargetAcos}%\uFF0C\u6709\u63D0\u4EF7\u7A7A\u95F4`;
-      priority = "medium";
-    } else if (acos > effectiveTargetAcos * 1.3 && target.clicks >= 20) {
-      const decreasePercent = Math.min(30, (acos - effectiveTargetAcos) / acos * 40);
-      suggestedBid = target.currentBid * (1 - decreasePercent / 100);
-      adjustmentType = "decrease";
-      reason = `ACoS ${acos.toFixed(1)}%\u8D85\u51FA\u76EE\u6807${effectiveTargetAcos}%\uFF0C\u5EFA\u8BAE\u964D\u4EF7`;
-      priority = "high";
-    } else if (target.daysSinceLastChange && target.daysSinceLastChange <= config2.correctionWindow) {
-      if (target.conversions >= 2 && roas < effectiveTargetRoas * 0.5) {
-        suggestedBid = target.currentBid * 0.9;
-        adjustmentType = "decrease";
-        reason = `\u8FD1\u671F\u8C03\u4EF7\u540EROAS\u4E0B\u964D\u81F3${roas.toFixed(2)}\uFF0C\u5EFA\u8BAE\u56DE\u8C03\u7ADE\u4EF7`;
-        priority = "urgent";
-      }
-    } else if (target.clicks >= 30 && target.conversions === 0) {
-      suggestedBid = target.currentBid * 0.7;
-      adjustmentType = "decrease";
-      reason = `${target.clicks}\u6B21\u70B9\u51FB\u65E0\u8F6C\u5316\uFF0C\u5EFA\u8BAE\u5927\u5E45\u964D\u4EF7\u6216\u8003\u8651\u6682\u505C`;
-      priority = "urgent";
-    }
-    const maxBid = target.currentBid * config2.maxBidMultiplier;
-    const minBid = 0.02;
-    suggestedBid = Math.max(minBid, Math.min(maxBid, suggestedBid));
-    suggestedBid = Math.round(suggestedBid * 100) / 100;
-    const adjustmentPercent = (suggestedBid - target.currentBid) / target.currentBid * 100;
-    if (Math.abs(adjustmentPercent) >= 3) {
-      suggestions.push({
-        targetId: target.id,
-        targetType: target.type,
-        targetName: target.name,
-        campaignName: target.campaignName,
-        currentBid: target.currentBid,
-        suggestedBid,
-        adjustmentPercent: Math.round(adjustmentPercent * 10) / 10,
-        adjustmentType,
-        reason,
-        priority,
-        metrics: {
-          impressions: target.impressions,
-          clicks: target.clicks,
-          conversions: target.conversions,
-          spend: target.spend,
-          sales: target.sales,
-          acos: Math.round(acos * 10) / 10,
-          roas: Math.round(roas * 100) / 100,
-          ctr: Math.round(ctr * 1e4) / 100,
-          cvr: Math.round(cvr * 1e4) / 100
-        }
-      });
-    }
-  }
-  const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
-  return suggestions.sort((a4, b6) => priorityOrder[a4.priority] - priorityOrder[b6.priority]);
-}
-function classifySearchTerms(searchTerms4, productKeywords, productAttributes) {
-  const results = [];
-  const keywordSet = new Set(productKeywords.map((k5) => k5.toLowerCase()));
-  const categoryWords = productAttributes.category.toLowerCase().split(/\s+/);
-  const brandLower = productAttributes.brand.toLowerCase();
-  const negativePatterns = [
-    "free",
-    "cheap",
-    "used",
-    "broken",
-    "repair",
-    "fix",
-    "diy",
-    "how to",
-    "what is",
-    "review",
-    "vs",
-    "versus",
-    "alternative",
-    "wholesale",
-    "bulk",
-    "clearance"
-  ];
-  const attributeMismatchCheck = (term) => {
-    const termLower = term.toLowerCase();
-    if (productAttributes.colors && productAttributes.colors.length > 0) {
-      const allColors = ["red", "blue", "green", "yellow", "black", "white", "pink", "purple", "orange", "brown", "gray", "grey"];
-      const productColors = productAttributes.colors.map((c5) => c5.toLowerCase());
-      for (const color of allColors) {
-        if (termLower.includes(color) && !productColors.includes(color)) {
-          return true;
-        }
-      }
-    }
-    if (productAttributes.sizes && productAttributes.sizes.length > 0) {
-      const sizePatterns = ["small", "medium", "large", "xl", "xxl", "xs", "mini", "jumbo"];
-      const productSizes = productAttributes.sizes.map((s4) => s4.toLowerCase());
-      for (const size of sizePatterns) {
-        if (termLower.includes(size) && !productSizes.some((ps) => ps.includes(size))) {
-          return true;
-        }
-      }
-    }
-    return false;
-  };
-  for (const term of searchTerms4) {
-    const termLower = term.toLowerCase();
-    const termTokens = tokenize(term);
-    let relevance = "unrelated";
-    let confidence = 0;
-    let reason = "";
-    let suggestedAction = "negative_exact";
-    let matchTypeSuggestion;
-    const hasNegativePattern = negativePatterns.some((p4) => termLower.includes(p4));
-    if (hasNegativePattern) {
-      relevance = "unrelated";
-      confidence = 0.9;
-      reason = "\u5305\u542B\u8D1F\u9762\u8BCD\u6839\uFF08\u5982cheap, free, used\u7B49\uFF09";
-      suggestedAction = "negative_phrase";
-    } else if (attributeMismatchCheck(term)) {
-      relevance = "seemingly_related";
-      confidence = 0.75;
-      reason = "\u4EA7\u54C1\u5C5E\u6027\u4E0D\u5339\u914D\uFF08\u989C\u8272/\u5C3A\u5BF8\uFF09";
-      suggestedAction = "negative_exact";
-    } else if (keywordSet.has(termLower)) {
-      relevance = "high";
-      confidence = 0.95;
-      reason = "\u7CBE\u786E\u5339\u914D\u4EA7\u54C1\u5173\u952E\u8BCD";
-      suggestedAction = "target";
-      matchTypeSuggestion = "exact";
-    } else if (termLower.includes(brandLower)) {
-      relevance = "high";
-      confidence = 0.9;
-      reason = "\u5305\u542B\u54C1\u724C\u8BCD";
-      suggestedAction = "target";
-      matchTypeSuggestion = "phrase";
-    } else if (categoryWords.some((cw) => termLower.includes(cw))) {
-      const matchedWords = categoryWords.filter((cw) => termLower.includes(cw));
-      if (matchedWords.length >= 2) {
-        relevance = "high";
-        confidence = 0.8;
-        reason = "\u5305\u542B\u591A\u4E2A\u7C7B\u76EE\u5173\u952E\u8BCD";
-        suggestedAction = "target";
-        matchTypeSuggestion = "phrase";
-      } else {
-        relevance = "weak";
-        confidence = 0.6;
-        reason = "\u4EC5\u5305\u542B\u90E8\u5206\u7C7B\u76EE\u5173\u952E\u8BCD";
-        suggestedAction = "monitor";
-        matchTypeSuggestion = "broad";
-      }
-    } else {
-      const matchedKeywords = productKeywords.filter(
-        (k5) => termLower.includes(k5.toLowerCase()) || k5.toLowerCase().includes(termLower)
-      );
-      if (matchedKeywords.length > 0) {
-        relevance = "weak";
-        confidence = 0.5;
-        reason = "\u90E8\u5206\u5339\u914D\u4EA7\u54C1\u5173\u952E\u8BCD";
-        suggestedAction = "monitor";
-        matchTypeSuggestion = "broad";
-      } else {
-        relevance = "unrelated";
-        confidence = 0.7;
-        reason = "\u4E0E\u4EA7\u54C1\u5173\u952E\u8BCD\u65E0\u660E\u663E\u5173\u8054";
-        suggestedAction = "negative_exact";
-      }
-    }
-    results.push({
-      searchTerm: term,
-      relevance,
-      confidence,
-      reason,
-      suggestedAction,
-      matchTypeSuggestion
-    });
-  }
-  return results;
-}
-function getPresetNegativeKeywords(category) {
-  const commonNegatives = [
-    "free",
-    "cheap",
-    "cheapest",
-    "used",
-    "broken",
-    "repair",
-    "fix",
-    "diy",
-    "homemade",
-    "alternative",
-    "substitute",
-    "replacement",
-    "wholesale",
-    "bulk",
-    "clearance",
-    "discount",
-    "coupon",
-    "how to",
-    "what is",
-    "review",
-    "reviews",
-    "vs",
-    "versus",
-    "reddit",
-    "amazon",
-    "ebay",
-    "walmart",
-    "aliexpress",
-    "download",
-    "pdf",
-    "manual",
-    "instructions"
-  ];
-  const categoryNegatives = {
-    "electronics": ["schematic", "circuit", "datasheet", "pinout", "driver"],
-    "clothing": ["pattern", "sewing", "fabric", "material", "costume"],
-    "toys": ["plans", "blueprint", "build", "make", "craft"],
-    "home": ["rental", "rent", "lease", "apartment"],
-    "beauty": ["recipe", "homemade", "natural", "organic diy"],
-    "sports": ["rules", "how to play", "history", "olympics"]
-  };
-  const categoryLower = category.toLowerCase();
-  const specificNegatives = categoryNegatives[categoryLower] || [];
-  return [...commonNegatives, ...specificNegatives];
-}
-function analyzeBidCorrections(bidChanges, attributionWindowDays = 14) {
-  const suggestions = [];
-  const now = /* @__PURE__ */ new Date();
-  for (const change of bidChanges) {
-    const daysElapsed = Math.floor((now.getTime() - new Date(change.changeDate).getTime()) / (1e3 * 60 * 60 * 24));
-    if (daysElapsed < 3 || daysElapsed > attributionWindowDays + 7) {
-      continue;
-    }
-    if (!change.performanceAfter) {
-      continue;
-    }
-    const bidChangePercent = (change.newBid - change.oldBid) / change.oldBid * 100;
-    const perf = change.performanceAfter;
-    const roas = perf.spend > 0 ? perf.sales / perf.spend : 0;
-    const acos = perf.sales > 0 ? perf.spend / perf.sales * 100 : 0;
-    let errorType = null;
-    let reason = "";
-    let suggestedBid = change.oldBid;
-    let priority = "medium";
-    let confidence = 0;
-    if (bidChangePercent < -10 && perf.conversions > 0) {
-      if (roas > 3 || acos < 25) {
-        errorType = "premature_decrease";
-        reason = `\u964D\u4EF7${Math.abs(bidChangePercent).toFixed(1)}%\u540E\uFF0CROAS\u4ECD\u8FBE${roas.toFixed(2)}\uFF0CACoS\u4EC5${acos.toFixed(1)}%\uFF0C\u5EFA\u8BAE\u6062\u590D\u51FA\u4EF7`;
-        suggestedBid = change.oldBid * 0.95;
-        priority = roas > 5 ? "urgent" : "high";
-        confidence = Math.min(0.9, 0.5 + roas / 10);
-      }
-    } else if (bidChangePercent > 15 && perf.conversions === 0 && perf.clicks > 10) {
-      errorType = "premature_increase";
-      reason = `\u52A0\u4EF7${bidChangePercent.toFixed(1)}%\u540E\uFF0C${perf.clicks}\u6B21\u70B9\u51FB0\u8F6C\u5316\uFF0C\u5EFA\u8BAE\u56DE\u8C03\u51FA\u4EF7`;
-      suggestedBid = change.oldBid * 1.05;
-      priority = perf.spend > 50 ? "urgent" : "high";
-      confidence = 0.75;
-    } else if (Math.abs(bidChangePercent) > 30) {
-      if (perf.conversions === 0 && perf.clicks > 5) {
-        errorType = "over_adjustment";
-        reason = `\u51FA\u4EF7\u8C03\u6574\u5E45\u5EA6\u8FC7\u5927(${bidChangePercent > 0 ? "+" : ""}${bidChangePercent.toFixed(1)}%)\uFF0C\u5EFA\u8BAE\u9010\u6B65\u8C03\u6574`;
-        suggestedBid = (change.oldBid + change.newBid) / 2;
-        priority = "medium";
-        confidence = 0.6;
-      }
-    }
-    if (daysElapsed >= attributionWindowDays - 3 && daysElapsed <= attributionWindowDays + 3) {
-      if (perf.conversions > 0 && bidChangePercent < -15) {
-        if (!errorType) {
-          errorType = "attribution_delay";
-          reason = `\u53D8\u66F4\u53D1\u751F\u5728\u5F52\u56E0\u7A97\u53E3\u8FB9\u7F18(${daysElapsed}\u5929\u524D)\uFF0C\u53EF\u80FD\u5B58\u5728\u5EF6\u8FDF\u5F52\u56E0\u8F6C\u5316\uFF0C\u5EFA\u8BAE\u91CD\u65B0\u8BC4\u4F30`;
-          suggestedBid = change.oldBid * 0.9;
-          priority = "medium";
-          confidence = 0.55;
-        }
-      }
-    }
-    if (errorType) {
-      suggestions.push({
-        targetId: change.targetId,
-        targetName: change.targetName,
-        targetType: change.targetType,
-        campaignName: change.campaignName,
-        originalBid: change.oldBid,
-        currentBid: change.newBid,
-        suggestedBid,
-        errorType,
-        reason,
-        evidence: {
-          changeDate: typeof change.changeDate === "string" ? change.changeDate : new Date(change.changeDate).toISOString(),
-          daysElapsed,
-          performanceBefore: {
-            conversions: 0,
-            // 需要从历史数据获取
-            roas: 0,
-            acos: 0
-          },
-          performanceAfter: {
-            conversions: perf.conversions,
-            roas,
-            acos
-          },
-          attributedConversions: perf.conversions
-        },
-        priority,
-        confidence
-      });
-    }
-  }
-  const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
-  suggestions.sort((a4, b6) => {
-    const priorityDiff = priorityOrder[a4.priority] - priorityOrder[b6.priority];
-    if (priorityDiff !== 0) return priorityDiff;
-    return b6.confidence - a4.confidence;
-  });
-  return suggestions;
-}
-function analyzeCampaignHealth(campaigns7, thresholds = {
-  acosWarning: 35,
-  acosCritical: 50,
-  ctrDropWarning: -20,
-  ctrDropCritical: -40,
-  cvrDropWarning: -25,
-  cvrDropCritical: -50,
-  roasMinimum: 2
-}) {
-  const results = [];
-  for (const campaign of campaigns7) {
-    const alerts = [];
-    const recommendations = [];
-    const now = /* @__PURE__ */ new Date();
-    const { currentMetrics: curr, historicalAverage: hist, changes } = campaign;
-    if (curr.acos > thresholds.acosCritical) {
-      alerts.push({
-        campaignId: campaign.campaignId,
-        campaignName: campaign.campaignName,
-        alertType: "acos_spike",
-        severity: "critical",
-        metric: "ACoS",
-        currentValue: curr.acos,
-        expectedValue: hist.acos,
-        changePercent: changes.acos,
-        message: `ACoS\u8FBE\u5230${curr.acos.toFixed(1)}%\uFF0C\u8D85\u8FC7\u4E34\u754C\u503C${thresholds.acosCritical}%`,
-        suggestedAction: "\u5EFA\u8BAE\u964D\u4F4E\u51FA\u4EF7\u6216\u6682\u505C\u4F4E\u6548\u5173\u952E\u8BCD",
-        detectedAt: now
-      });
-      recommendations.push("\u7D27\u6025\uFF1A\u964D\u4F4E\u9AD8ACoS\u5173\u952E\u8BCD\u7684\u51FA\u4EF7");
-      recommendations.push("\u68C0\u67E5\u662F\u5426\u6709\u6076\u610F\u70B9\u51FB\u6216\u7ADE\u4E89\u5BF9\u624B\u5E72\u6270");
-    } else if (curr.acos > thresholds.acosWarning) {
-      alerts.push({
-        campaignId: campaign.campaignId,
-        campaignName: campaign.campaignName,
-        alertType: "acos_spike",
-        severity: "warning",
-        metric: "ACoS",
-        currentValue: curr.acos,
-        expectedValue: hist.acos,
-        changePercent: changes.acos,
-        message: `ACoS\u8FBE\u5230${curr.acos.toFixed(1)}%\uFF0C\u63A5\u8FD1\u8B66\u6212\u7EBF`,
-        suggestedAction: "\u5EFA\u8BAE\u4F18\u5316\u5173\u952E\u8BCD\u51FA\u4EF7\u7B56\u7565",
-        detectedAt: now
-      });
-      recommendations.push("\u4F18\u5316\u51FA\u4EF7\u7B56\u7565\uFF0C\u5173\u6CE8\u9AD8\u82B1\u8D39\u4F4E\u8F6C\u5316\u8BCD");
-    }
-    if (changes.ctr < thresholds.ctrDropCritical) {
-      alerts.push({
-        campaignId: campaign.campaignId,
-        campaignName: campaign.campaignName,
-        alertType: "ctr_drop",
-        severity: "critical",
-        metric: "CTR",
-        currentValue: curr.ctr,
-        expectedValue: hist.ctr,
-        changePercent: changes.ctr,
-        message: `CTR\u4E0B\u964D${Math.abs(changes.ctr).toFixed(1)}%\uFF0C\u53EF\u80FD\u5B58\u5728\u4E25\u91CD\u95EE\u9898`,
-        suggestedAction: "\u68C0\u67E5\u5E7F\u544A\u521B\u610F\u548C\u5173\u952E\u8BCD\u76F8\u5173\u6027",
-        detectedAt: now
-      });
-      recommendations.push("\u7D27\u6025\uFF1A\u68C0\u67E5\u5E7F\u544A\u6587\u6848\u548C\u56FE\u7247\u662F\u5426\u9700\u8981\u66F4\u65B0");
-      recommendations.push("\u5206\u6790\u7ADE\u4E89\u5BF9\u624B\u662F\u5426\u6709\u65B0\u7684\u5E7F\u544A\u7B56\u7565");
-    } else if (changes.ctr < thresholds.ctrDropWarning) {
-      alerts.push({
-        campaignId: campaign.campaignId,
-        campaignName: campaign.campaignName,
-        alertType: "ctr_drop",
-        severity: "warning",
-        metric: "CTR",
-        currentValue: curr.ctr,
-        expectedValue: hist.ctr,
-        changePercent: changes.ctr,
-        message: `CTR\u4E0B\u964D${Math.abs(changes.ctr).toFixed(1)}%`,
-        suggestedAction: "\u5EFA\u8BAE\u4F18\u5316\u5E7F\u544A\u521B\u610F",
-        detectedAt: now
-      });
-      recommendations.push("\u8003\u8651\u66F4\u65B0\u5E7F\u544A\u521B\u610F\u4EE5\u63D0\u9AD8\u70B9\u51FB\u7387");
-    }
-    if (changes.cvr < thresholds.cvrDropCritical) {
-      alerts.push({
-        campaignId: campaign.campaignId,
-        campaignName: campaign.campaignName,
-        alertType: "cvr_drop",
-        severity: "critical",
-        metric: "CVR",
-        currentValue: curr.cvr,
-        expectedValue: hist.cvr,
-        changePercent: changes.cvr,
-        message: `\u8F6C\u5316\u7387\u4E0B\u964D${Math.abs(changes.cvr).toFixed(1)}%\uFF0C\u9700\u8981\u7ACB\u5373\u5173\u6CE8`,
-        suggestedAction: "\u68C0\u67E5\u4EA7\u54C1\u9875\u9762\u548C\u4EF7\u683C\u7ADE\u4E89\u529B",
-        detectedAt: now
-      });
-      recommendations.push("\u7D27\u6025\uFF1A\u68C0\u67E5\u4EA7\u54C1\u8BE6\u60C5\u9875\u662F\u5426\u6709\u95EE\u9898");
-      recommendations.push("\u5206\u6790\u662F\u5426\u6709\u5DEE\u8BC4\u6216\u5E93\u5B58\u95EE\u9898\u5F71\u54CD\u8F6C\u5316");
-    } else if (changes.cvr < thresholds.cvrDropWarning) {
-      alerts.push({
-        campaignId: campaign.campaignId,
-        campaignName: campaign.campaignName,
-        alertType: "cvr_drop",
-        severity: "warning",
-        metric: "CVR",
-        currentValue: curr.cvr,
-        expectedValue: hist.cvr,
-        changePercent: changes.cvr,
-        message: `\u8F6C\u5316\u7387\u4E0B\u964D${Math.abs(changes.cvr).toFixed(1)}%`,
-        suggestedAction: "\u5EFA\u8BAE\u4F18\u5316\u4EA7\u54C1\u9875\u9762",
-        detectedAt: now
-      });
-      recommendations.push("\u4F18\u5316\u4EA7\u54C1\u8BE6\u60C5\u9875\u4EE5\u63D0\u9AD8\u8F6C\u5316\u7387");
-    }
-    if (curr.roas < thresholds.roasMinimum && curr.spend > 0) {
-      alerts.push({
-        campaignId: campaign.campaignId,
-        campaignName: campaign.campaignName,
-        alertType: "roas_decline",
-        severity: curr.roas < 1 ? "critical" : "warning",
-        metric: "ROAS",
-        currentValue: curr.roas,
-        expectedValue: thresholds.roasMinimum,
-        changePercent: changes.roas,
-        message: `ROAS\u4EC5${curr.roas.toFixed(2)}\uFF0C\u4F4E\u4E8E\u6700\u4F4E\u8981\u6C42${thresholds.roasMinimum}`,
-        suggestedAction: "ROAS\u8FC7\u4F4E\uFF0C\u5EFA\u8BAE\u4F18\u5316\u6216\u6682\u505C\u6D3B\u52A8",
-        detectedAt: now
-      });
-      recommendations.push("\u5206\u6790\u4F4E\u6548\u5173\u952E\u8BCD\u5E76\u8003\u8651\u6682\u505C");
-    }
-    if (curr.clicks > 20 && curr.orders === 0) {
-      alerts.push({
-        campaignId: campaign.campaignId,
-        campaignName: campaign.campaignName,
-        alertType: "no_conversions",
-        severity: curr.clicks > 50 ? "critical" : "warning",
-        metric: "Conversions",
-        currentValue: 0,
-        expectedValue: hist.orders,
-        changePercent: -100,
-        message: `${curr.clicks}\u6B21\u70B9\u51FB\u65E0\u8F6C\u5316\uFF0C\u82B1\u8D39$${curr.spend.toFixed(2)}`,
-        suggestedAction: "\u68C0\u67E5\u5173\u952E\u8BCD\u76F8\u5173\u6027\u548C\u4EA7\u54C1\u7ADE\u4E89\u529B",
-        detectedAt: now
-      });
-      recommendations.push("\u5206\u6790\u65E0\u8F6C\u5316\u539F\u56E0\uFF1A\u5173\u952E\u8BCD\u76F8\u5173\u6027\u3001\u4EF7\u683C\u3001\u8BC4\u4EF7\u7B49");
-    }
-    const efficiencyScore = calculateEfficiencyScore(curr.acos, curr.roas, thresholds);
-    const trafficScore = calculateTrafficScore(changes.impressions, changes.clicks);
-    const conversionScore = calculateConversionScore(curr.cvr, changes.cvr, curr.orders);
-    const costScore = calculateCostScore(curr.acos, changes.spend, changes.sales);
-    const overallScore = Math.round(
-      efficiencyScore * 0.35 + trafficScore * 0.2 + conversionScore * 0.3 + costScore * 0.15
-    );
-    let status = "healthy";
-    if (overallScore < 40 || alerts.some((a4) => a4.severity === "critical")) {
-      status = "critical";
-    } else if (overallScore < 70 || alerts.some((a4) => a4.severity === "warning")) {
-      status = "warning";
-    }
-    results.push({
-      campaignId: campaign.campaignId,
-      campaignName: campaign.campaignName,
-      overallScore,
-      scoreBreakdown: {
-        efficiency: efficiencyScore,
-        traffic: trafficScore,
-        conversion: conversionScore,
-        cost: costScore
-      },
-      status,
-      alerts,
-      recommendations: Array.from(new Set(recommendations))
-      // 去重
-    });
-  }
-  results.sort((a4, b6) => a4.overallScore - b6.overallScore);
-  return results;
-}
-function calculateEfficiencyScore(acos, roas, thresholds) {
-  let score = 100;
-  if (acos > thresholds.acosCritical) {
-    score -= 50;
-  } else if (acos > thresholds.acosWarning) {
-    score -= 25;
-  } else if (acos > 20) {
-    score -= 10;
-  }
-  if (roas < 1) {
-    score -= 40;
-  } else if (roas < thresholds.roasMinimum) {
-    score -= 20;
-  } else if (roas > 5) {
-    score += 10;
-  }
-  return Math.max(0, Math.min(100, score));
-}
-function calculateTrafficScore(impressionChange, clickChange) {
-  let score = 70;
-  if (impressionChange > 20) score += 15;
-  else if (impressionChange > 0) score += 10;
-  else if (impressionChange < -30) score -= 25;
-  else if (impressionChange < -10) score -= 10;
-  if (clickChange > 20) score += 15;
-  else if (clickChange > 0) score += 10;
-  else if (clickChange < -30) score -= 25;
-  else if (clickChange < -10) score -= 10;
-  return Math.max(0, Math.min(100, score));
-}
-function calculateConversionScore(cvr, cvrChange, orders) {
-  let score = 60;
-  if (cvr > 15) score += 25;
-  else if (cvr > 10) score += 15;
-  else if (cvr > 5) score += 5;
-  else if (cvr < 2) score -= 20;
-  if (cvrChange > 10) score += 15;
-  else if (cvrChange < -30) score -= 25;
-  else if (cvrChange < -10) score -= 10;
-  if (orders === 0) score -= 30;
-  else if (orders < 5) score -= 10;
-  return Math.max(0, Math.min(100, score));
-}
-function calculateCostScore(acos, spendChange, salesChange) {
-  let score = 70;
-  if (salesChange > spendChange && salesChange > 0) {
-    score += 20;
-  } else if (spendChange > 30 && salesChange < 10) {
-    score -= 30;
-  }
-  if (acos < 15) score += 15;
-  else if (acos > 40) score -= 20;
-  return Math.max(0, Math.min(100, score));
-}
-function validateNegativeKeywordBatch(items) {
-  const valid = [];
-  const invalid = [];
-  const seen2 = /* @__PURE__ */ new Set();
-  for (const item of items) {
-    const key = `${item.campaignId}-${item.adGroupId || "campaign"}-${item.keyword}-${item.matchType}`;
-    if (seen2.has(key)) {
-      invalid.push({ item, reason: "\u91CD\u590D\u7684\u5426\u5B9A\u8BCD" });
-      continue;
-    }
-    seen2.add(key);
-    if (!item.keyword || item.keyword.trim().length === 0) {
-      invalid.push({ item, reason: "\u5173\u952E\u8BCD\u4E0D\u80FD\u4E3A\u7A7A" });
-      continue;
-    }
-    if (item.keyword.length > 80) {
-      invalid.push({ item, reason: "\u5173\u952E\u8BCD\u957F\u5EA6\u8D85\u8FC780\u5B57\u7B26\u9650\u5236" });
-      continue;
-    }
-    if (!["phrase", "exact"].includes(item.matchType)) {
-      invalid.push({ item, reason: "\u65E0\u6548\u7684\u5339\u914D\u7C7B\u578B" });
-      continue;
-    }
-    if (item.level === "ad_group" && !item.adGroupId) {
-      invalid.push({ item, reason: "\u5E7F\u544A\u7EC4\u5C42\u7EA7\u5426\u5B9A\u9700\u8981\u6307\u5B9A\u5E7F\u544A\u7EC4ID" });
-      continue;
-    }
-    valid.push(item);
-  }
-  return { valid, invalid };
-}
-function validateBidAdjustmentBatch(items, maxBid = 10, minBid = 0.02, maxAdjustmentPercent = 100) {
-  const valid = [];
-  const invalid = [];
-  const seen2 = /* @__PURE__ */ new Set();
-  for (const item of items) {
-    if (seen2.has(item.targetId)) {
-      invalid.push({ item, reason: "\u91CD\u590D\u7684\u76EE\u6807ID" });
-      continue;
-    }
-    seen2.add(item.targetId);
-    if (item.newBid < minBid) {
-      invalid.push({ item, reason: `\u51FA\u4EF7\u4E0D\u80FD\u4F4E\u4E8E$${minBid}` });
-      continue;
-    }
-    if (item.newBid > maxBid) {
-      invalid.push({ item, reason: `\u51FA\u4EF7\u4E0D\u80FD\u8D85\u8FC7$${maxBid}` });
-      continue;
-    }
-    if (Math.abs(item.adjustmentPercent) > maxAdjustmentPercent) {
-      invalid.push({ item, reason: `\u5355\u6B21\u8C03\u6574\u5E45\u5EA6\u4E0D\u80FD\u8D85\u8FC7${maxAdjustmentPercent}%` });
-      continue;
-    }
-    if (item.newBid === item.currentBid) {
-      invalid.push({ item, reason: "\u65B0\u51FA\u4EF7\u4E0E\u5F53\u524D\u51FA\u4EF7\u76F8\u540C" });
-      continue;
-    }
-    valid.push(item);
-  }
-  return { valid, invalid };
-}
-function generateBatchOperationSummary(negativeItems, bidItems) {
-  const negativeSummary = {
-    total: negativeItems.length,
-    byCampaign: {},
-    byMatchType: { phrase: 0, exact: 0 },
-    byLevel: { ad_group: 0, campaign: 0 }
-  };
-  for (const item of negativeItems) {
-    negativeSummary.byCampaign[item.campaignId] = (negativeSummary.byCampaign[item.campaignId] || 0) + 1;
-    negativeSummary.byMatchType[item.matchType]++;
-    negativeSummary.byLevel[item.level]++;
-  }
-  const bidSummary = {
-    total: bidItems.length,
-    increases: 0,
-    decreases: 0,
-    avgAdjustment: 0,
-    totalBidChange: 0
-  };
-  let totalAdjustment = 0;
-  for (const item of bidItems) {
-    if (item.newBid > item.currentBid) {
-      bidSummary.increases++;
-    } else {
-      bidSummary.decreases++;
-    }
-    totalAdjustment += item.adjustmentPercent;
-    bidSummary.totalBidChange += item.newBid - item.currentBid;
-  }
-  bidSummary.avgAdjustment = bidItems.length > 0 ? totalAdjustment / bidItems.length : 0;
-  return {
-    negatives: negativeSummary,
-    bids: bidSummary
-  };
-}
-var init_adAutomation = __esm({
-  "server/adAutomation.ts"() {
-    "use strict";
-  }
-});
-
 // server/utils/timezone.ts
 function getMarketplaceTimezone(marketplace) {
   const normalizedMarketplace = marketplace?.toUpperCase() || "";
@@ -57988,7 +57068,7 @@ async function resolveKeywordIds(accountId, conn, result) {
 }
 async function resolveProductTargetIds(accountId, conn, result) {
   const [missingPts] = await conn.execute(
-    `SELECT pt.id, pt.adGroupId, pt.targetExpression, pt.targetValue, pt.targetMatchType
+    `SELECT pt.id, pt.adGroupId, pt.targetExpression, pt.targetValue, pt.target_match_type as targetMatchType
      FROM product_targets pt
      INNER JOIN ad_groups ag ON pt.adGroupId = ag.id
      INNER JOIN campaigns c ON ag.campaignId = c.id
@@ -59769,8 +58849,8 @@ var init_amazonSyncService = __esm({
               }
             }
             const searchTermText = row.searchTerm || "";
-            const isAsinSearchTerm = /^[Bb]0[A-Za-z0-9]{8,}$/.test(searchTermText.trim());
-            const searchTermType = isAsinSearchTerm ? "asin" : "keyword";
+            const isAsinSearchTerm2 = /^[Bb]0[A-Za-z0-9]{8,}$/.test(searchTermText.trim());
+            const searchTermType = isAsinSearchTerm2 ? "asin" : "keyword";
             const sourceMatchType = resolvedMatchType;
             const sourceTargetType = isProductTarget ? "product_target" : "keyword";
             const unitsOrdered = row.unitsSold7d || row.unitsSold14d || row.unitsSold || row.unitsSoldClicks || 0;
@@ -61076,8 +60156,8 @@ var init_amazonSyncService = __esm({
               }
             }
             const searchTermText = row.searchTerm || "";
-            const isAsinSearchTerm = /^[Bb]0[A-Za-z0-9]{8,}$/.test(searchTermText.trim());
-            const searchTermType = isAsinSearchTerm ? "asin" : "keyword";
+            const isAsinSearchTerm2 = /^[Bb]0[A-Za-z0-9]{8,}$/.test(searchTermText.trim());
+            const searchTermType = isAsinSearchTerm2 ? "asin" : "keyword";
             const sourceMatchType = resolvedMatchType;
             const sourceTargetType = isProductTarget ? "product_target" : "keyword";
             const unitsOrdered = row.unitsSold7d || row.unitsSold14d || row.unitsSold || row.unitsSoldClicks || 0;
@@ -137551,7 +136631,7 @@ async function checkAllCampaignsPacing(accountId) {
       SELECT campaignId, dailyBudget
       FROM campaigns
       WHERE accountId = ${accountId}
-        AND status = 'enabled'
+        AND state = 'enabled'
         AND dailyBudget > 0
     `);
     const campaigns7 = Array.isArray(rows) ? rows : [];
@@ -140721,6 +139801,326 @@ var init_postOptimizationVerifier = __esm({
   }
 });
 
+// server/utils/keywordValidator.ts
+function sanitizeAndValidateKeyword(text2, mode = "positive") {
+  let sanitized = (text2 || "").trim();
+  sanitized = sanitized.replace(CONTROL_CHARS_REGEX, "");
+  sanitized = sanitized.replace(INVALID_CHARS_REGEX, " ");
+  sanitized = sanitized.replace(/\s+/g, " ").trim();
+  if (!sanitized || sanitized.length === 0) {
+    return {
+      isValid: false,
+      sanitizedText: "",
+      reasonCode: "EMPTY_AFTER_SANITIZE",
+      reasonMessage: `\u5173\u952E\u8BCD"${text2}"\u6E05\u6D17\u540E\u4E3A\u7A7A\uFF0C\u5305\u542B\u7684\u5168\u90E8\u662F\u65E0\u6548\u5B57\u7B26`
+    };
+  }
+  if (sanitized.length > MAX_KEYWORD_CHARS) {
+    return {
+      isValid: false,
+      sanitizedText: sanitized,
+      reasonCode: "EXCEEDS_MAX_LENGTH",
+      reasonMessage: `\u5173\u952E\u8BCD\u957F\u5EA6${sanitized.length}\u8D85\u8FC7Amazon\u9650\u5236\u7684${MAX_KEYWORD_CHARS}\u5B57\u7B26`
+    };
+  }
+  const words = sanitized.split(/\s+/);
+  const wordCount = words.length;
+  if (mode === "positive" && wordCount > MAX_POSITIVE_WORD_COUNT) {
+    return {
+      isValid: false,
+      sanitizedText: sanitized,
+      reasonCode: "EXCEEDS_MAX_WORDS",
+      reasonMessage: `\u5173\u952E\u8BCD\u8BCD\u6570${wordCount}\u8D85\u8FC7Amazon\u9650\u5236\u7684${MAX_POSITIVE_WORD_COUNT}\u4E2A\u8BCD`
+    };
+  }
+  if (mode === "negative_phrase" && wordCount > MAX_NEGATIVE_PHRASE_WORD_COUNT) {
+    return {
+      isValid: false,
+      sanitizedText: sanitized,
+      reasonCode: "EXCEEDS_MAX_WORDS_NEG_PHRASE",
+      reasonMessage: `\u5426\u5B9A\u77ED\u8BED\u8BCD\u6570${wordCount}\u8D85\u8FC7Amazon\u9650\u5236\u7684${MAX_NEGATIVE_PHRASE_WORD_COUNT}\u4E2A\u8BCD`
+    };
+  }
+  if (mode === "negative_exact" && wordCount > MAX_NEGATIVE_EXACT_WORD_COUNT) {
+    return {
+      isValid: false,
+      sanitizedText: sanitized,
+      reasonCode: "EXCEEDS_MAX_WORDS_NEG_EXACT",
+      reasonMessage: `\u5426\u5B9A\u7CBE\u786E\u8BCD\u6570${wordCount}\u8D85\u8FC7Amazon\u9650\u5236\u7684${MAX_NEGATIVE_EXACT_WORD_COUNT}\u4E2A\u8BCD`
+    };
+  }
+  return {
+    isValid: true,
+    sanitizedText: sanitized
+  };
+}
+function isAsinSearchTerm(searchTerm) {
+  return /^[Bb]0[A-Za-z0-9]{8,}$/.test(searchTerm.trim());
+}
+function canAddPositiveKeyword(campaignTargetingType) {
+  return campaignTargetingType !== "auto";
+}
+var INVALID_CHARS_REGEX, CONTROL_CHARS_REGEX, MAX_KEYWORD_CHARS, MAX_POSITIVE_WORD_COUNT, MAX_NEGATIVE_PHRASE_WORD_COUNT, MAX_NEGATIVE_EXACT_WORD_COUNT;
+var init_keywordValidator = __esm({
+  "server/utils/keywordValidator.ts"() {
+    "use strict";
+    INVALID_CHARS_REGEX = /[^\p{L}\p{N}\s\-]/gu;
+    CONTROL_CHARS_REGEX = /[\u0000-\u001F\u007F-\u009F\uFFFE\uFFFF\uFEFF\uFFFC\u200B-\u200F\u2028-\u202F\u2060-\u206F]/g;
+    MAX_KEYWORD_CHARS = 80;
+    MAX_POSITIVE_WORD_COUNT = 10;
+    MAX_NEGATIVE_PHRASE_WORD_COUNT = 4;
+    MAX_NEGATIVE_EXACT_WORD_COUNT = 10;
+  }
+});
+
+// server/services/targetingAlgorithm.ts
+function decideTargeting(data4) {
+  const {
+    searchTerm,
+    clicks,
+    impressions,
+    orders,
+    spend,
+    sales,
+    campaignTargetingType,
+    targetAcos
+  } = data4;
+  const isAsin = isAsinSearchTerm(searchTerm);
+  if (!isAsin) {
+    const validation = sanitizeAndValidateKeyword(searchTerm, "positive");
+    if (!validation.isValid) {
+      return {
+        action: "SKIP",
+        targetValue: searchTerm,
+        reason: `\u6570\u636E\u6821\u9A8C\u5931\u8D25: ${validation.reasonMessage}`,
+        confidence: 1,
+        dataMaturityLevel: "insufficient",
+        valueLevel: "unknown"
+      };
+    }
+  }
+  const cvr = clicks > 0 ? orders / clicks * 100 : 0;
+  const acos = sales > 0 ? spend / sales * 100 : spend > 0 ? 999 : 0;
+  const roas = spend > 0 ? sales / spend : 0;
+  const cpc = clicks > 0 ? spend / clicks : 0;
+  const ctr = impressions > 0 ? clicks / impressions * 100 : 0;
+  const aov = orders > 0 ? sales / orders : 0;
+  const dataMaturity = assessDataMaturity(data4);
+  const valueLevel = assessValueLevel(cvr, acos, orders, clicks, targetAcos);
+  if (isAsin) {
+    return decideAsinTargeting(data4, cvr, acos, orders, clicks, dataMaturity, valueLevel);
+  }
+  if (!canAddPositiveKeyword(campaignTargetingType)) {
+    return decideAutoTargetingAction(data4, cvr, acos, orders, clicks, dataMaturity, valueLevel);
+  }
+  return decideKeywordTargeting(data4, cvr, acos, roas, cpc, aov, orders, clicks, dataMaturity, valueLevel);
+}
+function assessDataMaturity(data4) {
+  const { clicks, impressions, orders, dataSpanDays, historicalConversions } = data4;
+  if (orders >= 5 && clicks >= 30 && (dataSpanDays || 0) >= 14) return "proven";
+  if ((historicalConversions || orders) >= 8) return "proven";
+  if (orders >= 3 && clicks >= 20) return "mature";
+  if (orders >= 2 && clicks >= 10) return "moderate";
+  if (orders >= 1 || clicks >= 15) return "emerging";
+  return "insufficient";
+}
+function assessValueLevel(cvr, acos, orders, clicks, targetAcos) {
+  if (clicks < 5) return "unknown";
+  if (orders >= 3 && cvr >= 10 && acos < targetAcos * 0.7) return "high_profit";
+  if (orders >= 2 && acos <= targetAcos) return "profitable";
+  if (orders >= 1 && acos <= targetAcos * 1.5) return "potential";
+  if (orders >= 1 && acos > targetAcos * 1.5) return "marginal";
+  if (clicks >= 10 && orders === 0) return "negative";
+  return "unknown";
+}
+function decideKeywordTargeting(data4, cvr, acos, roas, cpc, aov, orders, clicks, dataMaturity, valueLevel) {
+  const { searchTerm, targetAcos, spend, sales } = data4;
+  const cleanText = sanitizeAndValidateKeyword(searchTerm, "positive").sanitizedText || searchTerm;
+  if (clicks >= 15 && orders === 0) {
+    return {
+      action: "CREATE_NEGATIVE_KEYWORD",
+      targetValue: cleanText,
+      negativeMatchType: "negative_exact",
+      reason: `\u9AD8\u70B9\u51FB\u65E0\u8F6C\u5316: ${clicks}\u6B21\u70B9\u51FB, 0\u8BA2\u5355, \u82B1\u8D39$${spend.toFixed(2)}`,
+      confidence: Math.min(0.95, 0.6 + clicks / 100),
+      dataMaturityLevel: dataMaturity,
+      valueLevel: "negative"
+    };
+  }
+  if (clicks >= 8 && clicks < 15 && orders === 0) {
+    return {
+      action: "MONITOR",
+      targetValue: cleanText,
+      reason: `\u4E2D\u7B49\u70B9\u51FB\u65E0\u8F6C\u5316: ${clicks}\u6B21\u70B9\u51FB, 0\u8BA2\u5355, \u9700\u8981\u66F4\u591A\u6570\u636E`,
+      confidence: 0.5,
+      dataMaturityLevel: dataMaturity,
+      valueLevel: "unknown"
+    };
+  }
+  if ((dataMaturity === "proven" || dataMaturity === "mature" && valueLevel === "high_profit") && (valueLevel === "high_profit" || valueLevel === "profitable")) {
+    const optimalBid = calculateOptimalBid(cvr, aov, targetAcos, "exact");
+    return {
+      action: "CREATE_KEYWORD",
+      targetValue: cleanText,
+      matchType: "exact",
+      suggestedBid: optimalBid,
+      reason: `[\u7CBE\u786E\u6536\u5272] ${orders}\u5355, CVR=${cvr.toFixed(1)}%, ACoS=${acos.toFixed(1)}%, \u6570\u636E\u6210\u719F\u5EA6=${dataMaturity}, \u4EF7\u503C=${valueLevel}`,
+      confidence: Math.min(0.95, 0.7 + orders / 20),
+      dataMaturityLevel: dataMaturity,
+      valueLevel
+    };
+  }
+  if ((dataMaturity === "mature" || dataMaturity === "moderate") && (valueLevel === "profitable" || valueLevel === "potential" || valueLevel === "high_profit")) {
+    const optimalBid = calculateOptimalBid(cvr, aov, targetAcos, "phrase");
+    return {
+      action: "CREATE_KEYWORD",
+      targetValue: cleanText,
+      matchType: "phrase",
+      suggestedBid: optimalBid,
+      reason: `[\u77ED\u8BED\u6295\u653E] ${orders}\u5355, CVR=${cvr.toFixed(1)}%, ACoS=${acos.toFixed(1)}%, \u6570\u636E\u6210\u719F\u5EA6=${dataMaturity}, \u4EF7\u503C=${valueLevel}`,
+      confidence: Math.min(0.9, 0.6 + orders / 15),
+      dataMaturityLevel: dataMaturity,
+      valueLevel
+    };
+  }
+  if (dataMaturity === "emerging" && (valueLevel === "potential" || valueLevel === "profitable" || valueLevel === "unknown")) {
+    const optimalBid = calculateOptimalBid(cvr, aov, targetAcos, "broad");
+    return {
+      action: "CREATE_KEYWORD",
+      targetValue: cleanText,
+      matchType: "broad",
+      suggestedBid: optimalBid,
+      reason: `[\u5E7F\u6CDB\u63A2\u7D22] ${orders}\u5355, ${clicks}\u6B21\u70B9\u51FB, CVR=${cvr.toFixed(1)}%, \u6570\u636E\u6210\u719F\u5EA6=${dataMaturity}, \u4EF7\u503C=${valueLevel}`,
+      confidence: Math.min(0.75, 0.4 + orders / 10),
+      dataMaturityLevel: dataMaturity,
+      valueLevel
+    };
+  }
+  if (valueLevel === "marginal") {
+    return {
+      action: "MONITOR",
+      targetValue: cleanText,
+      reason: `\u8FB9\u9645\u641C\u7D22\u8BCD: ${orders}\u5355, ACoS=${acos.toFixed(1)}%(\u76EE\u6807${targetAcos}%), \u6682\u4E0D\u6295\u653E`,
+      confidence: 0.6,
+      dataMaturityLevel: dataMaturity,
+      valueLevel: "marginal"
+    };
+  }
+  return {
+    action: "MONITOR",
+    targetValue: cleanText,
+    reason: `\u6570\u636E\u4E0D\u8DB3: ${clicks}\u6B21\u70B9\u51FB, ${orders}\u5355, \u9700\u8981\u66F4\u591A\u6570\u636E`,
+    confidence: 0.3,
+    dataMaturityLevel: dataMaturity,
+    valueLevel
+  };
+}
+function decideAsinTargeting(data4, cvr, acos, orders, clicks, dataMaturity, valueLevel) {
+  const { searchTerm, targetAcos, spend, sales } = data4;
+  const aov = orders > 0 ? sales / orders : 0;
+  if (clicks >= 15 && orders === 0) {
+    return {
+      action: "CREATE_NEGATIVE_KEYWORD",
+      targetValue: searchTerm.trim(),
+      negativeMatchType: "negative_exact",
+      reason: `\u9AD8\u70B9\u51FB\u65E0\u8F6C\u5316ASIN: ${clicks}\u6B21\u70B9\u51FB, \u82B1\u8D39$${spend.toFixed(2)}`,
+      confidence: Math.min(0.9, 0.5 + clicks / 50),
+      dataMaturityLevel: dataMaturity,
+      valueLevel: "negative"
+    };
+  }
+  if (orders >= 3 && acos <= targetAcos * 1.1 && (dataMaturity === "proven" || dataMaturity === "mature")) {
+    const optimalBid = calculateOptimalBid(cvr, aov, targetAcos, "exact");
+    return {
+      action: "CREATE_PRODUCT_TARGET",
+      targetValue: searchTerm.trim(),
+      productTargetingType: "exact",
+      suggestedBid: optimalBid,
+      reason: `[\u7CBE\u786EASIN\u5B9A\u5411] ${orders}\u5355, CVR=${cvr.toFixed(1)}%, ACoS=${acos.toFixed(1)}%`,
+      confidence: Math.min(0.9, 0.6 + orders / 15),
+      dataMaturityLevel: dataMaturity,
+      valueLevel
+    };
+  }
+  if (orders >= 1 && acos <= targetAcos * 1.5 && (dataMaturity === "moderate" || dataMaturity === "mature" || dataMaturity === "emerging")) {
+    const optimalBid = calculateOptimalBid(cvr, aov, targetAcos, "broad");
+    return {
+      action: "CREATE_PRODUCT_TARGET",
+      targetValue: searchTerm.trim(),
+      productTargetingType: "expanded",
+      suggestedBid: optimalBid,
+      reason: `[\u6269\u5C55ASIN\u5B9A\u5411] ${orders}\u5355, CVR=${cvr.toFixed(1)}%, ACoS=${acos.toFixed(1)}%`,
+      confidence: Math.min(0.8, 0.5 + orders / 10),
+      dataMaturityLevel: dataMaturity,
+      valueLevel
+    };
+  }
+  return {
+    action: "MONITOR",
+    targetValue: searchTerm.trim(),
+    reason: `ASIN\u6570\u636E\u4E0D\u8DB3: ${clicks}\u6B21\u70B9\u51FB, ${orders}\u5355`,
+    confidence: 0.3,
+    dataMaturityLevel: dataMaturity,
+    valueLevel
+  };
+}
+function decideAutoTargetingAction(data4, cvr, acos, orders, clicks, dataMaturity, valueLevel) {
+  const { searchTerm, spend } = data4;
+  const cleanText = sanitizeAndValidateKeyword(searchTerm, "negative_exact").sanitizedText || searchTerm;
+  if (clicks >= 15 && orders === 0) {
+    return {
+      action: "CREATE_NEGATIVE_KEYWORD",
+      targetValue: cleanText,
+      negativeMatchType: "negative_exact",
+      reason: `[\u81EA\u52A8\u5E7F\u544A] \u9AD8\u70B9\u51FB\u65E0\u8F6C\u5316: ${clicks}\u6B21\u70B9\u51FB, \u82B1\u8D39$${spend.toFixed(2)}`,
+      confidence: Math.min(0.95, 0.6 + clicks / 100),
+      dataMaturityLevel: dataMaturity,
+      valueLevel: "negative"
+    };
+  }
+  if (clicks >= 10 && orders === 0) {
+    return {
+      action: "CREATE_NEGATIVE_KEYWORD",
+      targetValue: cleanText,
+      negativeMatchType: "negative_exact",
+      reason: `[\u81EA\u52A8\u5E7F\u544A] \u4E2D\u7B49\u70B9\u51FB\u65E0\u8F6C\u5316: ${clicks}\u6B21\u70B9\u51FB, \u82B1\u8D39$${spend.toFixed(2)}`,
+      confidence: Math.min(0.85, 0.5 + clicks / 50),
+      dataMaturityLevel: dataMaturity,
+      valueLevel: "negative"
+    };
+  }
+  return {
+    action: "MONITOR",
+    targetValue: cleanText,
+    reason: `[\u81EA\u52A8\u5E7F\u544A] ${orders > 0 ? "\u6709\u8F6C\u5316\u8BCD\u7B49\u5F85\u624B\u52A8\u6536\u5272" : "\u6570\u636E\u4E0D\u8DB3\u7EE7\u7EED\u89C2\u5BDF"}: ${clicks}\u70B9\u51FB, ${orders}\u5355`,
+    confidence: 0.5,
+    dataMaturityLevel: dataMaturity,
+    valueLevel
+  };
+}
+function calculateOptimalBid(cvr, aov, targetAcos, matchType) {
+  const baseBid = cvr / 100 * aov * (targetAcos / 100);
+  const matchTypeMultiplier = {
+    "exact": 1,
+    // 精确匹配: 全额出价
+    "phrase": 0.9,
+    // 短语匹配: 90%出价
+    "broad": 0.75
+    // 广泛匹配: 75%出价
+  };
+  const multiplier = matchTypeMultiplier[matchType] || 0.85;
+  let finalBid = baseBid * multiplier;
+  finalBid = Math.max(0.1, finalBid);
+  finalBid = Math.min(10, finalBid);
+  return Math.round(finalBid * 100) / 100;
+}
+var init_targetingAlgorithm = __esm({
+  "server/services/targetingAlgorithm.ts"() {
+    "use strict";
+    init_keywordValidator();
+  }
+});
+
 // server/optimizationTargetEngine.ts
 var optimizationTargetEngine_exports = {};
 __export(optimizationTargetEngine_exports, {
@@ -142086,31 +141486,40 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
   for (const campaign of campaigns7) {
     try {
       const searchTerms4 = await getSearchTermsByCampaignId(campaign.id);
-      const searchTermTexts = searchTerms4.map((st3) => st3.searchTerm);
-      const classification = classifySearchTerms(
-        searchTermTexts,
-        [],
-        // 产品关键词
-        { category: "", brand: "" }
-        // 产品属性
-      );
+      const campaignTargetingType = campaign.targetingType || (campaign.campaignType === "sp_auto" ? "auto" : "manual");
+      const targetAcos = config2.targetAcos || 30;
+      const searchTermPerformanceList = searchTerms4.map((st3) => ({
+        searchTerm: st3.searchTerm,
+        clicks: Number(st3.searchTermClicks || 0),
+        impressions: Number(st3.searchTermImpressions || 0),
+        orders: Number(st3.searchTermOrders || 0),
+        spend: Number(st3.searchTermSpend || 0),
+        sales: Number(st3.searchTermSales || 0),
+        campaignTargetingType,
+        targetAcos
+      }));
+      console.log(`[SearchTermAnalysis] v191: Campaign "${campaign.campaignName}" (${campaignTargetingType}): ${searchTermPerformanceList.length}\u4E2A\u641C\u7D22\u8BCD\u5F85\u5206\u6790`);
       const account = await getAdAccountById(config2.accountId);
       const brandTerms = account?.storeName ? [account.storeName] : [];
-      for (const term of classification) {
-        if (term.suggestedAction === "negative_exact" || term.suggestedAction === "negative_phrase") {
-          if (brandTerms.length > 0 && isProtectedKeyword(term.searchTerm, brandTerms)) {
+      for (const stPerf of searchTermPerformanceList) {
+        const decision = decideTargeting(stPerf);
+        if (decision.action === "SKIP" || decision.action === "MONITOR") {
+          continue;
+        }
+        if (decision.action === "CREATE_NEGATIVE_KEYWORD") {
+          if (brandTerms.length > 0 && isProtectedKeyword(stPerf.searchTerm, brandTerms)) {
             details.push({
               campaignId: campaign.id,
               campaignName: campaign.campaignName,
-              searchTerm: term.searchTerm,
+              searchTerm: stPerf.searchTerm,
               action: "brand_protect_skip",
-              reason: `[\u54C1\u724C\u8BCD\u4FDD\u62A4] \u641C\u7D22\u8BCD"${term.searchTerm}"\u542B\u6709\u54C1\u724C\u8BCD\uFF0C\u8DF3\u8FC7\u5426\u5B9A`
+              reason: `[\u54C1\u724C\u8BCD\u4FDD\u62A4] \u641C\u7D22\u8BCD"${stPerf.searchTerm}"\u542B\u6709\u54C1\u724C\u8BCD\uFF0C\u8DF3\u8FC7\u5426\u5B9A`
             });
             continue;
           }
           const matchingKeywords = await getKeywordsByCampaignId(campaign.id);
           const matchingKw = matchingKeywords.find(
-            (kw) => kw.keywordText?.toLowerCase() === term.searchTerm.toLowerCase()
+            (kw) => kw.keywordText?.toLowerCase() === stPerf.searchTerm.toLowerCase()
           );
           if (matchingKw?.createdAt) {
             const kwCreatedAt = new Date(matchingKw.createdAt);
@@ -142118,7 +141527,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
               details.push({
                 campaignId: campaign.id,
                 campaignName: campaign.campaignName,
-                searchTerm: term.searchTerm,
+                searchTerm: stPerf.searchTerm,
                 action: "exploration_protect_skip",
                 reason: `[\u63A2\u7D22\u671F\u4FDD\u62A4] \u5BF9\u5E94\u6295\u653E\u8BCD\u5728\u63A2\u7D22\u671F\u5185\uFF0C\u8DF3\u8FC7\u5426\u5B9A\uFF0C\u7ED9\u4E88\u5145\u5206\u7684\u6570\u636E\u79EF\u7D2F\u65F6\u95F4`
               });
@@ -142133,49 +141542,62 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
               const { eq: eqOp, and: andOp } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
               const existingNeg = await dbInstance.select({ id: negKwTable.id, amazonNegativeKeywordId: negKwTable.amazonNegativeKeywordId }).from(negKwTable).where(andOp(
                 eqOp(negKwTable.campaignId, campaign.id),
-                eqOp(negKwTable.negativeText, term.searchTerm)
+                eqOp(negKwTable.negativeText, decision.targetValue)
               )).limit(1);
               if (existingNeg.length > 0) {
                 negativeAlreadyExists = true;
-                console.log(`[SearchTermAnalysis] \u23ED\uFE0F v170: \u5426\u5B9A\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7\u6DFB\u52A0: "${term.searchTerm}" campaignId=${campaign.id}, existingId=${existingNeg[0].id}, amazonId=${existingNeg[0].amazonNegativeKeywordId}`);
+                console.log(`[SearchTermAnalysis] v170: \u5426\u5B9A\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: "${decision.targetValue}" campaignId=${campaign.id}`);
               }
             }
           }
+          const negMatchType = decision.negativeMatchType === "negative_exact" ? "negative_exact" : "negative_phrase";
           const negativeKeyword = {
             accountId: config2.accountId,
             campaignId: campaign.id,
             campaignName: campaign.campaignName,
-            searchTerm: term.searchTerm,
-            matchType: term.suggestedAction === "negative_exact" ? "negative_exact" : "negative_phrase",
+            searchTerm: decision.targetValue,
+            matchType: negMatchType,
             action: "add_negative",
-            reason: `\u8D1F\u9762\u641C\u7D22\u8BCD: ${term.reason}`,
-            apiSyncStatus: negativeAlreadyExists ? "already_exists" : dryRun ? "pending" : "pending"
+            reason: `v191\u667A\u80FD\u5426\u5B9A: ${decision.reason}`,
+            apiSyncStatus: negativeAlreadyExists ? "already_exists" : "pending",
+            confidence: decision.confidence,
+            dataMaturityLevel: decision.dataMaturityLevel
           };
           details.push(negativeKeyword);
           if (!dryRun && !negativeAlreadyExists) {
-            const matchType = term.suggestedAction === "negative_exact" ? "exact" : "phrase";
+            const matchType = negMatchType === "negative_exact" ? "exact" : "phrase";
             negativeKeyword._pendingDbInsert = {
               accountId: campaign.accountId || 0,
               campaignId: campaign.id,
               negativeLevel: "campaign",
               negativeType: "keyword",
-              negativeText: term.searchTerm,
-              negativeMatchType: matchType === "exact" ? "negative_exact" : "negative_phrase",
-              negativeSource: "ngram_analysis",
+              negativeText: decision.targetValue,
+              negativeMatchType: negMatchType,
+              negativeSource: "smart_targeting_v191",
               createdAt: (/* @__PURE__ */ new Date()).toISOString()
             };
             negativeKeywordsAdded++;
           }
-        } else if (term.suggestedAction === "target") {
+        } else if (decision.action === "CREATE_KEYWORD") {
+          if (!canAddPositiveKeyword(campaignTargetingType)) {
+            console.log(`[SearchTermAnalysis] v191: \u81EA\u52A8\u5E7F\u544A\u6D3B\u52A8\u4E0D\u80FD\u6DFB\u52A0\u6B63\u9762\u5173\u952E\u8BCD\uFF0C\u8DF3\u8FC7: "${decision.targetValue}"`);
+            continue;
+          }
+          const matchType = decision.matchType || "phrase";
+          const bid = decision.suggestedBid || 0.5;
           const newKeyword = {
             accountId: config2.accountId,
             campaignId: campaign.id,
             campaignName: campaign.campaignName,
-            searchTerm: term.searchTerm,
-            matchType: term.matchTypeSuggestion || "exact",
+            searchTerm: decision.targetValue,
+            matchType,
             action: "add_keyword",
-            reason: `\u6B63\u9762\u641C\u7D22\u8BCD: ${term.reason}`,
-            apiSyncStatus: dryRun ? "pending" : "pending"
+            reason: `v191\u667A\u80FD\u6295\u653E: ${decision.reason}`,
+            suggestedBid: bid,
+            apiSyncStatus: dryRun ? "pending" : "pending",
+            confidence: decision.confidence,
+            dataMaturityLevel: decision.dataMaturityLevel,
+            valueLevel: decision.valueLevel
           };
           details.push(newKeyword);
           if (!dryRun) {
@@ -142186,13 +141608,11 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                 const adGroup = adGroups4[0];
                 const amazonAdGroupId = Number(adGroup.adGroupId || 0);
                 const amazonCampaignId = Number(campaign.campaignId || campaign.id);
-                const matchType = term.matchTypeSuggestion || "exact";
-                const bid = 0.5;
                 const { keywords: keywords7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
                 const { eq: eqOp, and: andOp } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
                 const existingKeywords = await dbInstance.select({ id: keywords7.id, keywordId: keywords7.keywordId, matchType: keywords7.matchType }).from(keywords7).where(andOp(
                   eqOp(keywords7.adGroupId, adGroup.id),
-                  eqOp(keywords7.keywordText, term.searchTerm)
+                  eqOp(keywords7.keywordText, decision.targetValue)
                 )).limit(10);
                 if (existingKeywords.length > 0) {
                   if (existingKeywords.length > 1) {
@@ -142202,7 +141622,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                     for (const dup of toDelete) {
                       try {
                         await dbInstance.delete(keywords7).where(eqOp(keywords7.id, dup.id));
-                        console.log(`[SearchTermAnalysis] \u{1F9F9} \u6E05\u7406\u91CD\u590D\u5173\u952E\u8BCD: id=${dup.id} "${term.searchTerm}" (keywordId=${dup.keywordId})`);
+                        console.log(`[SearchTermAnalysis] \u6E05\u7406\u91CD\u590D\u5173\u952E\u8BCD: id=${dup.id} "${decision.targetValue}"`);
                       } catch (delErr) {
                         console.warn(`[SearchTermAnalysis] \u6E05\u7406\u91CD\u590D\u5173\u952E\u8BCD\u5931\u8D25: id=${dup.id}: ${delErr.message}`);
                       }
@@ -142211,11 +141631,11 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                   const existingMatchTypes = existingKeywords.map((k5) => k5.matchType || "unknown").join(",");
                   newKeyword.apiSyncStatus = "already_exists";
                   newKeyword.apiSyncDetail = JSON.stringify({ existingId: existingKeywords[0].id, existingKeywordId: existingKeywords[0].keywordId, existingMatchTypes });
-                  console.log(`[SearchTermAnalysis] \u23ED\uFE0F v168: \u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7\u521B\u5EFA: "${term.searchTerm}" (\u8BF7\u6C42=${matchType}, \u5DF2\u5B58\u5728=${existingMatchTypes}) id=${existingKeywords[0].id}, keywordId=${existingKeywords[0].keywordId}`);
+                  console.log(`[SearchTermAnalysis] v168: \u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: "${decision.targetValue}" (\u8BF7\u6C42=${matchType}, \u5DF2\u5B58\u5728=${existingMatchTypes})`);
                 } else {
                   const insertResult = await dbInstance.insert(keywords7).values({
                     adGroupId: adGroup.id,
-                    keywordText: term.searchTerm,
+                    keywordText: decision.targetValue,
                     matchType,
                     bid: String(bid),
                     keywordStatus: "enabled",
@@ -142231,26 +141651,26 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                           localKeywordId: localKeywordId || void 0,
                           adGroupId: amazonAdGroupId,
                           campaignId: amazonCampaignId,
-                          keywordText: term.searchTerm,
+                          keywordText: decision.targetValue,
                           matchType,
                           bid
                         }]
                       );
                       if (apiResult.success > 0) {
                         newKeyword.apiSyncStatus = "synced";
-                        console.log(`[SearchTermAnalysis] \u2705 \u65B0\u5173\u952E\u8BCD\u5DF2\u540C\u6B65\u5230Amazon: "${term.searchTerm}"`);
+                        console.log(`[SearchTermAnalysis] v191: \u65B0\u5173\u952E\u8BCD[${matchType}]\u5DF2\u540C\u6B65: "${decision.targetValue}" bid=$${bid}`);
                       } else {
                         newKeyword.apiSyncStatus = "failed";
                         newKeyword.apiSyncDetail = JSON.stringify({ errors: apiResult.errors });
-                        console.error(`[SearchTermAnalysis] \u274C \u65B0\u5173\u952E\u8BCD\u540C\u6B65\u5931\u8D25: "${term.searchTerm}" - ${apiResult.errors.join("; ")}`);
+                        console.error(`[SearchTermAnalysis] \u65B0\u5173\u952E\u8BCD\u540C\u6B65\u5931\u8D25: "${decision.targetValue}" - ${apiResult.errors.join("; ")}`);
                       }
                     } catch (apiError) {
                       newKeyword.apiSyncStatus = "failed";
                       newKeyword.apiSyncDetail = JSON.stringify({ error: apiError.message });
-                      console.error(`[SearchTermAnalysis] \u274C \u65B0\u5173\u952E\u8BCDAPI\u540C\u6B65\u5F02\u5E38: "${term.searchTerm}" -`, apiError.message);
+                      console.error(`[SearchTermAnalysis] \u65B0\u5173\u952E\u8BCDAPI\u5F02\u5E38: "${decision.targetValue}" -`, apiError.message);
                     }
                   } else {
-                    console.warn(`[SearchTermAnalysis] \u26A0\uFE0F \u7F3A\u5C11Amazon ID\uFF0C\u65E0\u6CD5\u540C\u6B65\u5173\u952E\u8BCD: adGroupId=${amazonAdGroupId}, campaignId=${amazonCampaignId}`);
+                    console.warn(`[SearchTermAnalysis] \u7F3A\u5C11Amazon ID\uFF0C\u65E0\u6CD5\u540C\u6B65: adGroupId=${amazonAdGroupId}, campaignId=${amazonCampaignId}`);
                   }
                 }
               }
@@ -142259,6 +141679,25 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
               newKeywordsAdded++;
             }
           }
+        } else if (decision.action === "CREATE_PRODUCT_TARGET") {
+          const ptType = decision.productTargetingType || "exact";
+          const bid = decision.suggestedBid || 0.5;
+          const newTarget = {
+            accountId: config2.accountId,
+            campaignId: campaign.id,
+            campaignName: campaign.campaignName,
+            searchTerm: decision.targetValue,
+            matchType: `product_target_${ptType}`,
+            action: "add_product_target",
+            reason: `v191\u667A\u80FDASIN\u5B9A\u5411: ${decision.reason}`,
+            suggestedBid: bid,
+            apiSyncStatus: dryRun ? "pending" : "pending",
+            confidence: decision.confidence,
+            dataMaturityLevel: decision.dataMaturityLevel,
+            valueLevel: decision.valueLevel
+          };
+          details.push(newTarget);
+          console.log(`[SearchTermAnalysis] v191: ASIN\u5B9A\u5411\u51B3\u7B56[${ptType}]: "${decision.targetValue}" bid=$${bid} (${decision.reason})`);
         }
       }
       if (!dryRun) {
@@ -143484,7 +142923,6 @@ var init_optimizationTargetEngine = __esm({
     init_daypartingService();
     init_placementOptimizationService();
     init_optimizationSafetyGuardrails();
-    init_adAutomation();
     init_intelligentBudgetAllocationService();
     init_bidCoordinator();
     init_amazonApiHelper();
@@ -143499,6 +142937,8 @@ var init_optimizationTargetEngine = __esm({
     init_multiDimComboAnalyzer();
     init_postOptimizationVerifier();
     init_deployLifecycleManager();
+    init_targetingAlgorithm();
+    init_keywordValidator();
     marketplaceCache2 = /* @__PURE__ */ new Map();
   }
 });
@@ -337427,7 +336867,923 @@ init_drizzle_orm();
 init_db2();
 init_bidOptimizer();
 init_amazonAdsApi();
-init_adAutomation();
+
+// server/adAutomation.ts
+function tokenize(searchTerm) {
+  return searchTerm.toLowerCase().replace(/[^a-z0-9\s]/g, "").split(/\s+/).filter((word) => word.length > 1);
+}
+function generateNgrams(tokens, maxN = 2) {
+  const ngrams = [...tokens];
+  if (maxN >= 2) {
+    for (let i4 = 0; i4 < tokens.length - 1; i4++) {
+      ngrams.push(`${tokens[i4]} ${tokens[i4 + 1]}`);
+    }
+  }
+  return ngrams;
+}
+function analyzeNgrams(searchTerms4) {
+  const minClicksThreshold = 5;
+  const ineffectiveTerms = searchTerms4.filter(
+    (term) => term.clicks >= minClicksThreshold && term.conversions === 0
+  );
+  const ngramStats = /* @__PURE__ */ new Map();
+  for (const term of ineffectiveTerms) {
+    const tokens = tokenize(term.searchTerm);
+    const ngrams = generateNgrams(tokens);
+    const isProductTargeting = term.targetingType === "product";
+    for (const ngram of ngrams) {
+      const existing = ngramStats.get(ngram) || {
+        frequency: 0,
+        totalClicks: 0,
+        totalConversions: 0,
+        totalSpend: 0,
+        terms: [],
+        hasProductTargeting: false
+      };
+      existing.frequency++;
+      existing.totalClicks += term.clicks;
+      existing.totalConversions += term.conversions;
+      existing.totalSpend += term.spend;
+      existing.terms.push(term.searchTerm);
+      if (isProductTargeting) {
+        existing.hasProductTargeting = true;
+      }
+      ngramStats.set(ngram, existing);
+    }
+  }
+  const results = [];
+  const knownNegativePatterns = [
+    "cheap",
+    "free",
+    "used",
+    "broken",
+    "repair",
+    "fix",
+    "diy",
+    "homemade",
+    "alternative",
+    "substitute",
+    "wholesale",
+    "bulk",
+    "clearance",
+    "discount",
+    "how to",
+    "what is",
+    "review",
+    "vs",
+    "versus"
+  ];
+  for (const [ngram, stats] of Array.from(ngramStats.entries())) {
+    if (stats.frequency >= 3) {
+      const conversionRate = stats.totalConversions / stats.totalClicks;
+      const isKnownNegative = knownNegativePatterns.some(
+        (pattern) => ngram.includes(pattern)
+      );
+      let reason = "";
+      let isNegativeCandidate = false;
+      if (conversionRate === 0 && stats.frequency >= 5) {
+        isNegativeCandidate = true;
+        reason = `\u51FA\u73B0${stats.frequency}\u6B21\uFF0C${stats.totalClicks}\u6B21\u70B9\u51FB\uFF0C0\u8F6C\u5316\uFF0C\u6D6A\u8D39$${stats.totalSpend.toFixed(2)}`;
+      } else if (isKnownNegative) {
+        isNegativeCandidate = true;
+        reason = `\u5339\u914D\u5DF2\u77E5\u8D1F\u9762\u8BCD\u6839\u6A21\u5F0F`;
+      } else if (conversionRate < 0.01 && stats.totalClicks >= 10) {
+        isNegativeCandidate = true;
+        reason = `\u8F6C\u5316\u7387\u4EC5${(conversionRate * 100).toFixed(2)}%\uFF0C\u4F4E\u4E8E1%\u9608\u503C`;
+      }
+      const suggestedNegativeLevel = stats.hasProductTargeting ? "campaign" : "ad_group";
+      results.push({
+        ngram,
+        frequency: stats.frequency,
+        totalClicks: stats.totalClicks,
+        totalConversions: stats.totalConversions,
+        totalSpend: stats.totalSpend,
+        conversionRate,
+        isNegativeCandidate,
+        reason,
+        affectedTerms: stats.terms,
+        suggestedNegativeLevel,
+        hasProductTargeting: stats.hasProductTargeting
+      });
+    }
+  }
+  return results.sort((a4, b6) => b6.frequency - a4.frequency);
+}
+function analyzeFunnelMigration(searchTerms4, config2 = {
+  broadToPhrase: { minConversions: 3, minRoas: 1 },
+  phraseToExact: { minConversions: 10, minRoas: 5 },
+  bidIncreasePercent: 20
+}) {
+  const suggestions = [];
+  for (const term of searchTerms4) {
+    const negativeLevel = term.targetingType === "product" ? "campaign" : "ad_group";
+    if (term.matchType === "broad" || term.matchType === "auto") {
+      if (term.conversions >= config2.broadToPhrase.minConversions && term.roas >= config2.broadToPhrase.minRoas) {
+        const suggestedBid = term.cpc * (1 + config2.bidIncreasePercent / 100);
+        suggestions.push({
+          searchTerm: term.searchTerm,
+          fromCampaign: term.campaignName,
+          fromMatchType: term.matchType,
+          toMatchType: "phrase",
+          reason: `${term.conversions}\u6B21\u6210\u4EA4\uFF0CROAS ${term.roas.toFixed(2)}\uFF0C\u7B26\u5408\u8FC1\u79FB\u6761\u4EF6`,
+          suggestedBid: Math.round(suggestedBid * 100) / 100,
+          currentCpc: term.cpc,
+          conversions: term.conversions,
+          roas: term.roas,
+          priority: term.conversions >= 5 ? "high" : "medium",
+          negativeInOriginal: true,
+          negativeLevel
+        });
+      }
+    }
+    if (term.matchType === "phrase") {
+      if (term.conversions >= config2.phraseToExact.minConversions && term.roas >= config2.phraseToExact.minRoas) {
+        const suggestedBid = term.cpc * (1 + config2.bidIncreasePercent / 100);
+        suggestions.push({
+          searchTerm: term.searchTerm,
+          fromCampaign: term.campaignName,
+          fromMatchType: "phrase",
+          toMatchType: "exact",
+          reason: `${term.conversions}\u6B21\u6210\u4EA4\uFF0CROAS ${term.roas.toFixed(2)}\uFF0C\u9AD8\u4EF7\u503C\u6D41\u91CF`,
+          suggestedBid: Math.round(suggestedBid * 100) / 100,
+          currentCpc: term.cpc,
+          conversions: term.conversions,
+          roas: term.roas,
+          priority: term.roas >= 8 ? "high" : "medium",
+          negativeInOriginal: true,
+          negativeLevel
+        });
+      }
+    }
+    if (term.targetingType === "product" && term.conversions >= 5 && term.roas >= 3) {
+      suggestions.push({
+        searchTerm: term.searchTerm,
+        fromCampaign: term.campaignName,
+        fromMatchType: "product",
+        toMatchType: "phrase",
+        // 建议先用短语匹配测试
+        reason: `\u4EA7\u54C1\u5B9A\u4F4D\u5E7F\u544A\u4E2D\u53D1\u73B0\u9AD8\u8F6C\u5316\u641C\u7D22\u8BCD\uFF08${term.conversions}\u6B21\u6210\u4EA4\uFF09\uFF0C\u5EFA\u8BAE\u521B\u5EFA\u5173\u952E\u8BCD\u5E7F\u544A`,
+        suggestedBid: Math.round(term.cpc * 1.1 * 100) / 100,
+        currentCpc: term.cpc,
+        conversions: term.conversions,
+        roas: term.roas,
+        priority: "high",
+        negativeInOriginal: false,
+        // 产品定位广告不需要否定这个搜索词
+        negativeLevel: "campaign"
+        // 如果需要否定，只能在活动层级
+      });
+    }
+  }
+  return suggestions.sort((a4, b6) => {
+    if (a4.priority !== b6.priority) {
+      return a4.priority === "high" ? -1 : 1;
+    }
+    return b6.conversions - a4.conversions;
+  });
+}
+function detectTrafficConflicts(searchTerms4) {
+  const termGroups = /* @__PURE__ */ new Map();
+  for (const term of searchTerms4) {
+    const key = term.searchTerm.toLowerCase();
+    const existing = termGroups.get(key) || [];
+    existing.push(term);
+    termGroups.set(key, existing);
+  }
+  const conflicts = [];
+  for (const [searchTerm, terms] of Array.from(termGroups.entries())) {
+    if (terms.length > 1) {
+      const campaignScores = terms.map((t7) => {
+        const cvr = t7.clicks > 0 ? t7.conversions / t7.clicks : 0;
+        const ctr = t7.clicks > 0 ? t7.clicks / (t7.clicks + 100) : 0;
+        const score = t7.roas * 0.4 + cvr * 100 * 0.3 + t7.conversions * 0.3;
+        return {
+          campaignId: t7.campaignId,
+          campaignName: t7.campaignName,
+          campaignType: t7.campaignType,
+          targetingType: t7.targetingType,
+          matchType: t7.matchType,
+          clicks: t7.clicks,
+          conversions: t7.conversions,
+          spend: t7.spend,
+          sales: t7.sales,
+          roas: t7.roas,
+          ctr,
+          cvr,
+          score
+        };
+      });
+      campaignScores.sort((a4, b6) => b6.score - a4.score);
+      const winner = campaignScores[0];
+      const losers = campaignScores.slice(1);
+      const wastedSpend = losers.reduce((sum2, l6) => sum2 + l6.spend, 0);
+      const loserCampaigns = losers.map((l6) => ({
+        name: l6.campaignName,
+        campaignType: l6.campaignType,
+        targetingType: l6.targetingType,
+        negativeLevel: l6.targetingType === "product" ? "campaign" : "ad_group"
+      }));
+      conflicts.push({
+        searchTerm,
+        campaigns: campaignScores.map((c5) => ({
+          campaignId: c5.campaignId,
+          campaignName: c5.campaignName,
+          campaignType: c5.campaignType,
+          targetingType: c5.targetingType,
+          matchType: c5.matchType,
+          clicks: c5.clicks,
+          conversions: c5.conversions,
+          spend: c5.spend,
+          sales: c5.sales,
+          roas: c5.roas,
+          ctr: c5.ctr,
+          cvr: c5.cvr
+        })),
+        recommendation: {
+          winnerCampaign: winner.campaignName,
+          winnerCampaignType: winner.campaignType,
+          winnerTargetingType: winner.targetingType,
+          loserCampaigns,
+          action: "negative_exact",
+          reason: `${winner.campaignName}\u8868\u73B0\u6700\u4F73\uFF08ROAS: ${winner.roas.toFixed(2)}, CVR: ${(winner.cvr * 100).toFixed(1)}%\uFF09\uFF0C\u5EFA\u8BAE\u5728\u5176\u4ED6\u6D3B\u52A8\u4E2D\u5426\u5B9A\u6B64\u8BCD`
+        },
+        totalWastedSpend: Math.round(wastedSpend * 100) / 100
+      });
+    }
+  }
+  return conflicts.sort((a4, b6) => b6.totalWastedSpend - a4.totalWastedSpend);
+}
+function analyzeBidAdjustments(targets, config2 = {
+  rampUpPercent: 5,
+  maxBidMultiplier: 3,
+  minImpressions: 100,
+  correctionWindow: 14,
+  targetAcos: 30,
+  targetRoas: 3.33
+}) {
+  const suggestions = [];
+  for (const target of targets) {
+    const ctr = target.impressions > 0 ? target.clicks / target.impressions : 0;
+    const cvr = target.clicks > 0 ? target.conversions / target.clicks : 0;
+    const acos = target.sales > 0 ? target.spend / target.sales * 100 : 0;
+    const roas = target.spend > 0 ? target.sales / target.spend : 0;
+    const effectiveTargetAcos = target.targetAcos || config2.targetAcos;
+    const effectiveTargetRoas = target.targetRoas || config2.targetRoas;
+    let suggestedBid = target.currentBid;
+    let adjustmentType = "maintain";
+    let reason = "";
+    let priority = "low";
+    if (target.impressions < config2.minImpressions) {
+      suggestedBid = target.currentBid * (1 + config2.rampUpPercent / 100);
+      adjustmentType = "increase";
+      reason = `\u66DD\u5149\u4E0D\u8DB3\uFF08${target.impressions}\u6B21\uFF09\uFF0C\u5EFA\u8BAE\u63D0\u5347${config2.rampUpPercent}%\u7ADE\u4EF7\u4EE5\u83B7\u53D6\u66F4\u591A\u66DD\u5149`;
+      priority = "high";
+    } else if (acos > 0 && acos < effectiveTargetAcos * 0.7 && target.conversions >= 3) {
+      const increasePercent = Math.min(20, (effectiveTargetAcos - acos) / effectiveTargetAcos * 30);
+      suggestedBid = target.currentBid * (1 + increasePercent / 100);
+      adjustmentType = "increase";
+      reason = `ACoS ${acos.toFixed(1)}%\u8FDC\u4F4E\u4E8E\u76EE\u6807${effectiveTargetAcos}%\uFF0C\u6709\u63D0\u4EF7\u7A7A\u95F4`;
+      priority = "medium";
+    } else if (acos > effectiveTargetAcos * 1.3 && target.clicks >= 20) {
+      const decreasePercent = Math.min(30, (acos - effectiveTargetAcos) / acos * 40);
+      suggestedBid = target.currentBid * (1 - decreasePercent / 100);
+      adjustmentType = "decrease";
+      reason = `ACoS ${acos.toFixed(1)}%\u8D85\u51FA\u76EE\u6807${effectiveTargetAcos}%\uFF0C\u5EFA\u8BAE\u964D\u4EF7`;
+      priority = "high";
+    } else if (target.daysSinceLastChange && target.daysSinceLastChange <= config2.correctionWindow) {
+      if (target.conversions >= 2 && roas < effectiveTargetRoas * 0.5) {
+        suggestedBid = target.currentBid * 0.9;
+        adjustmentType = "decrease";
+        reason = `\u8FD1\u671F\u8C03\u4EF7\u540EROAS\u4E0B\u964D\u81F3${roas.toFixed(2)}\uFF0C\u5EFA\u8BAE\u56DE\u8C03\u7ADE\u4EF7`;
+        priority = "urgent";
+      }
+    } else if (target.clicks >= 30 && target.conversions === 0) {
+      suggestedBid = target.currentBid * 0.7;
+      adjustmentType = "decrease";
+      reason = `${target.clicks}\u6B21\u70B9\u51FB\u65E0\u8F6C\u5316\uFF0C\u5EFA\u8BAE\u5927\u5E45\u964D\u4EF7\u6216\u8003\u8651\u6682\u505C`;
+      priority = "urgent";
+    }
+    const maxBid = target.currentBid * config2.maxBidMultiplier;
+    const minBid = 0.02;
+    suggestedBid = Math.max(minBid, Math.min(maxBid, suggestedBid));
+    suggestedBid = Math.round(suggestedBid * 100) / 100;
+    const adjustmentPercent = (suggestedBid - target.currentBid) / target.currentBid * 100;
+    if (Math.abs(adjustmentPercent) >= 3) {
+      suggestions.push({
+        targetId: target.id,
+        targetType: target.type,
+        targetName: target.name,
+        campaignName: target.campaignName,
+        currentBid: target.currentBid,
+        suggestedBid,
+        adjustmentPercent: Math.round(adjustmentPercent * 10) / 10,
+        adjustmentType,
+        reason,
+        priority,
+        metrics: {
+          impressions: target.impressions,
+          clicks: target.clicks,
+          conversions: target.conversions,
+          spend: target.spend,
+          sales: target.sales,
+          acos: Math.round(acos * 10) / 10,
+          roas: Math.round(roas * 100) / 100,
+          ctr: Math.round(ctr * 1e4) / 100,
+          cvr: Math.round(cvr * 1e4) / 100
+        }
+      });
+    }
+  }
+  const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
+  return suggestions.sort((a4, b6) => priorityOrder[a4.priority] - priorityOrder[b6.priority]);
+}
+function classifySearchTerms(searchTerms4, productKeywords, productAttributes) {
+  const results = [];
+  const keywordSet = new Set(productKeywords.map((k5) => k5.toLowerCase()));
+  const categoryWords = productAttributes.category.toLowerCase().split(/\s+/);
+  const brandLower = productAttributes.brand.toLowerCase();
+  const negativePatterns = [
+    "free",
+    "cheap",
+    "used",
+    "broken",
+    "repair",
+    "fix",
+    "diy",
+    "how to",
+    "what is",
+    "review",
+    "vs",
+    "versus",
+    "alternative",
+    "wholesale",
+    "bulk",
+    "clearance"
+  ];
+  const attributeMismatchCheck = (term) => {
+    const termLower = term.toLowerCase();
+    if (productAttributes.colors && productAttributes.colors.length > 0) {
+      const allColors = ["red", "blue", "green", "yellow", "black", "white", "pink", "purple", "orange", "brown", "gray", "grey"];
+      const productColors = productAttributes.colors.map((c5) => c5.toLowerCase());
+      for (const color of allColors) {
+        if (termLower.includes(color) && !productColors.includes(color)) {
+          return true;
+        }
+      }
+    }
+    if (productAttributes.sizes && productAttributes.sizes.length > 0) {
+      const sizePatterns = ["small", "medium", "large", "xl", "xxl", "xs", "mini", "jumbo"];
+      const productSizes = productAttributes.sizes.map((s4) => s4.toLowerCase());
+      for (const size of sizePatterns) {
+        if (termLower.includes(size) && !productSizes.some((ps) => ps.includes(size))) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+  for (const term of searchTerms4) {
+    const termLower = term.toLowerCase();
+    const termTokens = tokenize(term);
+    let relevance = "unrelated";
+    let confidence = 0;
+    let reason = "";
+    let suggestedAction = "negative_exact";
+    let matchTypeSuggestion;
+    const hasNegativePattern = negativePatterns.some((p4) => termLower.includes(p4));
+    if (hasNegativePattern) {
+      relevance = "unrelated";
+      confidence = 0.9;
+      reason = "\u5305\u542B\u8D1F\u9762\u8BCD\u6839\uFF08\u5982cheap, free, used\u7B49\uFF09";
+      suggestedAction = "negative_phrase";
+    } else if (attributeMismatchCheck(term)) {
+      relevance = "seemingly_related";
+      confidence = 0.75;
+      reason = "\u4EA7\u54C1\u5C5E\u6027\u4E0D\u5339\u914D\uFF08\u989C\u8272/\u5C3A\u5BF8\uFF09";
+      suggestedAction = "negative_exact";
+    } else if (keywordSet.has(termLower)) {
+      relevance = "high";
+      confidence = 0.95;
+      reason = "\u7CBE\u786E\u5339\u914D\u4EA7\u54C1\u5173\u952E\u8BCD";
+      suggestedAction = "target";
+      matchTypeSuggestion = "exact";
+    } else if (termLower.includes(brandLower)) {
+      relevance = "high";
+      confidence = 0.9;
+      reason = "\u5305\u542B\u54C1\u724C\u8BCD";
+      suggestedAction = "target";
+      matchTypeSuggestion = "phrase";
+    } else if (categoryWords.some((cw) => termLower.includes(cw))) {
+      const matchedWords = categoryWords.filter((cw) => termLower.includes(cw));
+      if (matchedWords.length >= 2) {
+        relevance = "high";
+        confidence = 0.8;
+        reason = "\u5305\u542B\u591A\u4E2A\u7C7B\u76EE\u5173\u952E\u8BCD";
+        suggestedAction = "target";
+        matchTypeSuggestion = "phrase";
+      } else {
+        relevance = "weak";
+        confidence = 0.6;
+        reason = "\u4EC5\u5305\u542B\u90E8\u5206\u7C7B\u76EE\u5173\u952E\u8BCD";
+        suggestedAction = "monitor";
+        matchTypeSuggestion = "broad";
+      }
+    } else {
+      const matchedKeywords = productKeywords.filter(
+        (k5) => termLower.includes(k5.toLowerCase()) || k5.toLowerCase().includes(termLower)
+      );
+      if (matchedKeywords.length > 0) {
+        relevance = "weak";
+        confidence = 0.5;
+        reason = "\u90E8\u5206\u5339\u914D\u4EA7\u54C1\u5173\u952E\u8BCD";
+        suggestedAction = "monitor";
+        matchTypeSuggestion = "broad";
+      } else {
+        relevance = "unrelated";
+        confidence = 0.7;
+        reason = "\u4E0E\u4EA7\u54C1\u5173\u952E\u8BCD\u65E0\u660E\u663E\u5173\u8054";
+        suggestedAction = "negative_exact";
+      }
+    }
+    results.push({
+      searchTerm: term,
+      relevance,
+      confidence,
+      reason,
+      suggestedAction,
+      matchTypeSuggestion
+    });
+  }
+  return results;
+}
+function getPresetNegativeKeywords(category) {
+  const commonNegatives = [
+    "free",
+    "cheap",
+    "cheapest",
+    "used",
+    "broken",
+    "repair",
+    "fix",
+    "diy",
+    "homemade",
+    "alternative",
+    "substitute",
+    "replacement",
+    "wholesale",
+    "bulk",
+    "clearance",
+    "discount",
+    "coupon",
+    "how to",
+    "what is",
+    "review",
+    "reviews",
+    "vs",
+    "versus",
+    "reddit",
+    "amazon",
+    "ebay",
+    "walmart",
+    "aliexpress",
+    "download",
+    "pdf",
+    "manual",
+    "instructions"
+  ];
+  const categoryNegatives = {
+    "electronics": ["schematic", "circuit", "datasheet", "pinout", "driver"],
+    "clothing": ["pattern", "sewing", "fabric", "material", "costume"],
+    "toys": ["plans", "blueprint", "build", "make", "craft"],
+    "home": ["rental", "rent", "lease", "apartment"],
+    "beauty": ["recipe", "homemade", "natural", "organic diy"],
+    "sports": ["rules", "how to play", "history", "olympics"]
+  };
+  const categoryLower = category.toLowerCase();
+  const specificNegatives = categoryNegatives[categoryLower] || [];
+  return [...commonNegatives, ...specificNegatives];
+}
+function analyzeBidCorrections(bidChanges, attributionWindowDays = 14) {
+  const suggestions = [];
+  const now = /* @__PURE__ */ new Date();
+  for (const change of bidChanges) {
+    const daysElapsed = Math.floor((now.getTime() - new Date(change.changeDate).getTime()) / (1e3 * 60 * 60 * 24));
+    if (daysElapsed < 3 || daysElapsed > attributionWindowDays + 7) {
+      continue;
+    }
+    if (!change.performanceAfter) {
+      continue;
+    }
+    const bidChangePercent = (change.newBid - change.oldBid) / change.oldBid * 100;
+    const perf = change.performanceAfter;
+    const roas = perf.spend > 0 ? perf.sales / perf.spend : 0;
+    const acos = perf.sales > 0 ? perf.spend / perf.sales * 100 : 0;
+    let errorType = null;
+    let reason = "";
+    let suggestedBid = change.oldBid;
+    let priority = "medium";
+    let confidence = 0;
+    if (bidChangePercent < -10 && perf.conversions > 0) {
+      if (roas > 3 || acos < 25) {
+        errorType = "premature_decrease";
+        reason = `\u964D\u4EF7${Math.abs(bidChangePercent).toFixed(1)}%\u540E\uFF0CROAS\u4ECD\u8FBE${roas.toFixed(2)}\uFF0CACoS\u4EC5${acos.toFixed(1)}%\uFF0C\u5EFA\u8BAE\u6062\u590D\u51FA\u4EF7`;
+        suggestedBid = change.oldBid * 0.95;
+        priority = roas > 5 ? "urgent" : "high";
+        confidence = Math.min(0.9, 0.5 + roas / 10);
+      }
+    } else if (bidChangePercent > 15 && perf.conversions === 0 && perf.clicks > 10) {
+      errorType = "premature_increase";
+      reason = `\u52A0\u4EF7${bidChangePercent.toFixed(1)}%\u540E\uFF0C${perf.clicks}\u6B21\u70B9\u51FB0\u8F6C\u5316\uFF0C\u5EFA\u8BAE\u56DE\u8C03\u51FA\u4EF7`;
+      suggestedBid = change.oldBid * 1.05;
+      priority = perf.spend > 50 ? "urgent" : "high";
+      confidence = 0.75;
+    } else if (Math.abs(bidChangePercent) > 30) {
+      if (perf.conversions === 0 && perf.clicks > 5) {
+        errorType = "over_adjustment";
+        reason = `\u51FA\u4EF7\u8C03\u6574\u5E45\u5EA6\u8FC7\u5927(${bidChangePercent > 0 ? "+" : ""}${bidChangePercent.toFixed(1)}%)\uFF0C\u5EFA\u8BAE\u9010\u6B65\u8C03\u6574`;
+        suggestedBid = (change.oldBid + change.newBid) / 2;
+        priority = "medium";
+        confidence = 0.6;
+      }
+    }
+    if (daysElapsed >= attributionWindowDays - 3 && daysElapsed <= attributionWindowDays + 3) {
+      if (perf.conversions > 0 && bidChangePercent < -15) {
+        if (!errorType) {
+          errorType = "attribution_delay";
+          reason = `\u53D8\u66F4\u53D1\u751F\u5728\u5F52\u56E0\u7A97\u53E3\u8FB9\u7F18(${daysElapsed}\u5929\u524D)\uFF0C\u53EF\u80FD\u5B58\u5728\u5EF6\u8FDF\u5F52\u56E0\u8F6C\u5316\uFF0C\u5EFA\u8BAE\u91CD\u65B0\u8BC4\u4F30`;
+          suggestedBid = change.oldBid * 0.9;
+          priority = "medium";
+          confidence = 0.55;
+        }
+      }
+    }
+    if (errorType) {
+      suggestions.push({
+        targetId: change.targetId,
+        targetName: change.targetName,
+        targetType: change.targetType,
+        campaignName: change.campaignName,
+        originalBid: change.oldBid,
+        currentBid: change.newBid,
+        suggestedBid,
+        errorType,
+        reason,
+        evidence: {
+          changeDate: typeof change.changeDate === "string" ? change.changeDate : new Date(change.changeDate).toISOString(),
+          daysElapsed,
+          performanceBefore: {
+            conversions: 0,
+            // 需要从历史数据获取
+            roas: 0,
+            acos: 0
+          },
+          performanceAfter: {
+            conversions: perf.conversions,
+            roas,
+            acos
+          },
+          attributedConversions: perf.conversions
+        },
+        priority,
+        confidence
+      });
+    }
+  }
+  const priorityOrder = { urgent: 0, high: 1, medium: 2, low: 3 };
+  suggestions.sort((a4, b6) => {
+    const priorityDiff = priorityOrder[a4.priority] - priorityOrder[b6.priority];
+    if (priorityDiff !== 0) return priorityDiff;
+    return b6.confidence - a4.confidence;
+  });
+  return suggestions;
+}
+function analyzeCampaignHealth(campaigns7, thresholds = {
+  acosWarning: 35,
+  acosCritical: 50,
+  ctrDropWarning: -20,
+  ctrDropCritical: -40,
+  cvrDropWarning: -25,
+  cvrDropCritical: -50,
+  roasMinimum: 2
+}) {
+  const results = [];
+  for (const campaign of campaigns7) {
+    const alerts = [];
+    const recommendations = [];
+    const now = /* @__PURE__ */ new Date();
+    const { currentMetrics: curr, historicalAverage: hist, changes } = campaign;
+    if (curr.acos > thresholds.acosCritical) {
+      alerts.push({
+        campaignId: campaign.campaignId,
+        campaignName: campaign.campaignName,
+        alertType: "acos_spike",
+        severity: "critical",
+        metric: "ACoS",
+        currentValue: curr.acos,
+        expectedValue: hist.acos,
+        changePercent: changes.acos,
+        message: `ACoS\u8FBE\u5230${curr.acos.toFixed(1)}%\uFF0C\u8D85\u8FC7\u4E34\u754C\u503C${thresholds.acosCritical}%`,
+        suggestedAction: "\u5EFA\u8BAE\u964D\u4F4E\u51FA\u4EF7\u6216\u6682\u505C\u4F4E\u6548\u5173\u952E\u8BCD",
+        detectedAt: now
+      });
+      recommendations.push("\u7D27\u6025\uFF1A\u964D\u4F4E\u9AD8ACoS\u5173\u952E\u8BCD\u7684\u51FA\u4EF7");
+      recommendations.push("\u68C0\u67E5\u662F\u5426\u6709\u6076\u610F\u70B9\u51FB\u6216\u7ADE\u4E89\u5BF9\u624B\u5E72\u6270");
+    } else if (curr.acos > thresholds.acosWarning) {
+      alerts.push({
+        campaignId: campaign.campaignId,
+        campaignName: campaign.campaignName,
+        alertType: "acos_spike",
+        severity: "warning",
+        metric: "ACoS",
+        currentValue: curr.acos,
+        expectedValue: hist.acos,
+        changePercent: changes.acos,
+        message: `ACoS\u8FBE\u5230${curr.acos.toFixed(1)}%\uFF0C\u63A5\u8FD1\u8B66\u6212\u7EBF`,
+        suggestedAction: "\u5EFA\u8BAE\u4F18\u5316\u5173\u952E\u8BCD\u51FA\u4EF7\u7B56\u7565",
+        detectedAt: now
+      });
+      recommendations.push("\u4F18\u5316\u51FA\u4EF7\u7B56\u7565\uFF0C\u5173\u6CE8\u9AD8\u82B1\u8D39\u4F4E\u8F6C\u5316\u8BCD");
+    }
+    if (changes.ctr < thresholds.ctrDropCritical) {
+      alerts.push({
+        campaignId: campaign.campaignId,
+        campaignName: campaign.campaignName,
+        alertType: "ctr_drop",
+        severity: "critical",
+        metric: "CTR",
+        currentValue: curr.ctr,
+        expectedValue: hist.ctr,
+        changePercent: changes.ctr,
+        message: `CTR\u4E0B\u964D${Math.abs(changes.ctr).toFixed(1)}%\uFF0C\u53EF\u80FD\u5B58\u5728\u4E25\u91CD\u95EE\u9898`,
+        suggestedAction: "\u68C0\u67E5\u5E7F\u544A\u521B\u610F\u548C\u5173\u952E\u8BCD\u76F8\u5173\u6027",
+        detectedAt: now
+      });
+      recommendations.push("\u7D27\u6025\uFF1A\u68C0\u67E5\u5E7F\u544A\u6587\u6848\u548C\u56FE\u7247\u662F\u5426\u9700\u8981\u66F4\u65B0");
+      recommendations.push("\u5206\u6790\u7ADE\u4E89\u5BF9\u624B\u662F\u5426\u6709\u65B0\u7684\u5E7F\u544A\u7B56\u7565");
+    } else if (changes.ctr < thresholds.ctrDropWarning) {
+      alerts.push({
+        campaignId: campaign.campaignId,
+        campaignName: campaign.campaignName,
+        alertType: "ctr_drop",
+        severity: "warning",
+        metric: "CTR",
+        currentValue: curr.ctr,
+        expectedValue: hist.ctr,
+        changePercent: changes.ctr,
+        message: `CTR\u4E0B\u964D${Math.abs(changes.ctr).toFixed(1)}%`,
+        suggestedAction: "\u5EFA\u8BAE\u4F18\u5316\u5E7F\u544A\u521B\u610F",
+        detectedAt: now
+      });
+      recommendations.push("\u8003\u8651\u66F4\u65B0\u5E7F\u544A\u521B\u610F\u4EE5\u63D0\u9AD8\u70B9\u51FB\u7387");
+    }
+    if (changes.cvr < thresholds.cvrDropCritical) {
+      alerts.push({
+        campaignId: campaign.campaignId,
+        campaignName: campaign.campaignName,
+        alertType: "cvr_drop",
+        severity: "critical",
+        metric: "CVR",
+        currentValue: curr.cvr,
+        expectedValue: hist.cvr,
+        changePercent: changes.cvr,
+        message: `\u8F6C\u5316\u7387\u4E0B\u964D${Math.abs(changes.cvr).toFixed(1)}%\uFF0C\u9700\u8981\u7ACB\u5373\u5173\u6CE8`,
+        suggestedAction: "\u68C0\u67E5\u4EA7\u54C1\u9875\u9762\u548C\u4EF7\u683C\u7ADE\u4E89\u529B",
+        detectedAt: now
+      });
+      recommendations.push("\u7D27\u6025\uFF1A\u68C0\u67E5\u4EA7\u54C1\u8BE6\u60C5\u9875\u662F\u5426\u6709\u95EE\u9898");
+      recommendations.push("\u5206\u6790\u662F\u5426\u6709\u5DEE\u8BC4\u6216\u5E93\u5B58\u95EE\u9898\u5F71\u54CD\u8F6C\u5316");
+    } else if (changes.cvr < thresholds.cvrDropWarning) {
+      alerts.push({
+        campaignId: campaign.campaignId,
+        campaignName: campaign.campaignName,
+        alertType: "cvr_drop",
+        severity: "warning",
+        metric: "CVR",
+        currentValue: curr.cvr,
+        expectedValue: hist.cvr,
+        changePercent: changes.cvr,
+        message: `\u8F6C\u5316\u7387\u4E0B\u964D${Math.abs(changes.cvr).toFixed(1)}%`,
+        suggestedAction: "\u5EFA\u8BAE\u4F18\u5316\u4EA7\u54C1\u9875\u9762",
+        detectedAt: now
+      });
+      recommendations.push("\u4F18\u5316\u4EA7\u54C1\u8BE6\u60C5\u9875\u4EE5\u63D0\u9AD8\u8F6C\u5316\u7387");
+    }
+    if (curr.roas < thresholds.roasMinimum && curr.spend > 0) {
+      alerts.push({
+        campaignId: campaign.campaignId,
+        campaignName: campaign.campaignName,
+        alertType: "roas_decline",
+        severity: curr.roas < 1 ? "critical" : "warning",
+        metric: "ROAS",
+        currentValue: curr.roas,
+        expectedValue: thresholds.roasMinimum,
+        changePercent: changes.roas,
+        message: `ROAS\u4EC5${curr.roas.toFixed(2)}\uFF0C\u4F4E\u4E8E\u6700\u4F4E\u8981\u6C42${thresholds.roasMinimum}`,
+        suggestedAction: "ROAS\u8FC7\u4F4E\uFF0C\u5EFA\u8BAE\u4F18\u5316\u6216\u6682\u505C\u6D3B\u52A8",
+        detectedAt: now
+      });
+      recommendations.push("\u5206\u6790\u4F4E\u6548\u5173\u952E\u8BCD\u5E76\u8003\u8651\u6682\u505C");
+    }
+    if (curr.clicks > 20 && curr.orders === 0) {
+      alerts.push({
+        campaignId: campaign.campaignId,
+        campaignName: campaign.campaignName,
+        alertType: "no_conversions",
+        severity: curr.clicks > 50 ? "critical" : "warning",
+        metric: "Conversions",
+        currentValue: 0,
+        expectedValue: hist.orders,
+        changePercent: -100,
+        message: `${curr.clicks}\u6B21\u70B9\u51FB\u65E0\u8F6C\u5316\uFF0C\u82B1\u8D39$${curr.spend.toFixed(2)}`,
+        suggestedAction: "\u68C0\u67E5\u5173\u952E\u8BCD\u76F8\u5173\u6027\u548C\u4EA7\u54C1\u7ADE\u4E89\u529B",
+        detectedAt: now
+      });
+      recommendations.push("\u5206\u6790\u65E0\u8F6C\u5316\u539F\u56E0\uFF1A\u5173\u952E\u8BCD\u76F8\u5173\u6027\u3001\u4EF7\u683C\u3001\u8BC4\u4EF7\u7B49");
+    }
+    const efficiencyScore = calculateEfficiencyScore(curr.acos, curr.roas, thresholds);
+    const trafficScore = calculateTrafficScore(changes.impressions, changes.clicks);
+    const conversionScore = calculateConversionScore(curr.cvr, changes.cvr, curr.orders);
+    const costScore = calculateCostScore(curr.acos, changes.spend, changes.sales);
+    const overallScore = Math.round(
+      efficiencyScore * 0.35 + trafficScore * 0.2 + conversionScore * 0.3 + costScore * 0.15
+    );
+    let status = "healthy";
+    if (overallScore < 40 || alerts.some((a4) => a4.severity === "critical")) {
+      status = "critical";
+    } else if (overallScore < 70 || alerts.some((a4) => a4.severity === "warning")) {
+      status = "warning";
+    }
+    results.push({
+      campaignId: campaign.campaignId,
+      campaignName: campaign.campaignName,
+      overallScore,
+      scoreBreakdown: {
+        efficiency: efficiencyScore,
+        traffic: trafficScore,
+        conversion: conversionScore,
+        cost: costScore
+      },
+      status,
+      alerts,
+      recommendations: Array.from(new Set(recommendations))
+      // 去重
+    });
+  }
+  results.sort((a4, b6) => a4.overallScore - b6.overallScore);
+  return results;
+}
+function calculateEfficiencyScore(acos, roas, thresholds) {
+  let score = 100;
+  if (acos > thresholds.acosCritical) {
+    score -= 50;
+  } else if (acos > thresholds.acosWarning) {
+    score -= 25;
+  } else if (acos > 20) {
+    score -= 10;
+  }
+  if (roas < 1) {
+    score -= 40;
+  } else if (roas < thresholds.roasMinimum) {
+    score -= 20;
+  } else if (roas > 5) {
+    score += 10;
+  }
+  return Math.max(0, Math.min(100, score));
+}
+function calculateTrafficScore(impressionChange, clickChange) {
+  let score = 70;
+  if (impressionChange > 20) score += 15;
+  else if (impressionChange > 0) score += 10;
+  else if (impressionChange < -30) score -= 25;
+  else if (impressionChange < -10) score -= 10;
+  if (clickChange > 20) score += 15;
+  else if (clickChange > 0) score += 10;
+  else if (clickChange < -30) score -= 25;
+  else if (clickChange < -10) score -= 10;
+  return Math.max(0, Math.min(100, score));
+}
+function calculateConversionScore(cvr, cvrChange, orders) {
+  let score = 60;
+  if (cvr > 15) score += 25;
+  else if (cvr > 10) score += 15;
+  else if (cvr > 5) score += 5;
+  else if (cvr < 2) score -= 20;
+  if (cvrChange > 10) score += 15;
+  else if (cvrChange < -30) score -= 25;
+  else if (cvrChange < -10) score -= 10;
+  if (orders === 0) score -= 30;
+  else if (orders < 5) score -= 10;
+  return Math.max(0, Math.min(100, score));
+}
+function calculateCostScore(acos, spendChange, salesChange) {
+  let score = 70;
+  if (salesChange > spendChange && salesChange > 0) {
+    score += 20;
+  } else if (spendChange > 30 && salesChange < 10) {
+    score -= 30;
+  }
+  if (acos < 15) score += 15;
+  else if (acos > 40) score -= 20;
+  return Math.max(0, Math.min(100, score));
+}
+function validateNegativeKeywordBatch(items) {
+  const valid = [];
+  const invalid = [];
+  const seen2 = /* @__PURE__ */ new Set();
+  for (const item of items) {
+    const key = `${item.campaignId}-${item.adGroupId || "campaign"}-${item.keyword}-${item.matchType}`;
+    if (seen2.has(key)) {
+      invalid.push({ item, reason: "\u91CD\u590D\u7684\u5426\u5B9A\u8BCD" });
+      continue;
+    }
+    seen2.add(key);
+    if (!item.keyword || item.keyword.trim().length === 0) {
+      invalid.push({ item, reason: "\u5173\u952E\u8BCD\u4E0D\u80FD\u4E3A\u7A7A" });
+      continue;
+    }
+    if (item.keyword.length > 80) {
+      invalid.push({ item, reason: "\u5173\u952E\u8BCD\u957F\u5EA6\u8D85\u8FC780\u5B57\u7B26\u9650\u5236" });
+      continue;
+    }
+    if (!["phrase", "exact"].includes(item.matchType)) {
+      invalid.push({ item, reason: "\u65E0\u6548\u7684\u5339\u914D\u7C7B\u578B" });
+      continue;
+    }
+    if (item.level === "ad_group" && !item.adGroupId) {
+      invalid.push({ item, reason: "\u5E7F\u544A\u7EC4\u5C42\u7EA7\u5426\u5B9A\u9700\u8981\u6307\u5B9A\u5E7F\u544A\u7EC4ID" });
+      continue;
+    }
+    valid.push(item);
+  }
+  return { valid, invalid };
+}
+function validateBidAdjustmentBatch(items, maxBid = 10, minBid = 0.02, maxAdjustmentPercent = 100) {
+  const valid = [];
+  const invalid = [];
+  const seen2 = /* @__PURE__ */ new Set();
+  for (const item of items) {
+    if (seen2.has(item.targetId)) {
+      invalid.push({ item, reason: "\u91CD\u590D\u7684\u76EE\u6807ID" });
+      continue;
+    }
+    seen2.add(item.targetId);
+    if (item.newBid < minBid) {
+      invalid.push({ item, reason: `\u51FA\u4EF7\u4E0D\u80FD\u4F4E\u4E8E$${minBid}` });
+      continue;
+    }
+    if (item.newBid > maxBid) {
+      invalid.push({ item, reason: `\u51FA\u4EF7\u4E0D\u80FD\u8D85\u8FC7$${maxBid}` });
+      continue;
+    }
+    if (Math.abs(item.adjustmentPercent) > maxAdjustmentPercent) {
+      invalid.push({ item, reason: `\u5355\u6B21\u8C03\u6574\u5E45\u5EA6\u4E0D\u80FD\u8D85\u8FC7${maxAdjustmentPercent}%` });
+      continue;
+    }
+    if (item.newBid === item.currentBid) {
+      invalid.push({ item, reason: "\u65B0\u51FA\u4EF7\u4E0E\u5F53\u524D\u51FA\u4EF7\u76F8\u540C" });
+      continue;
+    }
+    valid.push(item);
+  }
+  return { valid, invalid };
+}
+function generateBatchOperationSummary(negativeItems, bidItems) {
+  const negativeSummary = {
+    total: negativeItems.length,
+    byCampaign: {},
+    byMatchType: { phrase: 0, exact: 0 },
+    byLevel: { ad_group: 0, campaign: 0 }
+  };
+  for (const item of negativeItems) {
+    negativeSummary.byCampaign[item.campaignId] = (negativeSummary.byCampaign[item.campaignId] || 0) + 1;
+    negativeSummary.byMatchType[item.matchType]++;
+    negativeSummary.byLevel[item.level]++;
+  }
+  const bidSummary = {
+    total: bidItems.length,
+    increases: 0,
+    decreases: 0,
+    avgAdjustment: 0,
+    totalBidChange: 0
+  };
+  let totalAdjustment = 0;
+  for (const item of bidItems) {
+    if (item.newBid > item.currentBid) {
+      bidSummary.increases++;
+    } else {
+      bidSummary.decreases++;
+    }
+    totalAdjustment += item.adjustmentPercent;
+    bidSummary.totalBidChange += item.newBid - item.currentBid;
+  }
+  bidSummary.avgAdjustment = bidItems.length > 0 ? totalAdjustment / bidItems.length : 0;
+  return {
+    negatives: negativeSummary,
+    bids: bidSummary
+  };
+}
+
+// server/routers.ts
 init_amazonSyncService();
 
 // server/notificationService.ts
@@ -337571,9 +337927,6 @@ ${summaryMessage}`
   }
   return { sent, failed };
 }
-
-// server/schedulerService.ts
-init_adAutomation();
 
 // server/automationExecutionEngine.ts
 init_db2();
@@ -349874,7 +350227,7 @@ function goldenSectionSearch(f6, a4, b6, tolerance = 1e-3) {
   }
   return (a4 + b6) / 2;
 }
-function calculateOptimalBid(impressionCurve, ctrCurve, conversion) {
+function calculateOptimalBid2(impressionCurve, ctrCurve, conversion) {
   const { cvr, aov } = conversion;
   const breakEvenCpc = cvr * aov;
   const minCPC = 0.02;
@@ -349943,7 +350296,7 @@ async function buildMarketCurveForKeyword(accountId, campaignId, keywordId, days
     const impressionCurve2 = buildImpressionCurve(dataPoints2);
     const ctrCurve2 = buildCTRCurve(dataPoints2);
     const conversion2 = calculateConversionParams(dataPoints2);
-    const optimal2 = calculateOptimalBid(impressionCurve2, ctrCurve2, conversion2);
+    const optimal2 = calculateOptimalBid2(impressionCurve2, ctrCurve2, conversion2);
     return {
       impressionCurve: impressionCurve2,
       ctrCurve: ctrCurve2,
@@ -349968,7 +350321,7 @@ async function buildMarketCurveForKeyword(accountId, campaignId, keywordId, days
   const impressionCurve = buildImpressionCurve(dataPoints);
   const ctrCurve = buildCTRCurve(dataPoints);
   const conversion = calculateConversionParams(dataPoints);
-  const optimal = calculateOptimalBid(impressionCurve, ctrCurve, conversion);
+  const optimal = calculateOptimalBid2(impressionCurve, ctrCurve, conversion);
   const confidence = calculateModelConfidence(dataPoints, impressionCurve.r2);
   return {
     impressionCurve,
@@ -358486,7 +358839,7 @@ var placementRouter = router({
         String(keyword.id)
       );
       if (marketCurve) {
-        const optimalBid = calculateOptimalBid(
+        const optimalBid = calculateOptimalBid2(
           marketCurve.impressionCurve,
           marketCurve.ctrCurve,
           marketCurve.conversion
@@ -358553,7 +358906,7 @@ var placementRouter = router({
           String(keyword.id)
         );
         if (marketCurve) {
-          const optimalBid = calculateOptimalBid(
+          const optimalBid = calculateOptimalBid2(
             marketCurve.impressionCurve,
             marketCurve.ctrCurve,
             marketCurve.conversion
@@ -358640,7 +358993,7 @@ var placementRouter = router({
           skippedCount++;
           continue;
         }
-        const optimalBid = calculateOptimalBid(
+        const optimalBid = calculateOptimalBid2(
           marketCurve.impressionCurve,
           marketCurve.ctrCurve,
           marketCurve.conversion
@@ -358756,7 +359109,7 @@ var placementRouter = router({
             skippedCount++;
             continue;
           }
-          const optimalBid = calculateOptimalBid(
+          const optimalBid = calculateOptimalBid2(
             marketCurve.impressionCurve,
             marketCurve.ctrCurve,
             marketCurve.conversion
@@ -358881,7 +359234,7 @@ var placementRouter = router({
       String(input.keywordId)
     );
     if (marketCurve) {
-      const optimalBid2 = calculateOptimalBid(
+      const optimalBid2 = calculateOptimalBid2(
         marketCurve.impressionCurve,
         marketCurve.ctrCurve,
         marketCurve.conversion
@@ -358896,7 +359249,7 @@ var placementRouter = router({
     const defaultImpressionCurve = { a: 1e3, b: 0.5, c: 500, r2: 0.8 };
     const defaultCtrCurve = { baseCtr: 0.01, positionBonus: 0.5, topSearchCtrBonus: 0.3 };
     const defaultConversion = { cvr, aov, conversionDelayDays: 7 };
-    const optimalBid = calculateOptimalBid(
+    const optimalBid = calculateOptimalBid2(
       defaultImpressionCurve,
       defaultCtrCurve,
       defaultConversion
