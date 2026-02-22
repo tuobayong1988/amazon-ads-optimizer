@@ -23,6 +23,7 @@ import { preOptimizationSafetyCheck, applyBidGuardrail, applyBudgetGuardrail, ap
 import * as adAutomation from "./adAutomation";
 import * as intelligentBudgetAllocationService from "./intelligentBudgetAllocationService";
 import * as bidCoordinator from "./services/bidCoordinator";
+import * as nextGenOrchestrator from "./nextGenBidOrchestrator";
 import * as amazonApiHelper from "./services/amazonApiHelper";
 import { acquireAccountOptimizationLock, releaseAccountOptimizationLock, getModuleLockGroup } from "./dataSyncScheduler";
 import * as amazonIdResolver from "./services/amazonIdResolver";
@@ -1050,56 +1051,92 @@ async function executeBidOptimization(
       });
     }
     
-    // v163: 使用UCB增强版算法批量优化关键词 + 渐进式调整
+    // v197: 下一代算法集成 — 先尝试NextGen算法，失败或不适用时回退到现有算法
     if (keywordTargets.length > 0) {
-      const results = bidOptimizer.optimizePerformanceGroupEnhanced(
-        keywordTargets, bidConfig, maxBidLimit, currentDate
-      );
+      // 收集NextGen已处理的targetId，避免重复处理
+      const nextGenProcessedIds = new Set<number>();
       
-      for (const result of results) {
-        // v163: 应用渐进式竞价调整，限制单次调整幅度
-        let finalBid = result.newBid;
-        if (campaignTimeWeightedMetrics && Math.abs(result.newBid - result.previousBid) > 0.01) {
-          const gradualResult = gradualEngine.applyGradualBidAdjustment(
-            result.previousBid,
-            result.newBid,
-            campaignTimeWeightedMetrics,
-            0, // TODO: 追踪连续同向调整次数
-            maxBidLimit,
-            0.02
+      // v197: 逐个尝试NextGen算法（支持A/B流量分配）
+      for (const kwTarget of keywordTargets) {
+        try {
+          const nextGenResult = await nextGenOrchestrator.calculateNextGenBid(
+            config.accountId, kwTarget, bidConfig
           );
-          finalBid = gradualResult.gradualBid;
-          console.log(`[BidOptimization] v163: 渐进式竞价 - 关键词${result.targetId}: 算法目标$${result.newBid.toFixed(2)} → 渐进$${finalBid.toFixed(2)} (置信度=${gradualResult.dataConfidence}, 趋势=${gradualResult.trendDirection})`);
+          if (nextGenResult) {
+            // NextGen算法返回了结果，使用它
+            let finalBid = nextGenResult.newBid;
+            
+            // v165: 绝对红线校验
+            finalBid = Math.min(finalBid, maxBidLimit);
+            finalBid = Math.max(finalBid, 0.02);
+            finalBid = Math.round(finalBid * 100) / 100;
+            
+            if (Math.abs(finalBid - nextGenResult.previousBid) > 0.01) {
+              const keyword = keywords.find(k => k.id === nextGenResult.targetId);
+              details.push({
+                keywordId: nextGenResult.targetId,
+                keywordText: keyword?.keywordText || `关键词 ${nextGenResult.targetId}`,
+                campaignId: campaign.id,
+                campaignName: campaign.campaignName,
+                currentBid: nextGenResult.previousBid,
+                newBid: finalBid,
+                changePercent: ((finalBid - nextGenResult.previousBid) / nextGenResult.previousBid * 100).toFixed(2),
+                reason: nextGenResult.reason,
+                algorithmUsed: nextGenResult.algorithmUsed,
+                confidenceScore: nextGenResult.confidence,
+                isNextGen: true,
+              });
+              if (!dryRun) adjustmentsCount++;
+            }
+            nextGenProcessedIds.add(kwTarget.id);
+          }
+          // nextGenResult === null 表示该target不在NextGen流量中，回退到现有算法
+        } catch (ngErr: any) {
+          console.error(`[BidOptimization] v197: NextGen算法异常，关键词${kwTarget.id}回退到现有算法: ${ngErr.message}`);
         }
+      }
+      
+      // 对NextGen未处理的关键词，使用现有的UCB增强版算法
+      const fallbackTargets = keywordTargets.filter(t => !nextGenProcessedIds.has(t.id));
+      if (fallbackTargets.length > 0) {
+        console.log(`[BidOptimization] v197: ${nextGenProcessedIds.size}个关键词使用NextGen算法, ${fallbackTargets.length}个使用现有算法`);
+        const results = bidOptimizer.optimizePerformanceGroupEnhanced(
+          fallbackTargets, bidConfig, maxBidLimit, currentDate
+        );
         
-        // v165: 绝对红线校验（最后一道防线）——无论任何算法计算结果，finalBid不得超过maxBidLimit
-        finalBid = Math.min(finalBid, maxBidLimit);
-        finalBid = Math.max(finalBid, 0.02);
-        finalBid = Math.round(finalBid * 100) / 100;
-        if (finalBid > maxBidLimit) {
-          console.error(`[BidOptimization] v165: 红线拦截! keyword ${result.targetId} finalBid=$${finalBid} > maxBidLimit=$${maxBidLimit}`);
-          finalBid = maxBidLimit;
-        }
-        
-        if (Math.abs(finalBid - result.previousBid) > 0.01) {
-          const keyword = keywords.find(k => k.id === result.targetId);
-          const adjustment = {
-            keywordId: result.targetId,
-            keywordText: keyword?.keywordText || `关键词 ${result.targetId}`,
-            campaignId: campaign.id,
-            campaignName: campaign.campaignName,
-            currentBid: result.previousBid,
-            newBid: finalBid, // v165: 经过绝对红线校验的最终出价
-            changePercent: ((finalBid - result.previousBid) / result.previousBid * 100).toFixed(2),
-            reason: `[v165渐进+${result.algorithmUsed}] ${result.reason}`,
-            algorithmUsed: result.algorithmUsed,
-            confidenceScore: result.confidenceScore,
-          };
+        for (const result of results) {
+          let finalBid = result.newBid;
+          if (campaignTimeWeightedMetrics && Math.abs(result.newBid - result.previousBid) > 0.01) {
+            const gradualResult = gradualEngine.applyGradualBidAdjustment(
+              result.previousBid,
+              result.newBid,
+              campaignTimeWeightedMetrics,
+              0,
+              maxBidLimit,
+              0.02
+            );
+            finalBid = gradualResult.gradualBid;
+          }
           
-          details.push(adjustment);
+          finalBid = Math.min(finalBid, maxBidLimit);
+          finalBid = Math.max(finalBid, 0.02);
+          finalBid = Math.round(finalBid * 100) / 100;
           
-          if (!dryRun) {
-            adjustmentsCount++;
+          if (Math.abs(finalBid - result.previousBid) > 0.01) {
+            const keyword = keywords.find(k => k.id === result.targetId);
+            details.push({
+              keywordId: result.targetId,
+              keywordText: keyword?.keywordText || `关键词 ${result.targetId}`,
+              campaignId: campaign.id,
+              campaignName: campaign.campaignName,
+              currentBid: result.previousBid,
+              newBid: finalBid,
+              changePercent: ((finalBid - result.previousBid) / result.previousBid * 100).toFixed(2),
+              reason: `[v165渐进+${result.algorithmUsed}] ${result.reason}`,
+              algorithmUsed: result.algorithmUsed,
+              confidenceScore: result.confidenceScore,
+            });
+            if (!dryRun) adjustmentsCount++;
           }
         }
       }
@@ -1137,56 +1174,83 @@ async function executeBidOptimization(
       }
     }
     
-    // v163: 商品定向也使用渐进式竞价调整
+    // v197: 商品定向也集成NextGen算法
     if (productTargets.length > 0) {
-      const results = bidOptimizer.optimizePerformanceGroupEnhanced(
-        productTargets, bidConfig, maxBidLimit, currentDate
-      );
+      const nextGenPtProcessedIds = new Set<number>();
       
-      for (const result of results) {
-        let finalBid = result.newBid;
-        if (campaignTimeWeightedMetrics && Math.abs(result.newBid - result.previousBid) > 0.01) {
-          const gradualResult = gradualEngine.applyGradualBidAdjustment(
-            result.previousBid,
-            result.newBid,
-            campaignTimeWeightedMetrics,
-            0,
-            maxBidLimit,
-            0.02
+      // v197: 逐个尝试NextGen算法
+      for (const ptTarget of productTargets) {
+        try {
+          const nextGenResult = await nextGenOrchestrator.calculateNextGenBid(
+            config.accountId, ptTarget, bidConfig
           );
-          finalBid = gradualResult.gradualBid;
-          console.log(`[BidOptimization] v163: 渐进式商品定向 - ${result.targetId}: $${result.newBid.toFixed(2)} → $${finalBid.toFixed(2)}`);
+          if (nextGenResult) {
+            let finalBid = nextGenResult.newBid;
+            finalBid = Math.min(finalBid, maxBidLimit);
+            finalBid = Math.max(finalBid, 0.02);
+            finalBid = Math.round(finalBid * 100) / 100;
+            
+            if (Math.abs(finalBid - nextGenResult.previousBid) > 0.01) {
+              const target = allTargets.find(t => t.id === nextGenResult.targetId);
+              details.push({
+                keywordId: nextGenResult.targetId,
+                keywordText: target?.targetText || target?.targetValue || `商品定向 ${nextGenResult.targetId}`,
+                campaignId: campaign.id,
+                campaignName: campaign.campaignName,
+                currentBid: nextGenResult.previousBid,
+                newBid: finalBid,
+                changePercent: ((finalBid - nextGenResult.previousBid) / nextGenResult.previousBid * 100).toFixed(2),
+                reason: `商品定向 - ${nextGenResult.reason}`,
+                isProductTarget: true,
+                algorithmUsed: nextGenResult.algorithmUsed,
+                confidenceScore: nextGenResult.confidence,
+                isNextGen: true,
+              });
+              if (!dryRun) adjustmentsCount++;
+            }
+            nextGenPtProcessedIds.add(ptTarget.id);
+          }
+        } catch (ngErr: any) {
+          console.error(`[BidOptimization] v197: NextGen商品定向异常，${ptTarget.id}回退: ${ngErr.message}`);
         }
+      }
+      
+      // 对NextGen未处理的商品定向，使用现有算法
+      const fallbackPtTargets = productTargets.filter(t => !nextGenPtProcessedIds.has(t.id));
+      if (fallbackPtTargets.length > 0) {
+        const results = bidOptimizer.optimizePerformanceGroupEnhanced(
+          fallbackPtTargets, bidConfig, maxBidLimit, currentDate
+        );
         
-        // v165: 商品定向绝对红线校验（最后一道防线）
-        finalBid = Math.min(finalBid, maxBidLimit);
-        finalBid = Math.max(finalBid, 0.02);
-        finalBid = Math.round(finalBid * 100) / 100;
-        if (finalBid > maxBidLimit) {
-          console.error(`[BidOptimization] v165: 红线拦截! product_target ${result.targetId} finalBid=$${finalBid} > maxBidLimit=$${maxBidLimit}`);
-          finalBid = maxBidLimit;
-        }
-        
-        if (Math.abs(finalBid - result.previousBid) > 0.01) {
-          const target = allTargets.find(t => t.id === result.targetId);
-          const adjustment = {
-            keywordId: result.targetId,
-            keywordText: target?.targetText || target?.targetValue || `商品定向 ${result.targetId}`,
-            campaignId: campaign.id,
-            campaignName: campaign.campaignName,
-            currentBid: result.previousBid,
-            newBid: finalBid, // v165: 经过绝对红线校验的最终出价
-            changePercent: ((finalBid - result.previousBid) / result.previousBid * 100).toFixed(2),
-            reason: `商品定向 - [v165渐进+${result.algorithmUsed}] ${result.reason}`,
-            isProductTarget: true,
-            algorithmUsed: result.algorithmUsed,
-            confidenceScore: result.confidenceScore,
-          };
+        for (const result of results) {
+          let finalBid = result.newBid;
+          if (campaignTimeWeightedMetrics && Math.abs(result.newBid - result.previousBid) > 0.01) {
+            const gradualResult = gradualEngine.applyGradualBidAdjustment(
+              result.previousBid, result.newBid, campaignTimeWeightedMetrics, 0, maxBidLimit, 0.02
+            );
+            finalBid = gradualResult.gradualBid;
+          }
           
-          details.push(adjustment);
+          finalBid = Math.min(finalBid, maxBidLimit);
+          finalBid = Math.max(finalBid, 0.02);
+          finalBid = Math.round(finalBid * 100) / 100;
           
-          if (!dryRun) {
-            adjustmentsCount++;
+          if (Math.abs(finalBid - result.previousBid) > 0.01) {
+            const target = allTargets.find(t => t.id === result.targetId);
+            details.push({
+              keywordId: result.targetId,
+              keywordText: target?.targetText || target?.targetValue || `商品定向 ${result.targetId}`,
+              campaignId: campaign.id,
+              campaignName: campaign.campaignName,
+              currentBid: result.previousBid,
+              newBid: finalBid,
+              changePercent: ((finalBid - result.previousBid) / result.previousBid * 100).toFixed(2),
+              reason: `商品定向 - [v165渐进+${result.algorithmUsed}] ${result.reason}`,
+              isProductTarget: true,
+              algorithmUsed: result.algorithmUsed,
+              confidenceScore: result.confidenceScore,
+            });
+            if (!dryRun) adjustmentsCount++;
           }
         }
       }

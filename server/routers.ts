@@ -40,6 +40,10 @@ import { multiTenantRouter } from './routes/multiTenant';
 import { debugSyncRouter } from './debug-sync';
 import { devRouter } from './routes/dev';
 import * as advancedAnalyticsService from './advancedAnalyticsService';
+import * as nextGenOrchestrator from './nextGenBidOrchestrator';
+import * as causalInferenceEngine from './causalInferenceEngine';
+import * as keywordGraphService from './keywordGraphService';
+import * as budgetPortfolioOptimizer from './budgetPortfolioOptimizer';
 import * as algorithmEvolutionEngine from './algorithmEvolutionEngine';
 import { syncCampaignStatusToAmazon } from './services/amazonApiHelper';
 import { getExchangeRateStatus, refreshExchangeRates, getExchangeRates } from './services/exchangeRateService';
@@ -12402,6 +12406,67 @@ const inviteCodeRouter = router({
 });
 
 // ==================== Main Router ====================
+// ==================== v197: NextGen Algorithm Router ====================
+const nextGenRouter = router({
+  // 获取NextGen算法系统状态
+  getStatus: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      return {
+        version: 'v197',
+        algorithms: ['sigmoid_curve', 'linucb', 'cql', 'causal_inference', 'meta_learning'],
+        status: 'active',
+        trafficRatio: 0.3,
+      };
+    }),
+  
+  // 执行NextGen维护任务（手动触发）
+  runMaintenance: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ input }) => {
+      return nextGenOrchestrator.executeNextGenMaintenanceTasks(input.accountId);
+    }),
+  
+  // 执行CQL模型训练（手动触发）
+  trainModel: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ input }) => {
+      await nextGenOrchestrator.executeModelTraining(input.accountId);
+      return { success: true };
+    }),
+  
+  // 获取因果推断分析结果
+  getCausalAnalysis: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      return causalInferenceEngine.batchCausalAnalysis(input.accountId);
+    }),
+  
+  // 获取关键词图谱机会
+  getKeywordOpportunities: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      const opportunities = await keywordGraphService.discoverOpportunities(input.accountId);
+      const negatives = await keywordGraphService.discoverNegativeCandidates(input.accountId);
+      return { opportunities, negatives };
+    }),
+  
+  // 执行预算组合优化
+  optimizeBudget: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ input }) => {
+      return budgetPortfolioOptimizer.optimizeBudgetPortfolio(input.accountId);
+    }),
+  
+  // 执行关键词图谱分析
+  analyzeKeywordGraph: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ input }) => {
+      await nextGenOrchestrator.executeKeywordGraphAnalysis(input.accountId);
+      return { success: true };
+    }),
+});
+
 export const appRouter = router({
   dev: devRouter,
   system: systemRouter,
@@ -12512,6 +12577,7 @@ export const appRouter = router({
   advancedAnalytics: advancedAnalyticsRouter,
   exchangeRate: exchangeRateRouter,
   postDeploy: postDeployRouter,
+  nextGen: nextGenRouter,
 });
 
 export type AppRouter = typeof appRouter;

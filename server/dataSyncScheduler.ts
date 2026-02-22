@@ -18,6 +18,7 @@ import * as searchTermHarvester from './searchTermHarvester';
 import { detectRiskSignals } from './attributionWindowHelper';
 import * as campaignLifecycleService from './services/campaignLifecycleService';
 import { runAutoCorrection, startAutoCorrector, stopAutoCorrector } from './optimizationAutoCorrector';
+import * as nextGenOrchestrator from './nextGenBidOrchestrator';
 
 // 同步层级定义
 export type SyncTier = 'high' | 'medium' | 'low' | 'full';
@@ -820,7 +821,10 @@ type OptimizationTaskType =
   | 'daily_search_term_negation'
   | 'budget_allocation' 
   | 'search_term_harvest' 
-  | 'weekly_report';
+  | 'weekly_report'
+  | 'nextgen_maintenance'
+  | 'nextgen_model_training'
+  | 'nextgen_budget_optimization';
 
 interface OptimizationScheduleConfig {
   type: OptimizationTaskType;
@@ -900,6 +904,26 @@ const OPTIMIZATION_SCHEDULE: Record<OptimizationTaskType, OptimizationScheduleCo
     cronDayOfWeek: 1, // 周一
     specificModules: [],
   },
+  // v197: 下一代算法定时任务
+  nextgen_maintenance: {
+    type: 'nextgen_maintenance',
+    description: 'v197: NextGen维护 - 特征缓存、Sigmoid拟合、RL Reward回填、因果分析',
+    intervalMs: 4 * 60 * 60 * 1000, // 每4小时
+    specificModules: [],
+  },
+  nextgen_model_training: {
+    type: 'nextgen_model_training',
+    description: 'v197: NextGen模型训练 - CQL离线强化学习模型训练',
+    intervalMs: 6 * 60 * 60 * 1000, // 每6小时
+    specificModules: [],
+  },
+  nextgen_budget_optimization: {
+    type: 'nextgen_budget_optimization',
+    description: 'v197: NextGen预算组合优化 + 关键词图谱分析',
+    intervalMs: 24 * 60 * 60 * 1000, // 每日
+    cronHours: [2], // 凌晨2:00
+    specificModules: [],
+  },
 };
 
 let optimizationIntervals: Record<OptimizationTaskType, NodeJS.Timeout | null> = {
@@ -913,6 +937,10 @@ let optimizationIntervals: Record<OptimizationTaskType, NodeJS.Timeout | null> =
   budget_allocation: null,
   search_term_harvest: null,
   weekly_report: null,
+  // v197: NextGen定时任务
+  nextgen_maintenance: null,
+  nextgen_model_training: null,
+  nextgen_budget_optimization: null,
 };
 
 // v122: 执行锁 - 防止同一任务重复执行
@@ -1215,6 +1243,33 @@ export async function startOptimizationScheduler(): Promise<void> {
   } catch (correctorErr: any) {
     console.error('[OptimizationScheduler] v167: 自动纠错服务启动失败:', correctorErr.message);
   }
+  
+  // v197: 启动NextGen维护任务 - 每4小时（偏移41分钟）
+  setTimeout(() => {
+    optimizationIntervals.nextgen_maintenance = setInterval(async () => {
+      await executeOptimizationTask('nextgen_maintenance');
+    }, OPTIMIZATION_SCHEDULE.nextgen_maintenance.intervalMs);
+    executeOptimizationTask('nextgen_maintenance'); // 立即执行一次
+  }, 41 * 60 * 1000);
+  console.log(`[OptimizationScheduler] v197: NextGen维护任务已启动，间隔: 4小时，偏移: 41分钟`);
+  
+  // v197: 启动NextGen模型训练 - 每6小时（偏移46分钟）
+  setTimeout(() => {
+    optimizationIntervals.nextgen_model_training = setInterval(async () => {
+      await executeOptimizationTask('nextgen_model_training');
+    }, OPTIMIZATION_SCHEDULE.nextgen_model_training.intervalMs);
+  }, 46 * 60 * 1000);
+  console.log(`[OptimizationScheduler] v197: NextGen模型训练已启动，间隔: 6小时，偏移: 46分钟`);
+  
+  // v197: 启动NextGen预算优化+关键词图谱 - 每日凌晨2:00
+  optimizationIntervals.nextgen_budget_optimization = setInterval(async () => {
+    const now = new Date();
+    const localHour = getLocalHour(now, 'US');
+    if (localHour === 2 && shouldExecuteThisHour('nextgen_budget_optimization')) {
+      await executeOptimizationTask('nextgen_budget_optimization');
+    }
+  }, 60 * 60 * 1000);
+  console.log(`[OptimizationScheduler] v197: NextGen预算优化+关键词图谱已启动，执行时间: 每日凌晨2:00`);
 }
 
 /**
@@ -1562,6 +1617,69 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
       case 'weekly_report': {
         console.log(`[OptimizationScheduler] 生成绩效周报`);
         // TODO: 实现绩效周报生成逻辑
+        break;
+      }
+      
+      // ==================== v197: NextGen维护任务 ====================
+      case 'nextgen_maintenance': {
+        console.log(`[OptimizationScheduler] v197: NextGen维护任务触发...`);
+        try {
+          const targets = await getEnabledOptimizationTargets();
+          for (const target of targets) {
+            try {
+              const result = await nextGenOrchestrator.executeNextGenMaintenanceTasks(target.accountId);
+              console.log(`  - 账户${target.accountId}: 特征缓存=${result.featuresCached}, Sigmoid拟合=${result.sigmoidFitted.fitted}, Reward回填=${result.rewardsBackfilled}, 因果分析=${result.causalAnalysis.analyzed}`);
+            } catch (err: any) {
+              console.error(`  - 账户${target.accountId} NextGen维护失败: ${err.message}`);
+            }
+          }
+        } catch (err: any) {
+          console.error(`[OptimizationScheduler] v197: NextGen维护失败:`, err.message);
+        }
+        break;
+      }
+      
+      // ==================== v197: NextGen模型训练 ====================
+      case 'nextgen_model_training': {
+        console.log(`[OptimizationScheduler] v197: NextGen模型训练触发...`);
+        try {
+          const targets = await getEnabledOptimizationTargets();
+          for (const target of targets) {
+            try {
+              await nextGenOrchestrator.executeModelTraining(target.accountId);
+              console.log(`  - 账户${target.accountId}: CQL模型训练完成`);
+            } catch (err: any) {
+              console.error(`  - 账户${target.accountId} CQL训练失败: ${err.message}`);
+            }
+          }
+        } catch (err: any) {
+          console.error(`[OptimizationScheduler] v197: 模型训练失败:`, err.message);
+        }
+        break;
+      }
+      
+      // ==================== v197: NextGen预算优化+关键词图谱 ====================
+      case 'nextgen_budget_optimization': {
+        console.log(`[OptimizationScheduler] v197: NextGen预算优化+关键词图谱触发...`);
+        try {
+          const targets = await getEnabledOptimizationTargets();
+          for (const target of targets) {
+            try {
+              await nextGenOrchestrator.executeBudgetOptimization(target.accountId);
+              console.log(`  - 账户${target.accountId}: 预算组合优化完成`);
+            } catch (err: any) {
+              console.error(`  - 账户${target.accountId} 预算优化失败: ${err.message}`);
+            }
+            try {
+              await nextGenOrchestrator.executeKeywordGraphAnalysis(target.accountId);
+              console.log(`  - 账户${target.accountId}: 关键词图谱分析完成`);
+            } catch (err: any) {
+              console.error(`  - 账户${target.accountId} 关键词图谱失败: ${err.message}`);
+            }
+          }
+        } catch (err: any) {
+          console.error(`[OptimizationScheduler] v197: 预算优化失败:`, err.message);
+        }
         break;
       }
     }
