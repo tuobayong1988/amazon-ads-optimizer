@@ -853,10 +853,10 @@ const OPTIMIZATION_SCHEDULE: Record<OptimizationTaskType, OptimizationScheduleCo
   },
   search_term_harvest: {
     type: 'search_term_harvest',
-    description: '搜索词收割 - 每周自动收割高转化搜索词并添加否定词',
-    intervalMs: 7 * 24 * 60 * 60 * 1000,
+    description: '搜索词收割 - 每日自动收割高转化搜索词并添加否定词',
+    intervalMs: 24 * 60 * 60 * 1000, // v192: 从每周改为每日
     cronHours: [5], // 凌晨5:00
-    cronDayOfWeek: 1, // 周一
+    // v192: 移除cronDayOfWeek限制，每天都执行搜索词收割
     specificModules: [], // 独立执行，使用searchTermHarvester服务
   },
   weekly_report: {
@@ -1141,17 +1141,16 @@ export async function startOptimizationScheduler(): Promise<void> {
     executeOptimizationTask('budget_allocation'); // 立即执行一次
   }, 36 * 60 * 1000);
   console.log(`[OptimizationScheduler] 预算智能分配已启动，间隔: 4小时，偏移: 36分钟`);
-   // 7. 搜索词收割 - 周一凌晨5:00（站点本地时间）
+   // 7. 搜索词收割 - v192: 每日凌晨5:00（站点本地时间）
   optimizationIntervals.search_term_harvest = setInterval(async () => {
     const now = new Date();
-    // v182: 使用默认US站点本地时间（实际执行时会遍历所有账号）
     const localHour = getLocalHour(now, 'US');
-    const localDow = getLocalDayOfWeek(now, 'US');
-    if (localDow === 1 && localHour === 5 && shouldExecuteThisHour('search_term_harvest')) {
+    // v192: 移除周一限制，每天凌晨5:00都执行搜索词收割
+    if (localHour === 5 && shouldExecuteThisHour('search_term_harvest')) {
       await executeOptimizationTask('search_term_harvest');
     }
   }, 60 * 60 * 1000);
-  console.log(`[OptimizationScheduler] 搜索词收割已启动，执行时间: 周一凌晨5:00 (站点本地时间)`);
+  console.log(`[OptimizationScheduler] 搜索词收割已启动，执行时间: 每日凌晨5:00 (站点本地时间)`);
   
   // 8. 绩效周报 - 周一上午9:00（站点本地时间）
   optimizationIntervals.weekly_report = setInterval(async () => {

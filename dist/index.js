@@ -56851,6 +56851,78 @@ var init_amazonApiHelper = __esm({
   }
 });
 
+// server/utils/keywordValidator.ts
+function sanitizeAndValidateKeyword(text2, mode = "positive") {
+  let sanitized = (text2 || "").trim();
+  sanitized = sanitized.replace(CONTROL_CHARS_REGEX, "");
+  sanitized = sanitized.replace(INVALID_CHARS_REGEX, " ");
+  sanitized = sanitized.replace(/\s+/g, " ").trim();
+  if (!sanitized || sanitized.length === 0) {
+    return {
+      isValid: false,
+      sanitizedText: "",
+      reasonCode: "EMPTY_AFTER_SANITIZE",
+      reasonMessage: `\u5173\u952E\u8BCD"${text2}"\u6E05\u6D17\u540E\u4E3A\u7A7A\uFF0C\u5305\u542B\u7684\u5168\u90E8\u662F\u65E0\u6548\u5B57\u7B26`
+    };
+  }
+  if (sanitized.length > MAX_KEYWORD_CHARS) {
+    return {
+      isValid: false,
+      sanitizedText: sanitized,
+      reasonCode: "EXCEEDS_MAX_LENGTH",
+      reasonMessage: `\u5173\u952E\u8BCD\u957F\u5EA6${sanitized.length}\u8D85\u8FC7Amazon\u9650\u5236\u7684${MAX_KEYWORD_CHARS}\u5B57\u7B26`
+    };
+  }
+  const words = sanitized.split(/\s+/);
+  const wordCount = words.length;
+  if (mode === "positive" && wordCount > MAX_POSITIVE_WORD_COUNT) {
+    return {
+      isValid: false,
+      sanitizedText: sanitized,
+      reasonCode: "EXCEEDS_MAX_WORDS",
+      reasonMessage: `\u5173\u952E\u8BCD\u8BCD\u6570${wordCount}\u8D85\u8FC7Amazon\u9650\u5236\u7684${MAX_POSITIVE_WORD_COUNT}\u4E2A\u8BCD`
+    };
+  }
+  if (mode === "negative_phrase" && wordCount > MAX_NEGATIVE_PHRASE_WORD_COUNT) {
+    return {
+      isValid: false,
+      sanitizedText: sanitized,
+      reasonCode: "EXCEEDS_MAX_WORDS_NEG_PHRASE",
+      reasonMessage: `\u5426\u5B9A\u77ED\u8BED\u8BCD\u6570${wordCount}\u8D85\u8FC7Amazon\u9650\u5236\u7684${MAX_NEGATIVE_PHRASE_WORD_COUNT}\u4E2A\u8BCD`
+    };
+  }
+  if (mode === "negative_exact" && wordCount > MAX_NEGATIVE_EXACT_WORD_COUNT) {
+    return {
+      isValid: false,
+      sanitizedText: sanitized,
+      reasonCode: "EXCEEDS_MAX_WORDS_NEG_EXACT",
+      reasonMessage: `\u5426\u5B9A\u7CBE\u786E\u8BCD\u6570${wordCount}\u8D85\u8FC7Amazon\u9650\u5236\u7684${MAX_NEGATIVE_EXACT_WORD_COUNT}\u4E2A\u8BCD`
+    };
+  }
+  return {
+    isValid: true,
+    sanitizedText: sanitized
+  };
+}
+function isAsinSearchTerm(searchTerm) {
+  return /^[Bb]0[A-Za-z0-9]{8,}$/.test(searchTerm.trim());
+}
+function canAddPositiveKeyword(campaignTargetingType) {
+  return campaignTargetingType !== "auto";
+}
+var INVALID_CHARS_REGEX, CONTROL_CHARS_REGEX, MAX_KEYWORD_CHARS, MAX_POSITIVE_WORD_COUNT, MAX_NEGATIVE_PHRASE_WORD_COUNT, MAX_NEGATIVE_EXACT_WORD_COUNT;
+var init_keywordValidator = __esm({
+  "server/utils/keywordValidator.ts"() {
+    "use strict";
+    INVALID_CHARS_REGEX = /[^\p{L}\p{N}\s\-]/gu;
+    CONTROL_CHARS_REGEX = /[\u0000-\u001F\u007F-\u009F\uFFFE\uFFFF\uFEFF\uFFFC\u200B-\u200F\u2028-\u202F\u2060-\u206F]/g;
+    MAX_KEYWORD_CHARS = 80;
+    MAX_POSITIVE_WORD_COUNT = 10;
+    MAX_NEGATIVE_PHRASE_WORD_COUNT = 4;
+    MAX_NEGATIVE_EXACT_WORD_COUNT = 10;
+  }
+});
+
 // server/services/amazonIdResolver.ts
 var amazonIdResolver_exports = {};
 __export(amazonIdResolver_exports, {
@@ -56990,16 +57062,38 @@ async function resolveKeywordIds(accountId, conn, result) {
       if (toCreate.length > 0) {
         console.log(`[IdResolver] adGroup=${adGroupLocalId}: ${toCreate.length}\u4E2A\u5173\u952E\u8BCD\u9700\u8981\u5728Amazon\u521B\u5EFA`);
         const [campRows] = await conn.execute(
-          `SELECT c.campaignId FROM campaigns c
+          `SELECT c.campaignId, c.targetingType FROM campaigns c
            INNER JOIN ad_groups ag ON ag.campaignId = c.id
            WHERE ag.id = ? LIMIT 1`,
           [adGroupLocalId]
         );
         const amazonCampaignId = campRows[0]?.campaignId ? Number(campRows[0].campaignId) : null;
-        if (amazonCampaignId) {
+        const campaignTargetingType = campRows[0]?.targetingType || "manual";
+        if (!canAddPositiveKeyword(campaignTargetingType)) {
+          console.log(`[IdResolver] \u26A0\uFE0F adGroup=${adGroupLocalId} \u5C5E\u4E8Eauto-targeting\u5E7F\u544A\u6D3B\u52A8\uFF0C\u8DF3\u8FC7${toCreate.length}\u4E2A\u6B63\u9762\u5173\u952E\u8BCD\u521B\u5EFA\uFF08\u81EA\u52A8\u5E7F\u544A\u53EA\u80FD\u6DFB\u52A0\u5426\u5B9A\u5173\u952E\u8BCD\uFF09`);
+          for (const kw of toCreate) {
+            await conn.execute("DELETE FROM keywords WHERE id = ? AND keywordId IS NULL", [kw.id]);
+            result.keywordsCleanedUp++;
+          }
+        } else if (amazonCampaignId) {
+          const validatedBatch = [];
+          for (const kw of toCreate) {
+            const validation = sanitizeAndValidateKeyword(kw.keywordText || "", "positive");
+            if (validation.isValid) {
+              kw.keywordText = validation.sanitizedText;
+              validatedBatch.push(kw);
+            } else {
+              console.log(`[IdResolver] \u26A0\uFE0F \u5173\u952E\u8BCD\u6821\u9A8C\u4E0D\u901A\u8FC7 id=${kw.id} "${kw.keywordText?.substring(0, 30)}": ${validation.reasonMessage}`);
+              await conn.execute("DELETE FROM keywords WHERE id = ? AND keywordId IS NULL", [kw.id]);
+              result.keywordsCleanedUp++;
+            }
+          }
+          if (validatedBatch.length === 0) {
+            console.log(`[IdResolver] adGroup=${adGroupLocalId}: \u6240\u6709\u5173\u952E\u8BCD\u6821\u9A8C\u4E0D\u901A\u8FC7\uFF0C\u8DF3\u8FC7\u521B\u5EFA`);
+          }
           const batchSize = 10;
-          for (let i4 = 0; i4 < toCreate.length; i4 += batchSize) {
-            const batch = toCreate.slice(i4, i4 + batchSize);
+          for (let i4 = 0; i4 < validatedBatch.length; i4 += batchSize) {
+            const batch = validatedBatch.slice(i4, i4 + batchSize);
             try {
               const createResults = await syncService.client.createSpKeywords(
                 batch.map((kw) => ({
@@ -57211,11 +57305,27 @@ async function resolveKeywordIdOnDemand(accountId, keywordLocalId) {
     }
     const amazonCampaignId = Number(kw.amazonCampaignId);
     if (amazonCampaignId) {
+      const [campTypeRows] = await conn.execute(
+        "SELECT targetingType FROM campaigns WHERE campaignId = ? LIMIT 1",
+        [String(kw.amazonCampaignId)]
+      );
+      const campTargetingType = campTypeRows[0]?.targetingType || "manual";
+      if (!canAddPositiveKeyword(campTargetingType)) {
+        console.log(`[IdResolver] \u26A0\uFE0F \u5373\u65F6\u521B\u5EFA\u62E6\u622A: keyword id=${keywordLocalId} \u5C5E\u4E8Eauto-targeting\u5E7F\u544A\u6D3B\u52A8\uFF0C\u4E0D\u80FD\u6DFB\u52A0\u6B63\u9762\u5173\u952E\u8BCD`);
+        await conn.execute("DELETE FROM keywords WHERE id = ? AND keywordId IS NULL", [keywordLocalId]);
+        return null;
+      }
+      const kwValidation = sanitizeAndValidateKeyword(kw.keywordText || "", "positive");
+      if (!kwValidation.isValid) {
+        console.log(`[IdResolver] \u26A0\uFE0F \u5373\u65F6\u521B\u5EFA\u62E6\u622A: keyword id=${keywordLocalId} "${kw.keywordText?.substring(0, 30)}" \u6821\u9A8C\u4E0D\u901A\u8FC7: ${kwValidation.reasonMessage}`);
+        await conn.execute("DELETE FROM keywords WHERE id = ? AND keywordId IS NULL", [keywordLocalId]);
+        return null;
+      }
       try {
         const createResults = await syncService.client.createSpKeywords([{
           campaignId: amazonCampaignId,
           adGroupId: amazonAdGroupId,
-          keywordText: kw.keywordText,
+          keywordText: kwValidation.sanitizedText,
           matchType: kw.matchType || "broad",
           bid: parseFloat(kw.bid || "1.00"),
           state: kw.keywordStatus === "paused" ? "paused" : "enabled"
@@ -57313,6 +57423,7 @@ var init_amazonIdResolver = __esm({
   "server/services/amazonIdResolver.ts"() {
     "use strict";
     init_amazonApiHelper();
+    init_keywordValidator();
   }
 });
 
@@ -58431,6 +58542,7 @@ var init_amazonSyncService = __esm({
             const normalizedState = (apiTarget.state || "enabled").toLowerCase();
             const targetData = {
               adGroupId: adGroup.id,
+              campaignId: adGroup.campaignId,
               targetId: String(apiTarget.targetId),
               targetType,
               targetValue,
@@ -58546,6 +58658,7 @@ var init_amazonSyncService = __esm({
             const normalizedState = (apiTarget.state || "enabled").toLowerCase();
             const targetData = {
               adGroupId: adGroup.id,
+              campaignId: adGroup.campaignId,
               targetId: String(apiTarget.targetId),
               targetType,
               targetValue,
@@ -58559,6 +58672,7 @@ var init_amazonSyncService = __esm({
             };
             if (synced === 0) {
               console.log(`[SyncService] SD\u4EA7\u54C1\u5B9A\u5411\u793A\u4F8B: type=${targetType}, value=${targetValue}, matchType=${targetMatchType}, categoryName=${categoryName}`);
+              ;
             }
             if (existing) {
               await db.update(productTargets).set(targetData).where(eq(productTargets.id, existing.id));
@@ -59086,6 +59200,7 @@ var init_amazonSyncService = __esm({
             }
             const targetData = {
               adGroupId: adGroup.id,
+              campaignId: adGroup.campaignId,
               targetId: String(apiTarget.targetId),
               targetType,
               targetValue,
@@ -60252,6 +60367,7 @@ var init_amazonSyncService = __esm({
             }
             const targetData = {
               adGroupId: adGroup.id,
+              campaignId: adGroup.campaignId,
               targetId: String(row.targetId),
               targetType,
               targetValue,
@@ -60334,6 +60450,7 @@ var init_amazonSyncService = __esm({
             }
             const targetData = {
               adGroupId: adGroup.id,
+              campaignId: adGroup.campaignId,
               targetId: String(row.targetId),
               targetType,
               targetValue,
@@ -60609,13 +60726,29 @@ var init_amazonSyncService = __esm({
        */
       async syncPerformanceOnly(days = 14) {
         const results = {
-          performance: 0
+          performance: 0,
+          keywordPerf: 0,
+          targetPerf: 0
         };
         try {
           results.performance = await this.syncPerformanceData(days);
           console.log(`[SyncService] \u7EE9\u6548\u6570\u636E\u540C\u6B65\u5B8C\u6210: ${results.performance} \u6761\u8BB0\u5F55`);
         } catch (error54) {
           console.error("[SyncService] \u7EE9\u6548\u6570\u636E\u540C\u6B65\u5931\u8D25:", error54);
+        }
+        try {
+          console.log(`[SyncService] \u5F00\u59CB\u540C\u6B65\u5173\u952E\u8BCD\u7EA7\u522B\u7EE9\u6548\u6570\u636E\uFF08${days}\u5929\uFF09...`);
+          results.keywordPerf = await this.syncKeywordPerformanceData(days);
+          console.log(`[SyncService] \u5173\u952E\u8BCD\u7EE9\u6548\u6570\u636E\u540C\u6B65\u5B8C\u6210: ${results.keywordPerf}\u6761`);
+        } catch (kwPerfError) {
+          console.error("[SyncService] \u5173\u952E\u8BCD\u7EE9\u6548\u6570\u636E\u540C\u6B65\u5931\u8D25:", kwPerfError.message);
+        }
+        try {
+          console.log(`[SyncService] \u5F00\u59CB\u540C\u6B65\u5546\u54C1\u5B9A\u4F4D\u7EA7\u522B\u7EE9\u6548\u6570\u636E\uFF08${days}\u5929\uFF09...`);
+          results.targetPerf = await this.syncProductTargetPerformanceData(days);
+          console.log(`[SyncService] \u5546\u54C1\u5B9A\u4F4D\u7EE9\u6548\u6570\u636E\u540C\u6B65\u5B8C\u6210: ${results.targetPerf}\u6761`);
+        } catch (ptPerfError) {
+          console.error("[SyncService] \u5546\u54C1\u5B9A\u4F4D\u7EE9\u6548\u6570\u636E\u540C\u6B65\u5931\u8D25:", ptPerfError.message);
         }
         return results;
       }
@@ -61706,6 +61839,7 @@ var init_amazonSyncService = __esm({
           const normalizedState = (apiTarget.state || "enabled").toLowerCase();
           const targetData = {
             adGroupId: adGroup.id,
+            campaignId: adGroup.campaignId,
             targetId: String(apiTarget.targetId),
             targetType,
             targetValue,
@@ -137261,12 +137395,11 @@ async function startOptimizationScheduler2() {
   optimizationIntervals.search_term_harvest = setInterval(async () => {
     const now = /* @__PURE__ */ new Date();
     const localHour = getLocalHour(now, "US");
-    const localDow = getLocalDayOfWeek(now, "US");
-    if (localDow === 1 && localHour === 5 && shouldExecuteThisHour("search_term_harvest")) {
+    if (localHour === 5 && shouldExecuteThisHour("search_term_harvest")) {
       await executeOptimizationTask("search_term_harvest");
     }
   }, 60 * 60 * 1e3);
-  console.log(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u6536\u5272\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u5468\u4E00\u51CC\u66685:00 (\u7AD9\u70B9\u672C\u5730\u65F6\u95F4)`);
+  console.log(`[OptimizationScheduler] \u641C\u7D22\u8BCD\u6536\u5272\u5DF2\u542F\u52A8\uFF0C\u6267\u884C\u65F6\u95F4: \u6BCF\u65E5\u51CC\u66685:00 (\u7AD9\u70B9\u672C\u5730\u65F6\u95F4)`);
   optimizationIntervals.weekly_report = setInterval(async () => {
     const now = /* @__PURE__ */ new Date();
     const localHour = getLocalHour(now, "US");
@@ -137728,12 +137861,12 @@ var init_dataSyncScheduler = __esm({
       },
       search_term_harvest: {
         type: "search_term_harvest",
-        description: "\u641C\u7D22\u8BCD\u6536\u5272 - \u6BCF\u5468\u81EA\u52A8\u6536\u5272\u9AD8\u8F6C\u5316\u641C\u7D22\u8BCD\u5E76\u6DFB\u52A0\u5426\u5B9A\u8BCD",
-        intervalMs: 7 * 24 * 60 * 60 * 1e3,
+        description: "\u641C\u7D22\u8BCD\u6536\u5272 - \u6BCF\u65E5\u81EA\u52A8\u6536\u5272\u9AD8\u8F6C\u5316\u641C\u7D22\u8BCD\u5E76\u6DFB\u52A0\u5426\u5B9A\u8BCD",
+        intervalMs: 24 * 60 * 60 * 1e3,
+        // v192: 从每周改为每日
         cronHours: [5],
         // 凌晨5:00
-        cronDayOfWeek: 1,
-        // 周一
+        // v192: 移除cronDayOfWeek限制，每天都执行搜索词收割
         specificModules: []
         // 独立执行，使用searchTermHarvester服务
       },
@@ -139798,78 +139931,6 @@ var init_postOptimizationVerifier = __esm({
       /** 第三次验证延迟：10分钟后 */
       thirdAttempt: 600
     };
-  }
-});
-
-// server/utils/keywordValidator.ts
-function sanitizeAndValidateKeyword(text2, mode = "positive") {
-  let sanitized = (text2 || "").trim();
-  sanitized = sanitized.replace(CONTROL_CHARS_REGEX, "");
-  sanitized = sanitized.replace(INVALID_CHARS_REGEX, " ");
-  sanitized = sanitized.replace(/\s+/g, " ").trim();
-  if (!sanitized || sanitized.length === 0) {
-    return {
-      isValid: false,
-      sanitizedText: "",
-      reasonCode: "EMPTY_AFTER_SANITIZE",
-      reasonMessage: `\u5173\u952E\u8BCD"${text2}"\u6E05\u6D17\u540E\u4E3A\u7A7A\uFF0C\u5305\u542B\u7684\u5168\u90E8\u662F\u65E0\u6548\u5B57\u7B26`
-    };
-  }
-  if (sanitized.length > MAX_KEYWORD_CHARS) {
-    return {
-      isValid: false,
-      sanitizedText: sanitized,
-      reasonCode: "EXCEEDS_MAX_LENGTH",
-      reasonMessage: `\u5173\u952E\u8BCD\u957F\u5EA6${sanitized.length}\u8D85\u8FC7Amazon\u9650\u5236\u7684${MAX_KEYWORD_CHARS}\u5B57\u7B26`
-    };
-  }
-  const words = sanitized.split(/\s+/);
-  const wordCount = words.length;
-  if (mode === "positive" && wordCount > MAX_POSITIVE_WORD_COUNT) {
-    return {
-      isValid: false,
-      sanitizedText: sanitized,
-      reasonCode: "EXCEEDS_MAX_WORDS",
-      reasonMessage: `\u5173\u952E\u8BCD\u8BCD\u6570${wordCount}\u8D85\u8FC7Amazon\u9650\u5236\u7684${MAX_POSITIVE_WORD_COUNT}\u4E2A\u8BCD`
-    };
-  }
-  if (mode === "negative_phrase" && wordCount > MAX_NEGATIVE_PHRASE_WORD_COUNT) {
-    return {
-      isValid: false,
-      sanitizedText: sanitized,
-      reasonCode: "EXCEEDS_MAX_WORDS_NEG_PHRASE",
-      reasonMessage: `\u5426\u5B9A\u77ED\u8BED\u8BCD\u6570${wordCount}\u8D85\u8FC7Amazon\u9650\u5236\u7684${MAX_NEGATIVE_PHRASE_WORD_COUNT}\u4E2A\u8BCD`
-    };
-  }
-  if (mode === "negative_exact" && wordCount > MAX_NEGATIVE_EXACT_WORD_COUNT) {
-    return {
-      isValid: false,
-      sanitizedText: sanitized,
-      reasonCode: "EXCEEDS_MAX_WORDS_NEG_EXACT",
-      reasonMessage: `\u5426\u5B9A\u7CBE\u786E\u8BCD\u6570${wordCount}\u8D85\u8FC7Amazon\u9650\u5236\u7684${MAX_NEGATIVE_EXACT_WORD_COUNT}\u4E2A\u8BCD`
-    };
-  }
-  return {
-    isValid: true,
-    sanitizedText: sanitized
-  };
-}
-function isAsinSearchTerm(searchTerm) {
-  return /^[Bb]0[A-Za-z0-9]{8,}$/.test(searchTerm.trim());
-}
-function canAddPositiveKeyword(campaignTargetingType) {
-  return campaignTargetingType !== "auto";
-}
-var INVALID_CHARS_REGEX, CONTROL_CHARS_REGEX, MAX_KEYWORD_CHARS, MAX_POSITIVE_WORD_COUNT, MAX_NEGATIVE_PHRASE_WORD_COUNT, MAX_NEGATIVE_EXACT_WORD_COUNT;
-var init_keywordValidator = __esm({
-  "server/utils/keywordValidator.ts"() {
-    "use strict";
-    INVALID_CHARS_REGEX = /[^\p{L}\p{N}\s\-]/gu;
-    CONTROL_CHARS_REGEX = /[\u0000-\u001F\u007F-\u009F\uFFFE\uFFFF\uFEFF\uFFFC\u200B-\u200F\u2028-\u202F\u2060-\u206F]/g;
-    MAX_KEYWORD_CHARS = 80;
-    MAX_POSITIVE_WORD_COUNT = 10;
-    MAX_NEGATIVE_PHRASE_WORD_COUNT = 4;
-    MAX_NEGATIVE_EXACT_WORD_COUNT = 10;
   }
 });
 

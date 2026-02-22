@@ -1515,8 +1515,9 @@ export class AmazonSyncService {
 
         const normalizedState = (apiTarget.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
 
-        const targetData = {
+         const targetData = {
           adGroupId: adGroup.id,
+          campaignId: adGroup.campaignId,
           targetId: String(apiTarget.targetId),
           targetType,
           targetValue,
@@ -1528,7 +1529,6 @@ export class AmazonSyncService {
           categoryRefinements: categoryRefinements,
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
-
         if (synced === 0) {
           console.log(`[SyncService] SB产品定向示例: type=${targetType}, value=${targetValue}, matchType=${targetMatchType}, categoryName=${categoryName}`);
         }
@@ -1662,6 +1662,7 @@ export class AmazonSyncService {
 
         const targetData = {
           adGroupId: adGroup.id,
+          campaignId: adGroup.campaignId,
           targetId: String(apiTarget.targetId),
           targetType,
           targetValue,
@@ -1673,9 +1674,8 @@ export class AmazonSyncService {
           categoryRefinements: categoryRefinements,
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
-
         if (synced === 0) {
-          console.log(`[SyncService] SD产品定向示例: type=${targetType}, value=${targetValue}, matchType=${targetMatchType}, categoryName=${categoryName}`);
+          console.log(`[SyncService] SD产品定向示例: type=${targetType}, value=${targetValue}, matchType=${targetMatchType}, categoryName=${categoryName}`);;
         }
 
         if (existing) {
@@ -2408,6 +2408,7 @@ export class AmazonSyncService {
 
         const targetData = {
           adGroupId: adGroup.id,
+          campaignId: adGroup.campaignId,
           targetId: String(apiTarget.targetId),
           targetType: targetType as 'asin' | 'category',
           targetValue,
@@ -4027,6 +4028,7 @@ export class AmazonSyncService {
 
         const targetData = {
           adGroupId: adGroup.id,
+          campaignId: adGroup.campaignId,
           targetId: String(row.targetId),
           targetType,
           targetValue,
@@ -4138,8 +4140,9 @@ export class AmazonSyncService {
           if (asinMatch) targetValue = asinMatch[1];
         }
 
-        const targetData = {
+         const targetData = {
           adGroupId: adGroup.id,
+          campaignId: adGroup.campaignId,
           targetId: String(row.targetId),
           targetType,
           targetValue,
@@ -4158,7 +4161,6 @@ export class AmazonSyncService {
           targetStatus: 'enabled' as const,
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
-
         if (existing) {
           await db
             .update(productTargets)
@@ -4505,15 +4507,35 @@ export class AmazonSyncService {
    */
   async syncPerformanceOnly(days: number = 14): Promise<{
     performance: number;
+    keywordPerf: number;
+    targetPerf: number;
   }> {
     const results = {
       performance: 0,
+      keywordPerf: 0,
+      targetPerf: 0,
     };
     try {
       results.performance = await this.syncPerformanceData(days);
       console.log(`[SyncService] 绩效数据同步完成: ${results.performance} 条记录`);
     } catch (error) {
       console.error('[SyncService] 绩效数据同步失败:', error);
+    }
+    // v192: 同步关键词级别绩效数据（之前仅在syncAll中执行，导致keywords表绩效全为0）
+    try {
+      console.log(`[SyncService] 开始同步关键词级别绩效数据（${days}天）...`);
+      results.keywordPerf = await this.syncKeywordPerformanceData(days);
+      console.log(`[SyncService] 关键词绩效数据同步完成: ${results.keywordPerf}条`);
+    } catch (kwPerfError: any) {
+      console.error('[SyncService] 关键词绩效数据同步失败:', kwPerfError.message);
+    }
+    // v192: 同步商品定位级别绩效数据
+    try {
+      console.log(`[SyncService] 开始同步商品定位级别绩效数据（${days}天）...`);
+      results.targetPerf = await this.syncProductTargetPerformanceData(days);
+      console.log(`[SyncService] 商品定位绩效数据同步完成: ${results.targetPerf}条`);
+    } catch (ptPerfError: any) {
+      console.error('[SyncService] 商品定位绩效数据同步失败:', ptPerfError.message);
     }
     return results;
   }
@@ -6089,6 +6111,7 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
 
       const targetData = {
         adGroupId: adGroup.id,
+        campaignId: adGroup.campaignId,
         targetId: String(apiTarget.targetId),
         targetType: targetType as 'asin' | 'category',
         targetValue,

@@ -14,6 +14,7 @@
  */
 
 import * as amazonApiHelper from './amazonApiHelper';
+import { sanitizeAndValidateKeyword, canAddPositiveKeyword } from '../utils/keywordValidator';
 
 export interface IdResolutionResult {
   keywordsResolved: number;
@@ -210,20 +211,47 @@ async function resolveKeywordIds(
       if (toCreate.length > 0) {
         console.log(`[IdResolver] adGroup=${adGroupLocalId}: ${toCreate.length}个关键词需要在Amazon创建`);
 
-        // 获取Amazon campaignId
+        // 获取Amazon campaignId和campaign targetingType
         const [campRows] = await conn.execute(
-          `SELECT c.campaignId FROM campaigns c
+          `SELECT c.campaignId, c.targetingType FROM campaigns c
            INNER JOIN ad_groups ag ON ag.campaignId = c.id
            WHERE ag.id = ? LIMIT 1`,
           [adGroupLocalId]
         );
         const amazonCampaignId = campRows[0]?.campaignId ? Number(campRows[0].campaignId) : null;
+        const campaignTargetingType = campRows[0]?.targetingType || 'manual';
 
-        if (amazonCampaignId) {
+        // v192: 自动广告活动不允许创建正面关键词
+        if (!canAddPositiveKeyword(campaignTargetingType)) {
+          console.log(`[IdResolver] ⚠️ adGroup=${adGroupLocalId} 属于auto-targeting广告活动，跳过${toCreate.length}个正面关键词创建（自动广告只能添加否定关键词）`);
+          // 清理这些不应该存在的关键词记录
+          for (const kw of toCreate) {
+            await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [kw.id]);
+            result.keywordsCleanedUp++;
+          }
+        } else if (amazonCampaignId) {
+          // v192: 批量校验关键词数据质量
+          const validatedBatch: any[] = [];
+          for (const kw of toCreate) {
+            const validation = sanitizeAndValidateKeyword(kw.keywordText || '', 'positive');
+            if (validation.isValid) {
+              kw.keywordText = validation.sanitizedText; // 使用清洗后的文本
+              validatedBatch.push(kw);
+            } else {
+              console.log(`[IdResolver] ⚠️ 关键词校验不通过 id=${kw.id} "${kw.keywordText?.substring(0, 30)}": ${validation.reasonMessage}`);
+              await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [kw.id]);
+              result.keywordsCleanedUp++;
+            }
+          }
+          
+          if (validatedBatch.length === 0) {
+            console.log(`[IdResolver] adGroup=${adGroupLocalId}: 所有关键词校验不通过，跳过创建`);
+          }
+
           // 每次最多创建10个，避免API限制
           const batchSize = 10;
-          for (let i = 0; i < toCreate.length; i += batchSize) {
-            const batch = toCreate.slice(i, i + batchSize);
+          for (let i = 0; i < validatedBatch.length; i += batchSize) {
+            const batch = validatedBatch.slice(i, i + batchSize);
             try {
               const createResults = await syncService.client.createSpKeywords(
                 batch.map((kw: any) => ({
@@ -493,11 +521,32 @@ export async function resolveKeywordIdOnDemand(
     // Amazon上不存在 → 尝试创建
     const amazonCampaignId = Number(kw.amazonCampaignId);
     if (amazonCampaignId) {
+      // v192: 查询campaign的targetingType，拦截auto-targeting
+      const [campTypeRows] = await conn.execute(
+        'SELECT targetingType FROM campaigns WHERE campaignId = ? LIMIT 1',
+        [String(kw.amazonCampaignId)]
+      );
+      const campTargetingType = campTypeRows[0]?.targetingType || 'manual';
+      
+      if (!canAddPositiveKeyword(campTargetingType)) {
+        console.log(`[IdResolver] ⚠️ 即时创建拦截: keyword id=${keywordLocalId} 属于auto-targeting广告活动，不能添加正面关键词`);
+        await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [keywordLocalId]);
+        return null;
+      }
+      
+      // v192: 校验关键词数据质量
+      const kwValidation = sanitizeAndValidateKeyword(kw.keywordText || '', 'positive');
+      if (!kwValidation.isValid) {
+        console.log(`[IdResolver] ⚠️ 即时创建拦截: keyword id=${keywordLocalId} "${kw.keywordText?.substring(0, 30)}" 校验不通过: ${kwValidation.reasonMessage}`);
+        await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [keywordLocalId]);
+        return null;
+      }
+      
       try {
         const createResults = await syncService.client.createSpKeywords([{
           campaignId: amazonCampaignId,
           adGroupId: amazonAdGroupId,
-          keywordText: kw.keywordText,
+          keywordText: kwValidation.sanitizedText,
           matchType: kw.matchType || 'broad',
           bid: parseFloat(kw.bid || '1.00'),
           state: kw.keywordStatus === 'paused' ? 'paused' : 'enabled',
