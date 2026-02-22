@@ -15,6 +15,7 @@ import { reportJobScheduler } from "../services/reportJobScheduler";
 import sitemapRouter from "../routes/sitemap";
 import { SYSTEM_VERSION } from '../postDeployOptimizer';
 import { orchestrateStartup, getSystemInfo, isShuttingDown } from '../deployLifecycleManager';
+import { ensureNextGenTables } from '../nextGenMigration';
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -119,6 +120,17 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/ (v${SYSTEM_VERSION})`);
     
+    // v198: 启动时自动创建NextGen算法所需的数据库表
+    ensureNextGenTables().then(result => {
+      if (result.success) {
+        console.log(`[NextGen] 数据库表检查完成: ${result.tablesCreated} 个表已就绪`);
+      } else {
+        console.error('[NextGen] 数据库表创建失败:', result.error);
+      }
+    }).catch(err => {
+      console.error('[NextGen] 数据库表检查异常:', err.message);
+    });
+
     // v146: 启动时自动执行数据迁移（旧表 → optimization_events）
     runAutoMigration().then(result => {
       if (result.success) {
