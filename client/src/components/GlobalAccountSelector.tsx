@@ -177,11 +177,27 @@ export default function GlobalAccountSelector({ compact = false }: GlobalAccount
         setCurrentSelection(firstStore, firstMarketplace);
         console.log('[GlobalAccountSelector] Auto-selected:', firstStore, firstMarketplace);
       }
-      // 如果选中了店铺但没有选中站点，或者站点不在当前店铺的站点列表中
-      else if (!currentMarketplace || !marketplaces.includes(currentMarketplace)) {
+      // 如果选中了店铺但没有选中站点，或者站点不属于当前店铺
+      else if (!currentMarketplace) {
+        // 没有选中站点，优先选US，否则选第一个
         if (marketplaces.length > 0) {
-          setCurrentSelection(currentStore, marketplaces[0]);
-          console.log('[GlobalAccountSelector] Auto-selected marketplace:', marketplaces[0]);
+          const target = marketplaces.includes('US') ? 'US' : marketplaces[0];
+          setCurrentSelection(currentStore, target);
+          console.log('[GlobalAccountSelector] Auto-selected marketplace:', target);
+        }
+      }
+      else if (!marketplaces.includes(currentMarketplace)) {
+        // 当前站点不属于当前店铺，直接从accounts重新计算确认（避免竞态条件）
+        const currentStoreMarketplaces = accounts
+          .filter(a => (a.storeName || a.accountName).trim() === currentStore)
+          .map(a => a.marketplace);
+        if (!currentStoreMarketplaces.includes(currentMarketplace)) {
+          // 确实不属于当前店铺，才重置
+          const target = currentStoreMarketplaces.includes('US') ? 'US' : (currentStoreMarketplaces[0] || null);
+          if (target) {
+            setCurrentSelection(currentStore, target);
+            console.log('[GlobalAccountSelector] Marketplace not in store, reset to:', target);
+          }
         }
       }
     }
