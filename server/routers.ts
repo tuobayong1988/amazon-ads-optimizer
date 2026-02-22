@@ -12405,65 +12405,45 @@ const inviteCodeRouter = router({
     }),
 });
 
-// ==================== Main Router ====================
-// ==================== v197: NextGen Algorithm Router ====================
+// ==================== v198: NextGen Algorithm Router (纯监控与状态查询) ====================
+// 所有维护任务均由dataSyncScheduler自动执行，此路由仅提供监控和状态查询能力
 const nextGenRouter = router({
   // 获取NextGen算法系统状态
   getStatus: protectedProcedure
     .input(z.object({ accountId: z.number() }))
     .query(async ({ input }) => {
       return {
-        version: 'v197',
-        algorithms: ['sigmoid_curve', 'linucb', 'cql', 'causal_inference', 'meta_learning'],
+        version: 'v198',
+        engineMode: 'unified',
+        description: 'NextGen统一出价引擎，100%覆盖所有关键词和商品定向',
+        algorithmTiers: {
+          advanced: ['sigmoid_curve', 'linucb', 'cql', 'ensemble'],
+          ruleEngine: ['acos_based', 'exploration', 'protection'],
+          conservative: ['hold_current_bid'],
+        },
+        automatedTasks: {
+          maintenance: '每4小时自动执行（特征缓存/Sigmoid拟合/Reward回填/因果分析）',
+          modelTraining: '每6小时自动执行（CQL离线强化学习）',
+          budgetOptimization: '每日凌晨2:00自动执行（预算组合优化+关键词图谱）',
+        },
         status: 'active',
-        trafficRatio: 0.3,
       };
     }),
   
-  // 执行NextGen维护任务（手动触发）
-  runMaintenance: protectedProcedure
-    .input(z.object({ accountId: z.number() }))
-    .mutation(async ({ input }) => {
-      return nextGenOrchestrator.executeNextGenMaintenanceTasks(input.accountId);
-    }),
-  
-  // 执行CQL模型训练（手动触发）
-  trainModel: protectedProcedure
-    .input(z.object({ accountId: z.number() }))
-    .mutation(async ({ input }) => {
-      await nextGenOrchestrator.executeModelTraining(input.accountId);
-      return { success: true };
-    }),
-  
-  // 获取因果推断分析结果
+  // 查询因果推断分析结果（只读查询，分析由定时任务自动执行）
   getCausalAnalysis: protectedProcedure
     .input(z.object({ accountId: z.number() }))
     .query(async ({ input }) => {
       return causalInferenceEngine.batchCausalAnalysis(input.accountId);
     }),
   
-  // 获取关键词图谱机会
+  // 查询关键词图谱机会（只读查询，图谱由定时任务自动构建）
   getKeywordOpportunities: protectedProcedure
     .input(z.object({ accountId: z.number() }))
     .query(async ({ input }) => {
       const opportunities = await keywordGraphService.discoverOpportunities(input.accountId);
       const negatives = await keywordGraphService.discoverNegativeCandidates(input.accountId);
       return { opportunities, negatives };
-    }),
-  
-  // 执行预算组合优化
-  optimizeBudget: protectedProcedure
-    .input(z.object({ accountId: z.number() }))
-    .mutation(async ({ input }) => {
-      return budgetPortfolioOptimizer.optimizeBudgetPortfolio(input.accountId);
-    }),
-  
-  // 执行关键词图谱分析
-  analyzeKeywordGraph: protectedProcedure
-    .input(z.object({ accountId: z.number() }))
-    .mutation(async ({ input }) => {
-      await nextGenOrchestrator.executeKeywordGraphAnalysis(input.accountId);
-      return { success: true };
     }),
 });
 

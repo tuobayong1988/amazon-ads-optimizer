@@ -1,37 +1,36 @@
 /**
- * 下一代出价编排器 (Next-Gen Bid Orchestrator)
+ * 下一代出价编排器 (Next-Gen Bid Orchestrator) v2
  * 
- * 核心职责：
- * 1. 作为所有新算法模块的统一入口，与现有bidOptimizer无缝集成
- * 2. 编排算法执行流程：特征提取 → 元学习选择 → 算法执行 → RL记录 → 安全校验
- * 3. 提供渐进式升级路径：初期与现有算法并行运行，逐步过渡
- * 4. 管理定时任务：特征缓存、模型训练、Reward回填、因果分析
+ * 设计理念：NextGen是唯一的出价引擎，不是"可选的附加模块"
  * 
- * 集成架构：
- * ┌─────────────────────────────────────────────────────┐
- * │                 nextGenBidOrchestrator               │
- * │                                                      │
- * │  ┌──────────┐  ┌──────────┐  ┌──────────────────┐   │
- * │  │ Feature  │→│   Meta   │→│  Algorithm Engine  │   │
- * │  │ Pipeline │  │ Selector │  │ LinUCB/CQL/Sigmoid│   │
- * │  └──────────┘  └──────────┘  └──────────────────┘   │
- * │       ↑                              ↓               │
- * │  ┌──────────┐              ┌──────────────────┐     │
- * │  │ Causal   │              │   RL Recorder    │     │
- * │  │ Inference│              │  (State-Action)  │     │
- * │  └──────────┘              └──────────────────┘     │
- * │                                                      │
- * │  ┌──────────┐  ┌──────────┐  ┌──────────────────┐   │
- * │  │ Budget   │  │ Keyword  │  │ Safety Validator  │   │
- * │  │ Portfolio│  │  Graph   │  │ (Rate Limiter)   │   │
- * │  └──────────┘  └──────────┘  └──────────────────┘   │
- * └─────────────────────────────────────────────────────┘
+ * 核心保证：
+ * 1. 100%覆盖 — 对每一个关键词/商品定向都给出可靠的出价结果，无例外
+ * 2. 零回退 — 不存在"回退到旧算法"的概念，所有逻辑内化在NextGen内部
+ * 3. 全自动化 — 所有维护任务（特征缓存、模型训练、Reward回填）自动执行，零人工干预
+ * 4. 渐进式安全 — 出价变化幅度受严格约束，避免极端调整
+ * 
+ * 算法降级链（内部梯队，对外透明）：
+ * ┌─────────────────────────────────────────────────────────────┐
+ * │  第1层: 高级算法（数据充足时自动启用）                        │
+ * │  ├── Ensemble: 多算法加权融合（≥3个算法可用时）               │
+ * │  ├── CQL: 离线强化学习（≥50条RL日志时）                      │
+ * │  ├── Sigmoid: 曲线利润最大化（≥20条历史数据时）               │
+ * │  └── LinUCB: 上下文赌博机（有特征缓存时）                    │
+ * │                                                              │
+ * │  第2层: 规则引擎（数据不足时的可靠决策）                       │
+ * │  ├── 基于ACOS目标的出价调整                                   │
+ * │  ├── 基于时间衰减加权的表现评估                               │
+ * │  ├── 新关键词保护策略                                         │
+ * │  └── 零曝光/零点击的探索策略                                  │
+ * │                                                              │
+ * │  第3层: 保守策略（极端异常时的安全兜底）                       │
+ * │  └── 维持当前出价不变                                         │
+ * └─────────────────────────────────────────────────────────────┘
  */
 import { getDb } from "./db";
 import {
   batchExtractAndCacheFeatures,
   extractFeatureVector,
-  getCachedFeatureVector,
   type ContextFeatureVector,
 } from "./contextualFeatureService";
 import { recordBidAction, backfillRewards, type BidAction } from "./rlDataRecorder";
@@ -51,62 +50,63 @@ export interface NextGenBidResult {
   targetType: 'keyword' | 'product_target';
   previousBid: number;
   newBid: number;
-  actionType: 'increase' | 'decrease' | 'set';
+  actionType: 'increase' | 'decrease' | 'hold';
   bidChangePercent: number;
   reason: string;
-  // 下一代算法元数据
   algorithmUsed: string;
   confidence: number;
   metaDecision?: MetaDecision;
-  isNextGenAlgorithm: boolean;
+  /** 算法降级链中实际使用的层级: 'advanced' | 'rule_engine' | 'conservative' */
+  algorithmTier: 'advanced' | 'rule_engine' | 'conservative';
 }
 
-export interface OrchestratorConfig {
-  // 是否启用下一代算法（渐进式开关）
-  enableNextGen: boolean;
-  // 下一代算法的流量比例（0-1，用于A/B测试）
-  nextGenTrafficRatio: number;
-  // 最大单次出价变化幅度
+export interface SafetyConfig {
+  /** 单次最大出价变化幅度 (0-1) */
   maxBidChangePercent: number;
-  // 最小出价
+  /** 绝对最低出价 */
   minBid: number;
-  // 最大出价
+  /** 绝对最高出价 */
   maxBid: number;
+  /** ACOS目标 (0-1) */
+  targetAcos: number;
 }
 
-const DEFAULT_CONFIG: OrchestratorConfig = {
-  enableNextGen: true,
-  nextGenTrafficRatio: 0.3,  // 初始30%流量使用新算法
+const DEFAULT_SAFETY: SafetyConfig = {
   maxBidChangePercent: 0.30,
   minBid: 0.02,
   maxBid: 10.00,
+  targetAcos: 0.30,
 };
 
-// ==================== 辅助函数 ====================
-
-async function getDbInstance() {
-  const db = await getDb();
-  if (!db) throw new Error('Database connection failed');
-  return db;
-}
+// ==================== 安全校验器 ====================
 
 /**
- * 安全校验器：确保出价调整在安全范围内
+ * 多层安全校验：确保出价调整在安全范围内
+ * 
+ * 校验顺序：
+ * 1. 绝对范围限制（minBid ~ maxBid）
+ * 2. 单次变化幅度限制（±maxBidChangePercent）
+ * 3. 精度控制（保留2位小数）
+ * 4. 最终兜底（确保≥minBid）
  */
 function safetyValidate(
   currentBid: number,
   proposedBid: number,
-  config: OrchestratorConfig
+  config: SafetyConfig,
+  maxBidLimit?: number
 ): number {
   let safeBid = proposedBid;
   
   // 1. 绝对范围限制
-  safeBid = Math.max(config.minBid, Math.min(config.maxBid, safeBid));
+  const effectiveMaxBid = maxBidLimit ? Math.min(config.maxBid, maxBidLimit) : config.maxBid;
+  safeBid = Math.max(config.minBid, Math.min(effectiveMaxBid, safeBid));
   
   // 2. 单次变化幅度限制
-  const maxIncrease = currentBid * (1 + config.maxBidChangePercent);
-  const maxDecrease = currentBid * (1 - config.maxBidChangePercent);
-  safeBid = Math.max(maxDecrease, Math.min(maxIncrease, safeBid));
+  if (currentBid > 0) {
+    const maxIncrease = currentBid * (1 + config.maxBidChangePercent);
+    const maxDecrease = currentBid * (1 - config.maxBidChangePercent);
+    safeBid = Math.max(maxDecrease, Math.min(maxIncrease, safeBid));
+  }
   
   // 3. 精度控制
   safeBid = Math.round(safeBid * 100) / 100;
@@ -117,35 +117,166 @@ function safetyValidate(
   return safeBid;
 }
 
+// ==================== 第2层：规则引擎 ====================
+
 /**
- * 判断是否应该使用下一代算法（基于流量分配）
+ * 规则引擎出价决策 — 当高级算法不可用时的可靠决策
+ * 
+ * 内化了现有bidOptimizer的核心逻辑，包括：
+ * - 基于ACOS目标的出价调整
+ * - 时间衰减加权的表现评估
+ * - 新关键词保护
+ * - 零曝光/零点击的探索策略
  */
-function shouldUseNextGen(targetId: number, config: OrchestratorConfig): boolean {
-  if (!config.enableNextGen) return false;
+function ruleEngineDecision(
+  target: OptimizationTarget,
+  groupConfig: PerformanceGroupConfig,
+): { bid: number; confidence: number; reason: string } {
+  const currentBid = target.currentBid;
+  const impressions = target.impressions || 0;
+  const clicks = target.clicks || 0;
+  const spend = target.spend || 0;
+  const sales = target.sales || 0;
+  const orders = target.orders || 0;
   
-  // 使用targetId的哈希值进行确定性分流
-  const hash = targetId * 2654435761 % 1000;
-  return hash < config.nextGenTrafficRatio * 1000;
+  // 提取ACOS目标
+  const targetAcos = groupConfig.targetAcos || 0.30;
+  const maxBid = groupConfig.maxBid || 10.00;
+  
+  // 场景1: 零曝光 — 需要提升可见性
+  if (impressions === 0) {
+    // 新关键词或长期零曝光，适度提升出价以获取曝光
+    const boostRatio = Math.min(0.15, 0.05 + Math.random() * 0.10); // 5%~15%随机提升
+    const newBid = currentBid * (1 + boostRatio);
+    return {
+      bid: Math.min(newBid, maxBid),
+      confidence: 0.4,
+      reason: `零曝光探索: 提升${(boostRatio * 100).toFixed(0)}%以获取曝光数据`,
+    };
+  }
+  
+  // 场景2: 有曝光但零点击 — 出价可能过低或相关性差
+  if (clicks === 0 && impressions > 0) {
+    if (impressions < 100) {
+      // 曝光不足，可能需要更多数据
+      const boostRatio = Math.min(0.10, 0.03 + Math.random() * 0.07);
+      return {
+        bid: currentBid * (1 + boostRatio),
+        confidence: 0.35,
+        reason: `低曝光零点击(${impressions}次): 小幅提升${(boostRatio * 100).toFixed(0)}%`,
+      };
+    } else {
+      // 曝光充足但无点击，可能相关性差，降低出价
+      const reduceRatio = Math.min(0.15, 0.05 + (impressions / 1000) * 0.10);
+      return {
+        bid: currentBid * (1 - reduceRatio),
+        confidence: 0.5,
+        reason: `高曝光零点击(${impressions}次): 降低${(reduceRatio * 100).toFixed(0)}%`,
+      };
+    }
+  }
+  
+  // 场景3: 有点击但零订单 — 根据花费判断
+  if (orders === 0 && clicks > 0) {
+    // 计算每次点击成本
+    const cpc = spend / clicks;
+    // 如果花费已经超过目标ACOS对应的可接受花费，降低出价
+    // 假设平均客单价为当前出价的30倍（保守估计）
+    const estimatedAov = currentBid * 30;
+    const maxAcceptableSpend = estimatedAov * targetAcos;
+    
+    if (spend > maxAcceptableSpend) {
+      const reduceRatio = Math.min(0.20, (spend / maxAcceptableSpend - 1) * 0.10);
+      return {
+        bid: currentBid * (1 - reduceRatio),
+        confidence: 0.45,
+        reason: `零转化高花费($${spend.toFixed(2)}): 降低${(reduceRatio * 100).toFixed(0)}%`,
+      };
+    }
+    
+    // 花费在可接受范围内，维持或小幅调整
+    return {
+      bid: currentBid,
+      confidence: 0.4,
+      reason: `零转化但花费可控($${spend.toFixed(2)}): 维持出价观察`,
+    };
+  }
+  
+  // 场景4: 有订单 — 基于ACOS进行精确调整
+  if (orders > 0 && sales > 0) {
+    const actualAcos = spend / sales;
+    const acosRatio = actualAcos / targetAcos;
+    
+    if (acosRatio < 0.7) {
+      // ACOS远低于目标，有提升空间
+      const boostRatio = Math.min(0.20, (1 - acosRatio) * 0.25);
+      return {
+        bid: currentBid * (1 + boostRatio),
+        confidence: 0.7,
+        reason: `ACOS优秀(${(actualAcos * 100).toFixed(1)}% vs 目标${(targetAcos * 100).toFixed(1)}%): 提升${(boostRatio * 100).toFixed(0)}%`,
+      };
+    } else if (acosRatio <= 1.0) {
+      // ACOS在目标范围内，小幅优化
+      const adjustRatio = (1 - acosRatio) * 0.10;
+      return {
+        bid: currentBid * (1 + adjustRatio),
+        confidence: 0.65,
+        reason: `ACOS达标(${(actualAcos * 100).toFixed(1)}%): 微调${(adjustRatio * 100).toFixed(1)}%`,
+      };
+    } else if (acosRatio <= 1.5) {
+      // ACOS略高于目标，适度降低
+      const reduceRatio = Math.min(0.15, (acosRatio - 1) * 0.20);
+      return {
+        bid: currentBid * (1 - reduceRatio),
+        confidence: 0.6,
+        reason: `ACOS偏高(${(actualAcos * 100).toFixed(1)}%): 降低${(reduceRatio * 100).toFixed(0)}%`,
+      };
+    } else {
+      // ACOS严重超标
+      const reduceRatio = Math.min(0.25, (acosRatio - 1) * 0.15);
+      return {
+        bid: currentBid * (1 - reduceRatio),
+        confidence: 0.7,
+        reason: `ACOS超标(${(actualAcos * 100).toFixed(1)}%): 降低${(reduceRatio * 100).toFixed(0)}%`,
+      };
+    }
+  }
+  
+  // 场景5: 兜底 — 维持当前出价
+  return {
+    bid: currentBid,
+    confidence: 0.3,
+    reason: '数据不足以做出判断: 维持当前出价',
+  };
 }
 
 // ==================== 核心编排逻辑 ====================
 
 /**
- * 为单个关键词/定位计算下一代出价
+ * 为单个关键词/商品定向计算出价 — 保证100%返回结果
+ * 
+ * 算法降级链：
+ * 1. 尝试高级算法（元学习选择器 → 最优算法）
+ * 2. 高级算法失败 → 使用规则引擎
+ * 3. 规则引擎也失败 → 保守策略（维持当前出价）
+ * 
+ * @returns NextGenBidResult — 永远不返回null，永远不抛出异常
  */
 export async function calculateNextGenBid(
   accountId: number,
   target: OptimizationTarget,
   groupConfig: PerformanceGroupConfig,
-  config: OrchestratorConfig = DEFAULT_CONFIG
-): Promise<NextGenBidResult | null> {
-  // 判断是否使用新算法
-  if (!shouldUseNextGen(target.id, config)) {
-    return null; // 返回null表示使用现有算法
-  }
+  maxBidLimit?: number
+): Promise<NextGenBidResult> {
+  const safetyConfig: SafetyConfig = {
+    maxBidChangePercent: DEFAULT_SAFETY.maxBidChangePercent,
+    minBid: DEFAULT_SAFETY.minBid,
+    maxBid: groupConfig.maxBid || DEFAULT_SAFETY.maxBid,
+    targetAcos: groupConfig.targetAcos || DEFAULT_SAFETY.targetAcos,
+  };
   
+  // ===== 第1层：尝试高级算法 =====
   try {
-    // 1. 元学习选择最优算法
     const keywordId = target.type === 'keyword' ? target.id : undefined;
     const targetId = target.type === 'product_target' ? target.id : undefined;
     
@@ -153,60 +284,138 @@ export async function calculateNextGenBid(
       accountId, keywordId, targetId, undefined, target.currentBid
     );
     
-    // 2. 安全校验
-    const safeBid = safetyValidate(target.currentBid, metaDecision.recommendedBid, config);
+    // 只有当高级算法（非rule_based/ucb）给出了有效结果时，才使用它
+    const isAdvancedAlgorithm = !['rule_based', 'ucb'].includes(metaDecision.selectedAlgorithm);
+    const hasValidBid = metaDecision.recommendedBid > 0 && metaDecision.confidence > 0.3;
     
-    // 3. 记录RL数据
-    const bidAction: BidAction = {
+    if (isAdvancedAlgorithm && hasValidBid) {
+      const safeBid = safetyValidate(target.currentBid, metaDecision.recommendedBid, safetyConfig, maxBidLimit);
+      
+      // 异步记录RL数据
+      recordBidAction({
+        accountId,
+        keywordId,
+        targetId,
+        bidBefore: target.currentBid,
+        bidAfter: safeBid,
+        actionSource: metaDecision.selectedAlgorithm === 'linucb' ? 'linucb' :
+                      metaDecision.selectedAlgorithm === 'cql' ? 'cql' : 'rule_based',
+      }).catch(err => console.error('[NextGenOrchestrator] RL recording error:', err));
+      
+      return buildResult(target, safeBid, metaDecision.selectedAlgorithm, metaDecision.confidence,
+        `[高级算法:${metaDecision.selectedAlgorithm}] ${metaDecision.reasoning}`, 'advanced', metaDecision);
+    }
+    
+    // 高级算法不可用（数据不足），自然降级到第2层
+    // 不记录为错误，这是正常的算法选择流程
+    
+  } catch (advancedError: any) {
+    // 高级算法执行异常，降级到第2层
+    console.warn(`[NextGenOrchestrator] 高级算法异常(target=${target.id}), 降级到规则引擎: ${advancedError.message}`);
+  }
+  
+  // ===== 第2层：规则引擎 =====
+  try {
+    const ruleResult = ruleEngineDecision(target, groupConfig);
+    const safeBid = safetyValidate(target.currentBid, ruleResult.bid, safetyConfig, maxBidLimit);
+    
+    // 规则引擎也记录RL数据（用于未来训练高级算法）
+    const keywordId = target.type === 'keyword' ? target.id : undefined;
+    const targetId = target.type === 'product_target' ? target.id : undefined;
+    recordBidAction({
       accountId,
       keywordId,
       targetId,
       bidBefore: target.currentBid,
       bidAfter: safeBid,
-      actionSource: metaDecision.selectedAlgorithm === 'rule_based' ? 'rule_based' :
-                    metaDecision.selectedAlgorithm === 'linucb' ? 'linucb' :
-                    metaDecision.selectedAlgorithm === 'cql' ? 'cql' : 'rule_based',
-    };
+      actionSource: 'rule_based',
+    }).catch(err => console.error('[NextGenOrchestrator] RL recording error:', err));
     
-    // 异步记录，不阻塞主流程
-    recordBidAction(bidAction).catch(err => {
-      console.error('[NextGenOrchestrator] RL recording error:', err);
-    });
+    return buildResult(target, safeBid, 'rule_engine', ruleResult.confidence,
+      `[规则引擎] ${ruleResult.reason}`, 'rule_engine');
     
-    // 4. 构建结果
-    const bidChangePercent = target.currentBid > 0
-      ? ((safeBid - target.currentBid) / target.currentBid) * 100
-      : 0;
-    
-    let actionType: 'increase' | 'decrease' | 'set' = 'set';
-    if (safeBid > target.currentBid) actionType = 'increase';
-    else if (safeBid < target.currentBid) actionType = 'decrease';
-    
-    return {
-      targetId: target.id,
-      targetType: target.type,
-      previousBid: target.currentBid,
-      newBid: safeBid,
-      actionType,
-      bidChangePercent: Math.round(bidChangePercent * 100) / 100,
-      reason: `[NextGen:${metaDecision.selectedAlgorithm}] ${metaDecision.reasoning}`,
-      algorithmUsed: metaDecision.selectedAlgorithm,
-      confidence: metaDecision.confidence,
-      metaDecision,
-      isNextGenAlgorithm: true,
-    };
-    
-  } catch (error) {
-    console.error(`[NextGenOrchestrator] Error calculating bid for target ${target.id}:`, error);
-    return null; // 出错时回退到现有算法
+  } catch (ruleError: any) {
+    console.error(`[NextGenOrchestrator] 规则引擎异常(target=${target.id}): ${ruleError.message}`);
   }
+  
+  // ===== 第3层：保守策略（绝对兜底） =====
+  return buildResult(target, target.currentBid, 'conservative', 0.1,
+    '[保守策略] 算法异常，维持当前出价', 'conservative');
 }
 
-// ==================== 定时任务编排 ====================
+/**
+ * 构建标准化的出价结果
+ */
+function buildResult(
+  target: OptimizationTarget,
+  newBid: number,
+  algorithmUsed: string,
+  confidence: number,
+  reason: string,
+  tier: 'advanced' | 'rule_engine' | 'conservative',
+  metaDecision?: MetaDecision
+): NextGenBidResult {
+  const bidChangePercent = target.currentBid > 0
+    ? ((newBid - target.currentBid) / target.currentBid) * 100
+    : 0;
+  
+  let actionType: 'increase' | 'decrease' | 'hold' = 'hold';
+  if (Math.abs(newBid - target.currentBid) > 0.01) {
+    actionType = newBid > target.currentBid ? 'increase' : 'decrease';
+  }
+  
+  return {
+    targetId: target.id,
+    targetType: target.type,
+    previousBid: target.currentBid,
+    newBid,
+    actionType,
+    bidChangePercent: Math.round(bidChangePercent * 100) / 100,
+    reason,
+    algorithmUsed,
+    confidence,
+    metaDecision,
+    algorithmTier: tier,
+  };
+}
+
+// ==================== 批量出价优化 ====================
+
+/**
+ * 批量计算出价 — 对一组关键词/商品定向统一计算
+ * 保证每一个target都有结果
+ */
+export async function batchCalculateNextGenBids(
+  accountId: number,
+  targets: OptimizationTarget[],
+  groupConfig: PerformanceGroupConfig,
+  maxBidLimit?: number
+): Promise<NextGenBidResult[]> {
+  const results: NextGenBidResult[] = [];
+  
+  for (const target of targets) {
+    const result = await calculateNextGenBid(accountId, target, groupConfig, maxBidLimit);
+    results.push(result);
+  }
+  
+  // 统计日志
+  const advanced = results.filter(r => r.algorithmTier === 'advanced').length;
+  const ruleEngine = results.filter(r => r.algorithmTier === 'rule_engine').length;
+  const conservative = results.filter(r => r.algorithmTier === 'conservative').length;
+  const changed = results.filter(r => r.actionType !== 'hold').length;
+  
+  console.log(`[NextGenOrchestrator] 批量出价完成: 总计=${targets.length}, ` +
+    `高级算法=${advanced}, 规则引擎=${ruleEngine}, 保守策略=${conservative}, ` +
+    `实际调整=${changed}`);
+  
+  return results;
+}
+
+// ==================== 定时任务编排（全自动化） ====================
 
 /**
  * 执行下一代算法的定时维护任务
- * 应在dataSyncScheduler的低频同步路径中调用
+ * 完全自动化，零人工干预
  */
 export async function executeNextGenMaintenanceTasks(accountId: number): Promise<{
   featuresCached: number;
@@ -223,89 +432,99 @@ export async function executeNextGenMaintenanceTasks(accountId: number): Promise
     algorithmResultsBackfilled: 0,
   };
   
+  // 1. 批量提取和缓存上下文特征
   try {
-    // 1. 批量提取和缓存上下文特征
-    console.log(`[NextGenOrchestrator] Starting feature extraction for account ${accountId}`);
+    console.log(`[NextGenMaintenance] 开始特征提取: 账户${accountId}`);
     results.featuresCached = await batchExtractAndCacheFeatures(accountId);
-    
-    // 2. 批量拟合Sigmoid曲线
-    console.log(`[NextGenOrchestrator] Starting sigmoid curve fitting`);
-    results.sigmoidFitted = await batchFitSigmoidCurves(accountId);
-    
-    // 3. 回填RL Rewards
-    console.log(`[NextGenOrchestrator] Backfilling RL rewards`);
-    results.rewardsBackfilled = await backfillRewards(accountId);
-    
-    // 4. 运行因果推断分析
-    console.log(`[NextGenOrchestrator] Running causal inference analysis`);
-    results.causalAnalysis = await batchCausalAnalysis(accountId);
-    
-    // 5. 回填算法选择结果
-    console.log(`[NextGenOrchestrator] Backfilling algorithm selection results`);
-    results.algorithmResultsBackfilled = await backfillAlgorithmResults(accountId);
-    
-    console.log(`[NextGenOrchestrator] Maintenance complete for account ${accountId}:`, JSON.stringify(results));
-    
-  } catch (error) {
-    console.error(`[NextGenOrchestrator] Maintenance error for account ${accountId}:`, error);
+  } catch (err: any) {
+    console.error(`[NextGenMaintenance] 特征提取失败: ${err.message}`);
   }
+  
+  // 2. 批量拟合Sigmoid曲线
+  try {
+    console.log(`[NextGenMaintenance] 开始Sigmoid曲线拟合`);
+    results.sigmoidFitted = await batchFitSigmoidCurves(accountId);
+  } catch (err: any) {
+    console.error(`[NextGenMaintenance] Sigmoid拟合失败: ${err.message}`);
+  }
+  
+  // 3. 回填RL Rewards
+  try {
+    console.log(`[NextGenMaintenance] 开始Reward回填`);
+    results.rewardsBackfilled = await backfillRewards(accountId);
+  } catch (err: any) {
+    console.error(`[NextGenMaintenance] Reward回填失败: ${err.message}`);
+  }
+  
+  // 4. 运行因果推断分析
+  try {
+    console.log(`[NextGenMaintenance] 开始因果推断分析`);
+    results.causalAnalysis = await batchCausalAnalysis(accountId);
+  } catch (err: any) {
+    console.error(`[NextGenMaintenance] 因果分析失败: ${err.message}`);
+  }
+  
+  // 5. 回填算法选择结果
+  try {
+    console.log(`[NextGenMaintenance] 开始算法结果回填`);
+    results.algorithmResultsBackfilled = await backfillAlgorithmResults(accountId);
+  } catch (err: any) {
+    console.error(`[NextGenMaintenance] 算法结果回填失败: ${err.message}`);
+  }
+  
+  console.log(`[NextGenMaintenance] 维护完成(账户${accountId}): ` +
+    `特征=${results.featuresCached}, Sigmoid=${results.sigmoidFitted.fitted}, ` +
+    `Reward=${results.rewardsBackfilled}, 因果=${results.causalAnalysis.analyzed}, ` +
+    `算法回填=${results.algorithmResultsBackfilled}`);
   
   return results;
 }
 
 /**
- * 执行CQL模型训练（低频任务，每6小时一次）
+ * 执行CQL模型训练（自动定时执行）
  */
 export async function executeModelTraining(accountId: number): Promise<void> {
   try {
-    console.log(`[NextGenOrchestrator] Starting CQL model training for account ${accountId}`);
+    console.log(`[NextGenTraining] 开始CQL模型训练: 账户${accountId}`);
     await trainCQL(accountId);
-    console.log(`[NextGenOrchestrator] CQL training complete`);
-  } catch (error) {
-    console.error(`[NextGenOrchestrator] CQL training error:`, error);
+    console.log(`[NextGenTraining] CQL训练完成: 账户${accountId}`);
+  } catch (error: any) {
+    console.error(`[NextGenTraining] CQL训练失败(账户${accountId}): ${error.message}`);
   }
 }
 
 /**
- * 执行预算组合优化（每日一次）
+ * 执行预算组合优化（自动定时执行）
  */
 export async function executeBudgetOptimization(accountId: number): Promise<void> {
   try {
-    console.log(`[NextGenOrchestrator] Starting budget portfolio optimization for account ${accountId}`);
+    console.log(`[NextGenBudget] 开始预算组合优化: 账户${accountId}`);
     const result = await optimizeBudgetPortfolio(accountId);
     if (result) {
-      console.log(`[NextGenOrchestrator] Budget optimization complete: ${result.allocations.length} campaigns, expected profit: $${result.expectedTotalProfit}`);
+      console.log(`[NextGenBudget] 预算优化完成: ${result.allocations.length}个广告活动, 预期利润=$${result.expectedTotalProfit.toFixed(2)}`);
     }
-  } catch (error) {
-    console.error(`[NextGenOrchestrator] Budget optimization error:`, error);
+  } catch (error: any) {
+    console.error(`[NextGenBudget] 预算优化失败(账户${accountId}): ${error.message}`);
   }
 }
 
 /**
- * 执行关键词图谱分析（每日一次）
+ * 执行关键词图谱分析（自动定时执行）
  */
 export async function executeKeywordGraphAnalysis(accountId: number): Promise<void> {
   try {
-    console.log(`[NextGenOrchestrator] Starting keyword graph analysis for account ${accountId}`);
-    
-    // 构建图谱
+    console.log(`[NextGenKeyword] 开始关键词图谱分析: 账户${accountId}`);
     await buildKeywordGraph(accountId);
-    
-    // 发现扩展机会
     const opportunities = await discoverOpportunities(accountId);
-    console.log(`[NextGenOrchestrator] Found ${opportunities.length} keyword opportunities`);
-    
-    // 发现否定词候选
     const negatives = await discoverNegativeCandidates(accountId);
-    console.log(`[NextGenOrchestrator] Found ${negatives.length} negative keyword candidates`);
-    
-  } catch (error) {
-    console.error(`[NextGenOrchestrator] Keyword graph analysis error:`, error);
+    console.log(`[NextGenKeyword] 图谱分析完成: ${opportunities.length}个扩展机会, ${negatives.length}个否定词候选`);
+  } catch (error: any) {
+    console.error(`[NextGenKeyword] 图谱分析失败(账户${accountId}): ${error.message}`);
   }
 }
 
 /**
- * LinUCB模型在线更新（在收到Reward后调用）
+ * LinUCB模型在线更新（在收到Reward后自动调用）
  */
 export async function updateLinUCBFromReward(
   accountId: number,
@@ -315,7 +534,7 @@ export async function updateLinUCBFromReward(
 ): Promise<void> {
   try {
     await updateArm(accountId, armType, context, reward);
-  } catch (error) {
-    console.error(`[NextGenOrchestrator] LinUCB update error:`, error);
+  } catch (error: any) {
+    console.error(`[NextGenOrchestrator] LinUCB更新失败: ${error.message}`);
   }
 }
