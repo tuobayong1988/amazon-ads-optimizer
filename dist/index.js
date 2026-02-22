@@ -362342,11 +362342,11 @@ var NEXTGEN_TABLES = [
     name: "contextual_features",
     ddl: `CREATE TABLE IF NOT EXISTS \`contextual_features\` (
       \`id\` int NOT NULL AUTO_INCREMENT,
-      \`account_id\` int NOT NULL,
-      \`keyword_id\` int DEFAULT NULL,
-      \`target_id\` int DEFAULT NULL,
-      \`campaign_id\` varchar(64) DEFAULT NULL,
-      \`ad_group_id\` int DEFAULT NULL,
+      \`accountId\` int NOT NULL,
+      \`keywordId\` int DEFAULT NULL,
+      \`targetId\` int DEFAULT NULL,
+      \`campaignId\` varchar(64) DEFAULT NULL,
+      \`adGroupId\` int DEFAULT NULL,
       \`snapshot_date\` date NOT NULL,
       \`hour_of_day\` int DEFAULT NULL,
       \`day_of_week\` int DEFAULT NULL,
@@ -362379,21 +362379,21 @@ var NEXTGEN_TABLES = [
       \`created_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
       \`updated_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (\`id\`),
-      INDEX \`idx_cf_account_date\` (\`account_id\`, \`snapshot_date\`),
-      INDEX \`idx_cf_keyword\` (\`keyword_id\`),
-      INDEX \`idx_cf_target\` (\`target_id\`),
-      INDEX \`idx_cf_campaign\` (\`campaign_id\`)
+      INDEX \`idx_cf_account_date\` (\`accountId\`, \`snapshot_date\`),
+      INDEX \`idx_cf_keyword\` (\`keywordId\`),
+      INDEX \`idx_cf_target\` (\`targetId\`),
+      INDEX \`idx_cf_campaign\` (\`campaignId\`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
   },
   {
     name: "rl_training_logs",
     ddl: `CREATE TABLE IF NOT EXISTS \`rl_training_logs\` (
       \`id\` int NOT NULL AUTO_INCREMENT,
-      \`account_id\` int NOT NULL,
-      \`keyword_id\` int DEFAULT NULL,
-      \`target_id\` int DEFAULT NULL,
-      \`campaign_id\` varchar(64) DEFAULT NULL,
-      \`ad_group_id\` int DEFAULT NULL,
+      \`accountId\` int NOT NULL,
+      \`keywordId\` int DEFAULT NULL,
+      \`targetId\` int DEFAULT NULL,
+      \`campaignId\` varchar(64) DEFAULT NULL,
+      \`adGroupId\` int DEFAULT NULL,
       \`episode_id\` varchar(64) DEFAULT NULL,
       \`step_index\` int DEFAULT 0,
       \`state_bid\` decimal(10,4) DEFAULT NULL,
@@ -362424,9 +362424,9 @@ var NEXTGEN_TABLES = [
       \`reward_filled_at\` timestamp NULL DEFAULT NULL,
       \`created_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (\`id\`),
-      INDEX \`idx_rl_account\` (\`account_id\`),
-      INDEX \`idx_rl_keyword\` (\`keyword_id\`),
-      INDEX \`idx_rl_target\` (\`target_id\`),
+      INDEX \`idx_rl_account\` (\`accountId\`),
+      INDEX \`idx_rl_keyword\` (\`keywordId\`),
+      INDEX \`idx_rl_target\` (\`targetId\`),
       INDEX \`idx_rl_episode\` (\`episode_id\`),
       INDEX \`idx_rl_action_source\` (\`action_source\`),
       INDEX \`idx_rl_reward_filled\` (\`reward_filled_at\`),
@@ -362437,7 +362437,7 @@ var NEXTGEN_TABLES = [
     name: "linucb_models",
     ddl: `CREATE TABLE IF NOT EXISTS \`linucb_models\` (
       \`id\` int NOT NULL AUTO_INCREMENT,
-      \`account_id\` int NOT NULL,
+      \`accountId\` int NOT NULL,
       \`arm_id\` varchar(128) NOT NULL,
       \`arm_type\` enum('bid_aggressive','bid_moderate','bid_conservative','bid_hold','bid_decrease') NOT NULL,
       \`matrix_a\` json NOT NULL,
@@ -362453,7 +362453,7 @@ var NEXTGEN_TABLES = [
       \`created_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
       \`updated_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (\`id\`),
-      INDEX \`idx_linucb_account_arm\` (\`account_id\`, \`arm_id\`),
+      INDEX \`idx_linucb_account_arm\` (\`accountId\`, \`arm_id\`),
       INDEX \`idx_linucb_active\` (\`is_active\`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
   },
@@ -362461,10 +362461,10 @@ var NEXTGEN_TABLES = [
     name: "causal_inference_results",
     ddl: `CREATE TABLE IF NOT EXISTS \`causal_inference_results\` (
       \`id\` int NOT NULL AUTO_INCREMENT,
-      \`account_id\` int NOT NULL,
-      \`keyword_id\` int DEFAULT NULL,
-      \`target_id\` int DEFAULT NULL,
-      \`campaign_id\` varchar(64) DEFAULT NULL,
+      \`accountId\` int NOT NULL,
+      \`keywordId\` int DEFAULT NULL,
+      \`targetId\` int DEFAULT NULL,
+      \`campaignId\` varchar(64) DEFAULT NULL,
       \`analysis_date\` date NOT NULL,
       \`estimated_ite\` decimal(10,6) DEFAULT NULL,
       \`treatment_cvr\` decimal(8,6) DEFAULT NULL,
@@ -362482,9 +362482,9 @@ var NEXTGEN_TABLES = [
       \`sample_size\` int DEFAULT NULL,
       \`created_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (\`id\`),
-      INDEX \`idx_ci_account_date\` (\`account_id\`, \`analysis_date\`),
-      INDEX \`idx_ci_keyword\` (\`keyword_id\`),
-      INDEX \`idx_ci_target\` (\`target_id\`),
+      INDEX \`idx_ci_account_date\` (\`accountId\`, \`analysis_date\`),
+      INDEX \`idx_ci_keyword\` (\`keywordId\`),
+      INDEX \`idx_ci_target\` (\`targetId\`),
       INDEX \`idx_ci_uplift\` (\`uplift_score\`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
   },
@@ -362492,10 +362492,10 @@ var NEXTGEN_TABLES = [
     name: "algorithm_selection_logs",
     ddl: `CREATE TABLE IF NOT EXISTS \`algorithm_selection_logs\` (
       \`id\` int NOT NULL AUTO_INCREMENT,
-      \`account_id\` int NOT NULL,
-      \`keyword_id\` int DEFAULT NULL,
-      \`target_id\` int DEFAULT NULL,
-      \`campaign_id\` varchar(64) DEFAULT NULL,
+      \`accountId\` int NOT NULL,
+      \`keywordId\` int DEFAULT NULL,
+      \`targetId\` int DEFAULT NULL,
+      \`campaignId\` varchar(64) DEFAULT NULL,
       \`selected_algorithm\` enum('rule_based','ucb','linucb','sigmoid_curve','cql','ensemble') NOT NULL,
       \`algorithm_scores\` json DEFAULT NULL,
       \`selection_reason\` text DEFAULT NULL,
@@ -362505,7 +362505,7 @@ var NEXTGEN_TABLES = [
       \`result_filled_at\` timestamp NULL DEFAULT NULL,
       \`created_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (\`id\`),
-      INDEX \`idx_asl_account\` (\`account_id\`),
+      INDEX \`idx_asl_account\` (\`accountId\`),
       INDEX \`idx_asl_algorithm\` (\`selected_algorithm\`),
       INDEX \`idx_asl_created\` (\`created_at\`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
@@ -362514,8 +362514,8 @@ var NEXTGEN_TABLES = [
     name: "budget_optimization_results",
     ddl: `CREATE TABLE IF NOT EXISTS \`budget_optimization_results\` (
       \`id\` int NOT NULL AUTO_INCREMENT,
-      \`account_id\` int NOT NULL,
-      \`performance_group_id\` int DEFAULT NULL,
+      \`accountId\` int NOT NULL,
+      \`performanceGroupId\` int DEFAULT NULL,
       \`optimization_date\` date NOT NULL,
       \`total_budget\` decimal(12,2) DEFAULT NULL,
       \`allocations\` json NOT NULL,
@@ -362531,15 +362531,15 @@ var NEXTGEN_TABLES = [
       \`result_filled_at\` timestamp NULL DEFAULT NULL,
       \`created_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
       PRIMARY KEY (\`id\`),
-      INDEX \`idx_bor_account_date\` (\`account_id\`, \`optimization_date\`),
-      INDEX \`idx_bor_group\` (\`performance_group_id\`)
+      INDEX \`idx_bor_account_date\` (\`accountId\`, \`optimization_date\`),
+      INDEX \`idx_bor_group\` (\`performanceGroupId\`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`
   },
   {
     name: "keyword_semantic_graph",
     ddl: `CREATE TABLE IF NOT EXISTS \`keyword_semantic_graph\` (
       \`id\` int NOT NULL AUTO_INCREMENT,
-      \`account_id\` int NOT NULL,
+      \`accountId\` int NOT NULL,
       \`source_node_type\` enum('keyword','search_term','asin') NOT NULL,
       \`source_node_id\` varchar(256) NOT NULL,
       \`target_node_type\` enum('keyword','search_term','asin') NOT NULL,
@@ -362557,7 +362557,7 @@ var NEXTGEN_TABLES = [
       \`created_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
       \`updated_at\` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (\`id\`),
-      INDEX \`idx_ksg_account\` (\`account_id\`),
+      INDEX \`idx_ksg_account\` (\`accountId\`),
       INDEX \`idx_ksg_source\` (\`source_node_type\`, \`source_node_id\`),
       INDEX \`idx_ksg_target\` (\`target_node_type\`, \`target_node_id\`),
       INDEX \`idx_ksg_edge_type\` (\`edge_type\`),
@@ -362583,7 +362583,7 @@ async function ensureNextGenTables() {
       try {
         await db.execute(sql.raw(table.ddl));
         tablesCreated++;
-        console.log(`[NextGen Migration] Table '${table.name}' ensured with correct column names`);
+        console.log(`[NextGen Migration] Table '${table.name}' ensured successfully`);
       } catch (err2) {
         console.error(`[NextGen Migration] Error creating table '${table.name}':`, err2.message);
       }
