@@ -285,17 +285,44 @@ async function resolveKeywordIds(
                     }
                   }
                 } else {
-                  // 创建失败 → 检查是否已有相同keywordId的记录（重复）
+                  // 创建失败 → 尝试从Amazon回填keywordId（处理duplicateValueError）
+                  let resolved = false;
+                  
+                  // 先检查本地是否已有有效记录
                   const [existing] = await conn.execute(
-                    `SELECT id FROM keywords WHERE adGroupId = ? AND keywordText = ? AND matchType = ? AND keywordId IS NOT NULL LIMIT 1`,
+                    `SELECT id, keywordId FROM keywords WHERE adGroupId = ? AND keywordText = ? AND matchType = ? AND keywordId IS NOT NULL LIMIT 1`,
                     [original.adGroupId, original.keywordText, original.matchType]
                   );
                   if (existing.length > 0) {
-                    // 已有有效记录，删除当前无ID的重复记录
                     await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [original.id]);
                     result.keywordsCleanedUp++;
                     console.log(`[IdResolver] 🧹 清理重复keyword id=${original.id} (已有有效记录id=${existing[0].id})`);
-                  } else {
+                    resolved = true;
+                  }
+                  
+                  // 如果本地没有，尝试从Amazon API查询并回填
+                  if (!resolved) {
+                    try {
+                      const amazonKeywords = await syncService.client.listSpKeywords(Number(amazonAdGroupId));
+                      const matchedKw = amazonKeywords.find((ak: any) => 
+                        ak.keywordText?.toLowerCase() === original.keywordText?.toLowerCase() && 
+                        ak.matchType?.toUpperCase() === (original.matchType || 'broad').toUpperCase()
+                      );
+                      if (matchedKw && matchedKw.keywordId) {
+                        await conn.execute(
+                          'UPDATE keywords SET keywordId = ? WHERE id = ? AND keywordId IS NULL',
+                          [String(matchedKw.keywordId), original.id]
+                        );
+                        result.keywordsCreated++;
+                        console.log(`[IdResolver] ✅ 从Amazon回填keyword id=${original.id} "${original.keywordText?.substring(0, 25)}" → keywordId=${matchedKw.keywordId}`);
+                        resolved = true;
+                      }
+                    } catch (lookupErr: any) {
+                      console.warn(`[IdResolver] ⚠️ Amazon关键词查询失败: ${lookupErr.message}`);
+                    }
+                  }
+                  
+                  if (!resolved) {
                     result.keywordsFailed++;
                     const errDetail = (created as any).details || created.code || 'Unknown';
                     console.error(`[IdResolver] ❌ 创建keyword失败 id=${original.id} "${original.keywordText?.substring(0, 25)}": ${errDetail}`);

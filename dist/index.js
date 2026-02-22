@@ -57126,15 +57126,37 @@ async function resolveKeywordIds(accountId, conn, result) {
                     }
                   }
                 } else {
+                  let resolved = false;
                   const [existing] = await conn.execute(
-                    `SELECT id FROM keywords WHERE adGroupId = ? AND keywordText = ? AND matchType = ? AND keywordId IS NOT NULL LIMIT 1`,
+                    `SELECT id, keywordId FROM keywords WHERE adGroupId = ? AND keywordText = ? AND matchType = ? AND keywordId IS NOT NULL LIMIT 1`,
                     [original.adGroupId, original.keywordText, original.matchType]
                   );
                   if (existing.length > 0) {
                     await conn.execute("DELETE FROM keywords WHERE id = ? AND keywordId IS NULL", [original.id]);
                     result.keywordsCleanedUp++;
                     console.log(`[IdResolver] \u{1F9F9} \u6E05\u7406\u91CD\u590Dkeyword id=${original.id} (\u5DF2\u6709\u6709\u6548\u8BB0\u5F55id=${existing[0].id})`);
-                  } else {
+                    resolved = true;
+                  }
+                  if (!resolved) {
+                    try {
+                      const amazonKeywords2 = await syncService.client.listSpKeywords(Number(amazonAdGroupId));
+                      const matchedKw = amazonKeywords2.find(
+                        (ak) => ak.keywordText?.toLowerCase() === original.keywordText?.toLowerCase() && ak.matchType?.toUpperCase() === (original.matchType || "broad").toUpperCase()
+                      );
+                      if (matchedKw && matchedKw.keywordId) {
+                        await conn.execute(
+                          "UPDATE keywords SET keywordId = ? WHERE id = ? AND keywordId IS NULL",
+                          [String(matchedKw.keywordId), original.id]
+                        );
+                        result.keywordsCreated++;
+                        console.log(`[IdResolver] \u2705 \u4ECEAmazon\u56DE\u586Bkeyword id=${original.id} "${original.keywordText?.substring(0, 25)}" \u2192 keywordId=${matchedKw.keywordId}`);
+                        resolved = true;
+                      }
+                    } catch (lookupErr) {
+                      console.warn(`[IdResolver] \u26A0\uFE0F Amazon\u5173\u952E\u8BCD\u67E5\u8BE2\u5931\u8D25: ${lookupErr.message}`);
+                    }
+                  }
+                  if (!resolved) {
                     result.keywordsFailed++;
                     const errDetail = created.details || created.code || "Unknown";
                     console.error(`[IdResolver] \u274C \u521B\u5EFAkeyword\u5931\u8D25 id=${original.id} "${original.keywordText?.substring(0, 25)}": ${errDetail}`);
