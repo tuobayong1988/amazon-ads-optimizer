@@ -12407,7 +12407,15 @@ const inviteCodeRouter = router({
 
 // ==================== v198: NextGen Algorithm Router (纯监控与状态查询) ====================
 // 所有维护任务均由dataSyncScheduler自动执行，此路由仅提供监控和状态查询能力
+import { ensureNextGenTables } from './nextGenMigration';
+
 const nextGenRouter = router({
+  // 初始化NextGen数据库表（仅在首次部署时使用一次，后续部署自动执行）
+  ensureTables: protectedProcedure
+    .mutation(async () => {
+      return ensureNextGenTables();
+    }),
+
   // 获取NextGen算法系统状态
   getStatus: protectedProcedure
     .input(z.object({ accountId: z.number() }))
