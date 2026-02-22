@@ -387,7 +387,7 @@ export async function executeOptimizationTarget(
       );
       if (allPausedOrArchived) {
         try {
-          await db.updatePerformanceGroup(targetId, { autoOptimize: false });
+          await db.updatePerformanceGroup(targetId, { autoOptimize: 0 });
           const pauseMsg = `v168: 优化目标"${config.name}"已自动暂停 - 所有${allCampaigns.length}个广告活动均为暂停/归档状态，不再执行自动优化`;
           console.log(`[OptimizationTarget] ${pauseMsg}`);
           result.warnings.push(pauseMsg);
@@ -1728,7 +1728,8 @@ async function executeDaypartingBudgetOptimization(
       // v183.1: 叠加多维度组合分析的Campaign级别预算乘数
       let comboBudgetMultiplier = 1.0;
       try {
-        const dbConn = getDb();
+        const dbConn = await getDb();
+        if (!dbConn) throw new Error('Database not available');
         comboBudgetMultiplier = await multiDimComboAnalyzer.getCampaignBudgetMultiplier(
           dbConn, config.accountId, campaign.id
         );

@@ -47,51 +47,69 @@ async function withRetry<T>(
  * 自动从数据库加载 API 凭证和账号信息
  */
 export async function getAmazonSyncService(accountId: number): Promise<AmazonSyncService | null> {
-  try {
-    // 获取账号信息
-    const account = await db.getAdAccountById(accountId);
-    if (!account) {
-      console.error(`[AmazonApiHelper] 账号 ${accountId} 不存在`);
+  // v190: 添加重试机制 - DB临时中断或网络波动时自动重试
+  const MAX_RETRIES = 2;
+  const RETRY_DELAY_MS = 3000;
+  
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      // 获取账号信息
+      const account = await db.getAdAccountById(accountId);
+      if (!account) {
+        console.error(`[AmazonApiHelper] 账号 ${accountId} 不存在`);
+        return null; // 账号不存在是确定性错误，不重试
+      }
+      
+      // 获取API凭证
+      const credentials = await db.getAmazonApiCredentials(accountId);
+      if (!credentials) {
+        console.error(`[AmazonApiHelper] 账号 ${accountId} 未配置API凭证`);
+        return null; // 凭证未配置是确定性错误，不重试
+      }
+      
+      // 验证凭证完整性
+      if (!credentials.clientId || !credentials.clientSecret || !credentials.refreshToken) {
+        console.error(`[AmazonApiHelper] 账号 ${accountId} API凭证不完整: clientId=${!!credentials.clientId}, clientSecret=${!!credentials.clientSecret}, refreshToken=${!!credentials.refreshToken}`);
+        return null; // 凭证不完整是确定性错误，不重试
+      }
+      
+      if (!account.profileId) {
+        console.error(`[AmazonApiHelper] 账号 ${accountId} 缺少profileId`);
+        return null; // profileId缺失是确定性错误，不重试
+      }
+      
+      // 创建SyncService实例
+      const syncService = await AmazonSyncService.createFromCredentials(
+        {
+          clientId: credentials.clientId || '',
+          clientSecret: credentials.clientSecret || '',
+          refreshToken: credentials.refreshToken || '',
+          profileId: account.profileId || '',
+          region: (credentials.region as 'NA' | 'EU' | 'FE') || 'NA'
+        },
+        accountId,
+        account.userId,
+        account.marketplace || 'US'
+      );
+      
+      return syncService;
+    } catch (error: any) {
+      const isRetryable = error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || 
+                          error.code === 'ECONNREFUSED' || error.code === 'PROTOCOL_CONNECTION_LOST' ||
+                          error.message?.includes('Connection lost') || error.message?.includes('ECONNRESET');
+      
+      if (isRetryable && attempt < MAX_RETRIES) {
+        const waitTime = RETRY_DELAY_MS * (attempt + 1);
+        console.warn(`[AmazonApiHelper] 创建SyncService失败(可重试), 第${attempt + 1}次重试, 等待${waitTime}ms... (accountId=${accountId}): ${error.message}`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        continue;
+      }
+      
+      console.error(`[AmazonApiHelper] 创建SyncService失败 (accountId=${accountId}, 已重试${attempt}次):`, error.message);
       return null;
     }
-    
-    // 获取API凭证
-    const credentials = await db.getAmazonApiCredentials(accountId);
-    if (!credentials) {
-      console.error(`[AmazonApiHelper] 账号 ${accountId} 未配置API凭证`);
-      return null;
-    }
-    
-    // 验证凭证完整性
-    if (!credentials.clientId || !credentials.clientSecret || !credentials.refreshToken) {
-      console.error(`[AmazonApiHelper] 账号 ${accountId} API凭证不完整: clientId=${!!credentials.clientId}, clientSecret=${!!credentials.clientSecret}, refreshToken=${!!credentials.refreshToken}`);
-      return null;
-    }
-    
-    if (!account.profileId) {
-      console.error(`[AmazonApiHelper] 账号 ${accountId} 缺少profileId`);
-      return null;
-    }
-    
-    // 创建SyncService实例
-    const syncService = await AmazonSyncService.createFromCredentials(
-      {
-        clientId: credentials.clientId || '',
-        clientSecret: credentials.clientSecret || '',
-        refreshToken: credentials.refreshToken || '',
-        profileId: account.profileId || '',
-        region: (credentials.region as 'NA' | 'EU' | 'FE') || 'NA'
-      },
-      accountId,
-      account.userId,
-      account.marketplace || 'US'
-    );
-    
-    return syncService;
-  } catch (error: any) {
-    console.error(`[AmazonApiHelper] 创建SyncService失败 (accountId=${accountId}):`, error.message);
-    return null;
   }
+  return null;
 }
 
 /**
@@ -184,17 +202,18 @@ export async function syncBidAdjustmentsToAmazon(
           break; // break inner while loop only
         }
       } catch (error: any) {
-        const isNonRetryable = error.nonRetryable === true || error.message?.includes('MISSING_AMAZON_ID');
+        const isMissingId = error.message?.includes('MISSING_AMAZON_ID');
         const isThrottle = error.message?.includes('请求过于频繁') || error.status === 429;
         
-        if (isNonRetryable) {
+        if (isMissingId) {
+          // v190: MISSING_AMAZON_ID不在即时重试中重试（因为ID不会在几秒内出现）
+          // 但标记为可重试失败，让其进入重试队列，在下次ID回填后自动重新执行
           result.failed++;
           const targetType = adj.isProductTarget ? 'product_target' : 'keyword';
-          const errMsg = `${targetType} ${adj.keywordId}: 缺少Amazon ID`;
+          const errMsg = `${targetType} ${adj.keywordId}: 缺少Amazon ID（将通过重试队列自动重试）`;
           result.errors.push(errMsg);
-          result.itemResults.set(adj.keywordId, { status: 'failed', error: '缺少Amazon ID' });
-          // v155: 缺少ID是非重试错误，break while但继续 for循环
-          break;
+          result.itemResults.set(adj.keywordId, { status: 'failed', error: '缺少Amazon ID（可重试）' });
+          break; // break while但继续 for循环
         }
         
         retryCount++;
@@ -309,15 +328,19 @@ export async function syncNewKeywordsToAmazon(
     console.log(`[AmazonApiHelper] 处理第${batchIdx + 1}/${totalBatches}批: ${batch.length}个关键词 (索引 ${batchStart}-${batchEnd - 1})`);
     
     try {
-      const apiResult = await syncService.client.createSpKeywords(
-        batch.map(k => ({
-          adGroupId: k.adGroupId,
-          campaignId: k.campaignId,
-          keywordText: k.keywordText,
-          matchType: k.matchType,
-          bid: k.bid,
-          state: 'enabled' as const,
-        }))
+      // v190: 添加withRetry包装批次API调用，自动重试限流和服务器错误
+      const apiResult = await withRetry(
+        () => syncService.client.createSpKeywords(
+          batch.map(k => ({
+            adGroupId: k.adGroupId,
+            campaignId: k.campaignId,
+            keywordText: k.keywordText,
+            matchType: k.matchType,
+            bid: k.bid,
+            state: 'enabled' as const,
+          }))
+        ),
+        { maxRetries: 2, baseDelayMs: 3000, label: `createSpKeywords-batch${batchIdx + 1}` }
       );
       
       // 处理API返回结果
@@ -562,18 +585,21 @@ export async function syncNegativeKeywordsToAmazon(
         ), { label: 'Campaign否定词创建' });
         
         // v175b: 正确处理部分成功的响应 - 通过index关联回原始请求
-        for (const r of results) {
+        for (let ri = 0; ri < results.length; ri++) {
+          const r = results[ri] as any;
           if (r.code === 'SUCCESS' || r.keywordId) {
             result.success++;
             // 记录成功创建的否定词ID
-            if (r.index !== undefined && r.index < newCampaignNegatives.length) {
-              console.log(`[AmazonApiHelper] 否定词创建成功: "${newCampaignNegatives[r.index].keywordText}" -> keywordId=${r.keywordId}`);
+            const idx = r.index !== undefined ? r.index : ri;
+            if (idx < newCampaignNegatives.length) {
+              console.log(`[AmazonApiHelper] 否定词创建成功: "${newCampaignNegatives[idx].keywordText}" -> keywordId=${r.keywordId}`);
             }
           } else {
             result.failed++;
             // v175b: 记录失败的具体关键词信息
-            const failedKeyword = r.index !== undefined && r.index < newCampaignNegatives.length 
-              ? newCampaignNegatives[r.index].keywordText : 'unknown';
+            const idx = r.index !== undefined ? r.index : ri;
+            const failedKeyword = idx < newCampaignNegatives.length 
+              ? newCampaignNegatives[idx].keywordText : 'unknown';
             result.errors.push(`Campaign否定词失败[${failedKeyword}]: ${r.details}`);
           }
         }
@@ -733,11 +759,14 @@ export async function syncKeywordStatusToAmazon(
       const amazonKeywordId = String(kw.keywordId);
       console.log(`[AmazonApiHelper] [${i+1}/${keywordChanges.length}] 同步关键词状态: keywordId="${amazonKeywordId}", newState=${change.newStatus}`);
       
-      // 使用API客户端的updateKeywordStatus方法
-      const apiResult = await syncService.client.updateKeywordStatus([{
-        keywordId: amazonKeywordId,
-        state: change.newStatus,
-      }]);
+      // v190: 使用withRetry包装API调用，自动重试限流和服务器错误
+      const apiResult = await withRetry(
+        () => syncService.client.updateKeywordStatus([{
+          keywordId: amazonKeywordId,
+          state: change.newStatus,
+        }]),
+        { maxRetries: 2, baseDelayMs: 2000, label: `updateKeywordStatus-${amazonKeywordId}` }
+      );
       
       if (apiResult.successCount > 0) {
         result.success++;
@@ -783,19 +812,50 @@ export async function syncKeywordStatusToAmazon(
         .limit(1);
       
       if (!pt || !pt.targetId || pt.targetId === '0' || pt.targetId === '') {
+        // v190: 添加商品定向的即时ID回填机制
+        console.log(`[AmazonApiHelper] product_target id=${change.keywordId} 缺少targetId，尝试即时回填...`);
+        try {
+          const { resolveProductTargetIdOnDemand } = await import('./amazonIdResolver');
+          const resolvedId = await resolveProductTargetIdOnDemand(accountId, change.keywordId);
+          if (resolvedId) {
+            console.log(`[AmazonApiHelper] ✅ 商品定向即时回填成功: product_target id=${change.keywordId} -> targetId=${resolvedId}`);
+            // 继续执行同步
+            const amazonTargetId = resolvedId;
+            const apiResult = await withRetry(
+              () => syncService.client.updateProductTargetStatus([{
+                targetId: amazonTargetId,
+                state: change.newStatus,
+              }]),
+              { maxRetries: 2, baseDelayMs: 2000, label: `updateProductTargetStatus-${amazonTargetId}` }
+            );
+            if (apiResult.successCount > 0) {
+              result.success++;
+              console.log(`[AmazonApiHelper] ✅ 商品定向状态更新成功: targetId=${amazonTargetId}`);
+            } else {
+              result.failed++;
+              result.errors.push(`商品定向 ${amazonTargetId} 状态更新失败: ${apiResult.errors[0]?.details || 'Unknown error'}`);
+            }
+            continue;
+          }
+        } catch (resolveErr: any) {
+          console.error(`[AmazonApiHelper] 商品定向即时回填异常: ${resolveErr.message}`);
+        }
         result.failed++;
-        result.errors.push(`商品定向 ${change.keywordId} 缺少Amazon targetId`);
+        result.errors.push(`商品定向 ${change.keywordId} 缺少Amazon targetId且回填失败`);
         continue;
       }
       
       const amazonTargetId = String(pt.targetId);
       console.log(`[AmazonApiHelper] [${i+1}/${productTargetChanges.length}] 同步商品定向状态: targetId="${amazonTargetId}", newState=${change.newStatus}`);
       
-      // 使用API客户端的updateProductTargetStatus方法
-      const apiResult = await syncService.client.updateProductTargetStatus([{
-        targetId: amazonTargetId,
-        state: change.newStatus,
-      }]);
+      // v190: 使用withRetry包装API调用
+      const apiResult = await withRetry(
+        () => syncService.client.updateProductTargetStatus([{
+          targetId: amazonTargetId,
+          state: change.newStatus,
+        }]),
+        { maxRetries: 2, baseDelayMs: 2000, label: `updateProductTargetStatus-${amazonTargetId}` }
+      );
       
       if (apiResult.successCount > 0) {
         result.success++;
@@ -838,6 +898,8 @@ export async function syncCampaignStatusToAmazon(
   const result = { success: 0, failed: 0, errors: [] as string[] };
   
   if (statusChanges.length === 0) return result;
+  
+  const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
   
   console.log(`[AmazonApiHelper] 开始同步广告活动状态变更: accountId=${accountId}, 总计=${statusChanges.length}条`);
   
@@ -986,10 +1048,14 @@ export async function syncAdGroupStatusToAmazon(
     try {
       console.log(`[AmazonApiHelper] 同步广告组状态: "${change.adGroupName}" (${change.amazonAdGroupId}) -> ${change.newStatus}`);
       
-      const apiResult = await syncService.client.updateSpAdGroupStatus([{
-        adGroupId: change.amazonAdGroupId,
-        state: change.newStatus,
-      }]);
+      // v190: 使用withRetry包装API调用
+      const apiResult = await withRetry(
+        () => syncService.client.updateSpAdGroupStatus([{
+          adGroupId: change.amazonAdGroupId,
+          state: change.newStatus,
+        }]),
+        { maxRetries: 2, baseDelayMs: 2000, label: `updateSpAdGroupStatus-${change.amazonAdGroupId}` }
+      );
       
       if (apiResult.successCount > 0) {
         result.success++;

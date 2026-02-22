@@ -695,7 +695,7 @@ async function executeBatchByType(
         // v189: 使用amazonApiHelper.syncNegativeKeywordsToAmazon以获得更好的错误处理
         try {
           const negSyncResult = await amazonApiHelper.syncNegativeKeywordsToAmazon(
-            accountId,
+            validTasks[0].account_id,
             validTasks.map((t: any) => ({
               campaignId: Number(t.amazon_entity_id || t.campaign_id),
               keywordText: t.target_entity_name,
@@ -881,7 +881,7 @@ async function executeBatchByType(
           if (amazonCampaignId) {
             const newBudget = parseFloat(t.new_value) || 0;
             const budgetSyncResult = await amazonApiHelper.syncBudgetAdjustmentToAmazon(
-              accountId,
+              t.account_id,
               String(amazonCampaignId),
               newBudget,
               t.change_reason || '预算调整重试',
@@ -951,15 +951,20 @@ async function markTaskForRetry(conn: any, taskId: number, currentRetryCount: nu
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   const newRetryCount = (currentRetryCount || 0) + 1;
   
-  if (newRetryCount >= 3) {
+  // v190: 增加重试次数到5次，延长退避时间，确保更高的最终成功率
+  // 重试策略: 1分钟 -> 5分钟 -> 15分钟 -> 30分钟 -> 60分钟
+  // 总等待时间约111分钟（近两小时），足以覆盖大多数临时性API故障
+  const MAX_RETRIES = 5;
+  
+  if (newRetryCount >= MAX_RETRIES) {
     // 超过最大重试次数，标记为永久失败
     await conn.execute(
       `UPDATE optimization_tasks SET status = 'permanently_failed', error_message = ?, retry_count = ?, completed_at = ? WHERE id = ?`,
-      [`超过最大重试次数(3): ${errorMessage}`.substring(0, 1000), newRetryCount, now, taskId]
+      [`超过最大重试次数(${MAX_RETRIES}): ${errorMessage}`.substring(0, 1000), newRetryCount, now, taskId]
     );
   } else {
-    // 设置重试时间（指数退避：1分钟、5分钟、15分钟）
-    const retryDelayMinutes = [1, 5, 15][newRetryCount - 1] || 15;
+    // 设置重试时间（指数退避）
+    const retryDelayMinutes = [1, 5, 15, 30, 60][newRetryCount - 1] || 60;
     const nextRetry = new Date(Date.now() + retryDelayMinutes * 60 * 1000);
     const nextRetryStr = nextRetry.toISOString().slice(0, 19).replace('T', ' ');
     

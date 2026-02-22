@@ -369,50 +369,75 @@ export class AmazonAdsApiClient {
    * v148: 实际执行Token刷新的内部方法
    */
   private async doRefreshToken(): Promise<string> {
-    try {
-      console.log('[Amazon API] Refreshing access token...');
-      const response = await axios.post(OAUTH_TOKEN_URL, new URLSearchParams({
-        grant_type: 'refresh_token',
-        refresh_token: this.credentials.refreshToken,
-        client_id: this.credentials.clientId,
-        client_secret: this.credentials.clientSecret,
-      }), {
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        timeout: 15000, // v148: 添加15秒超时防止无限等待
-      });
+    // v190: Token刷新添加重试机制 - 网络错误和服务器错误自动重试，认证错误不重试
+    const MAX_TOKEN_RETRIES = 3;
+    let lastError: any = null;
 
-      this.accessToken = response.data.access_token;
-      this.tokenExpiry = new Date(Date.now() + (response.data.expires_in - 60) * 1000);
-      console.log('[Amazon API] Access token refreshed successfully');
-      return this.accessToken!;
-    } catch (error: any) {
-      // v148: 刷新失败时清除缓存的token，确保下次请求会重新尝试刷新
-      this.accessToken = null;
-      this.tokenExpiry = null;
-      
-      console.error('[Amazon API] Failed to refresh access token:', error.message);
-      
-      // 检查是否返回HTML响应
-      if (error.response) {
-        const contentType = error.response.headers?.['content-type'] || '';
-        const data = error.response.data;
+    for (let attempt = 1; attempt <= MAX_TOKEN_RETRIES; attempt++) {
+      try {
+        console.log(`[Amazon API] Refreshing access token... (attempt ${attempt}/${MAX_TOKEN_RETRIES})`);
+        const response = await axios.post(OAUTH_TOKEN_URL, new URLSearchParams({
+          grant_type: 'refresh_token',
+          refresh_token: this.credentials.refreshToken,
+          client_id: this.credentials.clientId,
+          client_secret: this.credentials.clientSecret,
+        }), {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          timeout: 15000,
+        });
+
+        this.accessToken = response.data.access_token;
+        this.tokenExpiry = new Date(Date.now() + (response.data.expires_in - 60) * 1000);
+        console.log('[Amazon API] Access token refreshed successfully');
+        return this.accessToken!;
+      } catch (error: any) {
+        lastError = error;
         
-        if (contentType.includes('text/html') || (typeof data === 'string' && data.startsWith('<'))) {
-          console.error('[Amazon API] Token refresh returned HTML instead of JSON');
-          console.error('[Amazon API] Status:', error.response.status);
-          throw new Error('Token刷新失败，请重新授权。可能原因：Refresh Token已过期或无效');
-        }
-        
-        if (error.response.status === 400) {
-          const errorData = error.response.data;
-          if (errorData?.error === 'invalid_grant') {
-            throw new Error('Refresh Token已过期或无效，请重新授权');
+        // 检查是否为不可重试的认证错误 - 立即抛出
+        if (error.response) {
+          const contentType = error.response.headers?.['content-type'] || '';
+          const data = error.response.data;
+          
+          if (contentType.includes('text/html') || (typeof data === 'string' && data.startsWith('<'))) {
+            console.error('[Amazon API] Token refresh returned HTML instead of JSON');
+            this.accessToken = null;
+            this.tokenExpiry = null;
+            throw new Error('Token刷新失败，请重新授权。可能原因：Refresh Token已过期或无效');
+          }
+          
+          if (error.response.status === 400) {
+            const errorData = error.response.data;
+            if (errorData?.error === 'invalid_grant') {
+              this.accessToken = null;
+              this.tokenExpiry = null;
+              throw new Error('Refresh Token已过期或无效，请重新授权');
+            }
+          }
+          
+          // 401/403 也是认证错误，不重试
+          if (error.response.status === 401 || error.response.status === 403) {
+            this.accessToken = null;
+            this.tokenExpiry = null;
+            throw new Error(`Token刷新认证失败(${error.response.status})，请检查API凭证`);
           }
         }
+        
+        // 可重试的错误（网络超时、5xx服务器错误等）
+        console.warn(`[Amazon API] Token refresh attempt ${attempt}/${MAX_TOKEN_RETRIES} failed: ${error.message}`);
+        
+        if (attempt < MAX_TOKEN_RETRIES) {
+          const delay = Math.pow(2, attempt) * 1000 + Math.random() * 1000;
+          console.log(`[Amazon API] Retrying token refresh in ${Math.round(delay)}ms...`);
+          await new Promise(r => setTimeout(r, delay));
+        }
       }
-      
-      throw error;
     }
+
+    // 所有重试都失败
+    this.accessToken = null;
+    this.tokenExpiry = null;
+    console.error(`[Amazon API] Token refresh failed after ${MAX_TOKEN_RETRIES} attempts: ${lastError?.message}`);
+    throw lastError;
   }
 
   /**

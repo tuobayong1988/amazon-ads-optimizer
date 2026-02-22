@@ -357,7 +357,7 @@ export async function harvestSearchTermAtomic(
     // 3c. 创建出价日志
     await db.createBiddingLog({
       accountId,
-      campaignId: candidate.targetCampaignId,
+      campaignId: String(candidate.targetCampaignId),
       adGroupId: candidate.targetAdGroupId,
       logTargetType: 'keyword',
       targetId: localKeywordId,

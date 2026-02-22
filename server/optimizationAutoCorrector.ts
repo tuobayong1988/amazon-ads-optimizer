@@ -201,6 +201,10 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
         const harvestRetries = await retryHistoricalFailedKeywordHarvests(database, accId);
         corrections.push(...harvestRetries);
         
+        // 13. v190: 恢复permanently_failed的optimization_tasks队列任务
+        const taskRescues = await rescuePermanentlyFailedTasks(accId);
+        corrections.push(...taskRescues);
+        
       } catch (accError: any) {
         console.error(`[AutoCorrector] v178: 账户 ${accId} 纠错失败: ${accError.message}`);
       }
@@ -472,7 +476,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
         campaignId: row.campaign_id || 0,
         reason: `[自动纠错] 出价不一致纠正: 期望$${targetBid.toFixed(2)}, 当前$${row.current_bid}${maxBid > 0 ? ` (max_bid=$${maxBid})` : ''}`,
       };
-    }).filter((item: any) => item !== null);
+    }).filter((item: any): item is NonNullable<typeof item> => item !== null);
     
     if (correctionItems.length === 0) {
       console.log(`[AutoCorrector] v178: 所有出价纠正项在max_bid限制后已无需纠正`);
@@ -1591,6 +1595,7 @@ function createEmptyScanResult(reason: string): CorrectionScanResult {
       placementMismatches: { found: 0, corrected: 0, failed: 0 },
       rollbackExecutions: { found: 0, corrected: 0, failed: 0 },
       settingsRetries: { found: 0, corrected: 0, failed: 0 },
+      keywordCreateRetries: { found: 0, corrected: 0, failed: 0 },
       maxBidViolations: { found: 0, corrected: 0, failed: 0 },
       orphanKeywordCleanups: { found: 0, corrected: 0, failed: 0 },
     },
@@ -2191,6 +2196,140 @@ async function retryHistoricalFailedKeywordHarvests(database: any, accountId: nu
     
   } catch (error: any) {
     console.error(`[AutoCorrector] v178: 账户${accountId} retryHistoricalFailedKeywordHarvests失败: ${error.message}`);
+  }
+  
+  return results;
+}
+
+// ==================== 13. v190: 恢复permanently_failed的optimization_tasks队列任务 ====================
+
+/**
+ * 恢复permanently_failed的optimization_tasks队列任务
+ * 
+ * 对于超过最大重试次数但仍未成功的任务，在等待一段时间后重置为retry状态，
+ * 给它们再次机会。这是确保100%成功率的最后兆底。
+ * 
+ * 策略：
+ * - 只恢复超过2小时但不超过7天的permanently_failed任务
+ * - 重置retry_count为0，给予完整的重试机会
+ * - 每次最多恢复50条，避免API限流
+ * - 对于缺少Amazon ID的任务，先尝试回填ID
+ */
+async function rescuePermanentlyFailedTasks(accountId: number): Promise<CorrectionResult[]> {
+  const results: CorrectionResult[] = [];
+  
+  try {
+    const mysql2 = await import('mysql2/promise');
+    const conn = await mysql2.createConnection({
+      host: process.env.DATABASE_HOST || 'amazon-ads-optimizer-db.ci7y0uwu0aid.us-east-1.rds.amazonaws.com',
+      user: process.env.DATABASE_USER || 'admin',
+      password: process.env.DATABASE_PASSWORD || 'Mucers2025',
+      database: process.env.DATABASE_NAME || 'amazon_ads_optimizer',
+    });
+    
+    try {
+      // 查找超过2小时但不超过7天的permanently_failed任务
+      const [rows] = await conn.execute(
+        `SELECT id, task_type, target_entity_type, target_entity_id, amazon_entity_id, 
+                action, old_value, new_value, change_reason, error_message, retry_count,
+                campaign_id, ad_group_id
+         FROM optimization_tasks 
+         WHERE account_id = ? 
+           AND status = 'permanently_failed'
+           AND completed_at < DATE_SUB(NOW(), INTERVAL 2 HOUR)
+           AND completed_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
+         ORDER BY completed_at DESC
+         LIMIT 50`,
+        [accountId]
+      ) as any[];
+      
+      if (rows.length === 0) return results;
+      
+      console.log(`[AutoCorrector] v190: 账户${accountId} 发现${rows.length}条permanently_failed任务需要恢复`);
+      
+      // 对于缺少Amazon ID的任务，先尝试回填
+      for (const task of rows) {
+        if (!task.amazon_entity_id && task.target_entity_id) {
+          try {
+            if (task.target_entity_type === 'keyword') {
+              const [kwRows] = await conn.execute(
+                'SELECT keywordId FROM keywords WHERE id = ? AND keywordId IS NOT NULL LIMIT 1',
+                [task.target_entity_id]
+              ) as any[];
+              if (kwRows[0]?.keywordId) {
+                task.amazon_entity_id = kwRows[0].keywordId;
+                await conn.execute(
+                  'UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?',
+                  [task.amazon_entity_id, task.id]
+                );
+                console.log(`[AutoCorrector] v190: 回填Amazon ID: keyword ${task.target_entity_id} -> ${task.amazon_entity_id}`);
+              }
+            } else if (task.target_entity_type === 'product_target') {
+              const [ptRows] = await conn.execute(
+                'SELECT targetId FROM product_targets WHERE id = ? AND targetId IS NOT NULL LIMIT 1',
+                [task.target_entity_id]
+              ) as any[];
+              if (ptRows[0]?.targetId) {
+                task.amazon_entity_id = ptRows[0].targetId;
+                await conn.execute(
+                  'UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?',
+                  [task.amazon_entity_id, task.id]
+                );
+                console.log(`[AutoCorrector] v190: 回填Amazon ID: product_target ${task.target_entity_id} -> ${task.amazon_entity_id}`);
+              }
+            } else if (task.target_entity_type === 'campaign') {
+              const [cRows] = await conn.execute(
+                'SELECT campaignId FROM campaigns WHERE id = ? AND campaignId IS NOT NULL LIMIT 1',
+                [task.target_entity_id]
+              ) as any[];
+              if (cRows[0]?.campaignId) {
+                task.amazon_entity_id = cRows[0].campaignId;
+                await conn.execute(
+                  'UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?',
+                  [task.amazon_entity_id, task.id]
+                );
+                console.log(`[AutoCorrector] v190: 回填Amazon ID: campaign ${task.target_entity_id} -> ${task.amazon_entity_id}`);
+              }
+            }
+          } catch (resolveErr: any) {
+            console.warn(`[AutoCorrector] v190: ID回填失败: ${resolveErr.message}`);
+          }
+        }
+      }
+      
+      // 重置为retry状态，给予完整的重试机会
+      const taskIds = rows.map((r: any) => r.id);
+      const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      
+      await conn.execute(
+        `UPDATE optimization_tasks 
+         SET status = 'retry', 
+             retry_count = 0, 
+             error_message = CONCAT('[AutoCorrector v190 恢复] ', IFNULL(error_message, '')),
+             next_retry_at = ?
+         WHERE id IN (${taskIds.join(',')})`,
+        [now]
+      );
+      
+      console.log(`[AutoCorrector] v190: 已恢复${taskIds.length}条permanently_failed任务为retry状态`);
+      
+      for (const task of rows) {
+        results.push({
+          type: 'keyword_create_retry', // 复用现有类型
+          accountId,
+          targetId: task.target_entity_id,
+          targetType: task.target_entity_type || 'unknown',
+          previousValue: task.old_value || '',
+          correctedValue: task.new_value || '',
+          reason: `[v190] 恢复permanently_failed任务: ${task.task_type}/${task.action} (retry_count已重置)`,
+          success: true,
+        });
+      }
+    } finally {
+      await conn.end();
+    }
+  } catch (error: any) {
+    console.error(`[AutoCorrector] v190: 账户${accountId} rescuePermanentlyFailedTasks失败: ${error.message}`);
   }
   
   return results;

@@ -35007,11 +35007,11 @@ async function deleteAdAccount(id) {
   if (!db) throw new Error("Database not available");
   await db.delete(adAccounts).where(eq(adAccounts.id, id));
 }
-async function setDefaultAdAccount(userId, accountId2) {
+async function setDefaultAdAccount(userId, accountId) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(adAccounts).set({ isDefault: 0 }).where(eq(adAccounts.userId, userId));
-  await db.update(adAccounts).set({ isDefault: 1 }).where(eq(adAccounts.id, accountId2));
+  await db.update(adAccounts).set({ isDefault: 1 }).where(eq(adAccounts.id, accountId));
 }
 async function getDefaultAdAccount(userId) {
   const db = await getDb();
@@ -35041,8 +35041,8 @@ async function createPerformanceGroup(group) {
   const result = await db.insert(performanceGroups).values(group);
   return result[0].insertId;
 }
-async function getPerformanceGroupsByAccountId(accountId2) {
-  console.log("[db.getPerformanceGroupsByAccountId] called with accountId:", accountId2);
+async function getPerformanceGroupsByAccountId(accountId) {
+  console.log("[db.getPerformanceGroupsByAccountId] called with accountId:", accountId);
   try {
     const db = await getDb();
     console.log("[db.getPerformanceGroupsByAccountId] db obtained:", !!db);
@@ -35052,11 +35052,11 @@ async function getPerformanceGroupsByAccountId(accountId2) {
     }
     const allRecords = await db.select().from(performanceGroups);
     console.log("[db.getPerformanceGroupsByAccountId] all records count:", allRecords.length);
-    if (!accountId2 || accountId2 === 0) {
+    if (!accountId || accountId === 0) {
       console.log("[db.getPerformanceGroupsByAccountId] accountId is 0, returning all");
       return allRecords;
     }
-    const result = allRecords.filter((r5) => r5.accountId === accountId2);
+    const result = allRecords.filter((r5) => r5.accountId === accountId);
     console.log("[db.getPerformanceGroupsByAccountId] filtered result count:", result.length);
     return result;
   } catch (error54) {
@@ -35086,15 +35086,15 @@ async function createCampaign(campaign) {
   const result = await db.insert(campaigns).values(campaign);
   return result[0].insertId;
 }
-async function getCampaignsByAccountId(accountId2) {
+async function getCampaignsByAccountId(accountId) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(campaigns).where(eq(campaigns.accountId, accountId2));
+  return db.select().from(campaigns).where(eq(campaigns.accountId, accountId));
 }
-async function getCampaignsWithPerformance(accountId2, startDate, endDate, todayDate) {
+async function getCampaignsWithPerformance(accountId, startDate, endDate, todayDate) {
   const db = await getDb();
   if (!db) return [];
-  const campaignList = await db.select().from(campaigns).where(eq(campaigns.accountId, accountId2));
+  const campaignList = await db.select().from(campaigns).where(eq(campaigns.accountId, accountId));
   const perfData = await db.select({
     campaignId: dailyPerformance.campaignId,
     totalImpressions: sql`COALESCE(SUM(${dailyPerformance.impressions}), 0)`,
@@ -35103,7 +35103,7 @@ async function getCampaignsWithPerformance(accountId2, startDate, endDate, today
     totalSales: sql`COALESCE(SUM(${dailyPerformance.sales}), '0')`,
     totalOrders: sql`COALESCE(SUM(${dailyPerformance.orders}), 0)`
   }).from(dailyPerformance).where(and(
-    eq(dailyPerformance.accountId, accountId2),
+    eq(dailyPerformance.accountId, accountId),
     sql`${dailyPerformance.campaignId} IS NOT NULL`,
     sql`DATE(${dailyPerformance.date}) >= ${startDate}`,
     sql`DATE(${dailyPerformance.date}) <= ${endDate}`
@@ -35117,7 +35117,7 @@ async function getCampaignsWithPerformance(accountId2, startDate, endDate, today
     todaySales: sql`COALESCE(SUM(${dailyPerformance.sales}), '0')`,
     todayOrders: sql`COALESCE(SUM(${dailyPerformance.orders}), 0)`
   }).from(dailyPerformance).where(and(
-    eq(dailyPerformance.accountId, accountId2),
+    eq(dailyPerformance.accountId, accountId),
     sql`${dailyPerformance.campaignId} IS NOT NULL`,
     sql`DATE(${dailyPerformance.date}) = ${effectiveTodayDate}`
   )).groupBy(dailyPerformance.campaignId);
@@ -35195,13 +35195,13 @@ async function getCampaignsByPerformanceGroupId(performanceGroupId) {
   if (!db) return [];
   return db.select().from(campaigns).where(eq(campaigns.performanceGroupId, performanceGroupId));
 }
-async function getUnassignedCampaigns(accountId2) {
+async function getUnassignedCampaigns(accountId) {
   const db = await getDb();
   if (!db) return [];
-  if (accountId2) {
+  if (accountId) {
     return db.select().from(campaigns).where(
       and(
-        eq(campaigns.accountId, accountId2),
+        eq(campaigns.accountId, accountId),
         isNull(campaigns.performanceGroupId)
       )
     );
@@ -35214,12 +35214,12 @@ async function getCampaignById(id) {
   const result = await db.select().from(campaigns).where(eq(campaigns.id, id)).limit(1);
   return result[0];
 }
-async function getCampaignByAmazonId(accountId2, amazonCampaignId) {
+async function getCampaignByAmazonId(accountId, amazonCampaignId) {
   const db = await getDb();
   if (!db) return void 0;
   const result = await db.select().from(campaigns).where(
     and(
-      eq(campaigns.accountId, accountId2),
+      eq(campaigns.accountId, accountId),
       eq(campaigns.campaignId, amazonCampaignId)
     )
   ).limit(1);
@@ -35371,20 +35371,20 @@ async function createBiddingLog(log2) {
   }
   return logId;
 }
-async function getBiddingLogsByAccountId(accountId2, limit = 100, offset2 = 0) {
+async function getBiddingLogsByAccountId(accountId, limit = 100, offset2 = 0) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(biddingLogs).where(eq(biddingLogs.accountId, accountId2)).orderBy(desc(biddingLogs.createdAt)).limit(limit).offset(offset2);
+  return db.select().from(biddingLogs).where(eq(biddingLogs.accountId, accountId)).orderBy(desc(biddingLogs.createdAt)).limit(limit).offset(offset2);
 }
 async function getBiddingLogsByCampaignId(campaignId, limit = 100) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(biddingLogs).where(eq(biddingLogs.campaignId, String(campaignId))).orderBy(desc(biddingLogs.createdAt)).limit(limit);
 }
-async function getBiddingLogsCount(accountId2) {
+async function getBiddingLogsCount(accountId) {
   const db = await getDb();
   if (!db) return 0;
-  const result = await db.select({ count: sql`count(*)` }).from(biddingLogs).where(eq(biddingLogs.accountId, accountId2));
+  const result = await db.select({ count: sql`count(*)` }).from(biddingLogs).where(eq(biddingLogs.accountId, accountId));
   return result[0]?.count || 0;
 }
 async function createDailyPerformance(perf) {
@@ -35393,13 +35393,13 @@ async function createDailyPerformance(perf) {
   const result = await db.insert(dailyPerformance).values(perf);
   return result[0].insertId;
 }
-async function getDailyPerformanceByDateRange(accountId2, startDate, endDate, campaignId) {
+async function getDailyPerformanceByDateRange(accountId, startDate, endDate, campaignId) {
   const db = await getDb();
   if (!db) return [];
   const startDateStr = startDate.toISOString().split("T")[0];
   const endDateStr = endDate.toISOString().split("T")[0];
   const conditions = [
-    eq(dailyPerformance.accountId, accountId2),
+    eq(dailyPerformance.accountId, accountId),
     sql`${dailyPerformance.date} >= ${startDateStr}`,
     sql`${dailyPerformance.date} <= ${endDateStr}`
   ];
@@ -35408,7 +35408,7 @@ async function getDailyPerformanceByDateRange(accountId2, startDate, endDate, ca
   }
   return db.select().from(dailyPerformance).where(and(...conditions)).orderBy(dailyPerformance.date);
 }
-async function getDailyPerformanceAggregatedByDate(accountId2, startDate, endDate) {
+async function getDailyPerformanceAggregatedByDate(accountId, startDate, endDate) {
   const db = await getDb();
   if (!db) return [];
   const startDateStr = startDate.toISOString().split("T")[0];
@@ -35421,14 +35421,14 @@ async function getDailyPerformanceAggregatedByDate(accountId2, startDate, endDat
     totalSales: sql`COALESCE(SUM(${dailyPerformance.sales}), '0')`.as("totalSales"),
     totalOrders: sql`COALESCE(SUM(${dailyPerformance.orders}), 0)`.as("totalOrders")
   }).from(dailyPerformance).where(and(
-    eq(dailyPerformance.accountId, accountId2),
+    eq(dailyPerformance.accountId, accountId),
     // ✅ 只汇总campaign级别的记录
     sql`${dailyPerformance.campaignId} IS NOT NULL`,
     sql`DATE(${dailyPerformance.date}) >= ${startDateStr}`,
     sql`DATE(${dailyPerformance.date}) <= ${endDateStr}`
   )).groupBy(sql`DATE(${dailyPerformance.date})`).orderBy(sql`DATE(${dailyPerformance.date})`);
 }
-async function getPerformanceSummary(accountId2, startDate, endDate) {
+async function getPerformanceSummary(accountId, startDate, endDate) {
   const db = await getDb();
   if (!db) return null;
   const result = await db.select({
@@ -35439,7 +35439,7 @@ async function getPerformanceSummary(accountId2, startDate, endDate) {
     totalOrders: sql`COALESCE(SUM(orders), 0)`,
     totalConversions: sql`COALESCE(SUM(conversions), 0)`
   }).from(dailyPerformance).where(and(
-    eq(dailyPerformance.accountId, accountId2),
+    eq(dailyPerformance.accountId, accountId),
     // ✅ 只汇总campaign级别的记录，排除账户级汇总记录（campaignId IS NULL）
     sql`${dailyPerformance.campaignId} IS NOT NULL`,
     sql`DATE(${dailyPerformance.date}) >= ${startDate.toISOString().split("T")[0]}`,
@@ -35447,11 +35447,11 @@ async function getPerformanceSummary(accountId2, startDate, endDate) {
   ));
   return result[0];
 }
-async function getDailyPerformanceByAccountAndDate(accountId2, date12, campaignId) {
+async function getDailyPerformanceByAccountAndDate(accountId, date12, campaignId) {
   const db = await getDb();
   if (!db) return null;
   const conditions = [
-    eq(dailyPerformance.accountId, accountId2),
+    eq(dailyPerformance.accountId, accountId),
     sql`DATE(${dailyPerformance.date}) = ${date12}`
   ];
   if (campaignId !== void 0 && campaignId !== null) {
@@ -35561,22 +35561,22 @@ async function updateDailyPerformanceConversion(data4) {
     }).where(eq(dailyPerformance.id, existing.id));
   }
 }
-async function markDailyPerformanceAsFinalized(accountId2, date12) {
+async function markDailyPerformanceAsFinalized(accountId, date12) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(dailyPerformance).set({
     isFinalized: 1,
     dataSource: "api"
   }).where(and(
-    eq(dailyPerformance.accountId, accountId2),
+    eq(dailyPerformance.accountId, accountId),
     sql`DATE(${dailyPerformance.date}) = ${date12}`
   ));
 }
-async function deleteDailyPerformanceByDateRange(accountId2, startDate, endDate) {
+async function deleteDailyPerformanceByDateRange(accountId, startDate, endDate) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const result = await db.delete(dailyPerformance).where(and(
-    eq(dailyPerformance.accountId, accountId2),
+    eq(dailyPerformance.accountId, accountId),
     sql`DATE(${dailyPerformance.date}) >= ${startDate}`,
     sql`DATE(${dailyPerformance.date}) <= ${endDate}`
   ));
@@ -35668,37 +35668,37 @@ async function saveAmazonApiCredentials(data4) {
     }
   });
 }
-async function getAmazonApiCredentials(accountId2) {
+async function getAmazonApiCredentials(accountId) {
   const db = await getDb();
   if (!db) return null;
-  const result = await db.select().from(amazonApiCredentials).where(eq(amazonApiCredentials.accountId, accountId2)).limit(1);
+  const result = await db.select().from(amazonApiCredentials).where(eq(amazonApiCredentials.accountId, accountId)).limit(1);
   return result[0] || null;
 }
-async function updateAmazonApiCredentials(accountId2, data4) {
+async function updateAmazonApiCredentials(accountId, data4) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(amazonApiCredentials).set({ ...data4, updatedAt: (/* @__PURE__ */ new Date()).toISOString() }).where(eq(amazonApiCredentials.accountId, accountId2));
+  await db.update(amazonApiCredentials).set({ ...data4, updatedAt: (/* @__PURE__ */ new Date()).toISOString() }).where(eq(amazonApiCredentials.accountId, accountId));
 }
-async function deleteAmazonApiCredentials(accountId2) {
+async function deleteAmazonApiCredentials(accountId) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.delete(amazonApiCredentials).where(eq(amazonApiCredentials.accountId, accountId2));
+  await db.delete(amazonApiCredentials).where(eq(amazonApiCredentials.accountId, accountId));
 }
-async function updateAmazonApiCredentialsLastSync(accountId2) {
+async function updateAmazonApiCredentialsLastSync(accountId) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(amazonApiCredentials).set({ lastSyncAt: (/* @__PURE__ */ new Date()).toISOString(), updatedAt: (/* @__PURE__ */ new Date()).toISOString() }).where(eq(amazonApiCredentials.accountId, accountId2));
+  await db.update(amazonApiCredentials).set({ lastSyncAt: (/* @__PURE__ */ new Date()).toISOString(), updatedAt: (/* @__PURE__ */ new Date()).toISOString() }).where(eq(amazonApiCredentials.accountId, accountId));
 }
-async function updateAmazonApiCredentialsTimezone(accountId2, timezone, currencyCode) {
+async function updateAmazonApiCredentialsTimezone(accountId, timezone, currencyCode) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   await db.update(amazonApiCredentials).set({
     timezone,
     currencyCode,
     updatedAt: (/* @__PURE__ */ new Date()).toISOString()
-  }).where(eq(amazonApiCredentials.accountId, accountId2));
+  }).where(eq(amazonApiCredentials.accountId, accountId));
 }
-async function getSearchTermsForAnalysis(accountId2, _days = 30) {
+async function getSearchTermsForAnalysis(accountId, _days = 30) {
   const db = await getDb();
   if (!db) return [];
   const result = await db.select({
@@ -35708,7 +35708,7 @@ async function getSearchTermsForAnalysis(accountId2, _days = 30) {
     spend: keywords.spend,
     sales: keywords.sales,
     impressions: keywords.impressions
-  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId2));
+  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
   return result.map((r5) => ({
     searchTerm: r5.searchTerm || "",
     clicks: Number(r5.clicks) || 0,
@@ -35718,7 +35718,7 @@ async function getSearchTermsForAnalysis(accountId2, _days = 30) {
     impressions: Number(r5.impressions) || 0
   }));
 }
-async function getCampaignSearchTerms(accountId2) {
+async function getCampaignSearchTerms(accountId) {
   const db = await getDb();
   if (!db) return [];
   const result = await db.select({
@@ -35731,7 +35731,7 @@ async function getCampaignSearchTerms(accountId2) {
     sales: keywords.sales,
     orders: keywords.orders,
     bid: keywords.bid
-  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId2));
+  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
   return result.map((r5) => {
     const clicks = Number(r5.clicks) || 0;
     const orders = Number(r5.orders) || 0;
@@ -35759,7 +35759,7 @@ async function getCampaignSearchTerms(accountId2) {
     };
   });
 }
-async function getBidTargets(accountId2) {
+async function getBidTargets(accountId) {
   const db = await getDb();
   if (!db) return [];
   const keywordTargets = await db.select({
@@ -35773,7 +35773,7 @@ async function getBidTargets(accountId2) {
     spend: keywords.spend,
     sales: keywords.sales,
     orders: keywords.orders
-  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId2));
+  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
   const productTargetResults = await db.select({
     id: productTargets.id,
     name: productTargets.targetValue,
@@ -35785,7 +35785,7 @@ async function getBidTargets(accountId2) {
     spend: productTargets.spend,
     sales: productTargets.sales,
     orders: productTargets.orders
-  }).from(productTargets).innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId2));
+  }).from(productTargets).innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
   const results = [
     ...keywordTargets.map((r5) => ({
       id: r5.id,
@@ -35816,12 +35816,12 @@ async function getBidTargets(accountId2) {
   ];
   return results;
 }
-async function getUniqueSearchTerms(accountId2) {
+async function getUniqueSearchTerms(accountId) {
   const db = await getDb();
   if (!db) return [];
   const result = await db.selectDistinct({
     searchTerm: keywords.keywordText
-  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId2));
+  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
   return result.map((r5) => r5.searchTerm || "").filter((t7) => t7.length > 0);
 }
 async function recordMigration(data4) {
@@ -35840,12 +35840,12 @@ async function recordMigration(data4) {
     reason: `\u6F0F\u6597\u8FC1\u79FB: \u5347\u7EA7\u5230${data4.toMatchType}\u5339\u914D`
   });
 }
-async function getBidChangeRecords(accountId2, days) {
+async function getBidChangeRecords(accountId, days) {
   const db = await getDb();
   if (!db) return [];
   const startDate = /* @__PURE__ */ new Date();
   startDate.setDate(startDate.getDate() - days);
-  const logs = await db.select().from(biddingLogs).where(eq(biddingLogs.accountId, accountId2)).orderBy(desc(biddingLogs.createdAt)).limit(500);
+  const logs = await db.select().from(biddingLogs).where(eq(biddingLogs.accountId, accountId)).orderBy(desc(biddingLogs.createdAt)).limit(500);
   const records = [];
   for (const log2 of logs) {
     if (log2.actionType !== "increase" && log2.actionType !== "decrease" && log2.actionType !== "set") {
@@ -35923,10 +35923,10 @@ async function recordBidChange(data4) {
     reason: data4.reason
   });
 }
-async function getCampaignHealthMetrics(accountId2) {
+async function getCampaignHealthMetrics(accountId) {
   const db = await getDb();
   if (!db) return [];
-  const campaignList = await db.select().from(campaigns).where(eq(campaigns.accountId, accountId2));
+  const campaignList = await db.select().from(campaigns).where(eq(campaigns.accountId, accountId));
   const results = [];
   for (const campaign of campaignList) {
     const recentPerf = await db.select().from(dailyPerformance).where(eq(dailyPerformance.campaignId, String(campaign.id))).orderBy(desc(dailyPerformance.date)).limit(7);
@@ -36023,10 +36023,10 @@ async function getNegativeKeywordsByCampaignId(campaignId) {
   if (!db) return [];
   return db.select().from(negativeKeywords).where(eq(negativeKeywords.campaignId, String(campaignId)));
 }
-async function getNegativeKeywordsByAccountId(accountId2) {
+async function getNegativeKeywordsByAccountId(accountId) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(negativeKeywords).where(eq(negativeKeywords.accountId, accountId2));
+  return db.select().from(negativeKeywords).where(eq(negativeKeywords.accountId, accountId));
 }
 async function getNotificationSettingsByUserId(userId) {
   const db = await getDb();
@@ -36322,12 +36322,12 @@ async function getCorrectionReviewSession(id) {
   const result = await db.select().from(correctionReviewSessions).where(eq(correctionReviewSessions.id, id)).limit(1);
   return result[0] || null;
 }
-async function listCorrectionReviewSessions(userId, accountId2) {
+async function listCorrectionReviewSessions(userId, accountId) {
   const db = await getDb();
   if (!db) return [];
   let conditions = [eq(correctionReviewSessions.userId, userId)];
-  if (accountId2) {
-    conditions.push(eq(correctionReviewSessions.accountId, accountId2));
+  if (accountId) {
+    conditions.push(eq(correctionReviewSessions.accountId, accountId));
   }
   return await db.select().from(correctionReviewSessions).where(and(...conditions)).orderBy(desc(correctionReviewSessions.createdAt)).limit(50);
 }
@@ -36430,17 +36430,17 @@ async function getPermissionsByTeamMember(teamMemberId) {
   if (!db) return [];
   return db.select().from(accountPermissions).where(eq(accountPermissions.teamMemberId, teamMemberId));
 }
-async function getPermissionsByAccount(accountId2) {
+async function getPermissionsByAccount(accountId) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(accountPermissions).where(eq(accountPermissions.accountId, accountId2));
+  return db.select().from(accountPermissions).where(eq(accountPermissions.accountId, accountId));
 }
-async function getPermission(teamMemberId, accountId2) {
+async function getPermission(teamMemberId, accountId) {
   const db = await getDb();
   if (!db) return null;
   const [permission] = await db.select().from(accountPermissions).where(and(
     eq(accountPermissions.teamMemberId, teamMemberId),
-    eq(accountPermissions.accountId, accountId2)
+    eq(accountPermissions.accountId, accountId)
   ));
   return permission || null;
 }
@@ -36674,10 +36674,10 @@ async function getAiOptimizationExecutionsByCampaign(campaignId, limit = 50) {
   if (!db) return [];
   return db.select().from(aiOptimizationExecutions).where(eq(aiOptimizationExecutions.campaignId, String(campaignId))).orderBy(desc(aiOptimizationExecutions.executedAt)).limit(limit);
 }
-async function getAiOptimizationExecutionsByAccount(accountId2, limit = 100) {
+async function getAiOptimizationExecutionsByAccount(accountId, limit = 100) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(aiOptimizationExecutions).where(eq(aiOptimizationExecutions.accountId, accountId2)).orderBy(desc(aiOptimizationExecutions.executedAt)).limit(limit);
+  return db.select().from(aiOptimizationExecutions).where(eq(aiOptimizationExecutions.accountId, accountId)).orderBy(desc(aiOptimizationExecutions.executedAt)).limit(limit);
 }
 async function updateAiOptimizationExecution(id, data4) {
   const db = await getDb();
@@ -36895,7 +36895,7 @@ async function getBidAdjustmentHistory(params) {
     totalPages: Math.ceil(total / pageSize)
   };
 }
-async function getBidAdjustmentStats(accountId2, days = 30) {
+async function getBidAdjustmentStats(accountId, days = 30) {
   const db = await getDb();
   if (!db) return null;
   const startDate = /* @__PURE__ */ new Date();
@@ -36906,7 +36906,7 @@ async function getBidAdjustmentStats(accountId2, days = 30) {
     count: sql`count(*)`,
     totalProfitIncrease: sql`COALESCE(SUM(expected_profit_increase), 0)`
   }).from(bidAdjustmentHistory).where(and(
-    eq(bidAdjustmentHistory.accountId, accountId2),
+    eq(bidAdjustmentHistory.accountId, accountId),
     gte(bidAdjustmentHistory.appliedAt, startDateStr)
   )).groupBy(bidAdjustmentHistory.adjustmentType);
   const dailyTrend = await db.select({
@@ -36914,7 +36914,7 @@ async function getBidAdjustmentStats(accountId2, days = 30) {
     count: sql`count(*)`,
     avgBidChange: sql`AVG(bid_change_percent)`
   }).from(bidAdjustmentHistory).where(and(
-    eq(bidAdjustmentHistory.accountId, accountId2),
+    eq(bidAdjustmentHistory.accountId, accountId),
     gte(bidAdjustmentHistory.appliedAt, startDateStr)
   )).groupBy(sql`DATE(applied_at)`).orderBy(sql`DATE(applied_at)`);
   const overallStats = await db.select({
@@ -36924,7 +36924,7 @@ async function getBidAdjustmentStats(accountId2, days = 30) {
     increasedCount: sql`SUM(CASE WHEN bid_change_percent > 0 THEN 1 ELSE 0 END)`,
     decreasedCount: sql`SUM(CASE WHEN bid_change_percent < 0 THEN 1 ELSE 0 END)`
   }).from(bidAdjustmentHistory).where(and(
-    eq(bidAdjustmentHistory.accountId, accountId2),
+    eq(bidAdjustmentHistory.accountId, accountId),
     gte(bidAdjustmentHistory.appliedAt, startDateStr)
   ));
   return {
@@ -37060,7 +37060,7 @@ async function importBidAdjustmentHistory(records) {
     errors
   };
 }
-async function getBidAdjustmentTrackingStats(accountId2, days = 30) {
+async function getBidAdjustmentTrackingStats(accountId, days = 30) {
   const db = await getDb();
   if (!db) return null;
   const cutoffDate = /* @__PURE__ */ new Date();
@@ -37068,7 +37068,7 @@ async function getBidAdjustmentTrackingStats(accountId2, days = 30) {
   const cutoffDateStr = cutoffDate.toISOString().slice(0, 19).replace("T", " ");
   const results = await db.select().from(bidAdjustmentHistory).where(
     and(
-      eq(bidAdjustmentHistory.accountId, accountId2),
+      eq(bidAdjustmentHistory.accountId, accountId),
       eq(bidAdjustmentHistory.status, "applied"),
       sql`${bidAdjustmentHistory.appliedAt} >= ${cutoffDateStr}`,
       sql`${bidAdjustmentHistory.actualProfit7D} IS NOT NULL`
@@ -37137,41 +37137,41 @@ async function getActiveSyncJobs(userId) {
   ).orderBy(desc(dataSyncJobs.createdAt));
   return jobs;
 }
-async function getAccountActiveSyncJob(accountId2) {
+async function getAccountActiveSyncJob(accountId) {
   const db = await getDb();
   if (!db) return null;
   const [job] = await db.select().from(dataSyncJobs).where(
     and(
-      eq(dataSyncJobs.accountId, accountId2),
+      eq(dataSyncJobs.accountId, accountId),
       inArray(dataSyncJobs.status, ["pending", "running"])
     )
   ).orderBy(desc(dataSyncJobs.createdAt)).limit(1);
   return job || null;
 }
-async function getSyncHistory(accountId2, limit = 20) {
+async function getSyncHistory(accountId, limit = 20) {
   const db = await getDb();
   if (!db) return { jobs: [], total: 0 };
-  const jobs = await db.select().from(dataSyncJobs).where(eq(dataSyncJobs.accountId, accountId2)).orderBy(desc(dataSyncJobs.createdAt)).limit(limit);
-  const [countResult] = await db.select({ count: sql`count(*)` }).from(dataSyncJobs).where(eq(dataSyncJobs.accountId, accountId2));
+  const jobs = await db.select().from(dataSyncJobs).where(eq(dataSyncJobs.accountId, accountId)).orderBy(desc(dataSyncJobs.createdAt)).limit(limit);
+  const [countResult] = await db.select({ count: sql`count(*)` }).from(dataSyncJobs).where(eq(dataSyncJobs.accountId, accountId));
   return {
     jobs,
     total: countResult?.count || 0
   };
 }
-async function getLastSuccessfulSync(accountId2) {
+async function getLastSuccessfulSync(accountId) {
   const db = await getDb();
   if (!db) return null;
   const [lastJob] = await db.select().from(dataSyncJobs).where(and(
-    eq(dataSyncJobs.accountId, accountId2),
+    eq(dataSyncJobs.accountId, accountId),
     eq(dataSyncJobs.status, "completed")
   )).orderBy(desc(dataSyncJobs.completedAt)).limit(1);
   return lastJob?.completedAt || null;
 }
-async function getLastSyncData(accountId2) {
+async function getLastSyncData(accountId) {
   const db = await getDb();
   if (!db) return null;
   const [lastJob] = await db.select().from(dataSyncJobs).where(and(
-    eq(dataSyncJobs.accountId, accountId2),
+    eq(dataSyncJobs.accountId, accountId),
     eq(dataSyncJobs.status, "completed")
   )).orderBy(desc(dataSyncJobs.completedAt)).limit(1);
   if (!lastJob) return null;
@@ -37185,7 +37185,7 @@ async function getLastSyncData(accountId2) {
     syncedAt: lastJob.completedAt
   };
 }
-async function getSyncStats(accountId2, days = 30) {
+async function getSyncStats(accountId, days = 30) {
   const db = await getDb();
   if (!db) return null;
   const cutoffDate = /* @__PURE__ */ new Date();
@@ -37199,7 +37199,7 @@ async function getSyncStats(accountId2, days = 30) {
     avgDurationMs: sql`AVG(duration_ms)`,
     totalRetries: sql`COALESCE(SUM(retry_count), 0)`
   }).from(dataSyncJobs).where(and(
-    eq(dataSyncJobs.accountId, accountId2),
+    eq(dataSyncJobs.accountId, accountId),
     gte(dataSyncJobs.createdAt, cutoffDateStr)
   ));
   return stats || {
@@ -37267,20 +37267,20 @@ async function createSyncConflictsBatch(conflicts) {
   await db.insert(syncConflicts).values(conflicts);
   return conflicts.length;
 }
-async function getSyncConflicts(accountId2, status) {
+async function getSyncConflicts(accountId, status) {
   const db = await getDb();
   if (!db) return [];
-  const conditions = [eq(syncConflicts.accountId, accountId2)];
+  const conditions = [eq(syncConflicts.accountId, accountId)];
   if (status) {
     conditions.push(eq(syncConflicts.resolutionStatus, status));
   }
   return db.select().from(syncConflicts).where(and(...conditions)).orderBy(desc(syncConflicts.createdAt));
 }
-async function getPendingConflictsCount(accountId2) {
+async function getPendingConflictsCount(accountId) {
   const db = await getDb();
   if (!db) return 0;
   const [result] = await db.select({ count: sql`count(*)` }).from(syncConflicts).where(and(
-    eq(syncConflicts.accountId, accountId2),
+    eq(syncConflicts.accountId, accountId),
     eq(syncConflicts.resolutionStatus, "pending")
   ));
   return result?.count || 0;
@@ -37427,12 +37427,12 @@ async function getEnabledSyncSchedules() {
   const schedules = await db.select().from(dataSyncSchedules).where(eq(dataSyncSchedules.isEnabled, 1));
   return schedules;
 }
-async function getSyncScheduleByAccountId(userId, accountId2) {
+async function getSyncScheduleByAccountId(userId, accountId) {
   const db = await getDb();
   if (!db) return null;
   const [schedule] = await db.select().from(dataSyncSchedules).where(and(
     eq(dataSyncSchedules.userId, userId),
-    eq(dataSyncSchedules.accountId, accountId2)
+    eq(dataSyncSchedules.accountId, accountId)
   )).limit(1);
   return schedule || null;
 }
@@ -37575,7 +37575,7 @@ async function createSyncLog(data4) {
   });
   return result.insertId;
 }
-async function getLocalDataStats(accountId2) {
+async function getLocalDataStats(accountId) {
   const db = await getDb();
   if (!db) {
     return {
@@ -37587,12 +37587,12 @@ async function getLocalDataStats(accountId2) {
       productTargets: 0
     };
   }
-  const [spCampaignsResult] = await db.select({ count: sql`count(*)` }).from(campaigns).where(sql`${campaigns.accountId} = ${accountId2} AND (${campaigns.campaignType} = 'sp_auto' OR ${campaigns.campaignType} = 'sp_manual')`);
-  const [sbCampaignsResult] = await db.select({ count: sql`count(*)` }).from(campaigns).where(sql`${campaigns.accountId} = ${accountId2} AND ${campaigns.campaignType} = 'sb'`);
-  const [sdCampaignsResult] = await db.select({ count: sql`count(*)` }).from(campaigns).where(sql`${campaigns.accountId} = ${accountId2} AND ${campaigns.campaignType} = 'sd'`);
-  const [adGroupsResult] = await db.select({ count: sql`count(*)` }).from(adGroups).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId2));
-  const [keywordsResult] = await db.select({ count: sql`count(*)` }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId2));
-  const [productTargetsResult] = await db.select({ count: sql`count(*)` }).from(productTargets).innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId2));
+  const [spCampaignsResult] = await db.select({ count: sql`count(*)` }).from(campaigns).where(sql`${campaigns.accountId} = ${accountId} AND (${campaigns.campaignType} = 'sp_auto' OR ${campaigns.campaignType} = 'sp_manual')`);
+  const [sbCampaignsResult] = await db.select({ count: sql`count(*)` }).from(campaigns).where(sql`${campaigns.accountId} = ${accountId} AND ${campaigns.campaignType} = 'sb'`);
+  const [sdCampaignsResult] = await db.select({ count: sql`count(*)` }).from(campaigns).where(sql`${campaigns.accountId} = ${accountId} AND ${campaigns.campaignType} = 'sd'`);
+  const [adGroupsResult] = await db.select({ count: sql`count(*)` }).from(adGroups).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
+  const [keywordsResult] = await db.select({ count: sql`count(*)` }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
+  const [productTargetsResult] = await db.select({ count: sql`count(*)` }).from(productTargets).innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
   return {
     spCampaigns: Number(spCampaignsResult?.count || 0),
     sbCampaigns: Number(sbCampaignsResult?.count || 0),
@@ -37602,7 +37602,7 @@ async function getLocalDataStats(accountId2) {
     productTargets: Number(productTargetsResult?.count || 0)
   };
 }
-async function getAccountPerformanceSummary(accountId2, startDate, endDate) {
+async function getAccountPerformanceSummary(accountId, startDate, endDate) {
   const db = await getDb();
   if (!db) return null;
   try {
@@ -37616,7 +37616,7 @@ async function getAccountPerformanceSummary(accountId2, startDate, endDate) {
         totalImpressions: sql`COALESCE(SUM(${dailyPerformance.impressions}), 0)`,
         totalClicks: sql`COALESCE(SUM(${dailyPerformance.clicks}), 0)`
       }).from(dailyPerformance).where(and(
-        eq(dailyPerformance.accountId, accountId2),
+        eq(dailyPerformance.accountId, accountId),
         sql`DATE(${dailyPerformance.date}) >= ${startDateStr}`,
         sql`DATE(${dailyPerformance.date}) <= ${endDateStr}`
       ));
@@ -37634,7 +37634,7 @@ async function getAccountPerformanceSummary(accountId2, startDate, endDate) {
       totalOrders: sql`COALESCE(SUM(${campaigns.orders}), 0)`,
       totalImpressions: sql`COALESCE(SUM(${campaigns.impressions}), 0)`,
       totalClicks: sql`COALESCE(SUM(${campaigns.clicks}), 0)`
-    }).from(campaigns).where(eq(campaigns.accountId, accountId2));
+    }).from(campaigns).where(eq(campaigns.accountId, accountId));
     return {
       totalSpend: Number(result?.totalSpend || 0),
       totalSales: Number(result?.totalSales || 0),
@@ -38094,10 +38094,10 @@ async function updateOptimizationEventTracking(eventId, trackingData) {
     trackingUpdatedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
   }).where(eq(optimizationEvents.id, eventId));
 }
-async function migrateFromBiddingLogs(accountId2) {
+async function migrateFromBiddingLogs(accountId) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const oldLogs = await db.select().from(biddingLogs).where(eq(biddingLogs.accountId, accountId2)).orderBy(desc(biddingLogs.createdAt));
+  const oldLogs = await db.select().from(biddingLogs).where(eq(biddingLogs.accountId, accountId)).orderBy(desc(biddingLogs.createdAt));
   if (oldLogs.length === 0) return 0;
   const events = oldLogs.map((log2) => ({
     accountId: log2.accountId,
@@ -38122,10 +38122,10 @@ async function migrateFromBiddingLogs(accountId2) {
   await db.insert(optimizationEvents).values(events);
   return events.length;
 }
-async function migrateFromBidAdjustmentHistory(accountId2) {
+async function migrateFromBidAdjustmentHistory(accountId) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const oldRecords = await db.select().from(bidAdjustmentHistory).where(eq(bidAdjustmentHistory.accountId, accountId2)).orderBy(desc(bidAdjustmentHistory.appliedAt));
+  const oldRecords = await db.select().from(bidAdjustmentHistory).where(eq(bidAdjustmentHistory.accountId, accountId)).orderBy(desc(bidAdjustmentHistory.appliedAt));
   if (oldRecords.length === 0) return 0;
   const events = oldRecords.map((record2) => ({
     performanceGroupId: record2.performanceGroupId,
@@ -49417,12 +49417,12 @@ function getDateAdjustmentMultipliers(date12, marketplace) {
   }
   return { bidMultiplier: 1, budgetMultiplier: 1, reason: "Normal day" };
 }
-async function getAccountMarketplace(accountId2) {
-  if (marketplaceCache.has(accountId2)) return marketplaceCache.get(accountId2);
+async function getAccountMarketplace(accountId) {
+  if (marketplaceCache.has(accountId)) return marketplaceCache.get(accountId);
   const db = await Promise.resolve().then(() => (init_db2(), db_exports));
-  const account = await db.getAdAccountById(accountId2);
+  const account = await db.getAdAccountById(accountId);
   const marketplace = account?.marketplace || "US";
-  marketplaceCache.set(accountId2, marketplace);
+  marketplaceCache.set(accountId, marketplace);
   return marketplace;
 }
 var MARKETPLACE_TIMEZONES, CATEGORY_ELASTICITY, MARKETPLACE_HOLIDAYS, marketplaceCache;
@@ -52168,9 +52168,9 @@ var init_amazonAdsApi = __esm({
                   baseDelay = Math.max(baseDelay, retryAfterMs);
                 }
               }
-              const delay2 = baseDelay * Math.pow(2, config2._retryCount - 1) + Math.random() * 1e3;
-              console.warn(`[Amazon API] v148: \u72B6\u6001\u7801${status}, \u7B2C${config2._retryCount}/${MAX_RETRIES}\u6B21\u91CD\u8BD5, \u7B49\u5F85${Math.round(delay2)}ms, URL: ${config2.url}`);
-              await new Promise((resolve8) => setTimeout(resolve8, delay2));
+              const delay = baseDelay * Math.pow(2, config2._retryCount - 1) + Math.random() * 1e3;
+              console.warn(`[Amazon API] v148: \u72B6\u6001\u7801${status}, \u7B2C${config2._retryCount}/${MAX_RETRIES}\u6B21\u91CD\u8BD5, \u7B49\u5F85${Math.round(delay)}ms, URL: ${config2.url}`);
+              await new Promise((resolve8) => setTimeout(resolve8, delay));
               return this.axiosInstance(config2);
             }
             if (error54.response) {
@@ -52287,43 +52287,61 @@ var init_amazonAdsApi = __esm({
        * v148: 实际执行Token刷新的内部方法
        */
       async doRefreshToken() {
-        try {
-          console.log("[Amazon API] Refreshing access token...");
-          const response = await axios_default.post(OAUTH_TOKEN_URL, new URLSearchParams({
-            grant_type: "refresh_token",
-            refresh_token: this.credentials.refreshToken,
-            client_id: this.credentials.clientId,
-            client_secret: this.credentials.clientSecret
-          }), {
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            timeout: 15e3
-            // v148: 添加15秒超时防止无限等待
-          });
-          this.accessToken = response.data.access_token;
-          this.tokenExpiry = new Date(Date.now() + (response.data.expires_in - 60) * 1e3);
-          console.log("[Amazon API] Access token refreshed successfully");
-          return this.accessToken;
-        } catch (error54) {
-          this.accessToken = null;
-          this.tokenExpiry = null;
-          console.error("[Amazon API] Failed to refresh access token:", error54.message);
-          if (error54.response) {
-            const contentType = error54.response.headers?.["content-type"] || "";
-            const data4 = error54.response.data;
-            if (contentType.includes("text/html") || typeof data4 === "string" && data4.startsWith("<")) {
-              console.error("[Amazon API] Token refresh returned HTML instead of JSON");
-              console.error("[Amazon API] Status:", error54.response.status);
-              throw new Error("Token\u5237\u65B0\u5931\u8D25\uFF0C\u8BF7\u91CD\u65B0\u6388\u6743\u3002\u53EF\u80FD\u539F\u56E0\uFF1ARefresh Token\u5DF2\u8FC7\u671F\u6216\u65E0\u6548");
-            }
-            if (error54.response.status === 400) {
-              const errorData = error54.response.data;
-              if (errorData?.error === "invalid_grant") {
-                throw new Error("Refresh Token\u5DF2\u8FC7\u671F\u6216\u65E0\u6548\uFF0C\u8BF7\u91CD\u65B0\u6388\u6743");
+        const MAX_TOKEN_RETRIES = 3;
+        let lastError = null;
+        for (let attempt = 1; attempt <= MAX_TOKEN_RETRIES; attempt++) {
+          try {
+            console.log(`[Amazon API] Refreshing access token... (attempt ${attempt}/${MAX_TOKEN_RETRIES})`);
+            const response = await axios_default.post(OAUTH_TOKEN_URL, new URLSearchParams({
+              grant_type: "refresh_token",
+              refresh_token: this.credentials.refreshToken,
+              client_id: this.credentials.clientId,
+              client_secret: this.credentials.clientSecret
+            }), {
+              headers: { "Content-Type": "application/x-www-form-urlencoded" },
+              timeout: 15e3
+            });
+            this.accessToken = response.data.access_token;
+            this.tokenExpiry = new Date(Date.now() + (response.data.expires_in - 60) * 1e3);
+            console.log("[Amazon API] Access token refreshed successfully");
+            return this.accessToken;
+          } catch (error54) {
+            lastError = error54;
+            if (error54.response) {
+              const contentType = error54.response.headers?.["content-type"] || "";
+              const data4 = error54.response.data;
+              if (contentType.includes("text/html") || typeof data4 === "string" && data4.startsWith("<")) {
+                console.error("[Amazon API] Token refresh returned HTML instead of JSON");
+                this.accessToken = null;
+                this.tokenExpiry = null;
+                throw new Error("Token\u5237\u65B0\u5931\u8D25\uFF0C\u8BF7\u91CD\u65B0\u6388\u6743\u3002\u53EF\u80FD\u539F\u56E0\uFF1ARefresh Token\u5DF2\u8FC7\u671F\u6216\u65E0\u6548");
+              }
+              if (error54.response.status === 400) {
+                const errorData = error54.response.data;
+                if (errorData?.error === "invalid_grant") {
+                  this.accessToken = null;
+                  this.tokenExpiry = null;
+                  throw new Error("Refresh Token\u5DF2\u8FC7\u671F\u6216\u65E0\u6548\uFF0C\u8BF7\u91CD\u65B0\u6388\u6743");
+                }
+              }
+              if (error54.response.status === 401 || error54.response.status === 403) {
+                this.accessToken = null;
+                this.tokenExpiry = null;
+                throw new Error(`Token\u5237\u65B0\u8BA4\u8BC1\u5931\u8D25(${error54.response.status})\uFF0C\u8BF7\u68C0\u67E5API\u51ED\u8BC1`);
               }
             }
+            console.warn(`[Amazon API] Token refresh attempt ${attempt}/${MAX_TOKEN_RETRIES} failed: ${error54.message}`);
+            if (attempt < MAX_TOKEN_RETRIES) {
+              const delay = Math.pow(2, attempt) * 1e3 + Math.random() * 1e3;
+              console.log(`[Amazon API] Retrying token refresh in ${Math.round(delay)}ms...`);
+              await new Promise((r5) => setTimeout(r5, delay));
+            }
           }
-          throw error54;
         }
+        this.accessToken = null;
+        this.tokenExpiry = null;
+        console.error(`[Amazon API] Token refresh failed after ${MAX_TOKEN_RETRIES} attempts: ${lastError?.message}`);
+        throw lastError;
       }
       /**
        * 获取广告配置文件列表
@@ -57010,58 +57028,70 @@ async function withRetry(fn2, options = {}) {
       if (!isRetryable || attempt >= maxRetries) {
         throw error54;
       }
-      const delay2 = isThrottle ? Math.min(baseDelayMs * Math.pow(2, attempt), 15e3) : baseDelayMs * (attempt + 1);
-      console.log(`[AmazonApiHelper] ${label} \u7B2C${attempt + 1}\u6B21\u91CD\u8BD5\uFF0C\u7B49\u5F85${delay2}ms... (${error54.message?.substring(0, 80)})`);
-      await new Promise((resolve8) => setTimeout(resolve8, delay2));
+      const delay = isThrottle ? Math.min(baseDelayMs * Math.pow(2, attempt), 15e3) : baseDelayMs * (attempt + 1);
+      console.log(`[AmazonApiHelper] ${label} \u7B2C${attempt + 1}\u6B21\u91CD\u8BD5\uFF0C\u7B49\u5F85${delay}ms... (${error54.message?.substring(0, 80)})`);
+      await new Promise((resolve8) => setTimeout(resolve8, delay));
     }
   }
   throw lastError;
 }
-async function getAmazonSyncService(accountId2) {
-  try {
-    const account = await getAdAccountById(accountId2);
-    if (!account) {
-      console.error(`[AmazonApiHelper] \u8D26\u53F7 ${accountId2} \u4E0D\u5B58\u5728`);
+async function getAmazonSyncService(accountId) {
+  const MAX_RETRIES = 2;
+  const RETRY_DELAY_MS = 3e3;
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const account = await getAdAccountById(accountId);
+      if (!account) {
+        console.error(`[AmazonApiHelper] \u8D26\u53F7 ${accountId} \u4E0D\u5B58\u5728`);
+        return null;
+      }
+      const credentials = await getAmazonApiCredentials(accountId);
+      if (!credentials) {
+        console.error(`[AmazonApiHelper] \u8D26\u53F7 ${accountId} \u672A\u914D\u7F6EAPI\u51ED\u8BC1`);
+        return null;
+      }
+      if (!credentials.clientId || !credentials.clientSecret || !credentials.refreshToken) {
+        console.error(`[AmazonApiHelper] \u8D26\u53F7 ${accountId} API\u51ED\u8BC1\u4E0D\u5B8C\u6574: clientId=${!!credentials.clientId}, clientSecret=${!!credentials.clientSecret}, refreshToken=${!!credentials.refreshToken}`);
+        return null;
+      }
+      if (!account.profileId) {
+        console.error(`[AmazonApiHelper] \u8D26\u53F7 ${accountId} \u7F3A\u5C11profileId`);
+        return null;
+      }
+      const syncService = await AmazonSyncService.createFromCredentials(
+        {
+          clientId: credentials.clientId || "",
+          clientSecret: credentials.clientSecret || "",
+          refreshToken: credentials.refreshToken || "",
+          profileId: account.profileId || "",
+          region: credentials.region || "NA"
+        },
+        accountId,
+        account.userId,
+        account.marketplace || "US"
+      );
+      return syncService;
+    } catch (error54) {
+      const isRetryable = error54.code === "ECONNRESET" || error54.code === "ETIMEDOUT" || error54.code === "ECONNREFUSED" || error54.code === "PROTOCOL_CONNECTION_LOST" || error54.message?.includes("Connection lost") || error54.message?.includes("ECONNRESET");
+      if (isRetryable && attempt < MAX_RETRIES) {
+        const waitTime = RETRY_DELAY_MS * (attempt + 1);
+        console.warn(`[AmazonApiHelper] \u521B\u5EFASyncService\u5931\u8D25(\u53EF\u91CD\u8BD5), \u7B2C${attempt + 1}\u6B21\u91CD\u8BD5, \u7B49\u5F85${waitTime}ms... (accountId=${accountId}): ${error54.message}`);
+        await new Promise((resolve8) => setTimeout(resolve8, waitTime));
+        continue;
+      }
+      console.error(`[AmazonApiHelper] \u521B\u5EFASyncService\u5931\u8D25 (accountId=${accountId}, \u5DF2\u91CD\u8BD5${attempt}\u6B21):`, error54.message);
       return null;
     }
-    const credentials = await getAmazonApiCredentials(accountId2);
-    if (!credentials) {
-      console.error(`[AmazonApiHelper] \u8D26\u53F7 ${accountId2} \u672A\u914D\u7F6EAPI\u51ED\u8BC1`);
-      return null;
-    }
-    if (!credentials.clientId || !credentials.clientSecret || !credentials.refreshToken) {
-      console.error(`[AmazonApiHelper] \u8D26\u53F7 ${accountId2} API\u51ED\u8BC1\u4E0D\u5B8C\u6574: clientId=${!!credentials.clientId}, clientSecret=${!!credentials.clientSecret}, refreshToken=${!!credentials.refreshToken}`);
-      return null;
-    }
-    if (!account.profileId) {
-      console.error(`[AmazonApiHelper] \u8D26\u53F7 ${accountId2} \u7F3A\u5C11profileId`);
-      return null;
-    }
-    const syncService = await AmazonSyncService.createFromCredentials(
-      {
-        clientId: credentials.clientId || "",
-        clientSecret: credentials.clientSecret || "",
-        refreshToken: credentials.refreshToken || "",
-        profileId: account.profileId || "",
-        region: credentials.region || "NA"
-      },
-      accountId2,
-      account.userId,
-      account.marketplace || "US"
-    );
-    return syncService;
-  } catch (error54) {
-    console.error(`[AmazonApiHelper] \u521B\u5EFASyncService\u5931\u8D25 (accountId=${accountId2}):`, error54.message);
-    return null;
   }
+  return null;
 }
-async function syncBidAdjustmentsToAmazon(accountId2, adjustments) {
+async function syncBidAdjustmentsToAmazon(accountId, adjustments) {
   const result = { success: 0, failed: 0, errors: [], itemResults: /* @__PURE__ */ new Map() };
   if (adjustments.length === 0) return result;
-  console.log(`[AmazonApiHelper] \u5F00\u59CB\u540C\u6B65\u51FA\u4EF7\u8C03\u6574: accountId=${accountId2}, \u603B\u8BA1=${adjustments.length}\u6761`);
-  const syncService = await getAmazonSyncService(accountId2);
+  console.log(`[AmazonApiHelper] \u5F00\u59CB\u540C\u6B65\u51FA\u4EF7\u8C03\u6574: accountId=${accountId}, \u603B\u8BA1=${adjustments.length}\u6761`);
+  const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
-    const errorMsg = `\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7 ${accountId2} \u7684API\u670D\u52A1\uFF08\u51ED\u8BC1\u7F3A\u5931\u6216\u65E0\u6548\uFF09`;
+    const errorMsg = `\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7 ${accountId} \u7684API\u670D\u52A1\uFF08\u51ED\u8BC1\u7F3A\u5931\u6216\u65E0\u6548\uFF09`;
     console.error(`[AmazonApiHelper] ${errorMsg}`);
     result.errors.push(errorMsg);
     result.failed = adjustments.length;
@@ -57079,7 +57109,7 @@ async function syncBidAdjustmentsToAmazon(accountId2, adjustments) {
   if (uniqueAdjustments.length < adjustments.length) {
     console.log(`[AmazonApiHelper] \u5E42\u7B49\u6027\u53BB\u91CD: ${adjustments.length}\u6761 -> ${uniqueAdjustments.length}\u6761\uFF08\u53BB\u9664${adjustments.length - uniqueAdjustments.length}\u4E2A\u91CD\u590D\u5173\u952E\u8BCD\uFF09`);
   }
-  const delay2 = (ms) => new Promise((resolve8) => setTimeout(resolve8, ms));
+  const delay = (ms) => new Promise((resolve8) => setTimeout(resolve8, ms));
   let consecutiveThrottles = 0;
   for (let i4 = 0; i4 < uniqueAdjustments.length; i4++) {
     const adj = uniqueAdjustments[i4];
@@ -57116,14 +57146,14 @@ async function syncBidAdjustmentsToAmazon(accountId2, adjustments) {
           break;
         }
       } catch (error54) {
-        const isNonRetryable = error54.nonRetryable === true || error54.message?.includes("MISSING_AMAZON_ID");
+        const isMissingId = error54.message?.includes("MISSING_AMAZON_ID");
         const isThrottle = error54.message?.includes("\u8BF7\u6C42\u8FC7\u4E8E\u9891\u7E41") || error54.status === 429;
-        if (isNonRetryable) {
+        if (isMissingId) {
           result.failed++;
           const targetType = adj.isProductTarget ? "product_target" : "keyword";
-          const errMsg = `${targetType} ${adj.keywordId}: \u7F3A\u5C11Amazon ID`;
+          const errMsg = `${targetType} ${adj.keywordId}: \u7F3A\u5C11Amazon ID\uFF08\u5C06\u901A\u8FC7\u91CD\u8BD5\u961F\u5217\u81EA\u52A8\u91CD\u8BD5\uFF09`;
           result.errors.push(errMsg);
-          result.itemResults.set(adj.keywordId, { status: "failed", error: "\u7F3A\u5C11Amazon ID" });
+          result.itemResults.set(adj.keywordId, { status: "failed", error: "\u7F3A\u5C11Amazon ID\uFF08\u53EF\u91CD\u8BD5\uFF09" });
           break;
         }
         retryCount++;
@@ -57131,11 +57161,11 @@ async function syncBidAdjustmentsToAmazon(accountId2, adjustments) {
           consecutiveThrottles++;
           const waitTime = Math.min(3e3 * consecutiveThrottles, 15e3);
           console.log(`[AmazonApiHelper] \u26A0\uFE0F \u9650\u6D41\uFF0C\u7B49\u5F85${waitTime}ms\u540E\u91CD\u8BD5...`);
-          await delay2(waitTime);
+          await delay(waitTime);
         } else if (retryCount <= maxRetries) {
           const waitTime = 2e3 * retryCount;
           console.log(`[AmazonApiHelper] \u2139\uFE0F API\u9519\u8BEF\uFF0C\u7B49\u5F85${waitTime}ms\u540E\u91CD\u8BD5...`);
-          await delay2(waitTime);
+          await delay(waitTime);
         } else {
           result.failed++;
           const targetType = adj.isProductTarget ? "product_target" : "keyword";
@@ -57148,7 +57178,7 @@ async function syncBidAdjustmentsToAmazon(accountId2, adjustments) {
       }
     }
     if ((i4 + 1) % 5 === 0 && i4 < uniqueAdjustments.length - 1) {
-      await delay2(500);
+      await delay(500);
     }
   }
   const totalAttempts = result.success + result.failed;
@@ -57168,7 +57198,7 @@ async function syncBidAdjustmentsToAmazon(accountId2, adjustments) {
         const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
         const alertMsg = `Amazon API\u51FA\u4EF7\u540C\u6B65\u5931\u8D25\u7387${failureRate.toFixed(1)}%\uFF08\u6210\u529F${result.success}/\u5931\u8D25${result.failed}\uFF09\uFF0C\u8D85\u8FC7${FAILURE_RATE_THRESHOLD}%\u9608\u503C`;
         const errorSummary = result.errors.slice(0, 3).join("; ");
-        await dbInstance.execute(sql9`INSERT INTO system_alerts (alert_type, alert_level, alert_message, alert_details, account_id, created_at) VALUES (${"api_sync_failure"}, ${"warning"}, ${alertMsg}, ${errorSummary}, ${accountId2}, ${now}) ON DUPLICATE KEY UPDATE alert_message = VALUES(alert_message), created_at = VALUES(created_at)`);
+        await dbInstance.execute(sql9`INSERT INTO system_alerts (alert_type, alert_level, alert_message, alert_details, account_id, created_at) VALUES (${"api_sync_failure"}, ${"warning"}, ${alertMsg}, ${errorSummary}, ${accountId}, ${now}) ON DUPLICATE KEY UPDATE alert_message = VALUES(alert_message), created_at = VALUES(created_at)`);
       }
     } catch (alertErr) {
       console.warn(`[ALERT] \u544A\u8B66\u5199\u5165\u6570\u636E\u5E93\u5931\u8D25\uFF08\u8868\u53EF\u80FD\u4E0D\u5B58\u5728\uFF09: ${alertErr.message}`);
@@ -57176,7 +57206,7 @@ async function syncBidAdjustmentsToAmazon(accountId2, adjustments) {
   }
   return result;
 }
-async function syncNewKeywordsToAmazon(accountId2, newKeywords) {
+async function syncNewKeywordsToAmazon(accountId, newKeywords) {
   const result = {
     success: 0,
     failed: 0,
@@ -57184,10 +57214,10 @@ async function syncNewKeywordsToAmazon(accountId2, newKeywords) {
     createdKeywords: []
   };
   if (newKeywords.length === 0) return result;
-  console.log(`[AmazonApiHelper] \u5F00\u59CB\u540C\u6B65\u65B0\u5173\u952E\u8BCD\u5230Amazon: accountId=${accountId2}, \u603B\u8BA1=${newKeywords.length}\u4E2A`);
-  const syncService = await getAmazonSyncService(accountId2);
+  console.log(`[AmazonApiHelper] \u5F00\u59CB\u540C\u6B65\u65B0\u5173\u952E\u8BCD\u5230Amazon: accountId=${accountId}, \u603B\u8BA1=${newKeywords.length}\u4E2A`);
+  const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
-    const errorMsg = `\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7 ${accountId2} \u7684API\u670D\u52A1`;
+    const errorMsg = `\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7 ${accountId} \u7684API\u670D\u52A1`;
     result.errors.push(errorMsg);
     result.failed = newKeywords.length;
     return result;
@@ -57202,15 +57232,18 @@ async function syncNewKeywordsToAmazon(accountId2, newKeywords) {
     const batch = newKeywords.slice(batchStart, batchEnd);
     console.log(`[AmazonApiHelper] \u5904\u7406\u7B2C${batchIdx + 1}/${totalBatches}\u6279: ${batch.length}\u4E2A\u5173\u952E\u8BCD (\u7D22\u5F15 ${batchStart}-${batchEnd - 1})`);
     try {
-      const apiResult = await syncService.client.createSpKeywords(
-        batch.map((k5) => ({
-          adGroupId: k5.adGroupId,
-          campaignId: k5.campaignId,
-          keywordText: k5.keywordText,
-          matchType: k5.matchType,
-          bid: k5.bid,
-          state: "enabled"
-        }))
+      const apiResult = await withRetry(
+        () => syncService.client.createSpKeywords(
+          batch.map((k5) => ({
+            adGroupId: k5.adGroupId,
+            campaignId: k5.campaignId,
+            keywordText: k5.keywordText,
+            matchType: k5.matchType,
+            bid: k5.bid,
+            state: "enabled"
+          }))
+        ),
+        { maxRetries: 2, baseDelayMs: 3e3, label: `createSpKeywords-batch${batchIdx + 1}` }
       );
       for (let i4 = 0; i4 < apiResult.createdKeywords.length; i4++) {
         const created = apiResult.createdKeywords[i4];
@@ -57275,8 +57308,8 @@ async function syncNewKeywordsToAmazon(accountId2, newKeywords) {
   console.log(`[AmazonApiHelper] \u65B0\u5173\u952E\u8BCD\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}, \u603B\u8BA1=${newKeywords.length}`);
   return result;
 }
-async function syncBudgetAdjustmentToAmazon(accountId2, campaignId, newBudget, reason, campaignType) {
-  const syncService = await getAmazonSyncService(accountId2);
+async function syncBudgetAdjustmentToAmazon(accountId, campaignId, newBudget, reason, campaignType) {
+  const syncService = await getAmazonSyncService(accountId);
   if (!syncService) return false;
   try {
     const type = (campaignType || "sp_manual").toLowerCase();
@@ -57302,8 +57335,8 @@ async function syncBudgetAdjustmentToAmazon(accountId2, campaignId, newBudget, r
     return false;
   }
 }
-async function syncPlacementAdjustmentToAmazon(accountId2, campaignId, topOfSearchPercent, productPagePercent, reason) {
-  const syncService = await getAmazonSyncService(accountId2);
+async function syncPlacementAdjustmentToAmazon(accountId, campaignId, topOfSearchPercent, productPagePercent, reason) {
+  const syncService = await getAmazonSyncService(accountId);
   if (!syncService) return false;
   try {
     await withRetry(async () => {
@@ -57329,12 +57362,12 @@ function normalizeMatchTypeForComparison(matchType) {
   if (lower === "negativeexact" || lower === "negative_exact") return "negative_exact";
   return lower;
 }
-async function syncNegativeKeywordsToAmazon(accountId2, negatives) {
+async function syncNegativeKeywordsToAmazon(accountId, negatives) {
   const result = { success: 0, failed: 0, errors: [] };
   if (negatives.length === 0) return result;
-  const syncService = await getAmazonSyncService(accountId2);
+  const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
-    result.errors.push(`\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7 ${accountId2} \u7684API\u670D\u52A1`);
+    result.errors.push(`\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7 ${accountId} \u7684API\u670D\u52A1`);
     result.failed = negatives.length;
     return result;
   }
@@ -57372,15 +57405,18 @@ async function syncNegativeKeywordsToAmazon(accountId2, negatives) {
             matchType: n7.matchType
           }))
         ), { label: "Campaign\u5426\u5B9A\u8BCD\u521B\u5EFA" });
-        for (const r5 of results) {
+        for (let ri2 = 0; ri2 < results.length; ri2++) {
+          const r5 = results[ri2];
           if (r5.code === "SUCCESS" || r5.keywordId) {
             result.success++;
-            if (r5.index !== void 0 && r5.index < newCampaignNegatives.length) {
-              console.log(`[AmazonApiHelper] \u5426\u5B9A\u8BCD\u521B\u5EFA\u6210\u529F: "${newCampaignNegatives[r5.index].keywordText}" -> keywordId=${r5.keywordId}`);
+            const idx = r5.index !== void 0 ? r5.index : ri2;
+            if (idx < newCampaignNegatives.length) {
+              console.log(`[AmazonApiHelper] \u5426\u5B9A\u8BCD\u521B\u5EFA\u6210\u529F: "${newCampaignNegatives[idx].keywordText}" -> keywordId=${r5.keywordId}`);
             }
           } else {
             result.failed++;
-            const failedKeyword = r5.index !== void 0 && r5.index < newCampaignNegatives.length ? newCampaignNegatives[r5.index].keywordText : "unknown";
+            const idx = r5.index !== void 0 ? r5.index : ri2;
+            const failedKeyword = idx < newCampaignNegatives.length ? newCampaignNegatives[idx].keywordText : "unknown";
             result.errors.push(`Campaign\u5426\u5B9A\u8BCD\u5931\u8D25[${failedKeyword}]: ${r5.details}`);
           }
         }
@@ -57440,19 +57476,19 @@ async function syncNegativeKeywordsToAmazon(accountId2, negatives) {
   console.log(`[AmazonApiHelper] \u5426\u5B9A\u8BCD\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}`);
   return result;
 }
-async function syncKeywordStatusToAmazon(accountId2, statusChanges) {
+async function syncKeywordStatusToAmazon(accountId, statusChanges) {
   const result = { success: 0, failed: 0, errors: [] };
   if (statusChanges.length === 0) return result;
-  console.log(`[AmazonApiHelper] \u5F00\u59CB\u540C\u6B65\u5173\u952E\u8BCD\u72B6\u6001\u53D8\u66F4: accountId=${accountId2}, \u603B\u8BA1=${statusChanges.length}\u6761`);
-  const syncService = await getAmazonSyncService(accountId2);
+  console.log(`[AmazonApiHelper] \u5F00\u59CB\u540C\u6B65\u5173\u952E\u8BCD\u72B6\u6001\u53D8\u66F4: accountId=${accountId}, \u603B\u8BA1=${statusChanges.length}\u6761`);
+  const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
-    const errorMsg = `\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7 ${accountId2} \u7684API\u670D\u52A1\uFF08\u51ED\u8BC1\u7F3A\u5931\u6216\u65E0\u6548\uFF09`;
+    const errorMsg = `\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7 ${accountId} \u7684API\u670D\u52A1\uFF08\u51ED\u8BC1\u7F3A\u5931\u6216\u65E0\u6548\uFF09`;
     console.error(`[AmazonApiHelper] ${errorMsg}`);
     result.errors.push(errorMsg);
     result.failed = statusChanges.length;
     return result;
   }
-  const delay2 = (ms) => new Promise((resolve8) => setTimeout(resolve8, ms));
+  const delay = (ms) => new Promise((resolve8) => setTimeout(resolve8, ms));
   const keywordChanges = statusChanges.filter((s4) => !s4.isProductTarget);
   const productTargetChanges = statusChanges.filter((s4) => s4.isProductTarget);
   for (let i4 = 0; i4 < keywordChanges.length; i4++) {
@@ -57471,7 +57507,7 @@ async function syncKeywordStatusToAmazon(accountId2, statusChanges) {
         console.log(`[AmazonApiHelper] keyword id=${change.keywordId} \u7F3A\u5C11keywordId\uFF0C\u5C1D\u8BD5\u5373\u65F6\u56DE\u586B...`);
         try {
           const { resolveKeywordIdOnDemand: resolveKeywordIdOnDemand2 } = await Promise.resolve().then(() => (init_amazonIdResolver(), amazonIdResolver_exports));
-          const resolvedId = await resolveKeywordIdOnDemand2(accountId2, change.keywordId);
+          const resolvedId = await resolveKeywordIdOnDemand2(accountId, change.keywordId);
           if (resolvedId) {
             kw = { keywordId: resolvedId };
             console.log(`[AmazonApiHelper] \u2705 \u5373\u65F6\u56DE\u586B\u6210\u529F: keyword id=${change.keywordId} -> keywordId=${resolvedId}`);
@@ -57489,10 +57525,13 @@ async function syncKeywordStatusToAmazon(accountId2, statusChanges) {
       }
       const amazonKeywordId = String(kw.keywordId);
       console.log(`[AmazonApiHelper] [${i4 + 1}/${keywordChanges.length}] \u540C\u6B65\u5173\u952E\u8BCD\u72B6\u6001: keywordId="${amazonKeywordId}", newState=${change.newStatus}`);
-      const apiResult = await syncService.client.updateKeywordStatus([{
-        keywordId: amazonKeywordId,
-        state: change.newStatus
-      }]);
+      const apiResult = await withRetry(
+        () => syncService.client.updateKeywordStatus([{
+          keywordId: amazonKeywordId,
+          state: change.newStatus
+        }]),
+        { maxRetries: 2, baseDelayMs: 2e3, label: `updateKeywordStatus-${amazonKeywordId}` }
+      );
       if (apiResult.successCount > 0) {
         result.success++;
         console.log(`[AmazonApiHelper] \u2705 \u5173\u952E\u8BCD\u72B6\u6001\u66F4\u65B0\u6210\u529F: keywordId=${amazonKeywordId}, state=${change.newStatus}`);
@@ -57512,7 +57551,7 @@ async function syncKeywordStatusToAmazon(accountId2, statusChanges) {
       console.error(`[AmazonApiHelper] \u274C ${errorMsg}`);
     }
     if ((i4 + 1) % 5 === 0 && i4 < keywordChanges.length - 1) {
-      await delay2(500);
+      await delay(500);
     }
   }
   for (let i4 = 0; i4 < productTargetChanges.length; i4++) {
@@ -57528,16 +57567,45 @@ async function syncKeywordStatusToAmazon(accountId2, statusChanges) {
       const { eq: eq7 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
       const [pt3] = await dbInstance.select({ targetId: productTargets2.targetId }).from(productTargets2).where(eq7(productTargets2.id, change.keywordId)).limit(1);
       if (!pt3 || !pt3.targetId || pt3.targetId === "0" || pt3.targetId === "") {
+        console.log(`[AmazonApiHelper] product_target id=${change.keywordId} \u7F3A\u5C11targetId\uFF0C\u5C1D\u8BD5\u5373\u65F6\u56DE\u586B...`);
+        try {
+          const { resolveProductTargetIdOnDemand: resolveProductTargetIdOnDemand2 } = await Promise.resolve().then(() => (init_amazonIdResolver(), amazonIdResolver_exports));
+          const resolvedId = await resolveProductTargetIdOnDemand2(accountId, change.keywordId);
+          if (resolvedId) {
+            console.log(`[AmazonApiHelper] \u2705 \u5546\u54C1\u5B9A\u5411\u5373\u65F6\u56DE\u586B\u6210\u529F: product_target id=${change.keywordId} -> targetId=${resolvedId}`);
+            const amazonTargetId2 = resolvedId;
+            const apiResult2 = await withRetry(
+              () => syncService.client.updateProductTargetStatus([{
+                targetId: amazonTargetId2,
+                state: change.newStatus
+              }]),
+              { maxRetries: 2, baseDelayMs: 2e3, label: `updateProductTargetStatus-${amazonTargetId2}` }
+            );
+            if (apiResult2.successCount > 0) {
+              result.success++;
+              console.log(`[AmazonApiHelper] \u2705 \u5546\u54C1\u5B9A\u5411\u72B6\u6001\u66F4\u65B0\u6210\u529F: targetId=${amazonTargetId2}`);
+            } else {
+              result.failed++;
+              result.errors.push(`\u5546\u54C1\u5B9A\u5411 ${amazonTargetId2} \u72B6\u6001\u66F4\u65B0\u5931\u8D25: ${apiResult2.errors[0]?.details || "Unknown error"}`);
+            }
+            continue;
+          }
+        } catch (resolveErr) {
+          console.error(`[AmazonApiHelper] \u5546\u54C1\u5B9A\u5411\u5373\u65F6\u56DE\u586B\u5F02\u5E38: ${resolveErr.message}`);
+        }
         result.failed++;
-        result.errors.push(`\u5546\u54C1\u5B9A\u5411 ${change.keywordId} \u7F3A\u5C11Amazon targetId`);
+        result.errors.push(`\u5546\u54C1\u5B9A\u5411 ${change.keywordId} \u7F3A\u5C11Amazon targetId\u4E14\u56DE\u586B\u5931\u8D25`);
         continue;
       }
       const amazonTargetId = String(pt3.targetId);
       console.log(`[AmazonApiHelper] [${i4 + 1}/${productTargetChanges.length}] \u540C\u6B65\u5546\u54C1\u5B9A\u5411\u72B6\u6001: targetId="${amazonTargetId}", newState=${change.newStatus}`);
-      const apiResult = await syncService.client.updateProductTargetStatus([{
-        targetId: amazonTargetId,
-        state: change.newStatus
-      }]);
+      const apiResult = await withRetry(
+        () => syncService.client.updateProductTargetStatus([{
+          targetId: amazonTargetId,
+          state: change.newStatus
+        }]),
+        { maxRetries: 2, baseDelayMs: 2e3, label: `updateProductTargetStatus-${amazonTargetId}` }
+      );
       if (apiResult.successCount > 0) {
         result.success++;
         console.log(`[AmazonApiHelper] \u2705 \u5546\u54C1\u5B9A\u5411\u72B6\u6001\u66F4\u65B0\u6210\u529F: targetId=${amazonTargetId}`);
@@ -57552,19 +57620,20 @@ async function syncKeywordStatusToAmazon(accountId2, statusChanges) {
       result.errors.push(`\u5546\u54C1\u5B9A\u5411 ${change.keywordId} \u72B6\u6001\u540C\u6B65\u5F02\u5E38: ${error54.message}`);
     }
     if ((i4 + 1) % 5 === 0 && i4 < productTargetChanges.length - 1) {
-      await delay2(500);
+      await delay(500);
     }
   }
   console.log(`[AmazonApiHelper] \u5173\u952E\u8BCD\u72B6\u6001\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}`);
   return result;
 }
-async function syncCampaignStatusToAmazon(accountId2, statusChanges) {
+async function syncCampaignStatusToAmazon(accountId, statusChanges) {
   const result = { success: 0, failed: 0, errors: [] };
   if (statusChanges.length === 0) return result;
-  console.log(`[AmazonApiHelper] \u5F00\u59CB\u540C\u6B65\u5E7F\u544A\u6D3B\u52A8\u72B6\u6001\u53D8\u66F4: accountId=${accountId2}, \u603B\u8BA1=${statusChanges.length}\u6761`);
-  const syncService = await getAmazonSyncService(accountId2);
+  const delay = (ms) => new Promise((resolve8) => setTimeout(resolve8, ms));
+  console.log(`[AmazonApiHelper] \u5F00\u59CB\u540C\u6B65\u5E7F\u544A\u6D3B\u52A8\u72B6\u6001\u53D8\u66F4: accountId=${accountId}, \u603B\u8BA1=${statusChanges.length}\u6761`);
+  const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
-    const errorMsg = `\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7 ${accountId2} \u7684API\u670D\u52A1\uFF08\u51ED\u8BC1\u7F3A\u5931\u6216\u65E0\u6548\uFF09`;
+    const errorMsg = `\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7 ${accountId} \u7684API\u670D\u52A1\uFF08\u51ED\u8BC1\u7F3A\u5931\u6216\u65E0\u6548\uFF09`;
     console.error(`[AmazonApiHelper] ${errorMsg}`);
     result.errors.push(errorMsg);
     result.failed = statusChanges.length;
@@ -57626,7 +57695,7 @@ async function syncCampaignStatusToAmazon(accountId2, statusChanges) {
             const { sql: sql9 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
             await dbInstance.execute(sql9`
               INSERT INTO sync_failures (entity_type, entity_id, amazon_id, operation, error_message, account_id, created_at) 
-              VALUES ('campaign', ${change.campaignId}, ${change.amazonCampaignId}, ${"status_change_" + change.newStatus}, ${(lastError?.message || "").substring(0, 1e3)}, ${accountId2}, NOW())
+              VALUES ('campaign', ${change.campaignId}, ${change.amazonCampaignId}, ${"status_change_" + change.newStatus}, ${(lastError?.message || "").substring(0, 1e3)}, ${accountId}, NOW())
             `);
           }
         } catch (logError2) {
@@ -57646,13 +57715,13 @@ async function syncCampaignStatusToAmazon(accountId2, statusChanges) {
   console.log(`[AmazonApiHelper] \u5E7F\u544A\u6D3B\u52A8\u72B6\u6001\u540C\u6B65\u5B8C\u6210: \u6210\u529F=${result.success}, \u5931\u8D25=${result.failed}`);
   return result;
 }
-async function syncAdGroupStatusToAmazon(accountId2, statusChanges) {
+async function syncAdGroupStatusToAmazon(accountId, statusChanges) {
   const result = { success: 0, failed: 0, errors: [] };
   if (statusChanges.length === 0) return result;
-  console.log(`[AmazonApiHelper] \u5F00\u59CB\u540C\u6B65\u5E7F\u544A\u7EC4\u72B6\u6001\u53D8\u66F4: accountId=${accountId2}, \u603B\u8BA1=${statusChanges.length}\u6761`);
-  const syncService = await getAmazonSyncService(accountId2);
+  console.log(`[AmazonApiHelper] \u5F00\u59CB\u540C\u6B65\u5E7F\u544A\u7EC4\u72B6\u6001\u53D8\u66F4: accountId=${accountId}, \u603B\u8BA1=${statusChanges.length}\u6761`);
+  const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
-    const errorMsg = `\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7 ${accountId2} \u7684API\u670D\u52A1\uFF08\u51ED\u8BC1\u7F3A\u5931\u6216\u65E0\u6548\uFF09`;
+    const errorMsg = `\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7 ${accountId} \u7684API\u670D\u52A1\uFF08\u51ED\u8BC1\u7F3A\u5931\u6216\u65E0\u6548\uFF09`;
     console.error(`[AmazonApiHelper] ${errorMsg}`);
     result.errors.push(errorMsg);
     result.failed = statusChanges.length;
@@ -57667,10 +57736,13 @@ async function syncAdGroupStatusToAmazon(accountId2, statusChanges) {
   for (const change of validChanges) {
     try {
       console.log(`[AmazonApiHelper] \u540C\u6B65\u5E7F\u544A\u7EC4\u72B6\u6001: "${change.adGroupName}" (${change.amazonAdGroupId}) -> ${change.newStatus}`);
-      const apiResult = await syncService.client.updateSpAdGroupStatus([{
-        adGroupId: change.amazonAdGroupId,
-        state: change.newStatus
-      }]);
+      const apiResult = await withRetry(
+        () => syncService.client.updateSpAdGroupStatus([{
+          adGroupId: change.amazonAdGroupId,
+          state: change.newStatus
+        }]),
+        { maxRetries: 2, baseDelayMs: 2e3, label: `updateSpAdGroupStatus-${change.amazonAdGroupId}` }
+      );
       if (apiResult.successCount > 0) {
         result.success++;
         console.log(`[AmazonApiHelper] \u2705 \u5E7F\u544A\u7EC4\u72B6\u6001\u66F4\u65B0\u6210\u529F: "${change.adGroupName}" -> ${change.newStatus}`);
@@ -57706,7 +57778,7 @@ __export(amazonIdResolver_exports, {
   resolveKeywordIdOnDemand: () => resolveKeywordIdOnDemand,
   resolveProductTargetIdOnDemand: () => resolveProductTargetIdOnDemand
 });
-async function ensureAmazonIdsReady(accountId2) {
+async function ensureAmazonIdsReady(accountId) {
   const result = {
     keywordsResolved: 0,
     keywordsFailed: 0,
@@ -57718,7 +57790,7 @@ async function ensureAmazonIdsReady(accountId2) {
     totalMissingAfter: 0,
     errors: []
   };
-  console.log(`[IdResolver] ========== \u5F00\u59CBPre-Sync ID Resolution: accountId=${accountId2} ==========`);
+  console.log(`[IdResolver] ========== \u5F00\u59CBPre-Sync ID Resolution: accountId=${accountId} ==========`);
   let directConn = null;
   try {
     const mysql2 = await import("mysql2/promise");
@@ -57728,21 +57800,21 @@ async function ensureAmazonIdsReady(accountId2) {
       return result;
     }
     directConn = await mysql2.createConnection(dbUrl);
-    await resolveKeywordIds(accountId2, directConn, result);
-    await resolveProductTargetIds(accountId2, directConn, result);
+    await resolveKeywordIds(accountId, directConn, result);
+    await resolveProductTargetIds(accountId, directConn, result);
     const [remainingKws] = await directConn.execute(
       `SELECT COUNT(*) AS cnt FROM keywords k
        INNER JOIN ad_groups ag ON k.adGroupId = ag.id
        INNER JOIN campaigns c ON ag.campaignId = c.id
        WHERE c.accountId = ? AND k.keywordId IS NULL`,
-      [accountId2]
+      [accountId]
     );
     const [remainingPts] = await directConn.execute(
       `SELECT COUNT(*) AS cnt FROM product_targets pt
        INNER JOIN ad_groups ag ON pt.adGroupId = ag.id
        INNER JOIN campaigns c ON ag.campaignId = c.id
        WHERE c.accountId = ? AND pt.targetId IS NULL`,
-      [accountId2]
+      [accountId]
     );
     result.totalMissingAfter = (remainingKws[0]?.cnt || 0) + (remainingPts[0]?.cnt || 0);
     console.log(`[IdResolver] ========== Pre-Sync ID Resolution \u5B8C\u6210 ==========`);
@@ -57762,14 +57834,14 @@ async function ensureAmazonIdsReady(accountId2) {
   }
   return result;
 }
-async function resolveKeywordIds(accountId2, conn, result) {
+async function resolveKeywordIds(accountId, conn, result) {
   const [missingKws] = await conn.execute(
     `SELECT k.id, k.adGroupId, k.keywordText, k.matchType, k.bid, k.keywordStatus
      FROM keywords k
      INNER JOIN ad_groups ag ON k.adGroupId = ag.id
      INNER JOIN campaigns c ON ag.campaignId = c.id
      WHERE c.accountId = ? AND k.keywordId IS NULL`,
-    [accountId2]
+    [accountId]
   );
   if (missingKws.length === 0) {
     console.log(`[IdResolver] Keywords: \u8BE5\u8D26\u53F7\u4E0B\u6240\u6709\u5173\u952E\u8BCD\u5747\u5DF2\u6709Amazon keywordId`);
@@ -57784,9 +57856,9 @@ async function resolveKeywordIds(accountId2, conn, result) {
     groupedByAdGroup.set(kw.adGroupId, group);
   }
   console.log(`[IdResolver] Keywords: \u5206\u5E03\u5728${groupedByAdGroup.size}\u4E2AadGroup\u4E2D`);
-  const syncService = await getAmazonSyncService(accountId2);
+  const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
-    result.errors.push(`\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7${accountId2}\u7684API\u670D\u52A1`);
+    result.errors.push(`\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7${accountId}\u7684API\u670D\u52A1`);
     result.keywordsFailed = missingKws.length;
     return;
   }
@@ -57914,14 +57986,14 @@ async function resolveKeywordIds(accountId2, conn, result) {
     }
   }
 }
-async function resolveProductTargetIds(accountId2, conn, result) {
+async function resolveProductTargetIds(accountId, conn, result) {
   const [missingPts] = await conn.execute(
     `SELECT pt.id, pt.adGroupId, pt.targetExpression, pt.targetValue, pt.targetMatchType
      FROM product_targets pt
      INNER JOIN ad_groups ag ON pt.adGroupId = ag.id
      INNER JOIN campaigns c ON ag.campaignId = c.id
      WHERE c.accountId = ? AND pt.targetId IS NULL`,
-    [accountId2]
+    [accountId]
   );
   if (missingPts.length === 0) {
     console.log(`[IdResolver] ProductTargets: \u8BE5\u8D26\u53F7\u4E0B\u6240\u6709product_targets\u5747\u5DF2\u6709Amazon targetId`);
@@ -57935,9 +58007,9 @@ async function resolveProductTargetIds(accountId2, conn, result) {
     group.push(pt3);
     ptGroupedByAdGroup.set(pt3.adGroupId, group);
   }
-  const syncService = await getAmazonSyncService(accountId2);
+  const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
-    result.errors.push(`\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7${accountId2}\u7684API\u670D\u52A1`);
+    result.errors.push(`\u65E0\u6CD5\u83B7\u53D6\u8D26\u53F7${accountId}\u7684API\u670D\u52A1`);
     result.productTargetsFailed = missingPts.length;
     return;
   }
@@ -58014,7 +58086,7 @@ async function resolveProductTargetIds(accountId2, conn, result) {
     }
   }
 }
-async function resolveKeywordIdOnDemand(accountId2, keywordLocalId) {
+async function resolveKeywordIdOnDemand(accountId, keywordLocalId) {
   let conn = null;
   try {
     const mysql2 = await import("mysql2/promise");
@@ -58033,7 +58105,7 @@ async function resolveKeywordIdOnDemand(accountId2, keywordLocalId) {
     if (kwRows.length === 0) return null;
     const kw = kwRows[0];
     if (!kw.amazonAdGroupId) return null;
-    const syncService = await getAmazonSyncService(accountId2);
+    const syncService = await getAmazonSyncService(accountId);
     if (!syncService) return null;
     const amazonAdGroupId = Number(kw.amazonAdGroupId);
     const amazonKeywords = await syncService.client.listSpKeywords(amazonAdGroupId);
@@ -58095,7 +58167,7 @@ async function resolveKeywordIdOnDemand(accountId2, keywordLocalId) {
     }
   }
 }
-async function resolveProductTargetIdOnDemand(accountId2, ptLocalId) {
+async function resolveProductTargetIdOnDemand(accountId, ptLocalId) {
   let conn = null;
   try {
     const mysql2 = await import("mysql2/promise");
@@ -58114,7 +58186,7 @@ async function resolveProductTargetIdOnDemand(accountId2, ptLocalId) {
     if (ptRows.length === 0) return null;
     const pt3 = ptRows[0];
     if (!pt3.amazonAdGroupId) return null;
-    const syncService = await getAmazonSyncService(accountId2);
+    const syncService = await getAmazonSyncService(accountId);
     if (!syncService) return null;
     const amazonAdGroupId = Number(pt3.amazonAdGroupId);
     const amazonTargets = await syncService.client.listSpProductTargets(amazonAdGroupId);
@@ -58251,11 +58323,11 @@ async function getRecentlyOptimizedCampaignIds(campaignIds, hoursWindow = 24) {
     return /* @__PURE__ */ new Set();
   }
 }
-async function runAutoBidOptimization(syncService, accountId2, performanceGroupConfig) {
+async function runAutoBidOptimization(syncService, accountId, performanceGroupConfig) {
   const db = await getDb();
   if (!db) return { optimized: 0, skipped: 0 };
   const keywordsToOptimize = await db.select({ keyword: keywords }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(and(
-    eq(campaigns.accountId, accountId2),
+    eq(campaigns.accountId, accountId),
     eq(keywords.keywordStatus, "enabled")
   )).limit(100).then((rows) => rows.map((r5) => r5.keyword));
   const results = { optimized: 0, skipped: 0 };
@@ -58323,8 +58395,8 @@ function detectConflict(existing, newData, fieldsToCheck) {
     conflictFields
   };
 }
-async function syncInitialHistoricalData(syncService, accountId2, userId) {
-  console.log(`[SyncService] \u5F00\u59CB\u9996\u6B21\u540C\u6B6590\u5929\u5386\u53F2\u6570\u636E (\u8D26\u53F7: ${accountId2})`);
+async function syncInitialHistoricalData(syncService, accountId, userId) {
+  console.log(`[SyncService] \u5F00\u59CB\u9996\u6B21\u540C\u6B6590\u5929\u5386\u53F2\u6570\u636E (\u8D26\u53F7: ${accountId})`);
   const results = {
     performance: 0
   };
@@ -58362,16 +58434,16 @@ var init_amazonSyncService = __esm({
       userId;
       marketplace;
       // 站点代码，用于时区计算
-      constructor(client, accountId2, userId, marketplace = "US") {
+      constructor(client, accountId, userId, marketplace = "US") {
         this.client = client;
-        this.accountId = accountId2;
+        this.accountId = accountId;
         this.userId = userId;
         this.marketplace = marketplace;
       }
       /**
        * 从数据库加载API凭证并创建同步服务
        */
-      static async createFromCredentials(credentials, accountId2, userId, marketplace = "US") {
+      static async createFromCredentials(credentials, accountId, userId, marketplace = "US") {
         const apiCredentials = {
           clientId: credentials.clientId,
           clientSecret: credentials.clientSecret,
@@ -58380,7 +58452,7 @@ var init_amazonSyncService = __esm({
           region: credentials.region
         };
         const client = createAmazonAdsClient(apiCredentials);
-        return new _AmazonSyncService(client, accountId2, userId, marketplace);
+        return new _AmazonSyncService(client, accountId, userId, marketplace);
       }
       /**
        * 完整同步所有数据
@@ -60460,7 +60532,6 @@ var init_amazonSyncService = __esm({
               if (!kw.keywordId) {
                 console.error(`[applyBidAdjustment] keyword id=${targetId} ("${kw.keywordText}") \u7F3A\u5C11Amazon keywordId\uFF0C\u65E0\u6CD5\u540C\u6B65\u5230Amazon`);
                 const err2 = new Error(`MISSING_AMAZON_ID: keyword id=${targetId} \u7F3A\u5C11Amazon keywordId`);
-                err2.nonRetryable = true;
                 throw err2;
               }
             }
@@ -60504,7 +60575,6 @@ var init_amazonSyncService = __esm({
               if (!pt3.targetId) {
                 console.error(`[applyBidAdjustment] product_target id=${targetId} ("${pt3.targetValue}") \u7F3A\u5C11Amazon targetId\uFF0C\u65E0\u6CD5\u540C\u6B65\u5230Amazon`);
                 const err2 = new Error(`MISSING_AMAZON_ID: product_target id=${targetId} \u7F3A\u5C11Amazon targetId`);
-                err2.nonRetryable = true;
                 throw err2;
               }
             }
@@ -60617,16 +60687,24 @@ var init_amazonSyncService = __esm({
           const spResult = await this.syncSpCampaigns();
           results.spCampaigns = typeof spResult === "number" ? spResult : spResult.synced;
           results.campaigns += results.spCampaigns;
+        } catch (error54) {
+          console.error("[SyncService] SP\u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u5931\u8D25:", error54.message);
+        }
+        try {
           const sbResult = await this.syncSbCampaigns();
           results.sbCampaigns = typeof sbResult === "number" ? sbResult : sbResult.synced;
           results.campaigns += results.sbCampaigns;
+        } catch (error54) {
+          console.error("[SyncService] SB\u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u5931\u8D25:", error54.message);
+        }
+        try {
           const sdResult = await this.syncSdCampaigns();
           results.sdCampaigns = typeof sdResult === "number" ? sdResult : sdResult.synced;
           results.campaigns += results.sdCampaigns;
-          console.log(`[SyncService] \u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u5B8C\u6210: SP=${results.spCampaigns}, SB=${results.sbCampaigns}, SD=${results.sdCampaigns}`);
         } catch (error54) {
-          console.error("[SyncService] \u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u5931\u8D25:", error54);
+          console.error("[SyncService] SD\u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u5931\u8D25:", error54.message);
         }
+        console.log(`[SyncService] \u5E7F\u544A\u6D3B\u52A8\u540C\u6B65\u5B8C\u6210: SP=${results.spCampaigns}, SB=${results.sbCampaigns}, SD=${results.sdCampaigns}`);
         return results;
       }
       /**
@@ -60642,44 +60720,52 @@ var init_amazonSyncService = __esm({
         try {
           const spAdGroupResult = await this.syncSpAdGroups();
           results.adGroups += typeof spAdGroupResult === "number" ? spAdGroupResult : spAdGroupResult.synced;
-          try {
-            const sbAdGroupResult = await this.syncSbAdGroups();
-            results.adGroups += sbAdGroupResult.synced;
-          } catch (e6) {
-            console.error("[SyncService] SB\u5E7F\u544A\u7EC4\u540C\u6B65\u5931\u8D25:", e6.message);
-          }
-          try {
-            const sdAdGroupResult = await this.syncSdAdGroups();
-            results.adGroups += sdAdGroupResult.synced;
-          } catch (e6) {
-            console.error("[SyncService] SD\u5E7F\u544A\u7EC4\u540C\u6B65\u5931\u8D25:", e6.message);
-          }
+        } catch (e6) {
+          console.error("[SyncService] SP\u5E7F\u544A\u7EC4\u540C\u6B65\u5931\u8D25:", e6.message);
+        }
+        try {
+          const sbAdGroupResult = await this.syncSbAdGroups();
+          results.adGroups += sbAdGroupResult.synced;
+        } catch (e6) {
+          console.error("[SyncService] SB\u5E7F\u544A\u7EC4\u540C\u6B65\u5931\u8D25:", e6.message);
+        }
+        try {
+          const sdAdGroupResult = await this.syncSdAdGroups();
+          results.adGroups += sdAdGroupResult.synced;
+        } catch (e6) {
+          console.error("[SyncService] SD\u5E7F\u544A\u7EC4\u540C\u6B65\u5931\u8D25:", e6.message);
+        }
+        try {
           const spKeywordResult = await this.syncSpKeywords();
           results.keywords += typeof spKeywordResult === "number" ? spKeywordResult : spKeywordResult.synced;
-          try {
-            const sbKeywordResult = await this.syncSbKeywords();
-            results.keywords += sbKeywordResult.synced;
-          } catch (e6) {
-            console.error("[SyncService] SB\u5173\u952E\u8BCD\u540C\u6B65\u5931\u8D25:", e6.message);
-          }
+        } catch (e6) {
+          console.error("[SyncService] SP\u5173\u952E\u8BCD\u540C\u6B65\u5931\u8D25:", e6.message);
+        }
+        try {
+          const sbKeywordResult = await this.syncSbKeywords();
+          results.keywords += sbKeywordResult.synced;
+        } catch (e6) {
+          console.error("[SyncService] SB\u5173\u952E\u8BCD\u540C\u6B65\u5931\u8D25:", e6.message);
+        }
+        try {
           const spTargetResult = await this.syncSpProductTargets();
           results.targets += typeof spTargetResult === "number" ? spTargetResult : spTargetResult.synced;
-          try {
-            const sbTargetResult = await this.syncSbProductTargets();
-            results.targets += sbTargetResult.synced;
-          } catch (e6) {
-            console.error("[SyncService] SB\u5546\u54C1\u5B9A\u4F4D\u540C\u6B65\u5931\u8D25:", e6.message);
-          }
-          try {
-            const sdTargetResult = await this.syncSdProductTargets();
-            results.targets += sdTargetResult.synced;
-          } catch (e6) {
-            console.error("[SyncService] SD\u5546\u54C1\u5B9A\u4F4D\u540C\u6B65\u5931\u8D25:", e6.message);
-          }
-          console.log(`[SyncService] \u5168\u6E20\u9053\u5E7F\u544A\u7EC4\u548C\u5B9A\u4F4D\u540C\u6B65\u5B8C\u6210: \u5E7F\u544A\u7EC4=${results.adGroups}, \u5173\u952E\u8BCD=${results.keywords}, \u5B9A\u4F4D=${results.targets}`);
-        } catch (error54) {
-          console.error("[SyncService] \u5E7F\u544A\u7EC4\u548C\u5B9A\u4F4D\u540C\u6B65\u5931\u8D25:", error54);
+        } catch (e6) {
+          console.error("[SyncService] SP\u5546\u54C1\u5B9A\u4F4D\u540C\u6B65\u5931\u8D25:", e6.message);
         }
+        try {
+          const sbTargetResult = await this.syncSbProductTargets();
+          results.targets += sbTargetResult.synced;
+        } catch (e6) {
+          console.error("[SyncService] SB\u5546\u54C1\u5B9A\u4F4D\u540C\u6B65\u5931\u8D25:", e6.message);
+        }
+        try {
+          const sdTargetResult = await this.syncSdProductTargets();
+          results.targets += sdTargetResult.synced;
+        } catch (e6) {
+          console.error("[SyncService] SD\u5546\u54C1\u5B9A\u4F4D\u540C\u6B65\u5931\u8D25:", e6.message);
+        }
+        console.log(`[SyncService] \u5168\u6E20\u9053\u5E7F\u544A\u7EC4\u548C\u5B9A\u4F4D\u540C\u6B65\u5B8C\u6210: \u5E7F\u544A\u7EC4=${results.adGroups}, \u5173\u952E\u8BCD=${results.keywords}, \u5B9A\u4F4D=${results.targets}`);
         return results;
       }
       /**
@@ -62645,10 +62731,10 @@ function getWindowDateRange(windowType, marketplace = "US") {
     endDateStr: endDate.toISOString().split("T")[0]
   };
 }
-async function getCampaignWindowedPerformance(accountId2, campaignId, windowType, marketplace = "US") {
+async function getCampaignWindowedPerformance(accountId, campaignId, windowType, marketplace = "US") {
   const { startDate, endDate, startDateStr, endDateStr } = getWindowDateRange(windowType, marketplace);
   const dailyData = await getDailyPerformanceByDateRange(
-    accountId2,
+    accountId,
     startDate,
     endDate,
     campaignId
@@ -62684,15 +62770,15 @@ async function getCampaignWindowedPerformance(accountId2, campaignId, windowType
     isAttributionMature: windowType === "bid_optimization"
   };
 }
-async function calculateAttributionCorrectionFactor(accountId2, campaignId, marketplace = "US") {
+async function calculateAttributionCorrectionFactor(accountId, campaignId, marketplace = "US") {
   const maturePerf = await getCampaignWindowedPerformance(
-    accountId2,
+    accountId,
     campaignId,
     "bid_optimization",
     marketplace
   );
   const realtimePerf = await getCampaignWindowedPerformance(
-    accountId2,
+    accountId,
     campaignId,
     "risk_control",
     marketplace
@@ -62744,9 +62830,9 @@ function shouldApplyCorrection(correctionFactor, matureClicks, campaignCreatedDa
   if (Math.abs(correctionFactor - 1) < 0.1) return false;
   return true;
 }
-async function detectRiskSignals(accountId2, campaignId, marketplace = "US") {
+async function detectRiskSignals(accountId, campaignId, marketplace = "US") {
   const { maturePerformance, realtimePerformance } = await calculateAttributionCorrectionFactor(
-    accountId2,
+    accountId,
     campaignId,
     marketplace
   );
@@ -63038,10 +63124,10 @@ async function createDaypartingStrategy(data4) {
   const result = await db.insert(daypartingStrategies).values(data4);
   return result[0].insertId;
 }
-async function getDaypartingStrategies(accountId2) {
+async function getDaypartingStrategies(accountId) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(daypartingStrategies).where(eq(daypartingStrategies.accountId, accountId2)).orderBy(desc(daypartingStrategies.updatedAt));
+  return db.select().from(daypartingStrategies).where(eq(daypartingStrategies.accountId, accountId)).orderBy(desc(daypartingStrategies.updatedAt));
 }
 async function getDaypartingStrategy(strategyId) {
   const db = await getDb();
@@ -63055,14 +63141,14 @@ async function getDaypartingStrategyByCampaignId(campaignId) {
   const result = await db.select().from(daypartingStrategies).where(eq(daypartingStrategies.campaignId, String(campaignId))).limit(1);
   return result[0] || null;
 }
-async function ensureDaypartingStrategy(accountId2, campaignId, campaignName, options = {}) {
+async function ensureDaypartingStrategy(accountId, campaignId, campaignName, options = {}) {
   const existing = await getDaypartingStrategyByCampaignId(campaignId);
   if (existing) return existing;
   const db = await getDb();
   if (!db) return null;
   try {
     const strategyId = await createDaypartingStrategy({
-      accountId: accountId2,
+      accountId,
       campaignId: Number(campaignId) || 0,
       name: `\u81EA\u52A8\u5206\u65F6\u7B56\u7565 - ${campaignName}`,
       strategyType: "both",
@@ -63139,7 +63225,7 @@ async function getExecutionLogs(strategyId, limit = 50) {
   if (!db) return [];
   return db.select().from(daypartingExecutionLogs).where(eq(daypartingExecutionLogs.strategyId, strategyId)).orderBy(desc(daypartingExecutionLogs.executedAt)).limit(limit);
 }
-async function generateOptimalStrategy(accountId2, campaignId, options) {
+async function generateOptimalStrategy(accountId, campaignId, options) {
   const weeklyData = await analyzeWeeklyPerformance(campaignId, options.lookbackDays || 30);
   const hourlyData = await analyzeHourlyPerformance(campaignId, options.lookbackDays || 30);
   const budgetAllocation = calculateOptimalBudgetAllocation(weeklyData, {
@@ -63153,7 +63239,7 @@ async function generateOptimalStrategy(accountId2, campaignId, options) {
     targetRoas: options.targetRoas
   });
   const strategyId = await createDaypartingStrategy({
-    accountId: accountId2,
+    accountId,
     campaignId,
     name: options.name,
     strategyType: "both",
@@ -64070,7 +64156,7 @@ function calculateDataConfidence(metrics) {
     spend
   };
 }
-async function calculateDynamicBenchmarks(accountId2, days = 30) {
+async function calculateDynamicBenchmarks(accountId, days = 30) {
   const db = await getDb();
   if (!db) return DEFAULT_BENCHMARKS;
   try {
@@ -64083,7 +64169,7 @@ async function calculateDynamicBenchmarks(accountId2, days = 30) {
       avgCpc: sql`AVG(CASE WHEN clicks > 0 THEN spend / clicks ELSE 0 END)`
     }).from(placementPerformance).where(
       and(
-        eq(placementPerformance.accountId, accountId2),
+        eq(placementPerformance.accountId, accountId),
         gte(placementPerformance.date, startDate.toISOString())
       )
     );
@@ -64103,7 +64189,7 @@ async function calculateDynamicBenchmarks(accountId2, days = 30) {
     return DEFAULT_BENCHMARKS;
   }
 }
-async function checkAdjustmentCooldown(campaignId, accountId2, placementType) {
+async function checkAdjustmentCooldown(campaignId, accountId, placementType) {
   const db = await getDb();
   if (!db) {
     return { inCooldown: false };
@@ -64111,7 +64197,7 @@ async function checkAdjustmentCooldown(campaignId, accountId2, placementType) {
   try {
     const lastAdjustment = await db.select().from(bidAdjustmentHistory).where(
       and(
-        eq(bidAdjustmentHistory.accountId, accountId2),
+        eq(bidAdjustmentHistory.accountId, accountId),
         sql`${bidAdjustmentHistory.campaignName} = ${campaignId}`,
         eq(bidAdjustmentHistory.adjustmentType, "auto_placement")
       )
@@ -64141,13 +64227,13 @@ async function checkAdjustmentCooldown(campaignId, accountId2, placementType) {
     return { inCooldown: false };
   }
 }
-async function getCampaignBiddingStrategy(campaignId, accountId2) {
+async function getCampaignBiddingStrategy(campaignId, accountId) {
   const db = await getDb();
   if (!db) return "fixed";
   try {
     const campaign = await db.select().from(campaigns).where(
       and(
-        eq(campaigns.accountId, accountId2),
+        eq(campaigns.accountId, accountId),
         eq(campaigns.campaignId, campaignId)
       )
     ).limit(1);
@@ -64238,11 +64324,11 @@ function calculateAdjustmentDelta(currentAdjustment, suggestedAdjustment, confid
     wasLimited
   };
 }
-async function calculateOptimalAdjustment(scores, currentAdjustments, campaignId, accountId2) {
+async function calculateOptimalAdjustment(scores, currentAdjustments, campaignId, accountId) {
   if (scores.length === 0) return [];
   let biddingStrategy = "down_only";
-  if (campaignId && accountId2) {
-    biddingStrategy = await getCampaignBiddingStrategy(campaignId, accountId2);
+  if (campaignId && accountId) {
+    biddingStrategy = await getCampaignBiddingStrategy(campaignId, accountId);
   }
   const reliableScores = scores.filter((s4) => s4.isReliable);
   const maxScore = reliableScores.length > 0 ? Math.max(...reliableScores.map((s4) => s4.rawScore)) : Math.max(...scores.map((s4) => s4.rawScore));
@@ -64250,8 +64336,8 @@ async function calculateOptimalAdjustment(scores, currentAdjustments, campaignId
   for (const score of scores) {
     const currentAdj = currentAdjustments[score.placementType] || 0;
     let cooldownStatus = { inCooldown: false };
-    if (campaignId && accountId2) {
-      cooldownStatus = await checkAdjustmentCooldown(campaignId, accountId2, score.placementType);
+    if (campaignId && accountId) {
+      cooldownStatus = await checkAdjustmentCooldown(campaignId, accountId, score.placementType);
     }
     let suggestedAdj = 0;
     if (maxScore > 0 && score.isReliable) {
@@ -64309,7 +64395,7 @@ async function calculateOptimalAdjustment(scores, currentAdjustments, campaignId
   }
   return suggestions;
 }
-async function getCampaignPlacementPerformance(campaignId, accountId2, days = 90, excludeRecentDays = true) {
+async function getCampaignPlacementPerformance(campaignId, accountId, days = 90, excludeRecentDays = true) {
   const db = await getDb();
   if (!db) throw new Error("Database connection failed");
   const endDate = /* @__PURE__ */ new Date();
@@ -64321,7 +64407,7 @@ async function getCampaignPlacementPerformance(campaignId, accountId2, days = 90
   const performanceData = await db.select().from(placementPerformance).where(
     and(
       eq(placementPerformance.campaignId, String(campaignId)),
-      eq(placementPerformance.accountId, accountId2),
+      eq(placementPerformance.accountId, accountId),
       gte(placementPerformance.date, startDate.toISOString()),
       lte(placementPerformance.date, endDate.toISOString())
     )
@@ -64356,7 +64442,7 @@ async function getCampaignPlacementPerformance(campaignId, accountId2, days = 90
       orders: row.orders || 0
     });
   }
-  const benchmarks = await calculateDynamicBenchmarks(accountId2);
+  const benchmarks = await calculateDynamicBenchmarks(accountId);
   const scores = [];
   for (const [placement, metrics] of Object.entries(aggregatedData)) {
     let weightedMetrics = metrics;
@@ -64401,13 +64487,13 @@ async function getCampaignPlacementPerformance(campaignId, accountId2, days = 90
   }
   return scores;
 }
-async function getCampaignPlacementSettings(campaignId, accountId2) {
+async function getCampaignPlacementSettings(campaignId, accountId) {
   const db = await getDb();
   if (!db) throw new Error("Database connection failed");
   const settings = await db.select().from(placementSettings).where(
     and(
       eq(placementSettings.campaignId, String(campaignId)),
-      eq(placementSettings.accountId, accountId2)
+      eq(placementSettings.accountId, accountId)
     )
   );
   const result = {};
@@ -64419,12 +64505,12 @@ async function getCampaignPlacementSettings(campaignId, accountId2) {
   }
   return result;
 }
-async function recordPlacementAdjustment(campaignId, accountId2, adjustment) {
+async function recordPlacementAdjustment(campaignId, accountId, adjustment) {
   const db = await getDb();
   if (!db) return;
   try {
     await db.insert(bidAdjustmentHistory).values({
-      accountId: accountId2,
+      accountId,
       campaignName: campaignId,
       previousBid: adjustment.currentAdjustment.toString(),
       newBid: adjustment.suggestedAdjustment.toString(),
@@ -64439,7 +64525,7 @@ async function recordPlacementAdjustment(campaignId, accountId2, adjustment) {
     console.error("[PlacementOptimization] \u8BB0\u5F55\u8C03\u6574\u5386\u53F2\u5931\u8D25:", error54);
   }
 }
-async function updatePlacementSettings(campaignId, accountId2, adjustments) {
+async function updatePlacementSettings(campaignId, accountId, adjustments) {
   const db = await getDb();
   if (!db) throw new Error("Database connection failed");
   const validAdjustments = adjustments.filter(
@@ -64449,7 +64535,7 @@ async function updatePlacementSettings(campaignId, accountId2, adjustments) {
   const existing = await db.select().from(placementSettings).where(
     and(
       eq(placementSettings.campaignId, String(campaignId)),
-      eq(placementSettings.accountId, accountId2)
+      eq(placementSettings.accountId, accountId)
     )
   ).limit(1);
   const updateData = {
@@ -64461,14 +64547,14 @@ async function updatePlacementSettings(campaignId, accountId2, adjustments) {
     } else if (adj.placementType === "product_page") {
       updateData.productPageAdjustment = adj.suggestedAdjustment;
     }
-    await recordPlacementAdjustment(campaignId, accountId2, adj);
+    await recordPlacementAdjustment(campaignId, accountId, adj);
   }
   if (existing.length > 0) {
     await db.update(placementSettings).set(updateData).where(eq(placementSettings.id, existing[0].id));
   } else {
     await db.insert(placementSettings).values({
       campaignId,
-      accountId: accountId2,
+      accountId,
       autoOptimize: true,
       ...updateData
     });
@@ -64496,7 +64582,7 @@ async function updatePlacementSettings(campaignId, accountId2, adjustments) {
       await db.update(campaigns).set(campaignUpdateData).where(
         and(
           eq(campaigns.campaignId, campaignId),
-          eq(campaigns.accountId, accountId2)
+          eq(campaigns.accountId, accountId)
         )
       );
       console.log(`[PlacementOptimization] v166: campaigns\u8868\u4F4D\u7F6E\u503E\u659C\u5DF2\u540C\u6B65\u66F4\u65B0(\u5F85\u786E\u8BA4) - campaignId=${campaignId}`, campaignUpdateData);
@@ -64505,11 +64591,11 @@ async function updatePlacementSettings(campaignId, accountId2, adjustments) {
     console.error(`[PlacementOptimization] v165: campaigns\u8868\u4F4D\u7F6E\u503E\u659C\u66F4\u65B0\u5931\u8D25: ${campaignUpdateError.message}`);
   }
 }
-async function executeAutomaticPlacementOptimization(campaignId, accountId2, options) {
+async function executeAutomaticPlacementOptimization(campaignId, accountId, options) {
   try {
-    const benchmarks = await calculateDynamicBenchmarks(accountId2);
-    const biddingStrategy = await getCampaignBiddingStrategy(campaignId, accountId2);
-    const scores = await getCampaignPlacementPerformance(campaignId, accountId2, 14, true);
+    const benchmarks = await calculateDynamicBenchmarks(accountId);
+    const biddingStrategy = await getCampaignBiddingStrategy(campaignId, accountId);
+    const scores = await getCampaignPlacementPerformance(campaignId, accountId, 14, true);
     if (scores.length === 0) {
       return {
         success: false,
@@ -64519,12 +64605,12 @@ async function executeAutomaticPlacementOptimization(campaignId, accountId2, opt
         biddingStrategy
       };
     }
-    const currentSettings = await getCampaignPlacementSettings(campaignId, accountId2);
+    const currentSettings = await getCampaignPlacementSettings(campaignId, accountId);
     const suggestions = await calculateOptimalAdjustment(
       scores,
       currentSettings,
       campaignId,
-      accountId2
+      accountId
     );
     const needsAdjustment = suggestions.some(
       (s4) => Math.abs(s4.adjustmentDelta) >= 5 && s4.isReliable && !s4.cooldownStatus?.inCooldown
@@ -64539,7 +64625,7 @@ async function executeAutomaticPlacementOptimization(campaignId, accountId2, opt
       };
     }
     if (!options?.dryRun) {
-      await updatePlacementSettings(campaignId, accountId2, suggestions);
+      await updatePlacementSettings(campaignId, accountId, suggestions);
     }
     const adjustedCount = suggestions.filter(
       (s4) => Math.abs(s4.adjustmentDelta) >= 5 && s4.isReliable && !s4.cooldownStatus?.inCooldown
@@ -64560,7 +64646,7 @@ async function executeAutomaticPlacementOptimization(campaignId, accountId2, opt
     };
   }
 }
-async function batchExecutePlacementOptimization(accountId2, campaignIds) {
+async function batchExecutePlacementOptimization(accountId, campaignIds) {
   let campaignsToOptimize = [];
   if (campaignIds && campaignIds.length > 0) {
     campaignsToOptimize = campaignIds.map((id) => ({ amazonCampaignId: id }));
@@ -64569,7 +64655,7 @@ async function batchExecutePlacementOptimization(accountId2, campaignIds) {
     if (!db) throw new Error("Database connection failed");
     const allCampaigns = await db.select().from(campaigns).where(
       and(
-        eq(campaigns.accountId, accountId2),
+        eq(campaigns.accountId, accountId),
         eq(campaigns.campaignStatus, "enabled")
       )
     );
@@ -64583,7 +64669,7 @@ async function batchExecutePlacementOptimization(accountId2, campaignIds) {
     if (!campaign.amazonCampaignId) continue;
     const result = await executeAutomaticPlacementOptimization(
       campaign.amazonCampaignId,
-      accountId2
+      accountId
     );
     const wasSkipped = result.suggestions.every(
       (s4) => s4.cooldownStatus?.inCooldown || !s4.isReliable
@@ -64610,8 +64696,8 @@ async function batchExecutePlacementOptimization(accountId2, campaignIds) {
     results
   };
 }
-async function analyzePlacementPerformance(campaignId, accountId2) {
-  const performance3 = await getCampaignPlacementPerformance(campaignId, accountId2);
+async function analyzePlacementPerformance(campaignId, accountId) {
+  const performance3 = await getCampaignPlacementPerformance(campaignId, accountId);
   if (!performance3 || performance3.length === 0) return null;
   return {
     campaignId,
@@ -64624,15 +64710,15 @@ async function analyzePlacementPerformance(campaignId, accountId2) {
     }
   };
 }
-async function generatePlacementSuggestions(campaignId, accountId2) {
-  const performance3 = await getCampaignPlacementPerformance(campaignId, accountId2);
+async function generatePlacementSuggestions(campaignId, accountId) {
+  const performance3 = await getCampaignPlacementPerformance(campaignId, accountId);
   if (!performance3 || performance3.length === 0) return [];
-  const currentAdjustments = await getCampaignPlacementSettings(campaignId, accountId2);
+  const currentAdjustments = await getCampaignPlacementSettings(campaignId, accountId);
   const adjustmentSuggestions = await calculateOptimalAdjustment(
     performance3,
     currentAdjustments,
     campaignId,
-    accountId2
+    accountId
   );
   const suggestions = [];
   for (const suggestion of adjustmentSuggestions) {
@@ -64652,9 +64738,9 @@ async function generatePlacementSuggestions(campaignId, accountId2) {
   }
   return suggestions;
 }
-async function applyPlacementAdjustment(campaignId, accountId2, adjustment) {
+async function applyPlacementAdjustment(campaignId, accountId, adjustment) {
   try {
-    await updatePlacementSettings(campaignId, accountId2, [{
+    await updatePlacementSettings(campaignId, accountId, [{
       placementType: adjustment.placement,
       currentAdjustment: adjustment.currentAdjustment || 0,
       suggestedAdjustment: adjustment.suggestedAdjustment,
@@ -64697,7 +64783,7 @@ var init_placementOptimizationService = __esm({
 });
 
 // server/optimizationSafetyGuardrails.ts
-async function checkEmergencyBrake(accountId2, performanceGroupId) {
+async function checkEmergencyBrake(accountId, performanceGroupId) {
   try {
     const lookback = SAFETY_LIMITS.emergency.lookbackDays;
     const now = /* @__PURE__ */ new Date();
@@ -64715,8 +64801,8 @@ async function checkEmergencyBrake(accountId2, performanceGroupId) {
     let previousSpend = 0, previousSales = 0, previousOrders = 0;
     for (const campaign of campaigns7) {
       try {
-        const recentData = await getDailyPerformanceByDateRange(accountId2, recentStart, recentEnd, campaign.id);
-        const previousData = await getDailyPerformanceByDateRange(accountId2, previousStart, previousEnd, campaign.id);
+        const recentData = await getDailyPerformanceByDateRange(accountId, recentStart, recentEnd, campaign.id);
+        const previousData = await getDailyPerformanceByDateRange(accountId, previousStart, previousEnd, campaign.id);
         for (const d5 of recentData) {
           recentSpend += Number(d5.spend) || 0;
           recentSales += Number(d5.sales) || 0;
@@ -64769,9 +64855,9 @@ async function checkEmergencyBrake(accountId2, performanceGroupId) {
     return { triggered: false, reason: null, recommendation: "none" };
   }
 }
-async function preOptimizationSafetyCheck(accountId2, performanceGroupId) {
+async function preOptimizationSafetyCheck(accountId, performanceGroupId) {
   const warnings = [];
-  const brakeResult = await checkEmergencyBrake(accountId2, performanceGroupId);
+  const brakeResult = await checkEmergencyBrake(accountId, performanceGroupId);
   if (brakeResult.triggered) {
     warnings.push(`\u26A0\uFE0F \u7D27\u6025\u5236\u52A8: ${brakeResult.reason}`);
     warnings.push(`\u5EFA\u8BAE\u64CD\u4F5C: ${brakeResult.recommendation === "pause_optimization" ? "\u6682\u505C\u81EA\u52A8\u4F18\u5316" : brakeResult.recommendation === "reduce_bids" ? "\u964D\u4F4E\u7ADE\u4EF710%" : brakeResult.recommendation === "reduce_budgets" ? "\u964D\u4F4E\u9884\u7B9715%" : "\u7EE7\u7EED\u76D1\u63A7"}`);
@@ -64834,7 +64920,7 @@ var init_optimizationSafetyGuardrails = __esm({
 });
 
 // server/services/bidCoordinator.ts
-async function applyCoordinatedBids(campaignId, accountId2, proposals, currentBaseBid, currentPlacementMultiplier = 0, currentDaypartingMultiplier = 1) {
+async function applyCoordinatedBids(campaignId, accountId, proposals, currentBaseBid, currentPlacementMultiplier = 0, currentDaypartingMultiplier = 1) {
   const warnings = [];
   const proposalsBySource = groupProposalsBySource(proposals);
   let baseBidMultiplier = 1;
@@ -64875,7 +64961,7 @@ async function applyCoordinatedBids(campaignId, accountId2, proposals, currentBa
   newBaseBid = Math.max(COORDINATOR_CONFIG.minBid, Math.min(COORDINATOR_CONFIG.maxBid, newBaseBid));
   newBaseBid = Math.round(newBaseBid * 100) / 100;
   const effectiveMultiplier = currentBaseBid > 0 ? newBaseBid / currentBaseBid : 1;
-  await logCoordinationResult(accountId2, campaignId, {
+  await logCoordinationResult(accountId, campaignId, {
     originalBaseBid: currentBaseBid,
     finalBaseBid: newBaseBid,
     theoreticalMaxCPC: newBaseBid * currentDaypartingMultiplier * placementMultiplier,
@@ -64922,12 +65008,12 @@ function groupProposalsBySource(proposals) {
   }
   return grouped;
 }
-async function logCoordinationResult(accountId2, campaignId, result) {
+async function logCoordinationResult(accountId, campaignId, result) {
   try {
     const db = await getDb();
     if (!db) return;
     console.log("[BidCoordinator] \u534F\u8C03\u7ED3\u679C:", {
-      accountId: accountId2,
+      accountId,
       campaignId,
       ...result,
       timestamp: (/* @__PURE__ */ new Date()).toISOString()
@@ -64968,13 +65054,13 @@ var init_bidCoordinator = __esm({
 });
 
 // server/searchTermHarvester.ts
-async function identifyHarvestCandidates(accountId2, config2 = {}) {
+async function identifyHarvestCandidates(accountId, config2 = {}) {
   const cfg = { ...DEFAULT_HARVEST_CONFIG, ...config2 };
   const candidates = [];
   try {
-    const allCampaigns = await getCampaignsByAccountId(accountId2);
+    const allCampaigns = await getCampaignsByAccountId(accountId);
     if (!allCampaigns || allCampaigns.length === 0) {
-      console.log(`[SearchTermHarvester] \u8D26\u53F7 ${accountId2} \u65E0\u5E7F\u544A\u6D3B\u52A8`);
+      console.log(`[SearchTermHarvester] \u8D26\u53F7 ${accountId} \u65E0\u5E7F\u544A\u6D3B\u52A8`);
       return [];
     }
     const sourceCampaigns = allCampaigns.filter(
@@ -64984,7 +65070,7 @@ async function identifyHarvestCandidates(accountId2, config2 = {}) {
       (c5) => c5.campaignStatus === "enabled" && c5.campaignType === "sp_manual" && c5.targetingType === "manual"
     );
     if (sourceCampaigns.length === 0) {
-      console.log(`[SearchTermHarvester] \u8D26\u53F7 ${accountId2} \u65E0\u81EA\u52A8Campaign\uFF0C\u8DF3\u8FC7\u6536\u5272`);
+      console.log(`[SearchTermHarvester] \u8D26\u53F7 ${accountId} \u65E0\u81EA\u52A8Campaign\uFF0C\u8DF3\u8FC7\u6536\u5272`);
       return [];
     }
     for (const sourceCampaign of sourceCampaigns) {
@@ -65032,14 +65118,14 @@ async function identifyHarvestCandidates(accountId2, config2 = {}) {
         });
       }
     }
-    console.log(`[SearchTermHarvester] \u8D26\u53F7 ${accountId2} \u8BC6\u522B\u5230 ${candidates.length} \u4E2A\u6536\u5272\u5019\u9009\u9879`);
+    console.log(`[SearchTermHarvester] \u8D26\u53F7 ${accountId} \u8BC6\u522B\u5230 ${candidates.length} \u4E2A\u6536\u5272\u5019\u9009\u9879`);
     return candidates;
   } catch (error54) {
     console.error(`[SearchTermHarvester] \u8BC6\u522B\u5019\u9009\u9879\u5931\u8D25:`, error54.message);
     return [];
   }
 }
-async function harvestSearchTermAtomic(candidate, apiClient, accountId2) {
+async function harvestSearchTermAtomic(candidate, apiClient, accountId) {
   const result = {
     searchTerm: candidate.searchTerm,
     success: false,
@@ -65131,8 +65217,8 @@ async function harvestSearchTermAtomic(candidate, apiClient, accountId2) {
       level: "ad_group"
     });
     await createBiddingLog({
-      accountId: accountId2,
-      campaignId: candidate.targetCampaignId,
+      accountId,
+      campaignId: String(candidate.targetCampaignId),
       adGroupId: candidate.targetAdGroupId,
       logTargetType: "keyword",
       targetId: localKeywordId,
@@ -65148,7 +65234,7 @@ async function harvestSearchTermAtomic(candidate, apiClient, accountId2) {
     });
     try {
       await insertOptimizationEvent({
-        accountId: accountId2,
+        accountId,
         eventCategory: "search_term_action",
         actionType: "search_term_harvest",
         campaignId: candidate.targetCampaignId,
@@ -65163,7 +65249,7 @@ async function harvestSearchTermAtomic(candidate, apiClient, accountId2) {
         sourceTable: "search_term_harvester"
       });
       await insertOptimizationEvent({
-        accountId: accountId2,
+        accountId,
         eventCategory: "search_term_action",
         actionType: "negative_keyword_add",
         campaignId: candidate.sourceCampaignId,
@@ -65188,9 +65274,9 @@ async function harvestSearchTermAtomic(candidate, apiClient, accountId2) {
   }
   return result;
 }
-async function batchHarvestSearchTerms(accountId2, config2 = {}) {
+async function batchHarvestSearchTerms(accountId, config2 = {}) {
   const cfg = { ...DEFAULT_HARVEST_CONFIG, ...config2 };
-  const candidates = await identifyHarvestCandidates(accountId2, cfg);
+  const candidates = await identifyHarvestCandidates(accountId, cfg);
   if (candidates.length === 0) {
     return {
       candidates: [],
@@ -65206,9 +65292,9 @@ async function batchHarvestSearchTerms(accountId2, config2 = {}) {
       summary: { total: candidates.length, success: 0, failed: 0, rolledBack: 0, skipped: candidates.length }
     };
   }
-  const credentials = await getAmazonApiCredentials(accountId2);
+  const credentials = await getAmazonApiCredentials(accountId);
   if (!credentials) {
-    console.error(`[SearchTermHarvester] \u8D26\u53F7 ${accountId2} \u65E0API\u51ED\u8BC1\uFF0C\u65E0\u6CD5\u6267\u884C\u6536\u5272`);
+    console.error(`[SearchTermHarvester] \u8D26\u53F7 ${accountId} \u65E0API\u51ED\u8BC1\uFF0C\u65E0\u6CD5\u6267\u884C\u6536\u5272`);
     return {
       candidates,
       results: [],
@@ -65226,7 +65312,7 @@ async function batchHarvestSearchTerms(accountId2, config2 = {}) {
   let success2 = 0, failed = 0, rolledBack = 0;
   for (const candidate of candidates) {
     try {
-      const result = await harvestSearchTermAtomic(candidate, apiClient, accountId2);
+      const result = await harvestSearchTermAtomic(candidate, apiClient, accountId);
       results.push(result);
       if (result.success) {
         success2++;
@@ -65612,7 +65698,7 @@ __export(optimizationAutoCorrector_exports, {
   startAutoCorrector: () => startAutoCorrector,
   stopAutoCorrector: () => stopAutoCorrector
 });
-async function runAutoCorrection(accountId2) {
+async function runAutoCorrection(accountId) {
   if (isScanning) {
     console.log("[AutoCorrector] v178: \u7EA0\u9519\u626B\u63CF\u6B63\u5728\u8FDB\u884C\u4E2D\uFF0C\u8DF3\u8FC7\u672C\u6B21\u8BF7\u6C42");
     return createEmptyScanResult("skipped_in_progress");
@@ -65625,7 +65711,7 @@ async function runAutoCorrection(accountId2) {
   const scanId = `scan_${Date.now()}`;
   const startedAt = /* @__PURE__ */ new Date();
   const corrections = [];
-  console.log(`[AutoCorrector] v178: \u5F00\u59CB\u81EA\u52A8\u7EA0\u9519\u626B\u63CF (scanId: ${scanId}, accountId: ${accountId2 || "all"})`);
+  console.log(`[AutoCorrector] v178: \u5F00\u59CB\u81EA\u52A8\u7EA0\u9519\u626B\u63CF (scanId: ${scanId}, accountId: ${accountId || "all"})`);
   try {
     const database = await getDb();
     if (!database) {
@@ -65640,7 +65726,7 @@ async function runAutoCorrection(accountId2) {
     } catch (nullFixError) {
       console.error(`[AutoCorrector] v178: \u4FEE\u590DNULL\u8BB0\u5F55\u5931\u8D25: ${nullFixError.message}`);
     }
-    const accountIds = accountId2 ? [accountId2] : await getActiveAccountIds(database);
+    const accountIds = accountId ? [accountId] : await getActiveAccountIds(database);
     for (const accId of accountIds) {
       try {
         const bidRetries = await retryFailedBidAdjustments(database, accId);
@@ -65667,6 +65753,8 @@ async function runAutoCorrection(accountId2) {
         corrections.push(...orphanCleanups);
         const harvestRetries = await retryHistoricalFailedKeywordHarvests(database, accId);
         corrections.push(...harvestRetries);
+        const taskRescues = await rescuePermanentlyFailedTasks(accId);
+        corrections.push(...taskRescues);
       } catch (accError) {
         console.error(`[AutoCorrector] v178: \u8D26\u6237 ${accId} \u7EA0\u9519\u5931\u8D25: ${accError.message}`);
       }
@@ -65710,7 +65798,7 @@ async function fixNullApiSyncStatusRecords(database) {
     return 0;
   }
 }
-async function retryFailedBidAdjustments(database, accountId2) {
+async function retryFailedBidAdjustments(database, accountId) {
   const results = [];
   try {
     const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1e3).toISOString().slice(0, 19).replace("T", " ");
@@ -65727,7 +65815,7 @@ async function retryFailedBidAdjustments(database, accountId2) {
       createdAt: optimizationEvents.createdAt
     }).from(optimizationEvents).where(
       and(
-        eq(optimizationEvents.accountId, accountId2),
+        eq(optimizationEvents.accountId, accountId),
         eq(optimizationEvents.eventCategory, "bid_adjustment"),
         eq(optimizationEvents.status, "success"),
         or(
@@ -65738,7 +65826,7 @@ async function retryFailedBidAdjustments(database, accountId2) {
       )
     ).orderBy(desc(optimizationEvents.createdAt)).limit(AUTO_CORRECTION_CONFIG.maxRetryPerRun);
     if (failedEvents.length === 0) return results;
-    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId2} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25\u7684\u51FA\u4EF7\u8C03\u6574\u9700\u8981\u91CD\u8BD5`);
+    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25\u7684\u51FA\u4EF7\u8C03\u6574\u9700\u8981\u91CD\u8BD5`);
     const latestByKeyword = /* @__PURE__ */ new Map();
     for (const event of failedEvents) {
       if (event.keywordId && !latestByKeyword.has(event.keywordId)) {
@@ -65754,7 +65842,7 @@ async function retryFailedBidAdjustments(database, accountId2) {
     if (retryItems.length === 0) return results;
     try {
       const syncResult = await syncBidAdjustmentsToAmazon(
-        accountId2,
+        accountId,
         retryItems
       );
       for (const item of retryItems) {
@@ -65763,7 +65851,7 @@ async function retryFailedBidAdjustments(database, accountId2) {
         const success2 = syncResult.success > 0;
         results.push({
           type: "bid_retry",
-          accountId: accountId2,
+          accountId,
           targetId: item.keywordId,
           targetType: "keyword",
           previousValue: String(event.previousBid || ""),
@@ -65782,11 +65870,11 @@ async function retryFailedBidAdjustments(database, accountId2) {
         }
       }
     } catch (apiError) {
-      console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId2} \u51FA\u4EF7\u91CD\u8BD5API\u8C03\u7528\u5931\u8D25: ${apiError.message}`);
+      console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId} \u51FA\u4EF7\u91CD\u8BD5API\u8C03\u7528\u5931\u8D25: ${apiError.message}`);
       for (const item of retryItems) {
         results.push({
           type: "bid_retry",
-          accountId: accountId2,
+          accountId,
           targetId: item.keywordId,
           targetType: "keyword",
           previousValue: "",
@@ -65798,11 +65886,11 @@ async function retryFailedBidAdjustments(database, accountId2) {
       }
     }
   } catch (error54) {
-    console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId2} retryFailedBidAdjustments\u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId} retryFailedBidAdjustments\u5931\u8D25: ${error54.message}`);
   }
   return results;
 }
-async function correctBidMismatches(database, accountId2) {
+async function correctBidMismatches(database, accountId) {
   const results = [];
   try {
     const mismatchQuery = sql`
@@ -65822,7 +65910,7 @@ async function correctBidMismatches(database, accountId2) {
       JOIN ad_groups ag ON k.adGroupId = ag.id
       JOIN campaigns c ON ag.campaignId = c.id
       LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
-      WHERE oe.account_id = ${accountId2}
+      WHERE oe.account_id = ${accountId}
         AND oe.event_category = 'bid_adjustment'
         AND oe.status = 'success'
         AND oe.api_sync_status = 'synced'
@@ -65844,7 +65932,7 @@ async function correctBidMismatches(database, accountId2) {
     const mismatches = await database.execute(mismatchQuery);
     const rows = mismatches[0] || mismatches;
     if (!Array.isArray(rows) || rows.length === 0) return results;
-    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId2} \u53D1\u73B0${rows.length}\u6761\u51FA\u4EF7\u4E0D\u4E00\u81F4\u9700\u8981\u7EA0\u6B63`);
+    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId} \u53D1\u73B0${rows.length}\u6761\u51FA\u4EF7\u4E0D\u4E00\u81F4\u9700\u8981\u7EA0\u6B63`);
     const correctionItems = rows.map((row) => {
       let targetBid = parseFloat(String(row.expected_bid));
       const maxBid = row.max_bid ? parseFloat(String(row.max_bid)) : 0;
@@ -65870,7 +65958,7 @@ async function correctBidMismatches(database, accountId2) {
     }
     try {
       const syncResult = await syncBidAdjustmentsToAmazon(
-        accountId2,
+        accountId,
         correctionItems
       );
       const correctionMap = new Map(correctionItems.map((item) => [item.keywordId, item.newBid]));
@@ -65880,7 +65968,7 @@ async function correctBidMismatches(database, accountId2) {
         const success2 = syncResult.success > 0;
         results.push({
           type: "bid_mismatch",
-          accountId: accountId2,
+          accountId,
           targetId: row.keyword_id,
           targetType: "keyword",
           previousValue: String(row.current_bid),
@@ -65891,7 +65979,7 @@ async function correctBidMismatches(database, accountId2) {
         if (success2) {
           await database.update(keywords).set({ bid: String(actualTargetBid) }).where(eq(keywords.id, row.keyword_id));
           await logCorrectionEvent(database, {
-            accountId: accountId2,
+            accountId,
             eventCategory: "bid_adjustment",
             actionType: "auto_correction",
             keywordId: row.keyword_id,
@@ -65905,11 +65993,11 @@ async function correctBidMismatches(database, accountId2) {
         }
       }
     } catch (apiError) {
-      console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId2} \u51FA\u4EF7\u7EA0\u6B63API\u8C03\u7528\u5931\u8D25: ${apiError.message}`);
+      console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId} \u51FA\u4EF7\u7EA0\u6B63API\u8C03\u7528\u5931\u8D25: ${apiError.message}`);
       for (const row of rows) {
         results.push({
           type: "bid_mismatch",
-          accountId: accountId2,
+          accountId,
           targetId: row.keyword_id,
           targetType: "keyword",
           previousValue: String(row.current_bid),
@@ -65921,11 +66009,11 @@ async function correctBidMismatches(database, accountId2) {
       }
     }
   } catch (error54) {
-    console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId2} correctBidMismatches\u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId} correctBidMismatches\u5931\u8D25: ${error54.message}`);
   }
   return results;
 }
-async function retryFailedBudgetAdjustments(database, accountId2) {
+async function retryFailedBudgetAdjustments(database, accountId) {
   const results = [];
   try {
     const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1e3).toISOString().slice(0, 19).replace("T", " ");
@@ -65939,7 +66027,7 @@ async function retryFailedBudgetAdjustments(database, accountId2) {
       createdAt: optimizationEvents.createdAt
     }).from(optimizationEvents).where(
       and(
-        eq(optimizationEvents.accountId, accountId2),
+        eq(optimizationEvents.accountId, accountId),
         eq(optimizationEvents.eventCategory, "budget_adjustment"),
         eq(optimizationEvents.status, "success"),
         or(
@@ -65950,7 +66038,7 @@ async function retryFailedBudgetAdjustments(database, accountId2) {
       )
     ).orderBy(desc(optimizationEvents.createdAt)).limit(AUTO_CORRECTION_CONFIG.maxRetryPerRun);
     if (failedEvents.length === 0) return results;
-    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId2} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25\u7684\u9884\u7B97\u8C03\u6574\u9700\u8981\u91CD\u8BD5`);
+    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25\u7684\u9884\u7B97\u8C03\u6574\u9700\u8981\u91CD\u8BD5`);
     const latestByCampaign = /* @__PURE__ */ new Map();
     for (const event of failedEvents) {
       if (event.campaignId && !latestByCampaign.has(event.campaignId)) {
@@ -65966,7 +66054,7 @@ async function retryFailedBudgetAdjustments(database, accountId2) {
         if (campRows.length === 0) continue;
         const amazonCampaignId = campRows[0].campaignId;
         const syncResult = await syncBudgetAdjustmentToAmazon(
-          accountId2,
+          accountId,
           String(amazonCampaignId),
           newBudget,
           `[\u81EA\u52A8\u7EA0\u9519] \u91CD\u8BD5\u5931\u8D25\u7684\u9884\u7B97\u8C03\u6574 (\u539F\u4E8B\u4EF6ID: ${event.id})`
@@ -65974,7 +66062,7 @@ async function retryFailedBudgetAdjustments(database, accountId2) {
         const success2 = !!syncResult;
         results.push({
           type: "budget_retry",
-          accountId: accountId2,
+          accountId,
           targetId: campId,
           targetType: "campaign",
           previousValue: String(event.previousValue || ""),
@@ -65993,7 +66081,7 @@ async function retryFailedBudgetAdjustments(database, accountId2) {
       } catch (apiError) {
         results.push({
           type: "budget_retry",
-          accountId: accountId2,
+          accountId,
           targetId: campId,
           targetType: "campaign",
           previousValue: String(event.previousValue || ""),
@@ -66005,11 +66093,11 @@ async function retryFailedBudgetAdjustments(database, accountId2) {
       }
     }
   } catch (error54) {
-    console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId2} retryFailedBudgetAdjustments\u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId} retryFailedBudgetAdjustments\u5931\u8D25: ${error54.message}`);
   }
   return results;
 }
-async function correctBudgetMismatches(database, accountId2) {
+async function correctBudgetMismatches(database, accountId) {
   const results = [];
   try {
     const mismatchQuery = sql`
@@ -66025,7 +66113,7 @@ async function correctBudgetMismatches(database, accountId2) {
       FROM optimization_events oe
       JOIN campaigns c ON oe.campaign_id = c.id
       LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
-      WHERE oe.account_id = ${accountId2}
+      WHERE oe.account_id = ${accountId}
         AND oe.event_category = 'budget_adjustment'
         AND oe.status = 'success'
         AND oe.api_sync_status = 'synced'
@@ -66047,7 +66135,7 @@ async function correctBudgetMismatches(database, accountId2) {
     const mismatches = await database.execute(mismatchQuery);
     const rows = mismatches[0] || mismatches;
     if (!Array.isArray(rows) || rows.length === 0) return results;
-    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId2} \u53D1\u73B0${rows.length}\u6761\u9884\u7B97\u4E0D\u4E00\u81F4\u9700\u8981\u7EA0\u6B63`);
+    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId} \u53D1\u73B0${rows.length}\u6761\u9884\u7B97\u4E0D\u4E00\u81F4\u9700\u8981\u7EA0\u6B63`);
     for (const row of rows) {
       try {
         const rawExpected = String(row.expected_budget || "0").replace(/[^0-9.\-]/g, "");
@@ -66062,7 +66150,7 @@ async function correctBudgetMismatches(database, accountId2) {
           continue;
         }
         const syncResult = await syncBudgetAdjustmentToAmazon(
-          accountId2,
+          accountId,
           String(row.amazon_campaign_id),
           expectedBudget,
           `[\u81EA\u52A8\u7EA0\u9519] \u9884\u7B97\u4E0D\u4E00\u81F4\u7EA0\u6B63: \u671F\u671B$${row.expected_budget}, \u5F53\u524D$${row.current_budget}`
@@ -66070,7 +66158,7 @@ async function correctBudgetMismatches(database, accountId2) {
         const success2 = !!syncResult;
         results.push({
           type: "budget_mismatch",
-          accountId: accountId2,
+          accountId,
           targetId: row.campaign_id,
           targetType: "campaign",
           previousValue: String(row.current_budget),
@@ -66081,7 +66169,7 @@ async function correctBudgetMismatches(database, accountId2) {
         if (success2) {
           await database.update(campaigns).set({ dailyBudget: String(expectedBudget) }).where(eq(campaigns.id, row.campaign_id));
           await logCorrectionEvent(database, {
-            accountId: accountId2,
+            accountId,
             eventCategory: "budget_adjustment",
             actionType: "auto_correction",
             campaignId: row.campaign_id,
@@ -66094,7 +66182,7 @@ async function correctBudgetMismatches(database, accountId2) {
       } catch (apiError) {
         results.push({
           type: "budget_mismatch",
-          accountId: accountId2,
+          accountId,
           targetId: row.campaign_id,
           targetType: "campaign",
           previousValue: String(row.current_budget),
@@ -66106,11 +66194,11 @@ async function correctBudgetMismatches(database, accountId2) {
       }
     }
   } catch (error54) {
-    console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId2} correctBudgetMismatches\u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId} correctBudgetMismatches\u5931\u8D25: ${error54.message}`);
   }
   return results;
 }
-async function correctPlacementMismatches(database, accountId2) {
+async function correctPlacementMismatches(database, accountId) {
   const results = [];
   try {
     const mismatchQuery = sql`
@@ -66125,7 +66213,7 @@ async function correctPlacementMismatches(database, accountId2) {
         oe.created_at as optimized_at
       FROM optimization_events oe
       JOIN campaigns c ON oe.campaign_id = c.id
-      WHERE oe.account_id = ${accountId2}
+      WHERE oe.account_id = ${accountId}
         AND oe.event_category = 'placement_adjustment'
         AND oe.status = 'success'
         AND oe.api_sync_status IN ('synced', 'pending')
@@ -66161,7 +66249,7 @@ async function correctPlacementMismatches(database, accountId2) {
         const productMismatch = expectedProduct !== null && Math.abs(currentProduct - expectedProduct) > AUTO_CORRECTION_CONFIG.placementTolerancePercent;
         if (!topMismatch && !productMismatch) continue;
         const syncResult = await syncPlacementAdjustmentToAmazon(
-          accountId2,
+          accountId,
           String(row.amazon_campaign_id),
           expectedTop ?? currentTop,
           expectedProduct ?? currentProduct,
@@ -66170,7 +66258,7 @@ async function correctPlacementMismatches(database, accountId2) {
         const success2 = !!syncResult;
         results.push({
           type: "placement_mismatch",
-          accountId: accountId2,
+          accountId,
           targetId: row.campaign_id,
           targetType: "campaign",
           previousValue: `Top:${currentTop}%, Product:${currentProduct}%`,
@@ -66187,7 +66275,7 @@ async function correctPlacementMismatches(database, accountId2) {
       } catch (apiError) {
         results.push({
           type: "placement_mismatch",
-          accountId: accountId2,
+          accountId,
           targetId: row.campaign_id,
           targetType: "campaign",
           previousValue: "",
@@ -66199,11 +66287,11 @@ async function correctPlacementMismatches(database, accountId2) {
       }
     }
   } catch (error54) {
-    console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId2} correctPlacementMismatches\u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId} correctPlacementMismatches\u5931\u8D25: ${error54.message}`);
   }
   return results;
 }
-async function executeUnfinishedRollbacks(database, accountId2) {
+async function executeUnfinishedRollbacks(database, accountId) {
   const results = [];
   try {
     const unfinishedRollbacks = await database.select({
@@ -66217,14 +66305,14 @@ async function executeUnfinishedRollbacks(database, accountId2) {
       createdAt: optimizationEvents.createdAt
     }).from(optimizationEvents).where(
       and(
-        eq(optimizationEvents.accountId, accountId2),
+        eq(optimizationEvents.accountId, accountId),
         eq(optimizationEvents.eventCategory, "bid_adjustment"),
         eq(optimizationEvents.status, "rolled_back"),
         isNull(optimizationEvents.rolledBackAt)
       )
     ).orderBy(desc(optimizationEvents.createdAt)).limit(AUTO_CORRECTION_CONFIG.maxRollbackPerRun);
     if (unfinishedRollbacks.length === 0) return results;
-    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId2} \u53D1\u73B0${unfinishedRollbacks.length}\u6761\u672A\u6267\u884C\u7684\u56DE\u6EDA`);
+    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId} \u53D1\u73B0${unfinishedRollbacks.length}\u6761\u672A\u6267\u884C\u7684\u56DE\u6EDA`);
     const latestByKeyword = /* @__PURE__ */ new Map();
     for (const event of unfinishedRollbacks) {
       if (event.keywordId && !latestByKeyword.has(event.keywordId)) {
@@ -66240,14 +66328,14 @@ async function executeUnfinishedRollbacks(database, accountId2) {
     if (rollbackItems.length === 0) return results;
     try {
       const syncResult = await syncBidAdjustmentsToAmazon(
-        accountId2,
+        accountId,
         rollbackItems
       );
       const success2 = syncResult.success > 0;
       for (const [kwId, event] of latestByKeyword) {
         results.push({
           type: "rollback_execution",
-          accountId: accountId2,
+          accountId,
           targetId: kwId,
           targetType: "keyword",
           previousValue: String(event.newBid || ""),
@@ -66266,14 +66354,14 @@ async function executeUnfinishedRollbacks(database, accountId2) {
         }
       }
     } catch (apiError) {
-      console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId2} \u56DE\u6EDA\u6267\u884CAPI\u8C03\u7528\u5931\u8D25: ${apiError.message}`);
+      console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId} \u56DE\u6EDA\u6267\u884CAPI\u8C03\u7528\u5931\u8D25: ${apiError.message}`);
     }
   } catch (error54) {
-    console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId2} executeUnfinishedRollbacks\u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId} executeUnfinishedRollbacks\u5931\u8D25: ${error54.message}`);
   }
   return results;
 }
-async function retryFailedSettingsChanges(database, accountId2) {
+async function retryFailedSettingsChanges(database, accountId) {
   const results = [];
   try {
     const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1e3).toISOString().slice(0, 19).replace("T", " ");
@@ -66288,14 +66376,14 @@ async function retryFailedSettingsChanges(database, accountId2) {
       createdAt: optimizationEvents.createdAt
     }).from(optimizationEvents).where(
       and(
-        eq(optimizationEvents.accountId, accountId2),
+        eq(optimizationEvents.accountId, accountId),
         eq(optimizationEvents.eventCategory, "settings_change"),
         eq(optimizationEvents.apiSyncStatus, "failed"),
         gte(optimizationEvents.createdAt, expiryDateStr)
       )
     ).orderBy(desc(optimizationEvents.createdAt)).limit(AUTO_CORRECTION_CONFIG.maxRetryPerRun);
     if (failedEvents.length === 0) return results;
-    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId2} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25\u7684\u8BBE\u7F6E\u53D8\u66F4\u9700\u8981\u91CD\u8BD5`);
+    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25\u7684\u8BBE\u7F6E\u53D8\u66F4\u9700\u8981\u91CD\u8BD5`);
     for (const event of failedEvents) {
       try {
         let success2 = false;
@@ -66304,7 +66392,7 @@ async function retryFailedSettingsChanges(database, accountId2) {
           const campRows = await database.select({ campaignId: campaigns.campaignId }).from(campaigns).where(eq(campaigns.id, event.campaignId)).limit(1);
           if (campRows.length > 0) {
             const syncResult = await syncBudgetAdjustmentToAmazon(
-              accountId2,
+              accountId,
               String(campRows[0].campaignId),
               // v175: 移除$符号后解析预算值
               Math.round(parseFloat(String(event.newValue || "0").replace(/[^0-9.\-]/g, ""))),
@@ -66315,7 +66403,7 @@ async function retryFailedSettingsChanges(database, accountId2) {
         }
         results.push({
           type: "settings_retry",
-          accountId: accountId2,
+          accountId,
           targetId: event.campaignId || 0,
           targetType: "campaign",
           previousValue: String(event.previousValue || ""),
@@ -66333,7 +66421,7 @@ async function retryFailedSettingsChanges(database, accountId2) {
       } catch (retryError) {
         results.push({
           type: "settings_retry",
-          accountId: accountId2,
+          accountId,
           targetId: event.campaignId || 0,
           targetType: "campaign",
           previousValue: "",
@@ -66345,11 +66433,11 @@ async function retryFailedSettingsChanges(database, accountId2) {
       }
     }
   } catch (error54) {
-    console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId2} retryFailedSettingsChanges\u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId} retryFailedSettingsChanges\u5931\u8D25: ${error54.message}`);
   }
   return results;
 }
-async function retryFailedKeywordCreations(database, accountId2) {
+async function retryFailedKeywordCreations(database, accountId) {
   const results = [];
   try {
     const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1e3).toISOString().slice(0, 19).replace("T", " ");
@@ -66363,7 +66451,7 @@ async function retryFailedKeywordCreations(database, accountId2) {
       createdAt: optimizationEvents.createdAt
     }).from(optimizationEvents).where(
       and(
-        eq(optimizationEvents.accountId, accountId2),
+        eq(optimizationEvents.accountId, accountId),
         eq(optimizationEvents.actionType, "keyword_create"),
         or(
           eq(optimizationEvents.apiSyncStatus, "failed"),
@@ -66373,7 +66461,7 @@ async function retryFailedKeywordCreations(database, accountId2) {
       )
     ).orderBy(desc(optimizationEvents.createdAt)).limit(AUTO_CORRECTION_CONFIG.maxRetryPerRun);
     if (failedEvents.length === 0) return results;
-    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId2} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25/pending\u7684\u5173\u952E\u8BCD\u521B\u5EFA\u9700\u8981\u91CD\u8BD5`);
+    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25/pending\u7684\u5173\u952E\u8BCD\u521B\u5EFA\u9700\u8981\u91CD\u8BD5`);
     for (const event of failedEvents) {
       try {
         let detail = {};
@@ -66396,7 +66484,7 @@ async function retryFailedKeywordCreations(database, accountId2) {
         const kw = kwRows[0];
         if (kw.keywordId) {
           await database.update(optimizationEvents).set({ apiSyncStatus: "synced", apiSyncDetail: JSON.stringify({ amazonKeywordId: kw.keywordId, correctedBy: "AutoCorrector" }) }).where(eq(optimizationEvents.id, event.id));
-          results.push({ type: "keyword_create_retry", accountId: accountId2, targetId: localKeywordId, targetType: "keyword", previousValue: "", correctedValue: kw.keywordId, reason: "\u5173\u952E\u8BCD\u5DF2\u5B58\u5728Amazon ID\uFF0C\u76F4\u63A5\u6807\u8BB0\u4E3Asynced", success: true });
+          results.push({ type: "keyword_create_retry", accountId, targetId: localKeywordId, targetType: "keyword", previousValue: "", correctedValue: kw.keywordId, reason: "\u5173\u952E\u8BCD\u5DF2\u5B58\u5728Amazon ID\uFF0C\u76F4\u63A5\u6807\u8BB0\u4E3Asynced", success: true });
           continue;
         }
         const agRows = await database.select({ adGroupId: adGroups.adGroupId, campaignId: adGroups.campaignId }).from(adGroups).where(eq(adGroups.id, kw.adGroupId)).limit(1);
@@ -66407,7 +66495,7 @@ async function retryFailedKeywordCreations(database, accountId2) {
         const ag = agRows[0];
         const campRows = await database.select({ campaignId: campaigns.campaignId }).from(campaigns).where(eq(campaigns.id, ag.campaignId)).limit(1);
         if (campRows.length === 0) continue;
-        const syncResult = await syncNewKeywordsToAmazon(accountId2, [{
+        const syncResult = await syncNewKeywordsToAmazon(accountId, [{
           localKeywordId,
           adGroupId: Number(ag.adGroupId),
           campaignId: Number(campRows[0].campaignId),
@@ -66437,7 +66525,7 @@ async function retryFailedKeywordCreations(database, accountId2) {
         }
         results.push({
           type: "keyword_create_retry",
-          accountId: accountId2,
+          accountId,
           targetId: localKeywordId,
           targetType: "keyword",
           previousValue: "",
@@ -66447,15 +66535,15 @@ async function retryFailedKeywordCreations(database, accountId2) {
           errorMessage: success2 ? void 0 : syncResult.errors.join("; ")
         });
       } catch (retryError) {
-        results.push({ type: "keyword_create_retry", accountId: accountId2, targetId: event.keywordId || 0, targetType: "keyword", previousValue: "", correctedValue: "", reason: "\u5173\u952E\u8BCD\u521B\u5EFA\u91CD\u8BD5\u5931\u8D25", success: false, errorMessage: retryError.message });
+        results.push({ type: "keyword_create_retry", accountId, targetId: event.keywordId || 0, targetType: "keyword", previousValue: "", correctedValue: "", reason: "\u5173\u952E\u8BCD\u521B\u5EFA\u91CD\u8BD5\u5931\u8D25", success: false, errorMessage: retryError.message });
       }
     }
   } catch (error54) {
-    console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId2} retryFailedKeywordCreations\u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId} retryFailedKeywordCreations\u5931\u8D25: ${error54.message}`);
   }
   return results;
 }
-async function retryFailedNegativeKeywordAdds(database, accountId2) {
+async function retryFailedNegativeKeywordAdds(database, accountId) {
   const results = [];
   try {
     const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1e3).toISOString().slice(0, 19).replace("T", " ");
@@ -66469,7 +66557,7 @@ async function retryFailedNegativeKeywordAdds(database, accountId2) {
       createdAt: optimizationEvents.createdAt
     }).from(optimizationEvents).where(
       and(
-        eq(optimizationEvents.accountId, accountId2),
+        eq(optimizationEvents.accountId, accountId),
         eq(optimizationEvents.actionType, "negative_keyword_add"),
         or(
           eq(optimizationEvents.apiSyncStatus, "failed"),
@@ -66479,7 +66567,7 @@ async function retryFailedNegativeKeywordAdds(database, accountId2) {
       )
     ).orderBy(desc(optimizationEvents.createdAt)).limit(AUTO_CORRECTION_CONFIG.maxRetryPerRun);
     if (failedEvents.length === 0) return results;
-    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId2} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25/pending\u7684\u5426\u5B9A\u5173\u952E\u8BCD\u6DFB\u52A0\u9700\u8981\u91CD\u8BD5`);
+    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25/pending\u7684\u5426\u5B9A\u5173\u952E\u8BCD\u6DFB\u52A0\u9700\u8981\u91CD\u8BD5`);
     const negKeywordsToSync = [];
     for (const event of failedEvents) {
       try {
@@ -66551,7 +66639,7 @@ async function retryFailedNegativeKeywordAdds(database, accountId2) {
       });
       results.push({
         type: "settings_retry",
-        accountId: accountId2,
+        accountId,
         targetId: nk.campaignId,
         targetType: "campaign",
         previousValue: "",
@@ -66563,7 +66651,7 @@ async function retryFailedNegativeKeywordAdds(database, accountId2) {
     }
     if (toRetry.length === 0) return results;
     const syncResult = await syncNegativeKeywordsToAmazon(
-      accountId2,
+      accountId,
       toRetry.map((nk) => ({
         campaignId: nk.campaignId,
         adGroupId: nk.adGroupId,
@@ -66630,7 +66718,7 @@ async function retryFailedNegativeKeywordAdds(database, accountId2) {
       }
       results.push({
         type: "settings_retry",
-        accountId: accountId2,
+        accountId,
         targetId: nk.campaignId,
         targetType: "campaign",
         previousValue: "",
@@ -66641,7 +66729,7 @@ async function retryFailedNegativeKeywordAdds(database, accountId2) {
       });
     }
   } catch (error54) {
-    console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId2} retryFailedNegativeKeywordAdds\u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId} retryFailedNegativeKeywordAdds\u5931\u8D25: ${error54.message}`);
   }
   return results;
 }
@@ -66700,6 +66788,7 @@ function createEmptyScanResult(reason) {
       placementMismatches: { found: 0, corrected: 0, failed: 0 },
       rollbackExecutions: { found: 0, corrected: 0, failed: 0 },
       settingsRetries: { found: 0, corrected: 0, failed: 0 },
+      keywordCreateRetries: { found: 0, corrected: 0, failed: 0 },
       maxBidViolations: { found: 0, corrected: 0, failed: 0 },
       orphanKeywordCleanups: { found: 0, corrected: 0, failed: 0 }
     },
@@ -66749,7 +66838,7 @@ function getScanStatus() {
 function getConfig() {
   return { ...AUTO_CORRECTION_CONFIG };
 }
-async function correctMaxBidViolations(database, accountId2) {
+async function correctMaxBidViolations(database, accountId) {
   const results = [];
   try {
     const violationQuery = sql`
@@ -66767,7 +66856,7 @@ async function correctMaxBidViolations(database, accountId2) {
       JOIN ad_groups ag ON k.adGroupId = ag.id
       JOIN campaigns c ON ag.campaignId = c.id
       JOIN performance_groups pg ON c.performanceGroupId = pg.id
-      WHERE c.accountId = ${accountId2}
+      WHERE c.accountId = ${accountId}
         AND k.keywordStatus = 'enabled'
         AND pg.max_bid IS NOT NULL AND pg.max_bid > 0
         AND CAST(k.bid AS DECIMAL(10,2)) > pg.max_bid
@@ -66777,7 +66866,7 @@ async function correctMaxBidViolations(database, accountId2) {
     const violations = await database.execute(violationQuery);
     const rows = violations[0] || violations;
     if (!Array.isArray(rows) || rows.length === 0) return results;
-    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId2} \u53D1\u73B0${rows.length}\u4E2A\u5173\u952E\u8BCD\u51FA\u4EF7\u8D85\u51FAmax_bid`);
+    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId} \u53D1\u73B0${rows.length}\u4E2A\u5173\u952E\u8BCD\u51FA\u4EF7\u8D85\u51FAmax_bid`);
     const correctionItems = [];
     for (const row of rows) {
       const maxBid = parseFloat(String(row.max_bid));
@@ -66792,7 +66881,7 @@ async function correctMaxBidViolations(database, accountId2) {
       await database.update(keywords).set({ bid: String(maxBid) }).where(eq(keywords.id, row.keyword_id));
       results.push({
         type: "max_bid_violation",
-        accountId: accountId2,
+        accountId,
         targetId: row.keyword_id,
         targetType: "keyword",
         previousValue: String(row.current_bid),
@@ -66803,10 +66892,10 @@ async function correctMaxBidViolations(database, accountId2) {
     }
     if (correctionItems.length > 0) {
       try {
-        const syncResult = await syncBidAdjustmentsToAmazon(accountId2, correctionItems);
-        console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId2} max_bid\u7EA0\u6B63\u540C\u6B65\u5230Amazon: \u6210\u529F${syncResult.success}, \u5931\u8D25${syncResult.failed}`);
+        const syncResult = await syncBidAdjustmentsToAmazon(accountId, correctionItems);
+        console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId} max_bid\u7EA0\u6B63\u540C\u6B65\u5230Amazon: \u6210\u529F${syncResult.success}, \u5931\u8D25${syncResult.failed}`);
       } catch (syncError) {
-        console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId2} max_bid\u7EA0\u6B63\u540C\u6B65\u5931\u8D25: ${syncError.message}`);
+        console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId} max_bid\u7EA0\u6B63\u540C\u6B65\u5931\u8D25: ${syncError.message}`);
       }
     }
     const ptViolationQuery = sql`
@@ -66823,7 +66912,7 @@ async function correctMaxBidViolations(database, accountId2) {
       JOIN ad_groups ag ON pt.adGroupId = ag.id
       JOIN campaigns c ON ag.campaignId = c.id
       JOIN performance_groups pg ON c.performanceGroupId = pg.id
-      WHERE c.accountId = ${accountId2}
+      WHERE c.accountId = ${accountId}
         AND pt.targetStatus = 'enabled'
         AND pg.max_bid IS NOT NULL AND pg.max_bid > 0
         AND CAST(pt.bid AS DECIMAL(10,2)) > pg.max_bid
@@ -66833,13 +66922,13 @@ async function correctMaxBidViolations(database, accountId2) {
     const ptViolations = await database.execute(ptViolationQuery);
     const ptRows = ptViolations[0] || ptViolations;
     if (Array.isArray(ptRows) && ptRows.length > 0) {
-      console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId2} \u53D1\u73B0${ptRows.length}\u4E2A\u5546\u54C1\u5B9A\u5411\u51FA\u4EF7\u8D85\u51FAmax_bid`);
+      console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId} \u53D1\u73B0${ptRows.length}\u4E2A\u5546\u54C1\u5B9A\u5411\u51FA\u4EF7\u8D85\u51FAmax_bid`);
       for (const row of ptRows) {
         const maxBid = parseFloat(String(row.max_bid));
         await database.update(productTargets).set({ bid: String(maxBid) }).where(eq(productTargets.id, row.target_id));
         results.push({
           type: "max_bid_violation",
-          accountId: accountId2,
+          accountId,
           targetId: row.target_id,
           targetType: "product_target",
           previousValue: String(row.current_bid),
@@ -66851,18 +66940,18 @@ async function correctMaxBidViolations(database, accountId2) {
     }
     if (results.length > 0) {
       await logCorrectionEvent(database, {
-        accountId: accountId2,
+        accountId,
         eventCategory: "auto_correction",
         actionType: "auto_correction",
         changeReason: `[AutoCorrector v172] \u7EA0\u6B63${results.length}\u4E2A\u8D85\u51FAmax_bid\u7684\u51FA\u4EF7`
       });
     }
   } catch (error54) {
-    console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId2} correctMaxBidViolations\u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId} correctMaxBidViolations\u5931\u8D25: ${error54.message}`);
   }
   return results;
 }
-async function cleanupOrphanKeywords(database, accountId2) {
+async function cleanupOrphanKeywords(database, accountId) {
   const results = [];
   try {
     const orphanQuery = sql`
@@ -66878,7 +66967,7 @@ async function cleanupOrphanKeywords(database, accountId2) {
       JOIN ad_groups ag ON k.adGroupId = ag.id
       JOIN campaigns c ON ag.campaignId = c.id
       LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
-      WHERE c.accountId = ${accountId2}
+      WHERE c.accountId = ${accountId}
         AND k.keywordStatus = 'enabled'
         AND k.keywordId IS NULL
         AND k.createdAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)
@@ -66888,14 +66977,14 @@ async function cleanupOrphanKeywords(database, accountId2) {
     const orphans = await database.execute(orphanQuery);
     const rows = orphans[0] || orphans;
     if (!Array.isArray(rows) || rows.length === 0) return results;
-    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId2} \u53D1\u73B0${rows.length}\u4E2A\u7F3A\u5C11Amazon ID\u7684\u5B64\u513F\u5173\u952E\u8BCD\uFF0C\u6807\u8BB0\u4E3Apaused`);
+    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId} \u53D1\u73B0${rows.length}\u4E2A\u7F3A\u5C11Amazon ID\u7684\u5B64\u513F\u5173\u952E\u8BCD\uFF0C\u6807\u8BB0\u4E3Apaused`);
     for (const row of rows) {
       const keywordText = String(row.keyword_text || "");
       const hasSpecialChars = /[\uFFFC\uFFFD\u0000-\u001F]/.test(keywordText) || keywordText.length > 200;
       await database.update(keywords).set({ keywordStatus: "paused" }).where(eq(keywords.id, row.keyword_id));
       results.push({
         type: "orphan_keyword_cleanup",
-        accountId: accountId2,
+        accountId,
         targetId: row.keyword_id,
         targetType: "keyword",
         previousValue: `enabled (no Amazon ID${hasSpecialChars ? ", has special chars" : ""})`,
@@ -66906,18 +66995,18 @@ async function cleanupOrphanKeywords(database, accountId2) {
     }
     if (results.length > 0) {
       await logCorrectionEvent(database, {
-        accountId: accountId2,
+        accountId,
         eventCategory: "auto_correction",
         actionType: "auto_correction",
         changeReason: `[AutoCorrector v172] \u6E05\u7406${results.length}\u4E2A\u7F3A\u5C11Amazon ID\u7684\u5B64\u513F\u5173\u952E\u8BCD`
       });
     }
   } catch (error54) {
-    console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId2} cleanupOrphanKeywords\u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId} cleanupOrphanKeywords\u5931\u8D25: ${error54.message}`);
   }
   return results;
 }
-async function retryHistoricalFailedKeywordHarvests(database, accountId2) {
+async function retryHistoricalFailedKeywordHarvests(database, accountId) {
   const results = [];
   const MAX_PER_RUN = 20;
   try {
@@ -66925,7 +67014,7 @@ async function retryHistoricalFailedKeywordHarvests(database, accountId2) {
       SELECT id, account_id, campaign_id, campaign_name, keyword_id, keyword_text,
              action_detail, api_sync_status, api_sync_detail, created_at
       FROM optimization_events
-      WHERE account_id = ${accountId2}
+      WHERE account_id = ${accountId}
         AND action_type = 'keyword_create'
         AND api_sync_status = 'not_applicable'
         AND keyword_id IS NULL
@@ -66936,7 +67025,7 @@ async function retryHistoricalFailedKeywordHarvests(database, accountId2) {
     `);
     const events = failedEvents[0] || failedEvents;
     if (!events || events.length === 0) return results;
-    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId2} \u53D1\u73B0${events.length}\u6761\u5386\u53F2\u5931\u8D25\u7684\u641C\u7D22\u8BCD\u6536\u5272\u9700\u8981\u91CD\u8BD5`);
+    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId} \u53D1\u73B0${events.length}\u6761\u5386\u53F2\u5931\u8D25\u7684\u641C\u7D22\u8BCD\u6536\u5272\u9700\u8981\u91CD\u8BD5`);
     const byCampaign = /* @__PURE__ */ new Map();
     for (const event of events) {
       let detail = {};
@@ -66973,7 +67062,7 @@ async function retryHistoricalFailedKeywordHarvests(database, accountId2) {
               WHERE id = ${kw.eventId}
             `).catch(() => {
             });
-            results.push({ type: "keyword_create_retry", accountId: accountId2, targetId: localCampaignId, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `Campaign\u4E0D\u5B58\u5728\uFF0C\u653E\u5F03\u91CD\u8BD5: ${kw.searchTerm}`, success: false, errorMessage: "campaign_not_found" });
+            results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `Campaign\u4E0D\u5B58\u5728\uFF0C\u653E\u5F03\u91CD\u8BD5: ${kw.searchTerm}`, success: false, errorMessage: "campaign_not_found" });
           }
           continue;
         }
@@ -66990,7 +67079,7 @@ async function retryHistoricalFailedKeywordHarvests(database, accountId2) {
               WHERE id = ${kw.eventId}
             `).catch(() => {
             });
-            results.push({ type: "keyword_create_retry", accountId: accountId2, targetId: localCampaignId, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `\u65E0\u6D3B\u8DC3adGroup\uFF0C\u653E\u5F03\u91CD\u8BD5: ${kw.searchTerm}`, success: false, errorMessage: "no_active_adgroup" });
+            results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `\u65E0\u6D3B\u8DC3adGroup\uFF0C\u653E\u5F03\u91CD\u8BD5: ${kw.searchTerm}`, success: false, errorMessage: "no_active_adgroup" });
           }
           continue;
         }
@@ -67007,7 +67096,7 @@ async function retryHistoricalFailedKeywordHarvests(database, accountId2) {
               WHERE id = ${kw.eventId}
             `).catch(() => {
             });
-            results.push({ type: "keyword_create_retry", accountId: accountId2, targetId: localCampaignId, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u6807\u8BB0\u4E3Asynced: ${kw.searchTerm}`, success: true });
+            results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u6807\u8BB0\u4E3Asynced: ${kw.searchTerm}`, success: true });
           } else {
             toCreate.push(kw);
           }
@@ -67040,12 +67129,12 @@ async function retryHistoricalFailedKeywordHarvests(database, accountId2) {
               WHERE id = ${kw.eventId}
             `).catch(() => {
             });
-            results.push({ type: "keyword_create_retry", accountId: accountId2, targetId: localCampaignId, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `\u672C\u5730\u521B\u5EFA\u5931\u8D25: ${kw.searchTerm}`, success: false, errorMessage: insertErr.message });
+            results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `\u672C\u5730\u521B\u5EFA\u5931\u8D25: ${kw.searchTerm}`, success: false, errorMessage: insertErr.message });
           }
         }
         if (keywordsToSync.length === 0) continue;
         const syncResult = await syncNewKeywordsToAmazon(
-          accountId2,
+          accountId,
           keywordsToSync.map((k5) => ({
             localKeywordId: k5.localKeywordId,
             adGroupId: k5.adGroupId,
@@ -67082,7 +67171,7 @@ async function retryHistoricalFailedKeywordHarvests(database, accountId2) {
               WHERE id = ${kw.eventId}
             `).catch(() => {
             });
-            results.push({ type: "keyword_create_retry", accountId: accountId2, targetId: localCampaignId, targetType: "keyword", previousValue: "", correctedValue: kw.keywordText, reason: isDuplicate ? `\u5173\u952E\u8BCDAmazon\u5DF2\u5B58\u5728: ${kw.keywordText}` : `\u91CD\u8BD5\u521B\u5EFA\u5173\u952E\u8BCD\u6210\u529F: ${kw.keywordText}`, success: true });
+            results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId, targetType: "keyword", previousValue: "", correctedValue: kw.keywordText, reason: isDuplicate ? `\u5173\u952E\u8BCDAmazon\u5DF2\u5B58\u5728: ${kw.keywordText}` : `\u91CD\u8BD5\u521B\u5EFA\u5173\u952E\u8BCD\u6210\u529F: ${kw.keywordText}`, success: true });
             console.log(`[AutoCorrector] v178: \u2705 \u5173\u952E\u8BCD\u521B\u5EFA\u6210\u529F: "${kw.keywordText}" (campaign=${localCampaignId}${isDuplicate ? ", \u5DF2\u5B58\u5728" : ""})`);
           } else {
             await database.execute(sql`
@@ -67102,7 +67191,7 @@ async function retryHistoricalFailedKeywordHarvests(database, accountId2) {
               `).catch(() => {
               });
             }
-            results.push({ type: "keyword_create_retry", accountId: accountId2, targetId: localCampaignId, targetType: "keyword", previousValue: "", correctedValue: kw.keywordText, reason: `\u5173\u952E\u8BCDAmazon\u62D2\u7EDD\u521B\u5EFA: ${kw.keywordText} (code=${errorCode || "UNKNOWN"})`, success: false, errorMessage: errorCode || syncResult.errors.join("; ") });
+            results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId, targetType: "keyword", previousValue: "", correctedValue: kw.keywordText, reason: `\u5173\u952E\u8BCDAmazon\u62D2\u7EDD\u521B\u5EFA: ${kw.keywordText} (code=${errorCode || "UNKNOWN"})`, success: false, errorMessage: errorCode || syncResult.errors.join("; ") });
             console.log(`[AutoCorrector] v178: \u274C \u5173\u952E\u8BCD\u521B\u5EFA\u5931\u8D25: "${kw.keywordText}" (code=${errorCode || "UNKNOWN"})`);
           }
         }
@@ -67110,13 +67199,120 @@ async function retryHistoricalFailedKeywordHarvests(database, accountId2) {
       } catch (campError) {
         console.error(`[AutoCorrector] v178: Campaign ${localCampaignId} \u5173\u952E\u8BCD\u6536\u5272\u91CD\u8BD5\u5931\u8D25: ${campError.message}`);
         for (const kw of kwEvents) {
-          results.push({ type: "keyword_create_retry", accountId: accountId2, targetId: localCampaignId, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `Campaign\u5904\u7406\u5F02\u5E38: ${kw.searchTerm}`, success: false, errorMessage: campError.message });
+          results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `Campaign\u5904\u7406\u5F02\u5E38: ${kw.searchTerm}`, success: false, errorMessage: campError.message });
         }
       }
     }
-    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId2} \u641C\u7D22\u8BCD\u6536\u5272\u91CD\u8BD5\u5B8C\u6210: \u6210\u529F=${results.filter((r5) => r5.success).length}, \u5931\u8D25=${results.filter((r5) => !r5.success).length}`);
+    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId} \u641C\u7D22\u8BCD\u6536\u5272\u91CD\u8BD5\u5B8C\u6210: \u6210\u529F=${results.filter((r5) => r5.success).length}, \u5931\u8D25=${results.filter((r5) => !r5.success).length}`);
   } catch (error54) {
-    console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId2} retryHistoricalFailedKeywordHarvests\u5931\u8D25: ${error54.message}`);
+    console.error(`[AutoCorrector] v178: \u8D26\u6237${accountId} retryHistoricalFailedKeywordHarvests\u5931\u8D25: ${error54.message}`);
+  }
+  return results;
+}
+async function rescuePermanentlyFailedTasks(accountId) {
+  const results = [];
+  try {
+    const mysql2 = await import("mysql2/promise");
+    const conn = await mysql2.createConnection({
+      host: process.env.DATABASE_HOST || "amazon-ads-optimizer-db.ci7y0uwu0aid.us-east-1.rds.amazonaws.com",
+      user: process.env.DATABASE_USER || "admin",
+      password: process.env.DATABASE_PASSWORD || "Mucers2025",
+      database: process.env.DATABASE_NAME || "amazon_ads_optimizer"
+    });
+    try {
+      const [rows] = await conn.execute(
+        `SELECT id, task_type, target_entity_type, target_entity_id, amazon_entity_id, 
+                action, old_value, new_value, change_reason, error_message, retry_count,
+                campaign_id, ad_group_id
+         FROM optimization_tasks 
+         WHERE account_id = ? 
+           AND status = 'permanently_failed'
+           AND completed_at < DATE_SUB(NOW(), INTERVAL 2 HOUR)
+           AND completed_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
+         ORDER BY completed_at DESC
+         LIMIT 50`,
+        [accountId]
+      );
+      if (rows.length === 0) return results;
+      console.log(`[AutoCorrector] v190: \u8D26\u6237${accountId} \u53D1\u73B0${rows.length}\u6761permanently_failed\u4EFB\u52A1\u9700\u8981\u6062\u590D`);
+      for (const task of rows) {
+        if (!task.amazon_entity_id && task.target_entity_id) {
+          try {
+            if (task.target_entity_type === "keyword") {
+              const [kwRows] = await conn.execute(
+                "SELECT keywordId FROM keywords WHERE id = ? AND keywordId IS NOT NULL LIMIT 1",
+                [task.target_entity_id]
+              );
+              if (kwRows[0]?.keywordId) {
+                task.amazon_entity_id = kwRows[0].keywordId;
+                await conn.execute(
+                  "UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?",
+                  [task.amazon_entity_id, task.id]
+                );
+                console.log(`[AutoCorrector] v190: \u56DE\u586BAmazon ID: keyword ${task.target_entity_id} -> ${task.amazon_entity_id}`);
+              }
+            } else if (task.target_entity_type === "product_target") {
+              const [ptRows] = await conn.execute(
+                "SELECT targetId FROM product_targets WHERE id = ? AND targetId IS NOT NULL LIMIT 1",
+                [task.target_entity_id]
+              );
+              if (ptRows[0]?.targetId) {
+                task.amazon_entity_id = ptRows[0].targetId;
+                await conn.execute(
+                  "UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?",
+                  [task.amazon_entity_id, task.id]
+                );
+                console.log(`[AutoCorrector] v190: \u56DE\u586BAmazon ID: product_target ${task.target_entity_id} -> ${task.amazon_entity_id}`);
+              }
+            } else if (task.target_entity_type === "campaign") {
+              const [cRows] = await conn.execute(
+                "SELECT campaignId FROM campaigns WHERE id = ? AND campaignId IS NOT NULL LIMIT 1",
+                [task.target_entity_id]
+              );
+              if (cRows[0]?.campaignId) {
+                task.amazon_entity_id = cRows[0].campaignId;
+                await conn.execute(
+                  "UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?",
+                  [task.amazon_entity_id, task.id]
+                );
+                console.log(`[AutoCorrector] v190: \u56DE\u586BAmazon ID: campaign ${task.target_entity_id} -> ${task.amazon_entity_id}`);
+              }
+            }
+          } catch (resolveErr) {
+            console.warn(`[AutoCorrector] v190: ID\u56DE\u586B\u5931\u8D25: ${resolveErr.message}`);
+          }
+        }
+      }
+      const taskIds = rows.map((r5) => r5.id);
+      const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
+      await conn.execute(
+        `UPDATE optimization_tasks 
+         SET status = 'retry', 
+             retry_count = 0, 
+             error_message = CONCAT('[AutoCorrector v190 \u6062\u590D] ', IFNULL(error_message, '')),
+             next_retry_at = ?
+         WHERE id IN (${taskIds.join(",")})`,
+        [now]
+      );
+      console.log(`[AutoCorrector] v190: \u5DF2\u6062\u590D${taskIds.length}\u6761permanently_failed\u4EFB\u52A1\u4E3Aretry\u72B6\u6001`);
+      for (const task of rows) {
+        results.push({
+          type: "keyword_create_retry",
+          // 复用现有类型
+          accountId,
+          targetId: task.target_entity_id,
+          targetType: task.target_entity_type || "unknown",
+          previousValue: task.old_value || "",
+          correctedValue: task.new_value || "",
+          reason: `[v190] \u6062\u590Dpermanently_failed\u4EFB\u52A1: ${task.task_type}/${task.action} (retry_count\u5DF2\u91CD\u7F6E)`,
+          success: true
+        });
+      }
+    } finally {
+      await conn.end();
+    }
+  } catch (error54) {
+    console.error(`[AutoCorrector] v190: \u8D26\u6237${accountId} rescuePermanentlyFailedTasks\u5931\u8D25: ${error54.message}`);
   }
   return results;
 }
@@ -80194,7 +80390,7 @@ var require_dist_cjs41 = __commonJS({
       const segments = value2.split(ARN_DELIMITER);
       if (segments.length < 6)
         return null;
-      const [arn, partition2, service, region, accountId2, ...resourcePath] = segments;
+      const [arn, partition2, service, region, accountId, ...resourcePath] = segments;
       if (arn !== "arn" || partition2 === "" || service === "" || resourcePath.join(ARN_DELIMITER) === "")
         return null;
       const resourceId = resourcePath.map((resource) => resource.split(RESOURCE_DELIMITER)).flat();
@@ -80202,7 +80398,7 @@ var require_dist_cjs41 = __commonJS({
         partition: partition2,
         service,
         region,
-        accountId: accountId2,
+        accountId,
         resourceId
       };
     };
@@ -92200,8 +92396,8 @@ var require_dist_cjs63 = __commonJS({
         }
         this.refillTokenBucket();
         if (amount > this.currentCapacity) {
-          const delay2 = (amount - this.currentCapacity) / this.fillRate * 1e3;
-          await new Promise((resolve8) => _DefaultRateLimiter.setTimeoutFn(resolve8, delay2));
+          const delay = (amount - this.currentCapacity) / this.fillRate * 1e3;
+          await new Promise((resolve8) => _DefaultRateLimiter.setTimeoutFn(resolve8, delay));
         }
         this.currentCapacity = this.currentCapacity - amount;
       }
@@ -92279,8 +92475,8 @@ var require_dist_cjs63 = __commonJS({
       const computeNextBackoffDelay = (attempts) => {
         return Math.floor(Math.min(MAXIMUM_RETRY_DELAY, Math.random() * 2 ** attempts * delayBase));
       };
-      const setDelayBase = (delay2) => {
-        delayBase = delay2;
+      const setDelayBase = (delay) => {
+        delayBase = delay;
       };
       return {
         computeNextBackoffDelay,
@@ -96981,9 +97177,9 @@ var require_dist_cjs70 = __commonJS({
               retryTokenAmount = this.retryQuota.retrieveRetryTokens(err2);
               const delayFromDecider = this.delayDecider(serviceErrorClassification.isThrottlingError(err2) ? utilRetry.THROTTLING_RETRY_DELAY_BASE : utilRetry.DEFAULT_RETRY_DELAY_BASE, attempts);
               const delayFromResponse = getDelayFromRetryAfterHeader(err2.$response);
-              const delay2 = Math.max(delayFromResponse || 0, delayFromDecider);
-              totalDelay += delay2;
-              await new Promise((resolve8) => setTimeout(resolve8, delay2));
+              const delay = Math.max(delayFromResponse || 0, delayFromDecider);
+              totalDelay += delay;
+              await new Promise((resolve8) => setTimeout(resolve8, delay));
               continue;
             }
             if (!err2.$metadata) {
@@ -97139,9 +97335,9 @@ var require_dist_cjs70 = __commonJS({
               throw lastError;
             }
             attempts = retryToken.getRetryCount();
-            const delay2 = retryToken.getRetryDelay();
-            totalRetryDelay += delay2;
-            await new Promise((resolve8) => setTimeout(resolve8, delay2));
+            const delay = retryToken.getRetryDelay();
+            totalRetryDelay += delay;
+            await new Promise((resolve8) => setTimeout(resolve8, delay));
           }
         }
       } else {
@@ -103157,7 +103353,7 @@ var require_dist_cjs74 = __commonJS({
       const sessionToken = process.env[ENV_SESSION];
       const expiry = process.env[ENV_EXPIRATION];
       const credentialScope = process.env[ENV_CREDENTIAL_SCOPE];
-      const accountId2 = process.env[ENV_ACCOUNT_ID];
+      const accountId = process.env[ENV_ACCOUNT_ID];
       if (accessKeyId && secretAccessKey) {
         const credentials = {
           accessKeyId,
@@ -103165,7 +103361,7 @@ var require_dist_cjs74 = __commonJS({
           ...sessionToken && { sessionToken },
           ...expiry && { expiration: new Date(expiry) },
           ...credentialScope && { credentialScope },
-          ...accountId2 && { accountId: accountId2 }
+          ...accountId && { accountId }
         };
         client.setCredentialFeature(credentials, "CREDENTIALS_ENV_VARS", "g");
         return credentials;
@@ -118859,7 +119055,7 @@ var require_dist_cjs99 = __commonJS({
       const segments = value2.split(ARN_DELIMITER);
       if (segments.length < 6)
         return null;
-      const [arn, partition2, service, region, accountId2, ...resourcePath] = segments;
+      const [arn, partition2, service, region, accountId, ...resourcePath] = segments;
       if (arn !== "arn" || partition2 === "" || service === "" || resourcePath.join(ARN_DELIMITER) === "")
         return null;
       const resourceId = resourcePath.map((resource) => resource.split(RESOURCE_DELIMITER)).flat();
@@ -118867,7 +119063,7 @@ var require_dist_cjs99 = __commonJS({
         partition: partition2,
         service,
         region,
-        accountId: accountId2,
+        accountId,
         resourceId
       };
     };
@@ -124864,7 +125060,7 @@ var require_dist_cjs105 = __commonJS({
       const segments = value2.split(ARN_DELIMITER);
       if (segments.length < 6)
         return null;
-      const [arn, partition2, service, region, accountId2, ...resourcePath] = segments;
+      const [arn, partition2, service, region, accountId, ...resourcePath] = segments;
       if (arn !== "arn" || partition2 === "" || service === "" || resourcePath.join(ARN_DELIMITER) === "")
         return null;
       const resourceId = resourcePath.map((resource) => resource.split(RESOURCE_DELIMITER)).flat();
@@ -124872,7 +125068,7 @@ var require_dist_cjs105 = __commonJS({
         partition: partition2,
         service,
         region,
-        accountId: accountId2,
+        accountId,
         resourceId
       };
     };
@@ -125965,7 +126161,7 @@ var require_dist_cjs107 = __commonJS({
           logger: logger7
         });
       }
-      const { roleCredentials: { accessKeyId, secretAccessKey, sessionToken, expiration, credentialScope, accountId: accountId2 } = {} } = ssoResp;
+      const { roleCredentials: { accessKeyId, secretAccessKey, sessionToken, expiration, credentialScope, accountId } = {} } = ssoResp;
       if (!accessKeyId || !secretAccessKey || !sessionToken || !expiration) {
         throw new propertyProvider.CredentialsProviderError("SSO returns an invalid temporary credential.", {
           tryNextLink: SHOULD_FAIL_CREDENTIAL_CHAIN,
@@ -125978,7 +126174,7 @@ var require_dist_cjs107 = __commonJS({
         sessionToken,
         expiration: new Date(expiration),
         ...credentialScope && { credentialScope },
-        ...accountId2 && { accountId: accountId2 }
+        ...accountId && { accountId }
       };
       if (ssoSession) {
         client.setCredentialFeature(credentials, "CREDENTIALS_SSO", "s");
@@ -128128,14 +128324,14 @@ var init_defaultStsRoleAssumers = __esm({
         if (!Credentials || !Credentials.AccessKeyId || !Credentials.SecretAccessKey) {
           throw new Error(`Invalid response from STS.assumeRole call with role ${params.RoleArn}`);
         }
-        const accountId2 = getAccountIdFromAssumedRoleUser(AssumedRoleUser);
+        const accountId = getAccountIdFromAssumedRoleUser(AssumedRoleUser);
         const credentials = {
           accessKeyId: Credentials.AccessKeyId,
           secretAccessKey: Credentials.SecretAccessKey,
           sessionToken: Credentials.SessionToken,
           expiration: Credentials.Expiration,
           ...Credentials.CredentialScope && { credentialScope: Credentials.CredentialScope },
-          ...accountId2 && { accountId: accountId2 }
+          ...accountId && { accountId }
         };
         setCredentialFeature4(credentials, "CREDENTIALS_STS_ASSUME_ROLE", "i");
         return credentials;
@@ -128164,16 +128360,16 @@ var init_defaultStsRoleAssumers = __esm({
         if (!Credentials || !Credentials.AccessKeyId || !Credentials.SecretAccessKey) {
           throw new Error(`Invalid response from STS.assumeRoleWithWebIdentity call with role ${params.RoleArn}`);
         }
-        const accountId2 = getAccountIdFromAssumedRoleUser(AssumedRoleUser);
+        const accountId = getAccountIdFromAssumedRoleUser(AssumedRoleUser);
         const credentials = {
           accessKeyId: Credentials.AccessKeyId,
           secretAccessKey: Credentials.SecretAccessKey,
           sessionToken: Credentials.SessionToken,
           expiration: Credentials.Expiration,
           ...Credentials.CredentialScope && { credentialScope: Credentials.CredentialScope },
-          ...accountId2 && { accountId: accountId2 }
+          ...accountId && { accountId }
         };
-        if (accountId2) {
+        if (accountId) {
           setCredentialFeature4(credentials, "RESOLVED_ACCOUNT_ID", "T");
         }
         setCredentialFeature4(credentials, "CREDENTIALS_STS_ASSUME_ROLE_WEB_ID", "k");
@@ -128290,9 +128486,9 @@ var require_dist_cjs111 = __commonJS({
           throw Error(`Profile ${profileName} credential_process returned expired credentials.`);
         }
       }
-      let accountId2 = data4.AccountId;
-      if (!accountId2 && profiles?.[profileName]?.aws_account_id) {
-        accountId2 = profiles[profileName].aws_account_id;
+      let accountId = data4.AccountId;
+      if (!accountId && profiles?.[profileName]?.aws_account_id) {
+        accountId = profiles[profileName].aws_account_id;
       }
       const credentials = {
         accessKeyId: data4.AccessKeyId,
@@ -128300,7 +128496,7 @@ var require_dist_cjs111 = __commonJS({
         ...data4.SessionToken && { sessionToken: data4.SessionToken },
         ...data4.Expiration && { expiration: new Date(data4.Expiration) },
         ...data4.CredentialScope && { credentialScope: data4.CredentialScope },
-        ...accountId2 && { accountId: accountId2 }
+        ...accountId && { accountId }
       };
       client.setCredentialFeature(credentials, "CREDENTIALS_PROCESS", "w");
       return credentials;
@@ -128853,7 +129049,7 @@ var require_dist_cjs115 = __commonJS({
       const segments = value2.split(ARN_DELIMITER);
       if (segments.length < 6)
         return null;
-      const [arn, partition2, service, region, accountId2, ...resourcePath] = segments;
+      const [arn, partition2, service, region, accountId, ...resourcePath] = segments;
       if (arn !== "arn" || partition2 === "" || service === "" || resourcePath.join(ARN_DELIMITER) === "")
         return null;
       const resourceId = resourcePath.map((resource) => resource.split(RESOURCE_DELIMITER)).flat();
@@ -128861,7 +129057,7 @@ var require_dist_cjs115 = __commonJS({
         partition: partition2,
         service,
         region,
-        accountId: accountId2,
+        accountId,
         resourceId
       };
     };
@@ -131581,14 +131777,14 @@ var init_sqsConsumerService = __esm({
       urlToArn(url3) {
         let match = url3.match(/sqs\.([^.]+)\.amazonaws\.com\/(\d+)\/(.+)/);
         if (match) {
-          const [, region, accountId2, queueName] = match;
-          return `arn:aws:sqs:${region}:${accountId2}:${queueName}`;
+          const [, region, accountId, queueName] = match;
+          return `arn:aws:sqs:${region}:${accountId}:${queueName}`;
         }
         match = url3.match(/queue\.amazonaws\.com\/(\d+)\/(.+)/);
         if (match) {
-          const [, accountId2, queueName] = match;
+          const [, accountId, queueName] = match;
           const region = process.env.AWS_REGION || "us-east-1";
-          return `arn:aws:sqs:${region}:${accountId2}:${queueName}`;
+          return `arn:aws:sqs:${region}:${accountId}:${queueName}`;
         }
         return url3;
       }
@@ -132167,7 +132363,7 @@ function getTimeDecayWeight(daysAgo) {
   if (daysAgo <= 30) return 0.2;
   return 0.1;
 }
-async function synthesizeFromExistingData(db, campaignId, accountId2, startStr, endStr) {
+async function synthesizeFromExistingData(db, campaignId, accountId, startStr, endStr) {
   const campaignInfo = await db.select({
     id: campaigns.id,
     campaignId: campaigns.campaignId
@@ -132186,7 +132382,7 @@ async function synthesizeFromExistingData(db, campaignId, accountId2, startStr, 
     orders: hourlyPerformance.orders
   }).from(hourlyPerformance).where(and(
     eq(hourlyPerformance.campaignId, String(campaignId)),
-    eq(hourlyPerformance.accountId, accountId2),
+    eq(hourlyPerformance.accountId, accountId),
     gte(hourlyPerformance.date, startStr),
     lte(hourlyPerformance.date, endStr)
   ));
@@ -132203,7 +132399,7 @@ async function synthesizeFromExistingData(db, campaignId, accountId2, startStr, 
     orders: placementPerformance.orders
   }).from(placementPerformance).where(and(
     eq(placementPerformance.campaignId, String(amazonCampaignId)),
-    eq(placementPerformance.accountId, accountId2),
+    eq(placementPerformance.accountId, accountId),
     gte(placementPerformance.date, startStr),
     lte(placementPerformance.date, endStr)
   ));
@@ -132288,7 +132484,7 @@ function calculatePlacementRatios(placementData) {
     rest_of_search: spendByPlacement.rest_of_search / totalSpend
   };
 }
-async function loadPreviousAnalysis(db, accountId2, campaignId) {
+async function loadPreviousAnalysis(db, accountId, campaignId) {
   const prevResults = await db.select({
     keywordId: multiDimComboAnalysis.keywordId,
     targetId: multiDimComboAnalysis.targetId,
@@ -132297,7 +132493,7 @@ async function loadPreviousAnalysis(db, accountId2, campaignId) {
     suggestedPlacementMultiplier: multiDimComboAnalysis.suggestedPlacementMultiplier,
     suggestedTimeMultiplier: multiDimComboAnalysis.suggestedTimeMultiplier
   }).from(multiDimComboAnalysis).where(and(
-    eq(multiDimComboAnalysis.accountId, accountId2),
+    eq(multiDimComboAnalysis.accountId, accountId),
     eq(multiDimComboAnalysis.campaignId, String(campaignId))
   ));
   const map9 = /* @__PURE__ */ new Map();
@@ -132317,7 +132513,7 @@ function smoothMultiplier(newValue, oldValue, smoothFactor = 0.6) {
   if (Math.abs(oldValue - 1) < 1e-3) return newValue;
   return oldValue * (1 - smoothFactor) + newValue * smoothFactor;
 }
-async function analyzeCampaignCombos(db, campaignId, accountId2, targetAcos = 30, lookbackDays = 30) {
+async function analyzeCampaignCombos(db, campaignId, accountId, targetAcos = 30, lookbackDays = 30) {
   const endDate = /* @__PURE__ */ new Date();
   const startDate = /* @__PURE__ */ new Date();
   startDate.setDate(startDate.getDate() - lookbackDays);
@@ -132325,7 +132521,7 @@ async function analyzeCampaignCombos(db, campaignId, accountId2, targetAcos = 30
   const endStr = endDate.toISOString().split("T")[0];
   const campaignInfo = await db.select({ campaignName: campaigns.campaignName }).from(campaigns).where(eq(campaigns.id, campaignId)).limit(1);
   const campaignName = campaignInfo[0]?.campaignName || `Campaign ${campaignId}`;
-  const previousAnalysis = await loadPreviousAnalysis(db, accountId2, campaignId);
+  const previousAnalysis = await loadPreviousAnalysis(db, accountId, campaignId);
   let rawData = [];
   let dataSource = "cross_dimension";
   const crossDimData = await db.select({
@@ -132342,7 +132538,7 @@ async function analyzeCampaignCombos(db, campaignId, accountId2, targetAcos = 30
     orders: keywordPlacementHourlyPerformance.orders
   }).from(keywordPlacementHourlyPerformance).where(and(
     eq(keywordPlacementHourlyPerformance.campaignId, String(campaignId)),
-    eq(keywordPlacementHourlyPerformance.accountId, accountId2),
+    eq(keywordPlacementHourlyPerformance.accountId, accountId),
     gte(keywordPlacementHourlyPerformance.date, startStr),
     lte(keywordPlacementHourlyPerformance.date, endStr)
   ));
@@ -132364,7 +132560,7 @@ async function analyzeCampaignCombos(db, campaignId, accountId2, targetAcos = 30
     console.log(`[ComboAnalyzer] Campaign ${campaignName}: \u4F7F\u7528\u4EA4\u53C9\u7EF4\u5EA6\u8868\u6570\u636E (${rawData.length}\u6761)`);
   }
   if (rawData.length === 0) {
-    rawData = await synthesizeFromExistingData(db, campaignId, accountId2, startStr, endStr);
+    rawData = await synthesizeFromExistingData(db, campaignId, accountId, startStr, endStr);
     dataSource = "synthesized";
     if (rawData.length === 0) {
       console.log(`[ComboAnalyzer] Campaign ${campaignName}: \u65E0\u4EFB\u4F55\u53EF\u7528\u6570\u636E\uFF0C\u8DF3\u8FC7`);
@@ -132373,7 +132569,7 @@ async function analyzeCampaignCombos(db, campaignId, accountId2, targetAcos = 30
     console.log(`[ComboAnalyzer] Campaign ${campaignName}: \u4F7F\u7528\u5408\u6210\u6570\u636E (${rawData.length}\u6761)`);
   }
   if (crossDimData.length > 0 && crossDimData.length < 50) {
-    const synthesized = await synthesizeFromExistingData(db, campaignId, accountId2, startStr, endStr);
+    const synthesized = await synthesizeFromExistingData(db, campaignId, accountId, startStr, endStr);
     if (synthesized.length > crossDimData.length) {
       const existingKeys = new Set(rawData.map(
         (r5) => `${r5.keywordId || ""}_${r5.targetId || ""}_${r5.placement}_${r5.dayOfWeek}_${r5.hour}_${r5.date}`
@@ -132707,7 +132903,7 @@ async function getRealtimeMultipliers(db, campaignId, keywordId, targetId, curre
     confidence: analysis.confidenceLevel || "insufficient"
   };
 }
-async function persistAnalysisResults(db, accountId2, analysis) {
+async function persistAnalysisResults(db, accountId, analysis) {
   const allCombos = [
     ...analysis.goldenCombos,
     ...analysis.leadenCombos,
@@ -132719,7 +132915,7 @@ async function persistAnalysisResults(db, accountId2, analysis) {
   const startDate = /* @__PURE__ */ new Date();
   startDate.setDate(startDate.getDate() - 30);
   await db.delete(multiDimComboAnalysis).where(and(
-    eq(multiDimComboAnalysis.accountId, accountId2),
+    eq(multiDimComboAnalysis.accountId, accountId),
     eq(multiDimComboAnalysis.campaignId, String(analysis.campaignId))
   ));
   let inserted = 0;
@@ -132729,7 +132925,7 @@ async function persistAnalysisResults(db, accountId2, analysis) {
     const restOfSearch = combo.placementSummaries.find((p4) => p4.placement === "rest_of_search");
     try {
       await db.insert(multiDimComboAnalysis).values({
-        accountId: accountId2,
+        accountId,
         campaignId: combo.campaignId,
         keywordId: combo.keywordId,
         targetId: combo.targetId,
@@ -132770,7 +132966,7 @@ async function persistAnalysisResults(db, accountId2, analysis) {
   console.log(`[ComboAnalyzer] Campaign ${analysis.campaignName}: \u5199\u5165${inserted}\u6761\u5206\u6790\u7ED3\u679C (\u6570\u636E\u6E90: ${analysis.dataSource})`);
   return inserted;
 }
-async function executeMultiDimComboAnalysis(db, accountId2, campaignIds, config2) {
+async function executeMultiDimComboAnalysis(db, accountId, campaignIds, config2) {
   const targetAcos = config2.targetAcos || 30;
   const lookbackDays = config2.lookbackDays || 30;
   let campaignsAnalyzed = 0;
@@ -132784,9 +132980,9 @@ async function executeMultiDimComboAnalysis(db, accountId2, campaignIds, config2
   const campaignBudgetMultipliers = /* @__PURE__ */ new Map();
   for (const campaignId of campaignIds) {
     try {
-      const analysis = await analyzeCampaignCombos(db, campaignId, accountId2, targetAcos, lookbackDays);
+      const analysis = await analyzeCampaignCombos(db, campaignId, accountId, targetAcos, lookbackDays);
       if (!analysis) continue;
-      await persistAnalysisResults(db, accountId2, analysis);
+      await persistAnalysisResults(db, accountId, analysis);
       campaignsAnalyzed++;
       totalCombosFound += analysis.totalKeywordsAnalyzed;
       goldenCount += analysis.goldenCombos.length;
@@ -132813,25 +133009,25 @@ async function executeMultiDimComboAnalysis(db, accountId2, campaignIds, config2
     totalCategoryChanges
   };
 }
-async function getComboAnalysisForAccount(db, accountId2) {
-  const results = await db.select().from(multiDimComboAnalysis).where(eq(multiDimComboAnalysis.accountId, accountId2));
+async function getComboAnalysisForAccount(db, accountId) {
+  const results = await db.select().from(multiDimComboAnalysis).where(eq(multiDimComboAnalysis.accountId, accountId));
   return results;
 }
-async function getComboAnalysisForCampaign(db, accountId2, campaignId) {
+async function getComboAnalysisForCampaign(db, accountId, campaignId) {
   const results = await db.select().from(multiDimComboAnalysis).where(and(
-    eq(multiDimComboAnalysis.accountId, accountId2),
+    eq(multiDimComboAnalysis.accountId, accountId),
     eq(multiDimComboAnalysis.campaignId, String(campaignId))
   ));
   return results;
 }
-async function getCampaignBudgetMultiplier(db, accountId2, campaignId) {
+async function getCampaignBudgetMultiplier(db, accountId, campaignId) {
   const results = await db.select({
     comboCategory: multiDimComboAnalysis.comboCategory,
     topOfSearchSpend: multiDimComboAnalysis.topOfSearchSpend,
     productPageSpend: multiDimComboAnalysis.productPageSpend,
     restOfSearchSpend: multiDimComboAnalysis.restOfSearchSpend
   }).from(multiDimComboAnalysis).where(and(
-    eq(multiDimComboAnalysis.accountId, accountId2),
+    eq(multiDimComboAnalysis.accountId, accountId),
     eq(multiDimComboAnalysis.campaignId, String(campaignId))
   ));
   if (results.length === 0) return 1;
@@ -133465,12 +133661,12 @@ var init_asyncReportService = __esm({
       /**
        * 初始化API客户端
        */
-      async initApiClient(accountId2) {
+      async initApiClient(accountId) {
         const db = await getDb();
         if (!db) throw new Error("Database not available");
-        const [credentials] = await db.select().from(amazonApiCredentials).where(eq(amazonApiCredentials.accountId, accountId2)).limit(1);
+        const [credentials] = await db.select().from(amazonApiCredentials).where(eq(amazonApiCredentials.accountId, accountId)).limit(1);
         if (!credentials) {
-          throw new Error(`No API credentials found for account ${accountId2}`);
+          throw new Error(`No API credentials found for account ${accountId}`);
         }
         return new AmazonAdsApiClient(credentials);
       }
@@ -133549,7 +133745,7 @@ var init_asyncReportService = __esm({
       /**
        * 批量创建报告任务（用于新店铺初始化）
        */
-      async createInitializationJobs(accountId2, profileId) {
+      async createInitializationJobs(accountId, profileId) {
         const jobIds = [];
         for (const adType of ["SP", "SB", "SD"]) {
           const hotSlices = this.generateDateSlices(
@@ -133558,7 +133754,7 @@ var init_asyncReportService = __esm({
           );
           for (const slice of hotSlices) {
             const jobId = await this.createReportJob({
-              accountId: accountId2,
+              accountId,
               profileId,
               adType,
               startDate: slice.startDate,
@@ -133573,7 +133769,7 @@ var init_asyncReportService = __esm({
           );
           for (const slice of coldSlices) {
             const jobId = await this.createReportJob({
-              accountId: accountId2,
+              accountId,
               profileId,
               adType,
               startDate: slice.startDate,
@@ -133582,20 +133778,20 @@ var init_asyncReportService = __esm({
             jobIds.push(jobId);
           }
         }
-        console.log(`[AsyncReportService] Created ${jobIds.length} initialization jobs for account ${accountId2}`);
+        console.log(`[AsyncReportService] Created ${jobIds.length} initialization jobs for account ${accountId}`);
         return jobIds;
       }
       /**
        * 创建归因回溯任务（每日运行）
        */
-      async createAttributionJobs(accountId2, profileId) {
+      async createAttributionJobs(accountId, profileId) {
         const jobIds = [];
         for (const adType of ["SP", "SB", "SD"]) {
           const config2 = REPORT_CONFIG[adType];
           const slices = this.generateDateSlices(config2.attributionDays, 7);
           for (const slice of slices) {
             const jobId = await this.createReportJob({
-              accountId: accountId2,
+              accountId,
               profileId,
               adType,
               startDate: slice.startDate,
@@ -133604,7 +133800,7 @@ var init_asyncReportService = __esm({
             jobIds.push(jobId);
           }
         }
-        console.log(`[AsyncReportService] Created ${jobIds.length} attribution jobs for account ${accountId2}`);
+        console.log(`[AsyncReportService] Created ${jobIds.length} attribution jobs for account ${accountId}`);
         return jobIds;
       }
       /**
@@ -133798,7 +133994,7 @@ var init_asyncReportService = __esm({
       /**
        * 处理报告数据并存储到数据库
        */
-      async processReportData(accountId2, adType, data4) {
+      async processReportData(accountId, adType, data4) {
         const db = await getDb();
         if (!db) throw new Error("Database not available");
         let processedCount = 0;
@@ -133811,13 +134007,13 @@ var init_asyncReportService = __esm({
             }
             const [campaign] = await db.select().from(campaigns).where(
               and(
-                eq(campaigns.accountId, accountId2),
+                eq(campaigns.accountId, accountId),
                 eq(campaigns.campaignId, campaignId)
               )
             ).limit(1);
             const internalCampaignId = campaign?.id;
             const performanceData = {
-              accountId: accountId2,
+              accountId,
               campaignId: internalCampaignId || null,
               amazonCampaignId: campaignId,
               date: date12,
@@ -133831,7 +134027,7 @@ var init_asyncReportService = __esm({
             };
             const existingRecord = await db.select().from(amsPerformanceData).where(
               and(
-                eq(amsPerformanceData.accountId, accountId2),
+                eq(amsPerformanceData.accountId, accountId),
                 eq(amsPerformanceData.campaignId, String(campaignId)),
                 eq(amsPerformanceData.reportDate, date12)
               )
@@ -134631,8 +134827,8 @@ async function executeBatchSync(options) {
       accountGroups.get(accId).push(row);
     }
     console.log(`[SyncEngine] \u5206\u4E3A ${accountGroups.size} \u4E2A\u8D26\u53F7\u7EC4`);
-    for (const [accountId2, accountTasks] of accountGroups) {
-      console.log(`[SyncEngine] --- \u5904\u7406\u8D26\u53F7 ${accountId2}: ${accountTasks.length} \u6761\u4EFB\u52A1 ---`);
+    for (const [accountId, accountTasks] of accountGroups) {
+      console.log(`[SyncEngine] --- \u5904\u7406\u8D26\u53F7 ${accountId}: ${accountTasks.length} \u6761\u4EFB\u52A1 ---`);
       const typeGroups = /* @__PURE__ */ new Map();
       for (const task of accountTasks) {
         const type = task.task_type;
@@ -134642,7 +134838,7 @@ async function executeBatchSync(options) {
       for (const [taskType, typeTasks] of typeGroups) {
         console.log(`[SyncEngine] \u5904\u7406 ${taskType}: ${typeTasks.length} \u6761`);
         try {
-          const typeResult = await syncTasksByType(conn, accountId2, taskType, typeTasks, options?.dryRun);
+          const typeResult = await syncTasksByType(conn, accountId, taskType, typeTasks, options?.dryRun);
           result.synced += typeResult.synced;
           result.failed += typeResult.failed;
           result.skipped += typeResult.skipped;
@@ -134669,12 +134865,12 @@ async function executeBatchSync(options) {
   console.log(`[SyncEngine] \u603B\u8BA1=${result.totalTasks}, \u6210\u529F=${result.synced}, \u5931\u8D25=${result.failed}, \u8DF3\u8FC7=${result.skipped}, \u8017\u65F6=${result.duration}ms`);
   return result;
 }
-async function syncTasksByType(conn, accountId2, taskType, tasks, dryRun) {
+async function syncTasksByType(conn, accountId, taskType, tasks, dryRun) {
   const result = { synced: 0, failed: 0, skipped: 0, errors: [] };
   const config2 = BATCH_CONFIG[taskType] || { maxBatchSize: 100, delayMs: 500 };
-  const syncService = await getAmazonSyncService(accountId2);
+  const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
-    const msg = `\u8D26\u53F7 ${accountId2} \u65E0\u6CD5\u83B7\u53D6API\u670D\u52A1`;
+    const msg = `\u8D26\u53F7 ${accountId} \u65E0\u6CD5\u83B7\u53D6API\u670D\u52A1`;
     result.errors.push(msg);
     result.failed = tasks.length;
     await markTasksFailed(conn, tasks.map((t7) => t7.id), msg);
@@ -135019,7 +135215,7 @@ async function executeBatchByType(conn, syncService, taskType, batch) {
       if (validTasks.length > 0) {
         try {
           const negSyncResult = await syncNegativeKeywordsToAmazon(
-            accountId,
+            validTasks[0].account_id,
             validTasks.map((t7) => ({
               campaignId: Number(t7.amazon_entity_id || t7.campaign_id),
               keywordText: t7.target_entity_name,
@@ -135182,7 +135378,7 @@ async function executeBatchByType(conn, syncService, taskType, batch) {
           if (amazonCampaignId) {
             const newBudget = parseFloat(t7.new_value) || 0;
             const budgetSyncResult = await syncBudgetAdjustmentToAmazon(
-              accountId,
+              t7.account_id,
               String(amazonCampaignId),
               newBudget,
               t7.change_reason || "\u9884\u7B97\u8C03\u6574\u91CD\u8BD5",
@@ -135239,13 +135435,14 @@ async function markTasksFailed(conn, taskIds, errorMessage) {
 async function markTaskForRetry(conn, taskId, currentRetryCount, errorMessage) {
   const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
   const newRetryCount = (currentRetryCount || 0) + 1;
-  if (newRetryCount >= 3) {
+  const MAX_RETRIES = 5;
+  if (newRetryCount >= MAX_RETRIES) {
     await conn.execute(
       `UPDATE optimization_tasks SET status = 'permanently_failed', error_message = ?, retry_count = ?, completed_at = ? WHERE id = ?`,
-      [`\u8D85\u8FC7\u6700\u5927\u91CD\u8BD5\u6B21\u6570(3): ${errorMessage}`.substring(0, 1e3), newRetryCount, now, taskId]
+      [`\u8D85\u8FC7\u6700\u5927\u91CD\u8BD5\u6B21\u6570(${MAX_RETRIES}): ${errorMessage}`.substring(0, 1e3), newRetryCount, now, taskId]
     );
   } else {
-    const retryDelayMinutes = [1, 5, 15][newRetryCount - 1] || 15;
+    const retryDelayMinutes = [1, 5, 15, 30, 60][newRetryCount - 1] || 60;
     const nextRetry = new Date(Date.now() + retryDelayMinutes * 60 * 1e3);
     const nextRetryStr = nextRetry.toISOString().slice(0, 19).replace("T", " ");
     await conn.execute(
@@ -135523,7 +135720,7 @@ function recommendStrategyTemplate(campaign) {
     confidence
   };
 }
-async function updateAllCampaignRecommendations(accountId2) {
+async function updateAllCampaignRecommendations(accountId) {
   const db = await getDb();
   if (!db) return 0;
   try {
@@ -135542,7 +135739,7 @@ async function updateAllCampaignRecommendations(accountId2) {
       orders: campaigns.orders,
       dailyBudget: campaigns.dailyBudget,
       performanceGroupId: campaigns.performanceGroupId
-    }).from(campaigns).where(eq(campaigns.accountId, accountId2));
+    }).from(campaigns).where(eq(campaigns.accountId, accountId));
     let updated = 0;
     for (const campaign of allCampaigns) {
       const perfData = {
@@ -135981,8 +136178,8 @@ async function onCampaignsAdded(targetId, campaignIds) {
     console.error(`[OptScheduler] \u6DFB\u52A0\u5E7F\u544A\u6D3B\u52A8\u89E6\u53D1\u4F18\u5316\u5931\u8D25:`, err2);
   });
 }
-async function triggerAccountOptimizations(accountId2, triggeredBy = "data_sync_complete") {
-  console.log(`[OptScheduler] v151: \u89E6\u53D1\u8D26\u6237 ${accountId2} \u4E0B\u6240\u6709\u4F18\u5316\u76EE\u6807, \u6765\u6E90: ${triggeredBy}`);
+async function triggerAccountOptimizations(accountId, triggeredBy = "data_sync_complete") {
+  console.log(`[OptScheduler] v151: \u89E6\u53D1\u8D26\u6237 ${accountId} \u4E0B\u6240\u6709\u4F18\u5316\u76EE\u6807, \u6765\u6E90: ${triggeredBy}`);
   const result = {
     triggeredCount: 0,
     skippedCount: 0,
@@ -136002,15 +136199,15 @@ async function triggerAccountOptimizations(accountId2, triggeredBy = "data_sync_
       status: performanceGroups.status
     }).from(performanceGroups).where(
       and(
-        eq(performanceGroups.accountId, accountId2),
+        eq(performanceGroups.accountId, accountId),
         eq(performanceGroups.status, "active")
       )
     );
     if (activeTargets.length === 0) {
-      console.log(`[OptScheduler] v151: \u8D26\u6237 ${accountId2} \u4E0B\u6CA1\u6709\u6D3B\u8DC3\u7684\u4F18\u5316\u76EE\u6807`);
+      console.log(`[OptScheduler] v151: \u8D26\u6237 ${accountId} \u4E0B\u6CA1\u6709\u6D3B\u8DC3\u7684\u4F18\u5316\u76EE\u6807`);
       return result;
     }
-    console.log(`[OptScheduler] v151: \u8D26\u6237 ${accountId2} \u4E0B\u53D1\u73B0 ${activeTargets.length} \u4E2A\u6D3B\u8DC3\u4F18\u5316\u76EE\u6807`);
+    console.log(`[OptScheduler] v151: \u8D26\u6237 ${accountId} \u4E0B\u53D1\u73B0 ${activeTargets.length} \u4E2A\u6D3B\u8DC3\u4F18\u5316\u76EE\u6807`);
     const optimizationTargetEngine = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
     for (const target of activeTargets) {
       try {
@@ -136063,9 +136260,9 @@ async function triggerAccountOptimizations(accountId2, triggeredBy = "data_sync_
         console.error(`[OptScheduler] v151: \u4F18\u5316\u76EE\u6807 ${target.name} \u6267\u884C\u5931\u8D25:`, error54.message);
       }
     }
-    console.log(`[OptScheduler] v151: \u8D26\u6237 ${accountId2} \u4F18\u5316\u89E6\u53D1\u5B8C\u6210: \u89E6\u53D1=${result.triggeredCount}, \u8DF3\u8FC7=${result.skippedCount}, \u9519\u8BEF=${result.errorCount}`);
+    console.log(`[OptScheduler] v151: \u8D26\u6237 ${accountId} \u4F18\u5316\u89E6\u53D1\u5B8C\u6210: \u89E6\u53D1=${result.triggeredCount}, \u8DF3\u8FC7=${result.skippedCount}, \u9519\u8BEF=${result.errorCount}`);
   } catch (error54) {
-    console.error(`[OptScheduler] v151: \u8D26\u6237 ${accountId2} \u4F18\u5316\u89E6\u53D1\u5F02\u5E38:`, error54.message);
+    console.error(`[OptScheduler] v151: \u8D26\u6237 ${accountId} \u4F18\u5316\u89E6\u53D1\u5F02\u5E38:`, error54.message);
     result.errorCount++;
   }
   return result;
@@ -136745,7 +136942,7 @@ __export(dualTrackSyncService_exports, {
   isDataInFreezingZone: () => isDataInFreezingZone,
   runConsistencyCheck: () => runConsistencyCheck
 });
-async function getDualTrackStatus(accountId2) {
+async function getDualTrackStatus(accountId) {
   const db = await getDb();
   if (!db) {
     return {
@@ -136756,9 +136953,9 @@ async function getDualTrackStatus(accountId2) {
     };
   }
   try {
-    const apiStatus = await getApiSyncStatus(db, accountId2);
-    const amsStatus = await getAmsSyncStatus(db, accountId2);
-    const lastCheck = await getLastConsistencyCheck(db, accountId2);
+    const apiStatus = await getApiSyncStatus(db, accountId);
+    const amsStatus = await getAmsSyncStatus(db, accountId);
+    const lastCheck = await getLastConsistencyCheck(db, accountId);
     const overallHealth = calculateOverallHealth(apiStatus, amsStatus);
     return {
       api: apiStatus,
@@ -136776,7 +136973,7 @@ async function getDualTrackStatus(accountId2) {
     };
   }
 }
-async function getApiSyncStatus(db, accountId2) {
+async function getApiSyncStatus(db, accountId) {
   try {
     const [result] = await db.execute(sql`
       SELECT 
@@ -136785,7 +136982,7 @@ async function getApiSyncStatus(db, accountId2) {
         status,
         errorMessage
       FROM data_sync_jobs
-      WHERE accountId = ${accountId2}
+      WHERE accountId = ${accountId}
         AND syncType IN ('all', 'performance')
       ORDER BY createdAt DESC
       LIMIT 1
@@ -136806,7 +137003,7 @@ async function getApiSyncStatus(db, accountId2) {
         COUNT(*) as recordCount,
         MAX(createdAt) as lastUpdate
       FROM daily_performance
-      WHERE accountId = ${accountId2}
+      WHERE accountId = ${accountId}
         AND (dataSource = 'api' OR dataSource IS NULL)
     `);
     const perfData = Array.isArray(perfResult) && perfResult.length > 0 ? perfResult[0] : null;
@@ -136838,7 +137035,7 @@ async function getApiSyncStatus(db, accountId2) {
     };
   }
 }
-async function getAmsSyncStatus(db, accountId2) {
+async function getAmsSyncStatus(db, accountId) {
   try {
     const sqsConsumer = getSQSConsumer();
     const consumerStatuses = sqsConsumer.getStatus();
@@ -136850,7 +137047,7 @@ async function getAmsSyncStatus(db, accountId2) {
         COUNT(*) as totalRecords,
         MAX(createdAt) as lastUpdate
       FROM daily_performance
-      WHERE accountId = ${accountId2}
+      WHERE accountId = ${accountId}
         AND dataSource = 'ams'
         AND createdAt >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
     `);
@@ -136909,12 +137106,12 @@ async function getAmsSyncStatus(db, accountId2) {
     };
   }
 }
-async function getLastConsistencyCheck(db, accountId2) {
+async function getLastConsistencyCheck(db, accountId) {
   try {
     const [result] = await db.execute(sql`
       SELECT MAX(checkTime) as lastCheck
       FROM data_consistency_checks
-      WHERE accountId = ${accountId2}
+      WHERE accountId = ${accountId}
     `);
     const row = Array.isArray(result) && result.length > 0 ? result[0] : null;
     return row?.lastCheck ? new Date(row.lastCheck) : null;
@@ -136934,7 +137131,7 @@ function calculateOverallHealth(apiStatus, amsStatus) {
   }
   return "healthy";
 }
-async function getDataSourceStats(accountId2) {
+async function getDataSourceStats(accountId) {
   const db = await getDb();
   if (!db) {
     return {
@@ -136949,7 +137146,7 @@ async function getDataSourceStats(accountId2) {
         COUNT(*) as recordCount,
         MAX(createdAt) as lastUpdate
       FROM daily_performance
-      WHERE accountId = ${accountId2}
+      WHERE accountId = ${accountId}
         AND (dataSource = 'api' OR dataSource IS NULL)
     `);
     const apiData = Array.isArray(apiResult) && apiResult.length > 0 ? apiResult[0] : null;
@@ -136960,7 +137157,7 @@ async function getDataSourceStats(accountId2) {
         COUNT(*) as recordCount,
         MAX(createdAt) as lastUpdate
       FROM daily_performance
-      WHERE accountId = ${accountId2}
+      WHERE accountId = ${accountId}
         AND dataSource = 'ams'
     `);
     const amsData = Array.isArray(amsResult) && amsResult.length > 0 ? amsResult[0] : null;
@@ -136971,7 +137168,7 @@ async function getDataSourceStats(accountId2) {
         COUNT(*) as recordCount,
         MAX(createdAt) as lastUpdate
       FROM daily_performance
-      WHERE accountId = ${accountId2}
+      WHERE accountId = ${accountId}
     `);
     const totalData = Array.isArray(totalResult) && totalResult.length > 0 ? totalResult[0] : null;
     const totalRecords = parseInt(totalData?.recordCount || "0", 10);
@@ -136999,7 +137196,7 @@ async function getDataSourceStats(accountId2) {
     };
   }
 }
-async function runConsistencyCheck(accountId2, startDate, endDate) {
+async function runConsistencyCheck(accountId, startDate, endDate) {
   const db = await getDb();
   if (!db) {
     throw new Error("\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25");
@@ -137009,14 +137206,14 @@ async function runConsistencyCheck(accountId2, startDate, endDate) {
     const [apiResult] = await db.execute(sql`
       SELECT COUNT(*) as recordCount
       FROM daily_performance
-      WHERE accountId = ${accountId2}
+      WHERE accountId = ${accountId}
         AND DATE(date) >= ${startDate}
         AND DATE(date) <= ${endDate}
     `);
     const apiRecords = Array.isArray(apiResult) && apiResult.length > 0 ? apiResult[0]?.recordCount || 0 : 0;
     return {
       checkTime,
-      accountId: accountId2,
+      accountId,
       dateRange: { start: startDate, end: endDate },
       apiRecords,
       amsRecords: 0,
@@ -137029,7 +137226,7 @@ async function runConsistencyCheck(accountId2, startDate, endDate) {
     throw error54;
   }
 }
-async function getMergedPerformanceData(accountId2, startDate, endDate, priority = "historical") {
+async function getMergedPerformanceData(accountId, startDate, endDate, priority = "historical") {
   const db = await getDb();
   if (!db) return [];
   try {
@@ -137043,7 +137240,7 @@ async function getMergedPerformanceData(accountId2, startDate, endDate, priority
         sales,
         orders
       FROM daily_performance
-      WHERE accountId = ${accountId2}
+      WHERE accountId = ${accountId}
         AND DATE(date) >= ${startDate}
         AND DATE(date) <= ${endDate}
       ORDER BY DATE(date), campaignId
@@ -137054,10 +137251,10 @@ async function getMergedPerformanceData(accountId2, startDate, endDate, priority
     return [];
   }
 }
-async function autoRepairDataDeviations(accountId2, deviations) {
+async function autoRepairDataDeviations(accountId, deviations) {
   return { repaired: 0, failed: 0 };
 }
-async function getDataForAlgorithm(accountId2, algorithmType, lookbackDays = 30) {
+async function getDataForAlgorithm(accountId, algorithmType, lookbackDays = 30) {
   const db = await getDb();
   if (!db) {
     return { data: [], safeEndDate: /* @__PURE__ */ new Date(), excludedDays: 0, warning: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" };
@@ -137100,7 +137297,7 @@ async function getDataForAlgorithm(accountId2, algorithmType, lookbackDays = 30)
         CASE WHEN spend > 0 THEN sales / spend ELSE 0 END as roas,
         CASE WHEN sales > 0 THEN (spend / sales) * 100 ELSE 100 END as acos
       FROM daily_performance
-      WHERE accountId = ${accountId2}
+      WHERE accountId = ${accountId}
         AND DATE(date) >= ${startDate.toISOString().split("T")[0]}
         AND DATE(date) <= ${safeEndDate.toISOString().split("T")[0]}
       ORDER BY DATE(date) DESC, campaignId
@@ -137117,7 +137314,7 @@ async function getDataForAlgorithm(accountId2, algorithmType, lookbackDays = 30)
     return { data: [], safeEndDate, excludedDays: excludeDays, warning: error54.message };
   }
 }
-async function getRealtimeSpendForGuard(accountId2, campaignId) {
+async function getRealtimeSpendForGuard(accountId, campaignId) {
   const db = await getDb();
   if (!db) {
     return {
@@ -137141,7 +137338,7 @@ async function getRealtimeSpendForGuard(accountId2, campaignId) {
           SUM(impressions) as todayImpressions,
           MAX(eventTime) as lastUpdateTime
         FROM ams_performance_buffer
-        WHERE accountId = ${accountId2}
+        WHERE accountId = ${accountId}
           AND DATE(eventTime) = ${today}
           ${campaignId ? sql`AND campaignId = ${campaignId}` : sql``}
       `);
@@ -137159,7 +137356,7 @@ async function getRealtimeSpendForGuard(accountId2, campaignId) {
           SUM(impressions) as todayImpressions,
           MAX(updatedAt) as lastUpdateTime
         FROM daily_performance
-        WHERE accountId = ${accountId2}
+        WHERE accountId = ${accountId}
           AND DATE(date) = ${today}
           ${campaignId ? sql`AND campaignId = ${campaignId}` : sql``}
       `);
@@ -137284,10 +137481,10 @@ __export(intradayPacingService_exports, {
   default: () => intradayPacingService_default,
   getCriticalCampaigns: () => getCriticalCampaigns
 });
-async function adjustIntradayPacing(campaignId, accountId2) {
-  const realtimeData = await getRealtimeSpendForGuard(accountId2, campaignId);
-  const dailyBudget = await getCampaignBudget(accountId2, campaignId);
-  const marketplace = await getAccountMarketplace(accountId2);
+async function adjustIntradayPacing(campaignId, accountId) {
+  const realtimeData = await getRealtimeSpendForGuard(accountId, campaignId);
+  const dailyBudget = await getCampaignBudget(accountId, campaignId);
+  const marketplace = await getAccountMarketplace(accountId);
   const currentHour = getLocalHour(/* @__PURE__ */ new Date(), marketplace);
   const hoursRemaining = Math.max(1, INTRADAY_CONFIG.targetEndHour - currentHour);
   const hoursPassed = currentHour - INTRADAY_CONFIG.startHour;
@@ -137330,7 +137527,7 @@ async function adjustIntradayPacing(campaignId, accountId2) {
   }
   return {
     campaignId,
-    accountId: accountId2,
+    accountId,
     currentHour,
     dailyBudget,
     todaySpend: realtimeData.todaySpend,
@@ -137346,14 +137543,14 @@ async function adjustIntradayPacing(campaignId, accountId2) {
     anomalyType: anomalyResult.type
   };
 }
-async function checkAllCampaignsPacing(accountId2) {
+async function checkAllCampaignsPacing(accountId) {
   const db = await getDb();
   if (!db) return [];
   try {
     const [rows] = await db.execute(sql`
       SELECT campaignId, dailyBudget
       FROM campaigns
-      WHERE accountId = ${accountId2}
+      WHERE accountId = ${accountId}
         AND status = 'enabled'
         AND dailyBudget > 0
     `);
@@ -137362,7 +137559,7 @@ async function checkAllCampaignsPacing(accountId2) {
     for (const campaign of campaigns7) {
       const adjustment = await adjustIntradayPacing(
         campaign.campaignId,
-        accountId2
+        accountId
       );
       results.push(adjustment);
     }
@@ -137372,8 +137569,8 @@ async function checkAllCampaignsPacing(accountId2) {
     return [];
   }
 }
-async function getCriticalCampaigns(accountId2) {
-  const allAdjustments = await checkAllCampaignsPacing(accountId2);
+async function getCriticalCampaigns(accountId) {
+  const allAdjustments = await checkAllCampaignsPacing(accountId);
   return allAdjustments.filter(
     (adj) => adj.pacingStatus === "critical" || adj.anomalyDetected || adj.suggestedAction === "pause"
   );
@@ -137392,14 +137589,14 @@ async function applyIntradayAdjustment(adjustment) {
     newMultiplier: adjustment.suggestedMultiplier
   };
 }
-async function getCampaignBudget(accountId2, campaignId) {
+async function getCampaignBudget(accountId, campaignId) {
   const db = await getDb();
   if (!db) return 0;
   try {
     const [rows] = await db.execute(sql`
       SELECT dailyBudget
       FROM campaigns
-      WHERE accountId = ${accountId2}
+      WHERE accountId = ${accountId}
         AND campaignId = ${campaignId}
       LIMIT 1
     `);
@@ -137603,15 +137800,15 @@ async function processQueue() {
   schedulerStatus.errors = schedulerStatus.errors.slice(-10);
 }
 async function executeTieredSyncForAccount(request) {
-  const { accountId: accountId2, userId, tier } = request;
-  console.log(`[DataSyncScheduler] \u5F00\u59CB${tier}\u5C42\u540C\u6B65\u8D26\u53F7 ${accountId2}`);
-  const account = await getAdAccountById(accountId2);
+  const { accountId, userId, tier } = request;
+  console.log(`[DataSyncScheduler] \u5F00\u59CB${tier}\u5C42\u540C\u6B65\u8D26\u53F7 ${accountId}`);
+  const account = await getAdAccountById(accountId);
   if (!account) {
-    throw new Error(`\u8D26\u53F7 ${accountId2} \u4E0D\u5B58\u5728`);
+    throw new Error(`\u8D26\u53F7 ${accountId} \u4E0D\u5B58\u5728`);
   }
-  const credentials = await getAmazonApiCredentials(accountId2);
+  const credentials = await getAmazonApiCredentials(accountId);
   if (!credentials) {
-    throw new Error(`\u8D26\u53F7 ${accountId2} \u672A\u914D\u7F6EAPI\u51ED\u8BC1\uFF0C\u8BF7\u5148\u5B8C\u6210Amazon API\u6388\u6743`);
+    throw new Error(`\u8D26\u53F7 ${accountId} \u672A\u914D\u7F6EAPI\u51ED\u8BC1\uFF0C\u8BF7\u5148\u5B8C\u6210Amazon API\u6388\u6743`);
   }
   const syncService = await AmazonSyncService.createFromCredentials(
     {
@@ -137621,7 +137818,7 @@ async function executeTieredSyncForAccount(request) {
       profileId: account.profileId || "",
       region: credentials.region || "NA"
     },
-    accountId2,
+    accountId,
     userId,
     account.marketplace || "US"
   );
@@ -137632,7 +137829,7 @@ async function executeTieredSyncForAccount(request) {
       try {
         await syncService.syncPerformanceOnly(1);
       } catch (e6) {
-        console.error(`[DataSyncScheduler] \u8D26\u53F7 ${accountId2} \u9AD8\u9891\u7EE9\u6548\u540C\u6B65\u5931\u8D25:`, e6.message);
+        console.error(`[DataSyncScheduler] \u8D26\u53F7 ${accountId} \u9AD8\u9891\u7EE9\u6548\u540C\u6B65\u5931\u8D25:`, e6.message);
       }
       break;
     case "medium":
@@ -137640,7 +137837,7 @@ async function executeTieredSyncForAccount(request) {
       try {
         await syncService.syncPerformanceOnly(7);
       } catch (e6) {
-        console.error(`[DataSyncScheduler] \u8D26\u53F7 ${accountId2} \u4E2D\u9891\u7EE9\u6548\u540C\u6B65\u5931\u8D25:`, e6.message);
+        console.error(`[DataSyncScheduler] \u8D26\u53F7 ${accountId} \u4E2D\u9891\u7EE9\u6548\u540C\u6B65\u5931\u8D25:`, e6.message);
       }
       break;
     case "low":
@@ -137649,7 +137846,7 @@ async function executeTieredSyncForAccount(request) {
       result = await syncService.syncAll();
       break;
   }
-  console.log(`[DataSyncScheduler] \u8D26\u53F7 ${accountId2} ${tier}\u5C42\u540C\u6B65\u5B8C\u6210:`, result);
+  console.log(`[DataSyncScheduler] \u8D26\u53F7 ${accountId} ${tier}\u5C42\u540C\u6B65\u5B8C\u6210:`, result);
 }
 async function executeScheduledSync() {
   console.log(`[DataSyncScheduler] \u5F00\u59CB\u6267\u884C\u5B9A\u65F6\u540C\u6B65\u4EFB\u52A1 - ${(/* @__PURE__ */ new Date()).toISOString()}`);
@@ -137846,9 +138043,9 @@ function getModuleLockGroup(specificModules) {
   if (specificModules.includes("budget")) return "budget";
   return "all";
 }
-function acquireAccountOptimizationLock(accountId2, lockedBy, moduleGroup) {
+function acquireAccountOptimizationLock(accountId, lockedBy, moduleGroup) {
   const group = moduleGroup || "all";
-  const lockKey = `${accountId2}:${group}`;
+  const lockKey = `${accountId}:${group}`;
   if (!accountModuleLocks[lockKey]) {
     accountModuleLocks[lockKey] = { locked: false, lockedBy: "", lockedAt: null };
   }
@@ -137866,9 +138063,9 @@ function acquireAccountOptimizationLock(accountId2, lockedBy, moduleGroup) {
   lock.lockedAt = /* @__PURE__ */ new Date();
   return true;
 }
-function releaseAccountOptimizationLock(accountId2, moduleGroup) {
+function releaseAccountOptimizationLock(accountId, moduleGroup) {
   const group = moduleGroup || "all";
-  const lockKey = `${accountId2}:${group}`;
+  const lockKey = `${accountId}:${group}`;
   if (accountModuleLocks[lockKey]) {
     accountModuleLocks[lockKey].locked = false;
     accountModuleLocks[lockKey].lockedBy = "";
@@ -139058,7 +139255,7 @@ async function generateAutoCorrections(performanceGroupId, assessments) {
   }
   return corrections;
 }
-async function executeAutoCorrections(corrections, userId, accountId2) {
+async function executeAutoCorrections(corrections, userId, accountId) {
   const result = { executed: 0, skipped: 0, errors: 0, details: [] };
   const db = await getDb();
   if (!db) return result;
@@ -139079,7 +139276,7 @@ async function executeAutoCorrections(corrections, userId, accountId2) {
       }
       await db.insert(optimizationLogs).values({
         userId,
-        accountId: accountId2,
+        accountId,
         performanceGroupId: correction.performanceGroupId,
         actionType: correction.correctionType.replace("rollback_", "") + "_adjustment",
         actionDetail: JSON.stringify({
@@ -139110,7 +139307,7 @@ async function executeAutoCorrections(corrections, userId, accountId2) {
   }
   return result;
 }
-async function runEvolutionCycle2(performanceGroupId, userId, accountId2, strategyTemplateId) {
+async function runEvolutionCycle2(performanceGroupId, userId, accountId, strategyTemplateId) {
   const cycleId = `evo_${performanceGroupId}_${Date.now()}`;
   const startDate = (/* @__PURE__ */ new Date()).toISOString();
   console.log(`[selfEvolution] Starting evolution cycle ${cycleId} for group ${performanceGroupId}`);
@@ -139131,7 +139328,7 @@ async function runEvolutionCycle2(performanceGroupId, userId, accountId2, strate
     console.log(`[selfEvolution] ${corrections.length} corrections identified`);
     const severeCorrections = corrections.filter((c5) => c5.effectScore < -30);
     if (severeCorrections.length > 0) {
-      const execResult = await executeAutoCorrections(severeCorrections, userId, accountId2);
+      const execResult = await executeAutoCorrections(severeCorrections, userId, accountId);
       correctionsExecuted = execResult.executed;
       console.log(`[selfEvolution] Auto-corrections: ${execResult.executed} executed, ${execResult.skipped} skipped`);
     }
@@ -139228,7 +139425,7 @@ var init_selfEvolutionEngine = __esm({
 });
 
 // server/multiDimensionOptimizer.ts
-async function analyzeMultiDimensionPerformance(campaignId, accountId2, lookbackDays = 30, targetAcos) {
+async function analyzeMultiDimensionPerformance(campaignId, accountId, lookbackDays = 30, targetAcos) {
   const db = await getDb();
   if (!db) return null;
   const endDate = /* @__PURE__ */ new Date();
@@ -139277,7 +139474,7 @@ async function analyzeMultiDimensionPerformance(campaignId, accountId2, lookback
   }).from(placementPerformance).where(
     and(
       eq(placementPerformance.campaignId, String(campaignId)),
-      eq(placementPerformance.accountId, accountId2),
+      eq(placementPerformance.accountId, accountId),
       gte(placementPerformance.date, startStr),
       lte(placementPerformance.date, endStr)
     )
@@ -139558,11 +139755,11 @@ function generateBudgetSuggestion(analysis, currentBudget) {
   const suggestedBudget = Math.round(currentBudget * budgetMultiplier * 100) / 100;
   return { currentBudget, suggestedBudget, reason };
 }
-async function applyHourlyBidRulesToStrategy(campaignId, accountId2, rules) {
+async function applyHourlyBidRulesToStrategy(campaignId, accountId, rules) {
   let strategy = await getDaypartingStrategyByCampaignId(campaignId);
   if (!strategy) {
     strategy = await ensureDaypartingStrategy(
-      accountId2,
+      accountId,
       campaignId,
       `Campaign ${campaignId}`,
       {}
@@ -139600,11 +139797,11 @@ async function applyHourlyBidRulesToStrategy(campaignId, accountId2, rules) {
   }
   return { success: true, strategyId: strategy.id, rulesApplied: updatedRules.length };
 }
-async function applyDailyBudgetRulesToStrategy(campaignId, accountId2, dayPerformances, config2) {
+async function applyDailyBudgetRulesToStrategy(campaignId, accountId, dayPerformances, config2) {
   let strategy = await getDaypartingStrategyByCampaignId(campaignId);
   if (!strategy) {
     strategy = await ensureDaypartingStrategy(
-      accountId2,
+      accountId,
       campaignId,
       `Campaign ${campaignId}`,
       {}
@@ -139654,7 +139851,7 @@ async function applyDailyBudgetRulesToStrategy(campaignId, accountId2, dayPerfor
   }
   return { success: true, strategyId: strategy.id, rulesApplied: budgetRules.length };
 }
-async function executeMultiDimensionOptimization(targetId, accountId2, campaigns7, config2, dryRun = false) {
+async function executeMultiDimensionOptimization(targetId, accountId, campaigns7, config2, dryRun = false) {
   const details = [];
   let totalRulesGenerated = 0;
   let campaignsAnalyzed = 0;
@@ -139664,7 +139861,7 @@ async function executeMultiDimensionOptimization(targetId, accountId2, campaigns
       const campaignLocalId = campaign.id;
       const analysis = await analyzeMultiDimensionPerformance(
         campaignLocalId,
-        accountId2,
+        accountId,
         lookbackDays,
         config2.targetAcos
       );
@@ -139683,7 +139880,7 @@ async function executeMultiDimensionOptimization(targetId, accountId2, campaigns
       if (!dryRun && plan.hourlyBidRules.length > 0) {
         const applyResult = await applyHourlyBidRulesToStrategy(
           campaign.id,
-          accountId2,
+          accountId,
           plan.hourlyBidRules
         );
         totalRulesGenerated += applyResult.rulesApplied;
@@ -139699,7 +139896,7 @@ async function executeMultiDimensionOptimization(targetId, accountId2, campaigns
         try {
           const budgetApplyResult = await applyDailyBudgetRulesToStrategy(
             campaign.id,
-            accountId2,
+            accountId,
             uniqueDayPerfs,
             config2
           );
@@ -139951,10 +140148,10 @@ var init_multiDimensionOptimizer = __esm({
 });
 
 // server/postOptimizationVerifier.ts
-function generateTaskId(accountId2, type) {
-  return `verify_${accountId2}_${type}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+function generateTaskId(accountId, type) {
+  return `verify_${accountId}_${type}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
-function scheduleBidVerification(accountId2, adjustments) {
+function scheduleBidVerification(accountId, adjustments) {
   if (adjustments.length === 0) return "";
   const items = adjustments.map((adj) => ({
     type: "bid_adjustment",
@@ -139964,24 +140161,24 @@ function scheduleBidVerification(accountId2, adjustments) {
     context: {
       campaignId: adj.campaignId,
       adGroupId: adj.adGroupId,
-      accountId: accountId2,
+      accountId,
       fieldName: adj.isProductTarget ? "product_target_bid" : "keyword_bid"
     }
   }));
-  return scheduleVerificationTask(accountId2, items);
+  return scheduleVerificationTask(accountId, items);
 }
-function scheduleBudgetVerification(accountId2, adjustments) {
+function scheduleBudgetVerification(accountId, adjustments) {
   if (adjustments.length === 0) return "";
   const items = adjustments.map((adj) => ({
     type: "budget_adjustment",
     localId: adj.localCampaignId,
     amazonId: adj.amazonCampaignId,
     expectedValue: adj.expectedBudget,
-    context: { accountId: accountId2 }
+    context: { accountId }
   }));
-  return scheduleVerificationTask(accountId2, items);
+  return scheduleVerificationTask(accountId, items);
 }
-function schedulePlacementVerification(accountId2, adjustments) {
+function schedulePlacementVerification(accountId, adjustments) {
   if (adjustments.length === 0) return "";
   const items = adjustments.map((adj) => ({
     type: "placement_adjustment",
@@ -139991,11 +140188,11 @@ function schedulePlacementVerification(accountId2, adjustments) {
       topOfSearch: adj.expectedTopOfSearch,
       productPage: adj.expectedProductPage
     },
-    context: { accountId: accountId2 }
+    context: { accountId }
   }));
-  return scheduleVerificationTask(accountId2, items);
+  return scheduleVerificationTask(accountId, items);
 }
-function scheduleNegativeKeywordVerification(accountId2, negativeKeywords4) {
+function scheduleNegativeKeywordVerification(accountId, negativeKeywords4) {
   if (negativeKeywords4.length === 0) return "";
   const items = negativeKeywords4.map((nk) => ({
     type: "negative_keyword",
@@ -140005,12 +140202,12 @@ function scheduleNegativeKeywordVerification(accountId2, negativeKeywords4) {
     context: {
       campaignId: nk.campaignId,
       adGroupId: nk.adGroupId,
-      accountId: accountId2
+      accountId
     }
   }));
-  return scheduleVerificationTask(accountId2, items);
+  return scheduleVerificationTask(accountId, items);
 }
-function scheduleKeywordStatusVerification(accountId2, changes) {
+function scheduleKeywordStatusVerification(accountId, changes) {
   if (changes.length === 0) return "";
   const items = changes.map((ch) => ({
     type: "keyword_status",
@@ -140019,16 +140216,16 @@ function scheduleKeywordStatusVerification(accountId2, changes) {
     expectedValue: ch.expectedState,
     context: {
       adGroupId: ch.adGroupId,
-      accountId: accountId2
+      accountId
     }
   }));
-  return scheduleVerificationTask(accountId2, items);
+  return scheduleVerificationTask(accountId, items);
 }
-function scheduleVerificationTask(accountId2, items) {
-  const taskId = generateTaskId(accountId2, items[0]?.type || "mixed");
+function scheduleVerificationTask(accountId, items) {
+  const taskId = generateTaskId(accountId, items[0]?.type || "mixed");
   const task = {
     id: taskId,
-    accountId: accountId2,
+    accountId,
     items,
     createdAt: /* @__PURE__ */ new Date(),
     attempt: 1,
@@ -140040,7 +140237,7 @@ function scheduleVerificationTask(accountId2, items) {
     await executeVerificationTask(taskId);
   }, VERIFICATION_DELAYS.firstAttempt * 1e3);
   activeTimers.set(taskId, timer);
-  console.log(`[PostOptVerifier] v166: \u9A8C\u8BC1\u4EFB\u52A1\u5DF2\u6CE8\u518C taskId=${taskId}, accountId=${accountId2}, items=${items.length}, \u7C7B\u578B=${items[0]?.type}, \u9996\u6B21\u9A8C\u8BC1\u5C06\u5728${VERIFICATION_DELAYS.firstAttempt}\u79D2\u540E\u6267\u884C`);
+  console.log(`[PostOptVerifier] v166: \u9A8C\u8BC1\u4EFB\u52A1\u5DF2\u6CE8\u518C taskId=${taskId}, accountId=${accountId}, items=${items.length}, \u7C7B\u578B=${items[0]?.type}, \u9996\u6B21\u9A8C\u8BC1\u5C06\u5728${VERIFICATION_DELAYS.firstAttempt}\u79D2\u540E\u6267\u884C`);
   return taskId;
 }
 async function executeVerificationTask(taskId) {
@@ -140080,13 +140277,13 @@ async function executeVerificationTask(taskId) {
       task.attempt++;
       task.items = unresolved.map((r5) => r5.item);
       const delayKey = task.attempt === 2 ? "secondAttempt" : "thirdAttempt";
-      const delay2 = VERIFICATION_DELAYS[delayKey];
-      task.scheduledAt = new Date(Date.now() + delay2 * 1e3);
+      const delay = VERIFICATION_DELAYS[delayKey];
+      task.scheduledAt = new Date(Date.now() + delay * 1e3);
       const timer = setTimeout(async () => {
         await executeVerificationTask(taskId);
-      }, delay2 * 1e3);
+      }, delay * 1e3);
       activeTimers.set(taskId, timer);
-      console.log(`[PostOptVerifier] v166: ${unresolved.length}\u9879\u672A\u89E3\u51B3\uFF0C\u5B89\u6392\u7B2C${task.attempt}\u8F6E\u9A8C\u8BC1\uFF0C${delay2}\u79D2\u540E\u6267\u884C`);
+      console.log(`[PostOptVerifier] v166: ${unresolved.length}\u9879\u672A\u89E3\u51B3\uFF0C\u5B89\u6392\u7B2C${task.attempt}\u8F6E\u9A8C\u8BC1\uFF0C${delay}\u79D2\u540E\u6267\u884C`);
     } else {
       if (unresolved.length > 0) {
         console.warn(`[PostOptVerifier] v166: ${unresolved.length}\u9879\u5728${task.maxAttempts}\u8F6E\u9A8C\u8BC1\u540E\u4ECD\u672A\u89E3\u51B3\uFF0C\u4FDD\u6301pending_confirmation\u72B6\u6001\u7B49\u5F85\u5B9A\u65F6\u540C\u6B65`);
@@ -140097,10 +140294,10 @@ async function executeVerificationTask(taskId) {
     console.error(`[PostOptVerifier] v166: \u9A8C\u8BC1\u4EFB\u52A1\u6267\u884C\u5F02\u5E38 taskId=${taskId}:`, error54.message);
     if (task.attempt < task.maxAttempts) {
       task.attempt++;
-      const delay2 = VERIFICATION_DELAYS.thirdAttempt;
+      const delay = VERIFICATION_DELAYS.thirdAttempt;
       const timer = setTimeout(async () => {
         await executeVerificationTask(taskId);
-      }, delay2 * 1e3);
+      }, delay * 1e3);
       activeTimers.set(taskId, timer);
     } else {
       cleanupTask(taskId);
@@ -140534,11 +140731,11 @@ __export(optimizationTargetEngine_exports, {
   getOptimizationTargetSummary: () => getOptimizationTargetSummary,
   getTargetLifecycleInfo: () => getTargetLifecycleInfo
 });
-async function getAccountMarketplace4(accountId2) {
-  if (marketplaceCache2.has(accountId2)) return marketplaceCache2.get(accountId2);
-  const account = await getAdAccountById(accountId2);
+async function getAccountMarketplace4(accountId) {
+  if (marketplaceCache2.has(accountId)) return marketplaceCache2.get(accountId);
+  const account = await getAdAccountById(accountId);
   const marketplace = account?.marketplace || "US";
-  marketplaceCache2.set(accountId2, marketplace);
+  marketplaceCache2.set(accountId, marketplace);
   return marketplace;
 }
 async function getOptimizationTargetConfig(targetId) {
@@ -140688,7 +140885,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
       );
       if (allPausedOrArchived) {
         try {
-          await updatePerformanceGroup(targetId, { autoOptimize: false });
+          await updatePerformanceGroup(targetId, { autoOptimize: 0 });
           const pauseMsg = `v168: \u4F18\u5316\u76EE\u6807"${config2.name}"\u5DF2\u81EA\u52A8\u6682\u505C - \u6240\u6709${allCampaigns.length}\u4E2A\u5E7F\u544A\u6D3B\u52A8\u5747\u4E3A\u6682\u505C/\u5F52\u6863\u72B6\u6001\uFF0C\u4E0D\u518D\u6267\u884C\u81EA\u52A8\u4F18\u5316`;
           console.log(`[OptimizationTarget] ${pauseMsg}`);
           result.warnings.push(pauseMsg);
@@ -141382,9 +141579,9 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
   let apiSyncStatus = "pending";
   if (!dryRun && details.length > 0) {
     try {
-      const accountId2 = config2.accountId;
+      const accountId = config2.accountId;
       apiSyncResult = await syncBidAdjustmentsToAmazon(
-        accountId2,
+        accountId,
         details.map((d5) => ({
           keywordId: d5.keywordId,
           newBid: d5.newBid,
@@ -141778,7 +141975,8 @@ async function executeDaypartingBudgetOptimization(config2, campaigns7, dryRun) 
       let budgetMultiplier = parseFloat(todayRule.budgetMultiplier || "1.00");
       let comboBudgetMultiplier = 1;
       try {
-        const dbConn = getDb();
+        const dbConn = await getDb();
+        if (!dbConn) throw new Error("Database not available");
         comboBudgetMultiplier = await getCampaignBudgetMultiplier(
           dbConn,
           config2.accountId,
@@ -143186,10 +143384,10 @@ async function recordExecutionLog(result) {
     });
   }
 }
-async function getEnabledOptimizationTargets(accountId2) {
+async function getEnabledOptimizationTargets(accountId) {
   const dbInstance = await getDb();
   if (!dbInstance) return [];
-  const groups2 = accountId2 ? await getPerformanceGroupsByAccountId(accountId2) : await getPerformanceGroupsByAccountId(0);
+  const groups2 = accountId ? await getPerformanceGroupsByAccountId(accountId) : await getPerformanceGroupsByAccountId(0);
   const configs = [];
   for (const group of groups2) {
     if (group.status === "active" && group.autoOptimize !== 0) {
@@ -143201,8 +143399,8 @@ async function getEnabledOptimizationTargets(accountId2) {
   }
   return configs;
 }
-async function executeAllEnabledTargets(accountId2, options = {}) {
-  const targets = await getEnabledOptimizationTargets(accountId2);
+async function executeAllEnabledTargets(accountId, options = {}) {
+  const targets = await getEnabledOptimizationTargets(accountId);
   const results = [];
   const modulesDesc = options.specificModules?.length ? options.specificModules.join(",") : "all";
   console.log(`[OptimizationTargetEngine] \u6279\u91CF\u6267\u884C ${targets.length} \u4E2A\u4F18\u5316\u76EE\u6807, \u6A21\u5757: ${modulesDesc}`);
@@ -143503,7 +143701,7 @@ __export(marginalBenefitAnalysisService_exports, {
   optimizeTrafficAllocation: () => optimizeTrafficAllocation,
   optimizeTrafficAllocationSimple: () => optimizeTrafficAllocationSimple
 });
-async function calculateMarginalBenefit(campaignId, accountId2, placementType, currentAdjustment, days = 30) {
+async function calculateMarginalBenefit(campaignId, accountId, placementType, currentAdjustment, days = 30) {
   const db = await getDb();
   if (!db) {
     return createDefaultMarginalBenefitResult(placementType, currentAdjustment, 0);
@@ -143521,7 +143719,7 @@ async function calculateMarginalBenefit(campaignId, accountId2, placementType, c
   }).from(placementPerformance).where(
     and(
       eq(placementPerformance.campaignId, String(campaignId)),
-      eq(placementPerformance.accountId, accountId2),
+      eq(placementPerformance.accountId, accountId),
       sql`${placementPerformance.placement} = ${placementType}`,
       gte(placementPerformance.date, startDate.toISOString()),
       lte(placementPerformance.date, endDate.toISOString())
@@ -143655,7 +143853,7 @@ function createDefaultMarginalBenefitResult(placementType, currentAdjustment, da
     dataPoints
   };
 }
-async function optimizeTrafficAllocation(campaignId, accountId2, currentAdjustments, goal = "balanced", constraints = {}) {
+async function optimizeTrafficAllocation(campaignId, accountId, currentAdjustments, goal = "balanced", constraints = {}) {
   const placements = ["top_of_search", "product_page", "rest_of_search"];
   const effectiveConstraints = {
     maxTotalAdjustment: constraints.maxTotalAdjustment ?? 400,
@@ -143669,12 +143867,12 @@ async function optimizeTrafficAllocation(campaignId, accountId2, currentAdjustme
   for (const placement of placements) {
     marginalBenefits[placement] = await calculateMarginalBenefit(
       campaignId,
-      accountId2,
+      accountId,
       placement,
       currentAdjustments[placement] || 0
     );
   }
-  const currentPerformance = await getCurrentPerformance(campaignId, accountId2);
+  const currentPerformance = await getCurrentPerformance(campaignId, accountId);
   const optimizedAdjustments = runOptimizationAlgorithm(
     currentAdjustments,
     marginalBenefits,
@@ -143722,7 +143920,7 @@ async function optimizeTrafficAllocation(campaignId, accountId2, currentAdjustme
     confidence: overallConfidence
   };
 }
-async function getCurrentPerformance(campaignId, accountId2) {
+async function getCurrentPerformance(campaignId, accountId) {
   const db = await getDb();
   if (!db) {
     return {
@@ -143747,7 +143945,7 @@ async function getCurrentPerformance(campaignId, accountId2) {
   }).from(placementPerformance).where(
     and(
       eq(placementPerformance.campaignId, String(campaignId)),
-      eq(placementPerformance.accountId, accountId2),
+      eq(placementPerformance.accountId, accountId),
       gte(placementPerformance.date, startDate.toISOString()),
       lte(placementPerformance.date, endDate.toISOString())
     )
@@ -143907,7 +144105,7 @@ function generateAllocationReason(placement, currentAdjustment, suggestedAdjustm
     }
   }
 }
-async function batchAnalyzeMarginalBenefits(accountId2, campaignIds) {
+async function batchAnalyzeMarginalBenefits(accountId, campaignIds) {
   const db = await getDb();
   const results = /* @__PURE__ */ new Map();
   if (!db) {
@@ -143919,7 +144117,7 @@ async function batchAnalyzeMarginalBenefits(accountId2, campaignIds) {
   } else {
     const activeCampaigns = await db.select({ campaignId: campaigns.campaignId }).from(campaigns).where(
       and(
-        eq(campaigns.accountId, accountId2),
+        eq(campaigns.accountId, accountId),
         eq(campaigns.campaignStatus, "enabled")
       )
     );
@@ -143931,7 +144129,7 @@ async function batchAnalyzeMarginalBenefits(accountId2, campaignIds) {
     for (const placement of placements) {
       campaignResults[placement] = await calculateMarginalBenefit(
         campaignId,
-        accountId2,
+        accountId,
         placement,
         0,
         // 假设当前倾斜为0，实际应从数据库获取
@@ -144460,7 +144658,7 @@ async function getAuditLogs(params) {
     userId,
     actionTypes,
     targetTypes,
-    accountId: accountId2,
+    accountId,
     status,
     startDate,
     endDate,
@@ -144478,8 +144676,8 @@ async function getAuditLogs(params) {
   if (targetTypes && targetTypes.length > 0) {
     conditions.push(inArray(auditLogs.targetType, targetTypes));
   }
-  if (accountId2) {
-    conditions.push(eq(auditLogs.accountId, accountId2));
+  if (accountId) {
+    conditions.push(eq(auditLogs.accountId, accountId));
   }
   if (status) {
     conditions.push(eq(auditLogs.status, status));
@@ -144550,18 +144748,18 @@ async function getUserAuditStats(userId, days = 30) {
     recentActions
   };
 }
-async function getAccountAuditStats(accountId2, days = 30) {
+async function getAccountAuditStats(accountId, days = 30) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const startDate = /* @__PURE__ */ new Date();
   startDate.setDate(startDate.getDate() - days);
   const startDateStr = startDate.toISOString().slice(0, 19).replace("T", " ");
-  const [totalResult] = await db.select({ count: sql`COUNT(*)` }).from(auditLogs).where(and(eq(auditLogs.accountId, accountId2), gte(auditLogs.createdAt, startDateStr)));
+  const [totalResult] = await db.select({ count: sql`COUNT(*)` }).from(auditLogs).where(and(eq(auditLogs.accountId, accountId), gte(auditLogs.createdAt, startDateStr)));
   const totalActions = totalResult?.count || 0;
   const typeStats = await db.select({
     actionType: auditLogs.actionType,
     count: sql`COUNT(*)`
-  }).from(auditLogs).where(and(eq(auditLogs.accountId, accountId2), gte(auditLogs.createdAt, startDateStr))).groupBy(auditLogs.actionType);
+  }).from(auditLogs).where(and(eq(auditLogs.accountId, accountId), gte(auditLogs.createdAt, startDateStr))).groupBy(auditLogs.actionType);
   const actionsByType = {};
   for (const stat of typeStats) {
     actionsByType[stat.actionType] = stat.count;
@@ -144570,7 +144768,7 @@ async function getAccountAuditStats(accountId2, days = 30) {
     userId: auditLogs.userId,
     userName: auditLogs.userName,
     count: sql`COUNT(*)`
-  }).from(auditLogs).where(and(eq(auditLogs.accountId, accountId2), gte(auditLogs.createdAt, startDateStr))).groupBy(auditLogs.userId, auditLogs.userName);
+  }).from(auditLogs).where(and(eq(auditLogs.accountId, accountId), gte(auditLogs.createdAt, startDateStr))).groupBy(auditLogs.userId, auditLogs.userName);
   const actionsByUser = userStats.map((stat) => ({
     userId: stat.userId || 0,
     userName: stat.userName || "\u672A\u77E5\u7528\u6237",
@@ -145123,7 +145321,7 @@ ${suggestionsSummary}
 \u7CFB\u7EDF\u5DF2\u8BC6\u522B${suggestions.length}\u6761\u4F18\u5316\u5EFA\u8BAE\uFF0C\u5EFA\u8BAE\u6267\u884C\u4EE5\u6539\u5584\u5E7F\u544A\u8868\u73B0\u3002`;
   }
 }
-async function executeOptimizationSuggestions(userId, accountId2, campaignId, suggestions, predictions, aiSummary) {
+async function executeOptimizationSuggestions(userId, accountId, campaignId, suggestions, predictions, aiSummary) {
   const campaign = await getCampaignById(campaignId);
   if (!campaign) {
     throw new Error("\u5E7F\u544A\u6D3B\u52A8\u4E0D\u5B58\u5728");
@@ -145142,7 +145340,7 @@ async function executeOptimizationSuggestions(userId, accountId2, campaignId, su
   }
   const executionId = await createAiOptimizationExecution({
     userId,
-    accountId: accountId2,
+    accountId,
     campaignId,
     executionName: `AI\u4F18\u5316\u6267\u884C - ${(/* @__PURE__ */ new Date()).toLocaleDateString("zh-CN")}`,
     aiExecType: executionType,
@@ -145301,10 +145499,10 @@ __export(accountInitializationService_exports, {
   initializeMultipleAccounts: () => initializeMultipleAccounts
 });
 async function initializeAccount(params) {
-  const { accountId: accountId2, userId, clientId, clientSecret, refreshToken, profileId, region, marketplace } = params;
-  console.log(`[AccountInit] \u5F00\u59CB\u521D\u59CB\u5316\u8D26\u53F7 ${accountId2} (${marketplace})...`);
+  const { accountId, userId, clientId, clientSecret, refreshToken, profileId, region, marketplace } = params;
+  console.log(`[AccountInit] \u5F00\u59CB\u521D\u59CB\u5316\u8D26\u53F7 ${accountId} (${marketplace})...`);
   const result = {
-    accountId: accountId2,
+    accountId,
     marketplace,
     syncResult: { success: false },
     scheduleResult: { success: false },
@@ -145314,15 +145512,15 @@ async function initializeAccount(params) {
     console.log(`[AccountInit] \u6B65\u9AA41: \u542F\u52A8\u5168\u91CF\u6570\u636E\u540C\u6B65 (${marketplace})...`);
     const syncService = await AmazonSyncService.createFromCredentials(
       { clientId, clientSecret, refreshToken, profileId, region },
-      accountId2,
+      accountId,
       userId,
       marketplace
     );
     syncService.syncAll().then(async (syncData) => {
-      console.log(`[AccountInit] \u8D26\u53F7 ${accountId2} (${marketplace}) \u5168\u91CF\u540C\u6B65\u5B8C\u6210:`, syncData);
-      await updateAmazonApiCredentialsLastSync(accountId2);
+      console.log(`[AccountInit] \u8D26\u53F7 ${accountId} (${marketplace}) \u5168\u91CF\u540C\u6B65\u5B8C\u6210:`, syncData);
+      await updateAmazonApiCredentialsLastSync(accountId);
     }).catch((err2) => {
-      console.error(`[AccountInit] \u8D26\u53F7 ${accountId2} (${marketplace}) \u5168\u91CF\u540C\u6B65\u5931\u8D25:`, err2);
+      console.error(`[AccountInit] \u8D26\u53F7 ${accountId} (${marketplace}) \u5168\u91CF\u540C\u6B65\u5931\u8D25:`, err2);
     });
     result.syncResult = { success: true };
     console.log(`[AccountInit] \u6B65\u9AA41\u5B8C\u6210: \u5168\u91CF\u540C\u6B65\u5DF2\u542F\u52A8`);
@@ -145332,11 +145530,11 @@ async function initializeAccount(params) {
   }
   try {
     console.log(`[AccountInit] \u6B65\u9AA42: \u521B\u5EFA\u5B9A\u65F6\u540C\u6B65\u914D\u7F6E (${marketplace})...`);
-    const existingSchedule = await getSyncScheduleByAccountId(userId, accountId2);
+    const existingSchedule = await getSyncScheduleByAccountId(userId, accountId);
     if (!existingSchedule) {
       const scheduleId = await createSyncSchedule({
         userId,
-        accountId: accountId2,
+        accountId,
         syncType: "all",
         frequency: "hourly",
         isEnabled: true
@@ -145422,7 +145620,7 @@ async function initializeAccount(params) {
     console.error(`[AccountInit] \u6B65\u9AA43\u5931\u8D25: AMS\u8BA2\u9605\u521B\u5EFA\u5931\u8D25:`, amsError);
     result.amsResult = { success: false, error: amsError.message };
   }
-  console.log(`[AccountInit] \u8D26\u53F7 ${accountId2} (${marketplace}) \u521D\u59CB\u5316\u5B8C\u6210:`, {
+  console.log(`[AccountInit] \u8D26\u53F7 ${accountId} (${marketplace}) \u521D\u59CB\u5316\u5B8C\u6210:`, {
     sync: result.syncResult.success ? "\u2705" : "\u274C",
     schedule: result.scheduleResult.success ? "\u2705" : "\u274C",
     ams: result.amsResult.success ? "\u2705" : "\u274C"
@@ -145473,11 +145671,11 @@ __export(syncIdempotencyService_exports, {
   isSyncLocked: () => isSyncLocked,
   releaseSyncLock: () => releaseSyncLock
 });
-function getLockKey(accountId2, syncType = "all") {
-  return `sync:${accountId2}:${syncType}`;
+function getLockKey(accountId, syncType = "all") {
+  return `sync:${accountId}:${syncType}`;
 }
-function acquireSyncLock(accountId2, syncType = "all") {
-  const key = getLockKey(accountId2, syncType);
+function acquireSyncLock(accountId, syncType = "all") {
+  const key = getLockKey(accountId, syncType);
   const existing = syncLocks.get(key);
   if (existing) {
     if (/* @__PURE__ */ new Date() > existing.expiresAt) {
@@ -145488,11 +145686,11 @@ function acquireSyncLock(accountId2, syncType = "all") {
       return null;
     }
   }
-  const lockId = `lock_${accountId2}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const lockId = `lock_${accountId}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const now = /* @__PURE__ */ new Date();
   syncLocks.set(key, {
     lockId,
-    accountId: accountId2,
+    accountId,
     syncType,
     acquiredAt: now,
     expiresAt: new Date(now.getTime() + LOCK_TIMEOUT_MS)
@@ -145500,8 +145698,8 @@ function acquireSyncLock(accountId2, syncType = "all") {
   console.log(`[SyncLock] \u540C\u6B65\u9501\u5DF2\u83B7\u53D6: ${key}, lockId=${lockId}`);
   return lockId;
 }
-function releaseSyncLock(accountId2, syncType = "all", lockId) {
-  const key = getLockKey(accountId2, syncType);
+function releaseSyncLock(accountId, syncType = "all", lockId) {
+  const key = getLockKey(accountId, syncType);
   const existing = syncLocks.get(key);
   if (!existing) {
     return true;
@@ -145514,8 +145712,8 @@ function releaseSyncLock(accountId2, syncType = "all", lockId) {
   console.log(`[SyncLock] \u540C\u6B65\u9501\u5DF2\u91CA\u653E: ${key}`);
   return true;
 }
-function isSyncLocked(accountId2, syncType = "all") {
-  const key = getLockKey(accountId2, syncType);
+function isSyncLocked(accountId, syncType = "all") {
+  const key = getLockKey(accountId, syncType);
   const existing = syncLocks.get(key);
   if (!existing) return false;
   if (/* @__PURE__ */ new Date() > existing.expiresAt) {
@@ -145536,11 +145734,11 @@ function getActiveSyncLocks() {
   }
   return active;
 }
-async function clearPerformanceDataForFullSync(accountId2, startDate, endDate) {
-  console.log(`[SyncIdempotency] \u6E05\u9664\u65E7\u7EE9\u6548\u6570\u636E: accountId=${accountId2}, ${startDate} ~ ${endDate}`);
+async function clearPerformanceDataForFullSync(accountId, startDate, endDate) {
+  console.log(`[SyncIdempotency] \u6E05\u9664\u65E7\u7EE9\u6548\u6570\u636E: accountId=${accountId}, ${startDate} ~ ${endDate}`);
   try {
     const deletedCount = await deleteDailyPerformanceByDateRange(
-      accountId2,
+      accountId,
       startDate,
       endDate
     );
@@ -145551,23 +145749,23 @@ async function clearPerformanceDataForFullSync(accountId2, startDate, endDate) {
     return 0;
   }
 }
-async function executeWithIdempotency(accountId2, syncType, syncFn) {
-  const lockId = acquireSyncLock(accountId2, syncType);
+async function executeWithIdempotency(accountId, syncType, syncFn) {
+  const lockId = acquireSyncLock(accountId, syncType);
   if (!lockId) {
     return {
       success: false,
       locked: true,
-      error: `\u8D26\u53F7 ${accountId2} \u7684 ${syncType} \u540C\u6B65\u6B63\u5728\u8FDB\u884C\u4E2D\uFF0C\u8BF7\u7A0D\u540E\u518D\u8BD5`
+      error: `\u8D26\u53F7 ${accountId} \u7684 ${syncType} \u540C\u6B65\u6B63\u5728\u8FDB\u884C\u4E2D\uFF0C\u8BF7\u7A0D\u540E\u518D\u8BD5`
     };
   }
   try {
     const result = await syncFn();
     return { success: true, result };
   } catch (error54) {
-    console.error(`[SyncIdempotency] \u540C\u6B65\u6267\u884C\u5931\u8D25: accountId=${accountId2}, syncType=${syncType}`, error54);
+    console.error(`[SyncIdempotency] \u540C\u6B65\u6267\u884C\u5931\u8D25: accountId=${accountId}, syncType=${syncType}`, error54);
     return { success: false, error: error54.message };
   } finally {
-    releaseSyncLock(accountId2, syncType, lockId);
+    releaseSyncLock(accountId, syncType, lockId);
   }
 }
 var syncLocks, LOCK_TIMEOUT_MS;
@@ -145590,7 +145788,7 @@ __export(enhancedDualTrackService_exports, {
   getSmartMergedData: () => getSmartMergedData,
   getTimelineAggregatedData: () => getTimelineAggregatedData
 });
-async function getSmartMergedData(accountId2, startDate, endDate, options) {
+async function getSmartMergedData(accountId, startDate, endDate, options) {
   const db = await getDb();
   if (!db) {
     return { data: [], dataSource: "api", freshness: "stale", warnings: ["\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25"] };
@@ -145628,10 +145826,10 @@ async function getSmartMergedData(accountId2, startDate, endDate, options) {
     }
   }
   try {
-    const apiData = await getApiPerformanceData(db, accountId2, startDate, effectiveEndDate, options.campaignIds);
+    const apiData = await getApiPerformanceData(db, accountId, startDate, effectiveEndDate, options.campaignIds);
     let amsData = [];
     if (strategy === "ams_priority" && options.includeToday !== false) {
-      amsData = await getAmsPerformanceData(db, accountId2, today, options.campaignIds);
+      amsData = await getAmsPerformanceData(db, accountId, today, options.campaignIds);
     }
     const mergedData = mergeDataByStrategy(apiData, amsData, strategy, today);
     const freshness = determineFreshness(apiData, amsData, strategy);
@@ -145647,7 +145845,7 @@ async function getSmartMergedData(accountId2, startDate, endDate, options) {
     return { data: [], dataSource: "api", freshness: "stale", warnings: [error54.message] };
   }
 }
-async function getApiPerformanceData(db, accountId2, startDate, endDate, campaignIds) {
+async function getApiPerformanceData(db, accountId, startDate, endDate, campaignIds) {
   try {
     let query2 = sql`
       SELECT 
@@ -145665,7 +145863,7 @@ async function getApiPerformanceData(db, accountId2, startDate, endDate, campaig
         updatedAt,
         'api' as dataSource
       FROM daily_performance
-      WHERE accountId = ${accountId2}
+      WHERE accountId = ${accountId}
         AND DATE(date) >= ${startDate}
         AND DATE(date) <= ${endDate}
     `;
@@ -145676,7 +145874,7 @@ async function getApiPerformanceData(db, accountId2, startDate, endDate, campaig
     return [];
   }
 }
-async function getAmsPerformanceData(db, accountId2, date12, campaignIds) {
+async function getAmsPerformanceData(db, accountId, date12, campaignIds) {
   try {
     const [rows] = await db.execute(sql`
       SELECT 
@@ -145691,7 +145889,7 @@ async function getAmsPerformanceData(db, accountId2, date12, campaignIds) {
         MAX(eventTime) as lastUpdateTime,
         'ams' as dataSource
       FROM ams_performance_buffer
-      WHERE accountId = ${accountId2}
+      WHERE accountId = ${accountId}
         AND DATE(eventTime) = ${date12}
       GROUP BY DATE(eventTime), campaignId, adGroupId
     `);
@@ -145767,7 +145965,7 @@ function determineFreshness(apiData, amsData, strategy) {
   if (amsIsFresh || apiIsFresh) return "mixed";
   return "stale";
 }
-async function checkAndBackfillData(accountId2, date12) {
+async function checkAndBackfillData(accountId, date12) {
   const db = await getDb();
   if (!db) {
     return { needsBackfill: false, backfilledRecords: 0, message: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" };
@@ -145776,7 +145974,7 @@ async function checkAndBackfillData(accountId2, date12) {
     const [amsResult] = await db.execute(sql`
       SELECT COUNT(*) as count
       FROM ams_performance_buffer
-      WHERE accountId = ${accountId2}
+      WHERE accountId = ${accountId}
         AND DATE(eventTime) = ${date12}
     `);
     const amsCount = Array.isArray(amsResult) && amsResult.length > 0 ? amsResult[0]?.count || 0 : 0;
@@ -145786,7 +145984,7 @@ async function checkAndBackfillData(accountId2, date12) {
     const [apiResult] = await db.execute(sql`
       SELECT COUNT(*) as count
       FROM daily_performance
-      WHERE accountId = ${accountId2}
+      WHERE accountId = ${accountId}
         AND DATE(date) = ${date12}
     `);
     const apiCount = Array.isArray(apiResult) && apiResult.length > 0 ? apiResult[0]?.count || 0 : 0;
@@ -145803,7 +146001,7 @@ async function checkAndBackfillData(accountId2, date12) {
     return { needsBackfill: false, backfilledRecords: 0, message: error54.message };
   }
 }
-async function getTimelineAggregatedData(accountId2, startDate, endDate, granularity = "daily") {
+async function getTimelineAggregatedData(accountId, startDate, endDate, granularity = "daily") {
   const db = await getDb();
   if (!db) {
     return {
@@ -145833,7 +146031,7 @@ async function getTimelineAggregatedData(accountId2, startDate, endDate, granula
         SUM(sales) as sales,
         SUM(orders) as orders
       FROM daily_performance
-      WHERE accountId = ${accountId2}
+      WHERE accountId = ${accountId}
         AND DATE(date) >= ${startDate}
         AND DATE(date) <= ${endDate}
       GROUP BY ${sql.raw(dateGrouping)}
@@ -145879,7 +146077,7 @@ async function getTimelineAggregatedData(accountId2, startDate, endDate, granula
     };
   }
 }
-async function getRealtimeDashboardData(accountId2) {
+async function getRealtimeDashboardData(accountId) {
   const db = await getDb();
   const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
   const defaultResult = {
@@ -145901,7 +146099,7 @@ async function getRealtimeDashboardData(accountId2) {
           SUM(orders) as orders,
           MAX(eventTime) as lastUpdate
         FROM ams_performance_buffer
-        WHERE accountId = ${accountId2}
+        WHERE accountId = ${accountId}
           AND DATE(eventTime) = ${today}
       `);
       if (Array.isArray(amsRows) && amsRows.length > 0 && amsRows[0]?.spend !== null) {
@@ -145920,7 +146118,7 @@ async function getRealtimeDashboardData(accountId2) {
           SUM(orders) as orders,
           MAX(updatedAt) as lastUpdate
         FROM daily_performance
-        WHERE accountId = ${accountId2}
+        WHERE accountId = ${accountId}
           AND DATE(date) = ${today}
       `);
       result = Array.isArray(apiRows) && apiRows.length > 0 ? apiRows[0] : null;
@@ -146081,7 +146279,7 @@ async function triggerCollaborationNotification(params) {
     targetType,
     targetId,
     targetName,
-    accountId: accountId2,
+    accountId,
     accountName,
     metadata,
     auditLogId
@@ -146136,7 +146334,7 @@ async function triggerCollaborationNotification(params) {
       targetType: targetType || null,
       targetId: targetId || null,
       targetName: targetName || null,
-      accountId: accountId2 || null,
+      accountId: accountId || null,
       accountName: accountName || null,
       channel: "app",
       recipientUserId: recipient.memberId || 0,
@@ -146158,7 +146356,7 @@ async function triggerCollaborationNotification(params) {
         targetType: targetType || null,
         targetId: targetId || null,
         targetName: targetName || null,
-        accountId: accountId2 || null,
+        accountId: accountId || null,
         accountName: accountName || null,
         channel: "email",
         recipientUserId: recipient.memberId || 0,
@@ -146489,7 +146687,7 @@ function predictMetrics(performance3, newBudget) {
     acos: Math.round(predictedAcos * 10) / 10
   };
 }
-async function generateBudgetAllocation(userId, accountId2, totalBudget, options = {}) {
+async function generateBudgetAllocation(userId, accountId, totalBudget, options = {}) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const {
@@ -146499,7 +146697,7 @@ async function generateBudgetAllocation(userId, accountId2, totalBudget, options
     targetRoas,
     targetAcos
   } = options;
-  const campaignQuery = accountId2 ? and(eq(campaigns.accountId, accountId2), eq(campaigns.campaignStatus, "enabled")) : eq(campaigns.campaignStatus, "enabled");
+  const campaignQuery = accountId ? and(eq(campaigns.accountId, accountId), eq(campaigns.campaignStatus, "enabled")) : eq(campaigns.campaignStatus, "enabled");
   const campaignList = await db.select().from(campaigns).where(campaignQuery);
   if (campaignList.length === 0) {
     return {
@@ -146657,12 +146855,12 @@ async function generateBudgetAllocation(userId, accountId2, totalBudget, options
     }
   };
 }
-async function saveBudgetAllocation(userId, accountId2, goalId, allocationName, description, result) {
+async function saveBudgetAllocation(userId, accountId, goalId, allocationName, description, result) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const [allocation] = await db.insert(budgetAllocations).values({
     userId,
-    accountId: accountId2,
+    accountId,
     goalId,
     allocationName,
     description,
@@ -146758,12 +146956,12 @@ async function applyBudgetAllocation(allocationId, userId) {
     errors
   };
 }
-async function getBudgetAllocationHistory(userId, accountId2, limit = 20) {
+async function getBudgetAllocationHistory(userId, accountId, limit = 20) {
   const db = await getDb();
   if (!db) return [];
-  const query2 = accountId2 ? and(
+  const query2 = accountId ? and(
     eq(budgetAllocations.userId, userId),
-    eq(budgetAllocations.accountId, accountId2)
+    eq(budgetAllocations.accountId, accountId)
   ) : eq(budgetAllocations.userId, userId);
   const allocations = await db.select().from(budgetAllocations).where(query2).orderBy(desc(budgetAllocations.createdAt)).limit(limit);
   return allocations;
@@ -146771,10 +146969,10 @@ async function getBudgetAllocationHistory(userId, accountId2, limit = 20) {
 async function getBudgetHistory(userId, options = {}) {
   const db = await getDb();
   if (!db) return [];
-  const { accountId: accountId2, campaignId, startDate, endDate, limit = 50 } = options;
+  const { accountId, campaignId, startDate, endDate, limit = 50 } = options;
   let query2 = eq(budgetHistory.userId, userId);
-  if (accountId2) {
-    query2 = and(query2, eq(budgetHistory.accountId, accountId2));
+  if (accountId) {
+    query2 = and(query2, eq(budgetHistory.accountId, accountId));
   }
   if (campaignId) {
     query2 = and(query2, eq(budgetHistory.campaignId, String(campaignId)));
@@ -146808,10 +147006,10 @@ async function createBudgetGoal(userId, data4) {
   });
   return Number(result.insertId);
 }
-async function getBudgetGoals(userId, accountId2) {
+async function getBudgetGoals(userId, accountId) {
   const db = await getDb();
   if (!db) return [];
-  const query2 = accountId2 ? and(eq(budgetGoals.userId, userId), eq(budgetGoals.accountId, accountId2)) : eq(budgetGoals.userId, userId);
+  const query2 = accountId ? and(eq(budgetGoals.userId, userId), eq(budgetGoals.accountId, accountId)) : eq(budgetGoals.userId, userId);
   const goals = await db.select().from(budgetGoals).where(query2).orderBy(desc(budgetGoals.createdAt));
   return goals;
 }
@@ -146852,7 +147050,7 @@ __export(marginalBenefitHistoryService_exports, {
   getHistoryTrend: () => getHistoryTrend,
   saveMarginalBenefitHistory: () => saveMarginalBenefitHistory
 });
-async function saveMarginalBenefitHistory(accountId2, campaignId, placementType, analysisResult, performanceData) {
+async function saveMarginalBenefitHistory(accountId, campaignId, placementType, analysisResult, performanceData) {
   const db = await getDb();
   if (!db) {
     throw new Error("\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25");
@@ -146860,7 +147058,7 @@ async function saveMarginalBenefitHistory(accountId2, campaignId, placementType,
   const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
   const existing = await db.execute(sql`
     SELECT id FROM marginal_benefit_history 
-    WHERE account_id = ${accountId2} 
+    WHERE account_id = ${accountId} 
     AND campaign_id = ${campaignId}
     AND placement_type = ${placementType}
     AND analysis_date = ${today}
@@ -146884,7 +147082,7 @@ async function saveMarginalBenefitHistory(accountId2, campaignId, placementType,
         total_spend = ${performanceData.totalSpend},
         total_sales = ${performanceData.totalSales},
         total_orders = ${performanceData.totalOrders}
-      WHERE account_id = ${accountId2} 
+      WHERE account_id = ${accountId} 
       AND campaign_id = ${campaignId}
       AND placement_type = ${placementType}
       AND analysis_date = ${today}
@@ -146898,7 +147096,7 @@ async function saveMarginalBenefitHistory(accountId2, campaignId, placementType,
       elasticity, diminishing_point, optimal_range_min, optimal_range_max,
       confidence, data_points, total_impressions, total_clicks, total_spend, total_sales, total_orders
     ) VALUES (
-      ${accountId2}, ${campaignId}, ${placementType}, ${today},
+      ${accountId}, ${campaignId}, ${placementType}, ${today},
       ${analysisResult.currentAdjustment}, ${analysisResult.marginalROAS}, 
       ${analysisResult.marginalACoS}, ${analysisResult.marginalSales}, ${analysisResult.marginalSpend},
       ${analysisResult.elasticity}, ${analysisResult.diminishingPoint},
@@ -146910,7 +147108,7 @@ async function saveMarginalBenefitHistory(accountId2, campaignId, placementType,
   `);
   return result[0].insertId;
 }
-async function getHistoryTrend(accountId2, campaignId, days = 30) {
+async function getHistoryTrend(accountId, campaignId, days = 30) {
   const db = await getDb();
   if (!db) {
     return createEmptyTrendData();
@@ -146920,7 +147118,7 @@ async function getHistoryTrend(accountId2, campaignId, days = 30) {
   startDate.setDate(startDate.getDate() - days);
   const records = await db.execute(sql`
     SELECT * FROM marginal_benefit_history
-    WHERE account_id = ${accountId2}
+    WHERE account_id = ${accountId}
     AND campaign_id = ${campaignId}
     AND analysis_date >= ${startDate.toISOString().split("T")[0]}
     AND analysis_date <= ${endDate.toISOString().split("T")[0]}
@@ -146953,7 +147151,7 @@ async function getHistoryTrend(accountId2, campaignId, days = 30) {
   });
   return { dates, topOfSearch, productPage, restOfSearch };
 }
-async function analyzeSeasonalPatterns(accountId2, campaignId, period = "weekly") {
+async function analyzeSeasonalPatterns(accountId, campaignId, period = "weekly") {
   const db = await getDb();
   if (!db) {
     return { period, patterns: [], insights: [] };
@@ -146963,7 +147161,7 @@ async function analyzeSeasonalPatterns(accountId2, campaignId, period = "weekly"
   startDate.setDate(startDate.getDate() - 90);
   const records = await db.execute(sql`
     SELECT * FROM marginal_benefit_history
-    WHERE account_id = ${accountId2}
+    WHERE account_id = ${accountId}
     AND campaign_id = ${campaignId}
     AND analysis_date >= ${startDate.toISOString().split("T")[0]}
     ORDER BY analysis_date ASC
@@ -147039,7 +147237,7 @@ async function analyzeSeasonalPatterns(accountId2, campaignId, period = "weekly"
   }
   return { period, patterns, insights };
 }
-async function comparePeriods(accountId2, campaignId, period1Start, period1End, period2Start, period2End) {
+async function comparePeriods(accountId, campaignId, period1Start, period1End, period2Start, period2End) {
   const db = await getDb();
   const period1Label = `${period1Start} ~ ${period1End}`;
   const period2Label = `${period2Start} ~ ${period2End}`;
@@ -147057,7 +147255,7 @@ async function comparePeriods(accountId2, campaignId, period1Start, period1End, 
         AVG(marginal_sales) as avg_marginal_sales,
         AVG(elasticity) as avg_elasticity
       FROM marginal_benefit_history
-      WHERE account_id = ${accountId2}
+      WHERE account_id = ${accountId}
       AND campaign_id = ${campaignId}
       AND analysis_date >= ${period1Start}
       AND analysis_date <= ${period1End}
@@ -147069,7 +147267,7 @@ async function comparePeriods(accountId2, campaignId, period1Start, period1End, 
         AVG(marginal_sales) as avg_marginal_sales,
         AVG(elasticity) as avg_elasticity
       FROM marginal_benefit_history
-      WHERE account_id = ${accountId2}
+      WHERE account_id = ${accountId}
       AND campaign_id = ${campaignId}
       AND analysis_date >= ${period2Start}
       AND analysis_date <= ${period2End}
@@ -147456,13 +147654,13 @@ async function applyOptimization(request) {
     };
   }
 }
-async function batchApplyOptimization(accountId2, userId, applications) {
+async function batchApplyOptimization(accountId, userId, applications) {
   const results = [];
   let successCount = 0;
   let failedCount = 0;
   for (const app of applications) {
     const result = await applyOptimization({
-      accountId: accountId2,
+      accountId,
       userId,
       ...app
     });
@@ -147537,7 +147735,7 @@ async function rollbackApplication(applicationId) {
     };
   }
 }
-async function getApplicationHistory(accountId2, campaignId, limit = 20) {
+async function getApplicationHistory(accountId, campaignId, limit = 20) {
   const db = await getDb();
   if (!db) {
     return [];
@@ -147546,7 +147744,7 @@ async function getApplicationHistory(accountId2, campaignId, limit = 20) {
   if (campaignId) {
     query2 = sql`
       SELECT * FROM marginal_benefit_applications
-      WHERE account_id = ${accountId2}
+      WHERE account_id = ${accountId}
       AND campaign_id = ${campaignId}
       ORDER BY created_at DESC
       LIMIT ${limit}
@@ -147554,7 +147752,7 @@ async function getApplicationHistory(accountId2, campaignId, limit = 20) {
   } else {
     query2 = sql`
       SELECT * FROM marginal_benefit_applications
-      WHERE account_id = ${accountId2}
+      WHERE account_id = ${accountId}
       ORDER BY created_at DESC
       LIMIT ${limit}
     `;
@@ -147562,14 +147760,14 @@ async function getApplicationHistory(accountId2, campaignId, limit = 20) {
   const result = await db.execute(query2);
   return result[0] || [];
 }
-async function getBatchAnalysisHistory(accountId2, limit = 10) {
+async function getBatchAnalysisHistory(accountId, limit = 10) {
   const db = await getDb();
   if (!db) {
     return [];
   }
   const result = await db.execute(sql`
     SELECT * FROM batch_marginal_benefit_analysis
-    WHERE account_id = ${accountId2}
+    WHERE account_id = ${accountId}
     ORDER BY created_at DESC
     LIMIT ${limit}
   `);
@@ -147999,7 +148197,7 @@ async function logLogin(userId, userName, organizationId, ipAddress, userAgent, 
     errorMessage
   });
 }
-async function logSync(userId, userName, organizationId, accountId2, accountName, syncType, success2 = true, details, errorMessage) {
+async function logSync(userId, userName, organizationId, accountId, accountName, syncType, success2 = true, details, errorMessage) {
   await createAuditLog2({
     organizationId,
     userId,
@@ -148007,7 +148205,7 @@ async function logSync(userId, userName, organizationId, accountId2, accountName
     actionType: "sync",
     actionCategory: "sync",
     resourceType: "ad_account",
-    resourceId: String(accountId2),
+    resourceId: String(accountId),
     resourceName: accountName,
     description: `${syncType}\u6570\u636E\u540C\u6B65${success2 ? "\u6210\u529F" : "\u5931\u8D25"}`,
     newValue: details,
@@ -155174,13 +155372,13 @@ is not a problem with esbuild. You need to fix your environment instead.
             watch: (options2 = {}) => new Promise((resolve8, reject) => {
               if (!streamIn.hasFS) throw new Error(`Cannot use the "watch" API in this environment`);
               const keys = {};
-              const delay2 = getFlag(options2, keys, "delay", mustBeInteger);
+              const delay = getFlag(options2, keys, "delay", mustBeInteger);
               checkForInvalidFlags(options2, keys, `in watch() call`);
               const request2 = {
                 command: "watch",
                 key: buildKey
               };
-              if (delay2) request2.delay = delay2;
+              if (delay) request2.delay = delay;
               sendRequest(refs, request2, (error210) => {
                 if (error210) reject(new Error(error210));
                 else resolve8(void 0);
@@ -337456,7 +337654,7 @@ async function getPerformanceGroupOptimizationState(groupId) {
     overallPerformanceScore
   };
 }
-async function runUnifiedOptimizationAnalysis(accountId2, options = {}) {
+async function runUnifiedOptimizationAnalysis(accountId, options = {}) {
   const db = await getDbInstance();
   const decisions = [];
   let targetCampaigns;
@@ -337901,7 +338099,7 @@ async function batchExecuteOptimizationDecisions(decisionIds, executedBy = "manu
   }
   return { success: success2, failed, results };
 }
-async function getOptimizationSummary(accountId2, options = {}) {
+async function getOptimizationSummary(accountId, options = {}) {
   return {
     totalDecisions: 0,
     pendingDecisions: 0,
@@ -338009,10 +338207,10 @@ function generateNGrams(tokens, n7) {
   }
   return ngrams;
 }
-async function runNGramAnalysis(accountId2, startDate, endDate, options) {
+async function runNGramAnalysis(accountId, startDate, endDate, options) {
   const db = await getDb();
   if (!db) {
-    return { accountId: accountId2, analysisDate: /* @__PURE__ */ new Date(), totalSearchTermsAnalyzed: 0, totalTokensExtracted: 0, highRiskTokens: [], mediumRiskTokens: [], suggestedNegatives: [] };
+    return { accountId, analysisDate: /* @__PURE__ */ new Date(), totalSearchTermsAnalyzed: 0, totalTokensExtracted: 0, highRiskTokens: [], mediumRiskTokens: [], suggestedNegatives: [] };
   }
   const minFrequency = options?.minFrequency || TRAFFIC_ISOLATION_CONFIG.ngram.minFrequency;
   const searchTermData = await db.select({
@@ -338022,7 +338220,7 @@ async function runNGramAnalysis(accountId2, startDate, endDate, options) {
     spend: searchTerms.searchTermSpend,
     sales: searchTerms.searchTermSales
   }).from(searchTerms).where(and(
-    eq(searchTerms.accountId, accountId2),
+    eq(searchTerms.accountId, accountId),
     gte(searchTerms.reportStartDate, startDate.toISOString()),
     lte(searchTerms.reportEndDate, endDate.toISOString()),
     // 默认只分析有点击但无转化的搜索词
@@ -338102,7 +338300,7 @@ async function runNGramAnalysis(accountId2, startDate, endDate, options) {
     estimatedSavings: t7.totalSpend
   }));
   return {
-    accountId: accountId2,
+    accountId,
     analysisDate: /* @__PURE__ */ new Date(),
     totalSearchTermsAnalyzed: searchTermData.length,
     totalTokensExtracted: allTokens.length,
@@ -338111,10 +338309,10 @@ async function runNGramAnalysis(accountId2, startDate, endDate, options) {
     suggestedNegatives
   };
 }
-async function detectTrafficConflicts2(accountId2, startDate, endDate) {
+async function detectTrafficConflicts2(accountId, startDate, endDate) {
   const db = await getDb();
   if (!db) {
-    return { accountId: accountId2, analysisDate: /* @__PURE__ */ new Date(), totalConflicts: 0, totalWastedSpend: 0, conflicts: [], resolutionSuggestions: [] };
+    return { accountId, analysisDate: /* @__PURE__ */ new Date(), totalConflicts: 0, totalWastedSpend: 0, conflicts: [], resolutionSuggestions: [] };
   }
   const searchTermData = await db.select({
     searchTerm: searchTerms.searchTerm,
@@ -338125,7 +338323,7 @@ async function detectTrafficConflicts2(accountId2, startDate, endDate) {
     sales: searchTerms.searchTermSales,
     matchType: searchTerms.searchTermMatchType
   }).from(searchTerms).where(and(
-    eq(searchTerms.accountId, accountId2),
+    eq(searchTerms.accountId, accountId),
     gte(searchTerms.reportStartDate, startDate.toISOString()),
     lte(searchTerms.reportEndDate, endDate.toISOString()),
     gte(searchTerms.searchTermClicks, TRAFFIC_ISOLATION_CONFIG.conflict.minClicks)
@@ -338134,7 +338332,7 @@ async function detectTrafficConflicts2(accountId2, startDate, endDate) {
     id: campaigns.id,
     campaignName: campaigns.campaignName,
     targetingType: campaigns.targetingType
-  }).from(campaigns).where(eq(campaigns.accountId, accountId2));
+  }).from(campaigns).where(eq(campaigns.accountId, accountId));
   const campaignMap = new Map(campaignData.map((c5) => [c5.id, c5]));
   const searchTermGroups = /* @__PURE__ */ new Map();
   for (const term of searchTermData) {
@@ -338226,7 +338424,7 @@ async function detectTrafficConflicts2(accountId2, startDate, endDate) {
     }))
   }));
   return {
-    accountId: accountId2,
+    accountId,
     analysisDate: /* @__PURE__ */ new Date(),
     totalConflicts: conflicts.length,
     totalWastedSpend,
@@ -338234,7 +338432,7 @@ async function detectTrafficConflicts2(accountId2, startDate, endDate) {
     resolutionSuggestions
   };
 }
-async function identifyFunnelTiers(accountId2) {
+async function identifyFunnelTiers(accountId) {
   const db = await getDb();
   if (!db) return [];
   const campaignData = await db.select({
@@ -338242,14 +338440,14 @@ async function identifyFunnelTiers(accountId2) {
     campaignName: campaigns.campaignName,
     targetingType: campaigns.targetingType
   }).from(campaigns).where(and(
-    eq(campaigns.accountId, accountId2),
+    eq(campaigns.accountId, accountId),
     eq(campaigns.campaignStatus, "enabled")
   ));
   const keywordData = await db.select({
     campaignId: adGroups.campaignId,
     matchType: keywords.matchType,
     count: sql`COUNT(*)`
-  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId2)).groupBy(adGroups.campaignId, keywords.matchType);
+  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId)).groupBy(adGroups.campaignId, keywords.matchType);
   const campaignMatchTypes = /* @__PURE__ */ new Map();
   for (const kw of keywordData) {
     const matchTypes = campaignMatchTypes.get(kw.campaignId) || /* @__PURE__ */ new Map();
@@ -338290,11 +338488,11 @@ async function identifyFunnelTiers(accountId2) {
   }
   return tierConfigs;
 }
-async function syncFunnelNegatives(accountId2, tierConfigs) {
+async function syncFunnelNegatives(accountId, tierConfigs) {
   const db = await getDb();
   if (!db) {
     return {
-      accountId: accountId2,
+      accountId,
       syncDate: /* @__PURE__ */ new Date(),
       tier1Keywords: [],
       tier2Keywords: [],
@@ -338321,7 +338519,7 @@ async function syncFunnelNegatives(accountId2, tierConfigs) {
     campaignId: negativeKeywords.campaignId,
     negativeText: negativeKeywords.negativeText
   }).from(negativeKeywords).where(and(
-    eq(negativeKeywords.accountId, accountId2),
+    eq(negativeKeywords.accountId, accountId),
     eq(negativeKeywords.negativeStatus, "active")
   ));
   const existingNegativeMap = /* @__PURE__ */ new Map();
@@ -338367,7 +338565,7 @@ async function syncFunnelNegatives(accountId2, tierConfigs) {
     }
   }
   return {
-    accountId: accountId2,
+    accountId,
     syncDate: /* @__PURE__ */ new Date(),
     tier1Keywords: tier1KeywordTexts,
     tier2Keywords: tier2KeywordTexts,
@@ -338375,7 +338573,7 @@ async function syncFunnelNegatives(accountId2, tierConfigs) {
     totalNegativesToAdd: negativesToSync.reduce((sum2, n7) => sum2 + n7.negatives.length, 0)
   };
 }
-async function getKeywordMigrationSuggestions(accountId2, tierConfigs, startDate, endDate) {
+async function getKeywordMigrationSuggestions(accountId, tierConfigs, startDate, endDate) {
   const db = await getDb();
   if (!db) return [];
   const { minConversions, minCVR, minClicks } = TRAFFIC_ISOLATION_CONFIG.migration;
@@ -338390,7 +338588,7 @@ async function getKeywordMigrationSuggestions(accountId2, tierConfigs, startDate
     spend: searchTerms.searchTermSpend,
     sales: searchTerms.searchTermSales
   }).from(searchTerms).where(and(
-    eq(searchTerms.accountId, accountId2),
+    eq(searchTerms.accountId, accountId),
     inArray(searchTerms.campaignId, tier3CampaignIds),
     gte(searchTerms.reportStartDate, startDate.toISOString()),
     lte(searchTerms.reportEndDate, endDate.toISOString()),
@@ -338483,21 +338681,21 @@ var DEFAULT_AUTOMATION_CONFIG = {
 var accountConfigs = /* @__PURE__ */ new Map();
 var executionHistory = [];
 var dailyExecutionCount = /* @__PURE__ */ new Map();
-function getAccountAutomationConfig(accountId2) {
-  if (!accountConfigs.has(accountId2)) {
-    accountConfigs.set(accountId2, {
-      accountId: accountId2,
+function getAccountAutomationConfig(accountId) {
+  if (!accountConfigs.has(accountId)) {
+    accountConfigs.set(accountId, {
+      accountId,
       ...DEFAULT_AUTOMATION_CONFIG
     });
   }
-  return accountConfigs.get(accountId2);
+  return accountConfigs.get(accountId);
 }
-function updateAccountAutomationConfig(accountId2, config2) {
-  const current = getAccountAutomationConfig(accountId2);
+function updateAccountAutomationConfig(accountId, config2) {
+  const current = getAccountAutomationConfig(accountId);
   const updated = {
     ...current,
     ...config2,
-    accountId: accountId2,
+    accountId,
     safetyBoundary: {
       ...current.safetyBoundary,
       ...config2.safetyBoundary || {}
@@ -338511,14 +338709,14 @@ function updateAccountAutomationConfig(accountId2, config2) {
       ...config2.notificationConfig || {}
     }
   };
-  accountConfigs.set(accountId2, updated);
+  accountConfigs.set(accountId, updated);
   return updated;
 }
-function checkDailyLimit(accountId2, type) {
+function checkDailyLimit(accountId, type) {
   const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-  const key = `${accountId2}_${today}_${type}`;
+  const key = `${accountId}_${today}_${type}`;
   const count2 = dailyExecutionCount.get(key) || 0;
-  const config2 = getAccountAutomationConfig(accountId2);
+  const config2 = getAccountAutomationConfig(accountId);
   switch (type) {
     case "bid_adjustment":
       return count2 < config2.safetyBoundary.maxDailyBidAdjustments;
@@ -338528,14 +338726,14 @@ function checkDailyLimit(accountId2, type) {
       return count2 < config2.safetyBoundary.maxDailyTotalAdjustments;
   }
 }
-function incrementDailyCount(accountId2, type) {
+function incrementDailyCount(accountId, type) {
   const today = (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-  const key = `${accountId2}_${today}_${type}`;
+  const key = `${accountId}_${today}_${type}`;
   const count2 = dailyExecutionCount.get(key) || 0;
   dailyExecutionCount.set(key, count2 + 1);
 }
-function checkAdjustmentBoundary(accountId2, type, currentValue, newValue) {
-  const config2 = getAccountAutomationConfig(accountId2);
+function checkAdjustmentBoundary(accountId, type, currentValue, newValue) {
+  const config2 = getAccountAutomationConfig(accountId);
   const changePercent = Math.abs((newValue - currentValue) / currentValue * 100);
   switch (type) {
     case "bid_adjustment":
@@ -338565,8 +338763,8 @@ function checkAdjustmentBoundary(accountId2, type, currentValue, newValue) {
   }
   return { allowed: true };
 }
-function checkConfidenceThreshold(accountId2, confidence) {
-  const config2 = getAccountAutomationConfig(accountId2);
+function checkConfidenceThreshold(accountId, confidence) {
+  const config2 = getAccountAutomationConfig(accountId);
   if (confidence >= config2.safetyBoundary.autoExecuteConfidence) {
     return { mode: "auto", reason: `\u7F6E\u4FE1\u5EA6 ${confidence}% >= ${config2.safetyBoundary.autoExecuteConfidence}%\uFF0C\u81EA\u52A8\u6267\u884C` };
   } else if (confidence >= config2.safetyBoundary.supervisedConfidence) {
@@ -338575,8 +338773,8 @@ function checkConfidenceThreshold(accountId2, confidence) {
     return { mode: "manual", reason: `\u7F6E\u4FE1\u5EA6 ${confidence}% < ${config2.safetyBoundary.supervisedConfidence}%\uFF0C\u9700\u4EBA\u5DE5\u786E\u8BA4` };
   }
 }
-async function executeOptimization(accountId2, type, targetType, targetId, targetName, currentValue, newValue, confidence, reason) {
-  const config2 = getAccountAutomationConfig(accountId2);
+async function executeOptimization(accountId, type, targetType, targetId, targetName, currentValue, newValue, confidence, reason) {
+  const config2 = getAccountAutomationConfig(accountId);
   const resultId = `exec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   if (!config2.enabled) {
     return {
@@ -338610,7 +338808,7 @@ async function executeOptimization(accountId2, type, targetType, targetId, targe
       executedBy: "auto"
     };
   }
-  if (!checkDailyLimit(accountId2, type)) {
+  if (!checkDailyLimit(accountId, type)) {
     return {
       id: resultId,
       type,
@@ -338626,7 +338824,7 @@ async function executeOptimization(accountId2, type, targetType, targetId, targe
       executedBy: "auto"
     };
   }
-  const boundaryCheck = checkAdjustmentBoundary(accountId2, type, currentValue, newValue);
+  const boundaryCheck = checkAdjustmentBoundary(accountId, type, currentValue, newValue);
   if (!boundaryCheck.allowed) {
     return {
       id: resultId,
@@ -338643,7 +338841,7 @@ async function executeOptimization(accountId2, type, targetType, targetId, targe
       executedBy: "auto"
     };
   }
-  const confidenceCheck = checkConfidenceThreshold(accountId2, confidence);
+  const confidenceCheck = checkConfidenceThreshold(accountId, confidence);
   if (confidenceCheck.mode === "manual" && config2.mode !== "approval") {
     return {
       id: resultId,
@@ -338709,7 +338907,7 @@ async function executeOptimization(accountId2, type, targetType, targetId, targe
           console.warn(`[AutoExec] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7\u672C\u5730DB\u66F4\u65B0 (keyword ${targetId})`);
         }
         await createBiddingLog({
-          accountId: accountId2,
+          accountId,
           campaignId: bidCampaignId,
           adGroupId: bidAdGroupId,
           logTargetType: "keyword",
@@ -338762,7 +338960,7 @@ async function executeOptimization(accountId2, type, targetType, targetId, targe
           console.warn(`[AutoExec] v148: \u9884\u7B97API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7\u672C\u5730DB\u66F4\u65B0 (campaign ${targetId})`);
         }
         await createBiddingLog({
-          accountId: accountId2,
+          accountId,
           campaignId: targetId,
           adGroupId: 0,
           logTargetType: "campaign_budget",
@@ -338826,7 +339024,7 @@ async function executeOptimization(accountId2, type, targetType, targetId, targe
           console.warn(`[AutoExec] v148: \u5546\u54C1\u5B9A\u5411API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7\u672C\u5730DB\u66F4\u65B0 (productTarget ${targetId})`);
         }
         await createBiddingLog({
-          accountId: accountId2,
+          accountId,
           campaignId: ptCampaignId,
           adGroupId: ptAdGroupId,
           logTargetType: "product_target",
@@ -338883,7 +339081,7 @@ async function executeOptimization(accountId2, type, targetType, targetId, targe
           }
         }
         await createBiddingLog({
-          accountId: accountId2,
+          accountId,
           campaignId: targetId,
           adGroupId: 0,
           logTargetType: "placement",
@@ -338905,7 +339103,7 @@ async function executeOptimization(accountId2, type, targetType, targetId, targe
         console.log(`[AutoExec] \u5426\u5B9A\u5173\u952E\u8BCD\u6DFB\u52A0: target=${targetName}, \u5DF2\u901A\u8FC7searchTermHarvester\u6A21\u5757\u5904\u7406`);
         negApiSuccess = true;
         await createBiddingLog({
-          accountId: accountId2,
+          accountId,
           campaignId: 0,
           adGroupId: 0,
           logTargetType: "negative_keyword",
@@ -338920,7 +339118,7 @@ async function executeOptimization(accountId2, type, targetType, targetId, targe
       }
       case "search_term_harvest": {
         await createBiddingLog({
-          accountId: accountId2,
+          accountId,
           campaignId: 0,
           adGroupId: 0,
           logTargetType: "search_term_harvest",
@@ -338938,7 +339136,7 @@ async function executeOptimization(accountId2, type, targetType, targetId, targe
         console.log(`[AutoExec] \u672A\u5B9E\u73B0\u7684\u6267\u884C\u7C7B\u578B: ${type}, target=${targetName}`);
         break;
     }
-    incrementDailyCount(accountId2, type);
+    incrementDailyCount(accountId, type);
     return {
       id: resultId,
       type,
@@ -338970,7 +339168,7 @@ async function executeOptimization(accountId2, type, targetType, targetId, targe
     };
   }
 }
-async function batchExecuteOptimizations(accountId2, optimizations) {
+async function batchExecuteOptimizations(accountId, optimizations) {
   const batchId = `batch_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   const startedAt = /* @__PURE__ */ new Date();
   const results = [];
@@ -338980,7 +339178,7 @@ async function batchExecuteOptimizations(accountId2, optimizations) {
   let blockedItems = 0;
   for (const opt of optimizations) {
     const result = await executeOptimization(
-      accountId2,
+      accountId,
       opt.type,
       opt.targetType,
       opt.targetId,
@@ -339008,7 +339206,7 @@ async function batchExecuteOptimizations(accountId2, optimizations) {
   }
   const batch = {
     id: batchId,
-    accountId: accountId2,
+    accountId,
     startedAt,
     completedAt: /* @__PURE__ */ new Date(),
     totalItems: optimizations.length,
@@ -339019,12 +339217,12 @@ async function batchExecuteOptimizations(accountId2, optimizations) {
     results
   };
   executionHistory.push(batch);
-  const config2 = getAccountAutomationConfig(accountId2);
+  const config2 = getAccountAutomationConfig(accountId);
   if (config2.notificationConfig.notifyOnFailure && failedItems > 0) {
     await sendNotification({
       userId: 0,
       // 系统通知
-      accountId: accountId2,
+      accountId,
       type: "alert",
       severity: "warning",
       title: "\u81EA\u52A8\u6267\u884C\u90E8\u5206\u5931\u8D25",
@@ -339033,8 +339231,8 @@ async function batchExecuteOptimizations(accountId2, optimizations) {
   }
   return batch;
 }
-async function runFullAutomationCycle(accountId2) {
-  const config2 = getAccountAutomationConfig(accountId2);
+async function runFullAutomationCycle(accountId) {
+  const config2 = getAccountAutomationConfig(accountId);
   if (!config2.enabled) {
     return {
       analysisResults: [],
@@ -339048,7 +339246,7 @@ async function runFullAutomationCycle(accountId2) {
     };
   }
   const analysisResults = await runUnifiedOptimizationAnalysis(
-    accountId2,
+    accountId,
     {
       optimizationTypes: config2.enabledTypes.filter(
         (t7) => ["bid_adjustment", "placement_tilt", "dayparting", "negative_keyword"].includes(t7)
@@ -339065,7 +339263,7 @@ async function runFullAutomationCycle(accountId2) {
     confidence: r5.confidence,
     reason: r5.reasoning
   }));
-  const executionBatch = optimizations.length > 0 ? await batchExecuteOptimizations(accountId2, optimizations) : null;
+  const executionBatch = optimizations.length > 0 ? await batchExecuteOptimizations(accountId, optimizations) : null;
   return {
     analysisResults,
     executionBatch,
@@ -339077,8 +339275,8 @@ async function runFullAutomationCycle(accountId2) {
     }
   };
 }
-function getExecutionHistory(accountId2, options = {}) {
-  let filtered = executionHistory.filter((b6) => b6.accountId === accountId2);
+function getExecutionHistory(accountId, options = {}) {
+  let filtered = executionHistory.filter((b6) => b6.accountId === accountId);
   if (options.startDate) {
     filtered = filtered.filter((b6) => b6.startedAt >= options.startDate);
   }
@@ -339091,15 +339289,15 @@ function getExecutionHistory(accountId2, options = {}) {
   }
   return filtered;
 }
-function getDailyExecutionStats(accountId2, date12) {
+function getDailyExecutionStats(accountId, date12) {
   const targetDate = date12 || /* @__PURE__ */ new Date();
   const dateStr = targetDate.toISOString().split("T")[0];
-  const config2 = getAccountAutomationConfig(accountId2);
-  const bidCount = dailyExecutionCount.get(`${accountId2}_${dateStr}_bid_adjustment`) || 0;
-  const budgetCount = dailyExecutionCount.get(`${accountId2}_${dateStr}_budget_adjustment`) || 0;
+  const config2 = getAccountAutomationConfig(accountId);
+  const bidCount = dailyExecutionCount.get(`${accountId}_${dateStr}_bid_adjustment`) || 0;
+  const budgetCount = dailyExecutionCount.get(`${accountId}_${dateStr}_budget_adjustment`) || 0;
   let totalCount = 0;
   dailyExecutionCount.forEach((value2, key) => {
-    if (key.startsWith(`${accountId2}_${dateStr}_`)) {
+    if (key.startsWith(`${accountId}_${dateStr}_`)) {
       totalCount += value2;
     }
   });
@@ -339115,27 +339313,27 @@ function getDailyExecutionStats(accountId2, date12) {
     }
   };
 }
-function emergencyStop(accountId2, reason) {
-  const config2 = getAccountAutomationConfig(accountId2);
+function emergencyStop(accountId, reason) {
+  const config2 = getAccountAutomationConfig(accountId);
   config2.enabled = false;
-  accountConfigs.set(accountId2, config2);
+  accountConfigs.set(accountId, config2);
   sendNotification({
     userId: 0,
     // 系统通知
-    accountId: accountId2,
+    accountId,
     type: "alert",
     severity: "critical",
     title: "\u81EA\u52A8\u5316\u7D27\u6025\u505C\u6B62",
-    message: `\u8D26\u53F7 ${accountId2} \u7684\u81EA\u52A8\u5316\u6267\u884C\u5DF2\u7D27\u6025\u505C\u6B62\u3002\u539F\u56E0\uFF1A${reason}`
+    message: `\u8D26\u53F7 ${accountId} \u7684\u81EA\u52A8\u5316\u6267\u884C\u5DF2\u7D27\u6025\u505C\u6B62\u3002\u539F\u56E0\uFF1A${reason}`
   });
 }
-function resumeAutomation(accountId2) {
-  const config2 = getAccountAutomationConfig(accountId2);
+function resumeAutomation(accountId) {
+  const config2 = getAccountAutomationConfig(accountId);
   config2.enabled = true;
-  accountConfigs.set(accountId2, config2);
+  accountConfigs.set(accountId, config2);
 }
-async function runNGramAnalysisTask(accountId2) {
-  const config2 = getAccountAutomationConfig(accountId2);
+async function runNGramAnalysisTask(accountId) {
+  const config2 = getAccountAutomationConfig(accountId);
   if (!config2.enabled || !config2.enabledTypes.includes("ngram_analysis")) {
     return {
       success: false,
@@ -339150,7 +339348,7 @@ async function runNGramAnalysisTask(accountId2) {
     const startDate = /* @__PURE__ */ new Date();
     startDate.setDate(startDate.getDate() - 30);
     const analysisResult = await runNGramAnalysis(
-      accountId2,
+      accountId,
       startDate,
       endDate,
       { minFrequency: 5 }
@@ -339167,7 +339365,7 @@ async function runNGramAnalysisTask(accountId2) {
     }
     let appliedNegatives = 0;
     if (config2.mode === "full_auto") {
-      const campaigns7 = await getCampaignsByAccountId(accountId2);
+      const campaigns7 = await getCampaignsByAccountId(accountId);
       for (const suggestion of analysisResult.suggestedNegatives) {
         for (const campaign of campaigns7) {
           try {
@@ -339185,7 +339383,7 @@ async function runNGramAnalysisTask(accountId2) {
       if (config2.notificationConfig.notifyOnSuccess) {
         await sendNotification({
           userId: 0,
-          accountId: accountId2,
+          accountId,
           type: "system",
           severity: "info",
           title: "N-Gram\u5206\u6790\u5B8C\u6210",
@@ -339195,7 +339393,7 @@ async function runNGramAnalysisTask(accountId2) {
     } else {
       await sendNotification({
         userId: 0,
-        accountId: accountId2,
+        accountId,
         type: "system",
         severity: "info",
         title: "N-Gram\u5206\u6790\u5B8C\u6210",
@@ -339214,7 +339412,7 @@ async function runNGramAnalysisTask(accountId2) {
     if (config2.notificationConfig.notifyOnFailure) {
       await sendNotification({
         userId: 0,
-        accountId: accountId2,
+        accountId,
         type: "alert",
         severity: "warning",
         title: "N-Gram\u5206\u6790\u5931\u8D25",
@@ -339230,8 +339428,8 @@ async function runNGramAnalysisTask(accountId2) {
     };
   }
 }
-async function runFunnelSyncTask(accountId2) {
-  const config2 = getAccountAutomationConfig(accountId2);
+async function runFunnelSyncTask(accountId) {
+  const config2 = getAccountAutomationConfig(accountId);
   if (!config2.enabled || !config2.enabledTypes.includes("funnel_sync")) {
     return {
       success: false,
@@ -339241,7 +339439,7 @@ async function runFunnelSyncTask(accountId2) {
     };
   }
   try {
-    const tierConfigs = await identifyFunnelTiers(accountId2);
+    const tierConfigs = await identifyFunnelTiers(accountId);
     if (tierConfigs.length === 0) {
       return {
         success: true,
@@ -339250,14 +339448,14 @@ async function runFunnelSyncTask(accountId2) {
         message: "\u672A\u68C0\u6D4B\u5230\u6F0F\u6597\u5C42\u7EA7\u914D\u7F6E\uFF0C\u8BF7\u5148\u914D\u7F6E\u5E7F\u544A\u6D3B\u52A8\u5C42\u7EA7"
       };
     }
-    const syncResult = await syncFunnelNegatives(accountId2, tierConfigs);
+    const syncResult = await syncFunnelNegatives(accountId, tierConfigs);
     const totalNegatives = syncResult.totalNegativesToAdd;
     if (totalNegatives > 0) {
       if (config2.mode === "full_auto") {
         if (config2.notificationConfig.notifyOnSuccess) {
           await sendNotification({
             userId: 0,
-            accountId: accountId2,
+            accountId,
             type: "system",
             severity: "info",
             title: "\u6F0F\u6597\u5426\u5B9A\u8BCD\u540C\u6B65\u5B8C\u6210",
@@ -339267,7 +339465,7 @@ async function runFunnelSyncTask(accountId2) {
       } else {
         await sendNotification({
           userId: 0,
-          accountId: accountId2,
+          accountId,
           type: "system",
           severity: "info",
           title: "\u6F0F\u6597\u5426\u5B9A\u8BCD\u540C\u6B65\u5EFA\u8BAE",
@@ -339286,7 +339484,7 @@ async function runFunnelSyncTask(accountId2) {
     if (config2.notificationConfig.notifyOnFailure) {
       await sendNotification({
         userId: 0,
-        accountId: accountId2,
+        accountId,
         type: "alert",
         severity: "warning",
         title: "\u6F0F\u6597\u540C\u6B65\u5931\u8D25",
@@ -339301,8 +339499,8 @@ async function runFunnelSyncTask(accountId2) {
     };
   }
 }
-async function runKeywordMigrationTask(accountId2) {
-  const config2 = getAccountAutomationConfig(accountId2);
+async function runKeywordMigrationTask(accountId) {
+  const config2 = getAccountAutomationConfig(accountId);
   if (!config2.enabled || !config2.enabledTypes.includes("keyword_migration")) {
     return {
       success: false,
@@ -339312,7 +339510,7 @@ async function runKeywordMigrationTask(accountId2) {
     };
   }
   try {
-    const tierConfigs = await identifyFunnelTiers(accountId2);
+    const tierConfigs = await identifyFunnelTiers(accountId);
     if (tierConfigs.length === 0) {
       return {
         success: true,
@@ -339325,7 +339523,7 @@ async function runKeywordMigrationTask(accountId2) {
     const startDate = /* @__PURE__ */ new Date();
     startDate.setDate(startDate.getDate() - 30);
     const suggestions = await getKeywordMigrationSuggestions(
-      accountId2,
+      accountId,
       tierConfigs,
       startDate,
       endDate
@@ -339371,7 +339569,7 @@ async function runKeywordMigrationTask(accountId2) {
       if (config2.notificationConfig.notifyOnSuccess && appliedMigrations > 0) {
         await sendNotification({
           userId: 0,
-          accountId: accountId2,
+          accountId,
           type: "system",
           severity: "info",
           title: "\u5173\u952E\u8BCD\u8FC1\u79FB\u5B8C\u6210",
@@ -339381,7 +339579,7 @@ async function runKeywordMigrationTask(accountId2) {
     } else {
       await sendNotification({
         userId: 0,
-        accountId: accountId2,
+        accountId,
         type: "system",
         severity: "info",
         title: "\u5173\u952E\u8BCD\u8FC1\u79FB\u5EFA\u8BAE",
@@ -339399,7 +339597,7 @@ async function runKeywordMigrationTask(accountId2) {
     if (config2.notificationConfig.notifyOnFailure) {
       await sendNotification({
         userId: 0,
-        accountId: accountId2,
+        accountId,
         type: "alert",
         severity: "warning",
         title: "\u5173\u952E\u8BCD\u8FC1\u79FB\u5931\u8D25",
@@ -339414,8 +339612,8 @@ async function runKeywordMigrationTask(accountId2) {
     };
   }
 }
-async function runTrafficConflictDetectionTask(accountId2) {
-  const config2 = getAccountAutomationConfig(accountId2);
+async function runTrafficConflictDetectionTask(accountId) {
+  const config2 = getAccountAutomationConfig(accountId);
   if (!config2.enabled || !config2.enabledTypes.includes("traffic_isolation")) {
     return {
       success: false,
@@ -339429,7 +339627,7 @@ async function runTrafficConflictDetectionTask(accountId2) {
     const startDate = /* @__PURE__ */ new Date();
     startDate.setDate(startDate.getDate() - 14);
     const conflictResult = await detectTrafficConflicts2(
-      accountId2,
+      accountId,
       startDate,
       endDate
     );
@@ -339460,7 +339658,7 @@ async function runTrafficConflictDetectionTask(accountId2) {
       if (config2.notificationConfig.notifyOnSuccess && resolvedConflicts > 0) {
         await sendNotification({
           userId: 0,
-          accountId: accountId2,
+          accountId,
           type: "system",
           severity: "info",
           title: "\u6D41\u91CF\u51B2\u7A81\u89E3\u51B3\u5B8C\u6210",
@@ -339470,7 +339668,7 @@ async function runTrafficConflictDetectionTask(accountId2) {
     } else {
       await sendNotification({
         userId: 0,
-        accountId: accountId2,
+        accountId,
         type: "alert",
         severity: "warning",
         title: "\u68C0\u6D4B\u5230\u6D41\u91CF\u51B2\u7A81",
@@ -339488,7 +339686,7 @@ async function runTrafficConflictDetectionTask(accountId2) {
     if (config2.notificationConfig.notifyOnFailure) {
       await sendNotification({
         userId: 0,
-        accountId: accountId2,
+        accountId,
         type: "alert",
         severity: "warning",
         title: "\u6D41\u91CF\u51B2\u7A81\u68C0\u6D4B\u5931\u8D25",
@@ -339503,8 +339701,8 @@ async function runTrafficConflictDetectionTask(accountId2) {
     };
   }
 }
-async function runFullTrafficIsolationCycle(accountId2, overrideConfig) {
-  const config2 = getAccountAutomationConfig(accountId2);
+async function runFullTrafficIsolationCycle(accountId, overrideConfig) {
+  const config2 = getAccountAutomationConfig(accountId);
   if (!config2.enabled) {
     return {
       success: false,
@@ -339520,10 +339718,10 @@ async function runFullTrafficIsolationCycle(accountId2, overrideConfig) {
       }
     };
   }
-  const ngramResult = await runNGramAnalysisTask(accountId2);
-  const funnelResult = await runFunnelSyncTask(accountId2);
-  const migrationResult = await runKeywordMigrationTask(accountId2);
-  const conflictResult = await runTrafficConflictDetectionTask(accountId2);
+  const ngramResult = await runNGramAnalysisTask(accountId);
+  const funnelResult = await runFunnelSyncTask(accountId);
+  const migrationResult = await runKeywordMigrationTask(accountId);
+  const conflictResult = await runTrafficConflictDetectionTask(accountId);
   const summary = {
     totalNegativesAdded: ngramResult.appliedNegatives + (funnelResult.syncResult?.totalNegativesToAdd || 0),
     totalKeywordsMigrated: migrationResult.appliedMigrations,
@@ -339533,7 +339731,7 @@ async function runFullTrafficIsolationCycle(accountId2, overrideConfig) {
   if (config2.notificationConfig.dailySummary) {
     await sendNotification({
       userId: 0,
-      accountId: accountId2,
+      accountId,
       type: "report",
       severity: "info",
       title: "\u6D41\u91CF\u9694\u79BB\u81EA\u52A8\u5316\u5468\u671F\u5B8C\u6210",
@@ -339691,7 +339889,7 @@ async function executeHealthCheck(campaigns7, notificationConfig = defaultNotifi
     };
   }
 }
-async function executeTrafficIsolationFull(accountId2, config2) {
+async function executeTrafficIsolationFull(accountId, config2) {
   const startedAt = /* @__PURE__ */ new Date();
   try {
     const fullConfig = {
@@ -339714,7 +339912,7 @@ async function executeTrafficIsolationFull(accountId2, config2) {
         "traffic_conflict_resolution"
       ]
     };
-    const result = await runFullTrafficIsolationCycle(accountId2, fullConfig);
+    const result = await runFullTrafficIsolationCycle(accountId, fullConfig);
     const completedAt = /* @__PURE__ */ new Date();
     return {
       taskId: 0,
@@ -340235,7 +340433,7 @@ function generateRollbackReason(rule2, estimatedProfit, actualProfit, profitDiff
   const direction = profitDiff < 0 ? "\u4F4E\u4E8E" : "\u9AD8\u4E8E";
   return `\u6839\u636E\u89C4\u5219"${rule2.name}"\uFF1A${trackingDays}\u5929\u5B9E\u9645\u5229\u6DA6($${actualProfit.toFixed(2)})${direction}\u9884\u4F30\u5229\u6DA6($${estimatedProfit.toFixed(2)})${Math.abs(100 - profitDifferencePercent).toFixed(1)}%\uFF0C\u89E6\u53D1\u56DE\u6EDA\u5EFA\u8BAE\u3002`;
 }
-async function runRollbackEvaluation(accountId2) {
+async function runRollbackEvaluation(accountId) {
   const db = await getDb();
   if (!db) return { evaluated: 0, suggestions: [] };
   let query2 = db.select().from(bidAdjustmentHistory).where(
@@ -340246,7 +340444,7 @@ async function runRollbackEvaluation(accountId2) {
     )
   );
   const records = await query2;
-  const filteredRecords = accountId2 ? records.filter((r5) => r5.accountId === accountId2) : records;
+  const filteredRecords = accountId ? records.filter((r5) => r5.accountId === accountId) : records;
   const newSuggestions = [];
   const enabledRules = rollbackRules.filter((r5) => r5.enabled);
   for (const record2 of filteredRecords) {
@@ -340363,15 +340561,15 @@ function resetAlgorithmParameters() {
   currentParameters = { ...DEFAULT_ALGORITHM_PARAMETERS };
   return currentParameters;
 }
-async function calculateAlgorithmPerformance(accountId2, days = 30) {
+async function calculateAlgorithmPerformance(accountId, days = 30) {
   const db = await getDb();
   if (!db) return null;
   const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1e3);
   let records = await db.select().from(bidAdjustmentHistory).where(
     sql`${bidAdjustmentHistory.status} != 'rolled_back'`
   );
-  if (accountId2) {
-    records = records.filter((r5) => r5.accountId === accountId2);
+  if (accountId) {
+    records = records.filter((r5) => r5.accountId === accountId);
   }
   records = records.filter((r5) => {
     const adjustedAt = r5.appliedAt ? new Date(r5.appliedAt) : null;
@@ -340450,7 +340648,7 @@ function calculateDirectionAccuracy(records, actualField) {
   }
   return Math.round(correctCount / records.length * 100 * 100) / 100;
 }
-async function analyzeByAdjustmentType(accountId2, days = 30) {
+async function analyzeByAdjustmentType(accountId, days = 30) {
   const db = await getDb();
   if (!db) return [];
   const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1e3);
@@ -340460,8 +340658,8 @@ async function analyzeByAdjustmentType(accountId2, days = 30) {
       isNotNull(bidAdjustmentHistory.actualProfit7D)
     )
   );
-  if (accountId2) {
-    records = records.filter((r5) => r5.accountId === accountId2);
+  if (accountId) {
+    records = records.filter((r5) => r5.accountId === accountId);
   }
   records = records.filter((r5) => {
     const adjustedAt = r5.appliedAt ? new Date(r5.appliedAt) : null;
@@ -340492,7 +340690,7 @@ async function analyzeByAdjustmentType(accountId2, days = 30) {
   }
   return results.sort((a4, b6) => b6.count - a4.count);
 }
-async function analyzeByBidChangeRange(accountId2, days = 30) {
+async function analyzeByBidChangeRange(accountId, days = 30) {
   const db = await getDb();
   if (!db) return [];
   const cutoffDate = new Date(Date.now() - days * 24 * 60 * 60 * 1e3);
@@ -340502,8 +340700,8 @@ async function analyzeByBidChangeRange(accountId2, days = 30) {
       isNotNull(bidAdjustmentHistory.actualProfit7D)
     )
   );
-  if (accountId2) {
-    records = records.filter((r5) => r5.accountId === accountId2);
+  if (accountId) {
+    records = records.filter((r5) => r5.accountId === accountId);
   }
   records = records.filter((r5) => {
     const adjustedAt = r5.appliedAt ? new Date(r5.appliedAt) : null;
@@ -340570,11 +340768,11 @@ function generateRangeRecommendation(range8, accuracy, mae, count2) {
     return `${range8}\u8303\u56F4\u8C03\u6574\u6548\u679C\u8F83\u5DEE\uFF0C\u5EFA\u8BAE\u907F\u514D\u6B64\u5E45\u5EA6\u7684\u8C03\u6574`;
   }
 }
-async function generateOptimizationSuggestions(accountId2, days = 30) {
+async function generateOptimizationSuggestions(accountId, days = 30) {
   const suggestions = [];
-  const metrics = await calculateAlgorithmPerformance(accountId2, days);
-  const byType = await analyzeByAdjustmentType(accountId2, days);
-  const byRange = await analyzeByBidChangeRange(accountId2, days);
+  const metrics = await calculateAlgorithmPerformance(accountId, days);
+  const byType = await analyzeByAdjustmentType(accountId, days);
+  const byRange = await analyzeByBidChangeRange(accountId, days);
   if (metrics.accuracy7d !== null) {
     if (metrics.accuracy7d < 50) {
       suggestions.push({
@@ -341603,10 +341801,10 @@ async function analyzeABTestResults(testId) {
     recommendation
   };
 }
-async function getABTests(accountId2) {
+async function getABTests(accountId) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(abTests).where(eq(abTests.accountId, accountId2)).orderBy(desc(abTests.createdAt));
+  return db.select().from(abTests).where(eq(abTests.accountId, accountId)).orderBy(desc(abTests.createdAt));
 }
 async function getABTestById(testId) {
   const db = await getDb();
@@ -341705,10 +341903,10 @@ async function deleteAutoExecutionConfig(configId) {
   if (!db) throw new Error("Database not available");
   await db.delete(budgetAutoExecutionConfigs).where(eq(budgetAutoExecutionConfigs.id, configId));
 }
-async function getAutoExecutionConfigs(accountId2) {
+async function getAutoExecutionConfigs(accountId) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(budgetAutoExecutionConfigs).where(eq(budgetAutoExecutionConfigs.accountId, accountId2)).orderBy(desc(budgetAutoExecutionConfigs.createdAt));
+  return db.select().from(budgetAutoExecutionConfigs).where(eq(budgetAutoExecutionConfigs.accountId, accountId)).orderBy(desc(budgetAutoExecutionConfigs.createdAt));
 }
 async function getAutoExecutionConfigById(configId) {
   const db = await getDb();
@@ -341926,10 +342124,10 @@ async function executeBudgetAllocation(configId) {
     throw error54;
   }
 }
-async function getExecutionHistory2(accountId2, limit = 50) {
+async function getExecutionHistory2(accountId, limit = 50) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(budgetAutoExecutionHistory).where(eq(budgetAutoExecutionHistory.accountId, accountId2)).orderBy(desc(budgetAutoExecutionHistory.executionStartAt)).limit(limit);
+  return db.select().from(budgetAutoExecutionHistory).where(eq(budgetAutoExecutionHistory.accountId, accountId)).orderBy(desc(budgetAutoExecutionHistory.executionStartAt)).limit(limit);
 }
 async function getExecutionDetails(executionId) {
   const db = await getDb();
@@ -342108,7 +342306,7 @@ function generateNgrams2(tokens, n7) {
   }
   return ngrams;
 }
-async function getCoreKeywordRoots(accountId2, campaignIds) {
+async function getCoreKeywordRoots(accountId, campaignIds) {
   const db = await getDb();
   if (!db) return /* @__PURE__ */ new Set();
   let query2 = `
@@ -342116,7 +342314,7 @@ async function getCoreKeywordRoots(accountId2, campaignIds) {
     FROM keywords 
     WHERE account_id = ?
   `;
-  const params = [accountId2];
+  const params = [accountId];
   if (campaignIds && campaignIds.length > 0) {
     query2 += ` AND campaign_id IN (${campaignIds.map(() => "?").join(",")})`;
     params.push(...campaignIds);
@@ -342130,13 +342328,13 @@ async function getCoreKeywordRoots(accountId2, campaignIds) {
   }
   return coreRoots;
 }
-async function analyzeSearchTermNgrams(accountId2, campaignIds, days = 30) {
+async function analyzeSearchTermNgrams(accountId, campaignIds, days = 30) {
   const db = await getDb();
   if (!db) return /* @__PURE__ */ new Map();
   const startDate = /* @__PURE__ */ new Date();
   startDate.setDate(startDate.getDate() - days);
   const startDateStr = startDate.toISOString().split("T")[0];
-  const coreRoots = await getCoreKeywordRoots(accountId2, campaignIds);
+  const coreRoots = await getCoreKeywordRoots(accountId, campaignIds);
   let query2 = `
     SELECT 
       search_term,
@@ -342149,7 +342347,7 @@ async function analyzeSearchTermNgrams(accountId2, campaignIds, days = 30) {
     WHERE account_id = ?
     AND report_start_date >= ?
   `;
-  const params = [accountId2, startDateStr];
+  const params = [accountId, startDateStr];
   if (campaignIds && campaignIds.length > 0) {
     query2 += ` AND campaign_id IN (${campaignIds.map(() => "?").join(",")})`;
     params.push(...campaignIds);
@@ -342236,8 +342434,8 @@ async function analyzeSearchTermNgrams(accountId2, campaignIds, days = 30) {
   }
   return analysisResults;
 }
-async function generateNegativeKeywordSuggestions(accountId2, campaignIds, days = 30) {
-  const analysisResults = await analyzeSearchTermNgrams(accountId2, campaignIds, days);
+async function generateNegativeKeywordSuggestions(accountId, campaignIds, days = 30) {
+  const analysisResults = await analyzeSearchTermNgrams(accountId, campaignIds, days);
   const suggestions = [];
   for (const [ngram, result] of Array.from(analysisResults.entries())) {
     if (!result.isNegativeCandidate) continue;
@@ -342266,7 +342464,7 @@ async function generateNegativeKeywordSuggestions(accountId2, campaignIds, days 
   });
   return suggestions;
 }
-async function executeNegativeKeywords(accountId2, campaignId, adGroupId, negatives) {
+async function executeNegativeKeywords(accountId, campaignId, adGroupId, negatives) {
   const db = await getDb();
   if (!db) return { success: false, addedCount: 0, errors: ["Database not available"] };
   const errors = [];
@@ -342274,7 +342472,7 @@ async function executeNegativeKeywords(accountId2, campaignId, adGroupId, negati
   for (const negative of negatives) {
     try {
       await db.insert(negativeKeywords).values({
-        accountId: accountId2,
+        accountId,
         campaignId,
         adGroupId,
         negativeLevel: adGroupId ? "ad_group" : "campaign",
@@ -342297,8 +342495,8 @@ async function executeNegativeKeywords(accountId2, campaignId, adGroupId, negati
     errors
   };
 }
-async function getNgramAnalysisSummary(accountId2, campaignIds, days = 30) {
-  const analysisResults = await analyzeSearchTermNgrams(accountId2, campaignIds, days);
+async function getNgramAnalysisSummary(accountId, campaignIds, days = 30) {
+  const analysisResults = await analyzeSearchTermNgrams(accountId, campaignIds, days);
   let totalSearchTerms = 0;
   let negativeCandidates = 0;
   let highPriority = 0;
@@ -342334,11 +342532,11 @@ async function getNgramAnalysisSummary(accountId2, campaignIds, days = 30) {
     estimatedSavings
   };
 }
-async function generateNgramAnalysisReport(accountId2, campaignIds, days = 30) {
-  const summary = await getNgramAnalysisSummary(accountId2, campaignIds, days);
-  const suggestions = await generateNegativeKeywordSuggestions(accountId2, campaignIds, days);
-  const analysisResults = await analyzeSearchTermNgrams(accountId2, campaignIds, days);
-  const coreRoots = await getCoreKeywordRoots(accountId2, campaignIds);
+async function generateNgramAnalysisReport(accountId, campaignIds, days = 30) {
+  const summary = await getNgramAnalysisSummary(accountId, campaignIds, days);
+  const suggestions = await generateNegativeKeywordSuggestions(accountId, campaignIds, days);
+  const analysisResults = await analyzeSearchTermNgrams(accountId, campaignIds, days);
+  const coreRoots = await getCoreKeywordRoots(accountId, campaignIds);
   const topWastefulNgrams = Array.from(analysisResults.values()).filter((r5) => r5.totalOrders === 0 || r5.acos > 50).sort((a4, b6) => b6.totalSpend - a4.totalSpend).slice(0, 20);
   return {
     summary,
@@ -342385,7 +342583,7 @@ var MIGRATION_CONFIG = {
     // 第三层：广泛匹配
   }
 };
-async function analyzeSearchTermPerformance(accountId2, campaignIds, days = 30) {
+async function analyzeSearchTermPerformance(accountId, campaignIds, days = 30) {
   const db = await getDb();
   if (!db) return [];
   const startDate = /* @__PURE__ */ new Date();
@@ -342408,7 +342606,7 @@ async function analyzeSearchTermPerformance(accountId2, campaignIds, days = 30) 
     WHERE st.account_id = ?
     AND st.report_start_date >= ?
   `;
-  const params = [accountId2, startDateStr];
+  const params = [accountId, startDateStr];
   if (campaignIds && campaignIds.length > 0) {
     query2 += ` AND st.campaign_id IN (${campaignIds.map(() => "?").join(",")})`;
     params.push(...campaignIds);
@@ -342444,8 +342642,8 @@ async function analyzeSearchTermPerformance(accountId2, campaignIds, days = 30) 
     };
   });
 }
-async function generateMigrationSuggestions(accountId2, campaignIds, days = 30, targetRoas = 3) {
-  const termPerformance = await analyzeSearchTermPerformance(accountId2, campaignIds, days);
+async function generateMigrationSuggestions(accountId, campaignIds, days = 30, targetRoas = 3) {
+  const termPerformance = await analyzeSearchTermPerformance(accountId, campaignIds, days);
   const suggestions = [];
   const triggers = MIGRATION_CONFIG.MIGRATION_TRIGGERS;
   for (const term of termPerformance) {
@@ -342508,8 +342706,8 @@ async function generateMigrationSuggestions(accountId2, campaignIds, days = 30, 
   });
   return suggestions;
 }
-async function detectTrafficConflicts3(accountId2, campaignIds, days = 30) {
-  const termPerformance = await analyzeSearchTermPerformance(accountId2, campaignIds, days);
+async function detectTrafficConflicts3(accountId, campaignIds, days = 30) {
+  const termPerformance = await analyzeSearchTermPerformance(accountId, campaignIds, days);
   const termGroups = /* @__PURE__ */ new Map();
   for (const term of termPerformance) {
     const existing = termGroups.get(term.searchTerm) || [];
@@ -342567,7 +342765,7 @@ async function detectTrafficConflicts3(accountId2, campaignIds, days = 30) {
   });
   return conflicts;
 }
-async function executeTrafficIsolation(accountId2, isolations) {
+async function executeTrafficIsolation(accountId, isolations) {
   const db = await getDb();
   if (!db) return { success: false, addedCount: 0, errors: ["Database not available"] };
   const errors = [];
@@ -342575,7 +342773,7 @@ async function executeTrafficIsolation(accountId2, isolations) {
   for (const isolation of isolations) {
     try {
       await db.insert(negativeKeywords).values({
-        accountId: accountId2,
+        accountId,
         campaignId: isolation.campaignId,
         adGroupId: isolation.adGroupId || null,
         negativeLevel: isolation.adGroupId ? "ad_group" : "campaign",
@@ -342598,10 +342796,10 @@ async function executeTrafficIsolation(accountId2, isolations) {
     errors
   };
 }
-async function getMigrationSummary(accountId2, campaignIds, days = 30) {
-  const suggestions = await generateMigrationSuggestions(accountId2, campaignIds, days);
-  const conflicts = await detectTrafficConflicts3(accountId2, campaignIds, days);
-  const termPerformance = await analyzeSearchTermPerformance(accountId2, campaignIds, days);
+async function getMigrationSummary(accountId, campaignIds, days = 30) {
+  const suggestions = await generateMigrationSuggestions(accountId, campaignIds, days);
+  const conflicts = await detectTrafficConflicts3(accountId, campaignIds, days);
+  const termPerformance = await analyzeSearchTermPerformance(accountId, campaignIds, days);
   const uniqueTerms = new Set(termPerformance.map((t7) => t7.searchTerm));
   const highPriority = suggestions.filter((s4) => s4.priority === "high").length;
   const mediumPriority = suggestions.filter((s4) => s4.priority === "medium").length;
@@ -342953,13 +343151,13 @@ async function upsertSpendLimitConfig(params) {
     return null;
   }
 }
-async function getSpendLimitConfig(userId, accountId2) {
+async function getSpendLimitConfig(userId, accountId) {
   const db = await getDb();
   if (!db) return null;
   try {
     const configs = await db.select().from(spendLimitConfigs).where(and(
       eq(spendLimitConfigs.userId, userId),
-      eq(spendLimitConfigs.accountId, accountId2)
+      eq(spendLimitConfigs.accountId, accountId)
     )).limit(1);
     return configs[0] || null;
   } catch (error54) {
@@ -342967,13 +343165,13 @@ async function getSpendLimitConfig(userId, accountId2) {
     return null;
   }
 }
-async function getSpendAlertHistory(userId, accountId2, limit = 50) {
+async function getSpendAlertHistory(userId, accountId, limit = 50) {
   const db = await getDb();
   if (!db) return [];
   try {
     const conditions = [eq(spendAlertLogs.userId, userId)];
-    if (accountId2) {
-      conditions.push(eq(spendAlertLogs.accountId, accountId2));
+    if (accountId) {
+      conditions.push(eq(spendAlertLogs.accountId, accountId));
     }
     const alerts = await db.select().from(spendAlertLogs).where(and(...conditions)).orderBy(desc(spendAlertLogs.createdAt)).limit(limit);
     return alerts;
@@ -343027,13 +343225,13 @@ async function createAnomalyRule(params) {
     return null;
   }
 }
-async function getAnomalyRules(userId, accountId2) {
+async function getAnomalyRules(userId, accountId) {
   const db = await getDb();
   if (!db) return [];
   try {
     const conditions = [eq(anomalyDetectionRules.userId, userId)];
-    if (accountId2) {
-      conditions.push(eq(anomalyDetectionRules.accountId, accountId2));
+    if (accountId) {
+      conditions.push(eq(anomalyDetectionRules.accountId, accountId));
     }
     const rules = await db.select().from(anomalyDetectionRules).where(and(...conditions)).orderBy(desc(anomalyDetectionRules.priority));
     return rules;
@@ -343058,13 +343256,13 @@ async function resumePausedEntities(recordId, userId, resumeReason) {
     return false;
   }
 }
-async function getAutoPauseRecords(userId, accountId2, includeResumed = false) {
+async function getAutoPauseRecords(userId, accountId, includeResumed = false) {
   const db = await getDb();
   if (!db) return [];
   try {
     const conditions = [eq(autoPauseRecords.userId, userId)];
-    if (accountId2) {
-      conditions.push(eq(autoPauseRecords.accountId, accountId2));
+    if (accountId) {
+      conditions.push(eq(autoPauseRecords.accountId, accountId));
     }
     if (!includeResumed) {
       conditions.push(eq(autoPauseRecords.isResumed, 0));
@@ -343299,11 +343497,11 @@ async function calculateOptimalDepletionTime(campaignId) {
     reason: "\u57FA\u4E8E\u884C\u4E1A\u6700\u4F73\u5B9E\u8DF5\uFF0C\u5EFA\u8BAE\u9884\u7B97\u572822:00\u5DE6\u53F3\u8017\u5C3D\uFF0C\u4EE5\u8986\u76D6\u5168\u5929\u4E3B\u8981\u6D41\u91CF\u65F6\u6BB5\u3002"
   };
 }
-async function analyzeBudgetDepletionRisk(accountId2) {
+async function analyzeBudgetDepletionRisk(accountId) {
   const db = await getDb();
   if (!db) return [];
   const activeCampaigns = await db.select().from(campaigns).where(and(
-    eq(campaigns.accountId, accountId2),
+    eq(campaigns.accountId, accountId),
     eq(campaigns.campaignStatus, "enabled")
   ));
   const currentHour = (/* @__PURE__ */ new Date()).getHours();
@@ -343347,10 +343545,10 @@ var DEFAULT_ATTRIBUTION_MODEL = {
   },
   lastCalibrated: /* @__PURE__ */ new Date()
 };
-async function getAttributionModel(accountId2) {
+async function getAttributionModel(accountId) {
   return {
     ...DEFAULT_ATTRIBUTION_MODEL,
-    accountId: accountId2
+    accountId
   };
 }
 function adjustForAttributionDelay(rawMetrics, dataDate, model, campaignType = "sp_manual") {
@@ -343396,10 +343594,10 @@ function adjustForAttributionDelay(rawMetrics, dataDate, model, campaignType = "
     dataAge
   };
 }
-async function adjustRecentPerformanceData(accountId2, days = 7) {
+async function adjustRecentPerformanceData(accountId, days = 7) {
   const db = await getDb();
   if (!db) return [];
-  const model = await getAttributionModel(accountId2);
+  const model = await getAttributionModel(accountId);
   const results = [];
   for (let i4 = 0; i4 < days; i4++) {
     const date12 = subDays(/* @__PURE__ */ new Date(), i4);
@@ -343411,7 +343609,7 @@ async function adjustRecentPerformanceData(accountId2, days = 7) {
       sales: sql`SUM(${dailyPerformance.sales})`,
       orders: sql`SUM(${dailyPerformance.orders})`
     }).from(dailyPerformance).where(and(
-      eq(dailyPerformance.accountId, accountId2),
+      eq(dailyPerformance.accountId, accountId),
       sql`DATE(${dailyPerformance.date}) = ${dateStr}`
     ));
     if (dayData[0]) {
@@ -343503,11 +343701,11 @@ function detectOverbidding(target, targetAcos, profitMargin) {
     expectedSavings
   };
 }
-async function analyzeBidEfficiency(accountId2, targetAcos = 0.25, profitMargin = 0.3, minClicks = 10) {
+async function analyzeBidEfficiency(accountId, targetAcos = 0.25, profitMargin = 0.3, minClicks = 10) {
   const db = await getDb();
   if (!db) {
     return {
-      accountId: accountId2,
+      accountId,
       analysisDate: /* @__PURE__ */ new Date(),
       totalTargets: 0,
       overbiddingCount: 0,
@@ -343518,11 +343716,11 @@ async function analyzeBidEfficiency(accountId2, targetAcos = 0.25, profitMargin 
       recommendations: []
     };
   }
-  const adGroupList = await db.select().from(adGroups).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId2));
+  const adGroupList = await db.select().from(adGroups).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
   const adGroupIds = adGroupList.map((ag) => ag.ad_groups.id);
   if (adGroupIds.length === 0) {
     return {
-      accountId: accountId2,
+      accountId,
       analysisDate: /* @__PURE__ */ new Date(),
       totalTargets: 0,
       overbiddingCount: 0,
@@ -343592,7 +343790,7 @@ async function analyzeBidEfficiency(accountId2, targetAcos = 0.25, profitMargin 
     recommendations.push("\u591A\u4E2A\u6295\u653E\u8BCD\u7684\u51FA\u4EF7\u8FDC\u9AD8\u4E8E\u5B9E\u9645CPC\uFF0C\u5EFA\u8BAE\u964D\u4F4E\u8FD9\u4E9B\u6295\u653E\u8BCD\u7684\u51FA\u4EF7\u3002");
   }
   return {
-    accountId: accountId2,
+    accountId,
     analysisDate: /* @__PURE__ */ new Date(),
     totalTargets: analyses.length,
     overbiddingCount,
@@ -343612,10 +343810,10 @@ var PROMOTIONAL_EVENTS_2026 = [
   { name: "Mother's Day", date: /* @__PURE__ */ new Date("2026-05-10"), duration: 1 },
   { name: "Father's Day", date: /* @__PURE__ */ new Date("2026-06-21"), duration: 1 }
 ];
-async function learnSeasonalPatterns(accountId2, metric = "sales") {
+async function learnSeasonalPatterns(accountId, metric = "sales") {
   const db = await getDb();
   const defaultPattern = {
-    accountId: accountId2,
+    accountId,
     weekdayFactors: [0.85, 1.05, 1.1, 1.1, 1.15, 1, 0.75],
     // 周日到周六
     monthdayFactors: Array(31).fill(1),
@@ -343627,7 +343825,7 @@ async function learnSeasonalPatterns(accountId2, metric = "sales") {
   if (!db) return defaultPattern;
   const startDate = subDays(/* @__PURE__ */ new Date(), 365);
   const historicalData = await db.select().from(dailyPerformance).where(and(
-    eq(dailyPerformance.accountId, accountId2),
+    eq(dailyPerformance.accountId, accountId),
     gte(dailyPerformance.date, formatDate(startDate))
   )).orderBy(dailyPerformance.date);
   if (historicalData.length < 30) {
@@ -343662,7 +343860,7 @@ async function learnSeasonalPatterns(accountId2, metric = "sales") {
   const monthlyFactors = monthlyAvg.map((v6) => v6 > 0 ? v6 / monthlyOverall : 1);
   const confidence = Math.min(1, historicalData.length / 365);
   return {
-    accountId: accountId2,
+    accountId,
     weekdayFactors,
     monthdayFactors,
     monthlyFactors,
@@ -343679,8 +343877,8 @@ function getUpcomingEvent(targetDate, daysAhead = 14) {
   }
   return null;
 }
-async function generateSeasonalStrategy(accountId2, targetDate = /* @__PURE__ */ new Date()) {
-  const pattern = await learnSeasonalPatterns(accountId2);
+async function generateSeasonalStrategy(accountId, targetDate = /* @__PURE__ */ new Date()) {
+  const pattern = await learnSeasonalPatterns(accountId);
   const weekday = targetDate.getDay();
   const monthday = targetDate.getDate() - 1;
   const month = targetDate.getMonth();
@@ -343791,7 +343989,7 @@ function getUpcomingPromotionalEvents(daysAhead = 30) {
   }
   return events.sort((a4, b6) => a4.daysUntil - b6.daysUntil);
 }
-async function runSpecialScenarioAnalysis(accountId2, options = {}) {
+async function runSpecialScenarioAnalysis(accountId, options = {}) {
   const { targetAcos = 0.25, profitMargin = 0.3, minClicks = 10 } = options;
   const [
     budgetDepletion,
@@ -343799,10 +343997,10 @@ async function runSpecialScenarioAnalysis(accountId2, options = {}) {
     bidEfficiency,
     seasonalStrategy
   ] = await Promise.all([
-    analyzeBudgetDepletionRisk(accountId2),
-    adjustRecentPerformanceData(accountId2, 7),
-    analyzeBidEfficiency(accountId2, targetAcos, profitMargin, minClicks),
-    generateSeasonalStrategy(accountId2)
+    analyzeBudgetDepletionRisk(accountId),
+    adjustRecentPerformanceData(accountId, 7),
+    analyzeBidEfficiency(accountId, targetAcos, profitMargin, minClicks),
+    generateSeasonalStrategy(accountId)
   ]);
   const upcomingEvents = getUpcomingPromotionalEvents(30);
   const criticalIssues = [];
@@ -343862,8 +344060,8 @@ var autoOperationService = {
   /**
    * 获取账号的自动运营配置
    */
-  async getConfig(accountId2) {
-    return configStore.get(accountId2) || null;
+  async getConfig(accountId) {
+    return configStore.get(accountId) || null;
   },
   /**
    * 创建或更新自动运营配置
@@ -343892,17 +344090,17 @@ var autoOperationService = {
   /**
    * 执行完整的自动运营流程
    */
-  async executeFullOperation(accountId2) {
+  async executeFullOperation(accountId) {
     const startedAt = /* @__PURE__ */ new Date();
     const steps = [];
-    let config2 = await this.getConfig(accountId2);
+    let config2 = await this.getConfig(accountId);
     if (!config2) {
-      config2 = await this.upsertConfig({ accountId: accountId2 });
+      config2 = await this.upsertConfig({ accountId });
     }
-    const logId = `log_${Date.now()}_${accountId2}`;
+    const logId = `log_${Date.now()}_${accountId}`;
     const log2 = {
       id: logId,
-      accountId: accountId2,
+      accountId,
       operationType: "full_operation",
       status: "running",
       startedAt,
@@ -343914,37 +344112,37 @@ var autoOperationService = {
     logStore.push(log2);
     try {
       if (config2.enableDataSync) {
-        const stepResult = await this.executeDataSync(accountId2);
+        const stepResult = await this.executeDataSync(accountId);
         steps.push(stepResult);
       } else {
         steps.push({ step: "data_sync", status: "skipped", duration: 0, details: {} });
       }
       if (config2.enableNgramAnalysis) {
-        const stepResult = await this.executeNgramAnalysis(accountId2);
+        const stepResult = await this.executeNgramAnalysis(accountId);
         steps.push(stepResult);
       } else {
         steps.push({ step: "ngram_analysis", status: "skipped", duration: 0, details: {} });
       }
       if (config2.enableFunnelSync) {
-        const stepResult = await this.executeFunnelSync(accountId2);
+        const stepResult = await this.executeFunnelSync(accountId);
         steps.push(stepResult);
       } else {
         steps.push({ step: "funnel_sync", status: "skipped", duration: 0, details: {} });
       }
       if (config2.enableConflictDetection) {
-        const stepResult = await this.executeConflictDetection(accountId2);
+        const stepResult = await this.executeConflictDetection(accountId);
         steps.push(stepResult);
       } else {
         steps.push({ step: "conflict_detection", status: "skipped", duration: 0, details: {} });
       }
       if (config2.enableMigrationSuggestion) {
-        const stepResult = await this.executeMigrationSuggestion(accountId2);
+        const stepResult = await this.executeMigrationSuggestion(accountId);
         steps.push(stepResult);
       } else {
         steps.push({ step: "migration_suggestion", status: "skipped", duration: 0, details: {} });
       }
       if (config2.enableBidOptimization) {
-        const stepResult = await this.executeBidOptimization(accountId2);
+        const stepResult = await this.executeBidOptimization(accountId);
         steps.push(stepResult);
       } else {
         steps.push({ step: "bid_optimization", status: "skipped", duration: 0, details: {} });
@@ -343965,9 +344163,9 @@ var autoOperationService = {
       const nextRunAt = new Date(completedAt.getTime() + config2.intervalHours * 60 * 60 * 1e3);
       config2.lastRunAt = completedAt;
       config2.nextRunAt = nextRunAt;
-      configStore.set(accountId2, config2);
+      configStore.set(accountId, config2);
       return {
-        accountId: accountId2,
+        accountId,
         startedAt,
         completedAt,
         totalDuration,
@@ -343989,14 +344187,14 @@ var autoOperationService = {
   /**
    * 执行数据同步
    */
-  async executeDataSync(accountId2) {
+  async executeDataSync(accountId) {
     const startTime = Date.now();
     try {
       const db = await getDb();
       if (!db) {
         throw new Error("Database connection failed");
       }
-      const account = await db.select().from(adAccounts).where(eq(adAccounts.id, accountId2)).limit(1);
+      const account = await db.select().from(adAccounts).where(eq(adAccounts.id, accountId)).limit(1);
       if (!account[0]) {
         throw new Error("Account not found");
       }
@@ -344006,7 +344204,7 @@ var autoOperationService = {
         status: "success",
         duration: duration3,
         details: {
-          accountId: accountId2,
+          accountId,
           accountName: account[0].accountName,
           message: "\u6570\u636E\u540C\u6B65\u5DF2\u89E6\u53D1\uFF0C\u7B49\u5F85Amazon API\u54CD\u5E94"
         }
@@ -344024,28 +344222,28 @@ var autoOperationService = {
   /**
    * 执行N-Gram分析
    */
-  async executeNgramAnalysis(accountId2) {
+  async executeNgramAnalysis(accountId) {
     const startTime = Date.now();
     try {
       const db = await getDb();
       if (!db) {
         throw new Error("Database connection failed");
       }
-      const campaignList = await db.select().from(campaigns).where(eq(campaigns.accountId, accountId2));
+      const campaignList = await db.select().from(campaigns).where(eq(campaigns.accountId, accountId));
       let totalAnalyzed = 0;
       let totalSuggestions = 0;
       try {
         const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1e3);
         const endDate = /* @__PURE__ */ new Date();
         const result = await runNGramAnalysis(
-          accountId2,
+          accountId,
           startDate,
           endDate
         );
         totalAnalyzed = 1;
         totalSuggestions = result.suggestedNegatives?.length || 0;
       } catch (e6) {
-        console.error(`N-Gram analysis failed for account ${accountId2}:`, e6);
+        console.error(`N-Gram analysis failed for account ${accountId}:`, e6);
       }
       const duration3 = Date.now() - startTime;
       return {
@@ -344071,11 +344269,11 @@ var autoOperationService = {
   /**
    * 执行漏斗同步
    */
-  async executeFunnelSync(accountId2) {
+  async executeFunnelSync(accountId) {
     const startTime = Date.now();
     try {
       const defaultTierConfigs = [];
-      const result = await syncFunnelNegatives(accountId2, defaultTierConfigs);
+      const result = await syncFunnelNegatives(accountId, defaultTierConfigs);
       const duration3 = Date.now() - startTime;
       return {
         step: "funnel_sync",
@@ -344100,12 +344298,12 @@ var autoOperationService = {
   /**
    * 执行冲突检测
    */
-  async executeConflictDetection(accountId2) {
+  async executeConflictDetection(accountId) {
     const startTime = Date.now();
     try {
       const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1e3);
       const endDate = /* @__PURE__ */ new Date();
-      const result = await detectTrafficConflicts2(accountId2, startDate, endDate);
+      const result = await detectTrafficConflicts2(accountId, startDate, endDate);
       const duration3 = Date.now() - startTime;
       return {
         step: "conflict_detection",
@@ -344130,13 +344328,13 @@ var autoOperationService = {
   /**
    * 执行迁移建议
    */
-  async executeMigrationSuggestion(accountId2) {
+  async executeMigrationSuggestion(accountId) {
     const startTime = Date.now();
     try {
       const defaultTierConfigs = [];
       const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1e3);
       const endDate = /* @__PURE__ */ new Date();
-      const result = await getKeywordMigrationSuggestions(accountId2, defaultTierConfigs, startDate, endDate);
+      const result = await getKeywordMigrationSuggestions(accountId, defaultTierConfigs, startDate, endDate);
       const duration3 = Date.now() - startTime;
       return {
         step: "migration_suggestion",
@@ -344164,12 +344362,12 @@ var autoOperationService = {
    * 2. 没有使用算法引擎计算最优出价
    * 3. 结果是无意义的优化（新旧值相同）或错误的出价
    */
-  async executeBidOptimization(accountId2) {
+  async executeBidOptimization(accountId) {
     const startTime = Date.now();
     try {
       const { getEnabledOptimizationTargets: getEnabledOptimizationTargets2, executeOptimizationTarget: executeOptimizationTarget2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
       const allTargets = await getEnabledOptimizationTargets2();
-      const accountTargets = allTargets.filter((t7) => t7.accountId === accountId2);
+      const accountTargets = allTargets.filter((t7) => t7.accountId === accountId);
       let totalOptimized = 0;
       let totalAdjustments = 0;
       for (const target of accountTargets) {
@@ -344209,8 +344407,8 @@ var autoOperationService = {
   /**
    * 获取运营日志
    */
-  async getLogs(accountId2, limit = 50) {
-    return logStore.filter((log2) => log2.accountId === accountId2).sort((a4, b6) => b6.startedAt.getTime() - a4.startedAt.getTime()).slice(0, limit);
+  async getLogs(accountId, limit = 50) {
+    return logStore.filter((log2) => log2.accountId === accountId).sort((a4, b6) => b6.startedAt.getTime() - a4.startedAt.getTime()).slice(0, limit);
   },
   /**
    * 获取所有需要执行的账号
@@ -344218,9 +344416,9 @@ var autoOperationService = {
   async getAccountsDueForExecution() {
     const now = /* @__PURE__ */ new Date();
     const dueAccounts = [];
-    configStore.forEach((config2, accountId2) => {
+    configStore.forEach((config2, accountId) => {
       if (config2.enabled && config2.nextRunAt && config2.nextRunAt <= now) {
-        dueAccounts.push(accountId2);
+        dueAccounts.push(accountId);
       }
     });
     return dueAccounts;
@@ -344233,13 +344431,13 @@ var autoOperationService = {
     const results = [];
     let executed = 0;
     let failed = 0;
-    for (const accountId2 of accountIds) {
+    for (const accountId of accountIds) {
       try {
-        const result = await this.executeFullOperation(accountId2);
+        const result = await this.executeFullOperation(accountId);
         results.push(result);
         executed++;
       } catch (error54) {
-        console.error(`Auto operation failed for account ${accountId2}:`, error54);
+        console.error(`Auto operation failed for account ${accountId}:`, error54);
         failed++;
       }
     }
@@ -344262,7 +344460,7 @@ init_marginalBenefitAnalysisService();
 init_db2();
 init_schema2();
 init_drizzle_orm();
-async function getAlgorithmEffectStats(userId, accountId2, startDate, endDate) {
+async function getAlgorithmEffectStats(userId, accountId, startDate, endDate) {
   const db = await getDb();
   if (!db) throw new Error("Database connection failed");
   const results = await db.select({
@@ -344275,7 +344473,7 @@ async function getAlgorithmEffectStats(userId, accountId2, startDate, endDate) {
   }).from(algorithmEffectRecords).where(
     and(
       eq(algorithmEffectRecords.userId, userId),
-      accountId2 ? eq(algorithmEffectRecords.accountId, accountId2) : void 0,
+      accountId ? eq(algorithmEffectRecords.accountId, accountId) : void 0,
       startDate ? gte(algorithmEffectRecords.optimizationDate, startDate.toISOString().slice(0, 19).replace("T", " ")) : void 0,
       endDate ? lte(algorithmEffectRecords.optimizationDate, endDate.toISOString().slice(0, 19).replace("T", " ")) : void 0,
       sql`${algorithmEffectRecords.effectScore} IS NOT NULL`
@@ -344290,13 +344488,13 @@ async function getAlgorithmEffectStats(userId, accountId2, startDate, endDate) {
     positiveRate: row.count > 0 ? Math.round(Number(row.positiveCount) / Number(row.count) * 100) : 0
   }));
 }
-async function getRecentEffectRecords(userId, accountId2, limit = 50) {
+async function getRecentEffectRecords(userId, accountId, limit = 50) {
   const db = await getDb();
   if (!db) throw new Error("Database connection failed");
   return db.select().from(algorithmEffectRecords).where(
     and(
       eq(algorithmEffectRecords.userId, userId),
-      accountId2 ? eq(algorithmEffectRecords.accountId, accountId2) : void 0
+      accountId ? eq(algorithmEffectRecords.accountId, accountId) : void 0
     )
   ).orderBy(desc(algorithmEffectRecords.optimizationDate)).limit(limit);
 }
@@ -344313,7 +344511,7 @@ async function getPendingEffectRecords(userId) {
     )
   ).orderBy(algorithmEffectRecords.optimizationDate).limit(100);
 }
-async function getEffectTrend(userId, accountId2, days = 30) {
+async function getEffectTrend(userId, accountId, days = 30) {
   const startDate = /* @__PURE__ */ new Date();
   startDate.setDate(startDate.getDate() - days);
   const db = await getDb();
@@ -344327,7 +344525,7 @@ async function getEffectTrend(userId, accountId2, days = 30) {
   }).from(algorithmEffectRecords).where(
     and(
       eq(algorithmEffectRecords.userId, userId),
-      accountId2 ? eq(algorithmEffectRecords.accountId, accountId2) : void 0,
+      accountId ? eq(algorithmEffectRecords.accountId, accountId) : void 0,
       gte(algorithmEffectRecords.optimizationDate, startDate.toISOString().slice(0, 19).replace("T", " ")),
       sql`${algorithmEffectRecords.effectScore} IS NOT NULL`
     )
@@ -346973,7 +347171,7 @@ async function detectAnomalies3(params) {
     return b6.date.localeCompare(a4.date);
   });
 }
-async function findPossibleCauses(db, accountId2, anomalyDate, performanceGroupId) {
+async function findPossibleCauses(db, accountId, anomalyDate, performanceGroupId) {
   const startDate = new Date(anomalyDate);
   startDate.setDate(startDate.getDate() - 1);
   const endDate = new Date(anomalyDate);
@@ -346981,7 +347179,7 @@ async function findPossibleCauses(db, accountId2, anomalyDate, performanceGroupI
   const startStr = startDate.toISOString().slice(0, 19).replace("T", " ");
   const endStr = endDate.toISOString().slice(0, 19).replace("T", " ");
   const conditions = [
-    eq(optimizationEvents.accountId, accountId2),
+    eq(optimizationEvents.accountId, accountId),
     gte(optimizationEvents.createdAt, startStr),
     lte(optimizationEvents.createdAt, endStr),
     ne(optimizationEvents.status, "rolled_back")
@@ -347329,11 +347527,11 @@ var DEFAULT_SETTINGS = {
   underspendingThreshold: 50,
   nearDepletionThreshold: 90
 };
-async function getAlertSettings(userId, accountId2) {
+async function getAlertSettings(userId, accountId) {
   const db = await getDb();
   if (!db) return null;
   const conditions = [eq(budgetAlertSettings.userId, userId)];
-  if (accountId2) conditions.push(eq(budgetAlertSettings.accountId, accountId2));
+  if (accountId) conditions.push(eq(budgetAlertSettings.accountId, accountId));
   const settings = await db.select().from(budgetAlertSettings).where(and(...conditions)).limit(1);
   return settings[0] || null;
 }
@@ -347349,21 +347547,21 @@ async function saveAlertSettings(userId, settings) {
     return { id: result[0].insertId, userId, ...settings };
   }
 }
-async function analyzeBudgetConsumption(userId, accountId2) {
+async function analyzeBudgetConsumption(userId, accountId) {
   const db = await getDb();
   if (!db) return [];
-  const settings = await getAlertSettings(userId, accountId2);
+  const settings = await getAlertSettings(userId, accountId);
   const thresholds = {
     overspending: Number(settings?.overspendingThreshold) || DEFAULT_SETTINGS.overspendingThreshold,
     underspending: Number(settings?.underspendingThreshold) || DEFAULT_SETTINGS.underspendingThreshold,
     nearDepletion: Number(settings?.nearDepletionThreshold) || DEFAULT_SETTINGS.nearDepletionThreshold
   };
   const conditions = [eq(campaigns.campaignStatus, "enabled")];
-  if (accountId2) conditions.push(eq(campaigns.accountId, accountId2));
+  if (accountId) conditions.push(eq(campaigns.accountId, accountId));
   const activeCampaigns = await db.select().from(campaigns).where(and(...conditions));
   const today = /* @__PURE__ */ new Date();
   today.setHours(0, 0, 0, 0);
-  const marketplace = accountId2 ? await getAccountMarketplace(accountId2) : "US";
+  const marketplace = accountId ? await getAccountMarketplace(accountId) : "US";
   const hoursElapsed = Math.max(getLocalHour(/* @__PURE__ */ new Date(), marketplace), 1);
   const results = [];
   for (const campaign of activeCampaigns) {
@@ -347400,12 +347598,12 @@ async function analyzeBudgetConsumption(userId, accountId2) {
   }
   return results;
 }
-async function createBudgetAlert(userId, analysis, accountId2) {
+async function createBudgetAlert(userId, analysis, accountId) {
   const db = await getDb();
   if (!db || !analysis.alertType) return null;
   const alertData = {
     userId,
-    accountId: accountId2 ?? null,
+    accountId: accountId ?? null,
     campaignId: analysis.campaignId,
     alertType: analysis.alertType,
     severity: analysis.severity,
@@ -347420,8 +347618,8 @@ async function createBudgetAlert(userId, analysis, accountId2) {
   const result = await db.insert(budgetConsumptionAlerts).values(alertData);
   return result[0].insertId;
 }
-async function runBudgetConsumptionCheck(userId, accountId2, sendNotifications = true) {
-  const analyses = await analyzeBudgetConsumption(userId, accountId2);
+async function runBudgetConsumptionCheck(userId, accountId, sendNotifications = true) {
+  const analyses = await analyzeBudgetConsumption(userId, accountId);
   const alertDetails = [];
   let alertCount = 0;
   for (const analysis of analyses) {
@@ -347430,7 +347628,7 @@ async function runBudgetConsumptionCheck(userId, accountId2, sendNotifications =
       if (db) {
         const existingAlert = await db.select().from(budgetConsumptionAlerts).where(and(eq(budgetConsumptionAlerts.campaignId, String(analysis.campaignId)), eq(budgetConsumptionAlerts.alertType, analysis.alertType), eq(budgetConsumptionAlerts.status, "active"))).limit(1);
         if (existingAlert.length === 0) {
-          await createBudgetAlert(userId, analysis, accountId2);
+          await createBudgetAlert(userId, analysis, accountId);
           alertCount++;
           alertDetails.push(analysis);
           if (sendNotifications) await sendBudgetAlertNotification(analysis);
@@ -347484,17 +347682,17 @@ var TRACKING_DAYS = {
   "14_days": 14,
   "30_days": 30
 };
-async function createTracking(userId, allocationId, trackingPeriod = "7_days", accountId2) {
+async function createTracking(userId, allocationId, trackingPeriod = "7_days", accountId) {
   const db = await getDb();
   if (!db) return null;
   const now = /* @__PURE__ */ new Date();
   const baselineDays = TRACKING_DAYS[trackingPeriod];
   const baselineEndDate = new Date(now.getTime() - 24 * 60 * 60 * 1e3);
   const baselineStartDate = new Date(baselineEndDate.getTime() - baselineDays * 24 * 60 * 60 * 1e3);
-  const baselineMetrics = await calculatePeriodMetrics(userId, baselineStartDate, baselineEndDate, accountId2);
+  const baselineMetrics = await calculatePeriodMetrics(userId, baselineStartDate, baselineEndDate, accountId);
   const trackingData = {
     userId,
-    accountId: accountId2 ?? null,
+    accountId: accountId ?? null,
     allocationId,
     trackingPeriod,
     startDate: now.toISOString(),
@@ -347512,7 +347710,7 @@ async function createTracking(userId, allocationId, trackingPeriod = "7_days", a
   const result = await db.insert(budgetAllocationTracking).values(trackingData);
   return result[0].insertId;
 }
-async function calculatePeriodMetrics(userId, startDate, endDate, accountId2) {
+async function calculatePeriodMetrics(userId, startDate, endDate, accountId) {
   const db = await getDb();
   if (!db) return { spend: 0, sales: 0, roas: 0, acos: 0, conversions: 0, ctr: 0, cpc: 0 };
   const startDateStr = startDate.toISOString().split("T")[0];
@@ -347686,14 +347884,14 @@ async function getPromotionalEvents(options = {}) {
   if (options.isActive !== void 0) conditions.push(eq(promotionalEvents.isActive, options.isActive ? 1 : 0));
   return db.select().from(promotionalEvents).where(conditions.length > 0 ? and(...conditions) : void 0).orderBy(promotionalEvents.startDate);
 }
-async function getSeasonalTrends(userId, accountId2) {
+async function getSeasonalTrends(userId, accountId) {
   const db = await getDb();
   if (!db) return [];
   const conditions = [eq(seasonalTrends.userId, userId)];
-  if (accountId2) conditions.push(eq(seasonalTrends.accountId, accountId2));
+  if (accountId) conditions.push(eq(seasonalTrends.accountId, accountId));
   return db.select().from(seasonalTrends).where(and(...conditions)).orderBy(seasonalTrends.year, seasonalTrends.month);
 }
-async function generateSeasonalRecommendations(userId, accountId2) {
+async function generateSeasonalRecommendations(userId, accountId) {
   const db = await getDb();
   if (!db) return [];
   const now = /* @__PURE__ */ new Date();
@@ -347703,9 +347901,9 @@ async function generateSeasonalRecommendations(userId, accountId2) {
   const thirtyDaysLaterStr = thirtyDaysLater.toISOString().slice(0, 19).replace("T", " ");
   const upcomingEvents = await db.select().from(promotionalEvents).where(and(eq(promotionalEvents.isActive, 1), gte(promotionalEvents.startDate, nowStr), lte(promotionalEvents.startDate, thirtyDaysLaterStr)));
   const conditions = [eq(campaigns.campaignStatus, "enabled")];
-  if (accountId2) conditions.push(eq(campaigns.accountId, accountId2));
+  if (accountId) conditions.push(eq(campaigns.accountId, accountId));
   const activeCampaigns = await db.select().from(campaigns).where(and(...conditions));
-  const trends = await getSeasonalTrends(userId, accountId2);
+  const trends = await getSeasonalTrends(userId, accountId);
   const currentMonth = now.getMonth() + 1;
   const currentTrend = trends.find((t7) => t7.month === currentMonth);
   const seasonalIndex = currentTrend ? Number(currentTrend.seasonalIndex) : 1;
@@ -347719,7 +347917,7 @@ async function generateSeasonalRecommendations(userId, accountId2) {
         const recommendedBudget = currentBudget * multiplier;
         recommendations.push({
           userId,
-          accountId: accountId2 ?? null,
+          accountId: accountId ?? null,
           campaignId: campaign.id,
           eventId: event.id,
           recommendationType: isEvent ? "event_increase" : "event_warmup",
@@ -347739,7 +347937,7 @@ async function generateSeasonalRecommendations(userId, accountId2) {
       const multiplier = Math.min(seasonalIndex, 1.5);
       recommendations.push({
         userId,
-        accountId: accountId2 ?? null,
+        accountId: accountId ?? null,
         campaignId: campaign.id,
         recommendationType: "seasonal_increase",
         currentBudget: currentBudget.toString(),
@@ -347754,7 +347952,7 @@ async function generateSeasonalRecommendations(userId, accountId2) {
       const multiplier = Math.max(seasonalIndex, 0.7);
       recommendations.push({
         userId,
-        accountId: accountId2 ?? null,
+        accountId: accountId ?? null,
         campaignId: campaign.id,
         recommendationType: "seasonal_decrease",
         currentBudget: currentBudget.toString(),
@@ -348017,10 +348215,10 @@ var RateLimiter = class {
   }
 };
 var rateLimiter = new RateLimiter();
-async function createSyncJob2(userId, accountId2, syncType = "all") {
+async function createSyncJob2(userId, accountId, syncType = "all") {
   const db = await getDb();
   if (!db) return null;
-  const jobData = { userId, accountId: accountId2, syncType, status: "pending" };
+  const jobData = { userId, accountId, syncType, status: "pending" };
   const result = await db.insert(dataSyncJobs).values(jobData);
   return result[0].insertId;
 }
@@ -348066,7 +348264,7 @@ async function executeSyncJob(jobId) {
     return { success: false, message: error54.message };
   }
 }
-async function syncCampaigns(userId, accountId2, account) {
+async function syncCampaigns(userId, accountId, account) {
   try {
     const { AmazonSyncService: AmazonSyncService2 } = await Promise.resolve().then(() => (init_amazonSyncService(), amazonSyncService_exports));
     const syncService = await AmazonSyncService2.createFromCredentials(
@@ -348077,7 +348275,7 @@ async function syncCampaigns(userId, accountId2, account) {
         profileId: account.profileId,
         region: account.region || "NA"
       },
-      accountId2,
+      accountId,
       userId,
       account.marketplace || "US"
     );
@@ -348088,11 +348286,11 @@ async function syncCampaigns(userId, accountId2, account) {
       message: `\u901A\u8FC7Amazon API\u540C\u6B65\u4E86${result?.campaigns || 0}\u4E2A\u5E7F\u544A\u6D3B\u52A8`
     };
   } catch (error54) {
-    console.error(`[dataSyncService] syncCampaigns\u5931\u8D25 accountId=${accountId2}:`, error54.message);
+    console.error(`[dataSyncService] syncCampaigns\u5931\u8D25 accountId=${accountId}:`, error54.message);
     return { success: false, count: 0, message: error54.message };
   }
 }
-async function syncKeywords(userId, accountId2, account) {
+async function syncKeywords(userId, accountId, account) {
   try {
     const { AmazonSyncService: AmazonSyncService2 } = await Promise.resolve().then(() => (init_amazonSyncService(), amazonSyncService_exports));
     const syncService = await AmazonSyncService2.createFromCredentials(
@@ -348103,7 +348301,7 @@ async function syncKeywords(userId, accountId2, account) {
         profileId: account.profileId,
         region: account.region || "NA"
       },
-      accountId2,
+      accountId,
       userId,
       account.marketplace || "US"
     );
@@ -348114,11 +348312,11 @@ async function syncKeywords(userId, accountId2, account) {
       message: `\u901A\u8FC7Amazon API\u540C\u6B65\u4E86${result?.keywords || 0}\u4E2A\u5173\u952E\u8BCD`
     };
   } catch (error54) {
-    console.error(`[dataSyncService] syncKeywords\u5931\u8D25 accountId=${accountId2}:`, error54.message);
+    console.error(`[dataSyncService] syncKeywords\u5931\u8D25 accountId=${accountId}:`, error54.message);
     return { success: false, count: 0, message: error54.message };
   }
 }
-async function syncPerformance(userId, accountId2, account) {
+async function syncPerformance(userId, accountId, account) {
   try {
     const { AmazonSyncService: AmazonSyncService2 } = await Promise.resolve().then(() => (init_amazonSyncService(), amazonSyncService_exports));
     const syncService = await AmazonSyncService2.createFromCredentials(
@@ -348129,7 +348327,7 @@ async function syncPerformance(userId, accountId2, account) {
         profileId: account.profileId,
         region: account.region || "NA"
       },
-      accountId2,
+      accountId,
       userId,
       account.marketplace || "US"
     );
@@ -348140,7 +348338,7 @@ async function syncPerformance(userId, accountId2, account) {
       message: `\u901A\u8FC7Amazon API\u540C\u6B65\u4E86${result?.performance || 0}\u6761\u7EE9\u6548\u6570\u636E`
     };
   } catch (error54) {
-    console.error(`[dataSyncService] syncPerformance\u5931\u8D25 accountId=${accountId2}:`, error54.message);
+    console.error(`[dataSyncService] syncPerformance\u5931\u8D25 accountId=${accountId}:`, error54.message);
     return { success: false, count: 0, message: error54.message };
   }
 }
@@ -348179,14 +348377,14 @@ async function cancelSyncJob(jobId, userId) {
 function getRateLimitStatus() {
   return rateLimiter.getQueueStatus();
 }
-async function getApiUsageStats(accountId2) {
+async function getApiUsageStats(accountId) {
   const db = await getDb();
   if (!db) return null;
   const oneHourAgo = new Date(Date.now() - 36e5);
   const stats = await db.select({
     totalRequests: sql`SUM(${apiRateLimits.currentDayCount})`,
     recordCount: sql`COUNT(*)`
-  }).from(apiRateLimits).where(and(eq(apiRateLimits.accountId, accountId2), sql`${apiRateLimits.updatedAt} >= ${oneHourAgo}`));
+  }).from(apiRateLimits).where(and(eq(apiRateLimits.accountId, accountId), sql`${apiRateLimits.updatedAt} >= ${oneHourAgo}`));
   return { totalRequests: stats[0]?.totalRequests || 0, recordCount: stats[0]?.recordCount || 0, limits: RATE_LIMITS };
 }
 async function createSyncSchedule2(config2) {
@@ -348256,17 +348454,17 @@ async function getSyncScheduleById(id, userId) {
   const rows = result[0];
   return rows?.[0] || null;
 }
-async function getSyncSchedules(userId, accountId2) {
+async function getSyncSchedules(userId, accountId) {
   const db = await getDb();
   if (!db) return [];
   let query2 = sql`
     SELECT id, user_id as userId, account_id as accountId, sync_type as syncType, frequency, hour, day_of_week as dayOfWeek, day_of_month as dayOfMonth, is_enabled as isEnabled, last_run_at as lastRunAt, next_run_at as nextRunAt
     FROM sync_schedules WHERE user_id = ${userId}
   `;
-  if (accountId2) {
+  if (accountId) {
     query2 = sql`
       SELECT id, user_id as userId, account_id as accountId, sync_type as syncType, frequency, hour, day_of_week as dayOfWeek, day_of_month as dayOfMonth, is_enabled as isEnabled, last_run_at as lastRunAt, next_run_at as nextRunAt
-      FROM sync_schedules WHERE user_id = ${userId} AND account_id = ${accountId2}
+      FROM sync_schedules WHERE user_id = ${userId} AND account_id = ${accountId}
     `;
   }
   const result = await db.execute(query2);
@@ -348411,9 +348609,9 @@ async function executeScheduledSyncWithRetry(scheduleId) {
       lastError = error54;
       retryCount++;
       if (retryCount <= RETRY_CONFIG.maxRetries) {
-        const delay2 = RETRY_CONFIG.retryDelayMs * Math.pow(RETRY_CONFIG.backoffMultiplier, retryCount - 1);
-        console.log(`\u8C03\u5EA6 ${scheduleId} \u6267\u884C\u5931\u8D25\uFF0C${delay2 / 1e3}\u79D2\u540E\u8FDB\u884C\u7B2C ${retryCount} \u6B21\u91CD\u8BD5...`);
-        await new Promise((resolve8) => setTimeout(resolve8, delay2));
+        const delay = RETRY_CONFIG.retryDelayMs * Math.pow(RETRY_CONFIG.backoffMultiplier, retryCount - 1);
+        console.log(`\u8C03\u5EA6 ${scheduleId} \u6267\u884C\u5931\u8D25\uFF0C${delay / 1e3}\u79D2\u540E\u8FDB\u884C\u7B2C ${retryCount} \u6B21\u91CD\u8BD5...`);
+        await new Promise((resolve8) => setTimeout(resolve8, delay));
       }
     }
   }
@@ -348587,10 +348785,10 @@ var AccountInitializationService = class {
   /**
    * 开始账号初始化
    */
-  async startInitialization(accountId2) {
+  async startInitialization(accountId) {
     const db = await getDb();
     if (!db) return { success: false, message: "\u6570\u636E\u5E93\u4E0D\u53EF\u7528" };
-    const [account] = await db.select().from(adAccounts).where(eq(adAccounts.id, accountId2)).limit(1);
+    const [account] = await db.select().from(adAccounts).where(eq(adAccounts.id, accountId)).limit(1);
     if (!account) {
       return { success: false, message: "\u8D26\u53F7\u4E0D\u5B58\u5728" };
     }
@@ -348603,23 +348801,23 @@ var AccountInitializationService = class {
     if (account.initializationStatus === "completed") {
       return { success: false, message: "\u8D26\u53F7\u5DF2\u5B8C\u6210\u521D\u59CB\u5316" };
     }
-    console.log(`[AccountInit] \u5F00\u59CB\u521D\u59CB\u5316\u8D26\u53F7 ${accountId2} (${account.accountName})`);
+    console.log(`[AccountInit] \u5F00\u59CB\u521D\u59CB\u5316\u8D26\u53F7 ${accountId} (${account.accountName})`);
     await db.update(adAccounts).set({
       initializationStatus: "initializing",
       initializationStartedAt: sql`NOW()`,
       initializationProgress: 0,
       initializationError: null
-    }).where(eq(adAccounts.id, accountId2));
+    }).where(eq(adAccounts.id, accountId));
     const phases = [];
-    const hotDataTasks = await this.createHotDataTasks(accountId2, account.profileId);
+    const hotDataTasks = await this.createHotDataTasks(accountId, account.profileId);
     phases.push({ phase: "hot_data", totalTasks: hotDataTasks });
-    const coldDataTasks = await this.createColdDataTasks(accountId2, account.profileId);
+    const coldDataTasks = await this.createColdDataTasks(accountId, account.profileId);
     phases.push({ phase: "cold_data", totalTasks: coldDataTasks });
-    const structureTasks = await this.createStructureDataTasks(accountId2, account.profileId);
+    const structureTasks = await this.createStructureDataTasks(accountId, account.profileId);
     phases.push({ phase: "structure_data", totalTasks: structureTasks });
     for (const { phase, totalTasks: totalTasks2 } of phases) {
       await db.insert(accountInitializationProgress).values({
-        accountId: accountId2,
+        accountId,
         phase,
         phaseStatus: "pending",
         totalTasks: totalTasks2,
@@ -348638,7 +348836,7 @@ var AccountInitializationService = class {
       });
     }
     const totalTasks = phases.reduce((sum2, p4) => sum2 + p4.totalTasks, 0);
-    console.log(`[AccountInit] \u8D26\u53F7 ${accountId2} \u521D\u59CB\u5316\u4EFB\u52A1\u521B\u5EFA\u5B8C\u6210\uFF0C\u5171 ${totalTasks} \u4E2A\u4EFB\u52A1`);
+    console.log(`[AccountInit] \u8D26\u53F7 ${accountId} \u521D\u59CB\u5316\u4EFB\u52A1\u521B\u5EFA\u5B8C\u6210\uFF0C\u5171 ${totalTasks} \u4E2A\u4EFB\u52A1`);
     return {
       success: true,
       message: `\u521D\u59CB\u5316\u4EFB\u52A1\u5DF2\u521B\u5EFA\uFF0C\u5171 ${totalTasks} \u4E2A\u4EFB\u52A1`,
@@ -348648,7 +348846,7 @@ var AccountInitializationService = class {
   /**
    * 创建热数据任务（最近90天）
    */
-  async createHotDataTasks(accountId2, profileId) {
+  async createHotDataTasks(accountId, profileId) {
     const { days, sliceSize } = INITIALIZATION_CONFIG.hotData;
     let taskCount = 0;
     const today = /* @__PURE__ */ new Date();
@@ -348669,7 +348867,7 @@ var AccountInitializationService = class {
       for (const reportType of reportTypes) {
         for (const slice of slices) {
           await this.asyncReportService.createReportJobExtended({
-            accountId: accountId2,
+            accountId,
             profileId,
             reportType,
             adProduct,
@@ -348685,13 +348883,13 @@ var AccountInitializationService = class {
         }
       }
     }
-    console.log(`[AccountInit] \u8D26\u53F7 ${accountId2} \u70ED\u6570\u636E\u4EFB\u52A1\u521B\u5EFA\u5B8C\u6210: ${taskCount} \u4E2A`);
+    console.log(`[AccountInit] \u8D26\u53F7 ${accountId} \u70ED\u6570\u636E\u4EFB\u52A1\u521B\u5EFA\u5B8C\u6210: ${taskCount} \u4E2A`);
     return taskCount;
   }
   /**
    * 创建冷数据任务（91-365天）
    */
-  async createColdDataTasks(accountId2, profileId) {
+  async createColdDataTasks(accountId, profileId) {
     const { startDay, endDay, sliceSize } = INITIALIZATION_CONFIG.coldData;
     let taskCount = 0;
     const today = /* @__PURE__ */ new Date();
@@ -348711,7 +348909,7 @@ var AccountInitializationService = class {
       const reportType = adProduct === "SPONSORED_PRODUCTS" ? "spCampaigns" : adProduct === "SPONSORED_BRANDS" ? "sbCampaigns" : "sdCampaigns";
       for (const slice of slices) {
         await this.asyncReportService.createReportJobExtended({
-          accountId: accountId2,
+          accountId,
           profileId,
           reportType,
           adProduct,
@@ -348726,33 +348924,33 @@ var AccountInitializationService = class {
         taskCount++;
       }
     }
-    console.log(`[AccountInit] \u8D26\u53F7 ${accountId2} \u51B7\u6570\u636E\u4EFB\u52A1\u521B\u5EFA\u5B8C\u6210: ${taskCount} \u4E2A`);
+    console.log(`[AccountInit] \u8D26\u53F7 ${accountId} \u51B7\u6570\u636E\u4EFB\u52A1\u521B\u5EFA\u5B8C\u6210: ${taskCount} \u4E2A`);
     return taskCount;
   }
   /**
    * 创建结构数据任务（广告活动、广告组等）
    */
-  async createStructureDataTasks(accountId2, profileId) {
+  async createStructureDataTasks(accountId, profileId) {
     let taskCount = 0;
     for (const adProduct of INITIALIZATION_CONFIG.adProducts) {
       taskCount++;
       taskCount++;
       taskCount++;
     }
-    console.log(`[AccountInit] \u8D26\u53F7 ${accountId2} \u7ED3\u6784\u6570\u636E\u4EFB\u52A1\u521B\u5EFA\u5B8C\u6210: ${taskCount} \u4E2A`);
+    console.log(`[AccountInit] \u8D26\u53F7 ${accountId} \u7ED3\u6784\u6570\u636E\u4EFB\u52A1\u521B\u5EFA\u5B8C\u6210: ${taskCount} \u4E2A`);
     return taskCount;
   }
   /**
    * 获取初始化进度
    */
-  async getInitializationProgress(accountId2) {
+  async getInitializationProgress(accountId) {
     const db = await getDb();
     if (!db) throw new Error("\u6570\u636E\u5E93\u4E0D\u53EF\u7528");
-    const [account] = await db.select().from(adAccounts).where(eq(adAccounts.id, accountId2)).limit(1);
+    const [account] = await db.select().from(adAccounts).where(eq(adAccounts.id, accountId)).limit(1);
     if (!account) {
       throw new Error("\u8D26\u53F7\u4E0D\u5B58\u5728");
     }
-    const progressRecords = await db.select().from(accountInitializationProgress).where(eq(accountInitializationProgress.accountId, accountId2));
+    const progressRecords = await db.select().from(accountInitializationProgress).where(eq(accountInitializationProgress.accountId, accountId));
     const phases = progressRecords.map((record2) => ({
       phase: record2.phase,
       status: record2.phaseStatus,
@@ -348779,12 +348977,12 @@ var AccountInitializationService = class {
   /**
    * 更新阶段进度
    */
-  async updatePhaseProgress(accountId2, phase, completedTasks, failedTasks = 0) {
+  async updatePhaseProgress(accountId, phase, completedTasks, failedTasks = 0) {
     const db = await getDb();
     if (!db) return;
     const [record2] = await db.select().from(accountInitializationProgress).where(
       and(
-        eq(accountInitializationProgress.accountId, accountId2),
+        eq(accountInitializationProgress.accountId, accountId),
         eq(accountInitializationProgress.phase, phase)
       )
     ).limit(1);
@@ -348800,19 +348998,19 @@ var AccountInitializationService = class {
       completedAt: isCompleted ? sql`NOW()` : null
     }).where(
       and(
-        eq(accountInitializationProgress.accountId, accountId2),
+        eq(accountInitializationProgress.accountId, accountId),
         eq(accountInitializationProgress.phase, phase)
       )
     );
-    await this.checkAndUpdateOverallStatus(accountId2);
+    await this.checkAndUpdateOverallStatus(accountId);
   }
   /**
    * 检查并更新整体初始化状态
    */
-  async checkAndUpdateOverallStatus(accountId2) {
+  async checkAndUpdateOverallStatus(accountId) {
     const db = await getDb();
     if (!db) return;
-    const progressRecords = await db.select().from(accountInitializationProgress).where(eq(accountInitializationProgress.accountId, accountId2));
+    const progressRecords = await db.select().from(accountInitializationProgress).where(eq(accountInitializationProgress.accountId, accountId));
     const allCompleted = progressRecords.every((r5) => r5.phaseStatus === "completed");
     const anyFailed = progressRecords.some((r5) => r5.phaseStatus === "failed");
     const totalTasks = progressRecords.reduce((sum2, r5) => sum2 + r5.totalTasks, 0);
@@ -348823,30 +349021,30 @@ var AccountInitializationService = class {
         initializationStatus: "completed",
         initializationCompletedAt: sql`NOW()`,
         initializationProgress: 100
-      }).where(eq(adAccounts.id, accountId2));
-      console.log(`[AccountInit] \u8D26\u53F7 ${accountId2} \u521D\u59CB\u5316\u5B8C\u6210\uFF01`);
+      }).where(eq(adAccounts.id, accountId));
+      console.log(`[AccountInit] \u8D26\u53F7 ${accountId} \u521D\u59CB\u5316\u5B8C\u6210\uFF01`);
     } else if (anyFailed) {
       const failedPhases = progressRecords.filter((r5) => r5.phaseStatus === "failed").map((r5) => r5.phase).join(", ");
       await db.update(adAccounts).set({
         initializationStatus: "failed",
         initializationProgress: progress,
         initializationError: `\u4EE5\u4E0B\u9636\u6BB5\u5931\u8D25: ${failedPhases}`
-      }).where(eq(adAccounts.id, accountId2));
+      }).where(eq(adAccounts.id, accountId));
     } else {
       await db.update(adAccounts).set({
         initializationProgress: progress
-      }).where(eq(adAccounts.id, accountId2));
+      }).where(eq(adAccounts.id, accountId));
     }
   }
   /**
    * 重试失败的初始化
    */
-  async retryFailedInitialization(accountId2) {
+  async retryFailedInitialization(accountId) {
     const db = await getDb();
     if (!db) return { success: false, message: "\u6570\u636E\u5E93\u4E0D\u53EF\u7528" };
     const failedPhases = await db.select().from(accountInitializationProgress).where(
       and(
-        eq(accountInitializationProgress.accountId, accountId2),
+        eq(accountInitializationProgress.accountId, accountId),
         eq(accountInitializationProgress.phaseStatus, "failed")
       )
     );
@@ -348866,7 +349064,7 @@ var AccountInitializationService = class {
     await db.update(adAccounts).set({
       initializationStatus: "initializing",
       initializationError: null
-    }).where(eq(adAccounts.id, accountId2));
+    }).where(eq(adAccounts.id, accountId));
     return {
       success: true,
       message: `\u5DF2\u91CD\u7F6E ${failedPhases.length} \u4E2A\u5931\u8D25\u9636\u6BB5\uFF0C\u5C06\u91CD\u65B0\u521D\u59CB\u5316`
@@ -348875,10 +349073,10 @@ var AccountInitializationService = class {
   /**
    * 检查账号是否已完成初始化
    */
-  async isInitializationCompleted(accountId2) {
+  async isInitializationCompleted(accountId) {
     const db = await getDb();
     if (!db) return false;
-    const [account] = await db.select({ status: adAccounts.initializationStatus }).from(adAccounts).where(eq(adAccounts.id, accountId2)).limit(1);
+    const [account] = await db.select({ status: adAccounts.initializationStatus }).from(adAccounts).where(eq(adAccounts.id, accountId)).limit(1);
     return account?.status === "completed";
   }
   /**
@@ -348952,18 +349150,18 @@ var SmartSyncService = class {
   /**
    * 获取账号的同步模式
    */
-  async getSyncMode(accountId2) {
-    const isCompleted = await accountInitializationService.isInitializationCompleted(accountId2);
+  async getSyncMode(accountId) {
+    const isCompleted = await accountInitializationService.isInitializationCompleted(accountId);
     return isCompleted ? "incremental" : "initialization";
   }
   /**
    * 执行智能同步
    * 根据账号状态自动选择同步策略
    */
-  async executeSmartSync(accountId2) {
-    const mode = await this.getSyncMode(accountId2);
+  async executeSmartSync(accountId) {
+    const mode = await this.getSyncMode(accountId);
     if (mode === "initialization") {
-      const result = await accountInitializationService.startInitialization(accountId2);
+      const result = await accountInitializationService.startInitialization(accountId);
       const totalTasks = result.phases?.reduce((sum2, p4) => sum2 + p4.totalTasks, 0) || 0;
       return {
         mode: "initialization",
@@ -348971,7 +349169,7 @@ var SmartSyncService = class {
         message: result.message
       };
     } else {
-      const tasksCreated = await this.executeIncrementalSync(accountId2);
+      const tasksCreated = await this.executeIncrementalSync(accountId);
       return {
         mode: "incremental",
         tasksCreated,
@@ -348983,13 +349181,13 @@ var SmartSyncService = class {
    * 执行增量同步
    * 只同步T-1天数据 + 定期归因回溯
    */
-  async executeIncrementalSync(accountId2) {
+  async executeIncrementalSync(accountId) {
     const db = await getDb();
     if (!db) return 0;
     let tasksCreated = 0;
-    const [account] = await db.select().from(adAccounts).where(eq(adAccounts.id, accountId2)).limit(1);
+    const [account] = await db.select().from(adAccounts).where(eq(adAccounts.id, accountId)).limit(1);
     if (!account || !account.profileId) {
-      console.log(`[SmartSync] \u8D26\u53F7 ${accountId2} \u65E0\u6548\u6216\u672A\u914D\u7F6EprofileId`);
+      console.log(`[SmartSync] \u8D26\u53F7 ${accountId} \u65E0\u6548\u6216\u672A\u914D\u7F6EprofileId`);
       return 0;
     }
     const profileId = account.profileId;
@@ -348998,7 +349196,7 @@ var SmartSyncService = class {
     const yesterdayStr = yesterday.toISOString().split("T")[0];
     for (const adType of ["SP", "SB", "SD"]) {
       await this.asyncReportService.createReportJob({
-        accountId: accountId2,
+        accountId,
         profileId,
         adType,
         startDate: yesterdayStr,
@@ -349006,27 +349204,27 @@ var SmartSyncService = class {
       });
       tasksCreated++;
     }
-    const needsFullAttribution = await this.checkNeedsFullAttribution(accountId2);
+    const needsFullAttribution = await this.checkNeedsFullAttribution(accountId);
     if (needsFullAttribution) {
-      const attributionTasks = await this.asyncReportService.createAttributionJobs(accountId2, profileId);
+      const attributionTasks = await this.asyncReportService.createAttributionJobs(accountId, profileId);
       tasksCreated += attributionTasks.length;
-      console.log(`[SmartSync] \u8D26\u53F7 ${accountId2} \u6267\u884C\u5B8C\u6574\u5F52\u56E0\u56DE\u6EAF\uFF0C\u521B\u5EFA ${attributionTasks.length} \u4E2A\u4EFB\u52A1`);
+      console.log(`[SmartSync] \u8D26\u53F7 ${accountId} \u6267\u884C\u5B8C\u6574\u5F52\u56E0\u56DE\u6EAF\uFF0C\u521B\u5EFA ${attributionTasks.length} \u4E2A\u4EFB\u52A1`);
     } else {
-      const dailyTasks = await this.createDailyAttributionCheck(accountId2, profileId);
+      const dailyTasks = await this.createDailyAttributionCheck(accountId, profileId);
       tasksCreated += dailyTasks;
     }
-    console.log(`[SmartSync] \u8D26\u53F7 ${accountId2} \u589E\u91CF\u540C\u6B65\u5B8C\u6210\uFF0C\u5171\u521B\u5EFA ${tasksCreated} \u4E2A\u4EFB\u52A1`);
+    console.log(`[SmartSync] \u8D26\u53F7 ${accountId} \u589E\u91CF\u540C\u6B65\u5B8C\u6210\uFF0C\u5171\u521B\u5EFA ${tasksCreated} \u4E2A\u4EFB\u52A1`);
     return tasksCreated;
   }
   /**
    * 检查是否需要完整归因回溯
    */
-  async checkNeedsFullAttribution(accountId2) {
+  async checkNeedsFullAttribution(accountId) {
     const db = await getDb();
     if (!db) return true;
     const [lastFullAttribution] = await db.select({ completedAt: reportJobs.completedAt }).from(reportJobs).where(
       and(
-        eq(reportJobs.accountId, accountId2),
+        eq(reportJobs.accountId, accountId),
         eq(reportJobs.status, "completed"),
         sql`JSON_EXTRACT(request_payload, '$.metadata.isFullAttribution') = true`
       )
@@ -349041,7 +349239,7 @@ var SmartSyncService = class {
   /**
    * 创建日常归因校验任务
    */
-  async createDailyAttributionCheck(accountId2, profileId) {
+  async createDailyAttributionCheck(accountId, profileId) {
     let tasksCreated = 0;
     const { dailyAttributionCheck, attribution } = SYNC_CONFIG.incremental;
     const today = /* @__PURE__ */ new Date();
@@ -349052,7 +349250,7 @@ var SmartSyncService = class {
       const checkStartDate = new Date(today);
       checkStartDate.setDate(checkStartDate.getDate() - maxDays);
       await this.asyncReportService.createReportJob({
-        accountId: accountId2,
+        accountId,
         profileId,
         adType,
         startDate: checkStartDate.toISOString().split("T")[0],
@@ -349065,9 +349263,9 @@ var SmartSyncService = class {
   /**
    * 获取同步统计信息
    */
-  async getSyncStats(accountId2) {
+  async getSyncStats(accountId) {
     const db = await getDb();
-    const mode = await this.getSyncMode(accountId2);
+    const mode = await this.getSyncMode(accountId);
     if (!db) {
       return {
         mode,
@@ -349080,14 +349278,14 @@ var SmartSyncService = class {
     const stats = await db.select({
       status: reportJobs.status,
       count: sql`COUNT(*)`
-    }).from(reportJobs).where(eq(reportJobs.accountId, accountId2)).groupBy(reportJobs.status);
+    }).from(reportJobs).where(eq(reportJobs.accountId, accountId)).groupBy(reportJobs.status);
     const statusMap = stats.reduce((acc, s4) => {
       acc[s4.status] = s4.count;
       return acc;
     }, {});
     let initializationProgress;
     if (mode === "initialization") {
-      const progress = await accountInitializationService.getInitializationProgress(accountId2);
+      const progress = await accountInitializationService.getInitializationProgress(accountId);
       initializationProgress = progress.progress;
     }
     const database = await db;
@@ -349104,7 +349302,7 @@ var SmartSyncService = class {
     }
     const [lastSync] = await database.select({ completedAt: reportJobs.completedAt }).from(reportJobs).where(
       and(
-        eq(reportJobs.accountId, accountId2),
+        eq(reportJobs.accountId, accountId),
         eq(reportJobs.status, "completed")
       )
     ).orderBy(sql`completed_at DESC`).limit(1);
@@ -349265,7 +349463,7 @@ var TieredSyncService = class {
   /**
    * 创建分层初始化任务
    */
-  async createTieredInitializationTasks(accountId2, profileId) {
+  async createTieredInitializationTasks(accountId, profileId) {
     const db = await getDb();
     if (!db) throw new Error("Database not available");
     const taskIds = [];
@@ -349283,7 +349481,7 @@ var TieredSyncService = class {
         for (const reportType of config2.reportTypes) {
           for (const adType of ["SP", "SB", "SD"]) {
             const [result] = await db.insert(reportJobs).values({
-              accountId: accountId2,
+              accountId,
               profileId,
               reportType: `tiered_${tier}_${reportType}`,
               adProduct: adType,
@@ -349309,7 +349507,7 @@ var TieredSyncService = class {
         }
       }
     }
-    console.log(`[TieredSyncService] Created ${taskIds.length} tiered initialization tasks for account ${accountId2}`);
+    console.log(`[TieredSyncService] Created ${taskIds.length} tiered initialization tasks for account ${accountId}`);
     console.log(`[TieredSyncService] Tasks by tier:`, tasksByTier);
     return {
       totalTasks: taskIds.length,
@@ -349422,7 +349620,7 @@ var TieredSyncService = class {
   /**
    * 获取初始化进度统计
    */
-  async getInitializationStats(accountId2) {
+  async getInitializationStats(accountId) {
     const db = await getDb();
     if (!db) {
       return {
@@ -349442,7 +349640,7 @@ var TieredSyncService = class {
     }
     const tasks = await db.select().from(reportJobs).where(
       and(
-        eq(reportJobs.accountId, accountId2),
+        eq(reportJobs.accountId, accountId),
         sql`${reportJobs.reportType} LIKE 'tiered_%'`
       )
     );
@@ -349501,12 +349699,12 @@ var TieredSyncService = class {
   /**
    * 重试失败的任务（增量重试）
    */
-  async retryFailedTasks(accountId2, maxRetries = 3) {
+  async retryFailedTasks(accountId, maxRetries = 3) {
     const db = await getDb();
     if (!db) return { retriedCount: 0, skippedCount: 0 };
     const failedTasks = await db.select().from(reportJobs).where(
       and(
-        eq(reportJobs.accountId, accountId2),
+        eq(reportJobs.accountId, accountId),
         eq(reportJobs.status, "failed"),
         sql`${reportJobs.reportType} LIKE 'tiered_%'`
       )
@@ -349713,13 +349911,13 @@ function calculateOptimalBid(impressionCurve, ctrCurve, conversion) {
     profitCurve
   };
 }
-async function buildMarketCurveForKeyword(accountId2, campaignId, keywordId, daysBack = 30) {
+async function buildMarketCurveForKeyword(accountId, campaignId, keywordId, daysBack = 30) {
   const db = await getDbInstance2();
   const startDate = /* @__PURE__ */ new Date();
   startDate.setDate(startDate.getDate() - daysBack);
   const historyData = await db.select().from(bidPerformanceHistory).where(
     and(
-      eq(bidPerformanceHistory.accountId, accountId2),
+      eq(bidPerformanceHistory.accountId, accountId),
       eq(bidPerformanceHistory.bidObjectType, "keyword"),
       eq(bidPerformanceHistory.bidObjectId, String(keywordId)),
       gte(bidPerformanceHistory.date, startDate.toISOString().split("T")[0])
@@ -349791,19 +349989,19 @@ function calculateModelConfidence(dataPoints, r22) {
   const consistencyConfidence = Math.max(0, 1 - cv);
   return dataConfidence * 0.4 + r2Confidence * 0.3 + consistencyConfidence * 0.3;
 }
-async function saveMarketCurveModel(accountId2, campaignId, bidObjectType, bidObjectId, bidObjectText, model, currentBid) {
+async function saveMarketCurveModel(accountId, campaignId, bidObjectType, bidObjectId, bidObjectText, model, currentBid) {
   const db = await getDbInstance2();
   const bidGap = model.optimalBid - currentBid;
   const bidGapPercent = currentBid > 0 ? bidGap / currentBid : 0;
   const existing = await db.select().from(marketCurveModels).where(
     and(
-      eq(marketCurveModels.accountId, accountId2),
+      eq(marketCurveModels.accountId, accountId),
       eq(marketCurveModels.bidObjectType, bidObjectType),
       eq(marketCurveModels.bidObjectId, bidObjectId)
     )
   ).limit(1);
   const modelData = {
-    accountId: accountId2,
+    accountId,
     campaignId,
     bidObjectType,
     bidObjectId,
@@ -349835,11 +350033,11 @@ async function saveMarketCurveModel(accountId2, campaignId, bidObjectType, bidOb
     await db.insert(marketCurveModels).values(modelData);
   }
 }
-async function getMarketCurveModel(accountId2, bidObjectType, bidObjectId) {
+async function getMarketCurveModel(accountId, bidObjectType, bidObjectId) {
   const db = await getDbInstance2();
   const models = await db.select().from(marketCurveModels).where(
     and(
-      eq(marketCurveModels.accountId, accountId2),
+      eq(marketCurveModels.accountId, accountId),
       eq(marketCurveModels.bidObjectType, bidObjectType),
       eq(marketCurveModels.bidObjectId, bidObjectId)
     )
@@ -349873,7 +350071,7 @@ async function getMarketCurveModel(accountId2, bidObjectType, bidObjectId) {
     confidence: Number(m4.confidence) || 0
   };
 }
-async function updateAllMarketCurveModels(accountId2) {
+async function updateAllMarketCurveModels(accountId) {
   const db = await getDbInstance2();
   const result = {
     updated: 0,
@@ -349891,14 +350089,14 @@ async function updateAllMarketCurveModels(accountId2) {
       const adGroupData = await db.select().from(keywords).where(eq(keywords.id, kw.id)).limit(1);
       if (adGroupData.length === 0) continue;
       const model = await buildMarketCurveForKeyword(
-        accountId2,
+        accountId,
         String(kw.adGroupId),
         // 使用adGroupId作为campaignId的代理
         kw.id
       );
       if (model) {
         await saveMarketCurveModel(
-          accountId2,
+          accountId,
           String(kw.adGroupId),
           "keyword",
           String(kw.id),
@@ -350125,7 +350323,7 @@ function calculateFeatureImportance(node, importance, totalSamples) {
   if (node.left) calculateFeatureImportance(node.left, importance, totalSamples);
   if (node.right) calculateFeatureImportance(node.right, importance, totalSamples);
 }
-async function trainDecisionTreeModel(accountId2, modelType, config2 = {
+async function trainDecisionTreeModel(accountId, modelType, config2 = {
   maxDepth: 6,
   minSamplesSplit: 10,
   minSamplesLeaf: 5
@@ -350184,23 +350382,23 @@ async function trainDecisionTreeModel(accountId2, modelType, config2 = {
     totalSamples: trainingData.length
   };
 }
-async function saveDecisionTreeModel(accountId2, modelType, modelResult) {
+async function saveDecisionTreeModel(accountId, modelType, modelResult) {
   const db = await getDbInstance3();
   await db.update(decisionTreeModels).set({ isActive: 0 }).where(
     and(
-      eq(decisionTreeModels.accountId, accountId2),
+      eq(decisionTreeModels.accountId, accountId),
       eq(decisionTreeModels.modelType, modelType)
     )
   );
   const latestModel = await db.select({ id: decisionTreeModels.id }).from(decisionTreeModels).where(
     and(
-      eq(decisionTreeModels.accountId, accountId2),
+      eq(decisionTreeModels.accountId, accountId),
       eq(decisionTreeModels.modelType, modelType)
     )
   ).orderBy(desc(decisionTreeModels.id)).limit(1);
   const newVersion = latestModel.length > 0 ? latestModel[0].id + 1 : 1;
   const result = await db.insert(decisionTreeModels).values({
-    accountId: accountId2,
+    accountId,
     modelType,
     treeStructure: JSON.stringify(modelResult.tree),
     totalSamples: modelResult.totalSamples,
@@ -350212,11 +350410,11 @@ async function saveDecisionTreeModel(accountId2, modelType, modelResult) {
   });
   return newVersion;
 }
-async function getActiveDecisionTreeModel(accountId2, modelType) {
+async function getActiveDecisionTreeModel(accountId, modelType) {
   const db = await getDbInstance3();
   const models = await db.select().from(decisionTreeModels).where(
     and(
-      eq(decisionTreeModels.accountId, accountId2),
+      eq(decisionTreeModels.accountId, accountId),
       eq(decisionTreeModels.modelType, modelType),
       eq(decisionTreeModels.isActive, 1)
     )
@@ -350228,9 +350426,9 @@ async function getActiveDecisionTreeModel(accountId2, modelType) {
   if (!treeData) return null;
   return typeof treeData === "string" ? JSON.parse(treeData) : treeData;
 }
-async function predictKeywordPerformance(accountId2, features) {
-  const crTree = await getActiveDecisionTreeModel(accountId2, "cr_prediction");
-  const cvTree = await getActiveDecisionTreeModel(accountId2, "cv_prediction");
+async function predictKeywordPerformance(accountId, features) {
+  const crTree = await getActiveDecisionTreeModel(accountId, "cr_prediction");
+  const cvTree = await getActiveDecisionTreeModel(accountId, "cv_prediction");
   let predictedCr = 0.05;
   let predictedCv = 30;
   let crSamples = 0;
@@ -350267,7 +350465,7 @@ async function predictKeywordPerformance(accountId2, features) {
     predictionSource
   };
 }
-async function batchPredictAndSaveKeywords(accountId2) {
+async function batchPredictAndSaveKeywords(accountId) {
   const db = await getDbInstance3();
   const result = { predicted: 0, failed: 0 };
   const allKeywords = await db.select().from(keywords).where(eq(keywords.keywordStatus, "enabled")).limit(5e3);
@@ -350289,15 +350487,15 @@ async function batchPredictAndSaveKeywords(accountId2) {
         keywordType,
         avgBid: Number(kw.bid) || 1
       };
-      const prediction = await predictKeywordPerformance(accountId2, features);
+      const prediction = await predictKeywordPerformance(accountId, features);
       const existing = await db.select().from(keywordPredictions).where(
         and(
-          eq(keywordPredictions.accountId, accountId2),
+          eq(keywordPredictions.accountId, accountId),
           eq(keywordPredictions.keywordId, kw.id)
         )
       ).limit(1);
       const predictionData = {
-        accountId: accountId2,
+        accountId,
         keywordId: kw.id,
         keywordText: kw.keywordText,
         predictedCr: String(prediction.predictedCr),
@@ -350322,9 +350520,9 @@ async function batchPredictAndSaveKeywords(accountId2) {
   }
   return result;
 }
-async function getKeywordPredictionSummary(accountId2) {
+async function getKeywordPredictionSummary(accountId) {
   const db = await getDbInstance3();
-  const predictions = await db.select().from(keywordPredictions).where(eq(keywordPredictions.accountId, accountId2));
+  const predictions = await db.select().from(keywordPredictions).where(eq(keywordPredictions.accountId, accountId));
   if (predictions.length === 0) {
     return {
       totalPredictions: 0,
@@ -350431,11 +350629,11 @@ function calculateOptimalPlacementAdjustments(placementEfficiencies, maxAdjustme
   productAdjustment = Math.max(0, Math.min(maxAdjustment, productAdjustment));
   return { topAdjustment, productAdjustment };
 }
-async function analyzeBidObjectProfit(accountId2, campaignId, bidObjectType, bidObjectId, bidObjectText, currentBaseBid, currentTopAdjustment = 0, currentProductAdjustment = 0, placementData) {
-  let marketCurve = await getMarketCurveModel(accountId2, bidObjectType, bidObjectId);
+async function analyzeBidObjectProfit(accountId, campaignId, bidObjectType, bidObjectId, bidObjectText, currentBaseBid, currentTopAdjustment = 0, currentProductAdjustment = 0, placementData) {
+  let marketCurve = await getMarketCurveModel(accountId, bidObjectType, bidObjectId);
   if (!marketCurve && bidObjectType === "keyword") {
     marketCurve = await buildMarketCurveForKeyword(
-      accountId2,
+      accountId,
       campaignId,
       parseInt(bidObjectId)
     );
@@ -350457,7 +350655,7 @@ async function analyzeBidObjectProfit(accountId2, campaignId, bidObjectType, bid
       keywordType,
       avgBid: currentBaseBid
     };
-    prediction = await predictKeywordPerformance(accountId2, features);
+    prediction = await predictKeywordPerformance(accountId, features);
   }
   const cvr = prediction?.predictedCr || marketCurve?.conversion.cvr || 0.05;
   const aov = prediction?.predictedCv || marketCurve?.conversion.aov || 30;
@@ -350558,12 +350756,12 @@ async function analyzeBidObjectProfit(accountId2, campaignId, bidObjectType, bid
     confidence
   };
 }
-async function analyzeCampaignPlacementProfit(accountId2, campaignId) {
+async function analyzeCampaignPlacementProfit(accountId, campaignId) {
   const db = await getDbInstance4();
   const campaignData = await db.select().from(campaigns).where(
     and(
       eq(campaigns.campaignId, campaignId),
-      eq(campaigns.accountId, accountId2)
+      eq(campaigns.accountId, accountId)
     )
   ).limit(1);
   const campaignName = campaignData[0]?.campaignName || campaignId;
@@ -350573,7 +350771,7 @@ async function analyzeCampaignPlacementProfit(accountId2, campaignId) {
   const placementData = await db.select().from(placementPerformance).where(
     and(
       eq(placementPerformance.campaignId, String(campaignId)),
-      eq(placementPerformance.accountId, accountId2),
+      eq(placementPerformance.accountId, accountId),
       gte(placementPerformance.date, startDate.toISOString().split("T")[0])
     )
   );
@@ -350595,7 +350793,7 @@ async function analyzeCampaignPlacementProfit(accountId2, campaignId) {
   const bidObjectAnalyses = [];
   for (const kw of campaignKeywords.slice(0, 50)) {
     const analysis = await analyzeBidObjectProfit(
-      accountId2,
+      accountId,
       campaignId,
       "keyword",
       String(kw.id),
@@ -350746,11 +350944,11 @@ async function applyOptimizationRecommendation(recommendationId, userId) {
     };
   }
 }
-async function getPendingRecommendations(accountId2, campaignId) {
+async function getPendingRecommendations(accountId, campaignId) {
   const db = await getDbInstance4();
   let query2 = db.select().from(optimizationRecommendations).where(
     and(
-      eq(optimizationRecommendations.accountId, accountId2),
+      eq(optimizationRecommendations.accountId, accountId),
       eq(optimizationRecommendations.status, "pending")
     )
   ).orderBy(desc(optimizationRecommendations.createdAt));
@@ -350765,8 +350963,8 @@ async function getPendingRecommendations(accountId2, campaignId) {
     createdAt: r5.createdAt || (/* @__PURE__ */ new Date()).toISOString()
   }));
 }
-async function generateProfitVisualizationData(accountId2, bidObjectType, bidObjectId) {
-  const model = await getMarketCurveModel(accountId2, bidObjectType, bidObjectId);
+async function generateProfitVisualizationData(accountId, bidObjectType, bidObjectId) {
+  const model = await getMarketCurveModel(accountId, bidObjectType, bidObjectId);
   if (!model) {
     return null;
   }
@@ -352558,15 +352756,15 @@ var keywordRouter = router({
             byAccount.get(kw.accountId).push({ keywordId: kw.kwId, newBid: r5.newBid, campaignId: kw.campaignId });
           }
           const { syncBidAdjustmentsToAmazon: syncBidAdjustmentsToAmazon2 } = await Promise.resolve().then(() => (init_amazonApiHelper(), amazonApiHelper_exports));
-          for (const [accountId2, kws] of byAccount) {
+          for (const [accountId, kws] of byAccount) {
             const adjustments = kws.map((kw) => ({
               keywordId: kw.keywordId,
               newBid: kw.newBid,
               campaignId: kw.campaignId,
               reason: `\u7528\u6237\u624B\u52A8\u6279\u91CF\u8C03\u6574\u5173\u952E\u8BCD\u51FA\u4EF7`
             }));
-            const syncResult = await syncBidAdjustmentsToAmazon2(accountId2, adjustments);
-            console.log(`[Keyword.batchUpdateBid] v159: accountId=${accountId2}, \u540C\u6B65\u7ED3\u679C: \u6210\u529F=${syncResult.success}, \u5931\u8D25=${syncResult.failed}`);
+            const syncResult = await syncBidAdjustmentsToAmazon2(accountId, adjustments);
+            console.log(`[Keyword.batchUpdateBid] v159: accountId=${accountId}, \u540C\u6B65\u7ED3\u679C: \u6210\u529F=${syncResult.success}, \u5931\u8D25=${syncResult.failed}`);
           }
         }
       } catch (syncError) {
@@ -352602,15 +352800,15 @@ var keywordRouter = router({
           byAccount.get(kw.accountId).push({ keywordId: kw.kwId, campaignId: kw.campaignId });
         }
         const { syncKeywordStatusToAmazon: syncKeywordStatusToAmazon2 } = await Promise.resolve().then(() => (init_amazonApiHelper(), amazonApiHelper_exports));
-        for (const [accountId2, kws] of byAccount) {
+        for (const [accountId, kws] of byAccount) {
           const statusChanges = kws.map((kw) => ({
             keywordId: kw.keywordId,
             newStatus: input.status,
             campaignId: kw.campaignId,
             reason: `\u7528\u6237\u624B\u52A8\u6279\u91CF${input.status === "enabled" ? "\u542F\u7528" : "\u6682\u505C"}\u5173\u952E\u8BCD`
           }));
-          const syncResult = await syncKeywordStatusToAmazon2(accountId2, statusChanges);
-          console.log(`[Keyword.batchUpdateStatus] v159: accountId=${accountId2}, \u540C\u6B65\u7ED3\u679C: \u6210\u529F=${syncResult.success}, \u5931\u8D25=${syncResult.failed}`);
+          const syncResult = await syncKeywordStatusToAmazon2(accountId, statusChanges);
+          console.log(`[Keyword.batchUpdateStatus] v159: accountId=${accountId}, \u540C\u6B65\u7ED3\u679C: \u6210\u529F=${syncResult.success}, \u5931\u8D25=${syncResult.failed}`);
         }
       }
     } catch (syncError) {
@@ -352800,7 +352998,7 @@ var productTargetRouter = router({
             byAccount.get(pt3.accountId).push({ keywordId: pt3.ptId, newBid: r5.newBid, campaignId: pt3.campaignId });
           }
           const { syncBidAdjustmentsToAmazon: syncBidAdjustmentsToAmazon2 } = await Promise.resolve().then(() => (init_amazonApiHelper(), amazonApiHelper_exports));
-          for (const [accountId2, pts] of byAccount) {
+          for (const [accountId, pts] of byAccount) {
             const adjustments = pts.map((pt3) => ({
               keywordId: pt3.keywordId,
               newBid: pt3.newBid,
@@ -352808,8 +353006,8 @@ var productTargetRouter = router({
               reason: `\u7528\u6237\u624B\u52A8\u6279\u91CF\u8C03\u6574\u5546\u54C1\u5B9A\u5411\u51FA\u4EF7`,
               isProductTarget: true
             }));
-            const syncResult = await syncBidAdjustmentsToAmazon2(accountId2, adjustments);
-            console.log(`[ProductTarget.batchUpdateBid] v159: accountId=${accountId2}, \u540C\u6B65\u7ED3\u679C: \u6210\u529F=${syncResult.success}, \u5931\u8D25=${syncResult.failed}`);
+            const syncResult = await syncBidAdjustmentsToAmazon2(accountId, adjustments);
+            console.log(`[ProductTarget.batchUpdateBid] v159: accountId=${accountId}, \u540C\u6B65\u7ED3\u679C: \u6210\u529F=${syncResult.success}, \u5931\u8D25=${syncResult.failed}`);
           }
         }
       } catch (syncError) {
@@ -352845,7 +353043,7 @@ var productTargetRouter = router({
           byAccount.get(pt3.accountId).push({ keywordId: pt3.ptId, campaignId: pt3.campaignId });
         }
         const { syncKeywordStatusToAmazon: syncKeywordStatusToAmazon2 } = await Promise.resolve().then(() => (init_amazonApiHelper(), amazonApiHelper_exports));
-        for (const [accountId2, pts] of byAccount) {
+        for (const [accountId, pts] of byAccount) {
           const statusChanges = pts.map((pt3) => ({
             keywordId: pt3.keywordId,
             newStatus: input.status,
@@ -352853,8 +353051,8 @@ var productTargetRouter = router({
             reason: `\u7528\u6237\u624B\u52A8\u6279\u91CF${input.status === "enabled" ? "\u542F\u7528" : "\u6682\u505C"}\u5546\u54C1\u5B9A\u5411`,
             isProductTarget: true
           }));
-          const syncResult = await syncKeywordStatusToAmazon2(accountId2, statusChanges);
-          console.log(`[ProductTarget.batchUpdateStatus] v159: accountId=${accountId2}, \u540C\u6B65\u7ED3\u679C: \u6210\u529F=${syncResult.success}, \u5931\u8D25=${syncResult.failed}`);
+          const syncResult = await syncKeywordStatusToAmazon2(accountId, statusChanges);
+          console.log(`[ProductTarget.batchUpdateStatus] v159: accountId=${accountId}, \u540C\u6B65\u7ED3\u679C: \u6210\u529F=${syncResult.success}, \u5931\u8D25=${syncResult.failed}`);
         }
       }
     } catch (syncError) {
@@ -354094,23 +354292,23 @@ var amazonApiRouter = router({
         const existingAccountByCountry = existingAccounts.find(
           (a4) => a4.storeName === effectiveStoreName && a4.marketplace === marketplaceCode
         );
-        let accountId2;
+        let accountId;
         if (existingAccountByProfileId) {
-          accountId2 = existingAccountByProfileId.id;
-          await updateAdAccount(accountId2, {
+          accountId = existingAccountByProfileId.id;
+          await updateAdAccount(accountId, {
             storeName: effectiveStoreName,
             marketplace: marketplaceCode
           });
-          console.log(`[saveMultipleProfiles] \u66F4\u65B0\u73B0\u6709\u8D26\u53F7 ${accountId2} (${profile.countryCode}) - \u6309profileId\u5339\u914D`);
+          console.log(`[saveMultipleProfiles] \u66F4\u65B0\u73B0\u6709\u8D26\u53F7 ${accountId} (${profile.countryCode}) - \u6309profileId\u5339\u914D`);
         } else if (existingAccountByCountry) {
-          accountId2 = existingAccountByCountry.id;
-          await updateAdAccount(accountId2, {
+          accountId = existingAccountByCountry.id;
+          await updateAdAccount(accountId, {
             profileId: profile.profileId,
             accountId: profile.profileId
           });
-          console.log(`[saveMultipleProfiles] \u66F4\u65B0\u73B0\u6709\u8D26\u53F7 ${accountId2} (${profile.countryCode}) - \u6309\u5E97\u94FA+\u56FD\u5BB6\u5339\u914D`);
+          console.log(`[saveMultipleProfiles] \u66F4\u65B0\u73B0\u6709\u8D26\u53F7 ${accountId} (${profile.countryCode}) - \u6309\u5E97\u94FA+\u56FD\u5BB6\u5339\u914D`);
         } else {
-          accountId2 = await createAdAccount({
+          accountId = await createAdAccount({
             userId: ctx.user.id,
             storeName: effectiveStoreName,
             accountName: `${effectiveStoreName} ${marketplaceName}`,
@@ -354120,26 +354318,26 @@ var amazonApiRouter = router({
             profileId: profile.profileId,
             connectionStatus: "pending"
           });
-          console.log(`[saveMultipleProfiles] \u521B\u5EFA\u65B0\u8D26\u53F7 ${accountId2} (${profile.countryCode})`);
+          console.log(`[saveMultipleProfiles] \u521B\u5EFA\u65B0\u8D26\u53F7 ${accountId} (${profile.countryCode})`);
         }
         await saveAmazonApiCredentials({
-          accountId: accountId2,
+          accountId,
           clientId: input.clientId,
           clientSecret: input.clientSecret,
           refreshToken: input.refreshToken,
           profileId: profile.profileId,
           region: input.region
         });
-        await updateAdAccount(accountId2, {
+        await updateAdAccount(accountId, {
           connectionStatus: "connected"
         });
         results.push({
           profileId: profile.profileId,
           countryCode: profile.countryCode,
-          accountId: accountId2,
+          accountId,
           success: true
         });
-        console.log(`[saveMultipleProfiles] \u8D26\u53F7 ${accountId2} (${profile.countryCode}) \u51ED\u8BC1\u4FDD\u5B58\u6210\u529F`);
+        console.log(`[saveMultipleProfiles] \u8D26\u53F7 ${accountId} (${profile.countryCode}) \u51ED\u8BC1\u4FDD\u5B58\u6210\u529F`);
       } catch (error54) {
         console.error(`[saveMultipleProfiles] \u5904\u7406 ${profile.countryCode} \u5931\u8D25:`, error54);
         results.push({
@@ -354404,8 +354602,8 @@ var amazonApiRouter = router({
             lastError = error54;
             console.error(`${stepName} \u5931\u8D25 (\u5C1D\u8BD5 ${attempt + 1}/${maxRetries + 1}):`, error54.message);
             if (attempt < maxRetries) {
-              const delay2 = Math.min(1e3 * Math.pow(2, attempt), 1e4);
-              await new Promise((resolve8) => setTimeout(resolve8, delay2));
+              const delay = Math.min(1e3 * Math.pow(2, attempt), 1e4);
+              await new Promise((resolve8) => setTimeout(resolve8, delay));
             }
           }
         }
@@ -355263,14 +355461,14 @@ var amazonApiRouter = router({
         if (!url3) return void 0;
         let match = url3.match(/sqs\.([^.]+)\.amazonaws\.com\/(\d+)\/(.+)/);
         if (match) {
-          const [, region2, accountId2, queueName] = match;
-          return `arn:aws:sqs:${region2}:${accountId2}:${queueName}`;
+          const [, region2, accountId, queueName] = match;
+          return `arn:aws:sqs:${region2}:${accountId}:${queueName}`;
         }
         match = url3.match(/queue\.amazonaws\.com\/(\d+)\/(.+)/);
         if (match) {
-          const [, accountId2, queueName] = match;
+          const [, accountId, queueName] = match;
           const region2 = process.env.AWS_REGION || "us-east-1";
-          return `arn:aws:sqs:${region2}:${accountId2}:${queueName}`;
+          return `arn:aws:sqs:${region2}:${accountId}:${queueName}`;
         }
         return url3;
       };
@@ -355553,16 +355751,16 @@ var amazonApiRouter = router({
             const existingByProfile = existingAccounts.find(
               (a4) => a4.profileId === String(profile.profileId)
             );
-            let accountId2;
+            let accountId;
             if (existingByProfile) {
-              accountId2 = existingByProfile.id;
-              await updateAdAccount(accountId2, {
+              accountId = existingByProfile.id;
+              await updateAdAccount(accountId, {
                 storeName: input.storeName,
                 marketplace: profile.countryCode
               });
-              console.log(`[BatchAuth] \u66F4\u65B0\u73B0\u6709\u8D26\u53F7 ${accountId2} (${profile.countryCode})`);
+              console.log(`[BatchAuth] \u66F4\u65B0\u73B0\u6709\u8D26\u53F7 ${accountId} (${profile.countryCode})`);
             } else {
-              accountId2 = await createAdAccount({
+              accountId = await createAdAccount({
                 userId: ctx.user.id,
                 accountId: String(profile.profileId),
                 accountName: profile.accountInfo?.name || `${input.storeName} - ${profile.countryCode}`,
@@ -355572,22 +355770,22 @@ var amazonApiRouter = router({
                 connectionStatus: "pending"
               });
               accountsCreated++;
-              console.log(`[BatchAuth] \u521B\u5EFA\u65B0\u8D26\u53F7 ${accountId2} (${profile.countryCode})`);
+              console.log(`[BatchAuth] \u521B\u5EFA\u65B0\u8D26\u53F7 ${accountId} (${profile.countryCode})`);
             }
             await saveAmazonApiCredentials({
-              accountId: accountId2,
+              accountId,
               clientId,
               clientSecret,
               refreshToken: tokens.refresh_token,
               profileId: String(profile.profileId),
               region: regionCode
             });
-            await updateAdAccount(accountId2, {
+            await updateAdAccount(accountId, {
               connectionStatus: "connected"
             });
             const { initializeAccount: initializeAccount2 } = await Promise.resolve().then(() => (init_accountInitializationService(), accountInitializationService_exports));
             initializeAccount2({
-              accountId: accountId2,
+              accountId,
               userId: ctx.user.id,
               clientId,
               clientSecret,
@@ -355596,13 +355794,13 @@ var amazonApiRouter = router({
               region: regionCode,
               marketplace: profile.countryCode
             }).then((initResult) => {
-              console.log(`[BatchAuth] \u8D26\u53F7 ${accountId2} (${profile.countryCode}) \u521D\u59CB\u5316\u5B8C\u6210:`, {
+              console.log(`[BatchAuth] \u8D26\u53F7 ${accountId} (${profile.countryCode}) \u521D\u59CB\u5316\u5B8C\u6210:`, {
                 sync: initResult.syncResult.success ? "\u2705" : "\u274C",
                 schedule: initResult.scheduleResult.success ? "\u2705" : "\u274C",
                 ams: initResult.amsResult.success ? "\u2705" : "\u274C"
               });
             }).catch((err2) => {
-              console.error(`[BatchAuth] \u8D26\u53F7 ${accountId2} (${profile.countryCode}) \u521D\u59CB\u5316\u5931\u8D25:`, err2);
+              console.error(`[BatchAuth] \u8D26\u53F7 ${accountId} (${profile.countryCode}) \u521D\u59CB\u5316\u5931\u8D25:`, err2);
             });
           } catch (profileError) {
             console.error(`[BatchAuth] \u5904\u7406Profile ${profile.profileId} \u5931\u8D25:`, profileError);
@@ -355835,10 +356033,10 @@ var schedulerRouter = router({
       });
     }
     let result;
-    const accountId2 = task.accountId || 1;
+    const accountId = task.accountId || 1;
     switch (task.taskType) {
       case "ngram_analysis":
-        const searchTerms4 = await getSearchTermsForAnalysis(accountId2);
+        const searchTerms4 = await getSearchTermsForAnalysis(accountId);
         result = await executeNgramAnalysis(
           searchTerms4.map((t7) => ({
             searchTerm: t7.searchTerm,
@@ -355852,7 +356050,7 @@ var schedulerRouter = router({
         );
         break;
       case "health_check":
-        const healthData = await getCampaignHealthMetrics(accountId2);
+        const healthData = await getCampaignHealthMetrics(accountId);
         result = await executeHealthCheck(
           healthData.map((h6) => ({
             campaignId: h6.campaignId,
@@ -355870,7 +356068,7 @@ var schedulerRouter = router({
         break;
       case "traffic_isolation_full":
         result = await executeTrafficIsolationFull(
-          accountId2,
+          accountId,
           {
             mode: input.autoApply ? "full_auto" : "supervised",
             enabledTypes: [
@@ -358807,9 +359005,9 @@ var placementRouter = router({
     campaignId: external_exports.number().optional(),
     performanceGroupId: external_exports.number().optional()
   })).query(async ({ input, ctx }) => {
-    const accountId2 = 1;
+    const accountId = 1;
     const conditions = [
-      eq(bidAdjustmentHistory.accountId, accountId2)
+      eq(bidAdjustmentHistory.accountId, accountId)
     ];
     if (input.startDate) {
       conditions.push(gte(bidAdjustmentHistory.appliedAt, input.startDate));

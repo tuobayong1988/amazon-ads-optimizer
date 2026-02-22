@@ -3148,8 +3148,8 @@ export class AmazonSyncService {
           
           if (!kw.keywordId) {
             console.error(`[applyBidAdjustment] keyword id=${targetId} ("${kw.keywordText}") 缺少Amazon keywordId，无法同步到Amazon`);
+            // v190: 改为可重试 - ID可能在后续同步中被回填，重试队列会在下次执行时重新尝试
             const err = new Error(`MISSING_AMAZON_ID: keyword id=${targetId} 缺少Amazon keywordId`);
-            (err as any).nonRetryable = true;
             throw err;
           }
         }
@@ -3205,8 +3205,8 @@ export class AmazonSyncService {
           
           if (!pt.targetId) {
             console.error(`[applyBidAdjustment] product_target id=${targetId} ("${pt.targetValue}") 缺少Amazon targetId，无法同步到Amazon`);
+            // v190: 改为可重试 - ID可能在后续同步中被回填，重试队列会在下次执行时重新尝试
             const err = new Error(`MISSING_AMAZON_ID: product_target id=${targetId} 缺少Amazon targetId`);
-            (err as any).nonRetryable = true;
             throw err;
           }
         }
@@ -3350,26 +3350,32 @@ export class AmazonSyncService {
       sdCampaigns: 0,
     };
 
+    // v190: 每种广告类型独立try-catch，一个失败不影响其他
     try {
-      // 同步SP广告活动
       const spResult = await this.syncSpCampaigns();
       results.spCampaigns = typeof spResult === 'number' ? spResult : spResult.synced;
       results.campaigns += results.spCampaigns;
-      
-      // 同步SB广告活动
+    } catch (error: any) {
+      console.error('[SyncService] SP广告活动同步失败:', error.message);
+    }
+    
+    try {
       const sbResult = await this.syncSbCampaigns();
       results.sbCampaigns = typeof sbResult === 'number' ? sbResult : sbResult.synced;
       results.campaigns += results.sbCampaigns;
-      
-      // 同步SD广告活动
+    } catch (error: any) {
+      console.error('[SyncService] SB广告活动同步失败:', error.message);
+    }
+    
+    try {
       const sdResult = await this.syncSdCampaigns();
       results.sdCampaigns = typeof sdResult === 'number' ? sdResult : sdResult.synced;
       results.campaigns += results.sdCampaigns;
-
-      console.log(`[SyncService] 广告活动同步完成: SP=${results.spCampaigns}, SB=${results.sbCampaigns}, SD=${results.sdCampaigns}`);
-    } catch (error) {
-      console.error('[SyncService] 广告活动同步失败:', error);
+    } catch (error: any) {
+      console.error('[SyncService] SD广告活动同步失败:', error.message);
     }
+    
+    console.log(`[SyncService] 广告活动同步完成: SP=${results.spCampaigns}, SB=${results.sbCampaigns}, SD=${results.sdCampaigns}`);
 
     return results;
   }
@@ -3389,58 +3395,67 @@ export class AmazonSyncService {
       targets: 0,
     };
 
+    // v190: 每个同步操作独立try-catch，一个失败不影响其他
+    // ==================== 同步广告组（SP + SB + SD） ====================
     try {
-      // ==================== 同步广告组（SP + SB + SD） ====================
       const spAdGroupResult = await this.syncSpAdGroups();
       results.adGroups += typeof spAdGroupResult === 'number' ? spAdGroupResult : spAdGroupResult.synced;
+    } catch (e: any) {
+      console.error('[SyncService] SP广告组同步失败:', e.message);
+    }
 
-      try {
-        const sbAdGroupResult = await this.syncSbAdGroups();
-        results.adGroups += sbAdGroupResult.synced;
-      } catch (e: any) {
-        console.error('[SyncService] SB广告组同步失败:', e.message);
-      }
+    try {
+      const sbAdGroupResult = await this.syncSbAdGroups();
+      results.adGroups += sbAdGroupResult.synced;
+    } catch (e: any) {
+      console.error('[SyncService] SB广告组同步失败:', e.message);
+    }
 
-      try {
-        const sdAdGroupResult = await this.syncSdAdGroups();
-        results.adGroups += sdAdGroupResult.synced;
-      } catch (e: any) {
-        console.error('[SyncService] SD广告组同步失败:', e.message);
-      }
-      
-      // ==================== 同步关键词投放（SP + SB） ====================
+    try {
+      const sdAdGroupResult = await this.syncSdAdGroups();
+      results.adGroups += sdAdGroupResult.synced;
+    } catch (e: any) {
+      console.error('[SyncService] SD广告组同步失败:', e.message);
+    }
+    
+    // ==================== 同步关键词投放（SP + SB） ====================
+    try {
       const spKeywordResult = await this.syncSpKeywords();
       results.keywords += typeof spKeywordResult === 'number' ? spKeywordResult : spKeywordResult.synced;
+    } catch (e: any) {
+      console.error('[SyncService] SP关键词同步失败:', e.message);
+    }
 
-      try {
-        const sbKeywordResult = await this.syncSbKeywords();
-        results.keywords += sbKeywordResult.synced;
-      } catch (e: any) {
-        console.error('[SyncService] SB关键词同步失败:', e.message);
-      }
-      
-      // ==================== 同步商品定位（SP + SB + SD） ====================
+    try {
+      const sbKeywordResult = await this.syncSbKeywords();
+      results.keywords += sbKeywordResult.synced;
+    } catch (e: any) {
+      console.error('[SyncService] SB关键词同步失败:', e.message);
+    }
+    
+    // ==================== 同步商品定位（SP + SB + SD） ====================
+    try {
       const spTargetResult = await this.syncSpProductTargets();
       results.targets += typeof spTargetResult === 'number' ? spTargetResult : spTargetResult.synced;
-
-      try {
-        const sbTargetResult = await this.syncSbProductTargets();
-        results.targets += sbTargetResult.synced;
-      } catch (e: any) {
-        console.error('[SyncService] SB商品定位同步失败:', e.message);
-      }
-
-      try {
-        const sdTargetResult = await this.syncSdProductTargets();
-        results.targets += sdTargetResult.synced;
-      } catch (e: any) {
-        console.error('[SyncService] SD商品定位同步失败:', e.message);
-      }
-
-      console.log(`[SyncService] 全渠道广告组和定位同步完成: 广告组=${results.adGroups}, 关键词=${results.keywords}, 定位=${results.targets}`);
-    } catch (error) {
-      console.error('[SyncService] 广告组和定位同步失败:', error);
+    } catch (e: any) {
+      console.error('[SyncService] SP商品定位同步失败:', e.message);
     }
+
+    try {
+      const sbTargetResult = await this.syncSbProductTargets();
+      results.targets += sbTargetResult.synced;
+    } catch (e: any) {
+      console.error('[SyncService] SB商品定位同步失败:', e.message);
+    }
+
+    try {
+      const sdTargetResult = await this.syncSdProductTargets();
+      results.targets += sdTargetResult.synced;
+    } catch (e: any) {
+      console.error('[SyncService] SD商品定位同步失败:', e.message);
+    }
+
+    console.log(`[SyncService] 全渠道广告组和定位同步完成: 广告组=${results.adGroups}, 关键词=${results.keywords}, 定位=${results.targets}`);
 
     return results;
   }
