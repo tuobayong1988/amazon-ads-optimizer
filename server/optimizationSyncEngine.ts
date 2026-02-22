@@ -1052,10 +1052,13 @@ async function updateLogsSyncStatus(conn: any, batchId: string) {
  * 由调度器每5分钟调用一次
  */
 export async function processRetryTasks(): Promise<{ processed: number; synced: number; failed: number }> {
-  console.log(`[SyncEngine] 检查重试任务...`);
+  console.log(`[SyncEngine] v196: 检查重试任务...`);
+  
+  // v196: 先尝试重置permanently_failed任务（如果Amazon ID已经可用）
+  await resetRecoverableFailedTasks();
   
   const result = await executeBatchSync({
-    maxTasks: 500, // 每次最多处理500条重试任务
+    maxTasks: 500,
   });
   
   return {
@@ -1063,6 +1066,77 @@ export async function processRetryTasks(): Promise<{ processed: number; synced: 
     synced: result.synced,
     failed: result.failed,
   };
+}
+
+/**
+ * v196: 自动重置可恢复的permanently_failed任务
+ * 检查永久失败的任务是否现在有了Amazon ID（通过绩效同步回填等），如果有则重新入队
+ */
+async function resetRecoverableFailedTasks(): Promise<number> {
+  const mysql2 = await import('mysql2/promise');
+  const conn = await mysql2.createConnection({
+    host: process.env.DATABASE_HOST || 'amazon-ads-optimizer-db.ci7y0uwu0aid.us-east-1.rds.amazonaws.com',
+    user: process.env.DATABASE_USER || 'admin',
+    password: process.env.DATABASE_PASSWORD || 'Mucers2025',
+    database: process.env.DATABASE_NAME || 'amazon_ads_optimizer',
+  });
+  
+  try {
+    // 查找永久失败且缺少Amazon ID的任务
+    const [failedTasks] = await conn.execute(
+      `SELECT ot.id, ot.target_entity_type, ot.target_entity_id, ot.task_type
+       FROM optimization_tasks ot
+       WHERE ot.status IN ('permanently_failed', 'failed')
+         AND (ot.amazon_entity_id IS NULL OR ot.amazon_entity_id = '')
+         AND ot.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+       LIMIT 200`
+    ) as any[];
+    
+    if (failedTasks.length === 0) return 0;
+    
+    let recovered = 0;
+    for (const task of failedTasks) {
+      let amazonId: string | null = null;
+      
+      if (task.target_entity_type === 'keyword') {
+        const [rows] = await conn.execute(
+          'SELECT keywordId FROM keywords WHERE id = ? AND keywordId IS NOT NULL AND keywordId NOT LIKE "SKIP_%" LIMIT 1',
+          [task.target_entity_id]
+        ) as any[];
+        if (rows[0]?.keywordId) amazonId = rows[0].keywordId;
+      } else if (task.target_entity_type === 'product_target') {
+        const [rows] = await conn.execute(
+          'SELECT targetId FROM product_targets WHERE id = ? AND targetId IS NOT NULL LIMIT 1',
+          [task.target_entity_id]
+        ) as any[];
+        if (rows[0]?.targetId) amazonId = rows[0].targetId;
+      } else if (task.target_entity_type === 'campaign') {
+        const [rows] = await conn.execute(
+          'SELECT campaignId FROM campaigns WHERE id = ? AND campaignId IS NOT NULL LIMIT 1',
+          [task.target_entity_id]
+        ) as any[];
+        if (rows[0]?.campaignId) amazonId = rows[0].campaignId;
+      }
+      
+      if (amazonId) {
+        await conn.execute(
+          `UPDATE optimization_tasks SET status = 'pending', amazon_entity_id = ?, retry_count = 0, error_message = 'v196: 自动恢复 - Amazon ID已可用' WHERE id = ?`,
+          [amazonId, task.id]
+        );
+        recovered++;
+      }
+    }
+    
+    if (recovered > 0) {
+      console.log(`[SyncEngine] v196: 自动恢复了${recovered}/${failedTasks.length}个失败任务`);
+    }
+    return recovered;
+  } catch (err: any) {
+    console.error(`[SyncEngine] v196: 重置失败任务异常: ${err.message}`);
+    return 0;
+  } finally {
+    await conn.end();
+  }
 }
 
 /**

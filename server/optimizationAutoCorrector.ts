@@ -66,7 +66,8 @@ const AUTO_CORRECTION_CONFIG = {
 
 export interface CorrectionResult {
   type: 'bid_retry' | 'bid_mismatch' | 'budget_retry' | 'budget_mismatch' | 
-        'placement_mismatch' | 'rollback_execution' | 'settings_retry' | 'max_bid_violation' | 'orphan_keyword_cleanup' | 'keyword_create_retry';
+        'placement_mismatch' | 'rollback_execution' | 'settings_retry' | 'max_bid_violation' | 
+        'orphan_keyword_cleanup' | 'keyword_create_retry' | 'bid_execution_verify';
   accountId: number;
   targetId: number;
   targetType: string;
@@ -204,6 +205,14 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
         // 13. v190: 恢复permanently_failed的optimization_tasks队列任务
         const taskRescues = await rescuePermanentlyFailedTasks(accId);
         corrections.push(...taskRescues);
+        
+        // 14. v196: 回填缺少amazon_negative_keyword_id的否定词
+        const negIdBackfills = await backfillNegativeKeywordIds(database, accId);
+        corrections.push(...negIdBackfills);
+        
+        // 15. v196: 基于bidding_logs的出价执行确认 — 验证Amazon是否真正执行了出价调整
+        const bidConfirmations = await verifyBiddingLogsExecution(database, accId);
+        corrections.push(...bidConfirmations);
         
       } catch (accError: any) {
         console.error(`[AutoCorrector] v178: 账户 ${accId} 纠错失败: ${accError.message}`);
@@ -1461,9 +1470,27 @@ async function retryFailedNegativeKeywordAdds(database: any, accountId: number):
           WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${nk.eventId} AND source_table = 'optimization_logs')
         `).catch(() => {});
         
-        // v176: 同步成功后，更新negative_keywords表的amazon_negative_keyword_id
-        // 注意：syncResult本身不返回keywordId，但幂等性检查已确认Amazon上存在
-        console.log(`[AutoCorrector] v178: 否定词同步成功: "${nk.keywordText}" (campaign=${nk.campaignId})`);
+        // v196: 同步成功后，回写amazon_negative_keyword_id
+        const negLevel = nk.level || 'campaign';
+        const mapKey = negLevel === 'campaign' 
+          ? `campaign:${nk.campaignId}:${nk.keywordText.toLowerCase()}`
+          : `adgroup:${nk.adGroupId}:${nk.keywordText.toLowerCase()}`;
+        const amazonNegId = syncResult.keywordIdMap?.get(mapKey);
+        if (amazonNegId) {
+          await database.execute(sql`
+            UPDATE negative_keywords 
+            SET amazon_negative_keyword_id = ${amazonNegId}
+            WHERE negativeText = ${nk.keywordText}
+              AND campaignId = ${String(nk.campaignId)}
+              AND amazon_negative_keyword_id IS NULL
+            LIMIT 1
+          `).catch((err: any) => {
+            console.warn(`[AutoCorrector] v196: 回写否定词ID失败: ${err.message}`);
+          });
+          console.log(`[AutoCorrector] v196: 否定词同步成功并回写ID: "${nk.keywordText}" -> ${amazonNegId}`);
+        } else {
+          console.log(`[AutoCorrector] v196: 否定词同步成功但未获取到Amazon ID: "${nk.keywordText}"`);
+        }
       } else if (isPermanentError) {
         // v175b: Amazon拒绝的无效关键词，直接标记为not_applicable，不再重试
         await database.update(optimizationEvents).set({
@@ -2341,6 +2368,236 @@ let correctionInterval: ReturnType<typeof setInterval> | null = null;
 /**
  * 启动自动纠错定时服务（每4小时运行一次）
  */
+// ==================== 14. v196: 回填缺少Amazon ID的否定词 ====================
+
+async function backfillNegativeKeywordIds(database: any, accountId: number): Promise<CorrectionResult[]> {
+  const results: CorrectionResult[] = [];
+  
+  try {
+    // 查找缺少amazon_negative_keyword_id的活跃否定词
+    const [missingIdRows] = await database.execute(sql`
+      SELECT id, campaignId, adGroupId, negativeText, negativeMatchType, negativeLevel
+      FROM negative_keywords
+      WHERE accountId = ${accountId}
+        AND amazon_negative_keyword_id IS NULL
+        AND negativeStatus = 'active'
+      LIMIT 50
+    `);
+    
+    if (!missingIdRows || missingIdRows.length === 0) return results;
+    
+    console.log(`[AutoCorrector] v196: 账户${accountId} 发现${missingIdRows.length}个缺少Amazon ID的否定词，尝试回填...`);
+    
+    // 按campaign分组，从Amazon API查询已有的否定词
+    const syncService = await amazonApiHelper.getAmazonSyncService(accountId);
+    if (!syncService) {
+      console.warn(`[AutoCorrector] v196: 无法获取账户${accountId}的API服务`);
+      return results;
+    }
+    
+    // 收集所有涉及的campaignId
+    const campaignIds = [...new Set(missingIdRows.map((r: any) => r.campaignId).filter(Boolean))];
+    
+    // 从Amazon查询每个campaign的否定词列表
+    const amazonNegMap = new Map<string, string>(); // key: campaignId:text:matchType -> amazonId
+    for (const campId of campaignIds) {
+      try {
+        const existing = await syncService.client.listSpCampaignNegativeKeywords(Number(campId));
+        for (const neg of existing) {
+          const key = `${campId}:${(neg.keywordText || '').toLowerCase()}:${(neg.matchType || '').toLowerCase()}`;
+          if (neg.keywordId) {
+            amazonNegMap.set(key, String(neg.keywordId));
+          }
+        }
+      } catch (listErr: any) {
+        console.warn(`[AutoCorrector] v196: 查询campaign ${campId} 否定词失败: ${listErr.message}`);
+      }
+    }
+    
+    // 匹配并回填
+    for (const row of missingIdRows) {
+      const matchType = (row.negativeMatchType || '').replace('negative_', 'negative').toLowerCase();
+      const key = `${row.campaignId}:${(row.negativeText || '').toLowerCase()}:${matchType}`;
+      const amazonId = amazonNegMap.get(key);
+      
+      if (amazonId) {
+        await database.execute(sql`
+          UPDATE negative_keywords SET amazon_negative_keyword_id = ${amazonId} WHERE id = ${row.id}
+        `);
+        results.push({
+          type: 'settings_retry',
+          accountId,
+          targetId: row.id,
+          targetType: 'negative_keyword',
+          previousValue: 'null',
+          correctedValue: amazonId,
+          reason: `v196: 回填否定词 Amazon ID: "${row.negativeText}"`,
+          success: true,
+        });
+        console.log(`[AutoCorrector] v196: ✅ 回填否定词ID: "${row.negativeText}" -> ${amazonId}`);
+      } else {
+        // Amazon上不存在，重新创建
+        try {
+          const syncResult = await amazonApiHelper.syncNegativeKeywordsToAmazon(accountId, [{
+            campaignId: Number(row.campaignId),
+            keywordText: row.negativeText,
+            matchType: matchType.includes('exact') ? 'negativeExact' as const : 'negativePhrase' as const,
+            level: (row.negativeLevel || 'campaign') as 'campaign' | 'adgroup',
+          }]);
+          
+          const mapKey = `campaign:${row.campaignId}:${(row.negativeText || '').toLowerCase()}`;
+          const newId = syncResult.keywordIdMap?.get(mapKey);
+          if (newId) {
+            await database.execute(sql`
+              UPDATE negative_keywords SET amazon_negative_keyword_id = ${newId} WHERE id = ${row.id}
+            `);
+            results.push({
+              type: 'settings_retry',
+              accountId,
+              targetId: row.id,
+              targetType: 'negative_keyword',
+              previousValue: 'null',
+              correctedValue: newId,
+              reason: `v196: 重新创建并回填否定词 Amazon ID: "${row.negativeText}"`,
+              success: true,
+            });
+          }
+        } catch (createErr: any) {
+          console.warn(`[AutoCorrector] v196: 重新创建否定词失败: ${createErr.message}`);
+        }
+      }
+    }
+    
+    console.log(`[AutoCorrector] v196: 否定词ID回填完成: 成功${results.length}/${missingIdRows.length}`);
+  } catch (err: any) {
+    console.error(`[AutoCorrector] v196: 否定词ID回填异常: ${err.message}`);
+  }
+  
+  return results;
+}
+
+/**
+ * v196: 基于bidding_logs的出价执行确认
+ * 查询最近24小时内execution_status='success'的bidding_logs
+ * 对比new_bid与keywords/product_targets表中的当前bid
+ * 如果不一致，说明Amazon可能未正确执行，触发重新同步
+ */
+async function verifyBiddingLogsExecution(database: any, accountId: number): Promise<CorrectionResult[]> {
+  const results: CorrectionResult[] = [];
+  
+  try {
+    // 查询最近24小时内成功的出价调整日志，且每个target只取最新的一条
+    const recentBidLogs = await database.execute(sql`
+      SELECT bl.id, bl.log_target_type, bl.target_id, bl.target_name,
+             bl.previous_bid, bl.new_bid, bl.created_at,
+             bl.campaign_id, bl.ad_group_id
+      FROM bidding_logs bl
+      INNER JOIN (
+        SELECT target_id, log_target_type, MAX(id) as max_id
+        FROM bidding_logs
+        WHERE account_id = ${accountId}
+          AND execution_status = 'success'
+          AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+        GROUP BY target_id, log_target_type
+      ) latest ON bl.id = latest.max_id
+      LIMIT 200
+    `);
+    
+    const rows = (recentBidLogs as any)?.[0] || recentBidLogs;
+    if (!Array.isArray(rows) || rows.length === 0) {
+      console.log(`[AutoCorrector] v196: 账户${accountId} 最近24小时无成功的出价调整日志`);
+      return results;
+    }
+    
+    let verified = 0;
+    let mismatched = 0;
+    let corrected = 0;
+    
+    for (const log of rows) {
+      const expectedBid = parseFloat(String(log.new_bid));
+      const targetId = log.target_id;
+      const targetType = log.log_target_type;
+      
+      // 根据类型查询当前实际bid
+      let currentBid: number | null = null;
+      
+      if (targetType === 'keyword') {
+        const [kw] = await database
+          .select({ bid: keywords.bid })
+          .from(keywords)
+          .where(eq(keywords.id, targetId))
+          .limit(1);
+        if (kw) currentBid = parseFloat(String(kw.bid || '0'));
+      } else if (targetType === 'product_target') {
+        const [pt] = await database
+          .select({ bid: productTargets.bid })
+          .from(productTargets)
+          .where(eq(productTargets.id, targetId))
+          .limit(1);
+        if (pt) currentBid = parseFloat(String(pt.bid || '0'));
+      }
+      
+      if (currentBid === null) continue;
+      
+      // 容差: $0.01
+      if (Math.abs(currentBid - expectedBid) <= 0.01) {
+        verified++;
+        continue;
+      }
+      
+      // 发现不一致 — 记录并尝试纠正
+      mismatched++;
+      console.log(`[AutoCorrector] v196: 出价执行确认失败: ${targetType} id=${targetId} expected=$${expectedBid.toFixed(2)} actual=$${currentBid.toFixed(2)}`);
+      
+      // 将本地DB更新为最新的成功出价（因为API已经成功，本地可能被同步覆盖了）
+      try {
+        if (targetType === 'keyword') {
+          await database
+            .update(keywords)
+            .set({ bid: String(expectedBid) })
+            .where(eq(keywords.id, targetId));
+        } else if (targetType === 'product_target') {
+          await database
+            .update(productTargets)
+            .set({ bid: String(expectedBid) })
+            .where(eq(productTargets.id, targetId));
+        }
+        corrected++;
+        
+        results.push({
+          type: 'bid_execution_verify',
+          accountId,
+          targetId,
+          targetType,
+          previousValue: String(currentBid),
+          correctedValue: String(expectedBid),
+          reason: `[v196执行确认] bidding_logs记录成功但本地bid不一致: 期望$${expectedBid.toFixed(2)}, 实际$${currentBid.toFixed(2)}`,
+          success: true,
+        });
+      } catch (corrErr: any) {
+        console.error(`[AutoCorrector] v196: 出价执行确认纠正失败: ${corrErr.message}`);
+        results.push({
+          type: 'bid_execution_verify',
+          accountId,
+          targetId,
+          targetType,
+          previousValue: String(currentBid),
+          correctedValue: String(expectedBid),
+          reason: `[v196执行确认] 纠正失败: ${corrErr.message}`,
+          success: false,
+        });
+      }
+    }
+    
+    console.log(`[AutoCorrector] v196: 账户${accountId} 出价执行确认完成: 检查=${rows.length}, 确认=${verified}, 不一致=${mismatched}, 纠正=${corrected}`);
+    
+  } catch (err: any) {
+    console.error(`[AutoCorrector] v196: 出价执行确认异常: ${err.message}`);
+  }
+  
+  return results;
+}
+
 export function startAutoCorrector(): void {
   if (correctionInterval) {
     console.log('[AutoCorrector] 定时纠错服务已在运行中');

@@ -9,6 +9,7 @@
  */
 
 import * as db from './db';
+import { sql } from 'drizzle-orm';
 import { AmazonSyncService } from './amazonSyncService';
 import { notifyOwner } from './_core/notification';
 import { getLocalHour, getLocalDayOfWeek, getAccountMarketplace, MARKETPLACE_TIMEZONES } from './algorithmUtils';
@@ -346,7 +347,35 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
       break;
   }
 
-  console.log(`[DataSyncScheduler] 账号 ${accountId} ${tier}层同步完成:`, result);
+  // v196: 同步完成后记录数据新鲜度日志
+  const syncEndTime = new Date();
+  console.log(`[DataSyncScheduler] v196: 账号 ${accountId} ${tier}层同步完成:`, result);
+  
+  // 记录同步完成时间到data_sync_jobs表
+  try {
+    const database = await db.getDb();
+    if (database) {
+      await database.execute(sql`
+        INSERT INTO data_sync_jobs (account_id, sync_type, status, started_at, completed_at, result_summary)
+        VALUES (${accountId}, ${tier}, 'completed', ${syncEndTime.toISOString().slice(0, 19).replace('T', ' ')}, ${syncEndTime.toISOString().slice(0, 19).replace('T', ' ')}, ${JSON.stringify(result || {}).substring(0, 500)})
+      `);
+    }
+  } catch (logErr: any) {
+    // 日志记录失败不影响主流程
+    console.warn(`[DataSyncScheduler] v196: 同步日志记录失败: ${logErr.message}`);
+  }
+
+  // v196: 每次同步完成后触发优化目标执行（确保优化频率与同步频率同步）
+  if (tier === 'medium' || tier === 'full' || tier === 'low') {
+    try {
+      console.log(`[DataSyncScheduler] v196: ${tier}层同步完成，触发账号 ${accountId} 的优化目标执行...`);
+      const { triggerAccountOptimizations } = await import('./optimizationScheduler');
+      await triggerAccountOptimizations(accountId);
+      console.log(`[DataSyncScheduler] v196: 账号 ${accountId} 优化目标执行完成`);
+    } catch (optErr: any) {
+      console.error(`[DataSyncScheduler] v196: 账号 ${accountId} 优化目标执行失败: ${optErr.message}`);
+    }
+  }
 }
 
 /**

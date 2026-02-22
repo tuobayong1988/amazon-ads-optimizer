@@ -15,7 +15,7 @@
 import * as db from "./db";
 import { getDb } from "./db";
 import { keywords as keywordsTable, productTargets as productTargetsTable, campaigns as campaignsTable } from "../drizzle/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import * as bidOptimizer from "./bidOptimizer";
 import * as daypartingService from "./daypartingService";
 import * as placementOptimizationService from "./placementOptimizationService";
@@ -2203,6 +2203,22 @@ async function executeSearchTermAnalysis(
                   if (d._pendingDbInsert && d.apiSyncStatus !== 'failed') {
                     try {
                       await dbInstance.insert(negativeKeywords).values(d._pendingDbInsert);
+                      
+                      // v195: 回写amazon_negative_keyword_id
+                      const mapKey = `campaign:${amazonCampaignId}:${d.searchTerm.toLowerCase()}`;
+                      const amazonNegId = negSyncResult.keywordIdMap?.get(mapKey);
+                      if (amazonNegId) {
+                        await dbInstance.execute(sql`
+                          UPDATE negative_keywords 
+                          SET amazon_negative_keyword_id = ${amazonNegId}
+                          WHERE negativeText = ${d.searchTerm}
+                            AND campaignId = ${campaign.id}
+                            AND amazon_negative_keyword_id IS NULL
+                          LIMIT 1
+                        `);
+                        console.log(`[SearchTermAnalysis] v195: 否词ID回写成功: "${d.searchTerm}" -> ${amazonNegId}`);
+                      }
+                      
                       console.log(`[SearchTermAnalysis] v165: 否词DB写入成功: "${d.searchTerm}"`);
                     } catch (dbErr: any) {
                       console.error(`[SearchTermAnalysis] v165: 否词DB写入失败: "${d.searchTerm}" - ${dbErr.message}`);

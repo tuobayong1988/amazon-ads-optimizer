@@ -526,8 +526,8 @@ export async function syncNegativeKeywordsToAmazon(
     matchType: 'negativeExact' | 'negativePhrase';
     level: 'campaign' | 'adgroup';
   }>
-): Promise<{ success: number; failed: number; errors: string[] }> {
-  const result = { success: 0, failed: 0, errors: [] as string[] };
+): Promise<{ success: number; failed: number; errors: string[]; keywordIdMap: Map<string, string> }> {
+  const result = { success: 0, failed: 0, errors: [] as string[], keywordIdMap: new Map<string, string>() };
   
   if (negatives.length === 0) return result;
   
@@ -589,10 +589,15 @@ export async function syncNegativeKeywordsToAmazon(
           const r = results[ri] as any;
           if (r.code === 'SUCCESS' || r.keywordId) {
             result.success++;
-            // 记录成功创建的否定词ID
+            // v195: 记录成功创建的否定词ID，用于回写amazon_negative_keyword_id
             const idx = r.index !== undefined ? r.index : ri;
             if (idx < newCampaignNegatives.length) {
-              console.log(`[AmazonApiHelper] 否定词创建成功: "${newCampaignNegatives[idx].keywordText}" -> keywordId=${r.keywordId}`);
+              const neg = newCampaignNegatives[idx];
+              const mapKey = `campaign:${neg.campaignId}:${neg.keywordText.toLowerCase()}`;
+              if (r.keywordId) {
+                result.keywordIdMap.set(mapKey, String(r.keywordId));
+              }
+              console.log(`[AmazonApiHelper] 否定词创建成功: "${neg.keywordText}" -> keywordId=${r.keywordId}`);
             }
           } else {
             result.failed++;
@@ -652,9 +657,19 @@ export async function syncNegativeKeywordsToAmazon(
           }))
         ), { label: 'AdGroup否定词创建' });
         
-        for (const r of results) {
+        for (let ri = 0; ri < results.length; ri++) {
+          const r = results[ri] as any;
           if (r.code === 'SUCCESS' || r.keywordId) {
             result.success++;
+            // v195: 记录adGroup级否定词的keywordId
+            const idx = r.index !== undefined ? r.index : ri;
+            if (idx < newAdGroupNegatives.length) {
+              const neg = newAdGroupNegatives[idx];
+              const mapKey = `adgroup:${neg.adGroupId}:${neg.keywordText.toLowerCase()}`;
+              if (r.keywordId) {
+                result.keywordIdMap.set(mapKey, String(r.keywordId));
+              }
+            }
           } else {
             result.failed++;
             result.errors.push(`AdGroup否定词失败: ${r.details}`);

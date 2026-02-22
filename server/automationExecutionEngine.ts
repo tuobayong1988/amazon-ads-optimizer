@@ -19,6 +19,8 @@ import * as autoRollbackService from './autoRollbackService';
 import * as specialScenarioOptimizationService from './specialScenarioOptimizationService';
 import * as notificationService from './notificationService';
 import * as trafficIsolationService from './trafficIsolationService';
+import * as amazonApiHelper from './services/amazonApiHelper';
+import { sql } from 'drizzle-orm';
 
 // ==================== 类型定义 ====================
 
@@ -1087,22 +1089,74 @@ export async function runNGramAnalysisTask(accountId: number): Promise<{
     // 3. 如果是全自动模式，自动应用否定词
     let appliedNegatives = 0;
     if (config.mode === 'full_auto') {
-      // 获取所有广告活动并应用否定词
+      // v195: 先通过Amazon API创建否定词，成功后再写入本地DB（先API后DB原则）
       const campaigns = await db.getCampaignsByAccountId(accountId);
+      const database = await getDb();
       
       for (const suggestion of analysisResult.suggestedNegatives) {
-        // 为每个广告活动添加否定词
-        for (const campaign of campaigns) {
-          try {
-            await db.addNegativeKeyword({
-              campaignId: campaign.id,
-              keyword: suggestion.token,
-              matchType: suggestion.matchType === 'negative_phrase' ? 'phrase' : 'exact',
-              level: 'campaign',
-            });
-            appliedNegatives++;
-          } catch (error) {
-            // 可能已存在，跳过
+        // 按账号分组批量同步到Amazon
+        const negativesToSync = campaigns.map(campaign => ({
+          campaignId: Number(campaign.campaignId || campaign.id),
+          keywordText: suggestion.token,
+          matchType: (suggestion.matchType === 'negative_phrase' ? 'negativePhrase' : 'negativeExact') as 'negativeExact' | 'negativePhrase',
+          level: 'campaign' as const,
+        }));
+        
+        try {
+          // v195: 调用Amazon API同步否定词
+          const syncResult = await amazonApiHelper.syncNegativeKeywordsToAmazon(accountId, negativesToSync);
+          
+          // v195: API成功后再写入本地DB，并回写amazon_negative_keyword_id
+          for (const campaign of campaigns) {
+            const amazonCampaignId = Number(campaign.campaignId || campaign.id);
+            const mapKey = `campaign:${amazonCampaignId}:${suggestion.token.toLowerCase()}`;
+            const amazonNegKeywordId = syncResult.keywordIdMap.get(mapKey);
+            
+            try {
+              await db.addNegativeKeyword({
+                campaignId: campaign.id,
+                keyword: suggestion.token,
+                matchType: suggestion.matchType === 'negative_phrase' ? 'phrase' : 'exact',
+                level: 'campaign',
+              });
+              
+              // v195: 回写amazon_negative_keyword_id
+              if (amazonNegKeywordId && database) {
+                await database.execute(sql`
+                  UPDATE negative_keywords 
+                  SET amazon_negative_keyword_id = ${amazonNegKeywordId},
+                      negativeSource = 'ngram_analysis'
+                  WHERE campaignId = ${campaign.id}
+                    AND negativeText = ${suggestion.token}
+                    AND amazon_negative_keyword_id IS NULL
+                  LIMIT 1
+                `);
+              }
+              
+              appliedNegatives++;
+            } catch (dbError) {
+              // 可能已存在，跳过
+            }
+          }
+          
+          if (syncResult.failed > 0) {
+            console.warn(`[AutomationEngine] N-Gram否定词部分同步失败: ${syncResult.errors.join('; ')}`);
+          }
+        } catch (apiError: any) {
+          console.error(`[AutomationEngine] N-Gram否定词 API同步失败: ${apiError.message}`);
+          // API失败时仍然写入本地DB，等待AutoCorrector重试
+          for (const campaign of campaigns) {
+            try {
+              await db.addNegativeKeyword({
+                campaignId: campaign.id,
+                keyword: suggestion.token,
+                matchType: suggestion.matchType === 'negative_phrase' ? 'phrase' : 'exact',
+                level: 'campaign',
+              });
+              appliedNegatives++;
+            } catch (dbError) {
+              // 可能已存在，跳过
+            }
           }
         }
       }
@@ -1115,7 +1169,7 @@ export async function runNGramAnalysisTask(accountId: number): Promise<{
           type: 'system',
           severity: 'info',
           title: 'N-Gram分析完成',
-          message: `识别到 ${suggestedNegatives} 个高频无效词根，已自动应用 ${appliedNegatives} 个否定词`,
+          message: `识别到 ${suggestedNegatives} 个高频无效词根，已自动应用 ${appliedNegatives} 个否定词并同步到Amazon`,
         });
       }
     } else {
