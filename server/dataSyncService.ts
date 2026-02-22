@@ -257,7 +257,7 @@ async function syncKeywords(userId: number, accountId: number, account: any): Pr
     if (campaign.length === 0) return { success: true, count: 0, message: "没有广告活动，跳过关键词同步" };
 
     // 获取账号下的第一个广告组
-    const adGroupsList = await db.select().from(adGroupsTable).where(eq(adGroupsTable.campaignId, campaign[0].id)).limit(1);
+    const adGroupsList = await db.select().from(adGroupsTable).where(eq(adGroupsTable.campaignId, String(campaign[0].id))).limit(1);
     const adGroupId = adGroupsList.length > 0 ? adGroupsList[0].id : 1; // 使用默认值如果没有广告组
 
     for (const kw of mockKeywords) {
@@ -298,7 +298,7 @@ async function syncPerformance(userId: number, accountId: number, account: any):
       today.setHours(0, 0, 0, 0);
 
       const todayStr = today.toISOString().split('T')[0];
-      const existing = await db.select().from(dailyPerformance).where(and(eq(dailyPerformance.campaignId, campaign.id), sql`DATE(date) = ${todayStr}`)).limit(1);
+      const existing = await db.select().from(dailyPerformance).where(and(eq(dailyPerformance.campaignId, String(campaign.id)), sql`DATE(date) = ${todayStr}`)).limit(1);
       
       if (existing.length === 0) {
         await db.insert(dailyPerformance).values({

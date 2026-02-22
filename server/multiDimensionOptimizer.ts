@@ -222,7 +222,7 @@ export async function analyzeMultiDimensionPerformance(
     .from(hourlyPerformance)
     .where(
       and(
-        eq(hourlyPerformance.campaignId, Number(campaignId)),
+        eq(hourlyPerformance.campaignId, String(campaignId)),
         sql`${hourlyPerformance.date} >= ${startStr}`,
         sql`${hourlyPerformance.date} <= ${endStr}`
       )
@@ -243,7 +243,7 @@ export async function analyzeMultiDimensionPerformance(
     .from(hourlyPerformance)
     .where(
       and(
-        eq(hourlyPerformance.campaignId, Number(campaignId)),
+        eq(hourlyPerformance.campaignId, String(campaignId)),
         sql`${hourlyPerformance.date} >= ${startStr}`,
         sql`${hourlyPerformance.date} <= ${endStr}`
       )
@@ -850,11 +850,13 @@ export async function executeMultiDimensionOptimization(
   
   for (const campaign of campaigns) {
     try {
-      const campaignId = campaign.campaignId || campaign.id.toString();
+      // v186: 修复campaignId MISMATCH - hourly_performance和placement_performance表存储的是本地ID(campaigns.id)
+      // 之前错误地使用campaign.campaignId(Amazon ID)导致查不到任何数据，分时竞价/预算完全失效
+      const campaignLocalId = campaign.id;
       
-      // 1. 多维度分析
+      // 1. 多维度分析（使用本地ID查询hourly_performance和placement_performance）
       const analysis = await analyzeMultiDimensionPerformance(
-        campaignId, accountId, lookbackDays, config.targetAcos
+        campaignLocalId, accountId, lookbackDays, config.targetAcos
       );
       
       if (!analysis) {

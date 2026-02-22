@@ -69,7 +69,7 @@ export async function analyzeWeeklyPerformance(
     .from(dailyPerformance)
     .where(
       and(
-        eq(dailyPerformance.campaignId, campaignId),
+        eq(dailyPerformance.campaignId, String(campaignId)),
         sql`${dailyPerformance.date} >= ${startDate.toISOString()}`
       )
     )
@@ -158,7 +158,7 @@ export async function analyzeHourlyPerformance(
     .from(hourlyPerformance)
     .where(
       and(
-        eq(hourlyPerformance.campaignId, campaignId),
+        eq(hourlyPerformance.campaignId, String(campaignId)),
         gte(hourlyPerformance.date, startDate.toISOString().split('T')[0]),
         lte(hourlyPerformance.date, endDate.toISOString().split('T')[0]) // 排除最近3天
       )
@@ -519,7 +519,7 @@ export async function getDaypartingStrategyByCampaignId(campaignId: number | str
   const result = await db
     .select()
     .from(daypartingStrategies)
-    .where(eq(daypartingStrategies.campaignId, Number(campaignId) || 0))
+    .where(eq(daypartingStrategies.campaignId, String(campaignId)))
     .limit(1);
   return result[0] || null;
 }

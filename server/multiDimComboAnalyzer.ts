@@ -175,7 +175,7 @@ async function synthesizeFromExistingData(
   })
   .from(hourlyPerformance)
   .where(and(
-    eq(hourlyPerformance.campaignId, campaignId),
+    eq(hourlyPerformance.campaignId, String(campaignId)),
     eq(hourlyPerformance.accountId, accountId),
     gte(hourlyPerformance.date, startStr),
     lte(hourlyPerformance.date, endStr),
@@ -197,7 +197,7 @@ async function synthesizeFromExistingData(
   })
   .from(placementPerformance)
   .where(and(
-    eq(placementPerformance.campaignId, amazonCampaignId),
+    eq(placementPerformance.campaignId, String(amazonCampaignId)),
     eq(placementPerformance.accountId, accountId),
     gte(placementPerformance.date, startStr),
     lte(placementPerformance.date, endStr),
@@ -334,7 +334,7 @@ async function loadPreviousAnalysis(
   .from(multiDimComboAnalysis)
   .where(and(
     eq(multiDimComboAnalysis.accountId, accountId),
-    eq(multiDimComboAnalysis.campaignId, campaignId),
+    eq(multiDimComboAnalysis.campaignId, String(campaignId)),
   ));
 
   const map = new Map<string, { category: string; bidMultiplier: number; placementMultiplier: number; timeMultiplier: number }>();
@@ -411,7 +411,7 @@ export async function analyzeCampaignCombos(
   })
   .from(keywordPlacementHourlyPerformance)
   .where(and(
-    eq(keywordPlacementHourlyPerformance.campaignId, campaignId),
+    eq(keywordPlacementHourlyPerformance.campaignId, String(campaignId)),
     eq(keywordPlacementHourlyPerformance.accountId, accountId),
     gte(keywordPlacementHourlyPerformance.date, startStr),
     lte(keywordPlacementHourlyPerformance.date, endStr),
@@ -894,7 +894,7 @@ export async function getRealtimeMultipliers(
   comboCategory: string;
   confidence: string;
 } | null> {
-  const conditions = [eq(multiDimComboAnalysis.campaignId, campaignId)];
+  const conditions = [eq(multiDimComboAnalysis.campaignId, String(campaignId))];
   if (keywordId) {
     conditions.push(eq(multiDimComboAnalysis.keywordId, keywordId));
   } else if (targetId) {
@@ -966,7 +966,7 @@ export async function persistAnalysisResults(
   await db.delete(multiDimComboAnalysis)
     .where(and(
       eq(multiDimComboAnalysis.accountId, accountId),
-      eq(multiDimComboAnalysis.campaignId, analysis.campaignId),
+      eq(multiDimComboAnalysis.campaignId, String(analysis.campaignId)),
     ));
 
   // 批量插入新结果
@@ -1130,7 +1130,7 @@ export async function getComboAnalysisForCampaign(
     .from(multiDimComboAnalysis)
     .where(and(
       eq(multiDimComboAnalysis.accountId, accountId),
-      eq(multiDimComboAnalysis.campaignId, campaignId),
+      eq(multiDimComboAnalysis.campaignId, String(campaignId)),
     ));
   return results;
 }
@@ -1154,7 +1154,7 @@ export async function getCampaignBudgetMultiplier(
   .from(multiDimComboAnalysis)
   .where(and(
     eq(multiDimComboAnalysis.accountId, accountId),
-    eq(multiDimComboAnalysis.campaignId, campaignId),
+    eq(multiDimComboAnalysis.campaignId, String(campaignId)),
   ));
 
   if (results.length === 0) return 1.0;

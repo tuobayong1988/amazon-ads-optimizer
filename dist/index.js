@@ -31421,7 +31421,7 @@ var init_schema2 = __esm({
         id: int().autoincrement().notNull(),
         testId: int().notNull(),
         variantId: int().notNull(),
-        campaignId: int().notNull(),
+        campaignId: varchar({ length: 64 }).notNull(),
         assignedAt: datetime({ mode: "string" }).default("CURRENT_TIMESTAMP").notNull()
       },
       (table) => [
@@ -31569,7 +31569,7 @@ var init_schema2 = __esm({
     );
     adGroups = mysqlTable("ad_groups", {
       id: int().autoincrement().notNull(),
-      campaignId: int().notNull(),
+      campaignId: varchar({ length: 64 }).notNull(),
       adGroupId: varchar({ length: 64 }).notNull(),
       adGroupName: varchar({ length: 500 }).notNull(),
       defaultBid: decimal({ precision: 10, scale: 2 }),
@@ -31624,7 +31624,7 @@ var init_schema2 = __esm({
       id: int().autoincrement().notNull(),
       userId: int().notNull(),
       accountId: int().notNull(),
-      campaignId: int().notNull(),
+      campaignId: varchar({ length: 64 }).notNull(),
       executionName: varchar({ length: 255 }),
       aiExecType: mysqlEnum(["bid_adjustment", "status_change", "negative_keyword", "mixed"]).notNull(),
       aiExecStatus: mysqlEnum(["pending", "executing", "completed", "failed", "partially_completed"]).default("pending"),
@@ -31776,7 +31776,7 @@ var init_schema2 = __esm({
       {
         id: int().autoincrement().notNull(),
         accountId: int().notNull(),
-        campaignId: int(),
+        campaignId: varchar({ length: 64 }),
         amazonCampaignId: varchar({ length: 64 }).notNull(),
         date: varchar({ length: 10 }).notNull(),
         adType: mysqlEnum(["SP", "SB", "SD"]).notNull(),
@@ -31975,7 +31975,7 @@ var init_schema2 = __esm({
       userId: int().notNull(),
       accountId: int().notNull(),
       biddingLogId: int().notNull(),
-      campaignId: int().notNull(),
+      campaignId: varchar({ length: 64 }).notNull(),
       correctionTargetType: mysqlEnum(["keyword", "product_target"]).notNull(),
       targetId: int().notNull(),
       targetName: varchar({ length: 500 }),
@@ -32167,7 +32167,7 @@ var init_schema2 = __esm({
       {
         id: int().autoincrement().notNull(),
         accountId: int("account_id").notNull(),
-        campaignId: int("campaign_id"),
+        campaignId: varchar("campaign_id", { length: 64 }),
         campaignName: varchar("campaign_name", { length: 500 }),
         performanceGroupId: int("performance_group_id"),
         performanceGroupName: varchar("performance_group_name", { length: 255 }),
@@ -32269,7 +32269,7 @@ var init_schema2 = __esm({
     biddingLogs = mysqlTable("bidding_logs", {
       id: int().autoincrement().notNull(),
       accountId: int().notNull(),
-      campaignId: int().notNull(),
+      campaignId: varchar({ length: 64 }).notNull(),
       adGroupId: int(),
       logTargetType: mysqlEnum(["keyword", "product_target", "placement", "campaign_budget", "negative_keyword", "search_term_harvest"]).notNull(),
       targetId: int().notNull(),
@@ -32337,7 +32337,7 @@ var init_schema2 = __esm({
       {
         id: int().autoincrement().notNull(),
         configId: int("config_id").notNull(),
-        campaignId: int("campaign_id").notNull(),
+        campaignId: varchar("campaign_id", { length: 64 }).notNull(),
         previousBudget: decimal("previous_budget", { precision: 10, scale: 2 }).notNull(),
         newBudget: decimal("new_budget", { precision: 10, scale: 2 }).notNull(),
         changeReason: text("change_reason"),
@@ -32352,7 +32352,7 @@ var init_schema2 = __esm({
     budgetAllocationItems = mysqlTable("budget_allocation_items", {
       id: int().autoincrement().notNull(),
       allocationId: int().notNull(),
-      campaignId: int().notNull(),
+      campaignId: varchar({ length: 64 }).notNull(),
       currentBudget: decimal({ precision: 10, scale: 2 }).notNull(),
       recommendedBudget: decimal({ precision: 10, scale: 2 }).notNull(),
       budgetChange: decimal({ precision: 10, scale: 2 }).notNull(),
@@ -32379,7 +32379,7 @@ var init_schema2 = __esm({
       {
         id: int().autoincrement().notNull(),
         configId: int("config_id").notNull(),
-        campaignId: int("campaign_id").notNull(),
+        campaignId: varchar("campaign_id", { length: 64 }).notNull(),
         currentBudget: decimal("current_budget", { precision: 10, scale: 2 }).notNull(),
         suggestedBudget: decimal("suggested_budget", { precision: 10, scale: 2 }).notNull(),
         budgetChange: decimal("budget_change", { precision: 10, scale: 2 }).notNull(),
@@ -32489,7 +32489,7 @@ var init_schema2 = __esm({
         id: int().autoincrement().notNull(),
         executionId: int("execution_id"),
         historyId: int("history_id").notNull(),
-        campaignId: int("campaign_id").notNull(),
+        campaignId: varchar("campaign_id", { length: 64 }).notNull(),
         campaignName: varchar("campaign_name", { length: 500 }),
         previousBudget: decimal("previous_budget", { precision: 10, scale: 2 }).notNull(),
         newBudget: decimal("new_budget", { precision: 10, scale: 2 }).notNull(),
@@ -32642,7 +32642,7 @@ var init_schema2 = __esm({
       id: int().autoincrement().notNull(),
       userId: int().notNull(),
       accountId: int(),
-      campaignId: int().notNull(),
+      campaignId: varchar({ length: 64 }).notNull(),
       alertType: mysqlEnum(["overspending", "underspending", "budget_depleted", "near_depletion"]).notNull(),
       severity: mysqlEnum(["low", "medium", "high", "critical"]).default("medium"),
       dailyBudget: decimal({ precision: 10, scale: 2 }).notNull(),
@@ -32681,7 +32681,7 @@ var init_schema2 = __esm({
       id: int().autoincrement().notNull(),
       userId: int().notNull(),
       accountId: int(),
-      campaignId: int().notNull(),
+      campaignId: varchar({ length: 64 }).notNull(),
       allocationId: int(),
       previousBudget: decimal({ precision: 10, scale: 2 }).notNull(),
       newBudget: decimal({ precision: 10, scale: 2 }).notNull(),
@@ -32699,7 +32699,7 @@ var init_schema2 = __esm({
       "campaign_performance_snapshots",
       {
         id: int().autoincrement().notNull(),
-        campaignId: int("campaign_id").notNull(),
+        campaignId: varchar("campaign_id", { length: 64 }).notNull(),
         // you can use { mode: 'date' }, if you want to have Date as type for this column
         snapshotDate: date("snapshot_date", { mode: "string" }).notNull(),
         impressions: int().default(0),
@@ -32918,7 +32918,7 @@ var init_schema2 = __esm({
     dailyPerformance = mysqlTable("daily_performance", {
       id: int().autoincrement().notNull(),
       accountId: int().notNull(),
-      campaignId: int(),
+      campaignId: varchar({ length: 64 }),
       performanceGroupId: int(),
       date: timestamp({ mode: "string" }).notNull(),
       impressions: int().default(0),
@@ -33122,7 +33122,7 @@ var init_schema2 = __esm({
     daypartingStrategies = mysqlTable("dayparting_strategies", {
       id: int().autoincrement().notNull(),
       accountId: int().notNull(),
-      campaignId: int(),
+      campaignId: varchar({ length: 64 }),
       name: varchar({ length: 255 }).notNull(),
       description: text(),
       strategyType: mysqlEnum(["budget", "bidding", "both"]).default("both"),
@@ -33197,7 +33197,7 @@ var init_schema2 = __esm({
     hourlyPerformance = mysqlTable("hourly_performance", {
       id: int().autoincrement().notNull(),
       accountId: int().notNull(),
-      campaignId: int().notNull(),
+      campaignId: varchar({ length: 64 }).notNull(),
       adGroupId: int(),
       keywordId: int(),
       date: timestamp({ mode: "string" }).notNull(),
@@ -33471,7 +33471,7 @@ var init_schema2 = __esm({
     negativeKeywords = mysqlTable("negative_keywords", {
       id: int().autoincrement().notNull(),
       accountId: int().notNull(),
-      campaignId: int().notNull(),
+      campaignId: varchar({ length: 64 }).notNull(),
       adGroupId: int(),
       negativeLevel: mysqlEnum(["campaign", "ad_group"]).notNull(),
       negativeType: mysqlEnum(["keyword", "product"]).notNull(),
@@ -33883,7 +33883,7 @@ var init_schema2 = __esm({
     searchTerms = mysqlTable("search_terms", {
       id: int().autoincrement().notNull(),
       accountId: int().notNull(),
-      campaignId: int().notNull(),
+      campaignId: varchar({ length: 64 }).notNull(),
       adGroupId: int().notNull(),
       searchTerm: varchar({ length: 500 }).notNull(),
       searchTermTargetType: mysqlEnum(["keyword", "product_target"]).notNull(),
@@ -33913,7 +33913,7 @@ var init_schema2 = __esm({
       id: int().autoincrement().notNull(),
       userId: int().notNull(),
       accountId: int(),
-      campaignId: int(),
+      campaignId: varchar({ length: 64 }),
       eventId: int(),
       recommendationType: mysqlEnum(["event_increase", "event_warmup", "seasonal_increase", "seasonal_decrease", "trend_based"]).notNull(),
       currentBudget: decimal({ precision: 10, scale: 2 }).notNull(),
@@ -34565,7 +34565,7 @@ var init_schema2 = __esm({
       {
         id: int().autoincrement().notNull(),
         accountId: int("account_id").notNull(),
-        campaignId: int("campaign_id").notNull(),
+        campaignId: varchar("campaign_id", { length: 64 }).notNull(),
         adGroupId: int("ad_group_id"),
         keywordId: int("keyword_id"),
         targetId: int("target_id"),
@@ -34602,7 +34602,7 @@ var init_schema2 = __esm({
       {
         id: int().autoincrement().notNull(),
         accountId: int("account_id").notNull(),
-        campaignId: int("campaign_id").notNull(),
+        campaignId: varchar("campaign_id", { length: 64 }).notNull(),
         keywordId: int("keyword_id"),
         targetId: int("target_id"),
         keywordText: varchar("keyword_text", { length: 500 }),
@@ -35252,7 +35252,8 @@ async function createAdGroup(adGroup) {
 async function getAdGroupsByCampaignId(campaignId) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(adGroups).where(eq(adGroups.campaignId, campaignId));
+  const campaignIdStr = String(campaignId);
+  return db.select().from(adGroups).where(eq(adGroups.campaignId, campaignIdStr));
 }
 async function getAdGroupById(id) {
   const db = await getDb();
@@ -35301,8 +35302,8 @@ async function updateKeyword(id, data4) {
 async function getKeywordsByCampaignId(campaignId) {
   const db = await getDb();
   if (!db) return [];
-  const campaignIdNum = typeof campaignId === "string" ? parseInt(campaignId, 10) : campaignId;
-  const adGroupsList = await db.select().from(adGroups).where(eq(adGroups.campaignId, campaignIdNum));
+  const campaignIdStr = String(campaignId);
+  const adGroupsList = await db.select().from(adGroups).where(eq(adGroups.campaignId, campaignIdStr));
   if (adGroupsList.length === 0) return [];
   const adGroupIds = adGroupsList.map((ag) => ag.id);
   const allKeywords = [];
@@ -35378,7 +35379,7 @@ async function getBiddingLogsByAccountId(accountId, limit = 100, offset2 = 0) {
 async function getBiddingLogsByCampaignId(campaignId, limit = 100) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(biddingLogs).where(eq(biddingLogs.campaignId, campaignId)).orderBy(desc(biddingLogs.createdAt)).limit(limit);
+  return db.select().from(biddingLogs).where(eq(biddingLogs.campaignId, String(campaignId))).orderBy(desc(biddingLogs.createdAt)).limit(limit);
 }
 async function getBiddingLogsCount(accountId) {
   const db = await getDb();
@@ -35403,7 +35404,7 @@ async function getDailyPerformanceByDateRange(accountId, startDate, endDate, cam
     sql`${dailyPerformance.date} <= ${endDateStr}`
   ];
   if (campaignId) {
-    conditions.push(eq(dailyPerformance.campaignId, campaignId));
+    conditions.push(eq(dailyPerformance.campaignId, String(campaignId)));
   }
   return db.select().from(dailyPerformance).where(and(...conditions)).orderBy(dailyPerformance.date);
 }
@@ -35454,7 +35455,7 @@ async function getDailyPerformanceByAccountAndDate(accountId, date12, campaignId
     sql`DATE(${dailyPerformance.date}) = ${date12}`
   ];
   if (campaignId !== void 0 && campaignId !== null) {
-    conditions.push(eq(dailyPerformance.campaignId, campaignId));
+    conditions.push(eq(dailyPerformance.campaignId, String(campaignId)));
   } else {
     conditions.push(sql`${dailyPerformance.campaignId} IS NULL`);
   }
@@ -35707,7 +35708,7 @@ async function getSearchTermsForAnalysis(accountId, _days = 30) {
     spend: keywords.spend,
     sales: keywords.sales,
     impressions: keywords.impressions
-  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id)).where(eq(campaigns.accountId, accountId));
+  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
   return result.map((r5) => ({
     searchTerm: r5.searchTerm || "",
     clicks: Number(r5.clicks) || 0,
@@ -35730,7 +35731,7 @@ async function getCampaignSearchTerms(accountId) {
     sales: keywords.sales,
     orders: keywords.orders,
     bid: keywords.bid
-  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id)).where(eq(campaigns.accountId, accountId));
+  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
   return result.map((r5) => {
     const clicks = Number(r5.clicks) || 0;
     const orders = Number(r5.orders) || 0;
@@ -35772,7 +35773,7 @@ async function getBidTargets(accountId) {
     spend: keywords.spend,
     sales: keywords.sales,
     orders: keywords.orders
-  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id)).where(eq(campaigns.accountId, accountId));
+  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
   const productTargetResults = await db.select({
     id: productTargets.id,
     name: productTargets.targetValue,
@@ -35784,7 +35785,7 @@ async function getBidTargets(accountId) {
     spend: productTargets.spend,
     sales: productTargets.sales,
     orders: productTargets.orders
-  }).from(productTargets).innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id)).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id)).where(eq(campaigns.accountId, accountId));
+  }).from(productTargets).innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
   const results = [
     ...keywordTargets.map((r5) => ({
       id: r5.id,
@@ -35820,7 +35821,7 @@ async function getUniqueSearchTerms(accountId) {
   if (!db) return [];
   const result = await db.selectDistinct({
     searchTerm: keywords.keywordText
-  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id)).where(eq(campaigns.accountId, accountId));
+  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
   return result.map((r5) => r5.searchTerm || "").filter((t7) => t7.length > 0);
 }
 async function recordMigration(data4) {
@@ -35903,8 +35904,8 @@ async function getCampaignHealthMetrics(accountId) {
   const campaignList = await db.select().from(campaigns).where(eq(campaigns.accountId, accountId));
   const results = [];
   for (const campaign of campaignList) {
-    const recentPerf = await db.select().from(dailyPerformance).where(eq(dailyPerformance.campaignId, campaign.id)).orderBy(desc(dailyPerformance.date)).limit(7);
-    const historicalPerf = await db.select().from(dailyPerformance).where(eq(dailyPerformance.campaignId, campaign.id)).orderBy(desc(dailyPerformance.date)).limit(30);
+    const recentPerf = await db.select().from(dailyPerformance).where(eq(dailyPerformance.campaignId, String(campaign.id))).orderBy(desc(dailyPerformance.date)).limit(7);
+    const historicalPerf = await db.select().from(dailyPerformance).where(eq(dailyPerformance.campaignId, String(campaign.id))).orderBy(desc(dailyPerformance.date)).limit(30);
     const currentMetrics = calculateAverageMetrics(recentPerf);
     const historicalAverage = calculateAverageMetrics(historicalPerf);
     const changes = calculateMetricChanges(currentMetrics, historicalAverage);
@@ -35995,7 +35996,7 @@ async function addNegativeKeyword(data4) {
 async function getNegativeKeywordsByCampaignId(campaignId) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(negativeKeywords).where(eq(negativeKeywords.campaignId, campaignId));
+  return db.select().from(negativeKeywords).where(eq(negativeKeywords.campaignId, String(campaignId)));
 }
 async function getNegativeKeywordsByAccountId(accountId) {
   const db = await getDb();
@@ -36524,7 +36525,7 @@ async function getRecentEmailSendLogs(userId, limit = 50) {
 async function getSearchTermsByCampaignId(campaignId) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(searchTerms).where(eq(searchTerms.campaignId, campaignId));
+  return db.select().from(searchTerms).where(eq(searchTerms.campaignId, String(campaignId)));
 }
 async function getSearchTermsByAdGroupId(adGroupId) {
   const db = await getDb();
@@ -36548,7 +36549,7 @@ async function getCampaignDetailWithStats(campaignId) {
   if (!db) return null;
   const campaign = await db.select().from(campaigns).where(eq(campaigns.id, campaignId)).limit(1);
   if (!campaign[0]) return null;
-  const adGroupList = await db.select().from(adGroups).where(eq(adGroups.campaignId, campaignId));
+  const adGroupList = await db.select().from(adGroups).where(eq(adGroups.campaignId, String(campaignId)));
   const adGroupIds = adGroupList.map((ag) => ag.id);
   let keywordList = [];
   if (adGroupIds.length > 0) {
@@ -36558,7 +36559,7 @@ async function getCampaignDetailWithStats(campaignId) {
   if (adGroupIds.length > 0) {
     productTargetList = await db.select().from(productTargets).where(sql`${productTargets.adGroupId} IN (${sql.join(adGroupIds.map((id) => sql`${id}`), sql`, `)})`);
   }
-  const searchTermList = await db.select().from(searchTerms).where(eq(searchTerms.campaignId, campaignId));
+  const searchTermList = await db.select().from(searchTerms).where(eq(searchTerms.campaignId, String(campaignId)));
   return {
     campaign: campaign[0],
     adGroups: adGroupList,
@@ -36610,7 +36611,7 @@ async function getCampaignPlacementStats(campaignId) {
 async function getCampaignTargets(campaignId) {
   const db = await getDb();
   if (!db) return { keywords: [], productTargets: [] };
-  const adGroupList = await db.select({ id: adGroups.id, adGroupName: adGroups.adGroupName }).from(adGroups).where(eq(adGroups.campaignId, campaignId));
+  const adGroupList = await db.select({ id: adGroups.id, adGroupName: adGroups.adGroupName }).from(adGroups).where(eq(adGroups.campaignId, String(campaignId)));
   if (adGroupList.length === 0) {
     return { keywords: [], productTargets: [] };
   }
@@ -36646,7 +36647,7 @@ async function getAiOptimizationExecution(id) {
 async function getAiOptimizationExecutionsByCampaign(campaignId, limit = 50) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(aiOptimizationExecutions).where(eq(aiOptimizationExecutions.campaignId, campaignId)).orderBy(desc(aiOptimizationExecutions.executedAt)).limit(limit);
+  return db.select().from(aiOptimizationExecutions).where(eq(aiOptimizationExecutions.campaignId, String(campaignId))).orderBy(desc(aiOptimizationExecutions.executedAt)).limit(limit);
 }
 async function getAiOptimizationExecutionsByAccount(accountId, limit = 100) {
   const db = await getDb();
@@ -36844,7 +36845,7 @@ async function getBidAdjustmentHistory(params) {
   const offset2 = (page - 1) * pageSize;
   const conditions = [eq(bidAdjustmentHistory.accountId, params.accountId)];
   if (params.campaignId) {
-    conditions.push(eq(bidAdjustmentHistory.campaignId, params.campaignId));
+    conditions.push(eq(bidAdjustmentHistory.campaignId, String(params.campaignId)));
   }
   if (params.performanceGroupId) {
     conditions.push(eq(bidAdjustmentHistory.performanceGroupId, params.performanceGroupId));
@@ -37564,9 +37565,9 @@ async function getLocalDataStats(accountId) {
   const [spCampaignsResult] = await db.select({ count: sql`count(*)` }).from(campaigns).where(sql`${campaigns.accountId} = ${accountId} AND (${campaigns.campaignType} = 'sp_auto' OR ${campaigns.campaignType} = 'sp_manual')`);
   const [sbCampaignsResult] = await db.select({ count: sql`count(*)` }).from(campaigns).where(sql`${campaigns.accountId} = ${accountId} AND ${campaigns.campaignType} = 'sb'`);
   const [sdCampaignsResult] = await db.select({ count: sql`count(*)` }).from(campaigns).where(sql`${campaigns.accountId} = ${accountId} AND ${campaigns.campaignType} = 'sd'`);
-  const [adGroupsResult] = await db.select({ count: sql`count(*)` }).from(adGroups).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id)).where(eq(campaigns.accountId, accountId));
-  const [keywordsResult] = await db.select({ count: sql`count(*)` }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id)).where(eq(campaigns.accountId, accountId));
-  const [productTargetsResult] = await db.select({ count: sql`count(*)` }).from(productTargets).innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id)).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id)).where(eq(campaigns.accountId, accountId));
+  const [adGroupsResult] = await db.select({ count: sql`count(*)` }).from(adGroups).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
+  const [keywordsResult] = await db.select({ count: sql`count(*)` }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
+  const [productTargetsResult] = await db.select({ count: sql`count(*)` }).from(productTargets).innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
   return {
     spCampaigns: Number(spCampaignsResult?.count || 0),
     sbCampaigns: Number(sbCampaignsResult?.count || 0),
@@ -58203,7 +58204,7 @@ async function getRecentlyOptimizedCampaignIds(campaignIds, hoursWindow = 24) {
 async function runAutoBidOptimization(syncService, accountId, performanceGroupConfig) {
   const db = await getDb();
   if (!db) return { optimized: 0, skipped: 0 };
-  const keywordsToOptimize = await db.select({ keyword: keywords }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id)).where(and(
+  const keywordsToOptimize = await db.select({ keyword: keywords }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(and(
     eq(campaigns.accountId, accountId),
     eq(keywords.keywordStatus, "enabled")
   )).limit(100).then((rows) => rows.map((r5) => r5.keyword));
@@ -58950,7 +58951,7 @@ var init_amazonSyncService = __esm({
             if (!campaign) continue;
             const [existing] = await db.select().from(adGroups).where(
               and(
-                eq(adGroups.campaignId, campaign.id),
+                eq(adGroups.campaignId, String(campaign.id)),
                 eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
               )
             ).limit(1);
@@ -59010,7 +59011,7 @@ var init_amazonSyncService = __esm({
             if (!campaign) continue;
             const [existing] = await db.select().from(adGroups).where(
               and(
-                eq(adGroups.campaignId, campaign.id),
+                eq(adGroups.campaignId, String(campaign.id)),
                 eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
               )
             ).limit(1);
@@ -59064,7 +59065,7 @@ var init_amazonSyncService = __esm({
             if (!campaign) continue;
             const [existing] = await db.select().from(adGroups).where(
               and(
-                eq(adGroups.campaignId, campaign.id),
+                eq(adGroups.campaignId, String(campaign.id)),
                 eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
               )
             ).limit(1);
@@ -59402,7 +59403,7 @@ var init_amazonSyncService = __esm({
             const [existing] = await db.select().from(negativeKeywords).where(
               and(
                 eq(negativeKeywords.accountId, this.accountId),
-                eq(negativeKeywords.campaignId, campaign.id),
+                eq(negativeKeywords.campaignId, String(campaign.id)),
                 eq(negativeKeywords.negativeLevel, "campaign"),
                 eq(negativeKeywords.negativeText, neg.keywordText || "")
               )
@@ -59440,7 +59441,7 @@ var init_amazonSyncService = __esm({
             const [existing] = await db.select().from(negativeKeywords).where(
               and(
                 eq(negativeKeywords.accountId, this.accountId),
-                eq(negativeKeywords.campaignId, campaign.id),
+                eq(negativeKeywords.campaignId, String(campaign.id)),
                 eq(negativeKeywords.adGroupId, adGroup.id),
                 eq(negativeKeywords.negativeLevel, "ad_group"),
                 eq(negativeKeywords.negativeText, neg.keywordText || "")
@@ -59502,7 +59503,7 @@ var init_amazonSyncService = __esm({
             const [existing] = await db.select().from(negativeKeywords).where(
               and(
                 eq(negativeKeywords.accountId, this.accountId),
-                eq(negativeKeywords.campaignId, campaign.id),
+                eq(negativeKeywords.campaignId, String(campaign.id)),
                 eq(negativeKeywords.negativeLevel, "campaign"),
                 eq(negativeKeywords.negativeType, "product"),
                 eq(negativeKeywords.negativeText, negativeText)
@@ -59543,7 +59544,7 @@ var init_amazonSyncService = __esm({
             const [existing] = await db.select().from(negativeKeywords).where(
               and(
                 eq(negativeKeywords.accountId, this.accountId),
-                eq(negativeKeywords.campaignId, campaign.id),
+                eq(negativeKeywords.campaignId, String(campaign.id)),
                 eq(negativeKeywords.adGroupId, adGroup.id),
                 eq(negativeKeywords.negativeLevel, "ad_group"),
                 eq(negativeKeywords.negativeType, "product"),
@@ -59607,7 +59608,7 @@ var init_amazonSyncService = __esm({
             const [existing] = await db.select().from(searchTerms).where(
               and(
                 eq(searchTerms.accountId, this.accountId),
-                eq(searchTerms.campaignId, campaign.id),
+                eq(searchTerms.campaignId, String(campaign.id)),
                 eq(searchTerms.adGroupId, adGroup.id),
                 eq(searchTerms.searchTerm, row.searchTerm || "")
               )
@@ -60111,7 +60112,7 @@ var init_amazonSyncService = __esm({
             const reportDateStr = reportDate.toISOString().split("T")[0];
             const [existing] = await db.select().from(dailyPerformance).where(
               and(
-                eq(dailyPerformance.campaignId, campaign.id),
+                eq(dailyPerformance.campaignId, String(campaign.id)),
                 sql`DATE(${dailyPerformance.date}) = ${reportDateStr}`
               )
             ).limit(1);
@@ -60224,7 +60225,7 @@ var init_amazonSyncService = __esm({
               const dateStr = baseDate.toISOString().split("T")[0];
               const [existing] = await db.select().from(dailyPerformance).where(
                 and(
-                  eq(dailyPerformance.campaignId, campaign.id),
+                  eq(dailyPerformance.campaignId, String(campaign.id)),
                   sql`DATE(${dailyPerformance.date}) = ${dateStr}`
                 )
               ).limit(1);
@@ -60897,7 +60898,7 @@ var init_amazonSyncService = __esm({
             const [existing] = await db.select().from(searchTerms).where(
               and(
                 eq(searchTerms.accountId, this.accountId),
-                eq(searchTerms.campaignId, campaign.id),
+                eq(searchTerms.campaignId, String(campaign.id)),
                 eq(searchTerms.adGroupId, adGroup.id),
                 eq(searchTerms.searchTerm, row.searchTerm || "")
               )
@@ -61328,7 +61329,7 @@ var init_amazonSyncService = __esm({
               totalOrders: sql`COALESCE(SUM(orders), 0)`
             }).from(dailyPerformance).where(
               and(
-                eq(dailyPerformance.campaignId, campaign.id),
+                eq(dailyPerformance.campaignId, String(campaign.id)),
                 sql`${dailyPerformance.date} >= ${startDateStr}`,
                 sql`${dailyPerformance.date} <= ${endDateStr}`
               )
@@ -61339,7 +61340,7 @@ var init_amazonSyncService = __esm({
             let totalSales = parseFloat(dailySummary?.totalSales || "0");
             let totalOrders = dailySummary?.totalOrders || 0;
             if (totalImpressions === 0 && totalClicks === 0 && totalSpend === 0) {
-              const campaignAdGroups = await db.select({ id: adGroups.id }).from(adGroups).where(eq(adGroups.campaignId, campaign.id));
+              const campaignAdGroups = await db.select({ id: adGroups.id }).from(adGroups).where(eq(adGroups.campaignId, String(campaign.id)));
               const adGroupIds = campaignAdGroups.map((ag) => ag.id);
               if (adGroupIds.length > 0) {
                 const [keywordSummary] = await db.select({
@@ -61479,7 +61480,7 @@ var init_amazonSyncService = __esm({
             const [existing] = await db.select().from(negativeKeywords).where(
               and(
                 eq(negativeKeywords.accountId, this.accountId),
-                eq(negativeKeywords.campaignId, campaign.id),
+                eq(negativeKeywords.campaignId, String(campaign.id)),
                 eq(negativeKeywords.negativeLevel, negLevel),
                 eq(negativeKeywords.negativeText, neg.keywordText || "")
               )
@@ -61544,7 +61545,7 @@ var init_amazonSyncService = __esm({
             const [existing] = await db.select().from(negativeKeywords).where(
               and(
                 eq(negativeKeywords.accountId, this.accountId),
-                eq(negativeKeywords.campaignId, campaign.id),
+                eq(negativeKeywords.campaignId, String(campaign.id)),
                 eq(negativeKeywords.negativeLevel, negLevel),
                 eq(negativeKeywords.negativeType, "product"),
                 eq(negativeKeywords.negativeText, negativeText)
@@ -61665,7 +61666,7 @@ var init_amazonSyncService = __esm({
         const db = await getDb();
         if (!db) return 0;
         try {
-          const adGroupsNeedingUrls = await db.select().from(adGroups).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id)).where(
+          const adGroupsNeedingUrls = await db.select().from(adGroups).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(
             and(
               eq(campaigns.accountId, this.accountId),
               sql`(${adGroups.videoAssetId} IS NOT NULL AND ${adGroups.videoAssetId} != '' AND (${adGroups.videoUrl} IS NULL OR ${adGroups.videoUrl} = ''))
@@ -62200,7 +62201,7 @@ var init_amazonSyncService = __esm({
           }
           const [existing] = await db.select().from(adGroups).where(
             and(
-              eq(adGroups.campaignId, campaign.id),
+              eq(adGroups.campaignId, String(campaign.id)),
               eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
             )
           ).limit(1);
@@ -62797,7 +62798,7 @@ async function analyzeWeeklyPerformance(campaignId, lookbackDays = 30) {
     dataPoints: sql`COUNT(*)`
   }).from(dailyPerformance).where(
     and(
-      eq(dailyPerformance.campaignId, campaignId),
+      eq(dailyPerformance.campaignId, String(campaignId)),
       sql`${dailyPerformance.date} >= ${startDate.toISOString()}`
     )
   ).groupBy(sql`DAYOFWEEK(${dailyPerformance.date})`);
@@ -62839,7 +62840,7 @@ async function analyzeHourlyPerformance(campaignId, lookbackDays = 30) {
     dataPoints: sql`COUNT(*)`
   }).from(hourlyPerformance).where(
     and(
-      eq(hourlyPerformance.campaignId, campaignId),
+      eq(hourlyPerformance.campaignId, String(campaignId)),
       gte(hourlyPerformance.date, startDate.toISOString().split("T")[0]),
       lte(hourlyPerformance.date, endDate.toISOString().split("T")[0])
       // 排除最近3天
@@ -62998,7 +62999,7 @@ async function getDaypartingStrategy(strategyId) {
 async function getDaypartingStrategyByCampaignId(campaignId) {
   const db = await getDb();
   if (!db) return null;
-  const result = await db.select().from(daypartingStrategies).where(eq(daypartingStrategies.campaignId, Number(campaignId) || 0)).limit(1);
+  const result = await db.select().from(daypartingStrategies).where(eq(daypartingStrategies.campaignId, String(campaignId))).limit(1);
   return result[0] || null;
 }
 async function ensureDaypartingStrategy(accountId, campaignId, campaignName, options = {}) {
@@ -63425,7 +63426,7 @@ async function collectCampaignPerformanceData(performanceGroupId, endDate = /* @
         sales: dailyPerformance.sales,
         orders: dailyPerformance.orders
       }).from(dailyPerformance).where(and(
-        eq(dailyPerformance.campaignId, campaign.id),
+        eq(dailyPerformance.campaignId, String(campaign.id)),
         sql`DATE(${dailyPerformance.date}) >= ${date90dAgo.toISOString().split("T")[0]}`,
         sql`DATE(${dailyPerformance.date}) <= ${endDate.toISOString().split("T")[0]}`
       ));
@@ -63506,7 +63507,7 @@ async function aggregatePerformanceData(campaignId, startDate, endDate) {
     clicks: sql`COALESCE(SUM(${dailyPerformance.clicks}), 0)`,
     impressions: sql`COALESCE(SUM(${dailyPerformance.impressions}), 0)`
   }).from(dailyPerformance).where(and(
-    eq(dailyPerformance.campaignId, campaignId),
+    eq(dailyPerformance.campaignId, String(campaignId)),
     sql`DATE(${dailyPerformance.date}) >= ${startDate.toISOString().split("T")[0]}`,
     sql`DATE(${dailyPerformance.date}) <= ${endDate.toISOString().split("T")[0]}`
   ));
@@ -64266,7 +64267,7 @@ async function getCampaignPlacementPerformance(campaignId, accountId, days = 90,
   startDate.setDate(startDate.getDate() - days);
   const performanceData = await db.select().from(placementPerformance).where(
     and(
-      eq(placementPerformance.campaignId, campaignId),
+      eq(placementPerformance.campaignId, String(campaignId)),
       eq(placementPerformance.accountId, accountId),
       gte(placementPerformance.date, startDate.toISOString()),
       lte(placementPerformance.date, endDate.toISOString())
@@ -64352,7 +64353,7 @@ async function getCampaignPlacementSettings(campaignId, accountId) {
   if (!db) throw new Error("Database connection failed");
   const settings = await db.select().from(placementSettings).where(
     and(
-      eq(placementSettings.campaignId, campaignId),
+      eq(placementSettings.campaignId, String(campaignId)),
       eq(placementSettings.accountId, accountId)
     )
   );
@@ -64394,7 +64395,7 @@ async function updatePlacementSettings(campaignId, accountId, adjustments) {
   if (validAdjustments.length === 0) return;
   const existing = await db.select().from(placementSettings).where(
     and(
-      eq(placementSettings.campaignId, campaignId),
+      eq(placementSettings.campaignId, String(campaignId)),
       eq(placementSettings.accountId, accountId)
     )
   ).limit(1);
@@ -66894,7 +66895,7 @@ async function retryHistoricalFailedKeywordHarvests(database, accountId) {
         }
         const amazonCampaignId = Number(campRows[0].campaignId);
         const agRows = await database.select({ id: adGroups.id, adGroupId: adGroups.adGroupId }).from(adGroups).where(and(
-          eq(adGroups.campaignId, localCampaignId),
+          eq(adGroups.campaignId, String(localCampaignId)),
           eq(adGroups.adGroupStatus, "enabled")
         )).limit(1);
         if (agRows.length === 0) {
@@ -132007,7 +132008,7 @@ var init_sqsConsumerService = __esm({
         }
         const existing = await dbConn.select().from(keywordPlacementHourlyPerformance2).where(and7(
           eq7(keywordPlacementHourlyPerformance2.accountId, params.accountId),
-          eq7(keywordPlacementHourlyPerformance2.campaignId, params.campaignId),
+          eq7(keywordPlacementHourlyPerformance2.campaignId, String(params.campaignId)),
           localKeywordId ? eq7(keywordPlacementHourlyPerformance2.keywordId, localKeywordId) : sql9`${keywordPlacementHourlyPerformance2.keywordId} IS NULL`,
           localTargetId ? eq7(keywordPlacementHourlyPerformance2.targetId, localTargetId) : sql9`${keywordPlacementHourlyPerformance2.targetId} IS NULL`,
           eq7(keywordPlacementHourlyPerformance2.placement, params.placement),
@@ -132100,7 +132101,7 @@ async function synthesizeFromExistingData(db, campaignId, accountId, startStr, e
     sales: hourlyPerformance.sales,
     orders: hourlyPerformance.orders
   }).from(hourlyPerformance).where(and(
-    eq(hourlyPerformance.campaignId, campaignId),
+    eq(hourlyPerformance.campaignId, String(campaignId)),
     eq(hourlyPerformance.accountId, accountId),
     gte(hourlyPerformance.date, startStr),
     lte(hourlyPerformance.date, endStr)
@@ -132117,7 +132118,7 @@ async function synthesizeFromExistingData(db, campaignId, accountId, startStr, e
     sales: placementPerformance.sales,
     orders: placementPerformance.orders
   }).from(placementPerformance).where(and(
-    eq(placementPerformance.campaignId, amazonCampaignId),
+    eq(placementPerformance.campaignId, String(amazonCampaignId)),
     eq(placementPerformance.accountId, accountId),
     gte(placementPerformance.date, startStr),
     lte(placementPerformance.date, endStr)
@@ -132213,7 +132214,7 @@ async function loadPreviousAnalysis(db, accountId, campaignId) {
     suggestedTimeMultiplier: multiDimComboAnalysis.suggestedTimeMultiplier
   }).from(multiDimComboAnalysis).where(and(
     eq(multiDimComboAnalysis.accountId, accountId),
-    eq(multiDimComboAnalysis.campaignId, campaignId)
+    eq(multiDimComboAnalysis.campaignId, String(campaignId))
   ));
   const map9 = /* @__PURE__ */ new Map();
   for (const row of prevResults) {
@@ -132256,7 +132257,7 @@ async function analyzeCampaignCombos(db, campaignId, accountId, targetAcos = 30,
     sales: keywordPlacementHourlyPerformance.sales,
     orders: keywordPlacementHourlyPerformance.orders
   }).from(keywordPlacementHourlyPerformance).where(and(
-    eq(keywordPlacementHourlyPerformance.campaignId, campaignId),
+    eq(keywordPlacementHourlyPerformance.campaignId, String(campaignId)),
     eq(keywordPlacementHourlyPerformance.accountId, accountId),
     gte(keywordPlacementHourlyPerformance.date, startStr),
     lte(keywordPlacementHourlyPerformance.date, endStr)
@@ -132589,7 +132590,7 @@ function calculateCampaignBudgetMultiplier(golden, leaden, potential, standard, 
   return 1;
 }
 async function getRealtimeMultipliers(db, campaignId, keywordId, targetId, currentDayOfWeek, currentHour) {
-  const conditions = [eq(multiDimComboAnalysis.campaignId, campaignId)];
+  const conditions = [eq(multiDimComboAnalysis.campaignId, String(campaignId))];
   if (keywordId) {
     conditions.push(eq(multiDimComboAnalysis.keywordId, keywordId));
   } else if (targetId) {
@@ -132635,7 +132636,7 @@ async function persistAnalysisResults(db, accountId, analysis) {
   startDate.setDate(startDate.getDate() - 30);
   await db.delete(multiDimComboAnalysis).where(and(
     eq(multiDimComboAnalysis.accountId, accountId),
-    eq(multiDimComboAnalysis.campaignId, analysis.campaignId)
+    eq(multiDimComboAnalysis.campaignId, String(analysis.campaignId))
   ));
   let inserted = 0;
   for (const combo of allCombos) {
@@ -132735,7 +132736,7 @@ async function getComboAnalysisForAccount(db, accountId) {
 async function getComboAnalysisForCampaign(db, accountId, campaignId) {
   const results = await db.select().from(multiDimComboAnalysis).where(and(
     eq(multiDimComboAnalysis.accountId, accountId),
-    eq(multiDimComboAnalysis.campaignId, campaignId)
+    eq(multiDimComboAnalysis.campaignId, String(campaignId))
   ));
   return results;
 }
@@ -132747,7 +132748,7 @@ async function getCampaignBudgetMultiplier(db, accountId, campaignId) {
     restOfSearchSpend: multiDimComboAnalysis.restOfSearchSpend
   }).from(multiDimComboAnalysis).where(and(
     eq(multiDimComboAnalysis.accountId, accountId),
-    eq(multiDimComboAnalysis.campaignId, campaignId)
+    eq(multiDimComboAnalysis.campaignId, String(campaignId))
   ));
   if (results.length === 0) return 1;
   let totalSpend = 0;
@@ -133277,7 +133278,7 @@ var init_postDeployOptimizer = __esm({
     init_db2();
     init_schema2();
     init_drizzle_orm();
-    SYSTEM_VERSION = 185;
+    SYSTEM_VERSION = 186;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -133302,6 +133303,12 @@ var init_postDeployOptimizer = __esm({
         description: "v185: \u4F18\u96C5\u5173\u95ED + \u90E8\u7F72\u751F\u547D\u5468\u671F\u7BA1\u7406 + \u4EFB\u52A1\u65AD\u70B9\u6062\u590D + \u5FC3\u8DF3\u76D1\u63A7",
         affectedModules: [],
         correctionActions: []
+      },
+      {
+        version: 186,
+        description: "v186: \u4FEE\u590DcampaignId\u7C7B\u578B\u4E0D\u5339\u914D(varchar vs int) + multiDimOptimizer\u4F7F\u7528\u6B63\u786E\u7684\u672C\u5730ID\u67E5\u8BE2hourly_performance + \u4F4D\u7F6E\u4F18\u5316\u4F7F\u7528\u6B63\u786E\u7684\u672C\u5730ID\u67E5\u8BE2placement_performance",
+        affectedModules: ["dayparting", "dayparting_budget", "placement", "multidim", "bid"],
+        correctionActions: ["rebuild_combo_analysis", "reset_dayparting_rules", "reset_placement_rules", "rerun_optimization"]
       }
     ];
     POST_DEPLOY_CONFIG = {
@@ -133741,7 +133748,7 @@ var init_asyncReportService = __esm({
             const existingRecord = await db.select().from(amsPerformanceData).where(
               and(
                 eq(amsPerformanceData.accountId, accountId),
-                eq(amsPerformanceData.campaignId, campaignId),
+                eq(amsPerformanceData.campaignId, String(campaignId)),
                 eq(amsPerformanceData.reportDate, date12)
               )
             ).limit(1);
@@ -139121,7 +139128,7 @@ async function analyzeMultiDimensionPerformance(campaignId, accountId, lookbackD
     dataPoints: sql`COUNT(DISTINCT ${hourlyPerformance.date})`
   }).from(hourlyPerformance).where(
     and(
-      eq(hourlyPerformance.campaignId, Number(campaignId)),
+      eq(hourlyPerformance.campaignId, String(campaignId)),
       sql`${hourlyPerformance.date} >= ${startStr}`,
       sql`${hourlyPerformance.date} <= ${endStr}`
     )
@@ -139136,7 +139143,7 @@ async function analyzeMultiDimensionPerformance(campaignId, accountId, lookbackD
     dataPoints: sql`COUNT(DISTINCT ${hourlyPerformance.date})`
   }).from(hourlyPerformance).where(
     and(
-      eq(hourlyPerformance.campaignId, Number(campaignId)),
+      eq(hourlyPerformance.campaignId, String(campaignId)),
       sql`${hourlyPerformance.date} >= ${startStr}`,
       sql`${hourlyPerformance.date} <= ${endStr}`
     )
@@ -139535,9 +139542,9 @@ async function executeMultiDimensionOptimization(targetId, accountId, campaigns7
   const lookbackDays = config2.lookbackDays || 30;
   for (const campaign of campaigns7) {
     try {
-      const campaignId = campaign.campaignId || campaign.id.toString();
+      const campaignLocalId = campaign.id;
       const analysis = await analyzeMultiDimensionPerformance(
-        campaignId,
+        campaignLocalId,
         accountId,
         lookbackDays,
         config2.targetAcos
@@ -141247,9 +141254,10 @@ async function executePlacementOptimization(config2, campaigns7, dryRun) {
   }
   for (const campaign of campaigns7) {
     try {
-      const analysis = await analyzePlacementPerformance(campaign.campaignId || campaign.id.toString(), config2.accountId);
+      const localCampaignId = campaign.id.toString();
+      const analysis = await analyzePlacementPerformance(localCampaignId, config2.accountId);
       const suggestions = await generatePlacementSuggestions(
-        campaign.campaignId || campaign.id.toString(),
+        localCampaignId,
         config2.accountId
       );
       const campaignCombos = accountComboMap.get(campaign.id) || [];
@@ -141289,7 +141297,7 @@ async function executePlacementOptimization(config2, campaigns7, dryRun) {
         details.push(adjustment);
         if (!dryRun && comboAdjustedMultiplier !== suggestion.currentMultiplier) {
           await applyPlacementAdjustment(
-            campaign.campaignId || campaign.id.toString(),
+            localCampaignId,
             config2.accountId,
             { ...suggestion, suggestedMultiplier: comboAdjustedMultiplier }
           );
@@ -141323,14 +141331,14 @@ async function executePlacementOptimization(config2, campaigns7, dryRun) {
         }
         if (placementSyncSuccess) {
           try {
-            const amazonCampaignId = campaign.campaignId || campaign.id.toString();
+            const amazonCampaignIdForVerify = campaign.campaignId || campaign.id.toString();
             const topSuggestion = suggestions?.find((s4) => s4.placement === "top_of_search");
             const productSuggestion = suggestions?.find((s4) => s4.placement === "product_page");
             schedulePlacementVerification(
               config2.accountId,
               [{
                 localCampaignId: campaign.id,
-                amazonCampaignId,
+                amazonCampaignId: amazonCampaignIdForVerify,
                 expectedTopOfSearch: topSuggestion?.suggestedMultiplier,
                 expectedProductPage: productSuggestion?.suggestedMultiplier
               }]
@@ -143253,7 +143261,7 @@ async function calculateMarginalBenefit(campaignId, accountId, placementType, cu
     orders: placementPerformance.orders
   }).from(placementPerformance).where(
     and(
-      eq(placementPerformance.campaignId, campaignId),
+      eq(placementPerformance.campaignId, String(campaignId)),
       eq(placementPerformance.accountId, accountId),
       sql`${placementPerformance.placement} = ${placementType}`,
       gte(placementPerformance.date, startDate.toISOString()),
@@ -143479,7 +143487,7 @@ async function getCurrentPerformance(campaignId, accountId) {
     spend: sql`SUM(${placementPerformance.spend})`
   }).from(placementPerformance).where(
     and(
-      eq(placementPerformance.campaignId, campaignId),
+      eq(placementPerformance.campaignId, String(campaignId)),
       eq(placementPerformance.accountId, accountId),
       gte(placementPerformance.date, startDate.toISOString()),
       lte(placementPerformance.date, endDate.toISOString())
@@ -143877,7 +143885,7 @@ async function getDailyPerformanceByPerformanceGroup(performanceGroupId, startDa
     totalSpend: sql`COALESCE(SUM(${dailyPerformance.spend}), '0')`.as("totalSpend"),
     totalSales: sql`COALESCE(SUM(${dailyPerformance.sales}), '0')`.as("totalSales"),
     totalOrders: sql`COALESCE(SUM(${dailyPerformance.orders}), 0)`.as("totalOrders")
-  }).from(dailyPerformance).innerJoin(campaigns, eq(dailyPerformance.campaignId, campaigns.id)).where(and(
+  }).from(dailyPerformance).innerJoin(campaigns, sql`${dailyPerformance.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(and(
     eq(campaigns.performanceGroupId, performanceGroupId),
     sql`${dailyPerformance.campaignId} IS NOT NULL`,
     sql`DATE(${dailyPerformance.date}) >= ${startDateStr}`,
@@ -146510,7 +146518,7 @@ async function getBudgetHistory(userId, options = {}) {
     query2 = and(query2, eq(budgetHistory.accountId, accountId));
   }
   if (campaignId) {
-    query2 = and(query2, eq(budgetHistory.campaignId, campaignId));
+    query2 = and(query2, eq(budgetHistory.campaignId, String(campaignId)));
   }
   if (startDate) {
     query2 = and(query2, gte(budgetHistory.createdAt, startDate.toISOString()));
@@ -337982,7 +337990,7 @@ async function identifyFunnelTiers(accountId) {
     campaignId: adGroups.campaignId,
     matchType: keywords.matchType,
     count: sql`COUNT(*)`
-  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id)).where(eq(campaigns.accountId, accountId)).groupBy(adGroups.campaignId, keywords.matchType);
+  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId)).groupBy(adGroups.campaignId, keywords.matchType);
   const campaignMatchTypes = /* @__PURE__ */ new Map();
   for (const kw of keywordData) {
     const matchTypes = campaignMatchTypes.get(kw.campaignId) || /* @__PURE__ */ new Map();
@@ -342923,7 +342931,7 @@ async function learnCampaignSpendPattern(campaignId, lookbackDays = 30) {
   }
   const startDate = subDays(/* @__PURE__ */ new Date(), lookbackDays);
   const historicalData = await db.select().from(dailyPerformance).where(and(
-    eq(dailyPerformance.campaignId, campaignId),
+    eq(dailyPerformance.campaignId, String(campaignId)),
     gte(dailyPerformance.date, formatDate(startDate))
   )).orderBy(dailyPerformance.date);
   const dailySpends = historicalData.map((d5) => Number(d5.spend) || 0);
@@ -343044,7 +343052,7 @@ async function analyzeBudgetDepletionRisk(accountId) {
   const predictions = [];
   for (const campaign of activeCampaigns) {
     const [todayPerf] = await db.select().from(dailyPerformance).where(and(
-      eq(dailyPerformance.campaignId, campaign.id),
+      eq(dailyPerformance.campaignId, String(campaign.id)),
       sql`DATE(${dailyPerformance.date}) = ${today}`
     )).limit(1);
     const currentSpend = todayPerf ? Number(todayPerf.spend) : 0;
@@ -343251,7 +343259,7 @@ async function analyzeBidEfficiency(accountId, targetAcos = 0.25, profitMargin =
       recommendations: []
     };
   }
-  const adGroupList = await db.select().from(adGroups).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id)).where(eq(campaigns.accountId, accountId));
+  const adGroupList = await db.select().from(adGroups).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
   const adGroupIds = adGroupList.map((ag) => ag.ad_groups.id);
   if (adGroupIds.length === 0) {
     return {
@@ -346454,7 +346462,7 @@ async function getPerformanceWindow(db, event, startDate, endDate) {
     sql`DATE(${dailyPerformance.date}) <= ${endStr}`
   ];
   if (event.campaignId) {
-    conditions.push(eq(dailyPerformance.campaignId, event.campaignId));
+    conditions.push(eq(dailyPerformance.campaignId, String(event.campaignId)));
   } else if (event.performanceGroupId) {
     conditions.push(eq(dailyPerformance.performanceGroupId, event.performanceGroupId));
   }
@@ -347101,7 +347109,7 @@ async function analyzeBudgetConsumption(userId, accountId) {
   const results = [];
   for (const campaign of activeCampaigns) {
     const todayStr = today.toISOString().split("T")[0];
-    const todayPerformance = await db.select().from(dailyPerformance).where(and(eq(dailyPerformance.campaignId, campaign.id), sql`DATE(${dailyPerformance.date}) >= ${todayStr}`)).limit(1);
+    const todayPerformance = await db.select().from(dailyPerformance).where(and(eq(dailyPerformance.campaignId, String(campaign.id)), sql`DATE(${dailyPerformance.date}) >= ${todayStr}`)).limit(1);
     const dailyBudget = Number(campaign.maxBid) * 100 || 100;
     const currentSpend = todayPerformance[0]?.spend ? Number(todayPerformance[0].spend) : 0;
     const expectedSpend = dailyBudget / 24 * hoursElapsed;
@@ -347161,7 +347169,7 @@ async function runBudgetConsumptionCheck(userId, accountId, sendNotifications = 
     if (analysis.alertType) {
       const db = await getDb();
       if (db) {
-        const existingAlert = await db.select().from(budgetConsumptionAlerts).where(and(eq(budgetConsumptionAlerts.campaignId, analysis.campaignId), eq(budgetConsumptionAlerts.alertType, analysis.alertType), eq(budgetConsumptionAlerts.status, "active"))).limit(1);
+        const existingAlert = await db.select().from(budgetConsumptionAlerts).where(and(eq(budgetConsumptionAlerts.campaignId, String(analysis.campaignId)), eq(budgetConsumptionAlerts.alertType, analysis.alertType), eq(budgetConsumptionAlerts.status, "active"))).limit(1);
         if (existingAlert.length === 0) {
           await createBudgetAlert(userId, analysis, accountId);
           alertCount++;
@@ -347836,7 +347844,7 @@ async function syncKeywords(userId, accountId, account) {
     if (!db) return { success: false, count: 0, message: "\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25" };
     const campaign = await db.select().from(campaigns).where(eq(campaigns.accountId, accountId)).limit(1);
     if (campaign.length === 0) return { success: true, count: 0, message: "\u6CA1\u6709\u5E7F\u544A\u6D3B\u52A8\uFF0C\u8DF3\u8FC7\u5173\u952E\u8BCD\u540C\u6B65" };
-    const adGroupsList = await db.select().from(adGroups).where(eq(adGroups.campaignId, campaign[0].id)).limit(1);
+    const adGroupsList = await db.select().from(adGroups).where(eq(adGroups.campaignId, String(campaign[0].id))).limit(1);
     const adGroupId = adGroupsList.length > 0 ? adGroupsList[0].id : 1;
     for (const kw of mockKeywords) {
       const existing = await db.select().from(keywords).where(and(eq(keywords.adGroupId, adGroupId), eq(keywords.keywordId, kw.keywordId))).limit(1);
@@ -347866,7 +347874,7 @@ async function syncPerformance(userId, accountId, account) {
       const today = /* @__PURE__ */ new Date();
       today.setHours(0, 0, 0, 0);
       const todayStr = today.toISOString().split("T")[0];
-      const existing = await db.select().from(dailyPerformance).where(and(eq(dailyPerformance.campaignId, campaign.id), sql`DATE(date) = ${todayStr}`)).limit(1);
+      const existing = await db.select().from(dailyPerformance).where(and(eq(dailyPerformance.campaignId, String(campaign.id)), sql`DATE(date) = ${todayStr}`)).limit(1);
       if (existing.length === 0) {
         await db.insert(dailyPerformance).values({
           accountId,
@@ -350316,7 +350324,7 @@ async function analyzeCampaignPlacementProfit(accountId, campaignId) {
   startDate.setDate(startDate.getDate() - 30);
   const placementData = await db.select().from(placementPerformance).where(
     and(
-      eq(placementPerformance.campaignId, campaignId),
+      eq(placementPerformance.campaignId, String(campaignId)),
       eq(placementPerformance.accountId, accountId),
       gte(placementPerformance.date, startDate.toISOString().split("T")[0])
     )
@@ -350463,7 +350471,7 @@ async function applyOptimizationRecommendation(recommendationId, userId) {
           lastAdjustedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
         }).where(
           and(
-            eq(placementSettings.campaignId, rec.campaignId),
+            eq(placementSettings.campaignId, String(rec.campaignId)),
             eq(placementSettings.accountId, rec.accountId)
           )
         );
@@ -352293,7 +352301,7 @@ var keywordRouter = router({
             adGroupId: keywordsTable.adGroupId,
             campaignId: adGroups4.campaignId,
             accountId: campaigns7.accountId
-          }).from(keywordsTable).innerJoin(adGroups4, eq7(keywordsTable.adGroupId, adGroups4.id)).innerJoin(campaigns7, eq7(adGroups4.campaignId, campaigns7.id)).where(inArray11(keywordsTable.id, results.map((r5) => r5.id)));
+          }).from(keywordsTable).innerJoin(adGroups4, eq7(keywordsTable.adGroupId, adGroups4.id)).innerJoin(campaigns7, sql`${adGroups4.campaignId} = CAST(${campaigns7.id} AS CHAR)`).where(inArray11(keywordsTable.id, results.map((r5) => r5.id)));
           const byAccount = /* @__PURE__ */ new Map();
           for (const kw of kwDetails) {
             const r5 = results.find((r6) => r6.id === kw.kwId);
@@ -352339,7 +352347,7 @@ var keywordRouter = router({
           adGroupId: keywordsTable.adGroupId,
           campaignId: adGroups4.campaignId,
           accountId: campaigns7.accountId
-        }).from(keywordsTable).innerJoin(adGroups4, eq7(keywordsTable.adGroupId, adGroups4.id)).innerJoin(campaigns7, eq7(adGroups4.campaignId, campaigns7.id)).where(inArray11(keywordsTable.id, input.ids));
+        }).from(keywordsTable).innerJoin(adGroups4, eq7(keywordsTable.adGroupId, adGroups4.id)).innerJoin(campaigns7, sql`${adGroups4.campaignId} = CAST(${campaigns7.id} AS CHAR)`).where(inArray11(keywordsTable.id, input.ids));
         const byAccount = /* @__PURE__ */ new Map();
         for (const kw of kwDetails) {
           if (!byAccount.has(kw.accountId)) byAccount.set(kw.accountId, []);
@@ -352535,7 +352543,7 @@ var productTargetRouter = router({
             adGroupId: productTargets2.adGroupId,
             campaignId: adGroups4.campaignId,
             accountId: campaigns7.accountId
-          }).from(productTargets2).innerJoin(adGroups4, eq7(productTargets2.adGroupId, adGroups4.id)).innerJoin(campaigns7, eq7(adGroups4.campaignId, campaigns7.id)).where(inArray11(productTargets2.id, results.map((r5) => r5.id)));
+          }).from(productTargets2).innerJoin(adGroups4, eq7(productTargets2.adGroupId, adGroups4.id)).innerJoin(campaigns7, sql`${adGroups4.campaignId} = CAST(${campaigns7.id} AS CHAR)`).where(inArray11(productTargets2.id, results.map((r5) => r5.id)));
           const byAccount = /* @__PURE__ */ new Map();
           for (const pt3 of ptDetails) {
             const r5 = results.find((r6) => r6.id === pt3.ptId);
@@ -352582,7 +352590,7 @@ var productTargetRouter = router({
           adGroupId: productTargets2.adGroupId,
           campaignId: adGroups4.campaignId,
           accountId: campaigns7.accountId
-        }).from(productTargets2).innerJoin(adGroups4, eq7(productTargets2.adGroupId, adGroups4.id)).innerJoin(campaigns7, eq7(adGroups4.campaignId, campaigns7.id)).where(inArray11(productTargets2.id, input.ids));
+        }).from(productTargets2).innerJoin(adGroups4, eq7(productTargets2.adGroupId, adGroups4.id)).innerJoin(campaigns7, sql`${adGroups4.campaignId} = CAST(${campaigns7.id} AS CHAR)`).where(inArray11(productTargets2.id, input.ids));
         const byAccount = /* @__PURE__ */ new Map();
         for (const pt3 of ptDetails) {
           if (!byAccount.has(pt3.accountId)) byAccount.set(pt3.accountId, []);
@@ -358562,7 +358570,7 @@ var placementRouter = router({
       conditions.push(lte(bidAdjustmentHistory.appliedAt, input.endDate));
     }
     if (input.campaignId) {
-      conditions.push(eq(bidAdjustmentHistory.campaignId, input.campaignId));
+      conditions.push(eq(bidAdjustmentHistory.campaignId, String(input.campaignId)));
     }
     if (input.performanceGroupId) {
       conditions.push(eq(bidAdjustmentHistory.performanceGroupId, input.performanceGroupId));

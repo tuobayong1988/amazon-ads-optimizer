@@ -952,7 +952,7 @@ export class SQSConsumerService {
       .from(keywordPlacementHourlyPerformance)
       .where(and(
         eq(keywordPlacementHourlyPerformance.accountId, params.accountId),
-        eq(keywordPlacementHourlyPerformance.campaignId, params.campaignId),
+        eq(keywordPlacementHourlyPerformance.campaignId, String(params.campaignId)),
         localKeywordId ? eq(keywordPlacementHourlyPerformance.keywordId, localKeywordId) : sql`${keywordPlacementHourlyPerformance.keywordId} IS NULL`,
         localTargetId ? eq(keywordPlacementHourlyPerformance.targetId, localTargetId) : sql`${keywordPlacementHourlyPerformance.targetId} IS NULL`,
         eq(keywordPlacementHourlyPerformance.placement, params.placement),

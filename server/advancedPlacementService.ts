@@ -469,7 +469,7 @@ export async function analyzeCampaignPlacementProfit(
     .from(placementPerformance)
     .where(
       and(
-        eq(placementPerformance.campaignId, campaignId),
+        eq(placementPerformance.campaignId, String(campaignId)),
         eq(placementPerformance.accountId, accountId),
         gte(placementPerformance.date, startDate.toISOString().split('T')[0])
       )
@@ -698,7 +698,7 @@ export async function applyOptimizationRecommendation(
           })
           .where(
             and(
-              eq(placementSettings.campaignId, rec.campaignId!),
+              eq(placementSettings.campaignId, String(rec.campaignId!)),
               eq(placementSettings.accountId, rec.accountId)
             )
           );

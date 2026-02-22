@@ -241,7 +241,7 @@ export async function learnCampaignSpendPattern(
   const historicalData = await db.select()
     .from(dailyPerformance)
     .where(and(
-      eq(dailyPerformance.campaignId, campaignId),
+      eq(dailyPerformance.campaignId, String(campaignId)),
       gte(dailyPerformance.date, formatDate(startDate))
     ))
     .orderBy(dailyPerformance.date);
@@ -438,7 +438,7 @@ export async function analyzeBudgetDepletionRisk(
     const [todayPerf] = await db.select()
       .from(dailyPerformance)
       .where(and(
-        eq(dailyPerformance.campaignId, campaign.id),
+        eq(dailyPerformance.campaignId, String(campaign.id)),
         sql`DATE(${dailyPerformance.date}) = ${today}`
       ))
       .limit(1);
@@ -799,7 +799,7 @@ export async function analyzeBidEfficiency(
   // 获取所有广告组
   const adGroupList = await db.select()
     .from(adGroups)
-    .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+    .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
     .where(eq(campaigns.accountId, accountId));
 
   const adGroupIds = adGroupList.map(ag => ag.ad_groups.id);

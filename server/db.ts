@@ -525,11 +525,13 @@ export async function createAdGroup(adGroup: InsertAdGroup) {
   return result[0].insertId;
 }
 
-export async function getAdGroupsByCampaignId(campaignId: number) {
+export async function getAdGroupsByCampaignId(campaignId: number | string) {
   const db = await getDb();
   if (!db) return [];
   
-  return db.select().from(adGroups).where(eq(adGroups.campaignId, campaignId));
+  // v186: campaignId在DB中是varchar类型，需要转为string
+  const campaignIdStr = String(campaignId);
+  return db.select().from(adGroups).where(eq(adGroups.campaignId, campaignIdStr));
 }
 
 export async function getAdGroupById(id: number) {
@@ -597,11 +599,12 @@ export async function getKeywordsByCampaignId(campaignId: string | number) {
   const db = await getDb();
   if (!db) return [];
   
-  // 通过adGroups表关联查询广告活动下的所有关键词
-  const campaignIdNum = typeof campaignId === 'string' ? parseInt(campaignId, 10) : campaignId;
+  // v186: 通过adGroups表关联查询广告活动下的所有关键词
+  // campaignId在DB中是varchar类型
+  const campaignIdStr = String(campaignId);
   
   // 先获取该广告活动下的所有广告组
-  const adGroupsList = await db.select().from(adGroups).where(eq(adGroups.campaignId, campaignIdNum));
+  const adGroupsList = await db.select().from(adGroups).where(eq(adGroups.campaignId, campaignIdStr));
   
   if (adGroupsList.length === 0) return [];
   
@@ -704,13 +707,14 @@ export async function getBiddingLogsByAccountId(accountId: number, limit = 100, 
     .offset(offset);
 }
 
-export async function getBiddingLogsByCampaignId(campaignId: number, limit = 100) {
+export async function getBiddingLogsByCampaignId(campaignId: number | string, limit = 100) {
   const db = await getDb();
   if (!db) return [];
   
+  // v186: biddingLogs.campaignId在DB中是varchar类型
   return db.select()
     .from(biddingLogs)
-    .where(eq(biddingLogs.campaignId, campaignId))
+    .where(eq(biddingLogs.campaignId, String(campaignId)))
     .orderBy(desc(biddingLogs.createdAt))
     .limit(limit);
 }
@@ -738,7 +742,7 @@ export async function getDailyPerformanceByDateRange(
   accountId: number,
   startDate: Date,
   endDate: Date,
-  campaignId?: number
+  campaignId?: number | string
 ) {
   const db = await getDb();
   if (!db) return [];
@@ -752,7 +756,8 @@ export async function getDailyPerformanceByDateRange(
   ];
   
   if (campaignId) {
-    conditions.push(eq(dailyPerformance.campaignId, campaignId));
+    // v186: dailyPerformance.campaignId在DB中是varchar类型
+    conditions.push(eq(dailyPerformance.campaignId, String(campaignId)));
   }
   
   return db.select()
@@ -841,7 +846,7 @@ export async function getPerformanceSummary(accountId: number, startDate: Date, 
 export async function getDailyPerformanceByAccountAndDate(
   accountId: number,
   date: string,
-  campaignId?: number | null
+  campaignId?: number | string | null
 ): Promise<DailyPerformance | null> {
   const db = await getDb();
   if (!db) return null;
@@ -851,9 +856,9 @@ export async function getDailyPerformanceByAccountAndDate(
     sql`DATE(${dailyPerformance.date}) = ${date}`,
   ];
   
-  // 如果指定了campaignId，按campaignId维度查找；否则查找账户级别汇总记录
+  // v186: dailyPerformance.campaignId在DB中是varchar类型
   if (campaignId !== undefined && campaignId !== null) {
-    conditions.push(eq(dailyPerformance.campaignId, campaignId));
+    conditions.push(eq(dailyPerformance.campaignId, String(campaignId)));
   } else {
     conditions.push(sql`${dailyPerformance.campaignId} IS NULL`);
   }
@@ -1273,7 +1278,7 @@ export async function getSearchTermsForAnalysis(accountId: number, _days: number
   })
   .from(keywords)
   .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
-  .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+  .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
   .where(eq(campaigns.accountId, accountId));
   
   return result.map(r => ({
@@ -1305,7 +1310,7 @@ export async function getCampaignSearchTerms(accountId: number) {
   })
   .from(keywords)
   .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
-  .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+  .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
   .where(eq(campaigns.accountId, accountId));
   
   return result.map(r => {
@@ -1355,7 +1360,7 @@ export async function getBidTargets(accountId: number) {
   })
   .from(keywords)
   .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
-  .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+  .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
   .where(eq(campaigns.accountId, accountId));
   
   // 获取商品定位目标 - 使用productTargets表自带的绩效数据
@@ -1373,7 +1378,7 @@ export async function getBidTargets(accountId: number) {
   })
   .from(productTargets)
   .innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id))
-  .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+  .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
   .where(eq(campaigns.accountId, accountId));
   
   const results = [
@@ -1418,7 +1423,7 @@ export async function getUniqueSearchTerms(accountId: number): Promise<string[]>
   })
   .from(keywords)
   .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
-  .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+  .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
   .where(eq(campaigns.accountId, accountId));
   
   return result.map(r => r.searchTerm || '').filter(t => t.length > 0);
@@ -1624,14 +1629,14 @@ export async function getCampaignHealthMetrics(accountId: number): Promise<Campa
     // 获取最近7天的绩效数据
     const recentPerf = await db.select()
       .from(dailyPerformance)
-      .where(eq(dailyPerformance.campaignId, campaign.id))
+      .where(eq(dailyPerformance.campaignId, String(campaign.id)))
       .orderBy(desc(dailyPerformance.date))
       .limit(7);
     
     // 获取历史30天的绩效数据
     const historicalPerf = await db.select()
       .from(dailyPerformance)
-      .where(eq(dailyPerformance.campaignId, campaign.id))
+      .where(eq(dailyPerformance.campaignId, String(campaign.id)))
       .orderBy(desc(dailyPerformance.date))
       .limit(30);
     
@@ -1755,7 +1760,7 @@ export async function getNegativeKeywordsByCampaignId(campaignId: number) {
   const db = await getDb();
   if (!db) return [];
   
-  return db.select().from(negativeKeywords).where(eq(negativeKeywords.campaignId, campaignId));
+  return db.select().from(negativeKeywords).where(eq(negativeKeywords.campaignId, String(campaignId)));
 }
 
 // 获取账号的所有否定关键词列表
@@ -2687,7 +2692,7 @@ export async function getSearchTermsByCampaignId(campaignId: number) {
   const db = await getDb();
   if (!db) return [];
   
-  return db.select().from(searchTerms).where(eq(searchTerms.campaignId, campaignId));
+  return db.select().from(searchTerms).where(eq(searchTerms.campaignId, String(campaignId)));
 }
 
 export async function getSearchTermsByAdGroupId(adGroupId: number) {
@@ -2723,7 +2728,7 @@ export async function getCampaignDetailWithStats(campaignId: number) {
   if (!campaign[0]) return null;
   
   // 获取广告组列表
-  const adGroupList = await db.select().from(adGroups).where(eq(adGroups.campaignId, campaignId));
+  const adGroupList = await db.select().from(adGroups).where(eq(adGroups.campaignId, String(campaignId)));
   
   // 获取广告组ID列表
   const adGroupIds = adGroupList.map(ag => ag.id);
@@ -2743,7 +2748,7 @@ export async function getCampaignDetailWithStats(campaignId: number) {
   }
   
   // 获取搜索词报告
-  const searchTermList = await db.select().from(searchTerms).where(eq(searchTerms.campaignId, campaignId));
+  const searchTermList = await db.select().from(searchTerms).where(eq(searchTerms.campaignId, String(campaignId)));
   
   return {
     campaign: campaign[0],
@@ -2808,7 +2813,7 @@ export async function getCampaignTargets(campaignId: number) {
   // 获取广告组ID列表
   const adGroupList = await db.select({ id: adGroups.id, adGroupName: adGroups.adGroupName })
     .from(adGroups)
-    .where(eq(adGroups.campaignId, campaignId));
+    .where(eq(adGroups.campaignId, String(campaignId)));
   
   if (adGroupList.length === 0) {
     return { keywords: [], productTargets: [] };
@@ -2869,7 +2874,7 @@ export async function getAiOptimizationExecutionsByCampaign(campaignId: number, 
   if (!db) return [];
   
   return db.select().from(aiOptimizationExecutions)
-    .where(eq(aiOptimizationExecutions.campaignId, campaignId))
+    .where(eq(aiOptimizationExecutions.campaignId, String(campaignId)))
     .orderBy(desc(aiOptimizationExecutions.executedAt))
     .limit(limit);
 }
@@ -3200,7 +3205,7 @@ export async function getBidAdjustmentHistory(params: {
   const conditions = [eq(bidAdjustmentHistory.accountId, params.accountId)];
   
   if (params.campaignId) {
-    conditions.push(eq(bidAdjustmentHistory.campaignId, params.campaignId));
+    conditions.push(eq(bidAdjustmentHistory.campaignId, String(params.campaignId)));
   }
   
   if (params.performanceGroupId) {
@@ -4500,19 +4505,19 @@ export async function getLocalDataStats(accountId: number) {
   
   const [adGroupsResult] = await db.select({ count: sql<number>`count(*)` })
     .from(adGroups)
-    .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+    .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
     .where(eq(campaigns.accountId, accountId));
   
   const [keywordsResult] = await db.select({ count: sql<number>`count(*)` })
     .from(keywords)
     .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
-    .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+    .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
     .where(eq(campaigns.accountId, accountId));
   
   const [productTargetsResult] = await db.select({ count: sql<number>`count(*)` })
     .from(productTargets)
     .innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id))
-    .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+    .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
     .where(eq(campaigns.accountId, accountId));
 
   return {

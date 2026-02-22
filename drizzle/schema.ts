@@ -5,7 +5,7 @@ export const abTestCampaignAssignments = mysqlTable("ab_test_campaign_assignment
 	id: int().autoincrement().notNull(),
 	testId: int().notNull(),
 	variantId: int().notNull(),
-	campaignId: int().notNull(),
+	campaignId: varchar({ length: 64 }).notNull(),
 	assignedAt: datetime({ mode: 'string'}).default('CURRENT_TIMESTAMP').notNull(),
 },
 (table) => [
@@ -144,7 +144,7 @@ export const adAccounts = mysqlTable("ad_accounts", {
 
 export const adGroups = mysqlTable("ad_groups", {
 	id: int().autoincrement().notNull(),
-	campaignId: int().notNull(),
+	campaignId: varchar({ length: 64 }).notNull(),
 	adGroupId: varchar({ length: 64 }).notNull(),
 	adGroupName: varchar({ length: 500 }).notNull(),
 	defaultBid: decimal({ precision: 10, scale: 2 }),
@@ -201,7 +201,7 @@ export const aiOptimizationExecutions = mysqlTable("ai_optimization_executions",
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
 	accountId: int().notNull(),
-	campaignId: int().notNull(),
+	campaignId: varchar({ length: 64 }).notNull(),
 	executionName: varchar({ length: 255 }),
 	aiExecType: mysqlEnum(['bid_adjustment','status_change','negative_keyword','mixed']).notNull(),
 	aiExecStatus: mysqlEnum(['pending','executing','completed','failed','partially_completed']).default('pending'),
@@ -348,7 +348,7 @@ export const amsMessages = mysqlTable("ams_messages", {
 export const amsPerformanceBuffer = mysqlTable("ams_performance_buffer", {
 	id: int().autoincrement().notNull(),
 	accountId: int().notNull(),
-	campaignId: int(),
+	campaignId: varchar({ length: 64 }),
 	amazonCampaignId: varchar({ length: 64 }).notNull(),
 	date: varchar({ length: 10 }).notNull(),
 	adType: mysqlEnum(['SP','SB','SD']).notNull(),
@@ -549,7 +549,7 @@ export const attributionCorrectionRecords = mysqlTable("attribution_correction_r
 	userId: int().notNull(),
 	accountId: int().notNull(),
 	biddingLogId: int().notNull(),
-	campaignId: int().notNull(),
+	campaignId: varchar({ length: 64 }).notNull(),
 	correctionTargetType: mysqlEnum(['keyword','product_target']).notNull(),
 	targetId: int().notNull(),
 	targetName: varchar({ length: 500 }),
@@ -738,7 +738,7 @@ export const batchOperations = mysqlTable("batch_operations", {
 export const bidAdjustmentHistory = mysqlTable("bid_adjustment_history", {
 	id: int().autoincrement().notNull(),
 	accountId: int("account_id").notNull(),
-	campaignId: int("campaign_id"),
+	campaignId: varchar("campaign_id", { length: 64 }),
 	campaignName: varchar("campaign_name", { length: 500 }),
 	performanceGroupId: int("performance_group_id"),
 	performanceGroupName: varchar("performance_group_name", { length: 255 }),
@@ -842,7 +842,7 @@ export const bidPerformanceHistory = mysqlTable("bid_performance_history", {
 export const biddingLogs = mysqlTable("bidding_logs", {
 	id: int().autoincrement().notNull(),
 	accountId: int().notNull(),
-	campaignId: int().notNull(),
+	campaignId: varchar({ length: 64 }).notNull(),
 	adGroupId: int(),
 	logTargetType: mysqlEnum(['keyword','product_target','placement','campaign_budget','negative_keyword','search_term_harvest']).notNull(),
 	targetId: int().notNull(),
@@ -908,7 +908,7 @@ export const budgetAllocationConfigs = mysqlTable("budget_allocation_configs", {
 export const budgetAllocationHistory = mysqlTable("budget_allocation_history", {
 	id: int().autoincrement().notNull(),
 	configId: int("config_id").notNull(),
-	campaignId: int("campaign_id").notNull(),
+	campaignId: varchar("campaign_id", { length: 64 }).notNull(),
 	previousBudget: decimal("previous_budget", { precision: 10, scale: 2 }).notNull(),
 	newBudget: decimal("new_budget", { precision: 10, scale: 2 }).notNull(),
 	changeReason: text("change_reason"),
@@ -923,7 +923,7 @@ export const budgetAllocationHistory = mysqlTable("budget_allocation_history", {
 export const budgetAllocationItems = mysqlTable("budget_allocation_items", {
 	id: int().autoincrement().notNull(),
 	allocationId: int().notNull(),
-	campaignId: int().notNull(),
+	campaignId: varchar({ length: 64 }).notNull(),
 	currentBudget: decimal({ precision: 10, scale: 2 }).notNull(),
 	recommendedBudget: decimal({ precision: 10, scale: 2 }).notNull(),
 	budgetChange: decimal({ precision: 10, scale: 2 }).notNull(),
@@ -949,7 +949,7 @@ export const budgetAllocationItems = mysqlTable("budget_allocation_items", {
 export const budgetAllocationSuggestions = mysqlTable("budget_allocation_suggestions", {
 	id: int().autoincrement().notNull(),
 	configId: int("config_id").notNull(),
-	campaignId: int("campaign_id").notNull(),
+	campaignId: varchar("campaign_id", { length: 64 }).notNull(),
 	currentBudget: decimal("current_budget", { precision: 10, scale: 2 }).notNull(),
 	suggestedBudget: decimal("suggested_budget", { precision: 10, scale: 2 }).notNull(),
 	budgetChange: decimal("budget_change", { precision: 10, scale: 2 }).notNull(),
@@ -1057,7 +1057,7 @@ export const budgetAutoExecutionDetails = mysqlTable("budget_auto_execution_deta
 	id: int().autoincrement().notNull(),
 	executionId: int("execution_id"),
 	historyId: int("history_id").notNull(),
-	campaignId: int("campaign_id").notNull(),
+	campaignId: varchar("campaign_id", { length: 64 }).notNull(),
 	campaignName: varchar("campaign_name", { length: 500 }),
 	previousBudget: decimal("previous_budget", { precision: 10, scale: 2 }).notNull(),
 	newBudget: decimal("new_budget", { precision: 10, scale: 2 }).notNull(),
@@ -1203,7 +1203,7 @@ export const budgetConsumptionAlerts = mysqlTable("budget_consumption_alerts", {
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
 	accountId: int(),
-	campaignId: int().notNull(),
+	campaignId: varchar({ length: 64 }).notNull(),
 	alertType: mysqlEnum(['overspending','underspending','budget_depleted','near_depletion']).notNull(),
 	severity: mysqlEnum(['low','medium','high','critical']).default('medium'),
 	dailyBudget: decimal({ precision: 10, scale: 2 }).notNull(),
@@ -1244,7 +1244,7 @@ export const budgetHistory = mysqlTable("budget_history", {
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
 	accountId: int(),
-	campaignId: int().notNull(),
+	campaignId: varchar({ length: 64 }).notNull(),
 	allocationId: int(),
 	previousBudget: decimal({ precision: 10, scale: 2 }).notNull(),
 	newBudget: decimal({ precision: 10, scale: 2 }).notNull(),
@@ -1261,7 +1261,7 @@ export const budgetHistory = mysqlTable("budget_history", {
 
 export const campaignPerformanceSnapshots = mysqlTable("campaign_performance_snapshots", {
 	id: int().autoincrement().notNull(),
-	campaignId: int("campaign_id").notNull(),
+	campaignId: varchar("campaign_id", { length: 64 }).notNull(),
 	// you can use { mode: 'date' }, if you want to have Date as type for this column
 	snapshotDate: date("snapshot_date", { mode: 'string' }).notNull(),
 	impressions: int().default(0),
@@ -1484,7 +1484,7 @@ export const correctionReviewSessions = mysqlTable("correction_review_sessions",
 export const dailyPerformance = mysqlTable("daily_performance", {
 	id: int().autoincrement().notNull(),
 	accountId: int().notNull(),
-	campaignId: int(),
+	campaignId: varchar({ length: 64 }),
 	performanceGroupId: int(),
 	date: timestamp({ mode: 'string' }).notNull(),
 	impressions: int().default(0),
@@ -1694,7 +1694,7 @@ export const daypartingExecutionLogs = mysqlTable("dayparting_execution_logs", {
 export const daypartingStrategies = mysqlTable("dayparting_strategies", {
 	id: int().autoincrement().notNull(),
 	accountId: int().notNull(),
-	campaignId: int(),
+	campaignId: varchar({ length: 64 }),
 	name: varchar({ length: 255 }).notNull(),
 	description: text(),
 	strategyType: mysqlEnum(['budget','bidding','both']).default('both'),
@@ -1773,7 +1773,7 @@ export const emailSendLogs = mysqlTable("email_send_logs", {
 export const hourlyPerformance = mysqlTable("hourly_performance", {
 	id: int().autoincrement().notNull(),
 	accountId: int().notNull(),
-	campaignId: int().notNull(),
+	campaignId: varchar({ length: 64 }).notNull(),
 	adGroupId: int(),
 	keywordId: int(),
 	date: timestamp({ mode: 'string' }).notNull(),
@@ -2044,7 +2044,7 @@ export const marketCurveModels = mysqlTable("market_curve_models", {
 export const negativeKeywords = mysqlTable("negative_keywords", {
 	id: int().autoincrement().notNull(),
 	accountId: int().notNull(),
-	campaignId: int().notNull(),
+	campaignId: varchar({ length: 64 }).notNull(),
 	adGroupId: int(),
 	negativeLevel: mysqlEnum(['campaign','ad_group']).notNull(),
 	negativeType: mysqlEnum(['keyword','product']).notNull(),
@@ -2449,7 +2449,7 @@ export const searchTermAnalysis = mysqlTable("search_term_analysis", {
 export const searchTerms = mysqlTable("search_terms", {
 	id: int().autoincrement().notNull(),
 	accountId: int().notNull(),
-	campaignId: int().notNull(),
+	campaignId: varchar({ length: 64 }).notNull(),
 	adGroupId: int().notNull(),
 	searchTerm: varchar({ length: 500 }).notNull(),
 	searchTermTargetType: mysqlEnum(['keyword','product_target']).notNull(),
@@ -2480,7 +2480,7 @@ export const seasonalBudgetRecommendations = mysqlTable("seasonal_budget_recomme
 	id: int().autoincrement().notNull(),
 	userId: int().notNull(),
 	accountId: int(),
-	campaignId: int(),
+	campaignId: varchar({ length: 64 }),
 	eventId: int(),
 	recommendationType: mysqlEnum(['event_increase','event_warmup','seasonal_increase','seasonal_decrease','trend_based']).notNull(),
 	currentBudget: decimal({ precision: 10, scale: 2 }).notNull(),
@@ -3513,7 +3513,7 @@ export type InsertOptimizationEvent = InferInsertModel<typeof optimizationEvents
 export const keywordPlacementHourlyPerformance = mysqlTable("keyword_placement_hourly_performance", {
   id: int().autoincrement().notNull(),
   accountId: int("account_id").notNull(),
-  campaignId: int("campaign_id").notNull(),
+  campaignId: varchar("campaign_id", { length: 64 }).notNull(),
   adGroupId: int("ad_group_id"),
   keywordId: int("keyword_id"),
   targetId: int("target_id"),
@@ -3552,7 +3552,7 @@ export const keywordPlacementHourlyPerformance = mysqlTable("keyword_placement_h
 export const multiDimComboAnalysis = mysqlTable("multi_dim_combo_analysis", {
   id: int().autoincrement().notNull(),
   accountId: int("account_id").notNull(),
-  campaignId: int("campaign_id").notNull(),
+  campaignId: varchar("campaign_id", { length: 64 }).notNull(),
   keywordId: int("keyword_id"),
   targetId: int("target_id"),
   keywordText: varchar("keyword_text", { length: 500 }),

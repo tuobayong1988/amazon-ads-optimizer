@@ -94,7 +94,7 @@ export async function identifyProductLifecycle(
     .from(dailyPerformance)
     .where(
       and(
-        eq(dailyPerformance.campaignId, campaignId),
+        eq(dailyPerformance.campaignId, String(campaignId)),
         sql`${dailyPerformance.date} >= ${thirtyDaysAgo.toISOString().split('T')[0]}`
       )
     )

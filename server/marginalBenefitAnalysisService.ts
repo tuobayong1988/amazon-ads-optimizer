@@ -142,7 +142,7 @@ export async function calculateMarginalBenefit(
   .from(placementPerformance)
   .where(
     and(
-      eq(placementPerformance.campaignId, campaignId),
+      eq(placementPerformance.campaignId, String(campaignId)),
       eq(placementPerformance.accountId, accountId),
       sql`${placementPerformance.placement} = ${placementType}`,
       gte(placementPerformance.date, startDate.toISOString()),
@@ -539,7 +539,7 @@ async function getCurrentPerformance(
   .from(placementPerformance)
   .where(
     and(
-      eq(placementPerformance.campaignId, campaignId),
+      eq(placementPerformance.campaignId, String(campaignId)),
       eq(placementPerformance.accountId, accountId),
       gte(placementPerformance.date, startDate.toISOString()),
       lte(placementPerformance.date, endDate.toISOString())

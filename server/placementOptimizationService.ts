@@ -628,7 +628,7 @@ export async function getCampaignPlacementPerformance(
     .from(placementPerformance)
     .where(
       and(
-        eq(placementPerformance.campaignId, campaignId),
+        eq(placementPerformance.campaignId, String(campaignId)),
         eq(placementPerformance.accountId, accountId),
         gte(placementPerformance.date, startDate.toISOString()),
         lte(placementPerformance.date, endDate.toISOString())
@@ -744,7 +744,7 @@ export async function getCampaignPlacementSettings(
     .from(placementSettings)
     .where(
       and(
-        eq(placementSettings.campaignId, campaignId),
+        eq(placementSettings.campaignId, String(campaignId)),
         eq(placementSettings.accountId, accountId)
       )
     ) as any[];
@@ -815,7 +815,7 @@ export async function updatePlacementSettings(
     .from(placementSettings)
     .where(
       and(
-        eq(placementSettings.campaignId, campaignId),
+        eq(placementSettings.campaignId, String(campaignId)),
         eq(placementSettings.accountId, accountId)
       )
     )

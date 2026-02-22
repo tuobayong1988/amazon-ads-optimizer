@@ -717,7 +717,7 @@ export async function getBudgetHistory(
   }
 
   if (campaignId) {
-    query = and(query, eq(budgetHistory.campaignId, campaignId)) as any;
+    query = and(query, eq(budgetHistory.campaignId, String(campaignId))) as any;
   }
 
   if (startDate) {

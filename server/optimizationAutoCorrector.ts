@@ -2004,7 +2004,7 @@ async function retryHistoricalFailedKeywordHarvests(database: any, accountId: nu
           .select({ id: adGroups.id, adGroupId: adGroups.adGroupId })
           .from(adGroups)
           .where(and(
-            eq(adGroups.campaignId, localCampaignId),
+            eq(adGroups.campaignId, String(localCampaignId)),
             eq(adGroups.adGroupStatus, 'enabled')
           ))
           .limit(1);

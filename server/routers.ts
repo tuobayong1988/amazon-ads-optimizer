@@ -2254,7 +2254,7 @@ const keywordRouter = router({
             })
             .from(keywordsTable)
             .innerJoin(adGroups, eq(keywordsTable.adGroupId, adGroups.id))
-            .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+            .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
             .where(inArray(keywordsTable.id, results.map(r => r.id)));
             
             const byAccount = new Map<number, Array<{ keywordId: number; newBid: number; campaignId: number }>>();
@@ -2316,7 +2316,7 @@ const keywordRouter = router({
           })
           .from(keywordsTable)
           .innerJoin(adGroups, eq(keywordsTable.adGroupId, adGroups.id))
-          .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+          .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
           .where(inArray(keywordsTable.id, input.ids));
           
           // 按accountId分组
@@ -2568,7 +2568,7 @@ const productTargetRouter = router({
             })
             .from(productTargets)
             .innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id))
-            .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+            .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
             .where(inArray(productTargets.id, results.map(r => r.id)));
             
             const byAccount = new Map<number, Array<{ keywordId: number; newBid: number; campaignId: number }>>();
@@ -2629,7 +2629,7 @@ const productTargetRouter = router({
           })
           .from(productTargets)
           .innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id))
-          .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+          .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
           .where(inArray(productTargets.id, input.ids));
           
           const byAccount = new Map<number, Array<{ keywordId: number; campaignId: number }>>();
@@ -10186,7 +10186,7 @@ const placementRouter = router({
         conditions.push(lte(bidAdjustmentHistory.appliedAt, input.endDate));
       }
       if (input.campaignId) {
-        conditions.push(eq(bidAdjustmentHistory.campaignId, input.campaignId));
+        conditions.push(eq(bidAdjustmentHistory.campaignId, String(input.campaignId)));
       }
       if (input.performanceGroupId) {
         conditions.push(eq(bidAdjustmentHistory.performanceGroupId, input.performanceGroupId));

@@ -594,7 +594,7 @@ export async function identifyFunnelTiers(
   })
   .from(keywords)
   .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
-  .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.id))
+  .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
   .where(eq(campaigns.accountId, accountId))
   .groupBy(adGroups.campaignId, keywords.matchType);
   
@@ -994,7 +994,7 @@ export async function applyNegativeKeywords(
         .from(negativeKeywords)
         .where(and(
           eq(negativeKeywords.accountId, accountId),
-          eq(negativeKeywords.campaignId, neg.campaignId),
+          eq(negativeKeywords.campaignId, String(neg.campaignId)),
           eq(negativeKeywords.negativeText, neg.negativeText),
           eq(negativeKeywords.negativeStatus, 'active')
         ))

@@ -310,7 +310,7 @@ async function getPerformanceWindow(
   ];
   
   if (event.campaignId) {
-    conditions.push(eq(dailyPerformance.campaignId, event.campaignId));
+    conditions.push(eq(dailyPerformance.campaignId, String(event.campaignId)));
   } else if (event.performanceGroupId) {
     conditions.push(eq(dailyPerformance.performanceGroupId, event.performanceGroupId));
   }

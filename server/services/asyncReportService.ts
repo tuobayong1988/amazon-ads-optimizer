@@ -605,7 +605,7 @@ export class AsyncReportService {
           .where(
             and(
               eq(amsPerformanceData.accountId, accountId),
-              eq(amsPerformanceData.campaignId, campaignId),
+              eq(amsPerformanceData.campaignId, String(campaignId)),
               eq(amsPerformanceData.reportDate, date)
             )
           )

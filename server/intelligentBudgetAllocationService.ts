@@ -217,7 +217,7 @@ export async function collectCampaignPerformanceData(
       })
       .from(dailyPerformance)
       .where(and(
-        eq(dailyPerformance.campaignId, campaign.id),
+        eq(dailyPerformance.campaignId, String(campaign.id)),
         sql`DATE(${dailyPerformance.date}) >= ${date90dAgo.toISOString().split('T')[0]}`,
         sql`DATE(${dailyPerformance.date}) <= ${endDate.toISOString().split('T')[0]}`
       ));
@@ -315,7 +315,7 @@ async function aggregatePerformanceData(
   })
   .from(dailyPerformance)
   .where(and(
-    eq(dailyPerformance.campaignId, campaignId),
+    eq(dailyPerformance.campaignId, String(campaignId)),
     sql`DATE(${dailyPerformance.date}) >= ${startDate.toISOString().split('T')[0]}`,
     sql`DATE(${dailyPerformance.date}) <= ${endDate.toISOString().split('T')[0]}`
   ));

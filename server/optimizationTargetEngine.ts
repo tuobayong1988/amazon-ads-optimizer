@@ -1213,12 +1213,16 @@ async function executePlacementOptimization(
 
   for (const campaign of campaigns) {
     try {
-      // 分析位置表现
-      const analysis = await placementOptimizationService.analyzePlacementPerformance(campaign.campaignId || campaign.id.toString(), config.accountId);
+      // v186: 修复campaignId MISMATCH - placement_performance表存储的是本地ID(campaigns.id)
+      // 本地数据库查询必须使用本地ID，Amazon API调用使用Amazon ID
+      const localCampaignId = campaign.id.toString();
       
-      // 生成位置调整建议
+      // 分析位置表现（使用本地ID查询placement_performance表）
+      const analysis = await placementOptimizationService.analyzePlacementPerformance(localCampaignId, config.accountId);
+      
+      // 生成位置调整建议（使用本地ID查询placement_performance表）
       const suggestions = await placementOptimizationService.generatePlacementSuggestions(
-        campaign.campaignId || campaign.id.toString(),
+        localCampaignId,
         config.accountId
       );
       
@@ -1268,8 +1272,9 @@ async function executePlacementOptimization(
         details.push(adjustment);
         
         if (!dryRun && comboAdjustedMultiplier !== suggestion.currentMultiplier) {
+          // v186: 本地记录使用本地ID
           await placementOptimizationService.applyPlacementAdjustment(
-            campaign.campaignId || campaign.id.toString(),
+            localCampaignId,
             config.accountId,
             { ...suggestion, suggestedMultiplier: comboAdjustedMultiplier }
           );
@@ -1282,6 +1287,7 @@ async function executePlacementOptimization(
         let placementSyncSuccess = false;
         let placementSyncError = '';
         try {
+          // v186: Amazon API调用必须使用Amazon Campaign ID
           const amazonCampaignId = campaign.campaignId || campaign.id.toString();
           const topSuggestion = suggestions.find((s: any) => s.placement === 'top_of_search');
           const productSuggestion = suggestions.find((s: any) => s.placement === 'product_page');
@@ -1310,14 +1316,15 @@ async function executePlacementOptimization(
         // v166: 注册位置倾斜验证任务
         if (placementSyncSuccess) {
           try {
-            const amazonCampaignId = campaign.campaignId || campaign.id.toString();
+            // v186: 验证任务中也使用正确的Amazon Campaign ID
+            const amazonCampaignIdForVerify = campaign.campaignId || campaign.id.toString();
             const topSuggestion = suggestions?.find((s: any) => s.placement === 'top_of_search');
             const productSuggestion = suggestions?.find((s: any) => s.placement === 'product_page');
             postOptVerifier.schedulePlacementVerification(
               config.accountId,
               [{
                 localCampaignId: campaign.id,
-                amazonCampaignId: amazonCampaignId,
+                amazonCampaignId: amazonCampaignIdForVerify,
                 expectedTopOfSearch: topSuggestion?.suggestedMultiplier,
                 expectedProductPage: productSuggestion?.suggestedMultiplier,
               }]
