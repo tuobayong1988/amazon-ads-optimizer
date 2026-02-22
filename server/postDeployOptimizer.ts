@@ -28,7 +28,7 @@ import { eq, and, sql, inArray, desc } from 'drizzle-orm';
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 199;
+export const SYSTEM_VERSION = 200;
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -107,6 +107,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 199,
     description: 'v199: 商用级数据完整性修复 — 修复所有API分页/分批处理缺陷，确保关键词创建/出价更新/否定词同步/状态变更等所有操作完整执行，移除纠错器和任务队列的处理量上限',
+    affectedModules: [],
+    correctionActions: [],
+  },
+  {
+    version: 200,
+    description: 'v200: SQL列名一致性修复 — 修复NextGen质量审计SQL查询列名错误(keywords表使用camelCase、optimization_events表使用snake_case)，修复出价执行确认双重尝试顺序，增强否定词API错误日志',
     affectedModules: [],
     correctionActions: [],
   },

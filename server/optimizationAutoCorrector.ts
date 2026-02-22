@@ -2507,22 +2507,46 @@ async function verifyBiddingLogsExecution(database: any, accountId: number): Pro
   const results: CorrectionResult[] = [];
   
   try {
-    // 查询最近24小时内成功的出价调整日志，且每个target只取最新的一条
-    const recentBidLogs = await database.execute(sql`
-      SELECT bl.id, bl.log_target_type, bl.target_id, bl.target_name,
-             bl.previous_bid, bl.new_bid, bl.created_at,
-             bl.campaign_id, bl.ad_group_id
-      FROM bidding_logs bl
-      INNER JOIN (
-        SELECT target_id, log_target_type, MAX(id) as max_id
-        FROM bidding_logs
-        WHERE account_id = ${accountId}
-          AND execution_status = 'success'
-          AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)
-        GROUP BY target_id, log_target_type
-      ) latest ON bl.id = latest.max_id
-      LIMIT 200
-    `);
+    // v200: 使用列名自动检测，兼容camelCase和snake_case两种列名
+    // bidding_logs表无显式映射的列在DB中为camelCase（drizzle-kit push不会重命名已有列）
+    // 显式映射的列为snake_case: execution_status, api_response_id, error_message
+    let recentBidLogs: any;
+    try {
+      // 首选camelCase列名（旧表实际列名），显式映射的列用snake_case
+      recentBidLogs = await database.execute(sql`
+        SELECT bl.id, bl.logTargetType as log_target_type, bl.targetId as target_id, bl.targetName as target_name,
+               bl.previousBid as previous_bid, bl.newBid as new_bid, bl.createdAt as created_at,
+               bl.campaignId as campaign_id, bl.adGroupId as ad_group_id
+        FROM bidding_logs bl
+        INNER JOIN (
+          SELECT targetId, logTargetType, MAX(id) as max_id
+          FROM bidding_logs
+          WHERE accountId = ${accountId}
+            AND execution_status = 'success'
+            AND createdAt > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+          GROUP BY targetId, logTargetType
+        ) latest ON bl.id = latest.max_id
+        LIMIT 200
+      `);
+    } catch (camelErr: any) {
+      console.log(`[AutoCorrector] v200: camelCase查询失败，尝试snake_case列名: ${camelErr.message?.substring(0, 100)}`);
+      // 回退到snake_case列名（如果表在casing配置后被重建）
+      recentBidLogs = await database.execute(sql`
+        SELECT bl.id, bl.log_target_type, bl.target_id, bl.target_name,
+               bl.previous_bid, bl.new_bid, bl.created_at,
+               bl.campaign_id, bl.ad_group_id
+        FROM bidding_logs bl
+        INNER JOIN (
+          SELECT target_id, log_target_type, MAX(id) as max_id
+          FROM bidding_logs
+          WHERE account_id = ${accountId}
+            AND execution_status = 'success'
+            AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+          GROUP BY target_id, log_target_type
+        ) latest ON bl.id = latest.max_id
+        LIMIT 200
+      `);
+    }
     
     const rows = (recentBidLogs as any)?.[0] || recentBidLogs;
     if (!Array.isArray(rows) || rows.length === 0) {
@@ -2613,7 +2637,9 @@ async function verifyBiddingLogsExecution(database: any, accountId: number): Pro
     console.log(`[AutoCorrector] v196: 账户${accountId} 出价执行确认完成: 检查=${rows.length}, 确认=${verified}, 不一致=${mismatched}, 纠正=${corrected}`);
     
   } catch (err: any) {
-    console.error(`[AutoCorrector] v196: 出价执行确认异常: ${err.message}`);
+    console.error(`[AutoCorrector] v199: 出价执行确认异常: ${err.message}`);
+    if (err.cause) console.error(`[AutoCorrector] v199: MySQL错误详情: ${JSON.stringify(err.cause).substring(0, 500)}`);
+    if (err.sql) console.error(`[AutoCorrector] v199: 失败SQL: ${err.sql?.substring(0, 200)}`);
   }
   
   return results;
@@ -2649,33 +2675,38 @@ async function auditAlgorithmDecisionQuality(database: any, accountId: number): 
   const results: CorrectionResult[] = [];
   
   try {
-    // 查询该账户下所有活跃的、有数据的关键词，且最近一次出价调整是由旧算法做出的
-    // "旧算法"定义：algorithm_version不包含v197或v198的，或者完全没有algorithm_version的
+    // v200: 修复SQL查询 - keywords表没有accountId/campaignId列
+    // 正确的JOIN链: keywords → ad_groups → campaigns → performance_groups
+    // 列名规则: 旧表列名为camelCase（drizzle-kit push不会重命名已有列）
+    // 显式映射的列为snake_case（如 max_bid, daily_budget, execution_status）
+    // optimization_events表所有列都有显式映射，为snake_case
     const auditCandidates = await database.execute(sql`
       SELECT 
         k.id as keyword_id,
-        k.keyword_text,
+        k.keywordText as keyword_text,
         k.bid as current_bid,
-        k.match_type,
+        k.matchType as match_type,
         k.impressions,
         k.clicks,
         k.spend,
         k.sales,
         k.orders,
-        k.keyword_status,
-        k.campaign_id,
-        c.campaign_name,
-        c.campaign_status,
+        k.keywordStatus as keyword_status,
+        ag.campaignId as amazon_campaign_id,
+        c.id as campaign_db_id,
+        c.campaignName as campaign_name,
+        c.campaignStatus as campaign_status,
         pg.id as perf_group_id,
-        pg.target_acos,
+        pg.targetAcos as target_acos,
         pg.max_bid,
-        pg.optimization_goal,
+        pg.optimizationGoal as optimization_goal,
         pg.daily_budget,
         oe.algorithm_version as last_algo_version,
         oe.created_at as last_optimized_at
       FROM keywords k
-      INNER JOIN campaigns c ON k.campaign_id = c.id
-      INNER JOIN performance_groups pg ON c.performance_group_id = pg.id
+      INNER JOIN ad_groups ag ON k.adGroupId = ag.id
+      INNER JOIN campaigns c ON ag.campaignId = c.id AND c.accountId = ${accountId}
+      INNER JOIN performance_groups pg ON c.performanceGroupId = pg.id
       LEFT JOIN (
         SELECT keyword_id, algorithm_version, created_at,
                ROW_NUMBER() OVER (PARTITION BY keyword_id ORDER BY created_at DESC) as rn
@@ -2685,9 +2716,8 @@ async function auditAlgorithmDecisionQuality(database: any, accountId: number): 
           AND status = 'success'
           AND created_at > DATE_SUB(NOW(), INTERVAL ${QUALITY_AUDIT_CONFIG.lookbackDays} DAY)
       ) oe ON oe.keyword_id = k.id AND oe.rn = 1
-      WHERE k.account_id = ${accountId}
-        AND k.keyword_status = 'enabled'
-        AND c.campaign_status = 'enabled'
+      WHERE k.keywordStatus = 'enabled'
+        AND c.campaignStatus = 'enabled'
         AND pg.status = 'active'
         AND CAST(k.bid AS DECIMAL(10,2)) > 0
         AND (k.impressions > 0 OR CAST(k.spend AS DECIMAL(10,2)) > 0)
@@ -2696,6 +2726,8 @@ async function auditAlgorithmDecisionQuality(database: any, accountId: number): 
           OR (
             oe.algorithm_version NOT LIKE '%v197%'
             AND oe.algorithm_version NOT LIKE '%v198%'
+            AND oe.algorithm_version NOT LIKE '%v199%'
+            AND oe.algorithm_version NOT LIKE '%v200%'
             AND oe.algorithm_version NOT LIKE '%NextGen%'
             AND oe.algorithm_version NOT LIKE '%nextgen%'
           )
@@ -2861,7 +2893,9 @@ async function auditAlgorithmDecisionQuality(database: any, accountId: number): 
     console.log(`[AutoCorrector] v198: 账户${accountId} NextGen质量审计完成: 审计=${audited}, 偏差=${deviationsFound}, 纠正=${corrected}`);
     
   } catch (err: any) {
-    console.error(`[AutoCorrector] v198: 账户${accountId} NextGen质量审计异常: ${err.message}`);
+    console.error(`[AutoCorrector] v199: 账户${accountId} NextGen质量审计异常: ${err.message}`);
+    if (err.cause) console.error(`[AutoCorrector] v199: MySQL错误详情: ${JSON.stringify(err.cause).substring(0, 500)}`);
+    if (err.sql) console.error(`[AutoCorrector] v199: 失败SQL: ${err.sql?.substring(0, 200)}`);
   }
   
   return results;

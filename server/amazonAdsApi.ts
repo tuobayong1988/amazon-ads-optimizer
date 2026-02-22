@@ -3510,6 +3510,15 @@ export class AmazonAdsApiClient {
           });
         }
         
+        if (errorItems.length > 0) {
+          console.error(`[SP API] v199: 第${batchIdx + 1}批否定词失败详情:`);
+          for (const e of errorItems) {
+            const errDetail = JSON.stringify(e.errors || e).substring(0, 300);
+            const kwText = batch[e.index]?.keywordText || 'unknown';
+            const campId = batch[e.index]?.campaignId || 'unknown';
+            console.error(`  - 索引${e.index}: campaignId=${campId}, keyword="${kwText}", 错误: ${errDetail}`);
+          }
+        }
         console.log(`[SP API] v199: 第${batchIdx + 1}批完成: 成功=${successItems.length}, 失败=${errorItems.length}`);
       } catch (err: any) {
         const errData = err.response?.data;

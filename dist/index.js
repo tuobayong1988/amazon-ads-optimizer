@@ -55051,6 +55051,15 @@ var init_amazonAdsApi = __esm({
                 index: e6.index !== void 0 ? e6.index + batchIdx * BATCH_SIZE : void 0
               });
             }
+            if (errorItems.length > 0) {
+              console.error(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5426\u5B9A\u8BCD\u5931\u8D25\u8BE6\u60C5:`);
+              for (const e6 of errorItems) {
+                const errDetail = JSON.stringify(e6.errors || e6).substring(0, 300);
+                const kwText = batch[e6.index]?.keywordText || "unknown";
+                const campId = batch[e6.index]?.campaignId || "unknown";
+                console.error(`  - \u7D22\u5F15${e6.index}: campaignId=${campId}, keyword="${kwText}", \u9519\u8BEF: ${errDetail}`);
+              }
+            }
             console.log(`[SP API] v199: \u7B2C${batchIdx + 1}\u6279\u5B8C\u6210: \u6210\u529F=${successItems.length}, \u5931\u8D25=${errorItems.length}`);
           } catch (err2) {
             const errData = err2.response?.data;
@@ -77241,21 +77250,41 @@ async function backfillNegativeKeywordIds(database, accountId) {
 async function verifyBiddingLogsExecution(database, accountId) {
   const results = [];
   try {
-    const recentBidLogs = await database.execute(sql`
-      SELECT bl.id, bl.log_target_type, bl.target_id, bl.target_name,
-             bl.previous_bid, bl.new_bid, bl.created_at,
-             bl.campaign_id, bl.ad_group_id
-      FROM bidding_logs bl
-      INNER JOIN (
-        SELECT target_id, log_target_type, MAX(id) as max_id
-        FROM bidding_logs
-        WHERE account_id = ${accountId}
-          AND execution_status = 'success'
-          AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)
-        GROUP BY target_id, log_target_type
-      ) latest ON bl.id = latest.max_id
-      LIMIT 200
-    `);
+    let recentBidLogs;
+    try {
+      recentBidLogs = await database.execute(sql`
+        SELECT bl.id, bl.logTargetType as log_target_type, bl.targetId as target_id, bl.targetName as target_name,
+               bl.previousBid as previous_bid, bl.newBid as new_bid, bl.createdAt as created_at,
+               bl.campaignId as campaign_id, bl.adGroupId as ad_group_id
+        FROM bidding_logs bl
+        INNER JOIN (
+          SELECT targetId, logTargetType, MAX(id) as max_id
+          FROM bidding_logs
+          WHERE accountId = ${accountId}
+            AND execution_status = 'success'
+            AND createdAt > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+          GROUP BY targetId, logTargetType
+        ) latest ON bl.id = latest.max_id
+        LIMIT 200
+      `);
+    } catch (camelErr) {
+      console.log(`[AutoCorrector] v200: camelCase\u67E5\u8BE2\u5931\u8D25\uFF0C\u5C1D\u8BD5snake_case\u5217\u540D: ${camelErr.message?.substring(0, 100)}`);
+      recentBidLogs = await database.execute(sql`
+        SELECT bl.id, bl.log_target_type, bl.target_id, bl.target_name,
+               bl.previous_bid, bl.new_bid, bl.created_at,
+               bl.campaign_id, bl.ad_group_id
+        FROM bidding_logs bl
+        INNER JOIN (
+          SELECT target_id, log_target_type, MAX(id) as max_id
+          FROM bidding_logs
+          WHERE account_id = ${accountId}
+            AND execution_status = 'success'
+            AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+          GROUP BY target_id, log_target_type
+        ) latest ON bl.id = latest.max_id
+        LIMIT 200
+      `);
+    }
     const rows = recentBidLogs?.[0] || recentBidLogs;
     if (!Array.isArray(rows) || rows.length === 0) {
       console.log(`[AutoCorrector] v196: \u8D26\u6237${accountId} \u6700\u8FD124\u5C0F\u65F6\u65E0\u6210\u529F\u7684\u51FA\u4EF7\u8C03\u6574\u65E5\u5FD7`);
@@ -77316,7 +77345,9 @@ async function verifyBiddingLogsExecution(database, accountId) {
     }
     console.log(`[AutoCorrector] v196: \u8D26\u6237${accountId} \u51FA\u4EF7\u6267\u884C\u786E\u8BA4\u5B8C\u6210: \u68C0\u67E5=${rows.length}, \u786E\u8BA4=${verified}, \u4E0D\u4E00\u81F4=${mismatched}, \u7EA0\u6B63=${corrected}`);
   } catch (err2) {
-    console.error(`[AutoCorrector] v196: \u51FA\u4EF7\u6267\u884C\u786E\u8BA4\u5F02\u5E38: ${err2.message}`);
+    console.error(`[AutoCorrector] v199: \u51FA\u4EF7\u6267\u884C\u786E\u8BA4\u5F02\u5E38: ${err2.message}`);
+    if (err2.cause) console.error(`[AutoCorrector] v199: MySQL\u9519\u8BEF\u8BE6\u60C5: ${JSON.stringify(err2.cause).substring(0, 500)}`);
+    if (err2.sql) console.error(`[AutoCorrector] v199: \u5931\u8D25SQL: ${err2.sql?.substring(0, 200)}`);
   }
   return results;
 }
@@ -77326,28 +77357,30 @@ async function auditAlgorithmDecisionQuality(database, accountId) {
     const auditCandidates = await database.execute(sql`
       SELECT 
         k.id as keyword_id,
-        k.keyword_text,
+        k.keywordText as keyword_text,
         k.bid as current_bid,
-        k.match_type,
+        k.matchType as match_type,
         k.impressions,
         k.clicks,
         k.spend,
         k.sales,
         k.orders,
-        k.keyword_status,
-        k.campaign_id,
-        c.campaign_name,
-        c.campaign_status,
+        k.keywordStatus as keyword_status,
+        ag.campaignId as amazon_campaign_id,
+        c.id as campaign_db_id,
+        c.campaignName as campaign_name,
+        c.campaignStatus as campaign_status,
         pg.id as perf_group_id,
-        pg.target_acos,
+        pg.targetAcos as target_acos,
         pg.max_bid,
-        pg.optimization_goal,
+        pg.optimizationGoal as optimization_goal,
         pg.daily_budget,
         oe.algorithm_version as last_algo_version,
         oe.created_at as last_optimized_at
       FROM keywords k
-      INNER JOIN campaigns c ON k.campaign_id = c.id
-      INNER JOIN performance_groups pg ON c.performance_group_id = pg.id
+      INNER JOIN ad_groups ag ON k.adGroupId = ag.id
+      INNER JOIN campaigns c ON ag.campaignId = c.id AND c.accountId = ${accountId}
+      INNER JOIN performance_groups pg ON c.performanceGroupId = pg.id
       LEFT JOIN (
         SELECT keyword_id, algorithm_version, created_at,
                ROW_NUMBER() OVER (PARTITION BY keyword_id ORDER BY created_at DESC) as rn
@@ -77357,9 +77390,8 @@ async function auditAlgorithmDecisionQuality(database, accountId) {
           AND status = 'success'
           AND created_at > DATE_SUB(NOW(), INTERVAL ${QUALITY_AUDIT_CONFIG.lookbackDays} DAY)
       ) oe ON oe.keyword_id = k.id AND oe.rn = 1
-      WHERE k.account_id = ${accountId}
-        AND k.keyword_status = 'enabled'
-        AND c.campaign_status = 'enabled'
+      WHERE k.keywordStatus = 'enabled'
+        AND c.campaignStatus = 'enabled'
         AND pg.status = 'active'
         AND CAST(k.bid AS DECIMAL(10,2)) > 0
         AND (k.impressions > 0 OR CAST(k.spend AS DECIMAL(10,2)) > 0)
@@ -77368,6 +77400,8 @@ async function auditAlgorithmDecisionQuality(database, accountId) {
           OR (
             oe.algorithm_version NOT LIKE '%v197%'
             AND oe.algorithm_version NOT LIKE '%v198%'
+            AND oe.algorithm_version NOT LIKE '%v199%'
+            AND oe.algorithm_version NOT LIKE '%v200%'
             AND oe.algorithm_version NOT LIKE '%NextGen%'
             AND oe.algorithm_version NOT LIKE '%nextgen%'
           )
@@ -77494,7 +77528,9 @@ async function auditAlgorithmDecisionQuality(database, accountId) {
     }
     console.log(`[AutoCorrector] v198: \u8D26\u6237${accountId} NextGen\u8D28\u91CF\u5BA1\u8BA1\u5B8C\u6210: \u5BA1\u8BA1=${audited}, \u504F\u5DEE=${deviationsFound}, \u7EA0\u6B63=${corrected}`);
   } catch (err2) {
-    console.error(`[AutoCorrector] v198: \u8D26\u6237${accountId} NextGen\u8D28\u91CF\u5BA1\u8BA1\u5F02\u5E38: ${err2.message}`);
+    console.error(`[AutoCorrector] v199: \u8D26\u6237${accountId} NextGen\u8D28\u91CF\u5BA1\u8BA1\u5F02\u5E38: ${err2.message}`);
+    if (err2.cause) console.error(`[AutoCorrector] v199: MySQL\u9519\u8BEF\u8BE6\u60C5: ${JSON.stringify(err2.cause).substring(0, 500)}`);
+    if (err2.sql) console.error(`[AutoCorrector] v199: \u5931\u8D25SQL: ${err2.sql?.substring(0, 200)}`);
   }
   return results;
 }
@@ -143752,7 +143788,7 @@ var init_postDeployOptimizer = __esm({
     init_db2();
     init_schema2();
     init_drizzle_orm();
-    SYSTEM_VERSION = 199;
+    SYSTEM_VERSION = 200;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -143799,6 +143835,12 @@ var init_postDeployOptimizer = __esm({
       {
         version: 199,
         description: "v199: \u5546\u7528\u7EA7\u6570\u636E\u5B8C\u6574\u6027\u4FEE\u590D \u2014 \u4FEE\u590D\u6240\u6709API\u5206\u9875/\u5206\u6279\u5904\u7406\u7F3A\u9677\uFF0C\u786E\u4FDD\u5173\u952E\u8BCD\u521B\u5EFA/\u51FA\u4EF7\u66F4\u65B0/\u5426\u5B9A\u8BCD\u540C\u6B65/\u72B6\u6001\u53D8\u66F4\u7B49\u6240\u6709\u64CD\u4F5C\u5B8C\u6574\u6267\u884C\uFF0C\u79FB\u9664\u7EA0\u9519\u5668\u548C\u4EFB\u52A1\u961F\u5217\u7684\u5904\u7406\u91CF\u4E0A\u9650",
+        affectedModules: [],
+        correctionActions: []
+      },
+      {
+        version: 200,
+        description: "v200: SQL\u5217\u540D\u4E00\u81F4\u6027\u4FEE\u590D \u2014 \u4FEE\u590DNextGen\u8D28\u91CF\u5BA1\u8BA1SQL\u67E5\u8BE2\u5217\u540D\u9519\u8BEF(keywords\u8868\u4F7F\u7528camelCase\u3001optimization_events\u8868\u4F7F\u7528snake_case)\uFF0C\u4FEE\u590D\u51FA\u4EF7\u6267\u884C\u786E\u8BA4\u53CC\u91CD\u5C1D\u8BD5\u987A\u5E8F\uFF0C\u589E\u5F3A\u5426\u5B9A\u8BCDAPI\u9519\u8BEF\u65E5\u5FD7",
         affectedModules: [],
         correctionActions: []
       }
