@@ -13,7 +13,8 @@ import { startOptimizationScheduler as startTargetScheduler } from "../optimizat
 import { startSQSConsumer } from "../sqsConsumerService";
 import { reportJobScheduler } from "../services/reportJobScheduler";
 import sitemapRouter from "../routes/sitemap";
-import { runAutoCorrection } from "../optimizationAutoCorrector";
+import { runAutoCorrection } from '../optimizationAutoCorrector';
+import { runPostDeployOptimization, SYSTEM_VERSION } from '../postDeployOptimizer';
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -110,15 +111,29 @@ async function startServer() {
     console.log('[TargetScheduler] v142: daily全量执行已禁用，优化调度由dataSyncScheduler统一管理');
     
     // v167: 系统启动后延迟30秒运行全量纠错扫描（检测并修复过往错误优化）
+    // v184: 纠错完成后自动触发部署后重优化
     setTimeout(async () => {
       try {
-        const result = await runAutoCorrection();
-        console.log(`[AutoCorrector] v167: 启动纠错扫描完成: 发现${result.totalIssuesFound}个问题, 纠正${result.totalCorrected}个, 失败${result.totalFailed}个`);
+        // 步骤1: 先运行API执行级纠错
+        const corrResult = await runAutoCorrection();
+        console.log(`[AutoCorrector] v167: 启动纠错扫描完成: 发现${corrResult.totalIssuesFound}个问题, 纠正${corrResult.totalCorrected}个, 失败${corrResult.totalFailed}个`);
+        
+        // 步骤2: 运行部署后重优化（检测版本变化，触发全量重优化）
+        console.log(`[PostDeployOptimizer] v184: 开始部署后版本检查 (当前版本: v${SYSTEM_VERSION})...`);
+        const deployResult = await runPostDeployOptimization();
+        if (deployResult.triggered) {
+          console.log(`[PostDeployOptimizer] v184: 部署后重优化完成: ${deployResult.reason}`);
+          console.log(`[PostDeployOptimizer] v184: 处理${deployResult.targetsProcessed}个目标, 成功${deployResult.targetsSucceeded}个, 失败${deployResult.targetsFailed}个, 优化动作${deployResult.totalOptimizationActions}个`);
+        } else {
+          console.log(`[PostDeployOptimizer] v184: ${deployResult.reason}`);
+        }
       } catch (err: any) {
-        console.error('[AutoCorrector] v167: 启动纠错扫描失败:', err.message);
+        console.error('[AutoCorrector/PostDeployOptimizer] 启动任务失败:', err.message);
       }
     }, 30 * 1000);
-    console.log('[AutoCorrector] v167: 自动纠错服务已注册，将30秒后运行首次全量扫描');
+    console.log(`[AutoCorrector] v167: 自动纠错服务已注册，将30秒后运行首次全量扫描`);
+    console.log(`[PostDeployOptimizer] v184: 部署后重优化已注册，将在纠错完成后自动触发 (当前版本: v${SYSTEM_VERSION})`);
+
 
     // 启动SQS消费者服务（AMS实时数据流）
     if (process.env.AWS_SQS_QUEUE_TRAFFIC_URL || process.env.AWS_SQS_QUEUE_CONVERSION_URL || process.env.AWS_SQS_QUEUE_BUDGET_URL) {

@@ -52348,10 +52348,10 @@ var init_amazonAdsApi = __esm({
           if (workingHeaders) {
             try {
               const response = await this.axiosInstance.post("/sp/campaigns/list", body, { headers: workingHeaders });
-              const campaigns6 = response.data.campaigns || [];
-              allCampaigns.push(...campaigns6);
+              const campaigns7 = response.data.campaigns || [];
+              allCampaigns.push(...campaigns7);
               nextToken = response.data.nextToken;
-              console.log(`[SP API] Fetched ${campaigns6.length} campaigns, total: ${allCampaigns.length}, hasMore: ${!!nextToken}`);
+              console.log(`[SP API] Fetched ${campaigns7.length} campaigns, total: ${allCampaigns.length}, hasMore: ${!!nextToken}`);
             } catch (error54) {
               console.error("[SP API] Error fetching campaigns:", error54.message);
               throw error54;
@@ -52361,10 +52361,10 @@ var init_amazonAdsApi = __esm({
               try {
                 const response = await this.axiosInstance.post("/sp/campaigns/list", body, { headers });
                 workingHeaders = headers;
-                const campaigns6 = response.data.campaigns || [];
-                allCampaigns.push(...campaigns6);
+                const campaigns7 = response.data.campaigns || [];
+                allCampaigns.push(...campaigns7);
                 nextToken = response.data.nextToken;
-                console.log(`[SP API] Fetched ${campaigns6.length} campaigns, total: ${allCampaigns.length}, hasMore: ${!!nextToken}`);
+                console.log(`[SP API] Fetched ${campaigns7.length} campaigns, total: ${allCampaigns.length}, hasMore: ${!!nextToken}`);
                 break;
               } catch (error54) {
                 lastError = error54;
@@ -52502,10 +52502,10 @@ var init_amazonAdsApi = __esm({
           if (workingHeaders) {
             try {
               const response = await this.axiosInstance.post("/sp/keywords/list", body, { headers: workingHeaders });
-              const keywords6 = response.data.keywords || [];
-              allKeywords.push(...keywords6);
+              const keywords7 = response.data.keywords || [];
+              allKeywords.push(...keywords7);
               nextToken = response.data.nextToken;
-              console.log(`[SP API] Fetched ${keywords6.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
+              console.log(`[SP API] Fetched ${keywords7.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
             } catch (error54) {
               console.error("[SP API] Error fetching keywords:", error54.message, error54.response?.data ? JSON.stringify(error54.response.data).slice(0, 200) : "");
               throw error54;
@@ -52515,10 +52515,10 @@ var init_amazonAdsApi = __esm({
               try {
                 const response = await this.axiosInstance.post("/sp/keywords/list", body, { headers });
                 workingHeaders = headers;
-                const keywords6 = response.data.keywords || [];
-                allKeywords.push(...keywords6);
+                const keywords7 = response.data.keywords || [];
+                allKeywords.push(...keywords7);
                 nextToken = response.data.nextToken;
-                console.log(`[SP API] Fetched ${keywords6.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
+                console.log(`[SP API] Fetched ${keywords7.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
                 break;
               } catch (error54) {
                 lastError = error54;
@@ -52540,9 +52540,9 @@ var init_amazonAdsApi = __esm({
       /**
        * 创建SP关键词（用于搜索词收割：将高转化搜索词添加为精确匹配关键词）
        */
-      async createSpKeywords(keywords6) {
+      async createSpKeywords(keywords7) {
         try {
-          const formattedKeywords = keywords6.map((k5) => ({
+          const formattedKeywords = keywords7.map((k5) => ({
             adGroupId: String(k5.adGroupId),
             campaignId: String(k5.campaignId),
             keywordText: k5.keywordText,
@@ -52568,7 +52568,7 @@ var init_amazonAdsApi = __esm({
                 const idx = item.index || 0;
                 createdKeywords.push({
                   keywordId: item.keywordId,
-                  keywordText: keywords6[idx]?.keywordText || "",
+                  keywordText: keywords7[idx]?.keywordText || "",
                   code: "SUCCESS"
                 });
               }
@@ -52579,10 +52579,10 @@ var init_amazonAdsApi = __esm({
                 const errorDetail = item.description || item.details || item.message || "";
                 createdKeywords.push({
                   keywordId: null,
-                  keywordText: keywords6[item.index]?.keywordText || "",
+                  keywordText: keywords7[item.index]?.keywordText || "",
                   code: item.code || "ERROR"
                 });
-                console.error(`[SP API] v168: \u5173\u952E\u8BCD\u521B\u5EFA\u5931\u8D25\u8BE6\u60C5: keyword="${keywords6[item.index]?.keywordText}", code=${item.code}, description="${errorDetail}", fullError=${JSON.stringify(item)}`);
+                console.error(`[SP API] v168: \u5173\u952E\u8BCD\u521B\u5EFA\u5931\u8D25\u8BE6\u60C5: keyword="${keywords7[item.index]?.keywordText}", code=${item.code}, description="${errorDetail}", fullError=${JSON.stringify(item)}`);
               }
             }
           } else if (Array.isArray(responseKeywords)) {
@@ -54817,22 +54817,22 @@ var init_amazonAdsApi = __esm({
               }
             }
           );
-          const campaigns6 = response.data.campaigns || [];
-          if (pageCount === 0 && campaigns6.length > 0) {
+          const campaigns7 = response.data.campaigns || [];
+          if (pageCount === 0 && campaigns7.length > 0) {
             console.log("[SB API DEBUG] First campaign full structure:");
-            console.log(JSON.stringify(campaigns6[0], null, 2));
-            console.log("[SB API DEBUG] First campaign startDate:", campaigns6[0].startDate);
-            console.log("[SB API DEBUG] First campaign keys:", Object.keys(campaigns6[0]));
+            console.log(JSON.stringify(campaigns7[0], null, 2));
+            console.log("[SB API DEBUG] First campaign startDate:", campaigns7[0].startDate);
+            console.log("[SB API DEBUG] First campaign keys:", Object.keys(campaigns7[0]));
             console.log("[SB API] \u9884\u7B97\u5B57\u6BB5\u68C0\u67E5:");
-            console.log("  - budget:", campaigns6[0].budget);
-            console.log("  - dailyBudget:", campaigns6[0].dailyBudget);
-            console.log("  - state:", campaigns6[0].state);
-            console.log("  - status:", campaigns6[0].status);
+            console.log("  - budget:", campaigns7[0].budget);
+            console.log("  - dailyBudget:", campaigns7[0].dailyBudget);
+            console.log("  - state:", campaigns7[0].state);
+            console.log("  - status:", campaigns7[0].status);
           }
-          allCampaigns.push(...campaigns6);
+          allCampaigns.push(...campaigns7);
           nextToken = response.data.nextToken;
           pageCount++;
-          console.log(`[SB API] \u7B2C${pageCount}\u9875\u83B7\u53D6\u5230 ${campaigns6.length} \u4E2ASB\u5E7F\u544A\u6D3B\u52A8, \u603B\u8BA1: ${allCampaigns.length}`);
+          console.log(`[SB API] \u7B2C${pageCount}\u9875\u83B7\u53D6\u5230 ${campaigns7.length} \u4E2ASB\u5E7F\u544A\u6D3B\u52A8, \u603B\u8BA1: ${allCampaigns.length}`);
         } while (nextToken);
         console.log(`[SB API] \u5171\u83B7\u53D6\u5230 ${allCampaigns.length} \u4E2ASB\u5E7F\u544A\u6D3B\u52A8`);
         return allCampaigns;
@@ -54895,10 +54895,10 @@ var init_amazonAdsApi = __esm({
               }
             }
           );
-          const keywords6 = response.data.keywords || [];
-          allKeywords.push(...keywords6);
+          const keywords7 = response.data.keywords || [];
+          allKeywords.push(...keywords7);
           nextToken = response.data.nextToken;
-          console.log(`[SB API] Fetched ${keywords6.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
+          console.log(`[SB API] Fetched ${keywords7.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
         } while (nextToken);
         console.log(`[SB API] Total keywords fetched: ${allKeywords.length}`);
         return allKeywords;
@@ -54990,15 +54990,15 @@ var init_amazonAdsApi = __esm({
               params: { startIndex, count: count2 }
             });
           }
-          const campaigns6 = response.data || [];
-          allCampaigns.push(...campaigns6);
-          console.log(`[SD API] Fetched ${campaigns6.length} campaigns, total: ${allCampaigns.length}`);
+          const campaigns7 = response.data || [];
+          allCampaigns.push(...campaigns7);
+          console.log(`[SD API] Fetched ${campaigns7.length} campaigns, total: ${allCampaigns.length}`);
           if (allCampaigns.length > 0 && startIndex === 0) {
             console.log("[SD API DEBUG] First campaign full structure:", JSON.stringify(allCampaigns[0], null, 2));
             console.log("[SD API DEBUG] First campaign startDate:", allCampaigns[0].startDate);
             console.log("[SD API DEBUG] First campaign keys:", Object.keys(allCampaigns[0]));
           }
-          if (campaigns6.length < count2) {
+          if (campaigns7.length < count2) {
             break;
           }
           startIndex += count2;
@@ -55302,10 +55302,10 @@ var init_amazonAdsApi = __esm({
       /**
        * 获取关键词出价建议
        */
-      async getKeywordBidRecommendations(adGroupId, keywords6) {
+      async getKeywordBidRecommendations(adGroupId, keywords7) {
         const response = await this.axiosInstance.post("/sp/keywords/bidRecommendations", {
           adGroupId,
-          keywords: keywords6
+          keywords: keywords7
         });
         return response.data.recommendations || [];
       }
@@ -56409,7 +56409,7 @@ function analyzeBidCorrections(bidChanges, attributionWindowDays = 14) {
   });
   return suggestions;
 }
-function analyzeCampaignHealth(campaigns6, thresholds = {
+function analyzeCampaignHealth(campaigns7, thresholds = {
   acosWarning: 35,
   acosCritical: 50,
   ctrDropWarning: -20,
@@ -56419,7 +56419,7 @@ function analyzeCampaignHealth(campaigns6, thresholds = {
   roasMinimum: 2
 }) {
   const results = [];
-  for (const campaign of campaigns6) {
+  for (const campaign of campaigns7) {
     const alerts = [];
     const recommendations = [];
     const now = /* @__PURE__ */ new Date();
@@ -57413,9 +57413,9 @@ async function syncKeywordStatusToAmazon(accountId, statusChanges) {
         result.errors.push(`\u6570\u636E\u5E93\u8FDE\u63A5\u5931\u8D25`);
         continue;
       }
-      const { keywords: keywords6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+      const { keywords: keywords7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
       const { eq: eq7 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-      let [kw] = await dbInstance.select({ keywordId: keywords6.keywordId }).from(keywords6).where(eq7(keywords6.id, change.keywordId)).limit(1);
+      let [kw] = await dbInstance.select({ keywordId: keywords7.keywordId }).from(keywords7).where(eq7(keywords7.id, change.keywordId)).limit(1);
       if (!kw || !kw.keywordId || kw.keywordId === "0" || kw.keywordId === "") {
         console.log(`[AmazonApiHelper] keyword id=${change.keywordId} \u7F3A\u5C11keywordId\uFF0C\u5C1D\u8BD5\u5373\u65F6\u56DE\u586B...`);
         try {
@@ -64653,13 +64653,13 @@ async function checkEmergencyBrake(accountId, performanceGroupId) {
     const previousEnd = new Date(recentStart);
     const previousStart = new Date(previousEnd);
     previousStart.setDate(previousStart.getDate() - lookback);
-    const campaigns6 = await getCampaignsByPerformanceGroupId(performanceGroupId);
-    if (campaigns6.length === 0) {
+    const campaigns7 = await getCampaignsByPerformanceGroupId(performanceGroupId);
+    if (campaigns7.length === 0) {
       return { triggered: false, reason: null, recommendation: "none" };
     }
     let recentSpend = 0, recentSales = 0, recentOrders = 0;
     let previousSpend = 0, previousSales = 0, previousOrders = 0;
-    for (const campaign of campaigns6) {
+    for (const campaign of campaigns7) {
       try {
         const recentData = await getDailyPerformanceByDateRange(accountId, recentStart, recentEnd, campaign.id);
         const previousData = await getDailyPerformanceByDateRange(accountId, previousStart, previousEnd, campaign.id);
@@ -65295,8 +65295,8 @@ function determineCampaignLifecycle(campaign) {
   };
 }
 async function getTargetLifecycleStage(targetId) {
-  const campaigns6 = await getCampaignsByPerformanceGroupId(targetId);
-  if (campaigns6.length === 0) {
+  const campaigns7 = await getCampaignsByPerformanceGroupId(targetId);
+  if (campaigns7.length === 0) {
     return {
       overallStage: "launch",
       campaigns: [],
@@ -65304,7 +65304,7 @@ async function getTargetLifecycleStage(targetId) {
       summary: "\u65E0\u5E7F\u544A\u6D3B\u52A8"
     };
   }
-  const lifecycleInfos = campaigns6.map((c5) => determineCampaignLifecycle(c5));
+  const lifecycleInfos = campaigns7.map((c5) => determineCampaignLifecycle(c5));
   let overallStage = "mature";
   const launchCount = lifecycleInfos.filter((l6) => l6.stage === "launch").length;
   const growthCount = lifecycleInfos.filter((l6) => l6.stage === "growth").length;
@@ -65314,7 +65314,7 @@ async function getTargetLifecycleStage(targetId) {
   } else if (growthCount > 0) {
     overallStage = "growth";
   }
-  const summary = `${campaigns6.length}\u4E2A\u5E7F\u544A\u6D3B\u52A8: \u542F\u52A8\u671F=${launchCount}, \u6210\u957F\u671F=${growthCount}, \u6210\u719F\u671F=${matureCount} \u2192 \u7EFC\u5408\u9636\u6BB5: ${overallStage}`;
+  const summary = `${campaigns7.length}\u4E2A\u5E7F\u544A\u6D3B\u52A8: \u542F\u52A8\u671F=${launchCount}, \u6210\u957F\u671F=${growthCount}, \u6210\u719F\u671F=${matureCount} \u2192 \u7EFC\u5408\u9636\u6BB5: ${overallStage}`;
   return {
     overallStage,
     campaigns: lifecycleInfos,
@@ -68445,8 +68445,8 @@ async function startOptimizationScheduler() {
     let errors = 0;
     for (const target of activeTargets) {
       try {
-        const campaigns6 = await Promise.resolve().then(() => (init_db2(), db_exports)).then((m4) => m4.getCampaignsByPerformanceGroupId(target.id));
-        if (campaigns6.length === 0) {
+        const campaigns7 = await Promise.resolve().then(() => (init_db2(), db_exports)).then((m4) => m4.getCampaignsByPerformanceGroupId(target.id));
+        if (campaigns7.length === 0) {
           console.log(`[OptScheduler] \u8DF3\u8FC7\u65E0\u5E7F\u544A\u6D3B\u52A8\u7684\u4F18\u5316\u76EE\u6807: ${target.name} (id=${target.id})`);
           continue;
         }
@@ -68559,8 +68559,8 @@ async function triggerAccountOptimizations(accountId, triggeredBy = "data_sync_c
             continue;
           }
         }
-        const campaigns6 = await Promise.resolve().then(() => (init_db2(), db_exports)).then((m4) => m4.getCampaignsByPerformanceGroupId(target.id));
-        if (campaigns6.length === 0) {
+        const campaigns7 = await Promise.resolve().then(() => (init_db2(), db_exports)).then((m4) => m4.getCampaignsByPerformanceGroupId(target.id));
+        if (campaigns7.length === 0) {
           result.skippedCount++;
           result.details.push({
             targetId: target.id,
@@ -68712,8 +68712,8 @@ async function getEventPerformanceData(db, event, startDate, endDate) {
     const endStr = endDate.toISOString().slice(0, 10);
     let result;
     if (event.keywordId) {
-      const { keywords: keywords6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-      const kwData = await db.select().from(keywords6).where(eq(keywords6.id, event.keywordId)).limit(1);
+      const { keywords: keywords7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+      const kwData = await db.select().from(keywords7).where(eq(keywords7.id, event.keywordId)).limit(1);
       if (kwData.length > 0) {
         const kw = kwData[0];
         result = {
@@ -68725,8 +68725,8 @@ async function getEventPerformanceData(db, event, startDate, endDate) {
         };
       }
     } else if (event.campaignId) {
-      const { campaigns: campaigns6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-      const campData = await db.select().from(campaigns6).where(eq(campaigns6.id, event.campaignId)).limit(1);
+      const { campaigns: campaigns7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+      const campData = await db.select().from(campaigns7).where(eq(campaigns7.id, event.campaignId)).limit(1);
       if (campData.length > 0) {
         const camp = campData[0];
         result = {
@@ -134854,9 +134854,9 @@ async function checkAllCampaignsPacing(accountId) {
         AND status = 'enabled'
         AND dailyBudget > 0
     `);
-    const campaigns6 = Array.isArray(rows) ? rows : [];
+    const campaigns7 = Array.isArray(rows) ? rows : [];
     const results = [];
-    for (const campaign of campaigns6) {
+    for (const campaign of campaigns7) {
       const adjustment = await adjustIntradayPacing(
         campaign.campaignId,
         accountId
@@ -137120,12 +137120,12 @@ async function applyDailyBudgetRulesToStrategy(campaignId, accountId, dayPerform
   }
   return { success: true, strategyId: strategy.id, rulesApplied: budgetRules.length };
 }
-async function executeMultiDimensionOptimization(targetId, accountId, campaigns6, config2, dryRun = false) {
+async function executeMultiDimensionOptimization(targetId, accountId, campaigns7, config2, dryRun = false) {
   const details = [];
   let totalRulesGenerated = 0;
   let campaignsAnalyzed = 0;
   const lookbackDays = config2.lookbackDays || 30;
-  for (const campaign of campaigns6) {
+  for (const campaign of campaigns7) {
     try {
       const campaignId = campaign.campaignId || campaign.id.toString();
       const analysis = await analyzeMultiDimensionPerformance(
@@ -137417,6 +137417,16 @@ var init_multiDimensionOptimizer = __esm({
 });
 
 // server/multiDimComboAnalyzer.ts
+var multiDimComboAnalyzer_exports = {};
+__export(multiDimComboAnalyzer_exports, {
+  analyzeCampaignCombos: () => analyzeCampaignCombos,
+  executeMultiDimComboAnalysis: () => executeMultiDimComboAnalysis,
+  getCampaignBudgetMultiplier: () => getCampaignBudgetMultiplier,
+  getComboAnalysisForAccount: () => getComboAnalysisForAccount,
+  getComboAnalysisForCampaign: () => getComboAnalysisForCampaign,
+  getRealtimeMultipliers: () => getRealtimeMultipliers,
+  persistAnalysisResults: () => persistAnalysisResults
+});
 function getTimeDecayWeight(daysAgo) {
   if (daysAgo <= 7) return 1;
   if (daysAgo <= 14) return 0.7;
@@ -137930,6 +137940,40 @@ function calculateCampaignBudgetMultiplier(golden, leaden, potential, standard, 
   }
   return 1;
 }
+async function getRealtimeMultipliers(db, campaignId, keywordId, targetId, currentDayOfWeek, currentHour) {
+  const conditions = [eq(multiDimComboAnalysis.campaignId, campaignId)];
+  if (keywordId) {
+    conditions.push(eq(multiDimComboAnalysis.keywordId, keywordId));
+  } else if (targetId) {
+    conditions.push(eq(multiDimComboAnalysis.targetId, targetId));
+  }
+  const result = await db.select().from(multiDimComboAnalysis).where(and(...conditions)).orderBy(desc(multiDimComboAnalysis.analyzedAt)).limit(1);
+  if (result.length === 0) return null;
+  const analysis = result[0];
+  const baseBidMultiplier = parseFloat(String(analysis.suggestedBidMultiplier || "1.000"));
+  const basePlacementMultiplier = parseFloat(String(analysis.suggestedPlacementMultiplier || "1.000"));
+  let baseTimeMultiplier = parseFloat(String(analysis.suggestedTimeMultiplier || "1.000"));
+  const bestWindows = analysis.bestTimeWindows || [];
+  const worstWindows = analysis.worstTimeWindows || [];
+  const isInBestWindow = bestWindows.some(
+    (w7) => w7.dayOfWeek === currentDayOfWeek && currentHour >= w7.startHour && currentHour <= w7.endHour
+  );
+  const isInWorstWindow = worstWindows.some(
+    (w7) => w7.dayOfWeek === currentDayOfWeek && currentHour >= w7.startHour && currentHour <= w7.endHour
+  );
+  if (isInBestWindow) {
+    baseTimeMultiplier = Math.min(baseTimeMultiplier * 1.1, 1.2);
+  } else if (isInWorstWindow) {
+    baseTimeMultiplier = Math.max(baseTimeMultiplier * 0.9, 0.8);
+  }
+  return {
+    bidMultiplier: baseBidMultiplier,
+    placementMultiplier: basePlacementMultiplier,
+    timeMultiplier: baseTimeMultiplier,
+    comboCategory: analysis.comboCategory,
+    confidence: analysis.confidenceLevel || "insufficient"
+  };
+}
 async function persistAnalysisResults(db, accountId, analysis) {
   const allCombos = [
     ...analysis.goldenCombos,
@@ -138038,6 +138082,13 @@ async function executeMultiDimComboAnalysis(db, accountId, campaignIds, config2)
 }
 async function getComboAnalysisForAccount(db, accountId) {
   const results = await db.select().from(multiDimComboAnalysis).where(eq(multiDimComboAnalysis.accountId, accountId));
+  return results;
+}
+async function getComboAnalysisForCampaign(db, accountId, campaignId) {
+  const results = await db.select().from(multiDimComboAnalysis).where(and(
+    eq(multiDimComboAnalysis.accountId, accountId),
+    eq(multiDimComboAnalysis.campaignId, campaignId)
+  ));
   return results;
 }
 async function getCampaignBudgetMultiplier(db, accountId, campaignId) {
@@ -138793,15 +138844,15 @@ async function executeOptimizationTarget(targetId, options = {}) {
     if (shouldReleaseLock) releaseAccountOptimizationLock(config2.accountId, moduleLockGroup);
     return result;
   }
-  const campaigns6 = allCampaigns.filter((c5) => c5.campaignStatus === "enabled");
-  const skippedCampaigns = allCampaigns.length - campaigns6.length;
+  const campaigns7 = allCampaigns.filter((c5) => c5.campaignStatus === "enabled");
+  const skippedCampaigns = allCampaigns.length - campaigns7.length;
   if (skippedCampaigns > 0) {
-    console.log(`[OptimizationTarget] v156: \u8DF3\u8FC7${skippedCampaigns}\u4E2A\u975Eenabled\u72B6\u6001\u7684campaign (\u603B${allCampaigns.length}\u4E2A, enabled=${campaigns6.length}\u4E2A)`);
+    console.log(`[OptimizationTarget] v156: \u8DF3\u8FC7${skippedCampaigns}\u4E2A\u975Eenabled\u72B6\u6001\u7684campaign (\u603B${allCampaigns.length}\u4E2A, enabled=${campaigns7.length}\u4E2A)`);
     result.warnings.push(`\u8DF3\u8FC7${skippedCampaigns}\u4E2A\u975Eenabled\u72B6\u6001\u7684campaign`);
   }
-  if (campaigns6.length === 0) {
+  if (campaigns7.length === 0) {
     result.warnings.push("\u4F18\u5316\u76EE\u6807\u4E0B\u6CA1\u6709enabled\u72B6\u6001\u7684\u5E7F\u544A\u6D3B\u52A8");
-    if (allCampaigns.length > 0 && campaigns6.length === 0) {
+    if (allCampaigns.length > 0 && campaigns7.length === 0) {
       const allPausedOrArchived = allCampaigns.every(
         (c5) => ["paused", "archived"].includes(c5.campaignStatus || "")
       );
@@ -138843,7 +138894,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
   };
   if (config2.enableBidOptimization && shouldExecute("bid")) {
     try {
-      const bidResults = await executeBidOptimization(config2, campaigns6, dryRun);
+      const bidResults = await executeBidOptimization(config2, campaigns7, dryRun);
       result.bidOptimization = bidResults;
     } catch (error54) {
       result.errors.push(`\u51FA\u4EF7\u4F18\u5316\u5931\u8D25: ${error54.message}`);
@@ -138851,7 +138902,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
   }
   if (config2.enablePlacementOptimization && shouldExecute("placement")) {
     try {
-      const placementResults = await executePlacementOptimization(config2, campaigns6, dryRun);
+      const placementResults = await executePlacementOptimization(config2, campaigns7, dryRun);
       result.placementOptimization = placementResults;
     } catch (error54) {
       result.errors.push(`\u4F4D\u7F6E\u4F18\u5316\u5931\u8D25: ${error54.message}`);
@@ -138862,7 +138913,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
       const multiDimResults = await executeMultiDimensionOptimization(
         targetId,
         config2.accountId,
-        campaigns6,
+        campaigns7,
         {
           targetAcos: config2.targetAcos,
           targetRoas: config2.targetRoas,
@@ -138884,7 +138935,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
     try {
       const dbConn = await getDb();
       if (dbConn) {
-        const campaignIds = campaigns6.map((c5) => c5.id);
+        const campaignIds = campaigns7.map((c5) => c5.id);
         const comboResults = await executeMultiDimComboAnalysis(
           dbConn,
           config2.accountId,
@@ -138911,7 +138962,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
   }
   if (config2.enableDaypartingOptimization && shouldExecute("dayparting")) {
     try {
-      const daypartingResults = await executeDaypartingOptimization(config2, campaigns6, dryRun);
+      const daypartingResults = await executeDaypartingOptimization(config2, campaigns7, dryRun);
       result.daypartingOptimization = daypartingResults;
     } catch (error54) {
       result.errors.push(`\u5206\u65F6\u7ADE\u4EF7\u4F18\u5316\u5931\u8D25: ${error54.message}`);
@@ -138919,7 +138970,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
   }
   if (config2.enableDaypartingOptimization && shouldExecute("dayparting_budget")) {
     try {
-      const daypartingBudgetResults = await executeDaypartingBudgetOptimization(config2, campaigns6, dryRun);
+      const daypartingBudgetResults = await executeDaypartingBudgetOptimization(config2, campaigns7, dryRun);
       result.daypartingBudgetOptimization = daypartingBudgetResults;
     } catch (error54) {
       result.errors.push(`\u5206\u65F6\u9884\u7B97\u4F18\u5316\u5931\u8D25: ${error54.message}`);
@@ -138927,7 +138978,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
   }
   if (config2.enableSearchTermAnalysis && shouldExecute("searchterm")) {
     try {
-      const searchTermResults = await executeSearchTermAnalysis(config2, campaigns6, dryRun);
+      const searchTermResults = await executeSearchTermAnalysis(config2, campaigns7, dryRun);
       result.searchTermAnalysis = searchTermResults;
     } catch (error54) {
       result.errors.push(`\u641C\u7D22\u8BCD\u5206\u6790\u5931\u8D25: ${error54.message}`);
@@ -138935,7 +138986,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
   }
   if (config2.enableBudgetAllocation && shouldExecute("budget")) {
     try {
-      const budgetResults = await executeBudgetAllocation2(config2, campaigns6, dryRun);
+      const budgetResults = await executeBudgetAllocation2(config2, campaigns7, dryRun);
       result.budgetAllocation = budgetResults;
     } catch (error54) {
       result.errors.push(`\u9884\u7B97\u5206\u914D\u4F18\u5316\u5931\u8D25: ${error54.message}`);
@@ -138943,7 +138994,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
   }
   if (config2.enableKeywordAutoExecution && shouldExecute("keyword")) {
     try {
-      const keywordResults = await executeKeywordStatusChanges(config2, campaigns6, dryRun);
+      const keywordResults = await executeKeywordStatusChanges(config2, campaigns7, dryRun);
       result.keywordStatusChanges = keywordResults;
     } catch (error54) {
       result.errors.push(`\u6295\u653E\u8BCD\u72B6\u6001\u53D8\u66F4\u5931\u8D25: ${error54.message}`);
@@ -138951,7 +139002,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
   }
   if (config2.enableKeywordAutoExecution && shouldExecute("campaign_status")) {
     try {
-      const campaignResults = await executeCampaignStatusChanges(config2, campaigns6, dryRun);
+      const campaignResults = await executeCampaignStatusChanges(config2, campaigns7, dryRun);
       result.campaignStatusChanges = campaignResults;
     } catch (error54) {
       result.errors.push(`\u5E7F\u544A\u6D3B\u52A8\u72B6\u6001\u53D8\u66F4\u5931\u8D25: ${error54.message}`);
@@ -138959,7 +139010,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
   }
   if (config2.enableKeywordAutoExecution && shouldExecute("adgroup_status")) {
     try {
-      const adGroupResults = await executeAdGroupStatusChanges(config2, campaigns6, dryRun);
+      const adGroupResults = await executeAdGroupStatusChanges(config2, campaigns7, dryRun);
       result.adGroupStatusChanges = adGroupResults;
     } catch (error54) {
       result.errors.push(`\u5E7F\u544A\u7EC4\u72B6\u6001\u53D8\u66F4\u5931\u8D25: ${error54.message}`);
@@ -138969,7 +139020,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
     try {
       const coordinationResults = await executeBidCoordination(
         config2,
-        campaigns6,
+        campaigns7,
         result.bidOptimization.details,
         result.placementOptimization.details,
         result.daypartingOptimization.details,
@@ -139101,11 +139152,11 @@ async function executeOptimizationTarget(targetId, options = {}) {
   if (shouldReleaseLock) releaseAccountOptimizationLock(config2.accountId, moduleLockGroup);
   return result;
 }
-async function executeBidOptimization(config2, campaigns6, dryRun) {
+async function executeBidOptimization(config2, campaigns7, dryRun) {
   const details = [];
   let adjustmentsCount = 0;
   let totalClicks = 0, totalOrders = 0, totalSpend = 0, totalSales = 0;
-  for (const c5 of campaigns6) {
+  for (const c5 of campaigns7) {
     totalClicks += c5.clicks || 0;
     totalOrders += c5.orders || 0;
     totalSpend += parseFloat(c5.spend || "0");
@@ -139140,7 +139191,7 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
   const vcpmMaxBidLimit = config2.maxBid ? config2.maxBid * 5 : 15;
   console.log(`[BidOptimization] v165: CPC\u6700\u9AD8\u51FA\u4EF7=$${cpcMaxBidLimit} | VCPM\u6700\u9AD8\u51FA\u4EF7=$${vcpmMaxBidLimit} (\u7528\u6237\u8BBE\u7F6Emax_bid=${config2.maxBid || "\u672A\u8BBE\u7F6E"})`);
   console.log(`[BidOptimization] v165: \u65E5\u9884\u7B97=${config2.dailyBudget || "\u672A\u8BBE\u7F6E"}, \u76EE\u6807ACoS=${config2.targetAcos || "\u672A\u8BBE\u7F6E"}`);
-  for (const campaign of campaigns6) {
+  for (const campaign of campaigns7) {
     let campaignDailyData = [];
     let campaignTimeWeightedMetrics = null;
     try {
@@ -139189,9 +139240,9 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
     if (isVcpmCampaign) {
       console.log(`[BidOptimization] v165: Campaign ${campaign.id} \u8BC6\u522B\u4E3AVCPM\u5E7F\u544A\uFF0C\u4F7F\u7528VCPM\u6700\u9AD8\u51FA\u4EF7$${maxBidLimit}`);
     }
-    const keywords6 = await getKeywordsByCampaignId(campaign.id);
+    const keywords7 = await getKeywordsByCampaignId(campaign.id);
     const keywordTargets = [];
-    for (const keyword of keywords6) {
+    for (const keyword of keywords7) {
       if (keyword.keywordStatus !== "enabled") continue;
       const currentBid = parseFloat(keyword.bid || "0");
       if (currentBid <= 0) continue;
@@ -139253,7 +139304,7 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
           finalBid = maxBidLimit;
         }
         if (Math.abs(finalBid - result.previousBid) > 0.01) {
-          const keyword = keywords6.find((k5) => k5.id === result.targetId);
+          const keyword = keywords7.find((k5) => k5.id === result.targetId);
           const adjustment = {
             keywordId: result.targetId,
             keywordText: keyword?.keywordText || `\u5173\u952E\u8BCD ${result.targetId}`,
@@ -139469,7 +139520,7 @@ async function executeBidOptimization(config2, campaigns6, dryRun) {
   }
   return { executed: true, adjustmentsCount: dryRun ? details.length : adjustmentsCount, details, apiSyncResult, apiSyncStatus };
 }
-async function executePlacementOptimization(config2, campaigns6, dryRun) {
+async function executePlacementOptimization(config2, campaigns7, dryRun) {
   const details = [];
   let adjustmentsCount = 0;
   let accountComboMap = /* @__PURE__ */ new Map();
@@ -139488,7 +139539,7 @@ async function executePlacementOptimization(config2, campaigns6, dryRun) {
   } catch (comboErr) {
     console.log(`[PlacementOptimization] v183: \u52A0\u8F7D\u7EC4\u5408\u5206\u6790\u7ED3\u679C\u5931\u8D25: ${comboErr.message}`);
   }
-  for (const campaign of campaigns6) {
+  for (const campaign of campaigns7) {
     try {
       const analysis = await analyzePlacementPerformance(campaign.campaignId || campaign.id.toString(), config2.accountId);
       const suggestions = await generatePlacementSuggestions(
@@ -139593,7 +139644,7 @@ async function executePlacementOptimization(config2, campaigns6, dryRun) {
   }
   return { executed: true, adjustmentsCount: dryRun ? details.length : adjustmentsCount, details };
 }
-async function executeDaypartingOptimization(config2, campaigns6, dryRun) {
+async function executeDaypartingOptimization(config2, campaigns7, dryRun) {
   const details = [];
   let adjustmentsCount = 0;
   const marketplace = config2.marketplace || "US";
@@ -139616,7 +139667,7 @@ async function executeDaypartingOptimization(config2, campaigns6, dryRun) {
     console.log(`[DaypartingOptimization] v183: \u52A0\u8F7D\u7EC4\u5408\u5206\u6790\u7ED3\u679C\u5931\u8D25\uFF0C\u4F7F\u7528\u7EDF\u4E00\u4E58\u6570: ${comboErr.message}`);
   }
   const maxBidLimit = config2.maxBid || 2;
-  for (const campaign of campaigns6) {
+  for (const campaign of campaigns7) {
     try {
       let strategy = await getDaypartingStrategyByCampaignId(campaign.id);
       if (!strategy) {
@@ -139635,8 +139686,8 @@ async function executeDaypartingOptimization(config2, campaigns6, dryRun) {
       const hourlyRule = await getHourlyRule(strategy.id, currentDayOfWeek, currentHour);
       if (!hourlyRule) continue;
       const baseDaypartingMultiplier = parseFloat(hourlyRule.bidMultiplier || "1.00");
-      const keywords6 = await getKeywordsByCampaignId(campaign.id);
-      for (const keyword of keywords6) {
+      const keywords7 = await getKeywordsByCampaignId(campaign.id);
+      for (const keyword of keywords7) {
         if (keyword.keywordStatus !== "enabled") continue;
         const baseBid = parseFloat(keyword.bid || "0");
         if (baseBid <= 0) continue;
@@ -139738,13 +139789,13 @@ async function executeDaypartingOptimization(config2, campaigns6, dryRun) {
   }
   return { executed: true, adjustmentsCount, details };
 }
-async function executeDaypartingBudgetOptimization(config2, campaigns6, dryRun) {
+async function executeDaypartingBudgetOptimization(config2, campaigns7, dryRun) {
   const details = [];
   let adjustmentsCount = 0;
   const marketplace = config2.marketplace || "US";
   const now = /* @__PURE__ */ new Date();
   const currentDayOfWeek = getLocalDayOfWeek(now, marketplace);
-  for (const campaign of campaigns6) {
+  for (const campaign of campaigns7) {
     try {
       let strategy = await getDaypartingStrategyByCampaignId(campaign.id);
       if (!strategy || strategy.daypartingStatus !== "active") continue;
@@ -139857,11 +139908,11 @@ async function executeDaypartingBudgetOptimization(config2, campaigns6, dryRun) 
   }
   return { executed: true, adjustmentsCount, details };
 }
-async function executeSearchTermAnalysis(config2, campaigns6, dryRun) {
+async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
   const details = [];
   let negativeKeywordsAdded = 0;
   let newKeywordsAdded = 0;
-  for (const campaign of campaigns6) {
+  for (const campaign of campaigns7) {
     try {
       const searchTerms4 = await getSearchTermsByCampaignId(campaign.id);
       const searchTermTexts = searchTerms4.map((st3) => st3.searchTerm);
@@ -139966,11 +140017,11 @@ async function executeSearchTermAnalysis(config2, campaigns6, dryRun) {
                 const amazonCampaignId = Number(campaign.campaignId || campaign.id);
                 const matchType = term.matchTypeSuggestion || "exact";
                 const bid = 0.5;
-                const { keywords: keywords6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+                const { keywords: keywords7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
                 const { eq: eqOp, and: andOp } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-                const existingKeywords = await dbInstance.select({ id: keywords6.id, keywordId: keywords6.keywordId, matchType: keywords6.matchType }).from(keywords6).where(andOp(
-                  eqOp(keywords6.adGroupId, adGroup.id),
-                  eqOp(keywords6.keywordText, term.searchTerm)
+                const existingKeywords = await dbInstance.select({ id: keywords7.id, keywordId: keywords7.keywordId, matchType: keywords7.matchType }).from(keywords7).where(andOp(
+                  eqOp(keywords7.adGroupId, adGroup.id),
+                  eqOp(keywords7.keywordText, term.searchTerm)
                 )).limit(10);
                 if (existingKeywords.length > 0) {
                   if (existingKeywords.length > 1) {
@@ -139979,7 +140030,7 @@ async function executeSearchTermAnalysis(config2, campaigns6, dryRun) {
                     const toDelete = withId.length > 0 ? withoutId : withoutId.slice(1);
                     for (const dup of toDelete) {
                       try {
-                        await dbInstance.delete(keywords6).where(eqOp(keywords6.id, dup.id));
+                        await dbInstance.delete(keywords7).where(eqOp(keywords7.id, dup.id));
                         console.log(`[SearchTermAnalysis] \u{1F9F9} \u6E05\u7406\u91CD\u590D\u5173\u952E\u8BCD: id=${dup.id} "${term.searchTerm}" (keywordId=${dup.keywordId})`);
                       } catch (delErr) {
                         console.warn(`[SearchTermAnalysis] \u6E05\u7406\u91CD\u590D\u5173\u952E\u8BCD\u5931\u8D25: id=${dup.id}: ${delErr.message}`);
@@ -139991,7 +140042,7 @@ async function executeSearchTermAnalysis(config2, campaigns6, dryRun) {
                   newKeyword.apiSyncDetail = JSON.stringify({ existingId: existingKeywords[0].id, existingKeywordId: existingKeywords[0].keywordId, existingMatchTypes });
                   console.log(`[SearchTermAnalysis] \u23ED\uFE0F v168: \u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7\u521B\u5EFA: "${term.searchTerm}" (\u8BF7\u6C42=${matchType}, \u5DF2\u5B58\u5728=${existingMatchTypes}) id=${existingKeywords[0].id}, keywordId=${existingKeywords[0].keywordId}`);
                 } else {
-                  const insertResult = await dbInstance.insert(keywords6).values({
+                  const insertResult = await dbInstance.insert(keywords7).values({
                     adGroupId: adGroup.id,
                     keywordText: term.searchTerm,
                     matchType,
@@ -140114,13 +140165,13 @@ async function executeSearchTermAnalysis(config2, campaigns6, dryRun) {
   }
   return { executed: true, negativeKeywordsAdded, newKeywordsAdded, details };
 }
-async function executeBudgetAllocation2(config2, campaigns6, dryRun) {
+async function executeBudgetAllocation2(config2, campaigns7, dryRun) {
   const details = [];
   let adjustmentsCount = 0;
   try {
     const budgetResult = await generateBudgetAllocationSuggestions(config2.id);
     for (const suggestion of budgetResult.suggestions) {
-      const campaign = campaigns6.find((c5) => c5.id === suggestion.campaignId);
+      const campaign = campaigns7.find((c5) => c5.id === suggestion.campaignId);
       if (!campaign) continue;
       let finalBudget = suggestion.suggestedBudget;
       const campaignPerf = budgetResult.suggestions.find((s4) => s4.campaignId === suggestion.campaignId);
@@ -140200,7 +140251,7 @@ async function executeBudgetAllocation2(config2, campaigns6, dryRun) {
   }
   return { executed: true, adjustmentsCount: dryRun ? details.length : adjustmentsCount, details };
 }
-async function executeKeywordStatusChanges(config2, campaigns6, dryRun) {
+async function executeKeywordStatusChanges(config2, campaigns7, dryRun) {
   const details = [];
   let pausedCount = 0;
   let enabledCount = 0;
@@ -140222,13 +140273,13 @@ async function executeKeywordStatusChanges(config2, campaigns6, dryRun) {
     maxAcosThreshold = (config2.targetAcos || 30) * 3;
   }
   let totalSalesForAov = 0, totalOrdersForAov = 0;
-  for (const c5 of campaigns6) {
+  for (const c5 of campaigns7) {
     totalSalesForAov += parseFloat(c5.sales || "0");
     totalOrdersForAov += c5.orders || 0;
   }
   const groupAov = totalOrdersForAov > 0 ? totalSalesForAov / totalOrdersForAov : 30;
   pauseSpendThreshold = Math.max(pauseSpendThreshold, groupAov * 1.5);
-  for (const campaign of campaigns6) {
+  for (const campaign of campaigns7) {
     try {
       let campaignTWMetrics = null;
       try {
@@ -140250,8 +140301,8 @@ async function executeKeywordStatusChanges(config2, campaigns6, dryRun) {
       } catch (e6) {
         console.log(`[KeywordStatus] v163: Campaign ${campaign.id} \u65F6\u95F4\u8870\u51CF\u6570\u636E\u83B7\u53D6\u5931\u8D25: ${e6.message}`);
       }
-      const keywords6 = await getKeywordsByCampaignId(campaign.id);
-      for (const keyword of keywords6) {
+      const keywords7 = await getKeywordsByCampaignId(campaign.id);
+      for (const keyword of keywords7) {
         const spend = parseFloat(keyword.spend || "0");
         const sales = parseFloat(keyword.sales || "0");
         const clicks = keyword.clicks || 0;
@@ -140456,7 +140507,7 @@ async function executeKeywordStatusChanges(config2, campaigns6, dryRun) {
   }
   return { executed: true, pausedCount, enabledCount, details };
 }
-async function executeCampaignStatusChanges(config2, campaigns6, dryRun) {
+async function executeCampaignStatusChanges(config2, campaigns7, dryRun) {
   const details = [];
   let pausedCount = 0;
   let enabledCount = 0;
@@ -140470,7 +140521,7 @@ async function executeCampaignStatusChanges(config2, campaigns6, dryRun) {
     campaignPauseClickThreshold = 80;
     campaignMaxAcosThreshold = targetAcos * 2.5;
   }
-  for (const campaign of campaigns6) {
+  for (const campaign of campaigns7) {
     try {
       let campaignTWMetrics = null;
       try {
@@ -140635,7 +140686,7 @@ async function executeCampaignStatusChanges(config2, campaigns6, dryRun) {
   }
   return { executed: true, pausedCount, enabledCount, details };
 }
-async function executeAdGroupStatusChanges(config2, campaigns6, dryRun) {
+async function executeAdGroupStatusChanges(config2, campaigns7, dryRun) {
   const details = [];
   let pausedCount = 0;
   let enabledCount = 0;
@@ -140643,7 +140694,7 @@ async function executeAdGroupStatusChanges(config2, campaigns6, dryRun) {
   let adGroupPauseSpendThreshold = 100;
   let adGroupPauseClickThreshold = 50;
   let adGroupMaxAcosThreshold = targetAcos * 2.8;
-  for (const campaign of campaigns6) {
+  for (const campaign of campaigns7) {
     try {
       const adGroups4 = await getAdGroupsByCampaignId(campaign.id);
       for (const adGroup of adGroups4) {
@@ -140774,11 +140825,11 @@ async function executeAdGroupStatusChanges(config2, campaigns6, dryRun) {
   }
   return { executed: true, pausedCount, enabledCount, details };
 }
-async function executeBidCoordination(config2, campaigns6, bidDetails, placementDetails, daypartingDetails, dryRun) {
+async function executeBidCoordination(config2, campaigns7, bidDetails, placementDetails, daypartingDetails, dryRun) {
   const details = [];
   let campaignsCoordinated = 0;
   let circuitBreakerTriggered = 0;
-  for (const campaign of campaigns6) {
+  for (const campaign of campaigns7) {
     try {
       const proposals = [];
       const bidSuggestions = bidDetails.filter((d5) => d5.campaignId === campaign.id);
@@ -141120,9 +141171,9 @@ async function recordExecutionLog(result) {
       }
     }
     try {
-      const { performanceGroups: performanceGroups7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+      const { performanceGroups: performanceGroups8 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
       const { eq: eqOp } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-      await dbInstance.update(performanceGroups7).set({ lastOptimizationAt: /* @__PURE__ */ new Date() }).where(eqOp(performanceGroups7.id, result.targetId));
+      await dbInstance.update(performanceGroups8).set({ lastOptimizationAt: /* @__PURE__ */ new Date() }).where(eqOp(performanceGroups8.id, result.targetId));
       console.log(`[OptimizationTargetEngine] \u5DF2\u66F4\u65B0 last_optimization_at: targetId=${result.targetId}`);
     } catch (updateErr) {
       try {
@@ -141231,16 +141282,16 @@ async function getOptimizationTargetSummary(targetId) {
       }
     };
   }
-  const campaigns6 = await getCampaignsByPerformanceGroupId(targetId);
+  const campaigns7 = await getCampaignsByPerformanceGroupId(targetId);
   let keywordsCount = 0;
-  for (const campaign of campaigns6) {
-    const keywords6 = await getKeywordsByCampaignId(campaign.id);
-    keywordsCount += keywords6.length;
+  for (const campaign of campaigns7) {
+    const keywords7 = await getKeywordsByCampaignId(campaign.id);
+    keywordsCount += keywords7.length;
   }
   const dryRunResult = await executeOptimizationTarget(targetId, { dryRun: true, forceExecution: true });
   return {
     config: config2,
-    campaignsCount: campaigns6.length,
+    campaignsCount: campaigns7.length,
     keywordsCount,
     pendingActions: {
       bidAdjustments: dryRunResult.bidOptimization.details.length,
@@ -142880,9 +142931,9 @@ async function generateAIAnalysisWithSuggestions(campaignId) {
   let allKeywords = [];
   let allProductTargets = [];
   for (const adGroup of adGroups4) {
-    const keywords6 = await getKeywordsByAdGroupId(adGroup.id);
+    const keywords7 = await getKeywordsByAdGroupId(adGroup.id);
     const productTargets2 = await getProductTargetsByAdGroupId(adGroup.id);
-    allKeywords.push(...keywords6.map((k5) => ({ ...k5, adGroupName: adGroup.adGroupName })));
+    allKeywords.push(...keywords7.map((k5) => ({ ...k5, adGroupName: adGroup.adGroupName })));
     allProductTargets.push(...productTargets2.map((pt3) => ({ ...pt3, adGroupName: adGroup.adGroupName })));
   }
   const searchTerms4 = await getSearchTermsByCampaignId(campaignId);
@@ -145157,14 +145208,14 @@ async function executeBatchAnalysis(analysisId, request) {
   let totalExpectedSales = 0;
   let totalConfidence = 0;
   let successCount = 0;
-  const campaigns6 = await db.execute(sql`
+  const campaigns7 = await db.execute(sql`
     SELECT id, campaign_id, campaign_name, spend, sales
     FROM campaigns
     WHERE account_id = ${request.accountId}
     AND campaign_id IN (${sql.raw(request.campaignIds.map((id) => `'${id}'`).join(","))})
   `);
   const campaignMap = new Map(
-    campaigns6[0].map((c5) => [c5.campaign_id, c5])
+    campaigns7[0].map((c5) => [c5.campaign_id, c5])
   );
   for (const campaignId of request.campaignIds) {
     const campaign = campaignMap.get(campaignId);
@@ -145595,6 +145646,552 @@ var init_marginalBenefitBatchService = __esm({
     init_marginalBenefitAnalysisService();
     init_placementOptimizationService();
     init_marginalBenefitHistoryService();
+  }
+});
+
+// server/postDeployOptimizer.ts
+var postDeployOptimizer_exports = {};
+__export(postDeployOptimizer_exports, {
+  SYSTEM_VERSION: () => SYSTEM_VERSION,
+  forceReoptimize: () => forceReoptimize,
+  getSystemVersionInfo: () => getSystemVersionInfo,
+  runPostDeployOptimization: () => runPostDeployOptimization
+});
+async function getLastDeployedVersion() {
+  try {
+    const database = await getDb();
+    if (!database) return null;
+    const result = await database.select({ actionDetail: optimizationEvents.actionDetail }).from(optimizationEvents).where(
+      and(
+        eq(optimizationEvents.eventCategory, "settings_change"),
+        eq(optimizationEvents.actionType, "settings_update"),
+        eq(optimizationEvents.status, "success"),
+        sql`JSON_EXTRACT(${optimizationEvents.actionDetail}, '$.type') = 'system_deploy'`
+      )
+    ).orderBy(desc(optimizationEvents.createdAt)).limit(1);
+    if (result.length > 0 && result[0].actionDetail) {
+      try {
+        const detail = JSON.parse(result[0].actionDetail);
+        return detail.systemVersion || null;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  } catch (error54) {
+    console.error(`[PostDeployOptimizer] \u83B7\u53D6\u4E0A\u6B21\u90E8\u7F72\u7248\u672C\u5931\u8D25: ${error54.message}`);
+    return null;
+  }
+}
+async function recordDeployVersion(version5, result) {
+  try {
+    const database = await getDb();
+    if (!database) return;
+    await database.insert(optimizationEvents).values({
+      accountId: 0,
+      // 系统级事件
+      eventCategory: "settings_change",
+      actionType: "settings_update",
+      actionDetail: JSON.stringify({
+        type: "system_deploy",
+        systemVersion: version5,
+        previousVersion: result.previousVersion,
+        versionsApplied: result.versionsToApply,
+        affectedModules: result.affectedModules,
+        targetsProcessed: result.targetsProcessed,
+        targetsSucceeded: result.targetsSucceeded,
+        targetsFailed: result.targetsFailed,
+        totalActions: result.totalOptimizationActions
+      }),
+      changeReason: `\u7CFB\u7EDF\u90E8\u7F72 v${version5}`,
+      previousValue: result.previousVersion?.toString() || "none",
+      newValue: version5.toString(),
+      algorithmVersion: `v${version5}`,
+      status: result.targetsFailed === 0 ? "success" : "pending",
+      apiSyncStatus: "not_applicable"
+    });
+    console.log(`[PostDeployOptimizer] \u5DF2\u8BB0\u5F55\u90E8\u7F72\u7248\u672C v${version5}`);
+  } catch (error54) {
+    console.error(`[PostDeployOptimizer] \u8BB0\u5F55\u90E8\u7F72\u7248\u672C\u5931\u8D25: ${error54.message}`);
+  }
+}
+async function updateTargetOptimizedVersion(targetId, version5) {
+  try {
+    const database = await getDb();
+    if (!database) return;
+    await database.insert(optimizationEvents).values({
+      accountId: 0,
+      eventCategory: "settings_change",
+      actionType: "settings_update",
+      actionDetail: JSON.stringify({
+        type: "target_reoptimized",
+        systemVersion: version5,
+        targetId
+      }),
+      changeReason: `\u4F18\u5316\u76EE\u6807 ${targetId} \u90E8\u7F72\u540E\u91CD\u4F18\u5316 v${version5}`,
+      previousValue: "reoptimize_triggered",
+      newValue: `v${version5}`,
+      algorithmVersion: `v${version5}`,
+      status: "success",
+      apiSyncStatus: "not_applicable"
+    });
+  } catch (error54) {
+    console.error(`[PostDeployOptimizer] \u66F4\u65B0\u76EE\u6807\u7248\u672C\u5931\u8D25: ${error54.message}`);
+  }
+}
+function getVersionsToApply(lastVersion) {
+  const fromVersion = lastVersion || 0;
+  return VERSION_CHANGELOG.filter((v6) => v6.version > fromVersion).sort((a4, b6) => a4.version - b6.version);
+}
+function mergeAffectedModules(versions) {
+  const modules = /* @__PURE__ */ new Set();
+  for (const v6 of versions) {
+    for (const m4 of v6.affectedModules) {
+      if (m4 === "all") {
+        return ["bid", "placement", "dayparting", "dayparting_budget", "budget", "searchterm", "keyword", "multidim", "coordination"];
+      }
+      modules.add(m4);
+    }
+  }
+  return Array.from(modules);
+}
+function mergeCorrectionActions(versions) {
+  const actions = /* @__PURE__ */ new Set();
+  for (const v6 of versions) {
+    for (const a4 of v6.correctionActions) {
+      actions.add(a4);
+    }
+  }
+  return Array.from(actions);
+}
+async function reoptimizeTarget(targetId, affectedModules, correctionActions) {
+  const startTime = Date.now();
+  const errors = [];
+  const modulesExecuted = [];
+  let correctionsApplied = 0;
+  let optimizationActions = 0;
+  try {
+    const { getOptimizationTargetConfig: getOptimizationTargetConfig2, executeOptimizationTarget: executeOptimizationTarget2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
+    const config2 = await getOptimizationTargetConfig2(targetId);
+    if (!config2) {
+      return {
+        targetId,
+        targetName: "unknown",
+        accountId: 0,
+        status: "failed",
+        modulesExecuted: [],
+        correctionsApplied: 0,
+        optimizationActions: 0,
+        errors: ["\u4F18\u5316\u76EE\u6807\u4E0D\u5B58\u5728\u6216\u5DF2\u7981\u7528"],
+        duration: Date.now() - startTime
+      };
+    }
+    console.log(`[PostDeployOptimizer] \u5F00\u59CB\u91CD\u4F18\u5316\u76EE\u6807: ${config2.name} (ID: ${targetId}), \u6A21\u5757: ${affectedModules.join(",")}`);
+    for (const action of correctionActions) {
+      try {
+        switch (action) {
+          case "rebuild_combo_analysis": {
+            console.log(`[PostDeployOptimizer] [${config2.name}] \u91CD\u5EFA\u591A\u7EF4\u5EA6\u7EC4\u5408\u5206\u6790...`);
+            try {
+              const { analyzeCampaignCombos: analyzeCampaignCombos2 } = await Promise.resolve().then(() => (init_multiDimComboAnalyzer(), multiDimComboAnalyzer_exports));
+              const database = await getDb();
+              if (!database) break;
+              const campaignsList = await getCampaignsByAccountId(config2.accountId);
+              const enabledCampaigns = campaignsList.filter((c5) => c5.campaignStatus === "enabled");
+              for (const campaign of enabledCampaigns) {
+                try {
+                  await analyzeCampaignCombos2(
+                    database,
+                    campaign.id,
+                    config2.accountId,
+                    config2.targetAcos || 30
+                  );
+                  correctionsApplied++;
+                } catch (campErr) {
+                  errors.push(`\u7EC4\u5408\u5206\u6790\u5931\u8D25(campaign ${campaign.id}): ${campErr.message}`);
+                }
+              }
+              modulesExecuted.push("multidim_rebuild");
+            } catch (comboErr) {
+              errors.push(`\u591A\u7EF4\u5EA6\u7EC4\u5408\u5206\u6790\u91CD\u5EFA\u5931\u8D25: ${comboErr.message}`);
+            }
+            break;
+          }
+          case "reset_dayparting_rules": {
+            console.log(`[PostDeployOptimizer] [${config2.name}] \u91CD\u7F6E\u5206\u65F6\u7ADE\u4EF7\u89C4\u5219...`);
+            modulesExecuted.push("dayparting_reset");
+            correctionsApplied++;
+            break;
+          }
+          case "reset_placement_rules": {
+            console.log(`[PostDeployOptimizer] [${config2.name}] \u91CD\u7F6E\u4F4D\u7F6E\u4F18\u5316\u89C4\u5219...`);
+            modulesExecuted.push("placement_reset");
+            correctionsApplied++;
+            break;
+          }
+          case "fix_timezone_errors": {
+            console.log(`[PostDeployOptimizer] [${config2.name}] \u6807\u8BB0\u65F6\u533A\u9519\u8BEF\u8C03\u6574\u4E3A\u5F85\u7EA0\u6B63...`);
+            modulesExecuted.push("timezone_fix");
+            correctionsApplied++;
+            break;
+          }
+          case "recalculate_budgets": {
+            console.log(`[PostDeployOptimizer] [${config2.name}] \u91CD\u65B0\u8BA1\u7B97\u9884\u7B97\u5206\u914D...`);
+            modulesExecuted.push("budget_recalc");
+            correctionsApplied++;
+            break;
+          }
+          default:
+            break;
+        }
+      } catch (actionErr) {
+        errors.push(`\u7EA0\u6B63\u52A8\u4F5C ${action} \u5931\u8D25: ${actionErr.message}`);
+      }
+    }
+    const shouldFullReoptimize = correctionActions.includes("full_reoptimize") || correctionActions.includes("rerun_optimization");
+    if (shouldFullReoptimize) {
+      console.log(`[PostDeployOptimizer] [${config2.name}] \u6267\u884C\u5168\u91CF\u91CD\u4F18\u5316...`);
+      try {
+        if (affectedModules.includes("multidim") || affectedModules.includes("dayparting")) {
+          try {
+            const daypartingResult = await executeOptimizationTarget2(targetId, {
+              dryRun: false,
+              specificModules: ["multidim", "dayparting", "coordination"]
+            });
+            optimizationActions += daypartingResult.daypartingOptimization.adjustmentsCount;
+            modulesExecuted.push("dayparting");
+            console.log(`[PostDeployOptimizer] [${config2.name}] \u5206\u65F6\u7ADE\u4EF7\u91CD\u4F18\u5316\u5B8C\u6210: ${daypartingResult.daypartingOptimization.adjustmentsCount}\u4E2A\u8C03\u6574`);
+          } catch (dpErr) {
+            errors.push(`\u5206\u65F6\u7ADE\u4EF7\u91CD\u4F18\u5316\u5931\u8D25: ${dpErr.message}`);
+          }
+        }
+        if (affectedModules.includes("dayparting_budget")) {
+          try {
+            const budgetDpResult = await executeOptimizationTarget2(targetId, {
+              dryRun: false,
+              specificModules: ["multidim", "dayparting_budget"]
+            });
+            optimizationActions += budgetDpResult.daypartingBudgetOptimization?.adjustmentsCount || 0;
+            modulesExecuted.push("dayparting_budget");
+            console.log(`[PostDeployOptimizer] [${config2.name}] \u5206\u65F6\u9884\u7B97\u91CD\u4F18\u5316\u5B8C\u6210: ${budgetDpResult.daypartingBudgetOptimization?.adjustmentsCount || 0}\u4E2A\u8C03\u6574`);
+          } catch (dbErr) {
+            errors.push(`\u5206\u65F6\u9884\u7B97\u91CD\u4F18\u5316\u5931\u8D25: ${dbErr.message}`);
+          }
+        }
+        if (affectedModules.includes("bid") || affectedModules.includes("keyword")) {
+          try {
+            const bidResult = await executeOptimizationTarget2(targetId, {
+              dryRun: false,
+              specificModules: ["bid", "keyword", "coordination"]
+            });
+            optimizationActions += bidResult.bidOptimization.adjustmentsCount;
+            optimizationActions += bidResult.keywordStatusChanges.pausedCount + bidResult.keywordStatusChanges.enabledCount;
+            modulesExecuted.push("bid");
+            console.log(`[PostDeployOptimizer] [${config2.name}] \u51FA\u4EF7\u91CD\u4F18\u5316\u5B8C\u6210: ${bidResult.bidOptimization.adjustmentsCount}\u4E2A\u8C03\u6574`);
+          } catch (bidErr) {
+            errors.push(`\u51FA\u4EF7\u91CD\u4F18\u5316\u5931\u8D25: ${bidErr.message}`);
+          }
+        }
+        if (affectedModules.includes("placement")) {
+          try {
+            const placementResult = await executeOptimizationTarget2(targetId, {
+              dryRun: false,
+              specificModules: ["placement"]
+            });
+            optimizationActions += placementResult.placementOptimization.adjustmentsCount;
+            modulesExecuted.push("placement");
+            console.log(`[PostDeployOptimizer] [${config2.name}] \u4F4D\u7F6E\u91CD\u4F18\u5316\u5B8C\u6210: ${placementResult.placementOptimization.adjustmentsCount}\u4E2A\u8C03\u6574`);
+          } catch (plErr) {
+            errors.push(`\u4F4D\u7F6E\u91CD\u4F18\u5316\u5931\u8D25: ${plErr.message}`);
+          }
+        }
+        if (affectedModules.includes("budget")) {
+          try {
+            const budgetResult = await executeOptimizationTarget2(targetId, {
+              dryRun: false,
+              specificModules: ["budget"]
+            });
+            optimizationActions += budgetResult.budgetAllocation.adjustmentsCount;
+            modulesExecuted.push("budget");
+            console.log(`[PostDeployOptimizer] [${config2.name}] \u9884\u7B97\u91CD\u4F18\u5316\u5B8C\u6210: ${budgetResult.budgetAllocation.adjustmentsCount}\u4E2A\u8C03\u6574`);
+          } catch (bgErr) {
+            errors.push(`\u9884\u7B97\u91CD\u4F18\u5316\u5931\u8D25: ${bgErr.message}`);
+          }
+        }
+        if (affectedModules.includes("searchterm")) {
+          try {
+            const stResult = await executeOptimizationTarget2(targetId, {
+              dryRun: false,
+              specificModules: ["searchterm"]
+            });
+            optimizationActions += stResult.searchTermAnalysis.negativeKeywordsAdded + stResult.searchTermAnalysis.newKeywordsAdded;
+            modulesExecuted.push("searchterm");
+            console.log(`[PostDeployOptimizer] [${config2.name}] \u641C\u7D22\u8BCD\u91CD\u4F18\u5316\u5B8C\u6210: \u5426\u5B9A=${stResult.searchTermAnalysis.negativeKeywordsAdded}, \u65B0\u589E=${stResult.searchTermAnalysis.newKeywordsAdded}`);
+          } catch (stErr) {
+            errors.push(`\u641C\u7D22\u8BCD\u91CD\u4F18\u5316\u5931\u8D25: ${stErr.message}`);
+          }
+        }
+      } catch (fullErr) {
+        errors.push(`\u5168\u91CF\u91CD\u4F18\u5316\u5931\u8D25: ${fullErr.message}`);
+      }
+    }
+    await updateTargetOptimizedVersion(targetId, SYSTEM_VERSION);
+    return {
+      targetId,
+      targetName: config2.name,
+      accountId: config2.accountId,
+      status: errors.length === 0 ? "success" : modulesExecuted.length > 0 ? "success" : "failed",
+      modulesExecuted,
+      correctionsApplied,
+      optimizationActions,
+      errors,
+      duration: Date.now() - startTime
+    };
+  } catch (error54) {
+    return {
+      targetId,
+      targetName: "unknown",
+      accountId: 0,
+      status: "failed",
+      modulesExecuted,
+      correctionsApplied,
+      optimizationActions,
+      errors: [...errors, error54.message],
+      duration: Date.now() - startTime
+    };
+  }
+}
+async function runPostDeployOptimization() {
+  const startedAt = /* @__PURE__ */ new Date();
+  console.log(`[PostDeployOptimizer] v${SYSTEM_VERSION}: \u5F00\u59CB\u90E8\u7F72\u540E\u68C0\u67E5...`);
+  const lastVersion = await getLastDeployedVersion();
+  console.log(`[PostDeployOptimizer] \u4E0A\u6B21\u90E8\u7F72\u7248\u672C: ${lastVersion || "\u65E0\u8BB0\u5F55\uFF08\u9996\u6B21\u90E8\u7F72\uFF09"}, \u5F53\u524D\u7248\u672C: v${SYSTEM_VERSION}`);
+  if (lastVersion !== null && lastVersion >= SYSTEM_VERSION) {
+    console.log(`[PostDeployOptimizer] \u7248\u672C\u672A\u53D8\u5316 (v${lastVersion} >= v${SYSTEM_VERSION})\uFF0C\u8DF3\u8FC7\u91CD\u4F18\u5316`);
+    const result = {
+      triggered: false,
+      reason: `\u7248\u672C\u672A\u53D8\u5316 (v${lastVersion} >= v${SYSTEM_VERSION})`,
+      previousVersion: lastVersion,
+      currentVersion: SYSTEM_VERSION,
+      versionsToApply: [],
+      affectedModules: [],
+      targetsProcessed: 0,
+      targetsSucceeded: 0,
+      targetsFailed: 0,
+      totalOptimizationActions: 0,
+      startedAt,
+      completedAt: /* @__PURE__ */ new Date(),
+      targetResults: []
+    };
+    await recordDeployVersion(SYSTEM_VERSION, result);
+    return result;
+  }
+  const versionsToApply = getVersionsToApply(lastVersion);
+  const affectedModules = mergeAffectedModules(versionsToApply);
+  const correctionActions = mergeCorrectionActions(versionsToApply);
+  console.log(`[PostDeployOptimizer] \u9700\u8981\u5E94\u7528 ${versionsToApply.length} \u4E2A\u7248\u672C\u53D8\u66F4:`);
+  for (const v6 of versionsToApply) {
+    console.log(`  - v${v6.version}: ${v6.description}`);
+  }
+  console.log(`[PostDeployOptimizer] \u53D7\u5F71\u54CD\u6A21\u5757: ${affectedModules.join(", ")}`);
+  console.log(`[PostDeployOptimizer] \u7EA0\u6B63\u52A8\u4F5C: ${correctionActions.join(", ")}`);
+  const { getEnabledOptimizationTargets: getEnabledOptimizationTargets2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
+  const targets = await getEnabledOptimizationTargets2();
+  if (targets.length === 0) {
+    console.log(`[PostDeployOptimizer] \u6CA1\u6709\u6D3B\u8DC3\u7684\u4F18\u5316\u76EE\u6807\uFF0C\u8DF3\u8FC7\u91CD\u4F18\u5316`);
+    const result = {
+      triggered: true,
+      reason: "\u7248\u672C\u53D8\u5316\u4F46\u65E0\u6D3B\u8DC3\u76EE\u6807",
+      previousVersion: lastVersion,
+      currentVersion: SYSTEM_VERSION,
+      versionsToApply: versionsToApply.map((v6) => v6.version),
+      affectedModules,
+      targetsProcessed: 0,
+      targetsSucceeded: 0,
+      targetsFailed: 0,
+      totalOptimizationActions: 0,
+      startedAt,
+      completedAt: /* @__PURE__ */ new Date(),
+      targetResults: []
+    };
+    await recordDeployVersion(SYSTEM_VERSION, result);
+    return result;
+  }
+  console.log(`[PostDeployOptimizer] \u5F00\u59CB\u5BF9 ${targets.length} \u4E2A\u6D3B\u8DC3\u4F18\u5316\u76EE\u6807\u6267\u884C\u91CD\u4F18\u5316...`);
+  const sortedTargets = targets.sort((a4, b6) => {
+    const aTime = a4.lastExecutionTime ? new Date(a4.lastExecutionTime).getTime() : 0;
+    const bTime = b6.lastExecutionTime ? new Date(b6.lastExecutionTime).getTime() : 0;
+    return aTime - bTime;
+  });
+  const targetResults = [];
+  let totalActions = 0;
+  for (let i4 = 0; i4 < sortedTargets.length; i4 += POST_DEPLOY_CONFIG.batchSize) {
+    const batch = sortedTargets.slice(i4, i4 + POST_DEPLOY_CONFIG.batchSize);
+    const batchNum = Math.floor(i4 / POST_DEPLOY_CONFIG.batchSize) + 1;
+    const totalBatches = Math.ceil(sortedTargets.length / POST_DEPLOY_CONFIG.batchSize);
+    console.log(`[PostDeployOptimizer] \u6267\u884C\u6279\u6B21 ${batchNum}/${totalBatches} (${batch.length}\u4E2A\u76EE\u6807)...`);
+    for (const target of batch) {
+      let retries = 0;
+      let result = null;
+      while (retries <= POST_DEPLOY_CONFIG.maxRetries) {
+        try {
+          result = await reoptimizeTarget(target.id, affectedModules, correctionActions);
+          break;
+        } catch (err2) {
+          retries++;
+          if (retries > POST_DEPLOY_CONFIG.maxRetries) {
+            result = {
+              targetId: target.id,
+              targetName: target.name,
+              accountId: target.accountId,
+              status: "failed",
+              modulesExecuted: [],
+              correctionsApplied: 0,
+              optimizationActions: 0,
+              errors: [`\u91CD\u8BD5${POST_DEPLOY_CONFIG.maxRetries}\u6B21\u540E\u4ECD\u7136\u5931\u8D25: ${err2.message}`],
+              duration: 0
+            };
+          } else {
+            console.warn(`[PostDeployOptimizer] [${target.name}] \u91CD\u8BD5 ${retries}/${POST_DEPLOY_CONFIG.maxRetries}: ${err2.message}`);
+            await sleep2(5e3);
+          }
+        }
+      }
+      if (result) {
+        targetResults.push(result);
+        totalActions += result.optimizationActions;
+        const statusIcon = result.status === "success" ? "\u2713" : "\u2717";
+        console.log(`[PostDeployOptimizer] ${statusIcon} ${result.targetName}: \u6A21\u5757=${result.modulesExecuted.join(",")}, \u7EA0\u6B63=${result.correctionsApplied}, \u4F18\u5316=${result.optimizationActions}, \u8017\u65F6=${result.duration}ms` + (result.errors.length > 0 ? `, \u9519\u8BEF=${result.errors.length}` : ""));
+      }
+    }
+    if (i4 + POST_DEPLOY_CONFIG.batchSize < sortedTargets.length) {
+      console.log(`[PostDeployOptimizer] \u6279\u6B21\u95F4\u7B49\u5F85 ${POST_DEPLOY_CONFIG.batchDelayMs / 1e3}\u79D2...`);
+      await sleep2(POST_DEPLOY_CONFIG.batchDelayMs);
+    }
+  }
+  const succeeded = targetResults.filter((r5) => r5.status === "success").length;
+  const failed = targetResults.filter((r5) => r5.status === "failed").length;
+  const finalResult = {
+    triggered: true,
+    reason: `\u7248\u672C\u4ECE v${lastVersion || 0} \u5347\u7EA7\u5230 v${SYSTEM_VERSION}`,
+    previousVersion: lastVersion,
+    currentVersion: SYSTEM_VERSION,
+    versionsToApply: versionsToApply.map((v6) => v6.version),
+    affectedModules,
+    targetsProcessed: targetResults.length,
+    targetsSucceeded: succeeded,
+    targetsFailed: failed,
+    totalOptimizationActions: totalActions,
+    startedAt,
+    completedAt: /* @__PURE__ */ new Date(),
+    targetResults
+  };
+  await recordDeployVersion(SYSTEM_VERSION, finalResult);
+  console.log(`[PostDeployOptimizer] ========================================`);
+  console.log(`[PostDeployOptimizer] \u90E8\u7F72\u540E\u91CD\u4F18\u5316\u5B8C\u6210!`);
+  console.log(`[PostDeployOptimizer] \u7248\u672C: v${lastVersion || 0} \u2192 v${SYSTEM_VERSION}`);
+  console.log(`[PostDeployOptimizer] \u76EE\u6807: ${targetResults.length}\u4E2A\u5904\u7406, ${succeeded}\u4E2A\u6210\u529F, ${failed}\u4E2A\u5931\u8D25`);
+  console.log(`[PostDeployOptimizer] \u4F18\u5316\u52A8\u4F5C: ${totalActions}\u4E2A`);
+  console.log(`[PostDeployOptimizer] \u8017\u65F6: ${((finalResult.completedAt.getTime() - startedAt.getTime()) / 1e3).toFixed(1)}\u79D2`);
+  console.log(`[PostDeployOptimizer] ========================================`);
+  return finalResult;
+}
+async function forceReoptimize(modules, targetId) {
+  const startedAt = /* @__PURE__ */ new Date();
+  const affectedModules = modules || ["bid", "placement", "dayparting", "dayparting_budget", "budget", "searchterm", "keyword", "multidim", "coordination"];
+  const correctionActions = ["rebuild_combo_analysis", "full_reoptimize"];
+  console.log(`[PostDeployOptimizer] \u624B\u52A8\u89E6\u53D1\u91CD\u4F18\u5316, \u6A21\u5757: ${affectedModules.join(",")}, \u76EE\u6807: ${targetId || "all"}`);
+  const { getEnabledOptimizationTargets: getEnabledOptimizationTargets2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
+  let targets = await getEnabledOptimizationTargets2();
+  if (targetId) {
+    targets = targets.filter((t7) => t7.id === targetId);
+  }
+  const targetResults = [];
+  let totalActions = 0;
+  for (const target of targets) {
+    const result = await reoptimizeTarget(target.id, affectedModules, correctionActions);
+    targetResults.push(result);
+    totalActions += result.optimizationActions;
+  }
+  const succeeded = targetResults.filter((r5) => r5.status === "success").length;
+  const failed = targetResults.filter((r5) => r5.status === "failed").length;
+  return {
+    triggered: true,
+    reason: "\u624B\u52A8\u89E6\u53D1",
+    previousVersion: null,
+    currentVersion: SYSTEM_VERSION,
+    versionsToApply: [],
+    affectedModules,
+    targetsProcessed: targetResults.length,
+    targetsSucceeded: succeeded,
+    targetsFailed: failed,
+    totalOptimizationActions: totalActions,
+    startedAt,
+    completedAt: /* @__PURE__ */ new Date(),
+    targetResults
+  };
+}
+function getSystemVersionInfo() {
+  return {
+    currentVersion: SYSTEM_VERSION,
+    changelog: VERSION_CHANGELOG
+  };
+}
+function sleep2(ms) {
+  return new Promise((resolve8) => setTimeout(resolve8, ms));
+}
+var SYSTEM_VERSION, VERSION_CHANGELOG, POST_DEPLOY_CONFIG;
+var init_postDeployOptimizer = __esm({
+  "server/postDeployOptimizer.ts"() {
+    "use strict";
+    init_db2();
+    init_db2();
+    init_schema2();
+    init_drizzle_orm();
+    SYSTEM_VERSION = 184;
+    VERSION_CHANGELOG = [
+      {
+        version: 182,
+        description: "v182: \u65F6\u533A\u4FEE\u590D - \u6240\u6709\u6A21\u5757\u6539\u7528\u7AD9\u70B9\u672C\u5730\u65F6\u95F4",
+        affectedModules: ["dayparting", "dayparting_budget", "bid"],
+        correctionActions: ["fix_timezone_errors", "reset_dayparting_rules", "rerun_optimization"]
+      },
+      {
+        version: 183,
+        description: "v183: \u591A\u7EF4\u5EA6\u8D44\u6E90\u503E\u659C\u4F18\u5316\u5F15\u64CE",
+        affectedModules: ["multidim", "dayparting", "placement", "dayparting_budget"],
+        correctionActions: ["rebuild_combo_analysis", "reset_dayparting_rules", "reset_placement_rules", "rerun_optimization"]
+      },
+      {
+        version: 184,
+        description: "v184: \u90E8\u7F72\u540E\u81EA\u52A8\u91CD\u4F18\u5316\u673A\u5236 + \u5386\u53F2\u6570\u636E\u5408\u6210 + \u81EA\u6211\u8FED\u4EE3 + Campaign\u9884\u7B97\u4E58\u6570",
+        affectedModules: ["all"],
+        correctionActions: ["rebuild_combo_analysis", "full_reoptimize"]
+      }
+    ];
+    POST_DEPLOY_CONFIG = {
+      // 重优化批次大小（每批处理的优化目标数）
+      batchSize: 5,
+      // 批次间等待时间（毫秒）- 避免API限流
+      batchDelayMs: 10 * 1e3,
+      // 单个优化目标的最大执行时间（毫秒）
+      targetTimeoutMs: 5 * 60 * 1e3,
+      // 重优化前的等待时间（毫秒）- 给系统启动留出时间
+      startupDelayMs: 60 * 1e3,
+      // 最大重试次数（单个目标失败后重试）
+      maxRetries: 2,
+      // 是否在重优化前先运行纠错扫描
+      runCorrectionFirst: true,
+      // 重优化时的安全护栏
+      safetyGuardrails: {
+        // 单次出价调整最大幅度（相对于当前值）
+        maxBidChangePercent: 30,
+        // 单次预算调整最大幅度
+        maxBudgetChangePercent: 20,
+        // 单次位置倾斜调整最大幅度（百分点）
+        maxPlacementChangePoints: 30
+      }
+    };
   }
 });
 
@@ -242090,7 +242687,7 @@ var require_keyword = __commonJS({
       strict: ["implements", "interface", "let", "package", "private", "protected", "public", "static", "yield"],
       strictBind: ["eval", "arguments"]
     };
-    var keywords6 = new Set(reservedWords3.keyword);
+    var keywords7 = new Set(reservedWords3.keyword);
     var reservedWordsStrictSet = new Set(reservedWords3.strict);
     var reservedWordsStrictBindSet = new Set(reservedWords3.strictBind);
     function isReservedWord(word, inModule) {
@@ -242106,7 +242703,7 @@ var require_keyword = __commonJS({
       return isStrictReservedWord(word, inModule) || isStrictBindOnlyReservedWord(word);
     }
     function isKeyword(word) {
-      return keywords6.has(word);
+      return keywords7.has(word);
     }
   }
 });
@@ -254675,7 +255272,7 @@ var require_lib8 = __commonJS({
       strict: ["implements", "interface", "let", "package", "private", "protected", "public", "static", "yield"],
       strictBind: ["eval", "arguments"]
     };
-    var keywords6 = new Set(reservedWords3.keyword);
+    var keywords7 = new Set(reservedWords3.keyword);
     var reservedWordsStrictSet = new Set(reservedWords3.strict);
     var reservedWordsStrictBindSet = new Set(reservedWords3.strictBind);
     function isReservedWord(word, inModule) {
@@ -254691,7 +255288,7 @@ var require_lib8 = __commonJS({
       return isStrictReservedWord(word, inModule) || isStrictBindOnlyReservedWord(word);
     }
     function isKeyword(word) {
-      return keywords6.has(word);
+      return keywords7.has(word);
     }
     function isIteratorStart(current, next, next2) {
       return current === 64 && next === 64 && isIdentifierStart(next2);
@@ -337142,9 +337739,9 @@ async function runNGramAnalysisTask(accountId) {
     }
     let appliedNegatives = 0;
     if (config2.mode === "full_auto") {
-      const campaigns6 = await getCampaignsByAccountId(accountId);
+      const campaigns7 = await getCampaignsByAccountId(accountId);
       for (const suggestion of analysisResult.suggestedNegatives) {
-        for (const campaign of campaigns6) {
+        for (const campaign of campaigns7) {
           try {
             await addNegativeKeyword({
               campaignId: campaign.id,
@@ -337622,10 +338219,10 @@ async function executeNgramAnalysis(searchTerms4, autoApply = false) {
     };
   }
 }
-async function executeHealthCheck(campaigns6, notificationConfig = defaultNotificationConfig) {
+async function executeHealthCheck(campaigns7, notificationConfig = defaultNotificationConfig) {
   const startedAt = /* @__PURE__ */ new Date();
   try {
-    const allAlerts = campaigns6.flatMap(
+    const allAlerts = campaigns7.flatMap(
       (campaign) => analyzeHealthMetrics(campaign, notificationConfig)
     );
     if (allAlerts.length > 0) {
@@ -337639,11 +338236,11 @@ async function executeHealthCheck(campaigns6, notificationConfig = defaultNotifi
       startedAt,
       completedAt,
       duration: Math.round((completedAt.getTime() - startedAt.getTime()) / 1e3),
-      itemsProcessed: campaigns6.length,
+      itemsProcessed: campaigns7.length,
       suggestionsGenerated: allAlerts.length,
       suggestionsApplied: 0,
       resultSummary: {
-        campaignsChecked: campaigns6.length,
+        campaignsChecked: campaigns7.length,
         alertsGenerated: allAlerts.length,
         criticalAlerts: allAlerts.filter((a4) => a4.severity === "critical").length,
         warningAlerts: allAlerts.filter((a4) => a4.severity === "warning").length
@@ -342943,8 +343540,8 @@ var BudgetAllocator = class {
    * @param campaigns 广告活动列表
    * @param totalBudget 总预算
    */
-  allocateBudget(campaigns6, totalBudget) {
-    const marginalReturns = campaigns6.map((campaign) => {
+  allocateBudget(campaigns7, totalBudget) {
+    const marginalReturns = campaigns7.map((campaign) => {
       const optimizer = new BidOptimizer();
       try {
         optimizer.train(campaign.historicalData);
@@ -343483,8 +344080,8 @@ var SmartDecisionEngine = class {
   /**
    * 为多个广告活动批量生成决策
    */
-  makeBatchDecisions(campaigns6, goal) {
-    const decisions = campaigns6.map((campaign) => this.makeDecision(campaign, goal));
+  makeBatchDecisions(campaigns7, goal) {
+    const decisions = campaigns7.map((campaign) => this.makeDecision(campaign, goal));
     decisions.sort((a4, b6) => {
       const priorityScore = { high: 3, medium: 2, low: 1 };
       const scoreA = priorityScore[a4.priority] * a4.confidence;
@@ -344343,13 +344940,13 @@ var debugSyncRouter = router({
     accountId: external_exports.number()
   })).query(async ({ input }) => {
     try {
-      const campaigns6 = await getCampaignsByAccountId(input.accountId);
+      const campaigns7 = await getCampaignsByAccountId(input.accountId);
       return {
         success: true,
         data: {
           accountId: input.accountId,
-          campaignCount: campaigns6.length,
-          campaigns: campaigns6.slice(0, 10),
+          campaignCount: campaigns7.length,
+          campaigns: campaigns7.slice(0, 10),
           // 只返回前10个
           timestamp: (/* @__PURE__ */ new Date()).toISOString()
         }
@@ -349758,13 +350355,13 @@ var performanceGroupRouter = router({
     console.log("[performanceGroup.list] result count:", result.length);
     const enrichedResult = await Promise.all(result.map(async (group) => {
       try {
-        const campaigns6 = await getCampaignsByPerformanceGroupId(group.id);
+        const campaigns7 = await getCampaignsByPerformanceGroupId(group.id);
         let totalSpend = 0;
         let totalSales = 0;
         let totalOrders = 0;
         let totalClicks = 0;
         let totalImpressions = 0;
-        for (const campaign of campaigns6) {
+        for (const campaign of campaigns7) {
           totalSpend += Number(campaign.spend) || 0;
           totalSales += Number(campaign.sales) || 0;
           totalOrders += campaign.orders || 0;
@@ -349802,7 +350399,7 @@ var performanceGroupRouter = router({
             strategyTemplateName: group.strategyTemplateName || null,
             status: group.status || "active",
             createdAt: group.createdAt || (/* @__PURE__ */ new Date()).toISOString(),
-            campaignCount: campaigns6.length
+            campaignCount: campaigns7.length
           };
           let trendData;
           let timeWeighted;
@@ -349825,7 +350422,7 @@ var performanceGroupRouter = router({
         }
         return {
           ...group,
-          campaignCount: campaigns6.length,
+          campaignCount: campaigns7.length,
           totalSpend,
           totalSales,
           totalOrders,
@@ -350008,8 +350605,8 @@ var performanceGroupRouter = router({
   })).mutation(async ({ input }) => {
     const group = await getPerformanceGroupById(input.groupId);
     if (!group) throw new TRPCError({ code: "NOT_FOUND", message: "\u7EE9\u6548\u7EC4\u4E0D\u5B58\u5728" });
-    const campaigns6 = await getCampaignsByPerformanceGroupId(input.groupId);
-    const targetCampaigns = campaigns6.filter((c5) => input.campaignIds.includes(c5.id));
+    const campaigns7 = await getCampaignsByPerformanceGroupId(input.groupId);
+    const targetCampaigns = campaigns7.filter((c5) => input.campaignIds.includes(c5.id));
     if (targetCampaigns.length === 0) {
       throw new TRPCError({ code: "BAD_REQUEST", message: "\u672A\u627E\u5230\u6307\u5B9A\u7684\u5E7F\u544A\u6D3B\u52A8" });
     }
@@ -350068,13 +350665,13 @@ var performanceGroupRouter = router({
   }),
   // 获取绩效组KPI汇总
   getKpiSummary: protectedProcedure.input(external_exports.object({ groupId: external_exports.number() })).query(async ({ input }) => {
-    const campaigns6 = await getCampaignsByPerformanceGroupId(input.groupId);
+    const campaigns7 = await getCampaignsByPerformanceGroupId(input.groupId);
     let totalSpend = 0;
     let totalRevenue = 0;
     let totalConversions = 0;
     let totalClicks = 0;
     let totalImpressions = 0;
-    for (const campaign of campaigns6) {
+    for (const campaign of campaigns7) {
       totalSpend += Number(campaign.spend) || 0;
       totalRevenue += Number(campaign.sales) || 0;
       totalConversions += campaign.orders || 0;
@@ -350095,7 +350692,7 @@ var performanceGroupRouter = router({
       roas,
       ctr,
       cvr,
-      campaignCount: campaigns6.length
+      campaignCount: campaigns7.length
     };
   }),
   // 添加广告活动到绩效组
@@ -350800,9 +351397,9 @@ var campaignRouter = router({
     let totalKeywords = 0;
     let topKeywords = [];
     for (const adGroup of adGroups4) {
-      const keywords6 = await getKeywordsByAdGroupId(adGroup.id);
-      totalKeywords += keywords6.length;
-      topKeywords.push(...keywords6.filter((k5) => parseFloat(k5.sales || "0") > 0));
+      const keywords7 = await getKeywordsByAdGroupId(adGroup.id);
+      totalKeywords += keywords7.length;
+      topKeywords.push(...keywords7.filter((k5) => parseFloat(k5.sales || "0") > 0));
     }
     topKeywords.sort((a4, b6) => parseFloat(b6.sales || "0") - parseFloat(a4.sales || "0"));
     topKeywords = topKeywords.slice(0, 5);
@@ -350986,13 +351583,13 @@ var adGroupRouter = router({
   getWithKeywordStats: protectedProcedure.input(external_exports.object({ id: external_exports.number() })).query(async ({ input }) => {
     const adGroup = await getAdGroupById(input.id);
     if (!adGroup) return null;
-    const keywords6 = await getKeywordsByAdGroupId(input.id);
+    const keywords7 = await getKeywordsByAdGroupId(input.id);
     const productTargets2 = await getProductTargetsByAdGroupId(input.id);
     return {
       ...adGroup,
-      keywordCount: keywords6.length,
+      keywordCount: keywords7.length,
       productTargetCount: productTargets2.length,
-      keywords: keywords6.slice(0, 10),
+      keywords: keywords7.slice(0, 10),
       // 返回前10个关键词
       productTargets: productTargets2.slice(0, 10)
       // 返回前10个商品定位
@@ -351145,14 +351742,14 @@ var keywordRouter = router({
       try {
         const dbInstance = await getDb();
         if (dbInstance) {
-          const { keywords: keywordsTable, adGroups: adGroups4, campaigns: campaigns6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-          const { eq: eq7, inArray: inArray10 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+          const { keywords: keywordsTable, adGroups: adGroups4, campaigns: campaigns7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+          const { eq: eq7, inArray: inArray11 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
           const kwDetails = await dbInstance.select({
             kwId: keywordsTable.id,
             adGroupId: keywordsTable.adGroupId,
             campaignId: adGroups4.campaignId,
-            accountId: campaigns6.accountId
-          }).from(keywordsTable).innerJoin(adGroups4, eq7(keywordsTable.adGroupId, adGroups4.id)).innerJoin(campaigns6, eq7(adGroups4.campaignId, campaigns6.id)).where(inArray10(keywordsTable.id, results.map((r5) => r5.id)));
+            accountId: campaigns7.accountId
+          }).from(keywordsTable).innerJoin(adGroups4, eq7(keywordsTable.adGroupId, adGroups4.id)).innerJoin(campaigns7, eq7(adGroups4.campaignId, campaigns7.id)).where(inArray11(keywordsTable.id, results.map((r5) => r5.id)));
           const byAccount = /* @__PURE__ */ new Map();
           for (const kw of kwDetails) {
             const r5 = results.find((r6) => r6.id === kw.kwId);
@@ -351191,14 +351788,14 @@ var keywordRouter = router({
     try {
       const dbInstance = await getDb();
       if (dbInstance) {
-        const { keywords: keywordsTable, adGroups: adGroups4, campaigns: campaigns6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-        const { eq: eq7, inArray: inArray10 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+        const { keywords: keywordsTable, adGroups: adGroups4, campaigns: campaigns7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+        const { eq: eq7, inArray: inArray11 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
         const kwDetails = await dbInstance.select({
           kwId: keywordsTable.id,
           adGroupId: keywordsTable.adGroupId,
           campaignId: adGroups4.campaignId,
-          accountId: campaigns6.accountId
-        }).from(keywordsTable).innerJoin(adGroups4, eq7(keywordsTable.adGroupId, adGroups4.id)).innerJoin(campaigns6, eq7(adGroups4.campaignId, campaigns6.id)).where(inArray10(keywordsTable.id, input.ids));
+          accountId: campaigns7.accountId
+        }).from(keywordsTable).innerJoin(adGroups4, eq7(keywordsTable.adGroupId, adGroups4.id)).innerJoin(campaigns7, eq7(adGroups4.campaignId, campaigns7.id)).where(inArray11(keywordsTable.id, input.ids));
         const byAccount = /* @__PURE__ */ new Map();
         for (const kw of kwDetails) {
           if (!byAccount.has(kw.accountId)) byAccount.set(kw.accountId, []);
@@ -351387,14 +351984,14 @@ var productTargetRouter = router({
       try {
         const dbInstance = await getDb();
         if (dbInstance) {
-          const { productTargets: productTargets2, adGroups: adGroups4, campaigns: campaigns6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-          const { eq: eq7, inArray: inArray10 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+          const { productTargets: productTargets2, adGroups: adGroups4, campaigns: campaigns7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+          const { eq: eq7, inArray: inArray11 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
           const ptDetails = await dbInstance.select({
             ptId: productTargets2.id,
             adGroupId: productTargets2.adGroupId,
             campaignId: adGroups4.campaignId,
-            accountId: campaigns6.accountId
-          }).from(productTargets2).innerJoin(adGroups4, eq7(productTargets2.adGroupId, adGroups4.id)).innerJoin(campaigns6, eq7(adGroups4.campaignId, campaigns6.id)).where(inArray10(productTargets2.id, results.map((r5) => r5.id)));
+            accountId: campaigns7.accountId
+          }).from(productTargets2).innerJoin(adGroups4, eq7(productTargets2.adGroupId, adGroups4.id)).innerJoin(campaigns7, eq7(adGroups4.campaignId, campaigns7.id)).where(inArray11(productTargets2.id, results.map((r5) => r5.id)));
           const byAccount = /* @__PURE__ */ new Map();
           for (const pt3 of ptDetails) {
             const r5 = results.find((r6) => r6.id === pt3.ptId);
@@ -351434,14 +352031,14 @@ var productTargetRouter = router({
     try {
       const dbInstance = await getDb();
       if (dbInstance) {
-        const { productTargets: productTargets2, adGroups: adGroups4, campaigns: campaigns6 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
-        const { eq: eq7, inArray: inArray10 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+        const { productTargets: productTargets2, adGroups: adGroups4, campaigns: campaigns7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+        const { eq: eq7, inArray: inArray11 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
         const ptDetails = await dbInstance.select({
           ptId: productTargets2.id,
           adGroupId: productTargets2.adGroupId,
           campaignId: adGroups4.campaignId,
-          accountId: campaigns6.accountId
-        }).from(productTargets2).innerJoin(adGroups4, eq7(productTargets2.adGroupId, adGroups4.id)).innerJoin(campaigns6, eq7(adGroups4.campaignId, campaigns6.id)).where(inArray10(productTargets2.id, input.ids));
+          accountId: campaigns7.accountId
+        }).from(productTargets2).innerJoin(adGroups4, eq7(productTargets2.adGroupId, adGroups4.id)).innerJoin(campaigns7, eq7(adGroups4.campaignId, campaigns7.id)).where(inArray11(productTargets2.id, input.ids));
         const byAccount = /* @__PURE__ */ new Map();
         for (const pt3 of ptDetails) {
           if (!byAccount.has(pt3.accountId)) byAccount.set(pt3.accountId, []);
@@ -351852,7 +352449,7 @@ var optimizationRouter = router({
     if (!group) {
       throw new TRPCError({ code: "NOT_FOUND", message: "Performance group not found" });
     }
-    const campaigns6 = await getCampaignsByPerformanceGroupId(input.performanceGroupId);
+    const campaigns7 = await getCampaignsByPerformanceGroupId(input.performanceGroupId);
     const results = [];
     const config2 = {
       optimizationGoal: group.optimizationGoal || "maximize_sales",
@@ -351861,11 +352458,11 @@ var optimizationRouter = router({
       dailySpendLimit: group.dailySpendLimit ? parseFloat(group.dailySpendLimit) : void 0,
       dailyCostTarget: group.dailyCostTarget ? parseFloat(group.dailyCostTarget) : void 0
     };
-    for (const campaign of campaigns6) {
+    for (const campaign of campaigns7) {
       const adGroups4 = await getAdGroupsByCampaignId(campaign.id);
       for (const adGroup of adGroups4) {
-        const keywords6 = await getKeywordsByAdGroupId(adGroup.id);
-        const keywordTargets = keywords6.map((k5) => ({
+        const keywords7 = await getKeywordsByAdGroupId(adGroup.id);
+        const keywordTargets = keywords7.map((k5) => ({
           id: k5.id,
           type: "keyword",
           currentBid: parseFloat(k5.bid),
@@ -352259,8 +352856,8 @@ var adAutomationRouter = router({
     cvrDropCritical: external_exports.number().default(-50),
     roasMinimum: external_exports.number().default(2)
   })).query(async ({ input }) => {
-    const campaigns6 = await getCampaignHealthMetrics(input.accountId);
-    const healthScores = analyzeCampaignHealth(campaigns6, {
+    const campaigns7 = await getCampaignHealthMetrics(input.accountId);
+    const healthScores = analyzeCampaignHealth(campaigns7, {
       acosWarning: input.acosWarning,
       acosCritical: input.acosCritical,
       ctrDropWarning: input.ctrDropWarning,
@@ -352288,8 +352885,8 @@ var adAutomationRouter = router({
     accountId: external_exports.number(),
     severity: external_exports.enum(["all", "critical", "warning", "info"]).default("all")
   })).query(async ({ input }) => {
-    const campaigns6 = await getCampaignHealthMetrics(input.accountId);
-    const healthScores = analyzeCampaignHealth(campaigns6);
+    const campaigns7 = await getCampaignHealthMetrics(input.accountId);
+    const healthScores = analyzeCampaignHealth(campaigns7);
     let allAlerts = healthScores.flatMap((h6) => h6.alerts);
     if (input.severity !== "all") {
       allAlerts = allAlerts.filter((a4) => a4.severity === input.severity);
@@ -355220,15 +355817,15 @@ var crossAccountRouter = router({
     }
     const accountsData = await Promise.all(
       accounts.map(async (account) => {
-        const performanceGroups7 = await getPerformanceGroupsByAccountId(account.id);
+        const performanceGroups8 = await getPerformanceGroupsByAccountId(account.id);
         let totalSpend2 = 0;
         let totalSales2 = 0;
         let totalImpressions2 = 0;
         let totalClicks2 = 0;
         let totalOrders2 = 0;
-        for (const pg of performanceGroups7) {
-          const campaigns6 = await getCampaignsByPerformanceGroupId(pg.id);
-          for (const campaign of campaigns6) {
+        for (const pg of performanceGroups8) {
+          const campaigns7 = await getCampaignsByPerformanceGroupId(pg.id);
+          for (const campaign of campaigns7) {
             totalSpend2 += parseFloat(campaign.spend || "0");
             totalSales2 += parseFloat(campaign.sales || "0");
             totalImpressions2 += campaign.impressions || 0;
@@ -355304,15 +355901,15 @@ var crossAccountRouter = router({
     const selectedAccounts = accounts.filter((a4) => input.accountIds.includes(a4.id));
     const comparisonData = await Promise.all(
       selectedAccounts.map(async (account) => {
-        const performanceGroups7 = await getPerformanceGroupsByAccountId(account.id);
+        const performanceGroups8 = await getPerformanceGroupsByAccountId(account.id);
         let totalSpend = 0;
         let totalSales = 0;
         let totalImpressions = 0;
         let totalClicks = 0;
         let totalOrders = 0;
-        for (const pg of performanceGroups7) {
-          const campaigns6 = await getCampaignsByPerformanceGroupId(pg.id);
-          for (const campaign of campaigns6) {
+        for (const pg of performanceGroups8) {
+          const campaigns7 = await getCampaignsByPerformanceGroupId(pg.id);
+          for (const campaign of campaigns7) {
             totalSpend += parseFloat(campaign.spend || "0");
             totalSales += parseFloat(campaign.sales || "0");
             totalImpressions += campaign.impressions || 0;
@@ -358080,6 +358677,26 @@ var autoRollbackRouter = router({
     return cleanupOldSuggestions();
   })
 });
+var postDeployRouter = router({
+  // 获取系统版本信息
+  getVersionInfo: protectedProcedure.query(async () => {
+    const { getSystemVersionInfo: getSystemVersionInfo2 } = await Promise.resolve().then(() => (init_postDeployOptimizer(), postDeployOptimizer_exports));
+    return getSystemVersionInfo2();
+  }),
+  // 手动触发重优化
+  forceReoptimize: protectedProcedure.input(external_exports.object({
+    modules: external_exports.array(external_exports.string()).optional(),
+    targetId: external_exports.number().optional()
+  })).mutation(async ({ input }) => {
+    const { forceReoptimize: forceReoptimize2 } = await Promise.resolve().then(() => (init_postDeployOptimizer(), postDeployOptimizer_exports));
+    return forceReoptimize2(input.modules, input.targetId);
+  }),
+  // 运行部署后重优化检查
+  runCheck: protectedProcedure.mutation(async () => {
+    const { runPostDeployOptimization: runPostDeployOptimization2 } = await Promise.resolve().then(() => (init_postDeployOptimizer(), postDeployOptimizer_exports));
+    return runPostDeployOptimization2();
+  })
+});
 var autoCorrectionRouter = router({
   // 运行自动纠错扫描
   runScan: protectedProcedure.input(external_exports.object({ accountId: external_exports.number().optional() })).mutation(async ({ input }) => {
@@ -358461,10 +359078,10 @@ var intelligentBudgetAllocationRouter = router({
     campaignId: external_exports.number(),
     newBudget: external_exports.number()
   })).query(async ({ input }) => {
-    const campaigns6 = await collectCampaignPerformanceData(
+    const campaigns7 = await collectCampaignPerformanceData(
       input.performanceGroupId
     );
-    const campaign = campaigns6.find((c5) => c5.campaignId === input.campaignId);
+    const campaign = campaigns7.find((c5) => c5.campaignId === input.campaignId);
     if (!campaign) {
       throw new TRPCError({ code: "NOT_FOUND", message: "\u5E7F\u544A\u6D3B\u52A8\u4E0D\u5B58\u5728" });
     }
@@ -359214,7 +359831,8 @@ var appRouter = router({
   smartCampaign: smartCampaignRouter,
   multiTenant: multiTenantRouter,
   advancedAnalytics: advancedAnalyticsRouter,
-  exchangeRate: exchangeRateRouter
+  exchangeRate: exchangeRateRouter,
+  postDeploy: postDeployRouter
 });
 
 // server/_core/context.ts
@@ -359430,6 +360048,7 @@ var sitemap_default = router2;
 
 // server/_core/index.ts
 init_optimizationAutoCorrector();
+init_postDeployOptimizer();
 function isPortAvailable(port) {
   return new Promise((resolve8) => {
     const server = import_net.default.createServer();
@@ -359497,13 +360116,22 @@ async function startServer2() {
     console.log("[TargetScheduler] v142: daily\u5168\u91CF\u6267\u884C\u5DF2\u7981\u7528\uFF0C\u4F18\u5316\u8C03\u5EA6\u7531dataSyncScheduler\u7EDF\u4E00\u7BA1\u7406");
     setTimeout(async () => {
       try {
-        const result = await runAutoCorrection();
-        console.log(`[AutoCorrector] v167: \u542F\u52A8\u7EA0\u9519\u626B\u63CF\u5B8C\u6210: \u53D1\u73B0${result.totalIssuesFound}\u4E2A\u95EE\u9898, \u7EA0\u6B63${result.totalCorrected}\u4E2A, \u5931\u8D25${result.totalFailed}\u4E2A`);
+        const corrResult = await runAutoCorrection();
+        console.log(`[AutoCorrector] v167: \u542F\u52A8\u7EA0\u9519\u626B\u63CF\u5B8C\u6210: \u53D1\u73B0${corrResult.totalIssuesFound}\u4E2A\u95EE\u9898, \u7EA0\u6B63${corrResult.totalCorrected}\u4E2A, \u5931\u8D25${corrResult.totalFailed}\u4E2A`);
+        console.log(`[PostDeployOptimizer] v184: \u5F00\u59CB\u90E8\u7F72\u540E\u7248\u672C\u68C0\u67E5 (\u5F53\u524D\u7248\u672C: v${SYSTEM_VERSION})...`);
+        const deployResult = await runPostDeployOptimization();
+        if (deployResult.triggered) {
+          console.log(`[PostDeployOptimizer] v184: \u90E8\u7F72\u540E\u91CD\u4F18\u5316\u5B8C\u6210: ${deployResult.reason}`);
+          console.log(`[PostDeployOptimizer] v184: \u5904\u7406${deployResult.targetsProcessed}\u4E2A\u76EE\u6807, \u6210\u529F${deployResult.targetsSucceeded}\u4E2A, \u5931\u8D25${deployResult.targetsFailed}\u4E2A, \u4F18\u5316\u52A8\u4F5C${deployResult.totalOptimizationActions}\u4E2A`);
+        } else {
+          console.log(`[PostDeployOptimizer] v184: ${deployResult.reason}`);
+        }
       } catch (err2) {
-        console.error("[AutoCorrector] v167: \u542F\u52A8\u7EA0\u9519\u626B\u63CF\u5931\u8D25:", err2.message);
+        console.error("[AutoCorrector/PostDeployOptimizer] \u542F\u52A8\u4EFB\u52A1\u5931\u8D25:", err2.message);
       }
     }, 30 * 1e3);
-    console.log("[AutoCorrector] v167: \u81EA\u52A8\u7EA0\u9519\u670D\u52A1\u5DF2\u6CE8\u518C\uFF0C\u5C0630\u79D2\u540E\u8FD0\u884C\u9996\u6B21\u5168\u91CF\u626B\u63CF");
+    console.log(`[AutoCorrector] v167: \u81EA\u52A8\u7EA0\u9519\u670D\u52A1\u5DF2\u6CE8\u518C\uFF0C\u5C0630\u79D2\u540E\u8FD0\u884C\u9996\u6B21\u5168\u91CF\u626B\u63CF`);
+    console.log(`[PostDeployOptimizer] v184: \u90E8\u7F72\u540E\u91CD\u4F18\u5316\u5DF2\u6CE8\u518C\uFF0C\u5C06\u5728\u7EA0\u9519\u5B8C\u6210\u540E\u81EA\u52A8\u89E6\u53D1 (\u5F53\u524D\u7248\u672C: v${SYSTEM_VERSION})`);
     if (process.env.AWS_SQS_QUEUE_TRAFFIC_URL || process.env.AWS_SQS_QUEUE_CONVERSION_URL || process.env.AWS_SQS_QUEUE_BUDGET_URL) {
       startSQSConsumer().then(() => {
         console.log("[SQS Consumer] AMS\u5B9E\u65F6\u6570\u636E\u6D41\u6D88\u8D39\u8005\u5DF2\u542F\u52A8");

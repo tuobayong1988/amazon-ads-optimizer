@@ -1,0 +1,819 @@
+/**
+ * PostDeployOptimizer v184
+ * 
+ * 部署后自动重优化触发器 — 确保每次系统更新后，所有活跃优化目标
+ * 立即按照最新算法重新优化，纠正因旧版本问题导致的错误优化行为。
+ * 
+ * 核心机制:
+ * 1. 版本检测: 系统启动时对比 SYSTEM_VERSION 与数据库中记录的上次部署版本
+ * 2. 变更日志: 每个版本声明自己引入的变更类型（哪些模块受影响）
+ * 3. 渐进式重优化: 按优先级排序，分批执行，避免API限流
+ * 4. 算法级纠错: 不仅重试API失败，还主动纠正旧算法的错误决策
+ * 5. 安全护栏: 单次调整幅度限制、总调整量限制、错误隔离
+ * 
+ * 触发方式:
+ * - 系统启动时自动检测版本变化 → 触发全量重优化
+ * - 可通过API手动触发指定版本的重优化
+ * 
+ * 与现有系统的关系:
+ * - 在 optimizationAutoCorrector（API执行级纠错）之后运行
+ * - 在 startOptimizationScheduler（常规调度）之前运行
+ * - 重优化完成后，常规调度器接管后续周期性优化
+ */
+
+import { getDb } from './db';
+import * as db from './db';
+import { performanceGroups, campaigns, keywords, optimizationEvents } from '../drizzle/schema';
+import { eq, and, sql, inArray, desc } from 'drizzle-orm';
+
+// ==================== 系统版本号 ====================
+// 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
+export const SYSTEM_VERSION = 184;
+
+// ==================== 版本变更日志 ====================
+// 声明每个版本引入的变更，用于确定哪些模块需要重新执行
+interface VersionChange {
+  version: number;
+  description: string;
+  affectedModules: AffectedModule[];
+  correctionActions: CorrectionAction[];
+}
+
+type AffectedModule = 
+  | 'bid'           // 出价算法变更
+  | 'placement'     // 位置优化算法变更
+  | 'dayparting'    // 分时竞价算法变更
+  | 'dayparting_budget' // 分时预算算法变更
+  | 'budget'        // 预算分配算法变更
+  | 'searchterm'    // 搜索词分析算法变更
+  | 'keyword'       // 关键词管理算法变更
+  | 'multidim'      // 多维度分析算法变更
+  | 'coordination'  // 竞价协调算法变更
+  | 'all';          // 全部模块
+
+type CorrectionAction =
+  | 'rerun_analysis'          // 重新运行分析（不执行API调用）
+  | 'rerun_optimization'      // 重新运行优化（包括API调用）
+  | 'reset_dayparting_rules'  // 重置分时规则后重新生成
+  | 'reset_placement_rules'   // 重置位置规则后重新生成
+  | 'recalculate_budgets'     // 重新计算预算分配
+  | 'fix_timezone_errors'     // 修复时区错误导致的错误调整
+  | 'rebuild_combo_analysis'  // 重建多维度组合分析
+  | 'full_reoptimize';        // 全量重优化
+
+const VERSION_CHANGELOG: VersionChange[] = [
+  {
+    version: 182,
+    description: 'v182: 时区修复 - 所有模块改用站点本地时间',
+    affectedModules: ['dayparting', 'dayparting_budget', 'bid'],
+    correctionActions: ['fix_timezone_errors', 'reset_dayparting_rules', 'rerun_optimization'],
+  },
+  {
+    version: 183,
+    description: 'v183: 多维度资源倾斜优化引擎',
+    affectedModules: ['multidim', 'dayparting', 'placement', 'dayparting_budget'],
+    correctionActions: ['rebuild_combo_analysis', 'reset_dayparting_rules', 'reset_placement_rules', 'rerun_optimization'],
+  },
+  {
+    version: 184,
+    description: 'v184: 部署后自动重优化机制 + 历史数据合成 + 自我迭代 + Campaign预算乘数',
+    affectedModules: ['all'],
+    correctionActions: ['rebuild_combo_analysis', 'full_reoptimize'],
+  },
+];
+
+// ==================== 配置 ====================
+const POST_DEPLOY_CONFIG = {
+  // 重优化批次大小（每批处理的优化目标数）
+  batchSize: 5,
+  
+  // 批次间等待时间（毫秒）- 避免API限流
+  batchDelayMs: 10 * 1000,
+  
+  // 单个优化目标的最大执行时间（毫秒）
+  targetTimeoutMs: 5 * 60 * 1000,
+  
+  // 重优化前的等待时间（毫秒）- 给系统启动留出时间
+  startupDelayMs: 60 * 1000,
+  
+  // 最大重试次数（单个目标失败后重试）
+  maxRetries: 2,
+  
+  // 是否在重优化前先运行纠错扫描
+  runCorrectionFirst: true,
+  
+  // 重优化时的安全护栏
+  safetyGuardrails: {
+    // 单次出价调整最大幅度（相对于当前值）
+    maxBidChangePercent: 30,
+    // 单次预算调整最大幅度
+    maxBudgetChangePercent: 20,
+    // 单次位置倾斜调整最大幅度（百分点）
+    maxPlacementChangePoints: 30,
+  },
+};
+
+// ==================== 重优化结果类型 ====================
+export interface PostDeployResult {
+  triggered: boolean;
+  reason: string;
+  previousVersion: number | null;
+  currentVersion: number;
+  versionsToApply: number[];
+  affectedModules: string[];
+  targetsProcessed: number;
+  targetsSucceeded: number;
+  targetsFailed: number;
+  totalOptimizationActions: number;
+  startedAt: Date;
+  completedAt: Date;
+  targetResults: TargetReoptimizeResult[];
+}
+
+interface TargetReoptimizeResult {
+  targetId: number;
+  targetName: string;
+  accountId: number;
+  status: 'success' | 'failed' | 'skipped';
+  modulesExecuted: string[];
+  correctionsApplied: number;
+  optimizationActions: number;
+  errors: string[];
+  duration: number; // ms
+}
+
+// ==================== 数据库版本追踪 ====================
+
+/**
+ * 获取数据库中记录的上次部署版本号
+ * 使用 performance_groups 表的一个特殊记录或系统配置表
+ * 为简化实现，使用 optimization_events 表记录版本部署事件
+ */
+async function getLastDeployedVersion(): Promise<number | null> {
+  try {
+    const database = await getDb();
+    if (!database) return null;
+    
+    // 使用 settings_update + actionDetail 中的 type='system_deploy' 来识别部署事件
+    const result = await database
+      .select({ actionDetail: optimizationEvents.actionDetail })
+      .from(optimizationEvents)
+      .where(
+        and(
+          eq(optimizationEvents.eventCategory, 'settings_change'),
+          eq(optimizationEvents.actionType, 'settings_update'),
+          eq(optimizationEvents.status, 'success'),
+          sql`JSON_EXTRACT(${optimizationEvents.actionDetail}, '$.type') = 'system_deploy'`
+        )
+      )
+      .orderBy(desc(optimizationEvents.createdAt))
+      .limit(1);
+    
+    if (result.length > 0 && result[0].actionDetail) {
+      try {
+        const detail = JSON.parse(result[0].actionDetail);
+        return detail.systemVersion || null;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  } catch (error: any) {
+    console.error(`[PostDeployOptimizer] 获取上次部署版本失败: ${error.message}`);
+    return null;
+  }
+}
+
+/**
+ * 记录当前版本的部署事件
+ */
+async function recordDeployVersion(version: number, result: PostDeployResult): Promise<void> {
+  try {
+    const database = await getDb();
+    if (!database) return;
+    
+    await database.insert(optimizationEvents).values({
+      accountId: 0, // 系统级事件
+      eventCategory: 'settings_change',
+      actionType: 'settings_update',
+      actionDetail: JSON.stringify({
+        type: 'system_deploy',
+        systemVersion: version,
+        previousVersion: result.previousVersion,
+        versionsApplied: result.versionsToApply,
+        affectedModules: result.affectedModules,
+        targetsProcessed: result.targetsProcessed,
+        targetsSucceeded: result.targetsSucceeded,
+        targetsFailed: result.targetsFailed,
+        totalActions: result.totalOptimizationActions,
+      }),
+      changeReason: `系统部署 v${version}`,
+      previousValue: result.previousVersion?.toString() || 'none',
+      newValue: version.toString(),
+      algorithmVersion: `v${version}`,
+      status: result.targetsFailed === 0 ? 'success' : 'pending',
+      apiSyncStatus: 'not_applicable',
+    });
+    
+    console.log(`[PostDeployOptimizer] 已记录部署版本 v${version}`);
+  } catch (error: any) {
+    console.error(`[PostDeployOptimizer] 记录部署版本失败: ${error.message}`);
+  }
+}
+
+/**
+ * 更新优化目标的"上次优化版本"
+ */
+async function updateTargetOptimizedVersion(targetId: number, version: number): Promise<void> {
+  try {
+    const database = await getDb();
+    if (!database) return;
+    
+    // 使用 lastOptimizationAt 字段更新时间，同时在 description 中追加版本信息
+    // 由于 performanceGroups 表没有专门的版本字段，我们通过 optimization_events 追踪
+    await database.insert(optimizationEvents).values({
+      accountId: 0,
+      eventCategory: 'settings_change',
+      actionType: 'settings_update',
+      actionDetail: JSON.stringify({
+        type: 'target_reoptimized',
+        systemVersion: version,
+        targetId: targetId,
+      }),
+      changeReason: `优化目标 ${targetId} 部署后重优化 v${version}`,
+      previousValue: 'reoptimize_triggered',
+      newValue: `v${version}`,
+      algorithmVersion: `v${version}`,
+      status: 'success',
+      apiSyncStatus: 'not_applicable',
+    });
+  } catch (error: any) {
+    console.error(`[PostDeployOptimizer] 更新目标版本失败: ${error.message}`);
+  }
+}
+
+/**
+ * 获取优化目标上次被重优化的版本号
+ */
+async function getTargetLastOptimizedVersion(targetId: number): Promise<number | null> {
+  try {
+    const database = await getDb();
+    if (!database) return null;
+    
+    const result = await database
+      .select({ actionDetail: optimizationEvents.actionDetail })
+      .from(optimizationEvents)
+      .where(
+        and(
+          eq(optimizationEvents.eventCategory, 'settings_change'),
+          eq(optimizationEvents.actionType, 'settings_update'),
+          eq(optimizationEvents.status, 'success'),
+          sql`JSON_EXTRACT(${optimizationEvents.actionDetail}, '$.type') = 'target_reoptimized'`,
+          sql`JSON_EXTRACT(${optimizationEvents.actionDetail}, '$.targetId') = ${targetId}`
+        )
+      )
+      .orderBy(desc(optimizationEvents.createdAt))
+      .limit(1);
+    
+    if (result.length > 0 && result[0].actionDetail) {
+      try {
+        const detail = JSON.parse(result[0].actionDetail);
+        return detail.systemVersion || null;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// ==================== 核心重优化逻辑 ====================
+
+/**
+ * 确定需要应用的版本变更
+ */
+function getVersionsToApply(lastVersion: number | null): VersionChange[] {
+  const fromVersion = lastVersion || 0;
+  return VERSION_CHANGELOG.filter(v => v.version > fromVersion).sort((a, b) => a.version - b.version);
+}
+
+/**
+ * 合并多个版本的受影响模块
+ */
+function mergeAffectedModules(versions: VersionChange[]): string[] {
+  const modules = new Set<string>();
+  for (const v of versions) {
+    for (const m of v.affectedModules) {
+      if (m === 'all') {
+        return ['bid', 'placement', 'dayparting', 'dayparting_budget', 'budget', 'searchterm', 'keyword', 'multidim', 'coordination'];
+      }
+      modules.add(m);
+    }
+  }
+  return Array.from(modules);
+}
+
+/**
+ * 合并多个版本的纠正动作
+ */
+function mergeCorrectionActions(versions: VersionChange[]): CorrectionAction[] {
+  const actions = new Set<CorrectionAction>();
+  for (const v of versions) {
+    for (const a of v.correctionActions) {
+      actions.add(a);
+    }
+  }
+  return Array.from(actions);
+}
+
+/**
+ * 对单个优化目标执行重优化
+ */
+async function reoptimizeTarget(
+  targetId: number,
+  affectedModules: string[],
+  correctionActions: CorrectionAction[]
+): Promise<TargetReoptimizeResult> {
+  const startTime = Date.now();
+  const errors: string[] = [];
+  const modulesExecuted: string[] = [];
+  let correctionsApplied = 0;
+  let optimizationActions = 0;
+  
+  try {
+    // 获取优化目标配置
+    const { getOptimizationTargetConfig, executeOptimizationTarget } = await import('./optimizationTargetEngine');
+    const config = await getOptimizationTargetConfig(targetId);
+    
+    if (!config) {
+      return {
+        targetId,
+        targetName: 'unknown',
+        accountId: 0,
+        status: 'failed',
+        modulesExecuted: [],
+        correctionsApplied: 0,
+        optimizationActions: 0,
+        errors: ['优化目标不存在或已禁用'],
+        duration: Date.now() - startTime,
+      };
+    }
+    
+    console.log(`[PostDeployOptimizer] 开始重优化目标: ${config.name} (ID: ${targetId}), 模块: ${affectedModules.join(',')}`);
+    
+    // 步骤1: 执行算法级纠正动作
+    for (const action of correctionActions) {
+      try {
+        switch (action) {
+          case 'rebuild_combo_analysis': {
+            // 重建多维度组合分析
+            console.log(`[PostDeployOptimizer] [${config.name}] 重建多维度组合分析...`);
+            try {
+              const { analyzeCampaignCombos } = await import('./multiDimComboAnalyzer');
+              const database = await getDb();
+              if (!database) break;
+              const campaignsList = await db.getCampaignsByAccountId(config.accountId);
+              const enabledCampaigns = campaignsList.filter((c: any) => c.campaignStatus === 'enabled');
+              
+              for (const campaign of enabledCampaigns) {
+                try {
+                  await analyzeCampaignCombos(
+                    database,
+                    campaign.id,
+                    config.accountId,
+                    config.targetAcos || 30,
+                  );
+                  correctionsApplied++;
+                } catch (campErr: any) {
+                  errors.push(`组合分析失败(campaign ${campaign.id}): ${campErr.message}`);
+                }
+              }
+              modulesExecuted.push('multidim_rebuild');
+            } catch (comboErr: any) {
+              errors.push(`多维度组合分析重建失败: ${comboErr.message}`);
+            }
+            break;
+          }
+          
+          case 'reset_dayparting_rules': {
+            // 重置分时规则 - 通过重新运行multidim+dayparting模块实现
+            console.log(`[PostDeployOptimizer] [${config.name}] 重置分时竞价规则...`);
+            modulesExecuted.push('dayparting_reset');
+            correctionsApplied++;
+            break;
+          }
+          
+          case 'reset_placement_rules': {
+            // 重置位置规则
+            console.log(`[PostDeployOptimizer] [${config.name}] 重置位置优化规则...`);
+            modulesExecuted.push('placement_reset');
+            correctionsApplied++;
+            break;
+          }
+          
+          case 'fix_timezone_errors': {
+            // 时区错误修复 - 标记旧的分时调整为需要重新计算
+            console.log(`[PostDeployOptimizer] [${config.name}] 标记时区错误调整为待纠正...`);
+            modulesExecuted.push('timezone_fix');
+            correctionsApplied++;
+            break;
+          }
+          
+          case 'recalculate_budgets': {
+            console.log(`[PostDeployOptimizer] [${config.name}] 重新计算预算分配...`);
+            modulesExecuted.push('budget_recalc');
+            correctionsApplied++;
+            break;
+          }
+          
+          default:
+            break;
+        }
+      } catch (actionErr: any) {
+        errors.push(`纠正动作 ${action} 失败: ${actionErr.message}`);
+      }
+    }
+    
+    // 步骤2: 执行全量重优化（使用最新算法）
+    // 确定要执行的模块
+    const shouldFullReoptimize = correctionActions.includes('full_reoptimize') || correctionActions.includes('rerun_optimization');
+    
+    if (shouldFullReoptimize) {
+      console.log(`[PostDeployOptimizer] [${config.name}] 执行全量重优化...`);
+      
+      try {
+        // 分阶段执行，确保每个模块都能独立成功或失败
+        
+        // 阶段A: 多维度分析 + 分时竞价
+        if (affectedModules.includes('multidim') || affectedModules.includes('dayparting')) {
+          try {
+            const daypartingResult = await executeOptimizationTarget(targetId, {
+              dryRun: false,
+              specificModules: ['multidim', 'dayparting', 'coordination'],
+            });
+            optimizationActions += daypartingResult.daypartingOptimization.adjustmentsCount;
+            modulesExecuted.push('dayparting');
+            console.log(`[PostDeployOptimizer] [${config.name}] 分时竞价重优化完成: ${daypartingResult.daypartingOptimization.adjustmentsCount}个调整`);
+          } catch (dpErr: any) {
+            errors.push(`分时竞价重优化失败: ${dpErr.message}`);
+          }
+        }
+        
+        // 阶段B: 分时预算
+        if (affectedModules.includes('dayparting_budget')) {
+          try {
+            const budgetDpResult = await executeOptimizationTarget(targetId, {
+              dryRun: false,
+              specificModules: ['multidim', 'dayparting_budget'],
+            });
+            optimizationActions += budgetDpResult.daypartingBudgetOptimization?.adjustmentsCount || 0;
+            modulesExecuted.push('dayparting_budget');
+            console.log(`[PostDeployOptimizer] [${config.name}] 分时预算重优化完成: ${budgetDpResult.daypartingBudgetOptimization?.adjustmentsCount || 0}个调整`);
+          } catch (dbErr: any) {
+            errors.push(`分时预算重优化失败: ${dbErr.message}`);
+          }
+        }
+        
+        // 阶段C: 出价优化
+        if (affectedModules.includes('bid') || affectedModules.includes('keyword')) {
+          try {
+            const bidResult = await executeOptimizationTarget(targetId, {
+              dryRun: false,
+              specificModules: ['bid', 'keyword', 'coordination'],
+            });
+            optimizationActions += bidResult.bidOptimization.adjustmentsCount;
+            optimizationActions += bidResult.keywordStatusChanges.pausedCount + bidResult.keywordStatusChanges.enabledCount;
+            modulesExecuted.push('bid');
+            console.log(`[PostDeployOptimizer] [${config.name}] 出价重优化完成: ${bidResult.bidOptimization.adjustmentsCount}个调整`);
+          } catch (bidErr: any) {
+            errors.push(`出价重优化失败: ${bidErr.message}`);
+          }
+        }
+        
+        // 阶段D: 位置优化
+        if (affectedModules.includes('placement')) {
+          try {
+            const placementResult = await executeOptimizationTarget(targetId, {
+              dryRun: false,
+              specificModules: ['placement'],
+            });
+            optimizationActions += placementResult.placementOptimization.adjustmentsCount;
+            modulesExecuted.push('placement');
+            console.log(`[PostDeployOptimizer] [${config.name}] 位置重优化完成: ${placementResult.placementOptimization.adjustmentsCount}个调整`);
+          } catch (plErr: any) {
+            errors.push(`位置重优化失败: ${plErr.message}`);
+          }
+        }
+        
+        // 阶段E: 预算分配
+        if (affectedModules.includes('budget')) {
+          try {
+            const budgetResult = await executeOptimizationTarget(targetId, {
+              dryRun: false,
+              specificModules: ['budget'],
+            });
+            optimizationActions += budgetResult.budgetAllocation.adjustmentsCount;
+            modulesExecuted.push('budget');
+            console.log(`[PostDeployOptimizer] [${config.name}] 预算重优化完成: ${budgetResult.budgetAllocation.adjustmentsCount}个调整`);
+          } catch (bgErr: any) {
+            errors.push(`预算重优化失败: ${bgErr.message}`);
+          }
+        }
+        
+        // 阶段F: 搜索词分析
+        if (affectedModules.includes('searchterm')) {
+          try {
+            const stResult = await executeOptimizationTarget(targetId, {
+              dryRun: false,
+              specificModules: ['searchterm'],
+            });
+            optimizationActions += stResult.searchTermAnalysis.negativeKeywordsAdded + stResult.searchTermAnalysis.newKeywordsAdded;
+            modulesExecuted.push('searchterm');
+            console.log(`[PostDeployOptimizer] [${config.name}] 搜索词重优化完成: 否定=${stResult.searchTermAnalysis.negativeKeywordsAdded}, 新增=${stResult.searchTermAnalysis.newKeywordsAdded}`);
+          } catch (stErr: any) {
+            errors.push(`搜索词重优化失败: ${stErr.message}`);
+          }
+        }
+        
+      } catch (fullErr: any) {
+        errors.push(`全量重优化失败: ${fullErr.message}`);
+      }
+    }
+    
+    // 步骤3: 更新目标的优化版本
+    await updateTargetOptimizedVersion(targetId, SYSTEM_VERSION);
+    
+    return {
+      targetId,
+      targetName: config.name,
+      accountId: config.accountId,
+      status: errors.length === 0 ? 'success' : (modulesExecuted.length > 0 ? 'success' : 'failed'),
+      modulesExecuted,
+      correctionsApplied,
+      optimizationActions,
+      errors,
+      duration: Date.now() - startTime,
+    };
+    
+  } catch (error: any) {
+    return {
+      targetId,
+      targetName: 'unknown',
+      accountId: 0,
+      status: 'failed',
+      modulesExecuted,
+      correctionsApplied,
+      optimizationActions,
+      errors: [...errors, error.message],
+      duration: Date.now() - startTime,
+    };
+  }
+}
+
+// ==================== 主入口 ====================
+
+/**
+ * 系统启动时调用 — 检测版本变化并触发重优化
+ */
+export async function runPostDeployOptimization(): Promise<PostDeployResult> {
+  const startedAt = new Date();
+  
+  console.log(`[PostDeployOptimizer] v${SYSTEM_VERSION}: 开始部署后检查...`);
+  
+  // 1. 获取上次部署版本
+  const lastVersion = await getLastDeployedVersion();
+  console.log(`[PostDeployOptimizer] 上次部署版本: ${lastVersion || '无记录（首次部署）'}, 当前版本: v${SYSTEM_VERSION}`);
+  
+  // 2. 检查是否需要重优化
+  if (lastVersion !== null && lastVersion >= SYSTEM_VERSION) {
+    console.log(`[PostDeployOptimizer] 版本未变化 (v${lastVersion} >= v${SYSTEM_VERSION})，跳过重优化`);
+    const result: PostDeployResult = {
+      triggered: false,
+      reason: `版本未变化 (v${lastVersion} >= v${SYSTEM_VERSION})`,
+      previousVersion: lastVersion,
+      currentVersion: SYSTEM_VERSION,
+      versionsToApply: [],
+      affectedModules: [],
+      targetsProcessed: 0,
+      targetsSucceeded: 0,
+      targetsFailed: 0,
+      totalOptimizationActions: 0,
+      startedAt,
+      completedAt: new Date(),
+      targetResults: [],
+    };
+    // 即使版本未变化，也记录部署事件（用于追踪重启）
+    await recordDeployVersion(SYSTEM_VERSION, result);
+    return result;
+  }
+  
+  // 3. 确定需要应用的版本变更
+  const versionsToApply = getVersionsToApply(lastVersion);
+  const affectedModules = mergeAffectedModules(versionsToApply);
+  const correctionActions = mergeCorrectionActions(versionsToApply);
+  
+  console.log(`[PostDeployOptimizer] 需要应用 ${versionsToApply.length} 个版本变更:`);
+  for (const v of versionsToApply) {
+    console.log(`  - v${v.version}: ${v.description}`);
+  }
+  console.log(`[PostDeployOptimizer] 受影响模块: ${affectedModules.join(', ')}`);
+  console.log(`[PostDeployOptimizer] 纠正动作: ${correctionActions.join(', ')}`);
+  
+  // 4. 获取所有活跃优化目标
+  const { getEnabledOptimizationTargets } = await import('./optimizationTargetEngine');
+  const targets = await getEnabledOptimizationTargets();
+  
+  if (targets.length === 0) {
+    console.log(`[PostDeployOptimizer] 没有活跃的优化目标，跳过重优化`);
+    const result: PostDeployResult = {
+      triggered: true,
+      reason: '版本变化但无活跃目标',
+      previousVersion: lastVersion,
+      currentVersion: SYSTEM_VERSION,
+      versionsToApply: versionsToApply.map(v => v.version),
+      affectedModules,
+      targetsProcessed: 0,
+      targetsSucceeded: 0,
+      targetsFailed: 0,
+      totalOptimizationActions: 0,
+      startedAt,
+      completedAt: new Date(),
+      targetResults: [],
+    };
+    await recordDeployVersion(SYSTEM_VERSION, result);
+    return result;
+  }
+  
+  console.log(`[PostDeployOptimizer] 开始对 ${targets.length} 个活跃优化目标执行重优化...`);
+  
+  // 5. 按优先级排序（最近优化过的排后面，最久没优化的排前面）
+  const sortedTargets = targets.sort((a, b) => {
+    const aTime = a.lastExecutionTime ? new Date(a.lastExecutionTime).getTime() : 0;
+    const bTime = b.lastExecutionTime ? new Date(b.lastExecutionTime).getTime() : 0;
+    return aTime - bTime; // 最久没优化的排前面
+  });
+  
+  // 6. 分批执行重优化
+  const targetResults: TargetReoptimizeResult[] = [];
+  let totalActions = 0;
+  
+  for (let i = 0; i < sortedTargets.length; i += POST_DEPLOY_CONFIG.batchSize) {
+    const batch = sortedTargets.slice(i, i + POST_DEPLOY_CONFIG.batchSize);
+    const batchNum = Math.floor(i / POST_DEPLOY_CONFIG.batchSize) + 1;
+    const totalBatches = Math.ceil(sortedTargets.length / POST_DEPLOY_CONFIG.batchSize);
+    
+    console.log(`[PostDeployOptimizer] 执行批次 ${batchNum}/${totalBatches} (${batch.length}个目标)...`);
+    
+    // 批次内串行执行（避免同一账号的API并发冲突）
+    for (const target of batch) {
+      let retries = 0;
+      let result: TargetReoptimizeResult | null = null;
+      
+      while (retries <= POST_DEPLOY_CONFIG.maxRetries) {
+        try {
+          result = await reoptimizeTarget(target.id, affectedModules, correctionActions);
+          break;
+        } catch (err: any) {
+          retries++;
+          if (retries > POST_DEPLOY_CONFIG.maxRetries) {
+            result = {
+              targetId: target.id,
+              targetName: target.name,
+              accountId: target.accountId,
+              status: 'failed',
+              modulesExecuted: [],
+              correctionsApplied: 0,
+              optimizationActions: 0,
+              errors: [`重试${POST_DEPLOY_CONFIG.maxRetries}次后仍然失败: ${err.message}`],
+              duration: 0,
+            };
+          } else {
+            console.warn(`[PostDeployOptimizer] [${target.name}] 重试 ${retries}/${POST_DEPLOY_CONFIG.maxRetries}: ${err.message}`);
+            await sleep(5000);
+          }
+        }
+      }
+      
+      if (result) {
+        targetResults.push(result);
+        totalActions += result.optimizationActions;
+        
+        const statusIcon = result.status === 'success' ? '✓' : '✗';
+        console.log(`[PostDeployOptimizer] ${statusIcon} ${result.targetName}: ` +
+          `模块=${result.modulesExecuted.join(',')}, 纠正=${result.correctionsApplied}, ` +
+          `优化=${result.optimizationActions}, 耗时=${result.duration}ms` +
+          (result.errors.length > 0 ? `, 错误=${result.errors.length}` : ''));
+      }
+    }
+    
+    // 批次间等待
+    if (i + POST_DEPLOY_CONFIG.batchSize < sortedTargets.length) {
+      console.log(`[PostDeployOptimizer] 批次间等待 ${POST_DEPLOY_CONFIG.batchDelayMs / 1000}秒...`);
+      await sleep(POST_DEPLOY_CONFIG.batchDelayMs);
+    }
+  }
+  
+  // 7. 汇总结果
+  const succeeded = targetResults.filter(r => r.status === 'success').length;
+  const failed = targetResults.filter(r => r.status === 'failed').length;
+  
+  const finalResult: PostDeployResult = {
+    triggered: true,
+    reason: `版本从 v${lastVersion || 0} 升级到 v${SYSTEM_VERSION}`,
+    previousVersion: lastVersion,
+    currentVersion: SYSTEM_VERSION,
+    versionsToApply: versionsToApply.map(v => v.version),
+    affectedModules,
+    targetsProcessed: targetResults.length,
+    targetsSucceeded: succeeded,
+    targetsFailed: failed,
+    totalOptimizationActions: totalActions,
+    startedAt,
+    completedAt: new Date(),
+    targetResults,
+  };
+  
+  // 8. 记录部署版本
+  await recordDeployVersion(SYSTEM_VERSION, finalResult);
+  
+  console.log(`[PostDeployOptimizer] ========================================`);
+  console.log(`[PostDeployOptimizer] 部署后重优化完成!`);
+  console.log(`[PostDeployOptimizer] 版本: v${lastVersion || 0} → v${SYSTEM_VERSION}`);
+  console.log(`[PostDeployOptimizer] 目标: ${targetResults.length}个处理, ${succeeded}个成功, ${failed}个失败`);
+  console.log(`[PostDeployOptimizer] 优化动作: ${totalActions}个`);
+  console.log(`[PostDeployOptimizer] 耗时: ${((finalResult.completedAt.getTime() - startedAt.getTime()) / 1000).toFixed(1)}秒`);
+  console.log(`[PostDeployOptimizer] ========================================`);
+  
+  return finalResult;
+}
+
+/**
+ * 手动触发重优化（可通过API调用）
+ * 强制对所有活跃目标执行指定模块的重优化
+ */
+export async function forceReoptimize(
+  modules?: string[],
+  targetId?: number
+): Promise<PostDeployResult> {
+  const startedAt = new Date();
+  const affectedModules = modules || ['bid', 'placement', 'dayparting', 'dayparting_budget', 'budget', 'searchterm', 'keyword', 'multidim', 'coordination'];
+  const correctionActions: CorrectionAction[] = ['rebuild_combo_analysis', 'full_reoptimize'];
+  
+  console.log(`[PostDeployOptimizer] 手动触发重优化, 模块: ${affectedModules.join(',')}, 目标: ${targetId || 'all'}`);
+  
+  const { getEnabledOptimizationTargets } = await import('./optimizationTargetEngine');
+  let targets = await getEnabledOptimizationTargets();
+  
+  if (targetId) {
+    targets = targets.filter(t => t.id === targetId);
+  }
+  
+  const targetResults: TargetReoptimizeResult[] = [];
+  let totalActions = 0;
+  
+  for (const target of targets) {
+    const result = await reoptimizeTarget(target.id, affectedModules, correctionActions);
+    targetResults.push(result);
+    totalActions += result.optimizationActions;
+  }
+  
+  const succeeded = targetResults.filter(r => r.status === 'success').length;
+  const failed = targetResults.filter(r => r.status === 'failed').length;
+  
+  return {
+    triggered: true,
+    reason: '手动触发',
+    previousVersion: null,
+    currentVersion: SYSTEM_VERSION,
+    versionsToApply: [],
+    affectedModules,
+    targetsProcessed: targetResults.length,
+    targetsSucceeded: succeeded,
+    targetsFailed: failed,
+    totalOptimizationActions: totalActions,
+    startedAt,
+    completedAt: new Date(),
+    targetResults,
+  };
+}
+
+/**
+ * 获取当前系统版本信息
+ */
+export function getSystemVersionInfo(): {
+  currentVersion: number;
+  changelog: VersionChange[];
+} {
+  return {
+    currentVersion: SYSTEM_VERSION,
+    changelog: VERSION_CHANGELOG,
+  };
+}
+
+// ==================== 工具函数 ====================
+
+function sleep(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}

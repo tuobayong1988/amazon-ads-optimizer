@@ -11006,6 +11006,32 @@ const autoRollbackRouter = router({
 });
 
 // ==================== Auto Correction Router (v167) ====================
+// ==================== v184: 部署后自动重优化路由 ====================
+const postDeployRouter = router({
+  // 获取系统版本信息
+  getVersionInfo: protectedProcedure.query(async () => {
+    const { getSystemVersionInfo } = await import('./postDeployOptimizer');
+    return getSystemVersionInfo();
+  }),
+  
+  // 手动触发重优化
+  forceReoptimize: protectedProcedure
+    .input(z.object({
+      modules: z.array(z.string()).optional(),
+      targetId: z.number().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      const { forceReoptimize } = await import('./postDeployOptimizer');
+      return forceReoptimize(input.modules, input.targetId);
+    }),
+  
+  // 运行部署后重优化检查
+  runCheck: protectedProcedure.mutation(async () => {
+    const { runPostDeployOptimization } = await import('./postDeployOptimizer');
+    return runPostDeployOptimization();
+  }),
+});
+
 const autoCorrectionRouter = router({
   // 运行自动纠错扫描
   runScan: protectedProcedure
@@ -12454,6 +12480,7 @@ export const appRouter = router({
   multiTenant: multiTenantRouter,
   advancedAnalytics: advancedAnalyticsRouter,
   exchangeRate: exchangeRateRouter,
+  postDeploy: postDeployRouter,
 });
 
 export type AppRouter = typeof appRouter;
