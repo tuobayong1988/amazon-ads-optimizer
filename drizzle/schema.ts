@@ -1544,6 +1544,10 @@ export const dailyPerformance = mysqlTable("daily_performance", {
 	attributionWindow: int("attribution_window"),
 	dataSource: mysqlEnum("data_source", ['api','ams']).default('api'),
 	isFinalized: tinyint("is_finalized").default(0),
+	treatmentType: mysqlEnum("treatment_type", ['treatment', 'control', 'organic']).default('treatment'),
+	isAttributed: tinyint("is_attributed").default(1),
+	estimatedIncrementalOrders: decimal("estimated_incremental_orders", { precision: 10, scale: 4 }),
+	estimatedIncrementalSales: decimal("estimated_incremental_sales", { precision: 10, scale: 2 }),
 });
 
 export const dataConsistencyChecks = mysqlTable("data_consistency_checks", {
@@ -1789,6 +1793,8 @@ export const hourlyPerformance = mysqlTable("hourly_performance", {
 	hourlyCtr: decimal({ precision: 5, scale: 4 }),
 	hourlyCvr: decimal({ precision: 5, scale: 4 }),
 	hourlyCpc: decimal({ precision: 10, scale: 2 }),
+	treatmentType: mysqlEnum("treatment_type", ['treatment', 'control', 'organic']).default('treatment'),
+	estimatedCompetition: decimal("estimated_competition", { precision: 5, scale: 4 }),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 });
 
@@ -3592,4 +3598,260 @@ export const multiDimComboAnalysis = mysqlTable("multi_dim_combo_analysis", {
   index("idx_mdca_target").on(table.targetId),
   index("idx_mdca_category").on(table.comboCategory),
   index("idx_mdca_confidence").on(table.confidenceLevel),
+]);
+
+
+// ============================================================
+// P0-1: 下一代算法体系 — 基础数据表
+// ============================================================
+
+// 上下文特征表 — 存储关键词/定位的实时上下文特征，供LinUCB和因果推断使用
+export const contextualFeatures = mysqlTable("contextual_features", {
+	id: int().autoincrement().notNull(),
+	accountId: int().notNull(),
+	keywordId: int(),
+	targetId: int(),
+	campaignId: varchar({ length: 64 }),
+	adGroupId: int(),
+	snapshotDate: date("snapshot_date", { mode: 'string' }).notNull(),
+	hourOfDay: int("hour_of_day"),
+	dayOfWeek: int("day_of_week"),
+	isHoliday: tinyint("is_holiday").default(0),
+	// 竞争环境特征
+	estimatedCompetition: decimal("estimated_competition", { precision: 8, scale: 4 }),
+	cpcVolatility7d: decimal("cpc_volatility_7d", { precision: 8, scale: 4 }),
+	ctrVolatility7d: decimal("ctr_volatility_7d", { precision: 8, scale: 4 }),
+	impressionShare: decimal("impression_share", { precision: 5, scale: 4 }),
+	avgCpc7d: decimal("avg_cpc_7d", { precision: 10, scale: 4 }),
+	avgCtr7d: decimal("avg_ctr_7d", { precision: 8, scale: 6 }),
+	avgCvr7d: decimal("avg_cvr_7d", { precision: 8, scale: 6 }),
+	// 产品特征
+	productBsr: int("product_bsr"),
+	productPrice: decimal("product_price", { precision: 10, scale: 2 }),
+	productRating: decimal("product_rating", { precision: 3, scale: 2 }),
+	productReviewCount: int("product_review_count"),
+	inventoryLevel: int("inventory_level"),
+	// 绩效趋势特征
+	impressionTrend7d: decimal("impression_trend_7d", { precision: 8, scale: 4 }),
+	clickTrend7d: decimal("click_trend_7d", { precision: 8, scale: 4 }),
+	orderTrend7d: decimal("order_trend_7d", { precision: 8, scale: 4 }),
+	spendTrend7d: decimal("spend_trend_7d", { precision: 8, scale: 4 }),
+	// 时间衰减加权绩效
+	weightedCvr14d: decimal("weighted_cvr_14d", { precision: 8, scale: 6 }),
+	weightedAcos14d: decimal("weighted_acos_14d", { precision: 8, scale: 4 }),
+	weightedRoas14d: decimal("weighted_roas_14d", { precision: 10, scale: 4 }),
+	// 市场曲线参数（Sigmoid拟合结果缓存）
+	sigmoidL: decimal("sigmoid_l", { precision: 15, scale: 6 }),
+	sigmoidK: decimal("sigmoid_k", { precision: 15, scale: 6 }),
+	sigmoidX0: decimal("sigmoid_x0", { precision: 15, scale: 6 }),
+	sigmoidB: decimal("sigmoid_b", { precision: 15, scale: 6 }),
+	curveFitR2: decimal("curve_fit_r2", { precision: 8, scale: 6 }),
+	curveUpdatedAt: timestamp("curve_updated_at", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+	index("idx_cf_account_date").on(table.accountId, table.snapshotDate),
+	index("idx_cf_keyword").on(table.keywordId),
+	index("idx_cf_target").on(table.targetId),
+	index("idx_cf_campaign").on(table.campaignId),
+]);
+
+// RL训练日志表 — 记录State-Action-Reward三元组，供离线强化学习训练
+export const rlTrainingLogs = mysqlTable("rl_training_logs", {
+	id: int().autoincrement().notNull(),
+	accountId: int().notNull(),
+	keywordId: int(),
+	targetId: int(),
+	campaignId: varchar({ length: 64 }),
+	adGroupId: int(),
+	episodeId: varchar("episode_id", { length: 64 }),
+	stepIndex: int("step_index").default(0),
+	// State: 调整前的状态向量
+	stateBid: decimal("state_bid", { precision: 10, scale: 4 }),
+	stateImpressions: int("state_impressions"),
+	stateClicks: int("state_clicks"),
+	stateOrders: int("state_orders"),
+	stateSpend: decimal("state_spend", { precision: 10, scale: 2 }),
+	stateSales: decimal("state_sales", { precision: 10, scale: 2 }),
+	stateAcos: decimal("state_acos", { precision: 8, scale: 4 }),
+	stateCvr: decimal("state_cvr", { precision: 8, scale: 6 }),
+	stateCpc: decimal("state_cpc", { precision: 10, scale: 4 }),
+	stateCompetition: decimal("state_competition", { precision: 8, scale: 4 }),
+	stateContext: json("state_context"),
+	// Action: 执行的动作
+	actionType: mysqlEnum("action_type", ['bid_increase', 'bid_decrease', 'bid_hold', 'pause', 'resume']).notNull(),
+	actionBidBefore: decimal("action_bid_before", { precision: 10, scale: 4 }),
+	actionBidAfter: decimal("action_bid_after", { precision: 10, scale: 4 }),
+	actionBidDelta: decimal("action_bid_delta", { precision: 10, scale: 4 }),
+	actionSource: mysqlEnum("action_source", ['rule_based', 'ucb', 'linucb', 'cql', 'manual']).default('rule_based'),
+	// Reward: 动作执行后的回报（延迟填充）
+	reward: decimal({ precision: 15, scale: 6 }),
+	rewardType: mysqlEnum("reward_type", ['incremental_profit', 'roas', 'acos', 'revenue']).default('incremental_profit'),
+	rewardImpressions: int("reward_impressions"),
+	rewardClicks: int("reward_clicks"),
+	rewardOrders: int("reward_orders"),
+	rewardSpend: decimal("reward_spend", { precision: 10, scale: 2 }),
+	rewardSales: decimal("reward_sales", { precision: 10, scale: 2 }),
+	rewardProfit: decimal("reward_profit", { precision: 10, scale: 2 }),
+	// 元数据
+	isTerminal: tinyint("is_terminal").default(0),
+	rewardFilledAt: timestamp("reward_filled_at", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("idx_rl_account").on(table.accountId),
+	index("idx_rl_keyword").on(table.keywordId),
+	index("idx_rl_target").on(table.targetId),
+	index("idx_rl_episode").on(table.episodeId),
+	index("idx_rl_action_source").on(table.actionSource),
+	index("idx_rl_reward_filled").on(table.rewardFilledAt),
+	index("idx_rl_created").on(table.createdAt),
+]);
+
+// LinUCB模型参数表 — 存储上下文赌博机的模型参数
+export const linucbModels = mysqlTable("linucb_models", {
+	id: int().autoincrement().notNull(),
+	accountId: int().notNull(),
+	armId: varchar("arm_id", { length: 128 }).notNull(),
+	armType: mysqlEnum("arm_type", ['bid_aggressive', 'bid_moderate', 'bid_conservative', 'bid_hold', 'bid_decrease']).notNull(),
+	// LinUCB参数 — A矩阵和b向量（JSON序列化存储）
+	matrixA: json("matrix_a").notNull(),
+	vectorB: json("vector_b").notNull(),
+	featureDim: int("feature_dim").notNull(),
+	alpha: decimal({ precision: 8, scale: 4 }).default('1.0000'),
+	// 统计信息
+	totalPulls: int("total_pulls").default(0),
+	totalReward: decimal("total_reward", { precision: 15, scale: 6 }).default('0'),
+	avgReward: decimal("avg_reward", { precision: 15, scale: 6 }).default('0'),
+	lastPulledAt: timestamp("last_pulled_at", { mode: 'string' }),
+	// 模型版本控制
+	modelVersion: int("model_version").default(1),
+	isActive: tinyint("is_active").default(1),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+	index("idx_linucb_account_arm").on(table.accountId, table.armId),
+	index("idx_linucb_active").on(table.isActive),
+]);
+
+// 因果推断结果表 — 存储Uplift模型的增量效应估计结果
+export const causalInferenceResults = mysqlTable("causal_inference_results", {
+	id: int().autoincrement().notNull(),
+	accountId: int().notNull(),
+	keywordId: int(),
+	targetId: int(),
+	campaignId: varchar({ length: 64 }),
+	analysisDate: date("analysis_date", { mode: 'string' }).notNull(),
+	// Uplift模型输出
+	estimatedIte: decimal("estimated_ite", { precision: 10, scale: 6 }),
+	treatmentCvr: decimal("treatment_cvr", { precision: 8, scale: 6 }),
+	controlCvr: decimal("control_cvr", { precision: 8, scale: 6 }),
+	upliftScore: decimal("uplift_score", { precision: 10, scale: 6 }),
+	confidenceInterval: decimal("confidence_interval", { precision: 8, scale: 4 }),
+	// 增量利润计算
+	incrementalRevenue: decimal("incremental_revenue", { precision: 12, scale: 2 }),
+	incrementalCost: decimal("incremental_cost", { precision: 12, scale: 2 }),
+	incrementalProfit: decimal("incremental_profit", { precision: 12, scale: 2 }),
+	incrementalRoas: decimal("incremental_roas", { precision: 10, scale: 4 }),
+	// 最优出价点（利润最大化）
+	optimalBid: decimal("optimal_bid", { precision: 10, scale: 4 }),
+	optimalBidLower: decimal("optimal_bid_lower", { precision: 10, scale: 4 }),
+	optimalBidUpper: decimal("optimal_bid_upper", { precision: 10, scale: 4 }),
+	// 模型元数据
+	modelVersion: varchar("model_version", { length: 32 }),
+	sampleSize: int("sample_size"),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("idx_ci_account_date").on(table.accountId, table.analysisDate),
+	index("idx_ci_keyword").on(table.keywordId),
+	index("idx_ci_target").on(table.targetId),
+	index("idx_ci_uplift").on(table.upliftScore),
+]);
+
+// 算法策略选择日志 — 记录元学习器的策略选择决策
+export const algorithmSelectionLogs = mysqlTable("algorithm_selection_logs", {
+	id: int().autoincrement().notNull(),
+	accountId: int().notNull(),
+	keywordId: int(),
+	targetId: int(),
+	campaignId: varchar({ length: 64 }),
+	// 候选算法及其得分
+	selectedAlgorithm: mysqlEnum("selected_algorithm", ['rule_based', 'ucb', 'linucb', 'sigmoid_curve', 'cql', 'ensemble']).notNull(),
+	algorithmScores: json("algorithm_scores"),
+	// 选择依据
+	selectionReason: text("selection_reason"),
+	contextFeatures: json("context_features"),
+	// 执行结果（延迟回填）
+	executedBid: decimal("executed_bid", { precision: 10, scale: 4 }),
+	resultReward: decimal("result_reward", { precision: 15, scale: 6 }),
+	resultFilledAt: timestamp("result_filled_at", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("idx_asl_account").on(table.accountId),
+	index("idx_asl_algorithm").on(table.selectedAlgorithm),
+	index("idx_asl_created").on(table.createdAt),
+]);
+
+// 预算组合优化结果表 — 存储预算分配优化的决策和结果
+export const budgetOptimizationResults = mysqlTable("budget_optimization_results", {
+	id: int().autoincrement().notNull(),
+	accountId: int().notNull(),
+	performanceGroupId: int(),
+	optimizationDate: date("optimization_date", { mode: 'string' }).notNull(),
+	totalBudget: decimal("total_budget", { precision: 12, scale: 2 }),
+	// 分配结果
+	allocations: json().notNull(),
+	// 预期效果
+	expectedTotalProfit: decimal("expected_total_profit", { precision: 12, scale: 2 }),
+	expectedTotalRoas: decimal("expected_total_roas", { precision: 10, scale: 4 }),
+	expectedTotalSales: decimal("expected_total_sales", { precision: 12, scale: 2 }),
+	// 实际效果（延迟回填）
+	actualTotalProfit: decimal("actual_total_profit", { precision: 12, scale: 2 }),
+	actualTotalRoas: decimal("actual_total_roas", { precision: 10, scale: 4 }),
+	actualTotalSales: decimal("actual_total_sales", { precision: 12, scale: 2 }),
+	// 优化算法元数据
+	algorithmUsed: mysqlEnum("algorithm_used", ['knapsack', 'combinatorial_bandit', 'marginal_utility', 'rule_based']).default('marginal_utility'),
+	iterationCount: int("iteration_count"),
+	convergenceScore: decimal("convergence_score", { precision: 8, scale: 6 }),
+	resultFilledAt: timestamp("result_filled_at", { mode: 'string' }),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+},
+(table) => [
+	index("idx_bor_account_date").on(table.accountId, table.optimizationDate),
+	index("idx_bor_group").on(table.performanceGroupId),
+]);
+
+// 关键词语义图谱表 — 存储关键词/搜索词之间的语义关系
+export const keywordSemanticGraph = mysqlTable("keyword_semantic_graph", {
+	id: int().autoincrement().notNull(),
+	accountId: int().notNull(),
+	sourceNodeType: mysqlEnum("source_node_type", ['keyword', 'search_term', 'asin']).notNull(),
+	sourceNodeId: varchar("source_node_id", { length: 256 }).notNull(),
+	targetNodeType: mysqlEnum("target_node_type", ['keyword', 'search_term', 'asin']).notNull(),
+	targetNodeId: varchar("target_node_id", { length: 256 }).notNull(),
+	edgeType: mysqlEnum("edge_type", ['triggers', 'semantic_similar', 'co_purchased', 'competes_with', 'converts_to']).notNull(),
+	edgeWeight: decimal("edge_weight", { precision: 8, scale: 6 }).default('1.000000'),
+	// 语义向量（LLM Embedding）
+	sourceEmbedding: json("source_embedding"),
+	targetEmbedding: json("target_embedding"),
+	cosineSimilarity: decimal("cosine_similarity", { precision: 8, scale: 6 }),
+	// 绩效关联
+	sharedImpressions: int("shared_impressions").default(0),
+	sharedClicks: int("shared_clicks").default(0),
+	sharedOrders: int("shared_orders").default(0),
+	isOpportunity: tinyint("is_opportunity").default(0),
+	isNegativeCandidate: tinyint("is_negative_candidate").default(0),
+	createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
+	updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+},
+(table) => [
+	index("idx_ksg_account").on(table.accountId),
+	index("idx_ksg_source").on(table.sourceNodeType, table.sourceNodeId),
+	index("idx_ksg_target").on(table.targetNodeType, table.targetNodeId),
+	index("idx_ksg_edge_type").on(table.edgeType),
+	index("idx_ksg_opportunity").on(table.isOpportunity),
 ]);
