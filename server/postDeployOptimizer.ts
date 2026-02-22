@@ -28,7 +28,7 @@ import { eq, and, sql, inArray, desc } from 'drizzle-orm';
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 186;
+export const SYSTEM_VERSION = 198;
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -91,6 +91,18 @@ const VERSION_CHANGELOG: VersionChange[] = [
     description: 'v186: 修复campaignId类型不匹配(varchar vs int) + multiDimOptimizer使用正确的本地ID查询hourly_performance + 位置优化使用正确的本地ID查询placement_performance',
     affectedModules: ['dayparting', 'dayparting_budget', 'placement', 'multidim', 'bid'],
     correctionActions: ['rebuild_combo_analysis', 'reset_dayparting_rules', 'reset_placement_rules', 'rerun_optimization'],
+  },
+  {
+    version: 197,
+    description: 'v197: NextGen算法体系 — Sigmoid曲线拟合、LinUCB上下文赌博机、因果推断Uplift模型、离线RL(CQL)、预算组合优化、关键词语义图谱、元学习策略选择器',
+    affectedModules: ['bid', 'budget', 'keyword'],
+    correctionActions: ['rerun_optimization', 'recalculate_budgets'],
+  },
+  {
+    version: 198,
+    description: 'v198: NextGen统一出价引擎 — 100%替换旧出价算法，三层降级链(高级算法→规则引擎→保守策略)，全自动化定时任务，历史决策复盘与纠错',
+    affectedModules: ['all'],
+    correctionActions: ['full_reoptimize', 'rebuild_combo_analysis', 'recalculate_budgets'],
   },
 ];
 
