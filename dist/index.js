@@ -49941,218 +49941,6 @@ function generateOptimizationReason(target, metrics, config2, newBid) {
   }
   return reasons.join("\uFF1B");
 }
-function calculateExplorationBid(target, config2, maxBidLimit = 2, minBidLimit = 0.02) {
-  let newBid = target.currentBid;
-  let reason = "";
-  const groupAvgCvr = config2.groupAvgCvr || 0.05;
-  const groupAvgAov = config2.groupAvgAov || 30;
-  const groupAvgCpc = config2.groupAvgCpc || 0.75;
-  const effectiveMaxBid = config2.maxBid || maxBidLimit;
-  const explorationCeiling = Math.min(groupAvgCpc * 3, effectiveMaxBid * 0.5, 3);
-  if (target.currentBid >= effectiveMaxBid * 0.9 && target.impressions === 0) {
-    newBid = Math.max(groupAvgCpc, minBidLimit);
-    reason = `[\u56DE\u9000\u6A21\u5F0F] \u51FA\u4EF7$${target.currentBid.toFixed(2)}\u5DF2\u63A5\u8FD1\u4E0A\u9650$${effectiveMaxBid.toFixed(2)}\u4F46\u96F6\u66DD\u5149\uFF0C\u8BE5\u5173\u952E\u8BCD\u53EF\u80FD\u65E0\u6548\uFF0C\u5F3A\u5236\u56DE\u9000\u81F3\u7EC4\u5E73\u5747CPC$${groupAvgCpc.toFixed(2)}`;
-  } else if (target.currentBid > explorationCeiling && target.clicks === 0) {
-    newBid = explorationCeiling;
-    reason = `[\u56DE\u9000\u6A21\u5F0F] \u51FA\u4EF7$${target.currentBid.toFixed(2)}\u8D85\u8FC7\u63A2\u7D22\u4E0A\u9650$${explorationCeiling.toFixed(2)}\u4F46\u96F6\u70B9\u51FB\uFF0C\u964D\u4EF7\u81F3\u63A2\u7D22\u4E0A\u9650`;
-  } else if (target.currentBid > groupAvgCpc * 2 && target.orders === 0 && target.spend > groupAvgCpc * 10) {
-    newBid = Math.max(target.currentBid * 0.8, groupAvgCpc);
-    reason = `[\u56DE\u9000\u6A21\u5F0F] \u51FA\u4EF7$${target.currentBid.toFixed(2)}\u8FDC\u8D85\u7EC4\u5E73\u5747CPC$${groupAvgCpc.toFixed(2)}\u4E14\u82B1\u8D39$${target.spend.toFixed(2)}\u65E0\u8F6C\u5316\uFF0C\u964D\u4EF720%\u63A7\u5236\u6210\u672C`;
-  } else if (target.impressions < 50) {
-    if (target.currentBid < explorationCeiling) {
-      const increment = Math.max(
-        target.currentBid * 0.08,
-        // 8%提价
-        0.03
-        // 最少$0.03
-      );
-      newBid = Math.min(target.currentBid + increment, explorationCeiling);
-      reason = `[\u63A2\u7D22\u6A21\u5F0F] \u66DD\u5149\u91CF\u4EC5${target.impressions}\uFF0C\u63A2\u6D4B\u6027\u63D0\u4EF7+$${increment.toFixed(2)}\u5BFB\u627E\u5408\u7406\u4EF7\u4F4D(\u4E0A\u9650$${explorationCeiling.toFixed(2)})`;
-    } else {
-      newBid = target.currentBid;
-      reason = `[\u63A2\u7D22\u6A21\u5F0F] \u66DD\u5149\u91CF\u4EC5${target.impressions}\uFF0C\u51FA\u4EF7\u5DF2\u8FBE\u63A2\u7D22\u4E0A\u9650$${explorationCeiling.toFixed(2)}\uFF0C\u4FDD\u6301\u89C2\u5BDF`;
-    }
-  } else if (target.clicks === 0) {
-    if (target.currentBid < explorationCeiling) {
-      const increment = Math.max(
-        target.currentBid * 0.05,
-        // 5%提价
-        0.02
-      );
-      newBid = Math.min(target.currentBid + increment, explorationCeiling);
-      reason = `[\u63A2\u7D22\u6A21\u5F0F] \u66DD\u5149${target.impressions}\u4F46\u96F6\u70B9\u51FB\uFF0C\u5C0F\u5E45\u63D0\u4EF7+$${increment.toFixed(2)}\u6539\u5584\u5E7F\u544A\u4F4D\u7F6E`;
-    } else {
-      newBid = target.currentBid * 0.95;
-      reason = `[\u63A2\u7D22\u6A21\u5F0F] \u66DD\u5149${target.impressions}\u4F46\u96F6\u70B9\u51FB\u4E14\u51FA\u4EF7\u5DF2\u8FBE\u63A2\u7D22\u4E0A\u9650\uFF0C\u5FAE\u964D5%\u6D4B\u8BD5\u4EF7\u683C\u654F\u611F\u6027`;
-    }
-  } else if (target.orders === 0) {
-    const currentCpc = target.clicks > 0 ? target.spend / target.clicks : target.currentBid;
-    if (currentCpc > groupAvgCpc * 1.5) {
-      newBid = Math.max(target.currentBid * 0.9, groupAvgCpc * 0.8);
-      reason = `[\u63A2\u7D22\u6A21\u5F0F] \u70B9\u51FB${target.clicks}\u65E0\u8F6C\u5316\uFF0CCPC($${currentCpc.toFixed(2)})\u9AD8\u4E8E\u7EC4\u5E73\u5747($${groupAvgCpc.toFixed(2)})\uFF0C\u964D\u4EF710%\u63A7\u5236\u6210\u672C`;
-    } else if (target.spend > groupAvgAov * 0.5 && target.clicks >= 3) {
-      newBid = target.currentBid * 0.95;
-      reason = `[\u63A2\u7D22\u6A21\u5F0F] \u70B9\u51FB${target.clicks}\u65E0\u8F6C\u5316\uFF0C\u82B1\u8D39$${target.spend.toFixed(2)}\u5DF2\u8FBE\u534A\u4E2A\u8BA2\u5355\u4EF7\u503C\uFF0C\u5FAE\u964D5%`;
-    } else {
-      newBid = target.currentBid;
-      reason = `[\u63A2\u7D22\u6A21\u5F0F] \u70B9\u51FB${target.clicks}\u65E0\u8F6C\u5316\uFF0CCPC\u5728\u5408\u7406\u8303\u56F4\uFF0C\u4FDD\u6301\u5F53\u524D\u51FA\u4EF7\u7EE7\u7EED\u79EF\u7D2F\u6570\u636E`;
-    }
-  } else {
-    const smoothedCvr = calculateBayesianSmoothedCvr(target.orders, target.clicks, groupAvgCvr);
-    let targetCpa;
-    if (config2.targetAcos && target.orders > 0) {
-      const avgOrderValue = target.sales / target.orders;
-      targetCpa = config2.targetAcos / 100 * avgOrderValue;
-    } else if (config2.targetRoas) {
-      targetCpa = groupAvgAov / config2.targetRoas;
-    } else {
-      targetCpa = groupAvgAov * 0.3;
-    }
-    const theoreticalBid = smoothedCvr * targetCpa;
-    if (theoreticalBid > target.currentBid) {
-      newBid = Math.min(theoreticalBid, target.currentBid * 1.15);
-    } else {
-      newBid = Math.max(theoreticalBid, target.currentBid * 0.85);
-    }
-    reason = `[\u63A2\u7D22\u6A21\u5F0F] \u70B9\u51FB${target.clicks}/\u8BA2\u5355${target.orders}\uFF0C\u8D1D\u53F6\u65AF\u5E73\u6ED1CVR(${(smoothedCvr * 100).toFixed(1)}%)\uFF0C\u57FA\u4E8E\u63A2\u7D22\u6027\u51FA\u4EF7\u8C03\u6574`;
-  }
-  newBid = Math.min(newBid, effectiveMaxBid);
-  newBid = Math.max(newBid, minBidLimit);
-  newBid = Math.round(newBid * 100) / 100;
-  let actionType = "set";
-  if (newBid > target.currentBid) actionType = "increase";
-  else if (newBid < target.currentBid) actionType = "decrease";
-  const bidChangePercent = target.currentBid > 0 ? (newBid - target.currentBid) / target.currentBid * 100 : 0;
-  return {
-    targetId: target.id,
-    targetType: target.type,
-    previousBid: target.currentBid,
-    newBid,
-    actionType,
-    bidChangePercent: Math.round(bidChangePercent * 100) / 100,
-    reason
-  };
-}
-function detectSuspectedOOS(target) {
-  if (target.historicalAvgImpressions !== void 0 && target.historicalAvgImpressions > ZERO_IMPRESSION_PROBING_CONFIG.oosHistoricalAvgThreshold && target.impressions === 0) {
-    return true;
-  }
-  return false;
-}
-function isNewCampaign(target) {
-  if (!target.campaignStartDate) return false;
-  const daysSinceStart = (Date.now() - target.campaignStartDate.getTime()) / (1e3 * 60 * 60 * 24);
-  return daysSinceStart <= ZERO_IMPRESSION_PROBING_CONFIG.newCampaignDays;
-}
-function calculateZeroImpressionProbing(target, config2, maxBidLimit) {
-  const { probingBidIncrementPercent, probingBidIncrementFixed } = ZERO_IMPRESSION_PROBING_CONFIG;
-  const effectiveMaxBid = config2.maxBid || maxBidLimit;
-  const groupAvgCpc = config2.groupAvgCpc || 0.75;
-  const explorationCeiling = Math.min(groupAvgCpc * 3, effectiveMaxBid * 0.5, 3);
-  let newBid;
-  let reason = "";
-  let actionType = "increase";
-  if (target.currentBid >= effectiveMaxBid * 0.9 && target.impressions === 0) {
-    newBid = Math.max(groupAvgCpc, 0.02);
-    actionType = "decrease";
-    reason = `[\u51B7\u542F\u52A8\u56DE\u9000] \u51FA\u4EF7$${target.currentBid.toFixed(2)}\u5DF2\u63A5\u8FD1\u4E0A\u9650\u4F46\u96F6\u66DD\u5149\uFF0C\u5F3A\u5236\u56DE\u9000\u81F3\u7EC4\u5E73\u5747CPC$${groupAvgCpc.toFixed(2)}`;
-  } else if (target.currentBid > explorationCeiling && target.impressions === 0) {
-    newBid = explorationCeiling;
-    actionType = "decrease";
-    reason = `[\u51B7\u542F\u52A8\u56DE\u9000] \u51FA\u4EF7$${target.currentBid.toFixed(2)}\u8D85\u8FC7\u63A2\u7D22\u4E0A\u9650$${explorationCeiling.toFixed(2)}\u4F46\u96F6\u66DD\u5149\uFF0C\u964D\u4EF7\u81F3\u63A2\u7D22\u4E0A\u9650`;
-  } else if (target.currentBid < explorationCeiling) {
-    const percentIncrease = target.currentBid * probingBidIncrementPercent;
-    const bidIncrement = Math.max(percentIncrease, probingBidIncrementFixed);
-    newBid = Math.min(target.currentBid + bidIncrement, explorationCeiling);
-    actionType = "increase";
-    if (target.impressions === 0) {
-      reason = `\u51B7\u542F\u52A8\u63A2\u6D4B\uFF1A\u96F6\u66DD\u5149\uFF0C\u63A2\u6D4B\u6027\u63D0\u4EF7+$${bidIncrement.toFixed(2)}\u5BFB\u627E\u5165\u573A\u4EF7\u4F4D(\u4E0A\u9650$${explorationCeiling.toFixed(2)})`;
-    } else {
-      reason = `\u51B7\u542F\u52A8\u63A2\u6D4B\uFF1A\u4F4E\u66DD\u5149(${target.impressions})\uFF0C\u63A2\u6D4B\u6027\u63D0\u4EF7+$${bidIncrement.toFixed(2)}\u83B7\u53D6\u66F4\u591A\u6D41\u91CF`;
-    }
-  } else {
-    newBid = target.currentBid;
-    actionType = "set";
-    reason = `\u51B7\u542F\u52A8\u63A2\u6D4B\uFF1A\u51FA\u4EF7\u5DF2\u8FBE\u63A2\u7D22\u4E0A\u9650$${explorationCeiling.toFixed(2)}\uFF0C\u66DD\u5149${target.impressions}\uFF0C\u4FDD\u6301\u89C2\u5BDF`;
-  }
-  newBid = Math.min(newBid, effectiveMaxBid);
-  newBid = Math.max(newBid, 0.02);
-  newBid = Math.round(newBid * 100) / 100;
-  const bidChangePercent = target.currentBid > 0 ? (newBid - target.currentBid) / target.currentBid * 100 : 0;
-  if (newBid > target.currentBid) actionType = "increase";
-  else if (newBid < target.currentBid) actionType = "decrease";
-  else actionType = "set";
-  return {
-    targetId: target.id,
-    targetType: target.type,
-    previousBid: target.currentBid,
-    newBid,
-    actionType,
-    bidChangePercent: Math.round(bidChangePercent * 100) / 100,
-    reason
-  };
-}
-function optimizePerformanceGroup(targets, config2, maxBidLimit = 2) {
-  const results = [];
-  const effectiveMaxBid = config2.maxBid || maxBidLimit;
-  for (const target of targets) {
-    if (target.currentBid > effectiveMaxBid) {
-      const newBid = Math.round(effectiveMaxBid * 100) / 100;
-      results.push({
-        targetId: target.id,
-        targetType: target.type,
-        previousBid: target.currentBid,
-        newBid,
-        actionType: "decrease",
-        bidChangePercent: Math.round((newBid - target.currentBid) / target.currentBid * 1e4) / 100,
-        reason: `[\u5F3A\u5236\u56DE\u9000] \u5F53\u524D\u51FA\u4EF7$${target.currentBid.toFixed(2)}\u8D85\u8FC7\u6700\u9AD8\u51FA\u4EF7\u9650\u5236$${effectiveMaxBid.toFixed(2)}\uFF0C\u5F3A\u5236\u964D\u4EF7`
-      });
-      continue;
-    }
-    if (detectSuspectedOOS(target)) {
-      results.push({
-        targetId: target.id,
-        targetType: target.type,
-        previousBid: target.currentBid,
-        newBid: target.currentBid,
-        actionType: "set",
-        bidChangePercent: 0,
-        reason: `\u7591\u4F3C\u65AD\u8D27/\u63C9\u8D2D\u7269\u8F66\u4E22\u5931\uFF1A\u5386\u53F2\u65E5\u5747\u66DD\u5149${target.historicalAvgImpressions}\u4F46\u5F53\u524D\u66DD\u5149\u4E3A0\uFF0C\u5F3A\u5236\u6682\u505C\u4F18\u5316\u4FDD\u6301\u5F53\u524D\u51FA\u4EF7`
-      });
-      continue;
-    }
-    if (target.impressions === 0 && target.currentBid >= effectiveMaxBid * 0.7) {
-      const groupAvgCpc = config2.groupAvgCpc || 0.75;
-      const rollbackBid = Math.max(Math.min(groupAvgCpc, effectiveMaxBid * 0.3), 0.02);
-      const newBid = Math.round(rollbackBid * 100) / 100;
-      results.push({
-        targetId: target.id,
-        targetType: target.type,
-        previousBid: target.currentBid,
-        newBid,
-        actionType: "decrease",
-        bidChangePercent: Math.round((newBid - target.currentBid) / target.currentBid * 1e4) / 100,
-        reason: `[\u96F6\u66DD\u5149\u56DE\u9000] \u51FA\u4EF7$${target.currentBid.toFixed(2)}\u5DF2\u8FBE\u4E0A\u9650\u768470%+\u4F46\u96F6\u66DD\u5149\uFF0C\u5F3A\u5236\u56DE\u9000\u81F3\u7EC4\u5E73\u5747CPC$${groupAvgCpc.toFixed(2)}`
-      });
-      continue;
-    }
-    if (target.impressions === 0 && isNewCampaign(target)) {
-      const probingResult = calculateZeroImpressionProbing(target, config2, effectiveMaxBid);
-      results.push(probingResult);
-      continue;
-    }
-    if (!isDataSufficient(target, config2)) {
-      const explorationResult = calculateExplorationBid(target, config2, effectiveMaxBid);
-      results.push(explorationResult);
-      continue;
-    }
-    const result = calculateBidAdjustment(target, config2, effectiveMaxBid);
-    if (Math.abs(result.bidChangePercent) > 1) {
-      results.push(result);
-    }
-  }
-  return results;
-}
 function calculateASPSensitivity(currentASP, historicalASP) {
   if (!currentASP || !historicalASP || historicalASP === 0) {
     return {
@@ -50186,7 +49974,7 @@ function calculateASPSensitivity(currentASP, historicalASP) {
     reason: `ASP\u7A33\u5B9A($${currentASP.toFixed(2)}\uFF0C\u53D8\u52A8${(aspChangePercent * 100).toFixed(1)}%)\uFF0C\u4FDD\u6301\u6807\u51C6ACoS\u76EE\u6807`
   };
 }
-var DATA_SUFFICIENCY_THRESHOLDS, STRATEGY_DATA_THRESHOLDS, BAYESIAN_CONFIDENCE, ZERO_IMPRESSION_PROBING_CONFIG, ASP_SENSITIVITY_CONFIG;
+var DATA_SUFFICIENCY_THRESHOLDS, STRATEGY_DATA_THRESHOLDS, BAYESIAN_CONFIDENCE, ASP_SENSITIVITY_CONFIG;
 var init_bidOptimizer = __esm({
   "server/bidOptimizer.ts"() {
     "use strict";
@@ -50213,23 +50001,6 @@ var init_bidOptimizer = __esm({
       "seasonal-pattern": { minClicks: 12, minOrders: 2 }
     };
     BAYESIAN_CONFIDENCE = 1;
-    ZERO_IMPRESSION_PROBING_CONFIG = {
-      newCampaignDays: 7,
-      // Campaign创建7天内视为新品
-      probingBidIncrementPercent: 0.1,
-      // 每次探测提价百分比
-      probingBidIncrementFixed: 0.05,
-      // 每次探测提价固定金额($)
-      probingImpressionThreshold: 500,
-      // 曝光达到500后退出探测模式
-      oosHistoricalAvgThreshold: 1e3,
-      // 历史日均曝光>1000且昨日曝光=0，判定为疑似断货
-      // v122g: 探索模式配置
-      explorationMaxBidPercent: 0.15,
-      // 探索模式最大提价百分比
-      explorationMinImpressions: 200
-      // 探索模式最低曝光要求
-    };
     ASP_SENSITIVITY_CONFIG = {
       significantDropPercent: 0.1,
       // ASP下降>10%视为显著降价（秒杀/促销）
@@ -358836,6 +358607,7 @@ function getEventCategoryLabel(category) {
 }
 
 // server/routers.ts
+init_nextGenBidOrchestrator();
 init_causalInferenceEngine();
 init_keywordGraphService();
 init_algorithmEvolutionEngine();
@@ -365045,18 +364817,20 @@ var optimizationRouter = router({
     }
     const campaigns7 = await getCampaignsByPerformanceGroupId(input.performanceGroupId);
     const results = [];
-    const config2 = {
+    const groupConfig = {
       optimizationGoal: group.optimizationGoal || "maximize_sales",
       targetAcos: group.targetAcos ? parseFloat(group.targetAcos) : void 0,
       targetRoas: group.targetRoas ? parseFloat(group.targetRoas) : void 0,
       dailySpendLimit: group.dailySpendLimit ? parseFloat(group.dailySpendLimit) : void 0,
-      dailyCostTarget: group.dailyCostTarget ? parseFloat(group.dailyCostTarget) : void 0
+      dailyCostTarget: group.dailyCostTarget ? parseFloat(group.dailyCostTarget) : void 0,
+      maxBid: group.maxBid ? parseFloat(group.maxBid) : 10
     };
     for (const campaign of campaigns7) {
       const adGroups4 = await getAdGroupsByCampaignId(campaign.id);
+      const maxBidLimit = campaign.maxBid ? parseFloat(campaign.maxBid) : groupConfig.maxBid || 10;
       for (const adGroup of adGroups4) {
         const keywords8 = await getKeywordsByAdGroupId(adGroup.id);
-        const keywordTargets = keywords8.map((k5) => ({
+        const keywordTargets = keywords8.filter((k5) => k5.keywordStatus === "enabled" && parseFloat(k5.bid) > 0).map((k5) => ({
           id: k5.id,
           type: "keyword",
           currentBid: parseFloat(k5.bid),
@@ -365067,14 +364841,29 @@ var optimizationRouter = router({
           orders: k5.orders || 0,
           matchType: k5.matchType
         }));
-        const keywordResults = optimizePerformanceGroup(
-          keywordTargets,
-          config2,
-          campaign.maxBid ? parseFloat(campaign.maxBid) : 10
-        );
-        results.push(...keywordResults);
+        if (keywordTargets.length > 0) {
+          const nextGenKeywordResults = await batchCalculateNextGenBids(
+            group.accountId,
+            keywordTargets,
+            groupConfig,
+            maxBidLimit
+          );
+          for (const ngr of nextGenKeywordResults) {
+            if (ngr.actionType !== "hold") {
+              results.push({
+                targetId: ngr.targetId,
+                targetType: ngr.targetType === "keyword" ? "keyword" : "product_target",
+                previousBid: ngr.previousBid,
+                newBid: ngr.newBid,
+                actionType: ngr.actionType,
+                bidChangePercent: ngr.bidChangePercent,
+                reason: ngr.reason
+              });
+            }
+          }
+        }
         const targets = await getProductTargetsByAdGroupId(adGroup.id);
-        const productTargets4 = targets.map((t7) => ({
+        const productTargets4 = targets.filter((t7) => t7.targetStatus === "enabled" && parseFloat(t7.bid) > 0).map((t7) => ({
           id: t7.id,
           type: "product_target",
           currentBid: parseFloat(t7.bid),
@@ -365084,12 +364873,27 @@ var optimizationRouter = router({
           sales: parseFloat(t7.sales || "0"),
           orders: t7.orders || 0
         }));
-        const targetResults = optimizePerformanceGroup(
-          productTargets4,
-          config2,
-          campaign.maxBid ? parseFloat(campaign.maxBid) : 10
-        );
-        results.push(...targetResults);
+        if (productTargets4.length > 0) {
+          const nextGenPtResults = await batchCalculateNextGenBids(
+            group.accountId,
+            productTargets4,
+            groupConfig,
+            maxBidLimit
+          );
+          for (const ngr of nextGenPtResults) {
+            if (ngr.actionType !== "hold") {
+              results.push({
+                targetId: ngr.targetId,
+                targetType: ngr.targetType === "keyword" ? "keyword" : "product_target",
+                previousBid: ngr.previousBid,
+                newBid: ngr.newBid,
+                actionType: ngr.actionType,
+                bidChangePercent: ngr.bidChangePercent,
+                reason: ngr.reason
+              });
+            }
+          }
+        }
       }
     }
     if (!input.dryRun) {

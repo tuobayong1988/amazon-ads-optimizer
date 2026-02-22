@@ -3183,58 +3183,89 @@ const optimizationRouter = router({
       const campaigns = await db.getCampaignsByPerformanceGroupId(input.performanceGroupId);
       const results: bidOptimizer.OptimizationResult[] = [];
       
-      const config: bidOptimizer.PerformanceGroupConfig = {
+      // v198: 使用NextGen统一出价引擎，替代旧的bidOptimizer.optimizePerformanceGroup
+      const groupConfig: bidOptimizer.PerformanceGroupConfig = {
         optimizationGoal: group.optimizationGoal || "maximize_sales",
         targetAcos: group.targetAcos ? parseFloat(group.targetAcos) : undefined,
         targetRoas: group.targetRoas ? parseFloat(group.targetRoas) : undefined,
         dailySpendLimit: group.dailySpendLimit ? parseFloat(group.dailySpendLimit) : undefined,
         dailyCostTarget: group.dailyCostTarget ? parseFloat(group.dailyCostTarget) : undefined,
+        maxBid: group.maxBid ? parseFloat(group.maxBid) : 10.00,
       };
       
       for (const campaign of campaigns) {
         const adGroups = await db.getAdGroupsByCampaignId(campaign.id);
+        const maxBidLimit = campaign.maxBid ? parseFloat(campaign.maxBid) : (groupConfig.maxBid || 10.00);
         
         for (const adGroup of adGroups) {
-          // Optimize keywords
+          // v198: 收集关键词并使用NextGen编排器
           const keywords = await db.getKeywordsByAdGroupId(adGroup.id);
-          const keywordTargets: bidOptimizer.OptimizationTarget[] = keywords.map(k => ({
-            id: k.id,
-            type: "keyword" as const,
-            currentBid: parseFloat(k.bid),
-            impressions: k.impressions || 0,
-            clicks: k.clicks || 0,
-            spend: parseFloat(k.spend || "0"),
-            sales: parseFloat(k.sales || "0"),
-            orders: k.orders || 0,
-            matchType: k.matchType,
-          }));
+          const keywordTargets: bidOptimizer.OptimizationTarget[] = keywords
+            .filter(k => k.keywordStatus === 'enabled' && parseFloat(k.bid) > 0)
+            .map(k => ({
+              id: k.id,
+              type: "keyword" as const,
+              currentBid: parseFloat(k.bid),
+              impressions: k.impressions || 0,
+              clicks: k.clicks || 0,
+              spend: parseFloat(k.spend || "0"),
+              sales: parseFloat(k.sales || "0"),
+              orders: k.orders || 0,
+              matchType: k.matchType,
+            }));
           
-          const keywordResults = bidOptimizer.optimizePerformanceGroup(
-            keywordTargets,
-            config,
-            campaign.maxBid ? parseFloat(campaign.maxBid) : 10.00
-          );
-          results.push(...keywordResults);
+          if (keywordTargets.length > 0) {
+            const nextGenKeywordResults = await nextGenOrchestrator.batchCalculateNextGenBids(
+              group.accountId, keywordTargets, groupConfig, maxBidLimit
+            );
+            for (const ngr of nextGenKeywordResults) {
+              if (ngr.actionType !== 'hold') {
+                results.push({
+                  targetId: ngr.targetId,
+                  targetType: ngr.targetType === 'keyword' ? 'keyword' : 'product_target',
+                  previousBid: ngr.previousBid,
+                  newBid: ngr.newBid,
+                  actionType: ngr.actionType,
+                  bidChangePercent: ngr.bidChangePercent,
+                  reason: ngr.reason,
+                });
+              }
+            }
+          }
           
-          // Optimize product targets
+          // v198: 收集商品定向并使用NextGen编排器
           const targets = await db.getProductTargetsByAdGroupId(adGroup.id);
-          const productTargets: bidOptimizer.OptimizationTarget[] = targets.map(t => ({
-            id: t.id,
-            type: "product_target" as const,
-            currentBid: parseFloat(t.bid),
-            impressions: t.impressions || 0,
-            clicks: t.clicks || 0,
-            spend: parseFloat(t.spend || "0"),
-            sales: parseFloat(t.sales || "0"),
-            orders: t.orders || 0,
-          }));
+          const productTargets: bidOptimizer.OptimizationTarget[] = targets
+            .filter(t => t.targetStatus === 'enabled' && parseFloat(t.bid) > 0)
+            .map(t => ({
+              id: t.id,
+              type: "product_target" as const,
+              currentBid: parseFloat(t.bid),
+              impressions: t.impressions || 0,
+              clicks: t.clicks || 0,
+              spend: parseFloat(t.spend || "0"),
+              sales: parseFloat(t.sales || "0"),
+              orders: t.orders || 0,
+            }));
           
-          const targetResults = bidOptimizer.optimizePerformanceGroup(
-            productTargets,
-            config,
-            campaign.maxBid ? parseFloat(campaign.maxBid) : 10.00
-          );
-          results.push(...targetResults);
+          if (productTargets.length > 0) {
+            const nextGenPtResults = await nextGenOrchestrator.batchCalculateNextGenBids(
+              group.accountId, productTargets, groupConfig, maxBidLimit
+            );
+            for (const ngr of nextGenPtResults) {
+              if (ngr.actionType !== 'hold') {
+                results.push({
+                  targetId: ngr.targetId,
+                  targetType: ngr.targetType === 'keyword' ? 'keyword' : 'product_target',
+                  previousBid: ngr.previousBid,
+                  newBid: ngr.newBid,
+                  actionType: ngr.actionType,
+                  bidChangePercent: ngr.bidChangePercent,
+                  reason: ngr.reason,
+                });
+              }
+            }
+          }
         }
       }
       
