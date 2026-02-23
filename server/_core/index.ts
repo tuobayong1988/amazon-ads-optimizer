@@ -16,6 +16,7 @@ import sitemapRouter from "../routes/sitemap";
 import { SYSTEM_VERSION } from '../postDeployOptimizer';
 import { orchestrateStartup, getSystemInfo, isShuttingDown } from '../deployLifecycleManager';
 import { ensureNextGenTables } from '../nextGenMigration';
+import { migrateCampaignIdsToAmazonIds } from '../utils/migrateCampaignIds';
 import { logger } from '../utils/logger';
 import { getDb } from '../db';
 
@@ -172,6 +173,13 @@ async function startServer() {
       }
     }).catch(err => {
       console.error('[AutoMigration] v146迁移异常:', err.message);
+    });
+
+    // v208: 启动时自动修复历史数据中的campaignId（本地int → Amazon ID）
+    migrateCampaignIdsToAmazonIds().then(() => {
+      console.log('[AutoMigration] v208 campaignId标准化迁移完成');
+    }).catch(err => {
+      console.error('[AutoMigration] v208 campaignId迁移异常:', err.message);
     });
 
     // 启动定时同步调度器（每1小时执行一次）

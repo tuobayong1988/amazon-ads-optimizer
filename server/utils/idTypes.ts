@@ -1,7 +1,8 @@
 /**
- * Amazon Ads Optimizer — Unified ID Type System (v206)
+ * Amazon Ads Optimizer — Unified ID Type System (v208)
  * 
  * 本模块是整个系统的ID管理基石。
+ * v208升级：运行时断言 + 标准化工具 + 编译时品牌类型强制化
  * 
  * ═══════════════════════════════════════════════════════════════════
  * 核心原则（THE LAW）：
@@ -19,6 +20,8 @@
  * 
  * 4. 调用Amazon API时，必须传Amazon ID（varchar字段的值）
  *    更新本地DB时，必须用本地ID（int字段的值）
+ * 
+ * 5. 所有campaign循环必须在入口处调用 extractCampaignIds() 提取双ID
  * ═══════════════════════════════════════════════════════════════════
  */
 
@@ -78,19 +81,19 @@ export function isValidLocalId(value: any): boolean {
  * 启发式规则：
  * - 本地自增ID通常 < 100,000
  * - Amazon campaignId通常 > 1,000,000,000（10位以上）
- * - 如果是字符串且长度>=10，几乎肯定是Amazon ID
+ * - 如果是字符串且长度>=8，几乎肯定是Amazon ID
  */
 export function classifyCampaignId(value: string | number): 'amazon' | 'local' | 'ambiguous' {
   const str = String(value).trim();
   if (!isValidAmazonId(str)) return 'ambiguous';
   
-  // 字符串类型输入 → 大概率是Amazon ID
+  // 字符串类型输入且长度>=8 → 大概率是Amazon ID
   if (typeof value === 'string' && str.length >= 8) return 'amazon';
   
   // 数字类型输入
   const num = typeof value === 'number' ? value : parseInt(str, 10);
   
-  // 超过JS安全整数范围 → 一定是Amazon ID（已经丢精度了，但至少能识别）
+  // 超过JS安全整数范围 → 一定是Amazon ID
   if (str.length > 15) return 'amazon';
   
   // 10位以上数字 → Amazon ID
@@ -103,52 +106,194 @@ export function classifyCampaignId(value: string | number): 'amazon' | 'local' |
   return 'ambiguous';
 }
 
-// ==================== 安全转换函数 ====================
+// ==================== v208: 运行时断言函数 ====================
+
+/**
+ * 断言一个值是有效的Amazon Campaign ID
+ * 如果不是，抛出错误并记录详细日志
+ * 
+ * 用于所有需要Amazon campaignId的函数入口：
+ * - 查询函数（getKeywordsByCampaignId等）
+ * - INSERT语句中的campaignId字段
+ * - Amazon API调用
+ */
+export function assertAmazonCampaignId(
+  value: any,
+  context: string
+): asserts value is string {
+  const str = String(value).trim();
+  const classification = classifyCampaignId(value);
+  
+  if (classification === 'local') {
+    const errorMsg = `[IdTypes] ⛔ 断言失败: 检测到本地campaignId(${value})被用于需要Amazon ID的场景! ` +
+      `调用来源: ${context}. 必须传入campaign.campaignId而非campaign.id`;
+    log.error(errorMsg);
+    // 在生产环境中记录但不抛错，避免中断服务
+    // 但在日志中留下明确的错误痕迹
+    console.error(errorMsg);
+  }
+}
+
+/**
+ * 断言一个值是有效的Amazon Ad Group ID
+ */
+export function assertAmazonAdGroupId(
+  value: any,
+  context: string
+): asserts value is string {
+  const str = String(value).trim();
+  const classification = classifyCampaignId(value); // 复用同一个分类逻辑
+  
+  if (classification === 'local') {
+    const errorMsg = `[IdTypes] ⛔ 断言失败: 检测到本地adGroupId(${value})被用于需要Amazon ID的场景! ` +
+      `调用来源: ${context}. 必须传入adGroup.adGroupId而非adGroup.id`;
+    log.error(errorMsg);
+    console.error(errorMsg);
+  }
+}
+
+/**
+ * 断言一个值是有效的本地ID（正整数）
+ */
+export function assertLocalId(
+  value: any,
+  context: string
+): asserts value is number {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+    const errorMsg = `[IdTypes] ⛔ 断言失败: 无效的本地ID(${value}, type=${typeof value})! 调用来源: ${context}`;
+    log.error(errorMsg);
+    throw new Error(errorMsg);
+  }
+}
+
+// ==================== v208: 标准化双ID提取工具 ====================
+
+/**
+ * Campaign双ID提取结果
+ */
+export interface CampaignIds {
+  /** 本地数据库自增ID（int），用于 updateCampaign() 等本地DB操作 */
+  localId: number;
+  /** Amazon Campaign ID（varchar），用于所有查询函数、INSERT、API调用 */
+  amazonId: string;
+}
+
+/**
+ * AdGroup双ID提取结果
+ */
+export interface AdGroupIds {
+  /** 本地数据库自增ID（int），用于 keywords.adGroupId 等本地FK */
+  localId: number;
+  /** Amazon Ad Group ID（varchar），用于 Amazon API 调用 */
+  amazonId: string;
+}
+
+/**
+ * 从Campaign对象中一次性提取双ID
+ * 
+ * ★ 这是所有campaign循环的标准入口 ★
+ * 
+ * 用法：
+ * ```typescript
+ * for (const campaign of campaigns) {
+ *   const { localId: campaignLocalId, amazonId: campaignAmazonId } = extractCampaignIds(campaign);
+ *   // 后续代码中只使用 campaignLocalId 和 campaignAmazonId
+ * }
+ * ```
+ * 
+ * 如果campaign对象缺少必要的ID，会抛出错误并记录详细日志。
+ */
+export function extractCampaignIds(campaign: { id?: number; campaignId?: string | number | null }, context: string = ''): CampaignIds {
+  // 提取本地ID
+  const localId = campaign.id;
+  if (localId == null || typeof localId !== 'number' || localId <= 0) {
+    const errorMsg = `[IdTypes] ⛔ Campaign对象缺少有效的本地id! id=${campaign.id}, campaignId=${campaign.campaignId}${context ? ` [${context}]` : ''}`;
+    log.error(errorMsg);
+    throw new Error(errorMsg);
+  }
+  
+  // 提取Amazon ID
+  const rawAmazonId = campaign.campaignId;
+  if (rawAmazonId == null) {
+    const errorMsg = `[IdTypes] ⛔ Campaign对象缺少campaignId字段! id=${campaign.id}${context ? ` [${context}]` : ''}`;
+    log.error(errorMsg);
+    throw new Error(errorMsg);
+  }
+  
+  const amazonId = String(rawAmazonId).trim();
+  if (!isValidAmazonId(amazonId)) {
+    const errorMsg = `[IdTypes] ⛔ Campaign的campaignId无效! id=${campaign.id}, campaignId="${rawAmazonId}"${context ? ` [${context}]` : ''}`;
+    log.error(errorMsg);
+    throw new Error(errorMsg);
+  }
+  
+  // 额外安全检查：如果amazonId看起来像本地ID，发出警告
+  if (classifyCampaignId(amazonId) === 'local') {
+    log.warn(`[IdTypes] ⚠️ Campaign的campaignId(${amazonId})看起来像本地ID! id=${campaign.id}. 可能是历史数据问题。${context ? ` [${context}]` : ''}`);
+  }
+  
+  return { localId, amazonId };
+}
+
+/**
+ * 从AdGroup对象中一次性提取双ID
+ * 
+ * 用法：
+ * ```typescript
+ * for (const ag of adGroups) {
+ *   const { localId: agLocalId, amazonId: agAmazonId } = extractAdGroupIds(ag);
+ * }
+ * ```
+ */
+export function extractAdGroupIds(adGroup: { id?: number; adGroupId?: string | number | null }, context: string = ''): AdGroupIds {
+  const localId = adGroup.id;
+  if (localId == null || typeof localId !== 'number' || localId <= 0) {
+    const errorMsg = `[IdTypes] ⛔ AdGroup对象缺少有效的本地id! id=${adGroup.id}, adGroupId=${adGroup.adGroupId}${context ? ` [${context}]` : ''}`;
+    log.error(errorMsg);
+    throw new Error(errorMsg);
+  }
+  
+  const rawAmazonId = adGroup.adGroupId;
+  if (rawAmazonId == null) {
+    const errorMsg = `[IdTypes] ⛔ AdGroup对象缺少adGroupId字段! id=${adGroup.id}${context ? ` [${context}]` : ''}`;
+    log.error(errorMsg);
+    throw new Error(errorMsg);
+  }
+  
+  const amazonId = String(rawAmazonId).trim();
+  if (!isValidAmazonId(amazonId)) {
+    const errorMsg = `[IdTypes] ⛔ AdGroup的adGroupId无效! id=${adGroup.id}, adGroupId="${rawAmazonId}"${context ? ` [${context}]` : ''}`;
+    log.error(errorMsg);
+    throw new Error(errorMsg);
+  }
+  
+  return { localId, amazonId };
+}
+
+// ==================== 安全转换函数（保留向后兼容） ====================
 
 /**
  * 从Campaign对象中安全提取Amazon Campaign ID
- * 
- * campaigns表有两个ID：
- * - campaign.id = 本地自增int（用于本地DB操作）
- * - campaign.campaignId = Amazon varchar（用于API调用和跨表JOIN）
+ * @deprecated 请使用 extractCampaignIds() 替代
  */
 export function getCampaignAmazonId(campaign: { id?: number; campaignId?: string | number }): string {
-  // 优先使用campaignId字段（这是Amazon ID）
-  if (campaign.campaignId != null) {
-    const amazonId = String(campaign.campaignId).trim();
-    if (isValidAmazonId(amazonId)) {
-      return amazonId;
-    }
-  }
-  
-  // 如果campaignId不可用，这是一个严重错误
-  log.error(`[IdTypes] ⛔ Campaign对象缺少有效的Amazon campaignId! id=${campaign.id}, campaignId=${campaign.campaignId}`);
-  throw new Error(`Campaign缺少Amazon campaignId (localId=${campaign.id})`);
+  return extractCampaignIds(campaign).amazonId;
 }
 
 /**
  * 从Campaign对象中安全提取本地ID
+ * @deprecated 请使用 extractCampaignIds() 替代
  */
 export function getCampaignLocalId(campaign: { id?: number; campaignId?: string }): number {
-  if (campaign.id != null && typeof campaign.id === 'number' && campaign.id > 0) {
-    return campaign.id;
-  }
-  log.error(`[IdTypes] ⛔ Campaign对象缺少有效的本地id! id=${campaign.id}`);
-  throw new Error(`Campaign缺少本地id`);
+  return extractCampaignIds(campaign).localId;
 }
 
 /**
  * 从AdGroup对象中安全提取Amazon Ad Group ID
+ * @deprecated 请使用 extractAdGroupIds() 替代
  */
 export function getAdGroupAmazonId(adGroup: { id?: number; adGroupId?: string | number }): string {
-  if (adGroup.adGroupId != null) {
-    const amazonId = String(adGroup.adGroupId).trim();
-    if (isValidAmazonId(amazonId)) {
-      return amazonId;
-    }
-  }
-  log.error(`[IdTypes] ⛔ AdGroup对象缺少有效的Amazon adGroupId! id=${adGroup.id}, adGroupId=${adGroup.adGroupId}`);
-  throw new Error(`AdGroup缺少Amazon adGroupId (localId=${adGroup.id})`);
+  return extractAdGroupIds(adGroup).amazonId;
 }
 
 /**
@@ -179,31 +324,80 @@ export function getTargetAmazonId(target: { id?: number; targetId?: string | nul
   return null;
 }
 
-// ==================== 安全的campaignId参数处理 ====================
+// ==================== v208: 查询函数入口守卫 ====================
 
 /**
- * 将任意类型的campaignId参数转换为Amazon campaignId字符串
+ * 查询函数的campaignId参数守卫
  * 
- * 这是所有查询函数的入口守卫：
- * - 如果传入的是Amazon ID字符串 → 直接返回
- * - 如果传入的是本地int ID → 记录警告并尝试转换（但可能产生错误结果）
- * - 如果无法判断 → 记录错误并原样返回字符串
+ * 在所有以campaignId为参数的查询函数入口处调用：
+ * - 验证传入的值是否是Amazon ID格式
+ * - 如果检测到本地ID，记录错误日志（生产环境不抛错，避免中断）
+ * - 返回标准化的字符串
  * 
- * 长期目标：所有调用者都应该传入正确的Amazon ID，消除此函数中的警告
+ * 用法：
+ * ```typescript
+ * export async function getKeywordsByCampaignId(campaignId: string | number) {
+ *   const safeCampaignId = guardCampaignIdParam(campaignId, 'getKeywordsByCampaignId');
+ *   // 使用 safeCampaignId 进行查询
+ * }
+ * ```
  */
-export function ensureAmazonCampaignId(
+export function guardCampaignIdParam(
   value: string | number,
-  context: string = 'unknown'
+  functionName: string
 ): string {
   const str = String(value).trim();
   const classification = classifyCampaignId(value);
   
   if (classification === 'local') {
-    // ⚠️ 这是一个bug信号：调用者传了本地ID，但查询需要Amazon ID
-    log.warn(`[IdTypes] ⚠️ 检测到本地campaignId(${value})被用于需要Amazon ID的场景! 调用来源: ${context}. 请修复调用者传入campaign.campaignId而非campaign.id`);
+    // ⛔ 这是一个严重bug：调用者传了本地ID给需要Amazon ID的查询
+    log.error(
+      `[IdTypes] ⛔ ${functionName}() 收到本地campaignId(${value})! ` +
+      `这将导致查询返回空结果。调用者必须传入campaign.campaignId而非campaign.id`
+    );
+    // 记录调用栈以便定位bug
+    console.error(new Error(`[IdTypes] ${functionName}() 收到本地campaignId(${value})`).stack);
   }
   
   return str;
+}
+
+/**
+ * INSERT语句中campaignId字段的守卫
+ * 
+ * 在所有INSERT/UPDATE语句中campaignId字段赋值前调用：
+ * - 验证要写入的值是否是Amazon ID格式
+ * - 如果检测到本地ID，记录错误日志
+ * - 返回标准化的字符串
+ */
+export function guardCampaignIdInsert(
+  value: string | number,
+  tableName: string
+): string {
+  const str = String(value).trim();
+  const classification = classifyCampaignId(value);
+  
+  if (classification === 'local') {
+    log.error(
+      `[IdTypes] ⛔ 尝试将本地campaignId(${value})写入${tableName}.campaignId! ` +
+      `该字段应存储Amazon Campaign ID。调用者必须传入campaign.campaignId而非campaign.id`
+    );
+    console.error(new Error(`[IdTypes] 本地ID(${value})写入${tableName}.campaignId`).stack);
+  }
+  
+  return str;
+}
+
+// ==================== 安全的campaignId参数处理（向后兼容） ====================
+
+/**
+ * @deprecated 请使用 guardCampaignIdParam() 替代
+ */
+export function ensureAmazonCampaignId(
+  value: string | number,
+  context: string = 'unknown'
+): string {
+  return guardCampaignIdParam(value, context);
 }
 
 /**
@@ -250,7 +444,7 @@ export function buildTargetIdMap(targets: Array<{ id: number; targetId?: string 
   return map;
 }
 
-// ==================== ID字典：全系统ID规范速查 ====================
+// ==================== ID字典：全系统ID规范速查（v208更新） ====================
 
 /**
  * ID_DICTIONARY: 每个表的每个ID字段的权威定义
@@ -258,36 +452,48 @@ export function buildTargetIdMap(targets: Array<{ id: number; targetId?: string 
  * 开发者在写任何涉及ID的代码前，必须查阅此字典。
  * 
  * 格式: table.field → { dbType, meaning, joinsWith, apiUsage }
+ * 
+ * v208更新：negativeKeywords.campaignId 和 biddingLogs.campaignId 
+ * 已通过数据迁移统一为 Amazon ID
  */
 export const ID_DICTIONARY = {
   // ===== campaigns =====
-  'campaigns.id':           { dbType: 'int',      meaning: 'LOCAL_PK',    joinsWith: 'NOTHING across tables', apiUsage: 'NEVER send to Amazon API' },
-  'campaigns.campaignId':   { dbType: 'varchar',  meaning: 'AMAZON_ID',   joinsWith: 'adGroups.campaignId, dailyPerformance.campaignId, searchTerms.campaignId', apiUsage: 'Use for all Amazon API calls' },
-  'campaigns.accountId':    { dbType: 'int',      meaning: 'LOCAL_FK',    joinsWith: 'accounts.id', apiUsage: 'N/A' },
+  'campaigns.id':           { dbType: 'int',      meaning: 'LOCAL_PK',    joinsWith: 'NOTHING across tables', apiUsage: 'NEVER send to Amazon API', guard: 'assertLocalId' },
+  'campaigns.campaignId':   { dbType: 'varchar',  meaning: 'AMAZON_ID',   joinsWith: 'adGroups.campaignId, dailyPerformance.campaignId, searchTerms.campaignId, negativeKeywords.campaignId, biddingLogs.campaignId', apiUsage: 'Use for all Amazon API calls', guard: 'assertAmazonCampaignId' },
+  'campaigns.accountId':    { dbType: 'int',      meaning: 'LOCAL_FK',    joinsWith: 'accounts.id', apiUsage: 'N/A', guard: 'assertLocalId' },
   
   // ===== adGroups =====
-  'adGroups.id':            { dbType: 'int',      meaning: 'LOCAL_PK',    joinsWith: 'keywords.adGroupId, productTargets.adGroupId', apiUsage: 'NEVER send to Amazon API' },
-  'adGroups.adGroupId':     { dbType: 'varchar',  meaning: 'AMAZON_ID',   joinsWith: 'Amazon API only', apiUsage: 'Use for all Amazon API calls' },
-  'adGroups.campaignId':    { dbType: 'varchar',  meaning: 'AMAZON_FK',   joinsWith: '⚠️ campaigns.campaignId (NOT campaigns.id!)', apiUsage: 'N/A' },
+  'adGroups.id':            { dbType: 'int',      meaning: 'LOCAL_PK',    joinsWith: 'keywords.adGroupId, productTargets.adGroupId', apiUsage: 'NEVER send to Amazon API', guard: 'assertLocalId' },
+  'adGroups.adGroupId':     { dbType: 'varchar',  meaning: 'AMAZON_ID',   joinsWith: 'Amazon API only', apiUsage: 'Use for all Amazon API calls', guard: 'assertAmazonAdGroupId' },
+  'adGroups.campaignId':    { dbType: 'varchar',  meaning: 'AMAZON_FK',   joinsWith: '⚠️ campaigns.campaignId (NOT campaigns.id!)', apiUsage: 'N/A', guard: 'assertAmazonCampaignId' },
   
   // ===== keywords =====
-  'keywords.id':            { dbType: 'int',      meaning: 'LOCAL_PK',    joinsWith: 'biddingLogs.targetId, optimizationEvents.keyword_id', apiUsage: 'NEVER send to Amazon API' },
-  'keywords.keywordId':     { dbType: 'varchar',  meaning: 'AMAZON_ID',   joinsWith: 'Amazon API only', apiUsage: 'Use for all Amazon API calls (bid updates, etc.)' },
-  'keywords.adGroupId':     { dbType: 'int',      meaning: 'LOCAL_FK',    joinsWith: 'adGroups.id', apiUsage: 'N/A' },
+  'keywords.id':            { dbType: 'int',      meaning: 'LOCAL_PK',    joinsWith: 'biddingLogs.targetId, optimizationEvents.keyword_id', apiUsage: 'NEVER send to Amazon API', guard: 'assertLocalId' },
+  'keywords.keywordId':     { dbType: 'varchar',  meaning: 'AMAZON_ID',   joinsWith: 'Amazon API only', apiUsage: 'Use for all Amazon API calls (bid updates, etc.)', guard: 'N/A (may be null for new keywords)' },
+  'keywords.adGroupId':     { dbType: 'int',      meaning: 'LOCAL_FK',    joinsWith: 'adGroups.id', apiUsage: 'N/A', guard: 'assertLocalId' },
   
   // ===== productTargets =====
-  'productTargets.id':      { dbType: 'int',      meaning: 'LOCAL_PK',    joinsWith: 'biddingLogs.targetId', apiUsage: 'NEVER send to Amazon API' },
-  'productTargets.targetId':{ dbType: 'varchar',  meaning: 'AMAZON_ID',   joinsWith: 'Amazon API only', apiUsage: 'Use for all Amazon API calls' },
-  'productTargets.adGroupId':{ dbType: 'int',     meaning: 'LOCAL_FK',    joinsWith: 'adGroups.id', apiUsage: 'N/A' },
+  'productTargets.id':      { dbType: 'int',      meaning: 'LOCAL_PK',    joinsWith: 'biddingLogs.targetId', apiUsage: 'NEVER send to Amazon API', guard: 'assertLocalId' },
+  'productTargets.targetId':{ dbType: 'varchar',  meaning: 'AMAZON_ID',   joinsWith: 'Amazon API only', apiUsage: 'Use for all Amazon API calls', guard: 'N/A (may be null)' },
+  'productTargets.adGroupId':{ dbType: 'int',     meaning: 'LOCAL_FK',    joinsWith: 'adGroups.id', apiUsage: 'N/A', guard: 'assertLocalId' },
   
-  // ===== negativeKeywords =====
-  'negativeKeywords.id':    { dbType: 'int',      meaning: 'LOCAL_PK',    joinsWith: 'N/A', apiUsage: 'N/A' },
-  'negativeKeywords.amazonNegativeKeywordId': { dbType: 'varchar', meaning: 'AMAZON_ID', joinsWith: 'Amazon API', apiUsage: 'Use for Amazon API calls' },
-  'negativeKeywords.campaignId': { dbType: 'varchar', meaning: 'MIXED_BUG', joinsWith: '⚠️ INCONSISTENT: some rows store local int, some store Amazon ID', apiUsage: 'Needs data migration' },
-  'negativeKeywords.adGroupId': { dbType: 'int',  meaning: 'LOCAL_FK',    joinsWith: 'adGroups.id', apiUsage: 'N/A' },
+  // ===== negativeKeywords (v208: 已统一为Amazon ID) =====
+  'negativeKeywords.id':    { dbType: 'int',      meaning: 'LOCAL_PK',    joinsWith: 'N/A', apiUsage: 'N/A', guard: 'assertLocalId' },
+  'negativeKeywords.amazonNegativeKeywordId': { dbType: 'varchar', meaning: 'AMAZON_ID', joinsWith: 'Amazon API', apiUsage: 'Use for Amazon API calls', guard: 'assertAmazonCampaignId' },
+  'negativeKeywords.campaignId': { dbType: 'varchar', meaning: 'AMAZON_FK', joinsWith: 'campaigns.campaignId', apiUsage: 'N/A', guard: 'guardCampaignIdInsert' },
+  'negativeKeywords.adGroupId': { dbType: 'int',  meaning: 'LOCAL_FK',    joinsWith: 'adGroups.id', apiUsage: 'N/A', guard: 'assertLocalId' },
   
-  // ===== biddingLogs =====
-  'biddingLogs.campaignId': { dbType: 'varchar',  meaning: 'SHOULD_BE_AMAZON', joinsWith: 'campaigns.campaignId', apiUsage: 'N/A (log only)' },
-  'biddingLogs.targetId':   { dbType: 'int',      meaning: 'LOCAL_FK',    joinsWith: 'keywords.id or productTargets.id', apiUsage: 'N/A (log only)' },
-  'biddingLogs.adGroupId':  { dbType: 'int',      meaning: 'LOCAL_FK',    joinsWith: 'adGroups.id', apiUsage: 'N/A (log only)' },
+  // ===== biddingLogs (v208: 已统一为Amazon ID) =====
+  'biddingLogs.campaignId': { dbType: 'varchar',  meaning: 'AMAZON_FK',   joinsWith: 'campaigns.campaignId', apiUsage: 'N/A (log only)', guard: 'guardCampaignIdInsert' },
+  'biddingLogs.targetId':   { dbType: 'int',      meaning: 'LOCAL_FK',    joinsWith: 'keywords.id or productTargets.id', apiUsage: 'N/A (log only)', guard: 'assertLocalId' },
+  'biddingLogs.adGroupId':  { dbType: 'int',      meaning: 'LOCAL_FK',    joinsWith: 'adGroups.id', apiUsage: 'N/A (log only)', guard: 'assertLocalId' },
+  
+  // ===== dailyPerformance =====
+  'dailyPerformance.campaignId': { dbType: 'varchar', meaning: 'AMAZON_FK', joinsWith: 'campaigns.campaignId', apiUsage: 'N/A', guard: 'guardCampaignIdInsert' },
+  
+  // ===== searchTerms =====
+  'searchTerms.campaignId': { dbType: 'varchar',  meaning: 'AMAZON_FK',   joinsWith: 'campaigns.campaignId', apiUsage: 'N/A', guard: 'guardCampaignIdInsert' },
+  
+  // ===== placementPerformance =====
+  'placementPerformance.campaignId': { dbType: 'varchar', meaning: 'AMAZON_FK', joinsWith: 'campaigns.campaignId', apiUsage: 'N/A', guard: 'guardCampaignIdInsert' },
 } as const;

@@ -41,6 +41,7 @@ import {
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
 import { createModuleLogger } from './utils/logger';
+import { guardCampaignIdParam, guardCampaignIdInsert, assertLocalId } from './utils/idTypes';
 
 const log = createModuleLogger('Database');
 
@@ -532,8 +533,8 @@ export async function getAdGroupsByCampaignId(campaignId: number | string) {
   const db = await getDb();
   if (!db) return [];
   
-  // v186: campaignId在DB中是varchar类型，需要转为string
-  const campaignIdStr = String(campaignId);
+  // v208: 入口守卫 — campaignId必须是Amazon ID（varchar），不能是本地int
+  const campaignIdStr = guardCampaignIdParam(campaignId, 'getAdGroupsByCampaignId');
   return db.select().from(adGroups).where(eq(adGroups.campaignId, campaignIdStr));
 }
 
@@ -602,9 +603,8 @@ export async function getKeywordsByCampaignId(campaignId: string | number) {
   const db = await getDb();
   if (!db) return [];
   
-  // v186: 通过adGroups表关联查询广告活动下的所有关键词
-  // campaignId在DB中是varchar类型
-  const campaignIdStr = String(campaignId);
+  // v208: 入口守卫 — campaignId必须是Amazon ID（varchar）
+  const campaignIdStr = guardCampaignIdParam(campaignId, 'getKeywordsByCampaignId');
   
   // 先获取该广告活动下的所有广告组
   const adGroupsList = await db.select().from(adGroups).where(eq(adGroups.campaignId, campaignIdStr));
@@ -759,8 +759,9 @@ export async function getDailyPerformanceByDateRange(
   ];
   
   if (campaignId) {
-    // v186: dailyPerformance.campaignId在DB中是varchar类型
-    conditions.push(eq(dailyPerformance.campaignId, String(campaignId)));
+    // v208: 入口守卫 — campaignId必须是Amazon ID
+    const campaignIdStr = guardCampaignIdParam(campaignId, 'getDailyPerformanceByDateRange');
+    conditions.push(eq(dailyPerformance.campaignId, campaignIdStr));
   }
   
   return db.select()
@@ -1450,7 +1451,7 @@ export async function recordMigration(data: {
   // 记录到bidding_logs
   await db.insert(biddingLogs).values({
     accountId: data.accountId,
-    campaignId: String(data.fromCampaignId),  // v207: 确保存储为Amazon campaignId字符串
+    campaignId: guardCampaignIdInsert(data.fromCampaignId, 'biddingLogs'),  // v208: 写入守卫
     logTargetType: 'keyword',
     targetId: 0,
     targetName: data.searchTerm,
@@ -1591,7 +1592,7 @@ export async function recordBidChange(data: {
   
   await db.insert(biddingLogs).values({
     accountId: data.accountId,
-    campaignId: data.campaignId ? String(data.campaignId) : '',  // v207: 使用Amazon campaignId
+    campaignId: data.campaignId ? guardCampaignIdInsert(data.campaignId, 'biddingLogs') : '',  // v208: 写入守卫
     logTargetType: dbTargetType,
     targetId: data.targetId,
     targetName: '',
@@ -2725,7 +2726,9 @@ export async function getSearchTermsByCampaignId(campaignId: number) {
   const db = await getDb();
   if (!db) return [];
   
-  return db.select().from(searchTerms).where(eq(searchTerms.campaignId, String(campaignId)));
+  // v208: 入口守卫 — campaignId必须是Amazon ID
+  const campaignIdStr = guardCampaignIdParam(campaignId, 'getSearchTermsByCampaignId');
+  return db.select().from(searchTerms).where(eq(searchTerms.campaignId, campaignIdStr));
 }
 
 export async function getSearchTermsByAdGroupId(adGroupId: number) {

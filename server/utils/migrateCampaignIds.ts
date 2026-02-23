@@ -15,7 +15,7 @@
 
 import { getDb } from '../db';
 import { sql } from 'drizzle-orm';
-import { createModuleLogger } from '../logger';
+import { createModuleLogger } from './logger';
 
 const log = createModuleLogger('migrateCampaignIds');
 
