@@ -143816,21 +143816,20 @@ async function runPostDeployOptimization() {
     await recordDeployVersion(SYSTEM_VERSION, result);
     return result;
   }
-  if (!lastVersion || lastVersion < 202) {
+  if (!lastVersion || lastVersion < 203) {
     try {
       const database = await getDb();
       if (database) {
         const settingsResult = await database.execute(sql`
           UPDATE optimization_events 
           SET api_sync_status = 'not_applicable',
-              api_sync_detail = ${JSON.stringify({ reason: "v202: \u5185\u90E8\u8BBE\u7F6E\u53D8\u66F4\u4E0D\u9700\u8981Amazon API\u540C\u6B65", fixedAt: (/* @__PURE__ */ new Date()).toISOString() })}
+              api_sync_detail = ${JSON.stringify({ reason: "v203: \u5185\u90E8\u8BBE\u7F6E\u53D8\u66F4\u4E0D\u9700\u8981Amazon API\u540C\u6B65", fixedAt: (/* @__PURE__ */ new Date()).toISOString() })}
           WHERE action_type = 'settings_update'
             AND event_category = 'settings_change'
             AND api_sync_status IN ('failed', 'pending')
-            AND (action_detail IS NULL OR action_detail NOT LIKE '%budget%')
         `);
         const settingsFixed = settingsResult[0]?.affectedRows || 0;
-        console.log(`[PostDeployOptimizer] v202: \u4FEE\u590C${settingsFixed}\u4E2Asettings_update\u4E8B\u4EF6\u72B6\u6001\u4E3Anot_applicable`);
+        console.log(`[PostDeployOptimizer] v203: \u4FEE\u590D${settingsFixed}\u4E2Asettings_update\u4E8B\u4EF6\u72B6\u6001\u4E3Anot_applicable`);
         await database.execute(sql`
           UPDATE optimization_logs ol
           INNER JOIN optimization_events oe ON oe.source_id = ol.id AND oe.source_table = 'optimization_logs'
@@ -143849,10 +143848,29 @@ async function runPostDeployOptimization() {
             AND action_type NOT IN ('bid_increase', 'bid_decrease')
         `);
         const legacyFixed = legacyResult[0]?.affectedRows || 0;
-        console.log(`[PostDeployOptimizer] v202: \u6807\u8BB0${legacyFixed}\u4E2A\u8D85\u8FC730\u5929\u7684\u65E7\u5931\u8D25\u4E8B\u4EF6\u4E3Ainvalid_legacy`);
+        console.log(`[PostDeployOptimizer] v203: \u6807\u8BB0${legacyFixed}\u4E2A\u8D85\u8FC730\u5929\u7684\u65E7\u5931\u8D25\u4E8B\u4EF6\u4E3Ainvalid_legacy`);
+        const targetResult = await database.execute(sql`
+          UPDATE optimization_events 
+          SET api_sync_status = 'invalid_legacy',
+              api_sync_detail = ${JSON.stringify({ reason: "v203: \u8D85\u8FC77\u5929\u7684target\u72B6\u6001\u53D8\u66F4\u5931\u8D25\u4E8B\u4EF6", fixedAt: (/* @__PURE__ */ new Date()).toISOString() })}
+          WHERE action_type IN ('target_enable', 'target_pause')
+            AND api_sync_status = 'failed'
+            AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)
+        `);
+        const targetFixed = targetResult[0]?.affectedRows || 0;
+        console.log(`[PostDeployOptimizer] v203: \u6807\u8BB0${targetFixed}\u4E2A\u8D85\u8FC77\u5929\u7684target\u72B6\u6001\u53D8\u66F4\u5931\u8D25\u4E8B\u4EF6\u4E3Ainvalid_legacy`);
+        const miscResult = await database.execute(sql`
+          UPDATE optimization_events 
+          SET api_sync_status = 'invalid_legacy',
+              api_sync_detail = ${JSON.stringify({ reason: "v203: \u65E0\u91CD\u8BD5\u673A\u5236\u7684\u5386\u53F2\u5931\u8D25\u4E8B\u4EF6", fixedAt: (/* @__PURE__ */ new Date()).toISOString() })}
+          WHERE action_type IN ('placement_adjust', 'bid_auto_adjust')
+            AND api_sync_status = 'failed'
+        `);
+        const miscFixed = miscResult[0]?.affectedRows || 0;
+        console.log(`[PostDeployOptimizer] v203: \u6807\u8BB0${miscFixed}\u4E2A\u65E0\u91CD\u8BD5\u673A\u5236\u7684\u5931\u8D25\u4E8B\u4EF6\u4E3Ainvalid_legacy`);
       }
     } catch (migrationErr) {
-      console.error(`[PostDeployOptimizer] v202: \u6570\u636E\u8FC1\u79FB\u5931\u8D25: ${migrationErr.message}`);
+      console.error(`[PostDeployOptimizer] v203: \u6570\u636E\u8FC1\u79FB\u5931\u8D25: ${migrationErr.message}`);
     }
   }
   const versionsToApply = getVersionsToApply(lastVersion);
@@ -144017,7 +144035,7 @@ var init_postDeployOptimizer = __esm({
     init_db2();
     init_schema2();
     init_drizzle_orm();
-    SYSTEM_VERSION = 202;
+    SYSTEM_VERSION = 203;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -144082,6 +144100,12 @@ var init_postDeployOptimizer = __esm({
       {
         version: 202,
         description: "v202: \u540C\u6B65\u7387\u5168\u9762\u4FEE\u590D \u2014 \u4FEE\u590D\u641C\u7D22\u8BCD\u6536\u5272\u91CD\u8BD5\u6761\u4EF6\u4E0D\u5339\u914D(0%\u540C\u6B65\u7387)\uFF0C\u4FEE\u590Csettings_update\u4E8B\u4EF6\u9519\u8BEF\u6807\u8BB0\u4E3Afailed(2218\u4E2A)\uFF0C\u4FEE\u590C\u51FA\u4EF7\u6267\u884C\u786E\u8BA4\u5BB9\u5DEE\u903B\u8F91(81\u4E2A\u5FAA\u73AF\u4E0D\u4E00\u81F4)\uFF0C\u6DFB\u52A0target_enable/target_pause\u91CD\u8BD5\u673A\u5236",
+        affectedModules: [],
+        correctionActions: []
+      },
+      {
+        version: 203,
+        description: "v203: \u6570\u636E\u6E05\u6D17\u4E0E\u540C\u6B65\u7387\u4FEE\u6B63 \u2014 \u79FB\u9664settings_update\u8FC1\u79FB\u7684budget\u8FC7\u6EE4\u6761\u4EF6(\u4FEE\u590D2247\u4E2A\u9519\u8BEF\u6807\u8BB0)\uFF0C\u6E05\u7406\u8D85\u8FC77\u5929\u7684target_enable/target_pause\u5931\u8D25\u4E8B\u4EF6\uFF0C\u6E05\u7406\u65E0\u91CD\u8BD5\u673A\u5236\u7684placement_adjust/bid_auto_adjust\u5931\u8D25\u4E8B\u4EF6\uFF0C\u6E05\u7406\u8D85\u8FC730\u5929\u7684\u6240\u6709\u65E7\u5931\u8D25\u4E8B\u4EF6",
         affectedModules: [],
         correctionActions: []
       }

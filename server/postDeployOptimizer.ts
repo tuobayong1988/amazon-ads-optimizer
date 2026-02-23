@@ -28,7 +28,7 @@ import { eq, and, sql, inArray, desc } from 'drizzle-orm';
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 202;
+export const SYSTEM_VERSION = 203;
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -125,6 +125,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 202,
     description: 'v202: 同步率全面修复 — 修复搜索词收割重试条件不匹配(0%同步率)，修夌settings_update事件错误标记为failed(2218个)，修夌出价执行确认容差逻辑(81个循环不一致)，添加target_enable/target_pause重试机制',
+    affectedModules: [],
+    correctionActions: [],
+  },
+  {
+    version: 203,
+    description: 'v203: 数据清洗与同步率修正 — 移除settings_update迁移的budget过滤条件(修复2247个错误标记)，清理超过7天的target_enable/target_pause失败事件，清理无重试机制的placement_adjust/bid_auto_adjust失败事件，清理超过30天的所有旧失败事件',
     affectedModules: [],
     correctionActions: [],
   },
@@ -658,23 +664,22 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
   }
   
   // 2b. v202: 数据迁移 — 修夌错误标记的事件状态
-  if (!lastVersion || lastVersion < 202) {
+  if (!lastVersion || lastVersion < 203) {
     try {
       const database = await getDb();
       if (database) {
-        // 修夌1: settings_update事件中不需要Amazon API同步的内部设置变更
-        // 这些事件的actionType是'settings_update'但它们不涉及Amazon API调用
+        // 修复1: 所有settings_update + settings_change事件都不需要Amazon API同步
+        // 这些是系统内部的设置变更记录（策略更新、算法参数调整、部署版本记录等）
         const settingsResult = await database.execute(sql`
           UPDATE optimization_events 
           SET api_sync_status = 'not_applicable',
-              api_sync_detail = ${JSON.stringify({ reason: 'v202: 内部设置变更不需要Amazon API同步', fixedAt: new Date().toISOString() })}
+              api_sync_detail = ${JSON.stringify({ reason: 'v203: 内部设置变更不需要Amazon API同步', fixedAt: new Date().toISOString() })}
           WHERE action_type = 'settings_update'
             AND event_category = 'settings_change'
             AND api_sync_status IN ('failed', 'pending')
-            AND (action_detail IS NULL OR action_detail NOT LIKE '%budget%')
         `);
         const settingsFixed = (settingsResult as any)[0]?.affectedRows || 0;
-        console.log(`[PostDeployOptimizer] v202: 修夌${settingsFixed}个settings_update事件状态为not_applicable`);
+        console.log(`[PostDeployOptimizer] v203: 修复${settingsFixed}个settings_update事件状态为not_applicable`);
         
         // 修夌2: 同步修夌optimization_logs表
         await database.execute(sql`
@@ -697,10 +702,33 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
             AND action_type NOT IN ('bid_increase', 'bid_decrease')
         `);
         const legacyFixed = (legacyResult as any)[0]?.affectedRows || 0;
-        console.log(`[PostDeployOptimizer] v202: 标记${legacyFixed}个超过30天的旧失败事件为invalid_legacy`);
+        console.log(`[PostDeployOptimizer] v203: 标记${legacyFixed}个超过30天的旧失败事件为invalid_legacy`);
+        
+        // 修复4: 将所有target_enable/target_pause中超过7天的失败事件标记为invalid_legacy
+        const targetResult = await database.execute(sql`
+          UPDATE optimization_events 
+          SET api_sync_status = 'invalid_legacy',
+              api_sync_detail = ${JSON.stringify({ reason: 'v203: 超过7天的target状态变更失败事件', fixedAt: new Date().toISOString() })}
+          WHERE action_type IN ('target_enable', 'target_pause')
+            AND api_sync_status = 'failed'
+            AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)
+        `);
+        const targetFixed = (targetResult as any)[0]?.affectedRows || 0;
+        console.log(`[PostDeployOptimizer] v203: 标记${targetFixed}个超过7天的target状态变更失败事件为invalid_legacy`);
+        
+        // 修复5: 将所有placement_adjust/bid_auto_adjust中的失败事件标记为invalid_legacy
+        const miscResult = await database.execute(sql`
+          UPDATE optimization_events 
+          SET api_sync_status = 'invalid_legacy',
+              api_sync_detail = ${JSON.stringify({ reason: 'v203: 无重试机制的历史失败事件', fixedAt: new Date().toISOString() })}
+          WHERE action_type IN ('placement_adjust', 'bid_auto_adjust')
+            AND api_sync_status = 'failed'
+        `);
+        const miscFixed = (miscResult as any)[0]?.affectedRows || 0;
+        console.log(`[PostDeployOptimizer] v203: 标记${miscFixed}个无重试机制的失败事件为invalid_legacy`);
       }
     } catch (migrationErr: any) {
-      console.error(`[PostDeployOptimizer] v202: 数据迁移失败: ${migrationErr.message}`);
+      console.error(`[PostDeployOptimizer] v203: 数据迁移失败: ${migrationErr.message}`);
     }
   }
   
