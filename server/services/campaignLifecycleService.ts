@@ -256,7 +256,7 @@ export function determineCampaignLifecycle(campaign: any): CampaignLifecycleInfo
   }
   
   return {
-    campaignId: campaign.id,
+    campaignId: campaign.campaignId,
     campaignName: campaign.campaignName || '',
     campaignType: campaign.campaignType || 'sp_manual',
     stage,

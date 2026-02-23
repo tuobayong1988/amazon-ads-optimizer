@@ -217,7 +217,7 @@ export async function collectCampaignPerformanceData(
       })
       .from(dailyPerformance)
       .where(and(
-        eq(dailyPerformance.campaignId, String(campaign.id)),
+        eq(dailyPerformance.campaignId, String(campaign.campaignId)),
         sql`DATE(${dailyPerformance.date}) >= ${date90dAgo.toISOString().split('T')[0]}`,
         sql`DATE(${dailyPerformance.date}) <= ${endDate.toISOString().split('T')[0]}`
       ));
@@ -245,7 +245,7 @@ export async function collectCampaignPerformanceData(
     const budgetUtilization = currentBudget > 0 ? (dailyAvgSpend / currentBudget) * 100 : 0;
     
     results.push({
-      campaignId: campaign.id,
+      campaignId: campaign.campaignId,
       campaignName: campaign.campaignName,
       currentBudget,
       // 7天数据

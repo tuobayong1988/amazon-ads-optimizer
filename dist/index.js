@@ -36540,7 +36540,8 @@ async function recordMigration(data4) {
   if (!db) throw new Error("Database not available");
   await db.insert(biddingLogs).values({
     accountId: data4.accountId,
-    campaignId: data4.fromCampaignId,
+    campaignId: String(data4.fromCampaignId),
+    // v207: 确保存储为Amazon campaignId字符串
     logTargetType: "keyword",
     targetId: 0,
     targetName: data4.searchTerm,
@@ -36622,8 +36623,8 @@ async function recordBidChange(data4) {
   const dbTargetType = data4.targetType === "product" ? "product_target" : "keyword";
   await db.insert(biddingLogs).values({
     accountId: data4.accountId,
-    campaignId: 0,
-    // 默认值
+    campaignId: data4.campaignId ? String(data4.campaignId) : "",
+    // v207: 使用Amazon campaignId
     logTargetType: dbTargetType,
     targetId: data4.targetId,
     targetName: "",
@@ -36640,13 +36641,13 @@ async function getCampaignHealthMetrics(accountId) {
   const campaignList = await db.select().from(campaigns).where(eq(campaigns.accountId, accountId));
   const results = [];
   for (const campaign of campaignList) {
-    const recentPerf = await db.select().from(dailyPerformance).where(eq(dailyPerformance.campaignId, String(campaign.id))).orderBy(desc(dailyPerformance.date)).limit(7);
-    const historicalPerf = await db.select().from(dailyPerformance).where(eq(dailyPerformance.campaignId, String(campaign.id))).orderBy(desc(dailyPerformance.date)).limit(30);
+    const recentPerf = await db.select().from(dailyPerformance).where(eq(dailyPerformance.campaignId, String(campaign.campaignId))).orderBy(desc(dailyPerformance.date)).limit(7);
+    const historicalPerf = await db.select().from(dailyPerformance).where(eq(dailyPerformance.campaignId, String(campaign.campaignId))).orderBy(desc(dailyPerformance.date)).limit(30);
     const currentMetrics = calculateAverageMetrics(recentPerf);
     const historicalAverage = calculateAverageMetrics(historicalPerf);
     const changes = calculateMetricChanges(currentMetrics, historicalAverage);
     results.push({
-      campaignId: campaign.id,
+      campaignId: campaign.campaignId,
       campaignName: campaign.campaignName,
       campaignType: campaign.campaignType,
       currentMetrics,
@@ -58729,7 +58730,7 @@ var init_amazonSyncService = __esm({
             if (!campaign) continue;
             const [existing] = await db.select().from(adGroups).where(
               and(
-                eq(adGroups.campaignId, String(campaign.id)),
+                eq(adGroups.campaignId, String(campaign.campaignId)),
                 eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
               )
             ).limit(1);
@@ -58743,7 +58744,7 @@ var init_amazonSyncService = __esm({
             }
             const normalizedState = (apiAdGroup.state || "enabled").toLowerCase();
             const adGroupData = {
-              campaignId: campaign.id,
+              campaignId: campaign.campaignId,
               accountId: this.accountId,
               adGroupId: String(apiAdGroup.adGroupId),
               adGroupName: apiAdGroup.name,
@@ -58789,13 +58790,13 @@ var init_amazonSyncService = __esm({
             if (!campaign) continue;
             const [existing] = await db.select().from(adGroups).where(
               and(
-                eq(adGroups.campaignId, String(campaign.id)),
+                eq(adGroups.campaignId, String(campaign.campaignId)),
                 eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
               )
             ).limit(1);
             const normalizedState = (apiAdGroup.state || "enabled").toLowerCase();
             const adGroupData = {
-              campaignId: campaign.id,
+              campaignId: campaign.campaignId,
               accountId: this.accountId,
               adGroupId: String(apiAdGroup.adGroupId),
               adGroupName: apiAdGroup.name || apiAdGroup.adGroupName || "SB Ad Group",
@@ -58843,14 +58844,14 @@ var init_amazonSyncService = __esm({
             if (!campaign) continue;
             const [existing] = await db.select().from(adGroups).where(
               and(
-                eq(adGroups.campaignId, String(campaign.id)),
+                eq(adGroups.campaignId, String(campaign.campaignId)),
                 eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
               )
             ).limit(1);
             const normalizedState = (apiAdGroup.state || "enabled").toLowerCase();
             const tactic = apiAdGroup.tactic || null;
             const adGroupData = {
-              campaignId: campaign.id,
+              campaignId: campaign.campaignId,
               accountId: this.accountId,
               adGroupId: String(apiAdGroup.adGroupId),
               adGroupName: apiAdGroup.name || apiAdGroup.adGroupName || "SD Ad Group",
@@ -59184,7 +59185,7 @@ var init_amazonSyncService = __esm({
             const [existing] = await db.select().from(negativeKeywords).where(
               and(
                 eq(negativeKeywords.accountId, this.accountId),
-                eq(negativeKeywords.campaignId, String(campaign.id)),
+                eq(negativeKeywords.campaignId, String(campaign.campaignId)),
                 eq(negativeKeywords.negativeLevel, "campaign"),
                 eq(negativeKeywords.negativeText, neg.keywordText || "")
               )
@@ -59195,7 +59196,7 @@ var init_amazonSyncService = __esm({
             } else {
               await db.insert(negativeKeywords).values({
                 accountId: this.accountId,
-                campaignId: campaign.id,
+                campaignId: String(campaign.campaignId),
                 negativeLevel: "campaign",
                 negativeType: "keyword",
                 negativeText: neg.keywordText || "",
@@ -59222,7 +59223,7 @@ var init_amazonSyncService = __esm({
             const [existing] = await db.select().from(negativeKeywords).where(
               and(
                 eq(negativeKeywords.accountId, this.accountId),
-                eq(negativeKeywords.campaignId, String(campaign.id)),
+                eq(negativeKeywords.campaignId, String(campaign.campaignId)),
                 eq(negativeKeywords.adGroupId, adGroup.id),
                 eq(negativeKeywords.negativeLevel, "ad_group"),
                 eq(negativeKeywords.negativeText, neg.keywordText || "")
@@ -59234,7 +59235,7 @@ var init_amazonSyncService = __esm({
             } else {
               await db.insert(negativeKeywords).values({
                 accountId: this.accountId,
-                campaignId: campaign.id,
+                campaignId: String(campaign.campaignId),
                 adGroupId: adGroup.id,
                 negativeLevel: "ad_group",
                 negativeType: "keyword",
@@ -59284,7 +59285,7 @@ var init_amazonSyncService = __esm({
             const [existing] = await db.select().from(negativeKeywords).where(
               and(
                 eq(negativeKeywords.accountId, this.accountId),
-                eq(negativeKeywords.campaignId, String(campaign.id)),
+                eq(negativeKeywords.campaignId, String(campaign.campaignId)),
                 eq(negativeKeywords.negativeLevel, "campaign"),
                 eq(negativeKeywords.negativeType, "product"),
                 eq(negativeKeywords.negativeText, negativeText)
@@ -59296,7 +59297,7 @@ var init_amazonSyncService = __esm({
             } else {
               await db.insert(negativeKeywords).values({
                 accountId: this.accountId,
-                campaignId: campaign.id,
+                campaignId: String(campaign.campaignId),
                 negativeLevel: "campaign",
                 negativeType: "product",
                 negativeText,
@@ -59325,7 +59326,7 @@ var init_amazonSyncService = __esm({
             const [existing] = await db.select().from(negativeKeywords).where(
               and(
                 eq(negativeKeywords.accountId, this.accountId),
-                eq(negativeKeywords.campaignId, String(campaign.id)),
+                eq(negativeKeywords.campaignId, String(campaign.campaignId)),
                 eq(negativeKeywords.adGroupId, adGroup.id),
                 eq(negativeKeywords.negativeLevel, "ad_group"),
                 eq(negativeKeywords.negativeType, "product"),
@@ -59338,7 +59339,7 @@ var init_amazonSyncService = __esm({
             } else {
               await db.insert(negativeKeywords).values({
                 accountId: this.accountId,
-                campaignId: campaign.id,
+                campaignId: String(campaign.campaignId),
                 adGroupId: adGroup.id,
                 negativeLevel: "ad_group",
                 negativeType: "product",
@@ -59389,7 +59390,7 @@ var init_amazonSyncService = __esm({
             const [existing] = await db.select().from(searchTerms).where(
               and(
                 eq(searchTerms.accountId, this.accountId),
-                eq(searchTerms.campaignId, String(campaign.id)),
+                eq(searchTerms.campaignId, String(campaign.campaignId)),
                 eq(searchTerms.adGroupId, adGroup.id),
                 eq(searchTerms.searchTerm, row.searchTerm || "")
               )
@@ -59435,7 +59436,7 @@ var init_amazonSyncService = __esm({
             const unitsOrdered = row.unitsSold7d || row.unitsSold14d || row.unitsSold || row.unitsSoldClicks || 0;
             const searchTermData = {
               accountId: this.accountId,
-              campaignId: campaign.id,
+              campaignId: campaign.campaignId,
               adGroupId: adGroup.id,
               searchTerm: searchTermText,
               searchTermTargetType: isProductTarget ? "product_target" : "keyword",
@@ -59900,7 +59901,7 @@ var init_amazonSyncService = __esm({
             const reportDateStr = reportDate.toISOString().split("T")[0];
             const [existing] = await db.select().from(dailyPerformance).where(
               and(
-                eq(dailyPerformance.campaignId, String(campaign.id)),
+                eq(dailyPerformance.campaignId, String(campaign.campaignId)),
                 sql`DATE(${dailyPerformance.date}) = ${reportDateStr}`
               )
             ).limit(1);
@@ -59940,7 +59941,7 @@ var init_amazonSyncService = __esm({
             const salesUsd = sales * exchangeRate;
             const perfData = {
               accountId: this.accountId,
-              campaignId: campaign.id,
+              campaignId: campaign.campaignId,
               date: reportDateStr,
               impressions: row.impressions || 0,
               clicks: row.clicks || 0,
@@ -59978,7 +59979,7 @@ var init_amazonSyncService = __esm({
               if (insertId) {
                 await db.execute(sql`UPDATE daily_performance SET currency = ${currency}, exchange_rate = ${exchangeRate}, spend_usd = ${spendUsd.toFixed(2)}, sales_usd = ${salesUsd.toFixed(2)} WHERE id = ${insertId}`);
               } else {
-                await db.execute(sql`UPDATE daily_performance SET currency = ${currency}, exchange_rate = ${exchangeRate}, spend_usd = ${spendUsd.toFixed(2)}, sales_usd = ${salesUsd.toFixed(2)} WHERE campaignId = ${campaign.id} AND DATE(date) = ${reportDateStr} AND accountId = ${this.accountId}`);
+                await db.execute(sql`UPDATE daily_performance SET currency = ${currency}, exchange_rate = ${exchangeRate}, spend_usd = ${spendUsd.toFixed(2)}, sales_usd = ${salesUsd.toFixed(2)} WHERE campaignId = ${campaign.campaignId} AND DATE(date) = ${reportDateStr} AND accountId = ${this.accountId}`);
               }
             }
             synced++;
@@ -60016,7 +60017,7 @@ var init_amazonSyncService = __esm({
               const dateStr = baseDate.toISOString().split("T")[0];
               const [existing] = await db.select().from(dailyPerformance).where(
                 and(
-                  eq(dailyPerformance.campaignId, String(campaign.id)),
+                  eq(dailyPerformance.campaignId, String(campaign.campaignId)),
                   sql`DATE(${dailyPerformance.date}) = ${dateStr}`
                 )
               ).limit(1);
@@ -60033,7 +60034,7 @@ var init_amazonSyncService = __esm({
               const sales = orders * baseAov;
               const perfData = {
                 accountId: this.accountId,
-                campaignId: campaign.id,
+                campaignId: campaign.campaignId,
                 date: dateStr,
                 impressions,
                 clicks,
@@ -60871,7 +60872,7 @@ var init_amazonSyncService = __esm({
             const placement = placementMap[rawPlacement] || "rest_of_search";
             log5.debug(`v157: \u4F4D\u7F6E\u6620\u5C04: raw="${rawPlacement}" -> "${placement}" (row keys: ${Object.keys(row).filter((k5) => k5.toLowerCase().includes("place")).join(",")})`);
             const reportDate = row.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-            const localCampaignId2 = String(campaign.id);
+            const localCampaignId2 = String(campaign.campaignId);
             const [existing] = await db.select().from(placementPerformance).where(
               and(
                 eq(placementPerformance.campaignId, localCampaignId2),
@@ -61011,7 +61012,7 @@ var init_amazonSyncService = __esm({
             const unitsOrdered = row.unitsSold7d || row.unitsSold14d || row.unitsSold || row.unitsSoldClicks || 0;
             const searchTermData = {
               accountId: this.accountId,
-              campaignId: campaign.id,
+              campaignId: campaign.campaignId,
               adGroupId: adGroup.id,
               searchTerm: searchTermText,
               searchTermTargetType: isProductTarget ? "product_target" : "keyword",
@@ -61400,7 +61401,7 @@ var init_amazonSyncService = __esm({
               totalOrders: sql`COALESCE(SUM(orders), 0)`
             }).from(dailyPerformance).where(
               and(
-                eq(dailyPerformance.campaignId, String(campaign.id)),
+                eq(dailyPerformance.campaignId, String(campaign.campaignId)),
                 sql`${dailyPerformance.date} >= ${startDateStr}`,
                 sql`${dailyPerformance.date} <= ${endDateStr}`
               )
@@ -61411,7 +61412,7 @@ var init_amazonSyncService = __esm({
             let totalSales = parseFloat(dailySummary?.totalSales || "0");
             let totalOrders = dailySummary?.totalOrders || 0;
             if (totalImpressions === 0 && totalClicks === 0 && totalSpend === 0) {
-              const campaignAdGroups = await db.select({ id: adGroups.id }).from(adGroups).where(eq(adGroups.campaignId, String(campaign.id)));
+              const campaignAdGroups = await db.select({ id: adGroups.id }).from(adGroups).where(eq(adGroups.campaignId, String(campaign.campaignId)));
               const adGroupIds = campaignAdGroups.map((ag) => ag.id);
               if (adGroupIds.length > 0) {
                 const [keywordSummary] = await db.select({
@@ -61567,7 +61568,7 @@ var init_amazonSyncService = __esm({
             const [existing] = await db.select().from(negativeKeywords).where(
               and(
                 eq(negativeKeywords.accountId, this.accountId),
-                eq(negativeKeywords.campaignId, String(campaign.id)),
+                eq(negativeKeywords.campaignId, String(campaign.campaignId)),
                 eq(negativeKeywords.negativeLevel, negLevel),
                 eq(negativeKeywords.negativeText, neg.keywordText || "")
               )
@@ -61578,7 +61579,7 @@ var init_amazonSyncService = __esm({
             } else {
               await db.insert(negativeKeywords).values({
                 accountId: this.accountId,
-                campaignId: campaign.id,
+                campaignId: String(campaign.campaignId),
                 adGroupId,
                 negativeLevel: negLevel,
                 negativeType: "keyword",
@@ -61632,7 +61633,7 @@ var init_amazonSyncService = __esm({
             const [existing] = await db.select().from(negativeKeywords).where(
               and(
                 eq(negativeKeywords.accountId, this.accountId),
-                eq(negativeKeywords.campaignId, String(campaign.id)),
+                eq(negativeKeywords.campaignId, String(campaign.campaignId)),
                 eq(negativeKeywords.negativeLevel, negLevel),
                 eq(negativeKeywords.negativeType, "product"),
                 eq(negativeKeywords.negativeText, negativeText)
@@ -61644,7 +61645,7 @@ var init_amazonSyncService = __esm({
             } else {
               await db.insert(negativeKeywords).values({
                 accountId: this.accountId,
-                campaignId: campaign.id,
+                campaignId: String(campaign.campaignId),
                 adGroupId,
                 negativeLevel: negLevel,
                 negativeType: "product",
@@ -61698,7 +61699,7 @@ var init_amazonSyncService = __esm({
               "OTHER": "rest_of_search"
             };
             const placement = placementMap[rawPlacement] || "rest_of_search";
-            const localCampaignId2 = String(campaign.id);
+            const localCampaignId2 = String(campaign.campaignId);
             const [existing] = await db.select().from(placementPerformance).where(
               and(
                 eq(placementPerformance.campaignId, localCampaignId2),
@@ -62288,7 +62289,7 @@ var init_amazonSyncService = __esm({
           }
           const [existing] = await db.select().from(adGroups).where(
             and(
-              eq(adGroups.campaignId, String(campaign.id)),
+              eq(adGroups.campaignId, String(campaign.campaignId)),
               eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
             )
           ).limit(1);
@@ -62302,7 +62303,7 @@ var init_amazonSyncService = __esm({
           }
           const normalizedState = (apiAdGroup.state || "enabled").toLowerCase();
           const adGroupData = {
-            campaignId: campaign.id,
+            campaignId: campaign.campaignId,
             accountId: this.accountId,
             adGroupId: String(apiAdGroup.adGroupId),
             adGroupName: apiAdGroup.name,
@@ -63514,7 +63515,7 @@ async function collectCampaignPerformanceData(performanceGroupId, endDate = /* @
         sales: dailyPerformance.sales,
         orders: dailyPerformance.orders
       }).from(dailyPerformance).where(and(
-        eq(dailyPerformance.campaignId, String(campaign.id)),
+        eq(dailyPerformance.campaignId, String(campaign.campaignId)),
         sql`DATE(${dailyPerformance.date}) >= ${date90dAgo.toISOString().split("T")[0]}`,
         sql`DATE(${dailyPerformance.date}) <= ${endDate.toISOString().split("T")[0]}`
       ));
@@ -63537,7 +63538,7 @@ async function collectCampaignPerformanceData(performanceGroupId, endDate = /* @
     const dailyAvgSpend = timeWeightedMetrics ? timeWeightedMetrics.weightedDailySpend : data30d.spend / 30;
     const budgetUtilization = currentBudget > 0 ? dailyAvgSpend / currentBudget * 100 : 0;
     results.push({
-      campaignId: campaign.id,
+      campaignId: campaign.campaignId,
       campaignName: campaign.campaignName,
       currentBudget,
       // 7天数据
@@ -64750,8 +64751,8 @@ async function checkEmergencyBrake(accountId, performanceGroupId) {
     let previousSpend = 0, previousSales = 0, previousOrders = 0;
     for (const campaign of campaigns7) {
       try {
-        const recentData = await getDailyPerformanceByDateRange(accountId, recentStart, recentEnd, campaign.campaignId || campaign.id);
-        const previousData = await getDailyPerformanceByDateRange(accountId, previousStart, previousEnd, campaign.campaignId || campaign.id);
+        const recentData = await getDailyPerformanceByDateRange(accountId, recentStart, recentEnd, campaign.campaignId);
+        const previousData = await getDailyPerformanceByDateRange(accountId, previousStart, previousEnd, campaign.campaignId);
         for (const d5 of recentData) {
           recentSpend += Number(d5.spend) || 0;
           recentSales += Number(d5.sales) || 0;
@@ -75606,7 +75607,7 @@ async function findTargetAdGroup(searchTerm, manualCampaigns, sourceCampaign) {
     (c5) => c5.campaignName?.toLowerCase().includes("exact") || c5.campaignName?.includes("\u7CBE\u786E")
   );
   for (const campaign of exactCampaigns) {
-    const adGroupsList = await getAdGroupsByCampaignId(campaign.campaignId || campaign.id);
+    const adGroupsList = await getAdGroupsByCampaignId(campaign.campaignId);
     const enabledAdGroups = adGroupsList.filter((ag) => ag.adGroupStatus === "enabled");
     for (const ag of enabledAdGroups) {
       const hasPT = await adGroupHasProductTargets(ag.id);
@@ -75616,21 +75617,21 @@ async function findTargetAdGroup(searchTerm, manualCampaigns, sourceCampaign) {
       }
       return {
         adGroupId: ag.id,
-        campaignId: campaign.id,
+        campaignId: campaign.campaignId,
         amazonAdGroupId: ag.adGroupId,
         amazonCampaignId: campaign.campaignId
       };
     }
   }
   for (const campaign of manualCampaigns) {
-    const adGroupsList = await getAdGroupsByCampaignId(campaign.campaignId || campaign.id);
+    const adGroupsList = await getAdGroupsByCampaignId(campaign.campaignId);
     const enabledAdGroups = adGroupsList.filter((ag) => ag.adGroupStatus === "enabled");
     for (const ag of enabledAdGroups) {
       const hasPT = await adGroupHasProductTargets(ag.id);
       if (hasPT) continue;
       return {
         adGroupId: ag.id,
-        campaignId: campaign.id,
+        campaignId: campaign.campaignId,
         amazonAdGroupId: ag.adGroupId,
         amazonCampaignId: campaign.campaignId
       };
@@ -75719,7 +75720,7 @@ function determineCampaignLifecycle(campaign) {
     reason = `\u6210\u957F\u671F: \u8FD0\u884C${daysSinceCreation}\u5929, ${totalClicks}\u6B21\u70B9\u51FB, ${totalOrders}\u6B21\u8F6C\u5316`;
   }
   return {
-    campaignId: campaign.id,
+    campaignId: campaign.campaignId,
     campaignName: campaign.campaignName || "",
     campaignType: campaign.campaignType || "sp_manual",
     stage,
@@ -147291,7 +147292,7 @@ function recommendStrategyTemplate(campaign) {
   const { acos, roas, ctr, cvr, spend, sales, impressions, clicks, orders, dailyBudget } = campaign;
   if (impressions < 100 || clicks < 10 || spend < 5) {
     return {
-      campaignId: campaign.id,
+      campaignId: campaign.campaignId,
       recommendedTemplateId: "aggressive-growth",
       recommendedTemplateName: "\u6FC0\u8FDB\u589E\u957F",
       reason: "\u6570\u636E\u91CF\u4E0D\u8DB3\uFF08\u66DD\u5149<100\u6216\u70B9\u51FB<10\uFF09\uFF0C\u5EFA\u8BAE\u91C7\u7528\u6FC0\u8FDB\u589E\u957F\u7B56\u7565\u79EF\u7D2F\u6570\u636E",
@@ -147430,7 +147431,7 @@ function recommendStrategyTemplate(campaign) {
   const scoreDiff = best.score - secondBest.score;
   const confidence = Math.min(95, Math.max(20, 40 + scoreDiff * 2));
   return {
-    campaignId: campaign.id,
+    campaignId: campaign.campaignId,
     recommendedTemplateId: best.templateId,
     recommendedTemplateName: template.name,
     reason: best.reasons.slice(0, 3).join("\uFF1B"),
@@ -149658,7 +149659,7 @@ async function executeOptimizationTask(taskType) {
               const enabledCampaigns = riskCampaigns.filter((c5) => c5.campaignStatus === "enabled");
               let totalRisks = 0;
               for (const campaign of enabledCampaigns) {
-                const riskResult = await detectRiskSignals(target.accountId, campaign.id);
+                const riskResult = await detectRiskSignals(target.accountId, campaign.campaignId);
                 if (riskResult.hasRisk) {
                   totalRisks += riskResult.risks.length;
                   for (const risk of riskResult.risks) {
@@ -151235,7 +151236,7 @@ async function executeMultiDimensionOptimization(targetId, accountId, campaigns7
       );
       if (!analysis) {
         details.push({
-          campaignId: campaign.id,
+          campaignId: campaign.campaignId,
           campaignName: campaign.campaignName,
           status: "skipped",
           reason: "\u65E0\u6CD5\u83B7\u53D6\u5206\u6790\u6570\u636E"
@@ -151276,7 +151277,7 @@ async function executeMultiDimensionOptimization(targetId, accountId, campaigns7
         }
       }
       details.push({
-        campaignId: campaign.id,
+        campaignId: campaign.campaignId,
         campaignName: campaign.campaignName,
         status: "analyzed",
         dataConfidence: analysis.dataConfidence,
@@ -151292,7 +151293,7 @@ async function executeMultiDimensionOptimization(targetId, accountId, campaigns7
       });
     } catch (error54) {
       details.push({
-        campaignId: campaign.id,
+        campaignId: campaign.campaignId,
         campaignName: campaign.campaignName,
         status: "error",
         error: error54.message
@@ -153811,7 +153812,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
               )).limit(1);
               if (existingNeg.length > 0) {
                 negativeAlreadyExists = true;
-                log19.info(`[SearchTermAnalysis] v170: \u5426\u5B9A\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: "${cleanedNegText}" campaignId=${campaign.id}`);
+                log19.info(`[SearchTermAnalysis] v170: \u5426\u5B9A\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: "${cleanedNegText}" campaignId=${campaign.campaignId}`);
               }
             }
           }
@@ -154049,7 +154050,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                           UPDATE negative_keywords 
                           SET amazon_negative_keyword_id = ${amazonNegId}
                           WHERE negativeText = ${d5.searchTerm}
-                            AND campaignId = ${campaign.id}
+                            AND campaignId = ${campaign.campaignId}
                             AND amazon_negative_keyword_id IS NULL
                           LIMIT 1
                         `);
@@ -154530,7 +154531,6 @@ async function executeCampaignStatusChanges(config2, campaigns7, dryRun) {
           localCampaignId: campaignLocalId,
           amazonCampaignId: campaignAmazonId,
           campaignName: campaign.campaignName,
-          amazonCampaignId: campaign.campaignId || campaign.amazonCampaignId,
           action: "pause",
           reason: pauseReason,
           currentStatus: campaignStatus,
@@ -154579,7 +154579,6 @@ async function executeCampaignStatusChanges(config2, campaigns7, dryRun) {
           localCampaignId: campaignLocalId,
           amazonCampaignId: campaignAmazonId,
           campaignName: campaign.campaignName,
-          amazonCampaignId: campaign.campaignId || campaign.amazonCampaignId,
           action: "enable",
           reason: enableReason,
           currentStatus: campaignStatus,
@@ -158513,7 +158512,7 @@ async function generateBudgetAllocation(userId, accountId, totalBudget, options 
     const clicks = Number(campaign.clicks) || 0;
     const impressions = Number(campaign.impressions) || 0;
     return {
-      campaignId: campaign.id,
+      campaignId: campaign.campaignId,
       campaignName: campaign.campaignName,
       campaignType: campaign.campaignType,
       currentBudget: Number(campaign.dailyBudget) || 0,
@@ -350406,7 +350405,7 @@ async function analyzeBidAdjustments2(campaign, costType = "cpc") {
       const groups2 = await db.select().from(performanceGroups).where(eq(performanceGroups.id, campaign.performanceGroupId)).limit(1);
       if (groups2.length > 0 && groups2[0].targetAcos) {
         groupTargetAcos = Number(groups2[0].targetAcos);
-        console.log(`[UnifiedOptEngine] v148: Campaign ${campaign.id} \u4F7F\u7528\u4F18\u5316\u76EE\u6807targetAcos=${groupTargetAcos}%`);
+        console.log(`[UnifiedOptEngine] v148: Campaign ${campaign.campaignId} \u4F7F\u7528\u4F18\u5316\u76EE\u6807targetAcos=${groupTargetAcos}%`);
       }
     } catch (pgErr) {
       console.warn(`[UnifiedOptEngine] v148: \u83B7\u53D6\u4F18\u5316\u76EE\u6807targetAcos\u5931\u8D25, \u4F7F\u7528\u9ED8\u8BA4\u503C30%:`, pgErr.message);
@@ -350417,7 +350416,7 @@ async function analyzeBidAdjustments2(campaign, costType = "cpc") {
   try {
     const correctionResult = await calculateAttributionCorrectionFactor(
       campaign.accountId,
-      campaign.id
+      campaign.campaignId
     );
     const campaignAge = campaign.createdAt ? Math.floor((Date.now() - new Date(campaign.createdAt).getTime()) / (24 * 60 * 60 * 1e3)) : 30;
     if (shouldApplyCorrection(
@@ -350427,12 +350426,12 @@ async function analyzeBidAdjustments2(campaign, costType = "cpc") {
     )) {
       correctionFactor = correctionResult.correctionFactor;
       correctionApplied = true;
-      console.log(`[UnifiedOptEngine] Campaign ${campaign.id} \u5F52\u56E0\u6821\u6B63\u7CFB\u6570: ${correctionFactor.toFixed(3)}`);
+      console.log(`[UnifiedOptEngine] Campaign ${campaign.campaignId} \u5F52\u56E0\u6821\u6B63\u7CFB\u6570: ${correctionFactor.toFixed(3)}`);
     }
   } catch (corrErr) {
     console.warn(`[UnifiedOptEngine] \u5F52\u56E0\u6821\u6B63\u8BA1\u7B97\u5931\u8D25, \u4F7F\u7528\u539F\u59CB\u6570\u636E:`, corrErr.message);
   }
-  const campaignKeywords = await db.select().from(keywords).where(sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`);
+  const campaignKeywords = await db.select().from(keywords).where(sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`);
   for (const kw of campaignKeywords) {
     const rawImpressions = Number(kw.impressions) || 0;
     const rawClicks = Number(kw.clicks) || 0;
@@ -350462,7 +350461,7 @@ async function analyzeBidAdjustments2(campaign, costType = "cpc") {
       const bidDiff2 = currentBid > 0 ? Math.abs(optimalVcpm - currentBid) / currentBid : 1;
       if (bidDiff2 > 0.15 && optimalVcpm > 0.5) {
         decisions.push({
-          id: `vcpm_bid_${campaign.id}_${kw.id}_${Date.now()}`,
+          id: `vcpm_bid_${campaign.campaignId}_${kw.id}_${Date.now()}`,
           type: "bid_adjustment",
           targetType: "keyword",
           targetId: kw.id,
@@ -350503,7 +350502,7 @@ async function analyzeBidAdjustments2(campaign, costType = "cpc") {
     if (bidDiff > 0.1 && optimalBid > 0.1) {
       const expectedAcos = optimalBid > 0 ? optimalBid / (cvr * aov) * 100 : acos;
       decisions.push({
-        id: `bid_${campaign.id}_${kw.id}_${Date.now()}`,
+        id: `bid_${campaign.campaignId}_${kw.id}_${Date.now()}`,
         type: "bid_adjustment",
         targetType: "keyword",
         targetId: kw.id,
@@ -350523,7 +350522,7 @@ async function analyzeBidAdjustments2(campaign, costType = "cpc") {
       });
     }
   }
-  const campaignTargets = await db.select().from(productTargets).where(sql`${productTargets.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`);
+  const campaignTargets = await db.select().from(productTargets).where(sql`${productTargets.adGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`);
   for (const pt3 of campaignTargets) {
     const rawImpressions = Number(pt3.impressions) || 0;
     const rawClicks = Number(pt3.clicks) || 0;
@@ -350545,7 +350544,7 @@ async function analyzeBidAdjustments2(campaign, costType = "cpc") {
       const bidDiff = currentBid > 0 ? Math.abs(optimalVcpm - currentBid) / currentBid : 1;
       if (bidDiff > 0.15 && optimalVcpm > 0.5) {
         decisions.push({
-          id: `vcpm_pt_bid_${campaign.id}_${pt3.id}_${Date.now()}`,
+          id: `vcpm_pt_bid_${campaign.campaignId}_${pt3.id}_${Date.now()}`,
           type: "bid_adjustment",
           targetType: "keyword",
           targetId: pt3.id,
@@ -350575,7 +350574,7 @@ async function analyzeBidAdjustments2(campaign, costType = "cpc") {
       if (bidDiff > 0.1 && optimalBid > 0.1) {
         const expectedAcos = optimalBid > 0 ? optimalBid / (cvr * aov) * 100 : acos;
         decisions.push({
-          id: `pt_bid_${campaign.id}_${pt3.id}_${Date.now()}`,
+          id: `pt_bid_${campaign.campaignId}_${pt3.id}_${Date.now()}`,
           type: "bid_adjustment",
           targetType: "keyword",
           targetId: pt3.id,
@@ -350601,7 +350600,7 @@ async function analyzePlacementTilt(campaign) {
   const suggestedProductPage = Math.min(50, Math.max(0, currentProductPage));
   if (currentTopSearch > 50) {
     decisions.push({
-      id: `placement_top_${campaign.id}_${Date.now()}`,
+      id: `placement_top_${campaign.campaignId}_${Date.now()}`,
       type: "placement_tilt",
       targetType: "campaign",
       targetId: campaign.id,
@@ -350622,7 +350621,7 @@ async function analyzePlacementTilt(campaign) {
   }
   if (currentProductPage > 50) {
     decisions.push({
-      id: `placement_product_${campaign.id}_${Date.now()}`,
+      id: `placement_product_${campaign.campaignId}_${Date.now()}`,
       type: "placement_tilt",
       targetType: "campaign",
       targetId: campaign.id,
@@ -350647,7 +350646,7 @@ async function analyzeDayparting(campaign) {
   const decisions = [];
   const poorPerformingHours = [2, 3, 4, 5];
   decisions.push({
-    id: `daypart_${campaign.id}_${Date.now()}`,
+    id: `daypart_${campaign.campaignId}_${Date.now()}`,
     type: "dayparting",
     targetType: "campaign",
     targetId: campaign.id,
@@ -350673,7 +350672,7 @@ async function analyzeNegativeKeywords(campaign, costType = "cpc") {
   const isVcpm = costType === "vcpm";
   if (isVcpm) {
     const poorKeywords = await db.select().from(keywords).where(and(
-      sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`,
+      sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`,
       sql`${keywords.impressions} > 5000`,
       // vCPM需要更多展示数据
       sql`${keywords.clicks} = 0`,
@@ -350684,7 +350683,7 @@ async function analyzeNegativeKeywords(campaign, costType = "cpc") {
       const impressions = Number(kw.impressions) || 0;
       const spend = Number(kw.spend) || 0;
       decisions.push({
-        id: `negative_vcpm_${campaign.id}_${kw.id}_${Date.now()}`,
+        id: `negative_vcpm_${campaign.campaignId}_${kw.id}_${Date.now()}`,
         type: "negative_keyword",
         targetType: "keyword",
         targetId: kw.id,
@@ -350705,13 +350704,13 @@ async function analyzeNegativeKeywords(campaign, costType = "cpc") {
     }
   } else {
     const poorKeywords = await db.select().from(keywords).where(and(
-      sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`,
+      sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`,
       sql`${keywords.clicks} > 20`,
       sql`${keywords.orders} = 0`
     )).limit(10);
     for (const kw of poorKeywords) {
       decisions.push({
-        id: `negative_${campaign.id}_${kw.id}_${Date.now()}`,
+        id: `negative_${campaign.campaignId}_${kw.id}_${Date.now()}`,
         type: "negative_keyword",
         targetType: "keyword",
         targetId: kw.id,
@@ -350733,7 +350732,7 @@ async function analyzeNegativeKeywords(campaign, costType = "cpc") {
   }
   if (isVcpm) {
     const poorTargets = await db.select().from(productTargets).where(and(
-      sql`${productTargets.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`,
+      sql`${productTargets.adGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`,
       sql`${productTargets.impressions} > 5000`,
       sql`${productTargets.clicks} = 0`,
       sql`${productTargets.orders} = 0`
@@ -350742,7 +350741,7 @@ async function analyzeNegativeKeywords(campaign, costType = "cpc") {
       const impressions = Number(pt3.impressions) || 0;
       const spend = Number(pt3.spend) || 0;
       decisions.push({
-        id: `negative_vcpm_pt_${campaign.id}_${pt3.id}_${Date.now()}`,
+        id: `negative_vcpm_pt_${campaign.campaignId}_${pt3.id}_${Date.now()}`,
         type: "negative_keyword",
         targetType: "keyword",
         targetId: pt3.id,
@@ -350758,13 +350757,13 @@ async function analyzeNegativeKeywords(campaign, costType = "cpc") {
     }
   } else {
     const poorTargets = await db.select().from(productTargets).where(and(
-      sql`${productTargets.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`,
+      sql`${productTargets.adGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`,
       sql`${productTargets.clicks} > 20`,
       sql`${productTargets.orders} = 0`
     )).limit(10);
     for (const pt3 of poorTargets) {
       decisions.push({
-        id: `negative_pt_${campaign.id}_${pt3.id}_${Date.now()}`,
+        id: `negative_pt_${campaign.campaignId}_${pt3.id}_${Date.now()}`,
         type: "negative_keyword",
         targetType: "keyword",
         targetId: pt3.id,
@@ -351182,7 +351181,7 @@ async function identifyFunnelTiers(accountId) {
       tierLevel = "tier3_explore";
     }
     tierConfigs.push({
-      campaignId: campaign.id,
+      campaignId: campaign.campaignId,
       campaignName: campaign.campaignName,
       tierLevel,
       matchType: dominantMatchType,
@@ -352074,7 +352073,7 @@ async function runNGramAnalysisTask(accountId) {
       const database = await getDb();
       for (const suggestion of analysisResult.suggestedNegatives) {
         const negativesToSync = campaigns7.map((campaign) => ({
-          campaignId: Number(campaign.campaignId || campaign.id),
+          campaignId: String(campaign.campaignId),
           keywordText: suggestion.token,
           matchType: suggestion.matchType === "negative_phrase" ? "negativePhrase" : "negativeExact",
           level: "campaign"
@@ -352082,12 +352081,12 @@ async function runNGramAnalysisTask(accountId) {
         try {
           const syncResult = await syncNegativeKeywordsToAmazon(accountId, negativesToSync);
           for (const campaign of campaigns7) {
-            const amazonCampaignId = Number(campaign.campaignId || campaign.id);
+            const amazonCampaignId = String(campaign.campaignId);
             const mapKey = `campaign:${amazonCampaignId}:${suggestion.token.toLowerCase()}`;
             const amazonNegKeywordId = syncResult.keywordIdMap.get(mapKey);
             try {
               await addNegativeKeyword({
-                campaignId: campaign.id,
+                campaignId: campaign.campaignId,
                 keyword: suggestion.token,
                 matchType: suggestion.matchType === "negative_phrase" ? "phrase" : "exact",
                 level: "campaign"
@@ -352097,7 +352096,7 @@ async function runNGramAnalysisTask(accountId) {
                   UPDATE negative_keywords 
                   SET amazon_negative_keyword_id = ${amazonNegKeywordId},
                       negativeSource = 'ngram_analysis'
-                  WHERE campaignId = ${campaign.id}
+                  WHERE campaignId = ${campaign.campaignId}
                     AND negativeText = ${suggestion.token}
                     AND amazon_negative_keyword_id IS NULL
                   LIMIT 1
@@ -352115,7 +352114,7 @@ async function runNGramAnalysisTask(accountId) {
           for (const campaign of campaigns7) {
             try {
               await addNegativeKeyword({
-                campaignId: campaign.id,
+                campaignId: campaign.campaignId,
                 keyword: suggestion.token,
                 matchType: suggestion.matchType === "negative_phrase" ? "phrase" : "exact",
                 level: "campaign"
@@ -356255,7 +356254,7 @@ async function analyzeBudgetDepletionRisk(accountId) {
   const predictions = [];
   for (const campaign of activeCampaigns) {
     const [todayPerf] = await db.select().from(dailyPerformance).where(and(
-      eq(dailyPerformance.campaignId, String(campaign.id)),
+      eq(dailyPerformance.campaignId, String(campaign.campaignId)),
       sql`DATE(${dailyPerformance.date}) = ${today}`
     )).limit(1);
     const currentSpend = todayPerf ? Number(todayPerf.spend) : 0;
@@ -357929,7 +357928,7 @@ var BudgetAllocator = class {
         );
         const marginalReturn = (recommendation.expectedSales - currentAvg.avgSales) / (testBudget - campaign.currentBudget);
         return {
-          campaignId: campaign.id,
+          campaignId: campaign.campaignId,
           marginalReturn: marginalReturn > 0 ? marginalReturn : 0,
           currentBudget: campaign.currentBudget,
           optimizer,
@@ -357937,7 +357936,7 @@ var BudgetAllocator = class {
         };
       } catch (error54) {
         return {
-          campaignId: campaign.id,
+          campaignId: campaign.campaignId,
           marginalReturn: campaign.currentROAS,
           currentBudget: campaign.currentBudget,
           optimizer: null,
@@ -358165,7 +358164,7 @@ var mlOptimizationRouter = router({
     const endDate = /* @__PURE__ */ new Date();
     const campaignsWithData = await Promise.all(
       groupCampaigns.map(async (campaign) => {
-        const campaignIdStr = String(campaign.id);
+        const campaignIdStr = String(campaign.campaignId);
         const historicalRecords = await getDailyPerformanceByDateRange(
           campaign.accountId,
           cutoffDate,
@@ -360316,7 +360315,7 @@ async function analyzeBudgetConsumption(userId, accountId) {
   const results = [];
   for (const campaign of activeCampaigns) {
     const todayStr = today.toISOString().split("T")[0];
-    const todayPerformance = await db.select().from(dailyPerformance).where(and(eq(dailyPerformance.campaignId, String(campaign.id)), sql`DATE(${dailyPerformance.date}) >= ${todayStr}`)).limit(1);
+    const todayPerformance = await db.select().from(dailyPerformance).where(and(eq(dailyPerformance.campaignId, String(campaign.campaignId)), sql`DATE(${dailyPerformance.date}) >= ${todayStr}`)).limit(1);
     const dailyBudget = Number(campaign.maxBid) * 100 || 100;
     const currentSpend = todayPerformance[0]?.spend ? Number(todayPerformance[0].spend) : 0;
     const expectedSpend = dailyBudget / 24 * hoursElapsed;
@@ -360344,7 +360343,7 @@ async function analyzeBudgetConsumption(userId, accountId) {
       severity = deviationPercent <= -70 ? "high" : "medium";
       recommendation = `\u6D88\u8017\u901F\u5EA6\u8FC7\u6162\uFF08\u504F\u5DEE${deviationPercent.toFixed(1)}%\uFF09\uFF0C\u53EF\u80FD\u9519\u5931\u6D41\u91CF\u673A\u4F1A\u3002\u5EFA\u8BAE\u68C0\u67E5\u5E7F\u544A\u72B6\u6001\u3001\u63D0\u9AD8\u51FA\u4EF7\u6216\u6269\u5C55\u5173\u952E\u8BCD\u3002`;
     }
-    results.push({ campaignId: campaign.id, campaignName: campaign.campaignName, dailyBudget, currentSpend, expectedSpend, spendRate, projectedDailySpend, deviationPercent, hoursElapsed, alertType, severity, recommendation });
+    results.push({ campaignId: campaign.campaignId, campaignName: campaign.campaignName, dailyBudget, currentSpend, expectedSpend, spendRate, projectedDailySpend, deviationPercent, hoursElapsed, alertType, severity, recommendation });
   }
   return results;
 }
@@ -360668,7 +360667,7 @@ async function generateSeasonalRecommendations(userId, accountId) {
         recommendations.push({
           userId,
           accountId: accountId ?? null,
-          campaignId: campaign.id,
+          campaignId: campaign.campaignId,
           eventId: event.id,
           recommendationType: isEvent ? "event_increase" : "event_warmup",
           currentBudget: currentBudget.toString(),
@@ -360688,7 +360687,7 @@ async function generateSeasonalRecommendations(userId, accountId) {
       recommendations.push({
         userId,
         accountId: accountId ?? null,
-        campaignId: campaign.id,
+        campaignId: campaign.campaignId,
         recommendationType: "seasonal_increase",
         currentBudget: currentBudget.toString(),
         recommendedBudget: (currentBudget * multiplier).toString(),
@@ -360703,7 +360702,7 @@ async function generateSeasonalRecommendations(userId, accountId) {
       recommendations.push({
         userId,
         accountId: accountId ?? null,
-        campaignId: campaign.id,
+        campaignId: campaign.campaignId,
         recommendationType: "seasonal_decrease",
         currentBudget: currentBudget.toString(),
         recommendedBudget: (currentBudget * multiplier).toString(),
@@ -366477,7 +366476,7 @@ var optimizationRouter = router({
       maxBid: group.maxBid ? parseFloat(group.maxBid) : 10
     };
     for (const campaign of campaigns7) {
-      const adGroups4 = await getAdGroupsByCampaignId(campaign.campaignId || campaign.id);
+      const adGroups4 = await getAdGroupsByCampaignId(campaign.campaignId);
       const maxBidLimit = campaign.maxBid ? parseFloat(campaign.maxBid) : groupConfig.maxBid || 10;
       for (const adGroup of adGroups4) {
         const keywords8 = await getKeywordsByAdGroupId(adGroup.id);
@@ -371590,7 +371589,7 @@ var placementRouter = router({
     for (const gc of groupCampaigns) {
       const campaign = gc;
       if (!campaign) continue;
-      const campaignKeywords = await getKeywordsByCampaignId(campaign.campaignId || campaign.id);
+      const campaignKeywords = await getKeywordsByCampaignId(campaign.campaignId);
       let campaignOptimalBidSum = 0;
       let campaignCurrentBidSum = 0;
       let campaignMaxProfit = 0;
@@ -371791,7 +371790,7 @@ var placementRouter = router({
     for (const gc of groupCampaigns) {
       const campaign = gc;
       if (!campaign) continue;
-      const campaignKeywords = await getKeywordsByCampaignId(campaign.campaignId || campaign.id);
+      const campaignKeywords = await getKeywordsByCampaignId(campaign.campaignId);
       let appliedCount = 0;
       let skippedCount = 0;
       let errorCount = 0;

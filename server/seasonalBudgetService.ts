@@ -201,7 +201,7 @@ export async function generateSeasonalRecommendations(userId: number, accountId?
         recommendations.push({
           userId,
           accountId: accountId ?? null,
-          campaignId: campaign.id,
+          campaignId: campaign.campaignId,
           eventId: event.id,
           recommendationType: isEvent ? "event_increase" : "event_warmup",
           currentBudget: currentBudget.toString(),
@@ -224,7 +224,7 @@ export async function generateSeasonalRecommendations(userId: number, accountId?
       recommendations.push({
         userId,
         accountId: accountId ?? null,
-        campaignId: campaign.id,
+        campaignId: campaign.campaignId,
         recommendationType: "seasonal_increase",
         currentBudget: currentBudget.toString(),
         recommendedBudget: (currentBudget * multiplier).toString(),
@@ -239,7 +239,7 @@ export async function generateSeasonalRecommendations(userId: number, accountId?
       recommendations.push({
         userId,
         accountId: accountId ?? null,
-        campaignId: campaign.id,
+        campaignId: campaign.campaignId,
         recommendationType: "seasonal_decrease",
         currentBudget: currentBudget.toString(),
         recommendedBudget: (currentBudget * multiplier).toString(),

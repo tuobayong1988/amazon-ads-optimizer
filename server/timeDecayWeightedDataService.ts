@@ -422,7 +422,7 @@ export async function getPerformanceGroupTimeWeightedMetrics(
   for (const campaign of campaigns) {
     try {
       // v206: getDailyPerformanceByDateRange需要Amazon campaignId
-      const rawData = await db.getDailyPerformanceByDateRange(accountId, startDate, endDate, campaign.campaignId || campaign.id);
+      const rawData = await db.getDailyPerformanceByDateRange(accountId, startDate, endDate, campaign.campaignId);
       
       for (const d of rawData) {
         allDailyData.push({

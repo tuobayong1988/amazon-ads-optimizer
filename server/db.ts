@@ -1439,7 +1439,7 @@ export async function getUniqueSearchTerms(accountId: number): Promise<string[]>
 export async function recordMigration(data: {
   accountId: number;
   searchTerm: string;
-  fromCampaignId: number;
+  fromCampaignId: number | string;  // v207: Amazon campaignId (varchar)
   toMatchType: 'phrase' | 'exact';
   suggestedBid: number;
   status: string;
@@ -1450,7 +1450,7 @@ export async function recordMigration(data: {
   // 记录到bidding_logs
   await db.insert(biddingLogs).values({
     accountId: data.accountId,
-    campaignId: data.fromCampaignId,
+    campaignId: String(data.fromCampaignId),  // v207: 确保存储为Amazon campaignId字符串
     logTargetType: 'keyword',
     targetId: 0,
     targetName: data.searchTerm,
@@ -1581,6 +1581,7 @@ export async function recordBidChange(data: {
   oldBid: number;
   newBid: number;
   reason: string;
+  campaignId?: number | string;  // v207: Amazon campaignId (varchar)
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -1590,7 +1591,7 @@ export async function recordBidChange(data: {
   
   await db.insert(biddingLogs).values({
     accountId: data.accountId,
-    campaignId: 0, // 默认值
+    campaignId: data.campaignId ? String(data.campaignId) : '',  // v207: 使用Amazon campaignId
     logTargetType: dbTargetType,
     targetId: data.targetId,
     targetName: '',
@@ -1661,14 +1662,14 @@ export async function getCampaignHealthMetrics(accountId: number): Promise<Campa
     // 获取最近7天的绩效数据
     const recentPerf = await db.select()
       .from(dailyPerformance)
-      .where(eq(dailyPerformance.campaignId, String(campaign.id)))
+      .where(eq(dailyPerformance.campaignId, String(campaign.campaignId)))
       .orderBy(desc(dailyPerformance.date))
       .limit(7);
     
     // 获取历史30天的绩效数据
     const historicalPerf = await db.select()
       .from(dailyPerformance)
-      .where(eq(dailyPerformance.campaignId, String(campaign.id)))
+      .where(eq(dailyPerformance.campaignId, String(campaign.campaignId)))
       .orderBy(desc(dailyPerformance.date))
       .limit(30);
     
@@ -1682,7 +1683,7 @@ export async function getCampaignHealthMetrics(accountId: number): Promise<Campa
     const changes = calculateMetricChanges(currentMetrics, historicalAverage);
     
     results.push({
-      campaignId: campaign.id,
+      campaignId: campaign.campaignId,
       campaignName: campaign.campaignName,
       campaignType: campaign.campaignType as 'sp_auto' | 'sp_manual' | 'sb' | 'sd',
       currentMetrics,

@@ -643,7 +643,7 @@ export async function identifyFunnelTiers(
     }
     
     tierConfigs.push({
-      campaignId: campaign.id,
+      campaignId: campaign.campaignId,
       campaignName: campaign.campaignName,
       tierLevel,
       matchType: dominantMatchType,

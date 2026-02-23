@@ -22,7 +22,7 @@ export type AlertType = "overspending" | "underspending" | "budget_depleted" | "
 export type AlertSeverity = "low" | "medium" | "high" | "critical";
 
 interface ConsumptionAnalysis {
-  campaignId: number;
+  campaignId: number | string;
   campaignName: string;
   dailyBudget: number;
   currentSpend: number;
@@ -84,7 +84,7 @@ export async function analyzeBudgetConsumption(userId: number, accountId?: numbe
   const results: ConsumptionAnalysis[] = [];
   for (const campaign of activeCampaigns) {
     const todayStr = today.toISOString().split('T')[0];
-    const todayPerformance = await db.select().from(dailyPerformance).where(and(eq(dailyPerformance.campaignId, String(campaign.id)), sql`DATE(${dailyPerformance.date}) >= ${todayStr}`)).limit(1);
+    const todayPerformance = await db.select().from(dailyPerformance).where(and(eq(dailyPerformance.campaignId, String(campaign.campaignId)), sql`DATE(${dailyPerformance.date}) >= ${todayStr}`)).limit(1);
     const dailyBudget = Number(campaign.maxBid) * 100 || 100;
     const currentSpend = todayPerformance[0]?.spend ? Number(todayPerformance[0].spend) : 0;
     const expectedSpend = (dailyBudget / 24) * hoursElapsed;
@@ -112,7 +112,7 @@ export async function analyzeBudgetConsumption(userId: number, accountId?: numbe
       severity = deviationPercent <= -70 ? "high" : "medium";
       recommendation = `消耗速度过慢（偏差${deviationPercent.toFixed(1)}%），可能错失流量机会。建议检查广告状态、提高出价或扩展关键词。`;
     }
-    results.push({ campaignId: campaign.id, campaignName: campaign.campaignName, dailyBudget, currentSpend, expectedSpend, spendRate, projectedDailySpend, deviationPercent, hoursElapsed, alertType, severity, recommendation });
+    results.push({ campaignId: campaign.campaignId, campaignName: campaign.campaignName, dailyBudget, currentSpend, expectedSpend, spendRate, projectedDailySpend, deviationPercent, hoursElapsed, alertType, severity, recommendation });
   }
   return results;
 }

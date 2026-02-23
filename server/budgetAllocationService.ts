@@ -321,7 +321,7 @@ export async function generateBudgetAllocation(
     const impressions = Number(campaign.impressions) || 0;
 
     return {
-      campaignId: campaign.id,
+      campaignId: campaign.campaignId,
       campaignName: campaign.campaignName,
       campaignType: campaign.campaignType,
       currentBudget: Number(campaign.dailyBudget) || 0,

@@ -169,7 +169,7 @@ export function recommendStrategyTemplate(campaign: CampaignPerformanceData): St
   // 数据不足时默认推荐平衡增长
   if (impressions < 100 || clicks < 10 || spend < 5) {
     return {
-      campaignId: campaign.id,
+      campaignId: campaign.campaignId,
       recommendedTemplateId: 'aggressive-growth',
       recommendedTemplateName: '激进增长',
       reason: '数据量不足（曝光<100或点击<10），建议采用激进增长策略积累数据',
@@ -290,7 +290,7 @@ export function recommendStrategyTemplate(campaign: CampaignPerformanceData): St
   const confidence = Math.min(95, Math.max(20, 40 + scoreDiff * 2));
 
   return {
-    campaignId: campaign.id,
+    campaignId: campaign.campaignId,
     recommendedTemplateId: best.templateId,
     recommendedTemplateName: template.name,
     reason: best.reasons.slice(0, 3).join('；'),

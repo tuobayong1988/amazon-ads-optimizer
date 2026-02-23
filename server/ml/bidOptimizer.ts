@@ -420,7 +420,7 @@ export class BudgetAllocator {
           (testBudget - campaign.currentBudget);
 
         return {
-          campaignId: campaign.id,
+          campaignId: campaign.campaignId,
           marginalReturn: marginalReturn > 0 ? marginalReturn : 0,
           currentBudget: campaign.currentBudget,
           optimizer,
@@ -429,7 +429,7 @@ export class BudgetAllocator {
       } catch (error) {
         // 数据不足,使用当前ROAS作为边际回报
         return {
-          campaignId: campaign.id,
+          campaignId: campaign.campaignId,
           marginalReturn: campaign.currentROAS,
           currentBudget: campaign.currentBudget,
           optimizer: null,

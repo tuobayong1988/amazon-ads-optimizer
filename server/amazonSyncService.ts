@@ -1137,7 +1137,7 @@ export class AmazonSyncService {
           .from(adGroups)
           .where(
             and(
-              eq(adGroups.campaignId, String(campaign.id)),
+              eq(adGroups.campaignId, String(campaign.campaignId)),
               eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
             )
           )
@@ -1157,7 +1157,7 @@ export class AmazonSyncService {
         const normalizedState = (apiAdGroup.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
         
         const adGroupData = {
-          campaignId: campaign.id,
+          campaignId: campaign.campaignId,
           accountId: this.accountId,
           adGroupId: String(apiAdGroup.adGroupId),
           adGroupName: apiAdGroup.name,
@@ -1223,7 +1223,7 @@ export class AmazonSyncService {
           .from(adGroups)
           .where(
             and(
-              eq(adGroups.campaignId, String(campaign.id)),
+              eq(adGroups.campaignId, String(campaign.campaignId)),
               eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
             )
           )
@@ -1232,7 +1232,7 @@ export class AmazonSyncService {
         const normalizedState = (apiAdGroup.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
 
         const adGroupData = {
-          campaignId: campaign.id,
+          campaignId: campaign.campaignId,
           accountId: this.accountId,
           adGroupId: String(apiAdGroup.adGroupId),
           adGroupName: apiAdGroup.name || apiAdGroup.adGroupName || 'SB Ad Group',
@@ -1300,7 +1300,7 @@ export class AmazonSyncService {
           .from(adGroups)
           .where(
             and(
-              eq(adGroups.campaignId, String(campaign.id)),
+              eq(adGroups.campaignId, String(campaign.campaignId)),
               eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
             )
           )
@@ -1312,7 +1312,7 @@ export class AmazonSyncService {
         const tactic = apiAdGroup.tactic || null;
 
         const adGroupData = {
-          campaignId: campaign.id,
+          campaignId: campaign.campaignId,
           accountId: this.accountId,
           adGroupId: String(apiAdGroup.adGroupId),
           adGroupName: apiAdGroup.name || apiAdGroup.adGroupName || 'SD Ad Group',
@@ -1745,7 +1745,7 @@ export class AmazonSyncService {
           .where(
             and(
               eq(negativeKeywords.accountId, this.accountId),
-              eq(negativeKeywords.campaignId, String(campaign.id)),
+              eq(negativeKeywords.campaignId, String(campaign.campaignId)),
               eq(negativeKeywords.negativeLevel, 'campaign'),
               eq(negativeKeywords.negativeText, neg.keywordText || '')
             )
@@ -1759,7 +1759,7 @@ export class AmazonSyncService {
         } else {
           await db.insert(negativeKeywords).values({
             accountId: this.accountId,
-            campaignId: campaign.id,
+            campaignId: String(campaign.campaignId),
             negativeLevel: 'campaign',
             negativeType: 'keyword',
             negativeText: neg.keywordText || '',
@@ -1802,7 +1802,7 @@ export class AmazonSyncService {
           .where(
             and(
               eq(negativeKeywords.accountId, this.accountId),
-              eq(negativeKeywords.campaignId, String(campaign.id)),
+              eq(negativeKeywords.campaignId, String(campaign.campaignId)),
               eq(negativeKeywords.adGroupId, adGroup.id),
               eq(negativeKeywords.negativeLevel, 'ad_group'),
               eq(negativeKeywords.negativeText, neg.keywordText || '')
@@ -1817,7 +1817,7 @@ export class AmazonSyncService {
         } else {
           await db.insert(negativeKeywords).values({
             accountId: this.accountId,
-            campaignId: campaign.id,
+            campaignId: String(campaign.campaignId),
             adGroupId: adGroup.id,
             negativeLevel: 'ad_group',
             negativeType: 'keyword',
@@ -1877,7 +1877,7 @@ export class AmazonSyncService {
           .where(
             and(
               eq(negativeKeywords.accountId, this.accountId),
-              eq(negativeKeywords.campaignId, String(campaign.id)),
+              eq(negativeKeywords.campaignId, String(campaign.campaignId)),
               eq(negativeKeywords.negativeLevel, 'campaign'),
               eq(negativeKeywords.negativeType, 'product'),
               eq(negativeKeywords.negativeText, negativeText)
@@ -1892,7 +1892,7 @@ export class AmazonSyncService {
         } else {
           await db.insert(negativeKeywords).values({
             accountId: this.accountId,
-            campaignId: campaign.id,
+            campaignId: String(campaign.campaignId),
             negativeLevel: 'campaign',
             negativeType: 'product',
             negativeText: negativeText,
@@ -1933,7 +1933,7 @@ export class AmazonSyncService {
           .where(
             and(
               eq(negativeKeywords.accountId, this.accountId),
-              eq(negativeKeywords.campaignId, String(campaign.id)),
+              eq(negativeKeywords.campaignId, String(campaign.campaignId)),
               eq(negativeKeywords.adGroupId, adGroup.id),
               eq(negativeKeywords.negativeLevel, 'ad_group'),
               eq(negativeKeywords.negativeType, 'product'),
@@ -1949,7 +1949,7 @@ export class AmazonSyncService {
         } else {
           await db.insert(negativeKeywords).values({
             accountId: this.accountId,
-            campaignId: campaign.id,
+            campaignId: String(campaign.campaignId),
             adGroupId: adGroup.id,
             negativeLevel: 'ad_group',
             negativeType: 'product',
@@ -2025,7 +2025,7 @@ export class AmazonSyncService {
           .where(
             and(
               eq(searchTerms.accountId, this.accountId),
-              eq(searchTerms.campaignId, String(campaign.id)),
+              eq(searchTerms.campaignId, String(campaign.campaignId)),
               eq(searchTerms.adGroupId, adGroup.id),
               eq(searchTerms.searchTerm, row.searchTerm || '')
             )
@@ -2091,7 +2091,7 @@ export class AmazonSyncService {
 
         const searchTermData = {
           accountId: this.accountId,
-          campaignId: campaign.id,
+          campaignId: campaign.campaignId,
           adGroupId: adGroup.id,
           searchTerm: searchTermText,
           searchTermTargetType: isProductTarget ? 'product_target' as const : 'keyword' as const,
@@ -2743,7 +2743,7 @@ export class AmazonSyncService {
           .from(dailyPerformance)
           .where(
             and(
-              eq(dailyPerformance.campaignId, String(campaign.id)),
+              eq(dailyPerformance.campaignId, String(campaign.campaignId)),
               sql`DATE(${dailyPerformance.date}) = ${reportDateStr}`
             )
           )
@@ -2799,7 +2799,7 @@ export class AmazonSyncService {
 
         const perfData = {
           accountId: this.accountId,
-          campaignId: campaign.id,
+          campaignId: campaign.campaignId,
           date: reportDateStr,
           impressions: row.impressions || 0,
           clicks: row.clicks || 0,
@@ -2848,7 +2848,7 @@ export class AmazonSyncService {
             await db.execute(sql`UPDATE daily_performance SET currency = ${currency}, exchange_rate = ${exchangeRate}, spend_usd = ${spendUsd.toFixed(2)}, sales_usd = ${salesUsd.toFixed(2)} WHERE id = ${insertId}`);
           } else {
             // Fallback: update by composite key
-            await db.execute(sql`UPDATE daily_performance SET currency = ${currency}, exchange_rate = ${exchangeRate}, spend_usd = ${spendUsd.toFixed(2)}, sales_usd = ${salesUsd.toFixed(2)} WHERE campaignId = ${campaign.id} AND DATE(date) = ${reportDateStr} AND accountId = ${this.accountId}`);
+            await db.execute(sql`UPDATE daily_performance SET currency = ${currency}, exchange_rate = ${exchangeRate}, spend_usd = ${spendUsd.toFixed(2)}, sales_usd = ${salesUsd.toFixed(2)} WHERE campaignId = ${campaign.campaignId} AND DATE(date) = ${reportDateStr} AND accountId = ${this.accountId}`);
           }
         }
         synced++;
@@ -2906,7 +2906,7 @@ export class AmazonSyncService {
             .from(dailyPerformance)
             .where(
               and(
-                eq(dailyPerformance.campaignId, String(campaign.id)),
+                eq(dailyPerformance.campaignId, String(campaign.campaignId)),
                 sql`DATE(${dailyPerformance.date}) = ${dateStr}`
               )
             )
@@ -2930,7 +2930,7 @@ export class AmazonSyncService {
 
           const perfData = {
             accountId: this.accountId,
-            campaignId: campaign.id,
+            campaignId: campaign.campaignId,
             date: dateStr,
             impressions,
             clicks,
@@ -3951,8 +3951,8 @@ export class AmazonSyncService {
 
         const reportDate = row.date || new Date().toISOString().split('T')[0];
 
-        // v165: 统一使用本地campaign.id作为campaignId，确保前端查询一致性
-        const localCampaignId = String(campaign.id);
+        // v207: 统一使用Amazon campaignId（varchar字段应存储Amazon ID）
+        const localCampaignId = String(campaign.campaignId);
         
         // 检查是否已存在
         const [existing] = await db
@@ -4144,7 +4144,7 @@ export class AmazonSyncService {
 
         const searchTermData = {
           accountId: this.accountId,
-          campaignId: campaign.id,
+          campaignId: campaign.campaignId,
           adGroupId: adGroup.id,
           searchTerm: searchTermText,
           searchTermTargetType: isProductTarget ? 'product_target' as const : 'keyword' as const,
@@ -4661,7 +4661,7 @@ export class AmazonSyncService {
           .from(dailyPerformance)
           .where(
             and(
-              eq(dailyPerformance.campaignId, String(campaign.id)),
+              eq(dailyPerformance.campaignId, String(campaign.campaignId)),
               sql`${dailyPerformance.date} >= ${startDateStr}`,
               sql`${dailyPerformance.date} <= ${endDateStr}`
             )
@@ -4679,7 +4679,7 @@ export class AmazonSyncService {
           const campaignAdGroups = await db
             .select({ id: adGroups.id })
             .from(adGroups)
-            .where(eq(adGroups.campaignId, String(campaign.id)));
+            .where(eq(adGroups.campaignId, String(campaign.campaignId)));
 
           const adGroupIds = campaignAdGroups.map(ag => ag.id);
 
@@ -4903,7 +4903,7 @@ export class AmazonSyncService {
           .where(
             and(
               eq(negativeKeywords.accountId, this.accountId),
-              eq(negativeKeywords.campaignId, String(campaign.id)),
+              eq(negativeKeywords.campaignId, String(campaign.campaignId)),
               eq(negativeKeywords.negativeLevel, negLevel),
               eq(negativeKeywords.negativeText, neg.keywordText || '')
             )
@@ -4918,7 +4918,7 @@ export class AmazonSyncService {
         } else {
           await db.insert(negativeKeywords).values({
             accountId: this.accountId,
-            campaignId: campaign.id,
+            campaignId: String(campaign.campaignId),
             adGroupId: adGroupId,
             negativeLevel: negLevel,
             negativeType: 'keyword',
@@ -4991,7 +4991,7 @@ export class AmazonSyncService {
           .where(
             and(
               eq(negativeKeywords.accountId, this.accountId),
-              eq(negativeKeywords.campaignId, String(campaign.id)),
+              eq(negativeKeywords.campaignId, String(campaign.campaignId)),
               eq(negativeKeywords.negativeLevel, negLevel),
               eq(negativeKeywords.negativeType, 'product'),
               eq(negativeKeywords.negativeText, negativeText)
@@ -5007,7 +5007,7 @@ export class AmazonSyncService {
         } else {
           await db.insert(negativeKeywords).values({
             accountId: this.accountId,
-            campaignId: campaign.id,
+            campaignId: String(campaign.campaignId),
             adGroupId: adGroupId,
             negativeLevel: negLevel,
             negativeType: 'product',
@@ -5072,8 +5072,8 @@ export class AmazonSyncService {
         };
         const placement = placementMap[rawPlacement] || 'rest_of_search';
         
-        // v165: 统一使用本地campaign.id作为campaignId
-        const localCampaignId2 = String(campaign.id);
+        // v207: 统一使用Amazon campaignId
+        const localCampaignId2 = String(campaign.campaignId);
         
         // 写入placement_performance表
         const [existing] = await db
@@ -5980,7 +5980,7 @@ AmazonSyncService.prototype.syncSpAdGroupsWithTracking = async function(
         .from(adGroups)
         .where(
           and(
-            eq(adGroups.campaignId, String(campaign.id)),
+            eq(adGroups.campaignId, String(campaign.campaignId)),
             eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
           )
         )
@@ -5999,7 +5999,7 @@ AmazonSyncService.prototype.syncSpAdGroupsWithTracking = async function(
       const normalizedState = (apiAdGroup.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
       
       const adGroupData = {
-        campaignId: campaign.id,
+        campaignId: campaign.campaignId,
         accountId: this.accountId,
         adGroupId: String(apiAdGroup.adGroupId),
         adGroupName: apiAdGroup.name,

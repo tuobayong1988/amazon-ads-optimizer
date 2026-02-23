@@ -324,7 +324,7 @@ async function analyzeBidAdjustments(campaign: any, costType: 'cpc' | 'vcpm' = '
       const groups = await db.select().from(performanceGroups).where(eq(performanceGroups.id, campaign.performanceGroupId)).limit(1);
       if (groups.length > 0 && groups[0].targetAcos) {
         groupTargetAcos = Number(groups[0].targetAcos);
-        console.log(`[UnifiedOptEngine] v148: Campaign ${campaign.id} 使用优化目标targetAcos=${groupTargetAcos}%`);
+        console.log(`[UnifiedOptEngine] v148: Campaign ${campaign.campaignId} 使用优化目标targetAcos=${groupTargetAcos}%`);
       }
     } catch (pgErr: any) {
       console.warn(`[UnifiedOptEngine] v148: 获取优化目标targetAcos失败, 使用默认值30%:`, pgErr.message);
@@ -336,7 +336,7 @@ async function analyzeBidAdjustments(campaign: any, costType: 'cpc' | 'vcpm' = '
   let correctionApplied = false;
   try {
     const correctionResult = await calculateAttributionCorrectionFactor(
-      campaign.accountId, campaign.id
+      campaign.accountId, campaign.campaignId
     );
     const campaignAge = campaign.createdAt 
       ? Math.floor((Date.now() - new Date(campaign.createdAt).getTime()) / (24 * 60 * 60 * 1000))
@@ -349,7 +349,7 @@ async function analyzeBidAdjustments(campaign: any, costType: 'cpc' | 'vcpm' = '
     )) {
       correctionFactor = correctionResult.correctionFactor;
       correctionApplied = true;
-      console.log(`[UnifiedOptEngine] Campaign ${campaign.id} 归因校正系数: ${correctionFactor.toFixed(3)}`);
+      console.log(`[UnifiedOptEngine] Campaign ${campaign.campaignId} 归因校正系数: ${correctionFactor.toFixed(3)}`);
     }
   } catch (corrErr: any) {
     console.warn(`[UnifiedOptEngine] 归因校正计算失败, 使用原始数据:`, corrErr.message);
@@ -359,7 +359,7 @@ async function analyzeBidAdjustments(campaign: any, costType: 'cpc' | 'vcpm' = '
   const campaignKeywords = await db
     .select()
     .from(keywords)
-    .where(sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`);
+    .where(sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`);
   
   for (const kw of campaignKeywords) {
     const rawImpressions = Number(kw.impressions) || 0;
@@ -402,7 +402,7 @@ async function analyzeBidAdjustments(campaign: any, costType: 'cpc' | 'vcpm' = '
       const bidDiff = currentBid > 0 ? Math.abs(optimalVcpm - currentBid) / currentBid : 1;
       if (bidDiff > 0.15 && optimalVcpm > 0.5) { // vCPM调整阈值稍高（15%）
         decisions.push({
-          id: `vcpm_bid_${campaign.id}_${kw.id}_${Date.now()}`,
+          id: `vcpm_bid_${campaign.campaignId}_${kw.id}_${Date.now()}`,
           type: 'bid_adjustment',
           targetType: 'keyword',
           targetId: kw.id,
@@ -453,7 +453,7 @@ async function analyzeBidAdjustments(campaign: any, costType: 'cpc' | 'vcpm' = '
       const expectedAcos = optimalBid > 0 ? (optimalBid / (cvr * aov)) * 100 : acos;
       
       decisions.push({
-        id: `bid_${campaign.id}_${kw.id}_${Date.now()}`,
+        id: `bid_${campaign.campaignId}_${kw.id}_${Date.now()}`,
         type: 'bid_adjustment',
         targetType: 'keyword',
         targetId: kw.id,
@@ -478,7 +478,7 @@ async function analyzeBidAdjustments(campaign: any, costType: 'cpc' | 'vcpm' = '
   const campaignTargets = await db
     .select()
     .from(productTargets)
-    .where(sql`${productTargets.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`);
+    .where(sql`${productTargets.adGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`);
   
   for (const pt of campaignTargets) {
     const rawImpressions = Number(pt.impressions) || 0;
@@ -501,7 +501,7 @@ async function analyzeBidAdjustments(campaign: any, costType: 'cpc' | 'vcpm' = '
       const bidDiff = currentBid > 0 ? Math.abs(optimalVcpm - currentBid) / currentBid : 1;
       if (bidDiff > 0.15 && optimalVcpm > 0.5) {
         decisions.push({
-          id: `vcpm_pt_bid_${campaign.id}_${pt.id}_${Date.now()}`,
+          id: `vcpm_pt_bid_${campaign.campaignId}_${pt.id}_${Date.now()}`,
           type: 'bid_adjustment',
           targetType: 'keyword',
           targetId: pt.id,
@@ -530,7 +530,7 @@ async function analyzeBidAdjustments(campaign: any, costType: 'cpc' | 'vcpm' = '
       if (bidDiff > 0.1 && optimalBid > 0.1) {
         const expectedAcos = optimalBid > 0 ? (optimalBid / (cvr * aov)) * 100 : acos;
         decisions.push({
-          id: `pt_bid_${campaign.id}_${pt.id}_${Date.now()}`,
+          id: `pt_bid_${campaign.campaignId}_${pt.id}_${Date.now()}`,
           type: 'bid_adjustment',
           targetType: 'keyword',
           targetId: pt.id,
@@ -568,7 +568,7 @@ async function analyzePlacementTilt(campaign: any): Promise<OptimizationDecision
   // 如果当前设置过高，建议降低
   if (currentTopSearch > 50) {
     decisions.push({
-      id: `placement_top_${campaign.id}_${Date.now()}`,
+      id: `placement_top_${campaign.campaignId}_${Date.now()}`,
       type: 'placement_tilt',
       targetType: 'campaign',
       targetId: campaign.id,
@@ -590,7 +590,7 @@ async function analyzePlacementTilt(campaign: any): Promise<OptimizationDecision
   
   if (currentProductPage > 50) {
     decisions.push({
-      id: `placement_product_${campaign.id}_${Date.now()}`,
+      id: `placement_product_${campaign.campaignId}_${Date.now()}`,
       type: 'placement_tilt',
       targetType: 'campaign',
       targetId: campaign.id,
@@ -626,7 +626,7 @@ async function analyzeDayparting(campaign: any): Promise<OptimizationDecision[]>
   const poorPerformingHours = [2, 3, 4, 5]; // 凌晨时段通常表现较差
   
   decisions.push({
-    id: `daypart_${campaign.id}_${Date.now()}`,
+    id: `daypart_${campaign.campaignId}_${Date.now()}`,
     type: 'dayparting',
     targetType: 'campaign',
     targetId: campaign.id,
@@ -663,7 +663,7 @@ async function analyzeNegativeKeywords(campaign: any, costType: 'cpc' | 'vcpm' =
       .select()
       .from(keywords)
       .where(and(
-        sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`,
+        sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`,
         sql`${keywords.impressions} > 5000`,  // vCPM需要更多展示数据
         sql`${keywords.clicks} = 0`,           // 零点击表示展示完全无效
         sql`${keywords.orders} = 0`
@@ -674,7 +674,7 @@ async function analyzeNegativeKeywords(campaign: any, costType: 'cpc' | 'vcpm' =
       const impressions = Number(kw.impressions) || 0;
       const spend = Number(kw.spend) || 0;
       decisions.push({
-        id: `negative_vcpm_${campaign.id}_${kw.id}_${Date.now()}`,
+        id: `negative_vcpm_${campaign.campaignId}_${kw.id}_${Date.now()}`,
         type: 'negative_keyword',
         targetType: 'keyword',
         targetId: kw.id,
@@ -700,7 +700,7 @@ async function analyzeNegativeKeywords(campaign: any, costType: 'cpc' | 'vcpm' =
       .select()
       .from(keywords)
       .where(and(
-        sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`,
+        sql`${keywords.adGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`,
         sql`${keywords.clicks} > 20`,
         sql`${keywords.orders} = 0`
       ))
@@ -708,7 +708,7 @@ async function analyzeNegativeKeywords(campaign: any, costType: 'cpc' | 'vcpm' =
     
     for (const kw of poorKeywords) {
       decisions.push({
-        id: `negative_${campaign.id}_${kw.id}_${Date.now()}`,
+        id: `negative_${campaign.campaignId}_${kw.id}_${Date.now()}`,
         type: 'negative_keyword',
         targetType: 'keyword',
         targetId: kw.id,
@@ -735,7 +735,7 @@ async function analyzeNegativeKeywords(campaign: any, costType: 'cpc' | 'vcpm' =
       .select()
       .from(productTargets)
       .where(and(
-        sql`${productTargets.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`,
+        sql`${productTargets.adGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`,
         sql`${productTargets.impressions} > 5000`,
         sql`${productTargets.clicks} = 0`,
         sql`${productTargets.orders} = 0`
@@ -746,7 +746,7 @@ async function analyzeNegativeKeywords(campaign: any, costType: 'cpc' | 'vcpm' =
       const impressions = Number(pt.impressions) || 0;
       const spend = Number(pt.spend) || 0;
       decisions.push({
-        id: `negative_vcpm_pt_${campaign.id}_${pt.id}_${Date.now()}`,
+        id: `negative_vcpm_pt_${campaign.campaignId}_${pt.id}_${Date.now()}`,
         type: 'negative_keyword',
         targetType: 'keyword',
         targetId: pt.id,
@@ -765,7 +765,7 @@ async function analyzeNegativeKeywords(campaign: any, costType: 'cpc' | 'vcpm' =
       .select()
       .from(productTargets)
       .where(and(
-        sql`${productTargets.adGroupId} IN (SELECT id FROM ad_groups WHERE campaign_id = ${campaign.id})`,
+        sql`${productTargets.adGroupId} IN (SELECT id FROM ad_groups WHERE campaignId = ${campaign.campaignId})`,
         sql`${productTargets.clicks} > 20`,
         sql`${productTargets.orders} = 0`
       ))
@@ -773,7 +773,7 @@ async function analyzeNegativeKeywords(campaign: any, costType: 'cpc' | 'vcpm' =
     
     for (const pt of poorTargets) {
       decisions.push({
-        id: `negative_pt_${campaign.id}_${pt.id}_${Date.now()}`,
+        id: `negative_pt_${campaign.campaignId}_${pt.id}_${Date.now()}`,
         type: 'negative_keyword',
         targetType: 'keyword',
         targetId: pt.id,

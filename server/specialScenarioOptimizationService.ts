@@ -438,7 +438,7 @@ export async function analyzeBudgetDepletionRisk(
     const [todayPerf] = await db.select()
       .from(dailyPerformance)
       .where(and(
-        eq(dailyPerformance.campaignId, String(campaign.id)),
+        eq(dailyPerformance.campaignId, String(campaign.campaignId)),
         sql`DATE(${dailyPerformance.date}) = ${today}`
       ))
       .limit(1);

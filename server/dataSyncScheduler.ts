@@ -1385,7 +1385,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
               const enabledCampaigns = riskCampaigns.filter((c: any) => c.campaignStatus === 'enabled');
               let totalRisks = 0;
               for (const campaign of enabledCampaigns) {
-                const riskResult = await detectRiskSignals(target.accountId, campaign.id);
+                const riskResult = await detectRiskSignals(target.accountId, campaign.campaignId);
                 if (riskResult.hasRisk) {
                   totalRisks += riskResult.risks.length;
                   for (const risk of riskResult.risks) {

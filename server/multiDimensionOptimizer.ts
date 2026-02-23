@@ -861,7 +861,7 @@ export async function executeMultiDimensionOptimization(
       
       if (!analysis) {
         details.push({
-          campaignId: campaign.id,
+          campaignId: campaign.campaignId,
           campaignName: campaign.campaignName,
           status: 'skipped',
           reason: '无法获取分析数据',
@@ -906,7 +906,7 @@ export async function executeMultiDimensionOptimization(
       }
       
       details.push({
-        campaignId: campaign.id,
+        campaignId: campaign.campaignId,
         campaignName: campaign.campaignName,
         status: 'analyzed',
         dataConfidence: analysis.dataConfidence,
@@ -923,7 +923,7 @@ export async function executeMultiDimensionOptimization(
       
     } catch (error: any) {
       details.push({
-        campaignId: campaign.id,
+        campaignId: campaign.campaignId,
         campaignName: campaign.campaignName,
         status: 'error',
         error: error.message,

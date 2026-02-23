@@ -578,7 +578,7 @@ async function findTargetAdGroup(
   
   for (const campaign of exactCampaigns) {
     // v206: getAdGroupsByCampaignId需要Amazon campaignId
-    const adGroupsList = await db.getAdGroupsByCampaignId(campaign.campaignId || campaign.id);
+    const adGroupsList = await db.getAdGroupsByCampaignId(campaign.campaignId);
     const enabledAdGroups = adGroupsList.filter((ag: any) => ag.adGroupStatus === 'enabled');
     
     for (const ag of enabledAdGroups) {
@@ -590,7 +590,7 @@ async function findTargetAdGroup(
       }
       return {
         adGroupId: ag.id,
-        campaignId: campaign.id,
+        campaignId: campaign.campaignId,
         amazonAdGroupId: ag.adGroupId,
         amazonCampaignId: campaign.campaignId,
       };
@@ -600,7 +600,7 @@ async function findTargetAdGroup(
   // 策由2: 查找任意手动Campaign的广告组
   for (const campaign of manualCampaigns) {
     // v206: getAdGroupsByCampaignId需要Amazon campaignId
-    const adGroupsList = await db.getAdGroupsByCampaignId(campaign.campaignId || campaign.id);
+    const adGroupsList = await db.getAdGroupsByCampaignId(campaign.campaignId);
     const enabledAdGroups = adGroupsList.filter((ag: any) => ag.adGroupStatus === 'enabled');
     
     for (const ag of enabledAdGroups) {
@@ -609,7 +609,7 @@ async function findTargetAdGroup(
       if (hasPT) continue;
       return {
         adGroupId: ag.id,
-        campaignId: campaign.id,
+        campaignId: campaign.campaignId,
         amazonAdGroupId: ag.adGroupId,
         amazonCampaignId: campaign.campaignId,
       };

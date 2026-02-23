@@ -125,7 +125,7 @@ export function getWindowDateRange(
  */
 export async function getCampaignWindowedPerformance(
   accountId: number,
-  campaignId: number,
+  campaignId: number | string,  // v207: Amazon campaignId (varchar)
   windowType: DataWindowType,
   marketplace: string = 'US'
 ): Promise<WindowedPerformance> {
@@ -230,7 +230,7 @@ export async function getAccountWindowedPerformance(
  */
 export async function calculateAttributionCorrectionFactor(
   accountId: number,
-  campaignId: number,
+  campaignId: number | string,  // v207: Amazon campaignId (varchar)
   marketplace: string = 'US'
 ): Promise<{
   correctionFactor: number;
@@ -366,7 +366,7 @@ export function shouldApplyCorrection(
  */
 export async function detectRiskSignals(
   accountId: number,
-  campaignId: number,
+  campaignId: number | string,  // v207: Amazon campaignId (varchar)
   marketplace: string = 'US'
 ): Promise<{
   hasRisk: boolean;

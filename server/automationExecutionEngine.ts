@@ -1096,7 +1096,7 @@ export async function runNGramAnalysisTask(accountId: number): Promise<{
       for (const suggestion of analysisResult.suggestedNegatives) {
         // 按账号分组批量同步到Amazon
         const negativesToSync = campaigns.map(campaign => ({
-          campaignId: Number(campaign.campaignId || campaign.id),
+          campaignId: String(campaign.campaignId),
           keywordText: suggestion.token,
           matchType: (suggestion.matchType === 'negative_phrase' ? 'negativePhrase' : 'negativeExact') as 'negativeExact' | 'negativePhrase',
           level: 'campaign' as const,
@@ -1108,13 +1108,13 @@ export async function runNGramAnalysisTask(accountId: number): Promise<{
           
           // v195: API成功后再写入本地DB，并回写amazon_negative_keyword_id
           for (const campaign of campaigns) {
-            const amazonCampaignId = Number(campaign.campaignId || campaign.id);
+            const amazonCampaignId = String(campaign.campaignId);
             const mapKey = `campaign:${amazonCampaignId}:${suggestion.token.toLowerCase()}`;
             const amazonNegKeywordId = syncResult.keywordIdMap.get(mapKey);
             
             try {
               await db.addNegativeKeyword({
-                campaignId: campaign.id,
+                campaignId: campaign.campaignId,
                 keyword: suggestion.token,
                 matchType: suggestion.matchType === 'negative_phrase' ? 'phrase' : 'exact',
                 level: 'campaign',
@@ -1126,7 +1126,7 @@ export async function runNGramAnalysisTask(accountId: number): Promise<{
                   UPDATE negative_keywords 
                   SET amazon_negative_keyword_id = ${amazonNegKeywordId},
                       negativeSource = 'ngram_analysis'
-                  WHERE campaignId = ${campaign.id}
+                  WHERE campaignId = ${campaign.campaignId}
                     AND negativeText = ${suggestion.token}
                     AND amazon_negative_keyword_id IS NULL
                   LIMIT 1
@@ -1148,7 +1148,7 @@ export async function runNGramAnalysisTask(accountId: number): Promise<{
           for (const campaign of campaigns) {
             try {
               await db.addNegativeKeyword({
-                campaignId: campaign.id,
+                campaignId: campaign.campaignId,
                 keyword: suggestion.token,
                 matchType: suggestion.matchType === 'negative_phrase' ? 'phrase' : 'exact',
                 level: 'campaign',

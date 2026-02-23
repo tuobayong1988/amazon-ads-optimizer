@@ -1977,7 +1977,7 @@ async function executeSearchTermAnalysis(
                 .limit(1);
               if (existingNeg.length > 0) {
                 negativeAlreadyExists = true;
-                log.info(`[SearchTermAnalysis] v170: 否定关键词已存在，跳过: "${cleanedNegText}" campaignId=${campaign.id}`);
+                log.info(`[SearchTermAnalysis] v170: 否定关键词已存在，跳过: "${cleanedNegText}" campaignId=${campaign.campaignId}`);
               }
             }
           }
@@ -2259,7 +2259,7 @@ async function executeSearchTermAnalysis(
                           UPDATE negative_keywords 
                           SET amazon_negative_keyword_id = ${amazonNegId}
                           WHERE negativeText = ${d.searchTerm}
-                            AND campaignId = ${campaign.id}
+                            AND campaignId = ${campaign.campaignId}
                             AND amazon_negative_keyword_id IS NULL
                           LIMIT 1
                         `);
@@ -2856,7 +2856,6 @@ async function executeCampaignStatusChanges(
           localCampaignId: campaignLocalId,
           amazonCampaignId: campaignAmazonId,
           campaignName: campaign.campaignName,
-          amazonCampaignId: campaign.campaignId || campaign.amazonCampaignId,
           action: 'pause',
           reason: pauseReason,
           currentStatus: campaignStatus,
@@ -2907,7 +2906,6 @@ async function executeCampaignStatusChanges(
           localCampaignId: campaignLocalId,
           amazonCampaignId: campaignAmazonId,
           campaignName: campaign.campaignName,
-          amazonCampaignId: campaign.campaignId || campaign.amazonCampaignId,
           action: 'enable',
           reason: enableReason,
           currentStatus: campaignStatus,
