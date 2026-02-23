@@ -374732,21 +374732,20 @@ router3.get("/optimization-events", async (req, res) => {
     const status = req.query.status || "";
     let whereClause = `WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${hours} HOUR)`;
     if (category) whereClause += ` AND event_category = '${category}'`;
-    if (status) whereClause += ` AND execution_status = '${status}'`;
     const [rows] = await db.execute(sql.raw(
-      `SELECT id, event_category, action_type, execution_status, 
+      `SELECT id, event_category, action_type, 
               campaign_name, change_reason, algorithm_version,
-              old_value, new_value, created_at
+              previous_value, new_value, created_at
        FROM optimization_events 
        ${whereClause}
        ORDER BY id DESC 
        LIMIT ${limit2}`
     ));
     const [statsRows] = await db.execute(sql.raw(
-      `SELECT event_category, execution_status, COUNT(*) as cnt 
+      `SELECT event_category, COUNT(*) as cnt 
        FROM optimization_events 
        WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${hours} HOUR)
-       GROUP BY event_category, execution_status`
+       GROUP BY event_category`
     ));
     res.json({
       query: { limit: limit2, hours, category, status },

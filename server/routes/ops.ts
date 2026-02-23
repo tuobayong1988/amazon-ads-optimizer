@@ -392,12 +392,12 @@ router.get('/optimization-events', async (req: Request, res: Response) => {
     
     let whereClause = `WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${hours} HOUR)`;
     if (category) whereClause += ` AND event_category = '${category}'`;
-    if (status) whereClause += ` AND execution_status = '${status}'`;
+    // execution_status列可能不存在，使用event_category过滤即可
     
     const [rows] = await db.execute(sql.raw(
-      `SELECT id, event_category, action_type, execution_status, 
+      `SELECT id, event_category, action_type, 
               campaign_name, change_reason, algorithm_version,
-              old_value, new_value, created_at
+              previous_value, new_value, created_at
        FROM optimization_events 
        ${whereClause}
        ORDER BY id DESC 
@@ -406,10 +406,10 @@ router.get('/optimization-events', async (req: Request, res: Response) => {
     
     // 统计
     const [statsRows] = await db.execute(sql.raw(
-      `SELECT event_category, execution_status, COUNT(*) as cnt 
+      `SELECT event_category, COUNT(*) as cnt 
        FROM optimization_events 
        WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${hours} HOUR)
-       GROUP BY event_category, execution_status`
+       GROUP BY event_category`
     ));
     
     res.json({
