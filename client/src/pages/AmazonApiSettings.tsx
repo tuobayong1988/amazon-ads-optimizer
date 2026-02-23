@@ -3252,16 +3252,24 @@ export default function AmazonApiSettings() {
                                               'SP广告活动': '② SP广告活动',
                                               'SB广告活动': '③ SB广告活动',
                                               'SD广告活动': '④ SD广告活动',
-                                              '广告组和定向': '⑤ 广告组和定向',
-                                              '广告组': '⑤ 广告组',
-                                              '关键词': '⑥ 关键词',
-                                              '商品定向': '⑦ 商品定向',
-                                              '商品定位': '⑦ 商品定位',
-                                              'SP绩效数据': '⑧ SP绩效数据',
-                                              'SB绩效数据': '⑨ SB绩效数据',
-                                              'SD绩效数据': '⑩ SD绩效数据',
-                                              '绩效数据': '⑧ 绩效数据',
-                                              '汇总更新': '⓪ 汇总更新',
+                                              'SP广告组': '⑤ SP广告组',
+                                              'SB广告组': '⑥ SB广告组',
+                                              'SD广告组': '⑦ SD广告组',
+                                              'SP关键词': '⑧ SP关键词',
+                                              'SB关键词': '⑨ SB关键词',
+                                              'SP商品定位': '⑪ SP商品定位',
+                                              'SB商品定位': '⑫ SB商品定位',
+                                              'SD商品定位': '⑬ SD商品定位',
+                                              '绩效数据': '⑭ 绩效数据',
+                                              '搜索词': '⑮ 搜索词',
+                                              '否定关键词': '⑯ 否定关键词',
+                                              '否定商品定位': '⑰ 否定商品定位',
+                                              '广告位置绩效': '⑱ 广告位置绩效',
+                                              // 兼容旧版本步骤名
+                                              '广告组': '⑤ SP广告组',
+                                              '关键词': '⑧ SP关键词',
+                                              '商品定位': '⑪ SP商品定位',
+                                              '商品定向': '⑪ SP商品定位',
                                             };
                                             return `正在同步: ${stepLabels[site.currentStep] || site.currentStep}`;
                                           })() : '正在同步...'}
@@ -3270,9 +3278,9 @@ export default function AmazonApiSettings() {
                                         {/* 步骤进度条 */}
                                         {site.currentStep && (
                                           <div className="flex gap-0.5">
-                                            {['①','②','③','④','⑤','⑥','⑦','⑧'].map((_, idx) => {
-                                              const allSteps = ['SP广告活动','SB广告活动','SD广告活动','广告组','关键词','商品定位','绩效数据','汇总更新'];
-                                              const currentIdx = allSteps.findIndex(s => site.currentStep?.includes(s) || s.includes(site.currentStep || ''));
+                                            {Array.from({length: 17}).map((_, idx) => {
+                                              const allSteps = ['获取账户信息','SP广告活动','SB广告活动','SD广告活动','SP广告组','SB广告组','SD广告组','SP关键词','SB关键词','SP商品定位','SB商品定位','SD商品定位','绩效数据','搜索词','否定关键词','否定商品定位','广告位置绩效'];
+                                              const currentIdx = allSteps.findIndex(s => s === site.currentStep || site.currentStep?.includes(s) || s.includes(site.currentStep || ''));
                                               const isComplete = idx < currentIdx;
                                               const isCurrent = idx === currentIdx;
                                               return (

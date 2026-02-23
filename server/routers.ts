@@ -4648,7 +4648,7 @@ const amazonApiRouter = router({
           conflictsResolved: 0,
         };
 
-        const totalSteps = 8; // 增加了“获取账户信息”步骤
+        const totalSteps = 17; // v217: 完整同步流程17个步骤
         let currentStepIndex = 0;
 
         const updateProgress = async (stepName: string, stepIndex: number, stepResults?: any) => {
@@ -4729,11 +4729,11 @@ const amazonApiRouter = router({
           changeSummary.conflictsDetected += sdResult.conflicts || 0;
           currentStepIndex++;
 
-          // 广告组
-          await updateProgress('广告组', currentStepIndex);
+          // SP广告组
+          await updateProgress('SP广告组', currentStepIndex);
           const adGroupsResult = await executeWithRetry(
             () => syncService.syncSpAdGroupsWithTracking(lastSyncTime, jobId),
-            '广告组同步'
+            'SP广告组同步'
           );
           results.adGroups = adGroupsResult.synced;
           results.skipped += adGroupsResult.skipped || 0;
@@ -4742,11 +4742,37 @@ const amazonApiRouter = router({
           changeSummary.conflictsDetected += adGroupsResult.conflicts || 0;
           currentStepIndex++;
 
-          // 关键词
-          await updateProgress('关键词', currentStepIndex);
+          // SB广告组
+          await updateProgress('SB广告组', currentStepIndex);
+          try {
+            const sbAdGroupsResult = await executeWithRetry(
+              () => syncService.syncSbAdGroups(),
+              'SB广告组同步'
+            );
+            results.adGroups += (typeof sbAdGroupsResult === 'number' ? sbAdGroupsResult : sbAdGroupsResult.synced) || 0;
+          } catch (e: any) {
+            console.error('[SB广告组同步] 失败:', e.message);
+          }
+          currentStepIndex++;
+
+          // SD广告组
+          await updateProgress('SD广告组', currentStepIndex);
+          try {
+            const sdAdGroupsResult = await executeWithRetry(
+              () => syncService.syncSdAdGroups(),
+              'SD广告组同步'
+            );
+            results.adGroups += (typeof sdAdGroupsResult === 'number' ? sdAdGroupsResult : sdAdGroupsResult.synced) || 0;
+          } catch (e: any) {
+            console.error('[SD广告组同步] 失败:', e.message);
+          }
+          currentStepIndex++;
+
+          // SP关键词
+          await updateProgress('SP关键词', currentStepIndex);
           const keywordsResult = await executeWithRetry(
             () => syncService.syncSpKeywordsWithTracking(lastSyncTime, jobId),
-            '关键词同步'
+            'SP关键词同步'
           );
           results.keywords = keywordsResult.synced;
           results.skipped += keywordsResult.skipped || 0;
@@ -4755,17 +4781,56 @@ const amazonApiRouter = router({
           changeSummary.conflictsDetected += keywordsResult.conflicts || 0;
           currentStepIndex++;
 
-          // 商品定位
-          await updateProgress('商品定位', currentStepIndex);
+          // SB关键词
+          await updateProgress('SB关键词', currentStepIndex);
+          try {
+            const sbKeywordsResult = await executeWithRetry(
+              () => syncService.syncSbKeywords(),
+              'SB关键词同步'
+            );
+            results.keywords += (typeof sbKeywordsResult === 'number' ? sbKeywordsResult : sbKeywordsResult.synced) || 0;
+          } catch (e: any) {
+            console.error('[SB关键词同步] 失败:', e.message);
+          }
+          currentStepIndex++;
+
+          // SP商品定位
+          await updateProgress('SP商品定位', currentStepIndex);
           const targetsResult = await executeWithRetry(
             () => syncService.syncSpProductTargetsWithTracking(lastSyncTime, jobId),
-            '商品定位同步'
+            'SP商品定位同步'
           );
           results.targets = targetsResult.synced;
           results.skipped += targetsResult.skipped || 0;
           changeSummary.targetsCreated += targetsResult.created || 0;
           changeSummary.targetsUpdated += targetsResult.updated || 0;
           changeSummary.conflictsDetected += targetsResult.conflicts || 0;
+          currentStepIndex++;
+
+          // SB商品定位
+          await updateProgress('SB商品定位', currentStepIndex);
+          try {
+            const sbTargetsResult = await executeWithRetry(
+              () => syncService.syncSbProductTargets(),
+              'SB商品定位同步'
+            );
+            results.targets += (typeof sbTargetsResult === 'number' ? sbTargetsResult : sbTargetsResult.synced) || 0;
+          } catch (e: any) {
+            console.error('[SB商品定位同步] 失败:', e.message);
+          }
+          currentStepIndex++;
+
+          // SD商品定位
+          await updateProgress('SD商品定位', currentStepIndex);
+          try {
+            const sdTargetsResult = await executeWithRetry(
+              () => syncService.syncSdProductTargets(),
+              'SD商品定位同步'
+            );
+            results.targets += (typeof sdTargetsResult === 'number' ? sdTargetsResult : sdTargetsResult.synced) || 0;
+          } catch (e: any) {
+            console.error('[SD商品定位同步] 失败:', e.message);
+          }
           currentStepIndex++;
 
           results.campaigns = results.spCampaigns + results.sbCampaigns + results.sdCampaigns;
@@ -4789,7 +4854,9 @@ const amazonApiRouter = router({
             results.performanceError = error.message;
           }
 
-          // 搜索词数据同步（新增）
+          // 搜索词数据同步
+          currentStepIndex++;
+          await updateProgress('搜索词', currentStepIndex);
           try {
             console.log('[搜索词同步] 开始同步搜索词数据...');
             const searchTermsCount = await syncService.syncSearchTerms(performanceDays);
@@ -4800,7 +4867,47 @@ const amazonApiRouter = router({
             results.searchTerms = 0;
           }
 
-          // 广告位置绩效同步（新增）
+          // 否定关键词同步
+          currentStepIndex++;
+          await updateProgress('否定关键词', currentStepIndex);
+          try {
+            console.log('[否定关键词同步] 开始同步SP否定关键词...');
+            const negKwResult = await syncService.syncSpNegativeKeywords();
+            results.negativeKeywords = (negKwResult.synced || 0);
+            console.log(`[否定关键词同步] 完成: ${negKwResult.synced} 条记录`);
+          } catch (error: any) {
+            console.error('[否定关键词同步] 失败:', error.message);
+            results.negativeKeywords = 0;
+          }
+          try {
+            const sbNegKwResult = await syncService.syncSbNegativeKeywords();
+            results.negativeKeywords += (sbNegKwResult.synced || 0);
+          } catch (e: any) {
+            console.error('[SB否定关键词同步] 失败:', e.message);
+          }
+
+          // 否定商品定位同步
+          currentStepIndex++;
+          await updateProgress('否定商品定位', currentStepIndex);
+          try {
+            console.log('[否定商品定位同步] 开始同步SP否定商品定位...');
+            const negTargetResult = await syncService.syncSpNegativeProductTargets();
+            results.negativeTargets = (negTargetResult.synced || 0);
+            console.log(`[否定商品定位同步] 完成: ${negTargetResult.synced} 条记录`);
+          } catch (error: any) {
+            console.error('[否定商品定位同步] 失败:', error.message);
+            results.negativeTargets = 0;
+          }
+          try {
+            const sbNegTargetResult = await syncService.syncSbNegativeTargets();
+            results.negativeTargets += (sbNegTargetResult.synced || 0);
+          } catch (e: any) {
+            console.error('[SB否定商品定位同步] 失败:', e.message);
+          }
+
+          // 广告位置绩效同步
+          currentStepIndex++;
+          await updateProgress('广告位置绩效', currentStepIndex);
           try {
             console.log('[位置绩效同步] 开始同步广告位置绩效...');
             const placementsCount = await syncService.syncPlacementPerformance(performanceDays);
@@ -4809,39 +4916,6 @@ const amazonApiRouter = router({
           } catch (error: any) {
             console.error('[位置绩效同步] 失败:', error.message);
             results.placements = 0;
-          }
-
-          // 自动定向数据同步（新增）
-          try {
-            console.log('[自动定向同步] 开始同步SP自动定向数据...');
-            const autoTargetsCount = await syncService.syncAutoTargeting(performanceDays);
-            results.autoTargets = autoTargetsCount;
-            console.log(`[自动定向同步] 完成: ${autoTargetsCount} 条记录`);
-          } catch (error: any) {
-            console.error('[自动定向同步] 失败:', error.message);
-            results.autoTargets = 0;
-          }
-
-          // SD定向数据同步（新增）
-          try {
-            console.log('[SD定向同步] 开始同步SD定向数据...');
-            const sdTargetsCount = await syncService.syncSdTargeting(performanceDays);
-            results.sdTargets = sdTargetsCount;
-            console.log(`[SD定向同步] 完成: ${sdTargetsCount} 条记录`);
-          } catch (error: any) {
-            console.error('[SD定向同步] 失败:', error.message);
-            results.sdTargets = 0;
-          }
-
-          // SB定向数据同步（新增）
-          try {
-            console.log('[SB定向同步] 开始同步SB定向数据...');
-            const sbTargetsCount = await syncService.syncSbTargeting(performanceDays);
-            results.sbTargets = sbTargetsCount;
-            console.log(`[SB定向同步] 完成: ${sbTargetsCount} 条记录`);
-          } catch (error: any) {
-            console.error('[SB定向同步] 失败:', error.message);
-            results.sbTargets = 0;
           }
 
           // 保存变更摘要

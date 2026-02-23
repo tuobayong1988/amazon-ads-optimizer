@@ -144923,7 +144923,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log12 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 216;
+    SYSTEM_VERSION = 217;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -145017,7 +145017,13 @@ var init_postDeployOptimizer = __esm({
       },
       {
         version: 216,
-        description: "v216: \u90E8\u7F72\u5065\u5EB7\u4FEE\u590D \u2014 \u4FEE\u590Dumami\u5206\u6790\u811A\u672C\u5BFC\u81F455%HTTP4xx\u9519\u8BEF, \u4FEE\u590DSP/SB\u641C\u7D22\u8BCD\u62A5\u544ASUMMARY+date\u5217\u51B2\u7A81(\u6539\u4E3ADAILY), \u6DFB\u52A0sync-health/sync-diagnosis\u8FD0\u7EF4\u7AEF\u70B9, \u4FEE\u590D\u524D\u7AEF\u540C\u6B65\u8FDB\u5EA6\u6B65\u9AA4\u663E\u793A",
+        description: "v216: \u90E8\u7F72\u5065\u5EB7\u4FEE\u590D \u2014 \u4FEE\u590Cumami\u5206\u6790\u811A\u672C\u5BFC\u81F455%HTTP4xx\u9519\u8BEF, \u4FEE\u590DSP/SB\u641C\u7D22\u8BCD\u62A5\u544ASUMMARY+date\u5217\u51B2\u7A81(\u6539\u4E3ADAILY), \u6DFB\u52A0sync-health/sync-diagnosis\u8FD0\u7EF4\u7AEF\u70B9, \u4FEE\u590D\u524D\u7AEF\u540C\u6B65\u8FDB\u5EA6\u6B65\u9AA4\u663E\u793A",
+        affectedModules: [],
+        correctionActions: []
+      },
+      {
+        version: 217,
+        description: "v217: \u6570\u636E\u540C\u6B65\u5168\u9762\u4FEE\u590D \u2014 \u540E\u7AEF\u540C\u6B65\u6D41\u7A0B\u4ECE8\u6B65\u6269\u5C55\u523017\u6B65(\u6DFB\u52A0SB/SD\u5E7F\u544A\u7EC4\u3001SB\u5173\u952E\u8BCD\u3001SB/SD\u5546\u54C1\u5B9A\u4F4D\u3001\u5426\u5B9A\u5173\u952E\u8BCD\u3001\u5426\u5B9A\u5546\u54C1\u5B9A\u4F4D\u3001\u641C\u7D22\u8BCD\u3001\u5E7F\u544A\u4F4D\u7F6E\u7EE9\u6548), \u524D\u7AEF\u8FDB\u5EA6\u6761\u548C\u6B65\u9AA4\u6807\u7B7E\u540C\u6B6517\u6B65, \u6BCF\u4E2A\u6B65\u9AA4\u90FD\u6709updateProgress\u8C03\u7528\u786E\u4FDD\u5B9E\u65F6\u8FDB\u5EA6\u53CD\u9988",
         affectedModules: [],
         correctionActions: []
       }
@@ -367895,7 +367901,7 @@ var amazonApiRouter = router({
         conflictsDetected: 0,
         conflictsResolved: 0
       };
-      const totalSteps = 8;
+      const totalSteps = 17;
       let currentStepIndex = 0;
       const updateProgress = async (stepName, stepIndex, stepResults) => {
         if (!jobId) return;
@@ -367964,10 +367970,10 @@ var amazonApiRouter = router({
         changeSummary.campaignsUpdated += sdResult.updated || 0;
         changeSummary.conflictsDetected += sdResult.conflicts || 0;
         currentStepIndex++;
-        await updateProgress("\u5E7F\u544A\u7EC4", currentStepIndex);
+        await updateProgress("SP\u5E7F\u544A\u7EC4", currentStepIndex);
         const adGroupsResult = await executeWithRetry(
           () => syncService.syncSpAdGroupsWithTracking(lastSyncTime, jobId),
-          "\u5E7F\u544A\u7EC4\u540C\u6B65"
+          "SP\u5E7F\u544A\u7EC4\u540C\u6B65"
         );
         results.adGroups = adGroupsResult.synced;
         results.skipped += adGroupsResult.skipped || 0;
@@ -367975,10 +367981,32 @@ var amazonApiRouter = router({
         changeSummary.adGroupsUpdated += adGroupsResult.updated || 0;
         changeSummary.conflictsDetected += adGroupsResult.conflicts || 0;
         currentStepIndex++;
-        await updateProgress("\u5173\u952E\u8BCD", currentStepIndex);
+        await updateProgress("SB\u5E7F\u544A\u7EC4", currentStepIndex);
+        try {
+          const sbAdGroupsResult = await executeWithRetry(
+            () => syncService.syncSbAdGroups(),
+            "SB\u5E7F\u544A\u7EC4\u540C\u6B65"
+          );
+          results.adGroups += (typeof sbAdGroupsResult === "number" ? sbAdGroupsResult : sbAdGroupsResult.synced) || 0;
+        } catch (e6) {
+          console.error("[SB\u5E7F\u544A\u7EC4\u540C\u6B65] \u5931\u8D25:", e6.message);
+        }
+        currentStepIndex++;
+        await updateProgress("SD\u5E7F\u544A\u7EC4", currentStepIndex);
+        try {
+          const sdAdGroupsResult = await executeWithRetry(
+            () => syncService.syncSdAdGroups(),
+            "SD\u5E7F\u544A\u7EC4\u540C\u6B65"
+          );
+          results.adGroups += (typeof sdAdGroupsResult === "number" ? sdAdGroupsResult : sdAdGroupsResult.synced) || 0;
+        } catch (e6) {
+          console.error("[SD\u5E7F\u544A\u7EC4\u540C\u6B65] \u5931\u8D25:", e6.message);
+        }
+        currentStepIndex++;
+        await updateProgress("SP\u5173\u952E\u8BCD", currentStepIndex);
         const keywordsResult = await executeWithRetry(
           () => syncService.syncSpKeywordsWithTracking(lastSyncTime, jobId),
-          "\u5173\u952E\u8BCD\u540C\u6B65"
+          "SP\u5173\u952E\u8BCD\u540C\u6B65"
         );
         results.keywords = keywordsResult.synced;
         results.skipped += keywordsResult.skipped || 0;
@@ -367986,16 +368014,49 @@ var amazonApiRouter = router({
         changeSummary.keywordsUpdated += keywordsResult.updated || 0;
         changeSummary.conflictsDetected += keywordsResult.conflicts || 0;
         currentStepIndex++;
-        await updateProgress("\u5546\u54C1\u5B9A\u4F4D", currentStepIndex);
+        await updateProgress("SB\u5173\u952E\u8BCD", currentStepIndex);
+        try {
+          const sbKeywordsResult = await executeWithRetry(
+            () => syncService.syncSbKeywords(),
+            "SB\u5173\u952E\u8BCD\u540C\u6B65"
+          );
+          results.keywords += (typeof sbKeywordsResult === "number" ? sbKeywordsResult : sbKeywordsResult.synced) || 0;
+        } catch (e6) {
+          console.error("[SB\u5173\u952E\u8BCD\u540C\u6B65] \u5931\u8D25:", e6.message);
+        }
+        currentStepIndex++;
+        await updateProgress("SP\u5546\u54C1\u5B9A\u4F4D", currentStepIndex);
         const targetsResult = await executeWithRetry(
           () => syncService.syncSpProductTargetsWithTracking(lastSyncTime, jobId),
-          "\u5546\u54C1\u5B9A\u4F4D\u540C\u6B65"
+          "SP\u5546\u54C1\u5B9A\u4F4D\u540C\u6B65"
         );
         results.targets = targetsResult.synced;
         results.skipped += targetsResult.skipped || 0;
         changeSummary.targetsCreated += targetsResult.created || 0;
         changeSummary.targetsUpdated += targetsResult.updated || 0;
         changeSummary.conflictsDetected += targetsResult.conflicts || 0;
+        currentStepIndex++;
+        await updateProgress("SB\u5546\u54C1\u5B9A\u4F4D", currentStepIndex);
+        try {
+          const sbTargetsResult = await executeWithRetry(
+            () => syncService.syncSbProductTargets(),
+            "SB\u5546\u54C1\u5B9A\u4F4D\u540C\u6B65"
+          );
+          results.targets += (typeof sbTargetsResult === "number" ? sbTargetsResult : sbTargetsResult.synced) || 0;
+        } catch (e6) {
+          console.error("[SB\u5546\u54C1\u5B9A\u4F4D\u540C\u6B65] \u5931\u8D25:", e6.message);
+        }
+        currentStepIndex++;
+        await updateProgress("SD\u5546\u54C1\u5B9A\u4F4D", currentStepIndex);
+        try {
+          const sdTargetsResult = await executeWithRetry(
+            () => syncService.syncSdProductTargets(),
+            "SD\u5546\u54C1\u5B9A\u4F4D\u540C\u6B65"
+          );
+          results.targets += (typeof sdTargetsResult === "number" ? sdTargetsResult : sdTargetsResult.synced) || 0;
+        } catch (e6) {
+          console.error("[SD\u5546\u54C1\u5B9A\u4F4D\u540C\u6B65] \u5931\u8D25:", e6.message);
+        }
         currentStepIndex++;
         results.campaigns = results.spCampaigns + results.sbCampaigns + results.sdCampaigns;
         const isFirstSync = !credentials.lastSyncAt;
@@ -368014,6 +368075,8 @@ var amazonApiRouter = router({
           results.performance = 0;
           results.performanceError = error54.message;
         }
+        currentStepIndex++;
+        await updateProgress("\u641C\u7D22\u8BCD", currentStepIndex);
         try {
           console.log("[\u641C\u7D22\u8BCD\u540C\u6B65] \u5F00\u59CB\u540C\u6B65\u641C\u7D22\u8BCD\u6570\u636E...");
           const searchTermsCount = await syncService.syncSearchTerms(performanceDays);
@@ -368023,6 +368086,42 @@ var amazonApiRouter = router({
           console.error("[\u641C\u7D22\u8BCD\u540C\u6B65] \u5931\u8D25:", error54.message);
           results.searchTerms = 0;
         }
+        currentStepIndex++;
+        await updateProgress("\u5426\u5B9A\u5173\u952E\u8BCD", currentStepIndex);
+        try {
+          console.log("[\u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65] \u5F00\u59CB\u540C\u6B65SP\u5426\u5B9A\u5173\u952E\u8BCD...");
+          const negKwResult = await syncService.syncSpNegativeKeywords();
+          results.negativeKeywords = negKwResult.synced || 0;
+          console.log(`[\u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65] \u5B8C\u6210: ${negKwResult.synced} \u6761\u8BB0\u5F55`);
+        } catch (error54) {
+          console.error("[\u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65] \u5931\u8D25:", error54.message);
+          results.negativeKeywords = 0;
+        }
+        try {
+          const sbNegKwResult = await syncService.syncSbNegativeKeywords();
+          results.negativeKeywords += sbNegKwResult.synced || 0;
+        } catch (e6) {
+          console.error("[SB\u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65] \u5931\u8D25:", e6.message);
+        }
+        currentStepIndex++;
+        await updateProgress("\u5426\u5B9A\u5546\u54C1\u5B9A\u4F4D", currentStepIndex);
+        try {
+          console.log("[\u5426\u5B9A\u5546\u54C1\u5B9A\u4F4D\u540C\u6B65] \u5F00\u59CB\u540C\u6B65SP\u5426\u5B9A\u5546\u54C1\u5B9A\u4F4D...");
+          const negTargetResult = await syncService.syncSpNegativeProductTargets();
+          results.negativeTargets = negTargetResult.synced || 0;
+          console.log(`[\u5426\u5B9A\u5546\u54C1\u5B9A\u4F4D\u540C\u6B65] \u5B8C\u6210: ${negTargetResult.synced} \u6761\u8BB0\u5F55`);
+        } catch (error54) {
+          console.error("[\u5426\u5B9A\u5546\u54C1\u5B9A\u4F4D\u540C\u6B65] \u5931\u8D25:", error54.message);
+          results.negativeTargets = 0;
+        }
+        try {
+          const sbNegTargetResult = await syncService.syncSbNegativeTargets();
+          results.negativeTargets += sbNegTargetResult.synced || 0;
+        } catch (e6) {
+          console.error("[SB\u5426\u5B9A\u5546\u54C1\u5B9A\u4F4D\u540C\u6B65] \u5931\u8D25:", e6.message);
+        }
+        currentStepIndex++;
+        await updateProgress("\u5E7F\u544A\u4F4D\u7F6E\u7EE9\u6548", currentStepIndex);
         try {
           console.log("[\u4F4D\u7F6E\u7EE9\u6548\u540C\u6B65] \u5F00\u59CB\u540C\u6B65\u5E7F\u544A\u4F4D\u7F6E\u7EE9\u6548...");
           const placementsCount = await syncService.syncPlacementPerformance(performanceDays);
@@ -368031,33 +368130,6 @@ var amazonApiRouter = router({
         } catch (error54) {
           console.error("[\u4F4D\u7F6E\u7EE9\u6548\u540C\u6B65] \u5931\u8D25:", error54.message);
           results.placements = 0;
-        }
-        try {
-          console.log("[\u81EA\u52A8\u5B9A\u5411\u540C\u6B65] \u5F00\u59CB\u540C\u6B65SP\u81EA\u52A8\u5B9A\u5411\u6570\u636E...");
-          const autoTargetsCount = await syncService.syncAutoTargeting(performanceDays);
-          results.autoTargets = autoTargetsCount;
-          console.log(`[\u81EA\u52A8\u5B9A\u5411\u540C\u6B65] \u5B8C\u6210: ${autoTargetsCount} \u6761\u8BB0\u5F55`);
-        } catch (error54) {
-          console.error("[\u81EA\u52A8\u5B9A\u5411\u540C\u6B65] \u5931\u8D25:", error54.message);
-          results.autoTargets = 0;
-        }
-        try {
-          console.log("[SD\u5B9A\u5411\u540C\u6B65] \u5F00\u59CB\u540C\u6B65SD\u5B9A\u5411\u6570\u636E...");
-          const sdTargetsCount = await syncService.syncSdTargeting(performanceDays);
-          results.sdTargets = sdTargetsCount;
-          console.log(`[SD\u5B9A\u5411\u540C\u6B65] \u5B8C\u6210: ${sdTargetsCount} \u6761\u8BB0\u5F55`);
-        } catch (error54) {
-          console.error("[SD\u5B9A\u5411\u540C\u6B65] \u5931\u8D25:", error54.message);
-          results.sdTargets = 0;
-        }
-        try {
-          console.log("[SB\u5B9A\u5411\u540C\u6B65] \u5F00\u59CB\u540C\u6B65SB\u5B9A\u5411\u6570\u636E...");
-          const sbTargetsCount = await syncService.syncSbTargeting(performanceDays);
-          results.sbTargets = sbTargetsCount;
-          console.log(`[SB\u5B9A\u5411\u540C\u6B65] \u5B8C\u6210: ${sbTargetsCount} \u6761\u8BB0\u5F55`);
-        } catch (error54) {
-          console.error("[SB\u5B9A\u5411\u540C\u6B65] \u5931\u8D25:", error54.message);
-          results.sbTargets = 0;
         }
         if (jobId) {
           await upsertSyncChangeSummary({
