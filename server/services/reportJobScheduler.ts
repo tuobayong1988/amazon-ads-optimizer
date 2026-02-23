@@ -9,6 +9,10 @@
  */
 
 import { asyncReportService } from './asyncReportService';
+import { createModuleLogger } from '../utils/logger';
+import { logSync, logSyncError, logSystem } from '../utils/opsLogger';
+
+const log = createModuleLogger('ReportJobScheduler');
 
 // 调度器配置
 const SCHEDULER_CONFIG = {
@@ -40,22 +44,25 @@ class ReportJobScheduler {
    */
   start(): void {
     if (this.isRunning) {
-      console.log('[ReportJobScheduler] Already running');
+      log.debug('[ReportJobScheduler] Already running');
       return;
     }
 
     this.isRunning = true;
-    console.log('[ReportJobScheduler] Starting...');
+    log.info('[ReportJobScheduler] Starting...');
+    logSystem('ReportJobScheduler', '报告任务调度器启动');
 
     // 启动提交任务定时器
     this.submitTimer = setInterval(async () => {
       try {
         const count = await asyncReportService.submitPendingJobs(SCHEDULER_CONFIG.batchSize.submit);
         if (count > 0) {
-          console.log(`[ReportJobScheduler] Submitted ${count} jobs`);
+          log.info(`[ReportJobScheduler] Submitted ${count} jobs`);
+          logSync('ReportJobScheduler', `提交${count}个报告任务`, { count });
         }
       } catch (error: any) {
-        console.error('[ReportJobScheduler] Submit error:', error.message);
+        log.error('[ReportJobScheduler] Submit error:', error.message);
+        logSyncError('ReportJobScheduler', `提交报告任务失败`, { error: error.message });
       }
     }, SCHEDULER_CONFIG.submitInterval);
 
@@ -64,10 +71,12 @@ class ReportJobScheduler {
       try {
         const result = await asyncReportService.checkSubmittedJobs(SCHEDULER_CONFIG.batchSize.check);
         if (result.completed > 0 || result.failed > 0) {
-          console.log(`[ReportJobScheduler] Check result: ${result.completed} completed, ${result.failed} failed, ${result.pending} pending`);
+          log.info(`[ReportJobScheduler] Check result: ${result.completed} completed, ${result.failed} failed, ${result.pending} pending`);
+          logSync('ReportJobScheduler', `检查报告状态`, { completed: result.completed, failed: result.failed, pending: result.pending });
         }
       } catch (error: any) {
-        console.error('[ReportJobScheduler] Check error:', error.message);
+        log.error('[ReportJobScheduler] Check error:', error.message);
+        logSyncError('ReportJobScheduler', `检查报告状态失败`, { error: error.message });
       }
     }, SCHEDULER_CONFIG.checkInterval);
 
@@ -76,10 +85,12 @@ class ReportJobScheduler {
       try {
         const count = await asyncReportService.processCompletedJobs(SCHEDULER_CONFIG.batchSize.process);
         if (count > 0) {
-          console.log(`[ReportJobScheduler] Processed ${count} jobs`);
+          log.info(`[ReportJobScheduler] Processed ${count} jobs`);
+          logSync('ReportJobScheduler', `处理${count}个已完成报告`, { count });
         }
       } catch (error: any) {
-        console.error('[ReportJobScheduler] Process error:', error.message);
+        log.error('[ReportJobScheduler] Process error:', error.message);
+        logSyncError('ReportJobScheduler', `处理报告失败`, { error: error.message });
       }
     }, SCHEDULER_CONFIG.processInterval);
 
@@ -88,14 +99,17 @@ class ReportJobScheduler {
       try {
         const count = await asyncReportService.cleanupExpiredJobs(7);
         if (count > 0) {
-          console.log(`[ReportJobScheduler] Cleaned up ${count} expired jobs`);
+          log.info(`[ReportJobScheduler] Cleaned up ${count} expired jobs`);
+          logSync('ReportJobScheduler', `清理${count}个过期任务`, { count });
         }
       } catch (error: any) {
-        console.error('[ReportJobScheduler] Cleanup error:', error.message);
+        log.error('[ReportJobScheduler] Cleanup error:', error.message);
+        logSyncError('ReportJobScheduler', `清理过期任务失败`, { error: error.message });
       }
     }, SCHEDULER_CONFIG.cleanupInterval);
 
-    console.log('[ReportJobScheduler] Started successfully');
+    log.info('[ReportJobScheduler] Started successfully');
+    logSystem('ReportJobScheduler', '报告任务调度器启动完成');
   }
 
   /**
@@ -103,7 +117,7 @@ class ReportJobScheduler {
    */
   stop(): void {
     if (!this.isRunning) {
-      console.log('[ReportJobScheduler] Not running');
+      log.debug('[ReportJobScheduler] Not running');
       return;
     }
 
@@ -125,7 +139,8 @@ class ReportJobScheduler {
     }
 
     this.isRunning = false;
-    console.log('[ReportJobScheduler] Stopped');
+    log.info('[ReportJobScheduler] Stopped');
+    logSystem('ReportJobScheduler', '报告任务调度器已停止');
   }
 
   /**
@@ -143,13 +158,14 @@ class ReportJobScheduler {
     checked: { completed: number; failed: number; pending: number };
     processed: number;
   }> {
-    console.log('[ReportJobScheduler] Running manual cycle...');
+    log.info('[ReportJobScheduler] Running manual cycle...');
 
     const submitted = await asyncReportService.submitPendingJobs(SCHEDULER_CONFIG.batchSize.submit);
     const checked = await asyncReportService.checkSubmittedJobs(SCHEDULER_CONFIG.batchSize.check);
     const processed = await asyncReportService.processCompletedJobs(SCHEDULER_CONFIG.batchSize.process);
 
-    console.log(`[ReportJobScheduler] Manual cycle complete: submitted=${submitted}, checked=${JSON.stringify(checked)}, processed=${processed}`);
+    log.info(`[ReportJobScheduler] Manual cycle complete: submitted=${submitted}, checked=${JSON.stringify(checked)}, processed=${processed}`);
+    logSync('ReportJobScheduler', `手动周期完成`, { submitted, checked, processed });
 
     return { submitted, checked, processed };
   }

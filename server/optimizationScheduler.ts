@@ -13,7 +13,7 @@ import { performanceGroups } from "../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 import { notifyOwner } from "./_core/notification";
 import { createModuleLogger } from './utils/logger';
-
+import { logOptimization, logOptimizationWarn, logOptimizationError, logSystem } from './utils/opsLogger';
 const log = createModuleLogger('OptScheduler');
 
 // ==================== 类型定义 ====================
@@ -86,6 +86,7 @@ export async function triggerInitialOptimization(
   const errors: string[] = [];
   
   log.info(`触发首次优化: targetId=${targetId}, triggeredBy=${options.triggeredBy}`);
+  logOptimization('OptScheduler', `触发首次优化`, { targetId, triggeredBy: options.triggeredBy });
   
   // 动态导入优化引擎（避免循环依赖）
   const optimizationTargetEngine = await import('./optimizationTargetEngine');
@@ -163,6 +164,10 @@ export async function triggerInitialOptimization(
     log.info(`[${config.name}] 数据分析完成: ${campaignsData.length}个广告活动, ` +
       `花费$${totalSpend.toFixed(2)}, 销售$${totalSales.toFixed(2)}, ` +
       `ACoS ${avgAcos.toFixed(1)}%, ROAS ${avgRoas.toFixed(2)}, 数据质量: ${dataQuality}`);
+    logOptimization('OptScheduler', `[${config.name}]数据分析完成`, {
+      targetId, campaigns: campaignsData.length, spend: totalSpend, sales: totalSales,
+      acos: avgAcos, roas: avgRoas, dataQuality,
+    });
     
     // ==================== 阶段2: 立即执行首次优化 ====================
     result.phase = 'execution';
@@ -282,6 +287,10 @@ export async function triggerInitialOptimization(
   
   result.duration = Date.now() - startTime;
   log.info(`首次优化完成: targetId=${targetId}, 耗时${result.duration}ms, 成功=${result.success}`);
+  logOptimization('OptScheduler', `首次优化完成`, {
+    targetId, targetName: result.targetName, duration: result.duration,
+    success: result.success, errors: result.errors.length,
+  });
   
   return result;
 }
@@ -382,6 +391,12 @@ async function executeScheduledOptimization(targetId: number): Promise<void> {
     
     log.info(`定时执行完成: targetId=${targetId}, status=${result.status}, ` +
       `bid=${result.bidOptimization.adjustmentsCount}, keyword_pause=${result.keywordStatusChanges.pausedCount}`);
+    logOptimization('OptScheduler', `定时执行完成`, {
+      targetId, targetName: scheduled.targetName, status: result.status,
+      bidAdjustments: result.bidOptimization.adjustmentsCount,
+      keywordPaused: result.keywordStatusChanges.pausedCount,
+      executionCount: scheduled.executionCount,
+    });
     
     // 更新数据库
     try {
@@ -398,6 +413,7 @@ async function executeScheduledOptimization(targetId: number): Promise<void> {
     scheduled.status = 'error';
     scheduled.lastError = error.message;
     log.error(`定时执行失败: targetId=${targetId}:`, error.message);
+    logOptimizationError('OptScheduler', `定时执行失败`, { targetId, error: error.message });
     
     // 连续失败3次后暂停调度
     if (scheduled.lastError) {
@@ -424,6 +440,7 @@ export async function startOptimizationScheduler(): Promise<{
   }
   
   log.info('启动优化调度器...');
+  logSystem('OptScheduler', '优化调度器启动中');
   isSchedulerRunning = true;
   
   try {
@@ -467,6 +484,9 @@ export async function startOptimizationScheduler(): Promise<{
     
     log.info(`调度器启动完成: 共${activeTargets.length}个活跃目标, ` +
       `已注册${scheduled}个, 失败${errors}个`);
+    logSystem('OptScheduler', '优化调度器启动完成', {
+      total: activeTargets.length, scheduled, errors,
+    });
     
     return { total: activeTargets.length, scheduled, errors };
   } catch (error: any) {
@@ -598,6 +618,7 @@ export async function triggerAccountOptimizations(
   }>;
 }> {
   log.info(`v151: 触发账户 ${accountId} 下所有优化目标, 来源: ${triggeredBy}`);
+  logOptimization('OptScheduler', `触发账户优化`, { accountId, triggeredBy });
   
   const result = {
     triggeredCount: 0,

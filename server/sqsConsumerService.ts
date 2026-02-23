@@ -15,7 +15,7 @@ import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand, GetQueueAttribu
 import axios from 'axios';
 import * as db from './db';
 import { createModuleLogger } from './utils/logger';
-
+import { logSync, logSyncWarn, logSyncError, logSystem, logOpsError } from './utils/opsLogger';
 const log = createModuleLogger('SQSConsumer');
 
 // SQS队列配置
@@ -354,6 +354,9 @@ export class SQSConsumerService {
 
     this.isRunning = true;
     log.info(`[SQS Consumer] 启动消费者，监听 ${this.queues.length} 个队列...`);
+    logSystem('SQSConsumer', `启动消费者，监听 ${this.queues.length} 个队列`, {
+      queues: this.queues.map(q => ({ name: q.name, adType: q.adType, dataType: q.dataType })),
+    });
 
     // 为每个队列启动轮询
     for (const queue of this.queues) {
@@ -388,6 +391,7 @@ export class SQSConsumerService {
     this.pollTimers.clear();
     
     log.debug('[SQS Consumer] 所有消费者已停止');
+    logSystem('SQSConsumer', '所有消费者已停止');
   }
 
   /**
@@ -401,6 +405,7 @@ export class SQSConsumerService {
         await this.pollQueue(queue);
       } catch (error: any) {
         log.error(`[SQS Consumer] 队列 ${queue.name} 轮询错误:`, error.message);
+        logSyncError('SQSConsumer', `队列${queue.name}轮询错误`, { queue: queue.name, error: error.message });
         const status = this.consumerStatuses.get(queue.name);
         if (status) {
           status.errors++;
@@ -457,6 +462,7 @@ export class SQSConsumerService {
         }
       } catch (error: any) {
         log.error(`[SQS Consumer] 处理消息失败:`, error.message);
+        logSyncError('SQSConsumer', `处理消息失败`, { queue: queue.name, error: error.message });
         const status = this.consumerStatuses.get(queue.name);
         if (status) {
           status.errors++;
@@ -479,6 +485,7 @@ export class SQSConsumerService {
       body = JSON.parse(message.Body);
     } catch (e) {
       log.error('[SQS Consumer] JSON解析失败:', message.Body.substring(0, 200));
+      logSyncError('SQSConsumer', 'JSON解析失败', { preview: message.Body.substring(0, 200) });
       return;
     }
     

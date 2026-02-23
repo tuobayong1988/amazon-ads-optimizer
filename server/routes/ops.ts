@@ -68,6 +68,146 @@ router.use(opsAuth);
 // 1. GET /api/ops/status — 系统状态总览
 // ============================================================
 
+// 告警阈值配置
+const ALERT_THRESHOLDS = {
+  memory: {
+    rssWarningMB: 400,       // RSS内存警告阈值（MB）
+    rssCriticalMB: 600,      // RSS内存严重阈值（MB）
+    heapWarningPct: 75,      // 堆内存使用率警告阈值（%）
+    heapCriticalPct: 90,     // 堆内存使用率严重阈值（%）
+  },
+  database: {
+    latencyWarningMs: 500,   // DB延迟警告阈值（ms）
+    latencyCriticalMs: 2000, // DB延迟严重阈值（ms）
+  },
+  logger: {
+    errorRateWarning: 10,    // 错误日志数量警告阈值（近期）
+    errorRateCritical: 50,   // 错误日志数量严重阈值（近期）
+    bufferUsagePct: 80,      // 日志缓冲区使用率警告阈值（%）
+  },
+  uptime: {
+    recentRestartSec: 300,   // 最近重启判定阈值（5分钟内）
+  },
+};
+
+type AlertLevel = 'ok' | 'warning' | 'critical';
+
+interface AlertItem {
+  metric: string;
+  level: AlertLevel;
+  message: string;
+  value: number | string;
+  threshold: number | string;
+}
+
+function evaluateAlerts(
+  memUsage: NodeJS.MemoryUsage,
+  dbStatus: string,
+  dbLatencyMs: number,
+  loggerStatus: any,
+  opsSummary: any,
+  uptimeSec: number,
+): { overallLevel: AlertLevel; alerts: AlertItem[] } {
+  const alerts: AlertItem[] = [];
+  
+  // 1. 内存检查 — RSS
+  const rssMB = memUsage.rss / (1024 * 1024);
+  if (rssMB >= ALERT_THRESHOLDS.memory.rssCriticalMB) {
+    alerts.push({
+      metric: 'memory.rss', level: 'critical',
+      message: `RSS内存 ${rssMB.toFixed(0)}MB 超过严重阈值 ${ALERT_THRESHOLDS.memory.rssCriticalMB}MB`,
+      value: `${rssMB.toFixed(0)}MB`, threshold: `${ALERT_THRESHOLDS.memory.rssCriticalMB}MB`,
+    });
+  } else if (rssMB >= ALERT_THRESHOLDS.memory.rssWarningMB) {
+    alerts.push({
+      metric: 'memory.rss', level: 'warning',
+      message: `RSS内存 ${rssMB.toFixed(0)}MB 超过警告阈值 ${ALERT_THRESHOLDS.memory.rssWarningMB}MB`,
+      value: `${rssMB.toFixed(0)}MB`, threshold: `${ALERT_THRESHOLDS.memory.rssWarningMB}MB`,
+    });
+  }
+  
+  // 2. 内存检查 — 堆使用率
+  const heapPct = (memUsage.heapUsed / memUsage.heapTotal) * 100;
+  if (heapPct >= ALERT_THRESHOLDS.memory.heapCriticalPct) {
+    alerts.push({
+      metric: 'memory.heapUsage', level: 'critical',
+      message: `堆内存使用率 ${heapPct.toFixed(1)}% 超过严重阈值 ${ALERT_THRESHOLDS.memory.heapCriticalPct}%`,
+      value: `${heapPct.toFixed(1)}%`, threshold: `${ALERT_THRESHOLDS.memory.heapCriticalPct}%`,
+    });
+  } else if (heapPct >= ALERT_THRESHOLDS.memory.heapWarningPct) {
+    alerts.push({
+      metric: 'memory.heapUsage', level: 'warning',
+      message: `堆内存使用率 ${heapPct.toFixed(1)}% 超过警告阈值 ${ALERT_THRESHOLDS.memory.heapWarningPct}%`,
+      value: `${heapPct.toFixed(1)}%`, threshold: `${ALERT_THRESHOLDS.memory.heapWarningPct}%`,
+    });
+  }
+  
+  // 3. 数据库检查
+  if (dbStatus.startsWith('error')) {
+    alerts.push({
+      metric: 'database.connection', level: 'critical',
+      message: `数据库连接异常: ${dbStatus}`,
+      value: dbStatus, threshold: 'connected',
+    });
+  } else if (dbLatencyMs >= ALERT_THRESHOLDS.database.latencyCriticalMs) {
+    alerts.push({
+      metric: 'database.latency', level: 'critical',
+      message: `数据库延迟 ${dbLatencyMs}ms 超过严重阈值 ${ALERT_THRESHOLDS.database.latencyCriticalMs}ms`,
+      value: dbLatencyMs, threshold: ALERT_THRESHOLDS.database.latencyCriticalMs,
+    });
+  } else if (dbLatencyMs >= ALERT_THRESHOLDS.database.latencyWarningMs) {
+    alerts.push({
+      metric: 'database.latency', level: 'warning',
+      message: `数据库延迟 ${dbLatencyMs}ms 超过警告阈值 ${ALERT_THRESHOLDS.database.latencyWarningMs}ms`,
+      value: dbLatencyMs, threshold: ALERT_THRESHOLDS.database.latencyWarningMs,
+    });
+  }
+  
+  // 4. 错误率检查
+  const errorCount = opsSummary?.levelCounts?.error || 0;
+  if (errorCount >= ALERT_THRESHOLDS.logger.errorRateCritical) {
+    alerts.push({
+      metric: 'logger.errorCount', level: 'critical',
+      message: `累计错误日志 ${errorCount} 条超过严重阈值 ${ALERT_THRESHOLDS.logger.errorRateCritical}`,
+      value: errorCount, threshold: ALERT_THRESHOLDS.logger.errorRateCritical,
+    });
+  } else if (errorCount >= ALERT_THRESHOLDS.logger.errorRateWarning) {
+    alerts.push({
+      metric: 'logger.errorCount', level: 'warning',
+      message: `累计错误日志 ${errorCount} 条超过警告阈值 ${ALERT_THRESHOLDS.logger.errorRateWarning}`,
+      value: errorCount, threshold: ALERT_THRESHOLDS.logger.errorRateWarning,
+    });
+  }
+  
+  // 5. 日志缓冲区使用率
+  if (loggerStatus.bufferCapacity > 0) {
+    const bufPct = (loggerStatus.bufferSize / loggerStatus.bufferCapacity) * 100;
+    if (bufPct >= ALERT_THRESHOLDS.logger.bufferUsagePct) {
+      alerts.push({
+        metric: 'logger.bufferUsage', level: 'warning',
+        message: `日志缓冲区使用率 ${bufPct.toFixed(1)}% 超过阈值 ${ALERT_THRESHOLDS.logger.bufferUsagePct}%`,
+        value: `${bufPct.toFixed(1)}%`, threshold: `${ALERT_THRESHOLDS.logger.bufferUsagePct}%`,
+      });
+    }
+  }
+  
+  // 6. 最近重启检查
+  if (uptimeSec < ALERT_THRESHOLDS.uptime.recentRestartSec) {
+    alerts.push({
+      metric: 'system.uptime', level: 'warning',
+      message: `系统在 ${Math.round(uptimeSec)} 秒前刚重启，可能存在异常重启`,
+      value: `${Math.round(uptimeSec)}s`, threshold: `${ALERT_THRESHOLDS.uptime.recentRestartSec}s`,
+    });
+  }
+  
+  // 总体判定
+  const hasCritical = alerts.some(a => a.level === 'critical');
+  const hasWarning = alerts.some(a => a.level === 'warning');
+  const overallLevel: AlertLevel = hasCritical ? 'critical' : hasWarning ? 'warning' : 'ok';
+  
+  return { overallLevel, alerts };
+}
+
 router.get('/status', async (req: Request, res: Response) => {
   try {
     const sysInfo = getSystemInfo();
@@ -92,8 +232,21 @@ router.get('/status', async (req: Request, res: Response) => {
     
     // Logger状态
     const loggerStatus = logger.getStatus();
+    const opsSummary = opsCollector.getSummary();
+    
+    // v211: 告警阈值评估
+    const alertResult = evaluateAlerts(
+      memUsage, dbStatus, dbLatencyMs, loggerStatus, opsSummary, sysInfo.uptime
+    );
     
     res.json({
+      // v211: 告警系统
+      health: {
+        level: alertResult.overallLevel,
+        alertCount: alertResult.alerts.length,
+        alerts: alertResult.alerts,
+        thresholds: ALERT_THRESHOLDS,
+      },
       system: {
         version: `v${SYSTEM_VERSION}`,
         versionNumber: SYSTEM_VERSION,
@@ -113,6 +266,7 @@ router.get('/status', async (req: Request, res: Response) => {
         external: formatBytes(memUsage.external),
         rssRaw: memUsage.rss,
         heapUsedRaw: memUsage.heapUsed,
+        heapUsagePct: ((memUsage.heapUsed / memUsage.heapTotal) * 100).toFixed(1) + '%',
       },
       database: {
         status: dbStatus,
@@ -124,7 +278,7 @@ router.get('/status', async (req: Request, res: Response) => {
         suppressedTotal: loggerStatus.suppressedTotal,
         dbBufferPending: loggerStatus.dbBufferSize,
       },
-      opsLogger: opsCollector.getSummary(),
+      opsLogger: opsSummary,
       timestamp: new Date().toISOString(),
     });
   } catch (e: any) {

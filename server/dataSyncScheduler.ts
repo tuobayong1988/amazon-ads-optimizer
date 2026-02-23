@@ -20,6 +20,7 @@ import * as campaignLifecycleService from './services/campaignLifecycleService';
 import { runAutoCorrection, startAutoCorrector, stopAutoCorrector } from './optimizationAutoCorrector';
 import * as nextGenOrchestrator from './nextGenBidOrchestrator';
 import { createModuleLogger } from './utils/logger';
+import { logSync, logSyncWarn, logSyncError, logSystem, logOptimization, logOptimizationError } from './utils/opsLogger';
 
 const log = createModuleLogger('Scheduler');
 
@@ -139,6 +140,7 @@ export function startDataSyncScheduler(defaultIntervalMs: number = 30 * 60 * 100
   
   // 启动分层同步
   log.info('[DataSyncScheduler] 启动分层同步调度器...');
+  logSystem('DataSyncScheduler', '分层同步调度器启动', { defaultIntervalMs, tiers: Object.keys(SYNC_TIER_CONFIG) });
   
   // 高频同步：每15分钟
   schedulerIntervals.high = setInterval(async () => {
@@ -200,6 +202,7 @@ export function stopDataSyncScheduler(): void {
   schedulerStatus.currentTier = null;
 
   log.info('[DataSyncScheduler] 定时同步调度器已停止');
+  logSystem('DataSyncScheduler', '同步调度器已停止');
 }
 
 /**
@@ -207,6 +210,7 @@ export function stopDataSyncScheduler(): void {
  */
 async function executeLayeredSync(tier: SyncTier): Promise<void> {
   log.info(`[DataSyncScheduler] 开始执行${SYNC_TIER_CONFIG[tier].description} - ${new Date().toISOString()}`);
+  logSync('DataSyncScheduler', `开始执行${SYNC_TIER_CONFIG[tier].description}`, { tier });
   schedulerStatus.currentTier = tier;
 
   try {
@@ -291,6 +295,7 @@ async function processQueue(): Promise<void> {
 async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void> {
   const { accountId, userId, tier } = request;
   log.info(`[DataSyncScheduler] 开始${tier}层同步账号 ${accountId}`);
+  logSync('DataSyncScheduler', `开始${tier}层同步`, { accountId, tier });
 
   // v194: 获取账号信息，不存在时优雅跳过而非抛出异常
   const account = await db.getAdAccountById(accountId);
@@ -330,6 +335,7 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
         await syncService.syncPerformanceOnly(1);
       } catch (e: any) {
         log.error(`[DataSyncScheduler] 账号 ${accountId} 高频绩效同步失败:`, e.message);
+        logSyncError('DataSyncScheduler', `账号${accountId}高频绩效同步失败`, { accountId, error: e.message });
       }
       break;
     case 'medium':
@@ -340,6 +346,7 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
         await syncService.syncPerformanceOnly(7);
       } catch (e: any) {
         log.error(`[DataSyncScheduler] 账号 ${accountId} 中频绩效同步失败:`, e.message);
+        logSyncError('DataSyncScheduler', `账号${accountId}中频绩效同步失败`, { accountId, error: e.message });
       }
       break;
     case 'low':
@@ -354,6 +361,7 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
   // v196: 同步完成后记录数据新鲜度日志
   const syncEndTime = new Date();
   log.info(`[DataSyncScheduler] v196: 账号 ${accountId} ${tier}层同步完成:`, result);
+  logSync('DataSyncScheduler', `账号${accountId} ${tier}层同步完成`, { accountId, tier, result });
   
   // 记录同步完成时间到data_sync_jobs表 (v200: 使用Drizzle ORM替代原始SQL，避免列名不一致)
   try {
@@ -379,6 +387,7 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
   } catch (logErr: any) {
     // 日志记录失败不影响主流程，但输出完整错误信息便于排查
     log.warn(`[DataSyncScheduler] v200: 同步日志记录失败: ${logErr.message}`, logErr.cause || '');
+    logSyncWarn('DataSyncScheduler', `同步日志记录失败`, { accountId, error: logErr.message });
   }
 
   // v196: 每次同步完成后触发优化目标执行（确保优化频率与同步频率同步）
@@ -388,8 +397,10 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
       const { triggerAccountOptimizations } = await import('./optimizationScheduler');
       await triggerAccountOptimizations(accountId);
       log.info(`[DataSyncScheduler] v196: 账号 ${accountId} 优化目标执行完成`);
+      logOptimization('DataSyncScheduler', `账号${accountId}优化目标执行完成`, { accountId, tier });
     } catch (optErr: any) {
       log.error(`[DataSyncScheduler] v196: 账号 ${accountId} 优化目标执行失败: ${optErr.message}`);
+      logOptimizationError('DataSyncScheduler', `账号${accountId}优化目标执行失败`, { accountId, error: optErr.message });
     }
   }
 }
