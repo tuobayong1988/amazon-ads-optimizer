@@ -58,21 +58,25 @@ export default function AutoCorrectionDashboard() {
   }
   const totalEvents = Array.from(statusMap.values()).reduce((a, b) => a + b, 0);
   const syncedCount = statusMap.get('synced') || 0;
-  const failedCount = (statusMap.get('failed') || 0) + (statusMap.get('not_applicable') || 0) + (statusMap.get('invalid_legacy') || 0);
+  const failedCount = statusMap.get('failed') || 0;
+  const notApplicableCount = (statusMap.get('not_applicable') || 0) + (statusMap.get('invalid_legacy') || 0);
   const pendingCount = statusMap.get('pending') || 0;
-  const syncRate = totalEvents > 0 ? ((syncedCount / totalEvents) * 100) : 0;
+  // 同步率计算排除不适用事件（内部设置变更、历史遗留等）
+  const applicableEvents = totalEvents - notApplicableCount;
+  const syncRate = applicableEvents > 0 ? ((syncedCount / applicableEvents) * 100) : 0;
   
   // 按操作类型分组统计
-  const actionBreakdown = new Map<string, { synced: number; failed: number; pending: number; total: number }>();
+  const actionBreakdown = new Map<string, { synced: number; failed: number; pending: number; total: number; notApplicable: number }>();
   if (dashboard?.actionTypeBreakdown) {
     for (const a of dashboard.actionTypeBreakdown as any[]) {
       const type = a.action_type;
-      if (!actionBreakdown.has(type)) actionBreakdown.set(type, { synced: 0, failed: 0, pending: 0, total: 0 });
+      if (!actionBreakdown.has(type)) actionBreakdown.set(type, { synced: 0, failed: 0, pending: 0, total: 0, notApplicable: 0 });
       const entry = actionBreakdown.get(type)!;
       const count = Number(a.count);
       entry.total += count;
       if (a.api_sync_status === 'synced') entry.synced += count;
-      else if (a.api_sync_status === 'failed' || a.api_sync_status === 'not_applicable' || a.api_sync_status === 'invalid_legacy') entry.failed += count;
+      else if (a.api_sync_status === 'failed') entry.failed += count;
+      else if (a.api_sync_status === 'not_applicable' || a.api_sync_status === 'invalid_legacy') entry.notApplicable += count;
       else if (a.api_sync_status === 'pending') entry.pending += count;
     }
   }
@@ -175,12 +179,12 @@ export default function AutoCorrectionDashboard() {
             <CardContent className="pt-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-400">失败/不适用</p>
-                  <p className="text-3xl font-bold text-amber-400">{failedCount.toLocaleString()}</p>
+                  <p className="text-sm text-gray-400">失败</p>
+                  <p className="text-3xl font-bold text-red-400">{failedCount.toLocaleString()}</p>
                 </div>
-                <AlertTriangle className="h-10 w-10 text-amber-400 opacity-50" />
+                <AlertTriangle className="h-10 w-10 text-red-400 opacity-50" />
               </div>
-              <p className="text-xs text-gray-500 mt-2">包含历史遗留和永久失败事件</p>
+              <p className="text-xs text-gray-500 mt-2">需要重试的失败事件 (不适用: {notApplicableCount.toLocaleString()})</p>
             </CardContent>
           </Card>
           
@@ -445,7 +449,8 @@ export default function AutoCorrectionDashboard() {
                       {Array.from(actionBreakdown.entries())
                         .sort((a, b) => b[1].total - a[1].total)
                         .map(([type, stats]) => {
-                          const rate = stats.total > 0 ? (stats.synced / stats.total * 100) : 0;
+                          const applicableTotal = stats.total - stats.notApplicable;
+                          const rate = applicableTotal > 0 ? (stats.synced / applicableTotal * 100) : (stats.notApplicable > 0 ? 100 : 0);
                           return (
                             <tr key={type} className="border-b border-gray-800/50 hover:bg-gray-800/30">
                               <td className="py-2 px-3">
