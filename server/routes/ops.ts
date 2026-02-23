@@ -690,6 +690,140 @@ router.get('/logger-query', (req: Request, res: Response) => {
 });
 
 // ============================================================
+// 11. GET /api/ops/sync-health — 同步健康状态
+// ============================================================
+
+router.get('/sync-health', async (req: Request, res: Response) => {
+  try {
+    const db = await getDb();
+    if (!db) {
+      res.status(503).json({ error: 'Database not available' });
+      return;
+    }
+
+    // 获取各账户最近的同步记录
+    const recentSyncs = await db.execute(sql.raw(`
+      SELECT 
+        sl.accountId,
+        sl.syncType,
+        sl.status,
+        sl.startedAt,
+        sl.completedAt,
+        sl.recordsSynced,
+        sl.errorMessage,
+        sl.current_step as currentStep,
+        sl.progress_percent as progressPercent,
+        sl.sp_campaigns_synced as spCampaigns,
+        sl.sb_campaigns_synced as sbCampaigns,
+        sl.sd_campaigns_synced as sdCampaigns,
+        sl.duration_ms as durationMs,
+        TIMESTAMPDIFF(SECOND, sl.startedAt, COALESCE(sl.completedAt, NOW())) as durationSec
+      FROM data_sync_jobs sl
+      INNER JOIN (
+        SELECT accountId, MAX(startedAt) as maxStart
+        FROM data_sync_jobs
+        GROUP BY accountId
+      ) latest ON sl.accountId = latest.accountId 
+        AND sl.startedAt = latest.maxStart
+      ORDER BY sl.startedAt DESC
+      LIMIT 50
+    `));
+
+    // 获取过去24小时的同步统计
+    const syncStats24h = await db.execute(sql.raw(`
+      SELECT 
+        status,
+        COUNT(*) as count,
+        AVG(TIMESTAMPDIFF(SECOND, startedAt, COALESCE(completedAt, NOW()))) as avgDurationSec
+      FROM data_sync_jobs
+      WHERE startedAt >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+      GROUP BY status
+    `));
+
+    // 获取数据新鲜度（各表最新更新时间）
+    const freshness: Record<string, string> = {};
+    const tables = ['campaigns', 'ad_groups', 'keywords', 'negative_keywords'];
+    for (const table of tables) {
+      try {
+        const result = await db.execute(sql.raw(
+          `SELECT MAX(updatedAt) as lastUpdate FROM \`${table}\``
+        ));
+        const rows = Array.isArray(result) ? (Array.isArray(result[0]) ? result[0] : result) : [];
+        freshness[table] = rows[0]?.lastUpdate || 'no_data';
+      } catch {
+        freshness[table] = 'table_error';
+      }
+    }
+
+    res.json({
+      description: '同步健康状态 — 最近同步记录、24h统计、数据新鲜度',
+      recentSyncs: Array.isArray(recentSyncs) ? (Array.isArray(recentSyncs[0]) ? recentSyncs[0] : recentSyncs) : [],
+      stats24h: Array.isArray(syncStats24h) ? (Array.isArray(syncStats24h[0]) ? syncStats24h[0] : syncStats24h) : [],
+      dataFreshness: freshness,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ============================================================
+// 12. GET /api/ops/sync-diagnosis — 同步诊断
+// ============================================================
+
+router.get('/sync-diagnosis', async (req: Request, res: Response) => {
+  try {
+    const db = await getDb();
+    if (!db) {
+      res.status(503).json({ error: 'Database not available' });
+      return;
+    }
+
+    // 获取各账户的数据完整性概览
+    const accountOverview = await db.execute(sql.raw(`
+      SELECT 
+        a.id as accountId,
+        a.accountName,
+        a.marketplace,
+        a.status,
+        (SELECT COUNT(*) FROM campaigns c WHERE c.accountId = a.id) as campaignCount,
+        (SELECT COUNT(*) FROM ad_groups ag WHERE ag.accountId = a.id) as adGroupCount,
+        (SELECT COUNT(*) FROM keywords k WHERE k.accountId = a.id) as keywordCount,
+        (SELECT COUNT(*) FROM negative_keywords nk WHERE nk.accountId = a.id) as negKeywordCount,
+        (SELECT COALESCE(SUM(cost), 0) FROM campaigns c WHERE c.accountId = a.id) as totalSpend
+      FROM ad_accounts a
+      WHERE a.status = 'active'
+    `));
+
+    // 获取最近的同步错误
+    const recentErrors = await db.execute(sql.raw(`
+      SELECT 
+        accountId, syncType, status, errorMessage, startedAt
+      FROM data_sync_jobs
+      WHERE status = 'failed' AND startedAt >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+      ORDER BY startedAt DESC
+      LIMIT 20
+    `));
+
+    // 获取同步日志中的ops记录
+    const opsLogs = opsCollector.query({
+      category: 'sync' as OpsCategory,
+      limit: 30,
+    });
+
+    res.json({
+      description: '同步诊断 — 账户数据概览、最近错误、同步日志',
+      accountOverview: Array.isArray(accountOverview) ? (Array.isArray(accountOverview[0]) ? accountOverview[0] : accountOverview) : [],
+      recentErrors: Array.isArray(recentErrors) ? (Array.isArray(recentErrors[0]) ? recentErrors[0] : recentErrors) : [],
+      opsLogs: opsLogs,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ============================================================
 // 辅助函数
 // ============================================================
 

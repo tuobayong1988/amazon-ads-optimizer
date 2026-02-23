@@ -267,21 +267,60 @@ export default function AmazonApiSettings() {
     }
   );
 
-  // v215: 当有活动的同步任务时，更新前端进度状态
-  // 仅在前端没有通过handleSyncAll主动管理进度时才使用此轮询更新
+  // v216: 当有活动的同步任务时，更新前端进度状态
+  // 同时确保站点状态和进度信息完整显示
   useEffect(() => {
-    // 如果前端已经有站点级别的进度管理（通过handleSyncAll触发），不要覆盖
-    const hasSiteManagement = syncProgress.siteStatuses && syncProgress.siteStatuses.length > 0;
-    
     if (accountActiveSyncJob && accountActiveSyncJob.status === 'running') {
       setSyncProgress(prev => {
-        // 保留已有的站点状态，只更新整体进度和当前步骤
         const stepLabel = accountActiveSyncJob.currentStep || '同步中...';
+        const progressPercent = accountActiveSyncJob.progressPercent || prev.progress;
+        
+        // 如果前端没有站点级管理（如页面刷新后检测到运行中的任务），创建单站点状态
+        const hasSiteManagement = prev.siteStatuses && prev.siteStatuses.length > 0;
+        let siteStatuses = prev.siteStatuses || [];
+        let totalSites = prev.totalSites || 0;
+        let completedSites = prev.completedSites || 0;
+        
+        if (!hasSiteManagement && selectedAccountId) {
+          // 为当前账户创建一个站点状态条目
+          const currentAccount = accounts?.find(a => a.id === selectedAccountId);
+          const mp = currentAccount ? MARKETPLACES.find(m => m.id === currentAccount.marketplace) : null;
+          siteStatuses = [{
+            id: selectedAccountId,
+            marketplace: currentAccount?.marketplace || '',
+            name: mp?.name || currentAccount?.accountName || '当前站点',
+            flag: mp?.flag || '🌐',
+            status: 'syncing' as const,
+            progress: progressPercent,
+            currentStep: accountActiveSyncJob.currentStep || undefined,
+            stepProgress: progressPercent,
+            retryCount: 0,
+          }];
+          totalSites = 1;
+          completedSites = 0;
+        } else if (hasSiteManagement) {
+          // 更新已有站点状态中匹配的站点
+          siteStatuses = prev.siteStatuses!.map(s => {
+            if (s.id === selectedAccountId && s.status === 'syncing') {
+              return {
+                ...s,
+                currentStep: accountActiveSyncJob.currentStep || s.currentStep,
+                stepProgress: progressPercent,
+                progress: Math.max(s.progress, progressPercent),
+              };
+            }
+            return s;
+          });
+        }
+        
         return {
           ...prev,
           step: 'sp',
-          progress: accountActiveSyncJob.progressPercent || prev.progress,
-          current: stepLabel,
+          progress: progressPercent,
+          current: `正在同步: ${stepLabel}`,
+          siteStatuses,
+          totalSites,
+          completedSites,
           results: {
             sp: accountActiveSyncJob.spCampaigns || prev.results.sp,
             sb: accountActiveSyncJob.sbCampaigns || prev.results.sb,
@@ -293,28 +332,66 @@ export default function AmazonApiSettings() {
         };
       });
     } else if (accountActiveSyncJob && accountActiveSyncJob.status === 'completed') {
-      setSyncProgress(prev => ({
-        ...prev,
-        step: 'complete',
-        progress: 100,
-        current: '同步完成',
-        results: {
-          sp: accountActiveSyncJob.spCampaigns || prev.results.sp,
-          sb: accountActiveSyncJob.sbCampaigns || prev.results.sb,
-          sd: accountActiveSyncJob.sdCampaigns || prev.results.sd,
-          adGroups: accountActiveSyncJob.adGroupsSynced || prev.results.adGroups,
-          keywords: accountActiveSyncJob.keywordsSynced || prev.results.keywords,
-          targets: accountActiveSyncJob.targetsSynced || prev.results.targets,
-        },
-      }));
+      setSyncProgress(prev => {
+        // 更新站点状态为完成
+        const siteStatuses = (prev.siteStatuses || []).map(s => {
+          if (s.id === selectedAccountId) {
+            return {
+              ...s,
+              status: 'success' as const,
+              progress: 100,
+              currentStep: undefined,
+              stepProgress: undefined,
+              results: {
+                sp: accountActiveSyncJob.spCampaigns || 0,
+                sb: accountActiveSyncJob.sbCampaigns || 0,
+                sd: accountActiveSyncJob.sdCampaigns || 0,
+                adGroups: accountActiveSyncJob.adGroupsSynced || 0,
+                keywords: accountActiveSyncJob.keywordsSynced || 0,
+                targets: accountActiveSyncJob.targetsSynced || 0,
+              },
+            };
+          }
+          return s;
+        });
+        return {
+          ...prev,
+          step: 'complete',
+          progress: 100,
+          current: '同步完成',
+          siteStatuses,
+          completedSites: (prev.completedSites || 0) + 1,
+          results: {
+            sp: accountActiveSyncJob.spCampaigns || prev.results.sp,
+            sb: accountActiveSyncJob.sbCampaigns || prev.results.sb,
+            sd: accountActiveSyncJob.sdCampaigns || prev.results.sd,
+            adGroups: accountActiveSyncJob.adGroupsSynced || prev.results.adGroups,
+            keywords: accountActiveSyncJob.keywordsSynced || prev.results.keywords,
+            targets: accountActiveSyncJob.targetsSynced || prev.results.targets,
+          },
+        };
+      });
     } else if (accountActiveSyncJob && accountActiveSyncJob.status === 'failed') {
-      setSyncProgress(prev => ({
-        ...prev,
-        step: 'error',
-        error: accountActiveSyncJob.errorMessage || '同步失败',
-      }));
+      setSyncProgress(prev => {
+        const siteStatuses = (prev.siteStatuses || []).map(s => {
+          if (s.id === selectedAccountId) {
+            return {
+              ...s,
+              status: 'failed' as const,
+              error: accountActiveSyncJob.errorMessage || '同步失败',
+            };
+          }
+          return s;
+        });
+        return {
+          ...prev,
+          step: 'error',
+          error: accountActiveSyncJob.errorMessage || '同步失败',
+          siteStatuses,
+        };
+      });
     }
-  }, [accountActiveSyncJob]);
+  }, [accountActiveSyncJob, selectedAccountId, accounts]);
 
   // Fetch accounts
   const { data: accounts, isLoading: accountsLoading } = trpc.adAccount.list.useQuery(undefined, {
@@ -970,8 +1047,23 @@ export default function AmazonApiSettings() {
         throw new Error('启动同步任务失败');
       }
       
-      // 轮询同步任务状态
-      const pollResult = await pollSyncJobStatus(result.jobId);
+      // 轮询同步任务状态，并实时更新进度
+      const pollResult = await pollSyncJobStatus(result.jobId, 2700, (currentStep, stepProgress) => {
+        setSyncProgress(prev => {
+          const updatedSiteStatuses = (prev.siteStatuses || []).map(s => 
+            s.id === siteId ? { 
+              ...s, 
+              currentStep,
+              stepProgress,
+              progress: Math.max(30, stepProgress)
+            } : s
+          );
+          return {
+            ...prev,
+            siteStatuses: updatedSiteStatuses,
+          };
+        });
+      });
       
       if (!pollResult.success) {
         throw new Error(pollResult.error || '同步失败');
@@ -3156,18 +3248,20 @@ export default function AmazonApiSettings() {
                                         <div className="text-xs text-muted-foreground">
                                           {site.currentStep ? (() => {
                                             const stepLabels: Record<string, string> = {
-                                              'SP广告活动': '① SP广告活动',
-                                              'SB广告活动': '② SB广告活动',
-                                              'SD广告活动': '③ SD广告活动',
-                                              '广告组和定向': '④ 广告组和定向',
-                                              '广告组': '④ 广告组',
-                                              '关键词': '⑤ 关键词',
-                                              '商品定向': '⑥ 商品定向',
-                                              'SP绩效数据': '⑦ SP绩效数据',
-                                              'SB绩效数据': '⑧ SB绩效数据',
-                                              'SD绩效数据': '⑨ SD绩效数据',
-                                              '绩效数据': '⑦ 绩效数据',
-                                              '汇总更新': '⑩ 汇总更新',
+                                              '获取账户信息': '① 获取账户信息',
+                                              'SP广告活动': '② SP广告活动',
+                                              'SB广告活动': '③ SB广告活动',
+                                              'SD广告活动': '④ SD广告活动',
+                                              '广告组和定向': '⑤ 广告组和定向',
+                                              '广告组': '⑤ 广告组',
+                                              '关键词': '⑥ 关键词',
+                                              '商品定向': '⑦ 商品定向',
+                                              '商品定位': '⑦ 商品定位',
+                                              'SP绩效数据': '⑧ SP绩效数据',
+                                              'SB绩效数据': '⑨ SB绩效数据',
+                                              'SD绩效数据': '⑩ SD绩效数据',
+                                              '绩效数据': '⑧ 绩效数据',
+                                              '汇总更新': '⓪ 汇总更新',
                                             };
                                             return `正在同步: ${stepLabels[site.currentStep] || site.currentStep}`;
                                           })() : '正在同步...'}
@@ -3177,7 +3271,7 @@ export default function AmazonApiSettings() {
                                         {site.currentStep && (
                                           <div className="flex gap-0.5">
                                             {['①','②','③','④','⑤','⑥','⑦','⑧'].map((_, idx) => {
-                                              const allSteps = ['SP广告活动','SB广告活动','SD广告活动','广告组和定向','关键词','商品定向','绩效数据','汇总更新'];
+                                              const allSteps = ['SP广告活动','SB广告活动','SD广告活动','广告组','关键词','商品定位','绩效数据','汇总更新'];
                                               const currentIdx = allSteps.findIndex(s => site.currentStep?.includes(s) || s.includes(site.currentStep || ''));
                                               const isComplete = idx < currentIdx;
                                               const isCurrent = idx === currentIdx;

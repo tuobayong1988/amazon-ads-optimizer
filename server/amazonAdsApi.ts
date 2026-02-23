@@ -1691,7 +1691,7 @@ export class AmazonAdsApiClient {
             'salesOtherSku7d'                    // Excel: salesOtherSku7d - 7天其他SKU销售额
           ],
           reportTypeId: 'spSearchTerm',
-          timeUnit: 'SUMMARY',
+          timeUnit: 'DAILY',
           format: 'GZIP_JSON',
         },
       };
@@ -2458,7 +2458,7 @@ export class AmazonAdsApiClient {
             }
           ],
           reportTypeId: 'sbSearchTerm',
-          timeUnit: 'SUMMARY',
+          timeUnit: 'DAILY',
           format: 'GZIP_JSON',
         },
       };

@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 215;
+export const SYSTEM_VERSION = 216;
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -152,6 +152,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 215,
     description: 'v215: 数据同步全面优化 — 修复12处增量同步跳过逻辑(根因修复), SP/SB/SD报告并行请求+智能重试, 账户级并行同步调度器, 内存管理优化(512MB+GC), 前端同步进度详细步骤显示, 同步诊断端点增强',
+    affectedModules: [],
+    correctionActions: [],
+  },
+  {
+    version: 216,
+    description: 'v216: 部署健康修复 — 修复umami分析脚本导致55%HTTP4xx错误, 修复SP/SB搜索词报告SUMMARY+date列冲突(改为DAILY), 添加sync-health/sync-diagnosis运维端点, 修复前端同步进度步骤显示',
     affectedModules: [],
     correctionActions: [],
   },

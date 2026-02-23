@@ -53962,7 +53962,7 @@ var init_amazonAdsApi = __esm({
                 // Excel: salesOtherSku7d - 7天其他SKU销售额
               ],
               reportTypeId: "spSearchTerm",
-              timeUnit: "SUMMARY",
+              timeUnit: "DAILY",
               format: "GZIP_JSON"
             }
           };
@@ -54789,7 +54789,7 @@ var init_amazonAdsApi = __esm({
                 }
               ],
               reportTypeId: "sbSearchTerm",
-              timeUnit: "SUMMARY",
+              timeUnit: "DAILY",
               format: "GZIP_JSON"
             }
           };
@@ -144923,7 +144923,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log12 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 215;
+    SYSTEM_VERSION = 216;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -145012,6 +145012,12 @@ var init_postDeployOptimizer = __esm({
       {
         version: 215,
         description: "v215: \u6570\u636E\u540C\u6B65\u5168\u9762\u4F18\u5316 \u2014 \u4FEE\u590D12\u5904\u589E\u91CF\u540C\u6B65\u8DF3\u8FC7\u903B\u8F91(\u6839\u56E0\u4FEE\u590D), SP/SB/SD\u62A5\u544A\u5E76\u884C\u8BF7\u6C42+\u667A\u80FD\u91CD\u8BD5, \u8D26\u6237\u7EA7\u5E76\u884C\u540C\u6B65\u8C03\u5EA6\u5668, \u5185\u5B58\u7BA1\u7406\u4F18\u5316(512MB+GC), \u524D\u7AEF\u540C\u6B65\u8FDB\u5EA6\u8BE6\u7EC6\u6B65\u9AA4\u663E\u793A, \u540C\u6B65\u8BCA\u65AD\u7AEF\u70B9\u589E\u5F3A",
+        affectedModules: [],
+        correctionActions: []
+      },
+      {
+        version: 216,
+        description: "v216: \u90E8\u7F72\u5065\u5EB7\u4FEE\u590D \u2014 \u4FEE\u590Dumami\u5206\u6790\u811A\u672C\u5BFC\u81F455%HTTP4xx\u9519\u8BEF, \u4FEE\u590DSP/SB\u641C\u7D22\u8BCD\u62A5\u544ASUMMARY+date\u5217\u51B2\u7A81(\u6539\u4E3ADAILY), \u6DFB\u52A0sync-health/sync-diagnosis\u8FD0\u7EF4\u7AEF\u70B9, \u4FEE\u590D\u524D\u7AEF\u540C\u6B65\u8FDB\u5EA6\u6B65\u9AA4\u663E\u793A",
         affectedModules: [],
         correctionActions: []
       }
@@ -374998,6 +375004,116 @@ router3.get("/logger-query", (req, res) => {
     const result = logger.query({ level, module: module2, search, limit: limit2 });
     res.json({
       ...result,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (e6) {
+    res.status(500).json({ error: e6.message });
+  }
+});
+router3.get("/sync-health", async (req, res) => {
+  try {
+    const db = await getDb();
+    if (!db) {
+      res.status(503).json({ error: "Database not available" });
+      return;
+    }
+    const recentSyncs = await db.execute(sql.raw(`
+      SELECT 
+        sl.accountId,
+        sl.syncType,
+        sl.status,
+        sl.startedAt,
+        sl.completedAt,
+        sl.recordsSynced,
+        sl.errorMessage,
+        sl.current_step as currentStep,
+        sl.progress_percent as progressPercent,
+        sl.sp_campaigns_synced as spCampaigns,
+        sl.sb_campaigns_synced as sbCampaigns,
+        sl.sd_campaigns_synced as sdCampaigns,
+        sl.duration_ms as durationMs,
+        TIMESTAMPDIFF(SECOND, sl.startedAt, COALESCE(sl.completedAt, NOW())) as durationSec
+      FROM data_sync_jobs sl
+      INNER JOIN (
+        SELECT accountId, MAX(startedAt) as maxStart
+        FROM data_sync_jobs
+        GROUP BY accountId
+      ) latest ON sl.accountId = latest.accountId 
+        AND sl.startedAt = latest.maxStart
+      ORDER BY sl.startedAt DESC
+      LIMIT 50
+    `));
+    const syncStats24h = await db.execute(sql.raw(`
+      SELECT 
+        status,
+        COUNT(*) as count,
+        AVG(TIMESTAMPDIFF(SECOND, startedAt, COALESCE(completedAt, NOW()))) as avgDurationSec
+      FROM data_sync_jobs
+      WHERE startedAt >= DATE_SUB(NOW(), INTERVAL 24 HOUR)
+      GROUP BY status
+    `));
+    const freshness = {};
+    const tables = ["campaigns", "ad_groups", "keywords", "negative_keywords"];
+    for (const table of tables) {
+      try {
+        const result = await db.execute(sql.raw(
+          `SELECT MAX(updatedAt) as lastUpdate FROM \`${table}\``
+        ));
+        const rows = Array.isArray(result) ? Array.isArray(result[0]) ? result[0] : result : [];
+        freshness[table] = rows[0]?.lastUpdate || "no_data";
+      } catch {
+        freshness[table] = "table_error";
+      }
+    }
+    res.json({
+      description: "\u540C\u6B65\u5065\u5EB7\u72B6\u6001 \u2014 \u6700\u8FD1\u540C\u6B65\u8BB0\u5F55\u300124h\u7EDF\u8BA1\u3001\u6570\u636E\u65B0\u9C9C\u5EA6",
+      recentSyncs: Array.isArray(recentSyncs) ? Array.isArray(recentSyncs[0]) ? recentSyncs[0] : recentSyncs : [],
+      stats24h: Array.isArray(syncStats24h) ? Array.isArray(syncStats24h[0]) ? syncStats24h[0] : syncStats24h : [],
+      dataFreshness: freshness,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (e6) {
+    res.status(500).json({ error: e6.message });
+  }
+});
+router3.get("/sync-diagnosis", async (req, res) => {
+  try {
+    const db = await getDb();
+    if (!db) {
+      res.status(503).json({ error: "Database not available" });
+      return;
+    }
+    const accountOverview = await db.execute(sql.raw(`
+      SELECT 
+        a.id as accountId,
+        a.accountName,
+        a.marketplace,
+        a.status,
+        (SELECT COUNT(*) FROM campaigns c WHERE c.accountId = a.id) as campaignCount,
+        (SELECT COUNT(*) FROM ad_groups ag WHERE ag.accountId = a.id) as adGroupCount,
+        (SELECT COUNT(*) FROM keywords k WHERE k.accountId = a.id) as keywordCount,
+        (SELECT COUNT(*) FROM negative_keywords nk WHERE nk.accountId = a.id) as negKeywordCount,
+        (SELECT COALESCE(SUM(cost), 0) FROM campaigns c WHERE c.accountId = a.id) as totalSpend
+      FROM ad_accounts a
+      WHERE a.status = 'active'
+    `));
+    const recentErrors = await db.execute(sql.raw(`
+      SELECT 
+        accountId, syncType, status, errorMessage, startedAt
+      FROM data_sync_jobs
+      WHERE status = 'failed' AND startedAt >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+      ORDER BY startedAt DESC
+      LIMIT 20
+    `));
+    const opsLogs = opsCollector.query({
+      category: "sync",
+      limit: 30
+    });
+    res.json({
+      description: "\u540C\u6B65\u8BCA\u65AD \u2014 \u8D26\u6237\u6570\u636E\u6982\u89C8\u3001\u6700\u8FD1\u9519\u8BEF\u3001\u540C\u6B65\u65E5\u5FD7",
+      accountOverview: Array.isArray(accountOverview) ? Array.isArray(accountOverview[0]) ? accountOverview[0] : accountOverview : [],
+      recentErrors: Array.isArray(recentErrors) ? Array.isArray(recentErrors[0]) ? recentErrors[0] : recentErrors : [],
+      opsLogs,
       timestamp: (/* @__PURE__ */ new Date()).toISOString()
     });
   } catch (e6) {
