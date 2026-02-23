@@ -47,7 +47,7 @@ import * as budgetPortfolioOptimizer from './budgetPortfolioOptimizer';
 import * as algorithmEvolutionEngine from './algorithmEvolutionEngine';
 import { syncCampaignStatusToAmazon } from './services/amazonApiHelper';
 import { getExchangeRateStatus, refreshExchangeRates, getExchangeRates } from './services/exchangeRateService';
-import { runAutoCorrection, getScanHistory, getLastScanResult, getScanStatus, getConfig as getAutoCorrectorConfig } from './optimizationAutoCorrector';
+import { runAutoCorrection, getScanHistory, getLastScanResult, getScanStatus, getConfig as getAutoCorrectorConfig, getLatestHealthReport } from './optimizationAutoCorrector';
 
 // ==================== Ad Account Router ====================
 const adAccountRouter = router({
@@ -11209,6 +11209,11 @@ const autoCorrectionRouter = router({
       negKeywordStats: negKeywordStats || [],
       recentCorrections: recentCorrections || [],
     };
+  }),
+  
+  // v204: 获取同步健康度报告
+  getHealthReport: protectedProcedure.query(async () => {
+    return getLatestHealthReport();
   }),
 });
 

@@ -1900,6 +1900,43 @@ async function executeSearchTermAnalysis(
             }
           }
           
+          // v204: 否定词预验证 — 在入队前清洗特殊字符并检查Amazon限制
+          let negMatchType = decision.negativeMatchType === 'negative_exact' ? 'negative_exact' : 'negative_phrase';
+          const negValidation = sanitizeAndValidateKeyword(decision.targetValue, negMatchType as any);
+          let cleanedNegText = negValidation.sanitizedText || decision.targetValue;
+          
+          if (!negValidation.isValid) {
+            // v204: 如果negative_phrase超过4个词，自动升级为negative_exact（最多10个词）
+            if (negMatchType === 'negative_phrase' && negValidation.reasonCode === 'EXCEEDS_MAX_WORDS_NEG_PHRASE') {
+              const exactValidation = sanitizeAndValidateKeyword(decision.targetValue, 'negative_exact');
+              if (exactValidation.isValid) {
+                negMatchType = 'negative_exact';
+                cleanedNegText = exactValidation.sanitizedText;
+                console.log(`[SearchTermAnalysis] v204: 否定短语"${decision.targetValue}"超过4词限制，自动升级为negative_exact`);
+              } else {
+                console.log(`[SearchTermAnalysis] v204: 否定词预验证失败(升级后仍无效): "${decision.targetValue}" → ${exactValidation.reasonMessage}`);
+                details.push({
+                  campaignId: campaign.id,
+                  campaignName: campaign.campaignName,
+                  searchTerm: decision.targetValue,
+                  action: 'negative_validation_failed',
+                  reason: `v204预验证失败: ${exactValidation.reasonMessage}`,
+                });
+                continue;
+              }
+            } else {
+              console.log(`[SearchTermAnalysis] v204: 否定词预验证失败: "${decision.targetValue}" → ${negValidation.reasonMessage}`);
+              details.push({
+                campaignId: campaign.id,
+                campaignName: campaign.campaignName,
+                searchTerm: decision.targetValue,
+                action: 'negative_validation_failed',
+                reason: `v204预验证失败: ${negValidation.reasonMessage}`,
+              });
+              continue;
+            }
+          }
+          
           // v170: 否定关键词去重检查
           let negativeAlreadyExists = false;
           if (!dryRun) {
@@ -1911,25 +1948,24 @@ async function executeSearchTermAnalysis(
                 .from(negKwTable)
                 .where(andOp(
                   eqOp(negKwTable.campaignId, campaign.id as any),
-                  eqOp(negKwTable.negativeText, decision.targetValue)
+                  eqOp(negKwTable.negativeText, cleanedNegText)
                 ))
                 .limit(1);
               if (existingNeg.length > 0) {
                 negativeAlreadyExists = true;
-                console.log(`[SearchTermAnalysis] v170: 否定关键词已存在，跳过: "${decision.targetValue}" campaignId=${campaign.id}`);
+                console.log(`[SearchTermAnalysis] v170: 否定关键词已存在，跳过: "${cleanedNegText}" campaignId=${campaign.id}`);
               }
             }
           }
 
-          const negMatchType = decision.negativeMatchType === 'negative_exact' ? 'negative_exact' : 'negative_phrase';
           const negativeKeyword: any = {
             accountId: config.accountId,
             campaignId: campaign.id,
             campaignName: campaign.campaignName,
-            searchTerm: decision.targetValue,
+            searchTerm: cleanedNegText,
             matchType: negMatchType,
             action: 'add_negative',
-            reason: `v191智能否定: ${decision.reason}`,
+            reason: `v204智能否定: ${decision.reason}`,
             apiSyncStatus: negativeAlreadyExists ? 'already_exists' : 'pending',
             confidence: decision.confidence,
             dataMaturityLevel: decision.dataMaturityLevel,
@@ -1944,9 +1980,9 @@ async function executeSearchTermAnalysis(
               campaignId: campaign.id,
               negativeLevel: 'campaign',
               negativeType: 'keyword',
-              negativeText: decision.targetValue,
+              negativeText: cleanedNegText,
               negativeMatchType: negMatchType,
-              negativeSource: 'smart_targeting_v191',
+              negativeSource: 'auto_optimization',
               createdAt: new Date().toISOString(),
             };
             negativeKeywordsAdded++;
@@ -1982,6 +2018,21 @@ async function executeSearchTermAnalysis(
             continue;
           }
           
+          // v204: 正面关键词预验证 — 在入队前清洗特殊字符并检查Amazon限制
+          const posValidation = sanitizeAndValidateKeyword(decision.targetValue, 'positive');
+          if (!posValidation.isValid) {
+            console.log(`[SearchTermAnalysis] v204: 正面关键词预验证失败: "${decision.targetValue}" → ${posValidation.reasonMessage}`);
+            details.push({
+              campaignId: campaign.id,
+              campaignName: campaign.campaignName,
+              searchTerm: decision.targetValue,
+              action: 'keyword_validation_failed',
+              reason: `v204预验证失败: ${posValidation.reasonMessage}`,
+            });
+            continue;
+          }
+          const cleanedPosText = posValidation.sanitizedText;
+          
           // v191: 使用算法决定的匹配方式和出价
           const matchType = decision.matchType || 'phrase';
           const bid = decision.suggestedBid || 0.50;
@@ -1990,10 +2041,10 @@ async function executeSearchTermAnalysis(
             accountId: config.accountId,
             campaignId: campaign.id,
             campaignName: campaign.campaignName,
-            searchTerm: decision.targetValue,
+            searchTerm: cleanedPosText,
             matchType: matchType,
             action: 'add_keyword',
-            reason: `v191智能投放: ${decision.reason}`,
+            reason: `v204智能投放: ${decision.reason}`,
             suggestedBid: bid,
             apiSyncStatus: dryRun ? 'pending' : 'pending',
             confidence: decision.confidence,

@@ -75498,12 +75498,48 @@ var optimizationAutoCorrector_exports = {};
 __export(optimizationAutoCorrector_exports, {
   getConfig: () => getConfig,
   getLastScanResult: () => getLastScanResult,
+  getLatestHealthReport: () => getLatestHealthReport,
   getScanHistory: () => getScanHistory,
   getScanStatus: () => getScanStatus,
   runAutoCorrection: () => runAutoCorrection,
   startAutoCorrector: () => startAutoCorrector,
   stopAutoCorrector: () => stopAutoCorrector
 });
+async function getAccountCurrencyCode(accountId) {
+  const cached2 = accountCurrencyCache.get(accountId);
+  if (cached2 && Date.now() - cached2.fetchedAt < CURRENCY_CACHE_TTL_MS) {
+    return cached2.currencyCode;
+  }
+  try {
+    const creds = await getAmazonApiCredentials(accountId);
+    const currencyCode = creds?.currencyCode || "USD";
+    accountCurrencyCache.set(accountId, { currencyCode, fetchedAt: Date.now() });
+    return currencyCode;
+  } catch (err2) {
+    console.warn(`[AutoCorrector] v204: \u83B7\u53D6\u8D26\u6237${accountId}\u8D27\u5E01\u4EE3\u7801\u5931\u8D25: ${err2.message}\uFF0C\u9ED8\u8BA4\u4F7F\u7528USD`);
+    return "USD";
+  }
+}
+function getBidTolerance(currencyCode) {
+  const rate = CURRENCY_TO_USD_RATE[currencyCode] || 1;
+  return Math.max(0.01, AUTO_CORRECTION_CONFIG.bidToleranceBaseUSD * rate);
+}
+function getBudgetTolerance(currencyCode) {
+  const rate = CURRENCY_TO_USD_RATE[currencyCode] || 1;
+  return Math.max(1, AUTO_CORRECTION_CONFIG.budgetToleranceBaseUSD * rate);
+}
+function getBidVerifyTolerance(currencyCode) {
+  if (currencyCode === "USD") {
+    return { absTolerance: 0.02, relTolerance: 0.05 };
+  }
+  const rate = CURRENCY_TO_USD_RATE[currencyCode] || 1;
+  return {
+    absTolerance: Math.max(0.02, 0.02 * rate),
+    // 按汇率缩放绝对容差
+    relTolerance: 0.1
+    // 非USD货币允许10%的比例差异（汇率波动）
+  };
+}
 async function runAutoCorrection(accountId) {
   if (isScanning) {
     console.log("[AutoCorrector] v178: \u7EA0\u9519\u626B\u63CF\u6B63\u5728\u8FDB\u884C\u4E2D\uFF0C\u8DF3\u8FC7\u672C\u6B21\u8BF7\u6C42");
@@ -75578,7 +75614,8 @@ async function runAutoCorrection(accountId) {
     scanHistory.unshift(result);
     if (scanHistory.length > 20) scanHistory.pop();
     lastScanTime = completedAt;
-    console.log(`[AutoCorrector] v178: \u7EA0\u9519\u626B\u63CF\u5B8C\u6210 - \u53D1\u73B0${result.totalIssuesFound}\u4E2A\u95EE\u9898, \u7EA0\u6B63${result.totalCorrected}\u4E2A, \u5931\u8D25${result.totalFailed}\u4E2A`);
+    console.log(`[AutoCorrector] v204: \u7EA0\u9519\u626B\u63CF\u5B8C\u6210 - \u53D1\u73B0${result.totalIssuesFound}\u4E2A\u95EE\u9898, \u7EA0\u6B63${result.totalCorrected}\u4E2A, \u5931\u8D25${result.totalFailed}\u4E2A`);
+    await evaluateSyncHealth(database, result);
     return result;
   } finally {
     isScanning = false;
@@ -75720,6 +75757,8 @@ async function retryFailedBidAdjustments(database, accountId) {
 async function correctBidMismatches(database, accountId) {
   const results = [];
   try {
+    const currencyCode = await getAccountCurrencyCode(accountId);
+    const bidTolerance = getBidTolerance(currencyCode);
     const mismatchQuery = sql`
       SELECT 
         oe.id as event_id,
@@ -75744,7 +75783,7 @@ async function correctBidMismatches(database, accountId) {
         AND oe.created_at > DATE_SUB(NOW(), INTERVAL 3 DAY)
         AND k.keywordId IS NOT NULL
         AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%AutoCorrector%')
-        AND ABS(CAST(k.bid AS DECIMAL(10,2)) - CAST(oe.new_bid AS DECIMAL(10,2))) > ${AUTO_CORRECTION_CONFIG.bidToleranceDollar}
+        AND ABS(CAST(k.bid AS DECIMAL(10,2)) - CAST(oe.new_bid AS DECIMAL(10,2))) > ${bidTolerance}
         AND oe.id = (
           SELECT MAX(oe2.id) FROM optimization_events oe2 
           WHERE oe2.keyword_id = oe.keyword_id 
@@ -75759,7 +75798,7 @@ async function correctBidMismatches(database, accountId) {
     const mismatches = await database.execute(mismatchQuery);
     const rows = mismatches[0] || mismatches;
     if (!Array.isArray(rows) || rows.length === 0) return results;
-    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId} \u53D1\u73B0${rows.length}\u6761\u51FA\u4EF7\u4E0D\u4E00\u81F4\u9700\u8981\u7EA0\u6B63`);
+    console.log(`[AutoCorrector] v204: \u8D26\u6237${accountId} (${currencyCode}) \u53D1\u73B0${rows.length}\u6761\u51FA\u4EF7\u4E0D\u4E00\u81F4\u9700\u8981\u7EA0\u6B63 (bidTolerance=${bidTolerance.toFixed(3)})`);
     const correctionItems = rows.map((row) => {
       let targetBid = parseFloat(String(row.expected_bid));
       const maxBid = row.max_bid ? parseFloat(String(row.max_bid)) : 0;
@@ -75768,8 +75807,8 @@ async function correctBidMismatches(database, accountId) {
         targetBid = maxBid;
       }
       const currentBid = parseFloat(String(row.current_bid));
-      if (Math.abs(targetBid - currentBid) <= AUTO_CORRECTION_CONFIG.bidToleranceDollar) {
-        console.log(`[AutoCorrector] v178: \u8DF3\u8FC7\u7EA0\u6B63(\u5DEE\u5F02\u5728\u5BB9\u5FCD\u8303\u56F4\u5185): keyword=${row.keyword_id} target=$${targetBid} current=$${currentBid}`);
+      if (Math.abs(targetBid - currentBid) <= bidTolerance) {
+        console.log(`[AutoCorrector] v204: \u8DF3\u8FC7\u7EA0\u6B63(\u5DEE\u5F02\u5728${currencyCode}\u5BB9\u5DEE${bidTolerance.toFixed(3)}\u5185): keyword=${row.keyword_id} target=$${targetBid} current=$${currentBid}`);
         return null;
       }
       return {
@@ -75927,6 +75966,8 @@ async function retryFailedBudgetAdjustments(database, accountId) {
 async function correctBudgetMismatches(database, accountId) {
   const results = [];
   try {
+    const currencyCode = await getAccountCurrencyCode(accountId);
+    const budgetTolerance = getBudgetTolerance(currencyCode);
     const mismatchQuery = sql`
       SELECT 
         oe.id as event_id,
@@ -75947,7 +75988,7 @@ async function correctBudgetMismatches(database, accountId) {
         AND oe.created_at > DATE_SUB(NOW(), INTERVAL 3 DAY)
         AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%AutoCorrector%')
         AND (pg.daypartingEnabled IS NULL OR pg.daypartingEnabled = 0)
-        AND ABS(CAST(c.dailyBudget AS DECIMAL(10,2)) - CAST(REPLACE(REPLACE(oe.new_value, '$', ''), ',', '') AS DECIMAL(10,2))) > ${AUTO_CORRECTION_CONFIG.budgetToleranceDollar}
+        AND ABS(CAST(c.dailyBudget AS DECIMAL(10,2)) - CAST(REPLACE(REPLACE(oe.new_value, '$', ''), ',', '') AS DECIMAL(10,2))) > ${budgetTolerance}
         AND oe.id = (
           SELECT MAX(oe2.id) FROM optimization_events oe2 
           WHERE oe2.campaign_id = oe.campaign_id 
@@ -75962,7 +76003,7 @@ async function correctBudgetMismatches(database, accountId) {
     const mismatches = await database.execute(mismatchQuery);
     const rows = mismatches[0] || mismatches;
     if (!Array.isArray(rows) || rows.length === 0) return results;
-    console.log(`[AutoCorrector] v178: \u8D26\u6237${accountId} \u53D1\u73B0${rows.length}\u6761\u9884\u7B97\u4E0D\u4E00\u81F4\u9700\u8981\u7EA0\u6B63`);
+    console.log(`[AutoCorrector] v204: \u8D26\u6237${accountId} (${currencyCode}) \u53D1\u73B0${rows.length}\u6761\u9884\u7B97\u4E0D\u4E00\u81F4\u9700\u8981\u7EA0\u6B63 (budgetTolerance=${budgetTolerance.toFixed(2)})`);
     for (const row of rows) {
       try {
         const rawExpected = String(row.expected_budget || "0").replace(/[^0-9.\-]/g, "");
@@ -75972,8 +76013,8 @@ async function correctBudgetMismatches(database, accountId) {
           continue;
         }
         const currentBudgetNum = parseFloat(String(row.current_budget || "0").replace(/[^0-9.\-]/g, ""));
-        if (!isNaN(currentBudgetNum) && Math.abs(expectedBudget - currentBudgetNum) <= AUTO_CORRECTION_CONFIG.budgetToleranceDollar) {
-          console.log(`[AutoCorrector] v175: \u53D6\u6574\u540E\u9884\u7B97\u5DEE\u5F02\u5728\u5BB9\u5FCD\u8303\u56F4\u5185: campaign=${row.campaign_id}, expected=$${expectedBudget}, current=$${currentBudgetNum}`);
+        if (!isNaN(currentBudgetNum) && Math.abs(expectedBudget - currentBudgetNum) <= budgetTolerance) {
+          console.log(`[AutoCorrector] v204: \u53D6\u6574\u540E\u9884\u7B97\u5DEE\u5F02\u5728${currencyCode}\u5BB9\u5DEE${budgetTolerance.toFixed(2)}\u5185: campaign=${row.campaign_id}, expected=$${expectedBudget}, current=$${currentBudgetNum}`);
           continue;
         }
         const syncResult = await syncBudgetAdjustmentToAmazon(
@@ -76655,7 +76696,9 @@ function createEmptyScanResult(reason) {
       settingsRetries: { found: 0, corrected: 0, failed: 0 },
       keywordCreateRetries: { found: 0, corrected: 0, failed: 0 },
       maxBidViolations: { found: 0, corrected: 0, failed: 0 },
-      orphanKeywordCleanups: { found: 0, corrected: 0, failed: 0 }
+      orphanKeywordCleanups: { found: 0, corrected: 0, failed: 0 },
+      nextgenQualityAudits: { found: 0, corrected: 0, failed: 0 },
+      statusChangeRetries: { found: 0, corrected: 0, failed: 0 }
     },
     corrections: []
   };
@@ -76672,10 +76715,11 @@ function buildScanResult(scanId, startedAt, completedAt, accountsScanned, correc
     keywordCreateRetries: { found: 0, corrected: 0, failed: 0 },
     maxBidViolations: { found: 0, corrected: 0, failed: 0 },
     orphanKeywordCleanups: { found: 0, corrected: 0, failed: 0 },
-    nextgenQualityAudits: { found: 0, corrected: 0, failed: 0 }
+    nextgenQualityAudits: { found: 0, corrected: 0, failed: 0 },
+    statusChangeRetries: { found: 0, corrected: 0, failed: 0 }
   };
   for (const c5 of corrections) {
-    const key = c5.type === "bid_retry" ? "bidRetries" : c5.type === "bid_mismatch" ? "bidMismatches" : c5.type === "budget_retry" ? "budgetRetries" : c5.type === "budget_mismatch" ? "budgetMismatches" : c5.type === "placement_mismatch" ? "placementMismatches" : c5.type === "rollback_execution" ? "rollbackExecutions" : c5.type === "keyword_create_retry" ? "keywordCreateRetries" : c5.type === "max_bid_violation" ? "maxBidViolations" : c5.type === "orphan_keyword_cleanup" ? "orphanKeywordCleanups" : c5.type === "nextgen_quality_audit" ? "nextgenQualityAudits" : "settingsRetries";
+    const key = c5.type === "bid_retry" ? "bidRetries" : c5.type === "bid_mismatch" ? "bidMismatches" : c5.type === "budget_retry" ? "budgetRetries" : c5.type === "budget_mismatch" ? "budgetMismatches" : c5.type === "placement_mismatch" ? "placementMismatches" : c5.type === "rollback_execution" ? "rollbackExecutions" : c5.type === "keyword_create_retry" ? "keywordCreateRetries" : c5.type === "max_bid_violation" ? "maxBidViolations" : c5.type === "orphan_keyword_cleanup" ? "orphanKeywordCleanups" : c5.type === "nextgen_quality_audit" ? "nextgenQualityAudits" : c5.type === "status_change_retry" ? "statusChangeRetries" : "settingsRetries";
     details[key].found++;
     if (c5.success) details[key].corrected++;
     else details[key].failed++;
@@ -76691,6 +76735,129 @@ function buildScanResult(scanId, startedAt, completedAt, accountsScanned, correc
     details,
     corrections
   };
+}
+async function evaluateSyncHealth(database, scanResult) {
+  try {
+    const [syncStats] = await database.execute(sql`
+      SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as synced,
+        SUM(CASE WHEN api_sync_status = 'failed' THEN 1 ELSE 0 END) as failed,
+        SUM(CASE WHEN api_sync_status IN ('pending', 'not_applicable') THEN 1 ELSE 0 END) as pending
+      FROM optimization_events 
+      WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
+        AND api_sync_status NOT IN ('legacy_unsynced', 'invalid_legacy')
+    `);
+    const [typeStats] = await database.execute(sql`
+      SELECT 
+        action_type,
+        COUNT(*) as total,
+        SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as synced
+      FROM optimization_events 
+      WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
+        AND api_sync_status NOT IN ('legacy_unsynced', 'invalid_legacy')
+      GROUP BY action_type
+    `);
+    const stats = Array.isArray(syncStats) ? syncStats[0] : syncStats;
+    const total = parseInt(String(stats?.total || "0"));
+    const synced = parseInt(String(stats?.synced || "0"));
+    const failed = parseInt(String(stats?.failed || "0"));
+    const pending = parseInt(String(stats?.pending || "0"));
+    const overallSyncRate = total > 0 ? synced / total * 100 : 100;
+    const typeStatsArray = Array.isArray(typeStats) ? typeStats : [];
+    const getTypeSyncRate = (actionType) => {
+      const typeStat = typeStatsArray.find((t7) => t7.action_type === actionType);
+      if (!typeStat || parseInt(String(typeStat.total)) === 0) return 100;
+      return parseInt(String(typeStat.synced)) / parseInt(String(typeStat.total)) * 100;
+    };
+    const bidSyncRate = getTypeSyncRate("bid_adjustment");
+    const budgetSyncRate = getTypeSyncRate("budget_adjustment");
+    const negativeKeywordSyncRate = getTypeSyncRate("negative_keyword_add");
+    const keywordCreateSyncRate = getTypeSyncRate("keyword_create");
+    const correctionSuccessRate = scanResult.totalIssuesFound > 0 ? scanResult.totalCorrected / scanResult.totalIssuesFound * 100 : 100;
+    const alerts = [];
+    if (bidSyncRate < 80) {
+      alerts.push(`\u26A0\uFE0F \u51FA\u4EF7\u540C\u6B65\u7387\u4F4E\u4E8E80%: ${bidSyncRate.toFixed(1)}%`);
+    }
+    if (budgetSyncRate < 80) {
+      alerts.push(`\u26A0\uFE0F \u9884\u7B97\u540C\u6B65\u7387\u4F4E\u4E8E80%: ${budgetSyncRate.toFixed(1)}%`);
+    }
+    if (negativeKeywordSyncRate < 70) {
+      alerts.push(`\u26A0\uFE0F \u5426\u5B9A\u8BCD\u540C\u6B65\u7387\u4F4E\u4E8E70%: ${negativeKeywordSyncRate.toFixed(1)}%`);
+    }
+    if (keywordCreateSyncRate < 70) {
+      alerts.push(`\u26A0\uFE0F \u5173\u952E\u8BCD\u521B\u5EFA\u540C\u6B65\u7387\u4F4E\u4E8E70%: ${keywordCreateSyncRate.toFixed(1)}%`);
+    }
+    if (pending > 100) {
+      alerts.push(`\u{1F6A8} \u5F85\u5904\u7406\u4EFB\u52A1\u79EF\u538B: ${pending}\u4E2A\u4EFB\u52A1\u7B49\u5F85\u5904\u7406`);
+    }
+    if (failed > 50) {
+      alerts.push(`\u{1F6A8} \u5931\u8D25\u4EFB\u52A1\u8FC7\u591A: ${failed}\u4E2A\u4EFB\u52A1\u5931\u8D25`);
+    }
+    if (correctionSuccessRate < 50 && scanResult.totalIssuesFound > 10) {
+      alerts.push(`\u2757 \u7EA0\u9519\u6210\u529F\u7387\u4F4E\u4E8E50%: ${correctionSuccessRate.toFixed(1)}% (${scanResult.totalCorrected}/${scanResult.totalIssuesFound})`);
+    }
+    let level = "healthy";
+    if (overallSyncRate < 60 || correctionSuccessRate < 50 && scanResult.totalIssuesFound > 10) {
+      level = "emergency";
+    } else if (overallSyncRate < 80 || failed > 100) {
+      level = "critical";
+    } else if (overallSyncRate < 95 || pending > 50 || alerts.length > 0) {
+      level = "warning";
+    }
+    const report2 = {
+      level,
+      overallSyncRate,
+      bidSyncRate,
+      budgetSyncRate,
+      negativeKeywordSyncRate,
+      keywordCreateSyncRate,
+      pendingCount: pending,
+      failedCount: failed,
+      alerts,
+      evaluatedAt: /* @__PURE__ */ new Date(),
+      correctionSuccessRate
+    };
+    latestHealthReport = report2;
+    const levelEmoji = level === "healthy" ? "\u2705" : level === "warning" ? "\u26A0\uFE0F" : level === "critical" ? "\u{1F6A8}" : "\u{1F534}";
+    console.log(`[SyncHealth] v204: ${levelEmoji} \u540C\u6B65\u5065\u5EB7\u5EA6: ${level.toUpperCase()}`);
+    console.log(`[SyncHealth] v204: \u603B\u4F53\u540C\u6B65\u7387=${overallSyncRate.toFixed(1)}% | \u51FA\u4EF7=${bidSyncRate.toFixed(1)}% | \u9884\u7B97=${budgetSyncRate.toFixed(1)}% | \u5426\u5B9A\u8BCD=${negativeKeywordSyncRate.toFixed(1)}% | \u5173\u952E\u8BCD\u521B\u5EFA=${keywordCreateSyncRate.toFixed(1)}%`);
+    console.log(`[SyncHealth] v204: \u5F85\u5904\u7406=${pending} | \u5931\u8D25=${failed} | \u7EA0\u9519\u6210\u529F\u7387=${correctionSuccessRate.toFixed(1)}%`);
+    if (alerts.length > 0) {
+      console.log(`[SyncHealth] v204: === \u544A\u8B66\u4FE1\u606F (${alerts.length}\u6761) ===`);
+      for (const alert of alerts) {
+        console.log(`[SyncHealth] v204: ${alert}`);
+      }
+    }
+    if (level === "emergency" || level === "critical") {
+      console.error(`[SyncHealth] v204: \u2757\u2757\u2757 \u7CFB\u7EDF\u540C\u6B65\u5065\u5EB7\u5EA6\u5F02\u5E38 (${level}) \u2757\u2757\u2757`);
+      console.error(`[SyncHealth] v204: \u8BF7\u68C0\u67E5: 1) Amazon API\u51ED\u8BC1\u662F\u5426\u8FC7\u671F 2) API\u901F\u7387\u9650\u5236 3) \u7F51\u7EDC\u8FDE\u63A5 4) \u6570\u636E\u5E93\u72B6\u6001`);
+      try {
+        const [recentErrors] = await database.execute(sql`
+          SELECT action_type, error_message, COUNT(*) as count
+          FROM optimization_events 
+          WHERE api_sync_status = 'failed'
+            AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+          GROUP BY action_type, SUBSTRING(error_message, 1, 100)
+          ORDER BY count DESC
+          LIMIT 5
+        `);
+        if (Array.isArray(recentErrors) && recentErrors.length > 0) {
+          console.error(`[SyncHealth] v204: \u6700\u8FD124\u5C0F\u65F6\u5931\u8D25\u6A21\u5F0F:`);
+          for (const err2 of recentErrors) {
+            console.error(`[SyncHealth] v204:   ${err2.action_type}: "${String(err2.error_message || "").slice(0, 80)}" (${err2.count}\u6B21)`);
+          }
+        }
+      } catch (diagErr) {
+        console.error(`[SyncHealth] v204: \u8BCA\u65AD\u4FE1\u606F\u83B7\u53D6\u5931\u8D25: ${diagErr.message}`);
+      }
+    }
+  } catch (error54) {
+    console.error(`[SyncHealth] v204: \u5065\u5EB7\u5EA6\u8BC4\u4F30\u5931\u8D25: ${error54.message}`);
+  }
+}
+function getLatestHealthReport() {
+  return latestHealthReport;
 }
 function getScanHistory() {
   return [...scanHistory];
@@ -76972,10 +77139,23 @@ async function retryHistoricalFailedKeywordHarvests(database, accountId) {
         const keywordsToSync = [];
         for (const kw of toCreate) {
           try {
+            const kwValidation = sanitizeAndValidateKeyword(kw.searchTerm, "positive");
+            if (!kwValidation.isValid) {
+              console.log(`[AutoCorrector] v204: \u5173\u952E\u8BCD\u9884\u9A8C\u8BC1\u5931\u8D25\uFF0C\u6807\u8BB0\u4E3Ainvalid_legacy: "${kw.searchTerm}" \u2192 ${kwValidation.reasonMessage}`);
+              await database.execute(sql`
+                UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
+                  api_sync_detail = ${JSON.stringify({ reason: `v204: \u5173\u952E\u8BCD\u9884\u9A8C\u8BC1\u5931\u8D25: ${kwValidation.reasonMessage}`, fixedAt: (/* @__PURE__ */ new Date()).toISOString() })}
+                WHERE id = ${kw.eventId}
+              `).catch(() => {
+              });
+              results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId, targetType: "keyword", previousValue: "", correctedValue: kw.searchTerm, reason: `\u9884\u9A8C\u8BC1\u5931\u8D25: ${kwValidation.reasonMessage}`, success: false, errorMessage: kwValidation.reasonCode || "VALIDATION_FAILED" });
+              continue;
+            }
+            const cleanedSearchTerm = kwValidation.sanitizedText;
             const normalizedMatchType = kw.matchType === "exact" || kw.matchType === "phrase" || kw.matchType === "broad" ? kw.matchType : "phrase";
             const insertResult = await database.execute(sql`
               INSERT INTO keywords (adGroupId, keywordText, matchType, bid, keywordStatus, createdAt, updatedAt)
-              VALUES (${localAdGroupId}, ${kw.searchTerm}, ${normalizedMatchType}, '0.50', 'enabled', NOW(), NOW())
+              VALUES (${localAdGroupId}, ${cleanedSearchTerm}, ${normalizedMatchType}, '0.50', 'enabled', NOW(), NOW())
             `);
             const localKeywordId = insertResult[0]?.insertId || insertResult?.insertId;
             keywordsToSync.push({
@@ -76983,7 +77163,7 @@ async function retryHistoricalFailedKeywordHarvests(database, accountId) {
               localKeywordId,
               adGroupId: amazonAdGroupId,
               campaignId: amazonCampaignId,
-              keywordText: kw.searchTerm,
+              keywordText: cleanedSearchTerm,
               matchType: normalizedMatchType,
               bid: 0.5
             });
@@ -77202,7 +77382,9 @@ async function backfillNegativeKeywordIds(database, accountId) {
     }
     const localCampaignIds = [...new Set(missingIdRows.map((r5) => r5.campaignId).filter(Boolean))];
     const localToAmazonCampaignIdMap = /* @__PURE__ */ new Map();
-    for (const localId of localCampaignIds) {
+    for (const rawId of localCampaignIds) {
+      const localId = Number(rawId);
+      if (isNaN(localId)) continue;
       const campRows = await database.select({ campaignId: campaigns.campaignId }).from(campaigns).where(eq(campaigns.id, localId)).limit(1);
       if (campRows.length > 0 && campRows[0].campaignId) {
         localToAmazonCampaignIdMap.set(localId, String(campRows[0].campaignId));
@@ -77251,14 +77433,30 @@ async function backfillNegativeKeywordIds(database, accountId) {
         console.log(`[AutoCorrector] v196: \u2705 \u56DE\u586B\u5426\u5B9A\u8BCDID: "${row.negativeText}" -> ${amazonId}`);
       } else {
         try {
+          const negMode = matchType.includes("exact") ? "negative_exact" : "negative_phrase";
+          let negValidation = sanitizeAndValidateKeyword(row.negativeText, negMode);
+          let cleanedNegText = negValidation.sanitizedText || row.negativeText;
+          let finalMatchType = matchType.includes("exact") ? "negativeExact" : "negativePhrase";
+          if (!negValidation.isValid && negMode === "negative_phrase" && negValidation.reasonCode === "EXCEEDS_MAX_WORDS_NEG_PHRASE") {
+            negValidation = sanitizeAndValidateKeyword(row.negativeText, "negative_exact");
+            if (negValidation.isValid) {
+              cleanedNegText = negValidation.sanitizedText;
+              finalMatchType = "negativeExact";
+              console.log(`[AutoCorrector] v204: \u5426\u5B9A\u8BCD\u56DE\u586B"${row.negativeText}"\u8D85\u8FC74\u8BCD\u9650\u5236\uFF0C\u81EA\u52A8\u5347\u7EA7\u4E3AnegativeExact`);
+            }
+          }
+          if (!negValidation.isValid) {
+            console.log(`[AutoCorrector] v204: \u5426\u5B9A\u8BCD\u56DE\u586B\u9884\u9A8C\u8BC1\u5931\u8D25\uFF0C\u8DF3\u8FC7\u91CD\u65B0\u521B\u5EFA: "${row.negativeText}" \u2192 ${negValidation.reasonMessage}`);
+            continue;
+          }
           const syncResult = await syncNegativeKeywordsToAmazon(accountId, [{
             campaignId: amazonCampaignId,
             // v203: 使用Amazon campaignId而非本地ID
-            keywordText: row.negativeText,
-            matchType: matchType.includes("exact") ? "negativeExact" : "negativePhrase",
+            keywordText: cleanedNegText,
+            matchType: finalMatchType,
             level: row.negativeLevel || "campaign"
           }]);
-          const mapKey = `campaign:${amazonCampaignId}:${(row.negativeText || "").toLowerCase()}`;
+          const mapKey = `campaign:${amazonCampaignId}:${(cleanedNegText || "").toLowerCase()}`;
           const newId = syncResult.keywordIdMap?.get(mapKey);
           if (newId) {
             await database.execute(sql`
@@ -77289,6 +77487,7 @@ async function backfillNegativeKeywordIds(database, accountId) {
 async function verifyBiddingLogsExecution(database, accountId) {
   const results = [];
   try {
+    const currencyCode = await getAccountCurrencyCode(accountId);
     let recentBidLogs;
     try {
       recentBidLogs = await database.execute(sql`
@@ -77347,15 +77546,16 @@ async function verifyBiddingLogsExecution(database, accountId) {
       if (currentBid === null) continue;
       const absDiff = Math.abs(currentBid - expectedBid);
       const relDiff = expectedBid > 0 ? absDiff / expectedBid : 0;
-      if (absDiff <= 0.02 || relDiff <= 0.2) {
+      const { absTolerance: verifyAbsTol, relTolerance: verifyRelTol } = getBidVerifyTolerance(currencyCode);
+      if (absDiff <= verifyAbsTol || relDiff <= verifyRelTol) {
         verified++;
         if (absDiff > 0.01) {
-          console.log(`[AutoCorrector] v201: \u51FA\u4EF7\u786E\u8BA4(\u5BB9\u5DEE\u5185): ${targetType} id=${targetId} expected=$${expectedBid.toFixed(2)} actual=$${currentBid.toFixed(2)} diff=${(relDiff * 100).toFixed(1)}%`);
+          console.log(`[AutoCorrector] v204: \u51FA\u4EF7\u786E\u8BA4(${currencyCode}\u5BB9\u5DEE\u5185): ${targetType} id=${targetId} expected=$${expectedBid.toFixed(2)} actual=$${currentBid.toFixed(2)} diff=${(relDiff * 100).toFixed(1)}%`);
         }
         continue;
       }
       mismatched++;
-      console.log(`[AutoCorrector] v201: \u51FA\u4EF7\u6267\u884C\u786E\u8BA4\u5931\u8D25: ${targetType} id=${targetId} expected=$${expectedBid.toFixed(2)} actual=$${currentBid.toFixed(2)} diff=${(relDiff * 100).toFixed(1)}%`);
+      console.log(`[AutoCorrector] v204: \u51FA\u4EF7\u6267\u884C\u786E\u8BA4\u5931\u8D25(${currencyCode}): ${targetType} id=${targetId} expected=$${expectedBid.toFixed(2)} actual=$${currentBid.toFixed(2)} diff=${(relDiff * 100).toFixed(1)}% (absTol=${verifyAbsTol.toFixed(3)}, relTol=${(verifyRelTol * 100).toFixed(0)}%)`);
       try {
         if (targetType === "keyword") {
           await database.update(keywords).set({ bid: String(expectedBid) }).where(eq(keywords.id, targetId));
@@ -77446,8 +77646,13 @@ async function auditAlgorithmDecisionQuality(database, accountId) {
             AND oe.algorithm_version NOT LIKE '%v198%'
             AND oe.algorithm_version NOT LIKE '%v199%'
             AND oe.algorithm_version NOT LIKE '%v200%'
+            AND oe.algorithm_version NOT LIKE '%v201%'
+            AND oe.algorithm_version NOT LIKE '%v202%'
+            AND oe.algorithm_version NOT LIKE '%v203%'
+            AND oe.algorithm_version NOT LIKE '%v204%'
             AND oe.algorithm_version NOT LIKE '%NextGen%'
             AND oe.algorithm_version NOT LIKE '%nextgen%'
+            AND oe.algorithm_version NOT LIKE '%AutoCorrector%'
           )
         )
       ORDER BY CAST(k.spend AS DECIMAL(10,2)) DESC
@@ -77763,17 +77968,18 @@ async function retryFailedTargetStatusChanges(database, accountId) {
   }
   return results;
 }
-var AUTO_CORRECTION_CONFIG, lastScanTime, isScanning, scanHistory, correctionInterval, QUALITY_AUDIT_CONFIG;
+var AUTO_CORRECTION_CONFIG, CURRENCY_TO_USD_RATE, accountCurrencyCache, CURRENCY_CACHE_TTL_MS, lastScanTime, isScanning, scanHistory, latestHealthReport, correctionInterval, QUALITY_AUDIT_CONFIG;
 var init_optimizationAutoCorrector = __esm({
   "server/optimizationAutoCorrector.ts"() {
     "use strict";
     init_db2();
+    init_db2();
     init_schema2();
     init_drizzle_orm();
     init_amazonApiHelper();
+    init_keywordValidator();
     AUTO_CORRECTION_CONFIG = {
       // v199: 大幅提高每次纠错扫描的处理量，确保商用级数据完整性
-      // 原先的小批量LIMIT导致大量任务积压，现在提升至商用级处理能力
       maxBidCorrectionsPerRun: 500,
       maxBudgetCorrectionsPerRun: 200,
       maxPlacementCorrectionsPerRun: 200,
@@ -77781,12 +77987,12 @@ var init_optimizationAutoCorrector = __esm({
       maxRollbackPerRun: 200,
       // API同步失败重试的最大次数
       maxRetryAttempts: 3,
-      // 认为优化事件"过期"的天数（超过此天数不再重试）
+      // 认为优化事件“过期”的天数（超过此天数不再重试）
       retryExpiryDays: 7,
-      // 出价不一致的容差范围（美元）
-      bidToleranceDollar: 0.01,
-      // 预算不一致的容差范围（美元） - v175: 提高到$2避免纠正舍入差异
-      budgetToleranceDollar: 2,
+      // v204: 出价容差基准值（USD）— 实际容差会根据账户货币动态计算
+      bidToleranceBaseUSD: 0.01,
+      // v204: 预算容差基准值（USD）— 实际容差会根据账户货币动态计算
+      budgetToleranceBaseUSD: 2,
       // 位置倾斜不一致的容差范围（百分比）
       placementTolerancePercent: 1,
       // 两次纠错扫描之间的最小间隔（毫秒）
@@ -77795,9 +78001,46 @@ var init_optimizationAutoCorrector = __esm({
       // 定时扫描间隔（小时）
       scanIntervalHours: 1
     };
+    CURRENCY_TO_USD_RATE = {
+      "USD": 1,
+      // 美元
+      "CAD": 1.37,
+      // 加拿大元
+      "GBP": 0.79,
+      // 英鎊
+      "EUR": 0.92,
+      // 欧元
+      "JPY": 150,
+      // 日元
+      "AUD": 1.55,
+      // 澳元
+      "MXN": 17.2,
+      // 墨西哥比索
+      "BRL": 4.95,
+      // 巴西雷亚尔
+      "INR": 83,
+      // 印度卢比
+      "SGD": 1.34,
+      // 新加坡元
+      "AED": 3.67,
+      // 阿联酋迪拉姆
+      "SAR": 3.75,
+      // 沙特里亚尔
+      "SEK": 10.5,
+      // 瑞典克朗
+      "PLN": 4.05,
+      // 波兰兹罗提
+      "EGP": 30.9,
+      // 埃及鎊
+      "TRY": 27
+      // 土耳其里拉
+    };
+    accountCurrencyCache = /* @__PURE__ */ new Map();
+    CURRENCY_CACHE_TTL_MS = 60 * 60 * 1e3;
     lastScanTime = null;
     isScanning = false;
     scanHistory = [];
+    latestHealthReport = null;
     correctionInterval = null;
     QUALITY_AUDIT_CONFIG = {
       maxAuditsPerRun: 100,
@@ -144050,7 +144293,7 @@ var init_postDeployOptimizer = __esm({
     init_db2();
     init_schema2();
     init_drizzle_orm();
-    SYSTEM_VERSION = 203;
+    SYSTEM_VERSION = 204;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -144123,6 +144366,12 @@ var init_postDeployOptimizer = __esm({
         description: "v203: \u6570\u636E\u6E05\u6D17\u4E0E\u540C\u6B65\u7387\u4FEE\u6B63 \u2014 \u79FB\u9664settings_update\u8FC1\u79FB\u7684budget\u8FC7\u6EE4\u6761\u4EF6(\u4FEE\u590D2247\u4E2A\u9519\u8BEF\u6807\u8BB0)\uFF0C\u6E05\u7406\u8D85\u8FC77\u5929\u7684target_enable/target_pause\u5931\u8D25\u4E8B\u4EF6\uFF0C\u6E05\u7406\u65E0\u91CD\u8BD5\u673A\u5236\u7684placement_adjust/bid_auto_adjust\u5931\u8D25\u4E8B\u4EF6\uFF0C\u6E05\u7406\u8D85\u8FC730\u5929\u7684\u6240\u6709\u65E7\u5931\u8D25\u4E8B\u4EF6",
         affectedModules: [],
         correctionActions: []
+      },
+      {
+        version: 204,
+        description: "v204: \u5168\u9762\u4F18\u5316\u4E0E\u76D1\u63A7\u5F3A\u5316 \u2014 \u5173\u952E\u8BCD/\u5426\u5B9A\u8BCD\u9884\u9A8C\u8BC1(\u6D88\u9664\u7279\u6B8A\u5B57\u7B26\u5BFC\u81F4\u7684API\u62D2\u7EDD)\uFF0C\u8D27\u5E01\u8F6C\u6362\u7CFB\u7EDF\u5316(\u52A8\u6001\u5BB9\u5DEE\u66FF\u4EE3\u56FA\u5B9A\u6BD4\u4F8B)\uFF0C\u540C\u6B65\u5065\u5EB7\u5EA6\u8BC4\u4F30\u4E0E\u544A\u8B66\u7CFB\u7EDF\uFF0CNextGen\u7EF4\u62A4\u4EFB\u52A1\u5373\u65F6\u542F\u52A8(\u79FB\u966441\u5206\u949F\u504F\u79FB)\uFF0C\u8D28\u91CF\u5BA1\u8BA1\u7B97\u6CD5\u7248\u672C\u8FC7\u6EE4\u66F4\u65B0",
+        affectedModules: ["bid", "keyword"],
+        correctionActions: ["rerun_optimization"]
       }
     ];
     POST_DEPLOY_CONFIG = {
@@ -148842,19 +149091,20 @@ async function startOptimizationScheduler2() {
   } catch (correctorErr) {
     console.error("[OptimizationScheduler] v167: \u81EA\u52A8\u7EA0\u9519\u670D\u52A1\u542F\u52A8\u5931\u8D25:", correctorErr.message);
   }
+  optimizationIntervals.nextgen_maintenance = setInterval(async () => {
+    await executeOptimizationTask("nextgen_maintenance");
+  }, OPTIMIZATION_SCHEDULE.nextgen_maintenance.intervalMs);
   setTimeout(() => {
-    optimizationIntervals.nextgen_maintenance = setInterval(async () => {
-      await executeOptimizationTask("nextgen_maintenance");
-    }, OPTIMIZATION_SCHEDULE.nextgen_maintenance.intervalMs);
     executeOptimizationTask("nextgen_maintenance");
-  }, 41 * 60 * 1e3);
-  console.log(`[OptimizationScheduler] v197: NextGen\u7EF4\u62A4\u4EFB\u52A1\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 4\u5C0F\u65F6\uFF0C\u504F\u79FB: 41\u5206\u949F`);
+  }, 5 * 60 * 1e3);
+  console.log(`[OptimizationScheduler] v204: NextGen\u7EF4\u62A4\u4EFB\u52A1\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: ${OPTIMIZATION_SCHEDULE.nextgen_maintenance.intervalMs / 36e5}\u5C0F\u65F6\uFF0C\u9996\u6B21\u6267\u884C: 5\u5206\u949F\u540E`);
+  optimizationIntervals.nextgen_model_training = setInterval(async () => {
+    await executeOptimizationTask("nextgen_model_training");
+  }, OPTIMIZATION_SCHEDULE.nextgen_model_training.intervalMs);
   setTimeout(() => {
-    optimizationIntervals.nextgen_model_training = setInterval(async () => {
-      await executeOptimizationTask("nextgen_model_training");
-    }, OPTIMIZATION_SCHEDULE.nextgen_model_training.intervalMs);
-  }, 46 * 60 * 1e3);
-  console.log(`[OptimizationScheduler] v197: NextGen\u6A21\u578B\u8BAD\u7EC3\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 6\u5C0F\u65F6\uFF0C\u504F\u79FB: 46\u5206\u949F`);
+    executeOptimizationTask("nextgen_model_training");
+  }, 10 * 60 * 1e3);
+  console.log(`[OptimizationScheduler] v204: NextGen\u6A21\u578B\u8BAD\u7EC3\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 6\u5C0F\u65F6\uFF0C\u9996\u6B21\u6267\u884C: 10\u5206\u949F\u540E`);
   optimizationIntervals.nextgen_budget_optimization = setInterval(async () => {
     const now = /* @__PURE__ */ new Date();
     const localHour = getLocalHour(now, "US");
@@ -149382,9 +149632,9 @@ var init_dataSyncScheduler = __esm({
       // v197: 下一代算法定时任务
       nextgen_maintenance: {
         type: "nextgen_maintenance",
-        description: "v197: NextGen\u7EF4\u62A4 - \u7279\u5F81\u7F13\u5B58\u3001Sigmoid\u62DF\u5408\u3001RL Reward\u56DE\u586B\u3001\u56E0\u679C\u5206\u6790",
-        intervalMs: 4 * 60 * 60 * 1e3,
-        // 每4小时
+        description: "v204: NextGen\u7EF4\u62A4 - \u7279\u5F81\u7F13\u5B58\u3001Sigmoid\u62DF\u5408\u3001RL Reward\u56DE\u586B\u3001\u56E0\u679C\u5206\u6790",
+        intervalMs: 2 * 60 * 60 * 1e3,
+        // v204: 从4小时缩短到2小时，确保特征缓存及时更新
         specificModules: []
       },
       nextgen_model_training: {
@@ -152982,6 +153232,39 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
               continue;
             }
           }
+          let negMatchType = decision.negativeMatchType === "negative_exact" ? "negative_exact" : "negative_phrase";
+          const negValidation = sanitizeAndValidateKeyword(decision.targetValue, negMatchType);
+          let cleanedNegText = negValidation.sanitizedText || decision.targetValue;
+          if (!negValidation.isValid) {
+            if (negMatchType === "negative_phrase" && negValidation.reasonCode === "EXCEEDS_MAX_WORDS_NEG_PHRASE") {
+              const exactValidation = sanitizeAndValidateKeyword(decision.targetValue, "negative_exact");
+              if (exactValidation.isValid) {
+                negMatchType = "negative_exact";
+                cleanedNegText = exactValidation.sanitizedText;
+                console.log(`[SearchTermAnalysis] v204: \u5426\u5B9A\u77ED\u8BED"${decision.targetValue}"\u8D85\u8FC74\u8BCD\u9650\u5236\uFF0C\u81EA\u52A8\u5347\u7EA7\u4E3Anegative_exact`);
+              } else {
+                console.log(`[SearchTermAnalysis] v204: \u5426\u5B9A\u8BCD\u9884\u9A8C\u8BC1\u5931\u8D25(\u5347\u7EA7\u540E\u4ECD\u65E0\u6548): "${decision.targetValue}" \u2192 ${exactValidation.reasonMessage}`);
+                details.push({
+                  campaignId: campaign.id,
+                  campaignName: campaign.campaignName,
+                  searchTerm: decision.targetValue,
+                  action: "negative_validation_failed",
+                  reason: `v204\u9884\u9A8C\u8BC1\u5931\u8D25: ${exactValidation.reasonMessage}`
+                });
+                continue;
+              }
+            } else {
+              console.log(`[SearchTermAnalysis] v204: \u5426\u5B9A\u8BCD\u9884\u9A8C\u8BC1\u5931\u8D25: "${decision.targetValue}" \u2192 ${negValidation.reasonMessage}`);
+              details.push({
+                campaignId: campaign.id,
+                campaignName: campaign.campaignName,
+                searchTerm: decision.targetValue,
+                action: "negative_validation_failed",
+                reason: `v204\u9884\u9A8C\u8BC1\u5931\u8D25: ${negValidation.reasonMessage}`
+              });
+              continue;
+            }
+          }
           let negativeAlreadyExists = false;
           if (!dryRun) {
             const dbInstance = await getDb();
@@ -152990,23 +153273,22 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
               const { eq: eqOp, and: andOp } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
               const existingNeg = await dbInstance.select({ id: negKwTable.id, amazonNegativeKeywordId: negKwTable.amazonNegativeKeywordId }).from(negKwTable).where(andOp(
                 eqOp(negKwTable.campaignId, campaign.id),
-                eqOp(negKwTable.negativeText, decision.targetValue)
+                eqOp(negKwTable.negativeText, cleanedNegText)
               )).limit(1);
               if (existingNeg.length > 0) {
                 negativeAlreadyExists = true;
-                console.log(`[SearchTermAnalysis] v170: \u5426\u5B9A\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: "${decision.targetValue}" campaignId=${campaign.id}`);
+                console.log(`[SearchTermAnalysis] v170: \u5426\u5B9A\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: "${cleanedNegText}" campaignId=${campaign.id}`);
               }
             }
           }
-          const negMatchType = decision.negativeMatchType === "negative_exact" ? "negative_exact" : "negative_phrase";
           const negativeKeyword = {
             accountId: config2.accountId,
             campaignId: campaign.id,
             campaignName: campaign.campaignName,
-            searchTerm: decision.targetValue,
+            searchTerm: cleanedNegText,
             matchType: negMatchType,
             action: "add_negative",
-            reason: `v191\u667A\u80FD\u5426\u5B9A: ${decision.reason}`,
+            reason: `v204\u667A\u80FD\u5426\u5B9A: ${decision.reason}`,
             apiSyncStatus: negativeAlreadyExists ? "already_exists" : "pending",
             confidence: decision.confidence,
             dataMaturityLevel: decision.dataMaturityLevel
@@ -153019,9 +153301,9 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
               campaignId: campaign.id,
               negativeLevel: "campaign",
               negativeType: "keyword",
-              negativeText: decision.targetValue,
+              negativeText: cleanedNegText,
               negativeMatchType: negMatchType,
-              negativeSource: "smart_targeting_v191",
+              negativeSource: "auto_optimization",
               createdAt: (/* @__PURE__ */ new Date()).toISOString()
             };
             negativeKeywordsAdded++;
@@ -153050,16 +153332,29 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
             });
             continue;
           }
+          const posValidation = sanitizeAndValidateKeyword(decision.targetValue, "positive");
+          if (!posValidation.isValid) {
+            console.log(`[SearchTermAnalysis] v204: \u6B63\u9762\u5173\u952E\u8BCD\u9884\u9A8C\u8BC1\u5931\u8D25: "${decision.targetValue}" \u2192 ${posValidation.reasonMessage}`);
+            details.push({
+              campaignId: campaign.id,
+              campaignName: campaign.campaignName,
+              searchTerm: decision.targetValue,
+              action: "keyword_validation_failed",
+              reason: `v204\u9884\u9A8C\u8BC1\u5931\u8D25: ${posValidation.reasonMessage}`
+            });
+            continue;
+          }
+          const cleanedPosText = posValidation.sanitizedText;
           const matchType = decision.matchType || "phrase";
           const bid = decision.suggestedBid || 0.5;
           const newKeyword = {
             accountId: config2.accountId,
             campaignId: campaign.id,
             campaignName: campaign.campaignName,
-            searchTerm: decision.targetValue,
+            searchTerm: cleanedPosText,
             matchType,
             action: "add_keyword",
-            reason: `v191\u667A\u80FD\u6295\u653E: ${decision.reason}`,
+            reason: `v204\u667A\u80FD\u6295\u653E: ${decision.reason}`,
             suggestedBid: bid,
             apiSyncStatus: dryRun ? "pending" : "pending",
             confidence: decision.confidence,
@@ -372000,6 +372295,10 @@ var autoCorrectionRouter = router({
       negKeywordStats: negKeywordStats || [],
       recentCorrections: recentCorrections || []
     };
+  }),
+  // v204: 获取同步健康度报告
+  getHealthReport: protectedProcedure.query(async () => {
+    return getLatestHealthReport();
   })
 });
 var algorithmOptimizationRouter = router({

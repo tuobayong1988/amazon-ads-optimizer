@@ -919,8 +919,8 @@ const OPTIMIZATION_SCHEDULE: Record<OptimizationTaskType, OptimizationScheduleCo
   // v197: 下一代算法定时任务
   nextgen_maintenance: {
     type: 'nextgen_maintenance',
-    description: 'v197: NextGen维护 - 特征缓存、Sigmoid拟合、RL Reward回填、因果分析',
-    intervalMs: 4 * 60 * 60 * 1000, // 每4小时
+    description: 'v204: NextGen维护 - 特征缓存、Sigmoid拟合、RL Reward回填、因果分析',
+    intervalMs: 2 * 60 * 60 * 1000, // v204: 从4小时缩短到2小时，确保特征缓存及时更新
     specificModules: [],
   },
   nextgen_model_training: {
@@ -1256,22 +1256,26 @@ export async function startOptimizationScheduler(): Promise<void> {
     console.error('[OptimizationScheduler] v167: 自动纠错服务启动失败:', correctorErr.message);
   }
   
-  // v197: 启动NextGen维护任务 - 每4小时（偏移41分钟）
+  // v204: 启动NextGen维护任务 - 启动后立即执行，然后每2小时重复
+  // v204修复: 移除41分钟偏移，避免服务器重启后维护任务永远无法执行
+  optimizationIntervals.nextgen_maintenance = setInterval(async () => {
+    await executeOptimizationTask('nextgen_maintenance');
+  }, OPTIMIZATION_SCHEDULE.nextgen_maintenance.intervalMs);
+  // 启动后延迟5分钟执行（等待数据同步初始化完成）
   setTimeout(() => {
-    optimizationIntervals.nextgen_maintenance = setInterval(async () => {
-      await executeOptimizationTask('nextgen_maintenance');
-    }, OPTIMIZATION_SCHEDULE.nextgen_maintenance.intervalMs);
-    executeOptimizationTask('nextgen_maintenance'); // 立即执行一次
-  }, 41 * 60 * 1000);
-  console.log(`[OptimizationScheduler] v197: NextGen维护任务已启动，间隔: 4小时，偏移: 41分钟`);
+    executeOptimizationTask('nextgen_maintenance');
+  }, 5 * 60 * 1000);
+  console.log(`[OptimizationScheduler] v204: NextGen维护任务已启动，间隔: ${OPTIMIZATION_SCHEDULE.nextgen_maintenance.intervalMs / 3600000}小时，首次执行: 5分钟后`);
   
-  // v197: 启动NextGen模型训练 - 每6小时（偏移46分钟）
+  // v204: 启动NextGen模型训练 - 启动后10分钟执行，然后每6小时重复
+  // v204修复: 移除46分钟偏移，确保模型训练能在维护任务之后执行
+  optimizationIntervals.nextgen_model_training = setInterval(async () => {
+    await executeOptimizationTask('nextgen_model_training');
+  }, OPTIMIZATION_SCHEDULE.nextgen_model_training.intervalMs);
   setTimeout(() => {
-    optimizationIntervals.nextgen_model_training = setInterval(async () => {
-      await executeOptimizationTask('nextgen_model_training');
-    }, OPTIMIZATION_SCHEDULE.nextgen_model_training.intervalMs);
-  }, 46 * 60 * 1000);
-  console.log(`[OptimizationScheduler] v197: NextGen模型训练已启动，间隔: 6小时，偏移: 46分钟`);
+    executeOptimizationTask('nextgen_model_training');
+  }, 10 * 60 * 1000);
+  console.log(`[OptimizationScheduler] v204: NextGen模型训练已启动，间隔: 6小时，首次执行: 10分钟后`);
   
   // v197: 启动NextGen预算优化+关键词图谱 - 每日凌晨2:00
   optimizationIntervals.nextgen_budget_optimization = setInterval(async () => {

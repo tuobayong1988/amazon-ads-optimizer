@@ -30,12 +30,12 @@ import * as db from './db';
 import { optimizationEvents, keywords, campaigns, adGroups, negativeKeywords, performanceGroups, productTargets } from '../drizzle/schema';
 import { eq, and, or, sql, inArray, isNull, desc, lt, gt, gte, lte } from 'drizzle-orm';
 import * as amazonApiHelper from './services/amazonApiHelper';
+import { sanitizeAndValidateKeyword } from './utils/keywordValidator';
 
 // ==================== 配置 ====================
 
 const AUTO_CORRECTION_CONFIG = {
   // v199: 大幅提高每次纠错扫描的处理量，确保商用级数据完整性
-  // 原先的小批量LIMIT导致大量任务积压，现在提升至商用级处理能力
   maxBidCorrectionsPerRun: 500,
   maxBudgetCorrectionsPerRun: 200,
   maxPlacementCorrectionsPerRun: 200,
@@ -45,14 +45,14 @@ const AUTO_CORRECTION_CONFIG = {
   // API同步失败重试的最大次数
   maxRetryAttempts: 3,
   
-  // 认为优化事件"过期"的天数（超过此天数不再重试）
+  // 认为优化事件“过期”的天数（超过此天数不再重试）
   retryExpiryDays: 7,
   
-  // 出价不一致的容差范围（美元）
-  bidToleranceDollar: 0.01,
+  // v204: 出价容差基准值（USD）— 实际容差会根据账户货币动态计算
+  bidToleranceBaseUSD: 0.01,
   
-  // 预算不一致的容差范围（美元） - v175: 提高到$2避免纠正舍入差异
-  budgetToleranceDollar: 2.00,
+  // v204: 预算容差基准值（USD）— 实际容差会根据账户货币动态计算
+  budgetToleranceBaseUSD: 2.00,
   
   // 位置倾斜不一致的容差范围（百分比）
   placementTolerancePercent: 1,
@@ -64,12 +64,103 @@ const AUTO_CORRECTION_CONFIG = {
   scanIntervalHours: 1,
 };
 
+// ==================== v204: 货币转换系统 ====================
+
+/**
+ * v204: 货币汇率映射表（相对于USD的近似汇率）
+ * 
+ * 用于计算不同货币的容差阈值。
+ * 例如: CAD 1.37 表示 1 USD ≈ 1.37 CAD，
+ * 因此 USD $0.01 的容差对应 CAD $0.014 的容差。
+ * 
+ * 汇率不需要实时精确，只需要大致正确以避免容差误判。
+ * 建议每季度更新一次。
+ */
+const CURRENCY_TO_USD_RATE: Record<string, number> = {
+  'USD': 1.00,     // 美元
+  'CAD': 1.37,     // 加拿大元
+  'GBP': 0.79,     // 英鎊
+  'EUR': 0.92,     // 欧元
+  'JPY': 150.0,    // 日元
+  'AUD': 1.55,     // 澳元
+  'MXN': 17.2,     // 墨西哥比索
+  'BRL': 4.95,     // 巴西雷亚尔
+  'INR': 83.0,     // 印度卢比
+  'SGD': 1.34,     // 新加坡元
+  'AED': 3.67,     // 阿联酋迪拉姆
+  'SAR': 3.75,     // 沙特里亚尔
+  'SEK': 10.5,     // 瑞典克朗
+  'PLN': 4.05,     // 波兰兹罗提
+  'EGP': 30.9,     // 埃及鎊
+  'TRY': 27.0,     // 土耳其里拉
+};
+
+/** v204: 账户货币缓存，避免每次纠错都查询数据库 */
+const accountCurrencyCache = new Map<number, { currencyCode: string; fetchedAt: number }>();
+const CURRENCY_CACHE_TTL_MS = 60 * 60 * 1000; // 1小时缓存
+
+/**
+ * v204: 获取账户的货币代码
+ * 优先从缓存获取，缓存过期后从数据库查询
+ */
+async function getAccountCurrencyCode(accountId: number): Promise<string> {
+  const cached = accountCurrencyCache.get(accountId);
+  if (cached && (Date.now() - cached.fetchedAt) < CURRENCY_CACHE_TTL_MS) {
+    return cached.currencyCode;
+  }
+  
+  try {
+    const creds = await db.getAmazonApiCredentials(accountId);
+    const currencyCode = creds?.currencyCode || 'USD';
+    accountCurrencyCache.set(accountId, { currencyCode, fetchedAt: Date.now() });
+    return currencyCode;
+  } catch (err: any) {
+    console.warn(`[AutoCorrector] v204: 获取账户${accountId}货币代码失败: ${err.message}，默认使用USD`);
+    return 'USD';
+  }
+}
+
+/**
+ * v204: 根据货币类型计算出价容差
+ * 将USD基准容差按汇率转换为目标货币的容差
+ */
+function getBidTolerance(currencyCode: string): number {
+  const rate = CURRENCY_TO_USD_RATE[currencyCode] || 1.0;
+  return Math.max(0.01, AUTO_CORRECTION_CONFIG.bidToleranceBaseUSD * rate);
+}
+
+/**
+ * v204: 根据货币类型计算预算容差
+ * 将USD基准容差按汇率转换为目标货币的容差
+ */
+function getBudgetTolerance(currencyCode: string): number {
+  const rate = CURRENCY_TO_USD_RATE[currencyCode] || 1.0;
+  return Math.max(1.0, AUTO_CORRECTION_CONFIG.budgetToleranceBaseUSD * rate);
+}
+
+/**
+ * v204: 根据货币类型计算出价执行确认的比例容差
+ * 对于非USD货币，使用更宽松的绝对容差和更严格的比例容差
+ * 因为非USD货币的差异主要来自汇率波动，而非真正的执行失败
+ */
+function getBidVerifyTolerance(currencyCode: string): { absTolerance: number; relTolerance: number } {
+  if (currencyCode === 'USD') {
+    return { absTolerance: 0.02, relTolerance: 0.05 }; // USD: $0.02或5%
+  }
+  // 非USD货币: 汇率波动可能导致较大的绝对差异，使用更宽松的绝对容差
+  const rate = CURRENCY_TO_USD_RATE[currencyCode] || 1.0;
+  return {
+    absTolerance: Math.max(0.02, 0.02 * rate), // 按汇率缩放绝对容差
+    relTolerance: 0.10, // 非USD货币允许10%的比例差异（汇率波动）
+  };
+}
+
 // ==================== 纠错结果类型 ====================
 
 export interface CorrectionResult {
   type: 'bid_retry' | 'bid_mismatch' | 'budget_retry' | 'budget_mismatch' | 
         'placement_mismatch' | 'rollback_execution' | 'settings_retry' | 'max_bid_violation' | 
-        'orphan_keyword_cleanup' | 'keyword_create_retry' | 'bid_execution_verify' | 'nextgen_quality_audit';
+        'orphan_keyword_cleanup' | 'keyword_create_retry' | 'bid_execution_verify' | 'nextgen_quality_audit' | 'status_change_retry';
   accountId: number;
   targetId: number;
   targetType: string;
@@ -100,6 +191,7 @@ export interface CorrectionScanResult {
     maxBidViolations: { found: number; corrected: number; failed: number };
     orphanKeywordCleanups: { found: number; corrected: number; failed: number };
     nextgenQualityAudits: { found: number; corrected: number; failed: number };
+    statusChangeRetries: { found: number; corrected: number; failed: number };
   };
   corrections: CorrectionResult[];
 }
@@ -239,7 +331,10 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
     
     lastScanTime = completedAt;
     
-    console.log(`[AutoCorrector] v178: 纠错扫描完成 - 发现${result.totalIssuesFound}个问题, 纠正${result.totalCorrected}个, 失败${result.totalFailed}个`);
+    console.log(`[AutoCorrector] v204: 纠错扫描完成 - 发现${result.totalIssuesFound}个问题, 纠正${result.totalCorrected}个, 失败${result.totalFailed}个`);
+    
+    // v204: 同步健康度评估和告警
+    await evaluateSyncHealth(database, result);
     
     return result;
   } finally {
@@ -437,6 +532,10 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
   const results: CorrectionResult[] = [];
   
   try {
+    // v204: 获取账户货币并计算动态容差
+    const currencyCode = await getAccountCurrencyCode(accountId);
+    const bidTolerance = getBidTolerance(currencyCode);
+    
     // v178: 查找最近成功同步的出价调整，但keyword当前bid与调整后的bid不一致
     // v178: 排除AutoCorrector自身产生的纠正事件（避免纠正循环）
     // 同时JOIN performance_groups获取max_bid，确保纠正值不超过max_bid红线
@@ -464,7 +563,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
         AND oe.created_at > DATE_SUB(NOW(), INTERVAL 3 DAY)
         AND k.keywordId IS NOT NULL
         AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%AutoCorrector%')
-        AND ABS(CAST(k.bid AS DECIMAL(10,2)) - CAST(oe.new_bid AS DECIMAL(10,2))) > ${AUTO_CORRECTION_CONFIG.bidToleranceDollar}
+        AND ABS(CAST(k.bid AS DECIMAL(10,2)) - CAST(oe.new_bid AS DECIMAL(10,2))) > ${bidTolerance}
         AND oe.id = (
           SELECT MAX(oe2.id) FROM optimization_events oe2 
           WHERE oe2.keyword_id = oe.keyword_id 
@@ -482,7 +581,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
     
     if (!Array.isArray(rows) || rows.length === 0) return results;
     
-    console.log(`[AutoCorrector] v178: 账户${accountId} 发现${rows.length}条出价不一致需要纠正`);
+    console.log(`[AutoCorrector] v204: 账户${accountId} (${currencyCode}) 发现${rows.length}条出价不一致需要纠正 (bidTolerance=${bidTolerance.toFixed(3)})`);
     
     // v172: 批量重新发送到Amazon - 但确保纠正值不超过max_bid红线
     const correctionItems = rows.map((row: any) => {
@@ -495,10 +594,10 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
         targetBid = maxBid;
       }
       
-      // v172: 如果纠正后的出价与当前出价差异在容忍范围内，跳过
+      // v204: 使用动态货币容差检查
       const currentBid = parseFloat(String(row.current_bid));
-      if (Math.abs(targetBid - currentBid) <= AUTO_CORRECTION_CONFIG.bidToleranceDollar) {
-        console.log(`[AutoCorrector] v178: 跳过纠正(差异在容忍范围内): keyword=${row.keyword_id} target=$${targetBid} current=$${currentBid}`);
+      if (Math.abs(targetBid - currentBid) <= bidTolerance) {
+        console.log(`[AutoCorrector] v204: 跳过纠正(差异在${currencyCode}容差${bidTolerance.toFixed(3)}内): keyword=${row.keyword_id} target=$${targetBid} current=$${currentBid}`);
         return null;
       }
       
@@ -712,6 +811,10 @@ async function correctBudgetMismatches(database: any, accountId: number): Promis
   const results: CorrectionResult[] = [];
   
   try {
+    // v204: 获取账户货币并计算动态容差
+    const currencyCode = await getAccountCurrencyCode(accountId);
+    const budgetTolerance = getBudgetTolerance(currencyCode);
+    
     // v178: 排除启用分时预算的campaigns（分时系统自行管理预算，AutoCorrector不应干预）
     // v178: 排除AutoCorrector自身产生的纠正事件（避免纠正循环）
     const mismatchQuery = sql`
@@ -734,7 +837,7 @@ async function correctBudgetMismatches(database: any, accountId: number): Promis
         AND oe.created_at > DATE_SUB(NOW(), INTERVAL 3 DAY)
         AND (oe.change_reason IS NULL OR oe.change_reason NOT LIKE '%AutoCorrector%')
         AND (pg.daypartingEnabled IS NULL OR pg.daypartingEnabled = 0)
-        AND ABS(CAST(c.dailyBudget AS DECIMAL(10,2)) - CAST(REPLACE(REPLACE(oe.new_value, '$', ''), ',', '') AS DECIMAL(10,2))) > ${AUTO_CORRECTION_CONFIG.budgetToleranceDollar}
+        AND ABS(CAST(c.dailyBudget AS DECIMAL(10,2)) - CAST(REPLACE(REPLACE(oe.new_value, '$', ''), ',', '') AS DECIMAL(10,2))) > ${budgetTolerance}
         AND oe.id = (
           SELECT MAX(oe2.id) FROM optimization_events oe2 
           WHERE oe2.campaign_id = oe.campaign_id 
@@ -752,7 +855,7 @@ async function correctBudgetMismatches(database: any, accountId: number): Promis
     
     if (!Array.isArray(rows) || rows.length === 0) return results;
     
-    console.log(`[AutoCorrector] v178: 账户${accountId} 发现${rows.length}条预算不一致需要纠正`);
+    console.log(`[AutoCorrector] v204: 账户${accountId} (${currencyCode}) 发现${rows.length}条预算不一致需要纠正 (budgetTolerance=${budgetTolerance.toFixed(2)})`);
     
     for (const row of rows) {
       try {
@@ -764,10 +867,10 @@ async function correctBudgetMismatches(database: any, accountId: number): Promis
           continue;
         }
         
-        // v175: 取整后重新检查是否仍然超过容忍度
+        // v204: 使用动态货币容差检查
         const currentBudgetNum = parseFloat(String(row.current_budget || '0').replace(/[^0-9.\-]/g, ''));
-        if (!isNaN(currentBudgetNum) && Math.abs(expectedBudget - currentBudgetNum) <= AUTO_CORRECTION_CONFIG.budgetToleranceDollar) {
-          console.log(`[AutoCorrector] v175: 取整后预算差异在容忍范围内: campaign=${row.campaign_id}, expected=$${expectedBudget}, current=$${currentBudgetNum}`);
+        if (!isNaN(currentBudgetNum) && Math.abs(expectedBudget - currentBudgetNum) <= budgetTolerance) {
+          console.log(`[AutoCorrector] v204: 取整后预算差异在${currencyCode}容差${budgetTolerance.toFixed(2)}内: campaign=${row.campaign_id}, expected=$${expectedBudget}, current=$${currentBudgetNum}`);
           continue;
         }
         
@@ -1672,6 +1775,8 @@ function createEmptyScanResult(reason: string): CorrectionScanResult {
       keywordCreateRetries: { found: 0, corrected: 0, failed: 0 },
       maxBidViolations: { found: 0, corrected: 0, failed: 0 },
       orphanKeywordCleanups: { found: 0, corrected: 0, failed: 0 },
+      nextgenQualityAudits: { found: 0, corrected: 0, failed: 0 },
+      statusChangeRetries: { found: 0, corrected: 0, failed: 0 },
     },
     corrections: [],
   };
@@ -1696,6 +1801,7 @@ function buildScanResult(
     maxBidViolations: { found: 0, corrected: 0, failed: 0 },
     orphanKeywordCleanups: { found: 0, corrected: 0, failed: 0 },
     nextgenQualityAudits: { found: 0, corrected: 0, failed: 0 },
+    statusChangeRetries: { found: 0, corrected: 0, failed: 0 },
   };
   
   for (const c of corrections) {
@@ -1709,6 +1815,7 @@ function buildScanResult(
       : c.type === 'max_bid_violation' ? 'maxBidViolations'
       : c.type === 'orphan_keyword_cleanup' ? 'orphanKeywordCleanups'
       : c.type === 'nextgen_quality_audit' ? 'nextgenQualityAudits'
+      : c.type === 'status_change_retry' ? 'statusChangeRetries'
       : 'settingsRetries';
     
     details[key].found++;
@@ -1727,6 +1834,199 @@ function buildScanResult(
     details,
     corrections,
   };
+}
+
+// ==================== v204: 同步健康度评估与告警系统 ====================
+
+/**
+ * v204: 同步健康度等级
+ */
+export type SyncHealthLevel = 'healthy' | 'warning' | 'critical' | 'emergency';
+
+/**
+ * v204: 同步健康度报告
+ */
+export interface SyncHealthReport {
+  level: SyncHealthLevel;
+  overallSyncRate: number;       // 总体同步成功率 (0-100%)
+  bidSyncRate: number;           // 出价同步成功率
+  budgetSyncRate: number;        // 预算同步成功率
+  negativeKeywordSyncRate: number; // 否定词同步成功率
+  keywordCreateSyncRate: number; // 关键词创建成功率
+  pendingCount: number;          // 待处理任务数
+  failedCount: number;           // 失败任务数
+  alerts: string[];              // 告警信息列表
+  evaluatedAt: Date;
+  correctionSuccessRate: number; // 纠错成功率
+}
+
+/** v204: 最近的健康报告缓存 */
+let latestHealthReport: SyncHealthReport | null = null;
+
+/**
+ * v204: 评估同步健康度并生成告警
+ * 
+ * 健康度等级:
+ * - healthy: 同步率 >= 95%, 无异常
+ * - warning: 同步率 80-95%, 或待处理任务 > 50
+ * - critical: 同步率 60-80%, 或失败任务 > 100
+ * - emergency: 同步率 < 60%, 或纠错失败率 > 50%
+ */
+async function evaluateSyncHealth(database: any, scanResult: CorrectionScanResult): Promise<void> {
+  try {
+    // 1. 查询最近7天的同步状态统计
+    const [syncStats] = await database.execute(sql`
+      SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as synced,
+        SUM(CASE WHEN api_sync_status = 'failed' THEN 1 ELSE 0 END) as failed,
+        SUM(CASE WHEN api_sync_status IN ('pending', 'not_applicable') THEN 1 ELSE 0 END) as pending
+      FROM optimization_events 
+      WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
+        AND api_sync_status NOT IN ('legacy_unsynced', 'invalid_legacy')
+    `) as any;
+    
+    // 2. 按操作类型统计同步率
+    const [typeStats] = await database.execute(sql`
+      SELECT 
+        action_type,
+        COUNT(*) as total,
+        SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as synced
+      FROM optimization_events 
+      WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
+        AND api_sync_status NOT IN ('legacy_unsynced', 'invalid_legacy')
+      GROUP BY action_type
+    `) as any;
+    
+    const stats = Array.isArray(syncStats) ? syncStats[0] : syncStats;
+    const total = parseInt(String(stats?.total || '0'));
+    const synced = parseInt(String(stats?.synced || '0'));
+    const failed = parseInt(String(stats?.failed || '0'));
+    const pending = parseInt(String(stats?.pending || '0'));
+    
+    // 3. 计算各类同步率
+    const overallSyncRate = total > 0 ? (synced / total) * 100 : 100;
+    
+    const typeStatsArray = Array.isArray(typeStats) ? typeStats : [];
+    const getTypeSyncRate = (actionType: string): number => {
+      const typeStat = typeStatsArray.find((t: any) => t.action_type === actionType);
+      if (!typeStat || parseInt(String(typeStat.total)) === 0) return 100;
+      return (parseInt(String(typeStat.synced)) / parseInt(String(typeStat.total))) * 100;
+    };
+    
+    const bidSyncRate = getTypeSyncRate('bid_adjustment');
+    const budgetSyncRate = getTypeSyncRate('budget_adjustment');
+    const negativeKeywordSyncRate = getTypeSyncRate('negative_keyword_add');
+    const keywordCreateSyncRate = getTypeSyncRate('keyword_create');
+    
+    // 4. 计算纠错成功率
+    const correctionSuccessRate = scanResult.totalIssuesFound > 0 
+      ? (scanResult.totalCorrected / scanResult.totalIssuesFound) * 100 
+      : 100;
+    
+    // 5. 生成告警信息
+    const alerts: string[] = [];
+    
+    if (bidSyncRate < 80) {
+      alerts.push(`⚠️ 出价同步率低于80%: ${bidSyncRate.toFixed(1)}%`);
+    }
+    if (budgetSyncRate < 80) {
+      alerts.push(`⚠️ 预算同步率低于80%: ${budgetSyncRate.toFixed(1)}%`);
+    }
+    if (negativeKeywordSyncRate < 70) {
+      alerts.push(`⚠️ 否定词同步率低于70%: ${negativeKeywordSyncRate.toFixed(1)}%`);
+    }
+    if (keywordCreateSyncRate < 70) {
+      alerts.push(`⚠️ 关键词创建同步率低于70%: ${keywordCreateSyncRate.toFixed(1)}%`);
+    }
+    if (pending > 100) {
+      alerts.push(`🚨 待处理任务积压: ${pending}个任务等待处理`);
+    }
+    if (failed > 50) {
+      alerts.push(`🚨 失败任务过多: ${failed}个任务失败`);
+    }
+    if (correctionSuccessRate < 50 && scanResult.totalIssuesFound > 10) {
+      alerts.push(`❗ 纠错成功率低于50%: ${correctionSuccessRate.toFixed(1)}% (${scanResult.totalCorrected}/${scanResult.totalIssuesFound})`);
+    }
+    
+    // 6. 确定健康度等级
+    let level: SyncHealthLevel = 'healthy';
+    if (overallSyncRate < 60 || (correctionSuccessRate < 50 && scanResult.totalIssuesFound > 10)) {
+      level = 'emergency';
+    } else if (overallSyncRate < 80 || failed > 100) {
+      level = 'critical';
+    } else if (overallSyncRate < 95 || pending > 50 || alerts.length > 0) {
+      level = 'warning';
+    }
+    
+    // 7. 生成健康报告
+    const report: SyncHealthReport = {
+      level,
+      overallSyncRate,
+      bidSyncRate,
+      budgetSyncRate,
+      negativeKeywordSyncRate,
+      keywordCreateSyncRate,
+      pendingCount: pending,
+      failedCount: failed,
+      alerts,
+      evaluatedAt: new Date(),
+      correctionSuccessRate,
+    };
+    
+    latestHealthReport = report;
+    
+    // 8. 输出健康报告日志
+    const levelEmoji = level === 'healthy' ? '✅' : level === 'warning' ? '⚠️' : level === 'critical' ? '🚨' : '🔴';
+    console.log(`[SyncHealth] v204: ${levelEmoji} 同步健康度: ${level.toUpperCase()}`);
+    console.log(`[SyncHealth] v204: 总体同步率=${overallSyncRate.toFixed(1)}% | 出价=${bidSyncRate.toFixed(1)}% | 预算=${budgetSyncRate.toFixed(1)}% | 否定词=${negativeKeywordSyncRate.toFixed(1)}% | 关键词创建=${keywordCreateSyncRate.toFixed(1)}%`);
+    console.log(`[SyncHealth] v204: 待处理=${pending} | 失败=${failed} | 纠错成功率=${correctionSuccessRate.toFixed(1)}%`);
+    
+    if (alerts.length > 0) {
+      console.log(`[SyncHealth] v204: === 告警信息 (${alerts.length}条) ===`);
+      for (const alert of alerts) {
+        console.log(`[SyncHealth] v204: ${alert}`);
+      }
+    }
+    
+    // 9. 如果是紧急状态，输出详细诊断信息
+    if (level === 'emergency' || level === 'critical') {
+      console.error(`[SyncHealth] v204: ❗❗❗ 系统同步健康度异常 (${level}) ❗❗❗`);
+      console.error(`[SyncHealth] v204: 请检查: 1) Amazon API凭证是否过期 2) API速率限制 3) 网络连接 4) 数据库状态`);
+      
+      // 输出最近失败事件的典型错误模式
+      try {
+        const [recentErrors] = await database.execute(sql`
+          SELECT action_type, error_message, COUNT(*) as count
+          FROM optimization_events 
+          WHERE api_sync_status = 'failed'
+            AND created_at > DATE_SUB(NOW(), INTERVAL 24 HOUR)
+          GROUP BY action_type, SUBSTRING(error_message, 1, 100)
+          ORDER BY count DESC
+          LIMIT 5
+        `) as any;
+        
+        if (Array.isArray(recentErrors) && recentErrors.length > 0) {
+          console.error(`[SyncHealth] v204: 最近24小时失败模式:`);
+          for (const err of recentErrors) {
+            console.error(`[SyncHealth] v204:   ${err.action_type}: "${String(err.error_message || '').slice(0, 80)}" (${err.count}次)`);
+          }
+        }
+      } catch (diagErr: any) {
+        console.error(`[SyncHealth] v204: 诊断信息获取失败: ${diagErr.message}`);
+      }
+    }
+    
+  } catch (error: any) {
+    console.error(`[SyncHealth] v204: 健康度评估失败: ${error.message}`);
+  }
+}
+
+/**
+ * v204: 获取最新的同步健康报告
+ */
+export function getLatestHealthReport(): SyncHealthReport | null {
+  return latestHealthReport;
 }
 
 // ==================== 公开API ====================
@@ -2147,14 +2447,29 @@ async function retryHistoricalFailedKeywordHarvests(database: any, accountId: nu
         
         for (const kw of toCreate) {
           try {
+            // v204: 关键词预验证 — 在重试前清洗特殊字符并检查Amazon限制
+            const kwValidation = sanitizeAndValidateKeyword(kw.searchTerm, 'positive');
+            if (!kwValidation.isValid) {
+              console.log(`[AutoCorrector] v204: 关键词预验证失败，标记为invalid_legacy: "${kw.searchTerm}" → ${kwValidation.reasonMessage}`);
+              await database.execute(sql`
+                UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
+                  api_sync_detail = ${JSON.stringify({ reason: `v204: 关键词预验证失败: ${kwValidation.reasonMessage}`, fixedAt: new Date().toISOString() })}
+                WHERE id = ${kw.eventId}
+              `).catch(() => {});
+              results.push({ type: 'keyword_create_retry', accountId, targetId: localCampaignId, targetType: 'keyword', previousValue: '', correctedValue: kw.searchTerm, reason: `预验证失败: ${kwValidation.reasonMessage}`, success: false, errorMessage: kwValidation.reasonCode || 'VALIDATION_FAILED' });
+              continue;
+            }
+            // v204: 使用清洗后的文本
+            const cleanedSearchTerm = kwValidation.sanitizedText;
+            
             const normalizedMatchType = (kw.matchType === 'exact' || kw.matchType === 'phrase' || kw.matchType === 'broad') 
               ? kw.matchType as 'exact' | 'phrase' | 'broad'
               : 'phrase'; // 默认为 phrase
             
-            // 在本地数据库创建关键词记录
+            // 在本地数据库创建关键词记录 (v204: 使用清洗后的文本)
             const insertResult = await database.execute(sql`
               INSERT INTO keywords (adGroupId, keywordText, matchType, bid, keywordStatus, createdAt, updatedAt)
-              VALUES (${localAdGroupId}, ${kw.searchTerm}, ${normalizedMatchType}, '0.50', 'enabled', NOW(), NOW())
+              VALUES (${localAdGroupId}, ${cleanedSearchTerm}, ${normalizedMatchType}, '0.50', 'enabled', NOW(), NOW())
             `);
             const localKeywordId = (insertResult as any)[0]?.insertId || (insertResult as any)?.insertId;
             
@@ -2163,7 +2478,7 @@ async function retryHistoricalFailedKeywordHarvests(database: any, accountId: nu
               localKeywordId,
               adGroupId: amazonAdGroupId,
               campaignId: amazonCampaignId,
-              keywordText: kw.searchTerm,
+              keywordText: cleanedSearchTerm,
               matchType: normalizedMatchType,
               bid: 0.50,
             });
@@ -2447,7 +2762,9 @@ async function backfillNegativeKeywordIds(database: any, accountId: number): Pro
     // 收集所有涉及的campaignId，并建立本地ID到Amazon ID的映射
     const localCampaignIds = [...new Set(missingIdRows.map((r: any) => r.campaignId).filter(Boolean))];
     const localToAmazonCampaignIdMap = new Map<number, string>(); // localId -> amazonCampaignId
-    for (const localId of localCampaignIds) {
+    for (const rawId of localCampaignIds) {
+      const localId = Number(rawId);
+      if (isNaN(localId)) continue;
       const campRows = await database
         .select({ campaignId: campaigns.campaignId })
         .from(campaigns)
@@ -2506,14 +2823,35 @@ async function backfillNegativeKeywordIds(database: any, accountId: number): Pro
       } else {
         // Amazon上不存在，重新创建（使用Amazon campaignId）
         try {
+          // v204: 否定词预验证 — 在重新创建前清洗特殊字符
+          const negMode = matchType.includes('exact') ? 'negative_exact' as const : 'negative_phrase' as const;
+          let negValidation = sanitizeAndValidateKeyword(row.negativeText, negMode);
+          let cleanedNegText = negValidation.sanitizedText || row.negativeText;
+          let finalMatchType: 'negativeExact' | 'negativePhrase' = matchType.includes('exact') ? 'negativeExact' : 'negativePhrase';
+          
+          // v204: 如果negative_phrase超过4词，自动升级为negative_exact
+          if (!negValidation.isValid && negMode === 'negative_phrase' && negValidation.reasonCode === 'EXCEEDS_MAX_WORDS_NEG_PHRASE') {
+            negValidation = sanitizeAndValidateKeyword(row.negativeText, 'negative_exact');
+            if (negValidation.isValid) {
+              cleanedNegText = negValidation.sanitizedText;
+              finalMatchType = 'negativeExact';
+              console.log(`[AutoCorrector] v204: 否定词回填"${row.negativeText}"超过4词限制，自动升级为negativeExact`);
+            }
+          }
+          
+          if (!negValidation.isValid) {
+            console.log(`[AutoCorrector] v204: 否定词回填预验证失败，跳过重新创建: "${row.negativeText}" → ${negValidation.reasonMessage}`);
+            continue;
+          }
+          
           const syncResult = await amazonApiHelper.syncNegativeKeywordsToAmazon(accountId, [{
             campaignId: amazonCampaignId,  // v203: 使用Amazon campaignId而非本地ID
-            keywordText: row.negativeText,
-            matchType: matchType.includes('exact') ? 'negativeExact' as const : 'negativePhrase' as const,
+            keywordText: cleanedNegText,
+            matchType: finalMatchType,
             level: (row.negativeLevel || 'campaign') as 'campaign' | 'adgroup',
           }]);
           
-          const mapKey = `campaign:${amazonCampaignId}:${(row.negativeText || '').toLowerCase()}`;
+          const mapKey = `campaign:${amazonCampaignId}:${(cleanedNegText || '').toLowerCase()}`;
           const newId = syncResult.keywordIdMap?.get(mapKey);
           if (newId) {
             await database.execute(sql`
@@ -2554,6 +2892,9 @@ async function verifyBiddingLogsExecution(database: any, accountId: number): Pro
   const results: CorrectionResult[] = [];
   
   try {
+    // v204: 获取账户货币用于动态容差计算
+    const currencyCode = await getAccountCurrencyCode(accountId);
+    
     // v200: 使用列名自动检测，兼容camelCase和snake_case两种列名
     // bidding_logs表无显式映射的列在DB中为camelCase（drizzle-kit push不会重命名已有列）
     // 显式映射的列为snake_case: execution_status, api_response_id, error_message
@@ -2631,24 +2972,24 @@ async function verifyBiddingLogsExecution(database: any, accountId: number): Pro
       
       if (currentBid === null) continue;
       
-      // v201: 使用比例容差代替固定容差，避免与数据同步形成无限循环
-      // Amazon可能以不同货币返回bid（如CAD vs USD），导致系统性的比例差异
-      // 容差: 绝对差异 <= $0.02 或 相对差异 <= 20%
+      // v204: 使用基于货币的动态容差，替代固定20%比例容差
+      // 这样可以更精确地区分货币转换差异和真正的执行失败
       const absDiff = Math.abs(currentBid - expectedBid);
       const relDiff = expectedBid > 0 ? absDiff / expectedBid : 0;
+      const { absTolerance: verifyAbsTol, relTolerance: verifyRelTol } = getBidVerifyTolerance(currencyCode);
       
-      if (absDiff <= 0.02 || relDiff <= 0.20) {
+      if (absDiff <= verifyAbsTol || relDiff <= verifyRelTol) {
         verified++;
         if (absDiff > 0.01) {
-          // v201: 记录有差异但在容差范围内的情况（可能是货币转换）
-          console.log(`[AutoCorrector] v201: 出价确认(容差内): ${targetType} id=${targetId} expected=$${expectedBid.toFixed(2)} actual=$${currentBid.toFixed(2)} diff=${(relDiff*100).toFixed(1)}%`);
+          // v204: 记录有差异但在货币容差范围内的情况
+          console.log(`[AutoCorrector] v204: 出价确认(${currencyCode}容差内): ${targetType} id=${targetId} expected=$${expectedBid.toFixed(2)} actual=$${currentBid.toFixed(2)} diff=${(relDiff*100).toFixed(1)}%`);
         }
         continue;
       }
       
       // 发现不一致（超出容差范围）— 记录并尝试纠正
       mismatched++;
-      console.log(`[AutoCorrector] v201: 出价执行确认失败: ${targetType} id=${targetId} expected=$${expectedBid.toFixed(2)} actual=$${currentBid.toFixed(2)} diff=${(relDiff*100).toFixed(1)}%`);
+      console.log(`[AutoCorrector] v204: 出价执行确认失败(${currencyCode}): ${targetType} id=${targetId} expected=$${expectedBid.toFixed(2)} actual=$${currentBid.toFixed(2)} diff=${(relDiff*100).toFixed(1)}% (absTol=${verifyAbsTol.toFixed(3)}, relTol=${(verifyRelTol*100).toFixed(0)}%)`);
       
       // 将本地DB更新为最新的成功出价（因为API已经成功，本地可能被同步覆盖了）
       try {
@@ -2784,8 +3125,13 @@ async function auditAlgorithmDecisionQuality(database: any, accountId: number): 
             AND oe.algorithm_version NOT LIKE '%v198%'
             AND oe.algorithm_version NOT LIKE '%v199%'
             AND oe.algorithm_version NOT LIKE '%v200%'
+            AND oe.algorithm_version NOT LIKE '%v201%'
+            AND oe.algorithm_version NOT LIKE '%v202%'
+            AND oe.algorithm_version NOT LIKE '%v203%'
+            AND oe.algorithm_version NOT LIKE '%v204%'
             AND oe.algorithm_version NOT LIKE '%NextGen%'
             AND oe.algorithm_version NOT LIKE '%nextgen%'
+            AND oe.algorithm_version NOT LIKE '%AutoCorrector%'
           )
         )
       ORDER BY CAST(k.spend AS DECIMAL(10,2)) DESC

@@ -28,7 +28,7 @@ import { eq, and, sql, inArray, desc } from 'drizzle-orm';
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 203;
+export const SYSTEM_VERSION = 204;
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -133,6 +133,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     description: 'v203: 数据清洗与同步率修正 — 移除settings_update迁移的budget过滤条件(修复2247个错误标记)，清理超过7天的target_enable/target_pause失败事件，清理无重试机制的placement_adjust/bid_auto_adjust失败事件，清理超过30天的所有旧失败事件',
     affectedModules: [],
     correctionActions: [],
+  },
+  {
+    version: 204,
+    description: 'v204: 全面优化与监控强化 — 关键词/否定词预验证(消除特殊字符导致的API拒绝)，货币转换系统化(动态容差替代固定比例)，同步健康度评估与告警系统，NextGen维护任务即时启动(移除41分钟偏移)，质量审计算法版本过滤更新',
+    affectedModules: ['bid', 'keyword'],
+    correctionActions: ['rerun_optimization'],
   },
 ];
 
