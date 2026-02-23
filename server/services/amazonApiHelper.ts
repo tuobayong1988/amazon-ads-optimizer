@@ -11,6 +11,9 @@
  */
 import { AmazonSyncService } from '../amazonSyncService';
 import * as db from '../db';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('ApiHelper');
 
 // v189: 统一的API调用重试工具函数
 async function withRetry<T>(
@@ -35,7 +38,7 @@ async function withRetry<T>(
       const delay = isThrottle 
         ? Math.min(baseDelayMs * Math.pow(2, attempt), 15000) 
         : baseDelayMs * (attempt + 1);
-      console.log(`[AmazonApiHelper] ${label} 第${attempt + 1}次重试，等待${delay}ms... (${error.message?.substring(0, 80)})`);
+      log.warn(`[AmazonApiHelper] ${label} 第${attempt + 1}次重试，等待${delay}ms... (${error.message?.substring(0, 80)})`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
@@ -56,25 +59,25 @@ export async function getAmazonSyncService(accountId: number): Promise<AmazonSyn
       // 获取账号信息
       const account = await db.getAdAccountById(accountId);
       if (!account) {
-        console.error(`[AmazonApiHelper] 账号 ${accountId} 不存在`);
+        log.error(`[AmazonApiHelper] 账号 ${accountId} 不存在`);
         return null; // 账号不存在是确定性错误，不重试
       }
       
       // 获取API凭证
       const credentials = await db.getAmazonApiCredentials(accountId);
       if (!credentials) {
-        console.error(`[AmazonApiHelper] 账号 ${accountId} 未配置API凭证`);
+        log.error(`[AmazonApiHelper] 账号 ${accountId} 未配置API凭证`);
         return null; // 凭证未配置是确定性错误，不重试
       }
       
       // 验证凭证完整性
       if (!credentials.clientId || !credentials.clientSecret || !credentials.refreshToken) {
-        console.error(`[AmazonApiHelper] 账号 ${accountId} API凭证不完整: clientId=${!!credentials.clientId}, clientSecret=${!!credentials.clientSecret}, refreshToken=${!!credentials.refreshToken}`);
+        log.error(`[AmazonApiHelper] 账号 ${accountId} API凭证不完整: clientId=${!!credentials.clientId}, clientSecret=${!!credentials.clientSecret}, refreshToken=${!!credentials.refreshToken}`);
         return null; // 凭证不完整是确定性错误，不重试
       }
       
       if (!account.profileId) {
-        console.error(`[AmazonApiHelper] 账号 ${accountId} 缺少profileId`);
+        log.error(`[AmazonApiHelper] 账号 ${accountId} 缺少profileId`);
         return null; // profileId缺失是确定性错误，不重试
       }
       
@@ -100,12 +103,12 @@ export async function getAmazonSyncService(accountId: number): Promise<AmazonSyn
       
       if (isRetryable && attempt < MAX_RETRIES) {
         const waitTime = RETRY_DELAY_MS * (attempt + 1);
-        console.warn(`[AmazonApiHelper] 创建SyncService失败(可重试), 第${attempt + 1}次重试, 等待${waitTime}ms... (accountId=${accountId}): ${error.message}`);
+        log.warn(`[AmazonApiHelper] 创建SyncService失败(可重试), 第${attempt + 1}次重试, 等待${waitTime}ms... (accountId=${accountId}): ${error.message}`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
         continue;
       }
       
-      console.error(`[AmazonApiHelper] 创建SyncService失败 (accountId=${accountId}, 已重试${attempt}次):`, error.message);
+      log.error(`[AmazonApiHelper] 创建SyncService失败 (accountId=${accountId}, 已重试${attempt}次):`, error.message);
       return null;
     }
   }
@@ -132,12 +135,12 @@ export async function syncBidAdjustmentsToAmazon(
   
   if (adjustments.length === 0) return result;
   
-  console.log(`[AmazonApiHelper] 开始同步出价调整: accountId=${accountId}, 总计=${adjustments.length}条`);
+  log.info(`[AmazonApiHelper] 开始同步出价调整: accountId=${accountId}, 总计=${adjustments.length}条`);
   
   const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
     const errorMsg = `无法获取账号 ${accountId} 的API服务（凭证缺失或无效）`;
-    console.error(`[AmazonApiHelper] ${errorMsg}`);
+    log.error(`[AmazonApiHelper] ${errorMsg}`);
     result.errors.push(errorMsg);
     result.failed = adjustments.length;
     // v140: 标记所有条目为失败
@@ -147,7 +150,7 @@ export async function syncBidAdjustmentsToAmazon(
     return result;
   }
   
-  console.log(`[AmazonApiHelper] API服务创建成功，开始同步出价调整`);
+  log.info(`[AmazonApiHelper] API服务创建成功，开始同步出价调整`);
   
   // v149: 幂等性保障 - 同一批次内去重（同一关键词只保留最后一次调整）
   const deduped = new Map<number, typeof adjustments[0]>();
@@ -156,7 +159,7 @@ export async function syncBidAdjustmentsToAmazon(
   }
   const uniqueAdjustments = Array.from(deduped.values());
   if (uniqueAdjustments.length < adjustments.length) {
-    console.log(`[AmazonApiHelper] 幂等性去重: ${adjustments.length}条 -> ${uniqueAdjustments.length}条（去除${adjustments.length - uniqueAdjustments.length}个重复关键词）`);
+    log.debug(`[AmazonApiHelper] 幂等性去重: ${adjustments.length}条 -> ${uniqueAdjustments.length}条（去除${adjustments.length - uniqueAdjustments.length}个重复关键词）`);
   }
   
   // v125c: 添加限流延迟和重试逻辑
@@ -173,9 +176,9 @@ export async function syncBidAdjustmentsToAmazon(
       try {
         const targetType = adj.isProductTarget ? 'product_target' : 'keyword';
         if (retryCount === 0) {
-          console.log(`[AmazonApiHelper] [${i+1}/${uniqueAdjustments.length}] 同步出价: ${targetType} id=${adj.keywordId}, newBid=${adj.newBid}`);
+          log.info(`[AmazonApiHelper] [${i+1}/${uniqueAdjustments.length}] 同步出价: ${targetType} id=${adj.keywordId}, newBid=${adj.newBid}`);
         } else {
-          console.log(`[AmazonApiHelper] [${i+1}/${uniqueAdjustments.length}] 重试#${retryCount}: ${targetType} id=${adj.keywordId}`);
+          log.debug(`[AmazonApiHelper] [${i+1}/${uniqueAdjustments.length}] 重试#${retryCount}: ${targetType} id=${adj.keywordId}`);
         }
         
         const apiResult = await syncService.applyBidAdjustment(
@@ -196,7 +199,7 @@ export async function syncBidAdjustmentsToAmazon(
           const targetType2 = adj.isProductTarget ? 'product_target' : 'keyword';
           const errorMsg = `出价调整失败: ${targetType2} ${adj.keywordId}`;
           result.errors.push(errorMsg);
-          console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
+          log.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
           result.itemResults.set(adj.keywordId, { status: 'failed', error: '记录不存在或Amazon ID无效' });
           // v155: 不再 break，继续处理下一个关键词，避免一个失败导致整个批次中断
           break; // break inner while loop only
@@ -220,18 +223,18 @@ export async function syncBidAdjustmentsToAmazon(
         if (isThrottle && retryCount <= maxRetries) {
           consecutiveThrottles++;
           const waitTime = Math.min(3000 * consecutiveThrottles, 15000);
-          console.log(`[AmazonApiHelper] ⚠️ 限流，等待${waitTime}ms后重试...`);
+          log.debug(`[AmazonApiHelper] ⚠️ 限流，等待${waitTime}ms后重试...`);
           await delay(waitTime);
         } else if (retryCount <= maxRetries) {
           const waitTime = 2000 * retryCount;
-          console.log(`[AmazonApiHelper] ℹ️ API错误，等待${waitTime}ms后重试...`);
+          log.warn(`[AmazonApiHelper] ℹ️ API错误，等待${waitTime}ms后重试...`);
           await delay(waitTime);
         } else {
           result.failed++;
           const targetType = adj.isProductTarget ? 'product_target' : 'keyword';
           const errorMsg = `出价调整异常(重试${maxRetries}次后): ${targetType} ${adj.keywordId} - ${error.message}`;
           result.errors.push(errorMsg);
-          console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
+          log.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
           result.itemResults.set(adj.keywordId, { status: 'failed', error: `API异常: ${error.message?.substring(0, 100)}` });
           break;
         }
@@ -246,16 +249,16 @@ export async function syncBidAdjustmentsToAmazon(
   
   const totalAttempts = result.success + result.failed;
   const failureRate = totalAttempts > 0 ? (result.failed / totalAttempts) * 100 : 0;
-  console.log(`[AmazonApiHelper] 出价同步完成: 成功=${result.success}, 失败=${result.failed}, 成功率=${(100 - failureRate).toFixed(1)}%`);
+  log.warn(`[AmazonApiHelper] 出价同步完成: 成功=${result.success}, 失败=${result.failed}, 成功率=${(100 - failureRate).toFixed(1)}%`);
   if (result.errors.length > 0) {
-    console.error(`[AmazonApiHelper] 错误详情:`, result.errors.slice(0, 5).join('; '));
+    log.error(`[AmazonApiHelper] 错误详情:`, result.errors.slice(0, 5).join('; '));
   }
   
   // v126: API同步失败率监控告警
   const FAILURE_RATE_THRESHOLD = 20; // 失败率超过20%触发告警
   if (failureRate > FAILURE_RATE_THRESHOLD && totalAttempts >= 5) {
-    console.error(`[ALERT] ⚠️ Amazon API同步失败率过高! 失败率=${failureRate.toFixed(1)}% (阈值=${FAILURE_RATE_THRESHOLD}%), 成功=${result.success}, 失败=${result.failed}`);
-    console.error(`[ALERT] 请检查Amazon API凭证、配额和网络状态`);
+    log.error(`[ALERT] ⚠️ Amazon API同步失败率过高! 失败率=${failureRate.toFixed(1)}% (阈值=${FAILURE_RATE_THRESHOLD}%), 成功=${result.success}, 失败=${result.failed}`);
+    log.error(`[ALERT] 请检查Amazon API凭证、配额和网络状态`);
     
     // 将告警信息写入数据库，便于前端展示
     try {
@@ -269,7 +272,7 @@ export async function syncBidAdjustmentsToAmazon(
       }
     } catch (alertErr: any) {
       // system_alerts表可能不存在，忽略错误
-      console.warn(`[ALERT] 告警写入数据库失败（表可能不存在）: ${alertErr.message}`);
+      log.warn(`[ALERT] 告警写入数据库失败（表可能不存在）: ${alertErr.message}`);
     }
   }
   
@@ -304,7 +307,7 @@ export async function syncNewKeywordsToAmazon(
   
   if (newKeywords.length === 0) return result;
   
-  console.log(`[AmazonApiHelper] 开始同步新关键词到Amazon: accountId=${accountId}, 总计=${newKeywords.length}个`);
+  log.info(`[AmazonApiHelper] 开始同步新关键词到Amazon: accountId=${accountId}, 总计=${newKeywords.length}个`);
   
   const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
@@ -318,14 +321,14 @@ export async function syncNewKeywordsToAmazon(
   const BATCH_SIZE = 50;
   const BATCH_DELAY_MS = 1000;
   const totalBatches = Math.ceil(newKeywords.length / BATCH_SIZE);
-  console.log(`[AmazonApiHelper] 分批处理: 总计${newKeywords.length}个关键词, 分${totalBatches}批, 每批最多${BATCH_SIZE}个`);
+  log.info(`[AmazonApiHelper] 分批处理: 总计${newKeywords.length}个关键词, 分${totalBatches}批, 每批最多${BATCH_SIZE}个`);
   
   for (let batchIdx = 0; batchIdx < totalBatches; batchIdx++) {
     const batchStart = batchIdx * BATCH_SIZE;
     const batchEnd = Math.min(batchStart + BATCH_SIZE, newKeywords.length);
     const batch = newKeywords.slice(batchStart, batchEnd);
     
-    console.log(`[AmazonApiHelper] 处理第${batchIdx + 1}/${totalBatches}批: ${batch.length}个关键词 (索引 ${batchStart}-${batchEnd - 1})`);
+    log.info(`[AmazonApiHelper] 处理第${batchIdx + 1}/${totalBatches}批: ${batch.length}个关键词 (索引 ${batchStart}-${batchEnd - 1})`);
     
     try {
       // v190: 添加withRetry包装批次API调用，自动重试限流和服务器错误
@@ -365,10 +368,10 @@ export async function syncNewKeywordsToAmazon(
                 const { sql: sqlTag } = await import('drizzle-orm');
                 try {
                   await dbInstance.execute(sqlTag`UPDATE keywords SET keywordId = ${String(created.keywordId)} WHERE id = ${original.localKeywordId}`);
-                  console.log(`[AmazonApiHelper] ✅ 关键词已同步: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
+                  log.info(`[AmazonApiHelper] ✅ 关键词已同步: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
                 } catch (updateErr: any) {
                   // 如果Drizzle execute也失败，尝试使用底层mysql2连接
-                  console.warn(`[AmazonApiHelper] Drizzle execute失败，尝试底层连接:`, updateErr.message);
+                  log.warn(`[AmazonApiHelper] Drizzle execute失败，尝试底层连接:`, updateErr.message);
                   const mysql = await import('mysql2/promise');
                   const rawConn = await mysql.createConnection({
                     host: process.env.DB_HOST || process.env.DATABASE_HOST,
@@ -379,33 +382,33 @@ export async function syncNewKeywordsToAmazon(
                   });
                   await rawConn.execute('UPDATE keywords SET keywordId = ? WHERE id = ?', [String(created.keywordId), original.localKeywordId]);
                   await rawConn.end();
-                  console.log(`[AmazonApiHelper] ✅ (底层连接) 关键词已同步: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
+                  log.info(`[AmazonApiHelper] ✅ (底层连接) 关键词已同步: "${original.keywordText}" -> Amazon keywordId=${created.keywordId}`);
                 }
               }
             } catch (dbError: any) {
-              console.error(`[AmazonApiHelper] 更新本地keywordId失败:`, dbError.message);
+              log.error(`[AmazonApiHelper] 更新本地keywordId失败:`, dbError.message);
             }
           }
         } else {
           result.failed++;
           result.errors.push(`关键词创建失败: "${original.keywordText}" - code=${created.code}`);
-          console.error(`[AmazonApiHelper] ❌ 关键词创建失败: "${original.keywordText}", code=${created.code}`);
+          log.error(`[AmazonApiHelper] ❌ 关键词创建失败: "${original.keywordText}", code=${created.code}`);
         }
       }
       
-      console.log(`[AmazonApiHelper] 第${batchIdx + 1}批完成: 本批成功=${apiResult.createdKeywords.filter(k => k.code === 'SUCCESS').length}, 累计成功=${result.success}`);
+      log.info(`[AmazonApiHelper] 第${batchIdx + 1}批完成: 本批成功=${apiResult.createdKeywords.filter(k => k.code === 'SUCCESS').length}, 累计成功=${result.success}`);
     } catch (error: any) {
       // 单批失败不影响其他批次
       const batchFailCount = batch.length;
       result.failed += batchFailCount;
       const errorMsg = `第${batchIdx + 1}批创建关键词API调用失败: ${error.message}`;
       result.errors.push(errorMsg);
-      console.error(`[AmazonApiHelper] ❌ ${errorMsg}`, error.response?.data || '');
+      log.error(`[AmazonApiHelper] ❌ ${errorMsg}`, error.response?.data || '');
       
       // 如果是限流错误，增加等待时间
       if (error.response?.status === 429) {
         const throttleWait = BATCH_DELAY_MS * 5;
-        console.log(`[AmazonApiHelper] ⚠️ 限流，等待${throttleWait}ms后继续下一批...`);
+        log.debug(`[AmazonApiHelper] ⚠️ 限流，等待${throttleWait}ms后继续下一批...`);
         await new Promise(resolve => setTimeout(resolve, throttleWait));
       }
     }
@@ -416,7 +419,7 @@ export async function syncNewKeywordsToAmazon(
     }
   }
   
-  console.log(`[AmazonApiHelper] 新关键词同步完成: 成功=${result.success}, 失败=${result.failed}, 总计=${newKeywords.length}`);
+  log.warn(`[AmazonApiHelper] 新关键词同步完成: 成功=${result.success}, 失败=${result.failed}, 总计=${newKeywords.length}`);
   return result;
 }
 
@@ -454,10 +457,10 @@ export async function syncBudgetAdjustmentToAmazon(
       }
     }, { label: `预算同步 Campaign ${campaignId}` });
     
-    console.log(`[AmazonApiHelper] 预算同步成功: Campaign ${campaignId} (${type}), 新预算=$${newBudget}`);
+    log.info(`[AmazonApiHelper] 预算同步成功: Campaign ${campaignId} (${type}), 新预算=$${newBudget}`);
     return true;
   } catch (error: any) {
-    console.error(`[AmazonApiHelper] 预算同步失败(含重试): Campaign ${campaignId} (${campaignType}):`, error.message);
+    log.error(`[AmazonApiHelper] 预算同步失败(含重试): Campaign ${campaignId} (${campaignType}):`, error.message);
     return false;
   }
 }
@@ -488,11 +491,11 @@ export async function syncPlacementAdjustmentToAmazon(
         },
       } as any);
     }, { label: `位置倾斜同步 Campaign ${campaignId}` });
-    console.log(`[AmazonApiHelper] 位置倾斜同步成功: Campaign ${campaignId}, ` +
+    log.info(`[AmazonApiHelper] 位置倾斜同步成功: Campaign ${campaignId}, ` +
       `Top=${topOfSearchPercent}%, ProductPage=${productPagePercent}%`);
     return true;
   } catch (error: any) {
-    console.error(`[AmazonApiHelper] 位置倾斜同步失败(含重试): Campaign ${campaignId}:`, error.message);
+    log.error(`[AmazonApiHelper] 位置倾斜同步失败(含重试): Campaign ${campaignId}:`, error.message);
     return false;
   }
 }
@@ -558,7 +561,7 @@ export async function syncNegativeKeywordsToAmazon(
             existingNegatives.add(key);
           }
         } catch (listErr: any) {
-          console.warn(`[AmazonApiHelper] 查询campaign ${cid} 已有否定词失败: ${listErr.message}`);
+          log.warn(`[AmazonApiHelper] 查询campaign ${cid} 已有否定词失败: ${listErr.message}`);
         }
       }
       
@@ -570,7 +573,7 @@ export async function syncNegativeKeywordsToAmazon(
       
       const skippedCount = campaignLevel.length - newCampaignNegatives.length;
       if (skippedCount > 0) {
-        console.log(`[AmazonApiHelper] 幂等性去重: 跳过${skippedCount}个已存在的campaign级否定词`);
+        log.info(`[AmazonApiHelper] 幂等性去重: 跳过${skippedCount}个已存在的campaign级否定词`);
         result.success += skippedCount; // 已存在视为成功
       }
       
@@ -597,7 +600,7 @@ export async function syncNegativeKeywordsToAmazon(
               if (r.keywordId) {
                 result.keywordIdMap.set(mapKey, String(r.keywordId));
               }
-              console.log(`[AmazonApiHelper] 否定词创建成功: "${neg.keywordText}" -> keywordId=${r.keywordId}`);
+              log.info(`[AmazonApiHelper] 否定词创建成功: "${neg.keywordText}" -> keywordId=${r.keywordId}`);
             }
           } else {
             result.failed++;
@@ -630,7 +633,7 @@ export async function syncNegativeKeywordsToAmazon(
             existingNegatives.add(key);
           }
         } catch (listErr: any) {
-          console.warn(`[AmazonApiHelper] 查询adGroup ${agId} 已有否定词失败: ${listErr.message}`);
+          log.warn(`[AmazonApiHelper] 查询adGroup ${agId} 已有否定词失败: ${listErr.message}`);
         }
       }
       
@@ -642,7 +645,7 @@ export async function syncNegativeKeywordsToAmazon(
       
       const skippedCount = adGroupLevel.length - newAdGroupNegatives.length;
       if (skippedCount > 0) {
-        console.log(`[AmazonApiHelper] 幂等性去重: 跳过${skippedCount}个已存在的adGroup级否定词`);
+        log.info(`[AmazonApiHelper] 幂等性去重: 跳过${skippedCount}个已存在的adGroup级否定词`);
         result.success += skippedCount; // 已存在视为成功
       }
       
@@ -682,7 +685,7 @@ export async function syncNegativeKeywordsToAmazon(
     }
   }
   
-  console.log(`[AmazonApiHelper] 否定词同步完成: 成功=${result.success}, 失败=${result.failed}`);
+  log.warn(`[AmazonApiHelper] 否定词同步完成: 成功=${result.success}, 失败=${result.failed}`);
   return result;
 }
 
@@ -712,12 +715,12 @@ export async function syncKeywordStatusToAmazon(
   
   if (statusChanges.length === 0) return result;
   
-  console.log(`[AmazonApiHelper] 开始同步关键词状态变更: accountId=${accountId}, 总计=${statusChanges.length}条`);
+  log.info(`[AmazonApiHelper] 开始同步关键词状态变更: accountId=${accountId}, 总计=${statusChanges.length}条`);
   
   const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
     const errorMsg = `无法获取账号 ${accountId} 的API服务（凭证缺失或无效）`;
-    console.error(`[AmazonApiHelper] ${errorMsg}`);
+    log.error(`[AmazonApiHelper] ${errorMsg}`);
     result.errors.push(errorMsg);
     result.failed = statusChanges.length;
     return result;
@@ -731,7 +734,7 @@ export async function syncKeywordStatusToAmazon(
   
   // v199: 批量处理关键词状态变更（而非逐条发送）
   if (keywordChanges.length > 0) {
-    console.log(`[AmazonApiHelper] v199: 批量处理 ${keywordChanges.length} 个关键词状态变更`);
+    log.info(`[AmazonApiHelper] v199: 批量处理 ${keywordChanges.length} 个关键词状态变更`);
     
     // 第一步：批量解析Amazon keywordId
     const dbInstance = await db.getDb();
@@ -755,7 +758,7 @@ export async function syncKeywordStatusToAmazon(
               kw = { keywordId: resolvedId };
             }
           } catch (resolveErr: any) {
-            console.error(`[AmazonApiHelper] 即时回填异常: ${resolveErr.message}`);
+            log.error(`[AmazonApiHelper] 即时回填异常: ${resolveErr.message}`);
           }
           
           if (!kw || !kw.keywordId || kw.keywordId === '0' || kw.keywordId === '') {
@@ -778,7 +781,7 @@ export async function syncKeywordStatusToAmazon(
     // 第二步：批量发送到Amazon（updateKeywordStatus已有分批逻辑）
     if (resolvedKeywordUpdates.length > 0) {
       try {
-        console.log(`[AmazonApiHelper] v199: 批量发送 ${resolvedKeywordUpdates.length} 个关键词状态更新到Amazon`);
+        log.info(`[AmazonApiHelper] v199: 批量发送 ${resolvedKeywordUpdates.length} 个关键词状态更新到Amazon`);
         const apiResult = await withRetry(
           () => syncService.client.updateKeywordStatus(resolvedKeywordUpdates),
           { maxRetries: 2, baseDelayMs: 2000, label: `batchUpdateKeywordStatus-${resolvedKeywordUpdates.length}` }
@@ -791,9 +794,9 @@ export async function syncKeywordStatusToAmazon(
             result.errors.push(`关键词 ${err.keywordId} 状态更新失败: ${err.details || err.code}`);
           }
         }
-        console.log(`[AmazonApiHelper] v199: 关键词状态批量更新完成: 成功=${apiResult.successCount}, 失败=${apiResult.errors.length}`);
+        log.warn(`[AmazonApiHelper] v199: 关键词状态批量更新完成: 成功=${apiResult.successCount}, 失败=${apiResult.errors.length}`);
       } catch (batchErr: any) {
-        console.error(`[AmazonApiHelper] v199: 关键词状态批量更新异常: ${batchErr.message}`);
+        log.error(`[AmazonApiHelper] v199: 关键词状态批量更新异常: ${batchErr.message}`);
         result.failed += resolvedKeywordUpdates.length;
         result.errors.push(`关键词状态批量更新异常: ${batchErr.message}`);
       }
@@ -802,7 +805,7 @@ export async function syncKeywordStatusToAmazon(
   
   // v199: 批量处理商品定向状态变更
   if (productTargetChanges.length > 0) {
-    console.log(`[AmazonApiHelper] v199: 批量处理 ${productTargetChanges.length} 个商品定向状态变更`);
+    log.info(`[AmazonApiHelper] v199: 批量处理 ${productTargetChanges.length} 个商品定向状态变更`);
     
     const ptDbInstance = await db.getDb();
     const resolvedTargetUpdates: Array<{ targetId: string; state: 'enabled' | 'paused' | 'archived' }> = [];
@@ -824,7 +827,7 @@ export async function syncKeywordStatusToAmazon(
             const { resolveProductTargetIdOnDemand } = await import('./amazonIdResolver');
             resolvedTargetId = await resolveProductTargetIdOnDemand(accountId, change.keywordId);
           } catch (resolveErr: any) {
-            console.error(`[AmazonApiHelper] 商品定向即时回填异常: ${resolveErr.message}`);
+            log.error(`[AmazonApiHelper] 商品定向即时回填异常: ${resolveErr.message}`);
           }
         }
         
@@ -846,7 +849,7 @@ export async function syncKeywordStatusToAmazon(
     // 批量发送到Amazon（updateProductTargetStatus已有分批逻辑）
     if (resolvedTargetUpdates.length > 0) {
       try {
-        console.log(`[AmazonApiHelper] v199: 批量发送 ${resolvedTargetUpdates.length} 个商品定向状态更新到Amazon`);
+        log.info(`[AmazonApiHelper] v199: 批量发送 ${resolvedTargetUpdates.length} 个商品定向状态更新到Amazon`);
         const apiResult = await withRetry(
           () => syncService.client.updateProductTargetStatus(resolvedTargetUpdates),
           { maxRetries: 2, baseDelayMs: 2000, label: `batchUpdateProductTargetStatus-${resolvedTargetUpdates.length}` }
@@ -859,16 +862,16 @@ export async function syncKeywordStatusToAmazon(
             result.errors.push(`商品定向 ${err.targetId} 状态更新失败: ${err.details || err.code}`);
           }
         }
-        console.log(`[AmazonApiHelper] v199: 商品定向状态批量更新完成: 成功=${apiResult.successCount}, 失败=${apiResult.errors.length}`);
+        log.warn(`[AmazonApiHelper] v199: 商品定向状态批量更新完成: 成功=${apiResult.successCount}, 失败=${apiResult.errors.length}`);
       } catch (batchErr: any) {
-        console.error(`[AmazonApiHelper] v199: 商品定向状态批量更新异常: ${batchErr.message}`);
+        log.error(`[AmazonApiHelper] v199: 商品定向状态批量更新异常: ${batchErr.message}`);
         result.failed += resolvedTargetUpdates.length;
         result.errors.push(`商品定向状态批量更新异常: ${batchErr.message}`);
       }
     }
   }
   
-  console.log(`[AmazonApiHelper] 关键词状态同步完成: 成功=${result.success}, 失败=${result.failed}`);
+  log.warn(`[AmazonApiHelper] 关键词状态同步完成: 成功=${result.success}, 失败=${result.failed}`);
   return result;
 }
 
@@ -893,12 +896,12 @@ export async function syncCampaignStatusToAmazon(
   
   const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
   
-  console.log(`[AmazonApiHelper] 开始同步广告活动状态变更: accountId=${accountId}, 总计=${statusChanges.length}条`);
+  log.info(`[AmazonApiHelper] 开始同步广告活动状态变更: accountId=${accountId}, 总计=${statusChanges.length}条`);
   
   const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
     const errorMsg = `无法获取账号 ${accountId} 的API服务（凭证缺失或无效）`;
-    console.error(`[AmazonApiHelper] ${errorMsg}`);
+    log.error(`[AmazonApiHelper] ${errorMsg}`);
     result.errors.push(errorMsg);
     result.failed = statusChanges.length;
     return result;
@@ -913,7 +916,7 @@ export async function syncCampaignStatusToAmazon(
       }
       
       const campaignType = (change.campaignType || 'sp_manual').toLowerCase();
-      console.log(`[AmazonApiHelper] 同步广告活动状态: "${change.campaignName}" (${change.amazonCampaignId}, type=${campaignType}) -> ${change.newStatus}`);
+      log.info(`[AmazonApiHelper] 同步广告活动状态: "${change.campaignName}" (${change.amazonCampaignId}, type=${campaignType}) -> ${change.newStatus}`);
       
       // v159: 带重试的API调用 - 最多重试2次
       const maxRetries = 2;
@@ -924,7 +927,7 @@ export async function syncCampaignStatusToAmazon(
         try {
           if (attempt > 0) {
             const waitTime = 2000 * attempt;
-            console.log(`[AmazonApiHelper] 重试#${attempt}: "${change.campaignName}", 等待${waitTime}ms`);
+            log.debug(`[AmazonApiHelper] 重试#${attempt}: "${change.campaignName}", 等待${waitTime}ms`);
             await delay(waitTime);
           }
           
@@ -956,12 +959,12 @@ export async function syncCampaignStatusToAmazon(
       
       if (success) {
         result.success++;
-        console.log(`[AmazonApiHelper] ✅ 广告活动状态更新成功: "${change.campaignName}" (${campaignType}) -> ${change.newStatus}`);
+        log.info(`[AmazonApiHelper] ✅ 广告活动状态更新成功: "${change.campaignName}" (${campaignType}) -> ${change.newStatus}`);
       } else {
         result.failed++;
         const errorMsg = `广告活动 "${change.campaignName}" (${change.amazonCampaignId}, type=${campaignType}) 状态同步失败(已重试${maxRetries}次): ${lastError?.message}`;
         result.errors.push(errorMsg);
-        console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
+        log.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
         
         // v159: 记录同步失败到数据库，便于后续排查和重试
         try {
@@ -976,14 +979,14 @@ export async function syncCampaignStatusToAmazon(
           }
         } catch (logError) {
           // 记录失败不影响主流程
-          console.warn(`[AmazonApiHelper] 无法记录同步失败日志:`, (logError as any).message);
+          log.warn(`[AmazonApiHelper] 无法记录同步失败日志:`, (logError as any).message);
         }
       }
     } catch (error: any) {
       result.failed++;
       const errorMsg = `广告活动 "${change.campaignName}" (${change.amazonCampaignId}, type=${change.campaignType}) 状态同步异常: ${error.message}`;
       result.errors.push(errorMsg);
-      console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
+      log.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
     }
     
     // 每5个campaign后省略等待，避免触发限流
@@ -992,7 +995,7 @@ export async function syncCampaignStatusToAmazon(
     }
   }
   
-  console.log(`[AmazonApiHelper] 广告活动状态同步完成: 成功=${result.success}, 失败=${result.failed}`);
+  log.warn(`[AmazonApiHelper] 广告活动状态同步完成: 成功=${result.success}, 失败=${result.failed}`);
   return result;
 }
 
@@ -1015,12 +1018,12 @@ export async function syncAdGroupStatusToAmazon(
   
   if (statusChanges.length === 0) return result;
   
-  console.log(`[AmazonApiHelper] 开始同步广告组状态变更: accountId=${accountId}, 总计=${statusChanges.length}条`);
+  log.info(`[AmazonApiHelper] 开始同步广告组状态变更: accountId=${accountId}, 总计=${statusChanges.length}条`);
   
   const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
     const errorMsg = `无法获取账号 ${accountId} 的API服务（凭证缺失或无效）`;
-    console.error(`[AmazonApiHelper] ${errorMsg}`);
+    log.error(`[AmazonApiHelper] ${errorMsg}`);
     result.errors.push(errorMsg);
     result.failed = statusChanges.length;
     return result;
@@ -1038,7 +1041,7 @@ export async function syncAdGroupStatusToAmazon(
   // 逐个同步（避免批量失败影响全部）
   for (const change of validChanges) {
     try {
-      console.log(`[AmazonApiHelper] 同步广告组状态: "${change.adGroupName}" (${change.amazonAdGroupId}) -> ${change.newStatus}`);
+      log.info(`[AmazonApiHelper] 同步广告组状态: "${change.adGroupName}" (${change.amazonAdGroupId}) -> ${change.newStatus}`);
       
       // v190: 使用withRetry包装API调用
       const apiResult = await withRetry(
@@ -1051,7 +1054,7 @@ export async function syncAdGroupStatusToAmazon(
       
       if (apiResult.successCount > 0) {
         result.success++;
-        console.log(`[AmazonApiHelper] ✅ 广告组状态更新成功: "${change.adGroupName}" -> ${change.newStatus}`);
+        log.info(`[AmazonApiHelper] ✅ 广告组状态更新成功: "${change.adGroupName}" -> ${change.newStatus}`);
       } else if (apiResult.errors.length > 0) {
         result.failed++;
         const errorDetail = apiResult.errors[0]?.details || 'Unknown error';
@@ -1063,10 +1066,10 @@ export async function syncAdGroupStatusToAmazon(
       result.failed++;
       const errorMsg = `广告组 "${change.adGroupName}" (${change.amazonAdGroupId}) 状态同步异常: ${error.message}`;
       result.errors.push(errorMsg);
-      console.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
+      log.error(`[AmazonApiHelper] ❌ ${errorMsg}`);
     }
   }
   
-  console.log(`[AmazonApiHelper] 广告组状态同步完成: 成功=${result.success}, 失败=${result.failed}`);
+  log.warn(`[AmazonApiHelper] 广告组状态同步完成: 成功=${result.success}, 失败=${result.failed}`);
   return result;
 }

@@ -31,6 +31,9 @@ import {
   calculateSigmoidOptimalBid,
   type SigmoidOptimalBid,
 } from "./sigmoidCurveFitter";
+import { createModuleLogger } from './utils/logger';
+
+const log = createModuleLogger('MetaLearning');
 
 // ==================== 类型定义 ====================
 
@@ -320,7 +323,7 @@ export async function selectBestAlgorithm(
         break;
     }
   } catch (error) {
-    console.error(`[MetaLearning] Error executing ${selected.algorithm}:`, error);
+    log.error(`Error executing ${selected.algorithm}:`, error);
     // 降级到rule_based
     recommendedBid = currentBid || 0;
     confidence = 0.3;
@@ -417,6 +420,6 @@ export async function backfillAlgorithmResults(accountId: number): Promise<numbe
     }
   }
   
-  console.log(`[MetaLearning] Backfilled ${filledCount} algorithm results`);
+  log.debug(`Backfilled ${filledCount} algorithm results`);
   return filledCount;
 }

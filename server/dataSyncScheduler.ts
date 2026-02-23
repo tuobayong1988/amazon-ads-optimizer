@@ -19,6 +19,9 @@ import { detectRiskSignals } from './attributionWindowHelper';
 import * as campaignLifecycleService from './services/campaignLifecycleService';
 import { runAutoCorrection, startAutoCorrector, stopAutoCorrector } from './optimizationAutoCorrector';
 import * as nextGenOrchestrator from './nextGenBidOrchestrator';
+import { createModuleLogger } from './utils/logger';
+
+const log = createModuleLogger('Scheduler');
 
 // 同步层级定义
 export type SyncTier = 'high' | 'medium' | 'low' | 'full';
@@ -128,26 +131,26 @@ export function getSchedulerStatus(): SchedulerStatus {
  */
 export function startDataSyncScheduler(defaultIntervalMs: number = 30 * 60 * 1000): void {
   if (schedulerStatus.isRunning) {
-    console.log('[DataSyncScheduler] 定时同步调度器已在运行中');
+    log.info('[DataSyncScheduler] 定时同步调度器已在运行中');
     return;
   }
 
   schedulerStatus.isRunning = true;
   
   // 启动分层同步
-  console.log('[DataSyncScheduler] 启动分层同步调度器...');
+  log.info('[DataSyncScheduler] 启动分层同步调度器...');
   
   // 高频同步：每15分钟
   schedulerIntervals.high = setInterval(async () => {
     await executeLayeredSync('high');
   }, SYNC_TIER_CONFIG.high.intervalMs);
-  console.log(`[DataSyncScheduler] 高频同步已启动，间隔: ${SYNC_TIER_CONFIG.high.intervalMs / 1000 / 60} 分钟`);
+  log.info(`[DataSyncScheduler] 高频同步已启动，间隔: ${SYNC_TIER_CONFIG.high.intervalMs / 1000 / 60} 分钟`);
 
   // 中频同步：每30分钟
   schedulerIntervals.medium = setInterval(async () => {
     await executeLayeredSync('medium');
   }, SYNC_TIER_CONFIG.medium.intervalMs);
-  console.log(`[DataSyncScheduler] 中频同步已启动，间隔: ${SYNC_TIER_CONFIG.medium.intervalMs / 1000 / 60} 分钟`);
+  log.info(`[DataSyncScheduler] 中频同步已启动，间隔: ${SYNC_TIER_CONFIG.medium.intervalMs / 1000 / 60} 分钟`);
 
   // 低频/完整同步：使用传入的间隔（默认1小时）
   schedulerIntervals.full = setInterval(async () => {
@@ -155,7 +158,7 @@ export function startDataSyncScheduler(defaultIntervalMs: number = 30 * 60 * 100
   }, defaultIntervalMs);
   
   schedulerStatus.nextRunTime = new Date(Date.now() + defaultIntervalMs);
-  console.log(`[DataSyncScheduler] 完整同步已启动，间隔: ${defaultIntervalMs / 1000 / 60} 分钟`);
+  log.info(`[DataSyncScheduler] 完整同步已启动，间隔: ${defaultIntervalMs / 1000 / 60} 分钟`);
   
   // v137: 启动优化任务重试同步引擎（每5分钟检查并重试失败的同步任务）
   setInterval(async () => {
@@ -163,15 +166,15 @@ export function startDataSyncScheduler(defaultIntervalMs: number = 30 * 60 * 100
       const { processRetryTasks } = await import('./optimizationSyncEngine');
       const retryResult = await processRetryTasks();
       if (retryResult.processed > 0) {
-        console.log(`[DataSyncScheduler] 重试同步完成: 处理=${retryResult.processed}, 成功=${retryResult.synced}, 失败=${retryResult.failed}`);
+        log.warn(`[DataSyncScheduler] 重试同步完成: 处理=${retryResult.processed}, 成功=${retryResult.synced}, 失败=${retryResult.failed}`);
       }
     } catch (err: any) {
-      console.error(`[DataSyncScheduler] 重试同步异常: ${err.message}`);
+      log.error(`[DataSyncScheduler] 重试同步异常: ${err.message}`);
     }
   }, 5 * 60 * 1000);
-  console.log(`[DataSyncScheduler] v137: 优化任务重试同步引擎已启动，间隔: 5分钟`);
+  log.info(`[DataSyncScheduler] v137: 优化任务重试同步引擎已启动，间隔: 5分钟`);
   
-  console.log(`[DataSyncScheduler] 定时同步调度器已启动，执行间隔: ${defaultIntervalMs / 1000 / 60} 分钟`);
+  log.info(`[DataSyncScheduler] 定时同步调度器已启动，执行间隔: ${defaultIntervalMs / 1000 / 60} 分钟`);
 }
 
 /**
@@ -179,7 +182,7 @@ export function startDataSyncScheduler(defaultIntervalMs: number = 30 * 60 * 100
  */
 export function stopDataSyncScheduler(): void {
   if (!schedulerStatus.isRunning) {
-    console.log('[DataSyncScheduler] 定时同步调度器未在运行');
+    log.info('[DataSyncScheduler] 定时同步调度器未在运行');
     return;
   }
 
@@ -196,14 +199,14 @@ export function stopDataSyncScheduler(): void {
   schedulerStatus.nextRunTime = null;
   schedulerStatus.currentTier = null;
 
-  console.log('[DataSyncScheduler] 定时同步调度器已停止');
+  log.info('[DataSyncScheduler] 定时同步调度器已停止');
 }
 
 /**
  * 执行分层同步
  */
 async function executeLayeredSync(tier: SyncTier): Promise<void> {
-  console.log(`[DataSyncScheduler] 开始执行${SYNC_TIER_CONFIG[tier].description} - ${new Date().toISOString()}`);
+  log.info(`[DataSyncScheduler] 开始执行${SYNC_TIER_CONFIG[tier].description} - ${new Date().toISOString()}`);
   schedulerStatus.currentTier = tier;
 
   try {
@@ -211,7 +214,7 @@ async function executeLayeredSync(tier: SyncTier): Promise<void> {
     const schedules = await db.getEnabledSyncSchedules();
 
     if (schedules.length === 0) {
-      console.log('[DataSyncScheduler] 没有启用的定时同步配置');
+      log.info('[DataSyncScheduler] 没有启用的定时同步配置');
       return;
     }
 
@@ -229,10 +232,10 @@ async function executeLayeredSync(tier: SyncTier): Promise<void> {
     await processQueue();
 
     schedulerStatus.tierLastRun[tier] = new Date();
-    console.log(`[DataSyncScheduler] ${SYNC_TIER_CONFIG[tier].description}完成`);
+    log.info(`[DataSyncScheduler] ${SYNC_TIER_CONFIG[tier].description}完成`);
 
   } catch (error: any) {
-    console.error(`[DataSyncScheduler] ${tier}层同步执行失败:`, error);
+    log.error(`[DataSyncScheduler] ${tier}层同步执行失败:`, error);
     schedulerStatus.errors.push(`${tier}层同步失败: ${error.message}`);
   }
 
@@ -266,7 +269,7 @@ async function processQueue(): Promise<void> {
     } catch (error: any) {
       schedulerStatus.failedSyncs++;
       schedulerStatus.errors.push(`账号 ${request.accountId} ${request.tier}层同步失败: ${error.message}`);
-      console.error(`[DataSyncScheduler] 账号 ${request.accountId} ${request.tier}层同步失败:`, error);
+      log.error(`[DataSyncScheduler] 账号 ${request.accountId} ${request.tier}层同步失败:`, error);
     }
 
     schedulerStatus.totalSyncs++;
@@ -287,19 +290,19 @@ async function processQueue(): Promise<void> {
  */
 async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void> {
   const { accountId, userId, tier } = request;
-  console.log(`[DataSyncScheduler] 开始${tier}层同步账号 ${accountId}`);
+  log.info(`[DataSyncScheduler] 开始${tier}层同步账号 ${accountId}`);
 
   // v194: 获取账号信息，不存在时优雅跳过而非抛出异常
   const account = await db.getAdAccountById(accountId);
   if (!account) {
-    console.warn(`[DataSyncScheduler] v194: 账号 ${accountId} 不存在，跳过${tier}层同步`);
+    log.warn(`[DataSyncScheduler] v194: 账号 ${accountId} 不存在，跳过${tier}层同步`);
     return;
   }
 
   // v194: 获取API凭证，缺失时优雅跳过
   const credentials = await db.getAmazonApiCredentials(accountId);
   if (!credentials) {
-    console.warn(`[DataSyncScheduler] v194: 账号 ${accountId} 未配置API凭证，跳过${tier}层同步`);
+    log.warn(`[DataSyncScheduler] v194: 账号 ${accountId} 未配置API凭证，跳过${tier}层同步`);
     return;
   }
 
@@ -326,7 +329,7 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
       try {
         await syncService.syncPerformanceOnly(1);
       } catch (e: any) {
-        console.error(`[DataSyncScheduler] 账号 ${accountId} 高频绩效同步失败:`, e.message);
+        log.error(`[DataSyncScheduler] 账号 ${accountId} 高频绩效同步失败:`, e.message);
       }
       break;
     case 'medium':
@@ -336,7 +339,7 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
       try {
         await syncService.syncPerformanceOnly(7);
       } catch (e: any) {
-        console.error(`[DataSyncScheduler] 账号 ${accountId} 中频绩效同步失败:`, e.message);
+        log.error(`[DataSyncScheduler] 账号 ${accountId} 中频绩效同步失败:`, e.message);
       }
       break;
     case 'low':
@@ -350,7 +353,7 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
 
   // v196: 同步完成后记录数据新鲜度日志
   const syncEndTime = new Date();
-  console.log(`[DataSyncScheduler] v196: 账号 ${accountId} ${tier}层同步完成:`, result);
+  log.info(`[DataSyncScheduler] v196: 账号 ${accountId} ${tier}层同步完成:`, result);
   
   // 记录同步完成时间到data_sync_jobs表 (v200: 使用Drizzle ORM替代原始SQL，避免列名不一致)
   try {
@@ -375,18 +378,18 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
     }
   } catch (logErr: any) {
     // 日志记录失败不影响主流程，但输出完整错误信息便于排查
-    console.warn(`[DataSyncScheduler] v200: 同步日志记录失败: ${logErr.message}`, logErr.cause || '');
+    log.warn(`[DataSyncScheduler] v200: 同步日志记录失败: ${logErr.message}`, logErr.cause || '');
   }
 
   // v196: 每次同步完成后触发优化目标执行（确保优化频率与同步频率同步）
   if (tier === 'medium' || tier === 'full' || tier === 'low') {
     try {
-      console.log(`[DataSyncScheduler] v196: ${tier}层同步完成，触发账号 ${accountId} 的优化目标执行...`);
+      log.info(`[DataSyncScheduler] v196: ${tier}层同步完成，触发账号 ${accountId} 的优化目标执行...`);
       const { triggerAccountOptimizations } = await import('./optimizationScheduler');
       await triggerAccountOptimizations(accountId);
-      console.log(`[DataSyncScheduler] v196: 账号 ${accountId} 优化目标执行完成`);
+      log.info(`[DataSyncScheduler] v196: 账号 ${accountId} 优化目标执行完成`);
     } catch (optErr: any) {
-      console.error(`[DataSyncScheduler] v196: 账号 ${accountId} 优化目标执行失败: ${optErr.message}`);
+      log.error(`[DataSyncScheduler] v196: 账号 ${accountId} 优化目标执行失败: ${optErr.message}`);
     }
   }
 }
@@ -395,14 +398,14 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
  * 执行定时同步任务（完整同步）
  */
 async function executeScheduledSync(): Promise<void> {
-  console.log(`[DataSyncScheduler] 开始执行定时同步任务 - ${new Date().toISOString()}`);
+  log.info(`[DataSyncScheduler] 开始执行定时同步任务 - ${new Date().toISOString()}`);
 
   try {
     // 获取所有启用了定时同步的账号
     const schedules = await db.getEnabledSyncSchedules();
 
     if (schedules.length === 0) {
-      console.log('[DataSyncScheduler] 没有启用的定时同步配置');
+      log.info('[DataSyncScheduler] 没有启用的定时同步配置');
       return;
     }
 
@@ -418,7 +421,7 @@ async function executeScheduledSync(): Promise<void> {
       } catch (error: any) {
         schedulerStatus.failedSyncs++;
         schedulerStatus.errors.push(`账号 ${schedule.accountId} 同步失败: ${error.message}`);
-        console.error(`[DataSyncScheduler] 账号 ${schedule.accountId} 同步失败:`, error);
+        log.error(`[DataSyncScheduler] 账号 ${schedule.accountId} 同步失败:`, error);
       }
 
       schedulerStatus.totalSyncs++;
@@ -432,7 +435,7 @@ async function executeScheduledSync(): Promise<void> {
     schedulerStatus.errors = schedulerStatus.errors.slice(-10);
 
   } catch (error: any) {
-    console.error('[DataSyncScheduler] 定时同步任务执行失败:', error);
+    log.error('[DataSyncScheduler] 定时同步任务执行失败:', error);
     schedulerStatus.errors.push(`任务执行失败: ${error.message}`);
   }
 }
@@ -496,19 +499,19 @@ async function shouldExecuteSync(schedule: db.DataSyncSchedule): Promise<boolean
  * 为指定账号执行完整同步
  */
 async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<void> {
-  console.log(`[DataSyncScheduler] 开始同步账号 ${schedule.accountId}`);
+  log.info(`[DataSyncScheduler] 开始同步账号 ${schedule.accountId}`);
 
   // v194: 获取账号信息，不存在时优雅跳过
   const account = await db.getAdAccountById(schedule.accountId);
   if (!account) {
-    console.warn(`[DataSyncScheduler] v194: 账号 ${schedule.accountId} 不存在，跳过同步`);
+    log.warn(`[DataSyncScheduler] v194: 账号 ${schedule.accountId} 不存在，跳过同步`);
     return;
   }
 
   // v194: 获取API凭证，缺失时优雅跳过
   const credentials = await db.getAmazonApiCredentials(schedule.accountId);
   if (!credentials) {
-    console.warn(`[DataSyncScheduler] v194: 账号 ${schedule.accountId} 未配置API凭证，跳过同步`);
+    log.warn(`[DataSyncScheduler] v194: 账号 ${schedule.accountId} 未配置API凭证，跳过同步`);
     return;
   }
   
@@ -549,15 +552,15 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
     targetsSynced: result.targets,
   });
 
-  console.log(`[DataSyncScheduler] 账号 ${schedule.accountId} 同步完成:`, result);
+  log.info(`[DataSyncScheduler] 账号 ${schedule.accountId} 同步完成:`, result);
 
   // ✅ 数据同步完成后，自动更新策略模板推荐
   try {
     const { updateAllCampaignRecommendations } = await import('./strategyRecommendationService');
     const recUpdated = await updateAllCampaignRecommendations(schedule.accountId);
-    console.log(`[DataSyncScheduler] 账号 ${schedule.accountId} 策略模板推荐已更新: ${recUpdated} 个广告活动`);
+    log.info(`[DataSyncScheduler] 账号 ${schedule.accountId} 策略模板推荐已更新: ${recUpdated} 个广告活动`);
   } catch (recError: any) {
-    console.error(`[DataSyncScheduler] 账号 ${schedule.accountId} 策略模板推荐更新失败:`, recError.message);
+    log.error(`[DataSyncScheduler] 账号 ${schedule.accountId} 策略模板推荐更新失败:`, recError.message);
   }
 
   // ✅ v168: 数据同步完成后，检查是否有优化目标需要自动恢复
@@ -572,12 +575,12 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
         if (enabledCount > 0) {
           // 有广告活动恢复了enabled状态，自动恢复优化目标
           await db.updatePerformanceGroup(pg.id, { autoOptimize: 1 });
-          console.log(`[DataSyncScheduler] v168: 优化目标"${(pg as any).name}"已自动恢复 - 检测到${enabledCount}个广告活动恢复enabled状态`);
+          log.debug(`[DataSyncScheduler] v168: 优化目标"${(pg as any).name}"已自动恢复 - 检测到${enabledCount}个广告活动恢复enabled状态`);
         }
       }
     }
   } catch (autoResumeErr: any) {
-    console.error(`[DataSyncScheduler] v168: 优化目标自动恢复检查失败:`, autoResumeErr.message);
+    log.error(`[DataSyncScheduler] v168: 优化目标自动恢复检查失败:`, autoResumeErr.message);
   }
 
   // ✅ v151: 统一优化入口 - 数据同步完成后，通过optimizationScheduler触发该账户下所有活跃优化目标的执行
@@ -585,22 +588,22 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
   try {
     const { triggerAccountOptimizations } = await import('./optimizationScheduler');
     const triggerResult = await triggerAccountOptimizations(schedule.accountId, 'data_sync_complete');
-    console.log(`[DataSyncScheduler] v151: 账号 ${schedule.accountId} 优化目标触发完成:`, {
+    log.info(`[DataSyncScheduler] v151: 账号 ${schedule.accountId} 优化目标触发完成:`, {
       triggeredTargets: triggerResult.triggeredCount,
       skippedTargets: triggerResult.skippedCount,
       errors: triggerResult.errorCount,
     });
   } catch (autoOptError: any) {
-    console.error(`[DataSyncScheduler] 账号 ${schedule.accountId} 优化目标触发失败:`, autoOptError.message);
+    log.error(`[DataSyncScheduler] 账号 ${schedule.accountId} 优化目标触发失败:`, autoOptError.message);
   }
 
   // ✅ v152: 数据同步完成后，自动执行效果追踪（追踪之前优化的7/14/30天效果）
   try {
     const { runEffectTracking } = await import('./algorithmEvolutionEngine');
     const trackingResult = await runEffectTracking();
-    console.log(`[DataSyncScheduler] v152: 效果追踪完成: 7d=${trackingResult.tracked7d}, 14d=${trackingResult.tracked14d}, 30d=${trackingResult.tracked30d}`);
+    log.info(`[DataSyncScheduler] v152: 效果追踪完成: 7d=${trackingResult.tracked7d}, 14d=${trackingResult.tracked14d}, 30d=${trackingResult.tracked30d}`);
   } catch (trackError: any) {
-    console.error(`[DataSyncScheduler] v152: 效果追踪失败:`, trackError.message);
+    log.error(`[DataSyncScheduler] v152: 效果追踪失败:`, trackError.message);
   }
 
   // ✅ v152: 每天执行一次全局算法进化（检查当天是否已执行过）
@@ -615,18 +618,18 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
       const { runGlobalEvolution } = await import('./algorithmEvolutionEngine');
       const evolutionResult = await runGlobalEvolution();
       (globalThis as any).__evolutionExecuted.add(lastEvolutionKey);
-      console.log(`[DataSyncScheduler] v152: 算法进化完成: 总目标=${evolutionResult.totalTargets}, 已进化=${evolutionResult.evolvedTargets}, 跳过=${evolutionResult.skippedTargets}`);
+      log.info(`[DataSyncScheduler] v152: 算法进化完成: 总目标=${evolutionResult.totalTargets}, 已进化=${evolutionResult.evolvedTargets}, 跳过=${evolutionResult.skippedTargets}`);
     }
   } catch (evoError: any) {
-    console.error(`[DataSyncScheduler] v152: 算法进化失败:`, evoError.message);
+    log.error(`[DataSyncScheduler] v152: 算法进化失败:`, evoError.message);
   }
 
   // ✅ v167: 数据同步完成后，自动运行纠错扫描（检测并修复过往错误优化）
   try {
     const correctionResult = await runAutoCorrection(schedule.accountId);
-    console.log(`[DataSyncScheduler] v167: 自动纠错扫描完成: 发现${correctionResult.totalIssuesFound}个问题, 纠正${correctionResult.totalCorrected}个, 失败${correctionResult.totalFailed}个`);
+    log.warn(`[DataSyncScheduler] v167: 自动纠错扫描完成: 发现${correctionResult.totalIssuesFound}个问题, 纠正${correctionResult.totalCorrected}个, 失败${correctionResult.totalFailed}个`);
   } catch (correctionError: any) {
-    console.error(`[DataSyncScheduler] v167: 自动纠错扫描失败:`, correctionError.message);
+    log.error(`[DataSyncScheduler] v167: 自动纠错扫描失败:`, correctionError.message);
   }
 
   // 发送通知（如果配置了）
@@ -637,7 +640,7 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
         content: `同步结果: ${result.campaigns} 个广告活动, ${result.adGroups} 个广告组, ${result.keywords} 个关键词, ${result.targets} 个商品定位`
       });
     } catch (e) {
-      console.error('[DataSyncScheduler] 发送通知失败:', e);
+      log.error('[DataSyncScheduler] 发送通知失败:', e);
     }
   }
 }
@@ -783,7 +786,7 @@ export async function withExponentialBackoff<T>(
       // 如果是429错误，使用指数退避
       if (error.response?.status === 429 || error.message?.includes('429')) {
         const delay = baseDelayMs * Math.pow(2, attempt);
-        console.log(`[DataSyncScheduler] 遇到速率限制，等待 ${delay}ms 后重试 (尝试 ${attempt + 1}/${maxRetries})`);
+        log.info(`[DataSyncScheduler] 遇到速率限制，等待 ${delay}ms 后重试 (尝试 ${attempt + 1}/${maxRetries})`);
         await sleep(delay);
       } else {
         // 其他错误直接抛出
@@ -998,9 +1001,9 @@ export function acquireAccountOptimizationLock(accountId: number, lockedBy: stri
   if (lock.locked) {
     // v181: 防止死锁 - 如果锁定超过5分钟，强制释放（从30分钟缩短到5分钟）
     if (lock.lockedAt && (Date.now() - lock.lockedAt.getTime()) > 5 * 60 * 1000) {
-      console.warn(`[v181-Lock] ${lockKey} 优化锁超时5分钟，强制释放 (lockedBy: ${lock.lockedBy})`);
+      log.warn(`[v181-Lock] ${lockKey} 优化锁超时5分钟，强制释放 (lockedBy: ${lock.lockedBy})`);
     } else {
-      console.log(`[v181-Lock] ${lockKey} 优化锁已被 ${lock.lockedBy} 持有，${lockedBy} 跳过`);
+      log.info(`[v181-Lock] ${lockKey} 优化锁已被 ${lock.lockedBy} 持有，${lockedBy} 跳过`);
       return false;
     }
   }
@@ -1033,12 +1036,12 @@ export async function acquireAccountOptimizationLockWithRetry(
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     if (acquireAccountOptimizationLock(accountId, lockedBy, moduleGroup)) {
       if (attempt > 0) {
-        console.log(`[v181-Lock] ${accountId}:${moduleGroup || 'all'} 第${attempt + 1}次尝试获取锁成功 (${lockedBy})`);
+        log.debug(`[v181-Lock] ${accountId}:${moduleGroup || 'all'} 第${attempt + 1}次尝试获取锁成功 (${lockedBy})`);
       }
       return true;
     }
     if (attempt < maxRetries) {
-      console.log(`[v181-Lock] ${accountId}:${moduleGroup || 'all'} 锁被占用，${retryDelayMs / 1000}秒后重试 (${attempt + 1}/${maxRetries})`);
+      log.debug(`[v181-Lock] ${accountId}:${moduleGroup || 'all'} 锁被占用，${retryDelayMs / 1000}秒后重试 (${attempt + 1}/${maxRetries})`);
       await new Promise(resolve => setTimeout(resolve, retryDelayMs));
     }
   }
@@ -1077,7 +1080,7 @@ function recordModuleExecution(targetId: number, moduleName: string): void {
  */
 function acquireLock(taskType: string): boolean {
   if (executionLocks[taskType]) {
-    console.log(`[OptimizationScheduler] 任务 ${taskType} 正在执行中，跳过`);
+    log.info(`[OptimizationScheduler] 任务 ${taskType} 正在执行中，跳过`);
     return false;
   }
   executionLocks[taskType] = true;
@@ -1114,7 +1117,7 @@ function shouldExecuteThisHour(taskType: string): boolean {
  * - 成熟广告活动低频稳优，避免过度干预
  */
 export async function startOptimizationScheduler(): Promise<void> {
-  console.log('[OptimizationScheduler] 启动v156生命周期感知智能优化调度器...');
+  log.info('[OptimizationScheduler] 启动v156生命周期感知智能优化调度器...');
   
   // v156: 从数据库恢复各模块的上次执行时间，避免服务器重启后所有模块立即执行
   try {
@@ -1130,12 +1133,12 @@ export async function startOptimizationScheduler(): Promise<void> {
             moduleLastExecutionMap.set(key, target.lastExecutionTime);
           }
         }
-        console.log(`[OptimizationScheduler] v156: 恢复优化目标 ${target.name} 的模块执行时间: ${target.lastExecutionTime.toISOString()}`);
+        log.info(`[OptimizationScheduler] v156: 恢复优化目标 ${target.name} 的模块执行时间: ${target.lastExecutionTime.toISOString()}`);
       }
     }
-    console.log(`[OptimizationScheduler] v156: 已从数据库恢复 ${moduleLastExecutionMap.size} 个模块执行时间记录`);
+    log.info(`[OptimizationScheduler] v156: 已从数据库恢复 ${moduleLastExecutionMap.size} 个模块执行时间记录`);
   } catch (restoreErr: any) {
-    console.error(`[OptimizationScheduler] v156: 恢复模块执行时间失败: ${restoreErr.message}`);
+    log.error(`[OptimizationScheduler] v156: 恢复模块执行时间失败: ${restoreErr.message}`);
   }
   
   // v181: 所有任务添加启动偏移量，避免多个任务同时触发导致锁竞争
@@ -1148,7 +1151,7 @@ export async function startOptimizationScheduler(): Promise<void> {
     }, OPTIMIZATION_SCHEDULE.intraday_pacing.intervalMs);
     executeOptimizationTask('intraday_pacing'); // 立即执行一次
   }, 1 * 60 * 1000);
-  console.log(`[OptimizationScheduler] 日内节奏监控已启动，间隔: 30分钟，偏移: 1分钟`);
+  log.info(`[OptimizationScheduler] 日内节奏监控已启动，间隔: 30分钟，偏移: 1分钟`);
   
   // 1. 高频风控扫描 - 每2小时（偏移6分钟）
   setTimeout(() => {
@@ -1157,7 +1160,7 @@ export async function startOptimizationScheduler(): Promise<void> {
     }, OPTIMIZATION_SCHEDULE.risk_scan.intervalMs);
     executeOptimizationTask('risk_scan'); // 立即执行一次
   }, 6 * 60 * 1000);
-  console.log(`[OptimizationScheduler] 高频风控扫描已启动，间隔: 2小时，偏移: 6分钟`);
+  log.info(`[OptimizationScheduler] 高频风控扫描已启动，间隔: 2小时，偏移: 6分钟`);
   
   // 2. 分时竞价调整 - 每小时（偏移11分钟）
   setTimeout(() => {
@@ -1166,7 +1169,7 @@ export async function startOptimizationScheduler(): Promise<void> {
     }, OPTIMIZATION_SCHEDULE.dayparting_adjustment.intervalMs);
     executeOptimizationTask('dayparting_adjustment'); // 立即执行一次
   }, 11 * 60 * 1000);
-  console.log(`[OptimizationScheduler] 分时竞价调整已启动，间隔: 1小时，偏移: 11分钟`);
+  log.info(`[OptimizationScheduler] 分时竞价调整已启动，间隔: 1小时，偏移: 11分钟`);
   
   // 2.5 v179: 分时预算调整 - 每天执行一次（偏移16分钟）
   setTimeout(() => {
@@ -1174,7 +1177,7 @@ export async function startOptimizationScheduler(): Promise<void> {
       await executeOptimizationTask('dayparting_budget');
     }, OPTIMIZATION_SCHEDULE.dayparting_budget.intervalMs);
   }, 16 * 60 * 1000);
-  console.log(`[OptimizationScheduler] v179: 分时预算调整已启动，间隔: 24小时，偏移: 16分钟`);
+  log.info(`[OptimizationScheduler] v179: 分时预算调整已启动，间隔: 24小时，偏移: 16分钟`);
   
   // 3. v143: 出价智能优化 - 每2小时触发（偏移21分钟）
   // 启动期: 每4小时执行 | 成长期: 每6小时 | 成熟期: 每12小时
@@ -1184,7 +1187,7 @@ export async function startOptimizationScheduler(): Promise<void> {
     }, OPTIMIZATION_SCHEDULE.daily_bid_optimization.intervalMs);
     executeOptimizationTask('daily_bid_optimization'); // 立即执行一次
   }, 21 * 60 * 1000);
-  console.log(`[OptimizationScheduler] 出价智能优化已启动，触发间隔: 2小时，偏移: 21分钟`);
+  log.info(`[OptimizationScheduler] 出价智能优化已启动，触发间隔: 2小时，偏移: 21分钟`);
   
   // 4. v143: 位置优化 - 每4小时触发（偏移26分钟）
   // 启动期: 每24小时 | 成长期: 每12小时 | 成熟期: 每12小时
@@ -1194,7 +1197,7 @@ export async function startOptimizationScheduler(): Promise<void> {
     }, 4 * 60 * 60 * 1000);
     executeOptimizationTask('daily_placement_optimization'); // 立即执行一次
   }, 26 * 60 * 1000);
-  console.log(`[OptimizationScheduler] 位置优化已启动，触发间隔: 4小时，偏移: 26分钟`);
+  log.info(`[OptimizationScheduler] 位置优化已启动，触发间隔: 4小时，偏移: 26分钟`);
   
   // 5. v143: 搜索词否定 - 每12小时触发（偏移31分钟）
   // 启动期: 每48小时 | 成长期: 每24小时 | 成熟期: 每24小时
@@ -1204,7 +1207,7 @@ export async function startOptimizationScheduler(): Promise<void> {
     }, 12 * 60 * 60 * 1000);
     executeOptimizationTask('daily_search_term_negation'); // 立即执行一次
   }, 31 * 60 * 1000);
-  console.log(`[OptimizationScheduler] 搜索词否定已启动，触发间隔: 12小时，偏移: 31分钟`);
+  log.info(`[OptimizationScheduler] 搜索词否定已启动，触发间隔: 12小时，偏移: 31分钟`);
   
   // 6. 预算智能分配 - 每4小时（偏移36分钟）
   setTimeout(() => {
@@ -1213,7 +1216,7 @@ export async function startOptimizationScheduler(): Promise<void> {
     }, 4 * 60 * 60 * 1000);
     executeOptimizationTask('budget_allocation'); // 立即执行一次
   }, 36 * 60 * 1000);
-  console.log(`[OptimizationScheduler] 预算智能分配已启动，间隔: 4小时，偏移: 36分钟`);
+  log.info(`[OptimizationScheduler] 预算智能分配已启动，间隔: 4小时，偏移: 36分钟`);
    // 7. 搜索词收割 - v192: 每日凌晨5:00（站点本地时间）
   optimizationIntervals.search_term_harvest = setInterval(async () => {
     const now = new Date();
@@ -1223,7 +1226,7 @@ export async function startOptimizationScheduler(): Promise<void> {
       await executeOptimizationTask('search_term_harvest');
     }
   }, 60 * 60 * 1000);
-  console.log(`[OptimizationScheduler] 搜索词收割已启动，执行时间: 每日凌晨5:00 (站点本地时间)`);
+  log.info(`[OptimizationScheduler] 搜索词收割已启动，执行时间: 每日凌晨5:00 (站点本地时间)`);
   
   // 8. 绩效周报 - 周一上午9:00（站点本地时间）
   optimizationIntervals.weekly_report = setInterval(async () => {
@@ -1235,25 +1238,25 @@ export async function startOptimizationScheduler(): Promise<void> {
       await executeOptimizationTask('weekly_report');
     }
   }, 60 * 60 * 1000);
-  console.log(`[OptimizationScheduler] 绩效周报已启动，执行时间: 周一上午9:00 (站点本地时间)`);
+  log.info(`[OptimizationScheduler] 绩效周报已启动，执行时间: 周一上午9:00 (站点本地时间)`);
   
-  console.log('[OptimizationScheduler] v143生命周期感知调度器启动完成');
-  console.log('[OptimizationScheduler] 生命周期频率表:');
-  console.log('  | 模块           | 启动期  | 成长期  | 成熟期  |');
-  console.log('  |----------------|---------|---------|---------|');
-  console.log('  | 出价优化       | 4小时   | 6小时   | 12小时  |');
-  console.log('  | 分时调整       | 1小时   | 1小时   | 1小时   |');
-  console.log('  | 位置倾斜       | 24小时  | 12小时  | 12小时  |');
-  console.log('  | 否定搜索词     | 48小时  | 24小时  | 24小时  |');
-  console.log('  | 搜索词迁移     | 72小时  | 48小时  | 24小时  |');
-  console.log('  | 预算分配       | 4小时   | 4小时   | 4小时   |');
+  log.info('[OptimizationScheduler] v143生命周期感知调度器启动完成');
+  log.debug('[OptimizationScheduler] 生命周期频率表:');
+  log.info('  | 模块           | 启动期  | 成长期  | 成熟期  |');
+  log.debug('  |----------------|---------|---------|---------|');
+  log.debug('  | 出价优化       | 4小时   | 6小时   | 12小时  |');
+  log.debug('  | 分时调整       | 1小时   | 1小时   | 1小时   |');
+  log.debug('  | 位置倾斜       | 24小时  | 12小时  | 12小时  |');
+  log.debug('  | 否定搜索词     | 48小时  | 24小时  | 24小时  |');
+  log.debug('  | 搜索词迁移     | 72小时  | 48小时  | 24小时  |');
+  log.debug('  | 预算分配       | 4小时   | 4小时   | 4小时   |');
   
   // v167: 启动自动纠错服务
   try {
     startAutoCorrector();
-    console.log('[OptimizationScheduler] v167: 自动纠错服务已启动');
+    log.info('[OptimizationScheduler] v167: 自动纠错服务已启动');
   } catch (correctorErr: any) {
-    console.error('[OptimizationScheduler] v167: 自动纠错服务启动失败:', correctorErr.message);
+    log.error('[OptimizationScheduler] v167: 自动纠错服务启动失败:', correctorErr.message);
   }
   
   // v204: 启动NextGen维护任务 - 启动后立即执行，然后每2小时重复
@@ -1265,7 +1268,7 @@ export async function startOptimizationScheduler(): Promise<void> {
   setTimeout(() => {
     executeOptimizationTask('nextgen_maintenance');
   }, 5 * 60 * 1000);
-  console.log(`[OptimizationScheduler] v204: NextGen维护任务已启动，间隔: ${OPTIMIZATION_SCHEDULE.nextgen_maintenance.intervalMs / 3600000}小时，首次执行: 5分钟后`);
+  log.info(`[OptimizationScheduler] v204: NextGen维护任务已启动，间隔: ${OPTIMIZATION_SCHEDULE.nextgen_maintenance.intervalMs / 3600000}小时，首次执行: 5分钟后`);
   
   // v204: 启动NextGen模型训练 - 启动后10分钟执行，然后每6小时重复
   // v204修复: 移除46分钟偏移，确保模型训练能在维护任务之后执行
@@ -1275,7 +1278,7 @@ export async function startOptimizationScheduler(): Promise<void> {
   setTimeout(() => {
     executeOptimizationTask('nextgen_model_training');
   }, 10 * 60 * 1000);
-  console.log(`[OptimizationScheduler] v204: NextGen模型训练已启动，间隔: 6小时，首次执行: 10分钟后`);
+  log.info(`[OptimizationScheduler] v204: NextGen模型训练已启动，间隔: 6小时，首次执行: 10分钟后`);
   
   // v197: 启动NextGen预算优化+关键词图谱 - 每日凌晨2:00
   optimizationIntervals.nextgen_budget_optimization = setInterval(async () => {
@@ -1285,7 +1288,7 @@ export async function startOptimizationScheduler(): Promise<void> {
       await executeOptimizationTask('nextgen_budget_optimization');
     }
   }, 60 * 60 * 1000);
-  console.log(`[OptimizationScheduler] v197: NextGen预算优化+关键词图谱已启动，执行时间: 每日凌晨2:00`);
+  log.info(`[OptimizationScheduler] v197: NextGen预算优化+关键词图谱已启动，执行时间: 每日凌晨2:00`);
 }
 
 /**
@@ -1299,7 +1302,7 @@ export function stopOptimizationScheduler(): void {
       optimizationIntervals[type as OptimizationTaskType] = null;
     }
   });
-  console.log('[OptimizationScheduler] 分层优化调度器已停止');
+  log.debug('[OptimizationScheduler] 分层优化调度器已停止');
   
   // v167: 停止自动纠错服务
   try {
@@ -1321,7 +1324,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
   if (!acquireLock(taskType)) return;
   
   const config = OPTIMIZATION_SCHEDULE[taskType];
-  console.log(`[OptimizationScheduler] 开始执行: ${config.description} - ${new Date().toISOString()}`);
+  log.info(`[OptimizationScheduler] 开始执行: ${config.description} - ${new Date().toISOString()}`);
   
   try {
     // 直接导入优化目标引擎
@@ -1330,7 +1333,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
     switch (taskType) {
       // ==================== 日内节奏监控（每30分钟）====================
       case 'intraday_pacing': {
-        console.log(`[OptimizationScheduler] 执行日内节奏监控`);
+        log.info(`[OptimizationScheduler] 执行日内节奏监控`);
         try {
           const { checkAllCampaignsPacing, applyIntradayAdjustment } = await import('./services/intradayPacingService');
           const targets = await getEnabledOptimizationTargets();
@@ -1353,14 +1356,14 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
                 }
               }
               
-              console.log(`[OptimizationScheduler] 账号 ${target.accountId} 日内节奏检查完成: ` +
+              log.info(`[OptimizationScheduler] 账号 ${target.accountId} 日内节奏检查完成: ` +
                 `${adjustments.length}个Campaign, 危急=${criticalCount}, 超速=${overspendCount}, 欠速=${underspendCount}`);
             } catch (pacingError: any) {
-              console.error(`[OptimizationScheduler] 账号 ${target.accountId} 日内节奏检查异常:`, pacingError.message);
+              log.error(`[OptimizationScheduler] 账号 ${target.accountId} 日内节奏检查异常:`, pacingError.message);
             }
           }
         } catch (pacingError: any) {
-          console.error(`[OptimizationScheduler] 日内节奏监控异常:`, pacingError.message);
+          log.error(`[OptimizationScheduler] 日内节奏监控异常:`, pacingError.message);
         }
         break;
       }
@@ -1368,7 +1371,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
       // ==================== 高频风控扫描（每2小时，仅风控）====================
       case 'risk_scan': {
         // v122修复：风控扫描仅执行风险检测，不再调用executeAllEnabledTargets
-        console.log(`[OptimizationScheduler] 执行风控扫描(仅风控，不含优化)`);
+        log.info(`[OptimizationScheduler] 执行风控扫描(仅风控，不含优化)`);
         try {
           const targets = await getEnabledOptimizationTargets();
           const scannedAccountIds = new Set<number>();
@@ -1386,18 +1389,18 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
                 if (riskResult.hasRisk) {
                   totalRisks += riskResult.risks.length;
                   for (const risk of riskResult.risks) {
-                    console.warn(`[RiskScan] Campaign ${campaign.campaignName}: ` +
+                    log.warn(`[RiskScan] Campaign ${campaign.campaignName}: ` +
                       `[${risk.severity}] ${risk.description}`);
                   }
                 }
               }
-              console.log(`[OptimizationScheduler] 账号 ${target.accountId} 风控扫描完成: ${enabledCampaigns.length}个Campaign, ${totalRisks}个风险信号`);
+              log.info(`[OptimizationScheduler] 账号 ${target.accountId} 风控扫描完成: ${enabledCampaigns.length}个Campaign, ${totalRisks}个风险信号`);
             } catch (riskError: any) {
-              console.error(`[OptimizationScheduler] 账号 ${target.accountId} 风控扫描异常:`, riskError.message);
+              log.error(`[OptimizationScheduler] 账号 ${target.accountId} 风控扫描异常:`, riskError.message);
             }
           }
         } catch (riskError: any) {
-          console.error(`[OptimizationScheduler] 风控扫描异常:`, riskError.message);
+          log.error(`[OptimizationScheduler] 风控扫描异常:`, riskError.message);
         }
         // v122修复：删除了此处的 executeAllEnabledTargets() 调用
         // 之前风控扫描会执行全量优化（出价+位置+分时+搜索词+预算+关键词），导致所有模块的独立调度频率失效
@@ -1406,45 +1409,45 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
       
       // ==================== 分时竞价调整（每小时）====================
       case 'dayparting_adjustment': {
-        console.log(`[OptimizationScheduler] 执行分时竞价调整`);
+        log.info(`[OptimizationScheduler] 执行分时竞价调整`);
         try {
           // v179: 添加multidim模块以生成分时竞价规则，然后由dayparting模块应用
           const daypartingResults = await executeAllEnabledTargets(undefined, { 
             dryRun: false, 
             specificModules: ['multidim', 'dayparting', 'coordination'] 
           });
-          console.log(`[OptimizationScheduler] 分时竞价调整完成: ${daypartingResults.length}个目标`);
+          log.info(`[OptimizationScheduler] 分时竞价调整完成: ${daypartingResults.length}个目标`);
           for (const r of daypartingResults) {
-            console.log(`  - ${r.targetName}: 分时调整=${r.daypartingOptimization.adjustmentsCount}`);
+            log.debug(`  - ${r.targetName}: 分时调整=${r.daypartingOptimization.adjustmentsCount}`);
           }
         } catch (daypartingError: any) {
-          console.error(`[OptimizationScheduler] 分时竞价调整失败:`, daypartingError.message);
+          log.error(`[OptimizationScheduler] 分时竞价调整失败:`, daypartingError.message);
         }
         break;
       }
       
       // ==================== v179: 分时预算调整（每天凌昨6:00）====================
       case 'dayparting_budget': {
-        console.log(`[OptimizationScheduler] v179: 执行分时预算调整`);
+        log.info(`[OptimizationScheduler] v179: 执行分时预算调整`);
         try {
           // 先生成规则（multidim），再应用预算（dayparting_budget）
           const daypartingBudgetResults = await executeAllEnabledTargets(undefined, { 
             dryRun: false, 
             specificModules: ['multidim', 'dayparting_budget'] 
           });
-          console.log(`[OptimizationScheduler] v179: 分时预算调整完成: ${daypartingBudgetResults.length}个目标`);
+          log.info(`[OptimizationScheduler] v179: 分时预算调整完成: ${daypartingBudgetResults.length}个目标`);
           for (const r of daypartingBudgetResults) {
-            console.log(`  - ${r.targetName}: 分时预算调整=${r.daypartingBudgetOptimization?.adjustmentsCount || 0}`);
+            log.debug(`  - ${r.targetName}: 分时预算调整=${r.daypartingBudgetOptimization?.adjustmentsCount || 0}`);
           }
         } catch (daypartingBudgetError: any) {
-          console.error(`[OptimizationScheduler] v179: 分时预算调整失败:`, daypartingBudgetError.message);
+          log.error(`[OptimizationScheduler] v179: 分时预算调整失败:`, daypartingBudgetError.message);
         }
         break;
       }
         
       // ==================== v143: 出价智能优化（生命周期感知）====================
       case 'daily_bid_optimization': {
-        console.log(`[OptimizationScheduler] 出价优化触发，开始生命周期感知执行...`);
+        log.info(`[OptimizationScheduler] 出价优化触发，开始生命周期感知执行...`);
         try {
           const targets = await getEnabledOptimizationTargets();
           let executedCount = 0;
@@ -1456,7 +1459,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
             
             if (!check.shouldExecute) {
               skippedCount++;
-              console.log(`[OptimizationScheduler] 跳过出价优化: ${target.name} (${check.reason})`);
+              log.info(`[OptimizationScheduler] 跳过出价优化: ${target.name} (${check.reason})`);
               continue;
             }
             
@@ -1468,22 +1471,22 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
               });
               recordModuleExecution(target.id, 'bid');
               executedCount++;
-              console.log(`  - ${target.name} [${stage}]: 出价调整=${result.bidOptimization.adjustmentsCount}, 关键词暂停=${result.keywordStatusChanges.pausedCount}`);
+              log.debug(`  - ${target.name} [${stage}]: 出价调整=${result.bidOptimization.adjustmentsCount}, 关键词暂停=${result.keywordStatusChanges.pausedCount}`);
             } catch (targetErr: any) {
-              console.error(`  - ${target.name} 出价优化失败: ${targetErr.message}`);
+              log.error(`  - ${target.name} 出价优化失败: ${targetErr.message}`);
             }
           }
           
-          console.log(`[OptimizationScheduler] 出价优化完成: 执行=${executedCount}, 跳过=${skippedCount}`);
+          log.info(`[OptimizationScheduler] 出价优化完成: 执行=${executedCount}, 跳过=${skippedCount}`);
         } catch (bidError: any) {
-          console.error(`[OptimizationScheduler] 出价优化失败:`, bidError.message);
+          log.error(`[OptimizationScheduler] 出价优化失败:`, bidError.message);
         }
         break;
       }
       
       // ==================== v143: 位置优化（生命周期感知）====================
       case 'daily_placement_optimization': {
-        console.log(`[OptimizationScheduler] 位置优化触发，开始生命周期感知执行...`);
+        log.info(`[OptimizationScheduler] 位置优化触发，开始生命周期感知执行...`);
         try {
           const targets = await getEnabledOptimizationTargets();
           let executedCount = 0;
@@ -1495,7 +1498,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
             
             if (!check.shouldExecute) {
               skippedCount++;
-              console.log(`[OptimizationScheduler] 跳过位置优化: ${target.name} (${check.reason})`);
+              log.info(`[OptimizationScheduler] 跳过位置优化: ${target.name} (${check.reason})`);
               continue;
             }
             
@@ -1507,22 +1510,22 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
               });
               recordModuleExecution(target.id, 'placement');
               executedCount++;
-              console.log(`  - ${target.name} [${stage}]: 位置调整=${result.placementOptimization.adjustmentsCount}`);
+              log.debug(`  - ${target.name} [${stage}]: 位置调整=${result.placementOptimization.adjustmentsCount}`);
             } catch (targetErr: any) {
-              console.error(`  - ${target.name} 位置优化失败: ${targetErr.message}`);
+              log.error(`  - ${target.name} 位置优化失败: ${targetErr.message}`);
             }
           }
           
-          console.log(`[OptimizationScheduler] 位置优化完成: 执行=${executedCount}, 跳过=${skippedCount}`);
+          log.info(`[OptimizationScheduler] 位置优化完成: 执行=${executedCount}, 跳过=${skippedCount}`);
         } catch (placementError: any) {
-          console.error(`[OptimizationScheduler] 位置优化失败:`, placementError.message);
+          log.error(`[OptimizationScheduler] 位置优化失败:`, placementError.message);
         }
         break;
       }
       
       // ==================== v143: 搜索词否定（生命周期感知）====================
       case 'daily_search_term_negation': {
-        console.log(`[OptimizationScheduler] 搜索词否定触发，开始生命周期感知执行...`);
+        log.info(`[OptimizationScheduler] 搜索词否定触发，开始生命周期感知执行...`);
         try {
           const targets = await getEnabledOptimizationTargets();
           let executedCount = 0;
@@ -1534,7 +1537,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
             
             if (!check.shouldExecute) {
               skippedCount++;
-              console.log(`[OptimizationScheduler] 跳过搜索词否定: ${target.name} (${check.reason})`);
+              log.info(`[OptimizationScheduler] 跳过搜索词否定: ${target.name} (${check.reason})`);
               continue;
             }
             
@@ -1546,22 +1549,22 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
               });
               recordModuleExecution(target.id, 'negativeKeyword');
               executedCount++;
-              console.log(`  - ${target.name} [${stage}]: 否定词添加=${result.searchTermAnalysis.negativeKeywordsAdded}, 新关键词=${result.searchTermAnalysis.newKeywordsAdded}`);
+              log.debug(`  - ${target.name} [${stage}]: 否定词添加=${result.searchTermAnalysis.negativeKeywordsAdded}, 新关键词=${result.searchTermAnalysis.newKeywordsAdded}`);
             } catch (targetErr: any) {
-              console.error(`  - ${target.name} 搜索词否定失败: ${targetErr.message}`);
+              log.error(`  - ${target.name} 搜索词否定失败: ${targetErr.message}`);
             }
           }
           
-          console.log(`[OptimizationScheduler] 搜索词否定完成: 执行=${executedCount}, 跳过=${skippedCount}`);
+          log.info(`[OptimizationScheduler] 搜索词否定完成: 执行=${executedCount}, 跳过=${skippedCount}`);
         } catch (searchTermError: any) {
-          console.error(`[OptimizationScheduler] 搜索词否定失败:`, searchTermError.message);
+          log.error(`[OptimizationScheduler] 搜索词否定失败:`, searchTermError.message);
         }
         break;
       }
         
       // ==================== v143: 预算智能分配（生命周期感知）====================
       case 'budget_allocation': {
-        console.log(`[OptimizationScheduler] 预算分配触发，开始生命周期感知执行...`);
+        log.info(`[OptimizationScheduler] 预算分配触发，开始生命周期感知执行...`);
         try {
           const targets = await getEnabledOptimizationTargets();
           let executedCount = 0;
@@ -1573,7 +1576,7 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
             
             if (!check.shouldExecute) {
               skippedCount++;
-              console.log(`[OptimizationScheduler] 跳过预算分配: ${target.name} (${check.reason})`);
+              log.info(`[OptimizationScheduler] 跳过预算分配: ${target.name} (${check.reason})`);
               continue;
             }
             
@@ -1585,22 +1588,22 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
               });
               recordModuleExecution(target.id, 'budget');
               executedCount++;
-              console.log(`  - ${target.name} [${stage}]: 预算调整=${result.budgetAllocation.adjustmentsCount}`);
+              log.debug(`  - ${target.name} [${stage}]: 预算调整=${result.budgetAllocation.adjustmentsCount}`);
             } catch (targetErr: any) {
-              console.error(`  - ${target.name} 预算分配失败: ${targetErr.message}`);
+              log.error(`  - ${target.name} 预算分配失败: ${targetErr.message}`);
             }
           }
           
-          console.log(`[OptimizationScheduler] 预算分配完成: 执行=${executedCount}, 跳过=${skippedCount}`);
+          log.info(`[OptimizationScheduler] 预算分配完成: 执行=${executedCount}, 跳过=${skippedCount}`);
         } catch (budgetError: any) {
-          console.error(`[OptimizationScheduler] 预算分配失败:`, budgetError.message);
+          log.error(`[OptimizationScheduler] 预算分配失败:`, budgetError.message);
         }
         break;
       }
         
       // ==================== 搜索词收割（周一凌晨5:00）====================
       case 'search_term_harvest': {
-        console.log(`[OptimizationScheduler] 执行搜索词收割`);
+        log.info(`[OptimizationScheduler] 执行搜索词收割`);
         try {
           const targets = await getEnabledOptimizationTargets();
           const harvestedAccountIds = new Set<number>();
@@ -1614,96 +1617,96 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
                 target.accountId,
                 { dryRun: false }
               );
-              console.log(`[OptimizationScheduler] 账号 ${target.accountId} 搜索词收割完成: ` +
+              log.info(`[OptimizationScheduler] 账号 ${target.accountId} 搜索词收割完成: ` +
                 `候选=${harvestResult.summary.total}, ` +
                 `成功=${harvestResult.summary.success}, ` +
                 `失败=${harvestResult.summary.failed}, ` +
                 `回滚=${harvestResult.summary.rolledBack}`);
             } catch (harvestError: any) {
-              console.error(`[OptimizationScheduler] 账号 ${target.accountId} 搜索词收割异常:`, harvestError.message);
+              log.error(`[OptimizationScheduler] 账号 ${target.accountId} 搜索词收割异常:`, harvestError.message);
             }
           }
         } catch (harvestError: any) {
-          console.error(`[OptimizationScheduler] 搜索词收割异常:`, harvestError.message);
+          log.error(`[OptimizationScheduler] 搜索词收割异常:`, harvestError.message);
         }
         break;
       }
         
       // ==================== 绩效周报（周一上午9:00）====================
       case 'weekly_report': {
-        console.log(`[OptimizationScheduler] 生成绩效周报`);
+        log.debug(`[OptimizationScheduler] 生成绩效周报`);
         // TODO: 实现绩效周报生成逻辑
         break;
       }
       
       // ==================== v197: NextGen维护任务 ====================
       case 'nextgen_maintenance': {
-        console.log(`[OptimizationScheduler] v197: NextGen维护任务触发...`);
+        log.info(`[OptimizationScheduler] v197: NextGen维护任务触发...`);
         try {
           const targets = await getEnabledOptimizationTargets();
           for (const target of targets) {
             try {
               const result = await nextGenOrchestrator.executeNextGenMaintenanceTasks(target.accountId);
-              console.log(`  - 账户${target.accountId}: 特征缓存=${result.featuresCached}, Sigmoid拟合=${result.sigmoidFitted.fitted}, Reward回填=${result.rewardsBackfilled}, 因果分析=${result.causalAnalysis.analyzed}`);
+              log.debug(`  - 账户${target.accountId}: 特征缓存=${result.featuresCached}, Sigmoid拟合=${result.sigmoidFitted.fitted}, Reward回填=${result.rewardsBackfilled}, 因果分析=${result.causalAnalysis.analyzed}`);
             } catch (err: any) {
-              console.error(`  - 账户${target.accountId} NextGen维护失败: ${err.message}`);
+              log.error(`  - 账户${target.accountId} NextGen维护失败: ${err.message}`);
             }
           }
         } catch (err: any) {
-          console.error(`[OptimizationScheduler] v197: NextGen维护失败:`, err.message);
+          log.error(`[OptimizationScheduler] v197: NextGen维护失败:`, err.message);
         }
         break;
       }
       
       // ==================== v197: NextGen模型训练 ====================
       case 'nextgen_model_training': {
-        console.log(`[OptimizationScheduler] v197: NextGen模型训练触发...`);
+        log.info(`[OptimizationScheduler] v197: NextGen模型训练触发...`);
         try {
           const targets = await getEnabledOptimizationTargets();
           for (const target of targets) {
             try {
               await nextGenOrchestrator.executeModelTraining(target.accountId);
-              console.log(`  - 账户${target.accountId}: CQL模型训练完成`);
+              log.info(`  - 账户${target.accountId}: CQL模型训练完成`);
             } catch (err: any) {
-              console.error(`  - 账户${target.accountId} CQL训练失败: ${err.message}`);
+              log.error(`  - 账户${target.accountId} CQL训练失败: ${err.message}`);
             }
           }
         } catch (err: any) {
-          console.error(`[OptimizationScheduler] v197: 模型训练失败:`, err.message);
+          log.error(`[OptimizationScheduler] v197: 模型训练失败:`, err.message);
         }
         break;
       }
       
       // ==================== v197: NextGen预算优化+关键词图谱 ====================
       case 'nextgen_budget_optimization': {
-        console.log(`[OptimizationScheduler] v197: NextGen预算优化+关键词图谱触发...`);
+        log.info(`[OptimizationScheduler] v197: NextGen预算优化+关键词图谱触发...`);
         try {
           const targets = await getEnabledOptimizationTargets();
           for (const target of targets) {
             try {
               await nextGenOrchestrator.executeBudgetOptimization(target.accountId);
-              console.log(`  - 账户${target.accountId}: 预算组合优化完成`);
+              log.info(`  - 账户${target.accountId}: 预算组合优化完成`);
             } catch (err: any) {
-              console.error(`  - 账户${target.accountId} 预算优化失败: ${err.message}`);
+              log.error(`  - 账户${target.accountId} 预算优化失败: ${err.message}`);
             }
             try {
               await nextGenOrchestrator.executeKeywordGraphAnalysis(target.accountId);
-              console.log(`  - 账户${target.accountId}: 关键词图谱分析完成`);
+              log.info(`  - 账户${target.accountId}: 关键词图谱分析完成`);
             } catch (err: any) {
-              console.error(`  - 账户${target.accountId} 关键词图谱失败: ${err.message}`);
+              log.error(`  - 账户${target.accountId} 关键词图谱失败: ${err.message}`);
             }
           }
         } catch (err: any) {
-          console.error(`[OptimizationScheduler] v197: 预算优化失败:`, err.message);
+          log.error(`[OptimizationScheduler] v197: 预算优化失败:`, err.message);
         }
         break;
       }
     }
     
-    console.log(`[OptimizationScheduler] ${config.description} 执行完成`);
+    log.info(`[OptimizationScheduler] ${config.description} 执行完成`);
     
   } catch (error: any) {
-    console.error(`[OptimizationScheduler] ${taskType} 执行失败:`, error.message);
+    log.error(`[OptimizationScheduler] ${taskType} 执行失败:`, error.message);
   } finally {
     // 确保释放执行锁
     releaseLock(taskType);

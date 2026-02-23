@@ -25,10 +25,13 @@ import { getDb } from './db';
 import * as db from './db';
 import { performanceGroups, campaigns, keywords, optimizationEvents } from '../drizzle/schema';
 import { eq, and, sql, inArray, desc } from 'drizzle-orm';
+import { createModuleLogger } from './utils/logger';
+
+const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 204;
+export const SYSTEM_VERSION = 205;
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -140,6 +143,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     affectedModules: ['bid', 'keyword'],
     correctionActions: ['rerun_optimization'],
   },
+  {
+    version: 205,
+    description: 'v205: 统一日志管理系统 — 结构化日志分级(DEBUG/INFO/WARN/ERROR/FATAL)，内存环形缓冲区(5000条)，数据库持久化(WARN及以上)，7天自动轮转，分页查询API，19个核心模块迁移(1528处console.log)，运行时动态日志级别调整',
+    affectedModules: [],
+    correctionActions: [],
+  },
 ];
 
 // ==================== 配置 ====================
@@ -239,7 +248,7 @@ async function getLastDeployedVersion(): Promise<number | null> {
     }
     return null;
   } catch (error: any) {
-    console.error(`[PostDeployOptimizer] 获取上次部署版本失败: ${error.message}`);
+    log.error(`[PostDeployOptimizer] 获取上次部署版本失败: ${error.message}`);
     return null;
   }
 }
@@ -275,9 +284,9 @@ async function recordDeployVersion(version: number, result: PostDeployResult): P
       apiSyncStatus: 'not_applicable',
     });
     
-    console.log(`[PostDeployOptimizer] 已记录部署版本 v${version}`);
+    log.info(`[PostDeployOptimizer] 已记录部署版本 v${version}`);
   } catch (error: any) {
-    console.error(`[PostDeployOptimizer] 记录部署版本失败: ${error.message}`);
+    log.error(`[PostDeployOptimizer] 记录部署版本失败: ${error.message}`);
   }
 }
 
@@ -308,7 +317,7 @@ async function updateTargetOptimizedVersion(targetId: number, version: number): 
       apiSyncStatus: 'not_applicable',
     });
   } catch (error: any) {
-    console.error(`[PostDeployOptimizer] 更新目标版本失败: ${error.message}`);
+    log.error(`[PostDeployOptimizer] 更新目标版本失败: ${error.message}`);
   }
 }
 
@@ -421,7 +430,7 @@ async function reoptimizeTarget(
       };
     }
     
-    console.log(`[PostDeployOptimizer] 开始重优化目标: ${config.name} (ID: ${targetId}), 模块: ${affectedModules.join(',')}`);
+    log.info(`[PostDeployOptimizer] 开始重优化目标: ${config.name} (ID: ${targetId}), 模块: ${affectedModules.join(',')}`);
     
     // 步骤1: 执行算法级纠正动作
     for (const action of correctionActions) {
@@ -429,7 +438,7 @@ async function reoptimizeTarget(
         switch (action) {
           case 'rebuild_combo_analysis': {
             // 重建多维度组合分析
-            console.log(`[PostDeployOptimizer] [${config.name}] 重建多维度组合分析...`);
+            log.debug(`[PostDeployOptimizer] [${config.name}] 重建多维度组合分析...`);
             try {
               const { analyzeCampaignCombos } = await import('./multiDimComboAnalyzer');
               const database = await getDb();
@@ -459,7 +468,7 @@ async function reoptimizeTarget(
           
           case 'reset_dayparting_rules': {
             // 重置分时规则 - 通过重新运行multidim+dayparting模块实现
-            console.log(`[PostDeployOptimizer] [${config.name}] 重置分时竞价规则...`);
+            log.debug(`[PostDeployOptimizer] [${config.name}] 重置分时竞价规则...`);
             modulesExecuted.push('dayparting_reset');
             correctionsApplied++;
             break;
@@ -467,7 +476,7 @@ async function reoptimizeTarget(
           
           case 'reset_placement_rules': {
             // 重置位置规则
-            console.log(`[PostDeployOptimizer] [${config.name}] 重置位置优化规则...`);
+            log.debug(`[PostDeployOptimizer] [${config.name}] 重置位置优化规则...`);
             modulesExecuted.push('placement_reset');
             correctionsApplied++;
             break;
@@ -475,14 +484,14 @@ async function reoptimizeTarget(
           
           case 'fix_timezone_errors': {
             // 时区错误修复 - 标记旧的分时调整为需要重新计算
-            console.log(`[PostDeployOptimizer] [${config.name}] 标记时区错误调整为待纠正...`);
+            log.warn(`[PostDeployOptimizer] [${config.name}] 标记时区错误调整为待纠正...`);
             modulesExecuted.push('timezone_fix');
             correctionsApplied++;
             break;
           }
           
           case 'recalculate_budgets': {
-            console.log(`[PostDeployOptimizer] [${config.name}] 重新计算预算分配...`);
+            log.debug(`[PostDeployOptimizer] [${config.name}] 重新计算预算分配...`);
             modulesExecuted.push('budget_recalc');
             correctionsApplied++;
             break;
@@ -501,7 +510,7 @@ async function reoptimizeTarget(
     const shouldFullReoptimize = correctionActions.includes('full_reoptimize') || correctionActions.includes('rerun_optimization');
     
     if (shouldFullReoptimize) {
-      console.log(`[PostDeployOptimizer] [${config.name}] 执行全量重优化...`);
+      log.info(`[PostDeployOptimizer] [${config.name}] 执行全量重优化...`);
       
       try {
         // 分阶段执行，确保每个模块都能独立成功或失败
@@ -515,7 +524,7 @@ async function reoptimizeTarget(
             });
             optimizationActions += daypartingResult.daypartingOptimization.adjustmentsCount;
             modulesExecuted.push('dayparting');
-            console.log(`[PostDeployOptimizer] [${config.name}] 分时竞价重优化完成: ${daypartingResult.daypartingOptimization.adjustmentsCount}个调整`);
+            log.info(`[PostDeployOptimizer] [${config.name}] 分时竞价重优化完成: ${daypartingResult.daypartingOptimization.adjustmentsCount}个调整`);
           } catch (dpErr: any) {
             errors.push(`分时竞价重优化失败: ${dpErr.message}`);
           }
@@ -530,7 +539,7 @@ async function reoptimizeTarget(
             });
             optimizationActions += budgetDpResult.daypartingBudgetOptimization?.adjustmentsCount || 0;
             modulesExecuted.push('dayparting_budget');
-            console.log(`[PostDeployOptimizer] [${config.name}] 分时预算重优化完成: ${budgetDpResult.daypartingBudgetOptimization?.adjustmentsCount || 0}个调整`);
+            log.info(`[PostDeployOptimizer] [${config.name}] 分时预算重优化完成: ${budgetDpResult.daypartingBudgetOptimization?.adjustmentsCount || 0}个调整`);
           } catch (dbErr: any) {
             errors.push(`分时预算重优化失败: ${dbErr.message}`);
           }
@@ -546,7 +555,7 @@ async function reoptimizeTarget(
             optimizationActions += bidResult.bidOptimization.adjustmentsCount;
             optimizationActions += bidResult.keywordStatusChanges.pausedCount + bidResult.keywordStatusChanges.enabledCount;
             modulesExecuted.push('bid');
-            console.log(`[PostDeployOptimizer] [${config.name}] 出价重优化完成: ${bidResult.bidOptimization.adjustmentsCount}个调整`);
+            log.info(`[PostDeployOptimizer] [${config.name}] 出价重优化完成: ${bidResult.bidOptimization.adjustmentsCount}个调整`);
           } catch (bidErr: any) {
             errors.push(`出价重优化失败: ${bidErr.message}`);
           }
@@ -561,7 +570,7 @@ async function reoptimizeTarget(
             });
             optimizationActions += placementResult.placementOptimization.adjustmentsCount;
             modulesExecuted.push('placement');
-            console.log(`[PostDeployOptimizer] [${config.name}] 位置重优化完成: ${placementResult.placementOptimization.adjustmentsCount}个调整`);
+            log.info(`[PostDeployOptimizer] [${config.name}] 位置重优化完成: ${placementResult.placementOptimization.adjustmentsCount}个调整`);
           } catch (plErr: any) {
             errors.push(`位置重优化失败: ${plErr.message}`);
           }
@@ -576,7 +585,7 @@ async function reoptimizeTarget(
             });
             optimizationActions += budgetResult.budgetAllocation.adjustmentsCount;
             modulesExecuted.push('budget');
-            console.log(`[PostDeployOptimizer] [${config.name}] 预算重优化完成: ${budgetResult.budgetAllocation.adjustmentsCount}个调整`);
+            log.info(`[PostDeployOptimizer] [${config.name}] 预算重优化完成: ${budgetResult.budgetAllocation.adjustmentsCount}个调整`);
           } catch (bgErr: any) {
             errors.push(`预算重优化失败: ${bgErr.message}`);
           }
@@ -591,7 +600,7 @@ async function reoptimizeTarget(
             });
             optimizationActions += stResult.searchTermAnalysis.negativeKeywordsAdded + stResult.searchTermAnalysis.newKeywordsAdded;
             modulesExecuted.push('searchterm');
-            console.log(`[PostDeployOptimizer] [${config.name}] 搜索词重优化完成: 否定=${stResult.searchTermAnalysis.negativeKeywordsAdded}, 新增=${stResult.searchTermAnalysis.newKeywordsAdded}`);
+            log.info(`[PostDeployOptimizer] [${config.name}] 搜索词重优化完成: 否定=${stResult.searchTermAnalysis.negativeKeywordsAdded}, 新增=${stResult.searchTermAnalysis.newKeywordsAdded}`);
           } catch (stErr: any) {
             errors.push(`搜索词重优化失败: ${stErr.message}`);
           }
@@ -640,15 +649,15 @@ async function reoptimizeTarget(
 export async function runPostDeployOptimization(): Promise<PostDeployResult> {
   const startedAt = new Date();
   
-  console.log(`[PostDeployOptimizer] v${SYSTEM_VERSION}: 开始部署后检查...`);
+  log.info(`[PostDeployOptimizer] v${SYSTEM_VERSION}: 开始部署后检查...`);
   
   // 1. 获取上次部署版本
   const lastVersion = await getLastDeployedVersion();
-  console.log(`[PostDeployOptimizer] 上次部署版本: ${lastVersion || '无记录（首次部署）'}, 当前版本: v${SYSTEM_VERSION}`);
+  log.info(`[PostDeployOptimizer] 上次部署版本: ${lastVersion || '无记录（首次部署）'}, 当前版本: v${SYSTEM_VERSION}`);
   
   // 2. 检查是否需要重优化
   if (lastVersion !== null && lastVersion >= SYSTEM_VERSION) {
-    console.log(`[PostDeployOptimizer] 版本未变化 (v${lastVersion} >= v${SYSTEM_VERSION})，跳过重优化`);
+    log.info(`[PostDeployOptimizer] 版本未变化 (v${lastVersion} >= v${SYSTEM_VERSION})，跳过重优化`);
     const result: PostDeployResult = {
       triggered: false,
       reason: `版本未变化 (v${lastVersion} >= v${SYSTEM_VERSION})`,
@@ -685,7 +694,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
             AND api_sync_status IN ('failed', 'pending')
         `);
         const settingsFixed = (settingsResult as any)[0]?.affectedRows || 0;
-        console.log(`[PostDeployOptimizer] v203: 修复${settingsFixed}个settings_update事件状态为not_applicable`);
+        log.info(`[PostDeployOptimizer] v203: 修复${settingsFixed}个settings_update事件状态为not_applicable`);
         
         // 修夌2: 同步修夌optimization_logs表
         await database.execute(sql`
@@ -696,7 +705,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
             AND oe.event_category = 'settings_change'
             AND oe.api_sync_status = 'not_applicable'
             AND ol.api_sync_status IN ('failed', 'pending')
-        `).catch((e: any) => console.warn(`[PostDeployOptimizer] v202: 同步optimization_logs失败: ${e.message}`));
+        `).catch((e: any) => log.warn(`[PostDeployOptimizer] v202: 同步optimization_logs失败: ${e.message}`));
         
         // 修夌3: 将超过30天的旧失败事件标记为invalid_legacy
         const legacyResult = await database.execute(sql`
@@ -708,7 +717,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
             AND action_type NOT IN ('bid_increase', 'bid_decrease')
         `);
         const legacyFixed = (legacyResult as any)[0]?.affectedRows || 0;
-        console.log(`[PostDeployOptimizer] v203: 标记${legacyFixed}个超过30天的旧失败事件为invalid_legacy`);
+        log.warn(`[PostDeployOptimizer] v203: 标记${legacyFixed}个超过30天的旧失败事件为invalid_legacy`);
         
         // 修复4: 将所有target_enable/target_pause中超过7天的失败事件标记为invalid_legacy
         const targetResult = await database.execute(sql`
@@ -720,7 +729,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
             AND created_at < DATE_SUB(NOW(), INTERVAL 7 DAY)
         `);
         const targetFixed = (targetResult as any)[0]?.affectedRows || 0;
-        console.log(`[PostDeployOptimizer] v203: 标记${targetFixed}个超过7天的target状态变更失败事件为invalid_legacy`);
+        log.warn(`[PostDeployOptimizer] v203: 标记${targetFixed}个超过7天的target状态变更失败事件为invalid_legacy`);
         
         // 修复5: 将所有placement_adjust/bid_auto_adjust中的失败事件标记为invalid_legacy
         const miscResult = await database.execute(sql`
@@ -731,10 +740,10 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
             AND api_sync_status = 'failed'
         `);
         const miscFixed = (miscResult as any)[0]?.affectedRows || 0;
-        console.log(`[PostDeployOptimizer] v203: 标记${miscFixed}个无重试机制的失败事件为invalid_legacy`);
+        log.warn(`[PostDeployOptimizer] v203: 标记${miscFixed}个无重试机制的失败事件为invalid_legacy`);
       }
     } catch (migrationErr: any) {
-      console.error(`[PostDeployOptimizer] v203: 数据迁移失败: ${migrationErr.message}`);
+      log.error(`[PostDeployOptimizer] v203: 数据迁移失败: ${migrationErr.message}`);
     }
   }
   
@@ -743,19 +752,19 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
   const affectedModules = mergeAffectedModules(versionsToApply);
   const correctionActions = mergeCorrectionActions(versionsToApply);
   
-  console.log(`[PostDeployOptimizer] 需要应用 ${versionsToApply.length} 个版本变更:`);
+  log.info(`[PostDeployOptimizer] 需要应用 ${versionsToApply.length} 个版本变更:`);
   for (const v of versionsToApply) {
-    console.log(`  - v${v.version}: ${v.description}`);
+    log.debug(`  - v${v.version}: ${v.description}`);
   }
-  console.log(`[PostDeployOptimizer] 受影响模块: ${affectedModules.join(', ')}`);
-  console.log(`[PostDeployOptimizer] 纠正动作: ${correctionActions.join(', ')}`);
+  log.debug(`[PostDeployOptimizer] 受影响模块: ${affectedModules.join(', ')}`);
+  log.info(`[PostDeployOptimizer] 纠正动作: ${correctionActions.join(', ')}`);
   
   // 4. 获取所有活跃优化目标
   const { getEnabledOptimizationTargets } = await import('./optimizationTargetEngine');
   const targets = await getEnabledOptimizationTargets();
   
   if (targets.length === 0) {
-    console.log(`[PostDeployOptimizer] 没有活跃的优化目标，跳过重优化`);
+    log.info(`[PostDeployOptimizer] 没有活跃的优化目标，跳过重优化`);
     const result: PostDeployResult = {
       triggered: true,
       reason: '版本变化但无活跃目标',
@@ -775,7 +784,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
     return result;
   }
   
-  console.log(`[PostDeployOptimizer] 开始对 ${targets.length} 个活跃优化目标执行重优化...`);
+  log.info(`[PostDeployOptimizer] 开始对 ${targets.length} 个活跃优化目标执行重优化...`);
   
   // 5. 按优先级排序（最近优化过的排后面，最久没优化的排前面）
   const sortedTargets = targets.sort((a, b) => {
@@ -793,7 +802,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
     const batchNum = Math.floor(i / POST_DEPLOY_CONFIG.batchSize) + 1;
     const totalBatches = Math.ceil(sortedTargets.length / POST_DEPLOY_CONFIG.batchSize);
     
-    console.log(`[PostDeployOptimizer] 执行批次 ${batchNum}/${totalBatches} (${batch.length}个目标)...`);
+    log.info(`[PostDeployOptimizer] 执行批次 ${batchNum}/${totalBatches} (${batch.length}个目标)...`);
     
     // 批次内串行执行（避免同一账号的API并发冲突）
     for (const target of batch) {
@@ -819,7 +828,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
               duration: 0,
             };
           } else {
-            console.warn(`[PostDeployOptimizer] [${target.name}] 重试 ${retries}/${POST_DEPLOY_CONFIG.maxRetries}: ${err.message}`);
+            log.warn(`[PostDeployOptimizer] [${target.name}] 重试 ${retries}/${POST_DEPLOY_CONFIG.maxRetries}: ${err.message}`);
             await sleep(5000);
           }
         }
@@ -830,7 +839,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
         totalActions += result.optimizationActions;
         
         const statusIcon = result.status === 'success' ? '✓' : '✗';
-        console.log(`[PostDeployOptimizer] ${statusIcon} ${result.targetName}: ` +
+        log.debug(`[PostDeployOptimizer] ${statusIcon} ${result.targetName}: ` +
           `模块=${result.modulesExecuted.join(',')}, 纠正=${result.correctionsApplied}, ` +
           `优化=${result.optimizationActions}, 耗时=${result.duration}ms` +
           (result.errors.length > 0 ? `, 错误=${result.errors.length}` : ''));
@@ -839,7 +848,7 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
     
     // 批次间等待
     if (i + POST_DEPLOY_CONFIG.batchSize < sortedTargets.length) {
-      console.log(`[PostDeployOptimizer] 批次间等待 ${POST_DEPLOY_CONFIG.batchDelayMs / 1000}秒...`);
+      log.debug(`[PostDeployOptimizer] 批次间等待 ${POST_DEPLOY_CONFIG.batchDelayMs / 1000}秒...`);
       await sleep(POST_DEPLOY_CONFIG.batchDelayMs);
     }
   }
@@ -867,13 +876,13 @@ export async function runPostDeployOptimization(): Promise<PostDeployResult> {
   // 8. 记录部署版本
   await recordDeployVersion(SYSTEM_VERSION, finalResult);
   
-  console.log(`[PostDeployOptimizer] ========================================`);
-  console.log(`[PostDeployOptimizer] 部署后重优化完成!`);
-  console.log(`[PostDeployOptimizer] 版本: v${lastVersion || 0} → v${SYSTEM_VERSION}`);
-  console.log(`[PostDeployOptimizer] 目标: ${targetResults.length}个处理, ${succeeded}个成功, ${failed}个失败`);
-  console.log(`[PostDeployOptimizer] 优化动作: ${totalActions}个`);
-  console.log(`[PostDeployOptimizer] 耗时: ${((finalResult.completedAt.getTime() - startedAt.getTime()) / 1000).toFixed(1)}秒`);
-  console.log(`[PostDeployOptimizer] ========================================`);
+  log.debug(`[PostDeployOptimizer] ========================================`);
+  log.info(`[PostDeployOptimizer] 部署后重优化完成!`);
+  log.info(`[PostDeployOptimizer] 版本: v${lastVersion || 0} → v${SYSTEM_VERSION}`);
+  log.warn(`[PostDeployOptimizer] 目标: ${targetResults.length}个处理, ${succeeded}个成功, ${failed}个失败`);
+  log.debug(`[PostDeployOptimizer] 优化动作: ${totalActions}个`);
+  log.debug(`[PostDeployOptimizer] 耗时: ${((finalResult.completedAt.getTime() - startedAt.getTime()) / 1000).toFixed(1)}秒`);
+  log.debug(`[PostDeployOptimizer] ========================================`);
   
   return finalResult;
 }
@@ -890,7 +899,7 @@ export async function forceReoptimize(
   const affectedModules = modules || ['bid', 'placement', 'dayparting', 'dayparting_budget', 'budget', 'searchterm', 'keyword', 'multidim', 'coordination'];
   const correctionActions: CorrectionAction[] = ['rebuild_combo_analysis', 'full_reoptimize'];
   
-  console.log(`[PostDeployOptimizer] 手动触发重优化, 模块: ${affectedModules.join(',')}, 目标: ${targetId || 'all'}`);
+  log.info(`[PostDeployOptimizer] 手动触发重优化, 模块: ${affectedModules.join(',')}, 目标: ${targetId || 'all'}`);
   
   const { getEnabledOptimizationTargets } = await import('./optimizationTargetEngine');
   let targets = await getEnabledOptimizationTargets();

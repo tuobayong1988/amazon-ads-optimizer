@@ -39,6 +39,9 @@ import { registerActiveTask, unregisterActiveTask, isShuttingDown } from "./depl
 import { decideTargeting } from "./services/targetingAlgorithm";
 import type { SearchTermPerformance, TargetingDecision } from "./services/targetingAlgorithm";
 import { sanitizeAndValidateKeyword, canAddPositiveKeyword, isAsinSearchTerm, adGroupHasProductTargets } from "./utils/keywordValidator";
+import { createModuleLogger } from './utils/logger';
+
+const log = createModuleLogger('TargetEngine');
 
 // 缓存账号站点信息，避免重复查询
 const marketplaceCache = new Map<number, string>();
@@ -245,9 +248,9 @@ export async function getOptimizationTargetConfig(targetId: number): Promise<Opt
     
     // 根据生命周期阶段调整安全参数
     config.maxBidChangePercent = lifecycle.config.bid.maxAdjustmentPercent;
-    console.log(`[OptimizationTargetConfig] 目标 ${group.name} 生命周期: ${lifecycle.overallStage} (${lifecycle.summary})`);
+    log.debug(`[OptimizationTargetConfig] 目标 ${group.name} 生命周期: ${lifecycle.overallStage} (${lifecycle.summary})`);
   } catch (lcErr: any) {
-    console.error(`[OptimizationTargetConfig] 生命周期查询失败: ${lcErr.message}`);
+    log.error(`[OptimizationTargetConfig] 生命周期查询失败: ${lcErr.message}`);
   }
   
   return config;
@@ -320,7 +323,7 @@ export async function executeOptimizationTarget(
   
   // v143: 记录生命周期阶段信息
   if (config.lifecycleStage) {
-    console.log(`[OptimizationTarget] 目标 ${config.name} 当前生命周期: ${config.lifecycleStage} | 出价调整上限: ±${config.maxBidChangePercent}% | ${config.lifecycleSummary}`);
+    log.debug(`[OptimizationTarget] 目标 ${config.name} 当前生命周期: ${config.lifecycleStage} | 出价调整上限: ±${config.maxBidChangePercent}% | ${config.lifecycleSummary}`);
   }
   
   // v162: 执行前安全护栏检查
@@ -328,11 +331,11 @@ export async function executeOptimizationTarget(
     const safetyCheck = await preOptimizationSafetyCheck(config.accountId, targetId);
     if (!safetyCheck.safe) {
       result.warnings.push(...safetyCheck.warnings);
-      console.warn(`[OptimizationTarget] v162 安全护栏触发: ${safetyCheck.warnings.join('; ')}`);
+      log.warn(`[OptimizationTarget] v162 安全护栏触发: ${safetyCheck.warnings.join('; ')}`);
       // 紧急制动时不完全阻止执行，但记录警告并降低调整幅度
     }
   } catch (safetyErr: any) {
-    console.log(`[OptimizationTarget] v162 安全检查异常，继续执行: ${safetyErr.message}`);
+    log.warn(`[OptimizationTarget] v162 安全检查异常，继续执行: ${safetyErr.message}`);
   }
   
   // v164: 自我进化周期 - 在每次优化执行前自动评估上一轮优化效果并学习
@@ -344,7 +347,7 @@ export async function executeOptimizationTarget(
       targetId, config.userId, config.accountId, config.strategyTemplateId
     );
     if (evolutionReport) {
-      console.log(`[OptimizationTarget] v164 进化周期完成: 评估${evolutionReport.totalActionsEvaluated}个动作, ` +
+      log.info(`[OptimizationTarget] v164 进化周期完成: 评估${evolutionReport.totalActionsEvaluated}个动作, ` +
         `正面${evolutionReport.positiveActions}, 负面${evolutionReport.negativeActions}, ` +
         `纠错${evolutionReport.correctionsExecuted}个, 趋势: ${evolutionReport.improvementTrend}`);
       if (evolutionReport.correctionsExecuted > 0) {
@@ -355,12 +358,12 @@ export async function executeOptimizationTarget(
     // 获取自适应优化参数（根据历史成功率动态调整）
     adaptiveParams = await selfEvolution.getAdaptiveOptimizationParams(targetId, config.strategyTemplateId);
     if (adaptiveParams) {
-      console.log(`[OptimizationTarget] v164 自适应参数: 最大出价提升${Math.round(adaptiveParams.maxBidIncrease * 100)}%, ` +
+      log.debug(`[OptimizationTarget] v164 自适应参数: 最大出价提升${Math.round(adaptiveParams.maxBidIncrease * 100)}%, ` +
         `最大出价降低${Math.round(adaptiveParams.maxBidDecrease * 100)}%, ` +
         `成功率${Math.round(adaptiveParams.recentSuccessRate * 100)}%`);
     }
   } catch (evoErr: any) {
-    console.log(`[OptimizationTarget] v164 自我进化异常，继续执行: ${evoErr.message}`);
+    log.warn(`[OptimizationTarget] v164 自我进化异常，继续执行: ${evoErr.message}`);
   }
   
   // 获取优化目标下的所有广告活动
@@ -377,7 +380,7 @@ export async function executeOptimizationTarget(
   const campaigns = allCampaigns.filter(c => (c as any).campaignStatus === 'enabled');
   const skippedCampaigns = allCampaigns.length - campaigns.length;
   if (skippedCampaigns > 0) {
-    console.log(`[OptimizationTarget] v156: 跳过${skippedCampaigns}个非enabled状态的campaign (总${allCampaigns.length}个, enabled=${campaigns.length}个)`);
+    log.info(`[OptimizationTarget] v156: 跳过${skippedCampaigns}个非enabled状态的campaign (总${allCampaigns.length}个, enabled=${campaigns.length}个)`);
     result.warnings.push(`跳过${skippedCampaigns}个非enabled状态的campaign`);
   }
   if (campaigns.length === 0) {
@@ -393,11 +396,11 @@ export async function executeOptimizationTarget(
         try {
           await db.updatePerformanceGroup(targetId, { autoOptimize: 0 });
           const pauseMsg = `v168: 优化目标"${config.name}"已自动暂停 - 所有${allCampaigns.length}个广告活动均为暂停/归档状态，不再执行自动优化`;
-          console.log(`[OptimizationTarget] ${pauseMsg}`);
+          log.debug(`[OptimizationTarget] ${pauseMsg}`);
           result.warnings.push(pauseMsg);
           result.status = 'skipped';
         } catch (autoPauseErr: any) {
-          console.error(`[OptimizationTarget] v168: 自动暂停优化目标失败:`, autoPauseErr.message);
+          log.error(`[OptimizationTarget] v168: 自动暂停优化目标失败:`, autoPauseErr.message);
         }
       }
     }
@@ -414,13 +417,13 @@ export async function executeOptimizationTarget(
       const idResolution = await amazonIdResolver.ensureAmazonIdsReady(config.accountId);
       if (idResolution.totalMissingBefore > 0) {
         const resolvedTotal = idResolution.keywordsResolved + idResolution.keywordsCreated + idResolution.keywordsCleanedUp + idResolution.productTargetsResolved;
-        console.log(`[OptimizationTarget] Pre-Sync ID Resolution: 处理了${idResolution.totalMissingBefore}个缺失ID, 解决${resolvedTotal}个, 剩余${idResolution.totalMissingAfter}个`);
+        log.info(`[OptimizationTarget] Pre-Sync ID Resolution: 处理了${idResolution.totalMissingBefore}个缺失ID, 解决${resolvedTotal}个, 剩余${idResolution.totalMissingAfter}个`);
         if (idResolution.totalMissingAfter > 0) {
           result.warnings.push(`Pre-Sync ID Resolution: 仍有${idResolution.totalMissingAfter}个实体缺少Amazon ID`);
         }
       }
     } catch (idErr: any) {
-      console.error(`[OptimizationTarget] Pre-Sync ID Resolution异常: ${idErr.message}`);
+      log.error(`[OptimizationTarget] Pre-Sync ID Resolution异常: ${idErr.message}`);
       result.warnings.push(`Pre-Sync ID Resolution异常: ${idErr.message}`);
     }
   }
@@ -471,10 +474,10 @@ export async function executeOptimizationTarget(
         dryRun
       );
       result.multiDimensionOptimization = multiDimResults;
-      console.log(`[OptimizationTarget] 多维度优化完成: 分析${multiDimResults.campaignsAnalyzed}个campaign, 生成${multiDimResults.rulesGenerated}条规则`);
+      log.info(`[OptimizationTarget] 多维度优化完成: 分析${multiDimResults.campaignsAnalyzed}个campaign, 生成${multiDimResults.rulesGenerated}条规则`);
     } catch (error: any) {
       result.errors.push(`多维度智能优化失败: ${error.message}`);
-      console.error(`[OptimizationTarget] 多维度优化异常:`, error.message);
+      log.error(`[OptimizationTarget] 多维度优化异常:`, error.message);
     }
   }
   
@@ -494,7 +497,7 @@ export async function executeOptimizationTarget(
             lookbackDays: 30,
           }
         );
-        console.log(`[OptimizationTarget] v183 多维度组合分析完成: ${comboResults.campaignsAnalyzed}个campaign, ` +
+        log.info(`[OptimizationTarget] v183 多维度组合分析完成: ${comboResults.campaignsAnalyzed}个campaign, ` +
           `${comboResults.totalCombosFound}个组合 (黄金:${comboResults.goldenCount}, 铅石:${comboResults.leadenCount}, ` +
           `潜力:${comboResults.potentialCount}, 标准:${comboResults.standardCount})`);
         
@@ -509,7 +512,7 @@ export async function executeOptimizationTarget(
         }
       }
     } catch (error: any) {
-      console.error(`[OptimizationTarget] v183 多维度组合分析异常:`, error.message);
+      log.error(`[OptimizationTarget] v183 多维度组合分析异常:`, error.message);
       result.warnings.push(`多维度组合分析失败: ${error.message}`);
     }
   }
@@ -883,12 +886,12 @@ export async function executeOptimizationTarget(
       
       if (failedTasks.length > 0) {
         await enqueueTasks(failedTasks);
-        console.log(`[OptimizationTarget] v137: ${failedTasks.length}个失败任务已入队重试队列, batchId=${batchId}`);
+        log.warn(`[OptimizationTarget] v137: ${failedTasks.length}个失败任务已入队重试队列, batchId=${batchId}`);
         result.retryBatchId = batchId;
         result.retryTaskCount = failedTasks.length;
       }
     } catch (enqueueErr: any) {
-      console.error(`[OptimizationTarget] v137: 入队失败任务异常: ${enqueueErr.message}`);
+      log.error(`[OptimizationTarget] v137: 入队失败任务异常: ${enqueueErr.message}`);
     }
   }
   
@@ -945,9 +948,9 @@ async function executeBidOptimization(
     (bidConfig as any)._evolvedMaxChangePercent = evoParams.maxBidIncrease;
     (bidConfig as any)._evolvedMaxDecreasePercent = evoParams.maxBidDecrease;
     (bidConfig as any)._confidenceMultiplier = evoParams.confidenceMultiplier;
-    console.log(`[BidOptimization] v164: 自适应参数已注入 - 最大提升${Math.round(evoParams.maxBidIncrease * 100)}%, 最大降低${Math.round(evoParams.maxBidDecrease * 100)}%, 成功率${Math.round(evoParams.recentSuccessRate * 100)}%`);
+    log.info(`[BidOptimization] v164: 自适应参数已注入 - 最大提升${Math.round(evoParams.maxBidIncrease * 100)}%, 最大降低${Math.round(evoParams.maxBidDecrease * 100)}%, 成功率${Math.round(evoParams.recentSuccessRate * 100)}%`);
   } catch (e: any) {
-    console.log(`[BidOptimization] v164: 自适应参数获取失败，使用默认值: ${e.message}`);
+    log.warn(`[BidOptimization] v164: 自适应参数获取失败，使用默认值: ${e.message}`);
   }
   
   const currentDate = new Date();
@@ -955,8 +958,8 @@ async function executeBidOptimization(
   // CPC广告默认上限$2.00，VCPM广告默认上限$15.00
   const cpcMaxBidLimit = config.maxBid || 2.00;
   const vcpmMaxBidLimit = config.maxBid ? config.maxBid * 5 : 15.00; // VCPM出价单位是每千次展示，通常是CPC的3-10倍
-  console.log(`[BidOptimization] v165: CPC最高出价=$${cpcMaxBidLimit} | VCPM最高出价=$${vcpmMaxBidLimit} (用户设置max_bid=${config.maxBid || '未设置'})`);
-  console.log(`[BidOptimization] v165: 日预算=${config.dailyBudget || '未设置'}, 目标ACoS=${config.targetAcos || '未设置'}`);
+  log.info(`[BidOptimization] v165: CPC最高出价=$${cpcMaxBidLimit} | VCPM最高出价=$${vcpmMaxBidLimit} (用户设置max_bid=${config.maxBid || '未设置'})`);
+  log.debug(`[BidOptimization] v165: 日预算=${config.dailyBudget || '未设置'}, 目标ACoS=${config.targetAcos || '未设置'}`);
   
   for (const campaign of campaigns) {
     // v163: 获取campaign级别的90天历史每日数据，用于时间衰减加权分析
@@ -984,16 +987,16 @@ async function executeBidOptimization(
         orders: d.orders || 0,
       }));
       campaignTimeWeightedMetrics = timeDecayService.calculateTimeWeightedMetrics(dailyDataForWeighting);
-      console.log(`[BidOptimization] v163: Campaign ${campaign.id} 时间衰减加权 - 加权ACoS=${campaignTimeWeightedMetrics.weightedAcos.toFixed(1)}%, 加权ROAS=${campaignTimeWeightedMetrics.weightedRoas.toFixed(2)}, 置信度=${campaignTimeWeightedMetrics.dataQuality.confidenceLevel}, 趋势=${campaignTimeWeightedMetrics.trendSignal.direction}`);
+      log.debug(`[BidOptimization] v163: Campaign ${campaign.id} 时间衰减加权 - 加权ACoS=${campaignTimeWeightedMetrics.weightedAcos.toFixed(1)}%, 加权ROAS=${campaignTimeWeightedMetrics.weightedRoas.toFixed(2)}, 置信度=${campaignTimeWeightedMetrics.dataQuality.confidenceLevel}, 趋势=${campaignTimeWeightedMetrics.trendSignal.direction}`);
     } catch (e: any) {
-      console.log(`[BidOptimization] 获取campaign ${campaign.id} 历史数据失败: ${e.message}`);
+      log.warn(`[BidOptimization] 获取campaign ${campaign.id} 历史数据失败: ${e.message}`);
     }
     
     // v163: 安全检查 - 检测异常信号
     if (campaignTimeWeightedMetrics) {
       const safetyCheck = gradualEngine.performSafetyCheck(campaignTimeWeightedMetrics);
       if (safetyCheck.shouldPause) {
-        console.warn(`[BidOptimization] v163: Campaign ${campaign.id} 安全检查触发暂停: ${safetyCheck.reason}`);
+        log.warn(`[BidOptimization] v163: Campaign ${campaign.id} 安全检查触发暂停: ${safetyCheck.reason}`);
         details.push({
           campaignId: campaign.id,
           campaignName: campaign.campaignName,
@@ -1003,7 +1006,7 @@ async function executeBidOptimization(
         continue; // 跳过该campaign的竞价优化
       }
       if (safetyCheck.warnings.length > 0) {
-        console.log(`[BidOptimization] v163: Campaign ${campaign.id} 安全警告: ${safetyCheck.warnings.join('；')}`);
+        log.info(`[BidOptimization] v163: Campaign ${campaign.id} 安全警告: ${safetyCheck.warnings.join('；')}`);
       }
     }
     
@@ -1011,7 +1014,7 @@ async function executeBidOptimization(
     const isVcpmCampaign = (campaign as any).costType === 'vcpm';
     const maxBidLimit = isVcpmCampaign ? vcpmMaxBidLimit : cpcMaxBidLimit;
     if (isVcpmCampaign) {
-      console.log(`[BidOptimization] v165: Campaign ${campaign.id} 识别为VCPM广告，使用VCPM最高出价$${maxBidLimit}`);
+      log.info(`[BidOptimization] v165: Campaign ${campaign.id} 识别为VCPM广告，使用VCPM最高出价$${maxBidLimit}`);
     }
     
     // v122h: 收集该campaign下所有关键词，构建EnhancedOptimizationTarget
@@ -1030,7 +1033,7 @@ async function executeBidOptimization(
       if (kwLastOptimized && kwBidSyncStatus === 'pending_confirmation') {
         const hoursSinceOptimized = (Date.now() - kwLastOptimized.getTime()) / (1000 * 60 * 60);
         if (hoursSinceOptimized < 24) {
-          console.log(`[BidOptimization] v166: 跳过关键词 ${keyword.id} "${keyword.keywordText}" - 冷却期内(${hoursSinceOptimized.toFixed(1)}h), 出价待确认 pending=$${(keyword as any).pendingBid}`);
+          log.info(`[BidOptimization] v166: 跳过关键词 ${keyword.id} "${keyword.keywordText}" - 冷却期内(${hoursSinceOptimized.toFixed(1)}h), 出价待确认 pending=$${(keyword as any).pendingBid}`);
           continue;
         }
       }
@@ -1188,9 +1191,9 @@ async function executeBidOptimization(
         apiSyncStatus = 'partial';
       }
       
-      console.log(`[BidOptimization] Amazon API同步: 成功=${apiSyncResult.success}, 失败=${apiSyncResult.failed}, 状态=${apiSyncStatus}`);
+      log.warn(`[BidOptimization] Amazon API同步: 成功=${apiSyncResult.success}, 失败=${apiSyncResult.failed}, 状态=${apiSyncStatus}`);
       if (apiSyncResult.errors.length > 0) {
-        console.error(`[BidOptimization] Amazon API同步错误:`, apiSyncResult.errors.join('; '));
+        log.error(`[BidOptimization] Amazon API同步错误:`, apiSyncResult.errors.join('; '));
       }
       
       // v148: API调用成功后，才更新本地数据库（先API后DB原则）
@@ -1235,16 +1238,16 @@ async function executeBidOptimization(
                   .where(eq(campaignsTable.id, cid));
               }
             });
-            console.log(`[BidOptimization] v178: 事务批量DB更新成功: ${syncedDetails.length}条出价 + campaigns.last_optimized_at已更新`);
+            log.info(`[BidOptimization] v178: 事务批量DB更新成功: ${syncedDetails.length}条出价 + campaigns.last_optimized_at已更新`);
           } catch (txErr: any) {
-            console.error(`[BidOptimization] v178: 事务DB更新失败(已回滚): ${txErr.message}`);
+            log.error(`[BidOptimization] v178: 事务DB更新失败(已回滚): ${txErr.message}`);
             // 事务失败时，所有DB更新自动回滚，保持数据一致性
           }
         }
       }
       
       for (const detail of skippedDetails) {
-        console.warn(`[BidOptimization] v148: API同步失败，跳过DB更新: targetId=${detail.keywordId}`);
+        log.warn(`[BidOptimization] v148: API同步失败，跳过DB更新: targetId=${detail.keywordId}`);
       }
       
       // v166: 注册优化后验证任务 - 延迟45秒后从 Amazon 回查确认
@@ -1261,17 +1264,17 @@ async function executeBidOptimization(
               isProductTarget: d.isProductTarget || false,
             }))
           );
-          console.log(`[BidOptimization] v166: 已注册${syncedDetails.length}个出价验证任务`);
+          log.info(`[BidOptimization] v166: 已注册${syncedDetails.length}个出价验证任务`);
         } catch (verifyErr: any) {
-          console.warn(`[BidOptimization] v166: 注册验证任务失败(不影响主流程): ${verifyErr.message}`);
+          log.warn(`[BidOptimization] v166: 注册验证任务失败(不影响主流程): ${verifyErr.message}`);
         }
       }
     } catch (apiError: any) {
       apiSyncStatus = 'failed';
       apiSyncResult.errors.push(apiError.message);
-      console.error(`[BidOptimization] Amazon API同步异常:`, apiError.message);
+      log.error(`[BidOptimization] Amazon API同步异常:`, apiError.message);
       // v148: API整体异常，不更新任何本地DB记录
-      console.error(`[BidOptimization] v148: API整体异常，所有本地DB更新已跳过`);
+      log.error(`[BidOptimization] v148: API整体异常，所有本地DB更新已跳过`);
     }
   } else if (dryRun) {
     apiSyncStatus = 'pending'; // 模拟模式不同步
@@ -1326,10 +1329,10 @@ async function executePlacementOptimization(
         }
         accountComboMap.get(combo.campaignId)!.push(combo);
       }
-      console.log(`[PlacementOptimization] v183: 加载${allCombos.length}个投放词的组合分析结果`);
+      log.info(`[PlacementOptimization] v183: 加载${allCombos.length}个投放词的组合分析结果`);
     }
   } catch (comboErr: any) {
-    console.log(`[PlacementOptimization] v183: 加载组合分析结果失败: ${comboErr.message}`);
+    log.warn(`[PlacementOptimization] v183: 加载组合分析结果失败: ${comboErr.message}`);
   }
 
   for (const campaign of campaigns) {
@@ -1425,7 +1428,7 @@ async function executePlacementOptimization(
           }
         } catch (apiError: any) {
           placementSyncError = apiError.message;
-          console.error(`[PlacementOptimization] Amazon API同步失败 (Campaign ${campaign.campaignName}):`, apiError.message);
+          log.error(`[PlacementOptimization] Amazon API同步失败 (Campaign ${campaign.campaignName}):`, apiError.message);
         }
         
         // v134: 将同步状态回写到该campaign的所有detail中
@@ -1451,7 +1454,7 @@ async function executePlacementOptimization(
               }]
             );
           } catch (verifyErr: any) {
-            console.warn(`[PlacementOptimization] v166: 注册验证任务失败(不影响主流程): ${verifyErr.message}`);
+            log.warn(`[PlacementOptimization] v166: 注册验证任务失败(不影响主流程): ${verifyErr.message}`);
           }
         }
       }
@@ -1495,10 +1498,10 @@ async function executeDaypartingOptimization(
           comboAnalysisMap.set(combo.keywordId, combo);
         }
       }
-      console.log(`[DaypartingOptimization] v183: 加载${comboAnalysisMap.size}个投放词的多维度组合分析结果`);
+      log.info(`[DaypartingOptimization] v183: 加载${comboAnalysisMap.size}个投放词的多维度组合分析结果`);
     }
   } catch (comboErr: any) {
-    console.log(`[DaypartingOptimization] v183: 加载组合分析结果失败，使用统一乘数: ${comboErr.message}`);
+    log.warn(`[DaypartingOptimization] v183: 加载组合分析结果失败，使用统一乘数: ${comboErr.message}`);
   }
   
   // v183: 最高出价红线
@@ -1644,7 +1647,7 @@ async function executeDaypartingOptimization(
           } catch (apiError: any) {
             adjustment.apiSyncStatus = 'failed';
             adjustment.apiSyncDetail = JSON.stringify({ error: apiError.message });
-            console.error(`[DaypartingOptimization] API同步失败 (kw ${keyword.keywordText}):`, apiError.message);
+            log.error(`[DaypartingOptimization] API同步失败 (kw ${keyword.keywordText}):`, apiError.message);
           }
         }
       }
@@ -1701,14 +1704,14 @@ async function executeDaypartingBudgetOptimization(
           dbConn, config.accountId, campaign.id
         );
         if (Math.abs(comboBudgetMultiplier - 1.0) > 0.001) {
-          console.log(`[DaypartingBudget] v183.1: Campaign ${campaign.campaignName} 组合分析预算乘数: ${comboBudgetMultiplier.toFixed(3)}`);
+          log.debug(`[DaypartingBudget] v183.1: Campaign ${campaign.campaignName} 组合分析预算乘数: ${comboBudgetMultiplier.toFixed(3)}`);
           // 叠加乘数: 分时预算乘数 × 组合分析预算乘数
           budgetMultiplier = budgetMultiplier * comboBudgetMultiplier;
           // 安全护栏: 最终乘数限制在 0.80 ~ 1.30 之间
           budgetMultiplier = Math.max(0.80, Math.min(1.30, budgetMultiplier));
         }
       } catch (comboErr: any) {
-        console.warn(`[DaypartingBudget] v183.1: 获取组合分析预算乘数失败: ${comboErr.message}`);
+        log.warn(`[DaypartingBudget] v183.1: 获取组合分析预算乘数失败: ${comboErr.message}`);
       }
       
       // 如果倍数接近1.0，跳过调整
@@ -1775,18 +1778,18 @@ async function executeDaypartingBudgetOptimization(
                 dpExecStatus: 'success',
               });
             } catch (logErr: any) {
-              console.warn(`[DaypartingBudget] 日志记录失败: ${logErr.message}`);
+              log.warn(`[DaypartingBudget] 日志记录失败: ${logErr.message}`);
             }
             
-            console.log(`[DaypartingBudget] v179: ${campaign.campaignName} 预算调整 $${currentBudget.toFixed(2)} \u2192 $${adjustedBudget.toFixed(2)} (星期${currentDayOfWeek}, 倍数${budgetMultiplier}x)`);
+            log.debug(`[DaypartingBudget] v179: ${campaign.campaignName} 预算调整 $${currentBudget.toFixed(2)} \u2192 $${adjustedBudget.toFixed(2)} (星期${currentDayOfWeek}, 倍数${budgetMultiplier}x)`);
           } else {
             adjustment.apiSyncStatus = 'failed';
-            console.warn(`[DaypartingBudget] v179: API同步失败 (Campaign ${campaign.campaignName})`);
+            log.warn(`[DaypartingBudget] v179: API同步失败 (Campaign ${campaign.campaignName})`);
           }
         } catch (apiError: any) {
           adjustment.apiSyncStatus = 'failed';
           adjustment.apiSyncDetail = JSON.stringify({ error: apiError.message });
-          console.error(`[DaypartingBudget] v179: API同步异常 (Campaign ${campaign.campaignName}):`, apiError.message);
+          log.error(`[DaypartingBudget] v179: API同步异常 (Campaign ${campaign.campaignName}):`, apiError.message);
         }
       }
     } catch (error: any) {
@@ -1810,7 +1813,7 @@ async function executeDaypartingBudgetOptimization(
         }
       }
     } catch (updateErr: any) {
-      console.warn(`[DaypartingBudget] 更新lastAppliedAt失败: ${updateErr.message}`);
+      log.warn(`[DaypartingBudget] 更新lastAppliedAt失败: ${updateErr.message}`);
     }
   }
   
@@ -1852,7 +1855,7 @@ async function executeSearchTermAnalysis(
         targetAcos: targetAcos,
       }));
       
-      console.log(`[SearchTermAnalysis] v191: Campaign "${campaign.campaignName}" (${campaignTargetingType}): ${searchTermPerformanceList.length}个搜索词待分析`);
+      log.debug(`[SearchTermAnalysis] v191: Campaign "${campaign.campaignName}" (${campaignTargetingType}): ${searchTermPerformanceList.length}个搜索词待分析`);
       
       // v122h: 获取品牌词用于保护
       const account = await db.getAdAccountById(config.accountId);
@@ -1912,9 +1915,9 @@ async function executeSearchTermAnalysis(
               if (exactValidation.isValid) {
                 negMatchType = 'negative_exact';
                 cleanedNegText = exactValidation.sanitizedText;
-                console.log(`[SearchTermAnalysis] v204: 否定短语"${decision.targetValue}"超过4词限制，自动升级为negative_exact`);
+                log.debug(`[SearchTermAnalysis] v204: 否定短语"${decision.targetValue}"超过4词限制，自动升级为negative_exact`);
               } else {
-                console.log(`[SearchTermAnalysis] v204: 否定词预验证失败(升级后仍无效): "${decision.targetValue}" → ${exactValidation.reasonMessage}`);
+                log.warn(`[SearchTermAnalysis] v204: 否定词预验证失败(升级后仍无效): "${decision.targetValue}" → ${exactValidation.reasonMessage}`);
                 details.push({
                   campaignId: campaign.id,
                   campaignName: campaign.campaignName,
@@ -1925,7 +1928,7 @@ async function executeSearchTermAnalysis(
                 continue;
               }
             } else {
-              console.log(`[SearchTermAnalysis] v204: 否定词预验证失败: "${decision.targetValue}" → ${negValidation.reasonMessage}`);
+              log.warn(`[SearchTermAnalysis] v204: 否定词预验证失败: "${decision.targetValue}" → ${negValidation.reasonMessage}`);
               details.push({
                 campaignId: campaign.id,
                 campaignName: campaign.campaignName,
@@ -1953,7 +1956,7 @@ async function executeSearchTermAnalysis(
                 .limit(1);
               if (existingNeg.length > 0) {
                 negativeAlreadyExists = true;
-                console.log(`[SearchTermAnalysis] v170: 否定关键词已存在，跳过: "${cleanedNegText}" campaignId=${campaign.id}`);
+                log.info(`[SearchTermAnalysis] v170: 否定关键词已存在，跳过: "${cleanedNegText}" campaignId=${campaign.id}`);
               }
             }
           }
@@ -1993,13 +1996,13 @@ async function executeSearchTermAnalysis(
         else if (decision.action === 'CREATE_KEYWORD') {
           // v191: 自动广告活动不能添加正面关键词（已在算法层拦截，这里双重保险）
           if (!canAddPositiveKeyword(campaignTargetingType)) {
-            console.log(`[SearchTermAnalysis] v191: 自动广告活动不能添加正面关键词，跳过: "${decision.targetValue}"`);
+            log.info(`[SearchTermAnalysis] v191: 自动广告活动不能添加正面关键词，跳过: "${decision.targetValue}"`);
             continue;
           }
           
           // v194: ASIN格式的搜索词不应该作为keyword创建，重定向到product target
           if (isAsinSearchTerm(decision.targetValue)) {
-            console.log(`[SearchTermAnalysis] v194: ASIN搜索词"${decision.targetValue}"重定向为product target`);
+            log.debug(`[SearchTermAnalysis] v194: ASIN搜索词"${decision.targetValue}"重定向为product target`);
             const ptBid = decision.suggestedBid || 0.50;
             details.push({
               accountId: config.accountId,
@@ -2021,7 +2024,7 @@ async function executeSearchTermAnalysis(
           // v204: 正面关键词预验证 — 在入队前清洗特殊字符并检查Amazon限制
           const posValidation = sanitizeAndValidateKeyword(decision.targetValue, 'positive');
           if (!posValidation.isValid) {
-            console.log(`[SearchTermAnalysis] v204: 正面关键词预验证失败: "${decision.targetValue}" → ${posValidation.reasonMessage}`);
+            log.warn(`[SearchTermAnalysis] v204: 正面关键词预验证失败: "${decision.targetValue}" → ${posValidation.reasonMessage}`);
             details.push({
               campaignId: campaign.id,
               campaignName: campaign.campaignName,
@@ -2068,12 +2071,12 @@ async function executeSearchTermAnalysis(
                 try {
                   const hasProductTargets = await adGroupHasProductTargets(adGroup.id);
                   if (hasProductTargets) {
-                    console.log(`[SearchTermAnalysis] v194: 广告组已有product targets，不能添加keyword，跳过: "${decision.targetValue}"`);
+                    log.info(`[SearchTermAnalysis] v194: 广告组已有product targets，不能添加keyword，跳过: "${decision.targetValue}"`);
                     newKeyword.apiSyncStatus = 'skipped_pt_adgroup';
                     continue;
                   }
                 } catch (ptCheckErr: any) {
-                  console.warn(`[SearchTermAnalysis] v194: 检查product targets失败: ${ptCheckErr.message}`);
+                  log.warn(`[SearchTermAnalysis] v194: 检查product targets失败: ${ptCheckErr.message}`);
                 }
                 
                 // v168: 增强去重检查
@@ -2096,16 +2099,16 @@ async function executeSearchTermAnalysis(
                     for (const dup of toDelete) {
                       try {
                         await dbInstance.delete(keywords).where(eqOp(keywords.id, dup.id));
-                        console.log(`[SearchTermAnalysis] 清理重复关键词: id=${dup.id} "${decision.targetValue}"`);
+                        log.debug(`[SearchTermAnalysis] 清理重复关键词: id=${dup.id} "${decision.targetValue}"`);
                       } catch (delErr: any) {
-                        console.warn(`[SearchTermAnalysis] 清理重复关键词失败: id=${dup.id}: ${delErr.message}`);
+                        log.warn(`[SearchTermAnalysis] 清理重复关键词失败: id=${dup.id}: ${delErr.message}`);
                       }
                     }
                   }
                   const existingMatchTypes = existingKeywords.map(k => k.matchType || 'unknown').join(',');
                   newKeyword.apiSyncStatus = 'already_exists';
                   newKeyword.apiSyncDetail = JSON.stringify({ existingId: existingKeywords[0].id, existingKeywordId: existingKeywords[0].keywordId, existingMatchTypes });
-                  console.log(`[SearchTermAnalysis] v168: 关键词已存在，跳过: "${decision.targetValue}" (请求=${matchType}, 已存在=${existingMatchTypes})`);
+                  log.info(`[SearchTermAnalysis] v168: 关键词已存在，跳过: "${decision.targetValue}" (请求=${matchType}, 已存在=${existingMatchTypes})`);
                 } else {
                   // v191: 使用算法建议的出价而非固定$0.50
                   const insertResult = await dbInstance.insert(keywords).values({
@@ -2134,19 +2137,19 @@ async function executeSearchTermAnalysis(
                       );
                       if (apiResult.success > 0) {
                         newKeyword.apiSyncStatus = 'synced';
-                        console.log(`[SearchTermAnalysis] v191: 新关键词[${matchType}]已同步: "${decision.targetValue}" bid=$${bid}`);
+                        log.info(`[SearchTermAnalysis] v191: 新关键词[${matchType}]已同步: "${decision.targetValue}" bid=$${bid}`);
                       } else {
                         newKeyword.apiSyncStatus = 'failed';
                         newKeyword.apiSyncDetail = JSON.stringify({ errors: apiResult.errors });
-                        console.error(`[SearchTermAnalysis] 新关键词同步失败: "${decision.targetValue}" - ${apiResult.errors.join('; ')}`);
+                        log.error(`[SearchTermAnalysis] 新关键词同步失败: "${decision.targetValue}" - ${apiResult.errors.join('; ')}`);
                       }
                     } catch (apiError: any) {
                       newKeyword.apiSyncStatus = 'failed';
                       newKeyword.apiSyncDetail = JSON.stringify({ error: apiError.message });
-                      console.error(`[SearchTermAnalysis] 新关键词API异常: "${decision.targetValue}" -`, apiError.message);
+                      log.error(`[SearchTermAnalysis] 新关键词API异常: "${decision.targetValue}" -`, apiError.message);
                     }
                   } else {
-                    console.warn(`[SearchTermAnalysis] 缺少Amazon ID，无法同步: adGroupId=${amazonAdGroupId}, campaignId=${amazonCampaignId}`);
+                    log.warn(`[SearchTermAnalysis] 缺少Amazon ID，无法同步: adGroupId=${amazonAdGroupId}, campaignId=${amazonCampaignId}`);
                   }
                 }
               }
@@ -2181,7 +2184,7 @@ async function executeSearchTermAnalysis(
           details.push(newTarget);
           // v191: ASIN商品定向的Amazon API同步将在后续版本实现
           // 当前先记录决策，不执行API调用
-          console.log(`[SearchTermAnalysis] v191: ASIN定向决策[${ptType}]: "${decision.targetValue}" bid=$${bid} (${decision.reason})`);
+          log.debug(`[SearchTermAnalysis] v191: ASIN定向决策[${ptType}]: "${decision.targetValue}" bid=$${bid} (${decision.reason})`);
         }
       }
       // v134: 同步否定关键词到 Amazon API，并记录同步状态
@@ -2209,7 +2212,7 @@ async function executeSearchTermAnalysis(
                 d.apiSyncDetail = JSON.stringify({ errors: negSyncResult.errors });
               }
             }
-            console.log(`[SearchTermAnalysis] Amazon API同步: ${negativeDetails.length}个否定词, 状态=${negSyncStatus} (Campaign ${campaign.campaignName})`);
+            log.info(`[SearchTermAnalysis] Amazon API同步: ${negativeDetails.length}个否定词, 状态=${negSyncStatus} (Campaign ${campaign.campaignName})`);
             
             // v165: API成功后才写入本地DB（先API后DB原则）
             if (negSyncStatus === 'synced' || negSyncStatus === 'partial') {
@@ -2233,12 +2236,12 @@ async function executeSearchTermAnalysis(
                             AND amazon_negative_keyword_id IS NULL
                           LIMIT 1
                         `);
-                        console.log(`[SearchTermAnalysis] v195: 否词ID回写成功: "${d.searchTerm}" -> ${amazonNegId}`);
+                        log.info(`[SearchTermAnalysis] v195: 否词ID回写成功: "${d.searchTerm}" -> ${amazonNegId}`);
                       }
                       
-                      console.log(`[SearchTermAnalysis] v165: 否词DB写入成功: "${d.searchTerm}"`);
+                      log.info(`[SearchTermAnalysis] v165: 否词DB写入成功: "${d.searchTerm}"`);
                     } catch (dbErr: any) {
-                      console.error(`[SearchTermAnalysis] v165: 否词DB写入失败: "${d.searchTerm}" - ${dbErr.message}`);
+                      log.error(`[SearchTermAnalysis] v165: 否词DB写入失败: "${d.searchTerm}" - ${dbErr.message}`);
                     }
                   }
                 }
@@ -2259,17 +2262,17 @@ async function executeSearchTermAnalysis(
                   );
                 }
               } catch (verifyErr: any) {
-                console.warn(`[SearchTermAnalysis] v166: 注册验证任务失败(不影响主流程): ${verifyErr.message}`);
+                log.warn(`[SearchTermAnalysis] v166: 注册验证任务失败(不影响主流程): ${verifyErr.message}`);
               }
             } else {
-              console.warn(`[SearchTermAnalysis] v165: API同步失败，跳过本地DB写入 (Campaign ${campaign.campaignName})`);
+              log.warn(`[SearchTermAnalysis] v165: API同步失败，跳过本地DB写入 (Campaign ${campaign.campaignName})`);
             }
           } catch (apiError: any) {
             for (const d of negativeDetails) {
               d.apiSyncStatus = 'failed';
               d.apiSyncDetail = JSON.stringify({ error: apiError.message });
             }
-            console.error(`[SearchTermAnalysis] Amazon API同步失败，未写入本地DB (Campaign ${campaign.campaignName}):`, apiError.message);
+            log.error(`[SearchTermAnalysis] Amazon API同步失败，未写入本地DB (Campaign ${campaign.campaignName}):`, apiError.message);
           }
         }
       }
@@ -2317,7 +2320,7 @@ async function executeBudgetAllocation(
           twMetrics
         );
         finalBudget = gradualResult.gradualBudget;
-        console.log(`[BudgetAllocation] v163: 渐进式预算 - Campaign ${campaign.campaignName}: $${suggestion.currentBudget.toFixed(0)}→$${finalBudget.toFixed(0)} (算法目标$${suggestion.suggestedBudget.toFixed(0)}, 订单保护=${gradualResult.orderProtectionActive})`);
+        log.debug(`[BudgetAllocation] v163: 渐进式预算 - Campaign ${campaign.campaignName}: $${suggestion.currentBudget.toFixed(0)}→$${finalBudget.toFixed(0)} (算法目标$${suggestion.suggestedBudget.toFixed(0)}, 订单保护=${gradualResult.orderProtectionActive})`);
       }
       
       const adjustment: any = {
@@ -2376,18 +2379,18 @@ async function executeBudgetAllocation(
                 }]
               );
             } catch (verifyErr: any) {
-              console.warn(`[BudgetAllocation] v166: 注册验证任务失败(不影响主流程): ${verifyErr.message}`);
+              log.warn(`[BudgetAllocation] v166: 注册验证任务失败(不影响主流程): ${verifyErr.message}`);
             }
           } else {
             // API返回false，不更新本地DB
             adjustment.apiSyncStatus = 'failed';
-            console.warn(`[BudgetAllocation] v148: API同步失败，跳过DB更新 (Campaign ${campaign.campaignName})`);
+            log.warn(`[BudgetAllocation] v148: API同步失败，跳过DB更新 (Campaign ${campaign.campaignName})`);
           }
         } catch (apiError: any) {
           // API异常，不更新本地DB，保持数据一致性
           adjustment.apiSyncStatus = 'failed';
           adjustment.apiSyncDetail = JSON.stringify({ error: apiError.message });
-          console.error(`[BudgetAllocation] v148: API同步失败，跳过DB更新 (Campaign ${campaign.campaignName}):`, apiError.message);
+          log.error(`[BudgetAllocation] v148: API同步失败，跳过DB更新 (Campaign ${campaign.campaignName}):`, apiError.message);
         }
       }
     }
@@ -2466,7 +2469,7 @@ async function executeKeywordStatusChanges(
           campaignTWMetrics = timeDecayService.calculateTimeWeightedMetrics(dailyDataForWeighting);
         }
       } catch (e: any) {
-        console.log(`[KeywordStatus] v163: Campaign ${campaign.id} 时间衰减数据获取失败: ${e.message}`);
+        log.warn(`[KeywordStatus] v163: Campaign ${campaign.id} 时间衰减数据获取失败: ${e.message}`);
       }
       
       // 获取广告活动下的所有关键词
@@ -2627,19 +2630,19 @@ async function executeKeywordStatusChanges(
                     config.accountId,
                     [{ localKeywordId: keyword.id, amazonKeywordId: keyword.keywordId || String(keyword.id), expectedState: 'paused', adGroupId: keyword.adGroupId }]
                   );
-                } catch (ve: any) { console.warn(`[KeywordStatusChange] v166: 验证任务注册失败: ${ve.message}`); }
+                } catch (ve: any) { log.warn(`[KeywordStatusChange] v166: 验证任务注册失败: ${ve.message}`); }
               } else {
                 // API失败，不更新本地DB
                 action.apiSyncStatus = 'failed';
                 if (syncResult.errors.length > 0) {
                   action.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
                 }
-                console.warn(`[KeywordStatusChange] v148: API同步失败，跳过DB更新 (暂停 ${keyword.keywordText})`);
+                log.warn(`[KeywordStatusChange] v148: API同步失败，跳过DB更新 (暂停 ${keyword.keywordText})`);
               }
             } catch (apiError: any) {
               action.apiSyncStatus = 'failed';
               action.apiSyncDetail = JSON.stringify({ error: apiError.message });
-              console.error(`[KeywordStatusChange] v148: API同步失败，跳过DB更新 (暂停 ${keyword.keywordText}):`, apiError.message);
+              log.error(`[KeywordStatusChange] v148: API同步失败，跳过DB更新 (暂停 ${keyword.keywordText}):`, apiError.message);
             }
           }
         } else if (shouldEnable) {
@@ -2682,19 +2685,19 @@ async function executeKeywordStatusChanges(
                     config.accountId,
                     [{ localKeywordId: keyword.id, amazonKeywordId: keyword.keywordId || String(keyword.id), expectedState: 'enabled', adGroupId: keyword.adGroupId }]
                   );
-                } catch (ve: any) { console.warn(`[KeywordStatusChange] v166: 验证任务注册失败: ${ve.message}`); }
+                } catch (ve: any) { log.warn(`[KeywordStatusChange] v166: 验证任务注册失败: ${ve.message}`); }
               } else {
                 // API失败，不更新本地DB
                 action.apiSyncStatus = 'failed';
                 if (syncResult.errors.length > 0) {
                   action.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
                 }
-                console.warn(`[KeywordStatusChange] v148: API同步失败，跳过DB更新 (启用 ${keyword.keywordText})`);
+                log.warn(`[KeywordStatusChange] v148: API同步失败，跳过DB更新 (启用 ${keyword.keywordText})`);
               }
             } catch (apiError: any) {
               action.apiSyncStatus = 'failed';
               action.apiSyncDetail = JSON.stringify({ error: apiError.message });
-              console.error(`[KeywordStatusChange] v148: API同步失败，跳过DB更新 (启用 ${keyword.keywordText}):`, apiError.message);
+              log.error(`[KeywordStatusChange] v148: API同步失败，跳过DB更新 (启用 ${keyword.keywordText}):`, apiError.message);
             }
           }
         }
@@ -2760,7 +2763,7 @@ async function executeCampaignStatusChanges(
           campaignTWMetrics = timeDecayService.calculateTimeWeightedMetrics(dailyDataForWeighting);
         }
       } catch (e: any) {
-        console.log(`[CampaignStatus] v163: Campaign ${campaign.id} 时间衰减数据获取失败: ${e.message}`);
+        log.warn(`[CampaignStatus] v163: Campaign ${campaign.id} 时间衰减数据获取失败: ${e.message}`);
       }
       
       // v163: 优先使用时间衰减加权数据，而非简单汇总
@@ -2851,12 +2854,12 @@ async function executeCampaignStatusChanges(
               if (syncResult.errors.length > 0) {
                 action.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
               }
-              console.warn(`[CampaignStatusChange] v148: API同步失败，跳过DB更新 (暂停 ${campaign.campaignName})`);
+              log.warn(`[CampaignStatusChange] v148: API同步失败，跳过DB更新 (暂停 ${campaign.campaignName})`);
             }
           } catch (apiError: any) {
             action.apiSyncStatus = 'failed';
             action.apiSyncDetail = JSON.stringify({ error: apiError.message });
-            console.error(`[CampaignStatusChange] v148: API同步失败，跳过DB更新 (暂停 ${campaign.campaignName}):`, apiError.message);
+            log.error(`[CampaignStatusChange] v148: API同步失败，跳过DB更新 (暂停 ${campaign.campaignName}):`, apiError.message);
           }
         }
       } else if (shouldEnable) {
@@ -2901,12 +2904,12 @@ async function executeCampaignStatusChanges(
               if (syncResult.errors.length > 0) {
                 action.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
               }
-              console.warn(`[CampaignStatusChange] v148: API同步失败，跳过DB更新 (启用 ${campaign.campaignName})`);
+              log.warn(`[CampaignStatusChange] v148: API同步失败，跳过DB更新 (启用 ${campaign.campaignName})`);
             }
           } catch (apiError: any) {
             action.apiSyncStatus = 'failed';
             action.apiSyncDetail = JSON.stringify({ error: apiError.message });
-            console.error(`[CampaignStatusChange] v148: API同步失败，跳过DB更新 (启用 ${campaign.campaignName}):`, apiError.message);
+            log.error(`[CampaignStatusChange] v148: API同步失败，跳过DB更新 (启用 ${campaign.campaignName}):`, apiError.message);
           }
         }
       }
@@ -3199,7 +3202,7 @@ async function executeBidCoordination(
       
       // 7. 如果不是干运行且有实际调整，记录日志
       if (!dryRun && coordinatedResult.finalBaseBid !== coordinatedResult.originalBaseBid) {
-        console.log(`[BidCoordination] 广告活动 ${campaign.campaign.campaignName} 价协调完成:`, {
+        log.info(`[BidCoordination] 广告活动 ${campaign.campaign.campaignName} 价协调完成:`, {
           original: coordinatedResult.originalBaseBid,
           final: coordinatedResult.finalBaseBid,
           maxCPC: coordinatedResult.theoreticalMaxCPC,
@@ -3231,7 +3234,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
     
     // v140: 记录出价调整日志（每条日志使用该条目自身的同步状态）
     if (result.bidOptimization.executed && result.bidOptimization.adjustmentsCount > 0) {
-      console.log(`[recordExecutionLog] v140: 出价调整日志: details=${result.bidOptimization.details.length}`);
+      log.debug(`[recordExecutionLog] v140: 出价调整日志: details=${result.bidOptimization.details.length}`);
       
       for (const detail of result.bidOptimization.details) {
         // v140: 使用每条调整的独立同步状态（synced/failed/pending）
@@ -3272,7 +3275,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
             executedAt: now,
           });
         } catch (insertError: any) {
-          console.error(`[recordExecutionLog] 出价日志写入失败: ${insertError.message}`, { keywordId: detail.keywordId, itemSyncStatus });
+          log.error(`[recordExecutionLog] 出价日志写入失败: ${insertError.message}`, { keywordId: detail.keywordId, itemSyncStatus });
         }
       }
     }
@@ -3490,7 +3493,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
       await dbInstance.update(performanceGroups)
         .set({ lastOptimizationAt: new Date() } as any)
         .where(eqOp(performanceGroups.id, result.targetId));
-      console.log(`[OptimizationTargetEngine] 已更新 last_optimization_at: targetId=${result.targetId}`);
+      log.info(`[OptimizationTargetEngine] 已更新 last_optimization_at: targetId=${result.targetId}`);
     } catch (updateErr: any) {
       // 如果Drizzle ORM的casing映射有问题，使用mysql2直接更新
       try {
@@ -3503,14 +3506,14 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
             [result.targetId]
           );
           await directConn.end();
-          console.log(`[OptimizationTargetEngine] 已通过mysql2更新 last_optimization_at: targetId=${result.targetId}`);
+          log.info(`[OptimizationTargetEngine] 已通过mysql2更新 last_optimization_at: targetId=${result.targetId}`);
         }
       } catch (directErr: any) {
-        console.error(`[OptimizationTargetEngine] 更新last_optimization_at失败: ${directErr.message}`);
+        log.error(`[OptimizationTargetEngine] 更新last_optimization_at失败: ${directErr.message}`);
       }
     }
     
-    console.log(`[OptimizationTargetEngine] 执行日志已写入数据库: ${result.targetName}`, {
+    log.info(`[OptimizationTargetEngine] 执行日志已写入数据库: ${result.targetName}`, {
       status: result.status,
       bidAdjustments: result.bidOptimization.adjustmentsCount,
       placementAdjustments: result.placementOptimization.adjustmentsCount,
@@ -3524,9 +3527,9 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
       adGroupsEnabled: result.adGroupStatusChanges.enabledCount,
     });
   } catch (error: any) {
-    console.error(`[OptimizationTargetEngine] 日志写入失败:`, error.message);
+    log.error(`[OptimizationTargetEngine] 日志写入失败:`, error.message);
     // 回退到console.log
-    console.log(`[OptimizationTargetEngine] 执行完成(日志回退): ${result.targetName}`, {
+    log.info(`[OptimizationTargetEngine] 执行完成(日志回退): ${result.targetName}`, {
       status: result.status,
       errors: result.errors.length,
     });
@@ -3571,7 +3574,7 @@ export async function executeAllEnabledTargets(
   const results: OptimizationExecutionResult[] = [];
   
   const modulesDesc = options.specificModules?.length ? options.specificModules.join(',') : 'all';
-  console.log(`[OptimizationTargetEngine] 批量执行 ${targets.length} 个优化目标, 模块: ${modulesDesc}`);
+  log.info(`[OptimizationTargetEngine] 批量执行 ${targets.length} 个优化目标, 模块: ${modulesDesc}`);
   
   for (const target of targets) {
     try {

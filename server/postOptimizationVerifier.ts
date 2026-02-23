@@ -26,6 +26,9 @@ import { getDb } from './db';
 import { keywords, campaigns, negativeKeywords } from '../drizzle/schema';
 import { eq, and, inArray } from 'drizzle-orm';
 import { getAmazonSyncService } from './services/amazonApiHelper';
+import { createModuleLogger } from './utils/logger';
+
+const log = createModuleLogger('PostOptVerifier');
 
 // ============================================================
 // 类型定义
@@ -282,7 +285,7 @@ function scheduleVerificationTask(accountId: number, items: VerificationItem[]):
   
   activeTimers.set(taskId, timer);
   
-  console.log(`[PostOptVerifier] v166: 验证任务已注册 taskId=${taskId}, accountId=${accountId}, items=${items.length}, 类型=${items[0]?.type}, 首次验证将在${VERIFICATION_DELAYS.firstAttempt}秒后执行`);
+  log.info(`v166: 验证任务已注册 taskId=${taskId}, accountId=${accountId}, items=${items.length}, 类型=${items[0]?.type}, 首次验证将在${VERIFICATION_DELAYS.firstAttempt}秒后执行`);
   
   return taskId;
 }
@@ -293,17 +296,17 @@ function scheduleVerificationTask(accountId: number, items: VerificationItem[]):
 async function executeVerificationTask(taskId: string): Promise<void> {
   const task = pendingTasks.get(taskId);
   if (!task) {
-    console.warn(`[PostOptVerifier] 任务 ${taskId} 不存在，可能已被取消`);
+    log.warn(`任务 ${taskId} 不存在，可能已被取消`);
     return;
   }
   
-  console.log(`[PostOptVerifier] v166: 开始执行验证任务 taskId=${taskId}, attempt=${task.attempt}/${task.maxAttempts}, items=${task.items.length}`);
+  log.info(`v166: 开始执行验证任务 taskId=${taskId}, attempt=${task.attempt}/${task.maxAttempts}, items=${task.items.length}`);
   
   try {
     // 获取Amazon API客户端
     const syncService = await getAmazonSyncService(task.accountId);
     if (!syncService) {
-      console.error(`[PostOptVerifier] 无法获取accountId=${task.accountId}的API客户端，跳过验证`);
+      log.error(`无法获取accountId=${task.accountId}的API客户端，跳过验证`);
       cleanupTask(taskId);
       return;
     }
@@ -324,7 +327,7 @@ async function executeVerificationTask(taskId: string): Promise<void> {
     const notFound = allResults.filter(r => r.status === 'not_found');
     const errors = allResults.filter(r => r.status === 'error');
     
-    console.log(`[PostOptVerifier] v166: 验证结果 taskId=${taskId} — 确认=${confirmed.length}, 冲突=${conflicts.length}, 未找到=${notFound.length}, 错误=${errors.length}`);
+    log.warn(`v166: 验证结果 taskId=${taskId} — 确认=${confirmed.length}, 冲突=${conflicts.length}, 未找到=${notFound.length}, 错误=${errors.length}`);
     
     // 回填确认的数据到本地数据库
     if (confirmed.length > 0) {
@@ -352,17 +355,17 @@ async function executeVerificationTask(taskId: string): Promise<void> {
       }, delay * 1000);
       
       activeTimers.set(taskId, timer);
-      console.log(`[PostOptVerifier] v166: ${unresolved.length}项未解决，安排第${task.attempt}轮验证，${delay}秒后执行`);
+      log.info(`v166: ${unresolved.length}项未解决，安排第${task.attempt}轮验证，${delay}秒后执行`);
     } else {
       // 所有项已处理或已达最大重试次数
       if (unresolved.length > 0) {
-        console.warn(`[PostOptVerifier] v166: ${unresolved.length}项在${task.maxAttempts}轮验证后仍未解决，保持pending_confirmation状态等待定时同步`);
+        log.warn(`v166: ${unresolved.length}项在${task.maxAttempts}轮验证后仍未解决，保持pending_confirmation状态等待定时同步`);
       }
       cleanupTask(taskId);
     }
     
   } catch (error: any) {
-    console.error(`[PostOptVerifier] v166: 验证任务执行异常 taskId=${taskId}:`, error.message);
+    log.error(`v166: 验证任务执行异常 taskId=${taskId}:`, error.message);
     
     // 异常时安排重试
     if (task.attempt < task.maxAttempts) {
@@ -414,7 +417,7 @@ async function verifyByType(
     case 'search_term_migration':
       return verifyBidAdjustments(syncService, items); // 搜索词迁移后的新关键词也通过bid验证
     default:
-      console.warn(`[PostOptVerifier] 未知验证类型: ${type}`);
+      log.warn(`未知验证类型: ${type}`);
       return items.map(item => ({ item, status: 'error' as const, message: `未知类型: ${type}` }));
   }
 }
@@ -481,7 +484,7 @@ async function verifyBidAdjustments(
       }
       
     } catch (error: any) {
-      console.error(`[PostOptVerifier] 出价验证API调用失败 adGroupId=${adGroupId}:`, error.message);
+      log.error(`出价验证API调用失败 adGroupId=${adGroupId}:`, error.message);
       for (const item of groupItems) {
         results.push({ item, status: 'error', message: error.message });
       }
@@ -534,7 +537,7 @@ async function verifyBudgetAdjustments(
     }
     
   } catch (error: any) {
-    console.error(`[PostOptVerifier] 预算验证API调用失败:`, error.message);
+    log.error(`预算验证API调用失败:`, error.message);
     for (const item of items) {
       results.push({ item, status: 'error', message: error.message });
     }
@@ -601,7 +604,7 @@ async function verifyPlacementAdjustments(
     }
     
   } catch (error: any) {
-    console.error(`[PostOptVerifier] 位置倾斜验证API调用失败:`, error.message);
+    log.error(`位置倾斜验证API调用失败:`, error.message);
     for (const item of items) {
       results.push({ item, status: 'error', message: error.message });
     }
@@ -651,7 +654,7 @@ async function verifyNegativeKeywords(
             amazonNegMap.set(key, neg);
           }
         } catch (e: any) {
-          console.warn(`[PostOptVerifier] 查询adGroup ${adGroupId} 否定关键词失败: ${e.message}`);
+          log.warn(`查询adGroup ${adGroupId} 否定关键词失败: ${e.message}`);
         }
       }
       
@@ -672,7 +675,7 @@ async function verifyNegativeKeywords(
       }
       
     } catch (error: any) {
-      console.error(`[PostOptVerifier] 否词验证API调用失败 campaignId=${campaignId}:`, error.message);
+      log.error(`否词验证API调用失败 campaignId=${campaignId}:`, error.message);
       for (const item of groupItems) {
         results.push({ item, status: 'error', message: error.message });
       }
@@ -729,7 +732,7 @@ async function verifyKeywordStatus(
       }
       
     } catch (error: any) {
-      console.error(`[PostOptVerifier] 状态验证API调用失败 adGroupId=${adGroupId}:`, error.message);
+      log.error(`状态验证API调用失败 adGroupId=${adGroupId}:`, error.message);
       for (const item of groupItems) {
         results.push({ item, status: 'error', message: error.message });
       }
@@ -750,7 +753,7 @@ async function verifyKeywordStatus(
 async function applyConfirmedResults(results: VerificationResult[]): Promise<void> {
   const dbConn = await getDb();
   if (!dbConn) {
-    console.error('[PostOptVerifier] 数据库连接失败，无法回填确认结果');
+    log.error('数据库连接失败，无法回填确认结果');
     return;
   }
   
@@ -764,7 +767,7 @@ async function applyConfirmedResults(results: VerificationResult[]): Promise<voi
           case 'search_term_migration': {
             if (item.context?.fieldName === 'product_target_bid') {
               // 商品定位 - 暂不添加sync状态字段
-              console.log(`[PostOptVerifier] v166: ✅ 商品定位 ${item.localId} 出价已确认: $${result.actualValue}`);
+              log.debug(`v166: ✅ 商品定位 ${item.localId} 出价已确认: $${result.actualValue}`);
             } else {
               // 关键词出价确认 — 清除pending状态
               await tx.update(keywords)
@@ -774,7 +777,7 @@ async function applyConfirmedResults(results: VerificationResult[]): Promise<voi
                   bidSyncStatus: 'synced',
                 } as any)
                 .where(eq(keywords.id, item.localId));
-              console.log(`[PostOptVerifier] v166: ✅ 关键词 ${item.localId} 出价已确认: $${result.actualValue}`);
+              log.debug(`v166: ✅ 关键词 ${item.localId} 出价已确认: $${result.actualValue}`);
             }
             break;
           }
@@ -788,7 +791,7 @@ async function applyConfirmedResults(results: VerificationResult[]): Promise<voi
                 lastSyncedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
               } as any)
               .where(eq(campaigns.id, item.localId));
-            console.log(`[PostOptVerifier] v166: ✅ 广告活动 ${item.localId} 预算已确认: $${result.actualValue}`);
+            log.debug(`v166: ✅ 广告活动 ${item.localId} 预算已确认: $${result.actualValue}`);
             break;
           }
           
@@ -808,32 +811,32 @@ async function applyConfirmedResults(results: VerificationResult[]): Promise<voi
             await tx.update(campaigns)
               .set(updateData)
               .where(eq(campaigns.id, item.localId));
-            console.log(`[PostOptVerifier] v166: ✅ 广告活动 ${item.localId} 位置倾斜已确认: top=${result.actualValue?.topOfSearch}%, product=${result.actualValue?.productPage}%`);
+            log.debug(`v166: ✅ 广告活动 ${item.localId} 位置倾斜已确认: top=${result.actualValue?.topOfSearch}%, product=${result.actualValue?.productPage}%`);
             break;
           }
           
           case 'negative_keyword': {
             // 否词确认 — 如果Amazon返回了keywordId，更新本地记录
             if (result.actualValue?.keywordId) {
-              console.log(`[PostOptVerifier] v166: ✅ 否词 ${item.localId} 已确认存在于Amazon (amazonId=${result.actualValue.keywordId})`);
+              log.debug(`v166: ✅ 否词 ${item.localId} 已确认存在于Amazon (amazonId=${result.actualValue.keywordId})`);
             } else {
-              console.log(`[PostOptVerifier] v166: ✅ 否词 ${item.localId} 已确认存在于Amazon`);
+              log.debug(`v166: ✅ 否词 ${item.localId} 已确认存在于Amazon`);
             }
             break;
           }
           
           case 'keyword_status': {
-            console.log(`[PostOptVerifier] v166: ✅ 关键词 ${item.localId} 状态已确认: ${result.actualValue}`);
+            log.info(`v166: ✅ 关键词 ${item.localId} 状态已确认: ${result.actualValue}`);
             break;
           }
         }
       }
     });
     
-    console.log(`[PostOptVerifier] v166: 事务回填完成, ${results.length}项已确认并更新`);
+    log.info(`v166: 事务回填完成, ${results.length}项已确认并更新`);
     
   } catch (error: any) {
-    console.error(`[PostOptVerifier] v166: 事务回填失败:`, error.message);
+    log.error(`v166: 事务回填失败:`, error.message);
   }
 }
 
@@ -862,7 +865,7 @@ async function handleConflicts(results: VerificationResult[]): Promise<void> {
                 } as any)
                 .where(eq(keywords.id, item.localId));
             }
-            console.warn(`[PostOptVerifier] v166: ⚠️ 出价冲突 keyword=${item.localId}: ${result.message}`);
+            log.warn(`v166: ⚠️ 出价冲突 keyword=${item.localId}: ${result.message}`);
             break;
           }
           
@@ -875,7 +878,7 @@ async function handleConflicts(results: VerificationResult[]): Promise<void> {
                 lastSyncedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
               } as any)
               .where(eq(campaigns.id, item.localId));
-            console.warn(`[PostOptVerifier] v166: ⚠️ 预算冲突 campaign=${item.localId}: ${result.message}`);
+            log.warn(`v166: ⚠️ 预算冲突 campaign=${item.localId}: ${result.message}`);
             break;
           }
           
@@ -895,21 +898,21 @@ async function handleConflicts(results: VerificationResult[]): Promise<void> {
             await tx.update(campaigns)
               .set(updateData)
               .where(eq(campaigns.id, item.localId));
-            console.warn(`[PostOptVerifier] v166: ⚠️ 位置倾斜冲突 campaign=${item.localId}: ${result.message}`);
+            log.warn(`v166: ⚠️ 位置倾斜冲突 campaign=${item.localId}: ${result.message}`);
             break;
           }
           
           default: {
-            console.warn(`[PostOptVerifier] v166: ⚠️ ${item.type}冲突 id=${item.localId}: ${result.message}`);
+            log.warn(`v166: ⚠️ ${item.type}冲突 id=${item.localId}: ${result.message}`);
           }
         }
       }
     });
     
-    console.warn(`[PostOptVerifier] v166: ${results.length}项冲突已处理（以Amazon实际值为准）`);
+    log.warn(`v166: ${results.length}项冲突已处理（以Amazon实际值为准）`);
     
   } catch (error: any) {
-    console.error(`[PostOptVerifier] v166: 冲突处理事务失败:`, error.message);
+    log.error(`v166: 冲突处理事务失败:`, error.message);
   }
 }
 
@@ -969,7 +972,7 @@ export function cancelTasksForAccount(accountId: number): number {
     }
   }
   if (cancelled > 0) {
-    console.log(`[PostOptVerifier] v166: 已取消accountId=${accountId}的${cancelled}个验证任务`);
+    log.debug(`v166: 已取消accountId=${accountId}的${cancelled}个验证任务`);
   }
   return cancelled;
 }

@@ -15,6 +15,9 @@
 
 // ==================== 导入纯算法函数 ====================
 import {
+import { createModuleLogger } from './utils/logger';
+
+const log = createModuleLogger('VerifyAlgo');
   sigmoid,
   sigmoidDerivative,
   fitSigmoidCurve,
@@ -62,11 +65,11 @@ function assert(condition: boolean, testName: string, detail: string = '') {
   totalTests++;
   if (condition) {
     passedTests++;
-    console.log(`  ✅ PASS: ${testName}`);
+    log.debug(`  ✅ PASS: ${testName}`);
   } else {
     failedTests++;
     const msg = `  ❌ FAIL: ${testName}${detail ? ' — ' + detail : ''}`;
-    console.log(msg);
+    log.debug(msg);
     failures.push(msg);
   }
 }
@@ -81,9 +84,9 @@ function assertRange(value: number, min: number, max: number, testName: string) 
 }
 
 function section(name: string) {
-  console.log(`\n${'='.repeat(60)}`);
-  console.log(`  ${name}`);
-  console.log('='.repeat(60));
+  log.debug(`\n${'='.repeat(60)}`);
+  log.debug(`  ${name}`);
+  log.debug('='.repeat(60));
 }
 
 // ==================== 测试1: Sigmoid曲线拟合 ====================
@@ -531,14 +534,14 @@ function testIntegration() {
   const finalBid = Math.max(0.02, Math.min(10, Math.round(optimalBid.optimalBid * 100) / 100));
   assert(finalBid >= 0.02 && finalBid <= 10, `最终出价在安全范围 ($${finalBid})`);
   
-  console.log('\n  📊 集成测试摘要:');
-  console.log(`     特征维度: ${featureVec.length}`);
-  console.log(`     Sigmoid R²: ${sigmoidParams.r2.toFixed(4)}`);
-  console.log(`     最优出价: $${optimalBid.optimalBid}`);
-  console.log(`     CQL推荐: $${cqlDecision.recommendedBid}`);
-  console.log(`     因果效应ITE: ${causalResult.ite.toFixed(4)}`);
-  console.log(`     预算分配: $${budgetResult[0].optimalBudget}`);
-  console.log(`     最终安全出价: $${finalBid}`);
+  log.info('\n  📊 集成测试摘要:');
+  log.debug(`     特征维度: ${featureVec.length}`);
+  log.debug(`     Sigmoid R²: ${sigmoidParams.r2.toFixed(4)}`);
+  log.debug(`     最优出价: $${optimalBid.optimalBid}`);
+  log.debug(`     CQL推荐: $${cqlDecision.recommendedBid}`);
+  log.debug(`     因果效应ITE: ${causalResult.ite.toFixed(4)}`);
+  log.debug(`     预算分配: $${budgetResult[0].optimalBudget}`);
+  log.debug(`     最终安全出价: $${finalBid}`);
 }
 
 // ==================== 辅助函数 ====================
@@ -572,10 +575,10 @@ function createMockContext(): ContextFeatureVector {
 // ==================== 主函数 ====================
 
 function main() {
-  console.log('╔══════════════════════════════════════════════════════════╗');
-  console.log('║  下一代广告优化算法体系 — 端到端验证                    ║');
-  console.log('║  版本: 1.0 | 日期: 2026-02-22                          ║');
-  console.log('╚══════════════════════════════════════════════════════════╝');
+  log.debug('╔══════════════════════════════════════════════════════════╗');
+  log.debug('║  下一代广告优化算法体系 — 端到端验证                    ║');
+  log.info('║  版本: 1.0 | 日期: 2026-02-22                          ║');
+  log.debug('╚══════════════════════════════════════════════════════════╝');
   
   try {
     testSigmoidCurveFitting();
@@ -587,31 +590,31 @@ function main() {
     testSafetyAndOrchestrator();
     testIntegration();
   } catch (error) {
-    console.error('\n💥 FATAL ERROR:', error);
+    log.error('\n💥 FATAL ERROR:', error);
     failedTests++;
   }
   
-  console.log('\n' + '='.repeat(60));
-  console.log('  验证结果汇总');
-  console.log('='.repeat(60));
-  console.log(`  总测试数: ${totalTests}`);
-  console.log(`  通过: ${passedTests} ✅`);
-  console.log(`  失败: ${failedTests} ❌`);
-  console.log(`  通过率: ${totalTests > 0 ? ((passedTests / totalTests) * 100).toFixed(1) : 0}%`);
+  log.debug('\n' + '='.repeat(60));
+  log.info('  验证结果汇总');
+  log.debug('='.repeat(60));
+  log.debug(`  总测试数: ${totalTests}`);
+  log.debug(`  通过: ${passedTests} ✅`);
+  log.warn(`  失败: ${failedTests} ❌`);
+  log.debug(`  通过率: ${totalTests > 0 ? ((passedTests / totalTests) * 100).toFixed(1) : 0}%`);
   
   if (failures.length > 0) {
-    console.log('\n  失败详情:');
-    failures.forEach(f => console.log(f));
+    log.warn('\n  失败详情:');
+    failures.forEach(f => log.debug(f));
   }
   
-  console.log('\n' + '='.repeat(60));
+  log.debug('\n' + '='.repeat(60));
   
   if (failedTests === 0) {
-    console.log('  🎉 所有测试通过！下一代算法体系逻辑验证成功。');
+    log.info('  🎉 所有测试通过！下一代算法体系逻辑验证成功。');
   } else {
-    console.log(`  ⚠️  有 ${failedTests} 个测试失败，需要修复。`);
+    log.warn(`  ⚠️  有 ${failedTests} 个测试失败，需要修复。`);
   }
-  console.log('='.repeat(60));
+  log.debug('='.repeat(60));
   
   process.exit(failedTests > 0 ? 1 : 0);
 }

@@ -12,6 +12,9 @@ import { getDb } from "./db";
 import { performanceGroups } from "../drizzle/schema";
 import { eq, and } from "drizzle-orm";
 import { notifyOwner } from "./_core/notification";
+import { createModuleLogger } from './utils/logger';
+
+const log = createModuleLogger('OptScheduler');
 
 // ==================== 类型定义 ====================
 
@@ -82,7 +85,7 @@ export async function triggerInitialOptimization(
   const startTime = Date.now();
   const errors: string[] = [];
   
-  console.log(`[OptScheduler] 触发首次优化: targetId=${targetId}, triggeredBy=${options.triggeredBy}`);
+  log.info(`触发首次优化: targetId=${targetId}, triggeredBy=${options.triggeredBy}`);
   
   // 动态导入优化引擎（避免循环依赖）
   const optimizationTargetEngine = await import('./optimizationTargetEngine');
@@ -111,7 +114,7 @@ export async function triggerInitialOptimization(
   
   // ==================== 阶段1: 快速数据分析 ====================
   try {
-    console.log(`[OptScheduler] [${config.name}] 阶段1: 快速数据分析...`);
+    log.debug(`[${config.name}] 阶段1: 快速数据分析...`);
     
     const db = await getDb();
     if (!db) throw new Error('数据库连接失败');
@@ -157,13 +160,13 @@ export async function triggerInitialOptimization(
       dataQuality,
     };
     
-    console.log(`[OptScheduler] [${config.name}] 数据分析完成: ${campaignsData.length}个广告活动, ` +
+    log.info(`[${config.name}] 数据分析完成: ${campaignsData.length}个广告活动, ` +
       `花费$${totalSpend.toFixed(2)}, 销售$${totalSales.toFixed(2)}, ` +
       `ACoS ${avgAcos.toFixed(1)}%, ROAS ${avgRoas.toFixed(2)}, 数据质量: ${dataQuality}`);
     
     // ==================== 阶段2: 立即执行首次优化 ====================
     result.phase = 'execution';
-    console.log(`[OptScheduler] [${config.name}] 阶段2: 执行首次优化...`);
+    log.info(`[${config.name}] 阶段2: 执行首次优化...`);
     
     try {
       // 根据数据质量决定执行策略
@@ -173,11 +176,11 @@ export async function triggerInitialOptimization(
         // 数据稀疏：只执行出价优化（探索模式）和搜索词分析
         // 不执行预算分配和位置优化（需要更多数据支撑）
         specificModules = ['bid', 'searchterm', 'keyword'];
-        console.log(`[OptScheduler] [${config.name}] 数据稀疏，仅执行探索性优化模块: ${specificModules.join(', ')}`);
+        log.info(`[${config.name}] 数据稀疏，仅执行探索性优化模块: ${specificModules.join(', ')}`);
       } else if (dataQuality === 'moderate') {
         // 中等数据：执行大部分模块，但跳过位置优化
         specificModules = ['bid', 'searchterm', 'keyword', 'budget'];
-        console.log(`[OptScheduler] [${config.name}] 数据中等，执行核心优化模块: ${specificModules.join(', ')}`);
+        log.info(`[${config.name}] 数据中等，执行核心优化模块: ${specificModules.join(', ')}`);
       }
       // 数据充足：执行所有模块（specificModules = undefined）
       
@@ -200,7 +203,7 @@ export async function triggerInitialOptimization(
         warnings: executionResult.warnings,
       };
       
-      console.log(`[OptScheduler] [${config.name}] 首次优化执行完成: ` +
+      log.info(`[${config.name}] 首次优化执行完成: ` +
         `出价调整${executionResult.bidOptimization.adjustmentsCount}个, ` +
         `关键词暂停${executionResult.keywordStatusChanges.pausedCount}个/启用${executionResult.keywordStatusChanges.enabledCount}个, ` +
         `预算调整${executionResult.budgetAllocation.adjustmentsCount}个`);
@@ -210,12 +213,12 @@ export async function triggerInitialOptimization(
       }
     } catch (execError: any) {
       errors.push(`首次优化执行失败: ${execError.message}`);
-      console.error(`[OptScheduler] [${config.name}] 首次优化执行失败:`, execError.message);
+      log.error(`[${config.name}] 首次优化执行失败:`, execError.message);
     }
     
     // ==================== 阶段3: 注册后续定时调度 ====================
     result.phase = 'scheduling';
-    console.log(`[OptScheduler] [${config.name}] 阶段3: 注册后续定时调度...`);
+    log.info(`[${config.name}] 阶段3: 注册后续定时调度...`);
     
     try {
       // 根据数据质量决定初始调度频率
@@ -230,11 +233,11 @@ export async function triggerInitialOptimization(
       const schedulingResult = await registerScheduledExecution(targetId, config.name, frequency);
       result.schedulingResult = schedulingResult;
       
-      console.log(`[OptScheduler] [${config.name}] 调度注册完成: 频率=${frequency}, ` +
+      log.info(`[${config.name}] 调度注册完成: 频率=${frequency}, ` +
         `下次执行=${schedulingResult.nextExecutionTime.toISOString()}`);
     } catch (schedError: any) {
       errors.push(`调度注册失败: ${schedError.message}`);
-      console.error(`[OptScheduler] [${config.name}] 调度注册失败:`, schedError.message);
+      log.error(`[${config.name}] 调度注册失败:`, schedError.message);
     }
     
     result.success = errors.length === 0;
@@ -274,11 +277,11 @@ export async function triggerInitialOptimization(
     
   } catch (error: any) {
     result.errors.push(`首次优化失败: ${error.message}`);
-    console.error(`[OptScheduler] [${result.targetName}] 首次优化失败:`, error);
+    log.error(`[${result.targetName}] 首次优化失败:`, error);
   }
   
   result.duration = Date.now() - startTime;
-  console.log(`[OptScheduler] 首次优化完成: targetId=${targetId}, 耗时${result.duration}ms, 成功=${result.success}`);
+  log.info(`首次优化完成: targetId=${targetId}, 耗时${result.duration}ms, 成功=${result.success}`);
   
   return result;
 }
@@ -318,7 +321,7 @@ async function registerScheduledExecution(
   scheduledTarget.timer = null;
   scheduledTargets.set(targetId, scheduledTarget);
   
-  console.log(`[OptScheduler] v189: 已注册优化目标: targetId=${targetId}, name=${targetName} ` +
+  log.info(`v189: 已注册优化目标: targetId=${targetId}, name=${targetName} ` +
     `(定时执行由dataSyncScheduler统一管理)`);
   
   return { frequency, nextExecutionTime };
@@ -334,7 +337,7 @@ function unregisterScheduledExecution(targetId: number): void {
       clearInterval(existing.timer);
     }
     scheduledTargets.delete(targetId);
-    console.log(`[OptScheduler] 已取消定时执行: targetId=${targetId}, name=${existing.targetName}`);
+    log.info(`已取消定时执行: targetId=${targetId}, name=${existing.targetName}`);
   }
 }
 
@@ -347,12 +350,12 @@ async function executeScheduledOptimization(targetId: number): Promise<void> {
   
   // 防止并发执行
   if (scheduled.status === 'executing') {
-    console.log(`[OptScheduler] 跳过执行: targetId=${targetId} 正在执行中`);
+    log.info(`跳过执行: targetId=${targetId} 正在执行中`);
     return;
   }
   
   scheduled.status = 'executing';
-  console.log(`[OptScheduler] 开始定时执行: targetId=${targetId}, name=${scheduled.targetName}, ` +
+  log.info(`开始定时执行: targetId=${targetId}, name=${scheduled.targetName}, ` +
     `第${scheduled.executionCount + 1}次执行`);
   
   try {
@@ -361,7 +364,7 @@ async function executeScheduledOptimization(targetId: number): Promise<void> {
     // 检查优化目标是否仍然活跃
     const config = await optimizationTargetEngine.getOptimizationTargetConfig(targetId);
     if (!config || !config.isEnabled) {
-      console.log(`[OptScheduler] 优化目标已禁用或不存在，取消调度: targetId=${targetId}`);
+      log.debug(`优化目标已禁用或不存在，取消调度: targetId=${targetId}`);
       unregisterScheduledExecution(targetId);
       return;
     }
@@ -377,7 +380,7 @@ async function executeScheduledOptimization(targetId: number): Promise<void> {
     scheduled.status = 'scheduled';
     scheduled.lastError = null;
     
-    console.log(`[OptScheduler] 定时执行完成: targetId=${targetId}, status=${result.status}, ` +
+    log.info(`定时执行完成: targetId=${targetId}, status=${result.status}, ` +
       `bid=${result.bidOptimization.adjustmentsCount}, keyword_pause=${result.keywordStatusChanges.pausedCount}`);
     
     // 更新数据库
@@ -394,12 +397,12 @@ async function executeScheduledOptimization(targetId: number): Promise<void> {
   } catch (error: any) {
     scheduled.status = 'error';
     scheduled.lastError = error.message;
-    console.error(`[OptScheduler] 定时执行失败: targetId=${targetId}:`, error.message);
+    log.error(`定时执行失败: targetId=${targetId}:`, error.message);
     
     // 连续失败3次后暂停调度
     if (scheduled.lastError) {
       // 简单的错误计数（通过检查状态）
-      console.warn(`[OptScheduler] 优化目标 ${targetId} 执行出错，将在下次调度时重试`);
+      log.warn(`优化目标 ${targetId} 执行出错，将在下次调度时重试`);
     }
   }
 }
@@ -416,17 +419,17 @@ export async function startOptimizationScheduler(): Promise<{
   errors: number;
 }> {
   if (isSchedulerRunning) {
-    console.log('[OptScheduler] 调度器已在运行中');
+    log.debug('调度器已在运行中');
     return { total: 0, scheduled: scheduledTargets.size, errors: 0 };
   }
   
-  console.log('[OptScheduler] 启动优化调度器...');
+  log.info('启动优化调度器...');
   isSchedulerRunning = true;
   
   try {
     const dbInstance = await getDb();
     if (!dbInstance) {
-      console.error('[OptScheduler] 数据库连接失败，调度器启动失败');
+      log.error('数据库连接失败，调度器启动失败');
       return { total: 0, scheduled: 0, errors: 1 };
     }
     
@@ -449,7 +452,7 @@ export async function startOptimizationScheduler(): Promise<{
         // 检查是否有广告活动
         const campaigns = await import('./db').then(m => m.getCampaignsByPerformanceGroupId(target.id));
         if (campaigns.length === 0) {
-          console.log(`[OptScheduler] 跳过无广告活动的优化目标: ${target.name} (id=${target.id})`);
+          log.info(`跳过无广告活动的优化目标: ${target.name} (id=${target.id})`);
           continue;
         }
         
@@ -457,17 +460,17 @@ export async function startOptimizationScheduler(): Promise<{
         await registerScheduledExecution(target.id, target.name, 'daily');
         scheduled++;
       } catch (error: any) {
-        console.error(`[OptScheduler] 注册优化目标 ${target.id} 失败:`, error.message);
+        log.error(`注册优化目标 ${target.id} 失败:`, error.message);
         errors++;
       }
     }
     
-    console.log(`[OptScheduler] 调度器启动完成: 共${activeTargets.length}个活跃目标, ` +
+    log.info(`调度器启动完成: 共${activeTargets.length}个活跃目标, ` +
       `已注册${scheduled}个, 失败${errors}个`);
     
     return { total: activeTargets.length, scheduled, errors };
   } catch (error: any) {
-    console.error('[OptScheduler] 调度器启动失败:', error.message);
+    log.error('调度器启动失败:', error.message);
     isSchedulerRunning = false;
     return { total: 0, scheduled: 0, errors: 1 };
   }
@@ -477,7 +480,7 @@ export async function startOptimizationScheduler(): Promise<{
  * 停止优化调度器
  */
 export function stopOptimizationScheduler(): void {
-  console.log('[OptScheduler] 停止优化调度器...');
+  log.debug('停止优化调度器...');
   
   for (const [targetId, scheduled] of scheduledTargets) {
     if (scheduled.timer) {
@@ -488,7 +491,7 @@ export function stopOptimizationScheduler(): void {
   scheduledTargets.clear();
   isSchedulerRunning = false;
   
-  console.log('[OptScheduler] 调度器已停止');
+  log.debug('调度器已停止');
 }
 
 /**
@@ -533,15 +536,15 @@ export async function onTargetStatusChanged(
 ): Promise<void> {
   if (newStatus === 'active') {
     // 启用时，触发首次优化并注册调度
-    console.log(`[OptScheduler] 优化目标 ${targetId} 已启用，触发首次优化`);
+    log.info(`优化目标 ${targetId} 已启用，触发首次优化`);
     // 异步执行，不阻塞API响应
     triggerInitialOptimization(targetId, { triggeredBy: 'enable' }).catch(err => {
-      console.error(`[OptScheduler] 启用触发优化失败:`, err);
+      log.error(`启用触发优化失败:`, err);
     });
   } else {
     // 暂停或归档时，取消调度
     unregisterScheduledExecution(targetId);
-    console.log(`[OptScheduler] 优化目标 ${targetId} 已${newStatus === 'paused' ? '暂停' : '归档'}，已取消调度`);
+    log.debug(`优化目标 ${targetId} 已${newStatus === 'paused' ? '暂停' : '归档'}，已取消调度`);
   }
 }
 
@@ -552,14 +555,14 @@ export async function onCampaignsAdded(
   targetId: number,
   campaignIds: number[]
 ): Promise<void> {
-  console.log(`[OptScheduler] ${campaignIds.length}个广告活动已添加到优化目标 ${targetId}，触发优化`);
+  log.info(`${campaignIds.length}个广告活动已添加到优化目标 ${targetId}，触发优化`);
   
   // 异步执行，不阻塞API响应
   triggerInitialOptimization(targetId, {
     triggeredBy: 'add_campaigns',
     campaignIds,
   }).catch(err => {
-    console.error(`[OptScheduler] 添加广告活动触发优化失败:`, err);
+    log.error(`添加广告活动触发优化失败:`, err);
   });
 }
 
@@ -594,7 +597,7 @@ export async function triggerAccountOptimizations(
     reason?: string;
   }>;
 }> {
-  console.log(`[OptScheduler] v151: 触发账户 ${accountId} 下所有优化目标, 来源: ${triggeredBy}`);
+  log.info(`v151: 触发账户 ${accountId} 下所有优化目标, 来源: ${triggeredBy}`);
   
   const result = {
     triggeredCount: 0,
@@ -611,7 +614,7 @@ export async function triggerAccountOptimizations(
   try {
     const dbInstance = await getDb();
     if (!dbInstance) {
-      console.error(`[OptScheduler] v151: 数据库连接失败`);
+      log.error(`v151: 数据库连接失败`);
       result.errorCount = 1;
       return result;
     }
@@ -632,11 +635,11 @@ export async function triggerAccountOptimizations(
       );
     
     if (activeTargets.length === 0) {
-      console.log(`[OptScheduler] v151: 账户 ${accountId} 下没有活跃的优化目标`);
+      log.debug(`v151: 账户 ${accountId} 下没有活跃的优化目标`);
       return result;
     }
     
-    console.log(`[OptScheduler] v151: 账户 ${accountId} 下发现 ${activeTargets.length} 个活跃优化目标`);
+    log.info(`v151: 账户 ${accountId} 下发现 ${activeTargets.length} 个活跃优化目标`);
     
     // 动态导入优化引擎
     const optimizationTargetEngine = await import('./optimizationTargetEngine');
@@ -675,7 +678,7 @@ export async function triggerAccountOptimizations(
         }
         
         // 执行优化
-        console.log(`[OptScheduler] v151: 执行优化目标 ${target.name} (id=${target.id})`);
+        log.info(`v151: 执行优化目标 ${target.name} (id=${target.id})`);
         const execResult = await optimizationTargetEngine.executeOptimizationTarget(target.id);
         
         // 更新最后执行时间
@@ -690,7 +693,7 @@ export async function triggerAccountOptimizations(
           status: 'triggered',
         });
         
-        console.log(`[OptScheduler] v151: 优化目标 ${target.name} 执行完成`);
+        log.info(`v151: 优化目标 ${target.name} 执行完成`);
       } catch (error: any) {
         result.errorCount++;
         result.details.push({
@@ -699,15 +702,15 @@ export async function triggerAccountOptimizations(
           status: 'error',
           reason: error.message,
         });
-        console.error(`[OptScheduler] v151: 优化目标 ${target.name} 执行失败:`, error.message);
+        log.error(`v151: 优化目标 ${target.name} 执行失败:`, error.message);
       }
     }
     
-    console.log(`[OptScheduler] v151: 账户 ${accountId} 优化触发完成: ` +
+    log.info(`v151: 账户 ${accountId} 优化触发完成: ` +
       `触发=${result.triggeredCount}, 跳过=${result.skippedCount}, 错误=${result.errorCount}`);
     
   } catch (error: any) {
-    console.error(`[OptScheduler] v151: 账户 ${accountId} 优化触发异常:`, error.message);
+    log.error(`v151: 账户 ${accountId} 优化触发异常:`, error.message);
     result.errorCount++;
   }
   

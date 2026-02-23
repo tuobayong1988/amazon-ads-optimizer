@@ -13,6 +13,9 @@ import * as db from './db';
 import { AmazonSyncService } from './amazonSyncService';
 import { createAmazonAdsClient, AmazonAdsApiClient } from './amazonAdsApi';
 import { isAsinSearchTerm, adGroupHasProductTargets, sanitizeAndValidateKeyword } from './utils/keywordValidator';
+import { createModuleLogger } from './utils/logger';
+
+const log = createModuleLogger('SearchTermHarvester');
 
 // ==================== 类型定义 ====================
 
@@ -124,7 +127,7 @@ export async function identifyHarvestCandidates(
     // 1. 获取该账号下所有Campaign
     const allCampaigns = await db.getCampaignsByAccountId(accountId);
     if (!allCampaigns || allCampaigns.length === 0) {
-      console.log(`[SearchTermHarvester] 账号 ${accountId} 无广告活动`);
+      log.debug(`账号 ${accountId} 无广告活动`);
       return [];
     }
 
@@ -140,7 +143,7 @@ export async function identifyHarvestCandidates(
     );
 
     if (sourceCampaigns.length === 0) {
-      console.log(`[SearchTermHarvester] 账号 ${accountId} 无自动Campaign，跳过收割`);
+      log.info(`账号 ${accountId} 无自动Campaign，跳过收割`);
       return [];
     }
 
@@ -166,14 +169,14 @@ export async function identifyHarvestCandidates(
         
         // v194: ASIN格式的搜索词不应该作为关键词收割
         if (isAsinSearchTerm(st.searchTerm)) {
-          console.log(`[SearchTermHarvester] v194: 跳过ASIN搜索词 "${st.searchTerm}"，应作为product target处理`);
+          log.info(`v194: 跳过ASIN搜索词 "${st.searchTerm}"，应作为product target处理`);
           continue;
         }
         
         // v194: 清洗搜索词，过滤无效字符
         const validation = sanitizeAndValidateKeyword(st.searchTerm);
         if (!validation.isValid) {
-          console.log(`[SearchTermHarvester] v194: 搜索词校验失败 "${st.searchTerm}": ${validation.reasonMessage || validation.reasonCode || 'invalid'}`);
+          log.warn(`v194: 搜索词校验失败 "${st.searchTerm}": ${validation.reasonMessage || validation.reasonCode || 'invalid'}`);
           continue;
         }
         
@@ -223,11 +226,11 @@ export async function identifyHarvestCandidates(
       }
     }
 
-    console.log(`[SearchTermHarvester] 账号 ${accountId} 识别到 ${candidates.length} 个收割候选项`);
+    log.debug(`账号 ${accountId} 识别到 ${candidates.length} 个收割候选项`);
     return candidates;
 
   } catch (error: any) {
-    console.error(`[SearchTermHarvester] 识别候选项失败:`, error.message);
+    log.error(`识别候选项失败:`, error.message);
     return [];
   }
 }
@@ -253,7 +256,7 @@ export async function harvestSearchTermAtomic(
     stage: 'failed',
   };
 
-  console.log(`[SearchTermHarvester] 开始原子收割: "${candidate.searchTerm}" (${candidate.reason})`);
+  log.info(`开始原子收割: "${candidate.searchTerm}" (${candidate.reason})`);
 
   // ============ Step 1: 创建精确匹配关键词 ============
   try {
@@ -277,23 +280,23 @@ export async function harvestSearchTermAtomic(
       );
       
       if (isDuplicate) {
-        console.log(`[SearchTermHarvester] 关键词已存在，跳过: "${candidate.searchTerm}"`);
+        log.info(`关键词已存在，跳过: "${candidate.searchTerm}"`);
         result.error = '关键词已存在于目标广告组';
         return result;
       }
       
       result.error = `Step1 创建关键词失败: ${errorMsg}`;
-      console.error(`[SearchTermHarvester] ${result.error}`);
+      log.error(`${result.error}`);
       return result;
     }
 
     result.createdKeywordId = createResult.createdKeywords[0].keywordId;
     result.stage = 'keyword_created';
-    console.log(`[SearchTermHarvester] Step1 完成: 创建关键词 ID=${result.createdKeywordId}`);
+    log.info(`Step1 完成: 创建关键词 ID=${result.createdKeywordId}`);
 
   } catch (error: any) {
     result.error = `Step1 异常: ${error.message}`;
-    console.error(`[SearchTermHarvester] ${result.error}`);
+    log.error(`${result.error}`);
     return result;
   }
 
@@ -318,7 +321,7 @@ export async function harvestSearchTermAtomic(
       
       if (!isDuplicate) {
         // Step 2 失败，需要回滚 Step 1
-        console.error(`[SearchTermHarvester] Step2 失败，开始回滚 Step1...`);
+        log.error(`Step2 失败，开始回滚 Step1...`);
         await rollbackKeywordCreation(apiClient, result.createdKeywordId!);
         result.stage = 'rolled_back';
         result.error = `Step2 否定词创建失败: ${JSON.stringify(negativeErrors)}`;
@@ -334,11 +337,11 @@ export async function harvestSearchTermAtomic(
     }
     
     result.stage = 'negative_added';
-    console.log(`[SearchTermHarvester] Step2 完成: 添加否定词 ID=${result.createdNegativeKeywordId}`);
+    log.info(`Step2 完成: 添加否定词 ID=${result.createdNegativeKeywordId}`);
 
   } catch (error: any) {
     // Step 2 异常，回滚 Step 1
-    console.error(`[SearchTermHarvester] Step2 异常: ${error.message}，开始回滚 Step1...`);
+    log.error(`Step2 异常: ${error.message}，开始回滚 Step1...`);
     await rollbackKeywordCreation(apiClient, result.createdKeywordId!);
     result.stage = 'rolled_back';
     result.error = `Step2 异常: ${error.message}`;
@@ -418,17 +421,17 @@ export async function harvestSearchTermAtomic(
         sourceTable: 'search_term_harvester',
       });
     } catch (eventErr: any) {
-      console.warn(`[SearchTermHarvester] v189: 记录optimization_events失败: ${eventErr.message}`);
+      log.warn(`v189: 记录optimization_events失败: ${eventErr.message}`);
     }
 
     result.stage = 'db_logged';
     result.success = true;
-    console.log(`[SearchTermHarvester] Step3 完成: 本地数据库已更新`);
+    log.info(`Step3 完成: 本地数据库已更新`);
 
   } catch (error: any) {
     // Step 3 失败（本地DB），API操作已成功，记录警告但不回滚API
     // 因为API操作已经生效，回滚会造成更大的不一致
-    console.warn(`[SearchTermHarvester] Step3 本地DB记录失败: ${error.message}，API操作已生效`);
+    log.warn(`Step3 本地DB记录失败: ${error.message}，API操作已生效`);
     result.error = `Step3 本地DB失败(API已生效): ${error.message}`;
     // 标记为部分成功
     result.success = true; // API层面成功
@@ -472,7 +475,7 @@ export async function batchHarvestSearchTerms(
 
   // 如果是dry run，直接返回候选项
   if (cfg.dryRun) {
-    console.log(`[SearchTermHarvester] Dry Run: 发现 ${candidates.length} 个候选项，不执行`);
+    log.info(`Dry Run: 发现 ${candidates.length} 个候选项，不执行`);
     return {
       candidates,
       results: [],
@@ -483,7 +486,7 @@ export async function batchHarvestSearchTerms(
   // 2. 获取API客户端
   const credentials = await db.getAmazonApiCredentials(accountId);
   if (!credentials) {
-    console.error(`[SearchTermHarvester] 账号 ${accountId} 无API凭证，无法执行收割`);
+    log.error(`账号 ${accountId} 无API凭证，无法执行收割`);
     return {
       candidates,
       results: [],
@@ -520,7 +523,7 @@ export async function batchHarvestSearchTerms(
       await new Promise(resolve => setTimeout(resolve, 500));
 
     } catch (error: any) {
-      console.error(`[SearchTermHarvester] 收割异常: "${candidate.searchTerm}" - ${error.message}`);
+      log.error(`收割异常: "${candidate.searchTerm}" - ${error.message}`);
       results.push({
         searchTerm: candidate.searchTerm,
         success: false,
@@ -531,7 +534,7 @@ export async function batchHarvestSearchTerms(
     }
   }
 
-  console.log(`[SearchTermHarvester] 批量收割完成: 成功=${success}, 失败=${failed}, 回滚=${rolledBack}`);
+  log.warn(`批量收割完成: 成功=${success}, 失败=${failed}, 回滚=${rolledBack}`);
 
   return {
     candidates,
@@ -581,7 +584,7 @@ async function findTargetAdGroup(
       // v194: 跳过已有product targets的广告组
       const hasPT = await adGroupHasProductTargets(ag.id);
       if (hasPT) {
-        console.log(`[SearchTermHarvester] v194: 跳过product target广告组 id=${ag.id}`);
+        log.info(`v194: 跳过product target广告组 id=${ag.id}`);
         continue;
       }
       return {
@@ -665,9 +668,9 @@ async function rollbackKeywordCreation(
     
     // 注意：Amazon API不支持真正删除关键词，只能archive
     // 这里通过设置最低出价来最小化影响
-    console.log(`[SearchTermHarvester] 回滚成功: 关键词 ${keywordId} 已设置最低出价`);
+    log.info(`回滚成功: 关键词 ${keywordId} 已设置最低出价`);
   } catch (error: any) {
-    console.error(`[SearchTermHarvester] 回滚失败: 关键词 ${keywordId} - ${error.message}`);
+    log.error(`回滚失败: 关键词 ${keywordId} - ${error.message}`);
     // 回滚失败时记录告警，需要人工介入
   }
 }

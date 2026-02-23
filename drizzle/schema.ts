@@ -3855,3 +3855,27 @@ export const keywordSemanticGraph = mysqlTable("keyword_semantic_graph", {
 	index("idx_ksg_edge_type").on(table.edgeType),
 	index("idx_ksg_opportunity").on(table.isOpportunity),
 ]);
+
+
+// ==================== v205: 系统日志表 ====================
+/**
+ * 统一系统日志表 - 存储 WARN 及以上级别的结构化日志
+ * 由 Logger 模块自动写入，支持分页查询和自动轮转（保留7天）
+ */
+export const systemLogs = mysqlTable("system_logs", {
+  id: int().autoincrement().notNull(),
+  timestamp: datetime("timestamp", { mode: 'string' }).notNull(),
+  level: varchar("level", { length: 8 }).notNull(),     // DEBUG/INFO/WARN/ERROR/FATAL
+  module: varchar("module", { length: 128 }).notNull(),  // 模块名称
+  message: text("message").notNull(),                     // 日志消息（最大2000字符）
+  metadata: text("metadata"),                             // JSON格式的附加数据（最大4000字符）
+},
+(table) => [
+  index("idx_syslog_timestamp").on(table.timestamp),
+  index("idx_syslog_level").on(table.level),
+  index("idx_syslog_module").on(table.module),
+  index("idx_syslog_level_timestamp").on(table.level, table.timestamp),
+]);
+
+export type SystemLog = InferSelectModel<typeof systemLogs>;
+export type InsertSystemLog = InferInsertModel<typeof systemLogs>;

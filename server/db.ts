@@ -40,6 +40,9 @@ import {
   optimizationEvents, OptimizationEvent, InsertOptimizationEvent
 } from "../drizzle/schema";
 import { ENV } from './_core/env';
+import { createModuleLogger } from './utils/logger';
+
+const log = createModuleLogger('Database');
 
 let _db: ReturnType<typeof drizzle> | null = null;
 
@@ -48,7 +51,7 @@ export async function getDb() {
     try {
       _db = drizzle(process.env.DATABASE_URL, { casing: 'camelCase' });
     } catch (error) {
-      console.warn("[Database] Failed to connect:", error);
+      log.warn("[Database] Failed to connect:", error);
       _db = null;
     }
   }
@@ -63,7 +66,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 
   const db = await getDb();
   if (!db) {
-    console.warn("[Database] Cannot upsert user: database not available");
+    log.warn("[Database] Cannot upsert user: database not available");
     return;
   }
 
@@ -110,7 +113,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       set: updateSet,
     });
   } catch (error) {
-    console.error("[Database] Failed to upsert user:", error);
+    log.error("[Database] Failed to upsert user:", error);
     throw error;
   }
 }
@@ -118,7 +121,7 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) {
-    console.warn("[Database] Cannot get user: database not available");
+    log.warn("[Database] Cannot get user: database not available");
     return undefined;
   }
 
@@ -235,31 +238,31 @@ export async function createPerformanceGroup(group: InsertPerformanceGroup) {
 }
 
 export async function getPerformanceGroupsByAccountId(accountId: number) {
-  console.log('[db.getPerformanceGroupsByAccountId] called with accountId:', accountId);
+  log.debug('[db.getPerformanceGroupsByAccountId] called with accountId:', accountId);
   try {
     const db = await getDb();
-    console.log('[db.getPerformanceGroupsByAccountId] db obtained:', !!db);
+    log.debug('[db.getPerformanceGroupsByAccountId] db obtained:', !!db);
     if (!db) {
-      console.log('[db.getPerformanceGroupsByAccountId] db is null, returning empty array');
+      log.debug('[db.getPerformanceGroupsByAccountId] db is null, returning empty array');
       return [];
     }
     
     // 先尝试获取所有记录看看
     const allRecords = await db.select().from(performanceGroups);
-    console.log('[db.getPerformanceGroupsByAccountId] all records count:', allRecords.length);
+    log.debug('[db.getPerformanceGroupsByAccountId] all records count:', allRecords.length);
     
     // 如果accountId为0或未定义，返回所有优化目标
     if (!accountId || accountId === 0) {
-      console.log('[db.getPerformanceGroupsByAccountId] accountId is 0, returning all');
+      log.debug('[db.getPerformanceGroupsByAccountId] accountId is 0, returning all');
       return allRecords;
     }
     
     // 过滤指定accountId的记录
     const result = allRecords.filter(r => r.accountId === accountId);
-    console.log('[db.getPerformanceGroupsByAccountId] filtered result count:', result.length);
+    log.debug('[db.getPerformanceGroupsByAccountId] filtered result count:', result.length);
     return result;
   } catch (error) {
-    console.error('[db.getPerformanceGroupsByAccountId] error:', error);
+    log.error('[db.getPerformanceGroupsByAccountId] error:', error);
     return [];
   }
 }
@@ -689,7 +692,7 @@ export async function createBiddingLog(log: InsertBiddingLog) {
       sourceId: Number(logId),
     });
   } catch (e) {
-    console.error('[v145] 双写optimization_events失败(biddingLog):', e);
+    log.error('[v145] 双写optimization_events失败(biddingLog):', e);
   }
   
   return logId;
@@ -904,7 +907,7 @@ export async function upsertDailyPerformanceFromAms(data: {
     
     if (existingCampaign?.isFinalized) {
       // 已校准的campaign级数据不覆盖
-      console.log(`[AMS DB] 跳过已校准campaign数据: ${data.date} campaignId=${data.campaignId}`);
+      log.info(`[AMS DB] 跳过已校准campaign数据: ${data.date} campaignId=${data.campaignId}`);
     } else if (existingCampaign) {
       // ✅ 覆盖写入：用AMS最新快照数据直接替换旧值
       await db.update(dailyPerformance)
@@ -940,7 +943,7 @@ export async function upsertDailyPerformanceFromAms(data: {
   );
   
   if (existingAccount?.isFinalized) {
-    console.log(`[AMS DB] 跳过已校准账户汇总数据: ${data.date} accountId=${data.accountId}`);
+    log.info(`[AMS DB] 跳过已校准账户汇总数据: ${data.date} accountId=${data.accountId}`);
     return;
   }
   
@@ -1016,7 +1019,7 @@ export async function updateDailyPerformanceConversion(data: {
   );
   
   if (existing?.isFinalized) {
-    console.log(`[AMS DB] 跳过已校准转化数据: ${data.date} accountId=${data.accountId}`);
+    log.info(`[AMS DB] 跳过已校准转化数据: ${data.date} accountId=${data.accountId}`);
     return;
   }
   
@@ -3152,7 +3155,7 @@ export async function recordBidAdjustment(data: {
       sourceId: Number(result[0]?.insertId || 0),
     });
   } catch (e) {
-    console.error('[v145] 双写optimization_events失败(bidAdjustment):', e);
+    log.error('[v145] 双写optimization_events失败(bidAdjustment):', e);
   }
   
   return result;
@@ -4626,7 +4629,7 @@ export async function getAccountPerformanceSummary(
       totalClicks: Number(result?.totalClicks || 0),
     };
   } catch (error) {
-    console.error('[getAccountPerformanceSummary] Error:', error);
+    log.error('[getAccountPerformanceSummary] Error:', error);
     return null;
   }
 }
@@ -4711,7 +4714,7 @@ export async function getDailyTrendData(accountIds: number[], days: number, time
       };
     });
   } catch (error) {
-    console.error('[getDailyTrendData] Error:', error);
+    log.error('[getDailyTrendData] Error:', error);
     return [];
   }
 }
@@ -4797,7 +4800,7 @@ export async function getDataDateRange(accountIds: number[]): Promise<{
       hasData: false,
     };
   } catch (error) {
-    console.error('[getDataDateRange] Error:', error);
+    log.error('[getDataDateRange] Error:', error);
     const now = new Date();
     const minDate = new Date(now);
     minDate.setDate(minDate.getDate() - 90);
@@ -4842,7 +4845,7 @@ export async function getPlacementPerformanceByCampaignId(campaignId: number) {
     
     return (result as any) || [];
   } catch (error) {
-    console.error('[getPlacementPerformanceByCampaignId] Error:', error);
+    log.error('[getPlacementPerformanceByCampaignId] Error:', error);
     return [];
   }
 }
@@ -4985,10 +4988,10 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
       sourceId: logId,
       executedAt: data.executedAt,
     });
-    console.log(`[v212] 双写optimization_events成功: logId=${logId}, category=${resolvedCategory}, keywordId=${extractedKeywordId || 'N/A'}, apiSyncStatus=${finalApiSyncStatus}`);
+    log.info(`[v212] 双写optimization_events成功: logId=${logId}, category=${resolvedCategory}, keywordId=${extractedKeywordId || 'N/A'}, apiSyncStatus=${finalApiSyncStatus}`);
   } catch (e) {
-    console.error('[v212] 双写optimization_events失败:', (e as any).message || e);
-    console.error('[v212] 双写失败详情: logCategory=', data.logCategory, 'actionType=', data.actionType);
+    log.error('[v212] 双写optimization_events失败:', (e as any).message || e);
+    log.error('[v212] 双写失败详情: logCategory=', data.logCategory, 'actionType=', data.actionType);
   }
   
   return logId;
@@ -5548,7 +5551,7 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
         }
         migrated.biddingLogs = totalBiddingLogs;
       } catch (err: any) {
-        console.error('[AutoMigration] bidding_logs migration error:', err.message);
+        log.error('[AutoMigration] bidding_logs migration error:', err.message);
         skipped.push(`bidding_logs (error: ${err.message})`);
       }
     }
@@ -5565,7 +5568,7 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
         }
         migrated.bidAdjustmentHistory = totalBidHistory;
       } catch (err: any) {
-        console.error('[AutoMigration] bid_adjustment_history migration error:', err.message);
+        log.error('[AutoMigration] bid_adjustment_history migration error:', err.message);
         skipped.push(`bid_adjustment_history (error: ${err.message})`);
       }
     }
@@ -5585,17 +5588,17 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
         }
         migrated.optimizationLogs = totalOptLogs;
       } catch (err: any) {
-        console.error('[AutoMigration] optimization_logs migration error:', err.message);
+        log.error('[AutoMigration] optimization_logs migration error:', err.message);
         skipped.push(`optimization_logs (error: ${err.message})`);
       }
     }
     
     const totalMigrated = Object.values(migrated).reduce((a, b) => a + b, 0);
-    console.log(`[AutoMigration] 完成: 共迁移 ${totalMigrated} 条记录`, migrated, '跳过:', skipped);
+    log.info(`[AutoMigration] 完成: 共迁移 ${totalMigrated} 条记录`, migrated, '跳过:', skipped);
     
     return { success: true, migrated, skipped };
   } catch (err: any) {
-    console.error('[AutoMigration] 全局迁移失败:', err.message);
+    log.error('[AutoMigration] 全局迁移失败:', err.message);
     return { success: false, migrated, skipped: [...skipped, err.message] };
   }
 }
@@ -5656,7 +5659,7 @@ export async function getGoalProgressTrendData(performanceGroupId: number, group
     
     return { before, after };
   } catch (error) {
-    console.error(`[getGoalProgressTrendData] Error for group ${performanceGroupId}:`, error);
+    log.error(`[getGoalProgressTrendData] Error for group ${performanceGroupId}:`, error);
     return { before: null, after: null };
   }
 }
@@ -5735,7 +5738,7 @@ export async function getMultiWindowTrendData(performanceGroupId: number, groupC
       preOptimization: preOptData[0] || null,
     };
   } catch (error) {
-    console.error(`[getMultiWindowTrendData] Error for group ${performanceGroupId}:`, error);
+    log.error(`[getMultiWindowTrendData] Error for group ${performanceGroupId}:`, error);
     return null;
   }
 }
@@ -5900,7 +5903,7 @@ export async function getTimeWeightedMetricsForGoalProgress(performanceGroupId: 
       effectiveDataDays,
     };
   } catch (error) {
-    console.error(`[getTimeWeightedMetricsForGoalProgress] Error for group ${performanceGroupId}:`, error);
+    log.error(`[getTimeWeightedMetricsForGoalProgress] Error for group ${performanceGroupId}:`, error);
     return null;
   }
 }

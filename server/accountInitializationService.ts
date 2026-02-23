@@ -13,6 +13,9 @@
 import * as db from './db';
 import { AmazonSyncService } from './amazonSyncService';
 import { AmazonAdsApiClient, MARKETPLACE_TO_REGION } from './amazonAdsApi';
+import { createModuleLogger } from './utils/logger';
+
+const log = createModuleLogger('AccountInit');
 
 // 初始化结果
 export interface AccountInitializationResult {
@@ -64,7 +67,7 @@ export async function initializeAccount(params: {
 }): Promise<AccountInitializationResult> {
   const { accountId, userId, clientId, clientSecret, refreshToken, profileId, region, marketplace } = params;
   
-  console.log(`[AccountInit] 开始初始化账号 ${accountId} (${marketplace})...`);
+  log.info(`开始初始化账号 ${accountId} (${marketplace})...`);
   
   const result: AccountInitializationResult = {
     accountId,
@@ -76,7 +79,7 @@ export async function initializeAccount(params: {
 
   // ==================== 步骤1: 全量数据同步 ====================
   try {
-    console.log(`[AccountInit] 步骤1: 启动全量数据同步 (${marketplace})...`);
+    log.info(`步骤1: 启动全量数据同步 (${marketplace})...`);
     
     const syncService = await AmazonSyncService.createFromCredentials(
       { clientId, clientSecret, refreshToken, profileId, region },
@@ -87,22 +90,22 @@ export async function initializeAccount(params: {
 
     // 异步执行全量同步（获取90天历史数据），不阻塞后续步骤
     syncService.syncAll().then(async (syncData) => {
-      console.log(`[AccountInit] 账号 ${accountId} (${marketplace}) 全量同步完成:`, syncData);
+      log.info(`账号 ${accountId} (${marketplace}) 全量同步完成:`, syncData);
       await db.updateAmazonApiCredentialsLastSync(accountId);
     }).catch(err => {
-      console.error(`[AccountInit] 账号 ${accountId} (${marketplace}) 全量同步失败:`, err);
+      log.error(`账号 ${accountId} (${marketplace}) 全量同步失败:`, err);
     });
 
     result.syncResult = { success: true };
-    console.log(`[AccountInit] 步骤1完成: 全量同步已启动`);
+    log.info(`步骤1完成: 全量同步已启动`);
   } catch (syncError: any) {
-    console.error(`[AccountInit] 步骤1失败: 全量同步启动失败:`, syncError);
+    log.error(`步骤1失败: 全量同步启动失败:`, syncError);
     result.syncResult = { success: false, error: syncError.message };
   }
 
   // ==================== 步骤2: 创建定时同步配置 ====================
   try {
-    console.log(`[AccountInit] 步骤2: 创建定时同步配置 (${marketplace})...`);
+    log.info(`步骤2: 创建定时同步配置 (${marketplace})...`);
     
     // 检查是否已存在定时同步配置
     const existingSchedule = await db.getSyncScheduleByAccountId(userId, accountId);
@@ -117,7 +120,7 @@ export async function initializeAccount(params: {
       });
       
       result.scheduleResult = { success: true, scheduleId: scheduleId as number };
-      console.log(`[AccountInit] 步骤2完成: 已创建每小时定时同步配置 (scheduleId=${scheduleId})`);
+      log.info(`步骤2完成: 已创建每小时定时同步配置 (scheduleId=${scheduleId})`);
     } else {
       // 已存在配置，确保它是启用的
       if (!existingSchedule.isEnabled) {
@@ -125,20 +128,20 @@ export async function initializeAccount(params: {
           isEnabled: true,
           frequency: 'hourly',
         });
-        console.log(`[AccountInit] 步骤2完成: 已重新启用现有定时同步配置`);
+        log.info(`步骤2完成: 已重新启用现有定时同步配置`);
       } else {
-        console.log(`[AccountInit] 步骤2完成: 定时同步配置已存在且已启用`);
+        log.info(`步骤2完成: 定时同步配置已存在且已启用`);
       }
       result.scheduleResult = { success: true, scheduleId: existingSchedule.id };
     }
   } catch (scheduleError: any) {
-    console.error(`[AccountInit] 步骤2失败: 创建定时同步配置失败:`, scheduleError);
+    log.error(`步骤2失败: 创建定时同步配置失败:`, scheduleError);
     result.scheduleResult = { success: false, error: scheduleError.message };
   }
 
   // ==================== 步骤3: 创建AMS实时数据流订阅 ====================
   try {
-    console.log(`[AccountInit] 步骤3: 创建AMS实时数据流订阅 (${marketplace})...`);
+    log.info(`步骤3: 创建AMS实时数据流订阅 (${marketplace})...`);
     
     // 构建SQS队列ARN映射
     const urlToArn = (url: string | undefined): string | undefined => {
@@ -173,7 +176,7 @@ export async function initializeAccount(params: {
     const sqsQueueArn = process.env.AWS_SQS_QUEUE_ARN;
 
     if (configuredQueues.length === 0 && !sqsQueueArn) {
-      console.warn(`[AccountInit] 步骤3跳过: 未配置SQS队列环境变量，AMS订阅将在用户手动配置后创建`);
+      log.warn(`步骤3跳过: 未配置SQS队列环境变量，AMS订阅将在用户手动配置后创建`);
       result.amsResult = { success: false, error: '未配置SQS队列环境变量' };
     } else {
       const apiRegion = MARKETPLACE_TO_REGION[marketplace] || region;
@@ -201,21 +204,21 @@ export async function initializeAccount(params: {
       // 验证订阅状态
       if (amsCreateResult.created.length > 0) {
         const activeCount = amsCreateResult.created.filter(s => s.status === 'ACTIVE').length;
-        console.log(`[AccountInit] 步骤3完成: AMS订阅创建 ${amsCreateResult.created.length} 个 (ACTIVE: ${activeCount}), 失败 ${amsCreateResult.failed.length} 个`);
+        log.warn(`步骤3完成: AMS订阅创建 ${amsCreateResult.created.length} 个 (ACTIVE: ${activeCount}), 失败 ${amsCreateResult.failed.length} 个`);
         
         if (activeCount < amsCreateResult.created.length) {
-          console.warn(`[AccountInit] ⚠️ 部分AMS订阅未激活，请检查SQS队列权限`);
+          log.warn(`⚠️ 部分AMS订阅未激活，请检查SQS队列权限`);
         }
       } else {
-        console.warn(`[AccountInit] 步骤3: 没有新创建的AMS订阅（可能已存在）`);
+        log.warn(`步骤3: 没有新创建的AMS订阅（可能已存在）`);
       }
     }
   } catch (amsError: any) {
-    console.error(`[AccountInit] 步骤3失败: AMS订阅创建失败:`, amsError);
+    log.error(`步骤3失败: AMS订阅创建失败:`, amsError);
     result.amsResult = { success: false, error: amsError.message };
   }
 
-  console.log(`[AccountInit] 账号 ${accountId} (${marketplace}) 初始化完成:`, {
+  log.info(`账号 ${accountId} (${marketplace}) 初始化完成:`, {
     sync: result.syncResult.success ? '✅' : '❌',
     schedule: result.scheduleResult.success ? '✅' : '❌',
     ams: result.amsResult.success ? '✅' : '❌',
@@ -238,7 +241,7 @@ export async function initializeMultipleAccounts(accounts: Array<{
   region: 'NA' | 'EU' | 'FE';
   marketplace: string;
 }>): Promise<AccountInitializationResult[]> {
-  console.log(`[AccountInit] 开始批量初始化 ${accounts.length} 个账号...`);
+  log.info(`开始批量初始化 ${accounts.length} 个账号...`);
   
   const results: AccountInitializationResult[] = [];
   
@@ -252,7 +255,7 @@ export async function initializeMultipleAccounts(accounts: Array<{
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
     } catch (error: any) {
-      console.error(`[AccountInit] 账号 ${account.accountId} 初始化异常:`, error);
+      log.error(`账号 ${account.accountId} 初始化异常:`, error);
       results.push({
         accountId: account.accountId,
         marketplace: account.marketplace,
@@ -264,7 +267,7 @@ export async function initializeMultipleAccounts(accounts: Array<{
   }
   
   const successCount = results.filter(r => r.syncResult.success).length;
-  console.log(`[AccountInit] 批量初始化完成: ${successCount}/${accounts.length} 个账号成功`);
+  log.info(`批量初始化完成: ${successCount}/${accounts.length} 个账号成功`);
   
   return results;
 }

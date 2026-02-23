@@ -23,6 +23,9 @@ import {
   negativeKeywords,
   optimizationEvents,
 } from '../drizzle/schema';
+import { createModuleLogger } from './utils/logger';
+
+const log = createModuleLogger('SyncService');
 import {
   AmazonAdsApiClient,
   createAmazonAdsClient,
@@ -83,11 +86,11 @@ function createSyncProtectionStats(): SyncProtectionStats {
 function logSyncProtectionSummary(functionName: string, stats: SyncProtectionStats): void {
   const total = stats.bidProtected + stats.bidOverwritten + stats.budgetProtected + stats.budgetOverwritten;
   if (total === 0) return;
-  console.log(`[SyncProtection] ${functionName} 同步保护摘要: ` +
+  log.info(`${functionName} 同步保护摘要: ` +
     `出价保护=${stats.bidProtected}, 出价覆盙=${stats.bidOverwritten}, ` +
     `预算保护=${stats.budgetProtected}, 预算覆盙=${stats.budgetOverwritten}`);
   if (stats.protectedEntities.length > 0) {
-    console.log(`[SyncProtection] ${functionName} 被保护实体: ${stats.protectedEntities.slice(0, 20).join(', ')}${stats.protectedEntities.length > 20 ? ` ...等${stats.protectedEntities.length}个` : ''}`);
+    log.debug(`${functionName} 被保护实体: ${stats.protectedEntities.slice(0, 20).join(', ')}${stats.protectedEntities.length > 20 ? ` ...等${stats.protectedEntities.length}个` : ''}`);
   }
 }
 
@@ -131,7 +134,7 @@ async function hasRecentSyncedOptimization(
     return (result[0]?.count || 0) > 0;
   } catch (error) {
     // 查询失败时不阻塞同步，默认不保护（以API为准）
-    console.warn('[SyncService] v150: 查询优化事件失败，默认以API为准:', (error as any).message);
+    log.warn('v150: 查询优化事件失败，默认以API为准:', (error as any).message);
     return false;
   }
 }
@@ -153,7 +156,7 @@ async function getRecentlyOptimizedKeywordIds(
     if (keywordIds.length === 0) return new Set();
     const db = await getDb();
     if (!db) {
-      console.error('[SyncProtection] v212: 数据库连接不可用，保护机制无法工作！');
+      log.error('v212: 数据库连接不可用，保护机制无法工作！');
       return new Set();
     }
     const cutoff = new Date(Date.now() - hoursWindow * 60 * 60 * 1000)
@@ -189,20 +192,20 @@ async function getRecentlyOptimizedKeywordIds(
         if (fallbackRows && fallbackRows.length > 0) {
           const fallbackKeywordIds = new Set(fallbackRows.map((r: any) => Number(r.kw_id)).filter(id => id > 0 && keywordIds.includes(id)));
           if (fallbackKeywordIds.size > 0) {
-            console.log(`[SyncProtection] v212: Fallback查询optimization_logs找到${fallbackKeywordIds.size}个需要保护的关键词`);
+            log.debug(`v212: Fallback查询optimization_logs找到${fallbackKeywordIds.size}个需要保护的关键词`);
             for (const id of fallbackKeywordIds) protectedSet.add(id);
           }
         }
       } catch (fallbackErr) {
-        console.warn('[SyncProtection] v212: Fallback查询optimization_logs失败:', (fallbackErr as any).message);
+        log.warn('v212: Fallback查询optimization_logs失败:', (fallbackErr as any).message);
       }
     }
     
-    console.log(`[SyncProtection] v212: 查询完成, 输入${keywordIds.length}个关键词, 保护${protectedSet.size}个`);
+    log.info(`v212: 查询完成, 输入${keywordIds.length}个关键词, 保护${protectedSet.size}个`);
     return protectedSet;
   } catch (error) {
-    console.error('[SyncProtection] v212: ❌ 批量查询优化关键词失败，保护机制降级！', (error as any).message);
-    console.error('[SyncProtection] v212: 错误详情:', (error as any).stack?.substring(0, 300));
+    log.error('v212: ❌ 批量查询优化关键词失败，保护机制降级！', (error as any).message);
+    log.error('v212: 错误详情:', (error as any).stack?.substring(0, 300));
     // v212: 即使查询失败，仍返回空Set以不阻塞同步
     // 但通过error级别日志确保问题被发现
     return new Set();
@@ -221,7 +224,7 @@ async function getRecentlyOptimizedCampaignIds(
     if (campaignIds.length === 0) return new Set();
     const db = await getDb();
     if (!db) {
-      console.error('[SyncProtection] v212: 数据库连接不可用，预算保护机制无法工作！');
+      log.error('v212: 数据库连接不可用，预算保护机制无法工作！');
       return new Set();
     }
     const cutoff = new Date(Date.now() - hoursWindow * 60 * 60 * 1000)
@@ -239,10 +242,10 @@ async function getRecentlyOptimizedCampaignIds(
       .groupBy(optimizationEvents.campaignId);
     
     const protectedSet = new Set(results.map(r => r.campaignId!).filter(Boolean));
-    console.log(`[SyncProtection] v212: 预算保护查询完成, 输入${campaignIds.length}个广告活动, 保护${protectedSet.size}个`);
+    log.info(`v212: 预算保护查询完成, 输入${campaignIds.length}个广告活动, 保护${protectedSet.size}个`);
     return protectedSet;
   } catch (error) {
-    console.error('[SyncProtection] v212: ❌ 批量查询优化广告活动失败:', (error as any).message);
+    log.error('v212: ❌ 批量查询优化广告活动失败:', (error as any).message);
     return new Set();
   }
 }
@@ -332,14 +335,14 @@ export class AmazonSyncService {
       const sbAdGroupResult = await this.syncSbAdGroups();
       results.adGroups += sbAdGroupResult.synced;
     } catch (e: any) {
-      console.error('[SyncService] SB广告组同步失败:', e.message);
+      log.error('SB广告组同步失败:', e.message);
     }
 
     try {
       const sdAdGroupResult = await this.syncSdAdGroups();
       results.adGroups += sdAdGroupResult.synced;
     } catch (e: any) {
-      console.error('[SyncService] SD广告组同步失败:', e.message);
+      log.error('SD广告组同步失败:', e.message);
     }
     
     // ==================== 同步关键词投放（SP + SB） ====================
@@ -350,7 +353,7 @@ export class AmazonSyncService {
       const sbKeywordResult = await this.syncSbKeywords();
       results.keywords += sbKeywordResult.synced;
     } catch (e: any) {
-      console.error('[SyncService] SB关键词同步失败:', e.message);
+      log.error('SB关键词同步失败:', e.message);
     }
     
     // ==================== 同步商品定位（SP + SB + SD） ====================
@@ -361,127 +364,127 @@ export class AmazonSyncService {
       const sbTargetResult = await this.syncSbProductTargets();
       results.targets += sbTargetResult.synced;
     } catch (e: any) {
-      console.error('[SyncService] SB商品定位同步失败:', e.message);
+      log.error('SB商品定位同步失败:', e.message);
     }
 
     try {
       const sdTargetResult = await this.syncSdProductTargets();
       results.targets += sdTargetResult.synced;
     } catch (e: any) {
-      console.error('[SyncService] SD商品定位同步失败:', e.message);
+      log.error('SD商品定位同步失败:', e.message);
     }
 
     // ==================== 同步否定关键词 ====================
     try {
-      console.log(`[SyncService] 开始同步SP否定关键词...`);
+      log.info(`开始同步SP否定关键词...`);
       const negResult = await this.syncSpNegativeKeywords();
-      console.log(`[SyncService] SP否定关键词同步完成: ${negResult.synced}条新增, ${negResult.updated}条更新`);
+      log.info(`SP否定关键词同步完成: ${negResult.synced}条新增, ${negResult.updated}条更新`);
     } catch (e: any) {
-      console.error('[SyncService] SP否定关键词同步失败:', e.message);
+      log.error('SP否定关键词同步失败:', e.message);
     }
     // ==================== 同步SP否定商品定向 ====================
     try {
-      console.log(`[SyncService] 开始同步SP否定商品定向...`);
+      log.info(`开始同步SP否定商品定向...`);
       const negPtResult = await this.syncSpNegativeProductTargets();
-      console.log(`[SyncService] SP否定商品定向同步完成: ${negPtResult.synced}条新增, ${negPtResult.updated}条更新`);
+      log.info(`SP否定商品定向同步完成: ${negPtResult.synced}条新增, ${negPtResult.updated}条更新`);
     } catch (e: any) {
-      console.error('[SyncService] SP否定商品定向同步失败:', e.message);
+      log.error('SP否定商品定向同步失败:', e.message);
     }
     // ==================== 同步SP搜索词 ====================
     try {
-      console.log(`[SyncService] 开始同步SP搜索词数据...`);
+      log.info(`开始同步SP搜索词数据...`);
       const spSearchTermSynced = await this.syncSearchTerms(14);
-      console.log(`[SyncService] SP搜索词同步完成: ${spSearchTermSynced}条`);
+      log.info(`SP搜索词同步完成: ${spSearchTermSynced}条`);
     } catch (e: any) {
-      console.error('[SyncService] SP搜索词同步失败:', e.message);
+      log.error('SP搜索词同步失败:', e.message);
     }
     // ==================== 同步SB搜索词 ====================
     try {
-      console.log(`[SyncService] 开始同步SB搜索词数据...`);
+      log.info(`开始同步SB搜索词数据...`);
       const sbSearchTermSynced = await this.syncSbSearchTerms(14);
-      console.log(`[SyncService] SB搜索词同步完成: ${sbSearchTermSynced}条`);
+      log.info(`SB搜索词同步完成: ${sbSearchTermSynced}条`);
     } catch (e: any) {
-      console.error('[SyncService] SB搜索词同步失败:', e.message);
+      log.error('SB搜索词同步失败:', e.message);
     }
     // ==================== 同步SB广告素材（品牌广告创意） ====================
     try {
-      console.log(`[SyncService] 开始同步SB广告素材...`);
+      log.info(`开始同步SB广告素材...`);
       const sbAdsResult = await this.syncSbAds();
-      console.log(`[SyncService] SB广告素材同步完成: ${sbAdsResult.synced}条同步, ${sbAdsResult.skipped}条跳过`);
+      log.info(`SB广告素材同步完成: ${sbAdsResult.synced}条同步, ${sbAdsResult.skipped}条跳过`);
     } catch (e: any) {
-      console.error('[SyncService] SB广告素材同步失败:', e.message);
+      log.error('SB广告素材同步失败:', e.message);
     }
 
     // ==================== 同步SB否定关键词 ====================
     try {
-      console.log(`[SyncService] 开始同步SB否定关键词...`);
+      log.info(`开始同步SB否定关键词...`);
       const sbNegKwResult = await this.syncSbNegativeKeywords();
-      console.log(`[SyncService] SB否定关键词同步完成: ${sbNegKwResult.synced}条新增, ${sbNegKwResult.updated}条更新`);
+      log.info(`SB否定关键词同步完成: ${sbNegKwResult.synced}条新增, ${sbNegKwResult.updated}条更新`);
     } catch (e: any) {
-      console.error('[SyncService] SB否定关键词同步失败:', e.message);
+      log.error('SB否定关键词同步失败:', e.message);
     }
 
     // ==================== 同步SB否定商品定向 ====================
     try {
-      console.log(`[SyncService] 开始同步SB否定商品定向...`);
+      log.info(`开始同步SB否定商品定向...`);
       const sbNegTgtResult = await this.syncSbNegativeTargets();
-      console.log(`[SyncService] SB否定商品定向同步完成: ${sbNegTgtResult.synced}条新增, ${sbNegTgtResult.updated}条更新`);
+      log.info(`SB否定商品定向同步完成: ${sbNegTgtResult.synced}条新增, ${sbNegTgtResult.updated}条更新`);
     } catch (e: any) {
-      console.error('[SyncService] SB否定商品定向同步失败:', e.message);
+      log.error('SB否定商品定向同步失败:', e.message);
     }
 
     // ==================== 同步SP广告位绩效 ====================
     try {
-      console.log(`[SyncService] 开始同步SP广告位绩效数据...`);
+      log.info(`开始同步SP广告位绩效数据...`);
       const placementSynced = await this.syncPlacementPerformance(14);
-      console.log(`[SyncService] SP广告位绩效同步完成: ${placementSynced}条`);
+      log.info(`SP广告位绩效同步完成: ${placementSynced}条`);
     } catch (e: any) {
-      console.error('[SyncService] SP广告位绩效同步失败:', e.message);
+      log.error('SP广告位绩效同步失败:', e.message);
     }
 
     // ==================== 同步SB广告位绩效 ====================
     try {
-      console.log(`[SyncService] 开始同步SB广告位绩效数据...`);
+      log.info(`开始同步SB广告位绩效数据...`);
       const sbPlacementSynced = await this.syncSbPlacementPerformance(14);
-      console.log(`[SyncService] SB广告位绩效同步完成: ${sbPlacementSynced}条`);
+      log.info(`SB广告位绩效同步完成: ${sbPlacementSynced}条`);
     } catch (e: any) {
-      console.error('[SyncService] SB广告位绩效同步失败:', e.message);
+      log.error('SB广告位绩效同步失败:', e.message);
     }
 
     // ==================== 同步SP自动定向报告 ====================
     try {
-      console.log(`[SyncService] 开始同步SP自动定向报告数据...`);
+      log.info(`开始同步SP自动定向报告数据...`);
       const autoTargetSynced = await this.syncAutoTargeting(14);
-      console.log(`[SyncService] SP自动定向报告同步完成: ${autoTargetSynced}条`);
+      log.info(`SP自动定向报告同步完成: ${autoTargetSynced}条`);
     } catch (e: any) {
-      console.error('[SyncService] SP自动定向报告同步失败:', e.message);
+      log.error('SP自动定向报告同步失败:', e.message);
     }
 
     // ==================== 同步SD定向报告 ====================
     try {
-      console.log(`[SyncService] 开始同步SD定向报告数据...`);
+      log.info(`开始同步SD定向报告数据...`);
       const sdTargetSynced = await this.syncSdTargeting(14);
-      console.log(`[SyncService] SD定向报告同步完成: ${sdTargetSynced}条`);
+      log.info(`SD定向报告同步完成: ${sdTargetSynced}条`);
     } catch (e: any) {
-      console.error('[SyncService] SD定向报告同步失败:', e.message);
+      log.error('SD定向报告同步失败:', e.message);
     }
 
     // ==================== 同步SB定向报告 ====================
     try {
-      console.log(`[SyncService] 开始同步SB定向报告数据...`);
+      log.info(`开始同步SB定向报告数据...`);
       const sbTargetSynced = await this.syncSbTargeting(14);
-      console.log(`[SyncService] SB定向报告同步完成: ${sbTargetSynced}条`);
+      log.info(`SB定向报告同步完成: ${sbTargetSynced}条`);
     } catch (e: any) {
-      console.error('[SyncService] SB定向报告同步失败:', e.message);
+      log.error('SB定向报告同步失败:', e.message);
     }
     
     // ==================== 解析SB素材Asset URL ====================
     try {
-      console.log(`[SyncService] 开始解析SB广告素材URL...`);
+      log.info(`开始解析SB广告素材URL...`);
       const assetUrlsSynced = await this.syncAssetUrls();
-      console.log(`[SyncService] SB素材URL解析完成: ${assetUrlsSynced}个广告组已更新`);
+      log.info(`SB素材URL解析完成: ${assetUrlsSynced}个广告组已更新`);
     } catch (e: any) {
-      console.error('[SyncService] SB素材URL解析失败:', e.message);
+      log.error('SB素材URL解析失败:', e.message);
     }
 
     // 同步绩效数据（快慢双轨架构：API只拉取T-1及之前的历史数据）
@@ -489,34 +492,34 @@ export class AmazonSyncService {
     // 因此每次同步都需要回溯过去14天的数据，覆盖旧记录
     // 这能确保存下来的数据和亚马逊后台最终结算的数据一致
     const performanceDays = 14; // ⚠️ 修改为14天归因回溯
-    console.log(`[SyncService] 同步最近${performanceDays}天历史绩效数据（归因回溯机制，覆盖旧记录）`);
+    log.info(`同步最近${performanceDays}天历史绩效数据（归因回溯机制，覆盖旧记录）`);
     results.performance += await this.syncPerformanceData(performanceDays);
 
     // ✅ 修复P0-4/P1-1: 同步关键词级别绩效数据（之前缺失，导致keywords表绩效全为0）
     try {
-      console.log(`[SyncService] 开始同步关键词级别绩效数据...`);
+      log.info(`开始同步关键词级别绩效数据...`);
       const keywordPerfSynced = await this.syncKeywordPerformanceData(performanceDays);
-      console.log(`[SyncService] 关键词绩效数据同步完成: ${keywordPerfSynced}条`);
+      log.info(`关键词绩效数据同步完成: ${keywordPerfSynced}条`);
     } catch (kwPerfError: any) {
-      console.error('[SyncService] 关键词绩效数据同步失败:', kwPerfError.message);
+      log.error('关键词绩效数据同步失败:', kwPerfError.message);
     }
 
     // ✅ 修复P1-2: 同步商品定位级别绩效数据
     try {
-      console.log(`[SyncService] 开始同步商品定位级别绩效数据...`);
+      log.info(`开始同步商品定位级别绩效数据...`);
       const targetPerfSynced = await this.syncProductTargetPerformanceData(performanceDays);
-      console.log(`[SyncService] 商品定位绩效数据同步完成: ${targetPerfSynced}条`);
+      log.info(`商品定位绩效数据同步完成: ${targetPerfSynced}条`);
     } catch (ptPerfError: any) {
-      console.error('[SyncService] 商品定位绩效数据同步失败:', ptPerfError.message);
+      log.error('商品定位绩效数据同步失败:', ptPerfError.message);
     }
 
     // ✅ 同步广告组级别绩效数据（SP/SB/SD）
     try {
-      console.log(`[SyncService] 开始同步广告组级别绩效数据...`);
+      log.info(`开始同步广告组级别绩效数据...`);
       const adGroupPerfSynced = await this.syncAdGroupPerformanceData(performanceDays);
-      console.log(`[SyncService] 广告组绩效数据同步完成: ${adGroupPerfSynced}条`);
+      log.info(`广告组绩效数据同步完成: ${adGroupPerfSynced}条`);
     } catch (agPerfError: any) {
-      console.error('[SyncService] 广告组绩效数据同步失败:', agPerfError.message);
+      log.error('广告组绩效数据同步失败:', agPerfError.message);
     }
 
     return results;
@@ -537,9 +540,9 @@ export class AmazonSyncService {
       
       // 输出第一个广告活动的结构用于调试
       if (apiCampaigns.length > 0) {
-        console.log('[SyncService] SB广告活动API返回结构示例:', JSON.stringify(apiCampaigns[0], null, 2));
+        log.debug('SB广告活动API返回结构示例:', JSON.stringify(apiCampaigns[0], null, 2));
       }
-      console.log(`[SyncService] 获取到 ${apiCampaigns.length} 个SB广告活动`);
+      log.debug(`获取到 ${apiCampaigns.length} 个SB广告活动`);
 
       for (const apiCampaign of apiCampaigns) {
         // 检查是否已存在
@@ -652,7 +655,7 @@ export class AmazonSyncService {
         const sbLandingPageUrl = (apiCampaign as any).landingPage?.url || (apiCampaign as any).landingPageUrl || null;
         const sbBrandEntityId = (apiCampaign as any).brandEntityId || null;
 
-        console.log(`[SyncService] SB广告 ${apiCampaign.name}: goal=${sbGoal}, costType=${sbCostType}, adFormat=${normalizedAdFormat}`);
+        log.debug(`SB广告 ${apiCampaign.name}: goal=${sbGoal}, costType=${sbCostType}, adFormat=${normalizedAdFormat}`);
 
         const campaignData = {
           accountId: this.accountId,
@@ -682,7 +685,7 @@ export class AmazonSyncService {
           // v168: 零值预算防护 - 如果API返回budget=0但本地有非零值，保留本地值
           const localBudgetSb = parseFloat(existing.dailyBudget || '0');
           if (dailyBudget === 0 && localBudgetSb > 0) {
-            console.warn(`[SyncService] v168: SB零值预算防护生效 - campaign=${existing.campaignName}, local=$${localBudgetSb}, api=$${dailyBudget}, 保留本地预算`);
+            log.warn(`v168: SB零值预算防护生效 - campaign=${existing.campaignName}, local=$${localBudgetSb}, api=$${dailyBudget}, 保留本地预算`);
             delete (campaignData as any).dailyBudget;
           }
           await db
@@ -700,7 +703,7 @@ export class AmazonSyncService {
 
       return { synced, skipped };
     } catch (error) {
-      console.error('Error syncing SB campaigns:', error);
+      log.error('Error syncing SB campaigns:', error);
       return { synced: 0, skipped: 0 };
     }
   }
@@ -720,9 +723,9 @@ export class AmazonSyncService {
       
       // 输出第一个广告活动的结构用于调试
       if (apiCampaigns.length > 0) {
-        console.log('[SyncService] SD广告活动API返回结构示例:', JSON.stringify(apiCampaigns[0], null, 2));
+        log.debug('SD广告活动API返回结构示例:', JSON.stringify(apiCampaigns[0], null, 2));
       }
-      console.log(`[SyncService] 获取到 ${apiCampaigns.length} 个SD广告活动`);
+      log.debug(`获取到 ${apiCampaigns.length} 个SD广告活动`);
 
       for (const apiCampaign of apiCampaigns) {
         // 检查是否已存在
@@ -821,7 +824,7 @@ export class AmazonSyncService {
         let finalCostType = normalizedCostType;
         if (sdGoal === 'reach' && normalizedCostType === 'cpc') {
           // reach目标通常使用vCPM，但以API返回的costType为准
-          console.log(`[SyncService] SD广告 ${apiCampaign.name}: goal=reach 但 costType=cpc，以API返回为准`);
+          log.debug(`SD广告 ${apiCampaign.name}: goal=reach 但 costType=cpc，以API返回为准`);
         }
 
         // 获取SD广告的竞价优化目标
@@ -829,7 +832,7 @@ export class AmazonSyncService {
         const validBidOpts = ['reach', 'pageVisits', 'conversions'];
         const normalizedBidOpt = validBidOpts.includes(sdBidOptimization) ? sdBidOptimization : null;
 
-        console.log(`[SyncService] SD广告 ${apiCampaign.name}: goal=${sdGoal}, costType=${finalCostType}, tactic=${sdTactic}`);
+        log.debug(`SD广告 ${apiCampaign.name}: goal=${sdGoal}, costType=${finalCostType}, tactic=${sdTactic}`);
 
         const campaignData = {
           accountId: this.accountId,
@@ -867,7 +870,7 @@ export class AmazonSyncService {
 
       return { synced, skipped };
     } catch (error) {
-      console.error('Error syncing SD campaigns:', error);
+      log.error('Error syncing SD campaigns:', error);
       return { synced: 0, skipped: 0 };
     }
   }
@@ -877,34 +880,34 @@ export class AmazonSyncService {
    * @param lastSyncTime 上次同步时间，用于增量同步
    */
   async syncSpCampaigns(lastSyncTime?: string | null): Promise<number | { synced: number; skipped: number }> {
-    console.log('[同步] ========== 开始同步SP广告活动 ==========');
-    console.log('[同步] 参数:', { accountId: this.accountId, lastSyncTime, marketplace: this.marketplace });
+    log.info('[同步] ========== 开始同步SP广告活动 ==========');
+    log.info('[同步] 参数:', { accountId: this.accountId, lastSyncTime, marketplace: this.marketplace });
     
     const db = await getDb();
     if (!db) {
-      console.error('[同步] ❌ 数据库连接失败 - getDb()返回null');
+      log.error('[同步] ❌ 数据库连接失败 - getDb()返回null');
       return { synced: 0, skipped: 0 };
     }
-    console.log('[同步] ✅ 数据库连接成功');
+    log.info('[同步] ✅ 数据库连接成功');
 
     try {
-      console.log('[同步] 正在调用Amazon API: listSpCampaigns()...');
+      log.info('[同步] 正在调用Amazon API: listSpCampaigns()...');
       const apiCampaigns = await this.client.listSpCampaigns();
-      console.log(`[同步] ✅ API调用成功,返回 ${apiCampaigns.length} 个SP广告活动`);
+      log.info(`[同步] ✅ API调用成功,返回 ${apiCampaigns.length} 个SP广告活动`);
       let synced = 0;
       let skipped = 0;
       
       // 输出第一个广告活动的结构用于调试
       if (apiCampaigns.length > 0) {
-        console.log('[SyncService] SP广告活动API返回结构示例:', JSON.stringify(apiCampaigns[0], null, 2));
+        log.debug('SP广告活动API返回结构示例:', JSON.stringify(apiCampaigns[0], null, 2));
       }
-      console.log(`[SyncService] 获取到 ${apiCampaigns.length} 个SP广告活动`);
+      log.debug(`获取到 ${apiCampaigns.length} 个SP广告活动`);
 
       // 调试：输出第一个广告活动的完整结构
       if (apiCampaigns.length > 0) {
-        console.log('[SP Sync Debug] 第一个广告活动的完整结构:', JSON.stringify(apiCampaigns[0], null, 2));
-        console.log('[SP Sync Debug] startDate字段:', apiCampaigns[0].startDate);
-        console.log('[SP Sync Debug] endDate字段:', apiCampaigns[0].endDate);
+        log.debug('[SP Sync Debug] 第一个广告活动的完整结构:', JSON.stringify(apiCampaigns[0], null, 2));
+        log.debug('[SP Sync Debug] startDate字段:', apiCampaigns[0].startDate);
+        log.debug('[SP Sync Debug] endDate字段:', apiCampaigns[0].endDate);
       }
 
       // v150.1: 批量预查询所有需要保护的广告活动ID（减少循环内DB查询）
@@ -917,7 +920,7 @@ export class AmazonSyncService {
       }
       const protectedCampaignIds = await getRecentlyOptimizedCampaignIds(allExistingCampaignIds, SYNC_PROTECTION_CONFIG.BUDGET_PROTECTION_HOURS);
       const protectionStats = createSyncProtectionStats();
-      console.log(`[SyncProtection] syncSpCampaigns: 批量查询完成, ${protectedCampaignIds.size}个广告活动有近期预算优化事件`);
+      log.info(`syncSpCampaigns: 批量查询完成, ${protectedCampaignIds.size}个广告活动有近期预算优化事件`);
 
       for (const apiCampaign of apiCampaigns) {
         // 检查是否已存在
@@ -963,15 +966,15 @@ export class AmazonSyncService {
         }
         // v168: 零值防护 - 如果解析出的budget为0但广告活动状态为enabled，记录警告
         if (dailyBudgetValue === 0) {
-          console.warn(`[SyncService] v168: SP广告 ${apiCampaign.name} budget解析为0, 原始budget字段:`, JSON.stringify(budgetField), 'dailyBudget:', apiCampaign.dailyBudget);
+          log.warn(`v168: SP广告 ${apiCampaign.name} budget解析为0, 原始budget字段:`, JSON.stringify(budgetField), 'dailyBudget:', apiCampaign.dailyBudget);
         }
 
         // 调试日志：打印第一个广告活动的完整结构
         if (synced === 0 && skipped === 0) {
-          console.log('[SP Sync Debug] 第一个广告活动的完整结构:');
-          console.log(JSON.stringify(apiCampaign, null, 2));
-          console.log('[SP Sync Debug] startDate字段:', apiCampaign.startDate);
-          console.log('[SP Sync Debug] endDate字段:', apiCampaign.endDate);
+          log.debug('[SP Sync Debug] 第一个广告活动的完整结构:');
+          log.debug(JSON.stringify(apiCampaign, null, 2));
+          log.debug('[SP Sync Debug] startDate字段:', apiCampaign.startDate);
+          log.debug('[SP Sync Debug] endDate字段:', apiCampaign.endDate);
         }
 
         // 解析Amazon API返回的startDate（格式可能是YYYY-MM-DD或YYYYMMDD）
@@ -1031,7 +1034,7 @@ export class AmazonSyncService {
           const localBudget = parseFloat(existing.dailyBudget || '0');
           const apiBudget = parseFloat(String(dailyBudgetValue || '0'));
           if (apiBudget === 0 && localBudget > 0) {
-            console.warn(`[SyncService] v168: 零值预算防护生效 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, 保留本地预算`);
+            log.warn(`v168: 零值预算防护生效 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, 保留本地预算`);
             delete (campaignData as any).dailyBudget;
           }
           
@@ -1044,12 +1047,12 @@ export class AmazonSyncService {
             const hasRecentOpt = protectedCampaignIds.has(existing.id);
             if (hasRecentOpt) {
               // 有近期优化事件，保留本地预算
-              console.log(`[SyncService] v150: 预算保护生效 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, 保留本地优化预算`);
+              log.debug(`v150: 预算保护生效 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, 保留本地优化预算`);
               delete (campaignData as any).dailyBudget;
               protectionStats.budgetProtected++;
               protectionStats.protectedEntities.push(`camp:${existing.campaignName}`);
             } else {
-              console.log(`[SyncService] v150: 预算差异 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, 以API为准`);
+              log.debug(`v150: 预算差异 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}, 以API为准`);
               protectionStats.budgetOverwritten++;
             }
           }
@@ -1061,7 +1064,7 @@ export class AmazonSyncService {
           const apiProductPlacement1 = (campaignData as any).placementProductPageBidAdjustment || 0;
           const hasPlacementDiff1 = localTopPlacement1 !== apiTopPlacement1 || localProductPlacement1 !== apiProductPlacement1;
           if (hasPlacementDiff1 && protectedCampaignIds.has(existing.id)) {
-            console.log(`[SyncService] v165: 位置倾斜保护生效 - campaign=${existing.campaignName}, localTop=${localTopPlacement1}%, apiTop=${apiTopPlacement1}%, localProduct=${localProductPlacement1}%, apiProduct=${apiProductPlacement1}%`);
+            log.debug(`v165: 位置倾斜保护生效 - campaign=${existing.campaignName}, localTop=${localTopPlacement1}%, apiTop=${apiTopPlacement1}%, localProduct=${localProductPlacement1}%, apiProduct=${apiProductPlacement1}%`);
             delete (campaignData as any).placementTopSearchBidAdjustment;
             delete (campaignData as any).placementProductPageBidAdjustment;
             protectionStats.protectedEntities.push(`placement:${existing.campaignName}`);
@@ -1079,22 +1082,22 @@ export class AmazonSyncService {
         }
         synced++;
         if (synced === 1 || synced % 10 === 0) {
-          console.log(`[同步] 进度: 已同步 ${synced}/${apiCampaigns.length} 个广告活动`);
+          log.info(`[同步] 进度: 已同步 ${synced}/${apiCampaigns.length} 个广告活动`);
         }
       }
 
-      console.log(`[同步] ========== SP广告活动同步完成 ==========`);
-      console.log(`[同步] 结果: 同步 ${synced} 个, 跳过 ${skipped} 个`);
+      log.info(`[同步] ========== SP广告活动同步完成 ==========`);
+      log.info(`[同步] 结果: 同步 ${synced} 个, 跳过 ${skipped} 个`);
       logSyncProtectionSummary('syncSpCampaigns', protectionStats);
       return { synced, skipped };
     } catch (error: any) {
-      console.error('[同步] ❌ SP广告活动同步失败');
-      console.error('[同步] 错误类型:', error.constructor.name);
-      console.error('[同步] 错误消息:', error.message);
-      console.error('[同步] 错误堆栈:', error.stack);
+      log.error('[同步] ❌ SP广告活动同步失败');
+      log.error('[同步] 错误类型:', error.constructor.name);
+      log.error('[同步] 错误消息:', error.message);
+      log.error('[同步] 错误堆栈:', error.stack);
       if (error.response) {
-        console.error('[同步] API响应状态:', error.response.status);
-        console.error('[同步] API响应数据:', JSON.stringify(error.response.data, null, 2));
+        log.error('[同步] API响应状态:', error.response.status);
+        log.error('[同步] API响应数据:', JSON.stringify(error.response.data, null, 2));
       }
       return { synced: 0, skipped: 0 };
     }
@@ -1179,7 +1182,7 @@ export class AmazonSyncService {
 
       return { synced, skipped };
     } catch (error) {
-      console.error('Error syncing SP ad groups:', error);
+      log.error('Error syncing SP ad groups:', error);
       return { synced: 0, skipped: 0 };
     }
   }
@@ -1197,7 +1200,7 @@ export class AmazonSyncService {
       let synced = 0;
       let skipped = 0;
 
-      console.log(`[SyncService] 获取到 ${apiAdGroups.length} 个SB广告组`);
+      log.debug(`获取到 ${apiAdGroups.length} 个SB广告组`);
 
       for (const apiAdGroup of apiAdGroups) {
         // 查找对应的campaign
@@ -1253,10 +1256,10 @@ export class AmazonSyncService {
         synced++;
       }
 
-      console.log(`[SyncService] SB广告组同步完成: synced=${synced}, skipped=${skipped}`);
+      log.info(`SB广告组同步完成: synced=${synced}, skipped=${skipped}`);
       return { synced, skipped };
     } catch (error) {
-      console.error('Error syncing SB ad groups:', error);
+      log.error('Error syncing SB ad groups:', error);
       return { synced: 0, skipped: 0 };
     }
   }
@@ -1274,7 +1277,7 @@ export class AmazonSyncService {
       let synced = 0;
       let skipped = 0;
 
-      console.log(`[SyncService] 获取到 ${apiAdGroups.length} 个SD广告组`);
+      log.debug(`获取到 ${apiAdGroups.length} 个SD广告组`);
 
       for (const apiAdGroup of apiAdGroups) {
         // 查找对应的campaign
@@ -1333,10 +1336,10 @@ export class AmazonSyncService {
         synced++;
       }
 
-      console.log(`[SyncService] SD广告组同步完成: synced=${synced}, skipped=${skipped}`);
+      log.info(`SD广告组同步完成: synced=${synced}, skipped=${skipped}`);
       return { synced, skipped };
     } catch (error) {
-      console.error('Error syncing SD ad groups:', error);
+      log.error('Error syncing SD ad groups:', error);
       return { synced: 0, skipped: 0 };
     }
   }
@@ -1354,7 +1357,7 @@ export class AmazonSyncService {
       let synced = 0;
       let skipped = 0;
 
-      console.log(`[SyncService] 获取到 ${apiKeywords.length} 个SB关键词`);
+      log.debug(`获取到 ${apiKeywords.length} 个SB关键词`);
 
       for (const apiKeyword of apiKeywords) {
         // 查找对应的ad group
@@ -1407,10 +1410,10 @@ export class AmazonSyncService {
         synced++;
       }
 
-      console.log(`[SyncService] SB关键词同步完成: synced=${synced}, skipped=${skipped}`);
+      log.info(`SB关键词同步完成: synced=${synced}, skipped=${skipped}`);
       return { synced, skipped };
     } catch (error) {
-      console.error('Error syncing SB keywords:', error);
+      log.error('Error syncing SB keywords:', error);
       return { synced: 0, skipped: 0 };
     }
   }
@@ -1428,7 +1431,7 @@ export class AmazonSyncService {
       let synced = 0;
       let skipped = 0;
 
-      console.log(`[SyncService] 获取到 ${apiTargets.length} 个SB商品定位`);
+      log.debug(`获取到 ${apiTargets.length} 个SB商品定位`);
 
       for (const apiTarget of apiTargets) {
         // 查找对应的ad group
@@ -1531,7 +1534,7 @@ export class AmazonSyncService {
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
         if (synced === 0) {
-          console.log(`[SyncService] SB产品定向示例: type=${targetType}, value=${targetValue}, matchType=${targetMatchType}, categoryName=${categoryName}`);
+          log.debug(`SB产品定向示例: type=${targetType}, value=${targetValue}, matchType=${targetMatchType}, categoryName=${categoryName}`);
         }
 
         if (existing) {
@@ -1548,10 +1551,10 @@ export class AmazonSyncService {
         synced++;
       }
 
-      console.log(`[SyncService] SB商品定位同步完成: synced=${synced}, skipped=${skipped}`);
+      log.info(`SB商品定位同步完成: synced=${synced}, skipped=${skipped}`);
       return { synced, skipped };
     } catch (error) {
-      console.error('Error syncing SB product targets:', error);
+      log.error('Error syncing SB product targets:', error);
       return { synced: 0, skipped: 0 };
     }
   }
@@ -1569,7 +1572,7 @@ export class AmazonSyncService {
       let synced = 0;
       let skipped = 0;
 
-      console.log(`[SyncService] 获取到 ${apiTargets.length} 个SD商品定位`);
+      log.debug(`获取到 ${apiTargets.length} 个SD商品定位`);
 
       for (const apiTarget of apiTargets) {
         // 查找对应的ad group
@@ -1676,7 +1679,7 @@ export class AmazonSyncService {
           updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         };
         if (synced === 0) {
-          console.log(`[SyncService] SD产品定向示例: type=${targetType}, value=${targetValue}, matchType=${targetMatchType}, categoryName=${categoryName}`);;
+          log.debug(`SD产品定向示例: type=${targetType}, value=${targetValue}, matchType=${targetMatchType}, categoryName=${categoryName}`);;
         }
 
         if (existing) {
@@ -1693,10 +1696,10 @@ export class AmazonSyncService {
         synced++;
       }
 
-      console.log(`[SyncService] SD商品定位同步完成: synced=${synced}, skipped=${skipped}`);
+      log.info(`SD商品定位同步完成: synced=${synced}, skipped=${skipped}`);
       return { synced, skipped };
     } catch (error) {
-      console.error('Error syncing SD product targets:', error);
+      log.error('Error syncing SD product targets:', error);
       return { synced: 0, skipped: 0 };
     }
   }
@@ -1714,9 +1717,9 @@ export class AmazonSyncService {
       let updated = 0;
 
       // 1. 同步活动级别否定关键词
-      console.log(`[SyncService] 开始同步SP活动级别否定关键词...`);
+      log.info(`开始同步SP活动级别否定关键词...`);
       const campaignNegatives = await this.client.listSpCampaignNegativeKeywords();
-      console.log(`[SyncService] 获取到 ${campaignNegatives.length} 个活动级别否定关键词`);
+      log.debug(`获取到 ${campaignNegatives.length} 个活动级别否定关键词`);
 
       for (const neg of campaignNegatives) {
         const [campaign] = await db
@@ -1770,9 +1773,9 @@ export class AmazonSyncService {
       }
 
       // 2. 同步广告组级别否定关键词
-      console.log(`[SyncService] 开始同步SP广告组级别否定关键词...`);
+      log.info(`开始同步SP广告组级别否定关键词...`);
       const adGroupNegatives = await this.client.listSpNegativeKeywords();
-      console.log(`[SyncService] 获取到 ${adGroupNegatives.length} 个广告组级别否定关键词`);
+      log.debug(`获取到 ${adGroupNegatives.length} 个广告组级别否定关键词`);
 
       for (const neg of adGroupNegatives) {
         const negState = (neg.state || 'enabled').toLowerCase();
@@ -1828,10 +1831,10 @@ export class AmazonSyncService {
         }
       }
 
-      console.log(`[SyncService] SP否定关键词同步完成: ${synced} 条新记录, ${updated} 条更新`);
+      log.info(`SP否定关键词同步完成: ${synced} 条新记录, ${updated} 条更新`);
       return { synced, updated };
     } catch (error) {
-      console.error('Error syncing SP negative keywords:', error);
+      log.error('Error syncing SP negative keywords:', error);
       return { synced: 0, updated: 0 };
     }
   }
@@ -1847,9 +1850,9 @@ export class AmazonSyncService {
       let synced = 0;
       let updated = 0;
       // 1. 同步活动级别否定商品定向
-      console.log(`[SyncService] 开始同步SP活动级别否定商品定向...`);
+      log.info(`开始同步SP活动级别否定商品定向...`);
       const campaignNegTargets = await this.client.listSpCampaignNegativeTargets();
-      console.log(`[SyncService] 获取到 ${campaignNegTargets.length} 个活动级别否定商品定向`);
+      log.debug(`获取到 ${campaignNegTargets.length} 个活动级别否定商品定向`);
       for (const neg of campaignNegTargets) {
         const [campaign] = await db
           .select()
@@ -1902,9 +1905,9 @@ export class AmazonSyncService {
         }
       }
       // 2. 同步广告组级别否定商品定向
-      console.log(`[SyncService] 开始同步SP广告组级别否定商品定向...`);
+      log.info(`开始同步SP广告组级别否定商品定向...`);
       const adGroupNegTargets = await this.client.listSpNegativeTargets();
-      console.log(`[SyncService] 获取到 ${adGroupNegTargets.length} 个广告组级别否定商品定向`);
+      log.debug(`获取到 ${adGroupNegTargets.length} 个广告组级别否定商品定向`);
       for (const neg of adGroupNegTargets) {
         const negState = (neg.state || 'enabled').toLowerCase();
         if (negState === 'archived') continue;
@@ -1959,10 +1962,10 @@ export class AmazonSyncService {
           synced++;
         }
       }
-      console.log(`[SyncService] SP否定商品定向同步完成: ${synced} 条新记录, ${updated} 条更新`);
+      log.info(`SP否定商品定向同步完成: ${synced} 条新记录, ${updated} 条更新`);
       return { synced, updated };
     } catch (error) {
-      console.error('Error syncing SP negative product targets:', error);
+      log.error('Error syncing SP negative product targets:', error);
       return { synced: 0, updated: 0 };
     }
   }
@@ -1977,18 +1980,18 @@ export class AmazonSyncService {
 
     try {
       const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-      console.log(`[SyncService] 开始同步SB搜索词数据: ${startDate} - ${endDate}`);
+      log.info(`开始同步SB搜索词数据: ${startDate} - ${endDate}`);
 
       // 请求SB搜索词报告
       const reportId = await this.client.requestSbSearchTermReport(startDate, endDate);
       const reportData = await this.client.waitAndDownloadReport(reportId, 300000);
 
       if (!reportData || reportData.length === 0) {
-        console.log('[SyncService] SB搜索词报告数据为空');
+        log.debug('SB搜索词报告数据为空');
         return 0;
       }
 
-      console.log(`[SyncService] 获取到 ${reportData.length} 条SB搜索词数据`);
+      log.debug(`获取到 ${reportData.length} 条SB搜索词数据`);
       let synced = 0;
 
       for (const row of reportData) {
@@ -2128,10 +2131,10 @@ export class AmazonSyncService {
         synced++;
       }
 
-      console.log(`[SyncService] SB搜索词同步完成: ${synced} 条记录`);
+      log.info(`SB搜索词同步完成: ${synced} 条记录`);
       return synced;
     } catch (error) {
-      console.error('[SyncService] 同步SB搜索词失败:', error);
+      log.error('同步SB搜索词失败:', error);
       return 0;
     }
   }
@@ -2161,7 +2164,7 @@ export class AmazonSyncService {
       }
       const protectedKeywordIds = await getRecentlyOptimizedKeywordIds(allExistingKeywordIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
       const protectionStats = createSyncProtectionStats();
-      console.log(`[SyncProtection] syncSpKeywords: 批量查询完成, ${protectedKeywordIds.size}个关键词有近期出价优化事件`);
+      log.info(`syncSpKeywords: 批量查询完成, ${protectedKeywordIds.size}个关键词有近期出价优化事件`);
 
       for (const apiKeyword of apiKeywords) {
         // 查找对应的ad group
@@ -2219,12 +2222,12 @@ export class AmazonSyncService {
             const hasRecentOpt = protectedKeywordIds.has(existing.id);
             if (hasRecentOpt) {
               // 有近期优化事件，保留本地出价，只更新其他字段
-              console.log(`[SyncService] v150: 出价保护生效 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, 保留本地优化出价`);
+              log.debug(`v150: 出价保护生效 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, 保留本地优化出价`);
               delete keywordData.bid;
               protectionStats.bidProtected++;
               protectionStats.protectedEntities.push(`kw:${existing.keywordText}`);
             } else {
-              console.log(`[SyncService] v150: 出价差异 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, 以API为准`);
+              log.debug(`v150: 出价差异 - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}, 以API为准`);
               protectionStats.bidOverwritten++;
             }
           }
@@ -2245,7 +2248,7 @@ export class AmazonSyncService {
       logSyncProtectionSummary('syncSpKeywords', protectionStats);
       return { synced, skipped };
     } catch (error) {
-      console.error('Error syncing SP keywords:', error);
+      log.error('Error syncing SP keywords:', error);
       return { synced: 0, skipped: 0 };
     }
   }
@@ -2275,7 +2278,7 @@ export class AmazonSyncService {
       }
       const protectedTargetIds = await getRecentlyOptimizedKeywordIds(allExistingTargetIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
       const protectionStats = createSyncProtectionStats();
-      console.log(`[SyncProtection] syncSpProductTargets: 批量查询完成, ${protectedTargetIds.size}个产品定向有近期出价优化事件`);
+      log.info(`syncSpProductTargets: 批量查询完成, ${protectedTargetIds.size}个产品定向有近期出价优化事件`);
 
       for (const apiTarget of apiTargets) {
         // 查找对应的ad group
@@ -2423,7 +2426,7 @@ export class AmazonSyncService {
         };
 
         if (synced === 0) {
-          console.log(`[SyncService] SP产品定向示例: type=${targetType}, value=${targetValue}, matchType=${targetMatchType}, categoryName=${categoryName}`);
+          log.debug(`SP产品定向示例: type=${targetType}, value=${targetValue}, matchType=${targetMatchType}, categoryName=${categoryName}`);
         }
 
         if (existing) {
@@ -2437,12 +2440,12 @@ export class AmazonSyncService {
             // 出价不一致，检查是否有近期优化事件（使用批量查询结果）
             const hasRecentOpt = protectedTargetIds.has(existing.id);
             if (hasRecentOpt) {
-              console.log(`[SyncService] v150: 出价保护生效 - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}, 保留本地优化出价`);
+              log.debug(`v150: 出价保护生效 - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}, 保留本地优化出价`);
               delete (targetData as any).bid;
               protectionStats.bidProtected++;
               protectionStats.protectedEntities.push(`tgt:${existing.targetValue}`);
             } else {
-              console.log(`[SyncService] v150: 出价差异 - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}, 以API为准`);
+              log.debug(`v150: 出价差异 - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}, 以API为准`);
               protectionStats.bidOverwritten++;
             }
           }
@@ -2460,11 +2463,11 @@ export class AmazonSyncService {
         synced++;
       }
 
-      console.log(`[SyncService] SP产品定向同步完成: synced=${synced}, skipped=${skipped}`);
+      log.info(`SP产品定向同步完成: synced=${synced}, skipped=${skipped}`);
       logSyncProtectionSummary('syncSpProductTargets', protectionStats);
       return { synced, skipped };
     } catch (error) {
-      console.error('Error syncing SP product targets:', error);
+      log.error('Error syncing SP product targets:', error);
       return { synced: 0, skipped: 0 };
     }
   }
@@ -2482,7 +2485,7 @@ export class AmazonSyncService {
   async syncPerformanceData(days: number = 14): Promise<number> {
     const db = await getDb();
     if (!db) {
-      console.error('[SyncService] 数据库连接失败');
+      log.error('数据库连接失败');
       return 0;
     }
 
@@ -2497,12 +2500,12 @@ export class AmazonSyncService {
       // 快慢双轨架构：API只负责历史数据，今日数据由AMS实时推送
       // v102: Include today in sync range
       const { startDate: rangeStartDate, endDate: rangeEndDate } = getMarketplaceDateRange(this.marketplace, totalDays);
-      console.log(`[SyncService] 站点${this.marketplace}当前日期: ${getMarketplaceCurrentDate(this.marketplace)}`);
-      console.log(`[SyncService] API同步范围: ${rangeStartDate} - ${rangeEndDate} (排除今天，今日数据由AMS提供)`);
+      log.debug(`站点${this.marketplace}当前日期: ${getMarketplaceCurrentDate(this.marketplace)}`);
+      log.info(`API同步范围: ${rangeStartDate} - ${rangeEndDate} (排除今天，今日数据由AMS提供)`);
       
       // 计算需要分几批请求
       const batches = Math.ceil(totalDays / MAX_DAYS_PER_REQUEST);
-      console.log(`[SyncService] 开始同步绩效数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
+      log.info(`开始同步绩效数据: 共${totalDays}天，分${batches}批请求 (站点: ${this.marketplace})`);
       
       for (let batch = 0; batch < batches; batch++) {
         // 计算每批的日期范围（基于站点时区）
@@ -2516,19 +2519,19 @@ export class AmazonSyncService {
         const startDateStr = startDateObj.toISOString().split('T')[0];
         const endDateStr = endDateObj.toISOString().split('T')[0];
         
-        console.log(`[SyncService] 第${batch + 1}/${batches}批: ${startDateStr} - ${endDateStr} (共${daysInBatch}天)`);
+        log.debug(`第${batch + 1}/${batches}批: ${startDateStr} - ${endDateStr} (共${daysInBatch}天)`);
         
         try {
           const batchSynced = await this.syncPerformanceDataBatch(startDateStr, endDateStr);
           totalSynced += batchSynced;
-          console.log(`[SyncService] 第${batch + 1}批同步完成: ${batchSynced}条记录`);
+          log.info(`第${batch + 1}批同步完成: ${batchSynced}条记录`);
           
           // 批次之间稍作延迟，避免触发API速率限制
           if (batch < batches - 1) {
             await new Promise(resolve => setTimeout(resolve, 2000));
           }
         } catch (batchError: any) {
-          console.error(`[SyncService] 第${batch + 1}批同步失败:`, batchError.message);
+          log.error(`第${batch + 1}批同步失败:`, batchError.message);
           // 继续下一批，不中断整个同步过程
         }
       }
@@ -2539,19 +2542,19 @@ export class AmazonSyncService {
       // v195: 同步完成后，自动从daily_performance生成hourly_performance数据
       try {
         const hourlyGenerated = await this.generateHourlyFromDaily(rangeStartDate, rangeEndDate);
-        console.log(`[SyncService] v195: hourly_performance自动生成完成: ${hourlyGenerated}条`);
+        log.info(`v195: hourly_performance自动生成完成: ${hourlyGenerated}条`);
       } catch (hourlyErr: any) {
-        console.error(`[SyncService] v195: hourly_performance生成失败: ${hourlyErr.message}`);
+        log.error(`v195: hourly_performance生成失败: ${hourlyErr.message}`);
       }
       
-      console.log(`[SyncService] 绩效数据同步完成: 共${totalSynced}条记录`);
+      log.info(`绩效数据同步完成: 共${totalSynced}条记录`);
       return totalSynced;
     } catch (error: any) {
-      console.error('[SyncService] 同步绩效数据失败:', error);
+      log.error('同步绩效数据失败:', error);
       
       // v148: 移除模拟数据回退逻辑 - 报告超时时不再生成假数据，而是记录错误并等待下次重试
       if (error.message?.includes('timeout') || error.message?.includes('PENDING') || error.message?.includes('Report generation')) {
-        console.error('[SyncService] v148: 报告超时或生成失败，将在下次同步周期重试。不再生成模拟数据。');
+        log.error('v148: 报告超时或生成失败，将在下次同步周期重试。不再生成模拟数据。');
       }
       
       return 0;
@@ -2569,47 +2572,47 @@ export class AmazonSyncService {
 
     // 同步SP广告绩效数据
     try {
-      console.log(`[SyncService] 正在请求SP广告报告: ${startDateStr} - ${endDateStr}`);
+      log.debug(`正在请求SP广告报告: ${startDateStr} - ${endDateStr}`);
       const spReportId = await this.client.requestSpCampaignReport(startDateStr, endDateStr);
-      console.log(`[SyncService] SP报告请求成功, reportId: ${spReportId}`);
+      log.info(`SP报告请求成功, reportId: ${spReportId}`);
       const spReportData = await this.client.waitAndDownloadReport(spReportId, 900000);
-      console.log(`[SyncService] SP报告下载完成, 数据条数: ${spReportData?.length || 0}`);
+      log.info(`SP报告下载完成, 数据条数: ${spReportData?.length || 0}`);
       if (spReportData && spReportData.length > 0) {
         totalSynced += await this.processReportData(db, spReportData, 'SP');
       }
     } catch (spError: any) {
-      console.error('[SyncService] SP报告同步失败:', spError.message);
+      log.error('SP报告同步失败:', spError.message);
     }
 
     // 同步SB品牌广告绩效数据
     try {
-      console.log(`[SyncService] 正在请求SB品牌广告报告: ${startDateStr} - ${endDateStr}`);
+      log.debug(`正在请求SB品牌广告报告: ${startDateStr} - ${endDateStr}`);
       const sbReportId = await this.client.requestSbCampaignReport(startDateStr, endDateStr);
-      console.log(`[SyncService] SB报告请求成功, reportId: ${sbReportId}`);
+      log.info(`SB报告请求成功, reportId: ${sbReportId}`);
       const sbReportData = await this.client.waitAndDownloadReport(sbReportId, 900000);
-      console.log(`[SyncService] SB报告下载完成, 数据条数: ${sbReportData?.length || 0}`);
+      log.info(`SB报告下载完成, 数据条数: ${sbReportData?.length || 0}`);
       if (sbReportData && sbReportData.length > 0) {
         totalSynced += await this.processReportData(db, sbReportData, 'SB');
       }
     } catch (sbError: any) {
-      console.error('[SyncService] SB报告同步失败:', sbError.message);
-      console.error('[SyncService] SB报告同步失败详情:', sbError.response?.data || sbError.stack);
+      log.error('SB报告同步失败:', sbError.message);
+      log.error('SB报告同步失败详情:', sbError.response?.data || sbError.stack);
       // SB报告失败不影响整体同步
     }
 
     // 同步SD展示广告绩效数据
     try {
-      console.log(`[SyncService] 正在请求SD展示广告报告: ${startDateStr} - ${endDateStr}`);
+      log.debug(`正在请求SD展示广告报告: ${startDateStr} - ${endDateStr}`);
       const sdReportId = await this.client.requestSdCampaignReport(startDateStr, endDateStr);
-      console.log(`[SyncService] SD报告请求成功, reportId: ${sdReportId}`);
+      log.info(`SD报告请求成功, reportId: ${sdReportId}`);
       const sdReportData = await this.client.waitAndDownloadReport(sdReportId, 900000);
-      console.log(`[SyncService] SD报告下载完成, 数据条数: ${sdReportData?.length || 0}`);
+      log.info(`SD报告下载完成, 数据条数: ${sdReportData?.length || 0}`);
       if (sdReportData && sdReportData.length > 0) {
         totalSynced += await this.processReportData(db, sdReportData, 'SD');
       }
     } catch (sdError: any) {
-      console.error('[SyncService] SD报告同步失败:', sdError.message);
-      console.error('[SyncService] SD报告同步失败详情:', sdError.response?.data || sdError.stack);
+      log.error('SD报告同步失败:', sdError.message);
+      log.error('SD报告同步失败详情:', sdError.response?.data || sdError.stack);
       // SD报告失败不影响整体同步
     }
 
@@ -2621,24 +2624,24 @@ export class AmazonSyncService {
    */
   private async processReportData(db: any, reportData: any[], adType: string): Promise<number> {
     try {
-      console.log(`[SyncService] 开始处理${adType}报告数据, 共 ${reportData.length} 条记录`);
+      log.info(`开始处理${adType}报告数据, 共 ${reportData.length} 条记录`);
       
       // 输出第一条数据的结构，用于调试
       if (reportData.length > 0) {
-        console.log(`[SyncService] ${adType}报告数据第一条示例:`, JSON.stringify(reportData[0], null, 2));
+        log.debug(`${adType}报告数据第一条示例:`, JSON.stringify(reportData[0], null, 2));
       }
       
       if (!reportData || reportData.length === 0) {
-        console.warn('[SyncService] 报告数据为空');
+        log.warn('报告数据为空');
         return 0;
       }
       
       // 输出第一条数据的结构，用于调试
-      console.log('[SyncService] 报告数据第一条示例:', JSON.stringify(reportData[0], null, 2));
+      log.debug('报告数据第一条示例:', JSON.stringify(reportData[0], null, 2));
       
       let synced = 0;
 
-      console.log(`[SyncService] 开始处理报告数据, 共 ${reportData.length} 条记录`);
+      log.info(`开始处理报告数据, 共 ${reportData.length} 条记录`);
       
       // 统计匹配情况
       let matchedById = 0;
@@ -2682,7 +2685,7 @@ export class AmazonSyncService {
             // 注意：只做只读匹配，不修改campaigns表的campaignId
             // 因为Management API (List)返回的V4 ID是系统的唯一真理
             // 报表API返回的可能是Legacy ID，如果覆盖V4 ID会导致下次同步出错
-            console.log(`[SyncService] ${adType}通过名称匹配成功: ${row.campaignName} (reportId=${row.campaignId}, dbId=${campaign.campaignId})`);
+            log.info(`${adType}通过名称匹配成功: ${row.campaignName} (reportId=${row.campaignId}, dbId=${campaign.campaignId})`);
           }
         }
 
@@ -2690,7 +2693,7 @@ export class AmazonSyncService {
           // 尝试自动创建campaign记录，以保存报告数据
           if (row.campaignId && row.campaignName) {
             try {
-              console.log(`[SyncService] ${adType}自动创建campaign: ${row.campaignName}`);
+              log.info(`${adType}自动创建campaign: ${row.campaignName}`);
               const [newCampaign] = await db.insert(campaigns).values({
                 accountId: this.accountId,
                 campaignId: String(row.campaignId),
@@ -2703,10 +2706,10 @@ export class AmazonSyncService {
                 updatedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
               }).returning();
               campaign = newCampaign;
-              console.log(`[SyncService] ${adType}自动创建campaign成功: id=${campaign.id}, name=${campaign.campaignName}`);
+              log.info(`${adType}自动创建campaign成功: id=${campaign.id}, name=${campaign.campaignName}`);
             } catch (createError: any) {
               // 可能是重复插入，尝试再次查询
-              console.warn(`[SyncService] ${adType}创建campaign失败，尝试再次查询:`, createError.message);
+              log.warn(`${adType}创建campaign失败，尝试再次查询:`, createError.message);
               [campaign] = await db
                 .select()
                 .from(campaigns)
@@ -2724,7 +2727,7 @@ export class AmazonSyncService {
             notMatched++;
             // 记录未找到的campaign，用于调试
             if (notMatched <= 10) {
-              console.warn(`[SyncService] ${adType}未找到campaign: accountId=${this.accountId}, campaignId=${row.campaignId}, campaignName=${row.campaignName || 'N/A'}`);
+              log.warn(`${adType}未找到campaign: accountId=${this.accountId}, campaignId=${row.campaignId}, campaignName=${row.campaignName || 'N/A'}`);
             }
             continue;
           }
@@ -2852,14 +2855,14 @@ export class AmazonSyncService {
       }
 
       // 输出匹配统计
-      console.log(`[SyncService] ${adType}报告数据处理完成:`);
-      console.log(`  - 通过ID匹配: ${matchedById} 条`);
-      console.log(`  - 通过名称匹配: ${matchedByName} 条`);
-      console.log(`  - 未匹配: ${notMatched} 条`);
-      console.log(`  - 总同步: ${synced} 条`);
+      log.info(`${adType}报告数据处理完成:`);
+      log.debug(`  - 通过ID匹配: ${matchedById} 条`);
+      log.debug(`  - 通过名称匹配: ${matchedByName} 条`);
+      log.debug(`  - 未匹配: ${notMatched} 条`);
+      log.info(`  - 总同步: ${synced} 条`);
       return synced;
     } catch (error: any) {
-      console.error(`[SyncService] ${adType}报告数据处理失败:`, error.message);
+      log.error(`${adType}报告数据处理失败:`, error.message);
       return 0;
     }
   }
@@ -2870,7 +2873,7 @@ export class AmazonSyncService {
    * 应使用syncPerformanceData()获取真实Amazon API数据
    */
   async generateMockPerformanceData(days: number = 7): Promise<number> {
-    console.warn('[SyncService] ⚠️ generateMockPerformanceData已废弃，不应被调用！请使用syncPerformanceData()代替');
+    log.warn('⚠️ generateMockPerformanceData已废弃，不应被调用！请使用syncPerformanceData()代替');
     const db = await getDb();
     if (!db) return 0;
 
@@ -2881,13 +2884,13 @@ export class AmazonSyncService {
         .from(campaigns)
         .where(eq(campaigns.accountId, this.accountId));
 
-      console.log(`[SyncService] 为 ${accountCampaigns.length} 个广告活动生成模拟绩效数据`);
+      log.debug(`为 ${accountCampaigns.length} 个广告活动生成模拟绩效数据`);
 
       let synced = 0;
 
       // 使用站点时区计算日期
       const marketplaceToday = getMarketplaceCurrentDate(this.marketplace);
-      console.log(`[SyncService] 站点${this.marketplace}当前日期: ${marketplaceToday}`);
+      log.debug(`站点${this.marketplace}当前日期: ${marketplaceToday}`);
       
       for (const campaign of accountCampaigns) {
         // 为每个广告活动生成最近N天的模拟数据
@@ -2947,10 +2950,10 @@ export class AmazonSyncService {
       // 更新campaigns表的绩效汇总数据
       await this.updateCampaignPerformanceSummary();
 
-      console.log(`[SyncService] 模拟绩效数据生成完成: ${synced} 条记录`);
+      log.info(`模拟绩效数据生成完成: ${synced} 条记录`);
       return synced;
     } catch (error) {
-      console.error('[SyncService] 生成模拟绩效数据失败:', error);
+      log.error('生成模拟绩效数据失败:', error);
       return 0;
     }
   }
@@ -2962,7 +2965,7 @@ export class AmazonSyncService {
   async syncKeywordPerformanceData(days: number = 7): Promise<number> {
     const db = await getDb();
     if (!db) {
-      console.error('[SyncService] 数据库连接失败');
+      log.error('数据库连接失败');
       return 0;
     }
 
@@ -2970,22 +2973,22 @@ export class AmazonSyncService {
       // 使用站点时区计算日期范围
       const { startDate: startDateStr, endDate: endDateStr } = getMarketplaceDateRange(this.marketplace, days);
 
-      console.log(`[SyncService] v196: 开始同步关键词绩效数据: ${startDateStr} - ${endDateStr} (站点: ${this.marketplace})`);
+      log.info(`v196: 开始同步关键词绩效数据: ${startDateStr} - ${endDateStr} (站点: ${this.marketplace})`);
 
       // 请求关键词报告
       const reportId = await this.client.requestSpKeywordReport(startDateStr, endDateStr);
-      console.log(`[SyncService] v196: 关键词报告请求成功, reportId: ${reportId}`);
+      log.info(`v196: 关键词报告请求成功, reportId: ${reportId}`);
       
       // 等待并下载报告（超时15分钟）
       const reportData = await this.client.waitAndDownloadReport(reportId, 900000);
-      console.log(`[SyncService] v196: 关键词报告下载完成, 数据条数: ${reportData?.length || 0}`);
+      log.info(`v196: 关键词报告下载完成, 数据条数: ${reportData?.length || 0}`);
       
       if (!reportData || reportData.length === 0) {
-        console.warn('[SyncService] v196: 关键词报告数据为空');
+        log.warn('v196: 关键词报告数据为空');
         return 0;
       }
       
-      console.log('[SyncService] v196: 关键词报告数据第一条示例:', JSON.stringify(reportData[0], null, 2));
+      log.debug('v196: 关键词报告数据第一条示例:', JSON.stringify(reportData[0], null, 2));
       
       // ==================== v196: 批量预加载本地数据，避免N+1查询 ====================
       // 1. 预加载所有adGroups的Amazon ID -> 本地ID映射
@@ -3036,7 +3039,7 @@ export class AmazonSyncService {
         if (pt.targetExpression) ptByExpression.set(pt.targetExpression.toLowerCase(), pt);
       }
       
-      console.log(`[SyncService] v196: 预加载完成 - ${allKeywords.length}个关键词, ${allTargets.length}个商品投放, ${allAdGroups.length}个广告组`);
+      log.info(`v196: 预加载完成 - ${allKeywords.length}个关键词, ${allTargets.length}个商品投放, ${allAdGroups.length}个广告组`);
       
       // ==================== v196: 四层匹配策略 ====================
       let synced = 0;
@@ -3131,7 +3134,7 @@ export class AmazonSyncService {
         
         notMatched++;
         if (notMatched <= 5) {
-          console.warn(`[SyncService] v196: 未匹配: targetId=${reportTargetId}, text=${row.targetingText || 'N/A'}, expr=${row.targetingExpression || 'N/A'}`);
+          log.warn(`v196: 未匹配: targetId=${reportTargetId}, text=${row.targetingText || 'N/A'}, expr=${row.targetingExpression || 'N/A'}`);
         }
       }
       
@@ -3142,7 +3145,7 @@ export class AmazonSyncService {
           await db.update(keywords).set(upd.data).where(eq(keywords.id, upd.id));
           dbWritten++;
         } catch (e: any) {
-          console.error(`[SyncService] v196: 更新keyword ${upd.id} 失败: ${e.message}`);
+          log.error(`v196: 更新keyword ${upd.id} 失败: ${e.message}`);
         }
       }
       for (const upd of ptUpdates) {
@@ -3150,12 +3153,12 @@ export class AmazonSyncService {
           await db.update(productTargets).set(upd.data).where(eq(productTargets.id, upd.id));
           dbWritten++;
         } catch (e: any) {
-          console.error(`[SyncService] v196: 更新product_target ${upd.id} 失败: ${e.message}`);
+          log.error(`v196: 更新product_target ${upd.id} 失败: ${e.message}`);
         }
       }
       
-      console.log(`[SyncService] v196: 关键词绩效同步完成 - 匹配${synced}条, 未匹配${notMatched}条, 写入${dbWritten}条`);
-      console.log(`[SyncService] v196: 匹配统计 - keywordId:${matchStats.byKeywordId}, adGroup+text+match:${matchStats.byAdGroupTextMatch}, adGroup+text:${matchStats.byAdGroupText}, text:${matchStats.byText}, targetId:${matchStats.byTargetId}, expression:${matchStats.byExpression}`);
+      log.info(`v196: 关键词绩效同步完成 - 匹配${synced}条, 未匹配${notMatched}条, 写入${dbWritten}条`);
+      log.debug(`v196: 匹配统计 - keywordId:${matchStats.byKeywordId}, adGroup+text+match:${matchStats.byAdGroupTextMatch}, adGroup+text:${matchStats.byAdGroupText}, text:${matchStats.byText}, targetId:${matchStats.byTargetId}, expression:${matchStats.byExpression}`);
       
       // v196: 同步时顺便回填keywordId（如果通过文本匹配到了但keywordId不一致）
       let backfilled = 0;
@@ -3175,12 +3178,12 @@ export class AmazonSyncService {
         }
       }
       if (backfilled > 0) {
-        console.log(`[SyncService] v196: 回填了${backfilled}个关键词的keywordId`);
+        log.debug(`v196: 回填了${backfilled}个关键词的keywordId`);
       }
       
       return synced;
     } catch (error) {
-      console.error('Error syncing keyword performance data:', error);
+      log.error('Error syncing keyword performance data:', error);
       return 0;
     }
   }
@@ -3193,7 +3196,7 @@ export class AmazonSyncService {
   async syncProductTargetPerformanceData(days: number): Promise<number> {
     // SP-Targeting报告已在syncKeywordPerformanceData中处理了product_targets的更新
     // 这里返回0表示不需要额外同步
-    console.log('[SyncService] 商品定位绩效数据已在syncKeywordPerformanceData中一并处理');
+    log.info('商品定位绩效数据已在syncKeywordPerformanceData中一并处理');
     return 0;
   }
 
@@ -3236,11 +3239,11 @@ export class AmazonSyncService {
       
       const rows = (dailyData as any)?.[0] || dailyData;
       if (!rows || !Array.isArray(rows) || rows.length === 0) {
-        console.log('[SyncService] v195: 没有新的daily数据需要生成hourly');
+        log.debug('v195: 没有新的daily数据需要生成hourly');
         return 0;
       }
       
-      console.log(`[SyncService] v195: 找到 ${rows.length} 条缺少hourly数据的daily记录`);
+      log.debug(`v195: 找到 ${rows.length} 条缺少hourly数据的daily记录`);
       
       let insertedCount = 0;
       let batch: any[] = [];
@@ -3315,7 +3318,7 @@ export class AmazonSyncService {
       
       return insertedCount;
     } catch (error: any) {
-      console.error('[SyncService] v195: generateHourlyFromDaily失败:', error.message);
+      log.error('v195: generateHourlyFromDaily失败:', error.message);
       return 0;
     }
   }
@@ -3347,12 +3350,12 @@ export class AmazonSyncService {
           .limit(1);
         
         if (!kw) {
-          console.error(`[applyBidAdjustment] keyword id=${targetId} 不存在`);
+          log.error(`[applyBidAdjustment] keyword id=${targetId} 不存在`);
           return false;
         }
         if (!kw.keywordId) {
           // v141: 即时回填机制 - 尝试通过Amazon API查找并回填keywordId
-          console.log(`[applyBidAdjustment] keyword id=${targetId} ("${kw.keywordText}") 缺少keywordId，尝试即时回填...`);
+          log.debug(`[applyBidAdjustment] keyword id=${targetId} ("${kw.keywordText}") 缺少keywordId，尝试即时回填...`);
           try {
             const { resolveKeywordIdOnDemand } = await import('./services/amazonIdResolver');
             // 获取accountId: 通过adGroup -> campaign -> accountId
@@ -3363,16 +3366,16 @@ export class AmazonSyncService {
                 const resolvedId = await resolveKeywordIdOnDemand(camp.accountId, targetId);
                 if (resolvedId) {
                   kw.keywordId = resolvedId;
-                  console.log(`[applyBidAdjustment] ✅ 即时回填成功: keyword id=${targetId} -> keywordId=${resolvedId}`);
+                  log.info(`[applyBidAdjustment] ✅ 即时回填成功: keyword id=${targetId} -> keywordId=${resolvedId}`);
                 }
               }
             }
           } catch (resolveErr: any) {
-            console.error(`[applyBidAdjustment] 即时回填异常: ${resolveErr.message}`);
+            log.error(`[applyBidAdjustment] 即时回填异常: ${resolveErr.message}`);
           }
           
           if (!kw.keywordId) {
-            console.error(`[applyBidAdjustment] keyword id=${targetId} ("${kw.keywordText}") 缺少Amazon keywordId，无法同步到Amazon`);
+            log.error(`[applyBidAdjustment] keyword id=${targetId} ("${kw.keywordText}") 缺少Amazon keywordId，无法同步到Amazon`);
             // v190: 改为可重试 - ID可能在后续同步中被回填，重试队列会在下次执行时重新尝试
             const err = new Error(`MISSING_AMAZON_ID: keyword id=${targetId} 缺少Amazon keywordId`);
             throw err;
@@ -3386,10 +3389,10 @@ export class AmazonSyncService {
 
         // v125: Amazon SP API v3 要求keywordId为字符串类型，直接传递字符串
         if (!amazonId || amazonId.trim() === '' || amazonId === '0') {
-          console.error(`[applyBidAdjustment] keyword id=${targetId} 的Amazon keywordId无效: "${amazonId}"`);
+          log.error(`[applyBidAdjustment] keyword id=${targetId} 的Amazon keywordId无效: "${amazonId}"`);
           return false;
         }
-        console.log(`[applyBidAdjustment] 调用Amazon API: keywordId="${amazonId}", bid=${Number(newBid.toFixed(2))}`);
+        log.debug(`[applyBidAdjustment] 调用Amazon API: keywordId="${amazonId}", bid=${Number(newBid.toFixed(2))}`);
         await this.client.updateKeywordBids([{
           keywordId: amazonId,
           bid: Number(newBid.toFixed(2)),
@@ -3405,12 +3408,12 @@ export class AmazonSyncService {
           .limit(1);
         
         if (!pt) {
-          console.error(`[applyBidAdjustment] product_target id=${targetId} 不存在`);
+          log.error(`[applyBidAdjustment] product_target id=${targetId} 不存在`);
           return false;
         }
         if (!pt.targetId) {
           // v141: 即时回填机制 - 尝试通过Amazon API查找并回填targetId
-          console.log(`[applyBidAdjustment] product_target id=${targetId} ("${pt.targetValue}") 缺少targetId，尝试即时回填...`);
+          log.debug(`[applyBidAdjustment] product_target id=${targetId} ("${pt.targetValue}") 缺少targetId，尝试即时回填...`);
           try {
             const { resolveProductTargetIdOnDemand } = await import('./services/amazonIdResolver');
             const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, pt.adGroupId)).limit(1);
@@ -3420,16 +3423,16 @@ export class AmazonSyncService {
                 const resolvedId = await resolveProductTargetIdOnDemand(camp.accountId, targetId);
                 if (resolvedId) {
                   pt.targetId = resolvedId;
-                  console.log(`[applyBidAdjustment] ✅ 即时回填成功: product_target id=${targetId} -> targetId=${resolvedId}`);
+                  log.info(`[applyBidAdjustment] ✅ 即时回填成功: product_target id=${targetId} -> targetId=${resolvedId}`);
                 }
               }
             }
           } catch (resolveErr: any) {
-            console.error(`[applyBidAdjustment] 即时回填异常: ${resolveErr.message}`);
+            log.error(`[applyBidAdjustment] 即时回填异常: ${resolveErr.message}`);
           }
           
           if (!pt.targetId) {
-            console.error(`[applyBidAdjustment] product_target id=${targetId} ("${pt.targetValue}") 缺少Amazon targetId，无法同步到Amazon`);
+            log.error(`[applyBidAdjustment] product_target id=${targetId} ("${pt.targetValue}") 缺少Amazon targetId，无法同步到Amazon`);
             // v190: 改为可重试 - ID可能在后续同步中被回填，重试队列会在下次执行时重新尝试
             const err = new Error(`MISSING_AMAZON_ID: product_target id=${targetId} 缺少Amazon targetId`);
             throw err;
@@ -3443,10 +3446,10 @@ export class AmazonSyncService {
 
         // v125: Amazon SP API v3 要求targetId为字符串类型，直接传递字符串
         if (!amazonId || amazonId.trim() === '' || amazonId === '0') {
-          console.error(`[applyBidAdjustment] product_target id=${targetId} 的Amazon targetId无效: "${amazonId}"`);
+          log.error(`[applyBidAdjustment] product_target id=${targetId} 的Amazon targetId无效: "${amazonId}"`);
           return false;
         }
-        console.log(`[applyBidAdjustment] 调用Amazon API: targetId="${amazonId}", bid=${Number(newBid.toFixed(2))}`);
+        log.debug(`[applyBidAdjustment] 调用Amazon API: targetId="${amazonId}", bid=${Number(newBid.toFixed(2))}`);
         await this.client.updateProductTargetBids([{
           targetId: amazonId,
           bid: Number(newBid.toFixed(2)),
@@ -3461,7 +3464,7 @@ export class AmazonSyncService {
       const actionType = newBid > oldBid ? 'increase' : newBid < oldBid ? 'decrease' : 'set';
 
       // v126: 将日志记录和API调用分开，确保API成功后即使日志失败也返回true
-      console.log(`[applyBidAdjustment] ✅ Amazon API调用成功: ${targetType} id=${targetId}, ${oldBid} -> ${newBid}`);
+      log.info(`[applyBidAdjustment] ✅ Amazon API调用成功: ${targetType} id=${targetId}, ${oldBid} -> ${newBid}`);
       
       try {
         await db.insert(biddingLogs).values({
@@ -3482,22 +3485,22 @@ export class AmazonSyncService {
           createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
         });
       } catch (logError: any) {
-        console.error(`[applyBidAdjustment] ⚠️ 日志记录失败（API已成功）: ${logError.message}`);
+        log.error(`[applyBidAdjustment] ⚠️ 日志记录失败（API已成功）: ${logError.message}`);
         try {
           const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
           const logTargetType = targetType === 'keyword' ? 'keyword' : 'product_target';
           await db.execute(sql`INSERT INTO bidding_logs (account_id, campaign_id, ad_group_id, log_target_type, target_id, target_name, action_type, previous_bid, new_bid, bid_change_percent, reason, algorithm_version, is_intraday_adjustment, execution_status, created_at) VALUES (${this.accountId}, ${campaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${'v1.0'}, ${0}, ${'success'}, ${now})`);
-          console.log(`[applyBidAdjustment] ✅ 日志通过原生SQL插入成功`);
+          log.info(`[applyBidAdjustment] ✅ 日志通过原生SQL插入成功`);
         } catch (rawSqlError: any) {
-          console.error(`[applyBidAdjustment] ⚠️ 原生SQL日志也失败: ${rawSqlError.message}`);
+          log.error(`[applyBidAdjustment] ⚠️ 原生SQL日志也失败: ${rawSqlError.message}`);
         }
       }
 
       return true;
     } catch (error: any) {
       const errorDetail = error.response?.data ? JSON.stringify(error.response.data) : error.message;
-      console.error(`[applyBidAdjustment] ❗ ${targetType} id=${targetId} 出价调整失败:`, errorDetail);
-      console.error(`[applyBidAdjustment] 详细信息: newBid=${newBid}, campaignId=${campaignId}, HTTP状态=${error.response?.status || 'N/A'}`);
+      log.error(`[applyBidAdjustment] ❗ ${targetType} id=${targetId} 出价调整失败:`, errorDetail);
+      log.error(`[applyBidAdjustment] 详细信息: newBid=${newBid}, campaignId=${campaignId}, HTTP状态=${error.response?.status || 'N/A'}`);
       
       // v126: 记录失败的出价调整到bidding_logs
       try {
@@ -3508,7 +3511,7 @@ export class AmazonSyncService {
         const errMsg = errorDetail.substring(0, 500);
         await db.execute(sql`INSERT INTO bidding_logs (account_id, campaign_id, ad_group_id, log_target_type, target_id, target_name, action_type, previous_bid, new_bid, bid_change_percent, reason, algorithm_version, is_intraday_adjustment, execution_status, error_message, created_at) VALUES (${this.accountId}, ${campaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName || ''}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${'v1.0'}, ${0}, ${'failed'}, ${errMsg}, ${now})`);
       } catch (logErr: any) {
-        console.error(`[applyBidAdjustment] ⚠️ 失败日志记录也失败: ${logErr.message}`);
+        log.error(`[applyBidAdjustment] ⚠️ 失败日志记录也失败: ${logErr.message}`);
       }
       
       return false;
@@ -3581,7 +3584,7 @@ export class AmazonSyncService {
       results.spCampaigns = typeof spResult === 'number' ? spResult : spResult.synced;
       results.campaigns += results.spCampaigns;
     } catch (error: any) {
-      console.error('[SyncService] SP广告活动同步失败:', error.message);
+      log.error('SP广告活动同步失败:', error.message);
     }
     
     try {
@@ -3589,7 +3592,7 @@ export class AmazonSyncService {
       results.sbCampaigns = typeof sbResult === 'number' ? sbResult : sbResult.synced;
       results.campaigns += results.sbCampaigns;
     } catch (error: any) {
-      console.error('[SyncService] SB广告活动同步失败:', error.message);
+      log.error('SB广告活动同步失败:', error.message);
     }
     
     try {
@@ -3597,10 +3600,10 @@ export class AmazonSyncService {
       results.sdCampaigns = typeof sdResult === 'number' ? sdResult : sdResult.synced;
       results.campaigns += results.sdCampaigns;
     } catch (error: any) {
-      console.error('[SyncService] SD广告活动同步失败:', error.message);
+      log.error('SD广告活动同步失败:', error.message);
     }
     
-    console.log(`[SyncService] 广告活动同步完成: SP=${results.spCampaigns}, SB=${results.sbCampaigns}, SD=${results.sdCampaigns}`);
+    log.info(`广告活动同步完成: SP=${results.spCampaigns}, SB=${results.sbCampaigns}, SD=${results.sdCampaigns}`);
 
     return results;
   }
@@ -3626,21 +3629,21 @@ export class AmazonSyncService {
       const spAdGroupResult = await this.syncSpAdGroups();
       results.adGroups += typeof spAdGroupResult === 'number' ? spAdGroupResult : spAdGroupResult.synced;
     } catch (e: any) {
-      console.error('[SyncService] SP广告组同步失败:', e.message);
+      log.error('SP广告组同步失败:', e.message);
     }
 
     try {
       const sbAdGroupResult = await this.syncSbAdGroups();
       results.adGroups += sbAdGroupResult.synced;
     } catch (e: any) {
-      console.error('[SyncService] SB广告组同步失败:', e.message);
+      log.error('SB广告组同步失败:', e.message);
     }
 
     try {
       const sdAdGroupResult = await this.syncSdAdGroups();
       results.adGroups += sdAdGroupResult.synced;
     } catch (e: any) {
-      console.error('[SyncService] SD广告组同步失败:', e.message);
+      log.error('SD广告组同步失败:', e.message);
     }
     
     // ==================== 同步关键词投放（SP + SB） ====================
@@ -3648,14 +3651,14 @@ export class AmazonSyncService {
       const spKeywordResult = await this.syncSpKeywords();
       results.keywords += typeof spKeywordResult === 'number' ? spKeywordResult : spKeywordResult.synced;
     } catch (e: any) {
-      console.error('[SyncService] SP关键词同步失败:', e.message);
+      log.error('SP关键词同步失败:', e.message);
     }
 
     try {
       const sbKeywordResult = await this.syncSbKeywords();
       results.keywords += sbKeywordResult.synced;
     } catch (e: any) {
-      console.error('[SyncService] SB关键词同步失败:', e.message);
+      log.error('SB关键词同步失败:', e.message);
     }
     
     // ==================== 同步商品定位（SP + SB + SD） ====================
@@ -3663,33 +3666,33 @@ export class AmazonSyncService {
       const spTargetResult = await this.syncSpProductTargets();
       results.targets += typeof spTargetResult === 'number' ? spTargetResult : spTargetResult.synced;
     } catch (e: any) {
-      console.error('[SyncService] SP商品定位同步失败:', e.message);
+      log.error('SP商品定位同步失败:', e.message);
     }
 
     try {
       const sbTargetResult = await this.syncSbProductTargets();
       results.targets += sbTargetResult.synced;
     } catch (e: any) {
-      console.error('[SyncService] SB商品定位同步失败:', e.message);
+      log.error('SB商品定位同步失败:', e.message);
     }
 
     try {
       const sdTargetResult = await this.syncSdProductTargets();
       results.targets += sdTargetResult.synced;
     } catch (e: any) {
-      console.error('[SyncService] SD商品定位同步失败:', e.message);
+      log.error('SD商品定位同步失败:', e.message);
     }
 
     // v196: 中频同步时同时同步搜索词数据（7天窗口），确保搜索词数据不滞后
     try {
-      console.log(`[SyncService] v196: 中频同步 - 开始同步SP搜索词数据(7天)...`);
+      log.info(`v196: 中频同步 - 开始同步SP搜索词数据(7天)...`);
       const spSearchTermSynced = await this.syncSearchTerms(7);
-      console.log(`[SyncService] v196: 中频同步 - SP搜索词同步完成: ${spSearchTermSynced}条`);
+      log.info(`v196: 中频同步 - SP搜索词同步完成: ${spSearchTermSynced}条`);
     } catch (e: any) {
-      console.error('[SyncService] v196: 中频同步 - SP搜索词同步失败:', e.message);
+      log.error('v196: 中频同步 - SP搜索词同步失败:', e.message);
     }
 
-    console.log(`[SyncService] 全渠道广告组和定位同步完成: 广告组=${results.adGroups}, 关键词=${results.keywords}, 定位=${results.targets}`);
+    log.info(`全渠道广告组和定位同步完成: 广告组=${results.adGroups}, 关键词=${results.keywords}, 定位=${results.targets}`);
 
     return results;
   }
@@ -3708,7 +3711,7 @@ export class AmazonSyncService {
     let synced = 0;
     try {
       const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-      console.log(`[SyncService] 开始同步广告组绩效数据: ${startDate} - ${endDate} (站点: ${this.marketplace})`);
+      log.info(`开始同步广告组绩效数据: ${startDate} - ${endDate} (站点: ${this.marketplace})`);
 
       // 获取该账户下所有广告活动
       const accountCampaigns = await db
@@ -3761,10 +3764,10 @@ export class AmazonSyncService {
                 .where(eq(adGroups.id, adGroup.id));
               synced++;
             }
-            console.log(`[SyncService] SP广告组绩效同步: ${synced} 条记录`);
+            log.info(`SP广告组绩效同步: ${synced} 条记录`);
           }
         } catch (error) {
-          console.error('[SyncService] SP广告组绩效同步失败:', error);
+          log.error('SP广告组绩效同步失败:', error);
         }
       }
 
@@ -3814,10 +3817,10 @@ export class AmazonSyncService {
               sbSynced++;
             }
             synced += sbSynced;
-            console.log(`[SyncService] SB广告组绩效同步: ${sbSynced} 条记录`);
+            log.info(`SB广告组绩效同步: ${sbSynced} 条记录`);
           }
         } catch (error) {
-          console.error('[SyncService] SB广告组绩效同步失败:', error);
+          log.error('SB广告组绩效同步失败:', error);
         }
       }
 
@@ -3871,17 +3874,17 @@ export class AmazonSyncService {
               sdSynced++;
             }
             synced += sdSynced;
-            console.log(`[SyncService] SD广告组绩效同步: ${sdSynced} 条记录`);
+            log.info(`SD广告组绩效同步: ${sdSynced} 条记录`);
           }
         } catch (error) {
-          console.error('[SyncService] SD广告组绩效同步失败:', error);
+          log.error('SD广告组绩效同步失败:', error);
         }
       }
 
-      console.log(`[SyncService] 广告组绩效同步完成: 共 ${synced} 条记录`);
+      log.info(`广告组绩效同步完成: 共 ${synced} 条记录`);
       return synced;
     } catch (error) {
-      console.error('[SyncService] 广告组绩效同步失败:', error);
+      log.error('广告组绩效同步失败:', error);
       return synced;
     }
   }
@@ -3896,18 +3899,18 @@ export class AmazonSyncService {
 
     try {
       const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-      console.log(`[SyncService] 开始同步广告位置绩效: ${startDate} - ${endDate}`);
+      log.info(`开始同步广告位置绩效: ${startDate} - ${endDate}`);
 
       // 请求SP位置报告
       const reportId = await this.client.requestSpPlacementReport(startDate, endDate);
       const reportData = await this.client.waitAndDownloadReport(reportId, 300000);
 
       if (!reportData || reportData.length === 0) {
-        console.log('[SyncService] 位置报告数据为空');
+        log.debug('位置报告数据为空');
         return 0;
       }
 
-      console.log(`[SyncService] 获取到 ${reportData.length} 条位置绩效数据`);
+      log.debug(`获取到 ${reportData.length} 条位置绩效数据`);
       let synced = 0;
 
       for (const row of reportData) {
@@ -3944,7 +3947,7 @@ export class AmazonSyncService {
         };
         const rawPlacement = row.placementClassification || row.campaignPlacement || row.placement || 'OTHER';
         const placement = placementMap[rawPlacement] || 'rest_of_search';
-        console.log(`[SyncService] v157: 位置映射: raw="${rawPlacement}" -> "${placement}" (row keys: ${Object.keys(row).filter(k => k.toLowerCase().includes('place')).join(',')})`);
+        log.debug(`v157: 位置映射: raw="${rawPlacement}" -> "${placement}" (row keys: ${Object.keys(row).filter(k => k.toLowerCase().includes('place')).join(',')})`);
 
         const reportDate = row.date || new Date().toISOString().split('T')[0];
 
@@ -4004,10 +4007,10 @@ export class AmazonSyncService {
         synced++;
       }
 
-      console.log(`[SyncService] 位置绩效同步完成: ${synced} 条记录`);
+      log.info(`位置绩效同步完成: ${synced} 条记录`);
       return synced;
     } catch (error) {
-      console.error('[SyncService] 同步位置绩效失败:', error);
+      log.error('同步位置绩效失败:', error);
       return 0;
     }
   }
@@ -4022,18 +4025,18 @@ export class AmazonSyncService {
 
     try {
       const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-      console.log(`[SyncService] v196: 开始同步搜索词数据: ${startDate} - ${endDate}`);
+      log.info(`v196: 开始同步搜索词数据: ${startDate} - ${endDate}`);
 
       // 请求SP搜索词报告
       const reportId = await this.client.requestSpSearchTermReport(startDate, endDate);
       const reportData = await this.client.waitAndDownloadReport(reportId, 300000);
 
       if (!reportData || reportData.length === 0) {
-        console.log('[SyncService] v196: 搜索词报告数据为空');
+        log.debug('v196: 搜索词报告数据为空');
         return 0;
       }
 
-      console.log(`[SyncService] v196: 获取到 ${reportData.length} 条搜索词数据，开始批量预加载...`);
+      log.info(`v196: 获取到 ${reportData.length} 条搜索词数据，开始批量预加载...`);
 
       // v196: 批量预加载所有关联数据，避免逐行查询
       // 1. 预加载campaigns: amazonCampaignId -> localCampaign
@@ -4089,7 +4092,7 @@ export class AmazonSyncService {
         existingMap.set(key, st.id);
       }
 
-      console.log(`[SyncService] v196: 预加载完成 - campaigns=${allCampaigns.length}, adGroups=${allAdGroups.length}, keywords=${allKeywords.length}, targets=${allTargets.length}, existingSearchTerms=${allSearchTerms.length}`);
+      log.info(`v196: 预加载完成 - campaigns=${allCampaigns.length}, adGroups=${allAdGroups.length}, keywords=${allKeywords.length}, targets=${allTargets.length}, existingSearchTerms=${allSearchTerms.length}`);
 
       let synced = 0;
       let skipped = 0;
@@ -4185,10 +4188,10 @@ export class AmazonSyncService {
         synced++;
       }
 
-      console.log(`[SyncService] v196: 搜索词同步完成: 同步=${synced}, 跳过=${skipped} (无匹配campaign/adGroup)`);
+      log.info(`v196: 搜索词同步完成: 同步=${synced}, 跳过=${skipped} (无匹配campaign/adGroup)`);
       return synced;
     } catch (error) {
-      console.error('[SyncService] v196: 同步搜索词失败:', error);
+      log.error('v196: 同步搜索词失败:', error);
       return 0;
     }
   }
@@ -4203,18 +4206,18 @@ export class AmazonSyncService {
 
     try {
       const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-      console.log(`[SyncService] 开始同步自动定向数据: ${startDate} - ${endDate}`);
+      log.info(`开始同步自动定向数据: ${startDate} - ${endDate}`);
 
       // 请求SP自动定向报告
       const reportId = await this.client.requestSpAutoTargetingReport(startDate, endDate);
       const reportData = await this.client.waitAndDownloadReport(reportId, 300000);
 
       if (!reportData || reportData.length === 0) {
-        console.log('[SyncService] 自动定向报告数据为空');
+        log.debug('自动定向报告数据为空');
         return 0;
       }
 
-      console.log(`[SyncService] 获取到 ${reportData.length} 条自动定向数据`);
+      log.debug(`获取到 ${reportData.length} 条自动定向数据`);
       let synced = 0;
 
       for (const row of reportData) {
@@ -4301,10 +4304,10 @@ export class AmazonSyncService {
         synced++;
       }
 
-      console.log(`[SyncService] 自动定向同步完成: ${synced} 条记录`);
+      log.info(`自动定向同步完成: ${synced} 条记录`);
       return synced;
     } catch (error) {
-      console.error('[SyncService] 同步自动定向失败:', error);
+      log.error('同步自动定向失败:', error);
       return 0;
     }
   }
@@ -4319,18 +4322,18 @@ export class AmazonSyncService {
 
     try {
       const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-      console.log(`[SyncService] 开始同步SD定向数据: ${startDate} - ${endDate}`);
+      log.info(`开始同步SD定向数据: ${startDate} - ${endDate}`);
 
       // 请求SD定向报告
       const reportId = await this.client.requestSdTargetingReport(startDate, endDate);
       const reportData = await this.client.waitAndDownloadReport(reportId, 300000);
 
       if (!reportData || reportData.length === 0) {
-        console.log('[SyncService] SD定向报告数据为空');
+        log.debug('SD定向报告数据为空');
         return 0;
       }
 
-      console.log(`[SyncService] 获取到 ${reportData.length} 条SD定向数据`);
+      log.debug(`获取到 ${reportData.length} 条SD定向数据`);
       let synced = 0;
 
       for (const row of reportData) {
@@ -4414,10 +4417,10 @@ export class AmazonSyncService {
         synced++;
       }
 
-      console.log(`[SyncService] SD定向同步完成: ${synced} 条记录`);
+      log.info(`SD定向同步完成: ${synced} 条记录`);
       return synced;
     } catch (error) {
-      console.error('[SyncService] 同步SD定向失败:', error);
+      log.error('同步SD定向失败:', error);
       return 0;
     }
   }
@@ -4432,18 +4435,18 @@ export class AmazonSyncService {
 
     try {
       const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-      console.log(`[SyncService] 开始同步SB定向数据: ${startDate} - ${endDate}`);
+      log.info(`开始同步SB定向数据: ${startDate} - ${endDate}`);
 
       // 请求SB定向报告
       const reportId = await this.client.requestSbTargetingReport(startDate, endDate);
       const reportData = await this.client.waitAndDownloadReport(reportId, 300000);
 
       if (!reportData || reportData.length === 0) {
-        console.log('[SyncService] SB定向报告数据为空');
+        log.debug('SB定向报告数据为空');
         return 0;
       }
 
-      console.log(`[SyncService] 获取到 ${reportData.length} 条SB定向数据`);
+      log.debug(`获取到 ${reportData.length} 条SB定向数据`);
       let synced = 0;
 
       for (const row of reportData) {
@@ -4513,10 +4516,10 @@ export class AmazonSyncService {
         }
       }
 
-      console.log(`[SyncService] SB定向同步完成: ${synced} 条记录`);
+      log.info(`SB定向同步完成: ${synced} 条记录`);
       return synced;
     } catch (error) {
-      console.error('[SyncService] 同步SB定向失败:', error);
+      log.error('同步SB定向失败:', error);
       return 0;
     }
   }
@@ -4543,7 +4546,7 @@ export class AmazonSyncService {
     };
 
     try {
-      console.log(`[SyncService] 开始完整同步所有广告数据 (${days}天)`);
+      log.info(`开始完整同步所有广告数据 (${days}天)`);
 
       // 1. 同步广告活动
       const spResult = await this.syncSpCampaigns();
@@ -4559,11 +4562,11 @@ export class AmazonSyncService {
       try {
         const sbAdGroupResult = await this.syncSbAdGroups();
         results.adGroups += sbAdGroupResult.synced;
-      } catch (e: any) { console.error('[SyncAllAd] SB广告组同步失败:', e.message); }
+      } catch (e: any) { log.error('[SyncAllAd] SB广告组同步失败:', e.message); }
       try {
         const sdAdGroupResult = await this.syncSdAdGroups();
         results.adGroups += sdAdGroupResult.synced;
-      } catch (e: any) { console.error('[SyncAllAd] SD广告组同步失败:', e.message); }
+      } catch (e: any) { log.error('[SyncAllAd] SD广告组同步失败:', e.message); }
 
       // 3. 同步投放词（SP + SB）
       const keywordResult = await this.syncSpKeywords();
@@ -4571,7 +4574,7 @@ export class AmazonSyncService {
       try {
         const sbKeywordResult = await this.syncSbKeywords();
         results.keywords += sbKeywordResult.synced;
-      } catch (e: any) { console.error('[SyncAllAd] SB关键词同步失败:', e.message); }
+      } catch (e: any) { log.error('[SyncAllAd] SB关键词同步失败:', e.message); }
 
       // 4. 同步商品定向（SP + SB + SD）
       const targetResult = await this.syncSpProductTargets();
@@ -4579,11 +4582,11 @@ export class AmazonSyncService {
       try {
         const sbPtResult = await this.syncSbProductTargets();
         results.targets += sbPtResult.synced;
-      } catch (e: any) { console.error('[SyncAllAd] SB商品定向同步失败:', e.message); }
+      } catch (e: any) { log.error('[SyncAllAd] SB商品定向同步失败:', e.message); }
       try {
         const sdPtResult = await this.syncSdProductTargets();
         results.targets += sdPtResult.synced;
-      } catch (e: any) { console.error('[SyncAllAd] SD商品定向同步失败:', e.message); }
+      } catch (e: any) { log.error('[SyncAllAd] SD商品定向同步失败:', e.message); }
 
       // 5. 同步自动定向
       const autoTargetResult = await this.syncAutoTargeting(days);
@@ -4600,26 +4603,26 @@ export class AmazonSyncService {
       // 8. 同步否定关键词和否定商品定向
       try {
         const negKwResult = await this.syncSpNegativeKeywords();
-        console.log(`[SyncAllAd] SP否定关键词: ${negKwResult.synced}新增, ${negKwResult.updated}更新`);
-      } catch (e: any) { console.error('[SyncAllAd] SP否定关键词同步失败:', e.message); }
+        log.info(`[SyncAllAd] SP否定关键词: ${negKwResult.synced}新增, ${negKwResult.updated}更新`);
+      } catch (e: any) { log.error('[SyncAllAd] SP否定关键词同步失败:', e.message); }
       try {
         const negPtResult = await this.syncSpNegativeProductTargets();
-        console.log(`[SyncAllAd] SP否定商品定向: ${negPtResult.synced}新增, ${negPtResult.updated}更新`);
-      } catch (e: any) { console.error('[SyncAllAd] SP否定商品定向同步失败:', e.message); }
+        log.info(`[SyncAllAd] SP否定商品定向: ${negPtResult.synced}新增, ${negPtResult.updated}更新`);
+      } catch (e: any) { log.error('[SyncAllAd] SP否定商品定向同步失败:', e.message); }
 
       // 9. 同步搜索词（SP + SB）
       results.searchTerms = await this.syncSearchTerms(days);
       try {
         const sbStSynced = await this.syncSbSearchTerms(days);
         results.searchTerms += sbStSynced;
-      } catch (e: any) { console.error('[SyncAllAd] SB搜索词同步失败:', e.message); }
+      } catch (e: any) { log.error('[SyncAllAd] SB搜索词同步失败:', e.message); }
 
       // 10. 同步位置绩效
       results.placements = await this.syncPlacementPerformance(days);
 
-      console.log(`[SyncService] 完整同步完成:`, results);
+      log.info(`完整同步完成:`, results);
     } catch (error) {
-      console.error('[SyncService] 完整同步失败:', error);
+      log.error('完整同步失败:', error);
     }
 
     return results;
@@ -4640,7 +4643,7 @@ export class AmazonSyncService {
         .from(campaigns)
         .where(eq(campaigns.accountId, this.accountId));
 
-      console.log(`[SyncService] 开始更新 ${accountCampaigns.length} 个广告活动的绩效汇总 (站点: ${this.marketplace})`);
+      log.info(`开始更新 ${accountCampaigns.length} 个广告活动的绩效汇总 (站点: ${this.marketplace})`);
 
       // 使用站点时区计算最近30天的日期范围
       const { startDate: startDateStr, endDate: endDateStr } = getMarketplaceDateRange(this.marketplace, 30);
@@ -4732,9 +4735,9 @@ export class AmazonSyncService {
           .where(eq(campaigns.id, campaign.id));
       }
 
-      console.log(`[SyncService] 广告活动绩效汇总更新完成`);
+      log.info(`广告活动绩效汇总更新完成`);
     } catch (error) {
-      console.error('[SyncService] 更新广告活动绩效汇总失败:', error);
+      log.error('更新广告活动绩效汇总失败:', error);
     }
   }
 
@@ -4756,25 +4759,25 @@ export class AmazonSyncService {
     };
     try {
       results.performance = await this.syncPerformanceData(days);
-      console.log(`[SyncService] 绩效数据同步完成: ${results.performance} 条记录`);
+      log.info(`绩效数据同步完成: ${results.performance} 条记录`);
     } catch (error) {
-      console.error('[SyncService] 绩效数据同步失败:', error);
+      log.error('绩效数据同步失败:', error);
     }
     // v192: 同步关键词级别绩效数据（之前仅在syncAll中执行，导致keywords表绩效全为0）
     try {
-      console.log(`[SyncService] 开始同步关键词级别绩效数据（${days}天）...`);
+      log.info(`开始同步关键词级别绩效数据（${days}天）...`);
       results.keywordPerf = await this.syncKeywordPerformanceData(days);
-      console.log(`[SyncService] 关键词绩效数据同步完成: ${results.keywordPerf}条`);
+      log.info(`关键词绩效数据同步完成: ${results.keywordPerf}条`);
     } catch (kwPerfError: any) {
-      console.error('[SyncService] 关键词绩效数据同步失败:', kwPerfError.message);
+      log.error('关键词绩效数据同步失败:', kwPerfError.message);
     }
     // v192: 同步商品定位级别绩效数据
     try {
-      console.log(`[SyncService] 开始同步商品定位级别绩效数据（${days}天）...`);
+      log.info(`开始同步商品定位级别绩效数据（${days}天）...`);
       results.targetPerf = await this.syncProductTargetPerformanceData(days);
-      console.log(`[SyncService] 商品定位绩效数据同步完成: ${results.targetPerf}条`);
+      log.info(`商品定位绩效数据同步完成: ${results.targetPerf}条`);
     } catch (ptPerfError: any) {
-      console.error('[SyncService] 商品定位绩效数据同步失败:', ptPerfError.message);
+      log.error('商品定位绩效数据同步失败:', ptPerfError.message);
     }
     return results;
   }
@@ -4791,11 +4794,11 @@ export class AmazonSyncService {
       const apiAds = await this.client.listSbAds();
       let synced = 0;
       let skipped = 0;
-      console.log(`[SyncService] 获取到 ${apiAds.length} 个SB广告素材`);
+      log.debug(`获取到 ${apiAds.length} 个SB广告素材`);
       
       // 调试：输出第一个广告素材的完整结构
       if (apiAds.length > 0) {
-        console.log('[SyncService] SB广告素材API返回结构示例:', JSON.stringify(apiAds[0], null, 2));
+        log.debug('SB广告素材API返回结构示例:', JSON.stringify(apiAds[0], null, 2));
       }
       
       for (const ad of apiAds) {
@@ -4838,10 +4841,10 @@ export class AmazonSyncService {
         synced++;
       }
       
-      console.log(`[SyncService] SB广告素材同步完成: synced=${synced}, skipped=${skipped}`);
+      log.info(`SB广告素材同步完成: synced=${synced}, skipped=${skipped}`);
       return { synced, skipped };
     } catch (error: any) {
-      console.error('[SyncService] SB广告素材同步失败:', error.message);
+      log.error('SB广告素材同步失败:', error.message);
       return { synced: 0, skipped: 0 };
     }
   }
@@ -4858,7 +4861,7 @@ export class AmazonSyncService {
       let updated = 0;
       
       const sbNegatives = await this.client.listSbNegativeKeywords();
-      console.log(`[SyncService] 获取到 ${sbNegatives.length} 个SB否定关键词`);
+      log.debug(`获取到 ${sbNegatives.length} 个SB否定关键词`);
       
       for (const neg of sbNegatives) {
         const negState = (neg.state || 'enabled').toLowerCase();
@@ -4929,10 +4932,10 @@ export class AmazonSyncService {
         }
       }
       
-      console.log(`[SyncService] SB否定关键词同步完成: ${synced}条新增, ${updated}条更新`);
+      log.info(`SB否定关键词同步完成: ${synced}条新增, ${updated}条更新`);
       return { synced, updated };
     } catch (error: any) {
-      console.error('[SyncService] SB否定关键词同步失败:', error.message);
+      log.error('SB否定关键词同步失败:', error.message);
       return { synced: 0, updated: 0 };
     }
   }
@@ -4948,7 +4951,7 @@ export class AmazonSyncService {
       let updated = 0;
       
       const sbNegTargets = await this.client.listSbNegativeTargets();
-      console.log(`[SyncService] 获取到 ${sbNegTargets.length} 个SB否定商品定向`);
+      log.debug(`获取到 ${sbNegTargets.length} 个SB否定商品定向`);
       
       for (const neg of sbNegTargets) {
         const negState = (neg.state || 'enabled').toLowerCase();
@@ -5018,10 +5021,10 @@ export class AmazonSyncService {
         }
       }
       
-      console.log(`[SyncService] SB否定商品定向同步完成: ${synced}条新增, ${updated}条更新`);
+      log.info(`SB否定商品定向同步完成: ${synced}条新增, ${updated}条更新`);
       return { synced, updated };
     } catch (error: any) {
-      console.error('[SyncService] SB否定商品定向同步失败:', error.message);
+      log.error('SB否定商品定向同步失败:', error.message);
       return { synced: 0, updated: 0 };
     }
   }
@@ -5036,14 +5039,14 @@ export class AmazonSyncService {
     let synced = 0;
     try {
       const { startDate, endDate } = getMarketplaceDateRange(this.marketplace, days);
-      console.log(`[SyncService] 开始同步SB广告位绩效: ${startDate} - ${endDate}`);
+      log.info(`开始同步SB广告位绩效: ${startDate} - ${endDate}`);
       
       const reportId = await this.client.requestSbCampaignPlacementReport(
         startDate,
         endDate
       );
       const reportData = await this.client.waitAndDownloadReport(reportId);
-      console.log(`[SyncService] SB广告位报告获取到 ${reportData.length} 条记录`);
+      log.debug(`SB广告位报告获取到 ${reportData.length} 条记录`);
       
       for (const row of reportData) {
         const campaignIdStr = String(row.campaignId);
@@ -5121,9 +5124,9 @@ export class AmazonSyncService {
         synced++;
       }
       
-      console.log(`[SyncService] SB广告位绩效同步完成: ${synced}条`);
+      log.info(`SB广告位绩效同步完成: ${synced}条`);
     } catch (error: any) {
-      console.error('[SyncService] SB广告位绩效同步失败:', error.message);
+      log.error('SB广告位绩效同步失败:', error.message);
     }
     return synced;
   }
@@ -5152,11 +5155,11 @@ export class AmazonSyncService {
         );
 
       if (adGroupsNeedingUrls.length === 0) {
-        console.log('[SyncService] 所有SB广告组的素材URL已是最新');
+        log.debug('所有SB广告组的素材URL已是最新');
         return 0;
       }
 
-      console.log(`[SyncService] 找到 ${adGroupsNeedingUrls.length} 个需要解析素材URL的广告组`);
+      log.debug(`找到 ${adGroupsNeedingUrls.length} 个需要解析素材URL的广告组`);
 
       // 收集所有需要解析的assetId
       const assetIdsToResolve = new Set<string>();
@@ -5172,11 +5175,11 @@ export class AmazonSyncService {
         }
       }
 
-      console.log(`[SyncService] 需要解析 ${assetIdsToResolve.size} 个唯一素材ID`);
+      log.debug(`需要解析 ${assetIdsToResolve.size} 个唯一素材ID`);
 
       // 批量解析素材URL
       const resolvedUrls = await this.client.resolveAssetUrls(Array.from(assetIdsToResolve));
-      console.log(`[SyncService] 成功解析 ${resolvedUrls.size} 个素材URL`);
+      log.info(`成功解析 ${resolvedUrls.size} 个素材URL`);
 
       // 更新数据库
       let updated = 0;
@@ -5222,7 +5225,7 @@ export class AmazonSyncService {
 
       return updated;
     } catch (error: any) {
-      console.error('[SyncService] syncAssetUrls失败:', error.message);
+      log.error('syncAssetUrls失败:', error.message);
       throw error;
     }
   }
@@ -5251,7 +5254,7 @@ export async function runAutoBidOptimization(
     ))
     .then(rows => rows.map(r => r.keyword));
 
-  console.log(`[AutoBidOpt] v199: 账号${accountId} 共${keywordsToOptimize.length}个启用关键词需要优化`);
+  log.debug(`[AutoBidOpt] v199: 账号${accountId} 共${keywordsToOptimize.length}个启用关键词需要优化`);
   const results = { optimized: 0, skipped: 0 };
 
   for (const kw of keywordsToOptimize) {
@@ -5393,15 +5396,15 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
   lastSyncTime?: string | null,
   syncJobId?: number | null
 ): Promise<SyncResultWithTracking> {
-  console.log('[同步WithTracking] ========== 开始同步SP广告活动(带跟踪) ==========');
-  console.log('[同步WithTracking] 参数:', { accountId: this.accountId, lastSyncTime, syncJobId });
+  log.info('[同步WithTracking] ========== 开始同步SP广告活动(带跟踪) ==========');
+  log.info('[同步WithTracking] 参数:', { accountId: this.accountId, lastSyncTime, syncJobId });
   
   const db = await getDb();
   if (!db) {
-    console.error('[同步WithTracking] ❌ 数据库连接失败');
+    log.error('[同步WithTracking] ❌ 数据库连接失败');
     return { synced: 0, skipped: 0, created: 0, updated: 0, deleted: 0, conflicts: 0 };
   }
-  console.log('[同步WithTracking] ✅ 数据库连接成功');
+  log.info('[同步WithTracking] ✅ 数据库连接成功');
 
   const result: SyncResultWithTracking = {
     synced: 0,
@@ -5416,12 +5419,12 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
   const conflictRecords: InsertSyncConflict[] = [];
 
   try {
-    console.log('[同步WithTracking] 正在调用Amazon API: listSpCampaigns()...');
+    log.info('[同步WithTracking] 正在调用Amazon API: listSpCampaigns()...');
     const apiCampaigns = await this.client.listSpCampaigns();
-    console.log(`[同步WithTracking] ✅ API调用成功,返回 ${apiCampaigns.length} 个SP广告活动`);
+    log.info(`[同步WithTracking] ✅ API调用成功,返回 ${apiCampaigns.length} 个SP广告活动`);
     
     if (apiCampaigns.length === 0) {
-      console.warn('[同步WithTracking] ⚠️ API返回空数组 - 没有SP广告活动');
+      log.warn('[同步WithTracking] ⚠️ API返回空数组 - 没有SP广告活动');
       return result;
     }
 
@@ -5435,7 +5438,7 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
     }
     const protectedCampaignIds = await getRecentlyOptimizedCampaignIds(allExCampaignIds, SYNC_PROTECTION_CONFIG.BUDGET_PROTECTION_HOURS);
     const protectionStats = createSyncProtectionStats();
-    console.log(`[SyncProtection] syncSpCampaignsWithTracking: 批量查询完成, ${protectedCampaignIds.size}个广告活动有近期预算优化事件`);
+    log.info(`syncSpCampaignsWithTracking: 批量查询完成, ${protectedCampaignIds.size}个广告活动有近期预算优化事件`);
 
     for (const apiCampaign of apiCampaigns) {
       const [existing] = await db
@@ -5477,7 +5480,7 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
         dailyBudgetValue = Number(apiCampaign.dailyBudget) || 0;
       }
       if (dailyBudgetValue === 0) {
-        console.warn(`[SyncService] v168: SP广告(Tracking) ${apiCampaign.name} budget解析为0, 原始budget字段:`, JSON.stringify(budgetFieldT));
+        log.warn(`v168: SP广告(Tracking) ${apiCampaign.name} budget解析为0, 原始budget字段:`, JSON.stringify(budgetFieldT));
       }
       
       const campaignData = {
@@ -5534,14 +5537,14 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
         const localBudget = parseFloat(existing.dailyBudget || '0');
         const apiBudget = parseFloat(String(campaignData.dailyBudget || '0'));
         if (apiBudget === 0 && localBudget > 0) {
-          console.warn(`[SyncService] v168: 零值预算防护(Tracking)生效 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}`);
+          log.warn(`v168: 零值预算防护(Tracking)生效 - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}`);
           delete (campaignData as any).dailyBudget;
         }
         // v150.1: 预算保护逻辑
         if (Math.abs(localBudget - apiBudget) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBudget > 0) {
           const hasRecentOpt = protectedCampaignIds.has(existing.id);
           if (hasRecentOpt) {
-            console.log(`[SyncService] v150.1: 预算保护生效(WT) - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}`);
+            log.debug(`v150.1: 预算保护生效(WT) - campaign=${existing.campaignName}, local=$${localBudget}, api=$${apiBudget}`);
             delete (campaignData as any).dailyBudget;
             protectionStats.budgetProtected++;
             protectionStats.protectedEntities.push(`camp:${existing.campaignName}`);
@@ -5557,7 +5560,7 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
         const apiProductPlacement = (campaignData as any).placementProductPageBidAdjustment || 0;
         const hasPlacementDiff = localTopPlacement !== apiTopPlacement || localProductPlacement !== apiProductPlacement;
         if (hasPlacementDiff && protectedCampaignIds.has(existing.id)) {
-          console.log(`[SyncService] v165: 位置倾斜保护生效 - campaign=${existing.campaignName}, localTop=${localTopPlacement}%, apiTop=${apiTopPlacement}%, localProduct=${localProductPlacement}%, apiProduct=${apiProductPlacement}%`);
+          log.debug(`v165: 位置倾斜保护生效 - campaign=${existing.campaignName}, localTop=${localTopPlacement}%, apiTop=${apiTopPlacement}%, localProduct=${localProductPlacement}%, apiProduct=${apiProductPlacement}%`);
           delete (campaignData as any).placementTopSearchBidAdjustment;
           delete (campaignData as any).placementProductPageBidAdjustment;
           protectionStats.protectedEntities.push(`placement:${existing.campaignName}`);
@@ -5600,18 +5603,18 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
       await createSyncConflictsBatch(conflictRecords);
     }
 
-    console.log('[同步WithTracking] ========== SP广告活动同步完成 ==========');
-    console.log('[同步WithTracking] 结果:', result);
+    log.info('[同步WithTracking] ========== SP广告活动同步完成 ==========');
+    log.info('[同步WithTracking] 结果:', result);
     logSyncProtectionSummary('syncSpCampaignsWithTracking', protectionStats);
     return result;
   } catch (error: any) {
-    console.error('[同步WithTracking] ❌ SP广告活动同步失败');
-    console.error('[同步WithTracking] 错误类型:', error.constructor?.name);
-    console.error('[同步WithTracking] 错误消息:', error?.message || error);
-    console.error('[同步WithTracking] 错误堆栈:', error?.stack);
+    log.error('[同步WithTracking] ❌ SP广告活动同步失败');
+    log.error('[同步WithTracking] 错误类型:', error.constructor?.name);
+    log.error('[同步WithTracking] 错误消息:', error?.message || error);
+    log.error('[同步WithTracking] 错误堆栈:', error?.stack);
     if (error?.response) {
-      console.error('[同步WithTracking] API响应状态:', error.response.status);
-      console.error('[同步WithTracking] API响应数据:', JSON.stringify(error.response.data, null, 2));
+      log.error('[同步WithTracking] API响应状态:', error.response.status);
+      log.error('[同步WithTracking] API响应数据:', JSON.stringify(error.response.data, null, 2));
     }
     return result;
   }
@@ -5768,7 +5771,7 @@ AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
 
     return result;
   } catch (error) {
-    console.error('Error syncing SB campaigns with tracking:', error);
+    log.error('Error syncing SB campaigns with tracking:', error);
     return result;
   }
 };
@@ -5925,7 +5928,7 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
 
     return result;
   } catch (error) {
-    console.error('Error syncing SD campaigns with tracking:', error);
+    log.error('Error syncing SD campaigns with tracking:', error);
     return result;
   }
 };
@@ -6077,7 +6080,7 @@ AmazonSyncService.prototype.syncSpAdGroupsWithTracking = async function(
 
     return result;
   } catch (error) {
-    console.error('Error syncing SP ad groups with tracking:', error);
+    log.error('Error syncing SP ad groups with tracking:', error);
     return result;
   }
 };
@@ -6119,7 +6122,7 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
     }
     const protectedKeywordIds = await getRecentlyOptimizedKeywordIds(allExKwIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
     const protectionStats = createSyncProtectionStats();
-    console.log(`[SyncProtection] syncSpKeywordsWithTracking: 批量查询完成, ${protectedKeywordIds.size}个关键词有近期出价优化事件`);
+    log.info(`syncSpKeywordsWithTracking: 批量查询完成, ${protectedKeywordIds.size}个关键词有近期出价优化事件`);
 
     for (const apiKeyword of apiKeywords) {
       const [adGroup] = await db
@@ -6210,7 +6213,7 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
         if (Math.abs(localBid - apiBid) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBid > 0) {
           const hasRecentOpt = protectedKeywordIds.has(existing.id);
           if (hasRecentOpt) {
-            console.log(`[SyncService] v150.1: 出价保护生效(WT) - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}`);
+            log.debug(`v150.1: 出价保护生效(WT) - keyword=${existing.keywordText}, local=$${localBid}, api=$${apiBid}`);
             delete (keywordData as any).bid;
             protectionStats.bidProtected++;
             protectionStats.protectedEntities.push(`kw:${existing.keywordText}`);
@@ -6257,7 +6260,7 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
     logSyncProtectionSummary('syncSpKeywordsWithTracking', protectionStats);
     return result;
   } catch (error) {
-    console.error('Error syncing SP keywords with tracking:', error);
+    log.error('Error syncing SP keywords with tracking:', error);
     return result;
   }
 };
@@ -6299,7 +6302,7 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
     }
     const protectedTargetIds = await getRecentlyOptimizedKeywordIds(allExTgtIds, SYNC_PROTECTION_CONFIG.BID_PROTECTION_HOURS);
     const protectionStats = createSyncProtectionStats();
-    console.log(`[SyncProtection] syncSpProductTargetsWithTracking: 批量查询完成, ${protectedTargetIds.size}个产品定向有近期出价优化事件`);
+    log.info(`syncSpProductTargetsWithTracking: 批量查询完成, ${protectedTargetIds.size}个产品定向有近期出价优化事件`);
 
     for (const apiTarget of apiTargets) {
       const [adGroup] = await db
@@ -6400,7 +6403,7 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
         if (Math.abs(localBid - apiBid) > SYNC_PROTECTION_CONFIG.BID_THRESHOLD && localBid > 0) {
           const hasRecentOpt = protectedTargetIds.has(existing.id);
           if (hasRecentOpt) {
-            console.log(`[SyncService] v150.1: 出价保护生效(WT) - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}`);
+            log.debug(`v150.1: 出价保护生效(WT) - target=${existing.targetValue}, local=$${localBid}, api=$${apiBid}`);
             delete (targetData as any).bid;
             protectionStats.bidProtected++;
             protectionStats.protectedEntities.push(`tgt:${existing.targetValue}`);
@@ -6447,7 +6450,7 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
     logSyncProtectionSummary('syncSpProductTargetsWithTracking', protectionStats);
     return result;
   } catch (error) {
-    console.error('Error syncing SP product targets with tracking:', error);
+    log.error('Error syncing SP product targets with tracking:', error);
     return result;
   }
 };
@@ -6463,7 +6466,7 @@ export async function syncInitialHistoricalData(
   accountId: number,
   userId: number
 ): Promise<{ performance: number }> {
-  console.log(`[SyncService] 开始首次同步90天历史数据 (账号: ${accountId})`);
+  log.info(`开始首次同步90天历史数据 (账号: ${accountId})`);
   
   const results = {
     performance: 0,
@@ -6472,9 +6475,9 @@ export async function syncInitialHistoricalData(
   try {
     // 首次同步获取90天历史数据（SP支持95天，SB只支持60天，取90天作为平衡）
     results.performance = await syncService.syncPerformanceData(90);
-    console.log(`[SyncService] 首次同步完成: ${results.performance} 条历史绩效记录`);
+    log.info(`首次同步完成: ${results.performance} 条历史绩效记录`);
   } catch (error) {
-    console.error('[SyncService] 首次同步失败:', error);
+    log.error('首次同步失败:', error);
   }
 
   return results;

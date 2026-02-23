@@ -14,6 +14,9 @@
 import { SQSClient, ReceiveMessageCommand, DeleteMessageCommand, GetQueueAttributesCommand } from '@aws-sdk/client-sqs';
 import axios from 'axios';
 import * as db from './db';
+import { createModuleLogger } from './utils/logger';
+
+const log = createModuleLogger('SQSConsumer');
 
 // SQS队列配置
 export interface SQSQueueConfig {
@@ -280,23 +283,23 @@ export class SQSConsumerService {
 
     // 记录加载结果
     if (this.queues.length === 0) {
-      console.log('[SQS Consumer] 未配置SQS队列URL，跳过AMS消费者启动');
-      console.log('[SQS Consumer] 如需启用AMS实时数据流，请配置以下环境变量:');
-      console.log('  SP队列:');
-      console.log('    - AWS_SQS_QUEUE_TRAFFIC_URL');
-      console.log('    - AWS_SQS_QUEUE_CONVERSION_URL');
-      console.log('    - AWS_SQS_QUEUE_BUDGET_URL');
-      console.log('  SB队列:');
-      console.log('    - AWS_SQS_QUEUE_SB_TRAFFIC_URL');
-      console.log('    - AWS_SQS_QUEUE_SB_CONVERSION_URL');
-      console.log('    - AWS_SQS_QUEUE_SB_BUDGET_URL');
-      console.log('  SD队列:');
-      console.log('    - AWS_SQS_QUEUE_SD_TRAFFIC_URL');
-      console.log('    - AWS_SQS_QUEUE_SD_CONVERSION_URL');
-      console.log('    - AWS_SQS_QUEUE_SD_BUDGET_URL');
+      log.info('[SQS Consumer] 未配置SQS队列URL，跳过AMS消费者启动');
+      log.debug('[SQS Consumer] 如需启用AMS实时数据流，请配置以下环境变量:');
+      log.debug('  SP队列:');
+      log.debug('    - AWS_SQS_QUEUE_TRAFFIC_URL');
+      log.debug('    - AWS_SQS_QUEUE_CONVERSION_URL');
+      log.debug('    - AWS_SQS_QUEUE_BUDGET_URL');
+      log.debug('  SB队列:');
+      log.debug('    - AWS_SQS_QUEUE_SB_TRAFFIC_URL');
+      log.debug('    - AWS_SQS_QUEUE_SB_CONVERSION_URL');
+      log.debug('    - AWS_SQS_QUEUE_SB_BUDGET_URL');
+      log.debug('  SD队列:');
+      log.debug('    - AWS_SQS_QUEUE_SD_TRAFFIC_URL');
+      log.debug('    - AWS_SQS_QUEUE_SD_CONVERSION_URL');
+      log.debug('    - AWS_SQS_QUEUE_SD_BUDGET_URL');
     } else {
-      console.log(`[SQS Consumer] 已加载 ${this.queues.length} 个队列配置:`);
-      this.queues.forEach(q => console.log(`  - ${q.name}: ${q.adType} ${q.dataType}`));
+      log.info(`[SQS Consumer] 已加载 ${this.queues.length} 个队列配置:`);
+      this.queues.forEach(q => log.debug(`  - ${q.name}: ${q.adType} ${q.dataType}`));
     }
   }
 
@@ -331,7 +334,7 @@ export class SQSConsumerService {
     const existing = this.queues.find(q => q.url === config.url);
     if (!existing) {
       this.queues.push(config);
-      console.log(`[SQS Consumer] 添加队列: ${config.name} (${config.adType} ${config.dataType})`);
+      log.debug(`[SQS Consumer] 添加队列: ${config.name} (${config.adType} ${config.dataType})`);
     }
   }
 
@@ -340,17 +343,17 @@ export class SQSConsumerService {
    */
   async start(): Promise<void> {
     if (this.isRunning) {
-      console.log('[SQS Consumer] 消费者已在运行中');
+      log.debug('[SQS Consumer] 消费者已在运行中');
       return;
     }
 
     if (this.queues.length === 0) {
-      console.log('[SQS Consumer] 没有配置任何队列，跳过启动');
+      log.info('[SQS Consumer] 没有配置任何队列，跳过启动');
       return;
     }
 
     this.isRunning = true;
-    console.log(`[SQS Consumer] 启动消费者，监听 ${this.queues.length} 个队列...`);
+    log.info(`[SQS Consumer] 启动消费者，监听 ${this.queues.length} 个队列...`);
 
     // 为每个队列启动轮询
     for (const queue of this.queues) {
@@ -384,7 +387,7 @@ export class SQSConsumerService {
     }
     this.pollTimers.clear();
     
-    console.log('[SQS Consumer] 所有消费者已停止');
+    log.debug('[SQS Consumer] 所有消费者已停止');
   }
 
   /**
@@ -397,7 +400,7 @@ export class SQSConsumerService {
       try {
         await this.pollQueue(queue);
       } catch (error: any) {
-        console.error(`[SQS Consumer] 队列 ${queue.name} 轮询错误:`, error.message);
+        log.error(`[SQS Consumer] 队列 ${queue.name} 轮询错误:`, error.message);
         const status = this.consumerStatuses.get(queue.name);
         if (status) {
           status.errors++;
@@ -432,7 +435,7 @@ export class SQSConsumerService {
       return;
     }
 
-    console.log(`[SQS Consumer] 从 ${queue.name} 收到 ${response.Messages.length} 条消息`);
+    log.debug(`[SQS Consumer] 从 ${queue.name} 收到 ${response.Messages.length} 条消息`);
 
     for (const message of response.Messages) {
       try {
@@ -453,7 +456,7 @@ export class SQSConsumerService {
           status.lastProcessedAt = new Date().toISOString();
         }
       } catch (error: any) {
-        console.error(`[SQS Consumer] 处理消息失败:`, error.message);
+        log.error(`[SQS Consumer] 处理消息失败:`, error.message);
         const status = this.consumerStatuses.get(queue.name);
         if (status) {
           status.errors++;
@@ -467,7 +470,7 @@ export class SQSConsumerService {
    */
   private async processMessage(queue: SQSQueueConfig, message: any): Promise<void> {
     if (!message.Body) {
-      console.warn('[SQS Consumer] 消息体为空');
+      log.warn('[SQS Consumer] 消息体为空');
       return;
     }
 
@@ -475,7 +478,7 @@ export class SQSConsumerService {
     try {
       body = JSON.parse(message.Body);
     } catch (e) {
-      console.error('[SQS Consumer] JSON解析失败:', message.Body.substring(0, 200));
+      log.error('[SQS Consumer] JSON解析失败:', message.Body.substring(0, 200));
       return;
     }
     
@@ -491,13 +494,13 @@ export class SQSConsumerService {
       try {
         amsData = JSON.parse(body.Message);
       } catch (e) {
-        console.error('[SQS Consumer] 解析SNS消息内容失败');
+        log.error('[SQS Consumer] 解析SNS消息内容失败');
         return;
       }
     }
     
     // 调试日志：打印消息结构
-    console.log(`[SQS Consumer] 收到${queue.adType} ${queue.dataType}消息，结构:`, JSON.stringify(amsData).substring(0, 500));
+    log.debug(`[SQS Consumer] 收到${queue.adType} ${queue.dataType}消息，结构:`, JSON.stringify(amsData).substring(0, 500));
     
     // 根据数据类型路由到不同的处理器
     switch (queue.dataType) {
@@ -511,7 +514,7 @@ export class SQSConsumerService {
         await this.processBudgetMessage(amsData, queue.adType);
         break;
       default:
-        console.warn(`[SQS Consumer] 未知数据类型: ${queue.dataType}`);
+        log.warn(`[SQS Consumer] 未知数据类型: ${queue.dataType}`);
     }
   }
 
@@ -522,7 +525,7 @@ export class SQSConsumerService {
     const subscribeUrl = body.SubscribeURL;
     const topicArn = body.TopicArn;
     
-    console.log(`[SQS Consumer] 收到SNS订阅确认请求: TopicArn=${topicArn}`);
+    log.debug(`[SQS Consumer] 收到SNS订阅确认请求: TopicArn=${topicArn}`);
     
     if (subscribeUrl) {
       try {
@@ -532,12 +535,12 @@ export class SQSConsumerService {
         });
         
         if (response.status === 200) {
-          console.log(`[SQS Consumer] SNS订阅确认成功: TopicArn=${topicArn}`);
+          log.info(`[SQS Consumer] SNS订阅确认成功: TopicArn=${topicArn}`);
         } else {
-          console.error(`[SQS Consumer] SNS订阅确认失败: status=${response.status}`);
+          log.error(`[SQS Consumer] SNS订阅确认失败: status=${response.status}`);
         }
       } catch (error: any) {
-        console.error(`[SQS Consumer] SNS订阅确认请求失败:`, error.message);
+        log.error(`[SQS Consumer] SNS订阅确认请求失败:`, error.message);
       }
     }
   }
@@ -573,12 +576,12 @@ export class SQSConsumerService {
     const campaignId = data.campaign_id;
     const eventHour = data.event_hour;
     
-    console.log(`[SQS Consumer] 处理${adType}流量消息: advertiser_id=${data.advertiser_id}, marketplace=${data.marketplace_id}, campaignId=${campaignId}, impressions=${impressions}, clicks=${clicks}, cost=$${cost.toFixed(4)}`);
+    log.info(`[SQS Consumer] 处理${adType}流量消息: advertiser_id=${data.advertiser_id}, marketplace=${data.marketplace_id}, campaignId=${campaignId}, impressions=${impressions}, clicks=${clicks}, cost=$${cost.toFixed(4)}`);
     
     // 根据advertiser_id和marketplace_id查找对应的账户
     const account = await this.findAccountByAdvertiserId(data.advertiser_id, data.marketplace_id);
     if (!account) {
-      console.warn(`[SQS Consumer] 未找到advertiser_id对应的账户: ${data.advertiser_id}, marketplace: ${data.marketplace_id}`);
+      log.warn(`[SQS Consumer] 未找到advertiser_id对应的账户: ${data.advertiser_id}, marketplace: ${data.marketplace_id}`);
       return;
     }
 
@@ -608,9 +611,9 @@ export class SQSConsumerService {
         adType: adType,
         campaignId: localCampaignId,
       });
-      console.log(`[SQS Consumer] ${adType}流量数据已保存: accountId=${account.id}, campaignId=${localCampaignId || 'N/A'}, date=${date}`);
+      log.info(`[SQS Consumer] ${adType}流量数据已保存: accountId=${account.id}, campaignId=${localCampaignId || 'N/A'}, date=${date}`);
     } catch (error: any) {
-      console.error(`[SQS Consumer] 保存${adType}流量数据失败:`, error.message);
+      log.error(`[SQS Consumer] 保存${adType}流量数据失败:`, error.message);
     }
     
     // v183: 写入交叉维度绩效表 (keyword × placement × hour)
@@ -633,7 +636,7 @@ export class SQSConsumerService {
           dataType: 'traffic',
         });
       } catch (err: any) {
-        console.warn(`[SQS Consumer] v183: 写入交叉维度流量数据失败: ${err.message}`);
+        log.warn(`[SQS Consumer] v183: 写入交叉维度流量数据失败: ${err.message}`);
       }
     }
   }
@@ -659,12 +662,12 @@ export class SQSConsumerService {
     const campaignId = data.campaign_id;
     const eventHour = data.event_hour;
     
-    console.log(`[SQS Consumer] 处理${adType}转化消息: advertiser_id=${data.advertiser_id}, marketplace=${data.marketplace_id}, campaignId=${campaignId}, sales=$${sales.toFixed(4)}, orders=${orders}`);
+    log.info(`[SQS Consumer] 处理${adType}转化消息: advertiser_id=${data.advertiser_id}, marketplace=${data.marketplace_id}, campaignId=${campaignId}, sales=$${sales.toFixed(4)}, orders=${orders}`);
     
     // 根据advertiser_id和marketplace_id查找对应的账户
     const account = await this.findAccountByAdvertiserId(data.advertiser_id, data.marketplace_id);
     if (!account) {
-      console.warn(`[SQS Consumer] 未找到advertiser_id对应的账户: ${data.advertiser_id}, marketplace: ${data.marketplace_id}`);
+      log.warn(`[SQS Consumer] 未找到advertiser_id对应的账户: ${data.advertiser_id}, marketplace: ${data.marketplace_id}`);
       return;
     }
 
@@ -693,9 +696,9 @@ export class SQSConsumerService {
         adType: adType,
         campaignId: localCampaignId,
       });
-      console.log(`[SQS Consumer] ${adType}转化数据已保存: accountId=${account.id}, campaignId=${localCampaignId || 'N/A'}, date=${date}`);
+      log.info(`[SQS Consumer] ${adType}转化数据已保存: accountId=${account.id}, campaignId=${localCampaignId || 'N/A'}, date=${date}`);
     } catch (error: any) {
-      console.error(`[SQS Consumer] 保存${adType}转化数据失败:`, error.message);
+      log.error(`[SQS Consumer] 保存${adType}转化数据失败:`, error.message);
     }
     
     // v183: 写入交叉维度绩效表 (转化数据)
@@ -718,7 +721,7 @@ export class SQSConsumerService {
           dataType: 'conversion',
         });
       } catch (err: any) {
-        console.warn(`[SQS Consumer] v183: 写入交叉维度转化数据失败: ${err.message}`);
+        log.warn(`[SQS Consumer] v183: 写入交叉维度转化数据失败: ${err.message}`);
       }
     }
   }
@@ -732,7 +735,7 @@ export class SQSConsumerService {
     const budgetPercentage = data.budget_usage_percentage || 0;
     const campaignId = data.campaign_id;
     
-    console.log(`[SQS Consumer] 处理${adType}预算消息: advertiser_id=${data.advertiser_id}, campaignId=${campaignId}, budget=${budget}, usage=${budgetUsage}, percentage=${budgetPercentage}%`);
+    log.info(`[SQS Consumer] 处理${adType}预算消息: advertiser_id=${data.advertiser_id}, campaignId=${campaignId}, budget=${budget}, usage=${budgetUsage}, percentage=${budgetPercentage}%`);
     
     // 预算数据是快照(Snapshot)，不是累加
     // 直接覆盖数据库中的值
@@ -745,15 +748,15 @@ export class SQSConsumerService {
           budgetUsagePercentage: budgetPercentage,
           lastBudgetUpdateAt: new Date().toISOString(),
         });
-        console.log(`[SQS Consumer] ${adType}预算状态已更新: campaignId=${campaignId}`);
+        log.info(`[SQS Consumer] ${adType}预算状态已更新: campaignId=${campaignId}`);
       } catch (error: any) {
-        console.error(`[SQS Consumer] 更新${adType}预算状态失败:`, error.message);
+        log.error(`[SQS Consumer] 更新${adType}预算状态失败:`, error.message);
       }
     }
     
     // 预算告警逻辑
     if (budgetPercentage > 80) {
-      console.warn(`[SQS Consumer] 预算告警: campaignId=${campaignId} 已使用 ${budgetPercentage}%`);
+      log.warn(`[SQS Consumer] 预算告警: campaignId=${campaignId} 已使用 ${budgetPercentage}%`);
       // TODO: 发送预算告警通知
     }
   }
@@ -785,14 +788,14 @@ export class SQSConsumerService {
       }
       
       if (account) {
-        console.log(`[SQS Consumer] 找到匹配账户: id=${account.id}, marketplace=${account.marketplace}, profileId=${account.profileId}`);
+        log.debug(`[SQS Consumer] 找到匹配账户: id=${account.id}, marketplace=${account.marketplace}, profileId=${account.profileId}`);
       } else {
-        console.warn(`[SQS Consumer] 未找到匹配账户: advertiserId=${advertiserId}, country=${country}`);
+        log.warn(`[SQS Consumer] 未找到匹配账户: advertiserId=${advertiserId}, country=${country}`);
       }
       
       return account ? { id: account.id } : null;
     } catch (error: any) {
-      console.error(`[SQS Consumer] 查找账户失败:`, error.message);
+      log.error(`[SQS Consumer] 查找账户失败:`, error.message);
       return null;
     }
   }
@@ -833,7 +836,7 @@ export class SQSConsumerService {
           messagesInFlight: parseInt(response.Attributes?.ApproximateNumberOfMessagesNotVisible || '0'),
         });
       } catch (error: any) {
-        console.error(`[SQS Consumer] 获取队列 ${queue.name} 统计失败:`, error.message);
+        log.error(`[SQS Consumer] 获取队列 ${queue.name} 统计失败:`, error.message);
         stats.push({
           name: queue.name,
           adType: queue.adType,

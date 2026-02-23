@@ -13,6 +13,9 @@ import { getDb } from '../db';
 import { reportJobs, amazonApiCredentials, amsPerformanceData, campaigns } from '../../drizzle/schema';
 import { eq, and, inArray, sql, isNull, or } from 'drizzle-orm';
 import { AmazonAdsApiClient } from '../amazonAdsApi';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('AsyncReport');
 
 // 报告类型配置
 const REPORT_CONFIG = {
@@ -228,7 +231,7 @@ export class AsyncReportService {
       }
     }
 
-    console.log(`[AsyncReportService] Created ${jobIds.length} initialization jobs for account ${accountId}`);
+    log.debug(`[AsyncReportService] Created ${jobIds.length} initialization jobs for account ${accountId}`);
     return jobIds;
   }
 
@@ -254,7 +257,7 @@ export class AsyncReportService {
       }
     }
 
-    console.log(`[AsyncReportService] Created ${jobIds.length} attribution jobs for account ${accountId}`);
+    log.debug(`[AsyncReportService] Created ${jobIds.length} attribution jobs for account ${accountId}`);
     return jobIds;
   }
 
@@ -264,7 +267,7 @@ export class AsyncReportService {
   async submitPendingJobs(limit: number = 10): Promise<number> {
     const db = await getDb();
     if (!db) {
-      console.log('[AsyncReportService] Database not available, skipping submit');
+      log.info('[AsyncReportService] Database not available, skipping submit');
       return 0;
     }
 
@@ -293,7 +296,7 @@ export class AsyncReportService {
             try {
               payload = JSON.parse(job.requestPayload);
             } catch (e) {
-              console.log(`[AsyncReportService] Failed to parse requestPayload for job ${job.id}, using adProduct`);
+              log.warn(`[AsyncReportService] Failed to parse requestPayload for job ${job.id}, using adProduct`);
             }
           } else if (typeof job.requestPayload === 'object') {
             payload = job.requestPayload as { adType?: string };
@@ -328,13 +331,13 @@ export class AsyncReportService {
           .where(eq(reportJobs.id, job.id));
 
         submittedCount++;
-        console.log(`[AsyncReportService] Submitted job ${job.id} with reportId ${reportId}`);
+        log.debug(`[AsyncReportService] Submitted job ${job.id} with reportId ${reportId}`);
       } catch (error: any) {
         const errorMessage = error.message || 'Unknown error';
         const statusCode = error.response?.status || error.status;
         
         // 详细记录错误信息
-        console.error(`[AsyncReportService] Failed to submit job ${job.id}:`, {
+        log.error(`[AsyncReportService] Failed to submit job ${job.id}:`, {
           message: errorMessage,
           statusCode,
           accountId: job.accountId,
@@ -349,19 +352,19 @@ export class AsyncReportService {
         if (statusCode === 403) {
           newStatus = 'failed' as const;
           shouldRetry = false;
-          console.warn(`[AsyncReportService] Job ${job.id} failed with 403 - API authorization issue, marking as failed`);
+          log.warn(`[AsyncReportService] Job ${job.id} failed with 403 - API authorization issue, marking as failed`);
         }
         // 429错误表示速率限制，应该重试但增加延迟
         else if (statusCode === 429) {
-          console.warn(`[AsyncReportService] Job ${job.id} hit rate limit, will retry later`);
+          log.warn(`[AsyncReportService] Job ${job.id} hit rate limit, will retry later`);
         }
         // 401错误表示token过期，可以重试（token会自动刷新）
         else if (statusCode === 401) {
-          console.warn(`[AsyncReportService] Job ${job.id} token expired, will retry with refreshed token`);
+          log.warn(`[AsyncReportService] Job ${job.id} token expired, will retry with refreshed token`);
         }
         // 5xx错误表示服务器问题，可以重试
         else if (statusCode >= 500) {
-          console.warn(`[AsyncReportService] Job ${job.id} server error, will retry`);
+          log.warn(`[AsyncReportService] Job ${job.id} server error, will retry`);
         }
 
         // 增加重试次数
@@ -390,7 +393,7 @@ export class AsyncReportService {
   async checkSubmittedJobs(limit: number = 20): Promise<{ completed: number; failed: number; pending: number }> {
     const db = await getDb();
     if (!db) {
-      console.log('[AsyncReportService] Database not available, skipping check');
+      log.info('[AsyncReportService] Database not available, skipping check');
       return { completed: 0, failed: 0, pending: 0 };
     }
 
@@ -434,7 +437,7 @@ export class AsyncReportService {
             .where(eq(reportJobs.id, job.id));
 
           completed++;
-          console.log(`[AsyncReportService] Job ${job.id} completed, URL: ${status.url?.substring(0, 50)}...`);
+          log.debug(`[AsyncReportService] Job ${job.id} completed, URL: ${status.url?.substring(0, 50)}...`);
         } else if (status.status === 'FAILED') {
           // 报告失败
           await db
@@ -446,7 +449,7 @@ export class AsyncReportService {
             .where(eq(reportJobs.id, job.id));
 
           failed++;
-          console.log(`[AsyncReportService] Job ${job.id} failed: ${status.failureReason}`);
+          log.warn(`[AsyncReportService] Job ${job.id} failed: ${status.failureReason}`);
         } else {
           // 仍在处理中
           await db
@@ -457,7 +460,7 @@ export class AsyncReportService {
           pending++;
         }
       } catch (error: any) {
-        console.error(`[AsyncReportService] Error checking job ${job.id}:`, error.message);
+        log.error(`[AsyncReportService] Error checking job ${job.id}:`, error.message);
         failed++;
       }
     }
@@ -471,7 +474,7 @@ export class AsyncReportService {
   async processCompletedJobs(limit: number = 5): Promise<number> {
     const db = await getDb();
     if (!db) {
-      console.log('[AsyncReportService] Database not available, skipping process');
+      log.info('[AsyncReportService] Database not available, skipping process');
       return 0;
     }
 
@@ -502,7 +505,7 @@ export class AsyncReportService {
         const reportData = await apiClient.downloadReport(job.downloadUrl);
 
         if (!reportData || reportData.length === 0) {
-          console.log(`[AsyncReportService] Job ${job.id} has no data`);
+          log.debug(`[AsyncReportService] Job ${job.id} has no data`);
           await db
             .update(reportJobs)
             .set({
@@ -531,9 +534,9 @@ export class AsyncReportService {
           .where(eq(reportJobs.id, job.id));
 
         processedCount++;
-        console.log(`[AsyncReportService] Job ${job.id} processed ${recordsProcessed} records`);
+        log.debug(`[AsyncReportService] Job ${job.id} processed ${recordsProcessed} records`);
       } catch (error: any) {
-        console.error(`[AsyncReportService] Error processing job ${job.id}:`, error.message);
+        log.error(`[AsyncReportService] Error processing job ${job.id}:`, error.message);
 
         await db
           .update(reportJobs)
@@ -656,7 +659,7 @@ export class AsyncReportService {
 
         processedCount++;
       } catch (error: any) {
-        console.error(`[AsyncReportService] Error processing row:`, error.message);
+        log.error(`[AsyncReportService] Error processing row:`, error.message);
       }
     }
 

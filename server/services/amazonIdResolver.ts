@@ -20,6 +20,9 @@
 
 import * as amazonApiHelper from './amazonApiHelper';
 import { sanitizeAndValidateKeyword, canAddPositiveKeyword, isAsinSearchTerm, adGroupHasProductTargets } from '../utils/keywordValidator';
+import { createModuleLogger } from '../utils/logger';
+
+const log = createModuleLogger('IdResolver');
 
 export interface IdResolutionResult {
   keywordsResolved: number;
@@ -50,7 +53,7 @@ export async function ensureAmazonIdsReady(accountId: number): Promise<IdResolut
     errors: [],
   };
 
-  console.log(`[IdResolver] ========== 开始Pre-Sync ID Resolution: accountId=${accountId} ==========`);
+  log.info(`========== 开始Pre-Sync ID Resolution: accountId=${accountId} ==========`);
 
   let directConn: any = null;
   try {
@@ -85,14 +88,14 @@ export async function ensureAmazonIdsReady(accountId: number): Promise<IdResolut
     );
     result.totalMissingAfter = (remainingKws[0]?.cnt || 0) + (remainingPts[0]?.cnt || 0);
 
-    console.log(`[IdResolver] ========== Pre-Sync ID Resolution 完成 ==========`);
-    console.log(`[IdResolver] Keywords: 回填${result.keywordsResolved}, 创建${result.keywordsCreated}, 清理${result.keywordsCleanedUp}, 失败${result.keywordsFailed}`);
-    console.log(`[IdResolver] ProductTargets: 回填${result.productTargetsResolved}, 失败${result.productTargetsFailed}`);
-    console.log(`[IdResolver] 总缺失: ${result.totalMissingBefore} → ${result.totalMissingAfter}`);
+    log.info(`========== Pre-Sync ID Resolution 完成 ==========`);
+    log.warn(`Keywords: 回填${result.keywordsResolved}, 创建${result.keywordsCreated}, 清理${result.keywordsCleanedUp}, 失败${result.keywordsFailed}`);
+    log.warn(`ProductTargets: 回填${result.productTargetsResolved}, 失败${result.productTargetsFailed}`);
+    log.debug(`总缺失: ${result.totalMissingBefore} → ${result.totalMissingAfter}`);
 
   } catch (err: any) {
     result.errors.push(`IdResolver异常: ${err.message}`);
-    console.error(`[IdResolver] 异常: ${err.message}`);
+    log.error(`异常: ${err.message}`);
   } finally {
     if (directConn) {
       try { await directConn.end(); } catch (_) {}
@@ -128,12 +131,12 @@ async function resolveKeywordIds(
   );
 
   if (missingKws.length === 0) {
-    console.log(`[IdResolver] Keywords: 该账号下所有关键词均已有Amazon keywordId`);
+    log.debug(`Keywords: 该账号下所有关键词均已有Amazon keywordId`);
     return;
   }
 
   result.totalMissingBefore += missingKws.length;
-  console.log(`[IdResolver] Keywords: 发现${missingKws.length}个关键词缺少Amazon keywordId`);
+  log.info(`Keywords: 发现${missingKws.length}个关键词缺少Amazon keywordId`);
 
   // 按adGroupId分组
   const groupedByAdGroup = new Map<number, any[]>();
@@ -143,7 +146,7 @@ async function resolveKeywordIds(
     groupedByAdGroup.set(kw.adGroupId, group);
   }
 
-  console.log(`[IdResolver] Keywords: 分布在${groupedByAdGroup.size}个adGroup中`);
+  log.debug(`Keywords: 分布在${groupedByAdGroup.size}个adGroup中`);
 
   // 获取SyncService实例
   const syncService = await amazonApiHelper.getAmazonSyncService(accountId);
@@ -161,7 +164,7 @@ async function resolveKeywordIds(
         [adGroupLocalId]
       );
       if (!agRows[0] || !agRows[0].adGroupId) {
-        console.error(`[IdResolver] adGroup id=${adGroupLocalId} 缺少Amazon adGroupId`);
+        log.error(`adGroup id=${adGroupLocalId} 缺少Amazon adGroupId`);
         result.keywordsFailed += kwsInGroup.length;
         continue;
       }
@@ -170,7 +173,7 @@ async function resolveKeywordIds(
 
       // 通过Amazon API查询该adGroup下的所有keywords
       const amazonKeywords = await syncService.client.listSpKeywords(amazonAdGroupId);
-      console.log(`[IdResolver] adGroup=${adGroupLocalId}(Amazon:${amazonAdGroupId}): Amazon返回${amazonKeywords.length}个keywords, 本地缺失${kwsInGroup.length}个`);
+      log.debug(`adGroup=${adGroupLocalId}(Amazon:${amazonAdGroupId}): Amazon返回${amazonKeywords.length}个keywords, 本地缺失${kwsInGroup.length}个`);
 
       // 构建匹配索引: "keywordText|matchType" -> keywordId
       const amazonKwMap = new Map<string, string>();
@@ -182,7 +185,7 @@ async function resolveKeywordIds(
       // v194: 检查广告组是否已有product targets
       const hasProductTargets = await adGroupHasProductTargets(adGroupLocalId, conn);
       if (hasProductTargets) {
-        console.log(`[IdResolver] ⚠️ adGroup=${adGroupLocalId}: 广告组已有product targets，清理${kwsInGroup.length}个无效keyword记录`);
+        log.info(`⚠️ adGroup=${adGroupLocalId}: 广告组已有product targets，清理${kwsInGroup.length}个无效keyword记录`);
         for (const kw of kwsInGroup) {
           await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [kw.id]);
           result.keywordsCleanedUp++;
@@ -196,7 +199,7 @@ async function resolveKeywordIds(
       for (const kw of kwsInGroup) {
         // v194: ASIN格式的搜索词不应该作为keyword，清理
         if (isAsinSearchTerm(kw.keywordText || '')) {
-          console.log(`[IdResolver] ⚠️ 清理ASIN格式关键词 id=${kw.id} "${kw.keywordText}"`);
+          log.debug(`⚠️ 清理ASIN格式关键词 id=${kw.id} "${kw.keywordText}"`);
           await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [kw.id]);
           result.keywordsCleanedUp++;
           continue;
@@ -213,16 +216,16 @@ async function resolveKeywordIds(
               [amazonKeywordId, kw.id]
             );
             result.keywordsResolved++;
-            console.log(`[IdResolver] ✅ 回填keyword id=${kw.id} "${kw.keywordText?.substring(0, 25)}" → keywordId=${amazonKeywordId}`);
+            log.debug(`✅ 回填keyword id=${kw.id} "${kw.keywordText?.substring(0, 25)}" → keywordId=${amazonKeywordId}`);
           } catch (updateErr: any) {
             if (updateErr.code === 'ER_DUP_ENTRY' || updateErr.errno === 1062) {
               // 唯一约束冲突 → 说明是重复记录，删除
               await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [kw.id]);
               result.keywordsCleanedUp++;
-              console.log(`[IdResolver] 🧹 清理重复keyword id=${kw.id} (keywordId=${amazonKeywordId}已存在)`);
+              log.debug(`🧹 清理重复keyword id=${kw.id} (keywordId=${amazonKeywordId}已存在)`);
             } else {
               result.keywordsFailed++;
-              console.error(`[IdResolver] ❌ 回填keyword id=${kw.id}失败: ${updateErr.message}`);
+              log.error(`❌ 回填keyword id=${kw.id}失败: ${updateErr.message}`);
             }
           }
         } else {
@@ -233,7 +236,7 @@ async function resolveKeywordIds(
 
       // 批量创建Amazon上不存在的关键词
       if (toCreate.length > 0) {
-        console.log(`[IdResolver] adGroup=${adGroupLocalId}: ${toCreate.length}个关键词需要在Amazon创建`);
+        log.info(`adGroup=${adGroupLocalId}: ${toCreate.length}个关键词需要在Amazon创建`);
 
         // 获取Amazon campaignId和campaign targetingType
         const [campRows] = await conn.execute(
@@ -247,7 +250,7 @@ async function resolveKeywordIds(
 
         // v192: 自动广告活动不允许创建正面关键词
         if (!canAddPositiveKeyword(campaignTargetingType)) {
-          console.log(`[IdResolver] ⚠️ adGroup=${adGroupLocalId} 属于auto-targeting广告活动，跳过${toCreate.length}个正面关键词创建（自动广告只能添加否定关键词）`);
+          log.info(`⚠️ adGroup=${adGroupLocalId} 属于auto-targeting广告活动，跳过${toCreate.length}个正面关键词创建（自动广告只能添加否定关键词）`);
           // 清理这些不应该存在的关键词记录
           for (const kw of toCreate) {
             await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [kw.id]);
@@ -262,14 +265,14 @@ async function resolveKeywordIds(
               kw.keywordText = validation.sanitizedText; // 使用清洗后的文本
               validatedBatch.push(kw);
             } else {
-              console.log(`[IdResolver] ⚠️ 关键词校验不通过 id=${kw.id} "${kw.keywordText?.substring(0, 30)}": ${validation.reasonMessage}`);
+              log.debug(`⚠️ 关键词校验不通过 id=${kw.id} "${kw.keywordText?.substring(0, 30)}": ${validation.reasonMessage}`);
               await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [kw.id]);
               result.keywordsCleanedUp++;
             }
           }
           
           if (validatedBatch.length === 0) {
-            console.log(`[IdResolver] adGroup=${adGroupLocalId}: 所有关键词校验不通过，跳过创建`);
+            log.info(`adGroup=${adGroupLocalId}: 所有关键词校验不通过，跳过创建`);
           }
 
           // 每次最多创建10个，避免API限制
@@ -299,7 +302,7 @@ async function resolveKeywordIds(
                       [String(created.keywordId), original.id]
                     );
                     result.keywordsCreated++;
-                    console.log(`[IdResolver] ✅ 创建keyword id=${original.id} "${original.keywordText?.substring(0, 25)}" → keywordId=${created.keywordId}`);
+                    log.info(`✅ 创建keyword id=${original.id} "${original.keywordText?.substring(0, 25)}" → keywordId=${created.keywordId}`);
                   } catch (upErr: any) {
                     if (upErr.code === 'ER_DUP_ENTRY' || upErr.errno === 1062) {
                       await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [original.id]);
@@ -320,7 +323,7 @@ async function resolveKeywordIds(
                   if (existing.length > 0) {
                     await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [original.id]);
                     result.keywordsCleanedUp++;
-                    console.log(`[IdResolver] 🧹 清理重复keyword id=${original.id} (已有有效记录id=${existing[0].id})`);
+                    log.debug(`🧹 清理重复keyword id=${original.id} (已有有效记录id=${existing[0].id})`);
                     resolved = true;
                   }
                   
@@ -338,23 +341,23 @@ async function resolveKeywordIds(
                           [String(matchedKw.keywordId), original.id]
                         );
                         result.keywordsCreated++;
-                        console.log(`[IdResolver] ✅ 从Amazon回填keyword id=${original.id} "${original.keywordText?.substring(0, 25)}" → keywordId=${matchedKw.keywordId}`);
+                        log.debug(`✅ 从Amazon回填keyword id=${original.id} "${original.keywordText?.substring(0, 25)}" → keywordId=${matchedKw.keywordId}`);
                         resolved = true;
                       }
                     } catch (lookupErr: any) {
-                      console.warn(`[IdResolver] ⚠️ Amazon关键词查询失败: ${lookupErr.message}`);
+                      log.warn(`⚠️ Amazon关键词查询失败: ${lookupErr.message}`);
                     }
                   }
                   
                   if (!resolved) {
                     result.keywordsFailed++;
                     const errDetail = (created as any).details || created.code || 'Unknown';
-                    console.error(`[IdResolver] ❌ 创建keyword失败 id=${original.id} "${original.keywordText?.substring(0, 25)}": ${errDetail}`);
+                    log.error(`❌ 创建keyword失败 id=${original.id} "${original.keywordText?.substring(0, 25)}": ${errDetail}`);
                   }
                 }
               }
             } catch (createErr: any) {
-              console.error(`[IdResolver] ❌ 批量创建keywords异常: ${createErr.message}`);
+              log.error(`❌ 批量创建keywords异常: ${createErr.message}`);
               result.keywordsFailed += batch.length;
             }
 
@@ -364,12 +367,12 @@ async function resolveKeywordIds(
             }
           }
         } else {
-          console.error(`[IdResolver] adGroup=${adGroupLocalId} 无法获取Amazon campaignId`);
+          log.error(`adGroup=${adGroupLocalId} 无法获取Amazon campaignId`);
           result.keywordsFailed += toCreate.length;
         }
       }
     } catch (agErr: any) {
-      console.error(`[IdResolver] adGroup=${adGroupLocalId}处理异常: ${agErr.message}`);
+      log.error(`adGroup=${adGroupLocalId}处理异常: ${agErr.message}`);
       result.keywordsFailed += kwsInGroup.length;
     }
   }
@@ -400,12 +403,12 @@ async function resolveProductTargetIds(
   );
 
   if (missingPts.length === 0) {
-    console.log(`[IdResolver] ProductTargets: 该账号下所有product_targets均已有Amazon targetId`);
+    log.debug(`ProductTargets: 该账号下所有product_targets均已有Amazon targetId`);
     return;
   }
 
   result.totalMissingBefore += missingPts.length;
-  console.log(`[IdResolver] ProductTargets: 发现${missingPts.length}个product_targets缺少Amazon targetId`);
+  log.info(`ProductTargets: 发现${missingPts.length}个product_targets缺少Amazon targetId`);
 
   // 按adGroupId分组
   const ptGroupedByAdGroup = new Map<number, any[]>();
@@ -438,7 +441,7 @@ async function resolveProductTargetIds(
 
       // 通过Amazon API查询该adGroup下的所有product targets
       const amazonTargets = await syncService.client.listSpProductTargets(amazonAdGroupId);
-      console.log(`[IdResolver] adGroup=${adGroupLocalId}(Amazon:${amazonAdGroupId}): Amazon返回${amazonTargets.length}个targets, 本地缺失${ptsInGroup.length}个`);
+      log.debug(`adGroup=${adGroupLocalId}(Amazon:${amazonAdGroupId}): Amazon返回${amazonTargets.length}个targets, 本地缺失${ptsInGroup.length}个`);
 
       // 构建匹配索引
       const amazonPtMap = new Map<string, string>();
@@ -480,12 +483,12 @@ async function resolveProductTargetIds(
               [amazonTargetId, pt.id]
             );
             result.productTargetsResolved++;
-            console.log(`[IdResolver] ✅ 回填product_target id=${pt.id} → targetId=${amazonTargetId}`);
+            log.debug(`✅ 回填product_target id=${pt.id} → targetId=${amazonTargetId}`);
           } catch (updateErr: any) {
             if (updateErr.code === 'ER_DUP_ENTRY' || updateErr.errno === 1062) {
               await conn.execute('DELETE FROM product_targets WHERE id = ? AND targetId IS NULL', [pt.id]);
               result.productTargetsResolved++;
-              console.log(`[IdResolver] 🧹 清理重复product_target id=${pt.id}`);
+              log.debug(`🧹 清理重复product_target id=${pt.id}`);
             } else {
               result.productTargetsFailed++;
             }
@@ -505,7 +508,7 @@ async function resolveProductTargetIds(
         }
       }
     } catch (agErr: any) {
-      console.error(`[IdResolver] PT adGroup=${adGroupLocalId}处理异常: ${agErr.message}`);
+      log.error(`PT adGroup=${adGroupLocalId}处理异常: ${agErr.message}`);
       result.productTargetsFailed += ptsInGroup.length;
     }
   }
@@ -543,7 +546,7 @@ export async function resolveKeywordIdOnDemand(
 
     // v194: ASIN格式的关键词不应该存在于keywords表
     if (isAsinSearchTerm(kw.keywordText || '')) {
-      console.log(`[IdResolver] ⚠️ 即时清理ASIN格式关键词 id=${keywordLocalId} "${kw.keywordText}"`);
+      log.debug(`⚠️ 即时清理ASIN格式关键词 id=${keywordLocalId} "${kw.keywordText}"`);
       await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [keywordLocalId]);
       return null;
     }
@@ -551,7 +554,7 @@ export async function resolveKeywordIdOnDemand(
     // v194: 检查广告组是否已有product targets
     const hasProductTargets = await adGroupHasProductTargets(kw.adGroupId, conn);
     if (hasProductTargets) {
-      console.log(`[IdResolver] ⚠️ 即时清理: keyword id=${keywordLocalId} 广告组已有product targets`);
+      log.debug(`⚠️ 即时清理: keyword id=${keywordLocalId} 广告组已有product targets`);
       await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [keywordLocalId]);
       return null;
     }
@@ -573,7 +576,7 @@ export async function resolveKeywordIdOnDemand(
             'UPDATE keywords SET keywordId = ? WHERE id = ? AND keywordId IS NULL',
             [amazonKeywordId, keywordLocalId]
           );
-          console.log(`[IdResolver] ✅ 即时回填keyword id=${keywordLocalId} → keywordId=${amazonKeywordId}`);
+          log.debug(`✅ 即时回填keyword id=${keywordLocalId} → keywordId=${amazonKeywordId}`);
           return amazonKeywordId;
         } catch (upErr: any) {
           if (upErr.code === 'ER_DUP_ENTRY' || upErr.errno === 1062) {
@@ -595,7 +598,7 @@ export async function resolveKeywordIdOnDemand(
       const campTargetingType = campTypeRows[0]?.targetingType || 'manual';
       
       if (!canAddPositiveKeyword(campTargetingType)) {
-        console.log(`[IdResolver] ⚠️ 即时创建拦截: keyword id=${keywordLocalId} 属于auto-targeting广告活动，不能添加正面关键词`);
+        log.info(`⚠️ 即时创建拦截: keyword id=${keywordLocalId} 属于auto-targeting广告活动，不能添加正面关键词`);
         await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [keywordLocalId]);
         return null;
       }
@@ -603,7 +606,7 @@ export async function resolveKeywordIdOnDemand(
       // v192: 校验关键词数据质量
       const kwValidation = sanitizeAndValidateKeyword(kw.keywordText || '', 'positive');
       if (!kwValidation.isValid) {
-        console.log(`[IdResolver] ⚠️ 即时创建拦截: keyword id=${keywordLocalId} "${kw.keywordText?.substring(0, 30)}" 校验不通过: ${kwValidation.reasonMessage}`);
+        log.info(`⚠️ 即时创建拦截: keyword id=${keywordLocalId} "${kw.keywordText?.substring(0, 30)}" 校验不通过: ${kwValidation.reasonMessage}`);
         await conn.execute('DELETE FROM keywords WHERE id = ? AND keywordId IS NULL', [keywordLocalId]);
         return null;
       }
@@ -625,17 +628,17 @@ export async function resolveKeywordIdOnDemand(
             'UPDATE keywords SET keywordId = ? WHERE id = ? AND keywordId IS NULL',
             [newKeywordId, keywordLocalId]
           );
-          console.log(`[IdResolver] ✅ 即时创建keyword id=${keywordLocalId} → keywordId=${newKeywordId}`);
+          log.info(`✅ 即时创建keyword id=${keywordLocalId} → keywordId=${newKeywordId}`);
           return newKeywordId;
         }
       } catch (createErr: any) {
-        console.error(`[IdResolver] 即时创建keyword失败: ${createErr.message}`);
+        log.error(`即时创建keyword失败: ${createErr.message}`);
       }
     }
 
     return null;
   } catch (err: any) {
-    console.error(`[IdResolver] resolveKeywordIdOnDemand异常: ${err.message}`);
+    log.error(`resolveKeywordIdOnDemand异常: ${err.message}`);
     return null;
   } finally {
     if (conn) {
@@ -697,7 +700,7 @@ export async function resolveProductTargetIdOnDemand(
             'UPDATE product_targets SET targetId = ? WHERE id = ? AND targetId IS NULL',
             [amazonTargetId, ptLocalId]
           );
-          console.log(`[IdResolver] ✅ 即时回填product_target id=${ptLocalId} → targetId=${amazonTargetId}`);
+          log.debug(`✅ 即时回填product_target id=${ptLocalId} → targetId=${amazonTargetId}`);
           return amazonTargetId;
         } catch (upErr: any) {
           if (upErr.code === 'ER_DUP_ENTRY' || upErr.errno === 1062) {
@@ -710,7 +713,7 @@ export async function resolveProductTargetIdOnDemand(
 
     return null;
   } catch (err: any) {
-    console.error(`[IdResolver] resolveProductTargetIdOnDemand异常: ${err.message}`);
+    log.error(`resolveProductTargetIdOnDemand异常: ${err.message}`);
     return null;
   } finally {
     if (conn) {

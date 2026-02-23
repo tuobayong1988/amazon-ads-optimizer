@@ -16,6 +16,9 @@ import * as db from './db';
 import * as amazonApiHelper from './services/amazonApiHelper';
 import { randomUUID } from 'crypto';
 import { isShuttingDown, registerActiveTask, unregisterActiveTask } from './deployLifecycleManager';
+import { createModuleLogger } from './utils/logger';
+
+const log = createModuleLogger('OptSyncEngine');
 
 // ============================================================
 // 类型定义
@@ -79,7 +82,7 @@ export async function enqueueTasks(tasks: OptimizationTask[]): Promise<string> {
   const batchId = tasks[0].batchId || randomUUID();
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
   
-  console.log(`[SyncEngine] 入队任务: batchId=${batchId}, 总计=${tasks.length}条`);
+  log.debug(`[SyncEngine] 入队任务: batchId=${batchId}, 总计=${tasks.length}条`);
   
   // 使用直接SQL批量插入，避免ORM开销
   const mysql2 = await import('mysql2/promise');
@@ -121,7 +124,7 @@ export async function enqueueTasks(tasks: OptimizationTask[]): Promise<string> {
       );
     }
     
-    console.log(`[SyncEngine] ✅ 入队完成: batchId=${batchId}, ${tasks.length}条任务`);
+    log.info(`[SyncEngine] ✅ 入队完成: batchId=${batchId}, ${tasks.length}条任务`);
   } finally {
     await conn.end();
   }
@@ -156,13 +159,13 @@ export async function executeBatchSync(options?: {
   
   // v185: 检查系统是否正在关闭
   if (isShuttingDown()) {
-    console.log('[SyncEngine] 系统正在关闭，跳过批量同步');
+    log.info('[SyncEngine] 系统正在关闭，跳过批量同步');
     result.duration = Date.now() - startTime;
     return result;
   }
   
-  console.log(`[SyncEngine] ========== 开始批量同步 ==========`);
-  console.log(`[SyncEngine] 参数: batchId=${options?.batchId || 'all'}, accountId=${options?.accountId || 'all'}, maxTasks=${options?.maxTasks || 'unlimited'}`);
+  log.info(`[SyncEngine] ========== 开始批量同步 ==========`);
+  log.debug(`[SyncEngine] 参数: batchId=${options?.batchId || 'all'}, accountId=${options?.accountId || 'all'}, maxTasks=${options?.maxTasks || 'unlimited'}`);
   
   const mysql2 = await import('mysql2/promise');
   const conn = await mysql2.createConnection({
@@ -197,12 +200,12 @@ export async function executeBatchSync(options?: {
     result.totalTasks = rows.length;
     
     if (rows.length === 0) {
-      console.log(`[SyncEngine] 没有待处理的同步任务`);
+      log.info(`[SyncEngine] 没有待处理的同步任务`);
       result.duration = Date.now() - startTime;
       return result;
     }
     
-    console.log(`[SyncEngine] 读取到 ${rows.length} 条待同步任务`);
+    log.info(`[SyncEngine] 读取到 ${rows.length} 条待同步任务`);
     
     // 2. 按账号分组
     const accountGroups = new Map<number, any[]>();
@@ -212,11 +215,11 @@ export async function executeBatchSync(options?: {
       accountGroups.get(accId)!.push(row);
     }
     
-    console.log(`[SyncEngine] 分为 ${accountGroups.size} 个账号组`);
+    log.debug(`[SyncEngine] 分为 ${accountGroups.size} 个账号组`);
     
     // 3. 逐账号处理
     for (const [accountId, accountTasks] of accountGroups) {
-      console.log(`[SyncEngine] --- 处理账号 ${accountId}: ${accountTasks.length} 条任务 ---`);
+      log.info(`[SyncEngine] --- 处理账号 ${accountId}: ${accountTasks.length} 条任务 ---`);
       
       // 按任务类型分组
       const typeGroups = new Map<string, any[]>();
@@ -228,7 +231,7 @@ export async function executeBatchSync(options?: {
       
       // 按类型批量处理
       for (const [taskType, typeTasks] of typeGroups) {
-        console.log(`[SyncEngine] 处理 ${taskType}: ${typeTasks.length} 条`);
+        log.info(`[SyncEngine] 处理 ${taskType}: ${typeTasks.length} 条`);
         
         try {
           const typeResult = await syncTasksByType(conn, accountId, taskType, typeTasks, options?.dryRun);
@@ -239,7 +242,7 @@ export async function executeBatchSync(options?: {
             result.errors.push(...typeResult.errors.slice(0, 5));
           }
         } catch (err: any) {
-          console.error(`[SyncEngine] ${taskType} 处理异常: ${err.message}`);
+          log.error(`[SyncEngine] ${taskType} 处理异常: ${err.message}`);
           result.errors.push(`${taskType}: ${err.message}`);
           // 标记该类型所有任务为失败
           const taskIds = typeTasks.map((t: any) => t.id);
@@ -259,8 +262,8 @@ export async function executeBatchSync(options?: {
   }
   
   result.duration = Date.now() - startTime;
-  console.log(`[SyncEngine] ========== 批量同步完成 ==========`);
-  console.log(`[SyncEngine] 总计=${result.totalTasks}, 成功=${result.synced}, 失败=${result.failed}, 跳过=${result.skipped}, 耗时=${result.duration}ms`);
+  log.info(`[SyncEngine] ========== 批量同步完成 ==========`);
+  log.warn(`[SyncEngine] 总计=${result.totalTasks}, 成功=${result.synced}, 失败=${result.failed}, 跳过=${result.skipped}, 耗时=${result.duration}ms`);
   
   return result;
 }
@@ -299,7 +302,7 @@ async function syncTasksByType(
   }
   
   if (dryRun) {
-    console.log(`[SyncEngine] [DryRun] 跳过 ${tasks.length} 条 ${taskType} 任务`);
+    log.info(`[SyncEngine] [DryRun] 跳过 ${tasks.length} 条 ${taskType} 任务`);
     result.skipped = tasks.length;
     return result;
   }
@@ -314,7 +317,7 @@ async function syncTasksByType(
       result.failed += batchResult.failed;
       result.errors.push(...batchResult.errors);
     } catch (err: any) {
-      console.error(`[SyncEngine] 批次 ${i / config.maxBatchSize + 1} 异常: ${err.message}`);
+      log.error(`[SyncEngine] 批次 ${i / config.maxBatchSize + 1} 异常: ${err.message}`);
       result.errors.push(err.message);
       await markTasksFailed(conn, batch.map((t: any) => t.id), err.message);
       result.failed += batch.length;
@@ -358,7 +361,7 @@ async function executeBatchByType(
                   'UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?',
                   [t.amazon_entity_id, t.id]
                 );
-                console.log(`[SyncEngine] v138: 自动查找到keyword Amazon ID: local=${t.target_entity_id} -> amazon=${t.amazon_entity_id}`);
+                log.debug(`[SyncEngine] v138: 自动查找到keyword Amazon ID: local=${t.target_entity_id} -> amazon=${t.amazon_entity_id}`);
               }
             } else if (t.target_entity_type === 'product_target') {
               const [ptRows] = await conn.execute(
@@ -371,11 +374,11 @@ async function executeBatchByType(
                   'UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?',
                   [t.amazon_entity_id, t.id]
                 );
-                console.log(`[SyncEngine] v138: 自动查找到product_target Amazon ID: local=${t.target_entity_id} -> amazon=${t.amazon_entity_id}`);
+                log.debug(`[SyncEngine] v138: 自动查找到product_target Amazon ID: local=${t.target_entity_id} -> amazon=${t.amazon_entity_id}`);
               }
             }
           } catch (lookupErr: any) {
-            console.warn(`[SyncEngine] v138: 查找Amazon ID失败: ${lookupErr.message}`);
+            log.warn(`[SyncEngine] v138: 查找Amazon ID失败: ${lookupErr.message}`);
           }
         }
       }
@@ -387,7 +390,7 @@ async function executeBatchByType(
       
       // v141: 对无Amazon ID的任务使用即时回填机制
       if (noIdTasks.length > 0) {
-        console.log(`[SyncEngine] v141: ${noIdTasks.length}条任务缺少Amazon ID，尝试即时回填...`);
+        log.debug(`[SyncEngine] v141: ${noIdTasks.length}条任务缺少Amazon ID，尝试即时回填...`);
         try {
           const { resolveKeywordIdOnDemand, resolveProductTargetIdOnDemand } = await import('./services/amazonIdResolver');
           for (const t of noIdTasks) {
@@ -410,7 +413,7 @@ async function executeBatchByType(
                 } else {
                   ptTasks.push(t);
                 }
-                console.log(`[SyncEngine] v141: ✅ 即时回填成功: ${t.target_entity_type} id=${t.target_entity_id} -> ${resolvedId}`);
+                log.info(`[SyncEngine] v141: ✅ 即时回填成功: ${t.target_entity_type} id=${t.target_entity_id} -> ${resolvedId}`);
               } else {
                 await markTaskFailed(conn, t.id, '缺少Amazon ID（已尝试即时回填）');
                 result.failed++;
@@ -458,9 +461,9 @@ async function executeBatchByType(
             }
           }
           
-          console.log(`[SyncEngine] 关键词出价批量同步: 发送=${kwTasks.length}, 成功=${kwTasks.length - failedIds.size}, 失败=${failedIds.size}`);
+          log.warn(`[SyncEngine] 关键词出价批量同步: 发送=${kwTasks.length}, 成功=${kwTasks.length - failedIds.size}, 失败=${failedIds.size}`);
         } catch (err: any) {
-          console.error(`[SyncEngine] 关键词出价批量API调用失败: ${err.message}`);
+          log.error(`[SyncEngine] 关键词出价批量API调用失败: ${err.message}`);
           // API调用整体失败，所有任务标记为失败并设置重试
           for (const t of kwTasks) {
             await markTaskForRetry(conn, t.id, t.retry_count, err.message);
@@ -498,7 +501,7 @@ async function executeBatchByType(
             }
           }
           
-          console.log(`[SyncEngine] 商品定向出价批量同步: 发送=${ptTasks.length}, 成功=${ptTasks.length - failedIds.size}, 失败=${failedIds.size}`);
+          log.warn(`[SyncEngine] 商品定向出价批量同步: 发送=${ptTasks.length}, 成功=${ptTasks.length - failedIds.size}, 失败=${failedIds.size}`);
         } catch (err: any) {
           for (const t of ptTasks) {
             await markTaskForRetry(conn, t.id, t.retry_count, err.message);
@@ -525,10 +528,10 @@ async function executeBatchByType(
                 'UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?',
                 [t.amazon_entity_id, t.id]
               );
-              console.log(`[SyncEngine] v138: keyword_status自动查找到Amazon ID: local=${t.target_entity_id} -> amazon=${t.amazon_entity_id}`);
+              log.debug(`[SyncEngine] v138: keyword_status自动查找到Amazon ID: local=${t.target_entity_id} -> amazon=${t.amazon_entity_id}`);
             }
           } catch (lookupErr: any) {
-            console.warn(`[SyncEngine] v138: keyword_status查找Amazon ID失败: ${lookupErr.message}`);
+            log.warn(`[SyncEngine] v138: keyword_status查找Amazon ID失败: ${lookupErr.message}`);
           }
         }
       }
@@ -547,7 +550,7 @@ async function executeBatchByType(
                 t.amazon_entity_id = resolvedId;
                 await conn.execute('UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?', [resolvedId, t.id]);
                 validTasks.push(t);
-                console.log(`[SyncEngine] v141: ✅ keyword_status即时回填: id=${t.target_entity_id} -> ${resolvedId}`);
+                log.debug(`[SyncEngine] v141: ✅ keyword_status即时回填: id=${t.target_entity_id} -> ${resolvedId}`);
               } else {
                 await markTaskFailed(conn, t.id, '缺少Amazon ID（已尝试即时回填）');
                 result.failed++;
@@ -590,7 +593,7 @@ async function executeBatchByType(
             }
           }
           
-          console.log(`[SyncEngine] 关键词状态批量同步: 发送=${validTasks.length}, 成功=${validTasks.length - failedIds.size}`);
+          log.warn(`[SyncEngine] 关键词状态批量同步: 发送=${validTasks.length}, 成功=${validTasks.length - failedIds.size}`);
         } catch (err: any) {
           for (const t of validTasks) {
             await markTaskForRetry(conn, t.id, t.retry_count, err.message);
@@ -620,7 +623,7 @@ async function executeBatchByType(
           await updateLocalStatus(conn, 'campaigns', t.target_entity_id, t.new_value);
           result.synced++;
           
-          console.log(`[SyncEngine] ✅ 广告活动状态同步: ${t.target_entity_name} → ${t.new_value}`);
+          log.info(`[SyncEngine] ✅ 广告活动状态同步: ${t.target_entity_name} → ${t.new_value}`);
         } catch (err: any) {
           await markTaskForRetry(conn, t.id, t.retry_count, err.message);
           result.failed++;
@@ -651,7 +654,7 @@ async function executeBatchByType(
           await updateLocalStatus(conn, 'ad_groups', t.target_entity_id, t.new_value);
           result.synced++;
           
-          console.log(`[SyncEngine] ✅ 广告组状态同步: ${t.target_entity_name} → ${t.new_value}`);
+          log.info(`[SyncEngine] ✅ 广告组状态同步: ${t.target_entity_name} → ${t.new_value}`);
         } catch (err: any) {
           await markTaskForRetry(conn, t.id, t.retry_count, err.message);
           result.failed++;
@@ -717,7 +720,7 @@ async function executeBatchByType(
               await markTaskSynced(conn, t.id);
             }
             result.synced += validTasks.length;
-            console.warn(`[SyncEngine] v189: 否定词部分成功: 成功=${negSyncResult.success}, 失败=${negSyncResult.failed}`);
+            log.warn(`[SyncEngine] v189: 否定词部分成功: 成功=${negSyncResult.success}, 失败=${negSyncResult.failed}`);
           } else {
             // 全部失败
             for (const t of validTasks) {
@@ -800,10 +803,10 @@ async function executeBatchByType(
                   'UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?',
                   [amazonCampaignId, t.id]
                 );
-                console.log(`[SyncEngine] v189: 回填位置倾斜Amazon campaignId: local=${t.target_entity_id} -> amazon=${amazonCampaignId}`);
+                log.debug(`[SyncEngine] v189: 回填位置倾斜Amazon campaignId: local=${t.target_entity_id} -> amazon=${amazonCampaignId}`);
               }
             } catch (lookupErr: any) {
-              console.warn(`[SyncEngine] v189: 查找Amazon campaignId失败: ${lookupErr.message}`);
+              log.warn(`[SyncEngine] v189: 查找Amazon campaignId失败: ${lookupErr.message}`);
             }
           }
           
@@ -858,10 +861,10 @@ async function executeBatchByType(
                   'UPDATE optimization_tasks SET amazon_entity_id = ? WHERE id = ?',
                   [amazonCampaignId, t.id]
                 );
-                console.log(`[SyncEngine] v189: 回填Amazon campaignId: local=${t.target_entity_id} -> amazon=${amazonCampaignId}`);
+                log.debug(`[SyncEngine] v189: 回填Amazon campaignId: local=${t.target_entity_id} -> amazon=${amazonCampaignId}`);
               }
             } catch (lookupErr: any) {
-              console.warn(`[SyncEngine] v189: 查找Amazon campaignId失败: ${lookupErr.message}`);
+              log.warn(`[SyncEngine] v189: 查找Amazon campaignId失败: ${lookupErr.message}`);
             }
           } else if (amazonCampaignId) {
             // 查询campaign类型以选择正确的API
@@ -910,7 +913,7 @@ async function executeBatchByType(
     }
     
     default: {
-      console.warn(`[SyncEngine] 未知任务类型: ${taskType}, 跳过 ${batch.length} 条`);
+      log.warn(`[SyncEngine] 未知任务类型: ${taskType}, 跳过 ${batch.length} 条`);
       result.skipped = batch.length;
     }
   }
@@ -1037,9 +1040,9 @@ async function updateLogsSyncStatus(conn: any, batchId: string) {
       [logSyncStatus, batchId, totalSynced, totalFailed, totalPending, totalRetry, batchId]
     );
     
-    console.log(`[SyncEngine] 更新日志同步状态: batchId=${batchId}, status=${logSyncStatus}, synced=${totalSynced}, failed=${totalFailed}`);
+    log.warn(`[SyncEngine] 更新日志同步状态: batchId=${batchId}, status=${logSyncStatus}, synced=${totalSynced}, failed=${totalFailed}`);
   } catch (err: any) {
-    console.error(`[SyncEngine] 更新日志同步状态失败: ${err.message}`);
+    log.error(`[SyncEngine] 更新日志同步状态失败: ${err.message}`);
   }
 }
 
@@ -1052,7 +1055,7 @@ async function updateLogsSyncStatus(conn: any, batchId: string) {
  * 由调度器每5分钟调用一次
  */
 export async function processRetryTasks(): Promise<{ processed: number; synced: number; failed: number }> {
-  console.log(`[SyncEngine] v199: 检查重试任务...`);
+  log.debug(`[SyncEngine] v199: 检查重试任务...`);
   
   // v196: 先尝试重置permanently_failed任务（如果Amazon ID已经可用）
   await resetRecoverableFailedTasks();
@@ -1061,7 +1064,7 @@ export async function processRetryTasks(): Promise<{ processed: number; synced: 
   // 原先的maxTasks: 500导致大量任务积压无法及时处理
   const result = await executeBatchSync();
   
-  console.log(`[SyncEngine] v199: 重试任务处理完成: 总计=${result.totalTasks}, 成功=${result.synced}, 失败=${result.failed}`);
+  log.warn(`[SyncEngine] v199: 重试任务处理完成: 总计=${result.totalTasks}, 成功=${result.synced}, 失败=${result.failed}`);
   
   return {
     processed: result.totalTasks,
@@ -1130,11 +1133,11 @@ async function resetRecoverableFailedTasks(): Promise<number> {
     }
     
     if (recovered > 0) {
-      console.log(`[SyncEngine] v196: 自动恢复了${recovered}/${failedTasks.length}个失败任务`);
+      log.warn(`[SyncEngine] v196: 自动恢复了${recovered}/${failedTasks.length}个失败任务`);
     }
     return recovered;
   } catch (err: any) {
-    console.error(`[SyncEngine] v196: 重置失败任务异常: ${err.message}`);
+    log.error(`[SyncEngine] v196: 重置失败任务异常: ${err.message}`);
     return 0;
   } finally {
     await conn.end();

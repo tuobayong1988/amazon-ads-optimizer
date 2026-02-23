@@ -38,6 +38,9 @@ import { stopDataSyncScheduler, stopOptimizationScheduler } from './dataSyncSche
 import { stopSQSConsumer } from './sqsConsumerService';
 import { SYSTEM_VERSION } from './postDeployOptimizer';
 import { reportJobScheduler } from './services/reportJobScheduler';
+import { createModuleLogger } from './utils/logger';
+
+const log = createModuleLogger('DeployLifecycle');
 
 // ==================== 类型定义 ====================
 
@@ -102,12 +105,12 @@ export function registerGracefulShutdown(server: any): void {
   
   // 未捕获异常的安全处理
   process.on('uncaughtException', async (error) => {
-    console.error(`[LifecycleManager] 未捕获异常: ${error.message}`);
-    console.error(error.stack);
+    log.error(`[LifecycleManager] 未捕获异常: ${error.message}`);
+    log.error(error.stack);
     await handleShutdown('uncaughtException');
   });
   
-  console.log('[LifecycleManager] v185: 优雅关闭处理器已注册');
+  log.info('[LifecycleManager] v185: 优雅关闭处理器已注册');
 }
 
 /**
@@ -116,7 +119,7 @@ export function registerGracefulShutdown(server: any): void {
 async function handleShutdown(signal: string): Promise<void> {
   // 防止重复触发
   if (shutdownState.isShuttingDown) {
-    console.log(`[LifecycleManager] 已在关闭中，忽略重复信号: ${signal}`);
+    log.debug(`[LifecycleManager] 已在关闭中，忽略重复信号: ${signal}`);
     return;
   }
   
@@ -124,34 +127,34 @@ async function handleShutdown(signal: string): Promise<void> {
   shutdownState.shutdownStartedAt = new Date();
   shutdownState.shutdownReason = signal;
   
-  console.log(`\n[LifecycleManager] ========================================`);
-  console.log(`[LifecycleManager] 收到 ${signal} 信号，开始优雅关闭...`);
-  console.log(`[LifecycleManager] 当前活跃任务: ${activeTasks.size}`);
-  console.log(`[LifecycleManager] ========================================\n`);
+  log.debug(`\n[LifecycleManager] ========================================`);
+  log.info(`[LifecycleManager] 收到 ${signal} 信号，开始优雅关闭...`);
+  log.debug(`[LifecycleManager] 当前活跃任务: ${activeTasks.size}`);
+  log.debug(`[LifecycleManager] ========================================\n`);
   
   const SHUTDOWN_TIMEOUT = 25000; // 25秒超时（EB给30秒，留5秒缓冲）
   
   try {
     // 阶段1: 停止接收新任务（立即执行，<1秒）
-    console.log('[LifecycleManager] 阶段1: 停止接收新任务...');
+    log.debug('[LifecycleManager] 阶段1: 停止接收新任务...');
     await stopNewTaskAcceptance();
     
     // 阶段2: 等待当前任务完成（最多20秒）
-    console.log('[LifecycleManager] 阶段2: 等待活跃任务完成...');
+    log.info('[LifecycleManager] 阶段2: 等待活跃任务完成...');
     await waitForActiveTasks(20000);
     
     // 阶段3: 持久化系统状态（最多3秒）
-    console.log('[LifecycleManager] 阶段3: 持久化系统状态...');
+    log.info('[LifecycleManager] 阶段3: 持久化系统状态...');
     await persistShutdownState();
     
     // 阶段4: 关闭HTTP服务器（最多2秒）
-    console.log('[LifecycleManager] 阶段4: 关闭HTTP服务器...');
+    log.debug('[LifecycleManager] 阶段4: 关闭HTTP服务器...');
     await closeHttpServer();
     
-    console.log(`[LifecycleManager] 优雅关闭完成 (耗时: ${Date.now() - shutdownState.shutdownStartedAt.getTime()}ms)`);
+    log.info(`[LifecycleManager] 优雅关闭完成 (耗时: ${Date.now() - shutdownState.shutdownStartedAt.getTime()}ms)`);
     
   } catch (error: any) {
-    console.error(`[LifecycleManager] 关闭过程出错: ${error.message}`);
+    log.error(`[LifecycleManager] 关闭过程出错: ${error.message}`);
   } finally {
     // 确保进程退出
     process.exit(0);
@@ -172,37 +175,37 @@ async function stopNewTaskAcceptance(): Promise<void> {
     // 停止数据同步调度器
     try {
       stopDataSyncScheduler();
-      console.log('[LifecycleManager]   ✓ 数据同步调度器已停止');
+      log.info('[LifecycleManager]   ✓ 数据同步调度器已停止');
     } catch (e: any) {
-      console.warn(`[LifecycleManager]   ⚠ 停止数据同步调度器失败: ${e.message}`);
+      log.warn(`[LifecycleManager]   ⚠ 停止数据同步调度器失败: ${e.message}`);
     }
     
     // 停止SQS消费者
     try {
       stopSQSConsumer();
-      console.log('[LifecycleManager]   ✓ SQS消费者已停止');
+      log.debug('[LifecycleManager]   ✓ SQS消费者已停止');
     } catch (e: any) {
-      console.warn(`[LifecycleManager]   ⚠ 停止SQS消费者失败: ${e.message}`);
+      log.warn(`[LifecycleManager]   ⚠ 停止SQS消费者失败: ${e.message}`);
     }
     
     // 停止报告调度器
     try {
       reportJobScheduler.stop();
-      console.log('[LifecycleManager]   ✓ 报告调度器已停止');
+      log.debug('[LifecycleManager]   ✓ 报告调度器已停止');
     } catch (e: any) {
-      console.warn(`[LifecycleManager]   ⚠ 停止报告调度器失败: ${e.message}`);
+      log.warn(`[LifecycleManager]   ⚠ 停止报告调度器失败: ${e.message}`);
     }
     
     // 停止优化调度器
     try {
       stopOptimizationScheduler();
-      console.log('[LifecycleManager]   ✓ 优化调度器已停止');
+      log.debug('[LifecycleManager]   ✓ 优化调度器已停止');
     } catch (e: any) {
-      console.warn(`[LifecycleManager]   ⚠ 停止优化调度器失败: ${e.message}`);
+      log.warn(`[LifecycleManager]   ⚠ 停止优化调度器失败: ${e.message}`);
     }
     
   } catch (error: any) {
-    console.error(`[LifecycleManager] 停止任务源失败: ${error.message}`);
+    log.error(`[LifecycleManager] 停止任务源失败: ${error.message}`);
   }
 }
 
@@ -211,13 +214,13 @@ async function stopNewTaskAcceptance(): Promise<void> {
  */
 async function waitForActiveTasks(maxWaitMs: number): Promise<void> {
   if (activeTasks.size === 0) {
-    console.log('[LifecycleManager]   无活跃任务，直接继续');
+    log.debug('[LifecycleManager]   无活跃任务，直接继续');
     return;
   }
   
-  console.log(`[LifecycleManager]   等待 ${activeTasks.size} 个活跃任务完成 (最多 ${maxWaitMs / 1000}秒)...`);
+  log.info(`[LifecycleManager]   等待 ${activeTasks.size} 个活跃任务完成 (最多 ${maxWaitMs / 1000}秒)...`);
   for (const [taskId, task] of activeTasks) {
-    console.log(`[LifecycleManager]     - ${taskId}: ${task.description} (运行 ${Math.round((Date.now() - task.startedAt.getTime()) / 1000)}秒)`);
+    log.debug(`[LifecycleManager]     - ${taskId}: ${task.description} (运行 ${Math.round((Date.now() - task.startedAt.getTime()) / 1000)}秒)`);
   }
   
   const startWait = Date.now();
@@ -228,12 +231,12 @@ async function waitForActiveTasks(maxWaitMs: number): Promise<void> {
   }
   
   if (activeTasks.size > 0) {
-    console.warn(`[LifecycleManager]   ⚠ 超时! 仍有 ${activeTasks.size} 个任务未完成，将被中断:`);
+    log.warn(`[LifecycleManager]   ⚠ 超时! 仍有 ${activeTasks.size} 个任务未完成，将被中断:`);
     for (const [taskId, task] of activeTasks) {
-      console.warn(`[LifecycleManager]     - ${taskId}: ${task.description}`);
+      log.warn(`[LifecycleManager]     - ${taskId}: ${task.description}`);
     }
   } else {
-    console.log(`[LifecycleManager]   ✓ 所有活跃任务已完成 (等待 ${Date.now() - startWait}ms)`);
+    log.info(`[LifecycleManager]   ✓ 所有活跃任务已完成 (等待 ${Date.now() - startWait}ms)`);
   }
 }
 
@@ -244,7 +247,7 @@ async function persistShutdownState(): Promise<void> {
   try {
     const database = await getDb();
     if (!database) {
-      console.warn('[LifecycleManager]   ⚠ 数据库不可用，跳过状态持久化');
+      log.warn('[LifecycleManager]   ⚠ 数据库不可用，跳过状态持久化');
       return;
     }
     
@@ -260,20 +263,20 @@ async function persistShutdownState(): Promise<void> {
       `);
       const affectedRows = (resetResult as any)?.[0]?.affectedRows || 0;
       if (affectedRows > 0) {
-        console.log(`[LifecycleManager]   ✓ 已将 ${affectedRows} 个processing任务重置为pending`);
+        log.debug(`[LifecycleManager]   ✓ 已将 ${affectedRows} 个processing任务重置为pending`);
       } else {
-        console.log('[LifecycleManager]   ✓ 无processing任务需要重置');
+        log.debug('[LifecycleManager]   ✓ 无processing任务需要重置');
       }
     } catch (e: any) {
-      console.warn(`[LifecycleManager]   ⚠ 重置processing任务失败: ${e.message}`);
+      log.warn(`[LifecycleManager]   ⚠ 重置processing任务失败: ${e.message}`);
     }
     
     // 3b: 记录关闭心跳
     try {
       await writeHeartbeat('graceful');
-      console.log('[LifecycleManager]   ✓ 已记录优雅关闭心跳');
+      log.debug('[LifecycleManager]   ✓ 已记录优雅关闭心跳');
     } catch (e: any) {
-      console.warn(`[LifecycleManager]   ⚠ 记录关闭心跳失败: ${e.message}`);
+      log.warn(`[LifecycleManager]   ⚠ 记录关闭心跳失败: ${e.message}`);
     }
     
     // 3c: 记录关闭事件到 optimization_events
@@ -301,13 +304,13 @@ async function persistShutdownState(): Promise<void> {
         status: 'success',
         apiSyncStatus: 'not_applicable',
       });
-      console.log('[LifecycleManager]   ✓ 已记录关闭事件');
+      log.debug('[LifecycleManager]   ✓ 已记录关闭事件');
     } catch (e: any) {
-      console.warn(`[LifecycleManager]   ⚠ 记录关闭事件失败: ${e.message}`);
+      log.warn(`[LifecycleManager]   ⚠ 记录关闭事件失败: ${e.message}`);
     }
     
   } catch (error: any) {
-    console.error(`[LifecycleManager] 状态持久化失败: ${error.message}`);
+    log.error(`[LifecycleManager] 状态持久化失败: ${error.message}`);
   }
 }
 
@@ -319,13 +322,13 @@ async function closeHttpServer(): Promise<void> {
   
   return new Promise<void>((resolve) => {
     const timeout = setTimeout(() => {
-      console.warn('[LifecycleManager]   ⚠ HTTP服务器关闭超时，强制继续');
+      log.warn('[LifecycleManager]   ⚠ HTTP服务器关闭超时，强制继续');
       resolve();
     }, 2000);
     
     httpServer.close(() => {
       clearTimeout(timeout);
-      console.log('[LifecycleManager]   ✓ HTTP服务器已关闭');
+      log.debug('[LifecycleManager]   ✓ HTTP服务器已关闭');
       resolve();
     });
   });
@@ -385,7 +388,7 @@ export function getActiveTaskCount(): number {
 export function startHeartbeat(): void {
   // 立即写入一次启动心跳
   writeHeartbeat('running').catch(err => {
-    console.warn(`[LifecycleManager] 写入启动心跳失败: ${err.message}`);
+    log.warn(`[LifecycleManager] 写入启动心跳失败: ${err.message}`);
   });
   
   // 每60秒写入一次
@@ -393,11 +396,11 @@ export function startHeartbeat(): void {
     try {
       await writeHeartbeat('running');
     } catch (err: any) {
-      console.warn(`[LifecycleManager] 心跳写入失败: ${err.message}`);
+      log.warn(`[LifecycleManager] 心跳写入失败: ${err.message}`);
     }
   }, 60 * 1000);
   
-  console.log('[LifecycleManager] v185: 心跳定时器已启动 (间隔: 60秒)');
+  log.info('[LifecycleManager] v185: 心跳定时器已启动 (间隔: 60秒)');
 }
 
 /**
@@ -437,7 +440,7 @@ async function writeHeartbeat(shutdownType: string): Promise<void> {
  * 运行启动诊断 — 检测上次关闭类型和需要恢复的任务
  */
 export async function runStartupDiagnostics(): Promise<StartupDiagnostics> {
-  console.log('[LifecycleManager] v185: 运行启动诊断...');
+  log.info('[LifecycleManager] v185: 运行启动诊断...');
   
   const diagnostics: StartupDiagnostics = {
     lastShutdownType: 'unknown',
@@ -452,7 +455,7 @@ export async function runStartupDiagnostics(): Promise<StartupDiagnostics> {
   try {
     const database = await getDb();
     if (!database) {
-      console.warn('[LifecycleManager] 数据库不可用，跳过启动诊断');
+      log.warn('[LifecycleManager] 数据库不可用，跳过启动诊断');
       return diagnostics;
     }
     
@@ -520,16 +523,16 @@ export async function runStartupDiagnostics(): Promise<StartupDiagnostics> {
     diagnostics.versionChanged = diagnostics.previousVersion !== null && diagnostics.previousVersion < SYSTEM_VERSION;
     
   } catch (error: any) {
-    console.error(`[LifecycleManager] 启动诊断失败: ${error.message}`);
+    log.error(`[LifecycleManager] 启动诊断失败: ${error.message}`);
   }
   
   // 输出诊断结果
-  console.log(`[LifecycleManager] 启动诊断结果:`);
-  console.log(`  上次关闭类型: ${diagnostics.lastShutdownType}`);
-  console.log(`  上次心跳距今: ${diagnostics.lastHeartbeatAge >= 0 ? Math.round(diagnostics.lastHeartbeatAge) + '秒' : '无记录'}`);
-  console.log(`  被中断的任务: ${diagnostics.interruptedTasks}`);
-  console.log(`  待处理的任务: ${diagnostics.pendingTasks}`);
-  console.log(`  版本变化: ${diagnostics.versionChanged ? `v${diagnostics.previousVersion} → v${SYSTEM_VERSION}` : '无'}`);
+  log.info(`[LifecycleManager] 启动诊断结果:`);
+  log.debug(`  上次关闭类型: ${diagnostics.lastShutdownType}`);
+  log.debug(`  上次心跳距今: ${diagnostics.lastHeartbeatAge >= 0 ? Math.round(diagnostics.lastHeartbeatAge) + '秒' : '无记录'}`);
+  log.debug(`  被中断的任务: ${diagnostics.interruptedTasks}`);
+  log.info(`  待处理的任务: ${diagnostics.pendingTasks}`);
+  log.info(`  版本变化: ${diagnostics.versionChanged ? `v${diagnostics.previousVersion} → v${SYSTEM_VERSION}` : '无'}`);
   
   return diagnostics;
 }
@@ -555,7 +558,7 @@ export async function recoverInterruptedTasks(): Promise<number> {
     const recovered = (result as any)?.[0]?.affectedRows || 0;
     
     if (recovered > 0) {
-      console.log(`[LifecycleManager] ✓ 已恢复 ${recovered} 个被中断的任务 (processing → pending)`);
+      log.debug(`[LifecycleManager] ✓ 已恢复 ${recovered} 个被中断的任务 (processing → pending)`);
       
       // 记录恢复事件
       await database.insert(optimizationEvents).values({
@@ -577,7 +580,7 @@ export async function recoverInterruptedTasks(): Promise<number> {
     
     return recovered;
   } catch (error: any) {
-    console.error(`[LifecycleManager] 恢复中断任务失败: ${error.message}`);
+    log.error(`[LifecycleManager] 恢复中断任务失败: ${error.message}`);
     return 0;
   }
 }
@@ -589,12 +592,12 @@ export async function flushPendingTasks(): Promise<void> {
   try {
     const { processSyncQueue } = await import('./optimizationSyncEngine');
     if (typeof processSyncQueue === 'function') {
-      console.log('[LifecycleManager] 触发同步引擎处理pending任务...');
+      log.info('[LifecycleManager] 触发同步引擎处理pending任务...');
       const result = await processSyncQueue({});
-      console.log(`[LifecycleManager] ✓ 同步引擎处理完成: ${JSON.stringify(result)}`);
+      log.info(`[LifecycleManager] ✓ 同步引擎处理完成: ${JSON.stringify(result)}`);
     }
   } catch (error: any) {
-    console.warn(`[LifecycleManager] 触发同步引擎失败: ${error.message}`);
+    log.warn(`[LifecycleManager] 触发同步引擎失败: ${error.message}`);
   }
 }
 
@@ -605,9 +608,9 @@ export async function flushPendingTasks(): Promise<void> {
  * 按正确顺序执行所有启动任务
  */
 export async function orchestrateStartup(server: any): Promise<void> {
-  console.log(`\n[LifecycleManager] ========================================`);
-  console.log(`[LifecycleManager] v${SYSTEM_VERSION}: 系统启动协调开始`);
-  console.log(`[LifecycleManager] ========================================\n`);
+  log.debug(`\n[LifecycleManager] ========================================`);
+  log.info(`[LifecycleManager] v${SYSTEM_VERSION}: 系统启动协调开始`);
+  log.debug(`[LifecycleManager] ========================================\n`);
   
   // 步骤0: 注册优雅关闭处理器
   registerGracefulShutdown(server);
@@ -629,24 +632,24 @@ export async function orchestrateStartup(server: any): Promise<void> {
     try {
       // 步骤4a: 处理恢复的pending任务
       if (diagnostics.pendingTasks > 0 || diagnostics.interruptedTasks > 0) {
-        console.log(`[LifecycleManager] 处理 ${diagnostics.pendingTasks + diagnostics.interruptedTasks} 个待处理/恢复的任务...`);
+        log.info(`[LifecycleManager] 处理 ${diagnostics.pendingTasks + diagnostics.interruptedTasks} 个待处理/恢复的任务...`);
         await flushPendingTasks();
       }
       
       // 步骤4b: 运行API执行级纠错
-      console.log('[LifecycleManager] 运行API执行级纠错...');
+      log.info('[LifecycleManager] 运行API执行级纠错...');
       const { runAutoCorrection } = await import('./optimizationAutoCorrector');
       const corrResult = await runAutoCorrection();
-      console.log(`[LifecycleManager] ✓ 纠错完成: 发现${corrResult.totalIssuesFound}个问题, 纠正${corrResult.totalCorrected}个`);
+      log.info(`[LifecycleManager] ✓ 纠错完成: 发现${corrResult.totalIssuesFound}个问题, 纠正${corrResult.totalCorrected}个`);
       
       // 步骤4c: 运行部署后重优化
-      console.log('[LifecycleManager] 运行部署后重优化...');
+      log.debug('[LifecycleManager] 运行部署后重优化...');
       const { runPostDeployOptimization } = await import('./postDeployOptimizer');
       const deployResult = await runPostDeployOptimization();
       if (deployResult.triggered) {
-        console.log(`[LifecycleManager] ✓ 部署后重优化完成: ${deployResult.targetsProcessed}个目标, ${deployResult.targetsSucceeded}个成功`);
+        log.info(`[LifecycleManager] ✓ 部署后重优化完成: ${deployResult.targetsProcessed}个目标, ${deployResult.targetsSucceeded}个成功`);
       } else {
-        console.log(`[LifecycleManager] ✓ ${deployResult.reason}`);
+        log.debug(`[LifecycleManager] ✓ ${deployResult.reason}`);
       }
       
       // 步骤4d: 如果是crash恢复，记录恢复完成事件
@@ -679,17 +682,17 @@ export async function orchestrateStartup(server: any): Promise<void> {
         }
       }
       
-      console.log(`\n[LifecycleManager] ========================================`);
-      console.log(`[LifecycleManager] v${SYSTEM_VERSION}: 启动协调完成，系统进入正常运行`);
-      console.log(`[LifecycleManager] ========================================\n`);
+      log.debug(`\n[LifecycleManager] ========================================`);
+      log.info(`[LifecycleManager] v${SYSTEM_VERSION}: 启动协调完成，系统进入正常运行`);
+      log.debug(`[LifecycleManager] ========================================\n`);
       
     } catch (err: any) {
-      console.error(`[LifecycleManager] 启动协调任务失败: ${err.message}`);
-      console.error(err.stack);
+      log.error(`[LifecycleManager] 启动协调任务失败: ${err.message}`);
+      log.error(err.stack);
     }
   }, 30 * 1000);
   
-  console.log(`[LifecycleManager] 启动协调: 初始化完成，纠错和重优化将在30秒后执行`);
+  log.info(`[LifecycleManager] 启动协调: 初始化完成，纠错和重优化将在30秒后执行`);
 }
 
 // ==================== 导出工具函数 ====================

@@ -16,6 +16,8 @@ import sitemapRouter from "../routes/sitemap";
 import { SYSTEM_VERSION } from '../postDeployOptimizer';
 import { orchestrateStartup, getSystemInfo, isShuttingDown } from '../deployLifecycleManager';
 import { ensureNextGenTables } from '../nextGenMigration';
+import { logger } from '../utils/logger';
+import { getDb } from '../db';
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -120,6 +122,31 @@ async function startServer() {
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/ (v${SYSTEM_VERSION})`);
     
+    // v205: 初始化Logger数据库持久化
+    logger.setDbProvider(getDb);
+    getDb().then(async (db) => {
+      if (db) {
+        try {
+          await db.execute(`CREATE TABLE IF NOT EXISTS \`system_logs\` (
+            \`id\` int NOT NULL AUTO_INCREMENT,
+            \`timestamp\` datetime NOT NULL,
+            \`level\` varchar(8) NOT NULL,
+            \`module\` varchar(128) NOT NULL,
+            \`message\` text NOT NULL,
+            \`metadata\` text DEFAULT NULL,
+            PRIMARY KEY (\`id\`),
+            INDEX \`idx_syslog_timestamp\` (\`timestamp\`),
+            INDEX \`idx_syslog_level\` (\`level\`),
+            INDEX \`idx_syslog_module\` (\`module\`(64)),
+            INDEX \`idx_syslog_level_timestamp\` (\`level\`, \`timestamp\`)
+          ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`);
+          console.log('[Logger] system_logs表已就绪');
+        } catch (e: any) {
+          console.error('[Logger] system_logs表创建失败:', e.message);
+        }
+      }
+    }).catch(() => {});
+
     // v198: 启动时自动创建NextGen算法所需的数据库表
     ensureNextGenTables().then(result => {
       if (result.success) {
