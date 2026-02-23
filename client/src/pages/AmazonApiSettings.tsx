@@ -267,24 +267,31 @@ export default function AmazonApiSettings() {
     }
   );
 
-  // 当有活动的同步任务时，更新前端进度状态
+  // v215: 当有活动的同步任务时，更新前端进度状态
+  // 仅在前端没有通过handleSyncAll主动管理进度时才使用此轮询更新
   useEffect(() => {
+    // 如果前端已经有站点级别的进度管理（通过handleSyncAll触发），不要覆盖
+    const hasSiteManagement = syncProgress.siteStatuses && syncProgress.siteStatuses.length > 0;
+    
     if (accountActiveSyncJob && accountActiveSyncJob.status === 'running') {
-      const siteProgress = accountActiveSyncJob.siteProgress as any;
-      setSyncProgress(prev => ({
-        ...prev,
-        step: 'sp', // 表示正在同步
-        progress: accountActiveSyncJob.progressPercent || 0,
-        current: accountActiveSyncJob.currentStep || '同步中...',
-        results: {
-          sp: accountActiveSyncJob.spCampaigns || 0,
-          sb: accountActiveSyncJob.sbCampaigns || 0,
-          sd: accountActiveSyncJob.sdCampaigns || 0,
-          adGroups: accountActiveSyncJob.adGroupsSynced || 0,
-          keywords: accountActiveSyncJob.keywordsSynced || 0,
-          targets: accountActiveSyncJob.targetsSynced || 0,
-        },
-      }));
+      setSyncProgress(prev => {
+        // 保留已有的站点状态，只更新整体进度和当前步骤
+        const stepLabel = accountActiveSyncJob.currentStep || '同步中...';
+        return {
+          ...prev,
+          step: 'sp',
+          progress: accountActiveSyncJob.progressPercent || prev.progress,
+          current: stepLabel,
+          results: {
+            sp: accountActiveSyncJob.spCampaigns || prev.results.sp,
+            sb: accountActiveSyncJob.sbCampaigns || prev.results.sb,
+            sd: accountActiveSyncJob.sdCampaigns || prev.results.sd,
+            adGroups: accountActiveSyncJob.adGroupsSynced || prev.results.adGroups,
+            keywords: accountActiveSyncJob.keywordsSynced || prev.results.keywords,
+            targets: accountActiveSyncJob.targetsSynced || prev.results.targets,
+          },
+        };
+      });
     } else if (accountActiveSyncJob && accountActiveSyncJob.status === 'completed') {
       setSyncProgress(prev => ({
         ...prev,
@@ -292,12 +299,12 @@ export default function AmazonApiSettings() {
         progress: 100,
         current: '同步完成',
         results: {
-          sp: accountActiveSyncJob.spCampaigns || 0,
-          sb: accountActiveSyncJob.sbCampaigns || 0,
-          sd: accountActiveSyncJob.sdCampaigns || 0,
-          adGroups: accountActiveSyncJob.adGroupsSynced || 0,
-          keywords: accountActiveSyncJob.keywordsSynced || 0,
-          targets: accountActiveSyncJob.targetsSynced || 0,
+          sp: accountActiveSyncJob.spCampaigns || prev.results.sp,
+          sb: accountActiveSyncJob.sbCampaigns || prev.results.sb,
+          sd: accountActiveSyncJob.sdCampaigns || prev.results.sd,
+          adGroups: accountActiveSyncJob.adGroupsSynced || prev.results.adGroups,
+          keywords: accountActiveSyncJob.keywordsSynced || prev.results.keywords,
+          targets: accountActiveSyncJob.targetsSynced || prev.results.targets,
         },
       }));
     } else if (accountActiveSyncJob && accountActiveSyncJob.status === 'failed') {
@@ -306,9 +313,6 @@ export default function AmazonApiSettings() {
         step: 'error',
         error: accountActiveSyncJob.errorMessage || '同步失败',
       }));
-    } else if (!accountActiveSyncJob && syncProgress.step !== 'idle' && syncProgress.step !== 'complete' && syncProgress.step !== 'error') {
-      // 没有活动任务且当前状态不是空闲/完成/错误，则重置为空闲
-      // 这种情况可能是任务已经完成但前端还没有收到更新
     }
   }, [accountActiveSyncJob]);
 
@@ -887,8 +891,20 @@ export default function AmazonApiSettings() {
       );
       updateProgress(progressStatuses);
       
-      // 轮询同步任务状态
-      const pollResult = await pollSyncJobStatus(result.jobId);
+      // v215: 轮询同步任务状态，并实时更新站点级步骤信息
+      const pollResult = await pollSyncJobStatus(result.jobId, 2700, (currentStep, stepProgress) => {
+        // 实时更新站点卡片中的同步步骤和进度
+        const stepStatuses = siteStatuses.map(s => 
+          s.id === site.id ? { 
+            ...s, 
+            status: 'syncing' as const, 
+            progress: Math.min(30 + Math.floor(stepProgress * 0.65), 95),
+            currentStep: currentStep,
+            stepProgress: stepProgress
+          } : s
+        );
+        updateProgress(stepStatuses);
+      });
       
       if (pollResult.success && pollResult.results) {
         // 更新站点状态为成功
@@ -1151,10 +1167,10 @@ export default function AmazonApiSettings() {
               siteStatuses: [...currentSiteStatuses],
             }));
             
-            // 轮询同步任务状态，并实时更新进度
+            // v215: 轮询同步任务状态，并实时更新进度（超时增加到90分钟）
             const pollResult = await pollSyncJobStatus(
               result.jobId,
-              120,
+              2700,
               (currentStep, stepProgress) => {
                 // 更新站点的当前步骤和进度
                 currentSiteStatuses = currentSiteStatuses.map(s => 
@@ -3097,7 +3113,7 @@ export default function AmazonApiSettings() {
                       {/* 整体进度 */}
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-medium">
-                          同步进度 {syncProgress.completedSites !== undefined && syncProgress.totalSites !== undefined && 
+                          同步进度 {syncProgress.completedSites !== undefined && syncProgress.totalSites !== undefined && syncProgress.totalSites > 0 &&
                             `(${syncProgress.completedSites}/${syncProgress.totalSites} 站点)`
                           }
                         </span>
@@ -3136,9 +3152,43 @@ export default function AmazonApiSettings() {
                                   <div>
                                     <div className="font-medium text-sm">{site.name}</div>
                                     {site.status === 'syncing' && (
-                                      <div className="text-xs text-muted-foreground">
-                                        {site.currentStep ? `正在同步: ${site.currentStep}` : '正在同步...'}
-                                        {site.stepProgress && ` (${site.stepProgress}%)`}
+                                      <div className="space-y-1">
+                                        <div className="text-xs text-muted-foreground">
+                                          {site.currentStep ? (() => {
+                                            const stepLabels: Record<string, string> = {
+                                              'SP广告活动': '① SP广告活动',
+                                              'SB广告活动': '② SB广告活动',
+                                              'SD广告活动': '③ SD广告活动',
+                                              '广告组和定向': '④ 广告组和定向',
+                                              '广告组': '④ 广告组',
+                                              '关键词': '⑤ 关键词',
+                                              '商品定向': '⑥ 商品定向',
+                                              'SP绩效数据': '⑦ SP绩效数据',
+                                              'SB绩效数据': '⑧ SB绩效数据',
+                                              'SD绩效数据': '⑨ SD绩效数据',
+                                              '绩效数据': '⑦ 绩效数据',
+                                              '汇总更新': '⑩ 汇总更新',
+                                            };
+                                            return `正在同步: ${stepLabels[site.currentStep] || site.currentStep}`;
+                                          })() : '正在同步...'}
+                                          {site.stepProgress ? ` (${site.stepProgress}%)` : ''}
+                                        </div>
+                                        {/* 步骤进度条 */}
+                                        {site.currentStep && (
+                                          <div className="flex gap-0.5">
+                                            {['①','②','③','④','⑤','⑥','⑦','⑧'].map((_, idx) => {
+                                              const allSteps = ['SP广告活动','SB广告活动','SD广告活动','广告组和定向','关键词','商品定向','绩效数据','汇总更新'];
+                                              const currentIdx = allSteps.findIndex(s => site.currentStep?.includes(s) || s.includes(site.currentStep || ''));
+                                              const isComplete = idx < currentIdx;
+                                              const isCurrent = idx === currentIdx;
+                                              return (
+                                                <div key={idx} className={`h-1 flex-1 rounded-full ${
+                                                  isComplete ? 'bg-green-500' : isCurrent ? 'bg-primary animate-pulse' : 'bg-muted'
+                                                }`} />
+                                              );
+                                            })}
+                                          </div>
+                                        )}
                                       </div>
                                     )}
                                     {site.status === 'success' && site.results && (

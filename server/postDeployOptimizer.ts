@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 211;
+export const SYSTEM_VERSION = 215;
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -146,6 +146,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 205,
     description: 'v205: 统一日志管理系统 — 结构化日志分级(DEBUG/INFO/WARN/ERROR/FATAL)，内存环形缓冲区(5000条)，数据库持久化(WARN及以上)，7天自动轮转，分页查询API，19个核心模块迁移(1528处console.log)，运行时动态日志级别调整',
+    affectedModules: [],
+    correctionActions: [],
+  },
+  {
+    version: 215,
+    description: 'v215: 数据同步全面优化 — 修复12处增量同步跳过逻辑(根因修复), SP/SB/SD报告并行请求+智能重试, 账户级并行同步调度器, 内存管理优化(512MB+GC), 前端同步进度详细步骤显示, 同步诊断端点增强',
     affectedModules: [],
     correctionActions: [],
   },

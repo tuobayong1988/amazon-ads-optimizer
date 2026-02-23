@@ -558,14 +558,8 @@ export class AmazonSyncService {
           .limit(1);
 
         // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
-        if (lastSyncTime && existing) {
-          const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-          const lastSync = new Date(lastSyncTime).getTime();
-          if (existingUpdated >= lastSync) {
-            skipped++;
-            continue;
-          }
-        }
+        // v215修复: 移除错误的updatedAt跳过逻辑
+        // 始终使用Amazon API返回的最新数据更新本地记录
 
         // SB API v4 返回的预算结构:
         // - budget: 直接是数字（如 30）
@@ -741,14 +735,8 @@ export class AmazonSyncService {
           .limit(1);
 
         // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
-        if (lastSyncTime && existing) {
-          const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-          const lastSync = new Date(lastSyncTime).getTime();
-          if (existingUpdated >= lastSync) {
-            skipped++;
-            continue;
-          }
-        }
+        // v215修复: 移除错误的updatedAt跳过逻辑
+        // 始终使用Amazon API返回的最新数据更新本地记录
 
         // SD API 返回的预算结构可能是:
         // 1. budget (直接数字，可能是daily或lifetime)
@@ -937,13 +925,8 @@ export class AmazonSyncService {
 
         // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
         if (lastSyncTime && existing) {
-          const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-          const lastSync = new Date(lastSyncTime).getTime();
-          // 如果记录在上次同步后没有更新，跳过
-          if (existingUpdated >= lastSync) {
-            skipped++;
-            continue;
-          }
+          // v215修复: 移除错误的updatedAt跳过逻辑
+          // 始终使用Amazon API返回的最新数据更新本地记录
         }
 
         // Amazon API返回的targetingType是大写的AUTO/MANUAL，需要转换为小写
@@ -1144,14 +1127,8 @@ export class AmazonSyncService {
           .limit(1);
 
         // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
-        if (lastSyncTime && existing) {
-          const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-          const lastSync = new Date(lastSyncTime).getTime();
-          if (existingUpdated >= lastSync) {
-            skipped++;
-            continue;
-          }
-        }
+        // v215修复: 移除错误的updatedAt跳过逻辑
+        // 始终使用Amazon API返回的最新数据更新本地记录
 
         // Amazon API返回的state可能是大写的ENABLED/PAUSED/ARCHIVED，需要转换为小写
         const normalizedState = (apiAdGroup.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
@@ -2189,14 +2166,8 @@ export class AmazonSyncService {
           .limit(1);
 
         // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
-        if (lastSyncTime && existing) {
-          const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-          const lastSync = new Date(lastSyncTime).getTime();
-          if (existingUpdated >= lastSync) {
-            skipped++;
-            continue;
-          }
-        }
+        // v215修复: 移除错误的updatedAt跳过逻辑
+        // 始终使用Amazon API返回的最新数据更新本地记录
 
         const keywordData: any = {
           adGroupId: adGroup.id,
@@ -2401,14 +2372,8 @@ export class AmazonSyncService {
           .limit(1);
 
         // 增量同步：如果有上次同步时间且记录已存在，检查是否需要更新
-        if (lastSyncTime && existing) {
-          const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-          const lastSync = new Date(lastSyncTime).getTime();
-          if (existingUpdated >= lastSync) {
-            skipped++;
-            continue;
-          }
-        }
+        // v215修复: 移除错误的updatedAt跳过逻辑
+        // 始终使用Amazon API返回的最新数据更新本地记录
 
         const targetData = {
           adGroupId: adGroup.id,
@@ -2570,52 +2535,50 @@ export class AmazonSyncService {
 
     let totalSynced = 0;
 
-    // 同步SP广告绩效数据
-    try {
-      log.debug(`正在请求SP广告报告: ${startDateStr} - ${endDateStr}`);
-      const spReportId = await this.client.requestSpCampaignReport(startDateStr, endDateStr);
-      log.info(`SP报告请求成功, reportId: ${spReportId}`);
-      const spReportData = await this.client.waitAndDownloadReport(spReportId, 900000);
-      log.info(`SP报告下载完成, 数据条数: ${spReportData?.length || 0}`);
-      if (spReportData && spReportData.length > 0) {
-        totalSynced += await this.processReportData(db, spReportData, 'SP');
+    // v215优化: 并行请求SP/SB/SD报告 + 智能重试
+    const retryReport = async (name: string, requestFn: () => Promise<string>, maxRetries = 3): Promise<any[] | null> => {
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          log.info(`[${name}] 请求报告 (尝试${attempt}/${maxRetries}): ${startDateStr} - ${endDateStr}`);
+          const reportId = await requestFn();
+          log.info(`[${name}] 报告请求成功, reportId: ${reportId}`);
+          const data = await this.client.waitAndDownloadReport(reportId, 900000);
+          log.info(`[${name}] 报告下载完成, 数据条数: ${data?.length || 0}`);
+          return data;
+        } catch (err: any) {
+          const isRetryable = !err.message?.includes('401') && !err.message?.includes('403') && !err.message?.includes('not enabled');
+          if (attempt < maxRetries && isRetryable) {
+            const delay = attempt * 5000; // 5s, 10s, 15s
+            log.warn(`[${name}] 尝试${attempt}失败: ${err.message}, ${delay/1000}秒后重试...`);
+            await new Promise(r => setTimeout(r, delay));
+          } else {
+            log.error(`[${name}] 报告同步最终失败 (${attempt}次尝试): ${err.message}`);
+            return null;
+          }
+        }
       }
-    } catch (spError: any) {
-      log.error('SP报告同步失败:', spError.message);
+      return null;
+    };
+
+    // 并行请求三种报告
+    const [spData, sbData, sdData] = await Promise.all([
+      retryReport('SP', () => this.client.requestSpCampaignReport(startDateStr, endDateStr)),
+      retryReport('SB', () => this.client.requestSbCampaignReport(startDateStr, endDateStr)),
+      retryReport('SD', () => this.client.requestSdCampaignReport(startDateStr, endDateStr)),
+    ]);
+
+    // 串行处理数据（避免数据库并发冲突）
+    if (spData && spData.length > 0) {
+      totalSynced += await this.processReportData(db, spData, 'SP');
+    }
+    if (sbData && sbData.length > 0) {
+      totalSynced += await this.processReportData(db, sbData, 'SB');
+    }
+    if (sdData && sdData.length > 0) {
+      totalSynced += await this.processReportData(db, sdData, 'SD');
     }
 
-    // 同步SB品牌广告绩效数据
-    try {
-      log.debug(`正在请求SB品牌广告报告: ${startDateStr} - ${endDateStr}`);
-      const sbReportId = await this.client.requestSbCampaignReport(startDateStr, endDateStr);
-      log.info(`SB报告请求成功, reportId: ${sbReportId}`);
-      const sbReportData = await this.client.waitAndDownloadReport(sbReportId, 900000);
-      log.info(`SB报告下载完成, 数据条数: ${sbReportData?.length || 0}`);
-      if (sbReportData && sbReportData.length > 0) {
-        totalSynced += await this.processReportData(db, sbReportData, 'SB');
-      }
-    } catch (sbError: any) {
-      log.error('SB报告同步失败:', sbError.message);
-      log.error('SB报告同步失败详情:', sbError.response?.data || sbError.stack);
-      // SB报告失败不影响整体同步
-    }
-
-    // 同步SD展示广告绩效数据
-    try {
-      log.debug(`正在请求SD展示广告报告: ${startDateStr} - ${endDateStr}`);
-      const sdReportId = await this.client.requestSdCampaignReport(startDateStr, endDateStr);
-      log.info(`SD报告请求成功, reportId: ${sdReportId}`);
-      const sdReportData = await this.client.waitAndDownloadReport(sdReportId, 900000);
-      log.info(`SD报告下载完成, 数据条数: ${sdReportData?.length || 0}`);
-      if (sdReportData && sdReportData.length > 0) {
-        totalSynced += await this.processReportData(db, sdReportData, 'SD');
-      }
-    } catch (sdError: any) {
-      log.error('SD报告同步失败:', sdError.message);
-      log.error('SD报告同步失败详情:', sdError.response?.data || sdError.stack);
-      // SD报告失败不影响整体同步
-    }
-
+    log.info(`绩效数据同步完成: SP=${spData?.length||0}, SB=${sbData?.length||0}, SD=${sdData?.length||0}, 总入库=${totalSynced}`);
     return totalSynced;
   }
 
@@ -5453,14 +5416,8 @@ AmazonSyncService.prototype.syncSpCampaignsWithTracking = async function(
         .limit(1);
 
       // 增量同步检查
-      if (lastSyncTime && existing) {
-        const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-        const lastSync = new Date(lastSyncTime).getTime();
-        if (existingUpdated >= lastSync) {
-          result.skipped++;
-          continue;
-        }
-      }
+      // v215修复: 移除错误的updatedAt跳过逻辑
+      // 始终使用Amazon API返回的最新数据更新本地记录
 
       // Amazon API返回的targetingType是大写的AUTO/MANUAL，需要转换为小写
       const normalizedTargetingType = (apiCampaign.targetingType || 'manual').toLowerCase() as 'auto' | 'manual';
@@ -5657,14 +5614,8 @@ AmazonSyncService.prototype.syncSbCampaignsWithTracking = async function(
         )
         .limit(1);
 
-      if (lastSyncTime && existing) {
-        const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-        const lastSync = new Date(lastSyncTime).getTime();
-        if (existingUpdated >= lastSync) {
-          result.skipped++;
-          continue;
-        }
-      }
+      // v215修复: 移除错误的updatedAt跳过逻辑
+      // 始终使用Amazon API返回的最新数据更新本地记录
 
       // ✅ 根据SB广告的Campaign Goal确定计费方式
       const sbGoal = (apiCampaign as any).goal || (apiCampaign as any).campaignGoal || '';
@@ -5813,14 +5764,8 @@ AmazonSyncService.prototype.syncSdCampaignsWithTracking = async function(
         )
         .limit(1);
 
-      if (lastSyncTime && existing) {
-        const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-        const lastSync = new Date(lastSyncTime).getTime();
-        if (existingUpdated >= lastSync) {
-          result.skipped++;
-          continue;
-        }
-      }
+      // v215修复: 移除错误的updatedAt跳过逻辑
+      // 始终使用Amazon API返回的最新数据更新本地记录
 
       // ✅ 获取SD广告的计费类型
       const sdCostType = ((apiCampaign as any).costType || 'cpc').toLowerCase();
@@ -5986,14 +5931,8 @@ AmazonSyncService.prototype.syncSpAdGroupsWithTracking = async function(
         )
         .limit(1);
 
-      if (lastSyncTime && existing) {
-        const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-        const lastSync = new Date(lastSyncTime).getTime();
-        if (existingUpdated >= lastSync) {
-          result.skipped++;
-          continue;
-        }
-      }
+      // v215修复: 移除错误的updatedAt跳过逻辑
+      // 始终使用Amazon API返回的最新数据更新本地记录
 
       // Amazon API返回的state可能是大写的ENABLED/PAUSED/ARCHIVED，需要转换为小写
       const normalizedState = (apiAdGroup.state || 'enabled').toLowerCase() as 'enabled' | 'paused' | 'archived';
@@ -6147,14 +6086,8 @@ AmazonSyncService.prototype.syncSpKeywordsWithTracking = async function(
         )
         .limit(1);
 
-      if (lastSyncTime && existing) {
-        const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-        const lastSync = new Date(lastSyncTime).getTime();
-        if (existingUpdated >= lastSync) {
-          result.skipped++;
-          continue;
-        }
-      }
+      // v215修复: 移除错误的updatedAt跳过逻辑
+      // 始终使用Amazon API返回的最新数据更新本地记录
 
       // Amazon API返回的matchType和state可能是大写，需要转换为小写
       const normalizedMatchType = (apiKeyword.matchType || 'broad').toLowerCase() as 'broad' | 'phrase' | 'exact';
@@ -6327,14 +6260,8 @@ AmazonSyncService.prototype.syncSpProductTargetsWithTracking = async function(
         )
         .limit(1);
 
-      if (lastSyncTime && existing) {
-        const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-        const lastSync = new Date(lastSyncTime).getTime();
-        if (existingUpdated >= lastSync) {
-          result.skipped++;
-          continue;
-        }
-      }
+      // v215修复: 移除错误的updatedAt跳过逻辑
+      // 始终使用Amazon API返回的最新数据更新本地记录
 
       // 解析表达式获取目标类型和值
       let targetType = 'asin';

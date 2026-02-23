@@ -263,29 +263,44 @@ async function processQueue(): Promise<void> {
 
   isProcessingQueue = true;
 
+  // v215优化: 账户级并行同步，同一账户内串行
+  const MAX_CONCURRENT_ACCOUNTS = 3;
+  const accountGroups = new Map<number, QueuedRequest[]>();
+  
+  // 按账户分组
   while (requestQueue.length > 0) {
     const request = requestQueue.shift();
     if (!request) continue;
+    const group = accountGroups.get(request.accountId) || [];
+    group.push(request);
+    accountGroups.set(request.accountId, group);
+  }
 
-    try {
-      await executeTieredSyncForAccount(request);
-      schedulerStatus.successfulSyncs++;
-    } catch (error: any) {
-      schedulerStatus.failedSyncs++;
-      schedulerStatus.errors.push(`账号 ${request.accountId} ${request.tier}层同步失败: ${error.message}`);
-      log.error(`[DataSyncScheduler] 账号 ${request.accountId} ${request.tier}层同步失败:`, error);
-    }
-
-    schedulerStatus.totalSyncs++;
-
-    // 请求间隔，避免触发速率限制
-    if (requestQueue.length > 0) {
+  // 并行执行不同账户的同步任务
+  const accountIds = Array.from(accountGroups.keys());
+  for (let i = 0; i < accountIds.length; i += MAX_CONCURRENT_ACCOUNTS) {
+    const batch = accountIds.slice(i, i + MAX_CONCURRENT_ACCOUNTS);
+    await Promise.all(batch.map(async (accountId) => {
+      const requests = accountGroups.get(accountId) || [];
+      for (const request of requests) {
+        try {
+          await executeTieredSyncForAccount(request);
+          schedulerStatus.successfulSyncs++;
+        } catch (error: any) {
+          schedulerStatus.failedSyncs++;
+          schedulerStatus.errors.push(`账号 ${request.accountId} ${request.tier}层同步失败: ${error.message}`);
+          log.error(`[DataSyncScheduler] 账号 ${request.accountId} ${request.tier}层同步失败:`, error);
+        }
+        schedulerStatus.totalSyncs++;
+      }
+    }));
+    // 批次间间隔
+    if (i + MAX_CONCURRENT_ACCOUNTS < accountIds.length) {
       await sleep(REQUEST_INTERVAL_MS);
     }
   }
 
   isProcessingQueue = false;
-  // 只保留最近10条错误
   schedulerStatus.errors = schedulerStatus.errors.slice(-10);
 }
 
@@ -702,6 +717,17 @@ export async function triggerManualSync(userId: number, accountId: number): Prom
       message: `同步失败: ${error.message}`
     };
   }
+}
+
+/**
+ * v215: 获取同步队列状态
+ */
+export function getSyncQueueStatus() {
+  return {
+    queueLength: requestQueue.length,
+    isProcessing: isProcessingQueue,
+    schedulerStatus: { ...schedulerStatus },
+  };
 }
 
 /**

@@ -58560,14 +58560,6 @@ var init_amazonSyncService = __esm({
                 eq(campaigns.campaignId, String(apiCampaign.campaignId))
               )
             ).limit(1);
-            if (lastSyncTime && existing) {
-              const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-              const lastSync = new Date(lastSyncTime).getTime();
-              if (existingUpdated >= lastSync) {
-                skipped++;
-                continue;
-              }
-            }
             let dailyBudget = 0;
             if (typeof apiCampaign.budget === "number") {
               dailyBudget = apiCampaign.budget;
@@ -58692,14 +58684,6 @@ var init_amazonSyncService = __esm({
                 eq(campaigns.campaignId, String(apiCampaign.campaignId))
               )
             ).limit(1);
-            if (lastSyncTime && existing) {
-              const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-              const lastSync = new Date(lastSyncTime).getTime();
-              if (existingUpdated >= lastSync) {
-                skipped++;
-                continue;
-              }
-            }
             let dailyBudget = 0;
             let budgetType = "daily";
             if (apiCampaign.budget) {
@@ -58830,12 +58814,6 @@ var init_amazonSyncService = __esm({
               )
             ).limit(1);
             if (lastSyncTime && existing) {
-              const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-              const lastSync = new Date(lastSyncTime).getTime();
-              if (existingUpdated >= lastSync) {
-                skipped++;
-                continue;
-              }
             }
             const normalizedTargetingType = (apiCampaign.targetingType || "manual").toLowerCase();
             const campaignType = normalizedTargetingType === "auto" ? "sp_auto" : "sp_manual";
@@ -58984,14 +58962,6 @@ var init_amazonSyncService = __esm({
                 eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
               )
             ).limit(1);
-            if (lastSyncTime && existing) {
-              const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-              const lastSync = new Date(lastSyncTime).getTime();
-              if (existingUpdated >= lastSync) {
-                skipped++;
-                continue;
-              }
-            }
             const normalizedState = (apiAdGroup.state || "enabled").toLowerCase();
             const adGroupData = {
               campaignId: campaign.campaignId,
@@ -59758,14 +59728,6 @@ var init_amazonSyncService = __esm({
                 eq(keywords.keywordId, String(apiKeyword.keywordId))
               )
             ).limit(1);
-            if (lastSyncTime && existing) {
-              const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-              const lastSync = new Date(lastSyncTime).getTime();
-              if (existingUpdated >= lastSync) {
-                skipped++;
-                continue;
-              }
-            }
             const keywordData = {
               adGroupId: adGroup.id,
               accountId: this.accountId,
@@ -59906,14 +59868,6 @@ var init_amazonSyncService = __esm({
                 eq(productTargets.targetId, String(apiTarget.targetId))
               )
             ).limit(1);
-            if (lastSyncTime && existing) {
-              const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-              const lastSync = new Date(lastSyncTime).getTime();
-              if (existingUpdated >= lastSync) {
-                skipped++;
-                continue;
-              }
-            }
             const targetData = {
               adGroupId: adGroup.id,
               campaignId: adGroup.campaignId,
@@ -60032,44 +59986,44 @@ var init_amazonSyncService = __esm({
         const db = await getDb();
         if (!db) return 0;
         let totalSynced = 0;
-        try {
-          log6.debug(`\u6B63\u5728\u8BF7\u6C42SP\u5E7F\u544A\u62A5\u544A: ${startDateStr} - ${endDateStr}`);
-          const spReportId = await this.client.requestSpCampaignReport(startDateStr, endDateStr);
-          log6.info(`SP\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${spReportId}`);
-          const spReportData = await this.client.waitAndDownloadReport(spReportId, 9e5);
-          log6.info(`SP\u62A5\u544A\u4E0B\u8F7D\u5B8C\u6210, \u6570\u636E\u6761\u6570: ${spReportData?.length || 0}`);
-          if (spReportData && spReportData.length > 0) {
-            totalSynced += await this.processReportData(db, spReportData, "SP");
+        const retryReport = async (name2, requestFn, maxRetries = 3) => {
+          for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+              log6.info(`[${name2}] \u8BF7\u6C42\u62A5\u544A (\u5C1D\u8BD5${attempt}/${maxRetries}): ${startDateStr} - ${endDateStr}`);
+              const reportId = await requestFn();
+              log6.info(`[${name2}] \u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${reportId}`);
+              const data4 = await this.client.waitAndDownloadReport(reportId, 9e5);
+              log6.info(`[${name2}] \u62A5\u544A\u4E0B\u8F7D\u5B8C\u6210, \u6570\u636E\u6761\u6570: ${data4?.length || 0}`);
+              return data4;
+            } catch (err2) {
+              const isRetryable = !err2.message?.includes("401") && !err2.message?.includes("403") && !err2.message?.includes("not enabled");
+              if (attempt < maxRetries && isRetryable) {
+                const delay = attempt * 5e3;
+                log6.warn(`[${name2}] \u5C1D\u8BD5${attempt}\u5931\u8D25: ${err2.message}, ${delay / 1e3}\u79D2\u540E\u91CD\u8BD5...`);
+                await new Promise((r5) => setTimeout(r5, delay));
+              } else {
+                log6.error(`[${name2}] \u62A5\u544A\u540C\u6B65\u6700\u7EC8\u5931\u8D25 (${attempt}\u6B21\u5C1D\u8BD5): ${err2.message}`);
+                return null;
+              }
+            }
           }
-        } catch (spError) {
-          log6.error("SP\u62A5\u544A\u540C\u6B65\u5931\u8D25:", spError.message);
+          return null;
+        };
+        const [spData, sbData, sdData] = await Promise.all([
+          retryReport("SP", () => this.client.requestSpCampaignReport(startDateStr, endDateStr)),
+          retryReport("SB", () => this.client.requestSbCampaignReport(startDateStr, endDateStr)),
+          retryReport("SD", () => this.client.requestSdCampaignReport(startDateStr, endDateStr))
+        ]);
+        if (spData && spData.length > 0) {
+          totalSynced += await this.processReportData(db, spData, "SP");
         }
-        try {
-          log6.debug(`\u6B63\u5728\u8BF7\u6C42SB\u54C1\u724C\u5E7F\u544A\u62A5\u544A: ${startDateStr} - ${endDateStr}`);
-          const sbReportId = await this.client.requestSbCampaignReport(startDateStr, endDateStr);
-          log6.info(`SB\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${sbReportId}`);
-          const sbReportData = await this.client.waitAndDownloadReport(sbReportId, 9e5);
-          log6.info(`SB\u62A5\u544A\u4E0B\u8F7D\u5B8C\u6210, \u6570\u636E\u6761\u6570: ${sbReportData?.length || 0}`);
-          if (sbReportData && sbReportData.length > 0) {
-            totalSynced += await this.processReportData(db, sbReportData, "SB");
-          }
-        } catch (sbError) {
-          log6.error("SB\u62A5\u544A\u540C\u6B65\u5931\u8D25:", sbError.message);
-          log6.error("SB\u62A5\u544A\u540C\u6B65\u5931\u8D25\u8BE6\u60C5:", sbError.response?.data || sbError.stack);
+        if (sbData && sbData.length > 0) {
+          totalSynced += await this.processReportData(db, sbData, "SB");
         }
-        try {
-          log6.debug(`\u6B63\u5728\u8BF7\u6C42SD\u5C55\u793A\u5E7F\u544A\u62A5\u544A: ${startDateStr} - ${endDateStr}`);
-          const sdReportId = await this.client.requestSdCampaignReport(startDateStr, endDateStr);
-          log6.info(`SD\u62A5\u544A\u8BF7\u6C42\u6210\u529F, reportId: ${sdReportId}`);
-          const sdReportData = await this.client.waitAndDownloadReport(sdReportId, 9e5);
-          log6.info(`SD\u62A5\u544A\u4E0B\u8F7D\u5B8C\u6210, \u6570\u636E\u6761\u6570: ${sdReportData?.length || 0}`);
-          if (sdReportData && sdReportData.length > 0) {
-            totalSynced += await this.processReportData(db, sdReportData, "SD");
-          }
-        } catch (sdError) {
-          log6.error("SD\u62A5\u544A\u540C\u6B65\u5931\u8D25:", sdError.message);
-          log6.error("SD\u62A5\u544A\u540C\u6B65\u5931\u8D25\u8BE6\u60C5:", sdError.response?.data || sdError.stack);
+        if (sdData && sdData.length > 0) {
+          totalSynced += await this.processReportData(db, sdData, "SD");
         }
+        log6.info(`\u7EE9\u6548\u6570\u636E\u540C\u6B65\u5B8C\u6210: SP=${spData?.length || 0}, SB=${sbData?.length || 0}, SD=${sdData?.length || 0}, \u603B\u5165\u5E93=${totalSynced}`);
         return totalSynced;
       }
       /**
@@ -62114,14 +62068,6 @@ var init_amazonSyncService = __esm({
               eq(campaigns.campaignId, String(apiCampaign.campaignId))
             )
           ).limit(1);
-          if (lastSyncTime && existing) {
-            const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-            const lastSync = new Date(lastSyncTime).getTime();
-            if (existingUpdated >= lastSync) {
-              result.skipped++;
-              continue;
-            }
-          }
           const normalizedTargetingType = (apiCampaign.targetingType || "manual").toLowerCase();
           const campaignType = normalizedTargetingType === "auto" ? "sp_auto" : "sp_manual";
           let dailyBudgetValue = 0;
@@ -62279,14 +62225,6 @@ var init_amazonSyncService = __esm({
               eq(campaigns.campaignId, String(apiCampaign.campaignId))
             )
           ).limit(1);
-          if (lastSyncTime && existing) {
-            const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-            const lastSync = new Date(lastSyncTime).getTime();
-            if (existingUpdated >= lastSync) {
-              result.skipped++;
-              continue;
-            }
-          }
           const sbGoal = apiCampaign.goal || apiCampaign.campaignGoal || "";
           let sbCostType = "cpc";
           if (sbGoal === "GROW_BRAND_IMPRESSION_SHARE" || sbGoal === "growBrandImpressionShare") {
@@ -62408,14 +62346,6 @@ var init_amazonSyncService = __esm({
               eq(campaigns.campaignId, String(apiCampaign.campaignId))
             )
           ).limit(1);
-          if (lastSyncTime && existing) {
-            const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-            const lastSync = new Date(lastSyncTime).getTime();
-            if (existingUpdated >= lastSync) {
-              result.skipped++;
-              continue;
-            }
-          }
           const sdCostType = (apiCampaign.costType || "cpc").toLowerCase();
           const validCostTypes = ["cpc", "vcpm", "cpm"];
           const normalizedCostType = validCostTypes.includes(sdCostType) ? sdCostType : "cpc";
@@ -62543,14 +62473,6 @@ var init_amazonSyncService = __esm({
               eq(adGroups.adGroupId, String(apiAdGroup.adGroupId))
             )
           ).limit(1);
-          if (lastSyncTime && existing) {
-            const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-            const lastSync = new Date(lastSyncTime).getTime();
-            if (existingUpdated >= lastSync) {
-              result.skipped++;
-              continue;
-            }
-          }
           const normalizedState = (apiAdGroup.state || "enabled").toLowerCase();
           const adGroupData = {
             campaignId: campaign.campaignId,
@@ -62666,14 +62588,6 @@ var init_amazonSyncService = __esm({
               eq(keywords.keywordId, String(apiKeyword.keywordId))
             )
           ).limit(1);
-          if (lastSyncTime && existing) {
-            const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-            const lastSync = new Date(lastSyncTime).getTime();
-            if (existingUpdated >= lastSync) {
-              result.skipped++;
-              continue;
-            }
-          }
           const normalizedMatchType = (apiKeyword.matchType || "broad").toLowerCase();
           const normalizedState = (apiKeyword.state || "enabled").toLowerCase();
           const keywordData = {
@@ -62806,14 +62720,6 @@ var init_amazonSyncService = __esm({
               eq(productTargets.targetId, String(apiTarget.targetId))
             )
           ).limit(1);
-          if (lastSyncTime && existing) {
-            const existingUpdated = existing.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
-            const lastSync = new Date(lastSyncTime).getTime();
-            if (existingUpdated >= lastSync) {
-              result.skipped++;
-              continue;
-            }
-          }
           let targetType = "asin";
           let targetValue = "";
           if (apiTarget.expression && apiTarget.expression.length > 0) {
@@ -145017,7 +144923,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log12 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 211;
+    SYSTEM_VERSION = 215;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -145100,6 +145006,12 @@ var init_postDeployOptimizer = __esm({
       {
         version: 205,
         description: "v205: \u7EDF\u4E00\u65E5\u5FD7\u7BA1\u7406\u7CFB\u7EDF \u2014 \u7ED3\u6784\u5316\u65E5\u5FD7\u5206\u7EA7(DEBUG/INFO/WARN/ERROR/FATAL)\uFF0C\u5185\u5B58\u73AF\u5F62\u7F13\u51B2\u533A(5000\u6761)\uFF0C\u6570\u636E\u5E93\u6301\u4E45\u5316(WARN\u53CA\u4EE5\u4E0A)\uFF0C7\u5929\u81EA\u52A8\u8F6E\u8F6C\uFF0C\u5206\u9875\u67E5\u8BE2API\uFF0C19\u4E2A\u6838\u5FC3\u6A21\u5757\u8FC1\u79FB(1528\u5904console.log)\uFF0C\u8FD0\u884C\u65F6\u52A8\u6001\u65E5\u5FD7\u7EA7\u522B\u8C03\u6574",
+        affectedModules: [],
+        correctionActions: []
+      },
+      {
+        version: 215,
+        description: "v215: \u6570\u636E\u540C\u6B65\u5168\u9762\u4F18\u5316 \u2014 \u4FEE\u590D12\u5904\u589E\u91CF\u540C\u6B65\u8DF3\u8FC7\u903B\u8F91(\u6839\u56E0\u4FEE\u590D), SP/SB/SD\u62A5\u544A\u5E76\u884C\u8BF7\u6C42+\u667A\u80FD\u91CD\u8BD5, \u8D26\u6237\u7EA7\u5E76\u884C\u540C\u6B65\u8C03\u5EA6\u5668, \u5185\u5B58\u7BA1\u7406\u4F18\u5316(512MB+GC), \u524D\u7AEF\u540C\u6B65\u8FDB\u5EA6\u8BE6\u7EC6\u6B65\u9AA4\u663E\u793A, \u540C\u6B65\u8BCA\u65AD\u7AEF\u70B9\u589E\u5F3A",
         affectedModules: [],
         correctionActions: []
       }
@@ -149402,19 +149314,33 @@ async function processQueue() {
     return;
   }
   isProcessingQueue = true;
+  const MAX_CONCURRENT_ACCOUNTS = 3;
+  const accountGroups = /* @__PURE__ */ new Map();
   while (requestQueue.length > 0) {
     const request = requestQueue.shift();
     if (!request) continue;
-    try {
-      await executeTieredSyncForAccount(request);
-      schedulerStatus.successfulSyncs++;
-    } catch (error54) {
-      schedulerStatus.failedSyncs++;
-      schedulerStatus.errors.push(`\u8D26\u53F7 ${request.accountId} ${request.tier}\u5C42\u540C\u6B65\u5931\u8D25: ${error54.message}`);
-      log18.error(`[DataSyncScheduler] \u8D26\u53F7 ${request.accountId} ${request.tier}\u5C42\u540C\u6B65\u5931\u8D25:`, error54);
-    }
-    schedulerStatus.totalSyncs++;
-    if (requestQueue.length > 0) {
+    const group = accountGroups.get(request.accountId) || [];
+    group.push(request);
+    accountGroups.set(request.accountId, group);
+  }
+  const accountIds = Array.from(accountGroups.keys());
+  for (let i4 = 0; i4 < accountIds.length; i4 += MAX_CONCURRENT_ACCOUNTS) {
+    const batch = accountIds.slice(i4, i4 + MAX_CONCURRENT_ACCOUNTS);
+    await Promise.all(batch.map(async (accountId) => {
+      const requests = accountGroups.get(accountId) || [];
+      for (const request of requests) {
+        try {
+          await executeTieredSyncForAccount(request);
+          schedulerStatus.successfulSyncs++;
+        } catch (error54) {
+          schedulerStatus.failedSyncs++;
+          schedulerStatus.errors.push(`\u8D26\u53F7 ${request.accountId} ${request.tier}\u5C42\u540C\u6B65\u5931\u8D25: ${error54.message}`);
+          log18.error(`[DataSyncScheduler] \u8D26\u53F7 ${request.accountId} ${request.tier}\u5C42\u540C\u6B65\u5931\u8D25:`, error54);
+        }
+        schedulerStatus.totalSyncs++;
+      }
+    }));
+    if (i4 + MAX_CONCURRENT_ACCOUNTS < accountIds.length) {
       await sleep3(REQUEST_INTERVAL_MS);
     }
   }
