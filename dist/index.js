@@ -75567,6 +75567,8 @@ async function runAutoCorrection(accountId) {
         corrections.push(...bidConfirmations);
         const qualityAudits = await auditAlgorithmDecisionQuality(database, accId);
         corrections.push(...qualityAudits);
+        const statusRetries = await retryFailedTargetStatusChanges(database, accId);
+        corrections.push(...statusRetries);
       } catch (accError) {
         console.error(`[AutoCorrector] v178: \u8D26\u6237 ${accId} \u7EA0\u9519\u5931\u8D25: ${accError.message}`);
       }
@@ -76879,8 +76881,8 @@ async function retryHistoricalFailedKeywordHarvests(database, accountId) {
              action_detail, api_sync_status, api_sync_detail, created_at
       FROM optimization_events
       WHERE account_id = ${accountId}
-        AND action_type = 'keyword_create'
-        AND api_sync_status = 'not_applicable'
+        AND action_type IN ('keyword_create', 'search_term_harvest')
+        AND api_sync_status IN ('not_applicable', 'failed', 'pending')
         AND keyword_id IS NULL
         AND action_detail IS NOT NULL
         AND action_detail != ''
@@ -76948,7 +76950,7 @@ async function retryHistoricalFailedKeywordHarvests(database, accountId) {
           continue;
         }
         const localAdGroupId = agRows[0].id;
-        const amazonAdGroupId = Number(agRows[0].adGroupId);
+        const amazonAdGroupId = agRows[0].adGroupId;
         const existingKws = await database.select({ keywordText: keywords.keywordText, keywordId: keywords.keywordId, matchType: keywords.matchType }).from(keywords).where(eq(keywords.adGroupId, localAdGroupId));
         const existingSet = new Set(existingKws.map((k5) => k5.keywordText?.toLowerCase()));
         const toCreate = [];
@@ -77584,6 +77586,167 @@ function stopAutoCorrector() {
     correctionInterval = null;
     console.log("[AutoCorrector] \u5B9A\u65F6\u7EA0\u9519\u670D\u52A1\u5DF2\u505C\u6B62");
   }
+}
+async function retryFailedTargetStatusChanges(database, accountId) {
+  const results = [];
+  try {
+    const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1e3).toISOString().slice(0, 19).replace("T", " ");
+    const failedEvents = await database.select({
+      id: optimizationEvents.id,
+      campaignId: optimizationEvents.campaignId,
+      campaignName: optimizationEvents.campaignName,
+      keywordId: optimizationEvents.keywordId,
+      keywordText: optimizationEvents.keywordText,
+      actionType: optimizationEvents.actionType,
+      actionDetail: optimizationEvents.actionDetail,
+      newValue: optimizationEvents.newValue,
+      apiSyncDetail: optimizationEvents.apiSyncDetail,
+      createdAt: optimizationEvents.createdAt
+    }).from(optimizationEvents).where(
+      and(
+        eq(optimizationEvents.accountId, accountId),
+        or(
+          eq(optimizationEvents.actionType, "target_enable"),
+          eq(optimizationEvents.actionType, "target_pause")
+        ),
+        or(
+          eq(optimizationEvents.apiSyncStatus, "failed"),
+          eq(optimizationEvents.apiSyncStatus, "pending")
+        ),
+        gte(optimizationEvents.createdAt, expiryDateStr)
+      )
+    ).orderBy(desc(optimizationEvents.createdAt)).limit(AUTO_CORRECTION_CONFIG.maxRetryPerRun);
+    if (failedEvents.length === 0) return results;
+    console.log(`[AutoCorrector] v202: \u8D26\u6237${accountId} \u53D1\u73B0${failedEvents.length}\u6761\u5931\u8D25\u7684\u5173\u952E\u8BCD\u72B6\u6001\u53D8\u66F4\u9700\u8981\u91CD\u8BD5`);
+    const statusChanges = [];
+    for (const event of failedEvents) {
+      try {
+        let detail = {};
+        if (event.actionDetail) {
+          try {
+            detail = typeof event.actionDetail === "string" ? JSON.parse(event.actionDetail) : event.actionDetail;
+          } catch {
+          }
+        }
+        const localKeywordId = detail.keywordId || event.keywordId;
+        if (!localKeywordId) {
+          await database.update(optimizationEvents).set({
+            apiSyncStatus: "invalid_legacy",
+            apiSyncDetail: JSON.stringify({ reason: "v202: \u65E0\u6CD5\u786E\u5B9AkeywordId", fixedAt: (/* @__PURE__ */ new Date()).toISOString() })
+          }).where(eq(optimizationEvents.id, event.id));
+          continue;
+        }
+        const newStatus = event.actionType === "target_enable" ? "enabled" : "paused";
+        const isProductTarget = detail.isProductTarget || detail.targetType === "product" || false;
+        let retryCount = 0;
+        if (event.apiSyncDetail) {
+          try {
+            const syncDetail = typeof event.apiSyncDetail === "string" ? JSON.parse(event.apiSyncDetail) : event.apiSyncDetail;
+            retryCount = syncDetail.retryCount || 0;
+          } catch {
+          }
+        }
+        if (retryCount >= AUTO_CORRECTION_CONFIG.maxRetryAttempts) {
+          await database.update(optimizationEvents).set({
+            apiSyncStatus: "not_applicable",
+            apiSyncDetail: JSON.stringify({
+              reason: `\u8D85\u8FC7\u6700\u5927\u91CD\u8BD5\u6B21\u6570(${AUTO_CORRECTION_CONFIG.maxRetryAttempts})`,
+              retryCount,
+              lastRetryAt: (/* @__PURE__ */ new Date()).toISOString()
+            })
+          }).where(eq(optimizationEvents.id, event.id));
+          results.push({
+            type: "status_change_retry",
+            accountId,
+            targetId: localKeywordId,
+            targetType: "keyword",
+            previousValue: "",
+            correctedValue: newStatus,
+            reason: `\u5173\u952E\u8BCD\u72B6\u6001\u53D8\u66F4\u8D85\u8FC7\u6700\u5927\u91CD\u8BD5\u6B21\u6570: ${event.keywordText || localKeywordId}`,
+            success: false,
+            errorMessage: `\u8D85\u8FC7\u6700\u5927\u91CD\u8BD5\u6B21\u6570(${AUTO_CORRECTION_CONFIG.maxRetryAttempts})`
+          });
+          continue;
+        }
+        statusChanges.push({
+          eventId: event.id,
+          keywordId: localKeywordId,
+          newStatus,
+          campaignId: event.campaignId || 0,
+          reason: `[AutoCorrector v202] \u91CD\u8BD5\u5173\u952E\u8BCD\u72B6\u6001\u53D8\u66F4`,
+          isProductTarget
+        });
+      } catch (parseErr) {
+        console.warn(`[AutoCorrector] v202: \u89E3\u6790\u72B6\u6001\u53D8\u66F4\u4E8B\u4EF6\u5931\u8D25: eventId=${event.id}, ${parseErr.message}`);
+      }
+    }
+    if (statusChanges.length === 0) return results;
+    console.log(`[AutoCorrector] v202: \u51C6\u5907\u91CD\u8BD5${statusChanges.length}\u4E2A\u5173\u952E\u8BCD\u72B6\u6001\u53D8\u66F4`);
+    const syncResult = await syncKeywordStatusToAmazon(
+      accountId,
+      statusChanges.map((sc) => ({
+        keywordId: sc.keywordId,
+        newStatus: sc.newStatus,
+        campaignId: sc.campaignId,
+        reason: sc.reason,
+        isProductTarget: sc.isProductTarget
+      }))
+    );
+    console.log(`[AutoCorrector] v202: \u5173\u952E\u8BCD\u72B6\u6001\u53D8\u66F4\u540C\u6B65\u7ED3\u679C: \u6210\u529F=${syncResult.success}, \u5931\u8D25=${syncResult.failed}`);
+    const failedKeywordIds = /* @__PURE__ */ new Set();
+    for (const err2 of syncResult.errors) {
+      const match = err2.match(/关键词\s*(\d+)/);
+      if (match) failedKeywordIds.add(Number(match[1]));
+    }
+    for (const sc of statusChanges) {
+      const success2 = !failedKeywordIds.has(sc.keywordId) && syncResult.success > 0;
+      if (success2) {
+        await database.update(optimizationEvents).set({
+          apiSyncStatus: "synced",
+          apiSyncDetail: JSON.stringify({ correctedBy: "AutoCorrector v202", correctedAt: (/* @__PURE__ */ new Date()).toISOString() }),
+          apiSyncedAt: /* @__PURE__ */ new Date()
+        }).where(eq(optimizationEvents.id, sc.eventId));
+        await database.execute(sql`
+          UPDATE optimization_logs SET api_sync_status = 'synced'
+          WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${sc.eventId} AND source_table = 'optimization_logs')
+        `).catch(() => {
+        });
+      } else {
+        let retryCount = 0;
+        try {
+          const event = failedEvents.find((e6) => e6.id === sc.eventId);
+          if (event?.apiSyncDetail) {
+            const syncDetail = typeof event.apiSyncDetail === "string" ? JSON.parse(event.apiSyncDetail) : event.apiSyncDetail;
+            retryCount = (syncDetail.retryCount || 0) + 1;
+          } else {
+            retryCount = 1;
+          }
+        } catch {
+        }
+        await database.update(optimizationEvents).set({
+          apiSyncDetail: JSON.stringify({
+            retryCount,
+            lastRetryAt: (/* @__PURE__ */ new Date()).toISOString(),
+            lastError: syncResult.errors.join("; ").substring(0, 200)
+          })
+        }).where(eq(optimizationEvents.id, sc.eventId));
+      }
+      results.push({
+        type: "status_change_retry",
+        accountId,
+        targetId: sc.keywordId,
+        targetType: "keyword",
+        previousValue: "",
+        correctedValue: sc.newStatus,
+        reason: `\u91CD\u8BD5\u5173\u952E\u8BCD\u72B6\u6001\u53D8\u66F4(${sc.newStatus}): keywordId=${sc.keywordId}`,
+        success: success2,
+        errorMessage: success2 ? void 0 : syncResult.errors.join("; ")
+      });
+    }
+  } catch (error54) {
+    console.error(`[AutoCorrector] v202: \u8D26\u6237${accountId} retryFailedTargetStatusChanges\u5931\u8D25: ${error54.message}`);
+  }
+  return results;
 }
 var AUTO_CORRECTION_CONFIG, lastScanTime, isScanning, scanHistory, correctionInterval, QUALITY_AUDIT_CONFIG;
 var init_optimizationAutoCorrector = __esm({
@@ -143653,6 +143816,45 @@ async function runPostDeployOptimization() {
     await recordDeployVersion(SYSTEM_VERSION, result);
     return result;
   }
+  if (!lastVersion || lastVersion < 202) {
+    try {
+      const database = await getDb();
+      if (database) {
+        const settingsResult = await database.execute(sql`
+          UPDATE optimization_events 
+          SET api_sync_status = 'not_applicable',
+              api_sync_detail = ${JSON.stringify({ reason: "v202: \u5185\u90E8\u8BBE\u7F6E\u53D8\u66F4\u4E0D\u9700\u8981Amazon API\u540C\u6B65", fixedAt: (/* @__PURE__ */ new Date()).toISOString() })}
+          WHERE action_type = 'settings_update'
+            AND event_category = 'settings_change'
+            AND api_sync_status IN ('failed', 'pending')
+            AND (action_detail IS NULL OR action_detail NOT LIKE '%budget%')
+        `);
+        const settingsFixed = settingsResult[0]?.affectedRows || 0;
+        console.log(`[PostDeployOptimizer] v202: \u4FEE\u590C${settingsFixed}\u4E2Asettings_update\u4E8B\u4EF6\u72B6\u6001\u4E3Anot_applicable`);
+        await database.execute(sql`
+          UPDATE optimization_logs ol
+          INNER JOIN optimization_events oe ON oe.source_id = ol.id AND oe.source_table = 'optimization_logs'
+          SET ol.api_sync_status = 'not_applicable'
+          WHERE oe.action_type = 'settings_update'
+            AND oe.event_category = 'settings_change'
+            AND oe.api_sync_status = 'not_applicable'
+            AND ol.api_sync_status IN ('failed', 'pending')
+        `).catch((e6) => console.warn(`[PostDeployOptimizer] v202: \u540C\u6B65optimization_logs\u5931\u8D25: ${e6.message}`));
+        const legacyResult = await database.execute(sql`
+          UPDATE optimization_events 
+          SET api_sync_status = 'invalid_legacy',
+              api_sync_detail = ${JSON.stringify({ reason: "v202: \u8D85\u8FC730\u5929\u7684\u5386\u53F2\u5931\u8D25\u4E8B\u4EF6", fixedAt: (/* @__PURE__ */ new Date()).toISOString() })}
+          WHERE api_sync_status = 'failed'
+            AND created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
+            AND action_type NOT IN ('bid_increase', 'bid_decrease')
+        `);
+        const legacyFixed = legacyResult[0]?.affectedRows || 0;
+        console.log(`[PostDeployOptimizer] v202: \u6807\u8BB0${legacyFixed}\u4E2A\u8D85\u8FC730\u5929\u7684\u65E7\u5931\u8D25\u4E8B\u4EF6\u4E3Ainvalid_legacy`);
+      }
+    } catch (migrationErr) {
+      console.error(`[PostDeployOptimizer] v202: \u6570\u636E\u8FC1\u79FB\u5931\u8D25: ${migrationErr.message}`);
+    }
+  }
   const versionsToApply = getVersionsToApply(lastVersion);
   const affectedModules = mergeAffectedModules(versionsToApply);
   const correctionActions = mergeCorrectionActions(versionsToApply);
@@ -143815,7 +144017,7 @@ var init_postDeployOptimizer = __esm({
     init_db2();
     init_schema2();
     init_drizzle_orm();
-    SYSTEM_VERSION = 201;
+    SYSTEM_VERSION = 202;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -143873,7 +144075,13 @@ var init_postDeployOptimizer = __esm({
       },
       {
         version: 201,
-        description: "v201: \u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65\u4FEE\u590D\u4E0E\u7CFB\u7EDF\u7A33\u5B9A\u6027\u63D0\u5347 \u2014 \u4FEE\u590DcampaignId\u7C7B\u578B\u4E3Astring\u907F\u514D\u5927\u6570\u5B57\u7CBE\u5EA6\u4E22\u5931\uFF0C\u4FEE\u590D\u5426\u5B9A\u8BCD\u5165\u961F\u65F6amazonEntityId\u9519\u8BEF\u4F7F\u7528\u672C\u5730ID\uFF0C\u589E\u52A0AutoCorrector\u8BE6\u7EC6\u8BCA\u65AD\u65E5\u5FD7\uFF0C\u63D0\u5347maxRetryPerRun\u5230\x002000\u52A0\u901F\u79EF\u538B\u4EFB\u52A1\u5904\u7406",
+        description: "v201: \u5426\u5B9A\u5173\u952E\u8BCD\u540C\u6B65\u4FEE\u590D\u4E0E\u7CFB\u7EDF\u7A33\u5B9A\u6027\u63D0\u5347 \u2014 \u4FEE\u590CcampaignId\u7C7B\u578B\u4E3Astring\u907F\u514D\u5927\u6570\u5B57\u7CBE\u5EA6\u4E22\u5931\uFF0C\u4FEE\u590C\u5426\u5B9A\u8BCD\u5165\u961F\u65F6amazonEntityId\u9519\u8BEF\u4F7F\u7528\u672C\u5730ID\uFF0C\u589E\u52A0AutoCorrector\u8BE6\u7EC6\u8BCA\u65AD\u65E5\u5FD7\uFF0C\u63D0\u5347maxRetryPerRun\u5230 2000\u52A0\u901F\u79EF\u538B\u4EFB\u52A1\u5904\u7406",
+        affectedModules: [],
+        correctionActions: []
+      },
+      {
+        version: 202,
+        description: "v202: \u540C\u6B65\u7387\u5168\u9762\u4FEE\u590D \u2014 \u4FEE\u590D\u641C\u7D22\u8BCD\u6536\u5272\u91CD\u8BD5\u6761\u4EF6\u4E0D\u5339\u914D(0%\u540C\u6B65\u7387)\uFF0C\u4FEE\u590Csettings_update\u4E8B\u4EF6\u9519\u8BEF\u6807\u8BB0\u4E3Afailed(2218\u4E2A)\uFF0C\u4FEE\u590C\u51FA\u4EF7\u6267\u884C\u786E\u8BA4\u5BB9\u5DEE\u903B\u8F91(81\u4E2A\u5FAA\u73AF\u4E0D\u4E00\u81F4)\uFF0C\u6DFB\u52A0target_enable/target_pause\u91CD\u8BD5\u673A\u5236",
         affectedModules: [],
         correctionActions: []
       }

@@ -221,6 +221,10 @@ export async function runAutoCorrection(accountId?: number): Promise<CorrectionS
         const qualityAudits = await auditAlgorithmDecisionQuality(database, accId);
         corrections.push(...qualityAudits);
         
+        // 17. v202: 重试失败的关键词/投放目标状态变更(target_enable/target_pause)
+        const statusRetries = await retryFailedTargetStatusChanges(database, accId);
+        corrections.push(...statusRetries);
+        
       } catch (accError: any) {
         console.error(`[AutoCorrector] v178: 账户 ${accId} 纠错失败: ${accError.message}`);
       }
@@ -2000,15 +2004,15 @@ async function retryHistoricalFailedKeywordHarvests(database: any, accountId: nu
   const MAX_PER_RUN = 20; // 每次扫描最多处理的数量
   
   try {
-    // v178: 查找历史失败的 keyword_create 事件
-    // 条件: not_applicable + keyword_id IS NULL (覆盖所有失败类型，不再限制code=ERROR)
+    // v202: 查找历史失败的 keyword_create 事件
+    // 扩展条件: 包含 not_applicable, failed, pending 状态 (覆盖所有需要重试的类型)
     const failedEvents = await database.execute(sql`
       SELECT id, account_id, campaign_id, campaign_name, keyword_id, keyword_text,
              action_detail, api_sync_status, api_sync_detail, created_at
       FROM optimization_events
       WHERE account_id = ${accountId}
-        AND action_type = 'keyword_create'
-        AND api_sync_status = 'not_applicable'
+        AND action_type IN ('keyword_create', 'search_term_harvest')
+        AND api_sync_status IN ('not_applicable', 'failed', 'pending')
         AND keyword_id IS NULL
         AND action_detail IS NOT NULL
         AND action_detail != ''
@@ -2099,7 +2103,7 @@ async function retryHistoricalFailedKeywordHarvests(database: any, accountId: nu
         }
         
         const localAdGroupId = agRows[0].id;
-        const amazonAdGroupId = Number(agRows[0].adGroupId);
+        const amazonAdGroupId = agRows[0].adGroupId;  // v202: 保持字符串避免精度丢失
         
         // 获取该 adGroup 中已有的关键词（用于幂等性去重）
         const existingKws = await database
@@ -2967,4 +2971,219 @@ export function stopAutoCorrector(): void {
     correctionInterval = null;
     console.log('[AutoCorrector] 定时纠错服务已停止');
   }
+}
+
+
+// ==================== 17. v202: 重试失败的关键词/投放目标状态变更 ====================
+
+/**
+ * v202: 重试失败的 target_enable/target_pause 事件
+ * 
+ * 这些事件来自搜索词分析中的关键词状态变更（暂停低效词、启用高效词）
+ * 失败原因通常是缺少 Amazon keywordId 或 API 临时错误
+ * 
+ * 处理流程:
+ * 1. 查找 failed/pending 的 target_enable/target_pause 事件
+ * 2. 从 action_detail 中提取 keywordId 和目标状态
+ * 3. 调用 syncKeywordStatusToAmazon 重新同步
+ * 4. 更新事件状态
+ */
+async function retryFailedTargetStatusChanges(database: any, accountId: number): Promise<CorrectionResult[]> {
+  const results: CorrectionResult[] = [];
+  
+  try {
+    const expiryDateStr = new Date(Date.now() - AUTO_CORRECTION_CONFIG.retryExpiryDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace('T', ' ');
+    
+    const failedEvents = await database
+      .select({
+        id: optimizationEvents.id,
+        campaignId: optimizationEvents.campaignId,
+        campaignName: optimizationEvents.campaignName,
+        keywordId: optimizationEvents.keywordId,
+        keywordText: optimizationEvents.keywordText,
+        actionType: optimizationEvents.actionType,
+        actionDetail: optimizationEvents.actionDetail,
+        newValue: optimizationEvents.newValue,
+        apiSyncDetail: optimizationEvents.apiSyncDetail,
+        createdAt: optimizationEvents.createdAt,
+      })
+      .from(optimizationEvents)
+      .where(
+        and(
+          eq(optimizationEvents.accountId, accountId),
+          or(
+            eq(optimizationEvents.actionType, 'target_enable'),
+            eq(optimizationEvents.actionType, 'target_pause')
+          ),
+          or(
+            eq(optimizationEvents.apiSyncStatus, 'failed'),
+            eq(optimizationEvents.apiSyncStatus, 'pending')
+          ),
+          gte(optimizationEvents.createdAt, expiryDateStr)
+        )
+      )
+      .orderBy(desc(optimizationEvents.createdAt))
+      .limit(AUTO_CORRECTION_CONFIG.maxRetryPerRun);
+    
+    if (failedEvents.length === 0) return results;
+    
+    console.log(`[AutoCorrector] v202: 账户${accountId} 发现${failedEvents.length}条失败的关键词状态变更需要重试`);
+    
+    // 收集需要重试的状态变更
+    const statusChanges: Array<{
+      eventId: number;
+      keywordId: number;
+      newStatus: 'enabled' | 'paused' | 'archived';
+      campaignId: number;
+      reason: string;
+      isProductTarget: boolean;
+    }> = [];
+    
+    for (const event of failedEvents) {
+      try {
+        let detail: any = {};
+        if (event.actionDetail) {
+          try { detail = typeof event.actionDetail === 'string' ? JSON.parse(event.actionDetail) : event.actionDetail; } catch {}
+        }
+        
+        // 从action_detail中提取本地keywordId
+        const localKeywordId = detail.keywordId || event.keywordId;
+        if (!localKeywordId) {
+          // 无法确定关键词，标记为invalid_legacy
+          await database.update(optimizationEvents).set({
+            apiSyncStatus: 'invalid_legacy',
+            apiSyncDetail: JSON.stringify({ reason: 'v202: 无法确定keywordId', fixedAt: new Date().toISOString() }),
+          }).where(eq(optimizationEvents.id, event.id));
+          continue;
+        }
+        
+        // 确定目标状态
+        const newStatus = event.actionType === 'target_enable' ? 'enabled' : 'paused';
+        const isProductTarget = detail.isProductTarget || detail.targetType === 'product' || false;
+        
+        // 检查重试次数
+        let retryCount = 0;
+        if (event.apiSyncDetail) {
+          try {
+            const syncDetail = typeof event.apiSyncDetail === 'string' ? JSON.parse(event.apiSyncDetail) : event.apiSyncDetail;
+            retryCount = syncDetail.retryCount || 0;
+          } catch {}
+        }
+        
+        if (retryCount >= AUTO_CORRECTION_CONFIG.maxRetryAttempts) {
+          await database.update(optimizationEvents).set({
+            apiSyncStatus: 'not_applicable',
+            apiSyncDetail: JSON.stringify({ 
+              reason: `超过最大重试次数(${AUTO_CORRECTION_CONFIG.maxRetryAttempts})`,
+              retryCount,
+              lastRetryAt: new Date().toISOString()
+            }),
+          }).where(eq(optimizationEvents.id, event.id));
+          
+          results.push({
+            type: 'status_change_retry',
+            accountId,
+            targetId: localKeywordId,
+            targetType: 'keyword',
+            previousValue: '',
+            correctedValue: newStatus,
+            reason: `关键词状态变更超过最大重试次数: ${event.keywordText || localKeywordId}`,
+            success: false,
+            errorMessage: `超过最大重试次数(${AUTO_CORRECTION_CONFIG.maxRetryAttempts})`,
+          });
+          continue;
+        }
+        
+        statusChanges.push({
+          eventId: event.id,
+          keywordId: localKeywordId,
+          newStatus: newStatus as 'enabled' | 'paused',
+          campaignId: event.campaignId || 0,
+          reason: `[AutoCorrector v202] 重试关键词状态变更`,
+          isProductTarget,
+        });
+      } catch (parseErr: any) {
+        console.warn(`[AutoCorrector] v202: 解析状态变更事件失败: eventId=${event.id}, ${parseErr.message}`);
+      }
+    }
+    
+    if (statusChanges.length === 0) return results;
+    
+    console.log(`[AutoCorrector] v202: 准备重试${statusChanges.length}个关键词状态变更`);
+    
+    // 调用Amazon API批量同步
+    const syncResult = await amazonApiHelper.syncKeywordStatusToAmazon(
+      accountId,
+      statusChanges.map(sc => ({
+        keywordId: sc.keywordId,
+        newStatus: sc.newStatus,
+        campaignId: sc.campaignId,
+        reason: sc.reason,
+        isProductTarget: sc.isProductTarget,
+      }))
+    );
+    
+    console.log(`[AutoCorrector] v202: 关键词状态变更同步结果: 成功=${syncResult.success}, 失败=${syncResult.failed}`);
+    
+    // 更新事件状态
+    const failedKeywordIds = new Set<number>();
+    for (const err of syncResult.errors) {
+      const match = err.match(/关键词\s*(\d+)/);
+      if (match) failedKeywordIds.add(Number(match[1]));
+    }
+    
+    for (const sc of statusChanges) {
+      const success = !failedKeywordIds.has(sc.keywordId) && syncResult.success > 0;
+      
+      if (success) {
+        await database.update(optimizationEvents).set({
+          apiSyncStatus: 'synced',
+          apiSyncDetail: JSON.stringify({ correctedBy: 'AutoCorrector v202', correctedAt: new Date().toISOString() }),
+          apiSyncedAt: new Date(),
+        }).where(eq(optimizationEvents.id, sc.eventId));
+        
+        // 同步更新optimization_logs
+        await database.execute(sql`
+          UPDATE optimization_logs SET api_sync_status = 'synced'
+          WHERE id = (SELECT source_id FROM optimization_events WHERE id = ${sc.eventId} AND source_table = 'optimization_logs')
+        `).catch(() => {});
+      } else {
+        // 记录重试次数
+        let retryCount = 0;
+        try {
+          const event = failedEvents.find((e: any) => e.id === sc.eventId);
+          if (event?.apiSyncDetail) {
+            const syncDetail = typeof event.apiSyncDetail === 'string' ? JSON.parse(event.apiSyncDetail) : event.apiSyncDetail;
+            retryCount = (syncDetail.retryCount || 0) + 1;
+          } else {
+            retryCount = 1;
+          }
+        } catch {}
+        
+        await database.update(optimizationEvents).set({
+          apiSyncDetail: JSON.stringify({ 
+            retryCount,
+            lastRetryAt: new Date().toISOString(),
+            lastError: syncResult.errors.join('; ').substring(0, 200)
+          }),
+        }).where(eq(optimizationEvents.id, sc.eventId));
+      }
+      
+      results.push({
+        type: 'status_change_retry',
+        accountId,
+        targetId: sc.keywordId,
+        targetType: 'keyword',
+        previousValue: '',
+        correctedValue: sc.newStatus,
+        reason: `重试关键词状态变更(${sc.newStatus}): keywordId=${sc.keywordId}`,
+        success,
+        errorMessage: success ? undefined : syncResult.errors.join('; '),
+      });
+    }
+  } catch (error: any) {
+    console.error(`[AutoCorrector] v202: 账户${accountId} retryFailedTargetStatusChanges失败: ${error.message}`);
+  }
+  
+  return results;
 }
