@@ -2444,29 +2444,48 @@ async function backfillNegativeKeywordIds(database: any, accountId: number): Pro
       return results;
     }
     
-    // 收集所有涉及的campaignId
-    const campaignIds = [...new Set(missingIdRows.map((r: any) => r.campaignId).filter(Boolean))];
+    // 收集所有涉及的campaignId，并建立本地ID到Amazon ID的映射
+    const localCampaignIds = [...new Set(missingIdRows.map((r: any) => r.campaignId).filter(Boolean))];
+    const localToAmazonCampaignIdMap = new Map<number, string>(); // localId -> amazonCampaignId
+    for (const localId of localCampaignIds) {
+      const campRows = await database
+        .select({ campaignId: campaigns.campaignId })
+        .from(campaigns)
+        .where(eq(campaigns.id, localId))
+        .limit(1);
+      if (campRows.length > 0 && campRows[0].campaignId) {
+        localToAmazonCampaignIdMap.set(localId, String(campRows[0].campaignId));
+        console.log(`[AutoCorrector] v203: 否定词回填campaignId解析: localId=${localId} -> amazonId=${campRows[0].campaignId}`);
+      } else {
+        console.warn(`[AutoCorrector] v203: 否定词回填campaignId解析失败: localId=${localId} 在campaigns表中不存在或无Amazon ID`);
+      }
+    }
     
     // 从Amazon查询每个campaign的否定词列表
-    const amazonNegMap = new Map<string, string>(); // key: campaignId:text:matchType -> amazonId
-    for (const campId of campaignIds) {
+    const amazonNegMap = new Map<string, string>(); // key: amazonCampaignId:text:matchType -> amazonId
+    for (const [localId, amazonCampaignId] of localToAmazonCampaignIdMap.entries()) {
       try {
-        const existing = await syncService.client.listSpCampaignNegativeKeywords(Number(campId));
+        const existing = await syncService.client.listSpCampaignNegativeKeywords(amazonCampaignId);
         for (const neg of existing) {
-          const key = `${campId}:${(neg.keywordText || '').toLowerCase()}:${(neg.matchType || '').toLowerCase()}`;
+          const key = `${amazonCampaignId}:${(neg.keywordText || '').toLowerCase()}:${(neg.matchType || '').toLowerCase()}`;
           if (neg.keywordId) {
             amazonNegMap.set(key, String(neg.keywordId));
           }
         }
       } catch (listErr: any) {
-        console.warn(`[AutoCorrector] v196: 查询campaign ${campId} 否定词失败: ${listErr.message}`);
+          console.warn(`[AutoCorrector] v203: 查询campaign localId=${localId} amazonId=${amazonCampaignId} 否定词失败: ${listErr.message}`);
       }
     }
     
     // 匹配并回填
     for (const row of missingIdRows) {
+      const amazonCampaignId = localToAmazonCampaignIdMap.get(row.campaignId);
+      if (!amazonCampaignId) {
+        console.warn(`[AutoCorrector] v203: 跳过否定词回填: id=${row.id}, localCampaignId=${row.campaignId} 无法解析Amazon ID`);
+        continue;
+      }
       const matchType = (row.negativeMatchType || '').replace('negative_', 'negative').toLowerCase();
-      const key = `${row.campaignId}:${(row.negativeText || '').toLowerCase()}:${matchType}`;
+      const key = `${amazonCampaignId}:${(row.negativeText || '').toLowerCase()}:${matchType}`;
       const amazonId = amazonNegMap.get(key);
       
       if (amazonId) {
@@ -2485,16 +2504,16 @@ async function backfillNegativeKeywordIds(database: any, accountId: number): Pro
         });
         console.log(`[AutoCorrector] v196: ✅ 回填否定词ID: "${row.negativeText}" -> ${amazonId}`);
       } else {
-        // Amazon上不存在，重新创建
+        // Amazon上不存在，重新创建（使用Amazon campaignId）
         try {
           const syncResult = await amazonApiHelper.syncNegativeKeywordsToAmazon(accountId, [{
-            campaignId: row.campaignId,  // v201: 保持字符串避免精度丢失
+            campaignId: amazonCampaignId,  // v203: 使用Amazon campaignId而非本地ID
             keywordText: row.negativeText,
             matchType: matchType.includes('exact') ? 'negativeExact' as const : 'negativePhrase' as const,
             level: (row.negativeLevel || 'campaign') as 'campaign' | 'adgroup',
           }]);
           
-          const mapKey = `campaign:${row.campaignId}:${(row.negativeText || '').toLowerCase()}`;
+          const mapKey = `campaign:${amazonCampaignId}:${(row.negativeText || '').toLowerCase()}`;
           const newId = syncResult.keywordIdMap?.get(mapKey);
           if (newId) {
             await database.execute(sql`

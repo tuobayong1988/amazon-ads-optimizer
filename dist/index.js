@@ -77200,24 +77200,39 @@ async function backfillNegativeKeywordIds(database, accountId) {
       console.warn(`[AutoCorrector] v196: \u65E0\u6CD5\u83B7\u53D6\u8D26\u6237${accountId}\u7684API\u670D\u52A1`);
       return results;
     }
-    const campaignIds = [...new Set(missingIdRows.map((r5) => r5.campaignId).filter(Boolean))];
+    const localCampaignIds = [...new Set(missingIdRows.map((r5) => r5.campaignId).filter(Boolean))];
+    const localToAmazonCampaignIdMap = /* @__PURE__ */ new Map();
+    for (const localId of localCampaignIds) {
+      const campRows = await database.select({ campaignId: campaigns.campaignId }).from(campaigns).where(eq(campaigns.id, localId)).limit(1);
+      if (campRows.length > 0 && campRows[0].campaignId) {
+        localToAmazonCampaignIdMap.set(localId, String(campRows[0].campaignId));
+        console.log(`[AutoCorrector] v203: \u5426\u5B9A\u8BCD\u56DE\u586BcampaignId\u89E3\u6790: localId=${localId} -> amazonId=${campRows[0].campaignId}`);
+      } else {
+        console.warn(`[AutoCorrector] v203: \u5426\u5B9A\u8BCD\u56DE\u586BcampaignId\u89E3\u6790\u5931\u8D25: localId=${localId} \u5728campaigns\u8868\u4E2D\u4E0D\u5B58\u5728\u6216\u65E0Amazon ID`);
+      }
+    }
     const amazonNegMap = /* @__PURE__ */ new Map();
-    for (const campId of campaignIds) {
+    for (const [localId, amazonCampaignId] of localToAmazonCampaignIdMap.entries()) {
       try {
-        const existing = await syncService.client.listSpCampaignNegativeKeywords(Number(campId));
+        const existing = await syncService.client.listSpCampaignNegativeKeywords(amazonCampaignId);
         for (const neg of existing) {
-          const key = `${campId}:${(neg.keywordText || "").toLowerCase()}:${(neg.matchType || "").toLowerCase()}`;
+          const key = `${amazonCampaignId}:${(neg.keywordText || "").toLowerCase()}:${(neg.matchType || "").toLowerCase()}`;
           if (neg.keywordId) {
             amazonNegMap.set(key, String(neg.keywordId));
           }
         }
       } catch (listErr) {
-        console.warn(`[AutoCorrector] v196: \u67E5\u8BE2campaign ${campId} \u5426\u5B9A\u8BCD\u5931\u8D25: ${listErr.message}`);
+        console.warn(`[AutoCorrector] v203: \u67E5\u8BE2campaign localId=${localId} amazonId=${amazonCampaignId} \u5426\u5B9A\u8BCD\u5931\u8D25: ${listErr.message}`);
       }
     }
     for (const row of missingIdRows) {
+      const amazonCampaignId = localToAmazonCampaignIdMap.get(row.campaignId);
+      if (!amazonCampaignId) {
+        console.warn(`[AutoCorrector] v203: \u8DF3\u8FC7\u5426\u5B9A\u8BCD\u56DE\u586B: id=${row.id}, localCampaignId=${row.campaignId} \u65E0\u6CD5\u89E3\u6790Amazon ID`);
+        continue;
+      }
       const matchType = (row.negativeMatchType || "").replace("negative_", "negative").toLowerCase();
-      const key = `${row.campaignId}:${(row.negativeText || "").toLowerCase()}:${matchType}`;
+      const key = `${amazonCampaignId}:${(row.negativeText || "").toLowerCase()}:${matchType}`;
       const amazonId = amazonNegMap.get(key);
       if (amazonId) {
         await database.execute(sql`
@@ -77237,13 +77252,13 @@ async function backfillNegativeKeywordIds(database, accountId) {
       } else {
         try {
           const syncResult = await syncNegativeKeywordsToAmazon(accountId, [{
-            campaignId: row.campaignId,
-            // v201: 保持字符串避免精度丢失
+            campaignId: amazonCampaignId,
+            // v203: 使用Amazon campaignId而非本地ID
             keywordText: row.negativeText,
             matchType: matchType.includes("exact") ? "negativeExact" : "negativePhrase",
             level: row.negativeLevel || "campaign"
           }]);
-          const mapKey = `campaign:${row.campaignId}:${(row.negativeText || "").toLowerCase()}`;
+          const mapKey = `campaign:${amazonCampaignId}:${(row.negativeText || "").toLowerCase()}`;
           const newId = syncResult.keywordIdMap?.get(mapKey);
           if (newId) {
             await database.execute(sql`
