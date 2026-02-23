@@ -799,7 +799,7 @@ export async function analyzeBidEfficiency(
   // 获取所有广告组
   const adGroupList = await db.select()
     .from(adGroups)
-    .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
+    .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
     .where(eq(campaigns.accountId, accountId));
 
   const adGroupIds = adGroupList.map(ag => ag.ad_groups.id);

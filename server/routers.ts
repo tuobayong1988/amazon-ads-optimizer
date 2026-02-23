@@ -2259,7 +2259,7 @@ const keywordRouter = router({
             })
             .from(keywordsTable)
             .innerJoin(adGroups, eq(keywordsTable.adGroupId, adGroups.id))
-            .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
+            .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
             .where(inArray(keywordsTable.id, results.map(r => r.id)));
             
             const byAccount = new Map<number, Array<{ keywordId: number; newBid: number; campaignId: number }>>();
@@ -2321,7 +2321,7 @@ const keywordRouter = router({
           })
           .from(keywordsTable)
           .innerJoin(adGroups, eq(keywordsTable.adGroupId, adGroups.id))
-          .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
+          .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
           .where(inArray(keywordsTable.id, input.ids));
           
           // 按accountId分组
@@ -2573,7 +2573,7 @@ const productTargetRouter = router({
             })
             .from(productTargets)
             .innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id))
-            .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
+            .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
             .where(inArray(productTargets.id, results.map(r => r.id)));
             
             const byAccount = new Map<number, Array<{ keywordId: number; newBid: number; campaignId: number }>>();
@@ -2634,7 +2634,7 @@ const productTargetRouter = router({
           })
           .from(productTargets)
           .innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id))
-          .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
+          .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
           .where(inArray(productTargets.id, input.ids));
           
           const byAccount = new Map<number, Array<{ keywordId: number; campaignId: number }>>();
@@ -6922,7 +6922,8 @@ const batchOperationRouter = router({
           const firstKw = await db.getKeywordById(input.adjustments[0].keywordId);
           if (firstKw) {
             const adGroup = await db.getAdGroupById(firstKw.adGroupId);
-            const campaign = adGroup ? await db.getCampaignById(adGroup.campaignId) : null;
+            // v209: 使用getCampaignByAmazonId — adGroup.campaignId是Amazon varchar ID
+            const campaign = adGroup ? await db.getCampaignByAmazonCampaignId(adGroup.campaignId) : null;
             if (campaign?.accountId) {
               const credentials = await db.getAmazonApiCredentials(campaign.accountId);
               if (credentials) {
@@ -6957,7 +6958,8 @@ const batchOperationRouter = router({
 
           // Get ad group to find campaign
           const adGroup = await db.getAdGroupById(keyword.adGroupId);
-          const campaign = adGroup ? await db.getCampaignById(adGroup.campaignId) : null;
+          // v209: 使用getCampaignByAmazonId — adGroup.campaignId是Amazon varchar ID
+          const campaign = adGroup ? await db.getCampaignByAmazonCampaignId(adGroup.campaignId) : null;
 
           // ✅ 先通过Amazon API更新出价
           let apiSuccess = false;

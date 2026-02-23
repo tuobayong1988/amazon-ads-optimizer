@@ -492,6 +492,21 @@ export async function getCampaignByAmazonId(accountId: number, amazonCampaignId:
   return result[0];
 }
 
+/**
+ * 通过Amazon广告活动ID查找本地广告活动记录（不需要accountId）
+ * Amazon campaignId全局唯一，可直接查找
+ */
+export async function getCampaignByAmazonCampaignId(amazonCampaignId: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  
+  const result = await db.select()
+    .from(campaigns)
+    .where(eq(campaigns.campaignId, amazonCampaignId))
+    .limit(1);
+  return result[0];
+}
+
 export async function updateCampaign(id: number, data: Partial<InsertCampaign>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -1282,7 +1297,7 @@ export async function getSearchTermsForAnalysis(accountId: number, _days: number
   })
   .from(keywords)
   .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
-  .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
+  .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
   .where(eq(campaigns.accountId, accountId));
   
   return result.map(r => ({
@@ -1303,7 +1318,7 @@ export async function getCampaignSearchTerms(accountId: number) {
   // 使用keywords表自带的绩效数据
   const result = await db.select({
     searchTerm: keywords.keywordText,
-    campaignId: campaigns.id,
+    campaignId: campaigns.campaignId,
     campaignName: campaigns.campaignName,
     matchType: keywords.matchType,
     clicks: keywords.clicks,
@@ -1314,7 +1329,7 @@ export async function getCampaignSearchTerms(accountId: number) {
   })
   .from(keywords)
   .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
-  .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
+  .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
   .where(eq(campaigns.accountId, accountId));
   
   return result.map(r => {
@@ -1353,7 +1368,7 @@ export async function getBidTargets(accountId: number) {
   const keywordTargets = await db.select({
     id: keywords.id,
     name: keywords.keywordText,
-    campaignId: campaigns.id,
+    campaignId: campaigns.campaignId,
     campaignName: campaigns.campaignName,
     currentBid: keywords.bid,
     impressions: keywords.impressions,
@@ -1364,14 +1379,14 @@ export async function getBidTargets(accountId: number) {
   })
   .from(keywords)
   .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
-  .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
+  .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
   .where(eq(campaigns.accountId, accountId));
   
   // 获取商品定位目标 - 使用productTargets表自带的绩效数据
   const productTargetResults = await db.select({
     id: productTargets.id,
     name: productTargets.targetValue,
-    campaignId: campaigns.id,
+    campaignId: campaigns.campaignId,
     campaignName: campaigns.campaignName,
     currentBid: productTargets.bid,
     impressions: productTargets.impressions,
@@ -1382,7 +1397,7 @@ export async function getBidTargets(accountId: number) {
   })
   .from(productTargets)
   .innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id))
-  .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
+  .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
   .where(eq(campaigns.accountId, accountId));
   
   const results = [
@@ -1427,7 +1442,7 @@ export async function getUniqueSearchTerms(accountId: number): Promise<string[]>
   })
   .from(keywords)
   .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
-  .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
+  .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
   .where(eq(campaigns.accountId, accountId));
   
   return result.map(r => r.searchTerm || '').filter(t => t.length > 0);
@@ -1766,7 +1781,7 @@ function calculateMetricChanges(
 // ==================== 批量操作扩展 ====================
 
 export async function addNegativeKeyword(data: {
-  campaignId: number;
+  campaignId: string | number;
   adGroupId?: number;
   keyword: string;
   matchType: 'phrase' | 'exact';
@@ -4541,19 +4556,19 @@ export async function getLocalDataStats(accountId: number) {
   
   const [adGroupsResult] = await db.select({ count: sql<number>`count(*)` })
     .from(adGroups)
-    .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
+    .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
     .where(eq(campaigns.accountId, accountId));
   
   const [keywordsResult] = await db.select({ count: sql<number>`count(*)` })
     .from(keywords)
     .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
-    .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
+    .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
     .where(eq(campaigns.accountId, accountId));
   
   const [productTargetsResult] = await db.select({ count: sql<number>`count(*)` })
     .from(productTargets)
     .innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id))
-    .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
+    .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
     .where(eq(campaigns.accountId, accountId));
 
   return {

@@ -91,6 +91,25 @@ const RULES = [
     ],
     message: '原生SQL中campaignId应使用Amazon ID（campaign.campaignId）',
   },
+  {
+    id: 'ID-007',
+    name: 'CAST(campaigns.id AS CHAR) JOIN条件',
+    severity: 'error',
+    patterns: [
+      /CAST\s*\(\s*\$\{campaigns\.id\}\s*AS\s*CHAR\s*\)/,
+      /CAST\s*\(\s*campaigns\.id\s*AS\s*CHAR\s*\)/,
+    ],
+    message: '不应使用CAST(campaigns.id AS CHAR)做JOIN。应使用eq(adGroups.campaignId, campaigns.campaignId)',
+  },
+  {
+    id: 'ID-008',
+    name: 'getCampaignById传入Amazon ID',
+    severity: 'error',
+    patterns: [
+      /getCampaignById\s*\(\s*(?:adGroup|ag|ptAdGroup)\.campaignId/,
+    ],
+    message: 'getCampaignById期望本地int ID，不能传入adGroup.campaignId（Amazon varchar）。应使用getCampaignByAmazonCampaignId',
+  },
 ];
 
 // ==================== 文件扫描 ====================

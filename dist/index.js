@@ -35548,6 +35548,7 @@ __export(db_exports, {
   getBiddingLogsByAccountId: () => getBiddingLogsByAccountId,
   getBiddingLogsByCampaignId: () => getBiddingLogsByCampaignId,
   getBiddingLogsCount: () => getBiddingLogsCount,
+  getCampaignByAmazonCampaignId: () => getCampaignByAmazonCampaignId,
   getCampaignByAmazonId: () => getCampaignByAmazonId,
   getCampaignById: () => getCampaignById,
   getCampaignDetailWithStats: () => getCampaignDetailWithStats,
@@ -36012,6 +36013,12 @@ async function getCampaignByAmazonId(accountId, amazonCampaignId) {
       eq(campaigns.campaignId, amazonCampaignId)
     )
   ).limit(1);
+  return result[0];
+}
+async function getCampaignByAmazonCampaignId(amazonCampaignId) {
+  const db = await getDb();
+  if (!db) return void 0;
+  const result = await db.select().from(campaigns).where(eq(campaigns.campaignId, amazonCampaignId)).limit(1);
   return result[0];
 }
 async function updateCampaign(id, data4) {
@@ -36498,7 +36505,7 @@ async function getSearchTermsForAnalysis(accountId, _days = 30) {
     spend: keywords.spend,
     sales: keywords.sales,
     impressions: keywords.impressions
-  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
+  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId)).where(eq(campaigns.accountId, accountId));
   return result.map((r5) => ({
     searchTerm: r5.searchTerm || "",
     clicks: Number(r5.clicks) || 0,
@@ -36513,7 +36520,7 @@ async function getCampaignSearchTerms(accountId) {
   if (!db) return [];
   const result = await db.select({
     searchTerm: keywords.keywordText,
-    campaignId: campaigns.id,
+    campaignId: campaigns.campaignId,
     campaignName: campaigns.campaignName,
     matchType: keywords.matchType,
     clicks: keywords.clicks,
@@ -36521,7 +36528,7 @@ async function getCampaignSearchTerms(accountId) {
     sales: keywords.sales,
     orders: keywords.orders,
     bid: keywords.bid
-  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
+  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId)).where(eq(campaigns.accountId, accountId));
   return result.map((r5) => {
     const clicks = Number(r5.clicks) || 0;
     const orders = Number(r5.orders) || 0;
@@ -36555,7 +36562,7 @@ async function getBidTargets(accountId) {
   const keywordTargets = await db.select({
     id: keywords.id,
     name: keywords.keywordText,
-    campaignId: campaigns.id,
+    campaignId: campaigns.campaignId,
     campaignName: campaigns.campaignName,
     currentBid: keywords.bid,
     impressions: keywords.impressions,
@@ -36563,11 +36570,11 @@ async function getBidTargets(accountId) {
     spend: keywords.spend,
     sales: keywords.sales,
     orders: keywords.orders
-  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
+  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId)).where(eq(campaigns.accountId, accountId));
   const productTargetResults = await db.select({
     id: productTargets.id,
     name: productTargets.targetValue,
-    campaignId: campaigns.id,
+    campaignId: campaigns.campaignId,
     campaignName: campaigns.campaignName,
     currentBid: productTargets.bid,
     impressions: productTargets.impressions,
@@ -36575,7 +36582,7 @@ async function getBidTargets(accountId) {
     spend: productTargets.spend,
     sales: productTargets.sales,
     orders: productTargets.orders
-  }).from(productTargets).innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
+  }).from(productTargets).innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id)).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId)).where(eq(campaigns.accountId, accountId));
   const results = [
     ...keywordTargets.map((r5) => ({
       id: r5.id,
@@ -36611,7 +36618,7 @@ async function getUniqueSearchTerms(accountId) {
   if (!db) return [];
   const result = await db.selectDistinct({
     searchTerm: keywords.keywordText
-  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
+  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId)).where(eq(campaigns.accountId, accountId));
   return result.map((r5) => r5.searchTerm || "").filter((t7) => t7.length > 0);
 }
 async function recordMigration(data4) {
@@ -38382,9 +38389,9 @@ async function getLocalDataStats(accountId) {
   const [spCampaignsResult] = await db.select({ count: sql`count(*)` }).from(campaigns).where(sql`${campaigns.accountId} = ${accountId} AND (${campaigns.campaignType} = 'sp_auto' OR ${campaigns.campaignType} = 'sp_manual')`);
   const [sbCampaignsResult] = await db.select({ count: sql`count(*)` }).from(campaigns).where(sql`${campaigns.accountId} = ${accountId} AND ${campaigns.campaignType} = 'sb'`);
   const [sdCampaignsResult] = await db.select({ count: sql`count(*)` }).from(campaigns).where(sql`${campaigns.accountId} = ${accountId} AND ${campaigns.campaignType} = 'sd'`);
-  const [adGroupsResult] = await db.select({ count: sql`count(*)` }).from(adGroups).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
-  const [keywordsResult] = await db.select({ count: sql`count(*)` }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
-  const [productTargetsResult] = await db.select({ count: sql`count(*)` }).from(productTargets).innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
+  const [adGroupsResult] = await db.select({ count: sql`count(*)` }).from(adGroups).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId)).where(eq(campaigns.accountId, accountId));
+  const [keywordsResult] = await db.select({ count: sql`count(*)` }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId)).where(eq(campaigns.accountId, accountId));
+  const [productTargetsResult] = await db.select({ count: sql`count(*)` }).from(productTargets).innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id)).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId)).where(eq(campaigns.accountId, accountId));
   return {
     spCampaigns: Number(spCampaignsResult?.count || 0),
     sbCampaigns: Number(sbCampaignsResult?.count || 0),
@@ -58061,7 +58068,7 @@ async function getRecentlyOptimizedCampaignIds(campaignIds, hoursWindow = 24) {
 async function runAutoBidOptimization(syncService, accountId, performanceGroupConfig) {
   const db = await getDb();
   if (!db) return { optimized: 0, skipped: 0 };
-  const keywordsToOptimize = await db.select({ keyword: keywords }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(and(
+  const keywordsToOptimize = await db.select({ keyword: keywords }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId)).where(and(
     eq(campaigns.accountId, accountId),
     eq(keywords.keywordStatus, "enabled")
   )).then((rows) => rows.map((r5) => r5.keyword));
@@ -61835,7 +61842,7 @@ var init_amazonSyncService = __esm({
         const db = await getDb();
         if (!db) return 0;
         try {
-          const adGroupsNeedingUrls = await db.select().from(adGroups).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(
+          const adGroupsNeedingUrls = await db.select().from(adGroups).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId)).where(
             and(
               eq(campaigns.accountId, this.accountId),
               sql`(${adGroups.videoAssetId} IS NOT NULL AND ${adGroups.videoAssetId} != '' AND (${adGroups.videoUrl} IS NULL OR ${adGroups.videoUrl} = ''))
@@ -65280,7 +65287,7 @@ async function batchExtractAndCacheFeatures(accountId) {
       id: keywords.id,
       adGroupId: keywords.adGroupId,
       campaignId: campaigns.campaignId
-    }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(and(
+    }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId)).where(and(
       eq(campaigns.accountId, accountId),
       eq(keywords.keywordStatus, "enabled")
     )).limit(5e3);
@@ -65288,7 +65295,7 @@ async function batchExtractAndCacheFeatures(accountId) {
       id: productTargets.id,
       adGroupId: productTargets.adGroupId,
       campaignId: campaigns.campaignId
-    }).from(productTargets).innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(and(
+    }).from(productTargets).innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id)).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId)).where(and(
       eq(campaigns.accountId, accountId),
       eq(productTargets.targetStatus, "enabled")
     )).limit(5e3);
@@ -74961,7 +74968,7 @@ async function discoverOpportunities(accountId) {
     }).from(searchTerms).where(eq(searchTerms.accountId, accountId)).groupBy(searchTerms.searchTerm).having(sql`SUM(search_term_orders) >= 2`).orderBy(desc(sql`SUM(search_term_orders)`)).limit(200);
     const existingKeywords = await db.select({
       keywordText: keywords.keywordText
-    }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(and(
+    }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId)).where(and(
       eq(campaigns.accountId, accountId),
       eq(keywords.keywordStatus, "enabled")
     ));
@@ -156175,7 +156182,7 @@ async function getDailyPerformanceByPerformanceGroup(performanceGroupId, startDa
     totalSpend: sql`COALESCE(SUM(${dailyPerformance.spend}), '0')`.as("totalSpend"),
     totalSales: sql`COALESCE(SUM(${dailyPerformance.sales}), '0')`.as("totalSales"),
     totalOrders: sql`COALESCE(SUM(${dailyPerformance.orders}), 0)`.as("totalOrders")
-  }).from(dailyPerformance).innerJoin(campaigns, sql`${dailyPerformance.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(and(
+  }).from(dailyPerformance).innerJoin(campaigns, eq(dailyPerformance.campaignId, campaigns.campaignId)).where(and(
     eq(campaigns.performanceGroupId, performanceGroupId),
     sql`${dailyPerformance.campaignId} IS NOT NULL`,
     sql`DATE(${dailyPerformance.date}) >= ${startDateStr}`,
@@ -351197,7 +351204,7 @@ async function identifyFunnelTiers(accountId) {
     campaignId: adGroups.campaignId,
     matchType: keywords.matchType,
     count: sql`COUNT(*)`
-  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId)).groupBy(adGroups.campaignId, keywords.matchType);
+  }).from(keywords).innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id)).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId)).where(eq(campaigns.accountId, accountId)).groupBy(adGroups.campaignId, keywords.matchType);
   const campaignMatchTypes = /* @__PURE__ */ new Map();
   for (const kw of keywordData) {
     const matchTypes = campaignMatchTypes.get(kw.campaignId) || /* @__PURE__ */ new Map();
@@ -351614,7 +351621,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
     switch (type) {
       case "bid_adjustment": {
         let bidApiSuccess = false;
-        let bidCampaignId = 0;
+        let bidCampaignId = "";
         let bidAdGroupId = 0;
         const keyword = await getKeywordById(targetId);
         if (keyword) {
@@ -351622,7 +351629,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
           if (adGroup) {
             bidAdGroupId = adGroup.id;
             bidCampaignId = adGroup.campaignId;
-            const campaign = await getCampaignById(adGroup.campaignId);
+            const campaign = await getCampaignByAmazonCampaignId(adGroup.campaignId);
             if (campaign?.accountId) {
               try {
                 const credentials = await getAmazonApiCredentials(campaign.accountId);
@@ -351713,7 +351720,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
         }
         await createBiddingLog({
           accountId,
-          campaignId: targetId,
+          campaignId: String(targetId),
           adGroupId: 0,
           logTargetType: "campaign_budget",
           targetId,
@@ -351731,7 +351738,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
       }
       case "product_target_bid": {
         let ptApiSuccess = false;
-        let ptCampaignId = 0;
+        let ptCampaignId = "";
         let ptAdGroupId = 0;
         const productTarget = await getProductTargetById(targetId);
         if (productTarget) {
@@ -351739,7 +351746,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
           if (ptAdGroup) {
             ptAdGroupId = ptAdGroup.id;
             ptCampaignId = ptAdGroup.campaignId;
-            const ptCampaign = await getCampaignById(ptAdGroup.campaignId);
+            const ptCampaign = await getCampaignByAmazonCampaignId(ptAdGroup.campaignId);
             if (ptCampaign?.accountId && productTarget.targetId) {
               try {
                 const ptCredentials = await getAmazonApiCredentials(ptCampaign.accountId);
@@ -351834,7 +351841,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
         }
         await createBiddingLog({
           accountId,
-          campaignId: targetId,
+          campaignId: String(targetId),
           adGroupId: 0,
           logTargetType: "placement",
           targetId,
@@ -351856,7 +351863,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
         negApiSuccess = true;
         await createBiddingLog({
           accountId,
-          campaignId: 0,
+          campaignId: "",
           adGroupId: 0,
           logTargetType: "negative_keyword",
           targetId,
@@ -351871,7 +351878,7 @@ async function executeOptimization(accountId, type, targetType, targetId, target
       case "search_term_harvest": {
         await createBiddingLog({
           accountId,
-          campaignId: 0,
+          campaignId: "",
           adGroupId: 0,
           logTargetType: "search_term_harvest",
           targetId,
@@ -356509,7 +356516,7 @@ async function analyzeBidEfficiency(accountId, targetAcos = 0.25, profitMargin =
       recommendations: []
     };
   }
-  const adGroupList = await db.select().from(adGroups).innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`).where(eq(campaigns.accountId, accountId));
+  const adGroupList = await db.select().from(adGroups).innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId)).where(eq(campaigns.accountId, accountId));
   const adGroupIds = adGroupList.map((ag) => ag.ad_groups.id);
   if (adGroupIds.length === 0) {
     return {
@@ -365813,7 +365820,7 @@ var keywordRouter = router({
             adGroupId: keywordsTable.adGroupId,
             campaignId: adGroups4.campaignId,
             accountId: campaigns7.accountId
-          }).from(keywordsTable).innerJoin(adGroups4, eq7(keywordsTable.adGroupId, adGroups4.id)).innerJoin(campaigns7, sql`${adGroups4.campaignId} = CAST(${campaigns7.id} AS CHAR)`).where(inArray11(keywordsTable.id, results.map((r5) => r5.id)));
+          }).from(keywordsTable).innerJoin(adGroups4, eq7(keywordsTable.adGroupId, adGroups4.id)).innerJoin(campaigns7, eq7(adGroups4.campaignId, campaigns7.campaignId)).where(inArray11(keywordsTable.id, results.map((r5) => r5.id)));
           const byAccount = /* @__PURE__ */ new Map();
           for (const kw of kwDetails) {
             const r5 = results.find((r6) => r6.id === kw.kwId);
@@ -365859,7 +365866,7 @@ var keywordRouter = router({
           adGroupId: keywordsTable.adGroupId,
           campaignId: adGroups4.campaignId,
           accountId: campaigns7.accountId
-        }).from(keywordsTable).innerJoin(adGroups4, eq7(keywordsTable.adGroupId, adGroups4.id)).innerJoin(campaigns7, sql`${adGroups4.campaignId} = CAST(${campaigns7.id} AS CHAR)`).where(inArray11(keywordsTable.id, input.ids));
+        }).from(keywordsTable).innerJoin(adGroups4, eq7(keywordsTable.adGroupId, adGroups4.id)).innerJoin(campaigns7, eq7(adGroups4.campaignId, campaigns7.campaignId)).where(inArray11(keywordsTable.id, input.ids));
         const byAccount = /* @__PURE__ */ new Map();
         for (const kw of kwDetails) {
           if (!byAccount.has(kw.accountId)) byAccount.set(kw.accountId, []);
@@ -366055,7 +366062,7 @@ var productTargetRouter = router({
             adGroupId: productTargets4.adGroupId,
             campaignId: adGroups4.campaignId,
             accountId: campaigns7.accountId
-          }).from(productTargets4).innerJoin(adGroups4, eq7(productTargets4.adGroupId, adGroups4.id)).innerJoin(campaigns7, sql`${adGroups4.campaignId} = CAST(${campaigns7.id} AS CHAR)`).where(inArray11(productTargets4.id, results.map((r5) => r5.id)));
+          }).from(productTargets4).innerJoin(adGroups4, eq7(productTargets4.adGroupId, adGroups4.id)).innerJoin(campaigns7, eq7(adGroups4.campaignId, campaigns7.campaignId)).where(inArray11(productTargets4.id, results.map((r5) => r5.id)));
           const byAccount = /* @__PURE__ */ new Map();
           for (const pt3 of ptDetails) {
             const r5 = results.find((r6) => r6.id === pt3.ptId);
@@ -366102,7 +366109,7 @@ var productTargetRouter = router({
           adGroupId: productTargets4.adGroupId,
           campaignId: adGroups4.campaignId,
           accountId: campaigns7.accountId
-        }).from(productTargets4).innerJoin(adGroups4, eq7(productTargets4.adGroupId, adGroups4.id)).innerJoin(campaigns7, sql`${adGroups4.campaignId} = CAST(${campaigns7.id} AS CHAR)`).where(inArray11(productTargets4.id, input.ids));
+        }).from(productTargets4).innerJoin(adGroups4, eq7(productTargets4.adGroupId, adGroups4.id)).innerJoin(campaigns7, eq7(adGroups4.campaignId, campaigns7.campaignId)).where(inArray11(productTargets4.id, input.ids));
         const byAccount = /* @__PURE__ */ new Map();
         for (const pt3 of ptDetails) {
           if (!byAccount.has(pt3.accountId)) byAccount.set(pt3.accountId, []);
@@ -369564,7 +369571,7 @@ var batchOperationRouter = router({
         const firstKw = await getKeywordById(input.adjustments[0].keywordId);
         if (firstKw) {
           const adGroup = await getAdGroupById(firstKw.adGroupId);
-          const campaign = adGroup ? await getCampaignById(adGroup.campaignId) : null;
+          const campaign = adGroup ? await getCampaignByAmazonCampaignId(adGroup.campaignId) : null;
           if (campaign?.accountId) {
             const credentials = await getAmazonApiCredentials(campaign.accountId);
             if (credentials) {
@@ -369595,7 +369602,7 @@ var batchOperationRouter = router({
           throw new Error("\u5173\u952E\u8BCD\u4E0D\u5B58\u5728");
         }
         const adGroup = await getAdGroupById(keyword.adGroupId);
-        const campaign = adGroup ? await getCampaignById(adGroup.campaignId) : null;
+        const campaign = adGroup ? await getCampaignByAmazonCampaignId(adGroup.campaignId) : null;
         let apiSuccess = false;
         if (syncService && keyword.keywordId) {
           try {

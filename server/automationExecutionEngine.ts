@@ -446,15 +446,15 @@ export async function executeOptimization(
       case 'bid_adjustment': {
         // ✅ 修复P0-3: 添加Amazon API调用，确保自动优化动作传递到Amazon
         let bidApiSuccess = false;
-        let bidCampaignId = 0;
+        let bidCampaignId: string | number = '';
         let bidAdGroupId = 0;
         const keyword = await db.getKeywordById(targetId);
         if (keyword) {
           const adGroup = await db.getAdGroupById(keyword.adGroupId);
           if (adGroup) {
             bidAdGroupId = adGroup.id;
-            bidCampaignId = adGroup.campaignId;
-            const campaign = await db.getCampaignById(adGroup.campaignId);
+            bidCampaignId = adGroup.campaignId; // Amazon varchar ID
+            const campaign = await db.getCampaignByAmazonCampaignId(adGroup.campaignId);
             if (campaign?.accountId) {
               try {
                 const credentials = await db.getAmazonApiCredentials(campaign.accountId);
@@ -549,7 +549,7 @@ export async function executeOptimization(
         }
         await db.createBiddingLog({
           accountId,
-          campaignId: targetId,
+          campaignId: String(targetId),
           adGroupId: 0,
           logTargetType: 'campaign_budget',
           targetId,
@@ -569,15 +569,15 @@ export async function executeOptimization(
       case 'product_target_bid': {
         // ✅ 商品定向出价调整 - 通过Amazon API回传
         let ptApiSuccess = false;
-        let ptCampaignId = 0;
+        let ptCampaignId: string | number = '';
         let ptAdGroupId = 0;
         const productTarget = await db.getProductTargetById(targetId);
         if (productTarget) {
           const ptAdGroup = await db.getAdGroupById(productTarget.adGroupId);
           if (ptAdGroup) {
             ptAdGroupId = ptAdGroup.id;
-            ptCampaignId = ptAdGroup.campaignId;
-            const ptCampaign = await db.getCampaignById(ptAdGroup.campaignId);
+            ptCampaignId = ptAdGroup.campaignId; // Amazon varchar ID
+            const ptCampaign = await db.getCampaignByAmazonCampaignId(ptAdGroup.campaignId);
             if (ptCampaign?.accountId && productTarget.targetId) {
               try {
                 const ptCredentials = await db.getAmazonApiCredentials(ptCampaign.accountId);
@@ -680,7 +680,7 @@ export async function executeOptimization(
         }
         await db.createBiddingLog({
           accountId,
-          campaignId: targetId,
+          campaignId: String(targetId),
           adGroupId: 0,
           logTargetType: 'placement',
           targetId,
@@ -704,7 +704,7 @@ export async function executeOptimization(
         negApiSuccess = true; // 否定关键词的实际API调用在searchTermHarvester中完成
         await db.createBiddingLog({
           accountId,
-          campaignId: 0,
+          campaignId: '',
           adGroupId: 0,
           logTargetType: 'negative_keyword',
           targetId,
@@ -721,7 +721,7 @@ export async function executeOptimization(
         // ✅ 搜索词收割 - 已通过searchTermHarvester模块处理
         await db.createBiddingLog({
           accountId,
-          campaignId: 0,
+          campaignId: '',
           adGroupId: 0,
           logTargetType: 'search_term_harvest',
           targetId,

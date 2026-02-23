@@ -5144,7 +5144,7 @@ export class AmazonSyncService {
       const adGroupsNeedingUrls = await db
         .select()
         .from(adGroups)
-        .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
+        .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
         .where(
           and(
             eq(campaigns.accountId, this.accountId),
@@ -5247,7 +5247,7 @@ export async function runAutoBidOptimization(
     .select({ keyword: keywords })
     .from(keywords)
     .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
-    .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
+    .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
     .where(and(
       eq(campaigns.accountId, accountId),
       eq(keywords.keywordStatus, 'enabled')

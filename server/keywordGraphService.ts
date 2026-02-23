@@ -297,7 +297,7 @@ export async function discoverOpportunities(accountId: number): Promise<KeywordO
       keywordText: keywords.keywordText,
     }).from(keywords)
       .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
-      .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
+      .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
       .where(and(
         eq(campaigns.accountId, accountId),
         eq(keywords.keywordStatus, 'enabled')

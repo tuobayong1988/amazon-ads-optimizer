@@ -30,7 +30,7 @@ export async function getDailyPerformanceByPerformanceGroup(
     totalOrders: sql<number>`COALESCE(SUM(${dailyPerformance.orders}), 0)`.as('totalOrders'),
   })
     .from(dailyPerformance)
-    .innerJoin(campaigns, sql`${dailyPerformance.campaignId} = CAST(${campaigns.id} AS CHAR)`)
+    .innerJoin(campaigns, eq(dailyPerformance.campaignId, campaigns.campaignId))
     .where(and(
       eq(campaigns.performanceGroupId, performanceGroupId),
       sql`${dailyPerformance.campaignId} IS NOT NULL`,

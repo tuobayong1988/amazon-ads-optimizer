@@ -594,7 +594,7 @@ export async function identifyFunnelTiers(
   })
   .from(keywords)
   .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
-  .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
+  .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
   .where(eq(campaigns.accountId, accountId))
   .groupBy(adGroups.campaignId, keywords.matchType);
   

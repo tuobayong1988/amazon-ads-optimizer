@@ -340,7 +340,7 @@ export async function batchExtractAndCacheFeatures(accountId: number): Promise<n
       campaignId: campaigns.campaignId,
     }).from(keywords)
       .innerJoin(adGroups, eq(keywords.adGroupId, adGroups.id))
-      .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
+      .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
       .where(and(
         eq(campaigns.accountId, accountId),
         eq(keywords.keywordStatus, 'enabled')
@@ -354,7 +354,7 @@ export async function batchExtractAndCacheFeatures(accountId: number): Promise<n
       campaignId: campaigns.campaignId,
     }).from(productTargets)
       .innerJoin(adGroups, eq(productTargets.adGroupId, adGroups.id))
-      .innerJoin(campaigns, sql`${adGroups.campaignId} = CAST(${campaigns.id} AS CHAR)`)
+      .innerJoin(campaigns, eq(adGroups.campaignId, campaigns.campaignId))
       .where(and(
         eq(campaigns.accountId, accountId),
         eq(productTargets.targetStatus, 'enabled')
