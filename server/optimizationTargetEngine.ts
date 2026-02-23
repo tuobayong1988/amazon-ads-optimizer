@@ -40,6 +40,7 @@ import { decideTargeting } from "./services/targetingAlgorithm";
 import type { SearchTermPerformance, TargetingDecision } from "./services/targetingAlgorithm";
 import { sanitizeAndValidateKeyword, canAddPositiveKeyword, isAsinSearchTerm, adGroupHasProductTargets } from "./utils/keywordValidator";
 import { createModuleLogger } from './utils/logger';
+import { getCampaignAmazonId, getCampaignLocalId } from './utils/idTypes';
 
 const log = createModuleLogger('TargetEngine');
 
@@ -649,7 +650,7 @@ export async function executeOptimizationTarget(
               changeReason: detail.reason,
               algorithmUsed: detail.algorithmUsed,
               confidenceScore: detail.confidenceScore,
-              campaignId: detail.campaignId,
+              campaignId: detail.localCampaignId,
               campaignName: detail.campaignName,
             });
           }
@@ -674,7 +675,7 @@ export async function executeOptimizationTarget(
               oldValue: detail.oldStatus || detail.previousValue,
               newValue: detail.newStatus || detail.newValue,
               changeReason: detail.reason,
-              campaignId: detail.campaignId,
+              campaignId: detail.localCampaignId,
               campaignName: detail.campaignName,
             });
           }
@@ -692,7 +693,7 @@ export async function executeOptimizationTarget(
               taskType: 'campaign_status',
               priority: 0,
               targetEntityType: 'campaign',
-              targetEntityId: detail.campaignId,
+              targetEntityId: detail.localCampaignId,
               amazonEntityId: detail.amazonCampaignId,
               targetEntityName: detail.campaignName,
               action: detail.newStatus,
@@ -735,7 +736,7 @@ export async function executeOptimizationTarget(
             if (detail.action === 'add_negative') {
               // v201: 否定关键词创建失败 → 入队 negative_keyword 类型
               // 修复: detail.campaignId是本地ID，需要查找Amazon campaignId
-              const negCampaign = campaigns.find((c: any) => c.id === detail.campaignId);
+              const negCampaign = campaigns.find((c: any) => c.id === detail.localCampaignId);
               const negAmazonCampaignId = negCampaign?.campaignId || null;
               failedTasks.push({
                 batchId,
@@ -744,14 +745,14 @@ export async function executeOptimizationTarget(
                 taskType: 'negative_keyword',
                 priority: 1,
                 targetEntityType: 'campaign',
-                targetEntityId: detail.campaignId,
-                amazonEntityId: negAmazonCampaignId ? String(negAmazonCampaignId) : null,
+                targetEntityId: detail.localCampaignId,
+                amazonEntityId: detail.amazonCampaignId || (negAmazonCampaignId ? String(negAmazonCampaignId) : null),
                 targetEntityName: detail.searchTerm,
                 action: detail.matchType === 'negative_exact' ? 'negativeExact' : 'negativePhrase',
                 oldValue: '',
                 newValue: detail.searchTerm,
                 changeReason: detail.reason || '否定关键词创建重试',
-                campaignId: detail.campaignId,
+                campaignId: detail.localCampaignId,
                 campaignName: detail.campaignName,
                 adGroupId: detail.adGroupId || null,
               });
@@ -771,7 +772,7 @@ export async function executeOptimizationTarget(
                 oldValue: '',
                 newValue: String(detail.bid || 0.50),
                 changeReason: detail.reason || '关键词创建重试',
-                campaignId: detail.campaignId,
+                campaignId: detail.localCampaignId,
                 campaignName: detail.campaignName,
                 adGroupId: detail.adGroupId || null,
               });
@@ -785,7 +786,7 @@ export async function executeOptimizationTarget(
       if (result.budgetAllocation?.details) {
         for (const detail of result.budgetAllocation.details) {
           if (detail.apiSyncStatus === 'failed') {
-            const campaign = campaigns.find((c: any) => c.id === detail.campaignId);
+            const campaign = campaigns.find((c: any) => c.id === detail.localCampaignId);
             failedTasks.push({
               batchId,
               optimizationTargetId: config.id,
@@ -793,14 +794,14 @@ export async function executeOptimizationTarget(
               taskType: 'budget_adjustment',
               priority: 1,
               targetEntityType: 'campaign',
-              targetEntityId: detail.campaignId,
-              amazonEntityId: campaign?.campaignId || String(detail.campaignId),
+              targetEntityId: detail.localCampaignId,
+              amazonEntityId: detail.amazonCampaignId || campaign?.campaignId || String(detail.localCampaignId),
               targetEntityName: detail.campaignName,
               action: 'budget_update',
               oldValue: String(detail.currentBudget),
               newValue: String(detail.suggestedBudget),
               changeReason: detail.reason || '预算调整重试',
-              campaignId: detail.campaignId,
+              campaignId: detail.localCampaignId,
               campaignName: detail.campaignName,
             });
           }
@@ -811,7 +812,7 @@ export async function executeOptimizationTarget(
       if (result.placementOptimization?.details) {
         for (const detail of result.placementOptimization.details) {
           if (detail.apiSyncStatus === 'failed') {
-            const campaign = campaigns.find((c: any) => c.id === detail.campaignId);
+            const campaign = campaigns.find((c: any) => c.id === detail.localCampaignId);
             failedTasks.push({
               batchId,
               optimizationTargetId: config.id,
@@ -819,14 +820,14 @@ export async function executeOptimizationTarget(
               taskType: 'placement_adjustment',
               priority: 2,
               targetEntityType: 'campaign',
-              targetEntityId: detail.campaignId,
-              amazonEntityId: campaign?.campaignId || String(detail.campaignId),
+              targetEntityId: detail.localCampaignId,
+              amazonEntityId: detail.amazonCampaignId || campaign?.campaignId || String(detail.localCampaignId),
               targetEntityName: detail.campaignName,
               action: detail.placement || 'placement_adjust',
               oldValue: detail.previousValue || '',
               newValue: detail.newValue || '',
               changeReason: detail.reason || '位置倾斜调整重试',
-              campaignId: detail.campaignId,
+              campaignId: detail.localCampaignId,
               campaignName: detail.campaignName,
             });
           }
@@ -837,7 +838,7 @@ export async function executeOptimizationTarget(
       if (result.daypartingBudgetOptimization?.details) {
         for (const detail of result.daypartingBudgetOptimization.details) {
           if (detail.apiSyncStatus === 'failed') {
-            const campaign = campaigns.find((c: any) => c.id === detail.campaignId);
+            const campaign = campaigns.find((c: any) => c.id === detail.localCampaignId);
             failedTasks.push({
               batchId,
               optimizationTargetId: config.id,
@@ -845,14 +846,14 @@ export async function executeOptimizationTarget(
               taskType: 'budget_adjustment',
               priority: 1,
               targetEntityType: 'campaign',
-              targetEntityId: detail.campaignId,
-              amazonEntityId: campaign?.campaignId || String(detail.campaignId),
+              targetEntityId: detail.localCampaignId,
+              amazonEntityId: detail.amazonCampaignId || campaign?.campaignId || String(detail.localCampaignId),
               targetEntityName: detail.campaignName,
               action: 'dayparting_budget',
               oldValue: String(detail.currentBudget || detail.baseBudget || ''),
               newValue: String(detail.adjustedBudget || detail.newBudget || ''),
               changeReason: detail.reason || '分时预算调整重试',
-              campaignId: detail.campaignId,
+              campaignId: detail.localCampaignId,
               campaignName: detail.campaignName,
             });
           }
@@ -877,7 +878,7 @@ export async function executeOptimizationTarget(
               oldValue: String(detail.baseBid || detail.previousBid || ''),
               newValue: String(detail.adjustedBid || detail.newBid || ''),
               changeReason: detail.reason || '分时竞价调整重试',
-              campaignId: detail.campaignId,
+              campaignId: detail.localCampaignId,
               campaignName: detail.campaignName,
             });
           }
@@ -962,6 +963,10 @@ async function executeBidOptimization(
   log.debug(`[BidOptimization] v165: 日预算=${config.dailyBudget || '未设置'}, 目标ACoS=${config.targetAcos || '未设置'}`);
   
   for (const campaign of campaigns) {
+    // v206: 统一ID提取 — 在循环开头一次性提取，后续代码统一使用
+    const campaignLocalId = getCampaignLocalId(campaign);   // int PK，用于本地DB更新
+    const campaignAmazonId = getCampaignAmazonId(campaign); // varchar，用于查询和API调用
+    
     // v163: 获取campaign级别的90天历史每日数据，用于时间衰减加权分析
     let campaignDailyData: Array<{ date: Date; spend: number; sales: number; clicks: number; orders: number }> = [];
     let campaignTimeWeightedMetrics: timeDecayService.TimeWeightedMetrics | null = null;
@@ -969,7 +974,7 @@ async function executeBidOptimization(
       const endDate = new Date();
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - 90); // v163: 从14天扩展到90天
-      const rawDailyData = await db.getDailyPerformanceByDateRange(config.accountId, startDate, endDate, campaign.id);
+      const rawDailyData = await db.getDailyPerformanceByDateRange(config.accountId, startDate, endDate, campaignAmazonId);
       campaignDailyData = rawDailyData.map(d => ({
         date: new Date(d.date),
         spend: parseFloat(String(d.spend || '0')),
@@ -987,18 +992,19 @@ async function executeBidOptimization(
         orders: d.orders || 0,
       }));
       campaignTimeWeightedMetrics = timeDecayService.calculateTimeWeightedMetrics(dailyDataForWeighting);
-      log.debug(`[BidOptimization] v163: Campaign ${campaign.id} 时间衰减加权 - 加权ACoS=${campaignTimeWeightedMetrics.weightedAcos.toFixed(1)}%, 加权ROAS=${campaignTimeWeightedMetrics.weightedRoas.toFixed(2)}, 置信度=${campaignTimeWeightedMetrics.dataQuality.confidenceLevel}, 趋势=${campaignTimeWeightedMetrics.trendSignal.direction}`);
+      log.debug(`[BidOptimization] v163: Campaign ${campaignLocalId} 时间衰减加权 - 加权ACoS=${campaignTimeWeightedMetrics.weightedAcos.toFixed(1)}%, 加权ROAS=${campaignTimeWeightedMetrics.weightedRoas.toFixed(2)}, 置信度=${campaignTimeWeightedMetrics.dataQuality.confidenceLevel}, 趋势=${campaignTimeWeightedMetrics.trendSignal.direction}`);
     } catch (e: any) {
-      log.warn(`[BidOptimization] 获取campaign ${campaign.id} 历史数据失败: ${e.message}`);
+      log.warn(`[BidOptimization] 获取campaign ${campaignLocalId} 历史数据失败: ${e.message}`);
     }
     
     // v163: 安全检查 - 检测异常信号
     if (campaignTimeWeightedMetrics) {
       const safetyCheck = gradualEngine.performSafetyCheck(campaignTimeWeightedMetrics);
       if (safetyCheck.shouldPause) {
-        log.warn(`[BidOptimization] v163: Campaign ${campaign.id} 安全检查触发暂停: ${safetyCheck.reason}`);
+        log.warn(`[BidOptimization] v163: Campaign ${campaignLocalId} 安全检查触发暂停: ${safetyCheck.reason}`);
         details.push({
-          campaignId: campaign.id,
+          localCampaignId: campaignLocalId,
+          amazonCampaignId: campaignAmazonId,
           campaignName: campaign.campaignName,
           action: 'safety_pause',
           reason: `[安全检查] ${safetyCheck.warnings.join('；')}`,
@@ -1006,7 +1012,7 @@ async function executeBidOptimization(
         continue; // 跳过该campaign的竞价优化
       }
       if (safetyCheck.warnings.length > 0) {
-        log.info(`[BidOptimization] v163: Campaign ${campaign.id} 安全警告: ${safetyCheck.warnings.join('；')}`);
+        log.info(`[BidOptimization] v163: Campaign ${campaignLocalId} 安全警告: ${safetyCheck.warnings.join('；')}`);
       }
     }
     
@@ -1014,11 +1020,11 @@ async function executeBidOptimization(
     const isVcpmCampaign = (campaign as any).costType === 'vcpm';
     const maxBidLimit = isVcpmCampaign ? vcpmMaxBidLimit : cpcMaxBidLimit;
     if (isVcpmCampaign) {
-      log.info(`[BidOptimization] v165: Campaign ${campaign.id} 识别为VCPM广告，使用VCPM最高出价$${maxBidLimit}`);
+      log.info(`[BidOptimization] v165: Campaign ${campaignLocalId} 识别为VCPM广告，使用VCPM最高出价$${maxBidLimit}`);
     }
     
     // v122h: 收集该campaign下所有关键词，构建EnhancedOptimizationTarget
-    const keywords = await db.getKeywordsByCampaignId(campaign.id);
+    const keywords = await db.getKeywordsByCampaignId(campaignAmazonId);
     const keywordTargets: bidOptimizer.EnhancedOptimizationTarget[] = [];
     
     for (const keyword of keywords) {
@@ -1053,7 +1059,8 @@ async function executeBidOptimization(
         // v163: 传入campaign级别的90天每日数据用于时间衰减加权分析
         dailyData: campaignDailyData.length > 0 ? campaignDailyData : undefined,
         marketplace: config.marketplace,
-        campaignId: campaign.id,
+        localCampaignId: campaignLocalId,
+        amazonCampaignId: campaignAmazonId,
       });
     }
     
@@ -1077,7 +1084,8 @@ async function executeBidOptimization(
           details.push({
             keywordId: nextGenResult.targetId,
             keywordText: keyword?.keywordText || `关键词 ${nextGenResult.targetId}`,
-            campaignId: campaign.id,
+            localCampaignId: campaignLocalId,
+            amazonCampaignId: campaignAmazonId,
             campaignName: campaign.campaignName,
             currentBid: nextGenResult.previousBid,
             newBid: finalBid,
@@ -1093,7 +1101,7 @@ async function executeBidOptimization(
     }
     
     // v122h: 商品定向也使用UCB增强版算法
-    const adGroupsList = await db.getAdGroupsByCampaignId(campaign.id);
+    const adGroupsList = await db.getAdGroupsByCampaignId(campaignAmazonId);
     const productTargets: bidOptimizer.EnhancedOptimizationTarget[] = [];
     const allTargets: any[] = [];
     
@@ -1119,7 +1127,8 @@ async function executeBidOptimization(
           historicalAvgImpressions: campaign.impressions ? Math.round(campaign.impressions / 30) : undefined, // v163
           dailyData: campaignDailyData.length > 0 ? campaignDailyData : undefined,
           marketplace: config.marketplace,
-          campaignId: campaign.id,
+          localCampaignId: campaignLocalId,
+          amazonCampaignId: campaignAmazonId,
         });
       }
     }
@@ -1143,7 +1152,8 @@ async function executeBidOptimization(
           details.push({
             keywordId: nextGenResult.targetId,
             keywordText: target?.targetText || target?.targetValue || `商品定向 ${nextGenResult.targetId}`,
-            campaignId: campaign.id,
+            localCampaignId: campaignLocalId,
+            amazonCampaignId: campaignAmazonId,
             campaignName: campaign.campaignName,
             currentBid: nextGenResult.previousBid,
             newBid: finalBid,
@@ -1177,7 +1187,7 @@ async function executeBidOptimization(
         details.map(d => ({
           keywordId: d.keywordId,
           newBid: d.newBid,
-          campaignId: d.campaignId,
+          campaignId: d.amazonCampaignId,
           reason: d.reason,
           isProductTarget: d.isProductTarget || false,
         }))
@@ -1229,8 +1239,8 @@ async function executeBidOptimization(
                     .where(eq(keywordsTable.id, detail.keywordId));
                 }
               }
-              // v178: 更新所有受影响的campaigns的last_optimized_at
-              const affectedCampaignIds = [...new Set(syncedDetails.map(d => d.campaignId))];
+              // v178/v206: 更新所有受影响的campaigns的last_optimized_at（使用本地int ID）
+              const affectedCampaignIds = [...new Set(syncedDetails.map(d => d.localCampaignId))];
               const nowStr = new Date().toISOString().slice(0, 19).replace('T', ' ');
               for (const cid of affectedCampaignIds) {
                 await tx.update(campaignsTable)
@@ -1259,7 +1269,7 @@ async function executeBidOptimization(
               localKeywordId: d.keywordId,
               amazonKeywordId: d.amazonKeywordId || String(d.keywordId),
               expectedBid: d.newBid,
-              campaignId: d.campaignId,
+              campaignId: d.amazonCampaignId,
               adGroupId: d.adGroupId,
               isProductTarget: d.isProductTarget || false,
             }))
@@ -1339,7 +1349,7 @@ async function executePlacementOptimization(
     try {
       // v186: 修复campaignId MISMATCH - placement_performance表存储的是本地ID(campaigns.id)
       // 本地数据库查询必须使用本地ID，Amazon API调用使用Amazon ID
-      const localCampaignId = campaign.id.toString();
+      const localCampaignIdStr = String(campaignLocalId);
       
       // 分析位置表现（使用本地ID查询placement_performance表）
       const analysis = await placementOptimizationService.analyzePlacementPerformance(localCampaignId, config.accountId);
@@ -1351,7 +1361,7 @@ async function executePlacementOptimization(
       );
       
       // v183: 基于多维度组合分析智能调整位置倾斜
-      const campaignCombos = accountComboMap.get(campaign.id) || [];
+      const campaignCombos = accountComboMap.get(campaignLocalId) || [];
       const goldenCombos = campaignCombos.filter((c: any) => c.comboCategory === 'golden' && c.confidenceLevel !== 'insufficient');
       
       // 统计黄金组合中各位置的表现
@@ -1382,7 +1392,8 @@ async function executePlacementOptimization(
         
         const adjustment: any = {
           accountId: config.accountId,
-          campaignId: campaign.id,
+          localCampaignId: campaignLocalId,
+          amazonCampaignId: campaignAmazonId,
           campaignName: campaign.campaignName,
           placement: suggestion.placement,
           currentMultiplier: suggestion.currentMultiplier,
@@ -1412,7 +1423,7 @@ async function executePlacementOptimization(
         let placementSyncError = '';
         try {
           // v186: Amazon API调用必须使用Amazon Campaign ID
-          const amazonCampaignId = campaign.campaignId || campaign.id.toString();
+          const amazonCampaignId = campaignAmazonId;
           const topSuggestion = suggestions.find((s: any) => s.placement === 'top_of_search');
           const productSuggestion = suggestions.find((s: any) => s.placement === 'product_page');
           
@@ -1432,7 +1443,7 @@ async function executePlacementOptimization(
         }
         
         // v134: 将同步状态回写到该campaign的所有detail中
-        for (const d of details.filter(d => d.campaignId === campaign.id)) {
+        for (const d of details.filter(d => d.localCampaignId === campaignLocalId)) {
           d.apiSyncStatus = placementSyncSuccess ? 'synced' : (placementSyncError ? 'failed' : 'pending');
           d.apiSyncDetail = placementSyncError ? JSON.stringify({ error: placementSyncError }) : null;
         }
@@ -1441,13 +1452,13 @@ async function executePlacementOptimization(
         if (placementSyncSuccess) {
           try {
             // v186: 验证任务中也使用正确的Amazon Campaign ID
-            const amazonCampaignIdForVerify = campaign.campaignId || campaign.id.toString();
+            const amazonCampaignIdForVerify = campaignAmazonId;
             const topSuggestion = suggestions?.find((s: any) => s.placement === 'top_of_search');
             const productSuggestion = suggestions?.find((s: any) => s.placement === 'product_page');
             postOptVerifier.schedulePlacementVerification(
               config.accountId,
               [{
-                localCampaignId: campaign.id,
+                localCampaignId: campaignLocalId,
                 amazonCampaignId: amazonCampaignIdForVerify,
                 expectedTopOfSearch: topSuggestion?.suggestedMultiplier,
                 expectedProductPage: productSuggestion?.suggestedMultiplier,
@@ -1460,7 +1471,8 @@ async function executePlacementOptimization(
       }
     } catch (error: any) {
       details.push({
-        campaignId: campaign.id,
+        localCampaignId: campaignLocalId,
+        amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
         error: error.message,
       });
@@ -1510,11 +1522,11 @@ async function executeDaypartingOptimization(
   for (const campaign of campaigns) {
     try {
       // v157: 修复分时策略查找 - 按campaignId查找，并自动创建缺失的策略
-      let strategy = await daypartingService.getDaypartingStrategyByCampaignId(campaign.id);
+      let strategy = await daypartingService.getDaypartingStrategyByCampaignId(campaignAmazonId);
       if (!strategy) {
         strategy = await daypartingService.ensureDaypartingStrategy(
           config.accountId,
-          campaign.id,
+          campaignAmazonId,
           campaign.campaignName,
           {
             optimizationGoal: config.optimizationGoal,
@@ -1533,7 +1545,7 @@ async function executeDaypartingOptimization(
       const baseDaypartingMultiplier = parseFloat(hourlyRule.bidMultiplier || '1.00');
       
       // 获取广告活动下的所有关键词
-      const keywords = await db.getKeywordsByCampaignId(campaign.id);
+      const keywords = await db.getKeywordsByCampaignId(campaignAmazonId);
       
       for (const keyword of keywords) {
         if (keyword.keywordStatus !== 'enabled') continue;
@@ -1603,7 +1615,8 @@ async function executeDaypartingOptimization(
         
         const adjustment: any = {
           accountId: config.accountId,
-          campaignId: campaign.id,
+          localCampaignId: campaignLocalId,
+          amazonCampaignId: campaignAmazonId,
           campaignName: campaign.campaignName,
           keywordId: keyword.id,
           keywordText: keyword.keywordText,
@@ -1632,7 +1645,8 @@ async function executeDaypartingOptimization(
               [{
                 keywordId: keyword.id,
                 newBid: adjustedBid,
-                campaignId: campaign.id,
+                localCampaignId: campaignLocalId,
+                amazonCampaignId: campaignAmazonId,
                 reason: `v183分时竞价: ${reasonParts.join(' × ')}`,
                 isProductTarget: false,
               }]
@@ -1653,7 +1667,8 @@ async function executeDaypartingOptimization(
       }
     } catch (error: any) {
       details.push({
-        campaignId: campaign.id,
+        localCampaignId: campaignLocalId,
+        amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
         error: error.message,
       });
@@ -1684,7 +1699,7 @@ async function executeDaypartingBudgetOptimization(
   for (const campaign of campaigns) {
     try {
       // 获取分时策略
-      let strategy = await daypartingService.getDaypartingStrategyByCampaignId(campaign.id);
+      let strategy = await daypartingService.getDaypartingStrategyByCampaignId(campaignAmazonId);
       if (!strategy || strategy.daypartingStatus !== 'active') continue;
       
       // 获取今天的预算规则
@@ -1701,7 +1716,7 @@ async function executeDaypartingBudgetOptimization(
         const dbConn = await getDb();
         if (!dbConn) throw new Error('Database not available');
         comboBudgetMultiplier = await multiDimComboAnalyzer.getCampaignBudgetMultiplier(
-          dbConn, config.accountId, campaign.id
+          dbConn, config.accountId, campaignLocalId
         );
         if (Math.abs(comboBudgetMultiplier - 1.0) > 0.001) {
           log.debug(`[DaypartingBudget] v183.1: Campaign ${campaign.campaignName} 组合分析预算乘数: ${comboBudgetMultiplier.toFixed(3)}`);
@@ -1727,7 +1742,8 @@ async function executeDaypartingBudgetOptimization(
       
       const adjustment: any = {
         accountId: config.accountId,
-        campaignId: campaign.id,
+        localCampaignId: campaignLocalId,
+        amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
         dayOfWeek: currentDayOfWeek,
         budgetMultiplier,
@@ -1746,7 +1762,7 @@ async function executeDaypartingBudgetOptimization(
       // 实际执行预算调整
       if (!dryRun && Math.abs(adjustedBudget - currentBudget) > 0.50) {
         try {
-          const amazonCampaignId = campaign.campaignId || campaign.id.toString();
+          const amazonCampaignId = campaignAmazonId;
           const budgetSyncResult = await amazonApiHelper.syncBudgetAdjustmentToAmazon(
             config.accountId,
             amazonCampaignId,
@@ -1755,7 +1771,7 @@ async function executeDaypartingBudgetOptimization(
           );
           
           if (budgetSyncResult) {
-            await db.updateCampaign(campaign.id, {
+            await db.updateCampaign(campaignLocalId, {
               dailyBudget: adjustedBudget.toFixed(2),
               lastOptimizedAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
             } as any);
@@ -1768,7 +1784,7 @@ async function executeDaypartingBudgetOptimization(
                 strategyId: strategy.id,
                 executionType: 'budget_adjustment',
                 dpTargetType: 'campaign',
-                dpTargetId: campaign.id,
+                dpTargetId: campaignLocalId,
                 dpTargetName: campaign.campaignName,
                 previousValue: currentBudget.toFixed(2),
                 newValue: adjustedBudget.toFixed(2),
@@ -1794,7 +1810,8 @@ async function executeDaypartingBudgetOptimization(
       }
     } catch (error: any) {
       details.push({
-        campaignId: campaign.id,
+        localCampaignId: campaignLocalId,
+        amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
         error: error.message,
       });
@@ -1835,7 +1852,7 @@ async function executeSearchTermAnalysis(
   for (const campaign of campaigns) {
     try {
       // 获取搜索词数据
-      const searchTerms = await db.getSearchTermsByCampaignId(campaign.id);
+      const searchTerms = await db.getSearchTermsByCampaignId(campaignAmazonId);
       
       // v191: 使用智能投放决策引擎替代旧的classifySearchTerms
       // 获取campaign的定向类型（auto/manual）
@@ -1875,7 +1892,8 @@ async function executeSearchTermAnalysis(
           // v122h: 品牌词保护 - 不否定含有品牌词的搜索词
           if (brandTerms.length > 0 && isProtectedKeyword(stPerf.searchTerm, brandTerms)) {
             details.push({
-              campaignId: campaign.id,
+              localCampaignId: campaignLocalId,
+              amazonCampaignId: campaignAmazonId,
               campaignName: campaign.campaignName,
               searchTerm: stPerf.searchTerm,
               action: 'brand_protect_skip',
@@ -1885,7 +1903,7 @@ async function executeSearchTermAnalysis(
           }
           
           // v122h: 探索期保护 - 检查对应的投放词是否在探索期内
-          const matchingKeywords = await db.getKeywordsByCampaignId(campaign.id);
+          const matchingKeywords = await db.getKeywordsByCampaignId(campaignAmazonId);
           const matchingKw = matchingKeywords.find((kw: any) => 
             kw.keywordText?.toLowerCase() === stPerf.searchTerm.toLowerCase()
           );
@@ -1893,7 +1911,8 @@ async function executeSearchTermAnalysis(
             const kwCreatedAt = new Date(matchingKw.createdAt);
             if (isNewKeyword(kwCreatedAt, matchingKw.clicks || 0, matchingKw.impressions || 0, 7)) {
               details.push({
-                campaignId: campaign.id,
+                localCampaignId: campaignLocalId,
+                amazonCampaignId: campaignAmazonId,
                 campaignName: campaign.campaignName,
                 searchTerm: stPerf.searchTerm,
                 action: 'exploration_protect_skip',
@@ -1919,7 +1938,8 @@ async function executeSearchTermAnalysis(
               } else {
                 log.warn(`[SearchTermAnalysis] v204: 否定词预验证失败(升级后仍无效): "${decision.targetValue}" → ${exactValidation.reasonMessage}`);
                 details.push({
-                  campaignId: campaign.id,
+                  localCampaignId: campaignLocalId,
+                  amazonCampaignId: campaignAmazonId,
                   campaignName: campaign.campaignName,
                   searchTerm: decision.targetValue,
                   action: 'negative_validation_failed',
@@ -1930,7 +1950,8 @@ async function executeSearchTermAnalysis(
             } else {
               log.warn(`[SearchTermAnalysis] v204: 否定词预验证失败: "${decision.targetValue}" → ${negValidation.reasonMessage}`);
               details.push({
-                campaignId: campaign.id,
+                localCampaignId: campaignLocalId,
+                amazonCampaignId: campaignAmazonId,
                 campaignName: campaign.campaignName,
                 searchTerm: decision.targetValue,
                 action: 'negative_validation_failed',
@@ -1950,7 +1971,7 @@ async function executeSearchTermAnalysis(
               const existingNeg = await dbInstance.select({ id: negKwTable.id, amazonNegativeKeywordId: negKwTable.amazonNegativeKeywordId })
                 .from(negKwTable)
                 .where(andOp(
-                  eqOp(negKwTable.campaignId, campaign.id as any),
+                  eqOp(negKwTable.campaignId, campaignAmazonId as any),
                   eqOp(negKwTable.negativeText, cleanedNegText)
                 ))
                 .limit(1);
@@ -1963,7 +1984,8 @@ async function executeSearchTermAnalysis(
 
           const negativeKeyword: any = {
             accountId: config.accountId,
-            campaignId: campaign.id,
+            localCampaignId: campaignLocalId,
+            amazonCampaignId: campaignAmazonId,
             campaignName: campaign.campaignName,
             searchTerm: cleanedNegText,
             matchType: negMatchType,
@@ -1980,7 +2002,8 @@ async function executeSearchTermAnalysis(
             const matchType = negMatchType === 'negative_exact' ? 'exact' : 'phrase';
             negativeKeyword._pendingDbInsert = {
               accountId: campaign.accountId || 0,
-              campaignId: campaign.id,
+              localCampaignId: campaignLocalId,
+              amazonCampaignId: campaignAmazonId,
               negativeLevel: 'campaign',
               negativeType: 'keyword',
               negativeText: cleanedNegText,
@@ -2006,7 +2029,8 @@ async function executeSearchTermAnalysis(
             const ptBid = decision.suggestedBid || 0.50;
             details.push({
               accountId: config.accountId,
-              campaignId: campaign.id,
+              localCampaignId: campaignLocalId,
+              amazonCampaignId: campaignAmazonId,
               campaignName: campaign.campaignName,
               searchTerm: decision.targetValue,
               matchType: 'product_target_exact',
@@ -2026,7 +2050,8 @@ async function executeSearchTermAnalysis(
           if (!posValidation.isValid) {
             log.warn(`[SearchTermAnalysis] v204: 正面关键词预验证失败: "${decision.targetValue}" → ${posValidation.reasonMessage}`);
             details.push({
-              campaignId: campaign.id,
+              localCampaignId: campaignLocalId,
+              amazonCampaignId: campaignAmazonId,
               campaignName: campaign.campaignName,
               searchTerm: decision.targetValue,
               action: 'keyword_validation_failed',
@@ -2042,7 +2067,8 @@ async function executeSearchTermAnalysis(
           
           const newKeyword: any = {
             accountId: config.accountId,
-            campaignId: campaign.id,
+            localCampaignId: campaignLocalId,
+            amazonCampaignId: campaignAmazonId,
             campaignName: campaign.campaignName,
             searchTerm: cleanedPosText,
             matchType: matchType,
@@ -2060,12 +2086,12 @@ async function executeSearchTermAnalysis(
           if (!dryRun) {
             const dbInstance = await db.getDb();
             if (dbInstance) {
-              const adGroups = await db.getAdGroupsByCampaignId(campaign.id);
+              const adGroups = await db.getAdGroupsByCampaignId(campaignAmazonId);
               if (adGroups.length > 0) {
                 const adGroup = adGroups[0];
                 const amazonAdGroupId = Number(adGroup.adGroupId || 0);
                 // v201: 直接使用字符串避免大数字精度丢失
-                const amazonCampaignId = campaign.campaignId || String(campaign.id);
+                const amazonCampaignId = campaignAmazonId;
                 
                 // v194: 检查广告组是否已有product targets
                 try {
@@ -2168,7 +2194,8 @@ async function executeSearchTermAnalysis(
           
           const newTarget: any = {
             accountId: config.accountId,
-            campaignId: campaign.id,
+            localCampaignId: campaignLocalId,
+            amazonCampaignId: campaignAmazonId,
             campaignName: campaign.campaignName,
             searchTerm: decision.targetValue,
             matchType: `product_target_${ptType}`,
@@ -2189,11 +2216,11 @@ async function executeSearchTermAnalysis(
       }
       // v134: 同步否定关键词到 Amazon API，并记录同步状态
       if (!dryRun) {
-        const negativeDetails = details.filter(d => d.action === 'add_negative' && d.campaignId === campaign.id);
+        const negativeDetails = details.filter(d => d.action === 'add_negative' && d.localCampaignId === campaignLocalId);
         if (negativeDetails.length > 0) {
           try {
             // v201: 直接使用字符串避免大数字精度丢失
-            const amazonCampaignId = campaign.campaignId || String(campaign.id);
+            const amazonCampaignId = campaignAmazonId;
             const negSyncResult = await amazonApiHelper.syncNegativeKeywordsToAmazon(
               config.accountId,
               negativeDetails.map(d => ({
@@ -2257,7 +2284,8 @@ async function executeSearchTermAnalysis(
                       localId: d._pendingDbInsert?.id || 0,
                       keywordText: d.searchTerm,
                       matchType: d.matchType === 'negative_exact' ? 'negativeExact' : 'negativePhrase',
-                      campaignId: campaign.id,
+                      localCampaignId: campaignLocalId,
+                      amazonCampaignId: campaignAmazonId,
                     }))
                   );
                 }
@@ -2278,7 +2306,8 @@ async function executeSearchTermAnalysis(
       }
     } catch (error: any) {
       details.push({
-        campaignId: campaign.id,
+        localCampaignId: campaignLocalId,
+        amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
         error: error.message,
       });
@@ -2348,7 +2377,7 @@ async function executeBudgetAllocation(
       if (!dryRun && Math.abs(finalBudget - suggestion.currentBudget) > 0.50) { // v165: 降低API调用阈值从$1到$0.50
         // v148: 先调Amazon API确认成功，再更新本地数据库（先API后DB原则）
         try {
-          const amazonCampaignId = campaign.campaignId || campaign.id.toString();
+          const amazonCampaignId = campaignAmazonId;
           const budgetSyncResult = await amazonApiHelper.syncBudgetAdjustmentToAmazon(
             config.accountId,
             amazonCampaignId,
@@ -2456,7 +2485,7 @@ async function executeKeywordStatusChanges(
         const endDate = new Date();
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - 90);
-        const rawDailyData = await db.getDailyPerformanceByDateRange(config.accountId, startDate, endDate, campaign.id);
+        const rawDailyData = await db.getDailyPerformanceByDateRange(config.accountId, startDate, endDate, campaignAmazonId);
         const dailyDataForWeighting: timeDecayService.DailyRawData[] = rawDailyData.map(d => ({
           date: typeof d.date === 'string' ? d.date : new Date(d.date).toISOString(),
           impressions: d.impressions || 0,
@@ -2469,11 +2498,11 @@ async function executeKeywordStatusChanges(
           campaignTWMetrics = timeDecayService.calculateTimeWeightedMetrics(dailyDataForWeighting);
         }
       } catch (e: any) {
-        log.warn(`[KeywordStatus] v163: Campaign ${campaign.id} 时间衰减数据获取失败: ${e.message}`);
+        log.warn(`[KeywordStatus] v163: Campaign ${campaignLocalId} 时间衰减数据获取失败: ${e.message}`);
       }
       
       // 获取广告活动下的所有关键词
-      const keywords = await db.getKeywordsByCampaignId(campaign.id);
+      const keywords = await db.getKeywordsByCampaignId(campaignAmazonId);
       
       for (const keyword of keywords) {
         const spend = parseFloat(keyword.spend || '0');
@@ -2523,7 +2552,8 @@ async function executeKeywordStatusChanges(
               shouldPause = false;
               const explorationInfo = getExplorationStrategy(keywordCreatedAt, clicks, impressions, parseFloat(keyword.bid || '0'));
               details.push({
-                campaignId: campaign.id,
+                localCampaignId: campaignLocalId,
+                amazonCampaignId: campaignAmazonId,
                 campaignName: campaign.campaignName,
                 keywordId: keyword.id,
                 keywordText: keyword.keywordText,
@@ -2542,7 +2572,8 @@ async function executeKeywordStatusChanges(
             if (brandTerms.length > 0 && isProtectedKeyword(keyword.keywordText, brandTerms)) {
               shouldPause = false;
               details.push({
-                campaignId: campaign.id,
+                localCampaignId: campaignLocalId,
+                amazonCampaignId: campaignAmazonId,
                 campaignName: campaign.campaignName,
                 keywordId: keyword.id,
                 keywordText: keyword.keywordText,
@@ -2558,7 +2589,8 @@ async function executeKeywordStatusChanges(
           if (shouldPause && clicks < 10 && spend < groupAov) {
             shouldPause = false;
             details.push({
-              campaignId: campaign.id,
+              localCampaignId: campaignLocalId,
+              amazonCampaignId: campaignAmazonId,
               campaignName: campaign.campaignName,
               keywordId: keyword.id,
               keywordText: keyword.keywordText,
@@ -2593,7 +2625,8 @@ async function executeKeywordStatusChanges(
         if (shouldPause) {
           const action: any = {
             accountId: config.accountId,
-            campaignId: campaign.id,
+            localCampaignId: campaignLocalId,
+            amazonCampaignId: campaignAmazonId,
             campaignName: campaign.campaignName,
             keywordId: keyword.id,
             keywordText: keyword.keywordText,
@@ -2614,7 +2647,8 @@ async function executeKeywordStatusChanges(
                 [{
                   keywordId: keyword.id,
                   newStatus: 'paused',
-                  campaignId: campaign.id,
+                  localCampaignId: campaignLocalId,
+                  amazonCampaignId: campaignAmazonId,
                   reason: pauseReason,
                   isProductTarget: false,
                 }]
@@ -2648,7 +2682,8 @@ async function executeKeywordStatusChanges(
         } else if (shouldEnable) {
           const action: any = {
             accountId: config.accountId,
-            campaignId: campaign.id,
+            localCampaignId: campaignLocalId,
+            amazonCampaignId: campaignAmazonId,
             campaignName: campaign.campaignName,
             keywordId: keyword.id,
             keywordText: keyword.keywordText,
@@ -2669,7 +2704,8 @@ async function executeKeywordStatusChanges(
                 [{
                   keywordId: keyword.id,
                   newStatus: 'enabled',
-                  campaignId: campaign.id,
+                  localCampaignId: campaignLocalId,
+                  amazonCampaignId: campaignAmazonId,
                   reason: enableReason,
                   isProductTarget: false,
                 }]
@@ -2704,7 +2740,8 @@ async function executeKeywordStatusChanges(
       }
     } catch (error: any) {
       details.push({
-        campaignId: campaign.id,
+        localCampaignId: campaignLocalId,
+        amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
         error: error.message,
       });
@@ -2750,7 +2787,7 @@ async function executeCampaignStatusChanges(
         const endDate = new Date();
         const startDate = new Date();
         startDate.setDate(startDate.getDate() - 90);
-        const rawDailyData = await db.getDailyPerformanceByDateRange(config.accountId, startDate, endDate, campaign.id);
+        const rawDailyData = await db.getDailyPerformanceByDateRange(config.accountId, startDate, endDate, campaignAmazonId);
         const dailyDataForWeighting: timeDecayService.DailyRawData[] = rawDailyData.map(d => ({
           date: typeof d.date === 'string' ? d.date : new Date(d.date).toISOString(),
           impressions: d.impressions || 0,
@@ -2763,7 +2800,7 @@ async function executeCampaignStatusChanges(
           campaignTWMetrics = timeDecayService.calculateTimeWeightedMetrics(dailyDataForWeighting);
         }
       } catch (e: any) {
-        log.warn(`[CampaignStatus] v163: Campaign ${campaign.id} 时间衰减数据获取失败: ${e.message}`);
+        log.warn(`[CampaignStatus] v163: Campaign ${campaignLocalId} 时间衰减数据获取失败: ${e.message}`);
       }
       
       // v163: 优先使用时间衰减加权数据，而非简单汇总
@@ -2816,7 +2853,8 @@ async function executeCampaignStatusChanges(
         const action: any = {
           accountId: config.accountId,
           entityType: 'campaign',
-          campaignId: campaign.id,
+          localCampaignId: campaignLocalId,
+          amazonCampaignId: campaignAmazonId,
           campaignName: campaign.campaignName,
           amazonCampaignId: campaign.campaignId || campaign.amazonCampaignId,
           action: 'pause',
@@ -2838,15 +2876,15 @@ async function executeCampaignStatusChanges(
             const syncResult = await amazonApiHelper.syncCampaignStatusToAmazon(
               config.accountId,
               [{
-                campaignId: campaign.id,
-                amazonCampaignId: String(campaign.campaignId || campaign.amazonCampaignId || ''),
+                localCampaignId: campaignLocalId,
+                amazonCampaignId: campaignAmazonId,
                 newStatus: 'paused',
                 campaignName: campaign.campaignName || '',
                 reason: pauseReason,
               }]
             );
             if (syncResult.success > 0) {
-              await db.updateCampaign(campaign.id, { campaignStatus: 'paused' });
+              await db.updateCampaign(campaignLocalId, { campaignStatus: 'paused' });
               pausedCount++;
               action.apiSyncStatus = 'synced';
             } else {
@@ -2866,7 +2904,8 @@ async function executeCampaignStatusChanges(
         const action: any = {
           accountId: config.accountId,
           entityType: 'campaign',
-          campaignId: campaign.id,
+          localCampaignId: campaignLocalId,
+          amazonCampaignId: campaignAmazonId,
           campaignName: campaign.campaignName,
           amazonCampaignId: campaign.campaignId || campaign.amazonCampaignId,
           action: 'enable',
@@ -2888,15 +2927,15 @@ async function executeCampaignStatusChanges(
             const syncResult = await amazonApiHelper.syncCampaignStatusToAmazon(
               config.accountId,
               [{
-                campaignId: campaign.id,
-                amazonCampaignId: String(campaign.campaignId || campaign.amazonCampaignId || ''),
+                localCampaignId: campaignLocalId,
+                amazonCampaignId: campaignAmazonId,
                 newStatus: 'enabled',
                 campaignName: campaign.campaignName || '',
                 reason: enableReason,
               }]
             );
             if (syncResult.success > 0) {
-              await db.updateCampaign(campaign.id, { campaignStatus: 'enabled' });
+              await db.updateCampaign(campaignLocalId, { campaignStatus: 'enabled' });
               enabledCount++;
               action.apiSyncStatus = 'synced';
             } else {
@@ -2915,7 +2954,8 @@ async function executeCampaignStatusChanges(
       }
     } catch (error: any) {
       details.push({
-        campaignId: campaign.id,
+        localCampaignId: campaignLocalId,
+        amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
         entityType: 'campaign',
         error: error.message,
@@ -2948,7 +2988,7 @@ async function executeAdGroupStatusChanges(
   
   for (const campaign of campaigns) {
     try {
-      const adGroups = await db.getAdGroupsByCampaignId(campaign.id);
+      const adGroups = await db.getAdGroupsByCampaignId(campaignAmazonId);
       
       for (const adGroup of adGroups) {
         const spend = parseFloat(adGroup.spend || '0');
@@ -2982,7 +3022,8 @@ async function executeAdGroupStatusChanges(
           const action: any = {
             accountId: config.accountId,
             entityType: 'adGroup',
-            campaignId: campaign.id,
+            localCampaignId: campaignLocalId,
+            amazonCampaignId: campaignAmazonId,
             campaignName: campaign.campaignName,
             adGroupId: adGroup.id,
             adGroupName: adGroup.adGroupName,
@@ -3029,7 +3070,8 @@ async function executeAdGroupStatusChanges(
           const action: any = {
             accountId: config.accountId,
             entityType: 'adGroup',
-            campaignId: campaign.id,
+            localCampaignId: campaignLocalId,
+            amazonCampaignId: campaignAmazonId,
             campaignName: campaign.campaignName,
             adGroupId: adGroup.id,
             adGroupName: adGroup.adGroupName,
@@ -3076,7 +3118,8 @@ async function executeAdGroupStatusChanges(
       }
     } catch (error: any) {
       details.push({
-        campaignId: campaign.id,
+        localCampaignId: campaignLocalId,
+        amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
         entityType: 'adGroup',
         error: error.message,
@@ -3110,12 +3153,12 @@ async function executeBidCoordination(
       const proposals: bidCoordinator.BidProposal[] = [];
       
       // 1. 收集出价优化建议
-      const bidSuggestions = bidDetails.filter(d => d.campaignId === campaign.id);
+      const bidSuggestions = bidDetails.filter(d => d.localCampaignId === campaignLocalId);
       for (const suggestion of bidSuggestions) {
         if (suggestion.newBid && suggestion.currentBid) {
           const multiplier = suggestion.newBid / suggestion.currentBid;
           proposals.push(bidCoordinator.createBidProposal(
-            campaign.id,
+            campaignLocalId,
             'campaign',
             'base_algo',
             {
@@ -3128,11 +3171,11 @@ async function executeBidCoordination(
       }
       
       // 2. 收集位置优化建议
-      const placementSuggestions = placementDetails.filter(d => d.campaignId === campaign.id);
+      const placementSuggestions = placementDetails.filter(d => d.localCampaignId === campaignLocalId);
       for (const suggestion of placementSuggestions) {
         if (suggestion.suggestedMultiplier !== undefined) {
           proposals.push(bidCoordinator.createBidProposal(
-            campaign.id,
+            campaignLocalId,
             'campaign',
             'placement',
             {
@@ -3145,11 +3188,11 @@ async function executeBidCoordination(
       }
       
       // 3. 收集分时策略建议
-      const daypartingSuggestions = daypartingDetails.filter(d => d.campaignId === campaign.id);
+      const daypartingSuggestions = daypartingDetails.filter(d => d.localCampaignId === campaignLocalId);
       for (const suggestion of daypartingSuggestions) {
         if (suggestion.bidMultiplier && suggestion.bidMultiplier !== 1) {
           proposals.push(bidCoordinator.createBidProposal(
-            campaign.id,
+            campaignLocalId,
             'campaign',
             'dayparting',
             {
@@ -3171,7 +3214,7 @@ async function executeBidCoordination(
       
       // 5. 调用中央协调器
       const coordinatedResult = await bidCoordinator.applyCoordinatedBids(
-        campaign.campaignId || campaign.id.toString(),
+        campaignAmazonId,
         config.accountId,
         proposals,
         currentBaseBid,
@@ -3181,7 +3224,8 @@ async function executeBidCoordination(
       
       // 6. 记录协调结果
       const coordinationDetail = {
-        campaignId: campaign.id,
+        localCampaignId: campaignLocalId,
+        amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
         proposalsCount: proposals.length,
         originalBaseBid: coordinatedResult.originalBaseBid,
@@ -3211,7 +3255,8 @@ async function executeBidCoordination(
       }
     } catch (error: any) {
       details.push({
-        campaignId: campaign.id,
+        localCampaignId: campaignLocalId,
+        amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
         error: error.message,
       });
@@ -3259,7 +3304,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
             accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
             logCategory: 'bid_adjustment',
             actionType: detail.newBid > detail.currentBid ? 'bid_increase' : 'bid_decrease',
-            campaignId: detail.campaignId,
+            campaignId: detail.localCampaignId,
             campaignName: detail.campaignName,
             actionDetail: JSON.stringify(detail),
             // v175: 不再带$符号存储，避免AutoCorrector解析NaN
@@ -3289,7 +3334,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
           logCategory: 'placement_adjustment',
           actionType: 'placement_adjust',
-          campaignId: detail.campaignId,
+          campaignId: detail.localCampaignId,
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
           previousValue: detail.previousValue || `${detail.placement}: ${detail.currentMultiplier}%`,
@@ -3315,7 +3360,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
           logCategory: 'optimization_settings',
           actionType: actionType,
-          campaignId: detail.campaignId,
+          campaignId: detail.localCampaignId,
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
           previousValue: '',
@@ -3340,7 +3385,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
           logCategory: 'bid_adjustment',
           actionType: 'dayparting_bid',
-          campaignId: detail.campaignId,
+          campaignId: detail.localCampaignId,
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
           // v175: 不再带$符号存储
@@ -3366,7 +3411,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
           logCategory: 'bid_adjustment',
           actionType: 'budget_adjustment',
-          campaignId: detail.campaignId,
+          campaignId: detail.localCampaignId,
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
           // v175: 不再带$符号存储，避免AutoCorrector解析NaN
@@ -3393,7 +3438,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
           accountId: result.accountId || detail.accountId || 0,
           logCategory: 'bid_adjustment',
           actionType: 'budget_adjustment',
-          campaignId: detail.campaignId,
+          campaignId: detail.localCampaignId,
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
           previousValue: `${detail.currentBudget?.toFixed(2) || '0.00'}`,
@@ -3418,7 +3463,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
           logCategory: 'bid_adjustment',
           actionType: detail.action === 'add_negative' ? 'negative_keyword_add' : detail.newStatus === 'paused' ? 'target_pause' : 'target_enable',
-          campaignId: detail.campaignId,
+          campaignId: detail.localCampaignId,
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
           previousValue: detail.currentStatus || '',
@@ -3444,7 +3489,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
           logCategory: 'bid_adjustment',
           actionType: detail.newStatus === 'paused' ? 'bid_decrease' : 'bid_increase',
-          campaignId: detail.campaignId,
+          campaignId: detail.localCampaignId,
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
           previousValue: detail.previousStatus || '',
@@ -3470,7 +3515,7 @@ async function recordExecutionLog(result: OptimizationExecutionResult): Promise<
           accountId: result.accountId || detail.accountId || 0, // v167: 优先使用result.accountId
           logCategory: 'optimization_settings',
           actionType: detail.action === 'pause' ? 'adgroup_pause' : 'adgroup_enable',
-          campaignId: detail.campaignId,
+          campaignId: detail.localCampaignId,
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
           previousValue: detail.currentStatus || '',
@@ -3653,7 +3698,7 @@ export async function getOptimizationTargetSummary(targetId: number): Promise<{
   let keywordsCount = 0;
   
   for (const campaign of campaigns) {
-    const keywords = await db.getKeywordsByCampaignId(campaign.id);
+    const keywords = await db.getKeywordsByCampaignId(campaignAmazonId);
     keywordsCount += keywords.length;
   }
   

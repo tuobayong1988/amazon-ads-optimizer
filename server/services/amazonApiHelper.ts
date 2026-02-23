@@ -126,7 +126,7 @@ export async function syncBidAdjustmentsToAmazon(
   adjustments: Array<{
     keywordId: number;
     newBid: number;
-    campaignId: number;
+    campaignId: number | string;  // v206: Amazon campaignId (varchar) or local int
     reason: string;
     isProductTarget?: boolean;
   }>

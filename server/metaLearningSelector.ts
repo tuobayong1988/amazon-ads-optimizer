@@ -121,12 +121,12 @@ async function getAlgorithmStats(accountId: number): Promise<Map<AlgorithmType, 
     ))
     .limit(1000);
   
-  for (const log of logs) {
-    const alg = log.selectedAlgorithm as AlgorithmType;
+  for (const selLog of logs) {
+    const alg = selLog.selectedAlgorithm as AlgorithmType;
     const stat = stats.get(alg);
     if (!stat) continue;
     
-    const reward = Number(log.resultReward) || 0;
+    const reward = Number(selLog.resultReward) || 0;
     stat.totalTrials++;
     stat.totalReward += reward;
     stat.avgReward = stat.totalReward / stat.totalTrials;
@@ -390,7 +390,7 @@ export async function backfillAlgorithmResults(accountId: number): Promise<numbe
     ))
     .limit(200);
   
-  for (const log of pendingLogs) {
+  for (const pendLog of pendingLogs) {
     try {
       // 查找对应的RL日志中的reward
       const rlLog = await db.select({
@@ -398,8 +398,8 @@ export async function backfillAlgorithmResults(accountId: number): Promise<numbe
       }).from(rlTrainingLogs)
         .where(and(
           eq(rlTrainingLogs.accountId, accountId),
-          log.keywordId ? eq(rlTrainingLogs.keywordId, log.keywordId) : sql`1=1`,
-          log.targetId ? eq(rlTrainingLogs.targetId, log.targetId) : sql`1=1`,
+          pendLog.keywordId ? eq(rlTrainingLogs.keywordId, pendLog.keywordId) : sql`1=1`,
+          pendLog.targetId ? eq(rlTrainingLogs.targetId, pendLog.targetId) : sql`1=1`,
           isNotNull(rlTrainingLogs.reward),
           gte(rlTrainingLogs.createdAt, hoursAgo48)
         ))
@@ -412,7 +412,7 @@ export async function backfillAlgorithmResults(accountId: number): Promise<numbe
             resultReward: rlLog[0].reward,
             resultFilledAt: new Date().toISOString(),
           })
-          .where(eq(algorithmSelectionLogs.id, log.id));
+          .where(eq(algorithmSelectionLogs.id, pendLog.id));
         filledCount++;
       }
     } catch (e) {

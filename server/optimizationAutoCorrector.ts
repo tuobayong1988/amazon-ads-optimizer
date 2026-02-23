@@ -557,7 +557,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
       FROM optimization_events oe
       JOIN keywords k ON oe.keyword_id = k.id
       JOIN ad_groups ag ON k.adGroupId = ag.id
-      JOIN campaigns c ON ag.campaignId = c.id
+      JOIN campaigns c ON ag.campaignId = c.campaignId
       LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
       WHERE oe.account_id = ${accountId}
         AND oe.event_category = 'bid_adjustment'
@@ -1349,7 +1349,7 @@ async function retryFailedKeywordCreations(database: any, accountId: number): Pr
         const campRows = await database
           .select({ campaignId: campaigns.campaignId })
           .from(campaigns)
-          .where(eq(campaigns.id, ag.campaignId))
+          .where(eq(campaigns.campaignId, ag.campaignId))
           .limit(1);
         
         if (campRows.length === 0) continue;
@@ -2083,7 +2083,7 @@ async function correctMaxBidViolations(database: any, accountId: number): Promis
         c.campaignName as campaign_name
       FROM keywords k
       JOIN ad_groups ag ON k.adGroupId = ag.id
-      JOIN campaigns c ON ag.campaignId = c.id
+      JOIN campaigns c ON ag.campaignId = c.campaignId
       JOIN performance_groups pg ON c.performanceGroupId = pg.id
       WHERE c.accountId = ${accountId}
         AND k.keywordStatus = 'enabled'
@@ -2154,7 +2154,7 @@ async function correctMaxBidViolations(database: any, accountId: number): Promis
         c.id as campaign_id
       FROM product_targets pt
       JOIN ad_groups ag ON pt.adGroupId = ag.id
-      JOIN campaigns c ON ag.campaignId = c.id
+      JOIN campaigns c ON ag.campaignId = c.campaignId
       JOIN performance_groups pg ON c.performanceGroupId = pg.id
       WHERE c.accountId = ${accountId}
         AND pt.targetStatus = 'enabled'
@@ -2224,7 +2224,7 @@ async function cleanupOrphanKeywords(database: any, accountId: number): Promise<
         pg.name as pg_name
       FROM keywords k
       JOIN ad_groups ag ON k.adGroupId = ag.id
-      JOIN campaigns c ON ag.campaignId = c.id
+      JOIN campaigns c ON ag.campaignId = c.campaignId
       LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
       WHERE c.accountId = ${accountId}
         AND k.keywordStatus = 'enabled'
@@ -2949,10 +2949,10 @@ async function verifyBiddingLogsExecution(database: any, accountId: number): Pro
     let mismatched = 0;
     let corrected = 0;
     
-    for (const log of rows) {
-      const expectedBid = parseFloat(String(log.new_bid));
-      const targetId = log.target_id;
-      const targetType = log.log_target_type;
+    for (const bidLog of rows) {
+      const expectedBid = parseFloat(String(bidLog.new_bid));
+      const targetId = bidLog.target_id;
+      const targetType = bidLog.log_target_type;
       
       // 根据类型查询当前实际bid
       let currentBid: number | null = null;
@@ -3105,7 +3105,7 @@ async function auditAlgorithmDecisionQuality(database: any, accountId: number): 
         oe.created_at as last_optimized_at
       FROM keywords k
       INNER JOIN ad_groups ag ON k.adGroupId = ag.id
-      INNER JOIN campaigns c ON ag.campaignId = c.id AND c.accountId = ${accountId}
+      INNER JOIN campaigns c ON ag.campaignId = c.campaignId AND c.accountId = ${accountId}
       INNER JOIN performance_groups pg ON c.performanceGroupId = pg.id
       LEFT JOIN (
         SELECT keyword_id, algorithm_version, created_at,

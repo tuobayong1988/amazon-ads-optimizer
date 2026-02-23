@@ -534,7 +534,7 @@ var require_depd = __commonJS({
       var site = callSiteLocation(stack[1]);
       var file2 = site[0];
       function deprecate(message2) {
-        log21.call(deprecate, message2);
+        log22.call(deprecate, message2);
       }
       deprecate._file = file2;
       deprecate._ignored = isignored(namespace);
@@ -563,7 +563,7 @@ var require_depd = __commonJS({
       var str2 = process.env.TRACE_DEPRECATION || "";
       return containsNamespace(str2, namespace);
     }
-    function log21(message2, site) {
+    function log22(message2, site) {
       var haslisteners = eehaslisteners(process, "deprecation");
       if (!haslisteners && this._ignored) {
         return;
@@ -703,7 +703,7 @@ var require_depd = __commonJS({
         "message",
         "site",
         '"use strict"\nreturn function (' + args + ") {log.call(deprecate, message, site)\nreturn fn.apply(this, arguments)\n}"
-      )(fn2, log21, this, message2, site);
+      )(fn2, log22, this, message2, site);
       return deprecatedfn;
     }
     function wrapproperty(obj, prop, message2) {
@@ -728,13 +728,13 @@ var require_depd = __commonJS({
       var set2 = descriptor.set;
       if (typeof get7 === "function") {
         descriptor.get = function getter() {
-          log21.call(deprecate, message2, site);
+          log22.call(deprecate, message2, site);
           return get7.apply(this, arguments);
         };
       }
       if (typeof set2 === "function") {
         descriptor.set = function setter() {
-          log21.call(deprecate, message2, site);
+          log22.call(deprecate, message2, site);
           return set2.apply(this, arguments);
         };
       }
@@ -1571,7 +1571,7 @@ var require_debug = __commonJS({
 var require_browser = __commonJS({
   "node_modules/debug/src/browser.js"(exports2, module2) {
     exports2 = module2.exports = require_debug();
-    exports2.log = log21;
+    exports2.log = log22;
     exports2.formatArgs = formatArgs2;
     exports2.save = save2;
     exports2.load = load;
@@ -1619,7 +1619,7 @@ var require_browser = __commonJS({
       });
       args.splice(lastC, 0, c5);
     }
-    function log21() {
+    function log22() {
       return "object" === typeof console && console.log && Function.prototype.apply.call(console.log, console, arguments);
     }
     function save2(namespaces) {
@@ -1660,7 +1660,7 @@ var require_node = __commonJS({
     var util3 = require("util");
     exports2 = module2.exports = require_debug();
     exports2.init = init2;
-    exports2.log = log21;
+    exports2.log = log22;
     exports2.formatArgs = formatArgs2;
     exports2.save = save2;
     exports2.load = load;
@@ -1711,7 +1711,7 @@ var require_node = __commonJS({
         args[0] = (/* @__PURE__ */ new Date()).toUTCString() + " " + name2 + " " + args[0];
       }
     }
-    function log21() {
+    function log22() {
       return stream4.write(util3.format.apply(util3, arguments) + "\n");
     }
     function save2(namespaces) {
@@ -36051,34 +36051,34 @@ async function updateProductTarget(id, data4) {
   if (!db) throw new Error("Database not available");
   await db.update(productTargets).set(data4).where(eq(productTargets.id, id));
 }
-async function createBiddingLog(log21) {
+async function createBiddingLog(log22) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(biddingLogs).values(log21);
+  const result = await db.insert(biddingLogs).values(log22);
   const logId = result[0].insertId;
   try {
-    const bidChange = Number(log21.newBid || 0) - Number(log21.previousBid || 0);
+    const bidChange = Number(log22.newBid || 0) - Number(log22.previousBid || 0);
     await db.insert(optimizationEvents).values({
-      accountId: log21.accountId || 0,
+      accountId: log22.accountId || 0,
       eventCategory: "bid_adjustment",
       actionType: bidChange > 0 ? "bid_increase" : bidChange < 0 ? "bid_decrease" : "bid_set",
-      campaignId: log21.campaignId,
-      campaignName: log21.campaignName || void 0,
-      keywordId: log21.targetId,
-      keywordText: log21.keywordText || void 0,
-      matchType: log21.logMatchType || void 0,
-      previousBid: String(log21.previousBid || 0),
-      newBid: String(log21.newBid || 0),
-      bidChangePercent: Number(log21.previousBid) > 0 ? String(Math.round(bidChange / Number(log21.previousBid) * 1e4) / 100) : "0",
-      changeReason: log21.reason || void 0,
-      adjustmentType: log21.actionType || void 0,
+      campaignId: log22.campaignId,
+      campaignName: log22.campaignName || void 0,
+      keywordId: log22.targetId,
+      keywordText: log22.keywordText || void 0,
+      matchType: log22.logMatchType || void 0,
+      previousBid: String(log22.previousBid || 0),
+      newBid: String(log22.newBid || 0),
+      bidChangePercent: Number(log22.previousBid) > 0 ? String(Math.round(bidChange / Number(log22.previousBid) * 1e4) / 100) : "0",
+      changeReason: log22.reason || void 0,
+      adjustmentType: log22.actionType || void 0,
       status: "success",
       apiSyncStatus: "not_applicable",
       sourceTable: "bidding_logs",
       sourceId: Number(logId)
     });
   } catch (e6) {
-    log21.error("[v145] \u53CC\u5199optimization_events\u5931\u8D25(biddingLog):", e6);
+    log22.error("[v145] \u53CC\u5199optimization_events\u5931\u8D25(biddingLog):", e6);
   }
   return logId;
 }
@@ -36558,12 +36558,12 @@ async function getBidChangeRecords(accountId, days) {
   startDate.setDate(startDate.getDate() - days);
   const logs = await db.select().from(biddingLogs).where(eq(biddingLogs.accountId, accountId)).orderBy(desc(biddingLogs.createdAt)).limit(500);
   const records = [];
-  for (const log21 of logs) {
-    if (log21.actionType !== "increase" && log21.actionType !== "decrease" && log21.actionType !== "set") {
+  for (const bidRecord of logs) {
+    if (bidRecord.actionType !== "increase" && bidRecord.actionType !== "decrease" && bidRecord.actionType !== "set") {
       continue;
     }
-    const oldBid = parseFloat(log21.previousBid || "0");
-    const newBid = parseFloat(log21.newBid || "0");
+    const oldBid = parseFloat(bidRecord.previousBid || "0");
+    const newBid = parseFloat(bidRecord.newBid || "0");
     if (oldBid === 0 || newBid === 0) continue;
     let performanceAfter = {
       clicks: 0,
@@ -36574,12 +36574,12 @@ async function getBidChangeRecords(accountId, days) {
       acos: 0
     };
     try {
-      if (log21.campaignId) {
-        const changeDate = new Date(log21.createdAt || Date.now());
+      if (bidRecord.campaignId) {
+        const changeDate = new Date(bidRecord.createdAt || Date.now());
         const endDate = new Date(changeDate);
         endDate.setDate(endDate.getDate() + 7);
         const perfRows = await db.select().from(dailyPerformance).where(and(
-          eq(dailyPerformance.campaignId, String(log21.campaignId)),
+          eq(dailyPerformance.campaignId, String(log.campaignId)),
           sql`DATE(${dailyPerformance.date}) >= ${changeDate.toISOString().split("T")[0]}`,
           sql`DATE(${dailyPerformance.date}) <= ${endDate.toISOString().split("T")[0]}`
         ));
@@ -36601,16 +36601,16 @@ async function getBidChangeRecords(accountId, days) {
     } catch (e6) {
     }
     records.push({
-      id: log21.id,
-      targetId: log21.targetId || 0,
-      targetName: log21.targetName || "",
-      targetType: log21.logTargetType,
-      campaignId: log21.campaignId || 0,
+      id: bidRecord.id,
+      targetId: bidRecord.targetId || 0,
+      targetName: bidRecord.targetName || "",
+      targetType: bidRecord.logTargetType,
+      campaignId: bidRecord.campaignId || 0,
       campaignName: "",
       oldBid,
       newBid,
-      changeDate: log21.createdAt || (/* @__PURE__ */ new Date()).toISOString(),
-      changeReason: log21.reason || "",
+      changeDate: bidRecord.createdAt || (/* @__PURE__ */ new Date()).toISOString(),
+      changeReason: bidRecord.reason || "",
       performanceAfter
     });
   }
@@ -37242,8 +37242,8 @@ async function createEmailSendLog(data4) {
   if (!db) return null;
   const result = await db.insert(emailSendLogs).values(data4);
   const insertId = result[0].insertId;
-  const [log21] = await db.select().from(emailSendLogs).where(eq(emailSendLogs.id, insertId));
-  return log21 || null;
+  const [log22] = await db.select().from(emailSendLogs).where(eq(emailSendLogs.id, insertId));
+  return log22 || null;
 }
 async function getEmailSendLogsBySubscription(subscriptionId, limit2 = 20) {
   const db = await getDb();
@@ -38810,25 +38810,25 @@ async function migrateFromBiddingLogs(accountId) {
   if (!db) throw new Error("Database not available");
   const oldLogs = await db.select().from(biddingLogs).where(eq(biddingLogs.accountId, accountId)).orderBy(desc(biddingLogs.createdAt));
   if (oldLogs.length === 0) return 0;
-  const events = oldLogs.map((log21) => ({
-    accountId: log21.accountId,
+  const events = oldLogs.map((log22) => ({
+    accountId: log22.accountId,
     eventCategory: "bid_adjustment",
-    actionType: log21.actionType === "increase" ? "bid_increase" : log21.actionType === "decrease" ? "bid_decrease" : "bid_set",
-    campaignId: log21.campaignId,
-    adGroupId: log21.adGroupId,
-    keywordId: log21.targetId,
-    targetName: log21.targetName,
-    previousBid: log21.previousBid,
-    newBid: log21.newBid,
-    bidChangePercent: log21.bidChangePercent,
-    changeReason: log21.reason,
-    status: log21.executionStatus === "success" ? "success" : log21.executionStatus === "failed" ? "failed" : "pending",
-    apiSyncStatus: log21.executionStatus === "success" ? "synced" : log21.executionStatus === "failed" ? "failed" : "pending",
-    apiResponseId: log21.apiResponseId,
-    errorMessage: log21.errorMessage,
+    actionType: log22.actionType === "increase" ? "bid_increase" : log22.actionType === "decrease" ? "bid_decrease" : "bid_set",
+    campaignId: log22.campaignId,
+    adGroupId: log22.adGroupId,
+    keywordId: log22.targetId,
+    targetName: log22.targetName,
+    previousBid: log22.previousBid,
+    newBid: log22.newBid,
+    bidChangePercent: log22.bidChangePercent,
+    changeReason: log22.reason,
+    status: log22.executionStatus === "success" ? "success" : log22.executionStatus === "failed" ? "failed" : "pending",
+    apiSyncStatus: log22.executionStatus === "success" ? "synced" : log22.executionStatus === "failed" ? "failed" : "pending",
+    apiResponseId: log22.apiResponseId,
+    errorMessage: log22.errorMessage,
     sourceTable: "bidding_logs",
-    sourceId: log21.id,
-    createdAt: log21.createdAt
+    sourceId: log22.id,
+    createdAt: log22.createdAt
   }));
   await db.insert(optimizationEvents).values(events);
   return events.length;
@@ -38916,34 +38916,34 @@ async function migrateFromOptimizationLogs(performanceGroupId) {
     "settings_update": "settings_update",
     "strategy_change": "strategy_change"
   };
-  const events = oldLogs.map((log21) => {
-    const mappedCategory = categoryMap[log21.logCategory || ""] || "settings_change";
-    const mappedAction = actionTypeMap[log21.actionType || ""] || "settings_update";
+  const events = oldLogs.map((log22) => {
+    const mappedCategory = categoryMap[log22.logCategory || ""] || "settings_change";
+    const mappedAction = actionTypeMap[log22.actionType || ""] || "settings_update";
     return {
-      performanceGroupId: log21.performanceGroupId,
-      performanceGroupName: log21.performanceGroupName,
-      accountId: log21.accountId,
-      accountName: log21.accountName,
-      userId: log21.userId,
-      userName: log21.userName,
+      performanceGroupId: log22.performanceGroupId,
+      performanceGroupName: log22.performanceGroupName,
+      accountId: log22.accountId,
+      accountName: log22.accountName,
+      userId: log22.userId,
+      userName: log22.userName,
       eventCategory: mappedCategory,
       actionType: mappedAction,
-      strategyTemplateId: log21.strategyTemplateId,
-      strategyTemplateName: log21.strategyTemplateName,
-      campaignId: log21.campaignId,
-      campaignName: log21.campaignName,
-      previousValue: log21.previousValue,
-      newValue: log21.newValue,
-      changeReason: log21.changeReason,
-      actionDetail: log21.actionDetail,
-      status: log21.status || "success",
-      apiSyncStatus: log21.apiSyncStatus,
-      apiSyncDetail: log21.apiSyncDetail,
-      errorMessage: log21.errorMessage,
+      strategyTemplateId: log22.strategyTemplateId,
+      strategyTemplateName: log22.strategyTemplateName,
+      campaignId: log22.campaignId,
+      campaignName: log22.campaignName,
+      previousValue: log22.previousValue,
+      newValue: log22.newValue,
+      changeReason: log22.changeReason,
+      actionDetail: log22.actionDetail,
+      status: log22.status || "success",
+      apiSyncStatus: log22.apiSyncStatus,
+      apiSyncDetail: log22.apiSyncDetail,
+      errorMessage: log22.errorMessage,
       sourceTable: "optimization_logs",
-      sourceId: log21.id,
-      createdAt: log21.createdAt,
-      executedAt: log21.executedAt
+      sourceId: log22.id,
+      createdAt: log22.createdAt,
+      executedAt: log22.executedAt
     };
   });
   const batchSize = 500;
@@ -57368,14 +57368,14 @@ async function ensureAmazonIdsReady(accountId) {
     const [remainingKws] = await directConn.execute(
       `SELECT COUNT(*) AS cnt FROM keywords k
        INNER JOIN ad_groups ag ON k.adGroupId = ag.id
-       INNER JOIN campaigns c ON ag.campaignId = c.id
+       INNER JOIN campaigns c ON ag.campaignId = c.campaignId
        WHERE c.accountId = ? AND k.keywordId IS NULL`,
       [accountId]
     );
     const [remainingPts] = await directConn.execute(
       `SELECT COUNT(*) AS cnt FROM product_targets pt
        INNER JOIN ad_groups ag ON pt.adGroupId = ag.id
-       INNER JOIN campaigns c ON ag.campaignId = c.id
+       INNER JOIN campaigns c ON ag.campaignId = c.campaignId
        WHERE c.accountId = ? AND pt.targetId IS NULL`,
       [accountId]
     );
@@ -57402,7 +57402,7 @@ async function resolveKeywordIds(accountId, conn, result) {
     `SELECT k.id, k.adGroupId, k.keywordText, k.matchType, k.bid, k.keywordStatus
      FROM keywords k
      INNER JOIN ad_groups ag ON k.adGroupId = ag.id
-     INNER JOIN campaigns c ON ag.campaignId = c.id
+     INNER JOIN campaigns c ON ag.campaignId = c.campaignId
      WHERE c.accountId = ? AND k.keywordId IS NULL`,
     [accountId]
   );
@@ -57489,7 +57489,7 @@ async function resolveKeywordIds(accountId, conn, result) {
         log4.info(`adGroup=${adGroupLocalId}: ${toCreate.length}\u4E2A\u5173\u952E\u8BCD\u9700\u8981\u5728Amazon\u521B\u5EFA`);
         const [campRows] = await conn.execute(
           `SELECT c.campaignId, c.targetingType FROM campaigns c
-           INNER JOIN ad_groups ag ON ag.campaignId = c.id
+           INNER JOIN ad_groups ag ON ag.campaignId = c.campaignId
            WHERE ag.id = ? LIMIT 1`,
           [adGroupLocalId]
         );
@@ -57613,7 +57613,7 @@ async function resolveProductTargetIds(accountId, conn, result) {
     `SELECT pt.id, pt.adGroupId, pt.targetExpression, pt.targetValue, pt.target_match_type as targetMatchType
      FROM product_targets pt
      INNER JOIN ad_groups ag ON pt.adGroupId = ag.id
-     INNER JOIN campaigns c ON ag.campaignId = c.id
+     INNER JOIN campaigns c ON ag.campaignId = c.campaignId
      WHERE c.accountId = ? AND pt.targetId IS NULL`,
     [accountId]
   );
@@ -57720,7 +57720,7 @@ async function resolveKeywordIdOnDemand(accountId, keywordLocalId) {
               ag.adGroupId AS amazonAdGroupId, c.campaignId AS amazonCampaignId
        FROM keywords k
        INNER JOIN ad_groups ag ON k.adGroupId = ag.id
-       INNER JOIN campaigns c ON ag.campaignId = c.id
+       INNER JOIN campaigns c ON ag.campaignId = c.campaignId
        WHERE k.id = ? AND k.keywordId IS NULL`,
       [keywordLocalId]
     );
@@ -57828,7 +57828,7 @@ async function resolveProductTargetIdOnDemand(accountId, ptLocalId) {
               ag.adGroupId AS amazonAdGroupId
        FROM product_targets pt
        INNER JOIN ad_groups ag ON pt.adGroupId = ag.id
-       INNER JOIN campaigns c ON ag.campaignId = c.id
+       INNER JOIN campaigns c ON ag.campaignId = c.campaignId
        WHERE pt.id = ? AND pt.targetId IS NULL`,
       [ptLocalId]
     );
@@ -59215,7 +59215,7 @@ var init_amazonSyncService = __esm({
             if (negState === "archived") continue;
             const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, String(neg.adGroupId))).limit(1);
             if (!adGroup) continue;
-            const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, adGroup.campaignId)).limit(1);
+            const [campaign] = await db.select().from(campaigns).where(eq(campaigns.campaignId, adGroup.campaignId)).limit(1);
             if (!campaign) continue;
             const matchType = (neg.matchType || "").toLowerCase().includes("phrase") ? "negative_phrase" : "negative_exact";
             const amazonKeywordId = String(neg.keywordId || neg.negativeKeywordId || "");
@@ -59316,7 +59316,7 @@ var init_amazonSyncService = __esm({
             if (negState === "archived") continue;
             const [adGroup] = await db.select().from(adGroups).where(eq(adGroups.adGroupId, String(neg.adGroupId))).limit(1);
             if (!adGroup) continue;
-            const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, adGroup.campaignId)).limit(1);
+            const [campaign] = await db.select().from(campaigns).where(eq(campaigns.campaignId, adGroup.campaignId)).limit(1);
             if (!campaign) continue;
             const expression = neg.expression || [];
             const asinExpr = expression.find((e6) => e6.type?.toLowerCase().includes("asin"));
@@ -60423,7 +60423,7 @@ var init_amazonSyncService = __esm({
                 const { resolveKeywordIdOnDemand: resolveKeywordIdOnDemand2 } = await Promise.resolve().then(() => (init_amazonIdResolver(), amazonIdResolver_exports));
                 const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, kw.adGroupId)).limit(1);
                 if (ag) {
-                  const [camp] = await db.select().from(campaigns).where(eq(campaigns.id, ag.campaignId)).limit(1);
+                  const [camp] = await db.select().from(campaigns).where(eq(campaigns.campaignId, ag.campaignId)).limit(1);
                   if (camp) {
                     const resolvedId = await resolveKeywordIdOnDemand2(camp.accountId, targetId);
                     if (resolvedId) {
@@ -60466,7 +60466,7 @@ var init_amazonSyncService = __esm({
                 const { resolveProductTargetIdOnDemand: resolveProductTargetIdOnDemand2 } = await Promise.resolve().then(() => (init_amazonIdResolver(), amazonIdResolver_exports));
                 const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, pt3.adGroupId)).limit(1);
                 if (ag) {
-                  const [camp] = await db.select().from(campaigns).where(eq(campaigns.id, ag.campaignId)).limit(1);
+                  const [camp] = await db.select().from(campaigns).where(eq(campaigns.campaignId, ag.campaignId)).limit(1);
                   if (camp) {
                     const resolvedId = await resolveProductTargetIdOnDemand2(camp.accountId, targetId);
                     if (resolvedId) {
@@ -60871,10 +60871,10 @@ var init_amazonSyncService = __esm({
             const placement = placementMap[rawPlacement] || "rest_of_search";
             log5.debug(`v157: \u4F4D\u7F6E\u6620\u5C04: raw="${rawPlacement}" -> "${placement}" (row keys: ${Object.keys(row).filter((k5) => k5.toLowerCase().includes("place")).join(",")})`);
             const reportDate = row.date || (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-            const localCampaignId = String(campaign.id);
+            const localCampaignId2 = String(campaign.id);
             const [existing] = await db.select().from(placementPerformance).where(
               and(
-                eq(placementPerformance.campaignId, localCampaignId),
+                eq(placementPerformance.campaignId, localCampaignId2),
                 eq(placementPerformance.accountId, this.accountId),
                 eq(placementPerformance.placement, placement),
                 eq(placementPerformance.date, reportDate)
@@ -60886,7 +60886,7 @@ var init_amazonSyncService = __esm({
             const impressions = row.impressions || 0;
             const orders = row.purchases7d || row.purchases14d || 0;
             const perfData = {
-              campaignId: localCampaignId,
+              campaignId: localCampaignId2,
               accountId: this.accountId,
               placement,
               date: reportDate,
@@ -64750,8 +64750,8 @@ async function checkEmergencyBrake(accountId, performanceGroupId) {
     let previousSpend = 0, previousSales = 0, previousOrders = 0;
     for (const campaign of campaigns7) {
       try {
-        const recentData = await getDailyPerformanceByDateRange(accountId, recentStart, recentEnd, campaign.id);
-        const previousData = await getDailyPerformanceByDateRange(accountId, previousStart, previousEnd, campaign.id);
+        const recentData = await getDailyPerformanceByDateRange(accountId, recentStart, recentEnd, campaign.campaignId || campaign.id);
+        const previousData = await getDailyPerformanceByDateRange(accountId, previousStart, previousEnd, campaign.campaignId || campaign.id);
         for (const d5 of recentData) {
           recentSpend += Number(d5.spend) || 0;
           recentSales += Number(d5.sales) || 0;
@@ -65471,9 +65471,9 @@ async function backfillRewards(accountId) {
       gte(rlTrainingLogs.createdAt, hoursAgo72),
       lte(rlTrainingLogs.createdAt, hoursAgo24)
     )).limit(500);
-    for (const log21 of pendingLogs) {
+    for (const log22 of pendingLogs) {
       try {
-        const logDate = new Date(log21.createdAt);
+        const logDate = new Date(log22.createdAt);
         const nextDay = new Date(logDate.getTime() + 864e5).toISOString().split("T")[0];
         const twoDaysLater = new Date(logDate.getTime() + 2 * 864e5).toISOString().split("T")[0];
         const afterPerf = await db.select({
@@ -65483,8 +65483,8 @@ async function backfillRewards(accountId) {
           totalSpend: sql`SUM(CAST(spend AS DECIMAL(10,2)))`,
           totalSales: sql`SUM(CAST(sales AS DECIMAL(10,2)))`
         }).from(dailyPerformance).where(and(
-          eq(dailyPerformance.accountId, log21.accountId),
-          log21.campaignId ? eq(dailyPerformance.campaignId, log21.campaignId) : sql`1=1`,
+          eq(dailyPerformance.accountId, log22.accountId),
+          log22.campaignId ? eq(dailyPerformance.campaignId, log22.campaignId) : sql`1=1`,
           gte(dailyPerformance.date, nextDay),
           lte(dailyPerformance.date, twoDaysLater)
         ));
@@ -65505,10 +65505,10 @@ async function backfillRewards(accountId) {
           rewardSales: String(rewardSales),
           rewardProfit: String(rewardProfit),
           rewardFilledAt: (/* @__PURE__ */ new Date()).toISOString()
-        }).where(eq(rlTrainingLogs.id, log21.id));
+        }).where(eq(rlTrainingLogs.id, log22.id));
         filledCount++;
       } catch (e6) {
-        console.error(`[RLDataRecorder] Failed to fill reward for log ${log21.id}:`, e6);
+        console.error(`[RLDataRecorder] Failed to fill reward for log ${log22.id}:`, e6);
       }
     }
     console.log(`[RLDataRecorder] Backfilled ${filledCount} rewards for account ${accountId}`);
@@ -66549,11 +66549,11 @@ async function getAlgorithmStats(accountId) {
     eq(algorithmSelectionLogs.accountId, accountId),
     isNotNull(algorithmSelectionLogs.resultFilledAt)
   )).limit(1e3);
-  for (const log21 of logs) {
-    const alg = log21.selectedAlgorithm;
+  for (const selLog of logs) {
+    const alg = selLog.selectedAlgorithm;
     const stat = stats.get(alg);
     if (!stat) continue;
-    const reward = Number(log21.resultReward) || 0;
+    const reward = Number(selLog.resultReward) || 0;
     stat.totalTrials++;
     stat.totalReward += reward;
     stat.avgReward = stat.totalReward / stat.totalTrials;
@@ -66742,14 +66742,14 @@ async function backfillAlgorithmResults(accountId) {
     gte(algorithmSelectionLogs.createdAt, hoursAgo48),
     sql`created_at <= ${hoursAgo24}`
   )).limit(200);
-  for (const log21 of pendingLogs) {
+  for (const pendLog of pendingLogs) {
     try {
       const rlLog = await db.select({
         reward: rlTrainingLogs.reward
       }).from(rlTrainingLogs).where(and(
         eq(rlTrainingLogs.accountId, accountId),
-        log21.keywordId ? eq(rlTrainingLogs.keywordId, log21.keywordId) : sql`1=1`,
-        log21.targetId ? eq(rlTrainingLogs.targetId, log21.targetId) : sql`1=1`,
+        pendLog.keywordId ? eq(rlTrainingLogs.keywordId, pendLog.keywordId) : sql`1=1`,
+        pendLog.targetId ? eq(rlTrainingLogs.targetId, pendLog.targetId) : sql`1=1`,
         isNotNull(rlTrainingLogs.reward),
         gte(rlTrainingLogs.createdAt, hoursAgo48)
       )).orderBy(desc(rlTrainingLogs.createdAt)).limit(1);
@@ -66757,7 +66757,7 @@ async function backfillAlgorithmResults(accountId) {
         await db.update(algorithmSelectionLogs).set({
           resultReward: rlLog[0].reward,
           resultFilledAt: (/* @__PURE__ */ new Date()).toISOString()
-        }).where(eq(algorithmSelectionLogs.id, log21.id));
+        }).where(eq(algorithmSelectionLogs.id, pendLog.id));
         filledCount++;
       }
     } catch (e6) {
@@ -75606,7 +75606,7 @@ async function findTargetAdGroup(searchTerm, manualCampaigns, sourceCampaign) {
     (c5) => c5.campaignName?.toLowerCase().includes("exact") || c5.campaignName?.includes("\u7CBE\u786E")
   );
   for (const campaign of exactCampaigns) {
-    const adGroupsList = await getAdGroupsByCampaignId(campaign.id);
+    const adGroupsList = await getAdGroupsByCampaignId(campaign.campaignId || campaign.id);
     const enabledAdGroups = adGroupsList.filter((ag) => ag.adGroupStatus === "enabled");
     for (const ag of enabledAdGroups) {
       const hasPT = await adGroupHasProductTargets(ag.id);
@@ -75623,7 +75623,7 @@ async function findTargetAdGroup(searchTerm, manualCampaigns, sourceCampaign) {
     }
   }
   for (const campaign of manualCampaigns) {
-    const adGroupsList = await getAdGroupsByCampaignId(campaign.id);
+    const adGroupsList = await getAdGroupsByCampaignId(campaign.campaignId || campaign.id);
     const enabledAdGroups = adGroupsList.filter((ag) => ag.adGroupStatus === "enabled");
     for (const ag of enabledAdGroups) {
       const hasPT = await adGroupHasProductTargets(ag.id);
@@ -76233,7 +76233,7 @@ async function correctBidMismatches(database, accountId) {
       FROM optimization_events oe
       JOIN keywords k ON oe.keyword_id = k.id
       JOIN ad_groups ag ON k.adGroupId = ag.id
-      JOIN campaigns c ON ag.campaignId = c.id
+      JOIN campaigns c ON ag.campaignId = c.campaignId
       LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
       WHERE oe.account_id = ${accountId}
         AND oe.event_category = 'bid_adjustment'
@@ -76820,7 +76820,7 @@ async function retryFailedKeywordCreations(database, accountId) {
           continue;
         }
         const ag = agRows[0];
-        const campRows = await database.select({ campaignId: campaigns.campaignId }).from(campaigns).where(eq(campaigns.id, ag.campaignId)).limit(1);
+        const campRows = await database.select({ campaignId: campaigns.campaignId }).from(campaigns).where(eq(campaigns.campaignId, ag.campaignId)).limit(1);
         if (campRows.length === 0) continue;
         const syncResult = await syncNewKeywordsToAmazon(accountId, [{
           localKeywordId,
@@ -77346,7 +77346,7 @@ async function correctMaxBidViolations(database, accountId) {
         c.campaignName as campaign_name
       FROM keywords k
       JOIN ad_groups ag ON k.adGroupId = ag.id
-      JOIN campaigns c ON ag.campaignId = c.id
+      JOIN campaigns c ON ag.campaignId = c.campaignId
       JOIN performance_groups pg ON c.performanceGroupId = pg.id
       WHERE c.accountId = ${accountId}
         AND k.keywordStatus = 'enabled'
@@ -77402,7 +77402,7 @@ async function correctMaxBidViolations(database, accountId) {
         c.id as campaign_id
       FROM product_targets pt
       JOIN ad_groups ag ON pt.adGroupId = ag.id
-      JOIN campaigns c ON ag.campaignId = c.id
+      JOIN campaigns c ON ag.campaignId = c.campaignId
       JOIN performance_groups pg ON c.performanceGroupId = pg.id
       WHERE c.accountId = ${accountId}
         AND pt.targetStatus = 'enabled'
@@ -77457,7 +77457,7 @@ async function cleanupOrphanKeywords(database, accountId) {
         pg.name as pg_name
       FROM keywords k
       JOIN ad_groups ag ON k.adGroupId = ag.id
-      JOIN campaigns c ON ag.campaignId = c.id
+      JOIN campaigns c ON ag.campaignId = c.campaignId
       LEFT JOIN performance_groups pg ON c.performanceGroupId = pg.id
       WHERE c.accountId = ${accountId}
         AND k.keywordStatus = 'enabled'
@@ -77543,9 +77543,9 @@ async function retryHistoricalFailedKeywordHarvests(database, accountId) {
       if (!byCampaign.has(campaignId)) byCampaign.set(campaignId, []);
       byCampaign.get(campaignId).push({ eventId, searchTerm, matchType, campaignName });
     }
-    for (const [localCampaignId, kwEvents] of byCampaign) {
+    for (const [localCampaignId2, kwEvents] of byCampaign) {
       try {
-        const campRows = await database.select({ campaignId: campaigns.campaignId, accountId: campaigns.accountId }).from(campaigns).where(eq(campaigns.id, localCampaignId)).limit(1);
+        const campRows = await database.select({ campaignId: campaigns.campaignId, accountId: campaigns.accountId }).from(campaigns).where(eq(campaigns.id, localCampaignId2)).limit(1);
         if (campRows.length === 0) {
           for (const kw of kwEvents) {
             await database.execute(sql`
@@ -77554,13 +77554,13 @@ async function retryHistoricalFailedKeywordHarvests(database, accountId) {
               WHERE id = ${kw.eventId}
             `).catch(() => {
             });
-            results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `Campaign\u4E0D\u5B58\u5728\uFF0C\u653E\u5F03\u91CD\u8BD5: ${kw.searchTerm}`, success: false, errorMessage: "campaign_not_found" });
+            results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId2, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `Campaign\u4E0D\u5B58\u5728\uFF0C\u653E\u5F03\u91CD\u8BD5: ${kw.searchTerm}`, success: false, errorMessage: "campaign_not_found" });
           }
           continue;
         }
         const amazonCampaignId = campRows[0].campaignId;
         const agRows = await database.select({ id: adGroups.id, adGroupId: adGroups.adGroupId }).from(adGroups).where(and(
-          eq(adGroups.campaignId, String(localCampaignId)),
+          eq(adGroups.campaignId, String(localCampaignId2)),
           eq(adGroups.adGroupStatus, "enabled")
         )).limit(1);
         if (agRows.length === 0) {
@@ -77571,7 +77571,7 @@ async function retryHistoricalFailedKeywordHarvests(database, accountId) {
               WHERE id = ${kw.eventId}
             `).catch(() => {
             });
-            results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `\u65E0\u6D3B\u8DC3adGroup\uFF0C\u653E\u5F03\u91CD\u8BD5: ${kw.searchTerm}`, success: false, errorMessage: "no_active_adgroup" });
+            results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId2, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `\u65E0\u6D3B\u8DC3adGroup\uFF0C\u653E\u5F03\u91CD\u8BD5: ${kw.searchTerm}`, success: false, errorMessage: "no_active_adgroup" });
           }
           continue;
         }
@@ -77588,13 +77588,13 @@ async function retryHistoricalFailedKeywordHarvests(database, accountId) {
               WHERE id = ${kw.eventId}
             `).catch(() => {
             });
-            results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u6807\u8BB0\u4E3Asynced: ${kw.searchTerm}`, success: true });
+            results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId2, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u6807\u8BB0\u4E3Asynced: ${kw.searchTerm}`, success: true });
           } else {
             toCreate.push(kw);
           }
         }
         if (toCreate.length === 0) continue;
-        log9.debug(`v178: Campaign ${localCampaignId} \u9700\u8981\u521B\u5EFA ${toCreate.length} \u4E2A\u5173\u952E\u8BCD`);
+        log9.debug(`v178: Campaign ${localCampaignId2} \u9700\u8981\u521B\u5EFA ${toCreate.length} \u4E2A\u5173\u952E\u8BCD`);
         const keywordsToSync = [];
         for (const kw of toCreate) {
           try {
@@ -77607,7 +77607,7 @@ async function retryHistoricalFailedKeywordHarvests(database, accountId) {
                 WHERE id = ${kw.eventId}
               `).catch(() => {
               });
-              results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId, targetType: "keyword", previousValue: "", correctedValue: kw.searchTerm, reason: `\u9884\u9A8C\u8BC1\u5931\u8D25: ${kwValidation.reasonMessage}`, success: false, errorMessage: kwValidation.reasonCode || "VALIDATION_FAILED" });
+              results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId2, targetType: "keyword", previousValue: "", correctedValue: kw.searchTerm, reason: `\u9884\u9A8C\u8BC1\u5931\u8D25: ${kwValidation.reasonMessage}`, success: false, errorMessage: kwValidation.reasonCode || "VALIDATION_FAILED" });
               continue;
             }
             const cleanedSearchTerm = kwValidation.sanitizedText;
@@ -77634,7 +77634,7 @@ async function retryHistoricalFailedKeywordHarvests(database, accountId) {
               WHERE id = ${kw.eventId}
             `).catch(() => {
             });
-            results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `\u672C\u5730\u521B\u5EFA\u5931\u8D25: ${kw.searchTerm}`, success: false, errorMessage: insertErr.message });
+            results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId2, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `\u672C\u5730\u521B\u5EFA\u5931\u8D25: ${kw.searchTerm}`, success: false, errorMessage: insertErr.message });
           }
         }
         if (keywordsToSync.length === 0) continue;
@@ -77676,8 +77676,8 @@ async function retryHistoricalFailedKeywordHarvests(database, accountId) {
               WHERE id = ${kw.eventId}
             `).catch(() => {
             });
-            results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId, targetType: "keyword", previousValue: "", correctedValue: kw.keywordText, reason: isDuplicate ? `\u5173\u952E\u8BCDAmazon\u5DF2\u5B58\u5728: ${kw.keywordText}` : `\u91CD\u8BD5\u521B\u5EFA\u5173\u952E\u8BCD\u6210\u529F: ${kw.keywordText}`, success: true });
-            log9.info(`v178: \u2705 \u5173\u952E\u8BCD\u521B\u5EFA\u6210\u529F: "${kw.keywordText}" (campaign=${localCampaignId}${isDuplicate ? ", \u5DF2\u5B58\u5728" : ""})`);
+            results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId2, targetType: "keyword", previousValue: "", correctedValue: kw.keywordText, reason: isDuplicate ? `\u5173\u952E\u8BCDAmazon\u5DF2\u5B58\u5728: ${kw.keywordText}` : `\u91CD\u8BD5\u521B\u5EFA\u5173\u952E\u8BCD\u6210\u529F: ${kw.keywordText}`, success: true });
+            log9.info(`v178: \u2705 \u5173\u952E\u8BCD\u521B\u5EFA\u6210\u529F: "${kw.keywordText}" (campaign=${localCampaignId2}${isDuplicate ? ", \u5DF2\u5B58\u5728" : ""})`);
           } else {
             await database.execute(sql`
               UPDATE optimization_events SET api_sync_status = 'invalid_legacy',
@@ -77696,15 +77696,15 @@ async function retryHistoricalFailedKeywordHarvests(database, accountId) {
               `).catch(() => {
               });
             }
-            results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId, targetType: "keyword", previousValue: "", correctedValue: kw.keywordText, reason: `\u5173\u952E\u8BCDAmazon\u62D2\u7EDD\u521B\u5EFA: ${kw.keywordText} (code=${errorCode || "UNKNOWN"})`, success: false, errorMessage: errorCode || syncResult.errors.join("; ") });
+            results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId2, targetType: "keyword", previousValue: "", correctedValue: kw.keywordText, reason: `\u5173\u952E\u8BCDAmazon\u62D2\u7EDD\u521B\u5EFA: ${kw.keywordText} (code=${errorCode || "UNKNOWN"})`, success: false, errorMessage: errorCode || syncResult.errors.join("; ") });
             log9.warn(`v178: \u274C \u5173\u952E\u8BCD\u521B\u5EFA\u5931\u8D25: "${kw.keywordText}" (code=${errorCode || "UNKNOWN"})`);
           }
         }
         await new Promise((resolve8) => setTimeout(resolve8, 1e3));
       } catch (campError) {
-        log9.error(`v178: Campaign ${localCampaignId} \u5173\u952E\u8BCD\u6536\u5272\u91CD\u8BD5\u5931\u8D25: ${campError.message}`);
+        log9.error(`v178: Campaign ${localCampaignId2} \u5173\u952E\u8BCD\u6536\u5272\u91CD\u8BD5\u5931\u8D25: ${campError.message}`);
         for (const kw of kwEvents) {
-          results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `Campaign\u5904\u7406\u5F02\u5E38: ${kw.searchTerm}`, success: false, errorMessage: campError.message });
+          results.push({ type: "keyword_create_retry", accountId, targetId: localCampaignId2, targetType: "campaign", previousValue: "", correctedValue: kw.searchTerm, reason: `Campaign\u5904\u7406\u5F02\u5E38: ${kw.searchTerm}`, success: false, errorMessage: campError.message });
         }
       }
     }
@@ -77990,10 +77990,10 @@ async function verifyBiddingLogsExecution(database, accountId) {
     let verified = 0;
     let mismatched = 0;
     let corrected = 0;
-    for (const log21 of rows) {
-      const expectedBid = parseFloat(String(log21.new_bid));
-      const targetId = log21.target_id;
-      const targetType = log21.log_target_type;
+    for (const bidLog of rows) {
+      const expectedBid = parseFloat(String(bidLog.new_bid));
+      const targetId = bidLog.target_id;
+      const targetType = bidLog.log_target_type;
       let currentBid = null;
       if (targetType === "keyword") {
         const [kw] = await database.select({ bid: keywords.bid }).from(keywords).where(eq(keywords.id, targetId)).limit(1);
@@ -78009,12 +78009,12 @@ async function verifyBiddingLogsExecution(database, accountId) {
       if (absDiff <= verifyAbsTol || relDiff <= verifyRelTol) {
         verified++;
         if (absDiff > 0.01) {
-          log21.debug(`v204: \u51FA\u4EF7\u786E\u8BA4(${currencyCode}\u5BB9\u5DEE\u5185): ${targetType} id=${targetId} expected=$${expectedBid.toFixed(2)} actual=$${currentBid.toFixed(2)} diff=${(relDiff * 100).toFixed(1)}%`);
+          log9.debug(`v204: \u51FA\u4EF7\u786E\u8BA4(${currencyCode}\u5BB9\u5DEE\u5185): ${targetType} id=${targetId} expected=$${expectedBid.toFixed(2)} actual=$${currentBid.toFixed(2)} diff=${(relDiff * 100).toFixed(1)}%`);
         }
         continue;
       }
       mismatched++;
-      log21.warn(`v204: \u51FA\u4EF7\u6267\u884C\u786E\u8BA4\u5931\u8D25(${currencyCode}): ${targetType} id=${targetId} expected=$${expectedBid.toFixed(2)} actual=$${currentBid.toFixed(2)} diff=${(relDiff * 100).toFixed(1)}% (absTol=${verifyAbsTol.toFixed(3)}, relTol=${(verifyRelTol * 100).toFixed(0)}%)`);
+      log9.warn(`v204: \u51FA\u4EF7\u6267\u884C\u786E\u8BA4\u5931\u8D25(${currencyCode}): ${targetType} id=${targetId} expected=$${expectedBid.toFixed(2)} actual=$${currentBid.toFixed(2)} diff=${(relDiff * 100).toFixed(1)}% (absTol=${verifyAbsTol.toFixed(3)}, relTol=${(verifyRelTol * 100).toFixed(0)}%)`);
       try {
         if (targetType === "keyword") {
           await database.update(keywords).set({ bid: String(expectedBid) }).where(eq(keywords.id, targetId));
@@ -78033,7 +78033,7 @@ async function verifyBiddingLogsExecution(database, accountId) {
           success: true
         });
       } catch (corrErr) {
-        log21.error(`v196: \u51FA\u4EF7\u6267\u884C\u786E\u8BA4\u7EA0\u6B63\u5931\u8D25: ${corrErr.message}`);
+        log9.error(`v196: \u51FA\u4EF7\u6267\u884C\u786E\u8BA4\u7EA0\u6B63\u5931\u8D25: ${corrErr.message}`);
         results.push({
           type: "bid_execution_verify",
           accountId,
@@ -78082,7 +78082,7 @@ async function auditAlgorithmDecisionQuality(database, accountId) {
         oe.created_at as last_optimized_at
       FROM keywords k
       INNER JOIN ad_groups ag ON k.adGroupId = ag.id
-      INNER JOIN campaigns c ON ag.campaignId = c.id AND c.accountId = ${accountId}
+      INNER JOIN campaigns c ON ag.campaignId = c.campaignId AND c.accountId = ${accountId}
       INNER JOIN performance_groups pg ON c.performanceGroupId = pg.id
       LEFT JOIN (
         SELECT keyword_id, algorithm_version, created_at,
@@ -143159,12 +143159,12 @@ var init_sqsConsumerService = __esm({
           return;
         }
         const date12 = eventHour ? eventHour.split("T")[0] : (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-        let localCampaignId = null;
+        let localCampaignId2 = null;
         if (campaignId) {
           try {
             const dbModule = await Promise.resolve().then(() => (init_db2(), db_exports));
             const campaign = await dbModule.getCampaignByAmazonId(account.id, String(campaignId));
-            if (campaign) localCampaignId = campaign.id;
+            if (campaign) localCampaignId2 = campaign.id;
           } catch (e6) {
           }
         }
@@ -143176,17 +143176,17 @@ var init_sqsConsumerService = __esm({
             clicks,
             cost,
             adType,
-            campaignId: localCampaignId
+            campaignId: localCampaignId2
           });
-          log10.info(`[SQS Consumer] ${adType}\u6D41\u91CF\u6570\u636E\u5DF2\u4FDD\u5B58: accountId=${account.id}, campaignId=${localCampaignId || "N/A"}, date=${date12}`);
+          log10.info(`[SQS Consumer] ${adType}\u6D41\u91CF\u6570\u636E\u5DF2\u4FDD\u5B58: accountId=${account.id}, campaignId=${localCampaignId2 || "N/A"}, date=${date12}`);
         } catch (error54) {
           log10.error(`[SQS Consumer] \u4FDD\u5B58${adType}\u6D41\u91CF\u6570\u636E\u5931\u8D25:`, error54.message);
         }
-        if (localCampaignId && adType === "SP" && (data4.keyword_id || data4.target_id)) {
+        if (localCampaignId2 && adType === "SP" && (data4.keyword_id || data4.target_id)) {
           try {
             await this.upsertKeywordPlacementHourlyData({
               accountId: account.id,
-              campaignId: localCampaignId,
+              campaignId: localCampaignId2,
               amazonAdGroupId: data4.ad_group_id || null,
               amazonKeywordId: data4.keyword_id || null,
               amazonTargetId: data4.target_id || null,
@@ -143227,12 +143227,12 @@ var init_sqsConsumerService = __esm({
           return;
         }
         const date12 = eventHour ? eventHour.split("T")[0] : (/* @__PURE__ */ new Date()).toISOString().split("T")[0];
-        let localCampaignId = null;
+        let localCampaignId2 = null;
         if (campaignId) {
           try {
             const dbModule = await Promise.resolve().then(() => (init_db2(), db_exports));
             const campaign = await dbModule.getCampaignByAmazonId(account.id, String(campaignId));
-            if (campaign) localCampaignId = campaign.id;
+            if (campaign) localCampaignId2 = campaign.id;
           } catch (e6) {
           }
         }
@@ -143243,17 +143243,17 @@ var init_sqsConsumerService = __esm({
             sales,
             orders,
             adType,
-            campaignId: localCampaignId
+            campaignId: localCampaignId2
           });
-          log10.info(`[SQS Consumer] ${adType}\u8F6C\u5316\u6570\u636E\u5DF2\u4FDD\u5B58: accountId=${account.id}, campaignId=${localCampaignId || "N/A"}, date=${date12}`);
+          log10.info(`[SQS Consumer] ${adType}\u8F6C\u5316\u6570\u636E\u5DF2\u4FDD\u5B58: accountId=${account.id}, campaignId=${localCampaignId2 || "N/A"}, date=${date12}`);
         } catch (error54) {
           log10.error(`[SQS Consumer] \u4FDD\u5B58${adType}\u8F6C\u5316\u6570\u636E\u5931\u8D25:`, error54.message);
         }
-        if (localCampaignId && adType === "SP" && (data4.keyword_id || data4.target_id)) {
+        if (localCampaignId2 && adType === "SP" && (data4.keyword_id || data4.target_id)) {
           try {
             await this.upsertKeywordPlacementHourlyData({
               accountId: account.id,
-              campaignId: localCampaignId,
+              campaignId: localCampaignId2,
               amazonAdGroupId: data4.ad_group_id || null,
               amazonKeywordId: data4.keyword_id || null,
               amazonTargetId: data4.target_id || null,
@@ -150334,9 +150334,9 @@ async function evaluateRecentOptimizations(performanceGroupId, lookbackDays = 14
     if (groupCampaigns.length === 0) return [];
     const campaignIds = groupCampaigns.map((c5) => c5.id);
     const assessments = [];
-    for (const log21 of logs) {
+    for (const log22 of logs) {
       try {
-        const logDate = new Date(log21.createdAt);
+        const logDate = new Date(log22.createdAt);
         const preStartDate = new Date(logDate);
         preStartDate.setDate(preStartDate.getDate() - 7);
         const preData = await getTimeWeightedCampaignMetrics(
@@ -150356,7 +150356,7 @@ async function evaluateRecentOptimizations(performanceGroupId, lookbackDays = 14
           actualEndDate.toISOString().split("T")[0]
         );
         if (!preData || !postData) continue;
-        const effectScore = calculateEffectScore2(preData, postData, log21);
+        const effectScore = calculateEffectScore2(preData, postData, log22);
         const effectCategory = categorizeEffect(effectScore);
         const needsCorrection = effectScore < -20;
         let correctionType;
@@ -150371,14 +150371,14 @@ async function evaluateRecentOptimizations(performanceGroupId, lookbackDays = 14
         let entityId = "";
         let entityType = "keyword";
         try {
-          const detail = JSON.parse(log21.actionDetail || "{}");
+          const detail = JSON.parse(log22.actionDetail || "{}");
           entityId = detail.keywordId?.toString() || detail.targetId?.toString() || "";
           entityType = detail.targetType || "keyword";
         } catch {
         }
         assessments.push({
-          logId: log21.id,
-          actionType: log21.actionType || "bid_adjustment",
+          logId: log22.id,
+          actionType: log22.actionType || "bid_adjustment",
           performanceGroupId,
           entityId,
           entityType,
@@ -150397,7 +150397,7 @@ async function evaluateRecentOptimizations(performanceGroupId, lookbackDays = 14
           correctionReason
         });
       } catch (logErr) {
-        console.error(`[selfEvolution] Error evaluating log ${log21.id}:`, logErr);
+        console.error(`[selfEvolution] Error evaluating log ${log22.id}:`, logErr);
       }
     }
     return assessments;
@@ -150456,7 +150456,7 @@ async function getTimeWeightedCampaignMetrics(db, campaignIds, startDate, endDat
     days: dailyData.length
   };
 }
-function calculateEffectScore2(pre, post, log21) {
+function calculateEffectScore2(pre, post, log22) {
   let score = 0;
   if (pre.roas > 0) {
     const roasChange = (post.roas - pre.roas) / pre.roas;
@@ -150571,15 +150571,15 @@ async function generateAutoCorrections(performanceGroupId, assessments) {
   for (const assessment of assessments) {
     if (!assessment.needsCorrection) continue;
     try {
-      const [log21] = await db.select().from(optimizationLogs).where(eq(optimizationLogs.id, assessment.logId)).limit(1);
-      if (!log21) continue;
+      const [log22] = await db.select().from(optimizationLogs).where(eq(optimizationLogs.id, assessment.logId)).limit(1);
+      if (!log22) continue;
       let originalValue = 0;
       let currentValue = 0;
       let correctedValue = 0;
       let correctionType = "rollback_bid";
       try {
-        const detail = JSON.parse(log21.actionDetail || "{}");
-        if (log21.actionType === "bid_adjustment") {
+        const detail = JSON.parse(log22.actionDetail || "{}");
+        if (log22.actionType === "bid_adjustment") {
           originalValue = parseFloat(detail.previousBid || detail.oldBid || "0");
           currentValue = parseFloat(detail.newBid || "0");
           correctionType = "rollback_bid";
@@ -150588,12 +150588,12 @@ async function generateAutoCorrections(performanceGroupId, assessments) {
           } else {
             correctedValue = Math.round((originalValue + currentValue) / 2 * 100) / 100;
           }
-        } else if (log21.actionType === "budget_adjustment") {
+        } else if (log22.actionType === "budget_adjustment") {
           originalValue = parseFloat(detail.previousBudget || detail.oldBudget || "0");
           currentValue = parseFloat(detail.newBudget || "0");
           correctionType = "rollback_budget";
           correctedValue = assessment.correctionType === "rollback" ? originalValue : Math.round((originalValue + currentValue) / 2 * 100) / 100;
-        } else if (log21.actionType === "placement_adjustment") {
+        } else if (log22.actionType === "placement_adjustment") {
           originalValue = parseFloat(detail.previousMultiplier || "0");
           currentValue = parseFloat(detail.newMultiplier || "0");
           correctionType = "rollback_placement";
@@ -151226,9 +151226,9 @@ async function executeMultiDimensionOptimization(targetId, accountId, campaigns7
   const lookbackDays = config2.lookbackDays || 30;
   for (const campaign of campaigns7) {
     try {
-      const campaignLocalId = campaign.id;
+      const campaignLocalId2 = campaign.id;
       const analysis = await analyzeMultiDimensionPerformance(
-        campaignLocalId,
+        campaignLocalId2,
         accountId,
         lookbackDays,
         config2.targetAcos
@@ -152339,6 +152339,39 @@ var init_targetingAlgorithm = __esm({
   }
 });
 
+// server/utils/idTypes.ts
+function isValidAmazonId(value2) {
+  if (typeof value2 !== "string" && typeof value2 !== "number") return false;
+  const str2 = String(value2).trim();
+  if (str2 === "" || str2 === "0" || str2 === "null" || str2 === "undefined") return false;
+  return /^\d{1,20}$/.test(str2);
+}
+function getCampaignAmazonId(campaign) {
+  if (campaign.campaignId != null) {
+    const amazonId = String(campaign.campaignId).trim();
+    if (isValidAmazonId(amazonId)) {
+      return amazonId;
+    }
+  }
+  log18.error(`[IdTypes] \u26D4 Campaign\u5BF9\u8C61\u7F3A\u5C11\u6709\u6548\u7684Amazon campaignId! id=${campaign.id}, campaignId=${campaign.campaignId}`);
+  throw new Error(`Campaign\u7F3A\u5C11Amazon campaignId (localId=${campaign.id})`);
+}
+function getCampaignLocalId(campaign) {
+  if (campaign.id != null && typeof campaign.id === "number" && campaign.id > 0) {
+    return campaign.id;
+  }
+  log18.error(`[IdTypes] \u26D4 Campaign\u5BF9\u8C61\u7F3A\u5C11\u6709\u6548\u7684\u672C\u5730id! id=${campaign.id}`);
+  throw new Error(`Campaign\u7F3A\u5C11\u672C\u5730id`);
+}
+var log18;
+var init_idTypes = __esm({
+  "server/utils/idTypes.ts"() {
+    "use strict";
+    init_logger2();
+    log18 = createModuleLogger("IdTypes");
+  }
+});
+
 // server/optimizationTargetEngine.ts
 var optimizationTargetEngine_exports = {};
 __export(optimizationTargetEngine_exports, {
@@ -152395,9 +152428,9 @@ async function getOptimizationTargetConfig(targetId) {
     config2.lifecycleConfig = lifecycle.config;
     config2.lifecycleSummary = lifecycle.summary;
     config2.maxBidChangePercent = lifecycle.config.bid.maxAdjustmentPercent;
-    log18.debug(`[OptimizationTargetConfig] \u76EE\u6807 ${group.name} \u751F\u547D\u5468\u671F: ${lifecycle.overallStage} (${lifecycle.summary})`);
+    log19.debug(`[OptimizationTargetConfig] \u76EE\u6807 ${group.name} \u751F\u547D\u5468\u671F: ${lifecycle.overallStage} (${lifecycle.summary})`);
   } catch (lcErr) {
-    log18.error(`[OptimizationTargetConfig] \u751F\u547D\u5468\u671F\u67E5\u8BE2\u5931\u8D25: ${lcErr.message}`);
+    log19.error(`[OptimizationTargetConfig] \u751F\u547D\u5468\u671F\u67E5\u8BE2\u5931\u8D25: ${lcErr.message}`);
   }
   return config2;
 }
@@ -152449,16 +152482,16 @@ async function executeOptimizationTarget(targetId, options = {}) {
     lifecycleSummary: config2.lifecycleSummary
   };
   if (config2.lifecycleStage) {
-    log18.debug(`[OptimizationTarget] \u76EE\u6807 ${config2.name} \u5F53\u524D\u751F\u547D\u5468\u671F: ${config2.lifecycleStage} | \u51FA\u4EF7\u8C03\u6574\u4E0A\u9650: \xB1${config2.maxBidChangePercent}% | ${config2.lifecycleSummary}`);
+    log19.debug(`[OptimizationTarget] \u76EE\u6807 ${config2.name} \u5F53\u524D\u751F\u547D\u5468\u671F: ${config2.lifecycleStage} | \u51FA\u4EF7\u8C03\u6574\u4E0A\u9650: \xB1${config2.maxBidChangePercent}% | ${config2.lifecycleSummary}`);
   }
   try {
     const safetyCheck = await preOptimizationSafetyCheck(config2.accountId, targetId);
     if (!safetyCheck.safe) {
       result.warnings.push(...safetyCheck.warnings);
-      log18.warn(`[OptimizationTarget] v162 \u5B89\u5168\u62A4\u680F\u89E6\u53D1: ${safetyCheck.warnings.join("; ")}`);
+      log19.warn(`[OptimizationTarget] v162 \u5B89\u5168\u62A4\u680F\u89E6\u53D1: ${safetyCheck.warnings.join("; ")}`);
     }
   } catch (safetyErr) {
-    log18.warn(`[OptimizationTarget] v162 \u5B89\u5168\u68C0\u67E5\u5F02\u5E38\uFF0C\u7EE7\u7EED\u6267\u884C: ${safetyErr.message}`);
+    log19.warn(`[OptimizationTarget] v162 \u5B89\u5168\u68C0\u67E5\u5F02\u5E38\uFF0C\u7EE7\u7EED\u6267\u884C: ${safetyErr.message}`);
   }
   let evolutionReport = null;
   let adaptiveParams = null;
@@ -152470,17 +152503,17 @@ async function executeOptimizationTarget(targetId, options = {}) {
       config2.strategyTemplateId
     );
     if (evolutionReport) {
-      log18.info(`[OptimizationTarget] v164 \u8FDB\u5316\u5468\u671F\u5B8C\u6210: \u8BC4\u4F30${evolutionReport.totalActionsEvaluated}\u4E2A\u52A8\u4F5C, \u6B63\u9762${evolutionReport.positiveActions}, \u8D1F\u9762${evolutionReport.negativeActions}, \u7EA0\u9519${evolutionReport.correctionsExecuted}\u4E2A, \u8D8B\u52BF: ${evolutionReport.improvementTrend}`);
+      log19.info(`[OptimizationTarget] v164 \u8FDB\u5316\u5468\u671F\u5B8C\u6210: \u8BC4\u4F30${evolutionReport.totalActionsEvaluated}\u4E2A\u52A8\u4F5C, \u6B63\u9762${evolutionReport.positiveActions}, \u8D1F\u9762${evolutionReport.negativeActions}, \u7EA0\u9519${evolutionReport.correctionsExecuted}\u4E2A, \u8D8B\u52BF: ${evolutionReport.improvementTrend}`);
       if (evolutionReport.correctionsExecuted > 0) {
         result.warnings.push(`\u81EA\u6211\u8FDB\u5316: \u81EA\u52A8\u7EA0\u6B63\u4E86${evolutionReport.correctionsExecuted}\u4E2A\u4E0D\u5408\u7406\u4F18\u5316`);
       }
     }
     adaptiveParams = await getAdaptiveOptimizationParams(targetId, config2.strategyTemplateId);
     if (adaptiveParams) {
-      log18.debug(`[OptimizationTarget] v164 \u81EA\u9002\u5E94\u53C2\u6570: \u6700\u5927\u51FA\u4EF7\u63D0\u5347${Math.round(adaptiveParams.maxBidIncrease * 100)}%, \u6700\u5927\u51FA\u4EF7\u964D\u4F4E${Math.round(adaptiveParams.maxBidDecrease * 100)}%, \u6210\u529F\u7387${Math.round(adaptiveParams.recentSuccessRate * 100)}%`);
+      log19.debug(`[OptimizationTarget] v164 \u81EA\u9002\u5E94\u53C2\u6570: \u6700\u5927\u51FA\u4EF7\u63D0\u5347${Math.round(adaptiveParams.maxBidIncrease * 100)}%, \u6700\u5927\u51FA\u4EF7\u964D\u4F4E${Math.round(adaptiveParams.maxBidDecrease * 100)}%, \u6210\u529F\u7387${Math.round(adaptiveParams.recentSuccessRate * 100)}%`);
     }
   } catch (evoErr) {
-    log18.warn(`[OptimizationTarget] v164 \u81EA\u6211\u8FDB\u5316\u5F02\u5E38\uFF0C\u7EE7\u7EED\u6267\u884C: ${evoErr.message}`);
+    log19.warn(`[OptimizationTarget] v164 \u81EA\u6211\u8FDB\u5316\u5F02\u5E38\uFF0C\u7EE7\u7EED\u6267\u884C: ${evoErr.message}`);
   }
   const allCampaigns = await getCampaignsByPerformanceGroupId(targetId);
   if (allCampaigns.length === 0) {
@@ -152492,7 +152525,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
   const campaigns7 = allCampaigns.filter((c5) => c5.campaignStatus === "enabled");
   const skippedCampaigns = allCampaigns.length - campaigns7.length;
   if (skippedCampaigns > 0) {
-    log18.info(`[OptimizationTarget] v156: \u8DF3\u8FC7${skippedCampaigns}\u4E2A\u975Eenabled\u72B6\u6001\u7684campaign (\u603B${allCampaigns.length}\u4E2A, enabled=${campaigns7.length}\u4E2A)`);
+    log19.info(`[OptimizationTarget] v156: \u8DF3\u8FC7${skippedCampaigns}\u4E2A\u975Eenabled\u72B6\u6001\u7684campaign (\u603B${allCampaigns.length}\u4E2A, enabled=${campaigns7.length}\u4E2A)`);
     result.warnings.push(`\u8DF3\u8FC7${skippedCampaigns}\u4E2A\u975Eenabled\u72B6\u6001\u7684campaign`);
   }
   if (campaigns7.length === 0) {
@@ -152505,11 +152538,11 @@ async function executeOptimizationTarget(targetId, options = {}) {
         try {
           await updatePerformanceGroup(targetId, { autoOptimize: 0 });
           const pauseMsg = `v168: \u4F18\u5316\u76EE\u6807"${config2.name}"\u5DF2\u81EA\u52A8\u6682\u505C - \u6240\u6709${allCampaigns.length}\u4E2A\u5E7F\u544A\u6D3B\u52A8\u5747\u4E3A\u6682\u505C/\u5F52\u6863\u72B6\u6001\uFF0C\u4E0D\u518D\u6267\u884C\u81EA\u52A8\u4F18\u5316`;
-          log18.debug(`[OptimizationTarget] ${pauseMsg}`);
+          log19.debug(`[OptimizationTarget] ${pauseMsg}`);
           result.warnings.push(pauseMsg);
           result.status = "skipped";
         } catch (autoPauseErr) {
-          log18.error(`[OptimizationTarget] v168: \u81EA\u52A8\u6682\u505C\u4F18\u5316\u76EE\u6807\u5931\u8D25:`, autoPauseErr.message);
+          log19.error(`[OptimizationTarget] v168: \u81EA\u52A8\u6682\u505C\u4F18\u5316\u76EE\u6807\u5931\u8D25:`, autoPauseErr.message);
         }
       }
     }
@@ -152522,13 +152555,13 @@ async function executeOptimizationTarget(targetId, options = {}) {
       const idResolution = await ensureAmazonIdsReady(config2.accountId);
       if (idResolution.totalMissingBefore > 0) {
         const resolvedTotal = idResolution.keywordsResolved + idResolution.keywordsCreated + idResolution.keywordsCleanedUp + idResolution.productTargetsResolved;
-        log18.info(`[OptimizationTarget] Pre-Sync ID Resolution: \u5904\u7406\u4E86${idResolution.totalMissingBefore}\u4E2A\u7F3A\u5931ID, \u89E3\u51B3${resolvedTotal}\u4E2A, \u5269\u4F59${idResolution.totalMissingAfter}\u4E2A`);
+        log19.info(`[OptimizationTarget] Pre-Sync ID Resolution: \u5904\u7406\u4E86${idResolution.totalMissingBefore}\u4E2A\u7F3A\u5931ID, \u89E3\u51B3${resolvedTotal}\u4E2A, \u5269\u4F59${idResolution.totalMissingAfter}\u4E2A`);
         if (idResolution.totalMissingAfter > 0) {
           result.warnings.push(`Pre-Sync ID Resolution: \u4ECD\u6709${idResolution.totalMissingAfter}\u4E2A\u5B9E\u4F53\u7F3A\u5C11Amazon ID`);
         }
       }
     } catch (idErr) {
-      log18.error(`[OptimizationTarget] Pre-Sync ID Resolution\u5F02\u5E38: ${idErr.message}`);
+      log19.error(`[OptimizationTarget] Pre-Sync ID Resolution\u5F02\u5E38: ${idErr.message}`);
       result.warnings.push(`Pre-Sync ID Resolution\u5F02\u5E38: ${idErr.message}`);
     }
   }
@@ -152571,10 +152604,10 @@ async function executeOptimizationTarget(targetId, options = {}) {
         dryRun
       );
       result.multiDimensionOptimization = multiDimResults;
-      log18.info(`[OptimizationTarget] \u591A\u7EF4\u5EA6\u4F18\u5316\u5B8C\u6210: \u5206\u6790${multiDimResults.campaignsAnalyzed}\u4E2Acampaign, \u751F\u6210${multiDimResults.rulesGenerated}\u6761\u89C4\u5219`);
+      log19.info(`[OptimizationTarget] \u591A\u7EF4\u5EA6\u4F18\u5316\u5B8C\u6210: \u5206\u6790${multiDimResults.campaignsAnalyzed}\u4E2Acampaign, \u751F\u6210${multiDimResults.rulesGenerated}\u6761\u89C4\u5219`);
     } catch (error54) {
       result.errors.push(`\u591A\u7EF4\u5EA6\u667A\u80FD\u4F18\u5316\u5931\u8D25: ${error54.message}`);
-      log18.error(`[OptimizationTarget] \u591A\u7EF4\u5EA6\u4F18\u5316\u5F02\u5E38:`, error54.message);
+      log19.error(`[OptimizationTarget] \u591A\u7EF4\u5EA6\u4F18\u5316\u5F02\u5E38:`, error54.message);
     }
   }
   if (config2.enableDaypartingOptimization && shouldExecute("combo_analysis")) {
@@ -152591,7 +152624,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
             lookbackDays: 30
           }
         );
-        log18.info(`[OptimizationTarget] v183 \u591A\u7EF4\u5EA6\u7EC4\u5408\u5206\u6790\u5B8C\u6210: ${comboResults.campaignsAnalyzed}\u4E2Acampaign, ${comboResults.totalCombosFound}\u4E2A\u7EC4\u5408 (\u9EC4\u91D1:${comboResults.goldenCount}, \u94C5\u77F3:${comboResults.leadenCount}, \u6F5C\u529B:${comboResults.potentialCount}, \u6807\u51C6:${comboResults.standardCount})`);
+        log19.info(`[OptimizationTarget] v183 \u591A\u7EF4\u5EA6\u7EC4\u5408\u5206\u6790\u5B8C\u6210: ${comboResults.campaignsAnalyzed}\u4E2Acampaign, ${comboResults.totalCombosFound}\u4E2A\u7EC4\u5408 (\u9EC4\u91D1:${comboResults.goldenCount}, \u94C5\u77F3:${comboResults.leadenCount}, \u6F5C\u529B:${comboResults.potentialCount}, \u6807\u51C6:${comboResults.standardCount})`);
         if (result.multiDimensionOptimization) {
           result.multiDimensionOptimization.comboAnalysis = {
             goldenCount: comboResults.goldenCount,
@@ -152602,7 +152635,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
         }
       }
     } catch (error54) {
-      log18.error(`[OptimizationTarget] v183 \u591A\u7EF4\u5EA6\u7EC4\u5408\u5206\u6790\u5F02\u5E38:`, error54.message);
+      log19.error(`[OptimizationTarget] v183 \u591A\u7EF4\u5EA6\u7EC4\u5408\u5206\u6790\u5F02\u5E38:`, error54.message);
       result.warnings.push(`\u591A\u7EF4\u5EA6\u7EC4\u5408\u5206\u6790\u5931\u8D25: ${error54.message}`);
     }
   }
@@ -152714,7 +152747,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
               changeReason: detail.reason,
               algorithmUsed: detail.algorithmUsed,
               confidenceScore: detail.confidenceScore,
-              campaignId: detail.campaignId,
+              campaignId: detail.localCampaignId,
               campaignName: detail.campaignName
             });
           }
@@ -152737,7 +152770,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
               oldValue: detail.oldStatus || detail.previousValue,
               newValue: detail.newStatus || detail.newValue,
               changeReason: detail.reason,
-              campaignId: detail.campaignId,
+              campaignId: detail.localCampaignId,
               campaignName: detail.campaignName
             });
           }
@@ -152753,7 +152786,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
               taskType: "campaign_status",
               priority: 0,
               targetEntityType: "campaign",
-              targetEntityId: detail.campaignId,
+              targetEntityId: detail.localCampaignId,
               amazonEntityId: detail.amazonCampaignId,
               targetEntityName: detail.campaignName,
               action: detail.newStatus,
@@ -152789,7 +152822,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
         for (const detail of result.searchTermAnalysis.details) {
           if (detail.apiSyncStatus === "failed") {
             if (detail.action === "add_negative") {
-              const negCampaign = campaigns7.find((c5) => c5.id === detail.campaignId);
+              const negCampaign = campaigns7.find((c5) => c5.id === detail.localCampaignId);
               const negAmazonCampaignId = negCampaign?.campaignId || null;
               failedTasks.push({
                 batchId,
@@ -152798,14 +152831,14 @@ async function executeOptimizationTarget(targetId, options = {}) {
                 taskType: "negative_keyword",
                 priority: 1,
                 targetEntityType: "campaign",
-                targetEntityId: detail.campaignId,
-                amazonEntityId: negAmazonCampaignId ? String(negAmazonCampaignId) : null,
+                targetEntityId: detail.localCampaignId,
+                amazonEntityId: detail.amazonCampaignId || (negAmazonCampaignId ? String(negAmazonCampaignId) : null),
                 targetEntityName: detail.searchTerm,
                 action: detail.matchType === "negative_exact" ? "negativeExact" : "negativePhrase",
                 oldValue: "",
                 newValue: detail.searchTerm,
                 changeReason: detail.reason || "\u5426\u5B9A\u5173\u952E\u8BCD\u521B\u5EFA\u91CD\u8BD5",
-                campaignId: detail.campaignId,
+                campaignId: detail.localCampaignId,
                 campaignName: detail.campaignName,
                 adGroupId: detail.adGroupId || null
               });
@@ -152824,7 +152857,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
                 oldValue: "",
                 newValue: String(detail.bid || 0.5),
                 changeReason: detail.reason || "\u5173\u952E\u8BCD\u521B\u5EFA\u91CD\u8BD5",
-                campaignId: detail.campaignId,
+                campaignId: detail.localCampaignId,
                 campaignName: detail.campaignName,
                 adGroupId: detail.adGroupId || null
               });
@@ -152835,7 +152868,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
       if (result.budgetAllocation?.details) {
         for (const detail of result.budgetAllocation.details) {
           if (detail.apiSyncStatus === "failed") {
-            const campaign = campaigns7.find((c5) => c5.id === detail.campaignId);
+            const campaign = campaigns7.find((c5) => c5.id === detail.localCampaignId);
             failedTasks.push({
               batchId,
               optimizationTargetId: config2.id,
@@ -152843,14 +152876,14 @@ async function executeOptimizationTarget(targetId, options = {}) {
               taskType: "budget_adjustment",
               priority: 1,
               targetEntityType: "campaign",
-              targetEntityId: detail.campaignId,
-              amazonEntityId: campaign?.campaignId || String(detail.campaignId),
+              targetEntityId: detail.localCampaignId,
+              amazonEntityId: detail.amazonCampaignId || campaign?.campaignId || String(detail.localCampaignId),
               targetEntityName: detail.campaignName,
               action: "budget_update",
               oldValue: String(detail.currentBudget),
               newValue: String(detail.suggestedBudget),
               changeReason: detail.reason || "\u9884\u7B97\u8C03\u6574\u91CD\u8BD5",
-              campaignId: detail.campaignId,
+              campaignId: detail.localCampaignId,
               campaignName: detail.campaignName
             });
           }
@@ -152859,7 +152892,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
       if (result.placementOptimization?.details) {
         for (const detail of result.placementOptimization.details) {
           if (detail.apiSyncStatus === "failed") {
-            const campaign = campaigns7.find((c5) => c5.id === detail.campaignId);
+            const campaign = campaigns7.find((c5) => c5.id === detail.localCampaignId);
             failedTasks.push({
               batchId,
               optimizationTargetId: config2.id,
@@ -152867,14 +152900,14 @@ async function executeOptimizationTarget(targetId, options = {}) {
               taskType: "placement_adjustment",
               priority: 2,
               targetEntityType: "campaign",
-              targetEntityId: detail.campaignId,
-              amazonEntityId: campaign?.campaignId || String(detail.campaignId),
+              targetEntityId: detail.localCampaignId,
+              amazonEntityId: detail.amazonCampaignId || campaign?.campaignId || String(detail.localCampaignId),
               targetEntityName: detail.campaignName,
               action: detail.placement || "placement_adjust",
               oldValue: detail.previousValue || "",
               newValue: detail.newValue || "",
               changeReason: detail.reason || "\u4F4D\u7F6E\u503E\u659C\u8C03\u6574\u91CD\u8BD5",
-              campaignId: detail.campaignId,
+              campaignId: detail.localCampaignId,
               campaignName: detail.campaignName
             });
           }
@@ -152883,7 +152916,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
       if (result.daypartingBudgetOptimization?.details) {
         for (const detail of result.daypartingBudgetOptimization.details) {
           if (detail.apiSyncStatus === "failed") {
-            const campaign = campaigns7.find((c5) => c5.id === detail.campaignId);
+            const campaign = campaigns7.find((c5) => c5.id === detail.localCampaignId);
             failedTasks.push({
               batchId,
               optimizationTargetId: config2.id,
@@ -152891,14 +152924,14 @@ async function executeOptimizationTarget(targetId, options = {}) {
               taskType: "budget_adjustment",
               priority: 1,
               targetEntityType: "campaign",
-              targetEntityId: detail.campaignId,
-              amazonEntityId: campaign?.campaignId || String(detail.campaignId),
+              targetEntityId: detail.localCampaignId,
+              amazonEntityId: detail.amazonCampaignId || campaign?.campaignId || String(detail.localCampaignId),
               targetEntityName: detail.campaignName,
               action: "dayparting_budget",
               oldValue: String(detail.currentBudget || detail.baseBudget || ""),
               newValue: String(detail.adjustedBudget || detail.newBudget || ""),
               changeReason: detail.reason || "\u5206\u65F6\u9884\u7B97\u8C03\u6574\u91CD\u8BD5",
-              campaignId: detail.campaignId,
+              campaignId: detail.localCampaignId,
               campaignName: detail.campaignName
             });
           }
@@ -152921,7 +152954,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
               oldValue: String(detail.baseBid || detail.previousBid || ""),
               newValue: String(detail.adjustedBid || detail.newBid || ""),
               changeReason: detail.reason || "\u5206\u65F6\u7ADE\u4EF7\u8C03\u6574\u91CD\u8BD5",
-              campaignId: detail.campaignId,
+              campaignId: detail.localCampaignId,
               campaignName: detail.campaignName
             });
           }
@@ -152929,12 +152962,12 @@ async function executeOptimizationTarget(targetId, options = {}) {
       }
       if (failedTasks.length > 0) {
         await enqueueTasks2(failedTasks);
-        log18.warn(`[OptimizationTarget] v137: ${failedTasks.length}\u4E2A\u5931\u8D25\u4EFB\u52A1\u5DF2\u5165\u961F\u91CD\u8BD5\u961F\u5217, batchId=${batchId}`);
+        log19.warn(`[OptimizationTarget] v137: ${failedTasks.length}\u4E2A\u5931\u8D25\u4EFB\u52A1\u5DF2\u5165\u961F\u91CD\u8BD5\u961F\u5217, batchId=${batchId}`);
         result.retryBatchId = batchId;
         result.retryTaskCount = failedTasks.length;
       }
     } catch (enqueueErr) {
-      log18.error(`[OptimizationTarget] v137: \u5165\u961F\u5931\u8D25\u4EFB\u52A1\u5F02\u5E38: ${enqueueErr.message}`);
+      log19.error(`[OptimizationTarget] v137: \u5165\u961F\u5931\u8D25\u4EFB\u52A1\u5F02\u5E38: ${enqueueErr.message}`);
     }
   }
   if (shouldReleaseLock) releaseAccountOptimizationLock(config2.accountId, moduleLockGroup);
@@ -152971,23 +153004,25 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
     bidConfig._evolvedMaxChangePercent = evoParams.maxBidIncrease;
     bidConfig._evolvedMaxDecreasePercent = evoParams.maxBidDecrease;
     bidConfig._confidenceMultiplier = evoParams.confidenceMultiplier;
-    log18.info(`[BidOptimization] v164: \u81EA\u9002\u5E94\u53C2\u6570\u5DF2\u6CE8\u5165 - \u6700\u5927\u63D0\u5347${Math.round(evoParams.maxBidIncrease * 100)}%, \u6700\u5927\u964D\u4F4E${Math.round(evoParams.maxBidDecrease * 100)}%, \u6210\u529F\u7387${Math.round(evoParams.recentSuccessRate * 100)}%`);
+    log19.info(`[BidOptimization] v164: \u81EA\u9002\u5E94\u53C2\u6570\u5DF2\u6CE8\u5165 - \u6700\u5927\u63D0\u5347${Math.round(evoParams.maxBidIncrease * 100)}%, \u6700\u5927\u964D\u4F4E${Math.round(evoParams.maxBidDecrease * 100)}%, \u6210\u529F\u7387${Math.round(evoParams.recentSuccessRate * 100)}%`);
   } catch (e6) {
-    log18.warn(`[BidOptimization] v164: \u81EA\u9002\u5E94\u53C2\u6570\u83B7\u53D6\u5931\u8D25\uFF0C\u4F7F\u7528\u9ED8\u8BA4\u503C: ${e6.message}`);
+    log19.warn(`[BidOptimization] v164: \u81EA\u9002\u5E94\u53C2\u6570\u83B7\u53D6\u5931\u8D25\uFF0C\u4F7F\u7528\u9ED8\u8BA4\u503C: ${e6.message}`);
   }
   const currentDate = /* @__PURE__ */ new Date();
   const cpcMaxBidLimit = config2.maxBid || 2;
   const vcpmMaxBidLimit = config2.maxBid ? config2.maxBid * 5 : 15;
-  log18.info(`[BidOptimization] v165: CPC\u6700\u9AD8\u51FA\u4EF7=$${cpcMaxBidLimit} | VCPM\u6700\u9AD8\u51FA\u4EF7=$${vcpmMaxBidLimit} (\u7528\u6237\u8BBE\u7F6Emax_bid=${config2.maxBid || "\u672A\u8BBE\u7F6E"})`);
-  log18.debug(`[BidOptimization] v165: \u65E5\u9884\u7B97=${config2.dailyBudget || "\u672A\u8BBE\u7F6E"}, \u76EE\u6807ACoS=${config2.targetAcos || "\u672A\u8BBE\u7F6E"}`);
+  log19.info(`[BidOptimization] v165: CPC\u6700\u9AD8\u51FA\u4EF7=$${cpcMaxBidLimit} | VCPM\u6700\u9AD8\u51FA\u4EF7=$${vcpmMaxBidLimit} (\u7528\u6237\u8BBE\u7F6Emax_bid=${config2.maxBid || "\u672A\u8BBE\u7F6E"})`);
+  log19.debug(`[BidOptimization] v165: \u65E5\u9884\u7B97=${config2.dailyBudget || "\u672A\u8BBE\u7F6E"}, \u76EE\u6807ACoS=${config2.targetAcos || "\u672A\u8BBE\u7F6E"}`);
   for (const campaign of campaigns7) {
+    const campaignLocalId2 = getCampaignLocalId(campaign);
+    const campaignAmazonId2 = getCampaignAmazonId(campaign);
     let campaignDailyData = [];
     let campaignTimeWeightedMetrics = null;
     try {
       const endDate = /* @__PURE__ */ new Date();
       const startDate = /* @__PURE__ */ new Date();
       startDate.setDate(startDate.getDate() - 90);
-      const rawDailyData = await getDailyPerformanceByDateRange(config2.accountId, startDate, endDate, campaign.id);
+      const rawDailyData = await getDailyPerformanceByDateRange(config2.accountId, startDate, endDate, campaignAmazonId2);
       campaignDailyData = rawDailyData.map((d5) => ({
         date: new Date(d5.date),
         spend: parseFloat(String(d5.spend || "0")),
@@ -153004,16 +153039,17 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
         orders: d5.orders || 0
       }));
       campaignTimeWeightedMetrics = calculateTimeWeightedMetrics(dailyDataForWeighting);
-      log18.debug(`[BidOptimization] v163: Campaign ${campaign.id} \u65F6\u95F4\u8870\u51CF\u52A0\u6743 - \u52A0\u6743ACoS=${campaignTimeWeightedMetrics.weightedAcos.toFixed(1)}%, \u52A0\u6743ROAS=${campaignTimeWeightedMetrics.weightedRoas.toFixed(2)}, \u7F6E\u4FE1\u5EA6=${campaignTimeWeightedMetrics.dataQuality.confidenceLevel}, \u8D8B\u52BF=${campaignTimeWeightedMetrics.trendSignal.direction}`);
+      log19.debug(`[BidOptimization] v163: Campaign ${campaignLocalId2} \u65F6\u95F4\u8870\u51CF\u52A0\u6743 - \u52A0\u6743ACoS=${campaignTimeWeightedMetrics.weightedAcos.toFixed(1)}%, \u52A0\u6743ROAS=${campaignTimeWeightedMetrics.weightedRoas.toFixed(2)}, \u7F6E\u4FE1\u5EA6=${campaignTimeWeightedMetrics.dataQuality.confidenceLevel}, \u8D8B\u52BF=${campaignTimeWeightedMetrics.trendSignal.direction}`);
     } catch (e6) {
-      log18.warn(`[BidOptimization] \u83B7\u53D6campaign ${campaign.id} \u5386\u53F2\u6570\u636E\u5931\u8D25: ${e6.message}`);
+      log19.warn(`[BidOptimization] \u83B7\u53D6campaign ${campaignLocalId2} \u5386\u53F2\u6570\u636E\u5931\u8D25: ${e6.message}`);
     }
     if (campaignTimeWeightedMetrics) {
       const safetyCheck = performSafetyCheck(campaignTimeWeightedMetrics);
       if (safetyCheck.shouldPause) {
-        log18.warn(`[BidOptimization] v163: Campaign ${campaign.id} \u5B89\u5168\u68C0\u67E5\u89E6\u53D1\u6682\u505C: ${safetyCheck.reason}`);
+        log19.warn(`[BidOptimization] v163: Campaign ${campaignLocalId2} \u5B89\u5168\u68C0\u67E5\u89E6\u53D1\u6682\u505C: ${safetyCheck.reason}`);
         details.push({
-          campaignId: campaign.id,
+          localCampaignId: campaignLocalId2,
+          amazonCampaignId: campaignAmazonId2,
           campaignName: campaign.campaignName,
           action: "safety_pause",
           reason: `[\u5B89\u5168\u68C0\u67E5] ${safetyCheck.warnings.join("\uFF1B")}`
@@ -153021,15 +153057,15 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
         continue;
       }
       if (safetyCheck.warnings.length > 0) {
-        log18.info(`[BidOptimization] v163: Campaign ${campaign.id} \u5B89\u5168\u8B66\u544A: ${safetyCheck.warnings.join("\uFF1B")}`);
+        log19.info(`[BidOptimization] v163: Campaign ${campaignLocalId2} \u5B89\u5168\u8B66\u544A: ${safetyCheck.warnings.join("\uFF1B")}`);
       }
     }
     const isVcpmCampaign = campaign.costType === "vcpm";
     const maxBidLimit = isVcpmCampaign ? vcpmMaxBidLimit : cpcMaxBidLimit;
     if (isVcpmCampaign) {
-      log18.info(`[BidOptimization] v165: Campaign ${campaign.id} \u8BC6\u522B\u4E3AVCPM\u5E7F\u544A\uFF0C\u4F7F\u7528VCPM\u6700\u9AD8\u51FA\u4EF7$${maxBidLimit}`);
+      log19.info(`[BidOptimization] v165: Campaign ${campaignLocalId2} \u8BC6\u522B\u4E3AVCPM\u5E7F\u544A\uFF0C\u4F7F\u7528VCPM\u6700\u9AD8\u51FA\u4EF7$${maxBidLimit}`);
     }
-    const keywords8 = await getKeywordsByCampaignId(campaign.id);
+    const keywords8 = await getKeywordsByCampaignId(campaignAmazonId2);
     const keywordTargets = [];
     for (const keyword of keywords8) {
       if (keyword.keywordStatus !== "enabled") continue;
@@ -153040,7 +153076,7 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
       if (kwLastOptimized && kwBidSyncStatus === "pending_confirmation") {
         const hoursSinceOptimized = (Date.now() - kwLastOptimized.getTime()) / (1e3 * 60 * 60);
         if (hoursSinceOptimized < 24) {
-          log18.info(`[BidOptimization] v166: \u8DF3\u8FC7\u5173\u952E\u8BCD ${keyword.id} "${keyword.keywordText}" - \u51B7\u5374\u671F\u5185(${hoursSinceOptimized.toFixed(1)}h), \u51FA\u4EF7\u5F85\u786E\u8BA4 pending=$${keyword.pendingBid}`);
+          log19.info(`[BidOptimization] v166: \u8DF3\u8FC7\u5173\u952E\u8BCD ${keyword.id} "${keyword.keywordText}" - \u51B7\u5374\u671F\u5185(${hoursSinceOptimized.toFixed(1)}h), \u51FA\u4EF7\u5F85\u786E\u8BA4 pending=$${keyword.pendingBid}`);
           continue;
         }
       }
@@ -153060,7 +153096,8 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
         // v163: 传入campaign级别的90天每日数据用于时间衰减加权分析
         dailyData: campaignDailyData.length > 0 ? campaignDailyData : void 0,
         marketplace: config2.marketplace,
-        campaignId: campaign.id
+        localCampaignId: campaignLocalId2,
+        amazonCampaignId: campaignAmazonId2
       });
     }
     if (keywordTargets.length > 0) {
@@ -153080,7 +153117,8 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
           details.push({
             keywordId: nextGenResult.targetId,
             keywordText: keyword?.keywordText || `\u5173\u952E\u8BCD ${nextGenResult.targetId}`,
-            campaignId: campaign.id,
+            localCampaignId: campaignLocalId2,
+            amazonCampaignId: campaignAmazonId2,
             campaignName: campaign.campaignName,
             currentBid: nextGenResult.previousBid,
             newBid: finalBid,
@@ -153094,7 +153132,7 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
         }
       }
     }
-    const adGroupsList = await getAdGroupsByCampaignId(campaign.id);
+    const adGroupsList = await getAdGroupsByCampaignId(campaignAmazonId2);
     const productTargets4 = [];
     const allTargets = [];
     for (const ag of adGroupsList) {
@@ -153119,7 +153157,8 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
           // v163
           dailyData: campaignDailyData.length > 0 ? campaignDailyData : void 0,
           marketplace: config2.marketplace,
-          campaignId: campaign.id
+          localCampaignId: campaignLocalId2,
+          amazonCampaignId: campaignAmazonId2
         });
       }
     }
@@ -153140,7 +153179,8 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
           details.push({
             keywordId: nextGenResult.targetId,
             keywordText: target?.targetText || target?.targetValue || `\u5546\u54C1\u5B9A\u5411 ${nextGenResult.targetId}`,
-            campaignId: campaign.id,
+            localCampaignId: campaignLocalId2,
+            amazonCampaignId: campaignAmazonId2,
             campaignName: campaign.campaignName,
             currentBid: nextGenResult.previousBid,
             newBid: finalBid,
@@ -153166,7 +153206,7 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
         details.map((d5) => ({
           keywordId: d5.keywordId,
           newBid: d5.newBid,
-          campaignId: d5.campaignId,
+          campaignId: d5.amazonCampaignId,
           reason: d5.reason,
           isProductTarget: d5.isProductTarget || false
         }))
@@ -153178,9 +153218,9 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
       } else {
         apiSyncStatus = "partial";
       }
-      log18.warn(`[BidOptimization] Amazon API\u540C\u6B65: \u6210\u529F=${apiSyncResult.success}, \u5931\u8D25=${apiSyncResult.failed}, \u72B6\u6001=${apiSyncStatus}`);
+      log19.warn(`[BidOptimization] Amazon API\u540C\u6B65: \u6210\u529F=${apiSyncResult.success}, \u5931\u8D25=${apiSyncResult.failed}, \u72B6\u6001=${apiSyncStatus}`);
       if (apiSyncResult.errors.length > 0) {
-        log18.error(`[BidOptimization] Amazon API\u540C\u6B65\u9519\u8BEF:`, apiSyncResult.errors.join("; "));
+        log19.error(`[BidOptimization] Amazon API\u540C\u6B65\u9519\u8BEF:`, apiSyncResult.errors.join("; "));
       }
       const syncedDetails = details.filter((d5) => {
         const itemResult = apiSyncResult.itemResults?.get(d5.keywordId);
@@ -153207,20 +153247,20 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
                   }).where(eq(keywords.id, detail.keywordId));
                 }
               }
-              const affectedCampaignIds = [...new Set(syncedDetails.map((d5) => d5.campaignId))];
+              const affectedCampaignIds = [...new Set(syncedDetails.map((d5) => d5.localCampaignId))];
               const nowStr = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
               for (const cid of affectedCampaignIds) {
                 await tx.update(campaigns).set({ lastOptimizedAt: nowStr }).where(eq(campaigns.id, cid));
               }
             });
-            log18.info(`[BidOptimization] v178: \u4E8B\u52A1\u6279\u91CFDB\u66F4\u65B0\u6210\u529F: ${syncedDetails.length}\u6761\u51FA\u4EF7 + campaigns.last_optimized_at\u5DF2\u66F4\u65B0`);
+            log19.info(`[BidOptimization] v178: \u4E8B\u52A1\u6279\u91CFDB\u66F4\u65B0\u6210\u529F: ${syncedDetails.length}\u6761\u51FA\u4EF7 + campaigns.last_optimized_at\u5DF2\u66F4\u65B0`);
           } catch (txErr) {
-            log18.error(`[BidOptimization] v178: \u4E8B\u52A1DB\u66F4\u65B0\u5931\u8D25(\u5DF2\u56DE\u6EDA): ${txErr.message}`);
+            log19.error(`[BidOptimization] v178: \u4E8B\u52A1DB\u66F4\u65B0\u5931\u8D25(\u5DF2\u56DE\u6EDA): ${txErr.message}`);
           }
         }
       }
       for (const detail of skippedDetails) {
-        log18.warn(`[BidOptimization] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7DB\u66F4\u65B0: targetId=${detail.keywordId}`);
+        log19.warn(`[BidOptimization] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7DB\u66F4\u65B0: targetId=${detail.keywordId}`);
       }
       if (syncedDetails.length > 0) {
         try {
@@ -153230,21 +153270,21 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
               localKeywordId: d5.keywordId,
               amazonKeywordId: d5.amazonKeywordId || String(d5.keywordId),
               expectedBid: d5.newBid,
-              campaignId: d5.campaignId,
+              campaignId: d5.amazonCampaignId,
               adGroupId: d5.adGroupId,
               isProductTarget: d5.isProductTarget || false
             }))
           );
-          log18.info(`[BidOptimization] v166: \u5DF2\u6CE8\u518C${syncedDetails.length}\u4E2A\u51FA\u4EF7\u9A8C\u8BC1\u4EFB\u52A1`);
+          log19.info(`[BidOptimization] v166: \u5DF2\u6CE8\u518C${syncedDetails.length}\u4E2A\u51FA\u4EF7\u9A8C\u8BC1\u4EFB\u52A1`);
         } catch (verifyErr) {
-          log18.warn(`[BidOptimization] v166: \u6CE8\u518C\u9A8C\u8BC1\u4EFB\u52A1\u5931\u8D25(\u4E0D\u5F71\u54CD\u4E3B\u6D41\u7A0B): ${verifyErr.message}`);
+          log19.warn(`[BidOptimization] v166: \u6CE8\u518C\u9A8C\u8BC1\u4EFB\u52A1\u5931\u8D25(\u4E0D\u5F71\u54CD\u4E3B\u6D41\u7A0B): ${verifyErr.message}`);
         }
       }
     } catch (apiError) {
       apiSyncStatus = "failed";
       apiSyncResult.errors.push(apiError.message);
-      log18.error(`[BidOptimization] Amazon API\u540C\u6B65\u5F02\u5E38:`, apiError.message);
-      log18.error(`[BidOptimization] v148: API\u6574\u4F53\u5F02\u5E38\uFF0C\u6240\u6709\u672C\u5730DB\u66F4\u65B0\u5DF2\u8DF3\u8FC7`);
+      log19.error(`[BidOptimization] Amazon API\u540C\u6B65\u5F02\u5E38:`, apiError.message);
+      log19.error(`[BidOptimization] v148: API\u6574\u4F53\u5F02\u5E38\uFF0C\u6240\u6709\u672C\u5730DB\u66F4\u65B0\u5DF2\u8DF3\u8FC7`);
     }
   } else if (dryRun) {
     apiSyncStatus = "pending";
@@ -153284,20 +153324,20 @@ async function executePlacementOptimization(config2, campaigns7, dryRun) {
         }
         accountComboMap.get(combo.campaignId).push(combo);
       }
-      log18.info(`[PlacementOptimization] v183: \u52A0\u8F7D${allCombos.length}\u4E2A\u6295\u653E\u8BCD\u7684\u7EC4\u5408\u5206\u6790\u7ED3\u679C`);
+      log19.info(`[PlacementOptimization] v183: \u52A0\u8F7D${allCombos.length}\u4E2A\u6295\u653E\u8BCD\u7684\u7EC4\u5408\u5206\u6790\u7ED3\u679C`);
     }
   } catch (comboErr) {
-    log18.warn(`[PlacementOptimization] v183: \u52A0\u8F7D\u7EC4\u5408\u5206\u6790\u7ED3\u679C\u5931\u8D25: ${comboErr.message}`);
+    log19.warn(`[PlacementOptimization] v183: \u52A0\u8F7D\u7EC4\u5408\u5206\u6790\u7ED3\u679C\u5931\u8D25: ${comboErr.message}`);
   }
   for (const campaign of campaigns7) {
     try {
-      const localCampaignId = campaign.id.toString();
+      const localCampaignIdStr = String(campaignLocalId);
       const analysis = await analyzePlacementPerformance(localCampaignId, config2.accountId);
       const suggestions = await generatePlacementSuggestions(
         localCampaignId,
         config2.accountId
       );
-      const campaignCombos = accountComboMap.get(campaign.id) || [];
+      const campaignCombos = accountComboMap.get(campaignLocalId) || [];
       const goldenCombos = campaignCombos.filter((c5) => c5.comboCategory === "golden" && c5.confidenceLevel !== "insufficient");
       let topOfSearchGoldenCount = 0;
       let productPageGoldenCount = 0;
@@ -153321,7 +153361,8 @@ async function executePlacementOptimization(config2, campaigns7, dryRun) {
         }
         const adjustment = {
           accountId: config2.accountId,
-          campaignId: campaign.id,
+          localCampaignId: campaignLocalId,
+          amazonCampaignId: campaignAmazonId,
           campaignName: campaign.campaignName,
           placement: suggestion.placement,
           currentMultiplier: suggestion.currentMultiplier,
@@ -153345,7 +153386,7 @@ async function executePlacementOptimization(config2, campaigns7, dryRun) {
         let placementSyncSuccess = false;
         let placementSyncError = "";
         try {
-          const amazonCampaignId = campaign.campaignId || campaign.id.toString();
+          const amazonCampaignId = campaignAmazonId;
           const topSuggestion = suggestions.find((s4) => s4.placement === "top_of_search");
           const productSuggestion = suggestions.find((s4) => s4.placement === "product_page");
           if (topSuggestion || productSuggestion) {
@@ -153360,34 +153401,35 @@ async function executePlacementOptimization(config2, campaigns7, dryRun) {
           }
         } catch (apiError) {
           placementSyncError = apiError.message;
-          log18.error(`[PlacementOptimization] Amazon API\u540C\u6B65\u5931\u8D25 (Campaign ${campaign.campaignName}):`, apiError.message);
+          log19.error(`[PlacementOptimization] Amazon API\u540C\u6B65\u5931\u8D25 (Campaign ${campaign.campaignName}):`, apiError.message);
         }
-        for (const d5 of details.filter((d6) => d6.campaignId === campaign.id)) {
+        for (const d5 of details.filter((d6) => d6.localCampaignId === campaignLocalId)) {
           d5.apiSyncStatus = placementSyncSuccess ? "synced" : placementSyncError ? "failed" : "pending";
           d5.apiSyncDetail = placementSyncError ? JSON.stringify({ error: placementSyncError }) : null;
         }
         if (placementSyncSuccess) {
           try {
-            const amazonCampaignIdForVerify = campaign.campaignId || campaign.id.toString();
+            const amazonCampaignIdForVerify = campaignAmazonId;
             const topSuggestion = suggestions?.find((s4) => s4.placement === "top_of_search");
             const productSuggestion = suggestions?.find((s4) => s4.placement === "product_page");
             schedulePlacementVerification(
               config2.accountId,
               [{
-                localCampaignId: campaign.id,
+                localCampaignId: campaignLocalId,
                 amazonCampaignId: amazonCampaignIdForVerify,
                 expectedTopOfSearch: topSuggestion?.suggestedMultiplier,
                 expectedProductPage: productSuggestion?.suggestedMultiplier
               }]
             );
           } catch (verifyErr) {
-            log18.warn(`[PlacementOptimization] v166: \u6CE8\u518C\u9A8C\u8BC1\u4EFB\u52A1\u5931\u8D25(\u4E0D\u5F71\u54CD\u4E3B\u6D41\u7A0B): ${verifyErr.message}`);
+            log19.warn(`[PlacementOptimization] v166: \u6CE8\u518C\u9A8C\u8BC1\u4EFB\u52A1\u5931\u8D25(\u4E0D\u5F71\u54CD\u4E3B\u6D41\u7A0B): ${verifyErr.message}`);
           }
         }
       }
     } catch (error54) {
       details.push({
-        campaignId: campaign.id,
+        localCampaignId: campaignLocalId,
+        amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
         error: error54.message
       });
@@ -153412,19 +153454,19 @@ async function executeDaypartingOptimization(config2, campaigns7, dryRun) {
           comboAnalysisMap.set(combo.keywordId, combo);
         }
       }
-      log18.info(`[DaypartingOptimization] v183: \u52A0\u8F7D${comboAnalysisMap.size}\u4E2A\u6295\u653E\u8BCD\u7684\u591A\u7EF4\u5EA6\u7EC4\u5408\u5206\u6790\u7ED3\u679C`);
+      log19.info(`[DaypartingOptimization] v183: \u52A0\u8F7D${comboAnalysisMap.size}\u4E2A\u6295\u653E\u8BCD\u7684\u591A\u7EF4\u5EA6\u7EC4\u5408\u5206\u6790\u7ED3\u679C`);
     }
   } catch (comboErr) {
-    log18.warn(`[DaypartingOptimization] v183: \u52A0\u8F7D\u7EC4\u5408\u5206\u6790\u7ED3\u679C\u5931\u8D25\uFF0C\u4F7F\u7528\u7EDF\u4E00\u4E58\u6570: ${comboErr.message}`);
+    log19.warn(`[DaypartingOptimization] v183: \u52A0\u8F7D\u7EC4\u5408\u5206\u6790\u7ED3\u679C\u5931\u8D25\uFF0C\u4F7F\u7528\u7EDF\u4E00\u4E58\u6570: ${comboErr.message}`);
   }
   const maxBidLimit = config2.maxBid || 2;
   for (const campaign of campaigns7) {
     try {
-      let strategy = await getDaypartingStrategyByCampaignId(campaign.id);
+      let strategy = await getDaypartingStrategyByCampaignId(campaignAmazonId);
       if (!strategy) {
         strategy = await ensureDaypartingStrategy(
           config2.accountId,
-          campaign.id,
+          campaignAmazonId,
           campaign.campaignName,
           {
             optimizationGoal: config2.optimizationGoal,
@@ -153437,7 +153479,7 @@ async function executeDaypartingOptimization(config2, campaigns7, dryRun) {
       const hourlyRule = await getHourlyRule(strategy.id, currentDayOfWeek, currentHour);
       if (!hourlyRule) continue;
       const baseDaypartingMultiplier = parseFloat(hourlyRule.bidMultiplier || "1.00");
-      const keywords8 = await getKeywordsByCampaignId(campaign.id);
+      const keywords8 = await getKeywordsByCampaignId(campaignAmazonId);
       for (const keyword of keywords8) {
         if (keyword.keywordStatus !== "enabled") continue;
         const baseBid = parseFloat(keyword.bid || "0");
@@ -153484,7 +153526,8 @@ async function executeDaypartingOptimization(config2, campaigns7, dryRun) {
         if (comboCategory !== "standard") reasonParts.push(`[${comboCategory}]`);
         const adjustment = {
           accountId: config2.accountId,
-          campaignId: campaign.id,
+          localCampaignId: campaignLocalId,
+          amazonCampaignId: campaignAmazonId,
           campaignName: campaign.campaignName,
           keywordId: keyword.id,
           keywordText: keyword.keywordText,
@@ -153511,7 +153554,8 @@ async function executeDaypartingOptimization(config2, campaigns7, dryRun) {
               [{
                 keywordId: keyword.id,
                 newBid: adjustedBid,
-                campaignId: campaign.id,
+                localCampaignId: campaignLocalId,
+                amazonCampaignId: campaignAmazonId,
                 reason: `v183\u5206\u65F6\u7ADE\u4EF7: ${reasonParts.join(" \xD7 ")}`,
                 isProductTarget: false
               }]
@@ -153526,13 +153570,14 @@ async function executeDaypartingOptimization(config2, campaigns7, dryRun) {
           } catch (apiError) {
             adjustment.apiSyncStatus = "failed";
             adjustment.apiSyncDetail = JSON.stringify({ error: apiError.message });
-            log18.error(`[DaypartingOptimization] API\u540C\u6B65\u5931\u8D25 (kw ${keyword.keywordText}):`, apiError.message);
+            log19.error(`[DaypartingOptimization] API\u540C\u6B65\u5931\u8D25 (kw ${keyword.keywordText}):`, apiError.message);
           }
         }
       }
     } catch (error54) {
       details.push({
-        campaignId: campaign.id,
+        localCampaignId: campaignLocalId,
+        amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
         error: error54.message
       });
@@ -153548,7 +153593,7 @@ async function executeDaypartingBudgetOptimization(config2, campaigns7, dryRun) 
   const currentDayOfWeek = getLocalDayOfWeek(now, marketplace);
   for (const campaign of campaigns7) {
     try {
-      let strategy = await getDaypartingStrategyByCampaignId(campaign.id);
+      let strategy = await getDaypartingStrategyByCampaignId(campaignAmazonId);
       if (!strategy || strategy.daypartingStatus !== "active") continue;
       const budgetRules = await getBudgetRules(strategy.id);
       const todayRule = budgetRules.find((r5) => r5.dayOfWeek === currentDayOfWeek);
@@ -153561,15 +153606,15 @@ async function executeDaypartingBudgetOptimization(config2, campaigns7, dryRun) 
         comboBudgetMultiplier = await getCampaignBudgetMultiplier(
           dbConn,
           config2.accountId,
-          campaign.id
+          campaignLocalId
         );
         if (Math.abs(comboBudgetMultiplier - 1) > 1e-3) {
-          log18.debug(`[DaypartingBudget] v183.1: Campaign ${campaign.campaignName} \u7EC4\u5408\u5206\u6790\u9884\u7B97\u4E58\u6570: ${comboBudgetMultiplier.toFixed(3)}`);
+          log19.debug(`[DaypartingBudget] v183.1: Campaign ${campaign.campaignName} \u7EC4\u5408\u5206\u6790\u9884\u7B97\u4E58\u6570: ${comboBudgetMultiplier.toFixed(3)}`);
           budgetMultiplier = budgetMultiplier * comboBudgetMultiplier;
           budgetMultiplier = Math.max(0.8, Math.min(1.3, budgetMultiplier));
         }
       } catch (comboErr) {
-        log18.warn(`[DaypartingBudget] v183.1: \u83B7\u53D6\u7EC4\u5408\u5206\u6790\u9884\u7B97\u4E58\u6570\u5931\u8D25: ${comboErr.message}`);
+        log19.warn(`[DaypartingBudget] v183.1: \u83B7\u53D6\u7EC4\u5408\u5206\u6790\u9884\u7B97\u4E58\u6570\u5931\u8D25: ${comboErr.message}`);
       }
       if (Math.abs(budgetMultiplier - 1) < 0.05) continue;
       const currentBudget = parseFloat(campaign.dailyBudget || "0");
@@ -153578,7 +153623,8 @@ async function executeDaypartingBudgetOptimization(config2, campaigns7, dryRun) 
       const adjustedBudget = Math.round(baseBudget * budgetMultiplier * 100) / 100;
       const adjustment = {
         accountId: config2.accountId,
-        campaignId: campaign.id,
+        localCampaignId: campaignLocalId,
+        amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
         dayOfWeek: currentDayOfWeek,
         budgetMultiplier,
@@ -153594,7 +153640,7 @@ async function executeDaypartingBudgetOptimization(config2, campaigns7, dryRun) 
       details.push(adjustment);
       if (!dryRun && Math.abs(adjustedBudget - currentBudget) > 0.5) {
         try {
-          const amazonCampaignId = campaign.campaignId || campaign.id.toString();
+          const amazonCampaignId = campaignAmazonId;
           const budgetSyncResult = await syncBudgetAdjustmentToAmazon(
             config2.accountId,
             amazonCampaignId,
@@ -153602,7 +153648,7 @@ async function executeDaypartingBudgetOptimization(config2, campaigns7, dryRun) 
             `v179\u5206\u65F6\u9884\u7B97: \u661F\u671F${currentDayOfWeek} \u500D\u6570${budgetMultiplier}x`
           );
           if (budgetSyncResult) {
-            await updateCampaign(campaign.id, {
+            await updateCampaign(campaignLocalId, {
               dailyBudget: adjustedBudget.toFixed(2),
               lastOptimizedAt: (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ")
             });
@@ -153613,7 +153659,7 @@ async function executeDaypartingBudgetOptimization(config2, campaigns7, dryRun) 
                 strategyId: strategy.id,
                 executionType: "budget_adjustment",
                 dpTargetType: "campaign",
-                dpTargetId: campaign.id,
+                dpTargetId: campaignLocalId,
                 dpTargetName: campaign.campaignName,
                 previousValue: currentBudget.toFixed(2),
                 newValue: adjustedBudget.toFixed(2),
@@ -153623,22 +153669,23 @@ async function executeDaypartingBudgetOptimization(config2, campaigns7, dryRun) 
                 dpExecStatus: "success"
               });
             } catch (logErr) {
-              log18.warn(`[DaypartingBudget] \u65E5\u5FD7\u8BB0\u5F55\u5931\u8D25: ${logErr.message}`);
+              log19.warn(`[DaypartingBudget] \u65E5\u5FD7\u8BB0\u5F55\u5931\u8D25: ${logErr.message}`);
             }
-            log18.debug(`[DaypartingBudget] v179: ${campaign.campaignName} \u9884\u7B97\u8C03\u6574 $${currentBudget.toFixed(2)} \u2192 $${adjustedBudget.toFixed(2)} (\u661F\u671F${currentDayOfWeek}, \u500D\u6570${budgetMultiplier}x)`);
+            log19.debug(`[DaypartingBudget] v179: ${campaign.campaignName} \u9884\u7B97\u8C03\u6574 $${currentBudget.toFixed(2)} \u2192 $${adjustedBudget.toFixed(2)} (\u661F\u671F${currentDayOfWeek}, \u500D\u6570${budgetMultiplier}x)`);
           } else {
             adjustment.apiSyncStatus = "failed";
-            log18.warn(`[DaypartingBudget] v179: API\u540C\u6B65\u5931\u8D25 (Campaign ${campaign.campaignName})`);
+            log19.warn(`[DaypartingBudget] v179: API\u540C\u6B65\u5931\u8D25 (Campaign ${campaign.campaignName})`);
           }
         } catch (apiError) {
           adjustment.apiSyncStatus = "failed";
           adjustment.apiSyncDetail = JSON.stringify({ error: apiError.message });
-          log18.error(`[DaypartingBudget] v179: API\u540C\u6B65\u5F02\u5E38 (Campaign ${campaign.campaignName}):`, apiError.message);
+          log19.error(`[DaypartingBudget] v179: API\u540C\u6B65\u5F02\u5E38 (Campaign ${campaign.campaignName}):`, apiError.message);
         }
       }
     } catch (error54) {
       details.push({
-        campaignId: campaign.id,
+        localCampaignId: campaignLocalId,
+        amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
         error: error54.message
       });
@@ -153655,7 +153702,7 @@ async function executeDaypartingBudgetOptimization(config2, campaigns7, dryRun) 
         }
       }
     } catch (updateErr) {
-      log18.warn(`[DaypartingBudget] \u66F4\u65B0lastAppliedAt\u5931\u8D25: ${updateErr.message}`);
+      log19.warn(`[DaypartingBudget] \u66F4\u65B0lastAppliedAt\u5931\u8D25: ${updateErr.message}`);
     }
   }
   return { executed: true, adjustmentsCount, details };
@@ -153666,7 +153713,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
   let newKeywordsAdded = 0;
   for (const campaign of campaigns7) {
     try {
-      const searchTerms4 = await getSearchTermsByCampaignId(campaign.id);
+      const searchTerms4 = await getSearchTermsByCampaignId(campaignAmazonId);
       const campaignTargetingType = campaign.targetingType || (campaign.campaignType === "sp_auto" ? "auto" : "manual");
       const targetAcos = config2.targetAcos || 30;
       const searchTermPerformanceList = searchTerms4.map((st3) => ({
@@ -153679,7 +153726,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
         campaignTargetingType,
         targetAcos
       }));
-      log18.debug(`[SearchTermAnalysis] v191: Campaign "${campaign.campaignName}" (${campaignTargetingType}): ${searchTermPerformanceList.length}\u4E2A\u641C\u7D22\u8BCD\u5F85\u5206\u6790`);
+      log19.debug(`[SearchTermAnalysis] v191: Campaign "${campaign.campaignName}" (${campaignTargetingType}): ${searchTermPerformanceList.length}\u4E2A\u641C\u7D22\u8BCD\u5F85\u5206\u6790`);
       const account = await getAdAccountById(config2.accountId);
       const brandTerms = account?.storeName ? [account.storeName] : [];
       for (const stPerf of searchTermPerformanceList) {
@@ -153690,7 +153737,8 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
         if (decision.action === "CREATE_NEGATIVE_KEYWORD") {
           if (brandTerms.length > 0 && isProtectedKeyword(stPerf.searchTerm, brandTerms)) {
             details.push({
-              campaignId: campaign.id,
+              localCampaignId: campaignLocalId,
+              amazonCampaignId: campaignAmazonId,
               campaignName: campaign.campaignName,
               searchTerm: stPerf.searchTerm,
               action: "brand_protect_skip",
@@ -153698,7 +153746,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
             });
             continue;
           }
-          const matchingKeywords = await getKeywordsByCampaignId(campaign.id);
+          const matchingKeywords = await getKeywordsByCampaignId(campaignAmazonId);
           const matchingKw = matchingKeywords.find(
             (kw) => kw.keywordText?.toLowerCase() === stPerf.searchTerm.toLowerCase()
           );
@@ -153706,7 +153754,8 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
             const kwCreatedAt = new Date(matchingKw.createdAt);
             if (isNewKeyword(kwCreatedAt, matchingKw.clicks || 0, matchingKw.impressions || 0, 7)) {
               details.push({
-                campaignId: campaign.id,
+                localCampaignId: campaignLocalId,
+                amazonCampaignId: campaignAmazonId,
                 campaignName: campaign.campaignName,
                 searchTerm: stPerf.searchTerm,
                 action: "exploration_protect_skip",
@@ -153724,11 +153773,12 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
               if (exactValidation.isValid) {
                 negMatchType = "negative_exact";
                 cleanedNegText = exactValidation.sanitizedText;
-                log18.debug(`[SearchTermAnalysis] v204: \u5426\u5B9A\u77ED\u8BED"${decision.targetValue}"\u8D85\u8FC74\u8BCD\u9650\u5236\uFF0C\u81EA\u52A8\u5347\u7EA7\u4E3Anegative_exact`);
+                log19.debug(`[SearchTermAnalysis] v204: \u5426\u5B9A\u77ED\u8BED"${decision.targetValue}"\u8D85\u8FC74\u8BCD\u9650\u5236\uFF0C\u81EA\u52A8\u5347\u7EA7\u4E3Anegative_exact`);
               } else {
-                log18.warn(`[SearchTermAnalysis] v204: \u5426\u5B9A\u8BCD\u9884\u9A8C\u8BC1\u5931\u8D25(\u5347\u7EA7\u540E\u4ECD\u65E0\u6548): "${decision.targetValue}" \u2192 ${exactValidation.reasonMessage}`);
+                log19.warn(`[SearchTermAnalysis] v204: \u5426\u5B9A\u8BCD\u9884\u9A8C\u8BC1\u5931\u8D25(\u5347\u7EA7\u540E\u4ECD\u65E0\u6548): "${decision.targetValue}" \u2192 ${exactValidation.reasonMessage}`);
                 details.push({
-                  campaignId: campaign.id,
+                  localCampaignId: campaignLocalId,
+                  amazonCampaignId: campaignAmazonId,
                   campaignName: campaign.campaignName,
                   searchTerm: decision.targetValue,
                   action: "negative_validation_failed",
@@ -153737,9 +153787,10 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                 continue;
               }
             } else {
-              log18.warn(`[SearchTermAnalysis] v204: \u5426\u5B9A\u8BCD\u9884\u9A8C\u8BC1\u5931\u8D25: "${decision.targetValue}" \u2192 ${negValidation.reasonMessage}`);
+              log19.warn(`[SearchTermAnalysis] v204: \u5426\u5B9A\u8BCD\u9884\u9A8C\u8BC1\u5931\u8D25: "${decision.targetValue}" \u2192 ${negValidation.reasonMessage}`);
               details.push({
-                campaignId: campaign.id,
+                localCampaignId: campaignLocalId,
+                amazonCampaignId: campaignAmazonId,
                 campaignName: campaign.campaignName,
                 searchTerm: decision.targetValue,
                 action: "negative_validation_failed",
@@ -153755,18 +153806,19 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
               const { negativeKeywords: negKwTable } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
               const { eq: eqOp, and: andOp } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
               const existingNeg = await dbInstance.select({ id: negKwTable.id, amazonNegativeKeywordId: negKwTable.amazonNegativeKeywordId }).from(negKwTable).where(andOp(
-                eqOp(negKwTable.campaignId, campaign.id),
+                eqOp(negKwTable.campaignId, campaignAmazonId),
                 eqOp(negKwTable.negativeText, cleanedNegText)
               )).limit(1);
               if (existingNeg.length > 0) {
                 negativeAlreadyExists = true;
-                log18.info(`[SearchTermAnalysis] v170: \u5426\u5B9A\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: "${cleanedNegText}" campaignId=${campaign.id}`);
+                log19.info(`[SearchTermAnalysis] v170: \u5426\u5B9A\u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: "${cleanedNegText}" campaignId=${campaign.id}`);
               }
             }
           }
           const negativeKeyword = {
             accountId: config2.accountId,
-            campaignId: campaign.id,
+            localCampaignId: campaignLocalId,
+            amazonCampaignId: campaignAmazonId,
             campaignName: campaign.campaignName,
             searchTerm: cleanedNegText,
             matchType: negMatchType,
@@ -153781,7 +153833,8 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
             const matchType = negMatchType === "negative_exact" ? "exact" : "phrase";
             negativeKeyword._pendingDbInsert = {
               accountId: campaign.accountId || 0,
-              campaignId: campaign.id,
+              localCampaignId: campaignLocalId,
+              amazonCampaignId: campaignAmazonId,
               negativeLevel: "campaign",
               negativeType: "keyword",
               negativeText: cleanedNegText,
@@ -153793,15 +153846,16 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
           }
         } else if (decision.action === "CREATE_KEYWORD") {
           if (!canAddPositiveKeyword(campaignTargetingType)) {
-            log18.info(`[SearchTermAnalysis] v191: \u81EA\u52A8\u5E7F\u544A\u6D3B\u52A8\u4E0D\u80FD\u6DFB\u52A0\u6B63\u9762\u5173\u952E\u8BCD\uFF0C\u8DF3\u8FC7: "${decision.targetValue}"`);
+            log19.info(`[SearchTermAnalysis] v191: \u81EA\u52A8\u5E7F\u544A\u6D3B\u52A8\u4E0D\u80FD\u6DFB\u52A0\u6B63\u9762\u5173\u952E\u8BCD\uFF0C\u8DF3\u8FC7: "${decision.targetValue}"`);
             continue;
           }
           if (isAsinSearchTerm(decision.targetValue)) {
-            log18.debug(`[SearchTermAnalysis] v194: ASIN\u641C\u7D22\u8BCD"${decision.targetValue}"\u91CD\u5B9A\u5411\u4E3Aproduct target`);
+            log19.debug(`[SearchTermAnalysis] v194: ASIN\u641C\u7D22\u8BCD"${decision.targetValue}"\u91CD\u5B9A\u5411\u4E3Aproduct target`);
             const ptBid = decision.suggestedBid || 0.5;
             details.push({
               accountId: config2.accountId,
-              campaignId: campaign.id,
+              localCampaignId: campaignLocalId,
+              amazonCampaignId: campaignAmazonId,
               campaignName: campaign.campaignName,
               searchTerm: decision.targetValue,
               matchType: "product_target_exact",
@@ -153817,9 +153871,10 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
           }
           const posValidation = sanitizeAndValidateKeyword(decision.targetValue, "positive");
           if (!posValidation.isValid) {
-            log18.warn(`[SearchTermAnalysis] v204: \u6B63\u9762\u5173\u952E\u8BCD\u9884\u9A8C\u8BC1\u5931\u8D25: "${decision.targetValue}" \u2192 ${posValidation.reasonMessage}`);
+            log19.warn(`[SearchTermAnalysis] v204: \u6B63\u9762\u5173\u952E\u8BCD\u9884\u9A8C\u8BC1\u5931\u8D25: "${decision.targetValue}" \u2192 ${posValidation.reasonMessage}`);
             details.push({
-              campaignId: campaign.id,
+              localCampaignId: campaignLocalId,
+              amazonCampaignId: campaignAmazonId,
               campaignName: campaign.campaignName,
               searchTerm: decision.targetValue,
               action: "keyword_validation_failed",
@@ -153832,7 +153887,8 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
           const bid = decision.suggestedBid || 0.5;
           const newKeyword = {
             accountId: config2.accountId,
-            campaignId: campaign.id,
+            localCampaignId: campaignLocalId,
+            amazonCampaignId: campaignAmazonId,
             campaignName: campaign.campaignName,
             searchTerm: cleanedPosText,
             matchType,
@@ -153848,20 +153904,20 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
           if (!dryRun) {
             const dbInstance = await getDb();
             if (dbInstance) {
-              const adGroups4 = await getAdGroupsByCampaignId(campaign.id);
+              const adGroups4 = await getAdGroupsByCampaignId(campaignAmazonId);
               if (adGroups4.length > 0) {
                 const adGroup = adGroups4[0];
                 const amazonAdGroupId = Number(adGroup.adGroupId || 0);
-                const amazonCampaignId = campaign.campaignId || String(campaign.id);
+                const amazonCampaignId = campaignAmazonId;
                 try {
                   const hasProductTargets = await adGroupHasProductTargets(adGroup.id);
                   if (hasProductTargets) {
-                    log18.info(`[SearchTermAnalysis] v194: \u5E7F\u544A\u7EC4\u5DF2\u6709product targets\uFF0C\u4E0D\u80FD\u6DFB\u52A0keyword\uFF0C\u8DF3\u8FC7: "${decision.targetValue}"`);
+                    log19.info(`[SearchTermAnalysis] v194: \u5E7F\u544A\u7EC4\u5DF2\u6709product targets\uFF0C\u4E0D\u80FD\u6DFB\u52A0keyword\uFF0C\u8DF3\u8FC7: "${decision.targetValue}"`);
                     newKeyword.apiSyncStatus = "skipped_pt_adgroup";
                     continue;
                   }
                 } catch (ptCheckErr) {
-                  log18.warn(`[SearchTermAnalysis] v194: \u68C0\u67E5product targets\u5931\u8D25: ${ptCheckErr.message}`);
+                  log19.warn(`[SearchTermAnalysis] v194: \u68C0\u67E5product targets\u5931\u8D25: ${ptCheckErr.message}`);
                 }
                 const { keywords: keywords8 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
                 const { eq: eqOp, and: andOp } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
@@ -153877,16 +153933,16 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                     for (const dup of toDelete) {
                       try {
                         await dbInstance.delete(keywords8).where(eqOp(keywords8.id, dup.id));
-                        log18.debug(`[SearchTermAnalysis] \u6E05\u7406\u91CD\u590D\u5173\u952E\u8BCD: id=${dup.id} "${decision.targetValue}"`);
+                        log19.debug(`[SearchTermAnalysis] \u6E05\u7406\u91CD\u590D\u5173\u952E\u8BCD: id=${dup.id} "${decision.targetValue}"`);
                       } catch (delErr) {
-                        log18.warn(`[SearchTermAnalysis] \u6E05\u7406\u91CD\u590D\u5173\u952E\u8BCD\u5931\u8D25: id=${dup.id}: ${delErr.message}`);
+                        log19.warn(`[SearchTermAnalysis] \u6E05\u7406\u91CD\u590D\u5173\u952E\u8BCD\u5931\u8D25: id=${dup.id}: ${delErr.message}`);
                       }
                     }
                   }
                   const existingMatchTypes = existingKeywords.map((k5) => k5.matchType || "unknown").join(",");
                   newKeyword.apiSyncStatus = "already_exists";
                   newKeyword.apiSyncDetail = JSON.stringify({ existingId: existingKeywords[0].id, existingKeywordId: existingKeywords[0].keywordId, existingMatchTypes });
-                  log18.info(`[SearchTermAnalysis] v168: \u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: "${decision.targetValue}" (\u8BF7\u6C42=${matchType}, \u5DF2\u5B58\u5728=${existingMatchTypes})`);
+                  log19.info(`[SearchTermAnalysis] v168: \u5173\u952E\u8BCD\u5DF2\u5B58\u5728\uFF0C\u8DF3\u8FC7: "${decision.targetValue}" (\u8BF7\u6C42=${matchType}, \u5DF2\u5B58\u5728=${existingMatchTypes})`);
                 } else {
                   const insertResult = await dbInstance.insert(keywords8).values({
                     adGroupId: adGroup.id,
@@ -153913,19 +153969,19 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                       );
                       if (apiResult.success > 0) {
                         newKeyword.apiSyncStatus = "synced";
-                        log18.info(`[SearchTermAnalysis] v191: \u65B0\u5173\u952E\u8BCD[${matchType}]\u5DF2\u540C\u6B65: "${decision.targetValue}" bid=$${bid}`);
+                        log19.info(`[SearchTermAnalysis] v191: \u65B0\u5173\u952E\u8BCD[${matchType}]\u5DF2\u540C\u6B65: "${decision.targetValue}" bid=$${bid}`);
                       } else {
                         newKeyword.apiSyncStatus = "failed";
                         newKeyword.apiSyncDetail = JSON.stringify({ errors: apiResult.errors });
-                        log18.error(`[SearchTermAnalysis] \u65B0\u5173\u952E\u8BCD\u540C\u6B65\u5931\u8D25: "${decision.targetValue}" - ${apiResult.errors.join("; ")}`);
+                        log19.error(`[SearchTermAnalysis] \u65B0\u5173\u952E\u8BCD\u540C\u6B65\u5931\u8D25: "${decision.targetValue}" - ${apiResult.errors.join("; ")}`);
                       }
                     } catch (apiError) {
                       newKeyword.apiSyncStatus = "failed";
                       newKeyword.apiSyncDetail = JSON.stringify({ error: apiError.message });
-                      log18.error(`[SearchTermAnalysis] \u65B0\u5173\u952E\u8BCDAPI\u5F02\u5E38: "${decision.targetValue}" -`, apiError.message);
+                      log19.error(`[SearchTermAnalysis] \u65B0\u5173\u952E\u8BCDAPI\u5F02\u5E38: "${decision.targetValue}" -`, apiError.message);
                     }
                   } else {
-                    log18.warn(`[SearchTermAnalysis] \u7F3A\u5C11Amazon ID\uFF0C\u65E0\u6CD5\u540C\u6B65: adGroupId=${amazonAdGroupId}, campaignId=${amazonCampaignId}`);
+                    log19.warn(`[SearchTermAnalysis] \u7F3A\u5C11Amazon ID\uFF0C\u65E0\u6CD5\u540C\u6B65: adGroupId=${amazonAdGroupId}, campaignId=${amazonCampaignId}`);
                   }
                 }
               }
@@ -153939,7 +153995,8 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
           const bid = decision.suggestedBid || 0.5;
           const newTarget = {
             accountId: config2.accountId,
-            campaignId: campaign.id,
+            localCampaignId: campaignLocalId,
+            amazonCampaignId: campaignAmazonId,
             campaignName: campaign.campaignName,
             searchTerm: decision.targetValue,
             matchType: `product_target_${ptType}`,
@@ -153952,14 +154009,14 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
             valueLevel: decision.valueLevel
           };
           details.push(newTarget);
-          log18.debug(`[SearchTermAnalysis] v191: ASIN\u5B9A\u5411\u51B3\u7B56[${ptType}]: "${decision.targetValue}" bid=$${bid} (${decision.reason})`);
+          log19.debug(`[SearchTermAnalysis] v191: ASIN\u5B9A\u5411\u51B3\u7B56[${ptType}]: "${decision.targetValue}" bid=$${bid} (${decision.reason})`);
         }
       }
       if (!dryRun) {
-        const negativeDetails = details.filter((d5) => d5.action === "add_negative" && d5.campaignId === campaign.id);
+        const negativeDetails = details.filter((d5) => d5.action === "add_negative" && d5.localCampaignId === campaignLocalId);
         if (negativeDetails.length > 0) {
           try {
-            const amazonCampaignId = campaign.campaignId || String(campaign.id);
+            const amazonCampaignId = campaignAmazonId;
             const negSyncResult = await syncNegativeKeywordsToAmazon(
               config2.accountId,
               negativeDetails.map((d5) => ({
@@ -153976,7 +154033,7 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                 d5.apiSyncDetail = JSON.stringify({ errors: negSyncResult.errors });
               }
             }
-            log18.info(`[SearchTermAnalysis] Amazon API\u540C\u6B65: ${negativeDetails.length}\u4E2A\u5426\u5B9A\u8BCD, \u72B6\u6001=${negSyncStatus} (Campaign ${campaign.campaignName})`);
+            log19.info(`[SearchTermAnalysis] Amazon API\u540C\u6B65: ${negativeDetails.length}\u4E2A\u5426\u5B9A\u8BCD, \u72B6\u6001=${negSyncStatus} (Campaign ${campaign.campaignName})`);
             if (negSyncStatus === "synced" || negSyncStatus === "partial") {
               const dbInstance = await getDb();
               if (dbInstance) {
@@ -153996,11 +154053,11 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                             AND amazon_negative_keyword_id IS NULL
                           LIMIT 1
                         `);
-                        log18.info(`[SearchTermAnalysis] v195: \u5426\u8BCDID\u56DE\u5199\u6210\u529F: "${d5.searchTerm}" -> ${amazonNegId}`);
+                        log19.info(`[SearchTermAnalysis] v195: \u5426\u8BCDID\u56DE\u5199\u6210\u529F: "${d5.searchTerm}" -> ${amazonNegId}`);
                       }
-                      log18.info(`[SearchTermAnalysis] v165: \u5426\u8BCDDB\u5199\u5165\u6210\u529F: "${d5.searchTerm}"`);
+                      log19.info(`[SearchTermAnalysis] v165: \u5426\u8BCDDB\u5199\u5165\u6210\u529F: "${d5.searchTerm}"`);
                     } catch (dbErr) {
-                      log18.error(`[SearchTermAnalysis] v165: \u5426\u8BCDDB\u5199\u5165\u5931\u8D25: "${d5.searchTerm}" - ${dbErr.message}`);
+                      log19.error(`[SearchTermAnalysis] v165: \u5426\u8BCDDB\u5199\u5165\u5931\u8D25: "${d5.searchTerm}" - ${dbErr.message}`);
                     }
                   }
                 }
@@ -154014,28 +154071,30 @@ async function executeSearchTermAnalysis(config2, campaigns7, dryRun) {
                       localId: d5._pendingDbInsert?.id || 0,
                       keywordText: d5.searchTerm,
                       matchType: d5.matchType === "negative_exact" ? "negativeExact" : "negativePhrase",
-                      campaignId: campaign.id
+                      localCampaignId: campaignLocalId,
+                      amazonCampaignId: campaignAmazonId
                     }))
                   );
                 }
               } catch (verifyErr) {
-                log18.warn(`[SearchTermAnalysis] v166: \u6CE8\u518C\u9A8C\u8BC1\u4EFB\u52A1\u5931\u8D25(\u4E0D\u5F71\u54CD\u4E3B\u6D41\u7A0B): ${verifyErr.message}`);
+                log19.warn(`[SearchTermAnalysis] v166: \u6CE8\u518C\u9A8C\u8BC1\u4EFB\u52A1\u5931\u8D25(\u4E0D\u5F71\u54CD\u4E3B\u6D41\u7A0B): ${verifyErr.message}`);
               }
             } else {
-              log18.warn(`[SearchTermAnalysis] v165: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7\u672C\u5730DB\u5199\u5165 (Campaign ${campaign.campaignName})`);
+              log19.warn(`[SearchTermAnalysis] v165: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7\u672C\u5730DB\u5199\u5165 (Campaign ${campaign.campaignName})`);
             }
           } catch (apiError) {
             for (const d5 of negativeDetails) {
               d5.apiSyncStatus = "failed";
               d5.apiSyncDetail = JSON.stringify({ error: apiError.message });
             }
-            log18.error(`[SearchTermAnalysis] Amazon API\u540C\u6B65\u5931\u8D25\uFF0C\u672A\u5199\u5165\u672C\u5730DB (Campaign ${campaign.campaignName}):`, apiError.message);
+            log19.error(`[SearchTermAnalysis] Amazon API\u540C\u6B65\u5931\u8D25\uFF0C\u672A\u5199\u5165\u672C\u5730DB (Campaign ${campaign.campaignName}):`, apiError.message);
           }
         }
       }
     } catch (error54) {
       details.push({
-        campaignId: campaign.id,
+        localCampaignId: campaignLocalId,
+        amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
         error: error54.message
       });
@@ -154062,7 +154121,7 @@ async function executeBudgetAllocation2(config2, campaigns7, dryRun) {
           twMetrics
         );
         finalBudget = gradualResult.gradualBudget;
-        log18.debug(`[BudgetAllocation] v163: \u6E10\u8FDB\u5F0F\u9884\u7B97 - Campaign ${campaign.campaignName}: $${suggestion.currentBudget.toFixed(0)}\u2192$${finalBudget.toFixed(0)} (\u7B97\u6CD5\u76EE\u6807$${suggestion.suggestedBudget.toFixed(0)}, \u8BA2\u5355\u4FDD\u62A4=${gradualResult.orderProtectionActive})`);
+        log19.debug(`[BudgetAllocation] v163: \u6E10\u8FDB\u5F0F\u9884\u7B97 - Campaign ${campaign.campaignName}: $${suggestion.currentBudget.toFixed(0)}\u2192$${finalBudget.toFixed(0)} (\u7B97\u6CD5\u76EE\u6807$${suggestion.suggestedBudget.toFixed(0)}, \u8BA2\u5355\u4FDD\u62A4=${gradualResult.orderProtectionActive})`);
       }
       const adjustment = {
         accountId: config2.accountId,
@@ -154084,7 +154143,7 @@ async function executeBudgetAllocation2(config2, campaigns7, dryRun) {
       }
       if (!dryRun && Math.abs(finalBudget - suggestion.currentBudget) > 0.5) {
         try {
-          const amazonCampaignId = campaign.campaignId || campaign.id.toString();
+          const amazonCampaignId = campaignAmazonId;
           const budgetSyncResult = await syncBudgetAdjustmentToAmazon(
             config2.accountId,
             amazonCampaignId,
@@ -154111,16 +154170,16 @@ async function executeBudgetAllocation2(config2, campaigns7, dryRun) {
                 }]
               );
             } catch (verifyErr) {
-              log18.warn(`[BudgetAllocation] v166: \u6CE8\u518C\u9A8C\u8BC1\u4EFB\u52A1\u5931\u8D25(\u4E0D\u5F71\u54CD\u4E3B\u6D41\u7A0B): ${verifyErr.message}`);
+              log19.warn(`[BudgetAllocation] v166: \u6CE8\u518C\u9A8C\u8BC1\u4EFB\u52A1\u5931\u8D25(\u4E0D\u5F71\u54CD\u4E3B\u6D41\u7A0B): ${verifyErr.message}`);
             }
           } else {
             adjustment.apiSyncStatus = "failed";
-            log18.warn(`[BudgetAllocation] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7DB\u66F4\u65B0 (Campaign ${campaign.campaignName})`);
+            log19.warn(`[BudgetAllocation] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7DB\u66F4\u65B0 (Campaign ${campaign.campaignName})`);
           }
         } catch (apiError) {
           adjustment.apiSyncStatus = "failed";
           adjustment.apiSyncDetail = JSON.stringify({ error: apiError.message });
-          log18.error(`[BudgetAllocation] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7DB\u66F4\u65B0 (Campaign ${campaign.campaignName}):`, apiError.message);
+          log19.error(`[BudgetAllocation] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7DB\u66F4\u65B0 (Campaign ${campaign.campaignName}):`, apiError.message);
         }
       }
     }
@@ -154164,7 +154223,7 @@ async function executeKeywordStatusChanges(config2, campaigns7, dryRun) {
         const endDate = /* @__PURE__ */ new Date();
         const startDate = /* @__PURE__ */ new Date();
         startDate.setDate(startDate.getDate() - 90);
-        const rawDailyData = await getDailyPerformanceByDateRange(config2.accountId, startDate, endDate, campaign.id);
+        const rawDailyData = await getDailyPerformanceByDateRange(config2.accountId, startDate, endDate, campaignAmazonId);
         const dailyDataForWeighting = rawDailyData.map((d5) => ({
           date: typeof d5.date === "string" ? d5.date : new Date(d5.date).toISOString(),
           impressions: d5.impressions || 0,
@@ -154177,9 +154236,9 @@ async function executeKeywordStatusChanges(config2, campaigns7, dryRun) {
           campaignTWMetrics = calculateTimeWeightedMetrics(dailyDataForWeighting);
         }
       } catch (e6) {
-        log18.warn(`[KeywordStatus] v163: Campaign ${campaign.id} \u65F6\u95F4\u8870\u51CF\u6570\u636E\u83B7\u53D6\u5931\u8D25: ${e6.message}`);
+        log19.warn(`[KeywordStatus] v163: Campaign ${campaignLocalId} \u65F6\u95F4\u8870\u51CF\u6570\u636E\u83B7\u53D6\u5931\u8D25: ${e6.message}`);
       }
-      const keywords8 = await getKeywordsByCampaignId(campaign.id);
+      const keywords8 = await getKeywordsByCampaignId(campaignAmazonId);
       for (const keyword of keywords8) {
         const spend = parseFloat(keyword.spend || "0");
         const sales = parseFloat(keyword.sales || "0");
@@ -154215,7 +154274,8 @@ async function executeKeywordStatusChanges(config2, campaigns7, dryRun) {
               shouldPause = false;
               const explorationInfo = getExplorationStrategy(keywordCreatedAt, clicks, impressions, parseFloat(keyword.bid || "0"));
               details.push({
-                campaignId: campaign.id,
+                localCampaignId: campaignLocalId,
+                amazonCampaignId: campaignAmazonId,
                 campaignName: campaign.campaignName,
                 keywordId: keyword.id,
                 keywordText: keyword.keywordText,
@@ -154232,7 +154292,8 @@ async function executeKeywordStatusChanges(config2, campaigns7, dryRun) {
             if (brandTerms.length > 0 && isProtectedKeyword(keyword.keywordText, brandTerms)) {
               shouldPause = false;
               details.push({
-                campaignId: campaign.id,
+                localCampaignId: campaignLocalId,
+                amazonCampaignId: campaignAmazonId,
                 campaignName: campaign.campaignName,
                 keywordId: keyword.id,
                 keywordText: keyword.keywordText,
@@ -154246,7 +154307,8 @@ async function executeKeywordStatusChanges(config2, campaigns7, dryRun) {
           if (shouldPause && clicks < 10 && spend < groupAov) {
             shouldPause = false;
             details.push({
-              campaignId: campaign.id,
+              localCampaignId: campaignLocalId,
+              amazonCampaignId: campaignAmazonId,
               campaignName: campaign.campaignName,
               keywordId: keyword.id,
               keywordText: keyword.keywordText,
@@ -154274,7 +154336,8 @@ async function executeKeywordStatusChanges(config2, campaigns7, dryRun) {
         if (shouldPause) {
           const action = {
             accountId: config2.accountId,
-            campaignId: campaign.id,
+            localCampaignId: campaignLocalId,
+            amazonCampaignId: campaignAmazonId,
             campaignName: campaign.campaignName,
             keywordId: keyword.id,
             keywordText: keyword.keywordText,
@@ -154292,7 +154355,8 @@ async function executeKeywordStatusChanges(config2, campaigns7, dryRun) {
                 [{
                   keywordId: keyword.id,
                   newStatus: "paused",
-                  campaignId: campaign.id,
+                  localCampaignId: campaignLocalId,
+                  amazonCampaignId: campaignAmazonId,
                   reason: pauseReason,
                   isProductTarget: false
                 }]
@@ -154307,25 +154371,26 @@ async function executeKeywordStatusChanges(config2, campaigns7, dryRun) {
                     [{ localKeywordId: keyword.id, amazonKeywordId: keyword.keywordId || String(keyword.id), expectedState: "paused", adGroupId: keyword.adGroupId }]
                   );
                 } catch (ve2) {
-                  log18.warn(`[KeywordStatusChange] v166: \u9A8C\u8BC1\u4EFB\u52A1\u6CE8\u518C\u5931\u8D25: ${ve2.message}`);
+                  log19.warn(`[KeywordStatusChange] v166: \u9A8C\u8BC1\u4EFB\u52A1\u6CE8\u518C\u5931\u8D25: ${ve2.message}`);
                 }
               } else {
                 action.apiSyncStatus = "failed";
                 if (syncResult.errors.length > 0) {
                   action.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
                 }
-                log18.warn(`[KeywordStatusChange] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7DB\u66F4\u65B0 (\u6682\u505C ${keyword.keywordText})`);
+                log19.warn(`[KeywordStatusChange] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7DB\u66F4\u65B0 (\u6682\u505C ${keyword.keywordText})`);
               }
             } catch (apiError) {
               action.apiSyncStatus = "failed";
               action.apiSyncDetail = JSON.stringify({ error: apiError.message });
-              log18.error(`[KeywordStatusChange] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7DB\u66F4\u65B0 (\u6682\u505C ${keyword.keywordText}):`, apiError.message);
+              log19.error(`[KeywordStatusChange] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7DB\u66F4\u65B0 (\u6682\u505C ${keyword.keywordText}):`, apiError.message);
             }
           }
         } else if (shouldEnable) {
           const action = {
             accountId: config2.accountId,
-            campaignId: campaign.id,
+            localCampaignId: campaignLocalId,
+            amazonCampaignId: campaignAmazonId,
             campaignName: campaign.campaignName,
             keywordId: keyword.id,
             keywordText: keyword.keywordText,
@@ -154343,7 +154408,8 @@ async function executeKeywordStatusChanges(config2, campaigns7, dryRun) {
                 [{
                   keywordId: keyword.id,
                   newStatus: "enabled",
-                  campaignId: campaign.id,
+                  localCampaignId: campaignLocalId,
+                  amazonCampaignId: campaignAmazonId,
                   reason: enableReason,
                   isProductTarget: false
                 }]
@@ -154358,26 +154424,27 @@ async function executeKeywordStatusChanges(config2, campaigns7, dryRun) {
                     [{ localKeywordId: keyword.id, amazonKeywordId: keyword.keywordId || String(keyword.id), expectedState: "enabled", adGroupId: keyword.adGroupId }]
                   );
                 } catch (ve2) {
-                  log18.warn(`[KeywordStatusChange] v166: \u9A8C\u8BC1\u4EFB\u52A1\u6CE8\u518C\u5931\u8D25: ${ve2.message}`);
+                  log19.warn(`[KeywordStatusChange] v166: \u9A8C\u8BC1\u4EFB\u52A1\u6CE8\u518C\u5931\u8D25: ${ve2.message}`);
                 }
               } else {
                 action.apiSyncStatus = "failed";
                 if (syncResult.errors.length > 0) {
                   action.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
                 }
-                log18.warn(`[KeywordStatusChange] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7DB\u66F4\u65B0 (\u542F\u7528 ${keyword.keywordText})`);
+                log19.warn(`[KeywordStatusChange] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7DB\u66F4\u65B0 (\u542F\u7528 ${keyword.keywordText})`);
               }
             } catch (apiError) {
               action.apiSyncStatus = "failed";
               action.apiSyncDetail = JSON.stringify({ error: apiError.message });
-              log18.error(`[KeywordStatusChange] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7DB\u66F4\u65B0 (\u542F\u7528 ${keyword.keywordText}):`, apiError.message);
+              log19.error(`[KeywordStatusChange] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7DB\u66F4\u65B0 (\u542F\u7528 ${keyword.keywordText}):`, apiError.message);
             }
           }
         }
       }
     } catch (error54) {
       details.push({
-        campaignId: campaign.id,
+        localCampaignId: campaignLocalId,
+        amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
         error: error54.message
       });
@@ -154406,7 +154473,7 @@ async function executeCampaignStatusChanges(config2, campaigns7, dryRun) {
         const endDate = /* @__PURE__ */ new Date();
         const startDate = /* @__PURE__ */ new Date();
         startDate.setDate(startDate.getDate() - 90);
-        const rawDailyData = await getDailyPerformanceByDateRange(config2.accountId, startDate, endDate, campaign.id);
+        const rawDailyData = await getDailyPerformanceByDateRange(config2.accountId, startDate, endDate, campaignAmazonId);
         const dailyDataForWeighting = rawDailyData.map((d5) => ({
           date: typeof d5.date === "string" ? d5.date : new Date(d5.date).toISOString(),
           impressions: d5.impressions || 0,
@@ -154419,7 +154486,7 @@ async function executeCampaignStatusChanges(config2, campaigns7, dryRun) {
           campaignTWMetrics = calculateTimeWeightedMetrics(dailyDataForWeighting);
         }
       } catch (e6) {
-        log18.warn(`[CampaignStatus] v163: Campaign ${campaign.id} \u65F6\u95F4\u8870\u51CF\u6570\u636E\u83B7\u53D6\u5931\u8D25: ${e6.message}`);
+        log19.warn(`[CampaignStatus] v163: Campaign ${campaignLocalId} \u65F6\u95F4\u8870\u51CF\u6570\u636E\u83B7\u53D6\u5931\u8D25: ${e6.message}`);
       }
       const spend = campaignTWMetrics ? campaignTWMetrics.weightedDailySpend * 30 : parseFloat(campaign.spend || "0");
       const sales = campaignTWMetrics ? campaignTWMetrics.weightedDailySales * 30 : parseFloat(campaign.sales || "0");
@@ -154460,7 +154527,8 @@ async function executeCampaignStatusChanges(config2, campaigns7, dryRun) {
         const action = {
           accountId: config2.accountId,
           entityType: "campaign",
-          campaignId: campaign.id,
+          localCampaignId: campaignLocalId,
+          amazonCampaignId: campaignAmazonId,
           campaignName: campaign.campaignName,
           amazonCampaignId: campaign.campaignId || campaign.amazonCampaignId,
           action: "pause",
@@ -154480,15 +154548,15 @@ async function executeCampaignStatusChanges(config2, campaigns7, dryRun) {
             const syncResult = await syncCampaignStatusToAmazon(
               config2.accountId,
               [{
-                campaignId: campaign.id,
-                amazonCampaignId: String(campaign.campaignId || campaign.amazonCampaignId || ""),
+                localCampaignId: campaignLocalId,
+                amazonCampaignId: campaignAmazonId,
                 newStatus: "paused",
                 campaignName: campaign.campaignName || "",
                 reason: pauseReason
               }]
             );
             if (syncResult.success > 0) {
-              await updateCampaign(campaign.id, { campaignStatus: "paused" });
+              await updateCampaign(campaignLocalId, { campaignStatus: "paused" });
               pausedCount++;
               action.apiSyncStatus = "synced";
             } else {
@@ -154496,19 +154564,20 @@ async function executeCampaignStatusChanges(config2, campaigns7, dryRun) {
               if (syncResult.errors.length > 0) {
                 action.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
               }
-              log18.warn(`[CampaignStatusChange] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7DB\u66F4\u65B0 (\u6682\u505C ${campaign.campaignName})`);
+              log19.warn(`[CampaignStatusChange] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7DB\u66F4\u65B0 (\u6682\u505C ${campaign.campaignName})`);
             }
           } catch (apiError) {
             action.apiSyncStatus = "failed";
             action.apiSyncDetail = JSON.stringify({ error: apiError.message });
-            log18.error(`[CampaignStatusChange] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7DB\u66F4\u65B0 (\u6682\u505C ${campaign.campaignName}):`, apiError.message);
+            log19.error(`[CampaignStatusChange] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7DB\u66F4\u65B0 (\u6682\u505C ${campaign.campaignName}):`, apiError.message);
           }
         }
       } else if (shouldEnable) {
         const action = {
           accountId: config2.accountId,
           entityType: "campaign",
-          campaignId: campaign.id,
+          localCampaignId: campaignLocalId,
+          amazonCampaignId: campaignAmazonId,
           campaignName: campaign.campaignName,
           amazonCampaignId: campaign.campaignId || campaign.amazonCampaignId,
           action: "enable",
@@ -154528,15 +154597,15 @@ async function executeCampaignStatusChanges(config2, campaigns7, dryRun) {
             const syncResult = await syncCampaignStatusToAmazon(
               config2.accountId,
               [{
-                campaignId: campaign.id,
-                amazonCampaignId: String(campaign.campaignId || campaign.amazonCampaignId || ""),
+                localCampaignId: campaignLocalId,
+                amazonCampaignId: campaignAmazonId,
                 newStatus: "enabled",
                 campaignName: campaign.campaignName || "",
                 reason: enableReason
               }]
             );
             if (syncResult.success > 0) {
-              await updateCampaign(campaign.id, { campaignStatus: "enabled" });
+              await updateCampaign(campaignLocalId, { campaignStatus: "enabled" });
               enabledCount++;
               action.apiSyncStatus = "synced";
             } else {
@@ -154544,18 +154613,19 @@ async function executeCampaignStatusChanges(config2, campaigns7, dryRun) {
               if (syncResult.errors.length > 0) {
                 action.apiSyncDetail = JSON.stringify({ errors: syncResult.errors });
               }
-              log18.warn(`[CampaignStatusChange] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7DB\u66F4\u65B0 (\u542F\u7528 ${campaign.campaignName})`);
+              log19.warn(`[CampaignStatusChange] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7DB\u66F4\u65B0 (\u542F\u7528 ${campaign.campaignName})`);
             }
           } catch (apiError) {
             action.apiSyncStatus = "failed";
             action.apiSyncDetail = JSON.stringify({ error: apiError.message });
-            log18.error(`[CampaignStatusChange] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7DB\u66F4\u65B0 (\u542F\u7528 ${campaign.campaignName}):`, apiError.message);
+            log19.error(`[CampaignStatusChange] v148: API\u540C\u6B65\u5931\u8D25\uFF0C\u8DF3\u8FC7DB\u66F4\u65B0 (\u542F\u7528 ${campaign.campaignName}):`, apiError.message);
           }
         }
       }
     } catch (error54) {
       details.push({
-        campaignId: campaign.id,
+        localCampaignId: campaignLocalId,
+        amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
         entityType: "campaign",
         error: error54.message
@@ -154574,7 +154644,7 @@ async function executeAdGroupStatusChanges(config2, campaigns7, dryRun) {
   let adGroupMaxAcosThreshold = targetAcos * 2.8;
   for (const campaign of campaigns7) {
     try {
-      const adGroups4 = await getAdGroupsByCampaignId(campaign.id);
+      const adGroups4 = await getAdGroupsByCampaignId(campaignAmazonId);
       for (const adGroup of adGroups4) {
         const spend = parseFloat(adGroup.spend || "0");
         const sales = parseFloat(adGroup.sales || "0");
@@ -154604,7 +154674,8 @@ async function executeAdGroupStatusChanges(config2, campaigns7, dryRun) {
           const action = {
             accountId: config2.accountId,
             entityType: "adGroup",
-            campaignId: campaign.id,
+            localCampaignId: campaignLocalId,
+            amazonCampaignId: campaignAmazonId,
             campaignName: campaign.campaignName,
             adGroupId: adGroup.id,
             adGroupName: adGroup.adGroupName,
@@ -154649,7 +154720,8 @@ async function executeAdGroupStatusChanges(config2, campaigns7, dryRun) {
           const action = {
             accountId: config2.accountId,
             entityType: "adGroup",
-            campaignId: campaign.id,
+            localCampaignId: campaignLocalId,
+            amazonCampaignId: campaignAmazonId,
             campaignName: campaign.campaignName,
             adGroupId: adGroup.id,
             adGroupName: adGroup.adGroupName,
@@ -154694,7 +154766,8 @@ async function executeAdGroupStatusChanges(config2, campaigns7, dryRun) {
       }
     } catch (error54) {
       details.push({
-        campaignId: campaign.id,
+        localCampaignId: campaignLocalId,
+        amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
         entityType: "adGroup",
         error: error54.message
@@ -154710,12 +154783,12 @@ async function executeBidCoordination(config2, campaigns7, bidDetails, placement
   for (const campaign of campaigns7) {
     try {
       const proposals = [];
-      const bidSuggestions = bidDetails.filter((d5) => d5.campaignId === campaign.id);
+      const bidSuggestions = bidDetails.filter((d5) => d5.localCampaignId === campaignLocalId);
       for (const suggestion of bidSuggestions) {
         if (suggestion.newBid && suggestion.currentBid) {
           const multiplier = suggestion.newBid / suggestion.currentBid;
           proposals.push(createBidProposal(
-            campaign.id,
+            campaignLocalId,
             "campaign",
             "base_algo",
             {
@@ -154726,11 +154799,11 @@ async function executeBidCoordination(config2, campaigns7, bidDetails, placement
           ));
         }
       }
-      const placementSuggestions = placementDetails.filter((d5) => d5.campaignId === campaign.id);
+      const placementSuggestions = placementDetails.filter((d5) => d5.localCampaignId === campaignLocalId);
       for (const suggestion of placementSuggestions) {
         if (suggestion.suggestedMultiplier !== void 0) {
           proposals.push(createBidProposal(
-            campaign.id,
+            campaignLocalId,
             "campaign",
             "placement",
             {
@@ -154741,11 +154814,11 @@ async function executeBidCoordination(config2, campaigns7, bidDetails, placement
           ));
         }
       }
-      const daypartingSuggestions = daypartingDetails.filter((d5) => d5.campaignId === campaign.id);
+      const daypartingSuggestions = daypartingDetails.filter((d5) => d5.localCampaignId === campaignLocalId);
       for (const suggestion of daypartingSuggestions) {
         if (suggestion.bidMultiplier && suggestion.bidMultiplier !== 1) {
           proposals.push(createBidProposal(
-            campaign.id,
+            campaignLocalId,
             "campaign",
             "dayparting",
             {
@@ -154761,7 +154834,7 @@ async function executeBidCoordination(config2, campaigns7, bidDetails, placement
       const currentPlacementMultiplier = parseFloat(campaign.topOfSearchMultiplier || "0");
       const currentDaypartingMultiplier = 1;
       const coordinatedResult = await applyCoordinatedBids(
-        campaign.campaignId || campaign.id.toString(),
+        campaignAmazonId,
         config2.accountId,
         proposals,
         currentBaseBid,
@@ -154769,7 +154842,8 @@ async function executeBidCoordination(config2, campaigns7, bidDetails, placement
         currentDaypartingMultiplier
       );
       const coordinationDetail = {
-        campaignId: campaign.id,
+        localCampaignId: campaignLocalId,
+        amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
         proposalsCount: proposals.length,
         originalBaseBid: coordinatedResult.originalBaseBid,
@@ -154786,7 +154860,7 @@ async function executeBidCoordination(config2, campaigns7, bidDetails, placement
         circuitBreakerTriggered++;
       }
       if (!dryRun && coordinatedResult.finalBaseBid !== coordinatedResult.originalBaseBid) {
-        log18.info(`[BidCoordination] \u5E7F\u544A\u6D3B\u52A8 ${campaign.campaign.campaignName} \u4EF7\u534F\u8C03\u5B8C\u6210:`, {
+        log19.info(`[BidCoordination] \u5E7F\u544A\u6D3B\u52A8 ${campaign.campaign.campaignName} \u4EF7\u534F\u8C03\u5B8C\u6210:`, {
           original: coordinatedResult.originalBaseBid,
           final: coordinatedResult.finalBaseBid,
           maxCPC: coordinatedResult.theoreticalMaxCPC,
@@ -154795,7 +154869,8 @@ async function executeBidCoordination(config2, campaigns7, bidDetails, placement
       }
     } catch (error54) {
       details.push({
-        campaignId: campaign.id,
+        localCampaignId: campaignLocalId,
+        amazonCampaignId: campaignAmazonId,
         campaignName: campaign.campaignName,
         error: error54.message
       });
@@ -154810,7 +154885,7 @@ async function recordExecutionLog(result) {
     const { optimizationLogs: optimizationLogs2 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
     const now = (/* @__PURE__ */ new Date()).toISOString();
     if (result.bidOptimization.executed && result.bidOptimization.adjustmentsCount > 0) {
-      log18.debug(`[recordExecutionLog] v140: \u51FA\u4EF7\u8C03\u6574\u65E5\u5FD7: details=${result.bidOptimization.details.length}`);
+      log19.debug(`[recordExecutionLog] v140: \u51FA\u4EF7\u8C03\u6574\u65E5\u5FD7: details=${result.bidOptimization.details.length}`);
       for (const detail of result.bidOptimization.details) {
         const itemSyncStatus = detail.apiSyncStatus || "pending";
         const itemSyncDetail = detail.apiSyncDetail || null;
@@ -154831,7 +154906,7 @@ async function recordExecutionLog(result) {
             // v167: 优先使用result.accountId
             logCategory: "bid_adjustment",
             actionType: detail.newBid > detail.currentBid ? "bid_increase" : "bid_decrease",
-            campaignId: detail.campaignId,
+            campaignId: detail.localCampaignId,
             campaignName: detail.campaignName,
             actionDetail: JSON.stringify(detail),
             // v175: 不再带$符号存储，避免AutoCorrector解析NaN
@@ -154847,7 +154922,7 @@ async function recordExecutionLog(result) {
             executedAt: now
           });
         } catch (insertError) {
-          log18.error(`[recordExecutionLog] \u51FA\u4EF7\u65E5\u5FD7\u5199\u5165\u5931\u8D25: ${insertError.message}`, { keywordId: detail.keywordId, itemSyncStatus });
+          log19.error(`[recordExecutionLog] \u51FA\u4EF7\u65E5\u5FD7\u5199\u5165\u5931\u8D25: ${insertError.message}`, { keywordId: detail.keywordId, itemSyncStatus });
         }
       }
     }
@@ -154860,7 +154935,7 @@ async function recordExecutionLog(result) {
           // v167: 优先使用result.accountId
           logCategory: "placement_adjustment",
           actionType: "placement_adjust",
-          campaignId: detail.campaignId,
+          campaignId: detail.localCampaignId,
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
           previousValue: detail.previousValue || `${detail.placement}: ${detail.currentMultiplier}%`,
@@ -154885,7 +154960,7 @@ async function recordExecutionLog(result) {
           // v167: 优先使用result.accountId
           logCategory: "optimization_settings",
           actionType,
-          campaignId: detail.campaignId,
+          campaignId: detail.localCampaignId,
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
           previousValue: "",
@@ -154909,7 +154984,7 @@ async function recordExecutionLog(result) {
           // v167: 优先使用result.accountId
           logCategory: "bid_adjustment",
           actionType: "dayparting_bid",
-          campaignId: detail.campaignId,
+          campaignId: detail.localCampaignId,
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
           // v175: 不再带$符号存储
@@ -154934,7 +155009,7 @@ async function recordExecutionLog(result) {
           // v167: 优先使用result.accountId
           logCategory: "bid_adjustment",
           actionType: "budget_adjustment",
-          campaignId: detail.campaignId,
+          campaignId: detail.localCampaignId,
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
           // v175: 不再带$符号存储，避免AutoCorrector解析NaN
@@ -154959,7 +155034,7 @@ async function recordExecutionLog(result) {
           accountId: result.accountId || detail.accountId || 0,
           logCategory: "bid_adjustment",
           actionType: "budget_adjustment",
-          campaignId: detail.campaignId,
+          campaignId: detail.localCampaignId,
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
           previousValue: `${detail.currentBudget?.toFixed(2) || "0.00"}`,
@@ -154983,7 +155058,7 @@ async function recordExecutionLog(result) {
           // v167: 优先使用result.accountId
           logCategory: "bid_adjustment",
           actionType: detail.action === "add_negative" ? "negative_keyword_add" : detail.newStatus === "paused" ? "target_pause" : "target_enable",
-          campaignId: detail.campaignId,
+          campaignId: detail.localCampaignId,
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
           previousValue: detail.currentStatus || "",
@@ -155008,7 +155083,7 @@ async function recordExecutionLog(result) {
           // v167: 优先使用result.accountId
           logCategory: "bid_adjustment",
           actionType: detail.newStatus === "paused" ? "bid_decrease" : "bid_increase",
-          campaignId: detail.campaignId,
+          campaignId: detail.localCampaignId,
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
           previousValue: detail.previousStatus || "",
@@ -155033,7 +155108,7 @@ async function recordExecutionLog(result) {
           // v167: 优先使用result.accountId
           logCategory: "optimization_settings",
           actionType: detail.action === "pause" ? "adgroup_pause" : "adgroup_enable",
-          campaignId: detail.campaignId,
+          campaignId: detail.localCampaignId,
           campaignName: detail.campaignName,
           actionDetail: JSON.stringify(detail),
           previousValue: detail.currentStatus || "",
@@ -155052,7 +155127,7 @@ async function recordExecutionLog(result) {
       const { performanceGroups: performanceGroups8 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
       const { eq: eqOp } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
       await dbInstance.update(performanceGroups8).set({ lastOptimizationAt: /* @__PURE__ */ new Date() }).where(eqOp(performanceGroups8.id, result.targetId));
-      log18.info(`[OptimizationTargetEngine] \u5DF2\u66F4\u65B0 last_optimization_at: targetId=${result.targetId}`);
+      log19.info(`[OptimizationTargetEngine] \u5DF2\u66F4\u65B0 last_optimization_at: targetId=${result.targetId}`);
     } catch (updateErr) {
       try {
         const mysql2 = await import("mysql2/promise");
@@ -155064,13 +155139,13 @@ async function recordExecutionLog(result) {
             [result.targetId]
           );
           await directConn.end();
-          log18.info(`[OptimizationTargetEngine] \u5DF2\u901A\u8FC7mysql2\u66F4\u65B0 last_optimization_at: targetId=${result.targetId}`);
+          log19.info(`[OptimizationTargetEngine] \u5DF2\u901A\u8FC7mysql2\u66F4\u65B0 last_optimization_at: targetId=${result.targetId}`);
         }
       } catch (directErr) {
-        log18.error(`[OptimizationTargetEngine] \u66F4\u65B0last_optimization_at\u5931\u8D25: ${directErr.message}`);
+        log19.error(`[OptimizationTargetEngine] \u66F4\u65B0last_optimization_at\u5931\u8D25: ${directErr.message}`);
       }
     }
-    log18.info(`[OptimizationTargetEngine] \u6267\u884C\u65E5\u5FD7\u5DF2\u5199\u5165\u6570\u636E\u5E93: ${result.targetName}`, {
+    log19.info(`[OptimizationTargetEngine] \u6267\u884C\u65E5\u5FD7\u5DF2\u5199\u5165\u6570\u636E\u5E93: ${result.targetName}`, {
       status: result.status,
       bidAdjustments: result.bidOptimization.adjustmentsCount,
       placementAdjustments: result.placementOptimization.adjustmentsCount,
@@ -155084,8 +155159,8 @@ async function recordExecutionLog(result) {
       adGroupsEnabled: result.adGroupStatusChanges.enabledCount
     });
   } catch (error54) {
-    log18.error(`[OptimizationTargetEngine] \u65E5\u5FD7\u5199\u5165\u5931\u8D25:`, error54.message);
-    log18.info(`[OptimizationTargetEngine] \u6267\u884C\u5B8C\u6210(\u65E5\u5FD7\u56DE\u9000): ${result.targetName}`, {
+    log19.error(`[OptimizationTargetEngine] \u65E5\u5FD7\u5199\u5165\u5931\u8D25:`, error54.message);
+    log19.info(`[OptimizationTargetEngine] \u6267\u884C\u5B8C\u6210(\u65E5\u5FD7\u56DE\u9000): ${result.targetName}`, {
       status: result.status,
       errors: result.errors.length
     });
@@ -155110,7 +155185,7 @@ async function executeAllEnabledTargets(accountId, options = {}) {
   const targets = await getEnabledOptimizationTargets(accountId);
   const results = [];
   const modulesDesc = options.specificModules?.length ? options.specificModules.join(",") : "all";
-  log18.info(`[OptimizationTargetEngine] \u6279\u91CF\u6267\u884C ${targets.length} \u4E2A\u4F18\u5316\u76EE\u6807, \u6A21\u5757: ${modulesDesc}`);
+  log19.info(`[OptimizationTargetEngine] \u6279\u91CF\u6267\u884C ${targets.length} \u4E2A\u4F18\u5316\u76EE\u6807, \u6A21\u5757: ${modulesDesc}`);
   for (const target of targets) {
     try {
       const result = await executeOptimizationTarget(target.id, options);
@@ -155163,7 +155238,7 @@ async function getOptimizationTargetSummary(targetId) {
   const campaigns7 = await getCampaignsByPerformanceGroupId(targetId);
   let keywordsCount = 0;
   for (const campaign of campaigns7) {
-    const keywords8 = await getKeywordsByCampaignId(campaign.id);
+    const keywords8 = await getKeywordsByCampaignId(campaignAmazonId);
     keywordsCount += keywords8.length;
   }
   const dryRunResult = await executeOptimizationTarget(targetId, { dryRun: true, forceExecution: true });
@@ -155179,7 +155254,7 @@ async function getOptimizationTargetSummary(targetId) {
     }
   };
 }
-var log18, marketplaceCache2;
+var log19, marketplaceCache2;
 var init_optimizationTargetEngine = __esm({
   "server/optimizationTargetEngine.ts"() {
     "use strict";
@@ -155208,7 +155283,8 @@ var init_optimizationTargetEngine = __esm({
     init_targetingAlgorithm();
     init_keywordValidator();
     init_logger2();
-    log18 = createModuleLogger("TargetEngine");
+    init_idTypes();
+    log19 = createModuleLogger("TargetEngine");
     marketplaceCache2 = /* @__PURE__ */ new Map();
   }
 });
@@ -156353,8 +156429,8 @@ async function createAuditLog(data4) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const result = await db.insert(auditLogs).values(data4);
-  const [log21] = await db.select().from(auditLogs).where(eq(auditLogs.id, result[0]?.insertId || 0));
-  return log21;
+  const [log22] = await db.select().from(auditLogs).where(eq(auditLogs.id, result[0]?.insertId || 0));
+  return log22;
 }
 async function logAudit(params) {
   const description = params.description || ACTION_DESCRIPTIONS[params.actionType] || "\u672A\u77E5\u64CD\u4F5C";
@@ -156417,8 +156493,8 @@ async function getAuditLogs(params) {
 async function getAuditLogById(id) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const [log21] = await db.select().from(auditLogs).where(eq(auditLogs.id, id));
-  return log21 || null;
+  const [log22] = await db.select().from(auditLogs).where(eq(auditLogs.id, id));
+  return log22 || null;
 }
 async function getUserAuditStats(userId, days = 30) {
   const db = await getDb();
@@ -156510,18 +156586,18 @@ async function exportAuditLogsToCSV(params) {
     "\u72B6\u6001",
     "IP\u5730\u5740"
   ];
-  const rows = logs.map((log21) => [
-    log21.id,
-    String(log21.createdAt),
-    log21.userName || "",
-    log21.userEmail || "",
-    ACTION_DESCRIPTIONS[log21.actionType] || log21.actionType,
-    log21.description || "",
-    TARGET_TYPE_DESCRIPTIONS[log21.targetType || ""] || log21.targetType || "",
-    log21.targetName || "",
-    log21.accountName || "",
-    log21.status,
-    log21.ipAddress || ""
+  const rows = logs.map((log22) => [
+    log22.id,
+    String(log22.createdAt),
+    log22.userName || "",
+    log22.userEmail || "",
+    ACTION_DESCRIPTIONS[log22.actionType] || log22.actionType,
+    log22.description || "",
+    TARGET_TYPE_DESCRIPTIONS[log22.targetType || ""] || log22.targetType || "",
+    log22.targetName || "",
+    log22.accountName || "",
+    log22.status,
+    log22.ipAddress || ""
   ]);
   const csvContent = [
     headers.join(","),
@@ -157210,7 +157286,7 @@ __export(accountInitializationService_exports, {
 });
 async function initializeAccount(params) {
   const { accountId, userId, clientId, clientSecret, refreshToken, profileId, region, marketplace } = params;
-  log19.info(`\u5F00\u59CB\u521D\u59CB\u5316\u8D26\u53F7 ${accountId} (${marketplace})...`);
+  log20.info(`\u5F00\u59CB\u521D\u59CB\u5316\u8D26\u53F7 ${accountId} (${marketplace})...`);
   const result = {
     accountId,
     marketplace,
@@ -157219,7 +157295,7 @@ async function initializeAccount(params) {
     amsResult: { success: false }
   };
   try {
-    log19.info(`\u6B65\u9AA41: \u542F\u52A8\u5168\u91CF\u6570\u636E\u540C\u6B65 (${marketplace})...`);
+    log20.info(`\u6B65\u9AA41: \u542F\u52A8\u5168\u91CF\u6570\u636E\u540C\u6B65 (${marketplace})...`);
     const syncService = await AmazonSyncService.createFromCredentials(
       { clientId, clientSecret, refreshToken, profileId, region },
       accountId,
@@ -157227,19 +157303,19 @@ async function initializeAccount(params) {
       marketplace
     );
     syncService.syncAll().then(async (syncData) => {
-      log19.info(`\u8D26\u53F7 ${accountId} (${marketplace}) \u5168\u91CF\u540C\u6B65\u5B8C\u6210:`, syncData);
+      log20.info(`\u8D26\u53F7 ${accountId} (${marketplace}) \u5168\u91CF\u540C\u6B65\u5B8C\u6210:`, syncData);
       await updateAmazonApiCredentialsLastSync(accountId);
     }).catch((err2) => {
-      log19.error(`\u8D26\u53F7 ${accountId} (${marketplace}) \u5168\u91CF\u540C\u6B65\u5931\u8D25:`, err2);
+      log20.error(`\u8D26\u53F7 ${accountId} (${marketplace}) \u5168\u91CF\u540C\u6B65\u5931\u8D25:`, err2);
     });
     result.syncResult = { success: true };
-    log19.info(`\u6B65\u9AA41\u5B8C\u6210: \u5168\u91CF\u540C\u6B65\u5DF2\u542F\u52A8`);
+    log20.info(`\u6B65\u9AA41\u5B8C\u6210: \u5168\u91CF\u540C\u6B65\u5DF2\u542F\u52A8`);
   } catch (syncError) {
-    log19.error(`\u6B65\u9AA41\u5931\u8D25: \u5168\u91CF\u540C\u6B65\u542F\u52A8\u5931\u8D25:`, syncError);
+    log20.error(`\u6B65\u9AA41\u5931\u8D25: \u5168\u91CF\u540C\u6B65\u542F\u52A8\u5931\u8D25:`, syncError);
     result.syncResult = { success: false, error: syncError.message };
   }
   try {
-    log19.info(`\u6B65\u9AA42: \u521B\u5EFA\u5B9A\u65F6\u540C\u6B65\u914D\u7F6E (${marketplace})...`);
+    log20.info(`\u6B65\u9AA42: \u521B\u5EFA\u5B9A\u65F6\u540C\u6B65\u914D\u7F6E (${marketplace})...`);
     const existingSchedule = await getSyncScheduleByAccountId(userId, accountId);
     if (!existingSchedule) {
       const scheduleId = await createSyncSchedule({
@@ -157250,25 +157326,25 @@ async function initializeAccount(params) {
         isEnabled: true
       });
       result.scheduleResult = { success: true, scheduleId };
-      log19.info(`\u6B65\u9AA42\u5B8C\u6210: \u5DF2\u521B\u5EFA\u6BCF\u5C0F\u65F6\u5B9A\u65F6\u540C\u6B65\u914D\u7F6E (scheduleId=${scheduleId})`);
+      log20.info(`\u6B65\u9AA42\u5B8C\u6210: \u5DF2\u521B\u5EFA\u6BCF\u5C0F\u65F6\u5B9A\u65F6\u540C\u6B65\u914D\u7F6E (scheduleId=${scheduleId})`);
     } else {
       if (!existingSchedule.isEnabled) {
         await updateSyncSchedule(existingSchedule.id, {
           isEnabled: true,
           frequency: "hourly"
         });
-        log19.info(`\u6B65\u9AA42\u5B8C\u6210: \u5DF2\u91CD\u65B0\u542F\u7528\u73B0\u6709\u5B9A\u65F6\u540C\u6B65\u914D\u7F6E`);
+        log20.info(`\u6B65\u9AA42\u5B8C\u6210: \u5DF2\u91CD\u65B0\u542F\u7528\u73B0\u6709\u5B9A\u65F6\u540C\u6B65\u914D\u7F6E`);
       } else {
-        log19.info(`\u6B65\u9AA42\u5B8C\u6210: \u5B9A\u65F6\u540C\u6B65\u914D\u7F6E\u5DF2\u5B58\u5728\u4E14\u5DF2\u542F\u7528`);
+        log20.info(`\u6B65\u9AA42\u5B8C\u6210: \u5B9A\u65F6\u540C\u6B65\u914D\u7F6E\u5DF2\u5B58\u5728\u4E14\u5DF2\u542F\u7528`);
       }
       result.scheduleResult = { success: true, scheduleId: existingSchedule.id };
     }
   } catch (scheduleError) {
-    log19.error(`\u6B65\u9AA42\u5931\u8D25: \u521B\u5EFA\u5B9A\u65F6\u540C\u6B65\u914D\u7F6E\u5931\u8D25:`, scheduleError);
+    log20.error(`\u6B65\u9AA42\u5931\u8D25: \u521B\u5EFA\u5B9A\u65F6\u540C\u6B65\u914D\u7F6E\u5931\u8D25:`, scheduleError);
     result.scheduleResult = { success: false, error: scheduleError.message };
   }
   try {
-    log19.info(`\u6B65\u9AA43: \u521B\u5EFAAMS\u5B9E\u65F6\u6570\u636E\u6D41\u8BA2\u9605 (${marketplace})...`);
+    log20.info(`\u6B65\u9AA43: \u521B\u5EFAAMS\u5B9E\u65F6\u6570\u636E\u6D41\u8BA2\u9605 (${marketplace})...`);
     const urlToArn = (url3) => {
       if (!url3) return void 0;
       let match = url3.match(/sqs\.([^.]+)\.amazonaws\.com\/(\d+)\/(.+)/);
@@ -157298,7 +157374,7 @@ async function initializeAccount(params) {
     const configuredQueues = Object.entries(queueArnMapping).filter(([_3, arn]) => arn);
     const sqsQueueArn = process.env.AWS_SQS_QUEUE_ARN;
     if (configuredQueues.length === 0 && !sqsQueueArn) {
-      log19.warn(`\u6B65\u9AA43\u8DF3\u8FC7: \u672A\u914D\u7F6ESQS\u961F\u5217\u73AF\u5883\u53D8\u91CF\uFF0CAMS\u8BA2\u9605\u5C06\u5728\u7528\u6237\u624B\u52A8\u914D\u7F6E\u540E\u521B\u5EFA`);
+      log20.warn(`\u6B65\u9AA43\u8DF3\u8FC7: \u672A\u914D\u7F6ESQS\u961F\u5217\u73AF\u5883\u53D8\u91CF\uFF0CAMS\u8BA2\u9605\u5C06\u5728\u7528\u6237\u624B\u52A8\u914D\u7F6E\u540E\u521B\u5EFA`);
       result.amsResult = { success: false, error: "\u672A\u914D\u7F6ESQS\u961F\u5217\u73AF\u5883\u53D8\u91CF" };
     } else {
       const apiRegion = MARKETPLACE_TO_REGION[marketplace] || region;
@@ -157318,19 +157394,19 @@ async function initializeAccount(params) {
       };
       if (amsCreateResult.created.length > 0) {
         const activeCount = amsCreateResult.created.filter((s4) => s4.status === "ACTIVE").length;
-        log19.warn(`\u6B65\u9AA43\u5B8C\u6210: AMS\u8BA2\u9605\u521B\u5EFA ${amsCreateResult.created.length} \u4E2A (ACTIVE: ${activeCount}), \u5931\u8D25 ${amsCreateResult.failed.length} \u4E2A`);
+        log20.warn(`\u6B65\u9AA43\u5B8C\u6210: AMS\u8BA2\u9605\u521B\u5EFA ${amsCreateResult.created.length} \u4E2A (ACTIVE: ${activeCount}), \u5931\u8D25 ${amsCreateResult.failed.length} \u4E2A`);
         if (activeCount < amsCreateResult.created.length) {
-          log19.warn(`\u26A0\uFE0F \u90E8\u5206AMS\u8BA2\u9605\u672A\u6FC0\u6D3B\uFF0C\u8BF7\u68C0\u67E5SQS\u961F\u5217\u6743\u9650`);
+          log20.warn(`\u26A0\uFE0F \u90E8\u5206AMS\u8BA2\u9605\u672A\u6FC0\u6D3B\uFF0C\u8BF7\u68C0\u67E5SQS\u961F\u5217\u6743\u9650`);
         }
       } else {
-        log19.warn(`\u6B65\u9AA43: \u6CA1\u6709\u65B0\u521B\u5EFA\u7684AMS\u8BA2\u9605\uFF08\u53EF\u80FD\u5DF2\u5B58\u5728\uFF09`);
+        log20.warn(`\u6B65\u9AA43: \u6CA1\u6709\u65B0\u521B\u5EFA\u7684AMS\u8BA2\u9605\uFF08\u53EF\u80FD\u5DF2\u5B58\u5728\uFF09`);
       }
     }
   } catch (amsError) {
-    log19.error(`\u6B65\u9AA43\u5931\u8D25: AMS\u8BA2\u9605\u521B\u5EFA\u5931\u8D25:`, amsError);
+    log20.error(`\u6B65\u9AA43\u5931\u8D25: AMS\u8BA2\u9605\u521B\u5EFA\u5931\u8D25:`, amsError);
     result.amsResult = { success: false, error: amsError.message };
   }
-  log19.info(`\u8D26\u53F7 ${accountId} (${marketplace}) \u521D\u59CB\u5316\u5B8C\u6210:`, {
+  log20.info(`\u8D26\u53F7 ${accountId} (${marketplace}) \u521D\u59CB\u5316\u5B8C\u6210:`, {
     sync: result.syncResult.success ? "\u2705" : "\u274C",
     schedule: result.scheduleResult.success ? "\u2705" : "\u274C",
     ams: result.amsResult.success ? "\u2705" : "\u274C"
@@ -157338,7 +157414,7 @@ async function initializeAccount(params) {
   return result;
 }
 async function initializeMultipleAccounts(accounts) {
-  log19.info(`\u5F00\u59CB\u6279\u91CF\u521D\u59CB\u5316 ${accounts.length} \u4E2A\u8D26\u53F7...`);
+  log20.info(`\u5F00\u59CB\u6279\u91CF\u521D\u59CB\u5316 ${accounts.length} \u4E2A\u8D26\u53F7...`);
   const results = [];
   for (const account of accounts) {
     try {
@@ -157348,7 +157424,7 @@ async function initializeMultipleAccounts(accounts) {
         await new Promise((resolve8) => setTimeout(resolve8, 1e3));
       }
     } catch (error54) {
-      log19.error(`\u8D26\u53F7 ${account.accountId} \u521D\u59CB\u5316\u5F02\u5E38:`, error54);
+      log20.error(`\u8D26\u53F7 ${account.accountId} \u521D\u59CB\u5316\u5F02\u5E38:`, error54);
       results.push({
         accountId: account.accountId,
         marketplace: account.marketplace,
@@ -157359,10 +157435,10 @@ async function initializeMultipleAccounts(accounts) {
     }
   }
   const successCount = results.filter((r5) => r5.syncResult.success).length;
-  log19.info(`\u6279\u91CF\u521D\u59CB\u5316\u5B8C\u6210: ${successCount}/${accounts.length} \u4E2A\u8D26\u53F7\u6210\u529F`);
+  log20.info(`\u6279\u91CF\u521D\u59CB\u5316\u5B8C\u6210: ${successCount}/${accounts.length} \u4E2A\u8D26\u53F7\u6210\u529F`);
   return results;
 }
-var log19;
+var log20;
 var init_accountInitializationService = __esm({
   "server/accountInitializationService.ts"() {
     "use strict";
@@ -157370,7 +157446,7 @@ var init_accountInitializationService = __esm({
     init_amazonSyncService();
     init_amazonAdsApi();
     init_logger2();
-    log19 = createModuleLogger("AccountInit");
+    log20 = createModuleLogger("AccountInit");
   }
 });
 
@@ -162691,23 +162767,23 @@ function augmentCodeLocation(properties, pos, source, id) {
     properties.frame = getCodeFrame(source, line, column);
   }
 }
-function augmentLogMessage(log21) {
-  if (!(log21.plugin || log21.loc) || log21[symbolAugmented]) {
+function augmentLogMessage(log22) {
+  if (!(log22.plugin || log22.loc) || log22[symbolAugmented]) {
     return;
   }
-  log21[symbolAugmented] = true;
+  log22[symbolAugmented] = true;
   let prefix = "";
-  if (log21.plugin) {
-    prefix += `[plugin ${log21.plugin}] `;
+  if (log22.plugin) {
+    prefix += `[plugin ${log22.plugin}] `;
   }
-  const id = log21.id || log21.loc?.file;
+  const id = log22.id || log22.loc?.file;
   if (id) {
-    const position = log21.loc ? ` (${log21.loc.line}:${log21.loc.column})` : "";
+    const position = log22.loc ? ` (${log22.loc.line}:${log22.loc.column})` : "";
     prefix += `${relativeId(id)}${position}: `;
   }
-  const oldMessage = log21.message;
-  log21.message = prefix + log21.message;
-  tweakStackMessage(log21, oldMessage);
+  const oldMessage = log22.message;
+  log22.message = prefix + log22.message;
+  tweakStackMessage(log22, oldMessage);
 }
 function logAddonNotGenerated(message2, hook, plugin2) {
   return {
@@ -163337,13 +163413,13 @@ function logFailedValidation(message2) {
 function warnDeprecation(deprecation, urlSnippet, activeDeprecation, options, plugin2) {
   warnDeprecationWithOptions(deprecation, urlSnippet, activeDeprecation, options.onLog, options.strictDeprecations);
 }
-function warnDeprecationWithOptions(deprecation, urlSnippet, activeDeprecation, log21, strictDeprecations, plugin2) {
+function warnDeprecationWithOptions(deprecation, urlSnippet, activeDeprecation, log22, strictDeprecations, plugin2) {
   if (activeDeprecation || strictDeprecations) {
     const warning = logDeprecation(deprecation, urlSnippet);
     if (strictDeprecations) {
       return error52(warning);
     }
-    log21(LOGLEVEL_WARN, warning);
+    log22(LOGLEVEL_WARN, warning);
   }
 }
 function convertProgram(buffer) {
@@ -168924,7 +169000,7 @@ function isDynamicPattern(pattern, options) {
   const scan = import_picomatch.default.scan(pattern);
   return scan.isGlob || scan.negated;
 }
-function log20(...tasks) {
+function log21(...tasks) {
   console.log(`[tinyglobby ${(/* @__PURE__ */ new Date()).toLocaleTimeString("es")}]`, ...tasks);
 }
 function normalizePattern(pattern, expandDirectories, cwd2, props, isIgnore) {
@@ -169007,7 +169083,7 @@ function getCrawler(patterns, inputOptions = {}) {
     debug: true
   } : inputOptions;
   const cwd2 = normalizeCwd(options.cwd);
-  if (options.debug) log20("globbing with:", {
+  if (options.debug) log21("globbing with:", {
     patterns,
     options,
     cwd: cwd2
@@ -169025,7 +169101,7 @@ function getCrawler(patterns, inputOptions = {}) {
     ...options,
     patterns
   }, cwd2, props);
-  if (options.debug) log20("internal processing patterns:", processed);
+  if (options.debug) log21("internal processing patterns:", processed);
   const matchOptions = {
     dot: options.dot,
     nobrace: options.braceExpansion === false,
@@ -169046,14 +169122,14 @@ function getCrawler(patterns, inputOptions = {}) {
     filters: [options.debug ? (p4, isDirectory2) => {
       const path$12 = format8(p4, isDirectory2);
       const matches2 = matcher(path$12);
-      if (matches2) log20(`matched ${path$12}`);
+      if (matches2) log21(`matched ${path$12}`);
       return matches2;
     } : (p4, isDirectory2) => matcher(format8(p4, isDirectory2))],
     exclude: options.debug ? (_3, p4) => {
       const relativePath = formatExclude(p4, true);
       const skipped = relativePath !== "." && !partialMatcher(relativePath) || ignore(relativePath);
-      if (skipped) log20(`skipped ${p4}`);
-      else log20(`crawling ${p4}`);
+      if (skipped) log21(`skipped ${p4}`);
+      else log21(`crawling ${p4}`);
       return skipped;
     } : (_3, p4) => {
       const relativePath = formatExclude(p4, true);
@@ -169088,7 +169164,7 @@ function getCrawler(patterns, inputOptions = {}) {
   } else if (options.onlyFiles === false) fdirOptions.includeDirs = true;
   props.root = props.root.replace(BACKSLASHES, "");
   const root2 = props.root;
-  if (options.debug) log20("internal properties:", props);
+  if (options.debug) log21("internal properties:", props);
   const relative5 = cwd2 !== root2 && !options.absolute && buildRelative(cwd2, props.root);
   return [new Builder(fdirOptions).crawl(root2), relative5];
 }
@@ -187767,14 +187843,14 @@ function updateExtensionForRelativeAmdId(id, forceJsExtensionForImports) {
   }
   return forceJsExtensionForImports ? addJsExtension(id) : removeJsExtension(id);
 }
-function warnOnBuiltins(log21, dependencies) {
+function warnOnBuiltins(log22, dependencies) {
   const externalBuiltins = dependencies.map(({ importPath }) => importPath).filter((importPath) => nodeBuiltins.has(importPath) || importPath.startsWith("node:"));
   if (externalBuiltins.length === 0)
     return;
-  log21(LOGLEVEL_WARN, logMissingNodeBuiltins(externalBuiltins));
+  log22(LOGLEVEL_WARN, logMissingNodeBuiltins(externalBuiltins));
 }
-function amd(magicString, { accessedGlobals, dependencies, exports: exports$1, hasDefaultExport, hasExports, id, indent: t7, intro, isEntryFacade, isModuleFacade, namedExportsMode, log: log21, outro, snippets }, { amd: amd2, esModule, externalLiveBindings, freeze, generatedCode: { symbols }, interop, reexportProtoFromExternal, strict }) {
-  warnOnBuiltins(log21, dependencies);
+function amd(magicString, { accessedGlobals, dependencies, exports: exports$1, hasDefaultExport, hasExports, id, indent: t7, intro, isEntryFacade, isModuleFacade, namedExportsMode, log: log22, outro, snippets }, { amd: amd2, esModule, externalLiveBindings, freeze, generatedCode: { symbols }, interop, reexportProtoFromExternal, strict }) {
+  warnOnBuiltins(log22, dependencies);
   const deps = dependencies.map((m4) => `'${updateExtensionForRelativeAmdId(m4.importPath, amd2.forceJsExtensionForImports)}'`);
   const parameters = dependencies.map((m4) => m4.name);
   const { n: n7, getNonArrowFunctionIntro, _: _3 } = snippets;
@@ -187930,11 +188006,11 @@ function getExportBlock(exports$1, { _: _3, cnst }) {
   }
   return exportBlock;
 }
-function setupNamespace(name2, root2, globals, { _: _3, getPropertyAccess, s: s4 }, compact, log21) {
+function setupNamespace(name2, root2, globals, { _: _3, getPropertyAccess, s: s4 }, compact, log22) {
   const parts = name2.split(".");
   const isReserved = parts[0] in Object.prototype;
-  if (log21 && isReserved) {
-    log21(LOGLEVEL_WARN, logReservedNamespace(parts[0]));
+  if (log22 && isReserved) {
+    log22(LOGLEVEL_WARN, logReservedNamespace(parts[0]));
   }
   parts[0] = (typeof globals === "function" ? globals(parts[0]) : isReserved ? parts[0] : globals[parts[0]]) || parts[0];
   parts.pop();
@@ -187944,11 +188020,11 @@ function setupNamespace(name2, root2, globals, { _: _3, getPropertyAccess, s: s4
     return `${propertyPath}${_3}=${_3}${propertyPath}${_3}||${_3}{}${s4}`;
   }).join(compact ? "," : "\n") + (compact && parts.length > 0 ? ";" : "\n");
 }
-function assignToDeepVariable(deepName, root2, globals, assignment, { _: _3, getPropertyAccess }, log21) {
+function assignToDeepVariable(deepName, root2, globals, assignment, { _: _3, getPropertyAccess }, log22) {
   const parts = deepName.split(".");
   const isReserved = parts[0] in Object.prototype;
-  if (log21 && isReserved) {
-    log21(LOGLEVEL_WARN, logReservedNamespace(parts[0]));
+  if (log22 && isReserved) {
+    log22(LOGLEVEL_WARN, logReservedNamespace(parts[0]));
   }
   parts[0] = (typeof globals === "function" ? globals(parts[0]) : isReserved ? parts[0] : globals[parts[0]]) || parts[0];
   const last = parts.pop();
@@ -187975,19 +188051,19 @@ function trimEmptyImports(dependencies) {
   }
   return [];
 }
-function iife2(magicString, { accessedGlobals, dependencies, exports: exports$1, hasDefaultExport, hasExports, indent: t7, intro, namedExportsMode, log: log21, outro, snippets }, { compact, esModule, extend: extend3, freeze, externalLiveBindings, reexportProtoFromExternal, globals, interop, name: name2, generatedCode: { symbols }, strict }) {
+function iife2(magicString, { accessedGlobals, dependencies, exports: exports$1, hasDefaultExport, hasExports, indent: t7, intro, namedExportsMode, log: log22, outro, snippets }, { compact, esModule, extend: extend3, freeze, externalLiveBindings, reexportProtoFromExternal, globals, interop, name: name2, generatedCode: { symbols }, strict }) {
   const { _: _3, getNonArrowFunctionIntro, getPropertyAccess, n: n7 } = snippets;
   const isNamespaced = name2 && name2.includes(".");
   const useVariableAssignment = !extend3 && !isNamespaced;
   if (name2 && useVariableAssignment && !isLegal(name2)) {
     return error52(logIllegalIdentifierAsName(name2));
   }
-  warnOnBuiltins(log21, dependencies);
+  warnOnBuiltins(log22, dependencies);
   const external = trimEmptyImports(dependencies);
   const deps = external.map((dep) => dep.globalName || "null");
   const parameters = external.map((m4) => m4.name);
   if (hasExports && !name2) {
-    log21(LOGLEVEL_WARN, logMissingNameOptionForIifeExport());
+    log22(LOGLEVEL_WARN, logMissingNameOptionForIifeExport());
   }
   if (hasExports && (namedExportsMode || exports$1[0]?.local === "exports.default")) {
     if (extend3) {
@@ -188010,7 +188086,7 @@ function iife2(magicString, { accessedGlobals, dependencies, exports: exports$1,
       wrapperIntro = (useVariableAssignment ? `var ${name2}` : `this${keypath(name2, getPropertyAccess)}`) + `${_3}=${_3}${wrapperIntro}`;
     }
     if (isNamespaced) {
-      wrapperIntro = setupNamespace(name2, "this", globals, snippets, compact, log21) + wrapperIntro;
+      wrapperIntro = setupNamespace(name2, "this", globals, snippets, compact, log22) + wrapperIntro;
     }
   }
   let wrapperOutro = `${n7}${n7}})(${deps.join(`,${_3}`)});`;
@@ -188111,14 +188187,14 @@ function safeAccess(name2, globalVariable, { _: _3, getPropertyAccess }) {
   let propertyPath = globalVariable;
   return name2.split(".").map((part) => propertyPath += getPropertyAccess(part)).join(`${_3}&&${_3}`);
 }
-function umd(magicString, { accessedGlobals, dependencies, exports: exports$1, hasDefaultExport, hasExports, id, indent: t7, intro, namedExportsMode, log: log21, outro, snippets }, { amd: amd2, compact, esModule, extend: extend3, externalLiveBindings, freeze, interop, name: name2, generatedCode: { symbols }, globals, noConflict, reexportProtoFromExternal, strict }) {
+function umd(magicString, { accessedGlobals, dependencies, exports: exports$1, hasDefaultExport, hasExports, id, indent: t7, intro, namedExportsMode, log: log22, outro, snippets }, { amd: amd2, compact, esModule, extend: extend3, externalLiveBindings, freeze, interop, name: name2, generatedCode: { symbols }, globals, noConflict, reexportProtoFromExternal, strict }) {
   const { _: _3, cnst, getFunctionIntro, getNonArrowFunctionIntro, getPropertyAccess, n: n7, s: s4 } = snippets;
   const factoryVariable = compact ? "f" : "factory";
   const globalVariable = compact ? "g" : "global";
   if (hasExports && !name2) {
     return error52(logMissingNameOptionForUmdExport());
   }
-  warnOnBuiltins(log21, dependencies);
+  warnOnBuiltins(log22, dependencies);
   const amdDeps = dependencies.map((m4) => `'${updateExtensionForRelativeAmdId(m4.importPath, amd2.forceJsExtensionForImports)}'`);
   const cjsDeps = dependencies.map((m4) => `require('${m4.importPath}')`);
   const trimmedImports = trimEmptyImports(dependencies);
@@ -188127,7 +188203,7 @@ function umd(magicString, { accessedGlobals, dependencies, exports: exports$1, h
   if ((hasExports || noConflict) && (namedExportsMode || hasExports && exports$1[0]?.local === "exports.default")) {
     amdDeps.unshift(`'exports'`);
     cjsDeps.unshift(`exports`);
-    globalDeps.unshift(assignToDeepVariable(name2, globalVariable, globals, `${extend3 ? `${globalProperty(name2, globalVariable, getPropertyAccess)}${_3}||${_3}` : ""}{}`, snippets, log21));
+    globalDeps.unshift(assignToDeepVariable(name2, globalVariable, globals, `${extend3 ? `${globalProperty(name2, globalVariable, getPropertyAccess)}${_3}||${_3}` : ""}{}`, snippets, log22));
     factoryParameters.unshift("exports");
   }
   const completeAmdId = getCompleteAmdId(amd2, id);
@@ -188140,7 +188216,7 @@ function umd(magicString, { accessedGlobals, dependencies, exports: exports$1, h
     const noConflictExportsVariable = compact ? "e" : "exports";
     let factory2;
     if (!namedExportsMode && hasExports) {
-      factory2 = `${cnst} ${noConflictExportsVariable}${_3}=${_3}${assignToDeepVariable(name2, globalVariable, globals, `${factoryVariable}(${globalDeps.join(`,${_3}`)})`, snippets, log21)};`;
+      factory2 = `${cnst} ${noConflictExportsVariable}${_3}=${_3}${assignToDeepVariable(name2, globalVariable, globals, `${factoryVariable}(${globalDeps.join(`,${_3}`)})`, snippets, log22)};`;
     } else {
       const module2 = globalDeps.shift();
       factory2 = `${cnst} ${noConflictExportsVariable}${_3}=${_3}${module2};${n7}${t7}${t7}${factoryVariable}(${[noConflictExportsVariable, ...globalDeps].join(`,${_3}`)});`;
@@ -188152,7 +188228,7 @@ function umd(magicString, { accessedGlobals, dependencies, exports: exports$1, h
   } else {
     iifeExport = `${factoryVariable}(${globalDeps.join(`,${_3}`)})`;
     if (!namedExportsMode && hasExports) {
-      iifeExport = assignToDeepVariable(name2, globalVariable, globals, iifeExport, snippets, log21);
+      iifeExport = assignToDeepVariable(name2, globalVariable, globals, iifeExport, snippets, log22);
     }
   }
   const iifeNeedsGlobal = hasExports || noConflict && namedExportsMode || globalDeps.length > 0;
@@ -190322,7 +190398,7 @@ function assignExportsToNames(exports$1, exportsByName, exportNamesByVariable) {
     exportNamesByVariable.set(variable, [exportName]);
   }
 }
-function getExportMode(chunk, { exports: exportMode, name: name2, format: format8 }, facadeModuleId, log21) {
+function getExportMode(chunk, { exports: exportMode, name: name2, format: format8 }, facadeModuleId, log22) {
   const exportKeys = chunk.getExportNames();
   if (exportMode === "default") {
     if (exportKeys.length !== 1 || exportKeys[0] !== "default") {
@@ -190338,7 +190414,7 @@ function getExportMode(chunk, { exports: exportMode, name: name2, format: format
       exportMode = "default";
     } else {
       if (format8 !== "es" && format8 !== "system" && exportKeys.includes("default")) {
-        log21(LOGLEVEL_WARN, logMixedExport(facadeModuleId, name2));
+        log22(LOGLEVEL_WARN, logMixedExport(facadeModuleId, name2));
       }
       exportMode = "named";
     }
@@ -190431,13 +190507,13 @@ function makeUnique(name2, { [lowercaseBundleKeys]: reservedLowercaseBundleKeys 
     ;
   return uniqueName;
 }
-function getGlobalName(chunk, globals, hasExports, log21) {
+function getGlobalName(chunk, globals, hasExports, log22) {
   const globalName = typeof globals === "function" ? globals(chunk.id) : globals[chunk.id];
   if (globalName) {
     return globalName;
   }
   if (hasExports) {
-    log21(LOGLEVEL_WARN, logMissingGlobalName(chunk.id, chunk.variableName));
+    log22(LOGLEVEL_WARN, logMissingGlobalName(chunk.id, chunk.variableName));
     return chunk.variableName;
   }
 }
@@ -190470,7 +190546,7 @@ function* concatLazy(iterables) {
     yield* iterable;
   }
 }
-function getChunkAssignments(entries, manualChunkAliasByEntry, minChunkSize, log21, isManualChunksFunctionForm, onlyExplicitManualChunks) {
+function getChunkAssignments(entries, manualChunkAliasByEntry, minChunkSize, log22, isManualChunksFunctionForm, onlyExplicitManualChunks) {
   const { chunkDefinitions, modulesInManualChunks } = getChunkDefinitionsFromManualChunks(manualChunkAliasByEntry, isManualChunksFunctionForm, onlyExplicitManualChunks);
   const { allEntries, dependentEntriesByModule, dynamicallyDependentEntriesByDynamicEntry, dynamicImportsByEntry, dynamicallyDependentEntriesByAwaitedDynamicEntry, awaitedDynamicImportsByEntry } = analyzeModuleGraph(entries);
   const chunkAtoms = getChunksWithSameDependentEntries(getModulesWithDependentEntriesAndHandleTLACycles(dependentEntriesByModule, modulesInManualChunks, chunkDefinitions));
@@ -190479,7 +190555,7 @@ function getChunkAssignments(entries, manualChunkAliasByEntry, minChunkSize, log
   const awaitedAlreadyLoadedAtomsByEntry = getAlreadyLoadedAtomsByEntry(staticDependencyAtomsByEntry, dynamicallyDependentEntriesByAwaitedDynamicEntry, awaitedDynamicImportsByEntry, allEntries);
   removeUnnecessaryDependentEntries(chunkAtoms, alreadyLoadedAtomsByEntry, awaitedAlreadyLoadedAtomsByEntry);
   const { chunks, sideEffectAtoms, sizeByAtom } = getChunksWithSameDependentEntriesAndCorrelatedAtoms(chunkAtoms, staticDependencyAtomsByEntry, alreadyLoadedAtomsByEntry, minChunkSize);
-  chunkDefinitions.push(...getOptimizedChunks(chunks, minChunkSize, sideEffectAtoms, sizeByAtom, log21).map(({ modules }) => ({
+  chunkDefinitions.push(...getOptimizedChunks(chunks, minChunkSize, sideEffectAtoms, sizeByAtom, log22).map(({ modules }) => ({
     alias: null,
     modules
   })));
@@ -190766,7 +190842,7 @@ function addChunkDependenciesAndGetExternalSideEffectAtoms(chunks, chunkByModule
   }
   return externalSideEffectAtoms;
 }
-function getOptimizedChunks(chunks, minChunkSize, sideEffectAtoms, sizeByAtom, log21) {
+function getOptimizedChunks(chunks, minChunkSize, sideEffectAtoms, sizeByAtom, log22) {
   timeStart("optimize chunks", 3);
   const chunkPartition = getPartitionedChunks(chunks, minChunkSize);
   if (!chunkPartition) {
@@ -190774,11 +190850,11 @@ function getOptimizedChunks(chunks, minChunkSize, sideEffectAtoms, sizeByAtom, l
     return chunks;
   }
   if (minChunkSize > 1) {
-    log21("info", logOptimizeChunkStatus(chunks.length, chunkPartition.small.size, "Initially"));
+    log22("info", logOptimizeChunkStatus(chunks.length, chunkPartition.small.size, "Initially"));
   }
   mergeChunks(chunkPartition, minChunkSize, sideEffectAtoms, sizeByAtom);
   if (minChunkSize > 1) {
-    log21("info", logOptimizeChunkStatus(chunkPartition.small.size + chunkPartition.big.size, chunkPartition.small.size, "After merging chunks"));
+    log22("info", logOptimizeChunkStatus(chunkPartition.small.size + chunkPartition.big.size, chunkPartition.small.size, "After merging chunks"));
   }
   timeEnd("optimize chunks", 3);
   return [...chunkPartition.small, ...chunkPartition.big];
@@ -191032,12 +191108,12 @@ function getGenerateCodeSnippets({ compact, generatedCode: { arrowFunctions, con
     s: s4
   };
 }
-function getLinkMap(log21) {
+function getLinkMap(log22) {
   return function linkMap(source, map9) {
     if (!map9.missing) {
       return new Link(map9, [source]);
     }
-    log21(LOGLEVEL_WARN, logSourcemapBroken(map9.plugin));
+    log22(LOGLEVEL_WARN, logSourcemapBroken(map9.plugin));
     return new Link({
       mappings: [],
       names: []
@@ -191058,8 +191134,8 @@ function getCollapsedSourcemap(id, originalCode, originalSourcemap, sourcemapCha
   }
   return sourcemapChain.reduce(linkMap, source);
 }
-function collapseSourcemaps(file2, map9, modules, bundleSourcemapChain, excludeContent, log21) {
-  const linkMap = getLinkMap(log21);
+function collapseSourcemaps(file2, map9, modules, bundleSourcemapChain, excludeContent, log22) {
+  const linkMap = getLinkMap(log22);
   const moduleSources = modules.filter((module2) => !module2.excludeFromSourcemap).map((module2) => getCollapsedSourcemap(module2.id, module2.originalCode, module2.originalSourcemap, module2.sourcemapChain, linkMap));
   const link = new Link(map9, moduleSources);
   const source = bundleSourcemapChain.reduce(linkMap, link);
@@ -191080,11 +191156,11 @@ function collapseSourcemaps(file2, map9, modules, bundleSourcemapChain, excludeC
     sourcesContent: excludeContent ? void 0 : sourcesContent
   });
 }
-function collapseSourcemap(id, originalCode, originalSourcemap, sourcemapChain, log21) {
+function collapseSourcemap(id, originalCode, originalSourcemap, sourcemapChain, log22) {
   if (sourcemapChain.length === 0) {
     return originalSourcemap;
   }
-  const source = getCollapsedSourcemap(id, originalCode, originalSourcemap, sourcemapChain, getLinkMap(log21));
+  const source = getCollapsedSourcemap(id, originalCode, originalSourcemap, sourcemapChain, getLinkMap(log22));
   const map9 = source.traceMappings();
   return decodedSourcemap({ version: 3, ...map9 });
 }
@@ -191098,7 +191174,7 @@ function ensureBuffer(input) {
   }
   return input;
 }
-async function renderChunks(chunks, bundle, pluginDriver, outputOptions, log21) {
+async function renderChunks(chunks, bundle, pluginDriver, outputOptions, log22) {
   timeStart("render chunks", 2);
   reserveEntryChunksInBundle(chunks);
   const renderedChunks = await Promise.all(chunks.map((chunk) => chunk.render()));
@@ -191106,7 +191182,7 @@ async function renderChunks(chunks, bundle, pluginDriver, outputOptions, log21) 
   timeStart("transform chunks", 2);
   const getHash2 = hasherByType[outputOptions.hashCharacters];
   const chunkGraph = getChunkGraph(chunks);
-  const { hashDependenciesByPlaceholder, initialHashesByPlaceholder, nonHashedChunksWithPlaceholders, placeholders, renderedChunksByPlaceholder } = await transformChunksAndGenerateContentHashes(renderedChunks, chunkGraph, outputOptions, pluginDriver, getHash2, log21);
+  const { hashDependenciesByPlaceholder, initialHashesByPlaceholder, nonHashedChunksWithPlaceholders, placeholders, renderedChunksByPlaceholder } = await transformChunksAndGenerateContentHashes(renderedChunks, chunkGraph, outputOptions, pluginDriver, getHash2, log22);
   const hashesByPlaceholder = generateFinalHashes(renderedChunksByPlaceholder, hashDependenciesByPlaceholder, initialHashesByPlaceholder, placeholders, bundle, getHash2);
   addChunksToBundle(renderedChunksByPlaceholder, hashesByPlaceholder, bundle, nonHashedChunksWithPlaceholders, pluginDriver, outputOptions);
   timeEnd("transform chunks", 2);
@@ -191124,7 +191200,7 @@ function getChunkGraph(chunks) {
     return [renderedChunkInfo.fileName, renderedChunkInfo];
   }));
 }
-async function transformChunk(magicString, fileName, usedModules, chunkGraph, options, outputPluginDriver, log21) {
+async function transformChunk(magicString, fileName, usedModules, chunkGraph, options, outputPluginDriver, log22) {
   let map9 = null;
   const sourcemapChain = [];
   let code = await outputPluginDriver.hookReduceArg0("renderChunk", [magicString.toString(), chunkGraph[fileName], options, { chunks: chunkGraph }], (code2, result, plugin2) => {
@@ -191154,7 +191230,7 @@ async function transformChunk(magicString, fileName, usedModules, chunkGraph, op
     else
       resultingFile = (0, import_node_path4.resolve)(fileName);
     const decodedMap2 = magicString.generateDecodedMap({});
-    map9 = collapseSourcemaps(resultingFile, decodedMap2, usedModules, sourcemapChain, sourcemapExcludeSources, log21);
+    map9 = collapseSourcemaps(resultingFile, decodedMap2, usedModules, sourcemapChain, sourcemapExcludeSources, log22);
     for (let sourcesIndex = 0; sourcesIndex < map9.sources.length; ++sourcesIndex) {
       let sourcePath = map9.sources[sourcesIndex];
       const sourcemapPath = `${resultingFile}.map`;
@@ -191185,7 +191261,7 @@ async function transformChunk(magicString, fileName, usedModules, chunkGraph, op
     map: map9
   };
 }
-async function transformChunksAndGenerateContentHashes(renderedChunks, chunkGraph, outputOptions, pluginDriver, getHash2, log21) {
+async function transformChunksAndGenerateContentHashes(renderedChunks, chunkGraph, outputOptions, pluginDriver, getHash2, log22) {
   const nonHashedChunksWithPlaceholders = [];
   const renderedChunksByPlaceholder = /* @__PURE__ */ new Map();
   const hashDependenciesByPlaceholder = /* @__PURE__ */ new Map();
@@ -191200,7 +191276,7 @@ async function transformChunksAndGenerateContentHashes(renderedChunks, chunkGrap
       chunk,
       fileName,
       sourcemapFileName: preliminarySourcemapFileName?.fileName ?? null,
-      ...await transformChunk(magicString, fileName, usedModules, chunkGraph, outputOptions, pluginDriver, log21)
+      ...await transformChunk(magicString, fileName, usedModules, chunkGraph, outputOptions, pluginDriver, log22)
     };
     const { code, map: map9 } = transformedChunk;
     if (hashPlaceholder) {
@@ -191320,7 +191396,7 @@ function calculateDebugIdAndGetComment(code, map9) {
   map9.debugId = debugId;
   return "//# debugId=" + debugId + "\n";
 }
-function validateOptionsForMultiChunkOutput(outputOptions, log21) {
+function validateOptionsForMultiChunkOutput(outputOptions, log22) {
   if (outputOptions.format === "umd" || outputOptions.format === "iife")
     return error52(logInvalidOption("output.format", URL_OUTPUT_FORMAT, "UMD and IIFE output formats are not supported for code-splitting builds", outputOptions.format));
   if (typeof outputOptions.file === "string")
@@ -191328,7 +191404,7 @@ function validateOptionsForMultiChunkOutput(outputOptions, log21) {
   if (outputOptions.sourcemapFile)
     return error52(logInvalidOption("output.sourcemapFile", URL_OUTPUT_SOURCEMAPFILE, '"output.sourcemapFile" is only supported for single-file builds'));
   if (!outputOptions.amd.autoId && outputOptions.amd.id)
-    log21(LOGLEVEL_WARN, logInvalidOption("output.amd.id", URL_OUTPUT_AMD_ID, 'this option is only properly supported for single-file builds. Use "output.amd.autoId" and "output.amd.basePath" instead'));
+    log22(LOGLEVEL_WARN, logInvalidOption("output.amd.id", URL_OUTPUT_AMD_ID, 'this option is only properly supported for single-file builds. Use "output.amd.autoId" and "output.amd.basePath" instead'));
 }
 function getIncludedModules(modulesById) {
   const includedModules = [];
@@ -191479,11 +191555,11 @@ async function asyncFlatten(array2) {
   } while (array2.some((v6) => v6?.then));
   return array2;
 }
-function warnUnknownOptions(passedOptions, validOptions, optionType, log21, ignoredKeys = /$./) {
+function warnUnknownOptions(passedOptions, validOptions, optionType, log22, ignoredKeys = /$./) {
   const validOptionSet = new Set(validOptions);
   const unknownOptions = Object.keys(passedOptions).filter((key) => !(validOptionSet.has(key) || ignoredKeys.test(key)));
   if (unknownOptions.length > 0) {
-    log21(LOGLEVEL_WARN, logUnknownOption(optionType, unknownOptions, [...validOptionSet].sort()));
+    log22(LOGLEVEL_WARN, logUnknownOption(optionType, unknownOptions, [...validOptionSet].sort()));
   }
 }
 function createPluginCache(cache6) {
@@ -191593,13 +191669,13 @@ async function transform2(source, module2, pluginDriver, options) {
     currentSource = code2;
     return code2;
   }
-  const getLogHandler2 = (handler) => (log21, pos) => {
-    log21 = normalizeLog(log21);
+  const getLogHandler2 = (handler) => (log22, pos) => {
+    log22 = normalizeLog(log22);
     if (pos)
-      augmentCodeLocation(log21, pos, currentSource, id);
-    log21.id = id;
-    log21.hook = "transform";
-    handler(log21);
+      augmentCodeLocation(log22, pos, currentSource, id);
+    log22.id = id;
+    log22.hook = "transform";
+    handler(log22);
   };
   let code;
   try {
@@ -191716,9 +191792,9 @@ function generateAssetFileName(name2, names, source, originalFileName, originalF
     name: () => emittedName.slice(0, Math.max(0, emittedName.length - (0, import_node_path4.extname)(emittedName).length))
   }), bundle);
 }
-function reserveFileNameInBundle(fileName, { bundle }, log21) {
+function reserveFileNameInBundle(fileName, { bundle }, log22) {
   if (bundle[lowercaseBundleKeys].has(fileName.toLowerCase())) {
-    log21(LOGLEVEL_WARN, logFileNameConflict(fileName));
+    log22(LOGLEVEL_WARN, logFileNameConflict(fileName));
   } else {
     bundle[fileName] = FILE_PLACEHOLDER;
   }
@@ -191771,17 +191847,17 @@ function getLogHandler(level, code, logger8, pluginName, logLevel) {
   if (logLevelPriority[level] < logLevelPriority[logLevel]) {
     return doNothing;
   }
-  return (log21, pos) => {
+  return (log22, pos) => {
     if (pos != null) {
       logger8(LOGLEVEL_WARN, logInvalidLogPosition(pluginName));
     }
-    log21 = normalizeLog(log21);
-    if (log21.code && !log21.pluginCode) {
-      log21.pluginCode = log21.code;
+    log22 = normalizeLog(log22);
+    if (log22.code && !log22.pluginCode) {
+      log22.pluginCode = log22.code;
     }
-    log21.code = code;
-    log21.plugin = pluginName;
-    logger8(level, log21);
+    log22.code = code;
+    log22.plugin = pluginName;
+    logger8(level, log22);
   };
 }
 function getPluginContext(plugin2, pluginCache, graph, options, fileEmitter, existingPluginNames) {
@@ -192053,8 +192129,8 @@ async function initWasm() {
 function getLogger(plugins, onLog, watchMode, logLevel) {
   plugins = getSortedValidatedPlugins("onLog", plugins);
   const minimalPriority = logLevelPriority[logLevel];
-  const logger8 = (level, log21, skipped = EMPTY_SET) => {
-    augmentLogMessage(log21);
+  const logger8 = (level, log22, skipped = EMPTY_SET) => {
+    augmentLogMessage(log22);
     const logPriority = logLevelPriority[level];
     if (logPriority < minimalPriority) {
       return;
@@ -192067,20 +192143,20 @@ function getLogger(plugins, onLog, watchMode, logLevel) {
         if (logLevelPriority[level2] < minimalPriority) {
           return doNothing;
         }
-        return (log22) => logger8(level2, normalizeLog(log22), new Set(skipped).add(plugin2));
+        return (log23) => logger8(level2, normalizeLog(log23), new Set(skipped).add(plugin2));
       };
       const handler = "handler" in pluginOnLog ? pluginOnLog.handler : pluginOnLog;
       if (handler.call({
         debug: getLogHandler2(LOGLEVEL_DEBUG),
-        error: (log22) => error52(normalizeLog(log22)),
+        error: (log23) => error52(normalizeLog(log23)),
         info: getLogHandler2(LOGLEVEL_INFO),
         meta: { rollupVersion: version4, watchMode },
         warn: getLogHandler2(LOGLEVEL_WARN)
-      }, level, log21) === false) {
+      }, level, log22) === false) {
         return;
       }
     }
-    onLog(level, log21);
+    onLog(level, log22);
   };
   return logger8;
 }
@@ -192487,15 +192563,15 @@ async function mergeOptions(config2, watchMode, rawCommandOptions = EMPTY_COMMAN
   const plugins = await normalizePluginOption(config2.plugins);
   const logLevel = config2.logLevel || LOGLEVEL_INFO;
   const onLog = getOnLog(config2, logLevel, printLog);
-  const log21 = getLogger(plugins, onLog, watchMode, logLevel);
-  const inputOptions = mergeInputOptions(config2, command, plugins, log21, onLog);
+  const log22 = getLogger(plugins, onLog, watchMode, logLevel);
+  const inputOptions = mergeInputOptions(config2, command, plugins, log22, onLog);
   if (command.output) {
     Object.assign(command, command.output);
   }
   const outputOptionsArray = ensureArray2(config2.output);
   if (outputOptionsArray.length === 0)
     outputOptionsArray.push({});
-  const outputOptions = await Promise.all(outputOptionsArray.map((singleOutputOptions) => mergeOutputOptions(singleOutputOptions, command, log21)));
+  const outputOptions = await Promise.all(outputOptionsArray.map((singleOutputOptions) => mergeOutputOptions(singleOutputOptions, command, log22)));
   warnUnknownOptions(command, [
     ...Object.keys(inputOptions).filter((option) => option !== "fs"),
     ...Object.keys(outputOptions[0]).filter((option) => option !== "sourcemapIgnoreList" && option !== "sourcemapPathTransform"),
@@ -192512,7 +192588,7 @@ async function mergeOptions(config2, watchMode, rawCommandOptions = EMPTY_COMMAN
     "silent",
     "stdin",
     "waitForBundleInput"
-  ], "CLI flags", log21, /^_$|output$|config/);
+  ], "CLI flags", log22, /^_$|output$|config/);
   inputOptions.output = outputOptions;
   return inputOptions;
 }
@@ -192531,7 +192607,7 @@ function getCommandOptions(rawCommandOptions) {
     }, /* @__PURE__ */ Object.create(null)) : void 0
   };
 }
-function mergeInputOptions(config2, overrides, plugins, log21, onLog) {
+function mergeInputOptions(config2, overrides, plugins, log22, onLog) {
   const getOption = (name2) => overrides[name2] ?? config2[name2];
   const inputOptions = {
     cache: config2.cache,
@@ -192557,10 +192633,10 @@ function mergeInputOptions(config2, overrides, plugins, log21, onLog) {
     treeshake: getObjectOption(config2, overrides, "treeshake", objectifyOptionWithPresets(treeshakePresets, "treeshake", URL_TREESHAKE, "false, true, ")),
     watch: getWatch(config2, overrides)
   };
-  warnUnknownOptions(config2, Object.keys(inputOptions), "input options", log21, /^output$/);
+  warnUnknownOptions(config2, Object.keys(inputOptions), "input options", log22, /^output$/);
   return inputOptions;
 }
-async function mergeOutputOptions(config2, overrides, log21) {
+async function mergeOutputOptions(config2, overrides, log22) {
   const getOption = (name2) => overrides[name2] ?? config2[name2];
   const outputOptions = {
     amd: getObjectOption(config2, overrides, "amd"),
@@ -192616,7 +192692,7 @@ async function mergeOutputOptions(config2, overrides, log21) {
     validate: getOption("validate"),
     virtualDirname: getOption("virtualDirname")
   };
-  warnUnknownOptions(config2, Object.keys(outputOptions), "output options", log21);
+  warnUnknownOptions(config2, Object.keys(outputOptions), "output options", log22);
   return outputOptions;
 }
 async function loadFsEvents() {
@@ -202242,8 +202318,8 @@ var init_node_entry = __esm({
           if (node.hasEffects(context)) {
             if (this.scope.context.options.experimentalLogSideEffects && !this.hasLoggedEffect) {
               this.hasLoggedEffect = true;
-              const { code, log: log21, module: module2 } = this.scope.context;
-              log21(LOGLEVEL_INFO, logFirstSideEffect(code, module2.id, locate(code, node.start, { offsetLine: 1 })), node.start);
+              const { code, log: log22, module: module2 } = this.scope.context;
+              log22(LOGLEVEL_INFO, logFirstSideEffect(code, module2.id, locate(code, node.start, { offsetLine: 1 })), node.start);
             }
             return this.hasCachedEffect = true;
           }
@@ -206400,7 +206476,7 @@ ${next}` : out;
       const defaultOnLog = getDefaultOnLog(printLog, onwarn);
       if (onLog) {
         const minimalPriority = logLevelPriority[logLevel];
-        return (level, log21) => onLog(level, addLogToString(log21), (level2, handledLog) => {
+        return (level, log22) => onLog(level, addLogToString(log22), (level2, handledLog) => {
           if (level2 === LOGLEVEL_ERROR) {
             return error52(normalizeLog(handledLog));
           }
@@ -206411,21 +206487,21 @@ ${next}` : out;
       }
       return defaultOnLog;
     };
-    getDefaultOnLog = (printLog, onwarn) => onwarn ? (level, log21) => {
+    getDefaultOnLog = (printLog, onwarn) => onwarn ? (level, log22) => {
       if (level === LOGLEVEL_WARN) {
-        onwarn(addLogToString(log21), (warning) => printLog(LOGLEVEL_WARN, normalizeLog(warning)));
+        onwarn(addLogToString(log22), (warning) => printLog(LOGLEVEL_WARN, normalizeLog(warning)));
       } else {
-        printLog(level, log21);
+        printLog(level, log22);
       }
     } : printLog;
-    addLogToString = (log21) => {
-      Object.defineProperty(log21, "toString", {
-        value: () => log21.message,
+    addLogToString = (log22) => {
+      Object.defineProperty(log22, "toString", {
+        value: () => log22.message,
         writable: true
       });
-      return log21;
+      return log22;
     };
-    normalizeLog = (log21) => typeof log21 === "string" ? { message: log21 } : typeof log21 === "function" ? normalizeLog(log21()) : log21;
+    normalizeLog = (log22) => typeof log22 === "string" ? { message: log22 } : typeof log22 === "function" ? normalizeLog(log22()) : log22;
     defaultPrintLog = (level, { message: message2 }) => {
       switch (level) {
         case LOGLEVEL_WARN: {
@@ -249288,7 +249364,7 @@ Error: ${e$1.message}`);
       const node_events_1 = __require("node:events");
       const debug_1 = __importDefault2((init_node2(), __toCommonJS2(node_exports)));
       const common_1 = require_common();
-      const log21 = (0, debug_1.default)("http-proxy-3");
+      const log22 = (0, debug_1.default)("http-proxy-3");
       var ProxyServer = class ProxyServer2 extends node_events_1.EventEmitter {
         /**
         * Creates the proxy server with specified options.
@@ -249297,11 +249373,11 @@ Error: ${e$1.message}`);
         constructor(options$1 = {}) {
           super();
           this.createRightProxy = (type) => {
-            log21("createRightProxy", { type });
+            log22("createRightProxy", { type });
             return (options$2) => {
               return (...args) => {
                 const req$4 = args[0];
-                log21("proxy: ", {
+                log22("proxy: ", {
                   type,
                   path: req$4.url
                 });
@@ -249340,7 +249416,7 @@ Error: ${e$1.message}`);
             if (this.listeners("error").length === 1) throw err$2;
           };
           this.listen = (port, hostname3) => {
-            log21("listen", {
+            log22("listen", {
               port,
               hostname: hostname3
             });
@@ -249390,7 +249466,7 @@ Error: ${e$1.message}`);
             if (i$1 === false) throw new Error("No such pass");
             passes.splice(i$1++, 0, cb);
           };
-          log21("creating a ProxyServer", options$1);
+          log22("creating a ProxyServer", options$1);
           options$1.prependPath = options$1.prependPath === false ? false : true;
           this.options = options$1;
           this.web = this.createRightProxy("web")(options$1);
@@ -284375,7 +284451,7 @@ var require_node4 = __commonJS({
     var tty = require("tty");
     var util3 = require("util");
     exports2.init = init2;
-    exports2.log = log21;
+    exports2.log = log22;
     exports2.formatArgs = formatArgs2;
     exports2.save = save2;
     exports2.load = load;
@@ -284510,7 +284586,7 @@ var require_node4 = __commonJS({
       }
       return (/* @__PURE__ */ new Date()).toISOString() + " ";
     }
-    function log21(...args) {
+    function log22(...args) {
       return process.stderr.write(util3.formatWithOptions(exports2.inspectOpts, ...args) + "\n");
     }
     function save2(namespaces) {
@@ -302149,7 +302225,7 @@ var require_node6 = __commonJS({
     var tty = require("tty");
     var util3 = require("util");
     exports2.init = init2;
-    exports2.log = log21;
+    exports2.log = log22;
     exports2.formatArgs = formatArgs2;
     exports2.save = save2;
     exports2.load = load;
@@ -302284,7 +302360,7 @@ var require_node6 = __commonJS({
       }
       return (/* @__PURE__ */ new Date()).toISOString() + " ";
     }
-    function log21(...args) {
+    function log22(...args) {
       return process.stderr.write(util3.formatWithOptions(exports2.inspectOpts, ...args) + "\n");
     }
     function save2(namespaces) {
@@ -320577,15 +320653,15 @@ var require_Resolver = __commonJS({
           result.path === false ? false : `${result.path.replace(/#/g, "\0#")}${result.query ? result.query.replace(/#/g, "\0#") : ""}${result.fragment || ""}`,
           result
         );
-        const finishWithoutResolve = (log21) => {
+        const finishWithoutResolve = (log22) => {
           const error54 = new Error(`Can't ${message2}`);
-          error54.details = log21.join("\n");
+          error54.details = log22.join("\n");
           this.hooks.noResolve.call(obj, error54);
           return callback2(error54);
         };
         if (resolveContext.log) {
           const parentLog = resolveContext.log;
-          const log21 = [];
+          const log22 = [];
           return this.doResolve(
             this.hooks.resolve,
             obj,
@@ -320593,7 +320669,7 @@ var require_Resolver = __commonJS({
             {
               log: (msg) => {
                 parentLog(msg);
-                log21.push(msg);
+                log22.push(msg);
               },
               yield: yield_,
               fileDependencies: resolveContext.fileDependencies,
@@ -320613,7 +320689,7 @@ var require_Resolver = __commonJS({
                 );
               }
               if (result) return finishResolved(result);
-              return finishWithoutResolve(log21);
+              return finishWithoutResolve(log22);
             }
           );
         }
@@ -320641,13 +320717,13 @@ var require_Resolver = __commonJS({
               );
             }
             if (result) return finishResolved(result);
-            const log21 = [];
+            const log22 = [];
             return this.doResolve(
               this.hooks.resolve,
               obj,
               message2,
               {
-                log: (msg) => log21.push(msg),
+                log: (msg) => log22.push(msg),
                 yield: yield_,
                 stack: resolveContext.stack
               },
@@ -320662,7 +320738,7 @@ var require_Resolver = __commonJS({
                     )
                   );
                 }
-                return finishWithoutResolve(log21);
+                return finishWithoutResolve(log22);
               }
             );
           }
@@ -322497,29 +322573,29 @@ var require_LogInfoPlugin = __commonJS({
         const { source } = this;
         resolver3.getHook(this.source).tapAsync("LogInfoPlugin", (request, resolveContext, callback2) => {
           if (!resolveContext.log) return callback2();
-          const { log: log21 } = resolveContext;
+          const { log: log22 } = resolveContext;
           const prefix = `[${source}] `;
           if (request.path) {
-            log21(`${prefix}Resolving in directory: ${request.path}`);
+            log22(`${prefix}Resolving in directory: ${request.path}`);
           }
           if (request.request) {
-            log21(`${prefix}Resolving request: ${request.request}`);
+            log22(`${prefix}Resolving request: ${request.request}`);
           }
-          if (request.module) log21(`${prefix}Request is an module request.`);
-          if (request.directory) log21(`${prefix}Request is a directory request.`);
+          if (request.module) log22(`${prefix}Request is an module request.`);
+          if (request.directory) log22(`${prefix}Request is a directory request.`);
           if (request.query) {
-            log21(`${prefix}Resolving request query: ${request.query}`);
+            log22(`${prefix}Resolving request query: ${request.query}`);
           }
           if (request.fragment) {
-            log21(`${prefix}Resolving request fragment: ${request.fragment}`);
+            log22(`${prefix}Resolving request fragment: ${request.fragment}`);
           }
           if (request.descriptionFilePath) {
-            log21(
+            log22(
               `${prefix}Has description data from ${request.descriptionFilePath}`
             );
           }
           if (request.relativePath) {
-            log21(
+            log22(
               `${prefix}Relative path from description file is: ${request.relativePath}`
             );
           }
@@ -356768,7 +356844,7 @@ var autoOperationService = {
       config2 = await this.upsertConfig({ accountId });
     }
     const logId = `log_${Date.now()}_${accountId}`;
-    const log21 = {
+    const log22 = {
       id: logId,
       accountId,
       operationType: "full_operation",
@@ -356779,7 +356855,7 @@ var autoOperationService = {
       details: { config: config2 },
       errorMessage: null
     };
-    logStore.push(log21);
+    logStore.push(log22);
     try {
       if (config2.enableDataSync) {
         const stepResult = await this.executeDataSync(accountId);
@@ -356826,10 +356902,10 @@ var autoOperationService = {
         skippedSteps: steps.filter((s4) => s4.status === "skipped").length
       };
       const status = summary.failedSteps === 0 ? "completed" : summary.successSteps > 0 ? "partial" : "failed";
-      log21.status = status === "failed" ? "failed" : "completed";
-      log21.completedAt = completedAt;
-      log21.duration = totalDuration;
-      log21.details = { config: config2, steps, summary };
+      log22.status = status === "failed" ? "failed" : "completed";
+      log22.completedAt = completedAt;
+      log22.duration = totalDuration;
+      log22.details = { config: config2, steps, summary };
       const nextRunAt = new Date(completedAt.getTime() + config2.intervalHours * 60 * 60 * 1e3);
       config2.lastRunAt = completedAt;
       config2.nextRunAt = nextRunAt;
@@ -356846,11 +356922,11 @@ var autoOperationService = {
     } catch (error54) {
       const completedAt = /* @__PURE__ */ new Date();
       const totalDuration = completedAt.getTime() - startedAt.getTime();
-      log21.status = "failed";
-      log21.completedAt = completedAt;
-      log21.duration = totalDuration;
-      log21.errorMessage = error54 instanceof Error ? error54.message : String(error54);
-      log21.details = { config: config2, steps, error: String(error54) };
+      log22.status = "failed";
+      log22.completedAt = completedAt;
+      log22.duration = totalDuration;
+      log22.errorMessage = error54 instanceof Error ? error54.message : String(error54);
+      log22.details = { config: config2, steps, error: String(error54) };
       throw error54;
     }
   },
@@ -357078,7 +357154,7 @@ var autoOperationService = {
    * 获取运营日志
    */
   async getLogs(accountId, limit2 = 50) {
-    return logStore.filter((log21) => log21.accountId === accountId).sort((a4, b6) => b6.startedAt.getTime() - a4.startedAt.getTime()).slice(0, limit2);
+    return logStore.filter((log22) => log22.accountId === accountId).sort((a4, b6) => b6.startedAt.getTime() - a4.startedAt.getTime()).slice(0, limit2);
   },
   /**
    * 获取所有需要执行的账号
@@ -366401,7 +366477,7 @@ var optimizationRouter = router({
       maxBid: group.maxBid ? parseFloat(group.maxBid) : 10
     };
     for (const campaign of campaigns7) {
-      const adGroups4 = await getAdGroupsByCampaignId(campaign.id);
+      const adGroups4 = await getAdGroupsByCampaignId(campaign.campaignId || campaign.id);
       const maxBidLimit = campaign.maxBid ? parseFloat(campaign.maxBid) : groupConfig.maxBid || 10;
       for (const adGroup of adGroups4) {
         const keywords8 = await getKeywordsByAdGroupId(adGroup.id);
@@ -371514,7 +371590,7 @@ var placementRouter = router({
     for (const gc of groupCampaigns) {
       const campaign = gc;
       if (!campaign) continue;
-      const campaignKeywords = await getKeywordsByCampaignId(campaign.id);
+      const campaignKeywords = await getKeywordsByCampaignId(campaign.campaignId || campaign.id);
       let campaignOptimalBidSum = 0;
       let campaignCurrentBidSum = 0;
       let campaignMaxProfit = 0;
@@ -371715,7 +371791,7 @@ var placementRouter = router({
     for (const gc of groupCampaigns) {
       const campaign = gc;
       if (!campaign) continue;
-      const campaignKeywords = await getKeywordsByCampaignId(campaign.id);
+      const campaignKeywords = await getKeywordsByCampaignId(campaign.campaignId || campaign.id);
       let appliedCount = 0;
       let skippedCount = 0;
       let errorCount = 0;

@@ -1789,7 +1789,7 @@ export class AmazonSyncService {
         const [campaign] = await db
           .select()
           .from(campaigns)
-          .where(eq(campaigns.id, adGroup.campaignId))
+          .where(eq(campaigns.campaignId, adGroup.campaignId))
           .limit(1);
         if (!campaign) continue;
         const matchType = (neg.matchType || '').toLowerCase().includes('phrase') 
@@ -1920,7 +1920,7 @@ export class AmazonSyncService {
         const [campaign] = await db
           .select()
           .from(campaigns)
-          .where(eq(campaigns.id, adGroup.campaignId))
+          .where(eq(campaigns.campaignId, adGroup.campaignId))
           .limit(1);
         if (!campaign) continue;
         const expression = neg.expression || [];
@@ -3331,7 +3331,7 @@ export class AmazonSyncService {
     targetId: number,
     newBid: number,
     reason: string,
-    campaignId: number
+    campaignId: number | string  // v206: Amazon campaignId (varchar) or local int
   ): Promise<boolean> {
     const db = await getDb();
     if (!db) return false;
@@ -3361,7 +3361,7 @@ export class AmazonSyncService {
             // 获取accountId: 通过adGroup -> campaign -> accountId
             const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, kw.adGroupId)).limit(1);
             if (ag) {
-              const [camp] = await db.select().from(campaigns).where(eq(campaigns.id, ag.campaignId)).limit(1);
+              const [camp] = await db.select().from(campaigns).where(eq(campaigns.campaignId, ag.campaignId)).limit(1);
               if (camp) {
                 const resolvedId = await resolveKeywordIdOnDemand(camp.accountId, targetId);
                 if (resolvedId) {
@@ -3418,7 +3418,7 @@ export class AmazonSyncService {
             const { resolveProductTargetIdOnDemand } = await import('./services/amazonIdResolver');
             const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, pt.adGroupId)).limit(1);
             if (ag) {
-              const [camp] = await db.select().from(campaigns).where(eq(campaigns.id, ag.campaignId)).limit(1);
+              const [camp] = await db.select().from(campaigns).where(eq(campaigns.campaignId, ag.campaignId)).limit(1);
               if (camp) {
                 const resolvedId = await resolveProductTargetIdOnDemand(camp.accountId, targetId);
                 if (resolvedId) {

@@ -75,14 +75,14 @@ export async function ensureAmazonIdsReady(accountId: number): Promise<IdResolut
     const [remainingKws] = await directConn.execute(
       `SELECT COUNT(*) AS cnt FROM keywords k
        INNER JOIN ad_groups ag ON k.adGroupId = ag.id
-       INNER JOIN campaigns c ON ag.campaignId = c.id
+       INNER JOIN campaigns c ON ag.campaignId = c.campaignId
        WHERE c.accountId = ? AND k.keywordId IS NULL`,
       [accountId]
     );
     const [remainingPts] = await directConn.execute(
       `SELECT COUNT(*) AS cnt FROM product_targets pt
        INNER JOIN ad_groups ag ON pt.adGroupId = ag.id
-       INNER JOIN campaigns c ON ag.campaignId = c.id
+       INNER JOIN campaigns c ON ag.campaignId = c.campaignId
        WHERE c.accountId = ? AND pt.targetId IS NULL`,
       [accountId]
     );
@@ -125,7 +125,7 @@ async function resolveKeywordIds(
     `SELECT k.id, k.adGroupId, k.keywordText, k.matchType, k.bid, k.keywordStatus
      FROM keywords k
      INNER JOIN ad_groups ag ON k.adGroupId = ag.id
-     INNER JOIN campaigns c ON ag.campaignId = c.id
+     INNER JOIN campaigns c ON ag.campaignId = c.campaignId
      WHERE c.accountId = ? AND k.keywordId IS NULL`,
     [accountId]
   );
@@ -241,7 +241,7 @@ async function resolveKeywordIds(
         // 获取Amazon campaignId和campaign targetingType
         const [campRows] = await conn.execute(
           `SELECT c.campaignId, c.targetingType FROM campaigns c
-           INNER JOIN ad_groups ag ON ag.campaignId = c.id
+           INNER JOIN ad_groups ag ON ag.campaignId = c.campaignId
            WHERE ag.id = ? LIMIT 1`,
           [adGroupLocalId]
         );
@@ -397,7 +397,7 @@ async function resolveProductTargetIds(
     `SELECT pt.id, pt.adGroupId, pt.targetExpression, pt.targetValue, pt.target_match_type as targetMatchType
      FROM product_targets pt
      INNER JOIN ad_groups ag ON pt.adGroupId = ag.id
-     INNER JOIN campaigns c ON ag.campaignId = c.id
+     INNER JOIN campaigns c ON ag.campaignId = c.campaignId
      WHERE c.accountId = ? AND pt.targetId IS NULL`,
     [accountId]
   );
@@ -535,7 +535,7 @@ export async function resolveKeywordIdOnDemand(
               ag.adGroupId AS amazonAdGroupId, c.campaignId AS amazonCampaignId
        FROM keywords k
        INNER JOIN ad_groups ag ON k.adGroupId = ag.id
-       INNER JOIN campaigns c ON ag.campaignId = c.id
+       INNER JOIN campaigns c ON ag.campaignId = c.campaignId
        WHERE k.id = ? AND k.keywordId IS NULL`,
       [keywordLocalId]
     );
@@ -667,7 +667,7 @@ export async function resolveProductTargetIdOnDemand(
               ag.adGroupId AS amazonAdGroupId
        FROM product_targets pt
        INNER JOIN ad_groups ag ON pt.adGroupId = ag.id
-       INNER JOIN campaigns c ON ag.campaignId = c.id
+       INNER JOIN campaigns c ON ag.campaignId = c.campaignId
        WHERE pt.id = ? AND pt.targetId IS NULL`,
       [ptLocalId]
     );

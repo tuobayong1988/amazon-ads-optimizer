@@ -1505,13 +1505,13 @@ export async function getBidChangeRecords(accountId: number, days: number): Prom
   
   // 转换为BidChangeRecord格式
   const records: BidChangeRecord[] = [];
-  for (const log of logs) {
-    if (log.actionType !== 'increase' && log.actionType !== 'decrease' && log.actionType !== 'set') {
+  for (const bidRecord of logs) {
+    if (bidRecord.actionType !== 'increase' && bidRecord.actionType !== 'decrease' && bidRecord.actionType !== 'set') {
       continue;
     }
     
-    const oldBid = parseFloat(log.previousBid || '0');
-    const newBid = parseFloat(log.newBid || '0');
+    const oldBid = parseFloat(bidRecord.previousBid || '0');
+    const newBid = parseFloat(bidRecord.newBid || '0');
     
     if (oldBid === 0 || newBid === 0) continue;
     
@@ -1526,8 +1526,8 @@ export async function getBidChangeRecords(accountId: number, days: number): Prom
       acos: 0,
     };
     try {
-      if (log.campaignId) {
-        const changeDate = new Date(log.createdAt || Date.now());
+      if (bidRecord.campaignId) {
+        const changeDate = new Date(bidRecord.createdAt || Date.now());
         const endDate = new Date(changeDate);
         endDate.setDate(endDate.getDate() + 7);
         const perfRows = await db.select()
@@ -1557,16 +1557,16 @@ export async function getBidChangeRecords(accountId: number, days: number): Prom
     }
     
     records.push({
-      id: log.id,
-      targetId: log.targetId || 0,
-      targetName: log.targetName || '',
-      targetType: log.logTargetType as 'keyword' | 'product_target' | 'placement',
-      campaignId: log.campaignId || 0,
+      id: bidRecord.id,
+      targetId: bidRecord.targetId || 0,
+      targetName: bidRecord.targetName || '',
+      targetType: bidRecord.logTargetType as 'keyword' | 'product_target' | 'placement',
+      campaignId: bidRecord.campaignId || 0,
       campaignName: '',
       oldBid,
       newBid,
-      changeDate: log.createdAt || new Date().toISOString(),
-      changeReason: log.reason || '',
+      changeDate: bidRecord.createdAt || new Date().toISOString(),
+      changeReason: bidRecord.reason || '',
       performanceAfter,
     });
   }

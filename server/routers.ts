@@ -3195,7 +3195,8 @@ const optimizationRouter = router({
       };
       
       for (const campaign of campaigns) {
-        const adGroups = await db.getAdGroupsByCampaignId(campaign.id);
+        // v206: getAdGroupsByCampaignId需要Amazon campaignId（varchar）
+        const adGroups = await db.getAdGroupsByCampaignId(campaign.campaignId || campaign.id);
         const maxBidLimit = campaign.maxBid ? parseFloat(campaign.maxBid) : (groupConfig.maxBid || 10.00);
         
         for (const adGroup of adGroups) {
@@ -9608,8 +9609,8 @@ const placementRouter = router({
         const campaign = gc; // gc已经是campaign对象
         if (!campaign) continue;
         
-        // 获取广告活动下的所有关键词
-        const campaignKeywords = await db.getKeywordsByCampaignId(campaign.id);
+        // v206: 获取广告活动下的所有关键词（使用Amazon campaignId）
+        const campaignKeywords = await db.getKeywordsByCampaignId(campaign.campaignId || campaign.id);
         
         let campaignOptimalBidSum = 0;
         let campaignCurrentBidSum = 0;
@@ -9879,8 +9880,8 @@ const placementRouter = router({
         const campaign = gc; // gc已经是campaign对象
         if (!campaign) continue;
         
-        // 获取广告活动下的所有关键词
-        const campaignKeywords = await db.getKeywordsByCampaignId(campaign.id);
+        // v206: 获取广告活动下的所有关键词（使用Amazon campaignId）
+        const campaignKeywords = await db.getKeywordsByCampaignId(campaign.campaignId || campaign.id);
         
         let appliedCount = 0;
         let skippedCount = 0;

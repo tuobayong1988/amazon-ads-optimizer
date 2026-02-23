@@ -285,8 +285,9 @@ export async function checkEmergencyBrake(
     
     for (const campaign of campaigns) {
       try {
-        const recentData = await db.getDailyPerformanceByDateRange(accountId, recentStart, recentEnd, campaign.id);
-        const previousData = await db.getDailyPerformanceByDateRange(accountId, previousStart, previousEnd, campaign.id);
+        // v206: getDailyPerformanceByDateRange需要Amazon campaignId（varchar）
+        const recentData = await db.getDailyPerformanceByDateRange(accountId, recentStart, recentEnd, campaign.campaignId || campaign.id);
+        const previousData = await db.getDailyPerformanceByDateRange(accountId, previousStart, previousEnd, campaign.campaignId || campaign.id);
         
         for (const d of recentData) {
           recentSpend += Number(d.spend) || 0;
