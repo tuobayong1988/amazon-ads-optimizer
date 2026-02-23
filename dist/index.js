@@ -18300,17 +18300,17 @@ var require_router = __commonJS({
     var toString5 = Object.prototype.toString;
     var proto = module2.exports = function(options) {
       var opts = options || {};
-      function router3(req, res, next) {
-        router3.handle(req, res, next);
+      function router4(req, res, next) {
+        router4.handle(req, res, next);
       }
-      setPrototypeOf(router3, proto);
-      router3.params = {};
-      router3._params = [];
-      router3.caseSensitive = opts.caseSensitive;
-      router3.mergeParams = opts.mergeParams;
-      router3.strict = opts.strict;
-      router3.stack = [];
-      return router3;
+      setPrototypeOf(router4, proto);
+      router4.params = {};
+      router4._params = [];
+      router4.caseSensitive = opts.caseSensitive;
+      router4.mergeParams = opts.mergeParams;
+      router4.strict = opts.strict;
+      router4.stack = [];
+      return router4;
     };
     proto.param = function param2(name2, fn2) {
       if (typeof name2 === "function") {
@@ -20916,7 +20916,7 @@ var require_application = __commonJS({
   "node_modules/express/lib/application.js"(exports2, module2) {
     "use strict";
     var finalhandler = require_finalhandler();
-    var Router2 = require_router();
+    var Router3 = require_router();
     var methods = require_methods();
     var middleware = require_init();
     var query2 = require_query();
@@ -20981,7 +20981,7 @@ var require_application = __commonJS({
     };
     app.lazyrouter = function lazyrouter() {
       if (!this._router) {
-        this._router = new Router2({
+        this._router = new Router3({
           caseSensitive: this.enabled("case sensitive routing"),
           strict: this.enabled("strict routing")
         });
@@ -20990,17 +20990,17 @@ var require_application = __commonJS({
       }
     };
     app.handle = function handle(req, res, callback2) {
-      var router3 = this._router;
+      var router4 = this._router;
       var done = callback2 || finalhandler(req, res, {
         env: this.get("env"),
         onerror: logerror.bind(this)
       });
-      if (!router3) {
+      if (!router4) {
         debug2("no routes defined on app");
         done();
         return;
       }
-      router3.handle(req, res, done);
+      router4.handle(req, res, done);
     };
     app.use = function use(fn2) {
       var offset2 = 0;
@@ -21020,15 +21020,15 @@ var require_application = __commonJS({
         throw new TypeError("app.use() requires a middleware function");
       }
       this.lazyrouter();
-      var router3 = this._router;
+      var router4 = this._router;
       fns.forEach(function(fn3) {
         if (!fn3 || !fn3.handle || !fn3.set) {
-          return router3.use(path7, fn3);
+          return router4.use(path7, fn3);
         }
         debug2(".use app under %s", path7);
         fn3.mountpath = path7;
         fn3.parent = this;
-        router3.use(path7, function mounted_app(req, res, next) {
+        router4.use(path7, function mounted_app(req, res, next) {
           var orig = req.app;
           fn3.handle(req, res, function(err2) {
             setPrototypeOf(req, orig.request);
@@ -22844,7 +22844,7 @@ var require_express = __commonJS({
     var mixin = require_merge_descriptors();
     var proto = require_application();
     var Route = require_route();
-    var Router2 = require_router();
+    var Router3 = require_router();
     var req = require_request();
     var res = require_response();
     exports2 = module2.exports = createApplication;
@@ -22867,7 +22867,7 @@ var require_express = __commonJS({
     exports2.request = req;
     exports2.response = res;
     exports2.Route = Route;
-    exports2.Router = Router2;
+    exports2.Router = Router3;
     exports2.json = bodyParser.json;
     exports2.query = require_query();
     exports2.raw = bodyParser.raw;
@@ -23299,19 +23299,19 @@ function createRouterFactory(config2) {
       procedures,
       lazy: lazy$1
     }, emptyRouter), {}, { record: record2 });
-    const router3 = (0, import_objectSpread22.default)((0, import_objectSpread22.default)({}, record2), {}, {
+    const router4 = (0, import_objectSpread22.default)((0, import_objectSpread22.default)({}, record2), {}, {
       _def,
       createCaller: createCallerFactory()({ _def })
     });
-    return router3;
+    return router4;
   }
   return createRouterInner;
 }
 function isProcedure(procedureOrRouter) {
   return typeof procedureOrRouter === "function";
 }
-async function getProcedureAtPath(router3, path7) {
-  const { _def } = router3;
+async function getProcedureAtPath(router4, path7) {
+  const { _def } = router4;
   let procedure = _def.procedures[path7];
   while (!procedure) {
     const key = Object.keys(_def.lazy).find((key$1) => path7.startsWith(key$1));
@@ -23323,14 +23323,14 @@ async function getProcedureAtPath(router3, path7) {
   return procedure;
 }
 function createCallerFactory() {
-  return function createCallerInner(router3) {
-    const { _def } = router3;
+  return function createCallerInner(router4) {
+    const { _def } = router4;
     return function createCaller(ctxOrCallback, opts) {
       return createRecursiveProxy(async (innerOpts) => {
         const { path: path7, args } = innerOpts;
         const fullPath = path7.join(".");
         if (path7.length === 1 && path7[0] === "_def") return _def;
-        const procedure = await getProcedureAtPath(router3, fullPath);
+        const procedure = await getProcedureAtPath(router4, fullPath);
         let ctx = void 0;
         try {
           if (!procedure) throw new TRPCError({
@@ -23377,7 +23377,7 @@ function mergeRouters(...routerList) {
     }
     return prev;
   }, defaultTransformer);
-  const router3 = createRouterFactory({
+  const router4 = createRouterFactory({
     errorFormatter,
     transformer,
     isDev: routerList.every((r5) => r5._def._config.isDev),
@@ -23385,7 +23385,7 @@ function mergeRouters(...routerList) {
     isServer: routerList.every((r5) => r5._def._config.isServer),
     $types: (_routerList$ = routerList[0]) === null || _routerList$ === void 0 ? void 0 : _routerList$._def._config.$types
   })(record2);
-  return router3;
+  return router4;
 }
 function isTrackedEnvelope(value2) {
   return Array.isArray(value2) && value2[2] === trackedSymbol;
@@ -35376,6 +35376,149 @@ var init_logger2 = __esm({
   }
 });
 
+// server/utils/opsLogger.ts
+function logMigration(module2, message2, data4) {
+  opsCollector.log("migration", "info", module2, message2, data4);
+}
+function logMigrationWarn(module2, message2, data4) {
+  opsCollector.log("migration", "warn", module2, message2, data4);
+}
+function logIdGuardError(module2, message2, data4) {
+  opsCollector.log("id-guard", "error", module2, message2, data4);
+}
+function logSystem(module2, message2, data4) {
+  opsCollector.log("system", "info", module2, message2, data4);
+}
+var RingBuf, CAT_BUF, GLOBAL_BUF, ALL_CATS, OpsCollector, opsCollector;
+var init_opsLogger = __esm({
+  "server/utils/opsLogger.ts"() {
+    "use strict";
+    init_logger2();
+    RingBuf = class {
+      constructor(cap) {
+        this.cap = cap;
+        this.buf = new Array(cap);
+      }
+      buf;
+      head = 0;
+      count = 0;
+      push(item) {
+        this.buf[this.head] = item;
+        this.head = (this.head + 1) % this.cap;
+        if (this.count < this.cap) this.count++;
+      }
+      toArray() {
+        if (this.count === 0) return [];
+        const result = [];
+        const start = this.count < this.cap ? 0 : this.head;
+        for (let i4 = 0; i4 < this.count; i4++) {
+          const item = this.buf[(start + i4) % this.cap];
+          if (item !== void 0) result.push(item);
+        }
+        return result;
+      }
+      latest() {
+        if (this.count === 0) return null;
+        return this.buf[(this.head - 1 + this.cap) % this.cap] ?? null;
+      }
+      size() {
+        return this.count;
+      }
+      capacity() {
+        return this.cap;
+      }
+    };
+    CAT_BUF = 300;
+    GLOBAL_BUF = 1500;
+    ALL_CATS = ["migration", "id-guard", "optimization", "sync", "error", "system"];
+    OpsCollector = class {
+      catBufs = /* @__PURE__ */ new Map();
+      globalBuf = new RingBuf(GLOBAL_BUF);
+      seq = 0;
+      startedAt = (/* @__PURE__ */ new Date()).toISOString();
+      totalCounts = {
+        migration: 0,
+        "id-guard": 0,
+        optimization: 0,
+        sync: 0,
+        error: 0,
+        system: 0
+      };
+      levelCounts = { info: 0, warn: 0, error: 0 };
+      constructor() {
+        for (const cat of ALL_CATS) {
+          this.catBufs.set(cat, new RingBuf(CAT_BUF));
+        }
+      }
+      log(category, level, module2, message2, data4) {
+        const entry = {
+          seq: ++this.seq,
+          timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+          category,
+          level,
+          module: module2,
+          message: message2,
+          data: data4
+        };
+        this.catBufs.get(category)?.push(entry);
+        this.globalBuf.push(entry);
+        this.totalCounts[category]++;
+        this.levelCounts[level]++;
+        const prefix = `[OPS:${category}]`;
+        switch (level) {
+          case "error":
+            logger.error(module2, `${prefix} ${message2}`, data4);
+            break;
+          case "warn":
+            logger.warn(module2, `${prefix} ${message2}`, data4);
+            break;
+          default:
+            logger.info(module2, `${prefix} ${message2}`, data4);
+            break;
+        }
+      }
+      query(params = {}) {
+        const { category, level, module: module2, keyword, since, until, limit: limit2 = 50, afterSeq } = params;
+        const maxLimit = Math.min(Math.max(limit2 || 50, 1), 500);
+        let entries;
+        if (category) {
+          entries = this.catBufs.get(category)?.toArray() || [];
+        } else {
+          entries = this.globalBuf.toArray();
+        }
+        if (level) entries = entries.filter((e6) => e6.level === level);
+        if (module2) entries = entries.filter((e6) => e6.module.toLowerCase().includes(module2.toLowerCase()));
+        if (keyword) {
+          const kw = keyword.toLowerCase();
+          entries = entries.filter(
+            (e6) => e6.message.toLowerCase().includes(kw) || e6.data && JSON.stringify(e6.data).toLowerCase().includes(kw)
+          );
+        }
+        if (since) entries = entries.filter((e6) => e6.timestamp >= since);
+        if (until) entries = entries.filter((e6) => e6.timestamp <= until);
+        if (afterSeq !== void 0) entries = entries.filter((e6) => e6.seq > afterSeq);
+        return entries.slice(-maxLimit).reverse();
+      }
+      getSummary() {
+        const latestByCategory = {};
+        for (const cat of ALL_CATS) {
+          latestByCategory[cat] = this.catBufs.get(cat)?.latest() ?? null;
+        }
+        return {
+          categoryCounts: { ...this.totalCounts },
+          levelCounts: { ...this.levelCounts },
+          bufferCapacity: GLOBAL_BUF,
+          bufferUsed: this.globalBuf.size(),
+          totalLogged: this.seq,
+          startedAt: this.startedAt,
+          latestByCategory
+        };
+      }
+    };
+    opsCollector = new OpsCollector();
+  }
+});
+
 // server/utils/idTypes.ts
 function isValidAmazonId(value2) {
   if (typeof value2 !== "string" && typeof value2 !== "number") return false;
@@ -35427,9 +35570,9 @@ function guardCampaignIdParam(value2, functionName) {
   const str2 = String(value2).trim();
   const classification = classifyCampaignId(value2);
   if (classification === "local") {
-    log.error(
-      `[IdTypes] \u26D4 ${functionName}() \u6536\u5230\u672C\u5730campaignId(${value2})! \u8FD9\u5C06\u5BFC\u81F4\u67E5\u8BE2\u8FD4\u56DE\u7A7A\u7ED3\u679C\u3002\u8C03\u7528\u8005\u5FC5\u987B\u4F20\u5165campaign.campaignId\u800C\u975Ecampaign.id`
-    );
+    const msg = `${functionName}() \u6536\u5230\u672C\u5730campaignId(${value2})! \u8C03\u7528\u8005\u5FC5\u987B\u4F20\u5165campaign.campaignId\u800C\u975Ecampaign.id`;
+    log.error(`[IdTypes] \u26D4 ${msg}`);
+    logIdGuardError("IdTypes", `guardCampaignIdParam: ${msg}`, { functionName, value: String(value2), classification });
     console.error(new Error(`[IdTypes] ${functionName}() \u6536\u5230\u672C\u5730campaignId(${value2})`).stack);
   }
   return str2;
@@ -35438,9 +35581,9 @@ function guardCampaignIdInsert(value2, tableName) {
   const str2 = String(value2).trim();
   const classification = classifyCampaignId(value2);
   if (classification === "local") {
-    log.error(
-      `[IdTypes] \u26D4 \u5C1D\u8BD5\u5C06\u672C\u5730campaignId(${value2})\u5199\u5165${tableName}.campaignId! \u8BE5\u5B57\u6BB5\u5E94\u5B58\u50A8Amazon Campaign ID\u3002\u8C03\u7528\u8005\u5FC5\u987B\u4F20\u5165campaign.campaignId\u800C\u975Ecampaign.id`
-    );
+    const msg = `\u5C1D\u8BD5\u5C06\u672C\u5730campaignId(${value2})\u5199\u5165${tableName}.campaignId! \u8BE5\u5B57\u6BB5\u5E94\u5B58\u50A8Amazon Campaign ID`;
+    log.error(`[IdTypes] \u26D4 ${msg}`);
+    logIdGuardError("IdTypes", `guardCampaignIdInsert: ${msg}`, { tableName, value: String(value2), classification });
     console.error(new Error(`[IdTypes] \u672C\u5730ID(${value2})\u5199\u5165${tableName}.campaignId`).stack);
   }
   return str2;
@@ -35450,6 +35593,7 @@ var init_idTypes = __esm({
   "server/utils/idTypes.ts"() {
     "use strict";
     init_logger2();
+    init_opsLogger();
     log = createModuleLogger("IdTypes");
   }
 });
@@ -43791,9 +43935,9 @@ var init_fetch = __esm({
     init_settle();
     DEFAULT_CHUNK_SIZE = 64 * 1024;
     ({ isFunction: isFunction3 } = utils_default);
-    globalFetchAPI = (({ Request: Request2, Response: Response2 }) => ({
-      Request: Request2,
-      Response: Response2
+    globalFetchAPI = (({ Request: Request3, Response: Response3 }) => ({
+      Request: Request3,
+      Response: Response3
     }))(utils_default.global);
     ({
       ReadableStream: ReadableStream2,
@@ -43810,18 +43954,18 @@ var init_fetch = __esm({
       env2 = utils_default.merge.call({
         skipUndefined: true
       }, globalFetchAPI, env2);
-      const { fetch: envFetch, Request: Request2, Response: Response2 } = env2;
+      const { fetch: envFetch, Request: Request3, Response: Response3 } = env2;
       const isFetchSupported = envFetch ? isFunction3(envFetch) : typeof fetch === "function";
-      const isRequestSupported = isFunction3(Request2);
-      const isResponseSupported = isFunction3(Response2);
+      const isRequestSupported = isFunction3(Request3);
+      const isResponseSupported = isFunction3(Response3);
       if (!isFetchSupported) {
         return false;
       }
       const isReadableStreamSupported = isFetchSupported && isFunction3(ReadableStream2);
-      const encodeText = isFetchSupported && (typeof TextEncoder2 === "function" ? /* @__PURE__ */ ((encoder2) => (str2) => encoder2.encode(str2))(new TextEncoder2()) : async (str2) => new Uint8Array(await new Request2(str2).arrayBuffer()));
+      const encodeText = isFetchSupported && (typeof TextEncoder2 === "function" ? /* @__PURE__ */ ((encoder2) => (str2) => encoder2.encode(str2))(new TextEncoder2()) : async (str2) => new Uint8Array(await new Request3(str2).arrayBuffer()));
       const supportsRequestStream = isRequestSupported && isReadableStreamSupported && test(() => {
         let duplexAccessed = false;
-        const hasContentType = new Request2(platform_default.origin, {
+        const hasContentType = new Request3(platform_default.origin, {
           body: new ReadableStream2(),
           method: "POST",
           get duplex() {
@@ -43831,7 +43975,7 @@ var init_fetch = __esm({
         }).headers.has("Content-Type");
         return duplexAccessed && !hasContentType;
       });
-      const supportsResponseStream = isResponseSupported && isReadableStreamSupported && test(() => utils_default.isReadableStream(new Response2("").body));
+      const supportsResponseStream = isResponseSupported && isReadableStreamSupported && test(() => utils_default.isReadableStream(new Response3("").body));
       const resolvers = {
         stream: supportsResponseStream && ((res) => res.body)
       };
@@ -43854,7 +43998,7 @@ var init_fetch = __esm({
           return body.size;
         }
         if (utils_default.isSpecCompliantForm(body)) {
-          const _request = new Request2(platform_default.origin, {
+          const _request = new Request3(platform_default.origin, {
             method: "POST",
             body
           });
@@ -43899,7 +44043,7 @@ var init_fetch = __esm({
         let requestContentLength;
         try {
           if (onUploadProgress && supportsRequestStream && method !== "get" && method !== "head" && (requestContentLength = await resolveBodyLength(headers, data4)) !== 0) {
-            let _request = new Request2(url3, {
+            let _request = new Request3(url3, {
               method: "POST",
               body: data4,
               duplex: "half"
@@ -43919,7 +44063,7 @@ var init_fetch = __esm({
           if (!utils_default.isString(withCredentials)) {
             withCredentials = withCredentials ? "include" : "omit";
           }
-          const isCredentialsSupported = isRequestSupported && "credentials" in Request2.prototype;
+          const isCredentialsSupported = isRequestSupported && "credentials" in Request3.prototype;
           const resolvedOptions = {
             ...fetchOptions,
             signal: composedSignal,
@@ -43929,7 +44073,7 @@ var init_fetch = __esm({
             duplex: "half",
             credentials: isCredentialsSupported ? withCredentials : void 0
           };
-          request = isRequestSupported && new Request2(url3, resolvedOptions);
+          request = isRequestSupported && new Request3(url3, resolvedOptions);
           let response = await (isRequestSupported ? _fetch(request, fetchOptions) : _fetch(url3, resolvedOptions));
           const isStreamResponse = supportsResponseStream && (responseType === "stream" || responseType === "response");
           if (supportsResponseStream && (onDownloadProgress || isStreamResponse && unsubscribe)) {
@@ -43942,7 +44086,7 @@ var init_fetch = __esm({
               responseContentLength,
               progressEventReducer(asyncDecorator(onDownloadProgress), true)
             ) || [];
-            response = new Response2(
+            response = new Response3(
               trackStream(response.body, DEFAULT_CHUNK_SIZE, onProgress, () => {
                 flush && flush();
                 unsubscribe && unsubscribe();
@@ -43980,10 +44124,10 @@ var init_fetch = __esm({
     seedCache = /* @__PURE__ */ new Map();
     getFetch = (config2) => {
       let env2 = config2 ? config2.env : {};
-      const { fetch: fetch2, Request: Request2, Response: Response2 } = env2;
+      const { fetch: fetch2, Request: Request3, Response: Response3 } = env2;
       const seeds = [
-        Request2,
-        Response2,
+        Request3,
+        Response3,
         fetch2
       ];
       let len = seeds.length, i4 = len, seed, target, map9 = seedCache;
@@ -144847,7 +144991,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log12 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 205;
+    SYSTEM_VERSION = 210;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -332976,7 +333120,7 @@ var init_dist9 = __esm({
 })();
 
 // server/_core/index.ts
-var import_express3 = __toESM(require_express2());
+var import_express4 = __toESM(require_express2());
 var import_http3 = require("http");
 var import_net = __toESM(require("net"));
 
@@ -334344,7 +334488,7 @@ function initResponse(initOpts) {
   return { status };
 }
 function caughtErrorToData(cause, errorOpts) {
-  const { router: router3, req, onError: onError2 } = errorOpts.opts;
+  const { router: router4, req, onError: onError2 } = errorOpts.opts;
   const error54 = getTRPCErrorFromUnknown(cause);
   onError2 === null || onError2 === void 0 || onError2({
     error: error54,
@@ -334355,14 +334499,14 @@ function caughtErrorToData(cause, errorOpts) {
     req
   });
   const untransformedJSON = { error: getErrorShape({
-    config: router3._def._config,
+    config: router4._def._config,
     error: error54,
     type: errorOpts.type,
     path: errorOpts.path,
     input: errorOpts.input,
     ctx: errorOpts.ctx
   }) };
-  const transformedJSON = transformTRPCResponse(router3._def._config, untransformedJSON);
+  const transformedJSON = transformTRPCResponse(router4._def._config, untransformedJSON);
   const body = JSON.stringify(transformedJSON);
   return {
     error: error54,
@@ -334377,9 +334521,9 @@ function isDataStream(v6) {
 }
 async function resolveResponse(opts) {
   var _ref, _opts$allowBatching, _opts$batching, _opts$allowMethodOver, _config$sse$enabled, _config$sse;
-  const { router: router3, req } = opts;
+  const { router: router4, req } = opts;
   const headers = new Headers([["vary", "trpc-accept"]]);
-  const config2 = router3._def._config;
+  const config2 = router4._def._config;
   const url3 = new URL(req.url);
   if (req.method === "HEAD") return new Response(null, { status: 204 });
   const allowBatching = (_ref = (_opts$allowBatching = opts.allowBatching) !== null && _opts$allowBatching !== void 0 ? _opts$allowBatching : (_opts$batching = opts.batching) === null || _opts$batching === void 0 ? void 0 : _opts$batching.enabled) !== null && _ref !== void 0 ? _ref : true;
@@ -334389,7 +334533,7 @@ async function resolveResponse(opts) {
       return [void 0, await getRequestInfo({
         req,
         path: decodeURIComponent(opts.path),
-        router: router3,
+        router: router4,
         searchParams: url3.searchParams,
         headers: opts.req.headers,
         url: url3
@@ -374302,6 +374446,450 @@ router2.get("/sitemap.json", (req, res) => {
 });
 var sitemap_default = router2;
 
+// server/routes/ops.ts
+var import_express3 = __toESM(require_express2());
+init_opsLogger();
+init_logger2();
+init_deployLifecycleManager();
+init_postDeployOptimizer();
+init_db2();
+init_drizzle_orm();
+var router3 = (0, import_express3.Router)();
+function opsAuth(req, res, next) {
+  const apiKey = process.env.OPS_API_KEY;
+  if (!apiKey) {
+    next();
+    return;
+  }
+  const providedKey = req.headers["x-ops-key"] || req.headers["authorization"]?.replace("Bearer ", "") || req.query.key;
+  if (providedKey !== apiKey) {
+    res.status(401).json({
+      error: "Unauthorized",
+      message: "\u9700\u8981\u6709\u6548\u7684\u8FD0\u7EF4API\u5BC6\u94A5\u3002\u901A\u8FC7 X-Ops-Key header \u6216 ?key= \u53C2\u6570\u63D0\u4F9B\u3002"
+    });
+    return;
+  }
+  next();
+}
+router3.use(opsAuth);
+router3.get("/status", async (req, res) => {
+  try {
+    const sysInfo = getSystemInfo();
+    const memUsage = process.memoryUsage();
+    let dbStatus = "unknown";
+    let dbLatencyMs = -1;
+    try {
+      const dbStart = Date.now();
+      const db = await getDb();
+      if (db) {
+        await db.execute(sql.raw("SELECT 1"));
+        dbLatencyMs = Date.now() - dbStart;
+        dbStatus = "connected";
+      } else {
+        dbStatus = "not_configured";
+      }
+    } catch (e6) {
+      dbStatus = `error: ${e6.message}`;
+    }
+    const loggerStatus = logger.getStatus();
+    res.json({
+      system: {
+        version: `v${SYSTEM_VERSION}`,
+        versionNumber: SYSTEM_VERSION,
+        nodeVersion: process.version,
+        platform: process.platform,
+        arch: process.arch,
+        pid: process.pid,
+        uptime: Math.round(sysInfo.uptime),
+        uptimeFormatted: formatUptime(sysInfo.uptime),
+        isShuttingDown: sysInfo.isShuttingDown,
+        activeTasks: sysInfo.activeTasks
+      },
+      memory: {
+        rss: formatBytes(memUsage.rss),
+        heapUsed: formatBytes(memUsage.heapUsed),
+        heapTotal: formatBytes(memUsage.heapTotal),
+        external: formatBytes(memUsage.external),
+        rssRaw: memUsage.rss,
+        heapUsedRaw: memUsage.heapUsed
+      },
+      database: {
+        status: dbStatus,
+        latencyMs: dbLatencyMs
+      },
+      logger: {
+        bufferUsage: `${loggerStatus.bufferSize}/${loggerStatus.bufferCapacity}`,
+        recentRate: `${loggerStatus.recentRate} logs/min`,
+        suppressedTotal: loggerStatus.suppressedTotal,
+        dbBufferPending: loggerStatus.dbBufferSize
+      },
+      opsLogger: opsCollector.getSummary(),
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (e6) {
+    res.status(500).json({ error: e6.message });
+  }
+});
+router3.get("/summary", (req, res) => {
+  try {
+    const summary = opsCollector.getSummary();
+    res.json({
+      ...summary,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (e6) {
+    res.status(500).json({ error: e6.message });
+  }
+});
+router3.get("/logs", (req, res) => {
+  try {
+    const query2 = parseOpsQuery(req);
+    const entries = opsCollector.query(query2);
+    res.json({
+      query: query2,
+      count: entries.length,
+      entries,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (e6) {
+    res.status(500).json({ error: e6.message });
+  }
+});
+var VALID_CATEGORIES = ["migration", "id-guard", "optimization", "sync", "error", "system"];
+router3.get("/logs/:category", (req, res) => {
+  try {
+    const category = req.params.category;
+    const normalizedCategory = category === "errors" ? "error" : category;
+    if (!VALID_CATEGORIES.includes(normalizedCategory)) {
+      res.status(400).json({
+        error: `\u65E0\u6548\u7684\u65E5\u5FD7\u5206\u7C7B: ${category}`,
+        validCategories: VALID_CATEGORIES
+      });
+      return;
+    }
+    const query2 = parseOpsQuery(req);
+    query2.category = normalizedCategory;
+    const entries = opsCollector.query(query2);
+    res.json({
+      category: normalizedCategory,
+      query: query2,
+      count: entries.length,
+      entries,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (e6) {
+    res.status(500).json({ error: e6.message });
+  }
+});
+router3.get("/data-integrity", async (req, res) => {
+  try {
+    const db = await getDb();
+    if (!db) {
+      res.status(503).json({ error: "\u6570\u636E\u5E93\u4E0D\u53EF\u7528" });
+      return;
+    }
+    const checks = {};
+    try {
+      const [totalResult] = await db.execute(sql.raw(
+        `SELECT COUNT(*) as total FROM campaigns`
+      ));
+      const [invalidResult] = await db.execute(sql.raw(
+        `SELECT COUNT(*) as cnt FROM campaigns WHERE LENGTH(campaignId) <= 5`
+      ));
+      checks.campaigns = {
+        status: "checked",
+        total: extractCount(totalResult),
+        suspectedLocalIds: extractCount(invalidResult),
+        verdict: extractCount(invalidResult) === 0 ? "PASS" : "WARN"
+      };
+    } catch (e6) {
+      checks.campaigns = { status: "error", message: e6.message };
+    }
+    const fkTables = ["negative_keywords", "bidding_logs", "daily_performance", "search_terms", "ad_groups", "placement_performance"];
+    for (const table of fkTables) {
+      try {
+        const [totalResult] = await db.execute(sql.raw(
+          `SELECT COUNT(*) as total FROM \`${table}\` WHERE campaignId IS NOT NULL AND campaignId != ''`
+        ));
+        const [localIdResult] = await db.execute(sql.raw(
+          `SELECT COUNT(*) as cnt FROM \`${table}\` WHERE LENGTH(campaignId) <= 5 AND campaignId REGEXP '^[0-9]+$'`
+        ));
+        const [orphanResult] = await db.execute(sql.raw(
+          `SELECT COUNT(*) as cnt FROM \`${table}\` t 
+           LEFT JOIN campaigns c ON t.campaignId = c.campaignId 
+           WHERE t.campaignId IS NOT NULL AND t.campaignId != '' AND c.id IS NULL`
+        ));
+        const total = extractCount(totalResult);
+        const localIds = extractCount(localIdResult);
+        const orphans = extractCount(orphanResult);
+        checks[table] = {
+          status: "checked",
+          total,
+          suspectedLocalIds: localIds,
+          orphanedRecords: orphans,
+          verdict: localIds === 0 && orphans === 0 ? "PASS" : localIds > 0 ? "FAIL" : "WARN"
+        };
+      } catch (e6) {
+        checks[table] = { status: "error", message: e6.message };
+      }
+    }
+    try {
+      const [joinResult] = await db.execute(sql.raw(
+        `SELECT COUNT(*) as cnt FROM ad_groups ag 
+         INNER JOIN campaigns c ON ag.campaignId = c.campaignId`
+      ));
+      const [totalAgResult] = await db.execute(sql.raw(
+        `SELECT COUNT(*) as total FROM ad_groups WHERE campaignId IS NOT NULL AND campaignId != ''`
+      ));
+      const joinCount = extractCount(joinResult);
+      const totalAg = extractCount(totalAgResult);
+      checks.joinIntegrity = {
+        status: "checked",
+        adGroupsTotal: totalAg,
+        successfulJoins: joinCount,
+        orphanedAdGroups: totalAg - joinCount,
+        verdict: totalAg === joinCount ? "PASS" : "WARN",
+        note: "adGroups.campaignId \u2192 campaigns.campaignId (Amazon ID\u5BF9Amazon ID)"
+      };
+    } catch (e6) {
+      checks.joinIntegrity = { status: "error", message: e6.message };
+    }
+    const allChecks = Object.values(checks);
+    const hasFailure = allChecks.some((c5) => c5.verdict === "FAIL");
+    const hasWarning = allChecks.some((c5) => c5.verdict === "WARN");
+    const hasError = allChecks.some((c5) => c5.status === "error");
+    res.json({
+      overallStatus: hasFailure ? "FAIL" : hasError ? "ERROR" : hasWarning ? "WARN" : "PASS",
+      description: "ID\u7CFB\u7EDF\u6570\u636E\u5B8C\u6574\u6027\u68C0\u67E5 \u2014 \u9A8C\u8BC1\u6240\u6709\u8868\u7684campaignId\u662F\u5426\u4E3AAmazon ID\u683C\u5F0F",
+      checks,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (e6) {
+    res.status(500).json({ error: e6.message });
+  }
+});
+router3.get("/db-logs", async (req, res) => {
+  try {
+    const db = await getDb();
+    if (!db) {
+      res.status(503).json({ error: "\u6570\u636E\u5E93\u4E0D\u53EF\u7528" });
+      return;
+    }
+    const level = req.query.level || "";
+    const module2 = req.query.module || "";
+    const keyword = req.query.keyword || "";
+    const limit2 = Math.min(parseInt(req.query.limit) || 50, 200);
+    const hours = parseInt(req.query.hours) || 24;
+    let whereClause = `WHERE timestamp >= DATE_SUB(NOW(), INTERVAL ${hours} HOUR)`;
+    if (level) whereClause += ` AND level = '${level.toUpperCase()}'`;
+    if (module2) whereClause += ` AND module LIKE '%${module2}%'`;
+    if (keyword) whereClause += ` AND message LIKE '%${keyword}%'`;
+    const [rows] = await db.execute(sql.raw(
+      `SELECT id, timestamp, level, module, message, metadata 
+       FROM system_logs 
+       ${whereClause}
+       ORDER BY id DESC 
+       LIMIT ${limit2}`
+    ));
+    const [statsRows] = await db.execute(sql.raw(
+      `SELECT level, COUNT(*) as cnt 
+       FROM system_logs 
+       WHERE timestamp >= DATE_SUB(NOW(), INTERVAL ${hours} HOUR)
+       GROUP BY level`
+    ));
+    res.json({
+      query: { level, module: module2, keyword, limit: limit2, hours },
+      count: Array.isArray(rows) ? rows.length : 0,
+      entries: rows,
+      stats: statsRows,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (e6) {
+    if (e6.message?.includes("ER_NO_SUCH_TABLE") || e6.message?.includes("doesn't exist")) {
+      res.json({
+        query: req.query,
+        count: 0,
+        entries: [],
+        stats: [],
+        note: "system_logs\u8868\u5C1A\u672A\u521B\u5EFA\uFF0C\u6570\u636E\u5E93\u65E5\u5FD7\u6301\u4E45\u5316\u672A\u542F\u7528",
+        timestamp: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    } else {
+      res.status(500).json({ error: e6.message });
+    }
+  }
+});
+router3.get("/optimization-events", async (req, res) => {
+  try {
+    const db = await getDb();
+    if (!db) {
+      res.status(503).json({ error: "\u6570\u636E\u5E93\u4E0D\u53EF\u7528" });
+      return;
+    }
+    const limit2 = Math.min(parseInt(req.query.limit) || 50, 200);
+    const hours = parseInt(req.query.hours) || 24;
+    const category = req.query.category || "";
+    const status = req.query.status || "";
+    let whereClause = `WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${hours} HOUR)`;
+    if (category) whereClause += ` AND event_category = '${category}'`;
+    if (status) whereClause += ` AND execution_status = '${status}'`;
+    const [rows] = await db.execute(sql.raw(
+      `SELECT id, event_category, action_type, execution_status, 
+              campaign_name, change_reason, algorithm_version,
+              old_value, new_value, created_at
+       FROM optimization_events 
+       ${whereClause}
+       ORDER BY id DESC 
+       LIMIT ${limit2}`
+    ));
+    const [statsRows] = await db.execute(sql.raw(
+      `SELECT event_category, execution_status, COUNT(*) as cnt 
+       FROM optimization_events 
+       WHERE created_at >= DATE_SUB(NOW(), INTERVAL ${hours} HOUR)
+       GROUP BY event_category, execution_status`
+    ));
+    res.json({
+      query: { limit: limit2, hours, category, status },
+      count: Array.isArray(rows) ? rows.length : 0,
+      entries: rows,
+      stats: statsRows,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (e6) {
+    if (e6.message?.includes("doesn't exist")) {
+      res.json({
+        count: 0,
+        entries: [],
+        stats: [],
+        note: "optimization_events\u8868\u4E0D\u5B58\u5728",
+        timestamp: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    } else {
+      res.status(500).json({ error: e6.message });
+    }
+  }
+});
+router3.get("/id-audit", async (req, res) => {
+  try {
+    const db = await getDb();
+    if (!db) {
+      res.status(503).json({ error: "\u6570\u636E\u5E93\u4E0D\u53EF\u7528" });
+      return;
+    }
+    const [campaignStats] = await db.execute(sql.raw(`
+      SELECT 
+        COUNT(*) as total,
+        SUM(CASE WHEN LENGTH(campaignId) > 8 THEN 1 ELSE 0 END) as amazonIdCount,
+        SUM(CASE WHEN LENGTH(campaignId) <= 5 AND campaignId REGEXP '^[0-9]+$' THEN 1 ELSE 0 END) as localIdCount,
+        MIN(id) as minLocalId,
+        MAX(id) as maxLocalId,
+        MIN(LENGTH(campaignId)) as minCampaignIdLen,
+        MAX(LENGTH(campaignId)) as maxCampaignIdLen
+      FROM campaigns
+    `));
+    const tableSamples = {};
+    const tables = ["negative_keywords", "bidding_logs", "ad_groups"];
+    for (const table of tables) {
+      try {
+        const [sample] = await db.execute(sql.raw(`
+          SELECT campaignId, LENGTH(campaignId) as idLen, COUNT(*) as cnt
+          FROM \`${table}\`
+          WHERE campaignId IS NOT NULL AND campaignId != ''
+          GROUP BY campaignId
+          ORDER BY cnt DESC
+          LIMIT 10
+        `));
+        tableSamples[table] = sample;
+      } catch {
+        tableSamples[table] = "table_not_found";
+      }
+    }
+    res.json({
+      description: "ID\u7CFB\u7EDF\u5BA1\u8BA1\u5FEB\u7167 \u2014 campaigns\u8868ID\u5206\u5E03 + \u5404FK\u8868campaignId\u6837\u672C",
+      campaignIdDistribution: campaignStats,
+      tableSamples,
+      rules: {
+        "campaigns.id": "\u672C\u5730\u81EA\u589Eint\u4E3B\u952E\uFF0C\u4EC5\u7528\u4E8E\u672C\u5730DB\u64CD\u4F5C",
+        "campaigns.campaignId": "Amazon Campaign ID (varchar)\uFF0C\u7528\u4E8E\u6240\u6709FK\u5173\u8054\u548CAPI\u8C03\u7528",
+        "adGroups.campaignId": "\u2192 campaigns.campaignId (Amazon ID\u5BF9Amazon ID)",
+        "negativeKeywords.campaignId": "\u2192 campaigns.campaignId (Amazon ID)"
+      },
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (e6) {
+    res.status(500).json({ error: e6.message });
+  }
+});
+router3.get("/logger-stats", (req, res) => {
+  try {
+    const stats = logger.getStats();
+    const status = logger.getStatus();
+    res.json({
+      stats,
+      status,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (e6) {
+    res.status(500).json({ error: e6.message });
+  }
+});
+router3.get("/logger-query", (req, res) => {
+  try {
+    const level = req.query.level ? parseInt(req.query.level) : void 0;
+    const module2 = req.query.module;
+    const search = req.query.search || req.query.keyword;
+    const limit2 = Math.min(parseInt(req.query.limit) || 50, 100);
+    const result = logger.query({ level, module: module2, search, limit: limit2 });
+    res.json({
+      ...result,
+      timestamp: (/* @__PURE__ */ new Date()).toISOString()
+    });
+  } catch (e6) {
+    res.status(500).json({ error: e6.message });
+  }
+});
+function parseOpsQuery(req) {
+  return {
+    category: req.query.category,
+    level: req.query.level,
+    module: req.query.module,
+    keyword: req.query.keyword || req.query.search || void 0,
+    since: req.query.since,
+    until: req.query.until,
+    limit: parseInt(req.query.limit) || 50,
+    afterSeq: req.query.afterSeq ? parseInt(req.query.afterSeq) : void 0
+  };
+}
+function formatUptime(seconds) {
+  const d5 = Math.floor(seconds / 86400);
+  const h6 = Math.floor(seconds % 86400 / 3600);
+  const m4 = Math.floor(seconds % 3600 / 60);
+  const s4 = Math.floor(seconds % 60);
+  const parts = [];
+  if (d5 > 0) parts.push(`${d5}\u5929`);
+  if (h6 > 0) parts.push(`${h6}\u5C0F\u65F6`);
+  if (m4 > 0) parts.push(`${m4}\u5206\u949F`);
+  parts.push(`${s4}\u79D2`);
+  return parts.join("");
+}
+function formatBytes(bytes) {
+  if (bytes < 1024) return `${bytes}B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+function extractCount(result) {
+  if (!result) return 0;
+  if (Array.isArray(result)) {
+    const first = result[0];
+    if (first) {
+      return first.cnt ?? first.total ?? first.count ?? 0;
+    }
+    return 0;
+  }
+  return result.cnt ?? result.total ?? result.count ?? 0;
+}
+var ops_default = router3;
+
 // server/_core/index.ts
 init_postDeployOptimizer();
 init_deployLifecycleManager();
@@ -374310,6 +374898,7 @@ init_deployLifecycleManager();
 init_db2();
 init_drizzle_orm();
 init_logger2();
+init_opsLogger();
 var log22 = createModuleLogger("migrateCampaignIds");
 var TABLES_TO_MIGRATE = [
   "negative_keywords",
@@ -374359,6 +374948,7 @@ async function migrateCampaignIdsToAmazonIds() {
     return;
   }
   log22.info("=== v207 campaignId \u6570\u636E\u8FC1\u79FB\u5F00\u59CB ===");
+  logMigration("CampaignIdMigration", "v207 campaignId \u6570\u636E\u8FC1\u79FB\u5F00\u59CB", { tables: [...TABLES_TO_MIGRATE] });
   let totalBefore = 0;
   let totalUpdated = 0;
   let totalAfter = 0;
@@ -374369,20 +374959,34 @@ async function migrateCampaignIdsToAmazonIds() {
     totalAfter += result.afterCount;
     if (result.beforeCount > 0) {
       log22.info(`  ${result.table}: ${result.beforeCount} \u6761\u7591\u4F3C\u672C\u5730ID \u2192 ${result.updatedCount} \u6761\u5DF2\u4FEE\u590D, ${result.afterCount} \u6761\u6B8B\u7559`);
+      logMigration("CampaignIdMigration", `\u8868${result.table}\u8FC1\u79FB\u5B8C\u6210`, {
+        table: result.table,
+        before: result.beforeCount,
+        updated: result.updatedCount,
+        remaining: result.afterCount
+      });
     }
   }
   if (totalBefore === 0) {
     log22.info("\u6240\u6709\u8868\u7684 campaignId \u5DF2\u7ECF\u662F Amazon ID\uFF0C\u65E0\u9700\u8FC1\u79FB");
+    logMigration("CampaignIdMigration", "\u6240\u6709\u8868\u7684 campaignId \u5DF2\u7ECF\u662F Amazon ID\uFF0C\u65E0\u9700\u8FC1\u79FB");
   } else {
     log22.info(`=== \u8FC1\u79FB\u5B8C\u6210: ${totalUpdated}/${totalBefore} \u6761\u8BB0\u5F55\u5DF2\u4FEE\u590D ===`);
+    logMigration("CampaignIdMigration", `\u8FC1\u79FB\u5B8C\u6210: ${totalUpdated}/${totalBefore} \u6761\u8BB0\u5F55\u5DF2\u4FEE\u590D`, {
+      totalBefore,
+      totalUpdated,
+      totalAfter
+    });
     if (totalAfter > 0) {
       log22.warn(`\u26A0\uFE0F \u4ECD\u6709 ${totalAfter} \u6761\u8BB0\u5F55\u65E0\u6CD5\u6620\u5C04\uFF08\u53EF\u80FD\u5BF9\u5E94\u7684campaign\u5DF2\u88AB\u5220\u9664\uFF09`);
+      logMigrationWarn("CampaignIdMigration", `\u4ECD\u6709 ${totalAfter} \u6761\u8BB0\u5F55\u65E0\u6CD5\u6620\u5C04`, { totalAfter });
     }
   }
 }
 
 // server/_core/index.ts
 init_logger2();
+init_opsLogger();
 init_db2();
 function isPortAvailable(port) {
   return new Promise((resolve8) => {
@@ -374402,10 +375006,10 @@ async function findAvailablePort(startPort = 3e3) {
   throw new Error(`No available port found starting from ${startPort}`);
 }
 async function startServer2() {
-  const app = (0, import_express3.default)();
+  const app = (0, import_express4.default)();
   const server = (0, import_http3.createServer)(app);
-  app.use(import_express3.default.json({ limit: "50mb" }));
-  app.use(import_express3.default.urlencoded({ limit: "50mb", extended: true }));
+  app.use(import_express4.default.json({ limit: "50mb" }));
+  app.use(import_express4.default.urlencoded({ limit: "50mb", extended: true }));
   app.get("/health", (req, res) => {
     const info = getSystemInfo();
     if (info.isShuttingDown) {
@@ -374443,6 +375047,7 @@ async function startServer2() {
     next();
   });
   registerOAuthRoutes(app);
+  app.use("/api/ops", ops_default);
   app.use("/api", sitemap_default);
   app.use(
     "/api/trpc",
@@ -374466,6 +375071,7 @@ async function startServer2() {
   }
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/ (v${SYSTEM_VERSION})`);
+    logSystem("Startup", `\u7CFB\u7EDF\u542F\u52A8\u5B8C\u6210 v${SYSTEM_VERSION}`, { port, nodeVersion: process.version, pid: process.pid });
     logger.setDbProvider(getDb);
     getDb().then(async (db) => {
       if (db) {
@@ -374515,8 +375121,10 @@ async function startServer2() {
     });
     migrateCampaignIdsToAmazonIds().then(() => {
       console.log("[AutoMigration] v208 campaignId\u6807\u51C6\u5316\u8FC1\u79FB\u5B8C\u6210");
+      logMigration("CampaignIdMigration", "v208 campaignId\u6807\u51C6\u5316\u8FC1\u79FB\u5B8C\u6210");
     }).catch((err2) => {
       console.error("[AutoMigration] v208 campaignId\u8FC1\u79FB\u5F02\u5E38:", err2.message);
+      logMigration("CampaignIdMigration", `v208 campaignId\u8FC1\u79FB\u5F02\u5E38: ${err2.message}`);
     });
     startDataSyncScheduler(60 * 60 * 1e3);
     console.log("[DataSyncScheduler] \u5B9A\u65F6\u540C\u6B65\u8C03\u5EA6\u5668\u5DF2\u542F\u52A8\uFF0C\u95F4\u9694: 1\u5C0F\u65F6");

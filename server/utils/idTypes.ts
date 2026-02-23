@@ -26,6 +26,7 @@
  */
 
 import { createModuleLogger } from './logger';
+import { logIdGuardError } from './opsLogger';
 const log = createModuleLogger('IdTypes');
 
 // ==================== 品牌类型定义 ====================
@@ -351,11 +352,9 @@ export function guardCampaignIdParam(
   
   if (classification === 'local') {
     // ⛔ 这是一个严重bug：调用者传了本地ID给需要Amazon ID的查询
-    log.error(
-      `[IdTypes] ⛔ ${functionName}() 收到本地campaignId(${value})! ` +
-      `这将导致查询返回空结果。调用者必须传入campaign.campaignId而非campaign.id`
-    );
-    // 记录调用栈以便定位bug
+    const msg = `${functionName}() 收到本地campaignId(${value})! 调用者必须传入campaign.campaignId而非campaign.id`;
+    log.error(`[IdTypes] ⛔ ${msg}`);
+    logIdGuardError('IdTypes', `guardCampaignIdParam: ${msg}`, { functionName, value: String(value), classification });
     console.error(new Error(`[IdTypes] ${functionName}() 收到本地campaignId(${value})`).stack);
   }
   
@@ -378,10 +377,9 @@ export function guardCampaignIdInsert(
   const classification = classifyCampaignId(value);
   
   if (classification === 'local') {
-    log.error(
-      `[IdTypes] ⛔ 尝试将本地campaignId(${value})写入${tableName}.campaignId! ` +
-      `该字段应存储Amazon Campaign ID。调用者必须传入campaign.campaignId而非campaign.id`
-    );
+    const msg = `尝试将本地campaignId(${value})写入${tableName}.campaignId! 该字段应存储Amazon Campaign ID`;
+    log.error(`[IdTypes] ⛔ ${msg}`);
+    logIdGuardError('IdTypes', `guardCampaignIdInsert: ${msg}`, { tableName, value: String(value), classification });
     console.error(new Error(`[IdTypes] 本地ID(${value})写入${tableName}.campaignId`).stack);
   }
   

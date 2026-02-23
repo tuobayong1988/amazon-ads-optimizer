@@ -16,6 +16,7 @@
 import { getDb } from '../db';
 import { sql } from 'drizzle-orm';
 import { createModuleLogger } from './logger';
+import { logMigration, logMigrationWarn, logMigrationError } from './opsLogger';
 
 const log = createModuleLogger('migrateCampaignIds');
 
@@ -96,6 +97,7 @@ export async function migrateCampaignIdsToAmazonIds(): Promise<void> {
   }
   
   log.info('=== v207 campaignId 数据迁移开始 ===');
+  logMigration('CampaignIdMigration', 'v207 campaignId 数据迁移开始', { tables: [...TABLES_TO_MIGRATE] });
   
   let totalBefore = 0;
   let totalUpdated = 0;
@@ -109,15 +111,23 @@ export async function migrateCampaignIdsToAmazonIds(): Promise<void> {
     
     if (result.beforeCount > 0) {
       log.info(`  ${result.table}: ${result.beforeCount} 条疑似本地ID → ${result.updatedCount} 条已修复, ${result.afterCount} 条残留`);
+      logMigration('CampaignIdMigration', `表${result.table}迁移完成`, {
+        table: result.table, before: result.beforeCount, updated: result.updatedCount, remaining: result.afterCount
+      });
     }
   }
   
   if (totalBefore === 0) {
     log.info('所有表的 campaignId 已经是 Amazon ID，无需迁移');
+    logMigration('CampaignIdMigration', '所有表的 campaignId 已经是 Amazon ID，无需迁移');
   } else {
     log.info(`=== 迁移完成: ${totalUpdated}/${totalBefore} 条记录已修复 ===`);
+    logMigration('CampaignIdMigration', `迁移完成: ${totalUpdated}/${totalBefore} 条记录已修复`, {
+      totalBefore, totalUpdated, totalAfter
+    });
     if (totalAfter > 0) {
       log.warn(`⚠️ 仍有 ${totalAfter} 条记录无法映射（可能对应的campaign已被删除）`);
+      logMigrationWarn('CampaignIdMigration', `仍有 ${totalAfter} 条记录无法映射`, { totalAfter });
     }
   }
 }

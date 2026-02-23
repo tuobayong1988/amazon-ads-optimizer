@@ -13,11 +13,13 @@ import { startOptimizationScheduler as startTargetScheduler } from "../optimizat
 import { startSQSConsumer } from "../sqsConsumerService";
 import { reportJobScheduler } from "../services/reportJobScheduler";
 import sitemapRouter from "../routes/sitemap";
+import opsRouter from "../routes/ops";
 import { SYSTEM_VERSION } from '../postDeployOptimizer';
 import { orchestrateStartup, getSystemInfo, isShuttingDown } from '../deployLifecycleManager';
 import { ensureNextGenTables } from '../nextGenMigration';
 import { migrateCampaignIdsToAmazonIds } from '../utils/migrateCampaignIds';
 import { logger } from '../utils/logger';
+import { logSystem, logMigration } from '../utils/opsLogger';
 import { getDb } from '../db';
 
 function isPortAvailable(port: number): Promise<boolean> {
@@ -91,6 +93,8 @@ async function startServer() {
   
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+  // v210: 运维诊断API路由
+  app.use("/api/ops", opsRouter);
   // Sitemap routes
   app.use("/api", sitemapRouter);
   // tRPC API
@@ -122,6 +126,7 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/ (v${SYSTEM_VERSION})`);
+    logSystem('Startup', `系统启动完成 v${SYSTEM_VERSION}`, { port, nodeVersion: process.version, pid: process.pid });
     
     // v205: 初始化Logger数据库持久化
     logger.setDbProvider(getDb);
@@ -178,8 +183,10 @@ async function startServer() {
     // v208: 启动时自动修复历史数据中的campaignId（本地int → Amazon ID）
     migrateCampaignIdsToAmazonIds().then(() => {
       console.log('[AutoMigration] v208 campaignId标准化迁移完成');
+      logMigration('CampaignIdMigration', 'v208 campaignId标准化迁移完成');
     }).catch(err => {
       console.error('[AutoMigration] v208 campaignId迁移异常:', err.message);
+      logMigration('CampaignIdMigration', `v208 campaignId迁移异常: ${err.message}`);
     });
 
     // 启动定时同步调度器（每1小时执行一次）
