@@ -3304,8 +3304,8 @@ export class AmazonSyncService {
     let targetName: string = '';
     let adGroupId: number | null = null;
     
-    // v222: 当campaignId为0或无效时，自动从keyword/productTarget链路解析正确的Amazon campaignId
-    let resolvedCampaignId: number | string = campaignId;
+    // v222: 使用统一的 campaignId 解析器确保写入正确的 Amazon ID
+    let resolvedCampaignId: string = '';
     
     try {
 
@@ -3354,18 +3354,15 @@ export class AmazonSyncService {
         targetName = kw.keywordText;
         adGroupId = kw.adGroupId;
         
-        // v222: 解析正确的Amazon campaignId
-        if (!resolvedCampaignId || resolvedCampaignId === 0 || resolvedCampaignId === '0' || String(resolvedCampaignId).length < 6) {
-          try {
-            const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, kw.adGroupId)).limit(1);
-            if (ag?.campaignId) {
-              resolvedCampaignId = ag.campaignId;
-              log.debug(`[applyBidAdjustment] v222: 解析campaignId: keyword=${targetId} -> campaignId=${ag.campaignId}`);
-            }
-          } catch (resolveErr: any) {
-            log.warn(`[applyBidAdjustment] v222: 解析campaignId失败: ${resolveErr.message}`);
-          }
-        }
+        // v222: 使用统一解析器获取正确的 Amazon campaignId
+        const { safeCampaignIdForInsert } = await import('./utils/campaignIdResolver');
+        resolvedCampaignId = await safeCampaignIdForInsert({
+          campaignId,
+          targetLocalId: targetId,
+          targetType: 'keyword',
+          adGroupId: kw.adGroupId,
+          caller: 'applyBidAdjustment:keyword',
+        });
 
         // v125: Amazon SP API v3 要求keywordId为字符串类型，直接传递字符串
         if (!amazonId || amazonId.trim() === '' || amazonId === '0') {
@@ -3424,18 +3421,15 @@ export class AmazonSyncService {
         targetName = pt.targetValue || 'Product Target';
         adGroupId = pt.adGroupId;
         
-        // v222: 解析正确的Amazon campaignId
-        if (!resolvedCampaignId || resolvedCampaignId === 0 || resolvedCampaignId === '0' || String(resolvedCampaignId).length < 6) {
-          try {
-            const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, pt.adGroupId)).limit(1);
-            if (ag?.campaignId) {
-              resolvedCampaignId = ag.campaignId;
-              log.debug(`[applyBidAdjustment] v222: 解析campaignId: product_target=${targetId} -> campaignId=${ag.campaignId}`);
-            }
-          } catch (resolveErr: any) {
-            log.warn(`[applyBidAdjustment] v222: 解析campaignId失败: ${resolveErr.message}`);
-          }
-        }
+        // v222: 使用统一解析器获取正确的 Amazon campaignId
+        const { safeCampaignIdForInsert } = await import('./utils/campaignIdResolver');
+        resolvedCampaignId = await safeCampaignIdForInsert({
+          campaignId,
+          targetLocalId: targetId,
+          targetType: 'product_target',
+          adGroupId: pt.adGroupId,
+          caller: 'applyBidAdjustment:product_target',
+        });
 
         // v125: Amazon SP API v3 要求targetId为字符串类型，直接传递字符串
         if (!amazonId || amazonId.trim() === '' || amazonId === '0') {

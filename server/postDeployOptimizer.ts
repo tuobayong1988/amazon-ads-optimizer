@@ -193,9 +193,9 @@ const VERSION_CHANGELOG: VersionChange[] = [
   },
   {
     version: 222,
-    description: 'v222: 智能调度协调+日志安全+campaignId修复+内存优化 — (1)调度器层级智能协调避免API压力 (2)全链路安全数字提取防御[object Object] (3)修复multiDimensionOptimizer中campaignId混用导致投放词分析失效 (4)Procfile堆内存512MB→2048MB (5)健康检查阈值优化适配V8动态堆收缩',
-    affectedModules: [],
-    correctionActions: [],
+    description: 'v222: 智能调度协调+日志安全+campaignId架构级修复+内存优化 — (1)调度器层级智能协调避免API压力 (2)全链路安全数字提取防御[object Object] (3)修复multiDimensionOptimizer中campaignId混用 (4)Procfile堆内存512MB→2048MB (5)健康检查阈值优化 (6)架构级campaignId守卫: 创建campaignIdResolver统一解析器, 在createBiddingLog/insertOptimizationEvent/batchInsertOptimizationEvents三个入口添加守卫, 修复自动纠错写入campaignId=0的根因',
+    affectedModules: ['bid'],
+    correctionActions: ['rerun_optimization'],
   },
 ];
 

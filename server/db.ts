@@ -681,6 +681,17 @@ export async function createBiddingLog(log: InsertBiddingLog) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   
+  // v222: 使用统一解析器确保 campaignId 有效
+  const { safeCampaignIdForInsert } = await import('./utils/campaignIdResolver');
+  const safeCampaignId = await safeCampaignIdForInsert({
+    campaignId: log.campaignId,
+    targetLocalId: log.targetId ? Number(log.targetId) : undefined,
+    targetType: (log as any).logTargetType || 'keyword',
+    adGroupId: (log as any).adGroupId ? Number((log as any).adGroupId) : undefined,
+    caller: 'createBiddingLog',
+  });
+  log.campaignId = safeCampaignId as any;
+  
   const result = await db.insert(biddingLogs).values(log);
   const logId = result[0].insertId;
   
@@ -691,7 +702,7 @@ export async function createBiddingLog(log: InsertBiddingLog) {
       accountId: log.accountId || 0,
       eventCategory: 'bid_adjustment',
       actionType: bidChange > 0 ? 'bid_increase' : bidChange < 0 ? 'bid_decrease' : 'bid_set',
-      campaignId: log.campaignId,
+      campaignId: safeCampaignId,
       campaignName: (log as any).campaignName as string || undefined,
       keywordId: log.targetId,
       keywordText: (log as any).keywordText as string || undefined,
@@ -5155,10 +5166,17 @@ export async function batchCreateOptimizationLogs(logs: InsertOptimizationLog[])
 
 /**
  * 插入单条优化事件
+ * v222: 自动验证并解析 campaignId
  */
 export async function insertOptimizationEvent(event: InsertOptimizationEvent): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
+  
+  // v222: campaignId 安全守卫
+  if (event.campaignId != null) {
+    const { quickValidateCampaignId } = await import('./utils/campaignIdResolver');
+    event.campaignId = quickValidateCampaignId(event.campaignId, 'insertOptimizationEvent') as any;
+  }
   
   const result = await db.insert(optimizationEvents).values(event);
   return result[0].insertId;
@@ -5166,11 +5184,20 @@ export async function insertOptimizationEvent(event: InsertOptimizationEvent): P
 
 /**
  * 批量插入优化事件
+ * v222: 自动验证并解析 campaignId
  */
 export async function batchInsertOptimizationEvents(events: InsertOptimizationEvent[]): Promise<number> {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   if (events.length === 0) return 0;
+  
+  // v222: 批量 campaignId 安全守卫
+  const { quickValidateCampaignId } = await import('./utils/campaignIdResolver');
+  for (const event of events) {
+    if (event.campaignId != null) {
+      event.campaignId = quickValidateCampaignId(event.campaignId, 'batchInsertOptimizationEvents') as any;
+    }
+  }
   
   await db.insert(optimizationEvents).values(events);
   return events.length;
