@@ -144923,7 +144923,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log12 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 217;
+    SYSTEM_VERSION = 218;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -145024,6 +145024,12 @@ var init_postDeployOptimizer = __esm({
       {
         version: 217,
         description: "v217: \u6570\u636E\u540C\u6B65\u5168\u9762\u4FEE\u590D \u2014 \u540E\u7AEF\u540C\u6B65\u6D41\u7A0B\u4ECE8\u6B65\u6269\u5C55\u523017\u6B65(\u6DFB\u52A0SB/SD\u5E7F\u544A\u7EC4\u3001SB\u5173\u952E\u8BCD\u3001SB/SD\u5546\u54C1\u5B9A\u4F4D\u3001\u5426\u5B9A\u5173\u952E\u8BCD\u3001\u5426\u5B9A\u5546\u54C1\u5B9A\u4F4D\u3001\u641C\u7D22\u8BCD\u3001\u5E7F\u544A\u4F4D\u7F6E\u7EE9\u6548), \u524D\u7AEF\u8FDB\u5EA6\u6761\u548C\u6B65\u9AA4\u6807\u7B7E\u540C\u6B6517\u6B65, \u6BCF\u4E2A\u6B65\u9AA4\u90FD\u6709updateProgress\u8C03\u7528\u786E\u4FDD\u5B9E\u65F6\u8FDB\u5EA6\u53CD\u9988",
+        affectedModules: [],
+        correctionActions: []
+      },
+      {
+        version: 218,
+        description: "v218: \u524D\u7AEF\u5D29\u6E83\u4FEE\u590D \u2014 \u4FEE\u590DAmazonApiSettings\u9875\u9762ReferenceError(useEffect\u5F15\u7528\u672A\u58F0\u660E\u7684accounts\u53D8\u91CF), \u5C06\u540C\u6B65\u8FDB\u5EA6useEffect\u79FB\u5230accounts\u5B9A\u4E49\u4E4B\u540E",
         affectedModules: [],
         correctionActions: []
       }

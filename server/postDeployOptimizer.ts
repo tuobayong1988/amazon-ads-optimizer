@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 217;
+export const SYSTEM_VERSION = 218;
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -164,6 +164,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 217,
     description: 'v217: 数据同步全面修复 — 后端同步流程从8步扩展到17步(添加SB/SD广告组、SB关键词、SB/SD商品定位、否定关键词、否定商品定位、搜索词、广告位置绩效), 前端进度条和步骤标签同步17步, 每个步骤都有updateProgress调用确保实时进度反馈',
+    affectedModules: [],
+    correctionActions: [],
+  },
+  {
+    version: 218,
+    description: 'v218: 前端崩溃修复 — 修复AmazonApiSettings页面ReferenceError(useEffect引用未声明的accounts变量), 将同步进度useEffect移到accounts定义之后',
     affectedModules: [],
     correctionActions: [],
   },

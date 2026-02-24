@@ -267,8 +267,18 @@ export default function AmazonApiSettings() {
     }
   );
 
-  // v216: 当有活动的同步任务时，更新前端进度状态
-  // 同时确保站点状态和进度信息完整显示
+  // Fetch accounts
+  const { data: accounts, isLoading: accountsLoading } = trpc.adAccount.list.useQuery(undefined, {
+    enabled: !!user,
+  });
+
+  // Fetch account stats
+  const { data: accountStats } = trpc.adAccount.getStats.useQuery(undefined, {
+    enabled: !!user,
+  });
+
+  // v217: 当有活动的同步任务时，更新前端进度状态
+  // 注意：此useEffect必须在accounts定义之后，避免ReferenceError
   useEffect(() => {
     if (accountActiveSyncJob && accountActiveSyncJob.status === 'running') {
       setSyncProgress(prev => {
@@ -392,16 +402,6 @@ export default function AmazonApiSettings() {
       });
     }
   }, [accountActiveSyncJob, selectedAccountId, accounts]);
-
-  // Fetch accounts
-  const { data: accounts, isLoading: accountsLoading } = trpc.adAccount.list.useQuery(undefined, {
-    enabled: !!user,
-  });
-
-  // Fetch account stats
-  const { data: accountStats } = trpc.adAccount.getStats.useQuery(undefined, {
-    enabled: !!user,
-  });
 
   // Get selected account
   const selectedAccount = useMemo(() => {
