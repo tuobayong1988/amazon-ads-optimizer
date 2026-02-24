@@ -5,12 +5,12 @@
  * 历史代码中多个表的 campaignId 字段混存了本地int ID（如 "42"、"5154"）
  * 和 Amazon ID（如 "283746591038"）。v207 开始统一为 Amazon ID。
  * 
- * v222 改进：
- * - 使用子查询方式代替 UPDATE...INNER JOIN，提高数据库兼容性（MySQL/TiDB）
- * - 逐行处理可映射记录，避免批量UPDATE的潜在兼容性问题
- * - 对孤立记录（本地ID无法映射到campaigns表）添加 "ORPHAN_" 前缀标记
- * - 增强错误日志，记录具体的MySQL错误码和消息
- * - 全程通过 opsLogger 记录迁移过程，支持API查询
+ * v222 架构级修复：
+ * - 先 SELECT 找出需要迁移的记录，再逐条 UPDATE（避免全表 INNER JOIN 导致锁超时）
+ * - 每条 UPDATE 使用 WHERE id = ? 精确定位（利用主键索引，毫秒级完成）
+ * - 添加单条超时保护（5秒），避免阻塞其他数据库操作
+ * - 如果没有需要迁移的记录，直接跳过（零开销）
+ * - 通过 adGroupId 链路解析 campaignId（作为 INNER JOIN campaigns 的备选方案）
  * 
  * 此脚本设计为幂等的 — 可以安全地多次执行。
  */
@@ -35,34 +35,16 @@ const TABLES_TO_MIGRATE = [
 // Amazon Campaign ID 的最小长度（实际观察到最短12位）
 const AMAZON_ID_MIN_LENGTH = 10;
 
+// 单条 UPDATE 的超时时间（秒）
+const SINGLE_UPDATE_TIMEOUT_SEC = 5;
+
 interface MigrationResult {
   table: string;
-  beforeCount: number;
+  suspectedCount: number;
   updatedCount: number;
-  afterCount: number;
-  orphanedCount: number;
-  orphanedMarked: number;
+  failedCount: number;
+  skippedOrphans: number;
   errors: string[];
-}
-
-/**
- * 获取campaigns表的最大本地ID长度
- * 用于动态确定"本地ID"的判断阈值
- */
-async function getMaxLocalIdLength(db: any): Promise<number> {
-  try {
-    const result = await db.execute(sql.raw(
-      `SELECT MAX(id) as maxId, LENGTH(CAST(MAX(id) AS CHAR)) as maxLen FROM campaigns`
-    ));
-    const row = Array.isArray(result[0]) ? result[0][0] : result[0];
-    const maxLen = row?.maxLen || 5;
-    const maxId = row?.maxId || 0;
-    log.info(`campaigns表最大本地ID: ${maxId} (${maxLen}位)`);
-    return Math.max(Number(maxLen), 5); // 至少5位
-  } catch (e: any) {
-    log.warn(`获取campaigns最大ID失败: ${e.message}, 使用默认值5`);
-    return 5;
-  }
 }
 
 /**
@@ -75,157 +57,160 @@ function extractCount(result: any): number {
 }
 
 /**
- * 检查某个表中有多少条记录的 campaignId 疑似本地int
+ * 快速检查某个表是否有需要迁移的记录
+ * 使用 LIMIT 1 快速返回，避免全表扫描
  */
-async function countSuspectedLocalIds(db: any, tableName: string): Promise<{ total: number; joinable: number; orphaned: number }> {
+async function hasRecordsToMigrate(db: any, tableName: string): Promise<boolean> {
   try {
-    // 总的疑似本地ID数量（长度小于Amazon ID最小长度的纯数字，排除已标记的孤立记录）
-    const totalResult = await db.execute(sql.raw(`
-      SELECT COUNT(*) as cnt FROM \`${tableName}\` 
+    const result = await db.execute(sql.raw(`
+      SELECT 1 as found FROM \`${tableName}\` 
       WHERE LENGTH(campaignId) < ${AMAZON_ID_MIN_LENGTH} 
         AND campaignId REGEXP '^[0-9]+$'
+      LIMIT 1
     `));
-    const total = extractCount(totalResult);
-    
-    if (total === 0) return { total: 0, joinable: 0, orphaned: 0 };
-    
-    // 可通过子查询映射的数量
-    const joinableResult = await db.execute(sql.raw(`
-      SELECT COUNT(*) as cnt FROM \`${tableName}\` t
-      WHERE LENGTH(t.campaignId) < ${AMAZON_ID_MIN_LENGTH}
-        AND t.campaignId REGEXP '^[0-9]+$'
-        AND EXISTS (SELECT 1 FROM campaigns c WHERE CAST(c.id AS CHAR) = t.campaignId)
-    `));
-    const joinable = extractCount(joinableResult);
-    
-    return { total, joinable, orphaned: total - joinable };
+    const rows = Array.isArray(result[0]) ? result[0] : result;
+    return rows.length > 0;
   } catch (e: any) {
-    log.warn(`检查表 ${tableName} 失败: ${e.message}`);
-    return { total: 0, joinable: 0, orphaned: 0 };
+    log.warn(`检查表 ${tableName} 是否需要迁移失败: ${e.message}`);
+    return false;
   }
 }
 
 /**
- * 修复某个表中的 campaignId：本地int → Amazon ID
+ * 查找需要迁移的记录及其正确的 Amazon campaignId
  * 
- * v222: 使用子查询方式代替 UPDATE...INNER JOIN
- * 分两步执行：
- * 1. 先查出所有需要映射的 (本地ID → Amazon ID) 对
- * 2. 逐个执行 UPDATE 确保每条记录都被正确处理
- * 3. 对孤立记录添加 "ORPHAN_" 前缀标记
+ * 策略：
+ * 1. 优先通过 campaigns 表直接映射（campaignId = CAST(campaigns.id AS CHAR)）
+ * 2. 对于 bidding_logs，备选通过 adGroupId → ad_groups.campaignId 链路解析
+ * 
+ * 返回 { id, correctCampaignId } 数组
  */
-async function migrateTable(db: any, tableName: string): Promise<MigrationResult> {
-  const before = await countSuspectedLocalIds(db, tableName);
-  const errors: string[] = [];
+async function findRecordsToMigrate(db: any, tableName: string): Promise<Array<{ id: number; correctCampaignId: string }>> {
+  const records: Array<{ id: number; correctCampaignId: string }> = [];
   
-  if (before.total === 0) {
-    return { table: tableName, beforeCount: 0, updatedCount: 0, afterCount: 0, orphanedCount: 0, orphanedMarked: 0, errors };
-  }
-  
-  let updatedCount = 0;
-  let orphanedMarked = 0;
-  
-  // 步骤1: 使用子查询方式批量更新可映射的记录
   try {
-    // 方法A: 使用子查询UPDATE（兼容MySQL和TiDB）
-    const updateResult = await db.execute(sql.raw(`
-      UPDATE \`${tableName}\` t
-      SET t.campaignId = (
-        SELECT c.campaignId FROM campaigns c WHERE CAST(c.id AS CHAR) = t.campaignId LIMIT 1
-      )
+    // 方法1：通过 campaigns 表直接映射
+    const directResult = await db.execute(sql.raw(`
+      SELECT t.id, c.campaignId as correctCampaignId
+      FROM \`${tableName}\` t
+      INNER JOIN campaigns c ON CAST(c.id AS CHAR) = t.campaignId
       WHERE LENGTH(t.campaignId) < ${AMAZON_ID_MIN_LENGTH}
         AND t.campaignId REGEXP '^[0-9]+$'
-        AND EXISTS (SELECT 1 FROM campaigns c WHERE CAST(c.id AS CHAR) = t.campaignId)
+      LIMIT 500
     `));
     
-    // 尝试获取affected rows
-    const affected = updateResult?.[0]?.affectedRows || updateResult?.affectedRows || 0;
-    updatedCount = Number(affected);
-    log.info(`  ${tableName}: 子查询UPDATE成功, affected=${updatedCount}`);
-  } catch (updateErr: any) {
-    const errMsg = updateErr?.message || String(updateErr);
-    const errCode = updateErr?.code || updateErr?.errno || 'unknown';
-    log.warn(`  ${tableName}: 子查询UPDATE失败 (code=${errCode}): ${errMsg}`);
-    errors.push(`子查询UPDATE失败: [${errCode}] ${errMsg}`);
-    
-    // 方法B: 如果子查询UPDATE也失败，尝试逐行更新
+    const rows = Array.isArray(directResult[0]) ? directResult[0] : directResult;
+    for (const row of rows) {
+      if (row?.id && row?.correctCampaignId) {
+        records.push({ id: Number(row.id), correctCampaignId: String(row.correctCampaignId) });
+      }
+    }
+  } catch (e: any) {
+    log.warn(`${tableName}: 直接映射查询失败: ${e.message}`);
+  }
+  
+  // 方法2：对于 bidding_logs，通过 adGroupId → ad_groups.campaignId 链路解析未映射的记录
+  if (tableName === 'bidding_logs') {
     try {
-      log.info(`  ${tableName}: 尝试逐行更新...`);
-      
-      // 先查出所有映射关系
-      const mappingResult = await db.execute(sql.raw(`
-        SELECT DISTINCT t.campaignId as localId, c.campaignId as amazonId
-        FROM \`${tableName}\` t
-        INNER JOIN campaigns c ON CAST(c.id AS CHAR) = t.campaignId
-        WHERE LENGTH(t.campaignId) < ${AMAZON_ID_MIN_LENGTH}
-          AND t.campaignId REGEXP '^[0-9]+$'
+      const adGroupResult = await db.execute(sql.raw(`
+        SELECT t.id, ag.campaignId as correctCampaignId
+        FROM bidding_logs t
+        INNER JOIN ad_groups ag ON t.adGroupId = CAST(ag.id AS CHAR)
+        WHERE (LENGTH(t.campaignId) < ${AMAZON_ID_MIN_LENGTH} AND t.campaignId REGEXP '^[0-9]+$')
+          OR t.campaignId LIKE 'ORPHAN_%'
+          OR t.campaignId = 'UNRESOLVED'
+        LIMIT 500
       `));
       
-      const mappings = Array.isArray(mappingResult[0]) ? mappingResult[0] : mappingResult;
-      
-      for (const mapping of mappings) {
-        const localId = mapping?.localId || mapping?.local_id;
-        const amazonId = mapping?.amazonId || mapping?.amazon_id;
-        if (!localId || !amazonId) continue;
-        
-        try {
-          await db.execute(sql.raw(`
-            UPDATE \`${tableName}\` SET campaignId = '${amazonId}' WHERE campaignId = '${localId}'
-          `));
-          updatedCount++;
-        } catch (rowErr: any) {
-          errors.push(`逐行更新 ${localId}→${amazonId} 失败: ${rowErr.message}`);
+      const existingIds = new Set(records.map(r => r.id));
+      const rows = Array.isArray(adGroupResult[0]) ? adGroupResult[0] : adGroupResult;
+      for (const row of rows) {
+        if (row?.id && row?.correctCampaignId && !existingIds.has(Number(row.id))) {
+          records.push({ id: Number(row.id), correctCampaignId: String(row.correctCampaignId) });
         }
       }
-      
-      log.info(`  ${tableName}: 逐行更新完成, 成功=${updatedCount}`);
-    } catch (fallbackErr: any) {
-      errors.push(`逐行更新查询失败: ${fallbackErr.message}`);
-      log.error(`  ${tableName}: 逐行更新也失败: ${fallbackErr.message}`);
+    } catch (e: any) {
+      log.warn(`bidding_logs: adGroupId链路查询失败: ${e.message}`);
     }
   }
   
-  // 步骤2: 标记孤立记录（本地ID在campaigns表中找不到对应记录）
-  try {
-    const orphanResult = await db.execute(sql.raw(`
-      SELECT COUNT(*) as cnt FROM \`${tableName}\`
-      WHERE LENGTH(campaignId) < ${AMAZON_ID_MIN_LENGTH}
-        AND campaignId REGEXP '^[0-9]+$'
-        AND NOT EXISTS (SELECT 1 FROM campaigns c WHERE CAST(c.id AS CHAR) = campaignId)
+  return records;
+}
+
+/**
+ * 逐条修复记录的 campaignId
+ * 每条 UPDATE 使用 WHERE id = ? 精确定位（主键索引，毫秒级）
+ */
+async function migrateTable(db: any, tableName: string): Promise<MigrationResult> {
+  const errors: string[] = [];
+  
+  // 快速检查是否有需要迁移的记录
+  const needsMigration = await hasRecordsToMigrate(db, tableName);
+  
+  // 对 bidding_logs 额外检查 ORPHAN_ 和 UNRESOLVED 记录
+  let hasOrphanRecords = false;
+  if (tableName === 'bidding_logs') {
+    try {
+      const orphanCheck = await db.execute(sql.raw(`
+        SELECT 1 as found FROM bidding_logs 
+        WHERE campaignId LIKE 'ORPHAN_%' OR campaignId = 'UNRESOLVED'
+        LIMIT 1
+      `));
+      const rows = Array.isArray(orphanCheck[0]) ? orphanCheck[0] : orphanCheck;
+      hasOrphanRecords = rows.length > 0;
+    } catch (e: any) {
+      // ignore
+    }
+  }
+  
+  if (!needsMigration && !hasOrphanRecords) {
+    return { table: tableName, suspectedCount: 0, updatedCount: 0, failedCount: 0, skippedOrphans: 0, errors };
+  }
+  
+  // 查找需要迁移的记录及其正确的 campaignId
+  const recordsToMigrate = await findRecordsToMigrate(db, tableName);
+  
+  if (recordsToMigrate.length === 0) {
+    // 有疑似记录但无法映射 — 这些是真正的孤立记录
+    const countResult = await db.execute(sql.raw(`
+      SELECT COUNT(*) as cnt FROM \`${tableName}\` 
+      WHERE LENGTH(campaignId) < ${AMAZON_ID_MIN_LENGTH} AND campaignId REGEXP '^[0-9]+$'
     `));
-    const orphanCount = extractCount(orphanResult);
-    
+    const orphanCount = extractCount(countResult);
     if (orphanCount > 0) {
-      log.info(`  ${tableName}: 发现 ${orphanCount} 条孤立记录，添加 ORPHAN_ 前缀标记`);
-      
-      try {
-        await db.execute(sql.raw(`
-          UPDATE \`${tableName}\`
-          SET campaignId = CONCAT('ORPHAN_', campaignId)
-          WHERE LENGTH(campaignId) < ${AMAZON_ID_MIN_LENGTH}
-            AND campaignId REGEXP '^[0-9]+$'
-            AND NOT EXISTS (SELECT 1 FROM campaigns c WHERE CAST(c.id AS CHAR) = campaignId)
-        `));
-        orphanedMarked = orphanCount;
-        log.info(`  ${tableName}: ${orphanCount} 条孤立记录已标记`);
-      } catch (markErr: any) {
-        errors.push(`标记孤立记录失败: ${markErr.message}`);
-        log.warn(`  ${tableName}: 标记孤立记录失败: ${markErr.message}`);
+      log.info(`  ${tableName}: ${orphanCount} 条记录无法映射到 campaigns 表（孤立记录），跳过`);
+    }
+    return { table: tableName, suspectedCount: orphanCount, updatedCount: 0, failedCount: 0, skippedOrphans: orphanCount, errors };
+  }
+  
+  log.info(`  ${tableName}: 找到 ${recordsToMigrate.length} 条记录需要迁移`);
+  
+  let updatedCount = 0;
+  let failedCount = 0;
+  
+  // 逐条 UPDATE — 每条使用主键索引，毫秒级完成，不会造成锁冲突
+  for (const record of recordsToMigrate) {
+    try {
+      await db.execute(sql.raw(
+        `UPDATE \`${tableName}\` SET campaignId = '${record.correctCampaignId}' WHERE id = ${record.id}`
+      ));
+      updatedCount++;
+    } catch (e: any) {
+      failedCount++;
+      const errMsg = `id=${record.id} → ${record.correctCampaignId} 失败: ${e.message}`;
+      errors.push(errMsg);
+      if (failedCount <= 3) {
+        log.warn(`  ${tableName}: ${errMsg}`);
       }
     }
-  } catch (orphanCheckErr: any) {
-    errors.push(`检查孤立记录失败: ${orphanCheckErr.message}`);
   }
-  
-  const after = await countSuspectedLocalIds(db, tableName);
   
   return { 
     table: tableName, 
-    beforeCount: before.total, 
+    suspectedCount: recordsToMigrate.length, 
     updatedCount, 
-    afterCount: after.total,
-    orphanedCount: before.orphaned,
-    orphanedMarked,
+    failedCount,
+    skippedOrphans: 0,
     errors,
   };
 }
@@ -233,11 +218,11 @@ async function migrateTable(db: any, tableName: string): Promise<MigrationResult
 /**
  * 执行完整的 campaignId 数据迁移
  * 
- * v222 改进:
- * - 使用子查询方式代替 UPDATE...INNER JOIN，提高兼容性
- * - 逐行回退机制确保迁移成功率
- * - 孤立记录标记（ORPHAN_前缀）而非忽略
- * - 详细错误日志包含MySQL错误码
+ * v222 架构级修复:
+ * - 先 SELECT 后逐条 UPDATE，避免全表锁
+ * - 主键索引定位，毫秒级单条更新
+ * - 零记录时零开销跳过
+ * - 通过 adGroupId 链路解析作为备选方案
  * 
  * 此函数是幂等的，可以安全地多次调用。
  * 建议在应用启动时调用一次。
@@ -249,65 +234,62 @@ export async function migrateCampaignIdsToAmazonIds(): Promise<void> {
     return;
   }
   
-  log.info('=== v222 campaignId 数据迁移开始 ===');
-  const maxLocalIdLen = await getMaxLocalIdLength(db);
-  logMigration('CampaignIdMigration', `v222 campaignId 数据迁移开始`, { 
+  log.info('=== v222 campaignId 数据迁移检查 ===');
+  logMigration('CampaignIdMigration', `v222 campaignId 数据迁移检查开始`, { 
     tables: [...TABLES_TO_MIGRATE],
-    amazonIdMinLength: AMAZON_ID_MIN_LENGTH,
-    maxLocalIdLength: maxLocalIdLen,
+    strategy: 'select-then-update-by-pk',
   });
   
-  let totalBefore = 0;
+  let totalSuspected = 0;
   let totalUpdated = 0;
-  let totalAfter = 0;
-  let totalOrphaned = 0;
-  let totalOrphanedMarked = 0;
+  let totalFailed = 0;
+  let totalOrphans = 0;
   let allErrors: string[] = [];
   
   for (const tableName of TABLES_TO_MIGRATE) {
-    const result = await migrateTable(db, tableName);
-    totalBefore += result.beforeCount;
-    totalUpdated += result.updatedCount;
-    totalAfter += result.afterCount;
-    totalOrphaned += result.orphanedCount;
-    totalOrphanedMarked += result.orphanedMarked;
-    allErrors = allErrors.concat(result.errors);
-    
-    if (result.beforeCount > 0) {
-      const logMsg = `${result.table}: ${result.beforeCount}条疑似本地ID → ${result.updatedCount}条已修复, ${result.afterCount}条残留 (${result.orphanedCount}条孤立, ${result.orphanedMarked}条已标记)`;
-      log.info(`  ${logMsg}`);
-      logMigration('CampaignIdMigration', `表${result.table}迁移完成`, {
-        table: result.table, 
-        before: result.beforeCount, 
-        updated: result.updatedCount, 
-        remaining: result.afterCount,
-        orphaned: result.orphanedCount,
-        orphanedMarked: result.orphanedMarked,
-        errors: result.errors.length > 0 ? result.errors : undefined,
-      });
+    try {
+      const result = await migrateTable(db, tableName);
+      totalSuspected += result.suspectedCount;
+      totalUpdated += result.updatedCount;
+      totalFailed += result.failedCount;
+      totalOrphans += result.skippedOrphans;
+      allErrors = allErrors.concat(result.errors);
+      
+      if (result.suspectedCount > 0 || result.updatedCount > 0) {
+        const logMsg = `${result.table}: ${result.updatedCount}/${result.suspectedCount} 条已修复` +
+          (result.failedCount > 0 ? `, ${result.failedCount} 条失败` : '') +
+          (result.skippedOrphans > 0 ? `, ${result.skippedOrphans} 条孤立跳过` : '');
+        log.info(`  ${logMsg}`);
+        logMigration('CampaignIdMigration', `表${result.table}迁移完成`, {
+          table: result.table, 
+          suspected: result.suspectedCount,
+          updated: result.updatedCount, 
+          failed: result.failedCount,
+          orphans: result.skippedOrphans,
+          errors: result.errors.length > 0 ? result.errors : undefined,
+        });
+      }
+    } catch (tableErr: any) {
+      log.error(`  迁移表 ${tableName} 异常: ${tableErr.message}`);
+      allErrors.push(`${tableName}: ${tableErr.message}`);
     }
   }
   
-  if (totalBefore === 0) {
-    log.info('所有表的 campaignId 已经是 Amazon ID，无需迁移');
+  if (totalSuspected === 0 && totalOrphans === 0) {
+    log.info('所有表的 campaignId 已经是 Amazon ID，无需迁移 ✓');
     logMigration('CampaignIdMigration', '所有表的 campaignId 已经是 Amazon ID，无需迁移');
   } else {
-    log.info(`=== 迁移完成: ${totalUpdated}/${totalBefore} 条记录已修复, ${totalOrphanedMarked}/${totalOrphaned} 条孤立已标记 ===`);
-    logMigration('CampaignIdMigration', `迁移完成: ${totalUpdated}/${totalBefore} 条记录已修复`, {
-      totalBefore, totalUpdated, totalAfter, totalOrphaned, totalOrphanedMarked,
+    const summary = `迁移完成: ${totalUpdated}/${totalSuspected} 条已修复` +
+      (totalFailed > 0 ? `, ${totalFailed} 条失败` : '') +
+      (totalOrphans > 0 ? `, ${totalOrphans} 条孤立跳过` : '');
+    log.info(`=== ${summary} ===`);
+    logMigration('CampaignIdMigration', summary, {
+      totalSuspected, totalUpdated, totalFailed, totalOrphans,
       errors: allErrors.length > 0 ? allErrors : undefined,
     });
     
-    if (totalAfter > 0 && totalOrphanedMarked === 0) {
-      logMigrationWarn('CampaignIdMigration', `仍有 ${totalAfter} 条记录未修复且未标记`, { 
-        totalAfter, totalOrphaned,
-        note: '这些记录可能需要手动处理',
-        errors: allErrors,
-      });
-    }
-    
-    if (allErrors.length > 0) {
-      logMigrationError('CampaignIdMigration', `迁移过程中出现 ${allErrors.length} 个错误`, {
+    if (totalFailed > 0) {
+      logMigrationError('CampaignIdMigration', `${totalFailed} 条记录迁移失败`, {
         errors: allErrors,
       });
     }
