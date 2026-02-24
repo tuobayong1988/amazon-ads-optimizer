@@ -376323,64 +376323,136 @@ async function getMaxLocalIdLength(db) {
     const result = await db.execute(sql.raw(
       `SELECT MAX(id) as maxId, LENGTH(CAST(MAX(id) AS CHAR)) as maxLen FROM campaigns`
     ));
-    const maxLen = result[0]?.maxLen || result[0]?.[0]?.maxLen || 5;
-    const maxId = result[0]?.maxId || result[0]?.[0]?.maxId || 0;
+    const row = Array.isArray(result[0]) ? result[0][0] : result[0];
+    const maxLen = row?.maxLen || 5;
+    const maxId = row?.maxId || 0;
     log24.info(`campaigns\u8868\u6700\u5927\u672C\u5730ID: ${maxId} (${maxLen}\u4F4D)`);
-    return Math.max(maxLen, 5);
+    return Math.max(Number(maxLen), 5);
   } catch (e6) {
     log24.warn(`\u83B7\u53D6campaigns\u6700\u5927ID\u5931\u8D25: ${e6.message}, \u4F7F\u7528\u9ED8\u8BA4\u503C5`);
     return 5;
   }
 }
-async function countSuspectedLocalIds(db, tableName, maxLocalIdLen) {
+function extractCount2(result) {
+  if (!result) return 0;
+  const row = Array.isArray(result[0]) ? result[0][0] : result[0];
+  return Number(row?.cnt || row?.count || 0);
+}
+async function countSuspectedLocalIds(db, tableName) {
   try {
     const totalResult = await db.execute(sql.raw(`
       SELECT COUNT(*) as cnt FROM \`${tableName}\` 
       WHERE LENGTH(campaignId) < ${AMAZON_ID_MIN_LENGTH} 
         AND campaignId REGEXP '^[0-9]+$'
     `));
-    const total = totalResult[0]?.cnt || totalResult[0]?.[0]?.cnt || 0;
+    const total = extractCount2(totalResult);
     if (total === 0) return { total: 0, joinable: 0, orphaned: 0 };
     const joinableResult = await db.execute(sql.raw(`
       SELECT COUNT(*) as cnt FROM \`${tableName}\` t
-      INNER JOIN campaigns c ON t.campaignId = CAST(c.id AS CHAR)
       WHERE LENGTH(t.campaignId) < ${AMAZON_ID_MIN_LENGTH}
         AND t.campaignId REGEXP '^[0-9]+$'
+        AND EXISTS (SELECT 1 FROM campaigns c WHERE CAST(c.id AS CHAR) = t.campaignId)
     `));
-    const joinable = joinableResult[0]?.cnt || joinableResult[0]?.[0]?.cnt || 0;
+    const joinable = extractCount2(joinableResult);
     return { total, joinable, orphaned: total - joinable };
   } catch (e6) {
     log24.warn(`\u68C0\u67E5\u8868 ${tableName} \u5931\u8D25: ${e6.message}`);
     return { total: 0, joinable: 0, orphaned: 0 };
   }
 }
-async function migrateTable(db, tableName, maxLocalIdLen) {
-  const before = await countSuspectedLocalIds(db, tableName, maxLocalIdLen);
+async function migrateTable(db, tableName) {
+  const before = await countSuspectedLocalIds(db, tableName);
+  const errors = [];
   if (before.total === 0) {
-    return { table: tableName, beforeCount: 0, updatedCount: 0, afterCount: 0, orphanedCount: 0 };
+    return { table: tableName, beforeCount: 0, updatedCount: 0, afterCount: 0, orphanedCount: 0, orphanedMarked: 0, errors };
   }
+  let updatedCount = 0;
+  let orphanedMarked = 0;
   try {
     const updateResult = await db.execute(sql.raw(`
       UPDATE \`${tableName}\` t
-      INNER JOIN campaigns c ON t.campaignId = CAST(c.id AS CHAR)
-      SET t.campaignId = c.campaignId
+      SET t.campaignId = (
+        SELECT c.campaignId FROM campaigns c WHERE CAST(c.id AS CHAR) = t.campaignId LIMIT 1
+      )
       WHERE LENGTH(t.campaignId) < ${AMAZON_ID_MIN_LENGTH}
         AND t.campaignId REGEXP '^[0-9]+$'
+        AND EXISTS (SELECT 1 FROM campaigns c WHERE CAST(c.id AS CHAR) = t.campaignId)
     `));
-    const after = await countSuspectedLocalIds(db, tableName, maxLocalIdLen);
-    const updatedCount = before.total - after.total;
-    return {
-      table: tableName,
-      beforeCount: before.total,
-      updatedCount,
-      afterCount: after.total,
-      orphanedCount: after.orphaned
-    };
-  } catch (e6) {
-    log24.error(`\u8FC1\u79FB\u8868 ${tableName} \u5931\u8D25: ${e6.message}`);
-    logMigrationError("CampaignIdMigration", `\u8FC1\u79FB\u8868 ${tableName} \u5931\u8D25: ${e6.message}`, { table: tableName });
-    return { table: tableName, beforeCount: before.total, updatedCount: 0, afterCount: before.total, orphanedCount: before.orphaned };
+    const affected = updateResult?.[0]?.affectedRows || updateResult?.affectedRows || 0;
+    updatedCount = Number(affected);
+    log24.info(`  ${tableName}: \u5B50\u67E5\u8BE2UPDATE\u6210\u529F, affected=${updatedCount}`);
+  } catch (updateErr) {
+    const errMsg = updateErr?.message || String(updateErr);
+    const errCode = updateErr?.code || updateErr?.errno || "unknown";
+    log24.warn(`  ${tableName}: \u5B50\u67E5\u8BE2UPDATE\u5931\u8D25 (code=${errCode}): ${errMsg}`);
+    errors.push(`\u5B50\u67E5\u8BE2UPDATE\u5931\u8D25: [${errCode}] ${errMsg}`);
+    try {
+      log24.info(`  ${tableName}: \u5C1D\u8BD5\u9010\u884C\u66F4\u65B0...`);
+      const mappingResult = await db.execute(sql.raw(`
+        SELECT DISTINCT t.campaignId as localId, c.campaignId as amazonId
+        FROM \`${tableName}\` t
+        INNER JOIN campaigns c ON CAST(c.id AS CHAR) = t.campaignId
+        WHERE LENGTH(t.campaignId) < ${AMAZON_ID_MIN_LENGTH}
+          AND t.campaignId REGEXP '^[0-9]+$'
+      `));
+      const mappings = Array.isArray(mappingResult[0]) ? mappingResult[0] : mappingResult;
+      for (const mapping of mappings) {
+        const localId = mapping?.localId || mapping?.local_id;
+        const amazonId = mapping?.amazonId || mapping?.amazon_id;
+        if (!localId || !amazonId) continue;
+        try {
+          await db.execute(sql.raw(`
+            UPDATE \`${tableName}\` SET campaignId = '${amazonId}' WHERE campaignId = '${localId}'
+          `));
+          updatedCount++;
+        } catch (rowErr) {
+          errors.push(`\u9010\u884C\u66F4\u65B0 ${localId}\u2192${amazonId} \u5931\u8D25: ${rowErr.message}`);
+        }
+      }
+      log24.info(`  ${tableName}: \u9010\u884C\u66F4\u65B0\u5B8C\u6210, \u6210\u529F=${updatedCount}`);
+    } catch (fallbackErr) {
+      errors.push(`\u9010\u884C\u66F4\u65B0\u67E5\u8BE2\u5931\u8D25: ${fallbackErr.message}`);
+      log24.error(`  ${tableName}: \u9010\u884C\u66F4\u65B0\u4E5F\u5931\u8D25: ${fallbackErr.message}`);
+    }
   }
+  try {
+    const orphanResult = await db.execute(sql.raw(`
+      SELECT COUNT(*) as cnt FROM \`${tableName}\`
+      WHERE LENGTH(campaignId) < ${AMAZON_ID_MIN_LENGTH}
+        AND campaignId REGEXP '^[0-9]+$'
+        AND NOT EXISTS (SELECT 1 FROM campaigns c WHERE CAST(c.id AS CHAR) = campaignId)
+    `));
+    const orphanCount = extractCount2(orphanResult);
+    if (orphanCount > 0) {
+      log24.info(`  ${tableName}: \u53D1\u73B0 ${orphanCount} \u6761\u5B64\u7ACB\u8BB0\u5F55\uFF0C\u6DFB\u52A0 ORPHAN_ \u524D\u7F00\u6807\u8BB0`);
+      try {
+        await db.execute(sql.raw(`
+          UPDATE \`${tableName}\`
+          SET campaignId = CONCAT('ORPHAN_', campaignId)
+          WHERE LENGTH(campaignId) < ${AMAZON_ID_MIN_LENGTH}
+            AND campaignId REGEXP '^[0-9]+$'
+            AND NOT EXISTS (SELECT 1 FROM campaigns c WHERE CAST(c.id AS CHAR) = campaignId)
+        `));
+        orphanedMarked = orphanCount;
+        log24.info(`  ${tableName}: ${orphanCount} \u6761\u5B64\u7ACB\u8BB0\u5F55\u5DF2\u6807\u8BB0`);
+      } catch (markErr) {
+        errors.push(`\u6807\u8BB0\u5B64\u7ACB\u8BB0\u5F55\u5931\u8D25: ${markErr.message}`);
+        log24.warn(`  ${tableName}: \u6807\u8BB0\u5B64\u7ACB\u8BB0\u5F55\u5931\u8D25: ${markErr.message}`);
+      }
+    }
+  } catch (orphanCheckErr) {
+    errors.push(`\u68C0\u67E5\u5B64\u7ACB\u8BB0\u5F55\u5931\u8D25: ${orphanCheckErr.message}`);
+  }
+  const after = await countSuspectedLocalIds(db, tableName);
+  return {
+    table: tableName,
+    beforeCount: before.total,
+    updatedCount,
+    afterCount: after.total,
+    orphanedCount: before.orphaned,
+    orphanedMarked,
+    errors
+  };
 }
 async function migrateCampaignIdsToAmazonIds() {
   const db = await getDb();
@@ -376388,9 +376460,9 @@ async function migrateCampaignIdsToAmazonIds() {
     log24.warn("\u6570\u636E\u5E93\u4E0D\u53EF\u7528\uFF0C\u8DF3\u8FC7 campaignId \u6570\u636E\u8FC1\u79FB");
     return;
   }
-  log24.info("=== v211 campaignId \u6570\u636E\u8FC1\u79FB\u5F00\u59CB ===");
+  log24.info("=== v222 campaignId \u6570\u636E\u8FC1\u79FB\u5F00\u59CB ===");
   const maxLocalIdLen = await getMaxLocalIdLength(db);
-  logMigration("CampaignIdMigration", `v211 campaignId \u6570\u636E\u8FC1\u79FB\u5F00\u59CB`, {
+  logMigration("CampaignIdMigration", `v222 campaignId \u6570\u636E\u8FC1\u79FB\u5F00\u59CB`, {
     tables: [...TABLES_TO_MIGRATE],
     amazonIdMinLength: AMAZON_ID_MIN_LENGTH,
     maxLocalIdLength: maxLocalIdLen
@@ -376399,20 +376471,27 @@ async function migrateCampaignIdsToAmazonIds() {
   let totalUpdated = 0;
   let totalAfter = 0;
   let totalOrphaned = 0;
+  let totalOrphanedMarked = 0;
+  let allErrors = [];
   for (const tableName of TABLES_TO_MIGRATE) {
-    const result = await migrateTable(db, tableName, maxLocalIdLen);
+    const result = await migrateTable(db, tableName);
     totalBefore += result.beforeCount;
     totalUpdated += result.updatedCount;
     totalAfter += result.afterCount;
     totalOrphaned += result.orphanedCount;
+    totalOrphanedMarked += result.orphanedMarked;
+    allErrors = allErrors.concat(result.errors);
     if (result.beforeCount > 0) {
-      log24.info(`  ${result.table}: ${result.beforeCount} \u6761\u7591\u4F3C\u672C\u5730ID \u2192 ${result.updatedCount} \u6761\u5DF2\u4FEE\u590D, ${result.afterCount} \u6761\u6B8B\u7559 (${result.orphanedCount} \u6761\u5B64\u7ACB)`);
+      const logMsg = `${result.table}: ${result.beforeCount}\u6761\u7591\u4F3C\u672C\u5730ID \u2192 ${result.updatedCount}\u6761\u5DF2\u4FEE\u590D, ${result.afterCount}\u6761\u6B8B\u7559 (${result.orphanedCount}\u6761\u5B64\u7ACB, ${result.orphanedMarked}\u6761\u5DF2\u6807\u8BB0)`;
+      log24.info(`  ${logMsg}`);
       logMigration("CampaignIdMigration", `\u8868${result.table}\u8FC1\u79FB\u5B8C\u6210`, {
         table: result.table,
         before: result.beforeCount,
         updated: result.updatedCount,
         remaining: result.afterCount,
-        orphaned: result.orphanedCount
+        orphaned: result.orphanedCount,
+        orphanedMarked: result.orphanedMarked,
+        errors: result.errors.length > 0 ? result.errors : void 0
       });
     }
   }
@@ -376420,19 +376499,26 @@ async function migrateCampaignIdsToAmazonIds() {
     log24.info("\u6240\u6709\u8868\u7684 campaignId \u5DF2\u7ECF\u662F Amazon ID\uFF0C\u65E0\u9700\u8FC1\u79FB");
     logMigration("CampaignIdMigration", "\u6240\u6709\u8868\u7684 campaignId \u5DF2\u7ECF\u662F Amazon ID\uFF0C\u65E0\u9700\u8FC1\u79FB");
   } else {
-    log24.info(`=== \u8FC1\u79FB\u5B8C\u6210: ${totalUpdated}/${totalBefore} \u6761\u8BB0\u5F55\u5DF2\u4FEE\u590D, ${totalOrphaned} \u6761\u5B64\u7ACB ===`);
+    log24.info(`=== \u8FC1\u79FB\u5B8C\u6210: ${totalUpdated}/${totalBefore} \u6761\u8BB0\u5F55\u5DF2\u4FEE\u590D, ${totalOrphanedMarked}/${totalOrphaned} \u6761\u5B64\u7ACB\u5DF2\u6807\u8BB0 ===`);
     logMigration("CampaignIdMigration", `\u8FC1\u79FB\u5B8C\u6210: ${totalUpdated}/${totalBefore} \u6761\u8BB0\u5F55\u5DF2\u4FEE\u590D`, {
       totalBefore,
       totalUpdated,
       totalAfter,
-      totalOrphaned
+      totalOrphaned,
+      totalOrphanedMarked,
+      errors: allErrors.length > 0 ? allErrors : void 0
     });
-    if (totalAfter > 0) {
-      log24.warn(`\u26A0\uFE0F \u4ECD\u6709 ${totalAfter} \u6761\u8BB0\u5F55\u672A\u4FEE\u590D (${totalOrphaned} \u6761\u5B64\u7ACB \u2014 \u5BF9\u5E94campaign\u53EF\u80FD\u5DF2\u5220\u9664)`);
-      logMigrationWarn("CampaignIdMigration", `\u4ECD\u6709 ${totalAfter} \u6761\u8BB0\u5F55\u672A\u4FEE\u590D`, {
+    if (totalAfter > 0 && totalOrphanedMarked === 0) {
+      logMigrationWarn("CampaignIdMigration", `\u4ECD\u6709 ${totalAfter} \u6761\u8BB0\u5F55\u672A\u4FEE\u590D\u4E14\u672A\u6807\u8BB0`, {
         totalAfter,
         totalOrphaned,
-        note: "\u5B64\u7ACB\u8BB0\u5F55\u7684campaignId\u65E0\u6CD5\u6620\u5C04\u5230campaigns\u8868\uFF0C\u5BF9\u5E94campaign\u53EF\u80FD\u5DF2\u88AB\u5220\u9664"
+        note: "\u8FD9\u4E9B\u8BB0\u5F55\u53EF\u80FD\u9700\u8981\u624B\u52A8\u5904\u7406",
+        errors: allErrors
+      });
+    }
+    if (allErrors.length > 0) {
+      logMigrationError("CampaignIdMigration", `\u8FC1\u79FB\u8FC7\u7A0B\u4E2D\u51FA\u73B0 ${allErrors.length} \u4E2A\u9519\u8BEF`, {
+        errors: allErrors
       });
     }
   }
