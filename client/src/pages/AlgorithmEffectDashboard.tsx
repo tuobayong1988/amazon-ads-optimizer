@@ -111,9 +111,9 @@ export default function AlgorithmEffectDashboard() {
   const effectComparisonData = useMemo(() => {
     if (!algorithmPerformance) return [];
     return [
-      { metric: 'ACoS (%)', before: algorithmPerformance.avgAcosBefore || 0, after: algorithmPerformance.avgAcosAfter || 0 },
-      { metric: 'ROAS', before: algorithmPerformance.avgRoasBefore || 0, after: algorithmPerformance.avgRoasAfter || 0 },
-      { metric: '每次点击成本 ($)', before: algorithmPerformance.avgCpcBefore || 0, after: algorithmPerformance.avgCpcAfter || 0 },
+      { metric: 'ACoS (%)', before: (algorithmPerformance as any).avgAcosBefore || 0, after: (algorithmPerformance as any).avgAcosAfter || 0 },
+      { metric: 'ROAS', before: (algorithmPerformance as any).avgRoasBefore || 0, after: (algorithmPerformance as any).avgRoasAfter || 0 },
+      { metric: '每次点击成本 ($)', before: (algorithmPerformance as any).avgCpcBefore || 0, after: (algorithmPerformance as any).avgCpcAfter || 0 },
     ].filter(item => item.before > 0 || item.after > 0);
   }, [algorithmPerformance]);
 

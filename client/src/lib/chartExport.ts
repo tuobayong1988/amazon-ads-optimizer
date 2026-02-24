@@ -1,8 +1,8 @@
 /**
  * 图表导出工具函数
  * 支持导出图表为PNG/SVG格式
+ * html2canvas 使用动态导入以减少初始 bundle 大小
  */
-import html2canvas from 'html2canvas';
 import { safeToISODateString } from './safeDate';
 
 export interface ExportOptions {
@@ -13,6 +13,14 @@ export interface ExportOptions {
   backgroundColor?: string;
   width?: number;
   height?: number;
+}
+
+/**
+ * 动态加载 html2canvas
+ */
+async function loadHtml2Canvas() {
+  const { default: html2canvas } = await import('html2canvas');
+  return html2canvas;
 }
 
 /**
@@ -32,6 +40,7 @@ export async function exportChartAsPNG(
   } = options;
 
   try {
+    const html2canvas = await loadHtml2Canvas();
     // 使用html2canvas截图
     const canvas = await html2canvas(element, {
       scale,
@@ -158,6 +167,7 @@ export async function exportChartAsBase64(
 
   try {
     if (format === 'png') {
+      const html2canvas = await loadHtml2Canvas();
       const canvas = await html2canvas(element, {
         scale,
         backgroundColor,
@@ -198,6 +208,7 @@ export async function exportChartWithWatermark(
   } = options;
 
   try {
+    const html2canvas = await loadHtml2Canvas();
     // 截图
     const canvas = await html2canvas(element, {
       scale,

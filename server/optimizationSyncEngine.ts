@@ -15,7 +15,7 @@
 import * as db from './db';
 import * as amazonApiHelper from './services/amazonApiHelper';
 import { randomUUID } from 'crypto';
-import { isShuttingDown, registerActiveTask, unregisterActiveTask } from './deployLifecycleManager';
+import { isShuttingDown, registerActiveTask, unregisterActiveTask } from './utils/taskLifecycle';
 import { createModuleLogger } from './utils/logger';
 
 const log = createModuleLogger('OptSyncEngine');
@@ -175,6 +175,7 @@ export async function executeBatchSync(options?: {
     database: process.env.DATABASE_NAME || 'amazon_ads_optimizer',
   });
   
+  const accountGroups = new Map<number, any[]>();
   try {
     // 1. 读取待处理任务
     let query = `SELECT * FROM optimization_tasks WHERE status IN ('pending', 'retry')`;
@@ -208,7 +209,6 @@ export async function executeBatchSync(options?: {
     log.info(`[SyncEngine] 读取到 ${rows.length} 条待同步任务`);
     
     // 2. 按账号分组
-    const accountGroups = new Map<number, any[]>();
     for (const row of rows) {
       const accId = row.account_id;
       if (!accountGroups.has(accId)) accountGroups.set(accId, []);
@@ -277,30 +277,30 @@ export async function executeBatchSync(options?: {
         if (bidTasks.length > 0) {
           await logAudit({
             userId: 0, // 系统自动操作
-            action: 'bid_adjustment',
+            actionType: 'bid_adjust_batch',
             targetType: 'keyword',
-            targetId: accountId,
-            details: `自动优化: 批量调整 ${bidTasks.length} 个投放词出价`,
+            targetId: String(accountId),
+            description: `自动优化: 批量调整 ${bidTasks.length} 个投放词出价`,
             accountId,
           });
         }
         if (statusTasks.length > 0) {
           await logAudit({
             userId: 0,
-            action: 'status_change',
+            actionType: 'campaign_update',
             targetType: 'campaign',
-            targetId: accountId,
-            details: `自动优化: 批量变更 ${statusTasks.length} 个广告活动/关键词状态`,
+            targetId: String(accountId),
+            description: `自动优化: 批量变更 ${statusTasks.length} 个广告活动/关键词状态`,
             accountId,
           });
         }
         if (budgetTasks.length > 0) {
           await logAudit({
             userId: 0,
-            action: 'budget_change',
+            actionType: 'campaign_update',
             targetType: 'campaign',
-            targetId: accountId,
-            details: `自动优化: 批量调整 ${budgetTasks.length} 个广告活动预算`,
+            targetId: String(accountId),
+            description: `自动优化: 批量调整 ${budgetTasks.length} 个广告活动预算`,
             accountId,
           });
         }

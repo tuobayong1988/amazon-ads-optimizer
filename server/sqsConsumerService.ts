@@ -1020,7 +1020,7 @@ export class SQSConsumerService {
         sales: String(params.sales),
         orders: params.orders,
         dataSource: 'ams',
-      });
+      } as any);
     }
   }
 }

@@ -153,20 +153,23 @@ export async function trainCQL(
     model = initCQLModel();
   }
   
-  // 加载训练数据
+  // v230: 加载训练数据，包含episodeId和stepIndex以构建next state
   const trainingData = await db.select({
     stateBid: rlTrainingLogs.stateBid,
     stateContext: rlTrainingLogs.stateContext,
     actionBidBefore: rlTrainingLogs.actionBidBefore,
     actionBidAfter: rlTrainingLogs.actionBidAfter,
     reward: rlTrainingLogs.reward,
+    episodeId: rlTrainingLogs.episodeId,
+    stepIndex: rlTrainingLogs.stepIndex,
+    isTerminal: rlTrainingLogs.isTerminal,
   }).from(rlTrainingLogs)
     .where(and(
       eq(rlTrainingLogs.accountId, accountId),
       isNotNull(rlTrainingLogs.reward),
       isNotNull(rlTrainingLogs.rewardFilledAt)
     ))
-    .orderBy(sql`created_at DESC`)
+    .orderBy(sql`episode_id ASC, step_index ASC`)
     .limit(10000);
   
   if (trainingData.length < 20) {
@@ -174,14 +177,38 @@ export async function trainCQL(
     return model;
   }
   
-  // 转换为训练样本
-  const samples = trainingData.map(d => {
+  // v230: 构建(s, a, r, s')序列 - 使用同一episode的下一步作为next state
+  interface TrainingSample {
+    state: number[];
+    action: ActionIndex;
+    reward: number;
+    nextState: number[] | null;  // null表示终止状态
+  }
+  
+  const samples: TrainingSample[] = [];
+  for (let i = 0; i < trainingData.length; i++) {
+    const d = trainingData[i];
     const context = d.stateContext as ContextFeatureVector | null;
     const state = buildStateVector(context, Number(d.stateBid) || 0);
     const action = bidDeltaToAction(Number(d.actionBidBefore) || 0, Number(d.actionBidAfter) || 0);
     const reward = Number(d.reward) || 0;
-    return { state, action, reward };
-  });
+    
+    // v230: 查找同一episode的下一步作为next state
+    let nextState: number[] | null = null;
+    if (d.isTerminal !== 1 && i + 1 < trainingData.length) {
+      const nextD = trainingData[i + 1];
+      if (nextD.episodeId === d.episodeId && (nextD.stepIndex || 0) > (d.stepIndex || 0)) {
+        const nextContext = nextD.stateContext as ContextFeatureVector | null;
+        nextState = buildStateVector(nextContext, Number(nextD.stateBid) || 0);
+      }
+    }
+    // 如果找不到同一episode的next state，使用出价调整后的状态作为近似
+    if (!nextState) {
+      nextState = buildStateVector(context, Number(d.actionBidAfter) || Number(d.stateBid) || 0);
+    }
+    
+    samples.push({ state, action, reward, nextState });
+  }
   
   // 计算数据集中每个动作的平均Q值（用于CQL正则化）
   const actionCounts = Array(NUM_ACTIONS).fill(0);
@@ -208,9 +235,10 @@ export async function trainCQL(
         // 当前Q值
         const currentQ = computeQ(model.weights[action], state);
         
-        // 下一状态的最大Q值（简化：使用当前状态作为下一状态的近似）
-        const nextQValues = model.weights.map(w => computeQ(w, state));
-        const maxNextQ = Math.max(...nextQValues);
+        // v230: 使用真实的next state计算下一状态的最大Q值
+        const nextS = sample.nextState || state; // 终止状态回退到当前状态
+        const nextQValues = model.weights.map(w => computeQ(w, nextS));
+        const maxNextQ = sample.nextState ? Math.max(...nextQValues) : 0; // 终止状态Q=0
         
         // TD目标
         const tdTarget = reward + gamma * maxNextQ;
@@ -298,26 +326,126 @@ export function cqlDecide(
   };
 }
 
-// ==================== 模型持久化 ====================
+// ==================== v230: 模型持久化（内存缓存 + 数据库双层存储） ====================
 
 // 内存缓存
 const modelCache = new Map<number, CQLModel>();
 
 /**
- * 获取或训练CQL模型
+ * v230: 从数据库加载CQL模型
+ */
+async function loadModelFromDb(accountId: number): Promise<CQLModel | null> {
+  try {
+    const db = await getDbInstance();
+    const { cqlModels } = await import('../drizzle/schema');
+    
+    const rows = await db.select().from(cqlModels)
+      .where(eq(cqlModels.accountId, accountId))
+      .orderBy(sql`model_version DESC`)
+      .limit(1);
+    
+    if (rows.length === 0) return null;
+    
+    const row = rows[0];
+    const weights = JSON.parse(row.weights as string);
+    
+    // 验证权重矩阵维度
+    if (!Array.isArray(weights) || weights.length !== NUM_ACTIONS) {
+      console.warn(`[CQL] v230: Invalid model weights dimensions for account ${accountId}`);
+      return null;
+    }
+    
+    return {
+      weights,
+      trainingEpisodes: row.trainingEpisodes || 0,
+      trainingSteps: row.trainingSteps || 0,
+      avgLoss: Number(row.avgLoss) || 0,
+      lastTrainedAt: row.lastTrainedAt || new Date().toISOString(),
+    };
+  } catch (error) {
+    console.error(`[CQL] v230: Failed to load model from DB:`, error);
+    return null;
+  }
+}
+
+/**
+ * v230: 将CQL模型保存到数据库
+ */
+async function saveModelToDb(accountId: number, model: CQLModel): Promise<void> {
+  try {
+    const db = await getDbInstance();
+    const { cqlModels } = await import('../drizzle/schema');
+    
+    const weightsJson = JSON.stringify(model.weights);
+    
+    // 检查是否已存在
+    const existing = await db.select({ id: cqlModels.id, modelVersion: cqlModels.modelVersion })
+      .from(cqlModels)
+      .where(eq(cqlModels.accountId, accountId))
+      .limit(1);
+    
+    if (existing.length > 0) {
+      // 更新现有模型
+      await db.update(cqlModels)
+        .set({
+          weights: weightsJson,
+          trainingEpisodes: model.trainingEpisodes,
+          trainingSteps: model.trainingSteps,
+          avgLoss: String(model.avgLoss),
+          lastTrainedAt: model.lastTrainedAt,
+          modelVersion: (existing[0].modelVersion || 1) + 1,
+        } as any)
+        .where(eq(cqlModels.id, existing[0].id));
+    } else {
+      // 插入新模型
+      await db.insert(cqlModels).values({
+        accountId,
+        weights: weightsJson,
+        trainingEpisodes: model.trainingEpisodes,
+        trainingSteps: model.trainingSteps,
+        avgLoss: String(model.avgLoss),
+        lastTrainedAt: model.lastTrainedAt,
+        modelVersion: 1,
+      } as any);
+    }
+    
+    console.log(`[CQL] v230: Model saved to DB for account ${accountId}, episodes=${model.trainingEpisodes}`);
+  } catch (error) {
+    console.error(`[CQL] v230: Failed to save model to DB:`, error);
+  }
+}
+
+/**
+ * v230: 获取或训练CQL模型（内存缓存 → 数据库 → 新训练）
  */
 export async function getOrTrainCQLModel(accountId: number): Promise<CQLModel> {
-  // 检查缓存
+  // 第1层：检查内存缓存
   const cached = modelCache.get(accountId);
   if (cached) {
-    // 如果模型不超过6小时，直接使用
     const age = Date.now() - new Date(cached.lastTrainedAt).getTime();
     if (age < 6 * 3600000) return cached;
   }
   
-  // 训练新模型
-  const model = await trainCQL(accountId, cached);
+  // 第2层：从数据库加载
+  const dbModel = await loadModelFromDb(accountId);
+  if (dbModel) {
+    const age = Date.now() - new Date(dbModel.lastTrainedAt).getTime();
+    if (age < 6 * 3600000) {
+      modelCache.set(accountId, dbModel);
+      console.log(`[CQL] v230: Model loaded from DB for account ${accountId}`);
+      return dbModel;
+    }
+    // 数据库模型过时，基于它继续训练
+    const model = await trainCQL(accountId, dbModel);
+    modelCache.set(accountId, model);
+    await saveModelToDb(accountId, model);
+    return model;
+  }
+  
+  // 第3层：新训练
+  const model = await trainCQL(accountId, cached || null);
   modelCache.set(accountId, model);
+  await saveModelToDb(accountId, model);
   return model;
 }
 

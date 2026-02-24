@@ -4,8 +4,9 @@
  */
 import { useState } from 'react';
 import { safeToISODateString } from '@/lib/safeDate';
-import * as XLSX from 'xlsx';
-import JSZip from 'jszip';
+// xlsx 和 jszip 使用动态导入以减少初始 bundle 大小
+// import * as XLSX from 'xlsx';
+// import JSZip from 'jszip';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -62,6 +63,7 @@ export function BatchExport({ groups, onExport }: BatchExportProps) {
     try {
       if (format === 'excel') {
         // Excel格式:创建多工作表文件
+        const XLSX = await import('xlsx');
         const wb = XLSX.utils.book_new();
         
         for (let i = 0; i < selectedGroups.length; i++) {
@@ -95,6 +97,7 @@ export function BatchExport({ groups, onExport }: BatchExportProps) {
         
       } else {
         // CSV格式:创建ZIP压缩包
+        const { default: JSZip } = await import('jszip');
         const zip = new JSZip();
         
         for (let i = 0; i < selectedGroups.length; i++) {

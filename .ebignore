@@ -65,6 +65,12 @@ __tests__/
 *.test.tsx
 *.spec.ts
 *.spec.tsx
+vitest.config.ts
+
+# Mock/seed data scripts (must not be in production)
+scripts/generate-mock-*.mjs
+scripts/seed-*.mjs
+scripts/seed-*.ts
 
 # Source files (not needed in production, only dist is needed)
 client/

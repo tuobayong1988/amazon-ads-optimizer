@@ -553,7 +553,7 @@ export async function saveBudgetAllocation(
       reasonDetail: rec.reasonDetail,
       priorityScore: rec.priorityScore.toString(),
       status: "pending",
-    });
+    } as any);
   }
 
   return Number(allocationId);
@@ -598,7 +598,7 @@ export async function applyBudgetAllocation(
       const [campaign] = await db
         .select()
         .from(campaigns)
-        .where(eq(campaigns.id, item.campaignId));
+        .where(eq(campaigns.id, Number(item.campaignId)));
 
       if (!campaign) {
         errors.push(`广告活动 ${item.campaignId} 不存在`);
@@ -612,7 +612,7 @@ export async function applyBudgetAllocation(
       await db
         .update(campaigns)
         .set({ maxBid: newBudget.toString() })
-        .where(eq(campaigns.id, item.campaignId));
+        .where(eq(campaigns.id, Number(item.campaignId)));
 
       // 记录预算调整历史
       await db.insert(budgetHistory).values({
@@ -633,7 +633,7 @@ export async function applyBudgetAllocation(
         snapshotAcos: item.historicalAcos,
         snapshotSpend: item.historicalSpend,
         snapshotSales: item.historicalSales,
-      });
+      } as any);
 
       // 更新明细状态
       await db

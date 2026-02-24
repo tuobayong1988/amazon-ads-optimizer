@@ -12,6 +12,13 @@
 import { AmazonSyncService } from '../amazonSyncService';
 import * as db from '../db';
 import { createModuleLogger } from '../utils/logger';
+// v223: getAmazonSyncService 从 syncServiceProvider re-export
+import { getAmazonSyncService as _getAmazonSyncService } from './syncServiceProvider';
+
+// v223: 类型安全的包装器
+export async function getAmazonSyncService(accountId: number): Promise<AmazonSyncService | null> {
+  return _getAmazonSyncService(accountId) as Promise<AmazonSyncService | null>;
+}
 
 const log = createModuleLogger('ApiHelper');
 
@@ -45,75 +52,7 @@ async function withRetry<T>(
   throw lastError;
 }
 
-/**
- * 根据 accountId 创建 AmazonSyncService 实例
- * 自动从数据库加载 API 凭证和账号信息
- */
-export async function getAmazonSyncService(accountId: number): Promise<AmazonSyncService | null> {
-  // v190: 添加重试机制 - DB临时中断或网络波动时自动重试
-  const MAX_RETRIES = 2;
-  const RETRY_DELAY_MS = 3000;
-  
-  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      // 获取账号信息
-      const account = await db.getAdAccountById(accountId);
-      if (!account) {
-        log.error(`[AmazonApiHelper] 账号 ${accountId} 不存在`);
-        return null; // 账号不存在是确定性错误，不重试
-      }
-      
-      // 获取API凭证
-      const credentials = await db.getAmazonApiCredentials(accountId);
-      if (!credentials) {
-        log.error(`[AmazonApiHelper] 账号 ${accountId} 未配置API凭证`);
-        return null; // 凭证未配置是确定性错误，不重试
-      }
-      
-      // 验证凭证完整性
-      if (!credentials.clientId || !credentials.clientSecret || !credentials.refreshToken) {
-        log.error(`[AmazonApiHelper] 账号 ${accountId} API凭证不完整: clientId=${!!credentials.clientId}, clientSecret=${!!credentials.clientSecret}, refreshToken=${!!credentials.refreshToken}`);
-        return null; // 凭证不完整是确定性错误，不重试
-      }
-      
-      if (!account.profileId) {
-        log.error(`[AmazonApiHelper] 账号 ${accountId} 缺少profileId`);
-        return null; // profileId缺失是确定性错误，不重试
-      }
-      
-      // 创建SyncService实例
-      const syncService = await AmazonSyncService.createFromCredentials(
-        {
-          clientId: credentials.clientId || '',
-          clientSecret: credentials.clientSecret || '',
-          refreshToken: credentials.refreshToken || '',
-          profileId: account.profileId || '',
-          region: (credentials.region as 'NA' | 'EU' | 'FE') || 'NA'
-        },
-        accountId,
-        account.userId,
-        account.marketplace || 'US'
-      );
-      
-      return syncService;
-    } catch (error: any) {
-      const isRetryable = error.code === 'ECONNRESET' || error.code === 'ETIMEDOUT' || 
-                          error.code === 'ECONNREFUSED' || error.code === 'PROTOCOL_CONNECTION_LOST' ||
-                          error.message?.includes('Connection lost') || error.message?.includes('ECONNRESET');
-      
-      if (isRetryable && attempt < MAX_RETRIES) {
-        const waitTime = RETRY_DELAY_MS * (attempt + 1);
-        log.warn(`[AmazonApiHelper] 创建SyncService失败(可重试), 第${attempt + 1}次重试, 等待${waitTime}ms... (accountId=${accountId}): ${error.message}`);
-        await new Promise(resolve => setTimeout(resolve, waitTime));
-        continue;
-      }
-      
-      log.error(`[AmazonApiHelper] 创建SyncService失败 (accountId=${accountId}, 已重试${attempt}次):`, error.message);
-      return null;
-    }
-  }
-  return null;
-}
+// v223: getAmazonSyncService 已在上方定义（从 syncServiceProvider 包装）
 
 /**
  * 批量同步出价调整到 Amazon
@@ -125,8 +64,11 @@ export async function syncBidAdjustmentsToAmazon(
   accountId: number,
   adjustments: Array<{
     keywordId: number;
+    productTargetId?: number;  // v230: 商品定向的真实ID，避免与keywordId混用
     newBid: number;
-    campaignId: number | string;  // v206: Amazon campaignId (varchar) or local int
+    campaignId?: number | string;  // v206: Amazon campaignId (varchar) or local int
+    localCampaignId?: number;  // 本地数据库campaign ID
+    amazonCampaignId?: string; // Amazon Campaign ID
     reason: string;
     isProductTarget?: boolean;
   }>
@@ -181,12 +123,14 @@ export async function syncBidAdjustmentsToAmazon(
           log.debug(`[AmazonApiHelper] [${i+1}/${uniqueAdjustments.length}] 重试#${retryCount}: ${targetType} id=${adj.keywordId}`);
         }
         
+        // v230: 商品定向使用productTargetId，关键词使用keywordId
+        const actualTargetId = adj.isProductTarget && adj.productTargetId ? adj.productTargetId : adj.keywordId;
         const apiResult = await syncService.applyBidAdjustment(
           targetType,
-          adj.keywordId,
+          actualTargetId,
           adj.newBid,
           adj.reason,
-          adj.campaignId
+          adj.campaignId ?? adj.amazonCampaignId ?? adj.localCampaignId ?? 0
         );
         
         if (apiResult) {
@@ -334,7 +278,7 @@ export async function syncNewKeywordsToAmazon(
       // v190: 添加withRetry包装批次API调用，自动重试限流和服务器错误
       const apiResult = await withRetry(
         () => syncService.client.createSpKeywords(
-          batch.map(k => ({
+          (batch as any[]).map((k: any) => ({
             adGroupId: k.adGroupId,
             campaignId: k.campaignId,
             keywordText: k.keywordText,
@@ -627,7 +571,7 @@ export async function syncNegativeKeywordsToAmazon(
       const existingNegatives = new Set<string>();
       for (const agId of uniqueAdGroupIds) {
         try {
-          const existing = await syncService.client.listSpNegativeKeywords(agId);
+          const existing = await syncService.client.listSpNegativeKeywords(agId as any);
           for (const e of existing) {
             const key = `${e.adGroupId}:${(e.keywordText || '').toLowerCase()}:${normalizeMatchTypeForComparison(e.matchType)}`;
             existingNegatives.add(key);
@@ -652,7 +596,7 @@ export async function syncNegativeKeywordsToAmazon(
       if (newAdGroupNegatives.length > 0) {
         // v189: 使用withRetry包装API调用
         const results = await withRetry(() => syncService.client.createSpNegativeKeywords(
-          newAdGroupNegatives.map(n => ({
+          (newAdGroupNegatives as any[]).map((n: any) => ({
             adGroupId: n.adGroupId!,
             campaignId: n.campaignId,
             keywordText: n.keywordText,
@@ -706,7 +650,9 @@ export async function syncKeywordStatusToAmazon(
   statusChanges: Array<{
     keywordId: number;       // 本地数据库的keyword ID
     newStatus: 'enabled' | 'paused' | 'archived';
-    campaignId: number;
+    campaignId?: number;
+    localCampaignId?: number;  // 本地数据库campaign ID
+    amazonCampaignId?: string; // Amazon Campaign ID
     reason: string;
     isProductTarget?: boolean;
   }>
@@ -882,7 +828,8 @@ export async function syncKeywordStatusToAmazon(
 export async function syncCampaignStatusToAmazon(
   accountId: number,
   statusChanges: Array<{
-    campaignId: number;       // 本地数据库的campaign ID
+    campaignId?: number;       // 本地数据库的campaign ID
+    localCampaignId?: number;  // 本地数据库campaign ID (别campaignId)
     amazonCampaignId: string; // Amazon Campaign ID
     newStatus: 'enabled' | 'paused' | 'archived';
     campaignName: string;

@@ -121,7 +121,7 @@ export async function createBudgetAlert(userId: number, analysis: ConsumptionAna
   const db = await getDb();
   if (!db || !analysis.alertType) return null;
   const alertData: InsertBudgetConsumptionAlert = {
-    userId, accountId: accountId ?? null, campaignId: analysis.campaignId, alertType: analysis.alertType, severity: analysis.severity,
+    userId, accountId: accountId ?? null, campaignId: String(analysis.campaignId), alertType: analysis.alertType, severity: analysis.severity,
     dailyBudget: analysis.dailyBudget.toString(), currentSpend: analysis.currentSpend.toString(), expectedSpend: analysis.expectedSpend.toString(),
     spendRate: analysis.spendRate.toString(), projectedDailySpend: analysis.projectedDailySpend.toString(), deviationPercent: analysis.deviationPercent.toString(),
     recommendation: analysis.recommendation,

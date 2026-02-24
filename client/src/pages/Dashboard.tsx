@@ -899,13 +899,13 @@ export default function Dashboard() {
                             borderRadius: '8px',
                             boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                           }}
-                          formatter={(value: number, name: string) => [
+                          formatter={((value: number, name: string) => [
                             `$${value.toLocaleString()}`,
                             name === 'totalSales' ? '销售额' : '花费'
-                          ]}
+                          ]) as any}
                         />
                         <Legend 
-                          formatter={(value) => value === 'totalSales' ? '销售额' : '花费'}
+                          formatter={((value: string) => value === 'totalSales' ? '销售额' : '花费') as any}
                         />
                         <Bar dataKey="totalSales" name="totalSales" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                         <Bar dataKey="totalSpend" name="totalSpend" fill="#a855f7" radius={[4, 4, 0, 0]} />
@@ -985,7 +985,7 @@ export default function Dashboard() {
                         borderRadius: '8px',
                         boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                       }}
-                      formatter={(value: number) => [`${currencySymbol}${value}`, '']}
+                      formatter={((value: number) => [`${currencySymbol}${value}`, '']) as any}
                     />
                     <Area 
                       type="monotone" 
@@ -1050,7 +1050,7 @@ export default function Dashboard() {
                         borderRadius: '8px',
                         boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                       }}
-                      formatter={(value: number) => [`${value}%`, 'ACoS']}
+                      formatter={((value: number) => [`${value}%`, 'ACoS']) as any}
                     />
                     <Line 
                       type="monotone" 
@@ -1114,7 +1114,7 @@ export default function Dashboard() {
                         borderRadius: '8px',
                         boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                       }}
-                      formatter={(value: number) => [`${currencySymbol}${value}`, '']}
+                      formatter={((value: number) => [`${currencySymbol}${value}`, '']) as any}
                     />
                     <Bar dataKey="thisWeek" name="本周" fill="#3b82f6" radius={[4, 4, 0, 0]} />
                     <Bar dataKey="lastWeek" name="上周" fill="#64748b" radius={[4, 4, 0, 0]} />

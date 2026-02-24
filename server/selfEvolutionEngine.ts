@@ -188,7 +188,7 @@ export async function evaluateRecentOptimizations(
       .from(optimizationLogs)
       .where(and(
         eq(optimizationLogs.performanceGroupId, performanceGroupId),
-        eq(optimizationLogs.actionType, 'bid_adjustment'),
+        eq(optimizationLogs.logCategory, 'bid_adjustment'),
         gte(optimizationLogs.createdAt, cutoffStr),
         lte(optimizationLogs.createdAt, minEvalStr),
         // 只评估未被回滚的记录
@@ -297,7 +297,7 @@ export async function evaluateRecentOptimizations(
  */
 async function getTimeWeightedCampaignMetrics(
   db: any,
-  campaignIds: number[],
+  campaignIds: (string | number)[],
   startDate: string,
   endDate: string
 ): Promise<{ acos: number; roas: number; dailySpend: number; dailyOrders: number; days: number } | null> {
@@ -312,7 +312,7 @@ async function getTimeWeightedCampaignMetrics(
   })
   .from(dailyPerformance)
   .where(and(
-    inArray(dailyPerformance.campaignId, campaignIds),
+    inArray(dailyPerformance.campaignId, campaignIds.map(String)),
     sql`${dailyPerformance.date} >= ${startDate}`,
     sql`${dailyPerformance.date} < ${endDate}`
   ))
@@ -571,7 +571,7 @@ export async function generateAutoCorrections(
       try {
         const detail = JSON.parse(log.actionDetail || '{}');
         
-        if (log.actionType === 'bid_adjustment') {
+        if (log.actionType === ('bid_adjustment' as any)) {
           originalValue = parseFloat(detail.previousBid || detail.oldBid || '0');
           currentValue = parseFloat(detail.newBid || '0');
           correctionType = 'rollback_bid';
@@ -588,7 +588,7 @@ export async function generateAutoCorrections(
           currentValue = parseFloat(detail.newBudget || '0');
           correctionType = 'rollback_budget';
           correctedValue = assessment.correctionType === 'rollback' ? originalValue : Math.round((originalValue + currentValue) / 2 * 100) / 100;
-        } else if (log.actionType === 'placement_adjustment') {
+        } else if (log.actionType === ('placement_adjustment' as any)) {
           originalValue = parseFloat(detail.previousMultiplier || '0');
           currentValue = parseFloat(detail.newMultiplier || '0');
           correctionType = 'rollback_placement';
@@ -681,7 +681,7 @@ export async function executeAutoCorrections(
         reason: `[自动纠错] ${correction.reason}`,
         apiSyncStatus: 'pending',
         createdAt: new Date().toISOString().slice(0, 19).replace('T', ' '),
-      });
+      } as any);
       
       // 标记原始日志为已纠正
       await db.update(optimizationLogs)
@@ -828,7 +828,7 @@ export async function getAdaptiveOptimizationParams(
     .from(optimizationLogs)
     .where(and(
       eq(optimizationLogs.performanceGroupId, performanceGroupId),
-      eq(optimizationLogs.actionType, 'bid_adjustment'),
+      eq(optimizationLogs.logCategory, 'bid_adjustment'),
       gte(optimizationLogs.createdAt, cutoffStr)
     ));
     
@@ -898,7 +898,7 @@ export async function getKeywordOptimizationHistory(
       .from(optimizationLogs)
       .where(and(
         eq(optimizationLogs.performanceGroupId, performanceGroupId),
-        eq(optimizationLogs.actionType, 'bid_adjustment'),
+        eq(optimizationLogs.logCategory, 'bid_adjustment'),
         sql`JSON_EXTRACT(${optimizationLogs.actionDetail}, '$.keywordId') = ${keywordId}`
       ))
       .orderBy(desc(optimizationLogs.createdAt))

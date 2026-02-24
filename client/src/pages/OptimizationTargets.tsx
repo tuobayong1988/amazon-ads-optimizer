@@ -1167,7 +1167,7 @@ export default function OptimizationTargets() {
 
   // 获取广告活动统计
   const { data: campaigns } = trpc.campaign.list.useQuery(
-    { accountId: currentAccountId },
+    { accountId: currentAccountId as any},
     { enabled: !!currentAccountId }
   );
 

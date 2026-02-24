@@ -1,9 +1,11 @@
 import { defineConfig } from "vitest/config";
+import react from "@vitejs/plugin-react";
 import path from "path";
 
 const templateRoot = path.resolve(import.meta.dirname);
 
 export default defineConfig({
+  plugins: [react()],
   root: templateRoot,
   resolve: {
     alias: {
@@ -20,6 +22,11 @@ export default defineConfig({
     include: [
       "client/**/*.{test,spec}.{ts,tsx}",
       "server/**/*.{test,spec}.ts",
+    ],
+    exclude: [
+      "node_modules/**",
+      "dist/**",
+      "server/_archived_v149/**",
     ],
     coverage: {
       provider: "v8",

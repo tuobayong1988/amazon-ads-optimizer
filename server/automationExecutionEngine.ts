@@ -198,6 +198,41 @@ const accountConfigs: Map<number, AccountAutomationConfig> = new Map();
 const executionHistory: ExecutionBatch[] = [];
 const dailyExecutionCount: Map<string, number> = new Map(); // key: accountId_date_type
 
+// v230: 定期清理过期的内存数据，防止内存泄漏
+function cleanupStaleMemoryData() {
+  const today = new Date().toISOString().split('T')[0];
+  const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  
+  // 清理dailyExecutionCount中非今天和昨天的记录
+  let cleanedCount = 0;
+  for (const key of dailyExecutionCount.keys()) {
+    if (!key.includes(today) && !key.includes(yesterday)) {
+      dailyExecutionCount.delete(key);
+      cleanedCount++;
+    }
+  }
+  
+  // 清理executionHistory，只保留最近100条
+  if (executionHistory.length > 100) {
+    executionHistory.splice(0, executionHistory.length - 100);
+  }
+  
+  // 清理accountConfigs，保留最多50个账户配置
+  if (accountConfigs.size > 50) {
+    const keys = Array.from(accountConfigs.keys());
+    for (let i = 0; i < keys.length - 50; i++) {
+      accountConfigs.delete(keys[i]);
+    }
+  }
+  
+  if (cleanedCount > 0) {
+    console.log(`[MemoryCleanup] v230: 清理了${cleanedCount}条过期的dailyExecutionCount记录`);
+  }
+}
+
+// v230: 每小时执行一次内存清理
+setInterval(cleanupStaleMemoryData, 60 * 60 * 1000);
+
 // ==================== 核心函数 ====================
 
 /**

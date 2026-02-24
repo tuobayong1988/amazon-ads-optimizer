@@ -98,6 +98,13 @@ function safetyValidate(
   config: SafetyConfig,
   maxBidLimit?: number
 ): number {
+  // v231: NaN/Infinity防御 - 确保输入有效
+  if (!isFinite(proposedBid) || isNaN(proposedBid)) {
+    return currentBid > 0 ? currentBid : config.minBid;
+  }
+  if (!isFinite(currentBid) || isNaN(currentBid)) {
+    return Math.max(config.minBid, Math.min(config.maxBid, proposedBid));
+  }
   let safeBid = proposedBid;
   
   // 1. 绝对范围限制
@@ -146,10 +153,17 @@ function ruleEngineDecision(
   const targetAcos = groupConfig.targetAcos || 0.30;
   const maxBid = groupConfig.maxBid || 10.00;
   
+  // v230: 确定性哈希函数，替代Math.random()，确保相同关键词在相同条件下产生相同的调整比例
+  const deterministicHash = (id: number, seed: number = 0): number => {
+    let h = ((id * 2654435761 + seed) >>> 0) % 10000;
+    return h / 10000; // 返回0~1之间的确定性值
+  };
+  const entityId = (target as any).keywordId || (target as any).targetId || 0;
+  
   // 场景1: 零曝光 — 需要提升可见性
   if (impressions === 0) {
     // 新关键词或长期零曝光，适度提升出价以获取曝光
-    const boostRatio = Math.min(0.15, 0.05 + Math.random() * 0.10); // 5%~15%随机提升
+    const boostRatio = Math.min(0.15, 0.05 + deterministicHash(entityId, 1) * 0.10); // v230: 5%~15%确定性提升
     const newBid = currentBid * (1 + boostRatio);
     return {
       bid: Math.min(newBid, maxBid),
@@ -162,7 +176,7 @@ function ruleEngineDecision(
   if (clicks === 0 && impressions > 0) {
     if (impressions < 100) {
       // 曝光不足，可能需要更多数据
-      const boostRatio = Math.min(0.10, 0.03 + Math.random() * 0.07);
+      const boostRatio = Math.min(0.10, 0.03 + deterministicHash(entityId, 2) * 0.07);
       return {
         bid: currentBid * (1 + boostRatio),
         confidence: 0.35,

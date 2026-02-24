@@ -607,11 +607,11 @@ export const logger = new Logger({
 /** 创建模块专用的日志快捷方法 */
 export function createModuleLogger(moduleName: string) {
   return {
-    debug: (message: string, metadata?: Record<string, any>) => logger.debug(moduleName, message, metadata),
-    info: (message: string, metadata?: Record<string, any>) => logger.info(moduleName, message, metadata),
-    warn: (message: string, metadata?: Record<string, any>) => logger.warn(moduleName, message, metadata),
-    error: (message: string, metadata?: Record<string, any>) => logger.error(moduleName, message, metadata),
-    fatal: (message: string, metadata?: Record<string, any>) => logger.fatal(moduleName, message, metadata),
+    debug: (message: string, metadata?: any) => logger.debug(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
+    info: (message: string, metadata?: any) => logger.info(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
+    warn: (message: string, metadata?: any) => logger.warn(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
+    error: (message: string, metadata?: any) => logger.error(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
+    fatal: (message: string, metadata?: any) => logger.fatal(moduleName, message, typeof metadata === 'object' ? metadata : { value: metadata }),
   };
 }
 

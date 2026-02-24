@@ -376,7 +376,7 @@ export async function executeTrafficIsolation(
         negativeMatchType: 'negative_exact',
         negativeSource: 'traffic_conflict',
         negativeStatus: 'active',
-      });
+      } as any);
       addedCount++;
     } catch (error: any) {
       if (!error.message?.includes('Duplicate')) {

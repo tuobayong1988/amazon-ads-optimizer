@@ -259,11 +259,11 @@ export function TargetTrendChart({
                             border: "1px solid hsl(var(--border))",
                             borderRadius: "8px",
                           }}
-                          formatter={(value: number, name: string) => {
+                          formatter={((value: number, name: string) => {
                             if (name === "点击") return [formatNumber(value), name];
                             if (name === "花费") return [formatCurrency(value), name];
                             return [value, name];
-                          }}
+                          }) as any}
                           labelFormatter={(label) => `日期: ${label}`}
                         />
                         <Legend />
@@ -319,11 +319,11 @@ export function TargetTrendChart({
                             border: "1px solid hsl(var(--border))",
                             borderRadius: "8px",
                           }}
-                          formatter={(value: number, name: string) => {
+                          formatter={((value: number, name: string) => {
                             if (name === "销售额") return [formatCurrency(value), name];
                             if (name === "订单") return [formatNumber(value), name];
                             return [value, name];
-                          }}
+                          }) as any}
                           labelFormatter={(label) => `日期: ${label}`}
                         />
                         <Legend />
@@ -371,11 +371,11 @@ export function TargetTrendChart({
                             border: "1px solid hsl(var(--border))",
                             borderRadius: "8px",
                           }}
-                          formatter={(value: number, name: string) => {
+                          formatter={((value: number, name: string) => {
                             if (name === "ACoS") return [formatPercent(value), name];
                             if (name === "ROAS") return [value.toFixed(2), name];
                             return [value, name];
-                          }}
+                          }) as any}
                           labelFormatter={(label) => `日期: ${label}`}
                         />
                         <Legend />
@@ -422,7 +422,7 @@ export function TargetTrendChart({
                             border: "1px solid hsl(var(--border))",
                             borderRadius: "8px",
                           }}
-                          formatter={(value: number, name: string) => [formatPercent(value), name]}
+                          formatter={((value: number, name: string) => [formatPercent(value), name]) as any}
                           labelFormatter={(label) => `日期: ${label}`}
                         />
                         <Legend />
@@ -473,7 +473,7 @@ export function TargetTrendChart({
                             border: "1px solid hsl(var(--border))",
                             borderRadius: "8px",
                           }}
-                          formatter={(value: number) => [formatCurrency(value), "CPC"]}
+                          formatter={((value: number) => [formatCurrency(value), "CPC"]) as any}
                           labelFormatter={(label) => `日期: ${label}`}
                         />
                         <Area

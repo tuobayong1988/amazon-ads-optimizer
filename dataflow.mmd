@@ -1,0 +1,42 @@
+graph LR
+    subgraph "数据采集"
+        A1["Amazon Ads API"] -->|"广告数据"| A2["amazonSyncService"]
+        A2 -->|"存储"| A3["MySQL 131张表"]
+    end
+
+    subgraph "数据分析"
+        A3 -->|"读取"| B1["selfEvolutionEngine"]
+        A3 -->|"读取"| B2["metaLearningSelector"]
+        A3 -->|"读取"| B3["causalInferenceEngine"]
+        B1 -->|"策略参数"| B4["算法参数池"]
+        B2 -->|"算法选择"| B4
+    end
+
+    subgraph "优化决策"
+        B4 -->|"输入"| C1["optimizationTargetEngine"]
+        C1 -->|"出价"| C2["bidOptimizer"]
+        C1 -->|"位置"| C3["placementOptimizationService"]
+        C1 -->|"预算"| C4["intelligentBudgetAllocationService"]
+        C1 -->|"分时"| C5["daypartingService"]
+        C1 -->|"搜索词"| C6["searchTermHarvester"]
+    end
+
+    subgraph "安全检查"
+        C2 -->|"检查"| D1["optimizationSafetyGuardrails"]
+        C3 -->|"检查"| D1
+        C4 -->|"检查"| D1
+        D1 -->|"通过"| D2["optimizationSyncEngine"]
+        D1 -->|"拒绝"| D3["优化日志"]
+    end
+
+    subgraph "执行与反馈"
+        D2 -->|"API调用"| E1["Amazon Ads API"]
+        D2 -->|"记录"| D3
+        D3 -->|"反馈"| B1
+    end
+
+    style A1 fill:#fce4ec
+    style E1 fill:#fce4ec
+    style A3 fill:#fff8e1
+    style C1 fill:#c8e6c9
+    style D1 fill:#ffccbc

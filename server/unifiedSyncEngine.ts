@@ -1496,7 +1496,7 @@ async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void
           performanceSynced: safeNum(accountResult.stepResults['performance_today']?.synced) +
             safeNum(accountResult.stepResults['performance_7d']?.synced) +
             safeNum(accountResult.stepResults['performance_14d']?.synced),
-        });
+        } as any);
       } catch (insertErr: any) {
         log.warn(`[UnifiedSync] 记录账户 ${accountResult.accountId} 同步结果失败: ${insertErr.message}`);
       }

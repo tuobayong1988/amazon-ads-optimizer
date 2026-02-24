@@ -204,7 +204,7 @@ export async function getExperimentResult(experimentId: string): Promise<Experim
       .from(dailyPerformance)
       .where(
         and(
-          inArray(dailyPerformance.campaignId, group.campaignIds),
+          inArray(dailyPerformance.campaignId, group.campaignIds.map(String)),
           sql`${dailyPerformance.date} >= ${experiment.startDate.toISOString().split('T')[0]}`,
           experiment.endDate ? sql`${dailyPerformance.date} <= ${experiment.endDate.toISOString().split('T')[0]}` : sql`1=1`
         )

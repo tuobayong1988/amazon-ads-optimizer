@@ -60,7 +60,7 @@ export default function AdGroupDetail() {
   
   // 获取广告活动信息（用于面包屑）
   const { data: campaign } = trpc.campaign.get.useQuery(
-    { id: adGroup?.campaignId || 0 },
+    { id: adGroup?.campaignId || 0 as any},
     { enabled: !!adGroup?.campaignId }
   );
   

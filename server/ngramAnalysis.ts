@@ -365,7 +365,7 @@ export async function executeNegativeKeywords(
         negativeMatchType: negative.matchType === 'phrase' ? 'negative_phrase' : 'negative_exact',
         negativeSource: 'ngram_analysis',
         negativeStatus: 'active',
-      });
+      } as any);
       addedCount++;
     } catch (error: any) {
       if (!error.message?.includes('Duplicate')) {

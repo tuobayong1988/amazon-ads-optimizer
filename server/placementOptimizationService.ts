@@ -692,8 +692,8 @@ export async function getCampaignPlacementPerformance(
         // v163: 使用时间衰减加权后的指标计算效率得分
         const totalDays = dailyData.length;
         weightedMetrics = {
-          impressions: Math.round(twMetrics.weightedDailyImpressions * totalDays),
-          clicks: Math.round(twMetrics.weightedDailyClicks * totalDays),
+          impressions: Math.round((twMetrics as any).weightedDailyImpressions * totalDays),
+          clicks: Math.round((twMetrics as any).weightedDailyClicks * totalDays),
           spend: twMetrics.weightedDailySpend * totalDays,
           sales: twMetrics.weightedDailySales * totalDays,
           orders: Math.round(twMetrics.weightedDailyOrders * totalDays),

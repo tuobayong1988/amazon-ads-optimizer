@@ -1,0 +1,115 @@
+graph TB
+    subgraph Frontend["用户界面层 Frontend (React + Vite + tRPC)"]
+        direction TB
+        subgraph Pages["核心页面 (30+ 页面)"]
+            P1["Dashboard 仪表盘"]
+            P2["Campaigns 广告活动"]
+            P3["OptimizationTargets 优化目标"]
+            P4["DataSync 数据同步"]
+            P5["BudgetAllocation 预算分配"]
+            P6["PlacementOptimization 位置优化"]
+            P7["AuditLogs 审计日志"]
+            P8["AdvancedAnalytics 高级分析"]
+        end
+        subgraph Components["可复用组件 (40+ 组件)"]
+            C1["DashboardLayout"]
+            C2["TargetTrendChart"]
+            C3["BidResponseCurve"]
+            C4["OptimizationLogs"]
+        end
+        TRPC_CLIENT["tRPC Client"]
+    end
+
+    subgraph Backend["应用服务层 Backend (Node.js + tRPC)"]
+        direction TB
+        subgraph Router["API路由层"]
+            R1["routers.ts (12987行)"]
+            R2["routes/dailySync"]
+            R3["routes/mlOptimization"]
+            R4["routes/ops"]
+        end
+        subgraph CoreServices["核心优化服务"]
+            S1["optimizationTargetEngine 优化目标引擎"]
+            S2["bidOptimizer 出价优化器"]
+            S3["nextGenBidOrchestrator 下一代出价编排"]
+            S4["placementOptimizationService 位置优化"]
+            S5["intelligentBudgetAllocationService 智能预算分配"]
+            S6["daypartingService 分时优化"]
+            S7["searchTermHarvester 搜索词收割"]
+            S8["trafficIsolationService 流量隔离"]
+        end
+        subgraph DataSync["数据同步服务"]
+            D1["amazonSyncService Amazon同步"]
+            D2["dataSyncScheduler 同步调度器"]
+            D3["unifiedSyncEngine 统一同步引擎"]
+            D4["dataSyncService 数据同步服务"]
+        end
+        subgraph Intelligence["智能分析服务"]
+            I1["selfEvolutionEngine 自我进化引擎"]
+            I2["algorithmEvolutionEngine 算法进化"]
+            I3["metaLearningSelector 元学习选择器"]
+            I4["causalInferenceEngine 因果推断"]
+            I5["advancedAnalyticsService 高级分析"]
+        end
+        subgraph Safety["安全与监控"]
+            G1["optimizationSafetyGuardrails 安全护栏"]
+            G2["optimizationAutoCorrector 自动纠错"]
+            G3["autoRollbackService 自动回滚"]
+            G4["budgetAlertService 预算告警"]
+        end
+    end
+
+    subgraph DataLayer["数据层"]
+        DB["MySQL Database (131张表)"]
+        SCHEMA["drizzle/schema.ts (3904行)"]
+        DB_ACCESS["db.ts 数据访问 (5964行)"]
+    end
+
+    subgraph External["外部服务"]
+        AMAZON["Amazon Ads API"]
+        API_CLIENT["amazonAdsApi.ts (4540行)"]
+        API_HELPER["amazonApiHelper.ts"]
+    end
+
+    Pages --> TRPC_CLIENT
+    Components --> TRPC_CLIENT
+    TRPC_CLIENT --> Router
+
+    R1 --> CoreServices
+    R1 --> DataSync
+    R1 --> Intelligence
+    R1 --> Safety
+
+    CoreServices --> DB_ACCESS
+    DataSync --> DB_ACCESS
+    Intelligence --> DB_ACCESS
+    Safety --> DB_ACCESS
+
+    DB_ACCESS --> DB
+    SCHEMA -.-> DB
+
+    DataSync --> API_CLIENT
+    CoreServices --> API_CLIENT
+    API_CLIENT --> AMAZON
+    API_HELPER --> API_CLIENT
+
+    S1 --> S2
+    S1 --> S3
+    S1 --> S4
+    S1 --> S5
+    S1 --> S6
+    S1 --> S7
+    S1 --> S8
+
+    S3 --> I3
+    I1 --> I2
+    G1 --> S1
+
+    style Frontend fill:#e8f4fd,stroke:#2196F3
+    style Backend fill:#e8f5e9,stroke:#4CAF50
+    style DataLayer fill:#fff8e1,stroke:#FFC107
+    style External fill:#fce4ec,stroke:#F44336
+    style CoreServices fill:#c8e6c9,stroke:#388E3C
+    style DataSync fill:#b3e5fc,stroke:#0288D1
+    style Intelligence fill:#e1bee7,stroke:#7B1FA2
+    style Safety fill:#ffccbc,stroke:#E64A19

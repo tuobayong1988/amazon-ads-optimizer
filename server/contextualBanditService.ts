@@ -342,6 +342,13 @@ export async function updateArm(
   context: ContextFeatureVector,
   reward: number
 ): Promise<void> {
+  // v231: 防御性校验 - 确保input有效
+  if (!isFinite(reward) || isNaN(reward)) {
+    console.warn(`[LinUCB] v231: updateArm skipped - invalid reward: ${reward}`);
+    return;
+  }
+  // 限制reward范围避免极端值导致模型不稳定
+  const clampedReward = Math.max(-10, Math.min(10, reward));
   const db = await getDbInstance();
   const x = featureVectorToArray(context);
   
@@ -363,10 +370,10 @@ export async function updateArm(
   // LinUCB更新规则
   const xxT = outerProduct(x);
   const newA = matAdd(A, xxT);
-  const newB = vecAdd(b, vecScale(x, reward));
+  const newB = vecAdd(b, vecScale(x, clampedReward));
   
   const newTotalPulls = (model.totalPulls || 0) + 1;
-  const newTotalReward = Number(model.totalReward || 0) + reward;
+  const newTotalReward = Number(model.totalReward || 0) + clampedReward;
   const newAvgReward = newTotalReward / newTotalPulls;
   
   await db.update(linucbModels)
@@ -417,19 +424,8 @@ export async function makeLinUCBBidDecision(
     // 做出决策
     const decision = await selectArm(accountId, context, currentBid, alpha);
     
-    // 记录决策日志
-    const db = await getDbInstance();
-    await db.insert(algorithmSelectionLogs).values({
-      accountId,
-      keywordId: keywordId || null,
-      targetId: targetId || null,
-      campaignId: campaignId || null,
-      selectedAlgorithm: 'linucb',
-      algorithmScores: decision.allScores,
-      selectionReason: `LinUCB selected ${decision.selectedArm} with UCB=${decision.ucbScore.toFixed(4)}, alpha=${alpha.toFixed(2)}, exploration=${decision.explorationBonus.toFixed(4)}`,
-      contextFeatures: context,
-      executedBid: String(decision.recommendedBid),
-    } as any);
+    // v230: 移除重复的日志写入，由metaLearningSelector统一记录algorithmSelectionLogs
+    // 避免同一次决策产生两条日志记录
     
     return decision;
     

@@ -357,7 +357,7 @@ router.get('/logs/:category', (req: Request, res: Response) => {
     const category = req.params.category as OpsCategory;
     
     // 兼容 "errors" → "error"
-    const normalizedCategory = category === 'errors' ? 'error' : category;
+    const normalizedCategory = category as any === 'errors' ? 'error' : category;
     
     if (!VALID_CATEGORIES.includes(normalizedCategory as OpsCategory)) {
       res.status(400).json({

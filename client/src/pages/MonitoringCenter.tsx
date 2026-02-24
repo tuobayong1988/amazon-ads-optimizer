@@ -62,12 +62,12 @@ export default function MonitoringCenter() {
   
   // v187: 使用真实API数据替代模拟数据
   const { data: accountsWithPerformance } = trpc.adAccount.listWithPerformance.useQuery(
-    { timeRange: timeRange === 'today' ? 'today' : timeRange === '7days' ? 'last7days' : 'last30days', days: timeRange === 'today' ? 1 : timeRange === '7days' ? 7 : 30 },
+    { timeRange: timeRange === 'today' ? 'today' : timeRange === '7days' ? 'last7days' : 'last30days' as any, days: timeRange === 'today' ? 1 : timeRange === '7days' ? 7 : 30 },
     { enabled: !!user }
   );
   
   const { data: trendData } = trpc.adAccount.getDailyTrend.useQuery(
-    { days: timeRange === 'today' ? 1 : timeRange === '7days' ? 7 : 30, timeRange: timeRange === 'today' ? 'today' : timeRange === '7days' ? 'last7days' : 'last30days' },
+    { days: timeRange === 'today' ? 1 : timeRange === '7days' ? 7 : 30, timeRange: timeRange === 'today' ? 'today' : timeRange === '7days' ? 'last7days' : 'last30days' as any},
     { enabled: !!user }
   );
   
@@ -408,7 +408,7 @@ export default function MonitoringCenter() {
                         border: '1px solid #374151',
                         borderRadius: '8px'
                       }}
-                      formatter={(value: number) => [`${value}%`, 'ACoS']}
+                      formatter={((value: number) => [`${value}%`, 'ACoS']) as any}
                     />
                     <Area 
                       type="monotone" 

@@ -874,7 +874,7 @@ export default function DataSync() {
                         <div>
                           <p className="text-muted-foreground">创建时间</p>
                           <p className="font-medium">
-                            {schedule.createdAt ? safeToLocaleDateString(schedule.createdAt) : 'N/A'}
+                            {schedule.createdAt ? safeToLocaleString(schedule.createdAt) : 'N/A'}
                           </p>
                         </div>
                       </div>
@@ -932,11 +932,11 @@ export default function DataSync() {
               </div>
               <div className="text-center p-3 bg-muted/50 rounded-lg">
                 <p className="text-xs text-muted-foreground mb-1">上次成功</p>
-                <p className="text-sm font-medium">{executionStats.lastSuccessAt ? safeToLocaleDateString(executionStats.lastSuccessAt) : 'N/A'}</p>
+                <p className="text-sm font-medium">{executionStats.lastSuccessAt ? safeToLocaleString(executionStats.lastSuccessAt) : 'N/A'}</p>
               </div>
               <div className="text-center p-3 bg-muted/50 rounded-lg">
                 <p className="text-xs text-muted-foreground mb-1">上次失败</p>
-                <p className="text-sm font-medium">{executionStats.lastFailureAt ? safeToLocaleDateString(executionStats.lastFailureAt) : 'N/A'}</p>
+                <p className="text-sm font-medium">{executionStats.lastFailureAt ? safeToLocaleString(executionStats.lastFailureAt) : 'N/A'}</p>
               </div>
             </div>
           )}

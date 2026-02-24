@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from "react";
-import * as XLSX from 'xlsx';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
+// xlsx, jsPDF, html2canvas 使用动态导入以减少初始 bundle 大小
+// import * as XLSX from 'xlsx';
+// import jsPDF from 'jspdf';
+// import html2canvas from 'html2canvas';
 import { 
   LineChart, Line, 
   BarChart, Bar,
@@ -1077,7 +1078,7 @@ export default function PerformanceGroupDetail() {
                       <div className="flex items-center gap-2">
                         <Select 
                           value="" 
-                          onValueChange={(format) => {
+                          onValueChange={async (format) => {
                             if (format === 'csv') {
                               // 导出CSV
                               const csvContent = [
@@ -1099,6 +1100,7 @@ export default function PerformanceGroupDetail() {
                               toast.success('CSV已导出');
                             } else if (format === 'excel') {
                               // 导出Excel
+                              const XLSX = await import('xlsx');
                               const ws = XLSX.utils.json_to_sheet(performanceTrendData.map(d => ({
                                 '日期': d.date,
                                 '花费($)': d.spend,
@@ -1116,6 +1118,8 @@ export default function PerformanceGroupDetail() {
                               // 导出PDF (包含图表)
                               const chartElement = document.querySelector('.h-64') as HTMLElement;
                               if (chartElement) {
+                                const { default: html2canvas } = await import('html2canvas');
+                                const { default: jsPDF } = await import('jspdf');
                                 html2canvas(chartElement, { scale: 2 }).then(canvas => {
                                   const imgData = canvas.toDataURL('image/png');
                                   const pdf = new jsPDF('l', 'mm', 'a4');

@@ -1398,6 +1398,8 @@ export interface EnhancedOptimizationTarget extends OptimizationTarget {
   marketplace?: string;
   campaignId?: number;
   adGroupId?: number;
+  localCampaignId?: number;
+  amazonCampaignId?: string;
 }
 
 /**

@@ -84,7 +84,7 @@ export interface TrafficConflictAnalysisResult {
 }
 
 export interface FunnelTierConfig {
-  campaignId: number;
+  campaignId: string;
   campaignName: string;
   tierLevel: 'tier1_exact' | 'tier2_longtail' | 'tier3_explore';
   matchType: string;
@@ -110,7 +110,7 @@ export interface FunnelSyncResult {
 
 export interface KeywordMigrationSuggestion {
   searchTerm: string;
-  sourceCampaignId: number;
+  sourceCampaignId: string;
   sourceCampaignName: string;
   sourceTier: string;
   targetTier: string;
@@ -415,13 +415,14 @@ export async function detectTrafficConflicts(
   // 获取广告活动信息
   const campaignData = await db.select({
     id: campaigns.id,
+    campaignId: campaigns.campaignId,
     campaignName: campaigns.campaignName,
     targetingType: campaigns.targetingType,
   })
   .from(campaigns)
   .where(eq(campaigns.accountId, accountId));
   
-  const campaignMap = new Map<number, typeof campaignData[0]>(campaignData.map((c: typeof campaignData[0]) => [c.id, c]));
+  const campaignMap = new Map<string, typeof campaignData[0]>(campaignData.map((c: typeof campaignData[0]) => [c.campaignId, c]));
   
   // 按搜索词分组
   const searchTermGroups: Map<string, typeof searchTermData> = new Map();
@@ -441,7 +442,7 @@ export async function detectTrafficConflicts(
     if (campaignIds.size < 2) return; // 只有一个广告活动，无冲突
     
     // 聚合每个广告活动的数据
-    const campaignStats: Map<number, {
+    const campaignStats: Map<string, {
       clicks: number;
       conversions: number;
       spend: number;
@@ -489,7 +490,7 @@ export async function detectTrafficConflicts(
         normalizedVolume * dataVolumeWeight;
       
       conflictingCampaigns.push({
-        campaignId,
+        campaignId: campaignId as any,
         campaignName: campaign.campaignName,
         matchType: stats.matchType,
         clicks: stats.clicks,
@@ -577,6 +578,7 @@ export async function identifyFunnelTiers(
   if (!db) return [];
   const campaignData = await db.select({
     id: campaigns.id,
+    campaignId: campaigns.campaignId,
     campaignName: campaigns.campaignName,
     targetingType: campaigns.targetingType,
   })
@@ -599,7 +601,7 @@ export async function identifyFunnelTiers(
   .groupBy(adGroups.campaignId, keywords.matchType);
   
   // 按广告活动聚合匹配类型
-  const campaignMatchTypes: Map<number, Map<string, number>> = new Map();
+  const campaignMatchTypes: Map<string, Map<string, number>> = new Map();
   for (const kw of keywordData) {
     const matchTypes = campaignMatchTypes.get(kw.campaignId) || new Map();
     matchTypes.set(kw.matchType || 'unknown', kw.count);
@@ -610,7 +612,7 @@ export async function identifyFunnelTiers(
   const tierConfigs: FunnelTierConfig[] = [];
   
   for (const campaign of campaignData) {
-    const matchTypes = campaignMatchTypes.get(campaign.id);
+    const matchTypes = campaignMatchTypes.get(campaign.id as any);
     if (!matchTypes) continue;
     
     // 计算主要匹配类型
@@ -711,7 +713,7 @@ export async function syncFunnelNegatives(
     eq(negativeKeywords.negativeStatus, 'active')
   ));
   
-  const existingNegativeMap: Map<number, Set<string>> = new Map();
+  const existingNegativeMap: Map<string, Set<string>> = new Map();
   for (const neg of existingNegatives) {
     const negSet = existingNegativeMap.get(neg.campaignId) || new Set();
     negSet.add(neg.negativeText.toLowerCase());
@@ -738,7 +740,7 @@ export async function syncFunnelNegatives(
     if (negatives.length > 0) {
       const config = tierConfigs.find(t => t.campaignId === campaignId);
       negativesToSync.push({
-        targetCampaignId: campaignId,
+        targetCampaignId: campaignId as any,
         targetTier: config?.tierLevel || 'tier2_longtail',
         negatives,
       });
@@ -761,7 +763,7 @@ export async function syncFunnelNegatives(
     if (negatives.length > 0) {
       const config = tierConfigs.find(t => t.campaignId === campaignId);
       negativesToSync.push({
-        targetCampaignId: campaignId,
+        targetCampaignId: campaignId as any,
         targetTier: config?.tierLevel || 'tier3_explore',
         negatives,
       });
@@ -1017,7 +1019,7 @@ export async function applyNegativeKeywords(
         negativeSource: neg.source,
         sourceReason: neg.reason,
         negativeStatus: 'active',
-      });
+      } as any);
       
       applied++;
     } catch (error) {

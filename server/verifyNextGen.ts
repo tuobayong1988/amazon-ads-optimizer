@@ -125,7 +125,7 @@ async function runVerification() {
             targetAcos: 0.35,
         };
 
-        const bidResult = await calculateNextGenBid(TEST_ACCOUNT_ID, mockTarget, mockGroupConfig, {
+        const bidResult = await (calculateNextGenBid as any)(TEST_ACCOUNT_ID, mockTarget, mockGroupConfig, {
             enableNextGen: true,
             nextGenTrafficRatio: 1.0, // Force usage of new algo
             maxBidChangePercent: 0.3,

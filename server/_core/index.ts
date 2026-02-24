@@ -15,11 +15,14 @@ import { reportJobScheduler } from "../services/reportJobScheduler";
 import sitemapRouter from "../routes/sitemap";
 import opsRouter from "../routes/ops";
 import { SYSTEM_VERSION } from '../postDeployOptimizer';
-import { orchestrateStartup, getSystemInfo, isShuttingDown } from '../deployLifecycleManager';
+import { orchestrateStartup, getSystemInfo } from '../deployLifecycleManager';
+import { isShuttingDown } from '../utils/taskLifecycle';
 import { ensureNextGenTables } from '../nextGenMigration';
 import { migrateCampaignIdsToAmazonIds } from '../utils/migrateCampaignIds';
 import { logger } from '../utils/logger';
 import { logSystem, logMigration } from '../utils/opsLogger';
+// v224: 加载 AmazonSyncService 的 prototype 扩展子模块
+import '../services/sync/init';
 import { getDb } from '../db';
 
 function isPortAvailable(port: number): Promise<boolean> {

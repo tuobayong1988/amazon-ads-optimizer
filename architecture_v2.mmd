@@ -1,0 +1,28 @@
+graph TD
+    subgraph "用户界面 (Frontend - React + Vite)"
+        direction LR
+        A[页面与组件 Pages & Components] --> B(tRPC客户端 tRPC Client)
+    end
+
+    subgraph "应用服务 (Backend - Node.js + tRPC)"
+        direction TB
+        C[API路由层 API Router Layer] --> D{服务层 Service Layer}
+        D --> E[数据访问层 Data Access Layer]
+    end
+
+    subgraph "数据与外部服务 (Data & External)"
+        direction TB
+        F[数据库 Database] --> G((Amazon Ads API))
+    end
+
+    B --> C
+    E --> F
+    D --> G
+
+    style A fill:#cde4ff
+    style B fill:#cde4ff
+    style C fill:#d2ffd2
+    style D fill:#d2ffd2
+    style E fill:#d2ffd2
+    style F fill:#fff0c1
+    style G fill:#ffd1d1

@@ -14,10 +14,11 @@
  */
 
 // ==================== 导入纯算法函数 ====================
-import {
 import { createModuleLogger } from './utils/logger';
 
 const log = createModuleLogger('VerifyAlgo');
+
+import {
   sigmoid,
   sigmoidDerivative,
   fitSigmoidCurve,

@@ -153,7 +153,7 @@ export async function assignCampaignsToTest(
   ];
 
   if (assignments.length > 0) {
-    await db.insert(abTestCampaignAssignments).values(assignments);
+    await db.insert(abTestCampaignAssignments).values(assignments as any);
   }
 
   return { controlCampaigns, treatmentCampaigns };

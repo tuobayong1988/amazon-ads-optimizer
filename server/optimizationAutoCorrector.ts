@@ -1878,19 +1878,20 @@ let latestHealthReport: SyncHealthReport | null = null;
  */
 async function evaluateSyncHealth(database: any, scanResult: CorrectionScanResult): Promise<void> {
   try {
-    // 1. 查询最近7天的同步状态统计
+    // 1. v230: 查询最近7天的同步状态统计
+    // v230: 排除not_applicable状态，避免将不需要同步的操作计入失真
     const [syncStats] = await database.execute(sql`
       SELECT 
         COUNT(*) as total,
         SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as synced,
         SUM(CASE WHEN api_sync_status = 'failed' THEN 1 ELSE 0 END) as failed,
-        SUM(CASE WHEN api_sync_status IN ('pending', 'not_applicable') THEN 1 ELSE 0 END) as pending
+        SUM(CASE WHEN api_sync_status = 'pending' THEN 1 ELSE 0 END) as pending
       FROM optimization_events 
       WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
-        AND api_sync_status NOT IN ('legacy_unsynced', 'invalid_legacy')
+        AND api_sync_status NOT IN ('legacy_unsynced', 'invalid_legacy', 'not_applicable')
     `) as any;
     
-    // 2. 按操作类型统计同步率
+    // 2. v230: 按操作类型统计同步率，排除not_applicable
     const [typeStats] = await database.execute(sql`
       SELECT 
         action_type,
@@ -1898,7 +1899,7 @@ async function evaluateSyncHealth(database: any, scanResult: CorrectionScanResul
         SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as synced
       FROM optimization_events 
       WHERE created_at > DATE_SUB(NOW(), INTERVAL 7 DAY)
-        AND api_sync_status NOT IN ('legacy_unsynced', 'invalid_legacy')
+        AND api_sync_status NOT IN ('legacy_unsynced', 'invalid_legacy', 'not_applicable')
       GROUP BY action_type
     `) as any;
     

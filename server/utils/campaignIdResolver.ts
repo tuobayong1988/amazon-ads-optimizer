@@ -1,5 +1,5 @@
 /**
- * Amazon Ads Optimizer — Campaign ID Resolver (v222)
+ * Amazon Ads Optimizer — Campaign ID Resolver (v223)
  * 
  * 本模块是 campaignId 数据完整性的最终防线。
  * 
@@ -15,13 +15,13 @@
  * 3. 如果所有解析路径都失败，写入 'UNRESOLVED' 标记而非 0，
  *    便于后续追踪和修复
  * 
- * 4. 本模块依赖 db.ts 的查询函数，因此不能被 idTypes.ts 引用
- *    （idTypes.ts 是底层模块，不能有数据库依赖）
+ * 4. v223: 通过 dbQueryProvider 间接访问数据库，彻底消除与 db.ts 的循环依赖
  * ═══════════════════════════════════════════════════════════════════
  */
 
 import { createModuleLogger } from './logger';
 import { classifyCampaignId, isValidAmazonId } from './idTypes';
+import { queryAdGroupById, queryKeywordById, queryProductTargetById, queryDb } from './dbQueryProvider';
 
 const log = createModuleLogger('CampaignIdResolver');
 
@@ -159,9 +159,8 @@ async function resolveCampaignIdFromAdGroup(adGroupId: number): Promise<string |
   if (cached) return cached;
 
   try {
-    // 延迟导入避免循环依赖
-    const { getAdGroupById } = await import('../db');
-    const adGroup = await getAdGroupById(adGroupId);
+    // v223: 通过 dbQueryProvider 间接查询，避免循环依赖
+    const adGroup = await queryAdGroupById(adGroupId);
     if (adGroup && adGroup.campaignId) {
       const campaignId = String(adGroup.campaignId).trim();
       if (isValidAmazonId(campaignId) && classifyCampaignId(campaignId) !== 'local') {
@@ -182,15 +181,13 @@ async function resolveCampaignIdFromAdGroup(adGroupId: number): Promise<string |
  */
 async function resolveAdGroupIdFromTarget(targetLocalId: number, targetType: string): Promise<number | null> {
   try {
-    // 延迟导入避免循环依赖
-    const { getKeywordById, getProductTargetById } = await import('../db');
-    
+    // v223: 通过 dbQueryProvider 间接查询，避免循环依赖
     if (targetType === 'product_target') {
-      const target = await getProductTargetById(targetLocalId);
+      const target = await queryProductTargetById(targetLocalId);
       return target?.adGroupId || null;
     } else {
       // 默认按 keyword 处理
-      const keyword = await getKeywordById(targetLocalId);
+      const keyword = await queryKeywordById(targetLocalId);
       return keyword?.adGroupId || null;
     }
   } catch (err: any) {
@@ -211,12 +208,12 @@ export async function preloadCampaignIdCache(adGroupIds: number[]): Promise<void
   if (uncachedIds.length === 0) return;
 
   try {
-    const { getDb } = await import('../db');
+    // v223: 通过 dbQueryProvider 间接获取 db 实例
+    const db = await queryDb();
+    if (!db) return;
+
     const { adGroups } = await import('../../drizzle/schema');
     const { inArray } = await import('drizzle-orm');
-    
-    const db = await getDb();
-    if (!db) return;
 
     const results = await db.select({
       id: adGroups.id,

@@ -245,7 +245,7 @@ export async function collectCampaignPerformanceData(
     const budgetUtilization = currentBudget > 0 ? (dailyAvgSpend / currentBudget) * 100 : 0;
     
     results.push({
-      campaignId: campaign.campaignId,
+      campaignId: campaign.campaignId as any,
       campaignName: campaign.campaignName,
       currentBudget,
       // 7天数据
@@ -880,7 +880,7 @@ export async function applyBudgetAllocationSuggestions(
       // 获取广告活动当前预算
       const [campaign] = await dbInstance.select()
         .from(campaigns)
-        .where(eq(campaigns.id, suggestion.campaignId));
+        .where(eq(campaigns.id, Number(suggestion.campaignId)));
       
       if (!campaign) {
         errors.push(`广告活动ID ${suggestion.campaignId} 不存在`);
@@ -891,7 +891,7 @@ export async function applyBudgetAllocationSuggestions(
       // 更新广告活动预算
       await dbInstance.update(campaigns)
         .set({ dailyBudget: suggestion.suggestedBudget?.toString() })
-        .where(eq(campaigns.id, suggestion.campaignId));
+        .where(eq(campaigns.id, Number(suggestion.campaignId)));
       
       // 记录历史
       await dbInstance.insert(budgetAllocationHistory).values({
@@ -901,7 +901,7 @@ export async function applyBudgetAllocationSuggestions(
         newBudget: suggestion.suggestedBudget?.toString(),
         changeReason: suggestion.reason || 'auto',
         appliedBy: userId
-      });
+      } as any);
       
       // 更新建议状态
       await dbInstance.update(budgetAllocationSuggestions)

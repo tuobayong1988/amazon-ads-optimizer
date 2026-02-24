@@ -42,6 +42,7 @@ import {
 import { ENV } from './_core/env';
 import { createModuleLogger } from './utils/logger';
 import { guardCampaignIdParam, guardCampaignIdInsert, assertLocalId } from './utils/idTypes';
+import { registerDbQueryProviders } from './utils/dbQueryProvider';
 
 const log = createModuleLogger('Database');
 
@@ -58,6 +59,17 @@ export async function getDb() {
   }
   return _db;
 }
+
+// v223: 注册数据库查询提供者（延迟到模块加载完成后执行）
+// 使用 queueMicrotask 确保所有函数定义完成后再注册
+queueMicrotask(() => {
+  registerDbQueryProviders({
+    getAdGroupById: (id: number) => getAdGroupById(id),
+    getKeywordById: (id: number) => getKeywordById(id),
+    getProductTargetById: (id: number) => getProductTargetById(id),
+    getDb: () => getDb(),
+  });
+});
 
 // ==================== User Functions ====================
 export async function upsertUser(user: InsertUser): Promise<void> {
@@ -357,7 +369,7 @@ export async function getCampaignsWithPerformance(
     .groupBy(dailyPerformance.campaignId);
   
   // 创建绩效数据映射
-  const perfMap = new Map<number, typeof perfData[0]>();
+  const perfMap = new Map<string, typeof perfData[0]>();
   for (const p of perfData) {
     if (p.campaignId) {
       perfMap.set(p.campaignId, p);
@@ -365,7 +377,7 @@ export async function getCampaignsWithPerformance(
   }
   
   // 创建今日数据映射
-  const todayPerfMap = new Map<number, typeof todayPerfData[0]>();
+  const todayPerfMap = new Map<string, typeof todayPerfData[0]>();
   for (const p of todayPerfData) {
     if (p.campaignId) {
       todayPerfMap.set(p.campaignId, p);
@@ -386,7 +398,7 @@ export async function getCampaignsWithPerformance(
   
   // 合并数据 - 包含优化目标组名称和策略模板推荐
   return campaignList.map(campaign => {
-    const perf = perfMap.get(campaign.id);
+    const perf = perfMap.get(campaign.campaignId);
     const impressions = perf?.totalImpressions || 0;
     const clicks = perf?.totalClicks || 0;
     const spend = parseFloat(perf?.totalSpend || '0');
@@ -397,7 +409,7 @@ export async function getCampaignsWithPerformance(
     const group = campaign.performanceGroupId ? groupMap.get(campaign.performanceGroupId) : null;
     
     // v122h: 获取今日数据
-    const todayPerf = todayPerfMap.get(campaign.id);
+    const todayPerf = todayPerfMap.get(campaign.campaignId);
     const dailySpend = parseFloat(todayPerf?.todaySpend || '0');
     const dailySales = parseFloat(todayPerf?.todaySales || '0');
     const dailyImpressions = todayPerf?.todayImpressions || 0;
@@ -702,23 +714,23 @@ export async function createBiddingLog(log: InsertBiddingLog) {
       accountId: log.accountId || 0,
       eventCategory: 'bid_adjustment',
       actionType: bidChange > 0 ? 'bid_increase' : bidChange < 0 ? 'bid_decrease' : 'bid_set',
-      campaignId: safeCampaignId,
-      campaignName: (log as any).campaignName as string || undefined,
+      campaignId: Number(safeCampaignId) || null,
+      campaignName: (log as any).campaignName as string || null,
       keywordId: log.targetId,
-      keywordText: (log as any).keywordText as string || undefined,
-      matchType: log.logMatchType as string || undefined,
+      keywordText: (log as any).keywordText as string || null,
+      matchType: log.logMatchType as string || null,
       previousBid: String(log.previousBid || 0),
       newBid: String(log.newBid || 0),
       bidChangePercent: Number(log.previousBid) > 0 ? String(Math.round(bidChange / Number(log.previousBid) * 10000) / 100) : '0',
-      changeReason: log.reason as string || undefined,
-      adjustmentType: log.actionType as string || undefined,
+      changeReason: log.reason as string || null,
+      adjustmentType: log.actionType as string || null,
       status: 'success',
       apiSyncStatus: 'not_applicable',
       sourceTable: 'bidding_logs',
       sourceId: Number(logId),
     });
   } catch (e) {
-    log.error('[v145] 双写optimization_events失败(biddingLog):', e);
+    (log as any).error('[v145] 双写optimization_events失败(biddingLog):', e);
   }
   
   return logId;
@@ -958,7 +970,7 @@ export async function upsertDailyPerformanceFromAms(data: {
         conversions: 0,
         dataSource: 'ams',
         isFinalized: 0,
-      });
+      } as any);
     }
   }
   
@@ -1560,7 +1572,7 @@ export async function getBidChangeRecords(accountId: number, days: number): Prom
         const perfRows = await db.select()
           .from(dailyPerformance)
           .where(and(
-            eq(dailyPerformance.campaignId, String(log.campaignId)),
+            eq(dailyPerformance.campaignId, String((log as any).campaignId)),
             sql`DATE(${dailyPerformance.date}) >= ${changeDate.toISOString().split('T')[0]}`,
             sql`DATE(${dailyPerformance.date}) <= ${endDate.toISOString().split('T')[0]}`
           ));
@@ -1588,7 +1600,7 @@ export async function getBidChangeRecords(accountId: number, days: number): Prom
       targetId: bidRecord.targetId || 0,
       targetName: bidRecord.targetName || '',
       targetType: bidRecord.logTargetType as 'keyword' | 'product_target' | 'placement',
-      campaignId: bidRecord.campaignId || 0,
+      campaignId: bidRecord.campaignId || 0 as any,
       campaignName: '',
       oldBid,
       newBid,
@@ -1710,7 +1722,7 @@ export async function getCampaignHealthMetrics(accountId: number): Promise<Campa
     const changes = calculateMetricChanges(currentMetrics, historicalAverage);
     
     results.push({
-      campaignId: campaign.campaignId,
+      campaignId: campaign.campaignId as any,
       campaignName: campaign.campaignName,
       campaignType: campaign.campaignType as 'sp_auto' | 'sp_manual' | 'sb' | 'sd',
       currentMetrics,
@@ -1811,7 +1823,7 @@ export async function addNegativeKeyword(data: {
     negativeText: data.keyword,
     negativeMatchType: data.matchType === 'phrase' ? 'negative_phrase' : 'negative_exact',
     negativeSource: 'manual',
-  });
+  } as any);
 }
 
 
@@ -2371,7 +2383,7 @@ export async function addAttributionCorrectionRecord(data: {
     suggestedBid: data.suggestedBid?.toString() || null,
     confidenceScore: data.confidenceScore?.toString() || null,
     correctionStatus: 'pending_review',
-  });
+  } as any);
 }
 
 // Get correction review session
@@ -3151,7 +3163,7 @@ export async function recordBidAdjustment(data: {
     appliedBy: data.appliedBy,
     status: data.status || 'applied',
     errorMessage: data.errorMessage,
-  });
+  } as any);
   
   // v145: 双写到统一优化事件表
   try {
@@ -3241,7 +3253,7 @@ export async function recordBidAdjustmentBatch(records: Array<{
     };
   });
   
-  const result = await db.insert(bidAdjustmentHistory).values(values);
+  const result = await db.insert(bidAdjustmentHistory).values(values as any);
   return result;
 }
 
@@ -5021,7 +5033,7 @@ export async function createOptimizationLog(data: InsertOptimizationLog): Promis
     log.info(`[v212] 双写optimization_events成功: logId=${logId}, category=${resolvedCategory}, keywordId=${extractedKeywordId || 'N/A'}, apiSyncStatus=${finalApiSyncStatus}`);
   } catch (e) {
     log.error('[v212] 双写optimization_events失败:', (e as any).message || e);
-    log.error('[v212] 双写失败详情: logCategory=', data.logCategory, 'actionType=', data.actionType);
+    log.error(`[v212] 双写失败详情: logCategory=${data.logCategory} actionType=${data.actionType}`);
   }
   
   return logId;
@@ -5408,7 +5420,7 @@ export async function migrateFromBiddingLogs(accountId: number): Promise<number>
     sourceTable: 'bidding_logs',
     sourceId: log.id,
     createdAt: log.createdAt,
-  }));
+  } as any));
   
   await db.insert(optimizationEvents).values(events);
   return events.length;
@@ -5640,7 +5652,7 @@ export async function runAutoMigration(): Promise<{ success: boolean; migrated: 
     }
     
     const totalMigrated = Object.values(migrated).reduce((a, b) => a + b, 0);
-    log.info(`[AutoMigration] 完成: 共迁移 ${totalMigrated} 条记录`, migrated, '跳过:', skipped);
+    log.info(`[AutoMigration] 完成: 共迁移 ${totalMigrated} 条记录`, { migrated, skipped });
     
     return { success: true, migrated, skipped };
   } catch (err: any) {
@@ -5668,7 +5680,7 @@ export async function getGoalProgressTrendData(performanceGroupId: number, group
     
     if (groupCampaigns.length === 0) return { before: null, after: null };
     
-    const campaignIds = groupCampaigns.map(c => c.id);
+    const campaignIds = groupCampaigns.map(c => (c as any).campaignId);
     
     // 加入前的数据（优化目标创建日期之前）
     const beforeData = await db.select({
@@ -5726,7 +5738,7 @@ export async function getMultiWindowTrendData(performanceGroupId: number, groupC
     
     if (groupCampaigns.length === 0) return null;
     
-    const campaignIds = groupCampaigns.map(c => c.id);
+    const campaignIds = groupCampaigns.map(c => (c as any).campaignId);
     const createdDate = new Date(groupCreatedAt).toISOString().split('T')[0];
     const now = new Date();
     
@@ -5804,7 +5816,7 @@ export async function getTimeWeightedMetricsForGoalProgress(performanceGroupId: 
     
     if (groupCampaigns.length === 0) return null;
     
-    const campaignIds = groupCampaigns.map(c => c.id);
+    const campaignIds = groupCampaigns.map(c => (c as any).campaignId);
     const now = new Date();
     const startDate = new Date(now);
     startDate.setDate(startDate.getDate() - 90);

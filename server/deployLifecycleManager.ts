@@ -36,7 +36,7 @@ import { optimizationEvents } from '../drizzle/schema';
 import { sql, eq, and, desc } from 'drizzle-orm';
 import { stopDataSyncScheduler, stopOptimizationScheduler } from './dataSyncScheduler';
 import { stopSQSConsumer } from './sqsConsumerService';
-import { SYSTEM_VERSION } from './postDeployOptimizer';
+import { SYSTEM_VERSION } from './utils/systemVersion';
 import { reportJobScheduler } from './services/reportJobScheduler';
 import { createModuleLogger } from './utils/logger';
 
@@ -106,7 +106,7 @@ export function registerGracefulShutdown(server: any): void {
   // 未捕获异常的安全处理
   process.on('uncaughtException', async (error) => {
     log.error(`[LifecycleManager] 未捕获异常: ${error.message}`);
-    log.error(error.stack);
+    log.error(error.stack as any);
     await handleShutdown('uncaughtException');
   });
   
@@ -590,7 +590,7 @@ export async function recoverInterruptedTasks(): Promise<number> {
  */
 export async function flushPendingTasks(): Promise<void> {
   try {
-    const { processSyncQueue } = await import('./optimizationSyncEngine');
+    const { processSyncQueue } = await import('./optimizationSyncEngine') as any;
     if (typeof processSyncQueue === 'function') {
       log.info('[LifecycleManager] 触发同步引擎处理pending任务...');
       const result = await processSyncQueue({});

@@ -508,13 +508,13 @@ async function executeTieredSyncForAccount(request: QueuedRequest): Promise<void
         status: 'completed',
         startedAt: syncEndTime.toISOString().slice(0, 19).replace('T', ' '),
         completedAt: syncEndTime.toISOString().slice(0, 19).replace('T', ' '),
-        spCampaigns: result?.spCampaigns || result?.campaigns || 0,
-        sbCampaigns: result?.sbCampaigns || 0,
-        sdCampaigns: result?.sdCampaigns || 0,
-        adGroupsSynced: result?.adGroups || 0,
-        keywordsSynced: result?.keywords || 0,
-        targetsSynced: result?.targets || 0,
-        performanceSynced: result?.performance || 0,
+        spCampaigns: (result as any)?.spCampaigns || (result as any)?.campaigns || 0,
+        sbCampaigns: (result as any)?.sbCampaigns || 0,
+        sdCampaigns: (result as any)?.sdCampaigns || 0,
+        adGroupsSynced: (result as any)?.adGroups || 0,
+        keywordsSynced: (result as any)?.keywords || 0,
+        targetsSynced: (result as any)?.targets || 0,
+        performanceSynced: (result as any)?.performance || 0,
       });
     }
   } catch (logErr: any) {
@@ -1809,6 +1809,15 @@ async function executeOptimizationTask(taskType: OptimizationTaskType): Promise<
             } catch (err: any) {
               log.error(`  - 账户${target.accountId} NextGen维护失败: ${err.message}`);
             }
+          }
+          
+          // v230: 回填bidPerformanceHistory中的绩效数据
+          try {
+            const { backfillBidPerformanceResults } = await import('./rlDataRecorder');
+            const backfillResult = await backfillBidPerformanceResults();
+            log.info(`[OptimizationScheduler] v230: bidPerformanceHistory回填完成: updated=${backfillResult.updated}, skipped=${backfillResult.skipped}`);
+          } catch (bErr: any) {
+            log.error(`[OptimizationScheduler] v230: bidPerformanceHistory回填失败: ${bErr.message}`);
           }
         } catch (err: any) {
           log.error(`[OptimizationScheduler] v197: NextGen维护失败:`, err.message);

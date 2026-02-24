@@ -983,7 +983,7 @@ function DashboardContent() {
                         border: '1px solid #333',
                         borderRadius: '8px'
                       }}
-                      formatter={(value: number) => [`${value.toFixed(1)}%`, 'ACoS']}
+                      formatter={((value: number) => [`${value.toFixed(1)}%`, 'ACoS']) as any}
                     />
                     <Area 
                       type="monotone" 

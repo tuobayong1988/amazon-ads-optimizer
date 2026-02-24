@@ -688,7 +688,7 @@ export class AmazonAdsApiClient {
           nextToken = response.data.nextToken;
           log.debug(`[SP API] Fetched ${keywords.length} keywords, total: ${allKeywords.length}, hasMore: ${!!nextToken}`);
         } catch (error: any) {
-          log.error('[SP API] Error fetching keywords:', error.message, error.response?.data ? JSON.stringify(error.response.data).slice(0, 200) : '');
+          log.error(`[SP API] Error fetching keywords: ${error.message} ${error.response?.data ? JSON.stringify(error.response.data).slice(0, 200) : ''}`);
           throw error;
         }
       } else {
@@ -2130,13 +2130,7 @@ export class AmazonAdsApiClient {
             'newToBrandSalesClicks',             // Excel: newToBrandSalesClicks - 14天新品牌销售额(点击)
             'newToBrandUnitsSoldClicks'          // Excel: newToBrandUnitsSoldClicks - 14天新品牌单位(点击)
           ],
-          // 添加filters配置
-          filters: [
-            {
-              field: 'campaignStatus',
-              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
-            }
-          ],
+          // v230: SD报告不支持filters参数（会导致400错误），已移除
           reportTypeId: 'sdTargeting',
           timeUnit: 'SUMMARY',
           format: 'GZIP_JSON',
@@ -2215,13 +2209,7 @@ export class AmazonAdsApiClient {
             'newToBrandSalesClicks',             // Excel: newToBrandSalesClicks - 14天新品牌销量(点击)
             'newToBrandUnitsSoldClicks'          // Excel: newToBrandUnitsSoldClicks - 14天新品牌销量(点击)
           ],
-          // 添加filters配置
-          filters: [
-            {
-              field: 'campaignStatus',
-              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
-            }
-          ],
+          // v230: SD报告不支持filters参数（会导致400错误），已移除
           reportTypeId: 'sdAdvertisedProduct',
           timeUnit: 'DAILY',
           format: 'GZIP_JSON',
@@ -2281,13 +2269,7 @@ export class AmazonAdsApiClient {
             'purchases',                         // Excel: purchases - 14天订单总数
             'unitsSold'                          // Excel: unitsSold - 14天单位总数
           ],
-          // 添加filters配置
-          filters: [
-            {
-              field: 'campaignStatus',
-              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
-            }
-          ],
+          // v230: SD报告不支持filters参数（会导致400错误），已移除
           reportTypeId: 'sdMatchedTarget',
           timeUnit: 'SUMMARY',
           format: 'GZIP_JSON',
@@ -2701,12 +2683,7 @@ export class AmazonAdsApiClient {
             'viewabilityRate',
             'viewClickThroughRate'
           ],
-          filters: [
-            {
-              field: 'campaignStatus',
-              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
-            }
-          ],
+          // v230: SD报告不支持filters参数（会导致400错误），已移除
           reportTypeId: 'sdAdGroup',
           timeUnit: 'DAILY',
           format: 'GZIP_JSON',
@@ -2763,12 +2740,7 @@ export class AmazonAdsApiClient {
             'newToBrandPurchases',
             'newToBrandUnitsSold'
           ],
-          filters: [
-            {
-              field: 'campaignStatus',
-              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
-            }
-          ],
+          // v230: SD报告不支持filters参数（会导致400错误），已移除
           reportTypeId: 'sdPurchasedProduct',
           timeUnit: 'DAILY',
           format: 'GZIP_JSON',
@@ -2925,12 +2897,7 @@ export class AmazonAdsApiClient {
             'invalidImpressionRate',
             'invalidClickThroughRate'
           ],
-          filters: [
-            {
-              field: 'campaignStatus',
-              values: ['ARCHIVED', 'ENABLED', 'PAUSED']
-            }
-          ],
+          // v230: SD报告不支持filters参数（会导致400错误），已移除
           reportTypeId: 'sdGrossAndInvalids',
           timeUnit: 'DAILY',
           format: 'GZIP_JSON',
@@ -3194,20 +3161,30 @@ export class AmazonAdsApiClient {
         body.nextToken = nextToken;
       }
       
-      const response = await this.axiosInstance.post('/sb/v4/targets/list', 
-        body,
-        {
-          headers: {
-            'Content-Type': 'application/vnd.sbtargetresource.v4+json',
-            'Accept': 'application/vnd.sbtargetresource.v4+json',
-          },
+      // v230: SB targets API使用v4端点，添加错误处理和降级逻辑
+      try {
+        const response = await this.axiosInstance.post('/sb/v4/targets/list', 
+          body,
+          {
+            headers: {
+              'Content-Type': 'application/vnd.sbtargetresource.v4+json',
+              'Accept': 'application/vnd.sbtargetresource.v4+json',
+            },
+          }
+        );
+        
+        const targets = response.data.targets || [];
+        allTargets.push(...targets);
+        nextToken = response.data.nextToken;
+        log.debug(`[SB API] Fetched ${targets.length} targets, total: ${allTargets.length}, hasMore: ${!!nextToken}`);
+      } catch (error: any) {
+        // v230: 如果v4返回404，可能是账户未开通SB广告或无商品定向，不应导致整个同步失败
+        if (error.response?.status === 404) {
+          log.warn(`[SB API] v230: SB targets/list返回404，该账户可能未开通SB商品定向功能，跳过`);
+          return [];
         }
-      );
-      
-      const targets = response.data.targets || [];
-      allTargets.push(...targets);
-      nextToken = response.data.nextToken;
-      log.debug(`[SB API] Fetched ${targets.length} targets, total: ${allTargets.length}, hasMore: ${!!nextToken}`);
+        throw error;
+      }
     } while (nextToken);
     
     log.debug(`[SB API] Total targets fetched: ${allTargets.length}`);
@@ -4104,7 +4081,7 @@ export class AmazonAdsApiClient {
           const decompressed = zlib.gunzipSync(Buffer.from(reportResponse.data));
           const reportData = JSON.parse(decompressed.toString('utf-8'));
           
-          log.info('[Amazon API V2] 报告下载完成，共', Array.isArray(reportData) ? reportData.length : 0, '条记录');
+          log.info(`[Amazon API V2] 报告下载完成，共 ${Array.isArray(reportData) ? reportData.length : 0} 条记录`);
           return Array.isArray(reportData) ? reportData : [];
         } else if (status.status === 'FAILURE') {
           log.error('[Amazon API V2] 报告生成失败');
@@ -4143,7 +4120,7 @@ export class AmazonAdsApiClient {
           allData.push(row);
         }
       }
-      log.debug('[Amazon API] V3 SB报告获取', v3Data.length, '条记录');
+      log.debug(`[Amazon API] V3 SB报告获取 ${v3Data.length} 条记录`);
     } catch (error: any) {
       log.error('[Amazon API] V3 SB报告失败:', error.message);
     }
@@ -4182,14 +4159,14 @@ export class AmazonAdsApiClient {
             }
           }
         } catch (error: any) {
-          log.error('[Amazon API V2] 日期', dateStr, '报告失败:', error.message);
+          log.error(`[Amazon API V2] 日期 ${dateStr} 报告失败: ${error.message}`);
         }
       }
     } catch (error: any) {
       log.error('[Amazon API] V2 SB报告失败:', error.message);
     }
     
-     log.debug('[Amazon API] 完整SB报告共', allData.length, '条记录');
+     log.debug(`[Amazon API] 完整SB报告共 ${allData.length} 条记录`);
     return allData;
   }
 
@@ -4544,7 +4521,7 @@ export async function validateCredentials(credentials: AmazonApiCredentials): Pr
     const client = new AmazonAdsApiClient(credentials);
     log.info('[validateCredentials] 客户端创建成功，开始获取profiles...');
     const profiles = await client.getProfiles();
-    log.debug('[validateCredentials] 获取到', profiles.length, '个profiles');
+    log.debug(`[validateCredentials] 获取到 ${profiles.length} 个profiles`);
     return true;
   } catch (error: any) {
     log.error('[validateCredentials] 验证失败:', {

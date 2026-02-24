@@ -224,10 +224,10 @@ export default function AdvancedAnalyticsDashboard() {
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                           <YAxis />
-                          <Tooltip formatter={(value: number, name: string) => [
+                          <Tooltip formatter={((value: number, name: string) => [
                             name === 'score' ? `${value}分` : `$${value.toFixed(2)}`,
                             name === 'score' ? '效果评分' : '销售额变化'
-                          ]} />
+                          ]) as any} />
                           <Bar dataKey="score" name="效果评分">
                             {attribution.results.map((entry: any, index: number) => (
                               <Cell key={index} fill={entry.effectScore >= 10 ? '#10b981' : entry.effectScore >= -10 ? '#6b7280' : '#ef4444'} />
@@ -521,10 +521,10 @@ export default function AdvancedAnalyticsDashboard() {
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis type="number" />
                           <YAxis dataKey="name" type="category" width={120} tick={{ fontSize: 11 }} />
-                          <Tooltip formatter={(value: number, name: string) => [
+                          <Tooltip formatter={((value: number, name: string) => [
                             name === 'events' ? value : `${value.toFixed(1)}%`,
                             name === 'events' ? '事件数' : name === 'successRate' ? '成功率' : '7天ROI'
-                          ]} />
+                          ]) as any} />
                           <Legend />
                           <Bar dataKey="events" name="事件数" fill="#3b82f6" />
                           <Bar dataKey="successRate" name="成功率%" fill="#10b981" />

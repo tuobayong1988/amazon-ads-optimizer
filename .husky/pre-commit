@@ -1,0 +1,40 @@
+#!/bin/sh
+# Pre-commit hook: 在代码提交前执行编译检查和核心测试
+# 确保不会将编译错误或破坏性变更提交到仓库
+
+echo "🔍 Running pre-commit checks..."
+
+# 1. TypeScript 编译检查
+echo "📋 Step 1/3: TypeScript compile check..."
+npx tsc --noEmit 2>/dev/null
+if [ $? -ne 0 ]; then
+  echo "❌ TypeScript compilation failed. Please fix all type errors before committing."
+  echo "   Run 'npx tsc --noEmit' to see detailed errors."
+  exit 1
+fi
+echo "✅ TypeScript compilation passed."
+
+# 2. 核心单元测试
+echo "🧪 Step 2/3: Running core unit tests..."
+npx vitest run server/__tests__/ --reporter=dot 2>/dev/null
+if [ $? -ne 0 ]; then
+  echo "❌ Core unit tests failed. Please fix failing tests before committing."
+  echo "   Run 'npx vitest run server/__tests__/ --reporter=verbose' to see details."
+  exit 1
+fi
+echo "✅ Core unit tests passed."
+
+# 3. 检查新增的 @ts-expect-error（不允许新增）
+echo "📝 Step 3/3: Checking for new @ts-expect-error annotations..."
+staged_files=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(ts|tsx)$')
+if [ -n "$staged_files" ]; then
+  new_ts_expect=$(echo "$staged_files" | xargs grep -l "@ts-expect-error" 2>/dev/null | wc -l)
+  if [ "$new_ts_expect" -gt 0 ]; then
+    echo "⚠️  Warning: Staged files contain @ts-expect-error annotations."
+    echo "   Consider replacing with proper type definitions."
+  fi
+fi
+echo "✅ Code quality check passed."
+
+echo ""
+echo "🎉 All pre-commit checks passed! Proceeding with commit."

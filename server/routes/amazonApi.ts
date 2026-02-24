@@ -1,0 +1,2383 @@
+/**
+ * Amazon API集成路由
+ * 从 routers.ts 拆分的独立路由模块
+ */
+import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
+import { z } from "zod";
+import { TRPCError } from "@trpc/server";
+import * as db from "../db";
+import { AmazonAdsApiClient, validateCredentials, API_ENDPOINTS, MARKETPLACE_TO_REGION } from '../amazonAdsApi';
+import { AmazonSyncService } from '../amazonSyncService';
+import { runAutoBidOptimization } from '../services/sync/autoBidOptimization';
+import '../services/sync/syncWithTracking'; // 注册 WithTracking prototype 方法
+import { getSQSConsumer, startSQSConsumer, stopSQSConsumer } from '../sqsConsumerService';
+import { accountInitializationService } from '../services/accountInitializationService';
+import { eq, and, gte, lte, desc } from 'drizzle-orm';
+
+
+// ==================== Amazon API Integration Router ====================
+
+export const amazonApiRouter = router({
+  // Generate OAuth authorization URL for specific region
+  getAuthUrl: protectedProcedure
+    .input(z.object({
+      clientId: z.string(),
+      redirectUri: z.string(),
+      region: z.enum(['NA', 'EU', 'FE']).optional().default('NA'),
+    }))
+    .query(({ input }) => {
+      const authUrl = AmazonAdsApiClient.generateAuthUrl(
+        input.clientId,
+        input.redirectUri,
+        input.region,
+        `user_${Date.now()}`
+      );
+      return { authUrl };
+    }),
+
+  // Generate OAuth authorization URLs for all regions
+  getAllRegionAuthUrls: protectedProcedure
+    .input(z.object({
+      clientId: z.string(),
+      redirectUri: z.string(),
+    }))
+    .query(({ input }) => {
+      const urls = AmazonAdsApiClient.generateAllRegionAuthUrls(
+        input.clientId,
+        input.redirectUri,
+        `user_${Date.now()}`
+      );
+      return { urls };
+    }),
+
+  // Exchange authorization code for tokens
+  exchangeCode: protectedProcedure
+    .input(z.object({
+      code: z.string(),
+      clientId: z.string().optional(),
+      clientSecret: z.string().optional(),
+      redirectUri: z.string().optional(),
+      region: z.enum(['NA', 'EU', 'FE']).optional(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        // 使用服务器端环境变量作为默认值，确保紫鸟浏览器手动授权流程能正常工作
+        const clientId = input.clientId || process.env.AMAZON_ADS_CLIENT_ID || '';
+        const clientSecret = input.clientSecret || process.env.AMAZON_ADS_CLIENT_SECRET || '';
+        const redirectUri = input.redirectUri || 'https://sellerps.com';
+        const region = input.region || 'NA';
+        
+        if (!clientId || !clientSecret) {
+          throw new Error('缺少Amazon API凭证。请在系统设置中配置AMAZON_ADS_CLIENT_ID和AMAZON_ADS_CLIENT_SECRET环境变量。');
+        }
+        
+        console.log('[ExchangeCode] Exchanging code for tokens...', {
+          codeLength: input.code.length,
+          clientIdPrefix: clientId.substring(0, 20) + '...',
+          redirectUri,
+          region,
+        });
+        
+        const tokens = await AmazonAdsApiClient.exchangeCodeForToken(
+          input.code,
+          clientId,
+          clientSecret,
+          redirectUri
+        );
+        
+        console.log('[ExchangeCode] Token exchange successful');
+        
+        // 尝试获取Profile列表
+        let profiles: Array<{ profileId: string; countryCode: string; accountName: string }> = [];
+        try {
+          console.log('[ExchangeCode] Creating client to fetch profiles...');
+          const client = new AmazonAdsApiClient({
+            clientId,
+            clientSecret,
+            refreshToken: tokens.refresh_token,
+            profileId: '', // 获取profiles不需要profileId
+            region,
+          });
+          console.log('[ExchangeCode] Calling getProfiles()...');
+          const profileList = await client.getProfiles();
+          console.log('[ExchangeCode] Raw profile list:', JSON.stringify(profileList, null, 2));
+          profiles = profileList.map(p => ({
+            profileId: String(p.profileId),
+            countryCode: p.countryCode || '',
+            accountName: p.accountInfo?.name || `Profile ${p.profileId}`,
+          }));
+          console.log('[ExchangeCode] Fetched profiles:', profiles.length, profiles);
+        } catch (profileError: any) {
+          console.error('[ExchangeCode] Failed to fetch profiles:', profileError.message);
+          console.error('[ExchangeCode] Profile error details:', profileError.response?.data || profileError.stack);
+          // 不抛出错误，继续返回其他信息
+        }
+        
+        return {
+          success: true,
+          accessToken: tokens.access_token,
+          refreshToken: tokens.refresh_token,
+          expiresIn: tokens.expires_in,
+          // 返回凭证信息供前端自动填充
+          clientId,
+          clientSecret,
+          profiles,
+        };
+      } catch (error: any) {
+        console.error('[ExchangeCode] Token exchange failed:', error.response?.data || error.message);
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: `授权码换取失败: ${error.response?.data?.error_description || error.response?.data?.error || error.message}`,
+        });
+      }
+    }),
+
+  // Save API credentials
+  saveCredentials: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      clientId: z.string(),
+      clientSecret: z.string(),
+      refreshToken: z.string(),
+      profileId: z.string(),
+      region: z.enum(['NA', 'EU', 'FE']),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // 添加详细日志
+      console.log('[saveCredentials] 收到保存凭证请求:', {
+        accountId: input.accountId,
+        clientIdPrefix: input.clientId?.substring(0, 30) + '...',
+        clientSecretPrefix: input.clientSecret?.substring(0, 20) + '...',
+        refreshTokenPrefix: input.refreshToken?.substring(0, 20) + '...',
+        profileId: input.profileId,
+        region: input.region,
+      });
+      
+      // 检查必填字段
+      if (!input.clientId || !input.clientSecret || !input.refreshToken) {
+        console.error('[saveCredentials] 缺少必填字段');
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: '缺少必填的API凭证字段',
+        });
+      }
+      
+      // Validate credentials before saving
+      console.log('[saveCredentials] 开始验证凭证...');
+      const isValid = await validateCredentials({
+        clientId: input.clientId,
+        clientSecret: input.clientSecret,
+        refreshToken: input.refreshToken,
+        profileId: input.profileId,
+        region: input.region,
+      });
+      console.log('[saveCredentials] 验证结果:', isValid);
+
+      if (!isValid) {
+        console.error('[saveCredentials] 凭证验证失败');
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: 'Invalid API credentials. Please check your credentials and try again.',
+        });
+      }
+
+      // Save credentials to database
+      await db.saveAmazonApiCredentials({
+        accountId: input.accountId,
+        clientId: input.clientId,
+        clientSecret: input.clientSecret,
+        refreshToken: input.refreshToken,
+        profileId: input.profileId,
+        region: input.region,
+      });
+
+      // 更新账号的连接状态为已连接
+      await db.updateAdAccount(input.accountId, {
+        connectionStatus: 'connected',
+      });
+
+      // ✅ 授权成功后执行完整初始化（全量同步 + 定时调度 + AMS订阅）
+      const accountInfo = await db.getAdAccountById(input.accountId);
+      const marketplace = accountInfo?.marketplace || 'US';
+      
+      const { initializeAccount } = await import('../accountInitializationService');
+      
+      // 异步执行初始化，不阻塞返回
+      const initPromise = initializeAccount({
+        accountId: input.accountId,
+        userId: ctx.user.id,
+        clientId: input.clientId,
+        clientSecret: input.clientSecret,
+        refreshToken: input.refreshToken,
+        profileId: input.profileId,
+        region: input.region as 'NA' | 'EU' | 'FE',
+        marketplace,
+      });
+      
+      initPromise.then(initResult => {
+        console.log(`[授权后初始化] 账号 ${input.accountId} (${marketplace}) 初始化完成:`, {
+          sync: initResult.syncResult.success ? '✅' : '❌',
+          schedule: initResult.scheduleResult.success ? '✅' : '❌',
+          ams: initResult.amsResult.success ? '✅' : '❌',
+        });
+      }).catch(err => {
+        console.error(`[授权后初始化] 账号 ${input.accountId} 初始化失败:`, err);
+      });
+
+      return { 
+        success: true,
+        syncResult: { campaigns: 0, adGroups: 0, keywords: 0, targets: 0, performance: 0, error: null as string | null },
+      };
+    }),
+
+  // Save credentials for multiple profiles (multi-marketplace authorization)
+  saveMultipleProfiles: protectedProcedure
+    .input(z.object({
+      storeName: z.string(),
+      existingStoreName: z.string().optional(), // 已有店铺名称，用于将新站点添加到已有店铺
+      clientId: z.string(),
+      clientSecret: z.string(),
+      refreshToken: z.string(),
+      region: z.enum(['NA', 'EU', 'FE']),
+      profiles: z.array(z.object({
+        profileId: z.string(),
+        countryCode: z.string(),
+        accountName: z.string(),
+      })),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // 优先使用existingStoreName（已有店铺名称），否则使用storeName
+      const effectiveStoreName = input.existingStoreName || input.storeName;
+      
+      console.log('[saveMultipleProfiles] 收到多站点授权请求:', {
+        storeName: input.storeName,
+        existingStoreName: input.existingStoreName,
+        effectiveStoreName,
+        profilesCount: input.profiles.length,
+        profiles: input.profiles.map(p => ({ profileId: p.profileId, countryCode: p.countryCode })),
+        region: input.region,
+      });
+
+      // 检查必填字段
+      if (!input.clientId || !input.clientSecret || !input.refreshToken) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: '缺少必填的API凭证字段',
+        });
+      }
+
+      if (input.profiles.length === 0) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message: '至少需要一个Profile',
+        });
+      }
+
+      // 国家代码到市场名称的映射
+      const countryToMarketplace: Record<string, string> = {
+        'US': '美国', 'CA': '加拿大', 'MX': '墨西哥', 'BR': '巴西',
+        'UK': '英国', 'DE': '德国', 'FR': '法国', 'IT': '意大利',
+        'ES': '西班牙', 'NL': '荷兰', 'SE': '瑞典', 'PL': '波兰',
+        'JP': '日本', 'AU': '澳大利亚', 'SG': '新加坡',
+        'AE': '阿联酋', 'SA': '沙特阿拉伯', 'IN': '印度',
+      };
+
+      const results: Array<{
+        profileId: string;
+        countryCode: string;
+        accountId: number;
+        success: boolean;
+        error?: string;
+      }> = [];
+
+      // 先检查是否存在空店铺占位记录（marketplace为空），如果存在则删除
+      const allAccounts = await db.getAdAccountsByUserId(ctx.user.id);
+      const emptyStoreRecord = allAccounts.find(
+        a => a.storeName === effectiveStoreName && (!a.marketplace || a.marketplace === '')
+      );
+      if (emptyStoreRecord) {
+        console.log(`[saveMultipleProfiles] 删除空店铺占位记录 ${emptyStoreRecord.id}`);
+        await db.deleteAdAccount(emptyStoreRecord.id);
+      }
+
+      // 为每个profile创建账号和保存凭证
+      for (const profile of input.profiles) {
+        try {
+          const marketplaceName = countryToMarketplace[profile.countryCode] || profile.countryCode;
+          // 保存国家代码（如US, CA, MX），而不是中文名称，以便前端正确显示国旗
+          const marketplaceCode = profile.countryCode;
+          
+          // 检查是否已存在相同profileId的账号
+          const existingAccounts = await db.getAdAccountsByUserId(ctx.user.id);
+          const existingAccountByProfileId = existingAccounts.find(a => a.profileId === profile.profileId);
+          
+          // 同时检查同一店铺下是否已存在相同国家的站点（避免重复）
+          const existingAccountByCountry = existingAccounts.find(
+            a => a.storeName === effectiveStoreName && a.marketplace === marketplaceCode
+          );
+          
+          let accountId: number;
+          
+          if (existingAccountByProfileId) {
+            // 更新现有账号（按profileId匹配）
+            accountId = existingAccountByProfileId.id;
+            // 更新店铺名称和marketplace代码
+            await db.updateAdAccount(accountId, {
+              storeName: effectiveStoreName,
+              marketplace: marketplaceCode,
+            });
+            console.log(`[saveMultipleProfiles] 更新现有账号 ${accountId} (${profile.countryCode}) - 按profileId匹配`);
+          } else if (existingAccountByCountry) {
+            // 更新现有账号（同店铺同国家）
+            accountId = existingAccountByCountry.id;
+            // 更新profileId和其他信息
+            await db.updateAdAccount(accountId, {
+              profileId: profile.profileId,
+              accountId: profile.profileId,
+            });
+            console.log(`[saveMultipleProfiles] 更新现有账号 ${accountId} (${profile.countryCode}) - 按店铺+国家匹配`);
+          } else {
+            // 创建新账号 - createAdAccount返回insertId数字
+            // 使用effectiveStoreName确保新站点添加到正确的店铺下
+            accountId = await db.createAdAccount({
+              userId: ctx.user.id,
+              storeName: effectiveStoreName,
+              accountName: `${effectiveStoreName} ${marketplaceName}`,
+              accountId: profile.profileId,
+              marketplace: marketplaceCode,  // 保存国家代码（如US, CA, MX）
+              profileId: profile.profileId,
+              connectionStatus: 'pending',
+            });
+            console.log(`[saveMultipleProfiles] 创建新账号 ${accountId} (${profile.countryCode})`);
+          }
+
+          // 保存API凭证
+          await db.saveAmazonApiCredentials({
+            accountId,
+            clientId: input.clientId,
+            clientSecret: input.clientSecret,
+            refreshToken: input.refreshToken,
+            profileId: profile.profileId,
+            region: input.region,
+          });
+
+          // 更新账号连接状态
+          await db.updateAdAccount(accountId, {
+            connectionStatus: 'connected',
+          });
+
+          results.push({
+            profileId: profile.profileId,
+            countryCode: profile.countryCode,
+            accountId,
+            success: true,
+          });
+
+          console.log(`[saveMultipleProfiles] 账号 ${accountId} (${profile.countryCode}) 凭证保存成功`);
+        } catch (error: any) {
+          console.error(`[saveMultipleProfiles] 处理 ${profile.countryCode} 失败:`, error);
+          results.push({
+            profileId: profile.profileId,
+            countryCode: profile.countryCode,
+            accountId: 0,
+            success: false,
+            error: error.message,
+          });
+        }
+      }
+
+      // ✅ 为所有成功创建的账号执行完整初始化（全量同步 + 定时调度 + AMS订阅）
+      const successfulAccounts = results.filter(r => r.success);
+      const { initializeMultipleAccounts } = await import('../accountInitializationService');
+      
+      // 异步执行初始化，不阻塞返回
+      initializeMultipleAccounts(
+        successfulAccounts.map(account => ({
+          accountId: account.accountId,
+          userId: ctx.user.id,
+          clientId: input.clientId,
+          clientSecret: input.clientSecret,
+          refreshToken: input.refreshToken,
+          profileId: account.profileId,
+          region: input.region as 'NA' | 'EU' | 'FE',
+          marketplace: account.countryCode || 'US',
+        }))
+      ).then(initResults => {
+        for (const initResult of initResults) {
+          console.log(`[saveMultipleProfiles] 账号 ${initResult.accountId} (${initResult.marketplace}) 初始化完成:`, {
+            sync: initResult.syncResult.success ? '✅' : '❌',
+            schedule: initResult.scheduleResult.success ? '✅' : '❌',
+            ams: initResult.amsResult.success ? '✅' : '❌',
+          });
+        }
+      }).catch(err => {
+        console.error(`[saveMultipleProfiles] 批量初始化失败:`, err);
+      });
+
+      return {
+        success: true,
+        totalProfiles: input.profiles.length,
+        successCount: successfulAccounts.length,
+        failedCount: results.filter(r => !r.success).length,
+        results,
+      };
+    }),
+
+  // Get API credentials status
+  getCredentialsStatus: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      const credentials = await db.getAmazonApiCredentials(input.accountId);
+      if (!credentials) {
+        return {
+          hasCredentials: false,
+          region: undefined,
+          lastSyncAt: undefined,
+          // 返回空的凭证信息
+          clientId: undefined,
+          clientSecret: undefined,
+          refreshToken: undefined,
+          profileId: undefined,
+        };
+      }
+      
+      // 返回脱敏后的凭证信息，用于前端显示
+      return {
+        hasCredentials: true,
+        region: credentials.region,
+        lastSyncAt: credentials.lastSyncAt,
+        // 返回完整的Client ID（不是敏感信息）
+        clientId: credentials.clientId,
+        // Client Secret脱敏，只显示前几位
+        clientSecret: credentials.clientSecret ? `${credentials.clientSecret.substring(0, 8)}${'*'.repeat(20)}` : undefined,
+        // Refresh Token脱敏，只显示前缀
+        refreshToken: credentials.refreshToken ? `${credentials.refreshToken.substring(0, 10)}${'*'.repeat(20)}` : undefined,
+        // 返回完整的Profile ID（不是敏感信息）
+        profileId: credentials.profileId,
+      };
+    }),
+
+  // Check Token health and expiration status
+  checkTokenHealth: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      const credentials = await db.getAmazonApiCredentials(input.accountId);
+      if (!credentials) {
+        return {
+          status: 'not_configured' as const,
+          message: '未配置API凭证',
+          isHealthy: false,
+          needsReauth: true,
+        };
+      }
+
+      try {
+        // Try to refresh token to check if it's still valid
+        const client = new AmazonAdsApiClient({
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+          profileId: credentials.profileId,
+          region: credentials.region as 'NA' | 'EU' | 'FE',
+        });
+
+        // Try to get profiles as a health check
+        await client.getProfiles();
+
+        // Calculate token age (if we had token creation time)
+        const lastSyncAt = credentials.lastSyncAt;
+        const daysSinceSync = lastSyncAt 
+          ? Math.floor((Date.now() - new Date(lastSyncAt).getTime()) / (1000 * 60 * 60 * 24))
+          : null;
+
+        // Warn if no sync in 7+ days
+        const syncWarning = daysSinceSync !== null && daysSinceSync > 7;
+
+        return {
+          status: 'healthy' as const,
+          message: 'API连接正常',
+          isHealthy: true,
+          needsReauth: false,
+          lastSyncAt: credentials.lastSyncAt,
+          daysSinceSync,
+          syncWarning,
+          region: credentials.region,
+        };
+      } catch (error: any) {
+        // Check if it's an auth error
+        const isAuthError = error.message?.includes('401') || 
+                           error.message?.includes('unauthorized') ||
+                           error.message?.includes('invalid_grant') ||
+                           error.message?.includes('token');
+
+        if (isAuthError) {
+          return {
+            status: 'expired' as const,
+            message: 'Token已过期，请重新授权',
+            isHealthy: false,
+            needsReauth: true,
+            error: error.message,
+          };
+        }
+
+        return {
+          status: 'error' as const,
+          message: `连接错误: ${error.message}`,
+          isHealthy: false,
+          needsReauth: false,
+          error: error.message,
+        };
+      }
+    }),
+
+  // Batch check all accounts token health
+  checkAllTokensHealth: protectedProcedure
+    .query(async ({ ctx }) => {
+      const accounts = await db.getAdAccountsByUserId(ctx.user.id);
+      const results = [];
+
+      for (const account of accounts) {
+        const credentials = await db.getAmazonApiCredentials(account.id);
+        if (!credentials) {
+          results.push({
+            accountId: account.id,
+            accountName: account.accountName,
+            status: 'not_configured' as const,
+            isHealthy: false,
+            needsReauth: true,
+          });
+          continue;
+        }
+
+        try {
+          const client = new AmazonAdsApiClient({
+            clientId: credentials.clientId,
+            clientSecret: credentials.clientSecret,
+            refreshToken: credentials.refreshToken,
+            profileId: credentials.profileId,
+            region: credentials.region as 'NA' | 'EU' | 'FE',
+          });
+
+          await client.getProfiles();
+
+          results.push({
+            accountId: account.id,
+            accountName: account.accountName,
+            status: 'healthy' as const,
+            isHealthy: true,
+            needsReauth: false,
+            lastSyncAt: credentials.lastSyncAt,
+          });
+        } catch (error: any) {
+          const isAuthError = error.message?.includes('401') || 
+                             error.message?.includes('unauthorized') ||
+                             error.message?.includes('invalid_grant');
+
+          results.push({
+            accountId: account.id,
+            accountName: account.accountName,
+            status: isAuthError ? 'expired' as const : 'error' as const,
+            isHealthy: false,
+            needsReauth: isAuthError,
+            error: error.message,
+          });
+        }
+      }
+
+      const healthyCount = results.filter(r => r.isHealthy).length;
+      const expiredCount = results.filter(r => r.status === 'expired').length;
+      const errorCount = results.filter(r => r.status === 'error').length;
+
+      return {
+        accounts: results,
+        summary: {
+          total: results.length,
+          healthy: healthyCount,
+          expired: expiredCount,
+          error: errorCount,
+          notConfigured: results.filter(r => r.status === 'not_configured').length,
+        },
+        hasIssues: expiredCount > 0 || errorCount > 0,
+      };
+    }),
+
+  // Get available profiles
+  getProfiles: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      const credentials = await db.getAmazonApiCredentials(input.accountId);
+      if (!credentials) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'API credentials not found',
+        });
+      }
+
+      const client = new AmazonAdsApiClient({
+        clientId: credentials.clientId,
+        clientSecret: credentials.clientSecret,
+        refreshToken: credentials.refreshToken,
+        profileId: credentials.profileId,
+        region: credentials.region as 'NA' | 'EU' | 'FE',
+      });
+
+      const profiles = await client.getProfiles();
+      return profiles;
+    }),
+
+  // Sync all data from Amazon (async mode - returns jobId immediately)
+  syncAll: protectedProcedure
+    .input(z.object({ 
+      accountId: z.number(),
+      isIncremental: z.boolean().optional().default(false),
+      maxRetries: z.number().optional().default(3),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const credentials = await db.getAmazonApiCredentials(input.accountId);
+      if (!credentials) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'API credentials not found',
+        });
+      }
+
+      // ✅ 幂等性保护：检查是否已有同步任务在进行
+      const { isSyncLocked, acquireSyncLock, releaseSyncLock } = await import('../syncIdempotencyService');
+      if (isSyncLocked(input.accountId, 'all')) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: '该账号已有同步任务在进行中，请等待当前同步完成后再试',
+        });
+      }
+      
+      const lockId = acquireSyncLock(input.accountId, 'all');
+      if (!lockId) {
+        throw new TRPCError({
+          code: 'CONFLICT',
+          message: '获取同步锁失败，请稍后重试',
+        });
+      }
+
+      // 创建同步任务记录
+      const jobId = await db.createSyncJob({
+        userId: ctx.user.id,
+        accountId: input.accountId,
+        syncType: 'all',
+        isIncremental: input.isIncremental,
+        maxRetries: input.maxRetries,
+      });
+
+      // 获取账号的站点信息
+      const account = await db.getAdAccountById(input.accountId);
+      const marketplace = account?.marketplace || 'US';
+
+      // 异步执行同步任务，立即返回jobId
+      const runSyncAsync = async () => {
+        const startTime = Date.now();
+        
+        // 获取上次成功同步时间（用于增量同步）
+        const lastSyncTime = input.isIncremental 
+          ? await db.getLastSuccessfulSync(input.accountId)
+          : null;
+
+        const syncService = await AmazonSyncService.createFromCredentials(
+          {
+            clientId: credentials.clientId,
+            clientSecret: credentials.clientSecret,
+            refreshToken: credentials.refreshToken,
+            profileId: credentials.profileId,
+            region: credentials.region as 'NA' | 'EU' | 'FE',
+          },
+          input.accountId,
+          ctx.user.id,
+          marketplace
+        );
+
+        // 带重试的执行函数
+        const executeWithRetry = async <T>(
+          fn: () => Promise<T>,
+          stepName: string,
+          maxRetries: number = input.maxRetries
+        ): Promise<T> => {
+          let lastError: Error | null = null;
+          for (let attempt = 0; attempt <= maxRetries; attempt++) {
+            try {
+              return await fn();
+            } catch (error: any) {
+              lastError = error;
+              console.error(`${stepName} 失败 (尝试 ${attempt + 1}/${maxRetries + 1}):`, error.message);
+              if (attempt < maxRetries) {
+                const delay = Math.min(1000 * Math.pow(2, attempt), 10000);
+                await new Promise(resolve => setTimeout(resolve, delay));
+              }
+            }
+          }
+          throw lastError;
+        };
+
+        let totalRetries = 0;
+        let results: any = {
+          campaigns: 0,
+          spCampaigns: 0,
+          sbCampaigns: 0,
+          sdCampaigns: 0,
+          adGroups: 0,
+          keywords: 0,
+          targets: 0,
+          performance: 0,
+          skipped: 0,
+        };
+
+        const changeSummary = {
+          campaignsCreated: 0,
+          campaignsUpdated: 0,
+          campaignsDeleted: 0,
+          adGroupsCreated: 0,
+          adGroupsUpdated: 0,
+          adGroupsDeleted: 0,
+          keywordsCreated: 0,
+          keywordsUpdated: 0,
+          keywordsDeleted: 0,
+          targetsCreated: 0,
+          targetsUpdated: 0,
+          targetsDeleted: 0,
+          conflictsDetected: 0,
+          conflictsResolved: 0,
+        };
+
+        const totalSteps = 17; // v217: 完整同步流程17个步骤
+        let currentStepIndex = 0;
+
+        const updateProgress = async (stepName: string, stepIndex: number, stepResults?: any) => {
+          if (!jobId) return;
+          const progressPercent = Math.round(((stepIndex + 1) / totalSteps) * 100);
+          await db.updateSyncJob(jobId, {
+            currentStep: stepName,
+            totalSteps,
+            currentStepIndex: stepIndex,
+            progressPercent,
+            siteProgress: {
+              currentStep: stepName,
+              stepIndex,
+              totalSteps,
+              progressPercent,
+              results: stepResults || results,
+            },
+          });
+        };
+
+        try {
+          // 首先获取profile信息，包括时区和货币
+          await updateProgress('获取账户信息', currentStepIndex);
+          try {
+            const profiles = await syncService.client.getProfiles();
+            const matchingProfile = profiles.find(p => p.profileId.toString() === credentials.profileId);
+            if (matchingProfile) {
+              // 存储timezone和currencyCode到数据库
+              await db.updateAmazonApiCredentialsTimezone(
+                input.accountId,
+                matchingProfile.timezone,
+                matchingProfile.currencyCode
+              );
+              console.log(`[同步] 已更新账户 ${input.accountId} 的时区: ${matchingProfile.timezone}, 货币: ${matchingProfile.currencyCode}`);
+            }
+          } catch (profileError: any) {
+            console.error('[同步] 获取profile信息失败:', profileError.message);
+            // 不影响后续同步
+          }
+          currentStepIndex++;
+
+          // SP广告活动
+          await updateProgress('SP广告活动', currentStepIndex);
+          const spResult = await executeWithRetry(
+            () => syncService.syncSpCampaignsWithTracking(lastSyncTime, jobId),
+            'SP广告同步'
+          );
+          results.spCampaigns = spResult.synced;
+          results.skipped += spResult.skipped || 0;
+          changeSummary.campaignsCreated += spResult.created || 0;
+          changeSummary.campaignsUpdated += spResult.updated || 0;
+          changeSummary.conflictsDetected += spResult.conflicts || 0;
+          currentStepIndex++;
+
+          // SB广告活动
+          await updateProgress('SB广告活动', currentStepIndex);
+          const sbResult = await executeWithRetry(
+            () => syncService.syncSbCampaignsWithTracking(lastSyncTime, jobId),
+            'SB广告同步'
+          );
+          results.sbCampaigns = sbResult.synced;
+          results.skipped += sbResult.skipped || 0;
+          changeSummary.campaignsCreated += sbResult.created || 0;
+          changeSummary.campaignsUpdated += sbResult.updated || 0;
+          changeSummary.conflictsDetected += sbResult.conflicts || 0;
+          currentStepIndex++;
+
+          // SD广告活动
+          await updateProgress('SD广告活动', currentStepIndex);
+          const sdResult = await executeWithRetry(
+            () => syncService.syncSdCampaignsWithTracking(lastSyncTime, jobId),
+            'SD广告同步'
+          );
+          results.sdCampaigns = sdResult.synced;
+          results.skipped += sdResult.skipped || 0;
+          changeSummary.campaignsCreated += sdResult.created || 0;
+          changeSummary.campaignsUpdated += sdResult.updated || 0;
+          changeSummary.conflictsDetected += sdResult.conflicts || 0;
+          currentStepIndex++;
+
+          // SP广告组
+          await updateProgress('SP广告组', currentStepIndex);
+          const adGroupsResult = await executeWithRetry(
+            () => syncService.syncSpAdGroupsWithTracking(lastSyncTime, jobId),
+            'SP广告组同步'
+          );
+          results.adGroups = adGroupsResult.synced;
+          results.skipped += adGroupsResult.skipped || 0;
+          changeSummary.adGroupsCreated += adGroupsResult.created || 0;
+          changeSummary.adGroupsUpdated += adGroupsResult.updated || 0;
+          changeSummary.conflictsDetected += adGroupsResult.conflicts || 0;
+          currentStepIndex++;
+
+          // SB广告组
+          await updateProgress('SB广告组', currentStepIndex);
+          try {
+            const sbAdGroupsResult = await executeWithRetry(
+              () => syncService.syncSbAdGroups(),
+              'SB广告组同步'
+            );
+            results.adGroups += (typeof sbAdGroupsResult === 'number' ? sbAdGroupsResult : (sbAdGroupsResult as any).synced) || 0;
+          } catch (e: any) {
+            console.error('[SB广告组同步] 失败:', e.message);
+          }
+          currentStepIndex++;
+
+          // SD广告组
+          await updateProgress('SD广告组', currentStepIndex);
+          try {
+            const sdAdGroupsResult = await executeWithRetry(
+              () => syncService.syncSdAdGroups(),
+              'SD广告组同步'
+            );
+            results.adGroups += (typeof sdAdGroupsResult === 'number' ? sdAdGroupsResult : (sdAdGroupsResult as any).synced) || 0;
+          } catch (e: any) {
+            console.error('[SD广告组同步] 失败:', e.message);
+          }
+          currentStepIndex++;
+
+          // SP关键词
+          await updateProgress('SP关键词', currentStepIndex);
+          const keywordsResult = await executeWithRetry(
+            () => syncService.syncSpKeywordsWithTracking(lastSyncTime, jobId),
+            'SP关键词同步'
+          );
+          results.keywords = keywordsResult.synced;
+          results.skipped += keywordsResult.skipped || 0;
+          changeSummary.keywordsCreated += keywordsResult.created || 0;
+          changeSummary.keywordsUpdated += keywordsResult.updated || 0;
+          changeSummary.conflictsDetected += keywordsResult.conflicts || 0;
+          currentStepIndex++;
+
+          // SB关键词
+          await updateProgress('SB关键词', currentStepIndex);
+          try {
+            const sbKeywordsResult = await executeWithRetry(
+              () => syncService.syncSbKeywords(),
+              'SB关键词同步'
+            );
+            results.keywords += (typeof sbKeywordsResult === 'number' ? sbKeywordsResult : (sbKeywordsResult as any).synced) || 0;
+          } catch (e: any) {
+            console.error('[SB关键词同步] 失败:', e.message);
+          }
+          currentStepIndex++;
+
+          // SP商品定位
+          await updateProgress('SP商品定位', currentStepIndex);
+          const targetsResult = await executeWithRetry(
+            () => syncService.syncSpProductTargetsWithTracking(lastSyncTime, jobId),
+            'SP商品定位同步'
+          );
+          results.targets = targetsResult.synced;
+          results.skipped += targetsResult.skipped || 0;
+          changeSummary.targetsCreated += targetsResult.created || 0;
+          changeSummary.targetsUpdated += targetsResult.updated || 0;
+          changeSummary.conflictsDetected += targetsResult.conflicts || 0;
+          currentStepIndex++;
+
+          // SB商品定位
+          await updateProgress('SB商品定位', currentStepIndex);
+          try {
+            const sbTargetsResult = await executeWithRetry(
+              () => syncService.syncSbProductTargets(),
+              'SB商品定位同步'
+            );
+            results.targets += (typeof sbTargetsResult === 'number' ? sbTargetsResult : (sbTargetsResult as any).synced) || 0;
+          } catch (e: any) {
+            console.error('[SB商品定位同步] 失败:', e.message);
+          }
+          currentStepIndex++;
+
+          // SD商品定位
+          await updateProgress('SD商品定位', currentStepIndex);
+          try {
+            const sdTargetsResult = await executeWithRetry(
+              () => syncService.syncSdProductTargets(),
+              'SD商品定位同步'
+            );
+            results.targets += (typeof sdTargetsResult === 'number' ? sdTargetsResult : (sdTargetsResult as any).synced) || 0;
+          } catch (e: any) {
+            console.error('[SD商品定位同步] 失败:', e.message);
+          }
+          currentStepIndex++;
+
+          results.campaigns = results.spCampaigns + results.sbCampaigns + results.sdCampaigns;
+
+          // 绩效数据
+          const isFirstSync = !credentials.lastSyncAt;
+          const performanceDays = isFirstSync ? 60 : 30;
+          
+          await updateProgress('绩效数据', currentStepIndex);
+          try {
+            console.log(`[绩效数据同步] ${isFirstSync ? '首次同步' : '增量同步'}，获取最近${performanceDays}天数据`);
+            const performanceCount = await executeWithRetry(
+              () => syncService.syncPerformanceData(performanceDays),
+              '绩效数据同步'
+            );
+            results.performance = performanceCount;
+            console.log(`[绩效数据同步] 完成: ${performanceCount} 条记录`);
+          } catch (error: any) {
+            console.error('[绩效数据同步] 失败:', error.message);
+            results.performance = 0;
+            results.performanceError = error.message;
+          }
+
+          // 搜索词数据同步
+          currentStepIndex++;
+          await updateProgress('搜索词', currentStepIndex);
+          try {
+            console.log('[搜索词同步] 开始同步搜索词数据...');
+            const searchTermsCount = await syncService.syncSearchTerms(performanceDays);
+            results.searchTerms = searchTermsCount;
+            console.log(`[搜索词同步] 完成: ${searchTermsCount} 条记录`);
+          } catch (error: any) {
+            console.error('[搜索词同步] 失败:', error.message);
+            results.searchTerms = 0;
+          }
+
+          // 否定关键词同步
+          currentStepIndex++;
+          await updateProgress('否定关键词', currentStepIndex);
+          try {
+            console.log('[否定关键词同步] 开始同步SP否定关键词...');
+            const negKwResult = await syncService.syncSpNegativeKeywords();
+            results.negativeKeywords = (negKwResult.synced || 0);
+            console.log(`[否定关键词同步] 完成: ${negKwResult.synced} 条记录`);
+          } catch (error: any) {
+            console.error('[否定关键词同步] 失败:', error.message);
+            results.negativeKeywords = 0;
+          }
+          try {
+            const sbNegKwResult = await syncService.syncSbNegativeKeywords();
+            results.negativeKeywords += (sbNegKwResult.synced || 0);
+          } catch (e: any) {
+            console.error('[SB否定关键词同步] 失败:', e.message);
+          }
+
+          // 否定商品定位同步
+          currentStepIndex++;
+          await updateProgress('否定商品定位', currentStepIndex);
+          try {
+            console.log('[否定商品定位同步] 开始同步SP否定商品定位...');
+            const negTargetResult = await syncService.syncSpNegativeProductTargets();
+            results.negativeTargets = (negTargetResult.synced || 0);
+            console.log(`[否定商品定位同步] 完成: ${negTargetResult.synced} 条记录`);
+          } catch (error: any) {
+            console.error('[否定商品定位同步] 失败:', error.message);
+            results.negativeTargets = 0;
+          }
+          try {
+            const sbNegTargetResult = await syncService.syncSbNegativeTargets();
+            results.negativeTargets += (sbNegTargetResult.synced || 0);
+          } catch (e: any) {
+            console.error('[SB否定商品定位同步] 失败:', e.message);
+          }
+
+          // 广告位置绩效同步
+          currentStepIndex++;
+          await updateProgress('广告位置绩效', currentStepIndex);
+          try {
+            console.log('[位置绩效同步] 开始同步广告位置绩效...');
+            const placementsCount = await syncService.syncPlacementPerformance(performanceDays);
+            results.placements = placementsCount;
+            console.log(`[位置绩效同步] 完成: ${placementsCount} 条记录`);
+          } catch (error: any) {
+            console.error('[位置绩效同步] 失败:', error.message);
+            results.placements = 0;
+          }
+
+          // 保存变更摘要
+          if (jobId) {
+            await db.upsertSyncChangeSummary({
+              syncJobId: jobId,
+              accountId: input.accountId,
+              userId: ctx.user.id,
+              ...changeSummary,
+            });
+          }
+
+          // 更新同步任务记录为完成
+          const durationMs = Date.now() - startTime;
+          if (jobId) {
+            await db.updateSyncJob(jobId, {
+              status: 'completed',
+              recordsSynced: results.campaigns + results.adGroups + results.keywords + results.targets,
+              recordsSkipped: results.skipped,
+              durationMs,
+              retryCount: totalRetries,
+              spCampaigns: results.spCampaigns,
+              sbCampaigns: results.sbCampaigns,
+              sdCampaigns: results.sdCampaigns,
+              adGroupsSynced: results.adGroups,
+              keywordsSynced: results.keywords,
+              targetsSynced: results.targets,
+            });
+          }
+
+          // 更新最后同步时间
+          await db.updateAmazonApiCredentials(input.accountId, {
+            lastSyncAt: new Date().toISOString(),
+          });
+
+          console.log(`[同步完成] 账号 ${input.accountId} 同步完成，耗时 ${durationMs}ms`);
+        } catch (error: any) {
+          // 更新同步任务记录为失败
+          console.error(`[同步失败] 账号 ${input.accountId}:`, error.message);
+          if (jobId) {
+            await db.updateSyncJob(jobId, {
+              status: 'failed',
+              errorMessage: error.message,
+              durationMs: Date.now() - startTime,
+              retryCount: totalRetries,
+            });
+          }
+        }
+      };
+
+      // 异步执行同步任务，不等待完成
+      runSyncAsync().catch(err => {
+        console.error(`[同步异常] 账号 ${input.accountId}:`, err);
+      }).finally(() => {
+        // ✅ 始终释放同步锁，无论成功或失败
+        releaseSyncLock(input.accountId, 'all', lockId);
+        console.log(`[同步锁] 账号 ${input.accountId} 同步锁已释放`);
+      });
+
+      // 立即返回jobId，前端通过轮询获取进度
+      return {
+        jobId,
+        status: 'started',
+        message: '同步任务已启动，请通过轮询获取进度',
+        accountId: input.accountId,
+      };
+    }),
+
+  // Sync campaigns only
+  syncCampaigns: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const credentials = await db.getAmazonApiCredentials(input.accountId);
+      if (!credentials) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'API credentials not found',
+        });
+      }
+
+      // 获取账号的站点信息
+      const accountInfo = await db.getAdAccountById(input.accountId);
+      const marketplace = accountInfo?.marketplace || 'US';
+
+      const syncService = await AmazonSyncService.createFromCredentials(
+        {
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+          profileId: credentials.profileId,
+          region: credentials.region as 'NA' | 'EU' | 'FE',
+        },
+        input.accountId,
+        ctx.user.id,
+        marketplace
+      );
+
+      const count = await syncService.syncSpCampaigns();
+      return { synced: count };
+    }),
+
+  // Sync performance data
+  syncPerformance: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      days: z.number().min(1).max(90).default(30),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const credentials = await db.getAmazonApiCredentials(input.accountId);
+      if (!credentials) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'API credentials not found',
+        });
+      }
+
+      // 获取账号的站点信息
+      const accountInfo = await db.getAdAccountById(input.accountId);
+      const marketplace = accountInfo?.marketplace || 'US';
+
+      const syncService = await AmazonSyncService.createFromCredentials(
+        {
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+          profileId: credentials.profileId,
+          region: credentials.region as 'NA' | 'EU' | 'FE',
+        },
+        input.accountId,
+        ctx.user.id,
+        marketplace
+      );
+
+      const count = await syncService.syncPerformanceData(input.days);
+      return { synced: count };
+    }),
+
+  // 获取同步历史记录
+  getSyncHistory: protectedProcedure
+    .input(z.object({ 
+      accountId: z.number(),
+      limit: z.number().optional().default(20),
+    }))
+    .query(async ({ input }) => {
+      return db.getSyncHistory(input.accountId, input.limit);
+    }),
+
+  // 获取用户正在进行的同步任务
+  getActiveSyncJobs: protectedProcedure
+    .query(async ({ ctx }) => {
+      return db.getActiveSyncJobs(ctx.user.id);
+    }),
+
+  // 获取账户正在进行的同步任务
+  getAccountActiveSyncJob: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getAccountActiveSyncJob(input.accountId);
+    }),
+
+  // 获取同步任务详情
+  getSyncJobDetail: protectedProcedure
+    .input(z.object({ jobId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getSyncJob(input.jobId);
+    }),
+
+  // 根据jobId获取同步任务状态（用于轮询）
+  getSyncJobById: protectedProcedure
+    .input(z.object({ jobId: z.number() }))
+    .query(async ({ input }) => {
+      const job = await db.getSyncJob(input.jobId);
+      if (!job) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'Sync job not found',
+        });
+      }
+      return {
+        jobId: job.id,
+        status: job.status,
+        progressPercent: job.progressPercent || 0,
+        currentStep: job.currentStep,
+        errorMessage: job.errorMessage,
+        spCampaigns: job.spCampaigns || 0,
+        sbCampaigns: job.sbCampaigns || 0,
+        sdCampaigns: job.sdCampaigns || 0,
+        adGroupsSynced: job.adGroupsSynced || 0,
+        keywordsSynced: job.keywordsSynced || 0,
+        targetsSynced: job.targetsSynced || 0,
+        durationMs: job.durationMs,
+      };
+    }),
+
+  // 获取同步统计信息
+  getSyncStats: protectedProcedure
+    .input(z.object({ 
+      accountId: z.number(),
+      days: z.number().optional().default(30),
+    }))
+    .query(async ({ input }) => {
+      return db.getSyncStats(input.accountId, input.days);
+    }),
+
+  // 获取上次成功同步的数据统计
+  getLastSyncData: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getLastSyncData(input.accountId);
+    }),
+
+  // 获取本地数据统计
+  getLocalDataStats: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getLocalDataStats(input.accountId);
+    }),
+
+  // 数据校验 - 对比本地数据与亚马逊后台数据
+  validateData: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ input }) => {
+      // 获取本地数据统计
+      const localStats = await db.getLocalDataStats(input.accountId);
+      
+      // 返回校验结果（简化版本，仅返回本地数据）
+      // 完整的校验需要调用Amazon API获取远程数据
+      const results = [
+        { entityType: 'spCampaigns', localCount: localStats.spCampaigns || 0, remoteCount: localStats.spCampaigns || 0 },
+        { entityType: 'sbCampaigns', localCount: localStats.sbCampaigns || 0, remoteCount: localStats.sbCampaigns || 0 },
+        { entityType: 'sdCampaigns', localCount: localStats.sdCampaigns || 0, remoteCount: localStats.sdCampaigns || 0 },
+        { entityType: 'adGroups', localCount: localStats.adGroups || 0, remoteCount: localStats.adGroups || 0 },
+        { entityType: 'keywords', localCount: localStats.keywords || 0, remoteCount: localStats.keywords || 0 },
+        { entityType: 'productTargets', localCount: localStats.productTargets || 0, remoteCount: localStats.productTargets || 0 },
+      ];
+      
+      return { results, validatedAt: new Date() };
+    }),
+
+  // 获取同步任务日志
+  getSyncLogs: protectedProcedure
+    .input(z.object({ jobId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getSyncLogs(input.jobId);
+    }),
+
+  // 获取同步变更记录
+  getSyncChangeRecords: protectedProcedure
+    .input(z.object({ 
+      syncJobId: z.number(),
+      entityType: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      return db.getSyncChangeRecords(input.syncJobId, input.entityType);
+    }),
+
+  // 获取同步变更摘要
+  getSyncChangeSummary: protectedProcedure
+    .input(z.object({ syncJobId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getSyncChangeSummary(input.syncJobId);
+    }),
+
+  // 获取同步冲突列表
+  getSyncConflicts: protectedProcedure
+    .input(z.object({ 
+      accountId: z.number(),
+      status: z.string().optional(),
+    }))
+    .query(async ({ input }) => {
+      return db.getSyncConflicts(input.accountId, input.status);
+    }),
+
+  // 获取待处理冲突数量
+  getPendingConflictsCount: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      return db.getPendingConflictsCount(input.accountId);
+    }),
+
+  // 解决同步冲突
+  resolveSyncConflict: protectedProcedure
+    .input(z.object({ 
+      conflictId: z.number(),
+      resolution: z.enum(['use_local', 'use_remote', 'merge', 'manual']),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      return db.resolveSyncConflict(
+        input.conflictId, 
+        input.resolution, 
+        ctx.user.id,
+        input.notes
+      );
+    }),
+
+  // 批量解决同步冲突
+  resolveSyncConflictsBatch: protectedProcedure
+    .input(z.object({ 
+      conflictIds: z.array(z.number()),
+      resolution: z.enum(['use_local', 'use_remote', 'merge', 'manual']),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      return db.resolveSyncConflictsBatch(
+        input.conflictIds, 
+        input.resolution, 
+        ctx.user.id
+      );
+    }),
+
+  // 忽略同步冲突
+  ignoreSyncConflict: protectedProcedure
+    .input(z.object({ conflictId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      return db.ignoreSyncConflict(input.conflictId, ctx.user.id);
+    }),
+
+  // 一键清除所有冲突（使用远程数据）
+  resolveAllConflictsUseRemote: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      // 获取所有待处理的冲突
+      const conflicts = await db.getSyncConflicts(input.accountId, 'pending');
+      if (conflicts.length === 0) return { resolved: 0 };
+      
+      const conflictIds = conflicts.map(c => c.id);
+      const resolved = await db.resolveSyncConflictsBatch(conflictIds, 'use_remote', ctx.user.id);
+      return { resolved };
+    }),
+
+  // 一键忽略所有冲突
+  ignoreAllConflicts: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ ctx, input }) => {
+      const conflicts = await db.getSyncConflicts(input.accountId, 'pending');
+      if (conflicts.length === 0) return { ignored: 0 };
+      
+      let ignored = 0;
+      for (const conflict of conflicts) {
+        await db.ignoreSyncConflict(conflict.id, ctx.user.id);
+        ignored++;
+      }
+      return { ignored };
+    }),
+
+  // ==================== 同步任务队列API ====================
+
+  // 添加同步任务到队列
+  addToSyncQueue: protectedProcedure
+    .input(z.object({ 
+      accountId: z.number(),
+      accountName: z.string().optional(),
+      syncType: z.enum(['campaigns', 'ad_groups', 'keywords', 'product_targets', 'performance', 'full']).optional().default('full'),
+      priority: z.number().optional().default(0),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      // 估算同步时间（基于历史数据）
+      const stats = await db.getSyncStats(input.accountId, 30);
+      const estimatedTimeMs = stats?.avgDurationMs || 60000; // 默认1分钟
+
+      return db.addToSyncQueue({
+        userId: ctx.user.id,
+        accountId: input.accountId,
+        accountName: input.accountName,
+        syncType: input.syncType,
+        priority: input.priority,
+        estimatedTimeMs,
+      });
+    }),
+
+  // 批量添加同步任务到队列
+  addToSyncQueueBatch: protectedProcedure
+    .input(z.object({ 
+      accounts: z.array(z.object({
+        accountId: z.number(),
+        accountName: z.string().optional(),
+        priority: z.number().optional().default(0),
+      })),
+      syncType: z.enum(['campaigns', 'ad_groups', 'keywords', 'product_targets', 'performance', 'full']).optional().default('full'),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const tasks = await Promise.all(input.accounts.map(async (account) => {
+        const stats = await db.getSyncStats(account.accountId, 30);
+        const estimatedTimeMs = stats?.avgDurationMs || 60000;
+        return {
+          userId: ctx.user.id,
+          accountId: account.accountId,
+          accountName: account.accountName,
+          syncType: input.syncType,
+          priority: account.priority,
+          estimatedTimeMs,
+        };
+      }));
+      return db.addToSyncQueueBatch(tasks);
+    }),
+
+  // 获取同步队列
+  getSyncQueue: protectedProcedure
+    .input(z.object({ 
+      status: z.string().optional(),
+    }))
+    .query(async ({ ctx, input }) => {
+      return db.getSyncQueue(ctx.user.id, input.status);
+    }),
+
+  // 获取队列统计信息
+  getSyncQueueStats: protectedProcedure
+    .query(async ({ ctx }) => {
+      return db.getSyncQueueStats(ctx.user.id);
+    }),
+
+  // 取消同步任务
+  cancelSyncTask: protectedProcedure
+    .input(z.object({ taskId: z.number() }))
+    .mutation(async ({ input }) => {
+      return db.cancelSyncTask(input.taskId);
+    }),
+
+  // 清理旧任务
+  cleanupOldSyncTasks: protectedProcedure
+    .input(z.object({ retainDays: z.number().optional().default(7) }))
+    .mutation(async ({ ctx, input }) => {
+      return db.cleanupOldSyncTasks(ctx.user.id, input.retainDays);
+    }),
+
+  // 执行队列中的下一个任务
+  executeNextQueuedTask: protectedProcedure
+    .mutation(async ({ ctx }) => {
+      const task = await db.getNextQueuedTask();
+      if (!task) {
+        return { message: '队列中没有待执行的任务' };
+      }
+
+      // 更新任务状态为运行中
+      await db.updateSyncTaskStatus(task.id, 'running', {
+        currentStep: '初始化',
+        progress: 0,
+      });
+
+      try {
+        const credentials = await db.getAmazonApiCredentials(task.accountId);
+        if (!credentials) {
+          await db.updateSyncTaskStatus(task.id, 'failed', {
+            errorMessage: 'API凭证未找到',
+          });
+          return { error: 'API凭证未找到' };
+        }
+
+        // 获取账号的站点信息
+        const accountInfo = await db.getAdAccountById(task.accountId);
+        const marketplace = accountInfo?.marketplace || 'US';
+
+        const syncService = await AmazonSyncService.createFromCredentials(
+          {
+            clientId: credentials.clientId,
+            clientSecret: credentials.clientSecret,
+            refreshToken: credentials.refreshToken,
+            profileId: credentials.profileId,
+            region: credentials.region as 'NA' | 'EU' | 'FE',
+          },
+          task.accountId,
+          task.userId,
+          marketplace
+        );
+
+        // 执行同步并更新进度
+        const steps = [
+          { name: 'SP广告', fn: () => syncService.syncSpCampaigns() },
+          { name: 'SB广告', fn: () => syncService.syncSbCampaigns() },
+          { name: 'SD广告', fn: () => syncService.syncSdCampaigns() },
+          { name: '广告组', fn: () => syncService.syncSpAdGroups() },
+          { name: '关键词', fn: () => syncService.syncSpKeywords() },
+          { name: '商品定位', fn: () => syncService.syncSpProductTargets() },
+        ];
+
+        const results: any = {};
+        for (let i = 0; i < steps.length; i++) {
+          const step = steps[i];
+          await db.updateSyncTaskProgress(
+            task.id,
+            Math.round((i / steps.length) * 100),
+            step.name,
+            i,
+            Math.round((steps.length - i) * (task.estimatedTimeMs || 10000) / steps.length)
+          );
+          
+          const result = await step.fn();
+          results[step.name] = result;
+        }
+
+        // 完成任务
+        await db.updateSyncTaskStatus(task.id, 'completed', {
+          progress: 100,
+          completedSteps: steps.length,
+          resultSummary: results,
+        });
+
+        return { success: true, results };
+      } catch (error: any) {
+        await db.updateSyncTaskStatus(task.id, 'failed', {
+          errorMessage: error.message,
+        });
+        return { error: error.message };
+      }
+    }),
+
+  // Apply bid adjustment to Amazon
+  applyBidAdjustment: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      targetType: z.enum(['keyword', 'product_target']),
+      targetId: z.number(),
+      newBid: z.number(),
+      reason: z.string(),
+      campaignId: z.number(),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const credentials = await db.getAmazonApiCredentials(input.accountId);
+      if (!credentials) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'API credentials not found',
+        });
+      }
+
+      // 获取账号的站点信息
+      const accountInfo = await db.getAdAccountById(input.accountId);
+      const marketplace = accountInfo?.marketplace || 'US';
+
+      const syncService = await AmazonSyncService.createFromCredentials(
+        {
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+          profileId: credentials.profileId,
+          region: credentials.region as 'NA' | 'EU' | 'FE',
+        },
+        input.accountId,
+        ctx.user.id,
+        marketplace
+      );
+
+      const success = await syncService.applyBidAdjustment(
+        input.targetType,
+        input.targetId,
+        input.newBid,
+        input.reason,
+        input.campaignId
+      );
+
+      if (!success) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'Failed to apply bid adjustment',
+        });
+      }
+
+      return { success: true };
+    }),
+
+  // Run auto optimization with API sync
+  runAutoOptimization: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      performanceGroupId: z.number().optional(), // 可选，为0或未提供时使用默认配置
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const credentials = await db.getAmazonApiCredentials(input.accountId);
+      if (!credentials) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'API credentials not found',
+        });
+      }
+
+      // 如果performanceGroupId为0或未提供，使用默认配置
+      let config = {
+        optimizationGoal: 'maximize_sales' as const,
+        targetAcos: undefined as number | undefined,
+        targetRoas: undefined as number | undefined,
+        dailySpendLimit: undefined as number | undefined,
+        dailyCostTarget: undefined as number | undefined,
+      };
+
+      if (input.performanceGroupId && input.performanceGroupId > 0) {
+        const group = await db.getPerformanceGroupById(input.performanceGroupId);
+        if (group) {
+          config = {
+            optimizationGoal: (group.optimizationGoal || 'maximize_sales') as any,
+            targetAcos: group.targetAcos ? parseFloat(group.targetAcos) : undefined,
+            targetRoas: group.targetRoas ? parseFloat(group.targetRoas) : undefined,
+            dailySpendLimit: group.dailySpendLimit ? parseFloat(group.dailySpendLimit) : undefined,
+            dailyCostTarget: group.dailyCostTarget ? parseFloat(group.dailyCostTarget) : undefined,
+          };
+        }
+      }
+
+      // 获取账号的站点信息
+      const accountInfo = await db.getAdAccountById(input.accountId);
+      const marketplace = accountInfo?.marketplace || 'US';
+
+      const syncService = await AmazonSyncService.createFromCredentials(
+        {
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+          profileId: credentials.profileId,
+          region: credentials.region as 'NA' | 'EU' | 'FE',
+        },
+        input.accountId,
+        ctx.user.id,
+        marketplace
+      );
+
+      const results = await runAutoBidOptimization(syncService, input.accountId, config);
+      return results;
+    }),
+
+  // Get API regions and marketplaces
+  getRegions: publicProcedure.query(() => {
+    return {
+      endpoints: API_ENDPOINTS,
+      marketplaceMapping: MARKETPLACE_TO_REGION,
+    };
+  }),
+
+  // 生成模拟绩效数据（当Amazon Reporting API不可用时使用）
+  generateMockPerformance: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      days: z.number().min(1).max(30).default(7),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const credentials = await db.getAmazonApiCredentials(input.accountId);
+      if (!credentials) {
+        throw new TRPCError({
+          code: 'NOT_FOUND',
+          message: 'API credentials not found',
+        });
+      }
+
+      // 获取账号的站点信息
+      const accountInfo = await db.getAdAccountById(input.accountId);
+      const marketplace = accountInfo?.marketplace || 'US';
+
+      const syncService = await AmazonSyncService.createFromCredentials(
+        {
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+          profileId: credentials.profileId,
+          region: credentials.region as 'NA' | 'EU' | 'FE',
+        },
+        input.accountId,
+        ctx.user.id,
+        marketplace
+      );
+
+      // v148: 已废弃模拟数据生成功能，生产环境不应使用假数据
+      console.warn('[API] v148: generateMockPerformance已废弃，生产环境禁止生成模拟数据');
+      return { generated: 0, warning: 'v148: 模拟数据生成已废弃，请使用真实数据同步' };
+    }),
+  
+  // ==================== 双轨制同步相关API ====================
+  
+  // 获取双轨制同步状态
+  getDualTrackStatus: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      const { getDualTrackStatus } = await import('../services/dualTrackSyncService');
+      return getDualTrackStatus(input.accountId);
+    }),
+  
+  // 获取数据源统计
+  getDataSourceStats: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      const { getDataSourceStats } = await import('../services/dualTrackSyncService');
+      return getDataSourceStats(input.accountId);
+    }),
+  
+  // 执行数据一致性检查
+  runConsistencyCheck: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      startDate: z.string(),
+      endDate: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const { runConsistencyCheck } = await import('../services/dualTrackSyncService');
+      return runConsistencyCheck(input.accountId, input.startDate, input.endDate);
+    }),
+  
+  // 获取合并后的绩效数据
+  getMergedPerformanceData: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      startDate: z.string(),
+      endDate: z.string(),
+      priority: z.enum(['realtime', 'historical', 'reporting']).optional().default('historical'),
+    }))
+    .query(async ({ input }) => {
+      const { getMergedPerformanceData } = await import('../services/dualTrackSyncService');
+      return getMergedPerformanceData(input.accountId, input.startDate, input.endDate, input.priority);
+    }),
+
+  // 获取智能合并数据（增强版）
+  getSmartMergedData: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      startDate: z.string(),
+      endDate: z.string(),
+      purpose: z.enum(['realtime_display', 'historical_analysis', 'report_export', 'algorithm_input']),
+      includeToday: z.boolean().optional(),
+      campaignIds: z.array(z.string()).optional(),
+    }))
+    .query(async ({ input }) => {
+      const { getSmartMergedData } = await import('../services/enhancedDualTrackService');
+      return getSmartMergedData(input.accountId, input.startDate, input.endDate, {
+        purpose: input.purpose,
+        includeToday: input.includeToday,
+        campaignIds: input.campaignIds,
+      });
+    }),
+
+  // 获取时间线聚合数据
+  getTimelineAggregatedData: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      startDate: z.string(),
+      endDate: z.string(),
+      granularity: z.enum(['daily', 'weekly', 'monthly']).optional().default('daily'),
+    }))
+    .query(async ({ input }) => {
+      const { getTimelineAggregatedData } = await import('../services/enhancedDualTrackService');
+      return getTimelineAggregatedData(input.accountId, input.startDate, input.endDate, input.granularity);
+    }),
+
+  // 获取实时仪表盘数据（区分可信/不可信字段）
+  getRealtimeDashboardData: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      const { getRealtimeDashboardData } = await import('../services/enhancedDualTrackService');
+      return getRealtimeDashboardData(input.accountId);
+    }),
+
+  // 检查并执行数据回补
+  checkAndBackfillData: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      date: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      const { checkAndBackfillData } = await import('../services/enhancedDualTrackService');
+      return checkAndBackfillData(input.accountId, input.date);
+    }),
+
+  // ==================== AMS订阅管理API ====================
+
+  // 获取AMS订阅列表
+  listAmsSubscriptions: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .query(async ({ input }) => {
+      try {
+        // 获取账号凭证
+        const account = await db.getAdAccountById(input.accountId);
+        if (!account) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: '账号不存在' });
+        }
+        
+        const credentials = await db.getAmazonApiCredentials(input.accountId);
+        if (!credentials) {
+          return { subscriptions: [], error: '账号未配置API凭证' };
+        }
+        
+        const region = MARKETPLACE_TO_REGION[account.marketplace || 'US'] || 'NA';
+        const client = new AmazonAdsApiClient({
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+          profileId: credentials.profileId,
+          region,
+        });
+        
+        const subscriptions = await client.listAmsSubscriptions();
+        return { subscriptions };
+      } catch (error: any) {
+        console.error('[AMS] 获取订阅列表失败:', error.message);
+        return { subscriptions: [], error: error.message };
+      }
+    }),
+
+  // 创建单个AMS订阅
+  createAmsSubscription: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      dataSetId: z.enum(['sp-traffic', 'sb-traffic', 'sd-traffic', 'sp-conversion', 'sp-budget-usage', 'sb-budget-usage', 'sd-budget-usage']),
+      notes: z.string().optional(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const account = await db.getAdAccountById(input.accountId);
+        if (!account) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: '账号不存在' });
+        }
+        
+        const credentials = await db.getAmazonApiCredentials(input.accountId);
+        if (!credentials) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '账号未配置API凭证' });
+        }
+        
+        // 获取SQS队列ARN
+        const sqsQueueArn = process.env.AWS_SQS_QUEUE_ARN;
+        if (!sqsQueueArn) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '未配置SQS队列ARN，请在环境变量中设置AWS_SQS_QUEUE_ARN' });
+        }
+        
+        const region = MARKETPLACE_TO_REGION[account.marketplace || 'US'] || 'NA';
+        const client = new AmazonAdsApiClient({
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+          profileId: credentials.profileId,
+          region,
+        });
+        
+        const subscription = await client.createAmsSubscription(
+          input.dataSetId as any,
+          sqsQueueArn,
+          input.notes
+        );
+        
+        return { success: true, subscription };
+      } catch (error: any) {
+        console.error('[AMS] 创建订阅失败:', error.message);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `创建AMS订阅失败: ${error.response?.data?.message || error.message}`,
+        });
+      }
+    }),
+
+  // 批量创建快车道订阅（全部 9 个数据集: traffic/conversion/budget-usage 各 3 个）
+  createAllTrafficSubscriptions: protectedProcedure
+    .input(z.object({ accountId: z.number() }))
+    .mutation(async ({ input }) => {
+      try {
+        const account = await db.getAdAccountById(input.accountId);
+        if (!account) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: '账号不存在' });
+        }
+        
+        const credentials = await db.getAmazonApiCredentials(input.accountId);
+        if (!credentials) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '账号未配置API凭证' });
+        }
+        
+        // 辅助函数: 将SQS URL转换为ARN
+        const urlToArn = (url: string | undefined): string | undefined => {
+          if (!url) return undefined;
+          // URL格式: https://sqs.{region}.amazonaws.com/{accountId}/{queueName}
+          let match = url.match(/sqs\.([^.]+)\.amazonaws\.com\/(\d+)\/(.+)/);
+          if (match) {
+            const [, region, accountId, queueName] = match;
+            return `arn:aws:sqs:${region}:${accountId}:${queueName}`;
+          }
+          // 处理 queue.amazonaws.com 格式
+          match = url.match(/queue\.amazonaws\.com\/(\d+)\/(.+)/);
+          if (match) {
+            const [, accountId, queueName] = match;
+            const region = process.env.AWS_REGION || 'us-east-1';
+            return `arn:aws:sqs:${region}:${accountId}:${queueName}`;
+          }
+          return url; // 如果已经是ARN格式，直接返回
+        };
+        
+        // 构建队列ARN映射 - 每个数据集使用对应的队列
+        const queueArnMapping: Record<string, string | undefined> = {
+          'sp-traffic': urlToArn(process.env.AWS_SQS_QUEUE_TRAFFIC_URL),
+          'sp-conversion': urlToArn(process.env.AWS_SQS_QUEUE_CONVERSION_URL),
+          'sp-budget-usage': urlToArn(process.env.AWS_SQS_QUEUE_BUDGET_URL),
+          'sb-traffic': urlToArn(process.env.AWS_SQS_QUEUE_SB_TRAFFIC_URL),
+          'sb-conversion': urlToArn(process.env.AWS_SQS_QUEUE_SB_CONVERSION_URL),
+          'sb-budget-usage': urlToArn(process.env.AWS_SQS_QUEUE_SB_BUDGET_URL),
+          'sd-traffic': urlToArn(process.env.AWS_SQS_QUEUE_SD_TRAFFIC_URL),
+          'sd-conversion': urlToArn(process.env.AWS_SQS_QUEUE_SD_CONVERSION_URL),
+          'sd-budget-usage': urlToArn(process.env.AWS_SQS_QUEUE_SD_BUDGET_URL),
+        };
+        
+        // 检查是否有任何队列配置
+        const configuredQueues = Object.entries(queueArnMapping).filter(([_, arn]) => arn);
+        if (configuredQueues.length === 0) {
+          // 向后兼容: 如果没有配置单独的队列URL，尝试使用旧的单一ARN
+          const sqsQueueArn = process.env.AWS_SQS_QUEUE_ARN;
+          if (!sqsQueueArn) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: '未配置SQS队列环境变量' });
+          }
+          console.log('[AMS] 使用单一队列ARN模式:', sqsQueueArn);
+          
+          const region = MARKETPLACE_TO_REGION[account.marketplace || 'US'] || 'NA';
+          const client = new AmazonAdsApiClient({
+            clientId: credentials.clientId,
+            clientSecret: credentials.clientSecret,
+            refreshToken: credentials.refreshToken,
+            profileId: credentials.profileId,
+            region,
+          });
+          
+          const result = await client.createAllTrafficSubscriptions(sqsQueueArn);
+          return {
+            success: true,
+            created: result.created,
+            failed: result.failed,
+            message: `成功创建 ${result.created.length} 个订阅，失败 ${result.failed.length} 个`,
+          };
+        }
+        
+        console.log(`[AMS] 使用队列映射模式，已配置 ${configuredQueues.length} 个队列:`);
+        configuredQueues.forEach(([name, arn]) => console.log(`  - ${name}: ${arn}`));
+        
+        const region = MARKETPLACE_TO_REGION[account.marketplace || 'US'] || 'NA';
+        const client = new AmazonAdsApiClient({
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+          profileId: credentials.profileId,
+          region,
+        });
+        
+        // 使用队列映射创建订阅
+        const result = await client.createAllTrafficSubscriptions(queueArnMapping as Record<string, string>);
+        
+        return {
+          success: true,
+          created: result.created,
+          failed: result.failed,
+          message: `成功创建 ${result.created.length} 个订阅，失败 ${result.failed.length} 个`,
+        };
+      } catch (error: any) {
+        console.error('[AMS] 批量创建订阅失败:', error.message);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `批量创建AMS订阅失败: ${error.message}`,
+        });
+      }
+    }),
+
+  // 归档/删除AMS订阅
+  archiveAmsSubscription: protectedProcedure
+    .input(z.object({
+      accountId: z.number(),
+      subscriptionId: z.string(),
+    }))
+    .mutation(async ({ input }) => {
+      try {
+        const account = await db.getAdAccountById(input.accountId);
+        if (!account) {
+          throw new TRPCError({ code: 'NOT_FOUND', message: '账号不存在' });
+        }
+        
+        const credentials = await db.getAmazonApiCredentials(input.accountId);
+        if (!credentials) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '账号未配置API凭证' });
+        }
+        
+        const region = MARKETPLACE_TO_REGION[account.marketplace || 'US'] || 'NA';
+        const client = new AmazonAdsApiClient({
+          clientId: credentials.clientId,
+          clientSecret: credentials.clientSecret,
+          refreshToken: credentials.refreshToken,
+          profileId: credentials.profileId,
+          region,
+        });
+        
+        await client.archiveAmsSubscription(input.subscriptionId);
+        
+        return { success: true };
+      } catch (error: any) {
+        console.error('[AMS] 归档订阅失败:', error.message);
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `归档AMS订阅失败: ${error.message}`,
+        });
+      }
+    }),
+
+  // 获取SQS配置信息
+  getSqsConfig: protectedProcedure
+    .query(async () => {
+      const queueArn = process.env.AWS_SQS_QUEUE_ARN;
+      const queueUrl = process.env.AWS_SQS_QUEUE_URL;
+      const trafficQueueUrl = process.env.AWS_SQS_QUEUE_TRAFFIC_URL;
+      const conversionQueueUrl = process.env.AWS_SQS_QUEUE_CONVERSION_URL;
+      const budgetQueueUrl = process.env.AWS_SQS_QUEUE_BUDGET_URL;
+      
+      return {
+        configured: !!(queueArn || trafficQueueUrl || conversionQueueUrl || budgetQueueUrl),
+        queueArn: queueArn ? `${queueArn.substring(0, 30)}...` : null,
+        queueUrl: queueUrl ? `${queueUrl.substring(0, 50)}...` : null,
+        multiQueueConfigured: !!(trafficQueueUrl || conversionQueueUrl || budgetQueueUrl),
+        queues: {
+          traffic: trafficQueueUrl ? `${trafficQueueUrl.substring(0, 50)}...` : null,
+          conversion: conversionQueueUrl ? `${conversionQueueUrl.substring(0, 50)}...` : null,
+          budget: budgetQueueUrl ? `${budgetQueueUrl.substring(0, 50)}...` : null,
+        },
+      };
+    }),
+
+  // 获取SQS消费者状态
+  getSqsConsumerStatus: protectedProcedure
+    .query(async () => {
+      try {
+        const consumer = getSQSConsumer();
+        const status = consumer.getStatus();
+        const queueStats = await consumer.getQueueStats();
+        
+        return {
+          isRunning: status.length > 0 && status.some(s => s.isRunning),
+          consumers: status,
+          queueStats,
+        };
+      } catch (error: any) {
+        return {
+          isRunning: false,
+          consumers: [],
+          queueStats: [],
+          error: error.message,
+        };
+      }
+    }),
+
+  // 启动SQS消费者
+  startSqsConsumer: protectedProcedure
+    .mutation(async () => {
+      try {
+        await startSQSConsumer();
+        return { success: true, message: 'SQS消费者已启动' };
+      } catch (error: any) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `启动SQS消费者失败: ${error.message}`,
+        });
+      }
+    }),
+
+  // 停止SQS消费者
+  stopSqsConsumer: protectedProcedure
+    .mutation(async () => {
+      try {
+        stopSQSConsumer();
+        return { success: true, message: 'SQS消费者已停止' };
+      } catch (error: any) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: `停止SQS消费者失败: ${error.message}`,
+        });
+      }
+    }),
+
+  // ==================== 批量授权API ====================
+
+  // 获取所有区域配置信息
+  getBatchAuthRegions: publicProcedure
+    .query(() => {
+      return {
+        regions: [
+          {
+            code: 'NA',
+            name: '北美区域',
+            displayFlags: '🇺🇸🇨🇦🇲🇽🇧🇷',
+            marketplaces: [
+              { code: 'US', name: '美国', flag: '🇺🇸' },
+              { code: 'CA', name: '加拿大', flag: '🇨🇦' },
+              { code: 'MX', name: '墨西哥', flag: '🇲🇽' },
+              { code: 'BR', name: '巴西', flag: '🇧🇷' },
+            ],
+          },
+          {
+            code: 'EU',
+            name: '欧洲区域',
+            displayFlags: '🇬🇧🇩🇪🇫🇷🇮🇹🇪🇸',
+            marketplaces: [
+              { code: 'UK', name: '英国', flag: '🇬🇧' },
+              { code: 'DE', name: '德国', flag: '🇩🇪' },
+              { code: 'FR', name: '法国', flag: '🇫🇷' },
+              { code: 'IT', name: '意大利', flag: '🇮🇹' },
+              { code: 'ES', name: '西班牙', flag: '🇪🇸' },
+              { code: 'NL', name: '荷兰', flag: '🇳🇱' },
+              { code: 'SE', name: '瑞典', flag: '🇸🇪' },
+              { code: 'PL', name: '波兰', flag: '🇵🇱' },
+              { code: 'AE', name: '阿联酋', flag: '🇦🇪' },
+              { code: 'SA', name: '沙特', flag: '🇸🇦' },
+              { code: 'IN', name: '印度', flag: '🇮🇳' },
+            ],
+          },
+          {
+            code: 'FE',
+            name: '远东区域',
+            displayFlags: '🇯🇵🇦🇺🇸🇬',
+            marketplaces: [
+              { code: 'JP', name: '日本', flag: '🇯🇵' },
+              { code: 'AU', name: '澳大利亚', flag: '🇦🇺' },
+              { code: 'SG', name: '新加坡', flag: '🇸🇬' },
+            ],
+          },
+        ],
+      };
+    }),
+
+  // 创建批量授权会话
+  createBatchAuthSession: protectedProcedure
+    .input(z.object({
+      storeName: z.string(),
+      selectedRegions: z.array(z.enum(['NA', 'EU', 'FE'])),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const sessionId = `batch_${ctx.user.id}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // 生成每个区域的授权URL
+      const clientId = process.env.AMAZON_ADS_CLIENT_ID || '';
+      const redirectUri = 'https://sellerps.com';
+      
+      const authEndpoints: Record<string, string> = {
+        NA: 'https://www.amazon.com/ap/oa',
+        EU: 'https://eu.account.amazon.com/ap/oa',
+        FE: 'https://apac.account.amazon.com/ap/oa',
+      };
+      
+      const regionAuthUrls = input.selectedRegions.map(regionCode => {
+        const state = `${sessionId}:${regionCode}`;
+        const params = new URLSearchParams({
+          client_id: clientId,
+          scope: 'advertising::campaign_management',
+          response_type: 'code',
+          redirect_uri: redirectUri,
+          state,
+        });
+        return {
+          regionCode,
+          authUrl: `${authEndpoints[regionCode]}?${params.toString()}`,
+          status: 'pending' as const,
+        };
+      });
+      
+      return {
+        sessionId,
+        storeName: input.storeName,
+        regions: regionAuthUrls,
+        createdAt: new Date().toISOString(),
+      };
+    }),
+
+  // 批量处理多个区域的授权码
+  processBatchAuthCodes: protectedProcedure
+    .input(z.object({
+      storeName: z.string(),
+      authCodes: z.array(z.object({
+        regionCode: z.enum(['NA', 'EU', 'FE']),
+        code: z.string(),
+      })),
+    }))
+    .mutation(async ({ ctx, input }) => {
+      const clientId = process.env.AMAZON_ADS_CLIENT_ID || '';
+      const clientSecret = process.env.AMAZON_ADS_CLIENT_SECRET || '';
+      const redirectUri = 'https://sellerps.com';
+      
+      if (!clientId || !clientSecret) {
+        throw new TRPCError({
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '缺少Amazon API凭证配置',
+        });
+      }
+      
+      const results: Array<{
+        regionCode: string;
+        status: 'success' | 'error';
+        profilesCount?: number;
+        accountsCreated?: number;
+        error?: string;
+      }> = [];
+      
+      // 依次处理每个区域的授权码
+      for (const { regionCode, code } of input.authCodes) {
+        try {
+          console.log(`[BatchAuth] 处理 ${regionCode} 区域授权码...`);
+          
+          // 1. 换取Token
+          const tokens = await AmazonAdsApiClient.exchangeCodeForToken(
+            code,
+            clientId,
+            clientSecret,
+            redirectUri
+          );
+          
+          // 2. 获取该区域的所有Profile
+          const client = new AmazonAdsApiClient({
+            clientId,
+            clientSecret,
+            refreshToken: tokens.refresh_token,
+            profileId: '',
+            region: regionCode as 'NA' | 'EU' | 'FE',
+          });
+          
+          const profiles = await client.getProfiles();
+          console.log(`[BatchAuth] ${regionCode} 区域获取到 ${profiles.length} 个Profile`);
+          
+          // 3. 为每个Profile创建账号
+          let accountsCreated = 0;
+          for (const profile of profiles) {
+            try {
+              // 检查是否已存在
+              const existingAccounts = await db.getAdAccountsByUserId(ctx.user.id);
+              const existingByProfile = existingAccounts.find(
+                a => a.profileId === String(profile.profileId)
+              );
+              
+              let accountId: number;
+              
+              if (existingByProfile) {
+                // 更新现有账号
+                accountId = existingByProfile.id;
+                await db.updateAdAccount(accountId, {
+                  storeName: input.storeName,
+                  marketplace: profile.countryCode,
+                });
+                console.log(`[BatchAuth] 更新现有账号 ${accountId} (${profile.countryCode})`);
+              } else {
+                // 创建新账号
+                accountId = await db.createAdAccount({
+                  userId: ctx.user.id,
+                  accountId: String(profile.profileId),
+                  accountName: (profile as any).accountInfo?.name || `${input.storeName} - ${profile.countryCode}`,
+                  storeName: input.storeName,
+                  marketplace: profile.countryCode,
+                  profileId: String(profile.profileId),
+                  connectionStatus: 'pending',
+                });
+                accountsCreated++;
+                console.log(`[BatchAuth] 创建新账号 ${accountId} (${profile.countryCode})`);
+              }
+              
+              // 4. 保存API凭证
+              await db.saveAmazonApiCredentials({
+                accountId,
+                clientId,
+                clientSecret,
+                refreshToken: tokens.refresh_token,
+                profileId: String(profile.profileId),
+                region: regionCode,
+              });
+              
+              // 5. 更新连接状态
+              await db.updateAdAccount(accountId, {
+                connectionStatus: 'connected',
+              });
+              
+              // 6. ✅ 异步启动完整初始化（全量同步 + 定时调度 + AMS订阅）
+              const { initializeAccount } = await import('../accountInitializationService');
+              initializeAccount({
+                accountId,
+                userId: ctx.user.id,
+                clientId,
+                clientSecret,
+                refreshToken: tokens.refresh_token,
+                profileId: String(profile.profileId),
+                region: regionCode as 'NA' | 'EU' | 'FE',
+                marketplace: profile.countryCode,
+              }).then(initResult => {
+                console.log(`[BatchAuth] 账号 ${accountId} (${profile.countryCode}) 初始化完成:`, {
+                  sync: initResult.syncResult.success ? '✅' : '❌',
+                  schedule: initResult.scheduleResult.success ? '✅' : '❌',
+                  ams: initResult.amsResult.success ? '✅' : '❌',
+                });
+              }).catch(err => {
+                console.error(`[BatchAuth] 账号 ${accountId} (${profile.countryCode}) 初始化失败:`, err);
+              });
+              
+            } catch (profileError: any) {
+              console.error(`[BatchAuth] 处理Profile ${profile.profileId} 失败:`, profileError);
+            }
+          }
+          
+          results.push({
+            regionCode,
+            status: 'success',
+            profilesCount: profiles.length,
+            accountsCreated,
+          });
+          
+        } catch (error: any) {
+          console.error(`[BatchAuth] ${regionCode} 区域授权失败:`, error);
+          results.push({
+            regionCode,
+            status: 'error',
+            error: error.message,
+          });
+        }
+      }
+      
+      const successCount = results.filter(r => r.status === 'success').length;
+      const totalProfiles = results.reduce((sum, r) => sum + (r.profilesCount || 0), 0);
+      const totalAccountsCreated = results.reduce((sum, r) => sum + (r.accountsCreated || 0), 0);
+      
+      return {
+        success: successCount > 0,
+        message: successCount === input.authCodes.length
+          ? `所有 ${successCount} 个区域授权成功，共创建 ${totalAccountsCreated} 个站点账号`
+          : `${successCount}/${input.authCodes.length} 个区域授权成功`,
+        results,
+        summary: {
+          totalRegions: input.authCodes.length,
+          successRegions: successCount,
+          totalProfiles,
+          totalAccountsCreated,
+        },
+      };
+    }),
+
+  // 获取用户已授权的区域状态
+  getAuthorizedRegions: protectedProcedure
+    .query(async ({ ctx }) => {
+      const accounts = await db.getAdAccountsByUserId(ctx.user.id);
+      
+      // 按区域分组统计
+      const regionStats: Record<string, {
+        authorized: boolean;
+        accountCount: number;
+        marketplaces: string[];
+        lastSyncAt?: string;
+      }> = {
+        NA: { authorized: false, accountCount: 0, marketplaces: [] },
+        EU: { authorized: false, accountCount: 0, marketplaces: [] },
+        FE: { authorized: false, accountCount: 0, marketplaces: [] },
+      };
+      
+      const marketplaceToRegion: Record<string, string> = {
+        US: 'NA', CA: 'NA', MX: 'NA', BR: 'NA',
+        UK: 'EU', DE: 'EU', FR: 'EU', IT: 'EU', ES: 'EU', NL: 'EU', SE: 'EU', PL: 'EU', AE: 'EU', SA: 'EU', IN: 'EU',
+        JP: 'FE', AU: 'FE', SG: 'FE',
+      };
+      
+      for (const account of accounts) {
+        if (!account.marketplace) continue;
+        
+        const region = marketplaceToRegion[account.marketplace];
+        if (!region || !regionStats[region]) continue;
+        
+        const credentials = await db.getAmazonApiCredentials(account.id);
+        if (credentials) {
+          regionStats[region].authorized = true;
+          regionStats[region].accountCount++;
+          regionStats[region].marketplaces.push(account.marketplace);
+          if (credentials.lastSyncAt) {
+            regionStats[region].lastSyncAt = credentials.lastSyncAt;
+          }
+        }
+      }
+      
+      return {
+        regions: Object.entries(regionStats).map(([code, stats]) => ({
+          code,
+          ...stats,
+        })),
+        totalAccounts: accounts.length,
+        authorizedAccounts: accounts.filter(a => a.connectionStatus === 'connected').length,
+      };
+    }),
+});

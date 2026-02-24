@@ -16,6 +16,7 @@
  */
 
 import * as db from './db';
+import { and, eq, sql } from 'drizzle-orm';
 
 // ==================== 配置常量 ====================
 
@@ -305,44 +306,76 @@ export async function checkEmergencyBrake(
       }
     }
     
-    // 数据不足
-    if (previousSpend < 1 && previousSales < 1) {
+    // 数据不足 - v230: 提高最低数据阈值以避免小数据量下的误触发
+    if (previousSpend < 10 && previousSales < 10) {
       return { triggered: false, reason: null, recommendation: 'none' };
     }
     
-    // 检测销售额骤降
-    if (previousSales > 10) {
+    // v230: 检查最近是否有优化操作，用于因果归因
+    let hasRecentOptimization = false;
+    try {
+      const { optimizationLogs } = await import('../drizzle/schema');
+      const dbInstance = await db.getDb();
+      if (dbInstance) {
+        const recentOps = await dbInstance.select({ id: optimizationLogs.id })
+          .from(optimizationLogs)
+          .where(and(
+            eq(optimizationLogs.accountId, accountId),
+            sql`created_at >= DATE_SUB(NOW(), INTERVAL ${lookback} DAY)`,
+            eq(optimizationLogs.status, 'applied' as any)
+          ))
+          .limit(1);
+        hasRecentOptimization = recentOps.length > 0;
+      }
+    } catch (e) {
+      // 无法查询时保守处理
+    }
+    
+    // v230: 检测销售额骤降 - 增加因果归因
+    if (previousSales > 30) {  // v230: 提高最低销售额阈值
       const salesDropRate = (previousSales - recentSales) / previousSales;
       if (salesDropRate >= SAFETY_LIMITS.emergency.salesDropThreshold) {
-        return {
-          triggered: true,
-          reason: `销售额${lookback}天内下降${(salesDropRate * 100).toFixed(0)}%（$${previousSales.toFixed(0)}→$${recentSales.toFixed(0)}）`,
-          recommendation: 'reduce_bids',
-        };
+        // v230: 只有当最近有优化操作时才触发紧急制动
+        // 如果没有优化操作，下降可能是自然波动，只记录警告而不触发制动
+        if (hasRecentOptimization) {
+          return {
+            triggered: true,
+            reason: `销售额${lookback}天内下降${(salesDropRate * 100).toFixed(0)}%（$${previousSales.toFixed(0)}→$${recentSales.toFixed(0)}），且最近有优化操作`,
+            recommendation: 'reduce_bids',
+          };
+        }
+        // v230: 无优化操作时记录但不触发制动
+        console.warn(`[EmergencyBrake] v230: 销售额下降${(salesDropRate * 100).toFixed(0)}%但无近期优化操作，判定为自然波动，不触发制动`);
       }
     }
     
-    // 检测花费激增
-    if (previousSpend > 5) {
+    // v230: 检测花费激增 - 增加因果归因
+    if (previousSpend > 20) {  // v230: 提高最低花费阈值
       const spendSurgeRate = recentSpend / previousSpend;
       if (spendSurgeRate >= SAFETY_LIMITS.emergency.spendSurgeThreshold && recentSales < previousSales * 1.2) {
-        return {
-          triggered: true,
-          reason: `花费${lookback}天内激增${((spendSurgeRate - 1) * 100).toFixed(0)}%但销售未同步增长`,
-          recommendation: 'reduce_budgets',
-        };
+        if (hasRecentOptimization) {
+          return {
+            triggered: true,
+            reason: `花费${lookback}天内激增${((spendSurgeRate - 1) * 100).toFixed(0)}%但销售未同步增长，且最近有优化操作`,
+            recommendation: 'reduce_budgets',
+          };
+        }
+        console.warn(`[EmergencyBrake] v230: 花费激增${((spendSurgeRate - 1) * 100).toFixed(0)}%但无近期优化操作，判定为自然波动`);
       }
     }
     
-    // 检测订单骤降
-    if (previousOrders > 5) {
+    // v230: 检测订单骤降 - 增加因果归因
+    if (previousOrders > 10) {  // v230: 提高最低订单阈值
       const ordersDropRate = (previousOrders - recentOrders) / previousOrders;
       if (ordersDropRate >= SAFETY_LIMITS.emergency.ordersDropThreshold) {
-        return {
-          triggered: true,
-          reason: `订单${lookback}天内下降${(ordersDropRate * 100).toFixed(0)}%（${previousOrders}→${recentOrders}）`,
-          recommendation: 'pause_optimization',
-        };
+        if (hasRecentOptimization) {
+          return {
+            triggered: true,
+            reason: `订单${lookback}天内下降${(ordersDropRate * 100).toFixed(0)}%（${previousOrders}→${recentOrders}），且最近有优化操作`,
+            recommendation: 'pause_optimization',
+          };
+        }
+        console.warn(`[EmergencyBrake] v230: 订单下降${(ordersDropRate * 100).toFixed(0)}%但无近期优化操作，判定为自然波动`);
       }
     }
     

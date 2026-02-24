@@ -18,7 +18,8 @@
  * 都能获得完整的Amazon ID，确保100%同步成功率。
  */
 
-import * as amazonApiHelper from './amazonApiHelper';
+// v223: 从 syncServiceProvider 导入，避免循环依赖
+import { getAmazonSyncService } from './syncServiceProvider';
 import { sanitizeAndValidateKeyword, canAddPositiveKeyword, isAsinSearchTerm, adGroupHasProductTargets } from '../utils/keywordValidator';
 import { createModuleLogger } from '../utils/logger';
 
@@ -149,7 +150,7 @@ async function resolveKeywordIds(
   log.debug(`Keywords: 分布在${groupedByAdGroup.size}个adGroup中`);
 
   // 获取SyncService实例
-  const syncService = await amazonApiHelper.getAmazonSyncService(accountId);
+  const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
     result.errors.push(`无法获取账号${accountId}的API服务`);
     result.keywordsFailed = missingKws.length;
@@ -418,7 +419,7 @@ async function resolveProductTargetIds(
     ptGroupedByAdGroup.set(pt.adGroupId, group);
   }
 
-  const syncService = await amazonApiHelper.getAmazonSyncService(accountId);
+  const syncService = await getAmazonSyncService(accountId);
   if (!syncService) {
     result.errors.push(`无法获取账号${accountId}的API服务`);
     result.productTargetsFailed = missingPts.length;
@@ -559,7 +560,7 @@ export async function resolveKeywordIdOnDemand(
       return null;
     }
 
-    const syncService = await amazonApiHelper.getAmazonSyncService(accountId);
+    const syncService = await getAmazonSyncService(accountId);
     if (!syncService) return null;
 
     const amazonAdGroupId = Number(kw.amazonAdGroupId);
@@ -676,7 +677,7 @@ export async function resolveProductTargetIdOnDemand(
     const pt = ptRows[0];
     if (!pt.amazonAdGroupId) return null;
 
-    const syncService = await amazonApiHelper.getAmazonSyncService(accountId);
+    const syncService = await getAmazonSyncService(accountId);
     if (!syncService) return null;
 
     const amazonAdGroupId = Number(pt.amazonAdGroupId);

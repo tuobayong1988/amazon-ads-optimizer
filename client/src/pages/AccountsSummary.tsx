@@ -273,7 +273,7 @@ export default function AccountsSummary() {
                         <XAxis type="number" tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} />
                         <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 12 }} />
                         <Tooltip
-                          formatter={(value: number) => formatCurrency(value)}
+                          formatter={((value: number) => formatCurrency(value)) as any}
                           contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
                         />
                         <Bar dataKey="sales" fill="#3B82F6" radius={[0, 4, 4, 0]} />
@@ -308,7 +308,7 @@ export default function AccountsSummary() {
                           ))}
                         </Pie>
                         <Tooltip
-                          formatter={(value: number) => formatCurrency(value)}
+                          formatter={((value: number) => formatCurrency(value)) as any}
                           contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
                         />
                       </PieChart>
@@ -404,7 +404,7 @@ export default function AccountsSummary() {
                         }}
                       />
                       <Tooltip
-                        formatter={(value: number) => {
+                        formatter={((value: number) => {
                           if (selectedMetric === 'sales' || selectedMetric === 'spend') {
                             return formatCurrency(value);
                           }
@@ -415,7 +415,7 @@ export default function AccountsSummary() {
                             return value.toFixed(2);
                           }
                           return formatNumber(value);
-                        }}
+                        }) as any}
                         contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
                       />
                       <Bar

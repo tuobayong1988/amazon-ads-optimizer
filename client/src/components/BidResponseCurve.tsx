@@ -332,11 +332,11 @@ export function BidResponseCurve({
                         border: "1px solid hsl(var(--border))",
                         borderRadius: "8px",
                       }}
-                      formatter={(value: number, name: string) => {
+                      formatter={((value: number, name: string) => {
                         if (name === "销售额") return [formatCurrency(value), name];
                         if (name === "ROAS") return [value.toFixed(2), name];
                         return [value, name];
-                      }}
+                      }) as any}
                       labelFormatter={(label) => `出价: $${label}`}
                     />
                     <Legend />
@@ -427,7 +427,7 @@ export function BidResponseCurve({
                         border: "1px solid hsl(var(--border))",
                         borderRadius: "8px",
                       }}
-                      formatter={(value: number, name: string) => [formatCurrency(value), name]}
+                      formatter={((value: number, name: string) => [formatCurrency(value), name]) as any}
                       labelFormatter={(label) => `出价: $${label}`}
                     />
                     <Legend />
@@ -494,7 +494,7 @@ export function BidResponseCurve({
                         border: "1px solid hsl(var(--border))",
                         borderRadius: "8px",
                       }}
-                      formatter={(value: number) => [formatCurrency(value), "利润"]}
+                      formatter={((value: number) => [formatCurrency(value), "利润"]) as any}
                       labelFormatter={(label) => `出价: $${label}`}
                     />
                     <Area

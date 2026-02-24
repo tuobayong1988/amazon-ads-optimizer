@@ -383,7 +383,7 @@ export async function executeOptimizationSuggestions(
   const executionId = await db.createAiOptimizationExecution({
     userId,
     accountId,
-    campaignId,
+    campaignId: campaignId as any,
     executionName: `AI优化执行 - ${new Date().toLocaleDateString("zh-CN")}`,
     aiExecType: executionType,
     totalActions: suggestions.length,

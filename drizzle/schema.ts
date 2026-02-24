@@ -3879,3 +3879,26 @@ export const systemLogs = mysqlTable("system_logs", {
 
 export type SystemLog = InferSelectModel<typeof systemLogs>;
 export type InsertSystemLog = InferInsertModel<typeof systemLogs>;
+
+// ==================== v230: CQL模型持久化表 ====================
+/**
+ * CQL模型持久化存储 - 避免服务重启后模型丢失
+ * 存储每个账户的CQL模型权重和训练元数据
+ */
+export const cqlModels = mysqlTable("cql_models", {
+  id: int().autoincrement().notNull(),
+  accountId: int("account_id").notNull(),
+  modelVersion: int("model_version").default(1),
+  weights: text("weights").notNull(),
+  trainingEpisodes: int("training_episodes").default(0),
+  trainingSteps: int("training_steps").default(0),
+  avgLoss: decimal("avg_loss", { precision: 12, scale: 8 }),
+  lastTrainedAt: datetime("last_trained_at", { mode: 'string' }),
+  createdAt: timestamp("created_at", { mode: 'string' }).default('CURRENT_TIMESTAMP'),
+  updatedAt: timestamp("updated_at", { mode: 'string' }).defaultNow().onUpdateNow(),
+},
+(table) => [
+  index("idx_cql_account").on(table.accountId),
+]);
+export type CqlModel = InferSelectModel<typeof cqlModels>;
+export type InsertCqlModel = InferInsertModel<typeof cqlModels>;

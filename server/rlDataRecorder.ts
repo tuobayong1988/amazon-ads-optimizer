@@ -126,6 +126,19 @@ async function getOrCreateEpisodeId(
  * 记录出价调整的State和Action（在出价执行时调用）
  */
 export async function recordBidAction(action: BidAction): Promise<void> {
+  // v231: 防御性校验 - 确保必要参数有效
+  if (!action.accountId) {
+    console.warn(`[RLDataRecorder] v231: recordBidAction skipped - missing accountId`);
+    return;
+  }
+  if (!action.keywordId && !action.targetId) {
+    console.warn(`[RLDataRecorder] v231: recordBidAction skipped - missing both keywordId and targetId`);
+    return;
+  }
+  if (action.bidAfter == null || !isFinite(action.bidAfter)) {
+    console.warn(`[RLDataRecorder] v231: recordBidAction skipped - invalid bidAfter: ${action.bidAfter}`);
+    return;
+  }
   const db = await getDbInstance();
   
   try {
@@ -282,36 +295,76 @@ export async function backfillRewards(accountId: number): Promise<number> {
         const nextDay = new Date(logDate.getTime() + 86400000).toISOString().split('T')[0];
         const twoDaysLater = new Date(logDate.getTime() + 2 * 86400000).toISOString().split('T')[0];
         
-        // 获取调整后1-2天的绩效数据
-        const afterPerf = await db.select({
-          totalImpressions: sql<number>`SUM(impressions)`,
-          totalClicks: sql<number>`SUM(clicks)`,
-          totalOrders: sql<number>`SUM(orders)`,
-          totalSpend: sql<number>`SUM(CAST(spend AS DECIMAL(10,2)))`,
-          totalSales: sql<number>`SUM(CAST(sales AS DECIMAL(10,2)))`,
-        }).from(dailyPerformance)
-          .where(and(
-            eq(dailyPerformance.accountId, log.accountId),
-            log.campaignId ? eq(dailyPerformance.campaignId, log.campaignId) : sql`1=1`,
-            gte(dailyPerformance.date, nextDay),
-            lte(dailyPerformance.date, twoDaysLater)
-          ));
+        // v230: 修复归因粒度 - 优先使用关键词/商品定向级别的绩效数据，而非整个Campaign级别
+        let rewardImpressions = 0;
+        let rewardClicks = 0;
+        let rewardOrders = 0;
+        let rewardSpend = 0;
+        let rewardSales = 0;
         
-        const perf = afterPerf[0] || {};
-        const rewardImpressions = Number(perf.totalImpressions) || 0;
-        const rewardClicks = Number(perf.totalClicks) || 0;
-        const rewardOrders = Number(perf.totalOrders) || 0;
-        const rewardSpend = Number(perf.totalSpend) || 0;
-        const rewardSales = Number(perf.totalSales) || 0;
+        if (log.keywordId) {
+          // 关键词级别归因：直接从keywords表获取绩效数据
+          const kwPerf = await db.select({
+            impressions: keywords.impressions,
+            clicks: keywords.clicks,
+            orders: keywords.orders,
+            spend: keywords.spend,
+            sales: keywords.sales,
+          }).from(keywords).where(eq(keywords.id, log.keywordId)).limit(1);
+          
+          if (kwPerf[0]) {
+            rewardImpressions = Number(kwPerf[0].impressions) || 0;
+            rewardClicks = Number(kwPerf[0].clicks) || 0;
+            rewardOrders = Number(kwPerf[0].orders) || 0;
+            rewardSpend = Number(kwPerf[0].spend) || 0;
+            rewardSales = Number(kwPerf[0].sales) || 0;
+          }
+        } else if (log.targetId) {
+          // 商品定向级别归因：从productTargets表获取绩效数据
+          const tgtPerf = await db.select({
+            impressions: productTargets.impressions,
+            clicks: productTargets.clicks,
+            orders: productTargets.orders,
+            spend: productTargets.spend,
+            sales: productTargets.sales,
+          }).from(productTargets).where(eq(productTargets.id, log.targetId)).limit(1);
+          
+          if (tgtPerf[0]) {
+            rewardImpressions = Number(tgtPerf[0].impressions) || 0;
+            rewardClicks = Number(tgtPerf[0].clicks) || 0;
+            rewardOrders = Number(tgtPerf[0].orders) || 0;
+            rewardSpend = Number(tgtPerf[0].spend) || 0;
+            rewardSales = Number(tgtPerf[0].sales) || 0;
+          }
+        } else {
+          // 回退到Campaign级别（仅在无关键词/定向ID时）
+          const afterPerf = await db.select({
+            totalImpressions: sql<number>`SUM(impressions)`,
+            totalClicks: sql<number>`SUM(clicks)`,
+            totalOrders: sql<number>`SUM(orders)`,
+            totalSpend: sql<number>`SUM(CAST(spend AS DECIMAL(10,2)))`,
+            totalSales: sql<number>`SUM(CAST(sales AS DECIMAL(10,2)))`,
+          }).from(dailyPerformance)
+            .where(and(
+              eq(dailyPerformance.accountId, log.accountId),
+              log.campaignId ? eq(dailyPerformance.campaignId, log.campaignId) : sql`1=1`,
+              gte(dailyPerformance.date, nextDay),
+              lte(dailyPerformance.date, twoDaysLater)
+            ));
+          
+          const perf = afterPerf[0] || {};
+          rewardImpressions = Number(perf.totalImpressions) || 0;
+          rewardClicks = Number(perf.totalClicks) || 0;
+          rewardOrders = Number(perf.totalOrders) || 0;
+          rewardSpend = Number(perf.totalSpend) || 0;
+          rewardSales = Number(perf.totalSales) || 0;
+        }
         
-        // 计算增量利润作为Reward
-        // Reward = Sales - Spend - (估计的产品成本)
-        // 简化：使用 (Sales - Spend) 作为广告利润
+        // v230: 使用归一化的Reward计算，避免不同规模关键词的绝对利润差异过大
         const rewardProfit = rewardSales - rewardSpend;
-        
-        // 归一化Reward：使用出价变化方向的利润变化
-        // 正Reward = 利润增加，负Reward = 利润减少
-        const reward = rewardProfit;
+        const bidDelta = Number(log.actionBidAfter) - Number(log.actionBidBefore);
+        // 归一化Reward: 利润率作为基准，避免绝对值偏差
+        const reward = rewardSpend > 0 ? rewardProfit / rewardSpend : rewardProfit;
         
         await db.update(rlTrainingLogs)
           .set({
@@ -360,4 +413,222 @@ export async function getTrainingDataset(
     .limit(limit);
   
   return data;
+}
+
+/**
+ * v230: 记录出价-绩效历史数据到 bidPerformanceHistory 表
+ * 
+ * 核心职责：为Sigmoid曲线拟合算法提供训练数据
+ * 每次出价调整执行后调用，记录当前出价和对应的绩效指标
+ * 
+ * 调用时机：在 optimizationTargetEngine 的出价同步成功后调用
+ */
+export async function recordBidPerformanceHistory(params: {
+  accountId: number;
+  campaignId: string;
+  bidObjectType: 'keyword' | 'asin';
+  bidObjectId: number;
+  bid: number;
+  impressions?: number;
+  clicks?: number;
+  spend?: number;
+  sales?: number;
+  orders?: number;
+}): Promise<void> {
+  // v231: 防御性校验 - 确保关键参数有效，避免写入无效数据
+  if (!params.accountId || !params.campaignId || !params.bidObjectId || params.bid == null) {
+    console.warn(`[RLDataRecorder] v231: recordBidPerformanceHistory skipped - missing required params: accountId=${params.accountId}, campaignId=${params.campaignId}, bidObjectId=${params.bidObjectId}, bid=${params.bid}`);
+    return;
+  }
+  if (params.bid <= 0 || !isFinite(params.bid)) {
+    console.warn(`[RLDataRecorder] v231: recordBidPerformanceHistory skipped - invalid bid value: ${params.bid}`);
+    return;
+  }
+  try {
+    const db = await getDbInstance();
+    const { bidPerformanceHistory } = await import('../drizzle/schema');
+    
+    const today = new Date().toISOString().split('T')[0];
+    const currentHour = new Date().getHours();
+    
+    // 计算绩效指标
+    const impressions = params.impressions || 0;
+    const clicks = params.clicks || 0;
+    const spend = params.spend || 0;
+    const sales = params.sales || 0;
+    const orders = params.orders || 0;
+    
+    const ctr = impressions > 0 ? clicks / impressions : 0;
+    const cvr = clicks > 0 ? orders / clicks : 0;
+    const acos = sales > 0 ? spend / sales : 0;
+    const roas = spend > 0 ? sales / spend : 0;
+    const effectiveCpc = clicks > 0 ? spend / clicks : 0;
+    const revenue = sales;
+    const profit = sales - spend;
+    
+    await db.insert(bidPerformanceHistory).values({
+      accountId: params.accountId,
+      campaignId: String(params.campaignId),
+      bidObjectType: params.bidObjectType,
+      bidObjectId: String(params.bidObjectId),
+      bid: String(params.bid),
+      effectiveCpc: String(effectiveCpc),
+      date: today,
+      timeSlot: currentHour,
+      impressions,
+      clicks,
+      spend: String(spend),
+      sales: String(sales),
+      orders,
+      ctr: String(ctr),
+      cvr: String(cvr),
+      acos: String(acos),
+      roas: String(roas),
+      revenue: String(revenue),
+      profit: String(profit),
+    } as any);
+    
+    console.log(`[RLDataRecorder] v230: bidPerformanceHistory recorded: account=${params.accountId}, type=${params.bidObjectType}, id=${params.bidObjectId}, bid=${params.bid}`);
+  } catch (error) {
+    // 记录失败不阻塞主流程
+    console.error(`[RLDataRecorder] v230: Failed to record bidPerformanceHistory:`, error);
+  }
+}
+
+/**
+ * v230: 批量记录出价-绩效历史数据
+ * 在优化目标引擎的出价同步成功后批量调用
+ */
+export async function batchRecordBidPerformanceHistory(records: Array<{
+  accountId: number;
+  campaignId: string;
+  bidObjectType: 'keyword' | 'asin';
+  bidObjectId: number;
+  bid: number;
+  impressions?: number;
+  clicks?: number;
+  spend?: number;
+  sales?: number;
+  orders?: number;
+}>): Promise<{ recorded: number; failed: number }> {
+  let recorded = 0;
+  let failed = 0;
+  
+  for (const record of records) {
+    try {
+      await recordBidPerformanceHistory(record);
+      recorded++;
+    } catch (e) {
+      failed++;
+    }
+  }
+  
+  console.log(`[RLDataRecorder] v230: batchRecordBidPerformanceHistory: recorded=${recorded}, failed=${failed}`);
+  return { recorded, failed };
+}
+
+/**
+ * v230: 回填bidPerformanceHistory中的绩效数据
+ * 出价记录创建时只有bid值，绩效数据需要在后续同步后回填
+ * 此函数在数据同步完成后被调度执行
+ */
+export async function backfillBidPerformanceResults(): Promise<{ updated: number; skipped: number }> {
+  try {
+    const db = await getDbInstance();
+    const { bidPerformanceHistory, keywords, productTargets } = await import('../drizzle/schema');
+    
+    // 查找最近7天内尚未回填绩效数据的记录（impressions仍为0且记录时间超过24小时）
+    const staleRecords = await db.select({
+      id: bidPerformanceHistory.id,
+      bidObjectType: bidPerformanceHistory.bidObjectType,
+      bidObjectId: bidPerformanceHistory.bidObjectId,
+    })
+    .from(bidPerformanceHistory)
+    .where(
+      and(
+        eq(bidPerformanceHistory.impressions, 0),
+        sql`${bidPerformanceHistory.createdAt} < DATE_SUB(NOW(), INTERVAL 24 HOUR)`,
+        sql`${bidPerformanceHistory.createdAt} > DATE_SUB(NOW(), INTERVAL 7 DAY)`
+      )
+    )
+    .limit(200);
+    
+    let updated = 0;
+    let skipped = 0;
+    
+    for (const record of staleRecords) {
+      try {
+        let perfData: any = null;
+        
+        if (record.bidObjectType === 'keyword') {
+          const [kw] = await db.select({
+            impressions: keywords.impressions,
+            clicks: keywords.clicks,
+            spend: keywords.spend,
+            sales: keywords.sales,
+            orders: keywords.orders,
+          })
+          .from(keywords)
+          .where(eq(keywords.id, Number(record.bidObjectId)))
+          .limit(1);
+          perfData = kw;
+        } else {
+          const [pt] = await db.select({
+            impressions: productTargets.impressions,
+            clicks: productTargets.clicks,
+            spend: productTargets.spend,
+            sales: productTargets.sales,
+            orders: productTargets.orders,
+          })
+          .from(productTargets)
+          .where(eq(productTargets.id, Number(record.bidObjectId)))
+          .limit(1);
+          perfData = pt;
+        }
+        
+        if (perfData && (parseInt(String(perfData.impressions || '0')) > 0)) {
+          const impressions = parseInt(String(perfData.impressions || '0'));
+          const clicks = parseInt(String(perfData.clicks || '0'));
+          const spend = parseFloat(String(perfData.spend || '0'));
+          const sales = parseFloat(String(perfData.sales || '0'));
+          const orders = parseInt(String(perfData.orders || '0'));
+          const ctr = impressions > 0 ? clicks / impressions : 0;
+          const cvr = clicks > 0 ? orders / clicks : 0;
+          const acos = sales > 0 ? spend / sales : 0;
+          const roas = spend > 0 ? sales / spend : 0;
+          
+          await db.update(bidPerformanceHistory)
+            .set({
+              impressions: String(impressions),
+              clicks: String(clicks),
+              spend: String(spend),
+              sales: String(sales),
+              orders: String(orders),
+              ctr: String(ctr),
+              cvr: String(cvr),
+              acos: String(acos),
+              roas: String(roas),
+              revenue: String(sales),
+              profit: String(sales - spend),
+            } as any)
+            .where(eq(bidPerformanceHistory.id, record.id));
+          
+          updated++;
+        } else {
+          skipped++;
+        }
+      } catch (e) {
+        skipped++;
+      }
+    }
+    
+    if (updated > 0 || staleRecords.length > 0) {
+      console.log(`[RLDataRecorder] v230: backfillBidPerformanceResults: updated=${updated}, skipped=${skipped}, total_checked=${staleRecords.length}`);
+    }
+    
+    return { updated, skipped };
+  } catch (error) {
+    console.error(`[RLDataRecorder] v230: Failed to backfill bid performance results:`, error);
+    return { updated: 0, skipped: 0 };
+  }
 }

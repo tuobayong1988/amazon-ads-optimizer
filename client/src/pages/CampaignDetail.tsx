@@ -41,7 +41,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Filter, Ban, ArrowUpRight, ArrowRight, Clock, Plus } from "lucide-react";
 import { TargetTrendChart } from "@/components/TargetTrendChart";
 import { BidResponseCurve } from "@/components/BidResponseCurve";
-import { safeToLocaleString } from '../lib/safeDate';
+import { safeToLocaleString, safeToLocaleDateString } from '../lib/safeDate';
 
 // 广告活动类型图标映射
 const campaignTypeIcons: Record<string, any> = {

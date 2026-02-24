@@ -77,15 +77,44 @@ async function getDbInstance() {
 }
 
 /**
- * Beta分布采样（Thompson Sampling）
- * 使用Jöhnk's算法的简化版本
+ * v230: 标准Beta分布采样（Thompson Sampling）
+ * 使用Gamma分布生成Beta分布样本：Beta(a,b) = Gamma(a) / (Gamma(a) + Gamma(b))
+ * Gamma分布使用Marsaglia & Tsang算法
  */
+function gammaSample(shape: number): number {
+  if (shape < 1) {
+    // 当shape < 1时，使用转换: Gamma(a) = Gamma(a+1) * U^(1/a)
+    return gammaSample(shape + 1) * Math.pow(Math.random(), 1 / shape);
+  }
+  // Marsaglia & Tsang算法
+  const d = shape - 1 / 3;
+  const c = 1 / Math.sqrt(9 * d);
+  while (true) {
+    let x: number, v: number;
+    do {
+      // Box-Muller变换生成标准正态分布
+      const u1 = Math.random();
+      const u2 = Math.random();
+      x = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+      v = 1 + c * x;
+    } while (v <= 0);
+    v = v * v * v;
+    const u = Math.random();
+    if (u < 1 - 0.0331 * (x * x) * (x * x)) return d * v;
+    if (Math.log(u) < 0.5 * x * x + d * (1 - v + Math.log(v))) return d * v;
+  }
+}
+
 function betaSample(alpha: number, beta: number): number {
-  // 简化：使用均值 + 噪声近似
-  const mean = alpha / (alpha + beta);
-  const variance = (alpha * beta) / ((alpha + beta) ** 2 * (alpha + beta + 1));
-  const noise = (Math.random() - 0.5) * Math.sqrt(variance) * 4;
-  return Math.max(0, Math.min(1, mean + noise));
+  // 安全校验：确保参数有效
+  const a = Math.max(0.01, alpha);
+  const b = Math.max(0.01, beta);
+  
+  const x = gammaSample(a);
+  const y = gammaSample(b);
+  
+  if (x + y === 0) return a / (a + b); // 防御性回退到均值
+  return x / (x + y);
 }
 
 // ==================== 核心元学习算法 ====================
@@ -291,7 +320,7 @@ export async function selectBestAlgorithm(
         break;
         
       case 'ensemble':
-        // 多算法融合：收集所有可用算法的建议，加权平均
+        // v230: 多算法融合：收集所有可用算法的建议（包含Sigmoid），加权平均
         const bids: { bid: number; weight: number }[] = [];
         
         const linDecision = await makeLinUCBBidDecision(accountId, keywordId, targetId, campaignId, currentBid);
@@ -305,6 +334,28 @@ export async function selectBestAlgorithm(
         if (cqlDec) {
           bids.push({ bid: cqlDec.recommendedBid, weight: cqlDec.confidence });
           cqlDecision = cqlDec;
+        }
+        
+        // v230: 添加Sigmoid曲线拟合结果到Ensemble
+        try {
+          const { fitAndCacheSigmoidForEntity, calculateSigmoidOptimalBid } = await import('./sigmoidCurveFitter');
+          const entityId = keywordId || targetId || 0;
+          const entityType = keywordId ? 'keyword' : 'target';
+          const sigParams = await fitAndCacheSigmoidForEntity(accountId, entityType, entityId, String(campaignId));
+          if (sigParams && sigParams.r2 > 0.5) {
+            // 使用Sigmoid参数计算最优出价
+            const avgCtr = Number(ctx?.avgCtr7d || 0.02);
+            const avgCvr = Number(ctx?.avgCvr7d || 0.05);
+            const aov = avgCvr > 0 ? (Number(ctx?.weightedRoas14d || 3) * Number(ctx?.avgCpc7d || 1)) / avgCvr : 25;
+            const sigResult = calculateSigmoidOptimalBid(sigParams, avgCtr, avgCvr, aov, 0.7);
+            if (sigResult.optimalBid > 0) {
+              const sigConfidence = Math.min(0.9, sigParams.r2);
+              bids.push({ bid: sigResult.optimalBid, weight: sigConfidence });
+              sigmoidDecision = { recommendedBid: sigResult.optimalBid, confidence: sigConfidence } as any;
+            }
+          }
+        } catch (sigErr) {
+          // Sigmoid不可用时静默跳过
         }
         
         if (bids.length > 0) {
@@ -329,13 +380,9 @@ export async function selectBestAlgorithm(
     confidence = 0.3;
   }
   
-  // 安全约束：限制出价变化幅度
-  if (currentBid && currentBid > 0) {
-    recommendedBid = Math.max(
-      currentBid * 0.70,
-      Math.min(currentBid * 1.30, recommendedBid)
-    );
-  }
+  // v230: 移除重复的安全约束，由nextGenBidOrchestrator的safetyValidate统一处理
+  // 之前这里和safetyValidate双重限制导致系统过度保守
+  // 仅保留基本的数值合法性检查
   recommendedBid = Math.max(0.02, Math.round(recommendedBid * 100) / 100);
   
   const decision: MetaDecision = {

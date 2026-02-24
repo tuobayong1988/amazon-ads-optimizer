@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Progress } from "@/components/ui/progress";
 import { BarChart3, Calendar, CalendarDays, Check, ChevronRight, Clock, Gift, LineChart, RefreshCw, Sparkles, TrendingUp, X } from "lucide-react";
 import { toast } from "sonner";
-import { safeGetTime, safeParseDate } from '../lib/safeDate';
+import { safeGetTime, safeParseDate, safeToLocaleDateString } from '../lib/safeDate';
 
 type RecommendationStatus = "pending" | "applied" | "skipped" | "expired";
 

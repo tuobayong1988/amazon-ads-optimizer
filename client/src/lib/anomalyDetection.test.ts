@@ -1,223 +1,250 @@
 import { describe, it, expect } from 'vitest';
 import {
-  zScoreDetection,
-  iqrDetection,
-  movingAverageDetection,
-  detectAnomalies,
-  classifyAnomaly,
+  calculateZScores,
+  detectAnomaliesZScore,
+  detectAnomaliesIQR,
+  detectAnomaliesMovingAverage,
+  detectSuddenChanges,
+  detectAnomaliesCombined,
+  generateAnomalyReport,
+  calculateAnomalyScore,
+  DataPoint,
+  Anomaly,
 } from './anomalyDetection';
 
-describe('anomalyDetection', () => {
-  describe('zScoreDetection', () => {
-    it('should detect outliers using z-score', () => {
-      const data = [10, 12, 11, 13, 12, 100, 11, 12]; // 100 is an outlier
+// 辅助函数：生成带日期的数据点
+function makeData(values: number[]): DataPoint[] {
+  return values.map((v, i) => ({
+    date: `2024-01-${String(i + 1).padStart(2, '0')}`,
+    value: v,
+  }));
+}
 
-      const result = zScoreDetection(data, 2);
+describe('anomalyDetection', () => {
+  describe('calculateZScores', () => {
+    it('should calculate z-scores for data points', () => {
+      const data = makeData([10, 12, 11, 13, 12, 100, 11, 12]);
+      const result = calculateZScores(data);
 
       expect(result).toHaveLength(8);
-      expect(result[5]).toBe(true); // Index 5 (value 100) should be anomaly
-      expect(result[0]).toBe(false);
-      expect(result[1]).toBe(false);
+      // 100 should have a very high z-score
+      const outlier = result.find(r => r.value === 100);
+      expect(outlier).toBeDefined();
+      expect(outlier!.zScore).toBeGreaterThan(2);
     });
 
-    it('should handle uniform data', () => {
-      const data = [50, 50, 50, 50, 50];
+    it('should handle uniform data (std = 0)', () => {
+      const data = makeData([5, 5, 5, 5]);
+      const result = calculateZScores(data);
 
-      const result = zScoreDetection(data, 2);
-
-      expect(result.every((v) => v === false)).toBe(true);
+      expect(result).toHaveLength(4);
+      result.forEach(r => expect(r.zScore).toBe(0));
     });
 
-    it('should handle empty data', () => {
-      const data: number[] = [];
+    it('should return empty for less than 2 data points', () => {
+      const data = makeData([5]);
+      const result = calculateZScores(data);
+      expect(result).toHaveLength(0);
+    });
+  });
 
-      const result = zScoreDetection(data, 2);
+  describe('detectAnomaliesZScore', () => {
+    it('should detect outliers using z-score', () => {
+      const data = makeData([10, 12, 11, 13, 12, 100, 11, 12]);
+      const anomalies = detectAnomaliesZScore(data, 2);
 
-      expect(result).toEqual([]);
+      expect(anomalies.length).toBeGreaterThan(0);
+      expect(anomalies.some(a => a.value === 100)).toBe(true);
+    });
+
+    it('should classify anomaly type as spike or drop', () => {
+      const data = makeData([10, 12, 11, 13, 12, 100, 11, 12]);
+      const anomalies = detectAnomaliesZScore(data, 2);
+
+      const spike = anomalies.find(a => a.value === 100);
+      expect(spike?.type).toBe('spike');
     });
 
     it('should adjust sensitivity with threshold', () => {
-      const data = [10, 12, 11, 13, 12, 25, 11, 12];
+      const data = makeData([10, 12, 11, 13, 12, 25, 11, 12]);
+      const sensitiveResult = detectAnomaliesZScore(data, 1.5);
+      const strictResult = detectAnomaliesZScore(data, 3);
 
-      const strictResult = zScoreDetection(data, 1.5);
-      const lenientResult = zScoreDetection(data, 3);
-
-      expect(strictResult.filter((v) => v).length).toBeGreaterThanOrEqual(
-        lenientResult.filter((v) => v).length
-      );
-    });
-  });
-
-  describe('iqrDetection', () => {
-    it('should detect outliers using IQR method', () => {
-      const data = [10, 12, 11, 13, 12, 100, 11, 12, 13, 10];
-
-      const result = iqrDetection(data);
-
-      expect(result[5]).toBe(true); // 100 is an outlier
-    });
-
-    it('should handle small datasets', () => {
-      const data = [10, 20, 30];
-
-      const result = iqrDetection(data);
-
-      expect(result).toHaveLength(3);
-    });
-
-    it('should handle uniform data', () => {
-      const data = [50, 50, 50, 50, 50];
-
-      const result = iqrDetection(data);
-
-      expect(result.every((v) => v === false)).toBe(true);
-    });
-  });
-
-  describe('movingAverageDetection', () => {
-    it('should detect anomalies based on moving average', () => {
-      const data = [10, 12, 11, 13, 50, 12, 11, 13]; // 50 is anomaly
-
-      const result = movingAverageDetection(data, 3, 2);
-
-      expect(result[4]).toBe(true); // Index 4 (value 50) should be anomaly
-    });
-
-    it('should handle beginning of data', () => {
-      const data = [100, 10, 12, 11, 13];
-
-      const result = movingAverageDetection(data, 3, 2);
-
-      // First few points may not be detected due to insufficient history
-      expect(result).toHaveLength(5);
-    });
-
-    it('should adjust sensitivity with threshold', () => {
-      const data = [10, 12, 11, 13, 25, 12, 11, 13];
-
-      const strictResult = movingAverageDetection(data, 3, 1.5);
-      const lenientResult = movingAverageDetection(data, 3, 3);
-
-      expect(strictResult.filter((v) => v).length).toBeGreaterThanOrEqual(
-        lenientResult.filter((v) => v).length
-      );
-    });
-  });
-
-  describe('detectAnomalies', () => {
-    it('should detect anomalies using combined methods', () => {
-      const data = [
-        { date: '2024-01-01', value: 100 },
-        { date: '2024-01-02', value: 110 },
-        { date: '2024-01-03', value: 105 },
-        { date: '2024-01-04', value: 500 }, // Clear anomaly
-        { date: '2024-01-05', value: 108 },
-      ];
-
-      const result = detectAnomalies(data);
-
-      expect(result).toHaveLength(5);
-      expect(result[3].isAnomaly).toBe(true);
-      expect(result[3].severity).toBe('high');
-      expect(result[0].isAnomaly).toBe(false);
-    });
-
-    it('should classify anomaly types', () => {
-      const data = [
-        { date: '2024-01-01', value: 100 },
-        { date: '2024-01-02', value: 110 },
-        { date: '2024-01-03', value: 500 }, // Peak
-        { date: '2024-01-04', value: 10 }, // Valley
-        { date: '2024-01-05', value: 108 },
-      ];
-
-      const result = detectAnomalies(data);
-
-      const peak = result.find((r) => r.type === 'peak');
-      const valley = result.find((r) => r.type === 'valley');
-
-      expect(peak).toBeDefined();
-      expect(valley).toBeDefined();
+      expect(sensitiveResult.length).toBeGreaterThanOrEqual(strictResult.length);
     });
 
     it('should handle data with no anomalies', () => {
-      const data = [
-        { date: '2024-01-01', value: 100 },
-        { date: '2024-01-02', value: 102 },
-        { date: '2024-01-03', value: 101 },
-        { date: '2024-01-04', value: 103 },
-      ];
+      const data = makeData([10, 10, 10, 10, 10]);
+      const anomalies = detectAnomaliesZScore(data, 2);
+      expect(anomalies).toHaveLength(0);
+    });
+  });
 
-      const result = detectAnomalies(data);
+  describe('detectAnomaliesIQR', () => {
+    it('should detect outliers using IQR method', () => {
+      const data = makeData([10, 12, 11, 13, 12, 100, 11, 12]);
+      const anomalies = detectAnomaliesIQR(data);
 
-      expect(result.every((r) => !r.isAnomaly)).toBe(true);
+      expect(anomalies.length).toBeGreaterThan(0);
+      expect(anomalies.some(a => a.value === 100)).toBe(true);
     });
 
-    it('should provide anomaly statistics', () => {
-      const data = [
-        { date: '2024-01-01', value: 100 },
-        { date: '2024-01-02', value: 500 },
-        { date: '2024-01-03', value: 105 },
-        { date: '2024-01-04', value: 10 },
-        { date: '2024-01-05', value: 108 },
-      ];
+    it('should return empty for small datasets (< 4 points)', () => {
+      const data = makeData([10, 100, 10]);
+      const anomalies = detectAnomaliesIQR(data);
+      expect(anomalies).toHaveLength(0);
+    });
 
-      const result = detectAnomalies(data);
+    it('should classify severity levels', () => {
+      const data = makeData([10, 12, 11, 13, 12, 200, 11, 12]);
+      const anomalies = detectAnomaliesIQR(data);
 
-      const anomalies = result.filter((r) => r.isAnomaly);
-      expect(anomalies.length).toBeGreaterThan(0);
-
-      anomalies.forEach((anomaly) => {
-        expect(anomaly.deviation).toBeDefined();
-        expect(typeof anomaly.deviation).toBe('number');
+      anomalies.forEach(a => {
+        expect(['low', 'medium', 'high']).toContain(a.severity);
       });
     });
   });
 
-  describe('classifyAnomaly', () => {
-    it('should classify as peak for high values', () => {
-      const value = 200;
-      const mean = 100;
-      const stdDev = 20;
+  describe('detectAnomaliesMovingAverage', () => {
+    it('should detect anomalies based on moving average', () => {
+      const data = makeData([10, 12, 11, 13, 12, 11, 10, 100, 12, 11]);
+      const anomalies = detectAnomaliesMovingAverage(data, 3, 2);
 
-      const result = classifyAnomaly(value, mean, stdDev);
-
-      expect(result.type).toBe('peak');
-      expect(result.severity).toBe('high');
+      expect(anomalies.length).toBeGreaterThan(0);
+      expect(anomalies.some(a => a.value === 100)).toBe(true);
     });
 
-    it('should classify as valley for low values', () => {
-      const value = 50;
-      const mean = 100;
-      const stdDev = 10;
-
-      const result = classifyAnomaly(value, mean, stdDev);
-
-      expect(result.type).toBe('valley');
-      expect(result.severity).toBe('high');
+    it('should return empty if data is shorter than window', () => {
+      const data = makeData([10, 12]);
+      const anomalies = detectAnomaliesMovingAverage(data, 7, 2);
+      expect(anomalies).toHaveLength(0);
     });
 
-    it('should classify severity correctly', () => {
-      const mean = 100;
-      const stdDev = 10;
+    it('should adjust sensitivity with threshold', () => {
+      const data = makeData([10, 12, 11, 13, 12, 11, 10, 30, 12, 11]);
+      const sensitiveResult = detectAnomaliesMovingAverage(data, 3, 1);
+      const strictResult = detectAnomaliesMovingAverage(data, 3, 3);
 
-      const lowAnomaly = classifyAnomaly(120, mean, stdDev);
-      const mediumAnomaly = classifyAnomaly(130, mean, stdDev);
-      const highAnomaly = classifyAnomaly(150, mean, stdDev);
+      expect(sensitiveResult.length).toBeGreaterThanOrEqual(strictResult.length);
+    });
+  });
 
-      expect(lowAnomaly.severity).toBe('low');
-      expect(mediumAnomaly.severity).toBe('medium');
-      expect(highAnomaly.severity).toBe('high');
+  describe('detectSuddenChanges', () => {
+    it('should detect sudden value changes', () => {
+      const data = makeData([10, 10, 10, 50, 10]);
+      const anomalies = detectSuddenChanges(data, 0.5);
+
+      expect(anomalies.length).toBeGreaterThan(0);
     });
 
-    it('should calculate deviation percentage', () => {
-      const value = 150;
-      const mean = 100;
-      const stdDev = 20;
+    it('should skip zero values to avoid division by zero', () => {
+      const data = makeData([0, 100, 0]);
+      const anomalies = detectSuddenChanges(data, 0.5);
+      // First transition (0->100) is skipped because prev is 0
+      // Second transition (100->0) should be detected
+      expect(anomalies.some(a => a.value === 0)).toBe(true);
+    });
 
-      const result = classifyAnomaly(value, mean, stdDev);
+    it('should classify severity based on change rate', () => {
+      const data = makeData([10, 25, 10]); // 150% change, then -60% change
+      const anomalies = detectSuddenChanges(data, 0.5);
 
-      expect(result.deviation).toBeCloseTo(50, 0); // 50% above mean
+      anomalies.forEach(a => {
+        expect(['low', 'medium', 'high']).toContain(a.severity);
+      });
+    });
+  });
+
+  describe('detectAnomaliesCombined', () => {
+    it('should detect anomalies using combined methods', () => {
+      const data = makeData([10, 12, 11, 13, 12, 100, 11, 12, 10, 13, 11, 12]);
+      const anomalies = detectAnomaliesCombined(data);
+
+      expect(anomalies.length).toBeGreaterThan(0);
+      expect(anomalies.some(a => a.value === 100)).toBe(true);
+    });
+
+    it('should deduplicate anomalies on same date', () => {
+      const data = makeData([10, 12, 11, 13, 12, 100, 11, 12, 10, 13, 11, 12]);
+      const anomalies = detectAnomaliesCombined(data);
+
+      // No duplicate dates
+      const dates = anomalies.map(a => a.date);
+      const uniqueDates = [...new Set(dates)];
+      expect(dates.length).toBe(uniqueDates.length);
+    });
+
+    it('should return empty for small datasets', () => {
+      const data = makeData([10, 100]);
+      const anomalies = detectAnomaliesCombined(data);
+      expect(anomalies).toHaveLength(0);
+    });
+
+    it('should sort results by date', () => {
+      const data = makeData([10, 12, 100, 13, 12, 200, 11, 12, 10, 13, 11, 12]);
+      const anomalies = detectAnomaliesCombined(data);
+
+      for (let i = 1; i < anomalies.length; i++) {
+        expect(new Date(anomalies[i].date).getTime())
+          .toBeGreaterThanOrEqual(new Date(anomalies[i - 1].date).getTime());
+      }
+    });
+  });
+
+  describe('generateAnomalyReport', () => {
+    it('should generate report with correct structure', () => {
+      const anomalies: Anomaly[] = [
+        { date: '2024-01-01', value: 100, expected: 10, deviation: 90, severity: 'high', type: 'spike' },
+        { date: '2024-01-02', value: 1, expected: 10, deviation: 9, severity: 'low', type: 'drop' },
+        { date: '2024-01-03', value: 50, expected: 10, deviation: 40, severity: 'medium', type: 'spike' },
+      ];
+
+      const report = generateAnomalyReport(anomalies);
+
+      expect(report.total).toBe(3);
+      expect(report.byType.spike).toBe(2);
+      expect(report.byType.drop).toBe(1);
+      expect(report.bySeverity.high).toBe(1);
+      expect(report.bySeverity.medium).toBe(1);
+      expect(report.bySeverity.low).toBe(1);
+      expect(report.recentAnomalies.length).toBeLessThanOrEqual(5);
+    });
+
+    it('should handle empty anomalies', () => {
+      const report = generateAnomalyReport([]);
+      expect(report.total).toBe(0);
+      expect(report.recentAnomalies).toHaveLength(0);
+    });
+  });
+
+  describe('calculateAnomalyScore', () => {
+    it('should return high score for clean data', () => {
+      const data = makeData([10, 11, 10, 11, 10, 11, 10, 11, 10, 11]);
+      const result = calculateAnomalyScore(data);
+
+      expect(result.score).toBeGreaterThan(80);
+      expect(result.anomalyRate).toBeLessThan(0.2);
+      expect(['excellent', 'good']).toContain(result.quality);
+    });
+
+    it('should return low score for noisy data', () => {
+      const data = makeData([10, 100, 1, 200, 5, 300, 2, 150, 10, 250]);
+      const result = calculateAnomalyScore(data);
+
+      expect(result.score).toBeLessThan(90);
+    });
+
+    it('should handle empty data', () => {
+      const result = calculateAnomalyScore([]);
+      expect(result.score).toBe(0);
+      expect(result.quality).toBe('poor');
+    });
+
+    it('should classify quality levels correctly', () => {
+      // Clean data should be excellent
+      const cleanData = makeData([10, 10, 10, 10, 10, 10, 10, 10, 10, 10]);
+      const cleanResult = calculateAnomalyScore(cleanData);
+      expect(cleanResult.quality).toBe('excellent');
     });
   });
 });

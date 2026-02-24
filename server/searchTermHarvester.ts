@@ -300,13 +300,20 @@ export async function harvestSearchTermAtomic(
     return result;
   }
 
-  // ============ Step 2: 添加否定精确关键词 ============
+  // ============ Step 2: 添加否定关键词（v230: 智能选择否定类型） ============
+  // v230: 根据搜索词特征智能选择否定类型
+  // 单词搜索词使用negativePhrase以覆盖变体流量
+  // 多词搜索词使用negativeExact以避免过度否定
+  const searchTermWords = candidate.searchTerm.trim().split(/\s+/);
+  const negativeMatchType = searchTermWords.length <= 2 ? 'negativePhrase' : 'negativeExact';
   try {
+    log.info(`v230: 搜索词"${candidate.searchTerm}"包含${searchTermWords.length}个词，使用${negativeMatchType}否定类型`);
+    
     const negativeResult = await apiClient.createSpNegativeKeywords([{
       adGroupId: parseInt(candidate.sourceAmazonAdGroupId),
       campaignId: parseInt(candidate.sourceAmazonCampaignId),
       keywordText: candidate.searchTerm,
-      matchType: 'negativeExact',
+      matchType: negativeMatchType,
       state: 'enabled',
     }]);
 
@@ -362,12 +369,12 @@ export async function harvestSearchTermAtomic(
     });
     result.localKeywordId = localKeywordId;
 
-    // 3b. 在本地negativeKeywords表创建记录
+    // 3b. 在本地negativeKeywords表创建记录 (v230: 使用智能选择的否定类型)
     await db.addNegativeKeyword({
       campaignId: candidate.sourceCampaignId,
       adGroupId: candidate.sourceAdGroupId,
       keyword: candidate.searchTerm,
-      matchType: 'exact',
+      matchType: negativeMatchType === 'negativePhrase' ? 'phrase' : 'exact',
       level: 'ad_group',
     });
 

@@ -382,7 +382,7 @@ export async function executeBudgetAllocation(configId: number): Promise<{
         riskLevel: suggestion.riskLevel,
         status: details[details.length - 1].status as any,
         errorMessage: details[details.length - 1].reason,
-      });
+      } as any);
     }
 
     // 确定最终状态
@@ -521,7 +521,7 @@ export async function getExecutionDetails(executionId: number): Promise<{
       riskLevel: d.riskLevel,
       status: d.status as string,
       errorMessage: d.errorMessage,
-    })),
+    } as any)),
   };
 }
 
