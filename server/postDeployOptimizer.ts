@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 222;
+export const SYSTEM_VERSION = 223;
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -62,7 +62,8 @@ type CorrectionAction =
   | 'recalculate_budgets'     // 重新计算预算分配
   | 'fix_timezone_errors'     // 修复时区错误导致的错误调整
   | 'rebuild_combo_analysis'  // 重建多维度组合分析
-  | 'full_reoptimize';        // 全量重优化
+  | 'full_reoptimize'        // 全量重优化
+  | 'cleanup_stale_pending';  // 清理无效pending日志
 
 const VERSION_CHANGELOG: VersionChange[] = [
   {
@@ -196,6 +197,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     description: 'v222: 智能调度协调+日志安全+campaignId架构级修复+内存优化 — (1)调度器层级智能协调避免API压力 (2)全链路安全数字提取防御[object Object] (3)修复multiDimensionOptimizer中campaignId混用 (4)Procfile堆内存512MB→2048MB (5)健康检查阈值优化 (6)架构级campaignId守卫: 创建campaignIdResolver统一解析器, 在createBiddingLog/insertOptimizationEvent/batchInsertOptimizationEvents三个入口添加守卫, 修复自动纠错写入campaignId=0的根因',
     affectedModules: ['bid'],
     correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 223,
+    description: 'v223: [严重修复] NextGen规则引擎targetAcos单位转换Bug — 数据库存储百分比(30.0)被当作小数(0.30)使用,导致目标ACoS被误读为3000%,所有关键词出价只升不降. 修复: (1)calculateNextGenBid入口添加防御性转换(>1则/100) (2)ruleEngineDecision添加双重兆底转换 (3)分时竞价出价不变时跳过日志记录 (4)清理无效pending分时竞价日志 (5)部署后自动触发全量重优化,使用修复后的算法纠正所有错误出价',
+    affectedModules: ['bid'],
+    correctionActions: ['cleanup_stale_pending', 'rerun_optimization'],
   },
 ];
 
@@ -542,6 +549,32 @@ async function reoptimizeTarget(
             log.debug(`[PostDeployOptimizer] [${config.name}] 重新计算预算分配...`);
             modulesExecuted.push('budget_recalc');
             correctionsApplied++;
+            break;
+          }
+          
+          case 'cleanup_stale_pending': {
+            // v223: 清理无效的pending分时竞价日志（出价不变但仍记录为pending）
+            log.info(`[PostDeployOptimizer] [${config.name}] 清理无效pending分时竞价日志...`);
+            try {
+              const database = await getDb();
+              if (database) {
+                const cleanupResult = await database.execute(
+                  sql`UPDATE optimization_logs 
+                      SET api_sync_status = 'not_applicable', 
+                          error_message = 'v223: 清理无效pending - 分时竞价出价未变更' 
+                      WHERE performance_group_id = ${targetId}
+                        AND action_type = 'dayparting_bid' 
+                        AND api_sync_status = 'pending'
+                        AND previous_value = new_value`
+                );
+                const cleaned = (cleanupResult as any)?.[0]?.affectedRows || 0;
+                log.info(`[PostDeployOptimizer] [${config.name}] 清理了 ${cleaned} 条无效pending日志`);
+                correctionsApplied += cleaned;
+                modulesExecuted.push('cleanup_stale_pending');
+              }
+            } catch (cleanErr: any) {
+              errors.push(`清理pending日志失败: ${cleanErr.message}`);
+            }
             break;
           }
           

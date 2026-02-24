@@ -150,7 +150,9 @@ function ruleEngineDecision(
   const orders = target.orders || 0;
   
   // 提取ACOS目标
-  const targetAcos = groupConfig.targetAcos || 0.30;
+  // v231: 防御性转换 — 即使上层已转换，此处仍做兜底检查
+  const rawAcos = groupConfig.targetAcos || 0.30;
+  const targetAcos = rawAcos > 1 ? rawAcos / 100 : rawAcos;
   const maxBid = groupConfig.maxBid || 10.00;
   
   // v230: 确定性哈希函数，替代Math.random()，确保相同关键词在相同条件下产生相同的调整比例
@@ -285,11 +287,22 @@ export async function calculateNextGenBid(
   groupConfig: PerformanceGroupConfig,
   maxBidLimit?: number
 ): Promise<NextGenBidResult> {
+  // v231: 防御性targetAcos单位转换 — NextGen内部统一使用小数形式(0.30)
+  // 数据库和旧算法使用百分比形式(30.0)，需要在入口处统一转换
+  const rawTargetAcos = groupConfig.targetAcos || DEFAULT_SAFETY.targetAcos;
+  const normalizedTargetAcos = rawTargetAcos > 1 ? rawTargetAcos / 100 : rawTargetAcos;
+  
   const safetyConfig: SafetyConfig = {
     maxBidChangePercent: DEFAULT_SAFETY.maxBidChangePercent,
     minBid: DEFAULT_SAFETY.minBid,
     maxBid: groupConfig.maxBid || DEFAULT_SAFETY.maxBid,
-    targetAcos: groupConfig.targetAcos || DEFAULT_SAFETY.targetAcos,
+    targetAcos: normalizedTargetAcos,
+  };
+  
+  // v231: 创建标准化的groupConfig副本，确保所有内部函数使用正确的小数形式targetAcos
+  const normalizedConfig: PerformanceGroupConfig = {
+    ...groupConfig,
+    targetAcos: normalizedTargetAcos,
   };
   
   // ===== 第1层：尝试高级算法 =====
@@ -333,7 +346,7 @@ export async function calculateNextGenBid(
   
   // ===== 第2层：规则引擎 =====
   try {
-    const ruleResult = ruleEngineDecision(target, groupConfig);
+    const ruleResult = ruleEngineDecision(target, normalizedConfig);
     const safeBid = safetyValidate(target.currentBid, ruleResult.bid, safetyConfig, maxBidLimit);
     
     // 规则引擎也记录RL数据（用于未来训练高级算法）

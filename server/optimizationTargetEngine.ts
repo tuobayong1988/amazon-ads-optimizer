@@ -1736,9 +1736,14 @@ async function executeDaypartingOptimization(
           apiSyncStatus: dryRun ? 'pending' : 'pending',
         };
         
+        // v231: 出价不变时跳过日志记录，避免生成大量无效pending日志
+        if (Math.abs(adjustedBid - baseBid) <= 0.01) {
+          continue; // 跳过出价未变化的关键词
+        }
+        
         details.push(adjustment);
         
-        if (!dryRun && Math.abs(adjustedBid - baseBid) > 0.01) {
+        if (!dryRun) {
           try {
             const syncResult = await amazonApiHelper.syncBidAdjustmentsToAmazon(
               config.accountId,

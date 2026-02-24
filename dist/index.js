@@ -66444,7 +66444,8 @@ function ruleEngineDecision(target, groupConfig) {
   const spend = target.spend || 0;
   const sales = target.sales || 0;
   const orders = target.orders || 0;
-  const targetAcos = groupConfig.targetAcos || 0.3;
+  const rawAcos = groupConfig.targetAcos || 0.3;
+  const targetAcos = rawAcos > 1 ? rawAcos / 100 : rawAcos;
   const maxBid = groupConfig.maxBid || 10;
   const deterministicHash = (id, seed = 0) => {
     let h6 = (id * 2654435761 + seed >>> 0) % 1e4;
@@ -66535,11 +66536,17 @@ function ruleEngineDecision(target, groupConfig) {
   };
 }
 async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) {
+  const rawTargetAcos = groupConfig.targetAcos || DEFAULT_SAFETY.targetAcos;
+  const normalizedTargetAcos = rawTargetAcos > 1 ? rawTargetAcos / 100 : rawTargetAcos;
   const safetyConfig = {
     maxBidChangePercent: DEFAULT_SAFETY.maxBidChangePercent,
     minBid: DEFAULT_SAFETY.minBid,
     maxBid: groupConfig.maxBid || DEFAULT_SAFETY.maxBid,
-    targetAcos: groupConfig.targetAcos || DEFAULT_SAFETY.targetAcos
+    targetAcos: normalizedTargetAcos
+  };
+  const normalizedConfig = {
+    ...groupConfig,
+    targetAcos: normalizedTargetAcos
   };
   try {
     const keywordId = target.type === "keyword" ? target.id : void 0;
@@ -66577,7 +66584,7 @@ async function calculateNextGenBid(accountId, target, groupConfig, maxBidLimit) 
     log9.warn(`[NextGenOrchestrator] \u9AD8\u7EA7\u7B97\u6CD5\u5F02\u5E38(target=${target.id}), \u964D\u7EA7\u5230\u89C4\u5219\u5F15\u64CE: ${advancedError.message}`);
   }
   try {
-    const ruleResult = ruleEngineDecision(target, groupConfig);
+    const ruleResult = ruleEngineDecision(target, normalizedConfig);
     const safeBid = safetyValidate(target.currentBid, ruleResult.bid, safetyConfig, maxBidLimit);
     const keywordId = target.type === "keyword" ? target.id : void 0;
     const targetId = target.type === "product_target" ? target.id : void 0;
@@ -80502,8 +80509,11 @@ async function executeDaypartingOptimization(config2, campaigns7, dryRun) {
           reason: `v183\u5206\u65F6\u7ADE\u4EF7: ${currentHour}:00 ${reasonParts.join(" \xD7 ")} = ${finalMultiplier.toFixed(3)}x, $${baseBid.toFixed(2)} \u2192 $${adjustedBid.toFixed(2)}`,
           apiSyncStatus: dryRun ? "pending" : "pending"
         };
+        if (Math.abs(adjustedBid - baseBid) <= 0.01) {
+          continue;
+        }
         details.push(adjustment);
-        if (!dryRun && Math.abs(adjustedBid - baseBid) > 0.01) {
+        if (!dryRun) {
           try {
             const syncResult = await syncBidAdjustmentsToAmazon(
               config2.accountId,
@@ -154778,6 +154788,30 @@ async function reoptimizeTarget(targetId, affectedModules, correctionActions) {
             correctionsApplied++;
             break;
           }
+          case "cleanup_stale_pending": {
+            log26.info(`[PostDeployOptimizer] [${config2.name}] \u6E05\u7406\u65E0\u6548pending\u5206\u65F6\u7ADE\u4EF7\u65E5\u5FD7...`);
+            try {
+              const database = await getDb();
+              if (database) {
+                const cleanupResult = await database.execute(
+                  sql`UPDATE optimization_logs 
+                      SET api_sync_status = 'not_applicable', 
+                          error_message = 'v223: 清理无效pending - 分时竞价出价未变更' 
+                      WHERE performance_group_id = ${targetId}
+                        AND action_type = 'dayparting_bid' 
+                        AND api_sync_status = 'pending'
+                        AND previous_value = new_value`
+                );
+                const cleaned = cleanupResult?.[0]?.affectedRows || 0;
+                log26.info(`[PostDeployOptimizer] [${config2.name}] \u6E05\u7406\u4E86 ${cleaned} \u6761\u65E0\u6548pending\u65E5\u5FD7`);
+                correctionsApplied += cleaned;
+                modulesExecuted.push("cleanup_stale_pending");
+              }
+            } catch (cleanErr) {
+              errors.push(`\u6E05\u7406pending\u65E5\u5FD7\u5931\u8D25: ${cleanErr.message}`);
+            }
+            break;
+          }
           default:
             break;
         }
@@ -155144,7 +155178,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log26 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 222;
+    SYSTEM_VERSION = 223;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -155277,6 +155311,12 @@ var init_postDeployOptimizer = __esm({
         description: "v222: \u667A\u80FD\u8C03\u5EA6\u534F\u8C03+\u65E5\u5FD7\u5B89\u5168+campaignId\u67B6\u6784\u7EA7\u4FEE\u590D+\u5185\u5B58\u4F18\u5316 \u2014 (1)\u8C03\u5EA6\u5668\u5C42\u7EA7\u667A\u80FD\u534F\u8C03\u907F\u514DAPI\u538B\u529B (2)\u5168\u94FE\u8DEF\u5B89\u5168\u6570\u5B57\u63D0\u53D6\u9632\u5FA1[object Object] (3)\u4FEE\u590DmultiDimensionOptimizer\u4E2DcampaignId\u6DF7\u7528 (4)Procfile\u5806\u5185\u5B58512MB\u21922048MB (5)\u5065\u5EB7\u68C0\u67E5\u9608\u503C\u4F18\u5316 (6)\u67B6\u6784\u7EA7campaignId\u5B88\u536B: \u521B\u5EFAcampaignIdResolver\u7EDF\u4E00\u89E3\u6790\u5668, \u5728createBiddingLog/insertOptimizationEvent/batchInsertOptimizationEvents\u4E09\u4E2A\u5165\u53E3\u6DFB\u52A0\u5B88\u536B, \u4FEE\u590D\u81EA\u52A8\u7EA0\u9519\u5199\u5165campaignId=0\u7684\u6839\u56E0",
         affectedModules: ["bid"],
         correctionActions: ["rerun_optimization"]
+      },
+      {
+        version: 223,
+        description: "v223: [\u4E25\u91CD\u4FEE\u590D] NextGen\u89C4\u5219\u5F15\u64CEtargetAcos\u5355\u4F4D\u8F6C\u6362Bug \u2014 \u6570\u636E\u5E93\u5B58\u50A8\u767E\u5206\u6BD4(30.0)\u88AB\u5F53\u4F5C\u5C0F\u6570(0.30)\u4F7F\u7528,\u5BFC\u81F4\u76EE\u6807ACoS\u88AB\u8BEF\u8BFB\u4E3A3000%,\u6240\u6709\u5173\u952E\u8BCD\u51FA\u4EF7\u53EA\u5347\u4E0D\u964D. \u4FEE\u590D: (1)calculateNextGenBid\u5165\u53E3\u6DFB\u52A0\u9632\u5FA1\u6027\u8F6C\u6362(>1\u5219/100) (2)ruleEngineDecision\u6DFB\u52A0\u53CC\u91CD\u5146\u5E95\u8F6C\u6362 (3)\u5206\u65F6\u7ADE\u4EF7\u51FA\u4EF7\u4E0D\u53D8\u65F6\u8DF3\u8FC7\u65E5\u5FD7\u8BB0\u5F55 (4)\u6E05\u7406\u65E0\u6548pending\u5206\u65F6\u7ADE\u4EF7\u65E5\u5FD7 (5)\u90E8\u7F72\u540E\u81EA\u52A8\u89E6\u53D1\u5168\u91CF\u91CD\u4F18\u5316,\u4F7F\u7528\u4FEE\u590D\u540E\u7684\u7B97\u6CD5\u7EA0\u6B63\u6240\u6709\u9519\u8BEF\u51FA\u4EF7",
+        affectedModules: ["bid"],
+        correctionActions: ["cleanup_stale_pending", "rerun_optimization"]
       }
     ];
     POST_DEPLOY_CONFIG = {
