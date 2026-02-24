@@ -75,77 +75,77 @@ function MarketingPage() {
   const algorithmSteps = [
     {
       step: 1,
-      title: "数据采集与分析",
-      description: "每2小时自动同步Amazon Ads API数据，包括广告活动、关键词、搜索词报告等，构建完整的数据基础。",
+      title: "三层分频数据同步",
+      description: "采用高频(15分钟)、中频(30分钟)、低频(1小时)三层分频策略，实时同步Amazon Ads API数据，确保广告活动状态、竞价和绩效数据始终保持最新。",
       icon: Search,
-      details: ["SP/SB/SD全类型支持", "多站点数据聚合", "历史数据趋势分析"]
+      details: ["SP/SB/SD全类型覆盖", "多站点多账户聚合", "60天历史数据回溯"]
     },
     {
       step: 2,
-      title: "动态弹性系数计算",
-      description: "基于历史出价变化和点击量变化，动态计算每个关键词的点击弹性系数，精准预测出价调整效果。",
-      icon: Calculator,
-      details: ["回归分析建模", "置信区间评估", "异常值过滤"]
+      title: "NextGen多算法决策",
+      description: "NextGen引擎自动为每个关键词选择最优算法：CQL离线强化学习、Sigmoid曲线拟合、LinUCB上下文赌博机，或多算法Ensemble融合，无需人工干预。",
+      icon: Brain,
+      details: ["Meta-Learning自动选择", "Thompson Sampling探索", "三层降级保障"]
     },
     {
       step: 3,
-      title: "智能优化决策",
-      description: "结合边际效益分析、UCB探索-利用平衡算法，为每个广告活动生成最优的出价和预算建议。",
-      icon: Brain,
-      details: ["边际收益=边际成本", "探索新机会", "风险控制"]
+      title: "智能分时分位置倾斜",
+      description: "基于时区感知的消费者行为分析，识别高投产的时间段和广告位置，自动向高转化时段和位置倾斜竞价和预算，最大化每一分广告花费的回报。",
+      icon: Calculator,
+      details: ["本地时区购物高峰识别", "位置倾斜比例优化", "搜索词自动迁移"]
     },
     {
       step: 4,
-      title: "自动执行与监控",
-      description: "根据您配置的策略自动执行优化操作，并持续监控效果，形成闭环优化。",
+      title: "闭环执行与纠错",
+      description: "优化结果实时传递给Amazon并同步回数据库，内置自动纠错监控，确保数据一致性。渐进式调整策略保障安全，异常检测机制实时告警。",
       icon: RefreshCw,
-      details: ["渐进式调整", "异常告警", "效果追踪"]
+      details: ["双向数据同步保障", "自动纠错引擎", "渐进式安全调整"]
     }
   ];
 
-  // 核心算法特性
+  // 核心算法特性 - NextGen六大核心引擎
   const coreFeatures = [
     {
+      icon: Brain,
+      title: "CQL离线强化学习",
+      subtitle: "从历史数据中学习最优策略",
+      description: "采用Conservative Q-Learning算法，从海量历史出价和转化数据中离线训练决策模型。无需在线试错即可学习最优出价策略，避免了传统A/B测试的高昂成本和时间消耗。",
+      benefits: ["从50+条历史记录自动训练", "避免在线试错的预算浪费", "持续迭代越用越精准"]
+    },
+    {
       icon: BarChart3,
-      title: "动态弹性系数",
-      subtitle: "精准预测竞价效果",
-      description: "传统优化工具使用固定的弹性系数（如-1.5），而我们基于每个关键词的历史出价变化数据，动态计算其真实的点击弹性。这意味着对于竞争激烈的关键词和长尾关键词，系统会采用不同的优化策略。",
-      benefits: ["提高出价预测准确性30%+", "避免过度出价浪费预算", "识别高弹性机会词"]
+      title: "Sigmoid曲线拟合",
+      subtitle: "精准建模出价-曝光关系",
+      description: "为每个关键词独立拟合Sigmoid曲线，精确建模出价与曝光量之间的非线性关系。在曲线的边际收益最大化点确定最优出价，实现利润最大化而非简单的ACoS达标。",
+      benefits: ["每个关键词独立建模", "利润最大化出价点", "识别出价饱和区间"]
     },
     {
       icon: Target,
-      title: "UCB预算分配",
-      subtitle: "探索-利用平衡算法",
-      description: "采用Upper Confidence Bound算法，在优化高效广告活动的同时，为数据不足的广告活动保留探索预算。确保不会因为早期数据不足而错过潜力广告。",
-      benefits: ["发现被低估的广告活动", "最小探索预算保障", "动态调整探索比例"]
+      title: "LinUCB上下文赌博机",
+      subtitle: "结合上下文特征智能探索",
+      description: "将关键词的竞争度、历史CTR、转化率、时间特征等上下文信息融入决策，在探索新机会和利用已知高效策略之间实现最优平衡。数据不足的关键词也能获得合理的出价建议。",
+      benefits: ["多维特征智能决策", "探索-利用最优平衡", "新关键词保护策略"]
+    },
+    {
+      icon: Layers,
+      title: "Meta-Learning算法选择",
+      subtitle: "Thompson Sampling自动择优",
+      description: "采用Thompson Sampling策略，根据每个算法在不同场景下的历史表现，自动为每个关键词选择最适合的算法。数据充足时启用Ensemble多算法融合，数据不足时智能降级到规则引擎。",
+      benefits: ["自动选择最优算法", "三层降级安全保障", "算法表现持续追踪"]
     },
     {
       icon: Globe,
-      title: "时区感知分时",
+      title: "时区感知分时分位置",
       subtitle: "本地化消费者行为分析",
-      description: "根据不同站点的本地时区分析消费者购买行为，而非使用UTC时间。美国站分析美国消费者的购物高峰，日本站分析日本消费者的行为模式。",
-      benefits: ["准确识别购物高峰时段", "智能分时出价调整", "跨站点策略差异化"]
-    },
-    {
-      icon: Filter,
-      title: "智能N-Gram分析",
-      subtitle: "精准否定无效流量",
-      description: "在否定关键词分析中引入最小点击量阈值（默认5次）和品牌词白名单保护，避免因数据量不足而误判，同时保护您的品牌词不被错误否定。",
-      benefits: ["减少误判率50%+", "品牌词自动保护", "支持自定义白名单"]
-    },
-    {
-      icon: Lightbulb,
-      title: "新词探索策略",
-      subtitle: "7天探索期保护",
-      description: "新添加的关键词在前7天内享有探索期保护，即使表现不佳也不会被立即否定或大幅降价，给予充分的数据积累时间。",
-      benefits: ["避免过早否定潜力词", "新词转化率提升", "数据驱动的决策"]
+      description: "根据不同站点的本地时区分析消费者购买行为，识别高投产的时间段和广告位置。自动向高转化时段和位置倾斜竞价和预算，对低投产时段减少花费，最大化广告回报。",
+      benefits: ["准确识别购物高峰时段", "智能位置倾斜比例", "跨站点策略差异化"]
     },
     {
       icon: Clock,
-      title: "每2小时自动运营",
-      subtitle: "全天候智能优化",
-      description: "系统每2小时自动执行一轮完整的优化流程，包括数据同步、分析计算、策略执行，无需人工干预，让您的广告始终保持最优状态。",
-      benefits: ["24/7全天候优化", "快速响应市场变化", "节省运营人力成本"]
+      title: "三层分频实时同步",
+      subtitle: "15分钟级数据新鲜度",
+      description: "采用高频(15分钟)、中频(30分钟)、低频(1小时)三层分频同步策略。广告状态和预算每15分钟更新，关键词和定位每30分钟同步，确保优化决策始终基于最新数据。",
+      benefits: ["15分钟级数据更新", "双向同步数据一致", "24/7全天候运营"]
     }
   ];
 
@@ -153,7 +153,7 @@ function MarketingPage() {
   const performanceMetrics = [
     { label: "平均ACoS降低", value: "23%", trend: "down", color: "text-green-500" },
     { label: "广告销售额提升", value: "35%", trend: "up", color: "text-blue-500" },
-    { label: "无效花费减少", value: "41%", trend: "down", color: "text-green-500" },
+    { label: "数据同步频率", value: "15min", trend: "up", color: "text-cyan-500" },
     { label: "运营时间节省", value: "90%", trend: "up", color: "text-purple-500" }
   ];
 
@@ -161,23 +161,27 @@ function MarketingPage() {
   const faqs = [
     {
       question: "系统支持哪些类型的Amazon广告？",
-      answer: "支持Sponsored Products (SP)、Sponsored Brands (SB)和Sponsored Display (SD)三种广告类型，覆盖Amazon广告的全部主流形式。"
+      answer: "支持Sponsored Products (SP)、Sponsored Brands (SB)和Sponsored Display (SD)三种广告类型，覆盖Amazon广告的全部主流形式。系统会针对每种广告类型的特点采用不同的优化策略。"
     },
     {
-      question: "优化策略会自动执行还是需要人工确认？",
-      answer: "您可以选择自动执行或人工确认模式。自动模式下，系统会在您设定的安全范围内自动执行优化；人工确认模式下，系统会生成建议供您审核后再执行。"
+      question: "NextGen算法是如何工作的？",
+      answer: "NextGen是我们自主研发的下一代出价引擎，采用三层降级架构：数据充足时自动启用CQL强化学习、Sigmoid曲线拟合或LinUCB上下文赌博机等高级算法；数据不足时智能降级到基于规则的可靠决策；极端情况下采用保守策略兜底。Meta-Learning选择器会自动为每个关键词选择最优算法，无需人工干预。"
+    },
+    {
+      question: "数据同步频率是多少？如何保证数据一致性？",
+      answer: "系统采用三层分频同步策略：广告活动状态和预算每15分钟同步一次，广告组和关键词每30分钟同步，完整数据每1小时全量同步。优化调整会实时传递给Amazon并同步回数据库，内置自动纠错引擎确保数据双向一致。"
     },
     {
       question: "如何保证优化不会导致广告效果下降？",
-      answer: "系统采用渐进式调整策略，单次出价调整不超过25%，预算调整不超过30%。同时设有异常检测机制，当检测到效果异常下降时会自动暂停优化并发出告警。"
+      answer: "系统采用多层安全保障：NextGen引擎内置渐进式调整策略，单次出价变化不超过30%；Meta-Learning会持续追踪每个算法的表现，自动降级表现不佳的算法；异常检测机制实时监控，发现效果异常立即告警并暂停优化。"
     },
     {
       question: "支持多站点多账户管理吗？",
-      answer: "支持。您可以在一个账户下管理多个Amazon卖家账户和多个站点（US、CA、MX、UK、DE、FR、IT、ES、JP、AU等），统一查看数据和管理策略。"
+      answer: "支持。您可以在一个账户下管理多个Amazon卖家账户和多个站点（US、CA、MX、UK、DE、FR、IT、ES、JP、AU等），统一查看数据和管理策略。系统会根据每个站点的本地时区和消费者行为模式进行差异化优化。"
     },
     {
       question: "数据安全如何保障？",
-      answer: "我们使用Amazon官方的Advertising API进行数据交互，采用OAuth 2.0安全认证。所有数据传输使用HTTPS加密，数据存储符合行业安全标准。"
+      answer: "我们使用Amazon官方的Advertising API进行数据交互，采用OAuth 2.0安全认证。所有数据传输使用HTTPS加密，数据存储符合行业安全标准。系统部署在AWS云平台，享有企业级安全保障。"
     }
   ];
 
@@ -208,15 +212,15 @@ function MarketingPage() {
           <div className="max-w-4xl">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
               <Brain className="w-4 h-4" />
-              <span>自主研发的智能优化算法</span>
+              <span>NextGen下一代智能优化引擎</span>
             </div>
             <h1 className="text-4xl lg:text-6xl font-bold tracking-tight mb-6">
-              让数据驱动您的
+              AI驱动的
               <span className="text-primary">亚马逊广告优化</span>
             </h1>
             <p className="text-xl text-muted-foreground mb-8 leading-relaxed max-w-3xl">
-              基于<strong className="text-foreground">动态弹性系数计算</strong>、<strong className="text-foreground">UCB探索-利用平衡</strong>和<strong className="text-foreground">时区感知分时分析</strong>，
-              实现广告出价、预算、否定词的全自动优化。每2小时自动运营，让您的广告投放效率持续提升。
+              基于<strong className="text-foreground">CQL离线强化学习</strong>、<strong className="text-foreground">Sigmoid曲线拟合</strong>和<strong className="text-foreground">Meta-Learning算法自动选择</strong>，
+              结合三层分频实时数据同步，实现广告竞价、预算、分时分位置的全自动智能优化。
             </p>
             
             {/* 核心指标展示 */}
@@ -258,10 +262,10 @@ function MarketingPage() {
       <section className="py-24 bg-card/30">
         <div className="container">
           <div className="text-center mb-16">
-            <Badge variant="outline" className="mb-4">核心技术</Badge>
+            <Badge variant="outline" className="mb-4">NextGen核心技术</Badge>
             <h2 className="text-3xl lg:text-4xl font-bold mb-4">六大核心算法引擎</h2>
             <p className="text-muted-foreground max-w-2xl mx-auto">
-              每一个算法都经过精心设计，解决传统广告优化工具的痛点问题
+              NextGen下一代出价引擎，融合强化学习、曲线拟合与元学习，为每个关键词自动选择最优策略
             </p>
           </div>
           
@@ -351,29 +355,29 @@ function MarketingPage() {
             <div className="grid gap-4">
               {[
                 {
-                  aspect: "弹性系数计算",
-                  traditional: "使用固定值（如-1.5），所有关键词一视同仁",
-                  ours: "基于历史数据动态计算，每个关键词独立建模"
+                  aspect: "出价决策算法",
+                  traditional: "固定规则或单一算法，所有关键词一视同仁",
+                  ours: "NextGen多算法融合，Meta-Learning自动为每个关键词选择最优算法"
                 },
                 {
-                  aspect: "预算分配策略",
-                  traditional: "只优化表现好的广告，忽略潜力广告",
-                  ours: "UCB算法平衡探索与利用，不错过任何机会"
+                  aspect: "数据同步频率",
+                  traditional: "每天同步一次，数据严重滞后",
+                  ours: "三层分频同步（15分钟/30分钟/1小时），数据始终新鲜"
                 },
                 {
-                  aspect: "分时分析",
+                  aspect: "学习与进化",
+                  traditional: "静态规则，不会从历史数据中学习",
+                  ours: "CQL强化学习+Sigmoid曲线拟合，持续从数据中进化"
+                },
+                {
+                  aspect: "分时分位置优化",
                   traditional: "使用UTC时间，忽略本地消费者行为",
-                  ours: "时区感知，按站点本地时间分析购物高峰"
+                  ours: "时区感知，智能识别高投产时段和位置并自动倾斜"
                 },
                 {
-                  aspect: "否定词判断",
-                  traditional: "简单规则判断，容易误判品牌词和新词",
-                  ours: "最小点击量阈值+品牌词白名单+探索期保护"
-                },
-                {
-                  aspect: "CPC预测",
-                  traditional: "假设CPC等于出价，预测不准确",
-                  ours: "基于历史CPC/Bid比例动态估算实际CPC"
+                  aspect: "安全保障",
+                  traditional: "缺乏降级机制，算法失效时无兜底",
+                  ours: "三层降级架构（高级算法→规则引擎→保守策略），永不失控"
                 }
               ].map((item, i) => (
                 <div key={i} className="grid md:grid-cols-3 gap-4 p-4 rounded-lg bg-card border border-border/50">
@@ -543,9 +547,9 @@ function MarketingPage() {
         <div className="container">
           <div className="max-w-4xl mx-auto text-center bg-gradient-to-br from-primary/10 via-primary/5 to-transparent rounded-3xl p-12 border border-primary/20">
             <Sparkles className="w-12 h-12 text-primary mx-auto mb-6" />
-            <h2 className="text-3xl lg:text-4xl font-bold mb-4">开始智能优化您的广告</h2>
+            <h2 className="text-3xl lg:text-4xl font-bold mb-4">让NextGen引擎优化您的广告</h2>
             <p className="text-muted-foreground mb-8 max-w-xl mx-auto">
-              立即登录，连接您的Amazon Ads账户，让AI帮您实现广告效果的持续提升
+              立即登录，连接您的Amazon Ads账户，让NextGen下一代AI引擎帮您实现广告效果的持续提升
             </p>
             <div className="flex flex-wrap justify-center gap-4">
               <Button size="lg" asChild>
@@ -573,7 +577,7 @@ function MarketingPage() {
               <span className="font-semibold">Amazon Ads Optimizer</span>
             </div>
             <p className="text-sm text-muted-foreground">
-              © 2024 Amazon Ads Optimizer. 专注于亚马逊广告智能优化。
+              © 2025 Amazon Ads Optimizer. 专注于亚马逊广告智能优化。
             </p>
           </div>
         </div>
