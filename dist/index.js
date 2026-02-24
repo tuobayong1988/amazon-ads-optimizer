@@ -374067,7 +374067,7 @@ init_drizzle_orm();
 init_sqsConsumerService();
 
 // server/utils/systemVersion.ts
-var SYSTEM_VERSION2 = 222;
+var SYSTEM_VERSION2 = 223;
 
 // server/deployLifecycleManager.ts
 init_logger2();
