@@ -374474,8 +374474,21 @@ function serveStatic(app) {
       `Could not find the build directory: ${distPath}, make sure to build the client first`
     );
   }
-  app.use(import_express.default.static(distPath));
+  app.use(import_express.default.static(distPath, {
+    maxAge: "1y",
+    immutable: true,
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith(".html")) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        res.setHeader("Pragma", "no-cache");
+        res.setHeader("Expires", "0");
+      }
+    }
+  }));
   app.use("*", (_req, res) => {
+    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
     res.sendFile(import_path45.default.resolve(distPath, "index.html"));
   });
 }

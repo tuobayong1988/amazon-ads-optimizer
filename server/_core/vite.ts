@@ -130,10 +130,26 @@ export function serveStatic(app: Express) {
     );
   }
 
-  app.use(express.static(distPath));
+  // 静态资源（JS/CSS/图片等带哈希文件名）：长期缓存1年
+  app.use(express.static(distPath, {
+    maxAge: '1y',
+    immutable: true,
+    setHeaders: (res, filePath) => {
+      // HTML文件禁止缓存，确保每次部署后浏览器获取最新版本
+      if (filePath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+      }
+    }
+  }));
 
-  // fall through to index.html if the file doesn't exist
+  // fall through to index.html if the file doesn't exist (SPA路由)
+  // 对index.html设置禁止缓存，确保部署新版本后浏览器立即获取最新HTML
   app.use("*", (_req, res) => {
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }
