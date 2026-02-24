@@ -69,20 +69,24 @@ router.use(opsAuth);
 // ============================================================
 
 // 告警阈值配置
+// v222: V8引擎会动态收缩heapTotal，导致heapUsed/heapTotal比率常态在80-95%
+// 因此提高百分比阈值，并新增绝对值阈值作为更可靠的内存监控指标
 const ALERT_THRESHOLDS = {
   memory: {
-    rssWarningMB: 400,       // RSS内存警告阈值（MB）
-    rssCriticalMB: 600,      // RSS内存严重阈值（MB）
-    heapWarningPct: 75,      // 堆内存使用率警告阈值（%）
-    heapCriticalPct: 90,     // 堆内存使用率严重阈值（%）
+    rssWarningMB: 500,       // RSS内存警告阈值（MB）- 2048MB堆下适当提高
+    rssCriticalMB: 800,      // RSS内存严重阈值（MB）
+    heapWarningPct: 90,      // 堆内存使用率警告阈值（%）- V8常态80-90%是正常的
+    heapCriticalPct: 96,     // 堆内存使用率严重阈值（%）- 只有接近OOM才告警
+    heapUsedWarningMB: 512,  // 堆内存绝对值警告阈值（MB）
+    heapUsedCriticalMB: 1024, // 堆内存绝对值严重阈值（MB）
   },
   database: {
     latencyWarningMs: 500,   // DB延迟警告阈值（ms）
     latencyCriticalMs: 2000, // DB延迟严重阈值（ms）
   },
   logger: {
-    errorRateWarning: 10,    // 错误日志数量警告阈值（近期）
-    errorRateCritical: 50,   // 错误日志数量严重阈值（近期）
+    errorRateWarning: 50,    // v222: 错误日志数量警告阈值（近期）
+    errorRateCritical: 200,  // v222: 错误日志数量严重阈值（近期）
     bufferUsagePct: 80,      // 日志缓冲区使用率警告阈值（%）
   },
   uptime: {
@@ -126,7 +130,7 @@ function evaluateAlerts(
     });
   }
   
-  // 2. 内存检查 — 堆使用率
+  // 2. 内存检查 — 堆使用率（百分比）
   const heapPct = (memUsage.heapUsed / memUsage.heapTotal) * 100;
   if (heapPct >= ALERT_THRESHOLDS.memory.heapCriticalPct) {
     alerts.push({
@@ -139,6 +143,22 @@ function evaluateAlerts(
       metric: 'memory.heapUsage', level: 'warning',
       message: `堆内存使用率 ${heapPct.toFixed(1)}% 超过警告阈值 ${ALERT_THRESHOLDS.memory.heapWarningPct}%`,
       value: `${heapPct.toFixed(1)}%`, threshold: `${ALERT_THRESHOLDS.memory.heapWarningPct}%`,
+    });
+  }
+  
+  // 2b. v222: 内存检查 — 堆使用绝对值（更可靠的指标）
+  const heapUsedMB = memUsage.heapUsed / (1024 * 1024);
+  if (heapUsedMB >= ALERT_THRESHOLDS.memory.heapUsedCriticalMB) {
+    alerts.push({
+      metric: 'memory.heapUsedAbsolute', level: 'critical',
+      message: `堆内存使用 ${heapUsedMB.toFixed(0)}MB 超过严重阈值 ${ALERT_THRESHOLDS.memory.heapUsedCriticalMB}MB`,
+      value: `${heapUsedMB.toFixed(0)}MB`, threshold: `${ALERT_THRESHOLDS.memory.heapUsedCriticalMB}MB`,
+    });
+  } else if (heapUsedMB >= ALERT_THRESHOLDS.memory.heapUsedWarningMB) {
+    alerts.push({
+      metric: 'memory.heapUsedAbsolute', level: 'warning',
+      message: `堆内存使用 ${heapUsedMB.toFixed(0)}MB 超过警告阈值 ${ALERT_THRESHOLDS.memory.heapUsedWarningMB}MB`,
+      value: `${heapUsedMB.toFixed(0)}MB`, threshold: `${ALERT_THRESHOLDS.memory.heapUsedWarningMB}MB`,
     });
   }
   

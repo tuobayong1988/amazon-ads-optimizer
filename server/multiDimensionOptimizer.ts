@@ -193,7 +193,8 @@ export async function analyzeMultiDimensionPerformance(
   campaignId: string | number,
   accountId: number,
   lookbackDays: number = 30,
-  targetAcos?: number
+  targetAcos?: number,
+  amazonCampaignId?: string | number  // v222: Amazon campaignId用于查询关键词（hourly/placement表用本地ID，keywords表用Amazon ID）
 ): Promise<MultiDimAnalysis | null> {
   const db = await getDb();
   if (!db) return null;
@@ -272,8 +273,10 @@ export async function analyzeMultiDimensionPerformance(
     .groupBy(placementPerformance.placement);
   
   // ===== 3. 投放词维度分析 =====
-  // 通过adGroups关联获取投放词及其绩效数据
-  const allKeywords = await dbFunctions.getKeywordsByCampaignId(Number(campaignId));
+  // v222修复: keywords表使用Amazon campaignId查询，而非本地ID
+  // hourly_performance和placement_performance表存储本地ID，但keywords表关联的是Amazon campaignId
+  const keywordQueryId = amazonCampaignId || campaignId;
+  const allKeywords = await dbFunctions.getKeywordsByCampaignId(Number(keywordQueryId));
   const keywordData = allKeywords.filter(kw => kw.keywordStatus === 'enabled');
   
   // ===== 处理时间维度 =====
@@ -854,9 +857,10 @@ export async function executeMultiDimensionOptimization(
       // 之前错误地使用campaign.campaignId(Amazon ID)导致查不到任何数据，分时竞价/预算完全失效
       const campaignLocalId = campaign.id;
       
-      // 1. 多维度分析（使用本地ID查询hourly_performance和placement_performance）
+      // 1. 多维度分析
+      // v222修复: 传入两个ID - 本地ID用于hourly/placement查询，Amazon ID用于keywords查询
       const analysis = await analyzeMultiDimensionPerformance(
-        campaignLocalId, accountId, lookbackDays, config.targetAcos
+        campaignLocalId, accountId, lookbackDays, config.targetAcos, campaign.campaignId
       );
       
       if (!analysis) {

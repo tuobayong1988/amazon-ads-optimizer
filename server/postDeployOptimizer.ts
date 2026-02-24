@@ -193,7 +193,7 @@ const VERSION_CHANGELOG: VersionChange[] = [
   },
   {
     version: 222,
-    description: 'v222: 智能调度协调与日志安全修复 — 调度器层级智能协调(full运行时跳过high/medium, medium运行时跳过high避免API压力), 引擎层级互斥保护(同账户多层级同时触发时智能跳过), 全链路安全数字提取(safeNum函数防御所有[object Object]拼接), 数据库写入安全保护',
+    description: 'v222: 智能调度协调+日志安全+campaignId修复+内存优化 — (1)调度器层级智能协调避免API压力 (2)全链路安全数字提取防御[object Object] (3)修复multiDimensionOptimizer中campaignId混用导致投放词分析失效 (4)Procfile堆内存512MB→2048MB (5)健康检查阈值优化适配V8动态堆收缩',
     affectedModules: [],
     correctionActions: [],
   },
