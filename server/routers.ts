@@ -852,8 +852,8 @@ const performanceGroupRouter = router({
       if (apiResult.success > 0 && group.accountId) {
         try {
           const { confirmationSync } = await import('./unifiedSyncEngine');
-          confirmationSync(group.accountId, ['campaigns']).catch((err: any) => {
-            console.error(`[batchUpdateCampaignStatus] v219: 确认同步失败:`, err.message);
+          confirmationSync(group.accountId, ['campaigns'], 'batchUpdateCampaignStatus').catch((err: any) => {
+            console.error(`[batchUpdateCampaignStatus] v220: 确认同步失败:`, err.message);
           });
         } catch (e) { /* ignore */ }
       }
@@ -1703,7 +1703,7 @@ const campaignRouter = router({
             const { confirmationSync } = await import('./unifiedSyncEngine');
             const entities: ('campaigns' | 'keywords' | 'targets' | 'budgets')[] = ['campaigns'];
             if (successfulSyncs.some(r => r.field === 'dailyBudget')) entities.push('budgets');
-            confirmationSync(previousCampaign.accountId, entities).catch((err: any) => {
+            confirmationSync(previousCampaign.accountId, entities, 'campaignUpdate').catch((err: any) => {
               console.error(`[campaign.update] v219: 确认同步失败:`, err.message);
             });
           } catch (e) { /* ignore */ }
@@ -2308,8 +2308,8 @@ const keywordRouter = router({
               if (syncResult.success > 0) {
                 try {
                   const { confirmationSync } = await import('./unifiedSyncEngine');
-                  confirmationSync(accountId, ['keywords']).catch((err: any) => {
-                    console.error(`[Keyword.batchUpdateBid] v219: 确认同步失败:`, err.message);
+                  confirmationSync(accountId, ['keywords'], 'batchUpdateBid').catch((err: any) => {
+                    console.error(`[Keyword.batchUpdateBid] v220: 确认同步失败:`, err.message);
                   });
                 } catch (e) { /* ignore */ }
               }
@@ -2380,8 +2380,8 @@ const keywordRouter = router({
             if (syncResult.success > 0) {
               try {
                 const { confirmationSync } = await import('./unifiedSyncEngine');
-                confirmationSync(accountId, ['keywords']).catch((err: any) => {
-                  console.error(`[Keyword.batchUpdateStatus] v219: 确认同步失败:`, err.message);
+                confirmationSync(accountId, ['keywords'], 'batchUpdateStatus').catch((err: any) => {
+                  console.error(`[Keyword.batchUpdateStatus] v220: 确认同步失败:`, err.message);
                 });
               } catch (e) { /* ignore */ }
             }

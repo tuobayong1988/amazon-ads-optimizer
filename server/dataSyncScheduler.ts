@@ -170,6 +170,17 @@ export function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60 * 100
     log.info('[DataSyncScheduler] v219: 启动后首次高频同步...');
     await executeUnifiedSync('high');
   }, 2 * 60 * 1000);
+
+  // v220: 系统健康监控 - 每15分钟输出健康快照（内存/API速率/同步率/确认同步统计）
+  setInterval(() => {
+    try {
+      const { logHealthSnapshot } = require('./unifiedSyncEngine');
+      logHealthSnapshot();
+    } catch (err: any) {
+      log.warn(`[DataSyncScheduler] v220: 健康监控快照失败: ${err.message}`);
+    }
+  }, 15 * 60 * 1000);
+  log.info('[DataSyncScheduler] v220: 系统健康监控已启动，间隔: 15分钟');
   
   // v137: 启动优化任务重试同步引擎（每5分钟检查并重试失败的同步任务）
   setInterval(async () => {

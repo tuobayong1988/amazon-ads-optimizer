@@ -1,5 +1,5 @@
 /**
- * Unified Sync Engine v219 - 统一数据同步引擎
+ * Unified Sync Engine v220 - 统一数据同步引擎
  * 
  * 核心职责：
  * 1. 自动发现所有活跃账户（无需依赖data_sync_schedules表）
@@ -8,12 +8,15 @@
  * 4. 检查点/恢复机制
  * 5. 优化后确认同步（防止重复优化）
  * 6. 步骤级错误隔离
+ * 7. API调用速率控制（v220）
+ * 8. 系统健康监控（v220）
  * 
  * 设计原则：
  * - 零配置：新授权的账户自动纳入同步
  * - 高可靠：单步失败不影响其他步骤和账户
  * - 可观测：完整的同步状态和进度追踪
  * - 幂等性：重复执行不会产生副作用
+ * - 自适应：根据API限流反馈动态调整速率（v220）
  */
 
 import * as db from './db';
@@ -23,6 +26,316 @@ import { createModuleLogger } from './utils/logger';
 import { logSync, logSyncWarn, logSyncError } from './utils/opsLogger';
 
 const log = createModuleLogger('UnifiedSync');
+
+// ==================== v220: API速率控制器 ====================
+
+/**
+ * 自适应API速率控制器
+ * 
+ * Amazon Advertising API 限制：
+ * - 列表/报告端点: 约10 TPS (每秒事务数)
+ * - 批量更新端点: 约5 TPS
+ * - 报告请求端点: 约1 TPS
+ * 
+ * 策略：
+ * - 维护滑动窗口内的API调用计数
+ * - 当接近限额时主动降速（插入延迟）
+ * - 遇到429后指数退避并降低基线速率
+ * - 一段时间无429后逐步恢复速率
+ */
+class ApiRateController {
+  // 滑动窗口配置
+  private windowMs = 60_000; // 1分钟窗口
+  private maxCallsPerWindow = 120; // 每分钟最多120次API调用（保守值，实际限额更高）
+  private callTimestamps: number[] = [];
+  
+  // 自适应速率
+  private baseStepDelayMs = 200; // 步骤间基础延迟（毫秒）
+  private currentStepDelayMs = 200; // 当前步骤间延迟
+  private baseBatchDelayMs = 2000; // 批次间基础延迟
+  private currentBatchDelayMs = 2000; // 当前批次间延迟
+  
+  // 限流反馈
+  private throttleCount = 0; // 当前窗口内被限流次数
+  private totalThrottleCount = 0; // 总限流次数
+  private lastThrottleTime: Date | null = null;
+  private consecutiveSuccessWindows = 0; // 连续无限流的窗口数
+  
+  // 监控指标
+  private totalApiCalls = 0;
+  private windowApiCalls = 0;
+  private peakCallsPerMinute = 0;
+
+  /**
+   * 记录一次API调用
+   */
+  recordApiCall(): void {
+    const now = Date.now();
+    this.callTimestamps.push(now);
+    this.totalApiCalls++;
+    this.windowApiCalls++;
+    
+    // 清理过期的时间戳
+    this.pruneOldTimestamps(now);
+    
+    // 更新峰值
+    const currentRate = this.getCallsInWindow();
+    if (currentRate > this.peakCallsPerMinute) {
+      this.peakCallsPerMinute = currentRate;
+    }
+  }
+
+  /**
+   * 记录一次限流事件（429响应）
+   */
+  recordThrottle(): void {
+    this.throttleCount++;
+    this.totalThrottleCount++;
+    this.lastThrottleTime = new Date();
+    this.consecutiveSuccessWindows = 0;
+    
+    // 遇到限流时增加延迟（指数退避）
+    const backoffFactor = Math.min(Math.pow(1.5, this.throttleCount), 8); // 最多8倍
+    this.currentStepDelayMs = Math.min(this.baseStepDelayMs * backoffFactor, 5000); // 最多5秒
+    this.currentBatchDelayMs = Math.min(this.baseBatchDelayMs * backoffFactor, 30000); // 最多30秒
+    
+    log.warn(`[RateControl] API限流! 第${this.throttleCount}次, 步骤延迟调整为${this.currentStepDelayMs}ms, 批次延迟调整为${this.currentBatchDelayMs}ms`);
+    logSyncWarn('RateControl', 'API限流触发退避', {
+      throttleCount: this.throttleCount,
+      totalThrottles: this.totalThrottleCount,
+      stepDelay: this.currentStepDelayMs,
+      batchDelay: this.currentBatchDelayMs,
+    });
+  }
+
+  /**
+   * 获取步骤间应等待的延迟（毫秒）
+   * 根据当前API调用速率动态调整
+   */
+  getStepDelay(): number {
+    const currentRate = this.getCallsInWindow();
+    const utilizationRatio = currentRate / this.maxCallsPerWindow;
+    
+    if (utilizationRatio > 0.8) {
+      // 超过80%利用率，显著增加延迟
+      return Math.max(this.currentStepDelayMs * 2, 1000);
+    } else if (utilizationRatio > 0.6) {
+      // 超过60%利用率，适度增加延迟
+      return Math.max(this.currentStepDelayMs * 1.5, 500);
+    }
+    
+    return this.currentStepDelayMs;
+  }
+
+  /**
+   * 获取批次间应等待的延迟（毫秒）
+   */
+  getBatchDelay(): number {
+    const currentRate = this.getCallsInWindow();
+    const utilizationRatio = currentRate / this.maxCallsPerWindow;
+    
+    if (utilizationRatio > 0.7) {
+      return Math.max(this.currentBatchDelayMs * 2, 5000);
+    }
+    
+    return this.currentBatchDelayMs;
+  }
+
+  /**
+   * 在同步周期结束时调用，尝试恢复速率
+   */
+  onSyncCycleComplete(): void {
+    if (this.throttleCount === 0) {
+      this.consecutiveSuccessWindows++;
+      
+      // 连续3个无限流的周期后，逐步恢复速率
+      if (this.consecutiveSuccessWindows >= 3 && this.currentStepDelayMs > this.baseStepDelayMs) {
+        this.currentStepDelayMs = Math.max(
+          this.baseStepDelayMs,
+          this.currentStepDelayMs * 0.7 // 每次恢复30%
+        );
+        this.currentBatchDelayMs = Math.max(
+          this.baseBatchDelayMs,
+          this.currentBatchDelayMs * 0.7
+        );
+        log.info(`[RateControl] 速率恢复: 步骤延迟=${this.currentStepDelayMs}ms, 批次延迟=${this.currentBatchDelayMs}ms`);
+      }
+    }
+    
+    // 重置窗口限流计数
+    this.throttleCount = 0;
+    this.windowApiCalls = 0;
+  }
+
+  /**
+   * 获取速率控制器状态（用于监控日志）
+   */
+  getStatus(): RateControlStatus {
+    return {
+      totalApiCalls: this.totalApiCalls,
+      callsInCurrentWindow: this.getCallsInWindow(),
+      peakCallsPerMinute: this.peakCallsPerMinute,
+      currentStepDelayMs: this.currentStepDelayMs,
+      currentBatchDelayMs: this.currentBatchDelayMs,
+      totalThrottleCount: this.totalThrottleCount,
+      lastThrottleTime: this.lastThrottleTime,
+      consecutiveSuccessWindows: this.consecutiveSuccessWindows,
+      utilizationPercent: Math.round((this.getCallsInWindow() / this.maxCallsPerWindow) * 100),
+    };
+  }
+
+  private getCallsInWindow(): number {
+    this.pruneOldTimestamps(Date.now());
+    return this.callTimestamps.length;
+  }
+
+  private pruneOldTimestamps(now: number): void {
+    const cutoff = now - this.windowMs;
+    while (this.callTimestamps.length > 0 && this.callTimestamps[0] < cutoff) {
+      this.callTimestamps.shift();
+    }
+  }
+}
+
+/** 速率控制器状态 */
+export interface RateControlStatus {
+  totalApiCalls: number;
+  callsInCurrentWindow: number;
+  peakCallsPerMinute: number;
+  currentStepDelayMs: number;
+  currentBatchDelayMs: number;
+  totalThrottleCount: number;
+  lastThrottleTime: Date | null;
+  consecutiveSuccessWindows: number;
+  utilizationPercent: number;
+}
+
+// 全局速率控制器实例
+const rateController = new ApiRateController();
+
+// ==================== v220: 系统健康监控 ====================
+
+/** 系统健康快照 */
+export interface HealthSnapshot {
+  timestamp: string;
+  memoryMB: { rss: number; heapUsed: number; heapTotal: number; heapUtilization: number };
+  rateControl: RateControlStatus;
+  syncStats: {
+    totalSyncsCompleted: number;
+    totalSyncsFailed: number;
+    activeSyncs: number;
+    discoveredAccounts: number;
+  };
+  confirmationSyncStats: {
+    totalTriggered: number;
+    totalSucceeded: number;
+    totalFailed: number;
+    avgDurationMs: number;
+    lastTriggeredAt: string | null;
+    triggerSources: Record<string, number>;
+  };
+}
+
+// 确认同步追踪器
+const confirmationTracker = {
+  totalTriggered: 0,
+  totalSucceeded: 0,
+  totalFailed: 0,
+  totalDurationMs: 0,
+  lastTriggeredAt: null as string | null,
+  triggerSources: {} as Record<string, number>,
+};
+
+// 健康快照历史（保留最近24个，每15分钟一个 = 6小时历史）
+const healthHistory: HealthSnapshot[] = [];
+const MAX_HEALTH_HISTORY = 24;
+
+/**
+ * 采集系统健康快照
+ */
+export function captureHealthSnapshot(): HealthSnapshot {
+  const mem = process.memoryUsage();
+  const snapshot: HealthSnapshot = {
+    timestamp: new Date().toISOString(),
+    memoryMB: {
+      rss: Math.round(mem.rss / 1024 / 1024),
+      heapUsed: Math.round(mem.heapUsed / 1024 / 1024),
+      heapTotal: Math.round(mem.heapTotal / 1024 / 1024),
+      heapUtilization: Math.round((mem.heapUsed / mem.heapTotal) * 100),
+    },
+    rateControl: rateController.getStatus(),
+    syncStats: {
+      totalSyncsCompleted: engineStatus.totalSyncsCompleted,
+      totalSyncsFailed: engineStatus.totalSyncsFailed,
+      activeSyncs: activeSyncs.size,
+      discoveredAccounts: engineStatus.discoveredAccounts,
+    },
+    confirmationSyncStats: {
+      totalTriggered: confirmationTracker.totalTriggered,
+      totalSucceeded: confirmationTracker.totalSucceeded,
+      totalFailed: confirmationTracker.totalFailed,
+      avgDurationMs: confirmationTracker.totalTriggered > 0
+        ? Math.round(confirmationTracker.totalDurationMs / confirmationTracker.totalTriggered)
+        : 0,
+      lastTriggeredAt: confirmationTracker.lastTriggeredAt,
+      triggerSources: { ...confirmationTracker.triggerSources },
+    },
+  };
+
+  // 保存到历史
+  healthHistory.push(snapshot);
+  if (healthHistory.length > MAX_HEALTH_HISTORY) {
+    healthHistory.shift();
+  }
+
+  return snapshot;
+}
+
+/**
+ * 输出健康监控日志（每15分钟由调度器调用）
+ */
+export function logHealthSnapshot(): void {
+  const snapshot = captureHealthSnapshot();
+  
+  const memWarning = snapshot.memoryMB.heapUtilization > 90 ? ' [WARNING: 堆内存>90%]' : '';
+  const throttleWarning = snapshot.rateControl.totalThrottleCount > 0 
+    ? ` [限流: ${snapshot.rateControl.totalThrottleCount}次]` : '';
+  
+  log.info(
+    `[HealthMonitor] v220 系统健康快照:` +
+    ` 内存=${snapshot.memoryMB.rss}MB(堆${snapshot.memoryMB.heapUtilization}%)${memWarning}` +
+    ` | API调用=${snapshot.rateControl.totalApiCalls}(峰值${snapshot.rateControl.peakCallsPerMinute}/min, 利用率${snapshot.rateControl.utilizationPercent}%)${throttleWarning}` +
+    ` | 同步=${snapshot.syncStats.totalSyncsCompleted}成功/${snapshot.syncStats.totalSyncsFailed}失败` +
+    ` | 确认同步=${snapshot.confirmationSyncStats.totalTriggered}次(成功${snapshot.confirmationSyncStats.totalSucceeded}, 平均${snapshot.confirmationSyncStats.avgDurationMs}ms)`
+  );
+  
+  logSync('HealthMonitor', 'v220 系统健康快照', snapshot);
+  
+  // 内存泄漏检测：如果最近4个快照RSS持续增长，发出警告
+  if (healthHistory.length >= 4) {
+    const recent4 = healthHistory.slice(-4);
+    const isMonotonicallyIncreasing = recent4.every((s, i) => 
+      i === 0 || s.memoryMB.rss > recent4[i - 1].memoryMB.rss
+    );
+    if (isMonotonicallyIncreasing) {
+      const growth = recent4[3].memoryMB.rss - recent4[0].memoryMB.rss;
+      log.warn(`[HealthMonitor] 内存泄漏疑似: RSS连续4个周期增长, 增量=${growth}MB (${recent4[0].memoryMB.rss}MB → ${recent4[3].memoryMB.rss}MB)`);
+      logSyncWarn('HealthMonitor', '内存泄漏疑似', {
+        growth,
+        from: recent4[0].memoryMB.rss,
+        to: recent4[3].memoryMB.rss,
+        snapshots: recent4.map(s => ({ time: s.timestamp, rss: s.memoryMB.rss })),
+      });
+    }
+  }
+}
+
+/**
+ * 获取健康快照历史
+ */
+export function getHealthHistory(): HealthSnapshot[] {
+  return [...healthHistory];
+}
 
 // ==================== 类型定义 ====================
 
@@ -553,6 +866,11 @@ const engineStatus: EngineStatus = {
 const MAX_CONCURRENT_ACCOUNTS = 3;
 const activeSyncs = new Map<number, { tier: SyncTier; startTime: Date }>();
 
+// 导出速率控制器供外部使用
+export function getRateController(): ApiRateController {
+  return rateController;
+}
+
 // ==================== 核心功能：自动发现账户 ====================
 
 /**
@@ -743,7 +1061,17 @@ export async function syncAccount(
 
       log.info(`[UnifiedSync] 账户 ${account.accountId} 执行步骤 [${i + 1}/${steps.length}]: ${step.name}`);
 
+      // v220: 步骤间速率控制延迟
+      if (i > 0) {
+        const stepDelay = rateController.getStepDelay();
+        if (stepDelay > 0) {
+          await sleep(stepDelay);
+        }
+      }
+
       try {
+        // v220: 记录API调用（每个步骤通常包含1-3个API调用）
+        rateController.recordApiCall();
         const stepResult = await step.execute(syncService, context);
         result.stepResults[step.id] = stepResult;
 
@@ -773,6 +1101,19 @@ export async function syncAccount(
         context.totalErrors++;
         result.errors.push(`${step.name}: ${error.message}`);
         result.stepResults[step.id] = { success: false, synced: 0, errors: [error.message] };
+        
+        // v220: 检测是否为API限流错误
+        const isThrottle = error.message?.includes('429') || 
+                          error.message?.includes('限流') || 
+                          error.message?.includes('TooManyRequests') ||
+                          error.message?.includes('throttl');
+        if (isThrottle) {
+          rateController.recordThrottle();
+          // 限流后额外等待
+          const throttleDelay = rateController.getStepDelay();
+          log.warn(`[UnifiedSync] 账户 ${account.accountId} 步骤 ${step.name} 触发限流，等待${throttleDelay}ms后继续`);
+          await sleep(throttleDelay);
+        }
         
         log.error(`[UnifiedSync] 账户 ${account.accountId} 步骤 ${step.name} 异常: ${error.message}`);
       }
@@ -870,11 +1211,16 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
       }
     }
 
-    // 批次间短暂间隔，避免API限流
+    // v220: 批次间自适应延迟，根据API限流反馈动态调整
     if (i + MAX_CONCURRENT_ACCOUNTS < accounts.length) {
-      await sleep(500);
+      const batchDelay = rateController.getBatchDelay();
+      log.info(`[UnifiedSync] 批次间延迟 ${batchDelay}ms (利用率: ${rateController.getStatus().utilizationPercent}%)`);
+      await sleep(batchDelay);
     }
   }
+
+  // v220: 通知速率控制器同步周期完成，尝试恢复速率
+  rateController.onSyncCycleComplete();
 
   batchResult.endTime = new Date();
   batchResult.durationMs = batchResult.endTime.getTime() - startTime.getTime();
@@ -911,10 +1257,18 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
  */
 export async function confirmationSync(
   accountId: number,
-  affectedEntities: ('campaigns' | 'ad_groups' | 'keywords' | 'targets' | 'budgets')[]
+  affectedEntities: ('campaigns' | 'ad_groups' | 'keywords' | 'targets' | 'budgets')[],
+  triggerSource?: string // v220: 触发源标识（如 'optimizationSyncEngine', 'batchUpdateCampaignStatus' 等）
 ): Promise<AccountSyncResult | null> {
-  log.info(`[UnifiedSync] 触发确认同步: 账户 ${accountId}, 受影响实体: ${affectedEntities.join(', ')}`);
-  logSync('UnifiedSync', '触发确认同步', { accountId, affectedEntities });
+  const source = triggerSource || 'unknown';
+  
+  // v220: 追踪确认同步触发
+  confirmationTracker.totalTriggered++;
+  confirmationTracker.lastTriggeredAt = new Date().toISOString();
+  confirmationTracker.triggerSources[source] = (confirmationTracker.triggerSources[source] || 0) + 1;
+  
+  log.info(`[UnifiedSync] v220 触发确认同步: 账户 ${accountId}, 受影响实体: ${affectedEntities.join(', ')}, 触发源: ${source}`);
+  logSync('UnifiedSync', 'v220 触发确认同步', { accountId, affectedEntities, triggerSource: source });
 
   // 发现该账户
   const accounts = await discoverSyncableAccounts();
@@ -957,13 +1311,33 @@ export async function confirmationSync(
     specificSteps: uniqueSteps,
   });
 
-  log.info(`[UnifiedSync] 确认同步完成: 账户 ${accountId}, 成功 ${result.completedSteps}/${result.totalSteps} 步, 同步 ${result.totalSynced} 条`);
-  logSync('UnifiedSync', '确认同步完成', {
+  // v220: 追踪确认同步结果
+  confirmationTracker.totalDurationMs += result.durationMs;
+  if (result.success) {
+    confirmationTracker.totalSucceeded++;
+  } else {
+    confirmationTracker.totalFailed++;
+  }
+
+  log.info(
+    `[UnifiedSync] v220 确认同步完成: 账户 ${accountId}, ` +
+    `成功 ${result.completedSteps}/${result.totalSteps} 步, 同步 ${result.totalSynced} 条, ` +
+    `耗时 ${result.durationMs}ms, 触发源: ${source}, ` +
+    `累计: ${confirmationTracker.totalTriggered}次(成功${confirmationTracker.totalSucceeded})`
+  );
+  logSync('UnifiedSync', 'v220 确认同步完成', {
     accountId,
     completedSteps: result.completedSteps,
     totalSteps: result.totalSteps,
     totalSynced: result.totalSynced,
     durationMs: result.durationMs,
+    triggerSource: source,
+    cumulativeStats: {
+      totalTriggered: confirmationTracker.totalTriggered,
+      totalSucceeded: confirmationTracker.totalSucceeded,
+      totalFailed: confirmationTracker.totalFailed,
+      avgDurationMs: Math.round(confirmationTracker.totalDurationMs / confirmationTracker.totalTriggered),
+    },
   });
 
   return result;
@@ -974,8 +1348,12 @@ export async function confirmationSync(
 /**
  * 获取引擎状态
  */
-export function getEngineStatus(): EngineStatus {
-  return { ...engineStatus };
+export function getEngineStatus(): EngineStatus & { rateControl: RateControlStatus; confirmationSync: typeof confirmationTracker } {
+  return {
+    ...engineStatus,
+    rateControl: rateController.getStatus(),
+    confirmationSync: { ...confirmationTracker },
+  };
 }
 
 /**

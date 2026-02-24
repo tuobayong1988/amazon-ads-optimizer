@@ -292,7 +292,7 @@ export async function executeBatchSync(options?: {
       
       // 异步触发确认同步（不阻塞当前流程）
       for (const [accountId, entities] of affectedAccounts) {
-        confirmationSync(accountId, Array.from(entities) as any[]).then(syncResult => {
+        confirmationSync(accountId, Array.from(entities) as any[], 'optimizationSyncEngine').then(syncResult => {
           if (syncResult) {
             log.info(`[SyncEngine] v219: 确认同步完成 - 账户 ${accountId}: ${syncResult.completedSteps}/${syncResult.totalSteps}步成功`);
           }
