@@ -146166,7 +146166,7 @@ var init_postDeployOptimizer = __esm({
       },
       {
         version: 222,
-        description: "v222: \u667A\u80FD\u8C03\u5EA6\u534F\u8C03\u4E0E\u65E5\u5FD7\u5B89\u5168\u4FEE\u590D \u2014 \u8C03\u5EA6\u5668\u5C42\u7EA7\u667A\u80FD\u534F\u8C03(full\u8FD0\u884C\u65F6\u8DF3\u8FC7high/medium, medium\u8FD0\u884C\u65F6\u8DF3\u8FC7high\u907F\u514DAPI\u538B\u529B), \u5F15\u64CE\u5C42\u7EA7\u4E92\u65A5\u4FDD\u62A4(\u540C\u8D26\u6237\u591A\u5C42\u7EA7\u540C\u65F6\u89E6\u53D1\u65F6\u667A\u80FD\u8DF3\u8FC7), \u5168\u94FE\u8DEF\u5B89\u5168\u6570\u5B57\u63D0\u53D6(safeNum\u51FD\u6570\u9632\u5FA1\u6240\u6709[object Object]\u62FC\u63A5), \u6570\u636E\u5E93\u5199\u5165\u5B89\u5168\u4FDD\u62A4",
+        description: "v222: \u667A\u80FD\u8C03\u5EA6\u534F\u8C03+\u65E5\u5FD7\u5B89\u5168+campaignId\u4FEE\u590D+\u5185\u5B58\u4F18\u5316 \u2014 (1)\u8C03\u5EA6\u5668\u5C42\u7EA7\u667A\u80FD\u534F\u8C03\u907F\u514DAPI\u538B\u529B (2)\u5168\u94FE\u8DEF\u5B89\u5168\u6570\u5B57\u63D0\u53D6\u9632\u5FA1[object Object] (3)\u4FEE\u590DmultiDimensionOptimizer\u4E2DcampaignId\u6DF7\u7528\u5BFC\u81F4\u6295\u653E\u8BCD\u5206\u6790\u5931\u6548 (4)Procfile\u5806\u5185\u5B58512MB\u21922048MB (5)\u5065\u5EB7\u68C0\u67E5\u9608\u503C\u4F18\u5316\u9002\u914DV8\u52A8\u6001\u5806\u6536\u7F29",
         affectedModules: [],
         correctionActions: []
       }
@@ -151312,7 +151312,7 @@ var init_selfEvolutionEngine = __esm({
 });
 
 // server/multiDimensionOptimizer.ts
-async function analyzeMultiDimensionPerformance(campaignId, accountId, lookbackDays = 30, targetAcos) {
+async function analyzeMultiDimensionPerformance(campaignId, accountId, lookbackDays = 30, targetAcos, amazonCampaignId) {
   const db = await getDb();
   if (!db) return null;
   const endDate = /* @__PURE__ */ new Date();
@@ -151366,7 +151366,8 @@ async function analyzeMultiDimensionPerformance(campaignId, accountId, lookbackD
       lte(placementPerformance.date, endStr)
     )
   ).groupBy(placementPerformance.placement);
-  const allKeywords = await getKeywordsByCampaignId(Number(campaignId));
+  const keywordQueryId = amazonCampaignId || campaignId;
+  const allKeywords = await getKeywordsByCampaignId(Number(keywordQueryId));
   const keywordData = allKeywords.filter((kw) => kw.keywordStatus === "enabled");
   const dayPerformances = weeklyData.map((d5) => {
     const spend = parseFloat(d5.spend || "0");
@@ -151750,7 +151751,8 @@ async function executeMultiDimensionOptimization(targetId, accountId, campaigns7
         campaignLocalId2,
         accountId,
         lookbackDays,
-        config2.targetAcos
+        config2.targetAcos,
+        campaign.campaignId
       );
       if (!analysis) {
         details.push({
@@ -375595,14 +375597,18 @@ function opsAuth(req, res, next) {
 router3.use(opsAuth);
 var ALERT_THRESHOLDS = {
   memory: {
-    rssWarningMB: 400,
-    // RSS内存警告阈值（MB）
-    rssCriticalMB: 600,
+    rssWarningMB: 500,
+    // RSS内存警告阈值（MB）- 2048MB堆下适当提高
+    rssCriticalMB: 800,
     // RSS内存严重阈值（MB）
-    heapWarningPct: 75,
-    // 堆内存使用率警告阈值（%）
-    heapCriticalPct: 90
-    // 堆内存使用率严重阈值（%）
+    heapWarningPct: 90,
+    // 堆内存使用率警告阈值（%）- V8常态80-90%是正常的
+    heapCriticalPct: 96,
+    // 堆内存使用率严重阈值（%）- 只有接近OOM才告警
+    heapUsedWarningMB: 512,
+    // 堆内存绝对值警告阈值（MB）
+    heapUsedCriticalMB: 1024
+    // 堆内存绝对值严重阈值（MB）
   },
   database: {
     latencyWarningMs: 500,
@@ -375611,10 +375617,10 @@ var ALERT_THRESHOLDS = {
     // DB延迟严重阈值（ms）
   },
   logger: {
-    errorRateWarning: 10,
-    // 错误日志数量警告阈值（近期）
-    errorRateCritical: 50,
-    // 错误日志数量严重阈值（近期）
+    errorRateWarning: 50,
+    // v222: 错误日志数量警告阈值（近期）
+    errorRateCritical: 200,
+    // v222: 错误日志数量严重阈值（近期）
     bufferUsagePct: 80
     // 日志缓冲区使用率警告阈值（%）
   },
@@ -375659,6 +375665,24 @@ function evaluateAlerts(memUsage, dbStatus, dbLatencyMs, loggerStatus, opsSummar
       message: `\u5806\u5185\u5B58\u4F7F\u7528\u7387 ${heapPct.toFixed(1)}% \u8D85\u8FC7\u8B66\u544A\u9608\u503C ${ALERT_THRESHOLDS.memory.heapWarningPct}%`,
       value: `${heapPct.toFixed(1)}%`,
       threshold: `${ALERT_THRESHOLDS.memory.heapWarningPct}%`
+    });
+  }
+  const heapUsedMB = memUsage.heapUsed / (1024 * 1024);
+  if (heapUsedMB >= ALERT_THRESHOLDS.memory.heapUsedCriticalMB) {
+    alerts.push({
+      metric: "memory.heapUsedAbsolute",
+      level: "critical",
+      message: `\u5806\u5185\u5B58\u4F7F\u7528 ${heapUsedMB.toFixed(0)}MB \u8D85\u8FC7\u4E25\u91CD\u9608\u503C ${ALERT_THRESHOLDS.memory.heapUsedCriticalMB}MB`,
+      value: `${heapUsedMB.toFixed(0)}MB`,
+      threshold: `${ALERT_THRESHOLDS.memory.heapUsedCriticalMB}MB`
+    });
+  } else if (heapUsedMB >= ALERT_THRESHOLDS.memory.heapUsedWarningMB) {
+    alerts.push({
+      metric: "memory.heapUsedAbsolute",
+      level: "warning",
+      message: `\u5806\u5185\u5B58\u4F7F\u7528 ${heapUsedMB.toFixed(0)}MB \u8D85\u8FC7\u8B66\u544A\u9608\u503C ${ALERT_THRESHOLDS.memory.heapUsedWarningMB}MB`,
+      value: `${heapUsedMB.toFixed(0)}MB`,
+      threshold: `${ALERT_THRESHOLDS.memory.heapUsedWarningMB}MB`
     });
   }
   if (dbStatus.startsWith("error")) {
