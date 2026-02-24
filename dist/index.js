@@ -60612,6 +60612,7 @@ var init_amazonSyncService = __esm({
         let oldBid = 0;
         let targetName = "";
         let adGroupId = null;
+        let resolvedCampaignId = campaignId;
         try {
           if (targetType === "keyword") {
             const [kw] = await db.select().from(keywords).where(eq(keywords.id, targetId)).limit(1);
@@ -60647,6 +60648,17 @@ var init_amazonSyncService = __esm({
             oldBid = parseFloat(kw.bid);
             targetName = kw.keywordText;
             adGroupId = kw.adGroupId;
+            if (!resolvedCampaignId || resolvedCampaignId === 0 || resolvedCampaignId === "0" || String(resolvedCampaignId).length < 6) {
+              try {
+                const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, kw.adGroupId)).limit(1);
+                if (ag?.campaignId) {
+                  resolvedCampaignId = ag.campaignId;
+                  log6.debug(`[applyBidAdjustment] v222: \u89E3\u6790campaignId: keyword=${targetId} -> campaignId=${ag.campaignId}`);
+                }
+              } catch (resolveErr) {
+                log6.warn(`[applyBidAdjustment] v222: \u89E3\u6790campaignId\u5931\u8D25: ${resolveErr.message}`);
+              }
+            }
             if (!amazonId || amazonId.trim() === "" || amazonId === "0") {
               log6.error(`[applyBidAdjustment] keyword id=${targetId} \u7684Amazon keywordId\u65E0\u6548: "${amazonId}"`);
               return false;
@@ -60690,6 +60702,17 @@ var init_amazonSyncService = __esm({
             oldBid = parseFloat(pt3.bid);
             targetName = pt3.targetValue || "Product Target";
             adGroupId = pt3.adGroupId;
+            if (!resolvedCampaignId || resolvedCampaignId === 0 || resolvedCampaignId === "0" || String(resolvedCampaignId).length < 6) {
+              try {
+                const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, pt3.adGroupId)).limit(1);
+                if (ag?.campaignId) {
+                  resolvedCampaignId = ag.campaignId;
+                  log6.debug(`[applyBidAdjustment] v222: \u89E3\u6790campaignId: product_target=${targetId} -> campaignId=${ag.campaignId}`);
+                }
+              } catch (resolveErr) {
+                log6.warn(`[applyBidAdjustment] v222: \u89E3\u6790campaignId\u5931\u8D25: ${resolveErr.message}`);
+              }
+            }
             if (!amazonId || amazonId.trim() === "" || amazonId === "0") {
               log6.error(`[applyBidAdjustment] product_target id=${targetId} \u7684Amazon targetId\u65E0\u6548: "${amazonId}"`);
               return false;
@@ -60706,7 +60729,7 @@ var init_amazonSyncService = __esm({
           try {
             await db.insert(biddingLogs).values({
               accountId: this.accountId,
-              campaignId,
+              campaignId: resolvedCampaignId,
               adGroupId,
               logTargetType: targetType === "keyword" ? "keyword" : "product_target",
               targetId,
@@ -60726,7 +60749,7 @@ var init_amazonSyncService = __esm({
             try {
               const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
               const logTargetType = targetType === "keyword" ? "keyword" : "product_target";
-              await db.execute(sql`INSERT INTO bidding_logs (account_id, campaign_id, ad_group_id, log_target_type, target_id, target_name, action_type, previous_bid, new_bid, bid_change_percent, reason, algorithm_version, is_intraday_adjustment, execution_status, created_at) VALUES (${this.accountId}, ${campaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${"v1.0"}, ${0}, ${"success"}, ${now})`);
+              await db.execute(sql`INSERT INTO bidding_logs (account_id, campaign_id, ad_group_id, log_target_type, target_id, target_name, action_type, previous_bid, new_bid, bid_change_percent, reason, algorithm_version, is_intraday_adjustment, execution_status, created_at) VALUES (${this.accountId}, ${resolvedCampaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${"v1.0"}, ${0}, ${"success"}, ${now})`);
               log6.info(`[applyBidAdjustment] \u2705 \u65E5\u5FD7\u901A\u8FC7\u539F\u751FSQL\u63D2\u5165\u6210\u529F`);
             } catch (rawSqlError) {
               log6.error(`[applyBidAdjustment] \u26A0\uFE0F \u539F\u751FSQL\u65E5\u5FD7\u4E5F\u5931\u8D25: ${rawSqlError.message}`);
@@ -60743,7 +60766,7 @@ var init_amazonSyncService = __esm({
             const now = (/* @__PURE__ */ new Date()).toISOString().slice(0, 19).replace("T", " ");
             const logTargetType = targetType === "keyword" ? "keyword" : "product_target";
             const errMsg = errorDetail.substring(0, 500);
-            await db.execute(sql`INSERT INTO bidding_logs (account_id, campaign_id, ad_group_id, log_target_type, target_id, target_name, action_type, previous_bid, new_bid, bid_change_percent, reason, algorithm_version, is_intraday_adjustment, execution_status, error_message, created_at) VALUES (${this.accountId}, ${campaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName || ""}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${"v1.0"}, ${0}, ${"failed"}, ${errMsg}, ${now})`);
+            await db.execute(sql`INSERT INTO bidding_logs (account_id, campaign_id, ad_group_id, log_target_type, target_id, target_name, action_type, previous_bid, new_bid, bid_change_percent, reason, algorithm_version, is_intraday_adjustment, execution_status, error_message, created_at) VALUES (${this.accountId}, ${resolvedCampaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName || ""}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${"v1.0"}, ${0}, ${"failed"}, ${errMsg}, ${now})`);
           } catch (logErr) {
             log6.error(`[applyBidAdjustment] \u26A0\uFE0F \u5931\u8D25\u65E5\u5FD7\u8BB0\u5F55\u4E5F\u5931\u8D25: ${logErr.message}`);
           }
@@ -76379,6 +76402,7 @@ async function correctBidMismatches(database, accountId) {
         oe.keyword_text,
         oe.campaign_id,
         oe.campaign_name,
+        c.campaignId as amazon_campaign_id,
         oe.new_bid as expected_bid,
         oe.previous_bid,
         k.bid as current_bid,
@@ -76427,7 +76451,7 @@ async function correctBidMismatches(database, accountId) {
       return {
         keywordId: row.keyword_id,
         newBid: targetBid,
-        campaignId: row.campaign_id || 0,
+        campaignId: row.amazon_campaign_id || row.campaign_id || 0,
         reason: `[\u81EA\u52A8\u7EA0\u9519] \u51FA\u4EF7\u4E0D\u4E00\u81F4\u7EA0\u6B63: \u671F\u671B$${targetBid.toFixed(2)}, \u5F53\u524D$${row.current_bid}${maxBid > 0 ? ` (max_bid=$${maxBid})` : ""}`
       };
     }).filter((item) => item !== null);
@@ -76463,7 +76487,7 @@ async function correctBidMismatches(database, accountId) {
             actionType: "auto_correction",
             keywordId: row.keyword_id,
             keywordText: row.keyword_text,
-            campaignId: row.campaign_id,
+            campaignId: row.amazon_campaign_id || row.campaign_id,
             campaignName: row.campaign_name,
             previousBid: String(row.current_bid),
             newBid: String(actualTargetBid),

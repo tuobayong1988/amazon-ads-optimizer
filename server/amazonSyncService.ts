@@ -3303,6 +3303,10 @@ export class AmazonSyncService {
     let oldBid: number = 0;
     let targetName: string = '';
     let adGroupId: number | null = null;
+    
+    // v222: 当campaignId为0或无效时，自动从keyword/productTarget链路解析正确的Amazon campaignId
+    let resolvedCampaignId: number | string = campaignId;
+    
     try {
 
       if (targetType === 'keyword') {
@@ -3349,6 +3353,19 @@ export class AmazonSyncService {
         oldBid = parseFloat(kw.bid);
         targetName = kw.keywordText;
         adGroupId = kw.adGroupId;
+        
+        // v222: 解析正确的Amazon campaignId
+        if (!resolvedCampaignId || resolvedCampaignId === 0 || resolvedCampaignId === '0' || String(resolvedCampaignId).length < 6) {
+          try {
+            const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, kw.adGroupId)).limit(1);
+            if (ag?.campaignId) {
+              resolvedCampaignId = ag.campaignId;
+              log.debug(`[applyBidAdjustment] v222: 解析campaignId: keyword=${targetId} -> campaignId=${ag.campaignId}`);
+            }
+          } catch (resolveErr: any) {
+            log.warn(`[applyBidAdjustment] v222: 解析campaignId失败: ${resolveErr.message}`);
+          }
+        }
 
         // v125: Amazon SP API v3 要求keywordId为字符串类型，直接传递字符串
         if (!amazonId || amazonId.trim() === '' || amazonId === '0') {
@@ -3406,6 +3423,19 @@ export class AmazonSyncService {
         oldBid = parseFloat(pt.bid);
         targetName = pt.targetValue || 'Product Target';
         adGroupId = pt.adGroupId;
+        
+        // v222: 解析正确的Amazon campaignId
+        if (!resolvedCampaignId || resolvedCampaignId === 0 || resolvedCampaignId === '0' || String(resolvedCampaignId).length < 6) {
+          try {
+            const [ag] = await db.select().from(adGroups).where(eq(adGroups.id, pt.adGroupId)).limit(1);
+            if (ag?.campaignId) {
+              resolvedCampaignId = ag.campaignId;
+              log.debug(`[applyBidAdjustment] v222: 解析campaignId: product_target=${targetId} -> campaignId=${ag.campaignId}`);
+            }
+          } catch (resolveErr: any) {
+            log.warn(`[applyBidAdjustment] v222: 解析campaignId失败: ${resolveErr.message}`);
+          }
+        }
 
         // v125: Amazon SP API v3 要求targetId为字符串类型，直接传递字符串
         if (!amazonId || amazonId.trim() === '' || amazonId === '0') {
@@ -3432,7 +3462,7 @@ export class AmazonSyncService {
       try {
         await db.insert(biddingLogs).values({
           accountId: this.accountId,
-          campaignId,
+          campaignId: resolvedCampaignId,
           adGroupId,
           logTargetType: targetType === 'keyword' ? 'keyword' : 'product_target',
           targetId,
@@ -3452,7 +3482,7 @@ export class AmazonSyncService {
         try {
           const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
           const logTargetType = targetType === 'keyword' ? 'keyword' : 'product_target';
-          await db.execute(sql`INSERT INTO bidding_logs (account_id, campaign_id, ad_group_id, log_target_type, target_id, target_name, action_type, previous_bid, new_bid, bid_change_percent, reason, algorithm_version, is_intraday_adjustment, execution_status, created_at) VALUES (${this.accountId}, ${campaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${'v1.0'}, ${0}, ${'success'}, ${now})`);
+          await db.execute(sql`INSERT INTO bidding_logs (account_id, campaign_id, ad_group_id, log_target_type, target_id, target_name, action_type, previous_bid, new_bid, bid_change_percent, reason, algorithm_version, is_intraday_adjustment, execution_status, created_at) VALUES (${this.accountId}, ${resolvedCampaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${'v1.0'}, ${0}, ${'success'}, ${now})`);
           log.info(`[applyBidAdjustment] ✅ 日志通过原生SQL插入成功`);
         } catch (rawSqlError: any) {
           log.error(`[applyBidAdjustment] ⚠️ 原生SQL日志也失败: ${rawSqlError.message}`);
@@ -3472,7 +3502,7 @@ export class AmazonSyncService {
         const now = new Date().toISOString().slice(0, 19).replace('T', ' ');
         const logTargetType = targetType === 'keyword' ? 'keyword' : 'product_target';
         const errMsg = errorDetail.substring(0, 500);
-        await db.execute(sql`INSERT INTO bidding_logs (account_id, campaign_id, ad_group_id, log_target_type, target_id, target_name, action_type, previous_bid, new_bid, bid_change_percent, reason, algorithm_version, is_intraday_adjustment, execution_status, error_message, created_at) VALUES (${this.accountId}, ${campaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName || ''}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${'v1.0'}, ${0}, ${'failed'}, ${errMsg}, ${now})`);
+        await db.execute(sql`INSERT INTO bidding_logs (account_id, campaign_id, ad_group_id, log_target_type, target_id, target_name, action_type, previous_bid, new_bid, bid_change_percent, reason, algorithm_version, is_intraday_adjustment, execution_status, error_message, created_at) VALUES (${this.accountId}, ${resolvedCampaignId}, ${adGroupId}, ${logTargetType}, ${targetId}, ${targetName || ''}, ${actionType}, ${String(oldBid)}, ${String(newBid)}, ${String(bidChangePercent)}, ${reason}, ${'v1.0'}, ${0}, ${'failed'}, ${errMsg}, ${now})`);
       } catch (logErr: any) {
         log.error(`[applyBidAdjustment] ⚠️ 失败日志记录也失败: ${logErr.message}`);
       }

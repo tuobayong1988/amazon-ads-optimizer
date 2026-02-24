@@ -549,6 +549,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
         oe.keyword_text,
         oe.campaign_id,
         oe.campaign_name,
+        c.campaignId as amazon_campaign_id,
         oe.new_bid as expected_bid,
         oe.previous_bid,
         k.bid as current_bid,
@@ -607,7 +608,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
       return {
         keywordId: row.keyword_id,
         newBid: targetBid,
-        campaignId: row.campaign_id || 0,
+        campaignId: row.amazon_campaign_id || row.campaign_id || 0,
         reason: `[自动纠错] 出价不一致纠正: 期望$${targetBid.toFixed(2)}, 当前$${row.current_bid}${maxBid > 0 ? ` (max_bid=$${maxBid})` : ''}`,
       };
     }).filter((item: any): item is NonNullable<typeof item> => item !== null);
@@ -657,7 +658,7 @@ async function correctBidMismatches(database: any, accountId: number): Promise<C
             actionType: 'auto_correction',
             keywordId: row.keyword_id,
             keywordText: row.keyword_text,
-            campaignId: row.campaign_id,
+            campaignId: row.amazon_campaign_id || row.campaign_id,
             campaignName: row.campaign_name,
             previousBid: String(row.current_bid),
             newBid: String(actualTargetBid),
