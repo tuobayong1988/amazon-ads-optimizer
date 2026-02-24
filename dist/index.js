@@ -375650,24 +375650,25 @@ function evaluateAlerts(memUsage, dbStatus, dbLatencyMs, loggerStatus, opsSummar
     });
   }
   const heapPct = memUsage.heapUsed / memUsage.heapTotal * 100;
-  if (heapPct >= ALERT_THRESHOLDS.memory.heapCriticalPct) {
+  const heapUsedMB = memUsage.heapUsed / (1024 * 1024);
+  const heapAbsoluteSafe = heapUsedMB < ALERT_THRESHOLDS.memory.heapUsedWarningMB;
+  if (!heapAbsoluteSafe && heapPct >= ALERT_THRESHOLDS.memory.heapCriticalPct) {
     alerts.push({
       metric: "memory.heapUsage",
       level: "critical",
-      message: `\u5806\u5185\u5B58\u4F7F\u7528\u7387 ${heapPct.toFixed(1)}% \u8D85\u8FC7\u4E25\u91CD\u9608\u503C ${ALERT_THRESHOLDS.memory.heapCriticalPct}%`,
+      message: `\u5806\u5185\u5B58\u4F7F\u7528\u7387 ${heapPct.toFixed(1)}% \u8D85\u8FC7\u4E25\u91CD\u9608\u503C ${ALERT_THRESHOLDS.memory.heapCriticalPct}% (\u7EDD\u5BF9\u503C: ${heapUsedMB.toFixed(0)}MB)`,
       value: `${heapPct.toFixed(1)}%`,
       threshold: `${ALERT_THRESHOLDS.memory.heapCriticalPct}%`
     });
-  } else if (heapPct >= ALERT_THRESHOLDS.memory.heapWarningPct) {
+  } else if (!heapAbsoluteSafe && heapPct >= ALERT_THRESHOLDS.memory.heapWarningPct) {
     alerts.push({
       metric: "memory.heapUsage",
       level: "warning",
-      message: `\u5806\u5185\u5B58\u4F7F\u7528\u7387 ${heapPct.toFixed(1)}% \u8D85\u8FC7\u8B66\u544A\u9608\u503C ${ALERT_THRESHOLDS.memory.heapWarningPct}%`,
+      message: `\u5806\u5185\u5B58\u4F7F\u7528\u7387 ${heapPct.toFixed(1)}% \u8D85\u8FC7\u8B66\u544A\u9608\u503C ${ALERT_THRESHOLDS.memory.heapWarningPct}% (\u7EDD\u5BF9\u503C: ${heapUsedMB.toFixed(0)}MB)`,
       value: `${heapPct.toFixed(1)}%`,
       threshold: `${ALERT_THRESHOLDS.memory.heapWarningPct}%`
     });
   }
-  const heapUsedMB = memUsage.heapUsed / (1024 * 1024);
   if (heapUsedMB >= ALERT_THRESHOLDS.memory.heapUsedCriticalMB) {
     alerts.push({
       metric: "memory.heapUsedAbsolute",

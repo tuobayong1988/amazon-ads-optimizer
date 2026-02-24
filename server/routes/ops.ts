@@ -131,23 +131,28 @@ function evaluateAlerts(
   }
   
   // 2. 内存检查 — 堆使用率（百分比）
+  // v222: V8会动态收缩heapTotal，导致heapUsed/heapTotal常态在80-97%
+  // 只有当heapUsed绝对值也超过安全线时，百分比告警才有意义
   const heapPct = (memUsage.heapUsed / memUsage.heapTotal) * 100;
-  if (heapPct >= ALERT_THRESHOLDS.memory.heapCriticalPct) {
+  const heapUsedMB = memUsage.heapUsed / (1024 * 1024);
+  const heapAbsoluteSafe = heapUsedMB < ALERT_THRESHOLDS.memory.heapUsedWarningMB; // 绝对值在安全范围内
+  
+  if (!heapAbsoluteSafe && heapPct >= ALERT_THRESHOLDS.memory.heapCriticalPct) {
     alerts.push({
       metric: 'memory.heapUsage', level: 'critical',
-      message: `堆内存使用率 ${heapPct.toFixed(1)}% 超过严重阈值 ${ALERT_THRESHOLDS.memory.heapCriticalPct}%`,
+      message: `堆内存使用率 ${heapPct.toFixed(1)}% 超过严重阈值 ${ALERT_THRESHOLDS.memory.heapCriticalPct}% (绝对值: ${heapUsedMB.toFixed(0)}MB)`,
       value: `${heapPct.toFixed(1)}%`, threshold: `${ALERT_THRESHOLDS.memory.heapCriticalPct}%`,
     });
-  } else if (heapPct >= ALERT_THRESHOLDS.memory.heapWarningPct) {
+  } else if (!heapAbsoluteSafe && heapPct >= ALERT_THRESHOLDS.memory.heapWarningPct) {
     alerts.push({
       metric: 'memory.heapUsage', level: 'warning',
-      message: `堆内存使用率 ${heapPct.toFixed(1)}% 超过警告阈值 ${ALERT_THRESHOLDS.memory.heapWarningPct}%`,
+      message: `堆内存使用率 ${heapPct.toFixed(1)}% 超过警告阈值 ${ALERT_THRESHOLDS.memory.heapWarningPct}% (绝对值: ${heapUsedMB.toFixed(0)}MB)`,
       value: `${heapPct.toFixed(1)}%`, threshold: `${ALERT_THRESHOLDS.memory.heapWarningPct}%`,
     });
   }
   
   // 2b. v222: 内存检查 — 堆使用绝对值（更可靠的指标）
-  const heapUsedMB = memUsage.heapUsed / (1024 * 1024);
+  // heapUsedMB 已在上方计算
   if (heapUsedMB >= ALERT_THRESHOLDS.memory.heapUsedCriticalMB) {
     alerts.push({
       metric: 'memory.heapUsedAbsolute', level: 'critical',
