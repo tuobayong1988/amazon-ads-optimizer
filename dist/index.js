@@ -78748,6 +78748,29 @@ function logHealthSnapshot() {
       });
     }
   }
+  if (snapshot.memoryMB.heapUtilization > 85) {
+    log11.warn(`[HealthMonitor] \u5806\u5185\u5B58\u4F7F\u7528\u7387${snapshot.memoryMB.heapUtilization}%\uFF0C\u89E6\u53D1\u5185\u5B58\u4FDD\u62A4`);
+    if (typeof global.gc === "function") {
+      global.gc();
+      log11.info("[HealthMonitor] \u5DF2\u624B\u52A8\u89E6\u53D1GC");
+    }
+  }
+  const now = /* @__PURE__ */ new Date();
+  const ZOMBIE_THRESHOLD_MS = 30 * 60 * 1e3;
+  let zombiesCleaned = 0;
+  for (const [key, sync2] of activeSyncs.entries()) {
+    if (now.getTime() - sync2.startTime.getTime() > ZOMBIE_THRESHOLD_MS) {
+      activeSyncs.delete(key);
+      zombiesCleaned++;
+    }
+  }
+  if (zombiesCleaned > 0) {
+    engineStatus.currentlyRunning = engineStatus.currentlyRunning.filter((r5) => {
+      const key = `${r5.accountId}:${r5.tier}`;
+      return activeSyncs.has(key);
+    });
+    log11.warn(`[HealthMonitor] \u5DF2\u6E05\u7406 ${zombiesCleaned} \u4E2A\u50F5\u5C38\u540C\u6B65\u6761\u76EE\uFF08\u8FD0\u884C\u8D85\u8FC730\u5206\u949F\uFF09`);
+  }
 }
 function getHealthHistory() {
   return [...healthHistory];
@@ -78828,19 +78851,38 @@ async function syncAccount(account, tier, options) {
     errors: [],
     stepResults: {}
   };
-  if (activeSyncs.has(account.accountId)) {
-    const existing = activeSyncs.get(account.accountId);
+  const lockKey = `${account.accountId}:${tier}`;
+  const accountLocks = Array.from(activeSyncs.entries()).filter(([key]) => key.startsWith(`${account.accountId}:`));
+  for (const [existingKey, existing] of accountLocks) {
+    const existingTier = existingKey.split(":")[1];
     const runningMinutes = (Date.now() - existing.startTime.getTime()) / 6e4;
-    if (runningMinutes < 30) {
-      log11.info(`[UnifiedSync] \u8D26\u6237 ${account.accountId} \u5DF2\u6709${existing.tier}\u5C42\u540C\u6B65\u5728\u8FD0\u884C\uFF08${runningMinutes.toFixed(1)}\u5206\u949F\uFF09\uFF0C\u8DF3\u8FC7`);
-      result.errors.push(`\u5DF2\u6709${existing.tier}\u5C42\u540C\u6B65\u5728\u8FD0\u884C`);
+    if (runningMinutes >= 30) {
+      log11.warn(`[UnifiedSync] \u8D26\u6237 ${account.accountId} \u7684${existingTier}\u5C42\u540C\u6B65\u5DF2\u8D85\u65F6\uFF08${runningMinutes.toFixed(1)}\u5206\u949F\uFF09\uFF0C\u5F3A\u5236\u91CA\u653E`);
+      activeSyncs.delete(existingKey);
+      continue;
+    }
+    if (existingTier === tier) {
+      log11.info(`[UnifiedSync] \u8D26\u6237 ${account.accountId} \u5DF2\u6709${existingTier}\u5C42\u540C\u6B65\u5728\u8FD0\u884C\uFF08${runningMinutes.toFixed(1)}\u5206\u949F\uFF09\uFF0C\u8DF3\u8FC7`);
+      result.errors.push(`\u5DF2\u6709${existingTier}\u5C42\u540C\u6B65\u5728\u8FD0\u884C`);
       return result;
-    } else {
-      log11.warn(`[UnifiedSync] \u8D26\u6237 ${account.accountId} \u7684${existing.tier}\u5C42\u540C\u6B65\u5DF2\u8D85\u65F6\uFF08${runningMinutes.toFixed(1)}\u5206\u949F\uFF09\uFF0C\u5F3A\u5236\u91CA\u653E`);
-      activeSyncs.delete(account.accountId);
+    }
+    if (existingTier === "full") {
+      log11.info(`[UnifiedSync] \u8D26\u6237 ${account.accountId} \u5DF2\u6709full\u5C42\u540C\u6B65\u5728\u8FD0\u884C\uFF08${runningMinutes.toFixed(1)}\u5206\u949F\uFF09\uFF0C${tier}\u5C42\u8DF3\u8FC7`);
+      result.errors.push(`\u5DF2\u6709full\u5C42\u540C\u6B65\u5728\u8FD0\u884C`);
+      return result;
+    }
+    if (existingTier === "medium" && tier === "high") {
+      log11.info(`[UnifiedSync] v222: \u8D26\u6237 ${account.accountId} medium\u5C42\u6B63\u5728\u8FD0\u884C\uFF08${runningMinutes.toFixed(1)}\u5206\u949F\uFF09\uFF0Chigh\u5C42\u8DF3\u8FC7\u4EE5\u51CF\u5C11API\u538B\u529B`);
+      result.errors.push(`medium\u5C42\u540C\u6B65\u5728\u8FD0\u884C\uFF0Chigh\u5C42\u667A\u80FD\u8DF3\u8FC7`);
+      return result;
+    }
+    if (tier === "full" && existingTier !== "full") {
+      log11.info(`[UnifiedSync] v222: \u8D26\u6237 ${account.accountId} \u6709${existingTier}\u5C42\u540C\u6B65\u5728\u8FD0\u884C\uFF0Cfull\u5C42\u8DF3\u8FC7\u7B49\u4E0B\u4E00\u8F6E`);
+      result.errors.push(`${existingTier}\u5C42\u540C\u6B65\u5728\u8FD0\u884C\uFF0Cfull\u5C42\u7B49\u4E0B\u4E00\u8F6E`);
+      return result;
     }
   }
-  activeSyncs.set(account.accountId, { tier, startTime });
+  activeSyncs.set(lockKey, { tier, startTime });
   engineStatus.currentlyRunning.push({ accountId: account.accountId, tier, step: "initializing" });
   try {
     const syncService = await AmazonSyncService.createFromCredentials(
@@ -78896,11 +78938,13 @@ async function syncAccount(account, tier, options) {
         rateController.recordApiCall();
         const stepResult = await step.execute(syncService, context);
         result.stepResults[step.id] = stepResult;
+        const safeSynced = typeof stepResult.synced === "number" ? stepResult.synced : typeof stepResult.synced === "object" && stepResult.synced !== null ? Object.values(stepResult.synced).reduce((s4, v6) => s4 + (typeof v6 === "number" ? v6 : 0), 0) : 0;
+        stepResult.synced = safeSynced;
         if (stepResult.success) {
           result.completedSteps++;
           context.completedSteps.push(step.id);
-          result.totalSynced += stepResult.synced;
-          context.totalSynced += stepResult.synced;
+          result.totalSynced += safeSynced;
+          context.totalSynced += safeSynced;
         } else {
           result.failedSteps++;
           context.failedSteps.push(step.id);
@@ -78942,9 +78986,9 @@ async function syncAccount(account, tier, options) {
     result.errors.push(`\u540C\u6B65\u521D\u59CB\u5316\u5931\u8D25: ${error54.message}`);
     log11.error(`[UnifiedSync] \u8D26\u6237 ${account.accountId} \u540C\u6B65\u521D\u59CB\u5316\u5931\u8D25: ${error54.message}`);
   } finally {
-    activeSyncs.delete(account.accountId);
+    activeSyncs.delete(lockKey);
     engineStatus.currentlyRunning = engineStatus.currentlyRunning.filter(
-      (r5) => r5.accountId !== account.accountId
+      (r5) => !(r5.accountId === account.accountId && r5.tier === tier)
     );
     result.endTime = /* @__PURE__ */ new Date();
     result.durationMs = result.endTime.getTime() - result.startTime.getTime();
@@ -79005,7 +79049,10 @@ async function syncAllAccounts(tier) {
   batchResult.endTime = /* @__PURE__ */ new Date();
   batchResult.durationMs = batchResult.endTime.getTime() - startTime.getTime();
   engineStatus.lastSyncTime[tier] = batchResult.endTime;
-  const totalSynced = batchResult.accountResults.reduce((sum2, r5) => sum2 + r5.totalSynced, 0);
+  const totalSynced = batchResult.accountResults.reduce((sum2, r5) => {
+    const synced = typeof r5.totalSynced === "number" ? r5.totalSynced : 0;
+    return sum2 + synced;
+  }, 0);
   log11.info(`[UnifiedSync] ${tier}\u5C42\u6279\u91CF\u540C\u6B65\u5B8C\u6210: ${batchResult.successfulAccounts}/${batchResult.totalAccounts} \u6210\u529F, ${batchResult.failedAccounts} \u5931\u8D25, ${batchResult.skippedAccounts} \u8DF3\u8FC7, \u603B\u540C\u6B65 ${totalSynced} \u6761, \u8017\u65F6 ${batchResult.durationMs}ms`);
   logSync("UnifiedSync", `${tier}\u5C42\u6279\u91CF\u540C\u6B65\u5B8C\u6210`, {
     tier,
@@ -79091,6 +79138,13 @@ function getAllSyncSteps() {
   return SYNC_STEPS.map((s4) => ({ id: s4.id, name: s4.name, tier: s4.tier }));
 }
 async function recordBatchSyncResult(batchResult) {
+  const safeNum = (val) => {
+    if (typeof val === "number" && !isNaN(val)) return val;
+    if (typeof val === "object" && val !== null) {
+      return Object.values(val).reduce((s4, v6) => s4 + (typeof v6 === "number" ? v6 : 0), 0);
+    }
+    return 0;
+  };
   try {
     const database = await getDb();
     if (!database) return;
@@ -79110,13 +79164,13 @@ async function recordBatchSyncResult(batchResult) {
           completedAt: accountResult.endTime.toISOString().slice(0, 19).replace("T", " "),
           durationMs: accountResult.durationMs,
           errorMessage: accountResult.errors.length > 0 ? accountResult.errors.slice(0, 3).join("; ") : null,
-          spCampaigns: accountResult.stepResults["sp_campaigns"]?.synced || 0,
-          sbCampaigns: accountResult.stepResults["sb_campaigns"]?.synced || 0,
-          sdCampaigns: accountResult.stepResults["sd_campaigns"]?.synced || 0,
-          adGroupsSynced: (accountResult.stepResults["sp_ad_groups"]?.synced || 0) + (accountResult.stepResults["sb_ad_groups"]?.synced || 0) + (accountResult.stepResults["sd_ad_groups"]?.synced || 0),
-          keywordsSynced: (accountResult.stepResults["sp_keywords"]?.synced || 0) + (accountResult.stepResults["sb_keywords"]?.synced || 0),
-          targetsSynced: (accountResult.stepResults["sp_product_targets"]?.synced || 0) + (accountResult.stepResults["sb_product_targets"]?.synced || 0) + (accountResult.stepResults["sd_product_targets"]?.synced || 0),
-          performanceSynced: (accountResult.stepResults["performance_today"]?.synced || 0) + (accountResult.stepResults["performance_7d"]?.synced || 0) + (accountResult.stepResults["performance_14d"]?.synced || 0)
+          spCampaigns: safeNum(accountResult.stepResults["sp_campaigns"]?.synced),
+          sbCampaigns: safeNum(accountResult.stepResults["sb_campaigns"]?.synced),
+          sdCampaigns: safeNum(accountResult.stepResults["sd_campaigns"]?.synced),
+          adGroupsSynced: safeNum(accountResult.stepResults["sp_ad_groups"]?.synced) + safeNum(accountResult.stepResults["sb_ad_groups"]?.synced) + safeNum(accountResult.stepResults["sd_ad_groups"]?.synced),
+          keywordsSynced: safeNum(accountResult.stepResults["sp_keywords"]?.synced) + safeNum(accountResult.stepResults["sb_keywords"]?.synced),
+          targetsSynced: safeNum(accountResult.stepResults["sp_product_targets"]?.synced) + safeNum(accountResult.stepResults["sb_product_targets"]?.synced) + safeNum(accountResult.stepResults["sd_product_targets"]?.synced),
+          performanceSynced: safeNum(accountResult.stepResults["performance_today"]?.synced) + safeNum(accountResult.stepResults["performance_7d"]?.synced) + safeNum(accountResult.stepResults["performance_14d"]?.synced)
         });
       } catch (insertErr) {
         log11.warn(`[UnifiedSync] \u8BB0\u5F55\u8D26\u6237 ${accountResult.accountId} \u540C\u6B65\u7ED3\u679C\u5931\u8D25: ${insertErr.message}`);
@@ -79136,10 +79190,15 @@ async function triggerManualFullSync(accountId, onProgress) {
   return syncAccount(account, "full", { onProgress });
 }
 function isAccountSyncing(accountId) {
-  return activeSyncs.has(accountId);
+  return Array.from(activeSyncs.keys()).some((key) => key.startsWith(`${accountId}:`));
 }
 function getAccountSyncStatus(accountId) {
-  return activeSyncs.get(accountId) || null;
+  for (const [key, value2] of activeSyncs.entries()) {
+    if (key.startsWith(`${accountId}:`)) {
+      return value2;
+    }
+  }
+  return null;
 }
 function sleep2(ms) {
   return new Promise((resolve8) => setTimeout(resolve8, ms));
@@ -79350,8 +79409,9 @@ var init_unifiedSyncEngine = __esm({
         tier: "high",
         execute: async (service, ctx) => {
           try {
-            const synced = await service.syncPerformanceOnly(1);
-            return { success: true, synced: synced || 0, errors: [] };
+            const result = await service.syncPerformanceOnly(1);
+            const synced = typeof result === "number" ? result : (result.performance || 0) + (result.keywordPerf || 0) + (result.targetPerf || 0);
+            return { success: true, synced, errors: [] };
           } catch (e6) {
             return { success: false, synced: 0, errors: [e6.message] };
           }
@@ -79471,8 +79531,9 @@ var init_unifiedSyncEngine = __esm({
         tier: "medium",
         execute: async (service, ctx) => {
           try {
-            const synced = await service.syncPerformanceOnly(7);
-            return { success: true, synced: synced || 0, errors: [] };
+            const result = await service.syncPerformanceOnly(7);
+            const synced = typeof result === "number" ? result : (result.performance || 0) + (result.keywordPerf || 0) + (result.targetPerf || 0);
+            return { success: true, synced, errors: [] };
           } catch (e6) {
             return { success: false, synced: 0, errors: [e6.message] };
           }
@@ -79703,10 +79764,13 @@ var init_unifiedSyncEngine = __esm({
     ];
     TIER_HIERARCHY = {
       high: ["high"],
-      medium: ["high", "medium"],
+      // 高频：只执行high专有步骤
+      medium: ["medium"],
+      // 中频：只执行medium专有步骤（不再重复high层）
       full: ["high", "medium", "full"],
+      // 完整：执行所有层级步骤
       confirmation: ["high"]
-      // 确认同步只同步广告活动状态
+      // 确认同步：只同步广告活动状态
     };
     engineStatus = {
       isRunning: false,
@@ -145972,7 +146036,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log13 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 220;
+    SYSTEM_VERSION = 222;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -146091,6 +146155,18 @@ var init_postDeployOptimizer = __esm({
       {
         version: 220,
         description: "v220: API\u901F\u7387\u63A7\u5236\u4E0E\u7CFB\u7EDF\u5065\u5EB7\u76D1\u63A7 \u2014 \u81EA\u9002\u5E94API\u901F\u7387\u63A7\u5236\u5668(\u6ED1\u52A8\u7A97\u53E3\u8BA1\u6570+\u6307\u6570\u9000\u907F+\u81EA\u52A8\u6062\u590D), \u6B65\u9AA4\u95F4/\u6279\u6B21\u95F4\u52A8\u6001\u5EF6\u8FDF, 429\u9650\u6D41\u68C0\u6D4B\u4E0E\u9000\u907F, \u6BCF15\u5206\u949F\u7CFB\u7EDF\u5065\u5EB7\u5FEB\u7167(\u5185\u5B58/API\u901F\u7387/\u540C\u6B65\u7387), \u5185\u5B58\u6CC4\u6F0F\u68C0\u6D4B, \u786E\u8BA4\u540C\u6B65\u6548\u679C\u8FFD\u8E2A(\u89E6\u53D1\u6E90/\u6210\u529F\u7387/\u5E73\u5747\u8017\u65F6)",
+        affectedModules: [],
+        correctionActions: []
+      },
+      {
+        version: 221,
+        description: "v221: \u5168\u9762\u7CFB\u7EDF\u4F18\u5316 \u2014 \u4FEE\u590D\u5206\u5C42\u540C\u6B65\u9501Bug(\u5C42\u7EA7\u611F\u77E5\u9501\u9632\u6B62medium\u5C42\u88AB\u8DF3\u8FC7), \u4FEE\u590D\u65E5\u5FD7\u62FC\u63A5[object Object]Bug, \u524D\u7AEF\u8DEF\u7531\u81EA\u52A8\u8D26\u6237\u9009\u62E9, \u5BA1\u8BA1\u65E5\u5FD7\u8BB0\u5F55\u4F18\u5316\u64CD\u4F5C, optimizationTargetEngine\u786E\u8BA4\u540C\u6B65\u5168\u8986\u76D6, \u6570\u636E\u65B0\u9C9C\u5EA6\u68C0\u67E5\u673A\u5236(\u9632\u6B62\u57FA\u4E8E\u65E7\u6570\u636E\u4F18\u5316), \u524D\u7AEF\u4E50\u89C2UI\u66F4\u65B0, \u5185\u5B58\u4FDD\u62A4\u4E0E\u50F5\u5C38\u6761\u76EE\u6E05\u7406",
+        affectedModules: ["sync", "bidOptimization", "budgetOptimization", "placementOptimization", "negativeKeywords", "searchTermHarvesting"],
+        correctionActions: ["reoptimize_all"]
+      },
+      {
+        version: 222,
+        description: "v222: \u667A\u80FD\u8C03\u5EA6\u534F\u8C03\u4E0E\u65E5\u5FD7\u5B89\u5168\u4FEE\u590D \u2014 \u8C03\u5EA6\u5668\u5C42\u7EA7\u667A\u80FD\u534F\u8C03(full\u8FD0\u884C\u65F6\u8DF3\u8FC7high/medium, medium\u8FD0\u884C\u65F6\u8DF3\u8FC7high\u907F\u514DAPI\u538B\u529B), \u5F15\u64CE\u5C42\u7EA7\u4E92\u65A5\u4FDD\u62A4(\u540C\u8D26\u6237\u591A\u5C42\u7EA7\u540C\u65F6\u89E6\u53D1\u65F6\u667A\u80FD\u8DF3\u8FC7), \u5168\u94FE\u8DEF\u5B89\u5168\u6570\u5B57\u63D0\u53D6(safeNum\u51FD\u6570\u9632\u5FA1\u6240\u6709[object Object]\u62FC\u63A5), \u6570\u636E\u5E93\u5199\u5165\u5B89\u5168\u4FDD\u62A4",
         affectedModules: [],
         correctionActions: []
       }
@@ -147228,6 +147304,296 @@ var init_deployLifecycleManager = __esm({
   }
 });
 
+// server/auditService.ts
+var auditService_exports = {};
+__export(auditService_exports, {
+  ACTION_CATEGORIES: () => ACTION_CATEGORIES,
+  ACTION_DESCRIPTIONS: () => ACTION_DESCRIPTIONS,
+  TARGET_TYPE_DESCRIPTIONS: () => TARGET_TYPE_DESCRIPTIONS,
+  cleanupOldAuditLogs: () => cleanupOldAuditLogs,
+  createAuditLog: () => createAuditLog,
+  exportAuditLogsToCSV: () => exportAuditLogsToCSV,
+  getAccountAuditStats: () => getAccountAuditStats,
+  getAuditLogById: () => getAuditLogById,
+  getAuditLogs: () => getAuditLogs,
+  getUserAuditStats: () => getUserAuditStats,
+  logAudit: () => logAudit
+});
+async function createAuditLog(data4) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(auditLogs).values(data4);
+  const [log25] = await db.select().from(auditLogs).where(eq(auditLogs.id, result[0]?.insertId || 0));
+  return log25;
+}
+async function logAudit(params) {
+  const description = params.description || ACTION_DESCRIPTIONS[params.actionType] || "\u672A\u77E5\u64CD\u4F5C";
+  return createAuditLog({
+    ...params,
+    description
+  });
+}
+async function getAuditLogs(params) {
+  const {
+    userId,
+    actionTypes,
+    targetTypes,
+    accountId,
+    status,
+    startDate,
+    endDate,
+    search,
+    page = 1,
+    pageSize = 20
+  } = params;
+  const conditions = [];
+  if (userId) {
+    conditions.push(eq(auditLogs.userId, userId));
+  }
+  if (actionTypes && actionTypes.length > 0) {
+    conditions.push(inArray(auditLogs.actionType, actionTypes));
+  }
+  if (targetTypes && targetTypes.length > 0) {
+    conditions.push(inArray(auditLogs.targetType, targetTypes));
+  }
+  if (accountId) {
+    conditions.push(eq(auditLogs.accountId, accountId));
+  }
+  if (status) {
+    conditions.push(eq(auditLogs.status, status));
+  }
+  if (startDate) {
+    const startDateStr = startDate.toISOString().slice(0, 19).replace("T", " ");
+    conditions.push(gte(auditLogs.createdAt, startDateStr));
+  }
+  if (endDate) {
+    const endDateStr = endDate.toISOString().slice(0, 19).replace("T", " ");
+    conditions.push(lte(auditLogs.createdAt, endDateStr));
+  }
+  if (search) {
+    conditions.push(
+      sql`(${auditLogs.description} LIKE ${`%${search}%`} OR ${auditLogs.targetName} LIKE ${`%${search}%`} OR ${auditLogs.userName} LIKE ${`%${search}%`})`
+    );
+  }
+  const whereClause = conditions.length > 0 ? and(...conditions) : void 0;
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [countResult] = await db.select({ count: sql`COUNT(*)` }).from(auditLogs).where(whereClause);
+  const total = countResult?.count || 0;
+  const offset2 = (page - 1) * pageSize;
+  const logs = await db.select().from(auditLogs).where(whereClause).orderBy(desc(auditLogs.createdAt)).limit(pageSize).offset(offset2);
+  return { logs, total };
+}
+async function getAuditLogById(id) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [log25] = await db.select().from(auditLogs).where(eq(auditLogs.id, id));
+  return log25 || null;
+}
+async function getUserAuditStats(userId, days = 30) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const startDate = /* @__PURE__ */ new Date();
+  startDate.setDate(startDate.getDate() - days);
+  const startDateStr = startDate.toISOString().slice(0, 19).replace("T", " ");
+  const [totalResult] = await db.select({ count: sql`COUNT(*)` }).from(auditLogs).where(and(eq(auditLogs.userId, userId), gte(auditLogs.createdAt, startDateStr)));
+  const totalActions = totalResult?.count || 0;
+  const typeStats = await db.select({
+    actionType: auditLogs.actionType,
+    count: sql`COUNT(*)`
+  }).from(auditLogs).where(and(eq(auditLogs.userId, userId), gte(auditLogs.createdAt, startDateStr))).groupBy(auditLogs.actionType);
+  const actionsByType = {};
+  for (const stat of typeStats) {
+    actionsByType[stat.actionType] = stat.count;
+  }
+  let dayStats = [];
+  try {
+    dayStats = await db.select({
+      date: sql`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`,
+      count: sql`COUNT(*)`
+    }).from(auditLogs).where(and(eq(auditLogs.userId, userId), gte(auditLogs.createdAt, startDateStr))).groupBy(sql`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`).orderBy(sql`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`);
+  } catch (error54) {
+    console.warn("Failed to get audit logs by day:", error54);
+    dayStats = [];
+  }
+  const actionsByDay = dayStats.map((stat) => ({
+    date: stat.date,
+    count: stat.count
+  }));
+  const recentActions = await db.select().from(auditLogs).where(eq(auditLogs.userId, userId)).orderBy(desc(auditLogs.createdAt)).limit(10);
+  return {
+    totalActions,
+    actionsByType,
+    actionsByDay,
+    recentActions
+  };
+}
+async function getAccountAuditStats(accountId, days = 30) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const startDate = /* @__PURE__ */ new Date();
+  startDate.setDate(startDate.getDate() - days);
+  const startDateStr = startDate.toISOString().slice(0, 19).replace("T", " ");
+  const [totalResult] = await db.select({ count: sql`COUNT(*)` }).from(auditLogs).where(and(eq(auditLogs.accountId, accountId), gte(auditLogs.createdAt, startDateStr)));
+  const totalActions = totalResult?.count || 0;
+  const typeStats = await db.select({
+    actionType: auditLogs.actionType,
+    count: sql`COUNT(*)`
+  }).from(auditLogs).where(and(eq(auditLogs.accountId, accountId), gte(auditLogs.createdAt, startDateStr))).groupBy(auditLogs.actionType);
+  const actionsByType = {};
+  for (const stat of typeStats) {
+    actionsByType[stat.actionType] = stat.count;
+  }
+  const userStats = await db.select({
+    userId: auditLogs.userId,
+    userName: auditLogs.userName,
+    count: sql`COUNT(*)`
+  }).from(auditLogs).where(and(eq(auditLogs.accountId, accountId), gte(auditLogs.createdAt, startDateStr))).groupBy(auditLogs.userId, auditLogs.userName);
+  const actionsByUser = userStats.map((stat) => ({
+    userId: stat.userId || 0,
+    userName: stat.userName || "\u672A\u77E5\u7528\u6237",
+    count: stat.count
+  }));
+  return {
+    totalActions,
+    actionsByType,
+    actionsByUser
+  };
+}
+async function exportAuditLogsToCSV(params) {
+  const { logs } = await getAuditLogs({
+    ...params,
+    page: 1,
+    pageSize: 1e4
+    // 最多导出10000条
+  });
+  const headers = [
+    "ID",
+    "\u65F6\u95F4",
+    "\u64CD\u4F5C\u7528\u6237",
+    "\u7528\u6237\u90AE\u7BB1",
+    "\u64CD\u4F5C\u7C7B\u578B",
+    "\u64CD\u4F5C\u63CF\u8FF0",
+    "\u76EE\u6807\u7C7B\u578B",
+    "\u76EE\u6807\u540D\u79F0",
+    "\u5173\u8054\u8D26\u53F7",
+    "\u72B6\u6001",
+    "IP\u5730\u5740"
+  ];
+  const rows = logs.map((log25) => [
+    log25.id,
+    String(log25.createdAt),
+    log25.userName || "",
+    log25.userEmail || "",
+    ACTION_DESCRIPTIONS[log25.actionType] || log25.actionType,
+    log25.description || "",
+    TARGET_TYPE_DESCRIPTIONS[log25.targetType || ""] || log25.targetType || "",
+    log25.targetName || "",
+    log25.accountName || "",
+    log25.status,
+    log25.ipAddress || ""
+  ]);
+  const csvContent = [
+    headers.join(","),
+    ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+  ].join("\n");
+  return csvContent;
+}
+async function cleanupOldAuditLogs(retentionDays = 365) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const cutoffDate = /* @__PURE__ */ new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
+  const result = await db.delete(auditLogs).where(lte(auditLogs.createdAt, cutoffDate.toISOString()));
+  return result.affectedRows || 0;
+}
+var ACTION_CATEGORIES, ACTION_DESCRIPTIONS, TARGET_TYPE_DESCRIPTIONS;
+var init_auditService = __esm({
+  "server/auditService.ts"() {
+    "use strict";
+    init_db2();
+    init_schema2();
+    init_drizzle_orm();
+    ACTION_CATEGORIES = {
+      account: ["account_create", "account_update", "account_delete", "account_connect", "account_disconnect"],
+      campaign: ["campaign_create", "campaign_update", "campaign_delete", "campaign_pause", "campaign_enable"],
+      bid: ["bid_adjust_single", "bid_adjust_batch", "bid_rollback"],
+      negative: ["negative_add_single", "negative_add_batch", "negative_remove"],
+      performance_group: ["performance_group_create", "performance_group_update", "performance_group_delete"],
+      automation: ["automation_enable", "automation_disable", "automation_config_update"],
+      scheduler: ["scheduler_task_create", "scheduler_task_update", "scheduler_task_delete", "scheduler_task_run"],
+      team: ["team_member_invite", "team_member_update", "team_member_remove", "team_permission_update"],
+      data: ["data_import", "data_export"],
+      settings: ["settings_update", "notification_config_update"]
+    };
+    ACTION_DESCRIPTIONS = {
+      // 账号管理
+      account_create: "\u521B\u5EFA\u5E7F\u544A\u8D26\u53F7",
+      account_update: "\u66F4\u65B0\u5E7F\u544A\u8D26\u53F7",
+      account_delete: "\u5220\u9664\u5E7F\u544A\u8D26\u53F7",
+      account_connect: "\u8FDE\u63A5\u5E7F\u544A\u8D26\u53F7",
+      account_disconnect: "\u65AD\u5F00\u5E7F\u544A\u8D26\u53F7\u8FDE\u63A5",
+      // 广告活动管理
+      campaign_create: "\u521B\u5EFA\u5E7F\u544A\u6D3B\u52A8",
+      campaign_update: "\u66F4\u65B0\u5E7F\u544A\u6D3B\u52A8",
+      campaign_delete: "\u5220\u9664\u5E7F\u544A\u6D3B\u52A8",
+      campaign_pause: "\u6682\u505C\u5E7F\u544A\u6D3B\u52A8",
+      campaign_enable: "\u542F\u7528\u5E7F\u544A\u6D3B\u52A8",
+      // 出价调整
+      bid_adjust_single: "\u5355\u4E2A\u51FA\u4EF7\u8C03\u6574",
+      bid_adjust_batch: "\u6279\u91CF\u51FA\u4EF7\u8C03\u6574",
+      bid_rollback: "\u51FA\u4EF7\u56DE\u6EDA",
+      // 否定词管理
+      negative_add_single: "\u6DFB\u52A0\u5355\u4E2A\u5426\u5B9A\u8BCD",
+      negative_add_batch: "\u6279\u91CF\u6DFB\u52A0\u5426\u5B9A\u8BCD",
+      negative_remove: "\u79FB\u9664\u5426\u5B9A\u8BCD",
+      // 绩效组管理
+      performance_group_create: "\u521B\u5EFA\u7EE9\u6548\u7EC4",
+      performance_group_update: "\u66F4\u65B0\u7EE9\u6548\u7EC4",
+      performance_group_delete: "\u5220\u9664\u7EE9\u6548\u7EC4",
+      // 自动化设置
+      automation_enable: "\u542F\u7528\u81EA\u52A8\u5316",
+      automation_disable: "\u7981\u7528\u81EA\u52A8\u5316",
+      automation_config_update: "\u66F4\u65B0\u81EA\u52A8\u5316\u914D\u7F6E",
+      // 定时任务
+      scheduler_task_create: "\u521B\u5EFA\u5B9A\u65F6\u4EFB\u52A1",
+      scheduler_task_update: "\u66F4\u65B0\u5B9A\u65F6\u4EFB\u52A1",
+      scheduler_task_delete: "\u5220\u9664\u5B9A\u65F6\u4EFB\u52A1",
+      scheduler_task_run: "\u624B\u52A8\u8FD0\u884C\u5B9A\u65F6\u4EFB\u52A1",
+      // 团队管理
+      team_member_invite: "\u9080\u8BF7\u56E2\u961F\u6210\u5458",
+      team_member_update: "\u66F4\u65B0\u56E2\u961F\u6210\u5458",
+      team_member_remove: "\u79FB\u9664\u56E2\u961F\u6210\u5458",
+      team_permission_update: "\u66F4\u65B0\u6210\u5458\u6743\u9650",
+      // 数据导入导出
+      data_import: "\u5BFC\u5165\u6570\u636E",
+      data_export: "\u5BFC\u51FA\u6570\u636E",
+      // 系统设置
+      settings_update: "\u66F4\u65B0\u7CFB\u7EDF\u8BBE\u7F6E",
+      notification_config_update: "\u66F4\u65B0\u901A\u77E5\u914D\u7F6E",
+      // 其他
+      other: "\u5176\u4ED6\u64CD\u4F5C"
+    };
+    TARGET_TYPE_DESCRIPTIONS = {
+      account: "\u5E7F\u544A\u8D26\u53F7",
+      campaign: "\u5E7F\u544A\u6D3B\u52A8",
+      ad_group: "\u5E7F\u544A\u7EC4",
+      keyword: "\u5173\u952E\u8BCD",
+      product_target: "\u5546\u54C1\u5B9A\u4F4D",
+      performance_group: "\u7EE9\u6548\u7EC4",
+      negative_keyword: "\u5426\u5B9A\u8BCD",
+      bid: "\u51FA\u4EF7",
+      automation: "\u81EA\u52A8\u5316",
+      scheduler: "\u5B9A\u65F6\u4EFB\u52A1",
+      team_member: "\u56E2\u961F\u6210\u5458",
+      permission: "\u6743\u9650",
+      settings: "\u8BBE\u7F6E",
+      data: "\u6570\u636E",
+      other: "\u5176\u4ED6"
+    };
+  }
+});
+
 // server/optimizationSyncEngine.ts
 var optimizationSyncEngine_exports = {};
 __export(optimizationSyncEngine_exports, {
@@ -147386,6 +147752,49 @@ async function executeBatchSync(options) {
   result.duration = Date.now() - startTime;
   log17.info(`[SyncEngine] ========== \u6279\u91CF\u540C\u6B65\u5B8C\u6210 ==========`);
   log17.warn(`[SyncEngine] \u603B\u8BA1=${result.totalTasks}, \u6210\u529F=${result.synced}, \u5931\u8D25=${result.failed}, \u8DF3\u8FC7=${result.skipped}, \u8017\u65F6=${result.duration}ms`);
+  if (result.synced > 0) {
+    try {
+      const { logAudit: logAudit2 } = await Promise.resolve().then(() => (init_auditService(), auditService_exports));
+      for (const [accountId, accountTasks] of accountGroups) {
+        const bidTasks = accountTasks.filter((t7) => t7.task_type === "bid_adjustment");
+        const statusTasks = accountTasks.filter((t7) => t7.task_type === "campaign_status" || t7.task_type === "keyword_status");
+        const budgetTasks = accountTasks.filter((t7) => t7.task_type === "budget_adjustment");
+        if (bidTasks.length > 0) {
+          await logAudit2({
+            userId: 0,
+            // 系统自动操作
+            action: "bid_adjustment",
+            targetType: "keyword",
+            targetId: accountId,
+            details: `\u81EA\u52A8\u4F18\u5316: \u6279\u91CF\u8C03\u6574 ${bidTasks.length} \u4E2A\u6295\u653E\u8BCD\u51FA\u4EF7`,
+            accountId
+          });
+        }
+        if (statusTasks.length > 0) {
+          await logAudit2({
+            userId: 0,
+            action: "status_change",
+            targetType: "campaign",
+            targetId: accountId,
+            details: `\u81EA\u52A8\u4F18\u5316: \u6279\u91CF\u53D8\u66F4 ${statusTasks.length} \u4E2A\u5E7F\u544A\u6D3B\u52A8/\u5173\u952E\u8BCD\u72B6\u6001`,
+            accountId
+          });
+        }
+        if (budgetTasks.length > 0) {
+          await logAudit2({
+            userId: 0,
+            action: "budget_change",
+            targetType: "campaign",
+            targetId: accountId,
+            details: `\u81EA\u52A8\u4F18\u5316: \u6279\u91CF\u8C03\u6574 ${budgetTasks.length} \u4E2A\u5E7F\u544A\u6D3B\u52A8\u9884\u7B97`,
+            accountId
+          });
+        }
+      }
+    } catch (auditErr) {
+      log17.warn(`[SyncEngine] v221: \u8BB0\u5F55\u5BA1\u8BA1\u65E5\u5FD7\u5931\u8D25: ${auditErr.message}`);
+    }
+  }
   if (result.synced > 0) {
     try {
       const { confirmationSync: confirmationSync2 } = await Promise.resolve().then(() => (init_unifiedSyncEngine(), unifiedSyncEngine_exports));
@@ -149443,8 +149852,28 @@ function stopDataSyncScheduler() {
   logSystem("DataSyncScheduler", "\u540C\u6B65\u8C03\u5EA6\u5668\u5DF2\u505C\u6B62");
 }
 async function executeUnifiedSync(tier) {
-  log19.info(`[DataSyncScheduler] v219: \u5F00\u59CB\u6267\u884C${SYNC_TIER_CONFIG[tier].description} (\u7EDF\u4E00\u5F15\u64CE) - ${(/* @__PURE__ */ new Date()).toISOString()}`);
-  logSync("DataSyncScheduler", `v219: \u5F00\u59CB${SYNC_TIER_CONFIG[tier].description}`, { tier, mode: "unified_engine" });
+  if (tier === "high") {
+    if (tierRunningState.full) {
+      log19.info(`[DataSyncScheduler] v222: high\u5C42\u8DF3\u8FC7 - full\u5C42\u6B63\u5728\u8FD0\u884C\uFF08full\u5DF2\u5305\u542Bhigh\u6B65\u9AA4\uFF09`);
+      logSync("DataSyncScheduler", "v222: high\u5C42\u667A\u80FD\u8DF3\u8FC7", { reason: "full_running" });
+      return;
+    }
+    if (tierRunningState.medium) {
+      log19.info(`[DataSyncScheduler] v222: high\u5C42\u8DF3\u8FC7 - medium\u5C42\u6B63\u5728\u8FD0\u884C\uFF08\u907F\u514DAPI\u5E76\u53D1\u538B\u529B\uFF09`);
+      logSync("DataSyncScheduler", "v222: high\u5C42\u667A\u80FD\u8DF3\u8FC7", { reason: "medium_running" });
+      return;
+    }
+  }
+  if (tier === "medium") {
+    if (tierRunningState.full) {
+      log19.info(`[DataSyncScheduler] v222: medium\u5C42\u8DF3\u8FC7 - full\u5C42\u6B63\u5728\u8FD0\u884C\uFF08full\u5DF2\u5305\u542Bmedium\u6B65\u9AA4\uFF09`);
+      logSync("DataSyncScheduler", "v222: medium\u5C42\u667A\u80FD\u8DF3\u8FC7", { reason: "full_running" });
+      return;
+    }
+  }
+  tierRunningState[tier] = true;
+  log19.info(`[DataSyncScheduler] v222: \u5F00\u59CB\u6267\u884C${SYNC_TIER_CONFIG[tier].description} (\u7EDF\u4E00\u5F15\u64CE) - ${(/* @__PURE__ */ new Date()).toISOString()}`);
+  logSync("DataSyncScheduler", `v222: \u5F00\u59CB${SYNC_TIER_CONFIG[tier].description}`, { tier, mode: "unified_engine" });
   schedulerStatus.currentTier = tier;
   try {
     const { syncAllAccounts: syncAllAccounts2 } = await Promise.resolve().then(() => (init_unifiedSyncEngine(), unifiedSyncEngine_exports));
@@ -149477,6 +149906,7 @@ async function executeUnifiedSync(tier) {
     logSyncError("DataSyncScheduler", `v219 ${tier}\u5C42\u540C\u6B65\u5931\u8D25`, { tier, error: error54.message });
   }
   schedulerStatus.currentTier = null;
+  tierRunningState[tier] = false;
 }
 function getModuleLockGroup(specificModules) {
   if (!specificModules || specificModules.length === 0) return "all";
@@ -150029,7 +150459,7 @@ async function executeOptimizationTask(taskType) {
     releaseLock(taskType);
   }
 }
-var log19, SYNC_TIER_CONFIG, schedulerStatus, schedulerIntervals, frequencyToMs, OPTIMIZATION_SCHEDULE, optimizationIntervals, executionLocks, lastExecutionHour, accountModuleLocks, moduleLastExecutionMap;
+var log19, SYNC_TIER_CONFIG, schedulerStatus, schedulerIntervals, frequencyToMs, tierRunningState, OPTIMIZATION_SCHEDULE, optimizationIntervals, executionLocks, lastExecutionHour, accountModuleLocks, moduleLastExecutionMap;
 var init_dataSyncScheduler = __esm({
   "server/dataSyncScheduler.ts"() {
     "use strict";
@@ -150103,6 +150533,11 @@ var init_dataSyncScheduler = __esm({
       "every_12_hours": 12 * 60 * 60 * 1e3,
       "daily": 24 * 60 * 60 * 1e3,
       "weekly": 7 * 24 * 60 * 60 * 1e3
+    };
+    tierRunningState = {
+      high: false,
+      medium: false,
+      full: false
     };
     OPTIMIZATION_SCHEDULE = {
       intraday_pacing: {
@@ -152440,6 +152875,25 @@ async function getAccountMarketplace4(accountId) {
   marketplaceCache2.set(accountId, marketplace);
   return marketplace;
 }
+async function getLastSyncTimeForAccount(accountId) {
+  try {
+    const account = await getAdAccountById(accountId);
+    if (account && account.lastSyncAt) {
+      return new Date(account.lastSyncAt);
+    }
+    const { getEngineStatus: getEngineStatus2 } = await Promise.resolve().then(() => (init_unifiedSyncEngine(), unifiedSyncEngine_exports));
+    const status = getEngineStatus2();
+    if (status.lastSyncResults) {
+      const accountResult = status.lastSyncResults?.find((r5) => r5.accountId === accountId);
+      if (accountResult?.completedAt) {
+        return new Date(accountResult.completedAt);
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
 async function getOptimizationTargetConfig(targetId) {
   const group = await getPerformanceGroupById(targetId);
   if (!group) return null;
@@ -152543,6 +152997,31 @@ async function executeOptimizationTarget(targetId, options = {}) {
     }
   } catch (safetyErr) {
     log21.warn(`[OptimizationTarget] v162 \u5B89\u5168\u68C0\u67E5\u5F02\u5E38\uFF0C\u7EE7\u7EED\u6267\u884C: ${safetyErr.message}`);
+  }
+  try {
+    const lastSyncTime = await getLastSyncTimeForAccount(config2.accountId);
+    if (lastSyncTime) {
+      const dataAgeMinutes = (Date.now() - lastSyncTime.getTime()) / (1e3 * 60);
+      if (dataAgeMinutes > 120 && !forceExecution) {
+        const staleMsg = `v221: \u6570\u636E\u65B0\u9C9C\u5EA6\u8B66\u544A - \u8D26\u6237 ${config2.accountId} \u6700\u540E\u540C\u6B65\u4E8E ${Math.round(dataAgeMinutes)} \u5206\u949F\u524D\uFF0C\u4F18\u5316\u51B3\u7B56\u53EF\u80FD\u57FA\u4E8E\u8FC7\u65F6\u6570\u636E`;
+        log21.warn(`[OptimizationTarget] ${staleMsg}`);
+        result.warnings.push(staleMsg);
+      }
+      if (dataAgeMinutes > 360 && !forceExecution) {
+        const criticalMsg = `v221: \u6570\u636E\u4E25\u91CD\u8FC7\u65F6 - \u8D26\u6237 ${config2.accountId} \u6700\u540E\u540C\u6B65\u4E8E ${Math.round(dataAgeMinutes)} \u5206\u949F\u524D\uFF0C\u5C1D\u8BD5\u89E6\u53D1\u7D27\u6025\u540C\u6B65`;
+        log21.warn(`[OptimizationTarget] ${criticalMsg}`);
+        result.warnings.push(criticalMsg);
+        try {
+          const { syncAllAccounts: syncAllAccounts2 } = await Promise.resolve().then(() => (init_unifiedSyncEngine(), unifiedSyncEngine_exports));
+          await syncAllAccounts2("high");
+          log21.info(`[OptimizationTarget] v221: \u7D27\u6025\u540C\u6B65\u5B8C\u6210\uFF0C\u7EE7\u7EED\u6267\u884C\u4F18\u5316`);
+        } catch (syncErr) {
+          log21.warn(`[OptimizationTarget] v221: \u7D27\u6025\u540C\u6B65\u5931\u8D25\uFF0C\u4ECD\u7EE7\u7EED\u6267\u884C: ${syncErr.message}`);
+        }
+      }
+    }
+  } catch (freshnessErr) {
+    log21.warn(`[OptimizationTarget] v221: \u6570\u636E\u65B0\u9C9C\u5EA6\u68C0\u67E5\u5F02\u5E38: ${freshnessErr.message}`);
   }
   let evolutionReport = null;
   let adaptiveParams = null;
@@ -153020,6 +153499,30 @@ async function executeOptimizationTarget(targetId, options = {}) {
     } catch (enqueueErr) {
       log21.error(`[OptimizationTarget] v137: \u5165\u961F\u5931\u8D25\u4EFB\u52A1\u5F02\u5E38: ${enqueueErr.message}`);
     }
+  }
+  try {
+    const affectedEntities = [];
+    if (result.bidOptimization && result.bidOptimization.adjustedCount > 0) affectedEntities.push("keywords");
+    if (result.placementOptimization && result.placementOptimization.adjustedCount > 0) affectedEntities.push("campaigns");
+    if (result.daypartingOptimization && result.daypartingOptimization.adjustedCount > 0) affectedEntities.push("keywords");
+    if (result.daypartingBudgetOptimization && result.daypartingBudgetOptimization.adjustedCount > 0) affectedEntities.push("budgets");
+    if (result.searchTermAnalysis && (result.searchTermAnalysis.negativeKeywordsAdded > 0 || result.searchTermAnalysis.newKeywordsCreated > 0)) affectedEntities.push("keywords");
+    if (result.budgetAllocation && result.budgetAllocation.adjustedCount > 0) affectedEntities.push("budgets");
+    if (result.keywordStatusChanges && result.keywordStatusChanges.changedCount > 0) affectedEntities.push("keywords");
+    if (result.campaignStatusChanges && result.campaignStatusChanges.changedCount > 0) affectedEntities.push("campaigns");
+    if (affectedEntities.length > 0) {
+      const uniqueEntities = [...new Set(affectedEntities)];
+      const { confirmationSync: confirmationSync2 } = await Promise.resolve().then(() => (init_unifiedSyncEngine(), unifiedSyncEngine_exports));
+      confirmationSync2(config2.accountId, uniqueEntities, `optimizationTarget_${config2.id}`).then((syncResult) => {
+        if (syncResult) {
+          log21.info(`[OptimizationTarget] v221: \u786E\u8BA4\u540C\u6B65\u5B8C\u6210 - \u8D26\u6237 ${config2.accountId}, \u76EE\u6807 ${config2.id}: ${syncResult.completedSteps}/${syncResult.totalSteps}\u6B65\u6210\u529F`);
+        }
+      }).catch((err2) => {
+        log21.warn(`[OptimizationTarget] v221: \u786E\u8BA4\u540C\u6B65\u5931\u8D25 - \u8D26\u6237 ${config2.accountId}: ${err2.message}`);
+      });
+    }
+  } catch (confirmErr) {
+    log21.warn(`[OptimizationTarget] v221: \u89E6\u53D1\u786E\u8BA4\u540C\u6B65\u5F02\u5E38: ${confirmErr.message}`);
   }
   if (shouldReleaseLock) releaseAccountOptimizationLock(config2.accountId, moduleLockGroup);
   unregisterActiveTask(activeTaskId);
@@ -157061,296 +157564,6 @@ var init_effectTrackingScheduler = __esm({
       errors: []
     };
     schedulerInterval = null;
-  }
-});
-
-// server/auditService.ts
-var auditService_exports = {};
-__export(auditService_exports, {
-  ACTION_CATEGORIES: () => ACTION_CATEGORIES,
-  ACTION_DESCRIPTIONS: () => ACTION_DESCRIPTIONS,
-  TARGET_TYPE_DESCRIPTIONS: () => TARGET_TYPE_DESCRIPTIONS,
-  cleanupOldAuditLogs: () => cleanupOldAuditLogs,
-  createAuditLog: () => createAuditLog,
-  exportAuditLogsToCSV: () => exportAuditLogsToCSV,
-  getAccountAuditStats: () => getAccountAuditStats,
-  getAuditLogById: () => getAuditLogById,
-  getAuditLogs: () => getAuditLogs,
-  getUserAuditStats: () => getUserAuditStats,
-  logAudit: () => logAudit
-});
-async function createAuditLog(data4) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const result = await db.insert(auditLogs).values(data4);
-  const [log25] = await db.select().from(auditLogs).where(eq(auditLogs.id, result[0]?.insertId || 0));
-  return log25;
-}
-async function logAudit(params) {
-  const description = params.description || ACTION_DESCRIPTIONS[params.actionType] || "\u672A\u77E5\u64CD\u4F5C";
-  return createAuditLog({
-    ...params,
-    description
-  });
-}
-async function getAuditLogs(params) {
-  const {
-    userId,
-    actionTypes,
-    targetTypes,
-    accountId,
-    status,
-    startDate,
-    endDate,
-    search,
-    page = 1,
-    pageSize = 20
-  } = params;
-  const conditions = [];
-  if (userId) {
-    conditions.push(eq(auditLogs.userId, userId));
-  }
-  if (actionTypes && actionTypes.length > 0) {
-    conditions.push(inArray(auditLogs.actionType, actionTypes));
-  }
-  if (targetTypes && targetTypes.length > 0) {
-    conditions.push(inArray(auditLogs.targetType, targetTypes));
-  }
-  if (accountId) {
-    conditions.push(eq(auditLogs.accountId, accountId));
-  }
-  if (status) {
-    conditions.push(eq(auditLogs.status, status));
-  }
-  if (startDate) {
-    const startDateStr = startDate.toISOString().slice(0, 19).replace("T", " ");
-    conditions.push(gte(auditLogs.createdAt, startDateStr));
-  }
-  if (endDate) {
-    const endDateStr = endDate.toISOString().slice(0, 19).replace("T", " ");
-    conditions.push(lte(auditLogs.createdAt, endDateStr));
-  }
-  if (search) {
-    conditions.push(
-      sql`(${auditLogs.description} LIKE ${`%${search}%`} OR ${auditLogs.targetName} LIKE ${`%${search}%`} OR ${auditLogs.userName} LIKE ${`%${search}%`})`
-    );
-  }
-  const whereClause = conditions.length > 0 ? and(...conditions) : void 0;
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const [countResult] = await db.select({ count: sql`COUNT(*)` }).from(auditLogs).where(whereClause);
-  const total = countResult?.count || 0;
-  const offset2 = (page - 1) * pageSize;
-  const logs = await db.select().from(auditLogs).where(whereClause).orderBy(desc(auditLogs.createdAt)).limit(pageSize).offset(offset2);
-  return { logs, total };
-}
-async function getAuditLogById(id) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const [log25] = await db.select().from(auditLogs).where(eq(auditLogs.id, id));
-  return log25 || null;
-}
-async function getUserAuditStats(userId, days = 30) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const startDate = /* @__PURE__ */ new Date();
-  startDate.setDate(startDate.getDate() - days);
-  const startDateStr = startDate.toISOString().slice(0, 19).replace("T", " ");
-  const [totalResult] = await db.select({ count: sql`COUNT(*)` }).from(auditLogs).where(and(eq(auditLogs.userId, userId), gte(auditLogs.createdAt, startDateStr)));
-  const totalActions = totalResult?.count || 0;
-  const typeStats = await db.select({
-    actionType: auditLogs.actionType,
-    count: sql`COUNT(*)`
-  }).from(auditLogs).where(and(eq(auditLogs.userId, userId), gte(auditLogs.createdAt, startDateStr))).groupBy(auditLogs.actionType);
-  const actionsByType = {};
-  for (const stat of typeStats) {
-    actionsByType[stat.actionType] = stat.count;
-  }
-  let dayStats = [];
-  try {
-    dayStats = await db.select({
-      date: sql`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`,
-      count: sql`COUNT(*)`
-    }).from(auditLogs).where(and(eq(auditLogs.userId, userId), gte(auditLogs.createdAt, startDateStr))).groupBy(sql`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`).orderBy(sql`DATE_FORMAT(${auditLogs.createdAt}, '%Y-%m-%d')`);
-  } catch (error54) {
-    console.warn("Failed to get audit logs by day:", error54);
-    dayStats = [];
-  }
-  const actionsByDay = dayStats.map((stat) => ({
-    date: stat.date,
-    count: stat.count
-  }));
-  const recentActions = await db.select().from(auditLogs).where(eq(auditLogs.userId, userId)).orderBy(desc(auditLogs.createdAt)).limit(10);
-  return {
-    totalActions,
-    actionsByType,
-    actionsByDay,
-    recentActions
-  };
-}
-async function getAccountAuditStats(accountId, days = 30) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const startDate = /* @__PURE__ */ new Date();
-  startDate.setDate(startDate.getDate() - days);
-  const startDateStr = startDate.toISOString().slice(0, 19).replace("T", " ");
-  const [totalResult] = await db.select({ count: sql`COUNT(*)` }).from(auditLogs).where(and(eq(auditLogs.accountId, accountId), gte(auditLogs.createdAt, startDateStr)));
-  const totalActions = totalResult?.count || 0;
-  const typeStats = await db.select({
-    actionType: auditLogs.actionType,
-    count: sql`COUNT(*)`
-  }).from(auditLogs).where(and(eq(auditLogs.accountId, accountId), gte(auditLogs.createdAt, startDateStr))).groupBy(auditLogs.actionType);
-  const actionsByType = {};
-  for (const stat of typeStats) {
-    actionsByType[stat.actionType] = stat.count;
-  }
-  const userStats = await db.select({
-    userId: auditLogs.userId,
-    userName: auditLogs.userName,
-    count: sql`COUNT(*)`
-  }).from(auditLogs).where(and(eq(auditLogs.accountId, accountId), gte(auditLogs.createdAt, startDateStr))).groupBy(auditLogs.userId, auditLogs.userName);
-  const actionsByUser = userStats.map((stat) => ({
-    userId: stat.userId || 0,
-    userName: stat.userName || "\u672A\u77E5\u7528\u6237",
-    count: stat.count
-  }));
-  return {
-    totalActions,
-    actionsByType,
-    actionsByUser
-  };
-}
-async function exportAuditLogsToCSV(params) {
-  const { logs } = await getAuditLogs({
-    ...params,
-    page: 1,
-    pageSize: 1e4
-    // 最多导出10000条
-  });
-  const headers = [
-    "ID",
-    "\u65F6\u95F4",
-    "\u64CD\u4F5C\u7528\u6237",
-    "\u7528\u6237\u90AE\u7BB1",
-    "\u64CD\u4F5C\u7C7B\u578B",
-    "\u64CD\u4F5C\u63CF\u8FF0",
-    "\u76EE\u6807\u7C7B\u578B",
-    "\u76EE\u6807\u540D\u79F0",
-    "\u5173\u8054\u8D26\u53F7",
-    "\u72B6\u6001",
-    "IP\u5730\u5740"
-  ];
-  const rows = logs.map((log25) => [
-    log25.id,
-    String(log25.createdAt),
-    log25.userName || "",
-    log25.userEmail || "",
-    ACTION_DESCRIPTIONS[log25.actionType] || log25.actionType,
-    log25.description || "",
-    TARGET_TYPE_DESCRIPTIONS[log25.targetType || ""] || log25.targetType || "",
-    log25.targetName || "",
-    log25.accountName || "",
-    log25.status,
-    log25.ipAddress || ""
-  ]);
-  const csvContent = [
-    headers.join(","),
-    ...rows.map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
-  ].join("\n");
-  return csvContent;
-}
-async function cleanupOldAuditLogs(retentionDays = 365) {
-  const db = await getDb();
-  if (!db) throw new Error("Database not available");
-  const cutoffDate = /* @__PURE__ */ new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
-  const result = await db.delete(auditLogs).where(lte(auditLogs.createdAt, cutoffDate.toISOString()));
-  return result.affectedRows || 0;
-}
-var ACTION_CATEGORIES, ACTION_DESCRIPTIONS, TARGET_TYPE_DESCRIPTIONS;
-var init_auditService = __esm({
-  "server/auditService.ts"() {
-    "use strict";
-    init_db2();
-    init_schema2();
-    init_drizzle_orm();
-    ACTION_CATEGORIES = {
-      account: ["account_create", "account_update", "account_delete", "account_connect", "account_disconnect"],
-      campaign: ["campaign_create", "campaign_update", "campaign_delete", "campaign_pause", "campaign_enable"],
-      bid: ["bid_adjust_single", "bid_adjust_batch", "bid_rollback"],
-      negative: ["negative_add_single", "negative_add_batch", "negative_remove"],
-      performance_group: ["performance_group_create", "performance_group_update", "performance_group_delete"],
-      automation: ["automation_enable", "automation_disable", "automation_config_update"],
-      scheduler: ["scheduler_task_create", "scheduler_task_update", "scheduler_task_delete", "scheduler_task_run"],
-      team: ["team_member_invite", "team_member_update", "team_member_remove", "team_permission_update"],
-      data: ["data_import", "data_export"],
-      settings: ["settings_update", "notification_config_update"]
-    };
-    ACTION_DESCRIPTIONS = {
-      // 账号管理
-      account_create: "\u521B\u5EFA\u5E7F\u544A\u8D26\u53F7",
-      account_update: "\u66F4\u65B0\u5E7F\u544A\u8D26\u53F7",
-      account_delete: "\u5220\u9664\u5E7F\u544A\u8D26\u53F7",
-      account_connect: "\u8FDE\u63A5\u5E7F\u544A\u8D26\u53F7",
-      account_disconnect: "\u65AD\u5F00\u5E7F\u544A\u8D26\u53F7\u8FDE\u63A5",
-      // 广告活动管理
-      campaign_create: "\u521B\u5EFA\u5E7F\u544A\u6D3B\u52A8",
-      campaign_update: "\u66F4\u65B0\u5E7F\u544A\u6D3B\u52A8",
-      campaign_delete: "\u5220\u9664\u5E7F\u544A\u6D3B\u52A8",
-      campaign_pause: "\u6682\u505C\u5E7F\u544A\u6D3B\u52A8",
-      campaign_enable: "\u542F\u7528\u5E7F\u544A\u6D3B\u52A8",
-      // 出价调整
-      bid_adjust_single: "\u5355\u4E2A\u51FA\u4EF7\u8C03\u6574",
-      bid_adjust_batch: "\u6279\u91CF\u51FA\u4EF7\u8C03\u6574",
-      bid_rollback: "\u51FA\u4EF7\u56DE\u6EDA",
-      // 否定词管理
-      negative_add_single: "\u6DFB\u52A0\u5355\u4E2A\u5426\u5B9A\u8BCD",
-      negative_add_batch: "\u6279\u91CF\u6DFB\u52A0\u5426\u5B9A\u8BCD",
-      negative_remove: "\u79FB\u9664\u5426\u5B9A\u8BCD",
-      // 绩效组管理
-      performance_group_create: "\u521B\u5EFA\u7EE9\u6548\u7EC4",
-      performance_group_update: "\u66F4\u65B0\u7EE9\u6548\u7EC4",
-      performance_group_delete: "\u5220\u9664\u7EE9\u6548\u7EC4",
-      // 自动化设置
-      automation_enable: "\u542F\u7528\u81EA\u52A8\u5316",
-      automation_disable: "\u7981\u7528\u81EA\u52A8\u5316",
-      automation_config_update: "\u66F4\u65B0\u81EA\u52A8\u5316\u914D\u7F6E",
-      // 定时任务
-      scheduler_task_create: "\u521B\u5EFA\u5B9A\u65F6\u4EFB\u52A1",
-      scheduler_task_update: "\u66F4\u65B0\u5B9A\u65F6\u4EFB\u52A1",
-      scheduler_task_delete: "\u5220\u9664\u5B9A\u65F6\u4EFB\u52A1",
-      scheduler_task_run: "\u624B\u52A8\u8FD0\u884C\u5B9A\u65F6\u4EFB\u52A1",
-      // 团队管理
-      team_member_invite: "\u9080\u8BF7\u56E2\u961F\u6210\u5458",
-      team_member_update: "\u66F4\u65B0\u56E2\u961F\u6210\u5458",
-      team_member_remove: "\u79FB\u9664\u56E2\u961F\u6210\u5458",
-      team_permission_update: "\u66F4\u65B0\u6210\u5458\u6743\u9650",
-      // 数据导入导出
-      data_import: "\u5BFC\u5165\u6570\u636E",
-      data_export: "\u5BFC\u51FA\u6570\u636E",
-      // 系统设置
-      settings_update: "\u66F4\u65B0\u7CFB\u7EDF\u8BBE\u7F6E",
-      notification_config_update: "\u66F4\u65B0\u901A\u77E5\u914D\u7F6E",
-      // 其他
-      other: "\u5176\u4ED6\u64CD\u4F5C"
-    };
-    TARGET_TYPE_DESCRIPTIONS = {
-      account: "\u5E7F\u544A\u8D26\u53F7",
-      campaign: "\u5E7F\u544A\u6D3B\u52A8",
-      ad_group: "\u5E7F\u544A\u7EC4",
-      keyword: "\u5173\u952E\u8BCD",
-      product_target: "\u5546\u54C1\u5B9A\u4F4D",
-      performance_group: "\u7EE9\u6548\u7EC4",
-      negative_keyword: "\u5426\u5B9A\u8BCD",
-      bid: "\u51FA\u4EF7",
-      automation: "\u81EA\u52A8\u5316",
-      scheduler: "\u5B9A\u65F6\u4EFB\u52A1",
-      team_member: "\u56E2\u961F\u6210\u5458",
-      permission: "\u6743\u9650",
-      settings: "\u8BBE\u7F6E",
-      data: "\u6570\u636E",
-      other: "\u5176\u4ED6"
-    };
   }
 });
 

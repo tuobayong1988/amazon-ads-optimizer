@@ -1,5 +1,5 @@
 /**
- * Unified Sync Engine v220 - 统一数据同步引擎
+ * Unified Sync Engine v222 - 统一数据同步引擎
  * 
  * 核心职责：
  * 1. 自动发现所有活跃账户（无需依赖data_sync_schedules表）
@@ -1020,10 +1020,14 @@ export async function syncAccount(
     stepResults: {},
   };
 
-  // v221: 层级感知的并发控制
-  // 不同层级的同步可以并行执行（high和medium不互相阻塞）
-  // 只有同一层级的同步才会被跳过
-  // full层同步会阻塞所有其他层级（因为它包含所有步骤）
+  // v222: 智能层级互斥保护
+  // 规则：
+  // 1. 同一层级重复触发 → 跳过
+  // 2. full层运行时 → 所有其他层级跳过（full包含所有步骤）
+  // 3. medium层运行时 → high层跳过（减少API并发压力）
+  // 4. high层运行时 → medium层正常执行（步骤不重叠）
+  // 5. full层请求时有其他层级运行 → 跳过（等下一轮）
+  // 6. 超时保护：30分钟后强制释放
   const lockKey = `${account.accountId}:${tier}`;
   const accountLocks = Array.from(activeSyncs.entries())
     .filter(([key]) => key.startsWith(`${account.accountId}:`));
@@ -1053,10 +1057,17 @@ export async function syncAccount(
       return result;
     }
     
-    // 当前是full层，但有其他层级在运行，等待它们完成
+    // v222: medium层运行时，high层跳过（减少API并发压力）
+    if (existingTier === 'medium' && tier === 'high') {
+      log.info(`[UnifiedSync] v222: 账户 ${account.accountId} medium层正在运行（${runningMinutes.toFixed(1)}分钟），high层跳过以减少API压力`);
+      result.errors.push(`medium层同步在运行，high层智能跳过`);
+      return result;
+    }
+    
+    // v222: 当前是full层，但有其他层级在运行，跳过等下一轮
     if (tier === 'full' && existingTier !== 'full') {
-      log.info(`[UnifiedSync] 账户 ${account.accountId} 有${existingTier}层同步在运行，full层等待其完成`);
-      result.errors.push(`等待${existingTier}层同步完成`);
+      log.info(`[UnifiedSync] v222: 账户 ${account.accountId} 有${existingTier}层同步在运行，full层跳过等下一轮`);
+      result.errors.push(`${existingTier}层同步在运行，full层等下一轮`);
       return result;
     }
   }
@@ -1138,11 +1149,17 @@ export async function syncAccount(
         const stepResult = await step.execute(syncService, context);
         result.stepResults[step.id] = stepResult;
 
+        // 确保synced始终为数字（防止某些步骤返回对象导致[object Object]拼接）
+        const safeSynced = typeof stepResult.synced === 'number' ? stepResult.synced : 
+          (typeof stepResult.synced === 'object' && stepResult.synced !== null ? 
+            Object.values(stepResult.synced as any).reduce((s: number, v: any) => s + (typeof v === 'number' ? v : 0), 0) : 0);
+        stepResult.synced = safeSynced;
+
         if (stepResult.success) {
           result.completedSteps++;
           context.completedSteps.push(step.id);
-          result.totalSynced += stepResult.synced;
-          context.totalSynced += stepResult.synced;
+          result.totalSynced += safeSynced;
+          context.totalSynced += safeSynced;
         } else {
           result.failedSteps++;
           context.failedSteps.push(step.id);
@@ -1290,8 +1307,11 @@ export async function syncAllAccounts(tier: SyncTier): Promise<BatchSyncResult> 
   batchResult.durationMs = batchResult.endTime.getTime() - startTime.getTime();
   engineStatus.lastSyncTime[tier] = batchResult.endTime;
 
-  // 记录同步日志
-  const totalSynced = batchResult.accountResults.reduce((sum, r) => sum + r.totalSynced, 0);
+  // v222: 记录同步日志（安全数字提取，防止[object Object]拼接）
+  const totalSynced = batchResult.accountResults.reduce((sum, r) => {
+    const synced = typeof r.totalSynced === 'number' ? r.totalSynced : 0;
+    return sum + synced;
+  }, 0);
   log.info(`[UnifiedSync] ${tier}层批量同步完成: ${batchResult.successfulAccounts}/${batchResult.totalAccounts} 成功, ${batchResult.failedAccounts} 失败, ${batchResult.skippedAccounts} 跳过, 总同步 ${totalSynced} 条, 耗时 ${batchResult.durationMs}ms`);
   logSync('UnifiedSync', `${tier}层批量同步完成`, {
     tier,
@@ -1431,6 +1451,16 @@ export function getAllSyncSteps(): { id: string; name: string; tier: SyncTier }[
  * 记录批量同步结果到数据库
  */
 async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void> {
+  // v222: 安全提取数字值，防止[object Object]写入数据库
+  const safeNum = (val: any): number => {
+    if (typeof val === 'number' && !isNaN(val)) return val;
+    if (typeof val === 'object' && val !== null) {
+      // 尝试从对象中提取数字值并求和
+      return Object.values(val).reduce((s: number, v: any) => s + (typeof v === 'number' ? v : 0), 0) as number;
+    }
+    return 0;
+  };
+
   try {
     const database = await db.getDb();
     if (!database) return;
@@ -1452,20 +1482,20 @@ async function recordBatchSyncResult(batchResult: BatchSyncResult): Promise<void
           completedAt: accountResult.endTime.toISOString().slice(0, 19).replace('T', ' '),
           durationMs: accountResult.durationMs,
           errorMessage: accountResult.errors.length > 0 ? accountResult.errors.slice(0, 3).join('; ') : null,
-          spCampaigns: accountResult.stepResults['sp_campaigns']?.synced || 0,
-          sbCampaigns: accountResult.stepResults['sb_campaigns']?.synced || 0,
-          sdCampaigns: accountResult.stepResults['sd_campaigns']?.synced || 0,
-          adGroupsSynced: (accountResult.stepResults['sp_ad_groups']?.synced || 0) +
-            (accountResult.stepResults['sb_ad_groups']?.synced || 0) +
-            (accountResult.stepResults['sd_ad_groups']?.synced || 0),
-          keywordsSynced: (accountResult.stepResults['sp_keywords']?.synced || 0) +
-            (accountResult.stepResults['sb_keywords']?.synced || 0),
-          targetsSynced: (accountResult.stepResults['sp_product_targets']?.synced || 0) +
-            (accountResult.stepResults['sb_product_targets']?.synced || 0) +
-            (accountResult.stepResults['sd_product_targets']?.synced || 0),
-          performanceSynced: (accountResult.stepResults['performance_today']?.synced || 0) +
-            (accountResult.stepResults['performance_7d']?.synced || 0) +
-            (accountResult.stepResults['performance_14d']?.synced || 0),
+          spCampaigns: safeNum(accountResult.stepResults['sp_campaigns']?.synced),
+          sbCampaigns: safeNum(accountResult.stepResults['sb_campaigns']?.synced),
+          sdCampaigns: safeNum(accountResult.stepResults['sd_campaigns']?.synced),
+          adGroupsSynced: safeNum(accountResult.stepResults['sp_ad_groups']?.synced) +
+            safeNum(accountResult.stepResults['sb_ad_groups']?.synced) +
+            safeNum(accountResult.stepResults['sd_ad_groups']?.synced),
+          keywordsSynced: safeNum(accountResult.stepResults['sp_keywords']?.synced) +
+            safeNum(accountResult.stepResults['sb_keywords']?.synced),
+          targetsSynced: safeNum(accountResult.stepResults['sp_product_targets']?.synced) +
+            safeNum(accountResult.stepResults['sb_product_targets']?.synced) +
+            safeNum(accountResult.stepResults['sd_product_targets']?.synced),
+          performanceSynced: safeNum(accountResult.stepResults['performance_today']?.synced) +
+            safeNum(accountResult.stepResults['performance_7d']?.synced) +
+            safeNum(accountResult.stepResults['performance_14d']?.synced),
         });
       } catch (insertErr: any) {
         log.warn(`[UnifiedSync] 记录账户 ${accountResult.accountId} 同步结果失败: ${insertErr.message}`);

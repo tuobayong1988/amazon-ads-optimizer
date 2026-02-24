@@ -226,12 +226,51 @@ export function stopDataSyncScheduler(): void {
 }
 
 /**
- * v219: 基于统一同步引擎的分层同步执行
+ * v222: 智能调度协调 - 追踪各层级的运行状态
+ * 避免同一时间窗口内多个层级同时触发造成API压力翻倍
+ */
+const tierRunningState: Record<string, boolean> = {
+  high: false,
+  medium: false,
+  full: false,
+};
+
+/**
+ * v222: 基于统一同步引擎的分层同步执行（含智能协调）
  * 自动发现所有活跃账户，无需依赖 data_sync_schedules 表
+ * 
+ * 协调规则：
+ * 1. full层运行时，high和medium层自动跳过（full已包含所有步骤）
+ * 2. medium层运行时，high层自动跳过（减少API并发压力）
+ * 3. high层运行时，medium层正常执行（步骤不重叠，但会串行等待API资源）
  */
 async function executeUnifiedSync(tier: SyncTier): Promise<void> {
-  log.info(`[DataSyncScheduler] v219: 开始执行${SYNC_TIER_CONFIG[tier].description} (统一引擎) - ${new Date().toISOString()}`);
-  logSync('DataSyncScheduler', `v219: 开始${SYNC_TIER_CONFIG[tier].description}`, { tier, mode: 'unified_engine' });
+  // v222: 智能协调 - 检查是否应该跳过当前层级
+  if (tier === 'high') {
+    if (tierRunningState.full) {
+      log.info(`[DataSyncScheduler] v222: high层跳过 - full层正在运行（full已包含high步骤）`);
+      logSync('DataSyncScheduler', 'v222: high层智能跳过', { reason: 'full_running' });
+      return;
+    }
+    if (tierRunningState.medium) {
+      log.info(`[DataSyncScheduler] v222: high层跳过 - medium层正在运行（避免API并发压力）`);
+      logSync('DataSyncScheduler', 'v222: high层智能跳过', { reason: 'medium_running' });
+      return;
+    }
+  }
+  if (tier === 'medium') {
+    if (tierRunningState.full) {
+      log.info(`[DataSyncScheduler] v222: medium层跳过 - full层正在运行（full已包含medium步骤）`);
+      logSync('DataSyncScheduler', 'v222: medium层智能跳过', { reason: 'full_running' });
+      return;
+    }
+  }
+
+  // 标记当前层级为运行中
+  tierRunningState[tier] = true;
+
+  log.info(`[DataSyncScheduler] v222: 开始执行${SYNC_TIER_CONFIG[tier].description} (统一引擎) - ${new Date().toISOString()}`);
+  logSync('DataSyncScheduler', `v222: 开始${SYNC_TIER_CONFIG[tier].description}`, { tier, mode: 'unified_engine' });
   schedulerStatus.currentTier = tier;
 
   try {
@@ -278,6 +317,9 @@ async function executeUnifiedSync(tier: SyncTier): Promise<void> {
   }
 
   schedulerStatus.currentTier = null;
+
+  // v222: 清除运行状态标记
+  tierRunningState[tier] = false;
 }
 
 /**

@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 221;
+export const SYSTEM_VERSION = 222;
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -190,6 +190,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     description: 'v221: 全面系统优化 — 修复分层同步锁Bug(层级感知锁防止medium层被跳过), 修复日志拼接[object Object]Bug, 前端路由自动账户选择, 审计日志记录优化操作, optimizationTargetEngine确认同步全覆盖, 数据新鲜度检查机制(防止基于旧数据优化), 前端乐观UI更新, 内存保护与僵尸条目清理',
     affectedModules: ['sync', 'bidOptimization', 'budgetOptimization', 'placementOptimization', 'negativeKeywords', 'searchTermHarvesting'],
     correctionActions: ['reoptimize_all'],
+  },
+  {
+    version: 222,
+    description: 'v222: 智能调度协调与日志安全修复 — 调度器层级智能协调(full运行时跳过high/medium, medium运行时跳过high避免API压力), 引擎层级互斥保护(同账户多层级同时触发时智能跳过), 全链路安全数字提取(safeNum函数防御所有[object Object]拼接), 数据库写入安全保护',
+    affectedModules: [],
+    correctionActions: [],
   },
 ];
 
