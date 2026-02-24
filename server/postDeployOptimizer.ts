@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 218;
+export const SYSTEM_VERSION = 219;
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -170,6 +170,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 218,
     description: 'v218: 前端崩溃修复 — 修复AmazonApiSettings页面ReferenceError(useEffect引用未声明的accounts变量), 将同步进度useEffect移到accounts定义之后',
+    affectedModules: [],
+    correctionActions: [],
+  },
+  {
+    version: 219,
+    description: 'v219: 统一同步引擎 — 自动发现所有活跃账户(消除data_sync_schedules依赖), 分层同步策略(高频15min/中频30min/完整60min), 多账户并发控制(最多3个并行), 优化后确认同步(防止重复优化), 检查点/恢复机制, 步骤级错误隔离',
     affectedModules: [],
     correctionActions: [],
   },

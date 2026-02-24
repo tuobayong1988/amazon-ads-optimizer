@@ -265,6 +265,46 @@ export async function executeBatchSync(options?: {
   log.info(`[SyncEngine] ========== 批量同步完成 ==========`);
   log.warn(`[SyncEngine] 总计=${result.totalTasks}, 成功=${result.synced}, 失败=${result.failed}, 跳过=${result.skipped}, 耗时=${result.duration}ms`);
   
+  // v219: 优化命令执行后触发确认同步，从 Amazon 回读最新状态防止重复优化
+  if (result.synced > 0) {
+    try {
+      const { confirmationSync } = await import('./unifiedSyncEngine');
+      // 收集受影响的账户和实体类型
+      const affectedAccounts = new Map<number, Set<string>>();
+      for (const [accountId, accountTasks] of accountGroups) {
+        const entities = new Set<string>();
+        for (const task of accountTasks) {
+          if (task.task_type === 'bid_adjustment') {
+            if (task.target_entity_type === 'keyword') entities.add('keywords');
+            if (task.target_entity_type === 'product_target') entities.add('targets');
+          } else if (task.task_type === 'campaign_status') {
+            entities.add('campaigns');
+          } else if (task.task_type === 'budget_adjustment') {
+            entities.add('budgets');
+          } else if (task.task_type === 'keyword_status') {
+            entities.add('keywords');
+          }
+        }
+        if (entities.size > 0) {
+          affectedAccounts.set(accountId, entities);
+        }
+      }
+      
+      // 异步触发确认同步（不阻塞当前流程）
+      for (const [accountId, entities] of affectedAccounts) {
+        confirmationSync(accountId, Array.from(entities) as any[]).then(syncResult => {
+          if (syncResult) {
+            log.info(`[SyncEngine] v219: 确认同步完成 - 账户 ${accountId}: ${syncResult.completedSteps}/${syncResult.totalSteps}步成功`);
+          }
+        }).catch(err => {
+          log.error(`[SyncEngine] v219: 确认同步失败 - 账户 ${accountId}: ${err.message}`);
+        });
+      }
+    } catch (confirmErr: any) {
+      log.error(`[SyncEngine] v219: 触发确认同步异常: ${confirmErr.message}`);
+    }
+  }
+  
   return result;
 }
 

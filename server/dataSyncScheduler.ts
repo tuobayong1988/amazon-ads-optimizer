@@ -127,10 +127,13 @@ export function getSchedulerStatus(): SchedulerStatus {
 }
 
 /**
- * 启动分层同步调度器
- * @param defaultIntervalMs 默认执行间隔（毫秒），用于完整同步，默认30分钟
+ * v219: 启动统一同步调度器
+ * 使用 UnifiedSyncEngine 自动发现所有活跃账户并执行分层同步
+ * 完全消除对 data_sync_schedules 表的依赖
+ * 
+ * @param defaultIntervalMs 默认执行间隔（毫秒），用于完整同步，默认60分钟
  */
-export function startDataSyncScheduler(defaultIntervalMs: number = 30 * 60 * 1000): void {
+export function startDataSyncScheduler(defaultIntervalMs: number = 60 * 60 * 1000): void {
   if (schedulerStatus.isRunning) {
     log.info('[DataSyncScheduler] 定时同步调度器已在运行中');
     return;
@@ -138,29 +141,35 @@ export function startDataSyncScheduler(defaultIntervalMs: number = 30 * 60 * 100
 
   schedulerStatus.isRunning = true;
   
-  // 启动分层同步
-  log.info('[DataSyncScheduler] 启动分层同步调度器...');
-  logSystem('DataSyncScheduler', '分层同步调度器启动', { defaultIntervalMs, tiers: Object.keys(SYNC_TIER_CONFIG) });
+  // v219: 启动统一同步引擎驱动的分层同步
+  log.info('[DataSyncScheduler] v219: 启动统一同步引擎驱动的分层同步调度器...');
+  logSystem('DataSyncScheduler', 'v219统一同步调度器启动', { defaultIntervalMs, mode: 'unified_engine' });
   
-  // 高频同步：每15分钟
+  // 高频同步：每15分钟 - 广告活动状态和当日绩效
   schedulerIntervals.high = setInterval(async () => {
-    await executeLayeredSync('high');
+    await executeUnifiedSync('high');
   }, SYNC_TIER_CONFIG.high.intervalMs);
-  log.info(`[DataSyncScheduler] 高频同步已启动，间隔: ${SYNC_TIER_CONFIG.high.intervalMs / 1000 / 60} 分钟`);
+  log.info(`[DataSyncScheduler] v219: 高频同步已启动，间隔: ${SYNC_TIER_CONFIG.high.intervalMs / 1000 / 60} 分钟`);
 
-  // 中频同步：每30分钟
+  // 中频同步：每30分钟 - 广告组、关键词、定位
   schedulerIntervals.medium = setInterval(async () => {
-    await executeLayeredSync('medium');
+    await executeUnifiedSync('medium');
   }, SYNC_TIER_CONFIG.medium.intervalMs);
-  log.info(`[DataSyncScheduler] 中频同步已启动，间隔: ${SYNC_TIER_CONFIG.medium.intervalMs / 1000 / 60} 分钟`);
+  log.info(`[DataSyncScheduler] v219: 中频同步已启动，间隔: ${SYNC_TIER_CONFIG.medium.intervalMs / 1000 / 60} 分钟`);
 
-  // 低频/完整同步：使用传入的间隔（默认1小时）
+  // 完整同步：使用传入的间隔（默认60分钟）
   schedulerIntervals.full = setInterval(async () => {
-    await executeScheduledSync();
+    await executeUnifiedSync('full');
   }, defaultIntervalMs);
   
   schedulerStatus.nextRunTime = new Date(Date.now() + defaultIntervalMs);
-  log.info(`[DataSyncScheduler] 完整同步已启动，间隔: ${defaultIntervalMs / 1000 / 60} 分钟`);
+  log.info(`[DataSyncScheduler] v219: 完整同步已启动，间隔: ${defaultIntervalMs / 1000 / 60} 分钟`);
+  
+  // v219: 首次启动时延迟2分钟执行一次高频同步，确保系统启动后快速获取最新数据
+  setTimeout(async () => {
+    log.info('[DataSyncScheduler] v219: 启动后首次高频同步...');
+    await executeUnifiedSync('high');
+  }, 2 * 60 * 1000);
   
   // v137: 启动优化任务重试同步引擎（每5分钟检查并重试失败的同步任务）
   setInterval(async () => {
@@ -176,7 +185,7 @@ export function startDataSyncScheduler(defaultIntervalMs: number = 30 * 60 * 100
   }, 5 * 60 * 1000);
   log.info(`[DataSyncScheduler] v137: 优化任务重试同步引擎已启动，间隔: 5分钟`);
   
-  log.info(`[DataSyncScheduler] 定时同步调度器已启动，执行间隔: ${defaultIntervalMs / 1000 / 60} 分钟`);
+  log.info(`[DataSyncScheduler] v219: 统一同步调度器已启动，完整同步间隔: ${defaultIntervalMs / 1000 / 60} 分钟`);
 }
 
 /**
@@ -206,7 +215,63 @@ export function stopDataSyncScheduler(): void {
 }
 
 /**
- * 执行分层同步
+ * v219: 基于统一同步引擎的分层同步执行
+ * 自动发现所有活跃账户，无需依赖 data_sync_schedules 表
+ */
+async function executeUnifiedSync(tier: SyncTier): Promise<void> {
+  log.info(`[DataSyncScheduler] v219: 开始执行${SYNC_TIER_CONFIG[tier].description} (统一引擎) - ${new Date().toISOString()}`);
+  logSync('DataSyncScheduler', `v219: 开始${SYNC_TIER_CONFIG[tier].description}`, { tier, mode: 'unified_engine' });
+  schedulerStatus.currentTier = tier;
+
+  try {
+    const { syncAllAccounts } = await import('./unifiedSyncEngine');
+    const batchResult = await syncAllAccounts(tier as any);
+
+    schedulerStatus.tierLastRun[tier] = new Date();
+    schedulerStatus.lastRunTime = new Date();
+    schedulerStatus.successfulSyncs += batchResult.successfulAccounts;
+    schedulerStatus.failedSyncs += batchResult.failedAccounts;
+    schedulerStatus.totalSyncs += batchResult.totalAccounts;
+
+    log.info(`[DataSyncScheduler] v219: ${SYNC_TIER_CONFIG[tier].description}完成: ` +
+      `${batchResult.successfulAccounts}/${batchResult.totalAccounts} 成功, ` +
+      `${batchResult.failedAccounts} 失败, ${batchResult.skippedAccounts} 跳过, ` +
+      `耗时 ${batchResult.durationMs}ms`);
+
+    // v219: 完整同步完成后触发优化目标执行
+    if (tier === 'full' || tier === 'low') {
+      for (const accountResult of batchResult.accountResults) {
+        if (!accountResult.success) continue;
+        try {
+          const { triggerAccountOptimizations } = await import('./optimizationScheduler');
+          await triggerAccountOptimizations(accountResult.accountId, 'unified_sync_complete');
+          log.info(`[DataSyncScheduler] v219: 账户 ${accountResult.accountId} 优化目标触发完成`);
+        } catch (optErr: any) {
+          log.error(`[DataSyncScheduler] v219: 账户 ${accountResult.accountId} 优化目标触发失败: ${optErr.message}`);
+        }
+      }
+    }
+
+    // 更新下次运行时间
+    if (tier === 'full') {
+      schedulerStatus.nextRunTime = new Date(Date.now() + (schedulerIntervals.full ? 60 * 60 * 1000 : 30 * 60 * 1000));
+    }
+
+    // 只保留最近10条错误
+    schedulerStatus.errors = schedulerStatus.errors.slice(-10);
+
+  } catch (error: any) {
+    log.error(`[DataSyncScheduler] v219: ${tier}层同步执行失败:`, error);
+    schedulerStatus.errors.push(`v219 ${tier}层同步失败: ${error.message}`);
+    logSyncError('DataSyncScheduler', `v219 ${tier}层同步失败`, { tier, error: error.message });
+  }
+
+  schedulerStatus.currentTier = null;
+}
+
+/**
+ * [已废弃 - v219] 旧版分层同步，保留作为回退方案
+ * @deprecated 使用 executeUnifiedSync 替代
  */
 async function executeLayeredSync(tier: SyncTier): Promise<void> {
   log.info(`[DataSyncScheduler] 开始执行${SYNC_TIER_CONFIG[tier].description} - ${new Date().toISOString()}`);
@@ -672,7 +737,7 @@ async function executeSyncForAccount(schedule: db.DataSyncSchedule): Promise<voi
 }
 
 /**
- * 手动触发同步
+ * v219: 手动触发同步（使用统一同步引擎）
  */
 export async function triggerManualSync(userId: number, accountId: number): Promise<{
   success: boolean;
@@ -680,36 +745,39 @@ export async function triggerManualSync(userId: number, accountId: number): Prom
   result?: any;
 }> {
   try {
-    const account = await db.getAdAccountById(accountId);
-    if (!account) {
-      return { success: false, message: '账号不存在' };
+    const { triggerManualFullSync } = await import('./unifiedSyncEngine');
+    const syncResult = await triggerManualFullSync(accountId);
+
+    if (!syncResult) {
+      return { success: false, message: '账号不存在或未配置API凭证' };
     }
-
-    const credentials = await db.getAmazonApiCredentials(accountId);
-    if (!credentials) {
-      return { success: false, message: '账号未配置API凭证，请先完成Amazon API授权' };
-    }
-
-    const syncService = await AmazonSyncService.createFromCredentials(
-      {
-        clientId: credentials.clientId || '',
-        clientSecret: credentials.clientSecret || '',
-        refreshToken: credentials.refreshToken || '',
-        profileId: account.profileId || '',
-        region: (credentials.region as 'NA' | 'EU' | 'FE') || 'NA'
-      },
-      accountId,
-      userId,
-      account.marketplace || 'US'
-    );
-
-    // 手动触发同步（获取90天数据）
-    const result = await syncService.syncAll();
 
     return {
-      success: true,
-      message: '同步完成',
-      result
+      success: syncResult.success,
+      message: syncResult.success ? 
+        `同步完成: ${syncResult.completedSteps}/${syncResult.totalSteps}步成功, 同步${syncResult.totalSynced}条数据, 耗时${syncResult.durationMs}ms` :
+        `同步部分完成: ${syncResult.completedSteps}/${syncResult.totalSteps}步成功, 错误: ${syncResult.errors.slice(0, 3).join('; ')}`,
+      result: {
+        campaigns: (syncResult.stepResults['sp_campaigns']?.synced || 0) +
+          (syncResult.stepResults['sb_campaigns']?.synced || 0) +
+          (syncResult.stepResults['sd_campaigns']?.synced || 0),
+        adGroups: (syncResult.stepResults['sp_ad_groups']?.synced || 0) +
+          (syncResult.stepResults['sb_ad_groups']?.synced || 0) +
+          (syncResult.stepResults['sd_ad_groups']?.synced || 0),
+        keywords: (syncResult.stepResults['sp_keywords']?.synced || 0) +
+          (syncResult.stepResults['sb_keywords']?.synced || 0),
+        targets: (syncResult.stepResults['sp_product_targets']?.synced || 0) +
+          (syncResult.stepResults['sb_product_targets']?.synced || 0) +
+          (syncResult.stepResults['sd_product_targets']?.synced || 0),
+        performance: (syncResult.stepResults['performance_14d']?.synced || 0),
+        spCampaigns: syncResult.stepResults['sp_campaigns']?.synced || 0,
+        sbCampaigns: syncResult.stepResults['sb_campaigns']?.synced || 0,
+        sdCampaigns: syncResult.stepResults['sd_campaigns']?.synced || 0,
+        durationMs: syncResult.durationMs,
+        completedSteps: syncResult.completedSteps,
+        totalSteps: syncResult.totalSteps,
+        failedSteps: syncResult.failedSteps,
+      }
     };
   } catch (error: any) {
     return {

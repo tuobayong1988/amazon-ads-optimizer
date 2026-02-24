@@ -848,6 +848,16 @@ const performanceGroupRouter = router({
         }
       }
       
+      // v219: 批量状态变更后触发确认同步，从 Amazon 回读最新状态
+      if (apiResult.success > 0 && group.accountId) {
+        try {
+          const { confirmationSync } = await import('./unifiedSyncEngine');
+          confirmationSync(group.accountId, ['campaigns']).catch((err: any) => {
+            console.error(`[batchUpdateCampaignStatus] v219: 确认同步失败:`, err.message);
+          });
+        } catch (e) { /* ignore */ }
+      }
+
       return {
         success: true,
         localUpdated,
@@ -1685,6 +1695,19 @@ const campaignRouter = router({
         }
         
         console.log(`[campaign.update] Amazon API同步结果:`, JSON.stringify(apiSyncResults));
+        
+        // v219: 单个广告活动更新后触发确认同步
+        const successfulSyncs = apiSyncResults.filter(r => r.success);
+        if (successfulSyncs.length > 0) {
+          try {
+            const { confirmationSync } = await import('./unifiedSyncEngine');
+            const entities: ('campaigns' | 'keywords' | 'targets' | 'budgets')[] = ['campaigns'];
+            if (successfulSyncs.some(r => r.field === 'dailyBudget')) entities.push('budgets');
+            confirmationSync(previousCampaign.accountId, entities).catch((err: any) => {
+              console.error(`[campaign.update] v219: 确认同步失败:`, err.message);
+            });
+          } catch (e) { /* ignore */ }
+        }
       }
       
       // 记录审计日志
@@ -2280,6 +2303,16 @@ const keywordRouter = router({
               }));
               const syncResult = await syncBidAdjustmentsToAmazon(accountId, adjustments);
               console.log(`[Keyword.batchUpdateBid] v159: accountId=${accountId}, 同步结果: 成功=${syncResult.success}, 失败=${syncResult.failed}`);
+              
+              // v219: 出价同步后触发确认同步
+              if (syncResult.success > 0) {
+                try {
+                  const { confirmationSync } = await import('./unifiedSyncEngine');
+                  confirmationSync(accountId, ['keywords']).catch((err: any) => {
+                    console.error(`[Keyword.batchUpdateBid] v219: 确认同步失败:`, err.message);
+                  });
+                } catch (e) { /* ignore */ }
+              }
             }
           }
         } catch (syncError: any) {
@@ -2342,6 +2375,16 @@ const keywordRouter = router({
             }));
             const syncResult = await syncKeywordStatusToAmazon(accountId, statusChanges);
             console.log(`[Keyword.batchUpdateStatus] v159: accountId=${accountId}, 同步结果: 成功=${syncResult.success}, 失败=${syncResult.failed}`);
+            
+            // v219: 关键词状态同步后触发确认同步
+            if (syncResult.success > 0) {
+              try {
+                const { confirmationSync } = await import('./unifiedSyncEngine');
+                confirmationSync(accountId, ['keywords']).catch((err: any) => {
+                  console.error(`[Keyword.batchUpdateStatus] v219: 确认同步失败:`, err.message);
+                });
+              } catch (e) { /* ignore */ }
+            }
           }
         }
       } catch (syncError: any) {
