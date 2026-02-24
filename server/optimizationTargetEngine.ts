@@ -55,6 +55,28 @@ async function getAccountMarketplace(accountId: number): Promise<string> {
   return marketplace;
 }
 
+// v221: 获取账户最后同步时间，用于数据新鲜度检查
+async function getLastSyncTimeForAccount(accountId: number): Promise<Date | null> {
+  try {
+    const account = await db.getAdAccountById(accountId);
+    if (account && (account as any).lastSyncAt) {
+      return new Date((account as any).lastSyncAt);
+    }
+    // 备用：从同步日志表查询
+    const { getEngineStatus } = await import('./unifiedSyncEngine');
+    const status = getEngineStatus();
+    if (status.lastSyncResults) {
+      const accountResult = (status.lastSyncResults as any[])?.find((r: any) => r.accountId === accountId);
+      if (accountResult?.completedAt) {
+        return new Date(accountResult.completedAt);
+      }
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 // 优化执行结果类型
 export interface OptimizationExecutionResult {
   targetId: number;
@@ -337,6 +359,35 @@ export async function executeOptimizationTarget(
     }
   } catch (safetyErr: any) {
     log.warn(`[OptimizationTarget] v162 安全检查异常，继续执行: ${safetyErr.message}`);
+  }
+  
+  // v221: 数据新鲜度检查 - 确保不基于过时数据做优化决策
+  try {
+    const lastSyncTime = await getLastSyncTimeForAccount(config.accountId);
+    if (lastSyncTime) {
+      const dataAgeMinutes = (Date.now() - lastSyncTime.getTime()) / (1000 * 60);
+      if (dataAgeMinutes > 120 && !forceExecution) {
+        // 数据超过2小时未同步，警告但不阻止执行
+        const staleMsg = `v221: 数据新鲜度警告 - 账户 ${config.accountId} 最后同步于 ${Math.round(dataAgeMinutes)} 分钟前，优化决策可能基于过时数据`;
+        log.warn(`[OptimizationTarget] ${staleMsg}`);
+        result.warnings.push(staleMsg);
+      }
+      if (dataAgeMinutes > 360 && !forceExecution) {
+        // 数据超过6小时未同步，先触发同步再执行优化
+        const criticalMsg = `v221: 数据严重过时 - 账户 ${config.accountId} 最后同步于 ${Math.round(dataAgeMinutes)} 分钟前，尝试触发紧急同步`;
+        log.warn(`[OptimizationTarget] ${criticalMsg}`);
+        result.warnings.push(criticalMsg);
+        try {
+          const { syncAllAccounts } = await import('./unifiedSyncEngine');
+          await syncAllAccounts('high');
+          log.info(`[OptimizationTarget] v221: 紧急同步完成，继续执行优化`);
+        } catch (syncErr: any) {
+          log.warn(`[OptimizationTarget] v221: 紧急同步失败，仍继续执行: ${syncErr.message}`);
+        }
+      }
+    }
+  } catch (freshnessErr: any) {
+    log.warn(`[OptimizationTarget] v221: 数据新鲜度检查异常: ${freshnessErr.message}`);
   }
   
   // v164: 自我进化周期 - 在每次优化执行前自动评估上一轮优化效果并学习
@@ -894,6 +945,34 @@ export async function executeOptimizationTarget(
     } catch (enqueueErr: any) {
       log.error(`[OptimizationTarget] v137: 入队失败任务异常: ${enqueueErr.message}`);
     }
+  }
+  
+  // v221: 优化目标执行完成后触发确认同步，确保所有直接API调用路径的变更被回读
+  try {
+    const affectedEntities: string[] = [];
+    if (result.bidOptimization && result.bidOptimization.adjustedCount > 0) affectedEntities.push('keywords');
+    if (result.placementOptimization && result.placementOptimization.adjustedCount > 0) affectedEntities.push('campaigns');
+    if (result.daypartingOptimization && result.daypartingOptimization.adjustedCount > 0) affectedEntities.push('keywords');
+    if (result.daypartingBudgetOptimization && result.daypartingBudgetOptimization.adjustedCount > 0) affectedEntities.push('budgets');
+    if (result.searchTermAnalysis && (result.searchTermAnalysis.negativeKeywordsAdded > 0 || result.searchTermAnalysis.newKeywordsCreated > 0)) affectedEntities.push('keywords');
+    if (result.budgetAllocation && result.budgetAllocation.adjustedCount > 0) affectedEntities.push('budgets');
+    if (result.keywordStatusChanges && result.keywordStatusChanges.changedCount > 0) affectedEntities.push('keywords');
+    if (result.campaignStatusChanges && result.campaignStatusChanges.changedCount > 0) affectedEntities.push('campaigns');
+    
+    if (affectedEntities.length > 0) {
+      const uniqueEntities = [...new Set(affectedEntities)];
+      const { confirmationSync } = await import('./unifiedSyncEngine');
+      // 异步触发，不阻塞优化流程返回
+      confirmationSync(config.accountId, uniqueEntities as any[], `optimizationTarget_${config.id}`).then(syncResult => {
+        if (syncResult) {
+          log.info(`[OptimizationTarget] v221: 确认同步完成 - 账户 ${config.accountId}, 目标 ${config.id}: ${syncResult.completedSteps}/${syncResult.totalSteps}步成功`);
+        }
+      }).catch(err => {
+        log.warn(`[OptimizationTarget] v221: 确认同步失败 - 账户 ${config.accountId}: ${err.message}`);
+      });
+    }
+  } catch (confirmErr: any) {
+    log.warn(`[OptimizationTarget] v221: 触发确认同步异常: ${confirmErr.message}`);
   }
   
   // v181: 释放账户+模块级优化锁

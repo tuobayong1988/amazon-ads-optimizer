@@ -265,6 +265,51 @@ export async function executeBatchSync(options?: {
   log.info(`[SyncEngine] ========== 批量同步完成 ==========`);
   log.warn(`[SyncEngine] 总计=${result.totalTasks}, 成功=${result.synced}, 失败=${result.failed}, 跳过=${result.skipped}, 耗时=${result.duration}ms`);
   
+  // v221: 记录优化操作到审计日志，修复审计日志页面显示0次出价调整的问题
+  if (result.synced > 0) {
+    try {
+      const { logAudit } = await import('./auditService');
+      for (const [accountId, accountTasks] of accountGroups) {
+        const bidTasks = accountTasks.filter((t: any) => t.task_type === 'bid_adjustment');
+        const statusTasks = accountTasks.filter((t: any) => t.task_type === 'campaign_status' || t.task_type === 'keyword_status');
+        const budgetTasks = accountTasks.filter((t: any) => t.task_type === 'budget_adjustment');
+        
+        if (bidTasks.length > 0) {
+          await logAudit({
+            userId: 0, // 系统自动操作
+            action: 'bid_adjustment',
+            targetType: 'keyword',
+            targetId: accountId,
+            details: `自动优化: 批量调整 ${bidTasks.length} 个投放词出价`,
+            accountId,
+          });
+        }
+        if (statusTasks.length > 0) {
+          await logAudit({
+            userId: 0,
+            action: 'status_change',
+            targetType: 'campaign',
+            targetId: accountId,
+            details: `自动优化: 批量变更 ${statusTasks.length} 个广告活动/关键词状态`,
+            accountId,
+          });
+        }
+        if (budgetTasks.length > 0) {
+          await logAudit({
+            userId: 0,
+            action: 'budget_change',
+            targetType: 'campaign',
+            targetId: accountId,
+            details: `自动优化: 批量调整 ${budgetTasks.length} 个广告活动预算`,
+            accountId,
+          });
+        }
+      }
+    } catch (auditErr: any) {
+      log.warn(`[SyncEngine] v221: 记录审计日志失败: ${auditErr.message}`);
+    }
+  }
+  
   // v219: 优化命令执行后触发确认同步，从 Amazon 回读最新状态防止重复优化
   if (result.synced > 0) {
     try {

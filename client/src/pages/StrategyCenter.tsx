@@ -48,7 +48,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Link } from "wouter";
 import { StrategyTemplates } from "@/components/StrategyTemplates";
-import { useCurrentStore, useCurrentMarketplace } from "@/components/GlobalAccountSelector";
+import { useCurrentStore, useCurrentMarketplace, setCurrentSelection } from "@/components/GlobalAccountSelector";
 
 // 优化目标类型映射
 const OPTIMIZATION_GOAL_LABELS: Record<string, string> = {
@@ -93,7 +93,9 @@ export default function StrategyCenter() {
   // 获取账号列表
   const { data: accounts, isLoading: accountsLoading } = trpc.adAccount.list.useQuery();
   
-  // 根据店铺+站点查找对应的accountId（trim空格避免匹配问题）
+  // v221: 根据店铺+站点查找对应的accountId
+  // 修复BUG: 之前从不同路由入口进入时，如果localStorage中没有店铺/站点信息，
+  // accountId会为null导致数据不加载，显示0/0
   const accountId = useMemo(() => {
     if (!accounts || accounts.length === 0) return null;
     
@@ -114,9 +116,21 @@ export default function StrategyCenter() {
       if (account) return account.id;
     }
     
-    // 兜底：使用第一个账号
+    // 兆底：使用第一个账号
     return accounts[0]?.id || null;
   }, [accounts, currentStore, currentMarketplace]);
+
+  // v221: 当账号列表加载完成但localStorage中没有选中的店铺时，自动选择第一个账号
+  // 这确保从任何路由入口进入都能正确加载数据
+  useEffect(() => {
+    if (accounts && accounts.length > 0 && !currentStore) {
+      const firstAccount = accounts[0];
+      const storeName = (firstAccount.storeName || firstAccount.accountName || '').trim();
+      if (storeName) {
+        setCurrentSelection(storeName, firstAccount.marketplace || null);
+      }
+    }
+  }, [accounts, currentStore]);
 
   // 获取优化目标（绩效组）
   const performanceGroupsQuery = trpc.performanceGroup.list.useQuery(

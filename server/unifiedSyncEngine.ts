@@ -328,6 +328,34 @@ export function logHealthSnapshot(): void {
       });
     }
   }
+
+  // v221 内存保护：堆内存超过85%时主动触发GC（如果可用）
+  if (snapshot.memoryMB.heapUtilization > 85) {
+    log.warn(`[HealthMonitor] 堆内存使用率${snapshot.memoryMB.heapUtilization}%，触发内存保护`);
+    if (typeof global.gc === 'function') {
+      global.gc();
+      log.info('[HealthMonitor] 已手动触发GC');
+    }
+  }
+
+  // v221 僵尸条目清理：清除运行超过30分钟的activeSyncs条目
+  const now = new Date();
+  const ZOMBIE_THRESHOLD_MS = 30 * 60 * 1000; // 30分钟
+  let zombiesCleaned = 0;
+  for (const [key, sync] of activeSyncs.entries()) {
+    if (now.getTime() - sync.startTime.getTime() > ZOMBIE_THRESHOLD_MS) {
+      activeSyncs.delete(key);
+      zombiesCleaned++;
+    }
+  }
+  // 同步清理currentlyRunning中对应的僵尸条目
+  if (zombiesCleaned > 0) {
+    engineStatus.currentlyRunning = engineStatus.currentlyRunning.filter(r => {
+      const key = `${r.accountId}:${r.tier}`;
+      return activeSyncs.has(key);
+    });
+    log.warn(`[HealthMonitor] 已清理 ${zombiesCleaned} 个僵尸同步条目（运行超过30分钟）`);
+  }
 }
 
 /**
@@ -487,8 +515,11 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'high',
     execute: async (service, ctx) => {
       try {
-        const synced = await service.syncPerformanceOnly(1);
-        return { success: true, synced: synced || 0, errors: [] };
+        const result = await service.syncPerformanceOnly(1);
+        // v221: syncPerformanceOnly返回对象{performance, keywordPerf, targetPerf}，需要求和
+        const synced = typeof result === 'number' ? result : 
+          (result.performance || 0) + (result.keywordPerf || 0) + (result.targetPerf || 0);
+        return { success: true, synced, errors: [] };
       } catch (e: any) {
         return { success: false, synced: 0, errors: [e.message] };
       }
@@ -609,8 +640,11 @@ const SYNC_STEPS: SyncStep[] = [
     tier: 'medium',
     execute: async (service, ctx) => {
       try {
-        const synced = await service.syncPerformanceOnly(7);
-        return { success: true, synced: synced || 0, errors: [] };
+        const result = await service.syncPerformanceOnly(7);
+        // v221: syncPerformanceOnly返回对象，需要求和
+        const synced = typeof result === 'number' ? result :
+          (result.performance || 0) + (result.keywordPerf || 0) + (result.targetPerf || 0);
+        return { success: true, synced, errors: [] };
       } catch (e: any) {
         return { success: false, synced: 0, errors: [e.message] };
       }
@@ -841,12 +875,15 @@ const SYNC_STEPS: SyncStep[] = [
   },
 ];
 
-// 同步层级包含关系：高层级包含低层级的所有步骤
+// v221: 同步层级步骤映射
+// 修复BUG: 之前medium层包含high层步骤，导致high层锁阻塞medium层
+// 现在每层只执行自己专有的步骤，因为各层有独立的定时器
+// full层仍然包含所有步骤（用于完整同步和首次同步）
 const TIER_HIERARCHY: Record<SyncTier, SyncTier[]> = {
-  high: ['high'],
-  medium: ['high', 'medium'],
-  full: ['high', 'medium', 'full'],
-  confirmation: ['high'], // 确认同步只同步广告活动状态
+  high: ['high'],                    // 高频：只执行high专有步骤
+  medium: ['medium'],                // 中频：只执行medium专有步骤（不再重复high层）
+  full: ['high', 'medium', 'full'],  // 完整：执行所有层级步骤
+  confirmation: ['high'],            // 确认同步：只同步广告活动状态
 };
 
 // ==================== 引擎状态 ====================
@@ -864,7 +901,7 @@ const engineStatus: EngineStatus = {
 
 // 并发控制
 const MAX_CONCURRENT_ACCOUNTS = 3;
-const activeSyncs = new Map<number, { tier: SyncTier; startTime: Date }>();
+const activeSyncs = new Map<string, { tier: SyncTier; startTime: Date }>();
 
 // 导出速率控制器供外部使用
 export function getRateController(): ApiRateController {
@@ -983,23 +1020,49 @@ export async function syncAccount(
     stepResults: {},
   };
 
-  // 并发检查
-  if (activeSyncs.has(account.accountId)) {
-    const existing = activeSyncs.get(account.accountId)!;
-    // 如果已经有同层级或更高层级的同步在运行，跳过
+  // v221: 层级感知的并发控制
+  // 不同层级的同步可以并行执行（high和medium不互相阻塞）
+  // 只有同一层级的同步才会被跳过
+  // full层同步会阻塞所有其他层级（因为它包含所有步骤）
+  const lockKey = `${account.accountId}:${tier}`;
+  const accountLocks = Array.from(activeSyncs.entries())
+    .filter(([key]) => key.startsWith(`${account.accountId}:`));
+  
+  for (const [existingKey, existing] of accountLocks) {
+    const existingTier = existingKey.split(':')[1];
     const runningMinutes = (Date.now() - existing.startTime.getTime()) / 60000;
-    if (runningMinutes < 30) { // 30分钟超时保护
-      log.info(`[UnifiedSync] 账户 ${account.accountId} 已有${existing.tier}层同步在运行（${runningMinutes.toFixed(1)}分钟），跳过`);
-      result.errors.push(`已有${existing.tier}层同步在运行`);
+    
+    // 超时保护：30分钟后强制释放
+    if (runningMinutes >= 30) {
+      log.warn(`[UnifiedSync] 账户 ${account.accountId} 的${existingTier}层同步已超时（${runningMinutes.toFixed(1)}分钟），强制释放`);
+      activeSyncs.delete(existingKey);
+      continue;
+    }
+    
+    // 同一层级的同步在运行，跳过
+    if (existingTier === tier) {
+      log.info(`[UnifiedSync] 账户 ${account.accountId} 已有${existingTier}层同步在运行（${runningMinutes.toFixed(1)}分钟），跳过`);
+      result.errors.push(`已有${existingTier}层同步在运行`);
       return result;
-    } else {
-      log.warn(`[UnifiedSync] 账户 ${account.accountId} 的${existing.tier}层同步已超时（${runningMinutes.toFixed(1)}分钟），强制释放`);
-      activeSyncs.delete(account.accountId);
+    }
+    
+    // full层同步在运行时，阻塞其他所有层级
+    if (existingTier === 'full') {
+      log.info(`[UnifiedSync] 账户 ${account.accountId} 已有full层同步在运行（${runningMinutes.toFixed(1)}分钟），${tier}层跳过`);
+      result.errors.push(`已有full层同步在运行`);
+      return result;
+    }
+    
+    // 当前是full层，但有其他层级在运行，等待它们完成
+    if (tier === 'full' && existingTier !== 'full') {
+      log.info(`[UnifiedSync] 账户 ${account.accountId} 有${existingTier}层同步在运行，full层等待其完成`);
+      result.errors.push(`等待${existingTier}层同步完成`);
+      return result;
     }
   }
 
-  // 注册活跃同步
-  activeSyncs.set(account.accountId, { tier, startTime });
+  // 注册活跃同步（使用层级感知的key）
+  activeSyncs.set(lockKey, { tier, startTime });
   engineStatus.currentlyRunning.push({ accountId: account.accountId, tier, step: 'initializing' });
 
   try {
@@ -1137,9 +1200,10 @@ export async function syncAccount(
     log.error(`[UnifiedSync] 账户 ${account.accountId} 同步初始化失败: ${error.message}`);
   } finally {
     // 清理
-    activeSyncs.delete(account.accountId);
+    activeSyncs.delete(lockKey);
+    // v221: 只清理当前层级的条目，不影响其他层级的并行同步
     engineStatus.currentlyRunning = engineStatus.currentlyRunning.filter(
-      r => r.accountId !== account.accountId
+      r => !(r.accountId === account.accountId && r.tier === tier)
     );
 
     result.endTime = new Date();
@@ -1434,14 +1498,21 @@ export async function triggerManualFullSync(
  * 检查账户是否正在同步
  */
 export function isAccountSyncing(accountId: number): boolean {
-  return activeSyncs.has(accountId);
+  // v221: 检查该账户是否有任何层级的同步在运行
+  return Array.from(activeSyncs.keys()).some(key => key.startsWith(`${accountId}:`));
 }
 
 /**
  * 获取账户当前同步状态
  */
 export function getAccountSyncStatus(accountId: number): { tier: SyncTier; startTime: Date } | null {
-  return activeSyncs.get(accountId) || null;
+  // v221: 查找该账户任何层级的活跃同步
+  for (const [key, value] of activeSyncs.entries()) {
+    if (key.startsWith(`${accountId}:`)) {
+      return value;
+    }
+  }
+  return null;
 }
 
 function sleep(ms: number): Promise<void> {

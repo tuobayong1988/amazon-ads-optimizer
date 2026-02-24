@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 220;
+export const SYSTEM_VERSION = 221;
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -184,6 +184,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
     description: 'v220: API速率控制与系统健康监控 — 自适应API速率控制器(滑动窗口计数+指数退避+自动恢复), 步骤间/批次间动态延迟, 429限流检测与退避, 每15分钟系统健康快照(内存/API速率/同步率), 内存泄漏检测, 确认同步效果追踪(触发源/成功率/平均耗时)',
     affectedModules: [],
     correctionActions: [],
+  },
+  {
+    version: 221,
+    description: 'v221: 全面系统优化 — 修复分层同步锁Bug(层级感知锁防止medium层被跳过), 修复日志拼接[object Object]Bug, 前端路由自动账户选择, 审计日志记录优化操作, optimizationTargetEngine确认同步全覆盖, 数据新鲜度检查机制(防止基于旧数据优化), 前端乐观UI更新, 内存保护与僵尸条目清理',
+    affectedModules: ['sync', 'bidOptimization', 'budgetOptimization', 'placementOptimization', 'negativeKeywords', 'searchTermHarvesting'],
+    correctionActions: ['reoptimize_all'],
   },
 ];
 

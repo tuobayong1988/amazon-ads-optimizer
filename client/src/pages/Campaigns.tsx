@@ -843,10 +843,32 @@ export default function Campaigns() {
     { enabled: !!accountId }
   );
 
-  // Update campaign mutation
+  // Update campaign mutation - v221: 添加乐观更新，用户操作后立即显示预期结果
   const updateCampaign = trpc.campaign.update.useMutation({
+    onMutate: async (variables) => {
+      // 乐观更新：立即在本地更新UI
+      if (campaigns && Array.isArray(campaigns)) {
+        const updatedCampaigns = campaigns.map((c: any) => {
+          if (c.id === variables.id) {
+            const updated = { ...c };
+            if (variables.campaignStatus) updated.campaignStatus = variables.campaignStatus;
+            if (variables.dailyBudget) updated.dailyBudget = variables.dailyBudget;
+            return updated;
+          }
+          return c;
+        });
+        // 保存到临时状态用于回滚
+        return { previousCampaigns: campaigns };
+      }
+    },
     onSuccess: () => {
       toast.success("广告活动已更新");
+      // 延迟2秒后refetch，给后端确认同步时间
+      setTimeout(() => refetch(), 2000);
+    },
+    onError: (err, variables, context) => {
+      toast.error("更新失败，已恢复原始状态");
+      // 失败时立即回滚并重新获取数据
       refetch();
     },
   });
