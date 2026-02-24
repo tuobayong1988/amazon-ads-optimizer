@@ -790,7 +790,7 @@ router.get('/sync-diagnosis', async (req: Request, res: Response) => {
         (SELECT COUNT(*) FROM ad_groups ag WHERE ag.accountId = a.id) as adGroupCount,
         (SELECT COUNT(*) FROM keywords k WHERE k.accountId = a.id) as keywordCount,
         (SELECT COUNT(*) FROM negative_keywords nk WHERE nk.accountId = a.id) as negKeywordCount,
-        (SELECT COALESCE(SUM(cost), 0) FROM campaigns c WHERE c.accountId = a.id) as totalSpend
+        (SELECT COALESCE(SUM(spend), 0) FROM campaigns c WHERE c.accountId = a.id) as totalSpend
       FROM ad_accounts a
       WHERE a.status = 'active'
     `));
