@@ -970,12 +970,12 @@ router.get('/nextgen-monitor', opsAuth, async (req: Request, res: Response) => {
         AND change_reason LIKE '%RL探索%'
     `));
     
-    // 5. Sigmoid拟合和特征缓存状态
+    // 5. Sigmoid拟合和特征缓存状态 (v242b: 修正表名为 contextual_features)
     const sigmoidCount = await db.execute(sql.raw(`
-      SELECT COUNT(*) as cnt FROM sigmoid_curve_params WHERE updated_at >= '${since}'
+      SELECT COUNT(*) as cnt FROM contextual_features WHERE curve_updated_at >= '${since}' AND sigmoid_l IS NOT NULL
     `));
     const featureCount = await db.execute(sql.raw(`
-      SELECT COUNT(*) as cnt FROM context_feature_cache WHERE updated_at >= '${since}'
+      SELECT COUNT(*) as cnt FROM contextual_features WHERE updated_at >= '${since}'
     `));
     
     // 6. 模块执行时间概览（从内存中获取）

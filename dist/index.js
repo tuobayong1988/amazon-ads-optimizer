@@ -377854,10 +377854,10 @@ router3.get("/nextgen-monitor", opsAuth, async (req, res) => {
         AND change_reason LIKE '%RL\u63A2\u7D22%'
     `));
     const sigmoidCount = await db.execute(sql.raw(`
-      SELECT COUNT(*) as cnt FROM sigmoid_curve_params WHERE updated_at >= '${since}'
+      SELECT COUNT(*) as cnt FROM contextual_features WHERE curve_updated_at >= '${since}' AND sigmoid_l IS NOT NULL
     `));
     const featureCount = await db.execute(sql.raw(`
-      SELECT COUNT(*) as cnt FROM context_feature_cache WHERE updated_at >= '${since}'
+      SELECT COUNT(*) as cnt FROM contextual_features WHERE updated_at >= '${since}'
     `));
     const opsLogs = opsCollector.query({
       category: "optimization",
