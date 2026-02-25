@@ -14,32 +14,21 @@ async function ensurePreferencesColumn(db: any) {
   if (columnEnsured) return;
   
   try {
-    // 检查列是否已存在（MySQL兼容方式）
-    const [rows] = await db.execute(sql`
-      SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
-      WHERE TABLE_NAME = 'users' AND COLUMN_NAME = 'preferences'
-      LIMIT 1
-    `);
-    
-    if (!rows || !(rows as any).COLUMN_NAME) {
-      // 列不存在，添加它
-      await db.execute(sql`ALTER TABLE users ADD COLUMN preferences JSON DEFAULT NULL`);
-      console.log('[User] preferences column added to users table');
-    }
-    
+    // 直接尝试查询 preferences 列，如果不存在会报错
+    await db.execute(sql`SELECT preferences FROM users LIMIT 1`);
     columnEnsured = true;
   } catch (error: any) {
-    // 如果列已存在，MySQL会报 Duplicate column name 错误，这是安全的
-    if (error?.message?.includes('Duplicate column')) {
+    // 列不存在，添加它
+    try {
+      await db.execute(sql`ALTER TABLE users ADD COLUMN preferences JSON DEFAULT NULL`);
+      console.log('[User] preferences column added to users table');
       columnEnsured = true;
-    } else {
-      console.warn('[User] Failed to ensure preferences column:', error?.message);
-      // 尝试直接标记为已确认（可能列已存在但查询方式不同）
-      try {
-        await db.execute(sql`SELECT preferences FROM users LIMIT 1`);
+    } catch (alterError: any) {
+      if (alterError?.message?.includes('Duplicate column')) {
         columnEnsured = true;
-      } catch {
-        throw error;
+      } else {
+        console.error('[User] Failed to add preferences column:', alterError?.message);
+        throw alterError;
       }
     }
   }
@@ -54,14 +43,15 @@ export const userRouter = router({
     try {
       await ensurePreferencesColumn(db);
       
-      const rows = await db.execute(
+      // drizzle-orm/mysql2 的 db.execute() 返回 [rows, fields] 元组
+      const [rows] = await db.execute(
         sql`SELECT preferences FROM users WHERE id = ${ctx.user.id} LIMIT 1`
-      );
+      ) as any;
       
-      const row = Array.isArray(rows) ? rows[0] : (rows as any)?.rows?.[0];
+      const row = Array.isArray(rows) ? rows[0] : rows;
       
-      if (row && (row as any).preferences) {
-        const prefs = (row as any).preferences;
+      if (row && row.preferences) {
+        const prefs = row.preferences;
         return typeof prefs === 'string' ? JSON.parse(prefs) : prefs;
       }
       return {};
@@ -84,16 +74,16 @@ export const userRouter = router({
       try {
         await ensurePreferencesColumn(db);
         
-        // 获取当前偏好
-        const rows = await db.execute(
+        // 获取当前偏好 - 使用正确的 [rows, fields] 解构
+        const [rows] = await db.execute(
           sql`SELECT preferences FROM users WHERE id = ${ctx.user.id} LIMIT 1`
-        );
+        ) as any;
         
-        const row = Array.isArray(rows) ? rows[0] : (rows as any)?.rows?.[0];
+        const row = Array.isArray(rows) ? rows[0] : rows;
         
         let currentPrefs: Record<string, any> = {};
-        if (row && (row as any).preferences) {
-          const prefs = (row as any).preferences;
+        if (row && row.preferences) {
+          const prefs = row.preferences;
           currentPrefs = typeof prefs === 'string' ? JSON.parse(prefs) : prefs;
         }
         
@@ -110,7 +100,7 @@ export const userRouter = router({
         console.log(`[User] Preferences updated for user ${ctx.user.id}, key: ${input.key}`);
         return { success: true };
       } catch (error: any) {
-        console.error('[User] Failed to update preferences:', error?.message, error?.stack?.split('\n').slice(0, 3).join('\n'));
+        console.error('[User] Failed to update preferences:', error?.message);
         return { success: false, error: error?.message };
       }
     }),
