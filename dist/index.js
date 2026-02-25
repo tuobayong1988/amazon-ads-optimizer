@@ -367026,50 +367026,36 @@ async function ensurePreferencesColumn(db) {
       if (alterError?.message?.includes("Duplicate column")) {
         columnEnsured = true;
       } else {
-        console.error("[User] Failed to add preferences column:", alterError?.message);
         throw alterError;
       }
     }
   }
 }
 var userRouter = router({
-  // 获取用户偏好设置 - 带调试信息
+  // 获取用户偏好设置
   getPreferences: protectedProcedure.query(async ({ ctx }) => {
     const db = await getDb();
     if (!db) return {};
     try {
       await ensurePreferencesColumn(db);
       const result2 = await db.execute(
-        sql`SELECT preferences FROM users WHERE id = ${ctx.user.id} LIMIT 1`
+        sql`SELECT id, preferences FROM users WHERE id = ${ctx.user.id} LIMIT 1`
       );
-      const debugInfo = {
-        resultType: typeof result2,
-        isArray: Array.isArray(result2),
-        length: Array.isArray(result2) ? result2.length : void 0
-      };
-      let rows;
-      if (Array.isArray(result2) && result2.length >= 1) {
-        rows = result2[0];
-        debugInfo.firstElementType = typeof rows;
-        debugInfo.firstElementIsArray = Array.isArray(rows);
-        if (Array.isArray(rows) && rows.length > 0) {
-          debugInfo.firstRow = JSON.stringify(rows[0]);
-          debugInfo.firstRowKeys = Object.keys(rows[0] || {});
-          const prefs = rows[0]?.preferences;
-          debugInfo.prefsType = typeof prefs;
-          debugInfo.prefsValue = typeof prefs === "string" ? prefs.substring(0, 100) : JSON.stringify(prefs)?.substring(0, 100);
-          if (prefs) {
-            return typeof prefs === "string" ? JSON.parse(prefs) : prefs;
-          }
+      const rows = result2[0];
+      if (Array.isArray(rows) && rows.length > 0) {
+        const row = rows[0];
+        if (row.preferences) {
+          const prefs = row.preferences;
+          return typeof prefs === "string" ? JSON.parse(prefs) : prefs;
         }
+        return { _debug: { foundUser: true, userId: row.id, prefsIsNull: true } };
       }
-      return { _debug: debugInfo };
+      return { _debug: { foundUser: false, searchedId: ctx.user.id, ctxUserType: typeof ctx.user.id } };
     } catch (error54) {
-      console.warn("[User] Failed to get preferences:", error54?.message);
       return { _error: error54?.message };
     }
   }),
-  // 更新用户偏好设置 - 带调试信息
+  // 更新用户偏好设置
   updatePreferences: protectedProcedure.input(external_exports.object({
     key: external_exports.string(),
     value: external_exports.any()
@@ -367079,10 +367065,10 @@ var userRouter = router({
     try {
       await ensurePreferencesColumn(db);
       const result2 = await db.execute(
-        sql`SELECT preferences FROM users WHERE id = ${ctx.user.id} LIMIT 1`
+        sql`SELECT id, preferences FROM users WHERE id = ${ctx.user.id} LIMIT 1`
       );
-      let rows = Array.isArray(result2) && result2.length >= 1 ? result2[0] : result2;
-      let row = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+      const rows = result2[0];
+      const row = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
       let currentPrefs = {};
       if (row && row.preferences) {
         const prefs = row.preferences;
@@ -367090,26 +367076,35 @@ var userRouter = router({
       }
       currentPrefs[input.key] = input.value;
       const prefsJson = JSON.stringify(currentPrefs);
-      await db.execute(
-        sql`UPDATE users SET preferences = CAST(${prefsJson} AS JSON) WHERE id = ${ctx.user.id}`
+      const updateResult = await db.execute(
+        sql`UPDATE users SET preferences = ${prefsJson} WHERE id = ${ctx.user.id}`
       );
+      const affectedRows = updateResult[0]?.affectedRows ?? updateResult?.affectedRows ?? "unknown";
+      if (affectedRows === 0 || affectedRows === "unknown") {
+        await db.execute(sql.raw(
+          `UPDATE users SET preferences = '${prefsJson.replace(/'/g, "\\'")}' WHERE id = ${ctx.user.id}`
+        ));
+      }
       const verifyResult = await db.execute(
         sql`SELECT preferences FROM users WHERE id = ${ctx.user.id} LIMIT 1`
       );
-      let verifyRows = Array.isArray(verifyResult) && verifyResult.length >= 1 ? verifyResult[0] : verifyResult;
-      let verifyRow = Array.isArray(verifyRows) && verifyRows.length > 0 ? verifyRows[0] : null;
+      const verifyRow = verifyResult[0]?.[0];
       return {
         success: true,
         _debug: {
-          wrote: prefsJson.substring(0, 100),
-          readBack: verifyRow?.preferences ? JSON.stringify(verifyRow.preferences).substring(0, 100) : "null",
-          readBackType: typeof verifyRow?.preferences,
-          userId: ctx.user.id
+          affectedRows,
+          userId: ctx.user.id,
+          userIdType: typeof ctx.user.id,
+          foundUser: !!row,
+          foundUserId: row?.id,
+          wrote: prefsJson.substring(0, 80),
+          verifyPrefs: verifyRow?.preferences ? "has_data" : "null",
+          verifyPrefsType: typeof verifyRow?.preferences,
+          updateResultKeys: Object.keys(updateResult[0] || {})
         }
       };
     } catch (error54) {
-      console.error("[User] Failed to update preferences:", error54?.message);
-      return { success: false, error: error54?.message };
+      return { success: false, error: error54?.message, stack: error54?.stack?.split("\n").slice(0, 3) };
     }
   })
 });
