@@ -855,15 +855,14 @@ function DashboardContent() {
                       <div
                         ref={provided.innerRef}
                         {...provided.draggableProps}
-                        className={`group relative ${snapshot.isDragging ? 'z-50 opacity-90 shadow-2xl shadow-primary/20 scale-[1.01]' : ''} transition-shadow`}
+                        {...provided.dragHandleProps}
+                        className={`group relative cursor-grab active:cursor-grabbing rounded-xl ${snapshot.isDragging ? 'z-50 opacity-90 shadow-2xl shadow-primary/20 scale-[1.01] ring-2 ring-primary/40' : 'hover:ring-1 hover:ring-border/50'} transition-all duration-200`}
                       >
-                        {/* 拖拽手柄 */}
-                        <div
-                          {...provided.dragHandleProps}
-                          className="absolute -left-2 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing bg-background/80 backdrop-blur-sm border border-border/50 rounded-md p-1 hover:bg-primary/10 hover:border-primary/30"
-                          title="拖拽调整顺序"
-                        >
-                          <GripVertical className="w-4 h-4 text-muted-foreground" />
+                        {/* 拖拽指示条 - hover时显示在卡片顶部 */}
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center gap-2 py-1.5 text-xs text-muted-foreground">
+                          <GripVertical className="w-3.5 h-3.5" />
+                          <span>拖拽调整顺序</span>
+                          <GripVertical className="w-3.5 h-3.5" />
                         </div>
                         
                         {/* 卡片内容 */}
