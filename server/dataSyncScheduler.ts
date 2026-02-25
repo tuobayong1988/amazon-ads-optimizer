@@ -1353,17 +1353,12 @@ export async function startOptimizationScheduler(): Promise<void> {
         }
       }
       
-      // 回退方案：使用 last_optimization_at
-      if (!moduleTimesRestored && target.lastExecutionTime) {
-        const modules = ['bid', 'negativeKeyword', 'searchTermHarvest', 'placement', 'budget', 'dayparting'];
-        for (const mod of modules) {
-          const key = `${target.id}:${mod}`;
-          if (!moduleLastExecutionMap.has(key)) {
-            moduleLastExecutionMap.set(key, target.lastExecutionTime);
-          }
-        }
+      // v242f: 回退方案优化 - 不再使用 last_optimization_at 填充模块执行时间
+      // 原因：PostDeploy会更新last_optimization_at为当前时间，导致所有模块被误判为“刚执行过”
+      // 新策略：不填充任何值，让shouldExecuteModule的“首次执行”逻辑生效（lastExecutedAt=null时返回true）
+      if (!moduleTimesRestored) {
         restoredFromFallback++;
-        log.info(`[OptimizationScheduler] v242: 回退恢复 ${target.name} 的模块执行时间: ${target.lastExecutionTime.toISOString()}`);
+        log.info(`[OptimizationScheduler] v242f: ${target.name} 无模块执行时间记录，将允许首次执行 (不再使用last_optimization_at回退)`);
       }
     }
     log.info(`[OptimizationScheduler] v242: 已恢复 ${moduleLastExecutionMap.size} 个模块执行时间记录 (JSON精确恢复=${restoredFromJson}, 回退恢复=${restoredFromFallback})`);

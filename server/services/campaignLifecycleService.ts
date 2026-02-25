@@ -114,7 +114,7 @@ export const LIFECYCLE_CONFIGS: Record<LifecycleStage, LifecycleOptimizationConf
   launch: {
     stage: 'launch',
     bid: {
-      intervalHours: 4,           // 每4小时检查一次，快速响应
+      intervalHours: 2,           // v242f: 每2小时检查一次（与调度器频率一致），避免部署重启导致跳过
       lookbackDays: 3,            // 只看近3天数据，快速迭代
       minClicksForAction: 5,     // 5次点击就可以做初步判断
       maxAdjustmentPercent: 10,   // 单次最多调整10%，小步快跑
@@ -221,17 +221,16 @@ export function determineCampaignLifecycle(campaign: any): CampaignLifecycleInfo
   let stage: LifecycleStage;
   let reason: string;
   
-  // 判断逻辑：任一条件满足"启动期"标准，则为启动期
+  // v242f: 判断逻辑优化 - 仅当创建时间<14天时才判定为启动期
+  // 之前使用OR逻辑，导致转化次数不足的老广告也被判定为launch，受到4小时间隔限制
   if (
-    daysSinceCreation < LIFECYCLE_THRESHOLDS.launch.maxDays ||
-    totalClicks < LIFECYCLE_THRESHOLDS.launch.maxClicks ||
-    totalOrders < LIFECYCLE_THRESHOLDS.launch.maxOrders
+    daysSinceCreation < LIFECYCLE_THRESHOLDS.launch.maxDays &&
+    (totalClicks < LIFECYCLE_THRESHOLDS.launch.maxClicks ||
+     totalOrders < LIFECYCLE_THRESHOLDS.launch.maxOrders)
   ) {
     stage = 'launch';
     const reasons: string[] = [];
-    if (daysSinceCreation < LIFECYCLE_THRESHOLDS.launch.maxDays) {
-      reasons.push(`创建仅${daysSinceCreation}天(<${LIFECYCLE_THRESHOLDS.launch.maxDays}天)`);
-    }
+    reasons.push(`创建仅${daysSinceCreation}天(<${LIFECYCLE_THRESHOLDS.launch.maxDays}天)`);
     if (totalClicks < LIFECYCLE_THRESHOLDS.launch.maxClicks) {
       reasons.push(`累计点击${totalClicks}次(<${LIFECYCLE_THRESHOLDS.launch.maxClicks}次)`);
     }

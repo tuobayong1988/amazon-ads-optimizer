@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 242;
+export const SYSTEM_VERSION = 243;
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -231,6 +231,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 242,
     description: 'v242: [系统性修复] — (1)规则引擎精度感知调整: 引入最小有效调整量$0.02，避免微调被四舍五入吃掉 (2)RL冷启动探索策略优化: 探索率自适应调整，加速数据积累 (3)调度状态持久化: 模块执行时间持久化到数据库，彻底解决部署重启导致定时任务被跳过 (4)关键词同步修复: 增强错误日志序列化+重试机制+并发控制 (5)数据库迁移: 新增module_execution_times字段',
+    affectedModules: ['bid'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 243,
+    description: 'v243: [死锁修复] — (1)生命周期判定优化: OR改为AND逻辑，避免老广告永久停留在launch阶段 (2)launch阶段bid间隔4h降为2h (3)模块执行时间恢复策略优化: 不再使用last_optimization_at回退填充，避免PostDeploy更新时间导致死锁 (4)PostDeploy强制初始化module_execution_times',
     affectedModules: ['bid'],
     correctionActions: ['rerun_optimization'],
   },
