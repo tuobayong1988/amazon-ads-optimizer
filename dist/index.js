@@ -367015,12 +367015,12 @@ var columnEnsured = false;
 async function ensurePreferencesColumn(db) {
   if (columnEnsured) return;
   try {
-    await db.execute(sql`SELECT preferences FROM users LIMIT 1`);
+    await db.execute(sql`SELECT preferences FROM team_members LIMIT 1`);
     columnEnsured = true;
   } catch (error54) {
     try {
-      await db.execute(sql`ALTER TABLE users ADD COLUMN preferences JSON DEFAULT NULL`);
-      console.log("[User] preferences column added to users table");
+      await db.execute(sql`ALTER TABLE team_members ADD COLUMN preferences JSON DEFAULT NULL`);
+      console.log("[User] preferences column added to team_members table");
       columnEnsured = true;
     } catch (alterError) {
       if (alterError?.message?.includes("Duplicate column")) {
@@ -367039,20 +367039,19 @@ var userRouter = router({
     try {
       await ensurePreferencesColumn(db);
       const result2 = await db.execute(
-        sql`SELECT id, preferences FROM users WHERE id = ${ctx.user.id} LIMIT 1`
+        sql`SELECT preferences FROM team_members WHERE id = ${ctx.user.id} LIMIT 1`
       );
       const rows = result2[0];
       if (Array.isArray(rows) && rows.length > 0) {
-        const row = rows[0];
-        if (row.preferences) {
-          const prefs = row.preferences;
+        const prefs = rows[0].preferences;
+        if (prefs) {
           return typeof prefs === "string" ? JSON.parse(prefs) : prefs;
         }
-        return { _debug: { foundUser: true, userId: row.id, prefsIsNull: true } };
       }
-      return { _debug: { foundUser: false, searchedId: ctx.user.id, ctxUserType: typeof ctx.user.id } };
+      return {};
     } catch (error54) {
-      return { _error: error54?.message };
+      console.warn("[User] Failed to get preferences:", error54?.message);
+      return {};
     }
   }),
   // 更新用户偏好设置
@@ -367065,7 +367064,7 @@ var userRouter = router({
     try {
       await ensurePreferencesColumn(db);
       const result2 = await db.execute(
-        sql`SELECT id, preferences FROM users WHERE id = ${ctx.user.id} LIMIT 1`
+        sql`SELECT preferences FROM team_members WHERE id = ${ctx.user.id} LIMIT 1`
       );
       const rows = result2[0];
       const row = Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
@@ -367077,34 +367076,18 @@ var userRouter = router({
       currentPrefs[input.key] = input.value;
       const prefsJson = JSON.stringify(currentPrefs);
       const updateResult = await db.execute(
-        sql`UPDATE users SET preferences = ${prefsJson} WHERE id = ${ctx.user.id}`
+        sql`UPDATE team_members SET preferences = ${prefsJson} WHERE id = ${ctx.user.id}`
       );
-      const affectedRows = updateResult[0]?.affectedRows ?? updateResult?.affectedRows ?? "unknown";
-      if (affectedRows === 0 || affectedRows === "unknown") {
-        await db.execute(sql.raw(
-          `UPDATE users SET preferences = '${prefsJson.replace(/'/g, "\\'")}' WHERE id = ${ctx.user.id}`
-        ));
+      const affectedRows = updateResult[0]?.affectedRows ?? 0;
+      if (affectedRows === 0) {
+        console.warn(`[User] No rows affected when updating preferences for user ${ctx.user.id}`);
+        return { success: false, error: "User not found" };
       }
-      const verifyResult = await db.execute(
-        sql`SELECT preferences FROM users WHERE id = ${ctx.user.id} LIMIT 1`
-      );
-      const verifyRow = verifyResult[0]?.[0];
-      return {
-        success: true,
-        _debug: {
-          affectedRows,
-          userId: ctx.user.id,
-          userIdType: typeof ctx.user.id,
-          foundUser: !!row,
-          foundUserId: row?.id,
-          wrote: prefsJson.substring(0, 80),
-          verifyPrefs: verifyRow?.preferences ? "has_data" : "null",
-          verifyPrefsType: typeof verifyRow?.preferences,
-          updateResultKeys: Object.keys(updateResult[0] || {})
-        }
-      };
+      console.log(`[User] Preferences updated for user ${ctx.user.id}, key: ${input.key}`);
+      return { success: true };
     } catch (error54) {
-      return { success: false, error: error54?.message, stack: error54?.stack?.split("\n").slice(0, 3) };
+      console.error("[User] Failed to update preferences:", error54?.message);
+      return { success: false, error: error54?.message };
     }
   })
 });

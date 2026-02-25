@@ -1,25 +1,25 @@
 /**
  * 用户偏好路由
- * v234: 支持用户自定义Dashboard布局等偏好设置
+ * v234.5: 修复 - 使用team_members表（ctx.user.id来自team_members而非users表）
  */
 import { protectedProcedure, router } from "../_core/trpc";
 import { z } from "zod";
 import { getDb } from "../db";
 import { sql } from "drizzle-orm";
 
-// 缓存：是否已确认 preferences 列存在
+// 缓存：是否已确认 preferences 列存在于 team_members 表
 let columnEnsured = false;
 
 async function ensurePreferencesColumn(db: any) {
   if (columnEnsured) return;
   
   try {
-    await db.execute(sql`SELECT preferences FROM users LIMIT 1`);
+    await db.execute(sql`SELECT preferences FROM team_members LIMIT 1`);
     columnEnsured = true;
   } catch (error: any) {
     try {
-      await db.execute(sql`ALTER TABLE users ADD COLUMN preferences JSON DEFAULT NULL`);
-      console.log('[User] preferences column added to users table');
+      await db.execute(sql`ALTER TABLE team_members ADD COLUMN preferences JSON DEFAULT NULL`);
+      console.log('[User] preferences column added to team_members table');
       columnEnsured = true;
     } catch (alterError: any) {
       if (alterError?.message?.includes('Duplicate column')) {
@@ -41,26 +41,21 @@ export const userRouter = router({
       await ensurePreferencesColumn(db);
       
       const result = await db.execute(
-        sql`SELECT id, preferences FROM users WHERE id = ${ctx.user.id} LIMIT 1`
+        sql`SELECT preferences FROM team_members WHERE id = ${ctx.user.id} LIMIT 1`
       ) as any;
       
-      // result = [rows, fields] for mysql2
+      // drizzle-orm/mysql2 返回 [rows, fields]
       const rows = result[0];
-      
       if (Array.isArray(rows) && rows.length > 0) {
-        const row = rows[0];
-        if (row.preferences) {
-          const prefs = row.preferences;
+        const prefs = rows[0].preferences;
+        if (prefs) {
           return typeof prefs === 'string' ? JSON.parse(prefs) : prefs;
         }
-        // 有行但preferences为null
-        return { _debug: { foundUser: true, userId: row.id, prefsIsNull: true } };
       }
-      
-      // 没找到用户
-      return { _debug: { foundUser: false, searchedId: ctx.user.id, ctxUserType: typeof ctx.user.id } };
+      return {};
     } catch (error: any) {
-      return { _error: error?.message };
+      console.warn('[User] Failed to get preferences:', error?.message);
+      return {};
     }
   }),
 
@@ -79,7 +74,7 @@ export const userRouter = router({
         
         // 获取当前偏好
         const result = await db.execute(
-          sql`SELECT id, preferences FROM users WHERE id = ${ctx.user.id} LIMIT 1`
+          sql`SELECT preferences FROM team_members WHERE id = ${ctx.user.id} LIMIT 1`
         ) as any;
         
         const rows = result[0];
@@ -95,44 +90,23 @@ export const userRouter = router({
         currentPrefs[input.key] = input.value;
         const prefsJson = JSON.stringify(currentPrefs);
         
-        // 方法1: 使用JSON_SET或直接赋值（不用CAST）
+        // 保存到team_members表
         const updateResult = await db.execute(
-          sql`UPDATE users SET preferences = ${prefsJson} WHERE id = ${ctx.user.id}`
+          sql`UPDATE team_members SET preferences = ${prefsJson} WHERE id = ${ctx.user.id}`
         ) as any;
         
-        // 检查影响行数
-        const affectedRows = updateResult[0]?.affectedRows ?? updateResult?.affectedRows ?? 'unknown';
+        const affectedRows = updateResult[0]?.affectedRows ?? 0;
         
-        // 如果方法1不行，尝试使用raw SQL
-        if (affectedRows === 0 || affectedRows === 'unknown') {
-          // 尝试直接用raw SQL
-          await db.execute(sql.raw(
-            `UPDATE users SET preferences = '${prefsJson.replace(/'/g, "\\'")}' WHERE id = ${ctx.user.id}`
-          ));
+        if (affectedRows === 0) {
+          console.warn(`[User] No rows affected when updating preferences for user ${ctx.user.id}`);
+          return { success: false, error: 'User not found' };
         }
         
-        // 验证
-        const verifyResult = await db.execute(
-          sql`SELECT preferences FROM users WHERE id = ${ctx.user.id} LIMIT 1`
-        ) as any;
-        const verifyRow = verifyResult[0]?.[0];
-        
-        return { 
-          success: true, 
-          _debug: {
-            affectedRows,
-            userId: ctx.user.id,
-            userIdType: typeof ctx.user.id,
-            foundUser: !!row,
-            foundUserId: row?.id,
-            wrote: prefsJson.substring(0, 80),
-            verifyPrefs: verifyRow?.preferences ? 'has_data' : 'null',
-            verifyPrefsType: typeof verifyRow?.preferences,
-            updateResultKeys: Object.keys(updateResult[0] || {}),
-          }
-        };
+        console.log(`[User] Preferences updated for user ${ctx.user.id}, key: ${input.key}`);
+        return { success: true };
       } catch (error: any) {
-        return { success: false, error: error?.message, stack: error?.stack?.split('\n').slice(0, 3) };
+        console.error('[User] Failed to update preferences:', error?.message);
+        return { success: false, error: error?.message };
       }
     }),
 });
