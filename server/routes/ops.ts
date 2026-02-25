@@ -897,4 +897,180 @@ function extractCount(result: any): number {
   return result.cnt ?? result.total ?? result.count ?? 0;
 }
 
+// ============================================================
+// v241: GET /api/ops/nextgen-monitor — NextGen算法监控仪表板
+// 监控实际调整数量、高级算法激活率、RL冷启动状态
+// ============================================================
+
+router.get('/nextgen-monitor', opsAuth, async (req: Request, res: Response) => {
+  try {
+    const db = await getDb();
+    if (!db) {
+      res.status(503).json({ error: 'Database not available' });
+      return;
+    }
+    
+    const hoursBack = parseInt(req.query.hours as string) || 24;
+    const since = new Date(Date.now() - hoursBack * 3600000).toISOString();
+    
+    // 1. 今日出价优化统计
+    const bidStats = await db.execute(sql.raw(`
+      SELECT 
+        COUNT(*) as total_events,
+        SUM(CASE WHEN action_type = 'bid_adjustment' AND previous_value != new_value THEN 1 ELSE 0 END) as actual_adjustments,
+        SUM(CASE WHEN action_type = 'bid_adjustment' AND previous_value = new_value THEN 1 ELSE 0 END) as hold_count,
+        SUM(CASE WHEN api_sync_status = 'synced' THEN 1 ELSE 0 END) as api_synced,
+        SUM(CASE WHEN api_sync_status = 'failed' THEN 1 ELSE 0 END) as api_failed,
+        SUM(CASE WHEN api_sync_status = 'pending' THEN 1 ELSE 0 END) as api_pending
+      FROM optimization_logs 
+      WHERE created_at >= '${since}'
+        AND action_type IN ('bid_adjustment', 'bid_optimization')
+    `));
+    
+    // 2. 算法分布统计
+    const algorithmStats = await db.execute(sql.raw(`
+      SELECT 
+        algorithm_version,
+        COUNT(*) as count,
+        SUM(CASE WHEN previous_value != new_value THEN 1 ELSE 0 END) as effective_count
+      FROM optimization_logs 
+      WHERE created_at >= '${since}'
+        AND action_type IN ('bid_adjustment', 'bid_optimization')
+      GROUP BY algorithm_version
+      ORDER BY count DESC
+    `));
+    
+    // 3. RL训练日志统计
+    const rlStats = await db.execute(sql.raw(`
+      SELECT 
+        COUNT(*) as total_logs,
+        SUM(CASE WHEN reward IS NOT NULL AND reward_filled_at IS NOT NULL THEN 1 ELSE 0 END) as reward_filled,
+        SUM(CASE WHEN reward IS NULL OR reward_filled_at IS NULL THEN 1 ELSE 0 END) as reward_pending,
+        SUM(CASE WHEN action_type = 'bid_increase' THEN 1 ELSE 0 END) as bid_increase_count,
+        SUM(CASE WHEN action_type = 'bid_decrease' THEN 1 ELSE 0 END) as bid_decrease_count,
+        SUM(CASE WHEN action_type = 'bid_hold' THEN 1 ELSE 0 END) as bid_hold_count,
+        SUM(CASE WHEN action_source = 'linucb' THEN 1 ELSE 0 END) as linucb_count,
+        SUM(CASE WHEN action_source = 'cql' THEN 1 ELSE 0 END) as cql_count,
+        SUM(CASE WHEN action_source = 'rule_based' THEN 1 ELSE 0 END) as rule_based_count
+      FROM rl_training_logs 
+      WHERE created_at >= '${since}'
+    `));
+    
+    // 4. RL冷启动探索统计（通过日志中的探索标记）
+    const explorationStats = await db.execute(sql.raw(`
+      SELECT 
+        COUNT(*) as total_exploration_actions
+      FROM optimization_logs 
+      WHERE created_at >= '${since}'
+        AND change_reason LIKE '%RL探索%'
+    `));
+    
+    // 5. Sigmoid拟合和特征缓存状态
+    const sigmoidCount = await db.execute(sql.raw(`
+      SELECT COUNT(*) as cnt FROM sigmoid_curve_params WHERE updated_at >= '${since}'
+    `));
+    const featureCount = await db.execute(sql.raw(`
+      SELECT COUNT(*) as cnt FROM context_feature_cache WHERE updated_at >= '${since}'
+    `));
+    
+    // 6. 模块执行时间概览（从内存中获取）
+    const opsLogs = opsCollector.query({
+      category: 'optimization' as OpsCategory,
+      keyword: 'NextGen',
+      limit: 20,
+    });
+    
+    const bid = Array.isArray(bidStats) ? (bidStats[0] as any)?.[0] || bidStats[0] : bidStats;
+    const rl = Array.isArray(rlStats) ? (rlStats[0] as any)?.[0] || rlStats[0] : rlStats;
+    const exploration = Array.isArray(explorationStats) ? (explorationStats[0] as any)?.[0] || explorationStats[0] : explorationStats;
+    const sigmoid = extractCount(Array.isArray(sigmoidCount) ? sigmoidCount[0] : sigmoidCount);
+    const features = extractCount(Array.isArray(featureCount) ? featureCount[0] : featureCount);
+    
+    // 计算关键指标
+    const totalBidEvents = Number((bid as any)?.total_events) || 0;
+    const actualAdjustments = Number((bid as any)?.actual_adjustments) || 0;
+    const holdCount = Number((bid as any)?.hold_count) || 0;
+    const effectiveRate = totalBidEvents > 0 ? (actualAdjustments / totalBidEvents * 100).toFixed(1) : '0.0';
+    
+    const totalRLLogs = Number((rl as any)?.total_logs) || 0;
+    const rewardFilled = Number((rl as any)?.reward_filled) || 0;
+    const advancedAlgoCount = Number((rl as any)?.linucb_count || 0) + Number((rl as any)?.cql_count || 0);
+    const advancedRate = totalRLLogs > 0 ? (advancedAlgoCount / totalRLLogs * 100).toFixed(1) : '0.0';
+    
+    const rlExplorationCount = Number((exploration as any)?.total_exploration_actions) || 0;
+    
+    // 健康度评估
+    let healthStatus = 'healthy';
+    const healthIssues: string[] = [];
+    
+    if (parseFloat(effectiveRate) < 10 && totalBidEvents > 10) {
+      healthStatus = 'warning';
+      healthIssues.push(`出价有效率仅${effectiveRate}%，大量调整被判定为hold`);
+    }
+    if (advancedAlgoCount === 0 && totalRLLogs > 50) {
+      healthStatus = 'warning';
+      healthIssues.push('高级算法从未被激活，RL冷启动可能存在问题');
+    }
+    if (rewardFilled === 0 && totalRLLogs > 20) {
+      healthStatus = 'critical';
+      healthIssues.push('Reward回填为0，高级算法无法学习');
+    }
+    
+    res.json({
+      monitorPeriod: `过去${hoursBack}小时`,
+      since,
+      
+      health: {
+        status: healthStatus,
+        issues: healthIssues,
+      },
+      
+      bidOptimization: {
+        totalEvents: totalBidEvents,
+        actualAdjustments,
+        holdCount,
+        effectiveRate: `${effectiveRate}%`,
+        apiSynced: Number((bid as any)?.api_synced) || 0,
+        apiFailed: Number((bid as any)?.api_failed) || 0,
+        apiPending: Number((bid as any)?.api_pending) || 0,
+      },
+      
+      algorithmDistribution: Array.isArray(algorithmStats) 
+        ? (Array.isArray(algorithmStats[0]) ? algorithmStats[0] : algorithmStats)
+        : [],
+      
+      rlColdStart: {
+        totalRLLogs: totalRLLogs,
+        rewardFilled,
+        rewardPending: Number((rl as any)?.reward_pending) || 0,
+        bidIncreaseCount: Number((rl as any)?.bid_increase_count) || 0,
+        bidDecreaseCount: Number((rl as any)?.bid_decrease_count) || 0,
+        bidHoldCount: Number((rl as any)?.bid_hold_count) || 0,
+        explorationActions: rlExplorationCount,
+        advancedAlgorithm: {
+          linucbCount: Number((rl as any)?.linucb_count) || 0,
+          cqlCount: Number((rl as any)?.cql_count) || 0,
+          ruleBasedCount: Number((rl as any)?.rule_based_count) || 0,
+          advancedRate: `${advancedRate}%`,
+        },
+      },
+      
+      modelStatus: {
+        sigmoidFittedRecent: sigmoid,
+        featuresCachedRecent: features,
+      },
+      
+      recentNextGenLogs: opsLogs.map(l => ({
+        timestamp: l.timestamp,
+        level: l.level,
+        message: l.message,
+      })),
+      
+      timestamp: new Date().toISOString(),
+    });
+  } catch (e: any) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 export default router;

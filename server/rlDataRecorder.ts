@@ -267,9 +267,12 @@ export async function backfillRewards(accountId: number): Promise<number> {
   let filledCount = 0;
   
   try {
-    // 查找需要回填Reward的记录（24-72小时前创建，尚未回填）
-    const hoursAgo72 = new Date(Date.now() - 72 * 3600000).toISOString();
-    const hoursAgo24 = new Date(Date.now() - 24 * 3600000).toISOString();
+    // v241: 扩展回填窗口 24-72h → 12-96h
+    // 原因: 24小时的下限导致新部署后的RL日志需要等待太久才能被回填
+    // 扩展到 12小时后即可开始回填，加速冷启动数据积累
+    // 上限扩展到96小时，避免因系统重启导致的回填空窗
+    const hoursAgo96 = new Date(Date.now() - 96 * 3600000).toISOString();
+    const hoursAgo12 = new Date(Date.now() - 12 * 3600000).toISOString();
     
     const pendingLogs = await db.select({
       id: rlTrainingLogs.id,
@@ -284,8 +287,8 @@ export async function backfillRewards(accountId: number): Promise<number> {
       .where(and(
         eq(rlTrainingLogs.accountId, accountId),
         isNull(rlTrainingLogs.rewardFilledAt),
-        gte(rlTrainingLogs.createdAt, hoursAgo72),
-        lte(rlTrainingLogs.createdAt, hoursAgo24)
+        gte(rlTrainingLogs.createdAt, hoursAgo96),
+        lte(rlTrainingLogs.createdAt, hoursAgo12)
       ))
       .limit(500);
     

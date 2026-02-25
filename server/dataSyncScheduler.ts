@@ -1227,8 +1227,9 @@ function shouldExecuteModuleForTarget(
 
 /**
  * v143: 记录某个优化目标的某个模块的执行时间
+ * v241: 导出函数，允许PostDeploy重优化后更新模块执行时间
  */
-function recordModuleExecution(targetId: number, moduleName: string): void {
+export function recordModuleExecution(targetId: number, moduleName: string): void {
   const key = `${targetId}:${moduleName}`;
   moduleLastExecutionMap.set(key, new Date());
 }

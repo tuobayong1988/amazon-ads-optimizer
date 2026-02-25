@@ -31,7 +31,7 @@ const log = createModuleLogger('PostDeploy');
 
 // ==================== 系统版本号 ====================
 // 每次发版时递增此版本号，并在 VERSION_CHANGELOG 中声明变更
-export const SYSTEM_VERSION = 240;
+export const SYSTEM_VERSION = 241;
 
 // ==================== 版本变更日志 ====================
 // 声明每个版本引入的变更，用于确定哪些模块需要重新执行
@@ -219,6 +219,12 @@ const VERSION_CHANGELOG: VersionChange[] = [
   {
     version: 240,
     description: 'v240: [审计修复] 出价微调灵敏度提升 — (1)hold判定阈值从$0.01降低到$0.005，低出价关键词的微调不再被四舍五入吃掉 (2)ACOS达标场景调整系数从0.10提高到0.15，微调更有效 (3)ACOS略高场景降价系数从0.20提高到0.25，降价更积极 (4)部署后自动触发全量重优化纠正历史hold判定',
+    affectedModules: ['bid'],
+    correctionActions: ['rerun_optimization'],
+  },
+  {
+    version: 241,
+    description: 'v241: [RL冷启动+部署流程优化+监控] — (1)RL冷启动探索策略: 当规则引擎判定为hold时，20%概率进行±3-5%探索性出价，打破冷启动死锁 (2)Reward回填窗口从24-72h扩展到12-96h，加速数据积累 (3)PostDeploy重优化后同步更新moduleLastExecutionMap，避免定时任务被跳过 (4)新增NextGen监控仪表板API /api/ops/nextgen-monitor (5)recordModuleExecution导出为公共函数',
     affectedModules: ['bid'],
     correctionActions: ['rerun_optimization'],
   },
@@ -712,6 +718,29 @@ async function reoptimizeTarget(
     
     // 步骤3: 更新目标的优化版本
     await updateTargetOptimizedVersion(targetId, SYSTEM_VERSION);
+    
+    // v241: 更新模块执行时间，避免后续定时任务因使用旧的数据库恢复时间而被跳过
+    try {
+      const { recordModuleExecution } = await import('./dataSyncScheduler');
+      for (const mod of modulesExecuted) {
+        // 将PostDeploy执行的模块名称映射到调度器的模块名称
+        const moduleMapping: Record<string, string> = {
+          'bid': 'bid',
+          'placement': 'placement',
+          'dayparting': 'dayparting',
+          'dayparting_budget': 'budget',
+          'searchterm': 'searchTermHarvest',
+          'budget': 'budget',
+        };
+        const schedulerModule = moduleMapping[mod];
+        if (schedulerModule) {
+          recordModuleExecution(targetId, schedulerModule);
+          log.info(`[PostDeployOptimizer] v241: 已更新模块执行时间: target=${targetId}, module=${schedulerModule}`);
+        }
+      }
+    } catch (syncErr: any) {
+      log.warn(`[PostDeployOptimizer] v241: 更新模块执行时间失败(不影响主流程): ${syncErr.message}`);
+    }
     
     return {
       targetId,

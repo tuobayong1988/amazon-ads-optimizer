@@ -398,7 +398,43 @@ export async function calculateNextGenBid(
   // ===== 第2层：规则引擎 =====
   try {
     const ruleResult = ruleEngineDecision(target, normalizedConfig);
-    const safeBid = safetyValidate(target.currentBid, ruleResult.bid, safetyConfig, maxBidLimit);
+    let safeBid = safetyValidate(target.currentBid, ruleResult.bid, safetyConfig, maxBidLimit);
+    let finalReason = ruleResult.reason;
+    
+    // v241: RL冷启动探索策略
+    // 当规则引擎判定为hold（出价几乎不变）时，以一定概率进行小幅探索性调整
+    // 目的：产生有效的bid_increase/bid_decrease RL日志，打破冷启动死锁
+    // 安全保障：探索幅度限制在±3-5%，且受safetyValidate约束
+    const isEffectivelyHold = Math.abs(safeBid - target.currentBid) <= 0.005;
+    if (isEffectivelyHold && target.currentBid > 0.05) {
+      // 使用确定性哈希决定是否探索（避免每次重启结果不同）
+      const entityId = target.type === 'keyword' ? target.id : target.id;
+      const hourSeed = Math.floor(Date.now() / (4 * 3600000)); // 每4小时一个种子
+      const explorationHash = ((entityId * 2654435761 + hourSeed * 1597334677) >>> 0) % 100;
+      const EXPLORATION_RATE = 20; // 20%的概率进行探索
+      
+      if (explorationHash < EXPLORATION_RATE) {
+        // 探索方向：基于哈希的确定性选择（上调或下调）
+        const directionHash = ((entityId * 1103515245 + hourSeed) >>> 0) % 100;
+        const explorationRatio = 0.03 + (explorationHash / 100) * 0.02; // 3-5%的探索幅度
+        
+        let explorationBid: number;
+        if (directionHash < 50) {
+          // 上探：小幅提价
+          explorationBid = target.currentBid * (1 + explorationRatio);
+        } else {
+          // 下探：小幅降价
+          explorationBid = target.currentBid * (1 - explorationRatio);
+        }
+        
+        // 探索出价也要通过安全校验
+        safeBid = safetyValidate(target.currentBid, explorationBid, safetyConfig, maxBidLimit);
+        finalReason += ` | RL探索: ${directionHash < 50 ? '上探' : '下探'}${(explorationRatio * 100).toFixed(1)}%`;
+        log.info(`[NextGenOrchestrator] RL冷启动探索: target=${target.id}, ` +
+          `方向=${directionHash < 50 ? '上探' : '下探'}, 幅度=${(explorationRatio * 100).toFixed(1)}%, ` +
+          `$${target.currentBid.toFixed(2)} → $${safeBid.toFixed(2)}`);
+      }
+    }
     
     // 规则引擎也记录RL数据（用于未来训练高级算法）
     const keywordId = target.type === 'keyword' ? target.id : undefined;
@@ -413,7 +449,7 @@ export async function calculateNextGenBid(
     }).catch(err => log.error('[NextGenOrchestrator] RL recording error:', err));
     
     return buildResult(target, safeBid, 'rule_engine', ruleResult.confidence,
-      `[规则引擎] ${ruleResult.reason}`, 'rule_engine');
+      `[规则引擎] ${finalReason}`, 'rule_engine');
     
   } catch (ruleError: any) {
     log.error(`[NextGenOrchestrator] 规则引擎异常(target=${target.id}): ${ruleError.message}`);
