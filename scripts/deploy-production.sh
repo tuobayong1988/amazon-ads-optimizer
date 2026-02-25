@@ -33,7 +33,7 @@ set -euo pipefail
 
 # AWS/EB配置
 AWS_REGION="${AWS_DEFAULT_REGION:-us-east-1}"
-EB_APP_NAME="ppcopt-prod"
+EB_APP_NAME="amazon-ads-optimizer"
 EB_ENV_NAME="amazon-ads-env-prod"
 S3_BUCKET="elasticbeanstalk-us-east-1-696154297094"
 PROD_URL="http://ppcopt-prod.us-east-1.elasticbeanstalk.com"

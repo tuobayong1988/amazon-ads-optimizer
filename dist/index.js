@@ -56948,7 +56948,7 @@ async function backfillRewards(accountId) {
   let filledCount = 0;
   try {
     const hoursAgo96 = new Date(Date.now() - 96 * 36e5).toISOString();
-    const hoursAgo12 = new Date(Date.now() - 12 * 36e5).toISOString();
+    const hoursAgo6 = new Date(Date.now() - 6 * 36e5).toISOString();
     const pendingLogs = await db.select({
       id: rlTrainingLogs.id,
       accountId: rlTrainingLogs.accountId,
@@ -56962,7 +56962,7 @@ async function backfillRewards(accountId) {
       eq(rlTrainingLogs.accountId, accountId),
       isNull(rlTrainingLogs.rewardFilledAt),
       gte(rlTrainingLogs.createdAt, hoursAgo96),
-      lte(rlTrainingLogs.createdAt, hoursAgo12)
+      lte(rlTrainingLogs.createdAt, hoursAgo6)
     )).limit(500);
     for (const log39 of pendingLogs) {
       try {
@@ -81859,6 +81859,44 @@ function assessAccountRiskLevel(acos) {
   if (acos > 35) return "warning";
   return "healthy";
 }
+async function persistRiskAlert(accountId, alertType, severity, detail) {
+  const dbInstance = await getDb();
+  if (!dbInstance) return;
+  try {
+    const { sql: sql14 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    await dbInstance.execute(sql14`
+      INSERT INTO anomaly_alert_logs (account_id, alert_type, severity, message, created_at)
+      VALUES (${accountId}, ${alertType}, ${severity}, ${detail}, NOW())
+    `);
+  } catch (err2) {
+    log17.error(`[persistRiskAlert] \u5199\u5165anomaly_alert_logs\u5931\u8D25: ${err2.message}`);
+  }
+}
+async function persistEmergencyTask(accountId, actionType, priority, detail) {
+  const dbInstance = await getDb();
+  if (!dbInstance) return false;
+  try {
+    const { sql: sql14 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const [existing] = await dbInstance.execute(sql14`
+      SELECT id FROM emergency_optimization_queue
+      WHERE accountId = ${accountId} AND actionType = ${actionType} AND processed = 0
+      LIMIT 1
+    `);
+    if (existing && existing.length > 0) {
+      log17.info(`[RiskActionEngine] \u8D26\u6237${accountId}\u5DF2\u6709\u672A\u5904\u7406\u7684${actionType}\u4EFB\u52A1\uFF0C\u8DF3\u8FC7\u91CD\u590D\u5165\u961F`);
+      return true;
+    }
+    await dbInstance.execute(sql14`
+      INSERT INTO emergency_optimization_queue (accountId, actionType, priority, sourceModule, detail, processed, createdAt)
+      VALUES (${accountId}, ${actionType}, ${priority}, 'RiskActionEngine', ${detail}, 0, NOW())
+    `);
+    log17.info(`[RiskActionEngine] v245: \u8D26\u6237${accountId}\u7D27\u6025\u4F18\u5316\u4EFB\u52A1\u5DF2\u6301\u4E45\u5316\u5230\u6570\u636E\u5E93: ${actionType}`);
+    return true;
+  } catch (err2) {
+    log17.error(`[persistEmergencyTask] \u5199\u5165emergency_optimization_queue\u5931\u8D25: ${err2.message}`);
+    return false;
+  }
+}
 async function assessAccountRisks() {
   const dbInstance = await getDb();
   if (!dbInstance) return [];
@@ -81899,6 +81937,14 @@ async function assessAccountRisks() {
             description: `\u8D26\u6237ACoS=${acos.toFixed(1)}%\u504F\u9AD8\uFF0C\u89E6\u53D1NextGen\u7B97\u6CD5\u91CD\u65B0\u8BC4\u4F30\u6240\u6709\u4F18\u5316\u76EE\u6807`,
             estimatedImpact: "\u91CD\u65B0\u8BA1\u7B97\u51FA\u4EF7\u7B56\u7565\uFF0C\u52A0\u901FACoS\u56DE\u5F52\u76EE\u6807"
           });
+        }
+        if (riskLevel !== "healthy") {
+          await persistRiskAlert(
+            account.id,
+            `risk_${riskLevel}`,
+            riskLevel === "critical" ? "high" : "medium",
+            `\u8D26\u6237${account.storeName || account.accountName}(${account.marketplace}) 7\u65E5ACoS=${acos.toFixed(1)}%, \u98CE\u9669\u7B49\u7EA7=${riskLevel}, \u63A8\u8350\u884C\u52A8: ${actions.map((a4) => a4.actionType).join(", ")}`
+          );
         }
         assessments.push({
           accountId: account.id,
@@ -81955,6 +82001,13 @@ async function assessSyncHealth() {
         targetEntityCount: failed,
         estimatedImpact: "\u4FEE\u590D\u540C\u6B65\u5931\u8D25\u4E8B\u4EF6\uFF0C\u6062\u590D100%\u540C\u6B65\u6210\u529F\u7387"
       });
+      await persistRiskAlert(
+        0,
+        // accountId=0 表示系统级告警
+        "sync_health_critical",
+        "high",
+        `\u540C\u6B65\u5065\u5EB7\u5EA6\u5F02\u5E38: ${failed}\u6761\u5931\u8D25, ${pending}\u6761\u5F85\u540C\u6B65, \u6210\u529F\u7387=${syncRate.toFixed(1)}%`
+      );
     } else if (pending > 50) {
       healthStatus = "degraded";
       actions.push({
@@ -82002,23 +82055,23 @@ async function executeRiskActions() {
     for (const action of account.recommendedActions) {
       try {
         if (action.actionType === "emergency_bid_reduction") {
-          const result = await markAccountForEmergencyOptimization(account.accountId, "emergency_bid_reduction");
+          const result = await markAccountForEmergencyOptimization(account.accountId, "emergency_bid_reduction", action.priority, action.description);
           actionsTriggered++;
           actionResults.push({
             actionType: "emergency_bid_reduction",
             accountId: account.accountId,
             success: result,
-            detail: `\u8D26\u6237${account.accountName}(ACoS=${account.currentAcos.toFixed(1)}%)\u5DF2\u6807\u8BB0\u4E3A\u7D27\u6025\u4F18\u5316`
+            detail: `\u8D26\u6237${account.accountName}(ACoS=${account.currentAcos.toFixed(1)}%)\u5DF2\u6807\u8BB0\u4E3A\u7D27\u6025\u4F18\u5316(\u5DF2\u6301\u4E45\u5316\u5230DB)`
           });
         }
         if (action.actionType === "pause_extreme_loss") {
-          const result = await markAccountForEmergencyOptimization(account.accountId, "pause_extreme_loss");
+          const result = await markAccountForEmergencyOptimization(account.accountId, "pause_extreme_loss", action.priority, action.description);
           actionsTriggered++;
           actionResults.push({
             actionType: "pause_extreme_loss",
             accountId: account.accountId,
             success: result,
-            detail: `\u8D26\u6237${account.accountName}\u5DF2\u6807\u8BB0\u6682\u505C\u6781\u7AEF\u4E8F\u635F\u5173\u952E\u8BCD`
+            detail: `\u8D26\u6237${account.accountName}\u5DF2\u6807\u8BB0\u6682\u505C\u6781\u7AEF\u4E8F\u635F\u5173\u952E\u8BCD(\u5DF2\u6301\u4E45\u5316\u5230DB)`
           });
         }
       } catch (err2) {
@@ -82059,52 +82112,87 @@ async function executeRiskActions() {
     actionResults
   };
 }
-async function markAccountForEmergencyOptimization(accountId, actionType) {
+async function markAccountForEmergencyOptimization(accountId, actionType, priority = "P1", detail = "") {
   try {
-    emergencyOptimizationQueue.set(accountId, {
-      type: actionType,
-      timestamp: (/* @__PURE__ */ new Date()).toISOString(),
-      processed: false
-    });
-    log17.info(`[RiskActionEngine] \u8D26\u6237${accountId}\u5DF2\u52A0\u5165\u7D27\u6025\u4F18\u5316\u961F\u5217: ${actionType}`);
-    return true;
+    const result = await persistEmergencyTask(accountId, actionType, priority, detail);
+    log17.info(`[RiskActionEngine] \u8D26\u6237${accountId}\u5DF2\u52A0\u5165\u7D27\u6025\u4F18\u5316\u961F\u5217(DB\u6301\u4E45\u5316): ${actionType}`);
+    return result;
   } catch (err2) {
     log17.error(`[RiskActionEngine] \u6807\u8BB0\u7D27\u6025\u4F18\u5316\u5931\u8D25: ${err2.message}`);
     return false;
   }
 }
-function isAccountInEmergencyQueue(accountId) {
-  const entry = emergencyOptimizationQueue.get(accountId);
-  if (entry && !entry.processed) {
-    return { inQueue: true, type: entry.type };
-  }
-  return { inQueue: false };
-}
-function markEmergencyOptimizationProcessed(accountId) {
-  const entry = emergencyOptimizationQueue.get(accountId);
-  if (entry) {
-    entry.processed = true;
-    log17.info(`[RiskActionEngine] \u8D26\u6237${accountId}\u7D27\u6025\u4F18\u5316\u5DF2\u5904\u7406`);
-  }
-}
-function getPendingEmergencyAccounts() {
-  const pending = [];
-  for (const [accountId, entry] of emergencyOptimizationQueue) {
-    if (!entry.processed) {
-      pending.push({ accountId, type: entry.type });
+async function isAccountInEmergencyQueue(accountId) {
+  const dbInstance = await getDb();
+  if (!dbInstance) return { inQueue: false };
+  try {
+    const { sql: sql14 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const [rows] = await dbInstance.execute(sql14`
+      SELECT actionType FROM emergency_optimization_queue
+      WHERE accountId = ${accountId} AND processed = 0
+      ORDER BY createdAt DESC LIMIT 1
+    `);
+    if (rows && rows.length > 0) {
+      return { inQueue: true, type: rows[0].actionType };
     }
+    return { inQueue: false };
+  } catch (err2) {
+    log17.error(`[isAccountInEmergencyQueue] \u67E5\u8BE2\u5931\u8D25: ${err2.message}`);
+    return { inQueue: false };
   }
-  return pending;
 }
-function cleanupProcessedEntries() {
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1e3).toISOString();
-  for (const [accountId, entry] of emergencyOptimizationQueue) {
-    if (entry.processed && entry.timestamp < oneHourAgo) {
-      emergencyOptimizationQueue.delete(accountId);
+async function markEmergencyOptimizationProcessed(accountId) {
+  const dbInstance = await getDb();
+  if (!dbInstance) return;
+  try {
+    const { sql: sql14 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    await dbInstance.execute(sql14`
+      UPDATE emergency_optimization_queue 
+      SET processed = 1, processedAt = NOW()
+      WHERE accountId = ${accountId} AND processed = 0
+    `);
+    log17.info(`[RiskActionEngine] \u8D26\u6237${accountId}\u7D27\u6025\u4F18\u5316\u5DF2\u5904\u7406(DB\u66F4\u65B0)`);
+  } catch (err2) {
+    log17.error(`[markEmergencyOptimizationProcessed] \u66F4\u65B0\u5931\u8D25: ${err2.message}`);
+  }
+}
+async function getPendingEmergencyAccounts() {
+  const dbInstance = await getDb();
+  if (!dbInstance) return [];
+  try {
+    const { sql: sql14 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const [rows] = await dbInstance.execute(sql14`
+      SELECT accountId, actionType FROM emergency_optimization_queue
+      WHERE processed = 0
+      ORDER BY 
+        CASE priority WHEN 'P0' THEN 0 WHEN 'P1' THEN 1 WHEN 'P2' THEN 2 END,
+        createdAt ASC
+    `);
+    if (!rows) return [];
+    return rows.map((r5) => ({ accountId: r5.accountId, type: r5.actionType }));
+  } catch (err2) {
+    log17.error(`[getPendingEmergencyAccounts] \u67E5\u8BE2\u5931\u8D25: ${err2.message}`);
+    return [];
+  }
+}
+async function cleanupProcessedEntries() {
+  const dbInstance = await getDb();
+  if (!dbInstance) return;
+  try {
+    const { sql: sql14 } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
+    const [result] = await dbInstance.execute(sql14`
+      DELETE FROM emergency_optimization_queue
+      WHERE processed = 1 AND processedAt < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+    `);
+    const deleted = result?.affectedRows || 0;
+    if (deleted > 0) {
+      log17.info(`[RiskActionEngine] v245: \u6E05\u7406${deleted}\u6761\u5DF2\u5904\u7406\u7684\u7D27\u6025\u4F18\u5316\u8BB0\u5F55`);
     }
+  } catch (err2) {
+    log17.error(`[cleanupProcessedEntries] \u6E05\u7406\u5931\u8D25: ${err2.message}`);
   }
 }
-var log17, emergencyOptimizationQueue;
+var log17;
 var init_riskActionEngine = __esm({
   "server/riskActionEngine.ts"() {
     "use strict";
@@ -82112,7 +82200,6 @@ var init_riskActionEngine = __esm({
     init_db2();
     init_logger2();
     log17 = createModuleLogger("RiskActionEngine");
-    emergencyOptimizationQueue = /* @__PURE__ */ new Map();
   }
 });
 
@@ -83710,12 +83797,12 @@ async function executeOptimizationTarget(targetId, options = {}) {
   let emergencyMode = false;
   try {
     const { isAccountInEmergencyQueue: isAccountInEmergencyQueue2, markEmergencyOptimizationProcessed: markEmergencyOptimizationProcessed2 } = await Promise.resolve().then(() => (init_riskActionEngine(), riskActionEngine_exports));
-    const emergencyCheck = isAccountInEmergencyQueue2(config2.accountId);
+    const emergencyCheck = await isAccountInEmergencyQueue2(config2.accountId);
     if (emergencyCheck.inQueue) {
       emergencyMode = true;
       log19.info(`[OptimizationTarget] v235: \u8D26\u6237${config2.accountId}\u5728\u7D27\u6025\u4F18\u5316\u961F\u5217\u4E2D (${emergencyCheck.type})\uFF0C\u542F\u7528\u7D27\u6025\u4F18\u5316\u6A21\u5F0F`);
       result.warnings.push(`v235: \u7D27\u6025\u4F18\u5316\u6A21\u5F0F\u5DF2\u542F\u7528 - ${emergencyCheck.type}`);
-      markEmergencyOptimizationProcessed2(config2.accountId);
+      await markEmergencyOptimizationProcessed2(config2.accountId);
     }
   } catch (riskErr) {
     log19.warn(`[OptimizationTarget] v235: \u7D27\u6025\u4F18\u5316\u68C0\u67E5\u5F02\u5E38: ${riskErr.message}`);
@@ -83724,13 +83811,6 @@ async function executeOptimizationTarget(targetId, options = {}) {
     try {
       const bidResults = await executeBidOptimization(config2, campaigns7, dryRun);
       result.bidOptimization = bidResults;
-      if (bidResults.emergencyPause) {
-        result.errors.push(bidResults.emergencyReason || "Emergency pause triggered");
-        result.status = "failed";
-        if (shouldReleaseLock) releaseAccountOptimizationLock(config2.accountId, moduleLockGroup);
-        unregisterActiveTask(activeTaskId);
-        return result;
-      }
     } catch (error54) {
       result.errors.push(`\u51FA\u4EF7\u4F18\u5316\u5931\u8D25: ${error54.message}`);
     }
@@ -84157,6 +84237,7 @@ async function executeOptimizationTarget(targetId, options = {}) {
 async function executeBidOptimization(config2, campaigns7, dryRun) {
   const details = [];
   let adjustmentsCount = 0;
+  let safetyPausedCampaignCount = 0;
   let totalClicks = 0, totalOrders = 0, totalSpend = 0, totalSales = 0;
   for (const c5 of campaigns7) {
     totalClicks += c5.clicks || 0;
@@ -84234,15 +84315,8 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
           action: "safety_pause",
           reason: `[\u5B89\u5168\u68C0\u67E5] ${safetyCheck.warnings.join("\uFF1B")}`
         });
-        try {
-          await updatePerformanceGroup(config2.id, { autoOptimize: 0 });
-          const pauseMsg = `v232: \u4F18\u5316\u76EE\u6807 "${config2.name}" \u5DF2\u88AB\u5B89\u5168\u7CFB\u7EDF\u81EA\u52A8\u6682\u505C - Campaign ${campaign.campaignName} \u89E6\u53D1\u4E25\u91CD\u98CE\u9669\u4FE1\u53F7: ${safetyCheck.reason}`;
-          log19.error(`[OptimizationTarget] ${pauseMsg}`);
-          details.push({ action: "emergency_pause", reason: pauseMsg, campaignName: campaign.campaignName });
-          return { executed: true, adjustmentsCount, details, emergencyPause: true, emergencyReason: pauseMsg };
-        } catch (autoPauseErr) {
-          log19.error(`[OptimizationTarget] v232: \u81EA\u52A8\u6682\u505C\u4F18\u5316\u76EE\u6807\u5931\u8D25:`, autoPauseErr.message);
-        }
+        safetyPausedCampaignCount++;
+        log19.warn(`[BidOptimization] v244: Campaign ${campaignLocalId} (${campaign.campaignName}) \u5B89\u5168\u68C0\u67E5\u89E6\u53D1\uFF0C\u8DF3\u8FC7\u8BE5campaign\u7684\u51FA\u4EF7\u4F18\u5316\uFF08\u4E0D\u6682\u505C\u6574\u4E2A\u4F18\u5316\u76EE\u6807\uFF09`);
         continue;
       }
       if (safetyCheck.warnings.length > 0) {
@@ -84523,6 +84597,17 @@ async function executeBidOptimization(config2, campaigns7, dryRun) {
         error: "\u672A\u83B7\u53D6\u5230\u5355\u6761\u540C\u6B65\u72B6\u6001"
       });
     }
+  }
+  if (safetyPausedCampaignCount > 0) {
+    const totalCampaigns = campaigns7.length;
+    const pauseRatio = safetyPausedCampaignCount / totalCampaigns;
+    const summaryMsg = `v244: \u4F18\u5316\u76EE\u6807"${config2.name}" \u5B89\u5168\u68C0\u67E5\u6C47\u603B - ${safetyPausedCampaignCount}/${totalCampaigns}\u4E2Acampaign\u89E6\u53D1\u5B89\u5168\u6682\u505C(${(pauseRatio * 100).toFixed(0)}%)\uFF0C\u5DF2\u8DF3\u8FC7\u8FD9\u4E9Bcampaign\u7684\u51FA\u4EF7\u4F18\u5316`;
+    if (pauseRatio > 0.5) {
+      log19.error(`[BidOptimization] ${summaryMsg} - \u8D85\u8FC750%campaign\u89E6\u53D1\u5B89\u5168\u6682\u505C\uFF0C\u5EFA\u8BAE\u4EBA\u5DE5\u68C0\u67E5`);
+    } else {
+      log19.warn(`[BidOptimization] ${summaryMsg}`);
+    }
+    details.push({ action: "safety_summary", reason: summaryMsg, safetyPausedCount: safetyPausedCampaignCount, totalCampaigns, pauseRatio });
   }
   return { executed: true, adjustmentsCount: dryRun ? details.length : adjustmentsCount, details, apiSyncResult, apiSyncStatus };
 }
@@ -86357,9 +86442,9 @@ async function recordExecutionLog(result) {
       }
     }
     try {
-      const { performanceGroups: performanceGroups8 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
+      const { performanceGroups: performanceGroups7 } = await Promise.resolve().then(() => (init_schema2(), schema_exports));
       const { eq: eqOp } = await Promise.resolve().then(() => (init_drizzle_orm(), drizzle_orm_exports));
-      await dbInstance.update(performanceGroups8).set({ lastOptimizationAt: /* @__PURE__ */ new Date() }).where(eqOp(performanceGroups8.id, result.targetId));
+      await dbInstance.update(performanceGroups7).set({ lastOptimizationAt: /* @__PURE__ */ new Date() }).where(eqOp(performanceGroups7.id, result.targetId));
       log19.info(`[OptimizationTargetEngine] \u5DF2\u66F4\u65B0 last_optimization_at: targetId=${result.targetId}`);
     } catch (updateErr) {
       try {
@@ -158450,6 +158535,32 @@ async function runPostDeployOptimization() {
   }
   log30.debug(`[PostDeployOptimizer] \u53D7\u5F71\u54CD\u6A21\u5757: ${affectedModules.join(", ")}`);
   log30.info(`[PostDeployOptimizer] \u7EA0\u6B63\u52A8\u4F5C: ${correctionActions.join(", ")}`);
+  try {
+    const database = await getDb();
+    if (database) {
+      const allGroups = await database.select({ id: performanceGroups.id, name: performanceGroups.name, autoOptimize: performanceGroups.autoOptimize, status: performanceGroups.status }).from(performanceGroups).where(and(
+        eq(performanceGroups.status, "active"),
+        eq(performanceGroups.autoOptimize, 0)
+      ));
+      if (allGroups.length > 0) {
+        log30.warn(`[PostDeployOptimizer] v244: \u53D1\u73B0 ${allGroups.length} \u4E2A\u6D3B\u8DC3\u4F18\u5316\u76EE\u6807\u7684autoOptimize\u88AB\u5173\u95ED\uFF0C\u6B63\u5728\u81EA\u52A8\u6062\u590D...`);
+        for (const group of allGroups) {
+          const pgCampaigns = await getCampaignsByPerformanceGroupId(group.id);
+          const enabledCount = pgCampaigns.filter((c5) => c5.campaignStatus === "enabled").length;
+          if (enabledCount > 0) {
+            await updatePerformanceGroup(group.id, { autoOptimize: 1 });
+            log30.info(`[PostDeployOptimizer] v244: \u5DF2\u6062\u590D\u4F18\u5316\u76EE\u6807 "${group.name}" (ID:${group.id}) \u7684\u81EA\u52A8\u4F18\u5316 - \u6709${enabledCount}\u4E2Aenabled\u5E7F\u544A\u6D3B\u52A8`);
+          } else {
+            log30.info(`[PostDeployOptimizer] v244: \u4F18\u5316\u76EE\u6807 "${group.name}" (ID:${group.id}) \u4E0B\u65E0enabled\u5E7F\u544A\u6D3B\u52A8\uFF0C\u4FDD\u6301\u5173\u95ED\u72B6\u6001`);
+          }
+        }
+      } else {
+        log30.info(`[PostDeployOptimizer] v244: \u6240\u6709\u6D3B\u8DC3\u4F18\u5316\u76EE\u6807\u7684autoOptimize\u72B6\u6001\u6B63\u5E38`);
+      }
+    }
+  } catch (restoreErr) {
+    log30.error(`[PostDeployOptimizer] v244: \u6062\u590D\u4F18\u5316\u76EE\u6807\u72B6\u6001\u5931\u8D25:`, restoreErr.message);
+  }
   const { getEnabledOptimizationTargets: getEnabledOptimizationTargets2 } = await Promise.resolve().then(() => (init_optimizationTargetEngine(), optimizationTargetEngine_exports));
   const targets = await getEnabledOptimizationTargets2();
   if (targets.length === 0) {
@@ -158605,7 +158716,7 @@ var init_postDeployOptimizer = __esm({
     init_drizzle_orm();
     init_logger2();
     log30 = createModuleLogger("PostDeploy");
-    SYSTEM_VERSION = 243;
+    SYSTEM_VERSION = 245;
     VERSION_CHANGELOG = [
       {
         version: 182,
@@ -158780,6 +158891,18 @@ var init_postDeployOptimizer = __esm({
         description: "v243: [\u6B7B\u9501\u4FEE\u590D] \u2014 (1)\u751F\u547D\u5468\u671F\u5224\u5B9A\u4F18\u5316: OR\u6539\u4E3AAND\u903B\u8F91\uFF0C\u907F\u514D\u8001\u5E7F\u544A\u6C38\u4E45\u505C\u7559\u5728launch\u9636\u6BB5 (2)launch\u9636\u6BB5bid\u95F4\u96944h\u964D\u4E3A2h (3)\u6A21\u5757\u6267\u884C\u65F6\u95F4\u6062\u590D\u7B56\u7565\u4F18\u5316: \u4E0D\u518D\u4F7F\u7528last_optimization_at\u56DE\u9000\u586B\u5145\uFF0C\u907F\u514DPostDeploy\u66F4\u65B0\u65F6\u95F4\u5BFC\u81F4\u6B7B\u9501 (4)PostDeploy\u5F3A\u5236\u521D\u59CB\u5316module_execution_times",
         affectedModules: ["bid"],
         correctionActions: ["rerun_optimization"]
+      },
+      {
+        version: 244,
+        description: "v244: [\u5B89\u5168\u68C0\u67E5\u4FEE\u590D] \u2014 (1)\u79FB\u9664v232\u7D27\u6025\u6B62\u635F\u903B\u8F91:\u5B89\u5168\u68C0\u67E5\u89E6\u53D1\u65F6\u8DF3\u8FC7\u8BE5campaign\u800C\u975E\u6682\u505C\u6574\u4E2A\u4F18\u5316\u76EE\u6807 (2)PostDeploy\u81EA\u52A8\u6062\u590D\u88AB\u9519\u8BEF\u5173\u95ED\u7684\u4F18\u5316\u76EE\u6807(autoOptimize=0\u21921) (3)\u4FEE\u590D\u524D\u7AEF\u81EA\u52A8\u4F18\u5316\u72B6\u6001\u663E\u793Abug(\u4F7F\u7528autoOptimize\u5B57\u6BB5\u800C\u975Estatus\u5B57\u6BB5)",
+        affectedModules: ["bid"],
+        correctionActions: ["rerun_optimization"]
+      },
+      {
+        version: 245,
+        description: "v245: [\u7CFB\u7EDF\u5065\u5EB7\u4FEE\u590D] \u2014 (1)RL\u5956\u52B1\u56DE\u586B\u7A97\u53E3\u4ECE12h\u964D\u81F36h\u52A0\u901F\u51B7\u542F\u52A8 (2)\u7D27\u6025\u4F18\u5316\u961F\u5217\u6301\u4E45\u5316\u5230\u6570\u636E\u5E93(emergency_optimization_queue\u8868) (3)\u98CE\u9669\u8BC4\u4F30\u7ED3\u679C\u5199\u5165anomaly_alert_logs (4)\u9884\u7B97\u540C\u6B65\u81EA\u52A8\u786E\u8BA4:syncSpCampaigns\u4E2D\u68C0\u6D4BAmazon\u8FD4\u56DEbudget\u4E0EpendingBudget\u4E00\u81F4\u65F6\u81EA\u52A8\u6807\u8BB0synced (5)\u81EA\u52A8\u5316\u90E8\u7F72\u811A\u672C:\u6784\u5EFA\u2192\u6253\u5305\u2192\u90E8\u7F72\u2192\u7248\u672C\u9A8C\u8BC1\u2192\u81EA\u52A8\u56DE\u6EDA",
+        affectedModules: ["bid", "budget"],
+        correctionActions: ["rerun_optimization", "recalculate_budgets"]
       }
     ];
     POST_DEPLOY_CONFIG = {
@@ -371583,13 +371706,13 @@ var crossAccountRouter = router({
     }
     const accountsData = await Promise.all(
       accounts.map(async (account) => {
-        const performanceGroups8 = await getPerformanceGroupsByAccountId(account.id);
+        const performanceGroups7 = await getPerformanceGroupsByAccountId(account.id);
         let totalSpend2 = 0;
         let totalSales2 = 0;
         let totalImpressions2 = 0;
         let totalClicks2 = 0;
         let totalOrders2 = 0;
-        for (const pg of performanceGroups8) {
+        for (const pg of performanceGroups7) {
           const campaigns7 = await getCampaignsByPerformanceGroupId(pg.id);
           for (const campaign of campaigns7) {
             totalSpend2 += parseFloat(campaign.spend || "0");
@@ -371667,13 +371790,13 @@ var crossAccountRouter = router({
     const selectedAccounts = accounts.filter((a4) => input.accountIds.includes(a4.id));
     const comparisonData = await Promise.all(
       selectedAccounts.map(async (account) => {
-        const performanceGroups8 = await getPerformanceGroupsByAccountId(account.id);
+        const performanceGroups7 = await getPerformanceGroupsByAccountId(account.id);
         let totalSpend = 0;
         let totalSales = 0;
         let totalImpressions = 0;
         let totalClicks = 0;
         let totalOrders = 0;
-        for (const pg of performanceGroups8) {
+        for (const pg of performanceGroups7) {
           const campaigns7 = await getCampaignsByPerformanceGroupId(pg.id);
           for (const campaign of campaigns7) {
             totalSpend += parseFloat(campaign.spend || "0");
