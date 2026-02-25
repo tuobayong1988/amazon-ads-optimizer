@@ -1079,7 +1079,7 @@ async function executeBidOptimization(
     // v163: 安全检查 - 检测异常信号
     if (campaignTimeWeightedMetrics) {
       const safetyCheck = gradualEngine.performSafetyCheck(campaignTimeWeightedMetrics);
-      if (safetyCheck.shouldPause) {
+            if (safetyCheck.shouldPause) {
         log.warn(`[BidOptimization] v163: Campaign ${campaignLocalId} 安全检查触发暂停: ${safetyCheck.reason}`);
         details.push({
           localCampaignId: campaignLocalId,
@@ -1088,6 +1088,22 @@ async function executeBidOptimization(
           action: 'safety_pause',
           reason: `[安全检查] ${safetyCheck.warnings.join('；')}`,
         });
+
+        // v232: 紧急止损 - 如果安全检查建议暂停，则暂停整个优化目标
+        try {
+          await db.updatePerformanceGroup(config.id, { autoOptimize: 0 });
+          const pauseMsg = `v232: 优化目标 "${config.name}" 已被安全系统自动暂停 - Campaign ${campaign.campaignName} 触发严重风险信号: ${safetyCheck.reason}`;
+          log.error(`[OptimizationTarget] ${pauseMsg}`);
+          result.errors.push(pauseMsg);
+          result.status = 'failed';
+          // 立即释放锁并返回，终止当前所有优化
+          if (shouldReleaseLock) releaseAccountOptimizationLock(config.accountId, moduleLockGroup);
+          unregisterActiveTask(activeTaskId);
+          return result;
+        } catch (autoPauseErr: any) {
+          log.error(`[OptimizationTarget] v232: 自动暂停优化目标失败:`, autoPauseErr.message);
+        }
+
         continue; // 跳过该campaign的竞价优化
       }
       if (safetyCheck.warnings.length > 0) {

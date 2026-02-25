@@ -1081,7 +1081,7 @@ const OPTIMIZATION_SCHEDULE: Record<OptimizationTaskType, OptimizationScheduleCo
   nextgen_maintenance: {
     type: 'nextgen_maintenance',
     description: 'v204: NextGen维护 - 特征缓存、Sigmoid拟合、RL Reward回填、因果分析',
-    intervalMs: 2 * 60 * 60 * 1000, // v204: 从4小时缩短到2小时，确保特征缓存及时更新
+    intervalMs: 30 * 60 * 1000, // v232: 从2小时大幅缩短到30分钟，加速算法进化
     specificModules: [],
   },
   nextgen_model_training: {
@@ -1419,14 +1419,14 @@ export async function startOptimizationScheduler(): Promise<void> {
   
   // v204: 启动NextGen维护任务 - 启动后立即执行，然后每2小时重复
   // v204修复: 移除41分钟偏移，避免服务器重启后维护任务永远无法执行
+  // v232: 启动后延迟2分钟立即执行一次，确保快速生成初始特征和模型
+  setTimeout(() => {
+    executeOptimizationTask('nextgen_maintenance');
+  }, 2 * 60 * 1000);
   optimizationIntervals.nextgen_maintenance = setInterval(async () => {
     await executeOptimizationTask('nextgen_maintenance');
   }, OPTIMIZATION_SCHEDULE.nextgen_maintenance.intervalMs);
-  // 启动后延迟5分钟执行（等待数据同步初始化完成）
-  setTimeout(() => {
-    executeOptimizationTask('nextgen_maintenance');
-  }, 5 * 60 * 1000);
-  log.info(`[OptimizationScheduler] v204: NextGen维护任务已启动，间隔: ${OPTIMIZATION_SCHEDULE.nextgen_maintenance.intervalMs / 3600000}小时，首次执行: 5分钟后`);
+  log.info(`[OptimizationScheduler] v232: NextGen维护任务已启动，间隔: ${OPTIMIZATION_SCHEDULE.nextgen_maintenance.intervalMs / 60000}分钟，首次执行: 2分钟后`);
   
   // v204: 启动NextGen模型训练 - 启动后10分钟执行，然后每6小时重复
   // v204修复: 移除46分钟偏移，确保模型训练能在维护任务之后执行

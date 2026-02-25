@@ -114,7 +114,12 @@ function safetyValidate(
   // 2. 单次变化幅度限制
   if (currentBid > 0) {
     const maxIncrease = currentBid * (1 + config.maxBidChangePercent);
-    const maxDecrease = currentBid * (1 - config.maxBidChangePercent);
+    // v232: 增强安全护栏 - 当提议的出价降幅超过30%时，允许最大50%的降幅以加速止损
+    // 这确保规则引擎计算的紧急降价不会被安全阀截断
+    const proposedDecrease = (currentBid - safeBid) / currentBid;
+    const decreasePercent = proposedDecrease > config.maxBidChangePercent ? 0.50 : config.maxBidChangePercent;
+    const maxDecrease = currentBid * (1 - decreasePercent);
+
     safeBid = Math.max(maxDecrease, Math.min(maxIncrease, safeBid));
   }
   
@@ -252,7 +257,13 @@ function ruleEngineDecision(
       };
     } else {
       // ACOS严重超标
-      const reduceRatio = Math.min(0.25, (acosRatio - 1) * 0.15);
+            // v232: ACOS严重超标时，启用紧急降价策略
+      // 1. 基础降价幅度提高到35%
+      // 2. ACOS超出目标越多，降价越快（系数从0.15提高到0.25）
+      // 3. 对于亏损极度严重的情况(ACOS > 3*目标)，启用最大50%的降价护栏
+      const baseReduceRatio = (acosRatio - 1) * 0.25;
+      const reduceRatio = acosRatio > 3 ? Math.min(0.50, baseReduceRatio) : Math.min(0.35, baseReduceRatio);
+
       return {
         bid: currentBid * (1 - reduceRatio),
         confidence: 0.7,

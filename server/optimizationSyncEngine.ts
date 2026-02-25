@@ -580,7 +580,7 @@ async function executeBatchByType(
             
             for (const t of spKwTasks) {
               if (failedIds.has(String(t.amazon_entity_id))) {
-                await markTaskFailed(conn, t.id, failedIds.get(String(t.amazon_entity_id))!);
+                await markTaskForRetry(conn, t.id, t.retry_count, failedIds.get(String(t.amazon_entity_id))!);
                 result.failed++;
               } else {
                 await markTaskSynced(conn, t.id);
@@ -648,7 +648,7 @@ async function executeBatchByType(
           
           for (const t of ptTasks) {
             if (failedIds.has(String(t.amazon_entity_id))) {
-              await markTaskFailed(conn, t.id, failedIds.get(String(t.amazon_entity_id))!);
+              await markTaskForRetry(conn, t.id, t.retry_count, failedIds.get(String(t.amazon_entity_id))!);
               result.failed++;
             } else {
               await markTaskSynced(conn, t.id);
@@ -740,7 +740,7 @@ async function executeBatchByType(
           
           for (const t of validTasks) {
             if (failedIds.has(String(t.amazon_entity_id))) {
-              await markTaskFailed(conn, t.id, 'API返回错误');
+              await markTaskForRetry(conn, t.id, t.retry_count, 'API返回错误');
               result.failed++;
             } else {
               await markTaskSynced(conn, t.id);
@@ -924,7 +924,7 @@ async function executeBatchByType(
               }
               result.synced++;
             } else {
-              await markTaskFailed(conn, t.id, created?.code || 'CREATE_FAILED');
+              await markTaskForRetry(conn, t.id, t.retry_count, created?.code || 'CREATE_FAILED');
               result.failed++;
             }
           }
