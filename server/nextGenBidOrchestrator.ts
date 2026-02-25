@@ -43,6 +43,7 @@ import { optimizeBudgetPortfolio } from "./budgetPortfolioOptimizer";
 import { buildKeywordGraph, discoverOpportunities, discoverNegativeCandidates } from "./keywordGraphService";
 import type { OptimizationTarget, PerformanceGroupConfig } from "./bidOptimizer";
 import { createModuleLogger } from './utils/logger';
+import { batchCalculateGTOModifiers, type GTOModifier, type GTOBatchContext } from './gtoIntegrationOrchestrator';
 
 const log = createModuleLogger('NextGen');
 
@@ -61,6 +62,8 @@ export interface NextGenBidResult {
   metaDecision?: MetaDecision;
   /** 算法降级链中实际使用的层级: 'advanced' | 'rule_engine' | 'conservative' */
   algorithmTier: 'advanced' | 'rule_engine' | 'conservative';
+  /** GTO博弈论修正系数（v236新增） */
+  gtoModifier?: GTOModifier;
 }
 
 export interface SafetyConfig {
@@ -425,6 +428,9 @@ function buildResult(
 /**
  * 批量计算出价 — 对一组关键词/商品定向统一计算
  * 保证每一个target都有结果
+ * 
+ * v236: 集成GTO博弈论修正层
+ * NextGen最终出价 = NextGen基础出价 × GTO综合修正系数
  */
 export async function batchCalculateNextGenBids(
   accountId: number,
@@ -432,10 +438,73 @@ export async function batchCalculateNextGenBids(
   groupConfig: PerformanceGroupConfig,
   maxBidLimit?: number
 ): Promise<NextGenBidResult[]> {
+  
+  // ===== v236: 计算GTO修正系数 =====
+  let gtoModifiers: Map<number, GTOModifier> = new Map();
+  try {
+    const currentHour = new Date().getUTCHours();
+    // 构建GTO上下文（使用安全默认值，避免外部依赖失败影响NextGen核心流程）
+    const totalSpend = targets.reduce((s, t) => s + t.spend, 0);
+    const totalSales = targets.reduce((s, t) => s + t.sales, 0);
+    const totalOrders = targets.reduce((s, t) => s + t.orders, 0);
+    const valueTargets = targets.filter(t => t.orders > 0);
+    const drawingTargets = targets.filter(t => t.orders === 0 && t.clicks >= 5);
+    
+    const gtoContext: GTOBatchContext = {
+      accountId,
+      currentHour,
+      totalDailyBudget: groupConfig.maxBid ? groupConfig.maxBid * targets.length * 0.5 : 100,
+      ventureSpentToday: drawingTargets.reduce((s, t) => s + t.spend, 0),
+      ventureSalesToday: drawingTargets.reduce((s, t) => s + t.sales, 0),
+      pulseHistory: new Map(), // 将在未来版本中从数据库加载
+      hourlySignals: [], // 将在未来版本中从 hourly_performance 表加载
+      corePoolRoas: totalSpend > 0 ? totalSales / totalSpend : 1.0,
+      targetRoas: groupConfig.targetAcos ? (1 / (groupConfig.targetAcos > 1 ? groupConfig.targetAcos / 100 : groupConfig.targetAcos)) : 3.33,
+      totalExploredKeywords: drawingTargets.length,
+      graduatedKeywords: Math.round(valueTargets.length * 0.1), // 估算毕业率
+    };
+    
+    gtoModifiers = batchCalculateGTOModifiers(targets, groupConfig, gtoContext);
+    log.info(`[NextGenOrchestrator] GTO修正层已启用: ${gtoModifiers.size}个目标获得修正系数`);
+  } catch (gtoError: any) {
+    // GTO层失败不影响NextGen核心流程
+    log.warn(`[NextGenOrchestrator] GTO修正层异常(已降级): ${gtoError.message}`);
+  }
+  
+  // ===== 核心出价计算 =====
   const results: NextGenBidResult[] = [];
   
   for (const target of targets) {
     const result = await calculateNextGenBid(accountId, target, groupConfig, maxBidLimit);
+    
+    // v236: 应用GTO修正
+    const gtoMod = gtoModifiers.get(target.id);
+    if (gtoMod && gtoMod.compositeModifier !== 1.0) {
+      const baseBid = result.newBid;
+      const gtoCorrectedBid = Math.round(baseBid * gtoMod.compositeModifier * 100) / 100;
+      
+      // 安全边界：GTO修正后的出价仍然要通过安全校验
+      const safetyConfig: SafetyConfig = {
+        maxBidChangePercent: DEFAULT_SAFETY.maxBidChangePercent,
+        minBid: DEFAULT_SAFETY.minBid,
+        maxBid: groupConfig.maxBid || DEFAULT_SAFETY.maxBid,
+        targetAcos: groupConfig.targetAcos && groupConfig.targetAcos > 1 
+          ? groupConfig.targetAcos / 100 : (groupConfig.targetAcos || DEFAULT_SAFETY.targetAcos),
+      };
+      const safeBid = safetyValidate(target.currentBid, gtoCorrectedBid, safetyConfig, maxBidLimit);
+      
+      // 更新结果
+      result.newBid = safeBid;
+      result.bidChangePercent = target.currentBid > 0 
+        ? Math.round(((safeBid - target.currentBid) / target.currentBid) * 10000) / 100 
+        : 0;
+      result.actionType = Math.abs(safeBid - target.currentBid) > 0.01 
+        ? (safeBid > target.currentBid ? 'increase' : 'decrease') 
+        : 'hold';
+      result.reason += ` | GTO修正: ${gtoMod.reasoning}`;
+      result.gtoModifier = gtoMod;
+    }
+    
     results.push(result);
   }
   
@@ -444,10 +513,11 @@ export async function batchCalculateNextGenBids(
   const ruleEngine = results.filter(r => r.algorithmTier === 'rule_engine').length;
   const conservative = results.filter(r => r.algorithmTier === 'conservative').length;
   const changed = results.filter(r => r.actionType !== 'hold').length;
+  const gtoApplied = results.filter(r => r.gtoModifier && r.gtoModifier.compositeModifier !== 1.0).length;
   
   log.info(`[NextGenOrchestrator] 批量出价完成: 总计=${targets.length}, ` +
     `高级算法=${advanced}, 规则引擎=${ruleEngine}, 保守策略=${conservative}, ` +
-    `实际调整=${changed}`);
+    `实际调整=${changed}, GTO修正=${gtoApplied}`);
   
   return results;
 }
