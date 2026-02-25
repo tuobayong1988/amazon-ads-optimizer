@@ -2,7 +2,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { EnhancedMetricCard, TacosMetricCard } from "@/components/EnhancedMetricCard";
 import { Button } from "@/components/ui/button";
 import { getLoginUrl } from "@/const";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { PageMeta, PAGE_META_CONFIG } from "@/components/PageMeta";
 import { useIsMobile } from "@/hooks/useMobile";
@@ -44,7 +44,8 @@ import {
   ArrowDownRight,
   Calculator,
   Filter,
-  Lightbulb
+  Lightbulb,
+  GripVertical
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -63,6 +64,7 @@ import {
   ReferenceLine
 } from "recharts";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
 import { getAllPosts } from "@/data/blogPosts";
@@ -594,11 +596,70 @@ function MarketingPage() {
 }
 
 // v233: 重新设计的运营作战指挥中心（登录后显示）
+// v234: 卡片ID定义
+const DEFAULT_CARD_ORDER = ['kpi-cards', 'trend-chart', 'account-risk-and-system', 'orders-and-shortcuts'];
+
 function DashboardContent() {
   const { user } = useAuth();
   // v233: 默认显示近7天而非"今天"，让数据有分析价值
   const [timeRangeValue, setTimeRangeValue] = useState<TimeRangeValue>(getDefaultTimeRangeValue('7days'));
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // v234: 卡片顺序状态和持久化
+  const [cardOrder, setCardOrder] = useState<string[]>(DEFAULT_CARD_ORDER);
+  const [isDragging, setIsDragging] = useState(false);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  
+  // 获取用户偏好
+  const { data: userPreferences } = trpc.user.getPreferences.useQuery(
+    undefined,
+    { enabled: !!user }
+  );
+  
+  // 保存用户偏好
+  const updatePreferences = trpc.user.updatePreferences.useMutation();
+  
+  // 从服务器加载卡片顺序
+  useEffect(() => {
+    if (userPreferences && (userPreferences as any).dashboardCardOrder) {
+      const savedOrder = (userPreferences as any).dashboardCardOrder as string[];
+      // 确保所有默认卡片都存在（防止新增卡片丢失）
+      const mergedOrder = [...savedOrder];
+      DEFAULT_CARD_ORDER.forEach(id => {
+        if (!mergedOrder.includes(id)) mergedOrder.push(id);
+      });
+      // 移除已删除的卡片
+      const validOrder = mergedOrder.filter(id => DEFAULT_CARD_ORDER.includes(id));
+      setCardOrder(validOrder);
+    }
+  }, [userPreferences]);
+  
+  // 拖拽结束处理
+  const handleDragEnd = useCallback((result: DropResult) => {
+    setIsDragging(false);
+    if (!result.destination) return;
+    const sourceIndex = result.source.index;
+    const destIndex = result.destination.index;
+    if (sourceIndex === destIndex) return;
+    
+    const newOrder = [...cardOrder];
+    const [removed] = newOrder.splice(sourceIndex, 1);
+    newOrder.splice(destIndex, 0, removed);
+    setCardOrder(newOrder);
+    
+    // 防抖保存到服务器
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    saveTimeoutRef.current = setTimeout(() => {
+      updatePreferences.mutate(
+        { key: 'dashboardCardOrder', value: newOrder },
+        { onSuccess: () => toast.success('布局已保存', { duration: 1500, icon: '✓' }) }
+      );
+    }, 500);
+  }, [cardOrder, updatePreferences]);
+  
+  const handleDragStart = useCallback(() => {
+    setIsDragging(true);
+  }, []);
   
   // 获取数据可用日期范围
   const { data: dataDateRange } = trpc.adAccount.getDataDateRange.useQuery(
@@ -779,368 +840,398 @@ function DashboardContent() {
           </div>
         </div>
         
-        {/* ===== 第一行：核心KPI指标卡片 ===== */}
-        <div className={`grid gap-4 ${isMobile ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-6'}`}>
-          <EnhancedMetricCard
-            title="总花费"
-            value={`$${summary.totalSpend.toFixed(0)}`}
-            icon={<DollarSign className="w-4 h-4 text-blue-500" />}
-            change={summary.spendChange}
-            sparklineData={(trendData || []).map(d => ({ value: d.spend }))}
-            isRealtime={true}
-            realtimeDelay="<5分钟"
-            gradientFrom="blue-500"
-            gradientTo="blue-600"
-            borderColor="blue-500"
-          />
-          <EnhancedMetricCard
-            title="总销售额"
-            value={`$${summary.totalSales.toFixed(0)}`}
-            icon={<ShoppingCart className="w-4 h-4 text-green-500" />}
-            change={summary.salesChange}
-            sparklineData={(trendData || []).map(d => ({ value: d.sales }))}
-            isRealtime={true}
-            realtimeDelay="<5分钟"
-            gradientFrom="green-500"
-            gradientTo="green-600"
-            borderColor="green-500"
-          />
-          <EnhancedMetricCard
-            title="平均ACoS"
-            value={`${summary.avgAcos.toFixed(1)}%`}
-            icon={<Percent className="w-4 h-4 text-orange-500" />}
-            change={summary.acosChange}
-            isInverse={true}
-            sparklineData={(trendData || []).map(d => ({ value: d.acos }))}
-            gradientFrom="orange-500"
-            gradientTo="orange-600"
-            borderColor="orange-500"
-          />
-          <EnhancedMetricCard
-            title="平均ROAS"
-            value={summary.avgRoas.toFixed(2)}
-            icon={<Target className="w-4 h-4 text-purple-500" />}
-            change={summary.roasChange}
-            gradientFrom="purple-500"
-            gradientTo="purple-600"
-            borderColor="purple-500"
-          />
-          <TacosMetricCard
-            adSpend={summary.totalSpend}
-            totalSales={summary.totalSales * 1.5}
-            change={summary.acosChange * 0.7}
-            isRealtime={true}
-          />
-          <EnhancedMetricCard
-            title="总订单"
-            value={summary.totalOrders.toString()}
-            icon={<BarChart3 className="w-4 h-4 text-cyan-500" />}
-            change={summary.salesChange}
-            gradientFrom="cyan-500"
-            gradientTo="cyan-600"
-            borderColor="cyan-500"
-          />
-        </div>
-        
-        {/* ===== 第二行：核心趋势图（花费/销售额柱状 + ACoS折线 + 目标线） ===== */}
-        <Card>
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-lg">花费 vs 销售额 vs ACoS 趋势</CardTitle>
-                <CardDescription>柱状图为花费与销售额，折线为ACoS走势，红色虚线为30%目标线</CardDescription>
-              </div>
-              <div className="flex items-center gap-3 text-xs">
-                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-blue-500 inline-block"></span> 花费</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-green-500 inline-block"></span> 销售额</span>
-                <span className="flex items-center gap-1"><span className="w-3 h-1 bg-orange-500 inline-block rounded"></span> ACoS</span>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <div className={isMobile ? 'h-[280px]' : 'h-[360px]'}>
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={combinedChartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                  <XAxis dataKey="date" stroke="#666" />
-                  <YAxis yAxisId="left" stroke="#666" tickFormatter={(v) => `$${v}`} />
-                  <YAxis yAxisId="right" orientation="right" stroke="#f59e0b" tickFormatter={(v) => `${v}%`} domain={[0, 'auto']} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
-                    formatter={(value: number, name: string) => {
-                      if (name === 'ACoS') return [`${value.toFixed(1)}%`, name];
-                      return [`$${value.toFixed(0)}`, name];
-                    }}
-                  />
-                  <ReferenceLine yAxisId="right" y={30} stroke="#ef4444" strokeDasharray="5 5" label={{ value: '目标 30%', position: 'right', fill: '#ef4444', fontSize: 11 }} />
-                  <Bar yAxisId="left" dataKey="spend" name="花费" fill="#3b82f6" fillOpacity={0.8} radius={[2, 2, 0, 0]} />
-                  <Bar yAxisId="left" dataKey="sales" name="销售额" fill="#22c55e" fillOpacity={0.8} radius={[2, 2, 0, 0]} />
-                  <Line yAxisId="right" type="monotone" dataKey="acos" name="ACoS" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 3, fill: '#f59e0b' }} />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-        
-        {/* ===== 第三行：账户风险排行 + 系统运行状态 ===== */}
-        <div className={`grid gap-6 ${isMobile ? 'grid-cols-1' : 'lg:grid-cols-5'}`}>
-          {/* 左侧：账户风险排行（3列宽） */}
-          <Card className={isMobile ? '' : 'lg:col-span-3'}>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 text-orange-500" />
-                  账户风险排行
-                </CardTitle>
-                <div className="flex items-center gap-3 text-xs">
-                  <span className="flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                    健康 {healthStats.healthy}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <AlertTriangle className="w-3.5 h-3.5 text-yellow-500" />
-                    警告 {healthStats.warning}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <XCircle className="w-3.5 h-3.5 text-red-500" />
-                    严重 {healthStats.critical}
-                  </span>
-                </div>
-              </div>
-              <CardDescription>按ACoS从高到低排列，快速定位需要关注的账户</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3">
-                {accountsData.map((account, index) => (
-                  <div 
-                    key={account.id}
-                    className={`p-3 rounded-lg border ${getStatusColor(account.status)} flex items-center gap-4`}
-                  >
-                    {/* 排名 */}
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${account.status === 'critical' ? 'bg-red-500/30 text-red-400' : account.status === 'warning' ? 'bg-yellow-500/30 text-yellow-400' : 'bg-green-500/30 text-green-400'}`}>
-                      {index + 1}
-                    </div>
-                    {/* 账户名称和市场 */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold truncate">{account.name}</span>
-                        <Badge variant="outline" className="text-xs shrink-0">{account.marketplace}</Badge>
-                        {account.status === 'critical' && <Badge variant="destructive" className="text-xs shrink-0">需关注</Badge>}
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        花费 ${account.spend.toFixed(0)} · 销售 ${account.sales.toFixed(0)} · {account.orders}单
-                      </div>
-                    </div>
-                    {/* ACoS指标 - 突出显示 */}
-                    <div className="text-right shrink-0">
-                      <div className={`text-lg font-bold ${getAcosColor(account.acos)}`}>
-                        {account.acos.toFixed(1)}%
-                      </div>
-                      <div className="text-xs text-muted-foreground">ACoS</div>
-                    </div>
-                    {/* ACoS进度条 */}
-                    <div className="w-20 shrink-0 hidden sm:block">
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
-                        <div 
-                          className={`h-full rounded-full transition-all ${getAcosBgColor(account.acos)}`}
-                          style={{ width: `${Math.min(account.acos / 100 * 100, 100)}%` }}
-                        />
-                      </div>
-                      <div className="text-xs text-muted-foreground text-center mt-0.5">ROAS {account.roas.toFixed(2)}</div>
-                    </div>
-                  </div>
-                ))}
-                {accountsData.length === 0 && (
-                  <div className="text-center text-muted-foreground py-8">暂无账户数据</div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-          
-          {/* 右侧：系统运行状态（2列宽） */}
-          <div className={`space-y-6 ${isMobile ? '' : 'lg:col-span-2'}`}>
-            {/* 同步健康度 */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <RefreshCw className="w-4 h-4 text-blue-500" />
-                  同步健康度
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">已同步</span>
-                  <span className="font-semibold text-green-500">{syncStats.synced.toLocaleString()}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">待同步</span>
-                  <span className={`font-semibold ${syncStats.pending > 0 ? 'text-yellow-500' : 'text-muted-foreground'}`}>{syncStats.pending.toLocaleString()}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">同步失败</span>
-                  <span className={`font-semibold ${syncStats.failed > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>{syncStats.failed.toLocaleString()}</span>
-                </div>
-                {syncStats.total > 0 && (
-                  <div>
-                    <div className="flex items-center justify-between text-xs mb-1">
-                      <span className="text-muted-foreground">同步成功率</span>
-                      <span className="font-semibold">{((syncStats.synced / syncStats.total) * 100).toFixed(1)}%</span>
-                    </div>
-                    <Progress value={(syncStats.synced / syncStats.total) * 100} className="h-2" />
-                  </div>
-                )}
-                {correctionDashboard?.lastScan && (
-                  <div className="pt-2 border-t border-border/50">
-                    <div className="text-xs text-muted-foreground">最近扫描</div>
-                    <div className="text-xs mt-1">
-                      发现 <span className="text-yellow-500 font-semibold">{correctionDashboard.lastScan.totalIssuesFound}</span> 个问题，
-                      已纠正 <span className="text-green-500 font-semibold">{correctionDashboard.lastScan.totalCorrected}</span> 个
-                    </div>
-                  </div>
-                )}
-                <Link href="/auto-correction">
-                  <div className="text-xs text-primary hover:underline cursor-pointer flex items-center gap-1 pt-1">
-                    查看纠错监控详情 <ArrowRight className="w-3 h-3" />
-                  </div>
-                </Link>
-              </CardContent>
-            </Card>
-            
-            {/* 算法效果概览 */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Brain className="w-4 h-4 text-purple-500" />
-                  算法效果概览
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">30天优化操作</span>
-                  <span className="font-semibold">{algorithmSummary.totalOps.toLocaleString()} 次</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">平均正向率</span>
-                  <span className={`font-semibold ${algorithmSummary.avgPositiveRate >= 50 ? 'text-green-500' : 'text-yellow-500'}`}>
-                    {algorithmSummary.avgPositiveRate.toFixed(1)}%
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">最优算法</span>
-                  <Badge variant="outline" className="text-xs">{algorithmSummary.bestAlgorithm}</Badge>
-                </div>
-                {algorithmSummary.algorithms.length > 0 && (
-                  <div className="pt-2 border-t border-border/50 space-y-2">
-                    <div className="text-xs text-muted-foreground">各算法表现</div>
-                    {algorithmSummary.algorithms.map((alg) => (
-                      <div key={alg.algorithm} className="flex items-center gap-2">
-                        <span className="text-xs w-24 truncate" title={alg.algorithm}>{alg.algorithm}</span>
-                        <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
-                          <div 
-                            className={`h-full rounded-full ${alg.positiveRate >= 60 ? 'bg-green-500' : alg.positiveRate >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`}
-                            style={{ width: `${alg.positiveRate}%` }}
-                          />
+        {/* v234: 拖拽卡片布局 */}
+        <DragDropContext onDragEnd={handleDragEnd} onDragStart={handleDragStart}>
+          <Droppable droppableId="dashboard-cards">
+            {(provided, snapshot) => (
+              <div
+                ref={provided.innerRef}
+                {...provided.droppableProps}
+                className={`space-y-6 ${snapshot.isDraggingOver ? 'bg-primary/5 rounded-xl transition-colors' : ''}`}
+              >
+                {cardOrder.map((cardId, index) => (
+                  <Draggable key={cardId} draggableId={cardId} index={index}>
+                    {(provided, snapshot) => (
+                      <div
+                        ref={provided.innerRef}
+                        {...provided.draggableProps}
+                        className={`group relative ${snapshot.isDragging ? 'z-50 opacity-90 shadow-2xl shadow-primary/20 scale-[1.01]' : ''} transition-shadow`}
+                      >
+                        {/* 拖拽手柄 */}
+                        <div
+                          {...provided.dragHandleProps}
+                          className="absolute -left-2 top-1/2 -translate-y-1/2 z-10 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing bg-background/80 backdrop-blur-sm border border-border/50 rounded-md p-1 hover:bg-primary/10 hover:border-primary/30"
+                          title="拖拽调整顺序"
+                        >
+                          <GripVertical className="w-4 h-4 text-muted-foreground" />
                         </div>
-                        <span className="text-xs w-10 text-right">{alg.positiveRate}%</span>
+                        
+                        {/* 卡片内容 */}
+                        {cardId === 'kpi-cards' && (
+                          <div className={`grid gap-4 ${isMobile ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-6'}`}>
+                            <EnhancedMetricCard
+                              title="总花费"
+                              value={`$${summary.totalSpend.toFixed(0)}`}
+                              icon={<DollarSign className="w-4 h-4 text-blue-500" />}
+                              change={summary.spendChange}
+                              sparklineData={(trendData || []).map(d => ({ value: d.spend }))}
+                              isRealtime={true}
+                              realtimeDelay="<5分钟"
+                              gradientFrom="blue-500"
+                              gradientTo="blue-600"
+                              borderColor="blue-500"
+                            />
+                            <EnhancedMetricCard
+                              title="总销售额"
+                              value={`$${summary.totalSales.toFixed(0)}`}
+                              icon={<ShoppingCart className="w-4 h-4 text-green-500" />}
+                              change={summary.salesChange}
+                              sparklineData={(trendData || []).map(d => ({ value: d.sales }))}
+                              isRealtime={true}
+                              realtimeDelay="<5分钟"
+                              gradientFrom="green-500"
+                              gradientTo="green-600"
+                              borderColor="green-500"
+                            />
+                            <EnhancedMetricCard
+                              title="平均ACoS"
+                              value={`${summary.avgAcos.toFixed(1)}%`}
+                              icon={<Percent className="w-4 h-4 text-orange-500" />}
+                              change={summary.acosChange}
+                              isInverse={true}
+                              sparklineData={(trendData || []).map(d => ({ value: d.acos }))}
+                              gradientFrom="orange-500"
+                              gradientTo="orange-600"
+                              borderColor="orange-500"
+                            />
+                            <EnhancedMetricCard
+                              title="平均ROAS"
+                              value={summary.avgRoas.toFixed(2)}
+                              icon={<Target className="w-4 h-4 text-purple-500" />}
+                              change={summary.roasChange}
+                              gradientFrom="purple-500"
+                              gradientTo="purple-600"
+                              borderColor="purple-500"
+                            />
+                            <TacosMetricCard
+                              adSpend={summary.totalSpend}
+                              totalSales={summary.totalSales * 1.5}
+                              change={summary.acosChange * 0.7}
+                              isRealtime={true}
+                            />
+                            <EnhancedMetricCard
+                              title="总订单"
+                              value={summary.totalOrders.toString()}
+                              icon={<BarChart3 className="w-4 h-4 text-cyan-500" />}
+                              change={summary.salesChange}
+                              gradientFrom="cyan-500"
+                              gradientTo="cyan-600"
+                              borderColor="cyan-500"
+                            />
+                          </div>
+                        )}
+                        
+                        {cardId === 'trend-chart' && (
+                          <Card>
+                            <CardHeader className="pb-2">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <CardTitle className="text-lg">花费 vs 销售额 vs ACoS 趋势</CardTitle>
+                                  <CardDescription>柱状图为花费与销售额，折线为ACoS走势，红色虚线为30%目标线</CardDescription>
+                                </div>
+                                <div className="flex items-center gap-3 text-xs">
+                                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-blue-500 inline-block"></span> 花费</span>
+                                  <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-green-500 inline-block"></span> 销售额</span>
+                                  <span className="flex items-center gap-1"><span className="w-3 h-1 bg-orange-500 inline-block rounded"></span> ACoS</span>
+                                </div>
+                              </div>
+                            </CardHeader>
+                            <CardContent>
+                              <div className={isMobile ? 'h-[280px]' : 'h-[360px]'}>
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <ComposedChart data={combinedChartData}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                                    <XAxis dataKey="date" stroke="#666" />
+                                    <YAxis yAxisId="left" stroke="#666" tickFormatter={(v) => `$${v}`} />
+                                    <YAxis yAxisId="right" orientation="right" stroke="#f59e0b" tickFormatter={(v) => `${v}%`} domain={[0, 'auto']} />
+                                    <Tooltip 
+                                      contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
+                                      formatter={(value: number, name: string) => {
+                                        if (name === 'ACoS') return [`${value.toFixed(1)}%`, name];
+                                        return [`$${value.toFixed(0)}`, name];
+                                      }}
+                                    />
+                                    <ReferenceLine yAxisId="right" y={30} stroke="#ef4444" strokeDasharray="5 5" label={{ value: '目标 30%', position: 'right', fill: '#ef4444', fontSize: 11 }} />
+                                    <Bar yAxisId="left" dataKey="spend" name="花费" fill="#3b82f6" fillOpacity={0.8} radius={[2, 2, 0, 0]} />
+                                    <Bar yAxisId="left" dataKey="sales" name="销售额" fill="#22c55e" fillOpacity={0.8} radius={[2, 2, 0, 0]} />
+                                    <Line yAxisId="right" type="monotone" dataKey="acos" name="ACoS" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 3, fill: '#f59e0b' }} />
+                                  </ComposedChart>
+                                </ResponsiveContainer>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        )}
+                        
+                        {cardId === 'account-risk-and-system' && (
+                          <div className={`grid gap-6 ${isMobile ? 'grid-cols-1' : 'lg:grid-cols-5'}`}>
+                            <Card className={isMobile ? '' : 'lg:col-span-3'}>
+                              <CardHeader className="pb-2">
+                                <div className="flex items-center justify-between">
+                                  <CardTitle className="text-lg flex items-center gap-2">
+                                    <AlertTriangle className="w-5 h-5 text-orange-500" />
+                                    账户风险排行
+                                  </CardTitle>
+                                  <div className="flex items-center gap-3 text-xs">
+                                    <span className="flex items-center gap-1">
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                                      健康 {healthStats.healthy}
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                      <AlertTriangle className="w-3.5 h-3.5 text-yellow-500" />
+                                      警告 {healthStats.warning}
+                                    </span>
+                                    <span className="flex items-center gap-1">
+                                      <XCircle className="w-3.5 h-3.5 text-red-500" />
+                                      严重 {healthStats.critical}
+                                    </span>
+                                  </div>
+                                </div>
+                                <CardDescription>按ACoS从高到低排列，快速定位需要关注的账户</CardDescription>
+                              </CardHeader>
+                              <CardContent>
+                                <div className="space-y-3">
+                                  {accountsData.map((account, idx) => (
+                                    <div 
+                                      key={account.id}
+                                      className={`p-3 rounded-lg border ${getStatusColor(account.status)} flex items-center gap-4`}
+                                    >
+                                      <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${account.status === 'critical' ? 'bg-red-500/30 text-red-400' : account.status === 'warning' ? 'bg-yellow-500/30 text-yellow-400' : 'bg-green-500/30 text-green-400'}`}>
+                                        {idx + 1}
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-2">
+                                          <span className="font-semibold truncate">{account.name}</span>
+                                          <Badge variant="outline" className="text-xs shrink-0">{account.marketplace}</Badge>
+                                          {account.status === 'critical' && <Badge variant="destructive" className="text-xs shrink-0">需关注</Badge>}
+                                        </div>
+                                        <div className="text-xs text-muted-foreground mt-0.5">
+                                          花费 ${account.spend.toFixed(0)} · 销售 ${account.sales.toFixed(0)} · {account.orders}单
+                                        </div>
+                                      </div>
+                                      <div className="text-right shrink-0">
+                                        <div className={`text-lg font-bold ${getAcosColor(account.acos)}`}>
+                                          {account.acos.toFixed(1)}%
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">ACoS</div>
+                                      </div>
+                                      <div className="w-20 shrink-0 hidden sm:block">
+                                        <div className="h-2 bg-muted rounded-full overflow-hidden">
+                                          <div 
+                                            className={`h-full rounded-full transition-all ${getAcosBgColor(account.acos)}`}
+                                            style={{ width: `${Math.min(account.acos / 100 * 100, 100)}%` }}
+                                          />
+                                        </div>
+                                        <div className="text-xs text-muted-foreground text-center mt-0.5">ROAS {account.roas.toFixed(2)}</div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                  {accountsData.length === 0 && (
+                                    <div className="text-center text-muted-foreground py-8">暂无账户数据</div>
+                                  )}
+                                </div>
+                              </CardContent>
+                            </Card>
+                            
+                            <div className={`space-y-6 ${isMobile ? '' : 'lg:col-span-2'}`}>
+                              <Card>
+                                <CardHeader className="pb-2">
+                                  <CardTitle className="text-base flex items-center gap-2">
+                                    <RefreshCw className="w-4 h-4 text-blue-500" />
+                                    同步健康度
+                                  </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                  <div className="flex items-center justify-between text-sm">
+                                    <span className="text-muted-foreground">已同步</span>
+                                    <span className="font-semibold text-green-500">{syncStats.synced.toLocaleString()}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between text-sm">
+                                    <span className="text-muted-foreground">待同步</span>
+                                    <span className={`font-semibold ${syncStats.pending > 0 ? 'text-yellow-500' : 'text-muted-foreground'}`}>{syncStats.pending.toLocaleString()}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between text-sm">
+                                    <span className="text-muted-foreground">同步失败</span>
+                                    <span className={`font-semibold ${syncStats.failed > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>{syncStats.failed.toLocaleString()}</span>
+                                  </div>
+                                  {syncStats.total > 0 && (
+                                    <div>
+                                      <div className="flex items-center justify-between text-xs mb-1">
+                                        <span className="text-muted-foreground">同步成功率</span>
+                                        <span className="font-semibold">{((syncStats.synced / syncStats.total) * 100).toFixed(1)}%</span>
+                                      </div>
+                                      <Progress value={(syncStats.synced / syncStats.total) * 100} className="h-2" />
+                                    </div>
+                                  )}
+                                  {correctionDashboard?.lastScan && (
+                                    <div className="pt-2 border-t border-border/50">
+                                      <div className="text-xs text-muted-foreground">最近扫描</div>
+                                      <div className="text-xs mt-1">
+                                        发现 <span className="text-yellow-500 font-semibold">{correctionDashboard.lastScan.totalIssuesFound}</span> 个问题，
+                                        已纠正 <span className="text-green-500 font-semibold">{correctionDashboard.lastScan.totalCorrected}</span> 个
+                                      </div>
+                                    </div>
+                                  )}
+                                  <Link href="/auto-correction">
+                                    <div className="text-xs text-primary hover:underline cursor-pointer flex items-center gap-1 pt-1">
+                                      查看纠错监控详情 <ArrowRight className="w-3 h-3" />
+                                    </div>
+                                  </Link>
+                                </CardContent>
+                              </Card>
+                              
+                              <Card>
+                                <CardHeader className="pb-2">
+                                  <CardTitle className="text-base flex items-center gap-2">
+                                    <Brain className="w-4 h-4 text-purple-500" />
+                                    算法效果概览
+                                  </CardTitle>
+                                </CardHeader>
+                                <CardContent className="space-y-3">
+                                  <div className="flex items-center justify-between text-sm">
+                                    <span className="text-muted-foreground">30天优化操作</span>
+                                    <span className="font-semibold">{algorithmSummary.totalOps.toLocaleString()} 次</span>
+                                  </div>
+                                  <div className="flex items-center justify-between text-sm">
+                                    <span className="text-muted-foreground">平均正向率</span>
+                                    <span className={`font-semibold ${algorithmSummary.avgPositiveRate >= 50 ? 'text-green-500' : 'text-yellow-500'}`}>
+                                      {algorithmSummary.avgPositiveRate.toFixed(1)}%
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center justify-between text-sm">
+                                    <span className="text-muted-foreground">最优算法</span>
+                                    <Badge variant="outline" className="text-xs">{algorithmSummary.bestAlgorithm}</Badge>
+                                  </div>
+                                  {algorithmSummary.algorithms.length > 0 && (
+                                    <div className="pt-2 border-t border-border/50 space-y-2">
+                                      <div className="text-xs text-muted-foreground">各算法表现</div>
+                                      {algorithmSummary.algorithms.map((alg) => (
+                                        <div key={alg.algorithm} className="flex items-center gap-2">
+                                          <span className="text-xs w-24 truncate" title={alg.algorithm}>{alg.algorithm}</span>
+                                          <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                                            <div 
+                                              className={`h-full rounded-full ${alg.positiveRate >= 60 ? 'bg-green-500' : alg.positiveRate >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                                              style={{ width: `${alg.positiveRate}%` }}
+                                            />
+                                          </div>
+                                          <span className="text-xs w-10 text-right">{alg.positiveRate}%</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                  <Link href="/strategy-center">
+                                    <div className="text-xs text-primary hover:underline cursor-pointer flex items-center gap-1 pt-1">
+                                      查看策略管理详情 <ArrowRight className="w-3 h-3" />
+                                    </div>
+                                  </Link>
+                                </CardContent>
+                              </Card>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {cardId === 'orders-and-shortcuts' && (
+                          <div className={`grid gap-6 ${isMobile ? 'grid-cols-1' : 'lg:grid-cols-2'}`}>
+                            <Card>
+                              <CardHeader className="pb-2">
+                                <CardTitle className="text-lg">订单趋势</CardTitle>
+                                <CardDescription>近{days}天每日订单量</CardDescription>
+                              </CardHeader>
+                              <CardContent>
+                                <div className="h-[200px]">
+                                  <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={chartData}>
+                                      <defs>
+                                        <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
+                                          <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
+                                          <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
+                                        </linearGradient>
+                                      </defs>
+                                      <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                                      <XAxis dataKey="date" stroke="#666" />
+                                      <YAxis stroke="#666" />
+                                      <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }} />
+                                      <Area type="monotone" dataKey="orders" name="订单数" stroke="#06b6d4" fillOpacity={1} fill="url(#colorOrders)" />
+                                    </AreaChart>
+                                  </ResponsiveContainer>
+                                </div>
+                              </CardContent>
+                            </Card>
+                            
+                            <Card>
+                              <CardHeader className="pb-2">
+                                <CardTitle className="text-lg">快捷操作</CardTitle>
+                                <CardDescription>常用功能入口</CardDescription>
+                              </CardHeader>
+                              <CardContent>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <Link href="/strategy-center">
+                                    <div className="p-3 rounded-lg border border-border/50 hover:border-primary/50 transition-colors cursor-pointer flex items-center gap-3">
+                                      <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                                        <Brain className="w-4 h-4 text-primary" />
+                                      </div>
+                                      <div>
+                                        <div className="font-semibold text-sm">策略管理</div>
+                                        <div className="text-xs text-muted-foreground">管理优化目标</div>
+                                      </div>
+                                    </div>
+                                  </Link>
+                                  <Link href="/auto-correction">
+                                    <div className="p-3 rounded-lg border border-border/50 hover:border-primary/50 transition-colors cursor-pointer flex items-center gap-3">
+                                      <div className="w-9 h-9 rounded-lg bg-green-500/10 flex items-center justify-center">
+                                        <Target className="w-4 h-4 text-green-500" />
+                                      </div>
+                                      <div>
+                                        <div className="font-semibold text-sm">纠错监控</div>
+                                        <div className="text-xs text-muted-foreground">查看优化状态</div>
+                                      </div>
+                                    </div>
+                                  </Link>
+                                  <Link href="/campaigns">
+                                    <div className="p-3 rounded-lg border border-border/50 hover:border-primary/50 transition-colors cursor-pointer flex items-center gap-3">
+                                      <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                                        <BarChart3 className="w-4 h-4 text-blue-500" />
+                                      </div>
+                                      <div>
+                                        <div className="font-semibold text-sm">广告活动</div>
+                                        <div className="text-xs text-muted-foreground">管理广告活动</div>
+                                      </div>
+                                    </div>
+                                  </Link>
+                                  <Link href="/amazon-api">
+                                    <div className="p-3 rounded-lg border border-border/50 hover:border-primary/50 transition-colors cursor-pointer flex items-center gap-3">
+                                      <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                                        <FileText className="w-4 h-4 text-purple-500" />
+                                      </div>
+                                      <div>
+                                        <div className="font-semibold text-sm">Amazon API</div>
+                                        <div className="text-xs text-muted-foreground">管理API连接</div>
+                                      </div>
+                                    </div>
+                                  </Link>
+                                </div>
+                              </CardContent>
+                            </Card>
+                          </div>
+                        )}
                       </div>
-                    ))}
-                  </div>
-                )}
-                <Link href="/strategy-center">
-                  <div className="text-xs text-primary hover:underline cursor-pointer flex items-center gap-1 pt-1">
-                    查看策略管理详情 <ArrowRight className="w-3 h-3" />
-                  </div>
-                </Link>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-        
-        {/* ===== 第四行：订单趋势 + 快捷操作 ===== */}
-        <div className={`grid gap-6 ${isMobile ? 'grid-cols-1' : 'lg:grid-cols-2'}`}>
-          {/* 订单趋势 */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">订单趋势</CardTitle>
-              <CardDescription>近{days}天每日订单量</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="h-[200px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData}>
-                    <defs>
-                      <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                    <XAxis dataKey="date" stroke="#666" />
-                    <YAxis stroke="#666" />
-                    <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }} />
-                    <Area type="monotone" dataKey="orders" name="订单数" stroke="#06b6d4" fillOpacity={1} fill="url(#colorOrders)" />
-                  </AreaChart>
-                </ResponsiveContainer>
+                    )}
+                  </Draggable>
+                ))}
+                {provided.placeholder}
               </div>
-            </CardContent>
-          </Card>
-          
-          {/* 快捷操作 */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">快捷操作</CardTitle>
-              <CardDescription>常用功能入口</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-3">
-                <Link href="/strategy-center">
-                  <div className="p-3 rounded-lg border border-border/50 hover:border-primary/50 transition-colors cursor-pointer flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <Brain className="w-4 h-4 text-primary" />
-                    </div>
-                    <div>
-                      <div className="font-semibold text-sm">策略管理</div>
-                      <div className="text-xs text-muted-foreground">管理优化目标</div>
-                    </div>
-                  </div>
-                </Link>
-                <Link href="/auto-correction">
-                  <div className="p-3 rounded-lg border border-border/50 hover:border-primary/50 transition-colors cursor-pointer flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-green-500/10 flex items-center justify-center">
-                      <Target className="w-4 h-4 text-green-500" />
-                    </div>
-                    <div>
-                      <div className="font-semibold text-sm">纠错监控</div>
-                      <div className="text-xs text-muted-foreground">查看优化状态</div>
-                    </div>
-                  </div>
-                </Link>
-                <Link href="/campaigns">
-                  <div className="p-3 rounded-lg border border-border/50 hover:border-primary/50 transition-colors cursor-pointer flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                      <BarChart3 className="w-4 h-4 text-blue-500" />
-                    </div>
-                    <div>
-                      <div className="font-semibold text-sm">广告活动</div>
-                      <div className="text-xs text-muted-foreground">管理广告活动</div>
-                    </div>
-                  </div>
-                </Link>
-                <Link href="/amazon-api">
-                  <div className="p-3 rounded-lg border border-border/50 hover:border-primary/50 transition-colors cursor-pointer flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                      <FileText className="w-4 h-4 text-purple-500" />
-                    </div>
-                    <div>
-                      <div className="font-semibold text-sm">Amazon API</div>
-                      <div className="text-xs text-muted-foreground">管理API连接</div>
-                    </div>
-                  </div>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            )}
+          </Droppable>
+        </DragDropContext>
       </div>
       </PullToRefresh>
     </DashboardLayout>

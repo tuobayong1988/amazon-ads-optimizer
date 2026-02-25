@@ -32688,9 +32688,10 @@ __export(schema_exports, {
   taskExecutionLog: () => taskExecutionLog,
   teamMembers: () => teamMembers,
   userNotificationPreferences: () => userNotificationPreferences,
+  userPreferences: () => userPreferences,
   users: () => users
 });
-var abTestCampaignAssignments, abTestDailyMetrics, abTestResults, abTestVariants, abTests, accountPermissions, adAccounts, adGroups, aiOptimizationActions, aiOptimizationExecutions, aiOptimizationPredictions, aiOptimizationReviews, amazonApiCredentials, amsConsumerStatus, amsMessages, amsPerformanceBuffer, amsPerformanceData, amsSubscriptions, anomalyAlertLogs, anomalyDetectionRules, apiCallLogs, apiOperationLogs, apiRateLimits, apiRequestQueue, attributionCorrectionRecords, auditLogs, autoPauseRecords, autoTargetingPerformance, autoTargetingSettings, batchMarginalBenefitAnalysis, batchOperationItems, batchOperations, bidAdjustmentHistory, bidObjectProfitEstimates, bidPerformanceHistory, biddingLogs, budgetAlertSettings, budgetAllocationConfigs, budgetAllocationHistory, budgetAllocationItems, budgetAllocationSuggestions, budgetAllocationTracking, budgetAllocations, budgetAutoExecutionConfigs, budgetAutoExecutionDetails, budgetAutoExecutionHistory, budgetAutoExecutionLogs, keywordAutoExecutionConfigs, keywordAutoExecutionHistory, keywordAutoExecutionDetails, budgetConsumptionAlerts, budgetGoals, budgetHistory, campaignPerformanceSnapshots, campaigns, collaborationNotificationRules, collaborationNotifications, correctionReviewSessions, dailyPerformance, dataConsistencyChecks, dataSyncJobs, dataSyncLogs, dataSyncSchedules, dataSyncTasks, daypartingBidRules, daypartingBudgetRules, daypartingExecutionLogs, daypartingStrategies, decisionTreeModels, emailReportSubscriptions, emailSendLogs, hourlyPerformance, hourpartingBidRules, importJobs, inviteCodeUsages, inviteCodes, keywordPredictions, keywords, localUsers, marginalBenefitApplications, marginalBenefitHistory, marketCurveData, marketCurveModels, negativeKeywords, notificationHistory, notificationSettings, optimizationRecommendations, organizations, performanceGroups, placementBidSettings, placementPerformance, placementSettings, productTargets, promotionalEvents, sbCampaignSettings, scheduledTasks, sdAudienceTargeting, sdAudiences, sdCampaignSettings, searchTermAnalysis, searchTerms, seasonalBudgetRecommendations, seasonalTrends, spendAlertLogs, spendLimitConfigs, syncChangeRecords, syncChangeSummary, syncConflicts, syncSchedules, syncTaskQueue, taskExecutionLog, teamMembers, userNotificationPreferences, users, reportJobs, accountInitializationProgress, algorithmEffectRecords, holidayConfigurations, optimizationLogs, optimizationEvents, keywordPlacementHourlyPerformance, multiDimComboAnalysis, contextualFeatures, rlTrainingLogs, linucbModels, causalInferenceResults, algorithmSelectionLogs, budgetOptimizationResults, keywordSemanticGraph, systemLogs, cqlModels;
+var abTestCampaignAssignments, abTestDailyMetrics, abTestResults, abTestVariants, abTests, accountPermissions, adAccounts, adGroups, aiOptimizationActions, aiOptimizationExecutions, aiOptimizationPredictions, aiOptimizationReviews, amazonApiCredentials, amsConsumerStatus, amsMessages, amsPerformanceBuffer, amsPerformanceData, amsSubscriptions, anomalyAlertLogs, anomalyDetectionRules, apiCallLogs, apiOperationLogs, apiRateLimits, apiRequestQueue, attributionCorrectionRecords, auditLogs, autoPauseRecords, autoTargetingPerformance, autoTargetingSettings, batchMarginalBenefitAnalysis, batchOperationItems, batchOperations, bidAdjustmentHistory, bidObjectProfitEstimates, bidPerformanceHistory, biddingLogs, budgetAlertSettings, budgetAllocationConfigs, budgetAllocationHistory, budgetAllocationItems, budgetAllocationSuggestions, budgetAllocationTracking, budgetAllocations, budgetAutoExecutionConfigs, budgetAutoExecutionDetails, budgetAutoExecutionHistory, budgetAutoExecutionLogs, keywordAutoExecutionConfigs, keywordAutoExecutionHistory, keywordAutoExecutionDetails, budgetConsumptionAlerts, budgetGoals, budgetHistory, campaignPerformanceSnapshots, campaigns, collaborationNotificationRules, collaborationNotifications, correctionReviewSessions, dailyPerformance, dataConsistencyChecks, dataSyncJobs, dataSyncLogs, dataSyncSchedules, dataSyncTasks, daypartingBidRules, daypartingBudgetRules, daypartingExecutionLogs, daypartingStrategies, decisionTreeModels, emailReportSubscriptions, emailSendLogs, hourlyPerformance, hourpartingBidRules, importJobs, inviteCodeUsages, inviteCodes, keywordPredictions, keywords, localUsers, marginalBenefitApplications, marginalBenefitHistory, marketCurveData, marketCurveModels, negativeKeywords, notificationHistory, notificationSettings, optimizationRecommendations, organizations, performanceGroups, placementBidSettings, placementPerformance, placementSettings, productTargets, promotionalEvents, sbCampaignSettings, scheduledTasks, sdAudienceTargeting, sdAudiences, sdCampaignSettings, searchTermAnalysis, searchTerms, seasonalBudgetRecommendations, seasonalTrends, spendAlertLogs, spendLimitConfigs, syncChangeRecords, syncChangeSummary, syncConflicts, syncSchedules, syncTaskQueue, taskExecutionLog, teamMembers, userNotificationPreferences, userPreferences, users, reportJobs, accountInitializationProgress, algorithmEffectRecords, holidayConfigurations, optimizationLogs, optimizationEvents, keywordPlacementHourlyPerformance, multiDimComboAnalysis, contextualFeatures, rlTrainingLogs, linucbModels, causalInferenceResults, algorithmSelectionLogs, budgetOptimizationResults, keywordSemanticGraph, systemLogs, cqlModels;
 var init_schema2 = __esm({
   "drizzle/schema.ts"() {
     "use strict";
@@ -35457,6 +35458,11 @@ var init_schema2 = __esm({
       createdAt: timestamp({ mode: "string" }).default("CURRENT_TIMESTAMP").notNull(),
       updatedAt: timestamp({ mode: "string" }).defaultNow().onUpdateNow().notNull()
     });
+    userPreferences = mysqlTable("user_preferences", {
+      userId: int("user_id").primaryKey().notNull().references(() => users.id, { onDelete: "cascade" }),
+      preferences: json("preferences"),
+      updatedAt: timestamp({ mode: "string" }).defaultNow().onUpdateNow().notNull()
+    });
     users = mysqlTable(
       "users",
       {
@@ -35467,6 +35473,7 @@ var init_schema2 = __esm({
         email: varchar({ length: 320 }),
         loginMethod: varchar({ length: 64 }),
         role: mysqlEnum(["user", "admin"]).default("user").notNull(),
+        preferences: json("preferences"),
         createdAt: timestamp({ mode: "string" }).default("CURRENT_TIMESTAMP").notNull(),
         updatedAt: timestamp({ mode: "string" }).defaultNow().onUpdateNow().notNull(),
         lastSignedIn: timestamp({ mode: "string" }).default("CURRENT_TIMESTAMP").notNull()
@@ -367001,6 +367008,64 @@ var inviteCodeRouter = router({
   })
 });
 
+// server/routes/user.ts
+init_db2();
+init_drizzle_orm();
+var userRouter = router({
+  // 获取用户偏好设置
+  getPreferences: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) return {};
+    try {
+      await db.execute(sql`
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSON DEFAULT NULL
+      `).catch(() => {
+      });
+      const [row] = await db.execute(
+        sql`SELECT preferences FROM users WHERE id = ${ctx.user.id} LIMIT 1`
+      );
+      if (row && row.preferences) {
+        const prefs = row.preferences;
+        return typeof prefs === "string" ? JSON.parse(prefs) : prefs;
+      }
+      return {};
+    } catch (error54) {
+      console.warn("[User] Failed to get preferences:", error54);
+      return {};
+    }
+  }),
+  // 更新用户偏好设置
+  updatePreferences: protectedProcedure.input(external_exports.object({
+    key: external_exports.string(),
+    value: external_exports.any()
+  })).mutation(async ({ ctx, input }) => {
+    const db = await getDb();
+    if (!db) return { success: false };
+    try {
+      await db.execute(sql`
+          ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSON DEFAULT NULL
+        `).catch(() => {
+      });
+      const [row] = await db.execute(
+        sql`SELECT preferences FROM users WHERE id = ${ctx.user.id} LIMIT 1`
+      );
+      let currentPrefs = {};
+      if (row && row.preferences) {
+        const prefs = row.preferences;
+        currentPrefs = typeof prefs === "string" ? JSON.parse(prefs) : prefs;
+      }
+      currentPrefs[input.key] = input.value;
+      await db.execute(
+        sql`UPDATE users SET preferences = ${JSON.stringify(currentPrefs)} WHERE id = ${ctx.user.id}`
+      );
+      return { success: true };
+    } catch (error54) {
+      console.warn("[User] Failed to update preferences:", error54);
+      return { success: false };
+    }
+  })
+});
+
 // server/routes/scheduler.ts
 init_dist();
 init_db2();
@@ -372701,6 +372766,7 @@ var appRouter = router({
   team: teamRouter,
   emailReport: emailReportRouter,
   inviteCode: inviteCodeRouter,
+  user: userRouter,
   review: reviewRouter,
   // 其他
   scheduler: schedulerRouter,

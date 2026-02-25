@@ -2740,6 +2740,12 @@ export const userNotificationPreferences = mysqlTable("user_notification_prefere
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 });
 
+export const userPreferences = mysqlTable("user_preferences", {
+  userId: int("user_id").primaryKey().notNull().references(() => users.id, { onDelete: "cascade" }),
+  preferences: json("preferences"),
+  updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
+});
+
 export const users = mysqlTable("users", {
 	id: int().autoincrement().notNull(),
 	organizationId: int("organization_id").default(1),
@@ -2748,6 +2754,7 @@ export const users = mysqlTable("users", {
 	email: varchar({ length: 320 }),
 	loginMethod: varchar({ length: 64 }),
 	role: mysqlEnum(['user','admin']).default('user').notNull(),
+	preferences: json("preferences"),
 	createdAt: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),
 	updatedAt: timestamp({ mode: 'string' }).defaultNow().onUpdateNow().notNull(),
 	lastSignedIn: timestamp({ mode: 'string' }).default('CURRENT_TIMESTAMP').notNull(),

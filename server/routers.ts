@@ -53,6 +53,7 @@ import { notificationRouter, collaborationRouter } from './routes/notification';
 
 // 团队与权限路由
 import { teamRouter, emailReportRouter, inviteCodeRouter } from './routes/team';
+import { userRouter } from './routes/user';
 
 // 其他路由
 import { schedulerRouter } from './routes/scheduler';
@@ -196,6 +197,7 @@ export const appRouter = router({
   team: teamRouter,
   emailReport: emailReportRouter,
   inviteCode: inviteCodeRouter,
+  user: userRouter,
   review: reviewRouter,
 
   // 其他
