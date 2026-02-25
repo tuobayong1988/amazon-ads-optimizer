@@ -55,8 +55,15 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend
+  Legend,
+  ComposedChart,
+  Line,
+  Bar,
+  BarChart,
+  ReferenceLine
 } from "recharts";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
 import { Link } from "wouter";
 import { getAllPosts } from "@/data/blogPosts";
 import { TimeRangeSelector, TimeRangeValue, getDefaultTimeRangeValue, TIME_RANGE_PRESETS, PresetTimeRange } from "@/components/TimeRangeSelector";
@@ -586,67 +593,66 @@ function MarketingPage() {
   );
 }
 
-// 仪表盘组件（登录后显示）
+// v233: 重新设计的运营作战指挥中心（登录后显示）
 function DashboardContent() {
   const { user } = useAuth();
-  const [timeRangeValue, setTimeRangeValue] = useState<TimeRangeValue>(getDefaultTimeRangeValue('today'));
+  // v233: 默认显示近7天而非"今天"，让数据有分析价值
+  const [timeRangeValue, setTimeRangeValue] = useState<TimeRangeValue>(getDefaultTimeRangeValue('7days'));
   const [isRefreshing, setIsRefreshing] = useState(false);
   
-  // 获取数据可用日期范围（用于限制自定义日期选择器）
+  // 获取数据可用日期范围
   const { data: dataDateRange } = trpc.adAccount.getDataDateRange.useQuery(
     undefined,
     { enabled: !!user }
   );
   
-  // 计算时间范围的天数和日期
   const days = timeRangeValue.days;
   const startDate = format(timeRangeValue.dateRange.from, 'yyyy-MM-dd');
   const endDate = format(timeRangeValue.dateRange.to, 'yyyy-MM-dd');
   const timeRange = timeRangeValue.preset === 'custom' ? 'custom' : timeRangeValue.preset;
   
-  // 获取账户列表及绩效数据（支持时间范围筛选）
+  // 获取账户列表及绩效数据
   const { data: accountsWithPerformance, refetch: refetchAccounts } = trpc.adAccount.listWithPerformance.useQuery(
     { timeRange: timeRange as any, days, startDate, endDate },
     { enabled: !!user }
   );
   
-  // 获取图表数据（真实数据）
+  // 获取图表趋势数据
   const { data: trendData } = trpc.adAccount.getDailyTrend.useQuery(
     { days, timeRange: timeRange as any, startDate, endDate },
     { enabled: !!user }
   );
   
-  // 图表数据：仅使用真实API数据，无数据时返回空数组
+  // v233: 获取纠错监控数据
+  const { data: correctionDashboard } = trpc.autoCorrection.getDashboard.useQuery(
+    undefined,
+    { enabled: !!user, refetchInterval: 60000 }
+  );
+  
+  // v233: 获取算法效果统计
+  const { data: algorithmStats } = trpc.algorithmEffect.getStats.useQuery(
+    { days: 30 },
+    { enabled: !!user }
+  );
+  
+  // 图表数据
   const chartData = useMemo(() => {
-    if (trendData && trendData.length > 0) {
-      return trendData;
-    }
+    if (trendData && trendData.length > 0) return trendData;
     return [];
   }, [trendData]);
   
-  // 使用真实账户数据，按市场优先级排序
+  // v233: 合并图表数据 - 花费/销售额柱状图 + ACoS折线图
+  const combinedChartData = useMemo(() => {
+    return chartData.map(d => ({
+      ...d,
+      profit: d.sales - d.spend,
+    }));
+  }, [chartData]);
+  
+  // 按ACoS从高到低排序（风险排行）
   const accountsData = useMemo(() => {
-    if (!accountsWithPerformance || accountsWithPerformance.length === 0) {
-      return [];
-    }
-    // 市场优先级排序：US > CA > MX > 其他
-    const marketplacePriority: Record<string, number> = {
-      'US': 1,
-      'CA': 2,
-      'MX': 3,
-      'UK': 4,
-      'DE': 5,
-      'FR': 6,
-      'IT': 7,
-      'ES': 8,
-      'JP': 9,
-      'AU': 10,
-    };
-    return [...accountsWithPerformance].sort((a, b) => {
-      const priorityA = marketplacePriority[a.marketplace] || 99;
-      const priorityB = marketplacePriority[b.marketplace] || 99;
-      return priorityA - priorityB;
-    });
+    if (!accountsWithPerformance || accountsWithPerformance.length === 0) return [];
+    return [...accountsWithPerformance].sort((a, b) => b.acos - a.acos);
   }, [accountsWithPerformance]);
   
   // 计算汇总数据
@@ -656,8 +662,8 @@ function DashboardContent() {
     const totalOrders = accountsData.reduce((sum, a) => sum + a.orders, 0);
     const avgAcos = totalSpend > 0 && totalSales > 0 ? (totalSpend / totalSales) * 100 : 0;
     const avgRoas = totalSpend > 0 ? totalSales / totalSpend : 0;
+    const profit = totalSales - totalSpend;
     
-    // 计算变化（基于各账户的变化加权平均）
     const spendChange = accountsData.length > 0 
       ? accountsData.reduce((sum, a) => sum + (a.change?.spend || 0) * a.spend, 0) / Math.max(totalSpend, 1)
       : 0;
@@ -667,30 +673,39 @@ function DashboardContent() {
     const acosChange = accountsData.length > 0
       ? accountsData.reduce((sum, a) => sum + (a.change?.acos || 0), 0) / accountsData.length
       : 0;
-    const roasChange = -acosChange; // ROAS变化与ACoS变化相反
+    const roasChange = -acosChange;
     
-    return {
-      totalSpend,
-      totalSales,
-      totalOrders,
-      avgAcos,
-      avgRoas,
-      spendChange,
-      salesChange,
-      acosChange,
-      roasChange
-    };
+    return { totalSpend, totalSales, totalOrders, avgAcos, avgRoas, profit, spendChange, salesChange, acosChange, roasChange };
   }, [accountsData]);
   
-  // 计算账户健康状态统计
+  // 账户健康统计
   const healthStats = useMemo(() => {
     const healthy = accountsData.filter(a => a.status === 'healthy').length;
     const warning = accountsData.filter(a => a.status === 'warning').length;
     const critical = accountsData.filter(a => a.status === 'critical').length;
-    return { healthy, warning, critical };
+    return { healthy, warning, critical, total: accountsData.length };
   }, [accountsData]);
   
-  // 刷新数据
+  // v233: 同步状态统计
+  const syncStats = useMemo(() => {
+    if (!correctionDashboard?.statusDistribution) return { synced: 0, pending: 0, failed: 0, total: 0 };
+    const dist = correctionDashboard.statusDistribution as any[];
+    const synced = dist.find((d: any) => d.api_sync_status === 'synced')?.count || 0;
+    const pending = dist.find((d: any) => d.api_sync_status === 'pending_sync')?.count || 0;
+    const failed = dist.find((d: any) => d.api_sync_status === 'failed')?.count || 0;
+    const total = dist.reduce((sum: number, d: any) => sum + Number(d.count), 0);
+    return { synced: Number(synced), pending: Number(pending), failed: Number(failed), total: Number(total) };
+  }, [correctionDashboard]);
+  
+  // v233: 算法使用统计
+  const algorithmSummary = useMemo(() => {
+    if (!algorithmStats || algorithmStats.length === 0) return { totalOps: 0, avgPositiveRate: 0, bestAlgorithm: '无数据', algorithms: [] };
+    const totalOps = algorithmStats.reduce((sum, a) => sum + a.count, 0);
+    const avgPositiveRate = algorithmStats.reduce((sum, a) => sum + a.positiveRate * a.count, 0) / Math.max(totalOps, 1);
+    const best = [...algorithmStats].sort((a, b) => b.positiveRate - a.positiveRate)[0];
+    return { totalOps, avgPositiveRate, bestAlgorithm: best?.algorithm || '无数据', algorithms: algorithmStats };
+  }, [algorithmStats]);
+  
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
@@ -703,7 +718,6 @@ function DashboardContent() {
     }
   };
   
-  // 获取状态颜色
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'healthy': return 'bg-green-500/20 border-green-500/50';
@@ -713,33 +727,20 @@ function DashboardContent() {
     }
   };
   
-  // 获取状态图标
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'healthy': return <CheckCircle2 className="w-4 h-4 text-green-500" />;
-      case 'warning': return <AlertTriangle className="w-4 h-4 text-yellow-500" />;
-      case 'critical': return <XCircle className="w-4 h-4 text-red-500" />;
-      default: return null;
-    }
+  const getAcosColor = (acos: number) => {
+    if (acos <= 30) return 'text-green-500';
+    if (acos <= 50) return 'text-yellow-500';
+    return 'text-red-500';
   };
   
-  // 格式化变化值
-  const formatChange = (value: number) => {
-    const prefix = value >= 0 ? '+' : '';
-    return `${prefix}${value.toFixed(1)}%`;
-  };
-  
-  // 获取变化颜色（对于ACoS，下降是好的）
-  const getChangeColor = (value: number, inverse: boolean = false) => {
-    if (inverse) {
-      return value <= 0 ? 'text-green-500' : 'text-red-500';
-    }
-    return value >= 0 ? 'text-green-500' : 'text-red-500';
+  const getAcosBgColor = (acos: number) => {
+    if (acos <= 30) return 'bg-green-500';
+    if (acos <= 50) return 'bg-yellow-500';
+    return 'bg-red-500';
   };
 
   const isMobile = useIsMobile();
 
-  // 下拉刷新处理函数
   const handlePullRefresh = async () => {
     await handleRefresh();
   };
@@ -753,11 +754,11 @@ function DashboardContent() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
-              <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
-              数据概览
+              <Activity className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
+              运营指挥中心
             </h1>
             <p className="text-muted-foreground text-sm mt-1">
-              多账户广告数据一览 · <span className="text-primary">数据截至 {endDate}</span> (最后同步: {formatInTimeZone(new Date(), 'America/Los_Angeles', 'MM/dd HH:mm')} PST)
+              {startDate} ~ {endDate} · 最后同步: {formatInTimeZone(new Date(), 'America/Los_Angeles', 'MM/dd HH:mm')} PST
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -778,7 +779,7 @@ function DashboardContent() {
           </div>
         </div>
         
-        {/* 汇总指标卡片 - 使用增强版组件 */}
+        {/* ===== 第一行：核心KPI指标卡片 ===== */}
         <div className={`grid gap-4 ${isMobile ? 'grid-cols-2' : 'grid-cols-2 md:grid-cols-3 lg:grid-cols-6'}`}>
           <EnhancedMetricCard
             title="总花费"
@@ -792,7 +793,6 @@ function DashboardContent() {
             gradientTo="blue-600"
             borderColor="blue-500"
           />
-          
           <EnhancedMetricCard
             title="总销售额"
             value={`$${summary.totalSales.toFixed(0)}`}
@@ -805,7 +805,6 @@ function DashboardContent() {
             gradientTo="green-600"
             borderColor="green-500"
           />
-          
           <EnhancedMetricCard
             title="平均ACoS"
             value={`${summary.avgAcos.toFixed(1)}%`}
@@ -817,7 +816,6 @@ function DashboardContent() {
             gradientTo="orange-600"
             borderColor="orange-500"
           />
-          
           <EnhancedMetricCard
             title="平均ROAS"
             value={summary.avgRoas.toFixed(2)}
@@ -827,14 +825,12 @@ function DashboardContent() {
             gradientTo="purple-600"
             borderColor="purple-500"
           />
-          
           <TacosMetricCard
             adSpend={summary.totalSpend}
             totalSales={summary.totalSales * 1.5}
             change={summary.acosChange * 0.7}
             isRealtime={true}
           />
-          
           <EnhancedMetricCard
             title="总订单"
             value={summary.totalOrders.toString()}
@@ -846,265 +842,304 @@ function DashboardContent() {
           />
         </div>
         
-        {/* 账户状态概览 */}
+        {/* ===== 第二行：核心趋势图（花费/销售额柱状 + ACoS折线 + 目标线） ===== */}
         <Card>
           <CardHeader className="pb-2">
-            <div className={`flex ${isMobile ? 'flex-col gap-2' : 'items-center justify-between'}`}>
-              <CardTitle className="text-lg">账户状态</CardTitle>
-              <div className={`flex items-center ${isMobile ? 'gap-3 text-xs' : 'gap-4 text-sm'}`}>
-                <span className="flex items-center gap-1">
-                  <CheckCircle2 className="w-4 h-4 text-green-500" />
-                  健康 {healthStats.healthy}
-                </span>
-                <span className="flex items-center gap-1">
-                  <AlertTriangle className="w-4 h-4 text-yellow-500" />
-                  警告 {healthStats.warning}
-                </span>
-                <span className="flex items-center gap-1">
-                  <XCircle className="w-4 h-4 text-red-500" />
-                  严重 {healthStats.critical}
-                </span>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-lg">花费 vs 销售额 vs ACoS 趋势</CardTitle>
+                <CardDescription>柱状图为花费与销售额，折线为ACoS走势，红色虚线为30%目标线</CardDescription>
+              </div>
+              <div className="flex items-center gap-3 text-xs">
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-blue-500 inline-block"></span> 花费</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm bg-green-500 inline-block"></span> 销售额</span>
+                <span className="flex items-center gap-1"><span className="w-3 h-1 bg-orange-500 inline-block rounded"></span> ACoS</span>
               </div>
             </div>
           </CardHeader>
           <CardContent>
-            <div className={`grid gap-4 ${isMobile ? 'grid-cols-1' : 'md:grid-cols-2 lg:grid-cols-3'}`}>
-              {accountsData.map((account) => (
-                <div 
-                  key={account.id}
-                  className={`p-4 rounded-lg border ${getStatusColor(account.status)}`}
-                >
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold">{account.name}</span>
-                      <Badge variant="outline" className="text-xs">{account.marketplace}</Badge>
-                    </div>
-                    {account.alerts > 0 && (
-                      <Badge variant="destructive" className="text-xs">
-                        {account.alerts} 警告
-                      </Badge>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-muted-foreground">花费</span>
-                      <div className="font-semibold">${account.spend.toFixed(0)}</div>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">销售额</span>
-                      <div className="font-semibold">${account.sales.toFixed(0)}</div>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">ACoS</span>
-                      <div className="font-semibold">{account.acos.toFixed(1)}%</div>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground">ROAS</span>
-                      <div className="font-semibold">{account.roas.toFixed(2)}</div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-        
-        {/* 趋势图表 */}
-        <div className={`grid gap-6 ${isMobile ? 'grid-cols-1' : 'lg:grid-cols-2'}`}>
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">花费与销售趋势</CardTitle>
-              <CardDescription>近{days}天数据</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className={isMobile ? 'h-[200px]' : 'h-[300px]'}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData}>
-                    <defs>
-                      <linearGradient id="colorSpend" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#22c55e" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                    <XAxis dataKey="date" stroke="#666" />
-                    <YAxis stroke="#666" />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: '#1a1a1a', 
-                        border: '1px solid #333',
-                        borderRadius: '8px'
-                      }}
-                    />
-                    <Legend />
-                    <Area 
-                      type="monotone" 
-                      dataKey="spend" 
-                      name="花费" 
-                      stroke="#3b82f6" 
-                      fillOpacity={1} 
-                      fill="url(#colorSpend)" 
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="sales" 
-                      name="销售额" 
-                      stroke="#22c55e" 
-                      fillOpacity={1} 
-                      fill="url(#colorSales)" 
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-lg">ACoS趋势</CardTitle>
-              <CardDescription>近{days}天数据</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className={isMobile ? 'h-[200px]' : 'h-[300px]'}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData}>
-                    <defs>
-                      <linearGradient id="colorAcos" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#f59e0b" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
-                    <XAxis dataKey="date" stroke="#666" />
-                    <YAxis stroke="#666" domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: '#1a1a1a', 
-                        border: '1px solid #333',
-                        borderRadius: '8px'
-                      }}
-                      formatter={((value: number) => [`${value.toFixed(1)}%`, 'ACoS']) as any}
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="acos" 
-                      name="ACoS" 
-                      stroke="#f59e0b" 
-                      fillOpacity={1} 
-                      fill="url(#colorAcos)" 
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-        
-        {/* 订单趋势 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">订单趋势</CardTitle>
-            <CardDescription>近{days}天数据</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[200px]">
+            <div className={isMobile ? 'h-[280px]' : 'h-[360px]'}>
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData}>
-                  <defs>
-                    <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
+                <ComposedChart data={combinedChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#333" />
                   <XAxis dataKey="date" stroke="#666" />
-                  <YAxis stroke="#666" />
+                  <YAxis yAxisId="left" stroke="#666" tickFormatter={(v) => `$${v}`} />
+                  <YAxis yAxisId="right" orientation="right" stroke="#f59e0b" tickFormatter={(v) => `${v}%`} domain={[0, 'auto']} />
                   <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: '#1a1a1a', 
-                      border: '1px solid #333',
-                      borderRadius: '8px'
+                    contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }}
+                    formatter={(value: number, name: string) => {
+                      if (name === 'ACoS') return [`${value.toFixed(1)}%`, name];
+                      return [`$${value.toFixed(0)}`, name];
                     }}
                   />
-                  <Area 
-                    type="monotone" 
-                    dataKey="orders" 
-                    name="订单数" 
-                    stroke="#06b6d4" 
-                    fillOpacity={1} 
-                    fill="url(#colorOrders)" 
-                  />
-                </AreaChart>
+                  <ReferenceLine yAxisId="right" y={30} stroke="#ef4444" strokeDasharray="5 5" label={{ value: '目标 30%', position: 'right', fill: '#ef4444', fontSize: 11 }} />
+                  <Bar yAxisId="left" dataKey="spend" name="花费" fill="#3b82f6" fillOpacity={0.8} radius={[2, 2, 0, 0]} />
+                  <Bar yAxisId="left" dataKey="sales" name="销售额" fill="#22c55e" fillOpacity={0.8} radius={[2, 2, 0, 0]} />
+                  <Line yAxisId="right" type="monotone" dataKey="acos" name="ACoS" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 3, fill: '#f59e0b' }} />
+                </ComposedChart>
               </ResponsiveContainer>
             </div>
           </CardContent>
         </Card>
         
-        {/* 快捷操作 */}
-        <div className="grid md:grid-cols-4 gap-4">
-          <Link href="/strategy-center">
-            <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Brain className="w-5 h-5 text-primary" />
+        {/* ===== 第三行：账户风险排行 + 系统运行状态 ===== */}
+        <div className={`grid gap-6 ${isMobile ? 'grid-cols-1' : 'lg:grid-cols-5'}`}>
+          {/* 左侧：账户风险排行（3列宽） */}
+          <Card className={isMobile ? '' : 'lg:col-span-3'}>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-orange-500" />
+                  账户风险排行
+                </CardTitle>
+                <div className="flex items-center gap-3 text-xs">
+                  <span className="flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                    健康 {healthStats.healthy}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <AlertTriangle className="w-3.5 h-3.5 text-yellow-500" />
+                    警告 {healthStats.warning}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <XCircle className="w-3.5 h-3.5 text-red-500" />
+                    严重 {healthStats.critical}
+                  </span>
                 </div>
-                <div>
-                  <div className="font-semibold">策略管理</div>
-                  <div className="text-sm text-muted-foreground">管理优化目标</div>
-                </div>
-                <ArrowRight className="w-4 h-4 ml-auto text-muted-foreground" />
-              </CardContent>
-            </Card>
-          </Link>
+              </div>
+              <CardDescription>按ACoS从高到低排列，快速定位需要关注的账户</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {accountsData.map((account, index) => (
+                  <div 
+                    key={account.id}
+                    className={`p-3 rounded-lg border ${getStatusColor(account.status)} flex items-center gap-4`}
+                  >
+                    {/* 排名 */}
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold ${account.status === 'critical' ? 'bg-red-500/30 text-red-400' : account.status === 'warning' ? 'bg-yellow-500/30 text-yellow-400' : 'bg-green-500/30 text-green-400'}`}>
+                      {index + 1}
+                    </div>
+                    {/* 账户名称和市场 */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold truncate">{account.name}</span>
+                        <Badge variant="outline" className="text-xs shrink-0">{account.marketplace}</Badge>
+                        {account.status === 'critical' && <Badge variant="destructive" className="text-xs shrink-0">需关注</Badge>}
+                      </div>
+                      <div className="text-xs text-muted-foreground mt-0.5">
+                        花费 ${account.spend.toFixed(0)} · 销售 ${account.sales.toFixed(0)} · {account.orders}单
+                      </div>
+                    </div>
+                    {/* ACoS指标 - 突出显示 */}
+                    <div className="text-right shrink-0">
+                      <div className={`text-lg font-bold ${getAcosColor(account.acos)}`}>
+                        {account.acos.toFixed(1)}%
+                      </div>
+                      <div className="text-xs text-muted-foreground">ACoS</div>
+                    </div>
+                    {/* ACoS进度条 */}
+                    <div className="w-20 shrink-0 hidden sm:block">
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full transition-all ${getAcosBgColor(account.acos)}`}
+                          style={{ width: `${Math.min(account.acos / 100 * 100, 100)}%` }}
+                        />
+                      </div>
+                      <div className="text-xs text-muted-foreground text-center mt-0.5">ROAS {account.roas.toFixed(2)}</div>
+                    </div>
+                  </div>
+                ))}
+                {accountsData.length === 0 && (
+                  <div className="text-center text-muted-foreground py-8">暂无账户数据</div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
           
-          <Link href="/auto-correction">
-            <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center">
-                  <Target className="w-5 h-5 text-green-500" />
+          {/* 右侧：系统运行状态（2列宽） */}
+          <div className={`space-y-6 ${isMobile ? '' : 'lg:col-span-2'}`}>
+            {/* 同步健康度 */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <RefreshCw className="w-4 h-4 text-blue-500" />
+                  同步健康度
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">已同步</span>
+                  <span className="font-semibold text-green-500">{syncStats.synced.toLocaleString()}</span>
                 </div>
-                <div>
-                  <div className="font-semibold">纠错监控</div>
-                  <div className="text-sm text-muted-foreground">查看优化状态</div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">待同步</span>
+                  <span className={`font-semibold ${syncStats.pending > 0 ? 'text-yellow-500' : 'text-muted-foreground'}`}>{syncStats.pending.toLocaleString()}</span>
                 </div>
-                <ArrowRight className="w-4 h-4 ml-auto text-muted-foreground" />
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">同步失败</span>
+                  <span className={`font-semibold ${syncStats.failed > 0 ? 'text-red-500' : 'text-muted-foreground'}`}>{syncStats.failed.toLocaleString()}</span>
+                </div>
+                {syncStats.total > 0 && (
+                  <div>
+                    <div className="flex items-center justify-between text-xs mb-1">
+                      <span className="text-muted-foreground">同步成功率</span>
+                      <span className="font-semibold">{((syncStats.synced / syncStats.total) * 100).toFixed(1)}%</span>
+                    </div>
+                    <Progress value={(syncStats.synced / syncStats.total) * 100} className="h-2" />
+                  </div>
+                )}
+                {correctionDashboard?.lastScan && (
+                  <div className="pt-2 border-t border-border/50">
+                    <div className="text-xs text-muted-foreground">最近扫描</div>
+                    <div className="text-xs mt-1">
+                      发现 <span className="text-yellow-500 font-semibold">{correctionDashboard.lastScan.totalIssuesFound}</span> 个问题，
+                      已纠正 <span className="text-green-500 font-semibold">{correctionDashboard.lastScan.totalCorrected}</span> 个
+                    </div>
+                  </div>
+                )}
+                <Link href="/auto-correction">
+                  <div className="text-xs text-primary hover:underline cursor-pointer flex items-center gap-1 pt-1">
+                    查看纠错监控详情 <ArrowRight className="w-3 h-3" />
+                  </div>
+                </Link>
               </CardContent>
             </Card>
-          </Link>
+            
+            {/* 算法效果概览 */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Brain className="w-4 h-4 text-purple-500" />
+                  算法效果概览
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">30天优化操作</span>
+                  <span className="font-semibold">{algorithmSummary.totalOps.toLocaleString()} 次</span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">平均正向率</span>
+                  <span className={`font-semibold ${algorithmSummary.avgPositiveRate >= 50 ? 'text-green-500' : 'text-yellow-500'}`}>
+                    {algorithmSummary.avgPositiveRate.toFixed(1)}%
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">最优算法</span>
+                  <Badge variant="outline" className="text-xs">{algorithmSummary.bestAlgorithm}</Badge>
+                </div>
+                {algorithmSummary.algorithms.length > 0 && (
+                  <div className="pt-2 border-t border-border/50 space-y-2">
+                    <div className="text-xs text-muted-foreground">各算法表现</div>
+                    {algorithmSummary.algorithms.map((alg) => (
+                      <div key={alg.algorithm} className="flex items-center gap-2">
+                        <span className="text-xs w-24 truncate" title={alg.algorithm}>{alg.algorithm}</span>
+                        <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full rounded-full ${alg.positiveRate >= 60 ? 'bg-green-500' : alg.positiveRate >= 40 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                            style={{ width: `${alg.positiveRate}%` }}
+                          />
+                        </div>
+                        <span className="text-xs w-10 text-right">{alg.positiveRate}%</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <Link href="/strategy-center">
+                  <div className="text-xs text-primary hover:underline cursor-pointer flex items-center gap-1 pt-1">
+                    查看策略管理详情 <ArrowRight className="w-3 h-3" />
+                  </div>
+                </Link>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+        
+        {/* ===== 第四行：订单趋势 + 快捷操作 ===== */}
+        <div className={`grid gap-6 ${isMobile ? 'grid-cols-1' : 'lg:grid-cols-2'}`}>
+          {/* 订单趋势 */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">订单趋势</CardTitle>
+              <CardDescription>近{days}天每日订单量</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="h-[200px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={chartData}>
+                    <defs>
+                      <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                    <XAxis dataKey="date" stroke="#666" />
+                    <YAxis stroke="#666" />
+                    <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px' }} />
+                    <Area type="monotone" dataKey="orders" name="订单数" stroke="#06b6d4" fillOpacity={1} fill="url(#colorOrders)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
           
-          <Link href="/campaigns">
-            <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
-                  <BarChart3 className="w-5 h-5 text-blue-500" />
-                </div>
-                <div>
-                  <div className="font-semibold">广告活动</div>
-                  <div className="text-sm text-muted-foreground">管理广告活动</div>
-                </div>
-                <ArrowRight className="w-4 h-4 ml-auto text-muted-foreground" />
-              </CardContent>
-            </Card>
-          </Link>
-          
-          <Link href="/amazon-api">
-            <Card className="hover:border-primary/50 transition-colors cursor-pointer h-full">
-              <CardContent className="p-4 flex items-center gap-4">
-                <div className="w-10 h-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-purple-500" />
-                </div>
-                <div>
-                  <div className="font-semibold">Amazon API</div>
-                  <div className="text-sm text-muted-foreground">管理API连接</div>
-                </div>
-                <ArrowRight className="w-4 h-4 ml-auto text-muted-foreground" />
-              </CardContent>
-            </Card>
-          </Link>
+          {/* 快捷操作 */}
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">快捷操作</CardTitle>
+              <CardDescription>常用功能入口</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-3">
+                <Link href="/strategy-center">
+                  <div className="p-3 rounded-lg border border-border/50 hover:border-primary/50 transition-colors cursor-pointer flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <Brain className="w-4 h-4 text-primary" />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-sm">策略管理</div>
+                      <div className="text-xs text-muted-foreground">管理优化目标</div>
+                    </div>
+                  </div>
+                </Link>
+                <Link href="/auto-correction">
+                  <div className="p-3 rounded-lg border border-border/50 hover:border-primary/50 transition-colors cursor-pointer flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-green-500/10 flex items-center justify-center">
+                      <Target className="w-4 h-4 text-green-500" />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-sm">纠错监控</div>
+                      <div className="text-xs text-muted-foreground">查看优化状态</div>
+                    </div>
+                  </div>
+                </Link>
+                <Link href="/campaigns">
+                  <div className="p-3 rounded-lg border border-border/50 hover:border-primary/50 transition-colors cursor-pointer flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-blue-500/10 flex items-center justify-center">
+                      <BarChart3 className="w-4 h-4 text-blue-500" />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-sm">广告活动</div>
+                      <div className="text-xs text-muted-foreground">管理广告活动</div>
+                    </div>
+                  </div>
+                </Link>
+                <Link href="/amazon-api">
+                  <div className="p-3 rounded-lg border border-border/50 hover:border-primary/50 transition-colors cursor-pointer flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center">
+                      <FileText className="w-4 h-4 text-purple-500" />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-sm">Amazon API</div>
+                      <div className="text-xs text-muted-foreground">管理API连接</div>
+                    </div>
+                  </div>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
       </PullToRefresh>
